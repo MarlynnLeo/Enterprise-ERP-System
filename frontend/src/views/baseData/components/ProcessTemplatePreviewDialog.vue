@@ -67,7 +67,7 @@
 <script setup>
 import { defineAsyncComponent, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { api } from '@/services/axiosInstance'
+import { commonApi } from '@/api'
 import '@vue-office/docx/lib/index.css'
 import '@vue-office/excel/lib/index.css'
 
@@ -117,7 +117,7 @@ const handleDocError = (error) => {
 // 下载文件
 const handleDownload = async () => {
   try {
-    const response = await api.get(fileUrl.value, { responseType: 'blob' })
+    const response = await commonApi.downloadResource(fileUrl.value)
     const blob = new Blob([response.data])
     const url = window.URL.createObjectURL(blob)
     const link = document.createElement('a')

@@ -163,7 +163,7 @@ import { formatLocalDate } from '@/utils/format';
 
 import { ref, computed, reactive, watch } from 'vue';
 import { ElMessage } from 'element-plus';
-import { api } from '@/services/api';
+import { purchaseApi } from '@/api/purchase';
 import { ensureValidId } from '@/utils/helpers/dataUtils'
 import { loadLocationOptions } from '@/utils/optionLoaders';
 
@@ -292,7 +292,7 @@ const loadProcessingDetail = async () => {
   if (!props.processingId) return;
 
   try {
-    const response = await api.get(`/purchase/outsourced-processings/${props.processingId}`);
+    const response = await purchaseApi.outsourcedProcessing.getDetail(props.processingId);
     // 拦截器已解包，response.data 就是业务数据
     const data = response.data;
 
@@ -326,7 +326,7 @@ const loadReceiptDetail = async () => {
   if (!props.receiptId) return;
 
   try {
-    const response = await api.get(`/purchase/outsourced-receipts/${props.receiptId}`);
+    const response = await purchaseApi.outsourcedReceipts.getDetail(props.receiptId);
     // 拦截器已解包，response.data 就是业务数据
     const data = response.data;
 
@@ -373,7 +373,7 @@ const handleSubmit = async () => {
       let response;
 
       if (props.mode === 'create') {
-        response = await api.post('/purchase/outsourced-receipts', receiptForm);
+        response = await purchaseApi.outsourcedReceipts.create(receiptForm);
         ElMessage.success('创建外委加工入库单成功');
 
         // 拦截器已解包，response.data 就是业务数据
@@ -385,7 +385,7 @@ const handleSubmit = async () => {
           }
         }));
       } else if (props.mode === 'edit') {
-        response = await api.put(`/purchase/outsourced-receipts/${props.receiptId}`, receiptForm);
+        response = await purchaseApi.outsourcedReceipts.update(props.receiptId, receiptForm);
         ElMessage.success('更新外委加工入库单成功');
       }
 

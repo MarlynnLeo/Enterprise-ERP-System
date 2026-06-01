@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * ProductionDashboard.vue
  * @description 前端界面组件文件
@@ -154,9 +154,6 @@
             <div class="card-header-with-search">
               <span>待处理生产任务</span>
               <div class="header-actions">
-                <el-button type="primary" size="small" icon="Refresh" @click="fetchPendingPlans" :loading="loading">
-                  刷新
-                </el-button>
                 <el-input
                   v-model="search"
                   placeholder="搜索"

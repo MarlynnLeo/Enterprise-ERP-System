@@ -253,6 +253,8 @@ onMounted(() => {
   // 加载部门列表
   loadDepartmentOptions().then(list => {
     departmentList.value = list
-  }).catch(() => {})
+  }).catch((error) => {
+    console.error('加载部门列表失败:', error)
+  })
 })
 </script>

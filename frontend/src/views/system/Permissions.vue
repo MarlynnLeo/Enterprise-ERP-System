@@ -1,7 +1,7 @@
-ï»¿<!--
+<!--
 /**
  * Permissions.vue
- * @description å‰ç«¯ç•Œé¢ç»„ä»¶æ–‡ä»¶
+ * @description Ç°¶Ë½çÃæ×é¼şÎÄ¼ş
   * @date 2025-08-27
  * @version 1.0.0
  */
@@ -11,55 +11,55 @@
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
-          <h2>æƒé™ç®¡ç†</h2>
-          <p class="subtitle">ç®¡ç†è§’è‰²ä¸èœå•æƒé™</p>
+          <h2>È¨ÏŞ¹ÜÀí</h2>
+          <p class="subtitle">¹ÜÀí½ÇÉ«Óë²Ëµ¥È¨ÏŞ</p>
         </div>
       </div>
     </el-card>
-    <!-- è¡¨æ ¼åŒºåŸŸ -->
+    <!-- ±í¸ñÇøÓò -->
     <el-card class="data-card">
       <template #header>
         <div class="card-header">
-          <span>æƒé™ç®¡ç†</span>
+          <span>È¨ÏŞ¹ÜÀí</span>
           <el-radio-group v-model="activeTab" size="small">
-            <el-radio-button value="roles">è§’è‰²ç®¡ç†</el-radio-button>
-            <el-radio-button value="menus">èœå•æƒé™</el-radio-button>
+            <el-radio-button value="roles">½ÇÉ«¹ÜÀí</el-radio-button>
+            <el-radio-button value="menus">²Ëµ¥È¨ÏŞ</el-radio-button>
           </el-radio-group>
         </div>
       </template>
-      <!-- è§’è‰²ç®¡ç† -->
+      <!-- ½ÇÉ«¹ÜÀí -->
       <div v-if="activeTab === 'roles'">
         <div class="role-header">
-          <h3>ç³»ç»Ÿè§’è‰²</h3>
+          <h3>ÏµÍ³½ÇÉ«</h3>
           <el-button
             type="primary"
             v-permission="'system:permissions:manage'"
             @click="showAddRoleDialog"
-            >æ–°å¢è§’è‰²</el-button
+            >ĞÂÔö½ÇÉ«</el-button
           >
         </div>
 
         <el-table :data="roleList" style="width: 100%" border v-loading="roleLoading">
           <template #empty>
-            <el-empty description="æš‚æ— è§’è‰²æ•°æ®" />
+            <el-empty description="ÔİÎŞ½ÇÉ«Êı¾İ" />
           </template>
-          <el-table-column prop="name" label="è§’è‰²åç§°" width="180"></el-table-column>
-          <el-table-column prop="code" label="è§’è‰²ç¼–ç " width="280"></el-table-column>
-          <el-table-column prop="description" label="è§’è‰²æè¿°" min-width="400"></el-table-column>
-          <el-table-column label="çŠ¶æ€" width="100">
+          <el-table-column prop="name" label="½ÇÉ«Ãû³Æ" width="180"></el-table-column>
+          <el-table-column prop="code" label="½ÇÉ«±àÂë" width="280"></el-table-column>
+          <el-table-column prop="description" label="½ÇÉ«ÃèÊö" min-width="400"></el-table-column>
+          <el-table-column label="×´Ì¬" width="100">
             <template #default="scope">
               <el-tag :type="String(scope.row.status) === '1' ? 'success' : 'danger'">
-                {{ String(scope.row.status) === '1' ? 'å¯ç”¨' : 'ç¦ç”¨' }}
+                {{ String(scope.row.status) === '1' ? 'ÆôÓÃ' : '½ûÓÃ' }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="createTime" label="åˆ›å»ºæ—¶é—´" width="180"></el-table-column>
-          <el-table-column label="æ“ä½œ" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+          <el-table-column prop="createTime" label="´´½¨Ê±¼ä" width="180"></el-table-column>
+          <el-table-column label="²Ù×÷" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="scope">
               <div style="display: flex; gap: 5px; flex-wrap: wrap">
                 <el-popconfirm
                   v-if="String(scope.row.status) !== '1'"
-                  title="ç¡®å®šè¦å¯ç”¨è¯¥è§’è‰²å—ï¼Ÿ"
+                  title="È·¶¨ÒªÆôÓÃ¸Ã½ÇÉ«Âğ£¿"
                   @confirm="handleToggleRoleStatus(scope.row)"
                 >
                   <template #reference>
@@ -68,13 +68,13 @@
                       type="success"
                       v-permission="'system:permissions:manage'"
                     >
-                      <el-icon><Check /></el-icon> å¯ç”¨
+                      <el-icon><Check /></el-icon> ÆôÓÃ
                     </el-button>
                   </template>
                 </el-popconfirm>
                 <el-popconfirm
                   v-if="String(scope.row.status) === '1'"
-                  title="ç¡®å®šè¦ç¦ç”¨è¯¥è§’è‰²å—ï¼Ÿ"
+                  title="È·¶¨Òª½ûÓÃ¸Ã½ÇÉ«Âğ£¿"
                   @confirm="handleToggleRoleStatus(scope.row)"
                   confirm-button-type="danger"
                 >
@@ -84,7 +84,7 @@
                       type="warning"
                       v-permission="'system:permissions:manage'"
                     >
-                      <el-icon><Close /></el-icon> ç¦ç”¨
+                      <el-icon><Close /></el-icon> ½ûÓÃ
                     </el-button>
                   </template>
                 </el-popconfirm>
@@ -93,7 +93,7 @@
                   type="primary"
                   size="small"
                   @click="handleViewRole(scope.row)"
-                  ><el-icon><View /></el-icon> æŸ¥çœ‹</el-button
+                  ><el-icon><View /></el-icon> ²é¿´</el-button
                 >
                 <el-button
                   v-if="String(scope.row.status) !== '1'"
@@ -101,7 +101,7 @@
                   size="small"
                   v-permission="'system:permissions:manage'"
                   @click="handleEditRole(scope.row)"
-                  ><el-icon><Edit /></el-icon> ç¼–è¾‘</el-button
+                  ><el-icon><Edit /></el-icon> ±à¼­</el-button
                 >
                 <el-button
                   type="info"
@@ -109,13 +109,13 @@
                   v-permission="'system:permissions:manage'"
                   @click="handleRolePermission(scope.row)"
                 >
-                  <el-icon><Setting /></el-icon> åˆ†é…æƒé™
+                  <el-icon><Setting /></el-icon> ·ÖÅäÈ¨ÏŞ
                 </el-button>
               </div>
             </template>
           </el-table-column>
         </el-table>
-        <!-- è§’è‰²åˆ†é¡µ -->
+        <!-- ½ÇÉ«·ÖÒ³ -->
         <div
           class="pagination-container"
           style="display: flex; justify-content: flex-end; margin-top: 20px"
@@ -132,22 +132,22 @@
           </el-pagination>
         </div>
       </div>
-      <!-- èœå•æƒé™ -->
+      <!-- ²Ëµ¥È¨ÏŞ -->
       <div v-if="activeTab === 'menus'">
         <div class="menu-header">
-          <h3>èœå•æƒé™</h3>
+          <h3>²Ëµ¥È¨ÏŞ</h3>
           <div>
             <el-button
               type="primary"
               v-permission="'system:permissions:manage'"
               @click="showAddMenuDialog"
-              >æ–°å¢èœå•</el-button
+              >ĞÂÔö²Ëµ¥</el-button
             >
             <el-button
               type="success"
               v-permission="'system:permissions:manage'"
               @click="importMenuData"
-              >å¯¼å…¥å®Œæ•´èœå•</el-button
+              >µ¼ÈëÍêÕû²Ëµ¥</el-button
             >
           </div>
         </div>
@@ -162,9 +162,9 @@
           :default-sort="{ prop: 'sort', order: 'ascending' }"
         >
           <template #empty>
-            <el-empty description="æš‚æ— èœå•æ•°æ®" />
+            <el-empty description="ÔİÎŞ²Ëµ¥Êı¾İ" />
           </template>
-          <el-table-column prop="name" label="èœå•åç§°" width="190">
+          <el-table-column prop="name" label="²Ëµ¥Ãû³Æ" width="190">
             <template #default="scope">
               <span v-if="scope.row.icon" class="menu-icon">
                 <i :class="scope.row.icon"></i>
@@ -173,14 +173,14 @@
               <menu-type-tag :type="scope.row.type" />
             </template>
           </el-table-column>
-          <el-table-column prop="path" label="è·¯ç”±è·¯å¾„" width="280"></el-table-column>
-          <el-table-column label="èœå•ç±»å‹" width="120">
+          <el-table-column prop="path" label="Â·ÓÉÂ·¾¶" width="280"></el-table-column>
+          <el-table-column label="²Ëµ¥ÀàĞÍ" width="120">
             <template #default="scope">
               <menu-type-tag :type="scope.row.type" />
             </template>
           </el-table-column>
-          <el-table-column prop="permission" label="æƒé™æ ‡è¯†" width="300"></el-table-column>
-          <el-table-column prop="icon" label="å›¾æ ‡" width="100">
+          <el-table-column prop="permission" label="È¨ÏŞ±êÊ¶" width="300"></el-table-column>
+          <el-table-column prop="icon" label="Í¼±ê" width="100">
             <template #default="scope">
               <el-icon v-if="scope.row.icon">
                 <component :is="scope.row.icon" />
@@ -188,20 +188,20 @@
               <span v-else>-</span>
             </template>
           </el-table-column>
-          <el-table-column prop="sort" label="æ’åº" width="80"></el-table-column>
-          <el-table-column label="çŠ¶æ€" width="100">
+          <el-table-column prop="sort" label="ÅÅĞò" width="80"></el-table-column>
+          <el-table-column label="×´Ì¬" width="100">
             <template #default="scope">
               <el-tag :type="String(scope.row.status) === '1' ? 'success' : 'danger'">
-                {{ String(scope.row.status) === '1' ? 'æ˜¾ç¤º' : 'éšè—' }}
+                {{ String(scope.row.status) === '1' ? 'ÏÔÊ¾' : 'Òş²Ø' }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="æ“ä½œ" min-width="400" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+          <el-table-column label="²Ù×÷" min-width="400" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="scope">
               <div style="display: flex; gap: 5px; flex-wrap: wrap">
                 <el-popconfirm
                   v-if="String(scope.row.status) !== '1'"
-                  title="ç¡®å®šè¦æ˜¾ç¤ºè¯¥èœå•å—ï¼Ÿ"
+                  title="È·¶¨ÒªÏÔÊ¾¸Ã²Ëµ¥Âğ£¿"
                   @confirm="handleToggleMenuStatus(scope.row)"
                 >
                   <template #reference>
@@ -210,13 +210,13 @@
                       type="success"
                       v-permission="'system:permissions:manage'"
                     >
-                      <el-icon><Check /></el-icon> æ˜¾ç¤º
+                      <el-icon><Check /></el-icon> ÏÔÊ¾
                     </el-button>
                   </template>
                 </el-popconfirm>
                 <el-popconfirm
                   v-if="String(scope.row.status) === '1'"
-                  title="ç¡®å®šè¦éšè—è¯¥èœå•å—ï¼Ÿ"
+                  title="È·¶¨ÒªÒş²Ø¸Ã²Ëµ¥Âğ£¿"
                   @confirm="handleToggleMenuStatus(scope.row)"
                   confirm-button-type="danger"
                 >
@@ -226,7 +226,7 @@
                       type="warning"
                       v-permission="'system:permissions:manage'"
                     >
-                      <el-icon><Close /></el-icon> éšè—
+                      <el-icon><Close /></el-icon> Òş²Ø
                     </el-button>
                   </template>
                 </el-popconfirm>
@@ -235,7 +235,7 @@
                   type="primary"
                   size="small"
                   @click="handleViewMenu(scope.row)"
-                  ><el-icon><View /></el-icon> æŸ¥çœ‹</el-button
+                  ><el-icon><View /></el-icon> ²é¿´</el-button
                 >
                 <el-button
                   v-if="String(scope.row.status) !== '1'"
@@ -243,7 +243,7 @@
                   size="small"
                   v-permission="'system:permissions:manage'"
                   @click="handleEditMenu(scope.row)"
-                  ><el-icon><Edit /></el-icon> ç¼–è¾‘</el-button
+                  ><el-icon><Edit /></el-icon> ±à¼­</el-button
                 >
                 <el-button
                   type="success"
@@ -251,11 +251,11 @@
                   v-permission="'system:permissions:manage'"
                   @click="handleAddChildMenu(scope.row)"
                   v-if="scope.row.type < 2"
-                  >æ·»åŠ å­èœå•</el-button
+                  >Ìí¼Ó×Ó²Ëµ¥</el-button
                 >
                 <el-popconfirm
                   v-if="String(scope.row.status) !== '1'"
-                  title="ç¡®å®šè¦åˆ é™¤è¯¥èœå•å—ï¼Ÿæ­¤æ“ä½œæ— æ³•æ¢å¤ã€‚"
+                  title="È·¶¨ÒªÉ¾³ı¸Ã²Ëµ¥Âğ£¿´Ë²Ù×÷ÎŞ·¨»Ö¸´¡£"
                   @confirm="handleDeleteMenu(scope.row)"
                   confirm-button-type="danger"
                 >
@@ -265,7 +265,7 @@
                       type="danger"
                       v-permission="'system:permissions:manage'"
                     >
-                      <el-icon><Delete /></el-icon> åˆ é™¤
+                      <el-icon><Delete /></el-icon> É¾³ı
                     </el-button>
                   </template>
                 </el-popconfirm>
@@ -276,48 +276,48 @@
       </div>
     </el-card>
 
-    <!-- è§’è‰²æ·»åŠ /ç¼–è¾‘/æŸ¥çœ‹å¯¹è¯æ¡† -->
+    <!-- ½ÇÉ«Ìí¼Ó/±à¼­/²é¿´¶Ô»°¿ò -->
     <el-dialog :title="roleDialogTitle" v-model="roleDialogVisible" width="600px">
       <template v-if="roleIsViewMode">
         <el-descriptions :column="1" border style="margin-bottom: 20px">
-          <el-descriptions-item label="è§’è‰²åç§°">{{ roleForm.name || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="è§’è‰²ç¼–ç ">{{ roleForm.code || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="çŠ¶æ€">
+          <el-descriptions-item label="½ÇÉ«Ãû³Æ">{{ roleForm.name || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="½ÇÉ«±àÂë">{{ roleForm.code || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="×´Ì¬">
             <el-tag :type="Number(roleForm.status) === 1 ? 'success' : 'danger'">
-              {{ Number(roleForm.status) === 1 ? 'å¯ç”¨' : 'ç¦ç”¨' }}
+              {{ Number(roleForm.status) === 1 ? 'ÆôÓÃ' : '½ûÓÃ' }}
             </el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="è§’è‰²æè¿°">{{
+          <el-descriptions-item label="½ÇÉ«ÃèÊö">{{
             roleForm.description || '-'
           }}</el-descriptions-item>
         </el-descriptions>
       </template>
       <el-form v-else :model="roleForm" :rules="roleRules" ref="roleFormRef" label-width="100px">
-        <el-form-item label="è§’è‰²åç§°" prop="name">
-          <el-input v-model="roleForm.name" placeholder="è¯·è¾“å…¥è§’è‰²åç§°"></el-input>
+        <el-form-item label="½ÇÉ«Ãû³Æ" prop="name">
+          <el-input v-model="roleForm.name" placeholder="ÇëÊäÈë½ÇÉ«Ãû³Æ"></el-input>
         </el-form-item>
-        <el-form-item label="è§’è‰²ç¼–ç " prop="code">
-          <el-input v-model="roleForm.code" placeholder="è¯·è¾“å…¥è§’è‰²ç¼–ç "></el-input>
+        <el-form-item label="½ÇÉ«±àÂë" prop="code">
+          <el-input v-model="roleForm.code" placeholder="ÇëÊäÈë½ÇÉ«±àÂë"></el-input>
         </el-form-item>
-        <el-form-item label="è§’è‰²æè¿°" prop="description">
+        <el-form-item label="½ÇÉ«ÃèÊö" prop="description">
           <el-input
             v-model="roleForm.description"
             type="textarea"
             :rows="3"
-            placeholder="è¯·è¾“å…¥è§’è‰²æè¿°"
+            placeholder="ÇëÊäÈë½ÇÉ«ÃèÊö"
           ></el-input>
         </el-form-item>
-        <el-form-item label="çŠ¶æ€" prop="status">
+        <el-form-item label="×´Ì¬" prop="status">
           <el-radio-group v-model="roleForm.status">
-            <el-radio :value="1">å¯ç”¨</el-radio>
-            <el-radio :value="0">ç¦ç”¨</el-radio>
+            <el-radio :value="1">ÆôÓÃ</el-radio>
+            <el-radio :value="0">½ûÓÃ</el-radio>
           </el-radio-group>
         </el-form-item>
       </el-form>
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="roleDialogVisible = false">{{
-            roleIsViewMode ? 'å…³é—­' : 'å–æ¶ˆ'
+            roleIsViewMode ? '¹Ø±Õ' : 'È¡Ïû'
           }}</el-button>
           <el-button
             v-if="!roleIsViewMode"
@@ -325,33 +325,33 @@
             type="primary"
             @click="saveRole"
             :loading="roleSaveLoading"
-            >ç¡®è®¤</el-button
+            >È·ÈÏ</el-button
           >
         </span>
       </template>
     </el-dialog>
-    <!-- åˆ†é…æƒé™å¯¹è¯æ¡† -->
+    <!-- ·ÖÅäÈ¨ÏŞ¶Ô»°¿ò -->
     <el-dialog
-      title="åˆ†é…æƒé™"
+      title="·ÖÅäÈ¨ÏŞ"
       v-model="permissionDialogVisible"
       width="960px"
       top="5vh"
       destroy-on-close
       @opened="onPermissionDialogOpened"
     >
-      <!-- é¡¶æ ï¼šè§’è‰² + æœç´¢ + ç»Ÿè®¡ -->
+      <!-- ¶¥À¸£º½ÇÉ« + ËÑË÷ + Í³¼Æ -->
       <div class="perm-toolbar">
         <div class="perm-toolbar-left">
           <span class="perm-role-label"
-            >å½“å‰è§’è‰²ï¼š<strong>{{ currentRole?.name || 'æœªé€‰æ‹©' }}</strong></span
+            >µ±Ç°½ÇÉ«£º<strong>{{ currentRole?.name || 'Î´Ñ¡Ôñ' }}</strong></span
           >
           <el-tag type="info" size="small" effect="plain" round>
-            å·²é€‰ <strong>{{ permSelectedCount }}</strong> é¡¹
+            ÒÑÑ¡ <strong>{{ permSelectedCount }}</strong> Ïî
           </el-tag>
         </div>
         <el-input
           v-model="permSearchKeyword"
-          placeholder="æœç´¢æƒé™åç§°æˆ–ç¼–ç ..."
+          placeholder="ËÑË÷È¨ÏŞÃû³Æ»ò±àÂë..."
           clearable
           style="width: 260px"
           size="small"
@@ -361,19 +361,19 @@
           ></template>
         </el-input>
       </div>
-      <!-- æ“ä½œæ  -->
+      <!-- ²Ù×÷À¸ -->
       <div class="perm-actions">
         <div class="perm-actions-left">
-          <el-button type="primary" size="small" @click="expandAll">å…¨éƒ¨å±•å¼€</el-button>
-          <el-button type="info" size="small" @click="collapseAll">å…¨éƒ¨æŠ˜å </el-button>
+          <el-button type="primary" size="small" @click="expandAll">È«²¿Õ¹¿ª</el-button>
+          <el-button type="info" size="small" @click="collapseAll">È«²¿ÕÛµş</el-button>
           <el-button type="warning" size="small" @click="refreshMenuTree">
-            <el-icon><Refresh /></el-icon> åˆ·æ–°
+            <el-icon><Refresh /></el-icon> Ë¢ĞÂ
           </el-button>
         </div>
         <div class="perm-actions-right">
           <el-popover placement="bottom-end" :width="280" trigger="click">
             <template #reference>
-              <el-button size="small">æ¨¡å—å¿«æ·æ“ä½œ</el-button>
+              <el-button size="small">Ä£¿é¿ì½İ²Ù×÷</el-button>
             </template>
             <div class="module-quick-list">
               <div v-for="mod in topModules" :key="mod.id" class="module-quick-item">
@@ -392,7 +392,7 @@
           </el-popover>
         </div>
       </div>
-      <!-- æƒé™æ ‘ -->
+      <!-- È¨ÏŞÊ÷ -->
       <div class="perm-tree-container" v-if="hasValidMenuTree">
         <div v-if="permissionDialogVisible && treeRenderFlag">
           <el-tree
@@ -420,7 +420,7 @@
                   size="small"
                   effect="plain"
                   class="perm-node__tag"
-                  >{{ data.type === 0 ? 'ç›®å½•' : data.type === 1 ? 'èœå•' : 'æŒ‰é’®' }}</el-tag
+                  >{{ data.type === 0 ? 'Ä¿Â¼' : data.type === 1 ? '²Ëµ¥' : '°´Å¥' }}</el-tag
                 >
                 <span class="perm-node__code" v-if="data.permission">{{ data.permission }}</span>
                 <el-button
@@ -430,7 +430,7 @@
                   type="primary"
                   class="perm-node__select-all"
                   @click.stop="toggleModuleCheck(data)"
-                  >{{ isModuleFullyChecked(data) ? 'å–æ¶ˆå…¨é€‰' : 'å…¨é€‰' }}</el-button
+                  >{{ isModuleFullyChecked(data) ? 'È¡ÏûÈ«Ñ¡' : 'È«Ñ¡' }}</el-button
                 >
               </div>
             </template>
@@ -438,62 +438,62 @@
         </div>
       </div>
       <div v-else class="empty-tree-message">
-        <el-empty description="èœå•æ•°æ®ä¸ºç©ºï¼Œæ— æ³•æ˜¾ç¤ºæƒé™æ ‘">
+        <el-empty description="²Ëµ¥Êı¾İÎª¿Õ£¬ÎŞ·¨ÏÔÊ¾È¨ÏŞÊ÷">
           <div class="empty-actions">
-            <el-button type="primary" @click="refreshMenuTree">åˆ·æ–°èœå•æ•°æ®</el-button>
+            <el-button type="primary" @click="refreshMenuTree">Ë¢ĞÂ²Ëµ¥Êı¾İ</el-button>
           </div>
         </el-empty>
       </div>
       <template #footer>
         <div class="perm-dialog-footer">
           <span class="perm-footer-stats">
-            å®Œæ•´é€‰ä¸­ <strong>{{ permCheckedCount }}</strong> é¡¹ï¼Œ éƒ¨åˆ†é€‰ä¸­
-            <strong>{{ permHalfCheckedCount }}</strong> é¡¹
+            ÍêÕûÑ¡ÖĞ <strong>{{ permCheckedCount }}</strong> Ïî£¬ ²¿·ÖÑ¡ÖĞ
+            <strong>{{ permHalfCheckedCount }}</strong> Ïî
           </span>
           <span>
-            <el-button @click="permissionDialogVisible = false">å…³é—­</el-button>
+            <el-button @click="permissionDialogVisible = false">¹Ø±Õ</el-button>
             <el-button
               v-permission="'system:permissions:manage'"
               type="primary"
               @click="saveRolePermission"
               :loading="permissionSaveLoading"
-              >ä¿å­˜æƒé™</el-button
+              >±£´æÈ¨ÏŞ</el-button
             >
           </span>
         </div>
       </template>
     </el-dialog>
-    <!-- èœå•æ·»åŠ /ç¼–è¾‘/æŸ¥çœ‹å¯¹è¯æ¡† -->
+    <!-- ²Ëµ¥Ìí¼Ó/±à¼­/²é¿´¶Ô»°¿ò -->
     <el-dialog :title="menuDialogTitle" v-model="menuDialogVisible" width="600px">
       <template v-if="menuIsViewMode">
         <el-descriptions :column="2" border style="margin-bottom: 20px">
-          <el-descriptions-item label="ä¸Šçº§èœå•" :span="2">
+          <el-descriptions-item label="ÉÏ¼¶²Ëµ¥" :span="2">
             {{
               menuForm.parentId === 0
-                ? 'é¡¶çº§èœå•'
-                : menuTree.find((m) => m.id === menuForm.parentId)?.name || 'æœªçŸ¥'
+                ? '¶¥¼¶²Ëµ¥'
+                : menuTree.find((m) => m.id === menuForm.parentId)?.name || 'Î´Öª'
             }}
           </el-descriptions-item>
-          <el-descriptions-item label="èœå•ç±»å‹">
-            {{ menuForm.type === 0 ? 'ç›®å½•' : menuForm.type === 1 ? 'èœå•' : 'æŒ‰é’®' }}
+          <el-descriptions-item label="²Ëµ¥ÀàĞÍ">
+            {{ menuForm.type === 0 ? 'Ä¿Â¼' : menuForm.type === 1 ? '²Ëµ¥' : '°´Å¥' }}
           </el-descriptions-item>
-          <el-descriptions-item label="èœå•åç§°">{{ menuForm.name || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="çŠ¶æ€">
+          <el-descriptions-item label="²Ëµ¥Ãû³Æ">{{ menuForm.name || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="×´Ì¬">
             <el-tag :type="Number(menuForm.status) === 1 ? 'success' : 'danger'">
-              {{ Number(menuForm.status) === 1 ? 'æ˜¾ç¤º' : 'éšè—' }}
+              {{ Number(menuForm.status) === 1 ? 'ÏÔÊ¾' : 'Òş²Ø' }}
             </el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="æ’åº">{{ menuForm.sort ?? '-' }}</el-descriptions-item>
-          <el-descriptions-item label="è·¯ç”±è·¯å¾„" v-if="menuForm.type !== 2" :span="2">{{
+          <el-descriptions-item label="ÅÅĞò">{{ menuForm.sort ?? '-' }}</el-descriptions-item>
+          <el-descriptions-item label="Â·ÓÉÂ·¾¶" v-if="menuForm.type !== 2" :span="2">{{
             menuForm.path || '-'
           }}</el-descriptions-item>
-          <el-descriptions-item label="ç»„ä»¶è·¯å¾„" v-if="menuForm.type === 1" :span="2">{{
+          <el-descriptions-item label="×é¼şÂ·¾¶" v-if="menuForm.type === 1" :span="2">{{
             menuForm.component || '-'
           }}</el-descriptions-item>
-          <el-descriptions-item label="æƒé™æ ‡è¯†" v-if="menuForm.type !== 0" :span="2">{{
+          <el-descriptions-item label="È¨ÏŞ±êÊ¶" v-if="menuForm.type !== 0" :span="2">{{
             menuForm.permission || '-'
           }}</el-descriptions-item>
-          <el-descriptions-item label="å›¾æ ‡" v-if="menuForm.type !== 2" :span="2">
+          <el-descriptions-item label="Í¼±ê" v-if="menuForm.type !== 2" :span="2">
             <el-icon v-if="menuForm.icon" style="vertical-align: middle; margin-right: 5px"
               ><component :is="menuForm.icon"
             /></el-icon>
@@ -502,7 +502,7 @@
         </el-descriptions>
       </template>
       <el-form v-else :model="menuForm" :rules="menuRules" ref="menuFormRef" label-width="100px">
-        <el-form-item label="ä¸Šçº§èœå•">
+        <el-form-item label="ÉÏ¼¶²Ëµ¥">
           <el-tree-select
             v-model="menuForm.parentId"
             :data="menuTree || []"
@@ -511,33 +511,33 @@
             node-key="id"
             :render-after-expand="true"
             :props="{ label: 'name', children: 'children' }"
-            placeholder="è¯·é€‰æ‹©ä¸Šçº§èœå•"
+            placeholder="ÇëÑ¡ÔñÉÏ¼¶²Ëµ¥"
             style="width: 100%"
           ></el-tree-select>
         </el-form-item>
-        <el-form-item label="èœå•ç±»å‹" prop="type">
+        <el-form-item label="²Ëµ¥ÀàĞÍ" prop="type">
           <el-radio-group v-model="menuForm.type">
-            <el-radio :value="0">ç›®å½•</el-radio>
-            <el-radio :value="1">èœå•</el-radio>
-            <el-radio :value="2">æŒ‰é’®</el-radio>
+            <el-radio :value="0">Ä¿Â¼</el-radio>
+            <el-radio :value="1">²Ëµ¥</el-radio>
+            <el-radio :value="2">°´Å¥</el-radio>
           </el-radio-group>
         </el-form-item>
-        <el-form-item label="èœå•åç§°" prop="name">
-          <el-input v-model="menuForm.name" placeholder="è¯·è¾“å…¥èœå•åç§°"></el-input>
+        <el-form-item label="²Ëµ¥Ãû³Æ" prop="name">
+          <el-input v-model="menuForm.name" placeholder="ÇëÊäÈë²Ëµ¥Ãû³Æ"></el-input>
         </el-form-item>
-        <el-form-item label="è·¯ç”±è·¯å¾„" prop="path" v-if="menuForm.type !== 2">
-          <el-input v-model="menuForm.path" placeholder="è¯·è¾“å…¥è·¯ç”±è·¯å¾„"></el-input>
+        <el-form-item label="Â·ÓÉÂ·¾¶" prop="path" v-if="menuForm.type !== 2">
+          <el-input v-model="menuForm.path" placeholder="ÇëÊäÈëÂ·ÓÉÂ·¾¶"></el-input>
         </el-form-item>
-        <el-form-item label="ç»„ä»¶è·¯å¾„" prop="component" v-if="menuForm.type === 1">
-          <el-input v-model="menuForm.component" placeholder="è¯·è¾“å…¥ç»„ä»¶è·¯å¾„"></el-input>
+        <el-form-item label="×é¼şÂ·¾¶" prop="component" v-if="menuForm.type === 1">
+          <el-input v-model="menuForm.component" placeholder="ÇëÊäÈë×é¼şÂ·¾¶"></el-input>
         </el-form-item>
-        <el-form-item label="æƒé™æ ‡è¯†" prop="permission" v-if="menuForm.type !== 0">
-          <el-input v-model="menuForm.permission" placeholder="è¯·è¾“å…¥æƒé™æ ‡è¯†"></el-input>
+        <el-form-item label="È¨ÏŞ±êÊ¶" prop="permission" v-if="menuForm.type !== 0">
+          <el-input v-model="menuForm.permission" placeholder="ÇëÊäÈëÈ¨ÏŞ±êÊ¶"></el-input>
         </el-form-item>
-        <el-form-item label="å›¾æ ‡" prop="icon" v-if="menuForm.type !== 2">
-          <el-input v-model="menuForm.icon" placeholder="è¯·è¾“å…¥å›¾æ ‡åç§°"></el-input>
+        <el-form-item label="Í¼±ê" prop="icon" v-if="menuForm.type !== 2">
+          <el-input v-model="menuForm.icon" placeholder="ÇëÊäÈëÍ¼±êÃû³Æ"></el-input>
         </el-form-item>
-        <el-form-item label="æ’åº" prop="sort">
+        <el-form-item label="ÅÅĞò" prop="sort">
           <el-input-number
             v-model="menuForm.sort"
             :min="0"
@@ -545,17 +545,17 @@
             style="width: 100%"
           ></el-input-number>
         </el-form-item>
-        <el-form-item label="çŠ¶æ€" prop="status">
+        <el-form-item label="×´Ì¬" prop="status">
           <el-radio-group v-model="menuForm.status">
-            <el-radio :value="1">æ˜¾ç¤º</el-radio>
-            <el-radio :value="0">éšè—</el-radio>
+            <el-radio :value="1">ÏÔÊ¾</el-radio>
+            <el-radio :value="0">Òş²Ø</el-radio>
           </el-radio-group>
         </el-form-item>
       </el-form>
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="menuDialogVisible = false">{{
-            menuIsViewMode ? 'å…³é—­' : 'å–æ¶ˆ'
+            menuIsViewMode ? '¹Ø±Õ' : 'È¡Ïû'
           }}</el-button>
           <el-button
             v-if="!menuIsViewMode"
@@ -563,7 +563,7 @@
             type="primary"
             @click="saveMenu"
             :loading="menuSaveLoading"
-            >ç¡®è®¤</el-button
+            >È·ÈÏ</el-button
           >
         </span>
       </template>
@@ -583,12 +583,12 @@ import {
   Setting,
   View,
 } from '@element-plus/icons-vue';
-import { api, systemApi } from '@/services/api';
+import { systemApi } from '@/api';
 import menuPermissions from '../../utils/menuPermissions';
 import { useAuthStore } from '../../stores/auth';
-// æƒé™store
+// È¨ÏŞstore
 const _authStore = useAuthStore();
-// èœå•ç±»å‹æ ‡ç­¾ç»„ä»¶
+// ²Ëµ¥ÀàĞÍ±êÇ©×é¼ş
 const MenuTypeTag = (props) => {
   return h(
     'el-tag',
@@ -596,33 +596,33 @@ const MenuTypeTag = (props) => {
       type: props.type === 0 ? 'primary' : props.type === 1 ? 'success' : 'warning',
       size: 'small',
     },
-    props.type === 0 ? 'ç›®å½•' : props.type === 1 ? 'èœå•' : 'æŒ‰é’®'
+    props.type === 0 ? 'Ä¿Â¼' : props.type === 1 ? '²Ëµ¥' : '°´Å¥'
   );
 };
-// å½“å‰æ¿€æ´»çš„æ ‡ç­¾é¡µ
+// µ±Ç°¼¤»îµÄ±êÇ©Ò³
 const activeTab = ref('roles');
-// è§’è‰²ç›¸å…³
+// ½ÇÉ«Ïà¹Ø
 const roleList = ref([]);
 const roleLoading = ref(false);
 const roleSaveLoading = ref(false);
 const roleDialogVisible = ref(false);
-const roleDialogTitle = ref('æ–°å¢è§’è‰²');
+const roleDialogTitle = ref('ĞÂÔö½ÇÉ«');
 const roleIsViewMode = ref(false);
 const roleFormRef = ref(null);
-// è§’è‰²åˆ†é¡µç›¸å…³
+// ½ÇÉ«·ÖÒ³Ïà¹Ø
 const roleTotal = ref(0);
 const rolePageSize = ref(10);
 const roleCurrentPage = ref(1);
-// èœå•ç›¸å…³
+// ²Ëµ¥Ïà¹Ø
 const menuList = ref([]);
 const menuTree = ref([]);
 const menuLoading = ref(false);
 const menuSaveLoading = ref(false);
 const menuDialogVisible = ref(false);
-const menuDialogTitle = ref('æ–°å¢èœå•');
+const menuDialogTitle = ref('ĞÂÔö²Ëµ¥');
 const menuIsViewMode = ref(false);
 const menuFormRef = ref(null);
-// æƒé™åˆ†é…ç›¸å…³
+// È¨ÏŞ·ÖÅäÏà¹Ø
 const permissionDialogVisible = ref(false);
 const permissionTreeRef = ref(null);
 const permissionSaveLoading = ref(false);
@@ -630,11 +630,11 @@ const currentRole = ref({});
 const selectedMenuIds = ref([]);
 const halfCheckedMenuIds = ref([]);
 const rolePermissionBaselines = new Map();
-const treeRenderFlag = ref(false); // æ§åˆ¶æ ‘ç»„ä»¶çš„æ¸²æŸ“
-const treeKey = ref(Date.now()); // ç”¨äºå¼ºåˆ¶æ ‘ç»„ä»¶é‡æ–°æ¸²æŸ“
-// æƒé™æœç´¢å…³é”®è¯
+const treeRenderFlag = ref(false); // ¿ØÖÆÊ÷×é¼şµÄäÖÈ¾
+const treeKey = ref(Date.now()); // ÓÃÓÚÇ¿ÖÆÊ÷×é¼şÖØĞÂäÖÈ¾
+// È¨ÏŞËÑË÷¹Ø¼ü´Ê
 const permSearchKeyword = ref('');
-// è§’è‰²è¡¨å•
+// ½ÇÉ«±íµ¥
 const roleForm = reactive({
   id: null,
   name: '',
@@ -642,7 +642,7 @@ const roleForm = reactive({
   description: '',
   status: 1,
 });
-// èœå•è¡¨å•
+// ²Ëµ¥±íµ¥
 const menuForm = reactive({
   id: null,
   parentId: null,
@@ -655,29 +655,29 @@ const menuForm = reactive({
   sort: 0,
   status: 1,
 });
-// è§’è‰²è¡¨å•éªŒè¯è§„åˆ™
+// ½ÇÉ«±íµ¥ÑéÖ¤¹æÔò
 const roleRules = {
   name: [
-    { required: true, message: 'è¯·è¾“å…¥è§’è‰²åç§°', trigger: 'blur' },
-    { min: 2, max: 30, message: 'è§’è‰²åç§°é•¿åº¦åœ¨ 2 åˆ° 30 ä¸ªå­—ç¬¦ä¹‹é—´', trigger: 'blur' },
+    { required: true, message: 'ÇëÊäÈë½ÇÉ«Ãû³Æ', trigger: 'blur' },
+    { min: 2, max: 30, message: '½ÇÉ«Ãû³Æ³¤¶ÈÔÚ 2 µ½ 30 ¸ö×Ö·ûÖ®¼ä', trigger: 'blur' },
   ],
   code: [
-    { required: true, message: 'è¯·è¾“å…¥è§’è‰²ç¼–ç ', trigger: 'blur' },
+    { required: true, message: 'ÇëÊäÈë½ÇÉ«±àÂë', trigger: 'blur' },
     {
       pattern: /^[a-zA-Z_][a-zA-Z0-9_]*$/,
-      message: 'ç¼–ç åªèƒ½åŒ…å«è‹±æ–‡å­—æ¯ã€æ•°å­—å’Œä¸‹åˆ’çº¿ï¼Œä¸”å¿…é¡»ä»¥å­—æ¯æˆ–ä¸‹åˆ’çº¿å¼€å¤´',
+      message: '±àÂëÖ»ÄÜ°üº¬Ó¢ÎÄ×ÖÄ¸¡¢Êı×ÖºÍÏÂ»®Ïß£¬ÇÒ±ØĞëÒÔ×ÖÄ¸»òÏÂ»®Ïß¿ªÍ·',
       trigger: 'blur',
     },
   ],
 };
-// èœå•è¡¨å•éªŒè¯è§„åˆ™
+// ²Ëµ¥±íµ¥ÑéÖ¤¹æÔò
 const menuRules = {
-  name: [{ required: true, message: 'è¯·è¾“å…¥èœå•åç§°', trigger: 'blur' }],
+  name: [{ required: true, message: 'ÇëÊäÈë²Ëµ¥Ãû³Æ', trigger: 'blur' }],
   path: [
     {
       validator: (_rule, value, callback) => {
         if (menuForm.type !== 2 && (!value || String(value).trim() === '')) {
-          callback(new Error('è¯·è¾“å…¥è·¯ç”±è·¯å¾„'));
+          callback(new Error('ÇëÊäÈëÂ·ÓÉÂ·¾¶'));
           return;
         }
         callback();
@@ -685,27 +685,27 @@ const menuRules = {
       trigger: 'blur',
     },
   ],
-  type: [{ required: true, message: 'è¯·é€‰æ‹©èœå•ç±»å‹', trigger: 'change' }],
+  type: [{ required: true, message: 'ÇëÑ¡Ôñ²Ëµ¥ÀàĞÍ', trigger: 'change' }],
 };
-// æ·»åŠ è®¡ç®—å±æ€§æ¥å¤„ç†èœå•æ ‘
+// Ìí¼Ó¼ÆËãÊôĞÔÀ´´¦Àí²Ëµ¥Ê÷
 const validMenuTree = computed(() => {
   if (!menuTree.value || !Array.isArray(menuTree.value) || menuTree.value.length === 0) {
     return [];
   }
-  // ç›´æ¥è¿”å›åŸå§‹å¼•ç”¨ï¼Œé¿å…åˆ›å»ºæ–°å¯¹è±¡
+  // Ö±½Ó·µ»ØÔ­Ê¼ÒıÓÃ£¬±ÜÃâ´´½¨ĞÂ¶ÔÏó
   return menuTree.value;
 });
-// è®¡ç®—èœå•æ ‘æ˜¯å¦æœ‰æ•ˆ
+// ¼ÆËã²Ëµ¥Ê÷ÊÇ·ñÓĞĞ§
 const hasValidMenuTree = computed(() => {
   return Array.isArray(validMenuTree.value) && validMenuTree.value.length > 0;
 });
-// é¡¶çº§æ¨¡å—åˆ—è¡¨ï¼ˆç”¨äºå¿«æ·æ“ä½œå¼¹å‡ºæ¡†ï¼‰
+// ¶¥¼¶Ä£¿éÁĞ±í£¨ÓÃÓÚ¿ì½İ²Ù×÷µ¯³ö¿ò£©
 const topModules = computed(() => validMenuTree.value || []);
-// å·²é€‰æƒé™è®¡æ•°
+// ÒÑÑ¡È¨ÏŞ¼ÆÊı
 const permSelectedCount = computed(() => {
   return selectedMenuIds.value?.length || 0;
 });
-// å®Œæ•´é€‰ä¸­è®¡æ•°
+// ÍêÕûÑ¡ÖĞ¼ÆÊı
 const permCheckedCount = computed(() => {
   if (!permissionTreeRef.value) return selectedMenuIds.value?.length || 0;
   try {
@@ -714,7 +714,7 @@ const permCheckedCount = computed(() => {
     return 0;
   }
 });
-// åŠé€‰ä¸­è®¡æ•°
+// °ëÑ¡ÖĞ¼ÆÊı
 const permHalfCheckedCount = computed(() => {
   if (!permissionTreeRef.value) return 0;
   try {
@@ -723,7 +723,7 @@ const permHalfCheckedCount = computed(() => {
     return 0;
   }
 });
-// æœç´¢è¿‡æ»¤æ ‘èŠ‚ç‚¹
+// ËÑË÷¹ıÂËÊ÷½Úµã
 const filterNode = (value, data) => {
   if (!value) return true;
   const kw = value.toLowerCase();
@@ -732,12 +732,12 @@ const filterNode = (value, data) => {
     (data.permission && data.permission.toLowerCase().includes(kw))
   );
 };
-// é€’å½’æ”¶é›†èŠ‚ç‚¹ä¸‹æ‰€æœ‰å¶å­ID
+// µİ¹éÊÕ¼¯½ÚµãÏÂËùÓĞÒ¶×ÓID
 const collectLeafIds = (node) => {
   if (!node.children || node.children.length === 0) return [node.id];
   return node.children.flatMap((c) => collectLeafIds(c));
 };
-// åˆ‡æ¢æ¨¡å—å…¨é€‰/å–æ¶ˆå…¨é€‰
+// ÇĞ»»Ä£¿éÈ«Ñ¡/È¡ÏûÈ«Ñ¡
 const toggleModuleCheck = (moduleData) => {
   if (!permissionTreeRef.value) return;
   const leafIds = collectLeafIds(moduleData);
@@ -746,7 +746,7 @@ const toggleModuleCheck = (moduleData) => {
   leafIds.forEach((id) => permissionTreeRef.value.setChecked(id, !allChecked, true));
   handleTreeCheck();
 };
-// æ¨¡å—æ˜¯å¦å…¨é€‰
+// Ä£¿éÊÇ·ñÈ«Ñ¡
 const isModuleFullyChecked = (moduleData) => {
   if (!permissionTreeRef.value) return false;
   const leafIds = collectLeafIds(moduleData);
@@ -754,7 +754,7 @@ const isModuleFullyChecked = (moduleData) => {
   const checked = permissionTreeRef.value.getCheckedKeys();
   return leafIds.every((id) => checked.includes(id));
 };
-// æ¨¡å—æ˜¯å¦åŠé€‰
+// Ä£¿éÊÇ·ñ°ëÑ¡
 const isModuleIndeterminate = (moduleData) => {
   if (!permissionTreeRef.value) return false;
   const leafIds = collectLeafIds(moduleData);
@@ -763,7 +763,7 @@ const isModuleIndeterminate = (moduleData) => {
   const count = leafIds.filter((id) => checked.includes(id)).length;
   return count > 0 && count < leafIds.length;
 };
-// è·å–æ¨¡å—å·²é€‰è®¡æ•°
+// »ñÈ¡Ä£¿éÒÑÑ¡¼ÆÊı
 const getModuleCheckedCount = (moduleData) => {
   if (!permissionTreeRef.value) return '0';
   const leafIds = collectLeafIds(moduleData);
@@ -771,13 +771,13 @@ const getModuleCheckedCount = (moduleData) => {
   const count = leafIds.filter((id) => checked.includes(id)).length;
   return `${count}/${leafIds.length}`;
 };
-// ç›‘å¬æœç´¢å…³é”®è¯å˜åŒ–ï¼Œè§¦å‘æ ‘è¿‡æ»¤
+// ¼àÌıËÑË÷¹Ø¼ü´Ê±ä»¯£¬´¥·¢Ê÷¹ıÂË
 watch(permSearchKeyword, (val) => {
   if (permissionTreeRef.value) {
     permissionTreeRef.value.filter(val);
   }
 });
-// åŠ è½½è§’è‰²åˆ—è¡¨
+// ¼ÓÔØ½ÇÉ«ÁĞ±í
 const loadRoles = async () => {
   roleLoading.value = true;
   try {
@@ -787,7 +787,7 @@ const loadRoles = async () => {
     };
     const response = await systemApi.getRoles(params);
 
-    // ç¡®ä¿å¤„ç†çš„æ˜¯æ•°ç»„æ•°æ®
+    // È·±£´¦ÀíµÄÊÇÊı×éÊı¾İ
     const responseData = response.data;
     const rolesData =
       responseData?.data ||
@@ -797,7 +797,7 @@ const loadRoles = async () => {
 
     roleList.value = rolesData;
 
-    // ä»å¤šçº§ç»“æ„ä¸­å®‰å…¨æå–æ€»æ•°
+    // ´Ó¶à¼¶½á¹¹ÖĞ°²È«ÌáÈ¡×ÜÊı
     let totalCount = 0;
     if (responseData?.total !== undefined) {
       totalCount = Number(responseData.total);
@@ -808,14 +808,14 @@ const loadRoles = async () => {
     }
     roleTotal.value = totalCount;
   } catch {
-    roleList.value = []; // ç¡®ä¿é”™è¯¯æ—¶ä¹Ÿæ˜¯ç©ºæ•°ç»„
+    roleList.value = []; // È·±£´íÎóÊ±Ò²ÊÇ¿ÕÊı×é
     roleTotal.value = 0;
-    ElMessage.error('åŠ è½½è§’è‰²åˆ—è¡¨å¤±è´¥');
+    ElMessage.error('¼ÓÔØ½ÇÉ«ÁĞ±íÊ§°Ü');
   } finally {
     roleLoading.value = false;
   }
 };
-// è§’è‰²åˆ†é¡µå¤„ç†
+// ½ÇÉ«·ÖÒ³´¦Àí
 const handleRoleSizeChange = (newSize) => {
   rolePageSize.value = newSize;
   loadRoles();
@@ -824,28 +824,28 @@ const handleRoleCurrentChange = (newPage) => {
   roleCurrentPage.value = newPage;
   loadRoles();
 };
-// åŠ è½½èœå•æ•°æ®
+// ¼ÓÔØ²Ëµ¥Êı¾İ
 const loadMenus = async () => {
   try {
     menuLoading.value = true;
-    // å…ˆå°è¯•ä½¿ç”¨ç›´æ¥ä»æ•°æ®åº“è·å–èœå•çš„APIï¼Œè¿™æ ·å¯ä»¥ç»•è¿‡ä»»ä½•ä¸­é—´å¤„ç†
+    // ÏÈ³¢ÊÔÊ¹ÓÃÖ±½Ó´ÓÊı¾İ¿â»ñÈ¡²Ëµ¥µÄAPI£¬ÕâÑù¿ÉÒÔÈÆ¹ıÈÎºÎÖĞ¼ä´¦Àí
     try {
-      // æ‹¦æˆªå™¨å·²è§£åŒ…ï¼Œresponse.data å°±æ˜¯ä¸šåŠ¡æ•°æ®
+      // À¹½ØÆ÷ÒÑ½â°ü£¬response.data ¾ÍÊÇÒµÎñÊı¾İ
       const directResponse = await systemApi.getMenusDirect();
       if (directResponse && directResponse.data && Array.isArray(directResponse.data)) {
         const menuData = directResponse.data;
 
-        // å¤„ç†ç›´æ¥ä»æ•°æ®åº“è·å–çš„èœå•æ•°æ®
+        // ´¦ÀíÖ±½Ó´ÓÊı¾İ¿â»ñÈ¡µÄ²Ëµ¥Êı¾İ
         menuList.value = menuData.map((item) => ({
           ...item,
           id: Number(item.id),
           parent_id: Number(item.parent_id || 0),
-          parentId: Number(item.parent_id || 0), // åŒæ—¶è®¾ç½®parentIdä»¥å…¼å®¹å‰ç«¯ä»£ç 
-          sort: item.sort_order || item.sort || 0, // å¤„ç†æ’åºå­—æ®µ
-          type: Number(item.type || 0), // ç¡®ä¿typeæ˜¯æ•°å­—
+          parentId: Number(item.parent_id || 0), // Í¬Ê±ÉèÖÃparentIdÒÔ¼æÈİÇ°¶Ë´úÂë
+          sort: item.sort_order || item.sort || 0, // ´¦ÀíÅÅĞò×Ö¶Î
+          type: Number(item.type || 0), // È·±£typeÊÇÊı×Ö
         }));
 
-        // æ„å»ºèœå•æ ‘
+        // ¹¹½¨²Ëµ¥Ê÷
         const treeData = convertToTree(menuList.value);
         menuTree.value = treeData;
 
@@ -854,71 +854,71 @@ const loadMenus = async () => {
       }
     } catch {}
 
-    // å¦‚æœç›´æ¥APIå¤±è´¥ï¼Œä½¿ç”¨æ ‡å‡†APIè·å–èœå•åˆ—è¡¨
+    // Èç¹ûÖ±½ÓAPIÊ§°Ü£¬Ê¹ÓÃ±ê×¼API»ñÈ¡²Ëµ¥ÁĞ±í
     const response = await systemApi.getMenus();
 
-    // æ£€æŸ¥å“åº”æ•°æ®
+    // ¼ì²éÏìÓ¦Êı¾İ
     if (!response || !response.data) {
-      ElMessage.error('åŠ è½½èœå•å¤±è´¥ï¼šå“åº”æ•°æ®æ— æ•ˆ');
+      ElMessage.error('¼ÓÔØ²Ëµ¥Ê§°Ü£ºÏìÓ¦Êı¾İÎŞĞ§');
       menuList.value = [];
       menuTree.value = [];
       return [];
     }
 
     let menuData = response.data;
-    // å¦‚æœå“åº”æ•°æ®è¢«åŒ…è£…åœ¨dataå­—æ®µä¸­
+    // Èç¹ûÏìÓ¦Êı¾İ±»°ü×°ÔÚdata×Ö¶ÎÖĞ
     if (!Array.isArray(menuData) && menuData.data) {
       menuData = menuData.data;
     }
 
     if (Array.isArray(menuData)) {
-      // ä¿®å¤ï¼šç¡®ä¿æ‰€æœ‰èœå•é¡¹éƒ½æœ‰æ­£ç¡®çš„idå’Œparent_idæ ¼å¼
+      // ĞŞ¸´£ºÈ·±£ËùÓĞ²Ëµ¥Ïî¶¼ÓĞÕıÈ·µÄidºÍparent_id¸ñÊ½
       menuList.value = menuData.map((item) => ({
         ...item,
-        id: Number(item.id), // ç¡®ä¿idæ˜¯æ•°å­—
-        parent_id: Number(item.parent_id || item.parentId || 0), // ç¡®ä¿parent_idæ˜¯æ•°å­—ï¼Œé»˜è®¤ä¸º0
-        parentId: Number(item.parent_id || item.parentId || 0), // æ·»åŠ parentIdå­—æ®µä»¥å…¼å®¹ä¸åŒå‘½å
-        sort: Number(item.sort_order || item.sort || 0), // å¤„ç†æ’åºå­—æ®µ
-        type: Number(item.type || 0), // ç¡®ä¿typeæ˜¯æ•°å­—
+        id: Number(item.id), // È·±£idÊÇÊı×Ö
+        parent_id: Number(item.parent_id || item.parentId || 0), // È·±£parent_idÊÇÊı×Ö£¬Ä¬ÈÏÎª0
+        parentId: Number(item.parent_id || item.parentId || 0), // Ìí¼ÓparentId×Ö¶ÎÒÔ¼æÈİ²»Í¬ÃüÃû
+        sort: Number(item.sort_order || item.sort || 0), // ´¦ÀíÅÅĞò×Ö¶Î
+        type: Number(item.type || 0), // È·±£typeÊÇÊı×Ö
       }));
 
-      // æ„å»ºèœå•æ ‘
+      // ¹¹½¨²Ëµ¥Ê÷
       const treeData = convertToTree(menuList.value);
 
-      // ç¡®ä¿menuTreeè¢«æ­£ç¡®èµ‹å€¼
+      // È·±£menuTree±»ÕıÈ·¸³Öµ
       menuTree.value = treeData;
 
-      return menuTree.value; // è¿”å›èœå•æ ‘æ•°æ®
+      return menuTree.value; // ·µ»Ø²Ëµ¥Ê÷Êı¾İ
     } else {
-      ElMessage.error('åŠ è½½èœå•å¤±è´¥ï¼šæ•°æ®æ ¼å¼é”™è¯¯');
-      menuTree.value = []; // ç¡®ä¿èœå•æ ‘æ˜¯ç©ºæ•°ç»„è€Œä¸æ˜¯undefined
+      ElMessage.error('¼ÓÔØ²Ëµ¥Ê§°Ü£ºÊı¾İ¸ñÊ½´íÎó');
+      menuTree.value = []; // È·±£²Ëµ¥Ê÷ÊÇ¿ÕÊı×é¶ø²»ÊÇundefined
     }
   } catch (error) {
-    console.error('åŠ è½½èœå•å¤±è´¥:', error);
+    console.error('¼ÓÔØ²Ëµ¥Ê§°Ü:', error);
 
     if (error.response?.status === 401) {
-      ElMessage.error('è¯·å…ˆç™»å½•');
+      ElMessage.error('ÇëÏÈµÇÂ¼');
     } else {
-      ElMessage.error('åŠ è½½èœå•å¤±è´¥ï¼š' + (error.response?.data?.message || error.message));
+      ElMessage.error('¼ÓÔØ²Ëµ¥Ê§°Ü£º' + (error.response?.data?.message || error.message));
     }
-    menuTree.value = []; // ç¡®ä¿èœå•æ ‘æ˜¯ç©ºæ•°ç»„è€Œä¸æ˜¯undefined
+    menuTree.value = []; // È·±£²Ëµ¥Ê÷ÊÇ¿ÕÊı×é¶ø²»ÊÇundefined
   } finally {
     menuLoading.value = false;
   }
 
-  return menuTree.value; // ç¡®ä¿æ€»æ˜¯è¿”å›èœå•æ ‘æ•°æ®ï¼Œå³ä½¿æ˜¯ç©ºæ•°ç»„
+  return menuTree.value; // È·±£×ÜÊÇ·µ»Ø²Ëµ¥Ê÷Êı¾İ£¬¼´Ê¹ÊÇ¿ÕÊı×é
 };
-// å°†å¹³é“ºçš„èœå•åˆ—è¡¨è½¬æ¢ä¸ºæ ‘å½¢ç»“æ„
+// ½«Æ½ÆÌµÄ²Ëµ¥ÁĞ±í×ª»»ÎªÊ÷ĞÎ½á¹¹
 const convertToTree = (flatList) => {
   if (!flatList || !Array.isArray(flatList) || flatList.length === 0) {
     return [];
   }
 
-  // åˆ›å»ºæ˜ å°„è¡¨å’Œç»“æœå®¹å™¨
+  // ´´½¨Ó³Éä±íºÍ½á¹ûÈİÆ÷
   const map = {};
   const result = [];
 
-  // ç¬¬ä¸€æ¬¡éå†: åˆ›å»ºæ‰€æœ‰èŠ‚ç‚¹çš„æ˜ å°„
+  // µÚÒ»´Î±éÀú: ´´½¨ËùÓĞ½ÚµãµÄÓ³Éä
   flatList.forEach((item) => {
     if (!item || typeof item !== 'object') return;
 
@@ -927,7 +927,7 @@ const convertToTree = (flatList) => {
       return;
     }
 
-    // ç¡®ä¿parent_idå’ŒparentIdéƒ½è¢«æ­£ç¡®å¤„ç†
+    // È·±£parent_idºÍparentId¶¼±»ÕıÈ·´¦Àí
     let parentId = 0;
     if (item.parentId !== undefined) {
       parentId = Number(item.parentId);
@@ -935,7 +935,7 @@ const convertToTree = (flatList) => {
       parentId = Number(item.parent_id);
     }
 
-    // ç¡®ä¿æ’åºå­—æ®µæ­£ç¡®
+    // È·±£ÅÅĞò×Ö¶ÎÕıÈ·
     const sortValue = Number(item.sort_order || item.sort || 0);
 
     map[id] = {
@@ -949,30 +949,30 @@ const convertToTree = (flatList) => {
     };
   });
 
-  // ç¬¬äºŒæ¬¡éå†: æ„å»ºæ ‘ç»“æ„
+  // µÚ¶ş´Î±éÀú: ¹¹½¨Ê÷½á¹¹
   Object.values(map).forEach((node) => {
     const parentId = Number(node.parentId || node.parent_id || 0);
 
     if (parentId === 0) {
-      // æ ¹èŠ‚ç‚¹ç›´æ¥æ·»åŠ åˆ°ç»“æœä¸­
+      // ¸ù½ÚµãÖ±½ÓÌí¼Óµ½½á¹ûÖĞ
       result.push(node);
     } else if (map[parentId]) {
-      // å°†å½“å‰èŠ‚ç‚¹æ·»åŠ ä¸ºçˆ¶èŠ‚ç‚¹çš„å­èŠ‚ç‚¹
+      // ½«µ±Ç°½ÚµãÌí¼ÓÎª¸¸½ÚµãµÄ×Ó½Úµã
       map[parentId].children.push(node);
     } else {
-      // æ‰¾ä¸åˆ°çˆ¶èŠ‚ç‚¹ï¼Œä½œä¸ºé¡¶çº§èŠ‚ç‚¹æ·»åŠ 
+      // ÕÒ²»µ½¸¸½Úµã£¬×÷Îª¶¥¼¶½ÚµãÌí¼Ó
       result.push(node);
     }
   });
 
-  // å¯¹æ‰€æœ‰èŠ‚ç‚¹è¿›è¡Œæ’åº
+  // ¶ÔËùÓĞ½Úµã½øĞĞÅÅĞò
   const sortNodes = (nodes) => {
     if (!nodes || !Array.isArray(nodes)) return;
 
-    // æŒ‰sortå­—æ®µæ’åº
+    // °´sort×Ö¶ÎÅÅĞò
     nodes.sort((a, b) => (a.sort || 0) - (b.sort || 0));
 
-    // é€’å½’å¯¹å­èŠ‚ç‚¹æ’åº
+    // µİ¹é¶Ô×Ó½ÚµãÅÅĞò
     nodes.forEach((node) => {
       if (node.children && node.children.length > 0) {
         sortNodes(node.children);
@@ -984,29 +984,29 @@ const convertToTree = (flatList) => {
 
   return result;
 };
-// æ–°å¢è§’è‰²
+// ĞÂÔö½ÇÉ«
 const showAddRoleDialog = () => {
-  roleDialogTitle.value = 'æ–°å¢è§’è‰²';
+  roleDialogTitle.value = 'ĞÂÔö½ÇÉ«';
   roleIsViewMode.value = false;
   resetRoleForm();
   roleDialogVisible.value = true;
 };
-// æŸ¥çœ‹è§’è‰²
+// ²é¿´½ÇÉ«
 const handleViewRole = (row) => {
-  roleDialogTitle.value = 'æŸ¥çœ‹è§’è‰²';
+  roleDialogTitle.value = '²é¿´½ÇÉ«';
   roleIsViewMode.value = true;
   Object.assign(roleForm, row);
-  // ç‰¹æ®Šå¤„ç†çŠ¶æ€å±•ç¤º
+  // ÌØÊâ´¦Àí×´Ì¬Õ¹Ê¾
   roleForm.status = Number(row.status);
   roleDialogVisible.value = true;
 };
-// ç¼–è¾‘è§’è‰²
+// ±à¼­½ÇÉ«
 const handleEditRole = (row) => {
-  roleDialogTitle.value = 'ç¼–è¾‘è§’è‰²';
+  roleDialogTitle.value = '±à¼­½ÇÉ«';
   roleIsViewMode.value = false;
   resetRoleForm();
 
-  // å¡«å……è¡¨å•æ•°æ®
+  // Ìî³ä±íµ¥Êı¾İ
   Object.keys(roleForm).forEach((key) => {
     if (key in row) {
       roleForm[key] = row[key];
@@ -1015,50 +1015,50 @@ const handleEditRole = (row) => {
 
   roleDialogVisible.value = true;
 };
-// åˆ‡æ¢è§’è‰²çŠ¶æ€ï¼ˆel-popconfirm å·²åœ¨æ¨¡æ¿ä¸­å¤„ç†ç¡®è®¤ï¼Œæ­¤å¤„ç›´æ¥æ‰§è¡Œï¼‰
+// ÇĞ»»½ÇÉ«×´Ì¬£¨el-popconfirm ÒÑÔÚÄ£°åÖĞ´¦ÀíÈ·ÈÏ£¬´Ë´¦Ö±½ÓÖ´ĞĞ£©
 const handleToggleRoleStatus = async (row) => {
-  const statusText = String(row.status) === '1' ? 'ç¦ç”¨' : 'å¯ç”¨';
+  const statusText = String(row.status) === '1' ? '½ûÓÃ' : 'ÆôÓÃ';
   const newStatus = String(row.status) === '1' ? 0 : 1;
   try {
     await systemApi.updateRoleStatus(row.id, { status: newStatus });
-    ElMessage.success(`${statusText}æˆåŠŸ`);
+    ElMessage.success(`${statusText}³É¹¦`);
     loadRoles();
   } catch (error) {
-    console.error(`${statusText}å¤±è´¥:`, error);
-    ElMessage.error(`${statusText}å¤±è´¥`);
+    console.error(`${statusText}Ê§°Ü:`, error);
+    ElMessage.error(`${statusText}Ê§°Ü`);
   }
 };
-// åˆ‡æ¢èœå•æ˜¾ç¤ºçŠ¶æ€ï¼ˆèœå•çŠ¶æ€ä¸èƒ½å¤ç”¨è§’è‰²æ¥å£ï¼‰
+// ÇĞ»»²Ëµ¥ÏÔÊ¾×´Ì¬£¨²Ëµ¥×´Ì¬²»ÄÜ¸´ÓÃ½ÇÉ«½Ó¿Ú£©
 const handleToggleMenuStatus = async (row) => {
-  const statusText = String(row.status) === '1' ? 'éšè—' : 'æ˜¾ç¤º';
+  const statusText = String(row.status) === '1' ? 'Òş²Ø' : 'ÏÔÊ¾';
   const newStatus = String(row.status) === '1' ? 0 : 1;
   try {
     await systemApi.updateMenuStatus(row.id, { status: newStatus });
-    ElMessage.success(`${statusText}æˆåŠŸ`);
+    ElMessage.success(`${statusText}³É¹¦`);
     loadMenus();
   } catch (error) {
-    console.error(`${statusText}èœå•å¤±è´¥:`, error);
-    ElMessage.error(error.response?.data?.message || `${statusText}å¤±è´¥`);
+    console.error(`${statusText}²Ëµ¥Ê§°Ü:`, error);
+    ElMessage.error(error.response?.data?.message || `${statusText}Ê§°Ü`);
   }
 };
-// åˆ†é…æƒé™
+// ·ÖÅäÈ¨ÏŞ
 const handleRolePermission = async (row) => {
   try {
     currentRole.value = row;
 
-    // æ˜¾ç¤ºåŠ è½½ä¸­æŒ‡ç¤ºå™¨
+    // ÏÔÊ¾¼ÓÔØÖĞÖ¸Ê¾Æ÷
     const loading = ElLoading.service({
       lock: true,
-      text: 'æ­£åœ¨åŠ è½½èœå•æ•°æ®...',
+      text: 'ÕıÔÚ¼ÓÔØ²Ëµ¥Êı¾İ...',
       background: 'color-mix(in srgb, var(--ds-black) 70%, transparent)',
     });
 
     try {
-      // æ£€æŸ¥èœå•åˆ—è¡¨æ˜¯å¦å·²åŠ è½½
+      // ¼ì²é²Ëµ¥ÁĞ±íÊÇ·ñÒÑ¼ÓÔØ
       if (!menuList.value || menuList.value.length === 0) {
         await loadMenus();
       } else {
-        // å¦‚æœèœå•æ ‘ä¸ºç©ºï¼Œä½†èœå•åˆ—è¡¨å·²åŠ è½½ï¼Œåˆ™é‡æ–°æ„å»ºèœå•æ ‘
+        // Èç¹û²Ëµ¥Ê÷Îª¿Õ£¬µ«²Ëµ¥ÁĞ±íÒÑ¼ÓÔØ£¬ÔòÖØĞÂ¹¹½¨²Ëµ¥Ê÷
         if (!menuTree.value || !Array.isArray(menuTree.value) || menuTree.value.length === 0) {
           menuTree.value = convertToTree(menuList.value);
         }
@@ -1066,87 +1066,87 @@ const handleRolePermission = async (row) => {
 
       if (!menuList.value || menuList.value.length === 0) {
         loading.close();
-        console.error('èœå•æ•°æ®ä¸ºç©º');
-        ElMessage.error('æ— æ³•åŠ è½½èœå•æ•°æ®');
+        console.error('²Ëµ¥Êı¾İÎª¿Õ');
+        ElMessage.error('ÎŞ·¨¼ÓÔØ²Ëµ¥Êı¾İ');
         return;
       }
 
-      // è·å–è§’è‰²æƒé™
+      // »ñÈ¡½ÇÉ«È¨ÏŞ
       const response = await systemApi.getRolePermissions(row.id);
 
       if (!response || !response.data) {
         loading.close();
-        console.error('è§’è‰²æƒé™å“åº”æ— æ•ˆ:', response);
-        ElMessage.error('è·å–è§’è‰²æƒé™å¤±è´¥ï¼šå“åº”æ•°æ®æ— æ•ˆ');
+        console.error('½ÇÉ«È¨ÏŞÏìÓ¦ÎŞĞ§:', response);
+        ElMessage.error('»ñÈ¡½ÇÉ«È¨ÏŞÊ§°Ü£ºÏìÓ¦Êı¾İÎŞĞ§');
         return;
       }
 
-      // è®¾ç½®é€‰ä¸­çš„èœå•ID
+      // ÉèÖÃÑ¡ÖĞµÄ²Ëµ¥ID
       const permissionData = response.data;
 
-      // å…¼å®¹æ–°æ—§æ¥å£
+      // ¼æÈİĞÂ¾É½Ó¿Ú
       if (Array.isArray(permissionData)) {
-        // æ—§æ ¼å¼ï¼šç›´æ¥æ˜¯èœå•IDæ•°ç»„
+        // ¾É¸ñÊ½£ºÖ±½ÓÊÇ²Ëµ¥IDÊı×é
         const allSelectedIds = permissionData.map((id) => Number(id));
 
-        // ğŸ”§ é‡è¦ä¿®å¤ï¼šåªé€‰ä¸­å¶å­èŠ‚ç‚¹ï¼Œé¿å…çˆ¶èŠ‚ç‚¹å¯¼è‡´å­èŠ‚ç‚¹è‡ªåŠ¨å…¨é€‰
+        // ?? ÖØÒªĞŞ¸´£ºÖ»Ñ¡ÖĞÒ¶×Ó½Úµã£¬±ÜÃâ¸¸½Úµãµ¼ÖÂ×Ó½Úµã×Ô¶¯È«Ñ¡
         const leafNodeIds = filterLeafNodes(allSelectedIds);
         selectedMenuIds.value = leafNodeIds;
         halfCheckedMenuIds.value = [];
       } else {
-        // æ–°æ ¼å¼ï¼šåŒ…å«å®Œå…¨é€‰ä¸­å’ŒåŠé€‰çŠ¶æ€çš„å¯¹è±¡
+        // ĞÂ¸ñÊ½£º°üº¬ÍêÈ«Ñ¡ÖĞºÍ°ëÑ¡×´Ì¬µÄ¶ÔÏó
         selectedMenuIds.value = (permissionData.checkedKeys || []).map((id) => Number(id));
         halfCheckedMenuIds.value = (permissionData.halfCheckedKeys || []).map((id) => Number(id));
       }
 
       setRolePermissionBaseline(row.id, selectedMenuIds.value);
 
-      // åˆ©ç”¨åŸç”Ÿçš„é€‰ä¸­èƒ½åŠ›
+      // ÀûÓÃÔ­ÉúµÄÑ¡ÖĞÄÜÁ¦
       if (permissionTreeRef.value) {
         permissionTreeRef.value.setCheckedKeys(selectedMenuIds.value);
       }
 
-      // å…³é—­åŠ è½½æŒ‡ç¤ºå™¨
+      // ¹Ø±Õ¼ÓÔØÖ¸Ê¾Æ÷
       loading.close();
 
-      // æ˜¾ç¤ºå¯¹è¯æ¡† - å¯¹è¯æ¡†æ‰“å¼€åä¼šè§¦å‘onPermissionDialogOpenedäº‹ä»¶
+      // ÏÔÊ¾¶Ô»°¿ò - ¶Ô»°¿ò´ò¿ªºó»á´¥·¢onPermissionDialogOpenedÊÂ¼ş
       permissionDialogVisible.value = true;
     } finally {
-      // ç¡®ä¿åŠ è½½æŒ‡ç¤ºå™¨è¢«å…³é—­
+      // È·±£¼ÓÔØÖ¸Ê¾Æ÷±»¹Ø±Õ
       if (loading) {
         loading.close();
       }
     }
   } catch (error) {
-    console.error('è·å–è§’è‰²æƒé™å¤±è´¥:', error);
+    console.error('»ñÈ¡½ÇÉ«È¨ÏŞÊ§°Ü:', error);
     if (error.response?.status === 401) {
-      ElMessage.error('è¯·å…ˆç™»å½•');
+      ElMessage.error('ÇëÏÈµÇÂ¼');
     } else {
-      ElMessage.error('è·å–è§’è‰²æƒé™å¤±è´¥ï¼š' + (error.response?.data?.message || error.message));
+      ElMessage.error('»ñÈ¡½ÇÉ«È¨ÏŞÊ§°Ü£º' + (error.response?.data?.message || error.message));
     }
   }
 };
-// æå–è®¾ç½®æ ‘é€‰ä¸­çŠ¶æ€çš„é€»è¾‘ä¸ºç‹¬ç«‹å‡½æ•°
+// ÌáÈ¡ÉèÖÃÊ÷Ñ¡ÖĞ×´Ì¬µÄÂß¼­Îª¶ÀÁ¢º¯Êı
 const _setTreeCheckedStatus = () => {
   try {
-    // å…ˆæ¸…ç©ºæ‰€æœ‰é€‰ä¸­çŠ¶æ€
+    // ÏÈÇå¿ÕËùÓĞÑ¡ÖĞ×´Ì¬
     if (typeof permissionTreeRef.value.setCheckedKeys === 'function') {
       permissionTreeRef.value.setCheckedKeys([]);
     } else {
-      return; // å¦‚æœæ²¡æœ‰è¿™ä¸ªæ–¹æ³•ï¼Œåˆ™é€€å‡º
+      return; // Èç¹ûÃ»ÓĞÕâ¸ö·½·¨£¬ÔòÍË³ö
     }
 
-    // è®¾ç½®å®Œå…¨é€‰ä¸­çš„èœå•
+    // ÉèÖÃÍêÈ«Ñ¡ÖĞµÄ²Ëµ¥
     if (selectedMenuIds.value && selectedMenuIds.value.length > 0) {
-      // ç¡®ä¿æ‰€æœ‰IDéƒ½æ˜¯æ•°å­—ç±»å‹
+      // È·±£ËùÓĞID¶¼ÊÇÊı×ÖÀàĞÍ
       const numericIds = selectedMenuIds.value.map((id) => Number(id));
       permissionTreeRef.value.setCheckedKeys(numericIds);
     }
 
-    // æ£€æŸ¥èœå•æ ‘æ•°æ®çŠ¶æ€
+    // ¼ì²é²Ëµ¥Ê÷Êı¾İ×´Ì¬
     const menuTreeData = menuTree.value || [];
 
-    // æ£€æŸ¥æ ‘èŠ‚ç‚¹æ˜¯å¦æ­£ç¡®æ¸²æŸ“
+    // ¼ì²éÊ÷½ÚµãÊÇ·ñÕıÈ·äÖÈ¾
     if (permissionTreeRef.value.store && permissionTreeRef.value.store.nodesMap) {
       const nodeKeys = Object.keys(permissionTreeRef.value.store.nodesMap);
       if (nodeKeys.length > 0) {
@@ -1155,64 +1155,64 @@ const _setTreeCheckedStatus = () => {
     } else {
     }
 
-    // å¼ºåˆ¶å±•å¼€æ‰€æœ‰èŠ‚ç‚¹ (ä½¿ç”¨æ­£è§„ nextTick è€Œä¸æ˜¯å®šæ—¶å™¨)
+    // Ç¿ÖÆÕ¹¿ªËùÓĞ½Úµã (Ê¹ÓÃÕı¹æ nextTick ¶ø²»ÊÇ¶¨Ê±Æ÷)
     if (Array.isArray(menuTreeData) && menuTreeData.length > 0) {
       nextTick(() => {
         try {
           expandAll();
         } catch (expandError) {
-          console.error('å±•å¼€èŠ‚ç‚¹å¤±è´¥:', expandError);
+          console.error('Õ¹¿ª½ÚµãÊ§°Ü:', expandError);
         }
       });
     }
   } catch (error) {
-    console.error('è®¾ç½®é€‰ä¸­çŠ¶æ€å¤±è´¥:', error);
-    console.error('é”™è¯¯è¯¦æƒ…:', {
+    console.error('ÉèÖÃÑ¡ÖĞ×´Ì¬Ê§°Ü:', error);
+    console.error('´íÎóÏêÇé:', {
       message: error.message,
       stack: error.stack,
-      permissionTreeRef: permissionTreeRef.value ? 'å­˜åœ¨' : 'ä¸å­˜åœ¨',
+      permissionTreeRef: permissionTreeRef.value ? '´æÔÚ' : '²»´æÔÚ',
       selectedMenuIds: selectedMenuIds.value ? selectedMenuIds.value.length : 0,
     });
   }
 };
-// ä¿å­˜è§’è‰²
+// ±£´æ½ÇÉ«
 const saveRole = async () => {
   if (!roleFormRef.value) return;
-  // ğŸ”’ é˜²æ­¢é‡å¤æäº¤ï¼šåœ¨éªŒè¯ä¹‹å‰å°±æ£€æŸ¥ loading çŠ¶æ€
+  // ?? ·ÀÖ¹ÖØ¸´Ìá½»£ºÔÚÑéÖ¤Ö®Ç°¾Í¼ì²é loading ×´Ì¬
   if (roleSaveLoading.value) {
-    ElMessage.warning('æ­£åœ¨ä¿å­˜ä¸­ï¼Œè¯·å‹¿é‡å¤æ“ä½œ');
+    ElMessage.warning('ÕıÔÚ±£´æÖĞ£¬ÇëÎğÖØ¸´²Ù×÷');
     return;
   }
   try {
-    // è¡¨å•éªŒè¯
+    // ±íµ¥ÑéÖ¤
     const valid = await roleFormRef.value.validate();
     if (!valid) return;
-    // ğŸ”’ ç«‹å³è®¾ç½® loading çŠ¶æ€ï¼Œé˜²æ­¢é‡å¤æäº¤
+    // ?? Á¢¼´ÉèÖÃ loading ×´Ì¬£¬·ÀÖ¹ÖØ¸´Ìá½»
     roleSaveLoading.value = true;
     if (roleForm.id) {
-      // æ›´æ–°
+      // ¸üĞÂ
       await systemApi.updateRole(roleForm.id, roleForm);
-      ElMessage.success('æ›´æ–°æˆåŠŸ');
+      ElMessage.success('¸üĞÂ³É¹¦');
     } else {
-      // æ–°å¢
+      // ĞÂÔö
       await systemApi.createRole(roleForm);
-      ElMessage.success('æ·»åŠ æˆåŠŸ');
+      ElMessage.success('Ìí¼Ó³É¹¦');
     }
     roleDialogVisible.value = false;
     loadRoles();
   } catch (error) {
-    // è¡¨å•éªŒè¯å¤±è´¥
+    // ±íµ¥ÑéÖ¤Ê§°Ü
     if (error && typeof error === 'object' && !error.response) {
       return;
     }
-    console.error('ä¿å­˜è§’è‰²å¤±è´¥:', error);
-    // æå–åç«¯è¿”å›çš„é”™è¯¯ä¿¡æ¯
+    console.error('±£´æ½ÇÉ«Ê§°Ü:', error);
+    // ÌáÈ¡ºó¶Ë·µ»ØµÄ´íÎóĞÅÏ¢
     const errorMsg =
       error.response?.data?.error ||
       error.response?.data?.message ||
       error.message ||
-      'ä¿å­˜è§’è‰²å¤±è´¥';
-    // å¦‚æœæ˜¯é‡å¤æäº¤é”™è¯¯ï¼ˆ409çŠ¶æ€ç ï¼‰ï¼Œæ˜¾ç¤ºè­¦å‘Š
+      '±£´æ½ÇÉ«Ê§°Ü';
+    // Èç¹ûÊÇÖØ¸´Ìá½»´íÎó£¨409×´Ì¬Âë£©£¬ÏÔÊ¾¾¯¸æ
     if (error.response?.status === 409) {
       ElMessage.warning(errorMsg);
     } else {
@@ -1222,37 +1222,37 @@ const saveRole = async () => {
     roleSaveLoading.value = false;
   }
 };
-// ä¿å­˜è§’è‰²æƒé™ï¼Œç¡®ä¿ä¸¥æ ¼æŒ‰ç…§ç”¨æˆ·å‹¾é€‰è¿›è¡Œä¿å­˜
+// ±£´æ½ÇÉ«È¨ÏŞ£¬È·±£ÑÏ¸ñ°´ÕÕÓÃ»§¹´Ñ¡½øĞĞ±£´æ
 const saveRolePermission = async () => {
   permissionSaveLoading.value = true;
   try {
-    // ç¡®ä¿å½“å‰è§’è‰²IDæœ‰æ•ˆ
+    // È·±£µ±Ç°½ÇÉ«IDÓĞĞ§
     if (!currentRole.value || !currentRole.value.id) {
-      console.error('å½“å‰è§’è‰²æ— æ•ˆ:', currentRole.value);
-      ElMessage.error('å½“å‰è§’è‰²æ— æ•ˆï¼Œè¯·é‡æ–°é€‰æ‹©è§’è‰²');
+      console.error('µ±Ç°½ÇÉ«ÎŞĞ§:', currentRole.value);
+      ElMessage.error('µ±Ç°½ÇÉ«ÎŞĞ§£¬ÇëÖØĞÂÑ¡Ôñ½ÇÉ«');
       permissionSaveLoading.value = false;
       return;
     }
 
-    // ç¡®ä¿æ ‘ç»„ä»¶å­˜åœ¨
+    // È·±£Ê÷×é¼ş´æÔÚ
     if (!permissionTreeRef.value) {
-      console.error('ä¿å­˜å¤±è´¥ï¼šæ ‘ç»„ä»¶å¼•ç”¨ä¸å­˜åœ¨');
-      ElMessage.error('ä¿å­˜å¤±è´¥ï¼šæ— æ³•è·å–æƒé™æ•°æ®');
+      console.error('±£´æÊ§°Ü£ºÊ÷×é¼şÒıÓÃ²»´æÔÚ');
+      ElMessage.error('±£´æÊ§°Ü£ºÎŞ·¨»ñÈ¡È¨ÏŞÊı¾İ');
       permissionSaveLoading.value = false;
       return;
     }
 
-    // è·å–å®Œå…¨é€‰ä¸­çš„èŠ‚ç‚¹keyså’ŒåŠé€‰ä¸­çš„èŠ‚ç‚¹keys
+    // »ñÈ¡ÍêÈ«Ñ¡ÖĞµÄ½ÚµãkeysºÍ°ëÑ¡ÖĞµÄ½Úµãkeys
     const checkedKeys = permissionTreeRef.value.getCheckedKeys();
     const halfCheckedKeys = permissionTreeRef.value.getHalfCheckedKeys();
-    // ç¡®ä¿è·å–åˆ°äº†æ‰€æœ‰é€‰ä¸­çš„èœå•ID
+    // È·±£»ñÈ¡µ½ÁËËùÓĞÑ¡ÖĞµÄ²Ëµ¥ID
     if (!Array.isArray(checkedKeys)) {
-      ElMessage.error('è·å–é€‰ä¸­çš„èœå•IDå¤±è´¥');
+      ElMessage.error('»ñÈ¡Ñ¡ÖĞµÄ²Ëµ¥IDÊ§°Ü');
       permissionSaveLoading.value = false;
       return;
     }
 
-    // å¯¹æ¯”ä¹‹å‰çš„é€‰ä¸­çŠ¶æ€å’Œå½“å‰é€‰ä¸­çŠ¶æ€
+    // ¶Ô±ÈÖ®Ç°µÄÑ¡ÖĞ×´Ì¬ºÍµ±Ç°Ñ¡ÖĞ×´Ì¬
     let uncheckedIds = [];
     const prevNumericChecked = getRolePermissionBaseline(currentRole.value.id);
     const currentNumericChecked = ensureNumericIds(checkedKeys);
@@ -1261,37 +1261,37 @@ const saveRolePermission = async () => {
       uncheckedIds = prevNumericChecked.filter((id) => !currentNumericChecked.includes(id));
 
       if (uncheckedIds.length > 0) {
-        // è·å–è¿™äº›èœå•çš„åç§°ç”¨äºæ˜¾ç¤º
+        // »ñÈ¡ÕâĞ©²Ëµ¥µÄÃû³ÆÓÃÓÚÏÔÊ¾
         const uncheckedNames = uncheckedIds.map((id) => {
           const node = permissionTreeRef.value.getNode(id);
-          return node ? node.data.name : `èœå•ID:${id}`;
+          return node ? node.data.name : `²Ëµ¥ID:${id}`;
         });
 
-        // æ˜¾ç¤ºæç¤ºï¼Œç¡®ä¿ç”¨æˆ·çŸ¥é“å“ªäº›æƒé™è¢«å–æ¶ˆäº†
+        // ÏÔÊ¾ÌáÊ¾£¬È·±£ÓÃ»§ÖªµÀÄÄĞ©È¨ÏŞ±»È¡ÏûÁË
         ElMessage({
-          message: `å·²å–æ¶ˆ ${uncheckedNames.length} é¡¹æƒé™: ${uncheckedNames.slice(0, 3).join(', ')}${uncheckedNames.length > 3 ? 'ç­‰' : ''}`,
+          message: `ÒÑÈ¡Ïû ${uncheckedNames.length} ÏîÈ¨ÏŞ: ${uncheckedNames.slice(0, 3).join(', ')}${uncheckedNames.length > 3 ? 'µÈ' : ''}`,
           type: 'warning',
           duration: 5000,
         });
       }
     } catch {}
 
-    // æ„å»ºèœå•IDåˆ—è¡¨ - è½¬æ¢ä¸ºæ•°å­—æ ¼å¼å¹¶ç¡®ä¿å”¯ä¸€æ€§
+    // ¹¹½¨²Ëµ¥IDÁĞ±í - ×ª»»ÎªÊı×Ö¸ñÊ½²¢È·±£Î¨Ò»ĞÔ
     const menuIds = [...new Set(ensureNumericIds(checkedKeys))];
     const halfMenuIds = [...new Set(ensureNumericIds(halfCheckedKeys))];
-    // ä¿®å¤å…³é”®é—®é¢˜ï¼šå°†åŠé€‰ä¸­çš„å…³é”®æƒé™åˆå¹¶åˆ°å®Œæ•´é€‰ä¸­åˆ—è¡¨ä¸­
-    // å› ä¸ºåŠé€‰ä¸­é€šå¸¸è¡¨ç¤ºçˆ¶çº§æƒé™ï¼Œè¿™äº›æƒé™å¯¹åŠŸèƒ½è®¿é—®è‡³å…³é‡è¦
+    // ĞŞ¸´¹Ø¼üÎÊÌâ£º½«°ëÑ¡ÖĞµÄ¹Ø¼üÈ¨ÏŞºÏ²¢µ½ÍêÕûÑ¡ÖĞÁĞ±íÖĞ
+    // ÒòÎª°ëÑ¡ÖĞÍ¨³£±íÊ¾¸¸¼¶È¨ÏŞ£¬ÕâĞ©È¨ÏŞ¶Ô¹¦ÄÜ·ÃÎÊÖÁ¹ØÖØÒª
     const _allSelectedMenuIds = [...new Set([...menuIds, ...halfMenuIds])];
 
-    // æ”¶é›†èœå•åç§°ç”¨äºç¡®è®¤æç¤º
+    // ÊÕ¼¯²Ëµ¥Ãû³ÆÓÃÓÚÈ·ÈÏÌáÊ¾
     const checkedMenuNames = menuIds.map((id) => {
       const node = permissionTreeRef.value.getNode(id);
-      return node ? node.data.name : `èœå•ID:${id}`;
+      return node ? node.data.name : `²Ëµ¥ID:${id}`;
     });
 
     const halfCheckedMenuNames = halfMenuIds.map((id) => {
       const node = permissionTreeRef.value.getNode(id);
-      return node ? node.data.name : `èœå•ID:${id}`;
+      return node ? node.data.name : `²Ëµ¥ID:${id}`;
     });
 
     const buildPermissionSection = (title, names, itemStyle = {}) => {
@@ -1301,7 +1301,7 @@ const saveRolePermission = async () => {
         ...names.slice(0, 10).map((name) => h('div', { style: itemStyle }, `- ${name}`)),
       ];
       if (names.length > 10) {
-        children.push(h('div', `- ç­‰${names.length}ä¸ªèœå•...`));
+        children.push(h('div', `- µÈ${names.length}¸ö²Ëµ¥...`));
       }
       return h('div', { style: { marginTop: '12px' } }, children);
     };
@@ -1309,10 +1309,10 @@ const saveRolePermission = async () => {
     const confirmMessage = h(
       'div',
       [
-        h('div', [h('strong', `æ‚¨å°†ä¸ºè§’è‰² "${currentRole.value.name}" åˆ†é…ä»¥ä¸‹æƒé™ï¼š`)]),
-        buildPermissionSection(`å®Œæ•´æƒé™èœå•(${checkedMenuNames.length})ï¼š`, checkedMenuNames),
+        h('div', [h('strong', `Äú½«Îª½ÇÉ« "${currentRole.value.name}" ·ÖÅäÒÔÏÂÈ¨ÏŞ£º`)]),
+        buildPermissionSection(`ÍêÕûÈ¨ÏŞ²Ëµ¥(${checkedMenuNames.length})£º`, checkedMenuNames),
         buildPermissionSection(
-          `éƒ¨åˆ†æƒé™èœå•(${halfCheckedMenuNames.length})ï¼š`,
+          `²¿·ÖÈ¨ÏŞ²Ëµ¥(${halfCheckedMenuNames.length})£º`,
           halfCheckedMenuNames
         ),
       ].filter(Boolean)
@@ -1321,39 +1321,39 @@ const saveRolePermission = async () => {
     if (uncheckedIds.length > 0) {
       const uncheckedNames = uncheckedIds.map((id) => {
         const node = permissionTreeRef.value.getNode(id);
-        return node ? node.data.name : `èœå•ID:${id}`;
+        return node ? node.data.name : `²Ëµ¥ID:${id}`;
       });
       confirmMessage.children.push(
-        buildPermissionSection(`å·²å–æ¶ˆçš„æƒé™(${uncheckedIds.length})ï¼š`, uncheckedNames, {
+        buildPermissionSection(`ÒÑÈ¡ÏûµÄÈ¨ÏŞ(${uncheckedIds.length})£º`, uncheckedNames, {
           color: 'var(--el-color-danger)',
         })
       );
     }
 
-    // é˜²æ­¢ç©ºæ•°ç»„å¯¼è‡´æ¸…ç©ºæ‰€æœ‰æƒé™
+    // ·ÀÖ¹¿ÕÊı×éµ¼ÖÂÇå¿ÕËùÓĞÈ¨ÏŞ
     if (menuIds.length === 0 && halfMenuIds.length === 0) {
       ElMessageBox.confirm(
-        'ç¡®å®šè¦æ¸…ç©ºè¯¥è§’è‰²çš„æ‰€æœ‰æƒé™å—ï¼Ÿæ¸…ç©ºåè¯¥è§’è‰²å°†æ— æ³•è®¿é—®ä»»ä½•åŠŸèƒ½ã€‚',
-        'ç¡®è®¤æ¸…ç©º',
+        'È·¶¨ÒªÇå¿Õ¸Ã½ÇÉ«µÄËùÓĞÈ¨ÏŞÂğ£¿Çå¿Õºó¸Ã½ÇÉ«½«ÎŞ·¨·ÃÎÊÈÎºÎ¹¦ÄÜ¡£',
+        'È·ÈÏÇå¿Õ',
         {
-          confirmButtonText: 'ç¡®è®¤',
-          cancelButtonText: 'å–æ¶ˆ',
+          confirmButtonText: 'È·ÈÏ',
+          cancelButtonText: 'È¡Ïû',
           type: 'warning',
           dangerouslyUseHTMLString: false,
         }
       )
         .then(async () => {
-          // å³ä½¿æ¸…ç©ºæƒé™ï¼Œä¹Ÿä¿ç•™ä»ªè¡¨ç›˜æƒé™
+          // ¼´Ê¹Çå¿ÕÈ¨ÏŞ£¬Ò²±£ÁôÒÇ±íÅÌÈ¨ÏŞ
           await submitRolePermissions([1], [], uncheckedIds);
         })
         .catch(() => {
           permissionSaveLoading.value = false;
         });
     } else {
-      // ä½¿ç”¨æ›´è¯¦ç»†çš„ç¡®è®¤æç¤º
-      ElMessageBox.confirm(confirmMessage, 'ç¡®è®¤åˆ†é…æƒé™', {
-        confirmButtonText: 'ç¡®è®¤åˆ†é…',
-        cancelButtonText: 'å–æ¶ˆ',
+      // Ê¹ÓÃ¸üÏêÏ¸µÄÈ·ÈÏÌáÊ¾
+      ElMessageBox.confirm(confirmMessage, 'È·ÈÏ·ÖÅäÈ¨ÏŞ', {
+        confirmButtonText: 'È·ÈÏ·ÖÅä',
+        cancelButtonText: 'È¡Ïû',
         type: 'info',
         dangerouslyUseHTMLString: false,
       })
@@ -1365,26 +1365,26 @@ const saveRolePermission = async () => {
         });
     }
   } catch (error) {
-    console.error('ä¿å­˜è§’è‰²æƒé™å¤±è´¥:', error);
-    console.error('é”™è¯¯è¯¦æƒ…:', {
+    console.error('±£´æ½ÇÉ«È¨ÏŞÊ§°Ü:', error);
+    console.error('´íÎóÏêÇé:', {
       message: error.message,
       response: error.response?.data,
       status: error.response?.status,
     });
-    ElMessage.error('ä¿å­˜è§’è‰²æƒé™å¤±è´¥: ' + (error.response?.data?.message || error.message));
+    ElMessage.error('±£´æ½ÇÉ«È¨ÏŞÊ§°Ü: ' + (error.response?.data?.message || error.message));
     permissionSaveLoading.value = false;
   }
 };
-// å®é™…æäº¤æƒé™æ•°æ®åˆ°åç«¯çš„å‡½æ•°
+// Êµ¼ÊÌá½»È¨ÏŞÊı¾İµ½ºó¶ËµÄº¯Êı
 const submitRolePermissions = async (menuIds, halfCheckedIds, uncheckedIds = []) => {
   try {
-    // æ–°çš„æƒé™å¤„ç†é€»è¾‘ï¼šä¿æŒåŠé€‰ä¸­çŠ¶æ€ï¼ŒåŒæ—¶ç¡®ä¿æƒé™ä¸ä¸¢å¤±
-    // 1. å®Œæ•´é€‰ä¸­çš„æƒé™ç›´æ¥ä¿å­˜
+    // ĞÂµÄÈ¨ÏŞ´¦ÀíÂß¼­£º±£³Ö°ëÑ¡ÖĞ×´Ì¬£¬Í¬Ê±È·±£È¨ÏŞ²»¶ªÊ§
+    // 1. ÍêÕûÑ¡ÖĞµÄÈ¨ÏŞÖ±½Ó±£´æ
     let numericMenuIds = menuIds.map((id) => Number(id)).filter((id) => !isNaN(id) && id > 0);
-    // 2. é‡æ–°è®¾è®¡æƒé™å¤„ç†é€»è¾‘ï¼šè‡ªåŠ¨æ·»åŠ å¿…è¦çš„çˆ¶æƒé™
-    // æ”¶é›†æ‰€æœ‰éœ€è¦çš„çˆ¶æƒé™
+    // 2. ÖØĞÂÉè¼ÆÈ¨ÏŞ´¦ÀíÂß¼­£º×Ô¶¯Ìí¼Ó±ØÒªµÄ¸¸È¨ÏŞ
+    // ÊÕ¼¯ËùÓĞĞèÒªµÄ¸¸È¨ÏŞ
     const allRequiredIds = new Set([...numericMenuIds]);
-    // ä¸ºæ¯ä¸ªé€‰ä¸­çš„æƒé™æ·»åŠ å…¶çˆ¶æƒé™é“¾
+    // ÎªÃ¿¸öÑ¡ÖĞµÄÈ¨ÏŞÌí¼ÓÆä¸¸È¨ÏŞÁ´
     numericMenuIds.forEach((id) => {
       let currentMenu = menuList.value.find((menu) => menu.id === id);
       while (currentMenu && currentMenu.parent_id) {
@@ -1392,23 +1392,23 @@ const submitRolePermissions = async (menuIds, halfCheckedIds, uncheckedIds = [])
         currentMenu = menuList.value.find((menu) => menu.id === currentMenu.parent_id);
       }
     });
-    // 3. é‡æ–°è®¡ç®—å®Œæ•´é€‰ä¸­å’ŒåŠé€‰ä¸­çŠ¶æ€
+    // 3. ÖØĞÂ¼ÆËãÍêÕûÑ¡ÖĞºÍ°ëÑ¡ÖĞ×´Ì¬
     const allRequiredArray = Array.from(allRequiredIds);
     const { checkedIds, halfCheckedIds: calculatedHalfCheckedIds } =
       calculateTreeState(allRequiredArray);
-    // 4. æœ€ç»ˆçš„æƒé™åˆ—è¡¨
-    // ğŸ”§ å…³é”®ä¿®å¤ï¼šåŠé€‰ä¸­çš„çˆ¶èŠ‚ç‚¹ä¹Ÿåº”è¯¥ä¿å­˜åˆ°æ•°æ®åº“
-    // å› ä¸ºç”¨æˆ·æœ‰è¯¥çˆ¶èŠ‚ç‚¹ä¸‹çš„éƒ¨åˆ†æƒé™ï¼Œå°±åº”è¯¥èƒ½çœ‹åˆ°çˆ¶èŠ‚ç‚¹èœå•
-    // ä¾‹å¦‚ï¼šç”¨æˆ·æœ‰ production:plans:view æƒé™ï¼Œå°±åº”è¯¥èƒ½çœ‹åˆ° production:plans èœå•
+    // 4. ×îÖÕµÄÈ¨ÏŞÁĞ±í
+    // ?? ¹Ø¼üĞŞ¸´£º°ëÑ¡ÖĞµÄ¸¸½ÚµãÒ²Ó¦¸Ã±£´æµ½Êı¾İ¿â
+    // ÒòÎªÓÃ»§ÓĞ¸Ã¸¸½ÚµãÏÂµÄ²¿·ÖÈ¨ÏŞ£¬¾ÍÓ¦¸ÃÄÜ¿´µ½¸¸½Úµã²Ëµ¥
+    // ÀıÈç£ºÓÃ»§ÓĞ production:plans:view È¨ÏŞ£¬¾ÍÓ¦¸ÃÄÜ¿´µ½ production:plans ²Ëµ¥
     numericMenuIds = [...new Set([...checkedIds, ...calculatedHalfCheckedIds])];
     const finalHalfCheckedIds = calculatedHalfCheckedIds;
     const numericUncheckedIds = uncheckedIds
       .map((id) => Number(id))
       .filter((id) => !isNaN(id) && id > 0);
-    // ç¡®ä¿å–æ¶ˆçš„IDçœŸçš„ä¸åœ¨é€‰ä¸­åˆ—è¡¨ä¸­
+    // È·±£È¡ÏûµÄIDÕæµÄ²»ÔÚÑ¡ÖĞÁĞ±íÖĞ
     numericMenuIds = numericMenuIds.filter((id) => !numericUncheckedIds.includes(id));
 
-    // æäº¤æ•°æ®åˆ°API
+    // Ìá½»Êı¾İµ½API
     const _response = await systemApi.updateRolePermissions(currentRole.value.id, {
       menuIds: numericMenuIds,
       halfCheckedIds: finalHalfCheckedIds,
@@ -1419,63 +1419,63 @@ const submitRolePermissions = async (menuIds, halfCheckedIds, uncheckedIds = [])
     selectedMenuIds.value = numericMenuIds;
     halfCheckedMenuIds.value = finalHalfCheckedIds;
 
-    // æ›´æ–°å½“å‰ç”¨æˆ·çš„æƒé™ç¼“å­˜
+    // ¸üĞÂµ±Ç°ÓÃ»§µÄÈ¨ÏŞ»º´æ
     try {
       const authStore = useAuthStore();
 
-      // ä¸ç®¡æ˜¯å¦æ˜¯å½“å‰ç”¨æˆ·è§’è‰²ï¼Œéƒ½åˆ·æ–°ä¸€æ¬¡æƒé™ï¼Œä»¥ä¾¿ç¡®ä¿æƒé™çŠ¶æ€æœ€æ–°
+      // ²»¹ÜÊÇ·ñÊÇµ±Ç°ÓÃ»§½ÇÉ«£¬¶¼Ë¢ĞÂÒ»´ÎÈ¨ÏŞ£¬ÒÔ±ãÈ·±£È¨ÏŞ×´Ì¬×îĞÂ
       try {
         await authStore.fetchUserProfile();
         await authStore.fetchUserPermissions(true);
       } catch {
-        // æƒé™åˆ·æ–°å¤±è´¥ä¸å½±å“ä¸»æµç¨‹
+        // È¨ÏŞË¢ĞÂÊ§°Ü²»Ó°ÏìÖ÷Á÷³Ì
       }
 
-      // å…³é—­æƒé™åˆ†é…å¯¹è¯æ¡†
+      // ¹Ø±ÕÈ¨ÏŞ·ÖÅä¶Ô»°¿ò
       permissionDialogVisible.value = false;
-      // ğŸ”§ å»¶è¿Ÿæ¸…é™¤æƒé™é€‰æ‹©çŠ¶æ€ï¼Œé¿å…æ¸²æŸ“é”™è¯¯
+      // ?? ÑÓ³ÙÇå³ıÈ¨ÏŞÑ¡Ôñ×´Ì¬£¬±ÜÃâäÖÈ¾´íÎó
       setTimeout(() => {
         selectedMenuIds.value = [];
         currentRole.value = null;
       }, 100);
-      // æ˜¾ç¤ºæˆåŠŸæ¶ˆæ¯
-      ElMessage.success('æƒé™åˆ†é…æˆåŠŸï¼');
-      // åˆ·æ–°è§’è‰²åˆ—è¡¨ä»¥æ˜¾ç¤ºæœ€æ–°çŠ¶æ€
+      // ÏÔÊ¾³É¹¦ÏûÏ¢
+      ElMessage.success('È¨ÏŞ·ÖÅä³É¹¦£¡');
+      // Ë¢ĞÂ½ÇÉ«ÁĞ±íÒÔÏÔÊ¾×îĞÂ×´Ì¬
       await loadRoles();
     } catch {
-      // åˆ·æ–°æƒé™ç¼“å­˜å¤±è´¥ï¼Œä¸å½±å“ä¸»æµç¨‹ï¼Œç»§ç»­æ‰§è¡Œ
-      // å…³é—­æƒé™åˆ†é…å¯¹è¯æ¡†
+      // Ë¢ĞÂÈ¨ÏŞ»º´æÊ§°Ü£¬²»Ó°ÏìÖ÷Á÷³Ì£¬¼ÌĞøÖ´ĞĞ
+      // ¹Ø±ÕÈ¨ÏŞ·ÖÅä¶Ô»°¿ò
       permissionDialogVisible.value = false;
-      // ğŸ”§ å»¶è¿Ÿæ¸…é™¤æƒé™é€‰æ‹©çŠ¶æ€ï¼Œé¿å…æ¸²æŸ“é”™è¯¯
+      // ?? ÑÓ³ÙÇå³ıÈ¨ÏŞÑ¡Ôñ×´Ì¬£¬±ÜÃâäÖÈ¾´íÎó
       setTimeout(() => {
         selectedMenuIds.value = [];
         currentRole.value = null;
       }, 100);
-      // æ˜¾ç¤ºæˆåŠŸæ¶ˆæ¯
-      ElMessage.success('æƒé™åˆ†é…æˆåŠŸï¼');
-      // åˆ·æ–°è§’è‰²åˆ—è¡¨
+      // ÏÔÊ¾³É¹¦ÏûÏ¢
+      ElMessage.success('È¨ÏŞ·ÖÅä³É¹¦£¡');
+      // Ë¢ĞÂ½ÇÉ«ÁĞ±í
       await loadRoles();
     }
 
     permissionSaveLoading.value = false;
   } catch (error) {
-    console.error('æäº¤æƒé™æ•°æ®å¤±è´¥:', error);
-    ElMessage.error('æäº¤æƒé™æ•°æ®å¤±è´¥: ' + (error.response?.data?.message || error.message));
+    console.error('Ìá½»È¨ÏŞÊı¾İÊ§°Ü:', error);
+    ElMessage.error('Ìá½»È¨ÏŞÊı¾İÊ§°Ü: ' + (error.response?.data?.message || error.message));
     permissionSaveLoading.value = false;
   }
 };
-// æ–°å¢èœå•
+// ĞÂÔö²Ëµ¥
 const showAddMenuDialog = () => {
-  menuDialogTitle.value = 'æ–°å¢èœå•';
+  menuDialogTitle.value = 'ĞÂÔö²Ëµ¥';
   menuIsViewMode.value = false;
   resetMenuForm();
-  menuForm.parentId = 0; // é»˜è®¤é¡¶çº§èœå•
+  menuForm.parentId = 0; // Ä¬ÈÏ¶¥¼¶²Ëµ¥
   menuDialogVisible.value = true;
 };
-// æŸ¥çœ‹èœå•
+// ²é¿´²Ëµ¥
 const handleViewMenu = (row) => {
-  menuDialogTitle.value = 'æŸ¥çœ‹èœå•';
-  menuIsViewMode.value = false; // é‡ç½®ç¼–è¾‘çŠ¶æ€ï¼Œç¡®ä¿è¡¨å•å¯èµ‹å€¼
+  menuDialogTitle.value = '²é¿´²Ëµ¥';
+  menuIsViewMode.value = false; // ÖØÖÃ±à¼­×´Ì¬£¬È·±£±íµ¥¿É¸³Öµ
   resetMenuForm();
 
   menuIsViewMode.value = true;
@@ -1484,32 +1484,32 @@ const handleViewMenu = (row) => {
   menuForm.type = Number(row.type);
   menuDialogVisible.value = true;
 };
-// æ·»åŠ å­èœå•
+// Ìí¼Ó×Ó²Ëµ¥
 const handleAddChildMenu = (row) => {
-  menuDialogTitle.value = 'æ–°å¢å­èœå•';
+  menuDialogTitle.value = 'ĞÂÔö×Ó²Ëµ¥';
   menuIsViewMode.value = false;
   resetMenuForm();
   menuForm.parentId = row.id;
 
-  // å¦‚æœçˆ¶çº§æ˜¯ç›®å½•ï¼Œåˆ™å­çº§é»˜è®¤ä¸ºèœå•
+  // Èç¹û¸¸¼¶ÊÇÄ¿Â¼£¬Ôò×Ó¼¶Ä¬ÈÏÎª²Ëµ¥
   if (row.type === 0) {
     menuForm.type = 1;
   }
-  // å¦‚æœçˆ¶çº§æ˜¯èœå•ï¼Œåˆ™å­çº§é»˜è®¤ä¸ºæŒ‰é’®
+  // Èç¹û¸¸¼¶ÊÇ²Ëµ¥£¬Ôò×Ó¼¶Ä¬ÈÏÎª°´Å¥
   else if (row.type === 1) {
     menuForm.type = 2;
   }
 
   menuDialogVisible.value = true;
 };
-// ç¼–è¾‘èœå•
+// ±à¼­²Ëµ¥
 const handleEditMenu = (row) => {
-  menuDialogTitle.value = 'ç¼–è¾‘èœå•';
+  menuDialogTitle.value = '±à¼­²Ëµ¥';
   menuIsViewMode.value = false;
   menuIsViewMode.value = false;
   resetMenuForm();
 
-  // å¡«å……è¡¨å•æ•°æ®
+  // Ìî³ä±íµ¥Êı¾İ
   Object.keys(menuForm).forEach((key) => {
     if (key in row) {
       menuForm[key] = row[key];
@@ -1518,68 +1518,68 @@ const handleEditMenu = (row) => {
 
   menuDialogVisible.value = true;
 };
-// åˆ é™¤èœå•
+// É¾³ı²Ëµ¥
 const handleDeleteMenu = (row) => {
-  ElMessageBox.confirm('ç¡®è®¤è¦åˆ é™¤è¯¥èœå•å—ï¼Ÿåˆ é™¤åä¸å¯æ¢å¤ï¼', 'è­¦å‘Š', {
-    confirmButtonText: 'ç¡®è®¤',
-    cancelButtonText: 'å–æ¶ˆ',
+  ElMessageBox.confirm('È·ÈÏÒªÉ¾³ı¸Ã²Ëµ¥Âğ£¿É¾³ıºó²»¿É»Ö¸´£¡', '¾¯¸æ', {
+    confirmButtonText: 'È·ÈÏ',
+    cancelButtonText: 'È¡Ïû',
     type: 'warning',
   })
     .then(async () => {
       try {
         await systemApi.deleteMenu(row.id);
-        ElMessage.success('åˆ é™¤æˆåŠŸ');
-        loadMenus(); // é‡æ–°åŠ è½½èœå•æ•°æ®
+        ElMessage.success('É¾³ı³É¹¦');
+        loadMenus(); // ÖØĞÂ¼ÓÔØ²Ëµ¥Êı¾İ
       } catch (error) {
-        console.error('åˆ é™¤å¤±è´¥:', error);
-        ElMessage.error('åˆ é™¤å¤±è´¥: ' + error.message);
+        console.error('É¾³ıÊ§°Ü:', error);
+        ElMessage.error('É¾³ıÊ§°Ü: ' + error.message);
       }
     })
     .catch(() => {});
 };
-// ä¿å­˜èœå•
+// ±£´æ²Ëµ¥
 const saveMenu = async () => {
   if (!menuFormRef.value) return;
-  // ğŸ”’ é˜²æ­¢é‡å¤æäº¤ï¼šåœ¨éªŒè¯ä¹‹å‰å°±æ£€æŸ¥ loading çŠ¶æ€
+  // ?? ·ÀÖ¹ÖØ¸´Ìá½»£ºÔÚÑéÖ¤Ö®Ç°¾Í¼ì²é loading ×´Ì¬
   if (menuSaveLoading.value) {
-    ElMessage.warning('æ­£åœ¨ä¿å­˜ä¸­ï¼Œè¯·å‹¿é‡å¤æ“ä½œ');
+    ElMessage.warning('ÕıÔÚ±£´æÖĞ£¬ÇëÎğÖØ¸´²Ù×÷');
     return;
   }
   try {
-    // è¡¨å•éªŒè¯
+    // ±íµ¥ÑéÖ¤
     const valid = await menuFormRef.value.validate();
     if (!valid) return;
-    // ğŸ”’ ç«‹å³è®¾ç½® loading çŠ¶æ€ï¼Œé˜²æ­¢é‡å¤æäº¤
+    // ?? Á¢¼´ÉèÖÃ loading ×´Ì¬£¬·ÀÖ¹ÖØ¸´Ìá½»
     menuSaveLoading.value = true;
     if (menuForm.id) {
-      // æ›´æ–°
+      // ¸üĞÂ
       await systemApi.updateMenu(menuForm.id, menuForm);
-      ElMessage.success('æ›´æ–°æˆåŠŸ');
+      ElMessage.success('¸üĞÂ³É¹¦');
     } else {
-      // æ–°å¢
+      // ĞÂÔö
       const response = await systemApi.createMenu(menuForm);
-      ElMessage.success('æ·»åŠ æˆåŠŸ');
-      // æ‹¦æˆªå™¨å·²è§£åŒ…ï¼Œresponse.data å°±æ˜¯ä¸šåŠ¡æ•°æ®
-      // å¦‚æœAPIè¿”å›äº†æ–°åˆ›å»ºçš„èœå•IDï¼Œæ›´æ–°è¡¨å•
+      ElMessage.success('Ìí¼Ó³É¹¦');
+      // À¹½ØÆ÷ÒÑ½â°ü£¬response.data ¾ÍÊÇÒµÎñÊı¾İ
+      // Èç¹ûAPI·µ»ØÁËĞÂ´´½¨µÄ²Ëµ¥ID£¬¸üĞÂ±íµ¥
       if (response.data?.id) {
         menuForm.id = response.data.id;
       }
     }
     menuDialogVisible.value = false;
-    loadMenus(); // é‡æ–°åŠ è½½èœå•æ•°æ®
+    loadMenus(); // ÖØĞÂ¼ÓÔØ²Ëµ¥Êı¾İ
   } catch (error) {
-    // è¡¨å•éªŒè¯å¤±è´¥
+    // ±íµ¥ÑéÖ¤Ê§°Ü
     if (error && typeof error === 'object' && !error.response) {
       return;
     }
-    console.error('ä¿å­˜èœå•å¤±è´¥:', error);
-    // æå–åç«¯è¿”å›çš„é”™è¯¯ä¿¡æ¯
+    console.error('±£´æ²Ëµ¥Ê§°Ü:', error);
+    // ÌáÈ¡ºó¶Ë·µ»ØµÄ´íÎóĞÅÏ¢
     const errorMsg =
       error.response?.data?.error ||
       error.response?.data?.message ||
       error.message ||
-      'ä¿å­˜èœå•å¤±è´¥';
-    // å¦‚æœæ˜¯é‡å¤æäº¤é”™è¯¯ï¼ˆ409çŠ¶æ€ç ï¼‰ï¼Œæ˜¾ç¤ºè­¦å‘Š
+      '±£´æ²Ëµ¥Ê§°Ü';
+    // Èç¹ûÊÇÖØ¸´Ìá½»´íÎó£¨409×´Ì¬Âë£©£¬ÏÔÊ¾¾¯¸æ
     if (error.response?.status === 409) {
       ElMessage.warning(errorMsg);
     } else {
@@ -1589,7 +1589,7 @@ const saveMenu = async () => {
     menuSaveLoading.value = false;
   }
 };
-// é‡ç½®è§’è‰²è¡¨å•
+// ÖØÖÃ½ÇÉ«±íµ¥
 const resetRoleForm = () => {
   roleForm.id = null;
   roleForm.name = '';
@@ -1597,12 +1597,12 @@ const resetRoleForm = () => {
   roleForm.description = '';
   roleForm.status = 1;
 
-  // æ¸…é™¤æ ¡éªŒ
+  // Çå³ıĞ£Ñé
   if (roleFormRef.value) {
     roleFormRef.value.resetFields();
   }
 };
-// é‡ç½®èœå•è¡¨å•
+// ÖØÖÃ²Ëµ¥±íµ¥
 const resetMenuForm = () => {
   menuForm.id = null;
   menuForm.parentId = null;
@@ -1615,41 +1615,41 @@ const resetMenuForm = () => {
   menuForm.sort = 0;
   menuForm.status = 1;
 
-  // æ¸…é™¤æ ¡éªŒ
+  // Çå³ıĞ£Ñé
   if (menuFormRef.value) {
     menuFormRef.value.resetFields();
   }
 };
-// å¯¼å…¥èœå•æ•°æ®
+// µ¼Èë²Ëµ¥Êı¾İ
 const importMenuData = async () => {
-  ElMessageBox.confirm('ç¡®è®¤è¦å¯¼å…¥å®Œæ•´çš„èœå•æ•°æ®å—ï¼Ÿè¿™å°†è¦†ç›–ç°æœ‰çš„èœå•é…ç½®ã€‚', 'ç¡®è®¤å¯¼å…¥', {
-    confirmButtonText: 'ç¡®è®¤',
-    cancelButtonText: 'å–æ¶ˆ',
+  ElMessageBox.confirm('È·ÈÏÒªµ¼ÈëÍêÕûµÄ²Ëµ¥Êı¾İÂğ£¿Õâ½«¸²¸ÇÏÖÓĞµÄ²Ëµ¥ÅäÖÃ¡£', 'È·ÈÏµ¼Èë', {
+    confirmButtonText: 'È·ÈÏ',
+    cancelButtonText: 'È¡Ïû',
     type: 'warning',
   })
     .then(async () => {
       try {
-        await api.post('/system/menus/import', { menus: menuPermissions });
-        ElMessage.success('èœå•æ•°æ®å¯¼å…¥æˆåŠŸ');
-        loadMenus(); // é‡æ–°åŠ è½½èœå•æ•°æ®
+        await systemApi.importMenus(menuPermissions);
+        ElMessage.success('²Ëµ¥Êı¾İµ¼Èë³É¹¦');
+        loadMenus(); // ÖØĞÂ¼ÓÔØ²Ëµ¥Êı¾İ
       } catch (error) {
-        console.error('å¯¼å…¥èœå•æ•°æ®å¤±è´¥:', error);
-        ElMessage.error('å¯¼å…¥èœå•æ•°æ®å¤±è´¥: ' + error.message);
+        console.error('µ¼Èë²Ëµ¥Êı¾İÊ§°Ü:', error);
+        ElMessage.error('µ¼Èë²Ëµ¥Êı¾İÊ§°Ü: ' + error.message);
       }
     })
     .catch(() => {});
 };
-// å±•å¼€æ‰€æœ‰èŠ‚ç‚¹
+// Õ¹¿ªËùÓĞ½Úµã
 const expandAll = () => {
   if (!permissionTreeRef.value) {
     return;
   }
   try {
-    // ä½¿ç”¨Element Pluså†…ç½®æ–¹æ³•
+    // Ê¹ÓÃElement PlusÄÚÖÃ·½·¨
     if (typeof permissionTreeRef.value.expandAll === 'function') {
       permissionTreeRef.value.expandAll();
     } else {
-      // æ‰‹åŠ¨å±•å¼€æ‰€æœ‰èŠ‚ç‚¹
+      // ÊÖ¶¯Õ¹¿ªËùÓĞ½Úµã
       const store = permissionTreeRef.value.store;
       if (store && store.nodesMap) {
         Object.keys(store.nodesMap).forEach((nodeId) => {
@@ -1660,57 +1660,57 @@ const expandAll = () => {
         });
       }
     }
-    // åº”ç”¨é€‰ä¸­çŠ¶æ€ï¼ˆä½¿ç”¨ nextTick ä»£æ›¿å®šæ—¶å™¨ï¼‰
+    // Ó¦ÓÃÑ¡ÖĞ×´Ì¬£¨Ê¹ÓÃ nextTick ´úÌæ¶¨Ê±Æ÷£©
     nextTick(() => {
       forceApplyCheckedState();
     });
   } catch (error) {
-    console.error('å±•å¼€æ‰€æœ‰èŠ‚ç‚¹å¤±è´¥:', error);
+    console.error('Õ¹¿ªËùÓĞ½ÚµãÊ§°Ü:', error);
   }
 };
-// æ·»åŠ èŠ‚ç‚¹å±•å¼€å¤„ç†å‡½æ•°
+// Ìí¼Ó½ÚµãÕ¹¿ª´¦Àíº¯Êı
 const _handleNodeExpand = (_data, _node) => {
-  // å½“èŠ‚ç‚¹å±•å¼€æ—¶ï¼Œé‡æ–°æ£€æŸ¥é€‰ä¸­çŠ¶æ€
+  // µ±½ÚµãÕ¹¿ªÊ±£¬ÖØĞÂ¼ì²éÑ¡ÖĞ×´Ì¬
   setTimeout(() => {
     try {
       if (permissionTreeRef.value && selectedMenuIds.value && selectedMenuIds.value.length > 0) {
         const currentCheckedKeys = permissionTreeRef.value.getCheckedKeys();
 
-        // è½¬æ¢ä¸ºæ•°å­—æ ¼å¼ï¼Œç¡®ä¿ç±»å‹ä¸€è‡´
+        // ×ª»»ÎªÊı×Ö¸ñÊ½£¬È·±£ÀàĞÍÒ»ÖÂ
         const numericCurrentKeys = ensureNumericIds(currentCheckedKeys);
         const numericSelectedKeys = ensureNumericIds(selectedMenuIds.value);
 
-        // æ£€æŸ¥æ˜¯å¦æœ‰é€‰ä¸­çŠ¶æ€ä¸¢å¤±
+        // ¼ì²éÊÇ·ñÓĞÑ¡ÖĞ×´Ì¬¶ªÊ§
         const lostKeys = numericSelectedKeys.filter((id) => !numericCurrentKeys.includes(id));
 
-        // å¦‚æœæœ‰é€‰ä¸­çŠ¶æ€ä¸¢å¤±ï¼Œé‡æ–°è®¾ç½®é€‰ä¸­çŠ¶æ€
+        // Èç¹ûÓĞÑ¡ÖĞ×´Ì¬¶ªÊ§£¬ÖØĞÂÉèÖÃÑ¡ÖĞ×´Ì¬
         if (lostKeys.length > 0) {
-          // åˆå¹¶å½“å‰é€‰ä¸­å’Œåº”è¯¥é€‰ä¸­çš„èŠ‚ç‚¹
+          // ºÏ²¢µ±Ç°Ñ¡ÖĞºÍÓ¦¸ÃÑ¡ÖĞµÄ½Úµã
           const mergedKeys = [...new Set([...numericCurrentKeys, ...numericSelectedKeys])];
 
-          // é‡æ–°è®¾ç½®é€‰ä¸­çŠ¶æ€
+          // ÖØĞÂÉèÖÃÑ¡ÖĞ×´Ì¬
           permissionTreeRef.value.setCheckedKeys(mergedKeys);
         }
       }
     } catch {}
   }, 100);
 };
-// ä¿®æ”¹æƒé™å¯¹è¯æ¡†æ‰“å¼€äº‹ä»¶å¤„ç†å‡½æ•°ï¼Œå¤„ç†ç²¾ç¡®é€‰ä¸­é—®é¢˜
+// ĞŞ¸ÄÈ¨ÏŞ¶Ô»°¿ò´ò¿ªÊÂ¼ş´¦Àíº¯Êı£¬´¦Àí¾«È·Ñ¡ÖĞÎÊÌâ
 const onPermissionDialogOpened = async () => {
-  // æ˜¾ç¤ºåŠ è½½æç¤º
+  // ÏÔÊ¾¼ÓÔØÌáÊ¾
   const loading = ElLoading.service({
     lock: true,
-    text: 'æ­£åœ¨åŠ è½½èœå•æ•°æ®...',
+    text: 'ÕıÔÚ¼ÓÔØ²Ëµ¥Êı¾İ...',
     background: 'color-mix(in srgb, var(--ds-black) 70%, transparent)',
   });
   try {
-    // æ£€æŸ¥èœå•æ ‘æ•°æ®æ˜¯å¦æœ‰æ•ˆï¼Œå¦‚æœæœ‰æ•ˆåˆ™ä¸é‡æ–°åŠ è½½
+    // ¼ì²é²Ëµ¥Ê÷Êı¾İÊÇ·ñÓĞĞ§£¬Èç¹ûÓĞĞ§Ôò²»ÖØĞÂ¼ÓÔØ
     let needReloadMenus = false;
 
     if (!menuTree.value || !Array.isArray(menuTree.value) || menuTree.value.length === 0) {
       needReloadMenus = true;
     } else {
-      // æ£€æŸ¥æ˜¯å¦æœ‰å­èŠ‚ç‚¹
+      // ¼ì²éÊÇ·ñÓĞ×Ó½Úµã
       let hasChildren = false;
       menuTree.value.forEach((node) => {
         if (node.children && node.children.length > 0) {
@@ -1723,48 +1723,48 @@ const onPermissionDialogOpened = async () => {
       }
     }
 
-    // åªæœ‰åœ¨å¿…è¦æ—¶æ‰é‡æ–°åŠ è½½èœå•æ•°æ®
+    // Ö»ÓĞÔÚ±ØÒªÊ±²ÅÖØĞÂ¼ÓÔØ²Ëµ¥Êı¾İ
     if (needReloadMenus) {
       await loadMenus();
     }
 
-    // å§‹ç»ˆä»åç«¯è·å–æœ€æ–°çš„æƒé™æ•°æ®ï¼Œç¡®ä¿æ•°æ®ä¸€è‡´æ€§
+    // Ê¼ÖÕ´Óºó¶Ë»ñÈ¡×îĞÂµÄÈ¨ÏŞÊı¾İ£¬È·±£Êı¾İÒ»ÖÂĞÔ
     try {
-      // è·å–è§’è‰²æƒé™
+      // »ñÈ¡½ÇÉ«È¨ÏŞ
       const response = await systemApi.getRolePermissions(currentRole.value.id);
-      // APIå“åº”å¤„ç†
-      // æ£€æŸ¥å“åº”æ˜¯å¦æœ‰æ•ˆ
+      // APIÏìÓ¦´¦Àí
+      // ¼ì²éÏìÓ¦ÊÇ·ñÓĞĞ§
       if (!response) {
-        ElMessage.warning('è·å–è§’è‰²æƒé™å¤±è´¥ï¼šæ— å“åº”');
+        ElMessage.warning('»ñÈ¡½ÇÉ«È¨ÏŞÊ§°Ü£ºÎŞÏìÓ¦');
         selectedMenuIds.value = [];
         halfCheckedMenuIds.value = [];
         return;
       }
-      // æ‹¦æˆªå™¨å·²è§£åŒ…ï¼Œresponse.data å°±æ˜¯ä¸šåŠ¡æ•°æ®
+      // À¹½ØÆ÷ÒÑ½â°ü£¬response.data ¾ÍÊÇÒµÎñÊı¾İ
       let permissionData = null;
-      // æƒ…å†µ1ï¼šç›´æ¥æ ¼å¼ï¼Œå“åº”å°±æ˜¯æ•°ç»„
+      // Çé¿ö1£ºÖ±½Ó¸ñÊ½£¬ÏìÓ¦¾ÍÊÇÊı×é
       if (Array.isArray(response.data)) {
         permissionData = response.data;
       }
-      // æƒ…å†µ2ï¼šå“åº”æ•°æ®ä¸ºnullæˆ–undefined
+      // Çé¿ö2£ºÏìÓ¦Êı¾İÎªnull»òundefined
       else if (response.data === null || response.data === undefined) {
         permissionData = [];
       }
-      // æƒ…å†µ3ï¼šå…¶ä»–æ ¼å¼
+      // Çé¿ö3£ºÆäËû¸ñÊ½
       else {
         permissionData = [];
       }
-      // å¤„ç†æƒé™æ•°æ®
+      // ´¦ÀíÈ¨ÏŞÊı¾İ
       if (Array.isArray(permissionData)) {
-        // ç›´æ¥æ˜¯èœå•IDæ•°ç»„ï¼Œéœ€è¦è¿‡æ»¤å‡ºå¶å­èŠ‚ç‚¹
+        // Ö±½ÓÊÇ²Ëµ¥IDÊı×é£¬ĞèÒª¹ıÂË³öÒ¶×Ó½Úµã
         const allSelectedIds = permissionData.map((id) => Number(id)).filter((id) => !isNaN(id));
-        // ğŸ”§ é‡è¦ä¿®å¤ï¼šåªé€‰ä¸­å¶å­èŠ‚ç‚¹ï¼Œé¿å…çˆ¶èŠ‚ç‚¹å¯¼è‡´å­èŠ‚ç‚¹è‡ªåŠ¨å…¨é€‰
+        // ?? ÖØÒªĞŞ¸´£ºÖ»Ñ¡ÖĞÒ¶×Ó½Úµã£¬±ÜÃâ¸¸½Úµãµ¼ÖÂ×Ó½Úµã×Ô¶¯È«Ñ¡
         const leafNodeIds = filterLeafNodes(allSelectedIds);
-        // ä½¿ç”¨å¶å­èŠ‚ç‚¹ä½œä¸ºé€‰ä¸­çŠ¶æ€ï¼Œæ ‘ç»„ä»¶ä¼šè‡ªåŠ¨è®¡ç®—çˆ¶èŠ‚ç‚¹çš„åŠé€‰çŠ¶æ€
+        // Ê¹ÓÃÒ¶×Ó½Úµã×÷ÎªÑ¡ÖĞ×´Ì¬£¬Ê÷×é¼ş»á×Ô¶¯¼ÆËã¸¸½ÚµãµÄ°ëÑ¡×´Ì¬
         selectedMenuIds.value = leafNodeIds;
         halfCheckedMenuIds.value = [];
       } else if (permissionData && typeof permissionData === 'object') {
-        // å¯¹è±¡æ ¼å¼ï¼šåŒ…å«å®Œå…¨é€‰ä¸­å’ŒåŠé€‰çŠ¶æ€
+        // ¶ÔÏó¸ñÊ½£º°üº¬ÍêÈ«Ñ¡ÖĞºÍ°ëÑ¡×´Ì¬
         selectedMenuIds.value = (permissionData.checkedKeys || [])
           .map((id) => Number(id))
           .filter((id) => !isNaN(id));
@@ -1772,49 +1772,49 @@ const onPermissionDialogOpened = async () => {
           .map((id) => Number(id))
           .filter((id) => !isNaN(id));
       } else {
-        // æ— æ•ˆæ•°æ®
+        // ÎŞĞ§Êı¾İ
         selectedMenuIds.value = [];
         halfCheckedMenuIds.value = [];
       }
       setRolePermissionBaseline(currentRole.value.id, selectedMenuIds.value);
     } catch (error) {
-      ElMessage.error('è·å–è§’è‰²æƒé™å¤±è´¥ï¼š' + (error.response?.data?.message || error.message));
+      ElMessage.error('»ñÈ¡½ÇÉ«È¨ÏŞÊ§°Ü£º' + (error.response?.data?.message || error.message));
     }
-    // ç¡®ä¿ selectedMenuIds çš„å€¼æ˜¯æ™®é€šæ•°ç»„è€Œä¸æ˜¯å“åº”å¼Proxyå¯¹è±¡
+    // È·±£ selectedMenuIds µÄÖµÊÇÆÕÍ¨Êı×é¶ø²»ÊÇÏìÓ¦Ê½Proxy¶ÔÏó
     if (selectedMenuIds.value && selectedMenuIds.value.length > 0) {
-      // å…‹éš†æ•°ç»„ï¼Œæ¶ˆé™¤ProxyåŒ…è£…
+      // ¿ËÂ¡Êı×é£¬Ïû³ıProxy°ü×°
       const plainArray = [...selectedMenuIds.value].map((id) => Number(id));
       selectedMenuIds.value = plainArray;
     }
-    // é‡ç½®æ ‘æ¸²æŸ“çŠ¶æ€
+    // ÖØÖÃÊ÷äÖÈ¾×´Ì¬
     treeRenderFlag.value = false;
-    // ä½¿ç”¨æ–°çš„keyå¼ºåˆ¶é‡æ–°æ¸²æŸ“æ ‘
+    // Ê¹ÓÃĞÂµÄkeyÇ¿ÖÆÖØĞÂäÖÈ¾Ê÷
     treeKey.value = Date.now();
-    // å…³é—­åŠ è½½æç¤º
+    // ¹Ø±Õ¼ÓÔØÌáÊ¾
     loading.close();
-    // ç­‰å¾…DOMæ›´æ–°å®Œæˆåå†å¤„ç†æ ‘
+    // µÈ´ıDOM¸üĞÂÍê³ÉºóÔÙ´¦ÀíÊ÷
     nextTick(() => {
-      // è®¾ç½®æ ‡å¿—ä½è¡¨ç¤ºå¯ä»¥æ¸²æŸ“æ ‘äº†
+      // ÉèÖÃ±êÖ¾Î»±íÊ¾¿ÉÒÔäÖÈ¾Ê÷ÁË
       treeRenderFlag.value = true;
-      // ç­‰å¾…æ ‘ç»„ä»¶å®Œæˆæ¸²æŸ“åå±•å¼€å¹¶åº”ç”¨é€‰ä¸­çŠ¶æ€
+      // µÈ´ıÊ÷×é¼şÍê³ÉäÖÈ¾ºóÕ¹¿ª²¢Ó¦ÓÃÑ¡ÖĞ×´Ì¬
       nextTick(() => {
         expandAll();
         forceApplyCheckedState();
       });
     });
   } catch (error) {
-    console.error('æ‰“å¼€æƒé™å¯¹è¯æ¡†æ—¶å‘ç”Ÿé”™è¯¯:', error);
+    console.error('´ò¿ªÈ¨ÏŞ¶Ô»°¿òÊ±·¢Éú´íÎó:', error);
     loading.close();
-    ElMessage.error('åŠ è½½èœå•æ•°æ®å¤±è´¥');
+    ElMessage.error('¼ÓÔØ²Ëµ¥Êı¾İÊ§°Ü');
   }
 };
-// åœ¨é€‰ä¸­å€¼å¤„ç†éƒ¨åˆ†æ·»åŠ ä¸€ä¸ªä¸“é—¨å¤„ç†èœå•IDçš„å‡½æ•°
-// åœ¨convertToTreeå‡½æ•°åé¢æ·»åŠ è¿™ä¸ªæ–°å‡½æ•°
-// æ·»åŠ ä¸“é—¨å¤„ç†èœå•IDçš„å‡½æ•°ï¼Œç¡®ä¿IDç±»å‹ä¸€è‡´æ€§
+// ÔÚÑ¡ÖĞÖµ´¦Àí²¿·ÖÌí¼ÓÒ»¸ö×¨ÃÅ´¦Àí²Ëµ¥IDµÄº¯Êı
+// ÔÚconvertToTreeº¯ÊıºóÃæÌí¼ÓÕâ¸öĞÂº¯Êı
+// Ìí¼Ó×¨ÃÅ´¦Àí²Ëµ¥IDµÄº¯Êı£¬È·±£IDÀàĞÍÒ»ÖÂĞÔ
 const ensureNumericIds = (ids) => {
   if (!Array.isArray(ids)) return [];
 
-  // è¿‡æ»¤å¹¶è½¬æ¢æ‰€æœ‰IDä¸ºæ•°å­—ç±»å‹
+  // ¹ıÂË²¢×ª»»ËùÓĞIDÎªÊı×ÖÀàĞÍ
   return ids
     .map((id) => {
       const numId = Number(id);
@@ -1826,7 +1826,7 @@ const getRolePermissionBaseline = (roleId) => rolePermissionBaselines.get(Number
 const setRolePermissionBaseline = (roleId, checkedIds) => {
   rolePermissionBaselines.set(Number(roleId), [...new Set(ensureNumericIds(checkedIds))]);
 };
-// ğŸ”§ æå–å…¬å…±å‡½æ•°ï¼šæ„å»ºèœå•æ˜ å°„å…³ç³»
+// ?? ÌáÈ¡¹«¹²º¯Êı£º¹¹½¨²Ëµ¥Ó³Éä¹ØÏµ
 const buildMenuMaps = () => {
   const menuMap = {};
   const childrenMap = {};
@@ -1843,7 +1843,7 @@ const buildMenuMaps = () => {
 
   return { menuMap, childrenMap };
 };
-// ğŸ”§ æå–å…¬å…±å‡½æ•°ï¼šè¿‡æ»¤å‡ºå¶å­èŠ‚ç‚¹ï¼ˆæ²¡æœ‰å­èŠ‚ç‚¹çš„èŠ‚ç‚¹ï¼‰
+// ?? ÌáÈ¡¹«¹²º¯Êı£º¹ıÂË³öÒ¶×Ó½Úµã£¨Ã»ÓĞ×Ó½ÚµãµÄ½Úµã£©
 const filterLeafNodes = (selectedIds) => {
   if (!Array.isArray(selectedIds) || selectedIds.length === 0) {
     return [];
@@ -1851,13 +1851,13 @@ const filterLeafNodes = (selectedIds) => {
 
   const { childrenMap } = buildMenuMaps();
 
-  // åªä¿ç•™å¶å­èŠ‚ç‚¹
+  // Ö»±£ÁôÒ¶×Ó½Úµã
   return selectedIds.filter((id) => {
     const children = childrenMap[id] || [];
     return children.length === 0;
   });
 };
-// ğŸ”§ è®¡ç®—æ ‘å½¢ç»“æ„çš„æ­£ç¡®çŠ¶æ€ï¼ˆå®Œæ•´é€‰ä¸­ vs åŠé€‰ä¸­ï¼‰
+// ?? ¼ÆËãÊ÷ĞÎ½á¹¹µÄÕıÈ·×´Ì¬£¨ÍêÕûÑ¡ÖĞ vs °ëÑ¡ÖĞ£©
 const calculateTreeState = (allSelectedIds) => {
   try {
     if (!Array.isArray(allSelectedIds) || !Array.isArray(menuList.value)) {
@@ -1865,28 +1865,28 @@ const calculateTreeState = (allSelectedIds) => {
     }
     const checkedIds = [];
     const halfCheckedIds = [];
-    // ä½¿ç”¨å…¬å…±å‡½æ•°æ„å»ºèœå•æ˜ å°„
+    // Ê¹ÓÃ¹«¹²º¯Êı¹¹½¨²Ëµ¥Ó³Éä
     const { menuMap, childrenMap } = buildMenuMaps();
-    // éå†æ‰€æœ‰é€‰ä¸­çš„æƒé™
+    // ±éÀúËùÓĞÑ¡ÖĞµÄÈ¨ÏŞ
     allSelectedIds.forEach((id) => {
       const menu = menuMap[id];
       if (!menu) return;
-      // æ£€æŸ¥æ˜¯å¦æœ‰å­èœå•
+      // ¼ì²éÊÇ·ñÓĞ×Ó²Ëµ¥
       const children = childrenMap[id] || [];
       if (children.length === 0) {
-        // æ²¡æœ‰å­èœå•ï¼Œç›´æ¥æ·»åŠ åˆ°å®Œæ•´é€‰ä¸­
+        // Ã»ÓĞ×Ó²Ëµ¥£¬Ö±½ÓÌí¼Óµ½ÍêÕûÑ¡ÖĞ
         checkedIds.push(id);
       } else {
-        // æœ‰å­èœå•ï¼Œæ£€æŸ¥å­èœå•çš„é€‰ä¸­æƒ…å†µ
+        // ÓĞ×Ó²Ëµ¥£¬¼ì²é×Ó²Ëµ¥µÄÑ¡ÖĞÇé¿ö
         const selectedChildren = children.filter((childId) => allSelectedIds.includes(childId));
         if (selectedChildren.length === 0) {
-          // æ²¡æœ‰å­èœå•è¢«é€‰ä¸­ï¼Œè¯´æ˜ç”¨æˆ·ç›´æ¥é€‰ä¸­äº†è¿™ä¸ªçˆ¶èœå•
+          // Ã»ÓĞ×Ó²Ëµ¥±»Ñ¡ÖĞ£¬ËµÃ÷ÓÃ»§Ö±½ÓÑ¡ÖĞÁËÕâ¸ö¸¸²Ëµ¥
           checkedIds.push(id);
         } else if (selectedChildren.length === children.length) {
-          // æ‰€æœ‰å­èœå•éƒ½è¢«é€‰ä¸­ï¼Œçˆ¶èœå•åº”è¯¥æ˜¯å®Œæ•´é€‰ä¸­
+          // ËùÓĞ×Ó²Ëµ¥¶¼±»Ñ¡ÖĞ£¬¸¸²Ëµ¥Ó¦¸ÃÊÇÍêÕûÑ¡ÖĞ
           checkedIds.push(id);
         } else {
-          // éƒ¨åˆ†å­èœå•è¢«é€‰ä¸­ï¼Œçˆ¶èœå•åº”è¯¥æ˜¯åŠé€‰ä¸­
+          // ²¿·Ö×Ó²Ëµ¥±»Ñ¡ÖĞ£¬¸¸²Ëµ¥Ó¦¸ÃÊÇ°ëÑ¡ÖĞ
           halfCheckedIds.push(id);
         }
       }
@@ -1896,7 +1896,7 @@ const calculateTreeState = (allSelectedIds) => {
     return { checkedIds: allSelectedIds || [], halfCheckedIds: [] };
   }
 };
-// ä¼˜åŒ–çš„æƒé™çŠ¶æ€åº”ç”¨å‡½æ•°ï¼Œå‡å°‘é‡è¯•è­¦å‘Š
+// ÓÅ»¯µÄÈ¨ÏŞ×´Ì¬Ó¦ÓÃº¯Êı£¬¼õÉÙÖØÊÔ¾¯¸æ
 const forceApplyCheckedState = () => {
   try {
     if (!permissionTreeRef.value) {
@@ -1905,75 +1905,75 @@ const forceApplyCheckedState = () => {
     if (!selectedMenuIds.value || !Array.isArray(selectedMenuIds.value)) {
       return;
     }
-    // ç¡®ä¿IDæ ¼å¼ä¸€è‡´
+    // È·±£ID¸ñÊ½Ò»ÖÂ
     const numericIds = ensureNumericIds(selectedMenuIds.value);
     if (numericIds.length === 0) {
       return;
     }
-    // ç›´æ¥è®¾ç½®é€‰ä¸­çŠ¶æ€
+    // Ö±½ÓÉèÖÃÑ¡ÖĞ×´Ì¬
     permissionTreeRef.value.setCheckedKeys(numericIds);
-    // ğŸ”§ ä¼˜åŒ–éªŒè¯é€»è¾‘ï¼Œå‡å°‘ä¸å¿…è¦çš„é‡è¯•
+    // ?? ÓÅ»¯ÑéÖ¤Âß¼­£¬¼õÉÙ²»±ØÒªµÄÖØÊÔ
     setTimeout(() => {
       try {
         const currentChecked = permissionTreeRef.value.getCheckedKeys();
         const currentHalfChecked = permissionTreeRef.value.getHalfCheckedKeys();
         const totalSelected = [...currentChecked, ...currentHalfChecked];
-        // æ£€æŸ¥æ˜¯å¦åŒ…å«äº†æ‰€æœ‰å¿…è¦çš„æƒé™ï¼Œè€Œä¸æ˜¯ä¸¥æ ¼ç›¸ç­‰
+        // ¼ì²éÊÇ·ñ°üº¬ÁËËùÓĞ±ØÒªµÄÈ¨ÏŞ£¬¶ø²»ÊÇÑÏ¸ñÏàµÈ
         const missingIds = numericIds.filter((id) => !totalSelected.includes(id));
         if (missingIds.length > 0 && missingIds.length < numericIds.length) {
-          // åªæœ‰åœ¨ç¡®å®ç¼ºå°‘æƒé™ä¸”ä¸æ˜¯å…¨éƒ¨ç¼ºå°‘æ—¶æ‰é‡è¯•
+          // Ö»ÓĞÔÚÈ·ÊµÈ±ÉÙÈ¨ÏŞÇÒ²»ÊÇÈ«²¿È±ÉÙÊ±²ÅÖØÊÔ
           permissionTreeRef.value.setCheckedKeys(numericIds);
         }
       } catch {
-        // é™é»˜å¤„ç†éªŒè¯é”™è¯¯ï¼Œé¿å…æ§åˆ¶å°è­¦å‘Š
+        // ¾²Ä¬´¦ÀíÑéÖ¤´íÎó£¬±ÜÃâ¿ØÖÆÌ¨¾¯¸æ
       }
     }, 150);
   } catch {
-    // é™é»˜å¤„ç†é”™è¯¯
+    // ¾²Ä¬´¦Àí´íÎó
   }
 };
-// å·²ç§»é™¤æœªä½¿ç”¨çš„updateParentNodeStatuså‡½æ•°
-// å·²ç§»é™¤æœªä½¿ç”¨çš„saveCurrentTreeStateå‡½æ•°
-// æŠ˜å æ‰€æœ‰èŠ‚ç‚¹
+// ÒÑÒÆ³ıÎ´Ê¹ÓÃµÄupdateParentNodeStatusº¯Êı
+// ÒÑÒÆ³ıÎ´Ê¹ÓÃµÄsaveCurrentTreeStateº¯Êı
+// ÕÛµşËùÓĞ½Úµã
 const collapseAll = () => {
   if (!permissionTreeRef.value) {
     return;
   }
   try {
-    // ä½¿ç”¨Element Pluså†…ç½®æ–¹æ³•
+    // Ê¹ÓÃElement PlusÄÚÖÃ·½·¨
     if (typeof permissionTreeRef.value.collapseAll === 'function') {
       permissionTreeRef.value.collapseAll();
     } else {
-      // æ‰‹åŠ¨æŠ˜å æ‰€æœ‰èŠ‚ç‚¹
+      // ÊÖ¶¯ÕÛµşËùÓĞ½Úµã
       const store = permissionTreeRef.value.store;
       if (store && store.nodesMap) {
         Object.keys(store.nodesMap).forEach((nodeId) => {
           const node = store.nodesMap[nodeId];
           if (node && node.level === 1) {
-            // åªæŠ˜å é¡¶çº§èŠ‚ç‚¹
+            // Ö»ÕÛµş¶¥¼¶½Úµã
             node.expanded = false;
           }
         });
       }
     }
   } catch (error) {
-    console.error('æŠ˜å æ‰€æœ‰èŠ‚ç‚¹å¤±è´¥:', error);
+    console.error('ÕÛµşËùÓĞ½ÚµãÊ§°Ü:', error);
   }
 };
-// åˆ·æ–°èœå•æ ‘
+// Ë¢ĞÂ²Ëµ¥Ê÷
 const refreshMenuTree = async () => {
   try {
-    // æ˜¾ç¤ºåŠ è½½æç¤º
+    // ÏÔÊ¾¼ÓÔØÌáÊ¾
     const loading = ElLoading.service({
       lock: true,
-      text: 'æ­£åœ¨åˆ·æ–°èœå•æ•°æ®...',
+      text: 'ÕıÔÚË¢ĞÂ²Ëµ¥Êı¾İ...',
       background: 'color-mix(in srgb, var(--ds-black) 70%, transparent)',
     });
 
-    // é‡æ–°åŠ è½½èœå•æ•°æ®
+    // ÖØĞÂ¼ÓÔØ²Ëµ¥Êı¾İ
     await loadMenus();
 
-    // å¦‚æœèœå•æ ‘ä»ç„¶ä¸ºç©ºï¼Œä½†èœå•åˆ—è¡¨æœ‰æ•°æ®ï¼Œåˆ™æ‰‹åŠ¨æ„å»ºèœå•æ ‘
+    // Èç¹û²Ëµ¥Ê÷ÈÔÈ»Îª¿Õ£¬µ«²Ëµ¥ÁĞ±íÓĞÊı¾İ£¬ÔòÊÖ¶¯¹¹½¨²Ëµ¥Ê÷
     if (
       (!menuTree.value || menuTree.value.length === 0) &&
       menuList.value &&
@@ -1982,76 +1982,76 @@ const refreshMenuTree = async () => {
       menuTree.value = convertToTree(menuList.value);
     }
 
-    // å…³é—­åŠ è½½æç¤º
+    // ¹Ø±Õ¼ÓÔØÌáÊ¾
     loading.close();
 
-    // å¦‚æœèœå•æ ‘å·²åŠ è½½ï¼Œç­‰å¾…DOMæ›´æ–°åå†å±•å¼€æ‰€æœ‰èŠ‚ç‚¹
+    // Èç¹û²Ëµ¥Ê÷ÒÑ¼ÓÔØ£¬µÈ´ıDOM¸üĞÂºóÔÙÕ¹¿ªËùÓĞ½Úµã
     if (menuTree.value && menuTree.value.length > 0) {
-      // ä½¿ç”¨nextTickç¡®ä¿DOMå·²æ›´æ–°
+      // Ê¹ÓÃnextTickÈ·±£DOMÒÑ¸üĞÂ
       nextTick(() => {
-        // æ·»åŠ å»¶æ—¶ï¼Œç¡®ä¿æ ‘ç»„ä»¶å·²å®Œå…¨æ¸²æŸ“
+        // Ìí¼ÓÑÓÊ±£¬È·±£Ê÷×é¼şÒÑÍêÈ«äÖÈ¾
         setTimeout(() => {
           if (permissionTreeRef.value) {
             try {
               expandAll();
-              ElMessage.success('èœå•æ•°æ®åˆ·æ–°æˆåŠŸ');
+              ElMessage.success('²Ëµ¥Êı¾İË¢ĞÂ³É¹¦');
             } catch {
-              // å±•å¼€å¤±è´¥ä¸å½±å“ä¸»æµç¨‹
+              // Õ¹¿ªÊ§°Ü²»Ó°ÏìÖ÷Á÷³Ì
             }
           } else {
-            ElMessage.success('èœå•æ•°æ®åˆ·æ–°æˆåŠŸï¼Œä½†æ— æ³•è‡ªåŠ¨å±•å¼€èŠ‚ç‚¹');
+            ElMessage.success('²Ëµ¥Êı¾İË¢ĞÂ³É¹¦£¬µ«ÎŞ·¨×Ô¶¯Õ¹¿ª½Úµã');
           }
-        }, 500); // å¢åŠ å»¶è¿Ÿæ—¶é—´ï¼Œç¡®ä¿æ ‘ç»„ä»¶å·²æ¸²æŸ“å®Œæˆ
+        }, 500); // Ôö¼ÓÑÓ³ÙÊ±¼ä£¬È·±£Ê÷×é¼şÒÑäÖÈ¾Íê³É
       });
     } else {
-      ElMessage.error('èœå•æ•°æ®åˆ·æ–°å¤±è´¥ï¼Œè¯·æ£€æŸ¥ç½‘ç»œæˆ–è”ç³»ç®¡ç†å‘˜');
+      ElMessage.error('²Ëµ¥Êı¾İË¢ĞÂÊ§°Ü£¬Çë¼ì²éÍøÂç»òÁªÏµ¹ÜÀíÔ±');
     }
   } catch (error) {
-    console.error('åˆ·æ–°èœå•æ ‘å¤±è´¥:', error);
-    ElMessage.error('åˆ·æ–°èœå•æ ‘å¤±è´¥: ' + error.message);
+    console.error('Ë¢ĞÂ²Ëµ¥Ê÷Ê§°Ü:', error);
+    ElMessage.error('Ë¢ĞÂ²Ëµ¥Ê÷Ê§°Ü: ' + error.message);
   }
 };
-// åŒæ­¥æ ‘çŠ¶æ€åˆ°å½“å‰å¯¹è¯æ¡†çš„å“åº”å¼å˜é‡
+// Í¬²½Ê÷×´Ì¬µ½µ±Ç°¶Ô»°¿òµÄÏìÓ¦Ê½±äÁ¿
 const handleCheckChange = () => {
   handleTreeCheck();
 };
-// ä¼˜åŒ–handleTreeCheckå‡½æ•°ï¼Œç§»é™¤å¤šä½™æ—¥å¿—
+// ÓÅ»¯handleTreeCheckº¯Êı£¬ÒÆ³ı¶àÓàÈÕÖ¾
 const handleTreeCheck = () => {
   try {
     if (permissionTreeRef.value && currentRole.value && currentRole.value.id) {
-      // è·å–å½“å‰æ‰€æœ‰é€‰ä¸­å’ŒåŠé€‰çŠ¶æ€
+      // »ñÈ¡µ±Ç°ËùÓĞÑ¡ÖĞºÍ°ëÑ¡×´Ì¬
       const checkedKeys = permissionTreeRef.value.getCheckedKeys();
       const halfCheckedKeys = permissionTreeRef.value.getHalfCheckedKeys();
 
-      // ç¡®ä¿æ•°æ®ç±»å‹ä¸€è‡´
+      // È·±£Êı¾İÀàĞÍÒ»ÖÂ
       const numericCheckedKeys = ensureNumericIds(checkedKeys);
       const numericHalfCheckedKeys = ensureNumericIds(halfCheckedKeys);
 
-      // ä¿å­˜å½“å‰é€‰ä¸­çŠ¶æ€åˆ°å“åº”å¼å˜é‡ï¼Œç¡®ä¿ä½¿ç”¨æœ€æ–°çŠ¶æ€
+      // ±£´æµ±Ç°Ñ¡ÖĞ×´Ì¬µ½ÏìÓ¦Ê½±äÁ¿£¬È·±£Ê¹ÓÃ×îĞÂ×´Ì¬
       selectedMenuIds.value = numericCheckedKeys;
       halfCheckedMenuIds.value = numericHalfCheckedKeys;
     }
   } catch (err) {
-    console.error('å¤„ç†æ ‘èŠ‚ç‚¹é€‰ä¸­çŠ¶æ€å¤±è´¥:', err);
+    console.error('´¦ÀíÊ÷½ÚµãÑ¡ÖĞ×´Ì¬Ê§°Ü:', err);
   }
 };
-// é¡µé¢åŠ è½½æ—¶æ‰§è¡Œ
+// Ò³Ãæ¼ÓÔØÊ±Ö´ĞĞ
 onMounted(async () => {
   try {
-    // å…ˆåŠ è½½è§’è‰²åˆ—è¡¨
+    // ÏÈ¼ÓÔØ½ÇÉ«ÁĞ±í
     await loadRoles();
 
-    // åŠ è½½èœå•æ•°æ®
+    // ¼ÓÔØ²Ëµ¥Êı¾İ
     await loadMenus();
 
-    // ç¡®ä¿èœå•æ ‘å·²æ­£ç¡®åˆå§‹åŒ–
+    // È·±£²Ëµ¥Ê÷ÒÑÕıÈ·³õÊ¼»¯
     if (!Array.isArray(menuTree.value) || menuTree.value.length === 0) {
       setTimeout(async () => {
         await loadMenus();
       }, 1000);
     }
   } catch (error) {
-    console.error('ç»„ä»¶æŒ‚è½½æ—¶åŠ è½½æ•°æ®å¤±è´¥:', error);
+    console.error('×é¼ş¹ÒÔØÊ±¼ÓÔØÊı¾İÊ§°Ü:', error);
   }
 });
 </script>
@@ -2140,7 +2140,7 @@ onMounted(async () => {
   font-size: 12px;
   margin-left: 8px;
 }
-/* æ·»åŠ åŠé€‰çŠ¶æ€çš„æ ·å¼ */
+/* Ìí¼Ó°ëÑ¡×´Ì¬µÄÑùÊ½ */
 :deep(.is-half-checked) .el-checkbox__input {
   background-color: var(--ds-yellow-bg) !important;
   border-color: var(--ds-orange) !important;
@@ -2153,7 +2153,7 @@ onMounted(async () => {
   background-color: var(--ds-yellow-bg);
 }
 :deep(.is-half-checked) .permission-node:after {
-  content: '(åŠé€‰)';
+  content: '(°ëÑ¡)';
   color: var(--ds-orange);
   font-size: 12px;
   margin-left: 5px;
@@ -2230,11 +2230,11 @@ onMounted(async () => {
   margin-right: 8px;
   font-weight: 500;
 }
-/* æ·»åŠ é¼ æ ‡æ‚¬åœæ•ˆæœ */
+/* Ìí¼ÓÊó±êĞüÍ£Ğ§¹û */
 :deep(.el-tree-node__content:hover) {
   background-color: var(--color-bg-hover);
 }
-/* ä¼˜åŒ–äºŒçº§èœå•æ ·å¼ */
+/* ÓÅ»¯¶ş¼¶²Ëµ¥ÑùÊ½ */
 :deep(.el-tree-node.is-expanded .el-tree-node__children .el-tree-node__content) {
   padding-left: 20px !important;
   position: relative;
@@ -2248,13 +2248,13 @@ onMounted(async () => {
   width: 2px;
   background-color: var(--color-border-light);
 }
-/* æ³¨æ„ï¼šå¯¹è¯æ¡†åŸºç¡€æ ·å¼å·²åœ¨å…¨å±€ä¸»é¢˜ä¸­å®šä¹‰ï¼Œè¿™é‡Œåªå®šä¹‰é¡µé¢ç‰¹å®šæ ·å¼ */
+/* ×¢Òâ£º¶Ô»°¿ò»ù´¡ÑùÊ½ÒÑÔÚÈ«¾ÖÖ÷ÌâÖĞ¶¨Òå£¬ÕâÀïÖ»¶¨ÒåÒ³ÃæÌØ¶¨ÑùÊ½ */
 :deep(.el-dialog__body) {
-  max-height: 70vh; /* é¡µé¢ç‰¹å®šï¼šç¡®ä¿èƒ½çœ‹åˆ°æ›´å¤šèœå•é¡¹ */
+  max-height: 70vh; /* Ò³ÃæÌØ¶¨£ºÈ·±£ÄÜ¿´µ½¸ü¶à²Ëµ¥Ïî */
   overflow-y: auto;
-  /* padding ä½¿ç”¨å…¨å±€ä¸»é¢˜çš„ 24px */
+  /* padding Ê¹ÓÃÈ«¾ÖÖ÷ÌâµÄ 24px */
 }
-/* ========== åˆ†é…æƒé™å¯¹è¯æ¡†æ ·å¼ ========== */
+/* ========== ·ÖÅäÈ¨ÏŞ¶Ô»°¿òÑùÊ½ ========== */
 .perm-toolbar {
   display: flex;
   justify-content: space-between;
@@ -2316,7 +2316,7 @@ onMounted(async () => {
 .permission-menu-tree {
   background: transparent;
 }
-/* æƒé™èŠ‚ç‚¹æ ·å¼ */
+/* È¨ÏŞ½ÚµãÑùÊ½ */
 .perm-node {
   display: flex;
   align-items: center;
@@ -2355,7 +2355,7 @@ onMounted(async () => {
   font-size: 13px;
   color: var(--color-text-secondary);
 }
-/* è‡ªå®šä¹‰æ ‘èŠ‚ç‚¹æ ·å¼ */
+/* ×Ô¶¨ÒåÊ÷½ÚµãÑùÊ½ */
 :deep(.el-tree-node__content) {
   height: 36px;
   padding: 4px 8px;
@@ -2366,7 +2366,7 @@ onMounted(async () => {
 :deep(.el-tree-node__content:hover) {
   background-color: var(--color-bg-hover);
 }
-/* ä¿®å¤å±•å¼€å›¾æ ‡æ ·å¼ */
+/* ĞŞ¸´Õ¹¿ªÍ¼±êÑùÊ½ */
 :deep(.el-tree-node__expand-icon) {
   padding: 6px;
   font-size: 12px;
@@ -2376,14 +2376,14 @@ onMounted(async () => {
 :deep(.el-tree-node__expand-icon.expanded) {
   transform: rotate(90deg);
 }
-/* å¤é€‰æ¡†æ ·å¼ä¼˜åŒ– */
+/* ¸´Ñ¡¿òÑùÊ½ÓÅ»¯ */
 :deep(.el-checkbox) {
   margin-right: 8px;
 }
 :deep(.el-checkbox__input) {
   vertical-align: middle;
 }
-/* å­èœå•ç¼©è¿›æ ·å¼ */
+/* ×Ó²Ëµ¥Ëõ½øÑùÊ½ */
 :deep(.el-tree-node__children) {
   padding-left: 20px;
 }
@@ -2393,7 +2393,7 @@ onMounted(async () => {
   margin-left: 8px;
   padding-left: 12px;
 }
-/* ä¸‰çº§èœå•æ ·å¼ */
+/* Èı¼¶²Ëµ¥ÑùÊ½ */
 :deep(.el-tree-node__children .el-tree-node__children .el-tree-node__content) {
   background-color: var(--color-bg-hover);
   border-left: 2px solid var(--color-border-light);
@@ -2413,7 +2413,7 @@ onMounted(async () => {
   gap: 10px;
   margin-top: 10px;
 }
-/* è¯¦æƒ…å¯¹è¯æ¡†é•¿æ–‡æœ¬å¤„ç† - è‡ªåŠ¨æ·»åŠ  */
+/* ÏêÇé¶Ô»°¿ò³¤ÎÄ±¾´¦Àí - ×Ô¶¯Ìí¼Ó */
 :deep(.el-descriptions__content) {
   max-width: 300px;
   overflow: hidden;

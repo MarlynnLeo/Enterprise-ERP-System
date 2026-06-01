@@ -5,7 +5,7 @@
  */
 import { ref, reactive, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { purchaseApi } from '@/services/api'
+import { purchaseApi } from '@/api'
 import printService from '@/services/printService'
 import { PURCHASE_STATUS_ACTION_TEXT, isValidStatusTransition, getStatusLabel } from '@/constants/purchaseConstants'
 import { getPurchaseStatusText, getPurchaseStatusColor } from '@/constants/systemConstants'

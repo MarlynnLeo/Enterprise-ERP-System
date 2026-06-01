@@ -113,7 +113,7 @@ import { debounce } from '@/utils/commonHelpers'
 import { ref, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import { InfoFilled } from '@element-plus/icons-vue'
-import { inventoryApi, baseDataApi } from '@/services/api'
+import { inventoryApi, baseDataApi } from '@/api'
 import { SEARCH_CONFIG, searchMaterials as performSearchMaterials, mapMaterialData } from '@/utils/searchConfig'
 // ===== 响应式数据 =====
 const formRef = ref(null)

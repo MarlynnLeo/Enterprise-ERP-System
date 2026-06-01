@@ -457,7 +457,7 @@ import { parsePaginatedData, parseResponseData } from '@/utils/responseParser';
 import { loadLocationOptions } from '@/utils/optionLoaders';
 import { ref, reactive, onMounted, nextTick, watch } from 'vue';
 import { useSnackbar } from '@/composables/useSnackbar';
-import { purchaseApi, qualityApi, baseDataApi } from '@/services/api';
+import { purchaseApi, qualityApi, baseDataApi } from '@/api';
 
 import { formatCurrency } from '@/utils/helpers/formatters';
 import { ElMessage } from 'element-plus'

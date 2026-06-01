@@ -131,7 +131,7 @@
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, OfficeBuilding } from '@element-plus/icons-vue';
-import api from '@/services/api';
+import { financeApi } from '@/api';
 import { formatCurrency } from '@/utils/helpers/formatters';
 import { parseResponseData } from '@/utils/responseParser'
 const activeTab = ref('centers');
@@ -172,7 +172,7 @@ const reportDateRange = ref([]);
 const loadCostCenters = async () => {
   loading.value = true;
   try {
-    const res = await api.get('/finance/cost-centers');
+    const res = await financeApi.cost.getCostCenters();
     costCenters.value = parseResponseData(res, []);
   } catch (error) {
     console.error('加载成本中心失败:', error);
@@ -184,7 +184,7 @@ const loadCostCenters = async () => {
 // 加载成本中心选项
 const loadCenterOptions = async () => {
   try {
-    const res = await api.get('/finance/cost-centers/options');
+    const res = await financeApi.cost.getCostCenterOptions();
     centerOptions.value = parseResponseData(res, []);
   } catch (error) {
     console.error('加载成本中心选项失败:', error);
@@ -199,7 +199,7 @@ const loadCostReport = async () => {
       params.startDate = reportDateRange.value[0];
       params.endDate = reportDateRange.value[1];
     }
-    const res = await api.get('/finance/cost-centers/report', { params });
+    const res = await financeApi.cost.getCostCenterReport(params);
     costReport.value = parseResponseData(res, []);
   } catch (error) {
     console.error('加载成本报表失败:', error);
@@ -226,10 +226,10 @@ const saveCenter = async () => {
     await centerFormRef.value.validate();
     saving.value = true;
     if (isEdit.value) {
-      await api.put(`/finance/cost-centers/${centerForm.id}`, centerForm);
+      await financeApi.cost.updateCostCenter(centerForm.id, centerForm);
       ElMessage.success('更新成功');
     } else {
-      await api.post('/finance/cost-centers', centerForm);
+      await financeApi.cost.createCostCenter(centerForm);
       ElMessage.success('创建成功');
     }
     centerDialogVisible.value = false;
@@ -246,7 +246,7 @@ const saveCenter = async () => {
 const deleteCenter = async (row) => {
   try {
     await ElMessageBox.confirm(`确定删除成本中心 "${row.name}" 吗？`, '确认删除', { type: 'warning' });
-    await api.delete(`/finance/cost-centers/${row.id}`);
+    await financeApi.cost.deleteCostCenter(row.id);
     ElMessage.success('删除成功');
     loadCostCenters();
   } catch (error) {

@@ -182,7 +182,7 @@ import { ref, reactive, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
-import { api } from '@/services/api';
+import { financeApi } from '@/api';
 // 数据加载状态
 const loading = ref(false);
 const saveLoading = ref(false);
@@ -283,7 +283,7 @@ const loadPeriods = async () => {
       fiscalYear: searchForm.fiscalYear,
       isClosed: searchForm.isClosed
     };
-    const response = await api.get('/finance/periods', { params });
+    const response = await financeApi.periods.getList(params);
 
     // 拦截器已解包，response.data 就是业务数据
     if (response.data?.periods) {
@@ -372,7 +372,7 @@ const handleReopen = (row) => {
     }
   ).then(async () => {
     try {
-      const response = await api.patch(`/finance/periods/${row.id}/reopen`);
+      const response = await financeApi.periods.reopen(row.id);
       ElMessage.success(response.data?.message || response._message || '会计期间已重新开启');
       loadPeriods();
     } catch (error) {
@@ -401,11 +401,11 @@ const savePeriod = async () => {
 
         if (periodForm.id) {
           // 更新
-          await api.put(`/finance/periods/${periodForm.id}`, periodData);
+          await financeApi.periods.update(periodForm.id, periodData);
           ElMessage.success('更新成功');
         } else {
           // 新增
-          await api.post('/finance/periods', periodData);
+          await financeApi.periods.create(periodData);
           ElMessage.success('添加成功');
         }
         dialogVisible.value = false;

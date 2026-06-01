@@ -16,6 +16,15 @@ const {
 } = require('../../utils/dateUtils');
 
 class FinanceIntegrationService {
+  static formatMaterialLabel(item, idField = 'material_id') {
+    const code = item.material_code || item.product_code || '';
+    const name = item.material_name || item.product_name || '';
+    const specs = item.specs || item.specification || '';
+    const fallbackId = item[idField] || item.material_id || item.product_id;
+    const label = [code, name, specs].filter(Boolean).join(' ');
+    return label || (fallbackId ? `material#${fallbackId}` : 'unknown item');
+  }
+
   /**
    * 批量解析会计科目ID（1次查询替代 N+1）
    * @param {string[]} keys - 科目配置键名数组，如 ['ACCOUNTS_RECEIVABLE', 'SALES_REVENUE']
@@ -238,7 +247,8 @@ class FinanceIntegrationService {
       const invoiceNumber = await this.generateInvoiceNumber('AR', connection);
 
       const [orderItems] = await connection.execute(
-        `SELECT soi.material_id, soi.quantity, soi.unit_price, m.name as material_name, m.code as material_code
+        `SELECT soi.material_id, soi.quantity, soi.unit_price,
+                m.name as material_name, m.code as material_code, m.specs as specs
          FROM sales_order_items soi
          LEFT JOIN materials m ON soi.material_id = m.id
          WHERE soi.order_id = ?`,
@@ -286,11 +296,11 @@ class FinanceIntegrationService {
 
       const invoiceItems = orderItems.map(item => ({
         product_id: item.material_id,
-        product_name: item.material_name || item.material_code,
+        product_name: item.material_name || item.material_code || `material#${item.material_id}`,
         description: `销售商品 ${item.material_name || item.material_code}`,
         quantity: parseFloat(item.quantity || 0),
         unit_price: parseFloat(item.unit_price || 0),
-        amount: parseFloat(item.quantity || 0) * parseFloat(item.unit_price || 0),
+        amount: Math.round(parseFloat(item.quantity || 0) * parseFloat(item.unit_price || 0) * 100) / 100,
       }));
 
       invoiceData.items = invoiceItems;
@@ -384,7 +394,7 @@ class FinanceIntegrationService {
 
       const [returnItems] = await connection.execute(
         `SELECT sri.product_id as material_id, m.name as material_name, m.code as material_code,
-                sri.quantity as return_quantity,
+                m.specs as specs, sri.quantity as return_quantity,
                 COALESCE(soi.unit_price, m.price, 0) AS unit_price
          FROM sales_return_items sri
          LEFT JOIN materials m ON sri.product_id = m.id
@@ -427,11 +437,11 @@ class FinanceIntegrationService {
         gl_entry: { period_id: currentPeriod?.id ?? null, receivable_account_id: receivableAccountId, income_account_id: incomeAccountId },
         items: returnItems.map(item => ({
           product_id: item.material_id,
-          product_name: item.material_name || item.material_code,
+          product_name: item.material_name || item.material_code || `material#${item.material_id}`,
           description: `退货冲减 ${item.material_name || item.material_code}`,
           quantity: -parseFloat(item.return_quantity || 0),
           unit_price: parseFloat(item.unit_price || 0),
-          amount: -parseFloat(item.return_quantity || 0) * parseFloat(item.unit_price || 0),
+          amount: -Math.round(parseFloat(item.return_quantity || 0) * parseFloat(item.unit_price || 0) * 100) / 100,
         }))
       };
 
@@ -507,7 +517,7 @@ class FinanceIntegrationService {
       const [receiptItems] = await connection.execute(
         `SELECT pri.material_id, pri.qualified_quantity as quantity,
                 COALESCE(NULLIF(pri.price, 0), NULLIF(poi.price, 0), NULLIF(m.cost_price, 0), 0) as price,
-                m.name as material_name, m.code as material_code
+                m.name as material_name, m.code as material_code, m.specs as specs
          FROM purchase_receipt_items pri
          LEFT JOIN purchase_receipts pr ON pri.receipt_id = pr.id
          LEFT JOIN purchase_orders po ON pr.order_id = po.id
@@ -548,11 +558,11 @@ class FinanceIntegrationService {
         gl_entry: { period_id: currentPeriod?.id ?? null, payable_account_id: payableAccountId, purchase_cost_account_id: purchaseCostAccountId, created_by: createdBy },
         items: receiptItems.map(item => ({
           material_id: item.material_id,
-          material_name: item.material_name || item.material_code,
+          material_name: item.material_name || item.material_code || `material#${item.material_id}`,
           description: `采购物资 ${item.material_name || item.material_code}`,
           quantity: parseFloat(item.quantity || 0),
           unit_price: parseFloat(item.price || 0),
-          amount: parseFloat(item.quantity || 0) * parseFloat(item.price || 0),
+          amount: Math.round(parseFloat(item.quantity || 0) * parseFloat(item.price || 0) * 100) / 100,
         }))
       };
 
@@ -625,7 +635,10 @@ class FinanceIntegrationService {
       const invoiceNumber = await this.generateInvoiceNumber('AP', connection);
 
       const [returnItems] = await connection.execute(
-        `SELECT pri.material_id, pri.material_name, pri.material_code,
+        `SELECT pri.material_id,
+                COALESCE(pri.material_name, m.name) AS material_name,
+                COALESCE(pri.material_code, m.code) AS material_code,
+                m.specs as specs,
                 pri.return_quantity, pri.price,
                 COALESCE(NULLIF(pri.price, 0), NULLIF(poi.price, 0), NULLIF(m.cost_price, 0), 0) AS unit_price
          FROM purchase_return_items pri
@@ -670,11 +683,11 @@ class FinanceIntegrationService {
         gl_entry: { period_id: currentPeriod?.id ?? null, payable_account_id: payableAccountId, purchase_cost_account_id: purchaseCostAccountId },
         items: returnItems.map(item => ({
           material_id: item.material_id,
-          material_name: item.material_name || item.material_code,
+          material_name: item.material_name || item.material_code || `material#${item.material_id}`,
           description: `退货冲减 ${item.material_name || item.material_code}`,
           quantity: -parseFloat(item.return_quantity || 0),
           unit_price: parseFloat(item.unit_price || 0),
-          amount: -parseFloat(item.return_quantity || 0) * parseFloat(item.unit_price || 0),
+          amount: -Math.round(parseFloat(item.return_quantity || 0) * parseFloat(item.unit_price || 0) * 100) / 100,
         }))
       };
 

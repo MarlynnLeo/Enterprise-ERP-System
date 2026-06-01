@@ -414,7 +414,9 @@ import {
   Lock,
   SwitchButton,
 } from '@element-plus/icons-vue';
-import { financeApi, api } from '@/services/api';
+import { financeApi } from '@/api/finance';
+import { inventoryApi } from '@/api/inventory';
+import { productionApi } from '@/api/production';
 import { parseResponseData } from '@/utils/responseParser';
 
 const formatMoney = (value) => {
@@ -572,12 +574,10 @@ const executeDepreciation = async () => {
 const loadProductionTasks = async () => {
   try {
     // 从后端API获取已完成的生产任务
-    const response = await api.get('/production/tasks', {
-      params: {
-        status: 'completed',
-        pageSize: 50,
-        page: 1,
-      },
+    const response = await productionApi.getProductionTasks({
+      status: 'completed',
+      pageSize: 50,
+      page: 1,
     });
 
     // 拦截器已解包，response.data 就是业务数据 { items: [...], total, ... }
@@ -702,9 +702,7 @@ const loadYearEndStatus = async () => {
   }
 
   try {
-    const response = await api.get(
-      `/finance/period/year-end-status/${yearEndForm.year}`
-    );
+    const response = await financeApi.automation.getFinanceYearEndStatus(yearEndForm.year);
     if (response?.data) {
       financeYearStatus.value = response.data;
     }
@@ -734,9 +732,7 @@ const executeFinanceYearEnd = async () => {
 
     financeYearEndLoading.value = true;
 
-    const response = await api.post('/finance/period/year-end-transfer', {
-      year: yearEndForm.year,
-    });
+    const response = await financeApi.automation.executeFinanceYearEnd(yearEndForm.year);
 
     if (response?.data) {
       ElMessage.success(response.data.message || '年度结转执行成功！');
@@ -769,7 +765,7 @@ const loadInventoryYearEndStatus = async () => {
   }
 
   try {
-    const response = await api.get(`/inventory/year-end/status/${inventoryYearEndForm.year}`);
+    const response = await inventoryApi.getYearEndStatus(inventoryYearEndForm.year);
     if (response?.data) {
       inventoryYearStatus.value = response.data;
     }
@@ -798,7 +794,7 @@ const executeInventoryYearEnd = async () => {
     );
 
     inventoryYearEndLoading.value = true;
-    const previewResponse = await api.get(`/inventory/year-end/preview/${inventoryYearEndForm.year}`);
+    const previewResponse = await inventoryApi.previewYearEnd(inventoryYearEndForm.year);
     const preview = parseResponseData(previewResponse, {});
     if (!preview.canExecute) {
       ElMessage.warning('库存结存预览检查未通过，请到库存年度结存页面处理');
@@ -811,7 +807,7 @@ const executeInventoryYearEnd = async () => {
       return;
     }
 
-    const response = await api.post('/inventory/year-end/execute', {
+    const response = await inventoryApi.executeYearEnd({
       year: inventoryYearEndForm.year,
     });
 
@@ -863,7 +859,7 @@ const freezeInventoryYearEnd = async () => {
 
     inventoryFreezeLoading.value = true;
 
-    const response = await api.post('/inventory/year-end/freeze', {
+    const response = await inventoryApi.freezeYearEnd({
       year: inventoryYearEndForm.year,
     });
 
@@ -892,9 +888,7 @@ const freezeInventoryYearEnd = async () => {
 // 刷新执行历史
 const refreshHistory = async () => {
   try {
-    const response = await api.get('/finance/automation/history', {
-      params: { page: 1, pageSize: 50 },
-    });
+    const response = await financeApi.automation.getHistory({ page: 1, pageSize: 50 });
     if (response?.data?.items) {
       executionHistory.value = response.data.items.map((item) => ({
         ...item,

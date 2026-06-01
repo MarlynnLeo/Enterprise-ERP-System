@@ -3,11 +3,12 @@
     title="查看物料详情"
     :model-value="modelValue"
     @update:model-value="val => emit('update:modelValue', val)"
-    width="fit-content"
-    style="min-width: 600px; max-width: 90vw;"
+    width="720px"
+    class="material-view-dialog"
+    style="max-width: calc(100vw - 32px);"
     destroy-on-close
   >
-    <div v-if="viewData">
+    <div v-if="viewData" class="material-view-content">
       <el-descriptions :column="2" border class="custom-descriptions">
         <el-descriptions-item label="物料大类">
           {{ viewData.product_category_name || '未设置' }}
@@ -128,21 +129,60 @@ const formatTaxRate = (value) => {
 </script>
 
 <style scoped>
-/* 彻底解决等宽导致的换行问题：让描述列表自动适应内容宽度 */
-.custom-descriptions :deep(table) {
-  table-layout: auto !important;
-  width: auto !important; /* 让表格包裹内容，不强制撑满宽度 */
-  min-width: 100%; /* 至少撑满弹窗本身的宽度 */
+.material-view-content {
+  max-height: min(68vh, 680px);
+  overflow: auto;
 }
 
-/* 标签强制不换行，且收缩到最小必备宽度 */
+.material-view-dialog :deep(.el-dialog__body) {
+  padding: 16px 20px;
+}
+
+.material-view-dialog :deep(.el-dialog__footer) {
+  padding: 12px 20px 16px;
+}
+
+.custom-descriptions :deep(table) {
+  table-layout: fixed !important;
+  width: 100% !important;
+}
+
 .custom-descriptions :deep(.el-descriptions__label) {
   white-space: nowrap !important;
-  width: 1% !important;
+  width: 112px !important;
+  min-width: 96px;
+  color: var(--color-text-secondary);
 }
 
-/* 内容在空间足够时不换行，实在不够才换行 */
 .custom-descriptions :deep(.el-descriptions__content) {
+  min-width: 0;
+  white-space: normal;
   word-break: break-word;
+  overflow-wrap: anywhere;
+  color: var(--color-text-primary);
+}
+
+.custom-descriptions :deep(.el-link) {
+  max-width: 100%;
+  vertical-align: top;
+}
+
+.custom-descriptions :deep(.el-link__inner) {
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 768px) {
+  .material-view-content {
+    max-height: 72vh;
+  }
+
+  .custom-descriptions :deep(.el-descriptions__label) {
+    width: 92px !important;
+    min-width: 80px;
+  }
 }
 </style>

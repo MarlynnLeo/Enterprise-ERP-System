@@ -378,7 +378,7 @@ import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Tickets, Clock, Select, Money, Refresh } from '@element-plus/icons-vue'
-import { financeApi } from '@/services/api'
+import { financeApi } from '@/api'
 import { parseDataObject, parseListData, parsePaginatedData } from '@/utils/responseParser'
 
 // 响应式数据

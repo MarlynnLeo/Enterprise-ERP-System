@@ -11,8 +11,8 @@
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
-          <h2>期初余额设置</h2>
-          <p class="subtitle">设置各科目的期初借方/贷方余额</p>
+          <h2>期初余额初始化</h2>
+          <p class="subtitle">来源驱动的总账期初初始化</p>
         </div>
         <div class="header-actions">
           <el-date-picker
@@ -22,13 +22,28 @@
             format="YYYY-MM-DD"
             value-format="YYYY-MM-DD"
             style="width: 150px; margin-right: 10px;"
+            @change="loadPreview"
           />
+          <el-button @click="loadPreview" :loading="loading">
+            <el-icon><Refresh /></el-icon> 重新读取业务数据
+          </el-button>
           <el-button v-permission="'finance:accounts:update'" type="primary" @click="handleBatchSave" :loading="saving">
-            <el-icon><Check /></el-icon> 批量保存
+            <el-icon><Check /></el-icon> 完成初始化
           </el-button>
         </div>
       </div>
     </el-card>
+
+    <div v-if="warnings.length" class="warning-list">
+      <el-alert
+        v-for="warning in warnings"
+        :key="warning"
+        :title="warning"
+        type="warning"
+        :closable="false"
+        show-icon
+      />
+    </div>
 
     <!-- 统计信息 -->
     <div class="stats-row">
@@ -82,40 +97,64 @@
             <el-tag :type="getAccountTypeTag(row.account_type)">{{ row.account_type }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="借方" width="200">
+        <el-table-column label="数据来源" min-width="180">
           <template #default="{ row }">
-            <el-input-number
-              v-model="row.opening_debit"
-              :precision="2"
-              :min="0"
-              placeholder="借方金额"
-              style="width: 100%"
-              @change="recalculateTotals"
-            />
+            <el-tooltip
+              v-if="sourceDetailText(row)"
+              :content="sourceDetailText(row)"
+              placement="top"
+            >
+              <el-tag :type="getSourceTag(row.source_type)">
+                {{ row.source_label }}
+              </el-tag>
+            </el-tooltip>
+            <el-tag v-else :type="getSourceTag(row.source_type)">
+              {{ row.source_label }}
+            </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="贷方" width="200">
+        <el-table-column label="期初余额" width="220">
           <template #default="{ row }">
             <el-input-number
-              v-model="row.opening_credit"
+              v-if="row.manual_allowed"
+              v-model="row.opening_amount"
               :precision="2"
               :min="0"
-              placeholder="贷方金额"
+              :controls="false"
+              placeholder="期初余额"
               style="width: 100%"
-              @change="recalculateTotals"
             />
+            <span v-else class="generated-amount">{{ formatCurrency(row.opening_amount) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="余额方向" width="100">
+        <el-table-column label="系统方向" width="100">
           <template #default="{ row }">
-            <span v-if="row.is_debit" class="text-success">借方</span>
+            <el-tag :type="row.opening_direction === 'debit' ? 'success' : 'warning'">
+              {{ row.opening_direction === 'debit' ? '借方' : '贷方' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="借方金额" width="160" align="right">
+          <template #default="{ row }">
+            <span>{{ formatCurrency(getOpeningDebit(row)) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="贷方金额" width="160" align="right">
+          <template #default="{ row }">
+            <span>{{ formatCurrency(getOpeningCredit(row)) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="科目余额方向" width="120">
+          <template #default="{ row }">
+            <span v-if="isDebitAccount(row)" class="text-success">借方</span>
             <span v-else class="text-warning">贷方</span>
           </template>
         </el-table-column>
         <el-table-column label="状态" width="100">
           <template #default="{ row }">
-            <el-tag v-if="row.opening_balance_set" type="success">已设置</el-tag>
-            <el-tag v-else type="info">未设置</el-tag>
+            <el-tag v-if="row.source_type === 'system'" type="success">系统生成</el-tag>
+            <el-tag v-else-if="row.opening_balance_set" type="warning">已补录</el-tag>
+            <el-tag v-else type="info">待补录</el-tag>
           </template>
         </el-table-column>
       </el-table>
@@ -127,23 +166,24 @@
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { formatCurrency, formatLocalDate } from '@/utils/format'
-import { Check, TrendCharts, Warning, CircleCheck } from '@element-plus/icons-vue'
-import { api } from '@/services/axiosInstance'
-import { parseListData } from '@/utils/responseParser'
+import { Check, TrendCharts, Warning, CircleCheck, Refresh } from '@element-plus/icons-vue'
+import { financeApi } from '@/api'
+import { parseDataObject } from '@/utils/responseParser'
 
 const loading = ref(false)
 const saving = ref(false)
 const accountList = ref([])
+const warnings = ref([])
 const balanceDate = ref(formatLocalDate(new Date()))
 
 // 计算借方合计
 const totalDebit = computed(() => {
-  return accountList.value.reduce((sum, acc) => sum + (parseFloat(acc.opening_debit) || 0), 0)
+  return accountList.value.reduce((sum, acc) => sum + getOpeningDebit(acc), 0)
 })
 
 // 计算贷方合计
 const totalCredit = computed(() => {
-  return accountList.value.reduce((sum, acc) => sum + (parseFloat(acc.opening_credit) || 0), 0)
+  return accountList.value.reduce((sum, acc) => sum + getOpeningCredit(acc), 0)
 })
 
 // 判断是否平衡
@@ -165,29 +205,54 @@ const getAccountTypeTag = (type) => {
   return typeMap[type] || 'info'
 }
 
-// 加载期初余额数据
-const loadBalances = async () => {
+const getSourceTag = (type) => type === 'system' ? 'success' : 'info'
+
+const sourceDetailText = (account) => {
+  if (!account.source_details) return ''
+  return JSON.stringify(account.source_details).slice(0, 500)
+}
+
+const toAmount = (value) => {
+  const amount = parseFloat(value)
+  return Number.isFinite(amount) && amount > 0 ? amount : 0
+}
+
+const isDebitAccount = (account) => {
+  return account.is_debit === true || account.is_debit === 1 || account.is_debit === '1'
+}
+
+const getDefaultDirection = (account) => {
+  return isDebitAccount(account) ? 'debit' : 'credit'
+}
+
+const getOpeningDebit = (account) => {
+  return account.opening_direction === 'debit' ? toAmount(account.opening_amount) : 0
+}
+
+const getOpeningCredit = (account) => {
+  return account.opening_direction === 'credit' ? toAmount(account.opening_amount) : 0
+}
+
+// 从业务子模块重新生成预览，系统来源金额由后端统一计算。
+const loadPreview = async () => {
   loading.value = true
   try {
-    const res = await api.get('/finance/opening-balances')
-    accountList.value = parseListData(res, { enableLog: false }).map(item => ({
+    const res = await financeApi.openingBalances.preview({ balanceDate: balanceDate.value })
+    const preview = parseDataObject(res, { enableLog: false }) || {}
+    warnings.value = preview.warnings || []
+    accountList.value = (preview.rows || []).map(item => ({
       ...item,
-      opening_debit: parseFloat(item.opening_debit) || 0,
-      opening_credit: parseFloat(item.opening_credit) || 0
+      opening_amount: parseFloat(item.opening_amount) || 0,
+      opening_direction: item.opening_direction || getDefaultDirection(item)
     }))
   } catch (error) {
-    ElMessage.error('加载期初余额失败: ' + (error.message || '未知错误'))
+    ElMessage.error('加载期初余额预览失败: ' + (error.message || '未知错误'))
   } finally {
     loading.value = false
   }
 }
 
-// 重新计算合计
-const recalculateTotals = () => {
-  // 通过computed自动计算
-}
-
-// 批量保存
+// 系统来源在后端重新计算，前端只提交允许补录的余额。
 const handleBatchSave = async () => {
   if (!isBalanced.value) {
     ElMessage.warning('借贷不平衡，请检查数据')
@@ -196,35 +261,29 @@ const handleBatchSave = async () => {
 
   saving.value = true
   try {
-    // 保存全部科目，确保已清零的期初余额也能同步到后端
-    const balancesToSave = accountList.value
+    const manualBalances = accountList.value
+      .filter(acc => acc.manual_allowed)
       .map(acc => ({
         accountId: acc.id,
-        debit: acc.opening_debit || 0,
-        credit: acc.opening_credit || 0
+        amount: acc.opening_amount || 0
       }))
 
-    if (balancesToSave.length === 0) {
-      ElMessage.warning('没有需要保存的期初余额')
-      return
-    }
-
-    await api.post('/finance/opening-balances/batch', {
-      balances: balancesToSave,
+    await financeApi.openingBalances.initialize({
+      manualBalances,
       balanceDate: balanceDate.value
     })
 
-    ElMessage.success(`成功保存${balancesToSave.length}个科目的期初余额`)
-    loadBalances() // 重新加载
+    ElMessage.success('期初余额初始化完成')
+    loadPreview()
   } catch (error) {
-    ElMessage.error('保存失败: ' + (error.message || '未知错误'))
+    ElMessage.error('初始化失败: ' + (error.message || '未知错误'))
   } finally {
     saving.value = false
   }
 }
 
 onMounted(() => {
-  loadBalances()
+  loadPreview()
 })
 </script>
 
@@ -258,6 +317,13 @@ onMounted(() => {
 .header-actions {
   display: flex;
   align-items: center;
+  gap: 10px;
+}
+
+.warning-list {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 20px;
 }
 
 .stats-row {
@@ -338,5 +404,10 @@ onMounted(() => {
 
 .text-danger {
   color: var(--color-danger);
+}
+
+.generated-amount {
+  color: var(--color-text-primary);
+  font-weight: 600;
 }
 </style>

@@ -137,8 +137,8 @@ function validateMenuInfo(req, res, next) {
   if (type > 0) {
     if (!permission || typeof permission !== 'string' || permission.trim().length === 0) {
       errors.push('权限标识不能为空');
-    } else if (!/^[a-zA-Z0-9:_]+$/.test(permission)) {
-      errors.push('权限标识只能包含字母、数字、冒号和下划线');
+    } else if (!/^[a-zA-Z0-9:_-]+$/.test(permission)) {
+      errors.push('权限标识只能包含字母、数字、冒号、下划线和短横线');
     }
   }
 

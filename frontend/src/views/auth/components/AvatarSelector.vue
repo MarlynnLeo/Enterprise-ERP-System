@@ -221,10 +221,10 @@ function applyFrame(id) {
 
 <style scoped>
 .profile-card {
-  border-radius: 12px;
-  background: var(--el-bg-color);
-  border: 1px solid var(--el-border-color-lighter);
-  box-shadow: 0 2px 12px 0 color-mix(in srgb, var(--ds-black) 5%, transparent);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border-lighter);
+  box-shadow: var(--shadow-sm);
 }
 
 .avatar-frame-panel :deep(.el-card__header) {
@@ -257,19 +257,19 @@ function applyFrame(id) {
   justify-content: center;
   box-sizing: border-box;
   border-radius: 50%;
-  background: var(--el-color-warning);
-  color: var(--el-color-white);
+  background: var(--color-warning);
+  color: var(--color-on-primary);
   font-size: 20px;
 }
 
 .header-title {
-  color: var(--el-text-color-primary);
+  color: var(--color-text-primary);
   font-size: 16px;
   font-weight: 700;
 }
 
 .current-selection {
-  color: var(--el-text-color-secondary);
+  color: var(--color-text-secondary);
   font-size: 13px;
 }
 
@@ -279,7 +279,7 @@ function applyFrame(id) {
 
 .frame-tabs :deep(.el-tabs__nav-wrap::after) {
   height: 1px;
-  background: var(--el-border-color-lighter);
+  background: var(--color-border-lighter);
 }
 
 .frame-tabs :deep(.el-tabs__item) {
@@ -301,9 +301,9 @@ function applyFrame(id) {
   align-items: center;
   gap: 10px;
   padding: 18px 14px 16px;
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 10px;
-  background: var(--el-bg-color);
+  border: 1px solid var(--color-border-lighter);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-base);
   color: inherit;
   cursor: pointer;
   text-align: center;
@@ -312,18 +312,18 @@ function applyFrame(id) {
 
 .frame-tile:hover,
 .frame-tile.previewing {
-  border-color: var(--el-color-primary);
-  background: var(--el-fill-color-extra-light);
+  border-color: var(--color-primary);
+  background: var(--color-bg-hover);
 }
 
 .frame-tile:focus-visible {
-  outline: 3px solid var(--el-color-primary-light-5);
+  outline: 3px solid var(--color-primary-light-5);
   outline-offset: 2px;
 }
 
 .frame-tile.active {
-  border-color: var(--el-color-success);
-  background: var(--el-color-success-light-9);
+  border-color: var(--color-success);
+  background: var(--color-success-light);
 }
 
 .tile-preview {
@@ -331,14 +331,14 @@ function applyFrame(id) {
 }
 
 .frame-name {
-  color: var(--el-text-color-primary);
+  color: var(--color-text-primary);
   font-size: 15px;
   font-weight: 800;
 }
 
 .frame-desc {
   min-height: 36px;
-  color: var(--el-text-color-secondary);
+  color: var(--color-text-secondary);
   font-size: 12px;
   line-height: 1.5;
   overflow: hidden;
@@ -368,7 +368,7 @@ function applyFrame(id) {
   top: 10px;
   right: 10px;
   z-index: 2;
-  color: var(--el-color-success);
+  color: var(--color-success);
   font-size: 20px;
 }
 
@@ -378,9 +378,9 @@ function applyFrame(id) {
   align-items: center;
   gap: 22px;
   padding: 26px;
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 10px;
-  background: var(--el-fill-color-extra-light);
+  border: 1px solid var(--color-border-lighter);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-hover);
 }
 
 .preview-copy {
@@ -392,12 +392,12 @@ function applyFrame(id) {
 }
 
 .preview-copy strong {
-  color: var(--el-text-color-primary);
+  color: var(--color-text-primary);
   font-size: 18px;
 }
 
 .preview-copy span {
-  color: var(--el-text-color-secondary);
+  color: var(--color-text-secondary);
   font-size: 13px;
   line-height: 1.5;
 }

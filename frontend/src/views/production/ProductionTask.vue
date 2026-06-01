@@ -202,9 +202,9 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="72" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
-            <div style="display: flex; gap: 5px; flex-wrap: wrap;">
+            <div class="table-actions">
               <!-- 查看按钮 -->
               <el-button v-permission="'production:tasks:view'"
                 size="small"
@@ -225,11 +225,9 @@
               </el-button>
               <!-- 发料按钮：必须已排程（有开始日期）且未生成出库单 -->
               <el-button v-permission="'production:tasks:update'"
-                v-if="(scope.row.status === 'pending' || scope.row.status === 'allocated' || scope.row.status === 'preparing') && Number(scope.row.has_outbound_document) !== 1"
+                v-if="(scope.row.status === 'pending' || scope.row.status === 'allocated' || scope.row.status === 'preparing') && Number(scope.row.has_outbound_document) !== 1 && scope.row.startDate"
                 size="small"
                 type="warning"
-                :disabled="!scope.row.startDate"
-                :title="!scope.row.startDate ? '请先排程后再发料' : ''"
                 @click="showMaterialIssueDialog(scope.row)"
               >
                 发料
@@ -678,7 +676,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { baseDataApi, inventoryApi, productionApi, systemApi } from '@/services/api'
+import { baseDataApi, inventoryApi, productionApi, systemApi } from '@/api'
 import dayjs from 'dayjs'
 import { Plus, Clock, SetUp, WarningFilled } from '@element-plus/icons-vue'
 import { parseQuantity, formatQuantity, getQuantityFromRelatedItem } from '@/utils/helpers/quantity'

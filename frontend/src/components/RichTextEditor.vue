@@ -1,10 +1,3 @@
-<!--
-/**
- * RichTextEditor.vue
- * @description 轻量富文本编辑器，输入输出统一做 HTML 清洗
- * @date 2025-11-04
- */
--->
 <template>
   <div class="rich-text-editor">
     <div class="editor-toolbar" role="toolbar" aria-label="富文本工具栏">
@@ -195,9 +188,9 @@ watch(() => props.modelValue, async (newValue) => {
 <style scoped>
 .rich-text-editor {
   border: 1px solid var(--color-border-base);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   overflow: hidden;
-  background-color: var(--color-bg-base, var(--ds-white));
+  background-color: var(--color-bg-base);
 }
 
 .editor-toolbar {
@@ -215,7 +208,7 @@ watch(() => props.modelValue, async (newValue) => {
   height: 28px;
   padding: 0 8px;
   border: 1px solid var(--color-border-base);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   color: var(--color-text-primary);
   background: var(--color-bg-base);
   cursor: pointer;
@@ -226,7 +219,7 @@ watch(() => props.modelValue, async (newValue) => {
 .toolbar-btn:hover {
   color: var(--color-primary);
   border-color: var(--color-primary-light-5);
-  background-color: var(--ds-blue-bg);
+  background-color: var(--color-primary-light-9);
 }
 
 .toolbar-btn.strong {
@@ -280,7 +273,7 @@ watch(() => props.modelValue, async (newValue) => {
 .editor-surface :deep(pre),
 .editor-surface :deep(code) {
   padding: 2px 4px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background-color: var(--color-bg-hover);
   color: var(--color-text-primary);
   font-family: 'Courier New', monospace;
@@ -299,7 +292,7 @@ watch(() => props.modelValue, async (newValue) => {
   max-width: 100%;
   height: auto;
   margin: 10px 0;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 
 .editor-surface :deep(table) {

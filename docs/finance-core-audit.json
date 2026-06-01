@@ -1,0 +1,3156 @@
+{
+  "passed": true,
+  "summary": {
+    "routeCount": 334,
+    "routePermissionCount": 71,
+    "integrityRuleCount": 15
+  },
+  "routes": [
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/init",
+      "permissions": [
+        "system:settings:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/expenses/init",
+      "permissions": [
+        "system:settings:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/expenses/categories",
+      "permissions": [
+        "finance:expenses:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/expenses/categories",
+      "permissions": [
+        "finance:expenses:create"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "PUT",
+      "path": "/expenses/categories/:id",
+      "permissions": [
+        "finance:expenses:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "DELETE",
+      "path": "/expenses/categories/:id",
+      "permissions": [
+        "finance:expenses:delete"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/expenses/generate-number",
+      "permissions": [
+        "finance:expenses:create"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/expenses/stats",
+      "permissions": [
+        "finance:expenses:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/expenses",
+      "permissions": [
+        "finance:expenses:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/expenses/:id",
+      "permissions": [
+        "finance:expenses:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/expenses",
+      "permissions": [
+        "finance:expenses:create"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "PUT",
+      "path": "/expenses/:id",
+      "permissions": [
+        "finance:expenses:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/expenses/:id/submit",
+      "permissions": [
+        "finance:expenses:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/expenses/:id/approve",
+      "permissions": [
+        "finance:expenses:approve"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/expenses/:id/pay",
+      "permissions": [
+        "finance:expenses:pay"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/expenses/:id/cancel",
+      "permissions": [
+        "finance:expenses:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "DELETE",
+      "path": "/expenses/:id",
+      "permissions": [
+        "finance:expenses:delete"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/settings",
+      "permissions": [
+        "finance:settings:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "PUT",
+      "path": "/settings",
+      "permissions": [
+        "finance:settings:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/settings/default",
+      "permissions": [
+        "finance:settings:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/settings/reset",
+      "permissions": [
+        "finance:settings:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/accounts/options",
+      "permissions": [
+        "finance:accounts:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/accounts",
+      "permissions": [
+        "finance:accounts:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/accounts",
+      "permissions": [
+        "finance:accounts:create"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/accounts/:id",
+      "permissions": [
+        "finance:accounts:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "PUT",
+      "path": "/accounts/:id",
+      "permissions": [
+        "finance:accounts:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "PATCH",
+      "path": "/accounts/:id/deactivate",
+      "permissions": [
+        "finance:accounts:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "PATCH",
+      "path": "/accounts/:id/status",
+      "permissions": [
+        "finance:accounts:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/opening-balances",
+      "permissions": [
+        "finance:accounts:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/opening-balances/batch",
+      "permissions": [
+        "finance:accounts:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/opening-balances/:id",
+      "permissions": [
+        "finance:accounts:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/entries",
+      "permissions": [
+        "finance:entries:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/entries/:id",
+      "permissions": [
+        "finance:entries:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/entries/:id/items",
+      "permissions": [
+        "finance:entries:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/entries",
+      "permissions": [
+        "finance:entries:create"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "PATCH",
+      "path": "/entries/:id/post",
+      "permissions": [
+        "finance:entries:approve"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/entries/:id/reverse",
+      "permissions": [
+        "finance:entries:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "DELETE",
+      "path": "/entries/:id",
+      "permissions": [
+        "finance:entries:delete"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/periods",
+      "permissions": [
+        "finance:periods:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/periods/:id",
+      "permissions": [
+        "finance:periods:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/periods",
+      "permissions": [
+        "finance:periods:create"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "PUT",
+      "path": "/periods/:id",
+      "permissions": [
+        "finance:periods:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "PATCH",
+      "path": "/periods/:id/close",
+      "permissions": [
+        "finance:periods:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "PATCH",
+      "path": "/periods/:id/reopen",
+      "permissions": [
+        "finance:periods:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/gl/trial-balance",
+      "permissions": [
+        "finance:reports:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/gl/closing/preview/:id",
+      "permissions": [
+        "finance:closing:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/gl/closing/execute/:id",
+      "permissions": [
+        "finance:closing:execute"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/gl/closing/history/:id",
+      "permissions": [
+        "finance:closing:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/ap/invoices/generate-number",
+      "permissions": [
+        "finance:ap:create"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/ap/invoices",
+      "permissions": [
+        "finance:ap:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/ap/invoices/unpaid",
+      "permissions": [
+        "finance:ap:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/ap/invoices/overdue",
+      "permissions": [
+        "finance:ap:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/ap/invoices/:id/edit",
+      "permissions": [
+        "finance:ap:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/ap/invoices/:id",
+      "permissions": [
+        "finance:ap:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/ap/invoices/:id/payments",
+      "permissions": [
+        "finance:ap:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/ap/invoices",
+      "permissions": [
+        "finance:ap:create"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "PUT",
+      "path": "/ap/invoices/:id",
+      "permissions": [
+        "finance:ap:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "PUT",
+      "path": "/ap/invoices/:id/status",
+      "permissions": [
+        "finance:ap:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/ap/payments",
+      "permissions": [
+        "finance:ap:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/ap/payments/:id",
+      "permissions": [
+        "finance:ap:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/ap/payments",
+      "permissions": [
+        "finance:ap:pay"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/ap/payments/:id/void",
+      "permissions": [
+        "finance:ap:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/ap/payments/batch",
+      "permissions": [
+        "finance:ap:pay"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/ap/payments/:id/reverse",
+      "permissions": [
+        "finance:ap:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/ap/supplier-payables",
+      "permissions": [
+        "finance:reports:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/ap/supplier-payables/:id",
+      "permissions": [
+        "finance:reports:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/ap/aging",
+      "permissions": [
+        "finance:reports:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/ap/aging/:id",
+      "permissions": [
+        "finance:reports:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/ar/invoices/generate-number",
+      "permissions": [
+        "finance:ar:create"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/ar/invoices",
+      "permissions": [
+        "finance:ar:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/ar/invoices/overdue",
+      "permissions": [
+        "finance:ar:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/ar/invoices/:id",
+      "permissions": [
+        "finance:ar:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/ar/invoices/:id/edit",
+      "permissions": [
+        "finance:ar:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/ar/invoices/:id/payments",
+      "permissions": [
+        "finance:ar:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/ar/invoices",
+      "permissions": [
+        "finance:ar:create"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "PUT",
+      "path": "/ar/invoices/:id",
+      "permissions": [
+        "finance:ar:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "PUT",
+      "path": "/ar/invoices/:id/status",
+      "permissions": [
+        "finance:ar:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/ar/receipts/generate-number",
+      "permissions": [
+        "finance:ar:create"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/ar/receipts/unpaid-invoices",
+      "permissions": [
+        "finance:ar:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/ar/receipts",
+      "permissions": [
+        "finance:ar:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/ar/receipts/:id",
+      "permissions": [
+        "finance:ar:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/ar/receipts",
+      "permissions": [
+        "finance:ar:receive"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/ar/receipts/:id/void",
+      "permissions": [
+        "finance:ar:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/ar/receipts/batch",
+      "permissions": [
+        "finance:ar:receive"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/ar/receipts/:id/reverse",
+      "permissions": [
+        "finance:ar:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/ar/customer-receivables",
+      "permissions": [
+        "finance:reports:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/ar/customer-receivables/:id",
+      "permissions": [
+        "finance:reports:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/ar/aging",
+      "permissions": [
+        "finance:reports:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/ar/aging/:id",
+      "permissions": [
+        "finance:reports:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/assets",
+      "permissions": [
+        "finance:assets:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/assets/categories",
+      "permissions": [
+        "finance:assets:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/assets/categories/:id",
+      "permissions": [
+        "finance:assets:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/assets/categories",
+      "permissions": [
+        "finance:assets:create"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "PUT",
+      "path": "/assets/categories/:id",
+      "permissions": [
+        "finance:assets:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "DELETE",
+      "path": "/assets/categories/:id",
+      "permissions": [
+        "finance:assets:delete"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/assets/generate-code",
+      "permissions": [
+        "finance:assets:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/assets/depreciation/records",
+      "permissions": [
+        "finance:assets:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/assets/depreciation/calculate",
+      "permissions": [
+        "finance:assets:execute"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/assets/depreciation/submit",
+      "permissions": [
+        "finance:assets:execute"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/assets/depreciation/export",
+      "permissions": [
+        "finance:assets:export"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/assets/stats",
+      "permissions": [
+        "finance:assets:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/assets/dashboard/stats",
+      "permissions": [
+        "finance:assets:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/assets/depreciation/forecast",
+      "permissions": [
+        "finance:assets:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/assets/:id",
+      "permissions": [
+        "finance:assets:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/assets",
+      "permissions": [
+        "finance:assets:create"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "PUT",
+      "path": "/assets/:id",
+      "permissions": [
+        "finance:assets:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/assets/:id/depreciation",
+      "permissions": [
+        "finance:assets:execute"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/assets/:id/dispose",
+      "permissions": [
+        "finance:assets:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/assets/:id/transfer",
+      "permissions": [
+        "finance:assets:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/assets/:id/split",
+      "permissions": [
+        "finance:assets:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/assets/:id/audit",
+      "permissions": [
+        "finance:assets:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/assets/:id/change-logs",
+      "permissions": [
+        "finance:assets:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/assets/:id/depreciation-history",
+      "permissions": [
+        "finance:assets:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/assets/:id/impairments",
+      "permissions": [
+        "finance:assets:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/assets/:id/impairments",
+      "permissions": [
+        "finance:assets:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/assets-cip",
+      "permissions": [
+        "finance:assets:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/assets-cip/:id",
+      "permissions": [
+        "finance:assets:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/assets-cip",
+      "permissions": [
+        "finance:assets:create"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "PUT",
+      "path": "/assets-cip/:id",
+      "permissions": [
+        "finance:assets:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "DELETE",
+      "path": "/assets-cip/:id",
+      "permissions": [
+        "finance:assets:delete"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/assets-cip/:id/cost",
+      "permissions": [
+        "finance:assets:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/assets-cip/:id/transfer",
+      "permissions": [
+        "finance:assets:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/assets-inventory",
+      "permissions": [
+        "finance:assets:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/assets-inventory/:id",
+      "permissions": [
+        "finance:assets:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/assets-inventory",
+      "permissions": [
+        "finance:assets:create"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "PUT",
+      "path": "/assets-inventory/:id/items/:itemId",
+      "permissions": [
+        "finance:assets:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/assets-inventory/:id/complete",
+      "permissions": [
+        "finance:assets:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/bank-accounts",
+      "permissions": [
+        "finance:cash:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/bank-accounts/stats",
+      "permissions": [
+        "finance:cash:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/bank-accounts/:id",
+      "permissions": [
+        "finance:cash:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/bank-accounts",
+      "permissions": [
+        "finance:cash:create"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "PUT",
+      "path": "/bank-accounts/:id",
+      "permissions": [
+        "finance:cash:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "PATCH",
+      "path": "/bank-accounts/:id/status",
+      "permissions": [
+        "finance:cash:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/bank-transactions/print-data",
+      "permissions": [
+        "finance:cash:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/bank-transactions",
+      "permissions": [
+        "finance:cash:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/bank-transactions/export",
+      "permissions": [
+        "finance:cash:export"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/bank-transactions/import",
+      "permissions": [
+        "finance:cash:create"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/bank-transactions/transfer",
+      "permissions": [
+        "finance:cash:create"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/bank-transactions",
+      "permissions": [
+        "finance:cash:create"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/bank-transactions/:id",
+      "permissions": [
+        "finance:cash:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "PUT",
+      "path": "/bank-transactions/:id",
+      "permissions": [
+        "finance:cash:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "DELETE",
+      "path": "/bank-transactions/:id",
+      "permissions": [
+        "finance:cash:delete"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/bank-transactions/:id/submit",
+      "permissions": [
+        "finance:cash:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/bank-transactions/:id/audit",
+      "permissions": [
+        "finance:cash:approve"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/cash-transactions/print-data",
+      "permissions": [
+        "finance:cash:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/cash-transactions",
+      "permissions": [
+        "finance:cash:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/cash-transactions/stats",
+      "permissions": [
+        "finance:cash:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/cash-transactions/export",
+      "permissions": [
+        "finance:cash:export"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/cash-transactions/import",
+      "permissions": [
+        "finance:cash:create"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/cash-transactions",
+      "permissions": [
+        "finance:cash:create"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/cash-transactions/:id",
+      "permissions": [
+        "finance:cash:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "PUT",
+      "path": "/cash-transactions/:id",
+      "permissions": [
+        "finance:cash:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "DELETE",
+      "path": "/cash-transactions/:id",
+      "permissions": [
+        "finance:cash:delete"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "PUT",
+      "path": "/cash-transactions/:id/submit",
+      "permissions": [
+        "finance:cash:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "PUT",
+      "path": "/cash-transactions/:id/approve",
+      "permissions": [
+        "finance:cash:approve"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "PUT",
+      "path": "/cash-transactions/:id/reject",
+      "permissions": [
+        "finance:cash:approve"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/cash/reconciliation/unreconciled",
+      "permissions": [
+        "finance:cash:reconcile"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/cash/reconciliation/reconciled",
+      "permissions": [
+        "finance:cash:reconcile"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/cash/reconciliation/stats",
+      "permissions": [
+        "finance:cash:reconcile"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/cash/reconciliation/matched-transaction",
+      "permissions": [
+        "finance:cash:reconcile"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/cash/reconciliation/possible-matches",
+      "permissions": [
+        "finance:cash:reconcile"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/cash/reconciliation/cancel-reconciled",
+      "permissions": [
+        "finance:cash:reconcile"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/cash/reconciliation/confirm-match",
+      "permissions": [
+        "finance:cash:reconcile"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/cash/reconciliation/import-statement",
+      "permissions": [
+        "finance:cash:reconcile"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/statistics/cash-flow",
+      "permissions": [
+        "finance:reports:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/cash/fix/recalculate-balances",
+      "permissions": [
+        "system:settings:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/reports/balance-sheet",
+      "permissions": [
+        "finance:reports:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/reports/income-statement",
+      "permissions": [
+        "finance:reports:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/reports/cash-flow",
+      "permissions": [
+        "finance:reports:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/reports/standard-cash-flow",
+      "permissions": [
+        "finance:reports:standard-cash-flow:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/reports/summary",
+      "permissions": [
+        "finance:reports:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/pricing/strategy-fields",
+      "permissions": [
+        "finance:pricing:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/pricing/strategy-fields",
+      "permissions": [
+        "finance:pricing:create"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "PUT",
+      "path": "/pricing/strategy-fields/:id",
+      "permissions": [
+        "finance:pricing:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "DELETE",
+      "path": "/pricing/strategy-fields/:id",
+      "permissions": [
+        "finance:pricing:delete"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "PATCH",
+      "path": "/pricing/strategy-fields/:id/toggle",
+      "permissions": [
+        "finance:pricing:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/pricing/settings",
+      "permissions": [
+        "finance:pricing:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "PUT",
+      "path": "/pricing/settings",
+      "permissions": [
+        "finance:pricing:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/pricing",
+      "permissions": [
+        "finance:pricing:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/pricing",
+      "permissions": [
+        "finance:pricing:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/pricing/export",
+      "permissions": [
+        "finance:pricing:export"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/pricing/calculate-bom/:productId",
+      "permissions": [
+        "finance:pricing:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/pricing/:productId",
+      "permissions": [
+        "finance:pricing:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/pricing/:productId/history",
+      "permissions": [
+        "finance:pricing:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/pricing/:productId/bom",
+      "permissions": [
+        "finance:pricing:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/bom-price-adjustments/:productId",
+      "permissions": [
+        "finance:pricing:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "POST",
+      "path": "/bom-price-adjustments",
+      "permissions": [
+        "finance:pricing:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/bom-price-adjustments/:productId/:materialId/history",
+      "permissions": [
+        "finance:pricing:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "DELETE",
+      "path": "/bom-price-adjustments/:id",
+      "permissions": [
+        "finance:pricing:delete"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/overdue/check",
+      "permissions": [
+        "finance:reports:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/profitability/summary",
+      "permissions": [
+        "finance:reports:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/profitability/products",
+      "permissions": [
+        "finance:reports:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/profitability/customers",
+      "permissions": [
+        "finance:reports:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "method": "GET",
+      "path": "/profitability/trend",
+      "permissions": [
+        "finance:reports:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "POST",
+      "path": "/integration/ar-invoice/:salesOrderId",
+      "permissions": [
+        "finance:ar:create"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "POST",
+      "path": "/integration/ap-invoice/:receiptId",
+      "permissions": [
+        "finance:ap:create"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/period/status/:periodId",
+      "permissions": [
+        "finance:periodEnd:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/period/year-end-status/:year",
+      "permissions": [
+        "finance:periodEnd:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "POST",
+      "path": "/period/year-end-transfer",
+      "permissions": [
+        "finance:periodEnd:execute"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/automation/history",
+      "permissions": [
+        "finance:automation:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/statistics",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/trend",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/composition",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/standard-list",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/standard/:productId",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "POST",
+      "path": "/cost/standard/:productId/calculate",
+      "permissions": [
+        "finance:cost:execute"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/settings",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "POST",
+      "path": "/cost/settings",
+      "permissions": [
+        "finance:cost:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/supplement-reasons",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "POST",
+      "path": "/cost/supplement-reasons",
+      "permissions": [
+        "finance:cost:create"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "PUT",
+      "path": "/cost/supplement-reasons/:id",
+      "permissions": [
+        "finance:cost:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "DELETE",
+      "path": "/cost/supplement-reasons/:id",
+      "permissions": [
+        "finance:cost:delete"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/gl-accounts",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/gl-mappings",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "POST",
+      "path": "/cost/gl-mapping",
+      "permissions": [
+        "finance:cost:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/overhead-allocation",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "POST",
+      "path": "/cost/overhead-allocation",
+      "permissions": [
+        "finance:cost:create"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "PUT",
+      "path": "/cost/overhead-allocation/:id",
+      "permissions": [
+        "finance:cost:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "DELETE",
+      "path": "/cost/overhead-allocation/:id",
+      "permissions": [
+        "finance:cost:delete"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/overhead-allocation/bases",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/material-standard-costs",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "POST",
+      "path": "/cost/material-standard-costs/freeze",
+      "permissions": [
+        "finance:cost:execute"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "PUT",
+      "path": "/cost/material-standard-costs/:id",
+      "permissions": [
+        "finance:cost:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost-versions",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "POST",
+      "path": "/cost-versions",
+      "permissions": [
+        "finance:cost:execute"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "PUT",
+      "path": "/cost-versions/:id/submit",
+      "permissions": [
+        "finance:cost:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "PUT",
+      "path": "/cost-versions/:id/approve",
+      "permissions": [
+        "finance:cost:execute"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "POST",
+      "path": "/cost-versions/:id/generate",
+      "permissions": [
+        "finance:cost:execute"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/settings-history",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/settings-by-date",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "POST",
+      "path": "/cost/batch-calculate",
+      "permissions": [
+        "finance:cost:execute"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "POST",
+      "path": "/cost/freeze/:productId",
+      "permissions": [
+        "finance:cost:execute"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "POST",
+      "path": "/cost/unfreeze/:productId",
+      "permissions": [
+        "finance:cost:execute"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "POST",
+      "path": "/cost/freeze-period",
+      "permissions": [
+        "finance:cost:execute"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/actual",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/actual/:taskId",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/variance",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/variance/:taskId",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/wip-report",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/outsourced-wip",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/alerts",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/alert-settings",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "POST",
+      "path": "/cost/alert-settings",
+      "permissions": [
+        "finance:cost:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/yearly-comparison",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/closing/status",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "POST",
+      "path": "/cost/closing/:periodId/execute",
+      "permissions": [
+        "finance:cost:execute"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/export/ledger",
+      "permissions": [
+        "finance:cost:export"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/export/variance",
+      "permissions": [
+        "finance:cost:export"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "POST",
+      "path": "/cost/recalculate-inventory",
+      "permissions": [
+        "finance:cost:execute"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/reports/ratio-analysis",
+      "permissions": [
+        "finance:reports:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/reports/trend-analysis",
+      "permissions": [
+        "finance:reports:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/reports/dashboard",
+      "permissions": [
+        "finance:reports:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "POST",
+      "path": "/system/initialize",
+      "permissions": [
+        "system:initialize"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/activityCostRoutes.js",
+      "method": "GET",
+      "path": "/driver-types",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/activityCostRoutes.js",
+      "method": "GET",
+      "path": "/summary",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/activityCostRoutes.js",
+      "method": "GET",
+      "path": "/activities",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/activityCostRoutes.js",
+      "method": "GET",
+      "path": "/activities/:id",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/activityCostRoutes.js",
+      "method": "POST",
+      "path": "/activities",
+      "permissions": [
+        "finance:cost:create"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/activityCostRoutes.js",
+      "method": "PUT",
+      "path": "/activities/:id",
+      "permissions": [
+        "finance:cost:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/activityCostRoutes.js",
+      "method": "DELETE",
+      "path": "/activities/:id",
+      "permissions": [
+        "finance:cost:delete"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/activityCostRoutes.js",
+      "method": "GET",
+      "path": "/products/:productId/activities",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/activityCostRoutes.js",
+      "method": "POST",
+      "path": "/products/:productId/activities",
+      "permissions": [
+        "finance:cost:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/activityCostRoutes.js",
+      "method": "GET",
+      "path": "/products/:productId/abc-cost",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/budgetRoutes.js",
+      "method": "POST",
+      "path": "/",
+      "permissions": [
+        "finance:budgets:create"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/budgetRoutes.js",
+      "method": "GET",
+      "path": "/",
+      "permissions": [
+        "finance:budgets:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/budgetRoutes.js",
+      "method": "GET",
+      "path": "/check/availability",
+      "permissions": [
+        "finance:budgets:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/budgetRoutes.js",
+      "method": "GET",
+      "path": "/warnings",
+      "permissions": [
+        "finance:budgets:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/budgetRoutes.js",
+      "method": "PUT",
+      "path": "/warnings/:id/read",
+      "permissions": [
+        "finance:budgets:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/budgetRoutes.js",
+      "method": "GET",
+      "path": "/analysis/department-comparison",
+      "permissions": [
+        "finance:reports:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/budgetRoutes.js",
+      "method": "GET",
+      "path": "/ai/recommendation",
+      "permissions": [
+        "finance:budgets:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/budgetRoutes.js",
+      "method": "POST",
+      "path": "/ai/create-from-ai",
+      "permissions": [
+        "finance:budgets:create"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/budgetRoutes.js",
+      "method": "GET",
+      "path": "/ai/year-comparison",
+      "permissions": [
+        "finance:budgets:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/budgetRoutes.js",
+      "method": "GET",
+      "path": "/ai/usage-stats",
+      "permissions": [
+        "finance:budgets:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/budgetRoutes.js",
+      "method": "GET",
+      "path": "/:id",
+      "permissions": [
+        "finance:budgets:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/budgetRoutes.js",
+      "method": "PUT",
+      "path": "/:id",
+      "permissions": [
+        "finance:budgets:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/budgetRoutes.js",
+      "method": "DELETE",
+      "path": "/:id",
+      "permissions": [
+        "finance:budgets:delete"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/budgetRoutes.js",
+      "method": "POST",
+      "path": "/:id/submit",
+      "permissions": [
+        "finance:budgets:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/budgetRoutes.js",
+      "method": "POST",
+      "path": "/:id/approve",
+      "permissions": [
+        "finance:budgets:approve"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/budgetRoutes.js",
+      "method": "POST",
+      "path": "/:id/start",
+      "permissions": [
+        "finance:budgets:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/budgetRoutes.js",
+      "method": "POST",
+      "path": "/:id/close",
+      "permissions": [
+        "finance:budgets:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/budgetRoutes.js",
+      "method": "GET",
+      "path": "/:id/executions",
+      "permissions": [
+        "finance:budgets:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/budgetRoutes.js",
+      "method": "GET",
+      "path": "/:id/analysis/execution",
+      "permissions": [
+        "finance:reports:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/budgetRoutes.js",
+      "method": "GET",
+      "path": "/:id/analysis/variance",
+      "permissions": [
+        "finance:reports:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/budgetRoutes.js",
+      "method": "GET",
+      "path": "/:id/analysis",
+      "permissions": [
+        "finance:budgets:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/budgetRoutes.js",
+      "method": "GET",
+      "path": "/:id/ai/anomalies",
+      "permissions": [
+        "finance:budgets:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/budgetRoutes.js",
+      "method": "GET",
+      "path": "/:id/ai/optimization",
+      "permissions": [
+        "finance:budgets:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/budgetRoutes.js",
+      "method": "GET",
+      "path": "/:id/ai/comprehensive-report",
+      "permissions": [
+        "finance:budgets:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/costCenterRoutes.js",
+      "method": "GET",
+      "path": "/",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/costCenterRoutes.js",
+      "method": "GET",
+      "path": "/options",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/costCenterRoutes.js",
+      "method": "GET",
+      "path": "/report",
+      "permissions": [
+        "finance:reports:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/costCenterRoutes.js",
+      "method": "GET",
+      "path": "/efficiency-variance",
+      "permissions": [
+        "finance:reports:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/costCenterRoutes.js",
+      "method": "GET",
+      "path": "/capacity-utilization",
+      "permissions": [
+        "finance:reports:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/costCenterRoutes.js",
+      "method": "GET",
+      "path": "/:id",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/costCenterRoutes.js",
+      "method": "POST",
+      "path": "/",
+      "permissions": [
+        "finance:cost:create"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/costCenterRoutes.js",
+      "method": "PUT",
+      "path": "/:id",
+      "permissions": [
+        "finance:cost:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/costCenterRoutes.js",
+      "method": "DELETE",
+      "path": "/:id",
+      "permissions": [
+        "finance:cost:delete"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/costLedgerRoutes.js",
+      "method": "GET",
+      "path": "/",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/costLedgerRoutes.js",
+      "method": "GET",
+      "path": "/summary/:dimension",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/costLedgerRoutes.js",
+      "method": "GET",
+      "path": "/trend",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/costLedgerRoutes.js",
+      "method": "GET",
+      "path": "/task/:taskId",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/costLedgerRoutes.js",
+      "method": "GET",
+      "path": "/efficiency/:taskId",
+      "permissions": [
+        "finance:reports:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/financeAutomationRoutes.js",
+      "method": "POST",
+      "path": "/production/cost-entry/:taskId",
+      "permissions": [
+        "finance:automation:execute"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/financeAutomationRoutes.js",
+      "method": "POST",
+      "path": "/period-end/auto-closing/:periodId",
+      "permissions": [
+        "finance:automation:execute"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/financeAutomationRoutes.js",
+      "method": "POST",
+      "path": "/period-end/manual-closing/:periodId",
+      "permissions": [
+        "finance:automation:execute"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/financeAutomationRoutes.js",
+      "method": "POST",
+      "path": "/depreciation/monthly/:periodMonth",
+      "permissions": [
+        "finance:automation:execute"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/financeAutomationRoutes.js",
+      "method": "POST",
+      "path": "/depreciation/manual/:periodMonth",
+      "permissions": [
+        "finance:automation:execute"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/financeAutomationRoutes.js",
+      "method": "GET",
+      "path": "/scheduled-tasks/status",
+      "permissions": [
+        "finance:automation:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/financeAutomationRoutes.js",
+      "method": "POST",
+      "path": "/scheduled-tasks/start",
+      "permissions": [
+        "finance:automation:execute"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/financeAutomationRoutes.js",
+      "method": "POST",
+      "path": "/scheduled-tasks/stop",
+      "permissions": [
+        "finance:automation:execute"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/financeAutomationRoutes.js",
+      "method": "POST",
+      "path": "/scheduled-tasks/restart/:taskName",
+      "permissions": [
+        "finance:automation:execute"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/financeAutomationRoutes.js",
+      "method": "POST",
+      "path": "/wip/calculate",
+      "permissions": [
+        "finance:cost:execute"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/financeAutomationRoutes.js",
+      "method": "POST",
+      "path": "/wip/voucher/:periodId",
+      "permissions": [
+        "finance:cost:execute"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/financeAutomationRoutes.js",
+      "method": "POST",
+      "path": "/variance/:periodId",
+      "permissions": [
+        "finance:cost:execute"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/financeAutomationRoutes.js",
+      "method": "POST",
+      "path": "/cost-closing/:periodId",
+      "permissions": [
+        "finance:cost:execute"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/taxRoutes.js",
+      "method": "POST",
+      "path": "/invoices",
+      "permissions": [
+        "finance:tax:create"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/taxRoutes.js",
+      "method": "GET",
+      "path": "/invoices",
+      "permissions": [
+        "finance:tax:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/taxRoutes.js",
+      "method": "GET",
+      "path": "/invoices/:id",
+      "permissions": [
+        "finance:tax:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/taxRoutes.js",
+      "method": "POST",
+      "path": "/invoices/:id/certify",
+      "permissions": [
+        "finance:tax:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/taxRoutes.js",
+      "method": "POST",
+      "path": "/invoices/:id/deduct",
+      "permissions": [
+        "finance:tax:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/taxRoutes.js",
+      "method": "PUT",
+      "path": "/invoices/:id/invoice-number",
+      "permissions": [
+        "finance:tax:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/taxRoutes.js",
+      "method": "POST",
+      "path": "/invoices/:id/void",
+      "permissions": [
+        "finance:tax:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/taxRoutes.js",
+      "method": "POST",
+      "path": "/returns",
+      "permissions": [
+        "finance:tax:create"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/taxRoutes.js",
+      "method": "GET",
+      "path": "/returns",
+      "permissions": [
+        "finance:tax:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/taxRoutes.js",
+      "method": "GET",
+      "path": "/returns/:id",
+      "permissions": [
+        "finance:tax:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/taxRoutes.js",
+      "method": "POST",
+      "path": "/returns/:id/submit",
+      "permissions": [
+        "finance:tax:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/taxRoutes.js",
+      "method": "POST",
+      "path": "/returns/:id/pay",
+      "permissions": [
+        "finance:tax:pay"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/taxRoutes.js",
+      "method": "DELETE",
+      "path": "/returns/:id",
+      "permissions": [
+        "finance:tax:delete"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/taxRoutes.js",
+      "method": "POST",
+      "path": "/invoices/:id/link",
+      "permissions": [
+        "finance:tax:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/taxRoutes.js",
+      "method": "POST",
+      "path": "/invoices/:id/unlink",
+      "permissions": [
+        "finance:tax:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/taxRoutes.js",
+      "method": "GET",
+      "path": "/available-documents",
+      "permissions": [
+        "finance:tax:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/taxRoutes.js",
+      "method": "GET",
+      "path": "/account-config",
+      "permissions": [
+        "finance:tax:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/taxRoutes.js",
+      "method": "POST",
+      "path": "/account-config",
+      "permissions": [
+        "finance:tax:create"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/taxRoutes.js",
+      "method": "PUT",
+      "path": "/account-config/:id",
+      "permissions": [
+        "finance:tax:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/taxRoutes.js",
+      "method": "DELETE",
+      "path": "/account-config/:id",
+      "permissions": [
+        "finance:tax:delete"
+      ],
+      "protected": true
+    }
+  ],
+  "unprotectedRoutes": [],
+  "unregisteredPermissions": [],
+  "integrityResults": [
+    {
+      "id": "gl.entries_have_items",
+      "severity": "critical",
+      "description": "Every GL entry must have at least two journal lines.",
+      "sql": "\n      SELECT e.id, e.entry_number, COUNT(i.id) AS item_count\n      FROM gl_entries e\n      LEFT JOIN gl_entry_items i ON i.entry_id = e.id\n      GROUP BY e.id, e.entry_number\n      HAVING item_count < 2\n    ",
+      "count": 0,
+      "rows": [],
+      "passed": true
+    },
+    {
+      "id": "gl.posted_entries_balanced",
+      "severity": "critical",
+      "description": "Posted and reversed GL entries must balance debit and credit.",
+      "sql": "\n      SELECT e.id, e.entry_number,\n             ROUND(SUM(COALESCE(i.debit_amount, 0)), 2) AS debit_total,\n             ROUND(SUM(COALESCE(i.credit_amount, 0)), 2) AS credit_total\n      FROM gl_entries e\n      JOIN gl_entry_items i ON i.entry_id = e.id\n      WHERE e.status IN ('posted', 'reversed')\n      GROUP BY e.id, e.entry_number\n      HAVING ABS(debit_total - credit_total) > 0.01\n    ",
+      "count": 0,
+      "rows": [],
+      "passed": true
+    },
+    {
+      "id": "gl.entry_items_have_accounts",
+      "severity": "critical",
+      "description": "GL entry lines must reference existing accounts.",
+      "sql": "\n      SELECT i.id, i.entry_id, i.account_id\n      FROM gl_entry_items i\n      LEFT JOIN gl_accounts a ON a.id = i.account_id\n      WHERE a.id IS NULL\n    ",
+      "count": 0,
+      "rows": [],
+      "passed": true
+    },
+    {
+      "id": "gl.posted_flag_matches_status",
+      "severity": "high",
+      "description": "Posted/reversed entries must have is_posted = 1; draft entries must not be posted.",
+      "sql": "\n      SELECT id, entry_number, status, is_posted\n      FROM gl_entries\n      WHERE (status IN ('posted', 'reversed') AND COALESCE(is_posted, 0) <> 1)\n         OR (status = 'draft' AND COALESCE(is_posted, 0) <> 0)\n    ",
+      "count": 0,
+      "rows": [],
+      "passed": true
+    },
+    {
+      "id": "gl.reversal_links_valid",
+      "severity": "high",
+      "description": "Reversed GL entries must link to an existing reversal entry.",
+      "sql": "\n      SELECT e.id, e.entry_number, e.reversal_entry_id\n      FROM gl_entries e\n      LEFT JOIN gl_entries r ON r.id = e.reversal_entry_id\n      WHERE e.status = 'reversed'\n        AND (e.reversal_entry_id IS NULL OR r.id IS NULL)\n    ",
+      "count": 0,
+      "rows": [],
+      "passed": true
+    },
+    {
+      "id": "gl.closed_period_no_drafts",
+      "severity": "critical",
+      "description": "Closed accounting periods must not contain draft GL entries.",
+      "sql": "\n      SELECT e.id, e.entry_number, e.period_id, p.period_name, e.status\n      FROM gl_entries e\n      JOIN gl_periods p ON p.id = e.period_id\n      WHERE COALESCE(p.is_closed, 0) = 1\n        AND e.status = 'draft'\n    ",
+      "count": 0,
+      "rows": [],
+      "passed": true
+    },
+    {
+      "id": "ar.invoice_total_matches_items",
+      "severity": "critical",
+      "description": "AR invoice header total must match item totals.",
+      "sql": "\n      SELECT i.id, i.invoice_number, i.total_amount,\n             ROUND(COALESCE(SUM(item.amount), 0), 2) AS item_total\n      FROM ar_invoices i\n      LEFT JOIN ar_invoice_items item ON item.invoice_id = i.id\n      WHERE i.status NOT IN ('已取消', 'cancelled', 'void')\n      GROUP BY i.id, i.invoice_number, i.total_amount\n      HAVING ABS(COALESCE(i.total_amount, 0) - item_total) > 0.01\n    ",
+      "count": 0,
+      "rows": [],
+      "passed": true
+    },
+    {
+      "id": "ap.invoice_total_matches_items",
+      "severity": "critical",
+      "description": "AP invoice header total must match item totals.",
+      "sql": "\n      SELECT i.id, i.invoice_number, i.total_amount,\n             ROUND(COALESCE(SUM(item.amount), 0), 2) AS item_total\n      FROM ap_invoices i\n      LEFT JOIN ap_invoice_items item ON item.invoice_id = i.id\n      WHERE i.status NOT IN ('已取消', 'cancelled', 'void')\n      GROUP BY i.id, i.invoice_number, i.total_amount\n      HAVING ABS(COALESCE(i.total_amount, 0) - item_total) > 0.01\n    ",
+      "count": 0,
+      "rows": [],
+      "passed": true
+    },
+    {
+      "id": "ar.receipt_total_matches_items",
+      "severity": "critical",
+      "description": "AR receipt total must match non-void receipt item totals.",
+      "sql": "\n      SELECT r.id, r.receipt_number, r.total_amount,\n             ROUND(COALESCE(SUM(ri.amount), 0), 2) AS item_total\n      FROM ar_receipts r\n      LEFT JOIN ar_receipt_items ri ON ri.receipt_id = r.id\n      WHERE r.status <> 'void'\n      GROUP BY r.id, r.receipt_number, r.total_amount\n      HAVING ABS(COALESCE(r.total_amount, 0) - item_total) > 0.01\n    ",
+      "count": 0,
+      "rows": [],
+      "passed": true
+    },
+    {
+      "id": "ap.payment_total_matches_items",
+      "severity": "critical",
+      "description": "AP payment total must match non-void payment item totals.",
+      "sql": "\n      SELECT p.id, p.payment_number, p.total_amount,\n             ROUND(COALESCE(SUM(pi.amount), 0), 2) AS item_total\n      FROM ap_payments p\n      LEFT JOIN ap_payment_items pi ON pi.payment_id = p.id\n      WHERE p.status <> 'void'\n      GROUP BY p.id, p.payment_number, p.total_amount\n      HAVING ABS(COALESCE(p.total_amount, 0) - item_total) > 0.01\n    ",
+      "count": 0,
+      "rows": [],
+      "passed": true
+    },
+    {
+      "id": "ar.invoice_balance_matches_receipts",
+      "severity": "critical",
+      "description": "AR invoice paid/balance amounts must match non-void receipts.",
+      "sql": "\n      SELECT i.id, i.invoice_number, i.total_amount, i.paid_amount, i.balance_amount,\n             ROUND(COALESCE(SUM(CASE WHEN r.id IS NOT NULL THEN ri.amount ELSE 0 END), 0), 2) AS received_amount\n      FROM ar_invoices i\n      LEFT JOIN ar_receipt_items ri ON ri.invoice_id = i.id\n      LEFT JOIN ar_receipts r ON r.id = ri.receipt_id AND r.status <> 'void'\n      WHERE i.status NOT IN ('已取消', 'cancelled', 'void')\n      GROUP BY i.id, i.invoice_number, i.total_amount, i.paid_amount, i.balance_amount\n      HAVING ABS(COALESCE(i.paid_amount, 0) - received_amount) > 0.01\n          OR ABS(COALESCE(i.balance_amount, 0) - (COALESCE(i.total_amount, 0) - received_amount)) > 0.01\n    ",
+      "count": 0,
+      "rows": [],
+      "passed": true
+    },
+    {
+      "id": "ap.invoice_balance_matches_payments",
+      "severity": "critical",
+      "description": "AP invoice paid/balance amounts must match non-void payments.",
+      "sql": "\n      SELECT i.id, i.invoice_number, i.total_amount, i.paid_amount, i.balance_amount,\n             ROUND(COALESCE(SUM(CASE WHEN p.id IS NOT NULL THEN pi.amount ELSE 0 END), 0), 2) AS paid_by_items\n      FROM ap_invoices i\n      LEFT JOIN ap_payment_items pi ON pi.invoice_id = i.id\n      LEFT JOIN ap_payments p ON p.id = pi.payment_id AND p.status <> 'void'\n      WHERE i.status NOT IN ('已取消', 'cancelled', 'void')\n      GROUP BY i.id, i.invoice_number, i.total_amount, i.paid_amount, i.balance_amount\n      HAVING ABS(COALESCE(i.paid_amount, 0) - paid_by_items) > 0.01\n          OR ABS(COALESCE(i.balance_amount, 0) - (COALESCE(i.total_amount, 0) - paid_by_items)) > 0.01\n    ",
+      "count": 0,
+      "rows": [],
+      "passed": true
+    },
+    {
+      "id": "cash.gl_links_exist",
+      "severity": "critical",
+      "description": "Bank transactions with GL links must reference existing GL entries.",
+      "sql": "\n      SELECT bt.id, bt.transaction_number, bt.gl_entry_id\n      FROM bank_transactions bt\n      LEFT JOIN gl_entries ge ON ge.id = bt.gl_entry_id\n      WHERE bt.gl_entry_id IS NOT NULL\n        AND ge.id IS NULL\n    ",
+      "count": 0,
+      "rows": [],
+      "passed": true
+    },
+    {
+      "id": "document_links.finance_vouchers_exist",
+      "severity": "critical",
+      "description": "Document links to finance vouchers must point to existing GL entries.",
+      "sql": "\n      SELECT dl.id, dl.source_type, dl.source_id, dl.target_type, dl.target_id\n      FROM document_links dl\n      LEFT JOIN gl_entries ge ON ge.id = dl.target_id\n      WHERE dl.target_type = 'finance_voucher'\n        AND ge.id IS NULL\n    ",
+      "count": 0,
+      "rows": [],
+      "passed": true
+    },
+    {
+      "id": "tax.gl_links_exist",
+      "severity": "critical",
+      "description": "Tax invoices and tax returns with GL links must reference existing GL entries.",
+      "sql": "\n      SELECT 'tax_invoice' AS source_type, id, invoice_number AS source_no, gl_entry_id\n      FROM tax_invoices\n      WHERE gl_entry_id IS NOT NULL\n        AND NOT EXISTS (SELECT 1 FROM gl_entries ge WHERE ge.id = tax_invoices.gl_entry_id)\n      UNION ALL\n      SELECT 'tax_return' AS source_type, id, return_period AS source_no, gl_entry_id\n      FROM tax_returns\n      WHERE gl_entry_id IS NOT NULL\n        AND NOT EXISTS (SELECT 1 FROM gl_entries ge WHERE ge.id = tax_returns.gl_entry_id)\n    ",
+      "count": 0,
+      "rows": [],
+      "passed": true
+    }
+  ],
+  "failedIntegrityRules": []
+}

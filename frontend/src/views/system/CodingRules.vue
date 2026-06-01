@@ -292,7 +292,12 @@ const handleDelete = async (row) => {
     await codingRuleApi.delete(row.id)
     ElMessage.success('删除成功')
     fetchList()
-  } catch {}
+  } catch (error) {
+    if (error !== 'cancel' && error?.toString() !== 'cancel') {
+      console.error('删除编码规则失败:', error)
+      ElMessage.error(error?.response?.data?.message || '删除失败')
+    }
+  }
 }
 // 序列抽屉
 const seqVis = ref(false)

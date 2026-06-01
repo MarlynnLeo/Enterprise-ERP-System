@@ -151,7 +151,7 @@
 <script setup>
 import { ref, reactive, computed, watch, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { qualityApi, baseDataApi } from '@/services/api'
+import { qualityApi, baseDataApi } from '@/api'
 import { parseListData } from '@/utils/responseParser'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'

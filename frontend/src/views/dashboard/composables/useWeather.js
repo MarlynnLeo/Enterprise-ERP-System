@@ -3,7 +3,7 @@
  * @description 天气数据组合式函数
  */
 import { ref } from 'vue'
-import { api } from '../../../services/api'
+import { commonApi } from '@/api/common'
 
 const DEFAULT_CITY = '乐清'
 
@@ -30,9 +30,7 @@ export function useWeather() {
     weatherLoading.value = true
 
     try {
-      const response = await api.get('/weather/current', {
-        params: { city: DEFAULT_CITY }
-      })
+      const response = await commonApi.getCurrentWeather({ city: DEFAULT_CITY })
 
       const data = response.data || response
 

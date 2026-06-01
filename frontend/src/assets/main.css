@@ -1,6 +1,6 @@
-/* ==================== 全局设计令牌 ==================== */
+/* ==================== Global Design Tokens ==================== */
 :root {
-  /* 字体系统 — 全局统一，组件中使用 var(--font-sans) 替代硬编码 */
+  /* Components should use var(--font-sans) instead of hardcoded fonts. */
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
     'Helvetica Neue', 'PingFang SC', 'Noto Sans SC', 'Microsoft YaHei',
     sans-serif;
@@ -9,64 +9,37 @@
   --font-display: 'DIN Alternate', 'Inter', var(--font-sans);
 }
 
-/* 全局样式 */
+/* Global base styles */
 html, body {
   margin: 0;
   padding: 0;
   height: 100%;
   width: 100%;
-  overflow-x: hidden; /* 阻止页面级水平滚动条 */
+  overflow-x: hidden;
   font-family: var(--font-sans);
 }
 
-/* 通用样式类 */
-.flex-center {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
-.text-center {
-  text-align: center;
-}
-
-.mt-20 {
-  margin-top: 20px;
-}
-
-.mb-20 {
-  margin-bottom: 20px;
-}
-
-.ml-10 {
-  margin-left: 10px;
-}
-
-.mr-10 {
-  margin-right: 10px;
-}
-
-/* 主题相关样式 - 优化版 */
+/* Theme transition */
 html {
   transition: background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
               color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* 浅色主题 */
+/* Light theme compatibility */
 html.light {
   --app-bg-color: var(--color-bg-base);
   --app-text-color: var(--color-text-primary);
   --app-border-color: var(--color-border-base);
 }
 
-/* 深色主题 */
+/* Dark theme compatibility */
 html.dark[data-theme] {
   --app-bg-color: var(--color-bg-base);
   --app-text-color: var(--color-text-primary);
   --app-border-color: var(--color-border-base);
 }
 
-/* 应用主题变量到body */
+/* Apply theme variables to body */
 body {
   background-color: var(--el-bg-color, var(--app-bg-color));
   color: var(--el-text-color-primary, var(--app-text-color));
@@ -74,7 +47,7 @@ body {
               color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* 全局盒模型 */
+/* Global box model */
 *,
 *::before,
 *::after {
@@ -82,14 +55,51 @@ body {
 }
 
 /* 主题切换时的平滑过渡 */
-* {
+/* 注意：不对弹出层 / 遮罩层 / 对话框内部元素设置通配 transition，
+   否则会与 Element Plus dialog-fade 动画冲突导致关闭闪烁 */
+*:not(.el-overlay):not(.el-overlay-dialog):not(.el-dialog):not(.el-dialog__wrapper):not(.el-popup-parent--hidden):not([class*="el-fade"]):not([class*="dialog-fade"]) {
   transition-property: background-color, color, border-color, box-shadow;
   transition-duration: 0.3s;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+.perf-low-end *,
+.perf-reduced-motion * {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  scroll-behavior: auto !important;
+  transition-duration: 0.001ms !important;
+}
+
+.perf-low-end .el-card,
+.perf-low-end .el-dialog,
+.perf-low-end .el-table,
+.perf-low-end [class*="stat-card"],
+.perf-low-end [class*="dashboard-card"] {
+  box-shadow: none !important;
+}
+
+.perf-low-end .el-table .cell {
+  will-change: auto;
+}
+
 /* ==================== 对话框基础结构 ==================== */
 /* 仅保留结构默认值；主题视觉由 theme-compat.css 覆盖 */
+
+/* 重置弹出层 / 遮罩层的全局 transition，防止与 Element Plus 内置
+   dialog-fade / el-fade-in 动画冲突导致关闭时闪烁 */
+.el-overlay,
+.el-overlay-dialog,
+.el-dialog__wrapper,
+.el-dialog,
+.el-drawer,
+.el-drawer__wrapper,
+.el-message,
+.el-notification,
+.el-popper,
+.v-modal {
+  transition: none !important;
+}
 
 .el-overlay .el-overlay-dialog .el-dialog,
 .el-dialog {

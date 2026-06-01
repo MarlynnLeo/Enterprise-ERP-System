@@ -134,7 +134,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus';
-import { api } from '@/services/api';
+import { financeApi } from '@/api';
 import printService from '@/services/printService';
 import { formatCurrency, formatLocalMonth } from '@/utils/format';
 import { loadExcelJS } from '@/utils/lazyVendors';
@@ -176,12 +176,10 @@ const generateReport = async () => {
     const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
     const endDate = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
     // 调用后端API获取出纳报表数据
-    const response = await api.get('/finance/reports/cash-flow', {
-      params: {
-        startDate,
-        endDate,
-        unit: queryParams.unit
-      }
+    const response = await financeApi.reports.getCashFlow({
+      startDate,
+      endDate,
+      unit: queryParams.unit
     });
     // axios 拦截器已自动解包，response.data 直接是数据数组
     if (response.data && Array.isArray(response.data)) {

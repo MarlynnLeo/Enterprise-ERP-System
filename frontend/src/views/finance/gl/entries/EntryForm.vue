@@ -132,7 +132,7 @@
 import { ref, reactive, computed, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import { api } from '@/services/api';
+import { financeApi, purchaseApi, salesApi } from '@/api';
 import { formatCurrency, formatLocalDate } from '@/utils/format'
 import { parseListData, parseResponseData } from '@/utils/responseParser'
 import { loadDepartmentOptions, loadUserListOptions } from '@/utils/optionLoaders'
@@ -230,7 +230,7 @@ const flattenAccounts = (accounts, result = []) => {
 
 const loadOptions = async () => {
   try {
-    const accRes = await api.get('/finance/accounts/options');
+    const accRes = await financeApi.accounts.getOptions();
 
     const accounts = parseListData(accRes, { enableLog: false });
     const processAccounts = (list) => {
@@ -250,7 +250,7 @@ const loadOptions = async () => {
 
     // Load aux options gracefully
     try {
-      const custRes = await api.get('/sales/customers').catch(()=>({data:[]}));
+      const custRes = await salesApi.getCustomers().catch(()=>({data:[]}));
       customerOptions.value = parseResponseData(custRes, []);
     } catch(e) { console.warn('加载客户选项失败:', e.message) }
 
@@ -264,7 +264,7 @@ const loadOptions = async () => {
 
     // Attempt suppliers and projects if routes exist
     try {
-      const suppRes = await api.get('/purchase/suppliers').catch(()=>({data:[]}));
+      const suppRes = await purchaseApi.getSuppliers().catch(()=>({data:[]}));
       supplierOptions.value = parseResponseData(suppRes, []);
     } catch(e) { console.warn('加载供应商选项失败:', e.message) }
   } catch (err) {
@@ -326,7 +326,7 @@ const saveEntry = async () => {
 
     saving.value = true;
     try {
-      await api.post('/finance/entries', payload);
+      await financeApi.createEntry(payload);
       ElMessage.success('凭证录入成功');
       router.back();
     } catch (err) {

@@ -190,24 +190,22 @@ export function throttle(func, delay) {
  * @param {number} delay - 重试延迟（毫秒）
  * @returns {Promise} API调用结果
  */
-export async function retryApiCall(apiCall, maxRetries = 3, delay = 1000) {
+export async function retryApiCall(apiCall, maxRetries = 1, delay = 1000) {
   for (let i = 0; i < maxRetries; i++) {
     try {
       return await apiCall();
     } catch (error) {
+      const status = error.response?.status
+      // 4xx 客户端错误直接抛出（除 408 超时和 429 限流）
+      if (status && status >= 400 && status < 500 && status !== 408 && status !== 429) {
+        throw error;
+      }
       if (i === maxRetries - 1) {
         throw error;
       }
 
-      // 如果是网络错误或服务器错误，进行重试
-      if (error.code === 'NETWORK_ERROR' ||
-          (error.response && error.response.status >= 500)) {
-        await new Promise(resolve => setTimeout(resolve, delay * (i + 1)));
-        continue;
-      }
-
-      // 其他错误直接抛出
-      throw error;
+      // 网络错误或服务器错误，指数退避重试
+      await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)));
     }
   }
 }

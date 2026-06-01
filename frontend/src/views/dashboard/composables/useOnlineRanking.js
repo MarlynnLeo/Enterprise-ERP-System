@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import { userApi } from '../../../services/api'
+import { userApi } from '@/api'
 
 const RANKING_CACHE_DURATION = 10 * 1000
 const MIN_LOADING_DURATION = 250
@@ -43,7 +43,7 @@ export function useOnlineRanking() {
       rankingCache.value = { rankings, date }
       rankingCacheTime.value = Date.now()
     } catch (error) {
-      console.error('获取在线时长排行榜失败:', error)
+      console.error('获取在线时长排行榜失�?', error)
       onlineTimeRanking.value = []
       rankingDate.value = ''
     } finally {

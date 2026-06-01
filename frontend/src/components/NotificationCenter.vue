@@ -1,7 +1,7 @@
-<!--
+﻿<!--
 /**
  * NotificationCenter.vue
- * @description 通知中心组件 - 显示在顶部导航栏
+ * @description 閫氱煡涓績缁勪欢 - 鏄剧ず鍦ㄩ《閮ㄥ鑸爮
  * @date 2025-11-03
  */
 -->
@@ -35,11 +35,11 @@
       </div>
     </template>
 
-    <!-- 通知列表 -->
+    <!-- 閫氱煡鍒楄〃 -->
     <div class="notification-panel" @click.stop>
-      <!-- 头部 -->
+      <!-- 澶撮儴 -->
       <div class="notification-header">
-        <span class="title">通知中心</span>
+        <span class="title">閫氱煡涓績</span>
         <div class="header-actions">
           <el-button
             v-if="unreadCount > 0"
@@ -48,7 +48,7 @@
             size="small"
             @click="handleMarkAllRead"
           >
-            全部已读
+            鍏ㄩ儴宸茶
           </el-button>
           <el-button
             link
@@ -63,16 +63,16 @@
         </div>
       </div>
 
-      <!-- 标签页 -->
+      <!-- 鏍囩椤?-->
       <el-tabs v-model="activeTab" @tab-change="handleTabChange">
-        <el-tab-pane label="全部" name="all"></el-tab-pane>
-        <el-tab-pane label="未读" name="unread"></el-tab-pane>
-        <el-tab-pane label="系统" name="system"></el-tab-pane>
-        <el-tab-pane label="业务" name="business"></el-tab-pane>
-        <el-tab-pane label="预警" name="warning"></el-tab-pane>
+        <el-tab-pane label="鍏ㄩ儴" name="all"></el-tab-pane>
+        <el-tab-pane label="鏈" name="unread"></el-tab-pane>
+        <el-tab-pane label="绯荤粺" name="system"></el-tab-pane>
+        <el-tab-pane label="涓氬姟" name="business"></el-tab-pane>
+        <el-tab-pane label="棰勮" name="warning"></el-tab-pane>
       </el-tabs>
 
-      <!-- 通知列表 -->
+      <!-- 閫氱煡鍒楄〃 -->
       <div class="notification-list" v-loading="loading">
         <div
           v-for="notification in notifications"
@@ -95,14 +95,14 @@
                 size="small"
                 effect="dark"
               >
-                紧急
+                绱ф€?
               </el-tag>
               <el-tag
                 v-else-if="notification.priority === 1"
                 type="warning"
                 size="small"
               >
-                重要
+                閲嶈
               </el-tag>
             </div>
             <div class="notification-text">{{ notification.content }}</div>
@@ -116,7 +116,7 @@
               size="small"
               @click.stop="handleMarkRead(notification.id)"
             >
-              标记已读
+              鏍囪宸茶
             </el-button>
             <el-button
               link
@@ -124,23 +124,23 @@
               size="small"
               @click.stop="handleDelete(notification.id)"
             >
-              删除
+              鍒犻櫎
             </el-button>
           </div>
         </div>
 
-        <!-- 空状态 -->
+        <!-- 绌虹姸鎬?-->
         <el-empty
           v-if="!loading && notifications.length === 0"
-          description="暂无通知"
+          description="鏆傛棤閫氱煡"
           :image-size="80"
         />
       </div>
 
-      <!-- 底部 -->
+      <!-- 搴曢儴 -->
       <div class="notification-footer">
         <el-button link type="primary" @click="handleViewAll">
-          查看全部通知
+          鏌ョ湅鍏ㄩ儴閫氱煡
         </el-button>
       </div>
     </div>
@@ -155,7 +155,7 @@ import {
   Bell,
   Close
 } from '@element-plus/icons-vue'
-import notificationApi from '@/services/notificationApi'
+import notificationApi from '@/api/notification'
 import { parseResponseData } from '@/utils/responseParser'
 import {
   getNotificationIcon,
@@ -166,7 +166,7 @@ import {
 
 const router = useRouter()
 
-// 数据
+// 鏁版嵁
 const popoverVisible = ref(false)
 const activeTab = ref('all')
 const notifications = ref([])
@@ -175,13 +175,13 @@ const loading = ref(false)
 let pollingTimer = null
 
 
-// 方法
+// 鏂规硶
 const handlePopoverShow = () => {
   loadNotifications()
 }
 
 const handlePopoverHide = () => {
-  // 可以在这里做一些清理工作
+  // 鍙互鍦ㄨ繖閲屽仛涓€浜涙竻鐞嗗伐浣?
 }
 
 const handleTabChange = () => {
@@ -210,7 +210,7 @@ const loadNotifications = async () => {
     const responseData = parseResponseData(res)
     notifications.value = responseData.list || []
   } catch {
-    // 静默失败，避免干扰用户
+    // 闈欓粯澶辫触锛岄伩鍏嶅共鎵扮敤鎴?
   } finally {
     loading.value = false
   }
@@ -222,21 +222,21 @@ const loadUnreadCount = async () => {
     const responseData = parseResponseData(res)
     unreadCount.value = responseData.count || 0
   } catch {
-    // 静默失败，避免干扰用户
+    // 闈欓粯澶辫触锛岄伩鍏嶅共鎵扮敤鎴?
   }
 }
 
 const handleNotificationClick = async (notification) => {
-  // 标记为已读
+  // 鏍囪涓哄凡璇?
   if (!notification.is_read) {
     await handleMarkRead(notification.id)
   }
 
-  // 如果有链接，跳转
+  // 濡傛灉鏈夐摼鎺ワ紝璺宠浆
   if (notification.link) {
     popoverVisible.value = false
 
-    // 解析link_params
+    // 瑙ｆ瀽link_params
     let params = {}
     if (notification.link_params) {
       try {
@@ -244,11 +244,11 @@ const handleNotificationClick = async (notification) => {
           ? JSON.parse(notification.link_params)
           : notification.link_params
       } catch {
-        // 解析失败时使用空对象
+        // 瑙ｆ瀽澶辫触鏃朵娇鐢ㄧ┖瀵硅薄
       }
     }
 
-    // 跳转并传递参数
+    // 璺宠浆骞朵紶閫掑弬鏁?
     router.push({
       path: notification.link,
       query: params
@@ -262,7 +262,7 @@ const handleMarkRead = async (id) => {
     await loadNotifications()
     await loadUnreadCount()
   } catch {
-    ElMessage.error('标记失败')
+    ElMessage.error('鏍囪澶辫触')
   }
 }
 
@@ -271,9 +271,9 @@ const handleMarkAllRead = async () => {
     await notificationApi.markAllAsRead()
     await loadNotifications()
     await loadUnreadCount()
-    ElMessage.success('全部已标记为已读')
+    ElMessage.success('鍏ㄩ儴宸叉爣璁颁负宸茶')
   } catch {
-    ElMessage.error('操作失败')
+    ElMessage.error('鎿嶄綔澶辫触')
   }
 }
 
@@ -282,9 +282,9 @@ const handleDelete = async (id) => {
     await notificationApi.deleteNotification(id)
     await loadNotifications()
     await loadUnreadCount()
-    ElMessage.success('删除成功')
+    ElMessage.success('鍒犻櫎鎴愬姛')
   } catch {
-    ElMessage.error('删除失败')
+    ElMessage.error('鍒犻櫎澶辫触')
   }
 }
 
@@ -293,11 +293,11 @@ const handleViewAll = () => {
   router.push('/system/notifications')
 }
 
-// 轮询获取未读数量（带页面可见性判断，页面不可见时暂停轮询）
+// 杞鑾峰彇鏈鏁伴噺锛堝甫椤甸潰鍙鎬у垽鏂紝椤甸潰涓嶅彲瑙佹椂鏆傚仠杞锛?
 const startPolling = () => {
   loadUnreadCount()
   pollingTimer = setInterval(() => {
-    // 仅在页面可见时请求，避免后台标签浪费带宽
+    // 浠呭湪椤甸潰鍙鏃惰姹傦紝閬垮厤鍚庡彴鏍囩娴垂甯﹀
     if (!document.hidden) {
       loadUnreadCount()
     }
@@ -311,14 +311,14 @@ const stopPolling = () => {
   }
 }
 
-// 页面重新可见时立即刷新一次未读数
+// 椤甸潰閲嶆柊鍙鏃剁珛鍗冲埛鏂颁竴娆℃湭璇绘暟
 const handleVisibilityChange = () => {
   if (!document.hidden) {
     loadUnreadCount()
   }
 }
 
-// 生命周期
+// 鐢熷懡鍛ㄦ湡
 onMounted(() => {
   startPolling()
   document.addEventListener('visibilitychange', handleVisibilityChange)
@@ -332,11 +332,15 @@ onUnmounted(() => {
 
 <style scoped>
 .notification-bell {
+  --notification-badge-pulse-start: 0 0 0 0 color-mix(in srgb, var(--color-danger) 38%, transparent);
+  --notification-badge-pulse-end: 0 0 0 6px transparent;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: color 0.3s ease, background-color 0.3s ease;
+  transition:
+    color var(--transition-base),
+    background-color var(--transition-base);
   position: relative;
 }
 
@@ -347,21 +351,21 @@ onUnmounted(() => {
 }
 
 .notification-bell :deep(.el-badge__content) {
-  border-radius: 10px;
+  border-radius: var(--theme-status-radius, 999px);
   font-size: 11px;
   height: 18px;
   line-height: 18px;
   padding: 0 6px;
-  border: 2px solid var(--el-bg-color);
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--color-danger) 40%, transparent);
-  background-color: var(--el-color-danger);
+  border: 2px solid var(--color-bg-base);
+  box-shadow: var(--shadow-sm);
+  background-color: var(--color-danger);
   animation: pulseBadge 2s infinite;
 }
 
 @keyframes pulseBadge {
-  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-danger) 40%, transparent); }
-  70% { box-shadow: 0 0 0 6px transparent; }
-  100% { box-shadow: 0 0 0 0 transparent; }
+  0% { box-shadow: var(--notification-badge-pulse-start); }
+  70% { box-shadow: var(--notification-badge-pulse-end); }
+  100% { box-shadow: var(--notification-badge-pulse-start); }
 }
 
 .notification-bell:hover :deep(.el-icon) {
@@ -379,7 +383,7 @@ onUnmounted(() => {
   max-height: 600px;
   display: flex;
   flex-direction: column;
-  border-radius: 12px;
+  border-radius: var(--theme-dialog-radius, var(--radius-lg));
   overflow: hidden;
 }
 
@@ -388,14 +392,14 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 16px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
-  background: linear-gradient(135deg, color-mix(in srgb, var(--ds-cyan) 5%, transparent), color-mix(in srgb, var(--ds-cyan) 2%, transparent));
+  border-bottom: 1px solid var(--color-border-lighter);
+  background: var(--theme-dialog-header-bg, var(--color-bg-section));
 }
 
 .notification-header .title {
   font-size: 16px;
   font-weight: 600;
-  color: var(--el-text-color-primary);
+  color: var(--color-text-primary);
 }
 
 .notification-header .header-actions {
@@ -406,14 +410,16 @@ onUnmounted(() => {
 
 .notification-header .close-btn {
   padding: 4px;
-  color: var(--el-text-color-secondary);
-  transition: color 0.3s ease, background-color 0.3s ease;
+  color: var(--color-text-secondary);
+  transition:
+    color var(--transition-base),
+    background-color var(--transition-base);
 }
 
 .notification-header .close-btn:hover {
-  color: var(--el-text-color-primary);
-  background: color-mix(in srgb, var(--ds-black) 5%, transparent);
-  border-radius: 4px;
+  color: var(--color-text-primary);
+  background: var(--color-bg-hover);
+  border-radius: var(--radius-sm);
 }
 
 .notification-list {
@@ -425,9 +431,9 @@ onUnmounted(() => {
 .notification-item {
   display: flex;
   padding: 12px 16px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
+  border-bottom: 1px solid var(--color-border-lighter);
   cursor: pointer;
-  transition: background 0.3s ease;
+  transition: background-color var(--transition-base);
   position: relative;
 }
 
@@ -439,24 +445,24 @@ onUnmounted(() => {
   bottom: 0;
   width: 3px;
   background: transparent;
-  transition: background-color 0.3s ease;
+  transition: background-color var(--transition-base);
 }
 
 .notification-item:hover {
-  background: linear-gradient(90deg, color-mix(in srgb, var(--ds-cyan) 8%, transparent), transparent);
+  background: var(--color-bg-hover);
   transform: none;
 }
 
 .notification-item:hover::before {
-  background: var(--shell-accent);
+  background: var(--shell-accent, var(--color-primary));
 }
 
 .notification-item.unread {
-  background: linear-gradient(90deg, color-mix(in srgb, var(--color-primary) 10%, transparent), color-mix(in srgb, var(--color-primary) 2%, transparent));
+  background: var(--theme-status-primary-bg, var(--color-primary-light-9));
 }
 
 .notification-item.unread::before {
-  background: var(--el-color-primary);
+  background: var(--color-primary);
 }
 
 .notification-icon {
@@ -480,7 +486,7 @@ onUnmounted(() => {
 
 .notification-text {
   font-size: 13px;
-  color: var(--el-text-color-secondary);
+  color: var(--color-text-secondary);
   margin-bottom: 4px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -489,7 +495,7 @@ onUnmounted(() => {
 
 .notification-time {
   font-size: 12px;
-  color: var(--el-text-color-placeholder);
+  color: var(--color-text-placeholder);
 }
 
 .notification-actions {
@@ -501,7 +507,7 @@ onUnmounted(() => {
 
 .notification-footer {
   padding: 12px 16px;
-  border-top: 1px solid var(--el-border-color-lighter);
+  border-top: 1px solid var(--color-border-lighter);
   text-align: center;
 }
 </style>

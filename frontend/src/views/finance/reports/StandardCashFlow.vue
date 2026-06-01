@@ -151,7 +151,7 @@ import { ReportHelper } from '@/utils/commonHelpers';
 import { formatCurrency, formatAmount, formatLocalDate } from '@/utils/format'
 import { ref, reactive, computed, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
-import { api } from '@/services/api';
+import { financeApi } from '@/api';
 import printService from '@/services/printService';
 import { loadExcelJS } from '@/utils/lazyVendors';
 
@@ -185,12 +185,10 @@ const generateReport = async () => {
 
   loading.value = true;
   try {
-    const response = await api.get('/finance/reports/standard-cash-flow', {
-      params: {
-        startDate: queryParams.startDate,
-        endDate: queryParams.endDate,
-        unit: queryParams.unit
-      }
+    const response = await financeApi.reports.getStandardCashFlow({
+      startDate: queryParams.startDate,
+      endDate: queryParams.endDate,
+      unit: queryParams.unit
     });
 
     // axios 拦截器已解包 ResponseHandler 格式

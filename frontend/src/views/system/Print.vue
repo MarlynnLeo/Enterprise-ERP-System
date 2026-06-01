@@ -360,7 +360,6 @@
 <script setup>
 import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { api } from '../../services/api'
 import { parsePaginatedData } from '@/utils/responseParser'
 // 导入常量和工具函数
 import {
@@ -383,6 +382,8 @@ import PaperSizeSelect from '../../components/ui/print/PaperSizeSelect.vue'
 import { sanitizeHtml, writeSafeHtmlDocument } from '@/utils/htmlSecurity'
 import { useAuthStore } from '@/stores/auth'
 import { getCssTokenValue } from '@/utils/designTokens'
+import printService, { normalizeSystemSettings } from '@/services/printService'
+import { systemApi } from '@/api/system'
 const authStore = useAuthStore()
 const canReadCompanySettings = computed(() =>
   authStore.hasPermission('system:settings:read') || authStore.hasPermission('system:settings:write')
@@ -489,20 +490,18 @@ onMounted(() => {
 // 获取公司信息
 const fetchCompanyInfo = async () => {
   try {
-    const response = await api.get('/system/settings')
-    if (response.data) {
-      const settings = Array.isArray(response.data) ? response.data : []
+    const response = await systemApi.getSettings()
+    const settings = normalizeSystemSettings(response)
 
-      const companyNameSetting = settings.find(s => s.key === 'company_name' || s.setting_key === 'company_name')
-      const companyPhoneSetting = settings.find(s => s.key === 'company_phone' || s.setting_key === 'company_phone')
-      const companyFaxSetting = settings.find(s => s.key === 'company_fax' || s.setting_key === 'company_fax')
-      const companyAddressSetting = settings.find(s => s.key === 'company_address' || s.setting_key === 'company_address')
+    const companyNameSetting = settings.find(s => s.key === 'company_name' || s.setting_key === 'company_name')
+    const companyPhoneSetting = settings.find(s => s.key === 'company_phone' || s.setting_key === 'company_phone')
+    const companyFaxSetting = settings.find(s => s.key === 'company_fax' || s.setting_key === 'company_fax')
+    const companyAddressSetting = settings.find(s => s.key === 'company_address' || s.setting_key === 'company_address')
 
-      companyInfo.company_name = companyNameSetting?.value || companyNameSetting?.setting_value || ''
-      companyInfo.company_phone = companyPhoneSetting?.value || companyPhoneSetting?.setting_value || ''
-      companyInfo.company_fax = companyFaxSetting?.value || companyFaxSetting?.setting_value || ''
-      companyInfo.company_address = companyAddressSetting?.value || companyAddressSetting?.setting_value || ''
-    }
+    companyInfo.company_name = companyNameSetting?.value || companyNameSetting?.setting_value || ''
+    companyInfo.company_phone = companyPhoneSetting?.value || companyPhoneSetting?.setting_value || ''
+    companyInfo.company_fax = companyFaxSetting?.value || companyFaxSetting?.setting_value || ''
+    companyInfo.company_address = companyAddressSetting?.value || companyAddressSetting?.setting_value || ''
   } catch (error) {
     console.error('获取公司信息失败:', error)
     ElMessage.error('获取公司信息失败')
@@ -523,7 +522,7 @@ const saveCompanyInfo = async () => {
     ]
 
     for (const setting of settingsToSave) {
-      await api.put('/system/settings', setting)
+      await systemApi.updateSettings(setting)
     }
 
     ElMessage.success('公司信息保存成功')
@@ -539,7 +538,7 @@ const saveCompanyInfo = async () => {
 const fetchPrintTemplates = async () => {
   loadingTemplates.value = true
   try {
-    const response = await api.get('/print/templates', { params: templatesQuery })
+    const response = await printService.getPrintTemplates(templatesQuery)
 
     const parsed = parsePaginatedData(response, { enableLog: false })
     const templateData = parsed.list
@@ -608,11 +607,11 @@ const savePrintTemplate = async () => {
       try {
         if (currentTemplate.id) {
           // 更新
-          await api.put(`/print/templates/${currentTemplate.id}`, currentTemplate)
+          await printService.updatePrintTemplate(currentTemplate.id, currentTemplate)
           ElMessage.success('更新打印模板成功')
         } else {
           // 新增
-          await api.post('/print/templates', currentTemplate)
+          await printService.createPrintTemplate(currentTemplate)
           ElMessage.success('添加打印模板成功')
         }
         templateDialogVisible.value = false
@@ -636,7 +635,7 @@ const deletePrintTemplate = (id) => {
     type: 'warning'
   }).then(async () => {
     try {
-      await api.delete(`/print/templates/${id}`)
+      await printService.deletePrintTemplate(id)
       ElMessage.success('删除成功')
       fetchPrintTemplates()
     } catch (error) {

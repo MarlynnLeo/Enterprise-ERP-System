@@ -5,7 +5,7 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../../stores/auth'
-import { todoApi } from '../../../services/api'
+import { todoApi } from '@/api'
 import { ElMessage } from 'element-plus'
 import { parseListData } from '@/utils/responseParser'
 

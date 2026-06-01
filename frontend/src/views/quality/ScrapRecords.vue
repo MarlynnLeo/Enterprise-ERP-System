@@ -265,7 +265,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import api from '@/services/api'
+import { qualityApi } from '@/api/quality'
 import { normalizePaginationData } from '@/utils/helpers/typeUtils'
 import { parseResponseData } from '@/utils/responseParser'
 const searchForm = reactive({
@@ -335,7 +335,7 @@ const fetchData = async () => {
       params.endDate = dateRange.value[1]
     }
 
-    const response = await api.get('/quality/scrap-records', { params })
+    const response = await qualityApi.scrapRecords.getList(params)
     const pageData = normalizePaginationData(response)
     tableData.value = pageData.items
     pagination.total = pageData.total
@@ -356,7 +356,7 @@ const fetchStatistics = async () => {
       params.startDate = dateRange.value[0]
       params.endDate = dateRange.value[1]
     }
-    const response = await api.get('/quality/scrap-records/statistics', { params })
+    const response = await qualityApi.scrapRecords.getStatistics(params)
     // 后端 ResponseHandler 返回格式: { success, data, message }
     statistics.value = parseResponseData(response, {})
   } catch (error) {
@@ -375,7 +375,7 @@ const resetSearch = () => {
 
 const viewDetail = async (row) => {
   try {
-    const response = await api.get(`/quality/scrap-records/${row.id}`)
+    const response = await qualityApi.scrapRecords.getDetail(row.id)
     // 后端 ResponseHandler 返回格式: { success, data, message }
     detailData.value = parseResponseData(response)
     detailDialogVisible.value = true
@@ -394,7 +394,7 @@ const approveScrap = (row) => {
 
 const submitApprove = async () => {
   try {
-    await api.post(`/quality/scrap-records/${currentRow.value.id}/approve`, approveForm)
+    await qualityApi.scrapRecords.approve(currentRow.value.id, approveForm)
     ElMessage.success(approveForm.approved ? '审批通过' : '审批拒绝')
     approveDialogVisible.value = false
     fetchData()
@@ -413,7 +413,7 @@ const completeScrap = (row) => {
 
 const submitComplete = async () => {
   try {
-    await api.post(`/quality/scrap-records/${currentRow.value.id}/complete`, completeForm)
+    await qualityApi.scrapRecords.complete(currentRow.value.id, completeForm)
     ElMessage.success('报废完成')
     completeDialogVisible.value = false
     fetchData()
@@ -432,7 +432,7 @@ const editRecord = (row) => {
 
 const submitEdit = async () => {
   try {
-    await api.put(`/quality/scrap-records/${currentRow.value.id}`, editForm)
+    await qualityApi.scrapRecords.update(currentRow.value.id, editForm)
     ElMessage.success('更新成功')
     editDialogVisible.value = false
     fetchData()
@@ -480,13 +480,13 @@ onMounted(() => {
 
 .stat-card {
   cursor: pointer;
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--ds-black) 5%, transparent);
+  box-shadow: var(--shadow-sm);
   transition: border-color 0.2s ease, background-color 0.2s ease;
 }
 
 .stat-card:hover {
   transform: none;
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--ds-black) 5%, transparent);
+  box-shadow: var(--shadow-sm);
   background: var(--color-bg-section);
 }
 

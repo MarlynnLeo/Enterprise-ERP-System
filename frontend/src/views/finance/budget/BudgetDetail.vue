@@ -87,7 +87,7 @@
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import { useRouter, useRoute } from 'vue-router';
-import { api } from '@/services/axiosInstance';
+import { financeApi } from '@/api/finance';
 import { formatAmount } from '@/utils/format'
 
 const router = useRouter();
@@ -102,7 +102,7 @@ const budget = reactive({
 const fetchBudgetDetail = async () => {
   loading.value = true;
   try {
-    const response = await api.get(`/finance/budgets/${route.params.id}`);
+    const response = await financeApi.budgets.getDetail(route.params.id);
     Object.assign(budget, response.data);
   } catch (error) {
     console.error('获取预算详情失败:', error);

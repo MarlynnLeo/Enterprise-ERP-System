@@ -1,0 +1,752 @@
+{
+  "passed": true,
+  "results": [
+    {
+      "domain": "salesOrder",
+      "canonicalValues": [
+        "draft",
+        "pending",
+        "confirmed",
+        "in_production",
+        "in_procurement",
+        "ready_to_ship",
+        "shortage",
+        "partial_shipped",
+        "shipped",
+        "delivered",
+        "completed",
+        "cancelled"
+      ],
+      "table": "sales_orders",
+      "statusColumn": "status",
+      "skipped": false,
+      "values": [
+        {
+          "status": "confirmed",
+          "normalized": "confirmed",
+          "count": 468,
+          "known": true
+        },
+        {
+          "status": "shortage",
+          "normalized": "shortage",
+          "count": 46,
+          "known": true
+        },
+        {
+          "status": "ready_to_ship",
+          "normalized": "ready_to_ship",
+          "count": 3,
+          "known": true
+        },
+        {
+          "status": "cancelled",
+          "normalized": "cancelled",
+          "count": 1,
+          "known": true
+        }
+      ],
+      "unknown": []
+    },
+    {
+      "domain": "salesExchange",
+      "canonicalValues": [
+        "pending",
+        "processing",
+        "completed",
+        "rejected"
+      ],
+      "table": "sales_exchanges",
+      "statusColumn": "status",
+      "skipped": false,
+      "values": [],
+      "unknown": []
+    },
+    {
+      "domain": "purchaseOrder",
+      "canonicalValues": [
+        "draft",
+        "pending",
+        "confirmed",
+        "approved",
+        "received",
+        "inspecting",
+        "inspected",
+        "warehousing",
+        "partial_received",
+        "completed",
+        "cancelled"
+      ],
+      "table": "purchase_orders",
+      "statusColumn": "status",
+      "skipped": false,
+      "values": [
+        {
+          "status": "completed",
+          "normalized": "completed",
+          "count": 105,
+          "known": true
+        },
+        {
+          "status": "draft",
+          "normalized": "draft",
+          "count": 100,
+          "known": true
+        },
+        {
+          "status": "approved",
+          "normalized": "approved",
+          "count": 97,
+          "known": true
+        },
+        {
+          "status": "warehousing",
+          "normalized": "warehousing",
+          "count": 24,
+          "known": true
+        },
+        {
+          "status": "pending",
+          "normalized": "pending",
+          "count": 19,
+          "known": true
+        },
+        {
+          "status": "received",
+          "normalized": "received",
+          "count": 15,
+          "known": true
+        },
+        {
+          "status": "inspected",
+          "normalized": "inspected",
+          "count": 9,
+          "known": true
+        },
+        {
+          "status": "confirmed",
+          "normalized": "confirmed",
+          "count": 1,
+          "known": true
+        },
+        {
+          "status": "partial_received",
+          "normalized": "partial_received",
+          "count": 1,
+          "known": true
+        }
+      ],
+      "unknown": []
+    },
+    {
+      "domain": "purchaseRequisition",
+      "canonicalValues": [
+        "draft",
+        "submitted",
+        "approved",
+        "rejected",
+        "completed",
+        "cancelled"
+      ],
+      "table": "purchase_requisitions",
+      "statusColumn": "status",
+      "skipped": false,
+      "values": [
+        {
+          "status": "approved",
+          "normalized": "approved",
+          "count": 156,
+          "known": true
+        },
+        {
+          "status": "draft",
+          "normalized": "draft",
+          "count": 44,
+          "known": true
+        },
+        {
+          "status": "completed",
+          "normalized": "completed",
+          "count": 32,
+          "known": true
+        },
+        {
+          "status": "cancelled",
+          "normalized": "cancelled",
+          "count": 6,
+          "known": true
+        },
+        {
+          "status": "submitted",
+          "normalized": "submitted",
+          "count": 3,
+          "known": true
+        }
+      ],
+      "unknown": []
+    },
+    {
+      "domain": "purchaseReceipt",
+      "canonicalValues": [
+        "draft",
+        "confirmed",
+        "inspecting",
+        "completed",
+        "cancelled"
+      ],
+      "table": "purchase_receipts",
+      "statusColumn": "status",
+      "skipped": false,
+      "values": [
+        {
+          "status": "completed",
+          "normalized": "completed",
+          "count": 154,
+          "known": true
+        },
+        {
+          "status": "draft",
+          "normalized": "draft",
+          "count": 41,
+          "known": true
+        },
+        {
+          "status": "cancelled",
+          "normalized": "cancelled",
+          "count": 5,
+          "known": true
+        }
+      ],
+      "unknown": []
+    },
+    {
+      "domain": "inventoryInbound",
+      "canonicalValues": [
+        "draft",
+        "confirmed",
+        "completed",
+        "cancelled"
+      ],
+      "table": "inventory_inbound",
+      "statusColumn": "status",
+      "skipped": false,
+      "values": [
+        {
+          "status": "completed",
+          "normalized": "completed",
+          "count": 112,
+          "known": true
+        },
+        {
+          "status": "draft",
+          "normalized": "draft",
+          "count": 32,
+          "known": true
+        },
+        {
+          "status": "cancelled",
+          "normalized": "cancelled",
+          "count": 3,
+          "known": true
+        },
+        {
+          "status": "confirmed",
+          "normalized": "confirmed",
+          "count": 2,
+          "known": true
+        }
+      ],
+      "unknown": []
+    },
+    {
+      "domain": "inventoryOutbound",
+      "canonicalValues": [
+        "draft",
+        "confirmed",
+        "partial_completed",
+        "completed",
+        "reversed",
+        "cancelled"
+      ],
+      "table": "inventory_outbound",
+      "statusColumn": "status",
+      "skipped": false,
+      "values": [
+        {
+          "status": "completed",
+          "normalized": "completed",
+          "count": 229,
+          "known": true
+        },
+        {
+          "status": "partial_completed",
+          "normalized": "partial_completed",
+          "count": 63,
+          "known": true
+        },
+        {
+          "status": "draft",
+          "normalized": "draft",
+          "count": 21,
+          "known": true
+        },
+        {
+          "status": "cancelled",
+          "normalized": "cancelled",
+          "count": 11,
+          "known": true
+        },
+        {
+          "status": "confirmed",
+          "normalized": "confirmed",
+          "count": 7,
+          "known": true
+        },
+        {
+          "status": "reversed",
+          "normalized": "reversed",
+          "count": 2,
+          "known": true
+        }
+      ],
+      "unknown": []
+    },
+    {
+      "domain": "inventoryTransfer",
+      "canonicalValues": [
+        "draft",
+        "pending",
+        "approved",
+        "in_transit",
+        "completed",
+        "cancelled",
+        "rejected"
+      ],
+      "table": "inventory_transfers",
+      "statusColumn": "status",
+      "skipped": false,
+      "values": [
+        {
+          "status": "completed",
+          "normalized": "completed",
+          "count": 4,
+          "known": true
+        }
+      ],
+      "unknown": []
+    },
+    {
+      "domain": "inventoryCheck",
+      "canonicalValues": [
+        "draft",
+        "in_progress",
+        "pending",
+        "completed",
+        "cancelled"
+      ],
+      "table": "inventory_checks",
+      "statusColumn": "status",
+      "skipped": false,
+      "values": [
+        {
+          "status": "in_progress",
+          "normalized": "in_progress",
+          "count": 1,
+          "known": true
+        },
+        {
+          "status": "completed",
+          "normalized": "completed",
+          "count": 1,
+          "known": true
+        }
+      ],
+      "unknown": []
+    },
+    {
+      "domain": "productionPlan",
+      "canonicalValues": [
+        "draft",
+        "allocated",
+        "material_issuing",
+        "preparing",
+        "material_issued",
+        "in_progress",
+        "paused",
+        "inspection",
+        "warehousing",
+        "completed",
+        "cancelled"
+      ],
+      "table": "production_plans",
+      "statusColumn": "status",
+      "skipped": false,
+      "values": [
+        {
+          "status": "cancelled",
+          "normalized": "cancelled",
+          "count": 1151,
+          "known": true
+        },
+        {
+          "status": "draft",
+          "normalized": "draft",
+          "count": 261,
+          "known": true
+        },
+        {
+          "status": "warehousing",
+          "normalized": "warehousing",
+          "count": 12,
+          "known": true
+        },
+        {
+          "status": "allocated",
+          "normalized": "allocated",
+          "count": 10,
+          "known": true
+        },
+        {
+          "status": "completed",
+          "normalized": "completed",
+          "count": 9,
+          "known": true
+        },
+        {
+          "status": "inspection",
+          "normalized": "inspection",
+          "count": 3,
+          "known": true
+        },
+        {
+          "status": "preparing",
+          "normalized": "preparing",
+          "count": 2,
+          "known": true
+        },
+        {
+          "status": "in_progress",
+          "normalized": "in_progress",
+          "count": 1,
+          "known": true
+        },
+        {
+          "status": "material_issued",
+          "normalized": "material_issued",
+          "count": 1,
+          "known": true
+        },
+        {
+          "status": "material_issuing",
+          "normalized": "material_issuing",
+          "count": 1,
+          "known": true
+        }
+      ],
+      "unknown": []
+    },
+    {
+      "domain": "productionTask",
+      "canonicalValues": [
+        "pending",
+        "allocated",
+        "material_issuing",
+        "preparing",
+        "material_issued",
+        "material_partial_issued",
+        "in_progress",
+        "paused",
+        "inspection",
+        "warehousing",
+        "completed",
+        "cancelled"
+      ],
+      "table": "production_tasks",
+      "statusColumn": "status",
+      "skipped": false,
+      "values": [
+        {
+          "status": "completed",
+          "normalized": "completed",
+          "count": 87,
+          "known": true
+        },
+        {
+          "status": "inspection",
+          "normalized": "inspection",
+          "count": 23,
+          "known": true
+        },
+        {
+          "status": "material_issued",
+          "normalized": "material_issued",
+          "count": 18,
+          "known": true
+        },
+        {
+          "status": "warehousing",
+          "normalized": "warehousing",
+          "count": 18,
+          "known": true
+        },
+        {
+          "status": "in_progress",
+          "normalized": "in_progress",
+          "count": 16,
+          "known": true
+        },
+        {
+          "status": "cancelled",
+          "normalized": "cancelled",
+          "count": 14,
+          "known": true
+        },
+        {
+          "status": "allocated",
+          "normalized": "allocated",
+          "count": 13,
+          "known": true
+        },
+        {
+          "status": "preparing",
+          "normalized": "preparing",
+          "count": 13,
+          "known": true
+        },
+        {
+          "status": "pending",
+          "normalized": "pending",
+          "count": 9,
+          "known": true
+        },
+        {
+          "status": "material_issuing",
+          "normalized": "material_issuing",
+          "count": 7,
+          "known": true
+        },
+        {
+          "status": "material_partial_issued",
+          "normalized": "material_partial_issued",
+          "count": 7,
+          "known": true
+        }
+      ],
+      "unknown": []
+    },
+    {
+      "domain": "productionProcess",
+      "canonicalValues": [
+        "pending",
+        "in_progress",
+        "warehousing",
+        "completed",
+        "cancelled"
+      ],
+      "table": "production_processes",
+      "statusColumn": "status",
+      "skipped": false,
+      "values": [
+        {
+          "status": "warehousing",
+          "normalized": "warehousing",
+          "count": 127,
+          "known": true
+        },
+        {
+          "status": "completed",
+          "normalized": "completed",
+          "count": 91,
+          "known": true
+        },
+        {
+          "status": "pending",
+          "normalized": "pending",
+          "count": 66,
+          "known": true
+        },
+        {
+          "status": "in_progress",
+          "normalized": "in_progress",
+          "count": 4,
+          "known": true
+        }
+      ],
+      "unknown": []
+    },
+    {
+      "domain": "eightDReport",
+      "canonicalValues": [
+        "draft",
+        "in_progress",
+        "review",
+        "completed",
+        "closed"
+      ],
+      "table": "eight_d_reports",
+      "statusColumn": "status",
+      "skipped": false,
+      "values": [
+        {
+          "status": "draft",
+          "normalized": "draft",
+          "count": 8,
+          "known": true
+        },
+        {
+          "status": "closed",
+          "normalized": "closed",
+          "count": 4,
+          "known": true
+        },
+        {
+          "status": "completed",
+          "normalized": "completed",
+          "count": 3,
+          "known": true
+        },
+        {
+          "status": "in_progress",
+          "normalized": "in_progress",
+          "count": 1,
+          "known": true
+        }
+      ],
+      "unknown": []
+    },
+    {
+      "domain": "financeInvoice",
+      "canonicalValues": [
+        "draft",
+        "confirmed",
+        "partial_paid",
+        "overdue",
+        "paid",
+        "cancelled"
+      ],
+      "table": "ar_invoices",
+      "statusColumn": "status",
+      "skipped": false,
+      "values": [
+        {
+          "status": "已逾期",
+          "normalized": "overdue",
+          "count": 4,
+          "known": true
+        },
+        {
+          "status": "已确认",
+          "normalized": "confirmed",
+          "count": 3,
+          "known": true
+        },
+        {
+          "status": "已付款",
+          "normalized": "paid",
+          "count": 3,
+          "known": true
+        }
+      ],
+      "unknown": []
+    },
+    {
+      "domain": "financeInvoice",
+      "canonicalValues": [
+        "draft",
+        "confirmed",
+        "partial_paid",
+        "overdue",
+        "paid",
+        "cancelled"
+      ],
+      "table": "ap_invoices",
+      "statusColumn": "status",
+      "skipped": false,
+      "values": [
+        {
+          "status": "已确认",
+          "normalized": "confirmed",
+          "count": 58,
+          "known": true
+        },
+        {
+          "status": "已逾期",
+          "normalized": "overdue",
+          "count": 37,
+          "known": true
+        },
+        {
+          "status": "已付款",
+          "normalized": "paid",
+          "count": 15,
+          "known": true
+        },
+        {
+          "status": "已取消",
+          "normalized": "cancelled",
+          "count": 1,
+          "known": true
+        }
+      ],
+      "unknown": []
+    },
+    {
+      "domain": "glEntry",
+      "canonicalValues": [
+        "draft",
+        "posted",
+        "reversed"
+      ],
+      "table": "gl_entries",
+      "statusColumn": "status",
+      "skipped": false,
+      "values": [
+        {
+          "status": "posted",
+          "normalized": "posted",
+          "count": 749,
+          "known": true
+        },
+        {
+          "status": "draft",
+          "normalized": "draft",
+          "count": 227,
+          "known": true
+        },
+        {
+          "status": "reversed",
+          "normalized": "reversed",
+          "count": 80,
+          "known": true
+        }
+      ],
+      "unknown": []
+    },
+    {
+      "domain": "financePeriod",
+      "canonicalValues": [
+        "open",
+        "closed",
+        "locked"
+      ],
+      "table": "gl_periods",
+      "expression": "CASE WHEN COALESCE(is_closed, 0) = 1 THEN 'closed' ELSE 'open' END",
+      "skipped": false,
+      "values": [
+        {
+          "status": "open",
+          "normalized": "open",
+          "count": 36,
+          "known": true
+        },
+        {
+          "status": "closed",
+          "normalized": "closed",
+          "count": 17,
+          "known": true
+        }
+      ],
+      "unknown": []
+    }
+  ]
+}

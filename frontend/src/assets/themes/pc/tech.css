@@ -154,7 +154,7 @@
 [data-theme="tech"] .app-sidebar {
   background: linear-gradient(180deg, var(--color-bg-light) 0%, var(--color-bg-hover) 100%) !important;
   border-right: 2px solid color-mix(in srgb, var(--color-primary) 30%, transparent) !important;
-  box-shadow: 0 0 30px color-mix(in srgb, var(--color-bg-overlay) 20%, transparent) !important;
+  box-shadow: 0 0 16px color-mix(in srgb, var(--color-bg-overlay) 16%, transparent) !important;
   position: relative;
 }
 
@@ -175,17 +175,7 @@
       color-mix(in srgb, var(--color-bg-overlay) 3%, transparent) 3px
     );
   pointer-events: none;
-  animation: tech-scanline-bg 10s linear infinite;
   z-index: 0;
-}
-
-@keyframes tech-scanline-bg {
-  0% {
-    transform: translateY(0);
-  }
-  100% {
-    transform: translateY(20px);
-  }
 }
 
 /* Logo容器科技?*/
@@ -211,16 +201,6 @@
     color-mix(in srgb, var(--color-bg-overlay) 10%, transparent) 50%,
     transparent 70%
   );
-  animation: tech-logo-shine 3s infinite;
-}
-
-@keyframes tech-logo-shine {
-  0% {
-    transform: translateX(-100%) translateY(-100%) rotate(45deg);
-  }
-  100% {
-    transform: translateX(100%) translateY(100%) rotate(45deg);
-  }
 }
 
 [data-theme="tech"] .logo-container .title {
@@ -301,16 +281,6 @@
   width: 3px;
   background: var(--color-primary);
   box-shadow: 0 0 10px var(--color-primary);
-  animation: tech-pulse-border 2s infinite;
-}
-
-@keyframes tech-pulse-border {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
 }
 
 /* 顶部导航栏科技?*/
@@ -318,8 +288,7 @@
 [data-theme="tech"] .el-header {
   background: linear-gradient(90deg, var(--color-bg-light) 0%, var(--color-bg-hover) 50%, var(--color-bg-light) 100%) !important;
   border-bottom: 2px solid color-mix(in srgb, var(--color-primary) 30%, transparent) !important;
-  box-shadow: 0 4px 20px color-mix(in srgb, var(--color-bg-overlay) 30%, transparent) !important;
-  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--color-bg-overlay) 22%, transparent) !important;
 }
 
 /* 表格组件 */
@@ -367,10 +336,9 @@
 
 /* 菜单样式 */
 [data-theme="tech"] .el-dropdown-menu {
-  background: color-mix(in srgb, var(--color-bg-light) 95%, transparent) !important;
+  background: var(--color-bg-light) !important;
   border: 1px solid color-mix(in srgb, var(--color-primary) 30%, transparent) !important;
-  box-shadow: 0 8px 30px color-mix(in srgb, var(--color-bg-overlay) 30%, transparent) !important;
-  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--color-bg-overlay) 24%, transparent) !important;
 }
 
 [data-theme="tech"] .el-dropdown-menu__item:hover {

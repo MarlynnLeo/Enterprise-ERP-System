@@ -619,7 +619,7 @@ import { formatCurrency, formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
-import { baseDataApi } from '@/services/api';
+import { baseDataApi } from '@/api';
 import { financeApi } from '@/api/finance';
 import { useFinanceStore } from '@/stores/finance';
 import { storeToRefs } from 'pinia';

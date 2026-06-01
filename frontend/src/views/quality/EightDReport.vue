@@ -33,39 +33,35 @@
         </div>
       </template>
       <!-- 搜索栏 -->
-      <div class="search-container">
-        <el-row :gutter="16">
-          <el-col :span="5">
-            <el-input v-model="searchForm.keyword" placeholder="编号/标题/物料/负责人" @keyup.enter="fetchData" clearable>
-              <template #prefix><el-icon><Search /></el-icon></template>
-            </el-input>
-          </el-col>
-          <el-col :span="3">
-            <el-select v-model="searchForm.status" placeholder="状态" clearable @change="fetchData" style="width: 100%">
+      <FinanceQueryCard :model="searchForm" @search="handleSearch" @reset="handleReset">
+        <template #basic>
+          <el-form-item label="关键词">
+            <el-input v-model="searchForm.keyword" placeholder="编号/标题/物料/负责人" clearable @keyup.enter="handleSearch" />
+          </el-form-item>
+          <el-form-item label="状态">
+            <el-select v-model="searchForm.status" placeholder="状态" clearable>
               <el-option label="草稿" value="draft" />
               <el-option label="进行中" value="in_progress" />
               <el-option label="待审核" value="review" />
               <el-option label="已完成" value="completed" />
               <el-option label="已关闭" value="closed" />
             </el-select>
-          </el-col>
-          <el-col :span="3">
-            <el-select v-model="searchForm.priority" placeholder="优先级" clearable @change="fetchData" style="width: 100%">
+          </el-form-item>
+        </template>
+        <template #advanced>
+          <el-form-item label="优先级">
+            <el-select v-model="searchForm.priority" placeholder="优先级" clearable>
               <el-option label="低" value="low" />
               <el-option label="中" value="medium" />
               <el-option label="高" value="high" />
               <el-option label="紧急" value="critical" />
             </el-select>
-          </el-col>
-          <el-col :span="5">
-            <el-date-picker v-model="dateRange" type="daterange" range-separator="至" start-placeholder="开始" end-placeholder="结束" @change="fetchData" style="width: 100%" />
-          </el-col>
-          <el-col :span="4">
-            <el-button type="primary" @click="fetchData"><el-icon><Search /></el-icon>查询</el-button>
-            <el-button @click="handleReset"><el-icon><Refresh /></el-icon>重置</el-button>
-          </el-col>
-        </el-row>
-      </div>
+          </el-form-item>
+          <el-form-item label="时间范围">
+            <el-date-picker v-model="dateRange" type="daterange" range-separator="至" start-placeholder="开始" end-placeholder="结束" />
+          </el-form-item>
+        </template>
+      </FinanceQueryCard>
       <!-- 表格 -->
       <el-table :data="tableData" border v-loading="loading" style="width: 100%; margin-top: 16px;">
         <el-table-column prop="report_no" label="报告编号" width="140" show-overflow-tooltip />
@@ -199,7 +195,7 @@
                       :value="item.id"
                     >
                       <span style="float: left">{{ item.ncp_no }}</span>
-                      <span style="float: right; color: var(--el-text-color-secondary); font-size: 13px">{{ item.material_name }}</span>
+                      <span style="float: right; color: var(--color-text-secondary); font-size: 13px">{{ item.material_name }}</span>
                     </el-option>
                   </el-select>
                 </el-form-item>
@@ -422,7 +418,7 @@
         <el-row :gutter="16" style="margin-bottom: 16px;">
           <el-col :span="8">
             <el-card shadow="never" class="role-card">
-              <div class="role-icon" style="background: var(--ds-blue-bg);"><el-icon><List /></el-icon></div>
+              <div class="role-icon" style="background: var(--theme-status-success-bg);"><el-icon><List /></el-icon></div>
               <div class="role-info">
                 <div class="role-title">发起人</div>
                 <div class="role-name">{{ detailData.initiated_by || detailData.created_by || '-' }}</div>
@@ -643,10 +639,10 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Search, Refresh, MagicStick, Download, List } from '@element-plus/icons-vue'
+import { Plus, MagicStick, Download, List } from '@element-plus/icons-vue'
 import { eightDReportApi } from '@/api/quality'
 import nonconformingProductApi from '@/api/nonconformingProductApi'
-import { api } from '@/services/axiosInstance'
+import { commonApi } from '@/api/common'
 import dayjs from 'dayjs'
 import { formatDate } from '@/utils/helpers/dateUtils'
 import printService from '@/services/printService'
@@ -654,6 +650,7 @@ import { buildResourceUrl } from '@/config/app'
 import { loadHtml2Pdf } from '@/utils/lazyVendors'
 import { parseResponseData } from '@/utils/responseParser'
 import { loadUserListOptions } from '@/utils/optionLoaders'
+import FinanceQueryCard from '@/components/common/FinanceQueryCard.vue'
 // 响应式状态
 const logsDialogVisible = ref(false)
 const isPrintMode = ref(false)
@@ -864,7 +861,8 @@ const fetchUsers = async () => {
   try {
     loadingUsers.value = true
     userList.value = (await loadUserListOptions()).filter(user => String(user.status ?? 1) === '1')
-  } catch {
+  } catch (error) {
+    console.error('加载用户列表失败:', error)
   } finally {
     loadingUsers.value = false
   }
@@ -876,7 +874,8 @@ const fetchNcpList = async (query = '') => {
     const data = parseResponseData(res, {})
     const rows = data.items || data.list || data.records || []
     ncpList.value = rows.filter(item => ['pending', 'processing'].includes(item.status))
-  } catch {
+  } catch (error) {
+    console.error('加载不良品列表失败:', error)
   } finally {
     loadingNcp.value = false
   }
@@ -1029,9 +1028,7 @@ const _handleFileUpload = async (options, targetArray) => {
   try {
     const fd = new FormData()
     fd.append('file', options.file)
-    const res = await api.post('/upload/file', fd, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    })
+    const res = await commonApi.uploadFile(fd)
     const fileInfo = parseResponseData(res)
     if (fileInfo && fileInfo.url) {
       targetArray.push({
@@ -1262,6 +1259,10 @@ const handleDelete = async (row) => {
     if (error !== 'cancel') ElMessage.error('删除失败')
   }
 }
+const handleSearch = () => {
+  pagination.current = 1
+  fetchData()
+}
 const handleReset = () => {
   searchForm.keyword = ''
   searchForm.status = ''
@@ -1342,7 +1343,7 @@ onMounted(() => {
   margin-bottom: 20px;
   padding: 16px 20px;
   background: var(--color-bg-section);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
 }
 /* 角色信息卡片 */
 .role-card {
@@ -1359,7 +1360,7 @@ onMounted(() => {
 .role-icon {
   width: 40px;
   height: 40px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
   justify-content: center;

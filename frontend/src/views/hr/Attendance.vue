@@ -35,13 +35,13 @@
         <el-table-column label="请假">
           <el-table-column prop="personal_leave_days" label="事假天数" width="75" />
           <el-table-column prop="sick_leave_days" label="病假天数" width="75" />
-          <el-table-column prop="total_leave_days" label="天数合计" width="75" class-name="subtotal-col operation-column" />
+          <el-table-column prop="total_leave_days" label="天数合计" width="75" class-name="subtotal-col" />
         </el-table-column>
         <el-table-column prop="public_holiday_days" label="公休天数" width="75" />
         <el-table-column label="违规">
           <el-table-column prop="late_count" label="迟到次数" width="75" />
           <el-table-column prop="missing_punch_count" label="缺卡次数" width="75" />
-          <el-table-column prop="total_violation_count" label="次数合计" width="75" class-name="subtotal-col operation-column" />
+          <el-table-column prop="total_violation_count" label="次数合计" width="75" class-name="subtotal-col" />
         </el-table-column>
         <el-table-column label="加班">
           <el-table-column prop="serious_late_overtime" label="严重迟到/上加班" width="100" />

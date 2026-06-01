@@ -691,7 +691,7 @@ import AQLStandards from './AQLStandards.vue'
 import { Search, Refresh, Plus } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { formatDateTime } from '@/utils/helpers/dateUtils'
-import { baseDataApi, qualityApi } from '@/services/api'
+import { baseDataApi, qualityApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 
 import { loadUserListOptions } from '@/utils/optionLoaders'

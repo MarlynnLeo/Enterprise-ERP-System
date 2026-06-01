@@ -113,11 +113,11 @@ const handleError = () => {
 .user-info-card {
   text-align: center;
   width: 100%;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   overflow: visible;
   height: 100%;
-  border: 1px solid var(--el-border-color-lighter);
-  box-shadow: 0 2px 12px 0 color-mix(in srgb, var(--ds-black) 5%, transparent);
+  border: 1px solid var(--color-border-lighter);
+  box-shadow: var(--shadow-sm);
 }
 
 .user-info-card :deep(.el-card__body) {
@@ -131,7 +131,7 @@ const handleError = () => {
   align-items: center;
   margin-bottom: 20px;
   padding: 8px 0 18px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
+  border-bottom: 1px solid var(--color-border-lighter);
 }
 .avatar-wrapper {
   position: relative;
@@ -155,15 +155,15 @@ const handleError = () => {
   overflow: hidden;
   font-size: 22px;
   font-weight: 800;
-  color: var(--el-text-color-primary);
+  color: var(--color-text-primary);
   line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .user-role {
   font-size: 14px;
-  color: var(--el-color-primary);
-  background: var(--el-color-primary-light-9);
+  color: var(--color-primary);
+  background: var(--color-primary-light-9);
   padding: 5px 12px;
   border-radius: 20px;
   font-weight: 700;
@@ -179,14 +179,14 @@ const handleError = () => {
   align-items: center;
   gap: 12px;
   padding: 13px 14px;
-  border: 1px solid var(--el-border-color-lighter);
-  background: var(--el-fill-color-extra-light);
-  border-radius: 10px;
-  transition: border-color 0.2s ease, background-color 0.2s ease;
+  border: 1px solid var(--color-border-lighter);
+  background: var(--color-bg-hover);
+  border-radius: var(--radius-md);
+  transition: border-color var(--transition-base), background-color var(--transition-base);
 }
 .stat-item:hover {
-  border-color: var(--el-color-primary-light-6);
-  background: var(--el-bg-color);
+  border-color: var(--color-primary-light-6);
+  background: var(--color-bg-base);
 }
 .stat-icon-wrapper {
   width: 40px;
@@ -202,16 +202,16 @@ const handleError = () => {
   color: currentColor;
 }
 .stat-icon-1 {
-  color: var(--el-color-white);
-  background: var(--el-color-primary);
+  color: var(--color-on-primary);
+  background: var(--color-primary);
 }
 .stat-icon-2 {
-  color: var(--el-color-white);
-  background: var(--el-color-success);
+  color: var(--color-on-primary);
+  background: var(--color-success);
 }
 .stat-icon-3 {
-  color: var(--el-color-white);
-  background: var(--el-color-warning);
+  color: var(--color-on-primary);
+  background: var(--color-warning);
 }
 .stat-content {
   flex: 1;
@@ -221,20 +221,20 @@ const handleError = () => {
 .stat-value {
   font-size: 20px;
   font-weight: 800;
-  color: var(--el-text-color-primary);
+  color: var(--color-text-primary);
   line-height: 1.2;
 }
 .stat-label {
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: var(--color-text-secondary);
 }
 .online-time-display {
   margin: 20px 0;
   padding: 14px;
-  background: var(--el-fill-color-extra-light);
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 10px;
-  color: var(--el-text-color-primary);
+  background: var(--color-bg-hover);
+  border: 1px solid var(--color-border-lighter);
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
 }
 .time-item {
   display: flex;
@@ -242,7 +242,7 @@ const handleError = () => {
   justify-content: space-between;
   gap: 8px;
   padding: 9px 0;
-  border-bottom: 1px solid var(--el-border-color-lighter);
+  border-bottom: 1px solid var(--color-border-lighter);
 }
 .time-item:last-child {
   border-bottom: none;
@@ -251,10 +251,10 @@ const handleError = () => {
   flex: 1;
   text-align: left;
   font-size: 13px;
-  color: var(--el-text-color-secondary);
+  color: var(--color-text-secondary);
 }
 .time-value {
-  color: var(--el-color-primary);
+  color: var(--color-primary);
   font-weight: 800;
   font-family: monospace;
   font-size: 15px;
@@ -266,10 +266,10 @@ const handleError = () => {
   justify-content: center;
   gap: 6px;
   padding: 10px 12px;
-  border-radius: 9px;
-  background: var(--el-fill-color-extra-light);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-hover);
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: var(--color-text-secondary);
   margin-top: 10px;
 }
 

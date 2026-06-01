@@ -516,9 +516,11 @@ const apModel = {
 
     // 查询发票明细项
     const [items] = await db.pool.execute(
-      `SELECT i.id, i.material_id as materialId, i.description,
-              i.quantity, i.unit_price as unitPrice, i.amount,
-              m.name as materialName
+      `SELECT i.id, i.material_id as materialId, i.material_id as material_id, i.description,
+              i.quantity, i.unit_price as unitPrice, i.unit_price as unit_price, i.amount,
+              m.code as materialCode, m.code as material_code,
+              m.name as materialName, m.name as material_name,
+              m.specs as specification, m.specs as specs
        FROM ap_invoice_items i
        LEFT JOIN materials m ON i.material_id = m.id
        WHERE i.invoice_id = ?

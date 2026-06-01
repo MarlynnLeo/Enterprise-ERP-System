@@ -138,7 +138,7 @@ import { ElMessage } from 'element-plus'
 import { useAuthStore } from '../stores/auth'
 import { Clock, Lock, StarFilled, Tickets, TrendCharts, User } from '@element-plus/icons-vue'
 import { formatDate } from '@/utils/helpers/dateUtils'
-import {  userApi } from '../services/api'
+import {  userApi } from '@/api'
 import { parseDataObject, parseListData } from '@/utils/responseParser'
 import {
   AVATAR_FRAME_OPTIONS,

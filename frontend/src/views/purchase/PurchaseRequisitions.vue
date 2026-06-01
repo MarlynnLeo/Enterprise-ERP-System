@@ -460,7 +460,7 @@ import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted, onActivated, nextTick, computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { purchaseApi, baseDataApi } from '@/services/api';
+import { purchaseApi, baseDataApi } from '@/api';
 import { workflowApi } from '@/api/workflow';
 import { Plus, Select, Promotion, Close } from '@element-plus/icons-vue';
 import { useAuthStore } from '@/stores/auth';

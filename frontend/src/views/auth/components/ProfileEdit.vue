@@ -70,7 +70,7 @@
                 :model-value="localUserForm.location"
                 :options="locationOptions"
                 placeholder="选择所在地区"
-                style="width: 100%"
+                class="full-width-control"
                 @update:model-value="updateUserFormField('location', $event)"
               />
             </el-form-item>
@@ -285,13 +285,13 @@ const checkStrength = (value) => {
 
   if (score < 60) {
     passwordStrengthText.value = '弱'
-    passwordStrengthColor.value = 'var(--el-color-danger)'
+    passwordStrengthColor.value = 'var(--color-danger)'
   } else if (score < 80) {
     passwordStrengthText.value = '中'
-    passwordStrengthColor.value = 'var(--el-color-warning)'
+    passwordStrengthColor.value = 'var(--color-warning)'
   } else {
     passwordStrengthText.value = '强'
-    passwordStrengthColor.value = 'var(--el-color-success)'
+    passwordStrengthColor.value = 'var(--color-success)'
   }
 }
 const submitPasswordChange = async () => {
@@ -319,10 +319,10 @@ const resetPasswordForm = () => {
 </script>
 <style scoped>
 .profile-card {
-  border-radius: 12px;
-  background: var(--el-bg-color);
-  border: 1px solid var(--el-border-color-lighter);
-  box-shadow: 0 2px 12px 0 color-mix(in srgb, var(--ds-black) 5%, transparent);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border-lighter);
+  box-shadow: var(--shadow-sm);
 }
 
 .profile-card :deep(.el-card__header) {
@@ -352,24 +352,24 @@ const resetPasswordForm = () => {
   font-size: 20px;
   border-radius: 50%;
   box-sizing: border-box;
-  background: var(--el-color-primary);
-  color: var(--el-color-white);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
   border: none;
 }
 
 .header-icon--primary {
-  background: var(--el-color-primary);
-  color: var(--el-color-white);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
 }
 
 .header-icon--danger {
-  background: var(--el-color-danger);
-  color: var(--el-color-white);
+  background: var(--color-danger);
+  color: var(--color-on-primary);
 }
 .header-title {
   font-size: 16px;
   font-weight: 800;
-  color: var(--el-text-color-primary);
+  color: var(--color-text-primary);
 }
 .header-actions {
   display: flex;
@@ -378,9 +378,9 @@ const resetPasswordForm = () => {
 .form-section {
   margin-bottom: 24px;
   padding: 18px;
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 10px;
-  background: var(--el-fill-color-extra-light);
+  border: 1px solid var(--color-border-lighter);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-hover);
 }
 .section-title {
   display: flex;
@@ -388,16 +388,16 @@ const resetPasswordForm = () => {
   gap: 8px;
   font-size: 15px;
   font-weight: 600;
-  color: var(--el-text-color-primary);
+  color: var(--color-text-primary);
   margin-bottom: 18px;
 }
 
 .section-title .el-icon {
-  color: var(--el-color-primary);
+  color: var(--color-primary);
 }
 .editing-mode {
-  border-color: var(--el-color-primary-light-5);
-  box-shadow: 0 2px 12px 0 color-mix(in srgb, var(--ds-blue) 8%, transparent);
+  border-color: var(--color-primary-light-5);
+  box-shadow: var(--shadow-sm);
 }
 .password-strength {
   display: flex;
@@ -406,8 +406,9 @@ const resetPasswordForm = () => {
   margin-top: 8px;
   font-size: 12px;
 }
+
 .strength-label {
-  color: var(--el-text-color-secondary);
+  color: var(--color-text-secondary);
 }
 .strength-text {
   font-weight: 600;
@@ -420,15 +421,15 @@ const resetPasswordForm = () => {
 }
 
 .password-card :deep(.el-alert) {
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   margin-bottom: 20px;
 }
 
 .password-form {
   padding: 18px;
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 10px;
-  background: var(--el-fill-color-extra-light);
+  border: 1px solid var(--color-border-lighter);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-hover);
 }
 
 @media (max-width: 768px) {

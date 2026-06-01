@@ -527,7 +527,7 @@ import { formatLocalDate } from '@/utils/format';
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { ref, reactive, onMounted, computed, nextTick, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { api, baseDataApi } from '@/services/api';
+import { baseDataApi, purchaseApi } from '@/api';
 import { parseListData } from '@/utils/responseParser';
 import { Plus, Search } from '@element-plus/icons-vue'
 import ReceiptDialog from './ReceiptDialog.vue';
@@ -788,7 +788,7 @@ const loadProcessingDetail = async () => {
   if (!selectedProcessingId.value) return;
   processingDialogLoading.value = true;
   try {
-    const response = await api.get(`/purchase/outsourced-processings/${selectedProcessingId.value}`);
+    const response = await purchaseApi.outsourcedProcessing.getDetail(selectedProcessingId.value);
     // 拦截器已解包，response.data 就是业务数据
     const data = response.data;
     // 填充表单数据
@@ -949,10 +949,10 @@ const handleProcessingSubmit = async () => {
 
     try {
       if (processingDialogMode.value === 'create') {
-        await api.post('/purchase/outsourced-processings', processingForm);
+        await purchaseApi.outsourcedProcessing.create(processingForm);
         ElMessage.success('创建外委加工单成功');
       } else if (processingDialogMode.value === 'edit') {
-        await api.put(`/purchase/outsourced-processings/${selectedProcessingId.value}`, processingForm);
+        await purchaseApi.outsourcedProcessing.update(selectedProcessingId.value, processingForm);
         ElMessage.success('更新外委加工单成功');
       }
 
@@ -982,7 +982,7 @@ const fetchProcessingList = async () => {
       params.start_date = searchForm.dateRange[0];
       params.end_date = searchForm.dateRange[1];
     }
-    const response = await api.get('/purchase/outsourced-processings', { params });
+    const response = await purchaseApi.outsourcedProcessing.getList(params);
     // 拦截器已解包，response.data 就是业务数据
     processingList.value = response.data?.list || response.data || [];
     // 确保分页总数正确设置为数字类型
@@ -1043,7 +1043,7 @@ const handleCurrentChange = (val) => {
 // 更新外委加工单状态
 const updateProcessingStatus = async (row, status) => {
   try {
-    const response = await api.put(`/purchase/outsourced-processings/${row.id}/status`, { status });
+    const response = await purchaseApi.outsourcedProcessing.updateStatus(row.id, status);
 
     if (response.data.warnings && response.data.warnings.length > 0) {
       // 以警告形式显示库存不足等信息
@@ -1120,7 +1120,7 @@ const handleDeleteProcessing = (row) => {
   )
     .then(async () => {
       try {
-        await api.delete(`/purchase/outsourced-processings/${row.id}`);
+        await purchaseApi.outsourcedProcessing.delete(row.id);
         ElMessage.success('删除成功');
         fetchProcessingList();
       } catch (error) {

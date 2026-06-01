@@ -609,7 +609,7 @@ import { formatCurrency } from '@/utils/helpers/formatters'
 import 'dayjs'
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { salesApi, inventoryApi, baseDataApi } from '@/services/api'
+import { salesApi, inventoryApi, baseDataApi } from '@/api'
 import { Plus, Check, ArrowDown, ArrowUp } from '@element-plus/icons-vue'
 const loading = ref(false)
 const exchangeRecords = ref([])

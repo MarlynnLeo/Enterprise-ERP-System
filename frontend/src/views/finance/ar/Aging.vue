@@ -145,7 +145,7 @@ import { formatDate } from '@/utils/helpers/dateUtils'
 // 版本标识 - 强制刷新缓存 v3.0 - 使用安全数据访问器
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import { ElMessage } from 'element-plus';
-import { api } from '@/services/api';
+import { financeApi } from '@/api';
 import { parseListData } from '@/utils/responseParser';
 import printService from '@/services/printService';
 import { echarts } from '@/utils/echartsCore';
@@ -296,12 +296,10 @@ const generateReport = async () => {
   // 重置数据，避免竞态条件
   reportData.value = [];
   try {
-    const response = await api.get('/finance/ar/aging', {
-      params: {
-        reportDate: queryParams.reportDate,
-        customerType: queryParams.customerType,
-        customerName: queryParams.customerName
-      }
+    const response = await financeApi.getReceivablesAging({
+      reportDate: queryParams.reportDate,
+      customerType: queryParams.customerType,
+      customerName: queryParams.customerName
     });
     const list = parseListData(response, { enableLog: false });
     reportData.value = list;

@@ -941,13 +941,6 @@ onMounted(() => {
   text-align: center;
 }
 
-/* 操作按钮 */
-.operation-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-
 /* 查看详情对话框样式 */
 .transaction-detail-header {
   display: grid;

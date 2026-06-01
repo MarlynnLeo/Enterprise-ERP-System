@@ -253,7 +253,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Bell, Message, InfoFilled, Document, Check, Warning, Link } from '@element-plus/icons-vue'
-import notificationApi from '@/services/notificationApi'
+import notificationApi from '@/api/notification'
 import { parseResponseData } from '@/utils/responseParser'
 import {
   getNotificationIcon,

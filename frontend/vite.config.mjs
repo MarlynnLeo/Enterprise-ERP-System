@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
+import legacy from '@vitejs/plugin-legacy'
 import path from 'path'
 
 // https://vitejs.dev/config/
@@ -7,9 +8,17 @@ export default defineConfig(({ mode }) => {
   // 加载环境变量
   const env = loadEnv(mode, process.cwd(), '')
   const apiTarget = env.VITE_API_TARGET || 'http://localhost:8080'
+  const enableLegacy = mode === 'legacy' || env.VITE_LEGACY_BUILD === 'true'
 
   return {
-    plugins: [vue()],
+    plugins: [
+      vue(),
+      enableLegacy && legacy({
+        targets: ['defaults', 'Chrome >= 49', 'Edge >= 16', 'Firefox >= 52', 'Safari >= 10'],
+        modernPolyfills: true,
+        renderLegacyChunks: true
+      })
+    ].filter(Boolean),
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src')
@@ -64,7 +73,7 @@ export default defineConfig(({ mode }) => {
       // 启用压缩
       minify: 'esbuild',
       // 目标浏览器
-      target: 'es2015',
+      ...(enableLegacy ? {} : { target: 'es2015' }),
       // CSS 代码分割
       cssCodeSplit: true,
       // 确保 CommonJS 模块正确转换

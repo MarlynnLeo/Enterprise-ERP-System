@@ -102,7 +102,7 @@
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import { useRouter, useRoute } from 'vue-router';
-import { api } from '@/services/axiosInstance';
+import { financeApi } from '@/api/finance';
 import { formatAmount } from '@/utils/format'
 
 const router = useRouter();
@@ -127,7 +127,7 @@ const analysis = reactive({
 const fetchAnalysis = async () => {
   loading.value = true;
   try {
-    const response = await api.get(`/finance/budgets/${route.params.id}/analysis/execution`);
+    const response = await financeApi.budgets.getExecutionAnalysis(route.params.id);
     Object.assign(analysis, response.data);
   } catch (error) {
     console.error('获取执行分析失败:', error);

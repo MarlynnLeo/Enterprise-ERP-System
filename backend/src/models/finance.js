@@ -55,6 +55,10 @@ function isClosedFlag(value) {
   return value === true || value === 1 || value === '1';
 }
 
+function isActiveFlag(value) {
+  return value === true || value === 1 || value === '1';
+}
+
 function parseOptionalBoolean(value, fieldName) {
   if (value === undefined || value === null || value === '') return null;
   if (value === true || value === 1 || value === '1' || value === 'true') return 1;
@@ -101,6 +105,18 @@ function normalizeOpeningBalanceLine(balanceData, label = 'opening balance') {
   }
 
   return { debit, credit };
+}
+
+function normalizeOpeningSourceType(value) {
+  return ['manual', 'system', 'import'].includes(value) ? value : 'manual';
+}
+
+function serializeOpeningSourceDetails(value) {
+  return value ? JSON.stringify(value) : null;
+}
+
+function createOpeningBalanceBatchNo() {
+  return `OB-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
 }
 
 async function assertOpeningBalancesEditable(connection) {
@@ -161,57 +177,152 @@ async function assertAccountCanBeDeactivated(connection, accountId) {
   }
 }
 
-async function assertEntryCanBePosted(connection, entryId) {
+function createEmptyPostingDiagnostic(entryId) {
+  return {
+    entry_id: Number(entryId),
+    line_count: 0,
+    invalid_account_count: 0,
+    invalid_amount_count: 0,
+    total_debit: 0,
+    total_credit: 0,
+    amount_balanced: false,
+    posting_ready: false,
+    posting_issue: '凭证没有明细，不能过账',
+    invalid_lines: [],
+  };
+}
+
+function buildEntryPostingDiagnostic(entryId, rows) {
+  if (!rows.length) {
+    return createEmptyPostingDiagnostic(entryId);
+  }
+
+  let totalDebitCents = 0;
+  let totalCreditCents = 0;
+  let postingIssue = null;
+  let invalidAccountCount = 0;
+  let invalidAmountCount = 0;
+  const invalidLines = [];
+
+  rows.forEach((item, index) => {
+    const lineLabel = item.line_number || index + 1;
+    const accountInvalid =
+      !item.account_id || !item.account_exists || !isActiveFlag(item.is_active);
+    const debitCents = toCents(item.debit_amount);
+    const creditCents = toCents(item.credit_amount);
+    let lineIssue = null;
+
+    if (accountInvalid) {
+      invalidAccountCount += 1;
+      lineIssue = `第${lineLabel}行会计科目不存在或未启用，不能过账`;
+    } else if (debitCents < 0 || creditCents < 0) {
+      invalidAmountCount += 1;
+      lineIssue = `第${lineLabel}行借贷金额不能为负数`;
+    } else if (debitCents > 0 && creditCents > 0) {
+      invalidAmountCount += 1;
+      lineIssue = `第${lineLabel}行不能同时填写借方和贷方金额`;
+    } else if (debitCents === 0 && creditCents === 0) {
+      invalidAmountCount += 1;
+      lineIssue = `第${lineLabel}行借方和贷方金额不能同时为0`;
+    }
+
+    if (lineIssue) {
+      postingIssue = postingIssue || lineIssue;
+      invalidLines.push({
+        item_id: item.id,
+        line_number: lineLabel,
+        account_id: item.account_id,
+        account_code: item.account_code,
+        account_name: item.account_name,
+        issue: lineIssue,
+      });
+    }
+
+    totalDebitCents += debitCents;
+    totalCreditCents += creditCents;
+  });
+
+  if (!postingIssue && totalDebitCents !== totalCreditCents) {
+    postingIssue = `借贷不平衡: 借方 ${(totalDebitCents / 100).toFixed(2)}, 贷方 ${(totalCreditCents / 100).toFixed(2)}`;
+  }
+
+  return {
+    entry_id: Number(entryId),
+    line_count: rows.length,
+    invalid_account_count: invalidAccountCount,
+    invalid_amount_count: invalidAmountCount,
+    total_debit: totalDebitCents / 100,
+    total_credit: totalCreditCents / 100,
+    amount_balanced: totalDebitCents === totalCreditCents,
+    posting_ready: !postingIssue,
+    posting_issue: postingIssue,
+    invalid_lines: invalidLines,
+  };
+}
+
+async function getEntryPostingDiagnostics(connection, entryIds, options = {}) {
+  const ids = [...new Set(entryIds.map((id) => Number.parseInt(id, 10)))]
+    .filter((id) => Number.isInteger(id) && id > 0);
+  const diagnostics = new Map();
+
+  ids.forEach((id) => {
+    diagnostics.set(id, createEmptyPostingDiagnostic(id));
+  });
+
+  if (ids.length === 0) {
+    return diagnostics;
+  }
+
+  const placeholders = ids.map(() => '?').join(',');
   const [items] = await connection.execute(
     `SELECT
        ei.id,
+       ei.entry_id,
        ei.line_number,
        ei.account_id,
        ei.debit_amount,
        ei.credit_amount,
+       CASE WHEN a.id IS NULL THEN 0 ELSE 1 END AS account_exists,
+       a.account_code,
+       a.account_name,
        a.is_active
      FROM gl_entry_items ei
      LEFT JOIN gl_accounts a ON a.id = ei.account_id
-     WHERE ei.entry_id = ?
-     ORDER BY ei.line_number, ei.id
-     FOR UPDATE`,
-    [entryId]
+     WHERE ei.entry_id IN (${placeholders})
+     ORDER BY ei.entry_id, ei.line_number, ei.id
+     ${options.lock ? 'FOR UPDATE' : ''}`,
+    ids
   );
 
-  if (items.length === 0) {
-    throw new Error('凭证没有明细，不能过账');
-  }
-
-  let totalDebit = 0;
-  let totalCredit = 0;
-
-  items.forEach((item, index) => {
-    const lineLabel = item.line_number || index + 1;
-    if (!item.account_id || item.is_active !== 1) {
-      throw new Error(`第${lineLabel}行会计科目不存在或未启用，不能过账`);
+  const rowsByEntryId = new Map();
+  ids.forEach((id) => rowsByEntryId.set(id, []));
+  items.forEach((item) => {
+    const itemEntryId = Number(item.entry_id);
+    if (!rowsByEntryId.has(itemEntryId)) {
+      rowsByEntryId.set(itemEntryId, []);
     }
-
-    const debitCents = toCents(item.debit_amount);
-    const creditCents = toCents(item.credit_amount);
-    if (debitCents < 0 || creditCents < 0) {
-      throw new Error(`第${lineLabel}行借贷金额不能为负数`);
-    }
-    if (debitCents > 0 && creditCents > 0) {
-      throw new Error(`第${lineLabel}行不能同时填写借方和贷方金额`);
-    }
-    if (debitCents === 0 && creditCents === 0) {
-      throw new Error(`第${lineLabel}行借方和贷方金额不能同时为0`);
-    }
-
-    totalDebit += debitCents;
-    totalCredit += creditCents;
+    rowsByEntryId.get(itemEntryId).push(item);
   });
 
-  if (totalDebit !== totalCredit) {
-    throw new Error(
-      `借贷不平衡: 借方 ${(totalDebit / 100).toFixed(2)}, 贷方 ${(totalCredit / 100).toFixed(2)}`
-    );
+  ids.forEach((id) => {
+    diagnostics.set(id, buildEntryPostingDiagnostic(id, rowsByEntryId.get(id) || []));
+  });
+
+  return diagnostics;
+}
+
+async function assertEntryCanBePosted(connection, entryId) {
+  const normalizedEntryId = requirePositiveInteger(entryId, 'entryId');
+  const diagnostics = await getEntryPostingDiagnostics(connection, [normalizedEntryId], {
+    lock: true,
+  });
+  const diagnostic = diagnostics.get(normalizedEntryId) || createEmptyPostingDiagnostic(normalizedEntryId);
+
+  if (!diagnostic.posting_ready) {
+    throw new Error(diagnostic.posting_issue || '凭证不满足过账条件');
   }
+
+  return diagnostic;
 }
 
 async function resolveOpenPeriodForDates(connection, periodId, entryDate, postingDate) {
@@ -500,6 +611,8 @@ const financeModel = {
         balanceData.balanceDate || currentDateString(),
         'balanceDate'
       );
+      const sourceType = normalizeOpeningSourceType(balanceData.sourceType);
+      const sourceDetails = serializeOpeningSourceDetails(balanceData.sourceDetails);
 
       await assertOpeningBalancesEditable(connection);
       await assertAccountsAvailableForOpeningBalances(connection, [normalizedAccountId]);
@@ -510,12 +623,17 @@ const financeModel = {
           opening_debit = ?,
           opening_credit = ?,
           opening_balance_date = ?,
-          opening_balance_set = 1
+          opening_balance_set = 1,
+          opening_source_type = ?,
+          opening_source_details = ?,
+          opening_source_updated_at = CURRENT_TIMESTAMP
         WHERE id = ?`,
         [
           normalized.debit,
           normalized.credit,
           balanceDate,
+          sourceType,
+          sourceDetails,
           normalizedAccountId,
         ]
       );
@@ -534,15 +652,18 @@ const financeModel = {
       // 记录历史
       await connection.execute(
         `INSERT INTO gl_opening_balance_history
-          (account_id, opening_debit, opening_credit, balance_date, set_by, notes)
-        VALUES (?, ?, ?, ?, ?, ?)`,
+          (account_id, batch_no, opening_debit, opening_credit, balance_date, set_by, notes, source_type, source_details)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           normalizedAccountId,
+          createOpeningBalanceBatchNo(),
           normalized.debit,
           normalized.credit,
           balanceDate,
           setBy,
           balanceData.notes || '设置期初余额',
+          sourceType,
+          sourceDetails,
         ]
       );
 
@@ -577,6 +698,7 @@ const financeModel = {
         'balanceDate'
       );
       const normalizedSetBy = setBy ? requirePositiveInteger(setBy, 'setBy') : null;
+      const batchNo = createOpeningBalanceBatchNo();
       const accountIds = balances.map((item) => item.accountId);
       const uniqueAccountIds = new Set(accountIds.map((id) => Number.parseInt(id, 10)));
       if (uniqueAccountIds.size !== accountIds.length) {
@@ -591,6 +713,8 @@ const financeModel = {
         return {
           accountId,
           ...normalizeOpeningBalanceLine(item, `balances[${index}]`),
+          sourceType: normalizeOpeningSourceType(item.sourceType),
+          sourceDetails: serializeOpeningSourceDetails(item.sourceDetails),
         };
       });
 
@@ -608,22 +732,35 @@ const financeModel = {
             opening_debit = ?,
             opening_credit = ?,
             opening_balance_date = ?,
-            opening_balance_set = 1
+            opening_balance_set = 1,
+            opening_source_type = ?,
+            opening_source_details = ?,
+            opening_source_updated_at = CURRENT_TIMESTAMP
           WHERE id = ?`,
-          [item.debit, item.credit, normalizedBalanceDate, item.accountId]
+          [
+            item.debit,
+            item.credit,
+            normalizedBalanceDate,
+            item.sourceType,
+            item.sourceDetails,
+            item.accountId,
+          ]
         );
 
         await connection.execute(
           `INSERT INTO gl_opening_balance_history
-            (account_id, opening_debit, opening_credit, balance_date, set_by, notes)
-           VALUES (?, ?, ?, ?, ?, ?)`,
+            (account_id, batch_no, opening_debit, opening_credit, balance_date, set_by, notes, source_type, source_details)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             item.accountId,
+            batchNo,
             item.debit,
             item.credit,
             normalizedBalanceDate,
             normalizedSetBy,
             '批量设置期初余额',
+            item.sourceType,
+            item.sourceDetails,
           ]
         );
       }
@@ -658,7 +795,8 @@ const financeModel = {
     try {
       const [accounts] = await db.pool.execute(`
         SELECT id, account_code, account_name, account_type, is_debit,
-          opening_debit, opening_credit, opening_balance_date, opening_balance_set
+          opening_debit, opening_credit, opening_balance_date, opening_balance_set,
+          opening_source_type, opening_source_details, opening_source_updated_at
         FROM gl_accounts
         WHERE is_active = 1
         ORDER BY account_code
@@ -984,15 +1122,16 @@ const financeModel = {
         SELECT
           ei.*,
           a.account_code,
-          a.account_name
+          a.account_name,
+          a.is_active AS account_is_active
         FROM
           gl_entry_items ei
-        JOIN
+        LEFT JOIN
           gl_accounts a ON ei.account_id = a.id
         WHERE
           ei.entry_id = ?
         ORDER BY
-          ei.id
+          ei.line_number, ei.id
       `,
         [entryId]
       );
@@ -1001,6 +1140,24 @@ const financeModel = {
     } catch (error) {
       logger.error('获取会计分录明细失败:', error);
       throw error;
+    }
+  },
+
+  /**
+   * 获取凭证过账前明细诊断。实际过账与关账预检查共用同一套规则。
+   */
+  getEntryPostingDiagnostics: async (entryIds, connection = null, options = {}) => {
+    const normalizedEntryIds = Array.isArray(entryIds) ? entryIds : [entryIds];
+    const shouldRelease = !connection;
+    const conn = connection || (await db.pool.getConnection());
+
+    try {
+      const diagnostics = await getEntryPostingDiagnostics(conn, normalizedEntryIds, options);
+      return Object.fromEntries(diagnostics.entries());
+    } finally {
+      if (shouldRelease) {
+        conn.release();
+      }
     }
   },
 

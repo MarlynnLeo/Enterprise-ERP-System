@@ -7,7 +7,7 @@
 
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
-import { api } from '../services/api'
+import { userApi } from '@/api/user'
 import logger from '../utils/logger'
 import {
   DEFAULT_THEME_SETTINGS,
@@ -40,10 +40,16 @@ export const useThemeStore = defineStore('theme', () => {
   // 是否已从服务器加载
   const isLoaded = ref(false)
 
+  // 记录已加载主题的用户标识（替代 window.__themeLoadedFor）
+  const loadedForUser = ref(null)
+
+  // 系统主题监听器清理函数
+  let _cleanupSystemThemeListener = null
+
   // 从服务器加载主题设置
   const loadThemeFromServer = async () => {
     try {
-      const response = await api.get('/auth/theme')
+      const response = await userApi.getTheme()
 
       // 拦截器已解包，response.data 就是主题数据
       if (response.data) {
@@ -72,7 +78,7 @@ export const useThemeStore = defineStore('theme', () => {
   // 保存主题设置到服务器
   const saveThemeToServer = async (themeData) => {
     try {
-      await api.post('/auth/theme', normalizeThemeAppearance(themeData))
+      await userApi.updateTheme(normalizeThemeAppearance(themeData))
     } catch (error) {
       logger.error('保存主题设置失败:', error.message)
       throw error
@@ -94,6 +100,30 @@ export const useThemeStore = defineStore('theme', () => {
   // 是否为深色主题
   const isDark = computed(() => currentTheme.value === 'dark')
 
+  // 从 hex 颜色生成 Element Plus 衍生色
+  const generatePrimaryDerivatives = (hex) => {
+    // 解析 hex 为 RGB
+    const r = parseInt(hex.slice(1, 3), 16)
+    const g = parseInt(hex.slice(3, 5), 16)
+    const b = parseInt(hex.slice(5, 7), 16)
+
+    // 与白色混合（light）或与黑色混合（dark）
+    const mix = (color, target, weight) => {
+      return Math.round(color + (target - color) * weight)
+    }
+    const toHex = (rv, gv, bv) =>
+      `#${[rv, gv, bv].map(c => c.toString(16).padStart(2, '0')).join('')}`
+
+    return {
+      '--el-color-primary-light-3': toHex(mix(r, 255, 0.3), mix(g, 255, 0.3), mix(b, 255, 0.3)),
+      '--el-color-primary-light-5': toHex(mix(r, 255, 0.5), mix(g, 255, 0.5), mix(b, 255, 0.5)),
+      '--el-color-primary-light-7': toHex(mix(r, 255, 0.7), mix(g, 255, 0.7), mix(b, 255, 0.7)),
+      '--el-color-primary-light-8': toHex(mix(r, 255, 0.8), mix(g, 255, 0.8), mix(b, 255, 0.8)),
+      '--el-color-primary-light-9': toHex(mix(r, 255, 0.9), mix(g, 255, 0.9), mix(b, 255, 0.9)),
+      '--el-color-primary-dark-2': toHex(mix(r, 0, 0.2), mix(g, 0, 0.2), mix(b, 0, 0.2)),
+    }
+  }
+
   // 应用主题到DOM
   const applyTheme = () => {
     if (typeof document === 'undefined') return
@@ -111,9 +141,18 @@ export const useThemeStore = defineStore('theme', () => {
     html.setAttribute('data-theme', appearance.value.preset)
 
     // 设置CSS变量
-    html.style.setProperty('--el-color-primary', appearance.value.primaryColor)
+    const primaryColor = appearance.value.primaryColor
+    html.style.setProperty('--el-color-primary', primaryColor)
     html.style.setProperty('--font-size-base', `${appearance.value.fontSize}px`)
     html.style.setProperty('--el-font-size-base', `${appearance.value.fontSize}px`)
+
+    // 生成并应用主色衍生色，确保按钮/标签等组件颜色协调
+    if (primaryColor && /^#[0-9a-fA-F]{6}$/.test(primaryColor)) {
+      const derivatives = generatePrimaryDerivatives(primaryColor)
+      Object.entries(derivatives).forEach(([key, value]) => {
+        html.style.setProperty(key, value)
+      })
+    }
   }
 
   // 应用主题预设
@@ -190,7 +229,7 @@ export const useThemeStore = defineStore('theme', () => {
   // 初始化主题（仅应用本地主题，不加载服务器数据）
   const initTheme = () => {
     applyTheme()
-    setupSystemThemeListener()
+    _cleanupSystemThemeListener = setupSystemThemeListener()
   }
 
   // 监听主题变化
@@ -219,6 +258,7 @@ export const useThemeStore = defineStore('theme', () => {
     applyPreset,
     loadThemeFromServer,
     saveThemeToServer,
+    loadedForUser,
 
     // 主题预设列表
     themePresets: THEME_PRESETS,

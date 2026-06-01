@@ -482,6 +482,16 @@ export default {
             }
         },
         {
+            path: 'cost/closing',
+            name: 'cost-closing',
+            component: () => import('../../views/finance/cost/CostClosing.vue'),
+            meta: {
+                title: '成本关账',
+                requiresAuth: true,
+                permission: 'finance:cost:view'
+            }
+        },
+        {
             path: 'cost/actual',
             name: 'cost-actual',
             component: () => import('../../views/finance/cost/ActualCost.vue'),

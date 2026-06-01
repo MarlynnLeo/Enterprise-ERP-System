@@ -24,31 +24,31 @@
     <!-- 综合概览 - 使用统一的 stat-card 风格 -->
     <div class="statistics-row">
       <el-card class="stat-card" shadow="hover">
-        <div class="stat-value" style="color: var(--color-primary);">{{ overview.total_ncp || 0 }}</div>
+        <div class="stat-value text-primary">{{ overview.total_ncp || 0 }}</div>
         <div class="stat-label">不合格品总数</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
-        <div class="stat-value" style="color: var(--color-warning);">{{ overview.pending_count || 0 }}</div>
+        <div class="stat-value text-warning">{{ overview.pending_count || 0 }}</div>
         <div class="stat-label">待处理</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
-        <div class="stat-value" style="color: var(--color-danger);">{{ overview.return_count || 0 }}</div>
+        <div class="stat-value text-danger">{{ overview.return_count || 0 }}</div>
         <div class="stat-label">退货</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
-        <div class="stat-value" style="color: var(--color-text-secondary);">{{ overview.replacement_count || 0 }}</div>
+        <div class="stat-value text-muted">{{ overview.replacement_count || 0 }}</div>
         <div class="stat-label">换货</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
-        <div class="stat-value" style="color: var(--color-warning);">{{ overview.rework_count || 0 }}</div>
+        <div class="stat-value text-warning">{{ overview.rework_count || 0 }}</div>
         <div class="stat-label">返工</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
-        <div class="stat-value" style="color: var(--color-danger);">{{ overview.scrap_count || 0 }}</div>
+        <div class="stat-value text-danger">{{ overview.scrap_count || 0 }}</div>
         <div class="stat-label">报废</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
-        <div class="stat-value" style="color: var(--color-success);">{{ overview.use_as_is_count || 0 }}</div>
+        <div class="stat-value text-success">{{ overview.use_as_is_count || 0 }}</div>
         <div class="stat-label">让步接收</div>
       </el-card>
     </div>
@@ -62,7 +62,7 @@
               <span>处理方式分布</span>
             </div>
           </template>
-          <div ref="dispositionChart" style="height: 350px;"></div>
+          <div ref="dispositionChart" class="chart-height-md"></div>
         </el-card>
       </el-col>
       <el-col :span="12">
@@ -76,7 +76,7 @@
             <el-row :gutter="20">
               <el-col :span="12">
                 <div class="cost-item">
-                  <div class="cost-icon" style="background: color-mix(in srgb, var(--color-primary) 10%, transparent); color: var(--color-primary);">
+                  <div class="cost-icon cost-icon-primary">
                     <el-icon :size="28"><Tools /></el-icon>
                   </div>
                   <div class="cost-info">
@@ -88,7 +88,7 @@
               </el-col>
               <el-col :span="12">
                 <div class="cost-item">
-                  <div class="cost-icon" style="background: color-mix(in srgb, var(--color-danger) 10%, transparent); color: var(--color-danger);">
+                  <div class="cost-icon cost-icon-danger">
                     <el-icon :size="28"><Delete /></el-icon>
                   </div>
                   <div class="cost-info">
@@ -121,17 +121,17 @@
           </el-radio-group>
         </div>
       </template>
-      <div ref="trendChart" style="height: 400px;"></div>
+      <div ref="trendChart" class="chart-height-lg"></div>
     </el-card>
 
     <!-- 供应商质量分析 -->
-    <el-card class="box-card" style="margin-bottom: 16px;">
+    <el-card class="box-card mb-16">
       <template #header>
         <div class="card-header">
           <span>供应商质量分析 (Top 20)</span>
         </div>
       </template>
-      <el-table :data="supplierData" border style="width: 100%;">
+      <el-table :data="supplierData" border class="w-full">
         <el-table-column type="index" label="排名" width="60" />
         <el-table-column prop="supplier_name" label="供应商名称" min-width="200" />
         <el-table-column prop="ncp_count" label="不合格次数" width="120" sortable />
@@ -144,13 +144,13 @@
     </el-card>
 
     <!-- 物料缺陷分析 -->
-    <el-card class="box-card" style="margin-bottom: 16px;">
+    <el-card class="box-card mb-16">
       <template #header>
         <div class="card-header">
           <span>物料缺陷分析 (Top 20)</span>
         </div>
       </template>
-      <el-table :data="materialData" border style="width: 100%;">
+      <el-table :data="materialData" border class="w-full">
         <el-table-column type="index" label="排名" width="60" />
         <el-table-column prop="material_code" label="物料编码" width="150" />
         <el-table-column prop="material_name" label="物料名称" min-width="200" />
@@ -556,18 +556,36 @@ onBeforeUnmount(() => {
   gap: 16px;
   padding: 24px 20px;
   background: var(--color-bg-light);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--color-border-lighter);
 }
 
 .cost-icon {
   width: 56px;
   height: 56px;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+}
+
+.cost-icon-primary {
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  color: var(--color-primary);
+}
+
+.cost-icon-danger {
+  background: color-mix(in srgb, var(--color-danger) 10%, transparent);
+  color: var(--color-danger);
+}
+
+.chart-height-md {
+  height: 350px;
+}
+
+.chart-height-lg {
+  height: 400px;
 }
 
 .cost-info {

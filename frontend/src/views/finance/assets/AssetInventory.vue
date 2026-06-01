@@ -207,7 +207,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { Plus, InfoFilled } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { api } from '@/services/api'
+import { financeApi } from '@/api/finance'
 import { parsePaginatedData, parseDataObject } from '@/utils/responseParser'
 import { formatDate } from '@/utils/helpers/formatters'
 
@@ -233,7 +233,7 @@ const loadInventories = async () => {
       limit: pageSize.value,
       status: searchForm.status
     }
-    const response = await api.get('/finance/assets-inventory', { params })
+    const response = await financeApi.assetInventory.getList(params)
     const { list, total: totalCount } = parsePaginatedData(response, { enableLog: false })
     inventoryList.value = list
     total.value = totalCount
@@ -290,7 +290,7 @@ const submitCreate = async () => {
     if (valid) {
       submitLoading.value = true
       try {
-        await api.post('/finance/assets-inventory', form)
+        await financeApi.assetInventory.create(form)
         ElMessage.success('盘点单创建成功')
         dialogVisible.value = false
         loadInventories()
@@ -332,7 +332,7 @@ const viewDetail = async (row) => {
   detailData.value = { ...row, items: [] }
 
   try {
-    const res = await api.get(`/finance/assets-inventory/${row.id}`)
+    const res = await financeApi.assetInventory.getDetail(row.id)
     const data = parseDataObject(res, { enableLog: false })
 
     // 初始化编辑状态
@@ -383,7 +383,7 @@ const saveItemNotes = async (row) => {
 // 统一下发单条更新
 const updateItem = async (row, actualQty, status, notes) => {
   try {
-    await api.put(`/finance/assets-inventory/${detailData.value.id}/items/${row.id}`, {
+    await financeApi.assetInventory.updateItem(detailData.value.id, row.id, {
       actual_quantity: actualQty,
       status: status,
       notes: notes
@@ -408,7 +408,7 @@ const completeInventory = async () => {
   }).then(async () => {
     completeLoading.value = true
     try {
-      await api.post(`/finance/assets-inventory/${detailData.value.id}/complete`)
+      await financeApi.assetInventory.complete(detailData.value.id)
       ElMessage.success('盘点完成')
       detailVisible.value = false
       loadInventories()

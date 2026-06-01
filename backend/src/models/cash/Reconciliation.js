@@ -1,7 +1,6 @@
 const logger = require('../../utils/logger');
 const db = require('../../config/db');
 const { parsePagination } = require('../../utils/safePagination');
-const { currentDateString } = require('../../utils/dateUtils');
 
 function createReconciliationError(message, code = 'VALIDATION_ERROR', statusCode = 400) {
   const error = new Error(message);
@@ -40,96 +39,6 @@ function isReconciledFlag(value) {
 }
 
 class ReconciliationModel {
-  static async reconcileBankTransaction(id, reconciliationData = {}) {
-    if (reconciliationData.reconciled === false || reconciliationData.is_reconciled === false) {
-      return await this.cancelReconciliation(id);
-    }
-
-    try {
-      const [result] = await db.pool.execute(
-        `UPDATE bank_transactions
-         SET is_reconciled = 1, reconciliation_date = ?
-         WHERE id = ?
-           AND status = 'approved'
-           AND (is_reconciled = 0 OR is_reconciled IS NULL)`,
-        [reconciliationData.reconciliation_date || currentDateString(), id]
-      );
-      if (result.affectedRows === 0) {
-        const [current] = await db.pool.execute(
-          'SELECT id, status, is_reconciled FROM bank_transactions WHERE id = ?',
-          [id]
-        );
-
-        if (current.length === 0) {
-          throw createReconciliationError('银行流水不存在', 'NOT_FOUND', 404);
-        }
-
-        if (current[0].status !== 'approved') {
-          throw createReconciliationError('只有已审核的银行流水才能对账');
-        }
-
-        if (isReconciledFlag(current[0].is_reconciled)) {
-          throw createReconciliationError('银行流水已完成对账，不能重复对账');
-        }
-      }
-      return result.affectedRows > 0;
-    } catch (error) {
-      logger.error('Reconcile bank transaction failed:', error);
-      throw error;
-    }
-  }
-
-  static async reconcileTransaction(id, reconciliationData) {
-    return await this.reconcileBankTransaction(id, reconciliationData);
-  }
-
-  static async batchReconcileBankTransactions(ids, reconciliationData = {}) {
-    const transactionIds = [...new Set((ids || []).map((id) => Number.parseInt(id, 10)))]
-      .filter((id) => Number.isInteger(id) && id > 0);
-
-    if (transactionIds.length === 0) {
-      throw createReconciliationError('transactionIds must contain at least one valid id');
-    }
-
-    const placeholders = transactionIds.map(() => '?').join(',');
-    const [rows] = await db.pool.execute(
-      `SELECT id, status, is_reconciled
-       FROM bank_transactions
-       WHERE id IN (${placeholders})`,
-      transactionIds
-    );
-
-    if (rows.length !== transactionIds.length) {
-      const existingIds = new Set(rows.map((row) => Number(row.id)));
-      const missingIds = transactionIds.filter((id) => !existingIds.has(id));
-      throw createReconciliationError(`Bank transaction not found: ${missingIds.join(',')}`, 'NOT_FOUND', 404);
-    }
-
-    const notApproved = rows.filter((row) => row.status !== 'approved').map((row) => row.id);
-    if (notApproved.length > 0) {
-      throw createReconciliationError(`Only approved bank transactions can be reconciled: ${notApproved.join(',')}`);
-    }
-
-    const alreadyReconciled = rows.filter((row) => isReconciledFlag(row.is_reconciled)).map((row) => row.id);
-    if (alreadyReconciled.length > 0) {
-      throw createReconciliationError(`Bank transactions already reconciled: ${alreadyReconciled.join(',')}`);
-    }
-
-    const reconciliationDate = reconciliationData.reconciliation_date || currentDateString();
-    const [result] = await db.pool.execute(
-      `UPDATE bank_transactions
-       SET is_reconciled = 1, reconciliation_date = ?
-       WHERE id IN (${placeholders})`,
-      [reconciliationDate, ...transactionIds]
-    );
-
-    return {
-      count: result.affectedRows || 0,
-      transactionIds,
-      reconciliationDate,
-    };
-  }
-
   static async cancelReconciliation(id) {
     const connection = await db.pool.getConnection();
     try {

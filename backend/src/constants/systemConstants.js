@@ -310,7 +310,8 @@ const PRODUCTION_TASK_STATUS_FLOW = {
 // 生产工序状态流转规则
 const PRODUCTION_PROCESS_STATUS_FLOW = {
   pending: ['in_progress', 'cancelled'], // 待处理 → 进行中 | 已取消
-  in_progress: ['completed', 'cancelled'], // 进行中 → 已完成 | 已取消
+  in_progress: ['warehousing', 'completed', 'cancelled'], // processing -> warehousing | completed | cancelled
+  warehousing: ['completed'], // warehousing -> completed
   completed: [], // 已完成（终态）
   cancelled: [], // 已取消（终态）
 };

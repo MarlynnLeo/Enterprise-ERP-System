@@ -1,10 +1,3 @@
-<!--
-/**
- * PrintDialog.vue
- * @description 通用打印预览对话框
- * @date 2026-01-17
- */
--->
 <template>
   <el-dialog
     v-model="visible"
@@ -63,7 +56,6 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue']);
 
-// 对话框可见性
 const visible = computed({
   get: () => props.modelValue,
   set: (val) => emit('update:modelValue', val)
@@ -74,7 +66,6 @@ const error = ref('');
 const previewHtml = ref('');
 const previewIframe = ref(null);
 
-// 通过统一打印服务生成预览，自动合并系统公司信息。
 const generatePreview = async () => {
   loading.value = true;
   error.value = '';
@@ -90,25 +81,21 @@ const generatePreview = async () => {
   }
 };
 
-// 打印
 const handlePrint = () => {
   if (previewIframe.value && previewIframe.value.contentWindow) {
     previewIframe.value.contentWindow.print();
   }
 };
 
-// 监听打开事件
 const onOpened = () => {
   generatePreview();
 };
 
-// 监听数据变化，重新生成预览（如果对话框已打开）
 watch(() => props.data, () => {
   if (visible.value) {
     generatePreview();
   }
 }, { deep: true });
-
 </script>
 
 <style scoped>
@@ -129,10 +116,10 @@ watch(() => props.data, () => {
 
 .preview-iframe {
   width: 100%;
-  height: 600px; /* 或者根据内容自适应 */
+  height: 600px;
   background-color: var(--color-bg-base);
   border: none;
-  box-shadow: 0 2px 12px 0 color-mix(in srgb, var(--ds-black) 10%, transparent);
+  box-shadow: var(--shadow-sm);
 }
 
 .error-message {

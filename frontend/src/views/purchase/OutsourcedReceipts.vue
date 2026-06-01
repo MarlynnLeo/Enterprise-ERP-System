@@ -169,7 +169,7 @@
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage } from 'element-plus'
-import { api } from '@/services/api';
+import { purchaseApi } from '@/api/purchase';
 
 import ReceiptDialog from './ReceiptDialog.vue';
 import {
@@ -243,7 +243,7 @@ const fetchReceiptList = async () => {
       params.end_date = searchForm.dateRange[1];
     }
 
-    const response = await api.get('/purchase/outsourced-receipts', { params });
+    const response = await purchaseApi.outsourcedReceipts.getList(params);
 
     // 拦截器已解包，response.data 就是业务数据
     receiptList.value = response.data?.list || response.data || [];
@@ -311,7 +311,7 @@ const handleCurrentChange = (val) => {
 // 更新入库单状态
 const updateReceiptStatus = async (row, status) => {
   try {
-    await api.put(`/purchase/outsourced-receipts/${row.id}/status`, { status });
+    await purchaseApi.outsourcedReceipts.updateStatus(row.id, status);
     ElMessage.success(`状态更新成功`);
     fetchReceiptList();
   } catch (error) {

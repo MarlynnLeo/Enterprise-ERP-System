@@ -44,7 +44,6 @@ export const PRINT_TEMPLATE_TYPES = [
   { label: '库存明细', value: 'inventory_stock', module: 'inventory' },
   { label: '库存调拨单', value: 'transfer', module: 'inventory' },
   { label: '生产任务单', value: 'production_task', module: 'production' },
-  { label: '质检单', value: 'quality_inspection', module: 'quality' },
   { label: '来料检验单', value: 'incoming_inspection', module: 'quality' },
   { label: '过程检验单', value: 'process_inspection', module: 'quality' },
   { label: '首件检验单', value: 'first_article_inspection', module: 'quality' },
@@ -309,20 +308,6 @@ export const PREVIEW_DATA = {
     remark: '标准生产任务',
     items: [
       { index: 1, material_code: 'M-1001', material_name: '铜端子', specification: 'T2', quantity: '200.00', unit_name: '件', remark: '' }
-    ]
-  },
-  quality_inspection: {
-    qi_no: 'QI-20260511001',
-    document_no: 'QI-20260511001',
-    date: '2026-05-11',
-    status: '合格',
-    material_code: 'M-1001',
-    material_name: '铜端子',
-    supplier_name: '示例供应商有限公司',
-    inspector: '质检一',
-    remark: '抽检合格',
-    items: [
-      { index: 1, item_name: '外观', specification: '无毛刺/变形', quantity: '抽样 20', unit_name: '件', result: '合格', remark: '' }
     ]
   },
   incoming_inspection: {

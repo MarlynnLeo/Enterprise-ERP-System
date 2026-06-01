@@ -153,7 +153,7 @@
 import { ref, onMounted, watch, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Refresh, Money, Goods, TrendCharts, DataAnalysis } from '@element-plus/icons-vue'
-import { api } from '@/services/api'
+import { financeApi } from '@/api'
 import { echarts } from '@/utils/echartsCore'
 import { formatCurrency } from '@/utils/helpers/formatters'
 import { getCssTokenValue } from '@/utils/designTokens'
@@ -197,7 +197,7 @@ const getQueryParams = () => {
 // 加载汇总数据
 const loadSummary = async () => {
   try {
-    const res = await api.get('/finance/profitability/summary', { params: getQueryParams() })
+    const res = await financeApi.cost.getProfitabilitySummary(getQueryParams())
     summary.value = parseResponseData(res, {})
   } catch (error) {
     console.error('加载盈利汇总失败:', error)
@@ -208,7 +208,7 @@ const loadSummary = async () => {
 const loadProducts = async () => {
   productsLoading.value = true
   try {
-    const res = await api.get('/finance/profitability/products', { params: { ...getQueryParams(), limit: 50 } })
+    const res = await financeApi.cost.getProfitabilityProducts({ ...getQueryParams(), limit: 50 })
     productList.value = parseResponseData(res, [])
   } catch (error) {
     console.error('加载产品盈利失败:', error)
@@ -222,7 +222,7 @@ const loadProducts = async () => {
 const loadCustomers = async () => {
   customersLoading.value = true
   try {
-    const res = await api.get('/finance/profitability/customers', { params: { ...getQueryParams(), limit: 50 } })
+    const res = await financeApi.cost.getProfitabilityCustomers({ ...getQueryParams(), limit: 50 })
     customerList.value = parseResponseData(res, [])
   } catch (error) {
     console.error('加载客户盈利失败:', error)
@@ -235,7 +235,7 @@ const loadCustomers = async () => {
 // 加载趋势数据
 const loadTrend = async () => {
   try {
-    const res = await api.get('/finance/profitability/trend', { params: getQueryParams() })
+    const res = await financeApi.cost.getProfitabilityTrend(getQueryParams())
     trendData.value = parseResponseData(res, [])
     renderTrendChart()
   } catch (error) {

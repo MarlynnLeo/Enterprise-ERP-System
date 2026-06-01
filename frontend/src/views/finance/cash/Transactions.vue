@@ -1438,12 +1438,6 @@ onMounted(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* 操作按钮容器 */
-.operation-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
 /* 交易详情头部 */
 .transaction-detail-header {
   display: flex;

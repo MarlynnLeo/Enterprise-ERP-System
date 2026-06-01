@@ -222,7 +222,7 @@ import { parsePaginatedData, parseListData } from '@/utils/responseParser';
 import { ref, reactive, computed, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
-import { api } from '@/services/api';
+import { financeApi } from '@/api';
 import { useAuthStore } from '@/stores/auth'
 
 // 权限store
@@ -310,7 +310,7 @@ const loadAccounts = async () => {
       params.account_type = searchForm.account_type;
     }
 
-    const response = await api.get('/finance/accounts', { params });
+    const response = await financeApi.accounts.getList(params);
 
     // 使用统一的响应解析工具
     const { list, total: totalCount } = parsePaginatedData(response, {
@@ -333,7 +333,7 @@ const loadAccounts = async () => {
 // 加载会计科目选项（用于级联选择器）
 const loadAccountOptions = async () => {
   try {
-    const response = await api.get('/finance/accounts/options');
+    const response = await financeApi.accounts.getOptions();
     // 使用统一的列表数据解析工具
     const accounts = parseListData(response, { enableLog: false });
     accountOptions.value = accounts.map(item => ({
@@ -399,7 +399,7 @@ const handleToggleStatus = (row) => {
     type: 'warning'
   }).then(async () => {
     try {
-      await api.patch(`/finance/accounts/${row.id}/status`, { is_active: newStatus });
+      await financeApi.accounts.updateStatus(row.id, { is_active: newStatus });
       ElMessage.success(`${statusText}成功`);
       loadAccounts();
     } catch (error) {
@@ -419,11 +419,11 @@ const saveAccount = async () => {
       try {
         if (accountForm.id) {
           // 更新
-          await api.put(`/finance/accounts/${accountForm.id}`, accountForm);
+          await financeApi.accounts.update(accountForm.id, accountForm);
           ElMessage.success('更新成功');
         } else {
           // 新增
-          await api.post('/finance/accounts', accountForm);
+          await financeApi.accounts.create(accountForm);
           ElMessage.success('添加成功');
         }
         dialogVisible.value = false;

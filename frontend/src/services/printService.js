@@ -6,7 +6,8 @@
  */
 
 import 'axios'
-import { api } from './api'
+import { printApi } from '@/api/print'
+import { systemApi } from '@/api/system'
 import Handlebars from 'handlebars'
 import {
   decodeHtmlEntities as decodeEntities,
@@ -103,7 +104,7 @@ const printService = {
    * @returns {Promise} - 返回打印设置列表
    */
   getPrintSettings(params) {
-    return api.get('/print/settings', { params })
+    return printApi.getSettings(params)
   },
 
   /**
@@ -112,7 +113,7 @@ const printService = {
    * @returns {Promise} - 返回打印设置详情
    */
   getPrintSettingById(id) {
-    return api.get(`/print/settings/${id}`)
+    return printApi.getSetting(id)
   },
 
   /**
@@ -121,7 +122,7 @@ const printService = {
    * @returns {Promise} - 返回创建结果
    */
   createPrintSetting(data) {
-    return api.post('/print/settings', data)
+    return printApi.createSetting(data)
   },
 
   /**
@@ -131,7 +132,7 @@ const printService = {
    * @returns {Promise} - 返回更新结果
    */
   updatePrintSetting(id, data) {
-    return api.put(`/print/settings/${id}`, data)
+    return printApi.updateSetting(id, data)
   },
 
   /**
@@ -140,7 +141,7 @@ const printService = {
    * @returns {Promise} - 返回删除结果
    */
   deletePrintSetting(id) {
-    return api.delete(`/print/settings/${id}`)
+    return printApi.deleteSetting(id)
   },
 
   /**
@@ -149,7 +150,7 @@ const printService = {
    * @returns {Promise} - 返回打印模板列表
    */
   getPrintTemplates(params) {
-    return api.get('/print/templates', { params })
+    return printApi.getTemplates(params)
   },
 
   /**
@@ -158,7 +159,7 @@ const printService = {
    * @returns {Promise} - 返回打印模板详情
    */
   getPrintTemplateById(id) {
-    return api.get(`/print/templates/${id}`)
+    return printApi.getTemplate(id)
   },
 
   /**
@@ -168,7 +169,7 @@ const printService = {
    * @returns {Promise} - 返回默认打印模板
    */
   getDefaultTemplate(module, type) {
-    return api.get('/print/templates/default', { params: { module, template_type: type } })
+    return printApi.getDefaultTemplate(module, type)
   },
 
   async getDefaultTemplateData(module, type) {
@@ -181,7 +182,7 @@ const printService = {
   },
 
   async getCompanyInfo() {
-    const response = await api.get('/system/settings')
+    const response = await systemApi.getSettings()
     const settings = normalizeSystemSettings(response)
 
     return {
@@ -198,7 +199,7 @@ const printService = {
    * @returns {Promise} - 返回创建结果
    */
   createPrintTemplate(data) {
-    return api.post('/print/templates', data)
+    return printApi.createTemplate(data)
   },
 
   /**
@@ -208,7 +209,7 @@ const printService = {
    * @returns {Promise} - 返回更新结果
    */
   updatePrintTemplate(id, data) {
-    return api.put(`/print/templates/${id}`, data)
+    return printApi.updateTemplate(id, data)
   },
 
   /**
@@ -217,7 +218,7 @@ const printService = {
    * @returns {Promise} - 返回删除结果
    */
   deletePrintTemplate(id) {
-    return api.delete(`/print/templates/${id}`)
+    return printApi.deleteTemplate(id)
   },
 
   /**

@@ -289,7 +289,7 @@ import {
   DataBoard, Clock, Loading, Document, List, Setting, CircleCheck,
   TrendCharts, Right, Tickets, Rank
 } from '@element-plus/icons-vue'
-import api from '@/services/api'
+import { productionApi } from '@/api/production'
 import { PRODUCTION_FLOW_STEPS } from '@/constants/systemConstants'
 import { parseResponseData } from '@/utils/responseParser'
 // 数据
@@ -436,9 +436,7 @@ const fetchBoardData = async () => {
   boardDataRequest = (async () => {
   try {
     // 使用封装层 api（自动附带 Token、错误拦截）
-    const response = await api.get('/public/production-board', {
-      params: { limit: recentPlansLimit.value }
-    })
+    const response = await productionApi.getPublicProductionBoard({ limit: recentPlansLimit.value })
     // 封装层已剥离外层 wrapper，response.data 即为业务数据
     const resData = parseResponseData(response)
     if (resData) {

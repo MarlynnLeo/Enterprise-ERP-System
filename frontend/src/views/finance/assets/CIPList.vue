@@ -242,7 +242,7 @@ import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import { api } from '@/services/api'
+import { financeApi } from '@/api/finance'
 import { formatDate } from '@/utils/helpers/dateUtils'
 
 // ========== 数据 ==========
@@ -335,7 +335,7 @@ const loadData = async () => {
     if (searchForm.projectName) params.projectName = searchForm.projectName
     if (searchForm.status) params.status = searchForm.status
 
-    const response = await api.get('/finance/assets-cip', { params })
+    const response = await financeApi.assetCip.getList(params)
     const data = response.data
     tableData.value = data?.items || data?.data || []
     pagination.total = data?.total || 0
@@ -394,10 +394,10 @@ const submitForm = async () => {
   submitting.value = true
   try {
     if (isEdit.value) {
-      await api.put(`/finance/assets-cip/${form.id}`, form)
+      await financeApi.assetCip.update(form.id, form)
       ElMessage.success('更新成功')
     } else {
-      await api.post('/finance/assets-cip', form)
+      await financeApi.assetCip.create(form)
       ElMessage.success('创建成功')
     }
     formDialogVisible.value = false
@@ -417,7 +417,7 @@ const handleDelete = (row) => {
     cancelButtonText: '取消',
   }).then(async () => {
     try {
-      await api.delete(`/finance/assets-cip/${row.id}`)
+      await financeApi.assetCip.delete(row.id)
       ElMessage.success('删除成功')
       loadData()
     } catch (error) {
@@ -440,7 +440,7 @@ const submitCost = async () => {
   }
   submitting.value = true
   try {
-    await api.post(`/finance/assets-cip/${currentProject.value.id}/cost`, {
+    await financeApi.assetCip.addCost(currentProject.value.id, {
       amount: costAmount.value,
     })
     ElMessage.success('成本归集成功')
@@ -473,7 +473,7 @@ const submitTransfer = async () => {
 
   submitting.value = true
   try {
-    await api.post(`/finance/assets-cip/${currentProject.value.id}/transfer`, {
+    await financeApi.assetCip.transfer(currentProject.value.id, {
       assetData: transferForm,
     })
     ElMessage.success('转固成功！已生成固定资产记录')

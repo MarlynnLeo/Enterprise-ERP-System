@@ -3,39 +3,49 @@
     <el-form :inline="true" :model="model" class="search-form finance-query-card__basic">
       <slot name="basic" />
       <el-form-item class="finance-query-card__actions">
-        <el-button type="primary" :loading="loading" @click="$emit('search')">{{ searchLabel }}</el-button>
-        <el-button :loading="loading" @click="$emit('reset')">{{ resetLabel }}</el-button>
+        <el-button type="primary" @click="$emit('search')">{{ searchLabel }}</el-button>
+        <el-button @click="$emit('reset')">{{ resetLabel }}</el-button>
         <el-button
           v-if="hasAdvanced"
           class="advanced-search-btn"
           @click="toggleExpanded"
         >
-          {{ isExpanded ? collapseLabel : expandLabel }}
-          <el-icon class="finance-query-card__toggle-icon">
-            <ArrowUp v-if="isExpanded" />
-            <ArrowDown v-else />
+          <span>{{ isExpanded ? collapseLabel : expandLabel }}</span>
+          <el-icon class="finance-query-card__toggle-icon" :class="{ 'is-expanded': isExpanded }">
+            <ArrowDown />
           </el-icon>
         </el-button>
         <slot name="actions" />
       </el-form-item>
     </el-form>
 
-    <el-collapse-transition>
-      <el-form
+    <transition
+      name="finance-query-card-expand"
+      @before-enter="beforeAdvancedEnter"
+      @enter="advancedEnter"
+      @after-enter="afterAdvancedEnter"
+      @before-leave="beforeAdvancedLeave"
+      @leave="advancedLeave"
+    >
+      <div
         v-if="hasAdvanced && isExpanded"
-        :inline="true"
-        :model="model"
-        class="search-form finance-query-card__advanced"
+        class="finance-query-card__advanced-wrap"
       >
-        <slot name="advanced" />
-      </el-form>
-    </el-collapse-transition>
+        <el-form
+          :inline="true"
+          :model="model"
+          class="search-form finance-query-card__advanced"
+        >
+          <slot name="advanced" />
+        </el-form>
+      </div>
+    </transition>
   </el-card>
 </template>
 
 <script setup>
 import { computed, getCurrentInstance, ref, useSlots } from 'vue';
-import { ArrowDown, ArrowUp } from '@element-plus/icons-vue';
+import { ArrowDown } from '@element-plus/icons-vue';
 
 const props = defineProps({
   model: {
@@ -46,6 +56,8 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
+  // loading prop kept for backward compatibility (65+ pages pass it).
+  // It is intentionally NOT bound to any button to prevent spinner flash on page load.
   loading: {
     type: Boolean,
     default: false
@@ -85,6 +97,60 @@ const toggleExpanded = () => {
   internalExpanded.value = nextExpanded;
   emit('update:expanded', nextExpanded);
 };
+
+const setAdvancedHeight = (element, height) => {
+  element.style.height = height;
+};
+
+const beforeAdvancedEnter = (element) => {
+  setAdvancedHeight(element, '0');
+  element.style.opacity = '0';
+  element.style.transform = 'translateY(-4px)';
+};
+
+const advancedEnter = (element) => {
+  window.requestAnimationFrame(() => {
+    setAdvancedHeight(element, `${element.scrollHeight}px`);
+    element.style.opacity = '1';
+    element.style.transform = 'translateY(0)';
+  });
+};
+
+const afterAdvancedEnter = (element) => {
+  setAdvancedHeight(element, 'auto');
+  element.style.opacity = '';
+  element.style.transform = '';
+};
+
+const beforeAdvancedLeave = (element) => {
+  setAdvancedHeight(element, `${element.scrollHeight}px`);
+  element.style.opacity = '1';
+  element.style.transform = 'translateY(0)';
+};
+
+const advancedLeave = (element, done) => {
+  let finished = false;
+  let fallbackTimer = null;
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    if (fallbackTimer) window.clearTimeout(fallbackTimer);
+    element.removeEventListener('transitionend', onEnd);
+    done();
+  };
+  const onEnd = (event) => {
+    if (event.target !== element || event.propertyName !== 'height') return;
+    finish();
+  };
+
+  element.addEventListener('transitionend', onEnd);
+  fallbackTimer = window.setTimeout(finish, 320);
+  window.requestAnimationFrame(() => {
+    setAdvancedHeight(element, '0');
+    element.style.opacity = '0';
+    element.style.transform = 'translateY(-4px)';
+  });
+};
 </script>
 
 <style scoped>
@@ -104,6 +170,31 @@ const toggleExpanded = () => {
   margin-bottom: 0;
 }
 
+/* Unified min-width for all form controls inside search cards.
+   Prevents input fields from being too narrow on any page. */
+.finance-query-card__basic :deep(.el-input),
+.finance-query-card__basic :deep(.el-select),
+.finance-query-card__basic :deep(.el-cascader),
+.finance-query-card__basic :deep(.el-input-number),
+.finance-query-card__advanced :deep(.el-input),
+.finance-query-card__advanced :deep(.el-select),
+.finance-query-card__advanced :deep(.el-cascader),
+.finance-query-card__advanced :deep(.el-input-number) {
+  min-width: 200px;
+}
+
+.finance-query-card__basic :deep(.el-date-editor),
+.finance-query-card__advanced :deep(.el-date-editor) {
+  min-width: 200px;
+}
+
+.finance-query-card__basic :deep(.el-date-editor--daterange),
+.finance-query-card__basic :deep(.el-date-editor--datetimerange),
+.finance-query-card__advanced :deep(.el-date-editor--daterange),
+.finance-query-card__advanced :deep(.el-date-editor--datetimerange) {
+  min-width: 280px;
+}
+
 .finance-query-card__actions {
   flex: 0 0 auto;
 }
@@ -120,8 +211,20 @@ const toggleExpanded = () => {
   margin-left: 0 !important;
 }
 
+.finance-query-card__advanced-wrap {
+  overflow: hidden;
+  will-change: height, opacity, transform;
+}
+
+.finance-query-card-expand-enter-active,
+.finance-query-card-expand-leave-active {
+  transition: height 0.22s cubic-bezier(0.2, 0, 0, 1),
+    opacity 0.16s ease,
+    transform 0.22s cubic-bezier(0.2, 0, 0, 1);
+}
+
 .finance-query-card__advanced {
-  margin-top: 16px;
+  margin: 16px 0 0;
   padding-top: 16px;
   border-top: 1px solid var(--color-border-lighter);
 }
@@ -141,5 +244,10 @@ const toggleExpanded = () => {
 
 .finance-query-card__toggle-icon {
   margin-left: 4px;
+  transition: transform 0.2s ease;
+}
+
+.finance-query-card__toggle-icon.is-expanded {
+  transform: rotate(180deg);
 }
 </style>

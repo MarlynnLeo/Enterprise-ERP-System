@@ -14,6 +14,9 @@ import { useThemeStore } from './stores/theme'
 import { useDictionaryStore } from './stores/dictionary'
 import i18n from './locales'
 import { registerElementIcons } from '@/plugins/elementIcons'
+import { registerStatCardIcons } from '@/plugins/statCardIcons'
+import { initOperationColumnAutoWidth } from '@/plugins/operationColumnAutoWidth'
+import { initPerformanceMode, runWhenIdle } from '@/utils/performanceMode'
 import FinanceQueryCard from './components/common/FinanceQueryCard.vue'
 import './assets/main.css'
 import './assets/common-styles.css'
@@ -30,11 +33,13 @@ import './assets/themes/pc/professional.css'
 import './assets/themes/pc/kacon.css'
 import './assets/themes/pc/premium.css'
 import './assets/themes/pc/theme-compat.css'
+import './assets/stat-cards.css'
 
 import permissionDirective from './directives/permission'
 
 const app = createApp(App)
 const pinia = createPinia()
+initPerformanceMode()
 
 app.config.errorHandler = (err, vm, info) => {
   console.error('全局错误:', err)
@@ -69,7 +74,9 @@ authStore.setAuthHeader()
 
 const dictionaryStore = useDictionaryStore(pinia)
 if (authStore.isAuthenticated) {
-  dictionaryStore.fetchDictionary()
+  runWhenIdle(() => {
+    dictionaryStore.fetchDictionary()
+  }, 3000)
 }
 
 app.config.globalProperties.$dict = dictionaryStore
@@ -78,5 +85,7 @@ app.use(ElementPlus)
 app.use(permissionDirective)
 app.component('FinanceQueryCard', FinanceQueryCard)
 registerElementIcons(app)
+registerStatCardIcons(app)
 
 app.mount('#app')
+initOperationColumnAutoWidth(document.body)

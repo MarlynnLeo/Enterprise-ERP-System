@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="gauge-management-container">
     <!-- 统计卡片 -->
     <el-row :gutter="16" class="stats-row">
@@ -51,30 +51,27 @@
       </template>
 
       <!-- 搜索 -->
-      <div class="search-container">
-        <el-row :gutter="20">
-          <el-col :span="6">
-            <el-input  v-model="searchKeyword" placeholder="搜索编号/名称/型号" clearable @clear="fetchData" @keyup.enter="fetchData" >
-              <template #prefix><el-icon><Search /></el-icon></template>
-            </el-input>
-          </el-col>
-          <el-col :span="4">
-            <el-select  v-model="searchStatus" placeholder="使用状态" clearable @change="fetchData">
+      <FinanceQueryCard :model="searchForm" @search="handleSearch" @reset="handleReset">
+        <template #basic>
+          <el-form-item label="关键词">
+            <el-input v-model="searchKeyword" placeholder="搜索编号/名称/型号" clearable @keyup.enter="handleSearch" />
+          </el-form-item>
+          <el-form-item label="使用状态">
+            <el-select v-model="searchStatus" placeholder="使用状态" clearable>
               <el-option label="使用中" value="in_use" />
               <el-option label="校准中" value="calibrating" />
               <el-option label="维修中" value="repaired" />
               <el-option label="闲置" value="idle" />
               <el-option label="已报废" value="scrapped" />
             </el-select>
-          </el-col>
-          <el-col :span="4">
-            <el-checkbox v-model="onlyOverdue" @change="fetchData">仅显示逾期</el-checkbox>
-          </el-col>
-          <el-col :span="4">
-            <el-button type="primary" @click="fetchData">搜索</el-button>
-          </el-col>
-        </el-row>
-      </div>
+          </el-form-item>
+        </template>
+        <template #advanced>
+          <el-form-item>
+            <el-checkbox v-model="onlyOverdue">仅显示逾期</el-checkbox>
+          </el-form-item>
+        </template>
+      </FinanceQueryCard>
 
       <!-- 表格 -->
       <el-table v-loading="loading" :data="tableData" border style="width: 100%; margin-top: 20px">
@@ -255,13 +252,14 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Plus, Search, Odometer, CircleCheck, Warning, CircleClose } from '@element-plus/icons-vue';
+import { Plus, Odometer, CircleCheck, Warning, CircleClose } from '@element-plus/icons-vue';
 import { qualityApi } from '@/api/quality';
 import dayjs from 'dayjs';
 import { formatDate } from '@/utils/helpers/dateUtils'
+import FinanceQueryCard from '@/components/common/FinanceQueryCard.vue'
 
 const loading = ref(false);
 const submitting = ref(false);
@@ -272,6 +270,9 @@ const pageSize = ref(20);
 const searchKeyword = ref('');
 const searchStatus = ref('');
 const onlyOverdue = ref(false);
+const searchForm = computed(() => ({ keyword: searchKeyword.value, status: searchStatus.value, overdue: onlyOverdue.value }));
+const handleSearch = () => { currentPage.value = 1; fetchData() }
+const handleReset = () => { searchKeyword.value = ''; searchStatus.value = ''; onlyOverdue.value = false; currentPage.value = 1; fetchData() }
 
 const dialogVisible = ref(false);
 const isEdit = ref(false);
@@ -397,13 +398,13 @@ onMounted(fetchData);
 .stat-card {
   cursor: pointer;
   border: 1px solid var(--color-border-lighter);
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--ds-black) 5%, transparent);
+  box-shadow: var(--shadow-sm);
   transition: border-color 0.2s ease, background-color 0.2s ease;
 }
 .stat-card:hover {
   border-color: var(--color-border-light);
   background: var(--color-bg-section);
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--ds-black) 5%, transparent) !important;
+  box-shadow: var(--shadow-sm) !important;
   transform: none !important;
 }
 .stat-card .el-card__body { display: flex; justify-content: space-between; align-items: center; }

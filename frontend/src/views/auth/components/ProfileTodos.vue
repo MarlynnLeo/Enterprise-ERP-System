@@ -265,7 +265,7 @@ import {
   UserFilled,
   WarningFilled
 } from '@element-plus/icons-vue'
-import { todoApi } from '../../../services/api'
+import { todoApi } from '@/api'
 import { parseListData } from '@/utils/responseParser'
 
 const props = defineProps({

@@ -249,7 +249,7 @@
 import { ref, onMounted } from 'vue'
 import { Search, Refresh, Plus } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { qualityApi, baseDataApi } from '@/services/api'
+import { qualityApi, baseDataApi } from '@/api'
 import { parseListData, parsePaginatedData, parseResponseData } from '@/utils/responseParser'
 import 'dayjs'
 import { getQualityStatusText, getQualityStatusColor } from '@/constants/systemConstants'

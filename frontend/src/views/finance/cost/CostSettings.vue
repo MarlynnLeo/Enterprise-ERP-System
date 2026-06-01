@@ -1,17 +1,90 @@
 ﻿<template>
-  <div class="cost-settings">
+  <div class="cost-settings module-page">
     <!-- 页面标题 -->
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
           <h2>成本核算设置</h2>
-          <p class="subtitle">配置企业成本核算方法、制造费用分摊及标准费率参数</p>
+          <p class="subtitle">成本政策、核算口径、总账映射与月结前置配置</p>
         </div>
-        <el-button v-permission="'finance:cost:update'" type="primary" @click="saveSettings" :loading="saving">保存设置</el-button>
+        <div class="header-actions">
+          <el-button @click="goRoute('/finance/cost/versions')">标准成本版本</el-button>
+          <el-button @click="goRoute('/finance/cost/closing')">成本关账检查</el-button>
+          <el-button v-permission="'finance:cost:update'" type="primary" @click="saveSettings" :loading="saving">保存设置</el-button>
+        </div>
       </div>
     </el-card>
 
-    <el-tabs v-model="activeTab" class="settings-tabs" type="border-card">
+    <el-row :gutter="16" class="governance-row">
+      <el-col :xs="24" :lg="8">
+        <el-card shadow="never" class="inner-card status-card">
+          <template #header>
+            <div class="card-header">
+              <span>成本政策状态</span>
+              <el-tag :type="policyStatus.type" size="small">{{ policyStatus.label }}</el-tag>
+            </div>
+          </template>
+          <el-descriptions :column="1" border>
+            <el-descriptions-item label="生效配置">{{ currentSettings.settingName }}</el-descriptions-item>
+            <el-descriptions-item label="核算方法">{{ getMethodName(currentSettings.costingMethod) }}</el-descriptions-item>
+            <el-descriptions-item label="计薪方式">{{ currentSettings.wagePaymentMethod === 'piece' ? '计件工资' : '计时工资' }}</el-descriptions-item>
+            <el-descriptions-item label="最近更新">{{ currentSettings.updatedAt || '-' }}</el-descriptions-item>
+          </el-descriptions>
+        </el-card>
+      </el-col>
+
+      <el-col :xs="24" :lg="8">
+        <el-card shadow="never" class="inner-card health-card">
+          <template #header>
+            <div class="card-header">
+              <span>配置完整性</span>
+              <el-tag :type="configScoreType" size="small">{{ passedCheckCount }}/{{ configChecks.length }}</el-tag>
+            </div>
+          </template>
+          <div class="check-list">
+            <button
+              v-for="item in configChecks"
+              :key="item.key"
+              type="button"
+              class="check-item"
+              @click="focusTab(item.tab)"
+            >
+              <el-tag :type="item.ok ? 'success' : 'warning'" size="small">{{ item.ok ? '通过' : '待处理' }}</el-tag>
+              <span>{{ item.label }}</span>
+            </button>
+          </div>
+        </el-card>
+      </el-col>
+
+      <el-col :xs="24" :lg="8">
+        <el-card shadow="never" class="inner-card next-card">
+          <template #header>下游闭环动作</template>
+          <div class="next-actions">
+            <el-button
+              v-for="action in nextActions"
+              :key="action.path"
+              :type="action.type"
+              plain
+              @click="goRoute(action.path)"
+            >
+              {{ action.label }}
+            </el-button>
+          </div>
+          <p class="closure-hint">配置变更后先发布标准成本，再核对实际成本和差异，最后执行成本关账检查。</p>
+        </el-card>
+      </el-col>
+    </el-row>
+
+    <el-alert
+      v-if="!isRatioValid"
+      type="warning"
+      :closable="false"
+      show-icon
+      class="workflow-alert"
+      :title="`兜底成本拆分比例当前合计为 ${fallbackRatioTotal.toFixed(4)}，保存前需调整为 1.0000`"
+    />
+
+    <el-tabs v-model="activeTab" class="settings-tabs module-tabs data-card" type="border-card">
       <!-- 基础配置 -->
       <el-tab-pane label="基础配置" name="config">
         <el-row :gutter="24">
@@ -128,6 +201,13 @@
               <el-button v-permission="'finance:cost:update'" type="primary" size="small" @click="saveMappings" :loading="savingMappings">保存映射</el-button>
             </div>
           </template>
+          <el-alert
+            type="info"
+            :closable="false"
+            show-icon
+            class="section-alert"
+            title="这里仅维护成本业务生成总账凭证时使用的科目映射，保存后请到成本关账检查中验证凭证链路。"
+          />
 
           <el-table :data="glMappings" border style="width: 100%">
             <el-table-column prop="mapping_key" label="业务类型代码" width="180" />
@@ -167,6 +247,13 @@
               <el-button v-permission="'finance:cost:create'" type="primary" size="small" @click="openReasonDialog()">新增原因</el-button>
             </div>
           </template>
+          <el-alert
+            type="info"
+            :closable="false"
+            show-icon
+            class="section-alert"
+            title="补料原因在生产/库存侧发生，这里只维护是否进入成本核算，避免形成两套原因主数据。"
+          />
 
           <el-table :data="supplementReasons" border style="width: 100%" v-loading="reasonsLoading">
             <el-table-column prop="reason_name" label="原因名称" min-width="150" />
@@ -262,6 +349,13 @@
               </div>
             </div>
           </template>
+          <el-alert
+            type="warning"
+            :closable="false"
+            show-icon
+            class="section-alert"
+            title="期初冻结和单项调整会影响后续出库、标准成本和差异分析。周期性发布建议优先使用“标准成本版本”。"
+          />
 
           <!-- 搜索区域 -->
           <el-form :inline="true" class="search-form" style="margin-bottom: 16px;">
@@ -384,6 +478,13 @@
               </div>
             </div>
           </template>
+          <el-alert
+            type="info"
+            :closable="false"
+            show-icon
+            class="section-alert"
+            title="制造费用规则优先于基础配置中的旧版兜底费率；无规则命中时才会回退到兜底逻辑。"
+          />
 
           <el-table :data="allocationRules" border style="width: 100%" v-loading="allocationRulesLoading">
             <el-table-column prop="priority" label="优先级" width="80" />
@@ -501,12 +602,14 @@
 <script setup>
 import { formatLocalDate } from '@/utils/format';
 import { computed, ref, reactive, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import { baseDataApi, financeApi } from '@/services/api';
+import { baseDataApi, financeApi } from '@/api';
 import { useAuthStore } from '@/stores/auth';
 import { parseListData, parseResponseData } from '@/utils/responseParser';
 
 const authStore = useAuthStore();
+const router = useRouter();
 const canCreateCost = computed(() => authStore.hasPermission('finance:cost:create'));
 const canUpdateCost = computed(() => authStore.hasPermission('finance:cost:update'));
 
@@ -535,6 +638,80 @@ const currentSettings = reactive({
   updatedAt: '2025-01-01 00:00:00',
   isActive: true
 });
+
+const fallbackRatioTotal = computed(() => (
+  Number(settingsForm.fallbackMaterialRatio || 0)
+  + Number(settingsForm.fallbackLaborRatio || 0)
+  + Number(settingsForm.fallbackOverheadRatio || 0)
+));
+
+const isRatioValid = computed(() => Math.abs(fallbackRatioTotal.value - 1) <= 0.001);
+
+const activeAllocationRuleCount = computed(() => allocationRules.value.filter(item => item.is_active).length);
+const activeSupplementReasonCount = computed(() => supplementReasons.value.filter(item => item.is_active).length);
+const mappedGLCount = computed(() => glMappings.value.filter(item => item.account_id).length);
+const activeMaterialStandardCount = computed(() => materialStandardCosts.value.filter(item => item.is_active).length);
+
+const configChecks = computed(() => [
+  {
+    key: 'base',
+    label: '基础费率与兜底比例可保存',
+    ok: Boolean(settingsForm.costingMethod && settingsForm.laborRate >= 0 && isRatioValid.value),
+    tab: 'config'
+  },
+  {
+    key: 'gl',
+    label: '成本凭证科目已映射',
+    ok: glMappings.value.length > 0 && mappedGLCount.value === glMappings.value.length,
+    tab: 'gl_mapping'
+  },
+  {
+    key: 'supplement',
+    label: '补料成本口径已维护',
+    ok: activeSupplementReasonCount.value > 0,
+    tab: 'supplement'
+  },
+  {
+    key: 'material',
+    label: '物料标准成本可追溯',
+    ok: activeMaterialStandardCount.value > 0 || stdCostTotal.value > 0,
+    tab: 'material_standard'
+  },
+  {
+    key: 'overhead',
+    label: '制造费用分摊规则已启用',
+    ok: activeAllocationRuleCount.value > 0,
+    tab: 'overhead_allocation'
+  }
+]);
+
+const passedCheckCount = computed(() => configChecks.value.filter(item => item.ok).length);
+const configScoreType = computed(() => {
+  if (passedCheckCount.value === configChecks.value.length) return 'success';
+  if (passedCheckCount.value >= 3) return 'warning';
+  return 'danger';
+});
+const policyStatus = computed(() => {
+  if (!currentSettings.isActive) return { label: '未激活', type: 'info' };
+  if (!isRatioValid.value) return { label: '待校验', type: 'warning' };
+  if (passedCheckCount.value === configChecks.value.length) return { label: '可闭环', type: 'success' };
+  return { label: '待完善', type: 'warning' };
+});
+
+const nextActions = [
+  { label: '发布标准成本', path: '/finance/cost/versions', type: 'primary' },
+  { label: '核对实际成本', path: '/finance/cost/actual', type: 'success' },
+  { label: '分析成本差异', path: '/finance/cost/variance', type: 'warning' },
+  { label: '执行关账检查', path: '/finance/cost/closing', type: 'danger' }
+];
+
+const focusTab = (tabName) => {
+  activeTab.value = tabName;
+};
+
+const goRoute = (path) => {
+  router.push(path);
+};
 
 // 获取方法名称
 const getMethodName = (method) => {
@@ -578,6 +755,11 @@ const loadSettings = async () => {
 
 // 保存设置
 const saveSettings = async () => {
+  if (!isRatioValid.value) {
+    ElMessage.warning('兜底成本拆分比例合计必须等于 1.0000');
+    return;
+  }
+
   saving.value = true;
   try {
     await financeApi.cost.saveSettings({
@@ -881,7 +1063,7 @@ const editingAllocationRuleId = ref(null);
 const allocationBases = ref([]);
 const materialOptions = ref([]);
 const materialsSearching = ref(false);
-const costCenterOptions = ref([]); // 从 api.get('/finance/cost-centers') 加载
+const costCenterOptions = ref([]);
 
 const allocationRuleForm = ref({
   name: '',
@@ -1024,96 +1206,78 @@ onMounted(() => {
   fetchSupplementReasons();
   fetchGLAccounts();
   fetchGLMappings();
-  // 延迟加载物料标准成本，用户切换到该tab时按需加载
+  fetchMaterialStandardCosts();
 });
 </script>
 
 <style scoped>
 .cost-settings {
-  padding: 20px;
+  padding: 0;
 }
 
-.header-card {
-  margin-bottom: 20px;
-}
-
-.header-content {
+.header-actions {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
 }
 
-.title-section h2 {
-  margin: 0;
-  font-size: 24px;
-  color: var(--color-text-primary);
+.governance-row {
+  margin-bottom: 16px;
 }
 
-.subtitle {
-  margin: 5px 0 0 0;
-  color: var(--color-text-secondary);
-  font-size: 14px;
-}
-
-.settings-tabs {
-  background: var(--color-bg-base);
-  border-radius: 16px;
-  box-shadow: 0 2px 12px color-mix(in srgb, var(--ds-black) 8%, transparent);
-  border: none;
-  overflow: hidden;
-}
-
-.settings-tabs :deep(.el-tabs__header) {
-  background: var(--color-bg-section);
-  margin: 0;
-  padding: 16px 20px 0;
-  border-bottom: 1px solid var(--color-border-light);
-}
-
-.settings-tabs :deep(.el-tabs__item) {
-  border-radius: 8px 8px 0 0;
-  padding: 12px 24px;
-  font-weight: 500;
-  transition: background-color 0.3s, border-color 0.3s, color 0.3s, box-shadow 0.3s, opacity 0.3s, transform 0.3s;
-}
-
-.settings-tabs :deep(.el-tabs__item:hover) {
-  background: color-mix(in srgb, var(--color-primary) 5%, transparent);
-}
-
-.settings-tabs :deep(.el-tabs__item.is-active) {
-  background: var(--color-bg-base);
-  color: var(--color-primary);
-}
-
-.settings-tabs :deep(.el-tabs__content) {
-  padding: 24px;
-}
-
-.inner-card {
+.governance-row .inner-card {
   height: 100%;
-  border-radius: 12px;
-  border: 1px solid var(--color-border-light);
-  overflow: hidden;
-  transition: background-color 0.3s, border-color 0.3s, color 0.3s, box-shadow 0.3s, opacity 0.3s, transform 0.3s;
 }
 
-.inner-card:hover {
-  box-shadow: 0 4px 16px color-mix(in srgb, var(--ds-black) 8%, transparent);
+.status-card :deep(.el-descriptions__label) {
+  width: 96px;
 }
 
-.inner-card :deep(.el-card__header) {
-  background: linear-gradient(135deg, var(--color-bg-hover) 0%, var(--color-border-lighter) 100%);
-  color: var(--color-text-primary);
-  font-weight: 600;
-  padding: 14px 20px;
-  border-bottom: 1px solid var(--color-border-light);
-}
-
-.card-header {
+.check-list {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.check-item {
+  display: flex;
+  width: 100%;
   align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border: 0;
+  border-bottom: 1px solid var(--color-border-lighter);
+  background: transparent;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  text-align: left;
+}
+
+.check-item:last-child {
+  border-bottom: 0;
+}
+
+.next-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.next-actions .el-button {
+  margin-left: 0;
+}
+
+.closure-hint {
+  margin: 12px 0 0;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.workflow-alert,
+.section-alert {
+  margin-bottom: 16px;
 }
 
 .form-hint {
@@ -1136,42 +1300,17 @@ onMounted(() => {
   color: var(--color-text-primary);
 }
 
-.settings-tabs :deep(.el-input__wrapper),
-.settings-tabs :deep(.el-input-number__wrapper) {
-  border-radius: 8px;
-  transition: background-color 0.3s, border-color 0.3s, color 0.3s, box-shadow 0.3s, opacity 0.3s, transform 0.3s;
-}
+@media (max-width: 900px) {
+  .header-actions {
+    justify-content: flex-start;
+  }
 
-.settings-tabs :deep(.el-input__wrapper:hover),
-.settings-tabs :deep(.el-input-number__wrapper:hover) {
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--color-primary) 15%, transparent);
-}
+  .governance-row .el-col {
+    margin-bottom: 12px;
+  }
 
-.settings-tabs :deep(.el-select__wrapper) {
-  border-radius: 8px;
-}
-
-.settings-tabs :deep(.el-button) {
-  border-radius: 8px;
-}
-
-.settings-tabs :deep(.el-collapse) {
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.settings-tabs :deep(.el-collapse-item__header) {
-  background: var(--color-bg-light);
-  padding: 14px 16px;
-  font-weight: 500;
-}
-
-.settings-tabs :deep(.el-collapse-item__wrap) {
-  border-radius: 0 0 8px 8px;
-}
-
-.settings-tabs :deep(.el-descriptions) {
-  border-radius: 8px;
-  overflow: hidden;
+  .next-actions {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

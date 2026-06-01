@@ -1,9 +1,9 @@
 <template>
   <div class="menu-search">
     <el-tooltip content="搜索菜单 (Ctrl+K)" placement="bottom" :show-after="500">
-      <div class="search-trigger" @click="openSearch">
+      <button class="search-trigger" type="button" aria-label="搜索菜单" @click="openSearch">
         <el-icon><Search /></el-icon>
-      </div>
+      </button>
     </el-tooltip>
 
     <el-dialog
@@ -33,7 +33,7 @@
         </el-input>
       </div>
 
-      <div class="search-results" v-if="keyword">
+      <div v-if="keyword" class="search-results">
         <div v-if="filteredOptions.length === 0" class="no-results">
           <el-empty description="未找到相关菜单" :image-size="60" />
         </div>
@@ -104,7 +104,6 @@ const inputRef = ref(null)
 
 const menuOptions = computed(() => buildMenuSearchOptions(permissionStore.menuTree))
 
-// 过滤选项 — 支持菜单名称、路径、面包屑多维匹配
 const filteredOptions = computed(() => {
   if (!keyword.value) return []
   const k = keyword.value.toLowerCase()
@@ -112,7 +111,7 @@ const filteredOptions = computed(() => {
     item.title.toLowerCase().includes(k) ||
     item.path.toLowerCase().includes(k) ||
     item.breadcrumbs.some(b => b.toLowerCase().includes(k))
-  ).slice(0, 15) // 最多显示15条
+  ).slice(0, 15)
 })
 
 const openSearch = () => {
@@ -144,7 +143,6 @@ const navigateOptions = (direction) => {
     activeIndex.value = (activeIndex.value - 1 + filteredOptions.value.length) % filteredOptions.value.length
   }
 
-  // 滚动到可见区域
   const el = document.querySelector('.result-item.active')
   if (el) {
     el.scrollIntoView({ block: 'nearest' })
@@ -162,7 +160,13 @@ const handleSelect = (item) => {
   router.push(item.path)
 }
 
-// 快捷键支持
+const handleGlobalKeydown = (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+    e.preventDefault()
+    openSearch()
+  }
+}
+
 onMounted(() => {
   window.addEventListener('keydown', handleGlobalKeydown)
 })
@@ -170,32 +174,33 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('keydown', handleGlobalKeydown)
 })
-
-const handleGlobalKeydown = (e) => {
-  if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-    e.preventDefault()
-    openSearch()
-  }
-}
 </script>
 
 <style scoped>
 .search-trigger {
   width: 40px;
   height: 40px;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  border-radius: 8px;
-  color: var(--el-text-color-regular);
-  transition: background-color 0.3s, color 0.3s;
+  border: 1px solid transparent;
+  border-radius: var(--shell-radius-md, var(--radius-md));
+  color: var(--color-text-regular);
+  background: transparent;
+  transition:
+    background-color var(--transition-base),
+    border-color var(--transition-base),
+    color var(--transition-base);
   margin-right: 12px;
 }
 
-.search-trigger:hover {
-  background-color: var(--el-fill-color-light);
-  color: var(--shell-accent);
+.search-trigger:hover,
+.search-trigger:focus-visible {
+  background-color: var(--shell-control-hover-bg, var(--color-bg-hover));
+  border-color: var(--shell-control-border, var(--color-border-light));
+  color: var(--shell-accent, var(--color-primary));
+  outline: none;
 }
 
 .search-icon {
@@ -203,9 +208,9 @@ const handleGlobalKeydown = (e) => {
 }
 
 :deep(.search-dialog) {
-  border-radius: 12px;
+  border-radius: var(--theme-dialog-radius, var(--radius-lg));
   overflow: hidden;
-  box-shadow: 0 10px 30px color-mix(in srgb, var(--ds-black) 20%, transparent);
+  box-shadow: var(--theme-dialog-shadow, var(--shadow-lg));
 
   .el-dialog__header {
     display: none;
@@ -221,17 +226,17 @@ const handleGlobalKeydown = (e) => {
 
 .search-input-wrapper {
   padding: 16px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
+  border-bottom: 1px solid var(--color-border-lighter);
 }
 
 :deep(.el-input__wrapper) {
-  background-color: var(--el-fill-color-light);
+  background-color: var(--color-bg-hover);
   box-shadow: none !important;
-  border-radius: 8px;
+  border-radius: var(--shell-radius-md, var(--radius-md));
 
   &.is-focus {
-    background-color: var(--el-bg-color);
-    box-shadow: 0 0 0 2px var(--shell-accent) !important;
+    background-color: var(--color-bg-base);
+    box-shadow: var(--shell-focus-ring, 0 0 0 2px var(--shell-accent, var(--color-primary))) !important;
   }
 }
 
@@ -246,18 +251,22 @@ const handleGlobalKeydown = (e) => {
   align-items: center;
   padding: 12px 16px;
   margin-bottom: 4px;
-  border-radius: 8px;
+  border-radius: var(--shell-radius-md, var(--radius-md));
   cursor: pointer;
-  transition: background-color 0.2s, color 0.2s;
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast);
 
-  &:hover, &.active {
-    background-color: var(--el-fill-color);
+  &:hover,
+  &.active {
+    background-color: var(--color-bg-hover);
   }
 
   &.active {
     .item-title {
-      color: var(--shell-accent);
+      color: var(--shell-accent, var(--color-primary));
     }
+
     .item-action {
       opacity: 1;
     }
@@ -267,13 +276,13 @@ const handleGlobalKeydown = (e) => {
 .item-icon {
   width: 32px;
   height: 32px;
-  border-radius: 6px;
-  background-color: var(--el-fill-color-light);
+  border-radius: var(--shell-radius-sm, var(--radius-sm));
+  background-color: var(--color-bg-hover);
   display: flex;
   align-items: center;
   justify-content: center;
   margin-right: 12px;
-  color: var(--el-text-color-regular);
+  color: var(--color-text-regular);
   font-size: 16px;
 }
 
@@ -285,13 +294,13 @@ const handleGlobalKeydown = (e) => {
 .item-title {
   font-size: 15px;
   font-weight: 500;
-  color: var(--el-text-color-primary);
+  color: var(--color-text-primary);
   margin-bottom: 4px;
 }
 
 .item-path {
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: var(--color-text-secondary);
   display: flex;
   align-items: center;
 }
@@ -299,36 +308,36 @@ const handleGlobalKeydown = (e) => {
 .separator {
   margin: 0 4px;
   font-size: 12px;
-  color: var(--el-text-color-placeholder);
+  color: var(--color-text-placeholder);
 }
 
 .item-action {
   opacity: 0;
-  transition: opacity 0.2s;
-  color: var(--el-text-color-secondary);
+  transition: opacity var(--transition-fast);
+  color: var(--color-text-secondary);
 }
 
 .search-footer {
   padding: 8px 16px;
-  background-color: var(--el-fill-color-light);
+  background-color: var(--color-bg-hover);
   display: flex;
   gap: 16px;
-  border-top: 1px solid var(--el-border-color-lighter);
+  border-top: 1px solid var(--color-border-lighter);
 }
 
 .key-hint {
   display: flex;
   align-items: center;
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: var(--color-text-secondary);
   gap: 6px;
 }
 
 .key {
-  background-color: var(--el-bg-color);
+  background-color: var(--color-bg-base);
   padding: 2px 6px;
-  border-radius: 4px;
-  box-shadow: 0 1px 2px color-mix(in srgb, var(--ds-black) 10%, transparent);
+  border-radius: var(--shell-radius-sm, var(--radius-sm));
+  box-shadow: var(--shadow-xs, none);
   font-family: monospace;
   min-width: 16px;
   text-align: center;

@@ -429,7 +429,7 @@ import { formatCurrency } from '@/utils/helpers/formatters'
 import dayjs from 'dayjs'
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { baseDataApi, salesApi } from '@/services/api'
+import { baseDataApi, salesApi } from '@/api'
 import { Plus } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 import {

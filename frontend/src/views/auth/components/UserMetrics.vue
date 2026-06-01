@@ -272,10 +272,10 @@ const monthlyActivity = computed(() => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 24px;
-  background: var(--el-bg-color);
+  background: var(--color-bg-base);
   padding: 20px;
-  border-radius: 12px;
-  border: 1px solid var(--el-border-color-lighter);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-lighter);
 }
 
 .stats-header-left {
@@ -287,8 +287,8 @@ const monthlyActivity = computed(() => {
 .stats-icon-wrapper {
   width: 48px;
   height: 48px;
-  background: var(--el-color-primary);
-  color: var(--el-color-white);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -300,13 +300,13 @@ const monthlyActivity = computed(() => {
   font-size: 18px;
   font-weight: 600;
   margin: 0 0 4px 0;
-  color: var(--el-text-color-primary);
+  color: var(--color-text-primary);
 }
 
 .stats-subtitle {
   margin: 0;
   font-size: 13px;
-  color: var(--el-text-color-secondary);
+  color: var(--color-text-secondary);
 }
 
 /* 核心指标卡片 */
@@ -319,10 +319,10 @@ const monthlyActivity = computed(() => {
   flex-direction: column;
   justify-content: space-between;
   padding: 20px;
-  border-radius: 10px;
-  background: var(--el-bg-color);
-  border: 1px solid var(--el-border-color-lighter);
-  transition: border-color 0.2s ease, background-color 0.2s ease;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border-lighter);
+  transition: border-color var(--transition-base), background-color var(--transition-base);
   min-height: 140px;
   position: relative;
   overflow: hidden;
@@ -330,17 +330,17 @@ const monthlyActivity = computed(() => {
 }
 
 .metric-card:hover {
-  border-color: color-mix(in srgb, var(--metric-color, var(--el-color-primary)) 35%, var(--el-border-color-lighter));
-  background: var(--el-fill-color-extra-light);
+  border-color: color-mix(in srgb, var(--metric-color, var(--color-primary)) 35%, var(--color-border-lighter));
+  background: var(--color-bg-hover);
 }
 
 .metric-bg-decoration {
   display: none;
 }
 
-.metric-card-1 { --metric-color: var(--el-color-primary); color: var(--el-color-primary); }
-.metric-card-2 { --metric-color: var(--el-color-success); color: var(--el-color-success); }
-.metric-card-3 { --metric-color: var(--el-color-warning); color: var(--el-color-warning); }
+.metric-card-1 { --metric-color: var(--color-primary); color: var(--color-primary); }
+.metric-card-2 { --metric-color: var(--color-success); color: var(--color-success); }
+.metric-card-3 { --metric-color: var(--color-warning); color: var(--color-warning); }
 
 .metric-content {
   display: flex;
@@ -356,8 +356,8 @@ const monthlyActivity = computed(() => {
   align-items: center;
   justify-content: center;
   font-size: 24px;
-  color: var(--el-color-white);
-  background: var(--metric-color, var(--el-color-primary));
+  color: var(--color-on-primary);
+  background: var(--metric-color, var(--color-primary));
 }
 
 .metric-info {
@@ -366,14 +366,14 @@ const monthlyActivity = computed(() => {
 
 .metric-label {
   font-size: 14px;
-  color: var(--el-text-color-secondary);
+  color: var(--color-text-secondary);
   margin-bottom: 4px;
 }
 
 .metric-value {
   font-size: 28px;
   font-weight: 700;
-  color: var(--el-text-color-primary);
+  color: var(--color-text-primary);
   line-height: 1.2;
 }
 
@@ -381,7 +381,7 @@ const monthlyActivity = computed(() => {
   font-size: 14px;
   font-weight: 400;
   margin-left: 4px;
-  color: var(--el-text-color-secondary);
+  color: var(--color-text-secondary);
 }
 
 .metric-desc {
@@ -389,7 +389,7 @@ const monthlyActivity = computed(() => {
   align-items: center;
   gap: 4px;
   font-size: 12px;
-  color: var(--el-text-color-placeholder);
+  color: var(--color-text-placeholder);
   margin-top: 4px;
 }
 
@@ -403,7 +403,7 @@ const monthlyActivity = computed(() => {
   gap: 4px;
   margin-top: 16px;
   font-size: 13px;
-  color: var(--el-color-success);
+  color: var(--color-success);
   font-weight: 500;
 }
 
@@ -415,10 +415,10 @@ const monthlyActivity = computed(() => {
   align-items: center;
   gap: 4px;
   font-size: 12px;
-  color: var(--el-color-warning);
-  background: var(--el-color-warning-light-9);
+  color: var(--color-warning);
+  background: var(--color-warning-light);
   padding: 4px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 
 /* 图表统计区 */
@@ -427,9 +427,9 @@ const monthlyActivity = computed(() => {
 }
 
 .chart-card {
-  background: var(--el-bg-color);
-  border-radius: 10px;
-  border: 1px solid var(--el-border-color-lighter);
+  background: var(--color-bg-base);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-lighter);
   padding: 24px;
   height: 100%;
   margin-bottom: 20px;
@@ -455,8 +455,8 @@ const monthlyActivity = computed(() => {
   align-items: center;
   justify-content: center;
   font-size: 21px;
-  color: var(--el-color-white);
-  background: var(--el-color-primary);
+  color: var(--color-on-primary);
+  background: var(--color-primary);
   border-radius: 50%;
 }
 
@@ -464,13 +464,13 @@ const monthlyActivity = computed(() => {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
-  color: var(--el-text-color-primary);
+  color: var(--color-text-primary);
 }
 
 .chart-subtitle {
   margin: 4px 0 0;
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: var(--color-text-secondary);
 }
 
 .chart-body {
@@ -493,12 +493,12 @@ const monthlyActivity = computed(() => {
 .percentage-value {
   font-size: 28px;
   font-weight: 700;
-  color: var(--el-text-color-primary);
+  color: var(--color-text-primary);
 }
 
 .percentage-label {
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: var(--color-text-secondary);
   margin-top: 4px;
 }
 
@@ -522,24 +522,24 @@ const monthlyActivity = computed(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--el-color-white);
+  color: var(--color-on-primary);
   font-size: 18px;
 }
 
 .stat-grid-icon--success {
-  background: var(--el-color-success);
+  background: var(--color-success);
 }
 
 .stat-grid-icon--primary {
-  background: var(--el-color-primary);
+  background: var(--color-primary);
 }
 
 .stat-grid-icon--danger {
-  background: var(--el-color-danger);
+  background: var(--color-danger);
 }
 
 .stat-grid-icon--info {
-  background: var(--el-color-info);
+  background: var(--color-info);
 }
 
 .stat-grid-info {
@@ -549,13 +549,13 @@ const monthlyActivity = computed(() => {
 
 .stat-grid-label {
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: var(--color-text-secondary);
 }
 
 .stat-grid-value {
   font-size: 16px;
   font-weight: 600;
-  color: var(--el-text-color-primary);
+  color: var(--color-text-primary);
 }
 
 /* 响应式调整 */

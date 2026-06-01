@@ -80,6 +80,8 @@ router.patch('/accounts/:id/status', requirePermission('finance:accounts:update'
 
 // 期初余额管理
 router.get('/opening-balances', requirePermission('finance:accounts:view'), financeController.getOpeningBalances);
+router.get('/opening-balances/preview', requirePermission('finance:accounts:view'), financeController.previewOpeningBalances);
+router.post('/opening-balances/initialize', requirePermission('finance:accounts:update'), financeController.initializeOpeningBalances);
 router.post('/opening-balances/batch', requirePermission('finance:accounts:update'), financeController.setBatchOpeningBalance);
 router.post('/opening-balances/:id', requirePermission('finance:accounts:update'), financeController.setOpeningBalance);
 
@@ -105,6 +107,8 @@ router.get('/gl/trial-balance', requirePermission('finance:reports:view'), finan
 
 // 4. 期末结转
 router.get('/gl/closing/preview/:id', requirePermission('finance:closing:view'), financeController.getClosingPreview);
+router.get('/gl/closing/unposted/:id', requirePermission('finance:entries:view'), financeController.getClosingUnpostedEntries);
+router.patch('/gl/closing/unposted-entries/:entryId/dates', requirePermission('finance:entries:update'), financeController.updateClosingUnpostedEntryDates);
 router.post('/gl/closing/execute/:id', requirePermission('finance:closing:execute'), financeController.executeClosing);
 router.get('/gl/closing/history/:id', requirePermission('finance:closing:view'), financeController.getClosingHistory);
 
@@ -255,7 +259,6 @@ router.post('/bank-transactions', requirePermission('finance:cash:create'), cash
 router.get('/bank-transactions/:id', requirePermission('finance:cash:view'), cashController.getBankTransactionById);
 router.put('/bank-transactions/:id', requirePermission('finance:cash:update'), cashController.updateBankTransaction);
 router.delete('/bank-transactions/:id', requirePermission('finance:cash:delete'), cashController.deleteBankTransaction);
-router.patch('/bank-transactions/:id/reconcile', requirePermission('finance:cash:reconcile'), cashController.reconcileBankTransaction);
 router.post('/bank-transactions/:id/submit', requirePermission('finance:cash:update'), cashController.submitForAudit);
 router.post('/bank-transactions/:id/audit', requirePermission('finance:cash:approve'), cashController.auditTransaction);
 
@@ -330,8 +333,6 @@ router.get('/cash/reconciliation/reconciled', requirePermission('finance:cash:re
 router.get('/cash/reconciliation/stats', requirePermission('finance:cash:reconcile'), cashController.getReconciliationStats);
 router.get('/cash/reconciliation/matched-transaction', requirePermission('finance:cash:reconcile'), cashController.getMatchedTransactions);
 router.get('/cash/reconciliation/possible-matches', requirePermission('finance:cash:reconcile'), cashController.getPossibleMatchingTransactions);
-router.post('/cash/reconciliation/batch-mark-reconciled', requirePermission('finance:cash:reconcile'), cashController.batchMarkTransactionsAsReconciled);
-router.post('/cash/reconciliation/mark-reconciled', requirePermission('finance:cash:reconcile'), cashController.markTransactionAsReconciled);
 router.post(
   '/cash/reconciliation/cancel-reconciled',
   requirePermission('finance:cash:reconcile'),

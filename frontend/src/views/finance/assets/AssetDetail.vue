@@ -163,7 +163,7 @@ import { ref, reactive, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { Back, Right } from '@element-plus/icons-vue';
-import { api } from '@/services/api';
+import { financeApi } from '@/api/finance';
 import { formatDate, formatDateTime, formatCurrency } from '@/utils/helpers/formatters';
 import { getAssetStatusText, getAssetStatusColor } from '@/constants/systemConstants';
 import { parseListData } from '@/utils/responseParser';
@@ -272,7 +272,7 @@ const loadAssetData = async () => {
 
   loading.value = true;
   try {
-    const response = await api.get(`/finance/assets/${assetId}`);
+    const response = await financeApi.getAsset(assetId);
     const data = response.data;
     Object.assign(assetInfo, data);
     assetCode.value = data.assetCode;
@@ -288,7 +288,7 @@ const loadChangeLogs = async () => {
 
   logsLoading.value = true;
   try {
-    const response = await api.get(`/finance/assets/${assetId}/change-logs`);
+    const response = await financeApi.getAssetChangeLogs(assetId);
     changeLogs.value = response.data?.logs || [];
   } catch (error) {
     console.error('获取变动记录失败:', error);
@@ -302,7 +302,7 @@ const loadDepreciationHistory = async () => {
 
   depHistoryLoading.value = true;
   try {
-    const response = await api.get(`/finance/assets/${assetId}/depreciation-history`);
+    const response = await financeApi.getAssetDepreciationHistory(assetId);
     depreciationHistory.value = response.data || [];
   } catch (error) {
     console.error('获取折旧历史失败:', error);
@@ -315,7 +315,7 @@ const loadImpairmentHistory = async () => {
   if (!assetId) return;
   impLoading.value = true;
   try {
-    const response = await api.get(`/finance/assets/${assetId}/impairments`);
+    const response = await financeApi.getAssetImpairments(assetId);
     impairmentHistory.value = response.data || [];
   } catch (error) {
     console.error('获取减值记录失败:', error);
@@ -343,7 +343,7 @@ const submitImpairment = async () => {
 
       submitLoading.value = true;
       try {
-        await api.post(`/finance/assets/${assetId}/impairments`, impairmentForm);
+        await financeApi.impairAsset(assetId, impairmentForm);
         ElMessage.success('减值计提成功');
         impairmentDialogVisible.value = false;
         // 重新加载所有相关数据
@@ -361,7 +361,7 @@ const submitImpairment = async () => {
 
 const loadCategoryOptions = async () => {
   try {
-    const response = await api.get('/finance/assets/categories');
+    const response = await financeApi.getAssetCategories();
     categoryOptions.value = parseListData(response, { enableLog: false });
   } catch (error) {
     console.error('获取类别失败:', error);

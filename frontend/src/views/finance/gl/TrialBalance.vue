@@ -125,7 +125,7 @@
 import { onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Download } from '@element-plus/icons-vue'
-import { api } from '@/services/axiosInstance'
+import { financeApi } from '@/api'
 import { formatCurrency, formatLocalDate } from '@/utils/format'
 import { loadExcelJS } from '@/utils/lazyVendors'
 import { parseDataObject } from '@/utils/responseParser'
@@ -178,7 +178,7 @@ const selectDefaultPeriod = () => {
 
 const fetchPeriods = async () => {
   try {
-    const res = await api.get('/finance/periods')
+    const res = await financeApi.periods.getList()
     const data = parseDataObject(res, { enableLog: false }) || {}
     periods.value = data.periods || data.list || []
 
@@ -198,7 +198,7 @@ const fetchData = async () => {
 
   loading.value = true
   try {
-    const res = await api.get('/finance/gl/trial-balance', { params: filters.value })
+    const res = await financeApi.reports.getTrialBalance(filters.value)
     const data = parseDataObject(res, { enableLog: false }) || {}
 
     tableData.value = normalizeTrialBalanceRows(data.trialBalance || data.list || [])

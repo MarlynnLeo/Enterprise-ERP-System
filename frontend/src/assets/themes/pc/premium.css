@@ -88,17 +88,17 @@
   --radius-round: 999px;
 
   --shadow-sm: 0 1px 0 rgba(255, 255, 255, 0.04);
-  --shadow-base: 0 8px 28px rgba(0, 0, 0, 0.28);
-  --shadow-md: 0 14px 40px rgba(0, 0, 0, 0.36);
-  --shadow-lg: 0 22px 60px rgba(0, 0, 0, 0.46);
-  --shadow-xl: 0 30px 80px rgba(0, 0, 0, 0.56);
-  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.04), 0 18px 45px rgba(0, 0, 0, 0.26);
-  --shadow-card-hover: 0 1px 0 rgba(255, 255, 255, 0.08), 0 26px 70px rgba(0, 0, 0, 0.34);
+  --shadow-base: 0 4px 16px rgba(0, 0, 0, 0.28);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.32);
+  --shadow-lg: 0 12px 36px rgba(0, 0, 0, 0.38);
+  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.44);
+  --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.24);
+  --shadow-card-hover: 0 8px 32px rgba(0, 0, 0, 0.32);
   --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.04);
   --shadow-glow-primary: 0 0 0 1px rgba(255, 255, 255, 0.14);
-  --shadow-glow-success: 0 0 22px rgba(34, 197, 94, 0.16);
-  --shadow-glow-warning: 0 0 22px rgba(217, 119, 6, 0.16);
-  --shadow-glow-danger: 0 0 22px rgba(239, 68, 68, 0.16);
+  --shadow-glow-success: 0 0 12px rgba(34, 197, 94, 0.14);
+  --shadow-glow-warning: 0 0 12px rgba(217, 119, 6, 0.14);
+  --shadow-glow-danger: 0 0 12px rgba(239, 68, 68, 0.14);
 
   --transition-fast: 0.15s;
   --transition-base: 0.24s;
@@ -117,24 +117,11 @@
 [data-theme="premium"] body,
 [data-theme="premium"] .layout-container {
   color: var(--color-text-primary) !important;
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0 1px, transparent 1px 26px),
-    linear-gradient(160deg, rgba(255, 255, 255, 0.055), transparent 28%),
-    var(--color-bg-page) !important;
+  background: var(--color-bg-page) !important;
   font-family: var(--font-family-base) !important;
 }
 
-[data-theme="premium"] body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  background:
-    linear-gradient(115deg, transparent 0%, rgba(255, 255, 255, 0.045) 36%, transparent 54%),
-    linear-gradient(25deg, transparent 0%, rgba(113, 113, 122, 0.08) 60%, transparent 76%);
-  opacity: 0.72;
-}
+/* Removed body::before fixed gradient overlay to avoid full-viewport repaint cost. */
 
 [data-theme="premium"] .app-shell {
   --shell-accent: #ffffff;
@@ -152,19 +139,24 @@
   --shell-control-border: rgba(255, 255, 255, 0.08);
   --shell-control-hover-bg: rgba(255, 255, 255, 0.08);
   --shell-control-hover-shadow: 0 0 0 1px rgba(255, 255, 255, 0.16);
+  --shell-menu-item-height: 42px;
 }
 
 [data-theme="premium"] .sidebar,
 [data-theme="premium"] .app-sidebar {
-  background: rgba(9, 9, 11, 0.96) !important;
+  background: #09090b !important;
   border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
-  box-shadow: 18px 0 55px rgba(0, 0, 0, 0.32) !important;
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  box-shadow: 8px 0 24px rgba(0, 0, 0, 0.3) !important;
+  transition:
+    flex-basis 180ms ease,
+    width 180ms ease,
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease !important;
+  /* Opaque background avoids repaint-heavy backdrop blur during sidebar motion. */
 }
 
 [data-theme="premium"] .logo-container {
-  min-height: 78px;
   background: transparent !important;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
 }
@@ -194,14 +186,12 @@
 [data-theme="premium"] .sidebar .el-sub-menu__title,
 [data-theme="premium"] .app-sidebar .el-menu-item,
 [data-theme="premium"] .app-sidebar .el-sub-menu__title {
-  height: 42px !important;
-  margin: 3px 10px !important;
   padding-left: 14px !important;
   color: #8e8e93 !important;
   border-radius: 8px !important;
-  border: 1px solid transparent !important;
   font-size: 13px !important;
   font-weight: 650 !important;
+  transition: color 0.15s ease, background-color 0.15s ease;
 }
 
 [data-theme="premium"] .sidebar .el-menu-item span,
@@ -215,26 +205,21 @@
 [data-theme="premium"] .sidebar .el-sub-menu__title:hover {
   color: #ffffff !important;
   background: rgba(255, 255, 255, 0.07) !important;
-  border-color: rgba(255, 255, 255, 0.08) !important;
 }
 
 [data-theme="premium"] .sidebar .el-menu-item.is-active,
 [data-theme="premium"] .app-sidebar .el-menu-item.is-active {
   color: #000000 !important;
   background: #ffffff !important;
-  border-color: #ffffff !important;
-  box-shadow: 0 10px 26px rgba(255, 255, 255, 0.08);
 }
 
 [data-theme="premium"] .header,
 [data-theme="premium"] .app-header,
 [data-theme="premium"] .el-header {
-  height: 80px !important;
-  background: rgba(5, 5, 5, 0.82) !important;
+  background: rgba(5, 5, 5, 0.96) !important;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
   box-shadow: none !important;
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  /* Header is nearly opaque, so backdrop blur is unnecessary. */
 }
 
 [data-theme="premium"] .breadcrumb,
@@ -370,12 +355,11 @@
 [data-theme="premium"] .el-dropdown-menu,
 [data-theme="premium"] .theme-dropdown {
   color: #fafafa !important;
-  background: rgba(18, 18, 20, 0.98) !important;
+  background: #121214 !important;
   border: 1px solid rgba(255, 255, 255, 0.1) !important;
   border-radius: 8px !important;
   box-shadow: var(--shadow-xl) !important;
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  /* Dialogs are opaque, so backdrop blur adds GPU cost without visual benefit. */
 }
 
 [data-theme="premium"] .el-dialog__title,
@@ -412,4 +396,216 @@
 [data-theme="premium"] ::selection {
   color: #000000;
   background: #ffffff;
+}
+
+/* =============================================================
+   White-primary contrast fixes.
+   Premium's --color-primary is #ffffff, so every component that
+   places text ON a primary-colored background needs black text.
+   ============================================================= */
+
+/* Pagination — active page number */
+[data-theme="premium"] .el-pager li.is-active {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+}
+
+[data-theme="premium"] .el-pager li:hover:not(.is-active) {
+  color: #d4d4d8 !important;
+}
+
+/* Checkbox — checked state (white bg needs black tick) */
+[data-theme="premium"] .el-checkbox__input.is-checked .el-checkbox__inner {
+  background-color: #ffffff !important;
+  border-color: #ffffff !important;
+}
+
+[data-theme="premium"] .el-checkbox__input.is-checked .el-checkbox__inner::after {
+  border-color: #000000 !important;
+}
+
+[data-theme="premium"] .el-checkbox__input.is-checked + .el-checkbox__label {
+  color: #ffffff !important;
+}
+
+[data-theme="premium"] .el-checkbox__input.is-indeterminate .el-checkbox__inner {
+  background-color: #ffffff !important;
+  border-color: #ffffff !important;
+}
+
+[data-theme="premium"] .el-checkbox__input.is-indeterminate .el-checkbox__inner::before {
+  background-color: #000000 !important;
+}
+
+/* Radio — checked state */
+[data-theme="premium"] .el-radio__input.is-checked .el-radio__inner {
+  background-color: #ffffff !important;
+  border-color: #ffffff !important;
+}
+
+[data-theme="premium"] .el-radio__input.is-checked .el-radio__inner::after {
+  background-color: #000000 !important;
+}
+
+[data-theme="premium"] .el-radio__input.is-checked + .el-radio__label {
+  color: #ffffff !important;
+}
+
+/* Switch — active state */
+[data-theme="premium"] .el-switch.is-checked .el-switch__core {
+  background-color: #ffffff !important;
+  border-color: #ffffff !important;
+}
+
+[data-theme="premium"] .el-switch.is-checked .el-switch__action {
+  background-color: #000000 !important;
+}
+
+/* Loading spinner */
+[data-theme="premium"] .el-loading-spinner .circular .path {
+  stroke: #d4d4d8 !important;
+}
+
+/* Progress bar */
+[data-theme="premium"] .el-progress-bar__inner {
+  background-color: #ffffff !important;
+}
+
+[data-theme="premium"] .el-progress__text {
+  color: #d4d4d8 !important;
+}
+
+/* Step indicator — active/finish */
+[data-theme="premium"] .el-step__head.is-finish .el-step__icon,
+[data-theme="premium"] .el-step__head.is-process .el-step__icon {
+  background-color: #ffffff !important;
+  border-color: #ffffff !important;
+  color: #000000 !important;
+}
+
+[data-theme="premium"] .el-step__head.is-finish .el-step__line,
+[data-theme="premium"] .el-step__head.is-process .el-step__line {
+  background-color: #ffffff !important;
+}
+
+/* Badge */
+[data-theme="premium"] .el-badge__content--primary {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+}
+
+
+/* Message box / Popconfirm confirm button */
+[data-theme="premium"] .el-message-box__btns .el-button--primary,
+[data-theme="premium"] .el-popconfirm__action .el-button--primary {
+  color: #000000 !important;
+}
+
+/* Radio-button — active/checked state (white bg in premium = needs black text) */
+[data-theme="premium"] .el-radio-button__inner {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  color: #d4d4d8 !important;
+}
+
+[data-theme="premium"] .el-radio-button__original-radio:checked + .el-radio-button__inner {
+  background-color: #ffffff !important;
+  border-color: #ffffff !important;
+  color: #000000 !important;
+  box-shadow: -1px 0 0 0 #ffffff !important;
+}
+
+[data-theme="premium"] .el-radio-button__inner:hover {
+  color: #ffffff !important;
+}
+
+/* Segmented / button-group active state */
+[data-theme="premium"] .el-radio-group .el-radio-button.is-active .el-radio-button__inner {
+  background-color: #ffffff !important;
+  border-color: #ffffff !important;
+  color: #000000 !important;
+}
+
+/* Stat card numbers — ensure large value text is visible */
+[data-theme="premium"] .stat-value,
+[data-theme="premium"] .stat-number,
+[data-theme="premium"] .dashboard-stat-value {
+  color: #fafafa !important;
+}
+
+/* el-statistic component */
+[data-theme="premium"] .el-statistic__number {
+  color: #fafafa !important;
+}
+
+/* el-card header text */
+[data-theme="premium"] .el-card__header {
+  color: #fafafa !important;
+  border-bottom-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* el-descriptions labels and content */
+[data-theme="premium"] .el-descriptions__label,
+[data-theme="premium"] .el-descriptions__content {
+  color: #d4d4d8 !important;
+  background: transparent !important;
+}
+
+[data-theme="premium"] .el-descriptions__label {
+  color: #8e8e93 !important;
+}
+
+/* el-result */
+[data-theme="premium"] .el-result__title {
+  color: #fafafa !important;
+}
+
+[data-theme="premium"] .el-result__subtitle {
+  color: #8e8e93 !important;
+}
+
+/* el-empty */
+[data-theme="premium"] .el-empty__description p {
+  color: #8e8e93 !important;
+}
+
+/* el-link primary — white link text is fine on dark bg, no fix needed */
+
+/* el-collapse */
+[data-theme="premium"] .el-collapse-item__header {
+  color: #fafafa !important;
+  background: transparent !important;
+  border-bottom-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+[data-theme="premium"] .el-collapse-item__wrap {
+  background: transparent !important;
+  border-bottom-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* el-timeline */
+[data-theme="premium"] .el-timeline-item__node--primary {
+  background-color: #ffffff !important;
+}
+
+[data-theme="premium"] .el-timeline-item__tail {
+  border-left-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+/* el-alert */
+[data-theme="premium"] .el-alert--info {
+  background: rgba(6, 182, 212, 0.08) !important;
+  border-color: rgba(6, 182, 212, 0.15) !important;
+}
+
+/* el-skeleton (loading state) */
+[data-theme="premium"] .el-skeleton__item {
+  background: rgba(255, 255, 255, 0.06) !important;
+}
+
+[data-theme="premium"] .el-skeleton.is-animated .el-skeleton__item {
+  background: linear-gradient(90deg,
+    rgba(255, 255, 255, 0.06) 25%,
+    rgba(255, 255, 255, 0.1) 37%,
+    rgba(255, 255, 255, 0.06) 63%) !important;
 }

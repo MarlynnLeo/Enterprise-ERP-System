@@ -348,7 +348,7 @@
 <script setup>
 import { ref, onMounted, computed, onActivated, watch, onUnmounted, nextTick } from 'vue'
 import { useAuthStore } from '../../stores/auth'
-import { systemApi, documentApi } from '../../services/api'
+import { systemApi, documentApi } from '@/api'
 // 权限store
 const authStore = useAuthStore()
 import {

@@ -43,10 +43,10 @@
           <el-table-column prop="meal_allowance" label="餐补" width="90" />
           <el-table-column prop="full_attendance_bonus" label="满勤奖" width="80" />
           <el-table-column prop="leave_deduction" label="缺勤扣款" width="90" />
-          <el-table-column prop="gross_salary" label="应发项" width="100" class-name="gross-col operation-column" />
+          <el-table-column prop="gross_salary" label="应发项" width="100" class-name="gross-col" />
           <el-table-column prop="pension" label="扣社保" width="90" />
           <el-table-column prop="housing_fund" label="扣公积金" width="90" />
-          <el-table-column prop="net_salary" label="纯实发" width="110" class-name="net-col operation-column" fixed="right"/>
+          <el-table-column prop="net_salary" label="纯实发" width="110" class-name="net-col" fixed="right"/>
         </el-table-column>
 
         <!-- 操作 -->

@@ -150,7 +150,7 @@
 import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
-import { api } from '@/services/api';
+import { financeApi } from '@/api/finance';
 import { ensureInteger, normalizePaginationData } from '@/utils/helpers/typeUtils';
 
 // 数据加载状态
@@ -235,7 +235,7 @@ const loadCategories = async () => {
       limit: pageSize.value
     };
 
-    const response = await api.get('/finance/assets/categories', { params });
+    const response = await financeApi.getAssetCategories(params);
 
     // 使用类型安全工具处理分页数据
     const paginationData = normalizePaginationData(response);
@@ -273,7 +273,7 @@ const handleEdit = async (row) => {
 // 删除类别
 const handleDelete = async (id) => {
   try {
-    await api.delete(`/finance/assets/categories/${id}`);
+    await financeApi.deleteAssetCategory(id);
     ElMessage.success('删除成功');
     loadCategories();
   } catch (error) {
@@ -299,11 +299,11 @@ const saveCategory = async () => {
 
         if (categoryForm.id) {
           // 更新
-          await api.put(`/finance/assets/categories/${categoryForm.id}`, data);
+          await financeApi.updateAssetCategory(categoryForm.id, data);
           ElMessage.success('更新成功');
         } else {
           // 新增
-          await api.post('/finance/assets/categories', data);
+          await financeApi.createAssetCategory(data);
           ElMessage.success('添加成功');
         }
         dialogVisible.value = false;

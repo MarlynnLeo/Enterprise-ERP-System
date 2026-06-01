@@ -29,6 +29,7 @@ export const systemApi = {
     updateMenuStatus: (id, data) => api.put(`/system/menus/${id}/status`, data),
     deleteMenu: (id) => api.delete(`/system/menus/${id}`),
     getMenusDirect: () => api.get('/system/menus/direct'),
+    importMenus: (menus) => api.post('/system/menus/import', { menus }),
 
     // 部门管理
     getDepartments: (params) => api.get('/system/departments', { params }),

@@ -251,7 +251,7 @@
 import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import api from '@/services/api'
+import { replacementOrderApi } from '@/api/afterSales'
 import { normalizePaginationData } from '@/utils/helpers/typeUtils'
 import { parseResponseData } from '@/utils/responseParser'
 // 搜索表单
@@ -319,7 +319,7 @@ const fetchData = async () => {
       params.endDate = dateRange.value[1]
     }
 
-    const response = await api.get('/quality/replacement-orders', { params })
+    const response = await replacementOrderApi.getReplacementOrders(params)
     const pageData = normalizePaginationData(response)
     tableData.value = pageData.items
     pagination.total = pageData.total
@@ -342,7 +342,7 @@ const fetchStatistics = async () => {
       params.startDate = dateRange.value[0]
       params.endDate = dateRange.value[1]
     }
-    const response = await api.get('/quality/replacement-orders/statistics', { params })
+    const response = await replacementOrderApi.getStatistics(params)
     // 后端 ResponseHandler 返回格式: { success, data, message }
     statistics.value = parseResponseData(response, {})
   } catch (error) {
@@ -363,7 +363,7 @@ const resetSearch = () => {
 // 查看详情
 const viewDetail = async (row) => {
   try {
-    const response = await api.get(`/quality/replacement-orders/${row.id}`)
+    const response = await replacementOrderApi.getReplacementOrderById(row.id)
     // 后端 ResponseHandler 返回格式: { success, data, message }
     detailData.value = parseResponseData(response)
     detailDialogVisible.value = true
@@ -385,7 +385,7 @@ const confirmReceipt = (row) => {
 // 提交收货
 const submitReceipt = async () => {
   try {
-    await api.post(`/quality/replacement-orders/${currentRow.value.id}/confirm-receipt`, receiptForm)
+    await replacementOrderApi.confirmReceipt(currentRow.value.id, receiptForm)
     ElMessage.success('收货确认成功')
     receiptDialogVisible.value = false
     fetchData()
@@ -406,7 +406,7 @@ const editOrder = (row) => {
 // 提交编辑
 const submitEdit = async () => {
   try {
-    await api.put(`/quality/replacement-orders/${currentRow.value.id}`, editForm)
+    await replacementOrderApi.updateReplacementOrder(currentRow.value.id, editForm)
     ElMessage.success('更新成功')
     editDialogVisible.value = false
     fetchData()
@@ -458,13 +458,13 @@ onMounted(() => {
 
 .stat-card {
   cursor: pointer;
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--ds-black) 5%, transparent);
+  box-shadow: var(--shadow-sm);
   transition: border-color 0.2s ease, background-color 0.2s ease;
 }
 
 .stat-card:hover {
   transform: none;
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--ds-black) 5%, transparent);
+  box-shadow: var(--shadow-sm);
   background: var(--color-bg-section);
 }
 

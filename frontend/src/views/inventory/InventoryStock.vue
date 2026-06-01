@@ -148,6 +148,74 @@
       </el-card>
     </div>
 
+    <!-- 金额统计区域 -->
+    <div class="amount-statistics-section">
+      <el-card class="amount-total-card" shadow="hover">
+        <div class="amount-total-content">
+          <div class="amount-icon-wrapper">
+            <el-icon :size="28" color="#e6a23c"><Coin /></el-icon>
+          </div>
+          <div class="amount-info">
+            <div class="amount-label">库存总金额</div>
+            <div class="amount-value">{{ formatCurrency(statistics.totalValue) }}</div>
+          </div>
+        </div>
+      </el-card>
+
+      <el-card class="amount-detail-card" shadow="hover">
+        <div class="amount-detail-header">
+          <span class="amount-detail-title">分类金额 Top 5</span>
+        </div>
+        <div class="category-value-list">
+          <div
+            v-for="(item, idx) in statistics.totalValueByCategory"
+            :key="idx"
+            class="category-value-item"
+          >
+            <div class="category-value-label">
+              <span class="category-rank">{{ idx + 1 }}</span>
+              <span class="category-name">{{ item.name }}</span>
+              <span class="category-count">{{ item.itemCount }}种</span>
+            </div>
+            <div class="category-value-bar-wrapper">
+              <div
+                class="category-value-bar"
+                :style="{ width: getCategoryPercent(item.value) + '%' }"
+              ></div>
+            </div>
+            <span class="category-value-amount">{{ formatCurrency(item.value) }}</span>
+          </div>
+          <div v-if="!statistics.totalValueByCategory || statistics.totalValueByCategory.length === 0" class="no-data-tip">
+            暂无分类金额数据
+          </div>
+        </div>
+      </el-card>
+
+      <el-card class="amount-detail-card" shadow="hover">
+        <div class="amount-detail-header">
+          <span class="amount-detail-title">仓库金额分布</span>
+        </div>
+        <div class="location-value-list">
+          <div
+            v-for="(item, idx) in statistics.totalValueByLocation"
+            :key="idx"
+            class="location-value-item"
+          >
+            <div class="location-value-label">
+              <el-icon :size="14" color="var(--color-primary)"><OfficeBuilding /></el-icon>
+              <span class="location-name">{{ item.name }}</span>
+              <span class="location-count">{{ item.itemCount }}种</span>
+            </div>
+            <span class="location-value-amount">{{ formatCurrency(item.value) }}</span>
+            <span class="location-value-percent">{{ getLocationPercent(item.value) }}%</span>
+          </div>
+          <div v-if="!statistics.totalValueByLocation || statistics.totalValueByLocation.length === 0" class="no-data-tip">
+            暂无仓库金额数据
+          </div>
+        </div>
+      </el-card>
+    </div>
+
     <!-- 数据表格 -->
     <el-card class="data-card">
       <el-table
@@ -507,9 +575,9 @@
 <script setup>
 import { parseListData, parseResponseData } from '@/utils/responseParser';
 import { ref, onMounted, reactive, computed } from 'vue'
-import { Download, Plus, ArrowDown, Document, Close, Printer, Select } from '@element-plus/icons-vue'
+import { Download, Plus, ArrowDown, Document, Close, Printer, Select, Coin, OfficeBuilding } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { inventoryApi, baseDataApi } from '@/services/api'
+import { inventoryApi, baseDataApi } from '@/api'
 import InventoryStockAdd from './InventoryStockAdd.vue'
 import { useAuthStore } from '@/stores/auth'
 import { getDocumentType as getDocTypeHelper } from '@/constants/documentTypes'
@@ -560,7 +628,11 @@ const statistics = reactive({
   totalItems: 0,
   totalLocations: 0,
   lowStock: 0,
-  outOfStock: 0
+  outOfStock: 0,
+  // 金额统计
+  totalValue: 0,
+  totalValueByCategory: [],
+  totalValueByLocation: []
 })
 
 // 明细相关
@@ -689,7 +761,10 @@ const updateStatistics = async () => {
       totalItems: data.totalItems || 0,
       totalLocations: data.totalLocations || 0,
       lowStock: data.lowStock || 0,
-      outOfStock: data.outOfStock || 0
+      outOfStock: data.outOfStock || 0,
+      totalValue: data.totalValue || 0,
+      totalValueByCategory: data.totalValueByCategory || [],
+      totalValueByLocation: data.totalValueByLocation || []
     })
   } catch (error) {
     console.error('获取统计数据失败', error)
@@ -697,9 +772,24 @@ const updateStatistics = async () => {
       totalItems: 0,
       totalLocations: 0,
       lowStock: 0,
-      outOfStock: 0
+      outOfStock: 0,
+      totalValue: 0,
+      totalValueByCategory: [],
+      totalValueByLocation: []
     })
   }
+}
+
+// 获取分类金额占比百分比
+const getCategoryPercent = (value) => {
+  if (!statistics.totalValue || statistics.totalValue === 0) return 0
+  return Math.min(100, Math.round((value / statistics.totalValue) * 100))
+}
+
+// 获取仓库金额占比百分比
+const getLocationPercent = (value) => {
+  if (!statistics.totalValue || statistics.totalValue === 0) return '0.0'
+  return ((value / statistics.totalValue) * 100).toFixed(1)
 }
 
 // 获取基础数据
@@ -1252,5 +1342,234 @@ const isOutOfStock = (row) => {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+/* ====== 金额统计区域 ====== */
+.amount-statistics-section {
+  display: grid;
+  grid-template-columns: 280px 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+@media (max-width: 1200px) {
+  .amount-statistics-section {
+    grid-template-columns: 1fr 1fr;
+  }
+  .amount-total-card {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 768px) {
+  .amount-statistics-section {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 总金额卡片 */
+.amount-total-card {
+  background: linear-gradient(135deg, #fdf6ec 0%, #faecd8 100%);
+  border: 1px solid #f5dab1;
+  border-radius: 10px;
+}
+
+.amount-total-content {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 4px 0;
+}
+
+.amount-icon-wrapper {
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(230, 162, 60, 0.12);
+  border-radius: 14px;
+  flex-shrink: 0;
+}
+
+.amount-info {
+  flex: 1;
+}
+
+.amount-label {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  margin-bottom: 4px;
+}
+
+.amount-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: #c68a17;
+  line-height: 1.2;
+  letter-spacing: -0.5px;
+}
+
+/* 明细卡片通用 */
+.amount-detail-card {
+  border-radius: 10px;
+}
+
+.amount-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.amount-detail-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+/* 分类金额列表 */
+.category-value-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.category-value-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.category-value-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 140px;
+  flex-shrink: 0;
+}
+
+.category-rank {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--color-primary);
+  flex-shrink: 0;
+}
+
+.category-value-item:nth-child(1) .category-rank { background: #e6a23c; }
+.category-value-item:nth-child(2) .category-rank { background: #909399; }
+.category-value-item:nth-child(3) .category-rank { background: #cd7f32; }
+
+.category-name {
+  font-size: 13px;
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 80px;
+}
+
+.category-count {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  flex-shrink: 0;
+}
+
+.category-value-bar-wrapper {
+  flex: 1;
+  height: 8px;
+  background: var(--color-fill-light, #f0f2f5);
+  border-radius: 4px;
+  overflow: hidden;
+  min-width: 60px;
+}
+
+.category-value-bar {
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--color-primary) 0%, var(--color-primary-light-3, #79bbff) 100%);
+  transition: width 0.6s ease;
+  min-width: 4px;
+}
+
+.category-value-amount {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  min-width: 90px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* 仓库金额列表 */
+.location-value-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.location-value-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--color-fill-lighter, #fafafa);
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+
+.location-value-item:hover {
+  background: var(--color-fill-light, #f0f2f5);
+}
+
+.location-value-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.location-name {
+  font-size: 13px;
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.location-count {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  flex-shrink: 0;
+}
+
+.location-value-amount {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  flex-shrink: 0;
+}
+
+.location-value-percent {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  min-width: 45px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.no-data-tip {
+  font-size: 13px;
+  color: var(--color-text-placeholder);
+  text-align: center;
+  padding: 12px 0;
 }
 </style>

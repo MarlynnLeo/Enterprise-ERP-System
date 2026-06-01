@@ -18,12 +18,19 @@ function debounce(func, delay) {
 }
 /**
  * 重试函数
+ * 仅对网络错误和 5xx 服务器错误进行重试
+ * 4xx 客户端错误（除 408 超时 / 429 限流）直接抛出，不做无意义重试
  */
-async function retryApiCall(apiFunction, retryCount = 3, delay = 1000) {
+async function retryApiCall(apiFunction, retryCount = 1, delay = 1000) {
   for (let i = 0; i < retryCount; i++) {
     try {
       return await apiFunction()
     } catch (error) {
+      const status = error.response?.status
+      // 4xx 客户端错误不应重试（除 408 超时和 429 限流）
+      if (status && status >= 400 && status < 500 && status !== 408 && status !== 429) {
+        throw error
+      }
       if (i === retryCount - 1) throw error
       await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)))
     }
@@ -50,7 +57,7 @@ export function useUnifiedDataFetching(apiFunction, options = {}) {
     debounceTime = 300,
     minSearchLength = 0,
     // 重试相关
-    retryCount = 3,
+    retryCount = 1,
     retryDelay = 1000,
     // 缓存相关
     enableCache = false,
@@ -63,6 +70,8 @@ export function useUnifiedDataFetching(apiFunction, options = {}) {
   const params = ref({ ...defaultParams })
   const lastUpdated = ref(null)
   let activeRequestId = 0
+  let inFlightKey = ''
+  let inFlightPromise = null
   // 分页状态
   const pagination = enablePagination ? reactive({
     current: 1,
@@ -109,24 +118,26 @@ export function useUnifiedDataFetching(apiFunction, options = {}) {
    * 核心数据获取函数
    */
   const fetchData = async (customParams = {}, showLoading = true) => {
+    let finalParams = { ...params.value, ...customParams }
+    if (enablePagination && pagination) {
+      finalParams = {
+        ...finalParams,
+        page: pagination.current,
+        pageSize: pagination.pageSize
+      }
+    }
+    const cacheKey = getCacheKey(finalParams)
+    if (inFlightPromise && inFlightKey === cacheKey) {
+      return inFlightPromise
+    }
+
     const requestId = ++activeRequestId
     if (showLoading) {
       loading.value = true
     }
     error.value = null
     try {
-      // 构建最终参数
-      let finalParams = { ...params.value, ...customParams }
-      // 如果启用分页，添加分页参数
-      if (enablePagination && pagination) {
-        finalParams = {
-          ...finalParams,
-          page: pagination.current,
-          pageSize: pagination.pageSize
-        }
-      }
       // 检查缓存
-      const cacheKey = getCacheKey(finalParams)
       const cachedData = getFromCache(cacheKey)
       if (cachedData) {
         if (requestId === activeRequestId) {
@@ -136,12 +147,15 @@ export function useUnifiedDataFetching(apiFunction, options = {}) {
       }
       // API调用（带重试）
       const apiCall = () => apiFunction(finalParams)
-      const response = await retryApiCall(apiCall, retryCount, retryDelay)
+      inFlightKey = cacheKey
+      inFlightPromise = retryApiCall(apiCall, retryCount, retryDelay).then((response) => {
+        if (transform && typeof transform === 'function') {
+          return transform(response)
+        }
+        return response
+      })
+      const result = await inFlightPromise
       // 处理响应数据
-      let result = response
-      if (transform && typeof transform === 'function') {
-        result = transform(result)
-      }
       // 更新数据和状态
       if (requestId === activeRequestId) {
         updateData(result)
@@ -159,6 +173,10 @@ export function useUnifiedDataFetching(apiFunction, options = {}) {
       ElMessage.error(err.message || errorMessage)
       throw err
     } finally {
+      if (inFlightKey === cacheKey) {
+        inFlightKey = ''
+        inFlightPromise = null
+      }
       if (showLoading && requestId === activeRequestId) {
         loading.value = false
       }
@@ -224,7 +242,6 @@ export function useUnifiedDataFetching(apiFunction, options = {}) {
   /**
    * 搜索相关方法
    */
-  const _searchTimeout = null
   const debouncedSearch = enableSearch ? debounce(async (query) => {
     if (query.length < minSearchLength && query.length > 0) return
     searchLoading.value = true

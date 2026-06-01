@@ -630,7 +630,7 @@ import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted, nextTick, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Refresh } from '@element-plus/icons-vue'
-import { inventoryApi, baseDataApi, systemApi } from '@/services/api'
+import { inventoryApi, baseDataApi, systemApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import { getBusinessTypeCategoryColor } from '@/constants/systemConstants'
 import { searchMaterials } from '@/utils/searchConfig'

@@ -216,7 +216,8 @@ const apController = {
       // 准备数据以匹配数据库字段
       const formattedData = {
         invoice_number: invoiceData.invoiceNumber,
-        supplier_invoice_number: invoiceData.supplierInvoiceNumber || null,
+        supplier_invoice_number:
+          invoiceData.supplierInvoiceNumber || invoiceData.supplier_invoice_number || null,
         supplier_id: invoiceData.supplierId,
         invoice_date: invoiceData.invoiceDate,
         due_date: invoiceData.dueDate,
@@ -324,7 +325,8 @@ const apController = {
 
         const success = await apModel.updateInvoice({
           id: invoiceId,
-          supplier_invoice_number: invoiceData.supplierInvoiceNumber,
+          supplier_invoice_number:
+            invoiceData.supplierInvoiceNumber || invoiceData.supplier_invoice_number,
           notes: invoiceData.notes,
         });
 
@@ -343,11 +345,12 @@ const apController = {
       // 准备数据以匹配数据库字段
       const formattedData = {
         id: invoiceId,
-        invoice_number: invoiceData.invoiceNumber,
-        supplier_invoice_number: invoiceData.supplierInvoiceNumber,
-        supplier_id: invoiceData.supplierId,
-        invoice_date: invoiceData.invoiceDate,
-        due_date: invoiceData.dueDate,
+        invoice_number: invoiceData.invoiceNumber || invoiceData.invoice_number,
+        supplier_invoice_number:
+          invoiceData.supplierInvoiceNumber || invoiceData.supplier_invoice_number || null,
+        supplier_id: invoiceData.supplierId || invoiceData.supplier_id,
+        invoice_date: invoiceData.invoiceDate || invoiceData.invoice_date,
+        due_date: invoiceData.dueDate || invoiceData.due_date,
         total_amount: amount,
         notes: invoiceData.notes,
         items: normalizeInvoiceItems(invoiceData.items),

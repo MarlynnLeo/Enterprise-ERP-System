@@ -280,7 +280,7 @@ import { ref, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Refresh, Download } from '@element-plus/icons-vue'
-import { api } from '@/services/api'
+import { qualityApi } from '@/api/quality'
 import dayjs from 'dayjs'
 import { formatDateTime } from '@/utils/helpers/dateUtils'
 const route = useRoute()
@@ -321,7 +321,7 @@ const handleSearch = async () => {
 
     // axiosInstance 拦截器会自动补齐 /api 和 Token，这里无需写 /api 前缀
     // 注意不能以 / 开头，否则 baseURL 结合在一起可能会诱发环境下的直接 404
-    const response = await api.get('/batch-traceability/unified', { params })
+    const response = await qualityApi.traceability.getUnified(params)
     // response.data 已经被拦截器解包为实际业务对象
     const resultData = response.data
 
@@ -564,9 +564,7 @@ const loadLatestBatch = (batch) => {
 // 获取最新批次
 const loadLatestBatches = async () => {
   try {
-    const response = await api.get('/batch-traceability/latest-batches', {
-      params: { limit: 5 }
-    })
+    const response = await qualityApi.traceability.getLatestBatches({ limit: 5 })
     const batches = Array.isArray(response.data) ? response.data : (response.data?.list || [])
     if (batches.length) {
       latestBatches.value = batches.map((batch, index) => ({
@@ -595,13 +593,10 @@ const exportReport = async () => {
   }
 
   try {
-    const response = await api.get('/batch-traceability/export/report', {
-      params: {
-        materialCode: searchForm.value.materialCode,
-        batchNumber: searchForm.value.batchNumber,
-        direction: traceabilityData.value.type === 'product' ? 'backward' : 'forward'
-      },
-      responseType: 'blob'
+    const response = await qualityApi.traceability.exportReport({
+      materialCode: searchForm.value.materialCode,
+      batchNumber: searchForm.value.batchNumber,
+      direction: traceabilityData.value.type === 'product' ? 'backward' : 'forward'
     })
 
     const blob = response.data
@@ -726,7 +721,7 @@ watch(
 .test-cases {
   padding: 10px;
   background: var(--color-bg-hover);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 
 .quantity-zero {

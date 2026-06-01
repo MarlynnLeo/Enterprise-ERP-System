@@ -1,11 +1,3 @@
-<!--
-/**
- * ModuleContainer.vue
- * @description Vue组件文件
-  * @date 2025-08-27
- * @version 1.0.0
- */
--->
 <template>
   <div class="module-container" :class="[moduleName ? `${moduleName}-container` : '', padding ? 'with-padding' : '']">
     <router-view v-slot="{ Component }">
@@ -32,50 +24,42 @@ const props = defineProps({
 
 const isFullScreen = ref(false);
 
-// 切换全屏状态
 function toggleFullScreen() {
   try {
     if (!isFullScreen.value) {
-      // 进入全屏
       const container = document.querySelector(`.${props.moduleName}-container`) || document.querySelector('.module-container');
       if (container) {
         if (container.requestFullscreen) {
           container.requestFullscreen();
-        } else if (container.mozRequestFullScreen) { // Firefox
+        } else if (container.mozRequestFullScreen) {
           container.mozRequestFullScreen();
-        } else if (container.webkitRequestFullscreen) { // Chrome, Safari
+        } else if (container.webkitRequestFullscreen) {
           container.webkitRequestFullscreen();
-        } else if (container.msRequestFullscreen) { // IE11
+        } else if (container.msRequestFullscreen) {
           container.msRequestFullscreen();
         }
       }
-    } else {
-      // 退出全屏
-      if (document.exitFullscreen) {
-        document.exitFullscreen();
-      } else if (document.mozCancelFullScreen) { // Firefox
-        document.mozCancelFullScreen();
-      } else if (document.webkitExitFullscreen) { // Chrome, Safari
-        document.webkitExitFullscreen();
-      } else if (document.msExitFullscreen) { // IE11
-        document.msExitFullscreen();
-      }
+    } else if (document.exitFullscreen) {
+      document.exitFullscreen();
+    } else if (document.mozCancelFullScreen) {
+      document.mozCancelFullScreen();
+    } else if (document.webkitExitFullscreen) {
+      document.webkitExitFullscreen();
+    } else if (document.msExitFullscreen) {
+      document.msExitFullscreen();
     }
   } catch (error) {
     console.error('全屏操作失败:', error);
   }
 }
 
-// 处理键盘事件
 function handleKeyDown(event) {
-  // F11键的keyCode是122
   if (event.key === 'F11') {
-    event.preventDefault(); // 阻止浏览器默认的F11全屏行为
+    event.preventDefault();
     toggleFullScreen();
   }
 }
 
-// 监听全屏状态变化
 function handleFullScreenChange() {
   isFullScreen.value = !!(
     document.fullscreenElement ||
@@ -90,8 +74,6 @@ onMounted(() => {
   document.addEventListener('mozfullscreenchange', handleFullScreenChange);
   document.addEventListener('webkitfullscreenchange', handleFullScreenChange);
   document.addEventListener('MSFullscreenChange', handleFullScreenChange);
-
-  // 添加键盘事件监听
   window.addEventListener('keydown', handleKeyDown);
 });
 
@@ -100,8 +82,6 @@ onUnmounted(() => {
   document.removeEventListener('mozfullscreenchange', handleFullScreenChange);
   document.removeEventListener('webkitfullscreenchange', handleFullScreenChange);
   document.removeEventListener('MSFullscreenChange', handleFullScreenChange);
-
-  // 移除键盘事件监听
   window.removeEventListener('keydown', handleKeyDown);
 });
 </script>
@@ -114,26 +94,11 @@ onUnmounted(() => {
   background-color: transparent;
 }
 
-.module-container:fullscreen {
-  background-color: var(--el-bg-color, var(--ds-white));
-  padding: 20px;
-  overflow: auto;
-}
-
-.module-container:-webkit-full-screen {
-  background-color: var(--el-bg-color, var(--ds-white));
-  padding: 20px;
-  overflow: auto;
-}
-
-.module-container:-moz-full-screen {
-  background-color: var(--el-bg-color, var(--ds-white));
-  padding: 20px;
-  overflow: auto;
-}
-
+.module-container:fullscreen,
+.module-container:-webkit-full-screen,
+.module-container:-moz-full-screen,
 .module-container:-ms-fullscreen {
-  background-color: var(--el-bg-color, var(--ds-white));
+  background-color: var(--color-bg-page);
   padding: 20px;
   overflow: auto;
 }

@@ -371,7 +371,7 @@ import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { formatAmount, formatLocalDate } from '@/utils/format'
 import { Plus, View, Check, Money, Delete } from '@element-plus/icons-vue';
-import { api } from '@/services/axiosInstance';
+import { financeApi } from '@/api';
 
 // 搜索表单
 const searchForm = reactive({
@@ -529,7 +529,7 @@ const loadData = async () => {
       }
     });
 
-    const response = await api.get('/finance/tax/returns', { params });
+    const response = await financeApi.tax.getReturns(params);
 
     // axiosInstance 已经解包了 ResponseHandler 响应
     const data = response.data;
@@ -586,7 +586,7 @@ const submitCreate = async () => {
 
     createLoading.value = true;
     try {
-      await api.post('/finance/tax/returns', { ...createForm });
+      await financeApi.tax.createReturn({ ...createForm });
       ElMessage.success('税务申报创建成功');
       createDialogVisible.value = false;
       loadData();
@@ -602,7 +602,7 @@ const submitCreate = async () => {
 // 查看详情
 const handleView = async (row) => {
   try {
-    const response = await api.get(`/finance/tax/returns/${row.id}`);
+    const response = await financeApi.tax.getReturn(row.id);
     const data = response.data;
     // 将数据复制到viewData
     Object.keys(data).forEach(key => {
@@ -628,7 +628,7 @@ const handleSubmit = async (row) => {
       }
     );
 
-    await api.post(`/finance/tax/returns/${row.id}/submit`, {
+    await financeApi.tax.submitReturn(row.id, {
       declaration_date: formatLocalDate(new Date())
     });
 
@@ -643,7 +643,7 @@ const handleSubmit = async (row) => {
 };
 
 const loadBankAccounts = async () => {
-  const response = await api.get('/finance/bank-accounts');
+  const response = await financeApi.getBankAccounts();
   const data = response.data;
   bankAccounts.value = Array.isArray(data) ? data : (data?.list || data?.data || []);
 };
@@ -703,7 +703,7 @@ const confirmPay = async () => {
     );
 
     payLoading.value = true;
-    const response = await api.post(`/finance/tax/returns/${currentPayRow.value.id}/pay`, {
+    const response = await financeApi.tax.payReturn(currentPayRow.value.id, {
       payment_date: payForm.payment_date,
       bank_account_id: payForm.bank_account_id
     });
@@ -734,7 +734,7 @@ const handleDelete = async (row) => {
       }
     );
 
-    await api.delete(`/finance/tax/returns/${row.id}`);
+    await financeApi.tax.deleteReturn(row.id);
     ElMessage.success('删除成功');
     loadData();
   } catch (error) {

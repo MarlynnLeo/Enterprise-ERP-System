@@ -6,7 +6,7 @@ import { formatLocalDate } from '@/utils/format';
  */
 import { ref, reactive, nextTick } from 'vue'
 import { ElMessage, ElMessageBox, ElLoading } from 'element-plus'
-import { purchaseApi, supplierApi, baseDataApi } from '@/services/api'
+import { purchaseApi, supplierApi, baseDataApi } from '@/api'
 import { parseListData, parseResponseData } from '@/utils/responseParser'
 import { searchMaterials } from '@/utils/searchConfig'
 import { useFinanceStore } from '@/stores/finance'

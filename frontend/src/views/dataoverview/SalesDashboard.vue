@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * SalesDashboard.vue
  * @description 前端界面组件文件
@@ -9,7 +9,7 @@
 <template>
   <div class="sales-dashboard">
     <el-card class="header-card">
-      <div style="display: flex; justify-content: space-between; align-items: center;">
+      <div class="flex justify-between align-center">
         <h2>销售数据概览</h2>
         <div>
           <span v-if="lastUpdated" class="last-updated">
@@ -19,8 +19,8 @@
       </div>
     </el-card>
     <!-- 统计卡片 -->
-    <el-row :gutter="20" class="mt-20">
-      <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-20">
+    <el-row :gutter="20" class="mt-lg">
+      <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-lg">
         <el-card class="stat-card primary-card" shadow="hover">
           <div class="stat-content">
             <div class="stat-title">销售订单</div>
@@ -43,7 +43,7 @@
         </el-card>
       </el-col>
 
-      <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-20">
+      <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-lg">
         <el-card class="stat-card success-card" shadow="hover">
           <div class="stat-content">
             <div class="stat-title">本月销售额</div>
@@ -66,7 +66,7 @@
         </el-card>
       </el-col>
 
-      <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-20">
+      <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-lg">
         <el-card class="stat-card info-card" shadow="hover">
           <div class="stat-content">
             <div class="stat-title">销售退货</div>
@@ -89,7 +89,7 @@
         </el-card>
       </el-col>
 
-      <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-20">
+      <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-lg">
         <el-card class="stat-card warning-card" shadow="hover">
           <div class="stat-content">
             <div class="stat-title">销售回款</div>
@@ -113,8 +113,8 @@
       </el-col>
     </el-row>
     <!-- 图表区域 -->
-    <el-row :gutter="20" class="mt-20">
-      <el-col :xs="24" :md="12" class="mb-20">
+    <el-row :gutter="20" class="mt-lg">
+      <el-col :xs="24" :md="12" class="mb-lg">
         <el-card shadow="hover">
           <template #header>
             <div class="card-header">
@@ -130,7 +130,7 @@
           </div>
         </el-card>
       </el-col>
-      <el-col :xs="24" :md="12" class="mb-20">
+      <el-col :xs="24" :md="12" class="mb-lg">
         <el-card shadow="hover">
           <template #header>
             <div class="card-header">
@@ -144,7 +144,7 @@
       </el-col>
     </el-row>
     <!-- 最近销售订单 -->
-    <el-row class="mt-20">
+    <el-row class="mt-lg">
       <el-col :span="24">
         <el-card shadow="hover">
           <template #header>
@@ -159,7 +159,7 @@
           </template>
           <el-table
             :data="filteredRecentOrders"
-            style="width: 100%"
+            class="w-full"
             v-loading="loading"
             border
             :max-height="400"
@@ -244,7 +244,7 @@ function createSafeChart(ctx, config) {
   }
 }
 import { Search, ArrowRight } from '@element-plus/icons-vue';
-import { salesApi } from '@/services/api';
+import { salesApi } from '@/api';
 import { useDashboard, useCharts } from '@/composables/useDashboard';
 import {
   handleDashboardError,
@@ -792,33 +792,27 @@ onMounted(async () => {
 .header-card h2 {
   margin: 0;
   font-size: 22px;
-  color: var(--el-text-color-primary);
+  color: var(--color-text-primary);
 }
 .last-updated {
   margin-left: 10px;
   font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-.mt-20 {
-  margin-top: var(--spacing-lg);
-}
-.mb-20 {
-  margin-bottom: var(--spacing-lg);
+  color: var(--color-text-secondary);
 }
 .primary-card {
-  border-top: 4px solid var(--el-color-primary);
+  border-top: 4px solid var(--color-primary);
 }
 .success-card {
-  border-top: 4px solid var(--el-color-success);
+  border-top: 4px solid var(--color-success);
 }
 .info-card {
-  border-top: 4px solid var(--el-color-info);
+  border-top: 4px solid var(--color-info);
 }
 .warning-card {
-  border-top: 4px solid var(--el-color-warning);
+  border-top: 4px solid var(--color-warning);
 }
 .danger-card {
-  border-top: 4px solid var(--el-color-danger);
+  border-top: 4px solid var(--color-danger);
 }
 .stat-content {
   flex-grow: 1;
@@ -828,7 +822,7 @@ onMounted(async () => {
   font-size: 16px;
   font-weight: bold;
   margin-bottom: 15px;
-  color: var(--el-text-color-primary);
+  color: var(--color-text-primary);
 }
 .stat-info {
   display: flex;
@@ -844,15 +838,15 @@ onMounted(async () => {
   font-size: 20px;
   font-weight: 500;
   line-height: 1.2;
-  color: var(--el-text-color-primary);
+  color: var(--color-text-primary);
 }
 .stat-secondary-label {
   font-size: 14px;
-  color: var(--el-text-color-secondary);
+  color: var(--color-text-secondary);
 }
 .card-footer {
   padding-top: 10px;
-  border-top: 1px solid var(--el-border-color-lighter);
+  border-top: 1px solid var(--color-border-lighter);
 }
 .card-header {
   display: flex;

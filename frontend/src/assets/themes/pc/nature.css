@@ -1,5 +1,5 @@
-﻿/**
- * PC端 - 自然主题
+/**
+ * PC端 - 自然绿色清新主题
  * @description 自然绿色清新主题
  * @date
  * @version 2.1.0
@@ -33,11 +33,11 @@
   --color-info-dark: #297bc0;
 
   /* 文本色 - 5级 */
-  --color-text-primary: #2B8A3E;      /* 主要文字（深绿） */
-  --color-text-regular: #37B24D;      /* 常规文字（绿色） */
-  --color-text-secondary: #74C0FC;    /* 次要文字（天蓝） */
-  --color-text-placeholder: #A9E34B;  /* 占位文字（浅绿） */
-  --color-text-disabled: #C3D9CC;     /* 禁用文字 */
+  --color-text-primary: #2D3436;      /* 主要文字（深灰） */
+  --color-text-regular: #4A5568;      /* 常规文字（中灰） */
+  --color-text-secondary: #718096;    /* 次要文字（浅灰） */
+  --color-text-placeholder: #A0AEC0;  /* 占位文字 */
+  --color-text-disabled: #CBD5E0;     /* 禁用文字 */
 
   /* 边框色 - 4级 */
   --color-border-darker: #A8D5BA;     /* 深边框 */
@@ -56,7 +56,7 @@
 
   /* 补充色 */
   --color-bg-section: #F0FFF4;
-  --color-text-muted: #74C0FC;
+  --color-text-muted: #718096;
   --color-primary-active: #40a651;
   --color-success-gradient-end: #40a651;
   --color-warning-gradient-end: #ca9d14;
@@ -65,13 +65,15 @@
   --color-info-gradient-end: #297bc0;
   --color-on-primary: #ffffff;
 
-  /* 自然主题特有颜色（大自然元素?*/
-  --color-leaf: #40C057;              /* 叶绿?*/
-  --color-grass: #51CF66;             /* 草绿?*/
-  --color-sky: #74C0FC;               /* 天空?*/
-  --color-earth: #A0785A;             /* 大地?*/
-  --color-flower: #FF6B9D;            /* 花粉?*/
-  --color-water: #339AF0;             /* ========== 间距系统 ========== */
+  /* 自然主题特有颜色（大自然元素） */
+  --color-leaf: #40C057;              /* 叶绿 */
+  --color-grass: #51CF66;             /* 草绿 */
+  --color-sky: #74C0FC;               /* 天空 */
+  --color-earth: #A0785A;             /* 大地 */
+  --color-flower: #FF6B9D;            /* 花粉 */
+  --color-water: #339AF0;             /* 水蓝 */
+
+  /* ========== 间距系统 ========== */
   --spacing-xs: 4px;
   --spacing-sm: 8px;
   --spacing-md: 16px;
@@ -118,7 +120,7 @@
   --shadow-card-hover: 0 6px 18px 0 rgba(81, 207, 102, 0.18);
   --shadow-inset: inset 0 2px 4px rgba(81, 207, 102, 0.08);
 
-  /* ========== 组件系统（统一样式覆盖） ========== */
+  /* ========== 过渡系统（统一样式覆盖） ========== */
   --transition-fast: 0.15s;
   --transition-base: 0.3s;
   --transition-slow: 0.45s;
@@ -145,7 +147,7 @@
 /* 侧边栏自然化 */
 [data-theme="nature"] .sidebar,
 [data-theme="nature"] .app-sidebar {
-  background: linear-gradient(180deg, var(--color-text-primary) 0%, var(--color-text-primary) 100%) !important;
+  background: linear-gradient(180deg, #2B6E3F 0%, #1E5631 100%) !important;
   border-right: 3px solid var(--color-primary) !important;
   box-shadow: 4px 0 20px color-mix(in srgb, var(--color-bg-overlay) 20%, transparent) !important;
 }
@@ -162,17 +164,17 @@
   text-shadow: 0 2px 8px color-mix(in srgb, var(--ds-black) 20%, transparent) !important;
 }
 
-/* 菜单样式 */
+/* 菜单容器 */
 [data-theme="nature"] .el-menu {
   background: transparent !important;
 }
 
-/* 主色调 - 自然绿 */
+/* 菜单主色调 */
 [data-theme="nature"] .sidebar .el-menu-item,
 [data-theme="nature"] .sidebar .el-sub-menu__title,
 [data-theme="nature"] .app-sidebar .el-menu-item,
 [data-theme="nature"] .app-sidebar .el-sub-menu__title {
-  color: var(--color-text-primary) !important;
+  color: rgba(255, 255, 255, 0.85) !important;
   font-weight: 500 !important;
   border-left: 4px solid transparent !important;
   transition:
@@ -182,12 +184,12 @@
     box-shadow 0.3s ease !important;
 }
 
-/* 菜单样式 */
+/* 菜单文字 */
 [data-theme="nature"] .sidebar .el-menu-item span,
 [data-theme="nature"] .sidebar .el-sub-menu__title span,
 [data-theme="nature"] .app-sidebar .el-menu-item span,
 [data-theme="nature"] .app-sidebar .el-sub-menu__title span {
-  color: var(--color-text-primary) !important;
+  color: rgba(255, 255, 255, 0.85) !important;
 }
 
 /* 悬停状态 */
@@ -197,14 +199,14 @@
 [data-theme="nature"] .app-sidebar .el-sub-menu__title:hover {
   background: color-mix(in srgb, var(--color-primary-light-3) 20%, transparent) !important;
   border-left-color: var(--color-primary) !important;
-  color: var(--color-text-primary) !important;
+  color: var(--color-on-primary) !important;
 }
 
 [data-theme="nature"] .sidebar .el-menu-item:hover span,
 [data-theme="nature"] .sidebar .el-sub-menu__title:hover span,
 [data-theme="nature"] .app-sidebar .el-menu-item:hover span,
 [data-theme="nature"] .app-sidebar .el-sub-menu__title:hover span {
-  color: var(--color-text-primary) !important;
+  color: var(--color-on-primary) !important;
 }
 
 /* 当前活动页状态 */
@@ -249,7 +251,7 @@
   color: var(--color-text-primary) !important;
 }
 
-/* 菜单样式 */
+/* 顶部菜单样式 */
 [data-theme="nature"] .header .el-menu-item,
 [data-theme="nature"] .el-header .el-menu-item {
   color: var(--color-text-primary) !important;

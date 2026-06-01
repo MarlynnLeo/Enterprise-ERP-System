@@ -321,7 +321,7 @@ import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';
-import { api } from '@/services/api';
+import { financeApi } from '@/api';
 import { buildApiUrl } from '@/config/app';
 
 const loading = ref(false);
@@ -425,7 +425,7 @@ const loadAccounts = async () => {
       status: searchForm.status
     };
 
-    const response = await api.get('/finance/bank-accounts', { params });
+    const response = await financeApi.getBankAccounts(params);
     // 使用统一的响应解析工具
     const { list, total: totalCount } = parsePaginatedData(response, { enableLog: false });
     accountList.value = list.map(account => ({
@@ -461,7 +461,7 @@ const loadAccounts = async () => {
 // 加载账户统计信息
 const loadAccountsStats = async () => {
   try {
-    const response = await api.get('/finance/bank-accounts/stats');
+    const response = await financeApi.getBankAccountsStats();
     // 使用统一的响应解析工具
     const stats = parseDataObject(response, { enableLog: false }) || {};
     Object.assign(accountStats, {
@@ -521,7 +521,7 @@ const toggleAccountStatus = (row) => {
     type: 'warning'
   }).then(async () => {
     try {
-      await api.patch(`/finance/bank-accounts/${row.id}/status`, {
+      await financeApi.updateBankAccountStatus(row.id, {
         status: newStatus
       });
 
@@ -558,11 +558,11 @@ const saveAccount = async () => {
 
         if (accountForm.id) {
           // 更新
-          await api.put(`/finance/bank-accounts/${accountForm.id}`, data);
+          await financeApi.updateBankAccount(accountForm.id, data);
           ElMessage.success('更新成功');
         } else {
           // 新增
-          await api.post('/finance/bank-accounts', data);
+          await financeApi.createBankAccount(data);
           ElMessage.success('添加成功');
         }
         dialogVisible.value = false;
@@ -608,7 +608,7 @@ const loadTransactions = async () => {
       params.transactionType = transactionSearchForm.type;
     }
 
-    const response = await api.get('/finance/bank-transactions', { params });
+    const response = await financeApi.bankTransactions.getList(params);
     // 使用统一的响应解析工具
     const { list, total: totalCount } = parsePaginatedData(response, { enableLog: false });
     transactionsList.value = list;

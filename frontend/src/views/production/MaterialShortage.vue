@@ -9,7 +9,7 @@
 <script setup>
 import { ref, onMounted, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
-import { productionApi, purchaseApi } from '@/services/api'
+import { productionApi, purchaseApi } from '@/api'
 import { formatQuantity } from '@/utils/helpers/quantity'
 import { parseApiResponse, parsePaginatedData } from '@/utils/responseParser'
 import dayjs from 'dayjs'

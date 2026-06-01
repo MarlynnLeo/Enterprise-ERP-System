@@ -172,6 +172,21 @@ export const purchaseApi = {
     getReceipts: (params) => api.get('/purchase/receipts', { params }),
     getPurchaseHistoryItems: (params) => api.get('/purchase/receipts/history-items', { params }),
     getReceipt: (id) => api.get(`/purchase/receipts/${id}`),
+    outsourcedProcessing: {
+        getList: (params) => api.get('/purchase/outsourced-processings', { params }),
+        getDetail: (id) => api.get(`/purchase/outsourced-processings/${id}`),
+        create: (data) => api.post('/purchase/outsourced-processings', data),
+        update: (id, data) => api.put(`/purchase/outsourced-processings/${id}`, data),
+        updateStatus: (id, status) => api.put(`/purchase/outsourced-processings/${id}/status`, { status }),
+        delete: (id) => api.delete(`/purchase/outsourced-processings/${id}`)
+    },
+    outsourcedReceipts: {
+        getList: (params) => api.get('/purchase/outsourced-receipts', { params }),
+        getDetail: (id) => api.get(`/purchase/outsourced-receipts/${id}`),
+        create: (data) => api.post('/purchase/outsourced-receipts', data),
+        update: (id, data) => api.put(`/purchase/outsourced-receipts/${id}`, data),
+        updateStatus: (id, status) => api.put(`/purchase/outsourced-receipts/${id}/status`, { status })
+    },
     createReceipt: async (data) => {
         try {
 

@@ -261,7 +261,7 @@
 import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import api from '@/services/api';
+import { financeApi, salesApi } from '@/api';
 import { formatCurrency } from '@/utils/helpers/formatters';
 import { parseResponseData } from '@/utils/responseParser'
 
@@ -327,13 +327,11 @@ const getAllocationBaseLabel = (val) => {
 const loadStandardCosts = async () => {
   loading.value = true;
   try {
-    const response = await api.get('/finance/cost/standard-list', {
-      params: {
-        page: pagination.page,
-        pageSize: pagination.pageSize,
-        productName: searchForm.productName || undefined,
-        productCode: searchForm.productCode || undefined
-      }
+    const response = await financeApi.cost.getStandardCostList({
+      page: pagination.page,
+      pageSize: pagination.pageSize,
+      productName: searchForm.productName || undefined,
+      productCode: searchForm.productCode || undefined
     });
 
     const data = response.data;
@@ -355,7 +353,7 @@ const loadStandardCosts = async () => {
 const loadProductOptions = async () => {
   try {
     // 使用销售模块的产品列表API
-    const response = await api.get('/sales/products-list');
+    const response = await salesApi.getProductsList();
     productOptions.value = response.data?.items || response.data || [];
   } catch (error) {
     console.error('加载产品列表失败:', error);
@@ -371,7 +369,7 @@ const showCalculateDialog = () => {
 };
 
 const calculateAndPersistStandardCost = async (productId, quantity = 1) => {
-  return api.post(`/finance/cost/standard/${productId}/calculate`, {
+  return financeApi.cost.calculateStandardCost(productId, {
     quantity,
   });
 };
@@ -402,7 +400,7 @@ const viewDetail = async (row) => {
   try {
     // 如果有product_id，尝试获取真实的成本明细
     if (row.product_id) {
-      const response = await api.get(`/finance/cost/standard/${row.product_id}`);
+      const response = await financeApi.cost.getStandardCost(row.product_id);
       // ResponseHandler包装的数据统一由 parser 解包
       const result = parseResponseData(response);
 
@@ -468,9 +466,7 @@ const resetSearch = () => {
 // 获取全局模板
 const fetchGlobalOverheadTemplates = async () => {
   try {
-    const res = await api.get('/finance/cost/overhead-allocation', {
-      params: { is_global: 1 }
-    });
+    const res = await financeApi.cost.getAllocationRulesByParams({ is_global: 1 });
     globalOverheadTemplates.value = parseResponseData(res, []);
   } catch (error) {
     console.error('获取全局制费模板失败:', error);
@@ -481,9 +477,7 @@ const fetchGlobalOverheadTemplates = async () => {
 const loadProductOverheads = async (productId) => {
   loadingOverheads.value = true;
   try {
-    const res = await api.get('/finance/cost/overhead-allocation', {
-      params: { product_id: productId }
-    });
+    const res = await financeApi.cost.getAllocationRulesByParams({ product_id: productId });
     productOverheads.value = parseResponseData(res, []);
   } catch (error) {
     console.error('获取单品专属记录失败', error);
@@ -542,7 +536,7 @@ const saveProductOverhead = async () => {
       is_active: true
     };
 
-    await api.post('/finance/cost/overhead-allocation', payload);
+    await financeApi.cost.saveAllocationRule(payload);
     ElMessage.success('配置单品专属费率成功');
     addOverheadFormVisible.value = false;
     await loadProductOverheads(currentSelectedProduct.value.product_id);
@@ -562,7 +556,7 @@ const deleteProductOverhead = async (row) => {
     await ElMessageBox.confirm('确定要删除此专属费率吗？删除后将回退使用全局规则。', '提示', {
       type: 'warning'
     });
-    await api.delete(`/finance/cost/overhead-allocation/${row.id}`);
+    await financeApi.cost.deleteAllocationRule(row.id);
     ElMessage.success('删除成功');
     await loadProductOverheads(currentSelectedProduct.value.product_id);
     await calculateAndPersistStandardCost(currentSelectedProduct.value.product_id);

@@ -291,8 +291,9 @@ const arModel = {
         `INSERT INTO ar_invoices
         (invoice_number, customer_id, invoice_date, due_date,
          total_amount, paid_amount, balance_amount,
-         currency_code, exchange_rate, status, terms, notes, source_type, source_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         currency_code, exchange_rate, status, terms, notes,
+         customer_invoice_number, source_type, source_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           invoiceData.invoice_number,
           invoiceData.customer_id,
@@ -306,6 +307,7 @@ const arModel = {
           invoiceData.status || '草稿',
           invoiceData.terms || null,
           invoiceData.notes || null,
+          invoiceData.customer_invoice_number || null,
           invoiceData.source_type || null,
           invoiceData.source_id || null,
         ]
@@ -456,7 +458,7 @@ const arModel = {
                DATE_FORMAT(a.invoice_date, '%Y-%m-%d') as invoice_date,
                DATE_FORMAT(a.due_date, '%Y-%m-%d') as due_date,
                a.total_amount, a.paid_amount, a.balance_amount,
-               a.status, a.currency_code
+               a.status, a.currency_code, a.customer_invoice_number
         FROM ar_invoices a
         LEFT JOIN customers c ON a.customer_id = c.id
         WHERE 1=1
@@ -467,6 +469,11 @@ const arModel = {
       if (filters.invoice_number) {
         query += ' AND a.invoice_number LIKE ?';
         params.push(`%${filters.invoice_number}%`);
+      }
+
+      if (filters.customer_invoice_number) {
+        query += ' AND a.customer_invoice_number LIKE ?';
+        params.push(`%${filters.customer_invoice_number}%`);
       }
 
       if (filters.customer_id) {
@@ -510,6 +517,7 @@ const arModel = {
         LEFT JOIN customers c ON a.customer_id = c.id
         WHERE 1=1
         ${filters.invoice_number ? ' AND a.invoice_number LIKE ?' : ''}
+        ${filters.customer_invoice_number ? ' AND a.customer_invoice_number LIKE ?' : ''}
         ${filters.customer_id ? ' AND a.customer_id = ?' : ''}
         ${filters.customer_name ? ' AND c.name LIKE ?' : ''}
         ${
@@ -527,6 +535,9 @@ const arModel = {
       // 重新构建计数查询参数
       const countParams = [];
       if (filters.invoice_number) countParams.push(`%${filters.invoice_number}%`);
+      if (filters.customer_invoice_number) {
+        countParams.push(`%${filters.customer_invoice_number}%`);
+      }
       if (filters.customer_id) countParams.push(filters.customer_id);
       if (filters.customer_name) countParams.push(`%${filters.customer_name}%`);
       if (filters.start_date && filters.end_date) {
@@ -575,7 +586,7 @@ const arModel = {
                 DATE_FORMAT(a.due_date, '%Y-%m-%d') as due_date,
                 a.total_amount, a.paid_amount, a.balance_amount,
                 a.status, a.currency_code, a.terms, a.notes,
-                a.source_type, a.source_id
+                a.customer_invoice_number, a.source_type, a.source_id
          FROM ar_invoices a
          LEFT JOIN customers c ON a.customer_id = c.id
          WHERE a.id = ?`,
@@ -588,9 +599,12 @@ const arModel = {
 
       const invoice = invoices[0];
       const [items] = await connection.execute(
-        `SELECT i.id, i.product_id as productId, i.description,
-                i.quantity, i.unit_price as unitPrice, i.amount,
-                p.name as productName
+        `SELECT i.id, i.product_id as productId, i.product_id as product_id, i.description,
+                i.quantity, i.unit_price as unitPrice, i.unit_price as unit_price, i.amount,
+                p.code as productCode, p.code as product_code,
+                p.name as productName, p.name as product_name,
+                p.code as material_code, p.name as material_name,
+                p.specs as specification, p.specs as specs
          FROM ar_invoice_items i
          LEFT JOIN materials p ON i.product_id = p.id
          WHERE i.invoice_id = ?
@@ -1834,8 +1848,12 @@ const arModel = {
       let items = [];
       try {
         const [itemResults] = await connection.execute(
-          `SELECT i.id, i.invoice_id, i.product_id, m.name as product_name,
-                  i.description, i.quantity, i.unit_price, i.amount
+          `SELECT i.id, i.invoice_id, i.product_id, i.product_id as productId,
+                  m.code as product_code, m.code as productCode,
+                  m.name as product_name, m.name as productName,
+                  m.code as material_code, m.name as material_name,
+                  m.specs as specification, m.specs as specs,
+                  i.description, i.quantity, i.unit_price, i.unit_price as unitPrice, i.amount
            FROM ar_invoice_items i
            LEFT JOIN materials m ON i.product_id = m.id
            WHERE i.invoice_id = ?

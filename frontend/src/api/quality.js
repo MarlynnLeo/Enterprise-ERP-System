@@ -57,6 +57,31 @@ export const qualityApi = {
   getDefectItems: (params = {}) => api.get('/quality/defect-items', { params }),
   getQualityTrends: (params = {}) => api.get('/quality/trends', { params }),
   getReworkStatusByInspectionIds: (inspectionIds) => api.post('/quality/rework-tasks/by-inspections', { inspection_ids: inspectionIds }),
+  getInspectionItems: (id) => api.get(`/quality/inspections/${id}/items`),
+
+  reworkTasks: {
+    getList: (params) => api.get('/quality/rework-tasks', { params }),
+    getStatistics: (params) => api.get('/quality/rework-tasks/statistics', { params }),
+    getDetail: (id) => api.get(`/quality/rework-tasks/${id}`),
+    assign: (id, data) => api.post(`/quality/rework-tasks/${id}/assign`, data),
+    complete: (id, data) => api.post(`/quality/rework-tasks/${id}/complete`, data),
+    update: (id, data) => api.put(`/quality/rework-tasks/${id}`, data)
+  },
+
+  scrapRecords: {
+    getList: (params) => api.get('/quality/scrap-records', { params }),
+    getStatistics: (params) => api.get('/quality/scrap-records/statistics', { params }),
+    getDetail: (id) => api.get(`/quality/scrap-records/${id}`),
+    approve: (id, data) => api.post(`/quality/scrap-records/${id}/approve`, data),
+    complete: (id, data) => api.post(`/quality/scrap-records/${id}/complete`, data),
+    update: (id, data) => api.put(`/quality/scrap-records/${id}`, data)
+  },
+
+  traceability: {
+    getUnified: (params) => api.get('/batch-traceability/unified', { params }),
+    getLatestBatches: (params) => api.get('/batch-traceability/latest-batches', { params }),
+    exportReport: (params) => api.get('/batch-traceability/export/report', { params, responseType: 'blob' })
+  },
 
   getProcessInspectionRules: () => api.get('/quality/process-inspection/rules'),
   createProcessInspectionRule: (data) => api.post('/quality/process-inspection/rules', data),

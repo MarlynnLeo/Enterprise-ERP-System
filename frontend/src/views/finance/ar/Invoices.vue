@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * Invoices.vue
  * @description 前端界面组件文件
@@ -462,7 +462,7 @@ import { ref, reactive, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue';
-import { baseDataApi } from '@/services/api';
+import { baseDataApi } from '@/api';
 import { financeApi } from '@/api/finance';
 import { salesApi } from '@/api/sales';
 import { parseListData } from '@/utils/responseParser'

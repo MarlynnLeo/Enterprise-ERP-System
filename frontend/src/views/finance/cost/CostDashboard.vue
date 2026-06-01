@@ -1,5 +1,5 @@
 ﻿<template>
-  <div class="dashboard-container">
+  <div class="dashboard-container module-page cost-dashboard-page">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -8,6 +8,9 @@
         </div>
         <div class="action-buttons">
           <el-button type="primary" @click="refreshData">刷新数据</el-button>
+          <el-button v-permission="'finance:cost:view'" type="success" @click="goCostClosing">
+            <el-icon><CircleCheck /></el-icon> 成本关账
+          </el-button>
           <el-button v-permission="'finance:cost:execute'" type="warning" @click="showWIPDialog = true">
             <el-icon><Setting /></el-icon> 月末成本结转
           </el-button>
@@ -15,7 +18,7 @@
       </div>
     </el-card>
     <!-- 核心指标卡片 -->
-    <el-row :gutter="20" class="stat-row">
+    <el-row :gutter="20" class="stat-row statistics-row">
       <el-col :xs="24" :sm="8" v-for="(stat, index) in statistics" :key="index">
         <el-card class="stat-card" shadow="hover">
           <div class="stat-icon" :class="stat.type">
@@ -279,14 +282,16 @@
 </template>
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
+import { useRouter } from 'vue-router';
 import { echarts } from '@/utils/echartsCore';
 import { financeApi } from '@/api/finance';
 import { parseListData } from '@/utils/responseParser';
-import { Setting } from '@element-plus/icons-vue'
+import { CircleCheck, Setting } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { formatCurrency } from '@/utils/helpers/formatters';
 import { alphaColor } from '@/utils/designTokens';
 // 状态定义
+const router = useRouter();
 const _loading = ref(false);
 const trendPeriod = ref('month');
 const trendChartRef = ref(null);
@@ -313,6 +318,10 @@ const costClosingHistory = ref([]);
 const selectedPeriod = computed(() =>
   periods.value.find(period => Number(period.id) === Number(selectedPeriodId.value))
 );
+
+const goCostClosing = () => {
+  router.push('/finance/cost/closing');
+};
 // 成本预警相关
 const alerts = ref([]);
 const alertsLoading = ref(false);
@@ -739,7 +748,7 @@ onUnmounted(() => {
 </script>
 <style scoped>
 .dashboard-container {
-  padding: 20px;
+  padding: 0;
 }
 .header-card {
   margin-bottom: 20px;
@@ -762,48 +771,19 @@ onUnmounted(() => {
 .stat-row {
   margin-bottom: 20px;
 }
-.stat-card {
-  display: flex;
-  align-items: center;
-  padding: 10px;
-  border: 1px solid var(--color-border-lighter);
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--ds-black) 5%, transparent);
-  transition: border-color 0.2s ease, background-color 0.2s ease;
-}
-.stat-card:hover {
-  border-color: var(--color-border-light);
-  background: var(--color-bg-section);
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--ds-black) 5%, transparent) !important;
-  transform: none !important;
-}
 .stat-icon {
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  font-size: 30px;
-  margin-right: 15px;
+  flex: 0 0 auto;
 }
 .stat-icon.primary { background-color: var(--color-primary); color: var(--color-on-primary); }
 .stat-icon.success { background-color: var(--color-success); color: var(--color-on-primary); }
 .stat-icon.warning { background-color: var(--color-warning); color: var(--color-on-primary); }
 .stat-info {
   flex: 1;
-}
-.stat-label {
-  font-size: 14px;
-  color: var(--color-text-secondary);
-}
-.stat-value {
-  font-size: 24px;
-  font-weight: bold;
-  margin: 5px 0;
-  color: var(--color-text-primary);
+  min-width: 0;
 }
 .stat-trend {
   font-size: 13px;
+  margin-top: 8px;
 }
 .stat-trend.up { color: var(--color-danger); } /* Cost up is usually bad? Or just red. Let's stick to standard colors. usually Green is good. Cost Up = Red? */
 .stat-trend.down { color: var(--color-success); }
@@ -866,8 +846,10 @@ onUnmounted(() => {
 .yearly-stat {
   text-align: center;
   padding: 20px;
-  background: linear-gradient(135deg, var(--color-bg-hover) 0%, var(--color-border-lighter) 100%);
-  border-radius: 8px;
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border-lighter);
+  border-radius: var(--radius-md, 12px);
+  box-shadow: var(--shadow-sm);
 }
 .yearly-label {
   font-size: 14px;

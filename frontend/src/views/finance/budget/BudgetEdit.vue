@@ -165,7 +165,7 @@
 import { ref, reactive, computed, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import { useRouter, useRoute } from 'vue-router';
-import api from '@/services/axiosInstance';
+import { financeApi } from '@/api/finance';
 import { formatAmount } from '@/utils/format'
 import { loadDepartmentOptions } from '@/utils/optionLoaders';
 
@@ -222,7 +222,7 @@ const fetchDepartments = async () => {
 // 获取会计科目列表
 const fetchAccounts = async () => {
   try {
-    const response = await api.get('/finance/accounts');
+    const response = await financeApi.accounts.getList();
     accounts.value = response.data?.accounts || response.data || [];
   } catch (error) {
     console.error('获取会计科目列表失败:', error);
@@ -232,7 +232,7 @@ const fetchAccounts = async () => {
 // 获取预算详情
 const fetchBudgetDetail = async () => {
   try {
-    const response = await api.get(`/finance/budgets/${route.params.id}`);
+    const response = await financeApi.budgets.getDetail(route.params.id);
     const budget = response.data;
     Object.assign(formData, {
       budget_name: budget.budget_name,
@@ -314,9 +314,9 @@ const handleSave = async () => {
 
     let response;
     if (isEdit.value) {
-      response = await api.put(`/finance/budgets/${route.params.id}`, requestData);
+      response = await financeApi.budgets.update(route.params.id, requestData);
     } else {
-      response = await api.post('/finance/budgets', requestData);
+      response = await financeApi.budgets.create(requestData);
     }
 
     if (response) {

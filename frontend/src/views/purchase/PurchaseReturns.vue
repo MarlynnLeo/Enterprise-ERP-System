@@ -387,8 +387,8 @@ import { ElMessage } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
 import { useSnackbar } from '@/composables/useSnackbar';
 import { useAuthStore } from '@/stores/auth';
-import { purchaseApi } from '@/services/api';
-import { baseDataApi } from '@/services/api';
+import { purchaseApi } from '@/api';
+import { baseDataApi } from '@/api';
 import { formatCurrency } from '@/utils/helpers/formatters';
 import printService from '@/services/printService';
 import {

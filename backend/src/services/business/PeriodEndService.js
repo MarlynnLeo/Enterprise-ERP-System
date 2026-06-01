@@ -20,6 +20,42 @@ class PeriodEndService {
     return Math.round((parseFloat(value) || 0) * 100) / 100;
   }
 
+  static toDateString(value) {
+    if (!value) return '';
+    if (value instanceof Date) {
+      const year = value.getFullYear();
+      const month = String(value.getMonth() + 1).padStart(2, '0');
+      const day = String(value.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+    return String(value).slice(0, 10);
+  }
+
+  static normalizeDateInput(value, fieldName) {
+    const dateString = this.toDateString(value);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+      throw new Error(`${fieldName}格式必须为YYYY-MM-DD`);
+    }
+
+    const [year, month, day] = dateString.split('-').map(Number);
+    const parsed = new Date(Date.UTC(year, month - 1, day));
+    if (
+      parsed.getUTCFullYear() !== year ||
+      parsed.getUTCMonth() + 1 !== month ||
+      parsed.getUTCDate() !== day
+    ) {
+      throw new Error(`${fieldName}不是有效日期`);
+    }
+
+    return dateString;
+  }
+
+  static isDateWithinPeriod(date, period) {
+    const startDate = this.toDateString(period.start_date);
+    const endDate = this.toDateString(period.end_date);
+    return date >= startDate && date <= endDate;
+  }
+
   static isClosed(value) {
     return value === true || value === 1 || value === '1';
   }
@@ -103,6 +139,233 @@ class PeriodEndService {
     };
   }
 
+  static async getUnpostedEntries(periodId) {
+    const connection = await db.pool.getConnection();
+    try {
+      const [periodInfo] = await connection.execute('SELECT * FROM gl_periods WHERE id = ?', [
+        periodId,
+      ]);
+
+      if (periodInfo.length === 0) {
+        throw new Error('会计期间不存在');
+      }
+
+      const period = periodInfo[0];
+      const [entries] = await connection.execute(
+        `SELECT
+           e.id,
+           e.entry_number,
+           e.entry_date,
+           e.posting_date,
+           e.document_type,
+           e.document_number,
+           e.description,
+           e.period_id,
+           p.period_name AS original_period_name,
+           ? AS effective_period_id,
+           ? AS period_name,
+           ? AS period_start_date,
+           ? AS period_end_date,
+           ? AS period_is_closed,
+           e.created_at,
+           u.real_name AS creator_name,
+           u.username AS creator_username
+         FROM gl_entries e
+         LEFT JOIN gl_periods p ON p.id = e.period_id
+         LEFT JOIN users u ON u.id = e.created_by
+         WHERE COALESCE(e.is_posted, 0) = 0
+           AND (
+             e.period_id = ?
+             OR e.entry_date BETWEEN ? AND ?
+             OR e.posting_date BETWEEN ? AND ?
+           )
+         ORDER BY e.entry_date ASC, e.id ASC`,
+        [
+          periodId,
+          period.period_name,
+          period.start_date,
+          period.end_date,
+          period.is_closed,
+          periodId,
+          period.start_date,
+          period.end_date,
+          period.start_date,
+          period.end_date,
+        ]
+      );
+
+      const postingDiagnostics = await financeModel.getEntryPostingDiagnostics(
+        entries.map((entry) => entry.id),
+        connection
+      );
+
+      const normalizedEntries = entries.map((entry) => {
+        const diagnostic = postingDiagnostics[entry.id] || {};
+        const entryDate = this.toDateString(entry.entry_date);
+        const postingDate = this.toDateString(entry.posting_date || entry.entry_date);
+        const entryDateValid = this.isDateWithinPeriod(entryDate, entry);
+        const postingDateValid = this.isDateWithinPeriod(postingDate, entry);
+        const totalDebit = this.roundMoney(diagnostic.total_debit);
+        const totalCredit = this.roundMoney(diagnostic.total_credit);
+        const lineCount = Number(diagnostic.line_count || 0);
+        const invalidAccountCount = Number(diagnostic.invalid_account_count || 0);
+        const invalidAmountCount = Number(diagnostic.invalid_amount_count || 0);
+        const amountBalanced = Boolean(diagnostic.amount_balanced);
+        let postingIssue = null;
+
+        if (!entryDateValid || !postingDateValid) {
+          postingIssue = `凭证日期或过账日期不在所属会计期间 [${entry.period_name || '-'}] 内`;
+        } else if (!diagnostic.posting_ready) {
+          postingIssue = diagnostic.posting_issue || '凭证不满足过账条件';
+        }
+
+        return {
+          ...entry,
+          entry_date: entryDate,
+          posting_date: postingDate,
+          period_start_date: this.toDateString(entry.period_start_date),
+          period_end_date: this.toDateString(entry.period_end_date),
+          line_count: lineCount,
+          invalid_account_count: invalidAccountCount,
+          invalid_amount_count: invalidAmountCount,
+          amount_balanced: amountBalanced,
+          total_debit: totalDebit,
+          total_credit: totalCredit,
+          date_valid: entryDateValid && postingDateValid,
+          entry_date_valid: entryDateValid,
+          posting_date_valid: postingDateValid,
+          posting_ready:
+            entryDateValid && postingDateValid && Boolean(diagnostic.posting_ready),
+          posting_issue: postingIssue,
+          date_issue: entryDateValid && postingDateValid ? null : postingIssue,
+          invalid_lines: diagnostic.invalid_lines || [],
+        };
+      });
+
+      return {
+        period,
+        entries: normalizedEntries,
+        total: normalizedEntries.length,
+      };
+    } finally {
+      connection.release();
+    }
+  }
+
+  static async updateUnpostedEntryDates(entryId, payload) {
+    const connection = await db.pool.getConnection();
+    try {
+      await connection.beginTransaction();
+
+      const requestedPeriodId = payload.period_id ? Number.parseInt(payload.period_id, 10) : null;
+      const [entries] = await connection.execute(
+        `SELECT e.id, e.entry_number, e.is_posted, e.is_reversed, e.period_id,
+                p.period_name, p.start_date, p.end_date, p.is_closed
+         FROM gl_entries e
+         LEFT JOIN gl_periods p ON p.id = e.period_id
+         WHERE e.id = ?
+         FOR UPDATE`,
+        [entryId]
+      );
+
+      if (entries.length === 0) {
+        throw new Error('凭证不存在');
+      }
+
+      const entry = entries[0];
+      if (entry.is_posted) {
+        throw new Error('已过账凭证不能修改日期');
+      }
+      if (entry.is_reversed) {
+        throw new Error('已冲销凭证不能修改日期');
+      }
+      if (!entry.period_id && !requestedPeriodId) {
+        throw new Error('凭证未归属会计期间，请先指定会计期间');
+      }
+
+      if (requestedPeriodId && Number(entry.period_id) !== requestedPeriodId) {
+        const [periods] = await connection.execute(
+          `SELECT id, period_name, start_date, end_date, is_closed
+           FROM gl_periods
+           WHERE id = ?
+           FOR UPDATE`,
+          [requestedPeriodId]
+        );
+        if (periods.length === 0) {
+          throw new Error('会计期间不存在');
+        }
+        Object.assign(entry, {
+          period_id: periods[0].id,
+          period_name: periods[0].period_name,
+          start_date: periods[0].start_date,
+          end_date: periods[0].end_date,
+          is_closed: periods[0].is_closed,
+        });
+      }
+
+      if (this.isClosed(entry.is_closed)) {
+        throw new Error(`不能修改已关闭期间 [${entry.period_name}] 的凭证日期`);
+      }
+
+      const entryDate = this.normalizeDateInput(payload.entry_date, '凭证日期');
+      const postingDate = this.normalizeDateInput(payload.posting_date || payload.entry_date, '过账日期');
+
+      if (!this.isDateWithinPeriod(entryDate, entry) || !this.isDateWithinPeriod(postingDate, entry)) {
+        throw new Error(
+          `凭证日期 ${entryDate} 或过账日期 ${postingDate} 不在所属会计期间 [${entry.period_name}] 内`
+        );
+      }
+
+      await connection.execute(
+        `UPDATE gl_entries
+         SET entry_date = ?, posting_date = ?, period_id = ?
+         WHERE id = ?`,
+        [entryDate, postingDate, entry.period_id, entryId]
+      );
+
+      await connection.commit();
+      return {
+        id: entryId,
+        entry_number: entry.entry_number,
+        entry_date: entryDate,
+        posting_date: postingDate,
+      };
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  }
+
+  static async getPeriodBankReconciliationStatus(connection, period) {
+    const [unreconciled] = await connection.execute(
+      `SELECT COUNT(*) as count
+       FROM bank_transactions bt
+       WHERE bt.status = 'approved'
+         AND COALESCE(bt.is_reconciled, 0) = 0
+         AND bt.transaction_date BETWEEN ? AND ?`,
+      [period.start_date, period.end_date]
+    );
+
+    const [manualReconciled] = await connection.execute(
+      `SELECT COUNT(*) as count
+       FROM bank_transactions bt
+       WHERE bt.status = 'approved'
+         AND COALESCE(bt.is_reconciled, 0) = 1
+         AND bt.transaction_date BETWEEN ? AND ?
+         AND NOT EXISTS (
+           SELECT 1 FROM bank_reconciliation_matches m WHERE m.bank_transaction_id = bt.id
+         )`,
+      [period.start_date, period.end_date]
+    );
+
+    return {
+      unreconciledCount: Number(unreconciled[0]?.count || 0),
+      manualReconciledCount: Number(manualReconciled[0]?.count || 0),
+    };
+  }
+
   /**
    * 获取期末关账预览
    * @param {number} periodId 会计期间ID
@@ -122,6 +385,7 @@ class PeriodEndService {
       const period = periodInfo[0];
       const priorOpenPeriod = await this.findPriorOpenPeriod(connection, periodId, period);
       const entryIntegrity = await this.getPeriodEntryIntegrity(connection, periodId, period);
+      const bankReconciliation = await this.getPeriodBankReconciliationStatus(connection, period);
 
       const [existingClosingEntries] = await connection.execute(
         `SELECT COUNT(*) as count FROM gl_entries
@@ -238,6 +502,19 @@ class PeriodEndService {
                 : null,
         },
         {
+          key: 'bank_reconciliation_closed',
+          name: '银行流水已对账',
+          passed:
+            bankReconciliation.unreconciledCount === 0 &&
+            bankReconciliation.manualReconciledCount === 0,
+          message:
+            bankReconciliation.unreconciledCount > 0
+              ? `本期还有 ${bankReconciliation.unreconciledCount} 笔已审核银行流水未完成银行对账`
+              : bankReconciliation.manualReconciledCount > 0
+                ? `本期还有 ${bankReconciliation.manualReconciledCount} 笔银行流水缺少银行对账单匹配证据`
+                : null,
+        },
+        {
           key: 'no_existing_closing',
           name: '未重复生成结转凭证',
           passed: existingClosingEntries[0].count === 0,
@@ -269,6 +546,7 @@ class PeriodEndService {
         unpostedCount: entryIntegrity.unpostedCount,
         postedDateMismatchCount: entryIntegrity.postedDateMismatchCount,
         postedPeriodMismatchCount: entryIntegrity.postedPeriodMismatchCount,
+        bankReconciliation,
         hasExistingClosing: existingClosingEntries[0].count > 0,
         checks,
         summary: {
@@ -325,6 +603,7 @@ class PeriodEndService {
 
       // 1. 检查期间内未过账凭证，以及凭证日期与期间归属一致性
       const entryIntegrity = await this.getPeriodEntryIntegrity(connection, period_id, period);
+      const bankReconciliation = await this.getPeriodBankReconciliationStatus(connection, period);
 
       if (entryIntegrity.unpostedCount > 0) {
         throw new Error(`期间内还有 ${entryIntegrity.unpostedCount} 条未过账分录，请先过账`);
@@ -339,6 +618,18 @@ class PeriodEndService {
       if (entryIntegrity.postedPeriodMismatchCount > 0) {
         throw new Error(
           `有 ${entryIntegrity.postedPeriodMismatchCount} 张已过账凭证日期落在本期间但期间归属不一致，请先修正凭证期间`
+        );
+      }
+
+      if (bankReconciliation.unreconciledCount > 0) {
+        throw new Error(
+          `本期间还有 ${bankReconciliation.unreconciledCount} 笔已审核银行流水未完成银行对账，请先导入银行对账单并确认匹配`
+        );
+      }
+
+      if (bankReconciliation.manualReconciledCount > 0) {
+        throw new Error(
+          `本期间还有 ${bankReconciliation.manualReconciledCount} 笔银行流水缺少银行对账单匹配证据，请先重新对账`
         );
       }
 

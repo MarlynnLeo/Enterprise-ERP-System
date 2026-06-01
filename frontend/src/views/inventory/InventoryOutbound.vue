@@ -598,7 +598,7 @@
 import { ref, reactive, onMounted, computed, nextTick, h } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search as SearchIcon, Plus, Printer, Select as SelectIcon, Close } from '@element-plus/icons-vue'
-import { productionApi, inventoryApi, baseDataApi, systemApi } from '@/services/api'
+import { productionApi, inventoryApi, baseDataApi, systemApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import printService from '@/services/printService'
 import { getInboundOutboundStatusText, getInboundOutboundStatusColor } from '@/constants/systemConstants'

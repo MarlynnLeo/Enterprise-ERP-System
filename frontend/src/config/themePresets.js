@@ -122,7 +122,7 @@ export const normalizeThemeAppearance = (appearance = {}) => {
     ...DEFAULT_THEME_SETTINGS,
     theme: themeMode,
     preset: preset.id,
-    primaryColor: preset.primaryColor,
+    primaryColor: source.primaryColor || preset.primaryColor,
     fontSize: normalizeFontSize(source.fontSize)
   }
 }

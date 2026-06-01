@@ -408,7 +408,7 @@
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, ArrowDown, Delete, Check, Select, Finished, Close, CopyDocument, Printer, Download } from '@element-plus/icons-vue';
-import { inventoryApi } from '@/services/api';
+import { inventoryApi } from '@/api';
 import { getCurrentDate } from '@/utils/helpers/dateUtils';
 import { formatDate } from '@/utils/helpers/formatters';
 import { getTransferStatusText, getTransferStatusColor } from '@/constants/systemConstants';

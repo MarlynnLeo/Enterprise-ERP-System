@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="aql-standards-container">
     <el-card class="box-card">
       <template #header>
@@ -11,31 +11,19 @@
       </template>
 
       <!-- Search & Filter -->
-      <div class="search-container">
-        <el-row :gutter="20">
-          <el-col :span="6">
-            <el-input
-              v-model="searchKeyword"
-              placeholder="搜索标准号/名称"
-              clearable
-              @clear="fetchData"
-              @keyup.enter="fetchData" >
-              <template #prefix>
-                <el-icon><Search /></el-icon>
-              </template>
-            </el-input>
-          </el-col>
-          <el-col :span="4">
-            <el-select  v-model="searchStatus" placeholder="状态" clearable @change="fetchData">
+      <FinanceQueryCard :model="searchForm" @search="handleSearch" @reset="handleReset">
+        <template #basic>
+          <el-form-item label="关键词">
+            <el-input v-model="searchKeyword" placeholder="搜索标准号/名称" clearable @keyup.enter="handleSearch" />
+          </el-form-item>
+          <el-form-item label="状态">
+            <el-select v-model="searchStatus" placeholder="状态" clearable>
               <el-option label="生效中" value="active" />
               <el-option label="已停用" value="inactive" />
             </el-select>
-          </el-col>
-          <el-col :span="4">
-            <el-button type="primary" @click="fetchData">搜索</el-button>
-          </el-col>
-        </el-row>
-      </div>
+          </el-form-item>
+        </template>
+      </FinanceQueryCard>
 
       <!-- Table Area -->
       <el-table
@@ -187,13 +175,14 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Plus, Search } from '@element-plus/icons-vue';
-import { api } from '@/services/axiosInstance';
+import { Plus } from '@element-plus/icons-vue';
+import { qualityApi } from '@/api/quality';
 import { parsePaginatedData } from '@/utils/responseParser';
 import 'dayjs';
+import FinanceQueryCard from '@/components/common/FinanceQueryCard.vue';
 
 // ---- State ----
 const loading = ref(false);
@@ -204,6 +193,7 @@ const currentPage = ref(1);
 const pageSize = ref(10);
 const searchKeyword = ref('');
 const searchStatus = ref('');
+const searchForm = computed(() => ({ keyword: searchKeyword.value, status: searchStatus.value }));
 
 const dialogVisible = ref(false);
 const isEdit = ref(false);
@@ -237,13 +227,11 @@ const rules = {
 const fetchData = async () => {
   loading.value = true;
   try {
-    const res = await api.get('/quality/aql-standards', {
-      params: {
-        page: currentPage.value,
-        pageSize: pageSize.value,
-        keyword: searchKeyword.value,
-        status: searchStatus.value
-      }
+    const res = await qualityApi.getAqlStandards({
+      page: currentPage.value,
+      pageSize: pageSize.value,
+      keyword: searchKeyword.value,
+      status: searchStatus.value
     });
     const pageData = parsePaginatedData(res, { enableLog: false });
     tableData.value = pageData.list;
@@ -277,7 +265,7 @@ const handleDelete = (row) => {
     type: 'warning'
   }).then(async () => {
     try {
-      await api.delete(`/quality/aql-standards/${row.id}`);
+      await qualityApi.deleteAqlStandard(row.id);
       ElMessage.success('删除成功');
       fetchData();
     } catch (error) {
@@ -296,10 +284,10 @@ const handleSubmit = () => {
     submitting.value = true;
     try {
       if (isEdit.value) {
-        await api.put(`/quality/aql-standards/${form.value.id}`, form.value);
+        await qualityApi.updateAqlStandard(form.value.id, form.value);
         ElMessage.success('更新成功');
       } else {
-        await api.post('/quality/aql-standards', form.value);
+        await qualityApi.createAqlStandard(form.value);
         ElMessage.success('创建成功');
       }
       dialogVisible.value = false;
@@ -340,6 +328,9 @@ const handleCurrentChange = (val) => {
   currentPage.value = val;
   fetchData();
 };
+
+const handleSearch = () => { currentPage.value = 1; fetchData() }
+const handleReset = () => { searchKeyword.value = ''; searchStatus.value = ''; currentPage.value = 1; fetchData() }
 
 // ---- Lifecycle ----
 onMounted(() => {

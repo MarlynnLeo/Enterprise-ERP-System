@@ -50,30 +50,21 @@ const normalizeMaterialRequirement = (material) => {
 const normalizeMaterialResponse = (response) => {
   const data = response.data
 
-  if (Array.isArray(data)) {
-    return data
-  }
-
-  if (Array.isArray(data?.list)) {
-    return data.list
-  }
-
-  if (Array.isArray(data?.materials)) {
-    return data.materials
-  }
+  if (Array.isArray(data)) return data
+  if (Array.isArray(data?.list)) return data.list
+  if (Array.isArray(data?.materials)) return data.materials
 
   return data && typeof data === 'object' ? [data] : []
 }
 
 export const productionApi = {
-  // Dashboard
+  getPublicProductionBoard: (params) => api.get('/public/production-board', { params }),
   getDashboardStatistics: () => api.get('/production/dashboard/statistics'),
   getDashboardTrends: (params) => api.get('/production/dashboard/trends', { params }),
   getProcessCompletionRates: () => api.get('/production/dashboard/process-completion'),
   getPendingTasks: (params) => api.get('/production/dashboard/pending-tasks', { params }),
   getDashboardProductionPlans: (params) => api.get('/production/dashboard/plans', { params }),
 
-  // Plans
   getTodayMaxSequence: () => api.get('/production/today-sequence'),
   getTodaySequence: () => api.get('/production/today-sequence'),
   getProductionPlans: (params = {}) => api.get('/production/plans', { params }),
@@ -85,7 +76,6 @@ export const productionApi = {
   calculateMaterialsByBom: (bomId, params = {}) =>
     api.get(`/production/calculate-materials/${bomId}`, { params }),
 
-  // Tasks
   getProductionTasks: (params) => api.get('/production/tasks', { params }),
   getProductionTask: (id) => api.get(`/production/tasks/${id}`),
   createProductionTask: (data) => api.post('/production/tasks', data),
@@ -95,12 +85,12 @@ export const productionApi = {
     api.put(`/production/tasks/${id}/status`, { status: data.status }),
   generateTaskCode: () => api.get('/production/tasks/generate-code'),
 
-  // Processes
   getProductionProcesses: (params) => api.get('/production/processes', { params }),
   getProductionProcess: (id) => api.get(`/production/processes/${id}`),
+  createProductionProcess: (data) => api.post('/production/processes', data),
   updateProductionProcess: (id, data) => api.put(`/production/processes/${id}`, data),
+  deleteProductionProcess: (id) => api.delete(`/production/processes/${id}`),
 
-  // Reports
   getProductionReportSummary: (params) => api.get('/production/reports/summary', { params }),
   getProductionReportDetail: (params) => api.get('/production/reports/detail', { params }),
   getProductionReportStatistics: (params) => api.get('/production/reports/statistics', { params }),
@@ -121,12 +111,12 @@ export const productionApi = {
 
   calculateMaterials: async (params) => {
     if (!params?.productId || !params?.bomId || !params?.quantity) {
-      throw new Error('缺少必要参数: productId, bomId, quantity')
+      throw new Error('Missing required parameters: productId, bomId, quantity')
     }
 
     const quantity = Number(params.quantity)
     if (!Number.isFinite(quantity) || quantity <= 0) {
-      throw new Error('quantity 参数必须是大于 0 的数字')
+      throw new Error('quantity must be a number greater than 0')
     }
 
     const response = await api.post('/production/calculate-materials', {
@@ -142,7 +132,7 @@ export const productionApi = {
 
   getProductBom: async (productId) => {
     if (!productId) {
-      throw new Error('缺少必要参数: productId')
+      throw new Error('Missing required parameter: productId')
     }
 
     const response = await api.get(`/production/product-bom/${productId}`)
@@ -152,30 +142,14 @@ export const productionApi = {
   calculateSchedule: (data) => api.post('/production/scheduling/calculate', data),
   checkScheduleConflicts: (data) => api.post('/production/scheduling/check-conflicts', data),
   batchSchedule: (data) => api.post('/production/scheduling/batch', data),
+  getSchedulingGanttData: (params) => api.get('/production/scheduling/gantt', { params }),
 
-  // 任务完成
   completeTask: (id, data) => api.post(`/production/tasks/${id}/complete`, data),
   getTaskManagers: () => api.get('/production/tasks/managers'),
-
-  // 获取任务负责人列表
-  getTaskManagers: () => api.get('/production/tasks/managers'),
-
-  // 更新任务进度
   updateTaskProgress: (id, data) => api.post(`/production/tasks/${id}/progress`, data),
-
-  // 获取任务BOM
   getTaskBom: (id) => api.get(`/production/tasks/${id}/bom`),
   getPlanMaterials: (id) => api.get(`/production/plans/${id}/materials`),
-  getMaterialShortageSummary: (params) => api.get('/production/material-shortage-summary', { params }),
-
-  // 获取计划物料需求
-  getPlanMaterials: (id) => api.get(`/production/plans/${id}/materials`),
-
-  // 获取缺料汇总
-  getMaterialShortageSummary: (params) => api.get('/production/material-shortage-summary', { params }),
-
-  // 排程相关接口
-  getSchedulingGanttData: (params) => api.get('/production/scheduling/gantt', { params })
+  getMaterialShortageSummary: (params) => api.get('/production/material-shortage-summary', { params })
 }
 
 export default productionApi

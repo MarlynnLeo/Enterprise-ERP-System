@@ -1,6 +1,6 @@
 ﻿/**
  * processController.js
- * @description 鐢熶骇宸ュ簭鎺у埗鍣?
+ * @description 生产工序控制器
  * @date 2025-10-16
  * @version 1.0.0
  */
@@ -19,7 +19,7 @@ const { generateBatchNo, syncPlanStatus } = require('../../../services/business/
 const QualityInspection = require('../../../models/qualityInspection');
 const BusinessError = require('../../../utils/BusinessError');
 
-// 鐘舵€佸父閲忥紙缁熶竴寮曠敤 businessConfig锛屾秷闄ょ‖缂栫爜锛?
+// 状态常量统一引用 businessConfig，避免硬编码。
 const TASK_STATUS = businessConfig.status.productionTask;
 const PROC_STATUS = {
   PENDING: 'pending',
@@ -44,7 +44,7 @@ function validateProcessTransition(currentStatus, targetStatus) {
   if (!allowed.includes(targetStatus)) {
     return {
       valid: false,
-      message: `宸ュ簭鐘舵€佷笉鍏佽浠?[${currentStatus}] 杞负 [${targetStatus}]`,
+      message: `工序状态不允许从 [${currentStatus}] 转为 [${targetStatus}]`,
     };
   }
 
@@ -52,7 +52,7 @@ function validateProcessTransition(currentStatus, targetStatus) {
 }
 
 /**
- * 鑾峰彇鐢熶骇宸ュ簭鍒楄〃
+ * 获取生产工序列表
  */
 exports.getProcesses = async (req, res) => {
   try {
@@ -98,13 +98,13 @@ exports.getProcesses = async (req, res) => {
       pageSize: safePageSize,
     });
   } catch (error) {
-    logger.error('鑾峰彇鐢熶骇宸ュ簭鍒楄〃澶辫触:', error);
+    logger.error('获取生产工序列表失败:', error);
     handleError(res, error);
   }
 };
 
 /**
- * 鑾峰彇宸ュ簭璇︽儏
+ * 获取工序详情
  */
 exports.getProcessById = async (req, res) => {
   try {
@@ -127,13 +127,13 @@ exports.getProcessById = async (req, res) => {
 
     return ResponseHandler.success(res, processes[0]);
   } catch (error) {
-    logger.error('鑾峰彇宸ュ簭璇︽儏澶辫触:', error);
+    logger.error('获取工序详情失败:', error);
     handleError(res, error);
   }
 };
 
 /**
- * 鍒涘缓鐢熶骇宸ュ簭
+ * 创建生产工序
  */
 exports.createProcess = async (req, res) => {
   const connection = await pool.getConnection();
@@ -171,14 +171,14 @@ exports.createProcess = async (req, res) => {
       res,
       {
         id: result.insertId,
-        message: '鐢熶骇宸ュ簭鍒涘缓鎴愬姛',
+        message: '生产工序创建成功',
       },
-      '鍒涘缓鎴愬姛',
+      '创建成功',
       201
     );
   } catch (error) {
     await connection.rollback();
-    logger.error('鍒涘缓鐢熶骇宸ュ簭澶辫触:', error);
+    logger.error('创建生产工序失败:', error);
     handleError(res, error);
   } finally {
     connection.release();
@@ -186,7 +186,7 @@ exports.createProcess = async (req, res) => {
 };
 
 /**
- * 鏇存柊鐢熶骇宸ュ簭
+ * 更新生产工序
  */
 exports.updateProcess = async (req, res) => {
   const connection = await pool.getConnection();
@@ -204,13 +204,13 @@ exports.updateProcess = async (req, res) => {
       remarks,
       actual_start_date,
       actual_end_date,
-      actual_start_time, // 鏀寔澶氱鍛藉悕
+      actual_start_time,
       actual_end_time,
-      actualStartTime, // 鍓嶇甯哥敤鍛藉悕
+      actualStartTime,
       actualEndTime,
     } = req.body;
 
-    // 鍙傛暟褰掍竴鍖栵細鍏煎鍓嶇澶氱鍛藉悕锛坅ctualStartTime / actual_start_time / actual_start_date锛?
+    // 兼容前端历史字段命名，统一写入实际开始/结束时间。
     const startTimeResult = actualStartTime !== undefined ? actualStartTime : (actual_start_time !== undefined ? actual_start_time : actual_start_date);
     const endTimeResult = actualEndTime !== undefined ? actualEndTime : (actual_end_time !== undefined ? actual_end_time : actual_end_date);
 
@@ -228,7 +228,6 @@ exports.updateProcess = async (req, res) => {
 
     if (processCheck.length === 0) {
       await connection.rollback();
-      await connection.rollback();
       return ResponseHandler.error(res, 'Production process not found', 'NOT_FOUND', 404);
     }
 
@@ -240,7 +239,7 @@ exports.updateProcess = async (req, res) => {
       const validProcessStatuses = Object.values(PROC_STATUS);
       if (!validProcessStatuses.includes(status)) {
         await connection.rollback();
-        return ResponseHandler.error(res, `鏃犳晥鐨勫伐搴忕姸鎬? ${status}`, 'VALIDATION_ERROR', 400);
+        return ResponseHandler.error(res, `无效的工序状态: ${status}`, 'VALIDATION_ERROR', 400);
       }
 
       const transitionCheck = validateProcessTransition(processRow.status, status);
@@ -276,7 +275,7 @@ exports.updateProcess = async (req, res) => {
       }
     }
 
-    // 鍔ㄦ€佹瀯寤烘洿鏂拌鍙ワ紝鍙洿鏂颁紶鍏ョ殑瀛楁
+    // 动态构建更新语句，只更新传入字段。
     const updateFields = [];
     const updateParams = [];
 
@@ -308,7 +307,7 @@ exports.updateProcess = async (req, res) => {
       updateFields.push('remarks = ?');
       updateParams.push(remarks);
     }
-    // 灏嗘椂闂村瓧娈靛悎骞跺埌鍚屼竴涓?UPDATE 璇彞涓紙閬垮厤鍙?UPDATE锛?
+    // 将时间字段合并到同一条 UPDATE，避免多次写入。
     if (startTimeResult !== undefined) {
       updateFields.push('actual_start_time = ?');
       updateParams.push(startTimeResult || null);
@@ -326,7 +325,7 @@ exports.updateProcess = async (req, res) => {
       );
     }
 
-    // 宸ュ簭寮€濮嬫垨杩涜涓椂锛屾洿鏂扮敓浜т换鍔″拰璁″垝鐘舵€佷负"鐢熶骇涓?
+    // 工序开始时，同步生产任务和计划状态为生产中。
     if (status === PROC_STATUS.IN_PROGRESS) {
       await connection.query(
         'UPDATE production_tasks SET status = "in_progress" WHERE id = ? AND status IN ("material_issued", "material_partial_issued")',
@@ -340,9 +339,9 @@ exports.updateProcess = async (req, res) => {
 
     let shouldTriggerCostAccounting = false;
 
-    // 宸ュ簭瀹屾垚鏃舵鏌ユ槸鍚︽墍鏈夊伐搴忛兘宸插畬鎴?
+    // 工序完成时检查是否所有有效工序都已完成。
     if (status === PROC_STATUS.COMPLETED) {
-      // 缁熻璇ヤ换鍔′笅鐨勬墍鏈夊伐搴忕姸鎬?
+      // 统计该任务下所有工序状态。
       const [allProcesses] = await connection.query(
         `
         SELECT
@@ -358,7 +357,7 @@ exports.updateProcess = async (req, res) => {
       const { total, completed, cancelled } = allProcesses[0];
       const activeProcessesCompleted = completed === total - cancelled;
 
-      // 鎵€鏈夋湁鏁堝伐搴忥紙闈炲彇娑堬級閮藉畬鎴愭椂锛岃嚜鍔ㄥ皢浠诲姟鐘舵€佹洿鏂颁负寰呮楠?
+      // 所有有效工序（非取消）都完成时，自动将任务状态更新为待检验。
       if (activeProcessesCompleted && total > 0) {
         const [openInspections] = await connection.query(
           `SELECT id, inspection_no, inspection_type, status
@@ -375,10 +374,10 @@ exports.updateProcess = async (req, res) => {
           );
         }
 
-        // 灏咥PI鐘舵€佽浆鎹负鏁版嵁搴揈NUM鐘舵€?
+        // 将 API 状态转换为数据库 ENUM 状态。
         const dbStatus = apiStatusToDbStatus(TASK_STATUS.INSPECTION, 'productionTask');
 
-        // 鏇存柊浠诲姟鐘舵€佷负寰呮楠?
+        // 更新任务状态为待检验。
         await connection.query(
           'UPDATE production_tasks SET status = ?, progress = 100 WHERE id = ?',
           [dbStatus, taskId]
@@ -388,9 +387,9 @@ exports.updateProcess = async (req, res) => {
           `Task ${taskId} processes completed (${completed}/${total}); status updated to ${dbStatus}`
         );
 
-        // 鑷姩鍒涘缓妫€楠屽崟
+        // 自动创建检验单。
         try {
-          // 鑾峰彇浠诲姟璇︾粏淇℃伅
+          // 获取任务详情。
           const [taskDetail] = await connection.query(
             'SELECT id, code, product_id, quantity FROM production_tasks WHERE id = ?',
             [taskId]
@@ -399,13 +398,13 @@ exports.updateProcess = async (req, res) => {
           if (taskDetail.length > 0) {
             const task = taskDetail[0];
 
-            // 妫€鏌ユ槸鍚﹀凡缁忓瓨鍦ㄦ楠屽崟
+            // 检查是否已经存在检验单。
             const [existingInspection] = await connection.query(
               'SELECT id FROM quality_inspections WHERE inspection_type = ? AND reference_id = ?',
               ['final', taskId]
             );
 
-            // 濡傛灉涓嶅瓨鍦ㄦ楠屽崟锛屽垯鍒涘缓
+            // 如果不存在检验单，则创建。
             if (existingInspection.length === 0) {
 
 
@@ -422,25 +421,25 @@ exports.updateProcess = async (req, res) => {
                 note: 'Auto-created after process completion',
               }, connection);
 
-              logger.info(`浠诲姟 ${taskId} 宸ュ簭瀹屾垚锛岃嚜鍔ㄥ垱寤烘楠屽崟鎴愬姛`);
+              logger.info(`任务 ${taskId} 工序完成，自动创建检验单成功`);
             } else {
               logger.info(`Task ${taskId} already has a final inspection; skip creating`);
             }
           }
         } catch (inspectionError) {
-          logger.error(`浠诲姟 ${taskId} 鑷姩鍒涘缓妫€楠屽崟澶辫触:`, inspectionError);
+          logger.error(`任务 ${taskId} 自动创建检验单失败:`, inspectionError);
           throw inspectionError;
         }
 
-        // ===== 宸ュ簭瀹屽伐鐨勯檮鍔犲鐞嗭紙涓讳簨鍔″唴鎵ц锛屼繚闅滄暟鎹竴鑷存€э級=====
+        // ===== 工序完工的附加处理（主事务内执行，保障数据一致性）=====
 
-        // 1. 鏇存柊 completed_quantity = quantity锛堝叏閮ㄥ畬宸ワ級
+        // 1. 更新 completed_quantity = quantity（全部完工）。
         await connection.query(
           'UPDATE production_tasks SET completed_quantity = quantity WHERE id = ? AND (completed_quantity IS NULL OR completed_quantity < quantity)',
           [taskId]
         );
 
-        // 2. 鑷姩鍒涘缓鎶ュ伐璁板綍锛堝鏋滆繕娌℃湁锛?
+        // 2. 自动创建报工记录（如果还没有）
         const [existingReports] = await connection.query(
           'SELECT COUNT(*) as count FROM production_reports WHERE task_id = ?',
           [taskId]
@@ -476,30 +475,30 @@ exports.updateProcess = async (req, res) => {
               estimatedHours, 'Auto generated after process completion'
             ]
           );
-          logger.info(`浠诲姟 ${taskId} 宸ュ簭瀹屾垚闄勫姞澶勭悊锛氳嚜鍔ㄥ垱寤烘姤宸ヨ褰曪紝宸ユ椂: ${estimatedHours}h`);
+          logger.info(`任务 ${taskId} 工序完成附加处理：自动创建报工记录，工时: ${estimatedHours}h`);
         }
 
-        // 3. 鎴愭湰鏍哥畻鏍囪锛坈ommit 鍚庡紓姝ヨЕ鍙戯紝閬垮厤璇诲埌鏈彁浜ゆ暟鎹級
-        // 鐢变笅鏂?commit 鍚庣殑 setImmediate 缁熶竴鎵ц
+        // 3. 成本核算标记，commit 后异步触发，避免读到未提交数据。
+        // 由下方 commit 后的 setImmediate 统一执行。
         // ==============================================================
 
 
         // ==============================================================
 
 
-        // 澶嶇敤澶栭儴鏃╁凡鏌ヨ鍒扮殑 planId锛屽悓姝ヨ鍒掔姸鎬?
+        // 复用前面查询到的 planId，同步计划状态。
         if (planId) {
           await syncPlanStatus(planId, connection);
         }
         shouldTriggerCostAccounting = true;
       } else {
-        logger.info(`浠诲姟 ${taskId} 杩樻湁鏈畬鎴愮殑宸ュ簭 (${completed}/${total - cancelled})`);
+        logger.info(`任务 ${taskId} 还有未完成的工序 (${completed}/${total - cancelled})`);
       }
     }
 
     await connection.commit();
 
-    // 鎴愭湰鏍哥畻鍦ㄤ簨鍔℃彁浜ゅ悗寮傛鎵ц
+    // 成本核算在事务提交后异步执行。
     if (shouldTriggerCostAccounting && taskId) {
       setImmediate(async () => {
         try {
@@ -507,15 +506,15 @@ exports.updateProcess = async (req, res) => {
           await CostAccountingService.calculateActualCost(parseInt(taskId));
           logger.info(`Task ${taskId} process completion cost accounting triggered`);
         } catch (costErr) {
-          logger.warn(`浠诲姟 ${taskId} 宸ュ簭瀹屾垚璺緞鎴愭湰鏍哥畻鎸傝捣: ${costErr.message}`);
+          logger.warn(`任务 ${taskId} 工序完成路径成本核算挂起: ${costErr.message}`);
         }
       });
     }
 
-    return ResponseHandler.success(res, null, '鐢熶骇宸ュ簭鏇存柊鎴愬姛');
+    return ResponseHandler.success(res, null, '生产工序更新成功');
   } catch (error) {
     await connection.rollback();
-    logger.error('鏇存柊鐢熶骇宸ュ簭澶辫触:', error);
+    logger.error('更新生产工序失败:', error);
     handleError(res, error);
   } finally {
     connection.release();
@@ -523,7 +522,7 @@ exports.updateProcess = async (req, res) => {
 };
 
 /**
- * 鍒犻櫎鐢熶骇宸ュ簭
+ * 删除生产工序
  */
 exports.deleteProcess = async (req, res) => {
   const connection = await pool.getConnection();
@@ -538,22 +537,23 @@ exports.deleteProcess = async (req, res) => {
     );
 
     if (processCheck.length === 0) {
+      await connection.rollback();
       return ResponseHandler.error(res, 'Production process not found', 'NOT_FOUND', 404);
     }
 
     if (processCheck[0].status !== PROC_STATUS.PENDING) {
       await connection.rollback();
-      return ResponseHandler.error(res, '鍙兘鍒犻櫎寰呭鐞嗙姸鎬佺殑宸ュ簭', 'VALIDATION_ERROR', 400);
+      return ResponseHandler.error(res, '只能删除待处理状态的工序', 'VALIDATION_ERROR', 400);
     }
 
     await connection.query('DELETE FROM production_processes WHERE id = ?', [id]);
 
     await connection.commit();
 
-    return ResponseHandler.success(res, null, '鐢熶骇宸ュ簭鍒犻櫎鎴愬姛');
+    return ResponseHandler.success(res, null, '生产工序删除成功');
   } catch (error) {
     await connection.rollback();
-    logger.error('鍒犻櫎鐢熶骇宸ュ簭澶辫触:', error);
+    logger.error('删除生产工序失败:', error);
     handleError(res, error);
   } finally {
     connection.release();
@@ -561,7 +561,7 @@ exports.deleteProcess = async (req, res) => {
 };
 
 /**
- * 鑾峰彇宸ュ簭瀹屾垚鐜囷紙鐢ㄤ簬浠〃鐩橈級
+ * 获取工序完成率（用于仪表盘）
  */
 exports.getProcessCompletionRates = async (req, res) => {
   try {

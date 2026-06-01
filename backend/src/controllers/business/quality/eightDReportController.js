@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 8D报告控制器（P0重构版）
  * @description 8D问题解决报告的CRUD操作、阶段门控、状态流转
  * 8D方法论步骤: D1团队 → D2问题描述 → D3临时措施 → D4根因分析 → D5纠正措施 → D6实施验证 → D7预防措施 → D8总结关闭
@@ -528,15 +528,15 @@ const submitReview = async (req, res) => {
         return ResponseHandler.success(res, null, 'Submitted for review');
     } catch (error) {
         if (conn) await conn.rollback();
-        logger.error('鎻愪氦瀹℃牳澶辫触:', error);
-        return ResponseHandler.error(res, '鎻愪氦瀹℃牳澶辫触', 'OPERATION_ERROR', 500, error);
+        logger.error('提交审核失败:', error);
+        return ResponseHandler.error(res, '提交审核失败', 'OPERATION_ERROR', 500, error);
     } finally {
         if (conn) conn.release();
     }
 };
 
 /**
- * 瀹℃牳8D鎶ュ憡锛堟敮鎸佷袱闃舵瀹℃壒锛氬垵瀹?D1-D3 / 缁撴瀹℃牳 D4-D7锛?
+ * 审核 8D 报告（支持初审 D1-D3 和结案审核 D4-D7）
  */
 const reviewReport = async (req, res) => {
     let conn;
@@ -615,15 +615,15 @@ const reviewReport = async (req, res) => {
         return ResponseHandler.success(res, null, msg);
     } catch (error) {
         if (conn) await conn.rollback();
-        logger.error('瀹℃牳8D鎶ュ憡澶辫触:', error);
-        return ResponseHandler.error(res, '瀹℃牳8D鎶ュ憡澶辫触', 'OPERATION_ERROR', 500, error);
+        logger.error('审核8D报告失败:', error);
+        return ResponseHandler.error(res, '审核8D报告失败', 'OPERATION_ERROR', 500, error);
     } finally {
         if (conn) conn.release();
     }
 };
 
 /**
- * 鎻愪氦缁撴瀹℃牳锛圖4-D7闃舵瀹屾垚鍚庢彁浜わ級
+ * 提交结案审核（D4-D7 阶段完成后提交）
  */
 const submitPhase2Review = async (req, res) => {
     let conn;
@@ -671,15 +671,15 @@ const submitPhase2Review = async (req, res) => {
         return ResponseHandler.success(res, null, 'Submitted for close review');
     } catch (error) {
         if (conn) await conn.rollback();
-        logger.error('鎻愪氦缁撴瀹℃牳澶辫触:', error);
-        return ResponseHandler.error(res, '鎻愪氦缁撴瀹℃牳澶辫触', 'OPERATION_ERROR', 500, error);
+        logger.error('提交结案审核失败:', error);
+        return ResponseHandler.error(res, '提交结案审核失败', 'OPERATION_ERROR', 500, error);
     } finally {
         if (conn) conn.release();
     }
 };
 
 /**
- * 瀹屾垚8D鎶ュ憡锛圖8鎬荤粨鍚庡叧闂級
+ * 完成 8D 报告（D8 总结后关闭）
  */
 const completeReport = async (req, res) => {
     let conn;
@@ -810,15 +810,15 @@ const deleteReport = async (req, res) => {
         return ResponseHandler.success(res, null, '8D report deleted');
     } catch (error) {
         if (conn) await conn.rollback();
-        logger.error('鍒犻櫎8D鎶ュ憡澶辫触:', error);
-        return ResponseHandler.error(res, '鍒犻櫎8D鎶ュ憡澶辫触', 'OPERATION_ERROR', 500, error);
+        logger.error('删除8D报告失败:', error);
+        return ResponseHandler.error(res, '删除8D报告失败', 'OPERATION_ERROR', 500, error);
     } finally {
         if (conn) conn.release();
     }
 };
 
 /**
- * 鑾峰彇8D鎶ュ憡缁熻鏁版嵁
+ * 获取 8D 报告统计数据
  */
 const getStatistics = async (req, res) => {
     try {

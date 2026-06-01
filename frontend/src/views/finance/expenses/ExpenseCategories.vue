@@ -136,7 +136,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import { api } from '@/services/axiosInstance'
+import { financeApi } from '@/api'
 import { parseListData } from '@/utils/responseParser'
 
 const loading = ref(false)
@@ -185,7 +185,7 @@ const resetForm = (parentId = null) => {
 const fetchCategories = async () => {
   loading.value = true
   try {
-    const res = await api.get('/finance/expenses/categories', { params: { tree: 'true' } })
+    const res = await financeApi.getExpenseCategories({ tree: 'true' })
     categoryList.value = parseListData(res, { enableLog: false })
   } catch (error) {
     console.error('获取费用类型失败:', error)
@@ -204,7 +204,7 @@ const handleInit = async () => {
     })
 
     loading.value = true
-    await api.post('/finance/expenses/init')
+    await financeApi.initExpenseCategories()
     ElMessage.success('初始化成功')
     await fetchCategories()
   } catch (error) {
@@ -251,9 +251,9 @@ const handleSave = async () => {
     saving.value = true
 
     if (dialogMode.value === 'add') {
-      await api.post('/finance/expenses/categories', buildPayload())
+      await financeApi.createExpenseCategory(buildPayload())
     } else {
-      await api.put(`/finance/expenses/categories/${categoryForm.id}`, buildPayload())
+      await financeApi.updateExpenseCategory(categoryForm.id, buildPayload())
     }
 
     ElMessage.success(dialogMode.value === 'add' ? '创建成功' : '更新成功')
@@ -271,7 +271,7 @@ const handleSave = async () => {
 const handleToggleStatus = async (row) => {
   const previousStatus = row.status === 1 ? 0 : 1
   try {
-    await api.put(`/finance/expenses/categories/${row.id}`, { status: row.status })
+    await financeApi.updateExpenseCategory(row.id, { status: row.status })
     ElMessage.success(row.status === 1 ? '已启用' : '已禁用')
   } catch (error) {
     row.status = previousStatus
@@ -291,7 +291,7 @@ const handleDelete = async (row) => {
       }
     )
 
-    await api.delete(`/finance/expenses/categories/${row.id}`)
+    await financeApi.deleteExpenseCategory(row.id)
     ElMessage.success('删除成功')
     await fetchCategories()
   } catch (error) {

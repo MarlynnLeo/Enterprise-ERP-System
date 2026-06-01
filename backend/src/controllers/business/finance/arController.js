@@ -82,6 +82,10 @@ const arController = {
       if (req.query.invoiceNumber || req.query.invoice_number) {
         filters.invoice_number = req.query.invoiceNumber || req.query.invoice_number;
       }
+      if (req.query.customerInvoiceNumber || req.query.customer_invoice_number) {
+        filters.customer_invoice_number =
+          req.query.customerInvoiceNumber || req.query.customer_invoice_number;
+      }
       if (req.query.customerId) filters.customer_id = req.query.customerId;
       if (req.query.customerName || req.query.customer_name) {
         filters.customer_name = req.query.customerName || req.query.customer_name;
@@ -189,6 +193,8 @@ const arController = {
           invoiceData.currency ||
           invoiceData.currency_code ||
           financeConfig.get('invoice.defaultCurrency', 'CNY'),
+        customer_invoice_number:
+          invoiceData.customerInvoiceNumber || invoiceData.customer_invoice_number || null,
         status: INVOICE_STATUS.DRAFT,
         notes: invoiceData.notes || '',
         items: Array.isArray(invoiceData.items) ? invoiceData.items : [],
@@ -367,6 +373,8 @@ const arController = {
         invoice_date: invoiceData.invoiceDate || invoiceData.invoice_date,
         due_date: invoiceData.dueDate || invoiceData.due_date,
         total_amount: amount,
+        customer_invoice_number:
+          invoiceData.customerInvoiceNumber || invoiceData.customer_invoice_number || null,
         notes: invoiceData.notes,
         items: invoiceData.items,
       };

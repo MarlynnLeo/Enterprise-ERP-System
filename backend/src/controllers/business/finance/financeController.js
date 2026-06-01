@@ -14,6 +14,7 @@ const { getCurrentUserName } = require('../../../utils/userHelper');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const { accountingConfig } = require('../../../config/accountingConfig');
 const { currentDateString } = require('../../../utils/dateUtils');
+const OpeningBalanceService = require('../../../services/business/OpeningBalanceService');
 
 /**
  * 财务总账控制器
@@ -630,6 +631,13 @@ const financeController = {
         accountId: item.account_id,
         accountCode: item.account_code,
         accountName: item.account_name,
+        accountIsActive: item.account_is_active === true || item.account_is_active === 1 || item.account_is_active === '1',
+        accountIssue:
+          !item.account_id || !item.account_code
+            ? '会计科目不存在'
+            : !(item.account_is_active === true || item.account_is_active === 1 || item.account_is_active === '1')
+              ? '会计科目未启用'
+              : null,
         debitAmount: parseFloat(item.debit_amount) || 0,
         creditAmount: parseFloat(item.credit_amount) || 0,
         currencyCode: item.currency_code || 'CNY',
@@ -1052,6 +1060,88 @@ const financeController = {
       logger.error('获取期末结转预览失败:', error);
       const message = error.message || '获取期末结转预览失败';
       ResponseHandler.error(res, message, 'SERVER_ERROR', 500, error);
+    }
+  },
+
+  previewOpeningBalances: async (req, res) => {
+    try {
+      const balanceDate = req.query.balanceDate || currentDateString();
+      const preview = await OpeningBalanceService.getPreview(balanceDate);
+      ResponseHandler.success(res, preview, '期初余额来源预览生成成功');
+    } catch (error) {
+      logger.error('生成期初余额来源预览失败:', error);
+      ResponseHandler.error(res, error.message || '生成期初余额来源预览失败', 'SERVER_ERROR', 500, error);
+    }
+  },
+
+  initializeOpeningBalances: async (req, res) => {
+    try {
+      const { balanceDate, manualBalances = [] } = req.body;
+      const result = await OpeningBalanceService.initialize({
+        balanceDate: balanceDate || currentDateString(),
+        manualBalances,
+        setBy: getAuthenticatedUserId(req),
+      });
+      ResponseHandler.success(res, result, `成功初始化${result.count}个科目的期初余额`);
+    } catch (error) {
+      logger.error('初始化期初余额失败:', error);
+      ResponseHandler.error(res, error.message || '初始化期初余额失败', 'VALIDATION_ERROR', 400, error);
+    }
+  },
+
+  /**
+   * 获取关账预检查中的未过账凭证明细
+   */
+  getClosingUnpostedEntries: async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      if (!id) {
+        return ResponseHandler.error(res, '会计期间ID为必填项', 'VALIDATION_ERROR', 400);
+      }
+
+      const PeriodEndService = require('../../../services/business/PeriodEndService');
+      const result = await PeriodEndService.getUnpostedEntries(parseInt(id));
+
+      ResponseHandler.success(res, result, '获取未过账凭证明细成功');
+    } catch (error) {
+      logger.error('获取未过账凭证明细失败:', error);
+      ResponseHandler.error(
+        res,
+        error.message || '获取未过账凭证明细失败',
+        'SERVER_ERROR',
+        500,
+        error
+      );
+    }
+  },
+
+  /**
+   * 修正关账预检查中的未过账凭证日期
+   */
+  updateClosingUnpostedEntryDates: async (req, res) => {
+    try {
+      const { entryId } = req.params;
+
+      if (!entryId) {
+        return ResponseHandler.error(res, '凭证ID为必填项', 'VALIDATION_ERROR', 400);
+      }
+
+      const PeriodEndService = require('../../../services/business/PeriodEndService');
+      const result = await PeriodEndService.updateUnpostedEntryDates(parseInt(entryId), req.body);
+
+      ResponseHandler.success(res, result, '修正凭证日期成功');
+    } catch (error) {
+      logger.error('修正未过账凭证日期失败:', error);
+      const message = error.message || '修正未过账凭证日期失败';
+      const statusCode = /不存在|不能|必须|日期|期间|已过账|已冲销/.test(message) ? 400 : 500;
+      ResponseHandler.error(
+        res,
+        message,
+        statusCode === 400 ? 'VALIDATION_ERROR' : 'SERVER_ERROR',
+        statusCode,
+        error
+      );
     }
   },
 

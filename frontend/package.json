@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:legacy": "vite build --mode legacy",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "preview": "vite preview"
@@ -30,6 +31,7 @@
     "vue-router": "^5.0.6"
   },
   "devDependencies": {
+    "@vitejs/plugin-legacy": "^7.2.1",
     "@vitejs/plugin-vue": "^6.0.3",
     "eslint": "^10.2.0",
     "eslint-config-prettier": "^10.1.8",

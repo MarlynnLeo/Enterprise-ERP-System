@@ -14,6 +14,76 @@ export const financeApi = {
     getEntries: (params) => api.get('/finance/entries', { params }),
     // 会计分录详情
     getEntry: (id) => api.get(`/finance/entries/${id}`),
+    getEntryItems: (id) => api.get(`/finance/entries/${id}/items`),
+    createEntry: (data) => api.post('/finance/entries', data),
+    postEntry: (id) => api.patch(`/finance/entries/${id}/post`),
+    reverseEntry: (id, data) => api.post(`/finance/entries/${id}/reverse`, data),
+    deleteEntry: (id) => api.delete(`/finance/entries/${id}`),
+
+    accounts: {
+        getList: (params) => api.get('/finance/accounts', { params }),
+        getOptions: () => api.get('/finance/accounts/options'),
+        create: (data) => api.post('/finance/accounts', data),
+        update: (id, data) => api.put(`/finance/accounts/${id}`, data),
+        updateStatus: (id, data) => api.patch(`/finance/accounts/${id}/status`, data)
+    },
+
+    periods: {
+        getList: (params) => api.get('/finance/periods', { params }),
+        create: (data) => api.post('/finance/periods', data),
+        update: (id, data) => api.put(`/finance/periods/${id}`, data),
+        reopen: (id) => api.patch(`/finance/periods/${id}/reopen`)
+    },
+
+    glClosing: {
+        preview: (periodId) => api.get(`/finance/gl/closing/preview/${periodId}`),
+        getUnpostedEntries: (periodId) => api.get(`/finance/gl/closing/unposted/${periodId}`),
+        updateUnpostedEntryDates: (entryId, data) => api.patch(`/finance/gl/closing/unposted-entries/${entryId}/dates`, data),
+        execute: (periodId) => api.post(`/finance/gl/closing/execute/${periodId}`),
+        history: (periodId) => api.get(`/finance/gl/closing/history/${periodId}`)
+    },
+
+    reports: {
+        getTrialBalance: (params) => api.get('/finance/gl/trial-balance', { params }),
+        getBalanceSheet: (params) => api.get('/finance/reports/balance-sheet', { params }),
+        getIncomeStatement: (params) => api.get('/finance/reports/income-statement', { params }),
+        getCashFlow: (params) => api.get('/finance/reports/cash-flow', { params }),
+        getStandardCashFlow: (params) => api.get('/finance/reports/standard-cash-flow', { params })
+    },
+
+    settings: {
+        get: () => api.get('/finance/settings'),
+        update: (data) => api.put('/finance/settings', data),
+        reset: () => api.post('/finance/settings/reset')
+    },
+
+    budgets: {
+        getList: (params) => api.get('/finance/budgets', { params }),
+        getDetail: (id) => api.get(`/finance/budgets/${id}`),
+        create: (data) => api.post('/finance/budgets', data),
+        update: (id, data) => api.put(`/finance/budgets/${id}`, data),
+        delete: (id) => api.delete(`/finance/budgets/${id}`),
+        submit: (id) => api.post(`/finance/budgets/${id}/submit`),
+        approve: (id, data) => api.post(`/finance/budgets/${id}/approve`, data),
+        start: (id) => api.post(`/finance/budgets/${id}/start`),
+        close: (id) => api.post(`/finance/budgets/${id}/close`),
+        getAnalysis: (id) => api.get(`/finance/budgets/${id}/analysis`),
+        getExecutionAnalysis: (id) => api.get(`/finance/budgets/${id}/analysis/execution`),
+        getAiUsageStats: () => api.get('/finance/budgets/ai/usage-stats'),
+        getAiRecommendation: (params, config = {}) => api.get('/finance/budgets/ai/recommendation', { ...config, params }),
+        createFromAi: (data, config = {}) => api.post('/finance/budgets/ai/create-from-ai', data, config),
+        getAiAnomalies: (id, config = {}) => api.get(`/finance/budgets/${id}/ai/anomalies`, config),
+        getAiOptimization: (id, config = {}) => api.get(`/finance/budgets/${id}/ai/optimization`, config),
+        getAiYearComparison: (params, config = {}) => api.get('/finance/budgets/ai/year-comparison', { ...config, params }),
+        getAiComprehensiveReport: (id, config = {}) => api.get(`/finance/budgets/${id}/ai/comprehensive-report`, config)
+    },
+
+    openingBalances: {
+        getList: () => api.get('/finance/opening-balances'),
+        preview: (params) => api.get('/finance/opening-balances/preview', { params }),
+        initialize: (data) => api.post('/finance/opening-balances/initialize', data),
+        saveBatch: (data) => api.post('/finance/opening-balances/batch', data)
+    },
 
     // ============ 应收账款（AR）============
     // 注意：实际后端路由为 /finance/ar/invoices，不是 /finance/receivables
@@ -57,7 +127,17 @@ export const financeApi = {
         updateInvoiceNumber: (id, data) => api.put(`/finance/tax/invoices/${id}/invoice-number`, data),
         getAvailableDocuments: (params) => api.get('/finance/tax/available-documents', { params }),
         linkInvoice: (id, data) => api.post(`/finance/tax/invoices/${id}/link`, data),
-        unlinkInvoice: (id) => api.post(`/finance/tax/invoices/${id}/unlink`)
+        unlinkInvoice: (id) => api.post(`/finance/tax/invoices/${id}/unlink`),
+        getReturns: (params) => api.get('/finance/tax/returns', { params }),
+        createReturn: (data) => api.post('/finance/tax/returns', data),
+        getReturn: (id) => api.get(`/finance/tax/returns/${id}`),
+        submitReturn: (id, data) => api.post(`/finance/tax/returns/${id}/submit`, data),
+        payReturn: (id, data) => api.post(`/finance/tax/returns/${id}/pay`, data),
+        deleteReturn: (id) => api.delete(`/finance/tax/returns/${id}`),
+        getAccountConfig: () => api.get('/finance/tax/account-config'),
+        createAccountConfig: (data) => api.post('/finance/tax/account-config', data),
+        updateAccountConfig: (id, data) => api.put(`/finance/tax/account-config/${id}`, data),
+        deleteAccountConfig: (id) => api.delete(`/finance/tax/account-config/${id}`)
     },
 
     // 银行账户管理
@@ -66,6 +146,7 @@ export const financeApi = {
     getBankAccount: (id) => api.get(`/finance/bank-accounts/${id}`),
     createBankAccount: (data) => api.post('/finance/bank-accounts', data),
     updateBankAccount: (id, data) => api.put(`/finance/bank-accounts/${id}`, data),
+    updateBankAccountStatus: (id, data) => api.patch(`/finance/bank-accounts/${id}/status`, data),
     getBankAccountsStats: () => api.get('/finance/bank-accounts/stats'),
 
     bankTransactions: {
@@ -80,8 +161,7 @@ export const financeApi = {
             headers: { 'Content-Type': 'multipart/form-data' }
         }),
         submit: (id, data) => api.post(`/finance/bank-transactions/${id}/submit`, data),
-        audit: (id, data) => api.post(`/finance/bank-transactions/${id}/audit`, data),
-        reconcile: (id, data) => api.patch(`/finance/bank-transactions/${id}/reconcile`, data)
+        audit: (id, data) => api.post(`/finance/bank-transactions/${id}/audit`, data)
     },
 
     cashTransactions: {
@@ -105,7 +185,6 @@ export const financeApi = {
             headers: { 'Content-Type': 'multipart/form-data' }
         }),
         getStats: (params) => api.get('/finance/cash/reconciliation/stats', { params }),
-        batchMarkReconciled: (data) => api.post('/finance/cash/reconciliation/batch-mark-reconciled', data),
         getMatchedTransaction: (params) => api.get('/finance/cash/reconciliation/matched-transaction', { params }),
         getPossibleMatches: (params) => api.get('/finance/cash/reconciliation/possible-matches', { params }),
         confirmMatch: (data) => api.post('/finance/cash/reconciliation/confirm-match', data)
@@ -159,19 +238,52 @@ export const financeApi = {
         updateMaterialStandardCost: (id, data) => api.put(`/finance/cost/material-standard-costs/${id}`, data),
         getAllocationBases: () => api.get('/finance/cost/overhead-allocation/bases'),
         getAllocationRules: () => api.get('/finance/cost/overhead-allocation'),
+        getAllocationRulesByParams: (params) => api.get('/finance/cost/overhead-allocation', { params }),
         saveAllocationRule: (data) => data?.id
             ? api.put(`/finance/cost/overhead-allocation/${data.id}`, data)
             : api.post('/finance/cost/overhead-allocation', data),
         deleteAllocationRule: (id) => api.delete(`/finance/cost/overhead-allocation/${id}`),
         getCostCenters: () => api.get('/finance/cost-centers'),
+        getCostCenterOptions: () => api.get('/finance/cost-centers/options'),
+        getCostCenterReport: (params) => api.get('/finance/cost-centers/report', { params }),
+        createCostCenter: (data) => api.post('/finance/cost-centers', data),
+        updateCostCenter: (id, data) => api.put(`/finance/cost-centers/${id}`, data),
+        deleteCostCenter: (id) => api.delete(`/finance/cost-centers/${id}`),
+        getCostLedger: (params) => api.get('/finance/cost-ledger', { params }),
+        getCostLedgerSummary: (dimension, params) => api.get(`/finance/cost-ledger/summary/${dimension}`, { params }),
+        getCostLedgerTask: (taskId) => api.get(`/finance/cost-ledger/task/${taskId}`),
+        getActualCost: (params) => api.get('/finance/cost/actual', { params }),
+        getActualCostDetail: (taskId) => api.get(`/finance/cost/actual/${taskId}`),
         getStatistics: () => api.get('/finance/cost/statistics'),
         getTrend: (params) => api.get('/finance/cost/trend', { params }),
         getComposition: () => api.get('/finance/cost/composition'),
         getVariance: (params) => api.get('/finance/cost/variance', { params }),
+        getVarianceDetail: (taskId) => api.get(`/finance/cost/variance/${taskId}`),
+        getEfficiencyVariance: (params) => api.get('/finance/cost-centers/efficiency-variance', { params }),
+        getCapacityUtilization: (params) => api.get('/finance/cost-centers/capacity-utilization', { params }),
         getAlerts: () => api.get('/finance/cost/alerts'),
         getAlertSettings: () => api.get('/finance/cost/alert-settings'),
         saveAlertSettings: (data) => api.post('/finance/cost/alert-settings', data),
         getYearlyComparison: (params) => api.get('/finance/cost/yearly-comparison', { params }),
+        getActivities: () => api.get('/finance/activity-cost/activities'),
+        getActivitySummary: () => api.get('/finance/activity-cost/summary'),
+        createActivity: (data) => api.post('/finance/activity-cost/activities', data),
+        updateActivity: (id, data) => api.put(`/finance/activity-cost/activities/${id}`, data),
+        deleteActivity: (id) => api.delete(`/finance/activity-cost/activities/${id}`),
+        getCostVersions: (params) => api.get('/finance/cost-versions', { params }),
+        createCostVersion: (data) => api.post('/finance/cost-versions', data),
+        generateCostVersion: (id) => api.post(`/finance/cost-versions/${id}/generate`),
+        submitCostVersion: (id) => api.put(`/finance/cost-versions/${id}/submit`),
+        approveCostVersion: (id) => api.put(`/finance/cost-versions/${id}/approve`),
+        getProfitabilitySummary: (params) => api.get('/finance/profitability/summary', { params }),
+        getProfitabilityProducts: (params) => api.get('/finance/profitability/products', { params }),
+        getProfitabilityCustomers: (params) => api.get('/finance/profitability/customers', { params }),
+        getProfitabilityTrend: (params) => api.get('/finance/profitability/trend', { params }),
+        getStandardCostList: (params) => api.get('/finance/cost/standard-list', { params }),
+        calculateStandardCost: (productId, data) => api.post(`/finance/cost/standard/${productId}/calculate`, data),
+        getStandardCost: (productId) => api.get(`/finance/cost/standard/${productId}`),
+        getClosingStatus: (params) => api.get('/finance/cost/closing/status', { params }),
+        executeClosingWorkbench: (periodId) => api.post(`/finance/cost/closing/${periodId}/execute`),
         getPeriods: () => api.get('/finance/periods'),
         calculateWIP: (params) => api.post('/finance/automation/wip/calculate', null, { params }),
         generateWIPVoucher: (periodId) => api.post(`/finance/automation/wip/voucher/${periodId}`),
@@ -185,6 +297,10 @@ export const financeApi = {
     updateExpense: (id, data) => api.put(`/finance/expenses/${id}`, data),
     deleteExpense: (id) => api.delete(`/finance/expenses/${id}`),
     getExpenseCategories: (params) => api.get('/finance/expenses/categories', { params }),
+    initExpenseCategories: () => api.post('/finance/expenses/init'),
+    createExpenseCategory: (data) => api.post('/finance/expenses/categories', data),
+    updateExpenseCategory: (id, data) => api.put(`/finance/expenses/categories/${id}`, data),
+    deleteExpenseCategory: (id) => api.delete(`/finance/expenses/categories/${id}`),
     getExpenseStats: () => api.get('/finance/expenses/stats'),
     generateExpenseNumber: () => api.get('/finance/expenses/generate-number'),
     submitExpense: (id) => api.post(`/finance/expenses/${id}/submit`),
@@ -198,13 +314,40 @@ export const financeApi = {
     getAsset: (id) => api.get(`/finance/assets/${id}`),
     createAsset: (data) => api.post('/finance/assets', data),
     updateAsset: (id, data) => api.put(`/finance/assets/${id}`, data),
-    getAssetCategories: () => api.get('/finance/assets/categories'),
+    getAssetCategories: (params) => api.get('/finance/assets/categories', { params }),
+    createAssetCategory: (data) => api.post('/finance/assets/categories', data),
+    updateAssetCategory: (id, data) => api.put(`/finance/assets/categories/${id}`, data),
+    deleteAssetCategory: (id) => api.delete(`/finance/assets/categories/${id}`),
     getAssetStats: () => api.get('/finance/assets/stats'),
+    getAssetDashboardStats: () => api.get('/finance/assets/dashboard/stats'),
+    getAssetDepreciationForecast: (params) => api.get('/finance/assets/depreciation/forecast', { params }),
+    assetInventory: {
+        getList: (params) => api.get('/finance/assets-inventory', { params }),
+        create: (data) => api.post('/finance/assets-inventory', data),
+        getDetail: (id) => api.get(`/finance/assets-inventory/${id}`),
+        updateItem: (inventoryId, itemId, data) =>
+            api.put(`/finance/assets-inventory/${inventoryId}/items/${itemId}`, data),
+        complete: (id) => api.post(`/finance/assets-inventory/${id}/complete`)
+    },
+    assetCip: {
+        getList: (params) => api.get('/finance/assets-cip', { params }),
+        create: (data) => api.post('/finance/assets-cip', data),
+        update: (id, data) => api.put(`/finance/assets-cip/${id}`, data),
+        delete: (id) => api.delete(`/finance/assets-cip/${id}`),
+        addCost: (id, data) => api.post(`/finance/assets-cip/${id}/cost`, data),
+        transfer: (id, data) => api.post(`/finance/assets-cip/${id}/transfer`, data)
+    },
     generateAssetCode: (params) => api.get('/finance/assets/generate-code', { params }),
+    calculateAssetDepreciation: (params) => api.get('/finance/assets/depreciation/calculate', { params }),
+    getAssetDepreciationRecords: (params) => api.get('/finance/assets/depreciation/records', { params }),
+    submitAssetDepreciation: (data) => api.post('/finance/assets/depreciation/submit', data),
     auditAsset: (id, data) => api.post(`/finance/assets/${id}/audit`, data),
     transferAsset: (id, data) => api.post(`/finance/assets/${id}/transfer`, data),
     splitAsset: (id, data) => api.post(`/finance/assets/${id}/split`, data),
     impairAsset: (id, data) => api.post(`/finance/assets/${id}/impairments`, data),
+    getAssetChangeLogs: (id) => api.get(`/finance/assets/${id}/change-logs`),
+    getAssetDepreciationHistory: (id) => api.get(`/finance/assets/${id}/depreciation-history`),
+    getAssetImpairments: (id) => api.get(`/finance/assets/${id}/impairments`),
     disposeAsset: (id, data) => api.post(`/finance/assets/${id}/dispose`, data),
 
 
@@ -221,6 +364,9 @@ export const financeApi = {
         // 期末结转
         executePeriodEnd: (periodId) => api.post(`/finance/automation/period-end/auto-closing/${periodId}`),
         executePeriodEndManually: (periodId) => api.post(`/finance/automation/period-end/manual-closing/${periodId}`),
+        getFinanceYearEndStatus: (year) => api.get(`/finance/period/year-end-status/${year}`),
+        executeFinanceYearEnd: (year) => api.post('/finance/period/year-end-transfer', { year }),
+        getHistory: (params) => api.get('/finance/automation/history', { params }),
         // 生产成本
         executeProductionCost: (taskId) => api.post(`/finance/automation/production/cost-entry/${taskId}`)
     }

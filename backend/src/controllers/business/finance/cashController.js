@@ -1067,35 +1067,6 @@ const cashController = {
   },
 
   /**
-   * 对账交易记录
-   */
-  reconcileBankTransaction: async (req, res) => {
-    try {
-      const id = parseInt(req.params.id);
-
-      if (isNaN(id)) {
-        return ResponseHandler.error(res, '无效的交易ID', 'VALIDATION_ERROR', 400);
-      }
-
-      const shouldReconcile = req.body.is_reconciled !== false && req.body.reconciled !== false;
-      const reconciled = await ReconciliationModel.reconcileTransaction(id, {
-        reconciled: shouldReconcile,
-        is_reconciled: shouldReconcile,
-        reconciliation_date: shouldReconcile ? req.body.reconciliation_date : null,
-        updated_by: getAuthenticatedUserId(req),
-      });
-
-      if (reconciled) {
-        return ResponseHandler.success(res, { id, reconciled: shouldReconcile }, 'Reconciliation status updated');
-      } else {
-        return ResponseHandler.error(res, '对账操作失败', 'SERVER_ERROR', 500);
-      }
-    } catch (error) {
-      return sendCashBusinessError(res, error, '对账操作失败');
-    }
-  },
-
-  /**
    * 更新银行交易
    */
   updateBankTransaction: async (req, res) => {
@@ -1405,70 +1376,6 @@ const cashController = {
     } catch (error) {
       logger.error('获取对账统计失败:', error);
       ResponseHandler.error(res, '获取对账统计失败', 'SERVER_ERROR', 500, error);
-    }
-  },
-
-  /**
-   * 标记交易为已对账
-   */
-  markTransactionAsReconciled: async (req, res) => {
-    try {
-      const { transactionId, accountId } = req.body;
-
-      if (!transactionId) {
-        return ResponseHandler.error(res, '缺少交易ID', 'VALIDATION_ERROR', 400);
-      }
-
-      const reconciliationDate = currentDateString();
-
-      // 更新数据库中的交易记录
-      const success = await cash.reconcileBankTransaction(transactionId, {
-        reconciliation_date: reconciliationDate,
-      });
-
-      if (success) {
-        return ResponseHandler.success(
-          res,
-          {
-            transactionId,
-            accountId,
-            reconciliationDate,
-            status: 'reconciled',
-          },
-          '交易已标记为已对账'
-        );
-      } else {
-        return ResponseHandler.error(res, '交易不存在或更新失败', 'NOT_FOUND', 404);
-      }
-    } catch (error) {
-      logger.error('标记交易为已对账失败:', error);
-      return sendCashBusinessError(res, error, '标记交易为已对账失败');
-    }
-  },
-
-  /**
-   * 提交交易审核
-   */
-  batchMarkTransactionsAsReconciled: async (req, res) => {
-    try {
-      const { transactionIds, accountId, reconciliationDate } = req.body;
-
-      if (!Array.isArray(transactionIds) || transactionIds.length === 0) {
-        return ResponseHandler.error(res, '缺少交易ID列表', 'VALIDATION_ERROR', 400);
-      }
-
-      const result = await ReconciliationModel.batchReconcileBankTransactions(transactionIds, {
-        reconciliation_date: reconciliationDate,
-      });
-
-      return ResponseHandler.success(
-        res,
-        { ...result, accountId, status: 'reconciled' },
-        `成功对账 ${result.count} 条交易`
-      );
-    } catch (error) {
-      logger.error('批量标记交易为已对账失败:', error);
-      return sendCashBusinessError(res, error, '批量标记交易为已对账失败');
     }
   },
 

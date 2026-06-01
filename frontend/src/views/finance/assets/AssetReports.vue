@@ -103,7 +103,7 @@ import { ref, reactive, onMounted, computed, onBeforeUnmount } from 'vue'
 import { Refresh, Download } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { echarts } from '@/utils/echartsCore'
-import { api } from '@/services/api'
+import { financeApi } from '@/api/finance'
 import { parseDataObject } from '@/utils/responseParser'
 import { alphaColor, getCssTokenValue } from '@/utils/designTokens'
 
@@ -153,7 +153,7 @@ const loadData = async () => {
   loading.value = true
   try {
     // 1. 获取汇总概览 (复用原有的统计接口)
-    const statsRes = await api.get('/finance/assets/stats')
+    const statsRes = await financeApi.getAssetStats()
     const statsData = parseDataObject(statsRes, { enableLog: false })
     summary.totalAssets = statsData.total || 0
     summary.totalValue = statsData.totalValue || 0
@@ -161,7 +161,7 @@ const loadData = async () => {
     summary.inUseCount = statsData.inUseCount || 0
 
     // 2. 获取看板图表数据
-    const dashRes = await api.get('/finance/assets/dashboard/stats')
+    const dashRes = await financeApi.getAssetDashboardStats()
     const dashData = parseDataObject(dashRes, { enableLog: false })
     reportSnapshot.statusStats = dashData.statusStats || []
     reportSnapshot.categoryStats = dashData.categoryStats || []
@@ -185,9 +185,7 @@ const loadData = async () => {
 const loadForecast = async () => {
   forecastLoading.value = true
   try {
-    const res = await api.get('/finance/assets/depreciation/forecast', {
-      params: { months: forecastMonths.value }
-    })
+    const res = await financeApi.getAssetDepreciationForecast({ months: forecastMonths.value })
     const forecastData = parseDataObject(res, { enableLog: false })
     reportSnapshot.forecast = Array.isArray(forecastData) ? forecastData : []
     renderForecastChart(forecastData)

@@ -103,10 +103,9 @@
           <div class="tab-toolbar">
             <el-button
               v-permission="'finance:cash:reconcile'"
-              type="success"
+              type="info"
               size="small"
-              :disabled="selectedUnreconciled.length === 0"
-              @click="batchMarkReconciled"
+              disabled
             >
               <el-icon class="mr-1"><Check /></el-icon>
               批量对账 ({{ selectedUnreconciled.length }})
@@ -336,7 +335,7 @@
 import { formatCurrency, formatLocalDate } from '@/utils/format'
 
 import { ref, reactive, onMounted } from 'vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage } from 'element-plus';
 import { Check } from '@element-plus/icons-vue'
 
 import { financeApi } from '@/api/finance';
@@ -413,41 +412,6 @@ const getAmountClass = (type) => {
 // 处理未对账项选择
 const handleUnreconciledSelect = (selection) => {
   selectedUnreconciled.value = selection;
-};
-
-// 批量对账
-const batchMarkReconciled = async () => {
-  if (selectedUnreconciled.value.length === 0) return;
-
-  try {
-    await ElMessageBox.confirm(
-      `确定要对 ${selectedUnreconciled.value.length} 条交易进行对账吗?`,
-      '批量对账',
-      { type: 'info' }
-    );
-
-    loading.value = true;
-    const reconciliationDate = formatLocalDate(new Date());
-
-    await financeApi.reconciliation.batchMarkReconciled({
-      transactionIds: selectedUnreconciled.value.map(item => item.id),
-      accountId: selectedAccount.value,
-      reconciliationDate
-    });
-
-    ElMessage.success(`成功对账 ${selectedUnreconciled.value.length} 条交易`);
-    selectedUnreconciled.value = [];
-
-    // 刷新数据
-    searchReconciliation();
-  } catch (error) {
-    if (error !== 'cancel') {
-      console.error('批量对账失败:', error);
-      ElMessage.error('批量对账失败');
-    }
-  } finally {
-    loading.value = false;
-  }
 };
 
 // 加载账户选项

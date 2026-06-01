@@ -54,16 +54,16 @@ const motivation = computed(() => {
 <style scoped>
 .profile-header-card {
   position: relative;
-  background: var(--el-bg-color);
-  border-radius: 12px;
+  background: var(--color-bg-base);
+  border-radius: var(--radius-md);
   padding: 24px 28px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
   overflow: hidden;
-  box-shadow: 0 2px 12px 0 color-mix(in srgb, var(--ds-black) 5%, transparent);
-  border: 1px solid var(--el-border-color-lighter);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--color-border-lighter);
 }
 .header-left {
   display: flex;
@@ -78,8 +78,8 @@ const motivation = computed(() => {
   align-items: center;
   justify-content: center;
   font-size: 28px;
-  color: var(--el-color-white);
-  background: var(--el-color-primary);
+  color: var(--color-on-primary);
+  background: var(--color-primary);
   border-radius: 50%;
 }
 .header-text {
@@ -90,13 +90,13 @@ const motivation = computed(() => {
   margin: 0;
   font-size: 26px;
   font-weight: 800;
-  color: var(--el-text-color-primary);
+  color: var(--color-text-primary);
   line-height: 1.2;
 }
 .page-subtitle {
   margin: 4px 0 0;
   font-size: 14px;
-  color: var(--el-text-color-secondary);
+  color: var(--color-text-secondary);
 }
 .header-right {
   z-index: 2;
@@ -105,20 +105,20 @@ const motivation = computed(() => {
   display: flex;
   align-items: center;
   gap: 16px;
-  background: var(--el-fill-color-extra-light);
+  background: var(--color-bg-hover);
   padding: 12px 18px;
-  border-radius: 12px;
-  border: 1px solid var(--el-border-color-lighter);
-  transition: border-color 0.2s ease, background-color 0.2s ease;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-lighter);
+  transition: border-color var(--transition-base), background-color var(--transition-base);
 }
 /* 深色模式适配 */
 :global(html.dark[data-theme="dark"]) .motivation-section {
   background: color-mix(in srgb, var(--color-text-primary) 20%, transparent);
-  border-color: color-mix(in srgb, var(--el-color-white) 10%, transparent);
+  border-color: color-mix(in srgb, var(--color-on-primary) 10%, transparent);
 }
 .motivation-section:hover {
-  border-color: var(--el-color-primary-light-6);
-  background: var(--el-bg-color);
+  border-color: var(--color-primary-light-6);
+  background: var(--color-bg-base);
 }
 .motivation-icon-wrapper {
   position: relative;
@@ -129,8 +129,8 @@ const motivation = computed(() => {
   justify-content: center;
   flex: 0 0 42px;
   border-radius: 50%;
-  color: var(--el-color-white);
-  background: var(--el-color-warning);
+  color: var(--color-on-primary);
+  background: var(--color-warning);
 }
 .motivation-icon {
   font-size: 22px;
@@ -143,14 +143,14 @@ const motivation = computed(() => {
 .motivation-title {
   font-size: 14px;
   font-weight: 700;
-  color: var(--el-text-color-primary);
+  color: var(--color-text-primary);
 }
 .highlight-name {
-  color: var(--el-color-primary);
+  color: var(--color-primary);
   font-size: 16px;
 }
 .highlight-days {
-  color: var(--el-color-warning);
+  color: var(--color-warning);
   font-size: 18px;
   font-weight: 800;
   margin: 0 4px;
@@ -162,7 +162,7 @@ const motivation = computed(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: var(--color-text-secondary);
   margin-top: 2px;
 }
 @media (max-width: 768px) {

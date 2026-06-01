@@ -168,7 +168,7 @@ import { formatDate } from '@/utils/helpers/dateUtils'
 
 import { ref, reactive, computed, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
-import { api } from '@/services/api';
+import { financeApi } from '@/api';
 import printService from '@/services/printService';
 import { loadExcelJS } from '@/utils/lazyVendors';
 // 查询参数
@@ -207,12 +207,10 @@ const generateReport = async () => {
 
   loading.value = true;
   try {
-    const response = await api.get('/finance/reports/balance-sheet', {
-      params: {
-        reportDate: queryParams.reportDate,
-        compareDate: queryParams.compareDate,
-        unit: queryParams.unit
-      }
+    const response = await financeApi.reports.getBalanceSheet({
+      reportDate: queryParams.reportDate,
+      compareDate: queryParams.compareDate,
+      unit: queryParams.unit
     });
 
     // 确保 reportData 是对象

@@ -1,0 +1,978 @@
+{
+  "passed": true,
+  "summary": {
+    "costRouteCount": 83,
+    "protectedRouteFileCount": 8,
+    "sensitivePermissionCount": 18,
+    "integrityRuleCount": 16
+  },
+  "fileProtections": [
+    {
+      "source": "backend/src/routes/financeRoutes.js",
+      "hasAuth": true,
+      "hasDesensitize": true,
+      "hasMutationGuard": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "hasAuth": true,
+      "hasDesensitize": true,
+      "hasMutationGuard": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/activityCostRoutes.js",
+      "hasAuth": true,
+      "hasDesensitize": true,
+      "hasMutationGuard": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/costCenterRoutes.js",
+      "hasAuth": true,
+      "hasDesensitize": true,
+      "hasMutationGuard": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/costLedgerRoutes.js",
+      "hasAuth": true,
+      "hasDesensitize": true,
+      "hasMutationGuard": true
+    },
+    {
+      "source": "backend/src/routes/baseData.js",
+      "hasAuth": true,
+      "hasDesensitize": true,
+      "hasMutationGuard": true
+    },
+    {
+      "source": "backend/src/routes/purchaseRoutes.js",
+      "hasAuth": true,
+      "hasDesensitize": true,
+      "hasMutationGuard": true
+    },
+    {
+      "source": "backend/src/routes/inventory.js",
+      "hasAuth": true,
+      "hasDesensitize": true,
+      "hasMutationGuard": true
+    }
+  ],
+  "costRoutes": [
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "POST",
+      "path": "/integration/ar-invoice/:salesOrderId",
+      "permissions": [
+        "finance:ar:create"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "POST",
+      "path": "/integration/ap-invoice/:receiptId",
+      "permissions": [
+        "finance:ap:create"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/period/status/:periodId",
+      "permissions": [
+        "finance:periodEnd:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/period/year-end-status/:year",
+      "permissions": [
+        "finance:periodEnd:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "POST",
+      "path": "/period/year-end-transfer",
+      "permissions": [
+        "finance:periodEnd:execute"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/automation/history",
+      "permissions": [
+        "finance:automation:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/statistics",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/trend",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/composition",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/standard-list",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/standard/:productId",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "POST",
+      "path": "/cost/standard/:productId/calculate",
+      "permissions": [
+        "finance:cost:execute"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/settings",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "POST",
+      "path": "/cost/settings",
+      "permissions": [
+        "finance:cost:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/supplement-reasons",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "POST",
+      "path": "/cost/supplement-reasons",
+      "permissions": [
+        "finance:cost:create"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "PUT",
+      "path": "/cost/supplement-reasons/:id",
+      "permissions": [
+        "finance:cost:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "DELETE",
+      "path": "/cost/supplement-reasons/:id",
+      "permissions": [
+        "finance:cost:delete"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/gl-accounts",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/gl-mappings",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "POST",
+      "path": "/cost/gl-mapping",
+      "permissions": [
+        "finance:cost:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/overhead-allocation",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "POST",
+      "path": "/cost/overhead-allocation",
+      "permissions": [
+        "finance:cost:create"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "PUT",
+      "path": "/cost/overhead-allocation/:id",
+      "permissions": [
+        "finance:cost:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "DELETE",
+      "path": "/cost/overhead-allocation/:id",
+      "permissions": [
+        "finance:cost:delete"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/overhead-allocation/bases",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/material-standard-costs",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "POST",
+      "path": "/cost/material-standard-costs/freeze",
+      "permissions": [
+        "finance:cost:execute"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "PUT",
+      "path": "/cost/material-standard-costs/:id",
+      "permissions": [
+        "finance:cost:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost-versions",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "POST",
+      "path": "/cost-versions",
+      "permissions": [
+        "finance:cost:execute"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "PUT",
+      "path": "/cost-versions/:id/submit",
+      "permissions": [
+        "finance:cost:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "PUT",
+      "path": "/cost-versions/:id/approve",
+      "permissions": [
+        "finance:cost:execute"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "POST",
+      "path": "/cost-versions/:id/generate",
+      "permissions": [
+        "finance:cost:execute"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/settings-history",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/settings-by-date",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "POST",
+      "path": "/cost/batch-calculate",
+      "permissions": [
+        "finance:cost:execute"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "POST",
+      "path": "/cost/freeze/:productId",
+      "permissions": [
+        "finance:cost:execute"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "POST",
+      "path": "/cost/unfreeze/:productId",
+      "permissions": [
+        "finance:cost:execute"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "POST",
+      "path": "/cost/freeze-period",
+      "permissions": [
+        "finance:cost:execute"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/actual",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/actual/:taskId",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/variance",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/variance/:taskId",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/wip-report",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/outsourced-wip",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/alerts",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/alert-settings",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "POST",
+      "path": "/cost/alert-settings",
+      "permissions": [
+        "finance:cost:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/yearly-comparison",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/closing/status",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "POST",
+      "path": "/cost/closing/:periodId/execute",
+      "permissions": [
+        "finance:cost:execute"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/export/ledger",
+      "permissions": [
+        "finance:cost:export"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/cost/export/variance",
+      "permissions": [
+        "finance:cost:export"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "POST",
+      "path": "/cost/recalculate-inventory",
+      "permissions": [
+        "finance:cost:execute"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/reports/ratio-analysis",
+      "permissions": [
+        "finance:reports:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/reports/trend-analysis",
+      "permissions": [
+        "finance:reports:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "GET",
+      "path": "/reports/dashboard",
+      "permissions": [
+        "finance:reports:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/financeEnhancement.js",
+      "method": "POST",
+      "path": "/system/initialize",
+      "permissions": [
+        "system:initialize"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/activityCostRoutes.js",
+      "method": "GET",
+      "path": "/driver-types",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/activityCostRoutes.js",
+      "method": "GET",
+      "path": "/summary",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/activityCostRoutes.js",
+      "method": "GET",
+      "path": "/activities",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/activityCostRoutes.js",
+      "method": "GET",
+      "path": "/activities/:id",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/activityCostRoutes.js",
+      "method": "POST",
+      "path": "/activities",
+      "permissions": [
+        "finance:cost:create"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/activityCostRoutes.js",
+      "method": "PUT",
+      "path": "/activities/:id",
+      "permissions": [
+        "finance:cost:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/activityCostRoutes.js",
+      "method": "DELETE",
+      "path": "/activities/:id",
+      "permissions": [
+        "finance:cost:delete"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/activityCostRoutes.js",
+      "method": "GET",
+      "path": "/products/:productId/activities",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/activityCostRoutes.js",
+      "method": "POST",
+      "path": "/products/:productId/activities",
+      "permissions": [
+        "finance:cost:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/activityCostRoutes.js",
+      "method": "GET",
+      "path": "/products/:productId/abc-cost",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/costCenterRoutes.js",
+      "method": "GET",
+      "path": "/",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/costCenterRoutes.js",
+      "method": "GET",
+      "path": "/options",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/costCenterRoutes.js",
+      "method": "GET",
+      "path": "/report",
+      "permissions": [
+        "finance:reports:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/costCenterRoutes.js",
+      "method": "GET",
+      "path": "/efficiency-variance",
+      "permissions": [
+        "finance:reports:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/costCenterRoutes.js",
+      "method": "GET",
+      "path": "/capacity-utilization",
+      "permissions": [
+        "finance:reports:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/costCenterRoutes.js",
+      "method": "GET",
+      "path": "/:id",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/costCenterRoutes.js",
+      "method": "POST",
+      "path": "/",
+      "permissions": [
+        "finance:cost:create"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/costCenterRoutes.js",
+      "method": "PUT",
+      "path": "/:id",
+      "permissions": [
+        "finance:cost:update"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/costCenterRoutes.js",
+      "method": "DELETE",
+      "path": "/:id",
+      "permissions": [
+        "finance:cost:delete"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/costLedgerRoutes.js",
+      "method": "GET",
+      "path": "/",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/costLedgerRoutes.js",
+      "method": "GET",
+      "path": "/summary/:dimension",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/costLedgerRoutes.js",
+      "method": "GET",
+      "path": "/trend",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/costLedgerRoutes.js",
+      "method": "GET",
+      "path": "/task/:taskId",
+      "permissions": [
+        "finance:cost:view"
+      ],
+      "protected": true
+    },
+    {
+      "source": "backend/src/routes/business/finance/costLedgerRoutes.js",
+      "method": "GET",
+      "path": "/efficiency/:taskId",
+      "permissions": [
+        "finance:reports:view"
+      ],
+      "protected": true
+    }
+  ],
+  "unprotectedCostRoutes": [],
+  "missingAmountMiddleware": [],
+  "sensitivePermissions": [
+    "finance:cost:export",
+    "finance:cost:update",
+    "finance:cost:view",
+    "finance:price:export",
+    "finance:price:update",
+    "finance:price:view",
+    "finance:pricing:export",
+    "finance:pricing:update",
+    "finance:pricing:view",
+    "inventory:value:export",
+    "inventory:value:update",
+    "inventory:value:view",
+    "purchase:price:export",
+    "purchase:price:update",
+    "purchase:price:view",
+    "sales:price:export",
+    "sales:price:update",
+    "sales:price:view"
+  ],
+  "unregisteredSensitivePermissions": [],
+  "integrityResults": [
+    {
+      "id": "purchase.order_item_amounts_match_quantity_price",
+      "severity": "critical",
+      "description": "Purchase order item subtotal, tax and total must match quantity, price and tax rate.",
+      "sql": "\n      SELECT id, order_id, material_id, quantity, price, total, amount_excluding_tax, tax_amount\n      FROM purchase_order_items\n      WHERE ABS(COALESCE(total, 0) - ROUND(COALESCE(quantity, 0) * COALESCE(price, 0), 2)) > 0.05\n         OR ABS(COALESCE(amount_excluding_tax, 0) - ROUND(COALESCE(quantity, 0) * COALESCE(price, 0), 2)) > 0.05\n         OR ABS(COALESCE(tax_amount, 0) - ROUND(\n              COALESCE(quantity, 0)\n              * COALESCE(price, 0)\n              * CASE WHEN COALESCE(tax_rate, 0) > 1 THEN COALESCE(tax_rate, 0) / 100 ELSE COALESCE(tax_rate, 0) END,\n              2\n            )) > 0.05\n    ",
+      "count": 0,
+      "rows": [],
+      "passed": true
+    },
+    {
+      "id": "purchase.order_header_matches_items",
+      "severity": "critical",
+      "description": "Purchase order header subtotal, tax and total must match item sums.",
+      "sql": "\n      SELECT *\n      FROM (\n        SELECT po.id, po.order_no, po.subtotal, po.tax_amount, po.total_amount,\n               ROUND(COALESCE(SUM(poi.total), 0), 2) AS item_subtotal,\n               ROUND(COALESCE(SUM(poi.tax_amount), 0), 2) AS item_tax\n        FROM purchase_orders po\n        LEFT JOIN purchase_order_items poi ON poi.order_id = po.id\n        WHERE po.deleted_at IS NULL\n        GROUP BY po.id, po.order_no, po.subtotal, po.tax_amount, po.total_amount\n      ) x\n      WHERE ABS(COALESCE(subtotal, 0) - item_subtotal) > 0.05\n         OR ABS(COALESCE(tax_amount, 0) - item_tax) > 0.05\n         OR ABS(COALESCE(total_amount, 0) - ROUND(item_subtotal + item_tax, 2)) > 0.05\n    ",
+      "count": 0,
+      "rows": [],
+      "passed": true
+    },
+    {
+      "id": "purchase.receipt_item_amounts_match_quantity_price",
+      "severity": "critical",
+      "description": "Purchase receipt item amounts must match received quantity, price and tax.",
+      "sql": "\n      SELECT id, receipt_id, order_item_id, material_id, quantity, price, amount_excluding_tax, tax_amount, total_amount\n      FROM purchase_receipt_items\n      WHERE ABS(COALESCE(amount_excluding_tax, 0) - ROUND(COALESCE(quantity, 0) * COALESCE(price, 0), 2)) > 0.05\n         OR ABS(COALESCE(tax_amount, 0) - ROUND(\n              COALESCE(quantity, 0)\n              * COALESCE(price, 0)\n              * CASE WHEN COALESCE(tax_rate, 0) > 1 THEN COALESCE(tax_rate, 0) / 100 ELSE COALESCE(tax_rate, 0) END,\n              2\n            )) > 0.05\n         OR ABS(COALESCE(total_amount, 0) - ROUND(COALESCE(amount_excluding_tax, 0) + COALESCE(tax_amount, 0), 2)) > 0.05\n    ",
+      "count": 0,
+      "rows": [],
+      "passed": true
+    },
+    {
+      "id": "purchase.receipt_item_price_matches_order",
+      "severity": "critical",
+      "description": "Receipt items linked to purchase orders must inherit the purchase order item price.",
+      "sql": "\n      SELECT pri.id, pri.receipt_id, pri.order_item_id, pri.material_id, pri.price, poi.price AS order_price\n      FROM purchase_receipt_items pri\n      JOIN purchase_order_items poi ON poi.id = pri.order_item_id\n      JOIN purchase_receipts pr ON pr.id = pri.receipt_id\n      WHERE pr.status IN ('confirmed', 'completed')\n        AND pr.deleted_at IS NULL\n        AND ABS(COALESCE(pri.price, 0) - COALESCE(poi.price, 0)) > 0.05\n    ",
+      "count": 0,
+      "rows": [],
+      "passed": true
+    },
+    {
+      "id": "purchase.receipt_header_matches_items",
+      "severity": "critical",
+      "description": "Purchase receipt header amount must match item totals.",
+      "sql": "\n      SELECT *\n      FROM (\n        SELECT pr.id, pr.receipt_no, pr.total_amount, pr.total_tax_amount,\n               ROUND(COALESCE(SUM(pri.total_amount), 0), 2) AS item_total,\n               ROUND(COALESCE(SUM(pri.tax_amount), 0), 2) AS item_tax\n        FROM purchase_receipts pr\n        LEFT JOIN purchase_receipt_items pri ON pri.receipt_id = pr.id\n        WHERE pr.deleted_at IS NULL\n        GROUP BY pr.id, pr.receipt_no, pr.total_amount, pr.total_tax_amount\n      ) x\n      WHERE ABS(COALESCE(total_amount, 0) - item_total) > 0.05\n         OR ABS(COALESCE(total_tax_amount, 0) - item_tax) > 0.05\n    ",
+      "count": 0,
+      "rows": [],
+      "passed": true
+    },
+    {
+      "id": "purchase.receipts_have_inventory_value",
+      "severity": "critical",
+      "description": "Confirmed purchase receipt items must have linked inventory ledger cost rows.",
+      "sql": "\n      SELECT pri.id, pr.receipt_no, pri.material_id\n      FROM purchase_receipt_items pri\n      JOIN purchase_receipts pr ON pr.id = pri.receipt_id\n      LEFT JOIN inventory_ledger il ON il.receipt_id = pri.receipt_id AND il.material_id = pri.material_id\n      WHERE pr.status IN ('confirmed', 'completed')\n        AND pr.deleted_at IS NULL\n        AND il.id IS NULL\n    ",
+      "count": 0,
+      "rows": [],
+      "passed": true
+    },
+    {
+      "id": "inventory.ledger_value_matches_quantity_cost",
+      "severity": "critical",
+      "description": "Inventory ledger total value must equal absolute quantity times unit cost.",
+      "sql": "\n      SELECT id, transaction_type, transaction_no, quantity, unit_cost, total_value\n      FROM inventory_ledger\n      WHERE unit_cost IS NOT NULL\n        AND total_value IS NOT NULL\n        AND ABS(ROUND(COALESCE(total_value, 0) - ABS(COALESCE(quantity, 0)) * COALESCE(unit_cost, 0), 2)) > 0.05\n    ",
+      "count": 0,
+      "rows": [],
+      "passed": true
+    },
+    {
+      "id": "inventory.purchase_receipt_ledger_matches_receipt_price",
+      "severity": "critical",
+      "description": "Inventory ledger cost for purchase receipts must match receipt item price.",
+      "sql": "\n      SELECT il.id, il.receipt_id, il.material_id, il.unit_cost, pri.price\n      FROM inventory_ledger il\n      JOIN purchase_receipt_items pri ON pri.receipt_id = il.receipt_id AND pri.material_id = il.material_id\n      JOIN purchase_receipts pr ON pr.id = pri.receipt_id\n      WHERE pr.status IN ('confirmed', 'completed')\n        AND pr.deleted_at IS NULL\n        AND ABS(COALESCE(il.unit_cost, 0) - COALESCE(pri.price, 0)) > 0.05\n    ",
+      "count": 0,
+      "rows": [],
+      "passed": true
+    },
+    {
+      "id": "production.actual_cost_formula",
+      "severity": "critical",
+      "description": "Production task actual cost must equal material, labor and overhead cost.",
+      "sql": "\n      SELECT id, code, actual_cost, material_cost, labor_cost, overhead_cost\n      FROM production_tasks\n      WHERE deleted_at IS NULL\n        AND actual_cost IS NOT NULL\n        AND ABS(COALESCE(actual_cost, 0) - ROUND(COALESCE(material_cost, 0) + COALESCE(labor_cost, 0) + COALESCE(overhead_cost, 0), 2)) > 0.05\n    ",
+      "count": 0,
+      "rows": [],
+      "passed": true
+    },
+    {
+      "id": "production.costs_nonnegative",
+      "severity": "critical",
+      "description": "Production task cost fields must not be negative.",
+      "sql": "\n      SELECT id, code, material_cost, labor_cost, overhead_cost, actual_cost\n      FROM production_tasks\n      WHERE deleted_at IS NULL\n        AND (\n          COALESCE(material_cost, 0) < 0\n          OR COALESCE(labor_cost, 0) < 0\n          OR COALESCE(overhead_cost, 0) < 0\n          OR COALESCE(actual_cost, 0) < 0\n        )\n    ",
+      "count": 0,
+      "rows": [],
+      "passed": true
+    },
+    {
+      "id": "standard_cost.active_rows_are_positive",
+      "severity": "critical",
+      "description": "Active standard cost rows must have positive prices.",
+      "sql": "\n      SELECT id, material_id, product_id, cost_element, standard_price, status, is_active\n      FROM standard_costs\n      WHERE is_active = 1\n        AND status = 'active'\n        AND COALESCE(standard_price, 0) <= 0\n    ",
+      "count": 0,
+      "rows": [],
+      "passed": true
+    },
+    {
+      "id": "standard_cost.active_flag_matches_status",
+      "severity": "high",
+      "description": "Standard cost active flag must agree with active status.",
+      "sql": "\n      SELECT id, material_id, product_id, cost_element, standard_price, status, is_active\n      FROM standard_costs\n      WHERE (is_active = 1 AND status <> 'active')\n         OR (status = 'active' AND COALESCE(is_active, 0) <> 1)\n    ",
+      "count": 0,
+      "rows": [],
+      "passed": true
+    },
+    {
+      "id": "standard_cost.no_duplicate_active_element",
+      "severity": "high",
+      "description": "A material/product may only have one active row per cost element.",
+      "sql": "\n      SELECT COALESCE(product_id, 0) AS product_id,\n             COALESCE(material_id, 0) AS material_id,\n             cost_element,\n             COUNT(*) AS active_count\n      FROM standard_costs\n      WHERE is_active = 1\n        AND status = 'active'\n      GROUP BY COALESCE(product_id, 0), COALESCE(material_id, 0), cost_element\n      HAVING active_count > 1\n    ",
+      "count": 0,
+      "rows": [],
+      "passed": true
+    },
+    {
+      "id": "variance.amounts_match_components",
+      "severity": "critical",
+      "description": "Cost variance records must equal standard cost minus actual cost.",
+      "sql": "\n      SELECT id, task_id, product_id\n      FROM cost_variance_records\n      WHERE ABS(COALESCE(standard_total_cost, 0) - ROUND(COALESCE(standard_material_cost, 0) + COALESCE(standard_labor_cost, 0) + COALESCE(standard_overhead_cost, 0), 2)) > 0.05\n         OR ABS(COALESCE(actual_total_cost, 0) - ROUND(COALESCE(actual_material_cost, 0) + COALESCE(actual_labor_cost, 0) + COALESCE(actual_overhead_cost, 0), 2)) > 0.05\n         OR ABS(COALESCE(material_variance, 0) - ROUND(COALESCE(standard_material_cost, 0) - COALESCE(actual_material_cost, 0), 2)) > 0.05\n         OR ABS(COALESCE(labor_variance, 0) - ROUND(COALESCE(standard_labor_cost, 0) - COALESCE(actual_labor_cost, 0), 2)) > 0.05\n         OR ABS(COALESCE(overhead_variance, 0) - ROUND(COALESCE(standard_overhead_cost, 0) - COALESCE(actual_overhead_cost, 0), 2)) > 0.05\n         OR ABS(COALESCE(total_variance, 0) - ROUND(COALESCE(standard_total_cost, 0) - COALESCE(actual_total_cost, 0), 2)) > 0.05\n    ",
+      "count": 0,
+      "rows": [],
+      "passed": true
+    },
+    {
+      "id": "cost_activity.amounts_nonnegative",
+      "severity": "high",
+      "description": "Activity cost pools and driver rates must not be negative.",
+      "sql": "\n      SELECT id, code, cost_pool, driver_rate\n      FROM cost_activities\n      WHERE deleted_at IS NULL\n        AND (COALESCE(cost_pool, 0) < 0 OR COALESCE(driver_rate, 0) < 0)\n    ",
+      "count": 0,
+      "rows": [],
+      "passed": true
+    },
+    {
+      "id": "cost_center.parent_exists",
+      "severity": "high",
+      "description": "Cost center parent references must point to existing cost centers.",
+      "sql": "\n      SELECT c.id, c.code, c.parent_id\n      FROM cost_centers c\n      LEFT JOIN cost_centers p ON p.id = c.parent_id AND p.deleted_at IS NULL\n      WHERE c.deleted_at IS NULL\n        AND c.parent_id IS NOT NULL\n        AND p.id IS NULL\n    ",
+      "count": 0,
+      "rows": [],
+      "passed": true
+    }
+  ],
+  "failedIntegrityRules": []
+}

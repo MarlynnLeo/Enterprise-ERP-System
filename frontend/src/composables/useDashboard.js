@@ -22,7 +22,7 @@ export function useDashboard(dashboardType, dataLoader, options = {}) {
     autoRefresh = true,
     immediate = true,
     refreshInterval = 5 * 60 * 1000, // 5分钟
-    retryCount = 3,
+    retryCount = 1,
     showErrorMessage = true
   } = options;
 

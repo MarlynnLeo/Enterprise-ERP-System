@@ -762,7 +762,7 @@ const formatQuantity = (val) => {
   if (isNaN(num)) return val
   return num % 1 === 0 ? num.toFixed(0) : parseFloat(num.toFixed(2)).toString()
 }
-import { api, baseDataApi, financeApi, inventoryApi, productionApi } from '@/services/api'
+import { baseDataApi, commonApi, financeApi, inventoryApi, productionApi } from '@/api'
 import { parseDataObject, parseListData } from '@/utils/responseParser'
 import { useAuthStore } from '@/stores/auth'
 import { buildResourceUrl } from '@/config/app'
@@ -1532,9 +1532,7 @@ const downloadFile = async () => {
     const fileUrl = originalFileUrl.value || previewFileUrl.value
     if (!fileUrl) return
 
-    const response = await api.get(fileUrl, {
-      responseType: 'blob'
-    })
+    const response = await commonApi.downloadResource(fileUrl)
 
     const blob = new Blob([response.data])
     const url = window.URL.createObjectURL(blob)

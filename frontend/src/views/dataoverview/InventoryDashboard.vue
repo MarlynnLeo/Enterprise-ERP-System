@@ -1,7 +1,7 @@
 ﻿<!--
 /**
  * InventoryDashboard.vue
- * @description 前端界面组件文件
+ * @description 鍓嶇鐣岄潰缁勪欢鏂囦欢
   * @date 2025-08-27
  * @version 1.0.0
  */
@@ -9,116 +9,132 @@
 <template>
   <div class="inventory-dashboard">
     <el-card class="header-card">
-      <div style="display: flex; justify-content: space-between; align-items: center;">
-        <h2>库存数据概览</h2>
+      <div class="flex justify-between align-center">
+        <h2>搴撳瓨鏁版嵁姒傝</h2>
         <div>
           <span v-if="lastUpdated" class="last-updated">
-            最后更新: {{ new Date(lastUpdated).toLocaleTimeString() }}
+            鏈€鍚庢洿鏂? {{ new Date(lastUpdated).toLocaleTimeString() }}
+<!--
+/**
+ * InventoryDashboard.vue
+ * @description 鍓嶇鐣岄潰缁勪欢鏂囦欢
+  * @date 2025-08-27
+ * @version 1.0.0
+ */
+-->
+<template>
+  <div class="inventory-dashboard">
+    <el-card class="header-card">
+      <div class="flex justify-between align-center">
+        <h2>搴撳瓨鏁版嵁姒傝</h2>
+        <div>
+          <span v-if="lastUpdated" class="last-updated">
+            鏈€鍚庢洿鏂? {{ new Date(lastUpdated).toLocaleTimeString() }}
           </span>
         </div>
       </div>
     </el-card>
-    <!-- 统计卡片 -->
-    <el-row :gutter="20" class="mt-20">
-      <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-20">
+    <!-- 缁熻鍗＄墖 -->
+    <el-row :gutter="20" class="mt-lg">
+      <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-lg">
         <el-card class="stat-card primary-card" shadow="hover">
           <div class="stat-content">
-            <div class="stat-title">总库存量</div>
+            <div class="stat-title">鎬诲簱瀛橀噺</div>
             <div class="stat-info">
               <div class="stat-main">
                 <div class="stat-value">{{ statistics.totalStock || 0 }}</div>
                 <div class="stat-label">SKU</div>
               </div>
               <div class="stat-secondary">
-                <div class="stat-secondary-value">{{ formatCurrency(statistics.totalValue) }}</div>
-                <div class="stat-secondary-label">总价值</div>
+                <div class="stat-secondary-value total-value-highlight">{{ formatCurrency(statistics.totalValue) }}</div>
+                <div class="stat-secondary-label">鎬讳环鍊?/div>
               </div>
             </div>
           </div>
           <div class="card-footer">
             <el-button type="primary" link @click="$router.push('/inventory/stock')">
-              查看详情 <el-icon class="el-icon--right"><ArrowRight /></el-icon>
+              鏌ョ湅璇︽儏 <el-icon class="el-icon--right"><ArrowRight /></el-icon>
             </el-button>
           </div>
         </el-card>
       </el-col>
 
-      <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-20">
+      <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-lg">
         <el-card class="stat-card success-card" shadow="hover">
           <div class="stat-content">
-            <div class="stat-title">本月入库</div>
+            <div class="stat-title">鏈湀鍏ュ簱</div>
             <div class="stat-info">
               <div class="stat-main">
                 <div class="stat-value">{{ statistics.inbound?.count || 0 }}</div>
-                <div class="stat-label">单据数</div>
+                <div class="stat-label">鍗曟嵁鏁?/div>
               </div>
               <div class="stat-secondary">
                 <div class="stat-secondary-value">{{ statistics.inbound?.items || 0 }}</div>
-                <div class="stat-secondary-label">物料数</div>
+                <div class="stat-secondary-label">鐗╂枡鏁?/div>
               </div>
             </div>
           </div>
           <div class="card-footer">
             <el-button type="success" link @click="$router.push('/inventory/inbound')">
-              查看详情 <el-icon class="el-icon--right"><ArrowRight /></el-icon>
+              鏌ョ湅璇︽儏 <el-icon class="el-icon--right"><ArrowRight /></el-icon>
             </el-button>
           </div>
         </el-card>
       </el-col>
 
-      <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-20">
+      <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-lg">
         <el-card class="stat-card info-card" shadow="hover">
           <div class="stat-content">
-            <div class="stat-title">本月出库</div>
+            <div class="stat-title">鏈湀鍑哄簱</div>
             <div class="stat-info">
               <div class="stat-main">
                 <div class="stat-value">{{ statistics.outbound?.count || 0 }}</div>
-                <div class="stat-label">单据数</div>
+                <div class="stat-label">鍗曟嵁鏁?/div>
               </div>
               <div class="stat-secondary">
                 <div class="stat-secondary-value">{{ statistics.outbound?.items || 0 }}</div>
-                <div class="stat-secondary-label">物料数</div>
+                <div class="stat-secondary-label">鐗╂枡鏁?/div>
               </div>
             </div>
           </div>
           <div class="card-footer">
             <el-button type="info" link @click="$router.push('/inventory/outbound')">
-              查看详情 <el-icon class="el-icon--right"><ArrowRight /></el-icon>
+              鏌ョ湅璇︽儏 <el-icon class="el-icon--right"><ArrowRight /></el-icon>
             </el-button>
           </div>
         </el-card>
       </el-col>
 
-      <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-20">
+      <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-lg">
         <el-card class="stat-card warning-card" shadow="hover">
           <div class="stat-content">
-            <div class="stat-title">库存预警</div>
+            <div class="stat-title">搴撳瓨棰勮</div>
             <div class="stat-info">
               <div class="stat-main">
                 <div class="stat-value">{{ statistics.alerts?.low || 0 }}</div>
-                <div class="stat-label">低库存预警</div>
+                <div class="stat-label">浣庡簱瀛橀璀?/div>
               </div>
               <div class="stat-secondary">
                 <div class="stat-secondary-value">{{ statistics.alerts?.overstock || 0 }}</div>
-                <div class="stat-secondary-label">超额库存</div>
+                <div class="stat-secondary-label">瓒呴搴撳瓨</div>
               </div>
             </div>
           </div>
           <div class="card-footer">
             <el-button type="warning" link @click="$router.push('/inventory/stock')">
-              查看详情 <el-icon class="el-icon--right"><ArrowRight /></el-icon>
+              鏌ョ湅璇︽儏 <el-icon class="el-icon--right"><ArrowRight /></el-icon>
             </el-button>
           </div>
         </el-card>
       </el-col>
     </el-row>
-    <!-- 图表区域 -->
-    <el-row :gutter="20" class="mt-20">
-      <el-col :xs="24" :md="12" class="mb-20">
+    <!-- 鍥捐〃鍖哄煙 -->
+    <el-row :gutter="20" class="mt-lg">
+      <el-col :xs="24" :md="12" class="mb-lg">
         <el-card shadow="hover">
           <template #header>
             <div class="card-header">
-              <span>月度库存变化趋势</span>
+              <span>鏈堝害搴撳瓨鍙樺寲瓒嬪娍</span>
             </div>
           </template>
           <div class="chart-container">
@@ -126,11 +142,11 @@
           </div>
         </el-card>
       </el-col>
-      <el-col :xs="24" :md="12" class="mb-20">
+      <el-col :xs="24" :md="12" class="mb-lg">
         <el-card shadow="hover">
           <template #header>
             <div class="card-header">
-              <span>库存分类占比</span>
+              <span>搴撳瓨鍒嗙被鍗犳瘮</span>
             </div>
           </template>
           <div class="chart-container">
@@ -138,58 +154,70 @@
           </div>
         </el-card>
       </el-col>
+      <el-col :xs="24" :md="24" class="mb-lg">
+        <el-card shadow="hover">
+          <template #header>
+            <div class="card-header">
+              <span>浠撳簱閲戦鍒嗗竷</span>
+            </div>
+          </template>
+          <div class="chart-container">
+            <canvas ref="warehouseValueChart" height="300"></canvas>
+          </div>
+        </el-card>
+      </el-col>
     </el-row>
-    <!-- 低库存预警 -->
-    <el-row class="mt-20">
+    <!-- 浣庡簱瀛橀璀?-->
+    <el-row class="mt-lg">
       <el-col :span="24">
         <el-card shadow="hover">
           <template #header>
             <div class="card-header-with-search">
-              <span>库存预警清单</span>
+              <span>搴撳瓨棰勮娓呭崟</span>
               <el-input
                 v-model="search"
-                placeholder="搜索"
+                placeholder="鎼滅储"
                 class="search-input"
                 :prefix-icon="Search" />
             </div>
           </template>
           <el-table
             :data="filteredAlertItems"
-            style="width: 100%"
+            class="w-full"
             v-loading="loading"
             border
             :max-height="400"
-            :empty-text="alertItems.length === 0 ? '暂无预警物料' : '没有匹配的数据'"
+            :empty-text="alertItems.length === 0 ? '鏆傛棤棰勮鐗╂枡' : '娌℃湁鍖归厤鐨勬暟鎹?"
           >
-            <el-table-column label="物料代码" prop="code" min-width="120" />
-            <el-table-column label="物料名称" prop="name" min-width="180" />
-            <el-table-column label="规格型号" prop="specification" min-width="120" />
-            <el-table-column label="库存数量" min-width="100">
+            <el-table-column label="鐗╂枡浠ｇ爜" prop="code" min-width="120" />
+            <el-table-column label="鐗╂枡鍚嶇О" prop="name" min-width="180" />
+            <el-table-column label="瑙勬牸鍨嬪彿" prop="specification" min-width="120" />
+            <el-table-column label="搴撳瓨鏁伴噺" min-width="100">
               <template #default="scope">
-                <span :class="{ 'text-danger': scope.row.type === 'low', 'text-warning': scope.row.type === 'overstock' }">
+                <span :class="{ 'text-danger font-bold': scope.row.type === 'low', 'text-warning font-bold': scope.row.type === 'overstock' }">
                   {{ scope.row.quantity }}
                 </span>
               </template>
             </el-table-column>
-            <el-table-column label="单位" prop="unit" min-width="80" />
-            <el-table-column label="安全库存" prop="safetyStock" min-width="100" />
-            <el-table-column label="最大库存" prop="maxStock" min-width="100" />
-            <el-table-column label="库存状态" min-width="100">
+            <el-table-column label="鍗曚綅" prop="unit" min-width="80" />
+            <el-table-column label="瀹夊叏搴撳瓨" prop="safetyStock" min-width="100" />
+            <el-table-column label="鏈€澶у簱瀛? prop="maxStock" min-width="100" />
+            <el-table-column label="搴撳瓨鐘舵€? min-width="100">
               <template #default="scope">
                 <el-tag :type="getStatusTagType(scope.row)">
                   {{ getStatusText(scope.row) }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="所在库位" prop="location" min-width="120" />
-            <el-table-column label="操作" min-width="120" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+            <el-table-column label="鎵€鍦ㄥ簱浣? prop="location" min-width="120" />
+            <el-table-column label="鎿嶄綔" min-width="120" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="scope">
                 <el-button
                   type="primary"
                   text
                   size="small"
                   @click="viewMaterial(scope.row)"
-                >查看</el-button>
+                >鏌ョ湅</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -215,19 +243,21 @@ import { useRouter } from 'vue-router';
 import Chart from '@/utils/chartCore';
 import { ElMessage } from 'element-plus';
 import { Search, ArrowRight } from '@element-plus/icons-vue';
-import { inventoryApi } from '@/services/api'
+import { inventoryApi } from '@/api'
 import { useDashboard, useCharts } from '@/composables/useDashboard';
 import { formatCurrency, formatQuantity, getDefaultStatistics, generateMonthLabels } from '@/utils/dashboardUtils'
-import { createLineChartConfig, createPieChartConfig, chartColors } from '@/utils/chartConfig'
+import { createLineChartConfig, createPieChartConfig, createBarChartConfig, chartColors } from '@/utils/chartConfig'
 const router = useRouter();
-// 图表引用
+// 鍥捐〃寮曠敤
 const stockTrend = ref(null);
 const categoryDistribution = ref(null);
+const warehouseValueChart = ref(null);
 const chartRefs = {
   stockTrend,
-  categoryDistribution
+  categoryDistribution,
+  warehouseValueChart
 };
-// 使用仪表盘组合式函数
+// 浣跨敤浠〃鐩樼粍鍚堝紡鍑芥暟
 const {
   loading,
   statistics,
@@ -236,20 +266,19 @@ const {
 } = useDashboard('inventory', loadInventoryData, {
   autoRefresh: true,
   immediate: false,
-  refreshInterval: 5 * 60 * 1000 // 5分钟
+  refreshInterval: 5 * 60 * 1000 // 5鍒嗛挓
 });
-// 使用图表管理组合式函数
-const {
+// 浣跨敤鍥捐〃绠＄悊缁勫悎寮忓嚱鏁?const {
   initAllCharts,
 } = useCharts(chartRefs);
-// 预警物料数据
+// 棰勮鐗╂枡鏁版嵁
 const alertItems = ref([]);
 const search = ref('');
 const currentPage = ref(1);
 const pageSize = ref(10);
-// 存储后端全量报表数据
+// 瀛樺偍鍚庣鍏ㄩ噺鎶ヨ〃鏁版嵁
 const dashboardData = ref(null);
-// 加载库存数据
+// 鍔犺浇搴撳瓨鏁版嵁
 async function loadInventoryData() {
   try {
     const response = await inventoryApi.getDashboardSummary();
@@ -258,7 +287,7 @@ async function loadInventoryData() {
     dashboardData.value = data;
     alertItems.value = data.alertItems || [];
 
-    // 返回标准统计对象格式供 useDashboard 使用
+    // 杩斿洖鏍囧噯缁熻瀵硅薄鏍煎紡渚?useDashboard 浣跨敤
     return {
       totalStock: data.statistics?.totalStock || 0,
       totalValue: data.statistics?.totalValue || 0,
@@ -267,16 +296,14 @@ async function loadInventoryData() {
       alerts: data.statistics?.alerts || { low: 0, overstock: 0 }
     };
   } catch (error) {
-    console.error('获取看板全量聚合数据失败:', error);
+    console.error('鑾峰彇鐪嬫澘鍏ㄩ噺鑱氬悎鏁版嵁澶辫触:', error);
     throw error;
   }
 }
-// 筛选后的预警物料
-const filteredAlertItems = computed(() => {
+// 绛涢€夊悗鐨勯璀︾墿鏂?const filteredAlertItems = computed(() => {
   const startIndex = (currentPage.value - 1) * pageSize.value;
   const endIndex = startIndex + pageSize.value;
-  // 确保alertItems是数组
-  let items = Array.isArray(alertItems.value) ? alertItems.value : [];
+  // 纭繚alertItems鏄暟缁?  let items = Array.isArray(alertItems.value) ? alertItems.value : [];
   if (search.value) {
     const searchValue = search.value.toLowerCase();
     items = items.filter(item =>
@@ -288,7 +315,7 @@ const filteredAlertItems = computed(() => {
   }
   return items.slice(startIndex, endIndex);
 });
-// 分页处理
+// 鍒嗛〉澶勭悊
 function handleSizeChange(size) {
   pageSize.value = size;
   currentPage.value = 1;
@@ -296,37 +323,35 @@ function handleSizeChange(size) {
 function handleCurrentChange(page) {
   currentPage.value = page;
 }
-// 查看物料详情
+// 鏌ョ湅鐗╂枡璇︽儏
 function viewMaterial(item) {
   router.push(`/basedata/materials?search=${item.code}`);
 }
-// 获取状态标签类型
-function getStatusTagType(item) {
-  if (item.status === '零库存' || item.type === 'critical' || item.quantity === 0) {
+// 鑾峰彇鐘舵€佹爣绛剧被鍨?function getStatusTagType(item) {
+  if (item.status === '闆跺簱瀛? || item.type === 'critical' || item.quantity === 0) {
     return 'danger';
-  } else if (item.status === '低库存' || item.type === 'low') {
+  } else if (item.status === '浣庡簱瀛? || item.type === 'low') {
     return 'warning';
   } else if (item.type === 'overstock') {
     return 'info';
   }
   return 'info';
 }
-// 获取状态文本
-function getStatusText(item) {
+// 鑾峰彇鐘舵€佹枃鏈?function getStatusText(item) {
   if (item.status) {
     return item.status;
   } else if (item.quantity === 0) {
-    return '零库存';
+    return '闆跺簱瀛?;
   } else if (item.type === 'critical') {
-    return '零库存';
+    return '闆跺簱瀛?;
   } else if (item.type === 'low') {
-    return '低库存';
+    return '浣庡簱瀛?;
   } else if (item.type === 'overstock') {
-    return '超额库存';
+    return '瓒呴搴撳瓨';
   }
-  return '正常';
+  return '姝ｅ父';
 }
-// 获取月度趋势数据 (从 dashboardData 中取)
+// 鑾峰彇鏈堝害瓒嬪娍鏁版嵁 (浠?dashboardData 涓彇)
 async function getMonthlyTrendData() {
   const monthlyData = {
     inbound: [],
@@ -337,8 +362,7 @@ async function getMonthlyTrendData() {
     const trend = dashboardData.value?.monthlyTrend || [];
     const today = new Date();
 
-    // 获取过去12个月的数据
-    for (let i = 11; i >= 0; i--) {
+    // 鑾峰彇杩囧幓12涓湀鐨勬暟鎹?    for (let i = 11; i >= 0; i--) {
       const monthDate = new Date(today.getFullYear(), today.getMonth() - i, 1);
       const yyyyMm = `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, '0')}`;
 
@@ -347,12 +371,12 @@ async function getMonthlyTrendData() {
       monthlyData.outbound.push(item ? parseFloat(item.outbound_qty || 0) : 0);
     }
   } catch (error) {
-    console.error('处理月度趋势数据失败:', error);
+    console.error('澶勭悊鏈堝害瓒嬪娍鏁版嵁澶辫触:', error);
     return { inbound: Array(12).fill(0), outbound: Array(12).fill(0) };
   }
   return monthlyData;
 }
-// 获取物料分类分布数据 (从 dashboardData 中取)
+// 鑾峰彇鐗╂枡鍒嗙被鍒嗗竷鏁版嵁 (浠?dashboardData 涓彇)
 async function getCategoryDistribution() {
   try {
     const distribution = dashboardData.value?.categoryDistribution;
@@ -360,49 +384,45 @@ async function getCategoryDistribution() {
       return distribution;
     }
   } catch (error) {
-    console.error('处理分类分布数据失败:', error);
+    console.error('澶勭悊鍒嗙被鍒嗗竷鏁版嵁澶辫触:', error);
   }
   return {
     labels: [],
     values: []
   };
 }
-// 生命周期钩子
+// 鐢熷懡鍛ㄦ湡閽╁瓙
 onMounted(async () => {
   try {
-    // 首先加载数据
+    // 棣栧厛鍔犺浇鏁版嵁
     await loadData();
 
-    // 然后初始化图表
-    await initAllCharts({
+    // 鐒跺悗鍒濆鍖栧浘琛?    await initAllCharts({
       stockTrend: initStockTrendChart,
-      categoryDistribution: initCategoryChart
+      categoryDistribution: initCategoryChart,
+      warehouseValueChart: initWarehouseValueChart
     });
 
   } catch (error) {
-    console.error('初始化库存仪表盘失败:', error);
-    ElMessage.error('获取库存数据失败，请检查网络连接');
+    console.error('鍒濆鍖栧簱瀛樹华琛ㄧ洏澶辫触:', error);
+    ElMessage.error('鑾峰彇搴撳瓨鏁版嵁澶辫触锛岃妫€鏌ョ綉缁滆繛鎺?);
 
-    // 出错时清空展示数据，避免展示伪造库存
-    statistics.value = getDefaultStatistics('inventory');
+    // 鍑洪敊鏃舵竻绌哄睍绀烘暟鎹紝閬垮厤灞曠ず浼€犲簱瀛?    statistics.value = getDefaultStatistics('inventory');
     alertItems.value = [];
   }
 });
-// 初始化库存趋势图表
-async function initStockTrendChart() {
+// 鍒濆鍖栧簱瀛樿秼鍔垮浘琛?async function initStockTrendChart() {
   if (!chartRefs.stockTrend?.value) return null;
   const ctx = chartRefs.stockTrend.value.getContext('2d');
   try {
-    // 获取过去12个月的月份标签
-    const labels = generateMonthLabels(12);
+    // 鑾峰彇杩囧幓12涓湀鐨勬湀浠芥爣绛?    const labels = generateMonthLabels(12);
 
-    // 获取过去12个月的库存流水数据
-    const monthlyData = await getMonthlyTrendData();
+    // 鑾峰彇杩囧幓12涓湀鐨勫簱瀛樻祦姘存暟鎹?    const monthlyData = await getMonthlyTrendData();
 
     const config = createLineChartConfig({
       tooltipFormatter: (context) => {
         const label = context.dataset.label || '';
-        const value = formatQuantity(context.raw, '件');
+        const value = formatQuantity(context.raw, '浠?);
         return `${label}: ${value}`;
       }
     });
@@ -412,7 +432,7 @@ async function initStockTrendChart() {
         labels: labels,
         datasets: [
           {
-            label: '入库数量',
+            label: '鍏ュ簱鏁伴噺',
             data: monthlyData.inbound,
             borderColor: chartColors.success[0],
             backgroundColor: chartColors.success[4],
@@ -420,7 +440,7 @@ async function initStockTrendChart() {
             fill: false
           },
           {
-            label: '出库数量',
+            label: '鍑哄簱鏁伴噺',
             data: monthlyData.outbound,
             borderColor: chartColors.warning[0],
             backgroundColor: chartColors.warning[4],
@@ -440,7 +460,7 @@ async function initStockTrendChart() {
     const config = createLineChartConfig({
       tooltipFormatter: (context) => {
         const label = context.dataset.label || '';
-        const value = formatQuantity(context.raw, '件');
+        const value = formatQuantity(context.raw, '浠?);
         return `${label}: ${value}`;
       }
     });
@@ -450,7 +470,7 @@ async function initStockTrendChart() {
         labels: labels,
         datasets: [
           {
-            label: '入库数量',
+            label: '鍏ュ簱鏁伴噺',
             data: inboundData,
             borderColor: chartColors.success[0],
             backgroundColor: chartColors.success[4],
@@ -458,7 +478,7 @@ async function initStockTrendChart() {
             fill: false
           },
           {
-            label: '出库数量',
+            label: '鍑哄簱鏁伴噺',
             data: outboundData,
             borderColor: chartColors.warning[0],
             backgroundColor: chartColors.warning[4],
@@ -471,12 +491,11 @@ async function initStockTrendChart() {
     });
   }
 }
-// 初始化分类分布图表
-async function initCategoryChart() {
+// 鍒濆鍖栧垎绫诲垎甯冨浘琛?async function initCategoryChart() {
   if (!chartRefs.categoryDistribution?.value) return null;
   const ctx = chartRefs.categoryDistribution.value.getContext('2d');
   try {
-    // 获取物料分类统计数据
+    // 鑾峰彇鐗╂枡鍒嗙被缁熻鏁版嵁
     const categoryData = await getCategoryDistribution();
 
     const config = createPieChartConfig({
@@ -494,7 +513,7 @@ async function initCategoryChart() {
         labels: categoryData.labels,
         datasets: [
           {
-            label: '库存分布',
+            label: '搴撳瓨鍒嗗竷',
             data: categoryData.values,
             backgroundColor: chartColors.primary,
             borderWidth: 0
@@ -523,7 +542,7 @@ async function initCategoryChart() {
         labels: labels,
         datasets: [
           {
-            label: '库存分布',
+            label: '搴撳瓨鍒嗗竷',
             data: inventoryData,
             backgroundColor: chartColors.primary,
             borderWidth: 0
@@ -532,6 +551,97 @@ async function initCategoryChart() {
       },
       options: config
     });
+  }
+}
+
+// 鍒濆鍖栦粨搴撻噾棰濇帓琛屽浘琛?async function initWarehouseValueChart() {
+  if (!chartRefs.warehouseValueChart?.value) return null;
+  const ctx = chartRefs.warehouseValueChart.value.getContext('2d');
+  try {
+    // 浠庡悗绔幏鍙栧簱瀛樼粺璁℃暟鎹紙鍖呭惈浠撳簱閲戦锛?    let locationData = [];
+    try {
+      const statsResponse = await inventoryApi.getStockStatistics();
+      const statsData = statsResponse.data || statsResponse;
+      locationData = statsData.totalValueByLocation || [];
+    } catch (e) {
+      console.error('鑾峰彇浠撳簱閲戦鏁版嵁澶辫触:', e);
+    }
+
+    if (locationData.length === 0) {
+      // 鏃犳暟鎹椂鏄剧ず绌哄浘琛?      const config = createBarChartConfig({
+        tooltipFormatter: (context) => {
+          return `${context.label}: ${formatCurrency(context.raw)}`;
+        }
+      });
+      return new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: ['鏆傛棤鏁版嵁'],
+          datasets: [{
+            label: '搴撳瓨閲戦',
+            data: [0],
+            backgroundColor: chartColors.primary[0],
+            borderRadius: 6
+          }]
+        },
+        options: { ...config, indexAxis: 'y' }
+      });
+    }
+
+    const labels = locationData.map(item => item.name);
+    const values = locationData.map(item => item.value);
+    const colors = locationData.map((_, i) => chartColors.primary[i % chartColors.primary.length]);
+
+    const config = createBarChartConfig({
+      tooltipFormatter: (context) => {
+        const label = context.label || '';
+        const value = formatCurrency(context.raw);
+        const item = locationData[context.dataIndex];
+        return `${label}: ${value} (${item?.itemCount || 0}绉峉KU)`;
+      }
+    });
+
+    return new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: '搴撳瓨閲戦',
+          data: values,
+          backgroundColor: colors,
+          borderRadius: 6,
+          barThickness: 24
+        }]
+      },
+      options: {
+        ...config,
+        indexAxis: 'y',
+        scales: {
+          x: {
+            ...config.scales?.x,
+            ticks: {
+              ...config.scales?.x?.ticks,
+              callback: function(value) {
+                if (value >= 10000) {
+                  return (value / 10000).toFixed(1) + '涓?;
+                }
+                return value;
+              }
+            }
+          },
+          y: {
+            ...config.scales?.y,
+            ticks: {
+              ...config.scales?.y?.ticks,
+              font: { size: 12 }
+            }
+          }
+        }
+      }
+    });
+  } catch (error) {
+    console.error('鍒濆鍖栦粨搴撻噾棰濇帓琛屽浘琛ㄥけ璐?', error);
+    return null;
   }
 }
 </script>
@@ -545,33 +655,27 @@ async function initCategoryChart() {
 .header-card h2 {
   margin: 0;
   font-size: 22px;
-  color: var(--el-text-color-primary);
+  color: var(--color-text-primary);
 }
 .last-updated {
   margin-left: 10px;
   font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-.mt-20 {
-  margin-top: var(--spacing-lg);
-}
-.mb-20 {
-  margin-bottom: var(--spacing-lg);
+  color: var(--color-text-secondary);
 }
 .primary-card {
-  border-top: 4px solid var(--el-color-primary);
+  border-top: 4px solid var(--color-primary);
 }
 .success-card {
-  border-top: 4px solid var(--el-color-success);
+  border-top: 4px solid var(--color-success);
 }
 .info-card {
-  border-top: 4px solid var(--el-color-info);
+  border-top: 4px solid var(--color-info);
 }
 .warning-card {
-  border-top: 4px solid var(--el-color-warning);
+  border-top: 4px solid var(--color-warning);
 }
 .danger-card {
-  border-top: 4px solid var(--el-color-danger);
+  border-top: 4px solid var(--color-danger);
 }
 .stat-content {
   flex-grow: 1;
@@ -581,7 +685,7 @@ async function initCategoryChart() {
   font-size: 16px;
   font-weight: bold;
   margin-bottom: 15px;
-  color: var(--el-text-color-primary);
+  color: var(--color-text-primary);
 }
 .stat-info {
   display: flex;
@@ -597,15 +701,20 @@ async function initCategoryChart() {
   font-size: 20px;
   font-weight: 500;
   line-height: 1.2;
-  color: var(--el-text-color-primary);
+  color: var(--color-text-primary);
+}
+.stat-secondary-value.total-value-highlight {
+  font-size: 22px;
+  font-weight: 700;
+  color: #c68a17;
 }
 .stat-secondary-label {
   font-size: 14px;
-  color: var(--el-text-color-secondary);
+  color: var(--color-text-secondary);
 }
 .card-footer {
   padding-top: 10px;
-  border-top: 1px solid var(--el-border-color-lighter);
+  border-top: 1px solid var(--color-border-lighter);
 }
 .card-header {
   display: flex;
@@ -633,15 +742,7 @@ async function initCategoryChart() {
   height: 300px;
   position: relative;
 }
-.text-danger {
-  color: var(--el-color-danger);
-  font-weight: bold;
-}
-.text-warning {
-  color: var(--el-color-warning);
-  font-weight: bold;
-}
-/* 响应式调整 */
+/* 鍝嶅簲寮忚皟鏁?*/
 @media (max-width: 768px) {
   .search-input {
     max-width: 120px;
@@ -655,7 +756,7 @@ async function initCategoryChart() {
     font-size: 18px;
   }
 }
-/* 详情对话框长文本处理 - 自动添加 */
+/* 璇︽儏瀵硅瘽妗嗛暱鏂囨湰澶勭悊 - 鑷姩娣诲姞 */
 :deep(.el-descriptions__content) {
   max-width: 300px;
   overflow: hidden;

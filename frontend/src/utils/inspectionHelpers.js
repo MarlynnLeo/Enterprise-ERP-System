@@ -5,7 +5,7 @@
 
 import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
-import { api, qualityApi, purchaseApi, baseDataApi } from '@/services/api'
+import { qualityApi, purchaseApi, baseDataApi } from '@/api'
 import { parseListData } from '@/utils/responseParser'
 import logger from '@/utils/logger'
 
@@ -248,7 +248,7 @@ export async function fetchInspectionDetailWithItems(
   // 获取检验项（使用统一 api 实例，确保经过拦截器和代理）
   if (!inspectionData.items || inspectionData.items.length === 0) {
     try {
-      const itemsResponse = await api.get(`/quality/inspections/${id}/items`)
+      const itemsResponse = await qualityApi.getInspectionItems(id)
       const itemsData = itemsResponse.data
 
       if (itemsData) {

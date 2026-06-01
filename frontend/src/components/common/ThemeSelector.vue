@@ -1,9 +1,3 @@
-<!--
-/**
- * ThemeSelector.vue
- * @description 主题选择器组件
- */
--->
 <template>
   <el-dropdown @command="handleThemeChange" trigger="click" placement="bottom-end">
     <button class="theme-selector" type="button" :aria-label="currentPresetAriaLabel">
@@ -97,67 +91,67 @@ const handleThemeChange = async (presetId) => {
   height: 36px;
   padding: 0;
   border: 1px solid transparent;
-  border-radius: var(--radius-md, 8px);
+  border-radius: var(--shell-radius-md, var(--radius-md));
   background: transparent;
-  color: var(--el-text-color-primary);
+  color: var(--color-text-primary);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   transition:
-    background-color var(--transition-base, 0.2s),
-    border-color var(--transition-base, 0.2s),
-    color var(--transition-base, 0.2s);
+    background-color var(--transition-base),
+    border-color var(--transition-base),
+    color var(--transition-base);
 }
 
 .theme-selector:hover,
 .theme-selector:focus-visible {
-  color: var(--el-color-primary);
-  background: var(--color-bg-hover, var(--el-fill-color-light));
-  border-color: var(--color-border-light, var(--el-border-color-lighter));
+  color: var(--shell-accent, var(--color-primary));
+  background: var(--shell-control-hover-bg, var(--color-bg-hover));
+  border-color: var(--shell-control-border, var(--color-border-light));
   outline: none;
 }
 
 .theme-dropdown {
   min-width: 248px;
   padding: 8px;
-  border: 1px solid var(--color-border-light, var(--el-border-color-lighter));
-  border-radius: var(--radius-md, 8px);
-  background: var(--color-bg-base, var(--el-bg-color));
-  box-shadow: var(--shadow-lg, var(--el-box-shadow-light));
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--shell-radius-md, var(--radius-md));
+  background: var(--color-bg-base);
+  box-shadow: var(--shadow-lg);
 }
 
 .theme-dropdown__title {
   width: 100%;
   font-size: 13px;
   font-weight: 600;
-  color: var(--el-text-color-primary);
+  color: var(--color-text-primary);
 }
 
 .theme-dropdown__current {
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: var(--color-text-secondary);
 }
 
 :deep(.el-dropdown-menu__item) {
   min-height: 44px;
   padding: 8px 10px;
-  border-radius: var(--radius-sm, 6px);
+  border-radius: var(--shell-radius-sm, var(--radius-sm));
   margin: 2px 0;
   line-height: 1.35;
   transition:
-    background-color var(--transition-base, 0.2s),
-    color var(--transition-base, 0.2s);
+    background-color var(--transition-base),
+    color var(--transition-base);
 }
 
 :deep(.el-dropdown-menu__item:not(.is-disabled):hover) {
-  background: var(--color-primary-light-9, var(--color-bg-hover));
+  background: var(--color-primary-light-9);
 }
 
 :deep(.el-dropdown-menu__item.is-divided) {
   margin-top: 8px;
   padding-top: 10px;
-  border-top: 1px solid var(--color-border-lighter, var(--el-border-color-lighter));
+  border-top: 1px solid var(--color-border-lighter);
 }
 
 :deep(.el-dropdown-menu__item.is-disabled) {
@@ -171,7 +165,7 @@ const handleThemeChange = async (presetId) => {
   align-items: center;
   gap: 10px;
   min-width: 212px;
-  color: var(--el-text-color-regular, var(--color-text-regular));
+  color: var(--color-text-regular);
 }
 
 .theme-item__check,
@@ -181,13 +175,13 @@ const handleThemeChange = async (presetId) => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--el-color-primary);
+  color: var(--shell-accent, var(--color-primary));
 }
 
 .theme-item__icon {
   width: 24px;
   height: 24px;
-  color: var(--color-text-secondary, var(--el-text-color-secondary));
+  color: var(--color-text-secondary);
 }
 
 .theme-item__content {
@@ -200,7 +194,7 @@ const handleThemeChange = async (presetId) => {
 .theme-item__name {
   font-size: 14px;
   font-weight: 500;
-  color: var(--el-text-color-primary);
+  color: var(--color-text-primary);
 }
 
 .theme-item__description {
@@ -209,11 +203,11 @@ const handleThemeChange = async (presetId) => {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: var(--color-text-secondary);
 }
 
 .theme-item.is-active .theme-item__name,
 .theme-item.is-active .theme-item__icon {
-  color: var(--el-color-primary);
+  color: var(--shell-accent, var(--color-primary));
 }
 </style>

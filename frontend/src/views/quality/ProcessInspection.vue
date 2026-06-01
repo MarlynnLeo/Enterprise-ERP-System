@@ -45,56 +45,31 @@
       </template>
 
       <!-- 搜索表单 -->
-      <div class="search-container">
-        <el-row :gutter="16">
-          <el-col :span="6">
-            <el-input
-              v-model="searchKeyword"
-              placeholder="请输入检验单号/工单号/产品名称"
-              @keyup.enter="handleSearch"
-              clearable >
-              <template #prefix>
-                <el-icon><Search /></el-icon>
-              </template>
-            </el-input>
-          </el-col>
-
-          <el-col :span="4">
-            <el-select v-model="statusFilter" placeholder="检验状态" clearable @change="handleSearch" style="width: 100%">
+      <FinanceQueryCard :model="searchForm" @search="handleSearch" @reset="handleRefresh">
+        <template #basic>
+          <el-form-item label="关键词">
+            <el-input v-model="searchKeyword" placeholder="检验单号/工单号/产品名称" clearable @keyup.enter="handleSearch" />
+          </el-form-item>
+          <el-form-item label="检验状态">
+            <el-select v-model="statusFilter" placeholder="检验状态" clearable>
               <el-option label="待检验" value="pending" />
               <el-option label="合格" value="passed" />
               <el-option label="不合格" value="failed" />
               <el-option label="返工" value="rework" />
             </el-select>
-          </el-col>
-
-          <el-col :span="8">
-            <el-date-picker
-              v-model="dateRange"
-              type="daterange"
-              range-separator="至"
-              start-placeholder="开始日期"
-              end-placeholder="结束日期"
-              @change="handleSearch"
-              style="width: 100%"
-            />
-          </el-col>
-
-          <el-col :span="6">
-            <div class="search-buttons">
-              <el-button type="primary" @click="handleSearch">
-                <el-icon><Search /></el-icon>查询
-              </el-button>
-              <el-button @click="handleRefresh">
-                <el-icon><Refresh /></el-icon>重置
-              </el-button>
-              <el-button type="primary" v-if="canCreate" @click="handleCreate">
-                <el-icon><Plus /></el-icon>新增
-              </el-button>
-            </div>
-          </el-col>
-        </el-row>
-      </div>
+          </el-form-item>
+        </template>
+        <template #advanced>
+          <el-form-item label="时间范围">
+            <el-date-picker v-model="dateRange" type="daterange" range-separator="至" start-placeholder="开始日期" end-placeholder="结束日期" />
+          </el-form-item>
+        </template>
+        <template #actions>
+          <el-button type="primary" v-if="canCreate" @click="handleCreate">
+            <el-icon><Plus /></el-icon>新增
+          </el-button>
+        </template>
+      </FinanceQueryCard>
 
       <!-- 检验单列表 -->
       <el-table
@@ -330,7 +305,7 @@
 
 <script setup>
 import { ref, reactive, onMounted, defineAsyncComponent, computed } from 'vue'
-import { Search, Refresh, Plus, Setting } from '@element-plus/icons-vue'
+import { Plus, Setting } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
 import { useAuthStore } from '@/stores/auth'
@@ -339,6 +314,7 @@ import { qualityApi } from '@/api/quality'
 import { productionApi } from '@/api/production'
 import printService from '@/services/printService'
 import { parseResponseData } from '@/utils/responseParser'
+import FinanceQueryCard from '@/components/common/FinanceQueryCard.vue'
 
 // 异步加载规则和打卡弹窗组件
 const RulesDialog = defineAsyncComponent(() => import('./components/ProcessInspectionRulesDialog.vue'))
@@ -354,6 +330,7 @@ const canInspect = computed(() => authStore.hasPermission('quality:inspections:u
 const searchKeyword = ref('')
 const statusFilter = ref('')
 const dateRange = ref([])
+const searchForm = computed(() => ({ keyword: searchKeyword.value, status: statusFilter.value, dateRange: dateRange.value }))
 
 // 表格数据相关
 const loading = ref(false)

@@ -414,8 +414,14 @@ const systemController = {
         return ResponseHandler.error(res, '禁止越权修改超级管理员角色', 'FORBIDDEN', 403);
       }
 
+      if (String(id) === '1') {
+        roleData.code = 'admin';
+        roleData.status = 1;
+      }
 
       const result = await systemModel.updateRole(id, roleData);
+
+      PermissionService.clearUserPermissionsCache();
 
       ResponseHandler.success(res, result, '更新角色成功');
     } catch (error) {
@@ -490,6 +496,8 @@ const systemController = {
 
 
       await systemModel.deleteRole(id);
+
+      PermissionService.clearUserPermissionsCache();
 
       ResponseHandler.success(res, null, '删除角色成功');
     } catch (error) {

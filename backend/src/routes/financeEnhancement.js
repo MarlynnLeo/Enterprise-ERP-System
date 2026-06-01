@@ -263,6 +263,9 @@ router.get('/cost/yearly-comparison', requirePermission('finance:cost:view'), co
 
 // ==================== 成本报表导出路由 ====================
 
+router.get('/cost/closing/status', requirePermission('finance:cost:view'), costController.getClosingStatus);
+router.post('/cost/closing/:periodId/execute', requirePermission('finance:cost:execute'), requirePermission(PRICE_UPDATE_PERMISSIONS), costController.executeClosingWorkbench);
+
 router.get('/cost/export/ledger', requirePermission('finance:cost:export'), requirePermission(PRICE_EXPORT_PERMISSIONS), costController.exportCostLedger);
 router.get('/cost/export/variance', requirePermission('finance:cost:export'), requirePermission(PRICE_EXPORT_PERMISSIONS), costController.exportCostVariance);
 

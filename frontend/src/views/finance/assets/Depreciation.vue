@@ -234,7 +234,7 @@ import { parseListData, parseResponseData } from '@/utils/responseParser';
 import { formatCurrency, formatLocalMonth } from '@/utils/format'
 import { ref, reactive, computed, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { api } from '../../../services/api';
+import { financeApi } from '@/api/finance';
 import { buildApiUrl } from '@/config/app';
 import { loadDepartmentOptions as loadCachedDepartmentOptions } from '@/utils/optionLoaders';
 // 数据加载状态
@@ -338,12 +338,10 @@ const calculateDepreciation = async () => {
 
   try {
     ElMessage.info('正在由服务端试算折旧...');
-    const response = await api.get('/finance/assets/depreciation/calculate', {
-      params: {
-        depreciationDate: searchForm.depreciationDate,
-        categoryId: searchForm.categoryId || '',
-        department: searchForm.department || ''
-      }
+    const response = await financeApi.calculateAssetDepreciation({
+      depreciationDate: searchForm.depreciationDate,
+      categoryId: searchForm.categoryId || '',
+      department: searchForm.department || ''
     });
     const calculatedAssets = parseResponseData(response, []);
     if (!Array.isArray(calculatedAssets) || calculatedAssets.length === 0) {
@@ -354,14 +352,13 @@ const calculateDepreciation = async () => {
 
     // 先检查该月份是否已经计提过（在渲染表格前完成，避免视觉闪烁）
     try {
-      const depCheckRes = await api.get(`/finance/assets/depreciation/records`, {
-        params: { depreciationDate: searchForm.depreciationDate }
-      });
+      const depCheckRes = await financeApi.getAssetDepreciationRecords({ depreciationDate: searchForm.depreciationDate });
       const records = parseResponseData(depCheckRes, []);
       if (Array.isArray(records) && records.length > 0) {
         depreciationSubmitted.value = true;
       }
-    } catch {
+    } catch (error) {
+      console.error('检查折旧记录失败:', error)
     }
 
     // 更新列表（此时 depreciationSubmitted 已经是正确的值）
@@ -441,7 +438,7 @@ const submitSingleDepreciation = async (row) => {
       }]
     };
 
-    await api.post('/finance/assets/depreciation/submit', data);
+    await financeApi.submitAssetDepreciation(data);
 
     row.submitted = true;
     ElMessage.success(`${row.assetName} 折旧计提成功`);
@@ -465,7 +462,7 @@ const submitDepreciation = async () => {
       }))
     };
 
-    await api.post('/finance/assets/depreciation/submit', data);
+    await financeApi.submitAssetDepreciation(data);
 
     // 标记已提交的资产
     pendingSubmitAssets.value.forEach(asset => {
@@ -539,7 +536,7 @@ const getSummaries = (param) => {
 // 加载资产类别选项
 const loadCategoryOptions = async () => {
   try {
-    const response = await api.get(`/finance/assets/categories`);
+    const response = await financeApi.getAssetCategories();
     categoryOptions.value = parseListData(response, { enableLog: false }).filter(item => item);
   } catch (error) {
     console.error('加载资产类别列表失败:', error);

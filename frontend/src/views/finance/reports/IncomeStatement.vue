@@ -152,7 +152,7 @@ import { ReportHelper } from '@/utils/commonHelpers'
 
 import { ref, reactive, computed, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
-import { api } from '@/services/api';
+import { financeApi } from '@/api';
 import printService from '@/services/printService';
 import { loadExcelJS } from '@/utils/lazyVendors';
 // 查询参数
@@ -187,14 +187,12 @@ const generateReport = async () => {
 
   loading.value = true;
   try {
-    const response = await api.get('/finance/reports/income-statement', {
-      params: {
-        startDate: queryParams.startDate,
-        endDate: queryParams.endDate,
-        compareStartDate: queryParams.enableCompare ? queryParams.compareStartDate : '',
-        compareEndDate: queryParams.enableCompare ? queryParams.compareEndDate : '',
-        unit: queryParams.unit
-      }
+    const response = await financeApi.reports.getIncomeStatement({
+      startDate: queryParams.startDate,
+      endDate: queryParams.endDate,
+      compareStartDate: queryParams.enableCompare ? queryParams.compareStartDate : '',
+      compareEndDate: queryParams.enableCompare ? queryParams.compareEndDate : '',
+      unit: queryParams.unit
     });
 
     // axios拦截器已经解包了ResponseHandler格式

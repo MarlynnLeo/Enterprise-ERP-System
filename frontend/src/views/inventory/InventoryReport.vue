@@ -715,7 +715,7 @@ import { debounce } from '@/utils/commonHelpers'
 import { ref, onMounted, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
-import { baseDataApi } from '@/services/api'
+import { baseDataApi } from '@/api'
 import { inventoryApi } from '@/api/inventory'
 import { parseListData, parseResponseData } from '@/utils/responseParser'
 // 页面数据

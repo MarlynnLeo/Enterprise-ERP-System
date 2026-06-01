@@ -167,6 +167,7 @@
   --shell-control-border: transparent !important;
   --shell-control-hover-bg: var(--color-bg-hover) !important;
   --shell-control-hover-shadow: none !important;
+  --shell-menu-item-height: 44px !important;
 }
 
 
@@ -235,9 +236,6 @@
   color: var(--color-text-regular) !important;
   border-left: 3px solid transparent !important;
   border-radius: 0 !important;
-  margin: 0 !important;
-  height: 44px !important;
-  line-height: 44px !important;
   /* 过渡由全局 --el-transition-duration 变量控制，无需单独声明 */
 }
 

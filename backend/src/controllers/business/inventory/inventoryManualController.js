@@ -311,6 +311,10 @@ const createManualTransaction = async (req, res) => {
   const connection = await db.getConnection();
   try {
     await connection.beginTransaction();
+    const failValidation = async (message, code = 'VALIDATION_ERROR', status = 400) => {
+      await connection.rollback();
+      return ResponseHandler.error(res, message, code, status);
+    };
 
     logger.info('=== 收到创建手工出入库请求 ===');
     logger.info('req.body:', JSON.stringify(req.body, null, 2));
@@ -336,7 +340,7 @@ const createManualTransaction = async (req, res) => {
         businessTypeCode类型: typeof businessTypeCode,
         transaction_date类型: typeof transaction_date,
       });
-      return ResponseHandler.error(res, '缺少必填字段', 'VALIDATION_ERROR', 400);
+      return failValidation('缺少必填字段');
     }
 
     // ===== 年度结存校验 =====
@@ -344,8 +348,7 @@ const createManualTransaction = async (req, res) => {
     const inventoryCheck =
       await PeriodValidationService.validateInventoryTransaction(transaction_date);
     if (!inventoryCheck.allowed) {
-      await connection.rollback();
-      return ResponseHandler.error(res, inventoryCheck.message, 'VALIDATION_ERROR', 400);
+      return failValidation(inventoryCheck.message);
     }
     // ===== 年度结存校验结束 =====
 
@@ -365,12 +368,7 @@ const createManualTransaction = async (req, res) => {
         transaction_type = 'out';
       } else {
         logger.error('无效的业务类型分类:', { businessTypeCode, category });
-        return ResponseHandler.error(
-          res,
-          '该业务类型不支持手工出入库操作',
-          'VALIDATION_ERROR',
-          400
-        );
+        return failValidation('该业务类型不支持手工出入库操作');
       }
     } else {
       // 兼容直接传入 'in' 或 'out' 的情况
@@ -382,7 +380,7 @@ const createManualTransaction = async (req, res) => {
         transaction_type = 'out';
       } else {
         logger.error('无效的业务类型:', { businessTypeCode });
-        return ResponseHandler.error(res, '无效的业务类型', 'VALIDATION_ERROR', 400);
+        return failValidation('无效的业务类型');
       }
     }
 
@@ -391,15 +389,40 @@ const createManualTransaction = async (req, res) => {
     // 验证明细
     if (!items || !Array.isArray(items) || items.length === 0) {
       logger.error('明细数据为空:', { items });
-      return ResponseHandler.error(res, '请至少添加一条物料明细', 'VALIDATION_ERROR', 400);
+      return failValidation('请至少添加一条物料明细');
+    }
+
+    const materialIds = [...new Set(items.map(item => Number(item.material_id)).filter(Boolean))];
+    const locationIds = [...new Set(items.map(item => Number(item.location_id)).filter(Boolean))];
+
+    const materialInfoMap = await InventoryService.getBatchMaterialInfo(materialIds, connection);
+    let validLocationIds = new Set();
+    if (locationIds.length > 0) {
+      const locationPlaceholders = locationIds.map(() => '?').join(',');
+      const [locationRows] = await connection.execute(
+        `SELECT id FROM locations WHERE id IN (${locationPlaceholders}) AND deleted_at IS NULL`,
+        locationIds
+      );
+      validLocationIds = new Set(locationRows.map(row => Number(row.id)));
     }
 
     // 验证每条明细
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
-      if (!item.material_id || !item.location_id || !item.quantity) {
+      const materialId = Number(item.material_id);
+      const locationId = Number(item.location_id);
+      const quantity = Number(item.quantity);
+      if (!materialId || !locationId || !Number.isFinite(quantity) || quantity <= 0) {
         logger.error(`第${i + 1}条明细数据不完整:`, item);
-        return ResponseHandler.error(res, `第${i + 1}条明细数据不完整`, 'VALIDATION_ERROR', 400);
+        return failValidation(`第${i + 1}条明细数据不完整或数量无效`);
+      }
+      if (!materialInfoMap.has(materialId)) {
+        logger.error(`第${i + 1}条明细物料不存在:`, item);
+        return failValidation(`第${i + 1}条明细物料不存在`);
+      }
+      if (!validLocationIds.has(locationId)) {
+        logger.error(`第${i + 1}条明细仓库不存在:`, item);
+        return failValidation(`第${i + 1}条明细仓库不存在`);
       }
     }
 
@@ -409,11 +432,11 @@ const createManualTransaction = async (req, res) => {
 
     logger.info(`生成单据编号: ${transaction_no}`);
 
-    // 批量预取物料信息（消除循环内 N+1 查询）
-
     // 处理每条明细
     for (const item of items) {
-      const { material_id, location_id, quantity } = item;
+      const material_id = Number(item.material_id);
+      const location_id = Number(item.location_id);
+      const quantity = Number(item.quantity);
 
       // 从批量预取结果获取物料信息
 
@@ -514,11 +537,27 @@ const createManualTransactionInternal = async (connection, params) => {
     throw new Error('请至少添加一条物料明细');
   }
 
+  const locationIds = [...new Set(items.map(item => Number(item.location_id)).filter(Boolean))];
+  let validLocationIds = new Set();
+  if (locationIds.length > 0) {
+    const locationPlaceholders = locationIds.map(() => '?').join(',');
+    const [locationRows] = await connection.execute(
+      `SELECT id FROM locations WHERE id IN (${locationPlaceholders}) AND deleted_at IS NULL`,
+      locationIds
+    );
+    validLocationIds = new Set(locationRows.map(row => Number(row.id)));
+  }
+
   // 验证每条明细
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
-    if (!item.material_id || !item.location_id || !item.quantity) {
-      throw new Error(`第${i + 1}条明细数据不完整`);
+    const quantity = Number(item.quantity);
+    const locationId = Number(item.location_id);
+    if (!item.material_id || !locationId || !Number.isFinite(quantity) || quantity <= 0) {
+      throw new Error(`第${i + 1}条明细数据不完整或数量无效`);
+    }
+    if (!validLocationIds.has(locationId)) {
+      throw new Error(`第${i + 1}条明细仓库不存在`);
     }
   }
 
@@ -534,7 +573,9 @@ const createManualTransactionInternal = async (connection, params) => {
 
   // 处理每条明细
   for (const item of items) {
-    const { material_id, location_id, quantity } = item;
+    const material_id = Number(item.material_id);
+    const location_id = Number(item.location_id);
+    const quantity = Number(item.quantity);
 
     // 从批量预取结果获取物料信息
     const matInfo = approvalMaterialInfoMap.get(material_id);
@@ -589,13 +630,15 @@ const createExchange = async (req, res) => {
     // 验证必填字段
     if (
       !transaction_date ||
-      !remark ||
+      !String(remark || '').trim() ||
       !return_material_id ||
       !return_location_id ||
-      !return_quantity ||
+      !Number.isFinite(Number(return_quantity)) ||
+      Number(return_quantity) <= 0 ||
       !issue_material_id ||
       !issue_location_id ||
-      !issue_quantity
+      !Number.isFinite(Number(issue_quantity)) ||
+      Number(issue_quantity) <= 0
     ) {
       await connection.rollback();
       return ResponseHandler.error(res, '缺少必填字段', 'VALIDATION_ERROR', 400);
@@ -603,9 +646,9 @@ const createExchange = async (req, res) => {
 
     // 创建入库单（退回）
     const returnTransactionNo = await createManualTransactionInternal(connection, {
-      businessTypeCode: 'in',
+      businessTypeCode: 'manual_in',
       transaction_date,
-      remark: `调货-退回：${remark}`,
+      remark: `调货-退回：${String(remark).trim()}`,
       items: [
         {
           material_id: return_material_id,
@@ -620,9 +663,9 @@ const createExchange = async (req, res) => {
 
     // 创建出库单（补发）
     const issueTransactionNo = await createManualTransactionInternal(connection, {
-      businessTypeCode: 'out',
+      businessTypeCode: 'manual_out',
       transaction_date,
-      remark: `调货-补发：${remark}`,
+      remark: `调货-补发：${String(remark).trim()}`,
       items: [
         {
           material_id: issue_material_id,

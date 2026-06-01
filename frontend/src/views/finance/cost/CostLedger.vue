@@ -249,7 +249,7 @@
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import { Download } from '@element-plus/icons-vue';
-import api, { baseDataApi } from '@/services/api';
+import { baseDataApi, financeApi } from '@/api';
 import { buildApiUrl } from '@/config/app';
 import { formatCurrency } from '@/utils/helpers/formatters';
 import { parseListData, parseResponseData } from '@/utils/responseParser';
@@ -292,7 +292,7 @@ const drilldownData = ref(null);
 // 加载成本中心选项
 const loadCostCenterOptions = async () => {
   try {
-    const res = await api.get('/finance/cost-centers/options');
+    const res = await financeApi.cost.getCostCenterOptions();
     costCenterOptions.value = parseResponseData(res, []);
   } catch (error) {
     console.error('加载成本中心选项失败:', error);
@@ -336,7 +336,7 @@ const loadLedger = async () => {
       params.startDate = dateRange.value[0];
       params.endDate = dateRange.value[1];
     }
-    const res = await api.get('/finance/cost-ledger', { params });
+    const res = await financeApi.cost.getCostLedger(params);
     const data = parseResponseData(res, {});
     ledgerList.value = data.list || [];
     pagination.total = Number(data.total) || 0;
@@ -360,7 +360,7 @@ const loadSummary = async (dimension) => {
       params.startDate = dateRange.value[0];
       params.endDate = dateRange.value[1];
     }
-    const res = await api.get(`/finance/cost-ledger/summary/${dimension}`, { params });
+    const res = await financeApi.cost.getCostLedgerSummary(dimension, params);
     const data = parseResponseData(res, []);
 
     switch (dimension) {
@@ -396,7 +396,7 @@ const showDrilldown = async (row) => {
   drilldownVisible.value = true;
   drilldownLoading.value = true;
   try {
-    const res = await api.get(`/finance/cost-ledger/task/${row.task_id}`);
+    const res = await financeApi.cost.getCostLedgerTask(row.task_id);
     drilldownData.value = parseResponseData(res, null);
   } catch (error) {
     console.error('加载钻取详情失败:', error);

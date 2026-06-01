@@ -57,7 +57,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
-import { equipmentApi } from '@/services/api'
+import { equipmentApi } from '@/api'
 
 const props = defineProps({
   title: {

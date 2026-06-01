@@ -1,40 +1,36 @@
 /**
- * API统一入口文件
- * 重新导出所有API模块，保持向后兼容
+ * Canonical frontend API entry.
+ *
+ * New code should import business API modules from '@/api'. The legacy
+ * '@/api' entry re-exports this file for compatibility only.
  */
 
-// 从services/api.js重新导出所有实际存在的API
-export {
-  api,
-  fastApi,
-  salesApi,
-  baseDataApi,
-  inventoryApi,
-  productionApi,
-  purchaseApi,
-  supplierApi,
-  materialApi,
-  qualityApi,
-  userApi,
-  todoApi,
-  financeApi,
-  hrApi,
-  nonconformingProductApi,
-  equipmentMonitoringAPI,
-  commonApi,
-  metalPricesApi,
-  systemApi,
-  equipmentApi,
-  workflowApi,
-  contractApi,
-  codingRuleApi,
-  docLinkApi,
-  exchangeRateApi,
-  performanceApi,
-  ecnApi,
-  documentApi,
-  alertApi
-} from '../services/api.js';
+export { api, fastApi } from '../services/axiosInstance';
+export { default } from '../services/axiosInstance';
 
-// 默认导出主API实例
-export { api as default } from '../services/api.js';
+export * from './afterSales';
+export * from './baseData';
+export * from './bom';
+export * from './common';
+export * from './contract';
+export * from './enhanced';
+export * from './equipment';
+export * from './finance';
+export * from './hr';
+export * from './inventory';
+export * from './location';
+export * from './material';
+export * from './notification';
+export * from './nonconformingProductApi';
+export { default as nonconformingProductApi } from './nonconformingProductApi';
+export * from './production';
+export * from './print';
+export * from './purchase';
+export * from './quality';
+export * from './sales';
+export * from './supplier';
+export * from './system';
+export * from './technicalCommunication';
+export * from './user';
+export * from './workflow';
+export * from './modules/business/equipmentMonitoring';

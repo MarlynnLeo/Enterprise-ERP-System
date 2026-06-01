@@ -152,7 +152,7 @@
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { useRouter } from 'vue-router';
-import { api } from '@/services/axiosInstance';
+import { financeApi } from '@/api/finance';
 import { formatAmount } from '@/utils/format'
 const router = useRouter();
 const showAdvancedSearch = ref(false);
@@ -176,12 +176,10 @@ const pagination = reactive({
 const fetchData = async () => {
   loading.value = true;
   try {
-    const response = await api.get('/finance/budgets', {
-      params: {
-        ...searchForm,
-        page: pagination.page,
-        pageSize: pagination.pageSize
-      }
+    const response = await financeApi.budgets.getList({
+      ...searchForm,
+      page: pagination.page,
+      pageSize: pagination.pageSize
     });
     // unwrapResponse拦截器已解包，response.data 直接是 { list, total, ... }
     const result = response.data;
@@ -226,7 +224,7 @@ const getErrorMessage = (error, fallback) => {
 // 提交审批
 const handleSubmit = async (row) => {
   try {
-    await api.post(`/finance/budgets/${row.id}/submit`);
+    await financeApi.budgets.submit(row.id);
     ElMessage.success('提交成功');
     fetchData();
   } catch (error) {
@@ -245,14 +243,14 @@ const handleApprove = async (row) => {
       distinguishCancelAndClose: true,
       type: 'warning'
     });
-    await api.post(`/finance/budgets/${row.id}/approve`, { approved: true });
+    await financeApi.budgets.approve(row.id, { approved: true });
     ElMessage.success('审批通过');
     fetchData();
   } catch (error) {
     if (error === 'cancel') {
       // 驳回
       try {
-        await api.post(`/finance/budgets/${row.id}/approve`, { approved: false });
+        await financeApi.budgets.approve(row.id, { approved: false });
         ElMessage.success('已驳回');
         fetchData();
       } catch (err) {
@@ -268,7 +266,7 @@ const handleApprove = async (row) => {
 // 启动执行
 const handleStart = async (row) => {
   try {
-    await api.post(`/finance/budgets/${row.id}/start`);
+    await financeApi.budgets.start(row.id);
     ElMessage.success('启动成功');
     fetchData();
   } catch (error) {
@@ -281,7 +279,7 @@ const handleStart = async (row) => {
 // 关闭
 const handleClose = async (row) => {
   try {
-    await api.post(`/finance/budgets/${row.id}/close`);
+    await financeApi.budgets.close(row.id);
     ElMessage.success('关闭成功');
     fetchData();
   } catch (error) {
@@ -294,7 +292,7 @@ const handleClose = async (row) => {
 // 删除
 const handleDelete = async (row) => {
   try {
-    await api.delete(`/finance/budgets/${row.id}`);
+    await financeApi.budgets.delete(row.id);
     ElMessage.success('删除成功');
     fetchData();
   } catch (error) {

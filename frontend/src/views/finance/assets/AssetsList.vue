@@ -530,7 +530,7 @@ import { ref, reactive, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, ArrowDown } from '@element-plus/icons-vue';
-import { financeApi } from '@/services/api';
+import { financeApi } from '@/api';
 import { formatDate, formatCurrency } from '@/utils/helpers/formatters';
 import { loadDepartmentOptions as loadCachedDepartmentOptions } from '@/utils/optionLoaders';
 

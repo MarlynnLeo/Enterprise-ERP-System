@@ -90,7 +90,7 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { documentApi } from '@/api/enhanced'
-import { api } from '@/services/axiosInstance'
+import { commonApi } from '@/api/common'
 
 const loading = ref(false)
 const saving = ref(false)
@@ -141,7 +141,7 @@ const handleSave = async () => {
     if (form.value._file) {
       const fd = new FormData()
       fd.append('file', form.value._file)
-      const uploadRes = await api.post('/upload/file', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+      const uploadRes = await commonApi.uploadFile(fd)
       fileUrl = uploadRes.data?.url || uploadRes.data?.filePath || ''
     }
     await documentApi.create({ ...form.value, file_url: fileUrl || 'manual' })

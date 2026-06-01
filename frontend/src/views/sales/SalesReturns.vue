@@ -334,7 +334,7 @@ import { formatCurrency } from '@/utils/helpers/formatters'
 import dayjs from 'dayjs'
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { salesApi } from '@/services/api'
+import { salesApi } from '@/api'
 import { Plus } from '@element-plus/icons-vue'
 import printService from '@/services/printService'
 // 退货单详情相关

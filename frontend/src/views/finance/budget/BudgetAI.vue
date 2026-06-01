@@ -493,7 +493,7 @@
 <script setup>
 import { ref, onMounted, nextTick, h } from 'vue'
 import { useRouter } from 'vue-router'
-import { api } from '@/services/axiosInstance'
+import { financeApi } from '@/api/finance'
 import { API_CONFIG } from '@/config/app'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -609,7 +609,7 @@ const formatTokens = (n) => n >= 10000 ? (n / 10000).toFixed(1) + '万' : n
 
 const fetchUsageStats = async () => {
   try {
-    const res = await api.get('/finance/budgets/ai/usage-stats')
+    const res = await financeApi.budgets.getAiUsageStats()
     usageStats.value = res.data || { call_count: 0, total_tokens: 0 }
   } catch { /* 静默 */ }
 }
@@ -737,14 +737,14 @@ const renderComparisonChart = () => {
 
 // ==================== 数据获取 ====================
 const fetchBudgetList = async () => {
-  try { const res = await api.get('/finance/budgets'); budgetList.value = res.data.list || res.data || [] }
+  try { const res = await financeApi.budgets.getList(); budgetList.value = res.data.list || res.data || [] }
   catch (e) { console.error('获取预算列表失败:', e) }
 }
 
 const fetchRecommendation = async () => {
   loading.value.recommendation = true; recommendation.value = null
   try {
-    const res = await api.get('/finance/budgets/ai/recommendation', { params: { year: recYear.value }, ...AI_TIMEOUT })
+    const res = await financeApi.budgets.getAiRecommendation({ year: recYear.value }, AI_TIMEOUT)
     recommendation.value = res.data
     ElMessage.success(`AI 已生成${res.data?.recommendations?.length || 0}个科目的预算建议`)
     renderRecCharts()
@@ -769,7 +769,7 @@ const createBudgetFromAI = async () => {
 
   loading.value.createBudget = true
   try {
-    const res = await api.post('/finance/budgets/ai/create-from-ai', {
+    const res = await financeApi.budgets.createFromAi({
       budget_year: parseInt(recYear.value),
       budget_name: `${recYear.value}年AI智能预算`,
       recommendations: selectedRecs.value.map(r => ({
@@ -778,7 +778,7 @@ const createBudgetFromAI = async () => {
         recommended_budget: r.recommended_budget,
         confidence: r.confidence,
       })),
-    })
+    }, AI_TIMEOUT)
     ElMessage.success(`预算创建成功！编号: ${res.data.budget_no}`)
     try {
       await ElMessageBox.confirm('预算已创建为草稿状态，是否立即跳转到预算管理页面？', '创建成功', {
@@ -796,7 +796,7 @@ const createBudgetFromAI = async () => {
 const fetchAnomalies = async () => {
   loading.value.anomalies = true; anomalies.value = null
   try {
-    const res = await api.get(`/finance/budgets/${anomalyBudgetId.value}/ai/anomalies`, AI_TIMEOUT)
+    const res = await financeApi.budgets.getAiAnomalies(anomalyBudgetId.value, AI_TIMEOUT)
     anomalies.value = res.data
     const count = res.data?.summary?.total || 0
     count > 0 ? ElMessage.warning(`AI 检测到${count}个异常项`) : ElMessage.success('AI 未检测到异常')
@@ -809,7 +809,7 @@ const fetchAnomalies = async () => {
 const fetchOptimization = async () => {
   loading.value.optimization = true; optimization.value = null
   try {
-    const res = await api.get(`/finance/budgets/${optBudgetId.value}/ai/optimization`, AI_TIMEOUT)
+    const res = await financeApi.budgets.getAiOptimization(optBudgetId.value, AI_TIMEOUT)
     optimization.value = res.data
     ElMessage.success(`AI 评估完成: 健康度 ${res.data?.health_score || 0}分 (${res.data?.health_level || ''})`)
     renderHealthGauge()
@@ -822,7 +822,7 @@ const fetchOptimization = async () => {
 const fetchComparison = async () => {
   loading.value.comparison = true; comparison.value = null
   try {
-    const res = await api.get('/finance/budgets/ai/year-comparison', { params: { year1: cmpYear1.value, year2: cmpYear2.value }, ...AI_TIMEOUT })
+    const res = await financeApi.budgets.getAiYearComparison({ year1: cmpYear1.value, year2: cmpYear2.value }, AI_TIMEOUT)
     comparison.value = res.data
     ElMessage.success(`AI 已完成${cmpYear1.value}vs${cmpYear2.value}对比分析`)
     renderComparisonChart()
@@ -834,7 +834,7 @@ const fetchComparison = async () => {
 const fetchReport = async () => {
   loading.value.report = true; report.value = null
   try {
-    const res = await api.get(`/finance/budgets/${reportBudgetId.value}/ai/comprehensive-report`, AI_TIMEOUT)
+    const res = await financeApi.budgets.getAiComprehensiveReport(reportBudgetId.value, AI_TIMEOUT)
     report.value = res.data
     ElMessage.success('AI 综合报告已生成')
     fetchUsageStats()

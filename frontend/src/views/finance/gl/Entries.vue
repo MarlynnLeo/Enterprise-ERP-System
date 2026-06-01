@@ -418,7 +418,7 @@ import { useFinanceStore } from '@/stores/finance';
 import { storeToRefs } from 'pinia';
 
 // 项目工具和API
-import { api } from '@/services/api';
+import { financeApi } from '@/api';
 import printService from '@/services/printService'
 
 
@@ -692,7 +692,7 @@ const loadEntries = async () => {
       params.is_posted = searchForm.isPosted;
     }
 
-    const response = await api.get('/finance/entries', { params });
+    const response = await financeApi.getEntries(params);
     // 根据后端返回的实际数据结构调整
     if (response.data.entries && Array.isArray(response.data.entries)) {
       // 提取基本数据
@@ -774,7 +774,7 @@ const resetSearch = () => {
 // 查看凭证详情
 const viewEntry = async (row) => {
   try {
-    const response = await api.get(`/finance/entries/${row.id}/items`);
+    const response = await financeApi.getEntryItems(row.id);
     currentEntry.value = row;
     // 确保获取到的数据能正确映射到前端需要的属性
     if (Array.isArray(response.data)) {
@@ -798,7 +798,7 @@ const openRouteEntryDetail = async () => {
   try {
     let entry = entriesList.value.find(item => String(item.id) === String(entryId));
     if (!entry) {
-      const response = await api.get(`/finance/entries/${entryId}`);
+      const response = await financeApi.getEntry(entryId);
       entry = normalizeEntryRow(response.data);
     }
     openedRouteEntryId.value = String(entryId);
@@ -824,7 +824,7 @@ const postEntry = (row) => {
     type: 'warning'
   }).then(async () => {
     try {
-      await api.patch(`/finance/entries/${row.id}/post`);
+      await financeApi.postEntry(row.id);
       ElMessage.success('过账成功');
       loadEntries();
     } catch (error) {
@@ -929,7 +929,7 @@ const submitReverseEntry = async () => {
 
   reverseSubmitting.value = true;
   try {
-    await api.post(`/finance/entries/${reversingEntry.value.id}/reverse`, {
+    await financeApi.reverseEntry(reversingEntry.value.id, {
       entry_date: reversalForm.entry_date,
       posting_date: reversalForm.posting_date,
       period_id: reversalForm.period_id,
@@ -955,7 +955,7 @@ const deleteEntry = (row) => {
     type: 'warning'
   }).then(async () => {
     try {
-      await api.delete(`/finance/entries/${row.id}`);
+      await financeApi.deleteEntry(row.id);
       ElMessage.success('删除成功');
       loadEntries();
     } catch (error) {
@@ -970,7 +970,7 @@ const handleExpandChange = async (row, expandedRows) => {
   // 如果行被展开，且还没有加载过明细数据
   if (expandedRows.includes(row) && !row.items) {
     try {
-      const response = await api.get(`/finance/entries/${row.id}/items`);
+      const response = await financeApi.getEntryItems(row.id);
       if (Array.isArray(response.data)) {
         // 为当前行添加明细数据
         row.items = response.data;
@@ -994,7 +994,7 @@ const handleExpandChange = async (row, expandedRows) => {
 // 加载会计期间列表
 const loadPeriods = async () => {
   try {
-    const response = await api.get('/finance/periods');
+    const response = await financeApi.periods.getList();
     if (Array.isArray(response.data)) {
       periods.value = response.data.map(period => ({
         id: period.id,
@@ -1184,11 +1184,6 @@ watch(() => [props.fixedType, route.query.type], () => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-/* 操作按钮列允许换行 */
-:deep(.el-table .operation-buttons) {
-  white-space: normal;
 }
 
 /* 打印对话框头部样式 */

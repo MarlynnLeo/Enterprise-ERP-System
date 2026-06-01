@@ -293,7 +293,7 @@
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import { Download } from '@element-plus/icons-vue';
-import api from '@/services/api';
+import { financeApi } from '@/api';
 import { buildApiUrl } from '@/config/app';
 import { formatLocalMonth } from '@/utils/format';
 import { formatCurrency } from '@/utils/helpers/formatters';
@@ -357,7 +357,7 @@ const getVarianceType = (rate) => {
 // 加载成本中心选项
 const loadCostCenterOptions = async () => {
   try {
-    const res = await api.get('/finance/cost-centers/options');
+    const res = await financeApi.cost.getCostCenterOptions();
     costCenterOptions.value = parseResponseData(res, []);
   } catch {
     costCenterOptions.value = [];
@@ -376,7 +376,7 @@ const loadVarianceData = async () => {
     if (searchForm.productName) params.productName = searchForm.productName;
     if (searchForm.varianceType) params.varianceType = searchForm.varianceType;
 
-    const res = await api.get('/finance/cost/variance', { params });
+    const res = await financeApi.cost.getVariance(params);
     const { list, total } = parsePaginatedData(res, { enableLog: false });
     varianceList.value = list;
     pagination.total = Number(total) || 0;
@@ -400,7 +400,7 @@ const loadEfficiencyData = async () => {
     }
     if (effCostCenter.value) params.costCenterId = effCostCenter.value;
 
-    const res = await api.get('/finance/cost-centers/efficiency-variance', { params });
+    const res = await financeApi.cost.getEfficiencyVariance(params);
     const data = parseResponseData(res, {});
     efficiencyList.value = data.list || [];
 
@@ -429,7 +429,7 @@ const loadCapacityData = async () => {
   capLoading.value = true;
   try {
     const params = { month: capDateRange.value };
-    const res = await api.get('/finance/cost-centers/capacity-utilization', { params });
+    const res = await financeApi.cost.getCapacityUtilization(params);
     const data = parseResponseData(res, {});
     capacityList.value = data.list || [];
 
@@ -456,7 +456,7 @@ const loadCapacityData = async () => {
 const viewDetail = async (row) => {
   try {
     const taskId = row.id;
-    const res = await api.get(`/finance/cost/variance/${taskId}`);
+    const res = await financeApi.cost.getVarianceDetail(taskId);
     if (res.data) {
       currentDetail.value = parseResponseData(res);
     } else {

@@ -802,7 +802,7 @@
 <script setup>
 import { ref, reactive, onMounted, onActivated } from 'vue'
 import { useRouter } from 'vue-router'
-import { purchaseApi } from '@/services/api'
+import { purchaseApi } from '@/api'
 import { Plus, Select, Promotion, CircleCheck, Close } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { PURCHASE_STATUS_OPTIONS } from '@/constants/purchaseConstants'
@@ -841,7 +841,7 @@ const {
   orderTableRef, selectedOrders, batchLoading, canBatchSubmit, canBatchApprove,
   orderStats, formatDate, formatCurrency, getStatusText, getStatusType,
   getCountdownText, getCountdownType,
-  viewOrder, viewRequisition, updateStatus, deleteOrder,
+  viewOrder, viewRequisition, updateStatus, deleteOrder: _deleteOrder,
   openReceiveDialog, handleReceiveQuantityChange, confirmReceive,
   printOrder, getOrderStats,
   handleSelectionChange, clearSelection, handleBatchSubmit, handleBatchApprove

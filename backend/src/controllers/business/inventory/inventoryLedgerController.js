@@ -97,32 +97,98 @@ const _getStockStatistics = async (req, res) => {
   try {
     const connection = await db.pool.getConnection();
     try {
-      // 合并查询所有统计数据，减少数据库交互
-      const [statsResult] = await connection.execute(`
-        SELECT
-          (SELECT COUNT(id) FROM materials) as total_items,
-          (SELECT COUNT(id) FROM locations) as total_locations,
-          SUM(CASE WHEN max_qty < safety_stock OR max_qty IS NULL THEN 1 ELSE 0 END) as low_stock,
-          SUM(CASE WHEN max_qty IS NULL OR max_qty <= 0 THEN 1 ELSE 0 END) as out_of_stock
-        FROM (
-          SELECT m.id, MAX(s.quantity) as max_qty, m.safety_stock
-          FROM materials m
-          LEFT JOIN (
-            SELECT il.material_id, il.location_id, SUM(il.quantity) as quantity
+      // 并行执行四组查询：基础统计、金额总计、分类金额 Top5、仓库金额
+      const [statsResult, valueResult, categoryValueResult, locationValueResult] = await Promise.all([
+        // 1. 原有基础数量统计
+        connection.execute(`
+          SELECT
+            (SELECT COUNT(id) FROM materials) as total_items,
+            (SELECT COUNT(id) FROM locations) as total_locations,
+            SUM(CASE WHEN max_qty < safety_stock OR max_qty IS NULL THEN 1 ELSE 0 END) as low_stock,
+            SUM(CASE WHEN max_qty IS NULL OR max_qty <= 0 THEN 1 ELSE 0 END) as out_of_stock
+          FROM (
+            SELECT m.id, MAX(s.quantity) as max_qty, m.safety_stock
+            FROM materials m
+            LEFT JOIN (
+              SELECT il.material_id, il.location_id, SUM(il.quantity) as quantity
+              FROM inventory_ledger il
+              JOIN materials mat ON il.material_id = mat.id
+              WHERE mat.location_id IS NULL OR il.location_id = mat.location_id
+              GROUP BY il.material_id, il.location_id
+            ) s ON m.id = s.material_id
+            GROUP BY m.id, m.safety_stock
+          ) AS stock_summary
+        `),
+        // 2. 库存总金额
+        connection.execute(`
+          SELECT
+            COALESCE(SUM(current_stock.quantity * IFNULL(m.cost_price, 0)), 0) as totalValue
+          FROM (
+            SELECT il.material_id, SUM(il.quantity) as quantity
             FROM inventory_ledger il
             JOIN materials mat ON il.material_id = mat.id
             WHERE mat.location_id IS NULL OR il.location_id = mat.location_id
+            GROUP BY il.material_id
+            HAVING SUM(il.quantity) > 0
+          ) current_stock
+          LEFT JOIN materials m ON current_stock.material_id = m.id
+        `),
+        // 3. 按分类汇总金额 Top 5
+        connection.execute(`
+          SELECT
+            COALESCE(c.name, '未分类') as category_name,
+            COALESCE(SUM(current_stock.quantity * IFNULL(m.cost_price, 0)), 0) as total_value,
+            COUNT(DISTINCT current_stock.material_id) as item_count
+          FROM (
+            SELECT il.material_id, SUM(il.quantity) as quantity
+            FROM inventory_ledger il
+            JOIN materials mat ON il.material_id = mat.id
+            WHERE mat.location_id IS NULL OR il.location_id = mat.location_id
+            GROUP BY il.material_id
+            HAVING SUM(il.quantity) > 0
+          ) current_stock
+          LEFT JOIN materials m ON current_stock.material_id = m.id
+          LEFT JOIN categories c ON m.category_id = c.id
+          GROUP BY c.id, c.name
+          ORDER BY total_value DESC
+          LIMIT 5
+        `),
+        // 4. 按仓库汇总金额
+        connection.execute(`
+          SELECT
+            COALESCE(l.name, '未分配库位') as location_name,
+            COALESCE(SUM(current_stock.quantity * IFNULL(m.cost_price, 0)), 0) as total_value,
+            COUNT(DISTINCT current_stock.material_id) as item_count
+          FROM (
+            SELECT il.material_id, il.location_id, SUM(il.quantity) as quantity
+            FROM inventory_ledger il
             GROUP BY il.material_id, il.location_id
-          ) s ON m.id = s.material_id
-          GROUP BY m.id, m.safety_stock
-        ) AS stock_summary
-      `);
+            HAVING SUM(il.quantity) > 0
+          ) current_stock
+          LEFT JOIN materials m ON current_stock.material_id = m.id
+          LEFT JOIN locations l ON current_stock.location_id = l.id
+          GROUP BY current_stock.location_id, l.name
+          ORDER BY total_value DESC
+        `)
+      ]);
 
       const statistics = {
-        totalItems: statsResult[0].total_items || 0,
-        totalLocations: statsResult[0].total_locations || 0,
-        lowStock: statsResult[0].low_stock || 0,
-        outOfStock: statsResult[0].out_of_stock || 0,
+        totalItems: statsResult[0][0].total_items || 0,
+        totalLocations: statsResult[0][0].total_locations || 0,
+        lowStock: statsResult[0][0].low_stock || 0,
+        outOfStock: statsResult[0][0].out_of_stock || 0,
+        // 金额统计
+        totalValue: parseFloat(valueResult[0][0].totalValue) || 0,
+        totalValueByCategory: categoryValueResult[0].map(row => ({
+          name: row.category_name,
+          value: parseFloat(row.total_value) || 0,
+          itemCount: parseInt(row.item_count) || 0
+        })),
+        totalValueByLocation: locationValueResult[0].map(row => ({
+          name: row.location_name,
+          value: parseFloat(row.total_value) || 0,
+          itemCount: parseInt(row.item_count) || 0
+        }))
       };
 
       ResponseHandler.success(res, statistics, '获取库存统计成功');

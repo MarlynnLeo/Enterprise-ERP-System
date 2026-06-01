@@ -12,7 +12,7 @@
 
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { api, fastApi } from '../services/api'
+import { userApi } from '@/api/user'
 import { tokenManager, permissionManager } from '../utils/unifiedStorage'
 
 const permissionAliasMap = {
@@ -35,7 +35,13 @@ const permissionAliasMap = {
   'quality:incoming': 'quality:inspections',
   'quality:process': 'quality:inspections',
   'quality:final': 'quality:inspections',
-  'quality:first-article': 'quality:inspections'
+  'quality:first-article': 'quality:inspections',
+  'system:print:add': 'system:print:create',
+  'system:print:edit': 'system:print:update',
+  'system:print:template:view': 'system:print:view',
+  'system:print:template:add': 'system:print:create',
+  'system:print:template:edit': 'system:print:update',
+  'system:print:template:delete': 'system:print:delete'
 }
 
 const expandPermissionCandidates = (permission) => {
@@ -86,7 +92,7 @@ export const useAuthStore = defineStore('auth', () => {
   // 登录
   const login = async (credentials) => {
     try {
-      const response = await api.post('/auth/login', credentials)
+      const response = await userApi.login(credentials)
 
       // 拦截器已解包，response.data 就是 { user }
       const data = response.data
@@ -116,7 +122,7 @@ export const useAuthStore = defineStore('auth', () => {
   // 登出
   const logout = async () => {
     try {
-      await api.post('/auth/logout')
+      await userApi.logout()
     } catch (error) {
       console.error('登出请求失败:', error)
     } finally {
@@ -137,7 +143,7 @@ export const useAuthStore = defineStore('auth', () => {
   // 更新用户信息
   const updateUser = async (userData) => {
     try {
-      const response = await api.put('/auth/profile', userData)
+      const response = await userApi.updateProfile(userData)
       // 拦截器已解包，response.data 就是用户信息
       user.value = response.data
       tokenManager.setUser(user.value)
@@ -151,7 +157,7 @@ export const useAuthStore = defineStore('auth', () => {
   // 获取用户信息
   const fetchUserProfile = async (includePermissions = false) => {
     try {
-      const response = await fastApi.get('/auth/profile')
+      const response = await userApi.getProfileFast()
       // 拦截器已解包，response.data 就是用户信息
       user.value = response.data
       tokenManager.setUser(user.value)
@@ -166,40 +172,36 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  // 获取用户权限
+  // 获取用户权限（Promise 缓存，避免轮询）
+  let _permissionsPromise = null
   const fetchUserPermissions = async (force = false) => {
-    // ✅ 修复: 不再基于 user.role 判断是否需要检查权限
     // 所有用户都从后端获取权限列表,由后端决定是否给予管理员权限
 
-    // 如果强制刷新，重置加载状态
+    // 如果强制刷新，重置加载状态和缓存的 Promise
     if (force) {
       permissionsLoaded.value = false
+      _permissionsPromise = null
     }
 
     if (permissionsLoaded.value && !force) {
       return true
     }
 
-    if (permissionsLoading.value) {
-      return new Promise((resolve) => {
-        const checkLoading = () => {
-          if (!permissionsLoading.value) {
-            resolve(permissionsLoaded.value)
-          } else {
-            setTimeout(checkLoading, 100)
-          }
-        }
-        checkLoading()
-      })
+    // 多个组件并发请求时共享同一个 Promise，而非 100ms 轮询
+    if (_permissionsPromise && !force) {
+      return _permissionsPromise
     }
 
+    _permissionsPromise = _doFetchPermissions()
+    return _permissionsPromise
+  }
+
+  // 实际执行权限加载的内部函数
+  const _doFetchPermissions = async () => {
     try {
       permissionsLoading.value = true
 
-      // 添加时间戳参数防止缓存
-      const timestamp = Date.now()
-      const response = await api.get(`/auth/permissions?_t=${timestamp}`)
-      // 拦截器已解包，response.data 就是权限数据
+      const response = await userApi.getPermissions()
       const data = response.data
 
       // 处理不同的权限数据格式
@@ -212,9 +214,7 @@ export const useAuthStore = defineStore('auth', () => {
         permissions.value = []
       }
 
-      // ✅ 优化: 保存权限到缓存,避免页面刷新时闪烁
       permissionManager.setUserPermissions(permissions.value)
-
       permissionsLoaded.value = true
       return true
     } catch (error) {
@@ -234,13 +234,12 @@ export const useAuthStore = defineStore('auth', () => {
 
       permissions.value = []
       permissionsLoaded.value = false
-
-      // ✅ 优化: 获取失败时清除缓存
       permissionManager.clearUserPermissions()
 
       throw error
     } finally {
       permissionsLoading.value = false
+      _permissionsPromise = null
     }
   }
 

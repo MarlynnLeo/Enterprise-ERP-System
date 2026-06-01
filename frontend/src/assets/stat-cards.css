@@ -1,0 +1,393 @@
+/*
+ * Shared statistic card skin.
+ *
+ * ProductionDataView owns the reference visual language. This file adapts the
+ * older el-card based stat blocks to the same rounded icon-card style without
+ * touching each page's data flow.
+ */
+
+:root {
+  --stat-card-bg: var(--color-bg-base);
+  --stat-card-hover-bg: var(--color-bg-hover);
+  --stat-card-border: var(--color-border-lighter);
+  --stat-card-radius: var(--radius-md, 12px);
+  --stat-card-icon-size: 48px;
+  --stat-card-accent: var(--color-primary);
+  --stat-card-purple: #8b5cf6;
+}
+
+.statistics-row,
+.stats-cards,
+.stats-row {
+  gap: 16px !important;
+  margin-bottom: 16px !important;
+  align-items: stretch;
+}
+
+.statistics-row {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.statistics-row > .stat-card,
+.stats-cards > .stat-card,
+.stats-row > .stat-card {
+  flex: 1 1 180px !important;
+  min-width: 160px;
+}
+
+.statistics-row > .stat-card:nth-child(1),
+.stats-row > .stat-card:nth-child(1),
+.stats-cards > .stat-card:nth-child(1),
+.stats-cards > .el-col:nth-child(1) .stat-card {
+  --stat-card-accent: var(--color-primary);
+}
+
+.statistics-row > .stat-card:nth-child(2),
+.stats-row > .stat-card:nth-child(2),
+.stats-cards > .stat-card:nth-child(2),
+.stats-cards > .el-col:nth-child(2) .stat-card {
+  --stat-card-accent: var(--color-success);
+}
+
+.statistics-row > .stat-card:nth-child(3),
+.stats-row > .stat-card:nth-child(3),
+.stats-cards > .stat-card:nth-child(3),
+.stats-cards > .el-col:nth-child(3) .stat-card {
+  --stat-card-accent: var(--color-warning);
+}
+
+.statistics-row > .stat-card:nth-child(4),
+.stats-row > .stat-card:nth-child(4),
+.stats-cards > .stat-card:nth-child(4),
+.stats-cards > .el-col:nth-child(4) .stat-card {
+  --stat-card-accent: var(--color-danger);
+}
+
+.statistics-row > .stat-card:nth-child(5),
+.stats-row > .stat-card:nth-child(5),
+.stats-cards > .stat-card:nth-child(5),
+.stats-cards > .el-col:nth-child(5) .stat-card {
+  --stat-card-accent: var(--color-info, var(--color-text-secondary));
+}
+
+.statistics-row > .stat-card:nth-child(6),
+.stats-row > .stat-card:nth-child(6),
+.stats-cards > .stat-card:nth-child(6),
+.stats-cards > .el-col:nth-child(6) .stat-card {
+  --stat-card-accent: var(--stat-card-purple);
+}
+
+.theme-blue { --stat-card-accent: var(--color-primary); }
+.stat-card.primary-card,
+.stat-card.online,
+.stat-icon--primary {
+  --stat-card-accent: var(--color-primary);
+}
+.theme-green,
+.stat-card.success-card,
+.stat-card.normal,
+.stat-card.completed,
+.stat-card.approved,
+.stat-icon--success {
+  --stat-card-accent: var(--color-success);
+}
+.theme-orange,
+.stat-card.warning-card,
+.stat-card.pending,
+.stat-card.in-progress,
+.stat-card.maintenance,
+.stat-card.warning,
+.stat-icon.pending,
+.stat-icon.warning,
+.stat-icon--warning {
+  --stat-card-accent: var(--color-warning);
+}
+.stat-card.info-card,
+.stat-card.partial,
+.stat-icon.info,
+.stat-icon.total,
+.stat-icon--info {
+  --stat-card-accent: var(--color-info, var(--color-text-secondary));
+}
+.theme-purple {
+  --stat-card-accent: var(--stat-card-purple);
+}
+.stat-card.repair,
+.stat-card.scrapped,
+.stat-card.danger,
+.stat-card.overdue,
+.stat-card.offline,
+.stat-card.alarm {
+  --stat-card-accent: var(--color-danger);
+}
+
+.stat-card {
+  border-radius: var(--stat-card-radius) !important;
+}
+
+.stat-card:not(.el-card) {
+  background: var(--stat-card-bg) !important;
+  border: 1px solid var(--stat-card-border) !important;
+  box-shadow: var(--shadow-sm) !important;
+  padding: 16px !important;
+  display: flex !important;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  text-align: left !important;
+  overflow: hidden;
+  transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease !important;
+}
+
+.stat-card:not(.el-card).stat-card--auto-icon {
+  display: grid !important;
+  grid-template-columns: var(--stat-card-icon-size) minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-content: center;
+  column-gap: 12px;
+  row-gap: 2px;
+  min-height: 82px;
+}
+
+.stat-card:not(.el-card):hover {
+  border-color: var(--color-border-light) !important;
+  background: var(--stat-card-hover-bg) !important;
+  box-shadow: var(--shadow-sm) !important;
+  transform: none !important;
+}
+
+.stat-card:not(.el-card) .stat-card__icon,
+.stat-card:not(.el-card) .stat-card-auto-icon,
+.stat-card:not(.el-card) .stat-icon,
+.stat-card:not(.el-card) .icon-container {
+  width: var(--stat-card-icon-size) !important;
+  height: var(--stat-card-icon-size) !important;
+  min-width: var(--stat-card-icon-size) !important;
+  border-radius: 50% !important;
+  background: var(--stat-card-accent) !important;
+  color: var(--color-on-primary, #fff) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-shadow: none !important;
+}
+
+.stat-card:not(.el-card).stat-card--auto-icon .stat-card-auto-icon {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+}
+
+.stat-card:not(.el-card) .stat-content,
+.stat-card:not(.el-card) .stat-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.el-card.stat-card {
+  background: var(--stat-card-bg) !important;
+  border: 1px solid var(--stat-card-border) !important;
+  box-shadow: var(--shadow-sm) !important;
+  overflow: hidden;
+  transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease !important;
+}
+
+.el-card.stat-card:hover {
+  border-color: var(--color-border-light) !important;
+  background: var(--stat-card-hover-bg) !important;
+  box-shadow: var(--shadow-sm) !important;
+  transform: none !important;
+}
+
+.el-card.stat-card > .el-card__body {
+  position: relative;
+  min-height: 82px;
+  padding: 16px 16px 16px 76px !important;
+  display: flex !important;
+  flex-direction: column;
+  align-items: flex-start !important;
+  justify-content: center;
+  text-align: left !important;
+}
+
+.el-card.stat-card > .el-card__body::before,
+.el-card.stat-card > .el-card__body::after {
+  display: none !important;
+}
+
+.el-card.stat-card .stat-card-auto-icon,
+.el-card.stat-card .stat-icon,
+.el-card.stat-card .icon-container {
+  position: absolute !important;
+  left: 16px;
+  top: 50%;
+  width: var(--stat-card-icon-size) !important;
+  height: var(--stat-card-icon-size) !important;
+  min-width: var(--stat-card-icon-size) !important;
+  border-radius: 50% !important;
+  background: var(--stat-card-accent) !important;
+  color: var(--color-on-primary, #fff) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transform: translateY(-50%);
+  box-shadow: none !important;
+}
+
+.el-card.stat-card .stat-card-auto-icon > .el-icon,
+.el-card.stat-card .stat-icon > .el-icon,
+.el-card.stat-card .icon-container > .el-icon,
+.stat-card:not(.el-card) .stat-card-auto-icon > .el-icon,
+.stat-card:not(.el-card) .stat-icon > .el-icon,
+.stat-card:not(.el-card) .icon-container > .el-icon {
+  color: inherit !important;
+  font-size: 24px !important;
+}
+
+.el-card.stat-card .stat-icon.success {
+  --stat-card-accent: var(--color-success);
+}
+
+.el-card.stat-card .stat-content,
+.el-card.stat-card .stat-info {
+  width: 100%;
+  min-width: 0;
+}
+
+.stat-card__icon {
+  width: var(--stat-card-icon-size) !important;
+  height: var(--stat-card-icon-size) !important;
+  border-radius: 50% !important;
+  background: var(--stat-card-accent) !important;
+  color: var(--color-on-primary, #fff) !important;
+  flex: 0 0 var(--stat-card-icon-size);
+}
+
+.theme-blue .stat-card__icon,
+.theme-green .stat-card__icon,
+.theme-purple .stat-card__icon,
+.theme-orange .stat-card__icon {
+  background: var(--stat-card-accent) !important;
+}
+
+.stat-card__value,
+.stat-card .stat-value,
+.stat-card:not(.el-card) > strong,
+.stat-card .number,
+.stat-card .animated-number {
+  font-size: 22px !important;
+  font-weight: 700 !important;
+  line-height: 1.2 !important;
+  color: var(--color-text-primary);
+  margin: 0 0 2px !important;
+}
+
+.stat-card:not(.el-card).stat-card--auto-icon > strong {
+  grid-column: 2;
+  grid-row: 2;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.stat-card__label,
+.stat-card .stat-label,
+.stat-card .stat-title,
+.stat-card:not(.el-card) > span,
+.stat-card .text {
+  font-size: 13px !important;
+  line-height: 1.35 !important;
+  color: var(--color-text-secondary) !important;
+  margin: 0 !important;
+}
+
+.stat-card:not(.el-card).stat-card--auto-icon > span {
+  grid-column: 2;
+  grid-row: 1;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.stat-card:not(.el-card).stat-card--auto-icon > .el-tag {
+  grid-column: 2;
+  grid-row: 2;
+  justify-self: start;
+  align-self: start;
+}
+
+.stat-card .stat-secondary,
+.stat-card .stat-sub,
+.stat-card .card-footer {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.stat-card .card-footer {
+  width: 100%;
+  border-top: 1px solid var(--stat-card-border);
+  padding-top: 8px;
+}
+
+.stat-card__content {
+  flex: 1;
+  min-width: 0;
+}
+
+.stat-card__footer {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  border-top: 1px solid var(--stat-card-border);
+  padding-top: 8px;
+  margin-top: 4px;
+}
+
+.stat-card__sub {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.stat-card__sub em {
+  font-style: normal;
+  font-weight: 600;
+  margin-right: 2px;
+}
+
+@media (max-width: 768px) {
+  .statistics-row > .stat-card,
+  .stats-row > .stat-card,
+  .stats-cards > .stat-card {
+    flex-basis: calc(50% - 8px) !important;
+    min-width: 0;
+  }
+
+  .el-card.stat-card > .el-card__body {
+    min-height: 76px;
+    padding: 14px 12px 14px 68px !important;
+  }
+
+  .el-card.stat-card > .el-card__body::before {
+    display: none !important;
+  }
+
+  .el-card.stat-card > .el-card__body::after {
+    display: none !important;
+  }
+
+  .el-card.stat-card .stat-card-auto-icon,
+  .el-card.stat-card .stat-icon,
+  .el-card.stat-card .icon-container {
+    left: 12px;
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px !important;
+  }
+
+  .stat-card__value,
+  .stat-card .stat-value,
+  .stat-card .number,
+  .stat-card .animated-number {
+    font-size: 18px !important;
+  }
+}

@@ -1,11 +1,18 @@
 import { api } from '../services/axiosInstance';
+import { API_CONFIG } from '@/config/app';
 
 export const commonApi = {
-    // 获取枚举值/字典数据
-    getEnums: (type) => api.get(`/common/enums/${type}`)
+    // 获取枚举/字典数据
+    getEnums: (type) => api.get(`/common/enums/${type}`),
+    getCurrentWeather: (params) => api.get('/weather/current', { params }),
+    uploadFile: (formData) => api.post('/upload/file', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: API_CONFIG.uploadTimeoutMs
+    }),
+    downloadResource: (url) => api.get(url, { responseType: 'blob' })
 };
 
-// 金属价格API
+// 金属价格 API
 export const metalPricesApi = {
     // 获取实时金属价格
     getRealTimePrices: () => api.get('/metal-prices/realtime'),

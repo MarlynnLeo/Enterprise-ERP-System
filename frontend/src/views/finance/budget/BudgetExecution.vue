@@ -146,7 +146,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
-import { api } from '@/services/axiosInstance'
+import { financeApi } from '@/api/finance'
 import { formatCurrency } from '@/utils/format'
 import Chart from '@/utils/chartCore'
 import { alphaColor, getCssTokenValue } from '@/utils/designTokens'
@@ -168,7 +168,7 @@ let chartInstance = null
 // 获取预算列表
 const fetchBudgetList = async () => {
   try {
-    const res = await api.get('/finance/budgets')
+    const res = await financeApi.budgets.getList()
     budgetList.value = res.data.list || []
 
     // 如果路由带了预算ID，优先选中
@@ -193,7 +193,7 @@ const fetchAnalysis = async () => {
 
   loading.value = true
   try {
-    const res = await api.get(`/finance/budgets/${selectedBudgetId.value}/analysis`)
+    const res = await financeApi.budgets.getAnalysis(selectedBudgetId.value)
     analysisData.value = res.data
     summary.value = res.data.summary
 

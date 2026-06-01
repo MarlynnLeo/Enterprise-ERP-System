@@ -209,7 +209,7 @@
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import { Check, Minus } from '@element-plus/icons-vue';
-import api from '@/services/api';
+import { financeApi } from '@/api';
 import { getCostingMethodText, getGLTransactionTypeText, getGLTransactionTypeColor } from '@/constants/systemConstants';
 import { formatCurrency } from '@/utils/helpers/formatters';
 import { parsePaginatedData, parseResponseData } from '@/utils/responseParser'
@@ -256,7 +256,7 @@ const loadActualCosts = async () => {
       params.endDate = searchForm.dateRange[1];
     }
 
-    const res = await api.get('/finance/cost/actual', { params });
+    const res = await financeApi.cost.getActualCost(params);
     const { list, total } = parsePaginatedData(res, { enableLog: false });
     costList.value = list;
     pagination.total = Number(total) || 0;
@@ -274,7 +274,7 @@ const viewDetail = async (row) => {
   try {
     // 从order_number中提取taskId，或者使用id
     const taskId = row.id;
-    const res = await api.get(`/finance/cost/actual/${taskId}`);
+    const res = await financeApi.cost.getActualCostDetail(taskId);
     // axios拦截器已解包
     if (res.data) {
       currentDetail.value = parseResponseData(res);

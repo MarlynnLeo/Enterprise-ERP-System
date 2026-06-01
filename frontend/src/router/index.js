@@ -9,6 +9,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useThemeStore } from '../stores/theme'
 import { ElMessage } from 'element-plus'
+import { runWhenIdle } from '@/utils/performanceMode'
 
 // 导入路由模块
 import basedataRoute from './modules/basedata'
@@ -38,7 +39,8 @@ const router = createRouter({
       component: () => import('../views/public/ProductionBoard.vue'),
       meta: {
         requiresAuth: true,
-        title: '生产流程可视化看板'
+        title: '生产流程可视化看板',
+        permission: 'production:data-view'
       }
     },
     {
@@ -133,10 +135,12 @@ router.beforeEach(async (to) => {
   // 如果用户已登录，按用户维度异步加载主题设置，避免同页切换账号时沿用旧主题
   if (authStore.isAuthenticated && to.path !== '/login') {
     const themeOwner = authStore.user?.id || authStore.user?.username || authStore.user?.name || 'authenticated'
-    if (window.__themeLoadedFor !== themeOwner) {
-      window.__themeLoadedFor = themeOwner
-      const themeStore = useThemeStore()
-      themeStore.loadThemeFromServer().catch(() => {})
+    const themeStore = useThemeStore()
+    if (themeStore.loadedForUser !== themeOwner) {
+      themeStore.loadedForUser = themeOwner
+      runWhenIdle(() => {
+        themeStore.loadThemeFromServer().catch(() => {})
+      }, 3000)
     }
   }
 
@@ -168,17 +172,7 @@ router.beforeEach(async (to) => {
       return authStore.hasChildPermission(requiredPermission)
     }
 
-    let hasPermission = checkRoutePermission()
-
-    // 如果没有权限，尝试刷新权限后再检查一次
-    if (!hasPermission && authStore.permissionsLoaded) {
-      try {
-        await authStore.refreshPermissions()
-        hasPermission = checkRoutePermission()
-      } catch (error) {
-        console.error('[路由守卫] 刷新权限失败:', error)
-      }
-    }
+    const hasPermission = checkRoutePermission()
 
     if (!hasPermission) {
       ElMessage.error('您没有权限访问此页面')

@@ -232,7 +232,7 @@
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Check, Close, View, Edit, Key } from '@element-plus/icons-vue';
-import { systemApi } from '../../services/api';
+import { systemApi } from '@/api';
 import { getUserStatusText, getUserStatusColor } from '@/constants/systemConstants';
 // 权限计算属性
 

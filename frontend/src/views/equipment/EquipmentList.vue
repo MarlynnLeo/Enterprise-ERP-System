@@ -456,7 +456,7 @@ import { formatLocalDate } from '@/utils/format';
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { equipmentApi } from '@/services/api'
+import { equipmentApi } from '@/api'
 import { Plus, Download, Upload } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { loadExcelJS } from '@/utils/lazyVendors'

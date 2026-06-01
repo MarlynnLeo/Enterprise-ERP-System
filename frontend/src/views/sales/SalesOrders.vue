@@ -205,9 +205,9 @@
             {{ formatCurrency(row.totalAmount) }}
           </template>
         </el-table-column>
-        <el-table-column prop="order_no" label="下单日期" width="120" sortable="custom" resizable show-overflow-tooltip>
+        <el-table-column prop="order_date" label="下单日期" width="120" sortable="custom" resizable show-overflow-tooltip>
           <template #default="{ row }">
-            {{ getOrderDateFromOrderNo(row.order_no) }}
+            {{ getOrderDate(row) }}
           </template>
         </el-table-column>
         <el-table-column prop="deliveryDate" label="交付日期" width="120" resizable show-overflow-tooltip>
@@ -656,7 +656,7 @@
   </div>
 </template>
 <script setup>
-import { ref, computed, onMounted, onUnmounted, onActivated, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { formatCurrency } from '@/utils/format'
@@ -711,6 +711,7 @@ const normalizeOrdersData = (orders) => {
   if (!Array.isArray(orders)) return []
   return orders.map(order => ({
     ...order,
+    orderDate: order.orderDate || order.order_date || order.created_at,
     deliveryDate: order.deliveryDate || order.delivery_date,
     updated_at: order.updated_at || order.created_at || order.order_date || new Date().toISOString(),
     totalAmount: normalizeAmount(order.totalAmount ?? order.total_amount),
@@ -834,21 +835,33 @@ const resetSearch = () => {
   fetchData()
 }
 let searchTimeout = null
-let materialSearchTimeout = null
 const handleSearch = (immediate = false) => {
   if (searchTimeout) clearTimeout(searchTimeout)
-  if (immediate) updateParams({ page: 1 })
-  else searchTimeout = setTimeout(() => { updateParams({ page: 1 }) }, SEARCH_DEBOUNCE_DELAY)
+  if (immediate) { updateParams({ page: 1 }); fetchData() }
+  else searchTimeout = setTimeout(() => { updateParams({ page: 1 }); fetchData() }, SEARCH_DEBOUNCE_DELAY)
 }
 const getOrderDateFromOrderNo = (orderNo) => {
-  if (!orderNo || orderNo.length < 8) return '2024-04-01'
+  if (!orderNo || orderNo.length < 8) return ''
   try {
-    const dateStr = orderNo.substring(2, 8)
+    const normalizedOrderNo = String(orderNo).trim()
+    const dateStr = normalizedOrderNo.startsWith('P')
+      ? normalizedOrderNo.substring(1, 7)
+      : normalizedOrderNo.substring(2, 8)
     const year = parseInt('20' + dateStr.substring(0, 2))
     const month = parseInt(dateStr.substring(2, 4))
     const day = parseInt(dateStr.substring(4, 6))
+    if (year < 2000 || year > 2099 || month < 1 || month > 12 || day < 1 || day > 31) return ''
+    const parsed = new Date(year, month - 1, day)
+    if (parsed.getFullYear() !== year || parsed.getMonth() !== month - 1 || parsed.getDate() !== day) return ''
     return `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`
-  } catch { return '2024-05-01' }
+  } catch { return '' }
+}
+const getOrderDate = (row) => {
+  for (const value of [row.orderDate, row.order_date, row.created_at]) {
+    const formatted = formatDate(value)
+    if (formatted && formatted !== '-') return formatted
+  }
+  return getOrderDateFromOrderNo(row.order_no) || '-'
 }
 // ========== 打印功能 ==========
 const printLoading = ref(false)
@@ -860,7 +873,7 @@ const handlePrintOrder = async () => {
     const order = currentOrder.value
     const printData = {
       order_no: order.order_no || '',
-      order_date: getOrderDateFromOrderNo(order.order_no) || '',
+      order_date: getOrderDate(order) || '',
       delivery_date: formatDate(order.deliveryDate) || '',
       customer_name: order.customer_name || order.customer || '',
       contact_phone: order.phone || '',
@@ -902,12 +915,7 @@ onMounted(async () => {
 })
 onUnmounted(() => {
   if (searchTimeout) { clearTimeout(searchTimeout); searchTimeout = null }
-  if (materialSearchTimeout) { clearTimeout(materialSearchTimeout); materialSearchTimeout = null }
   currentOrder.value = null
-})
-onActivated(() => {
-  fetchData()
-  fetchStats()
 })
 </script>
 <style scoped>
@@ -1047,11 +1055,6 @@ onActivated(() => {
 }
 :deep(.el-select-dropdown__wrap) {
   max-height: 400px !important;
-}
-/* 对话框高度 - 页面特定，其他样式使用全局主题 */
-:deep(.el-dialog__body) {
-  max-height: 60vh;
-  overflow-y: auto;
 }
 /* 隐藏数字输入框的加减按钮 */
 :deep(.el-input__inner[type="number"]) {

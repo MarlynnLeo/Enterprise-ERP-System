@@ -344,14 +344,14 @@ onMounted(fetchPlans);
 .spc-container { padding: 20px; }
 .card-header { display: flex; justify-content: space-between; align-items: center; }
 .plan-list { max-height: 600px; overflow-y: auto; }
-.plan-item { padding: 12px; border: 1px solid var(--color-border-lighter); border-radius: 6px; margin-bottom: 8px; cursor: pointer; transition: background-color 0.2s, border-color 0.2s, color 0.2s, box-shadow 0.2s, opacity 0.2s, transform 0.2s; }
+.plan-item { padding: 12px; border: 1px solid var(--color-border-lighter); border-radius: var(--radius-sm); margin-bottom: 8px; cursor: pointer; transition: background-color var(--transition-base), border-color var(--transition-base), color var(--transition-base), box-shadow var(--transition-base), opacity var(--transition-base), transform var(--transition-base); }
 .plan-item:hover { border-color: var(--color-primary); background: var(--color-bg-hover); }
-.plan-item.active { border-color: var(--color-primary); background: var(--ds-blue-bg); }
+.plan-item.active { border-color: var(--color-primary); background: var(--theme-status-success-bg); }
 .plan-name { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
 .plan-meta { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--color-text-regular); }
 .plan-detail { font-size: 12px; color: var(--color-text-secondary); margin-top: 4px; }
 .cpk-row { margin-bottom: 20px; }
-.cpk-card { text-align: center; padding: 12px 8px; background: var(--color-bg-hover); border-radius: 8px; }
+.cpk-card { text-align: center; padding: 12px 8px; background: var(--color-bg-hover); border-radius: var(--radius-sm); }
 .cpk-value { font-size: 22px; font-weight: 700; }
 .cpk-label { font-size: 12px; color: var(--color-text-secondary); margin-top: 4px; }
 .chart-section { margin-top: 20px; }

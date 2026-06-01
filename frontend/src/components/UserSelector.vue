@@ -17,7 +17,7 @@
           placeholder="搜索并选择用户"
           :remote-method="searchUsers"
           :loading="loading"
-          style="width: 100%"
+          class="full-width-control"
           @change="handleUserChange"
         >
           <el-option
@@ -38,7 +38,7 @@
             v-for="userId in selectedUsers"
             :key="userId"
             closable
-            style="margin: 5px"
+            class="selected-tag"
             @close="removeUser(userId)"
           >
             {{ getUserName(userId) }}
@@ -52,7 +52,7 @@
           multiple
           filterable
           placeholder="选择部门"
-          style="width: 100%"
+          class="full-width-control"
           @change="handleDepartmentChange"
         >
           <el-option
@@ -69,7 +69,7 @@
             :key="deptId"
             closable
             type="success"
-            style="margin: 5px"
+            class="selected-tag"
             @close="removeDepartment(deptId)"
           >
             {{ getDepartmentName(deptId) }}
@@ -239,8 +239,12 @@ onMounted(() => {
   margin-top: 10px;
   padding: 10px;
   background-color: var(--color-bg-hover);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   min-height: 40px;
+}
+
+.selected-tag {
+  margin: 5px;
 }
 
 .stats {

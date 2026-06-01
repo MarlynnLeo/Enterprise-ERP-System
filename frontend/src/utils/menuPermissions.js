@@ -1500,6 +1500,18 @@ const baseMenuPermissions = [
     status: 1
   },
   {
+    id: 7522,
+    parentId: 750,
+    name: '成本关账',
+    path: '/finance/cost/closing',
+    component: 'finance/cost/CostClosing',
+    icon: 'icon-circle-check',
+    type: 1,
+    permission: 'finance:cost:view',
+    sort: 3,
+    status: 1
+  },
+  {
     id: 754,
     parentId: 750,
     name: '实际成本',

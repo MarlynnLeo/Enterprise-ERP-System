@@ -13,7 +13,7 @@ import { formatDate } from '@/utils/helpers/dateUtils'
 import { ref, onMounted, reactive, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRouter } from 'vue-router'
-import { productionApi, purchaseApi, baseDataApi, systemApi } from '@/services/api'
+import { productionApi, purchaseApi, baseDataApi, systemApi } from '@/api'
 import { bomApi } from '@/api/bom'
 import { Plus } from '@element-plus/icons-vue'
 import { parseQuantity, formatQuantity } from '@/utils/helpers/quantity'
@@ -1508,15 +1508,15 @@ const formatMaterialForDisplay = (material) => {
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="72" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <div class="table-actions">
               <el-button size="small" @click="viewPlanDetail(scope.row)" v-permission="'production:plans:view'">查看</el-button>
               <el-button
+                v-if="canEditPlan(scope.row)"
                 size="small"
                 type="primary"
                 @click="handleEdit(scope.row)"
-                :disabled="!canEditPlan(scope.row)"
                 v-permission="'production:plans:update'"
               >
                 编辑
@@ -1531,19 +1531,10 @@ const formatMaterialForDisplay = (material) => {
                 </template>
               </el-popconfirm>
               <el-button
-                v-else
-                size="small"
-                type="danger"
-                disabled
-                v-permission="'production:plans:delete'"
-              >
-                删除
-              </el-button>
-              <el-button
+                v-if="canPushDownPlan(scope.row)"
                 size="small"
                 type="success"
                 @click="handlePushDown(scope.row)"
-                :disabled="!canPushDownPlan(scope.row)"
                 v-permission="'production:plans:pushdown'"
               >
                 下推
@@ -1557,15 +1548,6 @@ const formatMaterialForDisplay = (material) => {
                   <el-button size="small" type="warning" v-permission="'production:plans:cancel'">取消</el-button>
                 </template>
               </el-popconfirm>
-              <el-button
-                v-else
-                size="small"
-                type="warning"
-                disabled
-                v-permission="'production:plans:cancel'"
-              >
-                取消
-              </el-button>
             </div>
           </template>
         </el-table-column>

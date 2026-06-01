@@ -425,7 +425,7 @@ import { parsePaginatedData, parseListData } from '@/utils/responseParser';
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, ArrowDown, Delete, RefreshRight } from '@element-plus/icons-vue';
-import { inventoryApi } from '@/services/api';
+import { inventoryApi } from '@/api';
 import { SEARCH_CONFIG, searchMaterials, mapMaterialData } from '@/utils/searchConfig';
 import { getCurrentDate } from '@/utils/helpers/dateUtils';
 import { useAuthStore } from '@/stores/auth';

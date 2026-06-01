@@ -379,7 +379,7 @@ import { parseListData } from '@/utils/responseParser'
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Download, Van, Select, Close } from '@element-plus/icons-vue'
-import { salesApi } from '@/services/api'
+import { salesApi } from '@/api'
 import { useRoute } from 'vue-router'
 import { formatDate } from '@/utils/helpers/dateUtils'
 const route = useRoute()

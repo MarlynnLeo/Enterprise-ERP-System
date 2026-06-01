@@ -1,7 +1,10 @@
-import { api } from '../services/axiosInstance';
+import { api, fastApi } from '../services/axiosInstance';
 
 export const userApi = {
+    login: (credentials) => api.post('/auth/login', credentials),
+    logout: () => api.post('/auth/logout'),
     getProfile: () => api.get('/auth/profile'),
+    getProfileFast: () => fastApi.get('/auth/profile'),
     updateProfile: (data) => api.put('/auth/profile', data),
     changePassword: (data) => api.put('/auth/change-password', data),
     updateAvatar: (formData) => api.put('/auth/users/avatar', formData, {
@@ -9,6 +12,9 @@ export const userApi = {
     }),
     updateAvatarFrame: (frameId) => api.post('/auth/profile/avatar-frame', { frameId }),
     getUserMenus: () => api.get('/auth/menus'),
+    getPermissions: (timestamp = Date.now()) => api.get('/auth/permissions', { params: { _t: timestamp } }),
+    getTheme: () => api.get('/auth/theme'),
+    updateTheme: (data) => api.post('/auth/theme', data),
     getActivities: (params) => api.get('/user-activities', { params }),
     getStatistics: () => api.get('/user-activities/statistics'),
     exportActivities: (params) => api.get('/user-activities/export', { params }),

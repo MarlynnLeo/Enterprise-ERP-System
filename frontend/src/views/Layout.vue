@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * Layout.vue
  * @description 前端界面组件文件
@@ -309,7 +309,7 @@ const toggleSidebar = () => {
     scheduleSidebarFrame(() => {
       sidebarMini.value = false
     })
-    scheduleSidebarToggleEnd(160)
+    scheduleSidebarToggleEnd(220)
     return
   }
 
@@ -317,7 +317,7 @@ const toggleSidebar = () => {
   scheduleSidebarFrame(() => {
     sidebarCollapsed.value = true
   })
-  scheduleSidebarToggleEnd(140)
+  scheduleSidebarToggleEnd(220)
 }
 // 用户操作
 const handleProfile = () => {
@@ -416,6 +416,8 @@ onBeforeUnmount(() => {
   flex: 0 0 var(--shell-sidebar-expanded-width);
   width: var(--shell-sidebar-expanded-width) !important;
   transition:
+    flex-basis 180ms ease,
+    width 180ms ease,
     background-color var(--transition-base) ease,
     border-color 0.15s ease,
     box-shadow 0.15s ease;
@@ -434,8 +436,6 @@ onBeforeUnmount(() => {
 }
 .app-sidebar {
   background: var(--shell-surface) !important;
-  backdrop-filter: blur(10px) !important;
-  -webkit-backdrop-filter: blur(10px) !important;
   border-right: 1px solid var(--shell-border) !important;
   box-shadow: var(--shell-shadow) !important;
 }
@@ -530,7 +530,11 @@ onBeforeUnmount(() => {
   width: 100%;
   box-sizing: border-box;
   border-radius: var(--shell-radius-sm);
-  margin: 0 0 2px;
+  /* Element Plus submenu collapse measures height; vertical margins cause jumps. */
+  height: var(--shell-menu-item-height, 44px) !important;
+  min-height: var(--shell-menu-item-height, 44px) !important;
+  line-height: var(--shell-menu-item-height, 44px) !important;
+  margin: 0 !important;
   padding-left: var(--shell-menu-item-padding-x) !important;
   padding-right: 14px !important;
   display: flex;
@@ -540,6 +544,20 @@ onBeforeUnmount(() => {
     background-color 150ms ease,
     border-color 150ms ease,
     box-shadow 150ms ease !important;
+}
+.app-menu :deep(.el-sub-menu),
+.app-menu :deep(.el-menu--inline) {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+.app-menu :deep(.el-menu--inline .el-menu-item),
+.app-menu :deep(.el-menu--inline .el-sub-menu__title) {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+.app-menu :deep(.el-collapse-transition-enter-active),
+.app-menu :deep(.el-collapse-transition-leave-active) {
+  transition-property: height !important;
 }
 .app-menu :deep(.el-menu-item .el-icon),
 .app-menu :deep(.el-sub-menu__title .el-icon) {
@@ -620,8 +638,6 @@ onBeforeUnmount(() => {
 }
 .app-header {
   background: var(--shell-surface) !important;
-  backdrop-filter: blur(10px) !important;
-  -webkit-backdrop-filter: blur(10px) !important;
   border: 1px solid var(--shell-border) !important;
   box-shadow: var(--shell-shadow) !important;
 }
@@ -645,8 +661,6 @@ onBeforeUnmount(() => {
   background: var(--shell-control-bg);
   border: 1px solid var(--shell-control-border);
   transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
 }
 .icon-button:hover,
 .icon-button-wrapper :deep(.notification-bell:hover),
@@ -684,8 +698,6 @@ onBeforeUnmount(() => {
   background: var(--shell-control-bg);
   border: 1px solid var(--shell-control-border);
   transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
 }
 .user-info:hover {
   background: var(--shell-control-hover-bg);
@@ -707,8 +719,6 @@ onBeforeUnmount(() => {
 .user-dropdown,
 .language-dropdown {
   background: var(--shell-surface) !important;
-  backdrop-filter: blur(10px) !important;
-  -webkit-backdrop-filter: blur(10px) !important;
   border: 1px solid var(--shell-border) !important;
   box-shadow: var(--shell-shadow) !important;
   border-radius: var(--shell-radius-md) !important;

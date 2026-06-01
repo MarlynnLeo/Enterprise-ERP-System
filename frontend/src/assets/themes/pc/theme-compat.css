@@ -586,50 +586,131 @@
 /* Element Plus buttons inherit the active theme tokens instead of a separate
  * hardcoded palette.
  */
+
+/* 鈹€鈹€ 榛樿鎸夐挳锛堟棤 type锛夆攢鈹€ */
+[data-theme] .el-button:not(.el-button--primary):not(.el-button--success):not(.el-button--warning):not(.el-button--danger):not(.el-button--info):not(.is-text):not(.is-link) {
+  --el-button-text-color: var(--color-text-regular);
+  --el-button-bg-color: var(--color-bg-base);
+  --el-button-border-color: var(--color-border-base);
+  --el-button-hover-text-color: var(--color-primary);
+  --el-button-hover-bg-color: var(--color-primary-light-9);
+  --el-button-hover-border-color: var(--color-primary-light-7);
+  --el-button-active-text-color: var(--color-primary);
+  --el-button-active-bg-color: var(--color-primary-light-9);
+  --el-button-active-border-color: var(--color-primary);
+  --el-button-disabled-text-color: var(--color-text-placeholder);
+  --el-button-disabled-bg-color: var(--color-bg-base);
+  --el-button-disabled-border-color: var(--color-border-lighter);
+}
+
+/* 鈹€鈹€ Primary 鎸夐挳 鈹€鈹€ */
 [data-theme] .el-button--primary {
   --el-button-bg-color: var(--color-primary);
   --el-button-border-color: var(--color-primary);
   --el-button-text-color: var(--color-on-primary);
+  --el-button-hover-text-color: var(--color-on-primary);
   --el-button-hover-bg-color: var(--color-primary-light-3);
   --el-button-hover-border-color: var(--color-primary-light-3);
   --el-button-active-bg-color: var(--color-primary-dark-2, var(--color-primary));
   --el-button-active-border-color: var(--color-primary-dark-2, var(--color-primary));
 }
 
+/* Primary 鏈寸礌鎸夐挳 */
+[data-theme] .el-button--primary.is-plain {
+  --el-button-text-color: var(--color-primary);
+  --el-button-bg-color: var(--color-primary-light-9);
+  --el-button-border-color: var(--color-primary-light-5);
+  --el-button-hover-text-color: var(--color-on-primary);
+  --el-button-hover-bg-color: var(--color-primary);
+  --el-button-hover-border-color: var(--color-primary);
+}
+
+/* 鈹€鈹€ Success 鎸夐挳 鈹€鈹€ */
 [data-theme] .el-button--success {
   --el-button-bg-color: var(--color-success);
   --el-button-border-color: var(--color-success);
+  --el-button-text-color: var(--color-on-primary);
+  --el-button-hover-text-color: var(--color-on-primary);
   --el-button-hover-bg-color: color-mix(in srgb, var(--color-success) 82%, var(--color-bg-base));
   --el-button-hover-border-color: color-mix(in srgb, var(--color-success) 82%, var(--color-bg-base));
   --el-button-active-bg-color: var(--color-success-dark, var(--color-success));
   --el-button-active-border-color: var(--color-success-dark, var(--color-success));
 }
 
+/* Success 鏈寸礌鎸夐挳 */
+[data-theme] .el-button--success.is-plain {
+  --el-button-text-color: var(--color-success);
+  --el-button-bg-color: var(--color-success-light);
+  --el-button-border-color: color-mix(in srgb, var(--color-success) 50%, var(--color-bg-base));
+  --el-button-hover-text-color: var(--color-on-primary);
+  --el-button-hover-bg-color: var(--color-success);
+  --el-button-hover-border-color: var(--color-success);
+}
+
+/* 鈹€鈹€ Warning 鎸夐挳 鈹€鈹€ */
 [data-theme] .el-button--warning {
   --el-button-bg-color: var(--color-warning);
   --el-button-border-color: var(--color-warning);
+  --el-button-text-color: var(--color-on-primary);
+  --el-button-hover-text-color: var(--color-on-primary);
   --el-button-hover-bg-color: color-mix(in srgb, var(--color-warning) 82%, var(--color-bg-base));
   --el-button-hover-border-color: color-mix(in srgb, var(--color-warning) 82%, var(--color-bg-base));
   --el-button-active-bg-color: var(--color-warning-dark, var(--color-warning));
   --el-button-active-border-color: var(--color-warning-dark, var(--color-warning));
 }
 
+/* Warning 鏈寸礌鎸夐挳 */
+[data-theme] .el-button--warning.is-plain {
+  --el-button-text-color: var(--color-warning);
+  --el-button-bg-color: var(--color-warning-light);
+  --el-button-border-color: color-mix(in srgb, var(--color-warning) 50%, var(--color-bg-base));
+  --el-button-hover-text-color: var(--color-on-primary);
+  --el-button-hover-bg-color: var(--color-warning);
+  --el-button-hover-border-color: var(--color-warning);
+}
+
+/* 鈹€鈹€ Danger 鎸夐挳 鈹€鈹€ */
 [data-theme] .el-button--danger {
   --el-button-bg-color: var(--color-danger);
   --el-button-border-color: var(--color-danger);
+  --el-button-text-color: var(--color-on-primary);
+  --el-button-hover-text-color: var(--color-on-primary);
   --el-button-hover-bg-color: color-mix(in srgb, var(--color-danger) 82%, var(--color-bg-base));
   --el-button-hover-border-color: color-mix(in srgb, var(--color-danger) 82%, var(--color-bg-base));
   --el-button-active-bg-color: var(--color-danger-dark, var(--color-danger));
   --el-button-active-border-color: var(--color-danger-dark, var(--color-danger));
 }
 
+/* Danger 鏈寸礌鎸夐挳 */
+[data-theme] .el-button--danger.is-plain {
+  --el-button-text-color: var(--color-danger);
+  --el-button-bg-color: var(--color-danger-light);
+  --el-button-border-color: color-mix(in srgb, var(--color-danger) 50%, var(--color-bg-base));
+  --el-button-hover-text-color: var(--color-on-primary);
+  --el-button-hover-bg-color: var(--color-danger);
+  --el-button-hover-border-color: var(--color-danger);
+}
+
+/* 鈹€鈹€ Info 鎸夐挳 鈹€鈹€ */
 [data-theme] .el-button--info {
   --el-button-bg-color: var(--color-info);
   --el-button-border-color: var(--color-info);
+  --el-button-text-color: var(--color-on-primary);
+  --el-button-hover-text-color: var(--color-on-primary);
   --el-button-hover-bg-color: color-mix(in srgb, var(--color-info) 82%, var(--color-bg-base));
   --el-button-hover-border-color: color-mix(in srgb, var(--color-info) 82%, var(--color-bg-base));
   --el-button-active-bg-color: var(--color-info-dark, var(--color-info));
   --el-button-active-border-color: var(--color-info-dark, var(--color-info));
+}
+
+/* Info 鏈寸礌鎸夐挳 */
+[data-theme] .el-button--info.is-plain {
+  --el-button-text-color: var(--color-info);
+  --el-button-bg-color: var(--color-info-light);
+  --el-button-border-color: color-mix(in srgb, var(--color-info) 50%, var(--color-bg-base));
+  --el-button-hover-text-color: var(--color-on-primary);
+  --el-button-hover-bg-color: var(--color-info);
+  --el-button-hover-border-color: var(--color-info);
 }
 
 
@@ -664,3 +745,372 @@
   color: var(--color-text-secondary) !important;
 }
 
+/* ======================================================
+   el-card - 暗色主题兜底（tech/premium 不走 html.dark）
+   ====================================================== */
+[data-theme] .el-card {
+  background-color: var(--color-bg-section);
+  border-color: var(--color-border-base);
+  color: var(--color-text-primary);
+}
+
+[data-theme] .el-card__header {
+  border-bottom-color: var(--color-border-lighter);
+  color: var(--color-text-primary);
+}
+
+/* ======================================================
+   el-input - 暗色主题兜底
+   ====================================================== */
+[data-theme] .el-input__wrapper {
+  background-color: var(--color-bg-base);
+  box-shadow: 0 0 0 1px var(--color-border-base) inset;
+}
+
+[data-theme] .el-input__wrapper:hover {
+  box-shadow: 0 0 0 1px var(--color-border-hover) inset;
+}
+
+[data-theme] .el-input__wrapper.is-focus {
+  box-shadow: 0 0 0 1px var(--color-primary) inset;
+}
+
+[data-theme] .el-input__inner {
+  color: var(--color-text-primary);
+}
+
+[data-theme] .el-input__inner::placeholder {
+  color: var(--color-text-placeholder);
+}
+
+[data-theme] .el-textarea__inner {
+  background-color: var(--color-bg-base);
+  border-color: var(--color-border-base);
+  color: var(--color-text-primary);
+}
+
+/* ======================================================
+   el-select dropdown - 暗色主题兜底
+   ====================================================== */
+[data-theme] .el-select-dropdown {
+  background-color: var(--color-bg-base);
+  border-color: var(--color-border-base);
+}
+
+[data-theme] .el-select-dropdown__item {
+  color: var(--color-text-primary);
+}
+
+[data-theme] .el-select-dropdown__item.hover,
+[data-theme] .el-select-dropdown__item:hover {
+  background-color: var(--color-bg-hover);
+}
+
+/* ======================================================
+   el-pagination - 暗色主题兜底
+   ====================================================== */
+[data-theme] .el-pagination {
+  --el-pagination-bg-color: var(--color-bg-section);
+  --el-pagination-text-color: var(--color-text-primary);
+  --el-pagination-button-disabled-bg-color: var(--color-bg-base);
+}
+
+[data-theme] .el-pagination button,
+[data-theme] .el-pager li {
+  background-color: var(--color-bg-section);
+  color: var(--color-text-primary);
+}
+
+[data-theme] .el-pager li:hover {
+  color: var(--color-primary);
+}
+
+[data-theme] .el-pager li.is-active {
+  background-color: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+/* ======================================================
+   el-tabs - 暗色主题兜底
+   ====================================================== */
+[data-theme] .el-tabs__header {
+  border-bottom-color: var(--color-border-base);
+}
+
+[data-theme] .el-tabs__item {
+  color: var(--color-text-regular);
+}
+
+[data-theme] .el-tabs__item.is-active {
+  color: var(--color-primary);
+}
+
+[data-theme] .el-tabs__active-bar {
+  background-color: var(--color-primary);
+}
+
+/* ======================================================
+   el-form - 暗色主题兜底
+   ====================================================== */
+[data-theme] .el-form-item__label {
+  color: var(--color-text-regular);
+}
+
+/* ======================================================
+   Checkbox / Radio / Switch — 所有主题通用兜底
+   使用 --color-on-primary 确保选中态文字在任何主色上可见
+   ====================================================== */
+[data-theme] .el-checkbox__input.is-checked .el-checkbox__inner {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+[data-theme] .el-checkbox__input.is-checked .el-checkbox__inner::after {
+  border-color: var(--color-on-primary);
+}
+
+[data-theme] .el-checkbox__input.is-indeterminate .el-checkbox__inner {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+[data-theme] .el-checkbox__input.is-indeterminate .el-checkbox__inner::before {
+  background-color: var(--color-on-primary);
+}
+
+[data-theme] .el-radio__input.is-checked .el-radio__inner {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+[data-theme] .el-radio__input.is-checked .el-radio__inner::after {
+  background-color: var(--color-on-primary);
+}
+
+/* Radio-button active state */
+[data-theme] .el-radio-button__original-radio:checked + .el-radio-button__inner {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-on-primary);
+  box-shadow: -1px 0 0 0 var(--color-primary);
+}
+
+/* Switch */
+[data-theme] .el-switch.is-checked .el-switch__core {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+/* ======================================================
+   el-card — 暗色主题兜底
+   ====================================================== */
+[data-theme] .el-card {
+  background-color: var(--color-bg-section);
+  border-color: var(--color-border-base);
+  color: var(--color-text-primary);
+}
+
+[data-theme] .el-card__header {
+  border-bottom-color: var(--color-border-base);
+}
+
+/* ======================================================
+   el-descriptions — 暗色主题兜底
+   ====================================================== */
+[data-theme] .el-descriptions__label {
+  color: var(--color-text-secondary);
+  background: var(--color-bg-section);
+}
+
+[data-theme] .el-descriptions__content {
+  color: var(--color-text-primary);
+  background: var(--color-bg-section);
+}
+
+[data-theme] .el-descriptions__body .el-descriptions__cell {
+  border-color: var(--color-border-base);
+}
+
+/* ======================================================
+   el-collapse — 暗色主题兜底
+   ====================================================== */
+[data-theme] .el-collapse-item__header {
+  color: var(--color-text-primary);
+  background: var(--color-bg-section);
+  border-bottom-color: var(--color-border-base);
+}
+
+[data-theme] .el-collapse-item__wrap {
+  background: var(--color-bg-section);
+  border-bottom-color: var(--color-border-base);
+}
+
+[data-theme] .el-collapse-item__content {
+  color: var(--color-text-regular);
+}
+
+/* ======================================================
+   el-timeline — 暗色主题兜底
+   ====================================================== */
+[data-theme] .el-timeline-item__tail {
+  border-left-color: var(--color-border-base);
+}
+
+[data-theme] .el-timeline-item__node--primary {
+  background-color: var(--color-primary);
+}
+
+[data-theme] .el-timeline-item__content {
+  color: var(--color-text-primary);
+}
+
+[data-theme] .el-timeline-item__timestamp {
+  color: var(--color-text-secondary);
+}
+
+/* ======================================================
+   el-skeleton — 暗色主题兜底
+   ====================================================== */
+[data-theme] .el-skeleton__item {
+  background: var(--color-bg-hover);
+}
+
+/* ======================================================
+   el-empty / el-result — 暗色主题兜底
+   ====================================================== */
+[data-theme] .el-empty__description p {
+  color: var(--color-text-secondary);
+}
+
+[data-theme] .el-result__title {
+  color: var(--color-text-primary);
+}
+
+[data-theme] .el-result__subtitle {
+  color: var(--color-text-secondary);
+}
+
+/* ======================================================
+   el-statistic — 暗色主题兜底
+   ====================================================== */
+[data-theme] .el-statistic__number {
+  color: var(--color-text-primary);
+}
+
+[data-theme] .el-statistic__head {
+  color: var(--color-text-secondary);
+}
+
+/* ======================================================
+   el-badge — 暗色主题兜底
+   ====================================================== */
+[data-theme] .el-badge__content--primary {
+  background-color: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+/* ======================================================
+   el-step — 暗色主题兜底
+   ====================================================== */
+[data-theme] .el-step__head.is-finish .el-step__icon,
+[data-theme] .el-step__head.is-process .el-step__icon {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+[data-theme] .el-step__head.is-wait .el-step__icon {
+  color: var(--color-text-placeholder);
+  border-color: var(--color-text-placeholder);
+}
+
+[data-theme] .el-step__title {
+  color: var(--color-text-primary);
+}
+
+[data-theme] .el-step__title.is-wait {
+  color: var(--color-text-secondary);
+}
+
+[data-theme] .el-step__description {
+  color: var(--color-text-secondary);
+}
+
+/* ======================================================
+   el-progress — 暗色主题兜底
+   ====================================================== */
+[data-theme] .el-progress-bar__outer {
+  background-color: var(--color-bg-hover);
+}
+
+[data-theme] .el-progress__text {
+  color: var(--color-text-primary);
+}
+
+/* ======================================================
+   el-dialog / el-drawer / el-popover — 暗色主题兜底
+   ====================================================== */
+[data-theme] .el-dialog,
+[data-theme] .el-drawer {
+  background-color: var(--color-bg-section);
+  color: var(--color-text-primary);
+}
+
+[data-theme] .el-dialog__title,
+[data-theme] .el-drawer__title {
+  color: var(--color-text-primary);
+}
+
+[data-theme] .el-dialog__headerbtn .el-dialog__close {
+  color: var(--color-text-secondary);
+}
+
+[data-theme] .el-popover {
+  background: var(--color-bg-section);
+  border-color: var(--color-border-base);
+  color: var(--color-text-primary);
+}
+
+/* ======================================================
+   el-dropdown — 暗色主题兜底
+   ====================================================== */
+[data-theme] .el-dropdown-menu {
+  background-color: var(--color-bg-section);
+  border-color: var(--color-border-base);
+}
+
+[data-theme] .el-dropdown-menu__item {
+  color: var(--color-text-primary);
+}
+
+[data-theme] .el-dropdown-menu__item:not(.is-disabled):hover {
+  background-color: var(--color-bg-hover);
+  color: var(--color-primary);
+}
+
+/* ======================================================
+   el-message-box — 暗色主题兜底
+   ====================================================== */
+[data-theme] .el-message-box {
+  background-color: var(--color-bg-section);
+  border-color: var(--color-border-base);
+}
+
+[data-theme] .el-message-box__title {
+  color: var(--color-text-primary);
+}
+
+[data-theme] .el-message-box__content {
+  color: var(--color-text-regular);
+}
+
+/* ======================================================
+   el-alert — 暗色主题兜底
+   ====================================================== */
+[data-theme] .el-alert__title {
+  color: var(--color-text-primary);
+}
+
+[data-theme] .el-alert__description {
+  color: var(--color-text-regular);
+}

@@ -1,16 +1,16 @@
-Ôªø<template>
+<template>
   <div class="module-page business-types-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
-          <h2>‰∏öÂä°Á±ªÂûãÁÆ°ÁêÜ</h2>
-          <p class="subtitle">ÁÆ°ÁêÜÂ∫ìÂ≠ò‰∏öÂä°Á±ªÂûãÈÖçÁΩÆ</p>
+          <h2>“µŒÒ¿‡–Õπ‹¿Ì</h2>
+          <p class="subtitle">π‹¿Ìø‚¥Ê“µŒÒ¿‡–Õ≈‰÷√</p>
         </div>
-        <el-button v-permission="'system:business-types:create'" type="primary" :icon="Plus" @click="handleCreate">Êñ∞Â¢û‰∏öÂä°Á±ªÂûã</el-button>
+        <el-button v-permission="'system:business-types:create'" type="primary" :icon="Plus" @click="handleCreate">–¬‘ˆ“µŒÒ¿‡–Õ</el-button>
       </div>
     </el-card>
 
-    <!-- ÊêúÁ¥¢Âå∫Âüü -->
+    <!-- À—À˜«¯”Ú -->
     <FinanceQueryCard
       :model="searchForm"
       :loading="loading"
@@ -18,13 +18,13 @@
       @reset="resetSearch"
     >
       <template #basic>
-        <el-form-item label="ÂÖ≥ÈîÆËØç">
-          <el-input v-model="searchForm.keyword" placeholder="ÁºñÁ†Å/ÂêçÁß∞/ÊèèËø∞" clearable />
+        <el-form-item label="πÿº¸¥ ">
+          <el-input v-model="searchForm.keyword" placeholder="±‡¬Î/√˚≥∆/√Ë ˆ" clearable />
         </el-form-item>
       </template>
       <template #advanced>
-        <el-form-item label="Â≠óÂÖ∏ÂàÜÁªÑ">
-          <el-select v-model="searchForm.group_code" placeholder="ÂÖ®ÈÉ®ÂàÜÁªÑ" clearable>
+        <el-form-item label="◊÷µ‰∑÷◊È">
+          <el-select v-model="searchForm.group_code" placeholder="»´≤ø∑÷◊È" clearable>
             <el-option
               v-for="group in businessTypeGroups"
               :key="group"
@@ -33,8 +33,8 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="‰∏öÂä°ÂàÜÁ±ª">
-          <el-select v-model="searchForm.category" placeholder="ÂÖ®ÈÉ®ÂàÜÁ±ª" clearable>
+        <el-form-item label="“µŒÒ∑÷¿‡">
+          <el-select v-model="searchForm.category" placeholder="»´≤ø∑÷¿‡" clearable>
             <el-option
               v-for="option in BUSINESS_TYPE_CATEGORY_OPTIONS"
               :key="option.value"
@@ -43,26 +43,26 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="Áä∂ÊÄÅ">
-          <el-select v-model="searchForm.status" placeholder="ÂÖ®ÈÉ®Áä∂ÊÄÅ" clearable>
-            <el-option label="ÂêØÁî®" :value="1" />
-            <el-option label="Á¶ÅÁî®" :value="0" />
+        <el-form-item label="◊¥Ã¨">
+          <el-select v-model="searchForm.status" placeholder="»´≤ø◊¥Ã¨" clearable>
+            <el-option label="∆Ù”√" :value="1" />
+            <el-option label="Ω˚”√" :value="0" />
           </el-select>
         </el-form-item>
       </template>
     </FinanceQueryCard>
 
-    <!-- Êï∞ÊçÆË°®Ê†º -->
+    <!--  ˝æ›±Ì∏Ò -->
     <el-card class="data-card">
       <el-table :data="tableData" v-loading="loading" border stripe>
-        <el-table-column prop="group_code" label="Â≠óÂÖ∏ÂàÜÁªÑ" width="180" show-overflow-tooltip>
+        <el-table-column prop="group_code" label="◊÷µ‰∑÷◊È" width="180" show-overflow-tooltip>
           <template #default="{ row }">
             <span style="font-weight: bold; color: var(--color-primary)">{{ row.group_code || 'inventory_transaction' }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="code" label="‰∏öÂä°ÁºñÁ†Å" width="180" show-overflow-tooltip />
-        <el-table-column prop="name" label="‰∏öÂä°ÂêçÁß∞" width="140" />
-        <el-table-column label="‰∏öÂä°ÂàÜÁ±ª" width="100">
+        <el-table-column prop="code" label="“µŒÒ±‡¬Î" width="180" show-overflow-tooltip />
+        <el-table-column prop="name" label="“µŒÒ√˚≥∆" width="140" />
+        <el-table-column label="“µŒÒ∑÷¿‡" width="100">
           <template #default="{ row }">
             <el-tag v-if="row.category" :type="getBusinessTypeCategoryColor(row.category)">
               {{ getBusinessTypeCategoryName(row.category) }}
@@ -70,54 +70,54 @@
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column label="Ê†áÁ≠æÈ¢úËâ≤" width="100">
+        <el-table-column label="±Í«©—’…´" width="100">
           <template #default="{ row }">
-            <el-tag :type="row.tag_type || 'info'">{{ row.tag_type || 'ÈªòËÆ§(info)' }}</el-tag>
+            <el-tag :type="row.tag_type || 'info'">{{ row.tag_type || 'ƒ¨»œ(info)' }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="description" label="ÊèèËø∞" min-width="150" show-overflow-tooltip />
-        <el-table-column label="ÂõæÊ†á" width="80">
+        <el-table-column prop="description" label="√Ë ˆ" min-width="150" show-overflow-tooltip />
+        <el-table-column label="Õº±Í" width="80">
           <template #default="{ row }">
             <el-icon v-if="row.icon" :style="{ color: row.color || 'var(--color-primary)' }">
               <component :is="getIconComponent(row.icon)" />
             </el-icon>
           </template>
         </el-table-column>
-        <el-table-column prop="sort_order" label="ÊéíÂ∫è" width="80" />
-        <el-table-column label="Á±ªÂûã" width="120">
+        <el-table-column prop="sort_order" label="≈≈–Ú" width="80" />
+        <el-table-column label="¿‡–Õ" width="120">
           <template #default="{ row }">
-            <el-tag v-if="row.is_system" type="info" size="small">Á≥ªÁªüÂÜÖÁΩÆ</el-tag>
-            <el-tag v-else type="success" size="small">Ëá™ÂÆö‰πâ</el-tag>
+            <el-tag v-if="row.is_system" type="info" size="small">œµÕ≥ƒ⁄÷√</el-tag>
+            <el-tag v-else type="success" size="small">◊‘∂®“Â</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="Áä∂ÊÄÅ" width="80">
+        <el-table-column label="◊¥Ã¨" width="80">
           <template #default="{ row }">
             <el-tag :type="row.status === 1 || String(row.status) === '1' ? 'success' : 'danger'">
-              {{ row.status === 1 || String(row.status) === '1' ? 'ÂêØÁî®' : 'Á¶ÅÁî®' }}
+              {{ row.status === 1 || String(row.status) === '1' ? '∆Ù”√' : 'Ω˚”√' }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="Êìç‰Ωú" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="≤Ÿ◊˜" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
-            <div style="display: flex; gap: 5px; flex-wrap: wrap;">
+            <div class="operation-buttons">
               <el-popconfirm
                 v-if="row.status !== 1 && String(row.status) !== '1'"
-                title="Á°ÆÂÆöË¶ÅÂêØÁî®ËØ•Á±ªÂûãÂêóÔºü"
+                title="»∑∂®“™∆Ù”√∏√¿‡–Õ¬£ø"
                 @confirm="handleStatusChange(row, 1)"
               >
                 <template #reference>
-                  <el-button size="small" type="success" v-permission="'system:business-types:update'"><el-icon><Check /></el-icon> ÂêØÁî®</el-button>
+                  <el-button size="small" type="success" v-permission="'system:business-types:update'"><el-icon><Check /></el-icon> ∆Ù”√</el-button>
                 </template>
               </el-popconfirm>
 
               <el-popconfirm
                 v-if="row.status === 1 || String(row.status) === '1'"
-                title="Á°ÆÂÆöË¶ÅÁ¶ÅÁî®ËØ•Á±ªÂûãÂêóÔºü"
+                title="»∑∂®“™Ω˚”√∏√¿‡–Õ¬£ø"
                 @confirm="handleStatusChange(row, 0)"
                 confirm-button-type="danger"
               >
                 <template #reference>
-                  <el-button size="small" type="warning" v-permission="'system:business-types:update'"><el-icon><Close /></el-icon> Á¶ÅÁî®</el-button>
+                  <el-button size="small" type="warning" v-permission="'system:business-types:update'"><el-icon><Close /></el-icon> Ω˚”√</el-button>
                 </template>
               </el-popconfirm>
 
@@ -126,23 +126,23 @@
                 size="small"
                 type="primary"
                 @click="handleView(row)"
-              ><el-icon><View /></el-icon> Êü•Áúã</el-button>
+              ><el-icon><View /></el-icon> ≤Èø¥</el-button>
 
               <el-button
                 v-if="row.status !== 1 && String(row.status) !== '1'"
                 size="small"
                 @click="handleEdit(row)"
 
-              v-permission="'system:business-types:update'"><el-icon><Edit /></el-icon> ÁºñËæë</el-button>
+              v-permission="'system:business-types:update'"><el-icon><Edit /></el-icon> ±‡º≠</el-button>
 
               <el-popconfirm
                 v-if="row.status !== 1 && String(row.status) !== '1'"
-                title="Á°ÆÂÆöË¶ÅÂà†Èô§ËØ•Á±ªÂûãÂêóÔºüÊ≠§Êìç‰ΩúÊó†Ê≥ïÊÅ¢Â§ç„ÄÇ"
+                title="»∑∂®“™…æ≥˝∏√¿‡–Õ¬£ø¥À≤Ÿ◊˜Œﬁ∑®ª÷∏¥°£"
                 @confirm="handleDelete(row)"
                 confirm-button-type="danger"
               >
                 <template #reference>
-                  <el-button size="small" type="danger" v-permission="'system:business-types:delete'"><el-icon><Delete /></el-icon> Âà†Èô§</el-button>
+                  <el-button size="small" type="danger" v-permission="'system:business-types:delete'"><el-icon><Delete /></el-icon> …æ≥˝</el-button>
                 </template>
               </el-popconfirm>
             </div>
@@ -151,7 +151,7 @@
       </el-table>
     </el-card>
 
-    <!-- Êñ∞Â¢û/ÁºñËæë/Êü•ÁúãÂØπËØùÊ°Ü -->
+    <!-- –¬‘ˆ/±‡º≠/≤Èø¥∂‘ª∞øÚ -->
     <el-dialog
       v-model="dialogVisible"
       :title="dialogTitle"
@@ -159,21 +159,21 @@
     >
       <template v-if="dialogType === 'view'">
         <el-descriptions :column="1" border style="margin-bottom: 20px;">
-          <el-descriptions-item label="Â≠óÂÖ∏ÂàÜÁªÑ">{{ form.group_code || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="‰∏öÂä°ÁºñÁ†Å">{{ form.code || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="‰∏öÂä°ÂêçÁß∞">{{ form.name || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="Ê†áÁ≠æÁ±ªÂûã">
-            <el-tag :type="form.tag_type || 'info'">{{ tagOptions.find(t => t.value === form.tag_type)?.label || 'ÊôÆÈÄö' }}</el-tag>
+          <el-descriptions-item label="◊÷µ‰∑÷◊È">{{ form.group_code || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="“µŒÒ±‡¬Î">{{ form.code || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="“µŒÒ√˚≥∆">{{ form.name || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="±Í«©¿‡–Õ">
+            <el-tag :type="form.tag_type || 'info'">{{ tagOptions.find(t => t.value === form.tag_type)?.label || '∆’Õ®' }}</el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="È°∫Â∫è">{{ form.sort_order ?? '-' }}</el-descriptions-item>
-          <el-descriptions-item label="ÊèèËø∞">{{ form.description || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="Áä∂ÊÄÅ">
+          <el-descriptions-item label="À≥–Ú">{{ form.sort_order ?? '-' }}</el-descriptions-item>
+          <el-descriptions-item label="√Ë ˆ">{{ form.description || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="◊¥Ã¨">
             <el-tag :type="Number(form.status) === 1 ? 'success' : 'danger'">
-              {{ Number(form.status) === 1 ? 'ÂêØÁî®' : 'Á¶ÅÁî®' }}
+              {{ Number(form.status) === 1 ? '∆Ù”√' : 'Ω˚”√' }}
             </el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="Á≥ªÁªüÂÜÖÁΩÆ">
-            <el-tag :type="form.is_system ? 'danger' : 'info'">{{ form.is_system ? 'ÊòØ' : 'Âê¶' }}</el-tag>
+          <el-descriptions-item label="œµÕ≥ƒ⁄÷√">
+            <el-tag :type="form.is_system ? 'danger' : 'info'">{{ form.is_system ? ' «' : '∑Ò' }}</el-tag>
           </el-descriptions-item>
         </el-descriptions>
       </template>
@@ -185,39 +185,39 @@
         :rules="formRules"
         label-width="100px"
       >
-        <el-form-item label="Â≠óÂÖ∏ÂàÜÁªÑ" prop="group_code">
+        <el-form-item label="◊÷µ‰∑÷◊È" prop="group_code">
           <el-input
             v-model="form.group_code"
-            placeholder="Â¶Ç warehouse_type"
+            placeholder="»Á warehouse_type"
           />
         </el-form-item>
-        <el-form-item label="‰∏öÂä°ÁºñÁ†Å" prop="code">
+        <el-form-item label="“µŒÒ±‡¬Î" prop="code">
           <el-input
             v-model="form.code"
-            placeholder="ËØ∑ËæìÂÖ•‰∏öÂä°ÁºñÁ†ÅÔºàËã±ÊñáÔºâ"
+            placeholder="«Î ‰»Î“µŒÒ±‡¬Î£®”¢Œƒ£©"
             :disabled="dialogType === 'edit' || dialogType === 'view'"
           />
         </el-form-item>
-        <el-form-item label="‰∏öÂä°ÂêçÁß∞" prop="name">
-          <el-input v-model="form.name" placeholder="ËØ∑ËæìÂÖ•‰∏öÂä°ÂêçÁß∞" />
+        <el-form-item label="“µŒÒ√˚≥∆" prop="name">
+          <el-input v-model="form.name" placeholder="«Î ‰»Î“µŒÒ√˚≥∆" />
         </el-form-item>
-        <el-form-item label="Ê†áÁ≠æÁ±ªÂûã" prop="tag_type">
+        <el-form-item label="±Í«©¿‡–Õ" prop="tag_type">
           <el-select
             v-model="form.tag_type"
-            placeholder="Element Plus Ê†áÁ≠æÈ¢úËâ≤Á±ªÂûã"
+            placeholder="Element Plus ±Í«©—’…´¿‡–Õ"
             style="width: 100%"
           >
-            <el-option label="ÈªòËÆ§ (Info)" value="info" />
-            <el-option label="‰∏ªËâ≤ (Primary)" value="primary" />
-            <el-option label="ÊàêÂäü (Success)" value="success" />
-            <el-option label="Ë≠¶Âëä (Warning)" value="warning" />
-            <el-option label="Âç±Èô© (Danger)" value="danger" />
+            <el-option label="ƒ¨»œ (Info)" value="info" />
+            <el-option label="÷˜…´ (Primary)" value="primary" />
+            <el-option label="≥…π¶ (Success)" value="success" />
+            <el-option label="æØ∏Ê (Warning)" value="warning" />
+            <el-option label="Œ£œ’ (Danger)" value="danger" />
           </el-select>
         </el-form-item>
-        <el-form-item label="‰∏öÂä°ÂàÜÁ±ª" prop="category">
+        <el-form-item label="“µŒÒ∑÷¿‡" prop="category">
           <el-select
             v-model="form.category"
-            placeholder="‰∏ªË¶ÅÁî®‰∫éÂá∫ÂÖ•Â∫ìÁ±ªÂûã(ÂèØ‰∏∫Á©∫)"
+            placeholder="÷˜“™”√”⁄≥ˆ»Îø‚¿‡–Õ(ø…Œ™ø’)"
             style="width: 100%"
             clearable
           >
@@ -229,30 +229,30 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="ÊèèËø∞">
+        <el-form-item label="√Ë ˆ">
           <el-input
             v-model="form.description"
             type="textarea"
             :rows="3"
-            placeholder="ËØ∑ËæìÂÖ•‰∏öÂä°Á±ªÂûãÊèèËø∞"
+            placeholder="«Î ‰»Î“µŒÒ¿‡–Õ√Ë ˆ"
           />
         </el-form-item>
-        <el-form-item label="ÂõæÊ†á">
-          <el-input v-model="form.icon" placeholder="Â¶Ç: icon-download" />
+        <el-form-item label="Õº±Í">
+          <el-input v-model="form.icon" placeholder="»Á: icon-download" />
         </el-form-item>
-        <el-form-item label="È¢úËâ≤">
+        <el-form-item label="—’…´">
           <el-color-picker v-model="form.color" />
         </el-form-item>
-        <el-form-item label="ÊéíÂ∫è">
+        <el-form-item label="≈≈–Ú">
           <el-input-number v-model="form.sort_order" :min="0" :max="999" />
         </el-form-item>
-        <el-form-item label="Áä∂ÊÄÅ">
+        <el-form-item label="◊¥Ã¨">
           <el-switch v-model="form.status" :active-value="1" :inactive-value="0" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">{{ dialogType === 'view' ? 'ÂÖ≥Èó≠' : 'ÂèñÊ∂à' }}</el-button>
-        <el-button v-if="dialogType !== 'view'" v-permission="dialogType === 'create' ? 'system:business-types:create' : 'system:business-types:update'" type="primary" @click="handleSubmit" :loading="submitting">Á°ÆÂÆö</el-button>
+        <el-button @click="dialogVisible = false">{{ dialogType === 'view' ? 'πÿ±’' : '»°œ˚' }}</el-button>
+        <el-button v-if="dialogType !== 'view'" v-permission="dialogType === 'create' ? 'system:business-types:create' : 'system:business-types:update'" type="primary" @click="handleSubmit" :loading="submitting">»∑∂®</el-button>
       </template>
     </el-dialog>
   </div>
@@ -262,14 +262,14 @@
 import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Check, Close, View, Edit, Delete } from '@element-plus/icons-vue'
-import { systemApi } from '@/services/api'
+import { systemApi } from '@/api'
 import {
   BUSINESS_TYPE_CATEGORY_OPTIONS,
   getBusinessTypeCategoryName,
   getBusinessTypeCategoryColor
 } from '@/constants/systemConstants'
 
-// ÊêúÁ¥¢Ë°®Âçï
+// À—À˜±Ìµ•
 const searchForm = reactive({
   group_code: '',
   category: '',
@@ -277,35 +277,35 @@ const searchForm = reactive({
   keyword: ''
 })
 
-// ÂàÜÁªÑÈÄâÈ°π
+// ∑÷◊È—°œÓ
 const businessTypeGroups = ref([])
 
-// Ëé∑ÂèñÂ≠óÂÖ∏ÂàÜÁªÑ
+// ªÒ»°◊÷µ‰∑÷◊È
 const loadBusinessGroups = async () => {
   try {
     const res = await systemApi.getBusinessTypeGroups()
     businessTypeGroups.value = res.data || []
   } catch(e) {
-    console.error('Âä†ËΩΩÂàÜÁªÑÂ§±Ë¥•:', e)
+    console.error('º”‘ÿ∑÷◊È ß∞‹:', e)
   }
 }
 
-// Ë°®Ê†ºÊï∞ÊçÆ
+// ±Ì∏Ò ˝æ›
 const tableData = ref([])
 const loading = ref(false)
 
-// ÂØπËØùÊ°Ü
+// ∂‘ª∞øÚ
 const dialogVisible = ref(false)
 const dialogType = ref('create')
 const dialogTitle = computed(() => {
-  if (dialogType.value === 'create') return 'Êñ∞Â¢û‰∏öÂä°Á±ªÂûã'
-  if (dialogType.value === 'edit') return 'ÁºñËæë‰∏öÂä°Á±ªÂûã'
-  return 'Êü•Áúã‰∏öÂä°Á±ªÂûã'
+  if (dialogType.value === 'create') return '–¬‘ˆ“µŒÒ¿‡–Õ'
+  if (dialogType.value === 'edit') return '±‡º≠“µŒÒ¿‡–Õ'
+  return '≤Èø¥“µŒÒ¿‡–Õ'
 })
 const formRef = ref(null)
 const submitting = ref(false)
 
-// Ë°®ÂçïÊï∞ÊçÆÂàùÂßãÂÄº
+// ±Ìµ• ˝æ›≥ı º÷µ
 const getInitialFormData = () => ({
   group_code: 'inventory_transaction',
   code: '',
@@ -320,56 +320,56 @@ const getInitialFormData = () => ({
   is_system: 0
 })
 
-// Ë°®ÂçïÊï∞ÊçÆ
+// ±Ìµ• ˝æ›
 const form = reactive(getInitialFormData())
 
-// Ë°®ÂçïÈ™åËØÅËßÑÂàô
+// ±Ìµ•—È÷§πÊ‘Ú
 const formRules = {
   group_code: [
-    { required: true, message: 'ËØ∑ËæìÂÖ•Â≠óÂÖ∏ÂàÜÁªÑ', trigger: 'blur' },
-    { pattern: /^[a-z_]+$/, message: 'ÂàÜÁªÑÂè™ËÉΩÂåÖÂê´Â∞èÂÜôÂ≠óÊØçÂíå‰∏ãÂàíÁ∫ø', trigger: 'blur' }
+    { required: true, message: '«Î ‰»Î◊÷µ‰∑÷◊È', trigger: 'blur' },
+    { pattern: /^[a-z_]+$/, message: '∑÷◊È÷ªƒ‹∞¸∫¨–°–¥◊÷ƒ∏∫Õœ¬ªÆœﬂ', trigger: 'blur' }
   ],
   code: [
-    { required: true, message: 'ËØ∑ËæìÂÖ•‰∏öÂä°ÁºñÁ†Å', trigger: 'blur' },
-    { pattern: /^[a-z_A-Z0-9]+$/, message: 'ÁºñÁ†ÅÂè™ËÉΩÂåÖÂê´Â≠óÊØç„ÄÅÊï∞Â≠óÂíå‰∏ãÂàíÁ∫ø', trigger: 'blur' }
+    { required: true, message: '«Î ‰»Î“µŒÒ±‡¬Î', trigger: 'blur' },
+    { pattern: /^[a-z_A-Z0-9]+$/, message: '±‡¬Î÷ªƒ‹∞¸∫¨◊÷ƒ∏°¢ ˝◊÷∫Õœ¬ªÆœﬂ', trigger: 'blur' }
   ],
   name: [
-    { required: true, message: 'ËØ∑ËæìÂÖ•‰∏öÂä°ÂêçÁß∞', trigger: 'blur' }
+    { required: true, message: '«Î ‰»Î“µŒÒ√˚≥∆', trigger: 'blur' }
   ]
 }
 
-// Ëé∑ÂèñÂõæÊ†áÁªÑ‰ª∂ÔºàÁÆÄÂåñÂ§ÑÁêÜÔºâ
+// ªÒ»°Õº±Í◊Èº˛£®ºÚªØ¥¶¿Ì£©
 const getIconComponent = () => {
   return 'Document'
 }
 
-// Âä†ËΩΩÊï∞ÊçÆ
+// º”‘ÿ ˝æ›
 const loadTableData = async () => {
   loading.value = true
   try {
     const res = await systemApi.getBusinessTypes(searchForm)
-    // axiosÊã¶Êà™Âô®Â∑≤Ëá™Âä®Ëß£ÂåÖResponseHandlerÊ†ºÂºè
+    // axios¿πΩÿ∆˜“—◊‘∂ØΩ‚∞¸ResponseHandler∏Ò Ω
     const data = Array.isArray(res.data) ? res.data : []
 
-    // Â∞ÜÂ∏ÉÂ∞îÂÄºËΩ¨Êç¢‰∏∫Êï∞Â≠óÔºåÈÅøÂÖçËß¶ÂèëÁä∂ÊÄÅÂèòÊõ¥
+    // Ω´≤º∂˚÷µ◊™ªªŒ™ ˝◊÷£¨±‹√‚¥•∑¢◊¥Ã¨±‰∏¸
     tableData.value = data.map(item => ({
       ...item,
       status: item.status === true || String(item.status) === '1' ? 1 : 0
     }))
   } catch (error) {
-    console.error('Âä†ËΩΩÊï∞ÊçÆÂ§±Ë¥•:', error)
-    ElMessage.error('Âä†ËΩΩÊï∞ÊçÆÂ§±Ë¥•')
+    console.error('º”‘ÿ ˝æ› ß∞‹:', error)
+    ElMessage.error('º”‘ÿ ˝æ› ß∞‹')
   } finally {
     loading.value = false
   }
 }
 
-// Êü•ËØ¢
+// ≤È—Ø
 const handleSearch = () => {
   loadTableData()
 }
 
-// ÈáçÁΩÆÊêúÁ¥¢
+// ÷ÿ÷√À—À˜
 const resetSearch = () => {
   Object.assign(searchForm, {
     category: '',
@@ -379,28 +379,28 @@ const resetSearch = () => {
   handleSearch()
 }
 
-// Êñ∞Âª∫
+// –¬Ω®
 const handleCreate = () => {
   dialogType.value = 'create'
   Object.assign(form, getInitialFormData())
   dialogVisible.value = true
 }
 
-// ÁºñËæë
+// ±‡º≠
 const handleEdit = (row) => {
   dialogType.value = 'edit'
   Object.assign(form, { ...row })
   dialogVisible.value = true
 }
 
-// Êü•Áúã
+// ≤Èø¥
 const handleView = (row) => {
   dialogType.value = 'view'
   Object.assign(form, { ...row })
   dialogVisible.value = true
 }
 
-// Êèê‰∫§Ë°®Âçï
+// Ã·Ωª±Ìµ•
 const handleSubmit = async () => {
   if (!formRef.value) return
 
@@ -411,68 +411,68 @@ const handleSubmit = async () => {
     try {
       if (dialogType.value === 'create') {
         await systemApi.createBusinessType(form)
-        ElMessage.success('ÂàõÂª∫ÊàêÂäü')
+        ElMessage.success('¥¥Ω®≥…π¶')
       } else {
         await systemApi.updateBusinessType(form.id, form)
-        ElMessage.success('Êõ¥Êñ∞ÊàêÂäü')
+        ElMessage.success('∏¸–¬≥…π¶')
       }
       dialogVisible.value = false
       loadTableData()
     } catch (error) {
-      console.error('Êìç‰ΩúÂ§±Ë¥•:', error)
-      ElMessage.error(error.response?.data?.message || 'Êìç‰ΩúÂ§±Ë¥•')
+      console.error('≤Ÿ◊˜ ß∞‹:', error)
+      ElMessage.error(error.response?.data?.message || '≤Ÿ◊˜ ß∞‹')
     } finally {
       submitting.value = false
     }
   })
 }
 
-// Áä∂ÊÄÅÂèòÊõ¥
+// ◊¥Ã¨±‰∏¸
 const handleStatusChange = async (row, newStatus) => {
-  // Â¶ÇÊûúÁä∂ÊÄÅÊ≤°ÊúâÂèòÂåñÔºå‰∏çÊâßË°å‰ªª‰ΩïÊìç‰Ωú
+  // »Áπ˚◊¥Ã¨√ª”–±‰ªØ£¨≤ª÷¥––»Œ∫Œ≤Ÿ◊˜
   if (row.status === newStatus) {
     return
   }
 
   const oldStatus = row.status
-  row.status = newStatus // ÂÖàÊõ¥Êñ∞UI
+  row.status = newStatus // œ»∏¸–¬UI
 
   try {
     await systemApi.updateBusinessType(row.id, { status: newStatus })
-    // ‰∏çÊòæÁ§∫ÊàêÂäüÊèêÁ§∫ÔºåÈÅøÂÖçÈ¢ëÁπÅÂºπÂá∫
+    // ≤ªœ‘ æ≥…π¶Ã· æ£¨±‹√‚∆µ∑±µØ≥ˆ
   } catch (error) {
-    console.error('Áä∂ÊÄÅÊõ¥Êñ∞Â§±Ë¥•:', error)
-    ElMessage.error(error.response?.data?.message || 'Áä∂ÊÄÅÊõ¥Êñ∞Â§±Ë¥•')
-    row.status = oldStatus // ÂõûÊªöÁä∂ÊÄÅ
+    console.error('◊¥Ã¨∏¸–¬ ß∞‹:', error)
+    ElMessage.error(error.response?.data?.message || '◊¥Ã¨∏¸–¬ ß∞‹')
+    row.status = oldStatus // ªÿπˆ◊¥Ã¨
   }
 }
 
-// Âà†Èô§
+// …æ≥˝
 const handleDelete = async (row) => {
   if (row.is_system) {
-    ElMessage.warning('Á≥ªÁªüÂÜÖÁΩÆ‰∏öÂä°Á±ªÂûã‰∏çËÉΩÂà†Èô§')
+    ElMessage.warning('œµÕ≥ƒ⁄÷√“µŒÒ¿‡–Õ≤ªƒ‹…æ≥˝')
     return
   }
 
   try {
-    await ElMessageBox.confirm('Á°ÆÂÆöË¶ÅÂà†Èô§ËØ•‰∏öÂä°Á±ªÂûãÂêóÔºü', 'ÊèêÁ§∫', {
-      confirmButtonText: 'Á°ÆÂÆö',
-      cancelButtonText: 'ÂèñÊ∂à',
+    await ElMessageBox.confirm('»∑∂®“™…æ≥˝∏√“µŒÒ¿‡–Õ¬£ø', 'Ã· æ', {
+      confirmButtonText: '»∑∂®',
+      cancelButtonText: '»°œ˚',
       type: 'warning'
     })
 
     await systemApi.deleteBusinessType(row.id)
-    ElMessage.success('Âà†Èô§ÊàêÂäü')
+    ElMessage.success('…æ≥˝≥…π¶')
     loadTableData()
   } catch (error) {
     if (error !== 'cancel') {
-      console.error('Âà†Èô§Â§±Ë¥•:', error)
-      ElMessage.error(error.response?.data?.message || 'Âà†Èô§Â§±Ë¥•')
+      console.error('…æ≥˝ ß∞‹:', error)
+      ElMessage.error(error.response?.data?.message || '…æ≥˝ ß∞‹')
     }
   }
 }
 
-// ÂàùÂßãÂåñ
+// ≥ı ºªØ
 onMounted(() => {
   loadBusinessGroups()
   loadTableData()

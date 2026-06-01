@@ -78,7 +78,7 @@ import { ref, computed } from 'vue'
 import { View, Download } from '@element-plus/icons-vue'
 import { ElImageViewer, ElMessage } from 'element-plus'
 import { buildResourceUrl } from '@/config/app'
-import { api } from '@/services/api'
+import { commonApi } from '@/api'
 
 const props = defineProps({
   modelValue: Boolean,
@@ -163,7 +163,7 @@ const downloadAttachment = async (url) => {
 
   // 根本解决：采用二进制下载文件，防止跨域、路由Fallback或强制变成_uid_xxxx.htm
   try {
-    const response = await api.get(fullUrl, { responseType: 'blob' })
+    const response = await commonApi.downloadResource(fullUrl)
     const blob = new Blob([response.data])
     const downloadUrl = window.URL.createObjectURL(blob)
     const link = document.createElement('a')

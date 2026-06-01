@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <el-dialog
     :title="title"
     :model-value="modelValue"
@@ -211,8 +211,8 @@ import { Plus, Delete, InfoFilled } from '@element-plus/icons-vue'
 import { ElMessage, ElImageViewer } from 'element-plus'
 import { materialApi } from '@/api/material'
 import { bomApi } from '@/api/bom'
+import { commonApi } from '@/api/common'
 import { parseListData, parseResponseData } from '@/utils/responseParser'
-import api from '@/services/axiosInstance'
 import { buildResourceUrl } from '@/config/app'
 const props = defineProps({
   modelValue: Boolean,
@@ -395,7 +395,7 @@ const handlePreview = async (file) => {
   } else {
     // 根本解决：采用二进制下载文件，防止跨域或强制转 HTML 问题
     try {
-      const response = await api.get(url, { responseType: 'blob' })
+      const response = await commonApi.downloadResource(url)
       const blob = new Blob([response.data])
       const downloadUrl = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
@@ -416,9 +416,7 @@ const uploadFile = async (fileObj) => {
   const formData = new FormData()
   formData.append('file', fileObj)
   try {
-    const res = await api.post('/upload/file', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    })
+    const res = await commonApi.uploadFile(formData)
     return res?.data?.url || res?.url
   } catch (error) {
     console.error('上传文件失败:', error)
@@ -544,7 +542,8 @@ const handleMaterialCodeChangeByRow = async (val, row) => {
           row.material_specs = ''
           row.unit_name = ''
         }
-      } catch {
+      } catch (error) {
+        console.error('检测BOM循环引用失败:', error)
       }
     }
   }

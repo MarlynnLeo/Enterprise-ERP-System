@@ -9,6 +9,7 @@ const db = require('../../../config/db');
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 const CostAccountingService = require('../../../services/business/CostAccountingService');
+const CostClosingService = require('../../../services/business/CostClosingService');
 const { parsePagination } = require('../../../utils/safePagination');
 const { currentDateString, toLocalDateString } = require('../../../utils/dateUtils');
 
@@ -1640,6 +1641,44 @@ const costController = {
   /**
    * 导出成本明细账
    */
+  getClosingStatus: async (req, res) => {
+    try {
+      const periodId = req.query.periodId ? parseInt(req.query.periodId, 10) : null;
+      const result = await CostClosingService.getClosingStatus(periodId);
+      ResponseHandler.success(res, result);
+    } catch (error) {
+      logger.error('获取成本关账状态失败:', error);
+      ResponseHandler.error(
+        res,
+        error.message || '获取成本关账状态失败',
+        error.statusCode === 404 ? 'NOT_FOUND' : 'SERVER_ERROR',
+        error.statusCode || 500,
+        error
+      );
+    }
+  },
+
+  executeClosingWorkbench: async (req, res) => {
+    try {
+      const periodId = parseInt(req.params.periodId, 10);
+      if (!Number.isInteger(periodId) || periodId <= 0) {
+        return ResponseHandler.error(res, '期间ID无效', 'VALIDATION_ERROR', 400);
+      }
+
+      const result = await CostClosingService.executeClosing(periodId);
+      ResponseHandler.success(res, result, '成本关账闭环执行完成');
+    } catch (error) {
+      logger.error('执行成本关账闭环失败:', error);
+      ResponseHandler.error(
+        res,
+        error.message || '执行成本关账闭环失败',
+        error.statusCode && error.statusCode < 500 ? 'VALIDATION_ERROR' : 'SERVER_ERROR',
+        error.statusCode || 500,
+        error
+      );
+    }
+  },
+
   exportCostLedger: async (req, res) => {
     try {
       const { startDate, endDate, costCenterId, productId } = req.query;

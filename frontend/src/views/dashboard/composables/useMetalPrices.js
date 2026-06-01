@@ -3,7 +3,7 @@
  * @description 金属价格数据的组合式函数（从 Dashboard.vue 抽取）
  */
 import { ref, computed } from 'vue'
-import { metalPricesApi } from '../../../services/api'
+import { metalPricesApi } from '@/api'
 import { ElMessage } from 'element-plus'
 // 单位转换系数
 const GRAMS_PER_TROY_OUNCE = 31.1035  // 1金衡盎司 = 31.1035克

@@ -24,12 +24,11 @@
       </el-button>
       <template #tip>
         <div class="el-upload__tip">
-          支持上传PDF、Word、Excel、图片等文件，单个文件不超过{{ maxSizeMB }}MB，最多{{ maxFiles }}个文件
+          支持上传 PDF、Word、Excel、图片等文件，单个文件不超过 {{ maxSizeMB }}MB，最多 {{ maxFiles }} 个文件
         </div>
       </template>
     </el-upload>
 
-    <!-- 已上传附件列表 -->
     <div v-if="attachments.length > 0" class="attachment-list">
       <div class="list-header">
         <span>已上传附件 ({{ attachments.length }})</span>
@@ -59,7 +58,7 @@
 import { ref, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 import { Upload, Document, Delete, Download } from '@element-plus/icons-vue';
-import { api } from '@/services/api';
+import { commonApi } from '@/api';
 import { buildResourceUrl } from '@/config/app';
 
 const props = defineProps({
@@ -89,11 +88,10 @@ const attachments = ref([...props.modelValue]);
 const beforeUpload = (file) => {
   const isLtMaxSize = file.size / 1024 / 1024 < props.maxSizeMB;
   if (!isLtMaxSize) {
-    ElMessage.error(`文件大小不能超过${props.maxSizeMB}MB`);
+    ElMessage.error(`文件大小不能超过 ${props.maxSizeMB}MB`);
     return false;
   }
 
-  // 检查文件类型
   const allowedTypes = [
     'application/pdf',
     'application/msword',
@@ -124,9 +122,7 @@ const uploadAttachment = async ({ file, onSuccess, onError }) => {
   formData.append('file', file);
 
   try {
-    const response = await api.post('/upload/file', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    });
+    const response = await commonApi.uploadFile(formData);
     onSuccess(response.data);
   } catch (error) {
     onError(error);
@@ -157,7 +153,6 @@ const handleError = (error) => {
 };
 
 const handleRemove = (file) => {
-  // 从附件列表中移除
   const index = attachments.value.findIndex(item => item.name === file.name);
   if (index > -1) {
     attachments.value.splice(index, 1);
@@ -172,7 +167,6 @@ const removeFile = (index) => {
 };
 
 const downloadFile = (file) => {
-  // 创建隐藏的a标签进行下载
   const link = document.createElement('a');
   link.href = buildResourceUrl(file.url);
   link.download = file.name;
@@ -190,7 +184,6 @@ const formatFileSize = (bytes) => {
   return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
 };
 
-// 监听外部值变化
 watch(() => props.modelValue, (newVal) => {
   attachments.value = [...newVal];
 }, { deep: true });
@@ -204,7 +197,7 @@ watch(() => props.modelValue, (newVal) => {
 .attachment-list {
   margin-top: 20px;
   border: 1px solid var(--color-border-base);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   overflow: hidden;
 }
 
@@ -221,7 +214,7 @@ watch(() => props.modelValue, (newVal) => {
   align-items: center;
   padding: 12px 15px;
   border-bottom: 1px solid var(--color-border-lighter);
-  transition: background-color 0.3s;
+  transition: background-color var(--transition-base);
 }
 
 .attachment-item:last-child {

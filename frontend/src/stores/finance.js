@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { api } from '@/services/axiosInstance'
+import { financeApi } from '@/api'
 
 const DEFAULT_VAT_RATES = [0, 0.03, 0.06, 0.09, 0.13]
 const DEFAULT_PAYMENT_TERMS = [0, 7, 15, 30, 45, 60, 90]
@@ -23,7 +23,7 @@ export const useFinanceStore = defineStore('finance', {
       if (this.isLoaded) return
 
       try {
-        const response = await api.get('/finance/settings')
+        const response = await financeApi.settings.get()
         const data = response.data || {}
 
         if (data.tax) {

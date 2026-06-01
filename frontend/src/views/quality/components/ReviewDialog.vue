@@ -1,69 +1,69 @@
-ï»¿<!--
+<!--
 /**
  * ReviewDialog.vue
- * @description å¤æ£€æ“ä½œå¼¹çª—
+ * @description ¸´¼ì²Ù×÷µ¯´°
  * @date 2026-04-03
  * @version 1.0.0
  *
- * èŒè´£ï¼š
- * - æ˜¾ç¤ºåŸæ£€éªŒç»“æœå¯¹æ¯”
- * - å¤æ£€åŸå› é€‰æ‹©
- * - å¤æ£€æäº¤ + åç»­æµç¨‹å¼•å¯¼
+ * Ö°Ôğ£º
+ * - ÏÔÊ¾Ô­¼ìÑé½á¹û¶Ô±È
+ * - ¸´¼ìÔ­ÒòÑ¡Ôñ
+ * - ¸´¼ìÌá½» + ºóĞøÁ÷³ÌÒıµ¼
  */
 -->
 <template>
-  <el-dialog v-model="dialogVisible" :title="`å¤æ£€æ“ä½œ - ${inspectionNo}`" width="1200px" destroy-on-close>
+  <el-dialog v-model="dialogVisible" :title="`¸´¼ì²Ù×÷ - ${inspectionNo}`" width="1200px" destroy-on-close>
     <el-alert type="warning" :closable="false" show-icon>
-      <p>æ‚¨æ­£åœ¨å¯¹ä¸åˆæ ¼æ£€éªŒå•è¿›è¡Œå¤æ£€æ“ä½œï¼Œå¤æ£€åçš„ç»“æœå°†è¦†ç›–åŸæ£€éªŒç»“æœã€‚</p>
+      <p>ÄúÕıÔÚ¶Ô²»ºÏ¸ñ¼ìÑéµ¥½øĞĞ¸´¼ì²Ù×÷£¬¸´¼ìºóµÄ½á¹û½«¸²¸ÇÔ­¼ìÑé½á¹û¡£</p>
     </el-alert>
 
     <el-form ref="reviewFormRef" :model="reviewForm" :rules="reviewRules" label-width="100px" style="margin-top: 20px;">
-      <el-form-item label="æ£€éªŒé¡¹ç›®" prop="items">
+      <el-form-item label="¼ìÑéÏîÄ¿" prop="items">
         <div class="inspection-items">
           <el-table :data="reviewForm.items" border>
-            <el-table-column prop="item_name" label="æ£€éªŒé¡¹ç›®" width="130" show-overflow-tooltip />
-            <el-table-column prop="standard" label="æ£€éªŒæ ‡å‡†" width="150" show-overflow-tooltip />
-            <el-table-column prop="dimension_info" label="æ ‡å‡†å°ºå¯¸Â±å…¬å·®" width="150" show-overflow-tooltip>
+            <el-table-column prop="item_name" label="¼ìÑéÏîÄ¿" width="130" show-overflow-tooltip />
+            <el-table-column prop="standard" label="¼ìÑé±ê×¼" width="150" show-overflow-tooltip />
+            <el-table-column prop="dimension_info" label="±ê×¼³ß´ç¡À¹«²î" width="150" show-overflow-tooltip>
               <template #default="scope">{{ formatDimensionTolerance(scope.row) }}</template>
             </el-table-column>
-            <el-table-column prop="result" label="åŸç»“æœ" width="100" show-overflow-tooltip>
+            <el-table-column prop="result" label="Ô­½á¹û" width="100" show-overflow-tooltip>
               <template #default="scope">
                 <el-tag size="small" :type="scope.row.original_result === 'passed' ? 'success' : 'danger'">
-                  {{ scope.row.original_result === 'passed' ? 'åˆæ ¼' : 'ä¸åˆæ ¼' }}
+                  {{ scope.row.original_result === 'passed' ? 'ºÏ¸ñ' : '²»ºÏ¸ñ' }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="actual_value" label="å®é™…å€¼" width="120">
+            <el-table-column prop="actual_value" label="Êµ¼ÊÖµ" width="120">
               <template #default="scope">
                 <el-input
                   :ref="el => setReviewActualValueRef(el, scope.$index)"
                   v-model="scope.row.actual_value"
-                  placeholder="è¯·è¾“å…¥å®é™…å€¼"
+                  placeholder="ÇëÊäÈëÊµ¼ÊÖµ"
                   @input="checkDimensionTolerance(scope.row, false)"
                   @blur="checkDimensionTolerance(scope.row, true)"
                   @keyup.enter="focusNextReviewActualValue(scope.$index)"
                 />
               </template>
             </el-table-column>
-            <el-table-column prop="result" label="å¤æ£€ç»“æœ" width="110">
+            <el-table-column prop="result" label="¸´¼ì½á¹û" width="110">
               <template #default="scope">
                 <el-select
                   v-model="scope.row.result"
-                  placeholder="é€‰æ‹©ç»“æœ"
+                  placeholder="Ñ¡Ôñ½á¹û"
                   style="width: 100%"
                   :class="{
                     'result-select-passed': scope.row.result === 'passed',
                     'result-select-failed': scope.row.result === 'failed'
                   }"
                 >
-                  <el-option label="åˆæ ¼" value="passed" style="color: var(--color-success); font-weight: bold;" />
-                  <el-option label="ä¸åˆæ ¼" value="failed" style="color: var(--color-danger); font-weight: bold;" />
+                  <el-option label="ºÏ¸ñ" value="passed" style="color: var(--color-success); font-weight: bold;" />
+                  <el-option label="²»ºÏ¸ñ" value="failed" style="color: var(--color-danger); font-weight: bold;" />
                 </el-select>
               </template>
             </el-table-column>
-            <el-table-column prop="remarks" label="å¤‡æ³¨" min-width="150" show-overflow-tooltip>
+            <el-table-column prop="remarks" label="±¸×¢" min-width="150" show-overflow-tooltip>
               <template #default="scope">
-                <el-input v-model="scope.row.remarks" placeholder="è¯·è¾“å…¥å¤‡æ³¨" />
+                <el-input v-model="scope.row.remarks" placeholder="ÇëÊäÈë±¸×¢" />
               </template>
             </el-table-column>
           </el-table>
@@ -72,50 +72,50 @@
 
       <el-row :gutter="20">
         <el-col :span="6">
-          <el-form-item label="å¤æ£€æ•°é‡" prop="quantity">
-            <el-input v-model="reviewForm.quantity" placeholder="è¯·è¾“å…¥å¤æ£€æ•°é‡" disabled />
+          <el-form-item label="¸´¼ìÊıÁ¿" prop="quantity">
+            <el-input v-model="reviewForm.quantity" placeholder="ÇëÊäÈë¸´¼ìÊıÁ¿" disabled />
           </el-form-item>
         </el-col>
         <el-col :span="6">
-          <el-form-item label="åˆæ ¼æ•°é‡" prop="qualified_quantity">
-            <el-input v-model="reviewForm.qualified_quantity" placeholder="è¯·è¾“å…¥åˆæ ¼æ•°é‡" type="number" @input="handleReviewQualifiedQuantityChange" />
+          <el-form-item label="ºÏ¸ñÊıÁ¿" prop="qualified_quantity">
+            <el-input v-model="reviewForm.qualified_quantity" placeholder="ÇëÊäÈëºÏ¸ñÊıÁ¿" type="number" @input="handleReviewQualifiedQuantityChange" />
           </el-form-item>
         </el-col>
         <el-col :span="6">
-          <el-form-item label="ä¸åˆæ ¼æ•°é‡" prop="unqualified_quantity">
-            <el-input v-model="reviewForm.unqualified_quantity" placeholder="è‡ªåŠ¨è®¡ç®—" disabled />
+          <el-form-item label="²»ºÏ¸ñÊıÁ¿" prop="unqualified_quantity">
+            <el-input v-model="reviewForm.unqualified_quantity" placeholder="×Ô¶¯¼ÆËã" disabled />
           </el-form-item>
         </el-col>
         <el-col :span="6">
-          <el-form-item label="å¤æ£€äººå‘˜" prop="inspector_name">
-            <el-input v-model="reviewForm.inspector_name" placeholder="è¯·è¾“å…¥å¤æ£€äººå‘˜å§“å" />
+          <el-form-item label="¸´¼ìÈËÔ±" prop="inspector_name">
+            <el-input v-model="reviewForm.inspector_name" placeholder="ÇëÊäÈë¸´¼ìÈËÔ±ĞÕÃû" />
           </el-form-item>
         </el-col>
       </el-row>
 
-      <el-form-item label="å¤æ£€æ—¥æœŸ" prop="inspectionDate">
-        <el-date-picker v-model="reviewForm.inspectionDate" type="date" placeholder="é€‰æ‹©å¤æ£€æ—¥æœŸ" />
+      <el-form-item label="¸´¼ìÈÕÆÚ" prop="inspectionDate">
+        <el-date-picker v-model="reviewForm.inspectionDate" type="date" placeholder="Ñ¡Ôñ¸´¼ìÈÕÆÚ" />
       </el-form-item>
 
-      <el-form-item label="å¤æ£€åŸå› " prop="reviewReason">
-        <el-select v-model="reviewForm.reviewReason" placeholder="é€‰æ‹©å¤æ£€åŸå› " style="width: 100%">
-          <el-option label="åˆæ£€ä»ªå™¨æ ¡å‡†æœ‰è¯¯" value="instrument_error" />
-          <el-option label="åˆæ£€æ–¹æ³•ä¸å½“" value="method_error" />
-          <el-option label="ä¾›åº”å•†ç”³è¯·å¤æ£€" value="supplier_request" />
-          <el-option label="æ–°æ‰¹æ¬¡æ›¿ä»£" value="new_batch" />
-          <el-option label="å…¶ä»–åŸå› " value="other" />
+      <el-form-item label="¸´¼ìÔ­Òò" prop="reviewReason">
+        <el-select v-model="reviewForm.reviewReason" placeholder="Ñ¡Ôñ¸´¼ìÔ­Òò" style="width: 100%">
+          <el-option label="³õ¼ìÒÇÆ÷Ğ£×¼ÓĞÎó" value="instrument_error" />
+          <el-option label="³õ¼ì·½·¨²»µ±" value="method_error" />
+          <el-option label="¹©Ó¦ÉÌÉêÇë¸´¼ì" value="supplier_request" />
+          <el-option label="ĞÂÅú´ÎÌæ´ú" value="new_batch" />
+          <el-option label="ÆäËûÔ­Òò" value="other" />
         </el-select>
       </el-form-item>
 
-      <el-form-item label="å¤‡æ³¨" prop="note">
-        <el-input v-model="reviewForm.note" type="textarea" placeholder="è¯·è¾“å…¥å¤‡æ³¨ä¿¡æ¯" :rows="3" />
+      <el-form-item label="±¸×¢" prop="note">
+        <el-input v-model="reviewForm.note" type="textarea" placeholder="ÇëÊäÈë±¸×¢ĞÅÏ¢" :rows="3" />
       </el-form-item>
     </el-form>
 
     <template #footer>
       <span class="dialog-footer">
-        <el-button @click="dialogVisible = false">å–æ¶ˆ</el-button>
-        <el-button v-permission="'quality:inspections:update'" type="primary" @click="handleSubmit" :loading="submitting">æäº¤å¤æ£€</el-button>
+        <el-button @click="dialogVisible = false">È¡Ïû</el-button>
+        <el-button v-permission="'quality:inspections:update'" type="primary" @click="handleSubmit" :loading="submitting">Ìá½»¸´¼ì</el-button>
       </span>
     </template>
   </el-dialog>
@@ -124,7 +124,7 @@
 <script setup>
 import { ref, reactive, computed, watch, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { qualityApi } from '@/services/api'
+import { qualityApi } from '@/api'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { calculateInspectionStatus, validateInspectionItems } from '@/utils/inspectionHelpers'
@@ -161,33 +161,33 @@ const reviewForm = reactive({
   note: ''
 })
 
-// è¡¨å•éªŒè¯è§„åˆ™
+// ±íµ¥ÑéÖ¤¹æÔò
 const reviewRules = {
-  quantity: [{ required: true, message: 'è¯·è¾“å…¥å¤æ£€æ•°é‡', trigger: 'blur' }],
+  quantity: [{ required: true, message: 'ÇëÊäÈë¸´¼ìÊıÁ¿', trigger: 'blur' }],
   qualified_quantity: [
-    { required: true, message: 'è¯·è¾“å…¥åˆæ ¼æ•°é‡', trigger: 'change' },
+    { required: true, message: 'ÇëÊäÈëºÏ¸ñÊıÁ¿', trigger: 'change' },
     {
       validator: (rule, value, callback) => {
         if (value === '' || value === null || value === undefined) {
-          callback(new Error('åˆæ ¼æ•°é‡ä¸èƒ½ä¸ºç©º'))
+          callback(new Error('ºÏ¸ñÊıÁ¿²»ÄÜÎª¿Õ'))
         } else {
           const qty = parseFloat(value)
           const totalQty = parseFloat(reviewForm.quantity)
-          if (isNaN(qty)) callback(new Error('è¯·è¾“å…¥æœ‰æ•ˆçš„æ•°å­—'))
-          else if (qty < 0) callback(new Error('åˆæ ¼æ•°é‡ä¸èƒ½ä¸ºè´Ÿæ•°'))
-          else if (qty > totalQty) callback(new Error('åˆæ ¼æ•°é‡ä¸èƒ½å¤§äºå¤æ£€æ•°é‡'))
+          if (isNaN(qty)) callback(new Error('ÇëÊäÈëÓĞĞ§µÄÊı×Ö'))
+          else if (qty < 0) callback(new Error('ºÏ¸ñÊıÁ¿²»ÄÜÎª¸ºÊı'))
+          else if (qty > totalQty) callback(new Error('ºÏ¸ñÊıÁ¿²»ÄÜ´óÓÚ¸´¼ìÊıÁ¿'))
           else callback()
         }
       },
       trigger: 'change'
     }
   ],
-  inspector_name: [{ required: true, message: 'è¯·è¾“å…¥å¤æ£€äººå‘˜å§“å', trigger: 'blur' }],
-  inspectionDate: [{ required: true, message: 'è¯·é€‰æ‹©å¤æ£€æ—¥æœŸ', trigger: 'change' }],
-  reviewReason: [{ required: true, message: 'è¯·é€‰æ‹©å¤æ£€åŸå› ', trigger: 'change' }]
+  inspector_name: [{ required: true, message: 'ÇëÊäÈë¸´¼ìÈËÔ±ĞÕÃû', trigger: 'blur' }],
+  inspectionDate: [{ required: true, message: 'ÇëÑ¡Ôñ¸´¼ìÈÕÆÚ', trigger: 'change' }],
+  reviewReason: [{ required: true, message: 'ÇëÑ¡Ôñ¸´¼ìÔ­Òò', trigger: 'change' }]
 }
 
-// ç›‘å¬å¼¹çª—æ‰“å¼€æ—¶åŠ è½½æ•°æ®
+// ¼àÌıµ¯´°´ò¿ªÊ±¼ÓÔØÊı¾İ
 watch(() => props.visible, async (val) => {
   if (val && props.row) {
     try {
@@ -213,25 +213,25 @@ watch(() => props.visible, async (val) => {
             remarks: item.remarks || ''
           }))
         } else {
-          ElMessage.warning('æ²¡æœ‰æ‰¾åˆ°æ£€éªŒé¡¹è®°å½•ï¼Œæ— æ³•è¿›è¡Œå¤æ£€')
+          ElMessage.warning('Ã»ÓĞÕÒµ½¼ìÑéÏî¼ÇÂ¼£¬ÎŞ·¨½øĞĞ¸´¼ì')
           dialogVisible.value = false
           return
         }
 
         reviewActualValueRefs.value = []
       } else {
-        ElMessage.error('è·å–æ£€éªŒå•è¯¦æƒ…å¤±è´¥')
+        ElMessage.error('»ñÈ¡¼ìÑéµ¥ÏêÇéÊ§°Ü')
         dialogVisible.value = false
       }
     } catch (error) {
-      console.error('è·å–æ£€éªŒå•è¯¦æƒ…å¤±è´¥:', error)
-      ElMessage.error(`è·å–æ£€éªŒå•è¯¦æƒ…å¤±è´¥: ${error.message}`)
+      console.error('»ñÈ¡¼ìÑéµ¥ÏêÇéÊ§°Ü:', error)
+      ElMessage.error(`»ñÈ¡¼ìÑéµ¥ÏêÇéÊ§°Ü: ${error.message}`)
       dialogVisible.value = false
     }
   }
 })
 
-// è¾…åŠ©å‡½æ•°
+// ¸¨Öúº¯Êı
 const formatDimensionTolerance = (item) => {
   if (!item.dimension_value) return '-'
   const dimensionValue = parseFloat(item.dimension_value)
@@ -269,7 +269,7 @@ const focusNextReviewActualValue = (currentIndex) => {
   if (nextIndex < reviewForm.items.length && reviewActualValueRefs.value[nextIndex]) {
     nextTick(() => { reviewActualValueRefs.value[nextIndex]?.focus() })
   } else {
-    ElMessage.success('å·²å®Œæˆæ‰€æœ‰å¤æ£€é¡¹è¾“å…¥')
+    ElMessage.success('ÒÑÍê³ÉËùÓĞ¸´¼ìÏîÊäÈë')
   }
 }
 
@@ -277,7 +277,7 @@ const handleReviewQualifiedQuantityChange = () => {
   const totalQuantity = parseFloat(reviewForm.quantity) || 0
   const qualifiedQuantity = parseFloat(reviewForm.qualified_quantity) || 0
   if (qualifiedQuantity > totalQuantity) {
-    ElMessage.warning('åˆæ ¼æ•°é‡ä¸èƒ½è¶…è¿‡å¤æ£€æ•°é‡')
+    ElMessage.warning('ºÏ¸ñÊıÁ¿²»ÄÜ³¬¹ı¸´¼ìÊıÁ¿')
     reviewForm.qualified_quantity = totalQuantity
     reviewForm.unqualified_quantity = 0
     return
@@ -285,11 +285,11 @@ const handleReviewQualifiedQuantityChange = () => {
   reviewForm.unqualified_quantity = (totalQuantity - qualifiedQuantity).toFixed(2)
 }
 
-// æäº¤å¤æ£€
+// Ìá½»¸´¼ì
 const handleSubmit = async () => {
   if (!reviewFormRef.value) return
   if (submitting.value) {
-    ElMessage.warning('æ­£åœ¨æäº¤ä¸­ï¼Œè¯·å‹¿é‡å¤æ“ä½œ')
+    ElMessage.warning('ÕıÔÚÌá½»ÖĞ£¬ÇëÎğÖØ¸´²Ù×÷')
     return
   }
   submitting.value = true
@@ -324,20 +324,20 @@ const handleSubmit = async () => {
 
     const response = await qualityApi.updateIncomingInspection(submitData.id, submitData)
     const respData = response?.data
-    const isSuccess = respData?.success === true || respData?.id || (respData && !respData.error && !respData.message?.includes('å¤±è´¥'))
+    const isSuccess = respData?.success === true || respData?.id || (respData && !respData.error && !respData.message?.includes('Ê§°Ü'))
 
     if (isSuccess) {
-      ElMessage.success('å¤æ£€æäº¤æˆåŠŸ')
+      ElMessage.success('¸´¼ìÌá½»³É¹¦')
 
-      // æ ¹æ®ç»“æœå¤„ç†åç»­æµç¨‹
+      // ¸ù¾İ½á¹û´¦ÀíºóĞøÁ÷³Ì
       const resultData = respData?.data || respData
       const receiptAutoCreated = resultData?.receipt_auto_created === true
       if (status === 'passed') {
-        if (receiptAutoCreated) ElMessage.success('ç³»ç»Ÿå·²è‡ªåŠ¨åˆ›å»ºé‡‡è´­å…¥åº“å•')
-        else ElMessage.warning('å¤æ£€å·²æäº¤ï¼Œä½†åç«¯æœªè¿”å›å…¥åº“å•åˆ›å»ºç»“æœï¼Œè¯·åˆ·æ–°åç¡®è®¤')
+        if (receiptAutoCreated) ElMessage.success('ÏµÍ³ÒÑ×Ô¶¯´´½¨²É¹ºÈë¿âµ¥')
+        else ElMessage.warning('¸´¼ìÒÑÌá½»£¬µ«ºó¶ËÎ´·µ»ØÈë¿âµ¥´´½¨½á¹û£¬ÇëË¢ĞÂºóÈ·ÈÏ')
       } else if (status === 'partial') {
-        if (receiptAutoCreated) ElMessage.success('ç³»ç»Ÿå·²è‡ªåŠ¨åˆ›å»ºé‡‡è´­å…¥åº“å•ï¼ˆä»…åˆæ ¼éƒ¨åˆ†ï¼‰')
-        else ElMessage.warning('å¤æ£€å·²æäº¤ï¼Œä½†åç«¯æœªè¿”å›å…¥åº“å•åˆ›å»ºç»“æœï¼Œè¯·åˆ·æ–°åç¡®è®¤')
+        if (receiptAutoCreated) ElMessage.success('ÏµÍ³ÒÑ×Ô¶¯´´½¨²É¹ºÈë¿âµ¥£¨½öºÏ¸ñ²¿·Ö£©')
+        else ElMessage.warning('¸´¼ìÒÑÌá½»£¬µ«ºó¶ËÎ´·µ»ØÈë¿âµ¥´´½¨½á¹û£¬ÇëË¢ĞÂºóÈ·ÈÏ')
         await handlePartialReviewResult(submitData.id, submitData.qualified_quantity, submitData.unqualified_quantity)
       } else if (status === 'failed') {
         await handleFailedReviewResult(submitData.id, submitData.unqualified_quantity)
@@ -346,43 +346,43 @@ const handleSubmit = async () => {
       dialogVisible.value = false
       emit('success')
     } else {
-      ElMessage.error(respData?.message || 'å¤æ£€æäº¤å¤±è´¥')
+      ElMessage.error(respData?.message || '¸´¼ìÌá½»Ê§°Ü')
     }
   } catch (error) {
-    console.error('å¤æ£€æäº¤å¤±è´¥:', error)
-    ElMessage.error(`å¤æ£€æäº¤å¤±è´¥: ${error.message}`)
+    console.error('¸´¼ìÌá½»Ê§°Ü:', error)
+    ElMessage.error(`¸´¼ìÌá½»Ê§°Ü: ${error.message}`)
   } finally {
     submitting.value = false
   }
 }
 
-// éƒ¨åˆ†åˆæ ¼å¤„ç†
+// ²¿·ÖºÏ¸ñ´¦Àí
 const handlePartialReviewResult = async (inspectionId, qualifiedQty, unqualifiedQty) => {
   try {
     await ElMessageBox.confirm(
-      `å¤æ£€å®Œæˆï¼åˆæ ¼æ•°é‡: ${qualifiedQty}, ä¸åˆæ ¼æ•°é‡: ${unqualifiedQty}\n\nåˆæ ¼éƒ¨åˆ†å·²ç”±åç«¯è‡ªåŠ¨åˆ›å»ºé‡‡è´­å…¥åº“å•ï¼Œä¸åˆæ ¼éƒ¨åˆ†éœ€è¦é‡æ–°å¤„ç†ã€‚\n\næ˜¯å¦å‰å¾€ä¸åˆæ ¼å“ç®¡ç†é¡µé¢ï¼Ÿ`,
-      'å¤æ£€éƒ¨åˆ†åˆæ ¼ - éœ€è¦å¤„ç†', { confirmButtonText: 'å‰å¾€å¤„ç†', cancelButtonText: 'ç¨åå¤„ç†', type: 'warning', distinguishCancelAndClose: true }
+      `¸´¼ìÍê³É£¡ºÏ¸ñÊıÁ¿: ${qualifiedQty}, ²»ºÏ¸ñÊıÁ¿: ${unqualifiedQty}\n\nºÏ¸ñ²¿·ÖÒÑÓÉºó¶Ë×Ô¶¯´´½¨²É¹ºÈë¿âµ¥£¬²»ºÏ¸ñ²¿·ÖĞèÒªÖØĞÂ´¦Àí¡£\n\nÊÇ·ñÇ°Íù²»ºÏ¸ñÆ·¹ÜÀíÒ³Ãæ£¿`,
+      '¸´¼ì²¿·ÖºÏ¸ñ - ĞèÒª´¦Àí', { confirmButtonText: 'Ç°Íù´¦Àí', cancelButtonText: 'ÉÔºó´¦Àí', type: 'warning', distinguishCancelAndClose: true }
     )
     router.push({ path: '/quality/nonconforming', query: { inspection_id: inspectionId } })
   } catch (error) {
     if (error === 'cancel' || error === 'close') {
-      ElMessageBox.alert(`å¤æ£€å·²å®Œæˆã€‚\n\nâ€¢ åˆæ ¼éƒ¨åˆ†(${qualifiedQty})å·²ç”±åç«¯åˆ›å»ºå…¥åº“å•\nâ€¢ ä¸åˆæ ¼éƒ¨åˆ†(${unqualifiedQty})è¯·å‰å¾€"è´¨é‡ç®¡ç† > ä¸åˆæ ¼å“ç®¡ç†"é‡æ–°å¤„ç†`, 'æ¸©é¦¨æç¤º',
-        { confirmButtonText: 'æˆ‘çŸ¥é“äº†', type: 'info' })
+      ElMessageBox.alert(`¸´¼ìÒÑÍê³É¡£\n\n? ºÏ¸ñ²¿·Ö(${qualifiedQty})ÒÑÓÉºó¶Ë´´½¨Èë¿âµ¥\n? ²»ºÏ¸ñ²¿·Ö(${unqualifiedQty})ÇëÇ°Íù"ÖÊÁ¿¹ÜÀí > ²»ºÏ¸ñÆ·¹ÜÀí"ÖØĞÂ´¦Àí`, 'ÎÂÜ°ÌáÊ¾',
+        { confirmButtonText: 'ÎÒÖªµÀÁË', type: 'info' })
     } else {
-      ElMessage.error(`å¤„ç†å¤±è´¥: ${error.message}`)
+      ElMessage.error(`´¦ÀíÊ§°Ü: ${error.message}`)
     }
   }
 }
 
-// å…¨éƒ¨ä¸åˆæ ¼å¤„ç†
+// È«²¿²»ºÏ¸ñ´¦Àí
 const handleFailedReviewResult = async (inspectionId, unqualifiedQty) => {
   try {
     await ElMessageBox.alert(
-      `å¤æ£€å®Œæˆ,ä»å…¨éƒ¨ä¸åˆæ ¼(${unqualifiedQty})ï¼\n\nè¯·é‡æ–°é€‰æ‹©å¤„ç†æ–¹å¼ï¼š\nâ€¢ é€€è´§ - é€€å›ä¾›åº”å•†\nâ€¢ æ¢è´§ - è¦æ±‚ä¾›åº”å•†æ›´æ¢åˆæ ¼å“\nâ€¢ æŠ¥åºŸ - ç›´æ¥æŠ¥åºŸå¤„ç†\n\næ˜¯å¦å‰å¾€ä¸åˆæ ¼å“ç®¡ç†é¡µé¢è¿›è¡Œå¤„ç†?`,
-      'å¤æ£€ä»ä¸åˆæ ¼ - éœ€è¦å¤„ç†', { confirmButtonText: 'å‰å¾€å¤„ç†', cancelButtonText: 'ç¨åå¤„ç†', type: 'error', showCancelButton: true }
+      `¸´¼ìÍê³É,ÈÔÈ«²¿²»ºÏ¸ñ(${unqualifiedQty})£¡\n\nÇëÖØĞÂÑ¡Ôñ´¦Àí·½Ê½£º\n? ÍË»õ - ÍË»Ø¹©Ó¦ÉÌ\n? »»»õ - ÒªÇó¹©Ó¦ÉÌ¸ü»»ºÏ¸ñÆ·\n? ±¨·Ï - Ö±½Ó±¨·Ï´¦Àí\n\nÊÇ·ñÇ°Íù²»ºÏ¸ñÆ·¹ÜÀíÒ³Ãæ½øĞĞ´¦Àí?`,
+      '¸´¼ìÈÔ²»ºÏ¸ñ - ĞèÒª´¦Àí', { confirmButtonText: 'Ç°Íù´¦Àí', cancelButtonText: 'ÉÔºó´¦Àí', type: 'error', showCancelButton: true }
     ).then(() => { router.push({ path: '/quality/nonconforming', query: { inspection_id: inspectionId } }) })
   } catch (error) {
-    if (error === 'cancel') ElMessage.warning('è¯·å°½å¿«å¤„ç†ä¸åˆæ ¼å“')
+    if (error === 'cancel') ElMessage.warning('Çë¾¡¿ì´¦Àí²»ºÏ¸ñÆ·')
   }
 }
 </script>
@@ -390,13 +390,13 @@ const handleFailedReviewResult = async (inspectionId, unqualifiedQty) => {
 <style scoped>
 .inspection-items { width: 100%; max-width: 100%; overflow: hidden; }
 
-/* ç»“æœé€‰æ‹©å™¨æ ·å¼ - åˆæ ¼æ˜¾ç¤ºç»¿è‰² */
-:deep(.result-select-passed .el-input__wrapper) { background-color: var(--ds-blue-bg) !important; border-color: var(--color-success) !important; box-shadow: 0 0 0 1px var(--color-success) inset !important; }
+/* ½á¹ûÑ¡ÔñÆ÷ÑùÊ½ - ºÏ¸ñÏÔÊ¾ÂÌÉ« */
+:deep(.result-select-passed .el-input__wrapper) { background-color: var(--theme-status-success-bg) !important; border-color: var(--color-success) !important; box-shadow: var(--result-select-success-ring, 0 0 0 1px var(--color-success) inset) !important; }
 :deep(.result-select-passed .el-input__inner) { color: var(--color-success) !important; font-weight: var(--font-weight-bold) !important; }
-:deep(.result-select-passed.el-select .el-input.is-focus .el-input__wrapper) { box-shadow: 0 0 0 1px var(--color-success) inset !important; }
+:deep(.result-select-passed.el-select .el-input.is-focus .el-input__wrapper) { box-shadow: var(--result-select-success-ring, 0 0 0 1px var(--color-success) inset) !important; }
 
-/* ç»“æœé€‰æ‹©å™¨æ ·å¼ - ä¸åˆæ ¼æ˜¾ç¤ºçº¢è‰² */
-:deep(.result-select-failed .el-input__wrapper) { background-color: var(--ds-red-bg) !important; border-color: var(--color-danger) !important; box-shadow: 0 0 0 1px var(--color-danger) inset !important; }
+/* ½á¹ûÑ¡ÔñÆ÷ÑùÊ½ - ²»ºÏ¸ñÏÔÊ¾ºìÉ« */
+:deep(.result-select-failed .el-input__wrapper) { background-color: var(--theme-status-danger-bg) !important; border-color: var(--color-danger) !important; box-shadow: var(--result-select-danger-ring, 0 0 0 1px var(--color-danger) inset) !important; }
 :deep(.result-select-failed .el-input__inner) { color: var(--color-danger) !important; font-weight: var(--font-weight-bold) !important; }
-:deep(.result-select-failed.el-select .el-input.is-focus .el-input__wrapper) { box-shadow: 0 0 0 1px var(--color-danger) inset !important; }
+:deep(.result-select-failed.el-select .el-input.is-focus .el-input__wrapper) { box-shadow: var(--result-select-danger-ring, 0 0 0 1px var(--color-danger) inset) !important; }
 </style>

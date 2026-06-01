@@ -113,12 +113,12 @@ const exportActivities = () => {
 
 const getActivityColor = (category) => {
   const map = {
-    login: 'var(--el-color-primary)',
-    system: 'var(--el-color-warning)',
-    profile: 'var(--el-color-success)',
-    task: 'var(--el-color-danger)'
+    login: 'var(--color-primary)',
+    system: 'var(--color-warning)',
+    profile: 'var(--color-success)',
+    task: 'var(--color-danger)'
   }
-  return map[category] || 'var(--el-text-color-secondary)'
+  return map[category] || 'var(--color-text-secondary)'
 }
 
 const getActivityIconComponent = (category) => {
@@ -144,10 +144,10 @@ const getActivityCategoryName = (category) => {
 
 <style scoped>
 .profile-card {
-  border-radius: 12px;
-  background: var(--el-bg-color);
-  border: 1px solid var(--el-border-color-lighter);
-  box-shadow: 0 2px 12px 0 color-mix(in srgb, var(--ds-black) 5%, transparent);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border-lighter);
+  box-shadow: var(--shadow-sm);
 }
 
 .profile-card :deep(.el-card__header) {
@@ -177,8 +177,8 @@ const getActivityCategoryName = (category) => {
   align-items: center;
   justify-content: center;
   font-size: 20px;
-  color: var(--el-color-white);
-  background: var(--el-color-primary);
+  color: var(--color-on-primary);
+  background: var(--color-primary);
   border-radius: 50%;
   box-sizing: border-box;
 }
@@ -186,7 +186,7 @@ const getActivityCategoryName = (category) => {
 .header-title {
   font-size: 16px;
   font-weight: 800;
-  color: var(--el-text-color-primary);
+  color: var(--color-text-primary);
 }
 
 .activity-filters {
@@ -195,9 +195,9 @@ const getActivityCategoryName = (category) => {
   margin-bottom: 24px;
   flex-wrap: wrap;
   padding: 14px;
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 10px;
-  background: var(--el-fill-color-extra-light);
+  border: 1px solid var(--color-border-lighter);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-hover);
 }
 
 .activity-timeline {
@@ -205,8 +205,8 @@ const getActivityCategoryName = (category) => {
 }
 
 .activity-item-card {
-  border-radius: 10px;
-  border: 1px solid var(--el-border-color-lighter);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-lighter);
   box-shadow: none;
 }
 
@@ -224,8 +224,8 @@ const getActivityCategoryName = (category) => {
   align-items: center;
   justify-content: center;
   font-size: 22px;
-  background: var(--el-fill-color-extra-light);
-  border: 1px solid var(--el-border-color-lighter);
+  background: var(--color-bg-hover);
+  border: 1px solid var(--color-border-lighter);
   border-radius: 50%;
   box-sizing: border-box;
 }
@@ -237,20 +237,20 @@ const getActivityCategoryName = (category) => {
 .activity-title {
   font-size: 14px;
   font-weight: 500;
-  color: var(--el-text-color-primary);
+  color: var(--color-text-primary);
   margin-bottom: 4px;
 }
 
 .activity-category {
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: var(--color-text-secondary);
 }
 
 .load-more {
   text-align: center;
   margin-top: 20px;
   padding-top: 20px;
-  border-top: 1px solid var(--el-border-color-lighter);
+  border-top: 1px solid var(--color-border-lighter);
 }
 
 @media (max-width: 768px) {

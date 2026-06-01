@@ -138,7 +138,7 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import { api } from '@/services/api'
+import { financeApi } from '@/api'
 import { formatCurrency } from '@/utils/helpers/formatters'
 import { parseResponseData } from '@/utils/responseParser'
 
@@ -187,7 +187,7 @@ const getDriverTypeLabel = (type) => {
 const loadActivities = async () => {
   loading.value = true
   try {
-    const res = await api.get('/finance/activity-cost/activities')
+    const res = await financeApi.cost.getActivities()
     activityList.value = parseResponseData(res, [])
   } catch (error) {
     console.error('加载作业列表失败:', error)
@@ -201,7 +201,7 @@ const loadActivities = async () => {
 const loadSummary = async () => {
   summaryLoading.value = true
   try {
-    const res = await api.get('/finance/activity-cost/summary')
+    const res = await financeApi.cost.getActivitySummary()
     summaryList.value = parseResponseData(res, [])
   } catch (error) {
     console.error('加载汇总报表失败:', error)
@@ -244,7 +244,7 @@ const deleteActivity = async (row) => {
     await ElMessageBox.confirm(`确定删除作业"${row.name}"吗？`, '提示', {
       type: 'warning'
     })
-    await api.delete(`/finance/activity-cost/activities/${row.id}`)
+    await financeApi.cost.deleteActivity(row.id)
     ElMessage.success('删除成功')
     loadActivities()
   } catch (error) {
@@ -259,10 +259,10 @@ const submitForm = async () => {
   try {
     await formRef.value.validate()
     if (isEdit.value) {
-      await api.put(`/finance/activity-cost/activities/${form.value.id}`, form.value)
+      await financeApi.cost.updateActivity(form.value.id, form.value)
       ElMessage.success('更新成功')
     } else {
-      await api.post('/finance/activity-cost/activities', form.value)
+      await financeApi.cost.createActivity(form.value)
       ElMessage.success('创建成功')
     }
     dialogVisible.value = false

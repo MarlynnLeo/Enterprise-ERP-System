@@ -327,11 +327,13 @@
             </el-button>
           </div>
 
-          <el-collapse-transition>
-            <div v-show="showRecipients">
-              <RecipientsList :communication-id="viewData.id" ref="recipientsListRef" />
+          <transition name="recipients-expand">
+            <div v-show="showRecipients" class="recipients-expand">
+              <div class="recipients-expand__inner">
+                <RecipientsList :communication-id="viewData.id" ref="recipientsListRef" />
+              </div>
             </div>
-          </el-collapse-transition>
+          </transition>
         </div>
 
         <!-- 评论区 -->
@@ -379,7 +381,7 @@ import {
   Plus, User, Clock, View, Star, Collection, ChatDotRound,
   Lock, Warning, ArrowDown, ArrowUp
 } from '@element-plus/icons-vue'
-import technicalCommunicationApi from '@/services/technicalCommunicationApi'
+import technicalCommunicationApi from '@/api/technicalCommunication'
 import RichTextEditor from '@/components/RichTextEditor.vue'
 import AttachmentUpload from '@/components/AttachmentUpload.vue'
 import UserSelector from '@/components/UserSelector.vue'
@@ -1141,5 +1143,33 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.recipients-expand {
+  display: grid;
+  grid-template-rows: 1fr;
+}
+
+.recipients-expand__inner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.recipients-expand-enter-active,
+.recipients-expand-leave-active {
+  transition: grid-template-rows 0.22s cubic-bezier(0.2, 0, 0, 1),
+    opacity 0.16s ease;
+}
+
+.recipients-expand-enter-from,
+.recipients-expand-leave-to {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+
+.recipients-expand-enter-to,
+.recipients-expand-leave-from {
+  grid-template-rows: 1fr;
+  opacity: 1;
 }
 </style>

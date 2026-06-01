@@ -273,7 +273,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import { api } from '@/services/axiosInstance'
+import { financeApi } from '@/api'
 
 const activeTab = ref('base')
 
@@ -352,7 +352,7 @@ const formatPercent = (value) => {
 const loadSettings = async () => {
   loading.value = true
   try {
-    const res = await api.get('/finance/settings')
+    const res = await financeApi.settings.get()
     const data = res.data || {}
     if (data) {
       // 深度合并或手动赋值，确保响应式丢失
@@ -397,7 +397,7 @@ const loadSettings = async () => {
 const handleSave = async () => {
   saving.value = true
   try {
-    await api.put('/finance/settings', settings)
+    await financeApi.settings.update(settings)
     ElMessage.success('设置已保存')
   } catch (error) {
     console.error('保存设置失败:', error)
@@ -414,7 +414,7 @@ const handleReset = async () => {
     })
 
     resetting.value = true
-    const res = await api.post('/finance/settings/reset')
+    const res = await financeApi.settings.reset()
     if (res.data) {
       Object.assign(settings, res.data)
       ElMessage.success('已重置为默认配置')

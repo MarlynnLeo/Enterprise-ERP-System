@@ -100,7 +100,7 @@
 <script setup>
 import { ref, reactive, computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import { qualityApi, purchaseApi, baseDataApi } from '@/services/api'
+import { qualityApi, purchaseApi, baseDataApi } from '@/api'
 import { parseListData } from '@/utils/responseParser'
 import { generateBatchNumber as generateBatchNumberHelper } from '@/utils/inspectionHelpers'
 import dayjs from 'dayjs'

@@ -1,0 +1,19 @@
+{
+  "generatedAt": "2026-05-30T07:52:07.187Z",
+  "summary": {
+    "frontendCallCount": 953,
+    "backendRouteCount": 1110,
+    "frontendApiFileCount": 26,
+    "duplicateFrontendCount": 0,
+    "duplicateApiModuleEndpointCount": 0,
+    "duplicateBackendCount": 0,
+    "frontendWithoutBackendCount": 0,
+    "directCallCount": 0,
+    "canonicalEntryOk": true
+  },
+  "duplicateFrontend": [],
+  "duplicateApiModuleEndpoints": [],
+  "duplicateBackend": [],
+  "frontendWithoutBackend": [],
+  "directCalls": []
+}
