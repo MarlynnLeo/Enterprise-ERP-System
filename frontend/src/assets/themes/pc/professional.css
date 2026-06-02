@@ -1,5 +1,5 @@
 ﻿/**
- * PC端 - 专业主题（企业级/商务?
+ * PC端 - 专业主题（企业级/商务）
  * @description 扁平化设计，低饱和度，建立信任感和专业感
  * @date 2025-10-27
  * @version 2.1.0
@@ -106,7 +106,7 @@
   --line-height-base: 1.5;
   --line-height-heading: 1.2;
 
-  /* ==================== 圆角系统（扁平化，小圆角?==================== */
+  /* ==================== 圆角系统（扁平化，小圆角） ==================== */
   --radius-sm: 2px;
   --radius-md: 4px;
   --radius-lg: 6px;
@@ -173,7 +173,7 @@
   background: transparent !important;
 }
 
-/* 默认状?- 黑色字体 */
+/* 默认状态 - 黑色字体 */
 [data-theme="professional"] .sidebar .el-menu-item,
 [data-theme="professional"] .sidebar .el-sub-menu__title,
 [data-theme="professional"] .app-sidebar .el-menu-item,
@@ -226,7 +226,7 @@
   color: var(--color-text-secondary) !important;
 }
 
-/* 顶部导航?*/
+/* 顶部导航 */
 [data-theme="professional"] .header,
 [data-theme="professional"] .el-header {
   background: var(--color-bg-base) !important;
@@ -278,7 +278,7 @@
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-bg-overlay) 10%, transparent) !important;
 }
 
-/* 标签扁平?*/
+/* 标签扁平化 */
 [data-theme="professional"] .el-tag {
   border-radius: 2px !important;
   border: none !important;
@@ -328,7 +328,7 @@
   font-weight: 600 !important;
 }
 
-/* 分页扁平?*/
+/* 分页扁平化 */
 [data-theme="professional"] .el-pagination {
   font-weight: 500 !important;
 }
@@ -381,7 +381,7 @@
   border-color: var(--color-danger) !important;
 }
 
-/* 面包?*/
+/* 面包屑 */
 [data-theme="professional"] .el-breadcrumb__inner {
   color: var(--color-text-secondary) !important;
   font-weight: 500 !important;
@@ -429,22 +429,22 @@
   font-weight: 500 !important;
 }
 
-/* 空状?*/
+/* 空状态 */
 [data-theme="professional"] .el-empty__description {
   color: var(--color-text-secondary) !important;
 }
 
-/* 扁平化特?- 去除过多装饰 */
+/* 扁平化特点 - 去除过多装饰 */
 [data-theme="professional"] * {
   letter-spacing: 0.3px;
 }
 
-/* 分割?*/
+/* 分割线 */
 [data-theme="professional"] .el-divider {
   background-color: var(--color-bg-page) !important;
 }
 
-/* 步骤?*/
+/* 步骤条 */
 [data-theme="professional"] .el-steps {
   color: var(--color-text-secondary) !important;
 }
@@ -454,13 +454,13 @@
   font-weight: 500 !important;
 }
 
-/* Switch开?*/
+/* Switch开关 */
 [data-theme="professional"] .el-switch.is-checked .el-switch__core {
   background-color: var(--color-success) !important;
   border-color: var(--color-success) !important;
 }
 
-/* 进度?*/
+/* 进度条 */
 [data-theme="professional"] .el-progress__text {
   color: var(--color-text-regular) !important;
   font-weight: 600 !important;
@@ -525,7 +525,7 @@
   background-color: var(--color-bg-hover) !important;
 }
 
-/* Timeline时间?*/
+/* Timeline时间线 */
 [data-theme="professional"] .el-timeline-item__timestamp {
   color: var(--color-text-secondary) !important;
   font-weight: 500 !important;

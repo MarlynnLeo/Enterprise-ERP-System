@@ -1,7 +1,7 @@
-﻿<!--
+<!--
 /**
  * NotificationCenter.vue
- * @description 閫氱煡涓績缁勪欢 - 鏄剧ず鍦ㄩ《閮ㄥ鑸爮
+ * @description 通知中心组件 - 显示在顶部导航栏
  * @date 2025-11-03
  */
 -->
@@ -35,11 +35,11 @@
       </div>
     </template>
 
-    <!-- 閫氱煡鍒楄〃 -->
+    <!-- 通知列表 -->
     <div class="notification-panel" @click.stop>
-      <!-- 澶撮儴 -->
+      <!-- 头部 -->
       <div class="notification-header">
-        <span class="title">閫氱煡涓績</span>
+        <span class="title">通知中心</span>
         <div class="header-actions">
           <el-button
             v-if="unreadCount > 0"
@@ -48,7 +48,7 @@
             size="small"
             @click="handleMarkAllRead"
           >
-            鍏ㄩ儴宸茶
+            全部已读
           </el-button>
           <el-button
             link
@@ -63,16 +63,16 @@
         </div>
       </div>
 
-      <!-- 鏍囩椤?-->
+      <!-- 标签页 -->
       <el-tabs v-model="activeTab" @tab-change="handleTabChange">
-        <el-tab-pane label="鍏ㄩ儴" name="all"></el-tab-pane>
-        <el-tab-pane label="鏈" name="unread"></el-tab-pane>
-        <el-tab-pane label="绯荤粺" name="system"></el-tab-pane>
-        <el-tab-pane label="涓氬姟" name="business"></el-tab-pane>
-        <el-tab-pane label="棰勮" name="warning"></el-tab-pane>
+        <el-tab-pane label="全部" name="all"></el-tab-pane>
+        <el-tab-pane label="未读" name="unread"></el-tab-pane>
+        <el-tab-pane label="系统" name="system"></el-tab-pane>
+        <el-tab-pane label="业务" name="business"></el-tab-pane>
+        <el-tab-pane label="预警" name="warning"></el-tab-pane>
       </el-tabs>
 
-      <!-- 閫氱煡鍒楄〃 -->
+      <!-- 通知列表 -->
       <div class="notification-list" v-loading="loading">
         <div
           v-for="notification in notifications"
@@ -95,14 +95,14 @@
                 size="small"
                 effect="dark"
               >
-                绱ф€?
+                紧急
               </el-tag>
               <el-tag
                 v-else-if="notification.priority === 1"
                 type="warning"
                 size="small"
               >
-                閲嶈
+                重要
               </el-tag>
             </div>
             <div class="notification-text">{{ notification.content }}</div>
@@ -116,7 +116,7 @@
               size="small"
               @click.stop="handleMarkRead(notification.id)"
             >
-              鏍囪宸茶
+              标记已读
             </el-button>
             <el-button
               link
@@ -124,23 +124,23 @@
               size="small"
               @click.stop="handleDelete(notification.id)"
             >
-              鍒犻櫎
+              删除
             </el-button>
           </div>
         </div>
 
-        <!-- 绌虹姸鎬?-->
+        <!-- 空状态 -->
         <el-empty
           v-if="!loading && notifications.length === 0"
-          description="鏆傛棤閫氱煡"
+          description="暂无通知"
           :image-size="80"
         />
       </div>
 
-      <!-- 搴曢儴 -->
+      <!-- 底部 -->
       <div class="notification-footer">
         <el-button link type="primary" @click="handleViewAll">
-          鏌ョ湅鍏ㄩ儴閫氱煡
+          查看全部通知
         </el-button>
       </div>
     </div>
@@ -166,7 +166,7 @@ import {
 
 const router = useRouter()
 
-// 鏁版嵁
+// 数据
 const popoverVisible = ref(false)
 const activeTab = ref('all')
 const notifications = ref([])
@@ -175,13 +175,13 @@ const loading = ref(false)
 let pollingTimer = null
 
 
-// 鏂规硶
+// 方法
 const handlePopoverShow = () => {
   loadNotifications()
 }
 
 const handlePopoverHide = () => {
-  // 鍙互鍦ㄨ繖閲屽仛涓€浜涙竻鐞嗗伐浣?
+  // 可以在这里做一些清理工作
 }
 
 const handleTabChange = () => {
@@ -210,7 +210,7 @@ const loadNotifications = async () => {
     const responseData = parseResponseData(res)
     notifications.value = responseData.list || []
   } catch {
-    // 闈欓粯澶辫触锛岄伩鍏嶅共鎵扮敤鎴?
+    // 静默失败，避免干扰用户
   } finally {
     loading.value = false
   }
@@ -222,21 +222,21 @@ const loadUnreadCount = async () => {
     const responseData = parseResponseData(res)
     unreadCount.value = responseData.count || 0
   } catch {
-    // 闈欓粯澶辫触锛岄伩鍏嶅共鎵扮敤鎴?
+    // 静默失败，避免干扰用户
   }
 }
 
 const handleNotificationClick = async (notification) => {
-  // 鏍囪涓哄凡璇?
+  // 标记为已读
   if (!notification.is_read) {
     await handleMarkRead(notification.id)
   }
 
-  // 濡傛灉鏈夐摼鎺ワ紝璺宠浆
+  // 如果有链接，跳转
   if (notification.link) {
     popoverVisible.value = false
 
-    // 瑙ｆ瀽link_params
+    // 解析link_params
     let params = {}
     if (notification.link_params) {
       try {
@@ -244,11 +244,11 @@ const handleNotificationClick = async (notification) => {
           ? JSON.parse(notification.link_params)
           : notification.link_params
       } catch {
-        // 瑙ｆ瀽澶辫触鏃朵娇鐢ㄧ┖瀵硅薄
+        // 解析失败时使用空对象
       }
     }
 
-    // 璺宠浆骞朵紶閫掑弬鏁?
+    // 跳转并传递参数
     router.push({
       path: notification.link,
       query: params
@@ -262,7 +262,7 @@ const handleMarkRead = async (id) => {
     await loadNotifications()
     await loadUnreadCount()
   } catch {
-    ElMessage.error('鏍囪澶辫触')
+    ElMessage.error('标记失败')
   }
 }
 
@@ -271,9 +271,9 @@ const handleMarkAllRead = async () => {
     await notificationApi.markAllAsRead()
     await loadNotifications()
     await loadUnreadCount()
-    ElMessage.success('鍏ㄩ儴宸叉爣璁颁负宸茶')
+    ElMessage.success('全部已标记为已读')
   } catch {
-    ElMessage.error('鎿嶄綔澶辫触')
+    ElMessage.error('操作失败')
   }
 }
 
@@ -282,9 +282,9 @@ const handleDelete = async (id) => {
     await notificationApi.deleteNotification(id)
     await loadNotifications()
     await loadUnreadCount()
-    ElMessage.success('鍒犻櫎鎴愬姛')
+    ElMessage.success('删除成功')
   } catch {
-    ElMessage.error('鍒犻櫎澶辫触')
+    ElMessage.error('删除失败')
   }
 }
 
@@ -293,11 +293,11 @@ const handleViewAll = () => {
   router.push('/system/notifications')
 }
 
-// 杞鑾峰彇鏈鏁伴噺锛堝甫椤甸潰鍙鎬у垽鏂紝椤甸潰涓嶅彲瑙佹椂鏆傚仠杞锛?
+// 轮询获取未读数量（带页面可见性判断，页面不可见时暂停轮询）
 const startPolling = () => {
   loadUnreadCount()
   pollingTimer = setInterval(() => {
-    // 浠呭湪椤甸潰鍙鏃惰姹傦紝閬垮厤鍚庡彴鏍囩娴垂甯﹀
+    // 仅在页面可见时请求，避免后台标签浪费带宽
     if (!document.hidden) {
       loadUnreadCount()
     }
@@ -311,14 +311,14 @@ const stopPolling = () => {
   }
 }
 
-// 椤甸潰閲嶆柊鍙鏃剁珛鍗冲埛鏂颁竴娆℃湭璇绘暟
+// 页面重新可见时立即刷新一次未读数
 const handleVisibilityChange = () => {
   if (!document.hidden) {
     loadUnreadCount()
   }
 }
 
-// 鐢熷懡鍛ㄦ湡
+// 生命周期
 onMounted(() => {
   startPolling()
   document.addEventListener('visibilitychange', handleVisibilityChange)

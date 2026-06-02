@@ -552,13 +552,13 @@ const taxModel = {
       if (rows.length === 0) {
         throw new Error('Tax return does not exist');
       }
-      if (rows[0].status !== '鑽夌') {
+      if (rows[0].status !== '草稿') {
         throw new Error('Only draft tax returns can be deleted');
       }
 
       const [result] = await connection.execute(
         'DELETE FROM tax_returns WHERE id = ? AND status = ?',
-        [id, '鑽夌']
+        [id, '草稿']
       );
 
       await connection.commit();

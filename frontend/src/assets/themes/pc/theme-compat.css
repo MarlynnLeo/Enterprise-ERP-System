@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Theme compatibility tokens.
  * Keeps legacy layout/components from falling back to hardcoded colors when a
  * theme only defines the newer semantic token set.
@@ -587,7 +587,7 @@
  * hardcoded palette.
  */
 
-/* 鈹€鈹€ 榛樿鎸夐挳锛堟棤 type锛夆攢鈹€ */
+/* 默认按钮（无 type） */
 [data-theme] .el-button:not(.el-button--primary):not(.el-button--success):not(.el-button--warning):not(.el-button--danger):not(.el-button--info):not(.is-text):not(.is-link) {
   --el-button-text-color: var(--color-text-regular);
   --el-button-bg-color: var(--color-bg-base);
@@ -603,7 +603,7 @@
   --el-button-disabled-border-color: var(--color-border-lighter);
 }
 
-/* 鈹€鈹€ Primary 鎸夐挳 鈹€鈹€ */
+/* Primary 按钮 */
 [data-theme] .el-button--primary {
   --el-button-bg-color: var(--color-primary);
   --el-button-border-color: var(--color-primary);
@@ -615,7 +615,7 @@
   --el-button-active-border-color: var(--color-primary-dark-2, var(--color-primary));
 }
 
-/* Primary 鏈寸礌鎸夐挳 */
+/* Primary 朴素按钮 */
 [data-theme] .el-button--primary.is-plain {
   --el-button-text-color: var(--color-primary);
   --el-button-bg-color: var(--color-primary-light-9);
@@ -625,7 +625,7 @@
   --el-button-hover-border-color: var(--color-primary);
 }
 
-/* 鈹€鈹€ Success 鎸夐挳 鈹€鈹€ */
+/* Success 按钮 */
 [data-theme] .el-button--success {
   --el-button-bg-color: var(--color-success);
   --el-button-border-color: var(--color-success);
@@ -637,7 +637,7 @@
   --el-button-active-border-color: var(--color-success-dark, var(--color-success));
 }
 
-/* Success 鏈寸礌鎸夐挳 */
+/* Success 朴素按钮 */
 [data-theme] .el-button--success.is-plain {
   --el-button-text-color: var(--color-success);
   --el-button-bg-color: var(--color-success-light);
@@ -647,7 +647,7 @@
   --el-button-hover-border-color: var(--color-success);
 }
 
-/* 鈹€鈹€ Warning 鎸夐挳 鈹€鈹€ */
+/* Warning 按钮 */
 [data-theme] .el-button--warning {
   --el-button-bg-color: var(--color-warning);
   --el-button-border-color: var(--color-warning);
@@ -659,7 +659,7 @@
   --el-button-active-border-color: var(--color-warning-dark, var(--color-warning));
 }
 
-/* Warning 鏈寸礌鎸夐挳 */
+/* Warning 朴素按钮 */
 [data-theme] .el-button--warning.is-plain {
   --el-button-text-color: var(--color-warning);
   --el-button-bg-color: var(--color-warning-light);
@@ -669,7 +669,7 @@
   --el-button-hover-border-color: var(--color-warning);
 }
 
-/* 鈹€鈹€ Danger 鎸夐挳 鈹€鈹€ */
+/* Danger 按钮 */
 [data-theme] .el-button--danger {
   --el-button-bg-color: var(--color-danger);
   --el-button-border-color: var(--color-danger);
@@ -681,7 +681,7 @@
   --el-button-active-border-color: var(--color-danger-dark, var(--color-danger));
 }
 
-/* Danger 鏈寸礌鎸夐挳 */
+/* Danger 朴素按钮 */
 [data-theme] .el-button--danger.is-plain {
   --el-button-text-color: var(--color-danger);
   --el-button-bg-color: var(--color-danger-light);
@@ -691,7 +691,7 @@
   --el-button-hover-border-color: var(--color-danger);
 }
 
-/* 鈹€鈹€ Info 鎸夐挳 鈹€鈹€ */
+/* Info 按钮 */
 [data-theme] .el-button--info {
   --el-button-bg-color: var(--color-info);
   --el-button-border-color: var(--color-info);
@@ -703,7 +703,7 @@
   --el-button-active-border-color: var(--color-info-dark, var(--color-info));
 }
 
-/* Info 鏈寸礌鎸夐挳 */
+/* Info 朴素按钮 */
 [data-theme] .el-button--info.is-plain {
   --el-button-text-color: var(--color-info);
   --el-button-bg-color: var(--color-info-light);

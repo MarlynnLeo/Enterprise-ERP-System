@@ -43,7 +43,7 @@ export function useOnlineRanking() {
       rankingCache.value = { rankings, date }
       rankingCacheTime.value = Date.now()
     } catch (error) {
-      console.error('获取在线时长排行榜失�?', error)
+      console.error('获取在线时长排行榜失败', error)
       onlineTimeRanking.value = []
       rankingDate.value = ''
     } finally {

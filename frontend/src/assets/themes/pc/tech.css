@@ -66,10 +66,10 @@
   --color-on-primary: #ffffff;
 
   /* 科技主题特有颜色（霓虹效果） */
-  --color-accent: #64FFDA;            /* 强调色（青绿霓虹?*/
-  --color-accent-secondary: #FF6B9D;  /* 次要强调色（粉红霓虹?*/
+  --color-accent: #64FFDA;            /* 强调色（青绿霓虹） */
+  --color-accent-secondary: #FF6B9D;  /* 次要强调色（粉红霓虹） */
   --color-glow: rgba(0, 195, 255, 0.6);/* 发光效果 */
-  --color-neon: #00FFF0;              /* 霓虹?*/
+  --color-neon: #00FFF0;              /* 霓虹色 */
   --color-grid: rgba(0, 195, 255, 0.1);/* ========== 间距系统 ========== */
   --spacing-xs: 4px;
   --spacing-sm: 8px;
@@ -149,7 +149,7 @@
   background: var(--color-bg-light) !important;
 }
 
-/* 侧边栏科技?*/
+/* 侧边栏科技感 */
 [data-theme="tech"] .sidebar,
 [data-theme="tech"] .app-sidebar {
   background: linear-gradient(180deg, var(--color-bg-light) 0%, var(--color-bg-hover) 100%) !important;
@@ -178,7 +178,7 @@
   z-index: 0;
 }
 
-/* Logo容器科技?*/
+/* Logo容器科技感 */
 [data-theme="tech"] .logo-container {
   background: var(--color-grid) !important;
   border-bottom: 2px solid color-mix(in srgb, var(--color-primary) 30%, transparent) !important;
@@ -283,7 +283,7 @@
   box-shadow: 0 0 10px var(--color-primary);
 }
 
-/* 顶部导航栏科技?*/
+/* 顶部导航栏科技感 */
 [data-theme="tech"] .header,
 [data-theme="tech"] .el-header {
   background: linear-gradient(90deg, var(--color-bg-light) 0%, var(--color-bg-hover) 50%, var(--color-bg-light) 100%) !important;
@@ -319,7 +319,7 @@
   color: var(--color-primary) !important;
 }
 
-/* 输入框科技?*/
+/* 输入框科技感 */
 [data-theme="tech"] .el-input__wrapper {
   background: color-mix(in srgb, var(--color-bg-light) 60%, transparent) !important;
   border: 1px solid color-mix(in srgb, var(--color-primary) 30%, transparent) !important;

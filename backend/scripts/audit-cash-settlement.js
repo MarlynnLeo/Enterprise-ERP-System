@@ -276,9 +276,9 @@ const rules = [
          OR SUM(
               CASE
                 WHEN bsi.transaction_type = 'income'
-                 AND bt.transaction_type IN ('瀛樻', '杞叆', '鍒╂伅', '鏀跺叆', 'income', 'deposit', 'transfer_in', 'interest') THEN 0
+                 AND bt.transaction_type IN ('存款', '转入', '利息', '收入', 'income', 'deposit', 'transfer_in', 'interest') THEN 0
                 WHEN bsi.transaction_type = 'expense'
-                 AND bt.transaction_type IN ('鍙栨', '杞嚭', '璐圭敤', '鏀嚭', 'expense', 'withdrawal', 'transfer_out', 'fee') THEN 0
+                 AND bt.transaction_type IN ('取款', '转出', '费用', '支出', 'expense', 'withdrawal', 'transfer_out', 'fee') THEN 0
                 ELSE 1
               END
             ) > 0
