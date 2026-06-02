@@ -5,7 +5,7 @@
  * @version 1.0.0
  */
 
-const logger = require('../utils/logger');
+const { logger } = require('../utils/logger');
 require('dotenv').config();
 const { Sequelize } = require('sequelize');
 const { getSequelizeConfig } = require('./database-config');

@@ -57,7 +57,15 @@ class PeriodEndService {
   }
 
   static isClosed(value) {
-    return value === true || value === 1 || value === '1';
+    if (value === true || value === 1 || value === 1n) return true;
+    if (Buffer.isBuffer(value)) {
+      return value.some((byte) => byte !== 0);
+    }
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      return normalized === '1' || normalized === 'true' || normalized === 'yes';
+    }
+    return false;
   }
 
   static async getAccountIdByConfigKey(connection, configKey, accountLabel) {
@@ -100,6 +108,7 @@ class PeriodEndService {
       `SELECT COUNT(DISTINCT id) as count
        FROM gl_entries
        WHERE COALESCE(is_posted, 0) = 0
+         AND COALESCE(is_reversed, 0) = 0
          AND (
            period_id = ?
            OR entry_date BETWEEN ? AND ?
@@ -174,6 +183,7 @@ class PeriodEndService {
          LEFT JOIN gl_periods p ON p.id = e.period_id
          LEFT JOIN users u ON u.id = e.created_by
          WHERE COALESCE(e.is_posted, 0) = 0
+           AND COALESCE(e.is_reversed, 0) = 0
            AND (
              e.period_id = ?
              OR e.entry_date BETWEEN ? AND ?
@@ -203,8 +213,12 @@ class PeriodEndService {
         const diagnostic = postingDiagnostics[entry.id] || {};
         const entryDate = this.toDateString(entry.entry_date);
         const postingDate = this.toDateString(entry.posting_date || entry.entry_date);
-        const entryDateValid = this.isDateWithinPeriod(entryDate, entry);
-        const postingDateValid = this.isDateWithinPeriod(postingDate, entry);
+        const targetPeriodRange = {
+          start_date: entry.period_start_date,
+          end_date: entry.period_end_date,
+        };
+        const entryDateValid = this.isDateWithinPeriod(entryDate, targetPeriodRange);
+        const postingDateValid = this.isDateWithinPeriod(postingDate, targetPeriodRange);
         const totalDebit = this.roundMoney(diagnostic.total_debit);
         const totalCredit = this.roundMoney(diagnostic.total_credit);
         const lineCount = Number(diagnostic.line_count || 0);

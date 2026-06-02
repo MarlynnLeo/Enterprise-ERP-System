@@ -4,7 +4,7 @@
  */
 
 const db = require('../config/db');
-const logger = require('./logger');
+const { logger } = require('./logger');
 
 /**
  * 记录发票状态变更

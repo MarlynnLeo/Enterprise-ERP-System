@@ -9,7 +9,7 @@
 const taxModel = require('../../../models/tax');
 const TaxAccountingService = require('../../../services/business/TaxAccountingService');
 const DocumentLinkService = require('../../../services/business/DocumentLinkService');
-const logger = require('../../../utils/logger');
+const { logger } = require('../../../utils/logger');
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const db = require('../../../config/db');

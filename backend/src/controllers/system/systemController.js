@@ -388,16 +388,7 @@ const systemController = {
       const roleData = req.body;
       const newRole = await systemModel.createRole(roleData);
 
-      ResponseHandler.success(
-        res,
-        {
-          code: 201,
-          data: newRole,
-          message: '创建角色成功',
-        },
-        '创建成功',
-        201
-      );
+      ResponseHandler.success(res, newRole, '创建角色成功', 201);
     } catch (error) {
       logger.error('创建角色失败:', error);
       return sendBusinessError(res, error, '创建角色失败');
@@ -539,16 +530,7 @@ const systemController = {
       const newMenu = await systemModel.createMenu(menuData);
       PermissionService.clearUserPermissionsCache();
 
-      ResponseHandler.success(
-        res,
-        {
-          code: 201,
-          data: newMenu,
-          message: '创建菜单成功',
-        },
-        '创建成功',
-        201
-      );
+      ResponseHandler.success(res, newMenu, '创建菜单成功', 201);
     } catch (error) {
       logger.error('创建菜单失败:', error);
       return sendBusinessError(res, error, '创建菜单失败');
@@ -640,8 +622,8 @@ const systemController = {
         params.push(departmentId);
       }
 
-      // 添加排序
-      query += ' ORDER BY u.created_at DESC';
+      // 添加排序和安全 LIMIT（防止大数据量下内存溢出）
+      query += ' ORDER BY u.created_at DESC LIMIT 1000';
 
       // 执行查询
       const [users] = await pool.query(query, params);
@@ -934,7 +916,7 @@ const systemController = {
       logger.error('导入菜单数据失败:', error);
       return ResponseHandler.error(
         res,
-        '导入菜单数据失败: ' + error.message,
+        '导入菜单数据失败',
         'SERVER_ERROR',
         500,
         error
@@ -1035,11 +1017,14 @@ const systemController = {
   async getSystemLogs(req, res) {
     try {
       const { limit = 100, offset = 0 } = req.query;
-      // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
+      // MySQL 的 LIMIT/OFFSET 不支持 prepared statement 参数绑定，
+      // 因此直接拼入 SQL，但已通过 parseInt + Math.min/Math.max 做了安全校验
       const actualLimit = Math.min(Math.max(parseInt(limit) || 100, 1), 100);
       const actualOffset = Math.max(parseInt(offset) || 0, 0);
       const [logs] = await pool.query(
-        `SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT ${actualLimit} OFFSET ${actualOffset}`
+        `SELECT id, user_id, username, module, action, entity_type, entity_id,
+                ip_address, created_at
+         FROM audit_logs ORDER BY created_at DESC LIMIT ${actualLimit} OFFSET ${actualOffset}`
       );
       return ResponseHandler.success(res, logs, '获取系统日志成功');
     } catch (error) {

@@ -335,10 +335,13 @@
 import { formatCurrency, formatLocalDate } from '@/utils/format'
 
 import { ref, reactive, onMounted } from 'vue';
+import { useRoute } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { Check } from '@element-plus/icons-vue'
 
 import { financeApi } from '@/api/finance';
+
+const route = useRoute();
 // 权限计算属性
 
 // 账户选择
@@ -608,28 +611,17 @@ const uploadFile = async () => {
 
 // 标记为已对账
 const markAsReconciled = async (transaction) => {
-  try {
-    await financeApi.bankTransactions.reconcile(transaction.id, {
-      is_reconciled: true,
-      reconciliation_date: formatLocalDate(new Date())
-    });
-
-    ElMessage.success('已标记为对账');
-
-    // 刷新对账数据
-    searchReconciliation();
-  } catch (error) {
-    console.error('标记对账失败:', error);
-    ElMessage.error('标记对账失败');
-  }
+  selectedUnreconciled.value = [transaction];
+  activeTab.value = 'bank_statement';
+  ElMessage.warning('请先在银行对账单中选择匹配明细，再确认匹配，不能直接标记为已对账');
 };
 
 // 取消对账
 const cancelReconciliation = async (transaction) => {
   try {
-    await financeApi.bankTransactions.reconcile(transaction.id, {
-      is_reconciled: false,
-      reconciliation_date: null
+    await financeApi.reconciliation.cancelReconciliation({
+      transactionId: transaction.id,
+      accountId: selectedAccount.value
     });
 
     ElMessage.success('已取消对账标记');
@@ -718,8 +710,29 @@ const confirmMatch = async () => {
 };
 
 // 页面加载时执行
-onMounted(() => {
-  loadAccountOptions();
+onMounted(async () => {
+  await loadAccountOptions();
+
+  // 从期末结转页面跳转过来时，自动设置对账期间的日期范围
+  const periodId = route.query.periodId;
+  if (periodId) {
+    try {
+      const res = await financeApi.periods.getList();
+      const periods = res.data?.periods || res.data?.list || [];
+      const period = periods.find(p => String(p.id) === String(periodId));
+      if (period) {
+        const startDate = period.start_date?.slice(0, 10);
+        const endDate = period.end_date?.slice(0, 10);
+        if (startDate && endDate) {
+          dateRange.value = [startDate, endDate];
+          showAdvancedSearch.value = true;
+          ElMessage.info(`已自动设置对账期间：${period.period_name || startDate + ' ~ ' + endDate}`);
+        }
+      }
+    } catch (e) {
+      console.warn('自动设置对账期间失败:', e);
+    }
+  }
 });
 </script>
 

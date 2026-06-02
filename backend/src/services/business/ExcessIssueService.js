@@ -1,5 +1,5 @@
 const db = require('../../config/db');
-const logger = require('../../utils/logger');
+const { logger } = require('../../utils/logger');
 
 /**
  * 超额领料检查服务

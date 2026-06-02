@@ -61,6 +61,20 @@ class BaseService {
   }
 
   /**
+   * 校验 SELECT 字段列表，防止 SQL 注入
+   * @param {string} fields - 逗号分隔的字段名或 '*'
+   * @returns {string} 经过校验的安全字段列表
+   */
+  sanitizeSelectFields(fields) {
+    if (!fields || fields === '*') return '*';
+    return fields.split(',').map(f => {
+      const trimmed = f.trim();
+      this.assertIdentifier(trimmed, 'select field', { qualified: true });
+      return trimmed;
+    }).join(', ');
+  }
+
+  /**
    * 软删除过滤条件（内部使用）
    */
   _softDeleteFilter() {
@@ -155,7 +169,7 @@ class BaseService {
           : `WHERE ${sdFilter}`;
       }
 
-      let sql = `SELECT ${fields} FROM ${this.tableName} ${whereClause} ${orderClause}`;
+      let sql = `SELECT ${this.sanitizeSelectFields(fields)} FROM ${this.tableName} ${whereClause} ${orderClause}`;
 
       if (includePagination) {
         const limitClause = this.buildLimitClause(page, pageSize);
@@ -199,7 +213,7 @@ class BaseService {
     try {
       const sdFilter = this._softDeleteFilter();
       const sdClause = sdFilter ? ` AND ${sdFilter}` : '';
-      const sql = `SELECT ${fields} FROM ${this.tableName} WHERE ${this.primaryKey} = ?${sdClause}`;
+      const sql = `SELECT ${this.sanitizeSelectFields(fields)} FROM ${this.tableName} WHERE ${this.primaryKey} = ?${sdClause}`;
       const [rows] = await connection.execute(sql, [id]);
 
       return rows.length > 0 ? rows[0] : null;
@@ -223,7 +237,7 @@ class BaseService {
           ? `${whereClause} AND ${sdFilter}`
           : `WHERE ${sdFilter}`;
       }
-      const sql = `SELECT ${fields} FROM ${this.tableName} ${whereClause} LIMIT 1`;
+      const sql = `SELECT ${this.sanitizeSelectFields(fields)} FROM ${this.tableName} ${whereClause} LIMIT 1`;
 
       const [rows] = await connection.execute(sql, params);
       return rows.length > 0 ? rows[0] : null;
@@ -286,7 +300,7 @@ class BaseService {
       }
     }
 
-    const cleanedData = cleanData(data);
+    const cleanedData = this.filterWritableData(data);
     const connection = await this.getConnection();
 
     try {

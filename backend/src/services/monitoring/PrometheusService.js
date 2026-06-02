@@ -5,7 +5,7 @@
  */
 
 const client = require('prom-client');
-const logger = require('../../utils/logger');
+const { logger } = require('../../utils/logger');
 
 class PrometheusService {
   constructor() {

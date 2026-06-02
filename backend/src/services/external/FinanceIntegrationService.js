@@ -7,7 +7,7 @@ const taxModel = require('../../models/tax');
 const { financeConfig } = require('../../config/financeConfig');
 const { getUserIdByIdentifier } = require('../../utils/userUtils');
 const DocumentLinkService = require('../business/DocumentLinkService');
-const logger = require('../../utils/logger');
+const { logger } = require('../../utils/logger');
 const { normalizeTaxRate, roundMoney, taxAmount: calculateTaxAmount } = require('../../utils/money');
 const {
   addDaysToDateString,

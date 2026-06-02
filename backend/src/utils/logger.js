@@ -71,12 +71,43 @@ const formatMessage = (level, message, meta = {}) => {
   return JSON.stringify(logEntry);
 };
 
-// 写入日志文件
-const writeToFile = (level, message) => {
-  const filename = `${level.toLowerCase()}-${new Date().toISOString().split('T')[0]}.log`;
-  const filepath = path.join(logDir, filename);
+// 写入日志文件（使用 WriteStream 异步缓冲，避免 appendFileSync 阻塞事件循环）
+const _streams = new Map(); // key: "LEVEL-YYYY-MM-DD" -> WriteStream
+let _lastDateStr = '';
 
-  fs.appendFileSync(filepath, message + '\n', 'utf8');
+const getWriteStream = (level) => {
+  const dateStr = new Date().toISOString().split('T')[0];
+  const key = `${level}-${dateStr}`;
+
+  // 日期切换时关闭前一天的所有 stream
+  if (dateStr !== _lastDateStr) {
+    for (const [oldKey, oldStream] of _streams) {
+      if (!oldKey.endsWith(dateStr)) {
+        oldStream.end();
+        _streams.delete(oldKey);
+      }
+    }
+    _lastDateStr = dateStr;
+  }
+
+  if (!_streams.has(key)) {
+    const filename = `${level.toLowerCase()}-${dateStr}.log`;
+    const filepath = path.join(logDir, filename);
+    const stream = fs.createWriteStream(filepath, { flags: 'a', encoding: 'utf8' });
+    stream.on('error', (err) => {
+      process.stderr.write(`[logger] WriteStream error: ${err.message}\n`);
+    });
+    _streams.set(key, stream);
+  }
+
+  return _streams.get(key);
+};
+
+const writeToFile = (level, message) => {
+  const stream = getWriteStream(level);
+  // write() 返回 false 时表示内部缓冲区已满，Node.js 会在 drain 后继续写入，
+  // 此处不阻塞等待 drain，允许日志在极端情况下丢失而非阻塞请求处理。
+  stream.write(message + '\n');
 };
 
 // 控制台输出（带颜色）

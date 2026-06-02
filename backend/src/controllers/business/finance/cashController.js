@@ -19,6 +19,34 @@ const CashTransactionModel = require('../../../models/cash/CashTransaction');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const { currentDateString, toLocalDateString } = require('../../../utils/dateUtils');
 
+/**
+ * 安全的 parseFloat，返回 NaN 时抛出明确错误
+ * @param {*} value - 待解析的值
+ * @param {string} label - 字段名，用于错误提示
+ * @returns {number}
+ */
+function safeParseFloat(value, label = 'amount') {
+  const num = parseFloat(value);
+  if (isNaN(num)) {
+    throw new Error(`${label} 必须是有效的数字，收到: ${value}`);
+  }
+  return num;
+}
+
+/**
+ * 安全的 parseInt，返回 NaN 时抛出明确错误
+ * @param {*} value - 待解析的值
+ * @param {string} label - 字段名，用于错误提示
+ * @returns {number}
+ */
+function safeParseInt(value, label = 'id') {
+  const num = parseInt(value, 10);
+  if (isNaN(num)) {
+    throw new Error(`${label} 必须是有效的整数，收到: ${value}`);
+  }
+  return num;
+}
+
 function normalizeExcelDate(value) {
   if (!value) return null;
   if (value instanceof Date) return toLocalDateString(value);
@@ -395,10 +423,10 @@ const cashController = {
 
       const transaction = {
         transaction_date: req.body.transaction_date,
-        amount: parseFloat(req.body.amount),
+        amount: safeParseFloat(req.body.amount, 'amount'),
         transaction_type: req.body.transaction_type,
         description: req.body.description,
-        bank_account_id: parseInt(req.body.bank_account_id || req.body.account_id),
+        bank_account_id: safeParseInt(req.body.bank_account_id || req.body.account_id, 'bank_account_id'),
         reference_no: req.body.reference_no,
         created_by: getAuthenticatedUserId(req),
       };
@@ -407,12 +435,8 @@ const cashController = {
 
       ResponseHandler.success(
         res,
-        {
-          success: true,
-          message: '交易记录创建成功',
-          data: { id: insertId, ...transaction },
-        },
-        '创建成功',
+        { id: insertId, ...transaction },
+        '交易记录创建成功',
         201
       );
     } catch (error) {
@@ -440,7 +464,7 @@ const cashController = {
       }
 
       // 检查交易记录是否存在
-      const existingTransaction = await cash.getBankTransactionById(id);
+      const existingTransaction = await BankTransactionModel.getBankTransactionById(id);
 
       if (!existingTransaction) {
         return ResponseHandler.error(res, '交易记录不存在', 'NOT_FOUND', 404);
@@ -448,10 +472,10 @@ const cashController = {
 
       const transaction = {
         transaction_date: req.body.transaction_date,
-        amount: parseFloat(req.body.amount),
+        amount: safeParseFloat(req.body.amount, 'amount'),
         transaction_type: req.body.transaction_type,
         description: req.body.description,
-        account_id: parseInt(req.body.account_id),
+        account_id: safeParseInt(req.body.account_id, 'account_id'),
         reference_no: req.body.reference_no,
       };
 
@@ -480,7 +504,7 @@ const cashController = {
       }
 
       // 检查交易记录是否存在
-      const existingTransaction = await cash.getBankTransactionById(id);
+      const existingTransaction = await BankTransactionModel.getBankTransactionById(id);
 
       if (!existingTransaction) {
         return ResponseHandler.error(res, '交易记录不存在', 'NOT_FOUND', 404);
@@ -569,10 +593,10 @@ const cashController = {
       }
 
       const reconciliation = {
-        account_id: parseInt(req.body.account_id),
+        account_id: safeParseInt(req.body.account_id, 'account_id'),
         reconciliation_date: req.body.reconciliation_date,
-        bank_statement_balance: parseFloat(req.body.bank_statement_balance),
-        book_balance: parseFloat(req.body.book_balance),
+        bank_statement_balance: safeParseFloat(req.body.bank_statement_balance, 'bank_statement_balance'),
+        book_balance: safeParseFloat(req.body.book_balance, 'book_balance'),
         status: req.body.status || 'draft',
         notes: req.body.notes,
         items: req.body.items || [],
@@ -583,12 +607,8 @@ const cashController = {
 
       ResponseHandler.success(
         res,
-        {
-          success: true,
-          message: '对账记录创建成功',
-          data: { id: insertId, ...reconciliation },
-        },
-        '创建成功',
+        { id: insertId, ...reconciliation },
+        '对账记录创建成功',
         201
       );
     } catch (error) {
@@ -616,17 +636,17 @@ const cashController = {
       }
 
       // 检查对账记录是否存在
-      const existingReconciliation = await cash.getReconciliationById(id);
+      const existingReconciliation = await ReconciliationModel.getReconciliationById(id);
 
       if (!existingReconciliation) {
         return ResponseHandler.error(res, '对账记录不存在', 'NOT_FOUND', 404);
       }
 
       const reconciliation = {
-        account_id: parseInt(req.body.account_id),
+        account_id: safeParseInt(req.body.account_id, 'account_id'),
         reconciliation_date: req.body.reconciliation_date,
-        bank_statement_balance: parseFloat(req.body.bank_statement_balance),
-        book_balance: parseFloat(req.body.book_balance),
+        bank_statement_balance: safeParseFloat(req.body.bank_statement_balance, 'bank_statement_balance'),
+        book_balance: safeParseFloat(req.body.book_balance, 'book_balance'),
         status: req.body.status,
         notes: req.body.notes,
         items: req.body.items || [],
@@ -705,42 +725,37 @@ const cashController = {
    */
   getBankAccounts: async (req, res) => {
     try {
-      const filters = {
-        account_name: req.query.accountName,
-        bank_name: req.query.bankName,
-        is_active:
-          req.query.status === 'active' ? true : req.query.status === 'frozen' ? false : undefined,
-      };
-
       // 处理分页参数
       const pagination = parsePagination(req.query.page, req.query.limit || req.query.pageSize, {
         defaultPageSize: 10,
         maxPageSize: 100,
       });
-      const page = pagination.page;
-      const limit = pagination.pageSize;
 
-      // 参数验证
-      if (page < 1 || limit < 1 || limit > 100) {
-        return ResponseHandler.error(res, '无效的分页参数', 'VALIDATION_ERROR', 400);
-      }
+      const filters = {
+        account_name: req.query.accountName,
+        bank_name: req.query.bankName,
+        is_active:
+          req.query.status === 'active' ? true : req.query.status === 'frozen' ? false : undefined,
+        page: pagination.page,
+        pageSize: pagination.pageSize,
+      };
 
-      // 获取账户数据
-      const accounts = await BankAccountModel.getBankAccounts(filters);
+      // 使用数据库级分页获取账户数据
+      const result = await BankAccountModel.getBankAccounts(filters);
+
+      // 处理分页返回（新格式）和非分页返回（兼容）
+      const accounts = result.accounts || result;
+      const total = result.total ?? (Array.isArray(result) ? result.length : 0);
 
       // 安全地将数据字段转换为前端期望的格式
       const formattedAccounts = accounts.map(formatBankAccountForClient);
 
-      // 处理分页
-      const startIndex = (page - 1) * limit;
-      const paginatedAccounts = formattedAccounts.slice(startIndex, startIndex + limit);
-
       ResponseHandler.paginated(
         res,
-        paginatedAccounts,
-        formattedAccounts.length,
-        page,
-        limit,
+        formattedAccounts,
+        total,
+        pagination.page,
+        pagination.pageSize,
         '获取账户列表成功'
       );
     } catch (error) {
@@ -748,6 +763,7 @@ const cashController = {
       ResponseHandler.error(res, '获取银行账户失败', 'SERVER_ERROR', 500, error);
     }
   },
+
 
   /**
    * 获取银行账户统计信息

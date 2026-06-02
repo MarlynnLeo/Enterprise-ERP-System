@@ -11,7 +11,7 @@ const Transfer = require('./Transfer');
 const Reconciliation = require('./Reconciliation');
 const Reports = require('./Reports');
 const CashTransaction = require('./CashTransaction');
-const logger = require('../../utils/logger');
+const { logger } = require('../../utils/logger');
 
 // 额外的辅助方法
 const extraMethods = {

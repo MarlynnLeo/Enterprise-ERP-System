@@ -5,7 +5,7 @@
  * @version 1.0.0
  */
 
-const logger = require('../utils/logger');
+const { logger } = require('../utils/logger');
 const db = require('../config/db');
 const { parsePagination } = require('../utils/safePagination');
 
@@ -1247,13 +1247,10 @@ const financeModel = {
       const postingDate = normalizeDateInput(entry.posting_date || entry.entry_date, '过账日期');
       let resolvedPeriodId = entry.period_id;
 
-      if (resolvedPeriodId) {
-        if (!isDateWithinPeriod(entryDate, entry) || !isDateWithinPeriod(postingDate, entry)) {
-          throw new Error(
-            `凭证日期 ${entryDate} 或过账日期 ${postingDate} 不在所属会计期间 [${entry.period_name}] 内`
-          );
-        }
+      if (resolvedPeriodId && isDateWithinPeriod(entryDate, entry) && isDateWithinPeriod(postingDate, entry)) {
+        // 凭证日期在所属期间内，直接使用当前期间
       } else {
+        // 当前无期间 或 日期不在所属期间内（如暂存期间），按凭证日期自动匹配正确期间
         const [periods] = await connection.execute(
           `SELECT id, is_closed, period_name, start_date, end_date
            FROM gl_periods
@@ -1269,6 +1266,11 @@ const financeModel = {
           throw new Error(`凭证日期 ${entryDate} 和过账日期 ${postingDate} 未匹配到会计期间`);
         }
 
+        if (resolvedPeriodId) {
+          logger.info(
+            `凭证 ${id} 从期间 [${entry.period_name}] 自动重新匹配到期间 [${periods[0].period_name}]`
+          );
+        }
         resolvedPeriodId = periods[0].id;
         entry.is_closed = periods[0].is_closed;
         entry.period_name = periods[0].period_name;

@@ -6,7 +6,7 @@
  */
 
 const { pool } = require('../config/db');
-const logger = require('../utils/logger');
+const { logger } = require('../utils/logger');
 const PasswordSecurity = require('../utils/passwordSecurity');
 const { parsePagination, appendPaginationSQL } = require('../utils/safePagination');
 

@@ -93,6 +93,15 @@
                   >
                     查看并过账
                   </el-button>
+                  <el-button
+                    v-if="row.key === 'bank_reconciliation_closed' && !row.passed"
+                    v-permission="'finance:cash:reconcile'"
+                    size="small"
+                    type="primary"
+                    @click="openReconciliationDialog"
+                  >
+                    查看并对账
+                  </el-button>
                 </div>
               </template>
             </el-table-column>
@@ -214,6 +223,60 @@
         </el-table-column>
       </el-table>
     </el-card>
+
+    <el-dialog
+      v-model="reconciliationDialogVisible"
+      title="本期未对账银行流水"
+      width="980px"
+      style="max-width: calc(100vw - 32px);"
+      destroy-on-close
+    >
+      <div class="dialog-toolbar">
+        <span class="text-secondary">
+          共 {{ unreconciledTransactions.length }} 笔未对账流水<template v-if="manualReconciledTransactions.length > 0">，{{ manualReconciledTransactions.length }} 笔缺少匹配证据</template>。
+        </span>
+        <el-button
+          v-permission="'finance:cash:reconcile'"
+          type="primary"
+          @click="goToBankReconciliation"
+        >
+          前往银行对账
+        </el-button>
+      </div>
+
+      <el-table
+        v-loading="reconciliationLoading"
+        :data="allUnreconciledTransactions"
+        border
+        height="460"
+        style="width: 100%"
+      >
+        <template #empty>
+          <el-empty description="暂无未对账银行流水" />
+        </template>
+        <el-table-column prop="transaction_date" label="交易日期" width="110">
+          <template #default="{ row }">
+            {{ formatDate(row.transaction_date) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="account_name" label="银行账户" width="140" show-overflow-tooltip />
+        <el-table-column prop="transaction_type" label="类型" width="80" />
+        <el-table-column prop="amount" label="金额" width="120" align="right">
+          <template #default="{ row }">
+            {{ formatMoney(row.amount) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="related_party" label="交易对方" min-width="120" show-overflow-tooltip />
+        <el-table-column prop="description" label="描述" min-width="160" show-overflow-tooltip />
+        <el-table-column prop="reference_number" label="参考号" width="120" show-overflow-tooltip />
+        <el-table-column label="状态" width="120">
+          <template #default="{ row }">
+            <el-tag v-if="row._type === 'unreconciled'" type="warning">未对账</el-tag>
+            <el-tag v-else type="info">缺少匹配</el-tag>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-dialog>
 
     <el-dialog
       v-model="unpostedDialogVisible"
@@ -393,7 +456,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { financeApi } from '@/api'
 import { formatCurrency, formatDate, formatDateTime } from '@/utils/format'
 import { parseDataObject } from '@/utils/responseParser'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
 const activeStep = ref(0)
 const periods = ref([])
@@ -420,7 +483,12 @@ const dateFixForm = ref({
   entry_date: '',
   posting_date: ''
 })
+const reconciliationDialogVisible = ref(false)
+const reconciliationLoading = ref(false)
+const unreconciledTransactions = ref([])
+const manualReconciledTransactions = ref([])
 const route = useRoute()
+const router = useRouter()
 
 const openPeriods = computed(() => periods.value.filter(period => !period.is_closed))
 const dateFixPrimaryText = computed(() => {
@@ -509,6 +577,38 @@ const fetchUnpostedEntries = async () => {
 const openUnpostedDialog = async () => {
   unpostedDialogVisible.value = true
   await fetchUnpostedEntries()
+}
+
+const allUnreconciledTransactions = computed(() => [
+  ...unreconciledTransactions.value.map(t => ({ ...t, _type: 'unreconciled' })),
+  ...manualReconciledTransactions.value.map(t => ({ ...t, _type: 'manual' }))
+])
+
+const fetchUnreconciledTransactions = async () => {
+  if (!selectedPeriodId.value) return
+  reconciliationLoading.value = true
+  try {
+    const res = await financeApi.glClosing.getUnreconciledTransactions(selectedPeriodId.value)
+    const data = parseDataObject(res)
+    unreconciledTransactions.value = data.unreconciledTransactions || []
+    manualReconciledTransactions.value = data.manualReconciledTransactions || []
+  } catch {
+    ElMessage.error('获取未对账银行流水失败')
+  } finally {
+    reconciliationLoading.value = false
+  }
+}
+
+const openReconciliationDialog = async () => {
+  reconciliationDialogVisible.value = true
+  await fetchUnreconciledTransactions()
+}
+
+const goToBankReconciliation = () => {
+  router.push({
+    path: '/finance/cash/reconciliation',
+    query: selectedPeriodId.value ? { periodId: selectedPeriodId.value } : undefined
+  })
 }
 
 const refreshAfterPosting = async () => {

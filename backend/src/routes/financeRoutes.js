@@ -99,7 +99,7 @@ router.get('/periods', requirePermission('finance:periods:view'), financeControl
 router.get('/periods/:id', requirePermission('finance:periods:view'), financeController.getPeriodById);
 router.post('/periods', requirePermission('finance:periods:create'), financeController.createPeriod);
 router.put('/periods/:id', requirePermission('finance:periods:update'), financeController.updatePeriod);
-router.patch('/periods/:id/close', requirePermission('finance:periods:update'), financeController.closePeriod);
+router.patch('/periods/:id/close', requirePermission('finance:closing:execute'), financeController.closePeriod);
 router.patch('/periods/:id/reopen', requirePermission('finance:periods:update'), financeController.reopenPeriod);
 
 // 3. 试算平衡表
@@ -110,6 +110,7 @@ router.get('/gl/closing/preview/:id', requirePermission('finance:closing:view'),
 router.get('/gl/closing/unposted/:id', requirePermission('finance:entries:view'), financeController.getClosingUnpostedEntries);
 router.patch('/gl/closing/unposted-entries/:entryId/dates', requirePermission('finance:entries:update'), financeController.updateClosingUnpostedEntryDates);
 router.post('/gl/closing/execute/:id', requirePermission('finance:closing:execute'), financeController.executeClosing);
+router.get('/gl/closing/unreconciled/:id', requirePermission('finance:cash:reconcile'), financeController.getClosingUnreconciledTransactions);
 router.get('/gl/closing/history/:id', requirePermission('finance:closing:view'), financeController.getClosingHistory);
 
 // 应付账款模块路由

@@ -15,55 +15,14 @@ import { ref, computed } from 'vue'
 import { userApi } from '@/api/user'
 import { tokenManager, permissionManager } from '../utils/unifiedStorage'
 
-const permissionAliasMap = {
-  'basedata:bom': 'basedata:boms',
-  'basedata:process-templates': 'basedata:processtemplates',
-  'basedata:product-categories': 'basedata:productcategories',
-  'basedata:material-sources': 'basedata:materialsources',
-  'basedata:inspection-methods': 'basedata:inspectionmethods',
-  'inventory:manualtransaction': 'inventory:manual',
-  'inventory:manual-transaction': 'inventory:manual',
-  'production:productionreport': 'production:reports',
-  'production:productionreport:read': 'production:reports:view',
-  'sales:exchanges': 'sales:returns',
-  'sales:packinglists': 'sales:packing',
-  'sales:packing-lists': 'sales:packing',
-  'equipment:list': 'production:equipment',
-  'equipment:maintenance': 'production:equipment',
-  'equipment:inspection': 'production:equipment',
-  'equipment:status': 'production:equipment',
-  'quality:incoming': 'quality:inspections',
-  'quality:process': 'quality:inspections',
-  'quality:final': 'quality:inspections',
-  'quality:first-article': 'quality:inspections',
-  'system:print:add': 'system:print:create',
-  'system:print:edit': 'system:print:update',
-  'system:print:template:view': 'system:print:view',
-  'system:print:template:add': 'system:print:create',
-  'system:print:template:edit': 'system:print:update',
-  'system:print:template:delete': 'system:print:delete'
-}
-
-const expandPermissionCandidates = (permission) => {
-  if (!permission) return []
-
-  const candidates = new Set([permission])
-  Object.entries(permissionAliasMap).forEach(([legacyPrefix, canonicalPrefix]) => {
-    if (permission === legacyPrefix || permission.startsWith(`${legacyPrefix}:`)) {
-      candidates.add(permission.replace(legacyPrefix, canonicalPrefix))
-    }
-    if (permission === canonicalPrefix || permission.startsWith(`${canonicalPrefix}:`)) {
-      candidates.add(permission.replace(canonicalPrefix, legacyPrefix))
-    }
-  })
-
-  return [...candidates]
-}
+// ✅ 权限别名映射已迁移至后端 PermissionService.js
+// 后端在返回权限列表时会自动展开别名，前端无需再维护硬编码映射
 
 const isTransientPermissionLoadError = (error) => {
   const status = error?.response?.status
   return !status || status === 429 || status >= 500
 }
+
 
 export const useAuthStore = defineStore('auth', () => {
   const token = ref('')
@@ -268,10 +227,8 @@ export const useAuthStore = defineStore('auth', () => {
       return true
     }
 
-    const candidates = expandPermissionCandidates(permission)
-
-    // 精确匹配
-    if (candidates.some(item => permissions.value.includes(item))) {
+    // 精确匹配（后端已展开别名，无需前端再做候选扩展）
+    if (permissions.value.includes(permission)) {
       return true
     }
 
@@ -279,7 +236,7 @@ export const useAuthStore = defineStore('auth', () => {
     return permissions.value.some(p => {
       if (p.endsWith(':*')) {
         const prefix = p.slice(0, -2)
-        return candidates.some(item => item.startsWith(prefix + ':'))
+        return permission.startsWith(prefix + ':')
       }
       return false
     })
@@ -294,10 +251,8 @@ export const useAuthStore = defineStore('auth', () => {
       return true
     }
 
-    const candidates = expandPermissionCandidates(permission)
-    return permissions.value.some(p =>
-      candidates.some(candidate => p.startsWith(`${candidate}:`))
-    )
+    // 后端已展开别名，直接前缀匹配
+    return permissions.value.some(p => p.startsWith(`${permission}:`))
   }
 
   // 获取用户真实姓名的计算属性

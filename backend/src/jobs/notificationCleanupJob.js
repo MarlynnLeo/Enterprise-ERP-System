@@ -5,7 +5,7 @@
 
 const cron = require('node-cron');
 const { pool } = require('../config/db');
-const logger = require('../utils/logger');
+const { logger } = require('../utils/logger');
 
 /**
  * 清理过期的已读通知（默认 90 天）

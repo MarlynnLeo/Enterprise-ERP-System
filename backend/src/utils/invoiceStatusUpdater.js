@@ -5,7 +5,7 @@
 
 const db = require('../config/db');
 const { logStatusChange } = require('./invoiceStatusLogger');
-const logger = require('./logger');
+const { logger } = require('./logger');
 
 /**
  * 更新逾期的应收发票状态

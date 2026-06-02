@@ -13,7 +13,7 @@
  * @since 2025-12-13
  */
 
-const logger = require('../utils/logger');
+const { logger } = require('../utils/logger');
 
 /**
  * 默认财务配置

@@ -1,6 +1,6 @@
 const AqlService = require('../../../services/quality/aqlService');
 const { ResponseHandler } = require('../../../utils/responseHandler');
-const logger = require('../../../utils/logger');
+const { logger } = require('../../../utils/logger');
 
 class AqlController {
     /**

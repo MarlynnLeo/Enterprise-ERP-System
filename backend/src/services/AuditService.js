@@ -6,7 +6,7 @@
  */
 
 const { getConnection } = require('../config/db');
-const logger = require('../utils/logger');
+const { logger } = require('../utils/logger');
 const { parsePagination, appendPaginationSQL } = require('../utils/safePagination');
 
 /**

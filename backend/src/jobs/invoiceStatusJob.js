@@ -8,7 +8,7 @@ const {
   updateAllOverdueInvoices,
   getOverdueInvoicesStats,
 } = require('../utils/invoiceStatusUpdater');
-const logger = require('../utils/logger');
+const { logger } = require('../utils/logger');
 
 /**
  * 启动发票状态定时任务

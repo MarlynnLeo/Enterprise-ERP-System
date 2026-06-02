@@ -5,7 +5,7 @@
 
 const apModel = require('../../../models/ap');
 const { ResponseHandler } = require('../../../utils/responseHandler');
-const logger = require('../../../utils/logger');
+const { logger } = require('../../../utils/logger');
 const CodeGeneratorService = require('../../../services/business/CodeGeneratorService');
 
 /**

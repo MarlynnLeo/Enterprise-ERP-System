@@ -7,7 +7,7 @@
 
 const expenseModel = require('../../../models/expense');
 const { ResponseHandler } = require('../../../utils/responseHandler');
-const logger = require('../../../utils/logger');
+const { logger } = require('../../../utils/logger');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
 
 const expenseController = {

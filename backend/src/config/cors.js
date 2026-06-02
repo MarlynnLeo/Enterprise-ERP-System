@@ -1,4 +1,4 @@
-const logger = require('../utils/logger');
+const { logger } = require('../utils/logger');
 
 const LOCAL_DEV_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 const PRIVATE_NETWORK_ORIGIN = /^(http|https):\/\/(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/;
@@ -28,7 +28,9 @@ function isOriginAllowed(origin) {
   }
 
   if (!origin) {
-    return true;
+    // 生产环境拒绝无 Origin 请求，防止非浏览器工具绕过 CORS
+    logger.security('CORS: 生产环境收到无 Origin 请求，已拒绝');
+    return false;
   }
 
   return allowedOrigins.includes(origin);
@@ -46,9 +48,6 @@ function createCorsOptions(overrides = {}) {
       }
 
       if (isOriginAllowed(origin)) {
-        if (isProd && !origin) {
-          logger.info('CORS: 允许无 Origin 请求');
-        }
         return callback(null, true);
       }
 

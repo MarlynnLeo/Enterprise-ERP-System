@@ -6,7 +6,7 @@
  */
 
 const db = require('../../config/db');
-const logger = require('../../utils/logger');
+const { logger } = require('../../utils/logger');
 const { softDelete } = require('../../utils/softDelete');
 
 class AccountMappingService {

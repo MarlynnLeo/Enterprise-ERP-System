@@ -6,7 +6,7 @@
  */
 
 require('dotenv').config();
-const logger = require('../utils/logger');
+const { logger } = require('../utils/logger');
 // bcrypt 已移至 seeds/001_default_admin_and_roles.js，此处不再需要
 const { getPoolConfig, getPoolSafetyConfig } = require('./database-config');
 const poolFactory = require('../database/ConnectionPoolFactory');

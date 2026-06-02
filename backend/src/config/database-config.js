@@ -4,7 +4,7 @@
  */
 
 require('dotenv').config();
-const logger = require('../utils/logger');
+const { logger } = require('../utils/logger');
 
 function parsePositiveIntEnv(name, defaultValue) {
   const parsed = Number.parseInt(process.env[name], 10);

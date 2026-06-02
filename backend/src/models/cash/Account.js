@@ -5,7 +5,7 @@
  * @version 1.0.0
  */
 
-const logger = require('../../utils/logger');
+const { logger } = require('../../utils/logger');
 const db = require('../../config/db');
 
 class BankAccountModel {
@@ -67,46 +67,73 @@ class BankAccountModel {
   }
 
   /**
-   * 获取银行账户列表
+   * 获取银行账户列表（支持数据库级分页）
+   * @param {Object} filters - 过滤条件
+   * @param {number} [filters.page] - 页码（从1开始）
+   * @param {number} [filters.pageSize] - 每页条数
    */
   static async getBankAccounts(filters = {}) {
     try {
-      let query = 'SELECT * FROM bank_accounts WHERE 1=1';
+      let whereClause = ' WHERE 1=1';
       const params = [];
 
       if (filters.account_number) {
-        query += ' AND account_number LIKE ?';
+        whereClause += ' AND account_number LIKE ?';
         params.push(`%${filters.account_number}%`);
       }
 
       if (filters.account_name) {
-        query += ' AND account_name LIKE ?';
+        whereClause += ' AND account_name LIKE ?';
         params.push(`%${filters.account_name}%`);
       }
 
       if (filters.bank_name) {
-        query += ' AND bank_name LIKE ?';
+        whereClause += ' AND bank_name LIKE ?';
         params.push(`%${filters.bank_name}%`);
       }
 
       if (filters.currency_code) {
-        query += ' AND currency_code = ?';
+        whereClause += ' AND currency_code = ?';
         params.push(filters.currency_code);
       }
 
       if (filters.account_type) {
-        query += ' AND account_type = ?';
+        whereClause += ' AND account_type = ?';
         params.push(filters.account_type);
       }
 
       if (filters.is_active !== undefined) {
-        query += ' AND is_active = ?';
+        whereClause += ' AND is_active = ?';
         params.push(filters.is_active);
       }
 
-      query += ' ORDER BY bank_name, account_name';
+      const orderClause = ' ORDER BY bank_name, account_name';
 
-      const [accounts] = await db.pool.execute(query, params);
+      // 如果提供了分页参数，使用数据库级分页
+      if (filters.page && filters.pageSize) {
+        const page = Math.max(1, parseInt(filters.page, 10) || 1);
+        const pageSize = Math.max(1, Math.min(100, parseInt(filters.pageSize, 10) || 10));
+        const offset = (page - 1) * pageSize;
+
+        const [countResult] = await db.pool.execute(
+          `SELECT COUNT(*) as total FROM bank_accounts${whereClause}`,
+          params
+        );
+        const total = countResult[0].total;
+
+        const [accounts] = await db.pool.execute(
+          `SELECT * FROM bank_accounts${whereClause}${orderClause} LIMIT ${pageSize} OFFSET ${offset}`,
+          params
+        );
+
+        return { accounts, total, page, pageSize };
+      }
+
+      // 无分页参数时返回全量（兼容旧调用）
+      const [accounts] = await db.pool.execute(
+        `SELECT * FROM bank_accounts${whereClause}${orderClause}`,
+        params
+      );
 
       return accounts;
     } catch (error) {
@@ -116,6 +143,7 @@ class BankAccountModel {
       throw enhancedError;
     }
   }
+
 
   /**
    * 更新银行账户
@@ -194,31 +222,33 @@ class BankAccountModel {
     const conn = connection || db.pool;
 
     try {
-      // 获取当前账户余额
+      // 先检查账户是否存在
       const [accounts] = await conn.execute(
-        'SELECT current_balance FROM bank_accounts WHERE id = ?',
+        'SELECT id FROM bank_accounts WHERE id = ?',
         [accountId]
       );
       if (accounts.length === 0) {
         throw new Error(`银行账户ID ${accountId} 不存在`);
       }
 
-      let currentBalance = parseFloat(accounts[0].current_balance);
       const balanceChange = parseFloat(amount);
+      if (isNaN(balanceChange) || balanceChange < 0) {
+        throw new Error(`无效的金额: ${amount}`);
+      }
 
-      // 根据交易类型和操作确定余额变化
+      // 根据交易类型和操作确定余额变化方向（+1 或 -1）
+      let direction;
       if (operation === 'add') {
-        // 添加交易时的余额变化
         switch (transactionType) {
           case '存款':
           case '转入':
           case '利息':
-            currentBalance += balanceChange;
+            direction = 1;
             break;
           case '取款':
           case '转出':
           case '费用':
-            currentBalance -= balanceChange;
+            direction = -1;
             break;
           default:
             throw new Error(`不支持的交易类型: ${transactionType}`);
@@ -229,22 +259,22 @@ class BankAccountModel {
           case '存款':
           case '转入':
           case '利息':
-            currentBalance -= balanceChange;
+            direction = -1;
             break;
           case '取款':
           case '转出':
           case '费用':
-            currentBalance += balanceChange;
+            direction = 1;
             break;
           default:
             throw new Error(`不支持的交易类型: ${transactionType}`);
         }
       }
 
-      // 更新账户余额
+      // ✅ 使用原子 SQL 更新，避免并发读-改-写竞态条件（TOCTOU）
       const [result] = await conn.execute(
-        'UPDATE bank_accounts SET current_balance = ? WHERE id = ?',
-        [currentBalance, accountId]
+        'UPDATE bank_accounts SET current_balance = current_balance + ? WHERE id = ?',
+        [direction * balanceChange, accountId]
       );
 
       return result.affectedRows > 0;

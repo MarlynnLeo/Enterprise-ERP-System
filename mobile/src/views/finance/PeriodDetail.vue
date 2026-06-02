@@ -75,9 +75,10 @@
 
       <!-- 操作按钮 -->
       <div class="action-bar">
-        <Button v-if="!period.is_closed" type="danger" block round @click="handleClose"
-          >关闭期间</Button
-        >
+        <div v-if="!period.is_closed" class="close-hint">
+          <SvgIcon name="info" size="1rem" />
+          <span>期末结转（关账）请在 PC 端「财务 → 期末结转」中操作</span>
+        </div>
         <Button v-else type="primary" block round @click="handleReopen">重新开启</Button>
       </div>
     </div>
@@ -122,20 +123,6 @@
     }
   }
 
-  const handleClose = async () => {
-    try {
-      await showConfirmDialog({
-        title: '确认关闭',
-        message: '关闭后该期间将不能再录入凭证，确定关闭？'
-      })
-      await financeApi.closePeriod(route.params.id)
-      showToast('期间已关闭')
-      loadPeriod()
-    } catch (e) {
-      if (e !== 'cancel') showToast('操作失败')
-    }
-  }
-
   const handleReopen = async () => {
     try {
       await showConfirmDialog({ title: '确认开启', message: '重新开启该会计期间？' })
@@ -143,7 +130,10 @@
       showToast('期间已重新开启')
       loadPeriod()
     } catch (e) {
-      if (e !== 'cancel') showToast('操作失败')
+      if (e !== 'cancel') {
+        const msg = e?.response?.data?.message || e?.message || '操作失败'
+        showToast(msg)
+      }
     }
   }
 
@@ -314,6 +304,19 @@
     padding-bottom: var(--app-fixed-control-padding-bottom);
     background: var(--bg-primary);
     border-top: 1px solid var(--surface-border, var(--border-subtle));
+  }
+
+  .close-hint {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    background: rgba(245, 158, 11, 0.08);
+    border: 1px solid rgba(245, 158, 11, 0.2);
+    border-radius: 10px;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    line-height: 1.4;
   }
 
   .loading-state {

@@ -112,7 +112,7 @@ const ErrorFactory = {
 };
 
 // 统一错误处理中间件
-const unifiedErrorHandler = (err, req, res) => {
+const unifiedErrorHandler = (err, req, res, _next) => {
   // 生成请求ID用于追踪
   const requestId = req.requestId || generateRequestId();
 

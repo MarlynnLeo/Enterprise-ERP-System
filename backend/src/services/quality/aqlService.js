@@ -1,5 +1,5 @@
 const AqlStandard = require('../../models/quality/aqlStandard');
-const logger = require('../../utils/logger');
+const { logger } = require('../../utils/logger');
 const { parsePagination } = require('../../utils/safePagination');
 
 class AqlService {

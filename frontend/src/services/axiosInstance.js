@@ -200,9 +200,9 @@ const setupInterceptors = (apiInstance) => {
                         failedQueue.push({ resolve, reject });
                     }).then(() => {
                         return apiInstance(originalRequest);
-                    }).catch(err => {
-                        return Promise.reject(err);
                     });
+                    // 刷新失败时此 Promise 会被 reject，
+                    // 但无需 .catch() 再弹错误，因为发起刷新的请求已负责跳转登录页
                 }
                 originalRequest._retry = true;
                 isRefreshing = true;

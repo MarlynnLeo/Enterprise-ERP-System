@@ -7,7 +7,7 @@
  */
 
 const { pool } = require('../config/db');
-const logger = require('../utils/logger');
+const { logger } = require('../utils/logger');
 
 class DatabaseMonitorService {
   /**

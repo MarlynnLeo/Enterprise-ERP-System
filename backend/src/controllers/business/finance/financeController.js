@@ -16,6 +16,18 @@ const { accountingConfig } = require('../../../config/accountingConfig');
 const { currentDateString } = require('../../../utils/dateUtils');
 const OpeningBalanceService = require('../../../services/business/OpeningBalanceService');
 
+function normalizeMysqlFlag(value) {
+  if (value === true || value === 1 || value === 1n) return true;
+  if (Buffer.isBuffer(value)) {
+    return value.some((byte) => byte !== 0);
+  }
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    return normalized === '1' || normalized === 'true' || normalized === 'yes';
+  }
+  return false;
+}
+
 /**
  * 财务总账控制器
  */
@@ -626,25 +638,29 @@ const financeController = {
       const items = await financeModel.getEntryItems(id);
 
       // 将科目信息和金额格式化为前端需要的格式
-      const formattedItems = items.map((item) => ({
-        id: item.id,
-        accountId: item.account_id,
-        accountCode: item.account_code,
-        accountName: item.account_name,
-        accountIsActive: item.account_is_active === true || item.account_is_active === 1 || item.account_is_active === '1',
-        accountIssue:
-          !item.account_id || !item.account_code
+      const formattedItems = items.map((item) => {
+        const accountExists = Boolean(item.account_id && item.account_code);
+        const accountIsActive = normalizeMysqlFlag(item.account_is_active);
+
+        return {
+          id: item.id,
+          accountId: item.account_id,
+          accountCode: item.account_code,
+          accountName: item.account_name,
+          accountIsActive,
+          accountIssue: !accountExists
             ? '会计科目不存在'
-            : !(item.account_is_active === true || item.account_is_active === 1 || item.account_is_active === '1')
+            : !accountIsActive
               ? '会计科目未启用'
               : null,
-        debitAmount: parseFloat(item.debit_amount) || 0,
-        creditAmount: parseFloat(item.credit_amount) || 0,
-        currencyCode: item.currency_code || 'CNY',
-        exchangeRate: parseFloat(item.exchange_rate) || 1,
-        costCenterId: item.cost_center_id,
-        description: item.description,
-      }));
+          debitAmount: parseFloat(item.debit_amount) || 0,
+          creditAmount: parseFloat(item.credit_amount) || 0,
+          currencyCode: item.currency_code || 'CNY',
+          exchangeRate: parseFloat(item.exchange_rate) || 1,
+          costCenterId: item.cost_center_id,
+          description: item.description,
+        };
+      });
 
       ResponseHandler.success(res, formattedItems, '获取会计分录明细成功');
     } catch (error) {
@@ -1142,6 +1158,71 @@ const financeController = {
         statusCode,
         error
       );
+    }
+  },
+
+  /**
+   * 获取期间内未对账的银行流水
+   */
+  getClosingUnreconciledTransactions: async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      if (!id) {
+        return ResponseHandler.error(res, '会计期间ID为必填项', 'VALIDATION_ERROR', 400);
+      }
+
+      const [periodInfo] = await db.pool.execute('SELECT * FROM gl_periods WHERE id = ?', [parseInt(id)]);
+
+      if (periodInfo.length === 0) {
+        return ResponseHandler.error(res, '会计期间不存在', 'NOT_FOUND', 404);
+      }
+
+      const period = periodInfo[0];
+
+      // 查询期间内未对账的已审核银行流水
+      const [transactions] = await db.pool.execute(
+        `SELECT bt.id, bt.transaction_date, bt.transaction_type, bt.amount,
+                bt.description, bt.reference_number, bt.related_party,
+                bt.is_reconciled, bt.reconciliation_date, bt.status,
+                ba.account_name, ba.account_number
+         FROM bank_transactions bt
+         LEFT JOIN bank_accounts ba ON ba.id = bt.bank_account_id
+         WHERE bt.status = 'approved'
+           AND COALESCE(bt.is_reconciled, 0) = 0
+           AND bt.transaction_date BETWEEN ? AND ?
+         ORDER BY bt.transaction_date ASC, bt.id ASC`,
+        [period.start_date, period.end_date]
+      );
+
+      // 也查询缺少匹配证据的已对账流水
+      const [manualReconciled] = await db.pool.execute(
+        `SELECT bt.id, bt.transaction_date, bt.transaction_type, bt.amount,
+                bt.description, bt.reference_number, bt.related_party,
+                bt.is_reconciled, bt.reconciliation_date, bt.status,
+                ba.account_name, ba.account_number
+         FROM bank_transactions bt
+         LEFT JOIN bank_accounts ba ON ba.id = bt.bank_account_id
+         WHERE bt.status = 'approved'
+           AND COALESCE(bt.is_reconciled, 0) = 1
+           AND bt.transaction_date BETWEEN ? AND ?
+           AND NOT EXISTS (
+             SELECT 1 FROM bank_reconciliation_matches m WHERE m.bank_transaction_id = bt.id
+           )
+         ORDER BY bt.transaction_date ASC, bt.id ASC`,
+        [period.start_date, period.end_date]
+      );
+
+      ResponseHandler.success(res, {
+        period,
+        unreconciledTransactions: transactions,
+        manualReconciledTransactions: manualReconciled,
+        unreconciledCount: transactions.length,
+        manualReconciledCount: manualReconciled.length
+      }, '获取未对账银行流水成功');
+    } catch (error) {
+      logger.error('获取未对账银行流水失败:', error);
+      ResponseHandler.error(res, error.message || '获取未对账银行流水失败', 'SERVER_ERROR', 500, error);
     }
   },
 

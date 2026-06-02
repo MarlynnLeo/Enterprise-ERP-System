@@ -1193,10 +1193,6 @@ export const financeApi = {
     return api.get('/finance/periods', { params })
   },
 
-  closePeriod(id) {
-    return api.patch(`/finance/periods/${id}/close`)
-  },
-
   getPeriodById(id) {
     return api.get(`/finance/periods/${id}`)
   },

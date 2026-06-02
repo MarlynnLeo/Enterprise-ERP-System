@@ -11,7 +11,7 @@
 
 const arModel = require('../models/ar');
 const apModel = require('../models/ap');
-const logger = require('../utils/logger');
+const { logger } = require('../utils/logger');
 const NotificationService = require('./NotificationService');
 
 /**

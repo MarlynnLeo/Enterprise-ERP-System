@@ -7,7 +7,7 @@
 const { pool } = require('../config/db');
 const cacheService = require('../services/cacheService');
 const PermissionService = require('../services/PermissionService');
-const logger = require('./logger');
+const { logger } = require('./logger');
 
 /**
  * 权限诊断工具类

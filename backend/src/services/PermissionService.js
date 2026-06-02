@@ -16,6 +16,67 @@ const { pool } = require('../config/db');
 const cacheService = require('./cacheService');
 
 /**
+ * 权限别名映射表
+ * 解决数据库中菜单权限标识符与前端路由 meta.permission 不一致的问题
+ * 双向映射：拥有左侧权限的用户自动获得右侧权限，反之亦然
+ *
+ * 维护说明：新增路由权限标识时，如果与数据库中的 permission 字段不一致，
+ * 在此处添加映射即可，无需修改前端代码
+ */
+const PERMISSION_ALIASES = {
+  'basedata:bom': 'basedata:boms',
+  'basedata:process-templates': 'basedata:processtemplates',
+  'basedata:product-categories': 'basedata:productcategories',
+  'basedata:material-sources': 'basedata:materialsources',
+  'basedata:inspection-methods': 'basedata:inspectionmethods',
+  'inventory:manualtransaction': 'inventory:manual',
+  'inventory:manual-transaction': 'inventory:manual',
+  'production:productionreport': 'production:reports',
+  'production:productionreport:read': 'production:reports:view',
+  'sales:exchanges': 'sales:returns',
+  'sales:packinglists': 'sales:packing',
+  'sales:packing-lists': 'sales:packing',
+  'equipment:list': 'production:equipment',
+  'equipment:maintenance': 'production:equipment',
+  'equipment:inspection': 'production:equipment',
+  'equipment:status': 'production:equipment',
+  'quality:incoming': 'quality:inspections',
+  'quality:process': 'quality:inspections',
+  'quality:final': 'quality:inspections',
+  'quality:first-article': 'quality:inspections',
+  'system:print:add': 'system:print:create',
+  'system:print:edit': 'system:print:update',
+  'system:print:template:view': 'system:print:view',
+  'system:print:template:add': 'system:print:create',
+  'system:print:template:edit': 'system:print:update',
+  'system:print:template:delete': 'system:print:delete',
+};
+
+/**
+ * 展开权限列表，添加所有别名变体
+ * @param {Array<string>} permissions - 原始权限列表
+ * @returns {Array<string>} 展开后的完整权限列表
+ */
+function expandPermissionsWithAliases(permissions) {
+  const expanded = new Set(permissions);
+
+  for (const perm of permissions) {
+    // 正向：如果 perm 匹配别名左侧，添加右侧
+    for (const [alias, canonical] of Object.entries(PERMISSION_ALIASES)) {
+      if (perm === alias || perm.startsWith(`${alias}:`)) {
+        expanded.add(perm.replace(alias, canonical));
+      }
+      // 反向：如果 perm 匹配别名右侧，添加左侧
+      if (perm === canonical || perm.startsWith(`${canonical}:`)) {
+        expanded.add(perm.replace(canonical, alias));
+      }
+    }
+  }
+
+  return [...expanded];
+}
+
+/**
  * 权限服务类
  * 提供统一的权限获取、验证和缓存管理
  */
@@ -153,7 +214,10 @@ class PermissionService {
       roleIds
     );
 
-    return permissions.map((p) => p.permission).filter(Boolean);
+    const rawPermissions = permissions.map((p) => p.permission).filter(Boolean);
+
+    // 展开别名，确保前端路由权限标识与数据库权限标识的双向兼容
+    return expandPermissionsWithAliases(rawPermissions);
   }
 
   /**

@@ -1,5 +1,5 @@
 const db = require('../config/db');
-const logger = require('../utils/logger');
+const { logger } = require('../utils/logger');
 const CodeGeneratorService = require('../services/business/CodeGeneratorService');
 const DocumentLinkService = require('../services/business/DocumentLinkService');
 const { parsePagination, appendPaginationSQL } = require('../utils/safePagination');

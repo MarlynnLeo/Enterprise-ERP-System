@@ -5,7 +5,7 @@
  * @version 1.0.0
  */
 
-const logger = require('../utils/logger');
+const { logger } = require('../utils/logger');
 const { softDelete } = require('../utils/softDelete');
 const { pool } = require('../config/db');
 const { parsePagination, appendPaginationSQL } = require('../utils/safePagination');

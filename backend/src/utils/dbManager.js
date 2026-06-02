@@ -3,7 +3,7 @@
  * 统一管理数据库连接和事务处理
  */
 
-const logger = require('./logger');
+const { logger } = require('./logger');
 const db = require('../config/db');
 
 class DBManager {

@@ -1,16 +1,11 @@
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
-const logger = require('./utils/logger');
+const { logger } = require('./utils/logger');
 const app = require('./app');
 const { server: serverConfig } = require('./config');
 
-process.once('SIGUSR2', () => {
-  logger.info('Received SIGUSR2 from nodemon, restarting gracefully...');
-  setTimeout(() => {
-    process.kill(process.pid, 'SIGUSR2');
-  }, serverConfig.nodemonRestartDelayMs);
-});
+// SIGUSR2 (nodemon) 信号处理已由 db.js 统一管理（关闭连接池后重启）
 
 async function runMigrations() {
   let knex;

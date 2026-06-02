@@ -40,6 +40,7 @@ export const financeApi = {
         getUnpostedEntries: (periodId) => api.get(`/finance/gl/closing/unposted/${periodId}`),
         updateUnpostedEntryDates: (entryId, data) => api.patch(`/finance/gl/closing/unposted-entries/${entryId}/dates`, data),
         execute: (periodId) => api.post(`/finance/gl/closing/execute/${periodId}`),
+        getUnreconciledTransactions: (periodId) => api.get(`/finance/gl/closing/unreconciled/${periodId}`),
         history: (periodId) => api.get(`/finance/gl/closing/history/${periodId}`)
     },
 
@@ -187,7 +188,8 @@ export const financeApi = {
         getStats: (params) => api.get('/finance/cash/reconciliation/stats', { params }),
         getMatchedTransaction: (params) => api.get('/finance/cash/reconciliation/matched-transaction', { params }),
         getPossibleMatches: (params) => api.get('/finance/cash/reconciliation/possible-matches', { params }),
-        confirmMatch: (data) => api.post('/finance/cash/reconciliation/confirm-match', data)
+        confirmMatch: (data) => api.post('/finance/cash/reconciliation/confirm-match', data),
+        cancelReconciliation: (data) => api.post('/finance/cash/reconciliation/cancel-reconciled', data)
     },
 
     // 产品定价

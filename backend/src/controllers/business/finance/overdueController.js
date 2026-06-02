@@ -2,7 +2,7 @@
  * 逾期检查和冲销控制器
  */
 
-const logger = require('../../../utils/logger');
+const { logger } = require('../../../utils/logger');
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { triggerOverdueCheck } = require('../../../services/scheduler');
 const arModel = require('../../../models/ar');

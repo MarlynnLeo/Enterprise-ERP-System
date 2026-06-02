@@ -6,7 +6,7 @@
  */
 
 const jwt = require('jsonwebtoken');
-const logger = require('../utils/logger');
+const { logger } = require('../utils/logger');
 
 // 验证JWT密钥环境变量
 if (!process.env.JWT_SECRET) {

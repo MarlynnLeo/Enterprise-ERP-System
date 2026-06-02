@@ -2,7 +2,7 @@
  * 密码安全策略工具
  */
 
-const logger = require('./logger');
+const { logger } = require('./logger');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 

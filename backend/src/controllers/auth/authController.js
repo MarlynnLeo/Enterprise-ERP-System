@@ -59,7 +59,10 @@ const login = async (req, res) => {
     }
 
     // 2. 查询用户
-    const [users] = await pool.execute('SELECT * FROM users WHERE username = ?', [username]);
+    const [users] = await pool.execute(
+      'SELECT id, username, real_name, email, password, status, token_version FROM users WHERE username = ?',
+      [username]
+    );
     const user = users[0];
 
     if (!user) {

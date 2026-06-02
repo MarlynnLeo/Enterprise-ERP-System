@@ -1,4 +1,4 @@
-const logger = require('../../utils/logger');
+const { logger } = require('../../utils/logger');
 const db = require('../../config/db');
 const { parsePagination } = require('../../utils/safePagination');
 

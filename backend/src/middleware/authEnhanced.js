@@ -149,8 +149,38 @@ const authenticateRefreshToken = async (req, res, next) => {
       return ResponseHandler.error(res, '未提供刷新令牌', 'NO_REFRESH_TOKEN', 401);
     }
 
-    // 验证刷新令牌
-    req.user = verifyRefreshToken(token);
+    // 验证刷新令牌签名
+    const decoded = verifyRefreshToken(token);
+
+    // ✅ 安全加固: 校验 token_version（确保令牌未被吊销）
+    const userId = Number(decoded?.id);
+    if (!Number.isInteger(userId) || userId <= 0) {
+      return ResponseHandler.error(res, '刷新令牌用户无效', 'INVALID_REFRESH_TOKEN', 401);
+    }
+
+    const [users] = await pool.execute(
+      'SELECT id, status, token_version FROM users WHERE id = ? LIMIT 1',
+      [userId]
+    );
+    const user = users[0];
+
+    if (!user) {
+      clearTokenCookies(res);
+      return ResponseHandler.error(res, '用户不存在', 'USER_NOT_FOUND', 401);
+    }
+
+    if (Number(user.status) !== 1) {
+      clearTokenCookies(res);
+      return ResponseHandler.error(res, '账号已被禁用', 'ACCOUNT_DISABLED', 403);
+    }
+
+    const dbTokenVersion = Number(user.token_version || 0);
+    if (decoded.tokenVersion !== undefined && Number(decoded.tokenVersion) !== dbTokenVersion) {
+      clearTokenCookies(res);
+      return ResponseHandler.error(res, '刷新令牌已失效，请重新登录', 'TOKEN_REVOKED', 401);
+    }
+
+    req.user = decoded;
     req.refreshToken = token;
     next();
   } catch (error) {

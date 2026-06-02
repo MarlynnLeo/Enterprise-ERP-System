@@ -76,7 +76,7 @@ const {
   handleUncaughtException,
   handleUnhandledRejection,
 } = require('./middleware/unifiedErrorHandler');
-const logger = require('./utils/logger');
+const { logger } = require('./utils/logger');
 const DLQService = require('./services/business/DLQService');
 
 // 导入 CSRF 保护中间件
@@ -159,12 +159,13 @@ if (process.env.ENABLE_RATE_LIMIT !== 'false') {
 const { validateAndSanitizeInput, detectSQLInjection } = require('./middleware/inputValidation');
 const { pathTraversalDetection, xssDetection } = require('./middleware/securityEnhanced');
 if (process.env.ENABLE_INPUT_SANITIZATION !== 'false') {
-  app.use(validateAndSanitizeInput);
-  app.use(detectSQLInjection);
-  // ✅ 安全修复: 挂载路径遍历和XSS检测中间件（此前已实现但未启用）
+  // ✅ 执行顺序优化: 先检测拒绝，后清理转义
+  // 检测型中间件必须在清理型之前，否则数据被 escape 后检测永远不会触发
   app.use(pathTraversalDetection);
+  app.use(detectSQLInjection);
   app.use(xssDetection);
-  logger.info('✅ 输入验证、SQL注入检测、路径遍历检测和XSS检测已启用');
+  app.use(validateAndSanitizeInput);
+  logger.info('✅ 路径遍历检测、SQL注入检测、XSS检测和输入清理已启用');
 }
 
 // 添加响应格式化中间件

@@ -4,7 +4,7 @@
  */
 
 const cron = require('node-cron');
-const logger = require('../utils/logger');
+const { logger } = require('../utils/logger');
 const { runOverdueCheck } = require('../services/overdueCheckService');
 
 // 存储所有定时任务

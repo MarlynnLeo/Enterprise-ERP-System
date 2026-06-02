@@ -5,7 +5,7 @@
  * @version 1.0.0
  */
 
-const logger = require('../../utils/logger');
+const { logger } = require('../../utils/logger');
 const db = require('../../config/db');
 const Builder = require('./Builder');
 

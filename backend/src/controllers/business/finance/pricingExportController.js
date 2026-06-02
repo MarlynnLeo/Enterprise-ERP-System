@@ -1,7 +1,7 @@
 const ExcelJS = require('exceljs');
 const { getConnection } = require('../../../config/db');
 const { ResponseHandler } = require('../../../utils/responseHandler');
-const logger = require('../../../utils/logger');
+const { logger } = require('../../../utils/logger');
 const { currentDateString } = require('../../../utils/dateUtils');
 
 // 导出产品定价列表为 Excel
