@@ -16,6 +16,7 @@ const PurchasePriceService = require('../../../services/business/PurchasePriceSe
 const { getCurrentUserName } = require('../../../utils/userHelper');
 const DLQService = require('../../../services/business/DLQService');
 const { lineAmount, normalizeTaxRate, roundMoney, taxAmount: calculateTaxAmount } = require('../../../utils/money');
+const { financeConfig } = require('../../../config/financeConfig');
 
 // 状态常量
 const STATUS = {
@@ -689,7 +690,7 @@ const createReceipt = async (req, res) => {
             if (!orderContextMap.has(key)) {
               orderContextMap.set(key, {
                 price: parseFloat(row.price) || 0,
-                taxRate: normalizeTaxRate(row.tax_rate, 0.13),
+                taxRate: normalizeTaxRate(row.tax_rate, financeConfig.get('tax.defaultVATRate', 0.13)),
               });
             }
           });
@@ -809,7 +810,7 @@ const createReceipt = async (req, res) => {
           // 确保所有参数都不是undefined
           const taxRate = normalizeTaxRate(
             item.tax_rate ?? item.taxRate ?? orderContextMap.get(currentMaterialId)?.taxRate,
-            0.13
+            financeConfig.get('tax.defaultVATRate', 0.13)
           );
           const amountExcludingTax = lineAmount(receiptQuantity, itemPrice);
           const itemTaxAmount = calculateTaxAmount(amountExcludingTax, taxRate);

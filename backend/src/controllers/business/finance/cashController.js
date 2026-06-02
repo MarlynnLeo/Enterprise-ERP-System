@@ -18,6 +18,7 @@ const CashReportsModel = require('../../../models/cash/Reports');
 const CashTransactionModel = require('../../../models/cash/CashTransaction');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const { currentDateString, toLocalDateString } = require('../../../utils/dateUtils');
+const { financeConfig } = require('../../../config/financeConfig');
 
 /**
  * 安全的 parseFloat，返回 NaN 时抛出明确错误
@@ -148,7 +149,7 @@ function formatBankAccountForClient(account) {
     accountNumber: account.account_number || '',
     bankName: account.bank_name || '',
     branchName: account.branch_name || '',
-    currency: account.currency_code || 'CNY',
+    currency: account.currency_code || financeConfig.get('account.defaultCurrency', 'CNY'),
     balance: account.current_balance !== undefined ? parseFloat(account.current_balance) : 0,
     initialBalance: account.opening_balance !== undefined ? parseFloat(account.opening_balance) : 0,
     openDate: toLocalDateString(createdAt),
@@ -834,7 +835,7 @@ const cashController = {
         account_name: req.body.account_name,
         bank_name: req.body.bank_name,
         branch_name: req.body.branch_name,
-        currency_code: req.body.currency_code || 'CNY',
+        currency_code: req.body.currency_code || financeConfig.get('account.defaultCurrency', 'CNY'),
         current_balance: parseFloat(req.body.initial_balance || req.body.current_balance || 0),
         opening_balance: parseFloat(req.body.initial_balance || req.body.opening_balance || req.body.current_balance || 0),
         account_type: normalizeBankAccountType(req.body.account_type),

@@ -25,6 +25,7 @@ const DBManager = require('../../../utils/dbManager');
 const { desensitizeDataForUser } = require('../../../utils/desensitizer');
 const { calculateLines, normalizeTaxRate } = require('../../../utils/money');
 const { parsePagination } = require('../../../utils/safePagination');
+const { financeConfig } = require('../../../config/financeConfig');
 
 function assertPurchaseItemPrices(items = []) {
   const invalidRows = items
@@ -237,9 +238,9 @@ const createOrder = async (req, res) => {
 
       assertPurchaseItemPrices(items || []);
       const orderAmounts = calculateLines(items || [], {
-        defaultTaxRate: req.body.tax_rate !== undefined ? req.body.tax_rate : 0.13,
+        defaultTaxRate: req.body.tax_rate !== undefined ? req.body.tax_rate : financeConfig.get('tax.defaultVATRate', 0.13),
       });
-      const taxRate = normalizeTaxRate(req.body.tax_rate !== undefined ? req.body.tax_rate : orderAmounts.taxRate, 0.13);
+      const taxRate = normalizeTaxRate(req.body.tax_rate !== undefined ? req.body.tax_rate : orderAmounts.taxRate, financeConfig.get('tax.defaultVATRate', 0.13));
       const subtotal = orderAmounts.subtotal;
       const taxAmount = orderAmounts.taxAmount;
       const calculatedTotalAmount = orderAmounts.totalAmount;
@@ -317,9 +318,9 @@ const updateOrder = async (req, res) => {
       const supplierName = await PurchaseOrderService.validateSupplier(connection, supplierId);
       assertPurchaseItemPrices(items || []);
       const orderAmounts = calculateLines(items || [], {
-        defaultTaxRate: req.body.tax_rate !== undefined ? req.body.tax_rate : 0.13,
+        defaultTaxRate: req.body.tax_rate !== undefined ? req.body.tax_rate : financeConfig.get('tax.defaultVATRate', 0.13),
       });
-      const taxRate = normalizeTaxRate(req.body.tax_rate !== undefined ? req.body.tax_rate : orderAmounts.taxRate, 0.13);
+      const taxRate = normalizeTaxRate(req.body.tax_rate !== undefined ? req.body.tax_rate : orderAmounts.taxRate, financeConfig.get('tax.defaultVATRate', 0.13));
 
 
       // 更新采购订单基本信息

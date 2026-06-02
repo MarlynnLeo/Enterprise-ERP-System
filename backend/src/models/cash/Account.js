@@ -7,6 +7,7 @@
 
 const { logger } = require('../../utils/logger');
 const db = require('../../config/db');
+const { financeConfig } = require('../../config/financeConfig');
 
 class BankAccountModel {
   /**
@@ -29,7 +30,7 @@ class BankAccountModel {
           accountData.account_name,
           accountData.bank_name,
           accountData.branch_name || null,
-          accountData.currency_code || 'CNY',
+          accountData.currency_code || financeConfig.get('account.defaultCurrency', 'CNY'),
           accountData.current_balance || 0,
           accountData.opening_balance ?? accountData.current_balance ?? 0,
           accountData.account_type || '活期',
@@ -169,7 +170,7 @@ class BankAccountModel {
           accountData.account_name,
           accountData.bank_name,
           accountData.branch_name || null,
-          accountData.currency_code || 'CNY',
+          accountData.currency_code || financeConfig.get('account.defaultCurrency', 'CNY'),
           accountData.account_type || '活期',
           accountData.is_active !== undefined ? accountData.is_active : true,
           accountData.contact_person || null,

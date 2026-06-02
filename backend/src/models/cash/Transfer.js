@@ -12,6 +12,7 @@ const { accountingConfig } = require('../../config/accountingConfig');
 const { DOCUMENT_TYPE_MAPPING } = require('../../constants/financeConstants');
 const DocumentLinkService = require('../../services/business/DocumentLinkService');
 const { toLocalDateString } = require('../../utils/dateUtils');
+const { financeConfig } = require('../../config/financeConfig');
 
 function requirePositiveInteger(value, fieldName) {
   const parsed = Number.parseInt(value, 10);
@@ -141,7 +142,7 @@ class FundTransferModel {
       if (!sourceAccount.is_active || !targetAccount.is_active) {
         throw new Error('源银行账户或目标银行账户已停用');
       }
-      if ((sourceAccount.currency_code || 'CNY') !== (targetAccount.currency_code || 'CNY')) {
+      if ((sourceAccount.currency_code || financeConfig.get('account.defaultCurrency', 'CNY')) !== (targetAccount.currency_code || financeConfig.get('account.defaultCurrency', 'CNY'))) {
         throw new Error('不同币种银行账户不能直接调拨');
       }
       if (roundMoney(sourceAccount.current_balance) < amount) {

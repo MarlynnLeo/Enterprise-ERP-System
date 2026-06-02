@@ -1,8 +1,18 @@
-﻿const db = require('../../../config/db');
+const db = require('../../../config/db');
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 const { getCurrentUserName } = require('../../../utils/userHelper');
 const CodeGeneratorService = require('../../../services/business/CodeGeneratorService');
+
+/**
+ * 标准成本版本状态常量
+ */
+const COST_VERSION_STATUS = {
+  DRAFT: 'draft',
+  PENDING: 'pending',
+  ACTIVE: 'active',
+  ARCHIVED: 'archived',
+};
 
 function parsePositiveInteger(value, fallback, max = 1000) {
   const parsed = Number.parseInt(value, 10);
@@ -122,11 +132,11 @@ const standardCostVersionController = {
         await connection.rollback();
         return ResponseHandler.error(res, 'Version not found', 'NOT_FOUND', 404);
       }
-      if (version[0].status !== 'draft') {
+      if (version[0].status !== COST_VERSION_STATUS.DRAFT) {
         await connection.rollback();
         return ResponseHandler.error(res, 'Only draft versions can be submitted', 'VALIDATION_ERROR', 400);
       }
-      await connection.execute('UPDATE standard_cost_versions SET status = "pending" WHERE id = ?', [id]);
+      await connection.execute('UPDATE standard_cost_versions SET status = ? WHERE id = ?', [COST_VERSION_STATUS.PENDING, id]);
       await connection.commit();
       ResponseHandler.success(res, { message: 'Version submitted for approval' });
     } catch (error) {
@@ -150,7 +160,7 @@ const standardCostVersionController = {
 
       const [version] = await connection.execute('SELECT status, effective_date FROM standard_cost_versions WHERE id = ? FOR UPDATE', [id]);
       if (version.length === 0) throw new Error('Version not found');
-      if (version[0].status !== 'pending') throw new Error('Version is not pending approval');
+      if (version[0].status !== COST_VERSION_STATUS.PENDING) throw new Error('Version is not pending approval');
 
       const [[costCount]] = await connection.execute(
         'SELECT COUNT(*) as count FROM standard_costs WHERE version_id = ?',
@@ -161,22 +171,20 @@ const standardCostVersionController = {
       }
 
       // ?????? active ??????????
-      await connection.execute(`SELECT id FROM standard_cost_versions WHERE status = 'active' FOR UPDATE`);
-      await connection.execute(`UPDATE standard_cost_versions SET status = 'archived' WHERE status = 'active'`);
-      await connection.execute(`UPDATE standard_costs SET status = 'archived', is_active = 0 WHERE status = 'active'`);
+      await connection.execute('SELECT id FROM standard_cost_versions WHERE status = ? FOR UPDATE', [COST_VERSION_STATUS.ACTIVE]);
+      await connection.execute('UPDATE standard_cost_versions SET status = ? WHERE status = ?', [COST_VERSION_STATUS.ARCHIVED, COST_VERSION_STATUS.ACTIVE]);
+      await connection.execute('UPDATE standard_costs SET status = ?, is_active = 0 WHERE status = ?', [COST_VERSION_STATUS.ARCHIVED, COST_VERSION_STATUS.ACTIVE]);
 
-      // ????????????
-      await connection.execute(`
-        UPDATE standard_cost_versions
-        SET status = 'active', approved_by = ?, approved_at = NOW()
-        WHERE id = ?
-      `, [approved_by, id]);
+      // 将当前版本设为 active
+      await connection.execute(
+        'UPDATE standard_cost_versions SET status = ?, approved_by = ?, approved_at = NOW() WHERE id = ?',
+        [COST_VERSION_STATUS.ACTIVE, approved_by, id]
+      );
 
-      await connection.execute(`
-        UPDATE standard_costs
-        SET status = 'active', is_active = 1, effective_date = ?
-        WHERE version_id = ?
-      `, [version[0].effective_date, id]);
+      await connection.execute(
+        'UPDATE standard_costs SET status = ?, is_active = 1, effective_date = ? WHERE version_id = ?',
+        [COST_VERSION_STATUS.ACTIVE, version[0].effective_date, id]
+      );
 
       await connection.commit();
       ResponseHandler.success(res, { message: 'Version approved and activated' });
@@ -206,7 +214,7 @@ const standardCostVersionController = {
 
       const [version] = await connection.execute('SELECT status FROM standard_cost_versions WHERE id = ? FOR UPDATE', [id]);
       if (version.length === 0) throw new Error('Version not found');
-      if (version[0].status !== 'draft') throw new Error('Only draft versions can generate cost rows');
+      if (version[0].status !== COST_VERSION_STATUS.DRAFT) throw new Error('Only draft versions can generate cost rows');
 
       // 1. ????????????
       await connection.execute('DELETE FROM standard_costs WHERE version_id = ?', [id]);

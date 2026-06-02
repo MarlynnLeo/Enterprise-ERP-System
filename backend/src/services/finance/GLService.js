@@ -8,6 +8,7 @@
 const db = require('../../config/db');
 const { logger } = require('../../utils/logger');
 const crypto = require('crypto');
+const { financeConfig } = require('../../config/financeConfig');
 
 function toDateString(value) {
   if (!value) return '';
@@ -392,7 +393,7 @@ class GLService {
         item.account_id,
         item.debit_amount || 0,
         item.credit_amount || 0,
-        item.currency_code || 'CNY',
+        item.currency_code || financeConfig.get('invoice.defaultCurrency', 'CNY'),
         item.exchange_rate || 1,
         item.cost_center_id || null,
         item.description || null,

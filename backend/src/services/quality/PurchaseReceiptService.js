@@ -14,6 +14,7 @@ const { logger } = require('../../utils/logger');
 const db = require('../../config/db');
 const businessConfig = require('../../config/businessConfig');
 const { lineAmount, normalizeTaxRate, roundMoney, taxAmount: calculateTaxAmount } = require('../../utils/money');
+const { financeConfig } = require('../../config/financeConfig');
 
 class PurchaseReceiptService {
   /**
@@ -87,7 +88,7 @@ class PurchaseReceiptService {
 
       // 1. 一次 JOIN 查询获取完整订单上下文（订单、供应商、物料、采购价格）
       const context = await this._getOrderContext(connection, orderId, materialId);
-      const taxRate = normalizeTaxRate(context.taxRate, 0.13);
+      const taxRate = normalizeTaxRate(context.taxRate, financeConfig.get('tax.defaultVATRate', 0.13));
       const amountExcludingTax = lineAmount(qty, context.price);
       const taxAmount = calculateTaxAmount(amountExcludingTax, taxRate);
       const totalAmount = roundMoney(amountExcludingTax + taxAmount);

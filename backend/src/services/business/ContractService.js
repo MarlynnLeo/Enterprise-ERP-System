@@ -8,6 +8,7 @@ const { pool } = require('../../config/db');
 const { softDelete } = require('../../utils/softDelete');
 const { parsePagination, appendPaginationSQL } = require('../../utils/safePagination');
 const CodeGeneratorService = require('./CodeGeneratorService');
+const { financeConfig } = require('../../config/financeConfig');
 
 class ContractService {
 
@@ -91,7 +92,7 @@ class ContractService {
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [code, data.name, data.type, data.status || 'draft',
          data.party_a, data.party_b, data.party_b_id || null, data.party_b_type || null,
-         data.total_amount || 0, data.currency || 'CNY', data.tax_rate || 0,
+         data.total_amount || 0, data.currency || financeConfig.get('invoice.defaultCurrency', 'CNY'), data.tax_rate || 0,
          data.sign_date || null, data.effective_date || null, data.expiry_date || null,
          data.payment_terms || null, data.delivery_terms || null, data.warranty_terms || null,
          data.content || null, data.attachment_urls ? JSON.stringify(data.attachment_urls) : null,
@@ -151,7 +152,7 @@ class ContractService {
          WHERE id = ? AND deleted_at IS NULL`,
         [data.name, data.type, current.status, data.party_a, data.party_b,
          data.party_b_id || null, data.party_b_type || null,
-         data.total_amount || 0, data.currency || 'CNY', data.tax_rate || 0,
+         data.total_amount || 0, data.currency || financeConfig.get('invoice.defaultCurrency', 'CNY'), data.tax_rate || 0,
          data.sign_date || null, data.effective_date || null, data.expiry_date || null,
          data.payment_terms || null, data.delivery_terms || null, data.warranty_terms || null,
          data.content || null, data.attachment_urls ? JSON.stringify(data.attachment_urls) : null,

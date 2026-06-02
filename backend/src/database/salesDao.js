@@ -6,6 +6,7 @@
 const { pool } = require('../config/db');
 const { logger } = require('../utils/logger');
 const { calculateLines, normalizeTaxRate } = require('../utils/money');
+const { financeConfig } = require('../config/financeConfig');
 
 class SalesDao {
   // ==========================================
@@ -196,14 +197,14 @@ class SalesDao {
 
       const [result] = await connection.execute(
         'INSERT INTO sales_orders (order_no, customer_id, quotation_id, contract_code, total_amount, tax_rate, tax_amount, subtotal, payment_terms, delivery_date, status, remarks, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [order.orderNo, order.customerId, order.quotationId, order.contractCode, order.totalAmount, normalizeTaxRate(order.taxRate, 0.13), order.taxAmount || 0, order.subtotal || 0, order.paymentTerms, order.deliveryDate, order.status, order.remarks, order.createdBy]
+        [order.orderNo, order.customerId, order.quotationId, order.contractCode, order.totalAmount, normalizeTaxRate(order.taxRate, financeConfig.get('tax.defaultVATRate', 0.13)), order.taxAmount || 0, order.subtotal || 0, order.paymentTerms, order.deliveryDate, order.status, order.remarks, order.createdBy]
       );
       const orderId = result.insertId;
 
       for (const item of items) {
         await connection.execute(
           'INSERT INTO sales_order_items (order_id, material_id, quantity, unit_price, amount, tax_percent, remark) VALUES (?, ?, ?, ?, ?, ?, ?)',
-          [orderId, item.material_id, item.quantity, item.unit_price, item.amount, item.tax_percent !== undefined ? item.tax_percent : 0.13, item.remark]
+          [orderId, item.material_id, item.quantity, item.unit_price, item.amount, item.tax_percent !== undefined ? item.tax_percent : financeConfig.get('tax.defaultVATRate', 0.13), item.remark]
         );
       }
 
@@ -224,10 +225,10 @@ class SalesDao {
 
       const remarks = order.notes || order.remarks || '';
       const orderAmounts = calculateLines(items || [], {
-        defaultTaxRate: order.tax_rate !== undefined ? order.tax_rate : 0.13,
+        defaultTaxRate: order.tax_rate !== undefined ? order.tax_rate : financeConfig.get('tax.defaultVATRate', 0.13),
       });
       const totalAmount = orderAmounts.totalAmount;
-      const taxRate = normalizeTaxRate(order.tax_rate !== undefined ? order.tax_rate : orderAmounts.taxRate, 0.13);
+      const taxRate = normalizeTaxRate(order.tax_rate !== undefined ? order.tax_rate : orderAmounts.taxRate, financeConfig.get('tax.defaultVATRate', 0.13));
       const subtotal = orderAmounts.subtotal;
       const taxAmount = orderAmounts.taxAmount;
 

@@ -16,6 +16,7 @@ const {
 } = require('../../constants/financeConstants');
 const { accountingConfig } = require('../../config/accountingConfig');
 const { currentDateString, toLocalDateString } = require('../../utils/dateUtils');
+const { financeConfig } = require('../../config/financeConfig');
 
 /**
  * 库存成本自动化服务
@@ -136,7 +137,7 @@ class InventoryCostService {
           account_id: inventoryAccountId,
           debit_amount: totalCost,
           credit_amount: 0,
-          currency_code: 'CNY',
+          currency_code: financeConfig.get('invoice.defaultCurrency', 'CNY'),
           exchange_rate: 1,
           description: `入库 - ${material.name} ${transaction.quantity}${transaction.unit || '个'}`,
         },
@@ -145,7 +146,7 @@ class InventoryCostService {
           account_id: sourceAccountId,
           debit_amount: 0,
           credit_amount: totalCost,
-          currency_code: 'CNY',
+          currency_code: financeConfig.get('invoice.defaultCurrency', 'CNY'),
           exchange_rate: 1,
           description: `入库来源 - ${material.name}`,
         },
@@ -254,7 +255,7 @@ class InventoryCostService {
           account_id: costAccountId,
           debit_amount: totalCost,
           credit_amount: 0,
-          currency_code: 'CNY',
+          currency_code: financeConfig.get('invoice.defaultCurrency', 'CNY'),
           exchange_rate: 1,
           description: `出库成本 - ${material.name} ${Math.abs(transaction.quantity)}${transaction.unit || '个'}`,
         },
@@ -263,7 +264,7 @@ class InventoryCostService {
           account_id: inventoryAccountId,
           debit_amount: 0,
           credit_amount: totalCost,
-          currency_code: 'CNY',
+          currency_code: financeConfig.get('invoice.defaultCurrency', 'CNY'),
           exchange_rate: 1,
           description: `出库 - ${material.name}`,
         },

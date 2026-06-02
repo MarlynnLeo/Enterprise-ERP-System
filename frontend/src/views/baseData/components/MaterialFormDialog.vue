@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <el-dialog
     :title="title"
     :model-value="modelValue"
@@ -272,12 +272,12 @@
         <el-col v-if="canMaintainPrice" :span="8">
           <el-form-item label="税率">
             <el-select v-model="form.tax_rate" placeholder="请选择税率" style="width: 100%">
-              <el-option label="0%" :value="0"></el-option>
-              <el-option label="1%" :value="0.01"></el-option>
-              <el-option label="3%" :value="0.03"></el-option>
-              <el-option label="6%" :value="0.06"></el-option>
-              <el-option label="9%" :value="0.09"></el-option>
-              <el-option label="13%" :value="0.13"></el-option>
+              <el-option
+                v-for="rate in financeStore.vatRateOptions"
+                :key="rate"
+                :label="financeStore.formatTaxRate(rate)"
+                :value="rate">
+              </el-option>
             </el-select>
           </el-form-item>
         </el-col>
@@ -318,6 +318,10 @@ import { ref, reactive, computed, watch, nextTick } from 'vue'
 import { Refresh, InfoFilled, Upload } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { materialApi } from '@/api/material'
+import { useFinanceStore } from '@/stores/finance'
+
+const financeStore = useFinanceStore()
+financeStore.loadSettings()
 // 需要引入其他API: productCategory, location, unit, etc.
 // 为了简化，这些options可以由父组件传入
 
@@ -378,7 +382,7 @@ const form = reactive({
   safety_stock: '',
   min_stock: '',
   max_stock: '',
-  tax_rate: 0.13,
+  tax_rate: financeStore.defaultVATRate,
   remark: ''
 })
 
@@ -490,7 +494,7 @@ const handleClose = () => {
 const resetForm = () => {
   if (formRef.value) formRef.value.resetFields()
   Object.keys(form).forEach(key => {
-    form[key] = (key === 'tax_rate' ? 0.13 : (['price','cost_price','min_stock','max_stock','safety_stock'].includes(key) ? '' : (key.endsWith('id') ? null : '')))
+    form[key] = (key === 'tax_rate' ? financeStore.defaultVATRate : (['price','cost_price','min_stock','max_stock','safety_stock'].includes(key) ? '' : (key.endsWith('id') ? null : '')))
   })
 }
 

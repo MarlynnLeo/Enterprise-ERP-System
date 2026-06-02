@@ -18,6 +18,7 @@ const { currentDateString, toLocalDateString } = require('../../utils/dateUtils'
  */
 const GLService = require('../finance/GLService');
 const Precision = require('../../utils/precision');
+const { financeConfig } = require('../../config/financeConfig');
 class CostAccountingService {
   /**
    * 成本核算方法枚举
@@ -490,7 +491,7 @@ class CostAccountingService {
             account_id: item.account_id,
             debit_amount: item.credit_amount,
             credit_amount: item.debit_amount,
-            currency_code: item.currency_code || 'CNY',
+            currency_code: item.currency_code || financeConfig.get('invoice.defaultCurrency', 'CNY'),
             exchange_rate: item.exchange_rate || 1,
             cost_center_id: item.cost_center_id || null,
             description: `自动冲销无效WIP凭证明细: ${item.description || ''}`,
@@ -1214,7 +1215,7 @@ class CostAccountingService {
                     account_id: item.account_id,
                     debit_amount: item.credit_amount,
                     credit_amount: item.debit_amount,
-                    currency_code: item.currency_code || 'CNY',
+                    currency_code: item.currency_code || financeConfig.get('invoice.defaultCurrency', 'CNY'),
                     exchange_rate: item.exchange_rate || 1,
                     cost_center_id: item.cost_center_id || order.cost_center_id || null,
                     description: `自动冲销失配生产成本凭证明细: ${item.description || ''}`,
@@ -2380,7 +2381,7 @@ class CostAccountingService {
         laborCost: costItems[1].amount,
         overheadCost: costItems[2].amount,
         totalCost,
-        currency: 'CNY',
+        currency: financeConfig.get('invoice.defaultCurrency', 'CNY'),
         calculationMethod,
         details: {
           actualHours,

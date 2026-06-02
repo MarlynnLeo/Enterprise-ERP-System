@@ -21,6 +21,7 @@ const { calculateLines, normalizeTaxRate } = require('../../../utils/money');
 const { STATUS, getConnection, generateSalesOrderNo } = require('./salesShared');
 const { autoGenerateFollowUpDocuments } = require('./salesExchangeController');
 const { generateProductionAndPurchasePlans } = require('./salesPackingController');
+const { financeConfig } = require('../../../config/financeConfig');
 
 function assertSalesOrderItemPrices(items = []) {
   const invalidRows = items
@@ -814,7 +815,7 @@ exports.createSalesOrder = async (req, res) => {
       quotationId: orderData.quotation_id || null,
       contractCode: orderData.contract_code || '',
       totalAmount: orderData.total_amount || 0,
-      taxRate: orderData.taxRate || orderData.tax_rate || 0.13, // 税率
+      taxRate: orderData.taxRate || orderData.tax_rate || financeConfig.get('tax.defaultVATRate', 0.13), // 税率
       taxAmount: orderData.tax_amount || 0, // 税额
       subtotal: orderData.subtotal || 0, // 不含税金额
       paymentTerms: orderData.payment_terms || '',
@@ -893,15 +894,15 @@ exports.createSalesOrder = async (req, res) => {
             ? item.tax_percent
             : item.tax_rate !== undefined
               ? item.tax_rate
-              : 0.13,
+              : financeConfig.get('tax.defaultVATRate', 0.13),
         remark: item.remark || '',
       });
     }
 
     // 计算金额：不含税金额、税额、价税合计（使用整数化精度控制）
-    const orderAmounts = calculateLines(items, { defaultTaxRate: order.taxRate || 0.13 });
+    const orderAmounts = calculateLines(items, { defaultTaxRate: order.taxRate || financeConfig.get('tax.defaultVATRate', 0.13) });
     items.splice(0, items.length, ...orderAmounts.items);
-    order.taxRate = normalizeTaxRate(order.taxRate, 0.13);
+    order.taxRate = normalizeTaxRate(order.taxRate, financeConfig.get('tax.defaultVATRate', 0.13));
     order.subtotal = orderAmounts.subtotal;
     order.taxAmount = orderAmounts.taxAmount;
     order.totalAmount = orderAmounts.totalAmount;

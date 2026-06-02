@@ -4,6 +4,7 @@ const InventoryService = require('../InventoryService');
 const InventoryTraceabilityService = require('./InventoryTraceabilityService');
 const DocumentLinkService = require('./DocumentLinkService');
 const { normalizeTaxRate, roundMoney, taxAmount: calculateTaxAmount } = require('../../utils/money');
+const { financeConfig } = require('../../config/financeConfig');
 
 class QualityIntegrationService {
   static toNumber(value, fallback = 0) {
@@ -155,7 +156,7 @@ class QualityIntegrationService {
     const unitPrice =
       this.toNumber(orderContext.price, 0) ||
       this.toNumber(material.costPrice, 0);
-    const taxRate = normalizeTaxRate(orderContext.tax_rate, 0.13);
+    const taxRate = normalizeTaxRate(orderContext.tax_rate, financeConfig.get('tax.defaultVATRate', 0.13));
     const amountExcludingTax = roundMoney(receiveQty * unitPrice);
     const taxAmount = calculateTaxAmount(amountExcludingTax, taxRate);
     const totalAmount = roundMoney(amountExcludingTax + taxAmount);

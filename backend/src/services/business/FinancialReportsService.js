@@ -18,6 +18,7 @@ const db = require('../../config/db');
 const { logger } = require('../../utils/logger');
 const { accountingConfig } = require('../../config/accountingConfig');
 const { toLocalDateString } = require('../../utils/dateUtils');
+const { financeConfig } = require('../../config/financeConfig');
 
 /**
  * 企业级财务报表服务
@@ -152,7 +153,7 @@ class FinancialReportsService {
         type: account.type,
         parentId: account.parent_id,
         isDebit: Boolean(account.is_debit),
-        currencyCode: account.currency_code || 'CNY',
+        currencyCode: account.currency_code || financeConfig.get('invoice.defaultCurrency', 'CNY'),
         currentBalance: this.roundAmount(currentBalance),
         compareBalance: compareDate ? this.roundAmount(compareBalance) : null,
         change: compareDate ? this.roundAmount(currentBalance - compareBalance) : null,

@@ -15,6 +15,7 @@ const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const { accountingConfig } = require('../../../config/accountingConfig');
 const { currentDateString } = require('../../../utils/dateUtils');
 const OpeningBalanceService = require('../../../services/business/OpeningBalanceService');
+const { financeConfig } = require('../../../config/financeConfig');
 
 function normalizeMysqlFlag(value) {
   if (value === true || value === 1 || value === 1n) return true;
@@ -655,7 +656,7 @@ const financeController = {
               : null,
           debitAmount: parseFloat(item.debit_amount) || 0,
           creditAmount: parseFloat(item.credit_amount) || 0,
-          currencyCode: item.currency_code || 'CNY',
+          currencyCode: item.currency_code || financeConfig.get('invoice.defaultCurrency', 'CNY'),
           exchangeRate: parseFloat(item.exchange_rate) || 1,
           costCenterId: item.cost_center_id,
           description: item.description,
