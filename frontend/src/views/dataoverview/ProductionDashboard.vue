@@ -225,7 +225,7 @@
   </div>
 </template>
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import { getProductionStatusColor } from '@/constants/systemConstants'
 import { formatDate as formatDateUtil } from '@/utils/helpers/formatters';
 import Chart from '@/utils/chartCore';
@@ -531,6 +531,13 @@ function updateProcessCompletionChart() {
   }
 }
 // 生命周期钩子
+onBeforeUnmount(() => {
+  if (productionTrendChart) {
+    productionTrendChart.destroy();
+    productionTrendChart = null;
+  }
+});
+
 onMounted(async () => {
   try {
     // 初始化图表

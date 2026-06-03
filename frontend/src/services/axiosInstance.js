@@ -242,8 +242,10 @@ setupInterceptors(fastApi);
 api.interceptors.response.use(undefined, async (err) => {
     const config = err.config;
     const status = err.response?.status;
-    // 不重试以下情况：没有配置、已达重试上限、认证/权限错误（4xx 不重试）
-    if (!config || !config.retry || config.retryCount >= config.retry || (status && status >= 400 && status < 500)) {
+    const method = (config?.method || 'get').toLowerCase();
+    const isIdempotent = method === 'get' || method === 'head';
+    // 不重试：无配置/超限/非幂等方法（避免重复提交）/认证权限类 4xx
+    if (!config || !config.retry || config.retryCount >= config.retry || !isIdempotent || (status && status >= 400 && status < 500)) {
         return Promise.reject(err);
     }
     config.retryCount = (config.retryCount || 0) + 1;

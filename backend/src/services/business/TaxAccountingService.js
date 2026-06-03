@@ -482,26 +482,17 @@ class TaxAccountingService {
     const datePart = currentDateString().replace(/-/g, '');
 
     // 查询当天最大编号
+    const likePrefix = `${prefix}-${datePart}`;
+    // 取序号部分的数值最大值（而非字典序/末4位），避免超 9999 后重号或截断
     const [rows] = await connection.execute(
-      `
-      SELECT entry_number
-      FROM gl_entries
-      WHERE entry_number LIKE ?
-      ORDER BY entry_number DESC
-      LIMIT 1
-      FOR UPDATE
-    `,
-      [`${prefix}-${datePart}%`]
+      `SELECT MAX(CAST(SUBSTRING(entry_number, ?) AS UNSIGNED)) AS max_seq
+       FROM gl_entries WHERE entry_number LIKE ? FOR UPDATE`,
+      [likePrefix.length + 1, `${likePrefix}%`]
     );
 
-    let sequence = 1;
-    if (rows.length > 0) {
-      const lastNumber = rows[0].entry_number;
-      const lastSequence = parseInt(lastNumber.slice(-4));
-      sequence = lastSequence + 1;
-    }
+    const sequence = (rows[0]?.max_seq || 0) + 1;
 
-    return `${prefix}-${datePart}${String(sequence).padStart(4, '0')}`;
+    return `${likePrefix}${String(sequence).padStart(4, '0')}`;
   }
 
   /**

@@ -38,16 +38,19 @@ class FIFOOutboundService {
         );
 
         // 执行FIFO出库
-        const fifoResult = await BatchManagementService.executeFIFOOutbound({
-          material_id: material.material_id,
-          material_code: material.material_code,
-          required_quantity: material.required_quantity,
-          reference_type: 'production_outbound',
-          reference_id: production_task_id,
-          reference_no: production_order_no,
-          operator,
-          remarks: `生产出库 - ${remarks || ''}`,
-        });
+        const fifoResult = await BatchManagementService.executeFIFOOutbound(
+          {
+            material_id: material.material_id,
+            material_code: material.material_code,
+            required_quantity: material.required_quantity,
+            reference_type: 'production_outbound',
+            reference_id: production_task_id,
+            reference_no: production_order_no,
+            operator,
+            remarks: `生产出库 - ${remarks || ''}`,
+          },
+          connection
+        );
 
         outboundResults.push({
           material_id: material.material_id,
@@ -118,16 +121,19 @@ class FIFOOutboundService {
         );
 
         // 执行FIFO出库
-        const fifoResult = await BatchManagementService.executeFIFOOutbound({
-          material_id: product.product_id, // 产品也作为物料处理
-          material_code: product.product_code,
-          required_quantity: product.required_quantity,
-          reference_type: 'sales_outbound',
-          reference_id: sales_order_id,
-          reference_no: sales_order_no,
-          operator,
-          remarks: `销售出库 - ${customer_name} - ${remarks || ''}`,
-        });
+        const fifoResult = await BatchManagementService.executeFIFOOutbound(
+          {
+            material_id: product.product_id, // 产品也作为物料处理
+            material_code: product.product_code,
+            required_quantity: product.required_quantity,
+            reference_type: 'sales_outbound',
+            reference_id: sales_order_id,
+            reference_no: sales_order_no,
+            operator,
+            remarks: `销售出库 - ${customer_name} - ${remarks || ''}`,
+          },
+          connection
+        );
 
         outboundResults.push({
           product_id: product.product_id,

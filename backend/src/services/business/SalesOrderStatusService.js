@@ -108,15 +108,24 @@ class SalesOrderStatusService {
       });
 
       // 4. 计算发货统计
+      // 出库明细仅按物料(product_id)记录、不区分订单明细行，故订购量也按物料汇总后比对，
+      // 避免同一物料存在多条订单明细行时发货量被每行重复计数导致的状态误判(H12)
+      const orderedMap = {};
+      orderItems.forEach((item) => {
+        const mid = item.material_id;
+        orderedMap[mid] = (orderedMap[mid] || 0) + (parseFloat(item.ordered_quantity) || 0);
+      });
+      const orderedMaterialIds = Object.keys(orderedMap);
+
       let totalOrdered = 0;
       let totalShipped = 0;
       let fullyShippedItems = 0;
       let partiallyShippedItems = 0;
       let unshippedItems = 0;
 
-      orderItems.forEach((item) => {
-        const orderedQty = parseFloat(item.ordered_quantity) || 0;
-        const shippedQty = shippedMap[item.material_id] || 0;
+      orderedMaterialIds.forEach((mid) => {
+        const orderedQty = orderedMap[mid];
+        const shippedQty = shippedMap[mid] || 0;
 
         totalOrdered += orderedQty;
         totalShipped += shippedQty;
@@ -161,10 +170,10 @@ class SalesOrderStatusService {
           newStatus = SALES_STATUS_KEYS.READY_TO_SHIP;
           statusMessage = '未发货，设为待发货';
         }
-      } else if (fullyShippedItems === orderItems.length) {
+      } else if (fullyShippedItems === orderedMaterialIds.length) {
         // 全部产品完全发货
         newStatus = SALES_STATUS_KEYS.SHIPPED;
-        statusMessage = `全部产品已发货 (${fullyShippedItems}/${orderItems.length})`;
+        statusMessage = `全部产品已发货 (${fullyShippedItems}/${orderedMaterialIds.length})`;
       } else {
         // 部分发货
         newStatus = SALES_STATUS_KEYS.PARTIAL_SHIPPED;
@@ -428,13 +437,29 @@ class SalesOrderStatusService {
         [SALES_STATUS_KEYS.COMPLETED, SALES_STATUS_KEYS.PROCESSING, orderId, orderId, orderId, orderId, orderId]
       );
 
+      // 出库/退货均按物料(product_id)汇总，而订单明细可能存在同物料多行，
+      // 需先按物料归并(订购量累加，已发/已退取该物料汇总值)再判定状态，
+      // 避免同物料多行时发货量被每行重复计数导致的统计失真(H12)
+      const byMaterial = new Map();
+      detailStats.forEach((item) => {
+        const mid = Number(item.material_id);
+        if (!byMaterial.has(mid)) {
+          byMaterial.set(mid, {
+            ordered: 0,
+            grossShipped: parseFloat(item.gross_shipped) || 0,
+            returnedQty: parseFloat(item.returned_qty) || 0,
+          });
+        }
+        byMaterial.get(mid).ordered += parseFloat(item.ordered_qty) || 0;
+      });
+
       let unshippedItems = 0;
       let partialItems = 0;
       let fullyShippedItems = 0;
 
-      detailStats.forEach((item) => {
-        const netShipped = Math.max(0, parseFloat(item.gross_shipped) - parseFloat(item.returned_qty));
-        const orderedQty = parseFloat(item.ordered_qty);
+      byMaterial.forEach((agg) => {
+        const netShipped = Math.max(0, agg.grossShipped - agg.returnedQty);
+        const orderedQty = agg.ordered;
 
         if (netShipped === 0) {
           unshippedItems++;
@@ -455,7 +480,8 @@ class SalesOrderStatusService {
         order_id: stat.order_id,
         order_no: stat.order_no,
         order_status: stat.order_status,
-        total_items: stat.total_items,
+        // total_items 按物料归并口径，使其与下方 unshipped/partial/fully 三项之和保持一致
+        total_items: byMaterial.size,
         total_ordered: totalOrdered,
         total_shipped: totalShipped,
         total_returned: totalReturned,

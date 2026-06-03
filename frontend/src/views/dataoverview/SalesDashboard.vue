@@ -221,7 +221,7 @@
 <script setup>
 import { parseListData } from '@/utils/responseParser';
 import { formatDate } from '@/utils/helpers/dateUtils'
-import { ref, computed, onMounted, watch, toRaw, nextTick } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch, toRaw, nextTick } from 'vue'
 import Chart from '@/utils/chartCore';
 // 安全的Chart.js创建函数
 function createSafeChart(ctx, config) {
@@ -744,6 +744,17 @@ watch(() => statistics.trend_data, (newTrendData, oldTrendData) => {
   }
 }, { deep: false }); // 改为浅监听，避免深度监听导致的性能问题
 // 生命周期钩子
+onBeforeUnmount(() => {
+  if (customerUpdateTimer) {
+    clearTimeout(customerUpdateTimer);
+    customerUpdateTimer = null;
+  }
+  if (trendUpdateTimer) {
+    clearTimeout(trendUpdateTimer);
+    trendUpdateTimer = null;
+  }
+});
+
 onMounted(async () => {
   try {
     // 等待DOM完全渲染

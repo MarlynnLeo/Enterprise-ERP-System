@@ -179,7 +179,10 @@ class NonconformingProductService {
 
       // 🔍 智能判断严重程度
       let severity = 'minor';
-      const unqualifiedRate = (inspection.unqualified_quantity / inspection.quantity) * 100;
+      const unqualifiedRate =
+        Number(inspection.quantity) > 0
+          ? (Number(inspection.unqualified_quantity || 0) / Number(inspection.quantity)) * 100
+          : 0;
 
       if (unqualifiedRate >= 50) {
         severity = 'critical'; // 不合格率 >= 50% -> 致命
@@ -310,7 +313,10 @@ class NonconformingProductService {
       }
 
       // 计算不合格率
-      const unqualifiedRate = (inspection.unqualified_quantity / inspection.quantity) * 100;
+      const unqualifiedRate =
+        Number(inspection.quantity) > 0
+          ? (Number(inspection.unqualified_quantity || 0) / Number(inspection.quantity)) * 100
+          : 0;
 
       // 匹配规则
       let matchedRule = null;
@@ -433,6 +439,12 @@ class NonconformingProductService {
       if (!VALID_DISPOSITIONS.includes(ncp.disposition)) {
         throw new Error('NCP disposition must be decided before completion');
       }
+      // H13: 让步接收(use_as_is)= 特采放行，必须经特采审批通过(approveConcession)后才能入库。
+      // 拦截"手动改判 use_as_is 后直接完成"绕过 applyConcession/approveConcession 审批闸门、
+      // 把不合格品直接放行入库的路径；正规放行路径为特采申请→审批通过自动入库。
+      if (ncp.disposition === 'use_as_is' && ncp.concession_status !== 'approved') {
+        throw new Error('让步接收(特采)必须经特采审批通过后才能完成，请改用特采申请/审批流程');
+      }
 
       const ncpQuantity = normalizeNumber(ncp.quantity, 0);
       const handledQuantity = normalizeNumber(completionData.handled_quantity, ncpQuantity);
@@ -528,14 +540,12 @@ class NonconformingProductService {
       const prefix = `${businessConfig.documentPrefix.RECEIPT}${dateStr}`;
 
       const [maxNoResult] = await connection.query(
-        'SELECT MAX(receipt_no) as max_no FROM purchase_receipts WHERE receipt_no LIKE ?',
-        [`${prefix}%`]
+        `SELECT MAX(CAST(SUBSTRING(receipt_no, ?) AS UNSIGNED)) AS max_seq
+         FROM purchase_receipts WHERE receipt_no LIKE ? FOR UPDATE`,
+        [prefix.length + 1, `${prefix}%`]
       );
 
-      let sequence = 1;
-      if (maxNoResult[0].max_no) {
-        sequence = parseInt(maxNoResult[0].max_no.slice(-3)) + 1;
-      }
+      const sequence = (maxNoResult[0]?.max_seq || 0) + 1;
 
       const receiptNo = `${prefix}${String(sequence).padStart(3, '0')}`;
 
@@ -717,14 +727,12 @@ class NonconformingProductService {
       const prefix = `${businessConfig.documentPrefix.RETURN}${dateStr}`; // 使用配置的退货单前缀
 
       const [maxNoResult] = await connection.query(
-        'SELECT MAX(return_no) as max_no FROM purchase_returns WHERE return_no LIKE ?',
-        [`${prefix}%`]
+        `SELECT MAX(CAST(SUBSTRING(return_no, ?) AS UNSIGNED)) AS max_seq
+         FROM purchase_returns WHERE return_no LIKE ? FOR UPDATE`,
+        [prefix.length + 1, `${prefix}%`]
       );
 
-      let sequence = 1;
-      if (maxNoResult[0] && maxNoResult[0].max_no) {
-        sequence = parseInt(maxNoResult[0].max_no.slice(-3)) + 1;
-      }
+      const sequence = (maxNoResult[0]?.max_seq || 0) + 1;
 
       const returnNo = `${prefix}${String(sequence).padStart(3, '0')}`;
 
@@ -1001,14 +1009,12 @@ class NonconformingProductService {
       const prefix = `${businessConfig.documentPrefix.SCRAP}${dateStr}`;
 
       const [maxNoResult] = await connection.query(
-        'SELECT MAX(scrap_no) as max_no FROM scrap_records WHERE scrap_no LIKE ?',
-        [`${prefix}%`]
+        `SELECT MAX(CAST(SUBSTRING(scrap_no, ?) AS UNSIGNED)) AS max_seq
+         FROM scrap_records WHERE scrap_no LIKE ? FOR UPDATE`,
+        [prefix.length + 1, `${prefix}%`]
       );
 
-      let sequence = 1;
-      if (maxNoResult[0] && maxNoResult[0].max_no) {
-        sequence = parseInt(maxNoResult[0].max_no.slice(-3)) + 1;
-      }
+      const sequence = (maxNoResult[0]?.max_seq || 0) + 1;
 
       const scrapNo = `${prefix}${String(sequence).padStart(3, '0')}`;
 
@@ -1173,14 +1179,12 @@ class NonconformingProductService {
       const prefix = `${businessConfig.documentPrefix.REPLACEMENT}${dateStr}`;
 
       const [maxNoResult] = await connection.query(
-        'SELECT MAX(replacement_no) as max_no FROM replacement_orders WHERE replacement_no LIKE ?',
-        [`${prefix}%`]
+        `SELECT MAX(CAST(SUBSTRING(replacement_no, ?) AS UNSIGNED)) AS max_seq
+         FROM replacement_orders WHERE replacement_no LIKE ? FOR UPDATE`,
+        [prefix.length + 1, `${prefix}%`]
       );
 
-      let sequence = 1;
-      if (maxNoResult[0] && maxNoResult[0].max_no) {
-        sequence = parseInt(maxNoResult[0].max_no.slice(-3)) + 1;
-      }
+      const sequence = (maxNoResult[0]?.max_seq || 0) + 1;
 
       const replacementNo = `${prefix}${String(sequence).padStart(3, '0')}`;
 
@@ -1328,22 +1332,32 @@ class NonconformingProductService {
    * 申请特采 (让步接收)
    */
   static async applyConcession(ncpId, { reason, applicant }) {
+    const db = require('../../config/db');
+    let connection;
     try {
-      const ncp = await NonconformingProduct.getById(ncpId);
-      if (!ncp) throw new Error('NCP not found');
+      if (!reason || !String(reason).trim()) {
+        throw new Error('Concession reason is required');
+      }
 
+      connection = await db.pool.getConnection();
+      await connection.beginTransaction();
+
+      // H13: 事务 + 行锁 + 锁内复检，避免并发重复申请，并保证主更新与审计日志原子落库
+      const [rows] = await connection.query(
+        'SELECT * FROM nonconforming_products WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+        [ncpId]
+      );
+      if (rows.length === 0) throw new Error('NCP not found');
+
+      const ncp = rows[0];
       if (ncp.status === STATUS.NCP.COMPLETED || ncp.status === STATUS.NCP.CLOSED) {
         throw new Error('该单据已完结，无法申请特采');
       }
       if (ncp.concession_status === 'pending') {
         throw new Error('该单据已有待审特采申请');
       }
-      if (!reason || !String(reason).trim()) {
-        throw new Error('Concession reason is required');
-      }
 
-      const db = require('../../config/db');
-      await db.pool.query(
+      await connection.query(
         `UPDATE nonconforming_products
          SET concession_status = 'pending',
              concession_reason = ?,
@@ -1354,17 +1368,21 @@ class NonconformingProductService {
       );
 
       // 记录操作日志
-      await db.pool.query(
+      await connection.query(
         `INSERT INTO nonconforming_product_actions (ncp_id, action_type, action_description, action_by)
          VALUES (?, 'evaluate', ?, ?)`,
         [ncpId, `申请特采，理由: ${reason}`, applicant]
       );
 
+      await connection.commit();
       logger.info(`Concession applied for NCP ${ncp.ncp_no} by ${applicant}`);
       return true;
     } catch (error) {
+      if (connection) await connection.rollback();
       logger.error('Failed to apply concession:', error);
       throw error;
+    } finally {
+      if (connection) connection.release();
     }
   }
 

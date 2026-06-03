@@ -521,18 +521,16 @@ class DepreciationService {
   static async generateEntryNumber(prefix, connection = db.pool) {
     const dateStr = currentDateString().replace(/-/g, '');
 
+    const likePrefix = `${prefix}${dateStr}`;
+    // 取序号部分的数值最大值（而非字典序/末3位），避免超 999 后重号或截断
     const [result] = await connection.execute(
-      `SELECT entry_number as max_no
-       FROM gl_entries
-       WHERE entry_number LIKE ?
-       ORDER BY entry_number DESC
-       LIMIT 1
-       FOR UPDATE`,
-      [`${prefix}${dateStr}%`]
+      `SELECT MAX(CAST(SUBSTRING(entry_number, ?) AS UNSIGNED)) AS max_seq
+       FROM gl_entries WHERE entry_number LIKE ? FOR UPDATE`,
+      [likePrefix.length + 1, `${likePrefix}%`]
     );
 
-    const maxNo = result[0]?.max_no || `${prefix}${dateStr}000`;
-    const nextNo = `${prefix}${dateStr}${(parseInt(maxNo.slice(-3)) + 1).toString().padStart(3, '0')}`;
+    const maxSeq = result[0]?.max_seq || 0;
+    const nextNo = `${likePrefix}${String(maxSeq + 1).padStart(3, '0')}`;
 
     return nextNo;
   }

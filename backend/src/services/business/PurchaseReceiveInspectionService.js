@@ -211,19 +211,18 @@ class PurchaseReceiveInspectionService {
       date.getMonth() + 1
     ).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`;
 
+    // 基于已生成批次号取序号数值最大值（而非检验单行数），避免软删除导致计数回退撞号、并发重号
+    const likePrefix = `PUR-${supplierCode}-${dateStr}-`;
     const [rows] = await connection.query(
-      `SELECT id
+      `SELECT MAX(CAST(SUBSTRING(batch_no, ?) AS UNSIGNED)) AS max_seq
        FROM quality_inspections
-       WHERE inspection_type = 'incoming'
-         AND supplier_id = ?
-         AND DATE(planned_date) = CURDATE()
-         AND deleted_at IS NULL
+       WHERE inspection_type = 'incoming' AND supplier_id = ? AND batch_no LIKE ?
        FOR UPDATE`,
-      [supplierId]
+      [likePrefix.length + 1, supplierId, `${likePrefix}%`]
     );
 
-    const serialNo = String((rows?.length || 0) + 1).padStart(3, '0');
-    return `PUR-${supplierCode}-${dateStr}-${serialNo}`;
+    const serialNo = String((rows[0]?.max_seq || 0) + 1).padStart(3, '0');
+    return `${likePrefix}${serialNo}`;
   }
 }
 

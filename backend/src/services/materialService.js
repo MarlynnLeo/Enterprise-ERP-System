@@ -3,6 +3,16 @@ const { logger } = require('../utils/logger');
 const ExcelJS = require('exceljs');
 const { softDelete } = require('../utils/softDelete');
 
+// 合法 SQL 标识符（列名）白名单校验，防止物料字段被用作列名注入
+const SAFE_COLUMN_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
+function assertSafeColumns(keys) {
+  for (const key of keys) {
+    if (!SAFE_COLUMN_NAME.test(key)) {
+      throw new Error(`非法字段名: ${key}`);
+    }
+  }
+}
+
 const materialService = {
   async getAllMaterials(page = 1, pageSize = 10, filters = {}) {
     try {
@@ -208,6 +218,7 @@ const materialService = {
 
       const keys = Object.keys(materialData);
       const values = Object.values(materialData);
+      assertSafeColumns(keys);
 
       const sql = `INSERT INTO materials (${keys.join(', ')}) VALUES (${keys.map(() => '?').join(', ')})`;
       const [result] = await pool.execute(sql, values);
@@ -240,6 +251,7 @@ const materialService = {
 
       const keys = Object.keys(materialData);
       const values = Object.values(materialData);
+      assertSafeColumns(keys);
 
       const sql = `UPDATE materials SET ${keys.map((key) => `${key} = ?`).join(', ')} WHERE id = ?`;
       await pool.execute(sql, [...values, id]);

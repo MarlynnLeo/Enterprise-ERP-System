@@ -17,6 +17,7 @@ const {
 const { accountingConfig } = require('../../config/accountingConfig');
 const { currentDateString, toLocalDateString } = require('../../utils/dateUtils');
 const { financeConfig } = require('../../config/financeConfig');
+const Precision = require('../../utils/precision');
 
 /**
  * 库存成本自动化服务
@@ -59,7 +60,7 @@ class InventoryCostService {
       // ✅ 优先使用流水传入的实际账单价格 (如采购价/生产成本价)，若无则回退至移动加权平均价或静态参考价
       const inboundUnitCost = transaction.unit_cost !== undefined ? parseFloat(transaction.unit_cost) : parseFloat(material.cost_price || 0);
       const inboundQty = parseFloat(transaction.quantity) || 0;
-      const totalCost = inboundQty * inboundUnitCost;
+      const totalCost = Precision.round2(Precision.mul(inboundQty, inboundUnitCost));
 
       // ==========================================
       // [新增] 实施移动加权平均成本 (MAC) 闭环更新
@@ -80,10 +81,13 @@ class InventoryCostService {
         // 退回逻辑：oldQty = 当前总数量 - 本次入库数量
         const oldQty = Math.max(0, currentTotalQty - inboundQty);
 
+        // ⚠️ 已知局限(H7)：此处用 SUM(quantity) 反推"入库前库存"，在并发/乱序入账/退货场景下 oldQty 可能不准，
+        //    且 oldCostPrice 取自被本流程反复改写的 materials.cost_price。彻底修复应基于持久化的"结存数量+结存金额"
+        //    递推(或台账留存单笔成本后用 SUM(quantity*unit_cost)/SUM(quantity))，需先确认 inventory_ledger 数据模型。
         if (oldQty > 0) {
-          const oldTotalValue = oldQty * oldCostPrice;
-          const newTotalQty = oldQty + inboundQty;
-          newMac = (oldTotalValue + totalCost) / newTotalQty;
+          const oldTotalValue = Precision.mul(oldQty, oldCostPrice);
+          const newTotalQty = Precision.add(oldQty, inboundQty);
+          newMac = Precision.div(Precision.add(oldTotalValue, totalCost), newTotalQty);
         }
 
         // 回写到 materials 表 (确保其回归反映真实库存账面的职责)
@@ -215,7 +219,11 @@ class InventoryCostService {
       // 2. 计算成本
       // ✅ 出库同理，优先取透传价格，若无则取当下材料已被 MAC 算法维护好的 cost_price 移动加权均价
       const unitCost = transaction.unit_cost !== undefined ? parseFloat(transaction.unit_cost) : parseFloat(material.cost_price || 0);
-      const totalCost = Math.abs(transaction.quantity) * unitCost;
+      // 防御：单位成本异常(<=0/NaN)时告警，避免以 0 成本结转导致销售成本/毛利失真
+      if (!(unitCost > 0)) {
+        logger.warn(`[出库成本] 物料 ${material.code} 单位成本异常(${unitCost})，请核对采购价/MAC 均价；本次仍按 ${unitCost} 结转`);
+      }
+      const totalCost = Precision.round2(Precision.mul(Math.abs(parseFloat(transaction.quantity) || 0), unitCost));
 
       // 3. 获取当前会计期间
       const periodId = context.periodId || (await this.getCurrentPeriodId(connection, accountingDate));
@@ -469,13 +477,16 @@ class InventoryCostService {
   static async generateEntryNumber(connection, prefix) {
     const dateStr = currentDateString().replace(/-/g, '');
 
+    const likePrefix = `${prefix}${dateStr}`;
+    // 取序号部分的数值最大值（而非字典序/末3位），避免超 999 后重号或截断
     const [result] = await connection.execute(
-      'SELECT MAX(entry_number) as max_no FROM gl_entries WHERE entry_number LIKE ? FOR UPDATE',
-      [`${prefix}${dateStr}%`]
+      `SELECT MAX(CAST(SUBSTRING(entry_number, ?) AS UNSIGNED)) AS max_seq
+       FROM gl_entries WHERE entry_number LIKE ? FOR UPDATE`,
+      [likePrefix.length + 1, `${likePrefix}%`]
     );
 
-    const maxNo = result[0].max_no || `${prefix}${dateStr}000`;
-    const nextNo = `${prefix}${dateStr}${(parseInt(maxNo.slice(-3)) + 1).toString().padStart(3, '0')}`;
+    const maxSeq = result[0].max_seq || 0;
+    const nextNo = `${likePrefix}${String(maxSeq + 1).padStart(3, '0')}`;
 
     return nextNo;
   }

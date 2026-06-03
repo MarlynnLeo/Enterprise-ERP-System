@@ -218,7 +218,7 @@
 
 import { formatDate } from '@/utils/helpers/dateUtils'
 
-import { ref, computed, onMounted, reactive, watch } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, reactive, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import Chart from '@/utils/chartCore';
 import { ElMessage } from 'element-plus';
@@ -332,6 +332,17 @@ function viewInspection(item) {
 }
 
 // 生命周期钩子
+onBeforeUnmount(() => {
+  if (passRateChartInstance) {
+    passRateChartInstance.destroy();
+    passRateChartInstance = null;
+  }
+  if (defectTypeChartInstance) {
+    defectTypeChartInstance.destroy();
+    defectTypeChartInstance = null;
+  }
+});
+
 onMounted(async () => {
   loading.value = true;
   try {

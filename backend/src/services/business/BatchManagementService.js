@@ -194,7 +194,7 @@ class BatchManagementService {
    * @param {number} requiredQuantity - 需要数量
    * @returns {Promise<Array>} - FIFO出库批次列表
    */
-  static async getFIFOOutboundBatches(materialId, requiredQuantity) {
+  static async getFIFOOutboundBatches(materialId, requiredQuantity, excludeReservationOrderId = null) {
     // ✅ 单表架构：直接从批次库存视图查询 (v_batch_stock)
     const query = `
       SELECT
@@ -216,22 +216,46 @@ class BatchManagementService {
     const result = await db.query(query, [materialId]);
     const batches = result.rows || [];
 
+    // H9 修复：扣减其他订单的 active 预留，避免 FIFO 出库把已为别的订单预留的库存发走。
+    // 销售出库排除本订单自身的预留（本单出库本应消费自己的预留）。
+    // 注：预留为 (material, location) 级，此处按 material 汇总做总量上限管控。
+    let reservedSql = `
+      SELECT COALESCE(SUM(reserved_quantity), 0) AS reserved
+      FROM inventory_reservations
+      WHERE material_id = ? AND status = 'active'
+    `;
+    const reservedParams = [materialId];
+    if (excludeReservationOrderId) {
+      reservedSql += ' AND order_id != ?';
+      reservedParams.push(excludeReservationOrderId);
+    }
+    const reservedResult = await db.query(reservedSql, reservedParams);
+    const reservedByOthers = parseFloat((reservedResult.rows || [])[0]?.reserved || 0);
+
+    const totalOnHand = batches.reduce((sum, b) => sum + parseFloat(b.available_quantity || 0), 0);
+    // 本次可分配总量上限 = 批次现有量合计 - 其他订单已预留量
+    let allocatableTotal = Math.max(0, totalOnHand - reservedByOthers);
+
     // 计算FIFO分配
     const allocatedBatches = [];
     let remainingQuantity = requiredQuantity;
 
     for (const batch of batches) {
-      if (remainingQuantity <= 0) break;
+      if (remainingQuantity <= 0 || allocatableTotal <= 0) break;
 
-      const allocatedQuantity = Math.min(batch.available_quantity, remainingQuantity);
+      const batchAvailable = parseFloat(batch.available_quantity || 0);
+      // 单批次分配量同时受批次现有量、剩余需求、剩余可分配总量约束
+      const allocatedQuantity = Math.min(batchAvailable, remainingQuantity, allocatableTotal);
+      if (allocatedQuantity <= 0) continue;
 
       allocatedBatches.push({
         ...batch,
         allocated_quantity: allocatedQuantity,
-        remaining_in_batch: batch.available_quantity - allocatedQuantity,
+        remaining_in_batch: batchAvailable - allocatedQuantity,
       });
 
       remainingQuantity -= allocatedQuantity;
+      allocatableTotal -= allocatedQuantity;
     }
 
     return {
@@ -246,11 +270,14 @@ class BatchManagementService {
    * @param {Object} outboundData - 出库数据
    * @returns {Promise<Object>} - 出库结果
    */
-  static async executeFIFOOutbound(outboundData) {
-    const connection = await db.pool.getConnection();
+  static async executeFIFOOutbound(outboundData, externalConnection = null) {
+    // 支持复用外层事务连接：传入 externalConnection 时不自管事务，由调用方统一提交/回滚，
+    // 避免多物料出库时各自独立提交导致"部分成功、无法整体回滚"
+    const connection = externalConnection || (await db.pool.getConnection());
+    const ownTransaction = !externalConnection;
 
     try {
-      await connection.beginTransaction();
+      if (ownTransaction) await connection.beginTransaction();
 
       const {
         material_id,
@@ -263,8 +290,14 @@ class BatchManagementService {
         [material_id]
       );
 
-      // 1. 获取FIFO出库批次
-      const fifoResult = await this.getFIFOOutboundBatches(material_id, required_quantity);
+      // 1. 获取FIFO出库批次（销售出库排除本订单自身的预留，避免被自己的预留挡住）
+      const excludeReservationOrderId =
+        outboundData.reference_type === 'sales_outbound' ? outboundData.reference_id : null;
+      const fifoResult = await this.getFIFOOutboundBatches(
+        material_id,
+        required_quantity,
+        excludeReservationOrderId
+      );
 
       if (fifoResult.shortage > 0) {
         throw new Error(`库存不足，缺少 ${fifoResult.shortage} 单位`);
@@ -299,7 +332,7 @@ class BatchManagementService {
         });
       }
 
-      await connection.commit();
+      if (ownTransaction) await connection.commit();
 
       return {
         success: true,
@@ -308,11 +341,11 @@ class BatchManagementService {
         total_cost: outboundRecords.reduce((sum, record) => sum + record.total_cost, 0),
       };
     } catch (error) {
-      await connection.rollback();
+      if (ownTransaction) await connection.rollback();
       logger.error('FIFO出库失败:', error);
       throw error;
     } finally {
-      connection.release();
+      if (ownTransaction) connection.release();
     }
   }
 

@@ -639,10 +639,10 @@ const budgetModel = {
         `
         UPDATE budget_details
         SET used_amount = used_amount + ?,
-            remaining_amount = budget_amount - used_amount
+            remaining_amount = budget_amount - (used_amount + ?)
         WHERE id = ?
       `,
-        [amount, detailId]
+        [amount, amount, detailId]
       );
 
       logger.info('预算明细已使用金额更新成功', { detailId, amount });

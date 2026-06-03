@@ -9,6 +9,18 @@ const crypto = require('crypto');
 // 生成请求唯一标识（替代未导入的 uuidv4）
 const generateRequestId = () => crypto.randomUUID();
 
+// 敏感字段脱敏，避免密码/令牌等写入错误日志
+const SENSITIVE_FIELD_RE = /password|passwd|pwd|secret|token|authorization|cookie|credential|csrf/i;
+function sanitizeForLog(value, depth = 0) {
+  if (depth > 4 || value === null || typeof value !== 'object') return value;
+  if (Array.isArray(value)) return value.map((v) => sanitizeForLog(v, depth + 1));
+  const out = {};
+  for (const [k, v] of Object.entries(value)) {
+    out[k] = SENSITIVE_FIELD_RE.test(k) ? '[REDACTED]' : sanitizeForLog(v, depth + 1);
+  }
+  return out;
+}
+
 // 扩展的错误码定义
 const ERROR_CODES = {
   // 通用错误 1000-1999
@@ -177,7 +189,7 @@ const unifiedErrorHandler = (err, req, res, _next) => {
       ip: req.ip,
       userAgent: req.get('User-Agent'),
       userId: req.user?.id,
-      body: req.method !== 'GET' ? req.body : undefined,
+      body: req.method !== 'GET' ? sanitizeForLog(req.body) : undefined,
     },
     timestamp: error.timestamp,
   };

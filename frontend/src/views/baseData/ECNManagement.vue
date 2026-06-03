@@ -229,7 +229,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ecnApi } from '@/api/enhanced'
 import { baseDataApi } from '@/api/baseData'
@@ -452,6 +452,11 @@ const addItem = () => {
 const removeItem = (index) => {
   formData.value.items.splice(index, 1)
 }
+
+onBeforeUnmount(() => {
+  if (searchTimer) clearTimeout(searchTimer)
+  if (bomSearchTimer) clearTimeout(bomSearchTimer)
+})
 
 onMounted(fetchList)
 </script>

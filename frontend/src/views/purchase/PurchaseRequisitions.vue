@@ -1094,7 +1094,7 @@ const updateStatus = async () => {
         message += `\n${index + 1}. 订单号: ${order.order_no}`;
         message += `\n   供应商: ${order.supplier_name}`;
         message += `\n   物料数: ${order.items_count} 件`;
-        message += `\n   总金额: ¥${order.total_amount.toFixed(2)}`;
+        message += `\n   总金额: ¥${Number(order.total_amount || 0).toFixed(2)}`;
       });
       message += '\n\n请前往"采购订单"页面查看详情。';
 

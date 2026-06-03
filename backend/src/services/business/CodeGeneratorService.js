@@ -33,21 +33,23 @@ class CodeGeneratorService {
     // 2. 计算周期键
     const periodKey = this._getPeriodKey(rule.reset_cycle, rule.date_format);
 
-    // 3. 原子递增（使用 INSERT ... ON DUPLICATE KEY UPDATE 保证并发安全）
-    await db.query(
+    // 3. 原子递增并独占读取自增后的值（用 LAST_INSERT_ID 绑定到本连接，消除"先自增后独立SELECT"的回读竞态）
+    const [res] = await db.query(
       `INSERT INTO coding_sequences (business_type, period_key, current_value)
        VALUES (?, ?, ?)
-       ON DUPLICATE KEY UPDATE current_value = current_value + ?`,
+       ON DUPLICATE KEY UPDATE current_value = LAST_INSERT_ID(current_value + ?)`,
       [businessType, periodKey, rule.initial_value, rule.step]
     );
 
-    // 4. 读取当前值
-    const [[seq]] = await db.query(
-      'SELECT current_value FROM coding_sequences WHERE business_type = ? AND period_key = ?',
-      [businessType, periodKey]
-    );
-
-    const currentVal = seq.current_value;
+    // affectedRows === 1：首次插入，值即 initial_value；
+    // === 2：命中已存在行并自增，LAST_INSERT_ID() 返回本连接刚写入的新值（不受其他并发请求影响）
+    let currentVal;
+    if (res.affectedRows === 1) {
+      currentVal = rule.initial_value;
+    } else {
+      const [[seq]] = await db.query('SELECT LAST_INSERT_ID() AS current_value');
+      currentVal = Number(seq.current_value);
+    }
 
     // 5. 组装编号
     return this._formatCode(rule, currentVal);

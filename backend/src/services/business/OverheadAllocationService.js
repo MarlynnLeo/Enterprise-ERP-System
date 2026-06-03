@@ -9,6 +9,7 @@ const { logger } = require('../../utils/logger');
 const BusinessError = require('../../utils/BusinessError');
 const { softDelete } = require('../../utils/softDelete');
 const { currentDateString, toLocalDateString } = require('../../utils/dateUtils');
+const Precision = require('../../utils/precision');
 
 class OverheadAllocationService {
   // 分摊基础枚举
@@ -245,19 +246,19 @@ class OverheadAllocationService {
       // 2. 根据分摊基础计算费用
       switch (config.allocation_base) {
         case 'labor_cost':
-          overhead = (params.laborCost || 0) * parseFloat(config.rate);
+          overhead = Precision.mul(params.laborCost || 0, parseFloat(config.rate));
           break;
         case 'labor_hours':
-          overhead = (params.laborHours || 0) * parseFloat(config.rate);
+          overhead = Precision.mul(params.laborHours || 0, parseFloat(config.rate));
           break;
         case 'machine_hours':
-          overhead = (params.machineHours || 0) * parseFloat(config.rate);
+          overhead = Precision.mul(params.machineHours || 0, parseFloat(config.rate));
           break;
         case 'quantity':
-          overhead = (params.quantity || 0) * parseFloat(config.rate);
+          overhead = Precision.mul(params.quantity || 0, parseFloat(config.rate));
           break;
         case 'material_cost':
-          overhead = (params.materialCost || 0) * parseFloat(config.rate);
+          overhead = Precision.mul(params.materialCost || 0, parseFloat(config.rate));
           break;
         default:
           throw new BusinessError(
@@ -267,7 +268,7 @@ class OverheadAllocationService {
       }
 
       // 保留2位小数
-      overhead = Math.round(overhead * 100) / 100;
+      overhead = Precision.round2(overhead);
 
       logger.info(
         `[OverheadAllocation] 计算制造费用: base=${config.allocation_base}, rate=${config.rate}, result=${overhead}`
