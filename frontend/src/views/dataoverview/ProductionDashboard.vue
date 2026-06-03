@@ -226,6 +226,7 @@
 </template>
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
+import { getProductionStatusColor } from '@/constants/systemConstants'
 import { formatDate as formatDateUtil } from '@/utils/helpers/formatters';
 import Chart from '@/utils/chartCore';
 import { ElMessage } from 'element-plus';
@@ -306,16 +307,7 @@ function formatDate(date) {
 }
 // 获取状态类型
 function getStatusType(status) {
-  const statusMap = {
-    pending: 'warning',
-    preparing: 'primary',
-    material_issued: 'primary',
-    inProgress: 'success',
-    in_progress: 'success',
-    completed: 'success',
-    cancelled: 'danger'
-  };
-  return statusMap[status] || 'info';
+  return getProductionStatusColor(status);
 }
 // 获取状态文本
 function getStatusText(status) {

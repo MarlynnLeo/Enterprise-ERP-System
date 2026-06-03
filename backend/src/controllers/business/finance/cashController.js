@@ -19,6 +19,7 @@ const CashTransactionModel = require('../../../models/cash/CashTransaction');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const { currentDateString, toLocalDateString } = require('../../../utils/dateUtils');
 const { financeConfig } = require('../../../config/financeConfig');
+const { safeParseId } = require('../../../utils/safeParseId');
 
 /**
  * 安全的 parseFloat，返回 NaN 时抛出明确错误
@@ -391,7 +392,7 @@ const cashController = {
    */
   getTransactionById: async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = safeParseId(req.params.id);
 
       if (isNaN(id)) {
         return ResponseHandler.error(res, '无效的交易ID', 'VALIDATION_ERROR', 400);
@@ -458,7 +459,7 @@ const cashController = {
         });
       }
 
-      const id = parseInt(req.params.id);
+      const id = safeParseId(req.params.id);
 
       if (isNaN(id)) {
         return ResponseHandler.error(res, '无效的交易ID', 'VALIDATION_ERROR', 400);
@@ -498,7 +499,7 @@ const cashController = {
    */
   deleteTransaction: async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = safeParseId(req.params.id);
 
       if (isNaN(id)) {
         return ResponseHandler.error(res, '无效的交易ID', 'VALIDATION_ERROR', 400);
@@ -562,7 +563,7 @@ const cashController = {
    */
   getReconciliationById: async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = safeParseId(req.params.id);
 
       if (isNaN(id)) {
         return ResponseHandler.error(res, '无效的对账ID', 'VALIDATION_ERROR', 400);
@@ -630,7 +631,7 @@ const cashController = {
         });
       }
 
-      const id = parseInt(req.params.id);
+      const id = safeParseId(req.params.id);
 
       if (isNaN(id)) {
         return ResponseHandler.error(res, '无效的对账ID', 'VALIDATION_ERROR', 400);
@@ -799,7 +800,7 @@ const cashController = {
    */
   getBankAccountById: async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = safeParseId(req.params.id);
 
       if (isNaN(id)) {
         return ResponseHandler.error(res, '无效的银行账户ID', 'VALIDATION_ERROR', 400);
@@ -879,7 +880,7 @@ const cashController = {
         });
       }
 
-      const id = parseInt(req.params.id);
+      const id = safeParseId(req.params.id);
 
       if (isNaN(id)) {
         return ResponseHandler.error(res, '无效的银行账户ID', 'VALIDATION_ERROR', 400);
@@ -999,7 +1000,7 @@ const cashController = {
 
   getBankTransactionById: async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = safeParseId(req.params.id);
 
       if (isNaN(id)) {
         return ResponseHandler.error(res, '无效的交易ID', 'VALIDATION_ERROR', 400);
@@ -1088,7 +1089,7 @@ const cashController = {
    */
   updateBankTransaction: async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = safeParseId(req.params.id);
 
       if (isNaN(id)) {
         return ResponseHandler.error(res, '无效的交易ID', 'VALIDATION_ERROR', 400);
@@ -1138,7 +1139,7 @@ const cashController = {
    */
   deleteBankTransaction: async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = safeParseId(req.params.id);
 
       if (isNaN(id)) {
         return ResponseHandler.error(res, '无效的交易ID', 'VALIDATION_ERROR', 400);
@@ -1230,7 +1231,7 @@ const cashController = {
    */
   updateBankAccountStatus: async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = safeParseId(req.params.id);
 
       if (isNaN(id)) {
         return ResponseHandler.error(res, '无效的银行账户ID', 'VALIDATION_ERROR', 400);
@@ -1398,7 +1399,7 @@ const cashController = {
 
   submitForAudit: async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = safeParseId(req.params.id);
       if (isNaN(id)) {
         return ResponseHandler.error(res, '无效的交易ID', 'VALIDATION_ERROR', 400);
       }
@@ -1422,7 +1423,7 @@ const cashController = {
    */
   auditTransaction: async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = safeParseId(req.params.id);
       const { status, remark, auditorId } = req.body;
 
       if (isNaN(id)) {
@@ -2044,7 +2045,7 @@ const cashController = {
    */
   getCashTransactionById: async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = safeParseId(req.params.id);
       if (isNaN(id)) {
         return ResponseHandler.validationError(res, [{ msg: '无效的交易ID' }]);
       }
@@ -2109,7 +2110,7 @@ const cashController = {
         return ResponseHandler.validationError(res, errors.array());
       }
 
-      const id = parseInt(req.params.id);
+      const id = safeParseId(req.params.id);
       if (isNaN(id)) {
         return ResponseHandler.error(res, '无效的交易ID', 'VALIDATION_ERROR', 400);
       }
@@ -2142,7 +2143,7 @@ const cashController = {
    */
   deleteCashTransaction: async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = safeParseId(req.params.id);
       if (isNaN(id)) {
         return ResponseHandler.error(res, '无效的交易ID', 'VALIDATION_ERROR', 400);
       }
@@ -2258,7 +2259,7 @@ const cashController = {
    */
   submitCashTransactionForAudit: async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = safeParseId(req.params.id);
       if (isNaN(id)) {
         return ResponseHandler.error(res, '无效的交易ID', 'VALIDATION_ERROR', 400);
       }
@@ -2282,7 +2283,7 @@ const cashController = {
    */
   approveCashTransaction: async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = safeParseId(req.params.id);
       if (isNaN(id)) {
         return ResponseHandler.error(res, '无效的交易ID', 'VALIDATION_ERROR', 400);
       }
@@ -2315,7 +2316,7 @@ const cashController = {
    */
   rejectCashTransaction: async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = safeParseId(req.params.id);
       if (isNaN(id)) {
         return ResponseHandler.error(res, '无效的交易ID', 'VALIDATION_ERROR', 400);
       }

@@ -1163,7 +1163,7 @@ const fetchTaskList = async () => {
   }
 }
 
-import { getProductionStatusColor } from '@/constants/systemConstants'
+import { getProductionStatusColor, getProductionStatusText } from '@/constants/systemConstants'
 // 统一状态颜色（工序和任务共用）
 const getStatusType = (status) => {
   return getProductionStatusColor(status)

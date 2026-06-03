@@ -9,6 +9,7 @@ const CostLedgerService = require('../../../services/business/CostLedgerService'
 const CostAccountingService = require('../../../services/business/CostAccountingService');
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
+const { safeParseId } = require('../../../utils/safeParseId');
 const { authenticateToken } = require('../../../middleware/auth');
 const { requirePermission } = require('../../../middleware/requirePermission');
 const {
@@ -96,7 +97,7 @@ router.get('/trend', requirePermission('finance:cost:view'), async (req, res) =>
  */
 router.get('/task/:taskId', requirePermission('finance:cost:view'), async (req, res) => {
   try {
-    const data = await CostLedgerService.getTaskCostDrilldown(parseInt(req.params.taskId));
+    const data = await CostLedgerService.getTaskCostDrilldown(safeParseId(req.params.taskId));
     if (!data) {
       return ResponseHandler.error(res, '任务不存在', 'NOT_FOUND', 404);
     }
@@ -114,7 +115,7 @@ router.get('/task/:taskId', requirePermission('finance:cost:view'), async (req, 
 router.get('/efficiency/:taskId', requirePermission('finance:reports:view'), async (req, res) => {
   try {
     const data = await CostAccountingService.calculateEfficiencyVariance(
-      parseInt(req.params.taskId)
+      safeParseId(req.params.taskId)
     );
     ResponseHandler.success(res, data);
   } catch (error) {

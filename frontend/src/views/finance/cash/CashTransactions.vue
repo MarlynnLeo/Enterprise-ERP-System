@@ -373,6 +373,7 @@
 
 <script setup>
 import { formatDate } from '@/utils/helpers/dateUtils'
+import { getApprovalStatusText, getApprovalStatusColor } from '@/constants/systemConstants'
 import { formatCurrency, formatLocalDate } from '@/utils/format'
 
 import { ref, reactive, onMounted, watch } from 'vue';
@@ -492,14 +493,7 @@ const getCategoryText = (category) => {
 
 // 获取审核状态类型（用于标签颜色）
 const getAuditStatusType = (status) => {
-  const statusMap = {
-    draft: 'info',
-    pending: 'warning',
-    reviewed: 'primary',
-    approved: 'success',
-    rejected: 'danger'
-  };
-  return statusMap[status] || 'info';
+  return getApprovalStatusColor(status);
 };
 
 // 获取审核状态文本

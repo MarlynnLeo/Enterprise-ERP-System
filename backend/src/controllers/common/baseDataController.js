@@ -1282,7 +1282,7 @@ const baseDataController = {
   async approveBom(req, res) {
     try {
       const { pool } = require('../../config/db');
-      const bomId = parseInt(req.params.id, 10);
+      const bomId = safeParseId(req.params.id);
       if (!Number.isInteger(bomId) || bomId <= 0) {
         return ResponseHandler.error(res, '无效的BOM ID', 'VALIDATION_ERROR', 400);
       }
@@ -1321,7 +1321,7 @@ const baseDataController = {
   async unapproveBom(req, res) {
     try {
       const { pool } = require('../../config/db');
-      const bomId = parseInt(req.params.id, 10);
+      const bomId = safeParseId(req.params.id);
       if (!Number.isInteger(bomId) || bomId <= 0) {
         return ResponseHandler.error(res, '无效的BOM ID', 'VALIDATION_ERROR', 400);
       }

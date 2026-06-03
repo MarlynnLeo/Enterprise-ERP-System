@@ -14,6 +14,7 @@ const { financeConfig } = require('../../../config/financeConfig');
 const db = require('../../../config/db');
 const BankAccountModel = require('../../../models/cash/Account');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
+const { safeParseId } = require('../../../utils/safeParseId');
 const CodeGeneratorService = require('../../../services/business/CodeGeneratorService');
 const { currentDateString } = require('../../../utils/dateUtils');
 const {
@@ -140,7 +141,7 @@ const apController = {
   getInvoiceById: async (req, res) => {
     try {
       // [B-1] 参数类型校验
-      const invoiceId = parseInt(req.params.id);
+      const invoiceId = safeParseId(req.params.id);
       if (isNaN(invoiceId)) {
         return ResponseHandler.error(res, '无效的发票ID', 'VALIDATION_ERROR', 400);
       }
@@ -163,7 +164,7 @@ const apController = {
   getInvoiceForEdit: async (req, res) => {
     try {
       // [B-1] 参数类型校验
-      const invoiceId = parseInt(req.params.id);
+      const invoiceId = safeParseId(req.params.id);
       if (isNaN(invoiceId)) {
         return ResponseHandler.error(res, '无效的发票ID', 'VALIDATION_ERROR', 400);
       }
@@ -244,7 +245,7 @@ const apController = {
   updateInvoiceStatus: async (req, res) => {
     try {
       // [B-1] 参数类型校验
-      const invoiceId = parseInt(req.params.id);
+      const invoiceId = safeParseId(req.params.id);
       if (isNaN(invoiceId)) {
         return ResponseHandler.error(res, '无效的发票ID', 'VALIDATION_ERROR', 400);
       }
@@ -449,7 +450,7 @@ const apController = {
   getPaymentById: async (req, res) => {
     try {
       // [B-1] 参数类型校验
-      const paymentId = parseInt(req.params.id);
+      const paymentId = safeParseId(req.params.id);
       if (isNaN(paymentId)) {
         return ResponseHandler.error(res, '无效的付款记录ID', 'VALIDATION_ERROR', 400);
       }
@@ -653,7 +654,7 @@ const apController = {
    */
   voidPayment: async (req, res) => {
     try {
-      const paymentId = parseInt(req.params.id);
+      const paymentId = safeParseId(req.params.id);
       const { void_reason } = req.body;
 
       if (!paymentId) {
@@ -1075,7 +1076,7 @@ const apController = {
   getInvoicePayments: async (req, res) => {
     try {
       // [B-1] 参数类型校验
-      const invoiceId = parseInt(req.params.id);
+      const invoiceId = safeParseId(req.params.id);
       if (isNaN(invoiceId)) {
         return ResponseHandler.error(res, '无效的发票ID', 'VALIDATION_ERROR', 400);
       }

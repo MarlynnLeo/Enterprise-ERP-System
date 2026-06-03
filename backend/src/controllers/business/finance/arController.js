@@ -14,6 +14,7 @@ const arModel = require('../../../models/ar');
 const BankAccountModel = require('../../../models/cash/Account');
 const db = require('../../../config/db');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
+const { safeParseId } = require('../../../utils/safeParseId');
 const CodeGeneratorService = require('../../../services/business/CodeGeneratorService');
 const { currentDateString } = require('../../../utils/dateUtils');
 const {
@@ -117,7 +118,7 @@ const arController = {
    */
   getInvoiceById: async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = safeParseId(req.params.id);
       if (!id) {
         return ResponseHandler.error(res, '无效的发票ID', 'VALIDATION_ERROR', 400);
       }
@@ -224,7 +225,7 @@ const arController = {
    */
   updateInvoiceStatus: async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = safeParseId(req.params.id);
       const { status } = req.body;
 
       if (!id) {
@@ -273,7 +274,7 @@ const arController = {
    */
   getInvoiceForEdit: async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = safeParseId(req.params.id);
       if (!id) {
         return ResponseHandler.error(res, '无效的发票ID', 'VALIDATION_ERROR', 400);
       }
@@ -309,7 +310,7 @@ const arController = {
    */
   updateInvoice: async (req, res) => {
     try {
-      const invoiceId = parseInt(req.params.id);
+      const invoiceId = safeParseId(req.params.id);
       const invoiceData = req.body;
 
       if (!invoiceId) {
@@ -618,7 +619,7 @@ const arController = {
    */
   voidReceipt: async (req, res) => {
     try {
-      const receiptId = parseInt(req.params.id);
+      const receiptId = safeParseId(req.params.id);
       const { void_reason } = req.body;
 
       if (!receiptId) {
@@ -1044,7 +1045,7 @@ const arController = {
    */
   getInvoicePayments: async (req, res) => {
     try {
-      const invoiceId = parseInt(req.params.id);
+      const invoiceId = safeParseId(req.params.id);
 
       if (!invoiceId) {
         return ResponseHandler.error(res, '无效的发票ID', 'VALIDATION_ERROR', 400);

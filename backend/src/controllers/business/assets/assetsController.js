@@ -7,6 +7,7 @@
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
+const { safeParseId } = require('../../../utils/safeParseId');
 const { parsePagination } = require('../../../utils/safePagination');
 const { validateRequiredFields } = require('../../../utils/validationHelper');
 
@@ -71,7 +72,7 @@ const assetsController = {
    */
   getAssetById: async (req, res) => {
     try {
-      const assetId = parseInt(req.params.id);
+      const assetId = safeParseId(req.params.id);
       if (isNaN(assetId)) {
         return ResponseHandler.error(res, '无效的资产ID', 'VALIDATION_ERROR', 400);
       }
@@ -269,7 +270,7 @@ const assetsController = {
    */
   updateAsset: async (req, res) => {
     try {
-      const assetId = parseInt(req.params.id);
+      const assetId = safeParseId(req.params.id);
       if (isNaN(assetId)) {
         return ResponseHandler.error(res, '无效的资产ID', 'VALIDATION_ERROR', 400);
       }
@@ -401,7 +402,7 @@ const assetsController = {
    */
   calculateDepreciation: async (req, res) => {
     try {
-      const assetId = parseInt(req.params.id);
+      const assetId = safeParseId(req.params.id);
 
       if (isNaN(assetId)) {
         return ResponseHandler.error(res, '无效的资产ID', 'VALIDATION_ERROR', 400);
@@ -660,7 +661,7 @@ const assetsController = {
    */
   auditAsset: async (req, res) => {
     try {
-      const assetId = parseInt(req.params.id);
+      const assetId = safeParseId(req.params.id);
       const { action } = req.body; // 'approve' or 'reject'
 
       if (isNaN(assetId)) {
@@ -848,7 +849,7 @@ const assetsController = {
    */
   transferAsset: async (req, res) => {
     try {
-      const assetId = parseInt(req.params.id);
+      const assetId = safeParseId(req.params.id);
 
       if (isNaN(assetId)) {
         return ResponseHandler.error(res, '无效的资产ID', 'VALIDATION_ERROR', 400);
@@ -1018,7 +1019,7 @@ const assetsController = {
    */
   getAssetCategoryById: async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = safeParseId(req.params.id);
 
       if (isNaN(id)) {
         return ResponseHandler.error(res, '无效的类别ID', 'VALIDATION_ERROR', 400);
@@ -1083,7 +1084,7 @@ const assetsController = {
    */
   updateAssetCategory: async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = safeParseId(req.params.id);
 
       if (isNaN(id)) {
         return ResponseHandler.error(res, '无效的类别ID', 'VALIDATION_ERROR', 400);
@@ -1131,7 +1132,7 @@ const assetsController = {
    */
   deleteAssetCategory: async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = safeParseId(req.params.id);
 
       if (isNaN(id)) {
         return ResponseHandler.error(res, '无效的类别ID', 'VALIDATION_ERROR', 400);
@@ -1171,7 +1172,7 @@ const assetsController = {
    */
   getAssetChangeLogs: async (req, res) => {
     try {
-      const assetId = parseInt(req.params.id);
+      const assetId = safeParseId(req.params.id);
       if (isNaN(assetId)) {
         return ResponseHandler.error(res, '无效的资产ID', 'VALIDATION_ERROR', 400);
       }
@@ -1192,7 +1193,7 @@ const assetsController = {
    */
   getDepreciationHistory: async (req, res) => {
     try {
-      const assetId = parseInt(req.params.id);
+      const assetId = safeParseId(req.params.id);
       if (isNaN(assetId)) {
         return ResponseHandler.error(res, '无效的资产ID', 'VALIDATION_ERROR', 400);
       }
@@ -1209,7 +1210,7 @@ const assetsController = {
    */
   createImpairment: async (req, res) => {
     try {
-      const assetId = parseInt(req.params.id);
+      const assetId = safeParseId(req.params.id);
       if (isNaN(assetId)) {
         return ResponseHandler.error(res, '无效的资产ID', 'VALIDATION_ERROR', 400);
       }
@@ -1257,7 +1258,7 @@ const assetsController = {
    */
   splitAsset: async (req, res) => {
     try {
-      const assetId = parseInt(req.params.id);
+      const assetId = safeParseId(req.params.id);
       if (isNaN(assetId)) {
         return ResponseHandler.error(res, '无效的资产ID', 'VALIDATION_ERROR', 400);
       }
@@ -1296,7 +1297,7 @@ const assetsController = {
    */
   getImpairments: async (req, res) => {
     try {
-      const assetId = parseInt(req.params.id);
+      const assetId = safeParseId(req.params.id);
       if (isNaN(assetId)) {
         return ResponseHandler.error(res, '无效的资产ID', 'VALIDATION_ERROR', 400);
       }

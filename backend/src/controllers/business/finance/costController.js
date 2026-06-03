@@ -11,6 +11,7 @@ const { logger } = require('../../../utils/logger');
 const CostAccountingService = require('../../../services/business/CostAccountingService');
 const CostClosingService = require('../../../services/business/CostClosingService');
 const { parsePagination } = require('../../../utils/safePagination');
+const { safeParseId } = require('../../../utils/safeParseId');
 const { currentDateString, toLocalDateString } = require('../../../utils/dateUtils');
 
 const saveStandardCostSnapshot = async (productId, standardCost = {}) => {
@@ -1660,7 +1661,7 @@ const costController = {
 
   executeClosingWorkbench: async (req, res) => {
     try {
-      const periodId = parseInt(req.params.periodId, 10);
+      const periodId = safeParseId(req.params.periodId);
       if (!Number.isInteger(periodId) || periodId <= 0) {
         return ResponseHandler.error(res, '期间ID无效', 'VALIDATION_ERROR', 400);
       }

@@ -16,6 +16,7 @@ const {
   requirePriceMutationPermission,
 } = require('../middleware/priceAccessControl');
 const { ResponseHandler } = require('../utils/responseHandler');
+const { safeParseId } = require('../utils/safeParseId');
 
 // 应用认证中间件
 router.use(authenticateToken);
@@ -36,7 +37,7 @@ const SchedulingService = require('../services/business/SchedulingService');
 // 获取产品标准工时
 router.get('/scheduling/standard-hours/:productId', requirePermission('production:tasks:view'), async (req, res) => {
   try {
-    const result = await SchedulingService.getProductStandardHours(parseInt(req.params.productId));
+    const result = await SchedulingService.getProductStandardHours(safeParseId(req.params.productId));
     ResponseHandler.success(res, result);
   } catch (error) {
     ResponseHandler.error(res, error.message, 'ERROR', error.statusCode || 500, error);

@@ -1,5 +1,6 @@
 const OverheadAllocationService = require('../../../services/business/OverheadAllocationService');
 const { ResponseHandler } = require('../../../utils/responseHandler');
+const { safeParseId } = require('../../../utils/safeParseId');
 
 class OverheadAllocationController {
   /**
@@ -38,7 +39,7 @@ class OverheadAllocationController {
    */
   static async updateConfig(req, res) {
     try {
-      const id = parseInt(req.params.id);
+      const id = safeParseId(req.params.id);
       if (isNaN(id)) {
         return ResponseHandler.error(res, '无效的配置ID', 'VALIDATION_ERROR', 400);
       }
@@ -54,7 +55,7 @@ class OverheadAllocationController {
    */
   static async deleteConfig(req, res) {
     try {
-      const id = parseInt(req.params.id);
+      const id = safeParseId(req.params.id);
       if (isNaN(id)) {
         return ResponseHandler.error(res, '无效的配置ID', 'VALIDATION_ERROR', 400);
       }

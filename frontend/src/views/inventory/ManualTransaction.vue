@@ -808,12 +808,7 @@ const getBusinessTypeTag = (code) => {
 
 // 获取审批状态文本
 const getApprovalStatusText = (status) => {
-  const statusMap = {
-    'pending': '待审批',
-    'approved': '已通过',
-    'rejected': '已拒绝'
-  }
-  return statusMap[status] || '待审批'
+  return getApprovalStatusText(status) || '待审批'
 }
 
 // 获取审批状态标签类型

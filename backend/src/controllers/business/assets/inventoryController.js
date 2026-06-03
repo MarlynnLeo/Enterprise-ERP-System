@@ -1,4 +1,5 @@
 const { ResponseHandler } = require('../../../utils/responseHandler');
+const { safeParseId } = require('../../../utils/safeParseId');
 const { logger } = require('../../../utils/logger');
 const { parsePagination } = require('../../../utils/safePagination');
 const assetInventoryModel = require('../../../models/assetInventory');
@@ -38,7 +39,7 @@ const inventoryController = {
      */
     getInventoryById: async (req, res) => {
         try {
-            const id = parseInt(req.params.id);
+            const id = safeParseId(req.params.id);
             if (isNaN(id)) {
                 return ResponseHandler.error(res, '无效的盘点单ID', 'VALIDATION_ERROR', 400);
             }
@@ -83,8 +84,8 @@ const inventoryController = {
      */
     updateInventoryItem: async (req, res) => {
         try {
-            const id = parseInt(req.params.id);
-            const itemId = parseInt(req.params.itemId);
+            const id = safeParseId(req.params.id);
+            const itemId = safeParseId(req.params.itemId);
 
             if (isNaN(id) || isNaN(itemId)) {
                 return ResponseHandler.error(res, '无效的参数', 'VALIDATION_ERROR', 400);
@@ -117,7 +118,7 @@ const inventoryController = {
      */
     completeInventory: async (req, res) => {
         try {
-            const id = parseInt(req.params.id);
+            const id = safeParseId(req.params.id);
             if (isNaN(id)) {
                 return ResponseHandler.error(res, '无效的盘点单ID', 'VALIDATION_ERROR', 400);
             }

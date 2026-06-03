@@ -315,6 +315,7 @@
 
 <script setup>
 import { parsePaginatedData, parseDataObject } from '@/utils/responseParser'
+import { getCommonStatusText, getCommonStatusColor } from '@/constants/systemConstants'
 import { formatCurrency, formatLocalDate } from '@/utils/format'
 
 import { ref, reactive, onMounted } from 'vue';
@@ -397,20 +398,12 @@ const getCurrencyText = (currency) => {
 
 // 获取状态类型
 const getStatusType = (status) => {
-  const statusMap = {
-    active: 'success',
-    frozen: 'warning'
-  };
-  return statusMap[status] || 'info';
+  return getCommonStatusColor(status);
 };
 
 // 获取状态文本
 const getStatusText = (status) => {
-  const statusMap = {
-    active: '正常',
-    frozen: '冻结'
-  };
-  return statusMap[status] || status;
+  return getCommonStatusText(status);
 };
 
 // 加载账户列表

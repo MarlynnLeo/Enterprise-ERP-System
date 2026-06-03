@@ -5,6 +5,7 @@
  */
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
+const { safeParseId } = require('../../../utils/safeParseId');
 const { logger } = require('../../../utils/logger');
 const { parsePagination } = require('../../../utils/safePagination');
 const cipModel = require('../../../models/cip');
@@ -51,7 +52,7 @@ const cipController = {
      */
     getCipProjectById: async (req, res) => {
         try {
-            const id = parseInt(req.params.id);
+            const id = safeParseId(req.params.id);
             if (isNaN(id)) {
                 return ResponseHandler.error(res, '无效的工程ID', 'VALIDATION_ERROR', 400);
             }
@@ -98,7 +99,7 @@ const cipController = {
      */
     updateCipProject: async (req, res) => {
         try {
-            const id = parseInt(req.params.id);
+            const id = safeParseId(req.params.id);
             if (isNaN(id)) {
                 return ResponseHandler.error(res, '无效的工程ID', 'VALIDATION_ERROR', 400);
             }
@@ -116,7 +117,7 @@ const cipController = {
      */
     deleteCipProject: async (req, res) => {
         try {
-            const id = parseInt(req.params.id);
+            const id = safeParseId(req.params.id);
             if (isNaN(id)) {
                 return ResponseHandler.error(res, '无效的工程ID', 'VALIDATION_ERROR', 400);
             }
@@ -137,7 +138,7 @@ const cipController = {
      */
     transferToFixedAsset: async (req, res) => {
         try {
-            const id = parseInt(req.params.id);
+            const id = safeParseId(req.params.id);
             if (isNaN(id)) {
                 return ResponseHandler.error(res, '无效的工程ID', 'VALIDATION_ERROR', 400);
             }
@@ -167,7 +168,7 @@ const cipController = {
      */
     addCost: async (req, res) => {
         try {
-            const id = parseInt(req.params.id);
+            const id = safeParseId(req.params.id);
             if (isNaN(id)) {
                 return ResponseHandler.error(res, '无效的工程ID', 'VALIDATION_ERROR', 400);
             }

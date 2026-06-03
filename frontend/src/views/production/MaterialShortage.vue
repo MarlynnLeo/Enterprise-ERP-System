@@ -9,6 +9,7 @@
 <script setup>
 import { ref, onMounted, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
+import { getProductionStatusText, getProductionStatusColor } from '@/constants/systemConstants'
 import { productionApi, purchaseApi } from '@/api'
 import { formatQuantity } from '@/utils/helpers/quantity'
 import { parseApiResponse, parsePaginatedData } from '@/utils/responseParser'
@@ -53,37 +54,10 @@ const batchLoading = ref(false)
 // 确认对话框相关
 const confirmDialogVisible = ref(false)
 const confirmMaterialList = ref([])
-// 获取生产状态文本
-const getStatusText = (status) => {
-  const statusMap = {
-    'draft': '草稿',
-    'allocated': '分配中',
-    'preparing': '配料中',
-    'material_issuing': '配料中',
-    'material_issued': '已发料',
-    'in_progress': '生产中',
-    'inspection': '检验中',
-    'warehousing': '入库中',
-    'completed': '已完成',
-    'cancelled': '已取消'
-  }
-  return statusMap[status] || status
-}
-// 获取状态颜色
-const _getStatusType = (status) => {
-  const statusTypeMap = {
-    'draft': 'info',
-    'preparing': 'warning',
-    'material_issuing': 'warning',
-    'material_issued': 'success',
-    'in_progress': 'primary',
-    'inspection': 'warning',
-    'warehousing': 'warning',
-    'completed': 'success',
-    'cancelled': 'danger'
-  }
-  return statusTypeMap[status] || 'info'
-}
+// 获取生产状态文本 — 委托给 systemConstants
+const getStatusText = (status) => getProductionStatusText(status)
+// 获取状态颜色 — 委托给 systemConstants
+const _getStatusType = (status) => getProductionStatusColor(status)
 // 格式化日期
 // formatDate 已统一引用公共实现
 // 获取缺料统计数据
