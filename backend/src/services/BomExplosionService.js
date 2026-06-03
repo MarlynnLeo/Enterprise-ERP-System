@@ -258,8 +258,7 @@ class BomExplosionService {
 
     const [rows] = await db.query(
       `
-      SELECT *
-      FROM bom_masters
+      SELECT id, product_id, version, status, remark, created_at, created_by, updated_at, updated_by, attachment, approved_by, approved_at, deleted_at FROM bom_masters
       WHERE product_id IN (?) AND approved_by IS NOT NULL AND deleted_at IS NULL
       ORDER BY product_id ASC, approved_at DESC, id DESC
       `,
@@ -277,8 +276,7 @@ class BomExplosionService {
   static async getPreferredBom(productId, db = pool) {
     const [rows] = await db.query(
       `
-      SELECT *
-      FROM bom_masters
+      SELECT id, product_id, version, status, remark, created_at, created_by, updated_at, updated_by, attachment, approved_by, approved_at, deleted_at FROM bom_masters
       WHERE product_id = ? AND status != 2 AND deleted_at IS NULL
       ORDER BY
         CASE WHEN approved_by IS NOT NULL THEN 0 ELSE 1 END,
@@ -296,7 +294,7 @@ class BomExplosionService {
    * 根据ID获取BOM
    */
   static async getBomById(bomId) {
-    const [rows] = await pool.query('SELECT * FROM bom_masters WHERE id = ? AND deleted_at IS NULL', [bomId]);
+    const [rows] = await pool.query('SELECT id, product_id, version, status, remark, created_at, created_by, updated_at, updated_by, attachment, approved_by, approved_at, deleted_at FROM bom_masters WHERE id = ? AND deleted_at IS NULL', [bomId]);
     return rows[0] || null;
   }
 
@@ -308,7 +306,7 @@ class BomExplosionService {
     try {
       const [rows] = await pool.query(
         `
-        SELECT * FROM bom_explosion_cache
+        SELECT id, product_id, bom_id, bom_version, material_id, material_code, material_name, level, quantity_per, parent_material_id, bom_path, source_bom_id, unit_id, unit_name, cached_at, is_valid, created_at, updated_at FROM bom_explosion_cache
         WHERE bom_id = ?
         ORDER BY level ASC, id ASC
       `,
@@ -504,7 +502,7 @@ class BomExplosionService {
     // 兜底查找启用状态的草稿BOM（status=1 且未审核）
     const [rows] = await pool.query(
       `
-      SELECT * FROM bom_masters
+      SELECT id, product_id, version, status, remark, created_at, created_by, updated_at, updated_by, attachment, approved_by, approved_at, deleted_at FROM bom_masters
       WHERE product_id = ? AND status = 1 AND approved_by IS NULL AND deleted_at IS NULL
       ORDER BY id DESC
       LIMIT 1

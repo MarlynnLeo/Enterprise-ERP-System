@@ -549,7 +549,7 @@ const bomService = {
 
       // ① 查询旧 BOM 是否存在
       const [oldBomRows] = await connection.query(
-        'SELECT * FROM bom_masters WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+        'SELECT id, product_id, version, status, remark, created_at, created_by, updated_at, updated_by, attachment, approved_by, approved_at, deleted_at FROM bom_masters WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
         [id]
       );
       if (!oldBomRows || oldBomRows.length === 0) {

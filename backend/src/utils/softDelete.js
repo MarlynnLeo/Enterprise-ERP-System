@@ -14,7 +14,7 @@
  *   await softDeleteBatch(pool, 'materials', 'id', [1, 2, 3]);
  *
  *   // 给 SQL 追加 AND deleted_at IS NULL
- *   const sql = withNotDeleted('SELECT * FROM customers WHERE status = 1');
+ *   const sql = withNotDeleted('SELECT id, code, name, contact_person, phone, email, address, credit_limit, status, created_at, updated_at, contact_phone, remark, customer_type, deleted_at FROM customers WHERE status = 1');
  */
 
 const { logger } = require('./logger');

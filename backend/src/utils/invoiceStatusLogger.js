@@ -69,7 +69,7 @@ async function getStatusHistory(invoiceType, invoiceId) {
     connection = await db.pool.getConnection();
 
     const [rows] = await connection.execute(
-      `SELECT * FROM invoice_status_log
+      `SELECT id, invoice_type, invoice_id, invoice_code, old_status, new_status, changed_by, change_reason, changed_at FROM invoice_status_log
        WHERE invoice_type = ? AND invoice_id = ?
        ORDER BY changed_at DESC`,
       [invoiceType, invoiceId]

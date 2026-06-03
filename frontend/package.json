@@ -15,7 +15,7 @@
     "@element-plus/icons-vue": "^2.3.2",
     "@vue-office/docx": "^1.6.3",
     "@vue-office/excel": "^1.7.14",
-    "axios": "^1.6.2",
+    "axios": "^1.17.0",
     "chart.js": "^4.4.8",
     "dayjs": "^1.11.10",
     "dompurify": "^3.3.1",

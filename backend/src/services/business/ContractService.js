@@ -55,13 +55,13 @@ class ContractService {
     if (!contract) return null;
 
     const [items] = await pool.query(
-      'SELECT * FROM contract_items WHERE contract_id = ? ORDER BY id', [id]
+      'SELECT id, contract_id, material_id, material_code, material_name, specification, unit, quantity, unit_price, amount, tax_amount, delivery_date, remark, created_at FROM contract_items WHERE contract_id = ? ORDER BY id', [id]
     );
     contract.items = items;
 
     // 执行记录
     const [executions] = await pool.query(
-      'SELECT * FROM contract_executions WHERE contract_id = ? ORDER BY executed_at DESC', [id]
+      'SELECT id, contract_id, execution_type, business_id, business_code, amount, executed_at, remark FROM contract_executions WHERE contract_id = ? ORDER BY executed_at DESC', [id]
     );
     contract.executions = executions;
 
@@ -255,7 +255,7 @@ class ContractService {
   /** 获取即将到期的合同 */
   async getExpiring(daysBefore = 30) {
     const [rows] = await pool.query(
-      `SELECT * FROM contracts
+      `SELECT id, code, name, type, status, party_a, party_b, party_b_id, party_b_type, total_amount, currency, tax_rate, sign_date, effective_date, expiry_date, payment_terms, delivery_terms, warranty_terms, content, attachment_urls, signer_id, department_id, created_by, created_at, updated_at, deleted_at FROM contracts
        WHERE deleted_at IS NULL AND status IN ('active','executing')
        AND expiry_date IS NOT NULL
        AND expiry_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL ? DAY)

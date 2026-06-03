@@ -49,7 +49,7 @@ class ActivityCostService {
    * 获取单个作业详情
    */
   async getActivityById(id) {
-    const query = 'SELECT * FROM cost_activities WHERE id = ? AND deleted_at IS NULL';
+    const query = 'SELECT id, code, name, description, cost_pool, cost_driver_type, driver_rate, status, created_at, updated_at, deleted_at FROM cost_activities WHERE id = ? AND deleted_at IS NULL';
     const result = await db.query(query, [id]);
     return result.rows?.[0] || null;
   }

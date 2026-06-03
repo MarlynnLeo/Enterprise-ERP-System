@@ -986,7 +986,7 @@ class CostAccountingService {
       if (!isExternalConn) await connection.beginTransaction();
 
       // 获取生产任务信息
-      const [orderInfo] = await connection.execute('SELECT * FROM production_tasks WHERE id = ?', [
+      const [orderInfo] = await connection.execute('SELECT id, code, plan_id, product_id, quantity, completed_quantity, start_date, expected_end_date, actual_start_time, actual_end_date, manager, status, remarks, created_at, updated_at, batch_number, actual_cost, material_cost, labor_cost, overhead_cost, pause_reason, pause_time, completed_at, cost_center_id, progress, deleted_at FROM production_tasks WHERE id = ?', [
         productionOrderId,
       ]);
 
@@ -1679,7 +1679,7 @@ class CostAccountingService {
   static async analyzeCostVariance(productionOrderId) {
     try {
       // 获取生产任务信息
-      const [orderInfo] = await db.pool.execute('SELECT * FROM production_tasks WHERE id = ?', [
+      const [orderInfo] = await db.pool.execute('SELECT id, code, plan_id, product_id, quantity, completed_quantity, start_date, expected_end_date, actual_start_time, actual_end_date, manager, status, remarks, created_at, updated_at, batch_number, actual_cost, material_cost, labor_cost, overhead_cost, pause_reason, pause_time, completed_at, cost_center_id, progress, deleted_at FROM production_tasks WHERE id = ?', [
         productionOrderId,
       ]);
 
@@ -1694,7 +1694,7 @@ class CostAccountingService {
 
       // 获取实际成本
       const [actualCostRecord] = await db.pool.execute(
-        'SELECT * FROM actual_costs WHERE production_order_id = ?',
+        'SELECT id, production_order_id, product_id, quantity, material_cost, labor_cost, overhead_cost, total_cost, calculated_at, calculated_by FROM actual_costs WHERE production_order_id = ?',
         [productionOrderId]
       );
 
@@ -2087,7 +2087,7 @@ class CostAccountingService {
     let transactions;
     try {
       const [result] = await connection.execute(
-        `SELECT * FROM inventory_ledger
+        `SELECT id, material_id, location_id, transaction_type, transaction_no, reference_no, reference_type, quantity, before_quantity, after_quantity, unit_id, batch_number, operator, remark, created_at, updated_at, unit_cost, total_value, supplier_id, supplier_name, production_date, expiry_date, warehouse_name, issue_reason, is_excess, bom_required_qty, total_issued_qty, purchase_order_id, purchase_order_no, receipt_id, receipt_no, transaction_date FROM inventory_ledger
          WHERE material_id = ?
          ORDER BY transaction_date, created_at`,
         [materialId]
@@ -2097,7 +2097,7 @@ class CostAccountingService {
       if (error.message.includes('Unknown column')) {
         // 尝试使用created_at字段排序
         const [result] = await connection.execute(
-          `SELECT * FROM inventory_ledger
+          `SELECT id, material_id, location_id, transaction_type, transaction_no, reference_no, reference_type, quantity, before_quantity, after_quantity, unit_id, batch_number, operator, remark, created_at, updated_at, unit_cost, total_value, supplier_id, supplier_name, production_date, expiry_date, warehouse_name, issue_reason, is_excess, bom_required_qty, total_issued_qty, purchase_order_id, purchase_order_no, receipt_id, receipt_no, transaction_date FROM inventory_ledger
            WHERE material_id = ?
            ORDER BY created_at`,
           [materialId]

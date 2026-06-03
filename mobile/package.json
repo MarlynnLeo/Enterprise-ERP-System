@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@heroicons/vue": "^2.2.0",
-    "axios": "^1.6.2",
+    "axios": "^1.17.0",
     "dayjs": "^1.11.10",
     "html5-qrcode": "^2.3.8",
     "pinia": "^3.0.4",

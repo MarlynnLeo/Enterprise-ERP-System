@@ -61,7 +61,7 @@ class EquipmentMonitoringService extends BaseService {
 
       // 获取设备参数
       const [parameterRows] = await connection.execute(
-        'SELECT * FROM equipment_parameters WHERE equipment_id = ? ORDER BY parameter_name',
+        'SELECT id, equipment_id, parameter_name, parameter_code, parameter_type, unit, min_value, max_value, normal_min, normal_max, warning_min, warning_max, alarm_min, alarm_max, data_address, collection_interval, is_monitored, is_recorded, description, created_at, updated_at FROM equipment_parameters WHERE equipment_id = ? ORDER BY parameter_name',
         [equipmentId]
       );
 
@@ -85,7 +85,7 @@ class EquipmentMonitoringService extends BaseService {
 
       // 获取活跃报警
       const [alarmRows] = await connection.execute(
-        'SELECT * FROM equipment_alarms WHERE equipment_id = ? AND status = "active" ORDER BY occurred_at DESC',
+        'SELECT id, equipment_id, parameter_id, alarm_type, alarm_level, alarm_code, alarm_message, current_value, threshold_value, status, occurred_at, acknowledged_at, acknowledged_by, resolved_at, resolved_by, resolution_note, created_at, updated_at FROM equipment_alarms WHERE equipment_id = ? AND status = "active" ORDER BY occurred_at DESC',
         [equipmentId]
       );
 
@@ -170,7 +170,7 @@ class EquipmentMonitoringService extends BaseService {
     try {
       // 获取参数配置
       const [parameterRows] = await connection.execute(
-        'SELECT * FROM equipment_parameters WHERE equipment_id = ? AND parameter_code = ?',
+        'SELECT id, equipment_id, parameter_name, parameter_code, parameter_type, unit, min_value, max_value, normal_min, normal_max, warning_min, warning_max, alarm_min, alarm_max, data_address, collection_interval, is_monitored, is_recorded, description, created_at, updated_at FROM equipment_parameters WHERE equipment_id = ? AND parameter_code = ?',
         [equipmentId, parameterCode]
       );
 

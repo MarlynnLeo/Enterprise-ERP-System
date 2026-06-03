@@ -13,12 +13,12 @@ class SalesDao {
   // 客户查询 (Customers)
   // ==========================================
   static async getCustomers() {
-    const [rows] = await pool.execute('SELECT * FROM customers');
+    const [rows] = await pool.execute('SELECT id, code, name, contact_person, phone, email, address, credit_limit, status, created_at, updated_at, contact_phone, remark, customer_type, deleted_at FROM customers');
     return rows;
   }
 
   static async getCustomer(id) {
-    const [rows] = await pool.execute('SELECT * FROM customers WHERE id = ?', [id]);
+    const [rows] = await pool.execute('SELECT id, code, name, contact_person, phone, email, address, credit_limit, status, created_at, updated_at, contact_phone, remark, customer_type, deleted_at FROM customers WHERE id = ?', [id]);
     return rows[0];
   }
 

@@ -199,7 +199,7 @@ class AuditService {
       connection = await getConnection();
 
       const auditSql = appendPaginationSQL(
-        `SELECT * FROM audit_logs WHERE ${whereClause} ORDER BY created_at DESC`,
+        `SELECT id, user_id, username, module, action, method, path, entity_type, entity_id, old_value, new_value, ip_address, user_agent, created_at FROM audit_logs WHERE ${whereClause} ORDER BY created_at DESC`,
         pagination.limit,
         pagination.offset
       );
@@ -262,7 +262,7 @@ class AuditService {
 
       connection = await getConnection();
       const [rows] = await connection.query(
-        `SELECT * FROM audit_logs WHERE ${whereClause} ORDER BY created_at DESC`,
+        `SELECT id, user_id, username, module, action, method, path, entity_type, entity_id, old_value, new_value, ip_address, user_agent, created_at FROM audit_logs WHERE ${whereClause} ORDER BY created_at DESC`,
         params
       );
 

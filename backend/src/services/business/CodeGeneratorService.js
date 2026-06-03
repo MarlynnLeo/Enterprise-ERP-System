@@ -22,7 +22,7 @@ class CodeGeneratorService {
 
     // 1. 获取编码规则
     const [[rule]] = await db.query(
-      'SELECT * FROM coding_rules WHERE business_type = ? AND is_active = 1',
+      'SELECT id, business_type, name, prefix, date_format, `separator`, sequence_length, reset_cycle, initial_value, step, description, is_active, created_at, updated_at FROM coding_rules WHERE business_type = ? AND is_active = 1',
       [businessType]
     );
 
@@ -60,7 +60,7 @@ class CodeGeneratorService {
    */
   async previewCode(businessType) {
     const [[rule]] = await pool.query(
-      'SELECT * FROM coding_rules WHERE business_type = ? AND is_active = 1',
+      'SELECT id, business_type, name, prefix, date_format, `separator`, sequence_length, reset_cycle, initial_value, step, description, is_active, created_at, updated_at FROM coding_rules WHERE business_type = ? AND is_active = 1',
       [businessType]
     );
     if (!rule) return null;
@@ -118,7 +118,7 @@ class CodeGeneratorService {
   }
 
   async getRuleById(id) {
-    const [[rule]] = await pool.query('SELECT * FROM coding_rules WHERE id = ?', [id]);
+    const [[rule]] = await pool.query('SELECT id, business_type, name, prefix, date_format, `separator`, sequence_length, reset_cycle, initial_value, step, description, is_active, created_at, updated_at FROM coding_rules WHERE id = ?', [id]);
     return rule || null;
   }
 
@@ -171,7 +171,7 @@ class CodeGeneratorService {
   /** 获取某条规则关联的序列信息 */
   async getSequences(businessType) {
     const [rows] = await pool.query(
-      'SELECT * FROM coding_sequences WHERE business_type = ? ORDER BY period_key DESC',
+      'SELECT id, business_type, period_key, current_value, updated_at FROM coding_sequences WHERE business_type = ? ORDER BY period_key DESC',
       [businessType]
     );
     return rows;
