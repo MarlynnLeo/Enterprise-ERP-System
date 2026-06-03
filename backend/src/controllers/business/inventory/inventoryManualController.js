@@ -718,7 +718,7 @@ const approveManualTransaction = async (req, res) => {
     }
 
     // 查询所有同单号的记录
-    const [records] = await connection.execute('SELECT * FROM manual_transactions WHERE id = ?', [
+    const [records] = await connection.execute('SELECT id, transaction_no, transaction_type, business_type_code, transaction_date, material_id, location_id, quantity, remark, operator, created_at, updated_at, approval_status, approved_by, approved_at, approval_remark FROM manual_transactions WHERE id = ?', [
       id,
     ]);
 
@@ -737,7 +737,7 @@ const approveManualTransaction = async (req, res) => {
 
     // 获取同一单号的所有记录
     const [allRecords] = await connection.execute(
-      'SELECT * FROM manual_transactions WHERE transaction_no = ?',
+      'SELECT id, transaction_no, transaction_type, business_type_code, transaction_date, material_id, location_id, quantity, remark, operator, created_at, updated_at, approval_status, approved_by, approved_at, approval_remark FROM manual_transactions WHERE transaction_no = ?',
       [record.transaction_no]
     );
 
@@ -861,7 +861,7 @@ const updateManualTransaction = async (req, res) => {
     }
 
     // 查询原记录
-    const [oldRecord] = await connection.execute('SELECT * FROM manual_transactions WHERE id = ?', [
+    const [oldRecord] = await connection.execute('SELECT id, transaction_no, transaction_type, business_type_code, transaction_date, material_id, location_id, quantity, remark, operator, created_at, updated_at, approval_status, approved_by, approved_at, approval_remark FROM manual_transactions WHERE id = ?', [
       id,
     ]);
 
@@ -968,7 +968,7 @@ const deleteManualTransaction = async (req, res) => {
 
     // 查询单据的所有明细
     const [records] = await connection.execute(
-      'SELECT * FROM manual_transactions WHERE transaction_no = ?',
+      'SELECT id, transaction_no, transaction_type, business_type_code, transaction_date, material_id, location_id, quantity, remark, operator, created_at, updated_at, approval_status, approved_by, approved_at, approval_remark FROM manual_transactions WHERE transaction_no = ?',
       [transaction_no]
     );
 

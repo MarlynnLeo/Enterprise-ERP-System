@@ -497,7 +497,7 @@ const updateInbound = async (req, res) => {
     }
 
     const [inboundRows] = await connection.execute(
-      'SELECT * FROM inventory_inbound WHERE id = ? FOR UPDATE',
+      'SELECT id, inbound_no, inbound_date, inbound_type, reference_type, reference_id, reference_no, location_id, status, total_amount, total_amount_unit, operator, inspection_id, inspection_no, remark, created_at, updated_at, created_by, updated_by, is_deleted FROM inventory_inbound WHERE id = ? FOR UPDATE',
       [id]
     );
 
@@ -983,7 +983,7 @@ const updateInboundStatus = async (req, res) => {
 
     // 获取当前入库单信息
     const [inboundData] = await connection.execute(
-      'SELECT * FROM inventory_inbound WHERE id = ? FOR UPDATE',
+      'SELECT id, inbound_no, inbound_date, inbound_type, reference_type, reference_id, reference_no, location_id, status, total_amount, total_amount_unit, operator, inspection_id, inspection_no, remark, created_at, updated_at, created_by, updated_by, is_deleted FROM inventory_inbound WHERE id = ? FOR UPDATE',
       [id]
     );
 

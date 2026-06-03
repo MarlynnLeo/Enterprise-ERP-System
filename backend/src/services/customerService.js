@@ -53,8 +53,8 @@ const customerService = {
       // 获取分页数据
       // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
       const listQuery = noPagination
-        ? `SELECT * FROM customers WHERE ${whereClause} ORDER BY id DESC`
-        : `SELECT * FROM customers WHERE ${whereClause} ORDER BY id DESC LIMIT ${safePageSize} OFFSET ${offset}`;
+        ? `SELECT id, code, name, contact_person, phone, email, address, credit_limit, status, created_at, updated_at, contact_phone, remark, customer_type, deleted_at FROM customers WHERE ${whereClause} ORDER BY id DESC`
+        : `SELECT id, code, name, contact_person, phone, email, address, credit_limit, status, created_at, updated_at, contact_phone, remark, customer_type, deleted_at FROM customers WHERE ${whereClause} ORDER BY id DESC LIMIT ${safePageSize} OFFSET ${offset}`;
       const [rows] = await pool.query(listQuery, params);
 
       return {
@@ -71,7 +71,7 @@ const customerService = {
 
   async getCustomerById(id) {
     try {
-      const [rows] = await pool.query('SELECT * FROM customers WHERE id = ? AND deleted_at IS NULL', [id]);
+      const [rows] = await pool.query('SELECT id, code, name, contact_person, phone, email, address, credit_limit, status, created_at, updated_at, contact_phone, remark, customer_type, deleted_at FROM customers WHERE id = ? AND deleted_at IS NULL', [id]);
       return rows[0];
     } catch (error) {
       logger.error(`获取客户详情失败 (ID: ${id}):`, error);
@@ -131,7 +131,7 @@ const customerService = {
       ]);
 
       // 获取插入的完整记录
-      const [newCustomer] = await pool.query('SELECT * FROM customers WHERE id = ? AND deleted_at IS NULL', [
+      const [newCustomer] = await pool.query('SELECT id, code, name, contact_person, phone, email, address, credit_limit, status, created_at, updated_at, contact_phone, remark, customer_type, deleted_at FROM customers WHERE id = ? AND deleted_at IS NULL', [
         result.insertId,
       ]);
       return newCustomer[0];
@@ -144,7 +144,7 @@ const customerService = {
   async updateCustomer(id, data) {
     try {
       // 验证客户是否存在
-      const [existing] = await pool.query('SELECT * FROM customers WHERE id = ? AND deleted_at IS NULL', [id]);
+      const [existing] = await pool.query('SELECT id, code, name, contact_person, phone, email, address, credit_limit, status, created_at, updated_at, contact_phone, remark, customer_type, deleted_at FROM customers WHERE id = ? AND deleted_at IS NULL', [id]);
       if (!existing || existing.length === 0) {
         throw new Error('客户不存在');
       }
@@ -185,7 +185,7 @@ const customerService = {
       await pool.query(`UPDATE customers SET ${fields} WHERE id = ?`, values);
 
       // 获取并返回更新后的完整数据
-      const [updated] = await pool.query('SELECT * FROM customers WHERE id = ? AND deleted_at IS NULL', [id]);
+      const [updated] = await pool.query('SELECT id, code, name, contact_person, phone, email, address, credit_limit, status, created_at, updated_at, contact_phone, remark, customer_type, deleted_at FROM customers WHERE id = ? AND deleted_at IS NULL', [id]);
       return updated[0];
     } catch (error) {
       logger.error('更新客户失败:', error);

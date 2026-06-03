@@ -59,7 +59,7 @@ class BankAccountModel {
    */
   static async getBankAccountById(id) {
     try {
-      const [accounts] = await db.pool.execute('SELECT * FROM bank_accounts WHERE id = ?', [id]);
+      const [accounts] = await db.pool.execute('SELECT id, account_number, account_name, bank_name, branch_name, currency_code, current_balance, opening_balance, account_type, is_active, contact_person, contact_phone, notes, created_at, updated_at, created_by, updated_by, last_transaction_date FROM bank_accounts WHERE id = ?', [id]);
       return accounts.length > 0 ? accounts[0] : null;
     } catch (error) {
       logger.error('获取银行账户失败:', error);
@@ -123,7 +123,7 @@ class BankAccountModel {
         const total = countResult[0].total;
 
         const [accounts] = await db.pool.execute(
-          `SELECT * FROM bank_accounts${whereClause}${orderClause} LIMIT ${pageSize} OFFSET ${offset}`,
+          `SELECT id, account_number, account_name, bank_name, branch_name, currency_code, current_balance, opening_balance, account_type, is_active, contact_person, contact_phone, notes, created_at, updated_at, created_by, updated_by, last_transaction_date FROM bank_accounts${whereClause}${orderClause} LIMIT ${pageSize} OFFSET ${offset}`,
           params
         );
 
@@ -132,7 +132,7 @@ class BankAccountModel {
 
       // 无分页参数时返回全量（兼容旧调用）
       const [accounts] = await db.pool.execute(
-        `SELECT * FROM bank_accounts${whereClause}${orderClause}`,
+        `SELECT id, account_number, account_name, bank_name, branch_name, currency_code, current_balance, opening_balance, account_type, is_active, contact_person, contact_phone, notes, created_at, updated_at, created_by, updated_by, last_transaction_date FROM bank_accounts${whereClause}${orderClause}`,
         params
       );
 

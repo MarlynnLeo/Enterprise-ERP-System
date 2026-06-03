@@ -215,7 +215,7 @@ const confirmReceipt = async (req, res) => {
     }
 
     // 获取换货单信息
-    const [orders] = await connection.query('SELECT * FROM replacement_orders WHERE id = ? FOR UPDATE', [id]);
+    const [orders] = await connection.query('SELECT id, replacement_no, ncp_id, ncp_no, return_no, purchase_order_no, supplier_id, supplier_name, material_id, material_code, material_name, quantity, received_quantity, replacement_reason, expected_date, actual_date, status, note, created_by, created_at, updated_at FROM replacement_orders WHERE id = ? FOR UPDATE', [id]);
 
     if (orders.length === 0) {
       await connection.rollback();
@@ -299,7 +299,7 @@ const updateStatus = async (req, res) => {
       return ResponseHandler.error(res, '无效的状态值', 'VALIDATION_ERROR', 400);
     }
 
-    const [existing] = await connection.query('SELECT * FROM replacement_orders WHERE id = ? FOR UPDATE', [id]);
+    const [existing] = await connection.query('SELECT id, replacement_no, ncp_id, ncp_no, return_no, purchase_order_no, supplier_id, supplier_name, material_id, material_code, material_name, quantity, received_quantity, replacement_reason, expected_date, actual_date, status, note, created_by, created_at, updated_at FROM replacement_orders WHERE id = ? FOR UPDATE', [id]);
     if (existing.length === 0) {
       await connection.rollback();
       return ResponseHandler.error(res, '换货单不存在', 'NOT_FOUND', 404);

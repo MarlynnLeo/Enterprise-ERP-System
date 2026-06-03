@@ -788,7 +788,7 @@ class CashTransactionModel {
       await connection.beginTransaction();
 
       const [current] = await connection.execute(
-        'SELECT * FROM cash_transactions WHERE id = ? FOR UPDATE',
+        'SELECT id, transaction_type, transaction_date, amount, category, counterparty, description, reference_number, transaction_number, created_by, updated_by, approved_by, approved_at, reject_reason, created_at, updated_at, status, gl_entry_id FROM cash_transactions WHERE id = ? FOR UPDATE',
         [id]
       );
 

@@ -785,7 +785,7 @@ exports.updateSalesOutbound = async (req, res) => {
     await connection.beginTransaction();
 
     // 1. 检查出库单是否存在并获取当前状态和明细
-    const [outboundCheck] = await connection.query('SELECT * FROM sales_outbound WHERE id = ? FOR UPDATE', [
+    const [outboundCheck] = await connection.query('SELECT id, outbound_no, order_id, delivery_date, status, remarks, created_by, created_at, updated_at, is_multi_order, related_orders, deleted_at, total_amount FROM sales_outbound WHERE id = ? FOR UPDATE', [
       id,
     ]);
 
@@ -798,7 +798,7 @@ exports.updateSalesOutbound = async (req, res) => {
 
     // 获取当前明细
     const [currentItems] = await connection.query(
-      'SELECT * FROM sales_outbound_items WHERE outbound_id = ?',
+      'SELECT id, outbound_id, product_id, unit_id, quantity, price, amount, remarks, source_order_id, source_order_no FROM sales_outbound_items WHERE outbound_id = ?',
       [id]
     );
 

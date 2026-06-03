@@ -5,7 +5,7 @@ const { softDelete } = require('../utils/softDelete');
 const unitService = {
   async getAllUnits(filters = {}, page = 1, pageSize = 10) {
     try {
-      let query = 'SELECT * FROM units WHERE deleted_at IS NULL';
+      let query = 'SELECT id, name, code, status, remark, created_at, updated_at, deleted_at FROM units WHERE deleted_at IS NULL';
       const queryParams = [];
 
       // 添加过滤条件
@@ -49,7 +49,7 @@ const unitService = {
 
   async getUnitById(id) {
     try {
-      const [rows] = await pool.query('SELECT * FROM units WHERE id = ? AND deleted_at IS NULL', [id]);
+      const [rows] = await pool.query('SELECT id, name, code, status, remark, created_at, updated_at, deleted_at FROM units WHERE id = ? AND deleted_at IS NULL', [id]);
       return rows[0] || null;
     } catch (error) {
       logger.error(`获取单位详情失败 (ID: ${id}):`, error);
@@ -81,7 +81,7 @@ const unitService = {
   async updateUnit(id, data) {
     try {
       // 检查单位是否存在
-      const [existing] = await pool.query('SELECT * FROM units WHERE id = ? AND deleted_at IS NULL', [id]);
+      const [existing] = await pool.query('SELECT id, name, code, status, remark, created_at, updated_at, deleted_at FROM units WHERE id = ? AND deleted_at IS NULL', [id]);
       if (!existing || existing.length === 0) {
         throw new Error('单位不存在');
       }
@@ -110,7 +110,7 @@ const unitService = {
 
       await pool.query(`UPDATE units SET ${fields.join(', ')} WHERE id = ?`, values);
 
-      const [updated] = await pool.query('SELECT * FROM units WHERE id = ? AND deleted_at IS NULL', [id]);
+      const [updated] = await pool.query('SELECT id, name, code, status, remark, created_at, updated_at, deleted_at FROM units WHERE id = ? AND deleted_at IS NULL', [id]);
       return updated[0];
     } catch (error) {
       logger.error('更新单位失败:', error);

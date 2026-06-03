@@ -105,7 +105,7 @@ const locationService = {
         params.push(Number(filters.status));
       }
 
-      let query = 'SELECT * FROM locations WHERE ' + conditions.join(' AND ');
+      let query = 'SELECT id, code, name, type, is_default, area, address, warehouse_id, warehouse_name, status, remark, created_at, updated_at, deleted_at FROM locations WHERE ' + conditions.join(' AND ');
       query += ' ORDER BY id DESC';
       if (!noPagination) {
         query = appendPaginationSQL(query, pagination.limit, pagination.offset);
@@ -132,7 +132,7 @@ const locationService = {
 
   async getLocationById(id) {
     try {
-      const [rows] = await pool.query('SELECT * FROM locations WHERE id = ? AND deleted_at IS NULL', [Number(id)]);
+      const [rows] = await pool.query('SELECT id, code, name, type, is_default, area, address, warehouse_id, warehouse_name, status, remark, created_at, updated_at, deleted_at FROM locations WHERE id = ? AND deleted_at IS NULL', [Number(id)]);
       return rows[0];
     } catch (error) {
       logger.error(`获取库位详情失败 (ID: ${id}):`, error);
@@ -182,7 +182,7 @@ const locationService = {
       await connection.beginTransaction();
 
       // 检查库位是否存在
-      const [oldLocation] = await connection.query('SELECT * FROM locations WHERE id = ?', [
+      const [oldLocation] = await connection.query('SELECT id, code, name, type, is_default, area, address, warehouse_id, warehouse_name, status, remark, created_at, updated_at, deleted_at FROM locations WHERE id = ?', [
         Number(id),
       ]);
 

@@ -233,7 +233,7 @@ const materialService = {
   async updateMaterial(id, data) {
     try {
       // 检查物料是否存在
-      const [existing] = await pool.query('SELECT * FROM materials WHERE id = ?', [id]);
+      const [existing] = await pool.query('SELECT id, product_category_id, code, name, category_id, material_source_id, inspection_method_id, supplier_id, production_group_id, manager_id, location_detail, safety_stock, unit_id, location_id, specs, drawing_no, color_code, material_type, price, cost_price, min_stock, max_stock, status, remark, created_at, updated_at, location_name, tax_rate, deleted_at FROM materials WHERE id = ?', [id]);
       if (!existing || existing.length === 0) {
         throw new Error('物料不存在');
       }
@@ -468,7 +468,7 @@ const materialService = {
   async getMaterialAttachments(materialId) {
     try {
       const sql =
-        'SELECT * FROM material_attachments WHERE material_id = ? ORDER BY upload_time DESC';
+        'SELECT id, material_id, file_name, file_path, file_type, file_size, description, upload_time, uploader_id, uploader_name FROM material_attachments WHERE material_id = ? ORDER BY upload_time DESC';
       const [rows] = await pool.execute(sql, [materialId]);
       return rows;
     } catch (error) {

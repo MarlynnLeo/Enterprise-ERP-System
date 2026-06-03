@@ -136,7 +136,7 @@ const getReports = async (req, res) => {
             startDate, endDate, ncp_no, current_phase
         } = req.query;
 
-        let sql = 'SELECT * FROM eight_d_reports WHERE deleted_at IS NULL';
+        let sql = 'SELECT id, report_no, title, ncp_id, ncp_no, inspection_id, inspection_no, material_id, material_code, material_name, supplier_id, supplier_name, priority, status, current_phase, d1_team_leader, d1_team_members, d1_completed_at, d2_problem_description, d2_occurrence_date, d2_quantity_affected, d2_defect_type, d2_responsible_person, d2_completed_at, d3_containment_actions, d3_effective_date, d3_responsible_person, d3_completed_at, d4_root_cause, d4_analysis_method, d4_contributing_factors, d4_responsible_person, d4_completed_at, d5_corrective_actions, d5_responsible_person, d5_target_date, d5_completed_at, d6_implementation_results, d6_verification_method, d6_verification_result, d6_responsible_person, d6_completed_at, d7_preventive_actions, d7_standardization, d7_responsible_person, d7_completed_at, d8_summary, d8_lessons_learned, d8_team_recognition, d8_responsible_person, d8_completed_at, reviewed_by, reviewed_at, review_comments, phase1_approved_by, phase1_approved_at, phase2_approved_by, phase2_approved_at, created_by, initiated_by, initiated_at, owner, owner_department, customer_contact, target_close_date, d3_deadline, created_at, updated_at, d3_attachments, d5_attachments, d6_attachments, deleted_at FROM eight_d_reports WHERE deleted_at IS NULL';
         const params = [];
 
         if (status) {
@@ -201,7 +201,7 @@ const getReports = async (req, res) => {
 const getReportById = async (req, res) => {
     try {
         const { id } = req.params;
-        const [rows] = await pool.query('SELECT * FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL', [id]);
+        const [rows] = await pool.query('SELECT id, report_no, title, ncp_id, ncp_no, inspection_id, inspection_no, material_id, material_code, material_name, supplier_id, supplier_name, priority, status, current_phase, d1_team_leader, d1_team_members, d1_completed_at, d2_problem_description, d2_occurrence_date, d2_quantity_affected, d2_defect_type, d2_responsible_person, d2_completed_at, d3_containment_actions, d3_effective_date, d3_responsible_person, d3_completed_at, d4_root_cause, d4_analysis_method, d4_contributing_factors, d4_responsible_person, d4_completed_at, d5_corrective_actions, d5_responsible_person, d5_target_date, d5_completed_at, d6_implementation_results, d6_verification_method, d6_verification_result, d6_responsible_person, d6_completed_at, d7_preventive_actions, d7_standardization, d7_responsible_person, d7_completed_at, d8_summary, d8_lessons_learned, d8_team_recognition, d8_responsible_person, d8_completed_at, reviewed_by, reviewed_at, review_comments, phase1_approved_by, phase1_approved_at, phase2_approved_by, phase2_approved_at, created_by, initiated_by, initiated_at, owner, owner_department, customer_contact, target_close_date, d3_deadline, created_at, updated_at, d3_attachments, d5_attachments, d6_attachments, deleted_at FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL', [id]);
 
         if (rows.length === 0) {
             return ResponseHandler.error(res, '8D报告不存在', 'NOT_FOUND', 404);
@@ -223,7 +223,7 @@ const getReportLogs = async (req, res) => {
     try {
         const { id } = req.params;
         const [logs] = await pool.query(
-            'SELECT * FROM eight_d_logs WHERE report_id = ? ORDER BY created_at ASC',
+            'SELECT id, report_id, action, old_phase, new_phase, comments, operator, created_at FROM eight_d_logs WHERE report_id = ? ORDER BY created_at ASC',
             [id]
         );
         return ResponseHandler.success(res, logs);
@@ -390,7 +390,7 @@ const updateReport = async (req, res) => {
         await conn.beginTransaction();
 
         // 检查报告是否存在
-        const [existing] = await conn.query('SELECT * FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [id]);
+        const [existing] = await conn.query('SELECT id, report_no, title, ncp_id, ncp_no, inspection_id, inspection_no, material_id, material_code, material_name, supplier_id, supplier_name, priority, status, current_phase, d1_team_leader, d1_team_members, d1_completed_at, d2_problem_description, d2_occurrence_date, d2_quantity_affected, d2_defect_type, d2_responsible_person, d2_completed_at, d3_containment_actions, d3_effective_date, d3_responsible_person, d3_completed_at, d4_root_cause, d4_analysis_method, d4_contributing_factors, d4_responsible_person, d4_completed_at, d5_corrective_actions, d5_responsible_person, d5_target_date, d5_completed_at, d6_implementation_results, d6_verification_method, d6_verification_result, d6_responsible_person, d6_completed_at, d7_preventive_actions, d7_standardization, d7_responsible_person, d7_completed_at, d8_summary, d8_lessons_learned, d8_team_recognition, d8_responsible_person, d8_completed_at, reviewed_by, reviewed_at, review_comments, phase1_approved_by, phase1_approved_at, phase2_approved_by, phase2_approved_at, created_by, initiated_by, initiated_at, owner, owner_department, customer_contact, target_close_date, d3_deadline, created_at, updated_at, d3_attachments, d5_attachments, d6_attachments, deleted_at FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [id]);
         if (existing.length === 0) {
             await conn.rollback();
             return ResponseHandler.error(res, '8D报告不存在', 'NOT_FOUND', 404);
@@ -490,7 +490,7 @@ const submitReview = async (req, res) => {
         conn = await pool.getConnection();
         await conn.beginTransaction();
 
-        const [existing] = await conn.query('SELECT * FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [id]);
+        const [existing] = await conn.query('SELECT id, report_no, title, ncp_id, ncp_no, inspection_id, inspection_no, material_id, material_code, material_name, supplier_id, supplier_name, priority, status, current_phase, d1_team_leader, d1_team_members, d1_completed_at, d2_problem_description, d2_occurrence_date, d2_quantity_affected, d2_defect_type, d2_responsible_person, d2_completed_at, d3_containment_actions, d3_effective_date, d3_responsible_person, d3_completed_at, d4_root_cause, d4_analysis_method, d4_contributing_factors, d4_responsible_person, d4_completed_at, d5_corrective_actions, d5_responsible_person, d5_target_date, d5_completed_at, d6_implementation_results, d6_verification_method, d6_verification_result, d6_responsible_person, d6_completed_at, d7_preventive_actions, d7_standardization, d7_responsible_person, d7_completed_at, d8_summary, d8_lessons_learned, d8_team_recognition, d8_responsible_person, d8_completed_at, reviewed_by, reviewed_at, review_comments, phase1_approved_by, phase1_approved_at, phase2_approved_by, phase2_approved_at, created_by, initiated_by, initiated_at, owner, owner_department, customer_contact, target_close_date, d3_deadline, created_at, updated_at, d3_attachments, d5_attachments, d6_attachments, deleted_at FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [id]);
         if (existing.length === 0) {
             await conn.rollback();
             return ResponseHandler.error(res, '8D report not found', 'NOT_FOUND', 404);
@@ -548,7 +548,7 @@ const reviewReport = async (req, res) => {
         conn = await pool.getConnection();
         await conn.beginTransaction();
 
-        const [existing] = await conn.query('SELECT * FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [id]);
+        const [existing] = await conn.query('SELECT id, report_no, title, ncp_id, ncp_no, inspection_id, inspection_no, material_id, material_code, material_name, supplier_id, supplier_name, priority, status, current_phase, d1_team_leader, d1_team_members, d1_completed_at, d2_problem_description, d2_occurrence_date, d2_quantity_affected, d2_defect_type, d2_responsible_person, d2_completed_at, d3_containment_actions, d3_effective_date, d3_responsible_person, d3_completed_at, d4_root_cause, d4_analysis_method, d4_contributing_factors, d4_responsible_person, d4_completed_at, d5_corrective_actions, d5_responsible_person, d5_target_date, d5_completed_at, d6_implementation_results, d6_verification_method, d6_verification_result, d6_responsible_person, d6_completed_at, d7_preventive_actions, d7_standardization, d7_responsible_person, d7_completed_at, d8_summary, d8_lessons_learned, d8_team_recognition, d8_responsible_person, d8_completed_at, reviewed_by, reviewed_at, review_comments, phase1_approved_by, phase1_approved_at, phase2_approved_by, phase2_approved_at, created_by, initiated_by, initiated_at, owner, owner_department, customer_contact, target_close_date, d3_deadline, created_at, updated_at, d3_attachments, d5_attachments, d6_attachments, deleted_at FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [id]);
         if (existing.length === 0) {
             await conn.rollback();
             return ResponseHandler.error(res, '8D report not found', 'NOT_FOUND', 404);
@@ -633,7 +633,7 @@ const submitPhase2Review = async (req, res) => {
         conn = await pool.getConnection();
         await conn.beginTransaction();
 
-        const [existing] = await conn.query('SELECT * FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [id]);
+        const [existing] = await conn.query('SELECT id, report_no, title, ncp_id, ncp_no, inspection_id, inspection_no, material_id, material_code, material_name, supplier_id, supplier_name, priority, status, current_phase, d1_team_leader, d1_team_members, d1_completed_at, d2_problem_description, d2_occurrence_date, d2_quantity_affected, d2_defect_type, d2_responsible_person, d2_completed_at, d3_containment_actions, d3_effective_date, d3_responsible_person, d3_completed_at, d4_root_cause, d4_analysis_method, d4_contributing_factors, d4_responsible_person, d4_completed_at, d5_corrective_actions, d5_responsible_person, d5_target_date, d5_completed_at, d6_implementation_results, d6_verification_method, d6_verification_result, d6_responsible_person, d6_completed_at, d7_preventive_actions, d7_standardization, d7_responsible_person, d7_completed_at, d8_summary, d8_lessons_learned, d8_team_recognition, d8_responsible_person, d8_completed_at, reviewed_by, reviewed_at, review_comments, phase1_approved_by, phase1_approved_at, phase2_approved_by, phase2_approved_at, created_by, initiated_by, initiated_at, owner, owner_department, customer_contact, target_close_date, d3_deadline, created_at, updated_at, d3_attachments, d5_attachments, d6_attachments, deleted_at FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [id]);
         if (existing.length === 0) {
             await conn.rollback();
             return ResponseHandler.error(res, '8D report not found', 'NOT_FOUND', 404);
@@ -689,7 +689,7 @@ const completeReport = async (req, res) => {
         conn = await pool.getConnection();
         await conn.beginTransaction();
 
-        const [existing] = await conn.query('SELECT * FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [id]);
+        const [existing] = await conn.query('SELECT id, report_no, title, ncp_id, ncp_no, inspection_id, inspection_no, material_id, material_code, material_name, supplier_id, supplier_name, priority, status, current_phase, d1_team_leader, d1_team_members, d1_completed_at, d2_problem_description, d2_occurrence_date, d2_quantity_affected, d2_defect_type, d2_responsible_person, d2_completed_at, d3_containment_actions, d3_effective_date, d3_responsible_person, d3_completed_at, d4_root_cause, d4_analysis_method, d4_contributing_factors, d4_responsible_person, d4_completed_at, d5_corrective_actions, d5_responsible_person, d5_target_date, d5_completed_at, d6_implementation_results, d6_verification_method, d6_verification_result, d6_responsible_person, d6_completed_at, d7_preventive_actions, d7_standardization, d7_responsible_person, d7_completed_at, d8_summary, d8_lessons_learned, d8_team_recognition, d8_responsible_person, d8_completed_at, reviewed_by, reviewed_at, review_comments, phase1_approved_by, phase1_approved_at, phase2_approved_by, phase2_approved_at, created_by, initiated_by, initiated_at, owner, owner_department, customer_contact, target_close_date, d3_deadline, created_at, updated_at, d3_attachments, d5_attachments, d6_attachments, deleted_at FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [id]);
         if (existing.length === 0) {
             await conn.rollback();
             return ResponseHandler.error(res, '8D报告不存在', 'NOT_FOUND', 404);
@@ -749,7 +749,7 @@ const closeReport = async (req, res) => {
         conn = await pool.getConnection();
         await conn.beginTransaction();
 
-        const [existing] = await conn.query('SELECT * FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [id]);
+        const [existing] = await conn.query('SELECT id, report_no, title, ncp_id, ncp_no, inspection_id, inspection_no, material_id, material_code, material_name, supplier_id, supplier_name, priority, status, current_phase, d1_team_leader, d1_team_members, d1_completed_at, d2_problem_description, d2_occurrence_date, d2_quantity_affected, d2_defect_type, d2_responsible_person, d2_completed_at, d3_containment_actions, d3_effective_date, d3_responsible_person, d3_completed_at, d4_root_cause, d4_analysis_method, d4_contributing_factors, d4_responsible_person, d4_completed_at, d5_corrective_actions, d5_responsible_person, d5_target_date, d5_completed_at, d6_implementation_results, d6_verification_method, d6_verification_result, d6_responsible_person, d6_completed_at, d7_preventive_actions, d7_standardization, d7_responsible_person, d7_completed_at, d8_summary, d8_lessons_learned, d8_team_recognition, d8_responsible_person, d8_completed_at, reviewed_by, reviewed_at, review_comments, phase1_approved_by, phase1_approved_at, phase2_approved_by, phase2_approved_at, created_by, initiated_by, initiated_at, owner, owner_department, customer_contact, target_close_date, d3_deadline, created_at, updated_at, d3_attachments, d5_attachments, d6_attachments, deleted_at FROM eight_d_reports WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [id]);
         if (existing.length === 0) {
             await conn.rollback();
             return ResponseHandler.error(res, '8D报告不存在', 'NOT_FOUND', 404);

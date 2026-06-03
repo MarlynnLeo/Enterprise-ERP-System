@@ -134,14 +134,14 @@ const gaugeController = {
         try {
             const { id } = req.params;
 
-            const result = await db.query('SELECT * FROM gauges WHERE id = ?', [id]);
+            const result = await db.query('SELECT id, gauge_no, gauge_name, gauge_type, model, manufacturer, serial_number, measurement_range, accuracy, resolution, location, custodian, status, purchase_date, last_calibration_date, next_calibration_date, calibration_cycle_days, note, created_at, updated_at FROM gauges WHERE id = ?', [id]);
             if (!result.rows || result.rows.length === 0) {
                 return ResponseHandler.error(res, '量具不存在', 'NOT_FOUND', 404);
             }
 
             // 同时查询最近5条校准记录
             const calibrations = await db.query(
-                `SELECT * FROM gauge_calibration_records WHERE gauge_id = ? ORDER BY calibration_date DESC LIMIT 5`,
+                `SELECT id, gauge_id, calibration_no, calibration_type, calibration_date, next_due_date, calibrated_by, result, certificate_no, standard_used, temperature, humidity, deviation, uncertainty, note, attachment_url, created_at, updated_at FROM gauge_calibration_records WHERE gauge_id = ? ORDER BY calibration_date DESC LIMIT 5`,
                 [id]
             );
 
@@ -316,7 +316,7 @@ const gaugeController = {
             }
 
             // 验证量具存在
-            const gauge = await db.query('SELECT * FROM gauges WHERE id = ?', [data.gauge_id]);
+            const gauge = await db.query('SELECT id, gauge_no, gauge_name, gauge_type, model, manufacturer, serial_number, measurement_range, accuracy, resolution, location, custodian, status, purchase_date, last_calibration_date, next_calibration_date, calibration_cycle_days, note, created_at, updated_at FROM gauges WHERE id = ?', [data.gauge_id]);
             if (!gauge.rows || gauge.rows.length === 0) {
                 return ResponseHandler.error(res, '量具不存在', 'NOT_FOUND', 404);
             }

@@ -59,7 +59,7 @@ class CostClosingService {
   static async getPeriod(connection, periodId = null) {
     if (periodId) {
       const [rows] = await connection.execute(
-        'SELECT * FROM gl_periods WHERE id = ?',
+        'SELECT id, period_name, start_date, end_date, is_closed, is_adjusting, fiscal_year, created_at, updated_at, closed_by, closed_at, closing_date, reopened_by, reopened_at, status FROM gl_periods WHERE id = ?',
         [periodId]
       );
       if (rows.length === 0) {
@@ -71,8 +71,7 @@ class CostClosingService {
     }
 
     const [rows] = await connection.execute(
-      `SELECT *
-         FROM gl_periods
+      `SELECT id, period_name, start_date, end_date, is_closed, is_adjusting, fiscal_year, created_at, updated_at, closed_by, closed_at, closing_date, reopened_by, reopened_at, status FROM gl_periods
         WHERE COALESCE(is_closed, 0) = 0
         ORDER BY start_date ASC, id ASC
         LIMIT 1`

@@ -267,7 +267,7 @@ const completeScrap = async (req, res) => {
     const { scrap_cost } = req.body;
 
     // 获取报废记录信息
-    const [records] = await connection.query('SELECT * FROM scrap_records WHERE id = ? FOR UPDATE', [id]);
+    const [records] = await connection.query('SELECT id, scrap_no, ncp_id, ncp_no, material_id, material_code, material_name, quantity, scrap_reason, scrap_date, scrap_cost, status, approver, approval_date, created_by, created_at, updated_at FROM scrap_records WHERE id = ? FOR UPDATE', [id]);
 
     if (records.length === 0) {
       await connection.rollback();
@@ -338,7 +338,7 @@ const updateStatus = async (req, res) => {
     }
 
     // 获取报废记录信息（completed 状态需要做额外处理）
-    const [records] = await connection.query('SELECT * FROM scrap_records WHERE id = ? FOR UPDATE', [id]);
+    const [records] = await connection.query('SELECT id, scrap_no, ncp_id, ncp_no, material_id, material_code, material_name, quantity, scrap_reason, scrap_date, scrap_cost, status, approver, approval_date, created_by, created_at, updated_at FROM scrap_records WHERE id = ? FOR UPDATE', [id]);
     if (records.length === 0) {
       await connection.rollback();
       return ResponseHandler.error(res, '报废记录不存在', 'NOT_FOUND', 404);

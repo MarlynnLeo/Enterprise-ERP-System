@@ -1173,7 +1173,7 @@ const financeController = {
         return ResponseHandler.error(res, '会计期间ID为必填项', 'VALIDATION_ERROR', 400);
       }
 
-      const [periodInfo] = await db.pool.execute('SELECT * FROM gl_periods WHERE id = ?', [parseInt(id)]);
+      const [periodInfo] = await db.pool.execute('SELECT id, period_name, start_date, end_date, is_closed, is_adjusting, fiscal_year, created_at, updated_at, closed_by, closed_at, closing_date, reopened_by, reopened_at, status FROM gl_periods WHERE id = ?', [parseInt(id)]);
 
       if (periodInfo.length === 0) {
         return ResponseHandler.error(res, '会计期间不存在', 'NOT_FOUND', 404);

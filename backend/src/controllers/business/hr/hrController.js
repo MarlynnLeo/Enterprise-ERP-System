@@ -809,7 +809,7 @@ const exportSalary = async (req, res) => {
 
 const getAttendanceRules = async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT * FROM hr_attendance_rules ORDER BY sort_order');
+    const [rows] = await pool.query('SELECT id, rule_key, rule_name, rule_value, rule_group, description, sort_order, updated_at FROM hr_attendance_rules ORDER BY sort_order');
     return ResponseHandler.success(res, rows);
   } catch (error) {
     return ResponseHandler.error(res, '获取考勤规则失败', 'OPERATION_ERROR', 500, error);

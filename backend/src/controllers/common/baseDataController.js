@@ -12,6 +12,7 @@ const { createCrudController } = require('../../utils/controllerFactory');
 const { desensitizeData, hasFinancePermission } = require('../../utils/desensitizer');
 const { getCurrentUserName } = require('../../utils/userHelper');
 const { getAuthenticatedUserId } = require('../../utils/authContext');
+const { safeParseId } = require('../../utils/safeParseId');
 const { pool: dbPool } = require('../../config/db');
 const DLQService = require('../../services/business/DLQService');
 const FileAccessService = require('../../services/FileAccessService');

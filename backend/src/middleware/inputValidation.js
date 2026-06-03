@@ -54,15 +54,38 @@ const SKIP_SANITIZE_FIELDS = [
   'split_details', // 薪资拆分详情 JSON
 ];
 
+const ROUTE_SANITIZE_FIELD_BYPASSES = [
+  {
+    pathPrefix: '/api/print/',
+    fields: ['content', 'header_html', 'footer_html', 'body_html'],
+  },
+  {
+    pathPrefix: '/api/system/technical-communications',
+    fields: ['content', 'solution', 'description'],
+  },
+];
+
+const pathLeaf = (path) => String(path || '').split('.').pop();
+
 /**
  * 检查字段是否应该跳过 HTML 转义
  * @param {string} key - 字段名
  * @param {string} value - 字段值
  * @returns {boolean}
  */
-const shouldSkipSanitize = (key, value) => {
+const shouldSkipSanitize = (key, value, requestPath = '') => {
+  const leaf = pathLeaf(key);
+
+  if (
+    ROUTE_SANITIZE_FIELD_BYPASSES.some(
+      ({ pathPrefix, fields }) => requestPath.startsWith(pathPrefix) && fields.includes(leaf)
+    )
+  ) {
+    return true;
+  }
+
   // 跳过白名单字段
-  if (SKIP_SANITIZE_FIELDS.includes(key)) {
+  if (SKIP_SANITIZE_FIELDS.includes(leaf)) {
     return true;
   }
   // 跳过以 /uploads/ 开头的值（文件路径）
@@ -80,7 +103,7 @@ const shouldSkipSanitize = (key, value) => {
  * @param {string} currentKey - 当前字段名
  * @returns {*} 清理后的对象
  */
-const sanitizeObject = (obj, depth = 0, maxDepth = 10, currentKey = '') => {
+const sanitizeObject = (obj, depth = 0, maxDepth = 10, currentKey = '', requestPath = '') => {
   // 防止递归过深
   if (depth > maxDepth) {
     logger.warn('对象递归深度超过限制');
@@ -89,21 +112,22 @@ const sanitizeObject = (obj, depth = 0, maxDepth = 10, currentKey = '') => {
 
   if (typeof obj === 'string') {
     // 跳过文件路径等特殊字段
-    if (shouldSkipSanitize(currentKey, obj)) {
+    if (shouldSkipSanitize(currentKey, obj, requestPath)) {
       return obj;
     }
     return sanitizeHTML(obj);
   }
 
   if (Array.isArray(obj)) {
-    return obj.map((item) => sanitizeObject(item, depth + 1, maxDepth, currentKey));
+    return obj.map((item) => sanitizeObject(item, depth + 1, maxDepth, currentKey, requestPath));
   }
 
   if (obj !== null && typeof obj === 'object') {
     const sanitized = {};
     for (const key in obj) {
       if (Object.prototype.hasOwnProperty.call(obj, key)) {
-        sanitized[key] = sanitizeObject(obj[key], depth + 1, maxDepth, key);
+        const nextKey = currentKey ? `${currentKey}.${key}` : key;
+        sanitized[key] = sanitizeObject(obj[key], depth + 1, maxDepth, nextKey, requestPath);
       }
     }
     return sanitized;
@@ -122,19 +146,21 @@ const validateAndSanitizeInput = (req, res, next) => {
       return next();
     }
 
+    const requestPath = (req.originalUrl || req.path || '').split('?')[0];
+
     // 清理请求体
     if (req.body && Object.keys(req.body).length > 0) {
-      req.body = sanitizeObject(req.body);
+      req.body = sanitizeObject(req.body, 0, 10, '', requestPath);
     }
 
     // 清理查询参数
     if (req.query && Object.keys(req.query).length > 0) {
-      req.query = sanitizeObject(req.query);
+      req.query = sanitizeObject(req.query, 0, 10, '', requestPath);
     }
 
     // 清理URL参数
     if (req.params && Object.keys(req.params).length > 0) {
-      req.params = sanitizeObject(req.params);
+      req.params = sanitizeObject(req.params, 0, 10, '', requestPath);
     }
 
     next();

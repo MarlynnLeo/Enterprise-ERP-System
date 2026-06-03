@@ -208,7 +208,7 @@ class ReconciliationModel {
     const bankAccountId = requirePositiveInteger(accountId, 'accountId');
 
     const [items] = await db.pool.execute(
-      'SELECT * FROM bank_statement_items WHERE id = ? AND bank_account_id = ?',
+      'SELECT id, import_id, bank_account_id, transaction_date, transaction_type, amount, summary, reference_number, counterparty, balance, status, created_at, updated_at FROM bank_statement_items WHERE id = ? AND bank_account_id = ?',
       [itemId, bankAccountId]
     );
 
@@ -272,7 +272,7 @@ class ReconciliationModel {
       await connection.beginTransaction();
 
       const [items] = await connection.execute(
-        'SELECT * FROM bank_statement_items WHERE id = ? AND bank_account_id = ? FOR UPDATE',
+        'SELECT id, import_id, bank_account_id, transaction_date, transaction_type, amount, summary, reference_number, counterparty, balance, status, created_at, updated_at FROM bank_statement_items WHERE id = ? AND bank_account_id = ? FOR UPDATE',
         [itemId, bankAccountId]
       );
 
@@ -394,7 +394,7 @@ class ReconciliationModel {
 
   static async getReconciliations(filters = {}) {
     try {
-      let query = 'SELECT * FROM reconciliations WHERE 1=1';
+      let query = 'SELECT id, account_id, reconciliation_date, bank_statement_balance, book_balance, difference, status, notes, attachment, created_by, updated_by, created_at, updated_at FROM reconciliations WHERE 1=1';
       const params = [];
 
       if (filters.accountId) {
@@ -433,7 +433,7 @@ class ReconciliationModel {
 
   static async getReconciliationById(id) {
     try {
-      const [rows] = await db.pool.execute('SELECT * FROM reconciliations WHERE id = ?', [id]);
+      const [rows] = await db.pool.execute('SELECT id, account_id, reconciliation_date, bank_statement_balance, book_balance, difference, status, notes, attachment, created_by, updated_by, created_at, updated_at FROM reconciliations WHERE id = ?', [id]);
       return rows.length > 0 ? rows[0] : null;
     } catch (error) {
       logger.error('Get reconciliation failed:', error);

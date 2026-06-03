@@ -149,7 +149,7 @@ class InventoryReservationService {
       }
 
       const [reservations] = await conn.execute(
-        'SELECT * FROM inventory_reservations WHERE order_id = ? AND status = "active"',
+        'SELECT id, order_id, order_no, material_id, material_code, material_name, location_id, reserved_quantity, status, reserved_at, released_at, created_by, remarks, created_at, updated_at FROM inventory_reservations WHERE order_id = ? AND status = "active"',
         [orderId]
       );
 

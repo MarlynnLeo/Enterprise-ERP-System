@@ -74,7 +74,7 @@ class GLService {
   static async getCurrentPeriod() {
     try {
       const [periods] = await db.pool.execute(`
-        SELECT * FROM gl_periods
+        SELECT id, period_name, start_date, end_date, is_closed, is_adjusting, fiscal_year, created_at, updated_at, closed_by, closed_at, closing_date, reopened_by, reopened_at, status FROM gl_periods
         WHERE is_closed = 0
         ORDER BY end_date DESC
         LIMIT 1

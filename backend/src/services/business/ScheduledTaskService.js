@@ -287,8 +287,7 @@ class ScheduledTaskService {
   static async executeBusinessAlertCheck() {
     const { pool } = require('../../config/db');
     const [alerts] = await pool.query(
-      `SELECT *
-       FROM business_alerts
+      `SELECT id, code, name, category, condition_type, condition_params, severity, notify_roles, notify_users, is_active, check_interval_minutes, last_checked_at, created_at, updated_at FROM business_alerts
        WHERE is_active = 1
          AND (
            last_checked_at IS NULL

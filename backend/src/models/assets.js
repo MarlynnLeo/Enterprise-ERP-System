@@ -610,7 +610,7 @@ const assetsModel = {
       const depreciationMonth = toLocalMonthString(depreciationDate);
 
       // 获取资产信息
-      const [assets] = await connection.query('SELECT * FROM fixed_assets WHERE id = ? FOR UPDATE', [
+      const [assets] = await connection.query('SELECT id, asset_code, asset_name, asset_type, category_id, acquisition_date, acquisition_cost, depreciation_method, useful_life, salvage_value, current_value, accumulated_depreciation, impairment_amount, location_id, department_id, custodian, status, audit_status, audited_by, audited_at, notes, created_at, updated_at, depreciation_start_date, depreciation_end_date, last_depreciation_date, net_value FROM fixed_assets WHERE id = ? FOR UPDATE', [
         params.assetId,
       ]);
       if (assets.length === 0) {
@@ -631,7 +631,7 @@ const assetsModel = {
       // 检查当前期间是否已计提折旧
       try {
         const [existingDepreciation] = await connection.query(
-          'SELECT * FROM asset_depreciation WHERE asset_id = ? AND period_id = ?',
+          'SELECT id, asset_id, period_id, depreciation_date, depreciation_amount, book_value_before, book_value_after, is_posted, voucher_no, notes, created_at FROM asset_depreciation WHERE asset_id = ? AND period_id = ?',
           [params.assetId, params.periodId]
         );
 
@@ -954,7 +954,7 @@ const assetsModel = {
 
         // 获取资产信息
         const [assetInfo] = await connection.execute(
-          'SELECT * FROM fixed_assets WHERE id = ? FOR UPDATE',
+          'SELECT id, asset_code, asset_name, asset_type, category_id, acquisition_date, acquisition_cost, depreciation_method, useful_life, salvage_value, current_value, accumulated_depreciation, impairment_amount, location_id, department_id, custodian, status, audit_status, audited_by, audited_at, notes, created_at, updated_at, depreciation_start_date, depreciation_end_date, last_depreciation_date, net_value FROM fixed_assets WHERE id = ? FOR UPDATE',
           [assetId]
         );
 
@@ -1175,7 +1175,7 @@ const assetsModel = {
       disposalData.disposal_date = toLocalDateString(disposalData.disposal_date);
 
       // 获取资产信息
-      const [assets] = await connection.query('SELECT * FROM fixed_assets WHERE id = ? FOR UPDATE', [id]);
+      const [assets] = await connection.query('SELECT id, asset_code, asset_name, asset_type, category_id, acquisition_date, acquisition_cost, depreciation_method, useful_life, salvage_value, current_value, accumulated_depreciation, impairment_amount, location_id, department_id, custodian, status, audit_status, audited_by, audited_at, notes, created_at, updated_at, depreciation_start_date, depreciation_end_date, last_depreciation_date, net_value FROM fixed_assets WHERE id = ? FOR UPDATE', [id]);
       if (assets.length === 0) {
         throw new Error(`资产ID ${id} 不存在`);
       }
@@ -1760,7 +1760,7 @@ const assetsModel = {
 
       logger.info('开始执行资产调拨，参数:', transferData);
 
-      const [assets] = await connection.query('SELECT * FROM fixed_assets WHERE id = ? FOR UPDATE', [
+      const [assets] = await connection.query('SELECT id, asset_code, asset_name, asset_type, category_id, acquisition_date, acquisition_cost, depreciation_method, useful_life, salvage_value, current_value, accumulated_depreciation, impairment_amount, location_id, department_id, custodian, status, audit_status, audited_by, audited_at, notes, created_at, updated_at, depreciation_start_date, depreciation_end_date, last_depreciation_date, net_value FROM fixed_assets WHERE id = ? FOR UPDATE', [
         transferData.assetId,
       ]);
       if (assets.length === 0) {
@@ -1959,7 +1959,7 @@ const assetsModel = {
       impairmentData.impairment_date = toLocalDateString(impairmentData.impairment_date);
 
       // 验证资产是否存在
-      const [assets] = await connection.query('SELECT * FROM fixed_assets WHERE id = ? FOR UPDATE', [assetId]);
+      const [assets] = await connection.query('SELECT id, asset_code, asset_name, asset_type, category_id, acquisition_date, acquisition_cost, depreciation_method, useful_life, salvage_value, current_value, accumulated_depreciation, impairment_amount, location_id, department_id, custodian, status, audit_status, audited_by, audited_at, notes, created_at, updated_at, depreciation_start_date, depreciation_end_date, last_depreciation_date, net_value FROM fixed_assets WHERE id = ? FOR UPDATE', [assetId]);
       if (assets.length === 0) {
         throw new Error(`资产ID ${assetId} 不存在`);
       }
@@ -2261,7 +2261,7 @@ const assetsModel = {
       await connection.beginTransaction();
 
       // 1. 获取原资产信息
-      const [assets] = await connection.query('SELECT * FROM fixed_assets WHERE id = ? FOR UPDATE', [assetId]);
+      const [assets] = await connection.query('SELECT id, asset_code, asset_name, asset_type, category_id, acquisition_date, acquisition_cost, depreciation_method, useful_life, salvage_value, current_value, accumulated_depreciation, impairment_amount, location_id, department_id, custodian, status, audit_status, audited_by, audited_at, notes, created_at, updated_at, depreciation_start_date, depreciation_end_date, last_depreciation_date, net_value FROM fixed_assets WHERE id = ? FOR UPDATE', [assetId]);
       if (assets.length === 0) {
         throw new Error(`资产ID ${assetId} 不存在`);
       }

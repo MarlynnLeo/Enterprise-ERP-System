@@ -148,7 +148,7 @@ class BackupService {
     }
 
     const [[backup]] = await pool.query(
-      'SELECT * FROM system_backups WHERE filename = ? AND status = "success" LIMIT 1',
+      'SELECT id, filename, file_path, file_size, checksum, status, message, created_by, created_at FROM system_backups WHERE filename = ? AND status = "success" LIMIT 1',
       [safeFilename]
     );
     if (!backup) {

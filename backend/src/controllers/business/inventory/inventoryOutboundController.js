@@ -2601,7 +2601,7 @@ const updateOutboundStatus = async (req, res) => {
       try {
         // 获取出库单信息用于异步任务
         const [outboundData] = await connection.execute(
-          'SELECT * FROM inventory_outbound WHERE id = ?',
+          'SELECT id, outbound_no, outbound_date, sales_order_id, customer_id, customer_name, total_amount, status, outbound_type, remark, operator, created_at, updated_at, reference_id, reference_type, source_task_ids, is_batch_outbound, production_task_id, issue_reason, is_excess, deleted_at FROM inventory_outbound WHERE id = ?',
           [id]
         );
 
@@ -2664,7 +2664,7 @@ const supplementOutbound = async (req, res) => {
 
     // 1. 检查原出库单状态
     const [outboundCheck] = await connection.execute(
-      'SELECT * FROM inventory_outbound WHERE id = ?',
+      'SELECT id, outbound_no, outbound_date, sales_order_id, customer_id, customer_name, total_amount, status, outbound_type, remark, operator, created_at, updated_at, reference_id, reference_type, source_task_ids, is_batch_outbound, production_task_id, issue_reason, is_excess, deleted_at FROM inventory_outbound WHERE id = ?',
       [id]
     );
 
@@ -2801,7 +2801,7 @@ const supplementOutbound = async (req, res) => {
 
     // 6. 检查是否所有物料都已补齐
     const [updatedItems] = await connection.execute(
-      'SELECT * FROM inventory_outbound_items WHERE outbound_id = ?',
+      'SELECT id, outbound_id, material_id, quantity, price, tax_rate, total_amount, planned_quantity, actual_quantity, shortage_quantity, is_shortage, source_tasks, unit_id, remark, created_at, updated_at FROM inventory_outbound_items WHERE outbound_id = ?',
       [id]
     );
 

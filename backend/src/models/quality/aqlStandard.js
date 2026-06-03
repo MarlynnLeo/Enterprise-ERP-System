@@ -34,7 +34,7 @@ class AqlStandard {
      * 根据ID查找AQL标准
      */
     static async findById(id) {
-        const [rows] = await pool.query('SELECT * FROM quality_aql_standards WHERE id = ?', [id]);
+        const [rows] = await pool.query('SELECT id, code, name, batch_min, batch_max, sample_size, aql_level, accept_limit, reject_limit, status, creator_id, created_at, updated_at FROM quality_aql_standards WHERE id = ?', [id]);
         return rows[0] || null;
     }
 
@@ -84,7 +84,7 @@ class AqlStandard {
      * 获取 AQL 标准列表 (支持简单过滤)
      */
     static async findAll(params = {}) {
-        let query = 'SELECT * FROM quality_aql_standards WHERE 1=1';
+        let query = 'SELECT id, code, name, batch_min, batch_max, sample_size, aql_level, accept_limit, reject_limit, status, creator_id, created_at, updated_at FROM quality_aql_standards WHERE 1=1';
         const values = [];
 
         if (params.status) {

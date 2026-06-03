@@ -26,7 +26,7 @@ const createReinspectionTask = async (task, connection) => {
   try {
     // 获取原质检单详情
     const [originalRows] = await connection.query(
-      'SELECT * FROM quality_inspections WHERE id = ?',
+      'SELECT id, inspection_no, inspection_type, reference_id, reference_no, material_id, supplier_id, product_id, product_name, product_code, process_id, process_name, batch_no, quantity, qualified_quantity, unqualified_quantity, unit, unit_id, status, planned_date, actual_date, inspector_id, inspector_name, punch_time, standard_type, standard_no, template_id, note, created_at, updated_at, traceability_id, traceability_batch, chain_id, chain_step_id, is_first_article, first_article_qty, is_full_inspection, first_article_result, production_can_continue, task_id, is_aql, aql_standard_id, aql_level, accept_limit, reject_limit, deleted_at FROM quality_inspections WHERE id = ?',
       [task.inspection_id]
     );
 
@@ -65,7 +65,7 @@ const createReinspectionTask = async (task, connection) => {
     const newInspectionId = insertResult.insertId;
 
     // 继承检验项目标准
-    const [items] = await connection.query('SELECT * FROM quality_inspection_items WHERE inspection_id = ?', [task.inspection_id]);
+    const [items] = await connection.query('SELECT id, inspection_id, item_name, standard, type, is_critical, dimension_value, tolerance_upper, tolerance_lower, actual_value, measure_1, measure_2, measure_3, measure_4, measure_5, measure_6, method, result, is_qualified, remark, created_at, updated_at FROM quality_inspection_items WHERE inspection_id = ?', [task.inspection_id]);
     if (items.length > 0) {
       await connection.query(
         `INSERT INTO quality_inspection_items (

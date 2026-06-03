@@ -100,7 +100,7 @@ exports.getSalesQuotations = async (req, res) => {
         const quotationIds = rows.map((q) => q.id);
         const placeholders = quotationIds.map(() => '?').join(',');
         const [allItems] = await conn.query(
-          `SELECT * FROM sales_quotation_items WHERE quotation_id IN (${placeholders})`,
+          `SELECT id, quotation_id, product_id, quantity, unit_price, discount_percent, tax_percent, total_price FROM sales_quotation_items WHERE quotation_id IN (${placeholders})`,
           quotationIds
         );
 

@@ -425,7 +425,7 @@ class NonconformingProductService {
       await connection.beginTransaction();
 
       const [rows] = await connection.query(
-        'SELECT * FROM nonconforming_products WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+        'SELECT id, ncp_no, inspection_id, inspection_no, material_id, material_code, material_name, batch_no, quantity, unit, defect_type, defect_description, severity, supplier_id, supplier_name, disposition, disposition_reason, disposition_by, disposition_date, handled_quantity, handling_cost, status, current_location, isolation_area, responsible_party, responsible_person, attachments, note, created_by, created_at, updated_by, updated_at, concession_reason, concession_approver_id, concession_approval_date, concession_status, deleted_at FROM nonconforming_products WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
         [ncpId]
       );
       if (rows.length === 0) {
@@ -1344,7 +1344,7 @@ class NonconformingProductService {
 
       // H13: 事务 + 行锁 + 锁内复检，避免并发重复申请，并保证主更新与审计日志原子落库
       const [rows] = await connection.query(
-        'SELECT * FROM nonconforming_products WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+        'SELECT id, ncp_no, inspection_id, inspection_no, material_id, material_code, material_name, batch_no, quantity, unit, defect_type, defect_description, severity, supplier_id, supplier_name, disposition, disposition_reason, disposition_by, disposition_date, handled_quantity, handling_cost, status, current_location, isolation_area, responsible_party, responsible_person, attachments, note, created_by, created_at, updated_by, updated_at, concession_reason, concession_approver_id, concession_approval_date, concession_status, deleted_at FROM nonconforming_products WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
         [ncpId]
       );
       if (rows.length === 0) throw new Error('NCP not found');
@@ -1401,7 +1401,7 @@ class NonconformingProductService {
       await connection.beginTransaction();
 
       const [rows] = await connection.query(
-        'SELECT * FROM nonconforming_products WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+        'SELECT id, ncp_no, inspection_id, inspection_no, material_id, material_code, material_name, batch_no, quantity, unit, defect_type, defect_description, severity, supplier_id, supplier_name, disposition, disposition_reason, disposition_by, disposition_date, handled_quantity, handling_cost, status, current_location, isolation_area, responsible_party, responsible_person, attachments, note, created_by, created_at, updated_by, updated_at, concession_reason, concession_approver_id, concession_approval_date, concession_status, deleted_at FROM nonconforming_products WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
         [ncpId]
       );
       if (rows.length === 0) throw new Error('NCP not found');

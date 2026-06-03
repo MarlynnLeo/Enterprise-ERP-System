@@ -49,7 +49,7 @@ class EquipmentMonitoringService extends BaseService {
 
     try {
       // 获取设备基本信息
-      const [equipmentRows] = await connection.execute('SELECT * FROM equipment WHERE id = ?', [
+      const [equipmentRows] = await connection.execute('SELECT id, code, name, model, manufacturer, purchase_date, inspection_date, next_inspection_date, location, status, responsible_person, description, specs, created_at, updated_at, is_active, deleted_at FROM equipment WHERE id = ?', [
         equipmentId,
       ]);
 

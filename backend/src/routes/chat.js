@@ -14,12 +14,33 @@ const { parsePagination, appendPaginationSQL } = require('../utils/safePaginatio
 
 router.use(authenticateToken);
 
+const getRequestUserId = (req) => req.user.userId || req.user.id;
+
+const parsePositiveUserId = (value) => {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) && parsed > 0 && String(value).trim() === String(parsed)
+    ? parsed
+    : null;
+};
+
+const getActiveUserIdSet = async (userIds, connection = pool) => {
+  const ids = [...new Set(userIds)].filter((id) => Number.isInteger(id) && id > 0);
+  if (ids.length === 0) return new Set();
+
+  const placeholders = ids.map(() => '?').join(',');
+  const [rows] = await connection.query(
+    `SELECT id FROM users WHERE id IN (${placeholders}) AND status = 1`,
+    ids
+  );
+  return new Set(rows.map((row) => row.id));
+};
+
 // ==================== 会话管理 ====================
 
 // 获取当前用户的会话列表
 router.get('/conversations', async (req, res) => {
   try {
-    const userId = req.user.userId || req.user.id;
+    const userId = getRequestUserId(req);
     const [rows] = await pool.query(`
       SELECT
         c.id, c.name, c.type, c.last_message_at, c.last_message_preview, c.created_at,
@@ -71,10 +92,15 @@ router.get('/conversations', async (req, res) => {
 // 创建或获取私聊会话
 router.post('/conversations/private', async (req, res) => {
   try {
-    const userId = req.user.userId || req.user.id;
-    const { targetUserId } = req.body;
+    const userId = getRequestUserId(req);
+    const targetUserId = parsePositiveUserId(req.body.targetUserId);
     if (!targetUserId || targetUserId === userId) {
       return ResponseHandler.error(res, '无效的目标用户', 'VALIDATION_ERROR', 400);
+    }
+
+    const activeUserIds = await getActiveUserIdSet([targetUserId]);
+    if (!activeUserIds.has(targetUserId)) {
+      return ResponseHandler.error(res, '目标用户不存在或已停用', 'VALIDATION_ERROR', 400);
     }
 
     // 查找是否已有私聊会话
@@ -120,13 +146,23 @@ router.post('/conversations/private', async (req, res) => {
 // 创建群聊会话
 router.post('/conversations/group', async (req, res) => {
   try {
-    const userId = req.user.userId || req.user.id;
+    const userId = getRequestUserId(req);
     const { name, memberIds = [] } = req.body;
-    if (!name || memberIds.length === 0) {
+    if (!name || !Array.isArray(memberIds) || memberIds.length === 0) {
       return ResponseHandler.error(res, '请提供群名和成员列表', 'VALIDATION_ERROR', 400);
     }
 
-    const allMembers = [...new Set([userId, ...memberIds])];
+    const parsedMemberIds = memberIds.map(parsePositiveUserId);
+    if (parsedMemberIds.some((id) => !id)) {
+      return ResponseHandler.error(res, '成员列表包含无效用户ID', 'VALIDATION_ERROR', 400);
+    }
+
+    const allMembers = [...new Set([userId, ...parsedMemberIds])];
+    const activeUserIds = await getActiveUserIdSet(allMembers);
+    if (activeUserIds.size !== allMembers.length) {
+      return ResponseHandler.error(res, '成员列表包含不存在或已停用的用户', 'VALIDATION_ERROR', 400);
+    }
+
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
@@ -168,7 +204,7 @@ router.post('/conversations/group', async (req, res) => {
 // 获取会话消息历史
 router.get('/conversations/:id/messages', async (req, res) => {
   try {
-    const userId = req.user.userId || req.user.id;
+    const userId = getRequestUserId(req);
     const conversationId = req.params.id;
     const pagination = parsePagination(req.query.page, req.query.pageSize || req.query.limit, {
       defaultPageSize: 30,
@@ -223,7 +259,7 @@ router.get('/conversations/:id/messages', async (req, res) => {
 
 router.get('/contacts', async (req, res) => {
   try {
-    const userId = req.user.userId || req.user.id;
+    const userId = getRequestUserId(req);
     const search = req.query.search || '';
     let query = `
       SELECT id, username, real_name, avatar, department AS department_name

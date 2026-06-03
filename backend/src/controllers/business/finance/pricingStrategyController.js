@@ -156,7 +156,7 @@ exports.updateStrategyField = async (req, res) => {
 
     // 检查字段是否存在
     const [existing] = await connection.query(
-      'SELECT * FROM pricing_strategy_fields WHERE id = ?',
+      'SELECT id, field_name, field_label, field_type, unit, is_active, sort_order, description, created_at, updated_at, is_additive FROM pricing_strategy_fields WHERE id = ?',
       [id]
     );
 
@@ -242,7 +242,7 @@ exports.deleteStrategyField = async (req, res) => {
 
     // 检查字段是否存在
     const [existing] = await connection.query(
-      'SELECT * FROM pricing_strategy_fields WHERE id = ?',
+      'SELECT id, field_name, field_label, field_type, unit, is_active, sort_order, description, created_at, updated_at, is_additive FROM pricing_strategy_fields WHERE id = ?',
       [id]
     );
 
@@ -300,7 +300,7 @@ exports.toggleStrategyField = async (req, res) => {
 
     // 检查字段是否存在
     const [existing] = await connection.query(
-      'SELECT * FROM pricing_strategy_fields WHERE id = ?',
+      'SELECT id, field_name, field_label, field_type, unit, is_active, sort_order, description, created_at, updated_at, is_additive FROM pricing_strategy_fields WHERE id = ?',
       [id]
     );
 

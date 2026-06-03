@@ -366,7 +366,7 @@ const systemModel = {
       const status = userData.status !== undefined ? normalizeBinaryStatus(userData.status) : 1;
 
       // 检查用户名是否已存在
-      const [existingUsers] = await connection.execute('SELECT * FROM users WHERE username = ?', [
+      const [existingUsers] = await connection.execute('SELECT id, username, password, token_version, email, phone, role, department_id, status, created_at, updated_at, avatar, real_name, department, position, last_login_at, employee_no, hire_date, birthday, gender, id_card, address, emergency_contact, emergency_phone, salary, employee_status, notes, password_changed_at, password_expires_at, failed_login_attempts, locked_until, last_login_ip, force_password_change, two_factor_enabled, two_factor_secret, avatar_frame, bio, theme_settings FROM users WHERE username = ?', [
         username,
       ]);
 
@@ -751,7 +751,7 @@ const systemModel = {
 
     // 获取分页数据
     const roleSql = appendPaginationSQL(
-      `SELECT * FROM roles WHERE ${whereClause} ORDER BY id ASC`,
+      `SELECT id, name, code, description, status, created_at, updated_at, data_scope FROM roles WHERE ${whereClause} ORDER BY id ASC`,
       pagination.limit,
       pagination.offset
     );
@@ -766,7 +766,7 @@ const systemModel = {
   },
 
   async getRoleById(id) {
-    const [rows] = await pool.execute('SELECT * FROM roles WHERE id = ?', [id]);
+    const [rows] = await pool.execute('SELECT id, name, code, description, status, created_at, updated_at, data_scope FROM roles WHERE id = ?', [id]);
 
     if (!rows.length) return null;
 
@@ -946,7 +946,7 @@ const systemModel = {
     }
 
     const [rows] = await pool.execute(
-      `SELECT * FROM menus WHERE ${whereClause} ORDER BY id ASC`,
+      `SELECT id, parent_id, name, path, component, redirect, icon, permission, type, visible, status, sort_order, created_at, updated_at FROM menus WHERE ${whereClause} ORDER BY id ASC`,
       params
     );
 
@@ -979,7 +979,7 @@ const systemModel = {
   },
 
   async getMenuById(id) {
-    const [rows] = await pool.execute('SELECT * FROM menus WHERE id = ?', [id]);
+    const [rows] = await pool.execute('SELECT id, parent_id, name, path, component, redirect, icon, permission, type, visible, status, sort_order, created_at, updated_at FROM menus WHERE id = ?', [id]);
     return rows[0];
   },
 

@@ -599,7 +599,7 @@ exports.updateSalesExchange = async (req, res) => {
       await processExchangeInventory(connection, id, req.user?.username || 'system');
 
       // 获取换货单信息用于生成差价分录
-      const [exchangeInfo] = await connection.query('SELECT * FROM sales_exchanges WHERE id = ?', [
+      const [exchangeInfo] = await connection.query('SELECT id, exchange_no, order_id, order_no, customer_id, customer_name, contact_phone, exchange_date, exchange_reason, status, remarks, created_by, created_at, updated_at, return_amount, new_amount, difference_amount, deleted_at FROM sales_exchanges WHERE id = ?', [
         id,
       ]);
 
@@ -764,7 +764,7 @@ exports.updateExchangeStatus = async (req, res) => {
       logger.info(`✅ 换货单 ${currentExchange.exchange_no} 完成，库存已处理`);
 
       // 获取换货单信息用于 commit 后异步生成差价分录
-      const [exchangeInfo] = await connection.query('SELECT * FROM sales_exchanges WHERE id = ?', [id]);
+      const [exchangeInfo] = await connection.query('SELECT id, exchange_no, order_id, order_no, customer_id, customer_name, contact_phone, exchange_date, exchange_reason, status, remarks, created_by, created_at, updated_at, return_amount, new_amount, difference_amount, deleted_at FROM sales_exchanges WHERE id = ?', [id]);
       if (exchangeInfo.length > 0) {
         pendingExchangeForFinance = exchangeInfo[0];
       }

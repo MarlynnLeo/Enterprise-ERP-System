@@ -7,6 +7,7 @@
 
 const { logger } = require('../utils/logger');
 const db = require('../config/db');
+const { financeConfig } = require('../config/financeConfig');
 const { parsePagination } = require('../utils/safePagination');
 
 function requirePositiveInteger(value, fieldName) {
@@ -387,7 +388,7 @@ const financeModel = {
    */
   getAllAccounts: async () => {
     try {
-      const [accounts] = await db.pool.execute('SELECT * FROM gl_accounts ORDER BY account_code');
+      const [accounts] = await db.pool.execute('SELECT id, account_code, account_name, account_type, parent_id, is_debit, is_active, currency_code, description, created_at, updated_at, type, opening_debit, opening_credit, opening_balance_date, opening_balance_set, opening_source_type, opening_source_details, opening_source_updated_at, has_customer, has_supplier, has_employee, has_department, has_project FROM gl_accounts ORDER BY account_code');
       return accounts;
     } catch (error) {
       logger.error('获取会计科目失败:', error);
@@ -443,7 +444,7 @@ const financeModel = {
 
       // 获取分页数据 - 使用 query 而不是 execute 来避免 LIMIT/OFFSET 参数问题
       const dataQuery = `
-        SELECT * FROM gl_accounts
+        SELECT id, account_code, account_name, account_type, parent_id, is_debit, is_active, currency_code, description, created_at, updated_at, type, opening_debit, opening_credit, opening_balance_date, opening_balance_set, opening_source_type, opening_source_details, opening_source_updated_at, has_customer, has_supplier, has_employee, has_department, has_project FROM gl_accounts
         ${whereClause}
         ORDER BY account_code
         LIMIT ${limitNum} OFFSET ${offset}
@@ -470,7 +471,7 @@ const financeModel = {
    */
   getAccountById: async (id) => {
     try {
-      const [accounts] = await db.pool.execute('SELECT * FROM gl_accounts WHERE id = ?', [id]);
+      const [accounts] = await db.pool.execute('SELECT id, account_code, account_name, account_type, parent_id, is_debit, is_active, currency_code, description, created_at, updated_at, type, opening_debit, opening_credit, opening_balance_date, opening_balance_set, opening_source_type, opening_source_details, opening_source_updated_at, has_customer, has_supplier, has_employee, has_department, has_project FROM gl_accounts WHERE id = ?', [id]);
       return accounts.length > 0 ? accounts[0] : null;
     } catch (error) {
       logger.error('按ID获取会计科目失败:', error);
@@ -856,7 +857,7 @@ const financeModel = {
       const entry = entries[0];
 
       // 获取分录明细
-      const [items] = await db.pool.execute('SELECT * FROM gl_entry_items WHERE entry_id = ?', [
+      const [items] = await db.pool.execute('SELECT id, entry_id, line_number, account_id, debit_amount, credit_amount, description, cost_center_id, project_id, created_at, updated_at, currency_code, exchange_rate, customer_id, supplier_id, employee_id FROM gl_entry_items WHERE entry_id = ?', [
         id,
       ]);
       entry.items = items;
@@ -1307,7 +1308,7 @@ const financeModel = {
       await connection.beginTransaction();
 
       // 获取原始分录及其明细
-      const [entries] = await connection.execute('SELECT * FROM gl_entries WHERE id = ? FOR UPDATE', [id]);
+      const [entries] = await connection.execute('SELECT id, entry_number, entry_date, posting_date, document_type, document_number, active_document_number, period_id, is_posted, is_reversed, reversal_entry_id, description, created_by, approved_by, created_at, updated_at, voucher_word, voucher_number, status, transaction_type, transaction_id FROM gl_entries WHERE id = ? FOR UPDATE', [id]);
       if (entries.length === 0) {
         throw new Error('找不到要冲销的分录');
       }
@@ -1346,7 +1347,7 @@ const financeModel = {
         postingDate
       );
 
-      const [items] = await connection.execute('SELECT * FROM gl_entry_items WHERE entry_id = ? FOR UPDATE', [
+      const [items] = await connection.execute('SELECT id, entry_id, line_number, account_id, debit_amount, credit_amount, description, cost_center_id, project_id, created_at, updated_at, currency_code, exchange_rate, customer_id, supplier_id, employee_id FROM gl_entry_items WHERE entry_id = ? FOR UPDATE', [
         id,
       ]);
 

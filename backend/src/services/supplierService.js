@@ -44,8 +44,8 @@ const supplierService = {
       // 获取分页数据
       // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
       const listQuery = noPagination
-        ? `SELECT * FROM suppliers WHERE ${whereClause} ORDER BY id DESC`
-        : `SELECT * FROM suppliers WHERE ${whereClause} ORDER BY id DESC LIMIT ${safePageSize} OFFSET ${offset}`;
+        ? `SELECT id, code, name, contact_person, contact_phone, email, address, status, remark, created_at, updated_at, deleted_at FROM suppliers WHERE ${whereClause} ORDER BY id DESC`
+        : `SELECT id, code, name, contact_person, contact_phone, email, address, status, remark, created_at, updated_at, deleted_at FROM suppliers WHERE ${whereClause} ORDER BY id DESC LIMIT ${safePageSize} OFFSET ${offset}`;
       const [rows] = await pool.query(listQuery, params);
 
       return {
@@ -62,7 +62,7 @@ const supplierService = {
 
   async getSupplierById(id) {
     try {
-      const [rows] = await pool.query('SELECT * FROM suppliers WHERE id = ? AND deleted_at IS NULL', [id]);
+      const [rows] = await pool.query('SELECT id, code, name, contact_person, contact_phone, email, address, status, remark, created_at, updated_at, deleted_at FROM suppliers WHERE id = ? AND deleted_at IS NULL', [id]);
       return rows[0];
     } catch (error) {
       logger.error(`获取供应商详情失败 (ID: ${id}):`, error);
@@ -117,7 +117,7 @@ const supplierService = {
   async updateSupplier(id, data) {
     try {
       // 验证供应商是否存在
-      const [existingSuppliers] = await pool.query('SELECT * FROM suppliers WHERE id = ? AND deleted_at IS NULL', [id]);
+      const [existingSuppliers] = await pool.query('SELECT id, code, name, contact_person, contact_phone, email, address, status, remark, created_at, updated_at, deleted_at FROM suppliers WHERE id = ? AND deleted_at IS NULL', [id]);
       if (!existingSuppliers || existingSuppliers.length === 0) {
         throw new Error('供应商不存在');
       }
@@ -155,7 +155,7 @@ const supplierService = {
       await pool.query(`UPDATE suppliers SET ${fields} WHERE id = ?`, values);
 
       // 获取并返回更新后的完整数据
-      const [updatedSupplier] = await pool.query('SELECT * FROM suppliers WHERE id = ? AND deleted_at IS NULL', [id]);
+      const [updatedSupplier] = await pool.query('SELECT id, code, name, contact_person, contact_phone, email, address, status, remark, created_at, updated_at, deleted_at FROM suppliers WHERE id = ? AND deleted_at IS NULL', [id]);
       return updatedSupplier[0];
     } catch (error) {
       logger.error('更新供应商失败:', error);

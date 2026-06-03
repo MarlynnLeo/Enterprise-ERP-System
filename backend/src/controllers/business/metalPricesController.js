@@ -173,7 +173,7 @@ const loadPersistedMetalPrices = async () => {
 
   try {
     await seedMetalPricesIfNeeded();
-    const [rows] = await pool.query('SELECT * FROM metal_prices ORDER BY symbol');
+    const [rows] = await pool.query('SELECT id, symbol, name, price, change_amount, change_percent, unit, source, last_update_at, created_at, updated_at FROM metal_prices ORDER BY symbol');
     rows.forEach((row) => {
       if (metalPricesData[row.symbol]) {
         metalPricesData[row.symbol] = mapDbRowToMetalPrice(row);

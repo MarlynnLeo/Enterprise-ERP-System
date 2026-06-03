@@ -423,7 +423,7 @@ exports.createProductionTask = async (req, res) => {
     }
 
     if (effectiveTemplateId) {
-      const [templates] = await connection.query('SELECT * FROM process_templates WHERE id = ? AND deleted_at IS NULL', [
+      const [templates] = await connection.query('SELECT id, code, name, product_id, description, status, created_at, updated_at, deleted_at FROM process_templates WHERE id = ? AND deleted_at IS NULL', [
         effectiveTemplateId,
       ]);
 
@@ -431,7 +431,7 @@ exports.createProductionTask = async (req, res) => {
         logger.warn(`指定的工序模板 ${effectiveTemplateId} 不存在`);
       } else {
         const [steps] = await connection.query(
-          'SELECT * FROM process_template_details WHERE template_id = ? ORDER BY order_num',
+          'SELECT id, template_id, order_num, name, description, standard_hours, department, remark, created_at, updated_at, instruction_docs FROM process_template_details WHERE template_id = ? ORDER BY order_num',
           [effectiveTemplateId]
         );
 
@@ -819,7 +819,7 @@ exports.getProductionTaskById = async (req, res) => {
     }
 
     const [processes] = await pool.query(
-      'SELECT * FROM production_processes WHERE task_id = ? ORDER BY sequence',
+      'SELECT id, task_id, name, sequence, estimated_time, actual_time, start_time, end_time, status, worker_name, notes, created_at, updated_at, standard_hours FROM production_processes WHERE task_id = ? ORDER BY sequence',
       [id]
     );
 
@@ -987,7 +987,7 @@ exports.updateProductionTaskStatus = async (req, res) => {
         if (existingFirstArticle.length === 0) {
           // 获取产品的首检规则
           const [rules] = await connection.query(
-            'SELECT * FROM first_article_rules WHERE product_id = ?',
+            'SELECT id, product_id, first_article_qty, full_inspection_threshold, template_id, is_mandatory, inspection_items, note, created_at, updated_at FROM first_article_rules WHERE product_id = ?',
             [taskData.product_id]
           );
 
@@ -1068,7 +1068,7 @@ exports.updateProductionTaskStatus = async (req, res) => {
         if (existingProcessInspection.length === 0) {
           // 获取产品的过程检验规则
           const [processRules] = await connection.query(
-            'SELECT * FROM process_inspection_rules WHERE product_id = ? OR product_id IS NULL ORDER BY product_id DESC LIMIT 1',
+            'SELECT id, process_id, product_id, inspection_interval, sample_rate, punch_interval, template_id, is_enabled, note, created_at, updated_at FROM process_inspection_rules WHERE product_id = ? OR product_id IS NULL ORDER BY product_id DESC LIMIT 1',
             [taskData.product_id]
           );
 

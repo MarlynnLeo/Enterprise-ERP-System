@@ -185,7 +185,7 @@ exports.getPricingDetail = async (req, res) => {
     connection = await getConnection();
 
     // 1. 获取产品基本信息
-    const [products] = await connection.query('SELECT * FROM materials WHERE id = ?', [productId]);
+    const [products] = await connection.query('SELECT id, product_category_id, code, name, category_id, material_source_id, inspection_method_id, supplier_id, production_group_id, manager_id, location_detail, safety_stock, unit_id, location_id, specs, drawing_no, color_code, material_type, price, cost_price, min_stock, max_stock, status, remark, created_at, updated_at, location_name, tax_rate, deleted_at FROM materials WHERE id = ?', [productId]);
     if (products.length === 0) {
       return ResponseHandler.error(res, '产品不存在', 'NOT_FOUND', 404);
     }

@@ -4,7 +4,7 @@ const { softDelete } = require('../utils/softDelete');
 
 const categoryService = {
   async getAllCategories(filters = {}) {
-    let sql = 'SELECT * FROM categories WHERE deleted_at IS NULL';
+    let sql = 'SELECT id, parent_id, name, code, level, sort, status, remark, created_at, updated_at, deleted_at FROM categories WHERE deleted_at IS NULL';
     const params = [];
 
     if (filters.parent_id !== undefined && filters.parent_id !== '') {
@@ -67,7 +67,7 @@ const categoryService = {
 
   async getCategoryById(id) {
     try {
-      const [rows] = await pool.query('SELECT * FROM categories WHERE id = ? AND deleted_at IS NULL', [id]);
+      const [rows] = await pool.query('SELECT id, parent_id, name, code, level, sort, status, remark, created_at, updated_at, deleted_at FROM categories WHERE id = ? AND deleted_at IS NULL', [id]);
       return rows[0] || null;
     } catch (error) {
       logger.error(`获取分类详情失败 (ID: ${id}):`, error);
@@ -77,7 +77,7 @@ const categoryService = {
 
   async getCategoryByCode(code) {
     try {
-      const [rows] = await pool.query('SELECT * FROM categories WHERE code = ? AND deleted_at IS NULL', [code]);
+      const [rows] = await pool.query('SELECT id, parent_id, name, code, level, sort, status, remark, created_at, updated_at, deleted_at FROM categories WHERE code = ? AND deleted_at IS NULL', [code]);
       return rows[0] || null;
     } catch (error) {
       logger.error(`根据编码获取分类失败 (Code: ${code}):`, error);
@@ -131,7 +131,7 @@ const categoryService = {
   async updateCategory(id, data) {
     try {
       // 检查分类是否存在
-      const [existing] = await pool.query('SELECT * FROM categories WHERE id = ? AND deleted_at IS NULL', [id]);
+      const [existing] = await pool.query('SELECT id, parent_id, name, code, level, sort, status, remark, created_at, updated_at, deleted_at FROM categories WHERE id = ? AND deleted_at IS NULL', [id]);
       if (!existing || existing.length === 0) {
         throw new Error('分类不存在');
       }
@@ -179,7 +179,7 @@ const categoryService = {
 
       await pool.query(`UPDATE categories SET ${fields.join(', ')} WHERE id = ?`, values);
 
-      const [updated] = await pool.query('SELECT * FROM categories WHERE id = ? AND deleted_at IS NULL', [id]);
+      const [updated] = await pool.query('SELECT id, parent_id, name, code, level, sort, status, remark, created_at, updated_at, deleted_at FROM categories WHERE id = ? AND deleted_at IS NULL', [id]);
       return updated[0];
     } catch (error) {
       logger.error('更新分类失败:', error);

@@ -443,7 +443,7 @@ const expenseModel = {
   async getExpenseCategoryTree() {
     try {
       const [rows] = await db.pool.execute(`
-        SELECT * FROM expense_categories
+        SELECT id, name, code, parent_id, description, status, sort_order, created_at, updated_at, gl_account_code, deleted_at FROM expense_categories
         WHERE status = 1 AND deleted_at IS NULL
         ORDER BY sort_order, id
       `);
@@ -874,7 +874,7 @@ const expenseModel = {
 
       // 1. 验证费用状态
       const [current] = await connection.execute(
-        'SELECT * FROM expenses WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+        'SELECT id, expense_number, category_id, title, amount, expense_date, payee, invoice_number, description, attachment_path, status, submitted_by, submitted_at, approved_by, approved_at, approval_remark, paid_at, payment_bank_account_id, payment_transaction_id, created_by, created_at, updated_at, dingtalk_instance_id, dingtalk_status, dingtalk_result, dingtalk_submit_time, deleted_at FROM expenses WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
         [id]
       );
       if (!current[0]) {
@@ -899,7 +899,7 @@ const expenseModel = {
         throw new Error('请选择付款账户');
       }
       const [bankAccounts] = await connection.execute(
-        'SELECT * FROM bank_accounts WHERE id = ? AND is_active = 1 FOR UPDATE',
+        'SELECT id, account_number, account_name, bank_name, branch_name, currency_code, current_balance, opening_balance, account_type, is_active, contact_person, contact_phone, notes, created_at, updated_at, created_by, updated_by, last_transaction_date FROM bank_accounts WHERE id = ? AND is_active = 1 FOR UPDATE',
         [paymentData.bank_account_id]
       );
       if (bankAccounts.length === 0) {
@@ -1006,7 +1006,7 @@ const expenseModel = {
 
         // 获取费用类型以确定借方科目
         const [categories] = await connection.execute(
-          'SELECT * FROM expense_categories WHERE id = ?',
+          'SELECT id, name, code, parent_id, description, status, sort_order, created_at, updated_at, gl_account_code, deleted_at FROM expense_categories WHERE id = ?',
           [expense.category_id]
         );
 
@@ -1270,7 +1270,7 @@ const expenseModel = {
   async getExpenseByDingtalkInstanceId(instanceId) {
     try {
       const [rows] = await db.pool.execute(
-        'SELECT * FROM expenses WHERE dingtalk_instance_id = ? AND deleted_at IS NULL',
+        'SELECT id, expense_number, category_id, title, amount, expense_date, payee, invoice_number, description, attachment_path, status, submitted_by, submitted_at, approved_by, approved_at, approval_remark, paid_at, payment_bank_account_id, payment_transaction_id, created_by, created_at, updated_at, dingtalk_instance_id, dingtalk_status, dingtalk_result, dingtalk_submit_time, deleted_at FROM expenses WHERE dingtalk_instance_id = ? AND deleted_at IS NULL',
         [instanceId]
       );
       return rows[0] || null;

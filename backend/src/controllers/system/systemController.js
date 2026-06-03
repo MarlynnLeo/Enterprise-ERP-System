@@ -926,7 +926,7 @@ const systemController = {
 
   async getSettings(req, res) {
     try {
-      const [settings] = await pool.execute('SELECT * FROM system_settings');
+      const [settings] = await pool.execute('SELECT id, `key`, value, description, created_at, updated_at FROM system_settings');
       return ResponseHandler.success(res, settings, '获取系统设置成功');
     } catch (error) {
       logger.error('获取系统设置失败:', error);

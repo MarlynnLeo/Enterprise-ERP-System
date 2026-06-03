@@ -98,7 +98,7 @@ exports.saveAdjustment = async (req, res) => {
     // 查询当前是否已有生效的调整记录
     const [existing] = await connection.query(
       `
-            SELECT * FROM bom_material_price_adjustments
+            SELECT id, product_id, bom_id, material_id, original_price, adjusted_price, adjustment_reason, version, is_active, created_by, created_at, updated_at FROM bom_material_price_adjustments
             WHERE product_id = ? AND material_id = ? AND is_active = 1
         `,
       [product_id, material_id]
@@ -214,7 +214,7 @@ exports.deleteAdjustment = async (req, res) => {
 
     // 获取要删除的调整记录
     const [adjustment] = await connection.query(
-      'SELECT * FROM bom_material_price_adjustments WHERE id = ?',
+      'SELECT id, product_id, bom_id, material_id, original_price, adjusted_price, adjustment_reason, version, is_active, created_by, created_at, updated_at FROM bom_material_price_adjustments WHERE id = ?',
       [id]
     );
 

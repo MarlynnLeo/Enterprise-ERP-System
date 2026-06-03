@@ -57,7 +57,7 @@ const processTemplateService = {
             if (templates.length > 0) {
                 const templateIds = templates.map(t => t.id);
                 const [allDetails] = await pool.query(
-                    'SELECT * FROM process_template_details WHERE template_id IN (?) ORDER BY order_num',
+                    'SELECT id, template_id, order_num, name, description, standard_hours, department, remark, created_at, updated_at, instruction_docs FROM process_template_details WHERE template_id IN (?) ORDER BY order_num',
                     [templateIds]
                 );
 
@@ -92,12 +92,12 @@ const processTemplateService = {
      */
     async getById(id) {
         try {
-            const [templates] = await pool.query('SELECT * FROM process_templates WHERE id = ? AND deleted_at IS NULL', [id]);
+            const [templates] = await pool.query('SELECT id, code, name, product_id, description, status, created_at, updated_at, deleted_at FROM process_templates WHERE id = ? AND deleted_at IS NULL', [id]);
             if (templates.length === 0) return null;
 
             const template = templates[0];
             const [details] = await pool.query(
-                'SELECT * FROM process_template_details WHERE template_id = ? ORDER BY order_num',
+                'SELECT id, template_id, order_num, name, description, standard_hours, department, remark, created_at, updated_at, instruction_docs FROM process_template_details WHERE template_id = ? ORDER BY order_num',
                 [template.id]
             );
             template.details = details;
@@ -257,7 +257,7 @@ const processTemplateService = {
 
             const template = templates[0];
             const [details] = await pool.query(
-                'SELECT * FROM process_template_details WHERE template_id = ? ORDER BY order_num',
+                'SELECT id, template_id, order_num, name, description, standard_hours, department, remark, created_at, updated_at, instruction_docs FROM process_template_details WHERE template_id = ? ORDER BY order_num',
                 [template.id]
             );
             template.details = details;

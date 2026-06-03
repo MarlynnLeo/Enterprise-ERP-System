@@ -157,7 +157,7 @@ const assetsController = {
       let assetType = req.body.assetType;
       if (!assetType && req.body.categoryId) {
         try {
-          const [categories] = await db.pool.query('SELECT * FROM asset_categories WHERE id = ?', [
+          const [categories] = await db.pool.query('SELECT id, name, code, default_useful_life, default_depreciation_method, default_salvage_rate, description, created_at, updated_at FROM asset_categories WHERE id = ?', [
             req.body.categoryId,
           ]);
 

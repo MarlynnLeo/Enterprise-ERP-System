@@ -943,7 +943,7 @@ const arModel = {
       for (const item of sortedReceiptItems) {
         // 获取发票当前信息
         const [invoices] = await connection.execute(
-          'SELECT * FROM ar_invoices WHERE id = ? FOR UPDATE',
+          'SELECT id, invoice_number, customer_invoice_number, customer_id, invoice_date, due_date, total_amount, paid_amount, balance_amount, currency_code, exchange_rate, status, terms, notes, source_type, source_id, created_by, updated_by, created_at, updated_at FROM ar_invoices WHERE id = ? FOR UPDATE',
           [item.invoice_id]
         );
 
@@ -1005,7 +1005,7 @@ const arModel = {
       // 如果是银行类收款，更新银行账户余额并创建银行交易记录
       if (BANK_BACKED_PAYMENT_METHODS.has(receiptData.payment_method)) {
         const [bankAccounts] = await connection.execute(
-          'SELECT * FROM bank_accounts WHERE id = ? FOR UPDATE',
+          'SELECT id, account_number, account_name, bank_name, branch_name, currency_code, current_balance, opening_balance, account_type, is_active, contact_person, contact_phone, notes, created_at, updated_at, created_by, updated_by, last_transaction_date FROM bank_accounts WHERE id = ? FOR UPDATE',
           [receiptData.bank_account_id]
         );
 
@@ -1431,7 +1431,7 @@ const arModel = {
 
         // 获取发票当前信息
         const [invoices] = await connection.execute(
-          'SELECT * FROM ar_invoices WHERE id = ? FOR UPDATE',
+          'SELECT id, invoice_number, customer_invoice_number, customer_id, invoice_date, due_date, total_amount, paid_amount, balance_amount, currency_code, exchange_rate, status, terms, notes, source_type, source_id, created_by, updated_by, created_at, updated_at FROM ar_invoices WHERE id = ? FOR UPDATE',
           [item.invoice_id]
         );
 
@@ -1471,7 +1471,7 @@ const arModel = {
         try {
           // 获取原银行交易记录
           const [bankTxs] = await connection.execute(
-            `SELECT * FROM bank_transactions
+            `SELECT id, transaction_number, bank_account_id, transaction_date, transaction_type, amount, reference_number, description, is_reconciled, reconciliation_date, related_party, created_at, updated_at, created_by, updated_by, related_invoice_id, related_invoice_type, tax_return_id, gl_entry_id, audit_status, auditor_id, audit_time, audit_remark, submitted_by, submitted_at, reconcile_confirmed_by, reconcile_confirmed_at, status, approved_by, approved_at, reject_reason, category, payment_method FROM bank_transactions
              WHERE transaction_number = ? AND bank_account_id = ?
              LIMIT 1
              FOR UPDATE`,
@@ -1541,7 +1541,7 @@ const arModel = {
           for (const glEntry of glEntries) {
             // 获取原分录明细
             const [items] = await connection.execute(
-              'SELECT * FROM gl_entry_items WHERE entry_id = ?',
+              'SELECT id, entry_id, line_number, account_id, debit_amount, credit_amount, description, cost_center_id, project_id, created_at, updated_at, currency_code, exchange_rate, customer_id, supplier_id, employee_id FROM gl_entry_items WHERE entry_id = ?',
               [glEntry.id]
             );
 

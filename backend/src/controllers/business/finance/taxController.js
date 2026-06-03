@@ -179,7 +179,7 @@ const taxController = {
         await connection.beginTransaction();
 
         const invoiceId = await taxModel.createTaxInvoice(invoiceData, connection);
-        const [invoices] = await connection.execute('SELECT * FROM tax_invoices WHERE id = ?', [
+        const [invoices] = await connection.execute('SELECT id, invoice_type, invoice_number, invoice_code, invoice_date, supplier_id, customer_id, supplier_or_customer_name, supplier_tax_number, amount_excluding_tax, tax_rate, tax_amount, total_amount, status, certification_date, deduction_date, related_document_type, related_document_id, gl_entry_id, remark, created_by, created_at, updated_at FROM tax_invoices WHERE id = ?', [
           invoiceId,
         ]);
         const invoice = invoices[0];
@@ -280,7 +280,7 @@ const taxController = {
       await connection.beginTransaction();
 
       const [invoices] = await connection.execute(
-        'SELECT * FROM tax_invoices WHERE id = ? FOR UPDATE',
+        'SELECT id, invoice_type, invoice_number, invoice_code, invoice_date, supplier_id, customer_id, supplier_or_customer_name, supplier_tax_number, amount_excluding_tax, tax_rate, tax_amount, total_amount, status, certification_date, deduction_date, related_document_type, related_document_id, gl_entry_id, remark, created_by, created_at, updated_at FROM tax_invoices WHERE id = ? FOR UPDATE',
         [id]
       );
       const invoice = invoices[0];
@@ -355,7 +355,7 @@ const taxController = {
 
       await connection.beginTransaction();
       const [invoices] = await connection.execute(
-        'SELECT * FROM tax_invoices WHERE id = ? FOR UPDATE',
+        'SELECT id, invoice_type, invoice_number, invoice_code, invoice_date, supplier_id, customer_id, supplier_or_customer_name, supplier_tax_number, amount_excluding_tax, tax_rate, tax_amount, total_amount, status, certification_date, deduction_date, related_document_type, related_document_id, gl_entry_id, remark, created_by, created_at, updated_at FROM tax_invoices WHERE id = ? FOR UPDATE',
         [id]
       );
       const invoice = invoices[0];
@@ -530,7 +530,7 @@ const taxController = {
       await connection.beginTransaction();
 
       const [taxReturns] = await connection.execute(
-        'SELECT * FROM tax_returns WHERE id = ? FOR UPDATE',
+        'SELECT id, return_period, return_type, sales_amount, sales_output_tax, purchase_amount, purchase_input_tax, input_tax_deduction, tax_payable, tax_paid, tax_balance, total_revenue, total_cost, total_expense, taxable_income, income_tax_rate, income_tax_payable, status, declaration_date, payment_date, gl_entry_id, remark, created_by, created_at, updated_at FROM tax_returns WHERE id = ? FOR UPDATE',
         [id]
       );
       if (taxReturns.length === 0) {
@@ -569,7 +569,7 @@ const taxController = {
         }
 
         const [bankAccounts] = await connection.execute(
-          'SELECT * FROM bank_accounts WHERE id = ? AND is_active = 1 FOR UPDATE',
+          'SELECT id, account_number, account_name, bank_name, branch_name, currency_code, current_balance, opening_balance, account_type, is_active, contact_person, contact_phone, notes, created_at, updated_at, created_by, updated_by, last_transaction_date FROM bank_accounts WHERE id = ? AND is_active = 1 FOR UPDATE',
           [bank_account_id]
         );
         if (bankAccounts.length === 0) {
@@ -964,7 +964,7 @@ const taxController = {
 
       await connection.beginTransaction();
       const [invoices] = await connection.execute(
-        'SELECT * FROM tax_invoices WHERE id = ? FOR UPDATE',
+        'SELECT id, invoice_type, invoice_number, invoice_code, invoice_date, supplier_id, customer_id, supplier_or_customer_name, supplier_tax_number, amount_excluding_tax, tax_rate, tax_amount, total_amount, status, certification_date, deduction_date, related_document_type, related_document_id, gl_entry_id, remark, created_by, created_at, updated_at FROM tax_invoices WHERE id = ? FOR UPDATE',
         [id]
       );
       const invoice = invoices[0];

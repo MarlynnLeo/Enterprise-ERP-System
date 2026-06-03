@@ -21,7 +21,7 @@ class SchedulingService {
    */
   static async getDefaultCalendar() {
     const [rows] = await pool.query(
-      'SELECT * FROM production_calendar WHERE is_default = 1 LIMIT 1'
+      'SELECT id, name, work_start, work_end, break_start, break_end, exclude_weekends, is_default, created_at, updated_at FROM production_calendar WHERE is_default = 1 LIMIT 1'
     );
     if (rows.length === 0) {
       // 兜底默认值

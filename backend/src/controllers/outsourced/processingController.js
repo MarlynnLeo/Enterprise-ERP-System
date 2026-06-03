@@ -65,7 +65,7 @@ const getProcessings = async (req, res) => {
     const actualPageSize = pagination.pageSize;
 
     let query = `
-      SELECT * FROM outsourced_processings
+      SELECT id, processing_no, processing_date, supplier_id, supplier_name, expected_delivery_date, contact_person, contact_phone, total_amount, remarks, status, created_at, updated_at, confirmed_at, location_id, warehouse_name FROM outsourced_processings
       WHERE 1=1
     `;
 
@@ -126,7 +126,7 @@ const getProcessing = async (req, res) => {
 
     // 获取加工单主信息
     const [processing] = await db.pool.execute(
-      'SELECT * FROM outsourced_processings WHERE id = ?',
+      'SELECT id, processing_no, processing_date, supplier_id, supplier_name, expected_delivery_date, contact_person, contact_phone, total_amount, remarks, status, created_at, updated_at, confirmed_at, location_id, warehouse_name FROM outsourced_processings WHERE id = ?',
       [id]
     );
 
@@ -136,13 +136,13 @@ const getProcessing = async (req, res) => {
 
     // 获取发料信息
     const [materials] = await db.pool.execute(
-      'SELECT * FROM outsourced_processing_materials WHERE processing_id = ?',
+      'SELECT id, processing_id, material_id, material_code, material_name, specification, unit, unit_id, quantity, remark, created_at, updated_at FROM outsourced_processing_materials WHERE processing_id = ?',
       [id]
     );
 
     // 获取成品信息
     const [products] = await db.pool.execute(
-      'SELECT * FROM outsourced_processing_products WHERE processing_id = ?',
+      'SELECT id, processing_id, product_id, product_code, product_name, specification, unit, unit_id, quantity, unit_price, total_price, remark, created_at, updated_at FROM outsourced_processing_products WHERE processing_id = ?',
       [id]
     );
 
@@ -491,7 +491,7 @@ const updateProcessingStatus = async (req, res) => {
 
     // 检查加工单是否存在
     const [existingProcessing] = await connection.execute(
-      'SELECT * FROM outsourced_processings WHERE id = ?',
+      'SELECT id, processing_no, processing_date, supplier_id, supplier_name, expected_delivery_date, contact_person, contact_phone, total_amount, remarks, status, created_at, updated_at, confirmed_at, location_id, warehouse_name FROM outsourced_processings WHERE id = ?',
       [id]
     );
 
@@ -526,7 +526,7 @@ const updateProcessingStatus = async (req, res) => {
     if (status === STATUS.PROCESSING.CONFIRMED) {
       // 获取发料明细
       const [materials] = await connection.execute(
-        'SELECT * FROM outsourced_processing_materials WHERE processing_id = ?',
+        'SELECT id, processing_id, material_id, material_code, material_name, specification, unit, unit_id, quantity, remark, created_at, updated_at FROM outsourced_processing_materials WHERE processing_id = ?',
         [id]
       );
 
@@ -592,7 +592,7 @@ const updateProcessingStatus = async (req, res) => {
     // 如果从已确认状态取消，需要回退已扣减的发料库存
     if (status === 'cancelled' && currentStatus === STATUS.PROCESSING.CONFIRMED) {
       const [materials] = await connection.execute(
-        'SELECT * FROM outsourced_processing_materials WHERE processing_id = ?',
+        'SELECT id, processing_id, material_id, material_code, material_name, specification, unit, unit_id, quantity, remark, created_at, updated_at FROM outsourced_processing_materials WHERE processing_id = ?',
         [id]
       );
 
@@ -673,7 +673,7 @@ const getReceipts = async (req, res) => {
     const actualPageSize = pagination.pageSize;
 
     let query = `
-      SELECT * FROM outsourced_processing_receipts
+      SELECT id, receipt_no, processing_id, processing_no, supplier_id, supplier_name, warehouse_id, warehouse_name, receipt_date, operator, remarks, status, created_at, updated_at, location_id FROM outsourced_processing_receipts
       WHERE 1=1
     `;
 
@@ -739,7 +739,7 @@ const getReceipt = async (req, res) => {
 
     // 获取入库单主信息
     const [receipt] = await db.pool.execute(
-      'SELECT * FROM outsourced_processing_receipts WHERE id = ?',
+      'SELECT id, receipt_no, processing_id, processing_no, supplier_id, supplier_name, warehouse_id, warehouse_name, receipt_date, operator, remarks, status, created_at, updated_at, location_id FROM outsourced_processing_receipts WHERE id = ?',
       [id]
     );
 
@@ -749,7 +749,7 @@ const getReceipt = async (req, res) => {
 
     // 获取入库明细
     const [items] = await db.pool.execute(
-      'SELECT * FROM outsourced_processing_receipt_items WHERE receipt_id = ?',
+      'SELECT id, receipt_id, product_id, product_code, product_name, specification, unit, unit_id, expected_quantity, actual_quantity, unit_price, total_price, created_at, updated_at FROM outsourced_processing_receipt_items WHERE receipt_id = ?',
       [id]
     );
 
@@ -1014,7 +1014,7 @@ const updateReceiptStatus = async (req, res) => {
 
     // 检查入库单是否存在
     const [existingReceipt] = await connection.execute(
-      'SELECT * FROM outsourced_processing_receipts WHERE id = ?',
+      'SELECT id, receipt_no, processing_id, processing_no, supplier_id, supplier_name, warehouse_id, warehouse_name, receipt_date, operator, remarks, status, created_at, updated_at, location_id FROM outsourced_processing_receipts WHERE id = ?',
       [id]
     );
 
@@ -1049,7 +1049,7 @@ const updateReceiptStatus = async (req, res) => {
     if (status === STATUS.PROCESSING.CONFIRMED) {
       // 获取入库单明细
       const [items] = await connection.execute(
-        'SELECT * FROM outsourced_processing_receipt_items WHERE receipt_id = ?',
+        'SELECT id, receipt_id, product_id, product_code, product_name, specification, unit, unit_id, expected_quantity, actual_quantity, unit_price, total_price, created_at, updated_at FROM outsourced_processing_receipt_items WHERE receipt_id = ?',
         [id]
       );
 

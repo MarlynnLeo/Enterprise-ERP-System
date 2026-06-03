@@ -21,7 +21,7 @@ class InspectionService {
 
             // 获取并锁定检验单，避免并发重复提交导致数量重复累计
             const [inspectionRows] = await connection.query(
-                'SELECT * FROM quality_inspections WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+                'SELECT id, inspection_no, inspection_type, reference_id, reference_no, material_id, supplier_id, product_id, product_name, product_code, process_id, process_name, batch_no, quantity, qualified_quantity, unqualified_quantity, unit, unit_id, status, planned_date, actual_date, inspector_id, inspector_name, punch_time, standard_type, standard_no, template_id, note, created_at, updated_at, traceability_id, traceability_batch, chain_id, chain_step_id, is_first_article, first_article_qty, is_full_inspection, first_article_result, production_can_continue, task_id, is_aql, aql_standard_id, aql_level, accept_limit, reject_limit, deleted_at FROM quality_inspections WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
                 [id]
             );
             if (!inspectionRows || inspectionRows.length === 0) {
@@ -29,7 +29,7 @@ class InspectionService {
             }
             const inspection = inspectionRows[0];
             const [items] = await connection.query(
-                'SELECT * FROM quality_inspection_items WHERE inspection_id = ? ORDER BY id',
+                'SELECT id, inspection_id, item_name, standard, type, is_critical, dimension_value, tolerance_upper, tolerance_lower, actual_value, measure_1, measure_2, measure_3, measure_4, measure_5, measure_6, method, result, is_qualified, remark, created_at, updated_at FROM quality_inspection_items WHERE inspection_id = ? ORDER BY id',
                 [id]
             );
             inspection.items = items;

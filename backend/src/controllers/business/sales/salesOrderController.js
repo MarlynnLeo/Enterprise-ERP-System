@@ -773,7 +773,7 @@ exports.updateOrderStatus = async (req, res) => {
     }
 
     // 获取更新后的订单
-    const [updatedOrder] = await connection.execute('SELECT * FROM sales_orders WHERE id = ?', [
+    const [updatedOrder] = await connection.execute('SELECT id, order_no, customer_id, quotation_id, contract_code, total_amount, payment_terms, delivery_date, status, invoice_status, remarks, created_by, created_at, updated_at, is_locked, locked_at, locked_by, lock_reason, tax_rate, tax_amount, subtotal, deleted_at FROM sales_orders WHERE id = ?', [
       id,
     ]);
 
@@ -1112,7 +1112,7 @@ exports.lockOrder = async (req, res) => {
     const userId = getAuthenticatedUserId(req);
 
     // 检查订单是否存在
-    const [orderResult] = await connection.execute('SELECT * FROM sales_orders WHERE id = ? FOR UPDATE', [id]);
+    const [orderResult] = await connection.execute('SELECT id, order_no, customer_id, quotation_id, contract_code, total_amount, payment_terms, delivery_date, status, invoice_status, remarks, created_by, created_at, updated_at, is_locked, locked_at, locked_by, lock_reason, tax_rate, tax_amount, subtotal, deleted_at FROM sales_orders WHERE id = ? FOR UPDATE', [id]);
 
     if (orderResult.length === 0) {
       await connection.rollback();
@@ -1137,7 +1137,7 @@ exports.lockOrder = async (req, res) => {
 
     // 获取订单物料项
     const [itemsResult] = await connection.execute(
-      'SELECT * FROM sales_order_items WHERE order_id = ?',
+      'SELECT id, order_id, material_id, quantity, unit_price, amount, tax_percent, remark, product_code, product_specs FROM sales_order_items WHERE order_id = ?',
       [id]
     );
 
@@ -1208,7 +1208,7 @@ exports.unlockOrder = async (req, res) => {
     const userId = getAuthenticatedUserId(req);
 
     // 检查订单是否存在
-    const [orderResult] = await connection.execute('SELECT * FROM sales_orders WHERE id = ? FOR UPDATE', [id]);
+    const [orderResult] = await connection.execute('SELECT id, order_no, customer_id, quotation_id, contract_code, total_amount, payment_terms, delivery_date, status, invoice_status, remarks, created_by, created_at, updated_at, is_locked, locked_at, locked_by, lock_reason, tax_rate, tax_amount, subtotal, deleted_at FROM sales_orders WHERE id = ? FOR UPDATE', [id]);
 
     if (orderResult.length === 0) {
       await connection.rollback();

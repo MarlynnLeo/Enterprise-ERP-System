@@ -83,7 +83,6 @@ function initSocket(httpServer) {
   io.use(async (socket, next) => {
     const token =
       socket.handshake.auth?.token ||
-      socket.handshake.query?.token ||
       getCookieValue(socket.handshake.headers?.cookie, 'accessToken');
     if (!token) {
       return next(new Error('未提供认证令牌'));

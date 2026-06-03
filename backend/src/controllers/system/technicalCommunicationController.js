@@ -98,7 +98,7 @@ class TechnicalCommunicationController {
 
   async loadAccessibleCommunication(req, res, id) {
     const [communications] = await db.pool.query(
-      'SELECT * FROM technical_communications WHERE id = ?',
+      'SELECT id, title, category, tags, summary, content, author_id, author_name, status, published_at, view_count, is_pinned, attachments, created_at, updated_at, like_count, favorite_count, visibility, recipient_count, read_count FROM technical_communications WHERE id = ?',
       [id]
     );
 
@@ -265,7 +265,7 @@ class TechnicalCommunicationController {
 
       // 获取评论
       const [comments] = await db.pool.query(
-        `SELECT * FROM technical_communication_comments
+        `SELECT id, communication_id, user_id, user_name, content, parent_id, created_at FROM technical_communication_comments
          WHERE communication_id = ?
          ORDER BY created_at DESC`,
         [id]

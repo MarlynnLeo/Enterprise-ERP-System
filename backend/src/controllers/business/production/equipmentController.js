@@ -158,7 +158,7 @@ exports.getEquipmentList = async (req, res) => {
     // 查询分页数据
     // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
     const [rows] = await pool.query(
-      `SELECT * FROM equipment ${whereClause} ORDER BY created_at DESC LIMIT ${pageSize} OFFSET ${offset}`,
+      `SELECT id, code, name, model, manufacturer, purchase_date, inspection_date, next_inspection_date, location, status, responsible_person, description, specs, created_at, updated_at, is_active, deleted_at FROM equipment ${whereClause} ORDER BY created_at DESC LIMIT ${pageSize} OFFSET ${offset}`,
       params
     );
 
@@ -312,7 +312,7 @@ exports.getEquipmentById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const [rows] = await pool.query('SELECT * FROM equipment WHERE id = ?', [id]);
+    const [rows] = await pool.query('SELECT id, code, name, model, manufacturer, purchase_date, inspection_date, next_inspection_date, location, status, responsible_person, description, specs, created_at, updated_at, is_active, deleted_at FROM equipment WHERE id = ?', [id]);
 
     if (rows.length === 0) {
       return ResponseHandler.error(res, '设备不存在', 'NOT_FOUND', 404);
@@ -320,31 +320,31 @@ exports.getEquipmentById = async (req, res) => {
 
     // 获取设备维护记录
     const [maintenanceRecords] = await pool.query(
-      'SELECT * FROM equipment_maintenance WHERE equipment_id = ? ORDER BY maintenance_date DESC',
+      'SELECT id, equipment_id, maintenance_type, maintenance_date, completed_date, maintenance_staff, description, parts_replaced, cost, status, created_at, updated_at FROM equipment_maintenance WHERE equipment_id = ? ORDER BY maintenance_date DESC',
       [id]
     );
 
     // 获取设备故障记录
     const [failureRecords] = await pool.query(
-      'SELECT * FROM equipment_failure WHERE equipment_id = ? ORDER BY failure_date DESC',
+      'SELECT id, equipment_id, failure_date, failure_type, description, reported_by, repair_status, resolution, resolved_date, resolved_by, downtime_hours, repair_cost, remarks, created_at, updated_at FROM equipment_failure WHERE equipment_id = ? ORDER BY failure_date DESC',
       [id]
     );
 
     // 获取设备检查记录
     const [inspectionRecords] = await pool.query(
-      'SELECT * FROM equipment_inspection WHERE equipment_id = ? ORDER BY inspection_date DESC',
+      'SELECT id, equipment_id, inspection_date, inspector, inspection_result, remarks, next_inspection_date, created_at, updated_at FROM equipment_inspection WHERE equipment_id = ? ORDER BY inspection_date DESC',
       [id]
     );
 
     // 获取设备附件
     const [attachments] = await pool.query(
-      'SELECT * FROM equipment_attachment WHERE equipment_id = ?',
+      'SELECT id, equipment_id, file_name, file_path, file_type, file_size, description, upload_time, uploader FROM equipment_attachment WHERE equipment_id = ?',
       [id]
     );
 
     // 获取设备备件
     const [spareParts] = await pool.query(
-      'SELECT * FROM equipment_spare_part WHERE equipment_id = ?',
+      'SELECT id, equipment_id, part_name, part_code, specification, model_number, manufacturer, quantity, unit, unit_price, min_stock, location, remarks, created_at, updated_at FROM equipment_spare_part WHERE equipment_id = ?',
       [id]
     );
 

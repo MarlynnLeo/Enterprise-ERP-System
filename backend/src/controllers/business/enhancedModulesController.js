@@ -85,7 +85,7 @@ const exchangeRates = {
       if (to_currency) { where += ' AND to_currency = ?'; vals.push(to_currency); }
       const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM exchange_rates ${where}`, vals);
       const listSql = appendPaginationSQL(
-        `SELECT * FROM exchange_rates ${where} ORDER BY effective_date DESC, from_currency`,
+        `SELECT id, from_currency, to_currency, rate, effective_date, source, created_by, created_at, deleted_at FROM exchange_rates ${where} ORDER BY effective_date DESC, from_currency`,
         pagination.limit,
         pagination.offset
       );
@@ -122,7 +122,7 @@ const exchangeRates = {
         return ResponseHandler.error(res, 'from currency is required', 'VALIDATION_ERROR', 400);
       }
       const [[row]] = await pool.query(
-        `SELECT * FROM exchange_rates WHERE from_currency = ? AND to_currency = ? AND effective_date <= CURDATE() AND deleted_at IS NULL
+        `SELECT id, from_currency, to_currency, rate, effective_date, source, created_by, created_at, deleted_at FROM exchange_rates WHERE from_currency = ? AND to_currency = ? AND effective_date <= CURDATE() AND deleted_at IS NULL
          ORDER BY effective_date DESC LIMIT 1`,
         [String(from).toUpperCase(), String(to || 'CNY').toUpperCase()]
       );
@@ -144,7 +144,7 @@ const performance = {
       if (keyword) { where += ' AND (name LIKE ? OR code LIKE ?)'; vals.push(`%${keyword}%`, `%${keyword}%`); }
       const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM performance_indicators ${where}`, vals);
       const listSql = appendPaginationSQL(
-        `SELECT * FROM performance_indicators ${where} ORDER BY category, code`,
+        `SELECT id, code, name, category, description, unit, target_value, weight, scoring_method, formula, is_active, created_at, updated_at, deleted_at FROM performance_indicators ${where} ORDER BY category, code`,
         pagination.limit,
         pagination.offset
       );
@@ -159,7 +159,7 @@ const performance = {
         'INSERT INTO performance_indicators (code, name, category, description, unit, target_value, weight, scoring_method, formula) VALUES (?,?,?,?,?,?,?,?,?)',
         [d.code, d.name, d.category || 'other', d.description, d.unit, d.target_value, d.weight || 0, d.scoring_method || 'manual', d.formula]
       );
-      const [[row]] = await pool.query('SELECT * FROM performance_indicators WHERE id = ?', [r.insertId]);
+      const [[row]] = await pool.query('SELECT id, code, name, category, description, unit, target_value, weight, scoring_method, formula, is_active, created_at, updated_at, deleted_at FROM performance_indicators WHERE id = ?', [r.insertId]);
       ResponseHandler.success(res, row, '创建成功');
     } catch (e) { ResponseHandler.error(res, e.message); }
   },
@@ -182,7 +182,7 @@ const performance = {
   // 考核周期
   async getPeriods(req, res) {
     try {
-      const [rows] = await pool.query('SELECT * FROM performance_periods ORDER BY start_date DESC');
+      const [rows] = await pool.query('SELECT id, name, type, start_date, end_date, status, created_by, created_at, updated_at FROM performance_periods ORDER BY start_date DESC');
       ResponseHandler.success(res, rows);
     } catch (e) { ResponseHandler.error(res, e.message); }
   },
@@ -229,9 +229,9 @@ const performance = {
   },
   async getEvaluationById(req, res) {
     try {
-      const [[ev]] = await pool.query('SELECT * FROM performance_evaluations WHERE id = ?', [req.params.id]);
+      const [[ev]] = await pool.query('SELECT id, period_id, employee_id, employee_name, department_id, evaluator_id, total_score, grade, self_comment, evaluator_comment, status, completed_at, created_at, updated_at FROM performance_evaluations WHERE id = ?', [req.params.id]);
       if (!ev) return ResponseHandler.error(res, '评估不存在', 'NOT_FOUND', 404);
-      const [items] = await pool.query('SELECT * FROM performance_evaluation_items WHERE evaluation_id = ?', [ev.id]);
+      const [items] = await pool.query('SELECT id, evaluation_id, indicator_id, indicator_name, weight, target_value, actual_value, self_score, manager_score, final_score, remark FROM performance_evaluation_items WHERE evaluation_id = ?', [ev.id]);
       ev.items = items;
       ResponseHandler.success(res, ev);
     } catch (e) { ResponseHandler.error(res, e.message); }
@@ -419,7 +419,7 @@ const ecn = {
     try {
       const [[order]] = await pool.query('SELECT e.*, u.real_name AS requested_by_name FROM ecn_orders e LEFT JOIN users u ON u.id = e.requested_by WHERE e.id = ? AND e.deleted_at IS NULL', [req.params.id]);
       if (!order) return ResponseHandler.error(res, 'ECN不存在', 'NOT_FOUND', 404);
-      const [items] = await pool.query('SELECT * FROM ecn_order_items WHERE ecn_id = ?', [order.id]);
+      const [items] = await pool.query('SELECT id, ecn_id, change_type, material_id, material_code, material_name, bom_id, field_name, old_value, new_value, remark FROM ecn_order_items WHERE ecn_id = ?', [order.id]);
       order.items = items;
       ResponseHandler.success(res, order);
     } catch (e) { ResponseHandler.error(res, e.message); }
@@ -486,7 +486,7 @@ const ecn = {
         rejected: ['draft'],
       };
 
-      const [[current]] = await conn.query('SELECT * FROM ecn_orders WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [req.params.id]);
+      const [[current]] = await conn.query('SELECT id, code, title, type, priority, status, reason, description, impact_analysis, effective_date, disposition, requested_by, department_id, approved_by, approved_at, completed_at, created_at, updated_at, deleted_at FROM ecn_orders WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [req.params.id]);
       if (!current) {
         await conn.rollback();
         return ResponseHandler.error(res, 'ECN not found', 'NOT_FOUND', 404);
@@ -505,7 +505,7 @@ const ecn = {
 
       let finalStatus = status;
       if (status === 'pending_approval') {
-        const [items] = await conn.query('SELECT * FROM ecn_order_items WHERE ecn_id = ?', [req.params.id]);
+        const [items] = await conn.query('SELECT id, ecn_id, change_type, material_id, material_code, material_name, bom_id, field_name, old_value, new_value, remark FROM ecn_order_items WHERE ecn_id = ?', [req.params.id]);
         const validationError = validateEcnPayload({ ...current, items }, { requireItems: true });
         if (validationError) {
           await conn.rollback();
@@ -626,7 +626,7 @@ async function applyEcnChanges(ecnId, userId, conn) {
   const [[order]] = await conn.query('SELECT code, title, reason FROM ecn_orders WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [ecnId]);
   if (!order) throw new Error('ECN不存在');
 
-  const [rawItems] = await conn.query('SELECT * FROM ecn_order_items WHERE ecn_id = ?', [ecnId]);
+  const [rawItems] = await conn.query('SELECT id, ecn_id, change_type, material_id, material_code, material_name, bom_id, field_name, old_value, new_value, remark FROM ecn_order_items WHERE ecn_id = ?', [ecnId]);
   const items = rawItems.map(normalizeEcnItem);
   const validationError = validateEcnPayload({ ...order, items }, { requireItems: true });
   if (validationError) throw new Error(validationError);
@@ -813,7 +813,7 @@ const documents = {
 const alerts = {
   async getList(req, res) {
     try {
-      const [rows] = await pool.query('SELECT * FROM business_alerts ORDER BY category, name');
+      const [rows] = await pool.query('SELECT id, code, name, category, condition_type, condition_params, severity, notify_roles, notify_users, is_active, check_interval_minutes, last_checked_at, created_at, updated_at FROM business_alerts ORDER BY category, name');
       ResponseHandler.success(res, rows);
     } catch (e) { ResponseHandler.error(res, e.message); }
   },

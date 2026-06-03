@@ -37,7 +37,7 @@ const printModel = {
 
     // 获取分页数据
     const sql = appendPaginationSQL(
-      `SELECT * FROM print_settings WHERE ${whereClause} ORDER BY id DESC`,
+      `SELECT id, name, default_paper_size, default_orientation, default_margin_top, default_margin_right, default_margin_bottom, default_margin_left, header_content, footer_content, company_logo, status, created_by, updated_by, created_at, updated_at, deleted_at FROM print_settings WHERE ${whereClause} ORDER BY id DESC`,
       safeLimit, safeOffset
     );
     const [rows] = await pool.execute(sql, params);
@@ -51,7 +51,7 @@ const printModel = {
   },
 
   async getPrintSettingById(id) {
-    const [rows] = await pool.execute('SELECT * FROM print_settings WHERE id = ? AND deleted_at IS NULL', [id]);
+    const [rows] = await pool.execute('SELECT id, name, default_paper_size, default_orientation, default_margin_top, default_margin_right, default_margin_bottom, default_margin_left, header_content, footer_content, company_logo, status, created_by, updated_by, created_at, updated_at, deleted_at FROM print_settings WHERE id = ? AND deleted_at IS NULL', [id]);
     return rows.length > 0 ? rows[0] : null;
   },
 
@@ -163,7 +163,7 @@ const printModel = {
 
       // 分页查询 — 使用安全分页工具
       const sql = appendPaginationSQL(
-        `SELECT * FROM print_templates WHERE ${whereClause} ORDER BY id DESC`,
+        `SELECT id, name, module, template_type, content, paper_size, orientation, margin_top, margin_right, margin_bottom, margin_left, is_default, status, created_by, updated_by, created_at, updated_at, deleted_at, default_template_key FROM print_templates WHERE ${whereClause} ORDER BY id DESC`,
         safeLimit, safeOffset
       );
 
@@ -183,13 +183,13 @@ const printModel = {
   },
 
   async getPrintTemplateById(id) {
-    const [rows] = await pool.execute('SELECT * FROM print_templates WHERE id = ? AND deleted_at IS NULL', [id]);
+    const [rows] = await pool.execute('SELECT id, name, module, template_type, content, paper_size, orientation, margin_top, margin_right, margin_bottom, margin_left, is_default, status, created_by, updated_by, created_at, updated_at, deleted_at, default_template_key FROM print_templates WHERE id = ? AND deleted_at IS NULL', [id]);
     return rows.length > 0 ? rows[0] : null;
   },
 
   async getDefaultTemplateByType(module, templateType) {
     const [rows] = await pool.execute(
-      'SELECT * FROM print_templates WHERE module = ? AND template_type = ? AND is_default = 1 AND status = 1 AND deleted_at IS NULL ORDER BY updated_at DESC, id DESC LIMIT 1',
+      'SELECT id, name, module, template_type, content, paper_size, orientation, margin_top, margin_right, margin_bottom, margin_left, is_default, status, created_by, updated_by, created_at, updated_at, deleted_at, default_template_key FROM print_templates WHERE module = ? AND template_type = ? AND is_default = 1 AND status = 1 AND deleted_at IS NULL ORDER BY updated_at DESC, id DESC LIMIT 1',
       [module, templateType]
     );
     return rows.length > 0 ? rows[0] : null;

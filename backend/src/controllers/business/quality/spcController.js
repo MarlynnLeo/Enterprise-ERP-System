@@ -272,7 +272,7 @@ const spcController = {
                 return ResponseHandler.error(res, '控制计划ID、子组号和样本数据不能为空', 'VALIDATION_ERROR', 400);
             }
 
-            const plan = await db.query('SELECT * FROM spc_control_plans WHERE id = ?', [plan_id]);
+            const plan = await db.query('SELECT id, plan_no, plan_name, product_id, product_code, product_name, process_id, process_name, characteristic, usl, lsl, target_value, subgroup_size, chart_type, is_active, note, created_at, updated_at FROM spc_control_plans WHERE id = ?', [plan_id]);
             if (!plan.rows || plan.rows.length === 0) {
                 return ResponseHandler.error(res, '控制计划不存在', 'NOT_FOUND', 404);
             }
@@ -304,7 +304,7 @@ const spcController = {
         try {
             const { id } = req.params;
 
-            const planResult = await db.query('SELECT * FROM spc_control_plans WHERE id = ?', [id]);
+            const planResult = await db.query('SELECT id, plan_no, plan_name, product_id, product_code, product_name, process_id, process_name, characteristic, usl, lsl, target_value, subgroup_size, chart_type, is_active, note, created_at, updated_at FROM spc_control_plans WHERE id = ?', [id]);
             if (!planResult.rows || planResult.rows.length === 0) {
                 return ResponseHandler.error(res, '控制计划不存在', 'NOT_FOUND', 404);
             }
@@ -341,7 +341,7 @@ const spcController = {
         try {
             const { id } = req.params;
 
-            const planResult = await db.query('SELECT * FROM spc_control_plans WHERE id = ?', [id]);
+            const planResult = await db.query('SELECT id, plan_no, plan_name, product_id, product_code, product_name, process_id, process_name, characteristic, usl, lsl, target_value, subgroup_size, chart_type, is_active, note, created_at, updated_at FROM spc_control_plans WHERE id = ?', [id]);
             if (!planResult.rows || planResult.rows.length === 0) {
                 return ResponseHandler.error(res, '控制计划不存在', 'NOT_FOUND', 404);
             }

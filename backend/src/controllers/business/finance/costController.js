@@ -369,7 +369,7 @@ const costController = {
         // 保存当前设置到历史表
         try {
           const [currentSettings] = await db.pool.execute(
-            'SELECT * FROM cost_settings WHERE id = ?',
+            'SELECT id, setting_name, overhead_rate, wage_payment_method, labor_rate, piece_rate, costing_method, is_active, description, overhead_allocation_rules, created_at, updated_at, fallback_material_ratio, fallback_labor_ratio, fallback_overhead_ratio FROM cost_settings WHERE id = ?',
             [existing[0].id]
           );
           if (currentSettings.length > 0) {
@@ -569,7 +569,7 @@ const costController = {
       });
 
       const [rows] = await db.pool.query(`
-                SELECT * FROM cost_settings_history
+                SELECT id, settings_id, setting_name, overhead_rate, labor_rate, costing_method, wage_payment_method, piece_rate, overhead_allocation_rules, effective_from, effective_to, changed_by, change_reason, created_at FROM cost_settings_history
                 ORDER BY COALESCE(effective_from, created_at) DESC, id DESC
                 LIMIT ${pageSize} OFFSET ${offset}
             `);
@@ -600,7 +600,7 @@ const costController = {
 
       const [settings] = await db.pool.execute(
         `
-                SELECT * FROM cost_settings_history
+                SELECT id, settings_id, setting_name, overhead_rate, labor_rate, costing_method, wage_payment_method, piece_rate, overhead_allocation_rules, effective_from, effective_to, changed_by, change_reason, created_at FROM cost_settings_history
                 WHERE effective_from <= ? AND (effective_to IS NULL OR effective_to >= ?)
                 ORDER BY effective_from DESC LIMIT 1
             `,
@@ -612,7 +612,7 @@ const costController = {
       } else {
         // 返回当前设置
         const [current] = await db.pool.execute(
-          'SELECT * FROM cost_settings WHERE is_active = 1 LIMIT 1'
+          'SELECT id, setting_name, overhead_rate, wage_payment_method, labor_rate, piece_rate, costing_method, is_active, description, overhead_allocation_rules, created_at, updated_at, fallback_material_ratio, fallback_labor_ratio, fallback_overhead_ratio FROM cost_settings WHERE is_active = 1 LIMIT 1'
         );
         ResponseHandler.success(res, current[0] || null);
       }
@@ -1236,7 +1236,7 @@ const costController = {
   getSupplementReasons: async (req, res) => {
     try {
       const [reasons] = await db.pool.execute(
-        'SELECT * FROM cost_supplement_configs ORDER BY created_at DESC'
+        'SELECT id, reason_code, reason_name, is_included_in_cost, is_active, created_at, updated_at FROM cost_supplement_configs ORDER BY created_at DESC'
       );
       return ResponseHandler.success(res, reasons);
     } catch (error) {
@@ -1306,7 +1306,7 @@ const costController = {
    */
   getGLAccounts: async (req, res) => {
     try {
-      const [accounts] = await db.pool.execute('SELECT * FROM gl_accounts ORDER BY account_code');
+      const [accounts] = await db.pool.execute('SELECT id, account_code, account_name, account_type, parent_id, is_debit, is_active, currency_code, description, created_at, updated_at, type, opening_debit, opening_credit, opening_balance_date, opening_balance_set, opening_source_type, opening_source_details, opening_source_updated_at, has_customer, has_supplier, has_employee, has_department, has_project FROM gl_accounts ORDER BY account_code');
       return ResponseHandler.success(res, accounts);
     } catch (error) {
       logger.error('获取科目列表失败:', error);
@@ -1374,7 +1374,7 @@ const costController = {
 
       // 获取预警阈值配置
       const [settings] = await db.pool.execute(
-        'SELECT * FROM cost_alert_settings WHERE is_active = 1 LIMIT 1'
+        'SELECT id, variance_threshold, material_threshold, labor_threshold, overhead_threshold, is_active, updated_at, updated_by FROM cost_alert_settings WHERE is_active = 1 LIMIT 1'
       );
       const threshold = settings.length > 0 ? parseFloat(settings[0].variance_threshold) : 10; // 默认10%
 
@@ -1453,7 +1453,7 @@ const costController = {
       // 表结构由 migrations/20260312000009_baseline_misc_tables.js 管理
 
       const [settings] = await db.pool.execute(
-        'SELECT * FROM cost_alert_settings WHERE is_active = 1 LIMIT 1'
+        'SELECT id, variance_threshold, material_threshold, labor_threshold, overhead_threshold, is_active, updated_at, updated_by FROM cost_alert_settings WHERE is_active = 1 LIMIT 1'
       );
 
       if (settings.length > 0) {

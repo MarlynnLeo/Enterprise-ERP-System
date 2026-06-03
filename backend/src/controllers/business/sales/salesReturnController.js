@@ -93,7 +93,7 @@ const assertSalesReturnQuantities = async (connection, orderId, items = [], excl
 };
 
 const getSalesReturnUpdatePayload = async (connection, id, status) => {
-  const [returns] = await connection.query('SELECT * FROM sales_returns WHERE id = ?', [id]);
+  const [returns] = await connection.query('SELECT id, return_no, order_id, return_date, return_reason, status, remarks, created_by, created_at, updated_at, deleted_at FROM sales_returns WHERE id = ?', [id]);
   if (returns.length === 0) {
     return null;
   }
@@ -702,7 +702,7 @@ exports.updateSalesReturn = async (req, res) => {
       // 退货单库存处理完成
 
       // 获取退货单信息用于生成红字发票
-      const [returnInfo] = await connection.query('SELECT * FROM sales_returns WHERE id = ?', [id]);
+      const [returnInfo] = await connection.query('SELECT id, return_no, order_id, return_date, return_reason, status, remarks, created_by, created_at, updated_at, deleted_at FROM sales_returns WHERE id = ?', [id]);
 
       // 退货单库存处理完成
       // 缓存退货信息，commit 后异步生成红字发票

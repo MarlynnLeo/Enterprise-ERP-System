@@ -120,8 +120,7 @@ class FundTransferModel {
 
       const orderedAccountIds = [fromAccountId, toAccountId].sort((a, b) => a - b);
       const [lockedAccounts] = await connection.execute(
-        `SELECT *
-         FROM bank_accounts
+        `SELECT id, account_number, account_name, bank_name, branch_name, currency_code, current_balance, opening_balance, account_type, is_active, contact_person, contact_phone, notes, created_at, updated_at, created_by, updated_by, last_transaction_date FROM bank_accounts
          WHERE id IN (?, ?)
          ORDER BY id
          FOR UPDATE`,

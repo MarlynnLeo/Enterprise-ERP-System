@@ -22,7 +22,7 @@ const getAllBusinessTypes = async (req, res) => {
   try {
     const { category, group_code, status, keyword } = req.query;
 
-    let sql = 'SELECT * FROM business_types WHERE 1=1';
+    let sql = 'SELECT id, code, name, category, group_code, description, icon, color, tag_type, sort_order, is_system, status, created_at, updated_at, created_by, updated_by FROM business_types WHERE 1=1';
     const params = [];
 
     if (group_code) {
@@ -65,7 +65,7 @@ const getBusinessTypesByCategory = async (req, res) => {
     const { category } = req.params;
 
     const [types] = await pool.execute(
-      'SELECT * FROM business_types WHERE category = ? AND group_code = "inventory_transaction" AND status = 1 ORDER BY sort_order, id',
+      'SELECT id, code, name, category, group_code, description, icon, color, tag_type, sort_order, is_system, status, created_at, updated_at, created_by, updated_by FROM business_types WHERE category = ? AND group_code = "inventory_transaction" AND status = 1 ORDER BY sort_order, id',
       [category]
     );
 
@@ -99,7 +99,7 @@ const getBusinessTypeById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const [types] = await pool.execute('SELECT * FROM business_types WHERE id = ?', [id]);
+    const [types] = await pool.execute('SELECT id, code, name, category, group_code, description, icon, color, tag_type, sort_order, is_system, status, created_at, updated_at, created_by, updated_by FROM business_types WHERE id = ?', [id]);
 
     if (types.length === 0) {
       return ResponseHandler.error(res, '业务类型不存在', 'NOT_FOUND', 404);

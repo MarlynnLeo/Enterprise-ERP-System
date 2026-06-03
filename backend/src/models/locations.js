@@ -99,7 +99,7 @@ const Locations = {
       }
 
       // 构建查询语句
-      let query = 'SELECT * FROM locations WHERE ' + conditions.join(' AND ');
+      let query = 'SELECT id, code, name, type, is_default, area, address, warehouse_id, warehouse_name, status, remark, created_at, updated_at, deleted_at FROM locations WHERE ' + conditions.join(' AND ');
       // 使用参数化LIMIT，顺序: LIMIT offset, count
       query = appendPaginationSQL(query + ' ORDER BY id DESC', pagination.limit, pagination.offset);
 
@@ -129,7 +129,7 @@ const Locations = {
   // 获取单个库位
   getById: async (id) => {
     try {
-      const [rows] = await db.pool.query('SELECT * FROM locations WHERE id = ? AND deleted_at IS NULL', [Number(id)]);
+      const [rows] = await db.pool.query('SELECT id, code, name, type, is_default, area, address, warehouse_id, warehouse_name, status, remark, created_at, updated_at, deleted_at FROM locations WHERE id = ? AND deleted_at IS NULL', [Number(id)]);
       return rows[0];
     } catch (error) {
       logger.error('Error in getById location:', error);
@@ -207,7 +207,7 @@ const Locations = {
       }
 
       // 获取原始库位数据
-      const [oldLocation] = await connection.query('SELECT * FROM locations WHERE id = ? AND deleted_at IS NULL', [
+      const [oldLocation] = await connection.query('SELECT id, code, name, type, is_default, area, address, warehouse_id, warehouse_name, status, remark, created_at, updated_at, deleted_at FROM locations WHERE id = ? AND deleted_at IS NULL', [
         Number(id),
       ]);
 
@@ -259,7 +259,7 @@ const Locations = {
       await connection.beginTransaction();
 
       // 获取要删除的库位信息
-      const [location] = await connection.query('SELECT * FROM locations WHERE id = ? AND deleted_at IS NULL', [
+      const [location] = await connection.query('SELECT id, code, name, type, is_default, area, address, warehouse_id, warehouse_name, status, remark, created_at, updated_at, deleted_at FROM locations WHERE id = ? AND deleted_at IS NULL', [
         Number(id),
       ]);
 

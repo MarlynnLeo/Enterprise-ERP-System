@@ -97,7 +97,7 @@ const cipModel = {
     getCipProjects: async (filters = {}, page = 1, limit = 10) => {
         try {
             const pagination = parsePagination(page, limit, { defaultPageSize: 10, maxPageSize: 100 });
-            let query = 'SELECT * FROM cip_projects WHERE 1=1';
+            let query = 'SELECT id, project_code, project_name, budget, accumulated_amount, start_date, estimated_end_date, status, responsible, department, notes, created_at, updated_at FROM cip_projects WHERE 1=1';
             const queryParams = [];
 
             if (filters.project_code) {
@@ -147,7 +147,7 @@ const cipModel = {
      */
     getCipProjectById: async (id) => {
         try {
-            const [projects] = await db.pool.query('SELECT * FROM cip_projects WHERE id = ?', [id]);
+            const [projects] = await db.pool.query('SELECT id, project_code, project_name, budget, accumulated_amount, start_date, estimated_end_date, status, responsible, department, notes, created_at, updated_at FROM cip_projects WHERE id = ?', [id]);
             return projects.length > 0 ? projects[0] : null;
         } catch (error) {
             logger.error('获取在建工程详情失败:', error);
@@ -220,7 +220,7 @@ const cipModel = {
     deleteCipProject: async (id) => {
         try {
             // 检查状态，只有建设中且无发生成本的才允许删除
-            const [project] = await db.pool.query('SELECT * FROM cip_projects WHERE id = ?', [id]);
+            const [project] = await db.pool.query('SELECT id, project_code, project_name, budget, accumulated_amount, start_date, estimated_end_date, status, responsible, department, notes, created_at, updated_at FROM cip_projects WHERE id = ?', [id]);
             if (project.length === 0) throw new Error('在建工程不存在');
 
             if (project[0].status !== '建设中' || project[0].accumulated_amount > 0) {
@@ -244,7 +244,7 @@ const cipModel = {
             await connection.beginTransaction();
 
             // 1. 检查工程状态
-            const [projects] = await connection.query('SELECT * FROM cip_projects WHERE id = ? FOR UPDATE', [id]);
+            const [projects] = await connection.query('SELECT id, project_code, project_name, budget, accumulated_amount, start_date, estimated_end_date, status, responsible, department, notes, created_at, updated_at FROM cip_projects WHERE id = ? FOR UPDATE', [id]);
             if (projects.length === 0) throw new Error('在建工程不存在');
 
             const project = projects[0];

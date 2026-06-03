@@ -55,12 +55,12 @@ class WorkflowService {
   /** 获取模板详情（含节点） */
   async getTemplateById(id) {
     const [[template]] = await pool.query(
-      'SELECT * FROM workflow_templates WHERE id = ? AND deleted_at IS NULL', [id]
+      'SELECT id, code, name, business_type, description, trigger_condition, is_active, version, created_by, created_at, updated_at, deleted_at FROM workflow_templates WHERE id = ? AND deleted_at IS NULL', [id]
     );
     if (!template) return null;
 
     const [nodes] = await pool.query(
-      'SELECT * FROM workflow_template_nodes WHERE template_id = ? ORDER BY sequence', [id]
+      'SELECT id, template_id, node_name, node_type, sequence, approver_type, approver_ids, multi_approve_type, condition_expression, timeout_hours, timeout_action, created_at FROM workflow_template_nodes WHERE template_id = ? ORDER BY sequence', [id]
     );
     template.nodes = nodes;
     return template;
@@ -141,7 +141,7 @@ class WorkflowService {
   async startWorkflow({ business_type, business_id, business_code, title, initiator_id }) {
     // 1. 查找匹配的活跃模板
     const [[template]] = await pool.query(
-      `SELECT * FROM workflow_templates
+      `SELECT id, code, name, business_type, description, trigger_condition, is_active, version, created_by, created_at, updated_at, deleted_at FROM workflow_templates
        WHERE business_type = ? AND is_active = 1 AND deleted_at IS NULL
        ORDER BY version DESC LIMIT 1`,
       [business_type]
@@ -153,7 +153,7 @@ class WorkflowService {
 
     // 2. 获取模板节点
     const [templateNodes] = await pool.query(
-      'SELECT * FROM workflow_template_nodes WHERE template_id = ? ORDER BY sequence',
+      'SELECT id, template_id, node_name, node_type, sequence, approver_type, approver_ids, multi_approve_type, condition_expression, timeout_hours, timeout_action, created_at FROM workflow_template_nodes WHERE template_id = ? ORDER BY sequence',
       [template.id]
     );
 
@@ -249,7 +249,7 @@ class WorkflowService {
 
       // 1. 验证节点状态
       const [[node]] = await conn.query(
-        "SELECT * FROM workflow_instance_nodes WHERE id = ? AND instance_id = ? AND status = 'in_progress' FOR UPDATE",
+        "SELECT id, instance_id, template_node_id, node_name, node_type, sequence, status, approver_id, approver_name, comment, acted_at, created_at FROM workflow_instance_nodes WHERE id = ? AND instance_id = ? AND status = 'in_progress' FOR UPDATE",
         [node_id, instance_id]
       );
       if (!node) throw new Error('审批节点不存在或已处理');
@@ -297,7 +297,7 @@ class WorkflowService {
       } else {
         // 通过 → 预查询实例数据（合并两次查询为一次）
         const [pendingNodes] = await conn.query(
-          "SELECT * FROM workflow_instance_nodes WHERE instance_id = ? AND status = 'pending' AND node_type = 'approval' ORDER BY sequence LIMIT 1 FOR UPDATE",
+          "SELECT id, instance_id, template_node_id, node_name, node_type, sequence, status, approver_id, approver_name, comment, acted_at, created_at FROM workflow_instance_nodes WHERE instance_id = ? AND status = 'pending' AND node_type = 'approval' ORDER BY sequence LIMIT 1 FOR UPDATE",
           [instance_id]
         );
 
@@ -316,7 +316,7 @@ class WorkflowService {
           // 分配下一审批人
           if (nextNode.template_node_id) {
             const [[tplNode]] = await conn.query(
-              'SELECT * FROM workflow_template_nodes WHERE id = ?', [nextNode.template_node_id]
+              'SELECT id, template_id, node_name, node_type, sequence, approver_type, approver_ids, multi_approve_type, condition_expression, timeout_hours, timeout_action, created_at FROM workflow_template_nodes WHERE id = ?', [nextNode.template_node_id]
             );
             if (tplNode) {
               await this._assignApprover(conn, nextNode.id, tplNode, instLock.initiator_id);
@@ -357,7 +357,7 @@ class WorkflowService {
       await conn.beginTransaction();
 
       const [[inst]] = await conn.query(
-        "SELECT * FROM workflow_instances WHERE id = ? AND initiator_id = ? AND status IN ('pending','in_progress') FOR UPDATE",
+        "SELECT id, template_id, business_type, business_id, business_code, title, status, current_node_id, initiator_id, result_comment, started_at, completed_at, created_at, updated_at, deleted_at FROM workflow_instances WHERE id = ? AND initiator_id = ? AND status IN ('pending','in_progress') FOR UPDATE",
         [instance_id, userId]
       );
       if (!inst) throw new Error('流程不存在或无法撤回');
@@ -399,7 +399,7 @@ class WorkflowService {
     if (!instance) return null;
 
     const [nodes] = await pool.query(
-      'SELECT * FROM workflow_instance_nodes WHERE instance_id = ? ORDER BY sequence', [id]
+      'SELECT id, instance_id, template_node_id, node_name, node_type, sequence, status, approver_id, approver_name, comment, acted_at, created_at FROM workflow_instance_nodes WHERE instance_id = ? ORDER BY sequence', [id]
     );
     instance.nodes = nodes;
     return instance;
@@ -499,7 +499,7 @@ class WorkflowService {
   /** 根据业务单据获取审批状态 */
   async getWorkflowByBusiness(business_type, business_id) {
     const [[instance]] = await pool.query(
-      `SELECT * FROM workflow_instances
+      `SELECT id, template_id, business_type, business_id, business_code, title, status, current_node_id, initiator_id, result_comment, started_at, completed_at, created_at, updated_at, deleted_at FROM workflow_instances
        WHERE business_type = ? AND business_id = ? AND deleted_at IS NULL
        ORDER BY created_at DESC LIMIT 1`,
       [business_type, business_id]

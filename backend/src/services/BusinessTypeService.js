@@ -34,7 +34,7 @@ class BusinessTypeService {
 
     try {
       const [types] = await pool.execute(
-        'SELECT * FROM business_types WHERE status = 1 ORDER BY group_code, category, sort_order, id'
+        'SELECT id, code, name, category, group_code, description, icon, color, tag_type, sort_order, is_system, status, created_at, updated_at, created_by, updated_by FROM business_types WHERE status = 1 ORDER BY group_code, category, sort_order, id'
       );
 
       // 更新缓存

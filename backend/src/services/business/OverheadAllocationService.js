@@ -195,7 +195,7 @@ class OverheadAllocationService {
 
       // 1. 查找适用的分摊配置（按优先级排序）
       let sql = `
-                SELECT * FROM overhead_allocation_config
+                SELECT id, name, allocation_base, rate, cost_center_id, product_id, product_category, effective_date, expiry_date, priority, is_active, created_at, updated_at, deleted_at FROM overhead_allocation_config
                 WHERE is_active = 1
                   AND deleted_at IS NULL
                   AND effective_date <= ?

@@ -865,7 +865,7 @@ const budgetModel = {
   getBudgetAnalysis: async (budgetId) => {
     try {
       // 1. 获取预算主表信息
-      const [budgets] = await db.pool.query('SELECT * FROM budgets WHERE id = ?', [budgetId]);
+      const [budgets] = await db.pool.query('SELECT id, budget_no, budget_name, budget_year, budget_type, department_id, start_date, end_date, total_amount, used_amount, remaining_amount, status, approval_status, description, created_by, approved_by, approved_at, created_at, updated_at FROM budgets WHERE id = ?', [budgetId]);
       if (budgets.length === 0) {
         throw new Error('预算不存在');
       }

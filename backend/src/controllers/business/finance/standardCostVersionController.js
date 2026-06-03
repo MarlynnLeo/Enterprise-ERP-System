@@ -55,7 +55,7 @@ const standardCostVersionController = {
       );
 
       const [list] = await db.pool.execute(
-        `SELECT * FROM standard_cost_versions
+        `SELECT id, version_no, version_name, status, effective_date, expiry_date, remark, created_by, approved_by, approved_at, created_at, updated_at FROM standard_cost_versions
          WHERE ${whereClause}
          ORDER BY created_at DESC
          LIMIT ${pageSizeNumber} OFFSET ${offset}`,

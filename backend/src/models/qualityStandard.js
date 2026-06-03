@@ -112,7 +112,7 @@ class QualityStandard {
 
     // 获取标准项
     const itemsQuery = `
-      SELECT * FROM quality_standard_items
+      SELECT id, standard_id, item_name, item_standard, method, is_required, sequence, created_at, updated_at FROM quality_standard_items
       WHERE standard_id = ?
       ORDER BY sequence
     `;

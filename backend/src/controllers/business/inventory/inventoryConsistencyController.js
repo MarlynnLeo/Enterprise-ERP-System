@@ -172,7 +172,7 @@ const _syncProductionStatus = async (connection, outboundStatus, taskId) => {
             );
             if (templates.length > 0) {
               const [steps] = await connection.execute(
-                'SELECT * FROM process_template_details WHERE template_id = ? ORDER BY order_num',
+                'SELECT id, template_id, order_num, name, description, standard_hours, department, remark, created_at, updated_at, instruction_docs FROM process_template_details WHERE template_id = ? ORDER BY order_num',
                 [templates[0].id]
               );
               for (const step of steps) {

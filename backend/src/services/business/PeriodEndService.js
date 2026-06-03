@@ -151,7 +151,7 @@ class PeriodEndService {
   static async getUnpostedEntries(periodId) {
     const connection = await db.pool.getConnection();
     try {
-      const [periodInfo] = await connection.execute('SELECT * FROM gl_periods WHERE id = ?', [
+      const [periodInfo] = await connection.execute('SELECT id, period_name, start_date, end_date, is_closed, is_adjusting, fiscal_year, created_at, updated_at, closed_by, closed_at, closing_date, reopened_by, reopened_at, status FROM gl_periods WHERE id = ?', [
         periodId,
       ]);
 
@@ -388,7 +388,7 @@ class PeriodEndService {
   static async getClosingPreview(periodId) {
     const connection = await db.pool.getConnection();
     try {
-      const [periodInfo] = await connection.execute('SELECT * FROM gl_periods WHERE id = ?', [
+      const [periodInfo] = await connection.execute('SELECT id, period_name, start_date, end_date, is_closed, is_adjusting, fiscal_year, created_at, updated_at, closed_by, closed_at, closing_date, reopened_by, reopened_at, status FROM gl_periods WHERE id = ?', [
         periodId,
       ]);
 
@@ -596,7 +596,7 @@ class PeriodEndService {
 
       // 检查期间状态
       const [periodInfo] = await connection.execute(
-        'SELECT * FROM gl_periods WHERE id = ? FOR UPDATE',
+        'SELECT id, period_name, start_date, end_date, is_closed, is_adjusting, fiscal_year, created_at, updated_at, closed_by, closed_at, closing_date, reopened_by, reopened_at, status FROM gl_periods WHERE id = ? FOR UPDATE',
         [period_id]
       );
 
@@ -910,7 +910,7 @@ class PeriodEndService {
 
       // 检查期间状态
       const [periodInfo] = await connection.execute(
-        'SELECT * FROM gl_periods WHERE id = ? FOR UPDATE',
+        'SELECT id, period_name, start_date, end_date, is_closed, is_adjusting, fiscal_year, created_at, updated_at, closed_by, closed_at, closing_date, reopened_by, reopened_at, status FROM gl_periods WHERE id = ? FOR UPDATE',
         [period_id]
       );
 
@@ -1016,7 +1016,7 @@ class PeriodEndService {
    */
   static async getPeriodClosingStatus(periodId) {
     try {
-      const [periodInfo] = await db.pool.execute('SELECT * FROM gl_periods WHERE id = ?', [
+      const [periodInfo] = await db.pool.execute('SELECT id, period_name, start_date, end_date, is_closed, is_adjusting, fiscal_year, created_at, updated_at, closed_by, closed_at, closing_date, reopened_by, reopened_at, status FROM gl_periods WHERE id = ?', [
         periodId,
       ]);
 

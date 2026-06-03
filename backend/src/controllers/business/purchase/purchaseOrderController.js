@@ -426,7 +426,7 @@ const updateOrderStatus = async (req, res) => {
     }
 
     const updatedOrder = await DBManager.executeTransaction(async (connection) => {
-      const [checkRows] = await connection.query('SELECT * FROM purchase_orders WHERE id = ? FOR UPDATE', [
+      const [checkRows] = await connection.query('SELECT id, order_no, order_date, supplier_id, supplier_name, contract_code, expected_delivery_date, contact_person, contact_phone, total_amount, remarks, status, completion_percentage, created_at, updated_at, requisition_id, requisition_number, tax_rate, tax_amount, subtotal, deleted_at FROM purchase_orders WHERE id = ? FOR UPDATE', [
         id,
       ]);
 
@@ -807,7 +807,7 @@ const getRequisitions = async (req, res) => {
     if (rows.length > 0) {
       const requisitionIds = rows.map((row) => row.id);
       const itemsQuery = `
-        SELECT * FROM purchase_requisition_items
+        SELECT id, requisition_id, material_id, material_code, material_name, specification, unit, unit_id, quantity, created_at, updated_at FROM purchase_requisition_items
         WHERE requisition_id IN (?)
         ORDER BY id
       `;
@@ -902,7 +902,7 @@ const getRequisition = async (req, res) => {
     delete requisition.user_real_name;
 
     const itemsQuery =
-      'SELECT * FROM purchase_requisition_items WHERE requisition_id = ? ORDER BY id';
+      'SELECT id, requisition_id, material_id, material_code, material_name, specification, unit, unit_id, quantity, created_at, updated_at FROM purchase_requisition_items WHERE requisition_id = ? ORDER BY id';
     const [itemRows] = await pool.query(itemsQuery, [id]);
 
     // 获取已订购数量统计（用于过滤已采购物料）

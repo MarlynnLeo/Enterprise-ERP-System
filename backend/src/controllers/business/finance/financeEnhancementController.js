@@ -49,7 +49,7 @@ class FinanceEnhancementController {
       const { salesOrderId } = req.params;
 
       // 获取销售订单信息
-      const [salesOrders] = await db.pool.execute('SELECT * FROM sales_orders WHERE id = ?', [
+      const [salesOrders] = await db.pool.execute('SELECT id, order_no, customer_id, quotation_id, contract_code, total_amount, payment_terms, delivery_date, status, invoice_status, remarks, created_by, created_at, updated_at, is_locked, locked_at, locked_by, lock_reason, tax_rate, tax_amount, subtotal, deleted_at FROM sales_orders WHERE id = ?', [
         salesOrderId,
       ]);
 
@@ -78,7 +78,7 @@ class FinanceEnhancementController {
       const { receiptId } = req.params;
 
       // 获取采购入库单信息
-      const [receipts] = await db.pool.execute('SELECT * FROM purchase_receipts WHERE id = ?', [
+      const [receipts] = await db.pool.execute('SELECT id, receipt_no, order_id, order_no, supplier_id, supplier_name, warehouse_id, warehouse_name, receipt_date, operator, inspection_id, remarks, total_amount, total_tax_amount, from_inspection, status, invoice_status, created_at, updated_at, deleted_at FROM purchase_receipts WHERE id = ?', [
         receiptId,
       ]);
 

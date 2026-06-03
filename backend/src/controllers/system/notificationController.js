@@ -53,7 +53,7 @@ class NotificationController {
 
       // 获取通知列表
       const notificationsSql = appendPaginationSQL(
-        `SELECT * FROM notifications
+        `SELECT id, title, content, type, source, user_id, link, link_params, source_type, source_id, created_by, metadata, is_read, priority, read_at, created_at, updated_at FROM notifications
          WHERE ${whereClause}
          ORDER BY priority DESC, created_at DESC`,
         pagination.limit,
@@ -82,7 +82,7 @@ class NotificationController {
       const userId = req.user.id;
 
       const result = await db.query(
-        'SELECT * FROM notifications WHERE id = ? AND user_id = ?',
+        'SELECT id, title, content, type, source, user_id, link, link_params, source_type, source_id, created_by, metadata, is_read, priority, read_at, created_at, updated_at FROM notifications WHERE id = ? AND user_id = ?',
         [id, userId]
       );
 

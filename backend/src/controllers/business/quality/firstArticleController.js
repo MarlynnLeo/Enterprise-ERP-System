@@ -218,7 +218,7 @@ const firstArticleController = {
         return ResponseHandler.error(res, '该生产任务已存在首检单', 'CONFLICT', 400);
       }
 
-      const rulesResult = await db.query('SELECT * FROM first_article_rules WHERE product_id = ?', [
+      const rulesResult = await db.query('SELECT id, product_id, first_article_qty, full_inspection_threshold, template_id, is_mandatory, inspection_items, note, created_at, updated_at FROM first_article_rules WHERE product_id = ?', [
         product_id,
       ]);
 
@@ -318,7 +318,7 @@ const firstArticleController = {
       }
 
       const existingResult = await db.query(
-        "SELECT * FROM quality_inspections WHERE id = ? AND inspection_type = 'first_article'",
+        "SELECT id, inspection_no, inspection_type, reference_id, reference_no, material_id, supplier_id, product_id, product_name, product_code, process_id, process_name, batch_no, quantity, qualified_quantity, unqualified_quantity, unit, unit_id, status, planned_date, actual_date, inspector_id, inspector_name, punch_time, standard_type, standard_no, template_id, note, created_at, updated_at, traceability_id, traceability_batch, chain_id, chain_step_id, is_first_article, first_article_qty, is_full_inspection, first_article_result, production_can_continue, task_id, is_aql, aql_standard_id, aql_level, accept_limit, reject_limit, deleted_at FROM quality_inspections WHERE id = ? AND inspection_type = 'first_article'",
         [id]
       );
 
@@ -495,7 +495,7 @@ const firstArticleController = {
     try {
       const { productId } = req.params;
 
-      const rulesResult = await db.query('SELECT * FROM first_article_rules WHERE product_id = ?', [
+      const rulesResult = await db.query('SELECT id, product_id, first_article_qty, full_inspection_threshold, template_id, is_mandatory, inspection_items, note, created_at, updated_at FROM first_article_rules WHERE product_id = ?', [
         productId,
       ]);
 

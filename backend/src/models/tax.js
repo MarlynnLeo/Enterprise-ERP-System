@@ -606,7 +606,7 @@ const taxModel = {
   getTaxAccountConfigByKey: async (configKey) => {
     try {
       const [configs] = await db.pool.execute(
-        'SELECT * FROM tax_account_config WHERE config_key = ?',
+        'SELECT id, config_key, config_name, account_id, description, is_active, created_at, updated_at FROM tax_account_config WHERE config_key = ?',
         [configKey]
       );
 

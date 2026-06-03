@@ -610,7 +610,7 @@ const updateReturnStatus = async (req, res) => {
       }
 
       // 获取退货单物料
-      const itemsQuery = 'SELECT * FROM purchase_return_items WHERE return_id = ?';
+      const itemsQuery = 'SELECT id, return_id, receipt_item_id, material_id, material_code, material_name, specification, unit, unit_id, quantity, return_quantity, price, return_reason, created_at, updated_at FROM purchase_return_items WHERE return_id = ?';
       const [itemsResult] = await connection.query(itemsQuery, [id]);
 
       // ✅ 修复: 判断是否需要扣减库存
@@ -904,7 +904,7 @@ const getReturnById = async (id) => {
   returnData.operator_name = returnData.real_name || returnData.operator || '';
 
   // 获取退货单物料
-  const itemsQuery = 'SELECT * FROM purchase_return_items WHERE return_id = ? ORDER BY id';
+  const itemsQuery = 'SELECT id, return_id, receipt_item_id, material_id, material_code, material_name, specification, unit, unit_id, quantity, return_quantity, price, return_reason, created_at, updated_at FROM purchase_return_items WHERE return_id = ? ORDER BY id';
   const [itemsResult] = await pool.query(itemsQuery, [id]);
 
   returnData.items = itemsResult;

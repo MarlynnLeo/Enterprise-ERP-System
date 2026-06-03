@@ -460,7 +460,7 @@ class CostAccountingService {
 
     for (const entry of entries) {
       const [items] = await connection.execute(
-        'SELECT * FROM gl_entry_items WHERE entry_id = ? ORDER BY line_number, id FOR UPDATE',
+        'SELECT id, entry_id, line_number, account_id, debit_amount, credit_amount, description, cost_center_id, project_id, created_at, updated_at, currency_code, exchange_rate, customer_id, supplier_id, employee_id FROM gl_entry_items WHERE entry_id = ? ORDER BY line_number, id FOR UPDATE',
         [entry.id]
       );
 
@@ -880,7 +880,7 @@ class CostAccountingService {
       try {
         const calcDate = currentDateString();
         const [configs] = await db.pool.execute(
-          `SELECT * FROM overhead_allocation_config
+          `SELECT id, name, allocation_base, rate, cost_center_id, product_id, product_category, effective_date, expiry_date, priority, is_active, created_at, updated_at, deleted_at FROM overhead_allocation_config
             WHERE is_active = 1
               AND effective_date <= ?
               AND (expiry_date IS NULL OR expiry_date >= ?)
@@ -1189,7 +1189,7 @@ class CostAccountingService {
             if (existing.length > 0) {
               const existingEntry = existing[0];
               const [existingItems] = await connection.execute(
-                'SELECT * FROM gl_entry_items WHERE entry_id = ? ORDER BY line_number, id FOR UPDATE',
+                'SELECT id, entry_id, line_number, account_id, debit_amount, credit_amount, description, cost_center_id, project_id, created_at, updated_at, currency_code, exchange_rate, customer_id, supplier_id, employee_id FROM gl_entry_items WHERE entry_id = ? ORDER BY line_number, id FOR UPDATE',
                 [existingEntry.id]
               );
 

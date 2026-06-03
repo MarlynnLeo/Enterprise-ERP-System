@@ -984,7 +984,7 @@ ${JSON.stringify(comparisonData, null, 2)}
         try {
             // 获取预算完整数据
             const [budgetInfo] = await db.pool.execute(
-                'SELECT * FROM budgets WHERE id = ?', [budgetId]
+                'SELECT id, budget_no, budget_name, budget_year, budget_type, department_id, start_date, end_date, total_amount, used_amount, remaining_amount, status, approval_status, description, created_by, approved_by, approved_at, created_at, updated_at FROM budgets WHERE id = ?', [budgetId]
             );
             if (!budgetInfo.length) throw new Error('预算不存在');
 

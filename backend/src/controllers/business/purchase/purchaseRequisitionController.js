@@ -151,7 +151,7 @@ const getRequisitions = async (req, res) => {
       // MySQL不支持ANY操作符，使用IN代替
       const placeholders = requisitionIds.map(() => '?').join(',');
       const itemsQuery = `
-        SELECT * FROM purchase_requisition_items
+        SELECT id, requisition_id, material_id, material_code, material_name, specification, unit, unit_id, quantity, created_at, updated_at FROM purchase_requisition_items
         WHERE requisition_id IN (${placeholders})
         ORDER BY id
       `;
@@ -242,7 +242,7 @@ const getRequisition = async (req, res) => {
     const { id } = req.params;
 
     // 获取申请单基本信息
-    const query = 'SELECT * FROM purchase_requisitions WHERE id = ?';
+    const query = 'SELECT id, requisition_number, request_date, requester, contract_code, real_name, remarks, status, source_type, source_id, source_material_id, created_at, updated_at, deleted_at FROM purchase_requisitions WHERE id = ?';
     const [rows] = await db.pool.execute(query, [id]);
 
     if (rows.length === 0) {
@@ -877,7 +877,7 @@ const updateRequisitionStatus = async (req, res) => {
 
     // 获取更新后的完整记录
     const [updatedRows] = await db.pool.execute(
-      'SELECT * FROM purchase_requisitions WHERE id = ?',
+      'SELECT id, requisition_number, request_date, requester, contract_code, real_name, remarks, status, source_type, source_id, source_material_id, created_at, updated_at, deleted_at FROM purchase_requisitions WHERE id = ?',
       [id]
     );
 
@@ -901,7 +901,7 @@ const updateRequisitionStatus = async (req, res) => {
 const getRequisitionById = async (id) => {
   try {
     // 获取申请单基本信息
-    const query = 'SELECT * FROM purchase_requisitions WHERE id = ?';
+    const query = 'SELECT id, requisition_number, request_date, requester, contract_code, real_name, remarks, status, source_type, source_id, source_material_id, created_at, updated_at, deleted_at FROM purchase_requisitions WHERE id = ?';
     const [rows] = await db.pool.execute(query, [id]);
 
     if (rows.length === 0) {
