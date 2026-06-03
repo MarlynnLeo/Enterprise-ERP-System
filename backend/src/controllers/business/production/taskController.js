@@ -819,7 +819,7 @@ exports.getProductionTaskById = async (req, res) => {
     }
 
     const [processes] = await pool.query(
-      'SELECT id, task_id, name, sequence, estimated_time, actual_time, start_time, end_time, status, worker_name, notes, created_at, updated_at, standard_hours FROM production_processes WHERE task_id = ? ORDER BY sequence',
+      'SELECT id, task_id, process_name, sequence, quantity, planned_start_time, planned_end_time, actual_start_time, actual_end_time, progress, status, description, remarks, created_at, updated_at, sequence_number, standard_hours, efficiency_rate FROM production_processes WHERE task_id = ? ORDER BY sequence',
       [id]
     );
 

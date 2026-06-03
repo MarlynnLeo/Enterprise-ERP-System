@@ -624,7 +624,7 @@ const submitCheckResult = async (req, res) => {
     const { items } = req.body;
 
     // 检查盘点单是否存在
-    const [checkResult] = await connection.execute('SELECT id, check_no, material_id, material_code, material_name, specification, unit, location_id, location_name, system_quantity, actual_quantity, difference, difference_reason, difference_type, check_date, checker, status, remark, created_at, updated_at, deleted_at FROM inventory_checks WHERE id = ? FOR UPDATE', [
+    const [checkResult] = await connection.execute('SELECT id, check_no, location_id, check_type, check_date, status, remark, created_by, created_at, updated_at, deleted_at FROM inventory_checks WHERE id = ? FOR UPDATE', [
       id,
     ]);
 
@@ -704,7 +704,7 @@ const updateCheckStatus = async (req, res) => {
     }
 
     // 检查盘点单是否存在
-    const [checkResult] = await connection.execute('SELECT id, check_no, material_id, material_code, material_name, specification, unit, location_id, location_name, system_quantity, actual_quantity, difference, difference_reason, difference_type, check_date, checker, status, remark, created_at, updated_at, deleted_at FROM inventory_checks WHERE id = ? FOR UPDATE', [
+    const [checkResult] = await connection.execute('SELECT id, check_no, location_id, check_type, check_date, status, remark, created_by, created_at, updated_at, deleted_at FROM inventory_checks WHERE id = ? FOR UPDATE', [
       id,
     ]);
 
@@ -771,7 +771,7 @@ const adjustInventory = async (req, res) => {
     const { id } = req.params;
 
     // 检查盘点单是否存在
-    const [checkResult] = await connection.execute('SELECT id, check_no, material_id, material_code, material_name, specification, unit, location_id, location_name, system_quantity, actual_quantity, difference, difference_reason, difference_type, check_date, checker, status, remark, created_at, updated_at, deleted_at FROM inventory_checks WHERE id = ? FOR UPDATE', [
+    const [checkResult] = await connection.execute('SELECT id, check_no, location_id, check_type, check_date, status, remark, created_by, created_at, updated_at, deleted_at FROM inventory_checks WHERE id = ? FOR UPDATE', [
       id,
     ]);
 

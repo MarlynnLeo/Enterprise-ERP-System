@@ -636,12 +636,11 @@ const baseDataController = {
       const groupByCode = new Map(allGroups.filter((g) => g.code).map((g) => [g.code, g.id]));
       const groupByName = new Map(allGroups.map((g) => [g.name, g.id]));
 
-      const [allUsers] = await dbPool.query('SELECT id, username, real_name, name FROM users WHERE status = 1');
+      const [allUsers] = await dbPool.query('SELECT id, username, real_name FROM users WHERE status = 1');
       const userByCode = new Map();
       for (const u of allUsers) {
         if (u.username) userByCode.set(u.username, u.id);
         if (u.real_name) userByCode.set(u.real_name, u.id);
-        if (u.name) userByCode.set(u.name, u.id);
       }
 
       const [allLocations] = await dbPool.query('SELECT id, code FROM locations WHERE deleted_at IS NULL');
@@ -813,7 +812,7 @@ const baseDataController = {
       const groupByName = new Map(allGroups.map((g) => [g.name, g.id]));
 
 
-      const [allUsers] = await dbPool.query('SELECT id, username, real_name, name FROM users WHERE status = 1');
+      const [allUsers] = await dbPool.query('SELECT id, username, real_name FROM users WHERE status = 1');
       const userByUsername = new Map(allUsers.map((u) => [u.username, u.id]));
       const userByDisplayName = new Map();
       for (const user of allUsers) {

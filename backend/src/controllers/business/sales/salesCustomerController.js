@@ -83,8 +83,8 @@ exports.getCustomers = async (req, res) => {
         contact: customer.contact_person, // 兼容字段
         contact_phone: customer.contact_phone,
         phone: customer.contact_phone, // 兼容字段
-        delivery_address: customer.delivery_address,
-        address: customer.delivery_address, // 兼容字段
+        delivery_address: customer.address,
+        address: customer.address, // 兼容字段
       }));
 
       ResponseHandler.success(res, formattedCustomers, '操作成功');
@@ -107,7 +107,7 @@ exports.getCustomer = async (req, res) => {
 
     try {
       const [customers] = await connection.query(
-        'SELECT id, name, code, contact_person, contact_phone, delivery_address FROM customers WHERE id = ? AND deleted_at IS NULL',
+        'SELECT id, name, code, contact_person, contact_phone, address FROM customers WHERE id = ? AND deleted_at IS NULL',
         [customerId]
       );
 
@@ -126,8 +126,8 @@ exports.getCustomer = async (req, res) => {
         contact: customer.contact_person, // 兼容字段
         contact_phone: customer.contact_phone,
         phone: customer.contact_phone, // 兼容字段
-        delivery_address: customer.delivery_address,
-        address: customer.delivery_address, // 兼容字段
+        delivery_address: customer.address,
+        address: customer.address, // 兼容字段
       };
 
       ResponseHandler.success(res, formattedCustomer, '操作成功');

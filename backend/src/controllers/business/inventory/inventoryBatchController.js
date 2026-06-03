@@ -213,7 +213,7 @@ const getBatchInventory = async (req, res) => {
     // 预取物料和库位名称信息（消除双层循环内 N+1 查询）
     const matPlaceholders = materialIdList.map(() => '?').join(',');
     const [allMaterialInfo] = await connection.execute(
-      `SELECT id, name, code, unit FROM materials WHERE id IN (${matPlaceholders})`,
+      `SELECT id, name, code FROM materials WHERE id IN (${matPlaceholders})`,
       materialIdList
     );
     const materialNameMap = {};
