@@ -16,6 +16,7 @@ const { accountingConfig } = require('../../../config/accountingConfig');
 const { currentDateString } = require('../../../utils/dateUtils');
 const OpeningBalanceService = require('../../../services/business/OpeningBalanceService');
 const { financeConfig } = require('../../../config/financeConfig');
+const { safeParseId } = require('../../../utils/safeParseId');
 
 function normalizeMysqlFlag(value) {
   if (value === true || value === 1 || value === 1n) return true;
@@ -96,7 +97,7 @@ const financeController = {
    */
   getAccountById: async (req, res) => {
     try {
-      const { id } = req.params;
+      const id = safeParseId(req.params.id, '科目ID');
       const account = await financeModel.getAccountById(id);
 
       if (!account) {
@@ -186,7 +187,7 @@ const financeController = {
    */
   updateAccount: async (req, res) => {
     try {
-      const { id } = req.params;
+      const id = safeParseId(req.params.id, '科目ID');
       const {
         account_name,
         account_type,
@@ -255,7 +256,7 @@ const financeController = {
    */
   deactivateAccount: async (req, res) => {
     try {
-      const { id } = req.params;
+      const id = safeParseId(req.params.id, '科目ID');
 
       // 检查科目是否存在
       const account = await financeModel.getAccountById(id);
@@ -281,7 +282,7 @@ const financeController = {
    */
   toggleAccountStatus: async (req, res) => {
     try {
-      const { id } = req.params;
+      const id = safeParseId(req.params.id, '科目ID');
       const { is_active } = req.body;
 
       // 检查科目是否存在
@@ -337,7 +338,7 @@ const financeController = {
    */
   setOpeningBalance: async (req, res) => {
     try {
-      const { id } = req.params;
+      const id = safeParseId(req.params.id, '科目ID');
       const { debit, credit, balanceDate, notes } = req.body;
 
       const result = await financeModel.setOpeningBalance(id, {
@@ -608,7 +609,7 @@ const financeController = {
    */
   getEntryById: async (req, res) => {
     try {
-      const { id } = req.params;
+      const id = safeParseId(req.params.id, '凭证ID');
       const entry = await financeModel.getEntryById(id);
 
       if (!entry) {
@@ -627,7 +628,7 @@ const financeController = {
    */
   getEntryItems: async (req, res) => {
     try {
-      const { id } = req.params;
+      const id = safeParseId(req.params.id, '凭证ID');
 
       // 先检查分录是否存在
       const entry = await financeModel.getEntryById(id);
@@ -675,7 +676,7 @@ const financeController = {
    */
   postEntry: async (req, res) => {
     try {
-      const { id } = req.params;
+      const id = safeParseId(req.params.id, '凭证ID');
 
       const success = await financeModel.postEntry(id);
 
@@ -708,7 +709,7 @@ const financeController = {
    */
   reverseEntry: async (req, res) => {
     try {
-      const { id } = req.params;
+      const id = safeParseId(req.params.id, '凭证ID');
       const { entry_date, posting_date, period_id, description } = req.body;
 
       if (!entry_date) {
@@ -780,7 +781,7 @@ const financeController = {
    */
   deleteEntry: async (req, res) => {
     try {
-      const { id } = req.params;
+      const id = safeParseId(req.params.id, '凭证ID');
 
       const success = await financeModel.deleteEntry(id);
 
@@ -831,7 +832,7 @@ const financeController = {
    */
   getPeriodById: async (req, res) => {
     try {
-      const { id } = req.params;
+      const id = safeParseId(req.params.id, '期间ID');
       const period = await financeModel.getPeriodById(id);
 
       if (!period) {
@@ -906,7 +907,7 @@ const financeController = {
    */
   updatePeriod: async (req, res) => {
     try {
-      const { id } = req.params;
+      const id = safeParseId(req.params.id, '期间ID');
       const { period_name, start_date, end_date, is_adjusting, fiscal_year } = req.body;
 
       if (!period_name || !start_date || !end_date || !fiscal_year) {
@@ -960,7 +961,7 @@ const financeController = {
 
   closePeriod: async (req, res) => {
     try {
-      const { id } = req.params;
+      const id = safeParseId(req.params.id, '期间ID');
 
       // 检查期间是否存在
       const period = await financeModel.getPeriodById(id);
@@ -1004,7 +1005,7 @@ const financeController = {
    */
   reopenPeriod: async (req, res) => {
     try {
-      const { id } = req.params;
+      const id = safeParseId(req.params.id, '期间ID');
 
       // 检查期间是否存在
       const period = await financeModel.getPeriodById(id);
@@ -1063,7 +1064,7 @@ const financeController = {
    */
   getClosingPreview: async (req, res) => {
     try {
-      const { id } = req.params;
+      const id = safeParseId(req.params.id, '期间ID');
 
       if (!id) {
         return ResponseHandler.error(res, '会计期间ID为必填项', 'VALIDATION_ERROR', 400);
@@ -1111,7 +1112,7 @@ const financeController = {
    */
   getClosingUnpostedEntries: async (req, res) => {
     try {
-      const { id } = req.params;
+      const id = safeParseId(req.params.id, '期间ID');
 
       if (!id) {
         return ResponseHandler.error(res, '会计期间ID为必填项', 'VALIDATION_ERROR', 400);
@@ -1138,7 +1139,7 @@ const financeController = {
    */
   updateClosingUnpostedEntryDates: async (req, res) => {
     try {
-      const { entryId } = req.params;
+      const entryId = safeParseId(req.params.entryId, '凭证ID');
 
       if (!entryId) {
         return ResponseHandler.error(res, '凭证ID为必填项', 'VALIDATION_ERROR', 400);
@@ -1167,7 +1168,7 @@ const financeController = {
    */
   getClosingUnreconciledTransactions: async (req, res) => {
     try {
-      const { id } = req.params;
+      const id = safeParseId(req.params.id, '期间ID');
 
       if (!id) {
         return ResponseHandler.error(res, '会计期间ID为必填项', 'VALIDATION_ERROR', 400);
@@ -1232,7 +1233,7 @@ const financeController = {
    */
   executeClosing: async (req, res) => {
     try {
-      const { id } = req.params;
+      const id = safeParseId(req.params.id, '期间ID');
 
       if (!id) {
         return ResponseHandler.error(res, '会计期间ID为必填项', 'VALIDATION_ERROR', 400);
@@ -1271,7 +1272,7 @@ const financeController = {
    */
   getClosingHistory: async (req, res) => {
     try {
-      const { id } = req.params;
+      const id = safeParseId(req.params.id, '期间ID');
 
       if (!id) {
         return ResponseHandler.error(res, '会计期间ID为必填项', 'VALIDATION_ERROR', 400);

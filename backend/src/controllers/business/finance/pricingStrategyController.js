@@ -149,8 +149,14 @@ exports.createStrategyField = async (req, res) => {
 exports.updateStrategyField = async (req, res) => {
   let connection;
   try {
-    const { id } = req.params;
+    const id = safeParseId(req.params.id);
     const { field_label, field_type, unit, description, sort_order, is_additive } = req.body;
+
+    // 与创建接口保持一致：field_type 仅允许 amount / percentage，
+    // 否则会把已有 field_value 的语义（金额 vs 百分比）静默改变，污染定价计算
+    if (field_type !== undefined && !VALID_FIELD_TYPES.has(field_type)) {
+      return ResponseHandler.error(res, '无效的字段类型，仅支持 amount 或 percentage', 'VALIDATION_ERROR', 400);
+    }
 
     connection = await getConnection();
 
@@ -236,7 +242,7 @@ exports.updateStrategyField = async (req, res) => {
 exports.deleteStrategyField = async (req, res) => {
   let connection;
   try {
-    const { id } = req.params;
+    const id = safeParseId(req.params.id);
 
     connection = await getConnection();
 
@@ -294,7 +300,7 @@ exports.deleteStrategyField = async (req, res) => {
 exports.toggleStrategyField = async (req, res) => {
   let connection;
   try {
-    const { id } = req.params;
+    const id = safeParseId(req.params.id);
 
     connection = await getConnection();
 

@@ -238,7 +238,7 @@ const budgetController = {
 
       const success = await budgetModel.updateBudgetStatus(id, status, {
         approval_status: approvalStatus,
-        approved_by: req.user.id,
+        approved_by: getAuthenticatedUserId(req),
       });
 
       if (success) {

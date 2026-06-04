@@ -39,8 +39,10 @@ class OverheadAllocationController {
    */
   static async updateConfig(req, res) {
     try {
-      const id = safeParseId(req.params.id);
-      if (isNaN(id)) {
+      let id;
+      try {
+        id = safeParseId(req.params.id, '配置ID');
+      } catch {
         return ResponseHandler.error(res, '无效的配置ID', 'VALIDATION_ERROR', 400);
       }
       const result = await OverheadAllocationService.updateConfig(id, req.body);
@@ -55,8 +57,10 @@ class OverheadAllocationController {
    */
   static async deleteConfig(req, res) {
     try {
-      const id = safeParseId(req.params.id);
-      if (isNaN(id)) {
+      let id;
+      try {
+        id = safeParseId(req.params.id, '配置ID');
+      } catch {
         return ResponseHandler.error(res, '无效的配置ID', 'VALIDATION_ERROR', 400);
       }
       const result = await OverheadAllocationService.deleteConfig(id);

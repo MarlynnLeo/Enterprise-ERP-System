@@ -175,7 +175,7 @@ exports.getPricingList = async (req, res) => {
 exports.getPricingDetail = async (req, res) => {
   let connection;
   try {
-    const { productId } = req.params;
+    const productId = safeParseId(req.params.productId);
 
     // 参数验证
     if (!productId || isNaN(parseInt(productId))) {
@@ -452,7 +452,7 @@ async function calculateProductCost(connection, productId) {
 exports.calculateBomCost = async (req, res) => {
   let connection;
   try {
-    const { productId } = req.params;
+    const productId = safeParseId(req.params.productId);
     connection = await getConnection();
     // 使用统一的成本计算函数（BOM成本或采购成本）
     const costResult = await calculateProductCost(connection, productId);
@@ -625,7 +625,7 @@ exports.createPricing = async (req, res) => {
 exports.getPricingHistory = async (req, res) => {
   let connection;
   try {
-    const { productId } = req.params;
+    const productId = safeParseId(req.params.productId);
     connection = await getConnection();
 
     const [history] = await connection.query(
@@ -685,7 +685,7 @@ exports.getPricingHistory = async (req, res) => {
 exports.getBomDetails = async (req, res) => {
   let connection;
   try {
-    const { productId } = req.params;
+    const productId = safeParseId(req.params.productId);
     connection = await getConnection();
 
     // 1. 查找产品的有效BOM（优先使用已审核的）

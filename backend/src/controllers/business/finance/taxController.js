@@ -7,6 +7,7 @@
  */
 
 const taxModel = require('../../../models/tax');
+const { safeParseId } = require('../../../utils/safeParseId');
 const TaxAccountingService = require('../../../services/business/TaxAccountingService');
 const DocumentLinkService = require('../../../services/business/DocumentLinkService');
 const { logger } = require('../../../utils/logger');
@@ -253,7 +254,7 @@ const taxController = {
    */
   getTaxInvoiceById: async (req, res) => {
     try {
-      const { id } = req.params;
+      const id = safeParseId(req.params.id, '发票ID');
       const invoice = await taxModel.getTaxInvoiceById(id);
 
       if (!invoice) {
@@ -274,7 +275,7 @@ const taxController = {
   certifyTaxInvoice: async (req, res) => {
     const connection = await db.pool.getConnection();
     try {
-      const { id } = req.params;
+      const id = safeParseId(req.params.id, '发票ID');
       const { certification_date } = req.body;
 
       await connection.beginTransaction();
@@ -350,7 +351,7 @@ const taxController = {
   deductTaxInvoice: async (req, res) => {
     const connection = await db.pool.getConnection();
     try {
-      const { id } = req.params;
+      const id = safeParseId(req.params.id, '发票ID');
       const { deduction_date } = req.body;
 
       await connection.beginTransaction();
@@ -473,7 +474,7 @@ const taxController = {
    */
   getTaxReturnById: async (req, res) => {
     try {
-      const { id } = req.params;
+      const id = safeParseId(req.params.id, '申报ID');
       const taxReturn = await taxModel.getTaxReturnById(id);
 
       if (!taxReturn) {
@@ -493,7 +494,7 @@ const taxController = {
    */
   submitTaxReturn: async (req, res) => {
     try {
-      const { id } = req.params;
+      const id = safeParseId(req.params.id);
       const { declaration_date } = req.body;
 
       // 获取申报信息
@@ -524,7 +525,7 @@ const taxController = {
   payTaxReturn: async (req, res) => {
     const connection = await db.pool.getConnection();
     try {
-      const { id } = req.params;
+      const id = safeParseId(req.params.id, '申报ID');
       const { payment_date, bank_account_id } = req.body;
 
       await connection.beginTransaction();
@@ -690,7 +691,7 @@ const taxController = {
    */
   deleteTaxReturn: async (req, res) => {
     try {
-      const { id } = req.params;
+      const id = safeParseId(req.params.id);
 
       await taxModel.deleteTaxReturn(id);
 
@@ -762,7 +763,7 @@ const taxController = {
    */
   updateTaxAccountConfig: async (req, res) => {
     try {
-      const { id } = req.params;
+      const id = safeParseId(req.params.id);
       const { config_name, account_id, description } = req.body;
 
       // 验证必填字段
@@ -789,7 +790,7 @@ const taxController = {
    */
   deleteTaxAccountConfig: async (req, res) => {
     try {
-      const { id } = req.params;
+      const id = safeParseId(req.params.id);
 
       await taxModel.deleteTaxAccountConfig(id);
 
@@ -808,7 +809,7 @@ const taxController = {
    */
   linkTaxInvoice: async (req, res) => {
     try {
-      const { id } = req.params;
+      const id = safeParseId(req.params.id);
       const { document_type, document_id } = req.body;
 
       if (!document_type || !document_id) {
@@ -857,7 +858,7 @@ const taxController = {
    */
   unlinkTaxInvoice: async (req, res) => {
     try {
-      const { id } = req.params;
+      const id = safeParseId(req.params.id);
 
       const invoice = await taxModel.getTaxInvoiceById(id);
       if (!invoice) {
@@ -912,7 +913,7 @@ const taxController = {
    */
   updateTaxInvoiceNumber: async (req, res) => {
     try {
-      const { id } = req.params;
+      const id = safeParseId(req.params.id);
       const { invoice_number } = req.body;
 
       if (!invoice_number || !invoice_number.trim()) {
@@ -960,7 +961,7 @@ const taxController = {
   voidTaxInvoice: async (req, res) => {
     const connection = await db.pool.getConnection();
     try {
-      const { id } = req.params;
+      const id = safeParseId(req.params.id, '发票ID');
 
       await connection.beginTransaction();
       const [invoices] = await connection.execute(

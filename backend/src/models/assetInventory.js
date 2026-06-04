@@ -15,7 +15,7 @@ const assetInventoryModel = {
         try {
             const pagination = parsePagination(page, limit, { defaultPageSize: 10, maxPageSize: 100 });
             let query = `
-                SELECT i.*, i.inventory_name as title,
+                SELECT i.id, i.inventory_no, i.inventory_name, i.status, i.start_date, i.end_date, i.created_by, i.notes, i.created_at, i.updated_at, i.completed_at, i.completed_by, i.inventory_name as title,
                        (SELECT COUNT(*) FROM asset_inventory_items item WHERE item.inventory_id = i.id) as total_items,
                        (SELECT COUNT(*) FROM asset_inventory_items item WHERE item.inventory_id = i.id AND item.status = '盘点相符') as matched_items,
                        (SELECT COUNT(*) FROM asset_inventory_items item WHERE item.inventory_id = i.id AND item.status = '盘盈') as surplus_items,
@@ -62,14 +62,14 @@ const assetInventoryModel = {
      */
     getInventoryById: async (id) => {
         try {
-            const [inventories] = await db.pool.query('SELECT *, inventory_name as title FROM asset_inventories WHERE id = ?', [id]);
+             const [inventories] = await db.pool.query('SELECT id, inventory_no, inventory_name, status, start_date, end_date, created_by, notes, created_at, updated_at, completed_at, completed_by, inventory_name as title FROM asset_inventories WHERE id = ?', [id]);
 
             if (inventories.length === 0) return null;
 
             const inventory = inventories[0];
 
             const [items] = await db.pool.query(
-                `SELECT item.*, a.asset_code, a.asset_name, a.asset_type as category_name, a.location_id as location, a.department_id, a.custodian as responsible
+                `SELECT item.id, item.inventory_id, item.asset_id, item.book_quantity, item.actual_quantity, item.status, item.handled_by, item.inventory_date, item.notes, a.asset_code, a.asset_name, a.asset_type as category_name, a.location_id as location, a.department_id, a.custodian as responsible
                  FROM asset_inventory_items item
                  LEFT JOIN fixed_assets a ON item.asset_id = a.id
                  WHERE item.inventory_id = ?

@@ -77,7 +77,7 @@ const getOverdueAPInvoices = async (req, res) => {
  */
 const reverseReceipt = async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = safeParseId(req.params.id);
     const { reason } = req.body;
 
     const voidedBy = getAuthenticatedUserId(req);
@@ -106,7 +106,7 @@ const reverseReceipt = async (req, res) => {
  */
 const reversePayment = async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = safeParseId(req.params.id);
     const { reason } = req.body;
 
     const voidedBy = getAuthenticatedUserId(req);

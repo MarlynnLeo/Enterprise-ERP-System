@@ -1433,7 +1433,7 @@ const financeModel = {
   getCurrentPeriod: async () => {
     try {
       const [periods] = await db.pool.execute(
-        'SELECT *, is_closed FROM gl_periods WHERE is_closed = 0 ORDER BY end_date DESC LIMIT 1'
+        'SELECT id, period_name, start_date, end_date, is_closed, is_adjusting, fiscal_year, created_at, updated_at, closed_by, closed_at, closing_date, reopened_by, reopened_at, status FROM gl_periods WHERE is_closed = 0 ORDER BY end_date DESC LIMIT 1'
       );
       return periods.length > 0 ? periods[0] : null;
     } catch (error) {
@@ -1482,7 +1482,7 @@ const financeModel = {
       const safeLimit = shouldPaginate ? Math.min(limit, 100) : null;
       const offset = shouldPaginate ? (page - 1) * safeLimit : null;
 
-      let query = `SELECT *, is_closed FROM gl_periods ${whereClause} ORDER BY fiscal_year DESC, start_date DESC`;
+      let query = `SELECT id, period_name, start_date, end_date, is_closed, is_adjusting, fiscal_year, created_at, updated_at, closed_by, closed_at, closing_date, reopened_by, reopened_at, status FROM gl_periods ${whereClause} ORDER BY fiscal_year DESC, start_date DESC`;
       if (shouldPaginate) {
         query += ` LIMIT ${safeLimit} OFFSET ${offset}`;
       }
@@ -1505,7 +1505,7 @@ const financeModel = {
    */
   getPeriodById: async (id) => {
     try {
-      const [periods] = await db.pool.execute('SELECT *, is_closed FROM gl_periods WHERE id = ?', [
+      const [periods] = await db.pool.execute('SELECT id, period_name, start_date, end_date, is_closed, is_adjusting, fiscal_year, created_at, updated_at, closed_by, closed_at, closing_date, reopened_by, reopened_at, status FROM gl_periods WHERE id = ?', [
         id,
       ]);
       return periods.length > 0 ? periods[0] : null;

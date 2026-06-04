@@ -152,7 +152,7 @@ class DocumentLinkService {
   async getLinks(businessType, businessId, options = {}) {
     // 正向关联（本单据作为源）
     const [forward] = await pool.query(
-      `SELECT *, 'forward' AS direction FROM document_links
+      `SELECT id, source_type, source_id, source_code, target_type, target_id, target_code, link_type, remark, created_by, created_at, 'forward' AS direction FROM document_links
        WHERE source_type = ? AND source_id = ?
        ORDER BY created_at DESC`,
       [businessType, businessId]
@@ -160,7 +160,7 @@ class DocumentLinkService {
 
     // 反向关联（本单据作为目标）
     const [backward] = await pool.query(
-      `SELECT *, 'backward' AS direction FROM document_links
+      `SELECT id, source_type, source_id, source_code, target_type, target_id, target_code, link_type, remark, created_by, created_at, 'backward' AS direction FROM document_links
        WHERE target_type = ? AND target_id = ?
        ORDER BY created_at DESC`,
       [businessType, businessId]

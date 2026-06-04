@@ -1,4 +1,5 @@
 const db = require('../../../config/db');
+const { safeParseId } = require('../../../utils/safeParseId');
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 const { getCurrentUserName } = require('../../../utils/userHelper');
@@ -126,7 +127,7 @@ const standardCostVersionController = {
     const connection = await db.pool.getConnection();
     try {
       await connection.beginTransaction();
-      const { id } = req.params;
+      const id = safeParseId(req.params.id, '版本ID');
       const [version] = await connection.execute('SELECT status FROM standard_cost_versions WHERE id = ? FOR UPDATE', [id]);
       if (version.length === 0) {
         await connection.rollback();
@@ -155,7 +156,7 @@ const standardCostVersionController = {
     const connection = await db.pool.getConnection();
     try {
       await connection.beginTransaction();
-      const { id } = req.params;
+      const id = safeParseId(req.params.id, '版本ID');
       const approved_by = await getCurrentUserName(req);
 
       const [version] = await connection.execute('SELECT status, effective_date FROM standard_cost_versions WHERE id = ? FOR UPDATE', [id]);
@@ -209,7 +210,7 @@ const standardCostVersionController = {
     const connection = await db.pool.getConnection();
     try {
       await connection.beginTransaction();
-      const { id } = req.params;
+      const id = safeParseId(req.params.id);
       const operator = await getCurrentUserName(req);
 
       const [version] = await connection.execute('SELECT status FROM standard_cost_versions WHERE id = ? FOR UPDATE', [id]);

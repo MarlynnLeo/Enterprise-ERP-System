@@ -219,6 +219,7 @@ exports.deleteAdjustment = async (req, res) => {
     );
 
     if (adjustment.length === 0) {
+      await connection.rollback();
       return ResponseHandler.error(res, '调整记录不存在', 'NOT_FOUND', 404);
     }
 
@@ -227,17 +228,18 @@ exports.deleteAdjustment = async (req, res) => {
     // 删除当前记录
     await connection.query('DELETE FROM bom_material_price_adjustments WHERE id = ?', [id]);
 
-    // 如果有上一个版本,激活它
-    if (record.version > 1) {
-      await connection.query(
-        `
+    // 回退激活：重新启用该物料剩余的最新版本
+    // 不假设版本号连续（旧版本可能已被删除），避免出现“无激活记录”导致回退到基础价
+    await connection.query(
+      `
                 UPDATE bom_material_price_adjustments
                 SET is_active = 1
-                WHERE product_id = ? AND material_id = ? AND version = ?
+                WHERE product_id = ? AND material_id = ?
+                ORDER BY version DESC
+                LIMIT 1
             `,
-        [record.product_id, record.material_id, record.version - 1]
-      );
-    }
+      [record.product_id, record.material_id]
+    );
 
     await connection.commit();
 

@@ -966,7 +966,10 @@ const costController = {
             material_code: '-',
             material_name: '材料汇总',
             quantity: costInfo[0].quantity,
-            unit_cost: Math.round((costInfo[0].material_cost / costInfo[0].quantity) * 100) / 100,
+            unit_cost:
+              costInfo[0].quantity > 0
+                ? Math.round((costInfo[0].material_cost / costInfo[0].quantity) * 100) / 100
+                : 0,
             total_cost: costInfo[0].material_cost,
             batch_number: '-',
             issue_date: costInfo[0].completion_date,
@@ -1923,6 +1926,7 @@ const costController = {
       } = req.body;
 
       if (!effective_date) {
+        await connection.rollback();
         return ResponseHandler.error(res, '生效日期不能为空', 'VALIDATION_ERROR', 400);
       }
 

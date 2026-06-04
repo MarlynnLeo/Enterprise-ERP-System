@@ -716,7 +716,18 @@ const getReworkStatusByInspectionIds = async (req, res) => {
 
     const [rows] = await pool.query(
       `
-      SELECT *
+      SELECT
+        inspection_id,
+        rework_id,
+        rework_no,
+        rework_status,
+        quantity,
+        assigned_to,
+        actual_date,
+        ncp_id,
+        ncp_no,
+        disposition,
+        ncp_status
       FROM (
         SELECT
           ncp.inspection_id,

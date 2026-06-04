@@ -840,11 +840,21 @@ const expenseModel = {
     try {
       await connection.beginTransaction();
       const [current] = await connection.execute(
-        'SELECT status FROM expenses WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+        'SELECT status, created_by, submitted_by FROM expenses WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
         [id]
       );
       if (!current[0] || current[0].status !== 'pending') {
         throw new Error('当前状态不允许审批');
+      }
+
+      // 职责分离(SoD)：不允许审批自己创建或提交的费用单，防止自审自批
+      if (action === 'approve' && userId != null) {
+        const approverId = Number(userId);
+        const creatorId = Number(current[0].created_by);
+        const submitterId = Number(current[0].submitted_by);
+        if (approverId === creatorId || approverId === submitterId) {
+          throw new Error('不能审批自己创建或提交的费用单');
+        }
       }
 
       const newStatus = action === 'approve' ? 'approved' : 'rejected';

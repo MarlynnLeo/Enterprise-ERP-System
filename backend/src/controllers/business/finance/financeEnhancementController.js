@@ -46,7 +46,7 @@ class FinanceEnhancementController {
    */
   static async generateARInvoiceFromSalesOrder(req, res) {
     try {
-      const { salesOrderId } = req.params;
+      const salesOrderId = safeParseId(req.params.salesOrderId);
 
       // 获取销售订单信息
       const [salesOrders] = await db.pool.execute('SELECT id, order_no, customer_id, quotation_id, contract_code, total_amount, payment_terms, delivery_date, status, invoice_status, remarks, created_by, created_at, updated_at, is_locked, locked_at, locked_by, lock_reason, tax_rate, tax_amount, subtotal, deleted_at FROM sales_orders WHERE id = ?', [
@@ -75,7 +75,7 @@ class FinanceEnhancementController {
    */
   static async generateAPInvoiceFromPurchaseReceipt(req, res) {
     try {
-      const { receiptId } = req.params;
+      const receiptId = safeParseId(req.params.receiptId);
 
       // 获取采购入库单信息
       const [receipts] = await db.pool.execute('SELECT id, receipt_no, order_id, order_no, supplier_id, supplier_name, warehouse_id, warehouse_name, receipt_date, operator, inspection_id, remarks, total_amount, total_tax_amount, from_inspection, status, invoice_status, created_at, updated_at, deleted_at FROM purchase_receipts WHERE id = ?', [
@@ -108,7 +108,7 @@ class FinanceEnhancementController {
    */
   static async getPeriodClosingStatus(req, res) {
     try {
-      const { periodId } = req.params;
+      const periodId = safeParseId(req.params.periodId);
 
       const status = await PeriodEndService.getPeriodClosingStatus(periodId);
 
@@ -170,7 +170,7 @@ class FinanceEnhancementController {
    */
   static async getYearEndStatus(req, res) {
     try {
-      const { year } = req.params;
+      const year = safeParseId(req.params.year);
       const result = await PeriodEndService.getYearEndStatus(parseInt(year));
       ResponseHandler.success(res, result, '获取年度结转状态成功');
     } catch (error) {
