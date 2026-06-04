@@ -30,7 +30,8 @@ const STATUS = {
 // 加工单状态转换规则
 const PROCESSING_STATUS_TRANSITIONS = {
   pending: new Set(['confirmed', 'cancelled']),
-  confirmed: new Set(['completed', 'cancelled']),
+  confirmed: new Set(['in_progress', 'completed', 'cancelled']),
+  in_progress: new Set(['completed', 'cancelled']),
   completed: new Set(),
   cancelled: new Set(),
 };

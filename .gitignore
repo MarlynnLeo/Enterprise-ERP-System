@@ -12,10 +12,13 @@ yarn-error.log*
 pnpm-debug.log*
 **/.env
 **/.env.local
+**/.env.development
+**/.env.production
 **/.env.development.local
 **/.env.test.local
 **/.env.production.local
 !**/.env.example
+!**/.env.docker.example
 .DS_Store
 dist/
 build/
@@ -26,9 +29,12 @@ frontend/dist/
 frontend/node_modules/
 backend/node_modules/
 coverage/
-docs/screenshots/
+docs/
 
 backend/backups/
+backend/scripts/
+backend/logs/backups/
+backend/assets/*.traineddata
 
 # 二进制文件和开发遗留物
 *.exe

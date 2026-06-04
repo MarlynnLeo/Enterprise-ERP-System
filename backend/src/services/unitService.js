@@ -18,9 +18,11 @@ const unitService = {
         queryParams.push(filters.status);
       }
 
-      // 获取总数
-      const countQuery = query.replace('SELECT *', 'SELECT COUNT(*) as total');
-      const [countResult] = await pool.query(countQuery, queryParams);
+      // 获取总数 — 使用子查询包裹，避免依赖 SELECT * 替换
+      const [countResult] = await pool.query(
+        `SELECT COUNT(*) as total FROM (${query}) as _count_t`,
+        queryParams
+      );
       const total = parseInt(countResult[0].total) || 0;
 
       // 添加排序和分页

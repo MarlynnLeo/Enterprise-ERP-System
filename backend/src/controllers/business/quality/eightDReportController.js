@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 8D报告控制器（P0重构版）
  * @description 8D问题解决报告的CRUD操作、阶段门控、状态流转
  * 8D方法论步骤: D1团队 → D2问题描述 → D3临时措施 → D4根因分析 → D5纠正措施 → D6实施验证 → D7预防措施 → D8总结关闭
@@ -168,9 +168,11 @@ const getReports = async (req, res) => {
             params.push(endDate + ' 23:59:59');
         }
 
-        // 获取总数
-        const countSql = sql.replace('SELECT *', 'SELECT COUNT(*) as total');
-        const [countResult] = await pool.query(countSql, params);
+        // 获取总数 — 使用子查询包裹，避免依赖 SELECT * 替换
+        const [countResult] = await pool.query(
+            `SELECT COUNT(*) as total FROM (${sql}) as _count_t`,
+            params
+        );
         const total = countResult[0].total;
 
         // 分页 — 使用安全分页工具

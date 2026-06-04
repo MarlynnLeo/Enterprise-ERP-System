@@ -113,9 +113,11 @@ const cipModel = {
                 queryParams.push(filters.status);
             }
 
-            // 获取总数
-            const countQuery = query.replace('SELECT *', 'SELECT COUNT(*) as total');
-            const [countResult] = await db.pool.query(countQuery, queryParams);
+            // 获取总数 — 使用子查询包裹，避免依赖 SELECT * 替换
+            const [countResult] = await db.pool.query(
+                `SELECT COUNT(*) as total FROM (${query}) as _count_t`,
+                queryParams
+            );
             const total = countResult[0].total;
 
             // 分页
@@ -272,8 +274,8 @@ const cipModel = {
             const [assetResult] = await connection.query(
                 `INSERT INTO fixed_assets
          (asset_code, asset_name, category_id, asset_type, acquisition_date, acquisition_cost,
-          salvage_value, current_value, net_value, useful_life, depreciation_method, status,
-          location_id, department_id, custodian, notes)
+           salvage_value, current_value, net_value, useful_life, depreciation_method, status,
+           location_id, department_id, custodian, notes)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '在用', ?, ?, ?, ?)`,
                 [
                     assetData.asset_code,
