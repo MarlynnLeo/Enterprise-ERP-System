@@ -390,6 +390,9 @@ exports.createSalesReturn = async (req, res) => {
       );
       if (outboundResult.length > 0) {
         finalOrderId = outboundResult[0].order_id;
+      } else {
+        await connection.rollback();
+        return ResponseHandler.error(res, 'Invalid sales outbound', 'VALIDATION_ERROR', 400);
       }
     }
 
