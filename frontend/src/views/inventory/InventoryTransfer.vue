@@ -420,6 +420,14 @@ import printService from '@/services/printService';
 
 // 权限store
 const authStore = useAuthStore();
+const BATCH_STOCK_QUERY_LIMIT = 50;
+const chunkArray = (items, size) => {
+  const chunks = [];
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size));
+  }
+  return chunks;
+};
 
 // 权限计算属性
 // 状态选项（使用统一常量）
@@ -733,21 +741,29 @@ const handleFromLocationChange = async () => {
 
   // 更新已选物料的库存数量
   if (transferForm.items.length > 0 && transferForm.from_location_id) {
-    for (let i = 0; i < transferForm.items.length; i++) {
-      const item = transferForm.items[i];
-      if (item.material_id) {
-        try {
-          const response = await inventoryApi.getMaterialStock(item.material_id, transferForm.from_location_id);
-          // 拦截器已解包，response.data 就是业务数据
-          if (response.data?.quantity) {
-            transferForm.items[i].available_stock = response.data.quantity;
-          } else {
-            transferForm.items[i].available_stock = 0;
-          }
-        } catch (error) {
-          console.error('获取物料库存失败:', error);
-          transferForm.items[i].available_stock = 0;
-        }
+    try {
+      const queries = transferForm.items
+        .filter(item => item.material_id)
+        .map(item => ({
+          materialId: item.material_id,
+          locationId: transferForm.from_location_id
+        }));
+      const stockResults = [];
+      for (const chunk of chunkArray(queries, BATCH_STOCK_QUERY_LIMIT)) {
+        const response = await inventoryApi.getBatchMaterialStock(chunk);
+        stockResults.push(...(response.data || []));
+      }
+      const stockMap = new Map(stockResults.map(stock => [
+        Number(stock.material_id),
+        Number(stock.quantity || stock.stock_quantity || 0)
+      ]));
+      for (const item of transferForm.items) {
+        item.available_stock = stockMap.get(Number(item.material_id)) || 0;
+      }
+    } catch (error) {
+      console.error('获取物料库存失败:', error);
+      for (const item of transferForm.items) {
+        item.available_stock = 0;
       }
     }
   }

@@ -45,7 +45,7 @@
   import { computed, reactive, ref } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
   import { Button, Cell, CellGroup, Field, Form, NavBar, Picker, Popup, showToast } from 'vant'
-  import { equipmentApi } from '@/services/api'
+  import { equipmentApi } from '@/api'
 
   const route = useRoute()
   const router = useRouter()

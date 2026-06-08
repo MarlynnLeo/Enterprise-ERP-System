@@ -18,8 +18,8 @@ const withCleanupTimeout = async (operation, timeoutMs = 5000) => {
 
 afterAll(async () => {
   try {
-    const cacheService = require('../src/services/cacheService');
-    cacheService.clear();
+    const cacheService = require('../src/services/cache/CacheManager');
+    await cacheService.clear();
   } catch {
     // Cache service may not be loaded in every test environment.
   }

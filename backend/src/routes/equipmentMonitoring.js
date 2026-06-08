@@ -3,7 +3,7 @@ const router = express.Router();
 const equipmentMonitoringController = require('../controllers/business/production/equipmentMonitoringController');
 const { authenticateToken } = require('../middleware/auth');
 const { requirePermission } = require('../middleware/requirePermission');
-const { cacheMiddleware } = require('../services/cacheService');
+const { cacheMiddleware } = require('../services/cache/CacheManager');
 
 router.use(authenticateToken);
 

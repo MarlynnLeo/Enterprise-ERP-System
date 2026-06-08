@@ -1121,7 +1121,7 @@ const searchMaterials = async (query) => {
 const fetchCostCenters = async () => {
   try {
     const res = await financeApi.cost.getCostCenters();
-    costCenterOptions.value = parseResponseData(res, []);
+    costCenterOptions.value = parseListData(res, { enableLog: false });
   } catch(e) { console.error('获取成本中心失败', e); }
 };
 

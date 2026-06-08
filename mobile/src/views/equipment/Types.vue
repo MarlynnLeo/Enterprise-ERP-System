@@ -49,7 +49,7 @@
   import { computed, reactive, ref } from 'vue'
   import { Button, CellGroup, Field, Form, Popup, showToast } from 'vant'
   import UniversalListPage from '@/components/common/UniversalListPage.vue'
-  import { equipmentApi } from '@/services/api'
+  import { equipmentApi } from '@/api'
 
   const listKey = ref(0)
   const formRef = ref()

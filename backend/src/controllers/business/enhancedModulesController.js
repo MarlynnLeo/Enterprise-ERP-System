@@ -90,7 +90,7 @@ const exchangeRates = {
         pagination.offset
       );
       const [rows] = await pool.query(listSql, vals);
-      ResponseHandler.success(res, { list: rows, total, page: pagination.page, pageSize: pagination.pageSize });
+      ResponseHandler.paginated(res, rows, total, pagination.page, pagination.pageSize);
     } catch (e) { ResponseHandler.error(res, e.message); }
   },
   async create(req, res) {
@@ -149,7 +149,7 @@ const performance = {
         pagination.offset
       );
       const [rows] = await pool.query(listSql, vals);
-      ResponseHandler.success(res, { list: rows, total, page: pagination.page, pageSize: pagination.pageSize });
+      ResponseHandler.paginated(res, rows, total, pagination.page, pagination.pageSize);
     } catch (e) { ResponseHandler.error(res, e.message); }
   },
   async createIndicator(req, res) {
@@ -224,7 +224,7 @@ const performance = {
         pagination.offset
       );
       const [rows] = await pool.query(listSql, vals);
-      ResponseHandler.success(res, { list: rows, total, page: pagination.page, pageSize: pagination.pageSize });
+      ResponseHandler.paginated(res, rows, total, pagination.page, pagination.pageSize);
     } catch (e) { ResponseHandler.error(res, e.message); }
   },
   async getEvaluationById(req, res) {
@@ -412,7 +412,7 @@ const ecn = {
         pagination.offset
       );
       const [rows] = await pool.query(listSql, vals);
-      ResponseHandler.success(res, { list: rows, total, page: pagination.page, pageSize: pagination.pageSize });
+      ResponseHandler.paginated(res, rows, total, pagination.page, pagination.pageSize);
     } catch (e) { ResponseHandler.error(res, e.message); }
   },
   async getById(req, res) {
@@ -702,7 +702,7 @@ async function applyEcnChanges(ecnId, userId, conn) {
         throw new Error(`第${row}行变更前值与当前物料不一致，请刷新后重填`);
       }
       await conn.query(
-        `UPDATE materials SET ${fieldName} = ?, updated_at = NOW() WHERE id = ?`,
+        `UPDATE materials SET ${fieldName} = ?, updated_at = NOW() WHERE id = ? AND deleted_at IS NULL`,
         [item.new_value, item.material_id]
       );
       logger.info(`ECN#${ecnId}: 物料 ${item.material_code || material.code} ${fieldName}: ${item.old_value} -> ${item.new_value}`);
@@ -742,7 +742,7 @@ const documents = {
         pagination.offset
       );
       const [rows] = await pool.query(listSql, vals);
-      ResponseHandler.success(res, { list: rows, total, page: pagination.page, pageSize: pagination.pageSize });
+      ResponseHandler.paginated(res, rows, total, pagination.page, pagination.pageSize);
     } catch (e) { ResponseHandler.error(res, e.message); }
   },
   async create(req, res) {

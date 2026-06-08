@@ -19,7 +19,7 @@ class PurchaseOrderService {
   static async getMaterialInfo(connection, materialId) {
     try {
       const [rows] = await connection.query(
-        'SELECT code, name, specs, unit_id FROM materials WHERE id = ?',
+        'SELECT code, name, specs, unit_id FROM materials WHERE id = ? AND deleted_at IS NULL',
         [materialId]
       );
       return rows[0] || null;
@@ -59,7 +59,7 @@ class PurchaseOrderService {
     try {
       // 首先检查申请单是否存在
       const [checkReqRows] = await connection.query(
-        'SELECT id, status FROM purchase_requisitions WHERE id = ?',
+        'SELECT id, status FROM purchase_requisitions WHERE id = ? AND deleted_at IS NULL',
         [requisitionId]
       );
 
@@ -73,7 +73,7 @@ class PurchaseOrderService {
         const updateRequisitionStatusQuery = `
           UPDATE purchase_requisitions
           SET status = ?, updated_at = CURRENT_TIMESTAMP
-          WHERE id = ?
+          WHERE id = ? AND deleted_at IS NULL
         `;
         const [updateResult] = await connection.query(updateRequisitionStatusQuery, [
           status,
@@ -262,7 +262,7 @@ class PurchaseOrderService {
    * @throws {Error} 订单不存在或状态不可编辑时抛出错误
    */
   static async validateOrderEditable(connection, orderId) {
-    const [checkRows] = await connection.query('SELECT status FROM purchase_orders WHERE id = ? FOR UPDATE', [
+    const [checkRows] = await connection.query('SELECT status FROM purchase_orders WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [
       orderId,
     ]);
 

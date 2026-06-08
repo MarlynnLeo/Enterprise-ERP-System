@@ -127,13 +127,17 @@ const getReceipts = async (req, res) => {
       const hasPerm = await hasFinancePermission(req.user);
       const desensitizedReceipts = desensitizeData(receipts, hasPerm);
 
-      return ResponseHandler.success(res, {
-        items: desensitizedReceipts,
-        total: totalCount,
-        page: actualPage,
-        pageSize: actualPageSize,
-        totalPages: Math.ceil(totalCount / actualPageSize),
-      });
+      return ResponseHandler.paginated(
+        res,
+        desensitizedReceipts,
+        totalCount,
+        actualPage,
+        actualPageSize,
+        undefined,
+        {
+          items: desensitizedReceipts,
+        }
+      );
     } finally {
       connection.release();
     }
@@ -870,7 +874,7 @@ const createReceipt = async (req, res) => {
     await client.query(
       `UPDATE purchase_receipts
        SET total_amount = ?, total_tax_amount = ?, updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`,
+       WHERE id = ? AND deleted_at IS NULL`,
       [receiptTotalAmount, receiptTaxAmount, receiptId]
     );
 
@@ -1726,12 +1730,17 @@ const getMaterialPurchaseHistory = async (req, res) => {
           : [];
 
       // 返回结果
-      return ResponseHandler.success(res, {
+      return ResponseHandler.paginated(
+        res,
+        dataRows,
+        total,
+        actualPage,
+        actualPageSize,
+        '获取物料采购历史成功',
+        {
           rows: dataRows,
-          total: total,
-          page: actualPage,
-          pageSize: actualPageSize,
-        }, '获取物料采购历史成功');
+        }
+      );
     } finally {
       client.release();
     }
@@ -1839,12 +1848,17 @@ const getPurchaseHistoryItems = async (req, res) => {
           ? dataResult.rows
           : [];
 
-      return ResponseHandler.success(res, {
+      return ResponseHandler.paginated(
+        res,
+        dataRows,
+        parseInt(total) || 0,
+        actualPage,
+        actualPageSize,
+        '获取全量采购历史明细成功',
+        {
           rows: dataRows,
-          total: parseInt(total) || 0,
-          page: actualPage,
-          pageSize: actualPageSize,
-        }, '获取全量采购历史明细成功');
+        }
+      );
     } finally {
       client.release();
     }

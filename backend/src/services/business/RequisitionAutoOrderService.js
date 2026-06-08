@@ -43,7 +43,7 @@ async function generateOrdersFromRequisition(requisitionId, conn) {
       `SELECT id, requisition_number, request_date, requester, contract_code,
               real_name, remarks, status, source_type, source_id, source_material_id,
               created_at, updated_at, deleted_at
-       FROM purchase_requisitions WHERE id = ? FOR UPDATE`,
+       FROM purchase_requisitions WHERE id = ? AND deleted_at IS NULL FOR UPDATE`,
       [requisitionId]
     );
     if (requisitionRows.length === 0) {

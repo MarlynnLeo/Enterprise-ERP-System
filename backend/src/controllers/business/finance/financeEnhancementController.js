@@ -79,7 +79,7 @@ class FinanceEnhancementController {
       const receiptId = safeParseId(req.params.receiptId);
 
       // 获取采购入库单信息
-      const [receipts] = await db.pool.execute('SELECT id, receipt_no, order_id, order_no, supplier_id, supplier_name, warehouse_id, warehouse_name, receipt_date, operator, inspection_id, remarks, total_amount, total_tax_amount, from_inspection, status, invoice_status, created_at, updated_at, deleted_at FROM purchase_receipts WHERE id = ?', [
+      const [receipts] = await db.pool.execute('SELECT id, receipt_no, order_id, order_no, supplier_id, supplier_name, warehouse_id, warehouse_name, receipt_date, operator, inspection_id, remarks, total_amount, total_tax_amount, from_inspection, status, invoice_status, created_at, updated_at, deleted_at FROM purchase_receipts WHERE id = ? AND deleted_at IS NULL', [
         receiptId,
       ]);
 
@@ -275,12 +275,9 @@ class FinanceEnhancementController {
         };
       });
 
-      ResponseHandler.success(res, {
+      ResponseHandler.paginated(res, history, countResult[0].total, pageNum, pageSizeNum, '获取执行历史成功', {
         items: history,
-        total: countResult[0].total,
-        page: pageNum,
-        pageSize: pageSizeNum,
-      }, '获取执行历史成功');
+      });
     } catch (error) {
       logger.error('获取执行历史失败:', error);
       ResponseHandler.error(res, error.message || '获取执行历史失败', 'SERVER_ERROR', 500, error);

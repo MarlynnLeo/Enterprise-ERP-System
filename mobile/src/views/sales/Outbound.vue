@@ -162,7 +162,7 @@
     showToast,
     showConfirmDialog
   } from 'vant'
-  import { salesApi } from '@/services/api'
+  import { salesApi } from '@/api'
   import { usePagination } from '@/composables/usePagination'
   import { formatAmount, formatDate } from '@/utils/format'
   import { SALES_OUTBOUND_STATUS, getDictText } from '@/constants/dict'

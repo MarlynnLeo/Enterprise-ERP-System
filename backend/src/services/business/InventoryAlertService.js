@@ -386,7 +386,7 @@ class InventoryAlertService {
     try {
       // 获取物料的安全库存设置
       const [materials] = await db.pool.execute(
-        'SELECT id, code, name, min_stock FROM materials WHERE id = ? AND min_stock > 0',
+        'SELECT id, code, name, min_stock FROM materials WHERE id = ? AND deleted_at IS NULL AND min_stock > 0',
         [materialId]
       );
 

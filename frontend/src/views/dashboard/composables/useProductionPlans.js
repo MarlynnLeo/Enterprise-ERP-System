@@ -9,6 +9,15 @@ import { productionApi, baseDataApi } from '@/api'
 import { parseListData } from '@/utils/responseParser'
 import { ElMessage } from 'element-plus'
 
+const BATCH_MATERIAL_QUERY_LIMIT = 100
+const chunkArray = (items, size) => {
+  const chunks = []
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size))
+  }
+  return chunks
+}
+
 export function useProductionPlans() {
   const router = useRouter()
   const authStore = useAuthStore()
@@ -65,9 +74,9 @@ export function useProductionPlans() {
 
       if (plans.length > 0) {
         // 获取所有产品ID，用于批量获取物料信息
-        const productIds = plans
+        const productIds = [...new Set(plans
           .filter(plan => plan.product_id)
-          .map(plan => plan.product_id);
+          .map(plan => plan.product_id))];
 
         // 创建物料映射表
         const materialsMap = {};
@@ -76,9 +85,11 @@ export function useProductionPlans() {
         if (productIds.length > 0) {
           try {
             // 使用baseDataApi获取物料信息
-            const materialsResponse = await baseDataApi.getMaterialsByIds(productIds);
-
-            const materialsData = parseListData(materialsResponse, { enableLog: false });
+            const materialsData = [];
+            for (const chunk of chunkArray(productIds, BATCH_MATERIAL_QUERY_LIMIT)) {
+              const materialsResponse = await baseDataApi.getMaterialsByIds(chunk);
+              materialsData.push(...parseListData(materialsResponse, { enableLog: false }));
+            }
 
             // 将物料信息转换为映射表
             materialsData.forEach(material => {

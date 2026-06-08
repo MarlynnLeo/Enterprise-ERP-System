@@ -256,12 +256,13 @@ router.get('/conversations/:id/messages', async (req, res) => {
       [conversationId, userId]
     );
 
-    ResponseHandler.success(res, {
-      list: messages.reverse(),
-      total: countRows[0].total,
-      page: pagination.page,
-      pageSize: pagination.pageSize,
-    });
+    ResponseHandler.paginated(
+      res,
+      messages.reverse(),
+      countRows[0].total,
+      pagination.page,
+      pagination.pageSize
+    );
   } catch (error) {
     logger.error('获取消息历史失败:', error);
     ResponseHandler.error(res, '获取消息失败', 'SERVER_ERROR', 500, error);

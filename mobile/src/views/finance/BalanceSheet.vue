@@ -72,7 +72,7 @@
 <script setup>
   import { ref, onMounted } from 'vue'
   import { NavBar, Loading, Empty, Popup, DatePicker } from 'vant'
-  import { financeApi } from '@/services/api'
+  import { financeApi } from '@/api'
   import dayjs from 'dayjs'
 
   const reportDate = ref(dayjs().format('YYYY-MM-DD'))

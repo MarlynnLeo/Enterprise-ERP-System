@@ -110,27 +110,27 @@ const _syncProductionStatus = async (connection, outboundStatus, taskId) => {
     if (outboundStatus === 'confirmed') {
       // 出库单确认 → 任务变为配料中（仅从较早状态升级）
       await connection.execute(
-        "UPDATE production_tasks SET status = 'preparing' WHERE id = ? AND status IN ('pending', 'allocated', 'material_issuing')",
+        "UPDATE production_tasks SET status = 'preparing' WHERE id = ? AND deleted_at IS NULL AND status IN ('pending', 'allocated', 'material_issuing')",
         [taskId]
       );
     } else if (outboundStatus === 'completed') {
       // 出库单完成 → 任务变为已发料
       await connection.execute(
-        "UPDATE production_tasks SET status = 'material_issued' WHERE id = ? AND status IN ('pending', 'allocated', 'preparing', 'material_issuing', 'material_partial_issued')",
+        "UPDATE production_tasks SET status = 'material_issued' WHERE id = ? AND deleted_at IS NULL AND status IN ('pending', 'allocated', 'preparing', 'material_issuing', 'material_partial_issued')",
         [taskId]
       );
     }
 
     // 联动更新关联的生产计划
     const [taskInfo] = await connection.execute(
-      'SELECT plan_id FROM production_tasks WHERE id = ?',
+      'SELECT plan_id FROM production_tasks WHERE id = ? AND deleted_at IS NULL',
       [taskId]
     );
     if (taskInfo.length > 0 && taskInfo[0].plan_id) {
       const planId = taskInfo[0].plan_id;
       if (outboundStatus === 'confirmed') {
         await connection.execute(
-          "UPDATE production_plans SET status = 'preparing' WHERE id = ? AND status IN ('draft', 'allocated', 'material_issuing')",
+          "UPDATE production_plans SET status = 'preparing' WHERE id = ? AND deleted_at IS NULL AND status IN ('draft', 'allocated', 'material_issuing')",
           [planId]
         );
         logger.info(`生产计划 ${planId} 已更新为 preparing（配料中）`);
@@ -139,12 +139,12 @@ const _syncProductionStatus = async (connection, outboundStatus, taskId) => {
         const [stats] = await connection.execute(
           `SELECT COUNT(*) as total,
            SUM(CASE WHEN status IN ('material_issued','in_progress','completed') THEN 1 ELSE 0 END) as done
-           FROM production_tasks WHERE plan_id = ? AND status != 'cancelled'`,
+           FROM production_tasks WHERE plan_id = ? AND deleted_at IS NULL AND status != 'cancelled'`,
           [planId]
         );
         if (stats[0].total > 0 && stats[0].done >= stats[0].total) {
           await connection.execute(
-            "UPDATE production_plans SET status = 'material_issued' WHERE id = ? AND status IN ('allocated','preparing','material_issuing')",
+            "UPDATE production_plans SET status = 'material_issued' WHERE id = ? AND deleted_at IS NULL AND status IN ('allocated','preparing','material_issuing')",
             [planId]
           );
           logger.info(`生产计划 ${planId} 所有任务已发料，状态更新为 material_issued`);
@@ -161,7 +161,7 @@ const _syncProductionStatus = async (connection, outboundStatus, taskId) => {
         );
         if (Number(existing[0].cnt) === 0) {
           const [taskDetail] = await connection.execute(
-            'SELECT product_id, quantity FROM production_tasks WHERE id = ?',
+            'SELECT product_id, quantity FROM production_tasks WHERE id = ? AND deleted_at IS NULL',
             [taskId]
           );
           if (taskDetail.length > 0) {
@@ -204,7 +204,7 @@ const checkAndUpdateTaskStatus = async (connection, taskId) => {
 
     // 1. 获取任务信息
     const [tasks] = await connection.execute(
-      'SELECT product_id, quantity, status FROM production_tasks WHERE id = ?',
+      'SELECT product_id, quantity, status FROM production_tasks WHERE id = ? AND deleted_at IS NULL',
       [taskId]
     );
     if (tasks.length === 0) return;
@@ -291,7 +291,7 @@ const checkAndUpdateTaskStatus = async (connection, taskId) => {
       // 全部已发料 -> material_issued
       if (task.status !== 'material_issued') {
         await connection.execute(
-          "UPDATE production_tasks SET status = 'material_issued', updated_at = NOW() WHERE id = ?",
+          "UPDATE production_tasks SET status = 'material_issued', updated_at = NOW() WHERE id = ? AND deleted_at IS NULL",
           [taskId]
         );
         logger.info(`生产任务 ${taskId} 所有物料已发齐，状态更新为 'material_issued'`);
@@ -300,7 +300,7 @@ const checkAndUpdateTaskStatus = async (connection, taskId) => {
       // 部分发料，设置任务为配料中（preparing），与生产计划状态统一
       if (['draft', 'allocated', 'preparing', 'material_issuing'].includes(task.status)) {
         await connection.execute(
-          "UPDATE production_tasks SET status = 'preparing', updated_at = NOW() WHERE id = ?",
+          "UPDATE production_tasks SET status = 'preparing', updated_at = NOW() WHERE id = ? AND deleted_at IS NULL",
           [taskId]
         );
       }
@@ -340,7 +340,7 @@ async function smartOutboundStock(
 
     // 0.1 获取物料成本单价，用于写入台账的 unit_cost 字段
     const [costPriceRow] = await connection.execute(
-      'SELECT COALESCE(cost_price, 0) as cost_price FROM materials WHERE id = ?',
+      'SELECT COALESCE(cost_price, 0) as cost_price FROM materials WHERE id = ? AND deleted_at IS NULL',
       [materialId]
     );
     const materialUnitCost = parseFloat(costPriceRow[0]?.cost_price) || 0;
@@ -390,7 +390,7 @@ async function smartOutboundStock(
 
     // 先尝试作为生产任务ID查询
     const [taskInfo] = await connection.execute(
-      'SELECT plan_id, product_id FROM production_tasks WHERE id = ?',
+      'SELECT plan_id, product_id FROM production_tasks WHERE id = ? AND deleted_at IS NULL',
       [productionPlanId]
     );
 
@@ -406,7 +406,7 @@ async function smartOutboundStock(
     } else {
       // 尝试作为生产计划ID查询
       const [planInfo] = await connection.execute(
-        'SELECT product_id FROM production_plans WHERE id = ?',
+        'SELECT product_id FROM production_plans WHERE id = ? AND deleted_at IS NULL',
         [productionPlanId]
       );
 

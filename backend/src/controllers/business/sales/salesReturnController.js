@@ -147,7 +147,7 @@ exports.getSalesReturns = async (req, res) => {
     const countQuery = `
       SELECT COUNT(*) as total
       FROM sales_returns sr
-      LEFT JOIN sales_orders o ON sr.order_id = o.id
+      LEFT JOIN sales_orders o ON sr.order_id = o.id AND o.deleted_at IS NULL
       LEFT JOIN customers c ON o.customer_id = c.id
       WHERE sr.deleted_at IS NULL ${whereClause}
       `;
@@ -159,7 +159,7 @@ exports.getSalesReturns = async (req, res) => {
       `
       SELECT sr.*, c.name AS customer_name, o.order_no
       FROM sales_returns sr
-      LEFT JOIN sales_orders o ON sr.order_id = o.id
+      LEFT JOIN sales_orders o ON sr.order_id = o.id AND o.deleted_at IS NULL
       LEFT JOIN customers c ON o.customer_id = c.id
       WHERE sr.deleted_at IS NULL ${whereClause}
       ORDER BY sr.created_at DESC
@@ -272,7 +272,7 @@ exports.getSalesReturnById = async (req, res) => {
     const query = `
       SELECT sr.*, c.name as customer_name, c.contact_person, c.contact_phone, o.order_no
       FROM sales_returns sr
-      LEFT JOIN sales_orders o ON sr.order_id = o.id
+      LEFT JOIN sales_orders o ON sr.order_id = o.id AND o.deleted_at IS NULL
       LEFT JOIN customers c ON o.customer_id = c.id
       WHERE sr.id = ? AND sr.deleted_at IS NULL
         `;
@@ -349,47 +349,23 @@ exports.createSalesReturn = async (req, res) => {
     connection = await getConnection();
     await connection.beginTransaction();
 
-    /*
-    const [returnRows] = await connection.query(
-      'SELECT id, status, return_no FROM sales_returns WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
-      [id]
-    );
-    if (returnRows.length === 0) {
-      await connection.rollback();
-      return ResponseHandler.notFound(res, 'Sales return not found');
-    }
-
-    const returnOrder = returnRows[0];
-    const deletableStatuses = [
-      STATUS.SALES_RETURN.DRAFT,
-      STATUS.SALES_RETURN.PENDING,
-      STATUS.SALES_RETURN.REJECTED,
-      STATUS.SALES_RETURN.CANCELLED,
-    ];
-    if (!deletableStatuses.includes(returnOrder.status)) {
-      await connection.rollback();
-      return ResponseHandler.error(
-        res,
-        `Cannot delete sales return in status "${returnOrder.status}"`,
-        'VALIDATION_ERROR',
-        400
-      );
-    }
-
-    // 生成退货单号 — 使用统一编码引擎
-    */
     const { CodeGenerators } = require('../../../utils/codeGenerator');
     const returnNo = await CodeGenerators.generateSalesReturnCode(connection);
 
     // 如果是基于出库单的退货，需要获取订单信息
     let finalOrderId = order_id;
-    if (outbound_id && !order_id) {
+    if (outbound_id) {
       const [outboundResult] = await connection.query(
         'SELECT order_id FROM sales_outbound WHERE id = ? AND deleted_at IS NULL',
         [outbound_id]
       );
       if (outboundResult.length > 0) {
-        finalOrderId = outboundResult[0].order_id;
+        if (!finalOrderId) {
+          finalOrderId = outboundResult[0].order_id;
+        } else if (outboundResult[0].order_id && Number(outboundResult[0].order_id) !== Number(finalOrderId)) {
+          await connection.rollback();
+          return ResponseHandler.error(res, 'Sales outbound does not match order', 'VALIDATION_ERROR', 400);
+        }
       } else {
         await connection.rollback();
         return ResponseHandler.error(res, 'Invalid sales outbound', 'VALIDATION_ERROR', 400);
@@ -403,7 +379,10 @@ exports.createSalesReturn = async (req, res) => {
         const returnQty = parseFloat(item.quantity) || 0;
 
         const [orderItemResult] = await connection.query(
-          'SELECT quantity FROM sales_order_items WHERE order_id = ? AND material_id = ?',
+          `SELECT soi.quantity
+           FROM sales_order_items soi
+           JOIN sales_orders so ON soi.order_id = so.id AND so.deleted_at IS NULL
+           WHERE soi.order_id = ? AND soi.material_id = ?`,
           [finalOrderId, productId]
         );
 
@@ -523,7 +502,7 @@ exports.updateSalesReturn = async (req, res) => {
     await connection.beginTransaction();
 
     const [returnRows] = await connection.query(
-      'SELECT id, status FROM sales_returns WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+      'SELECT id, status, order_id, outbound_id FROM sales_returns WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
       [id]
     );
     if (returnRows.length === 0) {
@@ -551,9 +530,27 @@ exports.updateSalesReturn = async (req, res) => {
       await connection.rollback();
       return ResponseHandler.error(res, 'Approved sales return can only be completed or cancelled', 'INVALID_STATUS_TRANSITION', 400);
     }
+    const finalStatus = status || currentStatus;
 
     // 如果是基于出库单的退货，需要获取订单信息
-    const finalOrderId = order_id;
+    let finalOrderId = order_id || returnRows[0].order_id;
+    const finalOutboundId = outbound_id !== undefined ? outbound_id : returnRows[0].outbound_id;
+    if (finalOutboundId) {
+      const [outboundResult] = await connection.query(
+        'SELECT order_id FROM sales_outbound WHERE id = ? AND deleted_at IS NULL',
+        [finalOutboundId]
+      );
+      if (outboundResult.length === 0) {
+        await connection.rollback();
+        return ResponseHandler.error(res, 'Invalid sales outbound', 'VALIDATION_ERROR', 400);
+      }
+      if (!finalOrderId) {
+        finalOrderId = outboundResult[0].order_id;
+      } else if (outboundResult[0].order_id && Number(outboundResult[0].order_id) !== Number(finalOrderId)) {
+        await connection.rollback();
+        return ResponseHandler.error(res, 'Sales outbound does not match order', 'VALIDATION_ERROR', 400);
+      }
+    }
     // 如果前端只传了 outbound_id 没有 order_id（虽然前端有控制，但也防范一下）
     // 或者直接使用原数据库记录的 order_id
 
@@ -564,7 +561,10 @@ exports.updateSalesReturn = async (req, res) => {
         const returnQty = parseFloat(item.quantity) || 0;
 
         const [orderItemResult] = await connection.query(
-          'SELECT quantity FROM sales_order_items WHERE order_id = ? AND material_id = ?',
+          `SELECT soi.quantity
+           FROM sales_order_items soi
+           JOIN sales_orders so ON soi.order_id = so.id AND so.deleted_at IS NULL
+           WHERE soi.order_id = ? AND soi.material_id = ?`,
           [finalOrderId, productId]
         );
 
@@ -609,15 +609,15 @@ exports.updateSalesReturn = async (req, res) => {
         status = ?,
         remarks = ?,
         updated_at = NOW()
-      WHERE id = ?
+      WHERE id = ? AND deleted_at IS NULL
         `;
 
     await connection.query(updateQuery, [
       return_date,
-      order_id,
-      outbound_id || null,
+      finalOrderId,
+      finalOutboundId || null,
       return_reason,
-      status,
+      finalStatus,
       remarks,
       id,
     ]);
@@ -894,9 +894,6 @@ exports.deleteSalesReturn = async (req, res) => {
     if (returnRows.length === 0) {
       await connection.rollback();
       return ResponseHandler.notFound(res, 'Sales return not found');
-      /*
-      return ResponseHandler.notFound(res, '閿€鍞€€璐у崟涓嶅瓨鍦?);
-      */
     }
 
     const returnOrder = returnRows[0];

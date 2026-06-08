@@ -7,7 +7,7 @@
 
 const { logger } = require('../utils/logger');
 const db = require('../config/db');
-const cacheService = require('./cacheService'); // ✅ 新增：缓存服务
+const cacheService = require('./cache/CacheManager'); // ✅ 新增：缓存服务
 
 /**
  * 统一的库存管理服务 - 单表架构版本
@@ -112,8 +112,8 @@ class InventoryService {
       const cacheKey = `inventory_${materialId}_${locationId}`;
       if (useCache && !withLock) {
         // 使用锁时不使用缓存
-        const cached = cacheService.get(cacheKey);
-        if (cached !== undefined) {
+        const cached = await cacheService.get(cacheKey);
+        if (cached !== null) {
           logger.info(`[缓存命中] 库存查询: ${cacheKey}`);
           return cached;
         }
@@ -133,7 +133,7 @@ class InventoryService {
 
       // ✅ 新增：缓存结果（5分钟过期）
       if (useCache && !withLock) {
-        cacheService.set(cacheKey, quantity, 300);
+        await cacheService.set(cacheKey, quantity, 300);
         logger.info(`[缓存设置] 库存查询: ${cacheKey}, 值: ${quantity}`);
       }
 
@@ -440,7 +440,7 @@ class InventoryService {
       const duration = Date.now() - startTime;
 
       // ✅ 清除库存缓存，确保下次查询获取最新数据
-      this.clearStockCache(materialId, locationId);
+      await this.clearStockCache(materialId, locationId);
 
       // ✅ 新增：库存变动后检查预警（异步执行，不阻塞主流程）
       setImmediate(async () => {
@@ -480,7 +480,7 @@ class InventoryService {
   static async _validateMaterialAndLocation(materialId, locationId, connection) {
     // 验证物料是否存在（不再强制要求 status = 1，因为停用的物料依然需要被允许出库销账）
     const [materialResult] = await connection.execute(
-      'SELECT id FROM materials WHERE id = ?',
+      'SELECT id FROM materials WHERE id = ? AND deleted_at IS NULL',
       [materialId]
     );
 
@@ -776,17 +776,17 @@ class InventoryService {
   }
 
   // ✅ 新增：清除库存缓存
-  static clearStockCache(materialId, locationId = null) {
+  static async clearStockCache(materialId, locationId = null) {
     if (!materialId) return;
 
     if (locationId) {
       // 清除指定物料和库位的缓存
       const cacheKey = `inventory_${materialId}_${locationId}`;
-      cacheService.delete(cacheKey);
+      await cacheService.delete(cacheKey);
       logger.info(`[缓存清理] 已清除: ${cacheKey}`);
     } else {
       // 清除该物料的所有缓存
-      cacheService.deleteByPrefix(`inventory_${materialId}_`);
+      await cacheService.deleteByPrefix(`inventory_${materialId}_`);
       logger.info(`[缓存清理] 已清除所有库存缓存: inventory_${materialId}_*`);
     }
   }
@@ -809,7 +809,7 @@ class InventoryService {
     }
 
     const [rows] = await conn.execute(
-      'SELECT location_id FROM materials WHERE id = ?',
+      'SELECT location_id FROM materials WHERE id = ? AND deleted_at IS NULL',
       [materialId]
     );
 
@@ -847,7 +847,7 @@ class InventoryService {
     }
 
     const [rows] = await conn.execute(
-      'SELECT id, code, name, location_id, unit_id FROM materials WHERE id = ?',
+      'SELECT id, code, name, location_id, unit_id FROM materials WHERE id = ? AND deleted_at IS NULL',
       [materialId]
     );
 

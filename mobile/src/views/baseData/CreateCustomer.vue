@@ -176,7 +176,7 @@
   import { ref, reactive, computed, onMounted } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
   import { NavBar, Button, Form, Field, Popup, Picker, showToast, showLoadingToast, closeToast } from 'vant'
-  import { baseDataApi } from '@/services/api'
+  import { baseDataApi } from '@/api'
 
   const router = useRouter()
   const route = useRoute()

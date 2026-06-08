@@ -117,7 +117,7 @@
     showToast,
     showConfirmDialog
   } from 'vant'
-  import { qualityApi } from '@/services/api'
+  import { qualityApi } from '@/api'
   import { extractApiData } from '@/utils/apiHelper'
 
   const router = useRouter()

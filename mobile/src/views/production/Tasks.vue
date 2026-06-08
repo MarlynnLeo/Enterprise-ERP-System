@@ -208,7 +208,7 @@
     showToast
   } from 'vant'
   import SvgIcon from '@/components/icons/index.vue'
-  import { productionApi } from '@/services/api'
+  import { productionApi } from '@/api'
   import dayjs from 'dayjs'
 
   const router = useRouter()

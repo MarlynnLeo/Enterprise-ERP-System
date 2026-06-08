@@ -40,7 +40,7 @@
   import { ref, onMounted } from 'vue'
   import { NavBar, CellGroup, Cell, Field, Button, RadioGroup, Radio, Popup, Search, Empty, showToast } from 'vant'
   import { useRouter } from 'vue-router'
-  import { equipmentApi } from '@/services/api'
+  import { equipmentApi } from '@/api'
   import { extractApiData } from '@/utils/apiHelper'
 
   const router = useRouter()

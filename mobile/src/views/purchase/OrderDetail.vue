@@ -229,7 +229,7 @@
   import { ref, onMounted } from 'vue'
   import { useRouter, useRoute } from 'vue-router'
   import { NavBar, Icon, Button, Loading, Empty, showToast, showConfirmDialog } from 'vant'
-  import { purchaseApi } from '@/services/api'
+  import { purchaseApi } from '@/api'
   import { extractApiData } from '@/utils/apiHelper'
 
   const router = useRouter()

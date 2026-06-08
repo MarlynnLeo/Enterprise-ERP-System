@@ -144,7 +144,7 @@
     showToast,
     showConfirmDialog
   } from 'vant'
-  import { inventoryApi } from '@/services/api'
+  import { inventoryApi } from '@/api'
   import dayjs from 'dayjs'
 
   const route = useRoute()

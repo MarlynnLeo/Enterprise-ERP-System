@@ -222,12 +222,13 @@ class TechnicalCommunicationController {
       );
       const [communications] = await db.pool.query(paginatedSQL, params);
 
-      ResponseHandler.success(res, {
-        list: communications,
-        total: countResult[0].total,
-        page: pagination.page,
-        pageSize: pagination.pageSize,
-      });
+      ResponseHandler.paginated(
+        res,
+        communications,
+        countResult[0].total,
+        pagination.page,
+        pagination.pageSize
+      );
     } catch (error) {
       logger.error('获取即时通讯列表失败:', error);
       ResponseHandler.error(res, '获取即时通讯列表失败');

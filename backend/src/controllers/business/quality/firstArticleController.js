@@ -132,14 +132,12 @@ const firstArticleController = {
         params
       );
 
-      ResponseHandler.success(
+      ResponseHandler.paginated(
         res,
-        {
-          list: listResult.rows || [],
-          total: parseInt((countResult.rows && countResult.rows[0]?.total) || 0),
-          page: pagination.page,
-          pageSize: pagination.pageSize,
-        },
+        listResult.rows || [],
+        parseInt((countResult.rows && countResult.rows[0]?.total) || 0),
+        pagination.page,
+        pagination.pageSize,
         '获取首检列表成功'
       );
     } catch (error) {
@@ -231,7 +229,7 @@ const firstArticleController = {
       const isFullInspection = production_quantity < rule.full_inspection_threshold;
       const firstArticleQty = isFullInspection ? production_quantity : rule.first_article_qty;
 
-      const taskResult = await db.query('SELECT code, status FROM production_tasks WHERE id = ?', [
+      const taskResult = await db.query('SELECT code, status FROM production_tasks WHERE id = ? AND deleted_at IS NULL', [
         task_id,
       ]);
       const task = taskResult.rows?.[0];
@@ -338,7 +336,7 @@ const firstArticleController = {
       }
 
       const existingResult = await db.query(
-        "SELECT id, inspection_no, inspection_type, reference_id, reference_no, material_id, supplier_id, product_id, product_name, product_code, process_id, process_name, batch_no, quantity, qualified_quantity, unqualified_quantity, unit, unit_id, status, planned_date, actual_date, inspector_id, inspector_name, punch_time, standard_type, standard_no, template_id, note, created_at, updated_at, traceability_id, traceability_batch, chain_id, chain_step_id, is_first_article, first_article_qty, is_full_inspection, first_article_result, production_can_continue, task_id, is_aql, aql_standard_id, aql_level, accept_limit, reject_limit, deleted_at FROM quality_inspections WHERE id = ? AND inspection_type = 'first_article'",
+        "SELECT id, inspection_no, inspection_type, reference_id, reference_no, material_id, supplier_id, product_id, product_name, product_code, process_id, process_name, batch_no, quantity, qualified_quantity, unqualified_quantity, unit, unit_id, status, planned_date, actual_date, inspector_id, inspector_name, punch_time, standard_type, standard_no, template_id, note, created_at, updated_at, traceability_id, traceability_batch, chain_id, chain_step_id, is_first_article, first_article_qty, is_full_inspection, first_article_result, production_can_continue, task_id, is_aql, aql_standard_id, aql_level, accept_limit, reject_limit, deleted_at FROM quality_inspections WHERE id = ? AND inspection_type = 'first_article' AND deleted_at IS NULL",
         [id]
       );
 
@@ -363,7 +361,7 @@ const firstArticleController = {
           actual_date = NOW(),
           note = COALESCE(?, note),
           status = ?
-        WHERE id = ?
+        WHERE id = ? AND deleted_at IS NULL
       `,
         [
           first_article_result,
@@ -415,7 +413,7 @@ const firstArticleController = {
             (inspection_id, product_id, product_name, product_code, batch_no, quantity, type, status, created_at)
             SELECT
               id, product_id, product_name, product_code, batch_no, ?, 'first_article_reject', 'pending', NOW()
-            FROM quality_inspections WHERE id = ?
+            FROM quality_inspections WHERE id = ? AND deleted_at IS NULL
           `,
             [unqualified_quantity, id]
           );
@@ -435,7 +433,7 @@ const firstArticleController = {
               SET status = 'paused',
                   pause_reason = '首检不合格，自动暂停生产',
                   pause_time = NOW()
-              WHERE id = ? AND status NOT IN ('completed', 'cancelled')
+              WHERE id = ? AND deleted_at IS NULL AND status NOT IN ('completed', 'cancelled')
             `,
               [inspectionData.task_id]
             );
@@ -460,7 +458,7 @@ const firstArticleController = {
               SET status = 'in_progress',
                   pause_reason = NULL,
                   pause_time = NULL
-              WHERE id = ? AND status = 'paused' AND pause_reason LIKE '%首检不合格%'
+              WHERE id = ? AND deleted_at IS NULL AND status = 'paused' AND pause_reason LIKE '%首检不合格%'
             `,
               [inspectionData.task_id]
             );

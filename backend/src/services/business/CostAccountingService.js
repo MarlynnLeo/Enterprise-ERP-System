@@ -986,7 +986,7 @@ class CostAccountingService {
       if (!isExternalConn) await connection.beginTransaction();
 
       // 获取生产任务信息
-      const [orderInfo] = await connection.execute('SELECT id, code, plan_id, product_id, quantity, completed_quantity, start_date, expected_end_date, actual_start_time, actual_end_date, manager, status, remarks, created_at, updated_at, batch_number, actual_cost, material_cost, labor_cost, overhead_cost, pause_reason, pause_time, completed_at, cost_center_id, progress, deleted_at FROM production_tasks WHERE id = ?', [
+      const [orderInfo] = await connection.execute('SELECT id, code, plan_id, product_id, quantity, completed_quantity, start_date, expected_end_date, actual_start_time, actual_end_date, manager, status, remarks, created_at, updated_at, batch_number, actual_cost, material_cost, labor_cost, overhead_cost, pause_reason, pause_time, completed_at, cost_center_id, progress, deleted_at FROM production_tasks WHERE id = ? AND deleted_at IS NULL', [
         productionOrderId,
       ]);
 
@@ -1053,7 +1053,7 @@ class CostAccountingService {
       await connection.execute(
         `UPDATE production_tasks
          SET actual_cost = ?, material_cost = ?, labor_cost = ?, overhead_cost = ?
-         WHERE id = ?`,
+         WHERE id = ? AND deleted_at IS NULL`,
         [
           totalActualCost,
           materialCost.totalCost,
@@ -1066,7 +1066,7 @@ class CostAccountingService {
       const finishedGoodsUnitCost =
         producedQuantity > 0 ? Precision.round(Precision.div(totalActualCost, producedQuantity), 4) : 0;
       if (finishedGoodsUnitCost > 0 && order.product_id) {
-        await connection.execute('UPDATE materials SET cost_price = ? WHERE id = ?', [
+        await connection.execute('UPDATE materials SET cost_price = ? WHERE id = ? AND deleted_at IS NULL', [
           finishedGoodsUnitCost,
           order.product_id,
         ]);
@@ -1634,7 +1634,7 @@ class CostAccountingService {
 
       if (productionOrderId) {
         const [taskInfo] = await connection.execute(
-          'SELECT cost_center_id, product_id FROM production_tasks WHERE id = ?',
+          'SELECT cost_center_id, product_id FROM production_tasks WHERE id = ? AND deleted_at IS NULL',
           [productionOrderId]
         );
         if (taskInfo.length > 0) {
@@ -1706,7 +1706,7 @@ class CostAccountingService {
   static async analyzeCostVariance(productionOrderId) {
     try {
       // 获取生产任务信息
-      const [orderInfo] = await db.pool.execute('SELECT id, code, plan_id, product_id, quantity, completed_quantity, start_date, expected_end_date, actual_start_time, actual_end_date, manager, status, remarks, created_at, updated_at, batch_number, actual_cost, material_cost, labor_cost, overhead_cost, pause_reason, pause_time, completed_at, cost_center_id, progress, deleted_at FROM production_tasks WHERE id = ?', [
+      const [orderInfo] = await db.pool.execute('SELECT id, code, plan_id, product_id, quantity, completed_quantity, start_date, expected_end_date, actual_start_time, actual_end_date, manager, status, remarks, created_at, updated_at, batch_number, actual_cost, material_cost, labor_cost, overhead_cost, pause_reason, pause_time, completed_at, cost_center_id, progress, deleted_at FROM production_tasks WHERE id = ? AND deleted_at IS NULL', [
         productionOrderId,
       ]);
 
@@ -1943,7 +1943,7 @@ class CostAccountingService {
       }
 
       const [materialRows] = await connection.execute(
-        'SELECT cost_price FROM materials WHERE id = ? LIMIT 1',
+        'SELECT cost_price FROM materials WHERE id = ? AND deleted_at IS NULL LIMIT 1',
         [materialId]
       );
 
@@ -2053,7 +2053,7 @@ class CostAccountingService {
       let materials = [];
       if (materialId) {
         const [materialInfo] = await connection.execute(
-          'SELECT id, code, name FROM materials WHERE id = ?',
+          'SELECT id, code, name FROM materials WHERE id = ? AND deleted_at IS NULL',
           [materialId]
         );
         materials = materialInfo;
@@ -2217,7 +2217,7 @@ class CostAccountingService {
     }
 
     // 更新物料的当前成本（写入 cost_price 成本价字段，严禁污染 price 销售价字段）
-    await connection.execute('UPDATE materials SET cost_price = ? WHERE id = ?', [
+    await connection.execute('UPDATE materials SET cost_price = ? WHERE id = ? AND deleted_at IS NULL', [
       currentUnitCost,
       materialId,
     ]);
@@ -2351,7 +2351,7 @@ class CostAccountingService {
 
       // 获取任务对应的产品ID以便查询标准成本
       const [taskInfo] = await connection.execute(
-        'SELECT product_id FROM production_tasks WHERE id = ?',
+        'SELECT product_id FROM production_tasks WHERE id = ? AND deleted_at IS NULL',
         [taskId]
       );
       const productId = taskInfo.length > 0 ? taskInfo[0].product_id : null;
@@ -2483,7 +2483,7 @@ class CostAccountingService {
       const laborRatio = costSettings.fallbackLaborRatio;
       const overheadRatio = costSettings.fallbackOverheadRatio;
 
-      const [product] = await db.pool.execute('SELECT price FROM materials WHERE id = ?', [
+      const [product] = await db.pool.execute('SELECT price FROM materials WHERE id = ? AND deleted_at IS NULL', [
         productId,
       ]);
       if (product.length > 0 && product[0].price > 0) {
@@ -3632,7 +3632,7 @@ class CostAccountingService {
       }
 
       // 获取产品信息
-      const [products] = await conn.execute('SELECT code, name FROM materials WHERE id = ?', [
+      const [products] = await conn.execute('SELECT code, name FROM materials WHERE id = ? AND deleted_at IS NULL', [
         productId,
       ]);
       const productName = products[0]?.name || '';

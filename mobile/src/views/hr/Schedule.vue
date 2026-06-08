@@ -20,7 +20,7 @@
 <script setup>
   import { ref, onMounted } from 'vue'
   import { NavBar, CellGroup, Cell, Loading } from 'vant'
-  import { hrApi } from '@/services/api'
+  import { hrApi } from '@/api'
   import { extractApiData } from '@/utils/apiHelper'
 
   const loading = ref(true)

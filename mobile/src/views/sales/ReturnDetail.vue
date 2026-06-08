@@ -68,7 +68,7 @@
   import { ref, onMounted } from 'vue'
   import { useRoute } from 'vue-router'
   import { NavBar, CellGroup, Cell, Button, Loading, showToast, showConfirmDialog } from 'vant'
-  import { salesApi } from '@/services/api'
+  import { salesApi } from '@/api'
   import { extractApiData } from '@/utils/apiHelper'
   import { SALES_RETURN_STATUS, getDictText, getDictClass } from '@/constants/dict'
 

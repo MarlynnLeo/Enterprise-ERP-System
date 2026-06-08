@@ -33,7 +33,7 @@
   import { computed, onMounted, reactive, ref } from 'vue'
   import { useRouter } from 'vue-router'
   import { Button, Cell, CellGroup, Field, Form, NavBar, Popup, showToast } from 'vant'
-  import { systemApi } from '@/services/api'
+  import { systemApi } from '@/api'
   import { extractApiList } from '@/utils/apiHelper'
 
   const router = useRouter()

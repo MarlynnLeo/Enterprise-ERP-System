@@ -52,7 +52,7 @@
   import { ref, computed, onMounted } from 'vue'
   import { useRoute } from 'vue-router'
   import { NavBar, CellGroup, Cell, Button, Loading, showToast, showConfirmDialog } from 'vant'
-  import { qualityApi } from '@/services/api'
+  import { qualityApi } from '@/api'
   import { extractApiData } from '@/utils/apiHelper'
 
   const route = useRoute()

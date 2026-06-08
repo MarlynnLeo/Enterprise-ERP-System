@@ -157,12 +157,13 @@ exports.getPricingList = async (req, res) => {
       return 0;
     });
 
-    ResponseHandler.success(res, {
-      list: finalRows,
-      total: applyFilterLater ? finalRows.length : parseInt(countResult[0].total),
-      page: pagination.page,
-      pageSize: pagination.pageSize,
-    });
+    ResponseHandler.paginated(
+      res,
+      finalRows,
+      applyFilterLater ? finalRows.length : parseInt(countResult[0].total),
+      pagination.page,
+      pagination.pageSize
+    );
   } catch (error) {
     logger.error('获取产品定价列表失败:', error);
     const message = error.code === 'ECONNREFUSED' ? '数据库连接失败' : '获取产品定价列表失败';
@@ -186,7 +187,7 @@ exports.getPricingDetail = async (req, res) => {
     connection = await getConnection();
 
     // 1. 获取产品基本信息
-    const [products] = await connection.query('SELECT id, product_category_id, code, name, category_id, material_source_id, inspection_method_id, supplier_id, production_group_id, manager_id, location_detail, safety_stock, unit_id, location_id, specs, drawing_no, color_code, material_type, price, cost_price, min_stock, max_stock, status, remark, created_at, updated_at, location_name, tax_rate, deleted_at FROM materials WHERE id = ?', [productId]);
+    const [products] = await connection.query('SELECT id, product_category_id, code, name, category_id, material_source_id, inspection_method_id, supplier_id, production_group_id, manager_id, location_detail, safety_stock, unit_id, location_id, specs, drawing_no, color_code, material_type, price, cost_price, min_stock, max_stock, status, remark, created_at, updated_at, location_name, tax_rate, deleted_at FROM materials WHERE id = ? AND deleted_at IS NULL', [productId]);
     if (products.length === 0) {
       return ResponseHandler.error(res, '产品不存在', 'NOT_FOUND', 404);
     }
@@ -202,7 +203,7 @@ exports.getPricingDetail = async (req, res) => {
             FROM product_pricing pp
             LEFT JOIN users u ON pp.created_by = u.id
             JOIN materials m ON pp.product_id = m.id
-            WHERE pp.product_id = ? AND pp.is_active = 1
+            WHERE pp.product_id = ? AND pp.is_active = 1 AND m.deleted_at IS NULL
         `,
       [productId]
     );
@@ -588,7 +589,7 @@ exports.createPricing = async (req, res) => {
     }
 
     // 5. 同步更新物料基础表中的价格
-    await connection.query('UPDATE materials SET price = ? WHERE id = ?', [
+    await connection.query('UPDATE materials SET price = ? WHERE id = ? AND deleted_at IS NULL', [
       suggestedPrice,
       product_id,
     ]);

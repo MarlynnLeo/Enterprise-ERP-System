@@ -106,7 +106,7 @@ exports.getBomByProductId = async (req, res) => {
     }
 
     const [products] = await pool.query(
-      'SELECT name as product_name, code as product_code FROM materials WHERE id = ?',
+      'SELECT name as product_name, code as product_code FROM materials WHERE id = ? AND deleted_at IS NULL',
       [productId]
     );
     const bom = {

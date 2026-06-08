@@ -38,7 +38,7 @@
   import { computed, onMounted, reactive, ref } from 'vue'
   import { useRouter } from 'vue-router'
   import { ActionSheet, Button as VanButton, CellGroup, Field, Form as VanForm, NavBar, showToast } from 'vant'
-  import { financeApi } from '@/services/api'
+  import { financeApi } from '@/api'
   import { extractApiList, extractApiData } from '@/utils/apiHelper'
 
   const router = useRouter()

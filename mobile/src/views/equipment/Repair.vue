@@ -11,7 +11,7 @@
 <script setup>
   import { computed } from 'vue'
   import UniversalListPage from '@/components/common/UniversalListPage.vue'
-  import { equipmentApi } from '@/services/api'
+  import { equipmentApi } from '@/api'
 
   const pageConfig = computed(() => ({
     title: '维修记录',

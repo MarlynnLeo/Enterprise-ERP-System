@@ -128,11 +128,8 @@ exports.getReportDetail = async (req, res) => {
     // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
     const [reports] = await pool.query(query, params);
 
-    return ResponseHandler.success(res, {
+    return ResponseHandler.paginated(res, reports, total[0].count, pagination.page, pagination.pageSize, undefined, {
       items: reports,
-      total: total[0].count,
-      page: pagination.page,
-      pageSize: pagination.pageSize,
     });
   } catch (error) {
     logger.error('获取报工明细失败:', error);
@@ -744,7 +741,7 @@ async function syncProgressAndStatus(connection, task_id, process_id) {
   }
 
   // 2. 同步任务状态
-  const [taskCheck] = await connection.query('SELECT id, status, quantity FROM production_tasks WHERE id = ? FOR UPDATE', [task_id]);
+  const [taskCheck] = await connection.query('SELECT id, status, quantity FROM production_tasks WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [task_id]);
   if (taskCheck.length === 0) return null;
   const task = taskCheck[0];
   const planQuantity = parseFloat(task.quantity) || 0;
@@ -756,7 +753,7 @@ async function syncProgressAndStatus(connection, task_id, process_id) {
     : (totalReported > 0 ? 100 : 0);
 
   await connection.query(
-    'UPDATE production_tasks SET completed_quantity = ?, progress = ? WHERE id = ?',
+    'UPDATE production_tasks SET completed_quantity = ?, progress = ? WHERE id = ? AND deleted_at IS NULL',
     [Math.min(totalReported, planQuantity), taskProgress, task_id]
   );
 
@@ -800,7 +797,7 @@ async function syncProgressAndStatus(connection, task_id, process_id) {
   if (apiStatus && apiStatus !== task.status) {
     const dbStatus = apiStatusToDbStatus(apiStatus, 'productionTask');
     if (dbStatus) {
-      await connection.query('UPDATE production_tasks SET status = ? WHERE id = ?', [dbStatus, task_id]);
+      await connection.query('UPDATE production_tasks SET status = ? WHERE id = ? AND deleted_at IS NULL', [dbStatus, task_id]);
       logger.info(`任务 ${task_id} 状态已根据进度计算同步更新: ${task.status} → ${dbStatus} (API: ${apiStatus})`);
     }
   }

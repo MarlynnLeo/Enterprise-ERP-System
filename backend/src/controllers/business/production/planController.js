@@ -474,7 +474,7 @@ exports.createProductionPlan = async (req, res) => {
 
     // 校验产品是否存在
     const [productCheck] = await connection.query(
-      'SELECT id FROM materials WHERE id = ?',
+      'SELECT id FROM materials WHERE id = ? AND deleted_at IS NULL',
       [productId]
     );
     if (productCheck.length === 0) {
@@ -587,7 +587,7 @@ exports.updateProductionPlan = async (req, res) => {
     const formattedDeliveryDate = formatDateParam(delivery_date);
 
     // 检查计划状态
-    const [plans] = await connection.query('SELECT status, quantity FROM production_plans WHERE id = ? FOR UPDATE', [
+    const [plans] = await connection.query('SELECT status, quantity FROM production_plans WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [
       id,
     ]);
 
@@ -616,7 +616,7 @@ exports.updateProductionPlan = async (req, res) => {
       }
 
       await connection.query(
-        'UPDATE production_plans SET pushed_quantity = ? WHERE id = ?',
+        'UPDATE production_plans SET pushed_quantity = ? WHERE id = ? AND deleted_at IS NULL',
         [targetPushed, id]
       );
 
@@ -638,7 +638,7 @@ exports.updateProductionPlan = async (req, res) => {
       `
       UPDATE production_plans
       SET name = ?, start_date = ?, end_date = ?, delivery_date = ?, product_id = ?, quantity = ?, contract_code = ?, bom_id = ?, bom_version = ?
-      WHERE id = ?
+      WHERE id = ? AND deleted_at IS NULL
     `,
       [name, formattedStartDate, formattedEndDate, formattedDeliveryDate, productId, quantity, contract_code || null, resolvedBomId, resolvedBomVersion, id]
     );
@@ -672,7 +672,7 @@ exports.deleteProductionPlan = async (req, res) => {
     const { id } = req.params;
 
     // 检查计划状态
-    const [plans] = await connection.query('SELECT status FROM production_plans WHERE id = ? FOR UPDATE', [
+    const [plans] = await connection.query('SELECT status FROM production_plans WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [
       id,
     ]);
 
@@ -729,7 +729,7 @@ exports.updateProductionPlanStatus = async (req, res) => {
 
     // 检查生产计划是否存在（使用 FOR UPDATE 加行级锁防止并发）
     const [plans] = await connection.query(
-      'SELECT id, status, version FROM production_plans WHERE id = ? FOR UPDATE',
+      'SELECT id, status, version FROM production_plans WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
       [id]
     );
 
@@ -759,7 +759,7 @@ exports.updateProductionPlanStatus = async (req, res) => {
           SUM(CASE WHEN status = '${PRODUCTION_STATUS_KEYS.INSPECTION}' THEN 1 ELSE 0 END) as inspection_count,
           SUM(CASE WHEN status = '${PRODUCTION_STATUS_KEYS.IN_PROGRESS}' THEN 1 ELSE 0 END) as in_progress_count,
           SUM(CASE WHEN status = '${PRODUCTION_STATUS_KEYS.CANCELLED}' THEN 1 ELSE 0 END) as cancelled_count
-        FROM production_tasks WHERE plan_id = ?`,
+        FROM production_tasks WHERE plan_id = ? AND deleted_at IS NULL`,
         [id]
       );
 
@@ -781,7 +781,7 @@ exports.updateProductionPlanStatus = async (req, res) => {
     // 更新生产计划状态（乐观锁 + 版本号递增）
     const currentVersion = plans[0].version || 1;
     const [updateResult] = await connection.query(
-      'UPDATE production_plans SET status = ?, version = version + 1 WHERE id = ? AND version = ?',
+      'UPDATE production_plans SET status = ?, version = version + 1 WHERE id = ? AND version = ? AND deleted_at IS NULL',
       [status, id, currentVersion]
     );
 
@@ -807,7 +807,7 @@ exports.updateProductionPlanStatus = async (req, res) => {
     if (status === PLAN_STATUS.CANCELLED) {
       const [cancelResult] = await connection.query(
         `UPDATE production_tasks SET status = ?
-         WHERE plan_id = ? AND status NOT IN (?, ?)`,
+         WHERE plan_id = ? AND deleted_at IS NULL AND status NOT IN (?, ?)`,
         [
           PRODUCTION_STATUS_KEYS.CANCELLED,
           id,
@@ -823,7 +823,7 @@ exports.updateProductionPlanStatus = async (req, res) => {
     // 如果状态更新为已发料，必须确保关联的出库单在仓库端已经全部完成
     if (status === PLAN_STATUS.MATERIAL_ISSUED) {
       const [outbounds] = await connection.query(
-        'SELECT id, status, outbound_no FROM inventory_outbound WHERE reference_id = ? AND reference_type = "production_plan"',
+        'SELECT id, status, outbound_no FROM inventory_outbound WHERE reference_id = ? AND reference_type = "production_plan" AND deleted_at IS NULL',
         [id]
       );
 

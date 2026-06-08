@@ -39,7 +39,7 @@
   import { ref, onMounted } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
   import { NavBar, CellGroup, Cell, Loading, Empty, Button, showToast } from 'vant'
-  import { equipmentApi } from '@/services/api'
+  import { equipmentApi } from '@/api'
 
   const route = useRoute()
   const router = useRouter()

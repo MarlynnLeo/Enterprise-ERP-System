@@ -86,7 +86,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { showToast, Empty as VanEmpty, NavBar, Search } from 'vant'
 import dayjs from 'dayjs'
-import { productionApi } from '@/services/api'
+import { productionApi } from '@/api'
 
 const router = useRouter()
 

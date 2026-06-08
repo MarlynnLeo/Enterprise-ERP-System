@@ -116,7 +116,7 @@ class InventoryCostService {
         // 回写到 materials 表 (确保其回归反映真实库存账面的职责)
         if (newMac > 0) {
           await connection.execute(
-            'UPDATE materials SET cost_price = ? WHERE id = ?',
+            'UPDATE materials SET cost_price = ? WHERE id = ? AND deleted_at IS NULL',
             [newMac.toFixed(4), transaction.material_id]
           );
           logger.info(`🔥 物料 ${material.code} MAC(移动加权均价)更新完成: 旧单价=${oldCostPrice}, 旧存量=${oldQty}, 本次单价=${inboundUnitCost}, 本次数量=${inboundQty} => 新均价=${newMac.toFixed(4)}`);
@@ -372,7 +372,7 @@ class InventoryCostService {
    */
   static async getMaterialInfo(connection, materialId) {
     const [materials] = await connection.execute(
-      'SELECT id, name, code, price, cost_price FROM materials WHERE id = ?',
+      'SELECT id, name, code, price, cost_price FROM materials WHERE id = ? AND deleted_at IS NULL',
       [materialId]
     );
 

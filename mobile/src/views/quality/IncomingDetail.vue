@@ -190,7 +190,7 @@
     showToast,
     showConfirmDialog
   } from 'vant'
-  import { qualityApi } from '@/services/api'
+  import { qualityApi } from '@/api'
   import { extractApiData, extractApiList } from '@/utils/apiHelper'
 
   const route = useRoute()

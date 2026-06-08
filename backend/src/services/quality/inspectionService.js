@@ -74,7 +74,7 @@ class InspectionService {
                 }
             }
             updateValues.push(id);
-            await connection.query(`UPDATE quality_inspections SET ${updateFields.join(', ')} WHERE id = ?`, updateValues);
+            await connection.query(`UPDATE quality_inspections SET ${updateFields.join(', ')} WHERE id = ? AND deleted_at IS NULL`, updateValues);
 
             const traceErrorMsg = null;
 

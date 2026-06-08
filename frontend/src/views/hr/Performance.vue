@@ -21,9 +21,9 @@
             <el-radio-button value="periods">考核周期</el-radio-button>
             <el-radio-button value="evaluations">绩效评估</el-radio-button>
           </el-radio-group>
-          <el-button v-if="activeTab === 'indicators'" type="primary" @click="openIndicatorForm()">新建指标</el-button>
-          <el-button v-if="activeTab === 'periods'" type="primary" @click="openPeriodForm()">新建周期</el-button>
-          <el-button v-if="activeTab === 'evaluations'" type="primary" @click="openEvalForm()">发起评估</el-button>
+          <el-button v-if="activeTab === 'indicators'" type="primary" v-permission="'hr:performance:edit'" @click="openIndicatorForm()">新建指标</el-button>
+          <el-button v-if="activeTab === 'periods'" type="primary" v-permission="'hr:performance:edit'" @click="openPeriodForm()">新建周期</el-button>
+          <el-button v-if="activeTab === 'evaluations'" type="primary" v-permission="'hr:performance:edit'" @click="openEvalForm()">发起评估</el-button>
         </div>
       </div>
     </el-card>
@@ -48,9 +48,9 @@
           </el-table-column>
           <el-table-column label="操作" width="140" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="{ row }">
-              <el-button link type="primary" @click="openIndicatorForm(row)">编辑</el-button>
+              <el-button link type="primary" v-permission="'hr:performance:edit'" @click="openIndicatorForm(row)">编辑</el-button>
               <el-popconfirm title="确定删除？" @confirm="delIndicator(row.id)">
-                <template #reference><el-button link type="danger">删除</el-button></template>
+                <template #reference><el-button link type="danger" v-permission="'hr:performance:edit'">删除</el-button></template>
               </el-popconfirm>
             </template>
           </el-table-column>
@@ -73,9 +73,9 @@
           </el-table-column>
           <el-table-column label="操作" width="200" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="{ row }">
-              <el-button v-if="row.status === 'draft'" link type="primary" @click="updatePeriodStatus(row.id, 'in_progress')">开始</el-button>
-              <el-button v-if="row.status === 'in_progress'" link type="success" @click="updatePeriodStatus(row.id, 'scoring')">评分</el-button>
-              <el-button v-if="row.status === 'scoring'" link type="warning" @click="updatePeriodStatus(row.id, 'completed')">完成</el-button>
+              <el-button v-if="row.status === 'draft'" link type="primary" v-permission="'hr:performance:edit'" @click="updatePeriodStatus(row.id, 'in_progress')">开始</el-button>
+              <el-button v-if="row.status === 'in_progress'" link type="success" v-permission="'hr:performance:edit'" @click="updatePeriodStatus(row.id, 'scoring')">评分</el-button>
+              <el-button v-if="row.status === 'scoring'" link type="warning" v-permission="'hr:performance:edit'" @click="updatePeriodStatus(row.id, 'completed')">完成</el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -98,7 +98,7 @@
           <el-table-column prop="evaluator_name" label="考核人" width="100" />
           <el-table-column label="操作" width="120" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="{ row }">
-              <el-button link type="primary" @click="viewEval(row)">{{ row.status === 'completed' ? '查看' : '评分' }}</el-button>
+              <el-button link type="primary" v-permission="row.status === 'completed' ? 'hr:performance:view' : 'hr:performance:edit'" @click="viewEval(row)">{{ row.status === 'completed' ? '查看' : '评分' }}</el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -127,7 +127,7 @@
       </el-form>
       <template #footer>
         <el-button @click="indicatorVis = false">取消</el-button>
-        <el-button type="primary" @click="saveIndicator" :loading="saving">保存</el-button>
+        <el-button type="primary" v-permission="'hr:performance:edit'" @click="saveIndicator" :loading="saving">保存</el-button>
       </template>
     </el-dialog>
 
@@ -147,7 +147,7 @@
       </el-form>
       <template #footer>
         <el-button @click="periodVis = false">取消</el-button>
-        <el-button type="primary" @click="savePeriod" :loading="saving">保存</el-button>
+        <el-button type="primary" v-permission="'hr:performance:edit'" @click="savePeriod" :loading="saving">保存</el-button>
       </template>
     </el-dialog>
   </div>

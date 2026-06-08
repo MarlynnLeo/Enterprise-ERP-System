@@ -92,11 +92,8 @@ exports.getProcesses = async (req, res) => {
 
     const [processes] = await pool.query(query, params);
 
-    return ResponseHandler.success(res, {
+    return ResponseHandler.paginated(res, processes, total[0].count, safePage, safePageSize, undefined, {
       items: processes,
-      total: total[0].count,
-      page: safePage,
-      pageSize: safePageSize,
     });
   } catch (error) {
     logger.error('获取生产工序列表失败:', error);
@@ -329,7 +326,7 @@ exports.updateProcess = async (req, res) => {
     // 工序开始时，同步生产任务和计划状态为生产中。
     if (status === PROC_STATUS.IN_PROGRESS) {
       await connection.query(
-        'UPDATE production_tasks SET status = "in_progress" WHERE id = ? AND status IN ("material_issued", "material_partial_issued")',
+        'UPDATE production_tasks SET status = "in_progress" WHERE id = ? AND deleted_at IS NULL AND status IN ("material_issued", "material_partial_issued")',
         [taskId]
       );
 
@@ -381,7 +378,7 @@ exports.updateProcess = async (req, res) => {
 
         // 更新任务状态为待检验。
         await connection.query(
-          'UPDATE production_tasks SET status = ?, progress = 100 WHERE id = ?',
+          'UPDATE production_tasks SET status = ?, progress = 100 WHERE id = ? AND deleted_at IS NULL',
           [dbStatus, taskId]
         );
 
@@ -393,7 +390,7 @@ exports.updateProcess = async (req, res) => {
         try {
           // 获取任务详情。
           const [taskDetail] = await connection.query(
-            'SELECT id, code, product_id, quantity FROM production_tasks WHERE id = ?',
+            'SELECT id, code, product_id, quantity FROM production_tasks WHERE id = ? AND deleted_at IS NULL',
             [taskId]
           );
 
@@ -437,7 +434,7 @@ exports.updateProcess = async (req, res) => {
 
         // 1. 更新 completed_quantity = quantity（全部完工）。
         await connection.query(
-          'UPDATE production_tasks SET completed_quantity = quantity WHERE id = ? AND (completed_quantity IS NULL OR completed_quantity < quantity)',
+          'UPDATE production_tasks SET completed_quantity = quantity WHERE id = ? AND deleted_at IS NULL AND (completed_quantity IS NULL OR completed_quantity < quantity)',
           [taskId]
         );
 
@@ -461,7 +458,7 @@ exports.updateProcess = async (req, res) => {
             warnings.push(msg);
           } else {
             const reportNo = await CodeGenerators.generateReportCode(connection);
-            const [taskInfoForHook] = await connection.query('SELECT manager, quantity FROM production_tasks WHERE id = ?', [taskId]);
+            const [taskInfoForHook] = await connection.query('SELECT manager, quantity FROM production_tasks WHERE id = ? AND deleted_at IS NULL', [taskId]);
             const operatorName = taskInfoForHook[0]?.manager || await getCurrentUserName(req);
             const finalQuantity = taskInfoForHook[0]?.quantity || 0;
             // 实际报工工时 = 单件工时总和 × 生产数量

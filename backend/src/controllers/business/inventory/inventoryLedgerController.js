@@ -471,16 +471,17 @@ const getTransactionList = async (req, res) => {
     };
 
     // 返回处理后的数据
-    ResponseHandler.success(
+    ResponseHandler.paginated(
       res,
+      formattedTransactions,
+      parseInt(total),
+      pageNum,
+      pageSizeNum,
+      '获取库存流水列表成功',
       {
         items: formattedTransactions,
-        total: parseInt(total),
-        page: pageNum,
-        pageSize: pageSizeNum,
         statistics,
-      },
-      '获取库存流水列表成功'
+      }
     );
   } catch (error) {
     logger.error('获取库存流水列表失败:', error);
@@ -1577,16 +1578,17 @@ const getInventoryReport = async (req, res) => {
     }
 
     // 返回结果
-    ResponseHandler.success(
+    ResponseHandler.paginated(
       res,
+      updatedItems,
+      countResult[0].total,
+      pageNum,
+      pageSizeNum,
+      '获取库存报表成功',
       {
         items: updatedItems,
-        total: countResult[0].total,
-        page: pageNum,
-        pageSize: pageSizeNum,
         statistics: statisticsData,
-      },
-      '获取库存报表成功'
+      }
     );
   } catch (error) {
     logger.error('获取库存报表失败:', error);
@@ -2024,16 +2026,17 @@ const getInventoryLedger = async (req, res) => {
       totalOutValue: processedItems.reduce((sum, item) => sum + item.outValue, 0),
     };
 
-    ResponseHandler.success(
+    ResponseHandler.paginated(
       res,
+      processedItems,
+      countResult[0].total,
+      pageNum,
+      pageSizeNum,
+      '获取库存收发结存明细成功',
       {
         items: processedItems,
-        total: countResult[0].total,
-        page: pageNum,
-        pageSize: pageSizeNum,
         statistics,
-      },
-      '获取库存收发结存明细成功'
+      }
     );
   } catch (error) {
     logger.error('获取库存收发结存明细失败:', error);

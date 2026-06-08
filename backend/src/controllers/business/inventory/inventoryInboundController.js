@@ -497,7 +497,7 @@ const updateInbound = async (req, res) => {
     }
 
     const [inboundRows] = await connection.execute(
-      'SELECT id, inbound_no, inbound_date, inbound_type, reference_type, reference_id, reference_no, location_id, status, total_amount, total_amount_unit, operator, inspection_id, inspection_no, remark, created_at, updated_at, created_by, updated_by, is_deleted FROM inventory_inbound WHERE id = ? FOR UPDATE',
+      'SELECT id, inbound_no, inbound_date, inbound_type, reference_type, reference_id, reference_no, location_id, status, total_amount, total_amount_unit, operator, inspection_id, inspection_no, remark, created_at, updated_at, created_by, updated_by, is_deleted FROM inventory_inbound WHERE id = ? AND is_deleted = 0 FOR UPDATE',
       [id]
     );
 
@@ -593,7 +593,7 @@ const updateInbound = async (req, res) => {
            operator = ?,
            remark = ?,
            updated_at = NOW()
-       WHERE id = ?`,
+       WHERE id = ? AND is_deleted = 0`,
       [
         inbound_date,
         inbound_type || 'other',
@@ -770,7 +770,7 @@ const createInboundFromQuality = async (req, res) => {
         if (inspectionType === 'final' && productId) {
           // 检查物料表中是否存在该产品ID的记录，同时获取物料的location_id
           const [materialInfo] = await connection.execute(
-            'SELECT id, location_id, unit_id FROM materials WHERE id = ?',
+            'SELECT id, location_id, unit_id FROM materials WHERE id = ? AND deleted_at IS NULL',
             [productId]
           );
 
@@ -786,7 +786,7 @@ const createInboundFromQuality = async (req, res) => {
             // 更新入库单的库位，与物料保持一致
             if (materialLocationId && materialLocationId !== location_id) {
               await connection.execute(
-                'UPDATE inventory_inbound SET location_id = ? WHERE id = ?',
+                'UPDATE inventory_inbound SET location_id = ? WHERE id = ? AND is_deleted = 0',
                 [materialLocationId, inbound_id]
               );
             }
@@ -872,7 +872,7 @@ const createInboundFromQuality = async (req, res) => {
       }
 
       // 检查material_id是否存在于materials表中
-      const [materialCheck] = await connection.execute('SELECT id FROM materials WHERE id = ?', [
+      const [materialCheck] = await connection.execute('SELECT id FROM materials WHERE id = ? AND deleted_at IS NULL', [
         material_id,
       ]);
 
@@ -983,7 +983,7 @@ const updateInboundStatus = async (req, res) => {
 
     // 获取当前入库单信息
     const [inboundData] = await connection.execute(
-      'SELECT id, inbound_no, inbound_date, inbound_type, reference_type, reference_id, reference_no, location_id, status, total_amount, total_amount_unit, operator, inspection_id, inspection_no, remark, created_at, updated_at, created_by, updated_by, is_deleted FROM inventory_inbound WHERE id = ? FOR UPDATE',
+      'SELECT id, inbound_no, inbound_date, inbound_type, reference_type, reference_id, reference_no, location_id, status, total_amount, total_amount_unit, operator, inspection_id, inspection_no, remark, created_at, updated_at, created_by, updated_by, is_deleted FROM inventory_inbound WHERE id = ? AND is_deleted = 0 FOR UPDATE',
       [id]
     );
 
@@ -1020,7 +1020,7 @@ const updateInboundStatus = async (req, res) => {
     }
 
     // 核心入库逻辑成功后再推进状态，避免“状态已完成但库存/追溯未落地”
-    await connection.execute('UPDATE inventory_inbound SET status = ? WHERE id = ?', [
+    await connection.execute('UPDATE inventory_inbound SET status = ? WHERE id = ? AND is_deleted = 0', [
       newStatus,
       id,
     ]);

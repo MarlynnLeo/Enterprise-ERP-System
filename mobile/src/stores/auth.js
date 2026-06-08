@@ -7,7 +7,7 @@
 
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import api from '../services/api'
+import api from '../api'
 import { buildResourceUrl } from '@/config/app'
 
 // 存储键名

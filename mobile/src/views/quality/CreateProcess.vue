@@ -119,7 +119,7 @@
     showLoadingToast,
     closeToast
   } from 'vant'
-  import { qualityApi } from '@/services/api'
+  import { qualityApi } from '@/api'
 
   const router = useRouter()
 

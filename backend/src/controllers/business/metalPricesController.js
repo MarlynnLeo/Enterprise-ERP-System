@@ -4,13 +4,9 @@
 const { ResponseHandler } = require('../../utils/responseHandler');
 const { logger } = require('../../utils/logger');
 const { pool } = require('../../config/db');
+const { MARKET_PRICE_CONFIG } = require('../../config/metalPriceConfig');
 
 const axios = require('axios');
-
-const parseNumber = (value, fallback) => {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : fallback;
-};
 
 const roundPrice = (value) => parseFloat(Number(value).toFixed(2));
 
@@ -21,26 +17,6 @@ const calculateChange = (oldPrice, newPrice) => {
     change: roundPrice(change),
     changePercent: parseFloat(changePercent.toFixed(2)),
   };
-};
-
-const MARKET_PRICE_CONFIG = {
-  exchangeRateUrl:
-    process.env.METAL_PRICE_EXCHANGE_RATE_URL ||
-    'https://api.frankfurter.app/latest?from=USD&to=CNY',
-  exchangeRateTimeoutMs: parseNumber(process.env.METAL_PRICE_EXCHANGE_RATE_TIMEOUT_MS, 5000),
-  exchangeRateFallback: parseNumber(process.env.METAL_PRICE_USD_CNY_FALLBACK, 7.24),
-  refreshCron: process.env.METAL_PRICE_REFRESH_CRON || '0 */4 * * *',
-  startupDelayMs: parseNumber(process.env.METAL_PRICE_STARTUP_DELAY_MS, 5000),
-  referencePrices: {
-    GOLD: parseNumber(process.env.METAL_PRICE_GOLD_REFERENCE_CNY_PER_OZ, 34529.35),
-    PLATINUM: parseNumber(process.env.METAL_PRICE_PLATINUM_REFERENCE_CNY_PER_OZ, 9020),
-    ALUMINUM: parseNumber(process.env.METAL_PRICE_ALUMINUM_REFERENCE_CNY_PER_TON, 19150),
-    COPPER: parseNumber(process.env.METAL_PRICE_COPPER_REFERENCE_CNY_PER_TON, 69200),
-  },
-  externalBenchmarks: {
-    GOLD_USD_PER_OZ: parseNumber(process.env.METAL_PRICE_GOLD_USD_PER_OZ, 2050),
-    PLATINUM_USD_PER_OZ: parseNumber(process.env.METAL_PRICE_PLATINUM_USD_PER_OZ, 950),
-  },
 };
 
 const METAL_DEFINITIONS = {
@@ -239,11 +215,22 @@ const loadPersistedHistory = async (symbol) => {
 
 // 汇率缓存
 let cachedExchangeRate = MARKET_PRICE_CONFIG.exchangeRateFallback;
+let missingExchangeRateUrlLogged = false;
 
 /**
  * 获取免费汇率数据
  */
 const fetchExchangeRate = async () => {
+  if (!MARKET_PRICE_CONFIG.exchangeRateUrl) {
+    if (!missingExchangeRateUrlLogged) {
+      logger.warn(
+        'METAL_PRICE_EXCHANGE_RATE_URL is not configured; using configured USD/CNY fallback rate.'
+      );
+      missingExchangeRateUrlLogged = true;
+    }
+    return cachedExchangeRate;
+  }
+
   try {
     const response = await axios.get(MARKET_PRICE_CONFIG.exchangeRateUrl, {
       timeout: MARKET_PRICE_CONFIG.exchangeRateTimeoutMs,

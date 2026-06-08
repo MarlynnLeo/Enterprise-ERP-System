@@ -180,7 +180,7 @@
   import { useRouter } from 'vue-router'
   import { NavBar, Search, Icon, Empty, PullRefresh, List, Popup, Picker, showToast } from 'vant'
   import SvgIcon from '@/components/icons/index.vue'
-  import { inventoryApi } from '@/services/api'
+  import { inventoryApi } from '@/api'
   import { extractApiList, extractApiPaginated } from '@/utils/apiHelper'
 
   const router = useRouter()

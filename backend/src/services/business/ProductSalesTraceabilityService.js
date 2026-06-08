@@ -92,7 +92,7 @@ class ProductSalesTraceabilityService {
       // 1. 获取产品信息
       const [productResult] = await connection.execute(
         `
-        SELECT code, name FROM materials WHERE id = ?
+        SELECT code, name FROM materials WHERE id = ? AND deleted_at IS NULL
       `,
         [product_id]
       );

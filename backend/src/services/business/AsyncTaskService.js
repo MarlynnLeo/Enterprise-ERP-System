@@ -181,7 +181,7 @@ class AsyncTaskService {
         logger.debug(`[异步任务] 状态转换: API=${newStatus}, 数据库=${dbStatus}`);
 
         await connection.execute(
-          'UPDATE production_tasks SET status = ?, updated_at = NOW() WHERE id = ?',
+          'UPDATE production_tasks SET status = ?, updated_at = NOW() WHERE id = ? AND deleted_at IS NULL',
           [dbStatus, taskId]
         );
 

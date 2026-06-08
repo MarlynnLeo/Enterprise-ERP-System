@@ -156,7 +156,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { baseDataApi } from '@/services/api'
+import { baseDataApi } from '@/api'
 import { showToast } from 'vant'
 import dayjs from 'dayjs'
 

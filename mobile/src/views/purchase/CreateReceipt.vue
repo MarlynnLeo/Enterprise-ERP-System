@@ -265,7 +265,7 @@
     showLoadingToast,
     closeToast
   } from 'vant'
-  import { purchaseApi, inventoryApi } from '@/services/api'
+  import { purchaseApi, inventoryApi } from '@/api'
 
   const router = useRouter()
   const route = useRoute()

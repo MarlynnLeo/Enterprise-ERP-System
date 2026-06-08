@@ -866,7 +866,7 @@ const updateOutbound = async (req, res) => {
 
     // 检查出库单是否存在
     const [checkResult] = await connection.execute(
-      'SELECT status FROM inventory_outbound WHERE id = ? FOR UPDATE',
+      'SELECT status FROM inventory_outbound WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
       [id]
     );
 
@@ -888,7 +888,7 @@ const updateOutbound = async (req, res) => {
 
     // 更新出库单主表 - 移除对production_plan_id的引用
     await connection.execute(
-      'UPDATE inventory_outbound SET outbound_date = ?, status = ?, operator = ?, remark = ?, updated_at = NOW() WHERE id = ?',
+      'UPDATE inventory_outbound SET outbound_date = ?, status = ?, operator = ?, remark = ?, updated_at = NOW() WHERE id = ? AND deleted_at IS NULL',
       [formattedDate, status, operator, remark, id]
     );
 
@@ -934,7 +934,7 @@ const updateOutbound = async (req, res) => {
 
     // 提前读取出库单关联信息，供 confirmed 和 completed 两种状态逻辑共用
     const [outboundBasicInfo] = await connection.execute(
-      'SELECT reference_id, reference_type, production_task_id FROM inventory_outbound WHERE id = ?',
+      'SELECT reference_id, reference_type, production_task_id FROM inventory_outbound WHERE id = ? AND deleted_at IS NULL',
       [id]
     );
     let earlyReferenceId = outboundBasicInfo[0]?.reference_id || null;
@@ -955,7 +955,7 @@ const updateOutbound = async (req, res) => {
 
       // 获取出库单信息（完整信息，用于后续追溯等）
       const [outboundInfo] = await connection.execute(
-        'SELECT outbound_no, operator, reference_id, reference_type, production_task_id, issue_reason, is_excess FROM inventory_outbound WHERE id = ?',
+        'SELECT outbound_no, operator, reference_id, reference_type, production_task_id, issue_reason, is_excess FROM inventory_outbound WHERE id = ? AND deleted_at IS NULL',
         [id]
       );
 
@@ -1198,7 +1198,7 @@ const _createOutbound = async (outboundData) => {
       // 更新生产任务状态为"配料中"，并记录发料时间
       try {
         const [taskCheck] = await connection.execute(
-          'SELECT id, status FROM production_tasks WHERE id = ?',
+          'SELECT id, status FROM production_tasks WHERE id = ? AND deleted_at IS NULL',
           [productionTaskId]
         );
 
@@ -1210,7 +1210,7 @@ const _createOutbound = async (outboundData) => {
         ) {
           // 更新任务状态为"发料中"并记录发料时间
           await connection.execute(
-            'UPDATE production_tasks SET status = ?, actual_start_time = ? WHERE id = ?',
+            'UPDATE production_tasks SET status = ?, actual_start_time = ? WHERE id = ? AND deleted_at IS NULL',
             [STATUS.PRODUCTION_TASK.MATERIAL_ISSUING, outboundDate, productionTaskId]
           );
           logger.debug(
@@ -1219,13 +1219,13 @@ const _createOutbound = async (outboundData) => {
 
           // 同时更新关联的生产计划状态为"发料中"
           const [planCheck] = await connection.execute(
-            'SELECT plan_id FROM production_tasks WHERE id = ?',
+            'SELECT plan_id FROM production_tasks WHERE id = ? AND deleted_at IS NULL',
             [productionTaskId]
           );
 
           if (planCheck.length > 0 && planCheck[0].plan_id) {
             await connection.execute(
-              'UPDATE production_plans SET status = ? WHERE id = ? AND status IN (?, ?, ?)',
+              'UPDATE production_plans SET status = ? WHERE id = ? AND deleted_at IS NULL AND status IN (?, ?, ?)',
               ['material_issuing', planCheck[0].plan_id, 'draft', 'allocated', 'preparing']
             );
             logger.debug(`生产计划 ${planCheck[0].plan_id} 状态已更新为"发料中"`);
@@ -1474,7 +1474,7 @@ const _createOutbound = async (outboundData) => {
       if (hasShortage) {
         // 有缺料,状态改为partial_completed
         finalStatus = 'partial_completed';
-        await connection.execute('UPDATE inventory_outbound SET status = ? WHERE id = ?', [
+        await connection.execute('UPDATE inventory_outbound SET status = ? WHERE id = ? AND deleted_at IS NULL', [
           finalStatus,
           outboundId,
         ]);
@@ -1689,7 +1689,7 @@ const deleteOutbound = async (req, res) => {
 
     // 检查出库单是否存在,并获取关联信息
     const [checkResult] = await connection.execute(
-      'SELECT status, reference_id, reference_type FROM inventory_outbound WHERE id = ? FOR UPDATE',
+      'SELECT status, reference_id, reference_type FROM inventory_outbound WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
       [id]
     );
 
@@ -1711,7 +1711,7 @@ const deleteOutbound = async (req, res) => {
       try {
         // 检查任务当前状态
         const [taskCheck] = await connection.execute(
-          'SELECT status FROM production_tasks WHERE id = ? FOR UPDATE',
+          'SELECT status FROM production_tasks WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
           [reference_id]
         );
 
@@ -1722,21 +1722,21 @@ const deleteOutbound = async (req, res) => {
           if (['material_issuing', 'preparing'].includes(currentTaskStatus)) {
             // 回退任务状态到pending,并清除发料时间
             await connection.execute(
-              'UPDATE production_tasks SET status = ?, actual_start_time = NULL WHERE id = ?',
+              'UPDATE production_tasks SET status = ?, actual_start_time = NULL WHERE id = ? AND deleted_at IS NULL',
               ['pending', reference_id]
             );
             logger.info(`生产任务 ${reference_id} 状态已回退: ${currentTaskStatus} → pending`);
 
             // 同时回退关联的生产计划状态
             const [planCheck] = await connection.execute(
-              'SELECT plan_id FROM production_tasks WHERE id = ?',
+              'SELECT plan_id FROM production_tasks WHERE id = ? AND deleted_at IS NULL',
               [reference_id]
             );
 
             if (planCheck.length > 0 && planCheck[0].plan_id) {
               const planId = planCheck[0].plan_id;
               await connection.execute(
-                'UPDATE production_plans SET status = ? WHERE id = ? AND status IN (?, ?)',
+                'UPDATE production_plans SET status = ? WHERE id = ? AND deleted_at IS NULL AND status IN (?, ?)',
                 ['draft', planId, 'material_issuing', 'preparing']
               );
               logger.info(`生产计划 ${planId} 状态已回退到 draft`);
@@ -1753,7 +1753,7 @@ const deleteOutbound = async (req, res) => {
     if (reference_id && reference_type === 'production_plan') {
       try {
         const [planCheck] = await connection.execute(
-          'SELECT status FROM production_plans WHERE id = ? FOR UPDATE',
+          'SELECT status FROM production_plans WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
           [reference_id]
         );
 
@@ -1761,7 +1761,7 @@ const deleteOutbound = async (req, res) => {
           const currentPlanStatus = planCheck[0].status;
 
           if (['material_issuing', 'preparing'].includes(currentPlanStatus)) {
-            await connection.execute('UPDATE production_plans SET status = ? WHERE id = ?', [
+            await connection.execute('UPDATE production_plans SET status = ? WHERE id = ? AND deleted_at IS NULL', [
               'draft',
               reference_id,
             ]);
@@ -2132,7 +2132,7 @@ const updateOutboundStatus = async (req, res) => {
       }
     }
 
-    updateQuery += ' WHERE id = ?';
+    updateQuery += ' WHERE id = ? AND deleted_at IS NULL';
     updateParams.push(id);
 
     // 更新出库单状态
@@ -2169,13 +2169,13 @@ const updateOutboundStatus = async (req, res) => {
     ) {
       try {
         const [planCheck] = await connection.execute(
-          'SELECT status FROM production_plans WHERE id = ?',
+          'SELECT status FROM production_plans WHERE id = ? AND deleted_at IS NULL',
           [referenceId]
         );
 
         if (planCheck.length > 0 && planCheck[0].status === 'preparing') {
           await connection.execute(
-            'UPDATE production_plans SET status = "material_issued" WHERE id = ?',
+            'UPDATE production_plans SET status = "material_issued" WHERE id = ? AND deleted_at IS NULL',
             [referenceId]
           );
           logger.debug(`生产计划 ${referenceId} 物料发放完成，状态已更新为 material_issued`);
@@ -2195,7 +2195,7 @@ const updateOutboundStatus = async (req, res) => {
           );
 
           for (const task of tasks) {
-            await connection.execute('UPDATE production_tasks SET status = ? WHERE id = ?', [
+            await connection.execute('UPDATE production_tasks SET status = ? WHERE id = ? AND deleted_at IS NULL', [
               dbStatus,
               task.id,
             ]);
@@ -2249,7 +2249,7 @@ const updateOutboundStatus = async (req, res) => {
 
         // 获取出库单信息
         const [outboundInfo] = await connection.execute(
-          'SELECT outbound_no, operator FROM inventory_outbound WHERE id = ?',
+          'SELECT outbound_no, operator FROM inventory_outbound WHERE id = ? AND deleted_at IS NULL',
           [id]
         );
 
@@ -2382,13 +2382,13 @@ const updateOutboundStatus = async (req, res) => {
       if (hasShortage) {
         // 有缺料,状态改为partial_completed
         await connection.execute(
-          "UPDATE inventory_outbound SET status = 'partial_completed' WHERE id = ?",
+          "UPDATE inventory_outbound SET status = 'partial_completed' WHERE id = ? AND deleted_at IS NULL",
           [id]
         );
 
         // 获取出库单号
         const [outboundInfo] = await connection.execute(
-          'SELECT outbound_no FROM inventory_outbound WHERE id = ?',
+          'SELECT outbound_no FROM inventory_outbound WHERE id = ? AND deleted_at IS NULL',
           [id]
         );
         const outboundNo = outboundInfo[0].outbound_no;
@@ -2459,7 +2459,7 @@ const updateOutboundStatus = async (req, res) => {
 
         // 如果关联了生产任务,更新任务状态为material_partial_issued
         if (referenceId && referenceType === 'production_task') {
-          await connection.execute('UPDATE production_tasks SET status = ? WHERE id = ?', [
+          await connection.execute('UPDATE production_tasks SET status = ? WHERE id = ? AND deleted_at IS NULL', [
             'material_partial_issued',
             referenceId,
           ]);
@@ -2477,17 +2477,19 @@ const updateOutboundStatus = async (req, res) => {
           `UPDATE production_tasks
            SET status = ?, updated_at = NOW()
            WHERE id IN (${placeholders})
-             AND status IN ('pending', 'allocated', 'preparing', 'material_issuing')`,
+              AND deleted_at IS NULL
+              AND status IN ('pending', 'allocated', 'preparing', 'material_issuing')`,
           [finalTaskStatus, ...batchTaskIds]
         );
 
         if (!hasShortage) {
           await connection.execute(
             `UPDATE production_plans pp
-             JOIN production_tasks pt ON pt.plan_id = pp.id
+             JOIN production_tasks pt ON pt.plan_id = pp.id AND pt.deleted_at IS NULL
              SET pp.status = ?, pp.updated_at = NOW()
              WHERE pt.id IN (${placeholders})
-               AND pp.status = ?`,
+                AND pp.deleted_at IS NULL
+                AND pp.status = ?`,
             [
               STATUS.PRODUCTION_PLAN.MATERIAL_ISSUED,
               ...batchTaskIds,
@@ -2503,7 +2505,7 @@ const updateOutboundStatus = async (req, res) => {
         try {
           // 获取任务的最终状态
           const [finalTaskStatus] = await connection.execute(
-            'SELECT status FROM production_tasks WHERE id = ?',
+            'SELECT status FROM production_tasks WHERE id = ? AND deleted_at IS NULL',
             [referenceId]
           );
 
@@ -2580,7 +2582,7 @@ const updateOutboundStatus = async (req, res) => {
         const totalAmount = parseFloat(totalCalc[0]?.total) || 0;
         if (totalAmount > 0) {
           await connection.execute(
-            'UPDATE inventory_outbound SET total_amount = ? WHERE id = ?',
+            'UPDATE inventory_outbound SET total_amount = ? WHERE id = ? AND deleted_at IS NULL',
             [totalAmount, id]
           );
           logger.info(`出库单 ${id} 总金额已更新为 ${totalAmount}`);
@@ -2600,7 +2602,7 @@ const updateOutboundStatus = async (req, res) => {
       try {
         // 获取出库单信息用于异步任务
         const [outboundData] = await connection.execute(
-          'SELECT id, outbound_no, outbound_date, sales_order_id, customer_id, customer_name, total_amount, status, outbound_type, remark, operator, created_at, updated_at, reference_id, reference_type, source_task_ids, is_batch_outbound, production_task_id, issue_reason, is_excess, deleted_at FROM inventory_outbound WHERE id = ?',
+          'SELECT id, outbound_no, outbound_date, sales_order_id, customer_id, customer_name, total_amount, status, outbound_type, remark, operator, created_at, updated_at, reference_id, reference_type, source_task_ids, is_batch_outbound, production_task_id, issue_reason, is_excess, deleted_at FROM inventory_outbound WHERE id = ? AND deleted_at IS NULL',
           [id]
         );
 
@@ -2667,7 +2669,7 @@ const supplementOutbound = async (req, res) => {
 
     // 1. 检查原出库单状态
     const [outboundCheck] = await connection.execute(
-      'SELECT id, outbound_no, outbound_date, sales_order_id, customer_id, customer_name, total_amount, status, outbound_type, remark, operator, created_at, updated_at, reference_id, reference_type, source_task_ids, is_batch_outbound, production_task_id, issue_reason, is_excess, deleted_at FROM inventory_outbound WHERE id = ?',
+      'SELECT id, outbound_no, outbound_date, sales_order_id, customer_id, customer_name, total_amount, status, outbound_type, remark, operator, created_at, updated_at, reference_id, reference_type, source_task_ids, is_batch_outbound, production_task_id, issue_reason, is_excess, deleted_at FROM inventory_outbound WHERE id = ? AND deleted_at IS NULL',
       [id]
     );
 
@@ -2816,13 +2818,13 @@ const supplementOutbound = async (req, res) => {
     if (allFulfilled) {
       // 所有物料都已补齐，更新为已完成
       await connection.execute(
-        'UPDATE inventory_outbound SET status = ?, remark = CONCAT(COALESCE(remark, ""), " [补发完成]") WHERE id = ?',
+        'UPDATE inventory_outbound SET status = ?, remark = CONCAT(COALESCE(remark, ""), " [补发完成]") WHERE id = ? AND deleted_at IS NULL',
         ['completed', id]
       );
 
       // 更新生产任务状态为已发料
       if (originalOutbound.reference_type === 'production_task' && originalOutbound.reference_id) {
-        await connection.execute('UPDATE production_tasks SET status = ? WHERE id = ?', [
+        await connection.execute('UPDATE production_tasks SET status = ? WHERE id = ? AND deleted_at IS NULL', [
           'material_issued',
           originalOutbound.reference_id,
         ]);
@@ -2835,7 +2837,7 @@ const supplementOutbound = async (req, res) => {
     } else {
       // 仍有缺料，保持部分完成状态
       await connection.execute(
-        'UPDATE inventory_outbound SET remark = CONCAT(COALESCE(remark, ""), " [已补发]") WHERE id = ?',
+        'UPDATE inventory_outbound SET remark = CONCAT(COALESCE(remark, ""), " [已补发]") WHERE id = ? AND deleted_at IS NULL',
         [id]
       );
       logger.info(`出库单 ${id} 补发成功，仍有缺料，保持 partial_completed 状态`);
@@ -2847,7 +2849,7 @@ const supplementOutbound = async (req, res) => {
       try {
         // 获取任务的当前状态
         const [taskStatus] = await connection.execute(
-          'SELECT status FROM production_tasks WHERE id = ?',
+          'SELECT status FROM production_tasks WHERE id = ? AND deleted_at IS NULL',
           [originalOutbound.reference_id]
         );
 
@@ -3262,7 +3264,7 @@ const batchUpdateOutboundStatus = async (req, res) => {
 
     // 批量更新状态
     const [result] = await connection.execute(
-      `UPDATE inventory_outbound SET status = ?, updated_at = NOW() WHERE id IN (${placeholders})`,
+      `UPDATE inventory_outbound SET status = ?, updated_at = NOW() WHERE id IN (${placeholders}) AND deleted_at IS NULL`,
       [newStatus, ...ids]
     );
 
@@ -3374,7 +3376,7 @@ const cancelOutboundReissue = async (req, res) => {
          id, status, reference_id, reference_type, outbound_no, outbound_type,
          production_task_id, source_task_ids, is_batch_outbound, remark
        FROM inventory_outbound
-       WHERE id = ?`,
+       WHERE id = ? AND deleted_at IS NULL`,
       [id]
     );
 
@@ -3399,7 +3401,7 @@ const cancelOutboundReissue = async (req, res) => {
 
     if (reference_id && reference_type === 'production_task') {
       const [taskCheck] = await connection.execute(
-        'SELECT status, code FROM production_tasks WHERE id = ?',
+        'SELECT status, code FROM production_tasks WHERE id = ? AND deleted_at IS NULL',
         [reference_id]
       );
 
@@ -3431,7 +3433,7 @@ const cancelOutboundReissue = async (req, res) => {
 
     if (reference_id && reference_type === 'production_plan') {
       const [planCheck] = await connection.execute(
-        'SELECT status, code FROM production_plans WHERE id = ?',
+        'SELECT status, code FROM production_plans WHERE id = ? AND deleted_at IS NULL',
         [reference_id]
       );
 
@@ -3584,7 +3586,7 @@ const cancelOutboundReissue = async (req, res) => {
     await connection.execute(
       `UPDATE inventory_outbound
        SET status = ?, remark = CONCAT(COALESCE(remark, ''), ?), updated_at = NOW()
-       WHERE id = ?`,
+       WHERE id = ? AND deleted_at IS NULL`,
       [STATUS.OUTBOUND.REVERSED, ` [已由 ${operator} 撤销]`, id]
     );
 
@@ -3684,7 +3686,8 @@ const cancelOutboundReissue = async (req, res) => {
         `UPDATE production_tasks
          SET status = ?, updated_at = NOW()
          WHERE id IN (${placeholders})
-           AND status IN (?, ?)`,
+            AND deleted_at IS NULL
+            AND status IN (?, ?)`,
         [
           STATUS.PRODUCTION_TASK.PREPARING,
           ...affectedTaskIds,
@@ -3695,9 +3698,10 @@ const cancelOutboundReissue = async (req, res) => {
 
       await connection.execute(
         `UPDATE production_plans pp
-         JOIN production_tasks pt ON pt.plan_id = pp.id
+         JOIN production_tasks pt ON pt.plan_id = pp.id AND pt.deleted_at IS NULL
          SET pp.status = ?, pp.updated_at = NOW()
          WHERE pt.id IN (${placeholders})
+           AND pp.deleted_at IS NULL
            AND pp.status = ?`,
         [
           STATUS.PRODUCTION_PLAN.PREPARING,
@@ -3709,11 +3713,11 @@ const cancelOutboundReissue = async (req, res) => {
 
     if (reference_id && reference_type === 'production_plan') {
       const [planCheck] = await connection.execute(
-        'SELECT status FROM production_plans WHERE id = ?',
+        'SELECT status FROM production_plans WHERE id = ? AND deleted_at IS NULL',
         [reference_id]
       );
       if (planCheck[0]?.status === STATUS.PRODUCTION_PLAN.MATERIAL_ISSUED) {
-        await connection.execute('UPDATE production_plans SET status = ? WHERE id = ?', [
+        await connection.execute('UPDATE production_plans SET status = ? WHERE id = ? AND deleted_at IS NULL', [
           STATUS.PRODUCTION_PLAN.PREPARING,
           reference_id,
         ]);

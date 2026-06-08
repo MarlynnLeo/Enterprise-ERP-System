@@ -64,7 +64,7 @@
   import { ref, onMounted } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
   import { NavBar, CellGroup, Cell, Button as VanButton, Icon as VanIcon, Loading, showToast } from 'vant'
-  import { baseDataApi } from '@/services/api'
+  import { baseDataApi } from '@/api'
   import { extractApiData } from '@/utils/apiHelper'
 
   const route = useRoute()

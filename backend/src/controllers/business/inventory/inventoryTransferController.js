@@ -380,7 +380,7 @@ const createTransfer = async (req, res) => {
         if (!validation.isEnough) {
           await connection.rollback();
           const [materialResult] = await connection.execute(
-            'SELECT name FROM materials WHERE id = ?',
+            'SELECT name FROM materials WHERE id = ? AND deleted_at IS NULL',
             [item.material_id]
           );
           const materialName =
@@ -472,7 +472,7 @@ const updateTransfer = async (req, res) => {
 
     // 检查调拨单是否存在
     const [transferResult] = await connection.execute(
-      'SELECT status FROM inventory_transfers WHERE id = ? FOR UPDATE',
+      'SELECT status FROM inventory_transfers WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
       [id]
     );
 
@@ -534,7 +534,7 @@ const updateTransfer = async (req, res) => {
       if (currentStock < parseFloat(item.quantity)) {
         await connection.rollback();
         const [materialResult] = await connection.execute(
-          'SELECT name FROM materials WHERE id = ?',
+          'SELECT name FROM materials WHERE id = ? AND deleted_at IS NULL',
           [item.material_id]
         );
         const materialName =
@@ -551,7 +551,7 @@ const updateTransfer = async (req, res) => {
         to_location_id = ?,
         remark = ?,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?`,
+      WHERE id = ? AND deleted_at IS NULL`,
       [transfer_date, from_location_id, to_location_id, remark || '', id]
     );
 
@@ -593,7 +593,7 @@ const deleteTransfer = async (req, res) => {
 
     // 检查调拨单是否存在
     const [transferResult] = await connection.execute(
-      'SELECT status FROM inventory_transfers WHERE id = ? FOR UPDATE',
+      'SELECT status FROM inventory_transfers WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
       [id]
     );
 
@@ -734,7 +734,7 @@ const updateTransferStatus = async (req, res) => {
 
     // 更新调拨单状态
     await connection.execute(
-      'UPDATE inventory_transfers SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      'UPDATE inventory_transfers SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND deleted_at IS NULL',
       [newStatus, id]
     );
 

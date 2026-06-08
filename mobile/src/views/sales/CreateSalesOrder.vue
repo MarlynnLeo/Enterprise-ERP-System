@@ -146,7 +146,7 @@
   import { ref, reactive, computed, onMounted } from 'vue'
   import { useRouter } from 'vue-router'
   import { NavBar, Button, Form, Field, Popup, Search, Empty, Icon as VanIcon, showToast, showLoadingToast, closeToast } from 'vant'
-  import { salesApi, baseDataApi } from '@/services/api'
+  import { salesApi, baseDataApi } from '@/api'
 
   const router = useRouter()
   const formRef = ref()

@@ -133,7 +133,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, OfficeBuilding } from '@element-plus/icons-vue';
 import { financeApi } from '@/api';
 import { formatCurrency } from '@/utils/helpers/formatters';
-import { parseResponseData } from '@/utils/responseParser'
+import { parseListData, parseResponseData } from '@/utils/responseParser'
 const activeTab = ref('centers');
 const loading = ref(false);
 const reportLoading = ref(false);
@@ -173,7 +173,7 @@ const loadCostCenters = async () => {
   loading.value = true;
   try {
     const res = await financeApi.cost.getCostCenters();
-    costCenters.value = parseResponseData(res, []);
+    costCenters.value = parseListData(res, { enableLog: false });
   } catch (error) {
     console.error('加载成本中心失败:', error);
     ElMessage.error('加载成本中心失败');

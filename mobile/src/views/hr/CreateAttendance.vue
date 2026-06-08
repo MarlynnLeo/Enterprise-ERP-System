@@ -49,7 +49,7 @@
   import { computed, onMounted, reactive, ref } from 'vue'
   import { useRouter } from 'vue-router'
   import { Button, Cell, CellGroup, Empty, Field, NavBar, Popup, Search, Switch, showToast } from 'vant'
-  import { hrApi } from '@/services/api'
+  import { hrApi } from '@/api'
   import { extractApiList } from '@/utils/apiHelper'
   import { buildAttendanceRecord, findEmployeeAttendance, getPeriodFromDate } from '@/utils/hrAttendance'
 

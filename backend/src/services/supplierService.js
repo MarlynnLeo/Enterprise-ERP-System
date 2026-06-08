@@ -152,7 +152,7 @@ const supplierService = {
       const values = [...Object.values(updateFields), id];
 
       // 执行更新
-      await pool.query(`UPDATE suppliers SET ${fields} WHERE id = ?`, values);
+      await pool.query(`UPDATE suppliers SET ${fields} WHERE id = ? AND deleted_at IS NULL`, values);
 
       // 获取并返回更新后的完整数据
       const [updatedSupplier] = await pool.query('SELECT id, code, name, contact_person, contact_phone, email, address, status, remark, created_at, updated_at, deleted_at FROM suppliers WHERE id = ? AND deleted_at IS NULL', [id]);
@@ -251,7 +251,7 @@ const supplierService = {
               .join(', ');
             const values = [...Object.values(updateData), existingSuppliers[0].id];
 
-            await connection.query(`UPDATE suppliers SET ${fields} WHERE id = ?`, values);
+            await connection.query(`UPDATE suppliers SET ${fields} WHERE id = ? AND deleted_at IS NULL`, values);
 
             results.success.push({
               id: existingSuppliers[0].id,

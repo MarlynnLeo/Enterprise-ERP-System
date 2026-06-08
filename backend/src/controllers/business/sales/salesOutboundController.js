@@ -41,7 +41,11 @@ const assertSalesOutboundQuantities = async (
     }
 
     const [orderRows] = await connection.query(
-      'SELECT COALESCE(SUM(quantity), 0) AS quantity FROM sales_order_items WHERE order_id = ? AND material_id = ? FOR UPDATE',
+      `SELECT COALESCE(SUM(soi.quantity), 0) AS quantity
+       FROM sales_order_items soi
+       JOIN sales_orders so ON soi.order_id = so.id AND so.deleted_at IS NULL
+       WHERE soi.order_id = ? AND soi.material_id = ?
+       FOR UPDATE`,
       [sourceOrderId, materialId]
     );
 
@@ -114,7 +118,7 @@ exports.getSalesOutbound = async (req, res) => {
       const countQuery = `
         SELECT COUNT(*) as total
         FROM sales_outbound so
-        LEFT JOIN sales_orders o ON so.order_id = o.id
+        LEFT JOIN sales_orders o ON so.order_id = o.id AND o.deleted_at IS NULL
         LEFT JOIN customers c ON o.customer_id = c.id
         WHERE so.deleted_at IS NULL ${whereClause}
       `;
@@ -126,7 +130,7 @@ exports.getSalesOutbound = async (req, res) => {
         `
         SELECT so.*, o.order_no, o.contract_code, o.customer_id, c.name as customer_name
         FROM sales_outbound so
-        LEFT JOIN sales_orders o ON so.order_id = o.id
+        LEFT JOIN sales_orders o ON so.order_id = o.id AND o.deleted_at IS NULL
         LEFT JOIN customers c ON o.customer_id = c.id
         WHERE so.deleted_at IS NULL ${whereClause}
         ORDER BY so.created_at DESC
@@ -268,7 +272,7 @@ exports.getSalesOutboundById = async (req, res) => {
     const query = `
       SELECT so.*, o.order_no, o.contract_code, o.customer_id, c.name as customer_name, c.contact_person, c.contact_phone
       FROM sales_outbound so
-      LEFT JOIN sales_orders o ON so.order_id = o.id
+      LEFT JOIN sales_orders o ON so.order_id = o.id AND o.deleted_at IS NULL
       LEFT JOIN customers c ON o.customer_id = c.id
       WHERE so.id = ? AND so.deleted_at IS NULL
     `;
@@ -537,6 +541,7 @@ exports.createSalesOutbound = async (req, res) => {
       FROM sales_outbound
       WHERE order_id = ?
         AND status = 'draft'
+        AND deleted_at IS NULL
       ORDER BY created_at DESC
       LIMIT 1
     `;
@@ -566,7 +571,7 @@ exports.createSalesOutbound = async (req, res) => {
       }
 
       const [orderCheck] = await connection.query(
-        'SELECT id, order_no, customer_id FROM sales_orders WHERE id IN (?)',
+        'SELECT id, order_no, customer_id FROM sales_orders WHERE id IN (?) AND deleted_at IS NULL',
         [related_orders]
       );
 
@@ -668,21 +673,37 @@ exports.createSalesOutbound = async (req, res) => {
               const detailValues = [];
 
               const orderPriceMap = {};
-              const sourceOrderId = items[0]?.source_order_id || items[0]?.order_id || order_id;
-              if (sourceOrderId) {
+              const sourceOrderIds = [
+                ...new Set(
+                  validItems
+                    .map((item) => item.source_order_id || item.order_id || order_id)
+                    .filter(Boolean)
+                ),
+              ];
+              if (sourceOrderIds.length > 0) {
                 const [orderItems] = await connection.query(
-                  'SELECT material_id, unit_price FROM sales_order_items WHERE order_id = ?',
-                  [sourceOrderId]
+                  `SELECT soi.order_id, soi.material_id, soi.unit_price
+                   FROM sales_order_items soi
+                   JOIN sales_orders so ON soi.order_id = so.id AND so.deleted_at IS NULL
+                   WHERE soi.order_id IN (?)`,
+                  [sourceOrderIds]
                 );
-                orderItems.forEach(oi => { orderPriceMap[oi.material_id] = parseFloat(oi.unit_price) || 0; });
+                orderItems.forEach((oi) => {
+                  const price = parseFloat(oi.unit_price) || 0;
+                  orderPriceMap[`${oi.order_id}:${oi.material_id}`] = price;
+                  if (!orderPriceMap[oi.material_id]) {
+                    orderPriceMap[oi.material_id] = price;
+                  }
+                });
               }
 
               for (const item of validItems) {
                 const materialId = item.material_id || item.product_id;
 
+                const sourceOrderId = item.source_order_id || item.order_id || order_id || null;
                 let unitPrice = parseFloat(item.unit_price || item.price || 0);
                 if (unitPrice === 0) {
-                  unitPrice = orderPriceMap[materialId] || 0;
+                  unitPrice = orderPriceMap[`${sourceOrderId}:${materialId}`] || orderPriceMap[materialId] || 0;
                 }
                 const amount = parseFloat(item.quantity || 0) * unitPrice;
 
@@ -692,7 +713,7 @@ exports.createSalesOutbound = async (req, res) => {
                   item.quantity,
                   unitPrice,
                   amount,
-                  item.source_order_id || item.order_id || order_id || null,
+                  sourceOrderId,
                   item.source_order_no || item.order_no || null,
                 ]);
               }
@@ -724,7 +745,10 @@ exports.createSalesOutbound = async (req, res) => {
     // 自动创建单据关联（销售订单 -> 出库单）
     if (order_id) {
       const DocumentLinkService = require('../../../services/business/DocumentLinkService');
-      const [[orderRow]] = await connection.query('SELECT order_no FROM sales_orders WHERE id = ?', [order_id]);
+      const [[orderRow]] = await connection.query(
+        'SELECT order_no FROM sales_orders WHERE id = ? AND deleted_at IS NULL',
+        [order_id]
+      );
       await DocumentLinkService.tryAutoLink(
         'sales_order', order_id, orderRow?.order_no || null,
         'sales_outbound', outboundId, outboundNo, created_by, connection
@@ -919,7 +943,7 @@ exports.updateSalesOutbound = async (req, res) => {
         status = ?,
         remarks = ?,
         updated_at = NOW()
-      WHERE id = ?
+      WHERE id = ? AND deleted_at IS NULL
     `;
 
     const finalStatus = status || currentOutbound.status;
@@ -975,13 +999,40 @@ exports.updateSalesOutbound = async (req, res) => {
             `;
 
             const detailValues = [];
+            const orderPriceMap = {};
+            const sourceOrderIds = [
+              ...new Set(
+                validItems
+                  .map((item) => item.source_order_id || item.order_id || finalOrderId)
+                  .filter(Boolean)
+              ),
+            ];
+            if (sourceOrderIds.length > 0) {
+              const [orderItems] = await connection.query(
+                `SELECT soi.order_id, soi.material_id, soi.unit_price
+                 FROM sales_order_items soi
+                 JOIN sales_orders so ON soi.order_id = so.id AND so.deleted_at IS NULL
+                 WHERE soi.order_id IN (?)`,
+                [sourceOrderIds]
+              );
+              orderItems.forEach((oi) => {
+                const price = parseFloat(oi.unit_price) || 0;
+                orderPriceMap[`${oi.order_id}:${oi.material_id}`] = price;
+                if (!orderPriceMap[oi.material_id]) {
+                  orderPriceMap[oi.material_id] = price;
+                }
+              });
+            }
 
             for (const item of validItems) {
               const materialId = item.material_id || item.product_id;
-
-              const unitPrice = parseFloat(item.unit_price || item.price || 0);
-              const amount = parseFloat(item.quantity || 0) * unitPrice;
               const sourceOrderId = item.source_order_id || item.order_id || finalOrderId || null;
+
+              let unitPrice = parseFloat(item.unit_price || item.price || 0);
+              if (unitPrice === 0) {
+                unitPrice = orderPriceMap[`${sourceOrderId}:${materialId}`] || orderPriceMap[materialId] || 0;
+              }
+              const amount = parseFloat(item.quantity || 0) * unitPrice;
 
               detailValues.push([
                 id,
@@ -1032,7 +1083,7 @@ exports.updateSalesOutbound = async (req, res) => {
       // 如果 currentOutbound 没有 customer_id (可能之前没存)，尝试从订单获取
       if (!salesData.customer_id && finalOrderId) {
         const [orderRes] = await connection.query(
-          'SELECT customer_id FROM sales_orders WHERE id = ?',
+          'SELECT customer_id FROM sales_orders WHERE id = ? AND deleted_at IS NULL',
           [finalOrderId]
         );
         if (orderRes.length > 0) {
@@ -1148,7 +1199,7 @@ exports.updateSalesOutbound = async (req, res) => {
           `SELECT so.*, c.name as customer_name
            FROM sales_orders so
            LEFT JOIN customers c ON so.customer_id = c.id
-           WHERE so.id = ?`,
+           WHERE so.id = ? AND so.deleted_at IS NULL`,
           [finalOrderId]
         );
         if (salesOrders.length > 0) {
@@ -1182,9 +1233,9 @@ exports.updateSalesOutbound = async (req, res) => {
     const [updatedOutbound] = await connection.query(
       `SELECT so.*, o.order_no, c.name as customer_name
        FROM sales_outbound so
-       LEFT JOIN sales_orders o ON so.order_id = o.id
+       LEFT JOIN sales_orders o ON so.order_id = o.id AND o.deleted_at IS NULL
        LEFT JOIN customers c ON o.customer_id = c.id
-       WHERE so.id = ? `,
+       WHERE so.id = ? AND so.deleted_at IS NULL`,
       [id]
     );
 
@@ -1355,7 +1406,7 @@ exports.getMaterialSalesHistory = async (req, res) => {
       SELECT COUNT(DISTINCT so.id) as total
       FROM sales_outbound so
       INNER JOIN sales_outbound_items soi ON so.id = soi.outbound_id
-      LEFT JOIN sales_orders o ON so.order_id = o.id
+      LEFT JOIN sales_orders o ON COALESCE(soi.source_order_id, so.order_id) = o.id AND o.deleted_at IS NULL
       ${whereClause}
   `;
 
@@ -1391,8 +1442,8 @@ exports.getMaterialSalesHistory = async (req, res) => {
     soi.remarks as item_remarks
       FROM sales_outbound so
       INNER JOIN sales_outbound_items soi ON so.id = soi.outbound_id
-      LEFT JOIN sales_orders o ON so.order_id = o.id
-      LEFT JOIN sales_order_items oi ON o.id = oi.order_id AND soi.product_id = oi.material_id
+      LEFT JOIN sales_orders o ON COALESCE(soi.source_order_id, so.order_id) = o.id AND o.deleted_at IS NULL
+      LEFT JOIN sales_order_items oi ON COALESCE(soi.source_order_id, so.order_id) = oi.order_id AND soi.product_id = oi.material_id
       LEFT JOIN customers c ON o.customer_id = c.id
       LEFT JOIN materials m ON soi.product_id = m.id
       LEFT JOIN units u ON soi.unit_id = u.id
@@ -1404,12 +1455,14 @@ exports.getMaterialSalesHistory = async (req, res) => {
     const [dataResult] = await connection.query(dataQuery, queryParams);
 
     // 返回结果
-    return ResponseHandler.success(res, {
-        list: dataResult,
-        total: total,
-        page: actualPage,
-        pageSize: actualPageSize,
-      }, '获取物料销售历史成功');
+    return ResponseHandler.paginated(
+      res,
+      dataResult,
+      total,
+      actualPage,
+      actualPageSize,
+      '获取物料销售历史成功'
+    );
   } catch (error) {
     logger.error('获取物料销售历史失败', error);
     ResponseHandler.error(res, '获取物料销售历史失败', 'SERVER_ERROR', 500, error);

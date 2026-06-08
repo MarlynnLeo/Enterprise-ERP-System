@@ -288,6 +288,7 @@ router.post(
 router.post(
   '/check-stock-sufficiency',
   authenticateToken,
+  requirePermission('inventory:stock:view'),
   inventoryStockController.checkStockSufficiency
 );
 

@@ -328,7 +328,7 @@
     closeToast,
     Icon as VanIcon
   } from 'vant'
-  import { purchaseApi, baseDataApi } from '@/services/api'
+  import { purchaseApi, baseDataApi } from '@/api'
   import { extractApiData, extractApiList } from '@/utils/apiHelper'
 
   const router = useRouter()

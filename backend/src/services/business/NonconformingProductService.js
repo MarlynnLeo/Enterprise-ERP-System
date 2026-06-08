@@ -210,7 +210,7 @@ class NonconformingProductService {
       // 获取物料编码
       let materialCode = inspection.product_code;
       if (inspection.material_id) {
-        const [materialRows] = await client.query('SELECT code FROM materials WHERE id = ?', [
+        const [materialRows] = await client.query('SELECT code FROM materials WHERE id = ? AND deleted_at IS NULL', [
           inspection.material_id,
         ]);
         if (materialRows && materialRows.length > 0) {
@@ -705,7 +705,7 @@ class NonconformingProductService {
       let materialCode = ncp.material_code;
       if (!materialName && ncp.material_id) {
         const [materialRows] = await connection.query(
-          'SELECT code, name FROM materials WHERE id = ?',
+          'SELECT code, name FROM materials WHERE id = ? AND deleted_at IS NULL',
           [ncp.material_id]
         );
         if (materialRows.length > 0) {

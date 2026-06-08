@@ -235,11 +235,8 @@ const costController = {
           params
         );
 
-      ResponseHandler.success(res, {
+      ResponseHandler.paginated(res, rows, countResult[0].total, page, pageSize, undefined, {
         items: rows,
-        total: countResult[0].total,
-        page,
-        pageSize,
       });
     } catch (error) {
       logger.error('获取标准成本列表失败:', error.stack || error.message);
@@ -578,11 +575,8 @@ const costController = {
         'SELECT COUNT(*) as total FROM cost_settings_history'
       );
 
-      ResponseHandler.success(res, {
+      ResponseHandler.paginated(res, rows, countResult[0].total, page, pageSize, undefined, {
         items: rows,
-        total: countResult[0].total,
-        page,
-        pageSize,
       });
     } catch (error) {
       logger.error('获取费率历史失败:', error);
@@ -821,12 +815,7 @@ const costController = {
         params
       );
 
-      ResponseHandler.success(res, {
-        list,
-        total: countResult[0].total,
-        page: pagination.page,
-        pageSize: pagination.pageSize,
-      });
+      ResponseHandler.paginated(res, list, countResult[0].total, pagination.page, pagination.pageSize);
     } catch (error) {
       logger.error('获取实际成本列表失败:', error);
       ResponseHandler.error(res, '获取实际成本列表失败', 'SERVER_ERROR', 500);
@@ -1103,21 +1092,17 @@ const costController = {
           params
         );
 
-        return ResponseHandler.success(res, {
+        return ResponseHandler.paginated(
+          res,
           list,
-          total: countResult[0].total,
-          page: pagination.page,
-          pageSize: pagination.pageSize,
-        });
+          countResult[0].total,
+          pagination.page,
+          pagination.pageSize
+        );
       }
 
       // 已经不再从 actual_costs 即时聚合这部分数据了，强依赖 cost_variance_records 的完整度
-      ResponseHandler.success(res, {
-        list: [],
-        total: 0,
-        page: pagination.page,
-        pageSize: pagination.pageSize,
-      });
+      ResponseHandler.paginated(res, [], 0, pagination.page, pagination.pageSize);
     } catch (error) {
       logger.error('获取成本差异列表失败:', error);
       ResponseHandler.error(res, '获取成本差异列表失败', 'SERVER_ERROR', 500);
@@ -1435,12 +1420,8 @@ const costController = {
             `);
       const totalCount = countResult[0].total;
 
-      ResponseHandler.success(res, {
-        list: alertsList,
-        total: totalCount,
+      ResponseHandler.paginated(res, alertsList, totalCount, pagination.page, pagination.pageSize, undefined, {
         threshold,
-        page: pagination.page,
-        pageSize: pagination.pageSize,
       });
     } catch (error) {
       logger.error('获取成本预警失败:', error.stack || error.message || error);
@@ -1897,12 +1878,7 @@ const costController = {
         params
       );
 
-      ResponseHandler.success(res, {
-        list,
-        total: countResult[0].total,
-        page,
-        pageSize,
-      });
+      ResponseHandler.paginated(res, list, countResult[0].total, page, pageSize);
     } catch (error) {
       logger.error('获取物料标准成本列表失败:', error);
       ResponseHandler.error(res, '获取物料标准成本列表失败', 'SERVER_ERROR', 500);

@@ -61,12 +61,13 @@ class NotificationController {
       );
       const notificationsResult = await db.query(notificationsSql, params);
 
-      ResponseHandler.success(res, {
-        list: notificationsResult.rows,
-        total: countResult.rows[0].total,
-        page: pagination.page,
-        pageSize: pagination.pageSize,
-      });
+      ResponseHandler.paginated(
+        res,
+        notificationsResult.rows,
+        countResult.rows[0].total,
+        pagination.page,
+        pagination.pageSize
+      );
     } catch (error) {
       logger.error('获取通知列表失败:', error);
       ResponseHandler.error(res, '获取通知列表失败');

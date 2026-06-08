@@ -24,7 +24,7 @@
   import { computed } from 'vue'
   import { useRouter } from 'vue-router'
   import UniversalListPage from '@/components/common/UniversalListPage.vue'
-  import { salesApi } from '@/services/api'
+  import { salesApi } from '@/api'
 
   import { SALES_ORDER_STATUS } from '@/constants/dict'
 

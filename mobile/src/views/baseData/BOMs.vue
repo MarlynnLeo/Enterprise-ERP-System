@@ -19,7 +19,7 @@
 <script setup>
   import { computed } from 'vue'
   import UniversalListPage from '@/components/common/UniversalListPage.vue'
-  import { baseDataApi } from '@/services/api'
+  import { baseDataApi } from '@/api'
 
   const pageConfig = computed(() => ({
     title: 'BOM管理',

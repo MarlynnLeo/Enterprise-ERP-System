@@ -312,7 +312,7 @@ class SchedulingService {
       await connection.query(
         `UPDATE production_processes
          SET planned_start_time = ?, planned_end_time = ?
-         WHERE id = ?`,
+         WHERE id = ? AND deleted_at IS NULL`,
         [this._formatDateTime(procStart), this._formatDateTime(procEnd), proc.id]
       );
 
@@ -322,7 +322,7 @@ class SchedulingService {
     // 更新任务的预计结束时间
     const estimatedEnd = this._formatDateTime(cursor);
     await connection.query(
-      'UPDATE production_tasks SET expected_end_date = ? WHERE id = ?',
+      'UPDATE production_tasks SET expected_end_date = ? WHERE id = ? AND deleted_at IS NULL',
       [estimatedEnd.split(' ')[0], taskId]
     );
 
@@ -522,7 +522,7 @@ class SchedulingService {
       await connection.query(
         `UPDATE production_tasks
          SET start_date = ?, expected_end_date = ?
-         WHERE id = ?`,
+         WHERE id = ? AND deleted_at IS NULL`,
         [startStr.split(' ')[0], endStr.split(' ')[0], taskId]
       );
 
@@ -655,7 +655,7 @@ class SchedulingService {
 
       if (timeRange[0]?.earliest_start) {
         await connection.query(
-          `UPDATE production_plans SET start_date = ?, end_date = ? WHERE id = ?`,
+          `UPDATE production_plans SET start_date = ?, end_date = ? WHERE id = ? AND deleted_at IS NULL`,
           [timeRange[0].earliest_start, timeRange[0].latest_end, planId]
         );
         logger.info(`[排程反写] 计划 ${planId} 时间已更新: ${timeRange[0].earliest_start} ~ ${timeRange[0].latest_end}`);

@@ -223,13 +223,10 @@ exports.getDeliveryStats = async (req, res) => {
       stats.total += parseInt(stat.count);
     });
 
-    return ResponseHandler.success(res, {
-        items: results,
-        total: total,
-        page: pagination.page,
-        pageSize: pagination.pageSize,
-        stats: stats,
-      });
+    return ResponseHandler.paginated(res, results, total, pagination.page, pagination.pageSize, undefined, {
+      items: results,
+      stats,
+    });
   } catch (error) {
     logger.error('获取发货统计数据失败:', error);
     ResponseHandler.error(res, '获取发货统计数据失败', 'SERVER_ERROR', 500, error);

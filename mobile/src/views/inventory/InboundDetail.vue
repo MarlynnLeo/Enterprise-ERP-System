@@ -147,7 +147,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { showToast, showConfirmDialog } from 'vant'
-import { inventoryApi } from '@/services/api'
+import { inventoryApi } from '@/api'
 import Icon from '@/components/icons/index.vue'
 import dayjs from 'dayjs'
 

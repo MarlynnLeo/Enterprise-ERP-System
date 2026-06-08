@@ -7,7 +7,7 @@
   import { useRouter } from 'vue-router'
   import { showToast } from 'vant'
   import UniversalListPage from '@/components/common/UniversalListPage.vue'
-  import { qualityApi } from '@/services/api'
+  import { qualityApi } from '@/api'
 
   const router = useRouter()
 

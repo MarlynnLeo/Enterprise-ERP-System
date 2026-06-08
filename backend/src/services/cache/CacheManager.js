@@ -115,6 +115,10 @@ class CacheManager {
     }
   }
 
+  async delete(key) {
+    return this.del(key);
+  }
+
   /**
    * 批量删除缓存（支持通配符）
    * @param {string} pattern - 缓存键模式（如 'user:*'）
@@ -141,6 +145,40 @@ class CacheManager {
     }
   }
 
+  async deleteByPrefix(prefix) {
+    try {
+      if (this.useRedis) {
+        if (!redisCacheService.isConnected || !redisCacheService.client) {
+          return 0;
+        }
+
+        const keys = [];
+        for await (const key of redisCacheService.client.scanIterator({
+          MATCH: `${prefix}*`,
+          COUNT: 100,
+        })) {
+          keys.push(key);
+        }
+
+        if (keys.length > 0) {
+          await redisCacheService.client.del(keys);
+          logger.debug(`Delete Redis cache by prefix: ${prefix} (${keys.length} keys)`);
+        }
+        return keys.length;
+      }
+
+      const keys = this.memoryCache.keys().filter((key) => key.startsWith(prefix));
+      if (keys.length > 0) {
+        this.memoryCache.del(keys);
+        logger.debug(`Delete cache by prefix: ${prefix} (${keys.length} keys)`);
+      }
+      return keys.length;
+    } catch (error) {
+      logger.error(`Delete cache by prefix failed [${prefix}]:`, error);
+      return 0;
+    }
+  }
+
   /**
    * 检查缓存是否存在
    * @param {string} key - 缓存键
@@ -156,6 +194,10 @@ class CacheManager {
       logger.error(`检查缓存存在性失败 [${key}]:`, error);
       return false;
     }
+  }
+
+  async has(key) {
+    return this.exists(key);
   }
 
   /**
@@ -174,6 +216,10 @@ class CacheManager {
       logger.error('清空缓存失败:', error);
       return false;
     }
+  }
+
+  async clear() {
+    return this.flushAll();
   }
 
   /**
@@ -254,4 +300,37 @@ class CacheManager {
 // 导出单例
 const cacheManager = new CacheManager();
 
+const cacheMiddleware = (ttl = 300, keyGenerator = null) => {
+  return async (req, res, next) => {
+    if (req.method !== 'GET') {
+      return next();
+    }
+
+    const cacheKey = keyGenerator
+      ? keyGenerator(req)
+      : `http:${req.originalUrl}:${JSON.stringify(req.query)}`;
+
+    try {
+      const cachedResponse = await cacheManager.get(cacheKey);
+      if (cachedResponse !== null) {
+        return res.json(cachedResponse);
+      }
+
+      const originalJson = res.json.bind(res);
+      res.json = function (data) {
+        cacheManager.set(cacheKey, data, ttl).catch((error) => {
+          logger.error('HTTP response cache write failed:', error);
+        });
+        return originalJson(data);
+      };
+
+      return next();
+    } catch (error) {
+      logger.error('HTTP response cache middleware failed:', error);
+      return next();
+    }
+  };
+};
+
 module.exports = cacheManager;
+module.exports.cacheMiddleware = cacheMiddleware;

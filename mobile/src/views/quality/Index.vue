@@ -22,7 +22,7 @@
   import { ref, computed, onMounted } from 'vue'
   import { useRouter } from 'vue-router'
   import ModuleIndexPage from '@/components/common/ModuleIndexPage.vue'
-  import { qualityApi } from '@/services/api'
+  import { qualityApi } from '@/api'
   import { useAuthStore } from '@/stores/auth'
 
   const router = useRouter()

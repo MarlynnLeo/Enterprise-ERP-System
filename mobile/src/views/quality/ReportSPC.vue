@@ -74,7 +74,7 @@
 <script setup>
   import { ref, onMounted } from 'vue'
   import { NavBar, CellGroup, Cell, Loading, Empty, Search, Tag, Icon, showToast } from 'vant'
-  import { qualityApi } from '@/services/api'
+  import { qualityApi } from '@/api'
   import { extractApiData, extractApiList } from '@/utils/apiHelper'
   import dayjs from 'dayjs'
 

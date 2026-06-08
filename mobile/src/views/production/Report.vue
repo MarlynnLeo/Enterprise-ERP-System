@@ -115,7 +115,7 @@
   import { ref, reactive, onMounted } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
   import { NavBar, Field, CellGroup, Popup, Button as VanButton, Icon, showToast } from 'vant'
-  import { productionApi } from '@/services/api'
+  import { productionApi } from '@/api'
 
   const router = useRouter()
   const route = useRoute()

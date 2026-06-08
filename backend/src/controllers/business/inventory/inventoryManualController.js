@@ -873,7 +873,7 @@ const updateManualTransaction = async (req, res) => {
     const old = oldRecord[0];
 
     // 获取物料信息
-    const [materialInfo] = await connection.execute('SELECT unit_id FROM materials WHERE id = ?', [
+    const [materialInfo] = await connection.execute('SELECT unit_id FROM materials WHERE id = ? AND deleted_at IS NULL', [
       material_id,
     ]);
 

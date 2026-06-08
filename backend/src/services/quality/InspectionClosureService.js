@@ -114,7 +114,7 @@ class InspectionClosureService {
         `UPDATE quality_inspections
          SET qualified_quantity = ?,
              unqualified_quantity = ?
-         WHERE id = ?`,
+         WHERE id = ? AND deleted_at IS NULL`,
         [qualifiedQuantity, unqualifiedQuantity, inspection.id]
       );
     }

@@ -11,7 +11,7 @@ const { logger } = require('../../utils/logger');
 const systemModel = require('../../models/system');
 const { AuditService, AuditAction, AuditModule } = require('../../services/AuditService');
 const { pool } = require('../../config/db');
-const cacheService = require('../../services/cacheService');
+const cacheService = require('../../services/cache/CacheManager');
 const DLQService = require('../../services/business/DLQService');
 const BackupService = require('../../services/system/BackupService');
 const { parsePagination } = require('../../utils/safePagination');
@@ -41,10 +41,35 @@ function normalizeBinaryStatus(status) {
   throw new Error('status must be 0 or 1');
 }
 
+function isSuperAdminRequest(req) {
+  return String(req.user?.id || req.user?.userId || '') === '1';
+}
+
+async function targetUserHasAdminRole(userId) {
+  const [[result]] = await pool.execute(
+    `SELECT COUNT(*) AS count
+     FROM user_roles ur
+     JOIN roles r ON ur.role_id = r.id
+     WHERE ur.user_id = ? AND r.code = 'admin' AND r.status = 1`,
+    [userId]
+  );
+  return Number(result?.count || 0) > 0;
+}
+
+async function assertCanManageTargetUser(req, userId) {
+  if (isSuperAdminRequest(req)) return;
+  if (String(userId) === '1' || await targetUserHasAdminRole(userId)) {
+    throw new Error('FORBIDDEN: managing admin users requires super administrator');
+  }
+}
+
 function sendBusinessError(res, error, fallbackMessage = '操作失败') {
   const message = error?.message || fallbackMessage;
   if (message.startsWith('NOT_FOUND:')) {
     return ResponseHandler.error(res, message.replace('NOT_FOUND:', '').trim(), 'NOT_FOUND', 404);
+  }
+  if (message.startsWith('FORBIDDEN:')) {
+    return ResponseHandler.error(res, message.replace('FORBIDDEN:', '').trim(), 'FORBIDDEN', 403, error);
   }
   if (
     error?.code === 'ER_DUP_ENTRY' ||
@@ -115,7 +140,9 @@ const systemController = {
   async createUser(req, res) {
     try {
       const userData = req.body;
-      const newUser = await systemModel.createUser(userData);
+      const newUser = await systemModel.createUser(userData, {
+        allowAdminRole: isSuperAdminRequest(req),
+      });
 
       const result = omitUserSecrets(newUser);
 
@@ -140,14 +167,18 @@ const systemController = {
       const { id } = req.params;
       const userData = req.body;
 
+      await assertCanManageTargetUser(req, id);
+
       // 安全检查：禁止非超管修改超管信息
       if (String(id) === '1' && String(req.user?.id) !== '1') {
         return ResponseHandler.error(res, '禁止越权修改超级管理员信息', 'FORBIDDEN', 403);
       }
 
 
-      const updatedUser = await systemModel.updateUser(id, userData);
-      PermissionService.clearUserPermissionsCache(id);
+      const updatedUser = await systemModel.updateUser(id, userData, {
+        allowAdminRole: isSuperAdminRequest(req),
+      });
+      await PermissionService.clearUserPermissionsCache(id);
 
       ResponseHandler.success(res, omitUserSecrets(updatedUser), '更新用户成功');
     } catch (error) {
@@ -160,6 +191,8 @@ const systemController = {
     try {
       const { id } = req.params;
       const { status } = req.body;
+
+      await assertCanManageTargetUser(req, id);
 
       // 安全检查：禁止非超管操作超管状态，且超管不可被禁用
       if (String(id) === '1') {
@@ -185,7 +218,7 @@ const systemController = {
       // 清除该用户的权限缓存（统一由 PermissionService 管理）
       try {
         const PermissionService = require('../../services/PermissionService');
-        PermissionService.clearUserPermissionsCache(id);
+        await PermissionService.clearUserPermissionsCache(id);
         logger.info(`✅ 已清除用户 ${id} 的权限缓存`);
       } catch (cacheError) {
         logger.warn('清除缓存失败:', cacheError.message);
@@ -202,6 +235,8 @@ const systemController = {
     try {
       const { id } = req.params;
       const { password } = req.body;
+
+      await assertCanManageTargetUser(req, id);
 
       // 安全检查：禁止非超管重置超管密码
       if (String(id) === '1' && String(req.user?.id) !== '1') {
@@ -412,7 +447,7 @@ const systemController = {
 
       const result = await systemModel.updateRole(id, roleData);
 
-      PermissionService.clearUserPermissionsCache();
+      await PermissionService.clearUserPermissionsCache();
 
       ResponseHandler.success(res, result, '更新角色成功');
     } catch (error) {
@@ -463,7 +498,7 @@ const systemController = {
       // 清除该角色所有用户的权限缓存
       try {
         const PermissionService = require('../../services/PermissionService');
-        PermissionService.clearUserPermissionsCache();
+        await PermissionService.clearUserPermissionsCache();
         logger.info(`✅ 已清除所有用户权限缓存（角色 ${id} 状态变更）`);
       } catch (cacheError) {
         logger.warn('清除缓存失败:', cacheError.message);
@@ -488,7 +523,7 @@ const systemController = {
 
       await systemModel.deleteRole(id);
 
-      PermissionService.clearUserPermissionsCache();
+      await PermissionService.clearUserPermissionsCache();
 
       ResponseHandler.success(res, null, '删除角色成功');
     } catch (error) {
@@ -528,7 +563,7 @@ const systemController = {
     try {
       const menuData = req.body;
       const newMenu = await systemModel.createMenu(menuData);
-      PermissionService.clearUserPermissionsCache();
+      await PermissionService.clearUserPermissionsCache();
 
       ResponseHandler.success(res, newMenu, '创建菜单成功', 201);
     } catch (error) {
@@ -545,7 +580,7 @@ const systemController = {
 
       const result = await systemModel.updateMenu(id, menuData);
       if (result) {
-        PermissionService.clearUserPermissionsCache();
+        await PermissionService.clearUserPermissionsCache();
       }
 
       if (!result) {
@@ -571,7 +606,7 @@ const systemController = {
       const normalizedStatus = normalizeBinaryStatus(status);
       const result = await systemModel.updateMenuStatus(id, normalizedStatus);
       if (result) {
-        PermissionService.clearUserPermissionsCache();
+        await PermissionService.clearUserPermissionsCache();
       }
 
       if (!result) {
@@ -591,7 +626,7 @@ const systemController = {
 
 
       await systemModel.deleteMenu(id);
-      PermissionService.clearUserPermissionsCache();
+      await PermissionService.clearUserPermissionsCache();
 
       ResponseHandler.success(res, null, '删除菜单成功');
     } catch (error) {
@@ -696,7 +731,7 @@ const systemController = {
       // 清除权限缓存（统一由 PermissionService 管理）
       try {
         const PermissionService = require('../../services/PermissionService');
-        PermissionService.clearUserPermissionsCache(); // 清除所有用户权限缓存
+        await PermissionService.clearUserPermissionsCache(); // 清除所有用户权限缓存
         logger.info(`✅ [权限更新] 角色 ${id} (${role.name}) 的权限缓存已清除`);
       } catch (cacheError) {
         logger.error('❌ 清除缓存失败:', cacheError);
@@ -765,7 +800,7 @@ const systemController = {
       const PermissionService = require('../../services/PermissionService');
 
       // 清除并重新加载权限
-      PermissionService.clearUserPermissionsCache(userId);
+      await PermissionService.clearUserPermissionsCache(userId);
       const permissions = await PermissionService.getUserPermissions(userId, true);
 
       return ResponseHandler.success(
@@ -894,7 +929,7 @@ const systemController = {
         }
 
         await connection.commit();
-        PermissionService.clearUserPermissionsCache();
+        await PermissionService.clearUserPermissionsCache();
 
         logger.info(`菜单导入成功: 新增${insertedCount}条, 更新${updatedCount}条`);
         return ResponseHandler.success(
@@ -947,7 +982,7 @@ const systemController = {
       );
 
       // 清除缓存
-      cacheService.deleteByPrefix('setting_');
+      await cacheService.deleteByPrefix('setting_');
 
       // 如果是会计科目配置，清除会计配置缓存
       if (key === 'accounting.account_codes') {

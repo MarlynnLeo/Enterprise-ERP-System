@@ -96,9 +96,6 @@ exports.getPackingLists = async (req, res) => {
     const countSql = `
       SELECT COUNT(*) as total
       FROM packing_lists pl
-      WHERE pl.deleted_at IS NULL
-      LEFT JOIN customers c ON pl.customer_id = c.id
-      LEFT JOIN sales_orders so ON pl.sales_order_id = so.id
       ${whereClause}
       `;
 
@@ -119,15 +116,21 @@ exports.getPackingLists = async (req, res) => {
         SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_count,
         SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) as cancelled_count
       FROM packing_lists pl
+      WHERE pl.deleted_at IS NULL
         `);
 
-    return ResponseHandler.success(res, {
-      data: rows,
-      total: countResult[0].total,
-      page: currentPage,
-      pageSize: currentPageSize,
-      statistics: statsResult[0],
-    });
+    return ResponseHandler.paginated(
+      res,
+      rows,
+      countResult[0].total,
+      currentPage,
+      currentPageSize,
+      undefined,
+      {
+        data: rows,
+        statistics: statsResult[0],
+      }
+    );
   } catch (error) {
     logger.error('获取装箱单列表失败:', error);
     ResponseHandler.error(res, '获取装箱单列表失败', 'SERVER_ERROR', 500, error);
@@ -152,7 +155,7 @@ exports.getPackingList = async (req, res) => {
         so.order_no as sales_order_no
       FROM packing_lists pl
       LEFT JOIN customers c ON pl.customer_id = c.id
-      LEFT JOIN sales_orders so ON pl.sales_order_id = so.id
+      LEFT JOIN sales_orders so ON pl.sales_order_id = so.id AND so.deleted_at IS NULL
       WHERE pl.id = ? AND pl.deleted_at IS NULL
         `,
       [id]
@@ -223,11 +226,14 @@ exports.createPackingList = async (req, res) => {
     let salesOrder = null;
     if (sales_order_id) {
       const [orderRows] = await connection.execute(
-        'SELECT id, order_no FROM sales_orders WHERE id = ?',
+        'SELECT id, order_no FROM sales_orders WHERE id = ? AND deleted_at IS NULL',
         [sales_order_id]
       );
       if (orderRows.length > 0) {
         salesOrder = orderRows[0];
+      } else {
+        await connection.rollback();
+        return ResponseHandler.error(res, 'Sales order not found', 'VALIDATION_ERROR', 400);
       }
     }
 
@@ -355,6 +361,38 @@ exports.updatePackingList = async (req, res) => {
     const { id } = req.params;
     const { customer_id, sales_order_id, packing_date, status, remark, details = [] } = req.body;
 
+    const [packingRows] = await connection.execute(
+      'SELECT id, status FROM packing_lists WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+      [id]
+    );
+
+    if (packingRows.length === 0) {
+      await connection.rollback();
+      return ResponseHandler.notFound(res, 'Packing list not found');
+    }
+
+    if (customer_id) {
+      const [customerRows] = await connection.execute(
+        'SELECT id FROM customers WHERE id = ? AND deleted_at IS NULL',
+        [customer_id]
+      );
+      if (customerRows.length === 0) {
+        await connection.rollback();
+        return ResponseHandler.error(res, 'Customer not found', 'VALIDATION_ERROR', 400);
+      }
+    }
+
+    if (sales_order_id) {
+      const [orderRows] = await connection.execute(
+        'SELECT id FROM sales_orders WHERE id = ? AND deleted_at IS NULL',
+        [sales_order_id]
+      );
+      if (orderRows.length === 0) {
+        await connection.rollback();
+        return ResponseHandler.error(res, 'Sales order not found', 'VALIDATION_ERROR', 400);
+      }
+    }
+
     // 计算总箱数
     const total_boxes = details.reduce((sum, detail) => sum + (parseInt(detail.quantity) || 0), 0);
 
@@ -369,13 +407,13 @@ exports.updatePackingList = async (req, res) => {
         total_boxes = ?,
         remark = ?,
         updated_by = ?
-          WHERE id = ?
+          WHERE id = ? AND deleted_at IS NULL
             `,
       [
         customer_id,
         sales_order_id || null,
         packing_date,
-        status || 'draft',
+        status || packingRows[0].status,
         total_boxes,
         remark || '',
         req.user?.username || 'system',
@@ -727,7 +765,7 @@ async function generateProductionAndPurchasePlans(
     let contractCode = ''; // 合同编码
     try {
       const [orderRows] = await connection.execute(
-        'SELECT order_no, contract_code FROM sales_orders WHERE id = ?',
+        'SELECT order_no, contract_code FROM sales_orders WHERE id = ? AND deleted_at IS NULL',
         [salesOrderId]
       );
       if (orderRows && orderRows.length > 0) {

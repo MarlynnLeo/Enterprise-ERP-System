@@ -233,7 +233,7 @@ const materialService = {
   async updateMaterial(id, data) {
     try {
       // 检查物料是否存在
-      const [existing] = await pool.query('SELECT id, product_category_id, code, name, category_id, material_source_id, inspection_method_id, supplier_id, production_group_id, manager_id, location_detail, safety_stock, unit_id, location_id, specs, drawing_no, color_code, material_type, price, cost_price, min_stock, max_stock, status, remark, created_at, updated_at, location_name, tax_rate, deleted_at FROM materials WHERE id = ?', [id]);
+      const [existing] = await pool.query('SELECT id, product_category_id, code, name, category_id, material_source_id, inspection_method_id, supplier_id, production_group_id, manager_id, location_detail, safety_stock, unit_id, location_id, specs, drawing_no, color_code, material_type, price, cost_price, min_stock, max_stock, status, remark, created_at, updated_at, location_name, tax_rate, deleted_at FROM materials WHERE id = ? AND deleted_at IS NULL', [id]);
       if (!existing || existing.length === 0) {
         throw new Error('物料不存在');
       }
@@ -253,7 +253,7 @@ const materialService = {
       const values = Object.values(materialData);
       assertSafeColumns(keys);
 
-      const sql = `UPDATE materials SET ${keys.map((key) => `${key} = ?`).join(', ')} WHERE id = ?`;
+      const sql = `UPDATE materials SET ${keys.map((key) => `${key} = ?`).join(', ')} WHERE id = ? AND deleted_at IS NULL`;
       await pool.execute(sql, [...values, id]);
 
       return { id, ...materialData };
@@ -355,7 +355,7 @@ const materialService = {
           }
 
           // 检查是否存在
-          const [existing] = await connection.query('SELECT id FROM materials WHERE code = ?', [
+          const [existing] = await connection.query('SELECT id FROM materials WHERE code = ? AND deleted_at IS NULL', [
             material.code,
           ]);
 
@@ -367,7 +367,7 @@ const materialService = {
             const values = Object.values(updateData);
 
             await connection.query(
-              `UPDATE materials SET ${keys.map((k) => `${k} = ?`).join(', ')} WHERE id = ?`,
+              `UPDATE materials SET ${keys.map((k) => `${k} = ?`).join(', ')} WHERE id = ? AND deleted_at IS NULL`,
               [...values, existing[0].id]
             );
 
@@ -514,7 +514,7 @@ const materialService = {
 
   async updateStatus(id, status) {
     try {
-      const [result] = await pool.execute('UPDATE materials SET status = ? WHERE id = ?', [
+      const [result] = await pool.execute('UPDATE materials SET status = ? WHERE id = ? AND deleted_at IS NULL', [
         status,
         id,
       ]);

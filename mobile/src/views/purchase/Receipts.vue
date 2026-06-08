@@ -159,7 +159,7 @@
     showToast,
     showConfirmDialog
   } from 'vant'
-  import { purchaseApi } from '@/services/api'
+  import { purchaseApi } from '@/api'
   import dayjs from 'dayjs'
 
   const formatDate = (d) => (d ? dayjs(d).format('YYYY-MM-DD') : '—')

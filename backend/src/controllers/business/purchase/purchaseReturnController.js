@@ -14,6 +14,7 @@ const pool = db.pool; // 正确引用连接池
 const purchaseModel = require('../../../models/purchase');
 const DLQService = require('../../../services/business/DLQService');
 const { lineAmount, sumMoney } = require('../../../utils/money');
+const { softDelete } = require('../../../utils/softDelete');
 
 
 // 状态常量
@@ -77,6 +78,7 @@ const validateReturnItemsAgainstReceipt = async (connection, items = [], current
        FROM purchase_return_items pri
        JOIN purchase_returns pr ON pr.id = pri.return_id
        WHERE pri.receipt_item_id = ?
+         AND pr.deleted_at IS NULL
          AND pr.status != 'cancelled'
          ${excludeClause}`,
       params
@@ -122,15 +124,15 @@ const getReturns = async (req, res) => {
         l.name as warehouse_name,
         (SELECT u.real_name FROM users u WHERE u.username = r.operator OR u.real_name = r.operator LIMIT 1) as real_name
       FROM purchase_returns r
-      LEFT JOIN suppliers s ON r.supplier_id = s.id
+      LEFT JOIN suppliers s ON r.supplier_id = s.id AND s.deleted_at IS NULL
       LEFT JOIN locations l ON r.warehouse_id = l.id
-      WHERE 1=1
+      WHERE r.deleted_at IS NULL
     `;
 
     let countQuery = `
       SELECT COUNT(*) as total_count
       FROM purchase_returns r
-      WHERE 1=1
+      WHERE r.deleted_at IS NULL
     `;
 
     const queryParams = [];
@@ -230,9 +232,9 @@ const getReturn = async (req, res) => {
         l.name as warehouse_name,
         (SELECT u.real_name FROM users u WHERE u.username = r.operator OR u.real_name = r.operator LIMIT 1) as real_name
       FROM purchase_returns r
-      LEFT JOIN suppliers s ON r.supplier_id = s.id
+      LEFT JOIN suppliers s ON r.supplier_id = s.id AND s.deleted_at IS NULL
       LEFT JOIN locations l ON r.warehouse_id = l.id
-      WHERE r.id = ?
+      WHERE r.id = ? AND r.deleted_at IS NULL
     `;
     const [result] = await pool.query(query, [id]);
 
@@ -412,7 +414,7 @@ const updateReturn = async (req, res) => {
     } = req.body;
 
     // 检查退货单是否存在及其状态
-    const checkQuery = 'SELECT status FROM purchase_returns WHERE id = ? FOR UPDATE';
+    const checkQuery = 'SELECT status FROM purchase_returns WHERE id = ? AND deleted_at IS NULL FOR UPDATE';
     const [checkResult] = await connection.query(checkQuery, [id]);
 
     if (checkResult.length === 0) {
@@ -437,7 +439,7 @@ const updateReturn = async (req, res) => {
       UPDATE purchase_returns
       SET return_date = ?, reason = ?, remarks = ?,
           total_amount = ?, operator = ?, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
+      WHERE id = ? AND deleted_at IS NULL
     `;
     await connection.query(updateQuery, [
       returnDate,
@@ -506,7 +508,7 @@ const deleteReturn = async (req, res) => {
 
     const { id } = req.params;
     const [rows] = await connection.query(
-      'SELECT status FROM purchase_returns WHERE id = ? FOR UPDATE',
+      'SELECT status FROM purchase_returns WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
       [id]
     );
 
@@ -521,7 +523,7 @@ const deleteReturn = async (req, res) => {
     }
 
     await connection.query('DELETE FROM purchase_return_items WHERE return_id = ?', [id]);
-    await connection.query('DELETE FROM purchase_returns WHERE id = ?', [id]);
+    await softDelete(connection, 'purchase_returns', 'id', id);
 
     await connection.commit();
     return ResponseHandler.success(res, null, '删除成功');
@@ -552,7 +554,7 @@ const updateReturnStatus = async (req, res) => {
     }
 
     // 检查退货单是否存在
-    const checkQuery = 'SELECT status, warehouse_id FROM purchase_returns WHERE id = ? FOR UPDATE';
+    const checkQuery = 'SELECT status, warehouse_id FROM purchase_returns WHERE id = ? AND deleted_at IS NULL FOR UPDATE';
     const [checkResult] = await connection.query(checkQuery, [id]);
 
     if (checkResult.length === 0) {
@@ -586,7 +588,7 @@ const updateReturnStatus = async (req, res) => {
     if (newStatus === STATUS.PURCHASE_RETURN.COMPLETED) {
       // 获取退货单基本信息,包括关联的入库单ID
       const returnQuery =
-        'SELECT return_no, warehouse_id, receipt_id, source_type FROM purchase_returns WHERE id = ?';
+        'SELECT return_no, warehouse_id, receipt_id, source_type FROM purchase_returns WHERE id = ? AND deleted_at IS NULL';
       const [returnResult] = await connection.query(returnQuery, [id]);
 
       if (returnResult.length === 0) {
@@ -658,7 +660,7 @@ const updateReturnStatus = async (req, res) => {
 
 
           // 获取物料的单位ID
-          const unitQuery = 'SELECT unit_id FROM materials WHERE id = ?';
+          const unitQuery = 'SELECT unit_id FROM materials WHERE id = ? AND deleted_at IS NULL';
           const [unitResult] = await connection.query(unitQuery, [item.material_id]);
           const unitId = unitResult.length > 0 ? unitResult[0].unit_id : null;
 
@@ -795,7 +797,7 @@ const updateReturnStatus = async (req, res) => {
     const updateQuery = `
       UPDATE purchase_returns
       SET status = ?, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
+      WHERE id = ? AND deleted_at IS NULL
     `;
     await connection.query(updateQuery, [newStatus, id]);
 
@@ -888,9 +890,9 @@ const getReturnById = async (id) => {
       l.name as warehouse_name,
       (SELECT u.real_name FROM users u WHERE u.username = r.operator OR u.real_name = r.operator LIMIT 1) as real_name
     FROM purchase_returns r
-    LEFT JOIN suppliers s ON r.supplier_id = s.id
+    LEFT JOIN suppliers s ON r.supplier_id = s.id AND s.deleted_at IS NULL
     LEFT JOIN locations l ON r.warehouse_id = l.id
-    WHERE r.id = ?
+    WHERE r.id = ? AND r.deleted_at IS NULL
   `;
   const [result] = await pool.query(query, [id]);
 
@@ -924,6 +926,7 @@ const getReturnStats = async (req, res) => {
         COUNT(CASE WHEN status = '${STATUS.PURCHASE_RETURN.CANCELLED}' THEN 1 ELSE NULL END) as cancelled_count,
         IFNULL(SUM(total_amount), 0) as total_amount
       FROM purchase_returns
+      WHERE deleted_at IS NULL
     `;
 
     const [statsResult] = await pool.query(statsQuery);
@@ -934,6 +937,7 @@ const getReturnStats = async (req, res) => {
       FROM purchase_returns
       WHERE return_date >= DATE_FORMAT(CURRENT_DATE, '%Y-%m-01')
         AND return_date < DATE_FORMAT(DATE_ADD(CURRENT_DATE, INTERVAL 1 MONTH), '%Y-%m-01')
+        AND deleted_at IS NULL
     `;
 
     const lastMonthQuery = `
@@ -941,6 +945,7 @@ const getReturnStats = async (req, res) => {
       FROM purchase_returns
       WHERE return_date >= DATE_FORMAT(DATE_SUB(CURRENT_DATE, INTERVAL 1 MONTH), '%Y-%m-01')
         AND return_date < DATE_FORMAT(CURRENT_DATE, '%Y-%m-01')
+        AND deleted_at IS NULL
     `;
 
     const [currentMonthResult] = await pool.query(currentMonthQuery);

@@ -290,6 +290,20 @@ const userForm = reactive({
   status: 1
 });
 
+const passwordRuleText = '密码至少8位，需包含大写字母、小写字母、数字和特殊字符，且不能包含连续重复字符';
+const validatePasswordStrength = (value) => {
+  const password = String(value || '');
+  if (!password) return '密码不能为空';
+  if (password.length < 8) return '密码长度不能小于8位';
+  if (password.length > 128) return '密码长度不能超过128位';
+  if (!/[A-Z]/.test(password)) return '密码必须包含至少一个大写字母';
+  if (!/[a-z]/.test(password)) return '密码必须包含至少一个小写字母';
+  if (!/\d/.test(password)) return '密码必须包含至少一个数字';
+  if (!/[!@#$%^&*()_+\-=[\]{}|;:,.<>?]/.test(password)) return '密码必须包含至少一个特殊字符';
+  if (/(.)\1{2,}/.test(password)) return '密码不能包含连续重复字符';
+  return true;
+};
+
 // 表单验证规则
 const userRules = {
   username: [
@@ -301,7 +315,14 @@ const userRules = {
   ],
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' },
-    { min: 6, max: 20, message: '长度在6到20个字符', trigger: 'blur' }
+    {
+      validator: (_rule, value, callback) => {
+        const result = validatePasswordStrength(value);
+        if (result === true) callback();
+        else callback(new Error(result));
+      },
+      trigger: 'blur'
+    }
   ],
   email: [
     { required: true, message: '请输入邮箱', trigger: 'blur' },
@@ -567,14 +588,9 @@ const handleResetPassword = (row) => {
       confirmButtonText: '确认',
       cancelButtonText: '取消',
       inputType: 'password',
+      inputPlaceholder: passwordRuleText,
       inputValidator: (value) => {
-        if (!value) {
-          return '密码不能为空'
-        }
-        if (value.length < 6) {
-          return '密码长度不能小于6位'
-        }
-        return true
+        return validatePasswordStrength(value)
       }
     }
   ).then(async ({ value }) => {

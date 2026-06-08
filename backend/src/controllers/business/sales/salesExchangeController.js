@@ -50,7 +50,7 @@ exports.getSalesExchanges = async (req, res) => {
     const countQuery = `
       SELECT COUNT(*) as total
       FROM sales_exchanges se
-      WHERE 1 = 1 ${whereClause}
+      WHERE se.deleted_at IS NULL ${whereClause}
       `;
 
     const connection = await db.pool.getConnection();
@@ -64,7 +64,7 @@ exports.getSalesExchanges = async (req, res) => {
         SELECT se.*,
                se.return_amount, se.new_amount, se.difference_amount
         FROM sales_exchanges se
-        WHERE 1 = 1 ${whereClause}
+        WHERE se.deleted_at IS NULL ${whereClause}
         ORDER BY se.created_at DESC
       `,
         pagination.limit,
@@ -77,6 +77,7 @@ exports.getSalesExchanges = async (req, res) => {
       const statusQuery = `
         SELECT status, COUNT(*) as count
         FROM sales_exchanges
+        WHERE deleted_at IS NULL
         GROUP BY status
         `;
 
@@ -129,7 +130,7 @@ exports.getSalesExchangeById = async (req, res) => {
       const query = `
         SELECT se.*
         FROM sales_exchanges se
-        WHERE se.id = ?
+        WHERE se.id = ? AND se.deleted_at IS NULL
         `;
 
       const [exchangeResults] = await connection.query(query, [id]);
@@ -301,7 +302,7 @@ exports.createSalesExchange = async (req, res) => {
            FROM sales_order_items soi
            JOIN materials m ON soi.material_id = m.id
            JOIN sales_orders so ON soi.order_id = so.id
-           WHERE so.order_no = ?`, [orderNo]
+           WHERE so.order_no = ? AND so.deleted_at IS NULL`, [orderNo]
         );
         orderItems.forEach(oi => { orderPriceMap[oi.code] = parseFloat(oi.unit_price) || 0; });
       } catch (e) { logger.warn('获取订单价格失败:', e.message); }
@@ -457,9 +458,15 @@ exports.updateSalesExchange = async (req, res) => {
 
     // 获取当前换货单状态（在更新之前）
     const [currentExchange] = await connection.query(
-      'SELECT status FROM sales_exchanges WHERE id = ? FOR UPDATE',
+      'SELECT status FROM sales_exchanges WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
       [id]
     );
+
+    if (currentExchange.length === 0) {
+      await connection.rollback();
+      return ResponseHandler.notFound(res, 'Exchange order not found');
+    }
+
     const currentStatus = currentExchange[0]?.status;
 
     // 更新主表
@@ -473,7 +480,7 @@ exports.updateSalesExchange = async (req, res) => {
         status = ?,
         remarks = ?,
         updated_at = NOW()
-      WHERE id = ?
+      WHERE id = ? AND deleted_at IS NULL
         `;
 
     // 格式化日期为MySQL DATE格式 (YYYY-MM-DD)
@@ -485,7 +492,7 @@ exports.updateSalesExchange = async (req, res) => {
       contactPhone,
       formattedDate,
       reason,
-      status || '待处理',
+      status || currentStatus,
       remark,
       id,
     ]);
@@ -508,7 +515,8 @@ exports.updateSalesExchange = async (req, res) => {
           const [ois] = await connection.query(
             `SELECT m.code, soi.unit_price FROM sales_order_items soi
              JOIN materials m ON soi.material_id = m.id
-             JOIN sales_orders so ON soi.order_id = so.id WHERE so.order_no = ?`, [orderNo]
+             JOIN sales_orders so ON soi.order_id = so.id
+             WHERE so.order_no = ? AND so.deleted_at IS NULL`, [orderNo]
           );
           ois.forEach(oi => { orderPriceMap[oi.code] = parseFloat(oi.unit_price) || 0; });
         }
@@ -580,7 +588,7 @@ exports.updateSalesExchange = async (req, res) => {
     const newAmt = parseFloat(newSum[0].s);
     const diffAmt = Math.round((newAmt - returnAmt) * 100) / 100;
     await connection.query(
-      'UPDATE sales_exchanges SET return_amount = ?, new_amount = ?, difference_amount = ? WHERE id = ?',
+      'UPDATE sales_exchanges SET return_amount = ?, new_amount = ?, difference_amount = ? WHERE id = ? AND deleted_at IS NULL',
       [returnAmt, newAmt, diffAmt, id]
     );
     logger.info(`💰 换货单更新金额: 退回=${returnAmt}, 换出=${newAmt}, 差价=${diffAmt}`);
@@ -599,7 +607,7 @@ exports.updateSalesExchange = async (req, res) => {
       await processExchangeInventory(connection, id, req.user?.username || 'system');
 
       // 获取换货单信息用于生成差价分录
-      const [exchangeInfo] = await connection.query('SELECT id, exchange_no, order_id, order_no, customer_id, customer_name, contact_phone, exchange_date, exchange_reason, status, remarks, created_by, created_at, updated_at, return_amount, new_amount, difference_amount, deleted_at FROM sales_exchanges WHERE id = ?', [
+      const [exchangeInfo] = await connection.query('SELECT id, exchange_no, order_id, order_no, customer_id, customer_name, contact_phone, exchange_date, exchange_reason, status, remarks, created_by, created_at, updated_at, return_amount, new_amount, difference_amount, deleted_at FROM sales_exchanges WHERE id = ? AND deleted_at IS NULL', [
         id,
       ]);
 
@@ -661,7 +669,7 @@ exports.deleteSalesExchange = async (req, res) => {
     await connection.beginTransaction();
 
     const [existing] = await connection.query(
-      'SELECT id, status FROM sales_exchanges WHERE id = ? FOR UPDATE',
+      'SELECT id, status FROM sales_exchanges WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
       [id]
     );
     if (existing.length === 0) {
@@ -722,7 +730,7 @@ exports.updateExchangeStatus = async (req, res) => {
 
     // 查询当前状态
     const [currentResult] = await connection.query(
-      'SELECT id, status, exchange_no FROM sales_exchanges WHERE id = ? FOR UPDATE',
+      'SELECT id, status, exchange_no FROM sales_exchanges WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
       [id]
     );
 
@@ -750,7 +758,7 @@ exports.updateExchangeStatus = async (req, res) => {
 
     // 更新状态
     await connection.query(
-      'UPDATE sales_exchanges SET status = ?, updated_at = NOW() WHERE id = ?',
+      'UPDATE sales_exchanges SET status = ?, updated_at = NOW() WHERE id = ? AND deleted_at IS NULL',
       [status, id]
     );
 
@@ -764,7 +772,7 @@ exports.updateExchangeStatus = async (req, res) => {
       logger.info(`✅ 换货单 ${currentExchange.exchange_no} 完成，库存已处理`);
 
       // 获取换货单信息用于 commit 后异步生成差价分录
-      const [exchangeInfo] = await connection.query('SELECT id, exchange_no, order_id, order_no, customer_id, customer_name, contact_phone, exchange_date, exchange_reason, status, remarks, created_by, created_at, updated_at, return_amount, new_amount, difference_amount, deleted_at FROM sales_exchanges WHERE id = ?', [id]);
+      const [exchangeInfo] = await connection.query('SELECT id, exchange_no, order_id, order_no, customer_id, customer_name, contact_phone, exchange_date, exchange_reason, status, remarks, created_by, created_at, updated_at, return_amount, new_amount, difference_amount, deleted_at FROM sales_exchanges WHERE id = ? AND deleted_at IS NULL', [id]);
       if (exchangeInfo.length > 0) {
         pendingExchangeForFinance = exchangeInfo[0];
       }
@@ -814,7 +822,7 @@ async function processExchangeInventory(connection, exchangeId, operator) {
   try {
     // 获取换货单信息
     const [exchangeInfo] = await connection.query(
-      'SELECT exchange_no FROM sales_exchanges WHERE id = ?',
+      'SELECT exchange_no FROM sales_exchanges WHERE id = ? AND deleted_at IS NULL',
       [exchangeId]
     );
 
@@ -992,10 +1000,14 @@ async function autoGenerateFollowUpDocuments(salesOrderId, items, userInfo) {
       try {
         await connection.beginTransaction();
         const [orderRows] = await connection.execute(
-          'SELECT order_no, created_by FROM sales_orders WHERE id = ? FOR UPDATE',
+          'SELECT order_no, created_by FROM sales_orders WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
           [salesOrderId]
         );
-        const order = orderRows[0] || {};
+        if (orderRows.length === 0) {
+          await connection.rollback();
+          return 'shortage';
+        }
+        const order = orderRows[0];
         const reservationResult = await InventoryReservationService.reserveInventoryForOrder(
           salesOrderId,
           order.order_no || String(salesOrderId),

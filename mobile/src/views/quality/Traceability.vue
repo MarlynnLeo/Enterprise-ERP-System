@@ -102,7 +102,7 @@
   import { useRouter } from 'vue-router'
   import SvgIcon from '@/components/icons/index.vue'
   import { NavBar, Icon as VanIcon, Search, PullRefresh, Empty, Loading, showToast } from 'vant'
-  import { qualityApi } from '@/services/api'
+  import { qualityApi } from '@/api'
 
   const router = useRouter()
 

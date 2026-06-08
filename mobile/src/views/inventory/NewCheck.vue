@@ -123,7 +123,7 @@
     Picker,
     showToast
   } from 'vant'
-  import { inventoryApi } from '@/services/api'
+  import { inventoryApi } from '@/api'
 
   // 获取当前日期 YYYY-MM-DD
   const getCurrentDate = () => new Date().toISOString().slice(0, 10)

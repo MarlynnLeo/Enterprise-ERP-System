@@ -22,7 +22,7 @@
   import { ref, computed, onMounted } from 'vue'
   import { useRouter } from 'vue-router'
   import ModuleIndexPage from '@/components/common/ModuleIndexPage.vue'
-  import { productionApi } from '@/services/api'
+  import { productionApi } from '@/api'
 
   const router = useRouter()
 

@@ -178,7 +178,7 @@
   import { useRoute } from 'vue-router'
   import { NavBar, Loading, Empty, Button } from 'vant'
   import SvgIcon from '@/components/icons/index.vue'
-  import { qualityApi } from '@/services/api'
+  import { qualityApi } from '@/api'
 
   const route = useRoute()
 

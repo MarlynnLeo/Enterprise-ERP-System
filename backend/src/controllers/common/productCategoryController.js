@@ -40,13 +40,14 @@ const productCategoryController = {
         : await productCategoryModel.getAllProductCategories(filters, pagination.page, pagination.pageSize);
 
       // 返回统一的分页格式
-      return ResponseHandler.success(res, {
-          list: result.data,
-          total: result.total,
-          page: pagination.page,
-          pageSize: pagination.pageSize,
-          totalPages: Math.ceil(result.total / pagination.pageSize),
-        }, '获取产品大类列表成功');
+      return ResponseHandler.paginated(
+        res,
+        result.data,
+        result.total,
+        pagination.page,
+        pagination.pageSize,
+        '获取产品大类列表成功'
+      );
     } catch (error) {
       logger.error('获取产品大类列表失败:', error);
       ResponseHandler.error(res, '获取产品大类列表失败', 'SERVER_ERROR', 500, error);

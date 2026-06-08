@@ -196,7 +196,7 @@ import {
   NavBar, Search, Button, Tag, Icon, PullRefresh, List, Empty,
   showToast, showConfirmDialog
 } from 'vant';
-import { baseDataApi, salesApi, inventoryApi, productionApi } from '@/services/api';
+import { baseDataApi, salesApi, inventoryApi, productionApi } from '@/api';
 
 const router = useRouter();
 

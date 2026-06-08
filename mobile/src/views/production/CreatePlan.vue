@@ -209,7 +209,7 @@
     showLoadingToast,
     closeToast
   } from 'vant'
-  import { productionApi, baseDataApi } from '@/services/api'
+  import { productionApi, baseDataApi } from '@/api'
   import { extractApiData, extractApiList } from '@/utils/apiHelper'
 
   const router = useRouter()

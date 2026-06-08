@@ -88,12 +88,7 @@ const budgetController = {
 
       const total = await budgetModel.getBudgetsCount(filters);
 
-      return ResponseHandler.success(res, {
-        list: budgets,
-        total: total,
-        page: safePage,
-        pageSize: safePageSize,
-      });
+      return ResponseHandler.paginated(res, budgets, total, safePage, safePageSize);
     } catch (error) {
       logger.error('获取预算列表失败:', error);
       return ResponseHandler.error(res, '获取预算列表失败', 'SERVER_ERROR', 500, error);

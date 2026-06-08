@@ -100,7 +100,7 @@
     Button as VanButton,
     showToast
   } from 'vant'
-  import { productionApi } from '@/services/api'
+  import { productionApi } from '@/api'
 
   const router = useRouter()
   const submitting = ref(false)

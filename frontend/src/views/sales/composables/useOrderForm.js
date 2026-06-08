@@ -29,6 +29,24 @@ const normalizeTaxRate = (rate, fallback = 0) => {
   return number > 1 ? number / 100 : number
 }
 
+const BATCH_MATERIAL_QUERY_LIMIT = 100
+const chunkArray = (items, size) => {
+  const chunks = []
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size))
+  }
+  return chunks
+}
+
+async function getMaterialsByCodesInChunks(codes) {
+  const materials = []
+  for (const chunk of chunkArray(codes, BATCH_MATERIAL_QUERY_LIMIT)) {
+    const response = await baseDataApi.getMaterialsByCodes(chunk)
+    materials.push(...parseListData(response, { enableLog: false }))
+  }
+  return materials
+}
+
 export function useOrderForm(fetchDataCallback, updateParamsCallback) {
   // 财务 store
   const financeStore = useFinanceStore()
@@ -592,9 +610,9 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
         const missingMaterialCodes = [...new Set(form.items.filter(item => !item.material_id && item.code).map(item => item.code))]
         if (missingMaterialCodes.length > 0) {
           try {
-            const res = await baseDataApi.getMaterialsByCodes(missingMaterialCodes)
+            const materials = await getMaterialsByCodesInChunks(missingMaterialCodes)
             const materialsByCode = new Map(
-              parseListData(res, { enableLog: false })
+              materials
                 .filter(material => material.code)
                 .map(material => [String(material.code).toLowerCase(), material])
             )

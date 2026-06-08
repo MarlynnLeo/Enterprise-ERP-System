@@ -6,7 +6,7 @@
  */
 
 const { getConnection } = require('../config/db');
-const cacheService = require('./cacheService');
+const cacheService = require('./cache/CacheManager');
 const DatabaseMonitorService = require('./DatabaseMonitorService');
 const os = require('os');
 

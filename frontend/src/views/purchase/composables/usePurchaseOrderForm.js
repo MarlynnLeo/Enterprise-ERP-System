@@ -53,6 +53,33 @@ function normalizePriceMap(response) {
   return payload && typeof payload === 'object' ? payload : {}
 }
 
+const BATCH_MATERIAL_QUERY_LIMIT = 100
+const chunkArray = (items, size) => {
+  const chunks = []
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size))
+  }
+  return chunks
+}
+
+async function getMaterialsByIdsInChunks(ids) {
+  const materials = []
+  for (const chunk of chunkArray(ids, BATCH_MATERIAL_QUERY_LIMIT)) {
+    const response = await baseDataApi.getMaterialsByIds(chunk)
+    materials.push(...parseListData(response, { enableLog: false }))
+  }
+  return materials
+}
+
+async function getLatestPricesInChunks(materialIds, supplierId) {
+  const priceMap = {}
+  for (const chunk of chunkArray(materialIds, BATCH_MATERIAL_QUERY_LIMIT)) {
+    const response = await purchaseApi.getLatestPrices({ material_ids: chunk, supplier_id: supplierId || '' })
+    Object.assign(priceMap, normalizePriceMap(response))
+  }
+  return priceMap
+}
+
 const isBlankAmount = (value) => value === null || value === undefined || value === ''
 const toNumberOrNull = (value) => {
   if (isBlankAmount(value)) return null
@@ -215,8 +242,7 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
     if (materialIds.length > 0) {
       let updatedCount = 0
       try {
-        const res = await purchaseApi.getLatestPrices({ material_ids: materialIds, supplier_id: supplierId })
-        const priceMap = normalizePriceMap(res)
+        const priceMap = await getLatestPricesInChunks(materialIds, supplierId)
         orderForm.items.forEach(item => {
           const priceInfo = priceMap[String(item.material_id)]
           if (canRefreshForSupplier(priceInfo)) {
@@ -521,14 +547,14 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
         const detailMap = {}
         let priceMap = {}
         try {
-          const [materialsRes, pricesRes] = await Promise.all([
-            baseDataApi.getMaterialsByIds(selectedMaterialIds),
-            purchaseApi.getLatestPrices({ material_ids: selectedMaterialIds, supplier_id: orderForm.supplier_id || '' })
+          const [materials, prices] = await Promise.all([
+            getMaterialsByIdsInChunks(selectedMaterialIds),
+            getLatestPricesInChunks(selectedMaterialIds, orderForm.supplier_id)
           ])
-          parseListData(materialsRes, { enableLog: false }).forEach(material => {
+          materials.forEach(material => {
             detailMap[String(material.id)] = material
           })
-          priceMap = normalizePriceMap(pricesRes)
+          priceMap = prices
         } catch (error) {
           console.warn('批量同步物料详情或价格失败，将使用请购单数据降级处理:', error)
         }

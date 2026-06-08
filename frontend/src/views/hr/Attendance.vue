@@ -9,15 +9,15 @@
               v-model="period" type="month" value-format="YYYY-MM"
               @change="fetchAttendance" style="width:140px; margin-right:10px"
               :clearable="false" />
-            <el-button @click="rulesDialogVisible = true">
+            <el-button v-permission="'hr:attendance:update'" @click="rulesDialogVisible = true">
               <el-icon><Setting /></el-icon> 规则设置
             </el-button>
             <el-upload
               :auto-upload="false" :show-file-list="false" accept=".xlsx,.xls"
               :on-change="handleFileSelected">
-              <el-button type="warning"><el-icon><Upload /></el-icon> 导入Excel</el-button>
+              <el-button type="warning" v-permission="'hr:attendance:update'"><el-icon><Upload /></el-icon> 导入Excel</el-button>
             </el-upload>
-            <el-button type="success" :loading="syncing" @click="handleSyncDingtalk" style="margin-left:10px">
+            <el-button type="success" :loading="syncing" v-permission="'hr:attendance:update'" @click="handleSyncDingtalk" style="margin-left:10px">
               <el-icon><Refresh /></el-icon> 钉钉拉取
             </el-button>
           </div>
@@ -102,7 +102,7 @@
       </div>
       <template #footer>
         <el-button @click="rulesDialogVisible = false">关闭</el-button>
-        <el-button type="primary" :loading="rulesSaving" @click="saveAllRules">保存所有规则</el-button>
+        <el-button type="primary" :loading="rulesSaving" v-permission="'hr:attendance:update'" @click="saveAllRules">保存所有规则</el-button>
       </template>
     </el-dialog>
   </div>

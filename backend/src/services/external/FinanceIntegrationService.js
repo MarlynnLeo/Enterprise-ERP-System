@@ -569,7 +569,7 @@ class FinanceIntegrationService {
           connection
         );
         await connection.execute(
-          "UPDATE purchase_receipts SET invoice_status = 'invoiced', updated_at = NOW() WHERE id = ?",
+          "UPDATE purchase_receipts SET invoice_status = 'invoiced', updated_at = NOW() WHERE id = ? AND deleted_at IS NULL",
           [purchaseReceipt.id]
         );
         await connection.commit();
@@ -663,7 +663,7 @@ class FinanceIntegrationService {
         connection
       );
       await connection.execute(
-        "UPDATE purchase_receipts SET invoice_status = 'invoiced', updated_at = NOW() WHERE id = ?",
+        "UPDATE purchase_receipts SET invoice_status = 'invoiced', updated_at = NOW() WHERE id = ? AND deleted_at IS NULL",
         [purchaseReceipt.id]
       );
       await connection.commit();

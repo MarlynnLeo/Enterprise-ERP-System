@@ -15,8 +15,8 @@
           <p class="subtitle">管理手工出入库单据</p>
         </div>
         <div>
-          <el-button type="primary" :icon="Plus" @click="handleCreate">新建出入库单</el-button>
-          <el-button type="warning" :icon="Refresh" @click="handleExchange">调货</el-button>
+          <el-button type="primary" :icon="Plus" v-permission="'inventory:manual:create'" @click="handleCreate">新建出入库单</el-button>
+          <el-button type="warning" :icon="Refresh" v-permission="'inventory:manual:create'" @click="handleExchange">调货</el-button>
         </div>
       </div>
     </el-card>
@@ -139,17 +139,19 @@
         <el-table-column prop="remark" label="备注" min-width="120" show-overflow-tooltip />
         <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
-            <el-button size="small" @click="handleView(row)">查看</el-button>
+            <el-button size="small" v-permission="'inventory:manual:view'" @click="handleView(row)">查看</el-button>
             <el-button
               v-if="row.approval_status === 'pending'"
               size="small"
               type="success"
+              v-permission="'inventory:manual:approve'"
               @click="handleApprove(row)"
             >审批</el-button>
             <el-button
               v-if="row.approval_status === 'pending' && canDelete"
               size="small"
               type="danger"
+              v-permission="'inventory:manual:delete'"
               @click="handleDelete(row)"
             >删除</el-button>
           </template>
@@ -353,7 +355,7 @@
                   type="danger"
                   size="small"
                   @click="handleRemoveItem($index)"
-                  v-permission="'inventory:manual:update'"
+                  v-permission="dialogType === 'create' ? 'inventory:manual:create' : 'inventory:manual:update'"
                 >
                   删除
                 </el-button>
@@ -365,7 +367,7 @@
 
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmit" :loading="submitting">确定</el-button>
+        <el-button type="primary" v-permission="dialogType === 'create' ? 'inventory:manual:create' : 'inventory:manual:update'" @click="handleSubmit" :loading="submitting">确定</el-button>
       </template>
     </el-dialog>
 
@@ -575,6 +577,7 @@
         <el-button @click="exchangeDialogVisible = false">取消</el-button>
         <el-button
           type="primary"
+          v-permission="'inventory:manual:create'"
           :loading="exchangeSubmitting"
           :disabled="!canSubmitExchange"
           @click="handleExchangeSubmit"
@@ -618,8 +621,8 @@
 
       <template #footer>
         <el-button @click="approvalDialogVisible = false">取消</el-button>
-        <el-button type="danger" :loading="approvalSubmitting" @click="handleReject">拒绝</el-button>
-        <el-button type="success" :loading="approvalSubmitting" @click="handleApproveConfirm">通过</el-button>
+        <el-button type="danger" v-permission="'inventory:manual:approve'" :loading="approvalSubmitting" @click="handleReject">拒绝</el-button>
+        <el-button type="success" v-permission="'inventory:manual:approve'" :loading="approvalSubmitting" @click="handleApproveConfirm">通过</el-button>
       </template>
     </el-dialog>
   </div>

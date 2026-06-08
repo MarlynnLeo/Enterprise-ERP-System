@@ -6,7 +6,7 @@
 
 import { ref, computed } from 'vue'
 import { themes, defaultThemeName, getTheme } from '@/config/themes'
-import api from '@/services/api'
+import api from '@/api'
 import { extractApiData } from '@/utils/apiHelper'
 
 const STORAGE_KEYS = Object.freeze({

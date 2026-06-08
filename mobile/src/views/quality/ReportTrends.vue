@@ -25,7 +25,7 @@
 <script setup>
   import { ref, onMounted } from 'vue'
   import { NavBar, Loading, Empty } from 'vant'
-  import { qualityApi } from '@/services/api'
+  import { qualityApi } from '@/api'
   import { extractApiData } from '@/utils/apiHelper'
 
   const loading = ref(true)

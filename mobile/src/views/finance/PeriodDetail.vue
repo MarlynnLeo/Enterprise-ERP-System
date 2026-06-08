@@ -96,7 +96,7 @@
   import { useRoute } from 'vue-router'
   import { NavBar, Button, Loading, Empty, showToast, showConfirmDialog } from 'vant'
   import SvgIcon from '@/components/icons/index.vue'
-  import { financeApi } from '@/services/api'
+  import { financeApi } from '@/api'
   import dayjs from 'dayjs'
 
   const route = useRoute()

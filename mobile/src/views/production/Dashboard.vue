@@ -168,7 +168,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import Icon from '@/components/icons/index.vue'
 import { showToast } from 'vant'
-import { productionApi } from '@/services/api'
+import { productionApi } from '@/api'
 
 const router = useRouter()
 

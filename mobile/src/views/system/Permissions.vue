@@ -19,7 +19,7 @@
 <script setup>
   import { computed } from 'vue'
   import UniversalListPage from '@/components/common/UniversalListPage.vue'
-  import { systemApi } from '@/services/api'
+  import { systemApi } from '@/api'
 
   const pageConfig = computed(() => ({
     title: '权限管理',

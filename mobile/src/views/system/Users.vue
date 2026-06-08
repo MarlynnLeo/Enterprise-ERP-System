@@ -309,7 +309,7 @@ import {
   NavBar, Icon, Search, Badge, PullRefresh, List, Empty, Button,
   ActionSheet, Popup, Form, Field, showToast, showConfirmDialog, showDialog
 } from 'vant';
-import { systemApi } from '@/services/api';
+import { systemApi } from '@/api';
 
 const route = useRoute();
 

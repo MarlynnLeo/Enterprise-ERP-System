@@ -171,7 +171,7 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { NavBar, Icon, Search, Badge, Button, Field, Popup, Loading, showToast } from 'vant'
 import { useAuthStore } from '@/stores/auth'
-import { chatApi } from '@/services/api'
+import { chatApi } from '@/api'
 import { useSocket } from '@/composables/useSocket'
 import dayjs from 'dayjs'
 

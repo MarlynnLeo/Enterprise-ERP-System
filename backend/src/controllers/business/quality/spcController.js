@@ -191,12 +191,14 @@ const spcController = {
                 params
             );
 
-            ResponseHandler.success(res, {
-                list: result.rows || [],
-                total: parseInt(total),
-                page: pagination.page,
-                pageSize: pagination.pageSize,
-            }, '获取控制计划列表成功');
+            ResponseHandler.paginated(
+                res,
+                result.rows || [],
+                parseInt(total),
+                pagination.page,
+                pagination.pageSize,
+                '获取控制计划列表成功'
+            );
         } catch (error) {
             logger.error('获取控制计划列表失败:', error);
             ResponseHandler.error(res, '获取控制计划列表失败', 'SERVER_ERROR', 500, error);

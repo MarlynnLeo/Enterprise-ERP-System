@@ -138,7 +138,7 @@
   import { ref, computed, onMounted } from 'vue'
   import { useRouter } from 'vue-router'
   import { useAuthStore } from '@/stores/auth'
-  import { inventoryApi, productionApi, salesApi, systemApi } from '@/services/api'
+  import { inventoryApi, productionApi, salesApi, systemApi } from '@/api'
   import { extractApiData } from '@/utils/apiHelper'
 
   import {

@@ -20,6 +20,7 @@
             type="success"
             :icon="SetUp"
             :disabled="selectedTasks.length === 0"
+            v-permission="'production:tasks:update'"
             @click="openBatchScheduleDialog"
           >
             一键排程 ({{ selectedTasks.length }})
@@ -225,7 +226,7 @@
               </el-button>
               <!-- 发料按钮：必须已排程（有开始日期）且未生成出库单 -->
               <el-button v-permission="'production:tasks:update'"
-                v-if="(scope.row.status === 'pending' || scope.row.status === 'allocated' || scope.row.status === 'preparing') && Number(scope.row.has_outbound_document) !== 1 && scope.row.startDate"
+                v-if="(scope.row.status === 'pending' || scope.row.status === 'allocated' || scope.row.status === 'preparing') && Number(scope.row.has_outbound_document) !== 1 && scope.row.startDate && canIssueMaterials"
                 size="small"
                 type="warning"
                 @click="showMaterialIssueDialog(scope.row)"
@@ -471,7 +472,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="handleModalCancel">取消</el-button>
-          <el-button type="primary" @click="handleModalOk">确认</el-button>
+          <el-button type="primary" v-permission="taskSubmitPermission" @click="handleModalOk">确认</el-button>
         </span>
       </template>
     </el-dialog>
@@ -627,7 +628,7 @@
 
       <template #footer>
         <el-button @click="batchScheduleVisible = false">取消</el-button>
-        <el-button type="success" :loading="batchScheduleLoading" @click="executeBatchSchedule">
+        <el-button type="success" v-permission="'production:tasks:update'" :loading="batchScheduleLoading" @click="executeBatchSchedule">
           确认排程
         </el-button>
       </template>
@@ -664,7 +665,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="materialIssueDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="handleMaterialIssue" :loading="materialIssueLoading">
+          <el-button v-if="canIssueMaterials" type="primary" v-permission="'production:tasks:update'" @click="handleMaterialIssue" :loading="materialIssueLoading">
             确认发料
           </el-button>
         </span>
@@ -683,8 +684,14 @@ import { parseQuantity, formatQuantity, getQuantityFromRelatedItem } from '@/uti
 import { parseDataObject, parseListData, parseResponseData } from '@/utils/responseParser'
 import { useFormKeyboardNav } from '@/composables/useFormKeyboardNav'
 import printService from '@/services/printService'
+import { useAuthStore } from '@/stores/auth'
 
 // 获取当前登录用户
+const authStore = useAuthStore()
+const canIssueMaterials = computed(() =>
+  authStore.hasPermission('production:tasks:update') &&
+  authStore.hasPermission('inventory:outbound:create')
+)
 // ✅ 键盘导航：Enter 跳转下一字段
 const { onFormKeydown: taskFormKeydown } = useFormKeyboardNav(() => handleModalOk())
 const { onFormKeydown: issueFormKeydown } = useFormKeyboardNav(() => handleMaterialIssue())
@@ -766,6 +773,9 @@ const formData = ref({
   manager: '',
   remarks: ''
 })
+const taskSubmitPermission = computed(() =>
+  formData.value.id ? 'production:tasks:update' : 'production:tasks:create'
+)
 
 const rules = {
   planId: [{ required: false, message: '请选择生产计划', trigger: 'change' }],
@@ -1117,6 +1127,10 @@ const handleEdit = async (record) => {
 
 const handleModalOk = async () => {
   if (!formRef.value) return
+  if (!authStore.hasPermission(taskSubmitPermission.value)) {
+    ElMessage.error('无权提交生产任务')
+    return
+  }
 
   try {
     await formRef.value.validate()
@@ -1302,6 +1316,10 @@ const moveGroupTask = (groupIdx, taskIdx, direction) => {
 
 /** 执行批量排程（按生产组并行排程） */
 const executeBatchSchedule = async () => {
+  if (!authStore.hasPermission('production:tasks:update')) {
+    ElMessage.error('无权执行批量排程')
+    return
+  }
   if (!batchStartTime.value) {
     ElMessage.warning('请选择排程起始时间')
     return
@@ -1480,6 +1498,10 @@ const showMaterialIssueDialog = (row) => {
 
 // 处理发料
 const handleMaterialIssue = async () => {
+  if (!canIssueMaterials.value) {
+    ElMessage.error('无权执行发料')
+    return
+  }
   if (!materialIssueForm.value.issueDate) {
     ElMessage.warning('请选择发料时间')
     return

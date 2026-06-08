@@ -22,6 +22,10 @@ function relative(filePath) {
   return path.relative(repoRoot, filePath).replace(/\\/g, '/');
 }
 
+function lineNumberAt(text, index) {
+  return text.slice(0, index).split(/\r?\n/).length;
+}
+
 function printHeader(title) {
   console.log(`\n=== ${title} ===`);
 }
@@ -153,7 +157,8 @@ async function auditDataConsistency() {
   let connection;
   try {
     connection = await db.getConnection();
-    const results = await runDataConsistencyAudit(connection);
+    const auditResult = await runDataConsistencyAudit(connection);
+    const results = Array.isArray(auditResult) ? auditResult : auditResult?.results || [];
     const failed = results.filter(result => result.count > 0 || result.error);
     printMetric('rules executed', results.length);
     printMetric('rules with findings', failed.length);
@@ -184,10 +189,27 @@ function auditDataApiUniformity() {
   ];
   const endpoints = new Set();
   const endpointPattern = /(?:api|fastApi)\s*\.\s*(?:get|post|put|patch|delete)\s*\(\s*([`'"])(\/[^`'"]*)\1/g;
+  const allowedDirectHttpFiles = new Set([
+    'frontend/src/services/axiosInstance.js',
+    'mobile/src/api/index.js',
+  ]);
+  const directHttpPattern = /\bfetch\s*\(|\bXMLHttpRequest\b|\buni\s*\.\s*request\b|import\s+axios\s+from\s+['"]axios['"]|require\(\s*['"]axios['"]\s*\)/g;
+  const hardcodedApiPrefixPattern = /\b(?:api|fastApi)\s*\.\s*(?:get|post|put|patch|delete)\s*\(\s*([`'"])\/api\//g;
+  const directHttpBypasses = [];
+  const hardcodedApiPrefixes = [];
   for (const file of frontendApiFiles) {
     const text = fs.readFileSync(file, 'utf8');
     for (const match of text.matchAll(endpointPattern)) {
       endpoints.add(match[2]);
+    }
+    const rel = relative(file);
+    for (const match of text.matchAll(directHttpPattern)) {
+      if (!allowedDirectHttpFiles.has(rel)) {
+        directHttpBypasses.push(`${rel}:${lineNumberAt(text, match.index)}`);
+      }
+    }
+    for (const match of text.matchAll(hardcodedApiPrefixPattern)) {
+      hardcodedApiPrefixes.push(`${rel}:${lineNumberAt(text, match.index)}`);
     }
   }
   const missing = [...endpoints].filter(endpoint => {
@@ -195,11 +217,39 @@ function auditDataApiUniformity() {
     return ![...routeMatches].some(prefix => full === prefix || full.startsWith(`${prefix}/`));
   });
 
+  const backendFiles = [
+    ...walk(path.join(rootDir, 'src', 'controllers'), file => file.endsWith('.js')),
+    ...walk(path.join(rootDir, 'src', 'routes'), file => file.endsWith('.js')),
+  ];
+  const manualPaginatedResponses = [];
+  const manualPaginatedPattern = /ResponseHandler\.success\(\s*res\s*,\s*\{[\s\S]*?\}\s*(?:,\s*[^)]*)?\)/g;
+  for (const file of backendFiles) {
+    const text = fs.readFileSync(file, 'utf8');
+    for (const match of text.matchAll(manualPaginatedPattern)) {
+      const body = match[0];
+      if (
+        /\b(list|items|rows|data)\s*:/.test(body)
+        && /\btotal\s*:/.test(body)
+        && /\bpage\s*:/.test(body)
+        && /\bpageSize\s*:/.test(body)
+      ) {
+        manualPaginatedResponses.push(`${relative(file)}:${lineNumberAt(text, match.index)}`);
+      }
+    }
+  }
+
   printMetric('frontend/mobile literal endpoints', endpoints.size);
   printMetric('backend top-level api mounts', routeMatches.size);
   printMetric('unmatched endpoints', missing.length);
+  printMetric('direct HTTP bypasses', directHttpBypasses.length);
+  printMetric('hardcoded /api prefixes', hardcodedApiPrefixes.length);
+  printMetric('manual paginated success responses', manualPaginatedResponses.length);
+  console.warn('Note: this audit validates top-level API mount coverage only; concrete subroutes are not fully verified.');
   missing.slice(0, 20).forEach(endpoint => console.log(`unmatched: ${endpoint}`));
-  if (missing.length) process.exitCode = 1;
+  directHttpBypasses.slice(0, 20).forEach(location => console.log(`direct-http-bypass: ${location}`));
+  hardcodedApiPrefixes.slice(0, 20).forEach(location => console.log(`hardcoded-api-prefix: ${location}`));
+  manualPaginatedResponses.slice(0, 20).forEach(location => console.log(`manual-paginated-response: ${location}`));
+  if (missing.length || directHttpBypasses.length || hardcodedApiPrefixes.length || manualPaginatedResponses.length) process.exitCode = 1;
   else console.log('Result: OK');
 }
 

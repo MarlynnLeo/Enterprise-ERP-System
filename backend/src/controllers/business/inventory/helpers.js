@@ -92,7 +92,7 @@ const insertInventoryLedgerLocal = async (connection, {
     let validUnitId = unit_id;
     if (!validUnitId) {
       const [materialInfo] = await connection.execute(
-        'SELECT unit_id FROM materials WHERE id = ?',
+        'SELECT unit_id FROM materials WHERE id = ? AND deleted_at IS NULL',
         [material_id]
       );
       if (materialInfo.length === 0) {

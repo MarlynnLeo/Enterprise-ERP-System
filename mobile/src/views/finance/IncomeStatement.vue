@@ -66,7 +66,7 @@
 <script setup>
   import { ref, onMounted } from 'vue'
   import { NavBar, Loading, Empty } from 'vant'
-  import { financeApi } from '@/services/api'
+  import { financeApi } from '@/api'
   import dayjs from 'dayjs'
 
   const now = dayjs()

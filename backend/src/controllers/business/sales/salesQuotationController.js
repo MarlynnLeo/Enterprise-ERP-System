@@ -75,7 +75,7 @@ exports.getSalesQuotations = async (req, res) => {
       const [countRows] = await conn.query(
         `SELECT COUNT(*) as total FROM sales_quotations q
          LEFT JOIN customers c ON q.customer_id = c.id
-         WHERE 1=1 ${whereClause}`,
+         WHERE q.deleted_at IS NULL ${whereClause}`,
         params
       );
 
@@ -88,7 +88,7 @@ exports.getSalesQuotations = async (req, res) => {
          FROM sales_quotations q
          LEFT JOIN customers c ON q.customer_id = c.id
          LEFT JOIN users u ON q.created_by = u.id
-         WHERE 1=1 ${whereClause}
+         WHERE q.deleted_at IS NULL ${whereClause}
          ORDER BY q.created_at DESC
          LIMIT ${actualPageSize} OFFSET ${offset}`,
         params
@@ -155,7 +155,8 @@ exports.getSalesQuotationStatistics = async (req, res) => {
     const [monthlyData] = await conn.query(
       `SELECT COUNT(*) as count, SUM(total_amount) as amount
        FROM sales_quotations
-       WHERE created_at BETWEEN ? AND ?`,
+       WHERE deleted_at IS NULL
+         AND created_at BETWEEN ? AND ?`,
       [firstDay, lastDay]
     );
 
@@ -164,7 +165,8 @@ exports.getSalesQuotationStatistics = async (req, res) => {
       `SELECT COUNT(*) as count
        FROM sales_quotations
        WHERE status = '已转订单'
-       AND created_at BETWEEN ? AND ?`,
+         AND deleted_at IS NULL
+         AND created_at BETWEEN ? AND ?`,
       [firstDay, lastDay]
     );
 
@@ -198,7 +200,7 @@ exports.getSalesQuotation = async (req, res) => {
       `SELECT q.*, c.name as customer_name
        FROM sales_quotations q
        LEFT JOIN customers c ON q.customer_id = c.id
-       WHERE q.id = ?`,
+       WHERE q.id = ? AND q.deleted_at IS NULL`,
       [req.params.id]
     );
 
@@ -349,6 +351,16 @@ exports.updateSalesQuotation = async (req, res) => {
       defaultTaxRate: quotation?.tax_rate ?? quotation?.taxRate ?? 0,
     });
 
+    const [existingRows] = await conn.query(
+      'SELECT id FROM sales_quotations WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+      [id]
+    );
+
+    if (existingRows.length === 0) {
+      await conn.rollback();
+      return ResponseHandler.error(res, 'Quotation not found', 'NOT_FOUND', 404);
+    }
+
     // 更新报价单主表
     await conn.query(
       `UPDATE sales_quotations
@@ -357,7 +369,7 @@ exports.updateSalesQuotation = async (req, res) => {
            validity_date = ?,
            status = ?,
            remarks = ?
-       WHERE id = ?`,
+       WHERE id = ? AND deleted_at IS NULL`,
       [
         quotation.customer_id,
         quotationAmounts.totalAmount,
@@ -441,14 +453,19 @@ exports.deleteSalesQuotation = async (req, res) => {
     const { id } = req.params;
 
     // 检查报价单状态
-    const [statusRows] = await conn.query('SELECT status FROM sales_quotations WHERE id = ? FOR UPDATE', [id]);
+    const [statusRows] = await conn.query(
+      'SELECT status FROM sales_quotations WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+      [id]
+    );
 
     if (statusRows.length === 0) {
+      await conn.rollback();
       return ResponseHandler.error(res, 'Quotation not found', 'NOT_FOUND', 404);
     }
 
     // 只允许删除"待确认"状态的报价单
     if (statusRows[0].status !== 'draft') {
+      await conn.rollback();
       return ResponseHandler.error(res, '只能删除待确认状态的报价单', 'VALIDATION_ERROR', 400);
     }
 
@@ -492,7 +509,7 @@ exports.convertQuotationToOrder = async (req, res) => {
       `SELECT q.*, c.name as customer_name, c.contact_person, c.contact_phone, c.address
        FROM sales_quotations q
        LEFT JOIN customers c ON q.customer_id = c.id
-       WHERE q.id = ?
+       WHERE q.id = ? AND q.deleted_at IS NULL
        FOR UPDATE`,
       [id]
     );
@@ -585,7 +602,10 @@ exports.convertQuotationToOrder = async (req, res) => {
 
     // 更新报价单状态为"已转订单"
     // ✅ 安全修复：添加前置状态条件，防止 TOCTOU 竞态导致已关闭的报价单被重复转订单
-    await conn.query('UPDATE sales_quotations SET status = ? WHERE id = ? AND status = ?', ['sent', id, 'accepted']);
+    await conn.query(
+      'UPDATE sales_quotations SET status = ? WHERE id = ? AND status = ? AND deleted_at IS NULL',
+      ['sent', id, 'accepted']
+    );
 
     // 提交事务
     await conn.commit();

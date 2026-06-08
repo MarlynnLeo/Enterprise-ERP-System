@@ -107,6 +107,25 @@ const router = createRouter({
   ]
 })
 
+function hasRoutePermission(authStore, requiredPermission) {
+  if (!requiredPermission) return true
+  if (authStore.hasPermission(requiredPermission)) {
+    return true
+  }
+  return authStore.hasChildPermission(requiredPermission)
+}
+
+function findFirstAccessibleRoute(authStore, excludedPath) {
+  const routes = router.getRoutes()
+  const accessible = routes.find((route) => {
+    if (!route.name || route.redirect || !route.meta?.requiresAuth) return false
+    if (!route.path || route.path.includes(':') || route.path === excludedPath) return false
+    return hasRoutePermission(authStore, route.meta.permission)
+  })
+
+  return accessible?.path || '/profile'
+}
+
 // 路由守卫 - 验证登录状态和权限
 router.beforeEach(async (to) => {
   const authStore = useAuthStore()
@@ -162,22 +181,11 @@ router.beforeEach(async (to) => {
   if (to.meta.permission && authStore.isAuthenticated) {
     const requiredPermission = to.meta.permission
 
-    // 路由级权限检查：精确匹配 + 拥有子权限也允许进入父级页面
-    const checkRoutePermission = () => {
-      // 核心判断委托给 authStore（支持 * 通配符、精确匹配、前缀通配符）
-      if (authStore.hasPermission(requiredPermission)) {
-        return true
-      }
-      // 父级菜单向上兼容：如果用户拥有该模块下任何子权限，也允许进入
-      // 例如 meta.permission='finance' 且用户有 'finance:entries:view' → 允许
-      return authStore.hasChildPermission(requiredPermission)
-    }
-
-    const hasPermission = checkRoutePermission()
+    const hasPermission = hasRoutePermission(authStore, requiredPermission)
 
     if (!hasPermission) {
       ElMessage.error('您没有权限访问此页面')
-      return '/dashboard'
+      return findFirstAccessibleRoute(authStore, to.path)
     }
   }
 })

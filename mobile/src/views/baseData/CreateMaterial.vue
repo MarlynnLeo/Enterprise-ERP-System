@@ -337,7 +337,7 @@
   import { ref, reactive, computed, onMounted } from 'vue'
   import { useRouter, useRoute } from 'vue-router'
   import { NavBar, Button, Form, Field, Popup, Picker, showToast, showLoadingToast, closeToast } from 'vant'
-  import { baseDataApi, systemApi } from '@/services/api'
+  import { baseDataApi, systemApi } from '@/api'
   import { extractApiData } from '@/utils/apiHelper'
 
   const router = useRouter()

@@ -182,7 +182,7 @@ const customerService = {
       const values = [...Object.values(updateFields), id];
 
       // 执行更新
-      await pool.query(`UPDATE customers SET ${fields} WHERE id = ?`, values);
+      await pool.query(`UPDATE customers SET ${fields} WHERE id = ? AND deleted_at IS NULL`, values);
 
       // 获取并返回更新后的完整数据
       const [updated] = await pool.query('SELECT id, code, name, contact_person, phone, email, address, credit_limit, status, created_at, updated_at, contact_phone, remark, customer_type, deleted_at FROM customers WHERE id = ? AND deleted_at IS NULL', [id]);

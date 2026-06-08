@@ -14,7 +14,7 @@
           <h2>出库管理</h2>
           <p class="subtitle">管理出库单据与记录</p>
         </div>
-        <el-button type="primary" :icon="Plus" @click="handleAdd">新建出库单</el-button>
+        <el-button type="primary" :icon="Plus" v-permission="'inventory:outbound:create'" @click="handleAdd">新建出库单</el-button>
       </div>
     </el-card>
 
@@ -157,7 +157,7 @@
         <el-table-column prop="remark" label="备注" min-width="200" show-overflow-tooltip></el-table-column>
         <el-table-column label="操作" width="420" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
-            <el-button size="small" @click="handleView(scope.row)">
+            <el-button size="small" v-permission="'inventory:outbound:view'" @click="handleView(scope.row)">
               查看
             </el-button>
             <!-- 草稿和已确认状态显示编辑按钮 -->
@@ -168,6 +168,7 @@
             </el-button>
             <!-- 部分完成状态显示补发按钮 -->
             <el-button v-if="scope.row.status === 'partial_completed'" size="small" type="warning"
+              v-permission="'inventory:outbound:update'"
               @click="handleSupplementIssue(scope.row)">
               补发
             </el-button>
@@ -178,22 +179,25 @@
               </template>
             </el-popconfirm>
             <el-button v-if="scope.row.status === 'draft'" size="small" type="primary"
+              v-permission="'inventory:outbound:update'"
               @click="handleUpdateStatus(scope.row, 'confirmed')">
               确认
             </el-button>
             <el-button v-if="scope.row.status === 'confirmed'" size="small" type="primary"
+              v-permission="'inventory:outbound:update'"
               @click="handleUpdateStatus(scope.row, 'completed')">
               完成
             </el-button>
 
             <!-- 已出库状态显示撤销重发按钮 -->
             <el-button v-if="scope.row.status === 'completed' || scope.row.status === 'partial_completed'" size="small" type="danger"
+              v-permission="'inventory:outbound:update'"
               @click="handleCancelOutbound(scope.row)">
               撤销重发
             </el-button>
 
             <!-- 非草稿状态显示打印按钮 -->
-            <el-button v-if="scope.row.status !== 'draft'" size="small" type="success" @click="handlePrint(scope.row)">
+            <el-button v-if="scope.row.status !== 'draft'" size="small" type="success" v-permission="'inventory:outbound:view'" @click="handlePrint(scope.row)">
               打印
             </el-button>
           </template>
@@ -368,7 +372,7 @@
             <template #default="scope">
               <el-button v-if="!scope.row.isSubstitute && !scope.row.is_from_plan" type="danger" size="small"
                 @click="handleRemoveItem(scope.row.originalIndex)"
-                v-permission="'inventory:outbound:update'">
+                v-permission="dialogType === 'add' ? 'inventory:outbound:create' : 'inventory:outbound:update'">
                 删除
               </el-button>
             </template>
@@ -376,7 +380,7 @@
         </el-table>
 
         <div class="add-material" style="margin-top: 10px;" v-if="dialogType !== 'view'">
-          <el-button type="primary" @click="handleAddItem">
+          <el-button type="primary" v-permission="dialogType === 'add' ? 'inventory:outbound:create' : 'inventory:outbound:update'" @click="handleAddItem">
             <el-icon>
               <Plus />
             </el-icon>添加物料
@@ -388,7 +392,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button v-if="dialogType !== 'view'" type="primary" @click="handleSubmit" :loading="submitting">
+          <el-button v-if="dialogType !== 'view'" type="primary" v-permission="dialogType === 'add' ? 'inventory:outbound:create' : 'inventory:outbound:update'" @click="handleSubmit" :loading="submitting">
             保存
           </el-button>
         </span>
@@ -578,7 +582,7 @@
           <span>已选中 <strong>{{ selectedOutbounds.length }}</strong> 个出库单</span>
         </div>
         <div class="batch-buttons">
-          <el-button type="primary" @click="handleBatchPrint">
+          <el-button type="primary" v-permission="'inventory:outbound:view'" @click="handleBatchPrint">
             <el-icon>
               <Printer />
             </el-icon> 批量打印
@@ -616,6 +620,15 @@ export default {
   },
   setup() {
     const authStore = useAuthStore()
+    const BATCH_MATERIAL_QUERY_LIMIT = 100
+    const BATCH_STOCK_QUERY_LIMIT = 50
+    const chunkArray = (items, size) => {
+      const chunks = []
+      for (let i = 0; i < items.length; i += size) {
+        chunks.push(items.slice(i, i + size))
+      }
+      return chunks
+    }
 
     // 列表数据
     const outboundList = ref([])
@@ -1795,7 +1808,7 @@ export default {
 
         // 获取库存信息 - 使用批量查询优化性能
         // 首先获取所有物料的详细信息（包括默认库位）
-        const materialIds = details.map(detail => detail.materialId || detail.material_id).filter(id => id)
+        const materialIds = [...new Set(details.map(detail => detail.materialId || detail.material_id).filter(id => id))]
 
         if (materialIds.length === 0) {
           ElMessage.warning('BOM中没有有效的物料信息')
@@ -1809,8 +1822,11 @@ export default {
 
         try {
           // 批量获取物料信息
-          const materialInfoRes = await baseDataApi.getMaterialsByIds(materialIds)
-          const materialsInfo = parseListData(materialInfoRes)
+          const materialsInfo = []
+          for (const chunk of chunkArray(materialIds, BATCH_MATERIAL_QUERY_LIMIT)) {
+            const materialInfoRes = await baseDataApi.getMaterialsByIds(chunk)
+            materialsInfo.push(...parseListData(materialInfoRes))
+          }
           if (!materialsInfo.length) {
             throw new Error('获取物料信息失败')
           }
@@ -1824,10 +1840,12 @@ export default {
             }))
 
           // 批量获取库存信息
-          let stockResults = []
+          const stockResults = []
           if (stockQueries.length > 0) {
-            const stockRes = await inventoryApi.getBatchMaterialStock(stockQueries)
-            stockResults = stockRes?.data || []
+            for (const chunk of chunkArray(stockQueries, BATCH_STOCK_QUERY_LIMIT)) {
+              const stockRes = await inventoryApi.getBatchMaterialStock(chunk)
+              stockResults.push(...(stockRes?.data || []))
+            }
           }
 
           // 构建物料ID到信息的映射

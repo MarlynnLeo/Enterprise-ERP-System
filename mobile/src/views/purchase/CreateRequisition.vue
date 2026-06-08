@@ -117,7 +117,7 @@
   import { ref, reactive } from 'vue'
   import { useRouter } from 'vue-router'
   import { NavBar, Form, Field, CellGroup, Button, Popup, DatePicker, Icon, showToast } from 'vant'
-  import { purchaseApi } from '@/services/api'
+  import { purchaseApi } from '@/api'
 
   const router = useRouter()
   const submitting = ref(false)

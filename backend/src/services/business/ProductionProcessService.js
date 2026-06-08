@@ -18,7 +18,7 @@ async function createDefaultProductionProcess(connection, taskId, remarks = '自
   try {
     // 获取任务详情
     const [taskDetails] = await connection.execute(
-      'SELECT id, code, product_id, quantity FROM production_tasks WHERE id = ?',
+      'SELECT id, code, product_id, quantity FROM production_tasks WHERE id = ? AND deleted_at IS NULL',
       [taskId]
     );
 

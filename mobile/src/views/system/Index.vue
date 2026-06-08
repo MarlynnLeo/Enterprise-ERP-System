@@ -194,7 +194,7 @@
   import { ref, reactive, onMounted } from 'vue'
   import { useRouter } from 'vue-router'
   import { NavBar, Icon, Badge, Button } from 'vant'
-  import { systemApi } from '@/services/api'
+  import { systemApi } from '@/api'
 
   const router = useRouter()
 

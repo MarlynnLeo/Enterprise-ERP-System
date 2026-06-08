@@ -252,7 +252,7 @@
   import { useRouter, useRoute } from 'vue-router'
   import Icon from '@/components/icons/index.vue'
   import { showToast, showLoadingToast, closeToast } from 'vant'
-  import { baseDataApi, inventoryApi, salesApi } from '@/services/api'
+  import { baseDataApi, inventoryApi, salesApi } from '@/api'
   import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
 
   // 支持的条码格式列表（包含所有常见一维码和二维码）

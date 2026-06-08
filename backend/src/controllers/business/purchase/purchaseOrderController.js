@@ -163,12 +163,8 @@ const getOrders = async (req, res) => {
     const totalCount = rows.length > 0 ? parseInt(rows[0].total_count) : 0;
     await desensitizeDataForUser(orders, req.user, 'view', req.userPermissions);
 
-    return ResponseHandler.success(res, {
+    return ResponseHandler.paginated(res, orders, totalCount, pagination.page, pagination.pageSize, undefined, {
       items: orders,
-      total: totalCount,
-      page: pagination.page,
-      pageSize: pagination.pageSize,
-      totalPages: Math.ceil(totalCount / pagination.pageSize),
     });
   } catch (error) {
     logger.error('获取采购订单列表失败:', error);
@@ -330,7 +326,7 @@ const updateOrder = async (req, res) => {
             expected_delivery_date = ?, contact_person = ?, contact_phone = ?,
             total_amount = ?, tax_rate = ?, tax_amount = ?, subtotal = ?, remarks = ?, updated_at = CURRENT_TIMESTAMP,
             requisition_id = ?, requisition_number = ?
-        WHERE id = ?
+        WHERE id = ? AND deleted_at IS NULL
       `;
       await connection.query(updateQuery, [
         orderDate,
@@ -426,7 +422,7 @@ const updateOrderStatus = async (req, res) => {
     }
 
     const updatedOrder = await DBManager.executeTransaction(async (connection) => {
-      const [checkRows] = await connection.query('SELECT id, order_no, order_date, supplier_id, supplier_name, contract_code, expected_delivery_date, contact_person, contact_phone, total_amount, remarks, status, completion_percentage, created_at, updated_at, requisition_id, requisition_number, tax_rate, tax_amount, subtotal, deleted_at FROM purchase_orders WHERE id = ? FOR UPDATE', [
+      const [checkRows] = await connection.query('SELECT id, order_no, order_date, supplier_id, supplier_name, contract_code, expected_delivery_date, contact_person, contact_phone, total_amount, remarks, status, completion_percentage, created_at, updated_at, requisition_id, requisition_number, tax_rate, tax_amount, subtotal, deleted_at FROM purchase_orders WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [
         id,
       ]);
 
@@ -483,7 +479,7 @@ const updateOrderStatus = async (req, res) => {
       const updateQuery = `
         UPDATE purchase_orders
         SET status = ?, updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
+        WHERE id = ? AND deleted_at IS NULL
       `;
       await connection.query(updateQuery, [finalStatus, id]);
 
@@ -592,7 +588,7 @@ const batchUpdateOrderStatus = async (req, res) => {
 
       for (const [status, ids] of Object.entries(updatesByStatus)) {
         await connection.query(
-          'UPDATE purchase_orders SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id IN (?)',
+          'UPDATE purchase_orders SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id IN (?) AND deleted_at IS NULL',
           [status, ids]
         );
       }
@@ -871,12 +867,8 @@ const getRequisitions = async (req, res) => {
 
     const totalCount = rows.length > 0 ? parseInt(rows[0].total_count) : 0;
 
-    return ResponseHandler.success(res, {
+    return ResponseHandler.paginated(res, requisitions, totalCount, pagination.page, pagination.pageSize, undefined, {
       items: requisitions,
-      total: totalCount,
-      page: pagination.page,
-      pageSize: pagination.pageSize,
-      totalPages: Math.ceil(totalCount / pagination.pageSize),
     });
   } catch (error) {
     logger.error('获取采购申请列表失败:', error);

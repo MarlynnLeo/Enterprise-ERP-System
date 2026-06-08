@@ -96,7 +96,7 @@
     showToast
   } from 'vant'
   import UniversalListPage from '@/components/common/UniversalListPage.vue'
-  import { financeApi } from '@/services/api'
+  import { financeApi } from '@/api'
 
   const router = useRouter()
 

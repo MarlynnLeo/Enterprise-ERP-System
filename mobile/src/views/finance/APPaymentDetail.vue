@@ -120,7 +120,7 @@
   import { useRoute } from 'vue-router'
   import { NavBar, Loading, Empty, Button as VanButton, Popup, Field, showToast, showConfirmDialog } from 'vant'
   import Icon from '@/components/icons/index.vue'
-  import { financeApi } from '@/services/api'
+  import { financeApi } from '@/api'
   import dayjs from 'dayjs'
 
   const route = useRoute()

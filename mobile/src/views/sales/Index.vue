@@ -23,7 +23,7 @@
   import { useRouter } from 'vue-router'
 
   import ModuleIndexPage from '@/components/common/ModuleIndexPage.vue'
-  import { salesApi } from '@/services/api'
+  import { salesApi } from '@/api'
   import { useAuthStore } from '@/stores/auth'
 
   const router = useRouter()

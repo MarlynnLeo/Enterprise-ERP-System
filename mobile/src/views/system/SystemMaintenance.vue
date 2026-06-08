@@ -30,7 +30,7 @@
 <script setup>
   import { ref, onMounted } from 'vue'
   import { NavBar, CellGroup, Cell, Tag, showToast } from 'vant'
-  import { systemApi } from '@/services/api'
+  import { systemApi } from '@/api'
   import { extractApiData } from '@/utils/apiHelper'
   import dayjs from 'dayjs'
 

@@ -46,7 +46,7 @@
   import { useRoute, useRouter } from 'vue-router'
   import { Cell, CellGroup, Empty, Loading, NavBar, Tag, showToast } from 'vant'
   import SvgIcon from '@/components/icons/index.vue'
-  import { baseDataApi, qualityApi, systemApi } from '@/services/api'
+  import { baseDataApi, qualityApi, systemApi } from '@/api'
   import { extractApiData, extractApiList } from '@/utils/apiHelper'
 
   const route = useRoute()

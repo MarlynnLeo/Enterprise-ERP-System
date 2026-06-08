@@ -16,6 +16,11 @@ jest.mock('../../src/utils/logger', () => {
 });
 
 const axios = require('axios');
+
+process.env.OPEN_METEO_BASE_URL = 'https://api.open-meteo.com/v1/forecast';
+process.env.OPEN_METEO_TIMEOUT_MS = '5000';
+process.env.OPEN_METEO_TIMEZONE = 'Asia/Shanghai';
+
 const { getWeather } = require('../../src/controllers/weather/weatherController');
 
 const createResponse = () => {

@@ -193,7 +193,7 @@ import {
   List,
   showToast
 } from 'vant';
-import { inventoryApi } from '@/services/api';
+import { inventoryApi } from '@/api';
 
 const router = useRouter();
 const route = useRoute();

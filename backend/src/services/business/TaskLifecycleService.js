@@ -125,7 +125,7 @@ async function syncPlanStatus(planId, connection) {
   const activeTotal = stats.total - stats.cancelled_count;
 
   const [planInfo] = await conn.query(
-    'SELECT status FROM production_plans WHERE id = ? FOR UPDATE',
+    'SELECT status FROM production_plans WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
     [planId]
   );
 
@@ -156,7 +156,7 @@ async function syncPlanStatus(planId, connection) {
   }
 
   if (newPlanStatus !== currentPlanStatus) {
-    await conn.query('UPDATE production_plans SET status = ? WHERE id = ?', [
+    await conn.query('UPDATE production_plans SET status = ? WHERE id = ? AND deleted_at IS NULL', [
       newPlanStatus,
       planId,
     ]);

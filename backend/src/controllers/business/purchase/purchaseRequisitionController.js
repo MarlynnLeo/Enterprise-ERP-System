@@ -507,7 +507,7 @@ const createRequisition = async (req, res) => {
         // 如果提供了materialId，但没有其他信息，从数据库获取
         if (materialId && (!materialCode || !materialName)) {
           const [rows] = await connection.query(
-            'SELECT code, name, specs, unit_id FROM materials WHERE id = ?',
+            'SELECT code, name, specs, unit_id FROM materials WHERE id = ? AND deleted_at IS NULL',
             [materialId]
           );
 
@@ -644,7 +644,7 @@ const updateRequisition = async (req, res) => {
     const updateQuery = `
       UPDATE purchase_requisitions
       SET request_date = ?, contract_code = ?, remarks = ?, real_name = ?, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
+      WHERE id = ? AND deleted_at IS NULL
     `;
     await connection.execute(updateQuery, [
       requestDate,
@@ -859,7 +859,7 @@ const updateRequisitionStatus = async (req, res) => {
     const updateQuery = `
       UPDATE purchase_requisitions
       SET status = ?, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
+      WHERE id = ? AND deleted_at IS NULL
     `;
     await connection.execute(updateQuery, [finalStatus, id]);
 

@@ -11,7 +11,7 @@
 <script setup>
   import { computed } from 'vue'
   import UniversalListPage from '@/components/common/UniversalListPage.vue'
-  import { hrApi } from '@/services/api'
+  import { hrApi } from '@/api'
 
   const statusMap = {
     pending: { text: '待审批', color: 'warning' },

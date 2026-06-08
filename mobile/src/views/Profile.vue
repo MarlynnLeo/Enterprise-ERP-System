@@ -152,7 +152,7 @@ import { useRouter } from 'vue-router'
 import SvgIcon from '@/components/icons/index.vue'
 import { showConfirmDialog, showToast, showLoadingToast, closeToast } from 'vant'
 import { useAuthStore } from '@/stores/auth'
-import { authApi, productionApi } from '@/services/api'
+import { authApi, productionApi } from '@/api'
 import dayjs from 'dayjs'
 
 const router = useRouter()

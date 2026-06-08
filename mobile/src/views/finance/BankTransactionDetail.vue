@@ -41,7 +41,7 @@
   import { computed, onMounted, ref } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
   import { Cell, CellGroup, Empty, Loading, NavBar, Tag } from 'vant'
-  import { financeApi } from '@/services/api'
+  import { financeApi } from '@/api'
   import { extractApiData } from '@/utils/apiHelper'
 
   const route = useRoute()

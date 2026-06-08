@@ -20,7 +20,7 @@
   import { computed } from 'vue'
   import { useRouter, useRoute } from 'vue-router'
   import UniversalListPage from '@/components/common/UniversalListPage.vue'
-  import { financeApi } from '@/services/api'
+  import { financeApi } from '@/api'
 
   const router = useRouter()
   const route = useRoute()

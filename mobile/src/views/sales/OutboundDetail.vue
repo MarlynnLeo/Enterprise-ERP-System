@@ -132,7 +132,7 @@
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {  showToast , Button } from 'vant'
-import { salesApi } from '@/services/api'
+import { salesApi } from '@/api'
 import Icon from '@/components/icons/index.vue'
 import dayjs from 'dayjs'
 

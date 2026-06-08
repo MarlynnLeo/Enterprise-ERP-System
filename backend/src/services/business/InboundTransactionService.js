@@ -24,7 +24,7 @@ class InboundTransactionService {
 
     // 获取入库单信息
     const [inboundInfo] = await connection.execute(
-      'SELECT id, inbound_no, inbound_date, inbound_type, reference_type, reference_id, reference_no, location_id, status, total_amount, total_amount_unit, operator, inspection_id, inspection_no, remark, created_at, updated_at, created_by, updated_by, is_deleted FROM inventory_inbound WHERE id = ?',
+      'SELECT id, inbound_no, inbound_date, inbound_type, reference_type, reference_id, reference_no, location_id, status, total_amount, total_amount_unit, operator, inspection_id, inspection_no, remark, created_at, updated_at, created_by, updated_by, is_deleted FROM inventory_inbound WHERE id = ? AND is_deleted = 0',
       [inboundId]
     );
 
@@ -42,14 +42,14 @@ class InboundTransactionService {
     if (inspection_id) {
       // 查询检验单，找到相关联的生产任务
       const [inspectionInfo] = await connection.execute(
-        'SELECT reference_id, reference_no FROM quality_inspections WHERE id = ?',
+        'SELECT reference_id, reference_no FROM quality_inspections WHERE id = ? AND deleted_at IS NULL',
         [inspection_id]
       );
 
       if (inspectionInfo.length > 0 && inspectionInfo[0].reference_id) {
         const taskId = inspectionInfo[0].reference_id;
         const [taskInfo] = await connection.execute(
-          'SELECT plan_id FROM production_tasks WHERE id = ?',
+          'SELECT plan_id FROM production_tasks WHERE id = ? AND deleted_at IS NULL',
           [taskId]
         );
 
@@ -116,7 +116,7 @@ class InboundTransactionService {
             // reference_id 可能是出库单ID或生产任务ID
             // 策略1: 按出库单ID查出单号，再从台账匹配批次
             const [outboundRows] = await connection.execute(
-              `SELECT outbound_no FROM inventory_outbound WHERE id = ? LIMIT 1`,
+              `SELECT outbound_no FROM inventory_outbound WHERE id = ? AND deleted_at IS NULL LIMIT 1`,
               [inboundData.reference_id]
             );
 
@@ -276,7 +276,7 @@ class InboundTransactionService {
     if (inboundData.inbound_type !== 'production' || !inspection_id) return;
 
     const [inspections] = await connection.query(
-      "SELECT reference_id FROM quality_inspections WHERE id = ? AND inspection_type = 'final' FOR UPDATE",
+      "SELECT reference_id FROM quality_inspections WHERE id = ? AND inspection_type = 'final' AND deleted_at IS NULL FOR UPDATE",
       [inspection_id]
     );
     if (inspections.length === 0 || !inspections[0].reference_id) return;
@@ -284,7 +284,7 @@ class InboundTransactionService {
     const taskId = inspections[0].reference_id;
     const dbStatus = 'completed';
     const [taskResult] = await connection.query(
-      'SELECT id, plan_id, code FROM production_tasks WHERE id = ? FOR UPDATE',
+      'SELECT id, plan_id, code FROM production_tasks WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
       [taskId]
     );
     if (taskResult.length === 0) {
@@ -292,7 +292,7 @@ class InboundTransactionService {
     }
 
     const planId = taskResult[0].plan_id;
-    await connection.execute('UPDATE production_tasks SET status = ? WHERE id = ?', [
+    await connection.execute('UPDATE production_tasks SET status = ? WHERE id = ? AND deleted_at IS NULL', [
       dbStatus,
       taskId,
     ]);
@@ -303,7 +303,7 @@ class InboundTransactionService {
 
     if (planId) {
       const [planTasks] = await connection.query(
-        'SELECT status FROM production_tasks WHERE plan_id = ? FOR UPDATE',
+        'SELECT status FROM production_tasks WHERE plan_id = ? AND deleted_at IS NULL FOR UPDATE',
         [planId]
       );
 
@@ -312,7 +312,7 @@ class InboundTransactionService {
       const cancelledCount = planTasks.filter((task) => task.status === 'cancelled').length;
 
       if (totalTasks > 0 && targetCount === totalTasks - cancelledCount) {
-        await connection.execute('UPDATE production_plans SET status = ? WHERE id = ?', [
+        await connection.execute('UPDATE production_plans SET status = ? WHERE id = ? AND deleted_at IS NULL', [
           dbStatus,
           planId,
         ]);
@@ -346,7 +346,7 @@ class InboundTransactionService {
                 const conn = await db.pool.getConnection();
                 try {
                   const [materialInfo] = await conn.execute(
-                    'SELECT code, name FROM materials WHERE id = ?',
+                    'SELECT code, name FROM materials WHERE id = ? AND deleted_at IS NULL',
                     [item.material_id]
                   );
                   if (materialInfo.length > 0) {
@@ -371,7 +371,7 @@ class InboundTransactionService {
                 const conn = await db.pool.getConnection();
                 try {
                   await conn.execute(
-                    'UPDATE quality_inspections SET traceability_batch = ? WHERE id = ?',
+                    'UPDATE quality_inspections SET traceability_batch = ? WHERE id = ? AND deleted_at IS NULL',
                     [batchNumber, inspection_id]
                   );
                 } finally {
@@ -397,7 +397,7 @@ class InboundTransactionService {
         try {
           // 查找绑定的成品质检单，获取关联的生产任务ID
           const [inspections] = await connection.query(
-            "SELECT reference_id FROM quality_inspections WHERE id = ? AND inspection_type = 'final'",
+            "SELECT reference_id FROM quality_inspections WHERE id = ? AND inspection_type = 'final' AND deleted_at IS NULL",
             [inspection_id]
           );
           if (inspections.length > 0 && inspections[0].reference_id) {
@@ -405,7 +405,7 @@ class InboundTransactionService {
 
             // 查找生产任务和计划
             const [taskResult] = await connection.query(
-              'SELECT id, plan_id, code FROM production_tasks WHERE id = ?',
+              'SELECT id, plan_id, code FROM production_tasks WHERE id = ? AND deleted_at IS NULL',
               [taskId]
             );
 

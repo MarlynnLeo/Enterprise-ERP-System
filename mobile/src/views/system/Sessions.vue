@@ -30,7 +30,7 @@
 <script setup>
   import { ref, computed, onMounted } from 'vue'
   import { NavBar, CellGroup, Cell, Loading, Tag } from 'vant'
-  import { systemApi } from '@/services/api'
+  import { systemApi } from '@/api'
   import { extractApiPaginated } from '@/utils/apiHelper'
 
   const loading = ref(true)

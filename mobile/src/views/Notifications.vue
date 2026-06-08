@@ -208,7 +208,7 @@ import {
   NavBar, Icon, Badge, Checkbox, Button, PullRefresh, List, Empty,
   Popup, Cell, Field, Switch, showToast, showConfirmDialog
 } from 'vant';
-import { productionApi, systemApi } from '@/services/api';
+import { productionApi, systemApi } from '@/api';
 
 const router = useRouter();
 

@@ -149,7 +149,7 @@ const processInspectionController = {
             const actualInspectorId = inspector_id || userId;
 
             const inspectionResult = await db.query(
-                'SELECT id, inspection_no, status, process_id, product_id FROM quality_inspections WHERE id = ?',
+                'SELECT id, inspection_no, status, process_id, product_id FROM quality_inspections WHERE id = ? AND deleted_at IS NULL',
                 [id]
             );
             const inspection = inspectionResult?.rows || inspectionResult;
@@ -326,14 +326,12 @@ const processInspectionController = {
                 params
             );
 
-            ResponseHandler.success(
+            ResponseHandler.paginated(
                 res,
-                {
-                    list: result.rows || result || [],
-                    total: total,
-                    page: pagination.page,
-                    pageSize: pagination.pageSize,
-                },
+                result.rows || result || [],
+                total,
+                pagination.page,
+                pagination.pageSize,
                 '获取打卡记录成功'
             );
         } catch (error) {

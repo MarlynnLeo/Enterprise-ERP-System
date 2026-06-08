@@ -238,7 +238,7 @@
   import { useRouter } from 'vue-router'
   import { NavBar, Search, Empty, PullRefresh, List, showToast } from 'vant'
   import SvgIcon from '@/components/icons/index.vue'
-  import { inventoryApi } from '@/services/api'
+  import { inventoryApi } from '@/api'
 
   const router = useRouter()
   const searchValue = ref('')

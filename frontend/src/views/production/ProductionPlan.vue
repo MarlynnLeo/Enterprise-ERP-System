@@ -21,6 +21,14 @@ import { parseDataObject, parseListData } from '@/utils/responseParser'
 import { useFormKeyboardNav } from '@/composables/useFormKeyboardNav'
 // ✅ 键盘导航：Enter 跳转下一字段，最后一个字段按 Enter 自动提交
 const { onFormKeydown: planFormKeydown } = useFormKeyboardNav(() => handleModalOk())
+const BATCH_MATERIAL_QUERY_LIMIT = 100
+const chunkArray = (items, size) => {
+  const chunks = []
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size))
+  }
+  return chunks
+}
 // 数据定义
 const loading = ref(false)
 const planList = ref([])
@@ -429,17 +437,20 @@ const calculateMaterials = async () => {
       }
 
       // 获取物料ID列表
-      const materialIds = materials
+      const materialIds = [...new Set(materials
         .filter(mat => mat.materialId || mat.id)
-        .map(mat => mat.materialId || mat.id);
+        .map(mat => mat.materialId || mat.id))];
 
       if (materialIds.length > 0) {
         try {
           // 批量获取物料信息以获取规格
-          const materialsResponse = await baseDataApi.getMaterialsByIds(materialIds);
           // 创建物料ID映射
           const materialsMap = {};
-          const materialsData = parseListData(materialsResponse, { enableLog: false });
+          const materialsData = [];
+          for (const chunk of chunkArray(materialIds, BATCH_MATERIAL_QUERY_LIMIT)) {
+            const materialsResponse = await baseDataApi.getMaterialsByIds(chunk);
+            materialsData.push(...parseListData(materialsResponse, { enableLog: false }));
+          }
           // 构建映射
           materialsData.forEach(mat => {
             if (mat.id) {

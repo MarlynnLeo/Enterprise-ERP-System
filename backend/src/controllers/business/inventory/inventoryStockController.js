@@ -247,7 +247,7 @@ const getStockRecords = async (req, res) => {
       locationId = locId;
 
       // 验证物料和仓库是否存在
-      const checkMaterialQuery = 'SELECT id, location_id FROM materials WHERE id = ?';
+      const checkMaterialQuery = 'SELECT id, location_id FROM materials WHERE id = ? AND deleted_at IS NULL';
       const [materialResult] = await db.pool.execute(checkMaterialQuery, [materialId]);
 
       if (materialResult.length === 0) {
@@ -269,7 +269,7 @@ const getStockRecords = async (req, res) => {
       // 在新架构中，直接使用物料ID
       // 检查是否为物料ID
       const checkMaterialQuery = `
-        SELECT id, location_id FROM materials WHERE id = ?
+        SELECT id, location_id FROM materials WHERE id = ? AND deleted_at IS NULL
       `;
       const [checkMaterialResult] = await db.pool.execute(checkMaterialQuery, [id]);
 
@@ -705,7 +705,7 @@ const getMaterialRecords = async (req, res) => {
 
     // 验证物料ID是否存在
     const checkMaterialQuery = `
-      SELECT id, code, name FROM materials WHERE id = ?
+      SELECT id, code, name FROM materials WHERE id = ? AND deleted_at IS NULL
     `;
     const [checkMaterialResult] = await db.pool.execute(checkMaterialQuery, [id]);
 
@@ -1178,6 +1178,51 @@ const importStock = async (req, res) => {
       errors: [],
     };
 
+    const uniqueMaterialCodes = [...new Set(stockData.map((stock) => String(stock.material_code || '').trim()).filter(Boolean))];
+    const uniqueLocationCodes = [...new Set(stockData.map((stock) => String(stock.location_code || '').trim()).filter(Boolean))];
+
+    const materialMap = new Map();
+    if (uniqueMaterialCodes.length > 0) {
+      const materialPlaceholders = uniqueMaterialCodes.map(() => '?').join(',');
+      const [materialRows] = await connection.query(
+        `SELECT id, code, name, status, unit_id FROM materials WHERE code IN (${materialPlaceholders})`,
+        uniqueMaterialCodes
+      );
+      for (const material of materialRows) {
+        materialMap.set(String(material.code), material);
+      }
+    }
+
+    const locationMap = new Map();
+    if (uniqueLocationCodes.length > 0) {
+      const locationPlaceholders = uniqueLocationCodes.map(() => '?').join(',');
+      const [locationRows] = await connection.query(
+        `SELECT id, code, name, status FROM locations WHERE code IN (${locationPlaceholders}) AND deleted_at IS NULL`,
+        uniqueLocationCodes
+      );
+      for (const location of locationRows) {
+        locationMap.set(String(location.code), location);
+      }
+    }
+
+    const stockQuantityMap = new Map();
+    const materialIds = [...new Set([...materialMap.values()].map((material) => material.id))];
+    const locationIds = [...new Set([...locationMap.values()].map((location) => location.id))];
+    if (materialIds.length > 0 && locationIds.length > 0) {
+      const materialIdPlaceholders = materialIds.map(() => '?').join(',');
+      const locationIdPlaceholders = locationIds.map(() => '?').join(',');
+      const [stockRows] = await connection.query(
+        `SELECT material_id, location_id, COALESCE(SUM(quantity), 0) as quantity
+         FROM inventory_ledger
+         WHERE material_id IN (${materialIdPlaceholders}) AND location_id IN (${locationIdPlaceholders})
+         GROUP BY material_id, location_id`,
+        [...materialIds, ...locationIds]
+      );
+      for (const stockRow of stockRows) {
+        stockQuantityMap.set(`${stockRow.material_id}_${stockRow.location_id}`, parseFloat(stockRow.quantity || 0));
+      }
+    }
+
     for (let i = 0; i < stockData.length; i++) {
       const stock = stockData[i];
       logger.info(`处理第 ${i + 1} 条库存数据:`, stock);
@@ -1216,12 +1261,9 @@ const importStock = async (req, res) => {
         }
 
         // ✅ 增强验证：查找物料ID并验证物料状态
-        const [materials] = await connection.query(
-          'SELECT id, name, status, unit_id FROM materials WHERE code = ?',
-          [stock.material_code]
-        );
+        const material = materialMap.get(String(stock.material_code || '').trim());
 
-        if (materials.length === 0) {
+        if (!material) {
           results.errors.push({
             row: stock.row,
             data: stock,
@@ -1231,7 +1273,7 @@ const importStock = async (req, res) => {
         }
 
         // ✅ 增强验证：检查物料是否启用
-        if (materials[0].status !== 1) {
+        if (material.status !== 1) {
           results.errors.push({
             row: stock.row,
             data: stock,
@@ -1241,12 +1283,9 @@ const importStock = async (req, res) => {
         }
 
         // ✅ 增强验证：查找库位ID并验证库位状态
-        const [locations] = await connection.query(
-          'SELECT id, name, status FROM locations WHERE code = ? AND deleted_at IS NULL',
-          [stock.location_code]
-        );
+        const location = locationMap.get(String(stock.location_code || '').trim());
 
-        if (locations.length === 0) {
+        if (!location) {
           results.errors.push({
             row: stock.row,
             data: stock,
@@ -1256,7 +1295,7 @@ const importStock = async (req, res) => {
         }
 
         // ✅ 增强验证：检查库位是否启用
-        if (locations[0].status !== undefined && locations[0].status !== 1) {
+        if (location.status !== undefined && location.status !== 1) {
           results.errors.push({
             row: stock.row,
             data: stock,
@@ -1265,22 +1304,13 @@ const importStock = async (req, res) => {
           continue;
         }
 
-        const materialId = materials[0].id;
-        const locationId = locations[0].id;
-        const materialName = materials[0].name;
-        const locationName = locations[0].name;
+        const materialId = material.id;
+        const locationId = location.id;
+        const materialName = material.name;
+        const locationName = location.name;
 
         // 检查当前库存（从inventory_ledger表计算）
-        const [currentStock] = await connection.query(
-          `
-          SELECT COALESCE(SUM(quantity), 0) as quantity
-          FROM inventory_ledger
-          WHERE material_id = ? AND location_id = ?
-        `,
-          [materialId, locationId]
-        );
-
-        const currentQuantity = currentStock.length > 0 ? parseFloat(currentStock[0].quantity) : 0;
+        const currentQuantity = stockQuantityMap.get(`${materialId}_${locationId}`) || 0;
         const newQuantity = parsedQuantity; // ✅ 使用已验证的数量
         const adjustmentQuantity = newQuantity - currentQuantity;
 
@@ -1313,11 +1343,13 @@ const importStock = async (req, res) => {
             referenceType: 'import_adjustment',
             operator: await getCurrentUserName(req),
             remark: stock.remark || '初始导入',
-            unitId: materials[0].unit_id || null,
+            unitId: material.unit_id || null,
             batchNumber: null,
           },
           connection
         );
+
+        stockQuantityMap.set(`${materialId}_${locationId}`, newQuantity);
 
         results.success.push({
           material_code: stock.material_code,

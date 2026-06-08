@@ -65,12 +65,14 @@ const supplierQualityController = {
                 params
             );
 
-            ResponseHandler.success(res, {
-                list: result.rows || [],
-                total: parseInt(total),
-                page: pagination.page,
-                pageSize: pagination.pageSize,
-            }, '获取供应商质量得分列表成功');
+            ResponseHandler.paginated(
+                res,
+                result.rows || [],
+                parseInt(total),
+                pagination.page,
+                pagination.pageSize,
+                '获取供应商质量得分列表成功'
+            );
         } catch (error) {
             logger.error('获取供应商质量得分失败:', error);
             ResponseHandler.error(res, '获取供应商质量得分失败', 'SERVER_ERROR', 500, error);

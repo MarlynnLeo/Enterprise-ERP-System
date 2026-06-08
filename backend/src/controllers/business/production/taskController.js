@@ -405,7 +405,7 @@ exports.createProductionTask = async (req, res) => {
       await connection.query(
         `UPDATE production_plans
          SET pushed_quantity = COALESCE(pushed_quantity, 0) + ?
-         WHERE id = ?`,
+         WHERE id = ? AND deleted_at IS NULL`,
         [taskQuantity, plan_id]
       );
     }
@@ -413,7 +413,7 @@ exports.createProductionTask = async (req, res) => {
     // 自动创建单据关联（生产计划 → 生产任务）
     if (plan_id) {
       const DocumentLinkService = require('../../../services/business/DocumentLinkService');
-      const [[planRow]] = await connection.query('SELECT code FROM production_plans WHERE id = ?', [plan_id]);
+      const [[planRow]] = await connection.query('SELECT code FROM production_plans WHERE id = ? AND deleted_at IS NULL', [plan_id]);
       await DocumentLinkService.tryAutoLink(
         'production_plan', plan_id, planRow?.code || null,
         'production_task', taskId, code, req.user?.userId || req.user?.id, connection
@@ -489,7 +489,7 @@ exports.createProductionTask = async (req, res) => {
     if (plan_id) {
       // 查询计划当前状态
       const [planInfo] = await connection.query(
-        'SELECT status FROM production_plans WHERE id = ?',
+        'SELECT status FROM production_plans WHERE id = ? AND deleted_at IS NULL',
         [plan_id]
       );
 
@@ -498,7 +498,7 @@ exports.createProductionTask = async (req, res) => {
 
         // 如果计划是草稿状态，更新为分配中
         if (currentStatus === 'draft') {
-          await connection.query('UPDATE production_plans SET status = "allocated" WHERE id = ?', [
+          await connection.query('UPDATE production_plans SET status = "allocated" WHERE id = ? AND deleted_at IS NULL', [
             plan_id,
           ]);
           logger.info(`生产计划 ${plan_id} 状态已更新: draft → allocated（分配中）`);
@@ -595,7 +595,7 @@ exports.updateProductionTask = async (req, res) => {
         await connection.query(
           `UPDATE production_plans
            SET pushed_quantity = GREATEST(0, COALESCE(pushed_quantity, 0) - ?)
-           WHERE id = ?`,
+           WHERE id = ? AND deleted_at IS NULL`,
           [currentQuantity, currentPlanId]
         );
       }
@@ -633,7 +633,7 @@ exports.updateProductionTask = async (req, res) => {
         await connection.query(
           `UPDATE production_plans
            SET pushed_quantity = COALESCE(pushed_quantity, 0) + ?
-           WHERE id = ?`,
+           WHERE id = ? AND deleted_at IS NULL`,
           [taskQuantity, nextPlanId]
         );
       }
@@ -654,7 +654,7 @@ exports.updateProductionTask = async (req, res) => {
       UPDATE production_tasks
       SET plan_id = ?, product_id = ?, quantity = ?, start_date = ?,
           expected_end_date = ?, manager = ?, remarks = ?, cost_center_id = ?, status = IFNULL(?, status)
-      WHERE id = ?
+       WHERE id = ? AND deleted_at IS NULL
     `,
       [
         plan_id || null,
@@ -683,7 +683,7 @@ exports.updateProductionTask = async (req, res) => {
         await connection.query(
           `UPDATE production_plans
            SET status = 'draft'
-           WHERE id = ? AND status NOT IN ('completed', 'cancelled')`,
+            WHERE id = ? AND deleted_at IS NULL AND status NOT IN ('completed', 'cancelled')`,
           [planIdToRefresh]
         );
       } else {
@@ -762,7 +762,7 @@ exports.deleteProductionTask = async (req, res) => {
       await connection.query(
         `UPDATE production_plans
          SET pushed_quantity = GREATEST(0, COALESCE(pushed_quantity, 0) - ?)
-         WHERE id = ?`,
+          WHERE id = ? AND deleted_at IS NULL`,
         [Number(taskCheck[0].quantity) || 0, taskCheck[0].plan_id]
       );
 
@@ -776,7 +776,7 @@ exports.deleteProductionTask = async (req, res) => {
         await connection.query(
           `UPDATE production_plans
            SET status = 'draft'
-           WHERE id = ? AND status NOT IN ('completed', 'cancelled')`,
+            WHERE id = ? AND deleted_at IS NULL AND status NOT IN ('completed', 'cancelled')`,
           [taskCheck[0].plan_id]
         );
       } else {
@@ -887,7 +887,7 @@ exports.updateProductionTaskProgress = async (req, res) => {
       );
     }
 
-    await connection.query('UPDATE production_tasks SET progress = ? WHERE id = ?', [
+    await connection.query('UPDATE production_tasks SET progress = ? WHERE id = ? AND deleted_at IS NULL', [
       numericProgress,
       id,
     ]);
@@ -933,7 +933,7 @@ exports.updateProductionTaskStatus = async (req, res) => {
     }
 
     const [taskCheck] = await connection.query(
-      'SELECT pt.*, pp.id as plan_id FROM production_tasks pt LEFT JOIN production_plans pp ON pt.plan_id = pp.id WHERE pt.id = ?',
+      'SELECT pt.*, pp.id as plan_id FROM production_tasks pt LEFT JOIN production_plans pp ON pt.plan_id = pp.id AND pp.deleted_at IS NULL WHERE pt.id = ? AND pt.deleted_at IS NULL',
       [id]
     );
 
@@ -981,7 +981,7 @@ exports.updateProductionTaskStatus = async (req, res) => {
     }
 
     logger.info(`[执行更新] 任务ID: ${id}, 最终数据库状态: ${dbStatus}`);
-    await connection.query('UPDATE production_tasks SET status = ? WHERE id = ?', [dbStatus, id]);
+    await connection.query('UPDATE production_tasks SET status = ? WHERE id = ? AND deleted_at IS NULL', [dbStatus, id]);
 
     const taskData = taskCheck[0];
     const planId = taskData.plan_id;
@@ -1020,7 +1020,7 @@ exports.updateProductionTaskStatus = async (req, res) => {
 
           // 获取产品信息
           const [productInfo] = await connection.query(
-            'SELECT code, name, unit_id FROM materials WHERE id = ?',
+            'SELECT code, name, unit_id FROM materials WHERE id = ? AND deleted_at IS NULL',
             [taskData.product_id]
           );
           const product = productInfo[0] || {};
@@ -1103,7 +1103,7 @@ exports.updateProductionTaskStatus = async (req, res) => {
 
           // 获取产品信息
           const [productInfo] = await connection.query(
-            'SELECT code, name, unit_id FROM materials WHERE id = ?',
+            'SELECT code, name, unit_id FROM materials WHERE id = ? AND deleted_at IS NULL',
             [taskData.product_id]
           );
           const product = productInfo[0] || {};
@@ -1207,7 +1207,7 @@ exports.updateProductionTaskStatus = async (req, res) => {
       status === TASK_STATUS.COMPLETED
     ) {
       await connection.query(
-        'UPDATE production_tasks SET completed_quantity = quantity WHERE id = ? AND (completed_quantity IS NULL OR completed_quantity < quantity)',
+        'UPDATE production_tasks SET completed_quantity = quantity WHERE id = ? AND deleted_at IS NULL AND (completed_quantity IS NULL OR completed_quantity < quantity)',
         [id]
       );
 
@@ -1247,7 +1247,7 @@ exports.updateProductionTaskStatus = async (req, res) => {
       const [_updatedInspections] = await connection.query(
           `UPDATE quality_inspections
            SET status = 'passed', note = CONCAT(COALESCE(note, ''), ' | 工序全部完成时自动关闭')
-           WHERE task_id = ? AND inspection_type IN ('first_article', 'process') AND status = 'pending'`,
+           WHERE task_id = ? AND inspection_type IN ('first_article', 'process') AND status = 'pending' AND deleted_at IS NULL`,
         [id]
       );
 
@@ -1446,7 +1446,7 @@ exports.completeTask = async (req, res) => {
       updateParams.push(TASK_STATUS.INSPECTION);
     }
 
-    updateQuery += ' WHERE id = ?';
+    updateQuery += ' WHERE id = ? AND deleted_at IS NULL';
     updateParams.push(id);
 
     await connection.query(updateQuery, updateParams);
@@ -1624,7 +1624,7 @@ exports.getProductionTaskBom = async (req, res) => {
 
     // 1. 获取任务信息
     const [tasks] = await pool.query(
-      'SELECT product_id, quantity FROM production_tasks WHERE id = ?',
+      'SELECT product_id, quantity FROM production_tasks WHERE id = ? AND deleted_at IS NULL',
       [id]
     );
 

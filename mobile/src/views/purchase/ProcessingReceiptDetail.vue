@@ -53,7 +53,7 @@
   import { computed, onMounted, ref } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
   import { Button, Cell, CellGroup, Empty, Loading, NavBar, Tag, showConfirmDialog, showToast } from 'vant'
-  import { purchaseApi } from '@/services/api'
+  import { purchaseApi } from '@/api'
   import { extractApiData } from '@/utils/apiHelper'
 
   const route = useRoute()

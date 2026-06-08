@@ -115,12 +115,14 @@ const gaugeController = {
                 params
             );
 
-            ResponseHandler.success(res, {
-                list: result.rows || [],
-                total: parseInt(total),
-                page: pagination.page,
-                pageSize: pagination.pageSize,
-            }, '获取量具列表成功');
+            ResponseHandler.paginated(
+                res,
+                result.rows || [],
+                parseInt(total),
+                pagination.page,
+                pagination.pageSize,
+                '获取量具列表成功'
+            );
         } catch (error) {
             logger.error('获取量具列表失败:', error);
             ResponseHandler.error(res, '获取量具列表失败', 'SERVER_ERROR', 500, error);
@@ -292,12 +294,14 @@ const gaugeController = {
                 params
             );
 
-            ResponseHandler.success(res, {
-                list: listResult.rows || [],
-                total: parseInt(total),
-                page: pagination.page,
-                pageSize: pagination.pageSize,
-            }, '获取校准记录成功');
+            ResponseHandler.paginated(
+                res,
+                listResult.rows || [],
+                parseInt(total),
+                pagination.page,
+                pagination.pageSize,
+                '获取校准记录成功'
+            );
         } catch (error) {
             logger.error('获取校准记录失败:', error);
             ResponseHandler.error(res, '获取校准记录失败', 'SERVER_ERROR', 500, error);

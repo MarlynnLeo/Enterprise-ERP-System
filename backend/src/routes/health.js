@@ -6,7 +6,7 @@ const express = require('express');
 const router = express.Router();
 const healthCheckService = require('../services/HealthCheckService');
 const DatabaseMonitorService = require('../services/DatabaseMonitorService');
-const { cacheMiddleware } = require('../services/cacheService');
+const { cacheMiddleware } = require('../services/cache/CacheManager');
 const { authenticateToken } = require('../middleware/auth');
 const { requirePermission } = require('../middleware/requirePermission');
 

@@ -18,7 +18,7 @@ class ExcessIssueService {
 
       // 1. 获取生产任务信息
       const { rows: tasks } = await db.query(
-        'SELECT product_id, quantity FROM production_tasks WHERE id = ?',
+        'SELECT product_id, quantity FROM production_tasks WHERE id = ? AND deleted_at IS NULL',
         [productionTaskId]
       );
 

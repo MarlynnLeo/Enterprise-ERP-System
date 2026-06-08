@@ -4,7 +4,7 @@
 
 const BaseService = require('../BaseService');
 
-const cacheService = require('../cacheService'); // ✅ 更新：使用统一的缓存服务
+const cacheService = require('../cache/CacheManager'); // ✅ 更新：使用统一的缓存服务
 
 class EquipmentMonitoringService extends BaseService {
   constructor() {
@@ -412,8 +412,8 @@ class EquipmentMonitoringService extends BaseService {
       await connection.commit();
 
       // 清除相关缓存
-      cacheService.delete(`equipment_detail_${equipmentId}`);
-      cacheService.deleteByPrefix(`equipment_realtime_${equipmentId}_`);
+      await cacheService.delete(`equipment_detail_${equipmentId}`);
+      await cacheService.deleteByPrefix(`equipment_realtime_${equipmentId}_`);
 
       return { success: true, previousStatus, newStatus };
     } catch (error) {

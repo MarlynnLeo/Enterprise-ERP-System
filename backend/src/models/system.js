@@ -62,6 +62,55 @@ function normalizeIdList(value, fieldName) {
   }))];
 }
 
+async function assertAssignableRoleIds(connection, roleIds, options = {}) {
+  if (roleIds.length === 0) return [];
+
+  const placeholders = roleIds.map(() => '?').join(',');
+  const [roles] = await connection.execute(
+    `SELECT id, code, name, status FROM roles WHERE id IN (${placeholders})`,
+    roleIds
+  );
+
+  const existingIds = new Set(roles.map((role) => Number(role.id)));
+  const missingIds = roleIds.filter((roleId) => !existingIds.has(roleId));
+  if (missingIds.length > 0) {
+    throw new Error(`invalid roleIds: ${missingIds.join(',')}`);
+  }
+
+  const disabledIds = roles
+    .filter((role) => Number(role.status) !== 1)
+    .map((role) => Number(role.id));
+  if (disabledIds.length > 0) {
+    throw new Error(`invalid roleIds: disabled roles ${disabledIds.join(',')}`);
+  }
+
+  const adminIds = roles
+    .filter((role) => String(role.code || '').trim().toLowerCase() === 'admin')
+    .map((role) => Number(role.id));
+  if (adminIds.length > 0 && !options.allowAdminRole) {
+    throw new Error('FORBIDDEN: assigning admin role requires super administrator');
+  }
+
+  return roles;
+}
+
+async function assertExistingMenuIds(connection, menuIds) {
+  if (menuIds.length === 0) return [];
+
+  const placeholders = menuIds.map(() => '?').join(',');
+  const [menus] = await connection.execute(
+    `SELECT id FROM menus WHERE id IN (${placeholders})`,
+    menuIds
+  );
+  const existingIds = new Set(menus.map((menu) => Number(menu.id)));
+  const missingIds = menuIds.filter((menuId) => !existingIds.has(menuId));
+  if (missingIds.length > 0) {
+    throw new Error(`invalid menuIds: ${missingIds.join(',')}`);
+  }
+
+  return menus;
+}
+
 function normalizeMenuData(menuData = {}) {
   return {
     parent_id: normalizeNullableId(menuData.parent_id ?? menuData.parentId),
@@ -349,13 +398,16 @@ const systemModel = {
     }
   },
 
-  async createUser(userData) {
+  async createUser(userData, options = {}) {
     const connection = await pool.getConnection();
     try {
       await connection.beginTransaction();
       const username = String(userData.username || '').trim();
       const password = String(userData.password || '');
       const roleIds = normalizeIdList(userData.roleIds, 'roleIds');
+      const roleRows = await assertAssignableRoleIds(connection, roleIds, {
+        allowAdminRole: options.allowAdminRole === true,
+      });
 
       if (!username) {
         throw new Error('username is required');
@@ -386,12 +438,9 @@ const systemModel = {
       // 从roleIds获取第一个角色的code作为role字段的值
       let roleCode = 'user'; // 默认值
       if (roleIds.length > 0) {
-        const [roleResult] = await connection.execute(
-          'SELECT code FROM roles WHERE id = ? LIMIT 1',
-          [roleIds[0]]
-        );
-        if (roleResult.length > 0) {
-          roleCode = roleResult[0].code;
+        const firstRole = roleRows.find((role) => Number(role.id) === roleIds[0]);
+        if (firstRole) {
+          roleCode = firstRole.code;
         }
       }
 
@@ -443,7 +492,7 @@ const systemModel = {
     }
   },
 
-  async updateUser(id, userData) {
+  async updateUser(id, userData, options = {}) {
     const connection = await pool.getConnection();
     try {
       await connection.beginTransaction();
@@ -457,6 +506,11 @@ const systemModel = {
       }
       const roleIds =
         userData.roleIds !== undefined ? normalizeIdList(userData.roleIds, 'roleIds') : null;
+      const roleRows = roleIds
+        ? await assertAssignableRoleIds(connection, roleIds, {
+            allowAdminRole: options.allowAdminRole === true,
+          })
+        : [];
       const status =
         userData.status !== undefined
           ? normalizeBinaryStatus(userData.status)
@@ -465,12 +519,9 @@ const systemModel = {
       // 从roleIds获取第一个角色的code作为role字段的值
       let roleCode = existingUser.role || 'user';
       if (roleIds && roleIds.length > 0) {
-        const [roleResult] = await connection.execute(
-          'SELECT code FROM roles WHERE id = ? LIMIT 1',
-          [roleIds[0]]
-        );
-        if (roleResult.length > 0) {
-          roleCode = roleResult[0].code;
+        const firstRole = roleRows.find((role) => Number(role.id) === roleIds[0]);
+        if (firstRole) {
+          roleCode = firstRole.code;
         }
       }
 
@@ -822,6 +873,7 @@ const systemModel = {
 
       // 插入角色菜单权限关联
       const menuIds = normalizeIdList(data.menuIds, 'menuIds');
+      await assertExistingMenuIds(connection, menuIds);
       if (menuIds.length > 0) {
         for (const menuId of menuIds) {
           await connection.execute('INSERT INTO role_menus (role_id, menu_id) VALUES (?, ?)', [
@@ -871,6 +923,7 @@ const systemModel = {
 
         // 添加新的权限关联
         const menuIds = normalizeIdList(data.menuIds, 'menuIds');
+        await assertExistingMenuIds(connection, menuIds);
         if (menuIds.length > 0) {
           for (const menuId of menuIds) {
             await connection.execute('INSERT INTO role_menus (role_id, menu_id) VALUES (?, ?)', [

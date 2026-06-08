@@ -121,7 +121,7 @@ import { ref, reactive, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { NavBar, Search, Empty, PullRefresh, List, showToast } from 'vant';
 import SvgIcon from '@/components/icons/index.vue';
-import { inventoryApi } from '@/services/api';
+import { inventoryApi } from '@/api';
 import { formatDate } from '@/utils/format';
 import { getInboundStatusText, getInboundTypeText } from '@/constants/statusConstants';
 

@@ -13,7 +13,7 @@
 
 const { logger } = require('../utils/logger');
 const { pool } = require('../config/db');
-const cacheService = require('./cacheService');
+const cacheService = require('./cache/CacheManager');
 
 /**
  * 权限别名映射表
@@ -107,10 +107,12 @@ class PermissionService {
       const cacheKey = `${this.CACHE_CONFIG.PREFIX.USER_PERMISSIONS}${userId}`;
 
       // 如果不是强制刷新，尝试从缓存获取
-      if (!forceRefresh && cacheService.has(cacheKey)) {
-        const cachedPermissions = cacheService.get(cacheKey);
-        logger.debug(`✅ [缓存命中] 用户权限: ${cacheKey}, 权限数: ${cachedPermissions.length}`);
-        return cachedPermissions;
+      if (!forceRefresh) {
+        const cachedPermissions = await cacheService.get(cacheKey);
+        if (cachedPermissions !== null) {
+          logger.debug(`✅ [缓存命中] 用户权限: ${cacheKey}, 权限数: ${cachedPermissions.length}`);
+          return cachedPermissions;
+        }
       }
 
       logger.debug(`❌ [缓存未命中] 用户权限: ${cacheKey}, 将从数据库查询`);
@@ -132,7 +134,7 @@ class PermissionService {
       }
 
       // 缓存结果
-      cacheService.set(cacheKey, permissions, this.CACHE_CONFIG.TTL);
+      await cacheService.set(cacheKey, permissions, this.CACHE_CONFIG.TTL);
       logger.debug(`💾 [缓存设置] 用户权限已缓存: ${cacheKey}, 权限数: ${permissions.length}`);
 
       return permissions;
@@ -224,13 +226,13 @@ class PermissionService {
    * 清除用户权限缓存
    * @param {number} userId - 用户ID，如果不传则清除所有用户
    */
-  static clearUserPermissionsCache(userId = null) {
+  static async clearUserPermissionsCache(userId = null) {
     if (userId) {
       const cacheKey = `${this.CACHE_CONFIG.PREFIX.USER_PERMISSIONS}${userId}`;
-      cacheService.delete(cacheKey);
+      await cacheService.delete(cacheKey);
       logger.info(`🗑️ [清除缓存] 已清除用户 ${userId} 的权限缓存`);
     } else {
-      const count = cacheService.deleteByPrefix(this.CACHE_CONFIG.PREFIX.USER_PERMISSIONS);
+      const count = await cacheService.deleteByPrefix(this.CACHE_CONFIG.PREFIX.USER_PERMISSIONS);
       logger.info(`🗑️ [批量清除缓存] 已清除所有用户权限缓存: ${count} 个`);
     }
   }
@@ -239,8 +241,8 @@ class PermissionService {
    * 服务启动时清除所有权限缓存
    * 确保代码变更后不会因为旧缓存导致权限不一致
    */
-  static initOnStartup() {
-    this.clearUserPermissionsCache();
+  static async initOnStartup() {
+    await this.clearUserPermissionsCache();
     logger.info('🔄 [权限服务] 启动初始化完成，已清除所有权限缓存');
   }
 }

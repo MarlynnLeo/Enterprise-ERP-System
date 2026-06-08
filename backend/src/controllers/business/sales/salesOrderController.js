@@ -22,6 +22,7 @@ const { STATUS, getConnection, generateSalesOrderNo } = require('./salesShared')
 const { autoGenerateFollowUpDocuments } = require('./salesExchangeController');
 const { generateProductionAndPurchasePlans } = require('./salesPackingController');
 const { financeConfig } = require('../../../config/financeConfig');
+const SYNC_SALES_ORDER_STATUS_DRIFT = false;
 
 function assertSalesOrderItemPrices(items = []) {
   const invalidRows = items
@@ -64,7 +65,7 @@ exports.getSalesOrderOperators = async (req, res) => {
           u.real_name,
           COUNT(so.id) as order_count
         FROM users u
-        INNER JOIN sales_orders so ON u.id = so.created_by
+        INNER JOIN sales_orders so ON u.id = so.created_by AND so.deleted_at IS NULL
         GROUP BY u.id, u.username, u.real_name
         ORDER BY order_count DESC, u.real_name ASC
       `);
@@ -286,8 +287,8 @@ exports.getSalesOrders = async (req, res) => {
         };
       });
 
-      // 状态漂移回写 DB — 保证数据库始终是权威数据源
-      if (statusUpdates.length > 0) {
+      // Keep order-list reads side-effect free; status drift is reported only in the response.
+      if (SYNC_SALES_ORDER_STATUS_DRIFT && statusUpdates.length > 0) {
         const groupedByStatus = {};
         for (const u of statusUpdates) {
           (groupedByStatus[u.status] ||= []).push(u.id);
@@ -755,23 +756,23 @@ exports.updateOrderStatus = async (req, res) => {
 
     // 更新订单状态
     await connection.execute(
-      'UPDATE sales_orders SET status = ?, updated_at = NOW() WHERE id = ?',
+      'UPDATE sales_orders SET status = ?, updated_at = NOW() WHERE id = ? AND deleted_at IS NULL',
       [newStatus, id]
     );
     if (newStatus === STATUS.SALES_ORDER.READY_TO_SHIP) {
       await connection.execute(
         `UPDATE sales_orders
          SET is_locked = TRUE,
-             locked_at = COALESCE(locked_at, NOW()),
-             locked_by = COALESCE(locked_by, ?),
-             lock_reason = COALESCE(lock_reason, ?)
-         WHERE id = ?`,
+              locked_at = COALESCE(locked_at, NOW()),
+              locked_by = COALESCE(locked_by, ?),
+              lock_reason = COALESCE(lock_reason, ?)
+          WHERE id = ? AND deleted_at IS NULL`,
         [getAuthenticatedUserId(req) || checkResult[0].created_by, 'Auto reserved by fulfillment flow', id]
       );
     }
 
     // 获取更新后的订单
-    const [updatedOrder] = await connection.execute('SELECT id, order_no, customer_id, quotation_id, contract_code, total_amount, payment_terms, delivery_date, status, invoice_status, remarks, created_by, created_at, updated_at, is_locked, locked_at, locked_by, lock_reason, tax_rate, tax_amount, subtotal, deleted_at FROM sales_orders WHERE id = ?', [
+    const [updatedOrder] = await connection.execute('SELECT id, order_no, customer_id, quotation_id, contract_code, total_amount, payment_terms, delivery_date, status, invoice_status, remarks, created_by, created_at, updated_at, is_locked, locked_at, locked_by, lock_reason, tax_rate, tax_amount, subtotal, deleted_at FROM sales_orders WHERE id = ? AND deleted_at IS NULL', [
       id,
     ]);
 
@@ -1110,7 +1111,7 @@ exports.lockOrder = async (req, res) => {
     const userId = getAuthenticatedUserId(req);
 
     // 检查订单是否存在
-    const [orderResult] = await connection.execute('SELECT id, order_no, customer_id, quotation_id, contract_code, total_amount, payment_terms, delivery_date, status, invoice_status, remarks, created_by, created_at, updated_at, is_locked, locked_at, locked_by, lock_reason, tax_rate, tax_amount, subtotal, deleted_at FROM sales_orders WHERE id = ? FOR UPDATE', [id]);
+    const [orderResult] = await connection.execute('SELECT id, order_no, customer_id, quotation_id, contract_code, total_amount, payment_terms, delivery_date, status, invoice_status, remarks, created_by, created_at, updated_at, is_locked, locked_at, locked_by, lock_reason, tax_rate, tax_amount, subtotal, deleted_at FROM sales_orders WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [id]);
 
     if (orderResult.length === 0) {
       await connection.rollback();
@@ -1163,7 +1164,7 @@ exports.lockOrder = async (req, res) => {
       `
       UPDATE sales_orders
       SET is_locked = TRUE, locked_at = NOW(), locked_by = ?, lock_reason = ?, updated_at = NOW()
-      WHERE id = ?
+      WHERE id = ? AND deleted_at IS NULL
         `,
       [userId, lock_reason || '手动锁定', id]
     );
@@ -1206,7 +1207,7 @@ exports.unlockOrder = async (req, res) => {
     const userId = getAuthenticatedUserId(req);
 
     // 检查订单是否存在
-    const [orderResult] = await connection.execute('SELECT id, order_no, customer_id, quotation_id, contract_code, total_amount, payment_terms, delivery_date, status, invoice_status, remarks, created_by, created_at, updated_at, is_locked, locked_at, locked_by, lock_reason, tax_rate, tax_amount, subtotal, deleted_at FROM sales_orders WHERE id = ? FOR UPDATE', [id]);
+    const [orderResult] = await connection.execute('SELECT id, order_no, customer_id, quotation_id, contract_code, total_amount, payment_terms, delivery_date, status, invoice_status, remarks, created_by, created_at, updated_at, is_locked, locked_at, locked_by, lock_reason, tax_rate, tax_amount, subtotal, deleted_at FROM sales_orders WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [id]);
 
     if (orderResult.length === 0) {
       await connection.rollback();
@@ -1233,7 +1234,7 @@ exports.unlockOrder = async (req, res) => {
       `
       UPDATE sales_orders
       SET is_locked = FALSE, locked_at = NULL, locked_by = NULL, lock_reason = NULL, updated_at = NOW()
-      WHERE id = ?
+      WHERE id = ? AND deleted_at IS NULL
         `,
       [id]
     );
@@ -1269,7 +1270,7 @@ exports.getOrderLockStatus = async (req, res) => {
       SELECT so.*, u.username as locked_by_name
       FROM sales_orders so
       LEFT JOIN users u ON so.locked_by = u.id
-      WHERE so.id = ?
+      WHERE so.id = ? AND so.deleted_at IS NULL
         `,
       [id]
     );
@@ -1307,7 +1308,7 @@ exports.exportOrders = async (req, res) => {
     const { search = '', status = '', startDate = '', endDate = '' } = req.body;
 
     // 构建查询条件
-    let whereClause = 'WHERE 1=1';
+    let whereClause = 'WHERE so.deleted_at IS NULL';
     const params = [];
 
     if (search) {
@@ -1823,7 +1824,7 @@ exports.importOrders = async (req, res) => {
 
             // 更新订单状态
             await connection.execute(
-              'UPDATE sales_orders SET status = ?, updated_at = NOW() WHERE id = ?',
+              'UPDATE sales_orders SET status = ?, updated_at = NOW() WHERE id = ? AND deleted_at IS NULL',
               [finalStatus, orderId]
             );
 

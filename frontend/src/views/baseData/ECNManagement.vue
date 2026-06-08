@@ -7,7 +7,7 @@
           <h2>工程变更管理 (ECN/ECO)</h2>
           <p class="subtitle">管理产品、BOM、工艺的工程变更通知与变更订单</p>
         </div>
-        <el-button type="primary" @click="openForm()">新建ECN</el-button>
+        <el-button type="primary" v-permission="'basedata:ecn:create'" @click="openForm()">新建ECN</el-button>
       </div>
     </el-card>
 
@@ -56,18 +56,18 @@
       <el-table-column prop="effective_date" label="生效日期" width="110" />
       <el-table-column label="操作" width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
         <template #default="{ row }">
-          <el-button link type="primary" @click="viewDetail(row)">详情</el-button>
+          <el-button link type="primary" v-permission="'basedata:ecn:view'" @click="viewDetail(row)">详情</el-button>
           <!-- 草稿 → 提交审批 -->
-          <el-button v-if="row.status === 'draft'" link type="warning" @click="submitForApproval(row)">提交审批</el-button>
+          <el-button v-if="row.status === 'draft'" link type="warning" v-permission="'basedata:ecn:update'" @click="submitForApproval(row)">提交审批</el-button>
           <!-- 已批准 → 开始实施 -->
-          <el-button v-if="row.status === 'approved'" link type="success" @click="handleStatusChange(row, 'implementing')">开始实施</el-button>
+          <el-button v-if="row.status === 'approved'" link type="success" v-permission="'basedata:ecn:update'" @click="handleStatusChange(row, 'implementing')">开始实施</el-button>
           <!-- 实施中 → 标记完成 -->
-          <el-button v-if="row.status === 'implementing'" link type="success" @click="handleStatusChange(row, 'completed')">标记完成</el-button>
+          <el-button v-if="row.status === 'implementing'" link type="success" v-permission="'basedata:ecn:update'" @click="handleStatusChange(row, 'completed')">标记完成</el-button>
           <!-- 已拒绝 → 退回草稿 -->
-          <el-button v-if="row.status === 'rejected'" link type="info" @click="handleStatusChange(row, 'draft')">退回草稿</el-button>
+          <el-button v-if="row.status === 'rejected'" link type="info" v-permission="'basedata:ecn:update'" @click="handleStatusChange(row, 'draft')">退回草稿</el-button>
           <!-- 删除（草稿和已拒绝可删除） -->
           <el-popconfirm v-if="['draft', 'rejected', 'cancelled'].includes(row.status)" title="确定删除？" @confirm="handleDelete(row.id)">
-            <template #reference><el-button link type="danger">删除</el-button></template>
+            <template #reference><el-button link type="danger" v-permission="'basedata:ecn:delete'">删除</el-button></template>
           </el-popconfirm>
         </template>
       </el-table-column>
@@ -100,7 +100,7 @@
         <!-- 变更明细区域 -->
         <el-divider content-position="left">变更明细</el-divider>
         <div v-if="isEditable" style="margin-bottom: 12px;">
-          <el-button type="primary" size="small" @click="addItem">+ 添加变更项</el-button>
+          <el-button type="primary" size="small" v-permission="formData.id ? 'basedata:ecn:update' : 'basedata:ecn:create'" @click="addItem">+ 添加变更项</el-button>
         </div>
         <el-table v-if="formData.items && formData.items.length" :data="formData.items" border size="small">
           <el-table-column label="变更类型" width="150">
@@ -211,7 +211,7 @@
           </el-table-column>
           <el-table-column v-if="isEditable" label="操作" width="60" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="{ $index }">
-              <el-button link type="danger" size="small" @click="removeItem($index)">删除</el-button>
+              <el-button link type="danger" size="small" v-permission="formData.id ? 'basedata:ecn:update' : 'basedata:ecn:create'" @click="removeItem($index)">删除</el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -220,9 +220,9 @@
       <template #footer>
         <el-button @click="formVis = false">关闭</el-button>
         <!-- 新建保存 -->
-        <el-button v-if="!formData.id" type="primary" @click="handleSave" :loading="saving">保存</el-button>
+        <el-button v-if="!formData.id" type="primary" v-permission="'basedata:ecn:create'" @click="handleSave" :loading="saving">保存</el-button>
         <!-- 草稿状态下编辑保存 -->
-        <el-button v-if="formData.id && formData.status === 'draft'" type="primary" @click="handleUpdate" :loading="saving">保存修改</el-button>
+        <el-button v-if="formData.id && formData.status === 'draft'" type="primary" v-permission="'basedata:ecn:update'" @click="handleUpdate" :loading="saving">保存修改</el-button>
       </template>
     </el-dialog>
   </div>

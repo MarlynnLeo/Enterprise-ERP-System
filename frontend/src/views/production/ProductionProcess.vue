@@ -763,11 +763,19 @@ const formatQuantity = (val) => {
   return num % 1 === 0 ? num.toFixed(0) : parseFloat(num.toFixed(2)).toString()
 }
 import { baseDataApi, commonApi, financeApi, inventoryApi, productionApi } from '@/api'
-import { parseDataObject, parseListData } from '@/utils/responseParser'
+import { parseListData } from '@/utils/responseParser'
 import { useAuthStore } from '@/stores/auth'
 import { buildResourceUrl } from '@/config/app'
 // 权限store
 const authStore = useAuthStore()
+const BATCH_MATERIAL_QUERY_LIMIT = 100
+const chunkArray = (items, size) => {
+  const chunks = []
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size))
+  }
+  return chunks
+}
 
 // 统一解析后端返回的业务警告并展示给用户
 const showBusinessWarnings = (res) => {
@@ -1800,16 +1808,23 @@ const submitReturnMaterial = async () => {
     submittingReturn.value = true
     const currentUser = authStore.user?.username || authStore.user?.real_name || 'system'
 
-    // 批量查询每个物料的默认仓位
     const materialLocations = {}
     let firstLocationId = null
-    for (const item of validItems) {
-      try {
-        const res = await baseDataApi.getMaterial(item.material_id)
-        const mat = parseDataObject(res, { enableLog: false }) || {}
-        materialLocations[item.material_id] = mat.location_id || null
-        if (!firstLocationId && mat.location_id) firstLocationId = mat.location_id
-      } catch {
+    const materialIds = [...new Set(validItems.map(item => item.material_id).filter(Boolean))]
+    try {
+      const materials = []
+      for (const chunk of chunkArray(materialIds, BATCH_MATERIAL_QUERY_LIMIT)) {
+        const materialsRes = await baseDataApi.getMaterialsByIds(chunk)
+        materials.push(...parseListData(materialsRes, { enableLog: false }))
+      }
+      const locationMap = new Map(materials.map(mat => [Number(mat.id), mat.location_id || null]))
+      for (const item of validItems) {
+        const locationId = locationMap.get(Number(item.material_id)) || null
+        materialLocations[item.material_id] = locationId
+        if (!firstLocationId && locationId) firstLocationId = locationId
+      }
+    } catch {
+      for (const item of validItems) {
         materialLocations[item.material_id] = null
       }
     }

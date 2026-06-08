@@ -28,7 +28,7 @@
   import { computed, reactive, ref, watch } from 'vue'
   import { useRouter } from 'vue-router'
   import { ActionSheet, Button as VanButton, CellGroup, Field, Form as VanForm, NavBar, showToast } from 'vant'
-  import { financeApi } from '@/services/api'
+  import { financeApi } from '@/api'
 
   const router = useRouter()
   const submitting = ref(false)

@@ -5,10 +5,10 @@
         <div class="card-header" style="display:flex; justify-content:space-between; align-items:center;">
           <span>员工档案与薪酬基数设定</span>
           <div>
-            <el-button type="success" :loading="syncing" @click="handleSyncDingtalk">
+            <el-button type="success" :loading="syncing" v-permission="'hr:employees:create'" @click="handleSyncDingtalk">
               <el-icon><Refresh /></el-icon> 钉钉通讯录全量拉取
             </el-button>
-            <el-button type="primary" @click="handleAdd"><el-icon><Plus /></el-icon>手动新增</el-button>
+            <el-button type="primary" v-permission="'hr:employees:create'" @click="handleAdd"><el-icon><Plus /></el-icon>手动新增</el-button>
           </div>
         </div>
       </template>
@@ -40,7 +40,7 @@
           <template #default="{ row }">
             <el-button type="primary" size="small" link @click="handleEdit(row)"
               v-permission="'hr:employees:update'">编辑</el-button>
-            <el-button type="danger" size="small" link @click="handleDelete(row)" v-if="row.employment_status==='active'">离职</el-button>
+            <el-button type="danger" size="small" link @click="handleDelete(row)" v-if="row.employment_status==='active'" v-permission="'hr:employees:delete'">离职</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -133,7 +133,7 @@
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSave" :loading="saving">保存</el-button>
+        <el-button type="primary" v-permission="isEdit ? 'hr:employees:update' : 'hr:employees:create'" @click="handleSave" :loading="saving">保存</el-button>
       </template>
     </el-dialog>
   </div>

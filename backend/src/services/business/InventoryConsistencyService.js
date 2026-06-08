@@ -81,7 +81,7 @@ class InventoryConsistencyService {
         if (!result.isEnough) {
           // 获取物料信息
           const [materialInfo] = await conn.execute(
-            'SELECT code, name FROM materials WHERE id = ?',
+            'SELECT code, name FROM materials WHERE id = ? AND deleted_at IS NULL',
             [item.material_id]
           );
 

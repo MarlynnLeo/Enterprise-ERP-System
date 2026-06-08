@@ -12,7 +12,7 @@
   import { computed } from 'vue'
   import { useRouter } from 'vue-router'
   import UniversalListPage from '@/components/common/UniversalListPage.vue'
-  import { hrApi } from '@/services/api'
+  import { hrApi } from '@/api'
 
   const router = useRouter()
 

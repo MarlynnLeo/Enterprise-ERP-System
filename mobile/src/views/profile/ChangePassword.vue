@@ -103,7 +103,7 @@
     showConfirmDialog
   } from 'vant'
   import { useAuthStore } from '@/stores/auth'
-  import { authApi } from '@/services/api'
+  import { authApi } from '@/api'
 
   const router = useRouter()
   const authStore = useAuthStore()

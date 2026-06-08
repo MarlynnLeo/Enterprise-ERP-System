@@ -13,7 +13,7 @@
   import { useRouter } from 'vue-router'
   import dayjs from 'dayjs'
   import UniversalListPage from '@/components/common/UniversalListPage.vue'
-  import { hrApi } from '@/services/api'
+  import { hrApi } from '@/api'
   import { filterByKeyword, getResponseList, toPagedResponse } from '@/utils/apiHelper'
 
   const router = useRouter()

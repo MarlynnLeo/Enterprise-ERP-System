@@ -28,7 +28,7 @@
   import { ref } from 'vue'
   import { useRouter } from 'vue-router'
   import { NavBar, CellGroup, Cell, Field, Button, Popup, Picker, DatePicker, showToast } from 'vant'
-  import { hrApi } from '@/services/api'
+  import { hrApi } from '@/api'
 
   const router = useRouter()
   const submitting = ref(false)

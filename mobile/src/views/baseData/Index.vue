@@ -21,7 +21,7 @@
   import { ref, computed, onMounted } from 'vue'
   import { useRouter } from 'vue-router'
   import ModuleIndexPage from '@/components/common/ModuleIndexPage.vue'
-  import { baseDataApi } from '@/services/api'
+  import { baseDataApi } from '@/api'
 
   const router = useRouter()
 

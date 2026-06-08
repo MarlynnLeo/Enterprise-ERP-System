@@ -591,7 +591,7 @@ class BomExplosionService {
       if (explodedItems.length === 0) {
         // 无BOM，返回物料自身成本
         const [materials] = await pool.query(
-          'SELECT cost_price, price FROM materials WHERE id = ?',
+          'SELECT cost_price, price FROM materials WHERE id = ? AND deleted_at IS NULL',
           [productId]
         );
         const materialCost =
@@ -616,7 +616,7 @@ class BomExplosionService {
       if (uniqueMaterialIds.length > 0) {
         const placeholders = uniqueMaterialIds.map(() => '?').join(',');
         const [prices] = await pool.query(
-          `SELECT id, COALESCE(cost_price, price, 0) as unit_cost FROM materials WHERE id IN (${placeholders})`,
+          `SELECT id, COALESCE(cost_price, price, 0) as unit_cost FROM materials WHERE id IN (${placeholders}) AND deleted_at IS NULL`,
           uniqueMaterialIds
         );
         prices.forEach((p) => priceMap.set(p.id, parseFloat(p.unit_cost) || 0));

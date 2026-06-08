@@ -381,7 +381,7 @@ const addCheckItem = async (req, res) => {
     }
 
     const [checkRows] = await connection.execute(
-      'SELECT id, status, location_id FROM inventory_checks WHERE id = ? FOR UPDATE',
+      'SELECT id, status, location_id FROM inventory_checks WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
       [id]
     );
 
@@ -496,7 +496,7 @@ const updateCheck = async (req, res) => {
 
     // 检查盘点单是否存在
     const [checkResult] = await connection.execute(
-      'SELECT status FROM inventory_checks WHERE id = ? FOR UPDATE',
+      'SELECT status FROM inventory_checks WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
       [id]
     );
 
@@ -519,7 +519,7 @@ const updateCheck = async (req, res) => {
         check_date = ?,
         remark = ?,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?`,
+      WHERE id = ? AND deleted_at IS NULL`,
       [check_date, remark || null, id]
     );
 
@@ -577,7 +577,7 @@ const deleteCheck = async (req, res) => {
 
     // 检查盘点单是否存在
     const [checkResult] = await connection.execute(
-      'SELECT status FROM inventory_checks WHERE id = ?',
+      'SELECT status FROM inventory_checks WHERE id = ? AND deleted_at IS NULL',
       [id]
     );
 
@@ -624,7 +624,7 @@ const submitCheckResult = async (req, res) => {
     const { items } = req.body;
 
     // 检查盘点单是否存在
-    const [checkResult] = await connection.execute('SELECT id, check_no, location_id, check_type, check_date, status, remark, created_by, created_at, updated_at, deleted_at FROM inventory_checks WHERE id = ? FOR UPDATE', [
+    const [checkResult] = await connection.execute('SELECT id, check_no, location_id, check_type, check_date, status, remark, created_by, created_at, updated_at, deleted_at FROM inventory_checks WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [
       id,
     ]);
 
@@ -648,7 +648,7 @@ const submitCheckResult = async (req, res) => {
 
     // 更新盘点单状态为待审核
     await connection.execute(
-      'UPDATE inventory_checks SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      'UPDATE inventory_checks SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND deleted_at IS NULL',
       ['pending', id]
     );
 
@@ -704,7 +704,7 @@ const updateCheckStatus = async (req, res) => {
     }
 
     // 检查盘点单是否存在
-    const [checkResult] = await connection.execute('SELECT id, check_no, location_id, check_type, check_date, status, remark, created_by, created_at, updated_at, deleted_at FROM inventory_checks WHERE id = ? FOR UPDATE', [
+    const [checkResult] = await connection.execute('SELECT id, check_no, location_id, check_type, check_date, status, remark, created_by, created_at, updated_at, deleted_at FROM inventory_checks WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [
       id,
     ]);
 
@@ -737,7 +737,7 @@ const updateCheckStatus = async (req, res) => {
 
     // 更新状态
     await connection.execute(
-      'UPDATE inventory_checks SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      'UPDATE inventory_checks SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND deleted_at IS NULL',
       [status, id]
     );
 
@@ -771,7 +771,7 @@ const adjustInventory = async (req, res) => {
     const { id } = req.params;
 
     // 检查盘点单是否存在
-    const [checkResult] = await connection.execute('SELECT id, check_no, location_id, check_type, check_date, status, remark, created_by, created_at, updated_at, deleted_at FROM inventory_checks WHERE id = ? FOR UPDATE', [
+    const [checkResult] = await connection.execute('SELECT id, check_no, location_id, check_type, check_date, status, remark, created_by, created_at, updated_at, deleted_at FROM inventory_checks WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [
       id,
     ]);
 
@@ -848,7 +848,7 @@ const adjustInventory = async (req, res) => {
 
     // 更新盘点单状态为已完成
     await connection.execute(
-      'UPDATE inventory_checks SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      'UPDATE inventory_checks SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND deleted_at IS NULL',
       ['completed', id]
     );
 

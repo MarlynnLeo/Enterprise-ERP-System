@@ -5,7 +5,7 @@
  */
 
 const { pool } = require('../config/db');
-const cacheService = require('../services/cacheService');
+const cacheService = require('../services/cache/CacheManager');
 const PermissionService = require('../services/PermissionService');
 const { logger } = require('./logger');
 
@@ -83,10 +83,10 @@ class PermissionDiagnostics {
       // 5. 检查缓存状态
       logger.info('🗄️ 5. 缓存状态');
       const cacheKey = `user_permissions:${userId}`;
-      const hasCachedPermissions = cacheService.has(cacheKey);
+      const cachedPermissions = await cacheService.get(cacheKey);
+      const hasCachedPermissions = cachedPermissions !== null;
 
       if (hasCachedPermissions) {
-        const cachedPermissions = cacheService.get(cacheKey);
         logger.info('   ✅ 缓存存在');
         logger.info(`   缓存权限数: ${cachedPermissions.length}`);
         logger.info(`   前10个权限: ${cachedPermissions.slice(0, 10).join(', ')}`);
@@ -114,7 +114,7 @@ class PermissionDiagnostics {
 
       commonPermissions.forEach((perm) => {
         const hasInDb = dbPermissions.includes(perm);
-        const hasInCache = hasCachedPermissions && cacheService.get(cacheKey).includes(perm);
+        const hasInCache = hasCachedPermissions && cachedPermissions.includes(perm);
         const status = hasInDb ? '✅' : '❌';
         const cacheStatus = hasCachedPermissions ? (hasInCache ? '✅' : '❌') : '⚪';
         logger.info(`   ${status} ${perm.padEnd(25)} (缓存: ${cacheStatus})`);
@@ -149,7 +149,7 @@ class PermissionDiagnostics {
         logger.info('   ⚠️ 用户的角色没有分配任何权限，请为角色分配权限');
       } else if (
         hasCachedPermissions &&
-        cacheService.get(cacheKey).length !== dbPermissions.length
+        cachedPermissions.length !== dbPermissions.length
       ) {
         logger.info('   ⚠️ 缓存与数据库不一致，建议清除缓存');
         logger.info('   执行: PermissionService.clearUserPermissionsCache(' + userId + ')');
@@ -171,7 +171,7 @@ class PermissionDiagnostics {
    */
   static async refreshUserPermissions(userId) {
     logger.info(`🔄 刷新用户 ${userId} 的权限缓存...`);
-    PermissionService.clearUserPermissionsCache(userId);
+    await PermissionService.clearUserPermissionsCache(userId);
     const permissions = await PermissionService.getUserPermissions(userId, true);
     logger.info(`✅ 刷新完成，当前权限数: ${permissions.length}`);
     return permissions;

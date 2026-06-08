@@ -73,7 +73,7 @@
   import { ref, onMounted } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
   import { NavBar, Icon, Cell, Button, Loading, Empty, showToast } from 'vant'
-  import { systemApi } from '@/services/api'
+  import { systemApi } from '@/api'
 
   const route = useRoute()
   const router = useRouter()

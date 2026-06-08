@@ -54,13 +54,15 @@ async function startServer() {
   try {
     await runMigrations();
 
+    const cacheManager = require('./services/cache/CacheManager');
+    await cacheManager.initialize();
     logger.info('Cache service initialized.');
 
     const globalConfigManager = require('./config/globalConfig');
     await globalConfigManager.init();
 
     const PermissionService = require('./services/PermissionService');
-    PermissionService.initOnStartup();
+    await PermissionService.initOnStartup();
 
     const http = require('http');
     const { initSocket } = require('./socket/index');

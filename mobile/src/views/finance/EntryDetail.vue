@@ -110,7 +110,7 @@
   import { ref, onMounted } from 'vue'
   import { useRoute } from 'vue-router'
   import { NavBar, Loading, Empty, showToast, showConfirmDialog } from 'vant'
-  import { financeApi, default as api } from '@/services/api'
+  import { financeApi, default as api } from '@/api'
   import dayjs from 'dayjs'
 
   const route = useRoute()

@@ -265,6 +265,14 @@ import { computed } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 // ===== 搜索相关 =====
 const authStore = useAuthStore()
+const BATCH_MATERIAL_QUERY_LIMIT = 100
+const chunkArray = (items, size) => {
+  const chunks = []
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size))
+  }
+  return chunks
+}
 const searchKeyword = ref('')
 
 // 权限控制
@@ -379,8 +387,11 @@ const asyncLoadMaterialInfo = () => {
 
     try {
       if (missingMaterialIds.length > 0) {
-        const response = await baseDataApi.getMaterialsByIds(missingMaterialIds)
-        const materials = parseListData(response, { enableLog: false })
+        const materials = []
+        for (const chunk of chunkArray(missingMaterialIds, BATCH_MATERIAL_QUERY_LIMIT)) {
+          const response = await baseDataApi.getMaterialsByIds(chunk)
+          materials.push(...parseListData(response, { enableLog: false }))
+        }
         materials.forEach(material => {
           if (!material?.id) return
           materialCache.value[material.id] = {

@@ -14,13 +14,13 @@
               style="margin-right: 15px; width: 140px;"
               :clearable="false"
             />
-            <el-button type="warning" @click="handleCalculate" :loading="calcLoading">
+            <el-button type="warning" v-permission="'hr:salary:update'" @click="handleCalculate" :loading="calcLoading">
               <el-icon><Refresh /></el-icon>一键自动核算
             </el-button>
-            <el-button type="primary" @click="handleBatchConfirm" :loading="confirmLoading">
+            <el-button type="primary" v-permission="'hr:salary:update'" @click="handleBatchConfirm" :loading="confirmLoading">
               <el-icon><Check /></el-icon>全部确认
             </el-button>
-            <el-button type="success" @click="handleExport" :loading="exportLoading">
+            <el-button type="success" v-permission="'hr:salary:view'" @click="handleExport" :loading="exportLoading">
               <el-icon><Download /></el-icon>导出Excel
             </el-button>
           </div>
@@ -53,7 +53,7 @@
         <el-table-column label="操作" width="100" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <el-tag v-if="row.status==='approved'" type="success">已确认</el-tag>
-            <el-button v-else size="small" type="primary" @click="handleConfirm(row)">确认</el-button>
+            <el-button v-else size="small" type="primary" v-permission="'hr:salary:update'" @click="handleConfirm(row)">确认</el-button>
           </template>
         </el-table-column>
       </el-table>

@@ -6,14 +6,10 @@
 const axios = require('axios');
 const { ResponseHandler } = require('../../utils/responseHandler');
 const { logger } = require('../../utils/logger');
-
-const OPEN_METEO_CONFIG = {
-  baseUrl: process.env.OPEN_METEO_BASE_URL || 'https://api.open-meteo.com/v1/forecast',
-  timeout: Number.parseInt(process.env.OPEN_METEO_TIMEOUT_MS || '5000', 10),
-  timezone: process.env.OPEN_METEO_TIMEZONE || 'Asia/Shanghai',
-};
+const { OPEN_METEO_CONFIG } = require('../../config/weatherConfig');
 
 const DEFAULT_CITY = '乐清';
+let missingWeatherBaseUrlLogged = false;
 
 const CITY_COORDINATE_MAP = {
   乐清: { name: '乐清', latitude: 28.1137, longitude: 120.9839 },
@@ -109,6 +105,18 @@ const getWeather = async (req, res) => {
   const location = getCityLocation(city);
 
   try {
+    if (!OPEN_METEO_CONFIG.baseUrl) {
+      if (!missingWeatherBaseUrlLogged) {
+        logger.warn('OPEN_METEO_BASE_URL is not configured; returning unavailable weather.');
+        missingWeatherBaseUrlLogged = true;
+      }
+      return ResponseHandler.success(
+        res,
+        createUnavailableWeather(location.name),
+        'Weather data is not configured'
+      );
+    }
+
     const weatherResponse = await axios.get(OPEN_METEO_CONFIG.baseUrl, {
       params: {
         latitude: location.latitude,
