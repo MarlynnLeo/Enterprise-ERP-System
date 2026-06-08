@@ -2,6 +2,7 @@ const { getConnection } = require('../../../config/db');
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 const { AuditService, AuditAction, AuditModule } = require('../../../services/AuditService');
+const { safeParseId } = require('../../../utils/safeParseId');
 
 const VALID_FIELD_TYPES = new Set(['amount', 'percentage']);
 

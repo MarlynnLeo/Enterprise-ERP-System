@@ -47,11 +47,6 @@ const safeSaveJSON = (key, value, storage = sessionStorage) => {
   }
 }
 
-const isTransientPermissionLoadError = (error) => {
-  const status = error?.response?.status
-  return !status || status === 429 || status >= 500
-}
-
 const normalizeUserData = (userData) => {
   if (!userData || typeof userData !== 'object') return userData
   const normalized = { ...userData }
@@ -319,22 +314,10 @@ export const useAuthStore = defineStore('auth', () => {
     } catch (error) {
       console.error('[auth] 获取用户权限失败:', error)
 
-      const cachedPermissions =
-        safeGetJSON(STORAGE_KEYS.PERMISSIONS, [], localStorage) ||
-        safeGetJSON(STORAGE_KEYS.PERMISSIONS, [], sessionStorage) ||
-        []
-      const fallbackPermissions = permissions.value.length ? permissions.value : cachedPermissions
-
-      if (isTransientPermissionLoadError(error) && fallbackPermissions.length > 0) {
-        permissions.value = fallbackPermissions
-        permissionsLoaded.value = true
-        safeSaveJSON(STORAGE_KEYS.PERMISSIONS, permissions.value, localStorage)
-        return true
-      }
-
       permissions.value = []
       permissionsLoaded.value = false
       safeSaveJSON(STORAGE_KEYS.PERMISSIONS, null, localStorage)
+      safeSaveJSON(STORAGE_KEYS.PERMISSIONS, null, sessionStorage)
       throw error
     } finally {
       permissionsLoading.value = false
@@ -363,8 +346,8 @@ export const useAuthStore = defineStore('auth', () => {
       return perm.some((item) => hasPermission(item))
     }
 
-    // 如果权限未加载且缓存为空，默认拒绝
-    if (!permissionsLoaded.value && permissions.value.length === 0) {
+    // 权限未从服务端确认前一律拒绝，避免短暂信任陈旧缓存
+    if (!permissionsLoaded.value) {
       return false
     }
 

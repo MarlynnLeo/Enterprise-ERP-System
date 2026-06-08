@@ -4,6 +4,7 @@ const { logger } = require('../../../utils/logger');
 const { AuditService, AuditAction, AuditModule } = require('../../../services/AuditService');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const { parsePagination } = require('../../../utils/safePagination');
+const { safeParseId } = require('../../../utils/safeParseId');
 
 function parseRequiredAmount(value, fieldName) {
   const parsed = Number(value);

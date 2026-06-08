@@ -848,7 +848,7 @@ const expenseModel = {
       }
 
       // 职责分离(SoD)：不允许审批自己创建或提交的费用单，防止自审自批
-      if (action === 'approve' && userId != null) {
+      if (action === 'approve' && userId !== null && userId !== undefined) {
         const approverId = Number(userId);
         const creatorId = Number(current[0].created_by);
         const submitterId = Number(current[0].submitted_by);

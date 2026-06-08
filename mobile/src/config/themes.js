@@ -116,8 +116,8 @@ export const themes = Object.freeze([
     dataTheme: 'kacon',
     isDark: false,
     preview: {
-      primary: '#00A896',
-      accent: '#008678',
+      primary: '#00796B',
+      accent: '#006156',
       bg: '#F5F7FA'
     }
   }

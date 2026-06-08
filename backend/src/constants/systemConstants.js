@@ -459,7 +459,7 @@ const VALIDATION_RULES = {
 // 注意：业务规则配置已迁移到 config/businessRulesConfig.js
 // 为了向后兼容，这里从配置服务导入
 // 建议直接使用 businessRulesConfig.getConfig() 获取最新配置
-const { businessRulesConfig } = require('../config/businessRulesConfig');
+const getBusinessRulesConfig = () => require('../config/businessRulesConfig');
 
 // 获取业务规则配置（支持数据库动态配置）
 const BUSINESS_RULES = {
@@ -480,13 +480,13 @@ const BUSINESS_RULES = {
   // 其他业务规则从配置服务获取
   // 使用 Proxy 实现动态获取
   get INVENTORY() {
-    return businessRulesConfig.getConfig().inventory;
+    return getBusinessRulesConfig().DEFAULT_BUSINESS_RULES.inventory;
   },
   get ORDER() {
-    return businessRulesConfig.getConfig().order;
+    return getBusinessRulesConfig().DEFAULT_BUSINESS_RULES.order;
   },
   get PRODUCTION() {
-    return businessRulesConfig.getConfig().production;
+    return getBusinessRulesConfig().DEFAULT_BUSINESS_RULES.production;
   },
 };
 

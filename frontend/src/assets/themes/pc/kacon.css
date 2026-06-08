@@ -11,13 +11,13 @@
   /* ==================== 颜色系统 ==================== */
 
   /* 主色系 - 青绿色系（KACON品牌色） */
-  --color-primary: #00A896;
-  --color-primary-light-3: #33bfb0;
-  --color-primary-light-5: #80d4cb;
-  --color-primary-light-7: #b3e5df;
-  --color-primary-light-8: #ccefeb;
-  --color-primary-light-9: #e6f7f5;
-  --color-primary-dark-2: #008678;
+  --color-primary: #00796B;
+  --color-primary-light-3: #339487;
+  --color-primary-light-5: #80bcb5;
+  --color-primary-light-7: #b3d7d3;
+  --color-primary-light-8: #cce4e1;
+  --color-primary-light-9: #e6f2f0;
+  --color-primary-dark-2: #006156;
 
   /* 功能色 */
   --color-success: #34c759;
@@ -58,7 +58,7 @@
   /* 辅助语义色 */
   --color-bg-section: #fafafa;
   --color-text-muted: #8c8c8c;
-  --color-primary-active: #008678;
+  --color-primary-active: #006156;
   --color-success-gradient-end: #2aa148;
   --color-warning-gradient-end: #c0801a;
   --color-danger-gradient-end: #b73e35;

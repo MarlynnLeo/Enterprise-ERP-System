@@ -66,7 +66,7 @@
   --color-on-primary: #ffffff;
 
   /* 商务主题特有颜色 */
-  --color-gold: #D4AF37;              /* 金色（高端感） */
+  --color-gold: #B9932F;              /* 克制金色，用于少量强调 */
   --color-silver: #C0C0C0;            /* 银色 */
   --color-bronze: #CD7F32;            /* 铜色 */
 
@@ -144,22 +144,22 @@
 /* 侧边栏商务化 */
 [data-theme="business"] .sidebar,
 [data-theme="business"] .app-sidebar {
-  background: linear-gradient(180deg, var(--color-bg-overlay) 0%, var(--color-primary) 100%) !important;
-  border-right: 3px solid var(--color-gold) !important;
-  box-shadow: 4px 0 20px color-mix(in srgb, var(--ds-black) 20%, transparent) !important;
+  background: var(--color-primary) !important;
+  border-right: 1px solid var(--color-primary-dark-2) !important;
+  box-shadow: 2px 0 8px color-mix(in srgb, var(--ds-black) 14%, transparent) !important;
 }
 
 [data-theme="business"] .logo-container {
-  background: color-mix(in srgb, var(--color-gold) 10%, transparent) !important;
-  border-bottom: 3px solid var(--color-gold) !important;
-  padding: 20px !important;
+  background: color-mix(in srgb, var(--ds-white) 6%, transparent) !important;
+  border-bottom: 1px solid color-mix(in srgb, var(--ds-white) 12%, transparent) !important;
+  padding: 16px !important;
 }
 
 [data-theme="business"] .logo-container .title {
-  color: var(--color-gold) !important;
+  color: #F8FAFC !important;
   font-weight: 700 !important;
-  letter-spacing: 2px !important;
-  text-transform: uppercase !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
 }
 
 /* 菜单样式 */
@@ -194,53 +194,53 @@
 [data-theme="business"] .sidebar .el-sub-menu__title:hover,
 [data-theme="business"] .app-sidebar .el-menu-item:hover,
 [data-theme="business"] .app-sidebar .el-sub-menu__title:hover {
-  background: color-mix(in srgb, var(--color-gold) 10%, transparent) !important;
+  background: color-mix(in srgb, var(--ds-white) 9%, transparent) !important;
   border-left-color: var(--color-gold) !important;
-  color: var(--color-gold) !important;
+  color: #FFFFFF !important;
 }
 
 [data-theme="business"] .sidebar .el-menu-item:hover span,
 [data-theme="business"] .sidebar .el-sub-menu__title:hover span,
 [data-theme="business"] .app-sidebar .el-menu-item:hover span,
 [data-theme="business"] .app-sidebar .el-sub-menu__title:hover span {
-  color: var(--color-gold) !important;
+  color: #FFFFFF !important;
 }
 
 [data-theme="business"] .sidebar .el-menu-item.is-active,
 [data-theme="business"] .app-sidebar .el-menu-item.is-active {
-  background: color-mix(in srgb, var(--color-gold) 15%, transparent) !important;
+  background: color-mix(in srgb, var(--ds-white) 14%, transparent) !important;
   border-left-color: var(--color-gold) !important;
-  color: var(--color-gold) !important;
+  color: #FFFFFF !important;
   font-weight: 600 !important;
 }
 
 [data-theme="business"] .sidebar .el-menu-item.is-active span,
 [data-theme="business"] .app-sidebar .el-menu-item.is-active span {
-  color: var(--color-gold) !important;
+  color: #FFFFFF !important;
 }
 
 /* 顶部导航栏商务化 */
 [data-theme="business"] .header,
 [data-theme="business"] .el-header {
-  background: linear-gradient(90deg, var(--color-bg-base) 0%, var(--color-bg-hover) 100%) !important;
-  border-bottom: 3px solid var(--color-gold) !important;
-  box-shadow: 0 2px 10px color-mix(in srgb, var(--ds-black) 10%, transparent) !important;
+  background: var(--color-bg-base) !important;
+  border-bottom: 1px solid var(--color-border-light) !important;
+  box-shadow: 0 1px 4px color-mix(in srgb, var(--ds-black) 8%, transparent) !important;
 }
 
 /* 表格组件 */
 [data-theme="business"] .el-table {
   background: var(--color-bg-base) !important;
-  border: 2px solid var(--color-border-light) !important;
-  border-radius: 8px !important;
+  border: 1px solid var(--color-border-light) !important;
+  border-radius: 4px !important;
 }
 
 [data-theme="business"] .el-table th {
-  background: linear-gradient(180deg, var(--color-bg-hover) 0%, var(--color-bg-page) 100%) !important;
+  background: var(--color-bg-hover) !important;
   color: var(--color-text-primary) !important;
-  font-weight: 700 !important;
-  text-transform: uppercase !important;
-  letter-spacing: 1px !important;
-  border-bottom: 3px solid var(--color-gold) !important;
+  font-weight: 600 !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+  border-bottom: 1px solid var(--color-border-base) !important;
 }
 
 [data-theme="business"] .el-table tbody tr:hover {
@@ -250,12 +250,12 @@
 /* 输入框商务化 */
 [data-theme="business"] .el-input__wrapper {
   background: var(--color-bg-base) !important;
-  border: 2px solid var(--color-border-light) !important;
-  border-radius: 6px !important;
+  border: 1px solid var(--color-border-light) !important;
+  border-radius: 4px !important;
 }
 
 [data-theme="business"] .el-input__wrapper:hover,
 [data-theme="business"] .el-input__wrapper.is-focus {
-  border-color: var(--color-gold) !important;
-  box-shadow: 0 0 8px color-mix(in srgb, var(--color-gold) 20%, transparent) !important;
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-primary) 14%, transparent) !important;
 }

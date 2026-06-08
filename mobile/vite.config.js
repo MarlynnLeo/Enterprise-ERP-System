@@ -26,7 +26,7 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       port: Number.isNaN(devPort) ? 3001 : devPort,
-      host: env.VITE_DEV_HOST || '0.0.0.0',
+      host: env.VITE_DEV_HOST || '127.0.0.1',
       // hmr config removed to let vite auto-detect
       headers: {
         'Cache-Control': 'no-cache, no-store, must-revalidate',

@@ -81,7 +81,7 @@ export const THEME_PRESET_LIST = Object.freeze([
     id: 'kacon',
     name: 'KACON品牌',
     description: 'KACON 品牌青绿色，适合默认业务操作',
-    primaryColor: '#00A896',
+    primaryColor: '#00796B',
     mode: 'light',
     icon: OfficeBuilding
   }

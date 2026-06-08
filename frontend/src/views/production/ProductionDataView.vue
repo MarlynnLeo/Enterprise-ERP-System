@@ -165,7 +165,7 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import {
-  DataAnalysis, Refresh, Clock, Finished,
+  Refresh, Clock, Finished,
   Document, SetUp, Histogram, TrendCharts
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'

@@ -8,11 +8,41 @@ const { logger } = require('../utils/logger');
 const { pool } = require('../config/db');
 const { createCorsOptions } = require('../config/cors');
 const { verifyAccessToken } = require('../config/jwtEnhanced');
+const PermissionService = require('../services/PermissionService');
+const { PermissionUtils } = require('../utils/authUtils');
 
 let io = null;
 // userId -> Set<socketId> 的映射，支持多端登录
 const onlineUsers = new Map();
 const allowLegacyAccessTokens = process.env.ALLOW_LEGACY_ACCESS_TOKENS === 'true';
+const CHAT_ACCESS_PERMISSIONS = ['chat:access', 'system:notifications'];
+const CHAT_SEND_PERMISSIONS = ['chat:send', 'chat:access', 'system:notifications'];
+const MAX_CHAT_MESSAGE_LENGTH = 2000;
+const ALLOWED_CLIENT_MESSAGE_TYPES = new Set(['text']);
+
+function hasAnyPermission(userPermissions, permissions) {
+  return permissions.some((permission) =>
+    PermissionUtils.hasPermission(userPermissions, permission)
+  );
+}
+
+function normalizeChatMessage(data = {}) {
+  const conversationId = Number.parseInt(data.conversationId, 10);
+  const type = String(data.type || 'text').trim();
+  const content = String(data.content || '').trim();
+
+  if (!Number.isInteger(conversationId) || conversationId <= 0) {
+    return { error: '参数不完整' };
+  }
+  if (!ALLOWED_CLIENT_MESSAGE_TYPES.has(type)) {
+    return { error: '不支持的消息类型' };
+  }
+  if (!content || content.length > MAX_CHAT_MESSAGE_LENGTH) {
+    return { error: `消息长度需在 1-${MAX_CHAT_MESSAGE_LENGTH} 字之间` };
+  }
+
+  return { conversationId, type, content };
+}
 
 function getCookieValue(cookieHeader, name) {
   if (!cookieHeader) return null;
@@ -89,8 +119,12 @@ function initSocket(httpServer) {
     }
     try {
       const user = await verifySocketToken(token);
+      const userPermissions = await PermissionService.getUserPermissions(user.id);
       socket.userId = user.id;
       socket.userName = user.realName || user.username;
+      socket.userPermissions = userPermissions;
+      socket.chatAccessAllowed = hasAnyPermission(userPermissions, CHAT_ACCESS_PERMISSIONS);
+      socket.chatSendAllowed = hasAnyPermission(userPermissions, CHAT_SEND_PERMISSIONS);
       next();
     } catch (error) {
       logger.warn('[Socket] Token validation failed:', { error: error.message });
@@ -119,6 +153,9 @@ function initSocket(httpServer) {
     // 加入会话房间
     socket.on('chat:join', async (conversationId, callback) => {
       try {
+        if (!socket.chatAccessAllowed) {
+          return callback?.({ error: 'FORBIDDEN' });
+        }
         if (!(await isConversationMember(conversationId, userId))) {
           return callback?.({ error: 'FORBIDDEN' });
         }
@@ -144,10 +181,15 @@ function initSocket(httpServer) {
     // 发送消息
     socket.on('chat:send', async (data, callback) => {
       try {
-        const { conversationId, content, type = 'text' } = data;
-        if (!conversationId || !content) {
-          return callback?.({ error: '参数不完整' });
+        if (!socket.chatSendAllowed) {
+          return callback?.({ error: 'FORBIDDEN' });
         }
+
+        const normalized = normalizeChatMessage(data);
+        if (normalized.error) {
+          return callback?.({ error: normalized.error });
+        }
+        const { conversationId, content, type } = normalized;
 
         // 验证用户是否为会话成员
         if (!(await isConversationMember(conversationId, userId))) {
@@ -218,6 +260,9 @@ function initSocket(httpServer) {
     // 正在输入
     socket.on('chat:typing', async (conversationId) => {
       try {
+        if (!socket.chatAccessAllowed) {
+          return;
+        }
         if (!(await isConversationMember(conversationId, userId))) {
           return;
         }

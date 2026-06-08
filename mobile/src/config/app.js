@@ -5,6 +5,7 @@ const parsePositiveInt = (value, fallback) => {
 
 const trimTrailingSlash = (value) => String(value || '').trim().replace(/\/+$/, '')
 const hasProtocol = (value) => /^[a-z][a-z\d+\-.]*:/i.test(String(value || ''))
+const allowedResourceProtocols = new Set(['http:', 'https:'])
 const rawBaseURL = trimTrailingSlash(
   import.meta.env.VITE_APP_API_BASE_URL ||
   import.meta.env.VITE_API_URL ||
@@ -20,6 +21,41 @@ const resolveApiBaseURL = (baseURL) => {
 const joinUrl = (baseURL, path) => {
   const normalizedPath = path === '/' ? '' : path
   return `${trimTrailingSlash(baseURL)}${normalizedPath}`
+}
+
+const getRuntimeOrigin = () => {
+  if (typeof window === 'undefined') return ''
+  return window.location?.origin || ''
+}
+
+const getAllowedResourceOrigins = () => {
+  const origins = new Set()
+  const runtimeOrigin = getRuntimeOrigin()
+
+  if (runtimeOrigin) {
+    origins.add(runtimeOrigin)
+  }
+
+  if (API_CONFIG.baseURL && hasProtocol(API_CONFIG.baseURL)) {
+    try {
+      origins.add(new URL(API_CONFIG.baseURL).origin)
+    } catch {
+      // Ignore malformed resource origins; API requests fail loudly elsewhere.
+    }
+  }
+
+  return origins
+}
+
+const isAllowedAbsoluteResourceUrl = (rawUrl) => {
+  try {
+    const parsed = new URL(rawUrl)
+    if (!allowedResourceProtocols.has(parsed.protocol)) return false
+
+    return getAllowedResourceOrigins().has(parsed.origin)
+  } catch {
+    return false
+  }
 }
 
 export const APP_INFO = {
@@ -62,8 +98,16 @@ export const buildApiUrl = (path = '') => {
 
 export const buildResourceUrl = (path = '') => {
   const rawPath = String(path || '').trim()
-  if (!rawPath || hasProtocol(rawPath) || rawPath.startsWith('data:') || rawPath.startsWith('blob:')) {
+  if (!rawPath) {
     return rawPath
+  }
+
+  if (rawPath.startsWith('//')) {
+    return ''
+  }
+
+  if (hasProtocol(rawPath)) {
+    return isAllowedAbsoluteResourceUrl(rawPath) ? rawPath : ''
   }
 
   const normalizedPath = rawPath.startsWith('/') ? rawPath : `/${rawPath}`

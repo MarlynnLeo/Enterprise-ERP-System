@@ -14,6 +14,7 @@ const CostAccountingService = require('../../../services/business/CostAccounting
 const AdvancedReportsService = require('../../../services/utils/AdvancedReportsService');
 const db = require('../../../config/db');
 const { toLocalDateString } = require('../../../utils/dateUtils');
+const { safeParseId } = require('../../../utils/safeParseId');
 
 function getDefaultReportRange(query = {}) {
   const today = new Date();

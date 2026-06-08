@@ -1079,7 +1079,7 @@ const routes = [
     path: '/chat',
     name: 'Chat',
     component: () => import('@/views/Chat.vue'),
-    meta: { title: '即时通讯' }
+    meta: { title: '即时通讯', permission: ['chat:access', 'system:notifications'] }
   },
 
   // 系统管理
@@ -1252,11 +1252,18 @@ const routes = [
 ]
 
 const ROUTE_PERMISSION_RULES = [
+  { pattern: /^\/production\/report$/, permission: 'production:reports:create' },
+  { pattern: /^\/production\/report\/history$/, permission: 'production:reports:view' },
+  {
+    pattern: /^\/production\/dashboard$/,
+    permission: ['production:data-view', 'production:plans:view', 'production:tasks:view', 'production:reports:view']
+  },
   { pattern: /^\/production\/plans\/create$/, permission: 'production:plans:create' },
   { pattern: /^\/production\/plans(\/:id)?$/, permission: 'production:plans:view' },
   { pattern: /^\/production\/tasks\/create$/, permission: 'production:tasks:create' },
   { pattern: /^\/production\/tasks\/:id\/report$/, permission: 'production:tasks:update' },
   { pattern: /^\/production\/tasks(\/:id)?$/, permission: 'production:tasks:view' },
+  { pattern: /^\/tasks(\/:id)?$/, permission: 'production:tasks:view' },
   { pattern: /^\/basedata\/materials\/create$/, permission: 'basedata:materials:create' },
   { pattern: /^\/basedata\/materials\/:id\/edit$/, permission: 'basedata:materials:update' },
   { pattern: /^\/basedata\/materials(\/:id)?$/, permission: 'basedata:materials:view' },
@@ -1309,11 +1316,14 @@ const ROUTE_PERMISSION_RULES = [
   { pattern: /^\/finance\/gl\/entries(\/:id)?$/, permission: 'finance:entries:view' },
   { pattern: /^\/finance\/gl\/periods(\/:id)?$/, permission: 'finance:periods:view' },
   { pattern: /^\/finance\/ar\/aging(\/:id)?$/, permission: 'finance:reports:view' },
+  { pattern: /^\/finance\/ar\/receipts\/create$/, permission: 'finance:ar:receive' },
   { pattern: /^\/finance\/ar\/(invoices|receipts)(\/:id)?$/, permission: 'finance:ar:view' },
   { pattern: /^\/finance\/ap\/aging(\/:id)?$/, permission: 'finance:reports:view' },
+  { pattern: /^\/finance\/ap\/payments\/create$/, permission: 'finance:ap:pay' },
   { pattern: /^\/finance\/ap\/(invoices|payments)(\/:id)?$/, permission: 'finance:ap:view' },
   { pattern: /^\/finance\/assets(\/.*)?$/, permission: 'finance:assets:view' },
   { pattern: /^\/finance\/cash\/accounts(\/:id)?$/, permission: 'finance:cash:view' },
+  { pattern: /^\/finance\/cash\/(transactions|cash-transactions)\/create$/, permission: 'finance:cash:create' },
   { pattern: /^\/finance\/cash\/(transactions|bank-transactions|cash-transactions)(\/.*)?$/, permission: 'finance:cash:view' },
   { pattern: /^\/finance\/cash\/reconciliation(\/.*)?$/, permission: 'finance:cash:reconcile' },
   { pattern: /^\/finance\/.*reports?/, permission: 'finance:reports:view' },
@@ -1338,7 +1348,8 @@ const ROUTE_PERMISSION_RULES = [
   { pattern: /^\/system\/(positions|sessions)$/, permission: 'system:users' },
   { pattern: /^\/system\/(roles|permissions|access-control)(\/.*)?$/, permission: 'system:permissions' },
   { pattern: /^\/system\/(config|profiles)$/, permission: 'system:settings:read' },
-  { pattern: /^\/system\/(logs|maintenance)$/, permission: 'system:logs' },
+  { pattern: /^\/system\/logs(\/:id)?$/, permission: 'system:logs' },
+  { pattern: /^\/system\/maintenance$/, permission: 'system:logs' },
   { pattern: /^\/system\/backup$/, permission: 'system:backup:view' }
 ]
 

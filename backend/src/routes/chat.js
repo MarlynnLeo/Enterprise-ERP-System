@@ -6,6 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../middleware/auth');
+const { requirePermission } = require('../middleware/requirePermission');
 const { pool } = require('../config/db');
 const { getOnlineUsers } = require('../socket/index');
 const { logger } = require('../utils/logger');
@@ -13,6 +14,14 @@ const { ResponseHandler } = require('../utils/responseHandler');
 const { parsePagination, appendPaginationSQL } = require('../utils/safePagination');
 
 router.use(authenticateToken);
+
+const CHAT_ACCESS_PERMISSIONS = ['chat:access', 'system:notifications'];
+const CHAT_SEND_PERMISSIONS = ['chat:send', 'chat:access', 'system:notifications'];
+const CHAT_MANAGE_PERMISSIONS = ['chat:manage', 'chat:access', 'system:notifications'];
+const MAX_GROUP_NAME_LENGTH = 100;
+const MAX_GROUP_MEMBERS = 100;
+
+router.use(requirePermission(CHAT_ACCESS_PERMISSIONS));
 
 const getRequestUserId = (req) => req.user.userId || req.user.id;
 
@@ -90,7 +99,7 @@ router.get('/conversations', async (req, res) => {
 });
 
 // 创建或获取私聊会话
-router.post('/conversations/private', async (req, res) => {
+router.post('/conversations/private', requirePermission(CHAT_SEND_PERMISSIONS), async (req, res) => {
   try {
     const userId = getRequestUserId(req);
     const targetUserId = parsePositiveUserId(req.body.targetUserId);
@@ -144,12 +153,16 @@ router.post('/conversations/private', async (req, res) => {
 });
 
 // 创建群聊会话
-router.post('/conversations/group', async (req, res) => {
+router.post('/conversations/group', requirePermission(CHAT_MANAGE_PERMISSIONS), async (req, res) => {
   try {
     const userId = getRequestUserId(req);
-    const { name, memberIds = [] } = req.body;
-    if (!name || !Array.isArray(memberIds) || memberIds.length === 0) {
+    const name = String(req.body.name || '').trim();
+    const memberIds = req.body.memberIds || [];
+    if (!name || name.length > MAX_GROUP_NAME_LENGTH || !Array.isArray(memberIds) || memberIds.length === 0) {
       return ResponseHandler.error(res, '请提供群名和成员列表', 'VALIDATION_ERROR', 400);
+    }
+    if (memberIds.length > MAX_GROUP_MEMBERS) {
+      return ResponseHandler.error(res, '群聊成员数量超出限制', 'VALIDATION_ERROR', 400);
     }
 
     const parsedMemberIds = memberIds.map(parsePositiveUserId);
@@ -257,10 +270,10 @@ router.get('/conversations/:id/messages', async (req, res) => {
 
 // ==================== 用户列表（聊天可选联系人） ====================
 
-router.get('/contacts', async (req, res) => {
+router.get('/contacts', requirePermission(CHAT_SEND_PERMISSIONS), async (req, res) => {
   try {
     const userId = getRequestUserId(req);
-    const search = req.query.search || '';
+    const search = String(req.query.search || '').trim().slice(0, 50);
     let query = `
       SELECT id, username, real_name, avatar, department AS department_name
       FROM users

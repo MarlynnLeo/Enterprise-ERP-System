@@ -373,7 +373,7 @@
 
 <script setup>
 import { formatDate } from '@/utils/helpers/dateUtils'
-import { getApprovalStatusText, getApprovalStatusColor } from '@/constants/systemConstants'
+import { getApprovalStatusColor } from '@/constants/systemConstants'
 import { formatCurrency, formatLocalDate } from '@/utils/format'
 
 import { ref, reactive, onMounted, watch } from 'vue';

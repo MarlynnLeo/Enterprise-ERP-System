@@ -11,13 +11,13 @@
 
   --border-subtle: rgba(17, 24, 39, 0.08);
   --surface-hover: #f5f5f5;
-  --surface-active: rgba(0, 168, 150, 0.1);
+  --surface-active: rgba(0, 121, 107, 0.1);
 
   --surface-elevated: #ffffff;
   --surface-elevated-hover: var(--surface-hover);
   --surface-elevated-active: var(--surface-active);
   --surface-border: var(--border-subtle);
-  --surface-border-hover: rgba(0, 168, 150, 0.24);
+  --surface-border-hover: rgba(0, 121, 107, 0.24);
 
   --text-primary: #1a1a1a;
   --text-secondary: #4a4a4a;
@@ -26,8 +26,8 @@
   --text-on-dark: #ffffff;
   --text-on-dark-secondary: rgba(255, 255, 255, 0.8);
 
-  --color-primary: #00a896;
-  --color-primary-bg: #e6f7f5;
+  --color-primary: #00796b;
+  --color-primary-bg: #e6f2f0;
   --color-success: #34c759;
   --color-success-bg: #d4f5dd;
   --color-warning: #f0a020;
@@ -36,10 +36,10 @@
   --color-error-bg: #f9dad8;
   --color-info: #8c8c8c;
   --color-info-bg: #e8e8e8;
-  --color-accent: #008678;
+  --color-accent: #006156;
 
   --module-blue: #2f80ed;
-  --module-green: #00a896;
+  --module-green: #00796b;
   --module-red: #e54d42;
   --module-orange: #f0a020;
   --module-purple: #7c3aed;

@@ -335,7 +335,7 @@
 :root[data-theme="business"] {
   --theme-status-radius: 4px;
   --theme-status-border-width: 1px;
-  --theme-status-shadow: inset 0 -1px 0 color-mix(in srgb, var(--color-gold) 28%, transparent);
+  --theme-status-shadow: none;
 }
 
 :root[data-theme="vibrant"] {
@@ -358,6 +358,8 @@
   --theme-status-radius: 4px;
   --theme-status-padding: 2px 8px;
   --theme-status-font-weight: 500;
+  --theme-status-primary-color: var(--color-primary-dark-2);
+  --theme-status-primary-border: color-mix(in srgb, var(--color-primary) 34%, transparent);
 }
 
 
@@ -537,12 +539,14 @@
 }
 
 :root[data-theme="business"] {
-  --theme-dialog-radius: 6px;
-  --theme-dialog-header-bg: color-mix(in srgb, var(--color-gold) 10%, var(--color-bg-base));
-  --theme-feature-card-bg: linear-gradient(135deg, var(--color-primary) 0%, color-mix(in srgb, var(--color-primary) 86%, var(--color-gold)) 100%);
-  --theme-feature-card-color: #ffffff;
-  --theme-feature-card-border: color-mix(in srgb, var(--color-gold) 34%, transparent);
-  --theme-feature-card-decor: radial-gradient(circle, color-mix(in srgb, var(--color-gold) 12%, transparent) 0%, transparent 70%);
+  --theme-dialog-radius: 4px;
+  --theme-dialog-header-bg: var(--color-bg-hover);
+  --theme-feature-card-bg: var(--color-bg-base);
+  --theme-feature-card-color: var(--color-text-primary);
+  --theme-feature-card-border: var(--color-border-base);
+  --theme-feature-card-shadow: none;
+  --theme-feature-card-hover-shadow: none;
+  --theme-feature-card-decor: none;
 }
 
 :root[data-theme="vibrant"] {
