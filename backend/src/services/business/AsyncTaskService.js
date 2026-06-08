@@ -21,6 +21,22 @@ class AsyncTaskService {
       return; // 如果未启用异步成本核算,直接返回
     }
 
+    if (transactionData?.transaction_type === 'production_outbound') {
+      logger.debug(
+        `[async task] skip generic inventory cost entry for production issue: ${transactionData.reference_no}`
+      );
+      return;
+    }
+    if (
+      transactionData?.transaction_type === 'sales_outbound' ||
+      transactionData?.reference_type === 'sales_outbound'
+    ) {
+      logger.debug(
+        `[async task] skip generic inventory cost entry for sales outbound: ${transactionData.reference_no}`
+      );
+      return;
+    }
+
     setImmediate(async () => {
       try {
         logger.debug(`[异步任务] 开始创建成本分录: ${transactionData.reference_no}`);

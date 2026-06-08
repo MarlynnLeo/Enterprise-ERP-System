@@ -412,7 +412,8 @@ class EquipmentMonitoringService extends BaseService {
       await connection.commit();
 
       // 清除相关缓存
-      await cacheService.deletePattern(`equipment_*_${equipmentId}`);
+      cacheService.delete(`equipment_detail_${equipmentId}`);
+      cacheService.deleteByPrefix(`equipment_realtime_${equipmentId}_`);
 
       return { success: true, previousStatus, newStatus };
     } catch (error) {

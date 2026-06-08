@@ -40,6 +40,9 @@ class ScheduledTaskService {
     // 每天上午9点执行库存预警检查并自动生成采购申请
     this.scheduleLowStockAlertCheck();
 
+    // 每天上午9:30执行逾期发票检查
+    this.scheduleOverdueInvoiceCheck();
+
     // 每周一上午9点执行批次过期预警检查
     this.scheduleBatchExpiryCheck();
 
@@ -259,6 +262,45 @@ class ScheduledTaskService {
 
     task.start();
     this.tasks.set('batchExpiryCheck', task);
+  }
+
+  /**
+   * 调度逾期发票检查任务
+   * 每天上午9:30执行
+   */
+  static scheduleOverdueInvoiceCheck() {
+    const { runOverdueCheck } = require('../overdueCheckService');
+    const task = cron.schedule(
+      '30 9 * * *',
+      async () => {
+        try {
+          logger.info('开始执行逾期发票检查...');
+          const result = await runOverdueCheck();
+
+          if (result.success) {
+            const arCount = result.ar?.count || 0;
+            const apCount = result.ap?.count || 0;
+            if (arCount > 0 || apCount > 0) {
+              await this.sendNotification(
+                '逾期发票检查',
+                `发现 ${arCount} 张逾期应收发票, ${apCount} 张逾期应付发票`
+              );
+            }
+            logger.info(`逾期发票检查完成: AR=${arCount}, AP=${apCount}`);
+          }
+        } catch (error) {
+          logger.error('逾期发票检查任务失败:', error);
+          await this.sendErrorNotification('逾期发票检查失败', error.message);
+        }
+      },
+      {
+        scheduled: false,
+        timezone: 'Asia/Shanghai',
+      }
+    );
+
+    task.start();
+    this.tasks.set('overdueInvoiceCheck', task);
   }
 
   /**

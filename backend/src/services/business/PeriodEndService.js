@@ -88,6 +88,17 @@ class PeriodEndService {
     return accounts[0].id;
   }
 
+  static async getIncomeStatementCostCodes() {
+    await accountingConfig.loadFromDatabase(db);
+    return [
+      accountingConfig.getAccountCode('SALES_COST'),
+      accountingConfig.getAccountCode('COST_OF_GOODS_SOLD'),
+      accountingConfig.getAccountCode('OTHER_COST'),
+      '6401',
+      '6402',
+    ].filter(Boolean);
+  }
+
   static async findPriorOpenPeriod(connection, periodId, period, lock = false) {
     const [rows] = await connection.execute(
       `SELECT id, period_name, end_date
@@ -729,7 +740,6 @@ class PeriodEndService {
        HAVING balance != 0`,
       [periodId]
     );
-
     // 获取费用/成本类科目余额
     const [expenseAccounts] = await connection.execute(
       `SELECT a.id, a.account_code, a.account_name,
@@ -746,8 +756,25 @@ class PeriodEndService {
     );
 
     // 计算本期损益
+    const incomeStatementCostCodes = new Set(await this.getIncomeStatementCostCodes());
+    const nonProfitLossCostCodes = new Set([
+      accountingConfig.getAccountCode('PRODUCTION_COST'),
+      accountingConfig.getAccountCode('MANUFACTURING_EXPENSE'),
+      '4101',
+      '5001',
+      '5101',
+    ].filter(Boolean));
+    const profitLossExpenseAccounts = expenseAccounts.filter(
+      (account) =>
+        incomeStatementCostCodes.has(account.account_code) ||
+        !nonProfitLossCostCodes.has(account.account_code)
+    );
+
     const totalIncome = incomeAccounts.reduce((sum, acc) => sum + parseFloat(acc.balance), 0);
-    const totalExpense = expenseAccounts.reduce((sum, acc) => sum + parseFloat(acc.balance), 0);
+    const totalExpense = profitLossExpenseAccounts.reduce(
+      (sum, acc) => sum + parseFloat(acc.balance),
+      0
+    );
     const netProfit = totalIncome - totalExpense;
 
     if (totalIncome === 0 && totalExpense === 0) {
@@ -801,7 +828,7 @@ class PeriodEndService {
     }
 
     // 结转费用/成本（借：本年利润，贷：费用/成本科目）
-    for (const account of expenseAccounts) {
+    for (const account of profitLossExpenseAccounts) {
       const balance = parseFloat(account.balance) || 0;
       if (Math.abs(balance) >= 0.01) {
         entryItems.push({

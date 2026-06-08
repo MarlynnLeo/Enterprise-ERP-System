@@ -38,13 +38,6 @@ const initSequelize = async (retryCount = 0, maxRetries = 3) => {
     // 尝试连接数据库
     await sequelize.authenticate();
 
-    // 设置连接事件监听（如果支持）
-    try {
-      setupConnectionEventListeners();
-    } catch (hookError) {
-      logger.warn('⚠️  跳过事件监听器设置:', hookError.message);
-    }
-
     return true;
   } catch {
     // Error logged
@@ -70,59 +63,8 @@ const initSequelize = async (retryCount = 0, maxRetries = 3) => {
   }
 };
 
-// 设置连接事件监听器 - 优化版本
-const setupConnectionEventListeners = () => {
-  try {
-    // 只在开发环境显示详细连接信息
-    if (process.env.NODE_ENV === 'development') {
-      sequelize.addHook('afterConnect', (_connection) => {
-        // 连接成功，无需额外操作
-      });
-    }
-
-    // 优化断开连接的监听 - 减少日志噪音
-    sequelize.addHook('beforeDisconnect', (_connection) => {
-      // 只在开发环境且启用详细日志时显示
-      if (process.env.NODE_ENV === 'development' && process.env.ENABLE_DEBUG_LOG === 'true') {
-        // 断开连接前的操作
-      }
-    });
-
-    // 添加错误监听
-    sequelize.addHook('afterDisconnect', (_connection) => {
-      if (process.env.NODE_ENV === 'development') {
-        // 断开连接后的操作
-      }
-    });
-  } catch (error) {
-    logger.warn('⚠️  设置连接事件监听器失败:', error.message);
-  }
-};
-
-// 优雅关闭数据库连接
-const closeSequelize = async () => {
-  try {
-    await sequelize.close();
-    logger.info('🔒 数据库连接已关闭');
-  } catch {
-    // Error logged
-  }
-};
-
-// 进程退出时关闭连接
-process.on('SIGINT', async () => {
-  logger.info('\n📴 收到退出信号，正在关闭数据库连接...');
-  await closeSequelize();
-  process.exit(0);
-});
-
-process.on('SIGTERM', async () => {
-  logger.info('\n📴 收到终止信号，正在关闭数据库连接...');
-  await closeSequelize();
-  process.exit(0);
-});
-
 // 启动连接
+// 注: Sequelize 连接池关闭由 db.js 中的 gracefulShutdown 统一管理
 initSequelize();
 
 module.exports = sequelize;

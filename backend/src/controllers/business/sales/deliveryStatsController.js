@@ -40,7 +40,7 @@ exports.getDeliveryStats = async (req, res) => {
 
     // 基础条件：只查询已确认的订单（包含生产中的订单）
     whereClause +=
-      " AND so.status IN ('confirmed', 'processing', 'shipped', 'ready_to_ship', 'in_production', 'partial_shipped', 'completed')";
+      " AND so.deleted_at IS NULL AND so.status IN ('confirmed', 'processing', 'shipped', 'ready_to_ship', 'in_production', 'partial_shipped', 'completed')";
 
     // 搜索条件
     if (search) {
@@ -130,10 +130,24 @@ exports.getDeliveryStats = async (req, res) => {
           soi_inner.material_id,
           SUM(sobi.quantity) as shipped_quantity
         FROM sales_order_items soi_inner
-        INNER JOIN sales_outbound sob ON soi_inner.order_id = sob.order_id
-        INNER JOIN sales_outbound_items sobi ON sob.id = sobi.outbound_id
+        INNER JOIN sales_outbound_items sobi ON soi_inner.material_id = sobi.product_id
+        INNER JOIN sales_outbound sob ON sob.id = sobi.outbound_id
           AND soi_inner.material_id = sobi.product_id
-        WHERE sob.status IN ('completed', 'processing')
+        WHERE sob.deleted_at IS NULL
+          AND sob.status IN ('completed', 'processing')
+          AND (
+            (COALESCE(sob.is_multi_order, 0) = 0 AND sob.order_id = soi_inner.order_id)
+            OR (sob.is_multi_order = 1 AND sobi.source_order_id = soi_inner.order_id)
+            OR (
+              sob.is_multi_order = 1
+              AND sobi.source_order_id IS NULL
+              AND sob.related_orders IS NOT NULL
+              AND (
+                JSON_CONTAINS(sob.related_orders, CAST(soi_inner.order_id AS JSON))
+                OR sob.related_orders LIKE CONCAT('%', soi_inner.order_id, '%')
+              )
+            )
+          )
         GROUP BY soi_inner.order_id, soi_inner.material_id
       ) shipped_summary ON soi.order_id = shipped_summary.order_id
         AND soi.material_id = shipped_summary.material_id
@@ -144,7 +158,7 @@ exports.getDeliveryStats = async (req, res) => {
           COUNT(*) as outbound_count
         FROM sales_outbound sob
         INNER JOIN sales_outbound_items sobi ON sob.id = sobi.outbound_id
-        WHERE sob.status = 'draft'
+        WHERE sob.deleted_at IS NULL AND sob.status = 'draft'
         GROUP BY sob.order_id, sobi.product_id
       ) pending_outbound ON soi.order_id = pending_outbound.order_id
         AND soi.material_id = pending_outbound.product_id
@@ -251,7 +265,7 @@ exports.getOrderDeliveryDetails = async (req, res) => {
         c.name as customer_name
       FROM sales_orders so
       INNER JOIN customers c ON so.customer_id = c.id
-      WHERE so.id = ?
+      WHERE so.id = ? AND so.deleted_at IS NULL
     `,
       [orderId]
     );
@@ -281,7 +295,7 @@ exports.getOrderDeliveryDetails = async (req, res) => {
       FROM sales_order_items soi
       INNER JOIN materials m ON soi.material_id = m.id
       LEFT JOIN units u ON m.unit_id = u.id
-      LEFT JOIN sales_outbound sob ON soi.order_id = sob.order_id
+      LEFT JOIN sales_outbound sob ON soi.order_id = sob.order_id AND sob.deleted_at IS NULL
       LEFT JOIN sales_outbound_items sobi ON sob.id = sobi.outbound_id
         AND soi.material_id = sobi.product_id
       WHERE soi.order_id = ?
@@ -330,14 +344,28 @@ exports.getDeliveryOverview = async (req, res) => {
           soi_inner.material_id,
           SUM(sobi.quantity) as shipped_quantity
         FROM sales_order_items soi_inner
-        INNER JOIN sales_outbound sob ON soi_inner.order_id = sob.order_id
-        INNER JOIN sales_outbound_items sobi ON sob.id = sobi.outbound_id
+        INNER JOIN sales_outbound_items sobi ON soi_inner.material_id = sobi.product_id
+        INNER JOIN sales_outbound sob ON sob.id = sobi.outbound_id
           AND soi_inner.material_id = sobi.product_id
-        WHERE sob.status IN ('completed', 'processing')
+        WHERE sob.deleted_at IS NULL
+          AND sob.status IN ('completed', 'processing')
+          AND (
+            (COALESCE(sob.is_multi_order, 0) = 0 AND sob.order_id = soi_inner.order_id)
+            OR (sob.is_multi_order = 1 AND sobi.source_order_id = soi_inner.order_id)
+            OR (
+              sob.is_multi_order = 1
+              AND sobi.source_order_id IS NULL
+              AND sob.related_orders IS NOT NULL
+              AND (
+                JSON_CONTAINS(sob.related_orders, CAST(soi_inner.order_id AS JSON))
+                OR sob.related_orders LIKE CONCAT('%', soi_inner.order_id, '%')
+              )
+            )
+          )
         GROUP BY soi_inner.order_id, soi_inner.material_id
       ) shipped_summary ON soi.order_id = shipped_summary.order_id
         AND soi.material_id = shipped_summary.material_id
-      WHERE so.status IN ('confirmed', 'processing', 'shipped', 'ready_to_ship', 'in_production', 'partial_shipped', 'completed')
+      WHERE so.deleted_at IS NULL AND so.status IN ('confirmed', 'processing', 'shipped', 'ready_to_ship', 'in_production', 'partial_shipped', 'completed')
     `);
 
     ResponseHandler.success(res, overviewResult[0], '操作成功');

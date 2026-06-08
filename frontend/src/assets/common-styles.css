@@ -64,7 +64,7 @@
 }
 
 .module-page .search-form .el-form-item__content {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 10px;

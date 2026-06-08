@@ -77,9 +77,6 @@ export function useOrderActions(fetchDataCallback, tableData) {
 
   const handleShip = async (row) => {
     try {
-      await ElMessageBox.confirm(
-        `确定要为订单 ${row.order_no} 创建出库单吗？将按订单数量全额发货。`,
-        '确认发货', { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' })
       const orderDetail = await salesApi.getOrder(row.id)
       const orderData = orderDetail.data || orderDetail
       const items = orderData.items || []
@@ -92,8 +89,10 @@ export function useOrderActions(fetchDataCallback, tableData) {
         items: items.map(item => ({ product_id: item.material_id, quantity: item.quantity }))
       }
       await salesApi.createOutbound(outboundData)
+      // 立即更新本地数据，让发货按钮即时消失，避免用户重复点击
+      row.has_draft_outbound = true
       ElMessage.success('出库单创建成功')
-      if (fetchDataCallback) fetchDataCallback()
+      if (fetchDataCallback) await fetchDataCallback()
     } catch (error) {
       if (error === 'cancel') return
       console.error('创建出库单失败:', error)

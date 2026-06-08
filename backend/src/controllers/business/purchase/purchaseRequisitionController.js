@@ -77,7 +77,7 @@ const getRequisitions = async (req, res) => {
       SELECT r.*, u.real_name as user_real_name, COUNT(*) OVER() as total_count
       FROM purchase_requisitions r
       LEFT JOIN users u ON r.requester = u.username
-      WHERE 1=1
+      WHERE r.deleted_at IS NULL
     `;
 
     const queryParams = [];
@@ -166,6 +166,8 @@ const getRequisitions = async (req, res) => {
         JOIN purchase_orders po ON poi.order_id = po.id
         WHERE po.requisition_id IN (${placeholders})
         AND po.requisition_id IS NOT NULL
+        AND po.deleted_at IS NULL
+        AND po.status <> 'cancelled'
         GROUP BY po.requisition_id, poi.material_code
       `;
       const [orderedRows] = await db.pool.execute(orderedQuery, requisitionIds);
@@ -242,7 +244,7 @@ const getRequisition = async (req, res) => {
     const { id } = req.params;
 
     // 获取申请单基本信息
-    const query = 'SELECT id, requisition_number, request_date, requester, contract_code, real_name, remarks, status, source_type, source_id, source_material_id, created_at, updated_at, deleted_at FROM purchase_requisitions WHERE id = ?';
+    const query = 'SELECT id, requisition_number, request_date, requester, contract_code, real_name, remarks, status, source_type, source_id, source_material_id, created_at, updated_at, deleted_at FROM purchase_requisitions WHERE id = ? AND deleted_at IS NULL';
     const [rows] = await db.pool.execute(query, [id]);
 
     if (rows.length === 0) {
@@ -624,7 +626,7 @@ const updateRequisition = async (req, res) => {
     const finalContractCode = contractCode || contract_code || null;
 
     // 检查申请单是否存在及其状态
-    const checkQuery = 'SELECT status FROM purchase_requisitions WHERE id = ? FOR UPDATE';
+    const checkQuery = 'SELECT status FROM purchase_requisitions WHERE id = ? AND deleted_at IS NULL FOR UPDATE';
     const [checkRows] = await connection.execute(checkQuery, [id]);
 
     if (checkRows.length === 0) {
@@ -749,7 +751,7 @@ const deleteRequisition = async (req, res) => {
     const { id } = req.params;
 
     // 检查申请单是否存在及其状态
-    const checkQuery = 'SELECT status FROM purchase_requisitions WHERE id = ? FOR UPDATE';
+    const checkQuery = 'SELECT status FROM purchase_requisitions WHERE id = ? AND deleted_at IS NULL FOR UPDATE';
     const [checkRows] = await connection.execute(checkQuery, [id]);
 
     if (checkRows.length === 0) {
@@ -798,7 +800,7 @@ const updateRequisitionStatus = async (req, res) => {
     }
 
     // 检查申请单是否存在
-    const checkQuery = 'SELECT status FROM purchase_requisitions WHERE id = ? FOR UPDATE';
+    const checkQuery = 'SELECT status FROM purchase_requisitions WHERE id = ? AND deleted_at IS NULL FOR UPDATE';
     const [checkRows] = await connection.execute(checkQuery, [id]);
 
     if (checkRows.length === 0) {
@@ -840,7 +842,8 @@ const updateRequisitionStatus = async (req, res) => {
       const WorkflowService = require('../../../services/business/WorkflowService');
       const userId = req.user?.userId || req.user?.id;
       const [reqInfo] = await connection.execute(
-        'SELECT requisition_number FROM purchase_requisitions WHERE id = ?', [id]
+        'SELECT requisition_number FROM purchase_requisitions WHERE id = ? AND deleted_at IS NULL',
+        [id]
       );
       const reqNo = reqInfo[0]?.requisition_number || id;
       const wfResult = await WorkflowService.tryStartWorkflow(
@@ -877,7 +880,7 @@ const updateRequisitionStatus = async (req, res) => {
 
     // 获取更新后的完整记录
     const [updatedRows] = await db.pool.execute(
-      'SELECT id, requisition_number, request_date, requester, contract_code, real_name, remarks, status, source_type, source_id, source_material_id, created_at, updated_at, deleted_at FROM purchase_requisitions WHERE id = ?',
+      'SELECT id, requisition_number, request_date, requester, contract_code, real_name, remarks, status, source_type, source_id, source_material_id, created_at, updated_at, deleted_at FROM purchase_requisitions WHERE id = ? AND deleted_at IS NULL',
       [id]
     );
 
@@ -901,7 +904,7 @@ const updateRequisitionStatus = async (req, res) => {
 const getRequisitionById = async (id) => {
   try {
     // 获取申请单基本信息
-    const query = 'SELECT id, requisition_number, request_date, requester, contract_code, real_name, remarks, status, source_type, source_id, source_material_id, created_at, updated_at, deleted_at FROM purchase_requisitions WHERE id = ?';
+    const query = 'SELECT id, requisition_number, request_date, requester, contract_code, real_name, remarks, status, source_type, source_id, source_material_id, created_at, updated_at, deleted_at FROM purchase_requisitions WHERE id = ? AND deleted_at IS NULL';
     const [rows] = await db.pool.execute(query, [id]);
 
     if (rows.length === 0) {
@@ -964,6 +967,7 @@ const _getRecentPurchaseInfo = async (connection, materialId) => {
       JOIN suppliers s ON po.supplier_id = s.id
       WHERE poi.material_id = ?
       AND poi.price > 0
+      AND po.deleted_at IS NULL
       AND po.status IN ('confirmed', 'completed', 'pending')
       ORDER BY po.order_date DESC
       LIMIT 1

@@ -11,8 +11,7 @@ import { formatLocalDate } from '@/utils/format';
 import dayjs from 'dayjs'
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { ref, onMounted, reactive, nextTick } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import { productionApi, purchaseApi, baseDataApi, systemApi } from '@/api'
 import { bomApi } from '@/api/bom'
 import { Plus } from '@element-plus/icons-vue'
@@ -20,7 +19,6 @@ import { parseQuantity, formatQuantity } from '@/utils/helpers/quantity'
 import { SEARCH_CONFIG, searchMaterials, mapMaterialData } from '@/utils/searchConfig'
 import { parseDataObject, parseListData } from '@/utils/responseParser'
 import { useFormKeyboardNav } from '@/composables/useFormKeyboardNav'
-const router = useRouter()
 // ✅ 键盘导航：Enter 跳转下一字段，最后一个字段按 Enter 自动提交
 const { onFormKeydown: planFormKeydown } = useFormKeyboardNav(() => handleModalOk())
 // 数据定义
@@ -984,23 +982,10 @@ const confirmPushDown = async () => {
     const message = pushDownType.value === 'full'
       ? `生产任务 ${taskCode} 生成成功（全部下推）`
       : `生产任务 ${taskCode} 生成成功（下推 ${taskQuantity}，剩余 ${newRemaining}）`;
-    // 下推成功后允许直接跳转查看生产任务
+    // 下推成功提示
     loading.value = false;
     await fetchPlanList(true);
-    try {
-      await ElMessageBox.confirm(
-        `${message}\n\n是否跳转到生产任务页面查看?`,
-        '下推成功',
-        {
-          confirmButtonText: '查看任务',
-          cancelButtonText: '留在当前页',
-          type: 'success',
-        }
-      )
-      router.push('/production/task')
-    } catch {
-      // 用户选择留在当前页
-    }
+    ElMessage.success(message);
   } catch (error) {
     console.error('下推生成生产任务失败:', error);
     ElMessage.error('下推失败: ' + (error.response?.data?.message || error.message || '未知错误'));

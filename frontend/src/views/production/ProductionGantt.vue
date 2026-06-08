@@ -1,30 +1,29 @@
 <template>
-  <div class="page-container production-gantt">
-    <div class="page-header header-card">
-      <div class="page-title">
-        <h2>
-          <el-icon><Calendar /></el-icon>
-          排程甘特图
-        </h2>
-        <span>按生产组查看任务排程、延期和日期异常</span>
+  <div class="module-page production-gantt-container">
+    <el-card class="header-card">
+      <div class="header-content">
+        <div class="title-section">
+          <h2>排程甘特图</h2>
+          <p class="subtitle">按生产组查看任务排程、延期和日期异常</p>
+        </div>
+        <div class="page-actions">
+          <el-date-picker
+            v-model="dateRange"
+            class="range-picker"
+            type="daterange"
+            range-separator="至"
+            start-placeholder="开始日期"
+            end-placeholder="结束日期"
+            value-format="YYYY-MM-DD"
+            :shortcuts="dateShortcuts"
+            :clearable="false"
+            @change="fetchGanttData"
+          />
+          <el-button :icon="Refresh" :loading="loading" @click="fetchGanttData">刷新</el-button>
+          <el-button type="primary" @click="goToTask">任务排程</el-button>
+        </div>
       </div>
-      <div class="page-actions">
-        <el-date-picker
-          v-model="dateRange"
-          class="range-picker"
-          type="daterange"
-          range-separator="至"
-          start-placeholder="开始日期"
-          end-placeholder="结束日期"
-          value-format="YYYY-MM-DD"
-          :shortcuts="dateShortcuts"
-          :clearable="false"
-          @change="fetchGanttData"
-        />
-        <el-button :icon="Refresh" :loading="loading" @click="fetchGanttData">刷新</el-button>
-        <el-button type="primary" @click="goToTask">任务排程</el-button>
-      </div>
-    </div>
+    </el-card>
 
     <div class="gantt-summary" v-if="hasData || meta.generatedAt">
       <div class="summary-item">
@@ -174,7 +173,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Calendar, Refresh, UserFilled, WarningFilled, ZoomIn } from '@element-plus/icons-vue'
+import { Refresh, UserFilled, WarningFilled, ZoomIn } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 import { productionApi } from '@/api/production'
 
@@ -416,7 +415,7 @@ onMounted(fetchGanttData)
 </script>
 
 <style scoped>
-.production-gantt {
+.production-gantt-container {
   --gantt-surface: var(--color-bg-base);
   --gantt-surface-muted: var(--color-bg-section);
   --gantt-surface-soft: var(--color-bg-hover);
@@ -437,9 +436,6 @@ onMounted(fetchGanttData)
   --gantt-task-warehousing: var(--color-warning);
   --gantt-task-completed: var(--color-success-dark, var(--color-success));
   --gantt-bar-color: var(--color-on-primary);
-  min-height: 100%;
-  padding: var(--spacing-lg);
-  background: transparent;
 }
 
 .page-header {

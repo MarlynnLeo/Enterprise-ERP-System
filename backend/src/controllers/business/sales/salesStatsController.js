@@ -31,6 +31,7 @@ exports.getSalesStatistics = async (req, res) => {
         SUM(total_amount) as total_sales_amount,
         AVG(total_amount) as avg_order_amount
       FROM sales_orders
+      WHERE deleted_at IS NULL
     `);
 
     // 2. 获取当月销售统计
@@ -41,7 +42,7 @@ exports.getSalesStatistics = async (req, res) => {
         SUM(total_amount) as monthly_sales,
         COUNT(CASE WHEN status = '${SALES_STATUS_KEYS.COMPLETED}' THEN 1 END) as monthly_completed
       FROM sales_orders
-      WHERE DATE(created_at) BETWEEN ? AND ?
+      WHERE deleted_at IS NULL AND DATE(created_at) BETWEEN ? AND ?
     `,
       [currentMonthStartStr, currentMonthEndStr]
     );
@@ -62,6 +63,7 @@ exports.getSalesStatistics = async (req, res) => {
       LEFT JOIN sales_return_items sri ON sri.return_id = sr.id
       LEFT JOIN sales_order_items soi ON soi.order_id = sr.order_id AND soi.material_id = sri.product_id
       LEFT JOIN materials m ON m.id = sri.product_id
+      WHERE sr.deleted_at IS NULL
     `,
       [SALES_STATUS_KEYS.COMPLETED, SALES_STATUS_KEYS.COMPLETED]
     );
@@ -81,7 +83,7 @@ exports.getSalesStatistics = async (req, res) => {
         SUM(so.total_amount) as sales
       FROM sales_orders so
       LEFT JOIN customers c ON so.customer_id = c.id
-      WHERE so.status IN ('completed', 'shipped', 'delivered')
+      WHERE so.deleted_at IS NULL AND so.status IN ('completed', 'shipped', 'delivered')
       GROUP BY c.id, c.name
       HAVING sales > 0
       ORDER BY sales DESC
@@ -96,7 +98,7 @@ exports.getSalesStatistics = async (req, res) => {
       FROM sales_order_items soi
       LEFT JOIN materials m ON soi.material_id = m.id
       LEFT JOIN sales_orders so ON soi.order_id = so.id
-      WHERE so.status IN ('completed', 'shipped', 'delivered')
+      WHERE so.deleted_at IS NULL AND so.status IN ('completed', 'shipped', 'delivered')
       GROUP BY m.id, m.name
       HAVING sales > 0
       ORDER BY sales DESC
@@ -164,7 +166,8 @@ exports.getSalesTrend = async (req, res) => {
         COUNT(*) as order_count,
         SUM(total_amount) as sales_amount
       FROM sales_orders
-      WHERE created_at >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
+      WHERE deleted_at IS NULL
+        AND created_at >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
         AND status IN ('completed', 'shipped', 'delivered')
       GROUP BY DATE_FORMAT(created_at, '%Y-%m')
       ORDER BY month ASC

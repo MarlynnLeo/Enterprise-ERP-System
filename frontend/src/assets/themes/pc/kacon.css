@@ -509,7 +509,6 @@
   box-shadow: none !important;
   background: var(--color-bg-base) !important;
   transition: border-color 0.15s ease !important;
-  padding-right: 32px !important;
 }
 
 [data-theme="kacon"] .el-input__wrapper:hover {

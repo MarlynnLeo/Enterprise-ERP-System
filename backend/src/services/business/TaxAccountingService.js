@@ -184,6 +184,99 @@ class TaxAccountingService {
     return rows.length > 0;
   }
 
+  static sameMoney(actual, expected) {
+    return Math.abs(toCents(actual) - toCents(expected)) <= 1;
+  }
+
+  static async getOutputTaxLinkedVoucherMode(connection, invoice, arAccountId, revenueAccountId, amounts) {
+    if (!invoice?.related_document_id) return 'none';
+
+    const [rows] = await connection.execute(
+      `SELECT
+         COALESCE(SUM(CASE WHEN gi.account_id = ? THEN gi.debit_amount - gi.credit_amount ELSE 0 END), 0) AS ar_amount,
+         COALESCE(SUM(CASE WHEN gi.account_id = ? THEN gi.credit_amount - gi.debit_amount ELSE 0 END), 0) AS revenue_amount
+       FROM sales_outbound so
+       JOIN ar_invoices ai
+         ON ai.source_type = 'sales_order'
+        AND ai.source_id = so.order_id
+       JOIN document_links dl
+         ON dl.source_type = 'ar_invoice'
+        AND dl.source_id = ai.id
+        AND dl.target_type = 'finance_voucher'
+       JOIN gl_entries ge
+         ON ge.id = dl.target_id
+        AND COALESCE(ge.is_reversed, 0) = 0
+       JOIN gl_entry_items gi
+         ON gi.entry_id = ge.id
+       WHERE so.id = ?`,
+      [arAccountId, revenueAccountId, invoice.related_document_id]
+    );
+
+    const postedAmount = Math.max(
+      Math.abs(Number(rows[0]?.ar_amount || 0)),
+      Math.abs(Number(rows[0]?.revenue_amount || 0))
+    );
+    if (this.sameMoney(postedAmount, amounts.totalAmount)) return 'tax_inclusive';
+    if (this.sameMoney(postedAmount, amounts.amountExcludingTax)) return 'tax_exclusive';
+    return postedAmount > 0 ? 'tax_exclusive' : 'none';
+  }
+
+  static async getInputTaxLinkedVoucherMode(connection, invoice, apAccountId, amounts) {
+    if (!invoice?.related_document_id) return 'none';
+
+    const [rows] = await connection.execute(
+      `SELECT
+         COALESCE(SUM(CASE WHEN gi.account_id = ? THEN gi.credit_amount - gi.debit_amount ELSE 0 END), 0) AS ap_amount
+       FROM ap_invoices ai
+       JOIN document_links dl
+         ON dl.source_type = 'ap_invoice'
+        AND dl.source_id = ai.id
+        AND dl.target_type = 'finance_voucher'
+       JOIN gl_entries ge
+         ON ge.id = dl.target_id
+        AND COALESCE(ge.is_reversed, 0) = 0
+       JOIN gl_entry_items gi
+         ON gi.entry_id = ge.id
+       WHERE ai.source_type = 'purchase_receipt'
+         AND ai.source_id = ?`,
+      [apAccountId, invoice.related_document_id]
+    );
+
+    const postedAmount = Math.abs(Number(rows[0]?.ap_amount || 0));
+    if (this.sameMoney(postedAmount, amounts.totalAmount)) return 'tax_inclusive';
+    if (this.sameMoney(postedAmount, amounts.amountExcludingTax)) return 'tax_exclusive';
+    return postedAmount > 0 ? 'tax_exclusive' : 'none';
+  }
+
+  static async getInputTaxReclassCreditAccountId(connection, invoice, apAccountId) {
+    if (!invoice?.related_document_id) return null;
+
+    const [rows] = await connection.execute(
+      `SELECT gi.account_id,
+              SUM(gi.debit_amount - gi.credit_amount) AS net_debit
+       FROM ap_invoices ai
+       JOIN document_links dl
+         ON dl.source_type = 'ap_invoice'
+        AND dl.source_id = ai.id
+        AND dl.target_type = 'finance_voucher'
+       JOIN gl_entries ge
+         ON ge.id = dl.target_id
+        AND COALESCE(ge.is_reversed, 0) = 0
+       JOIN gl_entry_items gi
+         ON gi.entry_id = ge.id
+       WHERE ai.source_type = 'purchase_receipt'
+         AND ai.source_id = ?
+         AND gi.account_id <> ?
+       GROUP BY gi.account_id
+       HAVING net_debit > 0
+       ORDER BY net_debit DESC
+       LIMIT 1`,
+      [invoice.related_document_id, apAccountId]
+    );
+
+    return rows[0]?.account_id || null;
+  }
+
   /**
    * 从销项发票生成会计分录
    * @param {Object} invoice - 销项发票数据
@@ -225,7 +318,15 @@ class TaxAccountingService {
       const invoiceDate = toLocalDateString(invoice.invoice_date || currentDateString());
       const periodId = await this.getCurrentPeriodId(invoiceDate, connection);
       const voucherAmounts = normalizeInvoiceVoucherAmounts(invoice);
-      const useTaxReclassification = await this.hasLinkedArVoucherForOutputTax(connection, invoice);
+      const linkedVoucherMode = await this.getOutputTaxLinkedVoucherMode(
+        connection,
+        invoice,
+        arAccountId,
+        revenueAccountId,
+        voucherAmounts
+      );
+      const useTaxReclassification = linkedVoucherMode === 'tax_inclusive';
+      const useTaxOnlyAccrual = linkedVoucherMode === 'tax_exclusive';
 
       // 6. 创建会计分录
       const entryData = {
@@ -251,6 +352,16 @@ class TaxAccountingService {
           {
             account_id: revenueAccountId,
             description: `VAT output tax reclassification - ${invoice.invoice_number}`,
+          },
+          'debit',
+          voucherAmounts.taxAmount
+        );
+      } else if (useTaxOnlyAccrual) {
+        addNonZeroEntryItem(
+          entryItems,
+          {
+            account_id: arAccountId,
+            description: `VAT output tax accrual - ${invoice.invoice_number}`,
           },
           'debit',
           voucherAmounts.taxAmount
@@ -367,7 +478,18 @@ class TaxAccountingService {
       const invoiceDate = toLocalDateString(invoice.invoice_date || currentDateString());
       const periodId = await this.getCurrentPeriodId(invoiceDate, connection);
       const voucherAmounts = normalizeInvoiceVoucherAmounts(invoice);
-      const useTaxReclassification = await this.hasLinkedApVoucherForInputTax(connection, invoice);
+      const linkedVoucherMode = await this.getInputTaxLinkedVoucherMode(
+        connection,
+        invoice,
+        apAccountId,
+        voucherAmounts
+      );
+      const useTaxReclassification = linkedVoucherMode === 'tax_inclusive';
+      const useTaxOnlyAccrual = linkedVoucherMode === 'tax_exclusive';
+      const inputTaxReclassCreditAccountId = useTaxReclassification
+        ? (await this.getInputTaxReclassCreditAccountId(connection, invoice, apAccountId))
+            || inventoryAccountId
+        : inventoryAccountId;
 
       // 6. 创建会计分录
       const entryData = {
@@ -387,7 +509,7 @@ class TaxAccountingService {
 
       const entryItems = [];
 
-      if (!useTaxReclassification) {
+      if (!useTaxReclassification && !useTaxOnlyAccrual) {
         addNonZeroEntryItem(
           entryItems,
           {
@@ -413,8 +535,18 @@ class TaxAccountingService {
         addNonZeroEntryItem(
           entryItems,
           {
-            account_id: inventoryAccountId,
+            account_id: inputTaxReclassCreditAccountId,
             description: `VAT input tax reclassification - ${invoice.invoice_number}`,
+          },
+          'credit',
+          voucherAmounts.taxAmount
+        );
+      } else if (useTaxOnlyAccrual) {
+        addNonZeroEntryItem(
+          entryItems,
+          {
+            account_id: apAccountId,
+            description: `VAT input tax accrual - ${invoice.invoice_number}`,
           },
           'credit',
           voucherAmounts.taxAmount

@@ -6,6 +6,7 @@ const normalizeMaterialNumber = (value) => {
 }
 
 const normalizeMaterialRequirement = (material) => {
+  const materialId = material.materialId ?? material.material_id ?? material.id
   const requiredQuantity = normalizeMaterialNumber(
     material.requiredQuantity ?? material.required_quantity
   )
@@ -32,6 +33,9 @@ const normalizeMaterialRequirement = (material) => {
 
   return {
     ...material,
+    id: material.id ?? materialId,
+    materialId,
+    material_id: material.material_id ?? materialId,
     quantity: requiredQuantity,
     requiredQuantity,
     plannedQuantity: requiredQuantity,
@@ -143,6 +147,12 @@ export const productionApi = {
   checkScheduleConflicts: (data) => api.post('/production/scheduling/check-conflicts', data),
   batchSchedule: (data) => api.post('/production/scheduling/batch', data),
   getSchedulingGanttData: (params) => api.get('/production/scheduling/gantt', { params }),
+  getCalendars: () => api.get('/production/scheduling/calendars'),
+  updateCalendar: (id, data) => api.put(`/production/scheduling/calendars/${id}`, data),
+  setDefaultCalendar: (id) => api.post(`/production/scheduling/calendars/${id}/default`),
+  getCalendarOverrides: (params) => api.get('/production/scheduling/calendar-overrides', { params }),
+  saveCalendarOverrides: (data) => api.post('/production/scheduling/calendar-overrides', data),
+  deleteCalendarOverride: (date) => api.delete(`/production/scheduling/calendar-overrides/${date}`),
 
   completeTask: (id, data) => api.post(`/production/tasks/${id}/complete`, data),
   getTaskManagers: () => api.get('/production/tasks/managers'),

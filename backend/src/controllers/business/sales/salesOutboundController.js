@@ -41,7 +41,7 @@ const assertSalesOutboundQuantities = async (
     }
 
     const [orderRows] = await connection.query(
-      'SELECT quantity FROM sales_order_items WHERE order_id = ? AND material_id = ? FOR UPDATE',
+      'SELECT COALESCE(SUM(quantity), 0) AS quantity FROM sales_order_items WHERE order_id = ? AND material_id = ? FOR UPDATE',
       [sourceOrderId, materialId]
     );
 
@@ -116,7 +116,7 @@ exports.getSalesOutbound = async (req, res) => {
         FROM sales_outbound so
         LEFT JOIN sales_orders o ON so.order_id = o.id
         LEFT JOIN customers c ON o.customer_id = c.id
-        WHERE 1=1 ${whereClause}
+        WHERE so.deleted_at IS NULL ${whereClause}
       `;
 
       const [countResult] = await connection.query(countQuery, queryParams);
@@ -128,7 +128,7 @@ exports.getSalesOutbound = async (req, res) => {
         FROM sales_outbound so
         LEFT JOIN sales_orders o ON so.order_id = o.id
         LEFT JOIN customers c ON o.customer_id = c.id
-        WHERE 1=1 ${whereClause}
+        WHERE so.deleted_at IS NULL ${whereClause}
         ORDER BY so.created_at DESC
       `,
         pagination.limit,
@@ -160,7 +160,7 @@ exports.getSalesOutbound = async (req, res) => {
           SELECT so.id, so.order_no, c.name as customer_name
           FROM sales_orders so
           LEFT JOIN customers c ON so.customer_id = c.id
-          WHERE so.id IN (${relatedPlaceholders})
+          WHERE so.deleted_at IS NULL AND so.id IN (${relatedPlaceholders})
           `,
           relatedIds
         );
@@ -181,6 +181,7 @@ exports.getSalesOutbound = async (req, res) => {
       const statusQuery = `
         SELECT status, COUNT(*) as count
         FROM sales_outbound
+        WHERE deleted_at IS NULL
         GROUP BY status
       `;
 
@@ -269,7 +270,7 @@ exports.getSalesOutboundById = async (req, res) => {
       FROM sales_outbound so
       LEFT JOIN sales_orders o ON so.order_id = o.id
       LEFT JOIN customers c ON o.customer_id = c.id
-      WHERE so.id = ?
+      WHERE so.id = ? AND so.deleted_at IS NULL
     `;
 
     const [results] = await connection.query(query, [id]);
@@ -282,7 +283,7 @@ exports.getSalesOutboundById = async (req, res) => {
 
     // 查询明细数据
       const itemsQuery = `
-        SELECT soi.id, soi.outbound_id, soi.product_id, soi.quantity
+        SELECT soi.id, soi.outbound_id, soi.product_id, soi.quantity, soi.source_order_id
         FROM sales_outbound_items soi
         WHERE soi.outbound_id = ?
       `;
@@ -325,9 +326,11 @@ exports.getSalesOutboundById = async (req, res) => {
             `SELECT sri.product_id, SUM(sri.quantity) AS total_returned
              FROM sales_return_items sri
              JOIN sales_returns sr ON sri.return_id = sr.id
-             WHERE sr.order_id = ? AND sr.status NOT IN ('rejected', 'cancelled')
+             WHERE sr.deleted_at IS NULL
+               AND sr.status NOT IN ('rejected', 'cancelled', 'draft')
+               AND sr.outbound_id = ?
              GROUP BY sri.product_id`,
-            [outbound.order_id]
+            [outbound.id]
           );
           returnedRows.forEach(row => {
             returnedMap.set(row.product_id, parseFloat(row.total_returned) || 0);
@@ -580,7 +583,7 @@ exports.createSalesOutbound = async (req, res) => {
     } else {
       // 单订单模式：验证单个订单存在
       if (order_id) {
-        const [orderCheck] = await connection.query('SELECT id FROM sales_orders WHERE id = ?', [
+        const [orderCheck] = await connection.query('SELECT id FROM sales_orders WHERE id = ? AND deleted_at IS NULL', [
           order_id,
         ]);
 
@@ -689,7 +692,7 @@ exports.createSalesOutbound = async (req, res) => {
                   item.quantity,
                   unitPrice,
                   amount,
-                  item.source_order_id || item.order_id || null,
+                  item.source_order_id || item.order_id || order_id || null,
                   item.source_order_no || item.order_no || null,
                 ]);
               }
@@ -785,7 +788,7 @@ exports.updateSalesOutbound = async (req, res) => {
     await connection.beginTransaction();
 
     // 1. 检查出库单是否存在并获取当前状态和明细
-    const [outboundCheck] = await connection.query('SELECT id, outbound_no, order_id, delivery_date, status, remarks, created_by, created_at, updated_at, is_multi_order, related_orders, deleted_at, total_amount FROM sales_outbound WHERE id = ? FOR UPDATE', [
+    const [outboundCheck] = await connection.query('SELECT id, outbound_no, order_id, delivery_date, status, remarks, created_by, created_at, updated_at, is_multi_order, related_orders, deleted_at, total_amount FROM sales_outbound WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [
       id,
     ]);
 
@@ -828,7 +831,7 @@ exports.updateSalesOutbound = async (req, res) => {
         return ResponseHandler.error(res, '多订单模式下必须提供关联订单列表', 'VALIDATION_ERROR', 400);
       }
 
-      const [orderCheck] = await connection.query('SELECT id FROM sales_orders WHERE id IN (?)', [
+      const [orderCheck] = await connection.query('SELECT id FROM sales_orders WHERE id IN (?) AND deleted_at IS NULL', [
         finalRelatedOrders,
       ]);
 
@@ -840,7 +843,7 @@ exports.updateSalesOutbound = async (req, res) => {
       finalOrderId = null; // 多订单时主订单ID为空
     } else {
       if (finalOrderId) {
-        const [orderCheck] = await connection.query('SELECT id FROM sales_orders WHERE id = ?', [
+        const [orderCheck] = await connection.query('SELECT id FROM sales_orders WHERE id = ? AND deleted_at IS NULL', [
           finalOrderId,
         ]);
 
@@ -1250,7 +1253,7 @@ exports.deleteSalesOutbound = async (req, res) => {
     await connection.beginTransaction();
 
     const [outboundResult] = await connection.query(
-      'SELECT id, status, outbound_no, order_id FROM sales_outbound WHERE id = ? FOR UPDATE',
+      'SELECT id, status, outbound_no, order_id FROM sales_outbound WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
       [id]
     );
 
@@ -1325,7 +1328,7 @@ exports.getMaterialSalesHistory = async (req, res) => {
     connection = await getConnection();
 
     // 构建查询条件
-    let whereClause = 'WHERE soi.product_id = ?';
+    let whereClause = 'WHERE soi.product_id = ? AND so.deleted_at IS NULL';
     const queryParams = [materialId];
 
     if (startDate) {

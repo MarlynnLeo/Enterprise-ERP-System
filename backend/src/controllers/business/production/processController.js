@@ -1,4 +1,4 @@
-﻿/**
+/**
  * processController.js
  * @description 生产工序控制器
  * @date 2025-10-16
@@ -18,6 +18,7 @@ const { CodeGenerators } = require('../../../utils/codeGenerator');
 const { generateBatchNo, syncPlanStatus } = require('../../../services/business/TaskLifecycleService');
 const QualityInspection = require('../../../models/qualityInspection');
 const BusinessError = require('../../../utils/BusinessError');
+const NotificationService = require('../../../services/NotificationService');
 
 // 状态常量统一引用 businessConfig，避免硬编码。
 const TASK_STATUS = businessConfig.status.productionTask;
@@ -338,6 +339,7 @@ exports.updateProcess = async (req, res) => {
     }
 
     let shouldTriggerCostAccounting = false;
+    const warnings = [];
 
     // 工序完成时检查是否所有有效工序都已完成。
     if (status === PROC_STATUS.COMPLETED) {
@@ -450,32 +452,34 @@ exports.updateProcess = async (req, res) => {
             'SELECT COALESCE(SUM(standard_hours), 0) as total_hours FROM production_processes WHERE task_id = ?',
             [taskId]
           );
-          const estimatedHours = parseFloat(processHours[0]?.total_hours) || 0;
+          const hoursPerUnit = parseFloat(processHours[0]?.total_hours) || 0;
 
-          if (estimatedHours <= 0) {
-            throw new BusinessError(
-              'Process standard hours are required before auto report and cost accounting',
-              { route: '/basedata/processes', buttonText: 'Configure standard hours' }
+          if (hoursPerUnit <= 0) {
+            // 标准工时未配置：跳过自动报工，不阻断工序完成流程
+            const msg = '工序标准工时未配置，无法自动创建报工记录，请联系管理员在【基础数据 - 工序管理】中配置工时后手动报工';
+            logger.warn(`任务 ${taskId} ${msg}`);
+            warnings.push(msg);
+          } else {
+            const reportNo = await CodeGenerators.generateReportCode(connection);
+            const [taskInfoForHook] = await connection.query('SELECT manager, quantity FROM production_tasks WHERE id = ?', [taskId]);
+            const operatorName = taskInfoForHook[0]?.manager || await getCurrentUserName(req);
+            const finalQuantity = taskInfoForHook[0]?.quantity || 0;
+            // 实际报工工时 = 单件工时总和 × 生产数量
+            const estimatedHours = hoursPerUnit * finalQuantity;
+
+            await connection.query(
+              `INSERT INTO production_reports
+              (report_no, task_id, operator_id, operator_name, report_time, report_quantity,
+               completed_quantity, qualified_quantity, defective_quantity, unqualified_quantity,
+               work_hours, remarks, created_at)
+              VALUES (?, ?, 0, ?, NOW(), ?, ?, ?, 0, 0, ?, ?, NOW())`,
+              [
+                reportNo, taskId, operatorName, finalQuantity, finalQuantity, finalQuantity,
+                estimatedHours, 'Auto generated after process completion'
+              ]
             );
+            logger.info(`任务 ${taskId} 工序完成附加处理：自动创建报工记录，工时: ${estimatedHours}h (单件${hoursPerUnit}h × ${finalQuantity})`);
           }
-
-          const reportNo = await CodeGenerators.generateReportCode(connection);
-          const [taskInfoForHook] = await connection.query('SELECT manager, quantity FROM production_tasks WHERE id = ?', [taskId]);
-          const operatorName = taskInfoForHook[0]?.manager || await getCurrentUserName(req);
-          const finalQuantity = taskInfoForHook[0]?.quantity || 0;
-
-          await connection.query(
-            `INSERT INTO production_reports
-            (report_no, task_id, operator_id, operator_name, report_time, report_quantity,
-             completed_quantity, qualified_quantity, defective_quantity, unqualified_quantity,
-             work_hours, remarks, created_at)
-            VALUES (?, ?, 0, ?, NOW(), ?, ?, ?, 0, 0, ?, ?, NOW())`,
-            [
-              reportNo, taskId, operatorName, finalQuantity, finalQuantity, 0,
-              estimatedHours, 'Auto generated after process completion'
-            ]
-          );
-          logger.info(`任务 ${taskId} 工序完成附加处理：自动创建报工记录，工时: ${estimatedHours}h`);
         }
 
         // 3. 成本核算标记，commit 后异步触发，避免读到未提交数据。
@@ -498,20 +502,45 @@ exports.updateProcess = async (req, res) => {
 
     await connection.commit();
 
-    // 成本核算在事务提交后异步执行。
+    // 成本核算在事务提交后执行（同步等待以便将异常信息带回前端）。
     if (shouldTriggerCostAccounting && taskId) {
+      try {
+        const CostAccountingService = require('../../../services/business/CostAccountingService');
+        await CostAccountingService.calculateActualCost(parseInt(taskId));
+        logger.info(`Task ${taskId} process completion cost accounting triggered`);
+      } catch (costErr) {
+        logger.warn(`任务 ${taskId} 工序完成路径成本核算挂起: ${costErr.message}`);
+        warnings.push(`成本核算失败：${costErr.message}，请联系管理员检查物料成本配置`);
+      }
+    }
+
+    // 如有警告，异步发送管理员通知（不阻断响应）
+    if (warnings.length > 0) {
       setImmediate(async () => {
         try {
-          const CostAccountingService = require('../../../services/business/CostAccountingService');
-          await CostAccountingService.calculateActualCost(parseInt(taskId));
-          logger.info(`Task ${taskId} process completion cost accounting triggered`);
-        } catch (costErr) {
-          logger.warn(`任务 ${taskId} 工序完成路径成本核算挂起: ${costErr.message}`);
+          await NotificationService.notifyByPermissions(
+            ['production:process:update'],
+            {
+              type: 'warning',
+              title: '工序完成时发现数据缺失',
+              content: `任务ID: ${taskId}\n${warnings.join('\n')}`,
+              link: '/basedata/processes',
+              priority: 1,
+              sourceType: 'production_process_warning',
+              sourceId: taskId,
+            }
+          );
+        } catch (notifyErr) {
+          logger.warn(`发送管理员通知失败: ${notifyErr.message}`);
         }
       });
     }
 
-    return ResponseHandler.success(res, null, '生产工序更新成功');
+    const responseData = warnings.length > 0 ? { warnings } : null;
+    const message = warnings.length > 0
+      ? '工序更新成功，但有注意事项需要处理'
+      : '生产工序更新成功';
+    return ResponseHandler.success(res, responseData, message);
   } catch (error) {
     await connection.rollback();
     logger.error('更新生产工序失败:', error);

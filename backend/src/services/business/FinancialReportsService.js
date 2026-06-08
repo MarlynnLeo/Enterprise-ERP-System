@@ -249,6 +249,41 @@ class FinancialReportsService {
     return row.is_debit ? netBalance : -netBalance;
   }
 
+  static async getIncomeStatementCostCodes() {
+    await accountingConfig.loadFromDatabase(db);
+    return [
+      accountingConfig.getAccountCode('SALES_COST'),
+      accountingConfig.getAccountCode('COST_OF_GOODS_SOLD'),
+      accountingConfig.getAccountCode('OTHER_COST'),
+      '6401',
+      '6402',
+    ].filter(Boolean);
+  }
+
+  static async buildPeriodAccountFilter(accountType) {
+    const costCodes = [...new Set(await this.getIncomeStatementCostCodes())];
+    if (accountType === '成本') {
+      return {
+        whereSql: `account_code IN (${costCodes.map(() => '?').join(',')})`,
+        params: costCodes,
+      };
+    }
+
+    if (accountType === '费用') {
+      return {
+        whereSql: `account_type = ? AND account_code NOT IN (${costCodes
+          .map(() => '?')
+          .join(',')})`,
+        params: [accountType, ...costCodes],
+      };
+    }
+
+    return {
+      whereSql: 'account_type = ?',
+      params: [accountType],
+    };
+  }
+
   /**
    * 获取指定日期的科目余额（单个科目）
    * @param {Object} connection 数据库连接
@@ -677,13 +712,14 @@ class FinancialReportsService {
           usageParams.push(compareStartDate, compareEndDate);
         }
 
+        const accountFilter = await this.buildPeriodAccountFilter(accountType);
         const [accounts] = await connection.execute(
           `SELECT id, account_code as code, account_name as name, account_type as type, is_debit
            FROM gl_accounts
-           WHERE account_type = ?
+           WHERE ${accountFilter.whereSql}
              AND (is_active = true OR ${usageClauses.join(' OR ')})
            ORDER BY account_code`,
-          [accountType, ...usageParams]
+          [...accountFilter.params, ...usageParams]
         );
 
         logger.debug(

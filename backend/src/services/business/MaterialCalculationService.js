@@ -188,27 +188,39 @@ async function calculateMaterialRequirementsWithStock(productId, bomId, quantity
 }
 
 /**
+ * 统一 BOM 解析 API
+ * 根据产品ID和可选的 bomId，解析出确定的 bomId 和 bomVersion
+ * @param {number} productId - 产品物料ID
+ * @param {number|null} providedBomId - 前端指定的 BOM ID（可选）
+ * @param {object} db - 数据库连接（事务连接或连接池）
+ * @returns {Promise<{bomId: number, bomVersion: string}>}
+ */
+async function resolveBomForProduct(productId, providedBomId = null, db = pool) {
+  if (providedBomId) {
+    const [bomMasters] = await db.query(
+      'SELECT id, version FROM bom_masters WHERE id = ? AND deleted_at IS NULL',
+      [providedBomId]
+    );
+    if (bomMasters.length === 0) {
+      throw new Error(`指定的 BOM (ID: ${providedBomId}) 不存在或已删除`);
+    }
+    return { bomId: bomMasters[0].id, bomVersion: bomMasters[0].version || '' };
+  }
+
+  const preferredBom = await BomExplosionService.getPreferredBom(productId, db);
+  if (!preferredBom) {
+    throw new Error('请先在基础数据中配置该产品的BOM');
+  }
+  return { bomId: preferredBom.id, bomVersion: preferredBom.version || '' };
+}
+
+/**
  * 计算并插入物料需求 (生产计划控制器调用)
  */
 async function calculateAndInsertMaterials(connection, planId, productId, quantity, providedBomId = null) {
   try {
-    let bomId = providedBomId;
-    let bomVersion = '';
-
-    if (!bomId) {
-      const preferredBom = await BomExplosionService.getPreferredBom(productId, connection);
-      if (!preferredBom) {
-         throw new Error(`请先在基础数据中配置该产品的BOM`);
-      }
-      bomId = preferredBom.id;
-      bomVersion = preferredBom.version;
-    } else {
-      const [bomMasters] = await connection.query(
-        `SELECT version FROM bom_masters WHERE id = ? AND deleted_at IS NULL`,
-        [bomId]
-      );
-      if (bomMasters.length > 0) bomVersion = bomMasters[0].version;
-    }
+    // 复用统一 BOM 解析 API
+    const { bomId, bomVersion } = await resolveBomForProduct(productId, providedBomId, connection);
 
     // 调用最强净需求 MRP 物料推演
     const materialRequirements = await calculateMaterialRequirementsWithStock(productId, bomId, quantity, planId);
@@ -267,5 +279,6 @@ async function calculateAndInsertMaterials(connection, planId, productId, quanti
 
 module.exports = {
   calculateMaterialRequirementsWithStock,
-  calculateAndInsertMaterials
+  calculateAndInsertMaterials,
+  resolveBomForProduct
 };

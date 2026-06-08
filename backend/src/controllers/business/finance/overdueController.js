@@ -4,7 +4,7 @@
 
 const { logger } = require('../../../utils/logger');
 const { ResponseHandler } = require('../../../utils/responseHandler');
-const { triggerOverdueCheck } = require('../../../services/scheduler');
+const { runOverdueCheck } = require('../../../services/overdueCheckService');
 const arModel = require('../../../models/ar');
 const apModel = require('../../../models/ap');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
@@ -30,7 +30,7 @@ function normalizeReverseReason(reason) {
  */
 const checkOverdueInvoices = async (req, res) => {
   try {
-    const result = await triggerOverdueCheck();
+    const result = await runOverdueCheck();
 
     ResponseHandler.success(res, result, `逾期检查完成 - AR: ${result.ar.count}张, AP: ${result.ap.count}张`);
   } catch (error) {

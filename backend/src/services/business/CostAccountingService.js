@@ -1062,6 +1062,33 @@ class CostAccountingService {
           productionOrderId,
         ]
       );
+      const producedQuantity = parseFloat(order.completed_quantity || order.quantity || 0);
+      const finishedGoodsUnitCost =
+        producedQuantity > 0 ? Precision.round(Precision.div(totalActualCost, producedQuantity), 4) : 0;
+      if (finishedGoodsUnitCost > 0 && order.product_id) {
+        await connection.execute('UPDATE materials SET cost_price = ? WHERE id = ?', [
+          finishedGoodsUnitCost,
+          order.product_id,
+        ]);
+
+        await connection.execute(
+          `UPDATE inventory_ledger il
+           JOIN inventory_inbound_items iii
+             ON iii.material_id = il.material_id
+            AND iii.batch_number COLLATE utf8mb4_0900_ai_ci =
+                il.batch_number COLLATE utf8mb4_0900_ai_ci
+           JOIN inventory_inbound ii
+             ON ii.id = iii.inbound_id
+            AND ii.reference_type = 'production_task'
+            AND ii.reference_id = ?
+           SET il.unit_cost = ?,
+               il.total_value = ROUND(ABS(il.quantity) * ?, 2)
+           WHERE il.transaction_type = 'production_inbound'
+             AND il.material_id = ?`,
+          [productionOrderId, finishedGoodsUnitCost, finishedGoodsUnitCost, order.product_id]
+        );
+      }
+
       logger.info(
         `生产任务 ${productionOrderId} 成本已回写: 总计=${totalActualCost}, 材料=${materialCost.totalCost}, 人工=${laborCost.totalCost}, 制造费用=${overheadCost.totalCost}`
       );

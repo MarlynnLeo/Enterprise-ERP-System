@@ -119,15 +119,13 @@
             >
               编辑
             </el-button>
-            <el-popconfirm
+            <el-button
               v-if="scope.row.status === 'draft'"
-              title="确定要入库该收货单吗？"
-              @confirm="directCompleteReceipt(scope.row)"
-            >
-              <template #reference>
-                <el-button size="small" type="success" v-permission="'purchase:receipts:update'">入库</el-button>
-              </template>
-            </el-popconfirm>
+              size="small"
+              type="success"
+              v-permission="'purchase:receipts:update'"
+              @click="directCompleteReceipt(scope.row)"
+            >入库</el-button>
             <el-popconfirm
               v-if="scope.row.status === 'draft'"
               title="确定要取消该收货单吗？"

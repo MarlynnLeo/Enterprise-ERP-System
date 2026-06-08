@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * EquipmentMonitoring.vue
  * @description 前端界面组件文件
@@ -7,10 +7,23 @@
  */
 -->
 <template>
-  <div class="equipment-monitoring">
+  <div class="module-page equipment-monitoring-container">
+    <!-- 页面标题 -->
+    <el-card class="header-card">
+      <div class="header-content">
+        <div class="title-section">
+          <h2>设备监控</h2>
+          <p class="subtitle">实时监控生产设备运行状态</p>
+        </div>
+        <el-button @click="refreshData" :loading="loading">
+          <el-icon><Refresh /></el-icon> 刷新
+        </el-button>
+      </div>
+    </el-card>
+
     <!-- 统计卡片 -->
-    <el-row :gutter="20" class="stats-cards">
-      <el-col :xs="12" :sm="6" :md="6" :lg="6" :xl="6">
+    <el-row :gutter="20" class="stats-cards statistics-row">
+      <el-col :xs="6" :sm="6" :md="6" :lg="6" :xl="6">
         <el-card class="stat-card online">
           <div class="stat-content">
             <div class="stat-icon">
@@ -24,7 +37,7 @@
         </el-card>
       </el-col>
 
-      <el-col :xs="12" :sm="6" :md="6" :lg="6" :xl="6">
+      <el-col :xs="6" :sm="6" :md="6" :lg="6" :xl="6">
         <el-card class="stat-card offline">
           <div class="stat-content">
             <div class="stat-icon">
@@ -38,7 +51,7 @@
         </el-card>
       </el-col>
 
-      <el-col :xs="12" :sm="6" :md="6" :lg="6" :xl="6">
+      <el-col :xs="6" :sm="6" :md="6" :lg="6" :xl="6">
         <el-card class="stat-card alarm">
           <div class="stat-content">
             <div class="stat-icon">
@@ -68,16 +81,10 @@
     </el-row>
 
     <!-- 设备列表 -->
-    <el-card class="equipment-list-card">
+    <el-card class="data-card">
       <template #header>
         <div class="card-header">
-          <span>设备监控</span>
-          <div class="header-actions">
-            <el-button @click="refreshData" :loading="loading">
-              <el-icon><Refresh /></el-icon>
-              刷新
-            </el-button>
-          </div>
+          <span>设备列表</span>
         </div>
       </template>
 
@@ -428,10 +435,6 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.equipment-monitoring {
-  padding: 20px;
-}
-
 .stats-cards {
   margin-bottom: var(--spacing-lg);
 }
@@ -503,9 +506,6 @@ onUnmounted(() => {
   flex: 1;
 }
 
-.equipment-list-card {
-  box-shadow: var(--shadow-card);
-}
 
 .card-header {
   display: flex;
@@ -526,10 +526,6 @@ onUnmounted(() => {
 
 /* 响应式设计 */
 @media (max-width: 768px) {
-  .equipment-monitoring {
-    padding: 10px;
-  }
-
   .stats-cards {
     margin-bottom: 15px;
   }

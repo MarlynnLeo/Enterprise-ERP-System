@@ -54,7 +54,7 @@ const getReceipts = async (req, res) => {
     const offset = (actualPage - 1) * actualPageSize;
 
     // 构建 WHERE 条件（数据查询和计数查询共用）
-    let whereClause = ' WHERE 1=1';
+    let whereClause = ' WHERE r.deleted_at IS NULL';
     const queryParams = [];
 
     if (receiptNo) {
@@ -179,7 +179,7 @@ const getReceipt = async (req, res) => {
         LEFT JOIN
           locations l ON pr.warehouse_id = l.id
         WHERE
-          pr.id = ?
+          pr.id = ? AND pr.deleted_at IS NULL
       `;
 
       const [result] = await connection.query(query, [receiptId]);
@@ -382,7 +382,7 @@ const createReceipt = async (req, res) => {
     let orderResult;
     try {
       // 通过排它锁锁住主干订单，解决高并发下的车间连击爆雷
-      const orderQuery = 'SELECT order_no, status FROM purchase_orders WHERE id = ? FOR UPDATE';
+      const orderQuery = 'SELECT order_no, status FROM purchase_orders WHERE id = ? AND deleted_at IS NULL FOR UPDATE';
       const [rows] = await client.query(orderQuery, [orderId]);
       orderResult = rows;
 
@@ -447,7 +447,7 @@ const createReceipt = async (req, res) => {
         }
 
         // 场景A：来自检验单的自动/手动建单 → 基于 inspection_id 精确去重
-        const dupQuery = `SELECT id, receipt_no FROM purchase_receipts WHERE inspection_id = ? AND status != 'cancelled' LIMIT 1`;
+        const dupQuery = `SELECT id, receipt_no FROM purchase_receipts WHERE inspection_id = ? AND deleted_at IS NULL AND status != 'cancelled' LIMIT 1`;
         const [dupReceipts] = await client.query(dupQuery, [inspectionId]);
         if (dupReceipts.length > 0) {
           await client.rollback();
@@ -464,7 +464,7 @@ const createReceipt = async (req, res) => {
         }
       } else {
         // 场景B：手动创建 → 10秒窗口防连击（同一订单、同一操作员）
-        const clickGuardQuery = `SELECT id, receipt_no FROM purchase_receipts WHERE order_id = ? AND created_at > DATE_SUB(NOW(), INTERVAL 10 SECOND) AND status = 'draft' LIMIT 1`;
+        const clickGuardQuery = `SELECT id, receipt_no FROM purchase_receipts WHERE order_id = ? AND deleted_at IS NULL AND created_at > DATE_SUB(NOW(), INTERVAL 10 SECOND) AND status = 'draft' LIMIT 1`;
         const [recentReceipts] = await client.query(clickGuardQuery, [orderId]);
         if (recentReceipts.length > 0) {
           await client.rollback();
@@ -879,7 +879,7 @@ const createReceipt = async (req, res) => {
       FROM purchase_receipts r
       JOIN purchase_receipt_items ri ON r.id = ri.receipt_id
       JOIN materials m ON ri.material_id = m.id
-      WHERE r.id = ?
+      WHERE r.id = ? AND r.deleted_at IS NULL
     `;
 
     const [receiptItems] = await client.query(getReceiptQuery, [receiptId]);
@@ -963,7 +963,7 @@ const updateReceipt = async (req, res) => {
     // 检查入库单是否存在及其状态
     let checkResult;
     try {
-      const checkQuery = 'SELECT status, warehouse_id FROM purchase_receipts WHERE id = ?';
+      const checkQuery = 'SELECT status, warehouse_id FROM purchase_receipts WHERE id = ? AND deleted_at IS NULL';
       const result = await client.query(checkQuery, [id]);
       // 安全地获取结果，适配不同格式
       checkResult = Array.isArray(result) ? result : result && result.rows ? result.rows : [];
@@ -1019,7 +1019,7 @@ const updateReceipt = async (req, res) => {
     const updateQuery = `
       UPDATE purchase_receipts
       SET receipt_date = ?, remarks = ?, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
+      WHERE id = ? AND deleted_at IS NULL
     `;
     const queryParams = [receiptDate, remarks || '', id];
 
@@ -1106,7 +1106,7 @@ const updateReceipt = async (req, res) => {
          SET pr.total_amount = x.total_amount,
              pr.total_tax_amount = x.total_tax_amount,
              pr.updated_at = CURRENT_TIMESTAMP
-         WHERE pr.id = ?`,
+         WHERE pr.id = ? AND pr.deleted_at IS NULL`,
         [id, id]
       );
     }
@@ -1157,7 +1157,7 @@ const updateReceiptStatus = async (req, res) => {
     let currentStatus = null;
 
     try {
-      const checkQuery = 'SELECT status FROM purchase_receipts WHERE id = ? FOR UPDATE';
+      const checkQuery = 'SELECT status FROM purchase_receipts WHERE id = ? AND deleted_at IS NULL FOR UPDATE';
       const [checkRows] = await client.query(checkQuery, [id]);
 
       if (!checkRows || checkRows.length === 0) {
@@ -1188,7 +1188,7 @@ const updateReceiptStatus = async (req, res) => {
     const updateQuery = `
       UPDATE purchase_receipts
       SET status = ?, remarks = CONCAT(IFNULL(remarks, ''), ' | ', ?)
-      WHERE id = ?
+      WHERE id = ? AND deleted_at IS NULL
     `;
     const updateParams = [status, statusRemark, id];
 
@@ -1214,23 +1214,21 @@ const updateReceiptStatus = async (req, res) => {
       currentStatus === STATUS.PURCHASE_RECEIPT.DRAFT &&
       [STATUS.PURCHASE_RECEIPT.CONFIRMED, STATUS.PURCHASE_RECEIPT.COMPLETED].includes(status)
     ) {
+      // ✅ 根源修复：使用全量同步替代累加，保证幂等性
+      // 从所有已确认/完成的收货单汇总收货量，直接SET到采购订单项
       const [receivedItems] = await client.query(
-        `SELECT r.order_id,
-                ri.material_id,
-                COALESCE(NULLIF(ri.received_quantity, 0), ri.quantity, ri.qualified_quantity, 0) AS received_qty
+        `SELECT DISTINCT r.order_id, ri.material_id
          FROM purchase_receipts r
          JOIN purchase_receipt_items ri ON r.id = ri.receipt_id
-         WHERE r.id = ?`,
+         WHERE r.id = ? AND r.deleted_at IS NULL`,
         [id]
       );
 
       for (const item of receivedItems) {
-        const receivedQty = parseFloat(item.received_qty) || 0;
-        if (item.order_id && item.material_id && receivedQty > 0) {
-          await PurchaseOrderStatusService.updateOrderItemReceivedQuantity(
+        if (item.order_id && item.material_id) {
+          await PurchaseOrderStatusService.syncOrderItemReceivedFromReceipts(
             item.order_id,
             item.material_id,
-            receivedQty,
             client
           );
         }
@@ -1253,7 +1251,7 @@ const updateReceiptStatus = async (req, res) => {
           LEFT JOIN units u ON m.unit_id = u.id
           LEFT JOIN purchase_orders po ON r.order_id = po.id
           LEFT JOIN purchase_order_items poi ON po.id = poi.order_id AND ri.material_id = poi.material_id
-          WHERE r.id = ?
+          WHERE r.id = ? AND r.deleted_at IS NULL
         `;
 
         const [receiptItems] = await client.query(getReceiptQuery, [id]);
@@ -1529,6 +1527,7 @@ const getReceiptStats = async (req, res) => {
         COALESCE(SUM(pri.received_quantity * COALESCE(pri.price, 0)), 0) as total_amount
       FROM purchase_receipts pr
       LEFT JOIN purchase_receipt_items pri ON pr.id = pri.receipt_id
+      WHERE pr.deleted_at IS NULL
     `;
 
     const [statsResult] = await db.pool.execute(statsQuery);
@@ -1540,7 +1539,8 @@ const getReceiptStats = async (req, res) => {
         COALESCE(SUM(pri.received_quantity * COALESCE(pri.price, 0)), 0) as monthly_amount
       FROM purchase_receipts pr
       LEFT JOIN purchase_receipt_items pri ON pr.id = pri.receipt_id
-      WHERE YEAR(pr.receipt_date) = YEAR(CURDATE())
+      WHERE pr.deleted_at IS NULL
+        AND YEAR(pr.receipt_date) = YEAR(CURDATE())
         AND MONTH(pr.receipt_date) = MONTH(CURDATE())
     `;
 
@@ -1553,7 +1553,8 @@ const getReceiptStats = async (req, res) => {
         COALESCE(SUM(pri.received_quantity * COALESCE(pri.price, 0)), 0) as daily_amount
       FROM purchase_receipts pr
       LEFT JOIN purchase_receipt_items pri ON pr.id = pri.receipt_id
-      WHERE DATE(pr.receipt_date) = CURDATE()
+      WHERE pr.deleted_at IS NULL
+        AND DATE(pr.receipt_date) = CURDATE()
     `;
 
     const [dailyResult] = await db.pool.execute(dailyQuery);
@@ -1563,7 +1564,8 @@ const getReceiptStats = async (req, res) => {
       SELECT
         COUNT(*) as pending_count
       FROM purchase_receipts
-      WHERE status IN ('${STATUS.PURCHASE_RECEIPT.DRAFT}', '${STATUS.PURCHASE_RECEIPT.CONFIRMED}')
+      WHERE deleted_at IS NULL
+        AND status IN ('${STATUS.PURCHASE_RECEIPT.DRAFT}', '${STATUS.PURCHASE_RECEIPT.CONFIRMED}')
     `;
 
     const [pendingResult] = await db.pool.execute(pendingQuery);
@@ -1618,7 +1620,7 @@ const getMaterialPurchaseHistory = async (req, res) => {
 
     try {
       // 构建查询条件
-      let whereClause = 'WHERE pri.material_id = ?';
+      let whereClause = 'WHERE pri.material_id = ? AND pr.deleted_at IS NULL';
       const queryParams = [parsedMaterialId]; // 使用已验证的数字
 
       if (startDate) {
@@ -1750,7 +1752,7 @@ const getPurchaseHistoryItems = async (req, res) => {
 
     const client = await db.getClient();
     try {
-      let whereClause = 'WHERE pr.status = ?';
+      let whereClause = 'WHERE pr.status = ? AND pr.deleted_at IS NULL';
       const queryParams = ['completed'];
       const countParams = ['completed'];
 

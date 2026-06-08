@@ -228,13 +228,15 @@ exports.getCustomerOrderProducts = async (req, res) => {
         FROM sales_order_items soi2
         INNER JOIN sales_outbound_items sobi ON soi2.material_id = sobi.product_id
         INNER JOIN sales_outbound sob ON sobi.outbound_id = sob.id
-        WHERE sob.status IN('completed', 'processing')
+        WHERE sob.deleted_at IS NULL
+          AND sob.status IN('completed', 'processing')
           AND(
       --单订单出库：直接匹配order_id
-            sob.order_id = soi2.order_id
+            (COALESCE(sob.is_multi_order, 0) = 0 AND sob.order_id = soi2.order_id)
             OR
             --多订单出库：检查related_orders字段
-      (sob.is_multi_order = 1 AND sob.related_orders IS NOT NULL
+            (sob.is_multi_order = 1 AND sobi.source_order_id = soi2.order_id)
+      OR (sob.is_multi_order = 1 AND sobi.source_order_id IS NULL AND sob.related_orders IS NOT NULL
              AND(
         JSON_CONTAINS(sob.related_orders, CAST(soi2.order_id AS JSON))
                OR sob.related_orders LIKE CONCAT('%', soi2.order_id, '%')
@@ -246,6 +248,7 @@ exports.getCustomerOrderProducts = async (req, res) => {
     SELECT \n          material_id,\n    SUM(total_by_location) as total_stock\n        FROM(\n      SELECT \n            il.material_id,\n      il.location_id,\n      SUM(il.quantity) as total_by_location\n          FROM inventory_ledger il\n          JOIN materials mat ON il.material_id = mat.id\n          WHERE mat.location_id IS NULL OR il.location_id = mat.location_id\n          GROUP BY il.material_id, il.location_id\n          HAVING SUM(il.quantity) > 0\n    ) location_stock\n        GROUP BY material_id
   ) stock ON soi.material_id = stock.material_id
       WHERE so.customer_id = ?
+    AND so.deleted_at IS NULL
     AND so.status IN('confirmed', 'in_production', 'ready_to_ship', 'partial_shipped')
   AND(soi.quantity - COALESCE(shipped.shipped_quantity, 0)) > 0
         ${searchCondition}

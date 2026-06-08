@@ -1,9 +1,9 @@
-﻿<!--
+<!--
 /**
  * Periods.vue
- * @description 前端界面组件文件
-  * @date 2025-08-27
- * @version 1.0.0
+ * @description 会计期间管理 - 支持批量生成年度月度期间和单个创建
+ * @date 2025-08-27
+ * @version 2.0.0
  */
 -->
 <template>
@@ -14,7 +14,10 @@
           <h2>会计期间管理</h2>
           <p class="subtitle">管理会计期间与结转</p>
         </div>
-        <el-button v-permission="'finance:periods:create'" type="primary" :icon="Plus" @click="showAddDialog">新增期间</el-button>
+        <div class="header-actions">
+          <el-button v-permission="'finance:periods:create'" type="primary" :icon="Plus" @click="showBatchDialog">批量生成年度期间</el-button>
+          <el-button v-permission="'finance:periods:create'" @click="showAddDialog">新增单个期间</el-button>
+        </div>
       </div>
     </el-card>
 
@@ -125,7 +128,36 @@
       </div>
     </el-card>
 
-    <!-- 添加/编辑对话框 -->
+    <!-- 批量生成年度期间对话框 -->
+    <el-dialog
+      title="批量生成年度期间"
+      v-model="batchDialogVisible"
+      width="420px"
+    >
+      <el-form :model="batchForm" ref="batchFormRef" label-width="100px" class="period-form">
+        <el-form-item label="财政年度" prop="fiscalYear" :rules="[{ required: true, message: '请选择财政年度', trigger: 'change' }]">
+          <el-input-number v-model="batchForm.fiscalYear" :min="2000" :max="2100" style="width: 100%"></el-input-number>
+        </el-form-item>
+        <el-alert
+          type="info"
+          :closable="false"
+          show-icon
+          style="margin-bottom: 16px"
+        >
+          <template #default>
+            将自动生成 <strong>{{ batchForm.fiscalYear }}年1月 ~ {{ batchForm.fiscalYear }}年12月</strong> 共 12 个月度会计期间。已存在的月份将自动跳过。
+          </template>
+        </el-alert>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="batchDialogVisible = false">取消</el-button>
+          <el-button v-permission="'finance:periods:create'" type="primary" @click="batchCreatePeriods" :loading="saveLoading">生成</el-button>
+        </span>
+      </template>
+    </el-dialog>
+
+    <!-- 新增/编辑单个期间对话框 -->
     <el-dialog
       :title="dialogTitle"
       v-model="dialogVisible"
@@ -133,7 +165,7 @@
     >
       <el-form :model="periodForm" :rules="periodRules" ref="periodFormRef" label-width="100px" class="period-form">
         <el-form-item label="期间名称" prop="periodName">
-          <el-input v-model="periodForm.periodName" placeholder="请输入期间名称"></el-input>
+          <el-input v-model="periodForm.periodName" placeholder="请输入期间名称，如：2026年01月"></el-input>
         </el-form-item>
         <el-form-item label="财政年度" prop="fiscalYear">
           <el-input-number v-model="periodForm.fiscalYear" :min="2000" :max="2100" style="width: 100%"></el-input-number>
@@ -198,6 +230,8 @@ const currentPage = ref(1);
 const dialogVisible = ref(false);
 const dialogTitle = ref('新增会计期间');
 const periodFormRef = ref(null);
+const batchDialogVisible = ref(false);
+const batchFormRef = ref(null);
 
 // 会计期间列表
 const periodList = ref([]);
@@ -208,7 +242,7 @@ const searchForm = reactive({
   isClosed: ''
 });
 
-// 会计期间表单
+// 会计期间表单（单个创建/编辑）
 const periodForm = reactive({
   id: null,
   periodName: '',
@@ -217,6 +251,11 @@ const periodForm = reactive({
   endDate: '',
   isAdjusting: false,
   isClosed: false
+});
+
+// 批量创建表单
+const batchForm = reactive({
+  fiscalYear: new Date().getFullYear(),
 });
 
 // 可选财政年度
@@ -337,7 +376,52 @@ const resetSearch = () => {
   searchPeriods();
 };
 
-// 新增会计期间
+// 打开批量生成对话框
+const showBatchDialog = () => {
+  batchForm.fiscalYear = new Date().getFullYear();
+  batchDialogVisible.value = true;
+};
+
+// 批量生成年度期间
+const batchCreatePeriods = async () => {
+  if (!batchFormRef.value) return;
+
+  await batchFormRef.value.validate(async (valid) => {
+    if (!valid) return;
+
+    saveLoading.value = true;
+    try {
+      const year = batchForm.fiscalYear;
+      const response = await financeApi.periods.create({
+        start_date: `${year}-01-01`,
+        end_date: `${year}-12-31`,
+        fiscal_year: year,
+      });
+
+      const resData = response?.data || response;
+      const msg = resData?.message || `成功生成 ${year} 年度会计期间`;
+      ElMessage.success(msg);
+
+      if (resData?.skipped?.length > 0) {
+        ElMessage.warning({
+          message: `以下期间因已存在而跳过：${resData.skipped.join('、')}`,
+          duration: 5000,
+          showClose: true
+        });
+      }
+
+      batchDialogVisible.value = false;
+      loadPeriods();
+    } catch (error) {
+      console.error('批量生成会计期间失败:', error);
+      ElMessage.error(getErrorMessage(error, '批量生成会计期间失败'));
+    } finally {
+      saveLoading.value = false;
+    }
+  });
+};
+
+// 新增单个会计期间
 const showAddDialog = () => {
   dialogTitle.value = '新增会计期间';
   resetPeriodForm();
@@ -382,7 +466,7 @@ const handleReopen = (row) => {
   }).catch(() => {});
 };
 
-// 保存会计期间
+// 保存会计期间（单个创建/编辑）
 const savePeriod = async () => {
   if (!periodFormRef.value) return;
 
@@ -462,6 +546,11 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
 }
 
 .title-section h2 {

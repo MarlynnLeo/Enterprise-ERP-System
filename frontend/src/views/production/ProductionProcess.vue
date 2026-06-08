@@ -141,7 +141,7 @@
                       开始
                     </el-button>
                     <el-button
-                      v-if="(scope.row.status === 'in_progress' || scope.row.status === 'inProgress') && canCompleteProcess(props.row)"
+                      v-if="scope.row.status === 'in_progress' && canCompleteProcess(props.row)"
                       size="small"
                       type="success"
                       @click="handleQuickComplete(scope.row, props.row)"
@@ -769,6 +769,18 @@ import { buildResourceUrl } from '@/config/app'
 // 权限store
 const authStore = useAuthStore()
 
+// 统一解析后端返回的业务警告并展示给用户
+const showBusinessWarnings = (res) => {
+  const data = res?.data || res
+  if (data?.warnings && Array.isArray(data.warnings)) {
+    data.warnings.forEach((msg, idx) => {
+      setTimeout(() => {
+        ElMessage.warning({ message: msg, duration: 10000, showClose: true })
+      }, (idx + 1) * 600)
+    })
+  }
+}
+
 // 导入样式
 import '@vue-office/docx/lib/index.css'
 import '@vue-office/excel/lib/index.css'
@@ -1163,7 +1175,7 @@ const fetchTaskList = async () => {
   }
 }
 
-import { getProductionStatusColor, getProductionStatusText } from '@/constants/systemConstants'
+import { getProductionStatusColor } from '@/constants/systemConstants'
 // 统一状态颜色（工序和任务共用）
 const getStatusType = (status) => {
   return getProductionStatusColor(status)
@@ -1482,12 +1494,13 @@ const handleQuickComplete = async (row, task) => {
   try {
     loading.value = true
     const now = dayjs().format('YYYY-MM-DD HH:mm:ss')
-    await productionApi.updateProductionProcess(row.id, {
+    const res = await productionApi.updateProductionProcess(row.id, {
       status: 'completed',
       progress: 100,
       actualEndTime: now
     })
     ElMessage.success('工序已完成')
+    showBusinessWarnings(res)
     fetchTaskList()
   } catch (error) {
     console.error('完成工序失败:', error)
@@ -1612,9 +1625,10 @@ const handleModalOk = async () => {
       remarks: formData.value.remarks
     }
 
-    await productionApi.updateProductionProcess(formData.value.id, data)
+    const res = await productionApi.updateProductionProcess(formData.value.id, data)
     ElMessage.success('进度更新成功')
     modalVisible.value = false
+    showBusinessWarnings(res)
     fetchTaskList()
   } catch (error) {
     console.error('更新进度失败:', error)
@@ -1642,27 +1656,16 @@ const getProgressStatus = (progress) => {
 
 // 开始任务
 const handleStartTask = async (row) => {
-  // 乐观更新：立即更新UI
-  const originalStatus = row.status
-  row.status = 'in_progress'
-
   try {
-    // 异步更新后端，不阻塞UI
-    const updatePromise = productionApi.updateProductionTaskStatus(row.id, { status: 'in_progress' })
-
-    // 显示成功消息
+    loading.value = true
+    await productionApi.updateProductionTaskStatus(row.id, { status: 'in_progress' })
     ElMessage.success('任务已开始')
-
-    // 等待后端响应
-    await updatePromise
-
-    // 后台刷新数据（不显示loading）
     fetchTaskList()
   } catch (error) {
-    // 如果失败，回滚UI状态
-    row.status = originalStatus
     console.error('开始任务失败:', error)
     ElMessage.error('开始任务失败: ' + (error.response?.data?.message || error.message))
+  } finally {
+    loading.value = false
   }
 }
 
@@ -1708,7 +1711,7 @@ const submitCompletion = async () => {
 
   try {
     // 调用后端完工API，传入本次完工数量
-    await productionApi.completeTask(completionForm.value.taskId, {
+    const res = await productionApi.completeTask(completionForm.value.taskId, {
       quantity: completionForm.value.quantity,
       remark: completionForm.value.remark
     })
@@ -1722,6 +1725,8 @@ const submitCompletion = async () => {
       ElMessage.success(`本次完工 ${completionForm.value.quantity} 件，累计完工 ${newCompleted} 件`)
     }
 
+    showBusinessWarnings(res)
+
     completionDialogVisible.value = false
     fetchTaskList()
   } catch (error) {
@@ -1734,8 +1739,8 @@ const submitCompletion = async () => {
 
 // 判断是否可以退料
 const canReturnMaterial = (row) => {
-  // 只有已完成的任务才可以退料
-  return row.status === 'completed'
+  // 待检验、入库中、已完成状态的任务均可退料
+  return ['inspection', 'warehousing', 'completed'].includes(row.status)
 }
 
 // ====== 退料相关状态 ======

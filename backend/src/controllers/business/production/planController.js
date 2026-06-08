@@ -14,6 +14,7 @@ const { softDelete } = require('../../../utils/softDelete');
 const {
   calculateMaterialRequirementsWithStock,
   calculateAndInsertMaterials,
+  resolveBomForProduct,
 } = require('../../../services/business/MaterialCalculationService');
 const { PRODUCTION_STATUS_KEYS, PRODUCTION_PLAN_STATUS_FLOW, getProductionStatusText } = require('../../../constants/systemConstants');
 const businessConfig = require('../../../config/businessConfig');
@@ -21,6 +22,12 @@ const { getCurrentUserName } = require('../../../utils/userHelper');
 const { appendPaginationSQL, parsePagination } = require('../../../utils/safePagination');
 const PermissionService = require('../../../services/PermissionService');
 const { PermissionUtils } = require('../../../utils/authUtils');
+
+// 日期参数格式化工具函数（统一入口，避免 create / update 各写一遍）
+function formatDateParam(dateStr) {
+  if (!dateStr) return null;
+  return new Date(dateStr).toISOString().split('T')[0];
+}
 
 // 计划状态常量别名
 const PLAN_STATUS = businessConfig.status.productionPlan;
@@ -264,21 +271,11 @@ exports.getPlanMaterials = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // 验证生产计划存在并获取计划信息（不检查status，优先选择已审核的BOM）
+    // 获取计划基本信息（直接使用计划表上已存储的 bom_id，不再内联子查询）
     const [planCheck] = await pool.query(
-      `
-      SELECT pp.*, m.id as product_id,
-        (SELECT bm2.id
-         FROM bom_masters bm2
-         WHERE bm2.product_id = m.id AND bm2.status != 2
-         ORDER BY
-           CASE WHEN bm2.approved_by IS NOT NULL THEN 0 ELSE 1 END,
-           bm2.created_at DESC
-         LIMIT 1) as bom_id
-      FROM production_plans pp
-      LEFT JOIN materials m ON pp.product_id = m.id
-      WHERE pp.id = ?
-    `,
+      `SELECT pp.id, pp.product_id, pp.quantity, pp.bom_id
+       FROM production_plans pp
+       WHERE pp.id = ? AND pp.deleted_at IS NULL`,
       [id]
     );
 
@@ -288,76 +285,70 @@ exports.getPlanMaterials = async (req, res) => {
 
     const plan = planCheck[0];
 
-    if (!plan.bom_id) {
-      // 如果没有BOM，返回存储的物料需求（实时查询库存）
-      const [materials] = await pool.query(
-        `
-        SELECT
-          ppm.id,
-          ppm.material_id as materialId,
-          m.code,
-          m.name,
-          m.specs as specification,
-          m.unit_id,
-          u.name as unit,
-          ppm.level,
-          ppm.required_quantity as requiredQuantity,
-          COALESCE(
-            (SELECT SUM(il.quantity)
-             FROM inventory_ledger il
-             WHERE il.material_id = m.id
-               AND (m.location_id IS NULL OR il.location_id = m.location_id)
-            ),
-            0
-          ) as stockQuantity
-        FROM production_plan_materials ppm
-        JOIN materials m ON ppm.material_id = m.id
-        LEFT JOIN units u ON m.unit_id = u.id
-        WHERE ppm.plan_id = ?
-        ORDER BY ppm.level ASC, m.code
-      `,
-        [id]
-      );
-
-      return ResponseHandler.success(res, materials);
+    // 如果计划未绑定 BOM，尝试通过统一 API 补充
+    let bomId = plan.bom_id;
+    if (!bomId) {
+      try {
+        const resolved = await resolveBomForProduct(plan.product_id, null, pool);
+        bomId = resolved.bomId;
+      } catch {
+        // 产品无 BOM，返回已存储的物料需求（实时查询库存）
+        const [materials] = await pool.query(
+          `SELECT
+            ppm.id,
+            ppm.material_id,
+            m.code,
+            m.name,
+            m.specs as specification,
+            m.unit_id,
+            u.name as unit,
+            ppm.level,
+            ppm.required_quantity,
+            COALESCE(
+              (SELECT SUM(il.quantity)
+               FROM inventory_ledger il
+               WHERE il.material_id = m.id
+                 AND (m.location_id IS NULL OR il.location_id = m.location_id)
+              ),
+              0
+            ) as stock_quantity
+          FROM production_plan_materials ppm
+          JOIN materials m ON ppm.material_id = m.id
+          LEFT JOIN units u ON m.unit_id = u.id
+          WHERE ppm.plan_id = ?
+          ORDER BY ppm.level ASC, m.code`,
+          [id]
+        );
+        return ResponseHandler.success(res, materials);
+      }
     }
 
-    // 调用新的全链路MRP引擎实时核算剩余物料
+    // 调用全链路MRP引擎实时核算剩余物料
     const materialRequirements = await calculateMaterialRequirementsWithStock(
       plan.product_id,
-      plan.bom_id,
+      bomId,
       plan.quantity,
       id
     );
 
-    // 格式化返回数据
+    // 统一返回字段命名（蛇形命名，与数据库一致）
     const formattedMaterials = materialRequirements.map((material) => ({
       id: material.materialId,
-      materialId: material.materialId,
       material_id: material.materialId,
       code: material.code,
-      material_code: material.code,
       name: material.name,
-      material_name: material.name,
       specification: material.specification,
-      specs: material.specification,
       unit: material.unit,
-      unit_name: material.unit,
       level: material.level,
-      bomPath: material.bomPath,
       bom_path: material.bomPath,
-      bomPaths: material.bomPaths,
-      parentMaterialId: material.parentMaterialId,
+      bom_paths: material.bomPaths,
       parent_material_id: material.parentMaterialId,
-      sourceBomIds: material.sourceBomIds,
-      isLeaf: material.isLeaf,
+      source_bom_ids: material.sourceBomIds,
       is_leaf: material.isLeaf,
-      requiredQuantity: material.requiredQuantity,
       required_quantity: material.requiredQuantity,
-      stockQuantity: material.stockQuantity,
       stock_quantity: material.stockQuantity,
-      availableQuantity: material.availableQuantity,
-      substitutionInfo: material.substitutionInfo,
+      available_quantity: material.availableQuantity,
+      substitution_info: material.substitutionInfo,
     }));
 
     ResponseHandler.success(res, formattedMaterials);
@@ -377,7 +368,10 @@ exports.getProductionPlanById = async (req, res) => {
     // 查询计划基本信息，包含产品规格和合同编码
     const [plans] = await pool.query(
       `
-      SELECT pp.*,
+      SELECT pp.id, pp.code, pp.name, pp.start_date, pp.end_date, pp.delivery_date,
+             pp.quantity, pp.pushed_quantity, pp.status, pp.remark,
+             pp.product_id, pp.contract_code, pp.bom_id, pp.bom_version,
+             pp.created_at, pp.updated_at,
              COALESCE(ts.completed_quantity, 0) as completed_quantity,
              COALESCE(ts.task_quantity, 0) as task_quantity,
              COALESCE(ts.task_count, 0) as task_count,
@@ -417,7 +411,9 @@ exports.getProductionPlanById = async (req, res) => {
     // 查询计划的物料需求，包含规格信息
     const [materials] = await pool.query(
       `
-      SELECT ppm.*,
+      SELECT ppm.id, ppm.plan_id, ppm.material_id, ppm.required_quantity,
+             ppm.stock_quantity, ppm.level, ppm.gross_required_quantity,
+             ppm.issue_quantity, ppm.shortage_quantity,
              m.code,
              m.name,
              m.specs as specification,
@@ -508,34 +504,29 @@ exports.createProductionPlan = async (req, res) => {
       }
     }
 
-    const formattedStartDate = start_date ? new Date(start_date).toISOString().split('T')[0] : null;
-    const formattedEndDate = end_date ? new Date(end_date).toISOString().split('T')[0] : null;
-    const formattedDeliveryDate = delivery_date ? new Date(delivery_date).toISOString().split('T')[0] : null;
+    const formattedStartDate = formatDateParam(start_date);
+    const formattedEndDate = formatDateParam(end_date);
+    const formattedDeliveryDate = formatDateParam(delivery_date);
 
-    // 插入生产计划
+    // 通过统一 API 解析 BOM 版本信息
+    const { bomId: resolvedBomId, bomVersion: resolvedBomVersion } = await resolveBomForProduct(productId, bomId, connection);
+
+    // 插入生产计划（包含 BOM 信息）
     const [result] = await connection.query(
       `
       INSERT INTO production_plans
-      (code, name, start_date, end_date, delivery_date, product_id, quantity, contract_code, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'draft')
+      (code, name, start_date, end_date, delivery_date, product_id, quantity, contract_code, bom_id, bom_version, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft')
     `,
-      [code, name, formattedStartDate, formattedEndDate, formattedDeliveryDate, productId, quantity, contract_code || null]
+      [code, name, formattedStartDate, formattedEndDate, formattedDeliveryDate, productId, quantity, contract_code || null, resolvedBomId, resolvedBomVersion]
     );
 
     const planId = result.insertId;
 
-    logger.info(`生产计划 ${code} 创建成功`);
+    logger.info(`生产计划 ${code} 创建成功, BOM: id=${resolvedBomId}, version=${resolvedBomVersion}`);
 
-    // 计算并插入物料需求，同时获取使用的 BOM 版本信息（优先使用前端传入的bomId）
-    const bomInfo = await calculateAndInsertMaterials(connection, planId, productId, quantity, bomId);
-
-    // 记录 BOM 版本快照到生产计划
-    if (bomInfo && bomInfo.bomId) {
-      await connection.query(
-        'UPDATE production_plans SET bom_id = ?, bom_version = ? WHERE id = ?',
-        [bomInfo.bomId, bomInfo.bomVersion, planId]
-      );
-    }
+    // 计算并插入物料需求（BOM 已确定，传入 resolvedBomId 确保一致）
+    await calculateAndInsertMaterials(connection, planId, productId, quantity, resolvedBomId);
 
     // 记录创建日志
     const operator = await getCurrentUserName(req);
@@ -562,7 +553,6 @@ exports.createProductionPlan = async (req, res) => {
 
     // 根据错误类型返回不同的错误信息
     if (error.code === 'ER_DUP_ENTRY') {
-      // 提取重复的编号
       const match = error.message.match(/Duplicate entry '([^']+)'/);
       const duplicateCode = match ? match[1] : '';
       return ResponseHandler.error(
@@ -571,13 +561,9 @@ exports.createProductionPlan = async (req, res) => {
         'DUPLICATE_CODE',
         400
       );
-    } else if (error.message.includes('未找到有效的BOM')) {
-      return ResponseHandler.error(res, error.message, 'NOT_FOUND', 400);
-    } else if (error.message.includes('BOM中没有物料明细')) {
-      return ResponseHandler.error(res, error.message, 'BOM_EMPTY', 400);
-    } else {
-      handleError(res, error);
     }
+    // resolveBomForProduct / calculateAndInsertMaterials 抛出的业务错误直接透传
+    handleError(res, error);
   } finally {
     connection.release();
   }
@@ -595,10 +581,10 @@ exports.updateProductionPlan = async (req, res) => {
     const { id } = req.params;
     const { name, start_date, end_date, delivery_date, productId, quantity, pushed_quantity, contract_code, bomId } = req.body;
 
-    // 处理日期格式，确保是YYYY-MM-DD格式
-    const formattedStartDate = start_date ? new Date(start_date).toISOString().split('T')[0] : null;
-    const formattedEndDate = end_date ? new Date(end_date).toISOString().split('T')[0] : null;
-    const formattedDeliveryDate = delivery_date ? new Date(delivery_date).toISOString().split('T')[0] : null;
+    // 处理日期格式
+    const formattedStartDate = formatDateParam(start_date);
+    const formattedEndDate = formatDateParam(end_date);
+    const formattedDeliveryDate = formatDateParam(delivery_date);
 
     // 检查计划状态
     const [plans] = await connection.query('SELECT status, quantity FROM production_plans WHERE id = ? FOR UPDATE', [
@@ -612,14 +598,7 @@ exports.updateProductionPlan = async (req, res) => {
 
     // 如果只是更新pushed_quantity（下推数量追踪），允许任何状态
     if (pushed_quantity !== undefined && Object.keys(req.body).length === 1) {
-      // 查询当前已下推数量和计划总数量
       const currentQuantity = Number(plans[0].quantity) || 0;
-      await connection.query(
-        'SELECT pushed_quantity FROM production_plans WHERE id = ?',
-        [id]
-      );
-
-
       // pushed_quantity 为增量值时的目标值
       const targetPushed = Number(pushed_quantity);
       if (targetPushed < 0) {
@@ -651,28 +630,24 @@ exports.updateProductionPlan = async (req, res) => {
       return ResponseHandler.error(res, '只能修改草稿状态的生产计划', 'VALIDATION_ERROR', 400);
     }
 
-    // 更新生产计划，不更新编号
+    // 通过统一 API 解析 BOM 版本信息
+    const { bomId: resolvedBomId, bomVersion: resolvedBomVersion } = await resolveBomForProduct(productId, bomId, connection);
+
+    // 更新生产计划（包含 BOM 信息），不更新编号
     await connection.query(
       `
       UPDATE production_plans
-      SET name = ?, start_date = ?, end_date = ?, delivery_date = ?, product_id = ?, quantity = ?, contract_code = ?
+      SET name = ?, start_date = ?, end_date = ?, delivery_date = ?, product_id = ?, quantity = ?, contract_code = ?, bom_id = ?, bom_version = ?
       WHERE id = ?
     `,
-      [name, formattedStartDate, formattedEndDate, formattedDeliveryDate, productId, quantity, contract_code || null, id]
+      [name, formattedStartDate, formattedEndDate, formattedDeliveryDate, productId, quantity, contract_code || null, resolvedBomId, resolvedBomVersion, id]
     );
 
     // 删除原有物料需求
     await connection.query('DELETE FROM production_plan_materials WHERE plan_id = ?', [id]);
 
-    // 重新计算并插入物料需求，同时更新 BOM 版本快照（优先使用前端传入的bomId）
-    const bomInfo = await calculateAndInsertMaterials(connection, id, productId, quantity, bomId);
-
-    if (bomInfo && bomInfo.bomId) {
-      await connection.query(
-        'UPDATE production_plans SET bom_id = ?, bom_version = ? WHERE id = ?',
-        [bomInfo.bomId, bomInfo.bomVersion, id]
-      );
-    }
+    // 重新计算并插入物料需求（BOM 已确定）
+    await calculateAndInsertMaterials(connection, id, productId, quantity, resolvedBomId);
 
     await connection.commit();
 

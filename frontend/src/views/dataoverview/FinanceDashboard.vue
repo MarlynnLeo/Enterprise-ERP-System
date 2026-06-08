@@ -35,11 +35,6 @@
               </div>
             </div>
           </div>
-          <div class="card-footer">
-            <el-button type="primary" link @click="$router.push('/finance/gl/entries')">
-              查看详情 <el-icon class="el-icon--right"><ArrowRight /></el-icon>
-            </el-button>
-          </div>
         </el-card>
       </el-col>
 
@@ -57,11 +52,6 @@
                 <div class="stat-secondary-label">支出笔数</div>
               </div>
             </div>
-          </div>
-          <div class="card-footer">
-            <el-button type="success" link @click="$router.push('/finance/gl/entries')">
-              查看详情 <el-icon class="el-icon--right"><ArrowRight /></el-icon>
-            </el-button>
           </div>
         </el-card>
       </el-col>
@@ -81,11 +71,6 @@
               </div>
             </div>
           </div>
-          <div class="card-footer">
-            <el-button type="info" link @click="$router.push('/finance/ar/invoices')">
-              查看详情 <el-icon class="el-icon--right"><ArrowRight /></el-icon>
-            </el-button>
-          </div>
         </el-card>
       </el-col>
 
@@ -103,11 +88,6 @@
                 <div class="stat-secondary-label">待付数量</div>
               </div>
             </div>
-          </div>
-          <div class="card-footer">
-            <el-button type="warning" link @click="$router.push('/finance/ap/invoices')">
-              查看详情 <el-icon class="el-icon--right"><ArrowRight /></el-icon>
-            </el-button>
           </div>
         </el-card>
       </el-col>
@@ -226,7 +206,7 @@ import Chart from '@/utils/chartCore';
 import { ElMessage } from 'element-plus';
 import { financeApi } from '@/api';
 // 权限计算属性
-import { ArrowDown, ArrowRight, ArrowUp, InfoFilled } from '@element-plus/icons-vue'
+import { ArrowDown, ArrowUp, InfoFilled } from '@element-plus/icons-vue'
 import { useDashboard, useCharts } from '@/composables/useDashboard';
 import {
   handleDashboardError,

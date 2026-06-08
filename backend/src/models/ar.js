@@ -28,14 +28,21 @@ const resolveInvoiceItemAmount = (item) =>
     ? parseFloat(item.amount)
     : (parseFloat(item.quantity) || 0) * (parseFloat(item.unit_price) || 0);
 
-const assertInvoiceItemsMatchTotal = (items, totalAmount) => {
+const assertInvoiceItemsMatchTotal = (items, totalAmount, invoiceData = {}) => {
   if (!Array.isArray(items) || items.length === 0) return;
 
   const totalCents = toCents(totalAmount);
+  const subtotalCents = toCents(
+    invoiceData.amount_excluding_tax ?? invoiceData.subtotal ?? invoiceData.subtotal_amount
+  );
+  const taxCents = toCents(invoiceData.tax_amount);
   const itemTotalCents = items.reduce(
     (sum, item) => sum + toCents(resolveInvoiceItemAmount(item)),
     0
   );
+  if (subtotalCents > 0 && taxCents > 0 && itemTotalCents === subtotalCents) {
+    return;
+  }
   if (itemTotalCents !== totalCents) {
     throw new Error(
       `应收发票明细合计 ${fromCents(itemTotalCents).toFixed(2)} 与发票总额 ${fromCents(totalCents).toFixed(2)} 不一致`
@@ -284,7 +291,7 @@ const arModel = {
       // 计算余额
       const amountPolicy = normalizeInvoiceAmountPolicy(invoiceData);
       const balanceAmount = amountPolicy.totalAmount;
-      assertInvoiceItemsMatchTotal(invoiceData.items, invoiceData.total_amount);
+      assertInvoiceItemsMatchTotal(invoiceData.items, invoiceData.total_amount, invoiceData);
 
       // 插入应收账款发票
       const [result] = await connection.query(
@@ -765,7 +772,7 @@ const arModel = {
       const amountPolicy = normalizeInvoiceAmountPolicy(invoiceData);
       const totalAmount = amountPolicy.totalAmount;
       const balanceAmount = totalAmount - paidAmount;
-      assertInvoiceItemsMatchTotal(invoiceData.items, totalAmount);
+      assertInvoiceItemsMatchTotal(invoiceData.items, totalAmount, invoiceData);
 
       // 更新发票主表
       await connection.execute(

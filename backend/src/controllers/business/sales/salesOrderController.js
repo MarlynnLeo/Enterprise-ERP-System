@@ -152,13 +152,13 @@ exports.getSalesOrders = async (req, res) => {
         u.username as locked_by_name,
         creator.username as created_by_name,
         creator.real_name as created_by_real_name,
-        (SELECT COUNT(*) FROM sales_outbound WHERE order_id = so.id AND status = 'draft') > 0 as has_draft_outbound,
+        (SELECT COUNT(*) FROM sales_outbound WHERE order_id = so.id AND status = 'draft' AND deleted_at IS NULL) > 0 as has_draft_outbound,
         COUNT(*) OVER() as total_count
       FROM sales_orders so
       LEFT JOIN customers c ON so.customer_id = c.id
       LEFT JOIN users u ON so.locked_by = u.id
       LEFT JOIN users creator ON so.created_by = creator.id
-      WHERE 1=1${whereClause}
+      WHERE so.deleted_at IS NULL${whereClause}
       ORDER BY so.order_no DESC
     `,
         pagination.limit,
@@ -232,9 +232,7 @@ exports.getSalesOrders = async (req, res) => {
         }
 
         // 状态发生变化，记录回写
-        if (status !== order.status) {
-          statusUpdates.push({ id: order.id, status });
-        }
+        // GET list responses must not mutate persisted order status.
 
         return {
           id: order.id,
@@ -372,7 +370,7 @@ exports.getSalesOrder = async (req, res) => {
         SELECT so.*, c.name as customer_name, c.contact_person, c.contact_phone
         FROM sales_orders so
         LEFT JOIN customers c ON so.customer_id = c.id
-        WHERE so.id = ? OR so.order_no = ?
+        WHERE so.deleted_at IS NULL AND (so.id = ? OR so.order_no = ?)
       `,
         [id, id]
       );
@@ -470,7 +468,7 @@ exports.updateOrderStatus = async (req, res) => {
     }
 
     // 检查订单是否存在
-    const [checkResult] = await connection.execute('SELECT status, order_no, created_by FROM sales_orders WHERE id = ? FOR UPDATE', [
+    const [checkResult] = await connection.execute('SELECT status, order_no, created_by FROM sales_orders WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [
       id,
     ]);
 
@@ -1025,7 +1023,7 @@ exports.deleteSalesOrder = async (req, res) => {
 
     // 1. 查询订单当前状态
     const [orderResult] = await connection.query(
-      'SELECT id, order_no, status FROM sales_orders WHERE id = ? FOR UPDATE',
+      'SELECT id, order_no, status FROM sales_orders WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
       [id]
     );
 
@@ -1045,7 +1043,7 @@ exports.deleteSalesOrder = async (req, res) => {
 
     // 3. 检查是否存在关联的出库单
     const [outboundCheck] = await connection.query(
-      'SELECT COUNT(*) as count FROM sales_outbound WHERE order_id = ?',
+      'SELECT COUNT(*) as count FROM sales_outbound WHERE order_id = ? AND deleted_at IS NULL',
       [id]
     );
     if (outboundCheck[0].count > 0) {
@@ -1055,7 +1053,7 @@ exports.deleteSalesOrder = async (req, res) => {
 
     // 4. 检查是否存在关联的退货单
     const [returnCheck] = await connection.query(
-      'SELECT COUNT(*) as count FROM sales_returns WHERE order_id = ?',
+      'SELECT COUNT(*) as count FROM sales_returns WHERE order_id = ? AND deleted_at IS NULL',
       [id]
     );
     if (returnCheck[0].count > 0) {
@@ -1065,7 +1063,7 @@ exports.deleteSalesOrder = async (req, res) => {
 
     // 5. 检查是否存在关联的换货单
     const [exchangeCheck] = await connection.query(
-      'SELECT COUNT(*) as count FROM sales_exchanges WHERE order_id = ?',
+      'SELECT COUNT(*) as count FROM sales_exchanges WHERE order_id = ? AND deleted_at IS NULL',
       [id]
     );
     if (exchangeCheck[0].count > 0) {
@@ -1954,7 +1952,7 @@ exports.getOrderUnshippedItems = async (req, res) => {
       SELECT so.*, c.name as customer_name, c.contact_person, c.contact_phone
       FROM sales_orders so
       LEFT JOIN customers c ON so.customer_id = c.id
-      WHERE so.id = ? OR so.order_no = ?
+      WHERE so.deleted_at IS NULL AND (so.id = ? OR so.order_no = ?)
     `,
       [id, id]
     );
@@ -1969,11 +1967,11 @@ exports.getOrderUnshippedItems = async (req, res) => {
     const [orderItems] = await connection.query(
       `
       SELECT
-  soi.id as order_item_id,
+  MIN(soi.id) as order_item_id,
     soi.material_id,
-    soi.quantity as ordered_quantity,
-    soi.unit_price,
-    soi.amount,
+    SUM(soi.quantity) as ordered_quantity,
+    MAX(soi.unit_price) as unit_price,
+    SUM(soi.amount) as amount,
     m.code as material_code,
     m.name as material_name,
     m.specs as specification,
@@ -1983,6 +1981,7 @@ exports.getOrderUnshippedItems = async (req, res) => {
       LEFT JOIN materials m ON soi.material_id = m.id
       LEFT JOIN units u ON m.unit_id = u.id
       WHERE soi.order_id = ?
+      GROUP BY soi.material_id, m.code, m.name, m.specs, m.unit_id, u.name
     ORDER BY m.code
       `,
       [order.id]
@@ -1998,13 +1997,16 @@ exports.getOrderUnshippedItems = async (req, res) => {
       INNER JOIN sales_outbound_items sobi ON soi.material_id = sobi.product_id
       INNER JOIN sales_outbound sob ON sobi.outbound_id = sob.id
       WHERE soi.order_id = ?
+    AND sob.deleted_at IS NULL
     AND sob.status IN('completed', 'processing')
   AND(
     --单订单出库：直接匹配order_id
-          sob.order_id = soi.order_id
+          (COALESCE(sob.is_multi_order, 0) = 0 AND sob.order_id = soi.order_id)
           OR
           --多订单出库：检查related_orders字段
-    (sob.is_multi_order = 1 AND sob.related_orders IS NOT NULL
+          (sob.is_multi_order = 1 AND sobi.source_order_id = soi.order_id)
+          OR
+    (sob.is_multi_order = 1 AND sobi.source_order_id IS NULL AND sob.related_orders IS NOT NULL
            AND(
       JSON_CONTAINS(sob.related_orders, CAST(soi.order_id AS JSON))
              OR sob.related_orders LIKE CONCAT('%', soi.order_id, '%')

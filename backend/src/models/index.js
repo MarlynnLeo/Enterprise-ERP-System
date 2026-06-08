@@ -27,18 +27,9 @@ fs.readdirSync(__dirname)
       file !== basename &&
       file.slice(-3) === '.js' &&
       // 排除已经手动加载的模型和其他非Sequelize模型
-      ![
-        'qualityInspection.js',
-        'qualityStandard.js',
-        'traceability.js',
-        'traceability_chain.js',
-        'traceability_chain_optimized.js',
-        'user.js',
-        'todo.js',
-        'notification.js',
-        'inventory.js',
-        'index.js',
-      ].includes(file)
+      !['qualityInspection.js', 'qualityStandard.js', 'user.js', 'todo.js', 'index.js'].includes(
+        file
+      )
     );
   })
   .forEach((file) => {
@@ -59,7 +50,6 @@ fs.readdirSync(__dirname)
 const otherModels = [
   'qualityInspection.js',
   'qualityStandard.js',
-  'traceability.js',
 ];
 
 otherModels.forEach((file) => {

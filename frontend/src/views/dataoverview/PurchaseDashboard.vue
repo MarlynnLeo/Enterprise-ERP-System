@@ -35,11 +35,6 @@
               </div>
             </div>
           </div>
-          <div class="card-footer">
-            <el-button type="primary" link @click="$router.push('/purchase/requisitions')">
-              查看详情 <el-icon class="el-icon--right"><ArrowRight /></el-icon>
-            </el-button>
-          </div>
         </el-card>
       </el-col>
 
@@ -57,11 +52,6 @@
                 <div class="stat-secondary-label">待处理</div>
               </div>
             </div>
-          </div>
-          <div class="card-footer">
-            <el-button type="success" link @click="$router.push('/purchase/orders')">
-              查看详情 <el-icon class="el-icon--right"><ArrowRight /></el-icon>
-            </el-button>
           </div>
         </el-card>
       </el-col>
@@ -81,11 +71,6 @@
               </div>
             </div>
           </div>
-          <div class="card-footer">
-            <el-button type="info" link @click="$router.push('/purchase/receipts')">
-              查看详情 <el-icon class="el-icon--right"><ArrowRight /></el-icon>
-            </el-button>
-          </div>
         </el-card>
       </el-col>
 
@@ -103,11 +88,6 @@
                 <div class="stat-secondary-label">待处理</div>
               </div>
             </div>
-          </div>
-          <div class="card-footer">
-            <el-button type="warning" link @click="$router.push('/purchase/returns')">
-              查看详情 <el-icon class="el-icon--right"><ArrowRight /></el-icon>
-            </el-button>
           </div>
         </el-card>
       </el-col>
@@ -227,7 +207,7 @@ import { formatDate } from '@/utils/helpers/dateUtils'
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router';
 import Chart from '@/utils/chartCore';
-import { Search, ArrowRight } from '@element-plus/icons-vue';
+import { Search } from '@element-plus/icons-vue';
 import { purchaseApi } from '@/api';
 import { useDashboard, useCharts } from '@/composables/useDashboard';
 // 权限计算属性

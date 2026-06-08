@@ -41,7 +41,7 @@ exports.getPackingLists = async (req, res) => {
     const currentPageSize = Math.max(1, Math.min(100, parseInt(pageSize, 10) || 20));
     const offset = (currentPage - 1) * currentPageSize;
 
-    const whereConditions = [];
+    const whereConditions = ['pl.deleted_at IS NULL'];
     const queryParams = [];
 
     // 搜索条件
@@ -96,6 +96,7 @@ exports.getPackingLists = async (req, res) => {
     const countSql = `
       SELECT COUNT(*) as total
       FROM packing_lists pl
+      WHERE pl.deleted_at IS NULL
       LEFT JOIN customers c ON pl.customer_id = c.id
       LEFT JOIN sales_orders so ON pl.sales_order_id = so.id
       ${whereClause}
@@ -152,7 +153,7 @@ exports.getPackingList = async (req, res) => {
       FROM packing_lists pl
       LEFT JOIN customers c ON pl.customer_id = c.id
       LEFT JOIN sales_orders so ON pl.sales_order_id = so.id
-      WHERE pl.id = ?
+      WHERE pl.id = ? AND pl.deleted_at IS NULL
         `,
       [id]
     );
@@ -200,9 +201,11 @@ exports.createPackingList = async (req, res) => {
 
     // 验证必填字段
     if (!customer_id) {
+      await connection.rollback();
       return ResponseHandler.error(res, '客户ID不能为空', 'VALIDATION_ERROR', 400);
     }
     if (!packing_date) {
+      await connection.rollback();
       return ResponseHandler.error(res, '装箱日期不能为空', 'VALIDATION_ERROR', 400);
     }
 
@@ -211,6 +214,7 @@ exports.createPackingList = async (req, res) => {
       customer_id,
     ]);
     if (customerRows.length === 0) {
+      await connection.rollback();
       return ResponseHandler.error(res, '客户不存在', 'VALIDATION_ERROR', 400);
     }
     const customer = customerRows[0];
@@ -435,11 +439,12 @@ exports.deletePackingList = async (req, res) => {
 
     // 检查装箱单是否存在
     const [packingListRows] = await connection.execute(
-      'SELECT id, status FROM packing_lists WHERE id = ?',
+      'SELECT id, status FROM packing_lists WHERE id = ? AND deleted_at IS NULL',
       [id]
     );
 
     if (packingListRows.length === 0) {
+      await connection.rollback();
       return ResponseHandler.error(res, '装箱单不存在', 'NOT_FOUND', 404);
     }
 
@@ -447,6 +452,7 @@ exports.deletePackingList = async (req, res) => {
 
     // 检查是否可以删除（只有草稿状态可以删除）
     if (packingList.status !== 'draft') {
+      await connection.rollback();
       return ResponseHandler.error(res, '只有草稿状态的装箱单可以删除', 'VALIDATION_ERROR', 400);
     }
 
@@ -486,7 +492,7 @@ exports.updatePackingListStatus = async (req, res) => {
 
     // 检查装箱单是否存在
     const [packingListRows] = await db.pool.execute(
-      'SELECT id, status, packing_list_no FROM packing_lists WHERE id = ?',
+      'SELECT id, status, packing_list_no FROM packing_lists WHERE id = ? AND deleted_at IS NULL',
       [id]
     );
 
@@ -516,7 +522,7 @@ exports.updatePackingListStatus = async (req, res) => {
       status = ?,
         remark = COALESCE(?, remark),
         updated_by = ?
-          WHERE id = ?
+          WHERE id = ? AND deleted_at IS NULL
             `,
       [status, remark, req.user?.username || 'system', id]
     );
@@ -539,17 +545,17 @@ exports.getPackingListStatistics = async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
 
-    let dateCondition = '';
+    let dateCondition = 'WHERE deleted_at IS NULL';
     let queryParams = [];
 
     if (startDate && endDate) {
-      dateCondition = 'WHERE packing_date BETWEEN ? AND ?';
+      dateCondition = 'WHERE deleted_at IS NULL AND packing_date BETWEEN ? AND ?';
       queryParams = [startDate, endDate];
     } else if (startDate) {
-      dateCondition = 'WHERE packing_date >= ?';
+      dateCondition = 'WHERE deleted_at IS NULL AND packing_date >= ?';
       queryParams = [startDate];
     } else if (endDate) {
-      dateCondition = 'WHERE packing_date <= ?';
+      dateCondition = 'WHERE deleted_at IS NULL AND packing_date <= ?';
       queryParams = [endDate];
     }
 
@@ -641,7 +647,13 @@ async function calculateAndInsertMaterialsForPlan(connection, planId, productId,
 
       const productInfo =
         products.length > 0 ? `${products[0].code} - ${products[0].name} ` : `ID: ${productId} `;
-      throw new Error(`产品 ${productInfo} 未找到有效的BOM配置`);
+      logger.warn(`产品 ${productInfo} 未找到有效的BOM配置，跳过物料需求计算（可后续补充BOM）`);
+      // 在生产计划备注中标记，便于后续筛选和补充
+      await connection.execute(
+        "UPDATE production_plans SET remark = CONCAT(IFNULL(remark, ''), ' [待补充BOM]') WHERE id = ?",
+        [planId]
+      );
+      return;
     }
 
     const bomId = bomMasters[0].id;
@@ -671,7 +683,12 @@ async function calculateAndInsertMaterialsForPlan(connection, planId, productId,
     );
 
     if (bomDetails.length === 0) {
-      throw new Error(`BOM ID ${bomId} 中没有物料明细`);
+      logger.warn(`BOM ID ${bomId} 中没有物料明细，跳过物料需求计算`);
+      await connection.execute(
+        "UPDATE production_plans SET remark = CONCAT(IFNULL(remark, ''), ' [BOM无明细]') WHERE id = ?",
+        [planId]
+      );
+      return;
     }
 
     // 插入物料需求记录
@@ -793,18 +810,19 @@ async function generateProductionAndPurchasePlans(
 
             const planId = insertResult.insertId;
 
-            // 计算并插入物料需求
+            // 计算并插入物料需求（没有BOM时跳过，不影响生产计划创建）
             try {
               await calculateAndInsertMaterialsForPlan(connection, planId, material_id, shortage);
               logger.info(
                 `  ✅ 生产计划创建成功: ${planNo} (物料: ${material_name}, 数量: ${shortage}，已计算物料需求)`
               );
-            } catch (bomError) {
-              await connection.execute('DELETE FROM production_plan_materials WHERE plan_id = ?', [planId]);
-              await connection.execute('DELETE FROM production_plans WHERE id = ?', [planId]);
-              throw new Error(`生产计划 ${planNo} 物料需求计算失败: ${bomError.message}`, {
-                cause: bomError,
-              });
+            } catch (materialError) {
+              // BOM缺失已在函数内部处理（warn+return+标记remark），
+              // 到这里的只有真实系统错误（DB异常/SQL错误等），必须用 error 级别记录
+              logger.error(
+                `生产计划 ${planNo} 物料需求计算异常（非BOM缺失，请排查）: ${materialError.message}`,
+                { stack: materialError.stack }
+              );
             }
             await DocumentLinkService.tryAutoLink(
               'sales_order',

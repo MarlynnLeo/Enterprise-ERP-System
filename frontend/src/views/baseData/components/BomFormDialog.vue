@@ -465,6 +465,7 @@ const addDetail = () => {
     material_code: '',
     material_name: '',
     material_specs: '',
+    unit_id: null,
     unit_name: '',
     quantity: 1,
     remark: '',
@@ -481,6 +482,7 @@ const addSubDetailForRow = (row) => {
     material_code: '',
     material_name: '',
     material_specs: '',
+    unit_id: null,
     unit_name: '',
     quantity: 1,
     remark: '',
@@ -529,6 +531,7 @@ const handleMaterialCodeChangeByRow = async (val, row) => {
     row.material_id = material.id
     row.material_name = material.name
     row.material_specs = material.specs || material.specification || ''
+    row.unit_id = material.unit_id || null
     row.unit_name = material.unit_name || material.unit || ''
     if (form.product_id && material.id) {
       try {

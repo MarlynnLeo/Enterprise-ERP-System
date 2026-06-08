@@ -35,11 +35,6 @@
               </div>
             </div>
           </div>
-          <div class="card-footer">
-            <el-button type="primary" link @click="$router.push('/sales/orders')">
-              查看详情 <el-icon class="el-icon--right"><ArrowRight /></el-icon>
-            </el-button>
-          </div>
         </el-card>
       </el-col>
 
@@ -57,11 +52,6 @@
                 <div class="stat-secondary-label">订单数</div>
               </div>
             </div>
-          </div>
-          <div class="card-footer">
-            <el-button type="success" link @click="$router.push('/sales/orders')">
-              查看详情 <el-icon class="el-icon--right"><ArrowRight /></el-icon>
-            </el-button>
           </div>
         </el-card>
       </el-col>
@@ -81,11 +71,6 @@
               </div>
             </div>
           </div>
-          <div class="card-footer">
-            <el-button type="info" link @click="$router.push('/sales/returns')">
-              查看详情 <el-icon class="el-icon--right"><ArrowRight /></el-icon>
-            </el-button>
-          </div>
         </el-card>
       </el-col>
 
@@ -103,11 +88,6 @@
                 <div class="stat-secondary-label">待回款</div>
               </div>
             </div>
-          </div>
-          <div class="card-footer">
-            <el-button type="warning" link @click="$router.push('/finance/ar/invoices')">
-              查看详情 <el-icon class="el-icon--right"><ArrowRight /></el-icon>
-            </el-button>
           </div>
         </el-card>
       </el-col>
@@ -243,7 +223,7 @@ function createSafeChart(ctx, config) {
     return null;
   }
 }
-import { Search, ArrowRight } from '@element-plus/icons-vue';
+import { Search } from '@element-plus/icons-vue';
 import { salesApi } from '@/api';
 import { useDashboard, useCharts } from '@/composables/useDashboard';
 import {

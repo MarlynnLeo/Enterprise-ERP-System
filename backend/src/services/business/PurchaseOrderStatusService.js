@@ -88,6 +88,79 @@ class PurchaseOrderStatusService {
     }
   }
 
+
+  /**
+   * 从所有已确认/完成的收货单全量同步收货数量（幂等）
+   * 替代累加模式，无论调用多少次结果都一致
+   * @param {number} orderId - 采购订单ID
+   * @param {number} materialId - 物料ID
+   * @param {Object} connection - 数据库连接（可选）
+   */
+  static async syncOrderItemReceivedFromReceipts(orderId, materialId, connection = null) {
+    const client = connection || db.pool;
+
+    try {
+      logger.info(
+        `[PurchaseOrderStatusService] 全量同步收货数量：订单ID=${orderId}, 物料ID=${materialId}`
+      );
+
+      // 从所有非草稿、非取消的收货单汇总该物料的实际收货量
+      const [result] = await client.execute(
+        `SELECT COALESCE(SUM(
+           COALESCE(NULLIF(ri.received_quantity, 0), ri.quantity, ri.qualified_quantity, 0)
+         ), 0) AS total_received
+         FROM purchase_receipt_items ri
+         JOIN purchase_receipts r ON ri.receipt_id = r.id
+         WHERE r.order_id = ?
+           AND ri.material_id = ?
+           AND r.status IN ('confirmed', 'completed')
+           AND r.deleted_at IS NULL`,
+        [orderId, materialId]
+      );
+
+      const totalReceived = parseFloat(result[0]?.total_received) || 0;
+
+      // 校验不超过订单数量
+      const [orderItem] = await client.execute(
+        'SELECT quantity FROM purchase_order_items WHERE order_id = ? AND material_id = ? FOR UPDATE',
+        [orderId, materialId]
+      );
+
+      if (orderItem.length === 0) {
+        logger.warn(`[PurchaseOrderStatusService] 采购订单项目不存在: 订单ID=${orderId}, 物料ID=${materialId}`);
+        return;
+      }
+
+      const orderQuantity = parseFloat(orderItem[0].quantity) || 0;
+      const cappedReceived = Math.min(totalReceived, orderQuantity);
+
+      if (totalReceived > orderQuantity) {
+        logger.warn(
+          `[PurchaseOrderStatusService] 收货单汇总量(${totalReceived})超过订单量(${orderQuantity})，已截断为订单量`
+        );
+      }
+
+      // 直接SET，非累加，保证幂等
+      await client.execute(
+        `UPDATE purchase_order_items
+         SET received_quantity = ?,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE order_id = ? AND material_id = ?`,
+        [cappedReceived, orderId, materialId]
+      );
+
+      logger.info(
+        `[PurchaseOrderStatusService] 全量同步完成: 订单ID=${orderId}, 物料ID=${materialId}, 收货量=${cappedReceived}`
+      );
+
+      // 更新订单整体状态
+      await this.updateOrderStatus(orderId, client);
+    } catch (error) {
+      logger.error('全量同步收货数量失败:', error);
+      throw error;
+    }
+  }
+
   static async getOrderQuantityStats(orderId, connection = null) {
     const client = connection || db.pool;
     const itemsQuery = `
@@ -213,11 +286,14 @@ class PurchaseOrderStatusService {
 
       // 获取当前订单状态
       const [currentOrder] = await client.execute(
-        'SELECT status FROM purchase_orders WHERE id = ?',
+        'SELECT status FROM purchase_orders WHERE id = ? AND deleted_at IS NULL',
         [orderId]
       );
-      const currentStatus =
-        currentOrder && currentOrder.length > 0 ? currentOrder[0].status : 'draft';
+      if (!currentOrder || currentOrder.length === 0) {
+        logger.warn(`[PurchaseOrderStatusService] 订单${orderId}不存在或已删除，跳过状态更新`);
+        return null;
+      }
+      const currentStatus = currentOrder[0].status;
 
       if (currentStatus === 'cancelled') {
         logger.info(`[PurchaseOrderStatusService] 订单${orderId}状态为${currentStatus},不更新`);
@@ -244,7 +320,7 @@ class PurchaseOrderStatusService {
           status = ?,
           completion_percentage = ?,
           updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
+        WHERE id = ? AND deleted_at IS NULL
       `;
 
       await client.execute(updateOrderQuery, [
@@ -526,7 +602,8 @@ class PurchaseOrderStatusService {
       // 获取所有非取消的采购订单，已完成订单也需要重算以纠正异常状态
       const ordersQuery = `
         SELECT id FROM purchase_orders
-        WHERE status <> 'cancelled'
+        WHERE deleted_at IS NULL
+          AND status <> 'cancelled'
       `;
 
       const [orders] = await db.pool.execute(ordersQuery);

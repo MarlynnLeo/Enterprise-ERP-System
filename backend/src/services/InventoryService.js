@@ -455,22 +455,7 @@ class InventoryService {
             alertError
           );
         }
-
-        // ✅ 新增：如果是增加库存（入库/退库等），触发待发货销售订单的自动库存满足检查
-        if (changeQuantity > 0) {
-          try {
-            const SalesOrderStatusService = require('./business/SalesOrderStatusService');
-            // 使用异步独立新连接验证
-            await SalesOrderStatusService.checkAndReleasePendingOrders();
-          } catch (salesOrderError) {
-            const DLQService = require('./business/DLQService');
-            await DLQService.recordSideEffectFailure(
-              'SalesOrderStatus:checkAndReleasePendingOrders',
-              { materialId, locationId, afterQuantity },
-              salesOrderError
-            );
-          }
-        }
+        // 注意：销售订单状态检查已统一移至 InboundTransactionService._handleSideEffects
       });
 
       return {

@@ -148,74 +148,6 @@
       </el-card>
     </div>
 
-    <!-- 金额统计区域 -->
-    <div class="amount-statistics-section">
-      <el-card class="amount-total-card" shadow="hover">
-        <div class="amount-total-content">
-          <div class="amount-icon-wrapper">
-            <el-icon :size="28" color="#e6a23c"><Coin /></el-icon>
-          </div>
-          <div class="amount-info">
-            <div class="amount-label">库存总金额</div>
-            <div class="amount-value">{{ formatCurrency(statistics.totalValue) }}</div>
-          </div>
-        </div>
-      </el-card>
-
-      <el-card class="amount-detail-card" shadow="hover">
-        <div class="amount-detail-header">
-          <span class="amount-detail-title">分类金额 Top 5</span>
-        </div>
-        <div class="category-value-list">
-          <div
-            v-for="(item, idx) in statistics.totalValueByCategory"
-            :key="idx"
-            class="category-value-item"
-          >
-            <div class="category-value-label">
-              <span class="category-rank">{{ idx + 1 }}</span>
-              <span class="category-name">{{ item.name }}</span>
-              <span class="category-count">{{ item.itemCount }}种</span>
-            </div>
-            <div class="category-value-bar-wrapper">
-              <div
-                class="category-value-bar"
-                :style="{ width: getCategoryPercent(item.value) + '%' }"
-              ></div>
-            </div>
-            <span class="category-value-amount">{{ formatCurrency(item.value) }}</span>
-          </div>
-          <div v-if="!statistics.totalValueByCategory || statistics.totalValueByCategory.length === 0" class="no-data-tip">
-            暂无分类金额数据
-          </div>
-        </div>
-      </el-card>
-
-      <el-card class="amount-detail-card" shadow="hover">
-        <div class="amount-detail-header">
-          <span class="amount-detail-title">仓库金额分布</span>
-        </div>
-        <div class="location-value-list">
-          <div
-            v-for="(item, idx) in statistics.totalValueByLocation"
-            :key="idx"
-            class="location-value-item"
-          >
-            <div class="location-value-label">
-              <el-icon :size="14" color="var(--color-primary)"><OfficeBuilding /></el-icon>
-              <span class="location-name">{{ item.name }}</span>
-              <span class="location-count">{{ item.itemCount }}种</span>
-            </div>
-            <span class="location-value-amount">{{ formatCurrency(item.value) }}</span>
-            <span class="location-value-percent">{{ getLocationPercent(item.value) }}%</span>
-          </div>
-          <div v-if="!statistics.totalValueByLocation || statistics.totalValueByLocation.length === 0" class="no-data-tip">
-            暂无仓库金额数据
-          </div>
-        </div>
-      </el-card>
-    </div>
-
     <!-- 数据表格 -->
     <el-card class="data-card">
       <el-table
@@ -575,7 +507,7 @@
 <script setup>
 import { parseListData, parseResponseData } from '@/utils/responseParser';
 import { ref, onMounted, reactive, computed } from 'vue'
-import { Download, Plus, ArrowDown, Document, Close, Printer, Select, Coin, OfficeBuilding } from '@element-plus/icons-vue'
+import { Download, Plus, ArrowDown, Document, Close, Printer, Select } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { inventoryApi, baseDataApi } from '@/api'
 import InventoryStockAdd from './InventoryStockAdd.vue'
@@ -628,11 +560,7 @@ const statistics = reactive({
   totalItems: 0,
   totalLocations: 0,
   lowStock: 0,
-  outOfStock: 0,
-  // 金额统计
-  totalValue: 0,
-  totalValueByCategory: [],
-  totalValueByLocation: []
+  outOfStock: 0
 })
 
 // 明细相关
@@ -761,10 +689,7 @@ const updateStatistics = async () => {
       totalItems: data.totalItems || 0,
       totalLocations: data.totalLocations || 0,
       lowStock: data.lowStock || 0,
-      outOfStock: data.outOfStock || 0,
-      totalValue: data.totalValue || 0,
-      totalValueByCategory: data.totalValueByCategory || [],
-      totalValueByLocation: data.totalValueByLocation || []
+      outOfStock: data.outOfStock || 0
     })
   } catch (error) {
     console.error('获取统计数据失败', error)
@@ -772,25 +697,12 @@ const updateStatistics = async () => {
       totalItems: 0,
       totalLocations: 0,
       lowStock: 0,
-      outOfStock: 0,
-      totalValue: 0,
-      totalValueByCategory: [],
-      totalValueByLocation: []
+      outOfStock: 0
     })
   }
 }
 
-// 获取分类金额占比百分比
-const getCategoryPercent = (value) => {
-  if (!statistics.totalValue || statistics.totalValue === 0) return 0
-  return Math.min(100, Math.round((value / statistics.totalValue) * 100))
-}
 
-// 获取仓库金额占比百分比
-const getLocationPercent = (value) => {
-  if (!statistics.totalValue || statistics.totalValue === 0) return '0.0'
-  return ((value / statistics.totalValue) * 100).toFixed(1)
-}
 
 // 获取基础数据
 const fetchBaseData = async () => {

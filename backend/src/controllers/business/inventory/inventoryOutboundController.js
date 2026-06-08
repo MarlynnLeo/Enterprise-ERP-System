@@ -1160,7 +1160,6 @@ const _createOutbound = async (outboundData) => {
 
           logger.warn(`检测到超额领料: ${excessDetails}`);
 
-          // 如果前端没有明确允许超额 (allowExcess !== true)
           if (!outboundData.allowExcess) {
             const error = new Error('存在超额领料，请确认');
             error.code = 'EXCESS_ISSUE';
@@ -2609,11 +2608,15 @@ const updateOutboundStatus = async (req, res) => {
           const outbound = outboundData[0];
 
           // 异步创建成本分录
-          if (businessConfig.performance.asyncCostCalculation) {
+          if (
+            businessConfig.performance.asyncCostCalculation &&
+            !isProductionOutboundReference(outbound.reference_type)
+          ) {
             AsyncTaskService.createCostEntryAsync({
-              transaction_type: 'production_outbound',
+              transaction_type:
+                outbound.reference_type === 'sales_outbound' ? 'sales_outbound' : 'outbound',
               reference_no: outbound.outbound_no,
-              reference_type: 'outbound',
+              reference_type: outbound.reference_type || 'outbound',
               material_id: null, // 将在服务中处理每个物料
               quantity: 0,
               operator: outbound.operator,

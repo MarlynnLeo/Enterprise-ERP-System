@@ -30,6 +30,7 @@ const { validateTaskTransition, syncPlanStatus, generateBatchNo } = require('../
 const CostAccountingService = require('../../../services/business/CostAccountingService');
 const InventoryTraceabilityService = require('../../../services/business/InventoryTraceabilityService');
 const InventoryService = require('../../../services/InventoryService');
+const NotificationService = require('../../../services/NotificationService');
 
 // 状态常量（统一引用 businessConfig，消除硬编码）
 const TASK_STATUS = businessConfig.status.productionTask;
@@ -133,6 +134,15 @@ function buildFilterConditions(params) {
     queryParams.push(endDate);
   }
 
+  // 工序已开始过滤：只返回至少有一道工序处于 in_progress 或 completed 的任务
+  // 用于首检创建等场景，确保任务确实已开始生产
+  if (params.has_started_process === 'true' || params.has_started_process === true) {
+    whereClause += ` AND EXISTS (
+      SELECT 1 FROM production_processes pp
+      WHERE pp.task_id = pt.id AND pp.status IN ('in_progress', 'completed')
+    )`;
+  }
+
   return { whereClause, queryParams };
 }
 
@@ -227,7 +237,8 @@ exports.getProductionTasks = async (req, res) => {
 
       const processQuery = `
         SELECT
-          pp.*,
+          pp.id, pp.task_id, pp.process_name, pp.sequence, pp.quantity,
+          pp.progress, pp.status, pp.standard_hours, pp.description, pp.remarks,
           DATE_FORMAT(pp.planned_start_time, '%Y-%m-%d %H:%i:%s') as plannedStartTime,
           DATE_FORMAT(pp.planned_end_time, '%Y-%m-%d %H:%i:%s') as plannedEndTime,
           DATE_FORMAT(pp.actual_start_time, '%Y-%m-%d %H:%i:%s') as actualStartTime,
@@ -1210,7 +1221,9 @@ exports.updateProductionTaskStatus = async (req, res) => {
           'SELECT COALESCE(SUM(standard_hours), 0) as total_hours FROM production_processes WHERE task_id = ?',
           [id]
         );
-        const estimatedHours = parseFloat(processHours[0]?.total_hours) || 0;
+        const hoursPerUnit = parseFloat(processHours[0]?.total_hours) || 0;
+        const reportQuantity = Number(taskData.quantity) || 0;
+        const estimatedHours = hoursPerUnit * reportQuantity;
 
         if (estimatedHours > 0) {
           const reportNo = await CodeGenerators.generateReportCode(connection);
@@ -1223,8 +1236,8 @@ exports.updateProductionTaskStatus = async (req, res) => {
                work_hours, remarks, created_at)
               VALUES (?, ?, 0, ?, NOW(), ?, ?, ?, 0, 0, ?, ?, NOW())`,
             [
-              reportNo, id, operatorName, taskData.quantity || 0,
-              taskData.quantity || 0, taskData.quantity || 0,
+              reportNo, id, operatorName, reportQuantity,
+              reportQuantity, reportQuantity,
               estimatedHours, '工序完成后系统自动生成',
             ]
           );
@@ -1367,6 +1380,7 @@ exports.completeTask = async (req, res) => {
     }
 
     await connection.beginTransaction();
+    const warnings = [];
 
     // 第一性原理防御：获取当前任务信息并开启悲观排他锁，防并发完工超卖
     const [tasks] = await connection.query(
@@ -1494,48 +1508,39 @@ exports.completeTask = async (req, res) => {
       const operatorId = getAuthenticatedUserId(req);
       const operatorName = await getCurrentUserName(req);
 
-      // 从工序表中获取标准工时合计，避免 work_hours 为 0 导致人工成本为 0
+      // 从工序表中获取标准工时合计
       let estimatedHours = 0;
       try {
         const [processHours] = await connection.query(
           'SELECT COALESCE(SUM(standard_hours), 0) as total_hours FROM production_processes WHERE task_id = ?',
           [id]
         );
-        estimatedHours = parseFloat(processHours[0]?.total_hours) || 0;
+        const hoursPerUnit = parseFloat(processHours[0]?.total_hours) || 0;
+        estimatedHours = hoursPerUnit * Number(quantity);
       } catch (phErr) {
         logger.warn(`获取工序标准工时失败: ${phErr.message}`);
       }
-      // SSOT 原则：严禁通过魔法数字对缺陷主数据进行补偿估算
-      // 只要没有在生产工序上准确配置标准工时，系统强拦截并抛错，倒逼前端完善基础物料主数据！
+
       if (estimatedHours <= 0) {
-        throw new BusinessError(
-          '工序未配置有效的标准工时，无法核算人工及制造费用，请先在生管模块完善受影响产品的工序参数设定。',
-          { route: '/basedata/processes', buttonText: '去设置标准工时' }
+        // 标准工时未配置：跳过自动报工，不阻断完工流程
+        const msg = '工序标准工时未配置，无法自动创建报工记录，请联系管理员在【基础数据 - 工序管理】中配置工时后手动报工';
+        logger.warn(`任务 ${task.code} ${msg}`);
+        warnings.push(msg);
+      } else {
+        await connection.query(
+          `INSERT INTO production_reports
+           (report_no, task_id, operator_id, operator_name, report_time, report_quantity,
+            completed_quantity, qualified_quantity, defective_quantity, unqualified_quantity,
+            work_hours, remarks, created_at)
+           VALUES (?, ?, ?, ?, NOW(), ?, ?, ?, 0, 0, ?, ?, NOW())`,
+          [
+            reportNo, id, operatorId, operatorName,
+            quantity, quantity, quantity,
+            estimatedHours, `自动完工生成: ${remark || ''}`,
+          ]
         );
+        logger.info(`任务 ${task.code} 自动创建报工记录成功，工时: ${estimatedHours}h`);
       }
-
-      await connection.query(
-        `
-                INSERT INTO production_reports
-                (report_no, task_id, operator_id, operator_name, report_time, report_quantity,
-                 completed_quantity, qualified_quantity, defective_quantity, unqualified_quantity,
-                 work_hours, remarks, created_at)
-                VALUES (?, ?, ?, ?, NOW(), ?, ?, ?, 0, 0, ?, ?, NOW())
-            `,
-        [
-          reportNo,
-          id,
-          operatorId,
-          operatorName,
-          quantity, // 报工数量
-          quantity, // 完成数量
-          0, // 质量结果由成品检验回写，报工阶段不预设合格数量
-          estimatedHours, // 使用工序标准工时或兜底估算值
-          `自动完工生成: ${remark || ''}`,
-        ]
-      );
-
-      logger.info(`任务 ${task.code} 自动创建报工记录成功，工时: ${estimatedHours}h`);
     } catch (reportError) {
       logger.error('自动创建报工记录失败:', reportError);
       throw reportError;
@@ -1550,7 +1555,6 @@ exports.completeTask = async (req, res) => {
     await connection.commit();
 
     // ===== 异步发射生产完工领域事件 =====
-    // EventEmitter.emit 是同步入口，推迟到下一轮事件循环，避免订阅者占用当前事务连接释放窗口。
     setImmediate(() => {
       try {
         const EventBus = require('../../../events/EventBus');
@@ -1564,7 +1568,28 @@ exports.completeTask = async (req, res) => {
         logger.error(`[completeTask] 触发 PRODUCTION_TASK_COMPLETED 失败:`, emitErr);
       }
     });
-    // ===== 事件注册完毕 =====
+
+    // 如有警告，异步发送管理员通知（不阻断响应）
+    if (warnings.length > 0) {
+      setImmediate(async () => {
+        try {
+          await NotificationService.notifyByPermissions(
+            ['production:tasks:update'],
+            {
+              type: 'warning',
+              title: `完工任务 ${task.code} 发现数据缺失`,
+              content: warnings.join('\n'),
+              link: '/basedata/processes',
+              priority: 1,
+              sourceType: 'production_complete_warning',
+              sourceId: id,
+            }
+          );
+        } catch (notifyErr) {
+          logger.warn(`发送管理员通知失败: ${notifyErr.message}`);
+        }
+      });
+    }
 
     const responseData = {
       taskId: id,
@@ -1573,8 +1598,14 @@ exports.completeTask = async (req, res) => {
       remaining: totalQuantity - newCompletedQuantity,
       isFullComplete,
     };
+    if (warnings.length > 0) {
+      responseData.warnings = warnings;
+    }
 
-    return ResponseHandler.success(res, responseData, isFullComplete ? '全部完工，已创建检验单' : `本次完工 ${quantity} 件`);
+    const message = warnings.length > 0
+      ? (isFullComplete ? '全部完工，但有注意事项需要处理' : `本次完工 ${quantity} 件，但有注意事项需要处理`)
+      : (isFullComplete ? '全部完工，已创建检验单' : `本次完工 ${quantity} 件`);
+    return ResponseHandler.success(res, responseData, message);
   } catch (error) {
     await connection.rollback();
     logger.error('完工失败:', error);

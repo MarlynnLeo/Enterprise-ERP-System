@@ -25,6 +25,23 @@ class FinanceIntegrationService {
     return label || (fallbackId ? `material#${fallbackId}` : 'unknown item');
   }
 
+  static resolveTaxAmount(baseAmount, explicitTaxAmount, taxRate) {
+    if (explicitTaxAmount !== null && explicitTaxAmount !== undefined && explicitTaxAmount !== '') {
+      return roundMoney(explicitTaxAmount);
+    }
+    return calculateTaxAmount(baseAmount, normalizeTaxRate(taxRate, 0));
+  }
+
+  static assertMoneyMatches(actual, expected, label) {
+    const actualCents = Math.round((parseFloat(actual) || 0) * 100);
+    const expectedCents = Math.round((parseFloat(expected) || 0) * 100);
+    if (Math.abs(actualCents - expectedCents) > 1) {
+      throw new Error(
+        `${label}金额不一致: 已存在=${(actualCents / 100).toFixed(2)}, 应生成=${(expectedCents / 100).toFixed(2)}`
+      );
+    }
+  }
+
   /**
    * 批量解析会计科目ID（1次查询替代 N+1）
    * @param {string[]} keys - 科目配置键名数组，如 ['ACCOUNTS_RECEIVABLE', 'SALES_REVENUE']
@@ -165,11 +182,15 @@ class FinanceIntegrationService {
   static async findExistingActiveGlEntry(connection, documentType, documentNumber) {
     if (!documentNumber) return null;
     const [rows] = await connection.execute(
-      `SELECT id, entry_number
-       FROM gl_entries
-       WHERE document_type = ?
-         AND document_number = ?
-         AND COALESCE(is_reversed, 0) = 0
+      `SELECT ge.id, ge.entry_number,
+              ROUND(COALESCE(SUM(gei.debit_amount), 0), 2) AS total_debit,
+              ROUND(COALESCE(SUM(gei.credit_amount), 0), 2) AS total_credit
+       FROM gl_entries ge
+       LEFT JOIN gl_entry_items gei ON gei.entry_id = ge.id
+       WHERE ge.document_type = ?
+         AND ge.document_number = ?
+         AND COALESCE(ge.is_reversed, 0) = 0
+       GROUP BY ge.id, ge.entry_number
        LIMIT 1
        FOR UPDATE`,
       [documentType, documentNumber]
@@ -210,6 +231,20 @@ class FinanceIntegrationService {
     try {
       await connection.beginTransaction();
 
+      const [orderAmountRows] = await connection.execute(
+        `SELECT ROUND(COALESCE(SUM(quantity * unit_price), 0), 2) AS subtotal
+         FROM sales_order_items
+         WHERE order_id = ?`,
+        [salesOrder.id]
+      );
+      const expectedSubtotalAmount = roundMoney(orderAmountRows[0]?.subtotal || 0);
+      const expectedTaxAmount = this.resolveTaxAmount(
+        expectedSubtotalAmount,
+        salesOrder.tax_amount,
+        salesOrder.tax_rate
+      );
+      const expectedTotalAmount = roundMoney(expectedSubtotalAmount + expectedTaxAmount);
+
       const existingInvoice = await this.findExistingInvoiceBySource(
         connection,
         'ar_invoices',
@@ -217,6 +252,7 @@ class FinanceIntegrationService {
         salesOrder.id
       );
       if (existingInvoice) {
+        this.assertMoneyMatches(existingInvoice.total_amount, expectedTotalAmount, '应收发票');
         await DocumentLinkService.tryAutoLink(
           'sales_order',
           salesOrder.id,
@@ -226,6 +262,10 @@ class FinanceIntegrationService {
           existingInvoice.invoice_number,
           null,
           connection
+        );
+        await connection.execute(
+          "UPDATE sales_orders SET invoice_status = 'invoiced', updated_at = NOW() WHERE id = ?",
+          [salesOrder.id]
         );
         await connection.commit();
         return {
@@ -261,9 +301,15 @@ class FinanceIntegrationService {
       }
 
       // ✅ 精度修复：使用整数运算避免浮点累加误差（与 GLService 对齐）
-      const totalAmount = orderItems.reduce((sum, item) => {
+      const subtotalAmount = orderItems.reduce((sum, item) => {
         return sum + Math.round(parseFloat(item.quantity || 0) * parseFloat(item.unit_price || 0) * 100);
       }, 0) / 100;
+      const taxAmount = this.resolveTaxAmount(
+        subtotalAmount,
+        salesOrder.tax_amount,
+        salesOrder.tax_rate
+      );
+      const totalAmount = roundMoney(subtotalAmount + taxAmount);
 
       const paymentTermDays = financeConfig.get('invoice.defaultPaymentTermDays', 30);
       const invoiceDateStr = currentDateString();
@@ -278,6 +324,9 @@ class FinanceIntegrationService {
         invoice_date: invoiceDateStr,
         due_date: dueDateStr,
         total_amount: totalAmount,
+        amount_excluding_tax: subtotalAmount,
+        subtotal: subtotalAmount,
+        tax_amount: taxAmount,
         currency_code: salesOrder.currency || financeConfig.get('invoice.defaultCurrency', 'CNY'),
         exchange_rate: salesOrder.exchange_rate || financeConfig.get('invoice.defaultExchangeRate', 1.0),
         status: '已确认',
@@ -314,6 +363,10 @@ class FinanceIntegrationService {
         invoiceNumber,
         createdBy,
         connection
+      );
+      await connection.execute(
+        "UPDATE sales_orders SET invoice_status = 'invoiced', updated_at = NOW() WHERE id = ?",
+        [salesOrder.id]
       );
       await connection.commit();
       return { invoiceId, invoiceNumber, amount: totalAmount };
@@ -479,6 +532,24 @@ class FinanceIntegrationService {
     try {
       await connection.beginTransaction();
 
+      const [receiptAmountRows] = await connection.execute(
+        `SELECT ROUND(COALESCE(SUM(pri.qualified_quantity * COALESCE(NULLIF(pri.price, 0), NULLIF(poi.price, 0), NULLIF(m.cost_price, 0), 0)), 0), 2) AS subtotal
+         FROM purchase_receipt_items pri
+         LEFT JOIN purchase_receipts pr ON pri.receipt_id = pr.id
+         LEFT JOIN purchase_orders po ON pr.order_id = po.id
+         LEFT JOIN purchase_order_items poi ON po.id = poi.order_id AND pri.material_id = poi.material_id
+         LEFT JOIN materials m ON pri.material_id = m.id
+         WHERE pri.receipt_id = ?`,
+        [purchaseReceipt.id]
+      );
+      const expectedSubtotalAmount = roundMoney(receiptAmountRows[0]?.subtotal || 0);
+      const expectedTaxAmount = this.resolveTaxAmount(
+        expectedSubtotalAmount,
+        purchaseReceipt.total_tax_amount,
+        purchaseReceipt.tax_rate
+      );
+      const expectedTotalAmount = roundMoney(expectedSubtotalAmount + expectedTaxAmount);
+
       const existingInvoice = await this.findExistingInvoiceBySource(
         connection,
         'ap_invoices',
@@ -486,6 +557,7 @@ class FinanceIntegrationService {
         purchaseReceipt.id
       );
       if (existingInvoice) {
+        this.assertMoneyMatches(existingInvoice.total_amount, expectedTotalAmount, '应付发票');
         await DocumentLinkService.tryAutoLink(
           'purchase_receipt',
           purchaseReceipt.id,
@@ -495,6 +567,10 @@ class FinanceIntegrationService {
           existingInvoice.invoice_number,
           userId || null,
           connection
+        );
+        await connection.execute(
+          "UPDATE purchase_receipts SET invoice_status = 'invoiced', updated_at = NOW() WHERE id = ?",
+          [purchaseReceipt.id]
         );
         await connection.commit();
         return {
@@ -533,8 +609,14 @@ class FinanceIntegrationService {
       }
 
       // ✅ 精度修复：整数运算
-      const totalAmount = receiptItems.reduce((sum, item) => sum + Math.round(parseFloat(item.quantity || 0) * parseFloat(item.price || 0) * 100), 0) / 100;
-      if (totalAmount <= 0) {
+      const subtotalAmount = receiptItems.reduce((sum, item) => sum + Math.round(parseFloat(item.quantity || 0) * parseFloat(item.price || 0) * 100), 0) / 100;
+      const taxAmount = this.resolveTaxAmount(
+        subtotalAmount,
+        purchaseReceipt.total_tax_amount,
+        purchaseReceipt.tax_rate
+      );
+      const totalAmount = roundMoney(subtotalAmount + taxAmount);
+      if (subtotalAmount <= 0) {
         await connection.rollback();
         return { skipped: true, message: '入库单物料金额为0，跳过应付发票生成' };
       }
@@ -548,6 +630,9 @@ class FinanceIntegrationService {
         invoice_date: invoiceDateStr,
         due_date: invoiceDateStr,
         total_amount: totalAmount,
+        amount_excluding_tax: subtotalAmount,
+        subtotal: subtotalAmount,
+        tax_amount: taxAmount,
         currency_code: financeConfig.get('invoice.defaultCurrency', 'CNY'),
         exchange_rate: 1.0,
         status: '已确认',
@@ -576,6 +661,10 @@ class FinanceIntegrationService {
         invoiceNumber,
         createdBy,
         connection
+      );
+      await connection.execute(
+        "UPDATE purchase_receipts SET invoice_status = 'invoiced', updated_at = NOW() WHERE id = ?",
+        [purchaseReceipt.id]
       );
       await connection.commit();
       return { invoiceId, invoiceNumber, amount: totalAmount };
@@ -725,12 +814,23 @@ class FinanceIntegrationService {
     try {
       await connection.beginTransaction();
 
+      const [expectedCostRows] = await connection.execute(
+        `SELECT ROUND(COALESCE(SUM(soi.quantity * COALESCE(NULLIF(m.cost_price, 0), NULLIF(m.price, 0), 0)), 0), 2) AS total_cost
+         FROM sales_outbound_items soi
+         LEFT JOIN materials m ON soi.product_id = m.id
+         WHERE soi.outbound_id = ?`,
+        [salesOutbound.id]
+      );
+      const expectedTotalCost = roundMoney(expectedCostRows[0]?.total_cost || 0);
+
       const existingEntry = await this.findExistingActiveGlEntry(
         connection,
         'sales_outbound',
         salesOutbound.outbound_no
       );
       if (existingEntry) {
+        this.assertMoneyMatches(existingEntry.total_debit, expectedTotalCost, '销售出库成本凭证借方');
+        this.assertMoneyMatches(existingEntry.total_credit, expectedTotalCost, '销售出库成本凭证贷方');
         await DocumentLinkService.tryAutoLink(
           'sales_outbound',
           salesOutbound.id,

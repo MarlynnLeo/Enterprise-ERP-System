@@ -11,6 +11,7 @@ const { pool } = require('../../config/db');
 const { logger } = require('../../utils/logger');
 const { financeConfig } = require('../../config/financeConfig');
 const PurchasePriceService = require('./PurchasePriceService');
+const PurchaseOrderService = require('../PurchaseOrderService');
 const {
   lineAmount,
   normalizeTaxRate,
@@ -39,7 +40,10 @@ async function generateOrdersFromRequisition(requisitionId, conn) {
 
     // 获取采购申请的基本信息
     const [requisitionRows] = await conn.execute(
-      'SELECT id, requisition_number, request_date, requester, contract_code, real_name, remarks, status, source_type, source_id, source_material_id, created_at, updated_at, deleted_at FROM purchase_requisitions WHERE id = ? FOR UPDATE',
+      `SELECT id, requisition_number, request_date, requester, contract_code,
+              real_name, remarks, status, source_type, source_id, source_material_id,
+              created_at, updated_at, deleted_at
+       FROM purchase_requisitions WHERE id = ? FOR UPDATE`,
       [requisitionId]
     );
     if (requisitionRows.length === 0) {
@@ -50,15 +54,16 @@ async function generateOrdersFromRequisition(requisitionId, conn) {
     // 获取采购申请的物料项，关联物料表获取供应商信息和价格
     const [itemsRows] = await conn.execute(
       `SELECT
-        pri.*,
+        pri.id, pri.requisition_id, pri.material_id, pri.material_code,
+        pri.material_name, pri.specification, pri.unit, pri.unit_id, pri.quantity,
         m.supplier_id,
-        m.code as material_code,
-        m.name as material_name,
+        m.code as m_code,
+        m.name as m_name,
         m.specs as material_specs,
-        m.unit_id,
+        m.unit_id as m_unit_id,
         COALESCE(m.cost_price, 0) as material_price,
         u.name as unit_name,
-        s.id as supplier_id,
+        s.id as s_supplier_id,
         s.name as supplier_name,
         s.contact_person as supplier_contact_person,
         s.contact_phone as supplier_contact_phone
@@ -77,32 +82,29 @@ async function generateOrdersFromRequisition(requisitionId, conn) {
       return generatedOrders;
     }
 
-    // 按供应商分组物料
+    // 按供应商分组物料（未维护供应商的物料使用特殊分组键，供应商留空后续补充）
+    const NO_SUPPLIER_KEY = '__no_supplier__';
     const itemsBySupplier = {};
-    const itemsWithoutSupplier = [];
 
     for (const item of itemsRows) {
-      if (item.supplier_id) {
-        if (!itemsBySupplier[item.supplier_id]) {
-          itemsBySupplier[item.supplier_id] = {
-            supplier_id: item.supplier_id,
-            supplier_name: item.supplier_name,
-            contact_person: item.supplier_contact_person,
-            contact_phone: item.supplier_contact_phone,
-            items: [],
-          };
-        }
-        itemsBySupplier[item.supplier_id].items.push(item);
-      } else {
-        itemsWithoutSupplier.push(item);
+      const groupKey = item.supplier_id || NO_SUPPLIER_KEY;
+      if (!itemsBySupplier[groupKey]) {
+        itemsBySupplier[groupKey] = {
+          supplier_id: item.supplier_id || null,
+          supplier_name: item.supplier_name || null,
+          contact_person: item.supplier_contact_person || null,
+          contact_phone: item.supplier_contact_phone || null,
+          items: [],
+        };
       }
+      itemsBySupplier[groupKey].items.push(item);
     }
 
-    if (itemsWithoutSupplier.length > 0) {
-      const missingMaterials = itemsWithoutSupplier
-        .map(item => item.material_code || item.material_name || item.material_id)
+    if (itemsBySupplier[NO_SUPPLIER_KEY]) {
+      const missingMaterials = itemsBySupplier[NO_SUPPLIER_KEY].items
+        .map(item => item.material_code || item.m_code || item.material_name || item.material_id)
         .join(', ');
-      throw new Error(`采购申请存在未维护供应商的物料，无法自动生成采购订单: ${missingMaterials}`);
+      logger.warn(`⚠️ 采购申请 ${requisitionId} 存在未维护供应商的物料（将生成供应商为空的采购订单，后续可补充）: ${missingMaterials}`);
     }
 
     const purchaseModel = require('../../models/purchase');
@@ -111,7 +113,7 @@ async function generateOrdersFromRequisition(requisitionId, conn) {
       conn,
       itemsRows.map((item) => ({
         materialId: item.material_id,
-        materialCode: item.material_code,
+        materialCode: item.material_code || item.m_code,
         supplierId: item.supplier_id,
       }))
     );
@@ -134,7 +136,7 @@ async function generateOrdersFromRequisition(requisitionId, conn) {
         const price = toNumber(item.material_price, 0);
         const subtotal = lineAmount(quantity, price);
         const taxRate = normalizeTaxRate(item.tax_rate, defaultTaxRate);
-        const taxAmount = calculateTaxAmount(subtotal, taxRate);
+        const itemTaxAmount = calculateTaxAmount(subtotal, taxRate);
 
         return {
           ...item,
@@ -142,7 +144,7 @@ async function generateOrdersFromRequisition(requisitionId, conn) {
           price,
           subtotal,
           tax_rate: taxRate,
-          tax_amount: taxAmount,
+          tax_amount: itemTaxAmount,
         };
       });
       const subtotal = sumMoney(calculatedItems.map((item) => item.subtotal));
@@ -159,7 +161,7 @@ async function generateOrdersFromRequisition(requisitionId, conn) {
           orderNo,
           currentDateString(),
           supplierData.supplier_id,
-          supplierData.supplier_name,
+          supplierData.supplier_name || '待指定',
           requisition.contract_code || null,
           null,
           supplierData.contact_person,
@@ -176,18 +178,20 @@ async function generateOrdersFromRequisition(requisitionId, conn) {
       );
       const orderId = orderResult.insertId;
 
-      for (const item of calculatedItems) {
-        await conn.execute(
-          `INSERT INTO purchase_order_items (
-            order_id, material_id, material_code, material_name,
-            specification, quantity, price, unit_price, total, amount,
-            unit, unit_id, tax_rate, tax_amount
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [orderId, item.material_id, item.material_code, item.material_name,
-           item.material_specs, item.quantity, item.price, item.price, item.subtotal, item.subtotal,
-           item.unit_name, item.unit_id, item.tax_rate, item.tax_amount]
-        );
-      }
+      // 通过统一 API 插入订单明细（PurchaseOrderService 负责字段映射和校验）
+      const orderItems = calculatedItems.map((item) => ({
+        material_id: item.material_id,
+        material_code: item.material_code || item.m_code,
+        material_name: item.material_name || item.m_name,
+        specification: item.material_specs || item.specification,
+        unit_id: item.unit_id || item.m_unit_id,
+        price: item.price,
+        quantity: item.quantity,
+        tax_rate: item.tax_rate,
+        tax_amount: item.tax_amount,
+        total_price: item.subtotal,
+      }));
+      await PurchaseOrderService.insertOrderItems(conn, orderId, orderItems);
 
       generatedOrders.push({
         order_id: orderId,

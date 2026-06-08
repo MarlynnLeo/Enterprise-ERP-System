@@ -7,21 +7,23 @@
  */
 -->
 <template>
-  <div class="page-container production-data-view">
+  <div class="module-page production-data-view-container">
     <!-- 页面标题 -->
-    <div class="page-header header-card">
-      <h2>
-        <el-icon><DataAnalysis /></el-icon>
-        生产数据看板
-      </h2>
-      <div class="header-actions">
-        <el-radio-group v-model="trendGranularity" size="small" @change="fetchTrends">
-          <el-radio-button value="day">本月日视图</el-radio-button>
-          <el-radio-button value="month">近12月</el-radio-button>
-        </el-radio-group>
-        <el-button :icon="Refresh" circle @click="refreshAll" :loading="loading" />
+    <el-card class="header-card">
+      <div class="header-content">
+        <div class="title-section">
+          <h2>生产数据看板</h2>
+          <p class="subtitle">生产全局数据总览与分析</p>
+        </div>
+        <div class="header-actions">
+          <el-radio-group v-model="trendGranularity" size="small" @change="fetchTrends">
+            <el-radio-button value="day">本月日视图</el-radio-button>
+            <el-radio-button value="month">近12月</el-radio-button>
+          </el-radio-group>
+          <el-button :icon="Refresh" circle @click="refreshAll" :loading="loading" />
+        </div>
       </div>
-    </div>
+    </el-card>
 
     <!-- 统计卡片 -->
     <el-row :gutter="16" class="stat-cards" v-loading="loading">
@@ -632,31 +634,14 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.production-data-view {
+.production-data-view-container {
   --production-card-bg: var(--color-bg-base);
   --production-card-muted-bg: var(--color-bg-section);
   --production-card-hover-bg: var(--color-bg-hover);
   --production-card-border: var(--color-border-lighter);
   --production-accent-purple: color-mix(in srgb, var(--color-primary) 58%, var(--color-danger));
-  padding: var(--spacing-lg);
 }
 
-/* 页面头部 */
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: var(--spacing-lg);
-  padding: var(--spacing-lg);
-}
-.page-header h2 {
-  margin: 0;
-  font-size: 18px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--color-text-primary);
-}
 .header-actions {
   display: flex;
   align-items: center;
@@ -829,7 +814,6 @@ onBeforeUnmount(() => {
 
 /* 响应式 */
 @media (max-width: 768px) {
-  .page-header { flex-direction: column; align-items: flex-start; gap: 8px; }
   .stat-card__value { font-size: 18px; }
 }
 </style>

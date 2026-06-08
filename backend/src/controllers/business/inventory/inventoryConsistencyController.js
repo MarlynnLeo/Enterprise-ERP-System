@@ -177,9 +177,9 @@ const _syncProductionStatus = async (connection, outboundStatus, taskId) => {
               );
               for (const step of steps) {
                 await connection.execute(
-                  `INSERT INTO production_processes (task_id, process_name, sequence, quantity, progress, status, description, remarks)
-                   VALUES (?, ?, ?, ?, 0, 'pending', ?, ?)`,
-                  [taskId, step.name, step.order_num, taskQuantity, step.description || '', step.remark || '']
+                  `INSERT INTO production_processes (task_id, process_name, sequence, quantity, progress, status, standard_hours, description, remarks)
+                   VALUES (?, ?, ?, ?, 0, 'pending', ?, ?, ?)`,
+                  [taskId, step.name, step.order_num, taskQuantity, step.standard_hours || 0, step.description || '', step.remark || '']
                 );
               }
               logger.info(`✅ 出库完成后自动生成了 ${steps.length} 个工序（任务ID: ${taskId}）`);

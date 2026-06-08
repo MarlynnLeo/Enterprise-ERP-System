@@ -186,8 +186,10 @@ const setupInterceptors = (apiInstance) => {
             const originalRequest = error.config || {};
             const requestUrl = String(originalRequest.url || '');
             const csrfErrorCode = error.response?.data?.errorCode || error.response?.data?.code;
-            if (error.response?.status === 403 && csrfErrorCode === 'INVALID_CSRF_TOKEN') {
+            if (error.response?.status === 403 && csrfErrorCode === 'INVALID_CSRF_TOKEN' && !originalRequest._csrfRetry) {
                 csrfToken = '';
+                originalRequest._csrfRetry = true;
+                return apiInstance(originalRequest);
             }
             // 如果是401错误且不是登录/刷新接口且未重试过
             if (error.response?.status === 401 &&

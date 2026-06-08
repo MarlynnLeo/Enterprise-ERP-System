@@ -1701,12 +1701,9 @@ const handleStatusChange = async (row, status) => {
     ElMessage.warning(`当前状态 "${row.status}" 不能转换为 "${status}"`)
     return
   }
-  // 确认对话框
-  if (status === 'completed' || status === 'cancelled') {
-    const _action = status === 'completed' ? '完成' : '取消'
-    const message = status === 'completed'
-      ? '确定要将出库单标记为已完成吗？此操作将减少库存并更新订单状态。'
-      : '确定要取消此出库单吗？如果出库单之前已完成，此操作将恢复库存。'
+  // 取消操作需要确认（破坏性操作），完成操作直接执行
+  if (status === 'cancelled') {
+    const message = '确定要取消此出库单吗？如果出库单之前已完成，此操作将恢复库存。'
     try {
       await ElMessageBox.confirm(message, '确认操作', {
         confirmButtonText: '确定',

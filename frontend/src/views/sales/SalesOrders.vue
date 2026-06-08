@@ -261,15 +261,7 @@
                 <el-button size="small" type="primary" v-permission="'sales:orders:update'">确认</el-button>
               </template>
             </el-popconfirm>
-            <el-popconfirm
-              title="确定要发货该订单吗？"
-              @confirm="handleShip(row)"
-              v-if="canShip(row)"
-            >
-              <template #reference>
-                <el-button size="small" type="success" v-permission="'sales:orders:update'">发货</el-button>
-              </template>
-            </el-popconfirm>
+            <el-button size="small" type="success" v-permission="'sales:orders:update'" @click="handleShip(row)" v-if="canShip(row)">发货</el-button>
             <el-popconfirm
               title="确定要锁定该订单吗？锁定后无法修改。"
               @confirm="handleLock(row)"

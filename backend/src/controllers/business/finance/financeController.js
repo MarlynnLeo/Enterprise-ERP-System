@@ -854,37 +854,92 @@ const financeController = {
       const { period_name, start_date, end_date, is_adjusting, fiscal_year } = req.body;
 
       // 验证必填字段
-      if (!period_name || !start_date || !end_date || !fiscal_year) {
+      if (!start_date || !end_date || !fiscal_year) {
         return ResponseHandler.error(
           res,
-          '期间名称、开始日期、结束日期和财政年度为必填项',
+          '开始日期、结束日期和财政年度为必填项',
           'VALIDATION_ERROR',
           400
         );
       }
 
+      const startDt = new Date(start_date);
+      const endDt = new Date(end_date);
+
       // 验证日期
-      if (new Date(start_date) > new Date(end_date)) {
+      if (startDt > endDt) {
         return ResponseHandler.error(res, '开始日期不能晚于结束日期', 'VALIDATION_ERROR', 400);
       }
 
-      const periodId = await financeModel.createPeriod({
-        period_name,
-        start_date,
-        end_date,
-        is_adjusting,
-        fiscal_year,
-      });
+      // 判断是否跨月：如果跨度超过一个自然月，自动按月拆分
+      const sameMonth = startDt.getFullYear() === endDt.getFullYear()
+        && startDt.getMonth() === endDt.getMonth();
 
-      ResponseHandler.success(
-        res,
-        {
-          message: '会计期间创建成功',
-          period_id: periodId,
-        },
-        '创建成功',
-        201
-      );
+      if (sameMonth) {
+        // 单月：直接创建一条
+        const name = period_name || `${fiscal_year}年${String(startDt.getMonth() + 1).padStart(2, '0')}月`;
+        const periodId = await financeModel.createPeriod({
+          period_name: name,
+          start_date,
+          end_date,
+          is_adjusting,
+          fiscal_year,
+        });
+        return ResponseHandler.success(res, { message: '会计期间创建成功', period_id: periodId }, '创建成功', 201);
+      }
+
+      // 跨月：自动按月拆分
+      const periods = [];
+      const cursor = new Date(startDt.getFullYear(), startDt.getMonth(), 1);
+      const finalMonth = new Date(endDt.getFullYear(), endDt.getMonth(), 1);
+
+      while (cursor <= finalMonth) {
+        const year = cursor.getFullYear();
+        const month = cursor.getMonth();
+        const monthStr = String(month + 1).padStart(2, '0');
+        const monthStart = `${year}-${monthStr}-01`;
+        // 月末日期
+        const lastDay = new Date(year, month + 1, 0).getDate();
+        const monthEnd = `${year}-${monthStr}-${String(lastDay).padStart(2, '0')}`;
+
+        periods.push({
+          period_name: `${year}年${monthStr}月`,
+          start_date: monthStart,
+          end_date: monthEnd,
+          is_adjusting: is_adjusting || false,
+          fiscal_year: year,
+        });
+
+        cursor.setMonth(cursor.getMonth() + 1);
+      }
+
+      // 批量创建
+      const createdIds = [];
+      const skipped = [];
+      for (const p of periods) {
+        try {
+          const id = await financeModel.createPeriod(p);
+          createdIds.push({ id, name: p.period_name });
+        } catch (err) {
+          // 重叠则跳过（已存在的期间）
+          if (err.message && err.message.includes('overlaps')) {
+            skipped.push(p.period_name);
+          } else {
+            throw err;
+          }
+        }
+      }
+
+      const msg = skipped.length > 0
+        ? `成功创建 ${createdIds.length} 个会计期间，${skipped.length} 个因重叠跳过`
+        : `成功创建 ${createdIds.length} 个月度会计期间`;
+
+      ResponseHandler.success(res, {
+        message: msg,
+        created: createdIds,
+        skipped,
+        total: createdIds.length,
+      }, msg, 201);
     } catch (error) {
       logger.error('创建会计期间失败:', error);
       const statusCode = /overlaps|must|required|date/i.test(error.message || '') ? 400 : 500;

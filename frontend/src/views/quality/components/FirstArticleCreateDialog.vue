@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * FirstArticleCreateDialog.vue
  * @description 新建首检单弹窗
@@ -96,12 +96,16 @@ const isFullInspection = computed(() => {
   return selectedTask.value.quantity < DEFAULT_FULL_INSPECTION_THRESHOLD
 })
 
-// 获取可用的生产任务（进行中的任务）
+// 获取可用的生产任务（必须有工序已开始生产的任务）
 const fetchTasks = async () => {
   try {
-    const res = await productionApi.getProductionTasks({ status: 'in_progress', pageSize: 50 })
+    const res = await productionApi.getProductionTasks({
+      status: 'in_progress',
+      has_started_process: true,
+      pageSize: 50,
+    })
     const data = res.data || res
-    taskOptions.value = data.list || data || []
+    taskOptions.value = data.list || data.items || data || []
   } catch (error) {
     console.error('获取生产任务失败:', error)
   }

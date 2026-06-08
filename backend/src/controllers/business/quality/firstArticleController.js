@@ -231,11 +231,11 @@ const firstArticleController = {
       const isFullInspection = production_quantity < rule.full_inspection_threshold;
       const firstArticleQty = isFullInspection ? production_quantity : rule.first_article_qty;
 
-      const taskResult = await db.query('SELECT code FROM production_tasks WHERE id = ?', [
+      const taskResult = await db.query('SELECT code, status FROM production_tasks WHERE id = ?', [
         task_id,
       ]);
-      const taskCode = taskResult.rows?.[0]?.code;
-      if (!taskCode) {
+      const task = taskResult.rows?.[0];
+      if (!task) {
         return ResponseHandler.error(
           res,
           '生产任务不存在，无法生成首检批次号',
@@ -243,6 +243,26 @@ const firstArticleController = {
           400
         );
       }
+
+      // 首检的业务前提：至少有一道工序已开始生产（in_progress / completed）。
+      // 只检查任务级别的 status 是不够的，因为任务可能被手动推到 in_progress 但工序全都还是 pending。
+      const processResult = await db.query(
+        `SELECT COUNT(*) as started_count
+         FROM production_processes
+         WHERE task_id = ? AND status IN ('in_progress', 'completed')`,
+        [task_id]
+      );
+      const startedProcessCount = parseInt(processResult.rows?.[0]?.started_count || 0);
+      if (startedProcessCount === 0) {
+        return ResponseHandler.error(
+          res,
+          '该生产任务尚无工序开始生产，无法创建首检单。请先在工序列表中开始至少一道工序。',
+          'VALIDATION_ERROR',
+          400
+        );
+      }
+
+      const taskCode = task.code;
 
       const inspectionNo = await QualityInspection.generateInspectionNo(
         FIRST_ARTICLE_CONFIG.INSPECTION_NO_PREFIX

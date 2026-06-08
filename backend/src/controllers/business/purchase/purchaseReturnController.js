@@ -288,7 +288,7 @@ const createReturn = async (req, res) => {
     const receiptQuery = `
       SELECT receipt_no, supplier_id, supplier_name, warehouse_id, warehouse_name
       FROM purchase_receipts
-      WHERE id = ? AND status = '${STATUS.PURCHASE_RETURN.COMPLETED}'
+      WHERE id = ? AND deleted_at IS NULL AND status = '${STATUS.PURCHASE_RETURN.COMPLETED}'
     `;
     const [receiptResult] = await connection.query(receiptQuery, [receiptId]);
 
@@ -601,7 +601,7 @@ const updateReturnStatus = async (req, res) => {
       // 通过入库单获取采购订单ID
       let orderId = null;
       if (receiptId) {
-        const receiptQuery = 'SELECT order_id FROM purchase_receipts WHERE id = ?';
+        const receiptQuery = 'SELECT order_id FROM purchase_receipts WHERE id = ? AND deleted_at IS NULL';
         const [receiptResult] = await connection.query(receiptQuery, [receiptId]);
         if (receiptResult.length > 0) {
           orderId = receiptResult[0].order_id;

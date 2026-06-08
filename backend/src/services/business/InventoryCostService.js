@@ -24,6 +24,23 @@ const Precision = require('../../utils/precision');
  * 处理库存变动时的成本分录自动生成
  */
 class InventoryCostService {
+  static isProductionIssueTransaction(transaction = {}) {
+    const transactionType = transaction.transaction_type || transaction.transactionType;
+    const referenceType = transaction.reference_type || transaction.referenceType;
+    return (
+      transactionType === 'production_outbound' ||
+      referenceType === 'production_task' ||
+      referenceType === 'production_plan' ||
+      referenceType === 'batch_production_tasks'
+    );
+  }
+
+  static isSalesOutboundTransaction(transaction = {}) {
+    const transactionType = transaction.transaction_type || transaction.transactionType;
+    const referenceType = transaction.reference_type || transaction.referenceType;
+    return transactionType === 'sales_outbound' || referenceType === 'sales_outbound';
+  }
+
   /**
    * 库存入库时自动生成成本分录
    * @param {Object} transaction 库存交易记录
@@ -61,6 +78,12 @@ class InventoryCostService {
       const inboundUnitCost = transaction.unit_cost !== undefined ? parseFloat(transaction.unit_cost) : parseFloat(material.cost_price || 0);
       const inboundQty = parseFloat(transaction.quantity) || 0;
       const totalCost = Precision.round2(Precision.mul(inboundQty, inboundUnitCost));
+
+      // 防御：入库成本为 0 时仍继续 MAC 更新（下方），但在 MAC 更新后跳过分录创建
+      const skipEntry = !(totalCost > 0);
+      if (skipEntry) {
+        logger.warn(`[入库成本] 物料 ${material.code} 入库总成本为 0（单价=${inboundUnitCost}, 数量=${inboundQty}），将跳过分录创建`);
+      }
 
       // ==========================================
       // [新增] 实施移动加权平均成本 (MAC) 闭环更新
@@ -103,6 +126,16 @@ class InventoryCostService {
         // 不阻断凭证流程
       }
 
+      // 3. 零成本时跳过分录创建（MAC 已在上方更新）
+      if (skipEntry) {
+        await connection.commit();
+        return {
+          skipped: true,
+          totalCost: 0,
+          message: `物料 ${material.code} 入库成本为 0，已跳过分录创建`,
+        };
+      }
+
       // 3. 获取当前会计期间
       const periodId = context.periodId || (await this.getCurrentPeriodId(connection, accountingDate));
 
@@ -110,11 +143,12 @@ class InventoryCostService {
       const entryNumber = await this.generateEntryNumber(connection, ENTRY_NUMBER_PREFIX.INVENTORY);
 
       // 5. 获取会计科目ID
+      const referenceType = transaction.reference_type || transaction.transaction_type;
       const inventoryAccountId = await this.getInventoryAccountId(
         connection,
-        transaction.material_id
+        transaction.material_id,
+        referenceType
       );
-      const referenceType = transaction.reference_type || transaction.transaction_type;
       const sourceAccountId = await this.getSourceAccountId(connection, referenceType);
 
       // 6. 获取用户ID（如果传入的是用户名或姓名）
@@ -191,6 +225,19 @@ class InventoryCostService {
    * @returns {Promise<Object>} 分录创建结果
    */
   static async generateOutboundCostEntry(transaction, context = {}) {
+    if (this.isProductionIssueTransaction(transaction)) {
+      return {
+        skipped: true,
+        message: 'Production material issue is posted by CostAccountingService',
+      };
+    }
+    if (this.isSalesOutboundTransaction(transaction)) {
+      return {
+        skipped: true,
+        message: 'Sales outbound cost is posted by FinanceIntegrationService',
+      };
+    }
+
     const connection = await db.pool.getConnection();
     try {
       await connection.beginTransaction();
@@ -219,11 +266,22 @@ class InventoryCostService {
       // 2. 计算成本
       // ✅ 出库同理，优先取透传价格，若无则取当下材料已被 MAC 算法维护好的 cost_price 移动加权均价
       const unitCost = transaction.unit_cost !== undefined ? parseFloat(transaction.unit_cost) : parseFloat(material.cost_price || 0);
-      // 防御：单位成本异常(<=0/NaN)时告警，避免以 0 成本结转导致销售成本/毛利失真
+      // 防御：单位成本异常(<=0/NaN)时告警
       if (!(unitCost > 0)) {
-        logger.warn(`[出库成本] 物料 ${material.code} 单位成本异常(${unitCost})，请核对采购价/MAC 均价；本次仍按 ${unitCost} 结转`);
+        logger.warn(`[出库成本] 物料 ${material.code} 单位成本异常(${unitCost})，请核对采购价/MAC 均价`);
       }
       const totalCost = Precision.round2(Precision.mul(Math.abs(parseFloat(transaction.quantity) || 0), unitCost));
+
+      // 总成本为 0 时，跳过分录创建，避免 GLService 校验拒绝（借贷金额不能同时为 0）
+      if (!(totalCost > 0)) {
+        await connection.commit();
+        logger.warn(`[出库成本] 物料 ${material.code} 出库总成本为 0，已跳过分录创建（单据: ${transaction.reference_no}）`);
+        return {
+          skipped: true,
+          totalCost: 0,
+          message: `物料 ${material.code} 出库成本为 0，已跳过分录创建`,
+        };
+      }
 
       // 3. 获取当前会计期间
       const periodId = context.periodId || (await this.getCurrentPeriodId(connection, accountingDate));
@@ -365,11 +423,14 @@ class InventoryCostService {
    * 获取库存科目ID
    * @private
    */
-  static async getInventoryAccountId(connection) {
+  static async getInventoryAccountId(connection, _materialId = null, referenceType = null) {
     // 当前标准成本流程统一使用配置中心的库存商品科目。
     // 如果企业按物料分类分账，应在配置层增加分类映射后再扩展这里。
     await accountingConfig.loadFromDatabase(db);
-    const accountCode = accountingConfig.getAccountCode('INVENTORY_GOODS');
+    const accountKey = ['purchase_inbound', 'purchase_receipt', 'purchase_return'].includes(referenceType)
+      ? 'RAW_MATERIALS'
+      : 'INVENTORY_GOODS';
+    const accountCode = accountingConfig.getAccountCode(accountKey);
 
     const [accounts] = await connection.execute(
       'SELECT id FROM gl_accounts WHERE account_code = ? LIMIT 1',

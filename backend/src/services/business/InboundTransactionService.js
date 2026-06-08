@@ -613,6 +613,19 @@ class InboundTransactionService {
         }
       });
     }
+
+    // ✅ 统一入口：入库后检查所有 in_production/in_procurement 的销售订单
+    // 如果库存已满足，自动预留并流转为 ready_to_ship。
+    // 使用 DLQService.runWithRetry 确保在外层事务提交后通过独立连接可靠执行，
+    // 自带重试机制（3次，间隔递增），从根本上消除 setImmediate 的 race condition。
+    DLQService.runWithRetry(
+      `销售订单库存满足检查-${inboundData.inbound_no}`,
+      { inbound_no: inboundData.inbound_no },
+      async () => {
+        const SalesOrderStatusService = require('./SalesOrderStatusService');
+        await SalesOrderStatusService.checkAndReleasePendingOrders();
+      }
+    );
   }
 }
 

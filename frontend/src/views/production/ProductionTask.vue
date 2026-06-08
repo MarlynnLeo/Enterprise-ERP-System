@@ -381,7 +381,7 @@
                 >
                   <div style="display: flex; justify-content: space-between; align-items: center">
                     <span>{{ template.name }}</span>
-                    <span style="color: var(--color-text-secondary); font-size: 13px">{{ (template.processes || []).length }}个工序</span>
+                    <span style="color: var(--color-text-secondary); font-size: 13px">{{ (template.details || []).length }}个工序</span>
                   </div>
                 </el-option>
               </el-select>
@@ -1057,8 +1057,8 @@ const handleEdit = async (record) => {
     productName: record.product_name || record.productName || '',
     quantity: quantity,
     manager: record.manager || '',
-    startDate: record.startDate ? new Date(record.startDate) : null,
-    expectedEndDate: record.expectedEndDate ? new Date(record.expectedEndDate) : null,
+    startDate: record.start_date || record.startDate ? new Date(record.start_date || record.startDate) : null,
+    expectedEndDate: record.expected_end_date || record.expectedEndDate ? new Date(record.expected_end_date || record.expectedEndDate) : null,
     remarks: record.remarks || ''
   }
 
@@ -1094,7 +1094,25 @@ const handleEdit = async (record) => {
     }
   }
 
+  // 根据产品ID自动加载工序模板和生产组
+  const productId = formData.value.productId;
+  if (productId) {
+    // 1. 加载工序模板（fetchProductProcessTemplates 会自动选择该产品的默认模板）
+    await fetchProductProcessTemplates(productId);
+    // 2. 加载生产组（fetchProductionGroupByProduct 会从物料设置自动获取并设置 manager）
+    await fetchProductionGroupByProduct(productId);
+    // 只有当任务已有有效负责人（非默认的"未分配"）时，才用任务记录的值覆盖
+    if (record.manager && record.manager !== '未分配') {
+      formData.value.manager = record.manager;
+    }
+  }
+
   modalVisible.value = true
+
+  // 加载完成后触发排程计算（需要在 modalVisible 之后，确保表单已渲染）
+  if (formData.value.productId && formData.value.quantity && formData.value.startDate) {
+    doScheduleCalculation()
+  }
 }
 
 const handleModalOk = async () => {
@@ -1504,7 +1522,7 @@ const handleMaterialIssue = async () => {
       status: 'draft',
       productionTaskId: task.id,
       items: materialsRes.data.map(material => ({
-        materialId: material.materialId,
+        materialId: material.materialId || material.material_id || material.id,
         quantity: material.requiredQuantity,
         unitId: material.unitId || material.unit_id,
         remark: `任务${task.code}所需`

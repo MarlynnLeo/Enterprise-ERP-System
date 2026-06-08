@@ -35,11 +35,6 @@
               </div>
             </div>
           </div>
-          <div class="card-footer">
-            <el-button type="primary" link @click="$router.push('/production/plan')">
-              查看详情 <el-icon class="el-icon--right"><ArrowRight /></el-icon>
-            </el-button>
-          </div>
         </el-card>
       </el-col>
       <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-20">
@@ -56,11 +51,6 @@
                 <div class="stat-secondary-label">进行中</div>
               </div>
             </div>
-          </div>
-          <div class="card-footer">
-            <el-button type="success" link @click="$router.push('/production/task')">
-              查看详情 <el-icon class="el-icon--right"><ArrowRight /></el-icon>
-            </el-button>
           </div>
         </el-card>
       </el-col>
@@ -79,11 +69,6 @@
               </div>
             </div>
           </div>
-          <div class="card-footer">
-            <el-button type="info" link @click="$router.push('/production/process')">
-              查看详情 <el-icon class="el-icon--right"><ArrowRight /></el-icon>
-            </el-button>
-          </div>
         </el-card>
       </el-col>
       <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-20">
@@ -100,11 +85,6 @@
                 <div class="stat-secondary-label">今日报工</div>
               </div>
             </div>
-          </div>
-          <div class="card-footer">
-            <el-button type="warning" link @click="$router.push('/production/report')">
-              查看详情 <el-icon class="el-icon--right"><ArrowRight /></el-icon>
-            </el-button>
           </div>
         </el-card>
       </el-col>
@@ -230,7 +210,7 @@ import { getProductionStatusColor } from '@/constants/systemConstants'
 import { formatDate as formatDateUtil } from '@/utils/helpers/formatters';
 import Chart from '@/utils/chartCore';
 import { ElMessage } from 'element-plus';
-import { Search, ArrowRight } from '@element-plus/icons-vue';
+import { Search } from '@element-plus/icons-vue';
 import { productionApi } from '@/services/api';
 import { useDashboard, useCharts } from '@/composables/useDashboard';
 // 权限计算属性

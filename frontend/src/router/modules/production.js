@@ -96,5 +96,15 @@ export default [
             permission: 'production:gantt',
             title: '排程甘特图'
         }
+    },
+    {
+        path: 'production/calendar',
+        name: 'productionCalendar',
+        component: () => import('../../views/production/ProductionCalendar.vue'),
+        meta: {
+            requiresAuth: true,
+            permission: 'production:calendar',
+            title: '生产日历'
+        }
     }
 ]

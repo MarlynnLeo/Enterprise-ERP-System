@@ -69,7 +69,7 @@ const getOrders = async (req, res) => {
              COUNT(*) OVER() as total_count
       FROM purchase_orders o
       LEFT JOIN suppliers s ON o.supplier_id = s.id
-      WHERE 1=1
+      WHERE o.deleted_at IS NULL
     `;
 
     const queryParams = [];
@@ -189,7 +189,7 @@ const getOrder = async (req, res) => {
       orderId = parseInt(id);
     } else {
       // 如果不是纯数字，按订单号查询获取ID
-      const query = 'SELECT id FROM purchase_orders WHERE order_no = ?';
+      const query = 'SELECT id FROM purchase_orders WHERE order_no = ? AND deleted_at IS NULL';
       const [rows] = await pool.query(query, [id]);
 
       if (rows.length === 0) {
@@ -538,7 +538,7 @@ const batchUpdateOrderStatus = async (req, res) => {
 
     const result = await DBManager.executeTransaction(async (connection) => {
       const [orders] = await connection.query(
-        'SELECT id, order_no, status FROM purchase_orders WHERE id IN (?) FOR UPDATE',
+        'SELECT id, order_no, status FROM purchase_orders WHERE id IN (?) AND deleted_at IS NULL FOR UPDATE',
         [uniqueIds]
       );
       const orderMap = new Map(orders.map((order) => [Number(order.id), order]));
@@ -625,6 +625,7 @@ const getStatistics = async (req, res) => {
         COUNT(CASE WHEN status = '${PURCHASE_STATUS.COMPLETED}' THEN 1 END) as completed_orders,
         COUNT(CASE WHEN status = '${PURCHASE_STATUS.CANCELLED}' THEN 1 END) as cancelled_orders
       FROM purchase_orders
+      WHERE deleted_at IS NULL
     `;
     const [countRows] = await pool.query(ordersCountQuery);
 
@@ -636,7 +637,8 @@ const getStatistics = async (req, res) => {
     const monthlyAmountQuery = `
       SELECT COALESCE(SUM(total_amount), 0) as monthly_amount
       FROM purchase_orders
-      WHERE order_date BETWEEN ? AND ?
+      WHERE deleted_at IS NULL
+        AND order_date BETWEEN ? AND ?
     `;
     const [amountRows] = await pool.query(monthlyAmountQuery, [
       firstDayOfMonth.toISOString().split('T')[0],
@@ -646,7 +648,8 @@ const getStatistics = async (req, res) => {
     const topSuppliersQuery = `
       SELECT supplier_id, supplier_name, COUNT(*) as order_count, SUM(total_amount) as total_spent
       FROM purchase_orders
-      WHERE status IN ('${PURCHASE_STATUS.APPROVED}', '${PURCHASE_STATUS.COMPLETED}')
+      WHERE deleted_at IS NULL
+        AND status IN ('${PURCHASE_STATUS.APPROVED}', '${PURCHASE_STATUS.COMPLETED}')
       GROUP BY supplier_id, supplier_name
       ORDER BY total_spent DESC
       LIMIT 5
@@ -671,7 +674,7 @@ const getOrderById = async (id) => {
       SELECT o.*, s.code as supplier_code
       FROM purchase_orders o
       LEFT JOIN suppliers s ON o.supplier_id = s.id
-      WHERE o.id = ?
+      WHERE o.id = ? AND o.deleted_at IS NULL
     `;
     const [rows] = await pool.query(query, [id]);
 
@@ -821,6 +824,8 @@ const getRequisitions = async (req, res) => {
         JOIN purchase_orders po ON poi.order_id = po.id
         WHERE po.requisition_id IN (?)
         AND po.requisition_id IS NOT NULL
+        AND po.deleted_at IS NULL
+        AND po.status <> 'cancelled'
         GROUP BY po.requisition_id, poi.material_code
       `;
       const [orderedRows] = await pool.query(orderedQuery, [requisitionIds]);
@@ -912,6 +917,8 @@ const getRequisition = async (req, res) => {
       JOIN purchase_orders po ON poi.order_id = po.id
       WHERE po.requisition_id = ?
       AND po.requisition_id IS NOT NULL
+      AND po.deleted_at IS NULL
+      AND po.status <> 'cancelled'
       GROUP BY poi.material_code
     `;
     const [orderedRows] = await pool.query(orderedQuery, [id]);

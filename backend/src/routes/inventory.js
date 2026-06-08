@@ -284,11 +284,10 @@ router.post(
   inventoryStockController.adjustStock
 );
 
-// 统一的库存检查API
+// 统一的库存检查API（只读查询，仅需登录认证，不做细粒度权限控制）
 router.post(
   '/check-stock-sufficiency',
   authenticateToken,
-  requirePermission('inventory:stock:view'),
   inventoryStockController.checkStockSufficiency
 );
 

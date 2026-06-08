@@ -170,29 +170,21 @@ const advancedLeave = (element, done) => {
   margin-bottom: 0;
 }
 
-/* Unified min-width for all form controls inside search cards.
-   Prevents input fields from being too narrow on any page. */
-.finance-query-card__basic :deep(.el-input),
-.finance-query-card__basic :deep(.el-select),
-.finance-query-card__basic :deep(.el-cascader),
-.finance-query-card__basic :deep(.el-input-number),
-.finance-query-card__advanced :deep(.el-input),
-.finance-query-card__advanced :deep(.el-select),
-.finance-query-card__advanced :deep(.el-cascader),
-.finance-query-card__advanced :deep(.el-input-number) {
-  min-width: 200px;
+/* 搜索表单项固定宽度策略：
+   1. 宽度约束加在 el-form-item__content（包裹 input 的容器）上
+   2. input 自然填满容器（Element Plus 默认 width:100%）
+   3. clearable 的 × 出现/消失只影响 input 内部文字区域缩放，不改变外层容器宽度
+   4. 按钮区域位置完全不受影响 */
+.finance-query-card__basic :deep(.el-form-item:not(.finance-query-card__actions) .el-form-item__content),
+.finance-query-card__advanced :deep(.el-form-item .el-form-item__content) {
+  --finance-query-control-width: 200px;
+  width: var(--finance-query-control-width);
+  flex: 0 0 var(--finance-query-control-width);
 }
 
-.finance-query-card__basic :deep(.el-date-editor),
-.finance-query-card__advanced :deep(.el-date-editor) {
-  min-width: 200px;
-}
-
-.finance-query-card__basic :deep(.el-date-editor--daterange),
-.finance-query-card__basic :deep(.el-date-editor--datetimerange),
-.finance-query-card__advanced :deep(.el-date-editor--daterange),
-.finance-query-card__advanced :deep(.el-date-editor--datetimerange) {
-  min-width: 280px;
+.finance-query-card__basic :deep(.el-form-item:not(.finance-query-card__actions) .el-form-item__content:has(.el-date-editor--daterange, .el-date-editor--datetimerange, .el-date-editor--monthrange, .el-date-editor--yearrange)),
+.finance-query-card__advanced :deep(.el-form-item .el-form-item__content:has(.el-date-editor--daterange, .el-date-editor--datetimerange, .el-date-editor--monthrange, .el-date-editor--yearrange)) {
+  --finance-query-control-width: 280px;
 }
 
 .finance-query-card__actions {

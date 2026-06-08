@@ -2353,6 +2353,18 @@ const appendRoutePermissionEntries = (menus) => {
       status: 1
     },
     {
+      id: 9311,
+      parentId: 2,
+      name: '生产日历',
+      path: '/production/calendar',
+      component: 'production/ProductionCalendar',
+      icon: 'icon-calendar',
+      type: 1,
+      permission: 'production:calendar',
+      sort: 10,
+      status: 1
+    },
+    {
       id: 9305,
       parentId: 5,
       name: 'Purchase History',

@@ -29,11 +29,6 @@
               </div>
             </div>
           </div>
-          <div class="card-footer">
-            <el-button type="primary" link @click="$router.push('/quality/incoming')">
-              查看详情 <el-icon class="el-icon--right"><ArrowRight /></el-icon>
-            </el-button>
-          </div>
         </el-card>
       </el-col>
 
@@ -51,11 +46,6 @@
                 <div class="stat-secondary-label">合格率</div>
               </div>
             </div>
-          </div>
-          <div class="card-footer">
-            <el-button type="success" link @click="$router.push('/quality/process')">
-              查看详情 <el-icon class="el-icon--right"><ArrowRight /></el-icon>
-            </el-button>
           </div>
         </el-card>
       </el-col>
@@ -75,11 +65,6 @@
               </div>
             </div>
           </div>
-          <div class="card-footer">
-            <el-button type="info" link @click="$router.push('/quality/final')">
-              查看详情 <el-icon class="el-icon--right"><ArrowRight /></el-icon>
-            </el-button>
-          </div>
         </el-card>
       </el-col>
 
@@ -97,11 +82,6 @@
                 <div class="stat-secondary-label">不良类型</div>
               </div>
             </div>
-          </div>
-          <div class="card-footer">
-            <el-button type="warning" link @click="$router.push('/quality/traceability')">
-              查看详情 <el-icon class="el-icon--right"><ArrowRight /></el-icon>
-            </el-button>
           </div>
         </el-card>
       </el-col>
@@ -222,7 +202,7 @@ import { ref, computed, onMounted, onBeforeUnmount, reactive, watch } from 'vue'
 import { useRouter } from 'vue-router';
 import Chart from '@/utils/chartCore';
 import { ElMessage } from 'element-plus';
-import { Search, ArrowRight } from '@element-plus/icons-vue';
+import { Search } from '@element-plus/icons-vue';
 import { qualityApi } from '@/api';
 import { createLineChartConfig, createPieChartConfig, chartColors } from '@/utils/chartConfig';
 import { alphaColor, getCssTokenValue } from '@/utils/designTokens';

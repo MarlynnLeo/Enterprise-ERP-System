@@ -21,7 +21,7 @@ class SchedulingService {
    */
   static async getDefaultCalendar() {
     const [rows] = await pool.query(
-      'SELECT id, name, work_start, work_end, break_start, break_end, exclude_weekends, is_default, created_at, updated_at FROM production_calendar WHERE is_default = 1 LIMIT 1'
+      'SELECT id, name, work_start, work_end, break_start, break_end, dinner_start, dinner_end, exclude_weekends, is_default, created_at, updated_at FROM production_calendar WHERE is_default = 1 LIMIT 1'
     );
     if (rows.length === 0) {
       // 兜底默认值
@@ -30,10 +30,48 @@ class SchedulingService {
         work_end: '17:30:00',
         break_start: '12:00:00',
         break_end: '13:00:00',
+        dinner_start: null,
+        dinner_end: null,
         exclude_weekends: 1,
       };
     }
     return rows[0];
+  }
+
+  /**
+   * 预加载指定日期范围的日历覆盖数据
+   * @param {Date|string} startDate - 起始日期
+   * @param {number} [days=90] - 加载天数
+   * @returns {Map<string, Object>} dateStr => override row
+   */
+  static async getOverridesMap(startDate, days = 90) {
+    const start = new Date(startDate);
+    const end = new Date(start);
+    end.setDate(end.getDate() + days);
+
+    const startStr = this._formatDateOnly(start);
+    const endStr = this._formatDateOnly(end);
+
+    const [rows] = await pool.query(
+      'SELECT calendar_date, is_workday, work_start, work_end, break_start, break_end, dinner_start, dinner_end, label FROM production_calendar_overrides WHERE calendar_date BETWEEN ? AND ?',
+      [startStr, endStr]
+    );
+
+    const map = new Map();
+    for (const row of rows) {
+      // MySQL DATE 类型通过 mysql2 返回 UTC 时间戳，需转本地日期
+      let dateKey;
+      if (row.calendar_date instanceof Date) {
+        // 使用 UTC 方法获取存储的原始日期（MySQL DATE 没有时区概念）
+        const d = row.calendar_date;
+        const pad = (n) => String(n).padStart(2, '0');
+        dateKey = `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+      } else {
+        dateKey = String(row.calendar_date).substring(0, 10);
+      }
+      map.set(dateKey, row);
+    }
+    return map;
   }
 
   /**
@@ -70,13 +108,13 @@ class SchedulingService {
 
     let totalMinutesPerUnit = 0;
     const processes = steps.map((s) => {
-      // 注意：数据库字段名为 standard_hours 但实际存储的是「分钟/件」
-      // 例如：standard_hours = 0.10 表示每件需要 0.10 分钟（≈6秒）
-      const minutesPerUnit = parseFloat(s.standard_hours) || 0;
+      // standard_hours 存储的是「小时/件」，需要乘以 60 转换为分钟/件
+      // 例如：standard_hours = 0.20 表示每件需要 0.20 小时 = 12 分钟
+      const minutesPerUnit = (parseFloat(s.standard_hours) || 0) * 60;
       totalMinutesPerUnit += minutesPerUnit;
       return {
         name: s.name,
-        standardHours: minutesPerUnit,  // 实为分钟/件
+        standardHours: minutesPerUnit,  // 分钟/件（已从小时转换）
         sequence: s.order_num,
       };
     });
@@ -112,16 +150,19 @@ class SchedulingService {
     // 获取班次配置
     const calendar = await this.getDefaultCalendar();
 
+    // 预加载日历覆盖数据（覆盖的工作日/休息日）
+    const overridesMap = await this.getOverridesMap(startTime);
+
     // 推算结束时间（考虑午休和工作时间）
     const startDate = new Date(startTime);
-    const estimatedEndTime = this._advanceWorkMinutes(startDate, totalMinutes, calendar);
+    const estimatedEndTime = this._advanceWorkMinutes(startDate, totalMinutes, calendar, overridesMap);
 
     // 计算各工序的计划时间（串行排列）
     let cursor = new Date(startDate);
     const processSchedule = processes.map((proc) => {
       const procMinutes = Math.ceil(proc.standardHours * quantity);
       const procStart = new Date(cursor);
-      const procEnd = this._advanceWorkMinutes(new Date(cursor), procMinutes, calendar);
+      const procEnd = this._advanceWorkMinutes(new Date(cursor), procMinutes, calendar, overridesMap);
       cursor = new Date(procEnd);
       return {
         name: proc.name,
@@ -250,6 +291,7 @@ class SchedulingService {
    */
   static async fillProcessSchedule(taskId, startTime, quantity, connection) {
     const calendar = await this.getDefaultCalendar();
+    const overridesMap = await this.getOverridesMap(startTime);
 
     // 获取任务的工序列表
     const [processes] = await connection.query(
@@ -263,9 +305,9 @@ class SchedulingService {
     let cursor = new Date(startTime);
 
     for (const proc of processes) {
-      const minutes = Math.ceil((parseFloat(proc.standard_hours) || 0) * quantity);
+      const minutes = Math.ceil((parseFloat(proc.standard_hours) || 0) * 60 * quantity);
       const procStart = new Date(cursor);
-      const procEnd = this._advanceWorkMinutes(new Date(cursor), minutes, calendar);
+      const procEnd = this._advanceWorkMinutes(new Date(cursor), minutes, calendar, overridesMap);
 
       await connection.query(
         `UPDATE production_processes
@@ -343,6 +385,7 @@ class SchedulingService {
 
     const connection = await pool.getConnection();
     const calendar = await this.getDefaultCalendar();
+    const overridesMap = await this.getOverridesMap(startTime);
     const scheduled = [];
     const groupResults = [];
 
@@ -353,6 +396,7 @@ class SchedulingService {
         const groupScheduled = await this._scheduleTaskSequence({
           connection,
           calendar,
+          overridesMap,
           taskIds: group.taskIds,
           startTime,
           groupName: group.name,
@@ -411,6 +455,7 @@ class SchedulingService {
   static async _scheduleTaskSequence({
     connection,
     calendar,
+    overridesMap = new Map(),
     taskIds,
     startTime,
     groupName,
@@ -446,8 +491,8 @@ class SchedulingService {
 
       const taskStart = new Date(cursor);
       const taskEnd = totalMinutes > 0
-        ? this._advanceWorkMinutes(new Date(cursor), totalMinutes, calendar)
-        : this._advanceWorkMinutes(new Date(cursor), 480, calendar);
+        ? this._advanceWorkMinutes(new Date(cursor), totalMinutes, calendar, overridesMap)
+        : this._advanceWorkMinutes(new Date(cursor), 480, calendar, overridesMap);
 
       if (totalMinutes <= 0) {
         logger.warn(`[批量排程] 任务 ${task.code} 缺少标准工时，已按 1 个工作日排程`);
@@ -489,9 +534,9 @@ class SchedulingService {
 
       let procCursor = new Date(taskStart);
       for (const proc of processes) {
-        const minutes = Math.ceil((parseFloat(proc.standard_hours) || 0) * quantity);
+        const minutes = Math.ceil((parseFloat(proc.standard_hours) || 0) * 60 * quantity);
         const procStart = new Date(procCursor);
-        const procEnd = this._advanceWorkMinutes(new Date(procCursor), minutes, calendar);
+        const procEnd = this._advanceWorkMinutes(new Date(procCursor), minutes, calendar, overridesMap);
 
         await connection.query(
           `UPDATE production_processes
@@ -618,18 +663,48 @@ class SchedulingService {
     }
   }
 
-  static _advanceWorkMinutes(start, minutes, calendar) {
+  static _advanceWorkMinutes(start, minutes, calendar, overridesMap = new Map()) {
     const cursor = new Date(start);
     let remaining = minutes;
 
-    // 解析班次时间
-    const [wsH, wsM] = calendar.work_start.split(':').map(Number);
-    const [weH, weM] = calendar.work_end.split(':').map(Number);
-    const [bsH, bsM] = (calendar.break_start || '12:00:00').split(':').map(Number);
-    const [beH, beM] = (calendar.break_end || '13:00:00').split(':').map(Number);
+    // 解析全局默认班次时间
+    const parseTime = (t) => t ? t.split(':').map(Number) : null;
+    const defWs = parseTime(calendar.work_start);
+    const defWe = parseTime(calendar.work_end);
+    const defBs = parseTime(calendar.break_start || '12:00:00');
+    const defBe = parseTime(calendar.break_end || '13:00:00');
+    const defDs = parseTime(calendar.dinner_start);
+    const defDe = parseTime(calendar.dinner_end);
 
-    // 每天有效工作分钟数 = (下班-上班) - (午休结束-午休开始)
+    const toMin = (hm) => hm ? hm[0] * 60 + hm[1] : null;
+    const setTime = (d, hm) => { d.setHours(hm[0], hm[1], 0, 0); };
 
+    /**
+     * 构建一天的工作时段列表（排除所有休息段）
+     * @returns {Array<[number,number,number[]]>} [[startMin, endMin, endHM], ...]
+     */
+    const buildWorkSegments = (ws, we, bs, be, ds, de) => {
+      const wsMin = toMin(ws), weMin = toMin(we);
+      const breaks = [];
+      if (bs && be) breaks.push([toMin(bs), toMin(be), be]);
+      if (ds && de) breaks.push([toMin(ds), toMin(de), de]);
+      breaks.sort((a, b) => a[0] - b[0]);
+
+      const segments = [];
+      let segStart = wsMin;
+      for (const [bStart, bEnd, bEndHM] of breaks) {
+        if (bStart > segStart && bStart < weMin) {
+          segments.push({ start: segStart, end: Math.min(bStart, weMin), nextBreakEnd: bEndHM });
+          segStart = Math.max(bEnd, segStart);
+        } else if (bEnd > segStart) {
+          segStart = Math.max(bEnd, segStart);
+        }
+      }
+      if (segStart < weMin) {
+        segments.push({ start: segStart, end: weMin, nextBreakEnd: null });
+      }
+      return segments;
+    };
 
     // 安全保护：最多循环365天
     let safetyCounter = 0;
@@ -637,68 +712,99 @@ class SchedulingService {
     while (remaining > 0 && safetyCounter < 365 * 2) {
       safetyCounter++;
 
-      // 跳过周末
-      if (calendar.exclude_weekends) {
-        const dow = cursor.getDay(); // 0=周日, 6=周六
-        if (dow === 0 || dow === 6) {
+      // 获取当天日期 key
+      const dateKey = this._formatDateOnly(cursor);
+      const override = overridesMap.get(dateKey);
+
+      // 确定当天的班次参数
+      let dayWs = defWs, dayWe = defWe;
+      let dayBs = defBs, dayBe = defBe;
+      let dayDs = defDs, dayDe = defDe;
+
+      if (override) {
+        if (!override.is_workday) {
           cursor.setDate(cursor.getDate() + 1);
-          cursor.setHours(wsH, wsM, 0, 0);
+          setTime(cursor, defWs);
           continue;
         }
+        if (override.work_start) dayWs = parseTime(override.work_start);
+        if (override.work_end) dayWe = parseTime(override.work_end);
+        if (override.break_start) dayBs = parseTime(override.break_start);
+        if (override.break_end) dayBe = parseTime(override.break_end);
+        if (override.dinner_start) dayDs = parseTime(override.dinner_start);
+        if (override.dinner_end) dayDe = parseTime(override.dinner_end);
+      } else {
+        if (calendar.exclude_weekends) {
+          const dow = cursor.getDay();
+          if (dow === 0 || dow === 6) {
+            cursor.setDate(cursor.getDate() + 1);
+            setTime(cursor, defWs);
+            continue;
+          }
+        }
       }
 
-      const curH = cursor.getHours();
-      const curM = cursor.getMinutes();
-      const curMinOfDay = curH * 60 + curM;
-      const workStartMin = wsH * 60 + wsM;
-      const workEndMin = weH * 60 + weM;
-      const breakStartMin = bsH * 60 + bsM;
-      const breakEndMin = beH * 60 + beM;
+      const curMinOfDay = cursor.getHours() * 60 + cursor.getMinutes();
+      const workStartMin = toMin(dayWs);
+      const workEndMin = toMin(dayWe);
 
-      // 如果在上班时间之前，跳到上班时间
+      // 上班前 → 跳到上班
       if (curMinOfDay < workStartMin) {
-        cursor.setHours(wsH, wsM, 0, 0);
+        setTime(cursor, dayWs);
         continue;
       }
 
-      // 如果在下班时间之后，跳到第二天上班
+      // 下班后 → 跳到下一天
       if (curMinOfDay >= workEndMin) {
         cursor.setDate(cursor.getDate() + 1);
-        cursor.setHours(wsH, wsM, 0, 0);
+        setTime(cursor, defWs);
         continue;
       }
 
-      // 如果在午休时间内，跳到午休结束
-      if (curMinOfDay >= breakStartMin && curMinOfDay < breakEndMin) {
-        cursor.setHours(beH, beM, 0, 0);
-        continue;
-      }
+      // 构建今天的工作时段
+      const segments = buildWorkSegments(dayWs, dayWe, dayBs, dayBe, dayDs, dayDe);
 
-      // 计算当前时段可用分钟（到下一个中断点）
-      let availableMinutes;
-      if (curMinOfDay < breakStartMin) {
-        // 上午时段：可用到午休开始
-        availableMinutes = breakStartMin - curMinOfDay;
-      } else {
-        // 下午时段：可用到下班
-        availableMinutes = workEndMin - curMinOfDay;
-      }
+      // 找到当前所在的时段
+      let handled = false;
+      for (let i = 0; i < segments.length; i++) {
+        const seg = segments[i];
 
-      if (remaining <= availableMinutes) {
-        // 本时段内完成
-        cursor.setMinutes(cursor.getMinutes() + remaining);
-        remaining = 0;
-      } else {
-        // 本时段不够，用完后跳到下一时段
-        remaining -= availableMinutes;
-        if (curMinOfDay < breakStartMin) {
-          // 上午用完 → 跳到午休结束
-          cursor.setHours(beH, beM, 0, 0);
-        } else {
-          // 下午用完 → 跳到第二天上班
-          cursor.setDate(cursor.getDate() + 1);
-          cursor.setHours(wsH, wsM, 0, 0);
+        // 在休息段内（当前时间在上一段结束和本段开始之间）
+        if (curMinOfDay < seg.start) {
+          // 跳到本段开始
+          cursor.setHours(Math.floor(seg.start / 60), seg.start % 60, 0, 0);
+          handled = true;
+          break;
         }
+
+        // 在本段内
+        if (curMinOfDay >= seg.start && curMinOfDay < seg.end) {
+          const availableMinutes = seg.end - curMinOfDay;
+
+          if (remaining <= availableMinutes) {
+            cursor.setMinutes(cursor.getMinutes() + remaining);
+            remaining = 0;
+          } else {
+            remaining -= availableMinutes;
+            // 跳到下一段
+            if (i + 1 < segments.length) {
+              const next = segments[i + 1];
+              cursor.setHours(Math.floor(next.start / 60), next.start % 60, 0, 0);
+            } else {
+              // 今天最后一段用完，跳到明天
+              cursor.setDate(cursor.getDate() + 1);
+              setTime(cursor, defWs);
+            }
+          }
+          handled = true;
+          break;
+        }
+      }
+
+      if (!handled) {
+        // 不在任何工作段内（在最后一个休息段之后、下班之前），跳到下一天
+        cursor.setDate(cursor.getDate() + 1);
+        setTime(cursor, defWs);
       }
     }
 
@@ -712,6 +818,15 @@ class SchedulingService {
     if (!(date instanceof Date) || isNaN(date)) return null;
     const pad = (n) => String(n).padStart(2, '0');
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+  }
+
+  /**
+   * 格式化日期为 YYYY-MM-DD
+   */
+  static _formatDateOnly(date) {
+    if (!(date instanceof Date) || isNaN(date)) return null;
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
   }
 
   static async getGanttData({ startDate, endDate } = {}) {
@@ -924,11 +1039,6 @@ class SchedulingService {
     return Number.isFinite(time) ? new Date(time).toISOString() : null;
   }
 
-  static _formatDateOnly(date) {
-    if (!(date instanceof Date) || isNaN(date)) return null;
-    const pad = (n) => String(n).padStart(2, '0');
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-  }
 }
 
 module.exports = SchedulingService;
