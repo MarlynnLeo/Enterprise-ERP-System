@@ -54,9 +54,10 @@ function checkPermission(authStore, permission) {
     return true
   }
 
-  // 2. 侧边栏菜单特殊逻辑：如果检查的是父级菜单（如 'sales'），
+  // 2. 侧边栏顶级菜单特殊逻辑：如果检查的是父级菜单（如 'sales'），
   //    只要用户拥有该模块下的任何子权限，就允许看到该父级菜单入口
-  return authStore.hasChildPermission(permission)
+  //    具体按钮/动作权限必须精确命中，避免 parent -> child 的误放大。
+  return !String(permission).includes(':') && authStore.hasChildPermission(permission)
 }
 
 export const permission = {

@@ -71,7 +71,7 @@ class DomainEventService {
 
   static async dispatchPending(limit = 20) {
     const connection = await db.pool.getConnection();
-    let events = [];
+    let events;
 
     try {
       await connection.beginTransaction();

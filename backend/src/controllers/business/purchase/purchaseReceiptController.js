@@ -368,13 +368,14 @@ const createReceipt = async (req, res) => {
 
     // 兼容两种命名方式；只要带 inspection_id，就按质检来源处理，避免前端漏传标记时绕过去重与校验
     const isFromInspection = Boolean(from_inspection || fromInspection || inspectionId);
-    const requestId = req.headers['x-request-id'] || req.headers['x-correlation-id'] || null;
     const clientIdempotencyKey = getIdempotencyKey(req);
     const receiptIdempotencyKey = inspectionId
       ? `purchase_receipt:inspection:${inspectionId}`
       : clientIdempotencyKey
         ? `purchase_receipt:manual:${clientIdempotencyKey}`
         : null;
+    // 强制转换items为数组
+    let items = Array.isArray(rawItems) ? rawItems : [];
     const idempotencyHash = sha256(stableStringify({
       orderId,
       supplierId,
@@ -391,9 +392,6 @@ const createReceipt = async (req, res) => {
       error.code = 'VALIDATION_ERROR';
       return error;
     };
-
-    // 强制转换items为数组
-    let items = Array.isArray(rawItems) ? rawItems : [];
 
     logger.info('解构后的数据:', {
       orderId,

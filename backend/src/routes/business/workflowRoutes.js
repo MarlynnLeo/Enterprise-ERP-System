@@ -17,9 +17,10 @@ router.put('/templates/:id', authenticateToken, requirePermission('system:workfl
 router.delete('/templates/:id', authenticateToken, requirePermission('system:workflow:delete'), ctrl.deleteTemplate);
 
 // 审批操作
+// 审批动作由流程实例本身校验：发起人只能撤回自己的流程，审批人只能处理分配给自己的节点。
 router.post('/start', authenticateToken, requirePermission('system:workflow:use'), ctrl.startWorkflow);
-router.post('/instances/:id/approve', authenticateToken, requirePermission('system:workflow:use'), ctrl.handleApproval);
-router.post('/instances/:id/withdraw', authenticateToken, requirePermission('system:workflow:use'), ctrl.withdrawWorkflow);
+router.post('/instances/:id/approve', authenticateToken, ctrl.handleApproval);
+router.post('/instances/:id/withdraw', authenticateToken, ctrl.withdrawWorkflow);
 
 // 查询
 router.get('/instances/:id', authenticateToken, ctrl.getInstanceById);

@@ -68,6 +68,7 @@ class WorkflowService {
 
   /** 创建模板 */
   async createTemplate(data, userId) {
+    this._validateTemplateData(data);
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
@@ -100,6 +101,7 @@ class WorkflowService {
 
   /** 更新模板 */
   async updateTemplate(id, data) {
+    this._validateTemplateData(data, { requireCode: false });
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
@@ -243,6 +245,10 @@ class WorkflowService {
 
   /** 审批操作（通过/拒绝） */
   async handleApproval({ instance_id, node_id, action, comment, approver_id }) {
+    if (!['approve', 'reject'].includes(action)) {
+      throw new Error('无效的审批动作');
+    }
+
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
@@ -255,12 +261,12 @@ class WorkflowService {
       if (!node) throw new Error('审批节点不存在或已处理');
 
       // 1.5 验证审批人身份：只有节点指定的审批人或管理员可操作
-      if (node.approver_id && node.approver_id !== approver_id) {
-        const PermissionService = require('../../services/PermissionService');
-        const isAdmin = await PermissionService.isAdmin(approver_id);
-        if (!isAdmin) {
-          throw new Error('您不是该审批节点的指定审批人，无权操作');
-        }
+      const isAdmin = await PermissionService.isAdmin(approver_id);
+      if (!node.approver_id && !isAdmin) {
+        throw new Error('该审批节点未分配审批人，请联系管理员修复流程模板');
+      }
+      if (node.approver_id && node.approver_id !== approver_id && !isAdmin) {
+        throw new Error('您不是该审批节点的指定审批人，无权操作');
       }
 
       // 获取审批人姓名
@@ -562,6 +568,54 @@ class WorkflowService {
       throw new Error(`审批节点 ${nodeId} 无法自动分配审批人，请检查流程模板审批人配置`);
     }
   }
+
+  _validateTemplateData(data = {}, options = {}) {
+    const { requireCode = true } = options;
+    if (requireCode && !String(data.code || '').trim()) {
+      throw new Error('工作流模板编码不能为空');
+    }
+    if (!String(data.name || '').trim()) {
+      throw new Error('工作流模板名称不能为空');
+    }
+    if (!String(data.business_type || '').trim()) {
+      throw new Error('工作流模板业务类型不能为空');
+    }
+    if (!Array.isArray(data.nodes) || data.nodes.length === 0) {
+      throw new Error('工作流模板至少需要一个审批节点');
+    }
+
+    const allowedApproverTypes = new Set(['user', 'role', 'department', 'self', 'manager']);
+    const allowedMultiApproveTypes = new Set(['any', 'all', 'sequential']);
+    data.nodes.forEach((node, index) => {
+      const label = `第 ${index + 1} 个审批节点`;
+      if (!String(node.node_name || '').trim()) {
+        throw new Error(`${label}名称不能为空`);
+      }
+      const approverType = node.approver_type || 'user';
+      if (!allowedApproverTypes.has(approverType)) {
+        throw new Error(`${label}审批人类型无效`);
+      }
+      const multiApproveType = node.multi_approve_type || 'any';
+      if (!allowedMultiApproveTypes.has(multiApproveType)) {
+        throw new Error(`${label}多人审批类型无效`);
+      }
+
+      if (['user', 'role', 'department'].includes(approverType)) {
+        const rawIds = node.approver_ids;
+        const ids = Array.isArray(rawIds)
+          ? rawIds
+          : (rawIds ? JSON.parse(rawIds) : []);
+        const validIds = ids.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0);
+        if (validIds.length === 0) {
+          throw new Error(`${label}需要配置审批人/角色/部门 ID`);
+        }
+        node.approver_ids = validIds;
+      } else {
+        node.approver_ids = null;
+      }
+    });
+  }
+
   /** 插入模板节点（统一节点写入逻辑，消除 createTemplate/updateTemplate 重复） */
   async _insertTemplateNode(conn, templateId, node) {
     await conn.query(

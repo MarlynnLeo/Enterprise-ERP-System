@@ -76,6 +76,21 @@ const validateEffectiveWorkdayTimes = (item, defaultCalendar) => validateTimePai
   dinner_end: valueOrDefault(item.dinner_end, defaultCalendar.dinner_end),
 }, true);
 
+const formatDateOnlyLocal = (date) => {
+  const pad = (value) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+};
+
+const getDefaultCalendarImpactCriteria = () => {
+  const start = new Date();
+  const end = new Date(start);
+  end.setDate(end.getDate() + 180);
+  return {
+    startDate: formatDateOnlyLocal(start),
+    endDate: formatDateOnlyLocal(end),
+  };
+};
+
 // 应用认证中间件
 router.use(authenticateToken);
 router.use(desensitizeSensitiveResponse('view'));
@@ -206,7 +221,11 @@ router.put('/scheduling/calendars/:id', requirePermission(CALENDAR_UPDATE_PERMIS
       return ResponseHandler.error(res, '班次不存在', 'NOT_FOUND', 404);
     }
 
-    ResponseHandler.success(res, updated[0], '班次配置更新成功');
+    const impact = Number(updated[0].is_default || 0) === 1
+      ? await SchedulingService.analyzeCalendarImpact(getDefaultCalendarImpactCriteria())
+      : null;
+
+    ResponseHandler.success(res, { calendar: updated[0], impact }, '班次配置更新成功');
   } catch (error) {
     ResponseHandler.error(res, error.message, 'ERROR', 500, error);
   }
@@ -231,8 +250,10 @@ router.post('/scheduling/calendars/:id/default', requirePermission(CALENDAR_UPDA
     // 设置新默认
     await connection.query('UPDATE production_calendar SET is_default = 1, updated_at = NOW() WHERE id = ?', [id]);
 
+    const impact = await SchedulingService.analyzeCalendarImpact(getDefaultCalendarImpactCriteria(), connection);
+
     await connection.commit();
-    ResponseHandler.success(res, null, `已将「${target[0].name}」设为默认班次`);
+    ResponseHandler.success(res, { impact }, `已将「${target[0].name}」设为默认班次`);
   } catch (error) {
     await connection.rollback();
     ResponseHandler.error(res, error.message, 'ERROR', 500, error);
@@ -278,6 +299,7 @@ router.post('/scheduling/calendar-overrides', requirePermission(CALENDAR_UPDATE_
 
     const defaultCalendar = await SchedulingService.getDefaultCalendar();
     let savedCount = 0;
+    const affectedDates = [];
 
     for (const item of overrides) {
       if (!item || typeof item !== 'object' || !item.calendar_date) {
@@ -343,10 +365,15 @@ router.post('/scheduling/calendar-overrides', requirePermission(CALENDAR_UPDATE_
         ]
       );
       savedCount += 1;
+      affectedDates.push(item.calendar_date);
     }
 
+    const impact = await SchedulingService.analyzeCalendarImpact({
+      dates: [...new Set(affectedDates)],
+    }, connection);
+
     await connection.commit();
-    ResponseHandler.success(res, null, `成功保存 ${savedCount} 条日历覆盖`);
+    ResponseHandler.success(res, { savedCount, impact }, `成功保存 ${savedCount} 条日历覆盖`);
   } catch (error) {
     await connection.rollback();
     ResponseHandler.error(res, error.message, 'ERROR', 500, error);
@@ -363,9 +390,28 @@ router.delete('/scheduling/calendar-overrides/:date', requirePermission(CALENDAR
       return ResponseHandler.error(res, '日期格式不正确，应为 YYYY-MM-DD', 'VALIDATION_ERROR', 400);
     }
     await pool.query('DELETE FROM production_calendar_overrides WHERE calendar_date = ?', [date]);
-    ResponseHandler.success(res, null, '已恢复默认');
+    const impact = await SchedulingService.analyzeCalendarImpact({ dates: [date] });
+    ResponseHandler.success(res, { impact }, '已恢复默认');
   } catch (error) {
     ResponseHandler.error(res, error.message, 'ERROR', 500, error);
+  }
+});
+
+router.post('/scheduling/calendar-impact', requirePermission(CALENDAR_VIEW_PERMISSIONS), async (req, res) => {
+  try {
+    const impact = await SchedulingService.analyzeCalendarImpact(req.body || {});
+    ResponseHandler.success(res, impact, '日历影响分析完成');
+  } catch (error) {
+    ResponseHandler.error(res, error.message, 'ERROR', error.statusCode || 500, error);
+  }
+});
+
+router.post('/scheduling/calendar-impact/recalculate', requirePermission(CALENDAR_UPDATE_PERMISSIONS), async (req, res) => {
+  try {
+    const result = await SchedulingService.rescheduleCalendarImpact(req.body || {});
+    ResponseHandler.success(res, result, '受影响任务已重排');
+  } catch (error) {
+    ResponseHandler.error(res, error.message, 'ERROR', error.statusCode || 500, error);
   }
 });
 

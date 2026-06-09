@@ -219,24 +219,13 @@
             >
               提交审批
             </el-button>
-            <!-- 审批（pending 状态，不受通用权限控制，由审批流程决定谁可操作） -->
-            <el-button
-              v-if="scope.row.status === 'pending'"
-              size="small"
-              type="success"
-              v-permission="'purchase:orders:update'"
-              @click="updateStatus(scope.row.id, 'confirmed')"
-            >
-              批准
-            </el-button>
             <el-button
               v-if="scope.row.status === 'pending'"
               size="small"
               type="warning"
-              v-permission="'purchase:orders:update'"
-              @click="updateStatus(scope.row.id, 'draft')"
+              @click="goApprovalCenter"
             >
-              驳回
+              去审批中心
             </el-button>
             <!-- 到货（confirmed/approved/partial_received 状态） -->
             <el-button
@@ -808,7 +797,7 @@ import { useAuthStore } from '@/stores/auth'
 import { PURCHASE_STATUS_OPTIONS } from '@/constants/purchaseConstants'
 import { parseListData } from '@/utils/responseParser'
 import { loadUserListOptions } from '@/utils/optionLoaders'
-const _router = useRouter()
+const router = useRouter()
 const authStore = useAuthStore()
 // ========== 组合式函数导入 ==========
 import { usePurchaseOrderForm } from './composables/usePurchaseOrderForm'
@@ -904,6 +893,7 @@ const resetSearch = () => {
   searchForm.keyword = ''; searchForm.status = ''; searchForm.supplier_id = ''; searchForm.operator = ''; searchForm.date_range = []
   pagination.current = 1; loadOrders()
 }
+const goApprovalCenter = () => router.push('/workflow/approvals')
 const handleSizeChange = (val) => { pagination.size = val; loadOrders() }
 const handleCurrentChange = (val) => { pagination.current = val; loadOrders() }
 // 到货数量相关

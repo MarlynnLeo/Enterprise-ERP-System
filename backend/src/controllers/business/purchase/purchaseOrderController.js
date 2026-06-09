@@ -482,7 +482,7 @@ const updateOrderStatus = async (req, res) => {
 
       // approved 状态保留给工作流回调专用，前端不可直接设置
       if (newStatus === 'approved') {
-        throw new Error('approved 状态仅限工作流回调设置，主管审批请使用"批准"按钮(confirmed)');
+        throw new Error('approved 状态仅限工作流回调设置，请在审批中心处理待审节点');
       }
 
       // 如果状态没有变化，直接返回（允许保持相同状态）

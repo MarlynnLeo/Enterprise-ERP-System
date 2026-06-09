@@ -261,7 +261,7 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Setting, Calendar, ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import { productionApi } from '@/api/production'
 import { parseListData } from '@/utils/responseParser'
@@ -406,6 +406,60 @@ function calcWorkHours(row) {
 const weekdayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
 const DATE_ONLY_PREFIX = /^(\d{4}-\d{2}-\d{2})/
 
+function getResponseData(response) {
+  return response?.data || {}
+}
+
+async function handleCalendarImpact(impact) {
+  const summary = impact?.summary
+  if (!summary || !summary.total) return
+
+  const reschedulableTasks = (impact.tasks || []).filter(task => task.reschedulable)
+  if (reschedulableTasks.length === 0) {
+    ElMessage.warning(`日历变更影响 ${summary.total} 个任务，但当前没有可自动重排的任务`)
+    return
+  }
+
+  const blockedText = summary.blocked > 0
+    ? `；${summary.blocked} 个任务已有发料、报工、检验或状态锁定，需要人工处理`
+    : ''
+  const sampleText = reschedulableTasks
+    .slice(0, 3)
+    .map(task => task.code)
+    .filter(Boolean)
+    .join('、')
+
+  try {
+    await ElMessageBox.confirm(
+      `日历变更影响 ${summary.total} 个任务，其中 ${summary.reschedulable} 个可自动重排${blockedText}。${sampleText ? `示例：${sampleText}。` : ''}是否立即重排可调整任务？`,
+      '日历影响确认',
+      {
+        type: 'warning',
+        confirmButtonText: '重排可调整任务',
+        cancelButtonText: '稍后处理',
+      }
+    )
+  } catch {
+    return
+  }
+
+  saving.value = true
+  try {
+    const res = await productionApi.recalculateCalendarImpact({
+      taskIds: reschedulableTasks.map(task => task.taskId),
+    })
+    const result = getResponseData(res)
+    const scheduledCount = result.scheduled?.length || 0
+    const skippedCount = result.skipped?.length || 0
+    ElMessage.success(`已重排 ${scheduledCount} 个任务${skippedCount ? `，${skippedCount} 个跳过` : ''}`)
+    await Promise.all([fetchCalendars(), fetchOverrides()])
+  } catch (e) {
+    ElMessage.error('重排失败: ' + (e.message || '未知错误'))
+  } finally {
+    saving.value = false
+  }
+}
+
 // ============ 数据请求 ============
 async function fetchCalendars() {
   loading.value = true
@@ -508,11 +562,13 @@ async function handleSave() {
   try { await editFormRef.value.validate() } catch { return }
   saving.value = true
   try {
-    await productionApi.updateCalendar(editForm.value.id, editForm.value)
+    const res = await productionApi.updateCalendar(editForm.value.id, editForm.value)
+    const data = getResponseData(res)
     ElMessage.success('班次配置更新成功')
     editVisible.value = false
     await fetchCalendars()
     await fetchOverrides() // 刷新月历（默认规则可能改变）
+    await handleCalendarImpact(data.impact)
   } catch (e) {
     ElMessage.error('更新失败: ' + (e.message || '未知错误'))
   } finally {
@@ -526,9 +582,11 @@ async function handleSetDefault(row) {
     return
   }
   try {
-    await productionApi.setDefaultCalendar(row.id)
+    const res = await productionApi.setDefaultCalendar(row.id)
+    const data = getResponseData(res)
     ElMessage.success(`已将「${row.name}」设为默认班次`)
     await fetchCalendars()
+    await handleCalendarImpact(data.impact)
   } catch {
     ElMessage.error('设置默认失败')
   }
@@ -563,7 +621,7 @@ async function handleSaveDay() {
   }
   saving.value = true
   try {
-    await productionApi.saveCalendarOverrides({
+    const res = await productionApi.saveCalendarOverrides({
       overrides: [{
         calendar_date: dayEditForm.value.calendar_date,
         is_workday: dayEditForm.value.is_workday,
@@ -576,9 +634,11 @@ async function handleSaveDay() {
         label: dayEditForm.value.label || null,
       }],
     })
+    const data = getResponseData(res)
     ElMessage.success(`${dayEditForm.value.calendar_date} 已更新`)
     dayEditVisible.value = false
     await fetchOverrides()
+    await handleCalendarImpact(data.impact)
   } catch (e) {
     ElMessage.error('保存失败: ' + (e.message || '未知错误'))
   } finally {
@@ -593,10 +653,12 @@ async function handleResetDay() {
   }
   saving.value = true
   try {
-    await productionApi.deleteCalendarOverride(dayEditForm.value.calendar_date)
+    const res = await productionApi.deleteCalendarOverride(dayEditForm.value.calendar_date)
+    const data = getResponseData(res)
     ElMessage.success(`${dayEditForm.value.calendar_date} 已恢复默认`)
     dayEditVisible.value = false
     await fetchOverrides()
+    await handleCalendarImpact(data.impact)
   } catch {
     ElMessage.error('恢复默认失败')
   } finally {

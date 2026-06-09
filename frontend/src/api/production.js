@@ -153,6 +153,8 @@ export const productionApi = {
   getCalendarOverrides: (params) => api.get('/production/scheduling/calendar-overrides', { params }),
   saveCalendarOverrides: (data) => api.post('/production/scheduling/calendar-overrides', data),
   deleteCalendarOverride: (date) => api.delete(`/production/scheduling/calendar-overrides/${date}`),
+  analyzeCalendarImpact: (data) => api.post('/production/scheduling/calendar-impact', data),
+  recalculateCalendarImpact: (data) => api.post('/production/scheduling/calendar-impact/recalculate', data),
 
   completeTask: (id, data) => api.post(`/production/tasks/${id}/complete`, data),
   getTaskManagers: () => api.get('/production/tasks/managers'),

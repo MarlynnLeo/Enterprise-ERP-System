@@ -59,4 +59,43 @@ describe('SchedulingService calendar handling', () => {
     expect(formatLocalMinute(SchedulingService._parseScheduleDateTime('2026-06-09 08:30:00'))).toBe('2026-06-09 08:30');
     expect(SchedulingService._parseScheduleDateTime('2026-02-30')).toBeNull();
   });
+
+  test('resolves date-only task starts from the default calendar work start', async () => {
+    const connection = {
+      query: jest.fn().mockResolvedValue([[
+        {
+          work_start: '06:30:00',
+          work_end: '15:30:00',
+          break_start: null,
+          break_end: null,
+          dinner_start: null,
+          dinner_end: null,
+          exclude_weekends: 1,
+        },
+      ]]),
+    };
+
+    await expect(SchedulingService.resolveStartTime('2026-06-09', connection))
+      .resolves.toBe('2026-06-09 06:30:00');
+    await expect(SchedulingService.resolveStartTime('2026-06-09 10:15:00', connection))
+      .resolves.toBe('2026-06-09 10:15:00');
+  });
+
+  test('normalizes calendar impact criteria and blockers', () => {
+    const criteria = SchedulingService._normalizeCalendarImpactCriteria({
+      dates: ['2026-06-10', 'invalid', '2026-06-09', '2026-06-09'],
+    });
+
+    expect(criteria).toEqual({
+      explicitDates: ['2026-06-09', '2026-06-10'],
+      startDate: '2026-06-09',
+      endDate: '2026-06-10',
+    });
+    expect(SchedulingService._getScheduleBlockers({
+      status: 'in_progress',
+      outbound_count: 1,
+      report_count: 0,
+      inspection_count: 2,
+    })).toEqual(['状态为 in_progress', '已有发料单', '已有检验单']);
+  });
 });

@@ -534,9 +534,7 @@ exports.createProductionTask = async (req, res) => {
         if (start_date) {
           try {
             // 如果前端传的是纯日期，默认从上班时间开始
-            const startTime = String(start_date).includes(' ') || String(start_date).includes('T')
-              ? start_date
-              : start_date + ' 08:00:00';
+            const startTime = await SchedulingService.resolveStartTime(start_date, connection);
             await SchedulingService.rescheduleTask(taskId, startTime, taskQuantity, connection);
             logger.info(`[排程] 任务 ${code} 工序计划时间已自动填充`);
           } catch (schedErr) {
@@ -745,9 +743,7 @@ exports.updateProductionTask = async (req, res) => {
     }
 
     if (start_date && preStartStatuses.includes(nextStatus)) {
-      const startTime = String(start_date).includes(' ') || String(start_date).includes('T')
-        ? start_date
-        : `${start_date} 08:00:00`;
+      const startTime = await SchedulingService.resolveStartTime(start_date, connection);
       await SchedulingService.rescheduleTask(id, startTime, taskQuantity, connection);
     }
 

@@ -92,6 +92,15 @@ const router = createRouter({
             }
           }
         },
+        {
+          path: 'workflow/approvals',
+          name: 'workflow-approvals',
+          component: () => import('../views/workflow/WorkflowApprovalCenter.vue'),
+          meta: {
+            requiresAuth: true,
+            title: '我的审批'
+          }
+        },
         systemRoute,
         equipmentRoute,
         hrRoute
