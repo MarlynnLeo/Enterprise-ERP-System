@@ -12,11 +12,16 @@
 
 const { logger } = require('../../utils/logger');
 const db = require('../../config/db');
+const crypto = require('crypto');
 const businessConfig = require('../../config/businessConfig');
 const { lineAmount, normalizeTaxRate, roundMoney, taxAmount: calculateTaxAmount } = require('../../utils/money');
 const { financeConfig } = require('../../config/financeConfig');
 
 class PurchaseReceiptService {
+  static payloadHash(value) {
+    return crypto.createHash('sha256').update(JSON.stringify(value || {})).digest('hex');
+  }
+
   /**
    * 免检来料自动创建采购入库单
    * 执行"检验合格 → 创建入库单"的后端流程
@@ -43,6 +48,7 @@ class PurchaseReceiptService {
       );
       const inspectionId = inspectionResult.id;
       const inspectionNo = inspectionResult.inspection_no;
+      const idempotencyKey = inspectionId ? `purchase_receipt:inspection:${inspectionId}` : null;
       const batchNo = inspectionResult.batch_no || originalInspection.batch_no || '';
       const isExempt = Boolean(inspectionResult.is_exempt || originalInspection.is_exempt);
       const operator = isExempt
@@ -108,8 +114,9 @@ class PurchaseReceiptService {
         `INSERT INTO purchase_receipts (
           receipt_no, order_id, order_no, supplier_id, supplier_name,
           warehouse_id, warehouse_name, receipt_date, operator, remarks, status,
-          total_amount, total_tax_amount, from_inspection, inspection_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          total_amount, total_tax_amount, from_inspection, inspection_id,
+          idempotency_key, idempotency_hash, active_inspection_key
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           receiptNo,
           orderId,
@@ -126,6 +133,9 @@ class PurchaseReceiptService {
           taxAmount,
           1,
           inspectionId,
+          idempotencyKey,
+          this.payloadHash({ orderId, materialId, qty, inspectionId, batchNo }),
+          inspectionId ? `INSPECTION:${inspectionId}` : null,
         ]
       );
 

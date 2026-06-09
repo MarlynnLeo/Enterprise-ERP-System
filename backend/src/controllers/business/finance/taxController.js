@@ -15,6 +15,8 @@ const { ResponseHandler } = require('../../../utils/responseHandler');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const db = require('../../../config/db');
 const { currentDateString } = require('../../../utils/dateUtils');
+const Precision = require('../../../utils/precision');
+const { roundMoney } = require('../../../utils/money');
 
 function validateBusinessDate(value, fieldName) {
   const dateString = value ? String(value).slice(0, 10) : currentDateString();
@@ -132,16 +134,17 @@ async function calculateVATReturnData(returnPeriod) {
 
   const sales = salesRows[0] || {};
   const purchase = purchaseRows[0] || {};
-  const inputTaxDeduction = Number(deductionRows[0]?.input_tax_deduction || 0);
-  const salesOutputTax = Number(sales.sales_output_tax || 0);
+  const inputTaxDeduction = roundMoney(deductionRows[0]?.input_tax_deduction || 0);
+  const salesOutputTax = roundMoney(sales.sales_output_tax || 0);
+  const taxPayable = roundMoney(Math.max(Precision.sub(salesOutputTax, inputTaxDeduction), 0));
 
   return {
-    sales_amount: Number(sales.sales_amount || 0),
+    sales_amount: roundMoney(sales.sales_amount || 0),
     sales_output_tax: salesOutputTax,
-    purchase_amount: Number(purchase.purchase_amount || 0),
-    purchase_input_tax: Number(purchase.purchase_input_tax || 0),
+    purchase_amount: roundMoney(purchase.purchase_amount || 0),
+    purchase_input_tax: roundMoney(purchase.purchase_input_tax || 0),
     input_tax_deduction: inputTaxDeduction,
-    tax_payable: Math.max(salesOutputTax - inputTaxDeduction, 0),
+    tax_payable: taxPayable,
   };
 }
 
@@ -546,8 +549,8 @@ const taxController = {
       }
 
       const payableAmount = taxReturn.return_type === '增值税'
-        ? parseFloat(taxReturn.tax_payable || 0)
-        : parseFloat(taxReturn.income_tax_payable || taxReturn.tax_payable || 0);
+        ? roundMoney(taxReturn.tax_payable || 0)
+        : roundMoney(taxReturn.income_tax_payable || taxReturn.tax_payable || 0);
 
       if (!Number.isFinite(payableAmount) || payableAmount < 0) {
         await connection.rollback();
@@ -579,8 +582,8 @@ const taxController = {
         }
 
         const bankAccount = bankAccounts[0];
-        const currentBalance = parseFloat(bankAccount.current_balance || 0);
-        if (currentBalance < payableAmount) {
+        const currentBalance = roundMoney(bankAccount.current_balance || 0);
+        if (Precision.sub(currentBalance, payableAmount) < 0) {
           await connection.rollback();
           return ResponseHandler.error(
             res,

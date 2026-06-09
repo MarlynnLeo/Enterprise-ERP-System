@@ -13,6 +13,7 @@
 const db = require('../config/db');
 const { logger } = require('../utils/logger');
 const { roundMoney } = require('../utils/money');
+const Precision = require('../utils/precision');
 
 function validationError(message) {
   const error = new Error(message);
@@ -375,12 +376,26 @@ const taxModel = {
         created_by,
       } = returnData;
 
-      const payableAmount =
+      /*
+
+      const isPaid = String(status) === '已缴纳';
+      const payableAmount = roundMoney(
         return_type === '增值税'
-          ? Number(tax_payable || 0)
-          : Number(income_tax_payable || tax_payable || 0);
+          ? tax_payable || 0
+          : income_tax_payable || tax_payable || 0
+      );
       const paidAmount = status === '已缴纳' ? payableAmount : Number(tax_paid || 0);
       const balanceAmount = status === '已缴纳' ? 0 : Math.max(payableAmount - paidAmount, 0);
+
+      */
+      const isPaid = String(status) === '\u5df2\u7f34\u7eb3';
+      const payableAmount = roundMoney(
+        String(return_type) === '\u589e\u503c\u7a0e'
+          ? tax_payable || 0
+          : income_tax_payable || tax_payable || 0
+      );
+      const paidAmount = isPaid ? payableAmount : roundMoney(tax_paid || 0);
+      const balanceAmount = isPaid ? 0 : roundMoney(Math.max(Precision.sub(payableAmount, paidAmount), 0));
 
       const [result] = await conn.execute(
         `

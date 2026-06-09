@@ -3,6 +3,7 @@ const path = require('path');
 
 const rootDir = path.resolve(__dirname, '..');
 const repoRoot = path.resolve(rootDir, '..');
+const { legacyCleanupCandidates: cleanupCandidates } = require('../src/services/business/LegacyCodeCleanupRules');
 
 function walk(dir, predicate, result = []) {
   if (!fs.existsSync(dir)) return result;
@@ -47,7 +48,6 @@ function auditBusinessClosure() {
   const { BUSINESS_CLOSURES } = require('../src/constants/businessClosureRegistry');
   const { STATUS_REGISTRY } = require('../src/constants/statusRegistry');
   const { consistencyRules } = require('../src/services/business/DataConsistencyRules');
-  const { legacyCleanupCandidates } = require('../src/services/business/LegacyCodeCleanupRules');
 
   const closureIds = Object.keys(BUSINESS_CLOSURES);
   const rulesByClosure = new Map();
@@ -73,7 +73,7 @@ function auditBusinessClosure() {
   printMetric('closures', closureIds.length);
   printMetric('status domains', Object.keys(STATUS_REGISTRY).length);
   printMetric('consistency rules', consistencyRules.length);
-  printMetric('legacy cleanup candidates', legacyCleanupCandidates.length);
+  printMetric('cleanup candidates', cleanupCandidates.length);
 
   if (issues.length) {
     console.error('\nIssues:');
@@ -135,12 +135,11 @@ function auditStatusConsistency() {
 
 function auditLegacyCode() {
   printHeader('Legacy Code Audit');
-  const { legacyCleanupCandidates } = require('../src/services/business/LegacyCodeCleanupRules');
-  for (const candidate of legacyCleanupCandidates) {
+  for (const candidate of cleanupCandidates) {
     const exists = fs.existsSync(path.join(repoRoot, candidate.path));
     console.log(`${exists ? 'present' : 'missing'}: ${candidate.path} -> ${candidate.replacement}`);
   }
-  printMetric('candidates', legacyCleanupCandidates.length);
+  printMetric('candidates', cleanupCandidates.length);
   console.log('Result: OK');
 }
 

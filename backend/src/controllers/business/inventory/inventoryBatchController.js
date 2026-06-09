@@ -12,7 +12,7 @@ const { getMaterialBatchNumber } = require('./helpers');
 const db = require('../../../config/db');
 
 // 统一库存查询子查询（基于 inventory_ledger 单表架构聚合计算当前库存）
-const STOCK_SUBQUERY = `(SELECT material_id, location_id, COALESCE(SUM(quantity), 0) as quantity, MAX(created_at) as updated_at FROM inventory_ledger GROUP BY material_id, location_id)`;
+const STOCK_SUBQUERY = `(SELECT material_id, location_id, COALESCE(SUM(quantity), 0) as quantity, MAX(updated_at) as updated_at FROM inventory_stock_balances WHERE batch_number <> '__LOCATION_LOCK__' GROUP BY material_id, location_id)`;
 // DRY: 两处引用相同子查询，统一使用 STOCK_SUBQUERY
 
 
@@ -150,21 +150,11 @@ const getBatchInventory = async (req, res) => {
     const locationFilter = locationIdList.length > 0
       ? `AND location_id IN (${locationIdList.map(() => '?').join(',')})`
       : '';
-    const inventoryParams = [...materialIdList, ...locationIdList, ...materialIdList, ...locationIdList];
+    const inventoryParams = [...materialIdList, ...locationIdList];
 
     // 优化的库存查询SQL - 优先使用事务记录聚合，库存表作为补充
     const inventoryQuery = `
-      WITH transaction_inventory AS (
-        SELECT
-          material_id,
-          location_id,
-          SUM(quantity) as calculated_quantity
-        FROM inventory_ledger
-        WHERE material_id IN (${materialPlaceholders}) ${locationFilter}
-        GROUP BY material_id, location_id
-        HAVING calculated_quantity > 0
-      ),
-      stock_inventory AS (
+      WITH stock_inventory AS (
         SELECT
           material_id,
           location_id,
@@ -174,21 +164,17 @@ const getBatchInventory = async (req, res) => {
         AND quantity > 0
       )
       SELECT
-        COALESCE(t.material_id, s.material_id) as material_id,
-        COALESCE(t.location_id, s.location_id) as location_id,
-        COALESCE(t.calculated_quantity, s.stock_quantity, 0) as quantity,
-        CASE
-          WHEN t.material_id IS NOT NULL THEN 'transaction'
-          ELSE 'stock'
-        END as source,
+        s.material_id as material_id,
+        s.location_id as location_id,
+        COALESCE(s.stock_quantity, 0) as quantity,
+        'stock_balance' as source,
         m.name as material_name,
         m.code as material_code,
         m.unit,
         l.name as location_name
-      FROM transaction_inventory t
-      FULL OUTER JOIN stock_inventory s ON t.material_id = s.material_id AND t.location_id = s.location_id
-      LEFT JOIN materials m ON COALESCE(t.material_id, s.material_id) = m.id
-      LEFT JOIN locations l ON COALESCE(t.location_id, s.location_id) = l.id
+      FROM stock_inventory s
+      LEFT JOIN materials m ON s.material_id = m.id
+      LEFT JOIN locations l ON s.location_id = l.id
       ORDER BY material_id, location_id
     `;
 

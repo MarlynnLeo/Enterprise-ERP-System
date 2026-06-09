@@ -16,9 +16,10 @@ const db = require('../../../config/db');
 const InventoryService = require('../../../services/InventoryService');
 const { getCurrentUserName } = require('../../../utils/userHelper');
 const { getInventoryLedger } = require('./inventoryLedgerController');
+const DataScopeService = require('../../../services/DataScopeService');
 
 // 统一库存查询子查询（基于 inventory_ledger 单表架构聚合计算当前库存）
-const STOCK_SUBQUERY = `(SELECT material_id, location_id, COALESCE(SUM(quantity), 0) as quantity, MAX(created_at) as updated_at FROM inventory_ledger GROUP BY material_id, location_id)`;
+const STOCK_SUBQUERY = `(SELECT material_id, location_id, COALESCE(SUM(quantity), 0) as quantity, MAX(updated_at) as updated_at FROM inventory_stock_balances WHERE batch_number <> '__LOCATION_LOCK__' GROUP BY material_id, location_id)`;
 // DRY: 两处引用相同子查询，统一使用 STOCK_SUBQUERY
 
 
@@ -68,6 +69,7 @@ const getStockList = async (req, res) => {
     // 构建WHERE条件
     const whereConditions = [];
     const queryParams = [];
+    const dataScope = await DataScopeService.getRequestScope(req);
 
     if (search && search.trim()) {
       whereConditions.push('(m.code LIKE ? OR m.name LIKE ? OR m.specs LIKE ?)');
@@ -77,6 +79,18 @@ const getStockList = async (req, res) => {
     if (location_id && location_id !== '') {
       whereConditions.push('current_stock.location_id = ?');
       queryParams.push(location_id);
+    }
+
+    if (Number(dataScope?.type) === DataScopeService.DATA_SCOPE.CUSTOM) {
+      const scopedLocationIds = dataScope.locationIds || [];
+      if (location_id && location_id !== '' && !scopedLocationIds.includes(Number(location_id))) {
+        whereConditions.push('1 = 0');
+      } else if (!location_id && scopedLocationIds.length > 0) {
+        whereConditions.push(`current_stock.location_id IN (${scopedLocationIds.map(() => '?').join(',')})`);
+        queryParams.push(...scopedLocationIds);
+      } else if (!location_id) {
+        whereConditions.push('1 = 0');
+      }
     }
 
     if (category_id && category_id !== '') {
@@ -182,8 +196,9 @@ const getStockList = async (req, res) => {
         IFNULL(m.min_stock, 0) as min_stock,
         IFNULL(m.max_stock, 0) as max_stock
       FROM (
-        SELECT material_id, location_id, SUM(quantity) as quantity, MAX(created_at) as last_updated
-        FROM inventory_ledger
+        SELECT material_id, location_id, SUM(quantity) as quantity, MAX(updated_at) as last_updated
+        FROM inventory_stock_balances
+        WHERE batch_number <> '__LOCATION_LOCK__'
         GROUP BY material_id, location_id
         ${subqueryHaving}
       ) current_stock
@@ -199,8 +214,9 @@ const getStockList = async (req, res) => {
     const countQuery = `
       SELECT COUNT(*) as total
       FROM (
-        SELECT material_id, location_id, SUM(quantity) as quantity, MAX(created_at) as last_updated
-        FROM inventory_ledger
+        SELECT material_id, location_id, SUM(quantity) as quantity, MAX(updated_at) as last_updated
+        FROM inventory_stock_balances
+        WHERE batch_number <> '__LOCATION_LOCK__'
         GROUP BY material_id, location_id
         ${subqueryHaving}
       ) current_stock
@@ -1213,8 +1229,9 @@ const importStock = async (req, res) => {
       const locationIdPlaceholders = locationIds.map(() => '?').join(',');
       const [stockRows] = await connection.query(
         `SELECT material_id, location_id, COALESCE(SUM(quantity), 0) as quantity
-         FROM inventory_ledger
+         FROM inventory_stock_balances
          WHERE material_id IN (${materialIdPlaceholders}) AND location_id IN (${locationIdPlaceholders})
+           AND batch_number <> '__LOCATION_LOCK__'
          GROUP BY material_id, location_id`,
         [...materialIds, ...locationIds]
       );
@@ -1406,6 +1423,7 @@ const exportStockData = async (req, res) => {
     // ========== 1. 构建与 getStockList 完全一致的筛选条件 ==========
     const whereConditions = [];
     const queryParams = [];
+    const dataScope = await DataScopeService.getRequestScope(req);
 
     // 批量导出：按指定物料ID筛选
     if (filters.material_ids && Array.isArray(filters.material_ids) && filters.material_ids.length > 0) {
@@ -1423,6 +1441,18 @@ const exportStockData = async (req, res) => {
     if (filters.location_id && filters.location_id !== '') {
       whereConditions.push('cs.location_id = ?');
       queryParams.push(filters.location_id);
+    }
+
+    if (Number(dataScope?.type) === DataScopeService.DATA_SCOPE.CUSTOM) {
+      const scopedLocationIds = dataScope.locationIds || [];
+      if (filters.location_id && filters.location_id !== '' && !scopedLocationIds.includes(Number(filters.location_id))) {
+        whereConditions.push('1 = 0');
+      } else if (!filters.location_id && scopedLocationIds.length > 0) {
+        whereConditions.push(`cs.location_id IN (${scopedLocationIds.map(() => '?').join(',')})`);
+        queryParams.push(...scopedLocationIds);
+      } else if (!filters.location_id) {
+        whereConditions.push('1 = 0');
+      }
     }
 
     // 类别筛选
@@ -1491,8 +1521,9 @@ const exportStockData = async (req, res) => {
         IFNULL(m.min_stock, 0) AS min_stock,
         cs.last_updated AS updated_at
       FROM (
-        SELECT material_id, location_id, SUM(quantity) AS quantity, MAX(created_at) AS last_updated
-        FROM inventory_ledger
+        SELECT material_id, location_id, SUM(quantity) AS quantity, MAX(updated_at) AS last_updated
+        FROM inventory_stock_balances
+        WHERE batch_number <> '__LOCATION_LOCK__'
         GROUP BY material_id, location_id
         ${subqueryHaving}
       ) cs
@@ -1697,12 +1728,17 @@ const getStockByLocation = async (req, res) => {
       );
     }
 
+    if (!(await DataScopeService.canAccessLocation(req, location_id))) {
+      return ResponseHandler.forbidden(res, 'No permission to access this inventory location');
+    }
+
     // 查询指定物料在指定仓库的库存
     const [stockRows] = await db.pool.execute(
       `SELECT
         COALESCE(SUM(quantity), 0) as quantity
-       FROM inventory_ledger
-       WHERE material_id = ? AND location_id = ?`,
+       FROM inventory_stock_balances
+       WHERE material_id = ? AND location_id = ?
+         AND batch_number <> '__LOCATION_LOCK__'`,
       [material_id, location_id]
     );
 

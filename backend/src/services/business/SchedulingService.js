@@ -14,6 +14,9 @@
 const { pool } = require('../../config/db');
 const { logger } = require('../../utils/logger');
 
+const MAX_SCHEDULE_LOOKAHEAD_DAYS = 365 * 2;
+const SQL_DATE_TIME_PATTERN = /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?$/;
+
 class SchedulingService {
   /**
    * 获取默认班次配置
@@ -44,8 +47,13 @@ class SchedulingService {
    * @param {number} [days=90] - 加载天数
    * @returns {Map<string, Object>} dateStr => override row
    */
-  static async getOverridesMap(startDate, days = 90) {
-    const start = new Date(startDate);
+  static async getOverridesMap(startDate, days = MAX_SCHEDULE_LOOKAHEAD_DAYS) {
+    const start = this._parseScheduleDateTime(startDate);
+    if (!start) {
+      const error = new Error('Invalid startDate');
+      error.statusCode = 400;
+      throw error;
+    }
     const end = new Date(start);
     end.setDate(end.getDate() + days);
 
@@ -53,22 +61,15 @@ class SchedulingService {
     const endStr = this._formatDateOnly(end);
 
     const [rows] = await pool.query(
-      'SELECT calendar_date, is_workday, work_start, work_end, break_start, break_end, dinner_start, dinner_end, label FROM production_calendar_overrides WHERE calendar_date BETWEEN ? AND ?',
+      `SELECT DATE_FORMAT(calendar_date, '%Y-%m-%d') AS calendar_date, is_workday, work_start, work_end, break_start, break_end, dinner_start, dinner_end, label
+       FROM production_calendar_overrides
+       WHERE calendar_date BETWEEN ? AND ?`,
       [startStr, endStr]
     );
 
     const map = new Map();
     for (const row of rows) {
-      // MySQL DATE 类型通过 mysql2 返回 UTC 时间戳，需转本地日期
-      let dateKey;
-      if (row.calendar_date instanceof Date) {
-        // 使用 UTC 方法获取存储的原始日期（MySQL DATE 没有时区概念）
-        const d = row.calendar_date;
-        const pad = (n) => String(n).padStart(2, '0');
-        dateKey = `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
-      } else {
-        dateKey = String(row.calendar_date).substring(0, 10);
-      }
+      const dateKey = String(row.calendar_date).substring(0, 10);
       map.set(dateKey, row);
     }
     return map;
@@ -131,6 +132,13 @@ class SchedulingService {
    * @returns {Object} { totalMinutes, estimatedEndTime, processSchedule }
    */
   static async calculateSchedule({ productId, quantity, startTime }) {
+    const startDate = this._parseScheduleDateTime(startTime);
+    if (!startDate) {
+      const error = new Error('Invalid startTime');
+      error.statusCode = 400;
+      throw error;
+    }
+
     const { totalMinutesPerUnit, processes, templateId } =
       await this.getProductStandardHours(productId);
 
@@ -154,7 +162,6 @@ class SchedulingService {
     const overridesMap = await this.getOverridesMap(startTime);
 
     // 推算结束时间（考虑午休和工作时间）
-    const startDate = new Date(startTime);
     const estimatedEndTime = this._advanceWorkMinutes(startDate, totalMinutes, calendar, overridesMap);
 
     // 计算各工序的计划时间（串行排列）
@@ -234,8 +241,8 @@ class SchedulingService {
 
     const [tasks] = await conn.query(query, params);
 
-    const newStart = new Date(startTime).getTime();
-    const newEnd = new Date(endTime).getTime();
+    const newStart = this._parseDateTimeMs(startTime);
+    const newEnd = this._parseDateTimeMs(endTime);
     const conflicts = [];
 
     for (const task of tasks) {
@@ -290,6 +297,13 @@ class SchedulingService {
    * @param {Object} connection - 数据库连接
    */
   static async fillProcessSchedule(taskId, startTime, quantity, connection) {
+    const startDate = this._parseScheduleDateTime(startTime);
+    if (!startDate) {
+      const error = new Error('Invalid startTime');
+      error.statusCode = 400;
+      throw error;
+    }
+
     const calendar = await this.getDefaultCalendar();
     const overridesMap = await this.getOverridesMap(startTime);
 
@@ -300,33 +314,83 @@ class SchedulingService {
       [taskId]
     );
 
-    if (processes.length === 0) return;
+    if (processes.length === 0) return null;
 
-    let cursor = new Date(startTime);
-
-    for (const proc of processes) {
-      const minutes = Math.ceil((parseFloat(proc.standard_hours) || 0) * 60 * quantity);
-      const procStart = new Date(cursor);
-      const procEnd = this._advanceWorkMinutes(new Date(cursor), minutes, calendar, overridesMap);
-
-      await connection.query(
-        `UPDATE production_processes
-         SET planned_start_time = ?, planned_end_time = ?
-         WHERE id = ? AND deleted_at IS NULL`,
-        [this._formatDateTime(procStart), this._formatDateTime(procEnd), proc.id]
-      );
-
-      cursor = new Date(procEnd);
-    }
-
-    // 更新任务的预计结束时间
-    const estimatedEnd = this._formatDateTime(cursor);
-    await connection.query(
-      'UPDATE production_tasks SET expected_end_date = ? WHERE id = ? AND deleted_at IS NULL',
-      [estimatedEnd.split(' ')[0], taskId]
+    const { schedule, estimatedEnd } = this._buildProcessSchedule(
+      processes,
+      startDate,
+      quantity,
+      calendar,
+      overridesMap
     );
+    await this._applyProcessSchedule(connection, taskId, schedule, estimatedEnd);
 
     logger.info(`[排程] 任务 ${taskId} 工序时间已填充，预计结束: ${estimatedEnd}`);
+    return estimatedEnd;
+  }
+
+  static async rescheduleTask(taskId, startTime, quantity, connection, options = {}) {
+    const startDate = this._parseScheduleDateTime(startTime);
+    if (!startDate) {
+      const error = new Error('Invalid startTime');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const [taskRows] = await connection.query(
+      `SELECT id, code, product_id, quantity, manager, status, plan_id
+       FROM production_tasks
+       WHERE id = ? AND deleted_at IS NULL
+       FOR UPDATE`,
+      [taskId]
+    );
+    if (taskRows.length === 0) {
+      const error = new Error(`Task ${taskId} does not exist or has been deleted`);
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const task = taskRows[0];
+    await this._assertTaskSchedulable(connection, task);
+
+    const [processes] = await connection.query(
+      `SELECT id, standard_hours, sequence FROM production_processes
+       WHERE task_id = ? ORDER BY sequence`,
+      [taskId]
+    );
+    if (processes.length === 0) return null;
+
+    const calendar = await this.getDefaultCalendar();
+    const overridesMap = await this.getOverridesMap(startTime);
+    const taskQuantity = Number(quantity ?? task.quantity) || 0;
+    const { schedule, estimatedEnd } = this._buildProcessSchedule(
+      processes,
+      startDate,
+      taskQuantity,
+      calendar,
+      overridesMap
+    );
+
+    if (options.checkConflicts !== false && task.manager && estimatedEnd) {
+      const conflictResult = await this.checkConflicts({
+        manager: task.manager,
+        startTime: this._formatDateTime(startDate),
+        endTime: estimatedEnd,
+        excludeTaskId: task.id,
+      }, connection);
+      if (conflictResult.hasConflict) {
+        const firstConflict = conflictResult.conflicts[0];
+        const error = new Error(
+          `任务 ${task.code} 与生产组 ${task.manager} 的既有排程 ${firstConflict.taskCode} 冲突，请调整开始时间或先处理冲突任务`
+        );
+        error.statusCode = 409;
+        error.details = conflictResult.conflicts;
+        throw error;
+      }
+    }
+
+    await this._applyProcessSchedule(connection, taskId, schedule, estimatedEnd);
+    logger.info(`[排程] 任务 ${taskId} 已重新排程，预计结束: ${estimatedEnd}`);
     return estimatedEnd;
   }
 
@@ -376,8 +440,7 @@ class SchedulingService {
       return { scheduled: [], groups: [] };
     }
 
-    const start = new Date(startTime);
-    if (isNaN(start)) {
+    if (!this._parseScheduleDateTime(startTime)) {
       const error = new Error('Invalid startTime');
       error.statusCode = 400;
       throw error;
@@ -461,7 +524,7 @@ class SchedulingService {
     groupName,
   }) {
     const scheduled = [];
-    let cursor = new Date(startTime);
+    let cursor = this._parseScheduleDateTime(startTime);
 
     for (const taskId of taskIds) {
       const [taskRows] = await connection.query(
@@ -693,12 +756,16 @@ class SchedulingService {
       const segments = [];
       let segStart = wsMin;
       for (const [bStart, bEnd, bEndHM] of breaks) {
+        if (bEnd <= segStart || bStart >= weMin) {
+          continue;
+        }
         if (bStart > segStart && bStart < weMin) {
           segments.push({ start: segStart, end: Math.min(bStart, weMin), nextBreakEnd: bEndHM });
           segStart = Math.max(bEnd, segStart);
-        } else if (bEnd > segStart) {
+        } else if (bEnd > segStart && bStart < weMin) {
           segStart = Math.max(bEnd, segStart);
         }
+        if (segStart >= weMin) break;
       }
       if (segStart < weMin) {
         segments.push({ start: segStart, end: weMin, nextBreakEnd: null });
@@ -827,6 +894,76 @@ class SchedulingService {
     if (!(date instanceof Date) || isNaN(date)) return null;
     const pad = (n) => String(n).padStart(2, '0');
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  }
+
+  static _parseScheduleDateTime(value) {
+    if (value instanceof Date) {
+      return isNaN(value) ? null : new Date(value);
+    }
+
+    const text = String(value || '').trim();
+    const match = SQL_DATE_TIME_PATTERN.exec(text);
+    if (match) {
+      const [, year, month, day, hour = '0', minute = '0', second = '0'] = match;
+      const date = new Date(
+        Number(year),
+        Number(month) - 1,
+        Number(day),
+        Number(hour),
+        Number(minute),
+        Number(second),
+        0
+      );
+      if (
+        date.getFullYear() === Number(year) &&
+        date.getMonth() === Number(month) - 1 &&
+        date.getDate() === Number(day)
+      ) {
+        return date;
+      }
+      return null;
+    }
+
+    const parsed = new Date(value);
+    return isNaN(parsed) ? null : parsed;
+  }
+
+  static _buildProcessSchedule(processes, startDate, quantity, calendar, overridesMap) {
+    let cursor = new Date(startDate);
+    const schedule = [];
+
+    for (const proc of processes) {
+      const minutes = Math.ceil((parseFloat(proc.standard_hours) || 0) * 60 * quantity);
+      const procStart = new Date(cursor);
+      const procEnd = this._advanceWorkMinutes(new Date(cursor), minutes, calendar, overridesMap);
+      schedule.push({
+        processId: proc.id,
+        plannedStartTime: this._formatDateTime(procStart),
+        plannedEndTime: this._formatDateTime(procEnd),
+      });
+      cursor = new Date(procEnd);
+    }
+
+    return {
+      schedule,
+      estimatedEnd: this._formatDateTime(cursor),
+    };
+  }
+
+  static async _applyProcessSchedule(connection, taskId, schedule, estimatedEnd) {
+    for (const item of schedule) {
+      await connection.query(
+        `UPDATE production_processes
+         SET planned_start_time = ?, planned_end_time = ?
+         WHERE id = ? AND deleted_at IS NULL`,
+        [item.plannedStartTime, item.plannedEndTime, item.processId]
+      );
+    }
+
+    await connection.query(
+      'UPDATE production_tasks SET expected_end_date = ? WHERE id = ? AND deleted_at IS NULL',
+      [estimatedEnd ? estimatedEnd.split(' ')[0] : null, taskId]
+    );
   }
 
   static async getGanttData({ startDate, endDate } = {}) {
@@ -1029,9 +1166,8 @@ class SchedulingService {
 
   static _parseDateTimeMs(value) {
     if (!value) return NaN;
-    if (value instanceof Date) return value.getTime();
-    const normalized = String(value).replace(' ', 'T');
-    return new Date(normalized).getTime();
+    const parsed = this._parseScheduleDateTime(value);
+    return parsed ? parsed.getTime() : NaN;
   }
 
   static _toIsoFromSqlDateTime(value) {

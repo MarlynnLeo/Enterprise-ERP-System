@@ -62,7 +62,7 @@
             <el-tag v-if="row.is_default" type="success" size="small" effect="dark">✓</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="160" fixed="right">
+        <el-table-column v-if="canUpdateCalendar" label="操作" width="160" fixed="right">
           <template #default="{ row }">
             <el-button size="small" type="primary" link @click="openEdit(row)">编辑</el-button>
             <el-button size="small" type="success" link :disabled="!!row.is_default" @click="handleSetDefault(row)">设为默认</el-button>
@@ -101,7 +101,7 @@
               'is-rest': !cell.isWorkday,
               'is-override': cell.hasOverride,
             }"
-            @click="cell.isCurrentMonth && openDayEdit(cell)"
+            @click="cell.isCurrentMonth && canUpdateCalendar && openDayEdit(cell)"
           >
             <div class="calendar-cell__day">{{ cell.day }}</div>
             <div class="calendar-cell__info" v-if="cell.isCurrentMonth">
@@ -265,9 +265,11 @@ import { ElMessage } from 'element-plus'
 import { Refresh, Setting, Calendar, ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import { productionApi } from '@/api/production'
 import { parseListData } from '@/utils/responseParser'
+import { useAuthStore } from '@/stores/auth'
 import dayjs from 'dayjs'
 
 // ============ 响应式数据 ============
+const authStore = useAuthStore()
 const loading = ref(false)
 const saving = ref(false)
 const calendarLoading = ref(false)
@@ -307,6 +309,10 @@ const dayEditForm = ref({
 
 // ============ 计算属性 ============
 const defaultCalendar = computed(() => calendars.value.find(c => c.is_default) || calendars.value[0] || {})
+const canUpdateCalendar = computed(() =>
+  authStore.hasPermission('production:calendar:update') ||
+  authStore.hasPermission('production:tasks:update')
+)
 
 const defaultCalendarText = computed(() => ({
   work_start: fmtTime(defaultCalendar.value.work_start) || '08:00',
@@ -398,6 +404,7 @@ function calcWorkHours(row) {
 }
 
 const weekdayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+const DATE_ONLY_PREFIX = /^(\d{4}-\d{2}-\d{2})/
 
 // ============ 数据请求 ============
 async function fetchCalendars() {
@@ -405,9 +412,11 @@ async function fetchCalendars() {
   try {
     const res = await productionApi.getCalendars()
     calendars.value = parseListData(res, { enableLog: false })
+    return true
   } catch (e) {
     console.error('获取班次列表失败:', e)
     ElMessage.error('获取班次列表失败')
+    return false
   } finally {
     loading.value = false
   }
@@ -421,27 +430,32 @@ async function fetchOverrides() {
     const list = parseListData(res, { enableLog: false })
     const map = new Map()
     for (const item of list) {
-      // MySQL DATE 通过 API 返回可能是 ISO 字符串 (UTC)，需用 UTC 解析避免时区偏移
-      let dateKey
-      if (typeof item.calendar_date === 'string') {
-        // 取前10位 YYYY-MM-DD（如 "2026-06-14T16:00:00.000Z" → 可能偏移，用 dayjs 解析）
-        dateKey = dayjs(item.calendar_date).format('YYYY-MM-DD')
-      } else {
-        dateKey = dayjs(item.calendar_date).format('YYYY-MM-DD')
-      }
-      map.set(dateKey, item)
+      const dateMatch = typeof item.calendar_date === 'string'
+        ? DATE_ONLY_PREFIX.exec(item.calendar_date)
+        : null
+      const dateKey = dateMatch
+        ? dateMatch[1]
+        : dayjs(item.calendar_date).format('YYYY-MM-DD')
+      if (dateKey) map.set(dateKey, item)
     }
     overrides.value = map
+    return true
   } catch (e) {
     console.error('获取覆盖日期失败:', e)
+    ElMessage.error('获取覆盖日期失败')
+    return false
   } finally {
     calendarLoading.value = false
   }
 }
 
 async function refreshAll() {
-  await Promise.all([fetchCalendars(), fetchOverrides()])
-  ElMessage.success('数据已刷新')
+  const [calendarsOk, overridesOk] = await Promise.all([fetchCalendars(), fetchOverrides()])
+  if (calendarsOk && overridesOk) {
+    ElMessage.success('数据已刷新')
+  } else {
+    ElMessage.warning('部分数据刷新失败')
+  }
 }
 
 // ============ 月份导航 ============
@@ -470,6 +484,7 @@ watch([currentYear, currentMonth], () => fetchOverrides())
 
 // ============ 班次编辑 ============
 function openEdit(row) {
+  if (!canUpdateCalendar.value) return
   editForm.value = {
     id: row.id,
     name: row.name,
@@ -485,6 +500,10 @@ function openEdit(row) {
 }
 
 async function handleSave() {
+  if (!canUpdateCalendar.value) {
+    ElMessage.error('无权维护生产日历')
+    return
+  }
   if (!editFormRef.value) return
   try { await editFormRef.value.validate() } catch { return }
   saving.value = true
@@ -502,6 +521,10 @@ async function handleSave() {
 }
 
 async function handleSetDefault(row) {
+  if (!canUpdateCalendar.value) {
+    ElMessage.error('无权维护生产日历')
+    return
+  }
   try {
     await productionApi.setDefaultCalendar(row.id)
     ElMessage.success(`已将「${row.name}」设为默认班次`)
@@ -513,6 +536,7 @@ async function handleSetDefault(row) {
 
 // ============ 单日编辑 ============
 function openDayEdit(cell) {
+  if (!canUpdateCalendar.value) return
   const dow = dayjs(cell.dateStr).day()
   const override = overrides.value.get(cell.dateStr)
 
@@ -533,6 +557,10 @@ function openDayEdit(cell) {
 }
 
 async function handleSaveDay() {
+  if (!canUpdateCalendar.value) {
+    ElMessage.error('无权维护生产日历')
+    return
+  }
   saving.value = true
   try {
     await productionApi.saveCalendarOverrides({
@@ -559,6 +587,10 @@ async function handleSaveDay() {
 }
 
 async function handleResetDay() {
+  if (!canUpdateCalendar.value) {
+    ElMessage.error('无权维护生产日历')
+    return
+  }
   saving.value = true
   try {
     await productionApi.deleteCalendarOverride(dayEditForm.value.calendar_date)

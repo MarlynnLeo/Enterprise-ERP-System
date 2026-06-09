@@ -17,10 +17,12 @@ const {
 } = require('../middleware/priceAccessControl');
 const { ResponseHandler } = require('../utils/responseHandler');
 const { safeParseId } = require('../utils/safeParseId');
+const { isValidDateOnly, getMonthRange } = require('../utils/dateOnly');
 const { pool } = require('../config/db');
 
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/;
-const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const CALENDAR_VIEW_PERMISSIONS = ['production:calendar', 'production:calendar:view', 'production:tasks:view'];
+const CALENDAR_UPDATE_PERMISSIONS = ['production:calendar:update', 'production:tasks:update'];
 
 const padTime = (time) => (time ? (time.length === 5 ? `${time}:00` : time) : null);
 
@@ -55,21 +57,24 @@ const validateTimePairs = (data, requireWorkTime = true) => {
     compareTime(data.dinner_start, data.dinner_end, 'dinner_start', 'dinner_end');
 };
 
-const isValidDateOnly = (value) => {
-  if (!DATE_PATTERN.test(value || '')) return false;
-  const date = new Date(`${value}T00:00:00`);
-  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+const normalizeWorkdayFlag = (value) => {
+  if (value === true || value === 1 || value === '1') return true;
+  if (value === false || value === 0 || value === '0') return false;
+  return null;
 };
 
-const getMonthRange = (month) => {
-  if (!/^\d{4}-\d{2}$/.test(month || '')) return null;
-  const start = `${month}-01`;
-  if (!isValidDateOnly(start)) return null;
-  const endDate = new Date(`${start}T00:00:00`);
-  endDate.setMonth(endDate.getMonth() + 1);
-  endDate.setDate(0);
-  return { start, end: endDate.toISOString().slice(0, 10) };
-};
+const valueOrDefault = (value, fallback) => (
+  value === null || value === undefined || value === '' ? fallback : value
+);
+
+const validateEffectiveWorkdayTimes = (item, defaultCalendar) => validateTimePairs({
+  work_start: valueOrDefault(item.work_start, defaultCalendar.work_start),
+  work_end: valueOrDefault(item.work_end, defaultCalendar.work_end),
+  break_start: valueOrDefault(item.break_start, defaultCalendar.break_start),
+  break_end: valueOrDefault(item.break_end, defaultCalendar.break_end),
+  dinner_start: valueOrDefault(item.dinner_start, defaultCalendar.dinner_start),
+  dinner_end: valueOrDefault(item.dinner_end, defaultCalendar.dinner_end),
+}, true);
 
 // 应用认证中间件
 router.use(authenticateToken);
@@ -132,7 +137,7 @@ router.post('/scheduling/check-conflicts', requirePermission('production:tasks:v
 });
 
 // 获取班次配置
-router.get('/scheduling/calendar', requirePermission('production:tasks:view'), async (req, res) => {
+router.get('/scheduling/calendar', requirePermission(CALENDAR_VIEW_PERMISSIONS), async (req, res) => {
   try {
     const calendar = await SchedulingService.getDefaultCalendar();
     ResponseHandler.success(res, calendar);
@@ -142,7 +147,7 @@ router.get('/scheduling/calendar', requirePermission('production:tasks:view'), a
 });
 
 // 获取所有班次列表
-router.get('/scheduling/calendars', requirePermission('production:tasks:view'), async (req, res) => {
+router.get('/scheduling/calendars', requirePermission(CALENDAR_VIEW_PERMISSIONS), async (req, res) => {
   try {
     const [rows] = await pool.query(
       'SELECT id, name, work_start, work_end, break_start, break_end, dinner_start, dinner_end, exclude_weekends, is_default, created_at, updated_at FROM production_calendar ORDER BY is_default DESC, id ASC'
@@ -154,7 +159,7 @@ router.get('/scheduling/calendars', requirePermission('production:tasks:view'), 
 });
 
 // 更新班次配置
-router.put('/scheduling/calendars/:id', requirePermission('production:tasks:update'), async (req, res) => {
+router.put('/scheduling/calendars/:id', requirePermission(CALENDAR_UPDATE_PERMISSIONS), async (req, res) => {
   try {
     const { id } = req.params;
     const { name, work_start, work_end, break_start, break_end, dinner_start, dinner_end, exclude_weekends } = req.body;
@@ -208,7 +213,7 @@ router.put('/scheduling/calendars/:id', requirePermission('production:tasks:upda
 });
 
 // 设置默认班次
-router.post('/scheduling/calendars/:id/default', requirePermission('production:tasks:update'), async (req, res) => {
+router.post('/scheduling/calendars/:id/default', requirePermission(CALENDAR_UPDATE_PERMISSIONS), async (req, res) => {
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
@@ -239,7 +244,7 @@ router.post('/scheduling/calendars/:id/default', requirePermission('production:t
 // ===== 日历覆盖日期 API =====
 
 // 获取某月的覆盖日期列表
-router.get('/scheduling/calendar-overrides', requirePermission('production:tasks:view'), async (req, res) => {
+router.get('/scheduling/calendar-overrides', requirePermission(CALENDAR_VIEW_PERMISSIONS), async (req, res) => {
   try {
     const { month } = req.query; // 格式 YYYY-MM
     const range = getMonthRange(month);
@@ -247,7 +252,10 @@ router.get('/scheduling/calendar-overrides', requirePermission('production:tasks
       return ResponseHandler.error(res, '请提供 month 参数，格式 YYYY-MM', 'VALIDATION_ERROR', 400);
     }
     const [rows] = await pool.query(
-      'SELECT id, calendar_date, is_workday, work_start, work_end, break_start, break_end, dinner_start, dinner_end, label FROM production_calendar_overrides WHERE calendar_date BETWEEN ? AND ? ORDER BY calendar_date ASC',
+      `SELECT id, DATE_FORMAT(calendar_date, '%Y-%m-%d') AS calendar_date, is_workday, work_start, work_end, break_start, break_end, dinner_start, dinner_end, label
+       FROM production_calendar_overrides
+       WHERE calendar_date BETWEEN ? AND ?
+       ORDER BY calendar_date ASC`,
       [range.start, range.end]
     );
     ResponseHandler.success(res, { list: rows });
@@ -257,7 +265,7 @@ router.get('/scheduling/calendar-overrides', requirePermission('production:tasks
 });
 
 // 批量保存覆盖日期（前端月历保存）
-router.post('/scheduling/calendar-overrides', requirePermission('production:tasks:update'), async (req, res) => {
+router.post('/scheduling/calendar-overrides', requirePermission(CALENDAR_UPDATE_PERMISSIONS), async (req, res) => {
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
@@ -268,11 +276,23 @@ router.post('/scheduling/calendar-overrides', requirePermission('production:task
       return ResponseHandler.error(res, '请提供 overrides 数组', 'VALIDATION_ERROR', 400);
     }
 
+    const defaultCalendar = await SchedulingService.getDefaultCalendar();
+    let savedCount = 0;
+
     for (const item of overrides) {
-      if (!item.calendar_date) continue;
+      if (!item || typeof item !== 'object' || !item.calendar_date) {
+        await connection.rollback();
+        return ResponseHandler.error(res, 'calendar_date 为必填', 'VALIDATION_ERROR', 400);
+      }
       if (!isValidDateOnly(item.calendar_date)) {
         await connection.rollback();
         return ResponseHandler.error(res, 'calendar_date 格式不正确，应为 YYYY-MM-DD', 'VALIDATION_ERROR', 400);
+      }
+
+      const isWorkday = normalizeWorkdayFlag(item.is_workday);
+      if (isWorkday === null) {
+        await connection.rollback();
+        return ResponseHandler.error(res, 'is_workday 必须为布尔值', 'VALIDATION_ERROR', 400);
       }
 
       const validationError = validateTimePairs({
@@ -283,9 +303,17 @@ router.post('/scheduling/calendar-overrides', requirePermission('production:task
         dinner_start: item.dinner_start,
         dinner_end: item.dinner_end,
       }, false);
-      if (item.is_workday && validationError) {
+      if (validationError) {
         await connection.rollback();
         return ResponseHandler.error(res, validationError, 'VALIDATION_ERROR', 400);
+      }
+
+      if (isWorkday) {
+        const effectiveValidationError = validateEffectiveWorkdayTimes(item, defaultCalendar);
+        if (effectiveValidationError) {
+          await connection.rollback();
+          return ResponseHandler.error(res, effectiveValidationError, 'VALIDATION_ERROR', 400);
+        }
       }
 
       // UPSERT: 存在则更新，不存在则插入
@@ -304,20 +332,21 @@ router.post('/scheduling/calendar-overrides', requirePermission('production:task
            updated_at = NOW()`,
         [
           item.calendar_date,
-          item.is_workday ? 1 : 0,
-          padTime(item.work_start),
-          padTime(item.work_end),
-          padTime(item.break_start),
-          padTime(item.break_end),
-          padTime(item.dinner_start),
-          padTime(item.dinner_end),
+          isWorkday ? 1 : 0,
+          isWorkday ? padTime(item.work_start) : null,
+          isWorkday ? padTime(item.work_end) : null,
+          isWorkday ? padTime(item.break_start) : null,
+          isWorkday ? padTime(item.break_end) : null,
+          isWorkday ? padTime(item.dinner_start) : null,
+          isWorkday ? padTime(item.dinner_end) : null,
           item.label || null,
         ]
       );
+      savedCount += 1;
     }
 
     await connection.commit();
-    ResponseHandler.success(res, null, `成功保存 ${overrides.length} 条日历覆盖`);
+    ResponseHandler.success(res, null, `成功保存 ${savedCount} 条日历覆盖`);
   } catch (error) {
     await connection.rollback();
     ResponseHandler.error(res, error.message, 'ERROR', 500, error);
@@ -327,7 +356,7 @@ router.post('/scheduling/calendar-overrides', requirePermission('production:task
 });
 
 // 删除单日覆盖（恢复默认）
-router.delete('/scheduling/calendar-overrides/:date', requirePermission('production:tasks:update'), async (req, res) => {
+router.delete('/scheduling/calendar-overrides/:date', requirePermission(CALENDAR_UPDATE_PERMISSIONS), async (req, res) => {
   try {
     const { date } = req.params;
     if (!isValidDateOnly(date)) {

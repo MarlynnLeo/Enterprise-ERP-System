@@ -1,8 +1,7 @@
 /**
  * Canonical frontend API entry.
  *
- * New code should import business API modules from '@/api'. The legacy
- * '@/api' entry re-exports this file for compatibility only.
+ * New code should import business API modules from '@/api'.
  */
 
 export { api, fastApi } from '../services/axiosInstance';

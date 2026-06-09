@@ -1,6 +1,6 @@
 /**
- * 补丁迁移 — 将旧 SQL 迁移中遗漏的表纳入 Knex 基线
- * @description 审计发现 50 张表只在 database/migrations/ 的旧 SQL 文件中创建，
+ * 补充迁移 — 将历史 SQL 迁移中遗漏的表纳入 Knex 基线
+ * @description 审计发现 50 张表只在历史 SQL 文件中创建，
  *   未纳入 Knex 迁移体系，新用户运行 npm run migrate 后这些表不存在。
  *   本迁移使用 CREATE TABLE IF NOT EXISTS 确保幂等（老用户升级不受影响）。
  */

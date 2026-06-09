@@ -7,6 +7,7 @@
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
+const crypto = require('crypto');
 
 const db = require('../../../config/db');
 const purchaseModel = require('../../../models/purchase');
@@ -15,6 +16,8 @@ const PurchaseOrderStatusService = require('../../../services/business/PurchaseO
 const PurchasePriceService = require('../../../services/business/PurchasePriceService');
 const { getCurrentUserName } = require('../../../utils/userHelper');
 const DLQService = require('../../../services/business/DLQService');
+const DomainEventService = require('../../../services/business/DomainEventService');
+const AuditLogService = require('../../../services/system/AuditLogService');
 const { lineAmount, normalizeTaxRate, roundMoney, taxAmount: calculateTaxAmount } = require('../../../utils/money');
 const { financeConfig } = require('../../../config/financeConfig');
 
@@ -27,6 +30,29 @@ const STATUS = {
     CANCELLED: 'cancelled',
   },
 };
+
+function stableStringify(value) {
+  if (value === null || value === undefined) return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
+  if (typeof value === 'object') {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`).join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function sha256(value) {
+  return crypto.createHash('sha256').update(value).digest('hex');
+}
+
+function getIdempotencyKey(req) {
+  return (
+    req.headers['x-idempotency-key'] ||
+    req.headers['idempotency-key'] ||
+    req.body?.idempotencyKey ||
+    req.body?.idempotency_key ||
+    null
+  );
+}
 
 // 获取采购入库列表
 const getReceipts = async (req, res) => {
@@ -342,6 +368,23 @@ const createReceipt = async (req, res) => {
 
     // 兼容两种命名方式；只要带 inspection_id，就按质检来源处理，避免前端漏传标记时绕过去重与校验
     const isFromInspection = Boolean(from_inspection || fromInspection || inspectionId);
+    const requestId = req.headers['x-request-id'] || req.headers['x-correlation-id'] || null;
+    const clientIdempotencyKey = getIdempotencyKey(req);
+    const receiptIdempotencyKey = inspectionId
+      ? `purchase_receipt:inspection:${inspectionId}`
+      : clientIdempotencyKey
+        ? `purchase_receipt:manual:${clientIdempotencyKey}`
+        : null;
+    const idempotencyHash = sha256(stableStringify({
+      orderId,
+      supplierId,
+      warehouseId,
+      receiptDate,
+      receiver,
+      remarks,
+      inspectionId,
+      items,
+    }));
     const createValidationError = (message) => {
       const error = new Error(message);
       error.statusCode = 400;
@@ -374,6 +417,16 @@ const createReceipt = async (req, res) => {
       return ResponseHandler.error(res, '缺少必填字段', 'VALIDATION_ERROR', 400);
     }
 
+    if (!isFromInspection && !receiptIdempotencyKey) {
+      await client.rollback();
+      return ResponseHandler.error(
+        res,
+        '手工创建采购收货单必须提供 Idempotency-Key，防止重复入库',
+        'IDEMPOTENCY_KEY_REQUIRED',
+        400
+      );
+    }
+
     // 确保warehouseId是数字类型
     const warehouseIdNumber = parseInt(warehouseId);
     if (isNaN(warehouseIdNumber)) {
@@ -399,6 +452,40 @@ const createReceipt = async (req, res) => {
       if (['cancelled', 'closed'].includes(orderResult[0].status)) {
         await client.rollback();
         return ResponseHandler.error(res, `采购订单当前状态为 ${orderResult[0].status}，无法操作`, 'VALIDATION_ERROR', 400);
+      }
+
+      if (receiptIdempotencyKey) {
+        const [existingByKey] = await client.query(
+          `SELECT id, receipt_no, idempotency_hash
+             FROM purchase_receipts
+            WHERE idempotency_key = ?
+              AND deleted_at IS NULL
+            LIMIT 1
+            FOR UPDATE`,
+          [receiptIdempotencyKey]
+        );
+        if (existingByKey.length > 0) {
+          await client.rollback();
+          if (existingByKey[0].idempotency_hash && existingByKey[0].idempotency_hash !== idempotencyHash) {
+            return ResponseHandler.error(
+              res,
+              '相同 Idempotency-Key 已用于不同收货单内容',
+              'IDEMPOTENCY_CONFLICT',
+              409
+            );
+          }
+          return ResponseHandler.success(
+            res,
+            {
+              success: true,
+              id: existingByKey[0].id,
+              receiptNo: existingByKey[0].receipt_no,
+              idempotent: true,
+            },
+            '该请求已创建过采购收货单',
+            200
+          );
+        }
       }
 
       // ========== 防重复建单（基于实际业务关系，非订单级暴力阻击） ==========
@@ -465,14 +552,6 @@ const createReceipt = async (req, res) => {
             '该检验单已创建过收货单',
             200
           );
-        }
-      } else {
-        // 场景B：手动创建 → 10秒窗口防连击（同一订单、同一操作员）
-        const clickGuardQuery = `SELECT id, receipt_no FROM purchase_receipts WHERE order_id = ? AND deleted_at IS NULL AND created_at > DATE_SUB(NOW(), INTERVAL 10 SECOND) AND status = 'draft' LIMIT 1`;
-        const [recentReceipts] = await client.query(clickGuardQuery, [orderId]);
-        if (recentReceipts.length > 0) {
-          await client.rollback();
-          return ResponseHandler.error(res, `操作过于频繁，该订单在10秒内已创建收货单 ${recentReceipts[0].receipt_no}，请勿重复提交。`, 'CONFLICT', 409);
         }
       }
 
@@ -555,9 +634,9 @@ const createReceipt = async (req, res) => {
       INSERT INTO purchase_receipts (
         receipt_no, order_id, order_no, supplier_id, supplier_name,
         warehouse_id, warehouse_name, receipt_date, operator, remarks, status,
-        from_inspection, inspection_id
+        from_inspection, inspection_id, idempotency_key, idempotency_hash, active_inspection_key
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     // 确保所有参数都不是undefined
@@ -575,6 +654,9 @@ const createReceipt = async (req, res) => {
       'draft',
       isFromInspection ? 1 : 0, // 转换布尔值为0/1
       inspectionId, // 关联的检验单ID
+      receiptIdempotencyKey,
+      idempotencyHash,
+      inspectionId ? `INSPECTION:${inspectionId}` : null,
     ];
 
     // 检查任何参数是否为undefined
@@ -599,6 +681,37 @@ const createReceipt = async (req, res) => {
         throw new Error('插入成功但无法获取收货单ID');
       }
     } catch (insertError) {
+      if (insertError.code === 'ER_DUP_ENTRY' && receiptIdempotencyKey) {
+        const [existingRows] = await client.query(
+          `SELECT id, receipt_no, idempotency_hash
+             FROM purchase_receipts
+            WHERE idempotency_key = ? OR active_inspection_key = ?
+            LIMIT 1`,
+          [receiptIdempotencyKey, inspectionId ? `INSPECTION:${inspectionId}` : null]
+        );
+        if (existingRows.length > 0) {
+          await client.rollback();
+          if (existingRows[0].idempotency_hash && existingRows[0].idempotency_hash !== idempotencyHash) {
+            return ResponseHandler.error(
+              res,
+              '相同幂等键已绑定不同采购收货内容',
+              'IDEMPOTENCY_CONFLICT',
+              409
+            );
+          }
+          return ResponseHandler.success(
+            res,
+            {
+              success: true,
+              id: existingRows[0].id,
+              receiptNo: existingRows[0].receipt_no,
+              idempotent: true,
+            },
+            '该请求已创建过采购收货单',
+            200
+          );
+        }
+      }
       logger.error('插入采购入库单失败:', insertError);
       await client.rollback();
       return ResponseHandler.error(res, '数据库插入错误', 'SERVER_ERROR', 500, insertError);
@@ -1142,6 +1255,7 @@ const updateReceiptStatus = async (req, res) => {
 
     const { id } = req.params;
     const { status, remarks = '' } = req.body;
+    const requestId = req.headers['x-request-id'] || req.headers['x-correlation-id'] || req.id || null;
 
     // 验证必填字段
     if (!id || !status) {
@@ -1161,7 +1275,7 @@ const updateReceiptStatus = async (req, res) => {
     let currentStatus = null;
 
     try {
-      const checkQuery = 'SELECT status FROM purchase_receipts WHERE id = ? AND deleted_at IS NULL FOR UPDATE';
+      const checkQuery = 'SELECT id, receipt_no, status FROM purchase_receipts WHERE id = ? AND deleted_at IS NULL FOR UPDATE';
       const [checkRows] = await client.query(checkQuery, [id]);
 
       if (!checkRows || checkRows.length === 0) {
@@ -1400,6 +1514,37 @@ const updateReceiptStatus = async (req, res) => {
     // 这样可以最小化持有 purchase_receipts 行锁的时间，防止超时
     try {
       await client.query(updateQuery, updateParams);
+      await AuditLogService.log({
+        request_id: requestId,
+        operator_id: req.user?.id || null,
+        operator_name: req.user?.username || req.user?.name || 'system',
+        action: 'UPDATE_STATUS',
+        module: 'purchase_receipt',
+        target_table: 'purchase_receipts',
+        target_id: String(id),
+        old_payload: { status: currentStatus },
+        new_payload: { status },
+        method: req.method,
+        path: req.originalUrl,
+        ip_address: req.ip || req.connection?.remoteAddress,
+        user_agent: req.headers['user-agent'],
+      }, client);
+
+      if (status === STATUS.PURCHASE_RECEIPT.COMPLETED && currentStatus !== STATUS.PURCHASE_RECEIPT.COMPLETED) {
+        await DomainEventService.enqueue(
+          'PURCHASE_RECEIPT_COMPLETED',
+          {
+            receiptId: id,
+            currentUserId: req.user?.id,
+          },
+          {
+            connection: client,
+            aggregateType: 'purchase_receipt',
+            aggregateId: id,
+            dedupKey: `PURCHASE_RECEIPT_COMPLETED:${id}`,
+          }
+        );
+      }
     } catch (updateError) {
       logger.error('执行状态更新SQL失败:', updateError);
       await client.rollback();
@@ -1408,6 +1553,8 @@ const updateReceiptStatus = async (req, res) => {
 
     // 使用普通查询提交事务
     await client.commit();
+    await client.commit();
+    DomainEventService.dispatchSoon();
 
     // ==========================================
     // [核心] 采购入库完成后，异步触发 MAC(移动加权均价) 成本更新
@@ -1469,22 +1616,6 @@ const updateReceiptStatus = async (req, res) => {
             { receiptId: id },
             macError
           );
-        }
-      });
-    }
-
-    // 采购入库完成后，通过事件总线异步解耦触发后续财务集成（应付发票、进项发票）
-    if (status === STATUS.PURCHASE_RECEIPT.COMPLETED) {
-      setImmediate(() => {
-        try {
-          const EventBus = require('../../../events/EventBus');
-          EventBus.emit('PURCHASE_RECEIPT_COMPLETED', {
-            receiptId: id,
-            currentUserId: req.user?.id
-          });
-          logger.info(`📢 业务事件触发: PURCHASE_RECEIPT_COMPLETED (ID: ${id})`);
-        } catch (emitErr) {
-          logger.error('⚠️ [EventBus] 触发 PURCHASE_RECEIPT_COMPLETED 失败:', emitErr);
         }
       });
     }

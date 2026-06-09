@@ -17,12 +17,19 @@ const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const { parsePagination, appendPaginationSQL } = require('../../../utils/safePagination');
 const { desensitizeDataForUser } = require('../../../utils/desensitizer');
 const { calculateLines, normalizeTaxRate } = require('../../../utils/money');
+const DataScopeService = require('../../../services/DataScopeService');
 
 const { STATUS, getConnection, generateSalesOrderNo } = require('./salesShared');
 const { autoGenerateFollowUpDocuments } = require('./salesExchangeController');
 const { generateProductionAndPurchasePlans } = require('./salesPackingController');
 const { financeConfig } = require('../../../config/financeConfig');
 const SYNC_SALES_ORDER_STATUS_DRIFT = false;
+
+async function canAccessSalesOrder(connection, req, id) {
+  return DataScopeService.assertRecordAccess(connection, req, 'sales_orders', id, {
+    ownerColumn: 'created_by',
+  });
+}
 
 function assertSalesOrderItemPrices(items = []) {
   const invalidRows = items
@@ -102,6 +109,10 @@ exports.getSalesOrders = async (req, res) => {
       // 构建查询条件
       let whereClause = '';
       const params = [];
+      const scopeClause = await DataScopeService.buildRequestOwnerScopeClause(req, {
+        tableAlias: 'so',
+        ownerAlias: 'sales_order_owner_scope',
+      });
 
       if (search) {
         whereClause += ' AND (so.order_no LIKE ? OR c.name LIKE ? OR so.contract_code LIKE ?)';
@@ -127,6 +138,9 @@ exports.getSalesOrders = async (req, res) => {
         whereClause += ' AND so.created_by = ?';
         params.push(operator);
       }
+
+      whereClause += scopeClause.where;
+      params.push(...scopeClause.params);
 
       const ordersQuery = appendPaginationSQL(
         `
@@ -159,6 +173,7 @@ exports.getSalesOrders = async (req, res) => {
       LEFT JOIN customers c ON so.customer_id = c.id
       LEFT JOIN users u ON so.locked_by = u.id
       LEFT JOIN users creator ON so.created_by = creator.id
+      ${scopeClause.join}
       WHERE so.deleted_at IS NULL${whereClause}
       ORDER BY so.order_no DESC
     `,
@@ -381,6 +396,9 @@ exports.getSalesOrder = async (req, res) => {
       }
 
       const order = orderResults[0];
+      if (!(await canAccessSalesOrder(connection, req, order.id))) {
+        return ResponseHandler.forbidden(res, 'No permission to access this sales order');
+      }
 
       // 查询订单明细（包含库存数量）
       const [itemResults] = await connection.query(
@@ -476,6 +494,11 @@ exports.updateOrderStatus = async (req, res) => {
     if (checkResult.length === 0) {
       await connection.rollback();
       return ResponseHandler.error(res, '订单不存在', 'NOT_FOUND', 404);
+    }
+
+    if (!(await canAccessSalesOrder(connection, req, id))) {
+      await connection.rollback();
+      return ResponseHandler.forbidden(res, 'No permission to modify this sales order');
     }
 
     const currentStatus = checkResult[0].status;
@@ -985,6 +1008,10 @@ exports.updateSalesOrder = async (req, res) => {
 
     assertSalesOrderItemPrices(items);
 
+    if (!(await canAccessSalesOrder(db.pool, req, id))) {
+      return ResponseHandler.forbidden(res, 'No permission to modify this sales order');
+    }
+
     // 调用数据库函数更新订单
     const updatedOrder = await SalesDao.updateSalesOrder(id, order, items);
 
@@ -1034,6 +1061,10 @@ exports.deleteSalesOrder = async (req, res) => {
     }
 
     const order = orderResult[0];
+    if (!(await canAccessSalesOrder(connection, req, id))) {
+      await connection.rollback();
+      return ResponseHandler.forbidden(res, 'No permission to delete this sales order');
+    }
 
     // 2. 仅允许删除草稿(draft)和待审核(pending)状态的订单
     const deletableStatuses = ['draft', 'pending'];
@@ -1121,6 +1152,11 @@ exports.lockOrder = async (req, res) => {
     const order = orderResult[0];
 
     // 检查订单是否已经锁定
+    if (!(await canAccessSalesOrder(connection, req, id))) {
+      await connection.rollback();
+      return ResponseHandler.forbidden(res, 'No permission to lock this sales order');
+    }
+
     if (order.is_locked) {
       await connection.rollback();
       return ResponseHandler.error(res, '订单已经锁定，无法重复锁定', 'VALIDATION_ERROR', 400);
@@ -1217,6 +1253,11 @@ exports.unlockOrder = async (req, res) => {
     const order = orderResult[0];
 
     // 检查订单是否已经锁定
+    if (!(await canAccessSalesOrder(connection, req, id))) {
+      await connection.rollback();
+      return ResponseHandler.forbidden(res, 'No permission to unlock this sales order');
+    }
+
     if (!order.is_locked) {
       await connection.rollback();
       return ResponseHandler.error(res, '订单未锁定，无需解锁', 'VALIDATION_ERROR', 400);

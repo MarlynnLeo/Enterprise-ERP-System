@@ -6,6 +6,7 @@
 
 const { logger } = require('../utils/logger');
 const PermissionService = require('../services/PermissionService');
+const DataScopeService = require('../services/DataScopeService');
 const { PermissionUtils } = require('../utils/authUtils');
 const { ResponseHandler } = require('../utils/responseHandler');
 
@@ -48,6 +49,7 @@ function requirePermission(permissions, mode = 'any') {
 
       // 4. 权限检查通过，将用户权限附加到请求对象
       req.userPermissions = userPermissions;
+      await DataScopeService.attachRequestScope(req);
 
       next();
     } catch (error) {

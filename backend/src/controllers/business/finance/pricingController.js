@@ -5,6 +5,7 @@ const { AuditService, AuditAction, AuditModule } = require('../../../services/Au
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const { parsePagination } = require('../../../utils/safePagination');
 const { safeParseId } = require('../../../utils/safeParseId');
+const Precision = require('../../../utils/precision');
 
 function parseRequiredAmount(value, fieldName) {
   const parsed = Number(value);
@@ -377,10 +378,13 @@ async function calculateBomCostInternal(connection, productId, bomId = null) {
   // 计算总成本
   let totalCost = 0;
   for (const item of details) {
-    totalCost += (parseFloat(item.quantity) || 0) * (parseFloat(item.unit_price) || 0);
+    totalCost = Precision.add(
+      totalCost,
+      Precision.mul(parseFloat(item.quantity) || 0, parseFloat(item.unit_price) || 0)
+    );
   }
 
-  return parseFloat(totalCost.toFixed(2));
+  return Precision.round2(totalCost);
 }
 
 // 计算产品成本（BOM成本或采购成本）
@@ -768,8 +772,8 @@ exports.getBomDetails = async (req, res) => {
 
       // 使用调整后的价格计算,如果没有调整则使用原价
       const effectivePrice = hasAdjustment ? adjustedPrice : originalPrice;
-      const subtotal = qty * effectivePrice;
-      totalCost += subtotal;
+      const subtotal = Precision.round2(Precision.mul(qty, effectivePrice));
+      totalCost = Precision.add(totalCost, subtotal);
 
       return {
         ...item,
@@ -780,7 +784,7 @@ exports.getBomDetails = async (req, res) => {
         has_adjustment: hasAdjustment,
         adjustment_reason: adjustment?.adjustment_reason || null,
         adjustment_version: adjustment?.version || null,
-        subtotal: parseFloat(subtotal.toFixed(2)),
+        subtotal,
         // 如果当前价格与采购价格不同，标记为价格已变动
         price_changed:
           item.purchase_price && Math.abs(originalPrice - parseFloat(item.purchase_price)) > 0.01,
@@ -788,7 +792,9 @@ exports.getBomDetails = async (req, res) => {
     });
 
     // 6. 计算成本变动
-    const costVariance = totalCost - parseFloat(lastSavedCost);
+    const roundedTotalCost = Precision.round2(totalCost);
+    const roundedLastSavedCost = Precision.round2(parseFloat(lastSavedCost) || 0);
+    const costVariance = Precision.round2(Precision.sub(roundedTotalCost, roundedLastSavedCost));
 
     ResponseHandler.success(res, {
       hasBom: true,
@@ -800,9 +806,9 @@ exports.getBomDetails = async (req, res) => {
         statusText: bom.approved_by !== null ? '已审核' : '未审核',
       },
       details: enrichedDetails,
-      totalCost: parseFloat(totalCost.toFixed(2)),
-      lastSavedCost: parseFloat(lastSavedCost),
-      costVariance: parseFloat(costVariance.toFixed(2)),
+      totalCost: roundedTotalCost,
+      lastSavedCost: roundedLastSavedCost,
+      costVariance,
       lastPricingDate,
     });
   } catch (error) {

@@ -2365,6 +2365,30 @@ const appendRoutePermissionEntries = (menus) => {
       status: 1
     },
     {
+      id: 931101,
+      parentId: 9311,
+      name: '查看生产日历',
+      path: '',
+      component: '',
+      icon: '',
+      type: 2,
+      permission: 'production:calendar:view',
+      sort: 1,
+      status: 1
+    },
+    {
+      id: 931102,
+      parentId: 9311,
+      name: '维护生产日历',
+      path: '',
+      component: '',
+      icon: '',
+      type: 2,
+      permission: 'production:calendar:update',
+      sort: 2,
+      status: 1
+    },
+    {
       id: 9305,
       parentId: 5,
       name: 'Purchase History',

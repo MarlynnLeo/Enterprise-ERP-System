@@ -10,6 +10,7 @@ const { logger } = require('../../../utils/logger');
 const db = require('../../../config/db');
 const { softDelete } = require('../../../utils/softDelete');
 const SalesOrderStatusService = require('../../../services/business/SalesOrderStatusService');
+const DomainEventService = require('../../../services/business/DomainEventService');
 const DBManager = require('../../../utils/dbManager');
 const { getCurrentUserName } = require('../../../utils/userHelper');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
@@ -1227,8 +1228,22 @@ exports.updateSalesOutbound = async (req, res) => {
       logger.error('⚠️ 财务事件数据准备失败，但不阻塞出库', evtError);
     }
 
+    if (eventPayload && isJustCompleted) {
+      await DomainEventService.enqueue(
+        'SALES_OUTBOUND_COMPLETED',
+        eventPayload,
+        {
+          connection,
+          aggregateType: 'sales_outbound',
+          aggregateId: id,
+          dedupKey: `SALES_OUTBOUND_COMPLETED:${id}`,
+        }
+      );
+    }
+
     // ========== 提交主事务，释放所有行锁 ==========
     await connection.commit();
+    DomainEventService.dispatchSoon();
 
     const [updatedOutbound] = await connection.query(
       `SELECT so.*, o.order_no, c.name as customer_name
@@ -1254,21 +1269,6 @@ exports.updateSalesOutbound = async (req, res) => {
       ...updatedOutbound[0],
       items: updatedItems,
     };
-
-    // ========== 响应返回前注册异步事件；setImmediate 会在 finally 释放连接后执行 ==========
-    // 【关键】EventEmitter.emit 是同步的！如果直接 emit，订阅者的 async handler
-    if (eventPayload && isJustCompleted) {
-      const outboundNo = currentOutbound.outbound_no;
-      setImmediate(() => {
-        try {
-          const EventBus = require('../../../events/EventBus');
-          EventBus.emit('SALES_OUTBOUND_COMPLETED', eventPayload);
-          logger.info(`📢 业务事件触发: SALES_OUTBOUND_COMPLETED (单号: ${outboundNo})`);
-        } catch (emitErr) {
-          logger.error('⚠️ [EventBus] 发送事件失败', emitErr);
-        }
-      });
-    }
 
     return ResponseHandler.success(res, {
       message: '销售出库单更新成功',

@@ -426,15 +426,21 @@ class QualityIntegrationService {
   static emitPurchaseReceiptCompleted(receiptId, currentUserId = null) {
     if (!receiptId) return;
 
-    setImmediate(() => {
+    setImmediate(async () => {
       try {
-        const EventBus = require('../../events/EventBus');
-        EventBus.emit('PURCHASE_RECEIPT_COMPLETED', {
-          receiptId,
-          currentUserId,
-        });
+        const DomainEventService = require('./DomainEventService');
+        await DomainEventService.enqueue(
+          'PURCHASE_RECEIPT_COMPLETED',
+          { receiptId, currentUserId },
+          {
+            aggregateType: 'purchase_receipt',
+            aggregateId: receiptId,
+            dedupKey: `PURCHASE_RECEIPT_COMPLETED:${receiptId}`,
+          }
+        );
+        DomainEventService.dispatchSoon();
       } catch (error) {
-        logger.error('Failed to emit PURCHASE_RECEIPT_COMPLETED:', error);
+        logger.error('Failed to enqueue PURCHASE_RECEIPT_COMPLETED:', error);
       }
     });
   }

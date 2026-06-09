@@ -57,6 +57,7 @@ const auditLogInterceptor = async (req, res, next) => {
       const operator = req.user ? { id: req.user.id, name: req.user.name || req.user.username } : { id: 'SYS', name: '系统操作' };
 
       AuditLogService.log({
+        request_id: req.headers['x-request-id'] || req.headers['x-correlation-id'] || req.id || null,
         operator_id: String(operator.id),
         operator_name: String(operator.name),
         action,
@@ -64,6 +65,8 @@ const auditLogInterceptor = async (req, res, next) => {
         target_table: targetTable,
         target_id: String(targetId),
         new_payload: req.method !== 'DELETE' ? maskSensitiveData(req.body) : null,
+        method: req.method,
+        path: req.originalUrl,
         ip_address: req.ip || req.connection.remoteAddress,
         user_agent: req.headers['user-agent'],
         remarks: `由 ${req.method} ${req.originalUrl} 触发`

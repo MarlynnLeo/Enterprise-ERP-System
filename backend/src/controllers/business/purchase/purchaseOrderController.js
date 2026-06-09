@@ -26,6 +26,21 @@ const { desensitizeDataForUser } = require('../../../utils/desensitizer');
 const { calculateLines, normalizeTaxRate } = require('../../../utils/money');
 const { parsePagination } = require('../../../utils/safePagination');
 const { financeConfig } = require('../../../config/financeConfig');
+const DataScopeService = require('../../../services/DataScopeService');
+const { getAuthenticatedUserId } = require('../../../utils/authContext');
+
+async function canAccessPurchaseOrder(connection, req, id) {
+  return DataScopeService.assertRecordAccess(connection, req, 'purchase_orders', id, {
+    ownerColumn: 'created_by',
+  });
+}
+
+function forbiddenError(message) {
+  const error = new Error(message);
+  error.statusCode = 403;
+  error.code = 'FORBIDDEN';
+  return error;
+}
 
 function assertPurchaseItemPrices(items = []) {
   const invalidRows = items
@@ -60,6 +75,10 @@ const getOrders = async (req, res) => {
       status,
     } = req.query;
     const pagination = parsePagination(page, pageSize, { defaultPageSize: 10, maxPageSize: 100 });
+    const scopeClause = await DataScopeService.buildRequestOwnerScopeClause(req, {
+      tableAlias: 'o',
+      ownerAlias: 'purchase_order_owner_scope',
+    });
 
     let query = `
       SELECT o.*, s.name as supplier_name, s.code as supplier_code,
@@ -69,6 +88,7 @@ const getOrders = async (req, res) => {
              COUNT(*) OVER() as total_count
       FROM purchase_orders o
       LEFT JOIN suppliers s ON o.supplier_id = s.id
+      ${scopeClause.join}
       WHERE o.deleted_at IS NULL
     `;
 
@@ -111,6 +131,9 @@ const getOrders = async (req, res) => {
       query += ' AND o.status = ?';
       queryParams.push(status);
     }
+
+    query += scopeClause.where;
+    queryParams.push(...scopeClause.params);
 
     // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
     const actualPageSize = pagination.limit;
@@ -195,6 +218,10 @@ const getOrder = async (req, res) => {
       orderId = rows[0].id;
     }
 
+    if (!(await canAccessPurchaseOrder(pool, req, orderId))) {
+      return ResponseHandler.forbidden(res, 'No permission to access this purchase order');
+    }
+
     const order = await getOrderById(orderId);
 
     if (!order) {
@@ -225,6 +252,7 @@ const createOrder = async (req, res) => {
       contract_code: contractCode,
       items,
     } = req.body;
+    const createdBy = getAuthenticatedUserId(req);
 
     const createdOrder = await DBManager.executeTransaction(async (connection) => {
       const supplierName = await PurchaseOrderService.validateSupplier(connection, supplierId);
@@ -245,9 +273,9 @@ const createOrder = async (req, res) => {
         INSERT INTO purchase_orders (
           order_no, order_date, supplier_id, supplier_name, contract_code,
           expected_delivery_date, contact_person, contact_phone,
-          total_amount, tax_rate, tax_amount, subtotal, remarks, status, requisition_id, requisition_number
+          total_amount, tax_rate, tax_amount, subtotal, remarks, status, requisition_id, requisition_number, created_by
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
       const [result] = await connection.query(insertQuery, [
         orderNo,
@@ -266,6 +294,7 @@ const createOrder = async (req, res) => {
         req.body.status || 'draft',
         requisitionId || null,
         requisitionNumber || null,
+        createdBy,
       ]);
 
       const orderId = result.insertId;
@@ -310,6 +339,9 @@ const updateOrder = async (req, res) => {
     } = req.body;
 
     const updatedOrder = await DBManager.executeTransaction(async (connection) => {
+      if (!(await canAccessPurchaseOrder(connection, req, id))) {
+        throw forbiddenError('No permission to modify this purchase order');
+      }
       await PurchaseOrderService.validateOrderEditable(connection, id);
       const supplierName = await PurchaseOrderService.validateSupplier(connection, supplierId);
       assertPurchaseItemPrices(items || []);
@@ -375,6 +407,10 @@ const deleteOrder = async (req, res) => {
   try {
     const { id } = req.params;
 
+    if (!(await canAccessPurchaseOrder(pool, req, id))) {
+      return ResponseHandler.forbidden(res, 'No permission to delete this purchase order');
+    }
+
     await DBManager.executeTransaction(async (connection) => {
       const [orders] = await connection.query(
         'SELECT id, status FROM purchase_orders WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
@@ -382,6 +418,9 @@ const deleteOrder = async (req, res) => {
       );
       if (orders.length === 0) {
         throw new Error('purchase order not found');
+      }
+      if (!(await canAccessPurchaseOrder(connection, req, id))) {
+        throw forbiddenError('No permission to delete this purchase order');
       }
       if (!['draft', 'pending', 'rejected', 'cancelled'].includes(orders[0].status)) {
         const err = new Error('current purchase order status cannot be deleted');
@@ -421,6 +460,10 @@ const updateOrderStatus = async (req, res) => {
       return ResponseHandler.error(res, 'invalid status', 'VALIDATION_ERROR', 400);
     }
 
+    if (!(await canAccessPurchaseOrder(pool, req, id))) {
+      return ResponseHandler.forbidden(res, 'No permission to change this purchase order');
+    }
+
     const updatedOrder = await DBManager.executeTransaction(async (connection) => {
       const [checkRows] = await connection.query('SELECT id, order_no, order_date, supplier_id, supplier_name, contract_code, expected_delivery_date, contact_person, contact_phone, total_amount, remarks, status, completion_percentage, created_at, updated_at, requisition_id, requisition_number, tax_rate, tax_amount, subtotal, deleted_at FROM purchase_orders WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [
         id,
@@ -428,6 +471,10 @@ const updateOrderStatus = async (req, res) => {
 
       if (checkRows.length === 0) {
         throw new Error('purchase order not found');
+      }
+
+      if (!(await canAccessPurchaseOrder(connection, req, id))) {
+        throw forbiddenError('No permission to change this purchase order');
       }
 
       const currentOrder = checkRows[0];
@@ -546,6 +593,11 @@ const batchUpdateOrderStatus = async (req, res) => {
         const order = orderMap.get(id);
         if (!order) {
           failures.push({ id, message: 'purchase order not found' });
+          continue;
+        }
+
+        if (!(await canAccessPurchaseOrder(connection, req, id))) {
+          failures.push({ id, order_no: order.order_no, message: 'No permission to change this purchase order' });
           continue;
         }
 

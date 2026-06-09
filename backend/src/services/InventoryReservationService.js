@@ -11,6 +11,10 @@ const InventoryService = require('./InventoryService');
  * reserved.
  */
 class InventoryReservationService {
+  buildReservationKey(orderId, materialId, locationId) {
+    return `SO:${orderId}:${materialId}:${locationId}`;
+  }
+
   async reserveInventoryForOrder(orderId, orderNo, items, userId, connection = null) {
     const conn = connection || (await db.pool.getConnection());
     const shouldReleaseConnection = !connection;
@@ -39,40 +43,63 @@ class InventoryReservationService {
         const locationId = matInfo.locationId;
         const requiredQuantity = parseFloat(item.quantity || item.ordered_quantity || 0);
 
+        const reservationKey = this.buildReservationKey(orderId, item.material_id, locationId);
         const [existingRows] = await conn.execute(
-          `SELECT COALESCE(SUM(reserved_quantity), 0) as reserved_quantity
+          `SELECT id, reserved_quantity
            FROM inventory_reservations
-           WHERE order_id = ? AND material_id = ? AND location_id = ? AND status = 'active'`,
+           WHERE order_id = ? AND material_id = ? AND location_id = ? AND status = 'active'
+           FOR UPDATE`,
           [orderId, item.material_id, locationId]
         );
-        const alreadyReserved = parseFloat(existingRows[0]?.reserved_quantity || 0);
+        const alreadyReserved = existingRows.reduce(
+          (sum, row) => sum + (parseFloat(row.reserved_quantity) || 0),
+          0
+        );
 
         const availableForOrder = await this.getAvailableStock(item.material_id, locationId, conn, orderId);
         const remainingQuantity = Math.max(0, requiredQuantity - alreadyReserved);
-        const availableForNewReservation = Math.max(0, availableForOrder - alreadyReserved);
+        const availableForNewReservation = Math.max(0, availableForOrder);
         const reservableQuantity = Math.min(availableForNewReservation, remainingQuantity);
 
         if (reservableQuantity > 0) {
-          const [reservationResult] = await conn.execute(
-            `INSERT INTO inventory_reservations (
-              order_id, order_no, material_id, material_code, material_name,
-              location_id, reserved_quantity, status, created_by, remarks
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)`,
-            [
-              orderId,
-              orderNo,
-              item.material_id,
-              material.code,
-              material.name,
-              locationId,
-              reservableQuantity,
-              userId || null,
-              `Order ${orderNo} inventory reservation`,
-            ]
-          );
+          let reservationId = existingRows[0]?.id || null;
+          if (reservationId) {
+            await conn.execute(
+              `UPDATE inventory_reservations
+                  SET reserved_quantity = reserved_quantity + ?,
+                      reservation_key = ?,
+                      updated_at = NOW()
+                WHERE id = ? AND status = 'active'`,
+              [reservableQuantity, reservationKey, reservationId]
+            );
+          } else {
+            const [reservationResult] = await conn.execute(
+              `INSERT INTO inventory_reservations (
+                order_id, order_no, material_id, material_code, material_name,
+                location_id, reserved_quantity, status, created_by, remarks, reservation_key
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)
+              ON DUPLICATE KEY UPDATE
+                reserved_quantity = reserved_quantity + VALUES(reserved_quantity),
+                updated_at = NOW(),
+                id = LAST_INSERT_ID(id)`,
+              [
+                orderId,
+                orderNo,
+                item.material_id,
+                material.code,
+                material.name,
+                locationId,
+                reservableQuantity,
+                userId || null,
+                `Order ${orderNo} inventory reservation`,
+                reservationKey,
+              ]
+            );
+            reservationId = reservationResult.insertId;
+          }
 
           reservations.push({
-            id: reservationResult.insertId,
+            id: reservationId,
             materialId: item.material_id,
             materialCode: material.code,
             materialName: material.name,
@@ -149,7 +176,7 @@ class InventoryReservationService {
       }
 
       const [reservations] = await conn.execute(
-        'SELECT id, order_id, order_no, material_id, material_code, material_name, location_id, reserved_quantity, status, reserved_at, released_at, created_by, remarks, created_at, updated_at FROM inventory_reservations WHERE order_id = ? AND status = "active"',
+        'SELECT id, order_id, order_no, material_id, material_code, material_name, location_id, reserved_quantity, status, reserved_at, released_at, created_by, remarks, created_at, updated_at FROM inventory_reservations WHERE order_id = ? AND status = "active" FOR UPDATE',
         [orderId]
       );
 
@@ -163,7 +190,7 @@ class InventoryReservationService {
 
       const [updateResult] = await conn.execute(
         `UPDATE inventory_reservations
-         SET status = 'released', released_at = NOW(), updated_at = NOW()
+         SET status = 'released', released_at = NOW(), reservation_key = NULL, updated_at = NOW()
          WHERE order_id = ? AND status = 'active'`,
         [orderId]
       );
@@ -199,7 +226,7 @@ class InventoryReservationService {
     );
 
     let reservedSql = `
-      SELECT COALESCE(SUM(reserved_quantity), 0) as reserved_quantity
+      SELECT id, reserved_quantity
       FROM inventory_reservations
       WHERE material_id = ? AND location_id = ? AND status = 'active'
     `;
@@ -209,9 +236,13 @@ class InventoryReservationService {
       reservedSql += ' AND order_id != ?';
       reservedParams.push(excludeOrderId);
     }
+    reservedSql += ' FOR UPDATE';
 
     const [reservedResult] = await connection.execute(reservedSql, reservedParams);
-    const reservedStock = parseFloat(reservedResult[0].reserved_quantity) || 0;
+    const reservedStock = reservedResult.reduce(
+      (sum, row) => sum + (parseFloat(row.reserved_quantity) || 0),
+      0
+    );
 
     return Math.max(0, totalStock - reservedStock);
   }
@@ -250,7 +281,7 @@ class InventoryReservationService {
         const placeholders = materialIds.map(() => '?').join(',');
         await connection.execute(
           `UPDATE inventory_reservations
-           SET status = 'consumed', updated_at = NOW()
+           SET status = 'consumed', reservation_key = NULL, updated_at = NOW()
            WHERE order_id = ? AND material_id IN (${placeholders}) AND status = 'active'`,
           [orderId, ...materialIds]
         );

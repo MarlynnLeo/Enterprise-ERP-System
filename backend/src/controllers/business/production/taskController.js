@@ -31,6 +31,7 @@ const CostAccountingService = require('../../../services/business/CostAccounting
 const InventoryTraceabilityService = require('../../../services/business/InventoryTraceabilityService');
 const InventoryService = require('../../../services/InventoryService');
 const NotificationService = require('../../../services/NotificationService');
+const DomainEventService = require('../../../services/business/DomainEventService');
 
 // 状态常量（统一引用 businessConfig，消除硬编码）
 const TASK_STATUS = businessConfig.status.productionTask;
@@ -68,6 +69,68 @@ async function resolveCostCenterIdForProduct(connection, productId) {
   );
 
   return rows.length > 0 ? rows[0].cost_center_id : null;
+}
+
+async function loadActiveProcessTemplateSteps(connection, productId) {
+  if (!productId) return { templateId: null, steps: [] };
+
+  const [templates] = await connection.query(
+    'SELECT id FROM process_templates WHERE product_id = ? AND status = 1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 1',
+    [productId]
+  );
+  if (templates.length === 0) {
+    return { templateId: null, steps: [] };
+  }
+
+  const templateId = templates[0].id;
+  const [steps] = await connection.query(
+    'SELECT id, template_id, order_num, name, description, standard_hours, department, remark, created_at, updated_at, instruction_docs FROM process_template_details WHERE template_id = ? ORDER BY order_num',
+    [templateId]
+  );
+  return { templateId, steps };
+}
+
+async function insertTaskProcessesFromSteps(connection, taskId, taskCode, taskQuantity, steps) {
+  for (const step of steps) {
+    await connection.query(
+      `
+      INSERT INTO production_processes
+      (task_id, process_name, sequence, quantity, progress, status, standard_hours, description, remarks)
+      VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?)
+    `,
+      [
+        taskId,
+        step.name,
+        step.order_num,
+        taskQuantity,
+        0,
+        step.standard_hours || 0,
+        step.description || '',
+        step.remark || '',
+      ]
+    );
+  }
+  logger.info(`任务 ${taskCode} 已加载 ${steps.length} 道工序`);
+}
+
+async function replaceTaskProcessesForProduct(connection, taskId, taskCode, productId, taskQuantity) {
+  await connection.query('DELETE FROM production_processes WHERE task_id = ?', [taskId]);
+
+  const { templateId, steps } = await loadActiveProcessTemplateSteps(connection, productId);
+  if (!templateId) {
+    logger.warn(`任务 ${taskCode} 产品 ${productId} 未配置激活工序模板，已清空旧工序`);
+    return;
+  }
+
+  logger.info(`任务 ${taskCode} 重新关联工序模板: ${templateId}`);
+  await insertTaskProcessesFromSteps(connection, taskId, taskCode, taskQuantity, steps);
+}
+
+async function syncTaskProcessQuantity(connection, taskId, taskQuantity) {
+  await connection.query(
+    'UPDATE production_processes SET quantity = ? WHERE task_id = ?',
+    [taskQuantity, taskId]
+  );
 }
 
 /**
@@ -474,7 +537,7 @@ exports.createProductionTask = async (req, res) => {
             const startTime = String(start_date).includes(' ') || String(start_date).includes('T')
               ? start_date
               : start_date + ' 08:00:00';
-            await SchedulingService.fillProcessSchedule(taskId, startTime, taskQuantity, connection);
+            await SchedulingService.rescheduleTask(taskId, startTime, taskQuantity, connection);
             logger.info(`[排程] 任务 ${code} 工序计划时间已自动填充`);
           } catch (schedErr) {
             throw new Error(`任务 ${code} 工序时间填充失败: ${schedErr.message}`, {
@@ -550,7 +613,7 @@ exports.updateProductionTask = async (req, res) => {
     } = req.body;
 
     const [taskCheck] = await connection.query(
-      'SELECT id, status, plan_id, product_id, quantity FROM production_tasks WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+      'SELECT id, code, status, plan_id, product_id, quantity, manager FROM production_tasks WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
       [id]
     );
 
@@ -579,7 +642,7 @@ exports.updateProductionTask = async (req, res) => {
     const currentProductId = currentTask.product_id ? Number(currentTask.product_id) : null;
     const nextProductId = product_id ? Number(product_id) : null;
     const currentQuantity = Number(currentTask.quantity) || 0;
-    const preStartStatuses = [TASK_STATUS.PENDING, TASK_STATUS.ALLOCATED];
+    const preStartStatuses = [TASK_STATUS.PENDING, TASK_STATUS.ALLOCATED, TASK_STATUS.PREPARING];
     const trackedFieldsChanged =
       currentPlanId !== nextPlanId ||
       currentProductId !== nextProductId ||
@@ -588,6 +651,10 @@ exports.updateProductionTask = async (req, res) => {
     if (trackedFieldsChanged && !preStartStatuses.includes(currentTask.status)) {
       await connection.rollback();
       return ResponseHandler.error(res, '任务已进入执行流程，不能修改计划、产品或数量', 'VALIDATION_ERROR', 400);
+    }
+
+    if (trackedFieldsChanged) {
+      await SchedulingService._assertTaskSchedulable(connection, currentTask);
     }
 
     if (trackedFieldsChanged) {
@@ -645,6 +712,7 @@ exports.updateProductionTask = async (req, res) => {
       // 使用 statusMapper 工具进行状态转换
       dbStatus = apiStatusToDbStatus(status, 'productionTask');
     }
+    const nextStatus = dbStatus || currentTask.status;
 
     // 如果产品变更，同步更新成本中心
     const costCenterId = await resolveCostCenterIdForProduct(connection, product_id);
@@ -669,6 +737,23 @@ exports.updateProductionTask = async (req, res) => {
         id,
       ]
     );
+
+    if (currentProductId !== nextProductId) {
+      await replaceTaskProcessesForProduct(connection, id, currentTask.code, product_id, taskQuantity);
+    } else if (currentQuantity !== taskQuantity) {
+      await syncTaskProcessQuantity(connection, id, taskQuantity);
+    }
+
+    if (start_date && preStartStatuses.includes(nextStatus)) {
+      const startTime = String(start_date).includes(' ') || String(start_date).includes('T')
+        ? start_date
+        : `${start_date} 08:00:00`;
+      await SchedulingService.rescheduleTask(id, startTime, taskQuantity, connection);
+    }
+
+    if (nextPlanId) {
+      await SchedulingService._syncScheduledPlanDates(connection, [Number(id)]);
+    }
 
     const planIdsToRefresh = [...new Set([currentPlanId, nextPlanId].filter(Boolean))];
     for (const planIdToRefresh of planIdsToRefresh) {
@@ -1552,13 +1637,30 @@ exports.completeTask = async (req, res) => {
       await syncPlanStatus(task.plan_id, connection);
     }
 
+    await DomainEventService.enqueue(
+      'PRODUCTION_TASK_COMPLETED',
+      {
+        taskId: parseInt(id, 10),
+        taskCode: task.code,
+        isFullComplete,
+      },
+      {
+        connection,
+        aggregateType: 'production_task',
+        aggregateId: id,
+        dedupKey: `PRODUCTION_TASK_COMPLETED:${id}:${isFullComplete ? 'full' : 'partial'}`,
+      }
+    );
+
     await connection.commit();
 
     // ===== 异步发射生产完工领域事件 =====
+    DomainEventService.dispatchSoon();
+    /*
     setImmediate(() => {
       try {
         const EventBus = require('../../../events/EventBus');
-        EventBus.emit('PRODUCTION_TASK_COMPLETED', {
+        // legacy direct event emission removed
           taskId: parseInt(id),
           taskCode: task.code,
           isFullComplete: isFullComplete
@@ -1570,6 +1672,7 @@ exports.completeTask = async (req, res) => {
     });
 
     // 如有警告，异步发送管理员通知（不阻断响应）
+    */
     if (warnings.length > 0) {
       setImmediate(async () => {
         try {

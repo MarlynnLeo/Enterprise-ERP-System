@@ -8,6 +8,7 @@
 const { logger } = require('../utils/logger');
 const db = require('../config/db');
 const cacheService = require('./cache/CacheManager'); // ✅ 新增：缓存服务
+const Precision = require('../utils/precision');
 
 /**
  * 统一的库存管理服务 - 单表架构版本
@@ -24,6 +25,122 @@ const cacheService = require('./cache/CacheManager'); // ✅ 新增：缓存服�
  * - v_current_stock: 当前库存视图（自动计算）
  */
 class InventoryService {
+  static LOCATION_LOCK_BATCH = '__LOCATION_LOCK__';
+
+  static balanceTableAvailable = null;
+
+  static _normalizeBatchNumber(batchNumber) {
+    return batchNumber === null || batchNumber === undefined ? '' : String(batchNumber);
+  }
+
+  static _isMissingBalanceTableError(error) {
+    return (
+      error &&
+      (error.code === 'ER_NO_SUCH_TABLE' ||
+        /inventory_stock_balances/i.test(error.message || ''))
+    );
+  }
+
+  static async _lockStockLocation(materialId, locationId, connection) {
+    if (this.balanceTableAvailable === false) {
+      return false;
+    }
+
+    try {
+      await connection.execute(
+        `INSERT INTO inventory_stock_balances (material_id, location_id, batch_number, quantity, created_at, updated_at)
+         VALUES (?, ?, ?, 0, NOW(), NOW())
+         ON DUPLICATE KEY UPDATE updated_at = updated_at`,
+        [materialId, locationId, this.LOCATION_LOCK_BATCH]
+      );
+
+      await connection.execute(
+        `SELECT id
+           FROM inventory_stock_balances
+          WHERE material_id = ? AND location_id = ? AND batch_number = ?
+          FOR UPDATE`,
+        [materialId, locationId, this.LOCATION_LOCK_BATCH]
+      );
+
+      this.balanceTableAvailable = true;
+      return true;
+    } catch (error) {
+      if (this._isMissingBalanceTableError(error)) {
+        this.balanceTableAvailable = false;
+        logger.warn('inventory_stock_balances table is not available; using ledger-only stock checks');
+        return false;
+      }
+      throw error;
+    }
+  }
+
+  static async _adjustStockBalance(
+    { materialId, locationId, batchNumber, quantity, unitCost = null, totalValue = null, ledgerId = null },
+    connection
+  ) {
+    if (this.balanceTableAvailable === false) {
+      return;
+    }
+
+    const normalizedBatch = this._normalizeBatchNumber(batchNumber);
+    if (normalizedBatch === this.LOCATION_LOCK_BATCH) {
+      return;
+    }
+
+    try {
+      await connection.execute(
+        `INSERT INTO inventory_stock_balances (
+          material_id, location_id, batch_number, quantity, unit_cost, total_value,
+          version, last_ledger_id, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, 1, ?, NOW(), NOW())
+        ON DUPLICATE KEY UPDATE
+          quantity = quantity + VALUES(quantity),
+          unit_cost = COALESCE(VALUES(unit_cost), unit_cost),
+          total_value = COALESCE(total_value, 0) + COALESCE(VALUES(total_value), 0),
+          version = version + 1,
+          last_ledger_id = COALESCE(VALUES(last_ledger_id), last_ledger_id),
+          updated_at = NOW()`,
+        [materialId, locationId, normalizedBatch, quantity, unitCost, totalValue, ledgerId]
+      );
+      this.balanceTableAvailable = true;
+    } catch (error) {
+      if (this._isMissingBalanceTableError(error)) {
+        this.balanceTableAvailable = false;
+        logger.warn('inventory_stock_balances table is not available; skipped stock balance maintenance');
+        return;
+      }
+      throw error;
+    }
+  }
+
+  static async _findLedgerByIdempotencyKey(idempotencyKey, connection) {
+    if (!idempotencyKey) return null;
+
+    try {
+      const [rows] = await connection.execute(
+        `SELECT id, before_quantity, after_quantity, quantity
+           FROM inventory_ledger
+          WHERE idempotency_key = ? OR idempotency_key LIKE ?
+          ORDER BY id ASC
+          FOR UPDATE`,
+        [idempotencyKey, `${idempotencyKey}:%`]
+      );
+      if (!rows.length) return null;
+
+      return {
+        id: rows[0].id,
+        before_quantity: rows[0].before_quantity,
+        after_quantity: rows[rows.length - 1].after_quantity,
+        quantity: rows.reduce((sum, row) => Precision.add(sum, row.quantity), 0),
+      };
+    } catch (error) {
+      if (error.code === 'ER_BAD_FIELD_ERROR') {
+        return null;
+      }
+      throw error;
+    }
+  }
+
   static normalizeTransactionDate(value) {
     const date = value ? new Date(value) : new Date();
     if (Number.isNaN(date.getTime())) {
@@ -120,6 +237,9 @@ class InventoryService {
       }
 
       const lockSql = withLock ? ' FOR UPDATE' : '';
+      if (withLock && connection) {
+        await this._lockStockLocation(materialId, locationId, connection);
+      }
 
       // 直接从 inventory_ledger 表计算当前库存
       const [result] = await conn.execute(
@@ -244,6 +364,7 @@ class InventoryService {
       purchaseOrderNo = null, // 原生批次身份证属性
       receiptId = null, // 原生批次身份证属性
       receiptNo = null, // 原生批次身份证属性
+      idempotencyKey = null,
     },
     connection
   ) {
@@ -277,6 +398,18 @@ class InventoryService {
     const startTime = Date.now();
 
     try {
+      const existingLedger = await this._findLedgerByIdempotencyKey(idempotencyKey, connection);
+      if (existingLedger) {
+        return {
+          success: true,
+          idempotent: true,
+          beforeQuantity: parseFloat(existingLedger.before_quantity) || 0,
+          afterQuantity: parseFloat(existingLedger.after_quantity) || 0,
+          changeQuantity: parseFloat(existingLedger.quantity) || 0,
+          duration: Date.now() - startTime,
+        };
+      }
+
       const resolvedTransactionDate = await this.resolveTransactionDate(
         { transactionDate, referenceType, referenceNo },
         connection
@@ -287,6 +420,8 @@ class InventoryService {
       if (!inventoryCheck.allowed) {
         throw new Error(inventoryCheck.message);
       }
+
+      await this._lockStockLocation(materialId, locationId, connection);
 
       // 2. 使用行级锁获取当前库存
       const beforeQuantity = await this.getCurrentStock(materialId, locationId, connection, true);
@@ -301,7 +436,7 @@ class InventoryService {
       }
 
       // 4. 计算变动后数量
-      const afterQuantity = beforeQuantity + changeQuantity;
+      const afterQuantity = Precision.add(beforeQuantity, changeQuantity);
 
       // 5. 业务规则验证
       // 排除调整类型和撤销出库类型的库存不足检查
@@ -388,20 +523,28 @@ class InventoryService {
       for (const batchInfo of finalBatchNumbers) {
         // 还原当前批次的实际变动量（正负号）
         const batchChangeQty = changeQuantity < 0 ? -batchInfo.quantity : batchInfo.quantity;
-        const currentAfter = currentBefore + batchChangeQty;
+        const currentAfter = Precision.add(currentBefore, batchChangeQty);
+        const ledgerIdempotencyKey =
+          idempotencyKey && finalBatchNumbers.length > 1
+            ? `${idempotencyKey}:${batchInfo.batchNumber}`
+            : idempotencyKey;
 
         // 计算流水账总金额
-        const currentTotalValue = (actualUnitCost || 0) * Math.abs(batchChangeQty);
+        const currentTotalValue = Precision.round(
+          Precision.mul(actualUnitCost || 0, Math.abs(batchChangeQty)),
+          6
+        );
 
-        await connection.execute(
+        const [ledgerResult] = await connection.execute(
           `INSERT INTO inventory_ledger (
             material_id, location_id, transaction_type, transaction_no, reference_no, reference_type,
             quantity, before_quantity, after_quantity, unit_id,
             batch_number, supplier_id, supplier_name, production_date, expiry_date, warehouse_name,
             operator, remark, issue_reason, is_excess, bom_required_qty, total_issued_qty,
             transaction_date, created_at,
-            unit_cost, total_value, purchase_order_id, purchase_order_no, receipt_id, receipt_no
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?)`,
+            unit_cost, total_value, purchase_order_id, purchase_order_no, receipt_id, receipt_no,
+            idempotency_key
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?, ?)`,
           [
             materialId,
             locationId,
@@ -431,8 +574,21 @@ class InventoryService {
             purchaseOrderId,
             purchaseOrderNo,
             receiptId,
-            receiptNo
+            receiptNo,
+            ledgerIdempotencyKey
           ]
+        );
+        await this._adjustStockBalance(
+          {
+            materialId,
+            locationId,
+            batchNumber: batchInfo.batchNumber,
+            quantity: batchChangeQty,
+            unitCost: actualUnitCost || null,
+            totalValue: currentTotalValue,
+            ledgerId: ledgerResult.insertId || null,
+          },
+          connection
         );
         currentBefore = currentAfter;
       }
