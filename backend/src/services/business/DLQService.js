@@ -126,13 +126,35 @@ class DLQService {
     await this.recordFailedJob(taskName, payload, error);
   }
 
-  static async listFailedJobs({ status = 'pending', page = 1, pageSize = 50 } = {}) {
+  static normalizeTaskNamePrefixes(taskNamePrefixes = []) {
+    return Array.isArray(taskNamePrefixes)
+      ? taskNamePrefixes.filter((prefix) => typeof prefix === 'string' && prefix.trim())
+      : [];
+  }
+
+  static buildTaskNamePrefixSql(taskNamePrefixes = [], params = []) {
+    const prefixes = this.normalizeTaskNamePrefixes(taskNamePrefixes);
+    if (prefixes.length === 0) return '';
+    params.push(...prefixes.map((prefix) => `${prefix}%`));
+    return `task_name LIKE ${prefixes.map(() => '?').join(' OR task_name LIKE ')}`;
+  }
+
+  static async listFailedJobs({ status = 'pending', page = 1, pageSize = 50, taskNamePrefixes = [] } = {}) {
     const allowedStatuses = new Set(['pending', 'retrying', 'resolved', 'ignored']);
     const actualPage = Math.max(Number(page) || 1, 1);
     const actualPageSize = Math.min(Math.max(Number(pageSize) || 50, 1), 100);
     const offset = (actualPage - 1) * actualPageSize;
-    const whereSql = allowedStatuses.has(status) ? 'WHERE status = ?' : '';
-    const params = allowedStatuses.has(status) ? [status] : [];
+    const conditions = [];
+    const params = [];
+    if (allowedStatuses.has(status)) {
+      conditions.push('status = ?');
+      params.push(status);
+    }
+    const taskNamePrefixSql = this.buildTaskNamePrefixSql(taskNamePrefixes, params);
+    if (taskNamePrefixSql) {
+      conditions.push(`(${taskNamePrefixSql})`);
+    }
+    const whereSql = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
     const listSql = appendPaginationSQL(
       `SELECT id, task_name, payload, error_message, status, attempts, next_retry_at,
@@ -259,7 +281,10 @@ class DLQService {
   }
 
   static async retryPendingJobs(options = {}) {
-    const registeredTaskNames = [...this.handlers.keys()];
+    const taskNamePrefixes = this.normalizeTaskNamePrefixes(options.taskNamePrefixes);
+    const registeredTaskNames = [...this.handlers.keys()].filter((taskName) => (
+      taskNamePrefixes.length === 0 || taskNamePrefixes.some((prefix) => taskName.startsWith(prefix))
+    ));
     if (registeredTaskNames.length === 0) {
       return {
         scanned: 0,

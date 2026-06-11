@@ -8,7 +8,7 @@
 const express = require('express');
 const router = express.Router();
 const printController = require('../controllers/common/printController');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken } = require('../middleware/authEnhanced');
 const { requirePermission } = require('../middleware/requirePermission');
 const { FileUploadMiddlewares } = require('../middleware/unifiedFileUpload');
 const PermissionService = require('../services/PermissionService');

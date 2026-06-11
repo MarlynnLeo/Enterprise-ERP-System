@@ -10,7 +10,7 @@ const CostAccountingService = require('../../../services/business/CostAccounting
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 const { safeParseId } = require('../../../utils/safeParseId');
-const { authenticateToken } = require('../../../middleware/auth');
+const { authenticateToken } = require('../../../middleware/authEnhanced');
 const { requirePermission } = require('../../../middleware/requirePermission');
 const {
   desensitizeSensitiveResponse,

@@ -1,41 +1,22 @@
 /**
  * authController.js
- * @description 控制器文件
+ * @description 认证控制器
  * @date 2025-08-27
- * @version 1.0.0
+ * @version 1.1.0
  */
 
 const { ResponseHandler } = require('../../utils/responseHandler');
 const { logger } = require('../../utils/logger');
 
-
 const {
-
   generateTokens,
   setTokensToCookies,
   clearTokenCookies,
 } = require('../../config/jwtEnhanced');
 
-const { pool } = require('../../config/db');
 const PasswordSecurity = require('../../utils/passwordSecurity');
 const AccountLockService = require('../../services/system/AccountLockService');
-
-/**
- * 为用户对象附加角色信息（消除重复查询）
- * @param {Object} user - 用户对象（会被原地修改）
- * @returns {Promise<void>}
- */
-async function attachUserRoles(user) {
-  const [roles] = await pool.execute(
-    `SELECT r.id, r.name, r.code FROM roles r
-     JOIN user_roles ur ON r.id = ur.role_id
-     WHERE ur.user_id = ?`,
-    [user.id]
-  );
-  user.roles = roles;
-  user.role_name = roles.length > 0 ? roles[0].name : '';
-  user.role_names = roles.map((r) => r.name).join(', ');
-}
+const AuthService = require('../../services/auth/AuthService');
 
 const login = async (req, res) => {
   const { username, password } = req.body;
@@ -59,11 +40,7 @@ const login = async (req, res) => {
     }
 
     // 2. 查询用户
-    const [users] = await pool.execute(
-      'SELECT id, username, real_name, email, password, status, token_version FROM users WHERE username = ?',
-      [username]
-    );
-    const user = users[0];
+    const user = await AuthService.findUserByUsername(username);
 
     if (!user) {
       // 用户不存在也记录失败（防止用户名枚举）
@@ -119,8 +96,8 @@ const login = async (req, res) => {
 
     logger.info('用户登录成功:', { userId: user.id, username: user.username });
   } catch (error) {
-    logger.error('Login error:', error);
-    ResponseHandler.error(res, 'Server error', 'SERVER_ERROR', 500, error);
+    logger.error('[Auth] 登录失败:', error);
+    ResponseHandler.error(res, '服务器错误', 'SERVER_ERROR', 500, error);
   }
 };
 
@@ -129,29 +106,19 @@ const getUserProfile = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    // 获取用户基本信息和部门信息
-    const [users] = await pool.execute(
-      `SELECT u.id, u.username, u.real_name, u.email, u.department_id, u.position, u.role, u.avatar, u.phone, u.avatar_frame, u.bio, u.created_at,
-              d.name as department_name
-       FROM users u
-       LEFT JOIN departments d ON u.department_id = d.id
-       WHERE u.id = ?`,
-      [userId]
-    );
+    const user = await AuthService.getUserProfile(userId);
 
-    if (users.length === 0) {
-      return ResponseHandler.error(res, 'User not found', 'NOT_FOUND', 404);
+    if (!user) {
+      return ResponseHandler.error(res, '用户不存在', 'NOT_FOUND', 404);
     }
 
-    const user = users[0];
-
     // 附加角色信息到用户对象
-    await attachUserRoles(user);
+    await AuthService.attachUserRoles(user);
 
     ResponseHandler.success(res, user, '获取用户信息成功');
   } catch (error) {
-    logger.error('Get user profile error:', error);
-    ResponseHandler.error(res, 'Server error', 'SERVER_ERROR', 500, error);
+    logger.error('[Auth] 获取用户信息失败:', error);
+    ResponseHandler.error(res, '服务器错误', 'SERVER_ERROR', 500, error);
   }
 };
 
@@ -162,69 +129,31 @@ const updateUserProfile = async (req, res) => {
     const userId = req.user.id;
     const { real_name, name, email, phone, department_id, position, avatar, bio } = req.body;
 
-    // 构建动态更新字段
-    const updateFields = [];
-    const updateValues = [];
+    // 构建更新字段映射
+    const fields = {};
+    if (real_name !== undefined || name !== undefined) fields.real_name = real_name || name;
+    if (email !== undefined) fields.email = email;
+    if (phone !== undefined) fields.phone = phone;
+    if (department_id !== undefined) fields.department_id = department_id;
+    if (position !== undefined) fields.position = position;
+    if (avatar !== undefined) fields.avatar = avatar;
+    if (bio !== undefined) fields.bio = bio;
 
-    if (real_name !== undefined || name !== undefined) {
-      updateFields.push('real_name = ?');
-      updateValues.push(real_name || name);
+    const updated = await AuthService.updateUserProfile(userId, fields);
+    if (!updated) {
+      return ResponseHandler.error(res, '没有可更新的字段', 'VALIDATION_ERROR', 400);
     }
-    if (email !== undefined) {
-      updateFields.push('email = ?');
-      updateValues.push(email);
-    }
-    if (phone !== undefined) {
-      updateFields.push('phone = ?');
-      updateValues.push(phone);
-    }
-    if (department_id !== undefined) {
-      updateFields.push('department_id = ?');
-      updateValues.push(department_id);
-    }
-    if (position !== undefined) {
-      updateFields.push('position = ?');
-      updateValues.push(position);
-    }
-    if (avatar !== undefined) {
-      updateFields.push('avatar = ?');
-      updateValues.push(avatar);
-    }
-    if (bio !== undefined) {
-      updateFields.push('bio = ?');
-      updateValues.push(bio);
-    }
-
-    if (updateFields.length === 0) {
-      return ResponseHandler.error(res, 'No fields to update', 'VALIDATION_ERROR', 400);
-    }
-
-    updateFields.push('updated_at = NOW()');
-    updateValues.push(userId);
-
-
-    await pool.execute(`UPDATE users SET ${updateFields.join(', ')} WHERE id = ?`, updateValues);
 
     // 返回更新后的用户信息，包括部门和角色
-    const [users] = await pool.execute(
-      `SELECT u.id, u.username, u.real_name, u.email, u.department_id, u.position, u.role, u.avatar, u.phone, u.avatar_frame, u.bio, u.created_at,
-              d.name as department_name
-       FROM users u
-       LEFT JOIN departments d ON u.department_id = d.id
-       WHERE u.id = ?`,
-      [userId]
-    );
-
-    const user = users[0];
+    const user = await AuthService.getUserProfile(userId);
 
     // 附加角色信息到用户对象
-    await attachUserRoles(user);
+    await AuthService.attachUserRoles(user);
 
     ResponseHandler.success(res, user, '更新用户信息成功');
   } catch (error) {
-    logger.error('Update user profile error:', error);
-    logger.error('Error stack:', error.stack);
-    ResponseHandler.error(res, 'Server error', 'SERVER_ERROR', 500, error);
+    logger.error('[Auth] 更新用户信息失败:', error);
+    ResponseHandler.error(res, '服务器错误', 'SERVER_ERROR', 500, error);
   }
 };
 
@@ -234,20 +163,20 @@ const changePassword = async (req, res) => {
     const userId = req.user.id;
     const { currentPassword, newPassword } = req.body;
 
-    // 获取当前用户信息
-    const [users] = await pool.execute('SELECT password FROM users WHERE id = ?', [userId]);
+    // 获取当前用户密码哈希
+    const passwordHash = await AuthService.getUserPasswordHash(userId);
 
-    if (users.length === 0) {
-      return ResponseHandler.error(res, 'User not found', 'NOT_FOUND', 404);
+    if (!passwordHash) {
+      return ResponseHandler.error(res, '用户不存在', 'NOT_FOUND', 404);
     }
 
     // 验证当前密码
     const isCurrentPasswordValid = await PasswordSecurity.verifyPassword(
       currentPassword,
-      users[0].password
+      passwordHash
     );
     if (!isCurrentPasswordValid) {
-      return ResponseHandler.error(res, 'Current password is incorrect', 'VALIDATION_ERROR', 400);
+      return ResponseHandler.error(res, '当前密码不正确', 'VALIDATION_ERROR', 400);
     }
 
     // 验证新密码强度
@@ -255,7 +184,7 @@ const changePassword = async (req, res) => {
     if (!passwordValidation.isValid) {
       return ResponseHandler.error(
         res,
-        'Password does not meet security requirements',
+        '密码不符合安全要求',
         'VALIDATION_ERROR',
         400
       );
@@ -265,18 +194,15 @@ const changePassword = async (req, res) => {
     const hashedNewPassword = await PasswordSecurity.hashPassword(newPassword);
 
     // ✅ 安全修复: 更新密码时同时递增 token_version，强制所有设备重新登录
-    await pool.execute(
-      'UPDATE users SET password = ?, token_version = token_version + 1, updated_at = NOW() WHERE id = ?',
-      [hashedNewPassword, userId]
-    );
+    await AuthService.updatePassword(userId, hashedNewPassword);
 
     // 清除当前设备的 Cookie，迫使重新登录
     clearTokenCookies(res);
 
     ResponseHandler.success(res, null, '密码修改成功，请重新登录');
   } catch (error) {
-    logger.error('Change password error:', error);
-    ResponseHandler.error(res, 'Server error', 'SERVER_ERROR', 500, error);
+    logger.error('[Auth] 修改密码失败:', error);
+    ResponseHandler.error(res, '服务器错误', 'SERVER_ERROR', 500, error);
   }
 };
 
@@ -317,7 +243,7 @@ const uploadAvatar = async (req, res) => {
     const userId = req.user.id;
 
     if (!req.file) {
-      return ResponseHandler.error(res, 'No avatar file provided', 'VALIDATION_ERROR', 400);
+      return ResponseHandler.error(res, '请上传头像文件', 'VALIDATION_ERROR', 400);
     }
 
     // Magic bytes 校验 — 确保文件内容与声明的 MIME 类型一致
@@ -332,34 +258,31 @@ const uploadAvatar = async (req, res) => {
     const avatarUrl = `/uploads/avatars/${req.file.filename}`;
 
     // 删除旧头像文件（如果是文件系统路径）
-    const [oldUser] = await pool.execute('SELECT avatar FROM users WHERE id = ?', [userId]);
-    if (oldUser[0]?.avatar && oldUser[0].avatar.startsWith('/uploads/avatars/')) {
+    const oldAvatar = await AuthService.getUserAvatar(userId);
+    if (oldAvatar && oldAvatar.startsWith('/uploads/avatars/')) {
       const fs = require('fs');
       const path = require('path');
       const avatarDir = path.resolve(process.cwd(), 'uploads', 'avatars');
-      const oldPath = path.resolve(process.cwd(), `.${oldUser[0].avatar}`);
+      const oldPath = path.resolve(process.cwd(), `.${oldAvatar}`);
       if (oldPath.startsWith(avatarDir + path.sep) && fs.existsSync(oldPath)) {
         fs.unlinkSync(oldPath);
-        logger.info('已删除旧头像文件:', oldPath);
+        logger.info('[Auth] 已删除旧头像文件:', oldPath);
       }
     }
 
     // 更新数据库：存文件路径而非 Base64
-    const [result] = await pool.execute(
-      'UPDATE users SET avatar = ?, updated_at = NOW() WHERE id = ?',
-      [avatarUrl, userId]
-    );
+    const affectedRows = await AuthService.updateAvatar(userId, avatarUrl);
 
-    if (result.affectedRows === 0) {
-      return ResponseHandler.error(res, 'User not found', 'NOT_FOUND', 404);
+    if (affectedRows === 0) {
+      return ResponseHandler.error(res, '用户不存在', 'NOT_FOUND', 404);
     }
 
     ResponseHandler.success(res, { avatarUrl }, '头像上传成功');
   } catch (error) {
-    logger.error('Upload avatar error:', error);
+    logger.error('[Auth] 头像上传失败:', error);
     ResponseHandler.error(
       res,
-      'Server error during avatar upload',
+      '头像上传失败',
       'SERVER_ERROR',
       500,
       error
@@ -378,12 +301,12 @@ const getUserPermissions = async (req, res) => {
     const permissions = await PermissionService.getUserPermissions(userId);
 
     logger.info(
-      `📋 [获取权限] 用户 ${req.user.username}(ID:${userId}) 权限数: ${permissions.length}`
+      `📋 [Auth] 用户 ${req.user.username}(ID:${userId}) 权限数: ${permissions.length}`
     );
 
     return ResponseHandler.success(res, permissions, '获取用户权限成功');
   } catch (error) {
-    logger.error('获取用户权限失败:', error);
+    logger.error('[Auth] 获取用户权限失败:', error);
     return ResponseHandler.error(res, '获取用户权限失败', 'SERVER_ERROR', 500, error);
   }
 };
@@ -408,16 +331,13 @@ const updateAvatarFrame = async (req, res) => {
     }
 
     // 更新用户的头像特效设置
-    await pool.execute('UPDATE users SET avatar_frame = ?, updated_at = NOW() WHERE id = ?', [
-      frameId,
-      userId,
-    ]);
+    await AuthService.updateAvatarFrame(userId, frameId);
 
-    logger.info('✅ 头像特效更新成功:', { userId, frameId });
+    logger.info('[Auth] 头像特效更新成功:', { userId, frameId });
 
     ResponseHandler.success(res, { frameId }, '头像特效已更新');
   } catch (error) {
-    logger.error('更新头像特效失败:', error);
+    logger.error('[Auth] 更新头像特效失败:', error);
     ResponseHandler.error(res, '更新头像特效失败', 'SERVER_ERROR', 500, error);
   }
 };
@@ -427,10 +347,7 @@ const logout = async (req, res) => {
   try {
     // ✅ 安全修复: 递增 token_version 使所有已发出的 refresh token 失效
     if (req.user?.id) {
-      await pool.execute(
-        'UPDATE users SET token_version = token_version + 1 WHERE id = ?',
-        [req.user.id]
-      );
+      await AuthService.incrementTokenVersion(req.user.id);
     }
 
     // 清除Cookie中的令牌
@@ -438,10 +355,10 @@ const logout = async (req, res) => {
 
     ResponseHandler.success(res, null, '登出成功');
 
-    logger.info('用户登出(已吊销Token):', { userId: req.user?.id });
+    logger.info('[Auth] 用户登出(已吊销Token):', { userId: req.user?.id });
   } catch (error) {
-    logger.error('Logout error:', error);
-    ResponseHandler.error(res, 'Server error', 'SERVER_ERROR', 500, error);
+    logger.error('[Auth] 登出失败:', error);
+    ResponseHandler.error(res, '服务器错误', 'SERVER_ERROR', 500, error);
   }
 };
 
@@ -451,16 +368,11 @@ const refreshToken = async (req, res) => {
     const userId = req.user.id;
 
     // 从数据库重新获取用户信息
-    const [users] = await pool.execute(
-      'SELECT id, username, role, real_name, email, status, token_version FROM users WHERE id = ?',
-      [userId]
-    );
+    const user = await AuthService.findUserForRefresh(userId);
 
-    if (users.length === 0) {
-      return ResponseHandler.error(res, 'User not found', 'NOT_FOUND', 404);
+    if (!user) {
+      return ResponseHandler.error(res, '用户不存在', 'NOT_FOUND', 404);
     }
-
-    const user = users[0];
 
     if (Number(user.status) !== 1) {
       clearTokenCookies(res);
@@ -473,7 +385,7 @@ const refreshToken = async (req, res) => {
       Number(user.token_version || 0) !== Number(req.user.tokenVersion)
     ) {
       clearTokenCookies(res);
-      return ResponseHandler.error(res, 'Token has been revoked', 'UNAUTHORIZED', 401);
+      return ResponseHandler.error(res, '令牌已被撤销', 'UNAUTHORIZED', 401);
     }
 
     // 生成新的令牌对
@@ -495,16 +407,16 @@ const refreshToken = async (req, res) => {
       '令牌刷新成功'
     );
 
-    logger.info('令牌刷新成功:', { userId: user.id });
+    logger.info('[Auth] 令牌刷新成功:', { userId: user.id });
   } catch (error) {
-    logger.error('Refresh token error:', error);
-    ResponseHandler.error(res, 'Failed to refresh token', 'SERVER_ERROR', 500, error);
+    logger.error('[Auth] 令牌刷新失败:', error);
+    ResponseHandler.error(res, '令牌刷新失败', 'SERVER_ERROR', 500, error);
   }
 };
 
 /**
  * 获取用户菜单（根据权限过滤）
- * 从 auth 路由中抽取的业务逻辑
+ * ✅ W-07: 菜单树构建逻辑提取为 AuthService.buildMenuTree
  */
 const getUserMenus = async (req, res) => {
   try {
@@ -513,126 +425,34 @@ const getUserMenus = async (req, res) => {
 
     const isAdmin = await PermissionService.isAdmin(userId);
     if (isAdmin) {
-      const [menus] = await pool.execute(
-        `SELECT id, parent_id, name, path, icon, permission, type, visible, sort_order as sort
-         FROM menus
-         WHERE status = 1 AND visible = 1 AND type <> 2
-         ORDER BY sort_order, id`
-      );
-
-      const menuMap = {};
-      menus.forEach((m) => {
-        menuMap[m.id] = { ...m, children: [] };
-      });
-
-      const tree = [];
-      menus.forEach((m) => {
-        if (m.parent_id && m.parent_id !== 0 && menuMap[m.parent_id]) {
-          menuMap[m.parent_id].children.push(menuMap[m.id]);
-        } else if (!m.parent_id || m.parent_id === 0) {
-          tree.push(menuMap[m.id]);
-        }
-      });
-
-      const sortMenus = (nodes) => {
-        nodes.sort((a, b) => (a.sort || 0) - (b.sort || 0) || a.id - b.id);
-        nodes.forEach((n) => {
-          if (n.children && n.children.length > 0) {
-            sortMenus(n.children);
-          }
-        });
-      };
-      sortMenus(tree);
-
+      const menus = await AuthService.getAllVisibleMenus();
+      const tree = AuthService.buildMenuTree(menus);
       return ResponseHandler.success(res, tree, '获取菜单成功');
     }
 
     // 1. 获取用户角色
-    const [userRoles] = await pool.execute('SELECT role_id FROM user_roles WHERE user_id = ?', [
-      userId,
-    ]);
+    const roleIds = await AuthService.getUserRoleIds(userId);
 
-    if (userRoles.length === 0) {
+    if (roleIds.length === 0) {
       return ResponseHandler.success(res, [], '获取菜单成功');
     }
-
-    const roleIds = userRoles.map((r) => r.role_id);
 
     // 2. 获取角色拥有的菜单ID
-    const [roleMenus] = await pool.execute(
-      `SELECT DISTINCT menu_id FROM role_menus WHERE role_id IN (${roleIds.map(() => '?').join(',')})`,
-      roleIds
-    );
+    const menuIds = await AuthService.getMenuIdsByRoles(roleIds);
 
-    if (roleMenus.length === 0) {
+    if (menuIds.length === 0) {
       return ResponseHandler.success(res, [], '获取菜单成功');
     }
 
-    const menuIds = roleMenus.map((r) => r.menu_id);
+    // 3. 使用递归 CTE 一次性获取菜单及其所有祖先节点
+    const menus = await AuthService.getMenusWithAncestors(menuIds);
 
-    // 3. 获取菜单详情
-    const [menus] = await pool.execute(
-      `SELECT id, parent_id, name, path, icon, permission, type, visible, sort_order as sort
-       FROM menus
-       WHERE id IN (${menuIds.map(() => '?').join(',')}) AND status = 1 AND visible = 1 AND type <> 2
-       ORDER BY sort_order`,
-      menuIds
-    );
-
-    // 4. 递归获取所有父菜单
-    const allMenuIds = new Set(menus.map((m) => m.id));
-    let currentParentIds = [...new Set(menus.filter(m => m.parent_id && m.parent_id !== 0).map(m => m.parent_id))];
-
-    while (currentParentIds.length > 0) {
-      const [parents] = await pool.execute(
-        `SELECT id, parent_id, name, path, icon, permission, type, visible, sort_order as sort
-         FROM menus
-         WHERE id IN (${currentParentIds.map(() => '?').join(',')}) AND status = 1 AND visible = 1 AND type <> 2`,
-        currentParentIds
-      );
-
-      const newParentIds = [];
-      parents.forEach((p) => {
-        if (!allMenuIds.has(p.id)) {
-          allMenuIds.add(p.id);
-          menus.push(p);
-          if (p.parent_id && p.parent_id !== 0) {
-            newParentIds.push(p.parent_id);
-          }
-        }
-      });
-      currentParentIds = newParentIds;
-    }
-
-    // 5. 构建菜单树
-    const menuMap = {};
-    menus.forEach((m) => {
-      menuMap[m.id] = { ...m, children: [] };
-    });
-
-    const tree = [];
-    menus.forEach((m) => {
-      if (m.parent_id && m.parent_id !== 0 && menuMap[m.parent_id]) {
-        menuMap[m.parent_id].children.push(menuMap[m.id]);
-      } else if (!m.parent_id || m.parent_id === 0) {
-        tree.push(menuMap[m.id]);
-      }
-    });
-
-    // 6. 按 sort 排序
-    const sortMenus = (nodes) => {
-      nodes.sort((a, b) => (a.sort || 0) - (b.sort || 0));
-      nodes.forEach((n) => {
-        if (n.children && n.children.length > 0) {
-          sortMenus(n.children);
-        }
-      });
-    };
-    sortMenus(tree);
+    // 4. 构建菜单树（使用公共函数）
+    const tree = AuthService.buildMenuTree(menus);
 
     return ResponseHandler.success(res, tree, '获取菜单成功');
   } catch (error) {
-    logger.error('获取用户菜单失败:', error);
+    logger.error('[Auth] 获取用户菜单失败:', error);
     return ResponseHandler.error(res, '获取用户菜单失败', 'SERVER_ERROR', 500, error);
   }
 };

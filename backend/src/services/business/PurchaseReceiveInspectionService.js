@@ -3,6 +3,7 @@ const { logger } = require('../../utils/logger');
 const QualityInspection = require('../../models/qualityInspection');
 const PurchaseOrderStatusService = require('./PurchaseOrderStatusService');
 const InspectionClosureService = require('../quality/InspectionClosureService');
+const PurchasePriceService = require('./PurchasePriceService');
 
 const createBusinessError = (message, statusCode = 400) => {
   const error = new Error(message);
@@ -48,13 +49,14 @@ class PurchaseReceiveInspectionService {
     try {
       await connection.beginTransaction();
 
-      const order = await this.getOrderContext(connection, cleanOrderId);
+      let order = await this.getOrderContext(connection, cleanOrderId);
       if (order.status === 'cancelled') {
         throw createBusinessError('已取消的采购订单不能收货');
       }
       if (order.status === 'completed') {
         throw createBusinessError('已完成的采购订单不能再次收货');
       }
+      order = await this.resolveMissingOrderSupplier(connection, order, receivingItems);
       if (!order.supplier_code) {
         throw createBusinessError('供应商缺少编码，无法生成可追溯的来料批次号');
       }
@@ -178,6 +180,64 @@ class PurchaseReceiveInspectionService {
     }
 
     return rows[0];
+  }
+
+  static async resolveMissingOrderSupplier(connection, order, receivingItems) {
+    if (order.supplier_id) {
+      if (order.supplier_code) return order;
+      throw createBusinessError('供应商缺少编码，无法生成可追溯的来料批次号');
+    }
+
+    const resolvedPrices = await PurchasePriceService.resolvePurchasePrices(
+      connection,
+      receivingItems.map((item) => ({
+        materialId: item.material_id,
+        materialCode: item.material_code || item.materialCode,
+      }))
+    );
+    const supplierIds = [...new Set(resolvedPrices
+      .map((priceInfo) => Number(priceInfo?.supplier_id))
+      .filter((supplierId) => Number.isInteger(supplierId) && supplierId > 0))];
+
+    if (supplierIds.length === 0) {
+      throw createBusinessError('供应商缺少编码，无法生成可追溯的来料批次号');
+    }
+    if (supplierIds.length > 1) {
+      throw createBusinessError('本次到货物料存在多个历史供应商，请先在采购订单中指定供应商');
+    }
+
+    const [supplierRows] = await connection.query(
+      `SELECT id, code, name
+       FROM suppliers
+       WHERE id = ? AND deleted_at IS NULL
+       LIMIT 1`,
+      [supplierIds[0]]
+    );
+    const supplier = supplierRows[0];
+    if (!supplier) {
+      throw createBusinessError('历史供应商不存在，请先在采购订单中指定有效供应商');
+    }
+    if (!supplier.code) {
+      throw createBusinessError('历史供应商缺少编码，无法生成可追溯的来料批次号');
+    }
+
+    await connection.query(
+      `UPDATE purchase_orders
+       SET supplier_id = ?, supplier_name = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ? AND deleted_at IS NULL`,
+      [supplier.id, supplier.name, order.id]
+    );
+
+    logger.info(
+      `[PurchaseReceiveInspectionService] 订单${order.order_no}供应商为空，已根据历史采购自动补齐为${supplier.name}`
+    );
+
+    return {
+      ...order,
+      supplier_id: supplier.id,
+      supplier_name: supplier.name,
+      supplier_code: supplier.code,
+    };
   }
 
   static async getOrderItemContext(connection, orderId, materialId) {

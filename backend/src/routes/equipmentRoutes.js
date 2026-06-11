@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const equipmentController = require('../controllers/business/production/equipmentController');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken } = require('../middleware/authEnhanced');
 const { requirePermission } = require('../middleware/requirePermission');
 
 router.get('/list', authenticateToken, requirePermission('production:equipment:view'), equipmentController.getEquipmentList);

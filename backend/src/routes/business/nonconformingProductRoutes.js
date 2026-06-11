@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const ncpController = require('../../controllers/business/quality/nonconformingProductController');
-const { authenticateToken } = require('../../middleware/auth');
+const { authenticateToken } = require('../../middleware/authEnhanced');
 const { requirePermission } = require('../../middleware/requirePermission');
 const {
   desensitizeSensitiveResponse,

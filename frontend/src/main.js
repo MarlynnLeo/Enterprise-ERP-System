@@ -79,7 +79,6 @@ if (authStore.isAuthenticated) {
   }, 3000)
 }
 
-app.config.globalProperties.$dict = dictionaryStore
 
 app.use(ElementPlus)
 app.use(permissionDirective)

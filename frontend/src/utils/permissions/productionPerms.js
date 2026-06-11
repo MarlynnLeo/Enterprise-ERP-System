@@ -1,0 +1,421 @@
+/**
+ * 生产管理 - 菜单权限数据
+ * 从 menuPermissions.js 拆分
+ */
+
+export const productionPerms = [
+// 2. 生产管理
+  {
+    id: 2,
+    parentId: 0,
+    name: '生产管理',
+    path: '/production',
+    component: '',
+    icon: 'icon-data-line',
+    type: 0, // 0-目录
+    permission: 'production',
+    sort: 2,
+    status: 1
+  },
+  {
+    id: 21,
+    parentId: 2,
+    name: '生产计划',
+    path: '/production/plan',
+    component: 'production/ProductionPlan',
+    icon: 'icon-calendar',
+    type: 1,
+    permission: 'production:plans',
+    sort: 1,
+    status: 1
+  },
+  {
+    id: 22,
+    parentId: 2,
+    name: '生产任务',
+    path: '/production/task',
+    component: 'production/ProductionTask',
+    icon: 'icon-tickets',
+    type: 1,
+    permission: 'production:tasks',
+    sort: 2,
+    status: 1
+  },
+  {
+    id: 23,
+    parentId: 2,
+    name: '生产过程',
+    path: '/production/process',
+    component: 'production/ProductionProcess',
+    icon: 'icon-set-up',
+    type: 1,
+    permission: 'production:process',
+    sort: 3,
+    status: 1
+  },
+  {
+    id: 24,
+    parentId: 2,
+    name: '生产报工',
+    path: '/production/report',
+    component: 'production/ProductionReport',
+    icon: 'icon-data-analysis',
+    type: 1,
+    permission: 'production:reports',
+    sort: 4,
+    status: 1
+  },
+  {
+    id: 25,
+    parentId: 2,
+    name: '缺料统计',
+    path: '/production/material-shortage',
+    component: 'production/MaterialShortage',
+    icon: 'icon-warning',
+    type: 1,
+    permission: 'production:shortage',
+    sort: 5,
+    status: 1
+  },
+  {
+    id: 26,
+    parentId: 2,
+    name: '设备监控',
+    path: '/production/equipment-monitoring',
+    component: 'production/EquipmentMonitoring',
+    icon: 'icon-monitor',
+    type: 1,
+    permission: 'production:equipment',
+    sort: 6,
+    status: 1
+  },
+  {
+    id: 27,
+    parentId: 2,
+    name: '生产需求',
+    path: '/production/mrp',
+    component: 'production/MRPPlanning',
+    icon: 'icon-data-analysis',
+    type: 1,
+    permission: 'production:mrp',
+    sort: 7,
+    status: 1
+  },
+
+  // 生产计划按钮权限
+  {
+    id: 211,
+    parentId: 21,
+    name: '查看生产计划',
+    path: '',
+    component: '',
+    icon: '',
+    type: 2, // 2-按钮
+    permission: 'production:plans:view',
+    sort: 1,
+    status: 1
+  },
+  {
+    id: 212,
+    parentId: 21,
+    name: '创建生产计划',
+    path: '',
+    component: '',
+    icon: '',
+    type: 2,
+    permission: 'production:plans:create',
+    sort: 2,
+    status: 1
+  },
+  {
+    id: 213,
+    parentId: 21,
+    name: '编辑生产计划',
+    path: '',
+    component: '',
+    icon: '',
+    type: 2,
+    permission: 'production:plans:update',
+    sort: 3,
+    status: 1
+  },
+  {
+    id: 214,
+    parentId: 21,
+    name: '删除生产计划',
+    path: '',
+    component: '',
+    icon: '',
+    type: 2,
+    permission: 'production:plans:delete',
+    sort: 4,
+    status: 1
+  },
+  {
+    id: 215,
+    parentId: 21,
+    name: '审批生产计划',
+    path: '',
+    component: '',
+    icon: '',
+    type: 2,
+    permission: 'production:plans:approve',
+    sort: 5,
+    status: 1
+  },
+  {
+    id: 216,
+    parentId: 21,
+    name: '导出生产计划',
+    path: '',
+    component: '',
+    icon: '',
+    type: 2,
+    permission: 'production:plans:export',
+    sort: 6,
+    status: 1
+  },
+  {
+    id: 217,
+    parentId: 21,
+    name: '下推生产计划',
+    path: '',
+    component: '',
+    icon: '',
+    type: 2,
+    permission: 'production:plans:pushdown',
+    sort: 7,
+    status: 1
+  },
+  {
+    id: 218,
+    parentId: 21,
+    name: '提交生产计划',
+    path: '',
+    component: '',
+    icon: '',
+    type: 2,
+    permission: 'production:plans:submit',
+    sort: 8,
+    status: 1
+  },
+  {
+    id: 219,
+    parentId: 21,
+    name: '关闭生产计划',
+    path: '',
+    component: '',
+    icon: '',
+    type: 2,
+    permission: 'production:plans:close',
+    sort: 9,
+    status: 1
+  },
+  {
+    id: 2110,
+    parentId: 21,
+    name: '取消生产计划',
+    path: '',
+    component: '',
+    icon: '',
+    type: 2,
+    permission: 'production:plans:cancel',
+    sort: 10,
+    status: 1
+  },
+  {
+    id: 2111,
+    parentId: 21,
+    name: '导入生产计划',
+    path: '',
+    component: '',
+    icon: '',
+    type: 2,
+    permission: 'production:plans:import',
+    sort: 11,
+    status: 1
+  },
+  // 生产任务按钮权限
+  {
+    id: 221,
+    parentId: 22,
+    name: '查看生产任务',
+    path: '',
+    component: '',
+    icon: '',
+    type: 2,
+    permission: 'production:tasks:view',
+    sort: 1,
+    status: 1
+  },
+  {
+    id: 222,
+    parentId: 22,
+    name: '创建生产任务',
+    path: '',
+    component: '',
+    icon: '',
+    type: 2,
+    permission: 'production:tasks:create',
+    sort: 2,
+    status: 1
+  },
+  {
+    id: 223,
+    parentId: 22,
+    name: '编辑生产任务',
+    path: '',
+    component: '',
+    icon: '',
+    type: 2,
+    permission: 'production:tasks:update',
+    sort: 3,
+    status: 1
+  },
+  {
+    id: 224,
+    parentId: 22,
+    name: '删除生产任务',
+    path: '',
+    component: '',
+    icon: '',
+    type: 2,
+    permission: 'production:tasks:delete',
+    sort: 4,
+    status: 1
+  },
+  {
+    id: 225,
+    parentId: 22,
+    name: '开始任务',
+    path: '',
+    component: '',
+    icon: '',
+    type: 2,
+    permission: 'production:tasks:start',
+    sort: 5,
+    status: 1
+  },
+  {
+    id: 226,
+    parentId: 22,
+    name: '完成任务',
+    path: '',
+    component: '',
+    icon: '',
+    type: 2,
+    permission: 'production:tasks:complete',
+    sort: 6,
+    status: 1
+  },
+  {
+    id: 227,
+    parentId: 22,
+    name: '导出生产任务',
+    path: '',
+    component: '',
+    icon: '',
+    type: 2,
+    permission: 'production:tasks:export',
+    sort: 7,
+    status: 1
+  },
+  {
+    id: 228,
+    parentId: 22,
+    name: '导入生产任务',
+    path: '',
+    component: '',
+    icon: '',
+    type: 2,
+    permission: 'production:tasks:import',
+    sort: 8,
+    status: 1
+  },
+  {
+    id: 229,
+    parentId: 22,
+    name: '提交生产任务',
+    path: '',
+    component: '',
+    icon: '',
+    type: 2,
+    permission: 'production:tasks:submit',
+    sort: 9,
+    status: 1
+  },
+  {
+    id: 2210,
+    parentId: 22,
+    name: '关闭生产任务',
+    path: '',
+    component: '',
+    icon: '',
+    type: 2,
+    permission: 'production:tasks:close',
+    sort: 10,
+    status: 1
+  },
+  // 生产过程按钮权限
+  {
+    id: 231,
+    parentId: 23,
+    name: '查看生产过程',
+    path: '',
+    component: '',
+    icon: '',
+    type: 2,
+    permission: 'production:process:view',
+    sort: 1,
+    status: 1
+  },
+  {
+    id: 232,
+    parentId: 23,
+    name: '编辑生产过程',
+    path: '',
+    component: '',
+    icon: '',
+    type: 2,
+    permission: 'production:process:update',
+    sort: 2,
+    status: 1
+  },
+  // 生产报工按钮权限
+  {
+    id: 241,
+    parentId: 24,
+    name: '查看生产报工',
+    path: '',
+    component: '',
+    icon: '',
+    type: 2,
+    permission: 'production:reports:view',
+    sort: 1,
+    status: 1
+  },
+  {
+    id: 242,
+    parentId: 24,
+    name: '创建生产报工',
+    path: '',
+    component: '',
+    icon: '',
+    type: 2,
+    permission: 'production:reports:create',
+    sort: 2,
+    status: 1
+  },
+  {
+    id: 243,
+    parentId: 24,
+    name: '编辑生产报工',
+    path: '',
+    component: '',
+    icon: '',
+    type: 2,
+    permission: 'production:reports:update',
+    sort: 3,
+    status: 1
+  },
+];

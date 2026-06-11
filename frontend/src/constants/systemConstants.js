@@ -113,6 +113,8 @@ export const QUALITY_STATUS_COLORS = createDictionaryColors('quality_status');
 export const QUALITY_INSPECTION_TYPES = createDictionaryGroup('quality_inspection_type');
 export const FIRST_ARTICLE_RESULT = createDictionaryGroup('first_article_result');
 export const FIRST_ARTICLE_RESULT_COLORS = createDictionaryColors('first_article_result');
+export const BUDGET_STATUS = createDictionaryGroup('budget_status');
+export const BUDGET_STATUS_COLORS = createDictionaryColors('budget_status');
 export const PRODUCTION_STATUS = createDictionaryGroup('production_status');
 export const PRODUCTION_STATUS_COLORS = createDictionaryColors('production_status');
 const createStatusKeyMap = (codes) => Object.freeze(
@@ -169,6 +171,8 @@ export const PURCHASE_STATUS_OPTIONS = createOptions('purchase_status', ['draft'
 export const OUTSOURCED_STATUS_OPTIONS = createOptions('outsourced_status');
 export const PURCHASE_RECEIPT_STATUS_OPTIONS = createOptions('purchase_receipt_status');
 export const PURCHASE_RETURN_STATUS_OPTIONS = createOptions('purchase_return_status');
+export const FIRST_ARTICLE_RESULT_OPTIONS = createOptions('first_article_result');
+export const BUDGET_STATUS_OPTIONS = createOptions('budget_status');
 export const toStatusOptions = (mapObj) => Object.entries(mapObj).map(([value, label]) => ({value, label}));
 
 // =======================
@@ -371,6 +375,17 @@ export const getQualityStatusColor = (code) => getColor('quality_status', code);
 export const getQualityInspectionTypeText = (code) => getText('quality_inspection_type', code);
 export const getFirstArticleResultText = (code) => getText('first_article_result', code);
 export const getFirstArticleResultColor = (code) => getColor('first_article_result', code);
+const BUDGET_STATUS_ALIASES = {
+  '\u8349\u7a3f': 'draft',
+  '\u5f85\u5ba1\u6279': 'pending_approval',
+  '\u5df2\u5ba1\u6279': 'approved',
+  '\u6267\u884c\u4e2d': 'executing',
+  '\u5df2\u5b8c\u6210': 'completed',
+  '\u5df2\u5173\u95ed': 'closed',
+};
+export const normalizeBudgetStatusCode = (code) => BUDGET_STATUS_ALIASES[code] || code;
+export const getBudgetStatusText = (code) => getText('budget_status', normalizeBudgetStatusCode(code));
+export const getBudgetStatusColor = (code) => getColor('budget_status', normalizeBudgetStatusCode(code));
 export const getProductionStatusText = (code) => getText('production_status', code);
 export const getProductionStatusColor = (code) => getColor('production_status', code);
 export const getEquipmentStatusText = (code) => getText('equipment_status', code);
@@ -452,8 +467,15 @@ export default {
   getQualityInspectionTypeText,
   FIRST_ARTICLE_RESULT,
   FIRST_ARTICLE_RESULT_COLORS,
+  FIRST_ARTICLE_RESULT_OPTIONS,
   getFirstArticleResultText,
   getFirstArticleResultColor,
+  BUDGET_STATUS,
+  BUDGET_STATUS_COLORS,
+  BUDGET_STATUS_OPTIONS,
+  normalizeBudgetStatusCode,
+  getBudgetStatusText,
+  getBudgetStatusColor,
   PRODUCTION_STATUS,
   PRODUCTION_STATUS_COLORS,
   PRODUCTION_STATUS_KEYS,

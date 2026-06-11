@@ -19,6 +19,11 @@ export const INSPECTION_TYPES = {
     text: '成品检验',
     prefix: '成品',
     value: 'final'
+  },
+  first_article: {
+    text: '首件检验',
+    prefix: '首件',
+    value: 'first_article'
   }
 }
 
@@ -87,12 +92,19 @@ export const GENERAL_TEMPLATE_QUERY_CONFIG = {
     inspection_type: INSPECTION_TYPES.final.value,     // 检验类型: 成品检验
     status: TEMPLATE_STATUS.active.value,              // 模板状态: 启用
     is_general: true                                   // 是否通用: 是
+  },
+
+  // 首件检验通用模板查询配置
+  first_article: {
+    inspection_type: INSPECTION_TYPES.first_article.value,
+    status: TEMPLATE_STATUS.active.value,
+    is_general: true
   }
 }
 
 /**
  * 获取通用模板查询参数
- * @param {string} inspectionType - 检验类型 ('incoming' | 'process' | 'final')
+ * @param {string} inspectionType - 检验类型 ('incoming' | 'process' | 'final' | 'first_article')
  * @returns {Object} 查询参数对象
  *
  * @example
@@ -103,4 +115,3 @@ export const GENERAL_TEMPLATE_QUERY_CONFIG = {
 export const getGeneralTemplateQueryParams = (inspectionType = 'incoming') => {
   return GENERAL_TEMPLATE_QUERY_CONFIG[inspectionType] || GENERAL_TEMPLATE_QUERY_CONFIG.incoming
 }
-

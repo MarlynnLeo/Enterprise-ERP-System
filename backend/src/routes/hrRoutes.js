@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const hrController = require('../controllers/business/hr/hrController');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken } = require('../middleware/authEnhanced');
 const { requirePermission } = require('../middleware/requirePermission');
 const { FileUploadMiddlewares } = require('../middleware/unifiedFileUpload');
 

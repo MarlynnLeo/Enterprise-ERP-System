@@ -13,6 +13,27 @@ const { getCurrentUserName } = require('../../../utils/userHelper');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const { parsePagination, appendPaginationSQL } = require('../../../utils/safePagination');
 
+async function findActiveTemplateForType(templateId, inspectionType) {
+    if (!templateId) return null;
+
+    const result = await db.query(
+        `SELECT it.id, it.template_name
+         FROM inspection_templates it
+         WHERE it.id = ?
+           AND it.inspection_type = ?
+           AND it.status = 'active'
+           AND EXISTS (
+             SELECT 1
+             FROM template_item_mappings tim
+             WHERE tim.template_id = it.id
+           )
+         LIMIT 1`,
+        [templateId, inspectionType]
+    );
+
+    return result.rows?.[0] || null;
+}
+
 const processInspectionController = {
     // ==================== 过程检验规则配置 ====================
 
@@ -56,6 +77,15 @@ const processInspectionController = {
                 return ResponseHandler.error(res, '工序ID不能为空', 'VALIDATION_ERROR', 400);
             }
 
+            if (template_id && !(await findActiveTemplateForType(template_id, 'process'))) {
+                return ResponseHandler.error(
+                    res,
+                    '过程检验规则只能选择已启用且包含检验项的过程检验模板',
+                    'VALIDATION_ERROR',
+                    400
+                );
+            }
+
             const result = await db.query(
                 `
         INSERT INTO process_inspection_rules
@@ -91,6 +121,15 @@ const processInspectionController = {
                 process_id, product_id, inspection_interval, sample_rate,
                 punch_interval, template_id, is_enabled, note,
             } = req.body;
+
+            if (template_id && !(await findActiveTemplateForType(template_id, 'process'))) {
+                return ResponseHandler.error(
+                    res,
+                    '过程检验规则只能选择已启用且包含检验项的过程检验模板',
+                    'VALIDATION_ERROR',
+                    400
+                );
+            }
 
             await db.query(
                 `

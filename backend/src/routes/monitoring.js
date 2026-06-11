@@ -9,7 +9,7 @@ const express = require('express');
 const fs = require('fs/promises');
 const path = require('path');
 const router = express.Router();
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken } = require('../middleware/authEnhanced');
 const { requirePermission } = require('../middleware/requirePermission');
 const {
   getPerformanceReport,

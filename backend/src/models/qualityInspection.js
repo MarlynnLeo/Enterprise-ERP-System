@@ -418,11 +418,12 @@ class QualityInspection {
         `
           INSERT INTO quality_inspections(
           inspection_no, inspection_type, reference_id, reference_no,
-          material_id, supplier_id, product_id, product_name, product_code, task_id,
+          material_id, supplier_id, product_id, product_name, product_code, process_id, process_name, task_id,
           batch_no, quantity, unit, unit_id, standard_type, standard_no,
-          planned_date, actual_date, note, inspector_name, status,
+          planned_date, actual_date, note, inspector_id, inspector_name, status,
+          is_first_article, first_article_qty, is_full_inspection, first_article_result, production_can_continue,
           is_aql, aql_level
-        ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `,
         [
           inspectionNo,
@@ -434,6 +435,8 @@ class QualityInspection {
           inspection.product_id || null,
           inspection.product_name || null,
           inspection.product_code || null,
+          inspection.process_id || null,
+          inspection.process_name || null,
           inspection.task_id || inspection.reference_id || null,
           inspection.batch_no,
           inspection.quantity,
@@ -444,8 +447,14 @@ class QualityInspection {
           inspection.planned_date,
           isExempt ? new Date() : null, // 实际检验日期
           inspection.note,
+          inspection.inspector_id || null,
           inspection.inspector_name || null, // 检验员姓名
           inspection.status || 'pending',
+          inspection.inspection_type === 'first_article' || inspection.is_first_article ? 1 : 0,
+          inspection.first_article_qty || null,
+          inspection.is_full_inspection ? 1 : 0,
+          inspection.first_article_result || (inspection.inspection_type === 'first_article' ? 'pending' : null),
+          inspection.production_can_continue ? 1 : 0,
           inspection.is_aql || 0, // AQL抽样开关
           inspection.aql_level || null, // AQL级别
         ]
@@ -492,11 +501,11 @@ class QualityInspection {
       }
 
       if (
-        ['incoming', 'final'].includes(inspection.inspection_type) &&
+        ['incoming', 'process', 'final', 'first_article'].includes(inspection.inspection_type) &&
         (!inspection.items || !Array.isArray(inspection.items) || inspection.items.length === 0)
       ) {
         throw InspectionTemplateResolver.createValidationError(
-          '未匹配到可用检验模板，且检验单没有检验项目，不能创建来料/成品检验单'
+          '未匹配到可用检验模板，且检验单没有检验项目，不能创建来料/过程/成品/首件检验单'
         );
       }
 
@@ -649,6 +658,26 @@ class QualityInspection {
         }
 
         const inspection = currentInspection[0];
+
+        const terminalStatuses = new Set(['passed', 'failed', 'partial', 'completed']);
+        if (
+          data.status &&
+          terminalStatuses.has(data.status) &&
+          ['incoming', 'process', 'final', 'first_article'].includes(inspection.inspection_type)
+        ) {
+          const hasSubmittedItems = Array.isArray(data.items) && data.items.length > 0;
+          if (!hasSubmittedItems) {
+            const [[itemStats]] = await connection.query(
+              'SELECT COUNT(*) AS item_count FROM quality_inspection_items WHERE inspection_id = ?',
+              [id]
+            );
+            if (Number(itemStats?.item_count || 0) === 0) {
+              throw InspectionTemplateResolver.createValidationError(
+                '检验单没有检验项目，不能判定来料/过程/成品/首件检验结果'
+              );
+            }
+          }
+        }
 
         // 更新检验单基本信息
         const updateFields = [];
@@ -1189,6 +1218,8 @@ class QualityInspection {
       prefix = 'PQC'; // Process Quality Control
     } else if (inspectionType === 'final') {
       prefix = 'FQC'; // Final Quality Control
+    } else if (inspectionType === 'first_article') {
+      prefix = 'FAI'; // First Article Inspection
     } else {
       prefix = inspectionType.toUpperCase();
     }

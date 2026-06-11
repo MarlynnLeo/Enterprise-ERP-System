@@ -8,7 +8,7 @@
 const express = require('express');
 const router = express.Router();
 const FinanceAutomationController = require('../../../controllers/business/finance/financeAutomationController');
-const { authenticateToken } = require('../../../middleware/auth');
+const { authenticateToken } = require('../../../middleware/authEnhanced');
 const { requirePermission } = require('../../../middleware/requirePermission');
 const { desensitizeSensitiveResponse } = require('../../../middleware/priceAccessControl');
 const { PRICE_UPDATE_PERMISSIONS } = require('../../../utils/desensitizer');

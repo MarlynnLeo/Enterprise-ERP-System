@@ -732,7 +732,7 @@ const loadTransactions = async () => {
 // 加载账户选项
 const loadAccountOptions = async () => {
   try {
-    const response = await financeApi.getBankAccountsList();
+    const response = await financeApi.getBankAccounts();
     // 使用统一的响应解析工具
     accountOptions.value = parseListData(response, { enableLog: false });
   } catch (error) {

@@ -1,0 +1,129 @@
+<!--
+/**
+ * InvoiceDetailDialog.vue
+ * @description 发票详情查看对话框
+ * @date 2025-08-27
+ * @version 1.0.0
+ */
+-->
+<template>
+  <el-dialog
+    title="发票详情"
+    :model-value="modelValue"
+    @update:model-value="$emit('update:modelValue', $event)"
+    width="800px"
+  >
+    <div class="invoice-details">
+      <!-- 基本信息 -->
+      <el-descriptions :column="2" border>
+        <el-descriptions-item label="系统编号">{{ invoice.invoice_number }}</el-descriptions-item>
+        <el-descriptions-item label="客户名称">{{ invoice.customer_name }}</el-descriptions-item>
+        <el-descriptions-item label="开票日期">{{ invoice.invoice_date }}</el-descriptions-item>
+        <el-descriptions-item label="到期日期">{{ invoice.due_date }}</el-descriptions-item>
+        <el-descriptions-item label="总金额">{{ formatCurrency(invoice.total_amount) }}</el-descriptions-item>
+        <el-descriptions-item label="已收金额">{{ formatCurrency(invoice.paid_amount) }}</el-descriptions-item>
+        <el-descriptions-item label="剩余金额">{{ formatCurrency(invoice.balance_amount) }}</el-descriptions-item>
+        <el-descriptions-item label="状态">
+          <el-tag :type="getStatusType(invoice)">{{ getStatusText(invoice) }}</el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="创建时间">{{ invoice.createdAt || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="备注" :span="2">{{ invoice.notes || '无' }}</el-descriptions-item>
+      </el-descriptions>
+
+      <!-- 明细项 -->
+      <div class="details-section">
+        <div class="detail-title" style="margin-top: 20px; margin-bottom: 15px;">
+          <h3>发票明细项</h3>
+        </div>
+        <el-table :data="invoice.items || []" border style="width: 100%; min-width: 100%;">
+          <el-table-column prop="productName" label="商品/服务名称" min-width="150">
+            <template #default="scope">
+              {{ scope.row.productName || scope.row.name || '-' }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="description" label="描述" min-width="200"></el-table-column>
+          <el-table-column prop="quantity" label="数量" width="100"></el-table-column>
+          <el-table-column prop="unitPrice" label="单价" width="110">
+            <template #default="scope">
+              {{ formatCurrency(scope.row.unitPrice) }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="amount" label="金额" width="110">
+            <template #default="scope">
+              {{ formatCurrency(scope.row.amount) }}
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+    </div>
+    <template #footer>
+      <span class="dialog-footer">
+        <el-button @click="$emit('update:modelValue', false)">关闭</el-button>
+        <el-button v-permission="'finance:ar:view'" type="success" @click="$emit('print')">打印</el-button>
+      </span>
+    </template>
+  </el-dialog>
+</template>
+
+<script setup>
+import { formatCurrency } from '@/utils/format'
+
+defineProps({
+  modelValue: {
+    type: Boolean,
+    default: false
+  },
+  invoice: {
+    type: Object,
+    default: () => ({})
+  },
+  getStatusType: {
+    type: Function,
+    required: true
+  },
+  getStatusText: {
+    type: Function,
+    required: true
+  }
+})
+
+defineEmits(['update:modelValue', 'print'])
+</script>
+
+<style scoped>
+.invoice-details {
+  padding: 20px;
+}
+.details-section {
+  margin-top: 25px;
+  margin-bottom: 25px;
+}
+.details-section h3 {
+  margin-bottom: 15px;
+  font-size: 16px;
+  color: var(--color-text-primary);
+  border-left: 3px solid var(--color-primary);
+  padding-left: 10px;
+}
+.details-section .el-table {
+  width: 100%;
+  min-width: 600px;
+}
+/* 对话框自适应高度 */
+:deep(.el-dialog__body) {
+  max-height: 70vh;
+  overflow-y: auto;
+  padding: 20px 24px;
+}
+/* 详情对话框长文本处理 */
+:deep(.el-descriptions__content) {
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+:deep(.el-table__cell) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+</style>

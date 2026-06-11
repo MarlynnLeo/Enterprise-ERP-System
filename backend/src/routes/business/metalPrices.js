@@ -4,7 +4,7 @@
 const express = require('express');
 const router = express.Router();
 const metalPricesController = require('../../controllers/business/metalPricesController');
-const { authenticateToken } = require('../../middleware/auth');
+const { authenticateToken } = require('../../middleware/authEnhanced');
 const { requirePermission } = require('../../middleware/requirePermission');
 const { PRICE_VIEW_PERMISSIONS, PRICE_UPDATE_PERMISSIONS } = require('../../utils/desensitizer');
 const { desensitizeSensitiveResponse } = require('../../middleware/priceAccessControl');

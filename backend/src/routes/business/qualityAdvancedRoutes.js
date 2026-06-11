@@ -8,7 +8,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { authenticateToken } = require('../../middleware/auth');
+const { authenticateToken } = require('../../middleware/authEnhanced');
 const { requirePermission } = require('../../middleware/requirePermission');
 
 const gaugeCtrl = require('../../controllers/business/quality/gaugeController');

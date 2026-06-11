@@ -82,32 +82,6 @@ async function generateOrdersFromRequisition(requisitionId, conn) {
       return generatedOrders;
     }
 
-    // 按供应商分组物料（未维护供应商的物料使用特殊分组键，供应商留空后续补充）
-    const NO_SUPPLIER_KEY = '__no_supplier__';
-    const itemsBySupplier = {};
-
-    for (const item of itemsRows) {
-      const groupKey = item.supplier_id || NO_SUPPLIER_KEY;
-      if (!itemsBySupplier[groupKey]) {
-        itemsBySupplier[groupKey] = {
-          supplier_id: item.supplier_id || null,
-          supplier_name: item.supplier_name || null,
-          contact_person: item.supplier_contact_person || null,
-          contact_phone: item.supplier_contact_phone || null,
-          items: [],
-        };
-      }
-      itemsBySupplier[groupKey].items.push(item);
-    }
-
-    if (itemsBySupplier[NO_SUPPLIER_KEY]) {
-      const missingMaterials = itemsBySupplier[NO_SUPPLIER_KEY].items
-        .map(item => item.material_code || item.m_code || item.material_name || item.material_id)
-        .join(', ');
-      logger.warn(`⚠️ 采购申请 ${requisitionId} 存在未维护供应商的物料（将生成供应商为空的采购订单，后续可补充）: ${missingMaterials}`);
-    }
-
-    const purchaseModel = require('../../models/purchase');
     const defaultTaxRate = normalizeTaxRate(financeConfig.get('tax.defaultVATRate', 0), 0);
     const resolvedPrices = await PurchasePriceService.resolvePurchasePrices(
       conn,
@@ -118,13 +92,62 @@ async function generateOrdersFromRequisition(requisitionId, conn) {
       }))
     );
 
+    const supplierIdsToLoad = [...new Set(resolvedPrices
+      .map((priceInfo) => Number(priceInfo?.supplier_id))
+      .filter((supplierId) => Number.isInteger(supplierId) && supplierId > 0))];
+    const supplierDetails = new Map();
+    if (supplierIdsToLoad.length > 0) {
+      const [supplierRows] = await conn.execute(
+        `SELECT id, name, contact_person, contact_phone
+         FROM suppliers
+         WHERE id IN (${supplierIdsToLoad.map(() => '?').join(',')}) AND deleted_at IS NULL`,
+        supplierIdsToLoad
+      );
+      supplierRows.forEach((supplier) => {
+        supplierDetails.set(Number(supplier.id), supplier);
+      });
+    }
+
     itemsRows.forEach((item, index) => {
       const priceInfo = resolvedPrices[index] || {};
+      const resolvedSupplierId = item.supplier_id || priceInfo.supplier_id || null;
+      const supplierDetail = resolvedSupplierId ? supplierDetails.get(Number(resolvedSupplierId)) : null;
       const resolvedTaxRate = normalizeTaxRate(priceInfo.tax_rate, defaultTaxRate);
+      item.resolved_supplier_id = resolvedSupplierId;
+      item.resolved_supplier_name = item.supplier_name || supplierDetail?.name || priceInfo.last_supplier || null;
+      item.resolved_supplier_contact_person = item.supplier_contact_person || supplierDetail?.contact_person || null;
+      item.resolved_supplier_contact_phone = item.supplier_contact_phone || supplierDetail?.contact_phone || null;
       item.material_price = toNumber(priceInfo.price, 0);
       item.tax_rate = resolvedTaxRate > 0 ? resolvedTaxRate : defaultTaxRate;
       item.price_source = priceInfo.source || 'none';
     });
+
+    // 按供应商分组物料。物料主数据没有供应商时，回退使用最近采购/入库历史中的供应商。
+    const NO_SUPPLIER_KEY = '__no_supplier__';
+    const itemsBySupplier = {};
+
+    for (const item of itemsRows) {
+      const groupKey = item.resolved_supplier_id || NO_SUPPLIER_KEY;
+      if (!itemsBySupplier[groupKey]) {
+        itemsBySupplier[groupKey] = {
+          supplier_id: item.resolved_supplier_id || null,
+          supplier_name: item.resolved_supplier_name || null,
+          contact_person: item.resolved_supplier_contact_person || null,
+          contact_phone: item.resolved_supplier_contact_phone || null,
+          items: [],
+        };
+      }
+      itemsBySupplier[groupKey].items.push(item);
+    }
+
+    if (itemsBySupplier[NO_SUPPLIER_KEY]) {
+      const missingMaterials = itemsBySupplier[NO_SUPPLIER_KEY].items
+        .map(item => item.material_code || item.m_code || item.material_name || item.material_id)
+        .join(', ');
+      logger.warn(`⚠️ 采购申请 ${requisitionId} 存在未维护供应商且无历史供应商的物料（将生成供应商为空的采购订单，后续可补充）: ${missingMaterials}`);
+    }
+
+    const purchaseModel = require('../../models/purchase');
 
     // 为每个供应商生成采购订单
     for (const supplierId in itemsBySupplier) {

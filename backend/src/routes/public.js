@@ -8,7 +8,7 @@
 const express = require('express');
 const router = express.Router();
 const productionBoardController = require('../controllers/public/productionBoardController');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken } = require('../middleware/authEnhanced');
 const { requirePermission } = require('../middleware/requirePermission');
 
 const productionBoardAccess = [

@@ -59,6 +59,7 @@ export const systemApi = {
     updateAccountingCodes: (data) => api.put('/system/accounting/account-codes', data),
     getSystemInfo: () => api.get('/system/info'),
     getFailedJobs: (params) => api.get('/system/failed-jobs', { params }),
+    retryFailedJobs: (data) => api.post('/system/failed-jobs/retry', data),
     resolveFailedJob: (id) => api.put(`/system/failed-jobs/${id}/resolve`),
     createBackup: () => api.post('/system/backup'),
     getBackups: () => api.get('/system/backups'),

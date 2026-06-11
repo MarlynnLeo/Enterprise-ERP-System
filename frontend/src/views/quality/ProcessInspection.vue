@@ -462,11 +462,13 @@ const fetchPurchaseOrders = async (query = '') => {
 
     // 转换为工单选项格式
     purchaseOrderOptions.value = tasksList.map(task => ({
+      id: task.id,
       order_no: task.code || task.task_no || task.order_no,
       product_id: task.product_id,
       product_name: task.product_name || task.productName,
       product_code: task.product_code || task.productCode,
-      unit: task.unit
+      unit: task.unit || task.unit_name || task.unitName,
+      unit_id: task.unit_id || task.unitId
     }))
 
     // 获取工序数据
@@ -503,13 +505,17 @@ const handleOrderChange = (orderNo) => {
         process => (process.product_id === order.product_id) || (process.task_id && process.task_id === order.id)
       ).map(process => ({
         id: process.id || process.process_id,
-        name: process.process_name || process.name
+        name: process.process_name || process.name,
+        task_id: process.task_id,
+        product_id: process.product_id
       }))
     } else {
       // 如果没有工序数据，显示所有工序
       processOptions.value = allProcesses.value.map(process => ({
         id: process.id || process.process_id,
-        name: process.process_name || process.name
+        name: process.process_name || process.name,
+        task_id: process.task_id,
+        product_id: process.product_id
       }))
     }
   }
@@ -588,16 +594,25 @@ const submitForm = async () => {
   try {
     await formRef.value.validate()
 
+    const selectedOrder = purchaseOrderOptions.value.find(item => item.order_no === form.productionOrderNo)
+    const selectedProcess = processOptions.value.find(p => p.id === form.processId)
+
     // 构建提交数据
     const submitData = {
       inspection_type: 'process',
+      reference_id: selectedOrder?.id || null,
       reference_no: form.productionOrderNo,
+      task_id: selectedOrder?.id || null,
+      product_id: selectedOrder?.product_id || null,
+      product_code: selectedOrder?.product_code || '',
       batch_no: form.batchNo,
       product_name: form.productName,
       quantity: form.quantity,
       unit: form.unit,
+      unit_id: selectedOrder?.unit_id || null,
       planned_date: form.plannedDate,
-      process_name: processOptions.value.find(p => p.id === form.processId)?.name || '',
+      process_id: selectedProcess?.id || null,
+      process_name: selectedProcess?.name || '',
       remark: form.remark
     }
 

@@ -1,11 +1,70 @@
+/**
+ * @module api/finance
+ * @description 财务模块 API 接口定义
+ * @date 2025-11-21
+ *
+ * 所有方法返回 axios Promise，拦截器已统一解包 ResponseHandler 格式。
+ */
+
 import { api } from '../services/axiosInstance';
+
+/**
+ * @typedef {import('axios').AxiosResponse} AxiosResponse
+ * @typedef {import('axios').AxiosRequestConfig} AxiosRequestConfig
+ */
+
+/**
+ * 通用分页查询参数
+ * @typedef {Object} PaginationParams
+ * @property {number} [page=1] - 页码
+ * @property {number} [pageSize=20] - 每页条数
+ * @property {string} [keyword] - 搜索关键词
+ * @property {string} [sortBy] - 排序字段
+ * @property {string} [sortOrder] - 排序方向 ('asc'|'desc')
+ */
+
+/**
+ * 通用分页响应
+ * @typedef {Object} PaginatedResponse
+ * @property {Array<Object>} list - 数据列表
+ * @property {number} total - 总记录数
+ * @property {number} page - 当前页码
+ * @property {number} pageSize - 每页条数
+ * @property {number} totalPages - 总页数
+ */
+
+/**
+ * 通用 ID 类型
+ * @typedef {number|string} EntityId
+ */
+
+/**
+ * 发票状态更新参数
+ * @typedef {Object} StatusUpdateData
+ * @property {string} status - 目标状态
+ * @property {string} [remark] - 备注
+ */
+
+/**
+ * 会计分录数据
+ * @typedef {Object} EntryData
+ * @property {string} document_number - 凭证号
+ * @property {string} entry_date - 记账日期
+ * @property {string} [description] - 摘要
+ * @property {Array<{account_id: number, debit: number, credit: number, description?: string}>} items - 分录行
+ */
+
+/**
+ * 冲销数据
+ * @typedef {Object} ReversalData
+ * @property {string} [reason] - 冲销原因
+ * @property {string} [reversal_date] - 冲销日期
+ */
 
 export const financeApi = {
     // ============ 仪表盘 & 统计 ============
     // 现金流统计（收支趋势、按类型汇总）
     getCashFlowStatistics: (params) => api.get('/finance/statistics/cash-flow', { params }),
-    // 综合财务统计（仪表盘汇总用）
-    getFinancialStatistics: (params) => api.get('/finance/statistics/cash-flow', { params }),
     // 应收账款账龄分析
     getReceivablesAging: (params) => api.get('/finance/ar/aging', { params }),
     // 应付账款账龄分析
@@ -105,6 +164,11 @@ export const financeApi = {
     getAPInvoicePayments: (id) => api.get(`/finance/ap/invoices/${id}/payments`),
     getUnpaidAPInvoices: () => api.get('/finance/ap/invoices/unpaid'),
 
+    integration: {
+        generateARInvoiceFromSalesOrder: (salesOrderId) => api.post(`/finance/integration/ar-invoice/${salesOrderId}`),
+        generateAPInvoiceFromPurchaseReceipt: (receiptId) => api.post(`/finance/integration/ap-invoice/${receiptId}`)
+    },
+
     // 收款记录
     getReceipts: (params) => api.get('/finance/ar/receipts', { params }),
     getReceipt: (id) => api.get(`/finance/ar/receipts/${id}`),
@@ -143,7 +207,7 @@ export const financeApi = {
 
     // 银行账户管理
     getBankAccounts: (params) => api.get('/finance/bank-accounts', { params }),
-    getBankAccountsList: (params) => api.get('/finance/bank-accounts', { params }),
+
     getBankAccount: (id) => api.get(`/finance/bank-accounts/${id}`),
     createBankAccount: (data) => api.post('/finance/bank-accounts', data),
     updateBankAccount: (id, data) => api.put(`/finance/bank-accounts/${id}`, data),
@@ -217,11 +281,7 @@ export const financeApi = {
     saveBomPriceAdjustment: (data) => api.post('/finance/bom-price-adjustments', data),
     getBomPriceHistory: (productId, materialId) => api.get(`/finance/bom-price-adjustments/${productId}/${materialId}/history`),
     deleteBomPriceAdjustment: (id) => api.delete(`/finance/bom-price-adjustments/${id}`),
-    getCostSupplementReasons: () => api.get('/finance/cost/supplement-reasons'),
-    saveCostSupplementReason: (data) => data?.id
-        ? api.put(`/finance/cost/supplement-reasons/${data.id}`, data)
-        : api.post('/finance/cost/supplement-reasons', data),
-    deleteCostSupplementReason: (id) => api.delete(`/finance/cost/supplement-reasons/${id}`),
+
 
     // Cost settings and allocation
     cost: {
@@ -369,6 +429,9 @@ export const financeApi = {
         getFinanceYearEndStatus: (year) => api.get(`/finance/period/year-end-status/${year}`),
         executeFinanceYearEnd: (year) => api.post('/finance/period/year-end-transfer', { year }),
         getHistory: (params) => api.get('/finance/automation/history', { params }),
+        getFailedJobs: (params) => api.get('/finance/automation/failed-jobs', { params }),
+        retryFailedJobs: (data) => api.post('/finance/automation/failed-jobs/retry', data),
+        resolveFailedJob: (id) => api.put(`/finance/automation/failed-jobs/${id}/resolve`),
         // 生产成本
         executeProductionCost: (taskId) => api.post(`/finance/automation/production/cost-entry/${taskId}`)
     }

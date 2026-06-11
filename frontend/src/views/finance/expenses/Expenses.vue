@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * Expenses.vue
  * @description 费用管理页面
@@ -538,7 +538,7 @@ const fetchCategories = async () => {
 
 const fetchBankAccounts = async () => {
   try {
-    const res = await financeApi.getBankAccountsList()
+    const res = await financeApi.getBankAccounts()
     bankAccounts.value = parseListData(res, { enableLog: false }).filter(acc => acc && acc.id != null)
   } catch (error) {
     console.error('获取银行账户失败:', error)

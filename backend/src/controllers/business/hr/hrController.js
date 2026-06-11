@@ -5,6 +5,7 @@ const pool = db.pool;
 const ExcelJS = require('exceljs');
 const SalaryService = require('../../../services/business/hr/salaryService');
 const DingtalkSyncService = require('../../../services/business/hr/dingtalkSyncService');
+const HrService = require('../../../services/business/HrService');
 
 const REQUEST_STATUS = {
   PENDING: 'pending',
@@ -49,24 +50,13 @@ const worksheetToRows = (worksheet) => {
   return rows;
 };
 
-const getUserId = (req) => req.user?.id || req.user?.userId || null;
+const getUserId = (req) => req.user?.id || null;
 
 const sanitizeText = (value) => String(value ?? '').trim();
 
 const parsePositiveNumber = (value) => {
   const number = Number(value);
   return Number.isFinite(number) && number > 0 ? number : 0;
-};
-
-const parseListPagination = (query) => {
-  const page = Math.max(Number.parseInt(query.page, 10) || 1, 1);
-  const requestedSize = query.pageSize ?? query.limit ?? 20;
-  const pageSize = Math.min(Math.max(Number.parseInt(requestedSize, 10) || 20, 1), 100);
-  return {
-    page,
-    pageSize,
-    offset: (page - 1) * pageSize,
-  };
 };
 
 const buildRequestNo = (prefix) => {
@@ -88,6 +78,7 @@ const getEmployeeByUser = async (userId) => {
   return employee || null;
 };
 
+// ========== W-03: 使用 HrService 白名单映射替代动态表名拼接 ==========
 const tryStartRequestWorkflow = async ({
   table,
   businessType,
@@ -106,12 +97,10 @@ const tryStartRequestWorkflow = async ({
   );
 
   if (!template) {
-    await pool.query(
-      `UPDATE ${table}
-       SET workflow_status = 'not_configured', workflow_error = ?
-       WHERE id = ?`,
-      ['未配置启用的审批流程，申请已进入待处理', businessId]
-    );
+    await HrService.updateWorkflowStatus(table, businessId, {
+      workflow_status: 'not_configured',
+      workflow_error: '未配置启用的审批流程，申请已进入待处理',
+    });
     return { started: false, message: '申请已提交，审批流程尚未配置' };
   }
 
@@ -124,55 +113,37 @@ const tryStartRequestWorkflow = async ({
       title,
       userId
     );
-    await pool.query(
-      `UPDATE ${table}
-       SET workflow_instance_id = ?, workflow_status = 'started', workflow_error = NULL
-       WHERE id = ?`,
-      [result.instance_id || null, businessId]
-    );
+    await HrService.updateWorkflowStatus(table, businessId, {
+      workflow_instance_id: result.instance_id || null,
+      workflow_status: 'started',
+      workflow_error: null,
+    });
     return { started: true, ...result };
   } catch (error) {
-    await pool.query(
-      `UPDATE ${table}
-       SET workflow_status = 'failed', workflow_error = ?
-       WHERE id = ?`,
-      [error.message || '审批流程启动失败', businessId]
-    );
+    logger.error('[HR] 审批流程启动失败:', error);
+    await HrService.updateWorkflowStatus(table, businessId, {
+      workflow_status: 'failed',
+      workflow_error: error.message || '审批流程启动失败',
+    });
     return { started: false, message: error.message || '审批流程启动失败' };
   }
 };
 
 // ---------- 员工管理 ---------- //
 
+// ========== W-06 + S-05: 员工列表添加分页 + 显式列名 ==========
 const getEmployees = async (req, res) => {
   try {
     const { keyword, status } = req.query;
-
-    let query = `
-      SELECT e.*, d.name as department_name, u.username as system_user
-      FROM hr_employees e
-      LEFT JOIN departments d ON e.department_id = d.id
-      LEFT JOIN users u ON e.user_id = u.id
-      WHERE 1=1
-    `;
-    const params = [];
-
-    if (keyword) {
-      query += ` AND (e.name LIKE ? OR e.employee_no LIKE ?)`;
-      params.push(`%${keyword}%`, `%${keyword}%`);
-    }
-
-    if (status) {
-      query += ` AND e.employment_status = ?`;
-      params.push(status);
-    }
-
-    query += ` ORDER BY e.id DESC`;
-
-    const [rows] = await pool.query(query, params);
-    return ResponseHandler.success(res, rows);
+    const result = await HrService.getEmployees({
+      keyword,
+      status,
+      page: req.query.page,
+      pageSize: req.query.pageSize,
+    });
+    return ResponseHandler.paginated(res, result.rows, result.total, result.page, result.pageSize);
   } catch (error) {
-    logger.error('获取员工列表失败:', error);
+    logger.error('[HR] 获取员工列表失败:', error);
     return ResponseHandler.error(res, '获取员工列表失败', 'OPERATION_ERROR', 500, error);
   }
 };
@@ -195,7 +166,7 @@ const createEmployee = async (req, res) => {
     const [result] = await pool.query('INSERT INTO hr_employees SET ?', insertData);
     return ResponseHandler.success(res, { id: result.insertId }, '添加员工成功');
   } catch (error) {
-    logger.error('添加员工失败:', error);
+    logger.error('[HR] 添加员工失败:', error);
     if (error.code === 'ER_DUP_ENTRY') {
       return ResponseHandler.error(res, '员工工号已存在', 'VALIDATION_ERROR', 400);
     }
@@ -221,7 +192,7 @@ const updateEmployee = async (req, res) => {
     await pool.query('UPDATE hr_employees SET ? WHERE id = ?', [updateData, id]);
     return ResponseHandler.success(res, null, '更新员工信息成功');
   } catch (error) {
-    logger.error('更新员工信息失败:', error);
+    logger.error('[HR] 更新员工信息失败:', error);
     return ResponseHandler.error(res, '更新员工信息失败', 'OPERATION_ERROR', 500, error);
   }
 };
@@ -233,7 +204,7 @@ const archiveEmployee = async (req, res) => {
     await pool.query("UPDATE hr_employees SET employment_status = 'left' WHERE id = ?", [id]);
     return ResponseHandler.success(res, null, '员工已设置为离职状态');
   } catch (error) {
-    logger.error('归档员工失败:', error);
+    logger.error('[HR] 归档员工失败:', error);
     return ResponseHandler.error(res, '操作失败', 'OPERATION_ERROR', 500, error);
   }
 };
@@ -245,7 +216,7 @@ const syncDingtalk = async (req, res) => {
     const result = await DingtalkSyncService.syncAllUsersToDb();
     return ResponseHandler.success(res, result, `钉钉同步成功：全公司共计 ${result.total} 人，新增 ${result.newCount} 人，更新 ${result.upCount} 人`);
   } catch (error) {
-    logger.error('钉钉同步花名册失败:', error);
+    logger.error('[HR] 钉钉同步花名册失败:', error);
     return ResponseHandler.error(res, '钉钉同步失败: ' + error.message, 'OPERATION_ERROR', 500, error);
   }
 };
@@ -259,74 +230,15 @@ const syncAttendance = async (req, res) => {
     const result = await DingtalkSyncService.syncAttendanceToDb(period);
     return ResponseHandler.success(res, result, `${period} 月考勤同步完成，共获取 ${result.totalRecords} 条打卡记录，处理 ${result.savedCount} 人`);
   } catch (error) {
-    logger.error('钉钉考勤同步失败:', error);
+    logger.error('[HR] 钉钉考勤同步失败:', error);
     return ResponseHandler.error(res, '钉钉考勤同步失败: ' + error.message, 'OPERATION_ERROR', 500, error);
   }
 };
 
-const buildRequestListQuery = (baseTable, alias, requestType, query, userId) => {
-  const { page, pageSize, offset } = parseListPagination(query);
-  const { status, search, mine } = query;
-  const conditions = ['1=1'];
-  const params = [];
-
-  if (status && status !== 'all') {
-    conditions.push(`${alias}.status = ?`);
-    params.push(status);
-  }
-
-  if (mine === 'true' || mine === true) {
-    conditions.push(`${alias}.applicant_user_id = ?`);
-    params.push(userId || 0);
-  }
-
-  if (search) {
-    conditions.push(`(
-      ${alias}.request_no LIKE ?
-      OR e.name LIKE ?
-      OR e.employee_no LIKE ?
-      OR d.name LIKE ?
-      OR u.real_name LIKE ?
-      OR u.username LIKE ?
-    )`);
-    const keyword = `%${search}%`;
-    params.push(keyword, keyword, keyword, keyword, keyword, keyword);
-  }
-
-  const whereClause = `WHERE ${conditions.join(' AND ')}`;
-  const fromClause = `
-    FROM ${baseTable} ${alias}
-    LEFT JOIN hr_employees e ON e.id = ${alias}.employee_id
-    LEFT JOIN departments d ON d.id = e.department_id
-    LEFT JOIN users u ON u.id = ${alias}.applicant_user_id
-  `;
-
-  return {
-    page,
-    pageSize,
-    offset,
-    params,
-    countSql: `SELECT COUNT(*) AS total ${fromClause} ${whereClause}`,
-    listSql: `
-      SELECT
-        ${alias}.*,
-        ? AS request_type,
-        e.name AS employee_name,
-        e.employee_no,
-        d.name AS department_name,
-        COALESCE(u.real_name, u.username) AS applicant_name
-      ${fromClause}
-      ${whereClause}
-      ORDER BY ${alias}.created_at DESC, ${alias}.id DESC
-      LIMIT ${pageSize} OFFSET ${offset}
-    `,
-    listParams: [requestType, ...params],
-  };
-};
-
+// ========== S-05 + W-04: 请假/加班列表使用 HrService.buildRequestListQuery ==========
 const getLeaveRequests = async (req, res) => {
   try {
-    const query = buildRequestListQuery(
+    const query = HrService.buildRequestListQuery(
       'hr_leave_requests',
       'lr',
       'leave',
@@ -337,7 +249,7 @@ const getLeaveRequests = async (req, res) => {
     const [rows] = await pool.query(query.listSql, query.listParams);
     return ResponseHandler.paginated(res, rows, total, query.page, query.pageSize);
   } catch (error) {
-    logger.error('获取请假申请失败:', error);
+    logger.error('[HR] 获取请假申请失败:', error);
     return ResponseHandler.error(res, '获取请假申请失败', 'OPERATION_ERROR', 500, error);
   }
 };
@@ -397,14 +309,14 @@ const createLeaveRequest = async (req, res) => {
       201
     );
   } catch (error) {
-    logger.error('提交请假申请失败:', error);
+    logger.error('[HR] 提交请假申请失败:', error);
     return ResponseHandler.error(res, '提交请假申请失败: ' + error.message, 'OPERATION_ERROR', 500, error);
   }
 };
 
 const getOvertimeRequests = async (req, res) => {
   try {
-    const query = buildRequestListQuery(
+    const query = HrService.buildRequestListQuery(
       'hr_overtime_requests',
       'ot',
       'overtime',
@@ -415,7 +327,7 @@ const getOvertimeRequests = async (req, res) => {
     const [rows] = await pool.query(query.listSql, query.listParams);
     return ResponseHandler.paginated(res, rows, total, query.page, query.pageSize);
   } catch (error) {
-    logger.error('获取加班申请失败:', error);
+    logger.error('[HR] 获取加班申请失败:', error);
     return ResponseHandler.error(res, '获取加班申请失败', 'OPERATION_ERROR', 500, error);
   }
 };
@@ -473,26 +385,25 @@ const createOvertimeRequest = async (req, res) => {
       201
     );
   } catch (error) {
-    logger.error('提交加班申请失败:', error);
+    logger.error('[HR] 提交加班申请失败:', error);
     return ResponseHandler.error(res, '提交加班申请失败: ' + error.message, 'OPERATION_ERROR', 500, error);
   }
 };
 
+// ========== W-06 + S-05: 考勤列表添加分页 + 显式列名 ==========
 const getAttendance = async (req, res) => {
   try {
     const { period } = req.query;
     if (!period) return ResponseHandler.error(res, '请提供考勤周期(period)', 'VALIDATION_ERROR', 400);
 
-    const [rows] = await pool.query(`
-      SELECT a.*, e.name, e.employee_no, d.name as department_name
-      FROM hr_attendance a
-      JOIN hr_employees e ON a.employee_id = e.id
-      LEFT JOIN departments d ON e.department_id = d.id
-      WHERE a.period = ?
-      ORDER BY d.name, e.name
-    `, [period]);
-    return ResponseHandler.success(res, rows);
+    const result = await HrService.getAttendance({
+      period,
+      page: req.query.page,
+      pageSize: req.query.pageSize,
+    });
+    return ResponseHandler.paginated(res, result.rows, result.total, result.page, result.pageSize);
   } catch (error) {
+    logger.error('[HR] 获取考勤失败:', error);
     return ResponseHandler.error(res, '获取考勤失败', 'OPERATION_ERROR', 500, error);
   }
 };
@@ -533,7 +444,7 @@ const batchSaveAttendance = async (req, res) => {
       connection.release();
     }
   } catch (error) {
-    logger.error('保存考勤失败:', error);
+    logger.error('[HR] 保存考勤失败:', error);
     return ResponseHandler.error(res, '保存考勤失败', 'OPERATION_ERROR', 500, error);
   }
 };
@@ -567,7 +478,7 @@ const importAttendanceExcel = async (req, res) => {
     const dataRows = allRows.slice(headerRowIdx + 1).filter(r => r && r.length > 1);
 
     if (dataRows.length === 0) return ResponseHandler.error(res, 'Excel 无数据行', 'VALIDATION_ERROR', 400);
-    logger.info(`[Excel导入] 检测到表头在第 ${headerRowIdx + 1} 行，数据行 ${dataRows.length} 条，表头: ${headers.join(',')}`);
+    logger.info(`[HR] [Excel导入] 检测到表头在第 ${headerRowIdx + 1} 行，数据行 ${dataRows.length} 条，表头: ${headers.join(',')}`);
 
     // 获取所有员工做姓名映射
     const [employees] = await pool.query('SELECT id, name FROM hr_employees');
@@ -607,7 +518,7 @@ const importAttendanceExcel = async (req, res) => {
         }
       }
     }
-    logger.info(`[Excel导入] 列映射: ${JSON.stringify(colIndexMap)}`);
+    logger.info(`[HR] [Excel导入] 列映射: ${JSON.stringify(colIndexMap)}`);
 
     let imported = 0, skipped = 0;
     const connection = await pool.getConnection();
@@ -687,40 +598,30 @@ const importAttendanceExcel = async (req, res) => {
       connection.release();
     }
   } catch (error) {
-    logger.error('导入考勤Excel失败:', error);
+    logger.error('[HR] 导入考勤Excel失败:', error);
     return ResponseHandler.error(res, '导入失败: ' + error.message, 'OPERATION_ERROR', 500, error);
   }
 };
 
 // ---------- 薪酬中心 ---------- //
 
+// ========== S-05: 薪资记录使用 HrService 显式列名 ==========
 const getSalaryRecords = async (req, res) => {
   try {
     const { period } = req.query;
-    let query = `
-      SELECT s.*, e.name as employee_name, e.employee_no
-      FROM hr_salary_records s
-      JOIN hr_employees e ON s.employee_id = e.id
-    `;
-    const params = [];
-    if (period) {
-      query += ` WHERE s.period = ?`;
-      params.push(period);
-    }
-    const [rows] = await pool.query(query, params);
+    const rows = await HrService.getSalaryRecords({ period });
 
     // Parse JSON details
     const parsedRows = rows.map(r => {
       if (r.split_details && typeof r.split_details === 'string') {
-        try { r.split_details = JSON.parse(r.split_details); } catch { /* 忽略解析失败 */ }
-        // 静默忽略该错误
+        try { r.split_details = JSON.parse(r.split_details); } catch { logger.debug('[HR] split_details JSON 解析失败'); }
       }
       return r;
     });
 
     return ResponseHandler.success(res, parsedRows);
   } catch (error) {
-    logger.error('获取薪资详情失败:', error);
+    logger.error('[HR] 获取薪资详情失败:', error);
     return ResponseHandler.error(res, '获取薪资详情失败', 'OPERATION_ERROR', 500, error);
   }
 };
@@ -734,7 +635,7 @@ const calculateSalary = async (req, res) => {
 
     return ResponseHandler.success(res, { count: calcCount }, `核算完成，共生成 ${calcCount} 条工资单`);
   } catch (error) {
-    logger.error('薪资自动核算失败:', error);
+    logger.error('[HR] 薪资自动核算失败:', error);
     return ResponseHandler.error(res, error.message || '核算失败', 'OPERATION_ERROR', 500, error);
   }
 };
@@ -745,6 +646,7 @@ const confirmSalary = async (req, res) => {
     await pool.query("UPDATE hr_salary_records SET status = 'approved' WHERE id = ?", [id]);
     return ResponseHandler.success(res, null, '工资单确认成功');
   } catch (error) {
+    logger.error('[HR] 确认工资单失败:', error);
     return ResponseHandler.error(res, '确认失败', 'OPERATION_ERROR', 500, error);
   }
 };
@@ -760,6 +662,7 @@ const batchConfirmSalary = async (req, res) => {
     );
     return ResponseHandler.success(res, { count: result.affectedRows }, `已批量确认 ${result.affectedRows} 条工资单`);
   } catch (error) {
+    logger.error('[HR] 批量确认失败:', error);
     return ResponseHandler.error(res, '批量确认失败', 'OPERATION_ERROR', 500, error);
   }
 };
@@ -800,7 +703,7 @@ const exportSalary = async (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename=salary_${period}.xlsx`);
     return res.send(buffer);
   } catch (error) {
-    logger.error('导出薪酬Excel失败:', error);
+    logger.error('[HR] 导出薪酬Excel失败:', error);
     return ResponseHandler.error(res, '导出失败: ' + error.message, 'OPERATION_ERROR', 500, error);
   }
 };
@@ -812,6 +715,7 @@ const getAttendanceRules = async (req, res) => {
     const [rows] = await pool.query('SELECT id, rule_key, rule_name, rule_value, rule_group, description, sort_order, updated_at FROM hr_attendance_rules ORDER BY sort_order');
     return ResponseHandler.success(res, rows);
   } catch (error) {
+    logger.error('[HR] 获取考勤规则失败:', error);
     return ResponseHandler.error(res, '获取考勤规则失败', 'OPERATION_ERROR', 500, error);
   }
 };
@@ -828,6 +732,7 @@ const updateAttendanceRule = async (req, res) => {
     );
     return ResponseHandler.success(res, null, '规则更新成功');
   } catch (error) {
+    logger.error('[HR] 更新规则失败:', error);
     return ResponseHandler.error(res, '更新规则失败', 'OPERATION_ERROR', 500, error);
   }
 };

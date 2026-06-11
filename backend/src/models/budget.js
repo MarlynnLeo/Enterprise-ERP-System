@@ -10,21 +10,38 @@ const {
   budgetDetailActualAmountSql,
   budgetTotalActualAmountSql,
 } = require('../utils/finance/budgetUsageSql');
+const { isValidTransition, normalizeStatus } = require('../constants/statusRegistry');
 
 const BUDGET_STATUS = {
   DRAFT: '草稿',
   PENDING: '待审批',
   APPROVED: '已审批',
   RUNNING: '执行中',
+  COMPLETED: '已完成',
   CLOSED: '已关闭',
 };
 
-const BUDGET_STATUS_TRANSITIONS = {
-  [BUDGET_STATUS.DRAFT]: [BUDGET_STATUS.PENDING],
-  [BUDGET_STATUS.PENDING]: [BUDGET_STATUS.APPROVED, BUDGET_STATUS.DRAFT],
-  [BUDGET_STATUS.APPROVED]: [BUDGET_STATUS.RUNNING],
-  [BUDGET_STATUS.RUNNING]: [BUDGET_STATUS.CLOSED],
+const BUDGET_STATUS_CODE = {
+  DRAFT: 'draft',
+  PENDING_APPROVAL: 'pending_approval',
+  APPROVED: 'approved',
+  EXECUTING: 'executing',
+  COMPLETED: 'completed',
+  CLOSED: 'closed',
 };
+
+const BUDGET_STATUS_BY_CODE = {
+  [BUDGET_STATUS_CODE.DRAFT]: BUDGET_STATUS.DRAFT,
+  [BUDGET_STATUS_CODE.PENDING_APPROVAL]: BUDGET_STATUS.PENDING,
+  [BUDGET_STATUS_CODE.APPROVED]: BUDGET_STATUS.APPROVED,
+  [BUDGET_STATUS_CODE.EXECUTING]: BUDGET_STATUS.RUNNING,
+  [BUDGET_STATUS_CODE.COMPLETED]: BUDGET_STATUS.COMPLETED,
+  [BUDGET_STATUS_CODE.CLOSED]: BUDGET_STATUS.CLOSED,
+};
+
+const getBudgetStatusCode = (status) => normalizeStatus('budget', status);
+const getBudgetStatusValue = (status) => BUDGET_STATUS_BY_CODE[getBudgetStatusCode(status)] || status;
+const isBudgetStatus = (status, code) => getBudgetStatusCode(status) === code;
 
 function createBudgetError(message, code = 'VALIDATION_ERROR', statusCode = 400) {
   const error = new Error(message);
@@ -34,10 +51,11 @@ function createBudgetError(message, code = 'VALIDATION_ERROR', statusCode = 400)
 }
 
 function assertBudgetTransition(currentStatus, nextStatus) {
-  if (currentStatus === nextStatus) return;
+  const currentCode = getBudgetStatusCode(currentStatus);
+  const nextCode = getBudgetStatusCode(nextStatus);
+  if (currentCode === nextCode) return;
 
-  const allowedTargets = BUDGET_STATUS_TRANSITIONS[currentStatus] || [];
-  if (!allowedTargets.includes(nextStatus)) {
+  if (!isValidTransition('budget', currentCode, nextCode)) {
     throw createBudgetError(`不允许从"${currentStatus}"变更为"${nextStatus}"`);
   }
 }
@@ -257,7 +275,7 @@ const budgetModel = {
 
       if (filters.status) {
         query += ' AND b.status = ?';
-        params.push(filters.status);
+        params.push(getBudgetStatusValue(filters.status));
       }
 
       if (filters.department_id) {
@@ -324,7 +342,7 @@ const budgetModel = {
 
       if (filters.status) {
         query += ' AND status = ?';
-        params.push(filters.status);
+        params.push(getBudgetStatusValue(filters.status));
       }
 
       if (filters.department_id) {
@@ -442,7 +460,7 @@ const budgetModel = {
         throw createBudgetError('预算不存在', 'NOT_FOUND', 404);
       }
 
-      if (budgets[0].status !== BUDGET_STATUS.DRAFT) {
+      if (!isBudgetStatus(budgets[0].status, BUDGET_STATUS_CODE.DRAFT)) {
         throw createBudgetError('只有草稿状态的预算允许修改');
       }
 
@@ -533,7 +551,7 @@ const budgetModel = {
         throw createBudgetError('预算不存在', 'NOT_FOUND', 404);
       }
 
-      if (budgets[0].status !== BUDGET_STATUS.DRAFT) {
+      if (!isBudgetStatus(budgets[0].status, BUDGET_STATUS_CODE.DRAFT)) {
         throw createBudgetError('只有草稿状态的预算允许删除');
       }
 
@@ -576,9 +594,11 @@ const budgetModel = {
         throw createBudgetError('预算不存在', 'NOT_FOUND', 404);
       }
 
-      assertBudgetTransition(budgets[0].status, status);
+      const normalizedStatus = getBudgetStatusValue(status);
 
-      if (status === BUDGET_STATUS.PENDING) {
+      assertBudgetTransition(budgets[0].status, normalizedStatus);
+
+      if (isBudgetStatus(normalizedStatus, BUDGET_STATUS_CODE.PENDING_APPROVAL)) {
         const [detailCount] = await connection.execute(
           'SELECT COUNT(*) AS count FROM budget_details WHERE budget_id = ?',
           [id]
@@ -589,7 +609,7 @@ const budgetModel = {
       }
 
       let query = 'UPDATE budgets SET status = ?';
-      const params = [status];
+      const params = [normalizedStatus];
 
       if (extraData.approval_status) {
         query += ', approval_status = ?';
@@ -601,7 +621,7 @@ const budgetModel = {
         params.push(extraData.approved_by);
       }
 
-      if (status === BUDGET_STATUS.PENDING) {
+      if (isBudgetStatus(normalizedStatus, BUDGET_STATUS_CODE.PENDING_APPROVAL)) {
         query += ', approved_by = NULL, approved_at = NULL';
       }
 
@@ -611,7 +631,7 @@ const budgetModel = {
       const [result] = await connection.execute(query, params);
 
       await connection.commit();
-      logger.info('预算状态更新成功', { id, status });
+      logger.info('预算状态更新成功', { id, status: normalizedStatus });
       return result.affectedRows > 0;
     } catch (error) {
       await connection.rollback();
@@ -930,5 +950,10 @@ const budgetModel = {
     }
   },
 };
+
+budgetModel.BUDGET_STATUS_CODE = BUDGET_STATUS_CODE;
+budgetModel.getBudgetStatusCode = getBudgetStatusCode;
+budgetModel.getBudgetStatusValue = getBudgetStatusValue;
+budgetModel.isBudgetStatus = isBudgetStatus;
 
 module.exports = budgetModel;

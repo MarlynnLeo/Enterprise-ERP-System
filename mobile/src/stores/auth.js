@@ -72,8 +72,8 @@ export const useAuthStore = defineStore('auth', () => {
   const refreshToken = ref('')
 
   // 权限状态 — 与网页端 authStore 保持一致
+  // 权限缓存使用 sessionStorage，关闭浏览器即失效，降低泄露风险
   const permissions = ref(
-    safeGetJSON(STORAGE_KEYS.PERMISSIONS, [], localStorage) ||
     safeGetJSON(STORAGE_KEYS.PERMISSIONS, [], sessionStorage) ||
     []
   )
@@ -147,7 +147,7 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem(STORAGE_KEYS.USER)
     localStorage.removeItem(STORAGE_KEYS.IS_LOGGED_IN)
     localStorage.removeItem('refreshToken')
-    localStorage.removeItem(STORAGE_KEYS.PERMISSIONS)
+    sessionStorage.removeItem(STORAGE_KEYS.PERMISSIONS)
     if (typeof window !== 'undefined') {
       delete window.__mobileThemeLoaded
       delete window.__mobileThemeLoadedFor
@@ -180,7 +180,7 @@ export const useAuthStore = defineStore('auth', () => {
       // 登录成功后清除旧权限缓存，再获取新权限
       permissions.value = []
       permissionsLoaded.value = false
-      localStorage.removeItem(STORAGE_KEYS.PERMISSIONS)
+      sessionStorage.removeItem(STORAGE_KEYS.PERMISSIONS)
       try {
         await fetchUserPermissions()
       } catch (e) {
@@ -237,7 +237,7 @@ export const useAuthStore = defineStore('auth', () => {
       sessionStorage.removeItem(STORAGE_KEYS.USER)
       localStorage.removeItem(STORAGE_KEYS.IS_LOGGED_IN)
       sessionStorage.removeItem(STORAGE_KEYS.IS_LOGGED_IN)
-      localStorage.removeItem(STORAGE_KEYS.PERMISSIONS)
+      sessionStorage.removeItem(STORAGE_KEYS.PERMISSIONS)
       return false
     }
   }
@@ -258,6 +258,9 @@ export const useAuthStore = defineStore('auth', () => {
     return true
   }
 
+  // W-25: 共享 Promise — 第一个请求完成时，所有等待者同时获得结果
+  let _permissionsPromise = null
+
   /**
    * 获取用户权限列表 — 复用网页端同一后端 API
    * @param {boolean} force - 是否强制刷新
@@ -271,57 +274,63 @@ export const useAuthStore = defineStore('auth', () => {
       return true
     }
 
-    // 防止重复请求（带 10 秒超时保护）
-    if (permissionsLoading.value) {
-      return new Promise((resolve) => {
-        const startTime = Date.now()
-        const MAX_WAIT = 10000
-        const checkLoading = () => {
-          if (!permissionsLoading.value) {
-            resolve(permissionsLoaded.value)
-          } else if (Date.now() - startTime > MAX_WAIT) {
-            console.warn('[auth] 等待权限加载超时，放弃等待')
-            resolve(false)
+    // 防止重复请求 — 后续调用者复用同一个 Promise，无需轮询
+    if (permissionsLoading.value && _permissionsPromise) {
+      return _permissionsPromise
+    }
+
+    permissionsLoading.value = true
+
+    // 创建共享 Promise，带 10 秒超时保护
+    _permissionsPromise = Promise.race([
+      (async () => {
+        try {
+          const timestamp = Date.now()
+          const response = await api.get(`/auth/permissions?_t=${timestamp}`)
+          const data = response.data
+
+          // 处理不同的权限数据格式
+          if (Array.isArray(data)) {
+            permissions.value = data
+          } else if (data && data.permissions && Array.isArray(data.permissions)) {
+            permissions.value = data.permissions
           } else {
-            setTimeout(checkLoading, 100)
+            console.error('[auth] 权限数据格式不正确:', data)
+            permissions.value = []
           }
+
+          // 权限缓存到 localStorage（跨标签共享，刷新后快速恢复）
+          safeSaveJSON(STORAGE_KEYS.PERMISSIONS, permissions.value, localStorage)
+          permissionsLoaded.value = true
+          return true
+        } catch (error) {
+          console.error('[auth] 获取用户权限失败:', error)
+
+          permissions.value = []
+          permissionsLoaded.value = false
+          safeSaveJSON(STORAGE_KEYS.PERMISSIONS, null, localStorage)
+          safeSaveJSON(STORAGE_KEYS.PERMISSIONS, null, sessionStorage)
+          throw error
+        } finally {
+          permissionsLoading.value = false
+          _permissionsPromise = null
         }
-        checkLoading()
+      })(),
+      new Promise((_, reject) => {
+        setTimeout(() => {
+          console.warn('[auth] 等待权限加载超时，放弃等待')
+          reject(new Error('权限加载超时'))
+        }, 10000)
       })
-    }
-
-    try {
-      permissionsLoading.value = true
-
-      const timestamp = Date.now()
-      const response = await api.get(`/auth/permissions?_t=${timestamp}`)
-      const data = response.data
-
-      // 处理不同的权限数据格式
-      if (Array.isArray(data)) {
-        permissions.value = data
-      } else if (data && data.permissions && Array.isArray(data.permissions)) {
-        permissions.value = data.permissions
-      } else {
-        console.error('[auth] 权限数据格式不正确:', data)
-        permissions.value = []
-      }
-
-      // 权限缓存到 localStorage（跨标签共享，刷新后快速恢复）
-      safeSaveJSON(STORAGE_KEYS.PERMISSIONS, permissions.value, localStorage)
-      permissionsLoaded.value = true
-      return true
-    } catch (error) {
-      console.error('[auth] 获取用户权限失败:', error)
-
-      permissions.value = []
-      permissionsLoaded.value = false
-      safeSaveJSON(STORAGE_KEYS.PERMISSIONS, null, localStorage)
-      safeSaveJSON(STORAGE_KEYS.PERMISSIONS, null, sessionStorage)
-      throw error
-    } finally {
+    ]).catch((error) => {
       permissionsLoading.value = false
-    }
+      _permissionsPromise = null
+      // 超时情况下返回 false 而非抛出错误，与原行为一致
+      if (error?.message === '权限加载超时') return false
+      throw error
+    })
+
+    return _permissionsPromise
   }
 
   /**
@@ -331,7 +340,7 @@ export const useAuthStore = defineStore('auth', () => {
     permissions.value = []
     permissionsLoaded.value = false
     permissionsLoading.value = false
-    localStorage.removeItem(STORAGE_KEYS.PERMISSIONS)
+    sessionStorage.removeItem(STORAGE_KEYS.PERMISSIONS)
     return await fetchUserPermissions(true)
   }
 

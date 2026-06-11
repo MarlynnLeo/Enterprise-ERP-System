@@ -586,7 +586,7 @@ onMounted(async () => {
 async function _loadDashboardData() {
   try {
     // 获取真实的财务统计数据 - axios拦截器已解包
-    const response = await financeApi.getFinancialStatistics({
+    const response = await financeApi.getCashFlowStatistics({
       startDate: getMonthStart(),
       endDate: getMonthEnd()
     });

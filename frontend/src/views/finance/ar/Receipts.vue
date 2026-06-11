@@ -12,9 +12,9 @@
       <div class="header-content">
         <div class="title-section">
           <h2>收款记录管理</h2>
-          <p class="subtitle">管理客户收款记录</p>
+          <p class="subtitle">从应收发票发起收款，手工录入仅用于例外收款</p>
         </div>
-        <el-button v-permission="'finance:ar:receive'" type="primary" :icon="Plus" @click="showAddDialog">新增收款</el-button>
+        <el-button v-permission="'finance:ar:receive'" type="info" plain :icon="Plus" @click="showAddDialog">例外收款录入</el-button>
       </div>
     </el-card>
 
@@ -375,7 +375,7 @@ const currentPage = ref(1);
 
 // 表单相关
 const dialogVisible = ref(false);
-const dialogTitle = ref('新增收款记录');
+const dialogTitle = ref('例外收款录入');
 const receiptFormRef = ref(null);
 
 // 数据列表
@@ -700,7 +700,7 @@ const jumpToInvoiceFromDetail = () => {
 
 // 新增收款记录
 const showAddDialog = async () => {
-  dialogTitle.value = '新增收款记录';
+  dialogTitle.value = '例外收款录入';
   resetReceiptForm();
 
   // 自动生成收款编号

@@ -14,11 +14,7 @@
 
 <script setup>
 // App.vue - 根组件
-import { useSnackbar } from '@/composables/useSnackbar';
 import { useLanguageStore } from '@/stores/language';
-
-// 初始化snackbar服务，以便在整个应用中可用
-useSnackbar();
 
 // 使用语言store
 const languageStore = useLanguageStore();

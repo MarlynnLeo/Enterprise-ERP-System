@@ -7,7 +7,7 @@
 
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-
+import { getBrowserLanguage } from '@/utils/language'
 import { ElMessage } from 'element-plus'
 
 // Element Plus 语言包
@@ -40,17 +40,6 @@ export const useLanguageStore = defineStore('language', () => {
       elementLocale: ko
     }
   ]
-
-  // 获取浏览器语言
-  const getBrowserLanguage = () => {
-    const language = navigator.language || navigator.userLanguage
-    if (language.includes('zh')) {
-      return 'zh-CN'
-    } else if (language.includes('ko')) {
-      return 'ko'
-    }
-    return 'en'
-  }
 
   // 初始化语言设置
   const initLanguage = () => {

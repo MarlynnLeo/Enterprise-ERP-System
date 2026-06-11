@@ -1154,12 +1154,16 @@ const apModel = {
         `SELECT p.id, p.payment_number, p.supplier_id,
                 DATE_FORMAT(p.payment_date, '%Y-%m-%d') as payment_date,
                 p.total_amount, p.payment_method, p.reference_number,
-                p.bank_account_id, p.notes,
+                p.bank_account_id, p.notes, p.status,
+                DATE_FORMAT(p.voided_at, '%Y-%m-%d %H:%i:%s') as voided_at,
+                p.voided_by, p.void_reason,
                 DATE_FORMAT(p.created_at, '%Y-%m-%d') as created_at,
-                s.name as supplier_name, b.account_name as bank_account_name
+                s.name as supplier_name, b.account_name as bank_account_name,
+                COALESCE(u.real_name, u.username) as voided_by_name
          FROM ap_payments p
          LEFT JOIN suppliers s ON p.supplier_id = s.id
          LEFT JOIN bank_accounts b ON p.bank_account_id = b.id
+         LEFT JOIN users u ON p.voided_by = u.id
          WHERE p.id = ?`,
         [id]
       );

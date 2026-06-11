@@ -51,7 +51,10 @@ class FinanceSubscriber {
                     || await this.fetchSalesOrder(payload.salesOrderId);
                 const exists = await this.existsBySource('ar_invoices', 'sales_order', salesOrder.id);
                 if (!exists) {
-                    await FinanceIntegrationService.generateARInvoiceFromSalesOrder(salesOrder);
+                    await FinanceIntegrationService.generateARInvoiceFromSalesOrder(
+                        salesOrder,
+                        payload.currentUserId || payload.userId || null
+                    );
                 }
             },
             'Finance:GenerateCostEntryFromSalesOutbound': async (payload) => {
@@ -70,6 +73,24 @@ class FinanceSubscriber {
                         payload.currentUserId || payload.userId || null
                     );
                 }
+            },
+            'Finance:GenerateARCreditNoteFromSalesReturn': async (payload) => {
+                await this.handleSalesReturnCompleted(payload);
+            },
+            'Finance:GenerateAPCreditNoteFromPurchaseReturn': async (payload) => {
+                await this.handlePurchaseReturnCompleted(payload);
+            },
+            'Finance:SalesReturnCompleted': async (payload) => {
+                await this.handleSalesReturnCompleted(payload);
+            },
+            'Finance:PurchaseReturnCompleted': async (payload) => {
+                await this.handlePurchaseReturnCompleted(payload);
+            },
+            'FinanceIntegration:SalesReturnCreditNote': async (payload) => {
+                await this.handleSalesReturnCompleted(payload);
+            },
+            'FinanceIntegration:PurchaseReturnCreditNote': async (payload) => {
+                await this.handlePurchaseReturnCompleted(payload);
             },
             'Finance:CalculateActualCostFromProductionTask': async (payload) => {
                 if (!payload.isFullComplete) return;
@@ -91,6 +112,12 @@ class FinanceSubscriber {
             'EventBus:PRODUCTION_TASK_COMPLETED': async (payload) => {
                 await this.handleProductionTaskCompleted(payload.args?.[0] || payload);
             },
+            'EventBus:SALES_RETURN_COMPLETED': async (payload) => {
+                await this.handleSalesReturnCompleted(payload.args?.[0] || payload);
+            },
+            'EventBus:PURCHASE_RETURN_COMPLETED': async (payload) => {
+                await this.handlePurchaseReturnCompleted(payload.args?.[0] || payload);
+            },
         };
 
         Object.entries(handlers).forEach(([taskName, handler]) => {
@@ -104,7 +131,7 @@ class FinanceSubscriber {
             `SELECT pr.*, s.name as supplier_name
              FROM purchase_receipts pr
              LEFT JOIN suppliers s ON pr.supplier_id = s.id
-             WHERE pr.id = ?`,
+             WHERE pr.id = ? AND pr.deleted_at IS NULL`,
             [receiptId]
         );
         if (rows.length === 0) {
@@ -119,11 +146,42 @@ class FinanceSubscriber {
             `SELECT so.*, c.name as customer_name
              FROM sales_orders so
              LEFT JOIN customers c ON so.customer_id = c.id
-             WHERE so.id = ?`,
+             WHERE so.id = ? AND so.deleted_at IS NULL`,
             [salesOrderId]
         );
         if (rows.length === 0) {
             throw new Error(`Sales order not found: ${salesOrderId}`);
+        }
+        return rows[0];
+    }
+
+    async fetchSalesReturn(returnId) {
+        const db = require('../../config/db');
+        const [rows] = await db.pool.execute(
+            `SELECT sr.*, c.name as customer_name
+             FROM sales_returns sr
+             LEFT JOIN sales_orders so ON sr.order_id = so.id
+             LEFT JOIN customers c ON so.customer_id = c.id
+             WHERE sr.id = ? AND sr.deleted_at IS NULL`,
+            [returnId]
+        );
+        if (rows.length === 0) {
+            throw new Error(`Sales return not found: ${returnId}`);
+        }
+        return rows[0];
+    }
+
+    async fetchPurchaseReturn(returnId) {
+        const db = require('../../config/db');
+        const [rows] = await db.pool.execute(
+            `SELECT pr.*, s.name as supplier_name
+             FROM purchase_returns pr
+             LEFT JOIN suppliers s ON pr.supplier_id = s.id
+             WHERE pr.id = ? AND pr.deleted_at IS NULL`,
+            [returnId]
+        );
+        if (rows.length === 0) {
+            throw new Error(`Purchase return not found: ${returnId}`);
         }
         return rows[0];
     }
@@ -225,6 +283,8 @@ class FinanceSubscriber {
         EventBus.on('PURCHASE_RECEIPT_COMPLETED', this.handlePurchaseReceiptCompleted.bind(this));
         // 监听生产任务完工事件（将原任务控制器的核算逻辑解耦至此）
         EventBus.on('PRODUCTION_TASK_COMPLETED', this.handleProductionTaskCompleted.bind(this));
+        EventBus.on('SALES_RETURN_COMPLETED', this.handleSalesReturnCompleted.bind(this));
+        EventBus.on('PURCHASE_RETURN_COMPLETED', this.handlePurchaseReturnCompleted.bind(this));
     }
 
     assertAllowedIdentifier(value, allowedValues, label) {
@@ -479,6 +539,56 @@ class FinanceSubscriber {
                 'Finance:SalesOutboundCompleted',
                 { outboundNo, outboundData, salesOrderId: salesOrder?.id, currentUserId },
                 criticalError
+            );
+        }
+    }
+
+    async handleSalesReturnCompleted(payload) {
+        const returnId = payload.returnId || payload.id;
+        const currentUserId = payload.currentUserId || payload.userId || null;
+        try {
+            const salesReturn = payload.salesReturn || await this.fetchSalesReturn(returnId);
+            const exists = await this.existsBySource('ar_invoices', 'sales_return', salesReturn.id);
+            if (exists) {
+                logger.info(`[FinanceSubscriber] 销售退货单 ${salesReturn.return_no} 已生成过红字应收发票，跳过`);
+                return;
+            }
+            await FinanceIntegrationService.generateARCreditNoteFromSalesReturn({
+                ...salesReturn,
+                created_by: salesReturn.created_by || currentUserId,
+            });
+            logger.info(`[FinanceSubscriber] 销售退货红字发票自动生成成功 - 退货单: ${salesReturn.return_no}`);
+        } catch (error) {
+            await this.recordFailure(
+                'Finance:GenerateARCreditNoteFromSalesReturn',
+                { returnId, currentUserId },
+                error,
+                '[FinanceSubscriber] 销售退货红字发票自动生成失败'
+            );
+        }
+    }
+
+    async handlePurchaseReturnCompleted(payload) {
+        const returnId = payload.returnId || payload.id;
+        const currentUserId = payload.currentUserId || payload.userId || null;
+        try {
+            const purchaseReturn = payload.purchaseReturn || await this.fetchPurchaseReturn(returnId);
+            const exists = await this.existsBySource('ap_invoices', 'purchase_return', purchaseReturn.id);
+            if (exists) {
+                logger.info(`[FinanceSubscriber] 采购退货单 ${purchaseReturn.return_no} 已生成过红字应付发票，跳过`);
+                return;
+            }
+            await FinanceIntegrationService.generateAPCreditNoteFromPurchaseReturn({
+                ...purchaseReturn,
+                created_by: purchaseReturn.created_by || currentUserId,
+            });
+            logger.info(`[FinanceSubscriber] 采购退货红字发票自动生成成功 - 退货单: ${purchaseReturn.return_no}`);
+        } catch (error) {
+            await this.recordFailure(
+                'Finance:GenerateAPCreditNoteFromPurchaseReturn',
+                { returnId, currentUserId },
+                error,
+                '[FinanceSubscriber] 采购退货红字发票自动生成失败'
             );
         }
     }

@@ -771,14 +771,6 @@
             <el-icon><Promotion /></el-icon> 批量提交
           </el-button>
           <el-button
-            v-if="canBatchApprove"
-            type="primary"
-            @click="handleBatchApprove"
-            :loading="batchLoading"
-          >
-            <el-icon><CircleCheck /></el-icon> 批量批准
-          </el-button>
-          <el-button
             @click="clearSelection"
           >
             <el-icon><Close /></el-icon> 清空选择
@@ -792,9 +784,9 @@
 import { ref, reactive, onMounted, onActivated } from 'vue'
 import { useRouter } from 'vue-router'
 import { purchaseApi } from '@/api'
-import { Plus, Select, Promotion, CircleCheck, Close } from '@element-plus/icons-vue'
+import { Plus, Select, Promotion, Close } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
-import { PURCHASE_STATUS_OPTIONS } from '@/constants/purchaseConstants'
+import { PURCHASE_STATUS_OPTIONS } from '@/constants/systemConstants'
 import { parseListData } from '@/utils/responseParser'
 import { loadUserListOptions } from '@/utils/optionLoaders'
 const router = useRouter()
@@ -827,13 +819,13 @@ const {
   detailLoading, viewDialogVisible, viewData,
   receiveDialogVisible, receiveDialogLoading, receiveForm, receiveTableRef, totalReceiveQuantity,
   requisitionViewDialog, requisitionViewData,
-  orderTableRef, selectedOrders, batchLoading, canBatchSubmit, canBatchApprove,
+  orderTableRef, selectedOrders, batchLoading, canBatchSubmit,
   orderStats, formatDate, formatCurrency, getStatusText, getStatusType,
   getCountdownText, getCountdownType,
   viewOrder, viewRequisition, updateStatus, deleteOrder: _deleteOrder,
   openReceiveDialog, handleReceiveQuantityChange, confirmReceive,
   printOrder, getOrderStats,
-  handleSelectionChange, clearSelection, handleBatchSubmit, handleBatchApprove
+  handleSelectionChange, clearSelection, handleBatchSubmit
 } = usePurchaseOrderActions(loadOrders, orderList)
 // ========== 本地方法 ==========
 const isBlankAmount = (value) => value === null || value === undefined || value === ''

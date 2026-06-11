@@ -9,7 +9,7 @@ const CostCenterService = require('../../../services/business/CostCenterService'
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
-const { authenticateToken } = require('../../../middleware/auth');
+const { authenticateToken } = require('../../../middleware/authEnhanced');
 const { requirePermission } = require('../../../middleware/requirePermission');
 const {
   desensitizeSensitiveResponse,

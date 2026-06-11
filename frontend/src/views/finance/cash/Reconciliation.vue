@@ -420,7 +420,7 @@ const handleUnreconciledSelect = (selection) => {
 // 加载账户选项
 const loadAccountOptions = async () => {
   try {
-    const response = await financeApi.getBankAccountsList({ status: 'active' });
+    const response = await financeApi.getBankAccounts({ status: 'active' });
     // 拦截器已解包，response.data 就是业务数据
     accountOptions.value = response.data?.list || [];
   } catch (error) {

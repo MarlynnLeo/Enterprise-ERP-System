@@ -39,7 +39,7 @@ async function getAdminAgent() {
   const agent = request.agent(app);
   const res = await agent
     .post('/api/auth/login')
-    .send({ username: 'admin', password: '123456' })
+    .send({ username: process.env.TEST_ADMIN_USERNAME || 'admin', password: process.env.TEST_ADMIN_PASSWORD || '123456' })
     .expect(200);
 
   if (!res.body.data?.user && !res.body.user) {

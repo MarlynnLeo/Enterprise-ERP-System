@@ -82,6 +82,79 @@ class InspectionTemplateController {
     return InspectionTemplateResolver.normalizePriority(value);
   }
 
+  normalizeItemValue(value) {
+    return value === undefined || value === null || value === '' ? null : String(value);
+  }
+
+  buildInspectionItemPayload(item = {}) {
+    const type = item.type || 'other';
+    const isDimension = type === 'dimension';
+
+    return {
+      item_name: String(item.item_name || '').trim(),
+      standard: String(item.standard || '').trim(),
+      type,
+      is_critical: item.is_critical === true || item.is_critical === 1 || item.is_critical === '1',
+      dimension_value: isDimension ? item.dimension_value ?? null : null,
+      tolerance_upper: isDimension ? item.tolerance_upper ?? null : null,
+      tolerance_lower: isDimension ? item.tolerance_lower ?? null : null,
+    };
+  }
+
+  isSameInspectionItem(existingItem, payload) {
+    return (
+      String(existingItem.item_name || '') === payload.item_name &&
+      String(existingItem.standard || '') === payload.standard &&
+      String(existingItem.type || 'other') === payload.type &&
+      (existingItem.is_critical === true || existingItem.is_critical === 1) === payload.is_critical &&
+      this.normalizeItemValue(existingItem.dimension_value) === this.normalizeItemValue(payload.dimension_value) &&
+      this.normalizeItemValue(existingItem.tolerance_upper) === this.normalizeItemValue(payload.tolerance_upper) &&
+      this.normalizeItemValue(existingItem.tolerance_lower) === this.normalizeItemValue(payload.tolerance_lower)
+    );
+  }
+
+  async resolveTemplateItemId(item, transaction) {
+    const payload = this.buildInspectionItemPayload(item);
+    const sourceItemId = item.reuse_item_id || item.id || null;
+
+    if (sourceItemId) {
+      const sourceItem = await db.InspectionItem.findByPk(sourceItemId, { transaction });
+      if (sourceItem && this.isSameInspectionItem(sourceItem, payload)) {
+        return sourceItem.id;
+      }
+    }
+
+    const existingItem = await db.InspectionItem.findOne({
+      where: payload,
+      transaction,
+    });
+    if (existingItem) {
+      return existingItem.id;
+    }
+
+    const newItem = await db.InspectionItem.create(payload, { transaction });
+    return newItem.id;
+  }
+
+  async assertNoOtherActiveGeneralTemplate(inspectionType, templateId, transaction = null) {
+    const [rows] = await db.sequelize.query(
+      `SELECT id, template_name
+       FROM inspection_templates
+       WHERE inspection_type = ?
+         AND status = 'active'
+         AND is_general = 1
+         AND id <> ?
+       LIMIT 1`,
+      { replacements: [inspectionType, templateId || 0], transaction }
+    );
+
+    if (rows.length > 0) {
+      throw InspectionTemplateResolver.createValidationError(
+        `同一检验类型只能启用一个通用兜底模板；请先停用当前通用模板「${rows[0].template_name}」`
+      );
+    }
+  }
+
   async enforceDefaultGeneralTemplate(inspectionType, templateId, transaction = null) {
     await db.InspectionTemplate.update(
       { is_default: false },
@@ -491,110 +564,7 @@ class InspectionTemplateController {
 
       for (let i = 0; i < items.length; i++) {
         const item = items[i];
-        let itemId;
-
-        // 检查是否需要复用现有项目
-        if (item.reuse_item_id) {
-          // 如果提供了复用项目ID，检查是否修改了检验项名称
-          const existingReusedItem = await db.InspectionItem.findByPk(item.reuse_item_id, {
-            transaction: t,
-          });
-
-          if (existingReusedItem && existingReusedItem.item_name !== item.item_name) {
-            // 如果用户修改了检验项名称，创建新的检验项而不是更新原有项
-            const newItem = await db.InspectionItem.create(
-              {
-                item_name: item.item_name,
-                standard: item.standard,
-                type: item.type,
-                is_critical: item.is_critical,
-                dimension_value: item.dimension_value,
-                tolerance_upper: item.tolerance_upper,
-                tolerance_lower: item.tolerance_lower,
-              },
-              { transaction: t }
-            );
-
-            itemId = newItem.id;
-          } else if (existingReusedItem) {
-            // 如果名称未改变，更新该项目的字段
-            await db.InspectionItem.update(
-              {
-                item_name: item.item_name,
-                standard: item.standard,
-                type: item.type,
-                is_critical: item.is_critical,
-                dimension_value: item.dimension_value,
-                tolerance_upper: item.tolerance_upper,
-                tolerance_lower: item.tolerance_lower,
-              },
-              {
-                where: { id: item.reuse_item_id },
-                transaction: t,
-              }
-            );
-            itemId = item.reuse_item_id;
-          } else {
-            // 如果找不到复用项，创建新项
-            const newItem = await db.InspectionItem.create(
-              {
-                item_name: item.item_name,
-                standard: item.standard,
-                type: item.type,
-                is_critical: item.is_critical,
-                dimension_value: item.dimension_value,
-                tolerance_upper: item.tolerance_upper,
-                tolerance_lower: item.tolerance_lower,
-              },
-              { transaction: t }
-            );
-
-            itemId = newItem.id;
-          }
-        } else {
-          // 没有复用ID，查找是否存在完全相同的检验项
-          const existingItem = await db.InspectionItem.findOne({
-            where: {
-              item_name: item.item_name,
-              standard: item.standard,
-              type: item.type,
-              is_critical: item.is_critical,
-            },
-            transaction: t,
-          });
-
-          if (existingItem) {
-            // 如果找到了完全相同的检验项，更新它的尺寸数据
-            await db.InspectionItem.update(
-              {
-                dimension_value: item.dimension_value,
-                tolerance_upper: item.tolerance_upper,
-                tolerance_lower: item.tolerance_lower,
-              },
-              {
-                where: { id: existingItem.id },
-                transaction: t,
-              }
-            );
-            itemId = existingItem.id;
-          } else {
-            // 否则创建新的检验项
-            const newItem = await db.InspectionItem.create(
-              {
-                item_name: item.item_name,
-                standard: item.standard,
-                type: item.type,
-                is_critical: item.is_critical,
-                dimension_value: item.dimension_value,
-                tolerance_upper: item.tolerance_upper,
-                tolerance_lower: item.tolerance_lower,
-              },
-              { transaction: t }
-            );
-
-            itemId = newItem.id;
-          }
-        }
+        const itemId = await this.resolveTemplateItemId(item, t);
 
         // 创建模板-项目关联
         mappingPromises.push(
@@ -654,10 +624,12 @@ class InspectionTemplateController {
 
       // 处理物料类型
       const isGeneralTemplate = normalizedDefinition.isGeneral;
-      const isDefaultTemplate = normalizedDefinition.isDefault;
+      let isDefaultTemplate = normalizedDefinition.isDefault;
 
       // 更新模板基本信息
-      if (existingTemplate.status === 'active' && isDefaultTemplate) {
+      if (existingTemplate.status === 'active' && isGeneralTemplate) {
+        await this.assertNoOtherActiveGeneralTemplate(inspection_type, id, t);
+        isDefaultTemplate = true;
         await this.enforceDefaultGeneralTemplate(inspection_type, id, t);
       }
 
@@ -692,93 +664,7 @@ class InspectionTemplateController {
 
       for (let i = 0; i < items.length; i++) {
         const item = items[i];
-        let itemId;
-
-        // 检查是否需要复用现有项目
-        if (item.reuse_item_id) {
-          // 如果提供了复用项目ID，需要更新该项目的字段
-          await db.InspectionItem.update(
-            {
-              item_name: item.item_name,
-              standard: item.standard,
-              type: item.type,
-              is_critical: item.is_critical,
-              dimension_value: item.dimension_value,
-              tolerance_upper: item.tolerance_upper,
-              tolerance_lower: item.tolerance_lower,
-            },
-            {
-              where: { id: item.reuse_item_id },
-              transaction: t,
-            }
-          );
-          itemId = item.reuse_item_id;
-        } else if (item.id) {
-          // 如果提供了项目ID，需要更新该项目的字段
-          await db.InspectionItem.update(
-            {
-              item_name: item.item_name,
-              standard: item.standard,
-              type: item.type,
-              is_critical: item.is_critical,
-              dimension_value: item.dimension_value,
-              tolerance_upper: item.tolerance_upper,
-              tolerance_lower: item.tolerance_lower,
-            },
-            {
-              where: { id: item.id },
-              transaction: t,
-            }
-          );
-          itemId = item.id;
-        } else {
-          // 否则查找是否存在相同标准的检验项
-          const existingItem = await db.InspectionItem.findOne({
-            where: {
-              item_name: item.item_name,
-              standard: item.standard,
-              type: item.type,
-              is_critical: item.is_critical,
-            },
-            transaction: t,
-          });
-
-          if (existingItem) {
-            // 如果找到了相同的检验项，需要更新它的尺寸数据
-            await db.InspectionItem.update(
-              {
-                item_name: item.item_name,
-                standard: item.standard,
-                type: item.type,
-                is_critical: item.is_critical,
-                dimension_value: item.dimension_value,
-                tolerance_upper: item.tolerance_upper,
-                tolerance_lower: item.tolerance_lower,
-              },
-              {
-                where: { id: existingItem.id },
-                transaction: t,
-              }
-            );
-            itemId = existingItem.id;
-          } else {
-            // 否则创建新的检验项
-            const newItem = await db.InspectionItem.create(
-              {
-                item_name: item.item_name,
-                standard: item.standard,
-                type: item.type,
-                is_critical: item.is_critical,
-                dimension_value: item.dimension_value,
-                tolerance_upper: item.tolerance_upper,
-                tolerance_lower: item.tolerance_lower,
-              },
-              { transaction: t }
-            );
-
-            itemId = newItem.id;
-          }
-        }
+        const itemId = await this.resolveTemplateItemId(item, t);
 
         // 创建模板-项目关联
         mappingPromises.push(
@@ -850,12 +736,18 @@ class InspectionTemplateController {
           await t.rollback();
           return ResponseHandler.error(res, '模板没有检验项目，不能启用', 'VALIDATION_ERROR', 400);
         }
-        if (template.is_general && template.is_default) {
+        if (template.is_general) {
+          await this.assertNoOtherActiveGeneralTemplate(template.inspection_type, template.id, t);
           await this.enforceDefaultGeneralTemplate(template.inspection_type, template.id, t);
         }
       }
 
-      await db.InspectionTemplate.update({ status }, { where: { id }, transaction: t });
+      const updatePayload = { status };
+      if (template.is_general) {
+        updatePayload.is_default = status === 'active';
+      }
+
+      await db.InspectionTemplate.update(updatePayload, { where: { id }, transaction: t });
 
       if (template.is_general) {
         await this.ensureDefaultGeneralTemplateForType(template.inspection_type, t);

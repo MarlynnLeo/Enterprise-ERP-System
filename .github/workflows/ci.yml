@@ -30,6 +30,10 @@ jobs:
         working-directory: backend
         run: npm run lint
 
+      - name: Test backend
+        working-directory: backend
+        run: npm test -- --forceExit --detectOpenHandles
+
   frontend:
     name: Frontend Lint And Build
     runs-on: ubuntu-latest

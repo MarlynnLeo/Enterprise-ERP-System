@@ -333,7 +333,7 @@
                     receiptDialog.form.warehouseId = Number(val);
                     // 验证所选仓库是否有效
                     if (!validateWarehouseId(receiptDialog.form.warehouseId)) {
-                      showSnackbar('警告：所选仓库ID不在系统中，请重新选择', 'warning');
+                      ElMessage.warning('警告：所选仓库ID不在系统中，请重新选择');
                       receiptDialog.form.warehouseId = null;
                     }
                   }
@@ -454,7 +454,7 @@ import { formatLocalDate } from '@/utils/format';
 import { parsePaginatedData, parseResponseData } from '@/utils/responseParser';
 import { loadLocationOptions } from '@/utils/optionLoaders';
 import { ref, reactive, onMounted, nextTick, watch } from 'vue';
-import { useSnackbar } from '@/composables/useSnackbar';
+
 import { purchaseApi, qualityApi, baseDataApi } from '@/api';
 
 import { formatCurrency } from '@/utils/helpers/formatters';
@@ -467,7 +467,7 @@ import {
   getPurchaseReceiptStatusText,
   getPurchaseReceiptStatusColor
 } from '@/constants/systemConstants';
-const { showSnackbar } = useSnackbar();
+
 const isBlankAmount = (value) => value === null || value === undefined || value === '';
 // 初始化认证存储
 const authStore = useAuthStore();
@@ -641,7 +641,7 @@ const loadQualifiedInspections = async () => {
     qualifiedInspections.value = Array.from(uniqueInspections.values());
   } catch (error) {
     console.error('加载合格来料检验单失败:', error);
-    showSnackbar('加载合格来料检验单失败', 'error');
+    ElMessage.error('加载合格来料检验单失败');
     qualifiedInspections.value = [];
   } finally {
     loadingQualifiedInspections.value = false;
@@ -673,7 +673,7 @@ async function loadReceipts() {
     await loadReceiptStats();
   } catch (error) {
     console.error('加载收货单失败:', error);
-    showSnackbar('加载收货单失败: ' + (error.message || '未知错误'), 'error');
+    ElMessage.error('加载收货单失败: ' + (error.message || '未知错误'));
     receipts.value = []; // 确保在出错时receipts是一个数组
   } finally {
     loading.value = false;
@@ -711,7 +711,7 @@ const loadSuppliers = async () => {
 
   } catch (error) {
     console.error('加载供应商列表失败:', error);
-    showSnackbar('加载供应商列表失败', 'error');
+    ElMessage.error('加载供应商列表失败');
     suppliers.value = [];
   }
 };
@@ -775,7 +775,7 @@ async function loadApprovedOrders() {
     }
   } catch (error) {
     console.error('加载订单失败:', error);
-    showSnackbar('加载订单失败', 'error');
+    ElMessage.error('加载订单失败');
     orders.value = []; // 确保在出错时orders是一个数组
   }
 }
@@ -798,7 +798,7 @@ async function loadWarehouses() {
     });
   } catch (error) {
     console.error('加载仓库列表失败:', error);
-    showSnackbar('加载仓库列表失败', 'error');
+    ElMessage.error('加载仓库列表失败');
     warehouses.value = [];
   }
 }
@@ -948,7 +948,7 @@ async function viewReceipt(receipt) {
     viewDialog.show = true;
   } catch (error) {
     console.error('获取收货单详情失败:', error);
-    showSnackbar('获取收货单详情失败: ' + (error.message || '未知错误'), 'error');
+    ElMessage.error('获取收货单详情失败: ' + (error.message || '未知错误'));
   } finally {
     detailLoading.value = false;
   }
@@ -1050,7 +1050,7 @@ async function handleOrderChange(orderId) {
   try {
     const { data } = await purchaseApi.getOrder(orderId);
     if (!data) {
-      showSnackbar('获取订单详情失败', 'error');
+      ElMessage.error('获取订单详情失败');
       return;
     }
 
@@ -1068,7 +1068,7 @@ async function handleOrderChange(orderId) {
     const orderItems = Array.isArray(data.items) ? data.items : [];
 
     if (orderItems.length === 0) {
-      showSnackbar('订单中无物料项，请手动添加', 'warning');
+      ElMessage.warning('订单中无物料项，请手动添加');
     }
 
     receiptDialog.form.items = orderItems.map(item => {
@@ -1139,7 +1139,7 @@ async function handleOrderChange(orderId) {
     receiptDialog.orderNumber = data.order_number || data.orderNumber || data.order_no || '';
   } catch (error) {
     console.error('获取订单详情失败:', error);
-    showSnackbar('获取订单详情失败', 'error');
+    ElMessage.error('获取订单详情失败');
   }
 }
 // 方法：验证仓库ID是否存在于可用仓库列表中
@@ -1162,7 +1162,7 @@ function validateWarehouseId(warehouseId) {
 // 方法：提交收货单
 const submitReceipt = async () => {
   if (!receiptDialog.form.inspectionId) {
-    showSnackbar('请选择合格的来料检验单', 'warning');
+    ElMessage.warning('请选择合格的来料检验单');
     return;
   }
   try {
@@ -1170,7 +1170,7 @@ const submitReceipt = async () => {
 
     // 验证必要字段
     if (!receiptDialog.form.orderId) {
-      showSnackbar('请选择关联订单', 'warning');
+      ElMessage.warning('请选择关联订单');
       return;
     }
 
@@ -1182,7 +1182,7 @@ const submitReceipt = async () => {
     );
 
     if (invalidItems.length > 0) {
-      showSnackbar('请检查物料数量，确保实收数量和合格数量大于0，且合格数量不超过实收数量', 'warning');
+      ElMessage.warning('请检查物料数量，确保实收数量和合格数量大于0，且合格数量不超过实收数量');
       return;
     }
     submitLoading.value = true;
@@ -1238,13 +1238,13 @@ const submitReceipt = async () => {
 
     if (response.data) {
       const message = receiptDialog.isEdit ? '收货单更新成功' : '收货单创建成功';
-      showSnackbar(message, 'success');
+      ElMessage.success(message);
       closeReceiptDialog();
       loadReceipts(); // 修改为调用loadReceipts方法而不是fetchData
     }
   } catch (error) {
     console.error('提交收货单失败:', error);
-    showSnackbar('提交收货单失败: ' + (error.response?.data?.message || error.message), 'error');
+    ElMessage.error('提交收货单失败: ' + (error.response?.data?.message || error.message));
   } finally {
     submitLoading.value = false;
   }
@@ -1472,7 +1472,7 @@ const handleInspectionChange = async (inspectionId) => {
 
     // 5. 如果仍未找到供应商，提示用户手动选择
     if (!isSupplierFound) {
-      showSnackbar('未能自动识别供应商，请手动选择', 'warning');
+      ElMessage.warning('未能自动识别供应商，请手动选择');
     } else {
       // 显示找到的供应商名称
       if (supplierName) {
@@ -1563,10 +1563,10 @@ const handleInspectionChange = async (inspectionId) => {
     receiptDialog.form = { ...receiptDialog.form };
 
     // 显示成功消息
-    showSnackbar(`成功加载物料信息`, 'success');
+    ElMessage.success('成功加载物料信息');
   } catch (error) {
     console.error('获取来料检验单详情失败:', error);
-    showSnackbar(`获取来料检验单详情失败: ${error.message || '未知错误'}`, 'error');
+    ElMessage.error(`获取来料检验单详情失败: ${error.message || '未知错误'}`);
     receiptDialog.form.items = [];
   }
 };
@@ -1593,7 +1593,7 @@ function _handleCurrentChange(page) {
 }
 async function printReceipt() {
   if (!viewDialog.receipt || !viewDialog.receipt.id) {
-    showSnackbar('收货单数据不完整，无法打印', 'warning');
+    ElMessage.warning('收货单数据不完整，无法打印');
     return;
   }
 
@@ -1631,7 +1631,7 @@ async function printReceipt() {
     printService.previewDocument(html);
   } catch (error) {
     console.error('打印失败:', error);
-    showSnackbar('打印失败: ' + error.message, 'error');
+    ElMessage.error('打印失败: ' + error.message);
   }
 }
 function _getSelectedSupplierName(supplierId) {
@@ -1667,7 +1667,7 @@ async function directCompleteReceipt(receipt) {
       status: 'completed',
       remarks: '用户直接确认完成入库'
     });
-    showSnackbar('入库单已确认完成', 'success');
+    ElMessage.success('入库单已确认完成');
     loadReceipts();
   } catch (error) {
     console.error('确认入库失败:', error);
@@ -1685,7 +1685,7 @@ async function directCompleteReceipt(receipt) {
     } else {
       errorMessage += ': ' + (error.message || '未知错误');
     }
-    showSnackbar(errorMessage, 'error');
+    ElMessage.error(errorMessage);
   } finally {
     updateStatusLoading.value = false;
   }

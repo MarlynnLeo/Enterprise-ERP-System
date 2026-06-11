@@ -18,44 +18,6 @@ const {
 } = require('../../../services/business/TaskLifecycleService');
 const { parsePagination, appendPaginationSQL } = require('../../../utils/safePagination');
 
-const INSPECTION_INSERT_FIELDS = [
-  'inspection_no',
-  'inspection_type',
-  'task_id',
-  'product_id',
-  'product_code',
-  'product_name',
-  'batch_no',
-  'quantity',
-  'unit',
-  'unit_id',
-  'planned_date',
-  'status',
-  'is_first_article',
-  'first_article_qty',
-  'is_full_inspection',
-  'first_article_result',
-  'production_can_continue',
-  'template_id',
-  'inspector_id',
-  'inspector_name',
-  'note',
-];
-
-async function insertInspection(data) {
-  const record = INSPECTION_INSERT_FIELDS.reduce((acc, field) => {
-    if (data[field] !== undefined) acc[field] = data[field];
-    return acc;
-  }, {});
-  const columns = Object.keys(record);
-  const placeholders = columns.map(() => '?').join(', ');
-  const values = columns.map((field) => record[field]);
-  return await db.query(
-    `INSERT INTO quality_inspections (${columns.map((field) => `\`${field}\``).join(', ')}) VALUES (${placeholders})`,
-    values
-  );
-}
-
 // 首检配置常量
 const FIRST_ARTICLE_CONFIG = BUSINESS_RULES.FIRST_ARTICLE;
 
@@ -63,6 +25,27 @@ const FIRST_ARTICLE_CONFIG = BUSINESS_RULES.FIRST_ARTICLE;
 const STATUS = {
   FIRST_ARTICLE: businessConfig.status.firstArticle,
 };
+
+async function findActiveTemplateForType(templateId, inspectionType) {
+  if (!templateId) return null;
+
+  const result = await db.query(
+    `SELECT it.id, it.template_name
+     FROM inspection_templates it
+     WHERE it.id = ?
+       AND it.inspection_type = ?
+       AND it.status = 'active'
+       AND EXISTS (
+         SELECT 1
+         FROM template_item_mappings tim
+         WHERE tim.template_id = it.id
+       )
+     LIMIT 1`,
+    [templateId, inspectionType]
+  );
+
+  return result.rows?.[0] || null;
+}
 
 const firstArticleController = {
   /**
@@ -193,6 +176,7 @@ const firstArticleController = {
         batch_no,
         planned_date,
         template_id,
+        first_article_qty,
         inspector_id,
         inspector_name,
         note,
@@ -227,7 +211,11 @@ const firstArticleController = {
       const rule = (rulesResult.rows && rulesResult.rows[0]) || defaultRule;
 
       const isFullInspection = production_quantity < rule.full_inspection_threshold;
-      const firstArticleQty = isFullInspection ? production_quantity : rule.first_article_qty;
+      const requestedFirstArticleQty = Number(first_article_qty);
+      const configuredFirstArticleQty = Number.isFinite(requestedFirstArticleQty) && requestedFirstArticleQty > 0
+        ? Math.min(requestedFirstArticleQty, production_quantity)
+        : rule.first_article_qty;
+      const firstArticleQty = isFullInspection ? production_quantity : configuredFirstArticleQty;
 
       const taskResult = await db.query('SELECT code, status FROM production_tasks WHERE id = ? AND deleted_at IS NULL', [
         task_id,
@@ -296,13 +284,13 @@ const firstArticleController = {
             : '抽检首检'),
       };
 
-      const result = await insertInspection(insertData);
+      const createdInspection = await QualityInspection.createInspection(insertData);
 
       ResponseHandler.success(
         res,
         {
-          id: result.insertId,
-          inspection_no: inspectionNo,
+          id: createdInspection.id,
+          inspection_no: createdInspection.inspection_no || inspectionNo,
           first_article_qty: firstArticleQty,
           is_full_inspection: isFullInspection,
         },
@@ -310,7 +298,10 @@ const firstArticleController = {
       );
     } catch (error) {
       logger.error('创建首检单失败:', error);
-      ResponseHandler.error(res, '创建首检单失败', 'SERVER_ERROR', 500, error);
+      const statusCode = error.statusCode || 500;
+      const errorCode = error.code || (statusCode === 400 ? 'VALIDATION_ERROR' : 'SERVER_ERROR');
+      const message = statusCode === 400 ? error.message : '创建首检单失败';
+      ResponseHandler.error(res, message, errorCode, statusCode, error);
     }
   },
 
@@ -342,6 +333,27 @@ const firstArticleController = {
 
       if (!existingResult.rows || existingResult.rows.length === 0) {
         return ResponseHandler.error(res, '首检单不存在', 'NOT_FOUND', 404);
+      }
+
+      const terminalResults = new Set([
+        STATUS.FIRST_ARTICLE.PASSED,
+        STATUS.FIRST_ARTICLE.FAILED,
+        STATUS.FIRST_ARTICLE.CONDITIONAL,
+      ]);
+      if (terminalResults.has(first_article_result) && (!Array.isArray(items) || items.length === 0)) {
+        const itemCountResult = await db.query(
+          'SELECT COUNT(*) AS item_count FROM quality_inspection_items WHERE inspection_id = ?',
+          [id]
+        );
+        const itemCount = Number(itemCountResult.rows?.[0]?.item_count || 0);
+        if (itemCount === 0) {
+          return ResponseHandler.error(
+            res,
+            '首检单没有检验项目，不能判定首检结果',
+            'VALIDATION_ERROR',
+            400
+          );
+        }
       }
 
       const canContinue =
@@ -566,6 +578,15 @@ const firstArticleController = {
         return ResponseHandler.error(res, '该产品已存在首检规则', 'CONFLICT', 400);
       }
 
+      if (template_id && !(await findActiveTemplateForType(template_id, 'first_article'))) {
+        return ResponseHandler.error(
+          res,
+          '首检规则只能选择已启用且包含检验项的首件检验模板',
+          'VALIDATION_ERROR',
+          400
+        );
+      }
+
       const result = await db.query(
         `
         INSERT INTO first_article_rules
@@ -610,6 +631,15 @@ const firstArticleController = {
       ]);
       if (!existingResult.rows || existingResult.rows.length === 0) {
         return ResponseHandler.error(res, '首检规则不存在', 'NOT_FOUND', 404);
+      }
+
+      if (template_id && !(await findActiveTemplateForType(template_id, 'first_article'))) {
+        return ResponseHandler.error(
+          res,
+          '首检规则只能选择已启用且包含检验项的首件检验模板',
+          'VALIDATION_ERROR',
+          400
+        );
       }
 
       await db.query(

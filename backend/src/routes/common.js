@@ -8,7 +8,7 @@
 const express = require('express');
 const router = express.Router();
 const commonController = require('../controllers/common/commonController');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken } = require('../middleware/authEnhanced');
 
 // 获取枚举/字典值
 router.get('/enums/:type', authenticateToken, commonController.getEnums);

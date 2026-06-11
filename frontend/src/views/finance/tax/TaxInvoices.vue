@@ -5,10 +5,10 @@
       <div class="header-content">
         <div class="title-section">
           <h2>税务发票管理</h2>
-          <p class="subtitle">管理进项和销项发票，支持认证与抵扣操作</p>
+          <p class="subtitle">由采购和销售业务自动生成，支持票号补录、认证与抵扣</p>
         </div>
         <div class="header-actions">
-          <el-button v-if="canCreateTaxInvoice" type="primary" @click="handleCreate" :icon="Plus">新增发票</el-button>
+          <el-button v-if="canCreateTaxInvoice" type="info" plain @click="handleCreate" :icon="Plus">例外发票录入</el-button>
         </div>
       </div>
     </el-card>
@@ -298,7 +298,7 @@
     <!-- 新增发票对话框 -->
     <el-dialog
       v-model="createDialogVisible"
-      title="新增发票"
+      title="例外发票录入"
       width="650px"
       destroy-on-close
     >

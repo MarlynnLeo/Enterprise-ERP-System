@@ -8,6 +8,7 @@
 const { pool } = require('../../config/db');
 const { ResponseHandler } = require('../../utils/responseHandler');
 const { logger } = require('../../utils/logger');
+const BusinessTypeService = require('../../services/BusinessTypeService');
 
 const normalizeStatus = (status) => {
   if (status === true || status === 1 || status === '1') return 1;
@@ -151,6 +152,7 @@ const createBusinessType = async (req, res) => {
       ]
     );
 
+    BusinessTypeService.clearCache();
     ResponseHandler.success(res, { id: result.insertId }, '创建业务类型成功', 201);
   } catch (error) {
     logger.error('创建业务类型失败:', error);
@@ -247,6 +249,7 @@ const updateBusinessType = async (req, res) => {
 
     await pool.execute(sql, params);
 
+    BusinessTypeService.clearCache();
     ResponseHandler.success(res, null, '更新业务类型成功');
   } catch (error) {
     logger.error('更新业务类型失败:', error);
@@ -290,6 +293,7 @@ const deleteBusinessType = async (req, res) => {
 
     await pool.execute('DELETE FROM business_types WHERE id = ?', [id]);
 
+    BusinessTypeService.clearCache();
     ResponseHandler.success(res, null, '删除业务类型成功');
   } catch (error) {
     logger.error('删除业务类型失败:', error);
@@ -320,6 +324,7 @@ const updateSortOrder = async (req, res) => {
       }
 
       await connection.commit();
+      BusinessTypeService.clearCache();
       ResponseHandler.success(res, null, '更新排序成功');
     } catch (error) {
       await connection.rollback();

@@ -3,10 +3,10 @@
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
-          <h2>业务类型管理</h2>
-          <p class="subtitle">管理库存业务类型配置</p>
+          <h2>系统字典管理</h2>
+          <p class="subtitle">管理业务类型、状态字典和通用选项</p>
         </div>
-        <el-button v-permission="'system:business-types:create'" type="primary" :icon="Plus" @click="handleCreate">新增业务类型</el-button>
+        <el-button v-permission="'system:business-types:create'" type="primary" :icon="Plus" @click="handleCreate">新增字典项</el-button>
       </div>
     </el-card>
 
@@ -263,11 +263,14 @@ import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Check, Close, View, Edit, Delete } from '@element-plus/icons-vue'
 import { systemApi } from '@/api'
+import { useDictionaryStore } from '@/stores/dictionary'
 import {
   BUSINESS_TYPE_CATEGORY_OPTIONS,
   getBusinessTypeCategoryName,
   getBusinessTypeCategoryColor
 } from '@/constants/systemConstants'
+
+const dictionaryStore = useDictionaryStore()
 
 // 搜索表单
 const searchForm = reactive({
@@ -298,9 +301,9 @@ const loading = ref(false)
 const dialogVisible = ref(false)
 const dialogType = ref('create')
 const dialogTitle = computed(() => {
-  if (dialogType.value === 'create') return '新增业务类型'
-  if (dialogType.value === 'edit') return '编辑业务类型'
-  return '查看业务类型'
+  if (dialogType.value === 'create') return '新增字典项'
+  if (dialogType.value === 'edit') return '编辑字典项'
+  return '查看字典项'
 })
 const formRef = ref(null)
 const submitting = ref(false)
@@ -364,6 +367,14 @@ const loadTableData = async () => {
   }
 }
 
+const refreshGlobalDictionary = async () => {
+  try {
+    await dictionaryStore.fetchDictionary(true)
+  } catch (error) {
+    console.error('刷新全局字典失败:', error)
+  }
+}
+
 // 查询
 const handleSearch = () => {
   loadTableData()
@@ -417,6 +428,8 @@ const handleSubmit = async () => {
         ElMessage.success('更新成功')
       }
       dialogVisible.value = false
+      await refreshGlobalDictionary()
+      loadBusinessGroups()
       loadTableData()
     } catch (error) {
       console.error('操作失败:', error)
@@ -439,6 +452,7 @@ const handleStatusChange = async (row, newStatus) => {
 
   try {
     await systemApi.updateBusinessType(row.id, { status: newStatus })
+    await refreshGlobalDictionary()
     // 不显示成功提示，避免频繁弹出
   } catch (error) {
     console.error('状态更新失败:', error)
@@ -463,6 +477,8 @@ const handleDelete = async (row) => {
 
     await systemApi.deleteBusinessType(row.id)
     ElMessage.success('删除成功')
+    await refreshGlobalDictionary()
+    loadBusinessGroups()
     loadTableData()
   } catch (error) {
     if (error !== 'cancel') {

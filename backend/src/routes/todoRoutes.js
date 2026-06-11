@@ -8,7 +8,7 @@
 const express = require('express');
 const router = express.Router();
 const todoController = require('../controllers/common/todoController');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken } = require('../middleware/authEnhanced');
 
 // 请求处理中间件
 

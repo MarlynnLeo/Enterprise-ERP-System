@@ -175,8 +175,9 @@ router.beforeEach(async (to) => {
   // ✅ 修复: 不再基于 user.role 跳过权限检查
   // 所有用户都需要加载权限数据,由后端决定是否给予管理员权限
 
-  // 确保权限数据已加载（只在需要时加载一次）
-  if (to.meta.permission && authStore.isAuthenticated && !authStore.permissionsLoaded) {
+  // 确保权限数据已加载 — 在所有需要认证的路由中预加载（统一入口）
+  // 避免 Layout.vue 和路由守卫两处重复加载，同时消除菜单骨架屏闪烁
+  if (to.meta.requiresAuth && authStore.isAuthenticated && !authStore.permissionsLoaded) {
     try {
       await authStore.fetchUserPermissions()
     } catch (error) {

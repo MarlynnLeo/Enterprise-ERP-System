@@ -223,7 +223,7 @@ class FinanceIntegrationService {
   /**
    * 从销售订单自动生成应收发票
    */
-  static async generateARInvoiceFromSalesOrder(salesOrder) {
+  static async generateARInvoiceFromSalesOrder(salesOrder, userId = null) {
     const autoGenerate = await SystemConfigService.get('auto_generate_ar_invoice', true);
     if (!autoGenerate) return { skipped: true, message: '功能已关闭' };
 
@@ -315,7 +315,7 @@ class FinanceIntegrationService {
       const invoiceDateStr = currentDateString();
       const dueDateStr = addDaysToDateString(invoiceDateStr, paymentTermDays);
       const currentPeriod = await this.getCurrentPeriod(connection, invoiceDateStr);
-      const createdByIdentifier = financeConfig.get('system.defaultCreator', 'system');
+      const createdByIdentifier = userId || salesOrder.created_by || financeConfig.get('system.defaultCreator', 'system');
       const createdBy = await getUserIdByIdentifier(connection, createdByIdentifier);
 
       const invoiceData = {

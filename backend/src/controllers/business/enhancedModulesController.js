@@ -100,7 +100,7 @@ const exchangeRates = {
       if (!from_currency || !effective_date || !Number.isFinite(parsedRate) || parsedRate <= 0) {
         return ResponseHandler.error(res, 'from_currency, effective_date and positive rate are required', 'VALIDATION_ERROR', 400);
       }
-      const userId = req.user?.userId || req.user?.id;
+      const userId = req.user?.id;
       await pool.query(
         `INSERT INTO exchange_rates (from_currency, to_currency, rate, effective_date, source, created_by)
          VALUES (?, ?, ?, ?, 'manual', ?) ON DUPLICATE KEY UPDATE rate = ?, source = 'manual'`,
@@ -189,7 +189,7 @@ const performance = {
   async createPeriod(req, res) {
     try {
       const d = req.body;
-      const userId = req.user?.userId || req.user?.id;
+      const userId = req.user?.id;
       const [r] = await pool.query(
         'INSERT INTO performance_periods (name, type, start_date, end_date, status, created_by) VALUES (?,?,?,?,?,?)',
         [d.name, d.type || 'quarterly', d.start_date, d.end_date, 'draft', userId]
@@ -215,7 +215,10 @@ const performance = {
       if (status) { where += ' AND pe.status = ?'; vals.push(status); }
       const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM performance_evaluations pe ${where}`, vals);
       const listSql = appendPaginationSQL(
-        `SELECT pe.*, pp.name AS period_name, u.real_name AS evaluator_name
+        `SELECT pe.id, pe.period_id, pe.employee_id, pe.employee_name, pe.department_id,
+                pe.evaluator_id, pe.total_score, pe.grade, pe.self_comment, pe.evaluator_comment,
+                pe.status, pe.completed_at, pe.created_at, pe.updated_at,
+                pp.name AS period_name, u.real_name AS evaluator_name
          FROM performance_evaluations pe
          LEFT JOIN performance_periods pp ON pp.id = pe.period_id
          LEFT JOIN users u ON u.id = pe.evaluator_id
@@ -406,7 +409,12 @@ const ecn = {
       if (status) { where += ' AND e.status = ?'; vals.push(status); }
       const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM ecn_orders e ${where}`, vals);
       const listSql = appendPaginationSQL(
-        `SELECT e.*, u.real_name AS requested_by_name FROM ecn_orders e LEFT JOIN users u ON u.id = e.requested_by
+        `SELECT e.id, e.code, e.title, e.type, e.priority, e.status, e.reason, e.description,
+                e.impact_analysis, e.effective_date, e.disposition, e.requested_by,
+                e.department_id, e.approved_by, e.approved_at, e.completed_at,
+                e.created_at, e.updated_at,
+                u.real_name AS requested_by_name
+         FROM ecn_orders e LEFT JOIN users u ON u.id = e.requested_by
          ${where} ORDER BY e.created_at DESC`,
         pagination.limit,
         pagination.offset
@@ -417,7 +425,7 @@ const ecn = {
   },
   async getById(req, res) {
     try {
-      const [[order]] = await pool.query('SELECT e.*, u.real_name AS requested_by_name FROM ecn_orders e LEFT JOIN users u ON u.id = e.requested_by WHERE e.id = ? AND e.deleted_at IS NULL', [req.params.id]);
+      const [[order]] = await pool.query('SELECT e.id, e.code, e.title, e.type, e.priority, e.status, e.reason, e.description, e.impact_analysis, e.effective_date, e.disposition, e.requested_by, e.department_id, e.approved_by, e.approved_at, e.completed_at, e.created_at, e.updated_at, u.real_name AS requested_by_name FROM ecn_orders e LEFT JOIN users u ON u.id = e.requested_by WHERE e.id = ? AND e.deleted_at IS NULL', [req.params.id]);
       if (!order) return ResponseHandler.error(res, 'ECN不存在', 'NOT_FOUND', 404);
       const [items] = await pool.query('SELECT id, ecn_id, change_type, material_id, material_code, material_name, bom_id, field_name, old_value, new_value, remark FROM ecn_order_items WHERE ecn_id = ?', [order.id]);
       order.items = items;
@@ -430,7 +438,7 @@ const ecn = {
       const validationError = validateEcnPayload(d);
       if (validationError) return ResponseHandler.error(res, validationError, 'VALIDATION_ERROR', 400);
       const items = Array.isArray(d.items) ? d.items.map(normalizeEcnItem) : [];
-      const userId = req.user?.userId || req.user?.id;
+      const userId = req.user?.id;
       const code = d.code || await CodeGeneratorService.nextCode('ecn');
       const conn = await pool.getConnection();
       try {
@@ -461,7 +469,7 @@ const ecn = {
     const conn = await pool.getConnection();
     try {
       const { status } = req.body;
-      const userId = req.user?.userId || req.user?.id;
+      const userId = req.user?.id;
 
       if (!status) {
         return ResponseHandler.error(res, 'status is required', 'VALIDATION_ERROR', 400);
@@ -579,7 +587,7 @@ const ecn = {
           );
         }
       }
-      await syncEcnDocumentLinks(conn, req.params.id, current.code, items, req.user?.userId || req.user?.id);
+      await syncEcnDocumentLinks(conn, req.params.id, current.code, items, req.user?.id);
       await conn.commit();
       ResponseHandler.success(res, null, 'Updated');
     } catch (err) {
@@ -736,7 +744,11 @@ const documents = {
       if (business_id) { where += ' AND d.business_id = ?'; vals.push(business_id); }
       const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM documents d ${where}`, vals);
       const listSql = appendPaginationSQL(
-        `SELECT d.*, u.real_name AS created_by_name FROM documents d LEFT JOIN users u ON u.id = d.created_by
+        `SELECT d.id, d.code, d.name, d.category, d.file_url, d.file_name, d.file_size, d.file_type,
+                d.version, d.description, d.business_type, d.business_id, d.tags, d.is_public,
+                d.download_count, d.created_by, d.department_id, d.created_at, d.updated_at,
+                u.real_name AS created_by_name
+         FROM documents d LEFT JOIN users u ON u.id = d.created_by
          ${where} ORDER BY d.created_at DESC`,
         pagination.limit,
         pagination.offset
@@ -751,7 +763,7 @@ const documents = {
       if (!d.name) {
         return ResponseHandler.validationError(res, '文档名称不能为空');
       }
-      const userId = req.user?.userId || req.user?.id;
+      const userId = req.user?.id;
       const code = d.code || await CodeGeneratorService.nextCode('document');
       const [r] = await pool.query(
         `INSERT INTO documents (code, name, category, file_url, file_name, file_size, file_type, version, description, business_type, business_id, tags, is_public, created_by, department_id)

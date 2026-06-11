@@ -3,7 +3,15 @@ const path = require('path');
 
 const rootDir = path.resolve(__dirname, '..');
 const repoRoot = path.resolve(rootDir, '..');
-const { legacyCleanupCandidates: cleanupCandidates } = require('../src/services/business/LegacyCodeCleanupRules');
+let cleanupCandidates = [];
+try {
+  ({ legacyCleanupCandidates: cleanupCandidates = [] } = require('../src/services/business/LegacyCodeCleanupRules'));
+} catch (error) {
+  if (error.code !== 'MODULE_NOT_FOUND') {
+    throw error;
+  }
+  console.warn('Warning: LegacyCodeCleanupRules is missing; legacy cleanup audit will use an empty rule set.');
+}
 
 function walk(dir, predicate, result = []) {
   if (!fs.existsSync(dir)) return result;
@@ -190,7 +198,7 @@ function auditDataApiUniformity() {
   const endpointPattern = /(?:api|fastApi)\s*\.\s*(?:get|post|put|patch|delete)\s*\(\s*([`'"])(\/[^`'"]*)\1/g;
   const allowedDirectHttpFiles = new Set([
     'frontend/src/services/axiosInstance.js',
-    'mobile/src/api/index.js',
+    'mobile/src/api/client.js',
   ]);
   const directHttpPattern = /\bfetch\s*\(|\bXMLHttpRequest\b|\buni\s*\.\s*request\b|import\s+axios\s+from\s+['"]axios['"]|require\(\s*['"]axios['"]\s*\)/g;
   const hardcodedApiPrefixPattern = /\b(?:api|fastApi)\s*\.\s*(?:get|post|put|patch|delete)\s*\(\s*([`'"])\/api\//g;

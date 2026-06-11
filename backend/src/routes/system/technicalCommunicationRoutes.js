@@ -5,7 +5,7 @@
 const express = require('express');
 const router = express.Router();
 const technicalCommunicationController = require('../../controllers/system/technicalCommunicationController');
-const { authenticateToken } = require('../../middleware/auth');
+const { authenticateToken } = require('../../middleware/authEnhanced');
 const { requirePermission } = require('../../middleware/requirePermission');
 
 // 所有路由都需要认证

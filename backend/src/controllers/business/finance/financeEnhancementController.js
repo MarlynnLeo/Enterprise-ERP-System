@@ -50,7 +50,7 @@ class FinanceEnhancementController {
       const salesOrderId = safeParseId(req.params.salesOrderId);
 
       // 获取销售订单信息
-      const [salesOrders] = await db.pool.execute('SELECT id, order_no, customer_id, quotation_id, contract_code, total_amount, payment_terms, delivery_date, status, invoice_status, remarks, created_by, created_at, updated_at, is_locked, locked_at, locked_by, lock_reason, tax_rate, tax_amount, subtotal, deleted_at FROM sales_orders WHERE id = ?', [
+      const [salesOrders] = await db.pool.execute('SELECT id, order_no, customer_id, quotation_id, contract_code, total_amount, payment_terms, delivery_date, status, invoice_status, remarks, created_by, created_at, updated_at, is_locked, locked_at, locked_by, lock_reason, tax_rate, tax_amount, subtotal, deleted_at FROM sales_orders WHERE id = ? AND deleted_at IS NULL', [
         salesOrderId,
       ]);
 

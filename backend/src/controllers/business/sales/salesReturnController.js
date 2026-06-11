@@ -9,6 +9,7 @@ const { logger } = require('../../../utils/logger');
 const { softDelete } = require('../../../utils/softDelete');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const DLQService = require('../../../services/business/DLQService');
+const DomainEventService = require('../../../services/business/DomainEventService');
 const { parsePagination, appendPaginationSQL } = require('../../../utils/safePagination');
 
 const { STATUS, getConnection } = require('./salesShared');
@@ -748,24 +749,25 @@ exports.updateSalesReturn = async (req, res) => {
       }
     }
 
-    await connection.commit();
-
-    // 在事务 commit 之后异步生成红字发票
     if (pendingReturnForFinance) {
-      setImmediate(async () => {
-        try {
-          const FinanceIntegrationService = require('../../../services/external/FinanceIntegrationService');
-          await FinanceIntegrationService.generateARCreditNoteFromSalesReturn(pendingReturnForFinance);
-          logger.info(`销售退货红字发票自动生成成功 - 退货单: ${pendingReturnForFinance.return_no}`);
-        } catch (financeError) {
-          await DLQService.recordSideEffectFailure(
-            'FinanceIntegration:SalesReturnCreditNote',
-            { returnId: pendingReturnForFinance.id, returnNo: pendingReturnForFinance.return_no },
-            financeError
-          );
+      await DomainEventService.enqueue(
+        'SALES_RETURN_COMPLETED',
+        {
+          returnId: pendingReturnForFinance.id,
+          returnNo: pendingReturnForFinance.return_no,
+          currentUserId: req.user?.id || null,
+        },
+        {
+          connection,
+          aggregateType: 'sales_return',
+          aggregateId: pendingReturnForFinance.id,
+          dedupKey: `SALES_RETURN_COMPLETED:${pendingReturnForFinance.id}`,
         }
-      });
+      );
     }
+
+    await connection.commit();
+    DomainEventService.dispatchSoon();
 
     if (pendingSalesReturnCostTasks.length > 0) {
       setImmediate(async () => {

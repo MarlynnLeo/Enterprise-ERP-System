@@ -39,12 +39,12 @@
         </el-form-item>
         <el-form-item label="状态">
           <el-select v-model="searchForm.status" placeholder="请选择" clearable>
-            <el-option label="草稿" value="草稿" />
-            <el-option label="待审批" value="待审批" />
-            <el-option label="已审批" value="已审批" />
-            <el-option label="执行中" value="执行中" />
-            <el-option label="已完成" value="已完成" />
-            <el-option label="已关闭" value="已关闭" />
+            <el-option
+              v-for="item in BUDGET_STATUS_OPTIONS"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
           </el-select>
         </el-form-item>
       </template>
@@ -83,7 +83,7 @@
         </el-table-column>
         <el-table-column prop="status" label="状态" width="100">
           <template #default="{ row }">
-            <el-tag :type="getStatusType(row.status)">{{ row.status }}</el-tag>
+            <el-tag :type="getStatusType(row.status)">{{ getStatusText(row.status) }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="creator_name" label="创建人" width="100" />
@@ -91,22 +91,22 @@
         <el-table-column label="操作" width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <el-button link type="primary" size="small" @click="handleView(row)">查看</el-button>
-            <el-button link type="primary" size="small" @click="handleEdit(row)" v-if="row.status === '草稿'"
+            <el-button link type="primary" size="small" @click="handleEdit(row)" v-if="isBudgetStatus(row.status, 'draft')"
               v-permission="'finance:budgets:update'">编辑</el-button>
             <el-popconfirm
               title="确定要提交审批吗？"
               @confirm="handleSubmit(row)"
-              v-if="row.status === '草稿'"
+              v-if="isBudgetStatus(row.status, 'draft')"
             >
               <template #reference>
                 <el-button v-permission="'finance:budgets:update'" link type="primary" size="small">提交审批</el-button>
               </template>
             </el-popconfirm>
-            <el-button v-permission="'finance:budgets:approve'" link type="success" size="small" @click="handleApprove(row)" v-if="row.status === '待审批'">审批</el-button>
+            <el-button v-permission="'finance:budgets:approve'" link type="success" size="small" @click="handleApprove(row)" v-if="isBudgetStatus(row.status, 'pending_approval')">审批</el-button>
             <el-popconfirm
               title="确定要启动预算执行吗？"
               @confirm="handleStart(row)"
-              v-if="row.status === '已审批'"
+              v-if="isBudgetStatus(row.status, 'approved')"
             >
               <template #reference>
                 <el-button v-permission="'finance:budgets:update'" link type="warning" size="small">启动执行</el-button>
@@ -115,7 +115,7 @@
             <el-popconfirm
               title="确定要关闭预算吗？"
               @confirm="handleClose(row)"
-              v-if="row.status === '执行中'"
+              v-if="isBudgetStatus(row.status, 'executing')"
             >
               <template #reference>
                 <el-button v-permission="'finance:budgets:update'" link type="info" size="small">关闭</el-button>
@@ -125,7 +125,7 @@
               title="确定要删除该预算吗？"
               @confirm="handleDelete(row)"
               confirm-button-type="danger"
-              v-if="row.status === '草稿'"
+              v-if="isBudgetStatus(row.status, 'draft')"
             >
               <template #reference>
                 <el-button v-permission="'finance:budgets:delete'" link type="danger" size="small">删除</el-button>
@@ -153,6 +153,12 @@ import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { useRouter } from 'vue-router';
 import { financeApi } from '@/api/finance';
+import {
+  BUDGET_STATUS_OPTIONS,
+  getBudgetStatusColor,
+  getBudgetStatusText,
+  normalizeBudgetStatusCode
+} from '@/constants/systemConstants';
 import { formatAmount } from '@/utils/format'
 const router = useRouter();
 const showAdvancedSearch = ref(false);
@@ -317,17 +323,11 @@ const getProgressColor = (percentage) => {
   if (percentage >= 80) return 'var(--color-warning)';
   return 'var(--color-success)';
 };
+const getStatusText = (status) => getBudgetStatusText(status) || status;
+const isBudgetStatus = (status, expected) => normalizeBudgetStatusCode(status) === expected;
 // 获取状态类型
 const getStatusType = (status) => {
-  const typeMap = {
-    '草稿': 'info',
-    '待审批': 'warning',
-    '已审批': 'success',
-    '执行中': 'primary',
-    '已完成': 'success',
-    '已关闭': 'info'
-  };
-  return typeMap[status] || 'info';
+  return getBudgetStatusColor(status);
 };
 onMounted(() => {
   fetchData();

@@ -52,24 +52,44 @@ async function dumpTable(stream, tableName) {
   await writeLine(stream, `${createSql};`);
   await writeLine(stream);
 
-  const [rows] = await pool.query(`SELECT * FROM ${quotedTable}`);
-  if (rows.length === 0) {
-    await writeLine(stream);
-    return;
-  }
+  // 备份场景需要所有列，使用 SELECT * 是合理的（在注释中说明原因）
+  // 分页流式查询：每次取 FETCH_SIZE 行，避免大表一次性加载导致 OOM
+  const FETCH_SIZE = 1000;
+  const INSERT_BATCH = 200;
+  let offset = 0;
+  let columns = null;
+  let quotedColumns = null;
 
-  const columns = Object.keys(rows[0]);
-  const quotedColumns = columns.map(quoteIdentifier).join(', ');
-  const batchSize = 200;
+  while (true) {
+    const [batch] = await pool.query(
+      `SELECT * FROM ${quotedTable} LIMIT ${FETCH_SIZE} OFFSET ${offset}`
+    );
 
-  for (let i = 0; i < rows.length; i += batchSize) {
-    const batch = rows.slice(i, i + batchSize);
-    const values = batch.map((row) => {
-      const rowValues = columns.map((column) => formatSqlValue(row[column])).join(', ');
-      return `(${rowValues})`;
-    });
-    await writeLine(stream, `INSERT INTO ${quotedTable} (${quotedColumns}) VALUES`);
-    await writeLine(stream, `${values.join(',\n')};`);
+    if (batch.length === 0) {
+      // 首批即为空 → 空表
+      if (offset === 0) await writeLine(stream);
+      break;
+    }
+
+    // 首批时确定列名
+    if (!columns) {
+      columns = Object.keys(batch[0]);
+      quotedColumns = columns.map(quoteIdentifier).join(', ');
+    }
+
+    // 按 INSERT_BATCH 分组写入 INSERT 语句
+    for (let i = 0; i < batch.length; i += INSERT_BATCH) {
+      const slice = batch.slice(i, i + INSERT_BATCH);
+      const values = slice.map((row) => {
+        const rowValues = columns.map((column) => formatSqlValue(row[column])).join(', ');
+        return `(${rowValues})`;
+      });
+      await writeLine(stream, `INSERT INTO ${quotedTable} (${quotedColumns}) VALUES`);
+      await writeLine(stream, `${values.join(',\n')};`);
+    }
+
+    offset += batch.length;
+    if (batch.length < FETCH_SIZE) break; // 最后一批
   }
 
   await writeLine(stream);
@@ -102,9 +122,16 @@ class BackupService {
       await writeLine(stream, 'SET FOREIGN_KEY_CHECKS=1;');
       await new Promise((resolve, reject) => stream.end((error) => (error ? reject(error) : resolve())));
 
-      const fileBuffer = await fs.promises.readFile(filePath);
-      const checksum = crypto.createHash('sha256').update(fileBuffer).digest('hex');
-      const fileSize = fileBuffer.length;
+      // 流式计算文件哈希，避免大文件一次性读入内存
+      const stats = await fs.promises.stat(filePath);
+      const fileSize = stats.size;
+      const checksum = await new Promise((resolve, reject) => {
+        const hash = crypto.createHash('sha256');
+        const readStream = fs.createReadStream(filePath);
+        readStream.on('data', (chunk) => hash.update(chunk));
+        readStream.on('end', () => resolve(hash.digest('hex')));
+        readStream.on('error', reject);
+      });
 
       await pool.query(
         `INSERT INTO system_backups (filename, file_path, file_size, checksum, status, created_by)

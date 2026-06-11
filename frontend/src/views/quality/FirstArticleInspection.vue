@@ -129,18 +129,13 @@ import dayjs from 'dayjs'
 import { formatDate } from '@/utils/helpers/dateUtils'
 import printService from '@/services/printService'
 import {
+  FIRST_ARTICLE_RESULT_OPTIONS,
   getFirstArticleResultText,
   getFirstArticleResultColor
 } from '@/constants/systemConstants'
 import FinanceQueryCard from '@/components/common/FinanceQueryCard.vue'
 // 状态选项
-const statusOptions = [
-  { label: '待检验', value: 'pending' },
-  { label: '合格', value: 'passed' },
-  { label: '不合格', value: 'failed' },
-  { label: '有条件放行', value: 'conditional' },
-  { label: '复检', value: 'review' }
-]
+const statusOptions = FIRST_ARTICLE_RESULT_OPTIONS
 const getResultText = (status) => getFirstArticleResultText(status) || status
 const getResultType = (status) => getFirstArticleResultColor(status)
 // 异步加载子组件
@@ -248,13 +243,11 @@ const handlePrint = async (row) => {
 
     // 准备打印数据 - 确保所有模板变量都有对应的值
     const getStatusText = (status) => {
-      const statusMap = { 'pending': '待检验', 'passed': '合格', 'failed': '不合格', 'conditional': '有条件放行', 'review': '复检' }
-      return statusMap[status] || status || '-'
+      return getFirstArticleResultText(status) || status || '-'
     }
 
     const getResultText = (result) => {
-      const resultMap = { 'passed': '合格', 'failed': '不合格', 'conditional': '有条件放行' }
-      return resultMap[result] || result || '-'
+      return getFirstArticleResultText(result) || result || '-'
     }
 
     const formatDateValue = (date) => {

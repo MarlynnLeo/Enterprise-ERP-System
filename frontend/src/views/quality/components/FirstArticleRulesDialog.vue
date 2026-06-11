@@ -189,7 +189,11 @@ const debouncedSearchProducts = (query) => {
 
 const fetchTemplates = async () => {
   try {
-    const res = await qualityApi.getTemplates({ status: 'active', pageSize: 50 })
+    const res = await qualityApi.getTemplates({
+      inspection_type: 'first_article',
+      status: 'active',
+      pageSize: 50
+    })
     templateOptions.value = (res.data || res)?.list || res.data || res || []
   } catch (error) {
     console.error('获取模板列表失败:', error)

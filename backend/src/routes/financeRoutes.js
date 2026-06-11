@@ -24,7 +24,7 @@ const bomPriceAdjustmentController = require('../controllers/business/finance/bo
 const expenseController = require('../controllers/business/finance/expenseController');
 // budgetController — 已迁移到 business/finance/budgetRoutes.js
 // 财务报表已统一由增强报表控制器提供真实数据
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken } = require('../middleware/authEnhanced');
 const { requirePermission } = require('../middleware/requirePermission');
 const { FileUploadMiddlewares } = require('../middleware/unifiedFileUpload');
 const { PRICE_EXPORT_PERMISSIONS, PRICE_UPDATE_PERMISSIONS } = require('../utils/desensitizer');

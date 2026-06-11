@@ -11,6 +11,8 @@ module.exports = {
     // Coverage collection
     collectCoverageFrom: [
         'src/services/**/*.js',
+        'src/controllers/**/*.js',
+        'src/models/**/*.js',
         '!src/services/business/**',
         '!**/node_modules/**'
     ],

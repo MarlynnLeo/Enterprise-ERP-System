@@ -8,7 +8,7 @@
 const express = require('express');
 const router = express.Router();
 const weatherController = require('../controllers/weather/weatherController');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken } = require('../middleware/authEnhanced');
 
 /**
  * 获取天气数据

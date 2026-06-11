@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="dashboard-container module-page cost-dashboard-page">
     <el-card class="header-card">
       <div class="header-content">
@@ -723,14 +723,21 @@ const loadYearlyComparison = async () => {
     console.error('加载年度成本对比失败:', error);
   }
 };
-const refreshData = () => {
-  loadStatistics();
-  loadTrendData();
-  loadCompositionData();
-  loadVarianceData();
-  loadCostAlerts();
-  loadYearlyComparison();
-  ElMessage.success('数据已刷新');
+const refreshData = async () => {
+  const results = await Promise.allSettled([
+    loadStatistics(),
+    loadTrendData(),
+    loadCompositionData(),
+    loadVarianceData(),
+    loadCostAlerts(),
+    loadYearlyComparison()
+  ]);
+  const failedCount = results.filter(r => r.status === 'rejected').length;
+  if (failedCount > 0) {
+    ElMessage.warning(`数据刷新完成，${failedCount}项加载失败`);
+  } else {
+    ElMessage.success('数据已刷新');
+  }
 };
 onMounted(async () => {
   await nextTick();

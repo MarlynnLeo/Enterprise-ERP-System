@@ -385,7 +385,7 @@ import { parseListData, parsePaginatedData } from '@/utils/responseParser';
 import { ref, reactive, computed, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
-import { useSnackbar } from '@/composables/useSnackbar';
+
 import { useAuthStore } from '@/stores/auth';
 import { purchaseApi } from '@/api';
 import { baseDataApi } from '@/api';
@@ -395,7 +395,7 @@ import {
   getPurchaseReturnStatusText,
   getPurchaseReturnStatusColor
 } from '@/constants/systemConstants';
-const { showSnackbar } = useSnackbar();
+
 const authStore = useAuthStore();
 const isBlankAmount = (value) => value === null || value === undefined || value === '';
 const toMoneyNumber = (value) => {
@@ -567,7 +567,7 @@ async function loadReturns() {
     pagination.value.total = parseInt(paginationData.total) || 0;
   } catch (error) {
     console.error('加载退货单失败:', error);
-    showSnackbar('加载退货单失败: ' + (error.message || '未知错误'), 'error');
+    ElMessage.error('加载退货单失败: ' + (error.message || '未知错误'));
     // 出错时设置为空数组，避免类型错误
     returnList.value = [];
   } finally {
@@ -584,7 +584,7 @@ async function loadSuppliers() {
 
     } catch (error) {
     console.error('加载供应商失败:', error);
-    showSnackbar('加载供应商失败', 'error');
+    ElMessage.error('加载供应商失败');
     suppliers.value = [];
   }
 }
@@ -613,7 +613,7 @@ async function loadCompletedReceipts() {
       }));
     } catch (error) {
     console.error('加载收货单失败:', error);
-    showSnackbar('加载收货单失败', 'error');
+    ElMessage.error('加载收货单失败');
     receipts.value = []; // 出错时设置为空数组
   }
 }
@@ -633,7 +633,7 @@ async function loadWarehouses() {
     }
     } catch (error) {
     console.error('加载仓库失败:', error);
-    showSnackbar('加载仓库失败', 'error');
+    ElMessage.error('加载仓库失败');
     warehouses.value = [];
   }
 }
@@ -719,7 +719,7 @@ async function viewReturn(returnItem) {
     };
   } catch (error) {
     console.error('获取退货单详情失败:', error);
-    showSnackbar('获取退货单详情失败', 'error');
+    ElMessage.error('获取退货单详情失败');
     viewDialog.show = false;
   } finally {
     viewDialog.loading = false;
@@ -762,7 +762,7 @@ async function editReturn(returnItem) {
     }
   } catch (error) {
     console.error('获取退货单详情失败:', error);
-    showSnackbar('获取退货单详情失败', 'error');
+    ElMessage.error('获取退货单详情失败');
     returnDialog.show = false;
   } finally {
     returnDialog.loading = false;
@@ -818,30 +818,30 @@ async function handleReceiptChange(receiptId) {
     returnDialog.form.warehouseId = receiptData.warehouse_id;
     returnDialog.form.warehouseName = receiptData.warehouse_name || '';
   } catch {
-    showSnackbar('获取收货单详情失败', 'error');
+    ElMessage.error('获取收货单详情失败');
   }
 }
 // 方法：提交退货单
 async function submitReturn() {
   // 检查是否有退货物料
   if (!hasReturnItems.value) {
-    showSnackbar('请至少选择一种物料进行退货', 'warning');
+    ElMessage.warning('请至少选择一种物料进行退货');
     return;
   }
   // 验证退货数量
   for (const item of returnDialog.form.items) {
     if (item.returnQuantity < 0 || item.returnQuantity > item.receivedQuantity) {
-      showSnackbar(`物料 ${item.materialName} 的退货数量必须在0至收货数量之间`, 'warning');
+      ElMessage.warning(`物料 ${item.materialName} 的退货数量必须在0至收货数量之间`);
       return;
     }
 
     if (item.returnQuantity > 0 && !item.returnReason) {
-      showSnackbar(`请为退货物料 ${item.materialName} 选择退货原因`, 'warning');
+      ElMessage.warning(`请为退货物料 ${item.materialName} 选择退货原因`);
       return;
     }
 
     if (item.returnQuantity > 0 && toMoneyNumber(item.price) === null) {
-      showSnackbar(`物料 ${item.materialName} 缺少可用单价，无法创建退货单`, 'warning');
+      ElMessage.warning(`物料 ${item.materialName} 缺少可用单价，无法创建退货单`);
       return;
     }
   }
@@ -881,15 +881,15 @@ async function submitReturn() {
     };
     if (returnDialog.isEdit) {
       await purchaseApi.updateReturn(returnDialog.form.id, returnData);
-      showSnackbar('退货单更新成功', 'success');
+      ElMessage.success('退货单更新成功');
     } else {
       await purchaseApi.createReturn(returnData);
-      showSnackbar('退货单创建成功', 'success');
+      ElMessage.success('退货单创建成功');
     }
     returnDialog.show = false;
     loadReturns();
   } catch (error) {
-    showSnackbar('提交退货单失败: ' + (error.message || '未知错误'), 'error');
+    ElMessage.error('提交退货单失败: ' + (error.message || '未知错误'));
   } finally {
     submitLoading.value = false;
   }

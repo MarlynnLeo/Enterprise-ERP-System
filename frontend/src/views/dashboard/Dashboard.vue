@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * Dashboard.vue
  * @description 前端界面组件文件
@@ -36,82 +36,11 @@
 
         <!-- 个人信息与天气整合卡片 -->
         <el-col :xs="24" :md="8">
-          <div class="combined-info-card">
-            <div v-if="isLoadingProfile" class="loading-section">
-              <el-skeleton animated style="width: 100%">
-                <template #template>
-                  <div style="display: flex; gap: 20px; align-items: center;">
-                    <div style="flex: 1;">
-                      <el-skeleton-item variant="text" style="width: 60%; margin-bottom: 8px;" />
-                      <el-skeleton-item variant="text" style="width: 80%;" />
-                    </div>
-                    <el-skeleton-item variant="circle" style="width: 60px; height: 60px;" />
-                    <div style="flex: 1;">
-                      <el-skeleton-item variant="text" style="width: 60%; margin-bottom: 8px;" />
-                      <el-skeleton-item variant="text" style="width: 80%;" />
-                    </div>
-                  </div>
-                </template>
-              </el-skeleton>
-            </div>
-            <div v-else class="combined-content">
-              <!-- 左侧：个人信息 -->
-              <div class="left-info">
-                <div class="name">{{ userProfile?.real_name || $t('page.profile.realName') }}</div>
-                <div class="role-item">
-                  <el-icon><Avatar /></el-icon>
-                  <span>{{ userProfile?.role_name || userProfile?.role || $t('page.profile.role') }}</span>
-                </div>
-                <div class="role-item">
-                  <el-icon><Location /></el-icon>
-                  <span>{{ userProfile?.department_name || '未设置' }}</span>
-                </div>
-              </div>
-              <!-- 中间：头像 -->
-              <div class="center-avatar">
-                <div class="avatar-container">
-                  <div class="avatar-glow"></div>
-                  <div class="avatar-particles">
-                    <span class="particle" v-for="i in 8" :key="i" :style="`--i: ${i}`"></span>
-                  </div>
-                  <img :src="userProfile?.avatar || '/default-avatar.webp'" class="avatar" />
-                </div>
-              </div>
-              <!-- 右侧：天气信息 -->
-              <div class="right-weather">
-                <div class="weather-header-compact">
-                  <el-icon><LocationFilled /></el-icon>
-                  <span>{{ weather.city }}</span>
-                  <span class="weather-time">{{ weather.updateTime }}</span>
-                </div>
-                <div class="weather-main-compact">
-                  <div class="temp-large">{{ weather.temperature }}°C</div>
-                  <div class="weather-icon-compact">
-                    <el-icon v-if="weather.weatherCode === 'sunny'" class="weather-icon weather-icon-sunny">
-                      <Sunny />
-                    </el-icon>
-                    <el-icon v-else-if="weather.weatherCode === 'partly-cloudy'" class="weather-icon weather-icon-partly-cloudy">
-                      <PartlyCloudy />
-                    </el-icon>
-                    <el-icon v-else-if="weather.weatherCode === 'cloudy'" class="weather-icon weather-icon-cloudy">
-                      <Cloudy />
-                    </el-icon>
-                    <el-icon v-else-if="weather.weatherCode === 'rainy'" class="weather-icon weather-icon-rainy">
-                      <Cloudy />
-                    </el-icon>
-                    <el-icon v-else class="weather-icon weather-icon-cloudy">
-                      <Cloudy />
-                    </el-icon>
-                  </div>
-                </div>
-                <div class="weather-desc-compact">{{ weather.description }}</div>
-                <div class="weather-details-compact">
-                  <span><el-icon class="weather-detail-icon"><WindPower /></el-icon> {{ weather.windSpeed }}km/h</span>
-                  <span><el-icon class="weather-detail-icon"><Drizzling /></el-icon> {{ weather.humidity }}%</span>
-                </div>
-              </div>
-            </div>
-          </div>
+          <PersonalInfoCard
+            :userProfile="userProfile"
+            :weather="weather"
+            :loading="isLoadingProfile"
+          />
         </el-col>
       </el-row>
       <!-- 待办事项、我发起和统计图表在同一行 -->
@@ -268,46 +197,10 @@
       <!-- 日历和预警并排在同一行 -->
       <el-row :gutter="20">
         <el-col :xs="24" :sm="24" :md="14">
-          <div class="warning-container">
-            <div class="list-header">
-              <div class="tab-group">
-                <div class="tab active">生产计划</div>
-              </div>
-            </div>
-            <div class="table-wrapper">
-              <el-table
-                :data="warningList"
-                row-class-name="warning-row"
-                :empty-text="'暂无生产计划'"
-                class="dashboard-table production-table"
-              >
-                <el-table-column prop="studentId" label="计划编号" min-width="120" />
-                <el-table-column prop="name" label="产品名称" min-width="120" />
-                <el-table-column prop="studentType" label="产品规格" min-width="120" show-overflow-tooltip />
-                <el-table-column prop="protectionId" label="计划数量" min-width="100" />
-                <el-table-column label="状态" min-width="80">
-                  <template #default="{ row }">
-                    <el-tag :type="getWarningTagType(row.status)" size="small" effect="light">
-                      {{ row.warningType }}
-                    </el-tag>
-                  </template>
-                </el-table-column>
-                <el-table-column label="操作" min-width="80" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
-                  <template #default="{ row }">
-                    <el-button type="primary" size="small" class="warning-action-btn" @click="viewProductionPlan(row.id)" :disabled="row.id === 0">查看</el-button>
-                  </template>
-                </el-table-column>
-                <!-- 空状态插槽 -->
-                <template #empty>
-                  <div class="empty-state">
-                    <el-icon class="empty-icon"><Document /></el-icon>
-                    <p class="empty-text">暂无生产计划</p>
-                    <p class="empty-desc">当前没有进行中的生产计划</p>
-                  </div>
-                </template>
-              </el-table>
-            </div>
-          </div>
+          <ProductionPlanTable
+            :warningList="warningList"
+            @view="viewProductionPlan"
+          />
         </el-col>
 
         <el-col :xs="24" :sm="24" :md="10">
@@ -355,20 +248,12 @@ import {
   UserFilled,
   Bell,
   Warning,
-  Avatar,
   ArrowDown,
   ArrowLeft,
   ArrowRight,
   Document,
   DocumentRemove,
-  Drizzling,
-  Location,
-  LocationFilled,
-  Sunny,
-  Cloudy,
-  PartlyCloudy,
   Refresh,
-  WindPower
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 // ========== 组合式函数导入 ==========
@@ -379,7 +264,10 @@ import { useTodos } from './composables/useTodos'
 import { useOnlineRanking } from './composables/useOnlineRanking'
 import { useProductionPlans } from './composables/useProductionPlans'
 import OnlineTimeRanking from './components/OnlineTimeRanking.vue'
+import PersonalInfoCard from './components/PersonalInfoCard.vue'
+import ProductionPlanTable from './components/ProductionPlanTable.vue'
 import { parseResponseData } from '@/utils/responseParser'
+import logger from '@/utils/logger'
 // ========== 解构组合式函数 ==========
 const { weather, fetchWeatherData } = useWeather()
 const {
@@ -426,7 +314,6 @@ const {
 } = useOnlineRanking()
 const {
   warningList,
-  getWarningTagType,
   loadProductionPlans,
   viewProductionPlan
 } = useProductionPlans()
@@ -547,7 +434,7 @@ const loadUserProfile = async (force = false) => {
     userProfile.value = authStore.user
     lastLoadTime.value = now
   } catch (error) {
-    console.error('获取用户信息失败:', error)
+    logger.error('获取用户信息失败:', error)
   } finally {
     isLoadingProfile.value = false
   }
@@ -612,7 +499,7 @@ const refreshAllPrices = async () => {
     await Promise.all([fetchMetalPrices(), fetchExchangeRates()])
     ElMessage.success('数据已更新')
   } catch (error) {
-    console.error('刷新价格数据失败:', error)
+    logger.error('刷新价格数据失败:', error)
     ElMessage.error('刷新数据失败，请稍后重试')
   }
 }

@@ -7,7 +7,7 @@
 const express = require('express');
 const router = express.Router();
 const taxController = require('../../../controllers/business/finance/taxController');
-const { authenticateToken } = require('../../../middleware/auth');
+const { authenticateToken } = require('../../../middleware/authEnhanced');
 const { requirePermission } = require('../../../middleware/requirePermission');
 const { PRICE_UPDATE_PERMISSIONS } = require('../../../utils/desensitizer');
 const {

@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="module-page profitability-container">
     <!-- 页面标题 -->
     <el-card class="header-card">
@@ -150,7 +150,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch, nextTick } from 'vue'
+import { ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Refresh, Money, Goods, TrendCharts, DataAnalysis } from '@element-plus/icons-vue'
 import { financeApi } from '@/api'
@@ -333,9 +333,21 @@ watch(activeTab, (val) => {
   }
 })
 
+// 统一的 resize 处理函数
+const handleResize = () => {
+  trendChart?.resize()
+}
+
 // 初始化
 onMounted(() => {
   loadAllData()
+  window.addEventListener('resize', handleResize)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', handleResize)
+  trendChart?.dispose()
+  trendChart = null
 })
 </script>
 

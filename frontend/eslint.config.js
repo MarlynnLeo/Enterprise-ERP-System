@@ -1,5 +1,6 @@
 import pluginVue from 'eslint-plugin-vue'
 import eslintConfigPrettier from 'eslint-config-prettier'
+import globals from 'globals'
 
 export default [
   ...pluginVue.configs['flat/essential'],
@@ -12,32 +13,11 @@ export default [
       ecmaVersion: 2022,
       sourceType: 'module',
       globals: {
-        window: 'readonly',
-        document: 'readonly',
-        localStorage: 'readonly',
-        sessionStorage: 'readonly',
-        console: 'readonly',
-        setTimeout: 'readonly',
-        clearTimeout: 'readonly',
-        setInterval: 'readonly',
-        clearInterval: 'readonly',
-        URL: 'readonly',
-        Blob: 'readonly',
-        File: 'readonly',
-        FileReader: 'readonly',
-        CustomEvent: 'readonly',
-        FormData: 'readonly',
-        fetch: 'readonly',
-        location: 'readonly',
+        ...globals.browser,
         process: 'readonly',
         module: 'readonly',
         require: 'readonly',
         __dirname: 'readonly',
-        URLSearchParams: 'readonly',
-        navigator: 'readonly',
-        AbortController: 'readonly',
-        performance: 'readonly',
-        atob: 'readonly',
         Buffer: 'readonly'
       }
     },

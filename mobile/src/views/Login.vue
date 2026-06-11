@@ -1,9 +1,9 @@
-﻿<!--
+<!--
 /**
  * Login.vue
  * @description 移动端登录页面 - 现代沉浸式设计
  * @date 2026-04-25
- * @version 3.0.0
+ * @version 3.1.0 — B-07: 版本号从 APP_INFO 读取; B-17: 登录失败计数与延迟
  */
 -->
 <template>
@@ -82,8 +82,13 @@
             </button>
           </div>
 
+          <!-- B-17: 登录失败延迟提示 -->
+          <div v-if="lockoutRemaining > 0" class="lockout-tip">
+            登录失败次数过多，请等待 {{ lockoutRemaining }} 秒后重试
+          </div>
+
           <!-- 登录按钮 -->
-          <button type="submit" class="submit-btn" :disabled="loading">
+          <button type="submit" class="submit-btn" :disabled="loading || lockoutRemaining > 0">
             <span v-if="!loading">登 录</span>
             <span v-else class="loading-dots">
               <i></i><i></i><i></i>
@@ -92,19 +97,20 @@
         </form>
       </div>
 
-      <!-- 底部版本 -->
+      <!-- B-07: 底部版本号从 APP_INFO 读取 -->
       <div class="footer fade-up" style="animation-delay: .24s">
-        <span>v2.0.0</span>
+        <span>v{{ appVersion }}</span>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-  import { ref, reactive, onMounted, onBeforeUnmount } from 'vue'
+  import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
   import { useRouter } from 'vue-router'
   import { showToast } from 'vant'
   import { useAuthStore } from '@/stores/auth'
+  import { APP_INFO } from '@/config/app'
 
   const router = useRouter()
   const authStore = useAuthStore()
@@ -117,15 +123,48 @@
   const errors = reactive({ username: false, password: false })
   const focusState = reactive({ username: false, password: false })
 
+  // B-07: 版本号从配置读取
+  const appVersion = computed(() => APP_INFO.version)
+
+  // B-17: 登录失败计数与递增延迟
+  const failCount = ref(0)
+  const lockoutRemaining = ref(0)
+  let lockoutTimer = null
+
+  /** 根据失败次数计算延迟秒数：3次→5s, 4次→10s, 5次→20s, 6次→40s... */
+  const getLockoutSeconds = (count) => {
+    if (count < 3) return 0
+    return 5 * Math.pow(2, count - 3) // 5, 10, 20, 40...
+  }
+
+  const startLockoutCountdown = (seconds) => {
+    lockoutRemaining.value = seconds
+    if (lockoutTimer) clearInterval(lockoutTimer)
+    lockoutTimer = setInterval(() => {
+      lockoutRemaining.value--
+      if (lockoutRemaining.value <= 0) {
+        clearInterval(lockoutTimer)
+        lockoutTimer = null
+      }
+    }, 1000)
+  }
+
   onMounted(() => {
     document.body.classList.add('login-page-active')
   })
 
   onBeforeUnmount(() => {
     document.body.classList.remove('login-page-active')
+    if (lockoutTimer) {
+      clearInterval(lockoutTimer)
+      lockoutTimer = null
+    }
   })
 
   const onSubmit = async () => {
+    // B-17: 如果处于锁定状态，不允许提交
+    if (lockoutRemaining.value > 0) return
+
     errors.username = !username.value
     errors.password = !password.value
 
@@ -142,9 +181,18 @@
     try {
       await authStore.login({ username: username.value, password: password.value })
       localStorage.setItem('isLoggedIn', 'true')
+      // B-17: 登录成功，重置失败计数
+      failCount.value = 0
+      lockoutRemaining.value = 0
       showToast({ type: 'success', message: '登录成功', duration: 800, onClose: () => router.push('/') })
     } catch (error) {
       console.error('登录失败:', error)
+      // B-17: 记录失败次数，连续失败 3 次后启用递增延迟
+      failCount.value++
+      const lockoutSeconds = getLockoutSeconds(failCount.value)
+      if (lockoutSeconds > 0) {
+        startLockoutCountdown(lockoutSeconds)
+      }
     } finally {
       loading.value = false
     }
@@ -352,6 +400,15 @@
     &:active {
       color: rgba(255, 255, 255, 0.6);
     }
+  }
+
+  /* ======================== B-17: 锁定提示 ======================== */
+  .lockout-tip {
+    text-align: center;
+    color: #f87171;
+    font-size: 0.8125rem;
+    padding: 8px 0;
+    animation: fadeUp 0.3s ease-out;
   }
 
   /* ======================== 登录按钮 ======================== */

@@ -847,7 +847,7 @@ const loadDepartmentOptions = async () => {
 
 const loadBankAccountOptions = async () => {
   try {
-    const response = await financeApi.getBankAccountsList();
+    const response = await financeApi.getBankAccounts();
     bankAccountOptions.value = parseListData(response, { enableLog: false });
   } catch (error) {
     console.error('加载银行账户失败:', error);

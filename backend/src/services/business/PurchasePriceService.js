@@ -49,6 +49,7 @@ function makeResult(row, source) {
     source_label: source,
     auto_fill: price > 0,
     last_date: row.order_date || row.receipt_date || null,
+    supplier_code: row.supplier_code || null,
     last_supplier: row.supplier_name || null,
     source_order_no: row.order_no || null,
     source_receipt_no: row.receipt_no || null,
@@ -195,6 +196,10 @@ class PurchasePriceService {
     }
 
     if (unresolved.size > 0) {
+      await this.resolveGlobalReceiptHistory(connection, materialIds, materialCodes, state);
+    }
+
+    if (unresolved.size > 0) {
       await this.resolveMaterialCost(connection, materialIds, materialCodes, state);
     }
 
@@ -219,6 +224,7 @@ class PurchasePriceService {
         poi.tax_rate,
         po.order_no,
         po.order_date,
+        s.code AS supplier_code,
         s.name AS supplier_name
       FROM purchase_order_items poi
       JOIN purchase_orders po ON poi.order_id = po.id
@@ -251,10 +257,12 @@ class PurchasePriceService {
         poi.tax_rate,
         pr.receipt_no,
         pr.receipt_date,
+        s.code AS supplier_code,
         pr.supplier_name
       FROM purchase_receipt_items pri
       JOIN purchase_receipts pr ON pri.receipt_id = pr.id
       LEFT JOIN purchase_order_items poi ON pr.order_id = poi.order_id AND pri.material_id = poi.material_id
+      LEFT JOIN suppliers s ON pr.supplier_id = s.id
       WHERE ${materialWhere.clause}
         AND pr.supplier_id IN (${supplierWhere})
         AND pr.status NOT IN ('cancelled')
@@ -282,11 +290,13 @@ class PurchasePriceService {
         poi.tax_rate,
         po.order_no,
         po.order_date,
+        s.code AS supplier_code,
         s.name AS supplier_name
       FROM purchase_order_items poi
       JOIN purchase_orders po ON poi.order_id = po.id
       LEFT JOIN suppliers s ON po.supplier_id = s.id
       WHERE ${materialWhere.clause}
+        AND po.supplier_id IS NOT NULL
         AND po.status NOT IN ('cancelled')
         AND poi.price > 0
       ORDER BY po.order_date DESC, po.id DESC, poi.id DESC
@@ -296,6 +306,39 @@ class PurchasePriceService {
 
     for (const row of rows) {
       this.applyMaterialRow(row, 'other_supplier_history', state);
+    }
+  }
+
+  static async resolveGlobalReceiptHistory(connection, materialIds, materialCodes, state) {
+    const materialWhere = buildWhereForMaterials(materialIds, materialCodes, 'pri');
+    const [rows] = await runQuery(
+      connection,
+      `
+      SELECT
+        pri.material_id,
+        pri.material_code,
+        pr.supplier_id,
+        pri.price,
+        poi.tax_rate,
+        pr.receipt_no,
+        pr.receipt_date,
+        s.code AS supplier_code,
+        pr.supplier_name
+      FROM purchase_receipt_items pri
+      JOIN purchase_receipts pr ON pri.receipt_id = pr.id
+      LEFT JOIN purchase_order_items poi ON pr.order_id = poi.order_id AND pri.material_id = poi.material_id
+      LEFT JOIN suppliers s ON pr.supplier_id = s.id
+      WHERE ${materialWhere.clause}
+        AND pr.supplier_id IS NOT NULL
+        AND pr.status NOT IN ('cancelled')
+        AND pri.price > 0
+      ORDER BY pr.receipt_date DESC, pr.id DESC, pri.id DESC
+      `,
+      materialWhere.params
+    );
+
+    for (const row of rows) {
+      this.applyMaterialRow(row, 'other_supplier_receipt_history', state);
     }
   }
 

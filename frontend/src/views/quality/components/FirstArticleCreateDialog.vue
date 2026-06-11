@@ -142,6 +142,7 @@ const handleSubmit = async () => {
       product_code: selectedTask.value.product_code,
       product_name: selectedTask.value.product_name,
       production_quantity: selectedTask.value.quantity,
+      first_article_qty: form.value.first_article_qty,
       batch_no: form.value.batch_no || undefined,
       planned_date: form.value.planned_date,
       inspector_name: form.value.inspector_name,

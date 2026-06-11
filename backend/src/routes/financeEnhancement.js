@@ -8,8 +8,10 @@
 const express = require('express');
 const router = express.Router();
 const FinanceEnhancementController = require('../controllers/business/finance/financeEnhancementController');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken } = require('../middleware/authEnhanced');
 const { requirePermission } = require('../middleware/requirePermission');
+const DLQService = require('../services/business/DLQService');
+const { ResponseHandler } = require('../utils/responseHandler');
 const { PRICE_EXPORT_PERMISSIONS, PRICE_UPDATE_PERMISSIONS } = require('../utils/desensitizer');
 const {
   desensitizeSensitiveResponse,
@@ -20,6 +22,8 @@ const {
 router.use(authenticateToken);
 router.use(desensitizeSensitiveResponse('view'));
 router.use(requirePriceMutationPermission('update'));
+
+const FINANCE_FAILED_JOB_PREFIXES = ['Finance:', 'FinanceIntegration:'];
 
 // ==================== 自动化集成路由 ====================
 
@@ -78,6 +82,52 @@ router.post('/period/year-end-transfer', requirePermission('finance:periodEnd:ex
  * @access Private
  */
 router.get('/automation/history', requirePermission('finance:automation:view'), FinanceEnhancementController.getAutomationHistory);
+
+router.get('/automation/failed-jobs', requirePermission('finance:automation:view'), async (req, res) => {
+  try {
+    const { status = 'pending', page = 1, pageSize = 20 } = req.query;
+    const result = await DLQService.listFailedJobs({
+      status,
+      page,
+      pageSize,
+      taskNamePrefixes: FINANCE_FAILED_JOB_PREFIXES,
+    });
+    return ResponseHandler.paginated(
+      res,
+      result.list,
+      result.total,
+      result.page,
+      result.pageSize,
+      '获取财务自动化失败任务成功'
+    );
+  } catch (error) {
+    return ResponseHandler.error(res, '获取财务自动化失败任务失败', 'SERVER_ERROR', 500, error);
+  }
+});
+
+router.post('/automation/failed-jobs/retry', requirePermission('finance:automation:execute'), async (req, res) => {
+  try {
+    const limit = req.body?.limit || req.query?.limit || 20;
+    const result = await DLQService.retryPendingJobs({
+      limit,
+      taskNamePrefixes: FINANCE_FAILED_JOB_PREFIXES,
+    });
+    return ResponseHandler.success(res, result, '财务自动化失败任务重试已执行');
+  } catch (error) {
+    return ResponseHandler.error(res, '重试财务自动化失败任务失败', 'SERVER_ERROR', 500, error);
+  }
+});
+
+router.put('/automation/failed-jobs/:id/resolve', requirePermission('finance:automation:execute'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const operator = req.user?.username || req.user?.real_name || 'system';
+    await DLQService.markResolved(id, operator);
+    return ResponseHandler.success(res, { id: Number(id) }, '财务自动化失败任务已标记为已处理');
+  } catch (error) {
+    return ResponseHandler.error(res, '标记财务自动化失败任务失败', 'SERVER_ERROR', 500, error);
+  }
+});
 
 // ==================== 成本核算路由 ====================
 

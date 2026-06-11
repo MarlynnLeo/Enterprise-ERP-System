@@ -17,7 +17,7 @@ const inventoryLedgerController = require('../controllers/business/inventory/inv
 const inventoryBatchController = require('../controllers/business/inventory/inventoryBatchController');
 const inventoryManualController = require('../controllers/business/inventory/inventoryManualController');
 const inventoryConsistencyController = require('../controllers/business/inventory/inventoryConsistencyController');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken } = require('../middleware/authEnhanced');
 const { requirePermission } = require('../middleware/requirePermission');
 const {
   desensitizeSensitiveResponse,

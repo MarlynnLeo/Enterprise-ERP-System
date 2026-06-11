@@ -2,10 +2,9 @@
  * themeController.js
  * @description 主题设置控制器
  * @date 2025-10-23
- * @version 1.0.0
+ * @version 1.1.0
  */
 
-const { pool } = require('../../config/db');
 const { ResponseHandler } = require('../../utils/responseHandler');
 const { logger } = require('../../utils/logger');
 const {
@@ -13,6 +12,7 @@ const {
   normalizeThemeSettings,
   validateThemeSettings,
 } = require('../../config/themeConfig');
+const ThemeService = require('../../services/auth/ThemeService');
 
 /**
  * 获取用户主题设置
@@ -21,19 +21,19 @@ exports.getUserTheme = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    const [rows] = await pool.execute('SELECT theme_settings FROM users WHERE id = ?', [userId]);
+    const rawSettings = await ThemeService.getUserThemeSettings(userId);
 
-    if (rows.length === 0) {
+    if (rawSettings === undefined) {
       return ResponseHandler.error(res, '用户不存在', 'NOT_FOUND', 404);
     }
 
-    const themeSettings = rows[0].theme_settings
-      ? normalizeThemeSettings(rows[0].theme_settings)
+    const themeSettings = rawSettings
+      ? normalizeThemeSettings(rawSettings)
       : getDefaultThemeSettings();
 
     return ResponseHandler.success(res, themeSettings, '获取主题设置成功');
   } catch (error) {
-    logger.error('获取主题设置失败:', error.message);
+    logger.error('[Theme] 获取主题设置失败:', error.message);
     return ResponseHandler.error(res, '获取主题设置失败', 'SERVER_ERROR', 500);
   }
 };
@@ -54,14 +54,11 @@ exports.saveUserTheme = async (req, res) => {
     const normalizedThemeSettings = normalizeThemeSettings(themeSettings);
 
     // 保存到数据库
-    await pool.execute('UPDATE users SET theme_settings = ?, updated_at = NOW() WHERE id = ?', [
-      JSON.stringify(normalizedThemeSettings),
-      userId,
-    ]);
+    await ThemeService.saveUserThemeSettings(userId, JSON.stringify(normalizedThemeSettings));
 
     return ResponseHandler.success(res, normalizedThemeSettings, '保存主题设置成功');
   } catch (error) {
-    logger.error('保存主题设置失败:', error.message);
+    logger.error('[Theme] 保存主题设置失败:', error.message);
     return ResponseHandler.error(res, '保存主题设置失败', 'SERVER_ERROR', 500);
   }
 };
@@ -75,14 +72,11 @@ exports.resetUserTheme = async (req, res) => {
 
     const defaultTheme = getDefaultThemeSettings();
 
-    await pool.execute('UPDATE users SET theme_settings = ?, updated_at = NOW() WHERE id = ?', [
-      JSON.stringify(defaultTheme),
-      userId,
-    ]);
+    await ThemeService.saveUserThemeSettings(userId, JSON.stringify(defaultTheme));
 
     return ResponseHandler.success(res, defaultTheme, '重置主题设置成功');
   } catch (error) {
-    logger.error('重置主题设置失败:', error.message);
+    logger.error('[Theme] 重置主题设置失败:', error.message);
     return ResponseHandler.error(res, '重置主题设置失败', 'SERVER_ERROR', 500);
   }
 };

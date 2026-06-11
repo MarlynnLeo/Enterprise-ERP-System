@@ -9,7 +9,7 @@ const express = require('express');
 const router = express.Router();
 const baseDataController = require('../controllers/common/baseDataController');
 const productCategoryController = require('../controllers/common/productCategoryController');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken } = require('../middleware/authEnhanced');
 const { requirePermission } = require('../middleware/requirePermission');
 const {
   desensitizeSensitiveResponse,

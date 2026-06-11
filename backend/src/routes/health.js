@@ -7,7 +7,7 @@ const router = express.Router();
 const healthCheckService = require('../services/HealthCheckService');
 const DatabaseMonitorService = require('../services/DatabaseMonitorService');
 const { cacheMiddleware } = require('../services/cache/CacheManager');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken } = require('../middleware/authEnhanced');
 const { requirePermission } = require('../middleware/requirePermission');
 
 const monitorAccess = [authenticateToken, requirePermission('system:monitor')];

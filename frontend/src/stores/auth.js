@@ -1,5 +1,6 @@
 /**
  * auth.js
+ * @module stores/auth
  * @description 状态管理文件 - 支持新的Cookie based认证
  * @date 2025-11-21
  * @version 2.1.0 - 适配统一响应解包
@@ -15,9 +16,56 @@ import { ref, computed } from 'vue'
 import { userApi } from '@/api/user'
 import { tokenManager, permissionManager } from '../utils/unifiedStorage'
 
+/**
+ * 用户信息对象
+ * @typedef {Object} User
+ * @property {number} id - 用户ID
+ * @property {string} username - 用户名
+ * @property {string} [real_name] - 真实姓名
+ * @property {string} [realName] - 真实姓名（驼峰格式）
+ * @property {string} [name] - 姓名
+ * @property {string} [email] - 邮箱
+ * @property {string} [avatar] - 头像URL
+ * @property {number} [status] - 状态（1=启用, 0=禁用）
+ */
+
+/**
+ * 登录凭证
+ * @typedef {Object} LoginCredentials
+ * @property {string} username - 用户名
+ * @property {string} password - 密码
+ */
+
+/**
+ * Auth Store 返回类型
+ * @typedef {Object} AuthStore
+ * @property {import('vue').Ref<string>} token - 令牌（已弃用，保持兼容）
+ * @property {import('vue').Ref<User|null>} user - 当前用户信息
+ * @property {import('vue').Ref<string[]>} permissions - 权限列表
+ * @property {import('vue').Ref<boolean>} permissionsLoaded - 权限是否已加载
+ * @property {import('vue').Ref<boolean>} permissionsLoading - 权限是否正在加载
+ * @property {import('vue').ComputedRef<boolean>} isAuthenticated - 是否已认证
+ * @property {import('vue').ComputedRef<boolean>} isAdmin - 是否为管理员
+ * @property {import('vue').ComputedRef<string>} realName - 用户真实姓名
+ * @property {(credentials: LoginCredentials) => Promise<boolean>} login - 登录
+ * @property {() => Promise<void>} logout - 登出
+ * @property {(userData: Partial<User>) => Promise<boolean>} updateUser - 更新用户信息
+ * @property {(includePermissions?: boolean) => Promise<boolean>} fetchUserProfile - 获取用户资料
+ * @property {(force?: boolean) => Promise<boolean>} fetchUserPermissions - 获取用户权限
+ * @property {() => Promise<boolean>} refreshPermissions - 刷新权限
+ * @property {(permission: string) => boolean} hasPermission - 检查权限
+ * @property {(permission: string) => boolean} hasChildPermission - 检查子权限
+ * @property {() => void} setAuthHeader - 设置认证头
+ */
+
 // ✅ 权限别名映射已迁移至后端 PermissionService.js
 // 后端在返回权限列表时会自动展开别名，前端无需再维护硬编码映射
 
+/**
+ * 判断权限加载错误是否为临时性错误（网络抖动、服务端过载等）
+ * @param {Error & {response?: {status?: number}}} error - 错误对象
+ * @returns {boolean} 是否为临时性错误
+ */
 const isTransientPermissionLoadError = (error) => {
   const status = error?.response?.status
   return !status || status === 429 || status >= 500

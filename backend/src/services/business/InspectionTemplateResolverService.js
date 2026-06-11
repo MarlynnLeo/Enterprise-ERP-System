@@ -1,4 +1,4 @@
-const VALID_INSPECTION_TYPES = new Set(['incoming', 'process', 'final']);
+const VALID_INSPECTION_TYPES = new Set(['incoming', 'process', 'final', 'first_article']);
 
 class InspectionTemplateResolverService {
   static normalizeBoolean(value) {

@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="budget-ai-container">
     <!-- 页头卡片 -->
     <el-card class="header-card" shadow="hover">
@@ -491,7 +491,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick, h } from 'vue'
+import { ref, onMounted, onBeforeUnmount, nextTick, h } from 'vue'
 import { useRouter } from 'vue-router'
 import { financeApi } from '@/api/finance'
 import { API_CONFIG } from '@/config/app'
@@ -842,7 +842,42 @@ const fetchReport = async () => {
   finally { loading.value.report = false }
 }
 
-onMounted(() => { fetchBudgetList(); fetchUsageStats() })
+// 统一的 resize 处理函数
+const handleResize = () => {
+  const chartEls = [
+    recBarChart.value, recPieChart.value,
+    anomalyScatterChart.value, healthGaugeChart.value,
+    sankeyChart.value, comparisonBarChart.value
+  ]
+  chartEls.forEach(el => {
+    if (el) {
+      const instance = echarts.getInstanceByDom(el)
+      instance?.resize()
+    }
+  })
+}
+
+onMounted(() => {
+  fetchBudgetList()
+  fetchUsageStats()
+  window.addEventListener('resize', handleResize)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', handleResize)
+  // 销毁所有 ECharts 实例
+  const chartEls = [
+    recBarChart.value, recPieChart.value,
+    anomalyScatterChart.value, healthGaugeChart.value,
+    sankeyChart.value, comparisonBarChart.value
+  ]
+  chartEls.forEach(el => {
+    if (el) {
+      const instance = echarts.getInstanceByDom(el)
+      instance?.dispose()
+    }
+  })
+})
 </script>
 
 <style scoped>

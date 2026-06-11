@@ -115,6 +115,15 @@ const FINANCE_PERIOD_STATUS = {
   LOCKED: 'locked',
 };
 
+const BUDGET_STATUS = {
+  DRAFT: 'draft',
+  PENDING_APPROVAL: 'pending_approval',
+  APPROVED: 'approved',
+  EXECUTING: 'executing',
+  COMPLETED: 'completed',
+  CLOSED: 'closed',
+};
+
 const GL_ENTRY_TRANSITIONS = {
   [GL_ENTRY_STATUS.DRAFT]: [GL_ENTRY_STATUS.POSTED],
   [GL_ENTRY_STATUS.POSTED]: [GL_ENTRY_STATUS.REVERSED],
@@ -148,6 +157,15 @@ const FINANCE_INVOICE_TRANSITIONS = {
   ],
   [FINANCE_INVOICE_STATUS.PAID]: [],
   [FINANCE_INVOICE_STATUS.CANCELLED]: [],
+};
+
+const BUDGET_TRANSITIONS = {
+  [BUDGET_STATUS.DRAFT]: [BUDGET_STATUS.PENDING_APPROVAL],
+  [BUDGET_STATUS.PENDING_APPROVAL]: [BUDGET_STATUS.APPROVED, BUDGET_STATUS.DRAFT],
+  [BUDGET_STATUS.APPROVED]: [BUDGET_STATUS.EXECUTING],
+  [BUDGET_STATUS.EXECUTING]: [BUDGET_STATUS.COMPLETED, BUDGET_STATUS.CLOSED],
+  [BUDGET_STATUS.COMPLETED]: [BUDGET_STATUS.CLOSED],
+  [BUDGET_STATUS.CLOSED]: [],
 };
 
 const registry = {
@@ -271,6 +289,20 @@ const registry = {
     transitions: PERIOD_TRANSITIONS,
     terminal: terminalFromFlow(PERIOD_TRANSITIONS),
     aliases: {},
+  },
+  budget: {
+    table: 'budgets',
+    statusColumn: 'status',
+    transitions: BUDGET_TRANSITIONS,
+    terminal: terminalFromFlow(BUDGET_TRANSITIONS),
+    aliases: {
+      '\u8349\u7a3f': BUDGET_STATUS.DRAFT,
+      '\u5f85\u5ba1\u6279': BUDGET_STATUS.PENDING_APPROVAL,
+      '\u5df2\u5ba1\u6279': BUDGET_STATUS.APPROVED,
+      '\u6267\u884c\u4e2d': BUDGET_STATUS.EXECUTING,
+      '\u5df2\u5b8c\u6210': BUDGET_STATUS.COMPLETED,
+      '\u5df2\u5173\u95ed': BUDGET_STATUS.CLOSED,
+    },
   },
 };
 

@@ -13,6 +13,7 @@ const db = require('../../../config/db');
 const pool = db.pool; // 正确引用连接池
 const purchaseModel = require('../../../models/purchase');
 const DLQService = require('../../../services/business/DLQService');
+const DomainEventService = require('../../../services/business/DomainEventService');
 const { lineAmount, sumMoney } = require('../../../utils/money');
 const { softDelete } = require('../../../utils/softDelete');
 
@@ -801,45 +802,30 @@ const updateReturnStatus = async (req, res) => {
     `;
     await connection.query(updateQuery, [newStatus, id]);
 
+    if (newStatus === STATUS.PURCHASE_RETURN.COMPLETED) {
+      await DomainEventService.enqueue(
+        'PURCHASE_RETURN_COMPLETED',
+        {
+          returnId: id,
+          currentUserId: req.user?.id || null,
+        },
+        {
+          connection,
+          aggregateType: 'purchase_return',
+          aggregateId: id,
+          dedupKey: `PURCHASE_RETURN_COMPLETED:${id}`,
+        }
+      );
+    }
+
     await connection.commit();
+    DomainEventService.dispatchSoon();
 
     // 获取更新后的数据（事务已提交，使用全局pool可以读到最新数据）
     const updatedReturn = await getReturnById(id);
 
     // 采购退货完成后，异步生成应付红字发票和成本分录（事务已提交）
     if (newStatus === STATUS.PURCHASE_RETURN.COMPLETED) {
-      // 触发应付红字发票
-      setImmediate(async () => {
-        try {
-          const FinanceIntegrationService = require('../../../services/external/FinanceIntegrationService');
-
-          const [returnData] = await pool.execute(
-            `SELECT pr.*, s.name as supplier_name
-             FROM purchase_returns pr
-             LEFT JOIN suppliers s ON pr.supplier_id = s.id
-             WHERE pr.id = ?`,
-            [id]
-          );
-
-          if (returnData.length > 0) {
-            const purchaseReturn = returnData[0];
-            logger.info(
-              `📄 采购退货完成，尝试自动生成应付红字发票 - 退货单: ${purchaseReturn.return_no}`
-            );
-            await FinanceIntegrationService.generateAPCreditNoteFromPurchaseReturn(
-              purchaseReturn
-            );
-            logger.info(`✅ 应付红字发票自动生成成功 - 退货单: ${purchaseReturn.return_no}`);
-          }
-        } catch (invoiceError) {
-          await DLQService.recordSideEffectFailure(
-            'FinanceIntegration:PurchaseReturnCreditNote',
-            { returnId: id },
-            invoiceError
-          );
-        }
-      });
-
       // 触发采购退货成本分录（从循环中移出）
       if (pendingCostTasks.length > 0) {
         setImmediate(async () => {

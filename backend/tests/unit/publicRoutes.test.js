@@ -5,7 +5,7 @@ jest.mock('../../src/controllers/public/productionBoardController', () => ({
   getProductionBoardStats: jest.fn(),
 }));
 
-jest.mock('../../src/middleware/auth', () => ({
+jest.mock('../../src/middleware/authEnhanced', () => ({
   authenticateToken: (_req, _res, next) => next(),
 }));
 

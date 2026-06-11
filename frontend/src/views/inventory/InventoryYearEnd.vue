@@ -264,13 +264,37 @@ const listLoading = ref(false)
 const showPreviewDialog = ref(false)
 const previewData = ref(null)
 
-// 结存状态信息
-const statusInfo = ref({
+const toBoolean = (value) => value === true || value === 1 || value === '1' || value === 'true'
+
+const createEmptyStatusInfo = () => ({
   hasRecords: false,
   totalRecords: 0,
   isFrozen: false,
   summary: {}
 })
+
+const normalizeStatusInfo = (data = {}) => ({
+  ...data,
+  hasRecords: toBoolean(data.hasRecords),
+  isFrozen: toBoolean(data.isFrozen),
+  summary: data.summary || {}
+})
+
+const normalizePreviewData = (data = {}) => ({
+  ...data,
+  canExecute: toBoolean(data.canExecute),
+  hasExistingRecords: toBoolean(data.hasExistingRecords),
+  isFrozen: toBoolean(data.isFrozen),
+  checks: Array.isArray(data.checks)
+    ? data.checks.map((item) => ({
+        ...item,
+        passed: toBoolean(item.passed)
+      }))
+    : []
+})
+
+// 结存状态信息
+const statusInfo = ref(createEmptyStatusInfo())
 
 // 明细列表
 const balanceList = ref([])
@@ -294,7 +318,7 @@ const fetchStatus = async () => {
   statusLoading.value = true
   try {
     const response = await inventoryApi.getYearEndStatus(selectedYear.value)
-    statusInfo.value = parseResponseData(response, {})
+    statusInfo.value = normalizeStatusInfo(parseResponseData(response, {}))
     statusLoaded.value = true
 
     // 如果有记录，加载明细
@@ -340,11 +364,11 @@ const handlePreview = async (openDialog = true) => {
   try {
     const response = await inventoryApi.previewYearEnd(selectedYear.value)
     const data = parseResponseData(response, {})
-    previewData.value = data
+    previewData.value = normalizePreviewData(data)
     if (openDialog) {
       showPreviewDialog.value = true
     }
-    return data
+    return previewData.value
   } catch (error) {
     console.error('获取年度库存结存预览失败:', error)
     ElMessage.error(error.response?.data?.message || error.message || '获取年度库存结存预览失败')
@@ -496,7 +520,7 @@ const handleExport = async () => {
 // 年度变更
 const handleYearChange = () => {
   statusLoaded.value = false
-  statusInfo.value = { hasRecords: false, totalRecords: 0, isFrozen: false, summary: {} }
+  statusInfo.value = createEmptyStatusInfo()
   previewData.value = null
   showPreviewDialog.value = false
   balanceList.value = []

@@ -9,7 +9,7 @@ const express = require('express');
 const router = express.Router();
 const systemController = require('../controllers/system/systemController');
 const businessTypeController = require('../controllers/system/businessTypeController');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken } = require('../middleware/authEnhanced');
 
 const { requirePermission } = require('../middleware/requirePermission');
 const {

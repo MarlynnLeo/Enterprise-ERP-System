@@ -546,6 +546,10 @@ exports.createProductionTask = async (req, res) => {
       }
     }
 
+    if (plan_id) {
+      await SchedulingService._syncScheduledPlanDates(connection, [Number(taskId)]);
+    }
+
     // 更新关联的生产计划状态
     if (plan_id) {
       // 查询计划当前状态
@@ -1083,61 +1087,56 @@ exports.updateProductionTaskStatus = async (req, res) => {
             [taskData.product_id]
           );
 
-          if (rules.length === 0) {
-            throw new BusinessError('产品未配置首件检验规则，无法启动生产任务', {
-              route: '/quality/first-article-inspection',
-              buttonText: '配置首检规则',
-            });
-          }
-          const rule = rules[0];
+          const rule = rules[0] || {
+            first_article_qty: 5,
+            full_inspection_threshold: 5,
+            template_id: null,
+          };
 
           // 计算首检数量
           const productionQty = taskData.quantity || 0;
           const isFullInspection = productionQty < rule.full_inspection_threshold;
           const firstArticleQty = isFullInspection ? productionQty : rule.first_article_qty;
 
-          // 生成首检单号
-          const inspectionNo = await CodeGenerators.generateInspectionCode(connection);
-
           // 获取产品信息
           const [productInfo] = await connection.query(
-            'SELECT code, name, unit_id FROM materials WHERE id = ? AND deleted_at IS NULL',
+            `SELECT m.code, m.name, m.unit_id, u.name AS unit_name
+             FROM materials m
+             LEFT JOIN units u ON m.unit_id = u.id
+             WHERE m.id = ? AND m.deleted_at IS NULL`,
             [taskData.product_id]
           );
           const product = productInfo[0] || {};
 
-          // 创建首检单
-          await connection.query(
-            `
-            INSERT INTO quality_inspections
-            (inspection_no, inspection_type, task_id, reference_id, reference_no, product_id, product_code, product_name,
-             batch_no, quantity, unit, unit_id, planned_date, status, is_first_article, first_article_qty,
-             is_full_inspection, first_article_result, production_can_continue, template_id, note)
-            VALUES (?, 'first_article', ?, ?, ?, ?, ?, ?, ?, ?, '个', ?, NOW(), 'pending', 1, ?, ?, 'pending', 0, ?, ?)
-          `,
-            [
-              inspectionNo,
-              id,
-              id,
-              taskData.code,
-              taskData.product_id,
-              product.code || '',
-              product.name || '',
-              await generateBatchNo(taskData.code, connection),
-              firstArticleQty,
-              product.unit_id || null,
-              firstArticleQty,
-              isFullInspection,
-              rule.template_id || null,
-              isFullInspection
-                ? '生产任务开始时自动创建（全检）'
-                : '生产任务开始时自动创建（抽检）',
-            ]
-          );
+          // 创建首检单，并通过统一模板解析器复制模板检验项
+          const firstArticleInspection = await QualityInspection.createInspection({
+            inspection_type: 'first_article',
+            task_id: id,
+            reference_id: id,
+            reference_no: taskData.code,
+            product_id: taskData.product_id,
+            product_code: product.code || '',
+            product_name: product.name || '',
+            batch_no: await generateBatchNo(taskData.code, connection),
+            quantity: firstArticleQty,
+            unit: product.unit_name || '个',
+            unit_id: product.unit_id || null,
+            planned_date: new Date(),
+            status: 'pending',
+            is_first_article: true,
+            first_article_qty: firstArticleQty,
+            is_full_inspection: isFullInspection,
+            first_article_result: 'pending',
+            production_can_continue: false,
+            template_id: rule.template_id || null,
+            note: isFullInspection
+              ? 'Auto-created when production task started (full first-article inspection)'
+              : 'Auto-created when production task started (sample first-article inspection)',
+          }, connection);
 
           logger.info('自动创建首检单成功', {
             taskId: id,
-            inspectionNo,
+            inspectionNo: firstArticleInspection.inspection_no,
             firstArticleQty,
             isFullInspection,
           });
@@ -1160,7 +1159,7 @@ exports.updateProductionTaskStatus = async (req, res) => {
         if (existingProcessInspection.length === 0) {
           // 获取产品的过程检验规则
           const [processRules] = await connection.query(
-            'SELECT id, process_id, product_id, inspection_interval, sample_rate, punch_interval, template_id, is_enabled, note, created_at, updated_at FROM process_inspection_rules WHERE product_id = ? OR product_id IS NULL ORDER BY product_id DESC LIMIT 1',
+            'SELECT id, process_id, product_id, inspection_interval, sample_rate, punch_interval, template_id, is_enabled, note, created_at, updated_at FROM process_inspection_rules WHERE is_enabled = 1 AND (product_id = ? OR product_id IS NULL) ORDER BY product_id DESC LIMIT 1',
             [taskData.product_id]
           );
 
@@ -1174,58 +1173,55 @@ exports.updateProductionTaskStatus = async (req, res) => {
 
           // 获取生产任务的第一个工序名称
           const [firstProcess] = await connection.query(
-            'SELECT process_name FROM production_processes WHERE task_id = ? ORDER BY sequence ASC LIMIT 1',
+            'SELECT id, process_name FROM production_processes WHERE task_id = ? ORDER BY sequence ASC LIMIT 1',
             [id]
           );
           const processName = firstProcess[0]?.process_name || '生产过程';
 
-          // 生成过程检验单号
-          const processInspectionNo = await CodeGenerators.generateInspectionCode(connection);
-
+          // 创建过程检验记录
           // 获取产品信息
           const [productInfo] = await connection.query(
-            'SELECT code, name, unit_id FROM materials WHERE id = ? AND deleted_at IS NULL',
+            `SELECT m.code, m.name, m.unit_id, u.name AS unit_name
+             FROM materials m
+             LEFT JOIN units u ON m.unit_id = u.id
+             WHERE m.id = ? AND m.deleted_at IS NULL`,
             [taskData.product_id]
           );
           const product = productInfo[0] || {};
 
           // 计算抽检数量
+          const sampleRate = Number(processRule.sample_rate) || 100;
           const sampleQty = Math.max(
             1,
-            Math.ceil(taskData.quantity * (processRule.sample_rate / 100))
+            Math.ceil(taskData.quantity * (sampleRate / 100))
           );
 
-          // 创建过程检验记录
-          await connection.query(
-            `
-            INSERT INTO quality_inspections
-            (inspection_no, inspection_type, task_id, reference_id, reference_no, product_id, product_code, product_name,
-             batch_no, quantity, unit, unit_id, planned_date, status, process_name, template_id, note)
-            VALUES (?, 'process', ?, ?, ?, ?, ?, ?, ?, ?, '个', ?, NOW(), 'pending', ?, ?, ?)
-          `,
-            [
-              processInspectionNo,
-              id,
-              id,
-              taskData.code,
-              taskData.product_id,
-              product.code || '',
-              product.name || '',
-              await generateBatchNo(taskData.code, connection),
-              sampleQty,
-              product.unit_id || null,
-              processName,
-              processRule.template_id || null,
-              `生产任务开始时自动创建（抽检率${processRule.sample_rate}%）`,
-            ]
-          );
+          const processInspection = await QualityInspection.createInspection({
+            inspection_type: 'process',
+            task_id: id,
+            reference_id: id,
+            reference_no: taskData.code,
+            product_id: taskData.product_id,
+            product_code: product.code || '',
+            product_name: product.name || '',
+            process_id: firstProcess[0]?.id || processRule.process_id || null,
+            process_name: processName,
+            batch_no: await generateBatchNo(taskData.code, connection),
+            quantity: sampleQty,
+            unit: product.unit_name || 'pcs',
+            unit_id: product.unit_id || null,
+            planned_date: new Date(),
+            status: 'pending',
+            template_id: processRule.template_id || null,
+            note: `Auto-created when production task started (sample rate ${sampleRate}%)`,
+          }, connection);
 
           logger.info('自动创建过程检验记录成功', {
             taskId: id,
-            inspectionNo: processInspectionNo,
+            inspectionNo: processInspection.inspection_no,
             processName,
             sampleQty,
-            sampleRate: processRule.sample_rate,
+            sampleRate,
           });
         } else {
           logger.info('过程检验记录已存在，跳过创建', { taskId: id });

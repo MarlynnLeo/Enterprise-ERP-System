@@ -12,15 +12,16 @@
       <div class="header-content">
         <div class="title-section">
           <h2>采购发票管理</h2>
-          <p class="subtitle">管理采购发票与核销</p>
+          <p class="subtitle">采购入库完成后自动生成，手工录入仅用于期初或例外</p>
         </div>
         <el-button
-          type="primary"
+          type="info"
+          plain
           :icon="Plus"
           @click="showAddDialog"
           v-permission="'finance:ap:create'"
         >
-          新增发票
+          期初/例外录入
         </el-button>
       </div>
     </el-card>
@@ -644,7 +645,7 @@ let searchTimeout = null;
 let currentSearchId = 0;
 // 表单相关
 const dialogVisible = ref(false);
-const dialogTitle = ref('新增采购发票');
+const dialogTitle = ref('期初/例外录入采购发票');
 const invoiceFormRef = ref(null);
 const paymentDialogVisible = ref(false);
 const paymentFormRef = ref(null);
@@ -925,7 +926,7 @@ const resetSearch = () => {
 };
 // 新增发票
 const showAddDialog = () => {
-  dialogTitle.value = '新增采购发票';
+  dialogTitle.value = '期初/例外录入采购发票';
   resetInvoiceForm();
   // 添加默认一个明细项
   addInvoiceItem();

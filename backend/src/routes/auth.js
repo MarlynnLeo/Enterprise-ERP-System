@@ -24,7 +24,7 @@ const {
   saveUserTheme,
   resetUserTheme,
 } = require('../controllers/auth/themeController');
-const { authenticateToken, authenticateRefreshToken } = require('../middleware/auth');
+const { authenticateToken, authenticateRefreshToken } = require('../middleware/authEnhanced');
 const { FileUploadMiddlewares } = require('../middleware/unifiedFileUpload');
 
 // 登录路由

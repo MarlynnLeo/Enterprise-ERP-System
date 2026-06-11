@@ -92,6 +92,144 @@
       </div>
     </el-card>
 
+    <!-- 自动化异常与补生成 -->
+    <el-card class="section-card" shadow="never">
+      <template #header>
+        <div class="section-header">
+          <div class="section-title">
+            <el-icon class="section-icon" color="var(--color-danger)"><Document /></el-icon>
+            <span>自动化异常与补生成</span>
+          </div>
+          <div class="task-toolbar">
+            <el-select
+              v-model="failedJobStatus"
+              size="small"
+              style="width: 120px"
+              @change="loadFailedJobs"
+            >
+              <el-option label="待处理" value="pending" />
+              <el-option label="重试中" value="retrying" />
+              <el-option label="已处理" value="resolved" />
+              <el-option label="已忽略" value="ignored" />
+            </el-select>
+            <el-button
+              v-permission="'finance:automation:execute'"
+              type="warning"
+              plain
+              size="small"
+              @click="retryFailedJobs"
+              :loading="retryFailedJobsLoading"
+              :disabled="!canRetryFailedJobs"
+            >
+              <el-icon><Refresh /></el-icon>
+              重试
+            </el-button>
+            <el-button type="primary" link @click="loadFailedJobs">
+              <el-icon><Refresh /></el-icon>
+              刷新
+            </el-button>
+          </div>
+        </div>
+      </template>
+
+      <div class="exception-workbench">
+        <div class="repair-panel">
+          <div class="panel-heading">
+            <span>来源单据补生成</span>
+            <el-tag type="info" size="small">例外处理</el-tag>
+          </div>
+          <el-form :model="repairForm" class="repair-form" inline>
+            <el-form-item label="类型">
+              <el-select v-model="repairForm.type" style="width: 220px">
+                <el-option
+                  v-for="option in repairOptions"
+                  :key="option.value"
+                  :label="option.label"
+                  :value="option.value"
+                />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="来源ID">
+              <el-input-number
+                v-model="repairForm.sourceId"
+                :min="1"
+                :precision="0"
+                controls-position="right"
+                placeholder="输入来源单据ID"
+              />
+            </el-form-item>
+            <el-form-item>
+              <el-button
+                v-permission="'finance:automation:execute'"
+                type="primary"
+                @click="executeRepairGeneration"
+                :loading="repairLoading"
+              >
+                补生成
+              </el-button>
+            </el-form-item>
+          </el-form>
+        </div>
+
+        <div class="failed-jobs-panel">
+          <div class="panel-heading">
+            <span>失败任务</span>
+            <el-tag :type="failedJobsTotal > 0 ? 'danger' : 'success'" size="small">
+              {{ failedJobsTotal }}
+            </el-tag>
+          </div>
+          <el-table
+            :data="failedJobs"
+            size="small"
+            style="width: 100%"
+            max-height="320"
+            v-loading="failedJobsLoading"
+            empty-text="暂无失败任务"
+          >
+            <el-table-column prop="task_name" label="任务" min-width="220" show-overflow-tooltip />
+            <el-table-column label="来源" min-width="180" show-overflow-tooltip>
+              <template #default="{ row }">
+                {{ formatFailedJobPayload(row.payload) }}
+              </template>
+            </el-table-column>
+            <el-table-column label="错误" min-width="240" show-overflow-tooltip>
+              <template #default="{ row }">
+                {{ row.error_message || '-' }}
+              </template>
+            </el-table-column>
+            <el-table-column prop="attempts" label="次数" width="70" />
+            <el-table-column label="状态" width="90">
+              <template #default="{ row }">
+                <el-tag :type="getFailedJobStatusType(row.status)" size="small">
+                  {{ getFailedJobStatusName(row.status) }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="下次重试" width="170">
+              <template #default="{ row }">
+                {{ formatDateTime(row.next_retry_at) }}
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="100" fixed="right">
+              <template #default="{ row }">
+                <el-button
+                  v-permission="'finance:automation:execute'"
+                  type="primary"
+                  link
+                  size="small"
+                  @click="resolveFailedJob(row)"
+                  :loading="resolveJobLoadingId === row.id"
+                  :disabled="row.status === 'resolved'"
+                >
+                  标记处理
+                </el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+        </div>
+      </div>
+    </el-card>
+
     <!-- 月度任务区域 -->
     <el-card class="section-card" shadow="never">
       <template #header>
@@ -417,7 +555,7 @@ import {
 import { financeApi } from '@/api/finance';
 import { inventoryApi } from '@/api/inventory';
 import { productionApi } from '@/api/production';
-import { parseResponseData } from '@/utils/responseParser';
+import { parsePaginatedData, parseResponseData } from '@/utils/responseParser';
 
 const formatMoney = (value) => {
   if (value === null || value === undefined || value === '') return '-';
@@ -433,8 +571,15 @@ const taskActionLoading = ref(false);
 const financeYearEndLoading = ref(false);
 const inventoryYearEndLoading = ref(false);
 const inventoryFreezeLoading = ref(false);
+const failedJobsLoading = ref(false);
+const retryFailedJobsLoading = ref(false);
+const repairLoading = ref(false);
+const resolveJobLoadingId = ref(null);
 const executionHistory = ref([]);
 const productionTasks = ref([]);
+const failedJobs = ref([]);
+const failedJobsTotal = ref(0);
+const failedJobStatus = ref('pending');
 
 // 年度结存相关数据
 const financeYearStatus = ref({});
@@ -450,6 +595,10 @@ const hasRunningScheduledTask = computed(() => {
   return Object.values(taskStatus.value || {}).some((status) => status?.running);
 });
 
+const canRetryFailedJobs = computed(() => {
+  return ['pending', 'retrying'].includes(failedJobStatus.value) && failedJobsTotal.value > 0;
+});
+
 // 表单数据
 const depreciationForm = reactive({
   month: '',
@@ -458,6 +607,16 @@ const depreciationForm = reactive({
 const productionForm = reactive({
   taskId: null,
 });
+
+const repairForm = reactive({
+  type: 'apFromReceipt',
+  sourceId: null,
+});
+
+const repairOptions = [
+  { label: '采购入库单 -> 应付发票', value: 'apFromReceipt' },
+  { label: '销售订单 -> 应收发票', value: 'arFromSalesOrder' },
+];
 
 const yearEndForm = reactive({
   year: null,
@@ -519,6 +678,148 @@ const stopScheduledTasks = async () => {
 
 const goToPeriodClosing = () => {
   router.push('/finance/gl/period-closing');
+};
+
+const formatDateTime = (value) => {
+  if (!value) return '-';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString();
+};
+
+const getFailedJobStatusName = (status) => {
+  const statusMap = {
+    pending: '待处理',
+    retrying: '重试中',
+    resolved: '已处理',
+    ignored: '已忽略',
+  };
+  return statusMap[status] || status || '-';
+};
+
+const getFailedJobStatusType = (status) => {
+  const typeMap = {
+    pending: 'danger',
+    retrying: 'warning',
+    resolved: 'success',
+    ignored: 'info',
+  };
+  return typeMap[status] || 'info';
+};
+
+const parsePayloadObject = (payload) => {
+  if (!payload) return {};
+  if (typeof payload === 'object') return payload;
+  try {
+    return JSON.parse(payload);
+  } catch {
+    return {};
+  }
+};
+
+const formatFailedJobPayload = (payload) => {
+  const data = parsePayloadObject(payload);
+  const keys = [
+    'receiptNo',
+    'orderNo',
+    'outboundNo',
+    'returnNo',
+    'receiptId',
+    'salesOrderId',
+    'outboundId',
+    'returnId',
+  ];
+  const summary = keys
+    .filter((key) => data[key] !== undefined && data[key] !== null && data[key] !== '')
+    .map((key) => `${key}: ${data[key]}`)
+    .join(' / ');
+  return summary || '-';
+};
+
+const loadFailedJobs = async () => {
+  failedJobsLoading.value = true;
+  try {
+    const response = await financeApi.automation.getFailedJobs({
+      status: failedJobStatus.value,
+      page: 1,
+      pageSize: 20,
+    });
+    const result = parsePaginatedData(response, { enableLog: false });
+    failedJobs.value = result.list || [];
+    failedJobsTotal.value = result.total || failedJobs.value.length;
+  } catch (error) {
+    console.error('获取自动化失败任务失败:', error);
+    ElMessage.error('获取自动化失败任务失败');
+    failedJobs.value = [];
+    failedJobsTotal.value = 0;
+  } finally {
+    failedJobsLoading.value = false;
+  }
+};
+
+const retryFailedJobs = async () => {
+  retryFailedJobsLoading.value = true;
+  try {
+    const response = await financeApi.automation.retryFailedJobs({ limit: 20 });
+    const result = parseResponseData(response, {});
+    ElMessage.success(
+      `已执行重试：处理 ${result.retried || 0} 条，成功 ${result.resolved || 0} 条`
+    );
+    await loadFailedJobs();
+  } catch (error) {
+    console.error('重试自动化失败任务失败:', error);
+    ElMessage.error(error.response?.data?.message || '重试自动化失败任务失败');
+  } finally {
+    retryFailedJobsLoading.value = false;
+  }
+};
+
+const resolveFailedJob = async (row) => {
+  try {
+    await ElMessageBox.confirm(`确认将任务 ${row.task_name} 标记为已处理吗？`, '标记处理', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning',
+    });
+    resolveJobLoadingId.value = row.id;
+    await financeApi.automation.resolveFailedJob(row.id);
+    ElMessage.success('已标记为处理');
+    await loadFailedJobs();
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('标记自动化失败任务失败:', error);
+      ElMessage.error(error.response?.data?.message || '标记自动化失败任务失败');
+    }
+  } finally {
+    resolveJobLoadingId.value = null;
+  }
+};
+
+const executeRepairGeneration = async () => {
+  const sourceId = Number(repairForm.sourceId);
+  if (!Number.isInteger(sourceId) || sourceId <= 0) {
+    ElMessage.warning('请输入有效的来源单据ID');
+    return;
+  }
+
+  repairLoading.value = true;
+  try {
+    const selected = repairOptions.find((option) => option.value === repairForm.type);
+    if (repairForm.type === 'apFromReceipt') {
+      await financeApi.integration.generateAPInvoiceFromPurchaseReceipt(sourceId);
+    } else {
+      await financeApi.integration.generateARInvoiceFromSalesOrder(sourceId);
+    }
+    ElMessage.success(`${selected?.label || '单据'}补生成已执行`);
+    addToHistory('repair', String(sourceId), 'success', `${selected?.label || '单据'}补生成已执行`);
+    repairForm.sourceId = null;
+    await loadFailedJobs();
+  } catch (error) {
+    console.error('补生成财务单据失败:', error);
+    ElMessage.error(error.response?.data?.message || '补生成财务单据失败');
+    addToHistory('repair', String(sourceId), 'failed', error.message || '执行失败');
+  } finally {
+    repairLoading.value = false;
+  }
 };
 
 // 执行手动折旧计提
@@ -672,6 +973,7 @@ const getTaskTypeName = (type) => {
     depreciation: '折旧计提',
     periodEnd: '期末结转',
     production: '生产成本',
+    repair: '异常补生成',
     financeYearEnd: '财务年度结转',
     inventoryYearEnd: '仓库年度结存',
     inventoryYearFreeze: '仓库结存冻结',
@@ -685,6 +987,7 @@ const getTaskTypeColor = (type) => {
     depreciation: 'primary',
     periodEnd: 'success',
     production: 'warning',
+    repair: 'primary',
     financeYearEnd: 'danger',
     inventoryYearEnd: 'info',
     inventoryYearFreeze: 'warning',
@@ -904,6 +1207,7 @@ const refreshHistory = async () => {
 // 组件挂载时获取初始数据
 onMounted(() => {
   refreshTaskStatus();
+  loadFailedJobs();
   refreshHistory();
 });
 </script>
@@ -1120,6 +1424,44 @@ onMounted(() => {
   padding: 4px 0;
 }
 
+.exception-workbench {
+  display: grid;
+  grid-template-columns: minmax(280px, 420px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.repair-panel,
+.failed-jobs-panel {
+  border: 1px solid var(--color-border-lighter);
+  border-radius: 6px;
+  background: var(--color-bg-base);
+  padding: 14px;
+}
+
+.panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.repair-form {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.repair-form :deep(.el-form-item) {
+  margin-right: 0;
+  margin-bottom: 0;
+}
+
 /* 响应式布局 */
 @media (max-width: 768px) {
   .finance-automation {
@@ -1127,6 +1469,10 @@ onMounted(() => {
   }
 
   .status-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .exception-workbench {
     grid-template-columns: 1fr;
   }
 

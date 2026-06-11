@@ -12,6 +12,8 @@ const { logger } = require('../../../utils/logger');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const db = require('../../../config/db');
 
+const { BUDGET_STATUS_CODE } = budgetModel;
+
 function sendBudgetBusinessError(res, error, fallback) {
   if (error.statusCode && error.statusCode < 500) {
     return ResponseHandler.error(
@@ -132,7 +134,7 @@ const budgetController = {
       }
 
       // 只有草稿状态允许修改；驳回会回到草稿状态
-      if (existingBudget.status !== '草稿') {
+      if (!budgetModel.isBudgetStatus(existingBudget.status, BUDGET_STATUS_CODE.DRAFT)) {
         return ResponseHandler.error(res, '该状态的预算不允许修改', 'VALIDATION_ERROR', 400);
       }
 
@@ -158,7 +160,7 @@ const budgetController = {
       }
 
       // 检查状态是否允许删除
-      if (existingBudget.status !== '草稿') {
+      if (!budgetModel.isBudgetStatus(existingBudget.status, BUDGET_STATUS_CODE.DRAFT)) {
         return ResponseHandler.error(res, '只有草稿状态的预算才能删除', 'VALIDATION_ERROR', 400);
       }
 
@@ -187,7 +189,7 @@ const budgetController = {
       if (!budget) {
         return ResponseHandler.error(res, '预算不存在', 'NOT_FOUND', 404);
       }
-      if (budget.status !== '草稿') {
+      if (!budgetModel.isBudgetStatus(budget.status, BUDGET_STATUS_CODE.DRAFT)) {
         return ResponseHandler.error(res, '只有草稿状态的预算才能提交审批', 'VALIDATION_ERROR', 400);
       }
 
@@ -196,7 +198,7 @@ const budgetController = {
         return ResponseHandler.error(res, '预算没有明细项，无法提交审批', 'VALIDATION_ERROR', 400);
       }
 
-      const success = await budgetModel.updateBudgetStatus(id, '待审批', {
+      const success = await budgetModel.updateBudgetStatus(id, BUDGET_STATUS_CODE.PENDING_APPROVAL, {
         approval_status: '审批中',
       });
 
@@ -224,11 +226,11 @@ const budgetController = {
       if (!budget) {
         return ResponseHandler.error(res, '预算不存在', 'NOT_FOUND', 404);
       }
-      if (budget.status !== '待审批') {
+      if (!budgetModel.isBudgetStatus(budget.status, BUDGET_STATUS_CODE.PENDING_APPROVAL)) {
         return ResponseHandler.error(res, '只有待审批状态的预算才能审批', 'VALIDATION_ERROR', 400);
       }
 
-      const status = approved ? '已审批' : '草稿';
+      const status = approved ? BUDGET_STATUS_CODE.APPROVED : BUDGET_STATUS_CODE.DRAFT;
       const approvalStatus = approved ? '已通过' : '已驳回';
 
       const success = await budgetModel.updateBudgetStatus(id, status, {
@@ -260,11 +262,11 @@ const budgetController = {
         return ResponseHandler.error(res, '预算不存在', 'NOT_FOUND', 404);
       }
 
-      if (budget.status !== '已审批') {
+      if (!budgetModel.isBudgetStatus(budget.status, BUDGET_STATUS_CODE.APPROVED)) {
         return ResponseHandler.error(res, '只有已审批的预算才能启动执行', 'VALIDATION_ERROR', 400);
       }
 
-      const success = await budgetModel.updateBudgetStatus(id, '执行中');
+      const success = await budgetModel.updateBudgetStatus(id, BUDGET_STATUS_CODE.EXECUTING);
 
       if (success) {
         return ResponseHandler.success(res, null, '启动预算执行成功');
@@ -289,11 +291,11 @@ const budgetController = {
       if (!budget) {
         return ResponseHandler.error(res, '预算不存在', 'NOT_FOUND', 404);
       }
-      if (budget.status !== '执行中') {
+      if (!budgetModel.isBudgetStatus(budget.status, BUDGET_STATUS_CODE.EXECUTING)) {
         return ResponseHandler.error(res, '只有执行中的预算才能关闭', 'VALIDATION_ERROR', 400);
       }
 
-      const success = await budgetModel.updateBudgetStatus(id, '已关闭');
+      const success = await budgetModel.updateBudgetStatus(id, BUDGET_STATUS_CODE.CLOSED);
 
       if (success) {
         return ResponseHandler.success(res, null, '关闭预算成功');

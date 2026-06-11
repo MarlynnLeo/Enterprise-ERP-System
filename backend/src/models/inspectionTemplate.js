@@ -38,9 +38,9 @@ module.exports = (sequelize) => {
         comment: '模板名称',
       },
       inspection_type: {
-        type: DataTypes.ENUM('incoming', 'process', 'final'),
+        type: DataTypes.ENUM('incoming', 'process', 'final', 'first_article'),
         allowNull: false,
-        comment: '检验类型：来料检验、过程检验、成品检验',
+        comment: '检验类型：来料检验、过程检验、成品检验、首件检验',
       },
       material_type: {
         type: DataTypes.BIGINT,

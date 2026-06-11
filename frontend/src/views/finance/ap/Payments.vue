@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * Payments.vue
  * @description 前端界面组件文件
@@ -12,9 +12,9 @@
       <div class="header-content">
         <div class="title-section">
           <h2>付款记录管理</h2>
-          <p class="subtitle">管理供应商付款记录</p>
+          <p class="subtitle">从应付发票发起付款，手工录入仅用于例外付款</p>
         </div>
-        <el-button v-permission="'finance:ap:pay'" type="primary" :icon="Plus" @click="showAddDialog">新增付款</el-button>
+        <el-button v-permission="'finance:ap:pay'" type="info" plain :icon="Plus" @click="showAddDialog">例外付款录入</el-button>
       </div>
     </el-card>
 
@@ -346,7 +346,7 @@ const pageSize = ref(10);
 const currentPage = ref(1);
 // 表单相关
 const dialogVisible = ref(false);
-const dialogTitle = ref('新增付款记录');
+const dialogTitle = ref('例外付款录入');
 const paymentFormRef = ref(null);
 // 数据列表
 const paymentList = ref([]);
@@ -483,7 +483,7 @@ const loadInvoiceOptions = async () => {
 // 加载银行账户选项
 const loadBankAccountOptions = async () => {
   try {
-    const response = await financeApi.getBankAccountsList();
+    const response = await financeApi.getBankAccounts();
     // 使用统一的列表解析工具
     bankAccountOptions.value = parseListData(response, { enableLog: false });
   } catch (error) {
@@ -603,7 +603,7 @@ const confirmVoid = async () => {
 };
 // 新增付款记录
 const showAddDialog = () => {
-  dialogTitle.value = '新增付款记录';
+  dialogTitle.value = '例外付款录入';
   resetPaymentForm();
   loadInvoiceOptions();
   loadBankAccountOptions();

@@ -32,8 +32,8 @@ coverage/
 docs/
 
 backend/backups/
-backend/scripts/
-!backend/scripts/
+# 忽略 scripts 目录下所有文件，但保留目录本身和特定脚本
+backend/scripts/*
 !backend/scripts/audit-*.js
 !backend/scripts/run-data-consistency-audit.js
 !backend/scripts/repair-*.js

@@ -7,7 +7,7 @@ const router = express.Router();
 const { query, validationResult } = require('express-validator');
 const batchTraceabilityController = require('../../../controllers/business/traceability/batchTraceabilityController');
 const productSalesTraceabilityController = require('../../../controllers/business/traceability/productSalesTraceabilityController');
-const { authenticateToken } = require('../../../middleware/auth');
+const { authenticateToken } = require('../../../middleware/authEnhanced');
 const { requirePermission } = require('../../../middleware/requirePermission');
 const { ResponseHandler } = require('../../../utils/responseHandler');
 

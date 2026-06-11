@@ -141,16 +141,18 @@ class WorkflowService {
 
   /** 发起审批 */
   async startWorkflow({ business_type, business_id, business_code, title, initiator_id }) {
+    const businessType = this._assertSupportedBusinessType(business_type);
+
     // 1. 查找匹配的活跃模板
     const [[template]] = await pool.query(
       `SELECT id, code, name, business_type, description, trigger_condition, is_active, version, created_by, created_at, updated_at, deleted_at FROM workflow_templates
        WHERE business_type = ? AND is_active = 1 AND deleted_at IS NULL
        ORDER BY version DESC LIMIT 1`,
-      [business_type]
+      [businessType]
     );
 
     if (!template) {
-      throw new Error(`业务类型 ${business_type} 未配置启用的审批流程，单据已挂起，请先配置工作流模板`);
+      throw new Error(`业务类型 ${businessType} 未配置启用的审批流程，单据已挂起，请先配置工作流模板`);
     }
 
     // 2. 获取模板节点
@@ -160,11 +162,11 @@ class WorkflowService {
     );
 
     if (templateNodes.length === 0) {
-      throw new Error(`业务类型 ${business_type} 的审批流程没有节点，单据已挂起，请完善工作流模板`);
+      throw new Error(`业务类型 ${businessType} 的审批流程没有节点，单据已挂起，请完善工作流模板`);
     }
 
     if (!templateNodes.some(node => node.node_type === 'approval')) {
-      throw new Error(`业务类型 ${business_type} 的审批流程缺少审批节点，单据已挂起，请完善工作流模板`);
+      throw new Error(`业务类型 ${businessType} 的审批流程缺少审批节点，单据已挂起，请完善工作流模板`);
     }
 
     const conn = await pool.getConnection();
@@ -181,7 +183,7 @@ class WorkflowService {
          ORDER BY id DESC
          LIMIT 1
          FOR UPDATE`,
-        [business_type, business_id]
+        [businessType, business_id]
       );
       if (existingInstance) {
         throw new Error(`该单据已有进行中的审批流程，审批实例ID: ${existingInstance.id}`);
@@ -192,7 +194,7 @@ class WorkflowService {
         `INSERT INTO workflow_instances
          (template_id, business_type, business_id, business_code, title, status, initiator_id, started_at)
          VALUES (?, ?, ?, ?, ?, 'in_progress', ?, NOW())`,
-        [template.id, business_type, business_id, business_code || '', title, initiator_id]
+        [template.id, businessType, business_id, business_code || '', title, initiator_id]
       );
       const instanceId = instResult.insertId;
 
@@ -476,23 +478,25 @@ class WorkflowService {
     const { page = 1, pageSize = 20 } = params;
     const pagination = parsePagination(page, pageSize, { defaultPageSize: 20, maxPageSize: 100 });
 
-    // 获取用户角色和部门
-
-
-    // 查找指派给本人的 in_progress 节点
-    const where = `WHERE win.status = 'in_progress' AND wi.deleted_at IS NULL AND win.approver_id = ?`;
-    const values = [userId];
+    const businessStatusSql = this._buildPendingBusinessStatusSql();
+    const fromSql = `FROM workflow_instance_nodes win
+       JOIN workflow_instances wi ON wi.id = win.instance_id
+       ${businessStatusSql.joins}`;
+    const where = `WHERE win.status = 'in_progress'
+       AND wi.status IN ('pending','in_progress')
+       AND wi.deleted_at IS NULL
+       AND win.approver_id = ?
+       ${businessStatusSql.filter}`;
+    const values = [userId, ...businessStatusSql.values];
 
     const [[{ total }]] = await pool.query(
-      `SELECT COUNT(*) AS total FROM workflow_instance_nodes win
-       JOIN workflow_instances wi ON wi.id = win.instance_id ${where}`, values
+      `SELECT COUNT(*) AS total ${fromSql} ${where}`, values
     );
 
     const listSql = appendPaginationSQL(
       `SELECT win.*, wi.title, wi.business_type, wi.business_id, wi.business_code,
-              wi.status AS instance_status, u.real_name AS initiator_name
-       FROM workflow_instance_nodes win
-       JOIN workflow_instances wi ON wi.id = win.instance_id
+               wi.status AS instance_status, u.real_name AS initiator_name
+       ${fromSql}
        LEFT JOIN users u ON u.id = wi.initiator_id
        ${where} ORDER BY win.created_at DESC`,
       pagination.limit,
@@ -522,8 +526,7 @@ class WorkflowService {
 
     switch (templateNode.approver_type) {
       case 'user': {
-        const raw = templateNode.approver_ids;
-        const ids = Array.isArray(raw) ? raw : (raw ? JSON.parse(raw) : []);
+        const ids = this._parseApproverIds(templateNode.approver_ids, templateNode.node_name || '审批节点');
         if (ids.length > 0) approverId = ids[0]; // 简化: 取第一个
         break;
       }
@@ -543,14 +546,29 @@ class WorkflowService {
         break;
       }
       case 'role': {
-        const raw = templateNode.approver_ids;
-        const roleIds = Array.isArray(raw) ? raw : (raw ? JSON.parse(raw) : []);
+        const roleIds = this._parseApproverIds(templateNode.approver_ids, templateNode.node_name || '审批节点');
         if (roleIds.length > 0) {
           const [users] = await conn.query(
             `SELECT DISTINCT ur.user_id FROM user_roles ur WHERE ur.role_id IN (?)`,
             [roleIds]
           );
           if (users.length > 0) approverId = users[0].user_id;
+        }
+        break;
+      }
+      case 'department': {
+        const departmentIds = this._parseApproverIds(templateNode.approver_ids, templateNode.node_name || '审批节点');
+        if (departmentIds.length > 0) {
+          const [users] = await conn.query(
+            `SELECT u.id
+             FROM users u
+             LEFT JOIN departments d ON d.id = u.department_id
+             WHERE u.department_id IN (?) AND u.status = 1
+             ORDER BY CASE WHEN d.manager_id = u.id THEN 0 ELSE 1 END, u.id
+             LIMIT 1`,
+            [departmentIds]
+          );
+          if (users.length > 0) approverId = users[0].id;
         }
         break;
       }
@@ -569,6 +587,36 @@ class WorkflowService {
     }
   }
 
+  _parseApproverIds(rawIds, label) {
+    if (!rawIds) return [];
+
+    let ids = rawIds;
+    if (typeof rawIds === 'string') {
+      try {
+        ids = JSON.parse(rawIds);
+      } catch (error) {
+        throw new Error(`${label}审批人配置格式无效`, { cause: error });
+      }
+    }
+
+    if (!Array.isArray(ids)) {
+      throw new Error(`${label}审批人配置格式无效`);
+    }
+
+    return ids.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0);
+  }
+
+  _assertSupportedBusinessType(businessType) {
+    const normalizedBusinessType = String(businessType || '').trim();
+    if (!normalizedBusinessType) {
+      throw new Error('工作流模板业务类型不能为空');
+    }
+    if (!WorkflowService.BUSINESS_STATUS_MAP[normalizedBusinessType]) {
+      throw new Error(`业务类型 ${normalizedBusinessType} 未配置审批状态回调，无法创建审批流程`);
+    }
+    return normalizedBusinessType;
+  }
+
   _validateTemplateData(data = {}, options = {}) {
     const { requireCode = true } = options;
     if (requireCode && !String(data.code || '').trim()) {
@@ -577,9 +625,11 @@ class WorkflowService {
     if (!String(data.name || '').trim()) {
       throw new Error('工作流模板名称不能为空');
     }
-    if (!String(data.business_type || '').trim()) {
+    const businessType = String(data.business_type || '').trim();
+    if (!businessType) {
       throw new Error('工作流模板业务类型不能为空');
     }
+    data.business_type = this._assertSupportedBusinessType(businessType);
     if (!Array.isArray(data.nodes) || data.nodes.length === 0) {
       throw new Error('工作流模板至少需要一个审批节点');
     }
@@ -601,11 +651,7 @@ class WorkflowService {
       }
 
       if (['user', 'role', 'department'].includes(approverType)) {
-        const rawIds = node.approver_ids;
-        const ids = Array.isArray(rawIds)
-          ? rawIds
-          : (rawIds ? JSON.parse(rawIds) : []);
-        const validIds = ids.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0);
+        const validIds = this._parseApproverIds(node.approver_ids, label);
         if (validIds.length === 0) {
           throw new Error(`${label}需要配置审批人/角色/部门 ID`);
         }
@@ -641,13 +687,40 @@ class WorkflowService {
    * extra: 审批通过时的附加SQL片段
    */
   static BUSINESS_STATUS_MAP = {
-    purchase_order:       { table: 'purchase_orders',       approved: 'approved', rejected: 'draft',    withdrawn: 'draft', extra: '' },
-    purchase_requisition: { table: 'purchase_requisitions', approved: 'approved', rejected: 'draft',    withdrawn: 'draft', extra: '' },
-    contract:             { table: 'contracts',              approved: 'active',   rejected: 'draft',    withdrawn: 'draft', extra: '' },
-    ecn:                  { table: 'ecn_orders',             approved: 'approved', rejected: 'rejected', withdrawn: 'draft', extra: ', approved_by = ?, approved_at = NOW()' },
-    hr_leave:             { table: 'hr_leave_requests',      approved: 'approved', rejected: 'rejected', withdrawn: 'withdrawn', extra: '' },
-    hr_overtime:          { table: 'hr_overtime_requests',   approved: 'approved', rejected: 'rejected', withdrawn: 'withdrawn', extra: '' },
+    purchase_order:       { table: 'purchase_orders',       approved: 'approved', rejected: 'draft',    withdrawn: 'draft', pendingStatuses: ['pending'], extra: '' },
+    purchase_requisition: { table: 'purchase_requisitions', approved: 'approved', rejected: 'draft',    withdrawn: 'draft', pendingStatuses: ['pending'], extra: '' },
+    contract:             { table: 'contracts',              approved: 'active',   rejected: 'draft',    withdrawn: 'draft', pendingStatuses: ['pending_approval'], extra: '' },
+    ecn:                  { table: 'ecn_orders',             approved: 'approved', rejected: 'rejected', withdrawn: 'draft', pendingStatuses: ['pending_approval'], extra: ', approved_by = ?, approved_at = NOW()' },
+    hr_leave:             { table: 'hr_leave_requests',      approved: 'approved', rejected: 'rejected', withdrawn: 'withdrawn', pendingStatuses: ['pending'], hasDeletedAt: false, extra: '' },
+    hr_overtime:          { table: 'hr_overtime_requests',   approved: 'approved', rejected: 'rejected', withdrawn: 'withdrawn', pendingStatuses: ['pending'], hasDeletedAt: false, extra: '' },
   };
+
+  _buildPendingBusinessStatusSql() {
+    const entries = Object.entries(WorkflowService.BUSINESS_STATUS_MAP)
+      .filter(([, cfg]) => Array.isArray(cfg.pendingStatuses) && cfg.pendingStatuses.length > 0);
+    const joins = [];
+    const checks = [];
+    const values = [];
+
+    entries.forEach(([businessType, cfg], index) => {
+      const alias = `biz${index}`;
+      const deletedAtFilter = cfg.hasDeletedAt === false ? '' : ` AND ${alias}.deleted_at IS NULL`;
+      joins.push(`LEFT JOIN \`${cfg.table}\` ${alias} ON wi.business_type = '${businessType}' AND ${alias}.id = wi.business_id${deletedAtFilter}`);
+      checks.push(`(wi.business_type = '${businessType}' AND ${alias}.status IN (?))`);
+      values.push(cfg.pendingStatuses);
+    });
+
+    if (entries.length === 0) {
+      return { joins: '', filter: '', values: [] };
+    }
+
+    const knownBusinessTypes = entries.map(([businessType]) => `'${businessType}'`).join(', ');
+    return {
+      joins: joins.join('\n       '),
+      filter: `AND (wi.business_type NOT IN (${knownBusinessTypes}) OR ${checks.join(' OR ')})`,
+      values,
+    };
+  }
 
   /**
    * 统一更新业务单据状态（通过/拒绝/撤回共用）
@@ -672,9 +745,7 @@ class WorkflowService {
         throw new Error(`Business document not found [${businessType}:${businessId}]`);
       }
 
-      const allowedSourceStatuses = action === 'approved'
-        ? ['pending', 'submitted', 'in_review', 'approving']
-        : ['pending', 'submitted', 'in_review', 'approving', 'approved'];
+      const allowedSourceStatuses = ['pending', 'pending_approval', 'submitted', 'in_review', 'approving'];
       if (!allowedSourceStatuses.includes(businessRow.status)) {
         throw new Error(
           `Business document status [${businessRow.status}] cannot be changed to [${targetStatus}] by workflow callback`

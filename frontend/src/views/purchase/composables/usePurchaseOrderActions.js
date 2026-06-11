@@ -61,7 +61,6 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
   const selectedOrders = ref([])
   const batchLoading = ref(false)
   const canBatchSubmit = computed(() => { if (selectedOrders.value.length === 0) return false; return selectedOrders.value.every(order => order.status === 'draft') })
-  const canBatchApprove = computed(() => false) // 审批由工作流审批人完成，非按钮直接操作
 
   // 统计数据
   const orderStats = ref({ total: 0, totalAmount: 0, pendingCount: 0, approvedCount: 0, completedCount: 0 })
@@ -325,20 +324,16 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
     finally { batchLoading.value = false }
   }
 
-  const handleBatchApprove = async () => {
-    ElMessage.info('审批操作请前往「我的待审」页面处理')
-  }
-
   return {
     detailLoading, viewDialogVisible, viewData,
     receiveDialogVisible, receiveDialogLoading, receiveForm, receiveTableRef, totalReceiveQuantity,
     requisitionViewDialog, requisitionViewData,
-    orderTableRef, selectedOrders, batchLoading, canBatchSubmit, canBatchApprove,
+    orderTableRef, selectedOrders, batchLoading, canBatchSubmit,
     orderStats, formatDate, formatCurrency, getStatusText, getStatusType,
     getCountdownText, getCountdownType,
     viewOrder, viewRequisition, updateStatus, deleteOrder,
     openReceiveDialog, handleReceiveQuantityChange, confirmReceive, updateReceiving,
     printOrder, getOrderStats,
-    handleSelectionChange, clearSelection, handleBatchSubmit, handleBatchApprove
+    handleSelectionChange, clearSelection, handleBatchSubmit
   }
 }

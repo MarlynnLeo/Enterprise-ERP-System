@@ -1,11 +1,44 @@
 import { diagnosticLogger } from '@/utils/logger';
 /**
  * 响应数据解析工具
+ * @module utils/responseParser
  * @description 统一处理API响应数据的解析逻辑
  * @date 2025-11-25
  * @updated 2025-11-28 - axios拦截器已统一解包ResponseHandler格式
  *
  * axios 拦截器已统一解包后端 ResponseHandler，组件侧通过本文件解析列表和分页数据。
+ */
+
+/**
+ * @typedef {import('axios').AxiosResponse} AxiosResponse
+ */
+
+/**
+ * 解析选项
+ * @typedef {Object} ParseOptions
+ * @property {string} [logPrefix=''] - 日志前缀，用于调试追踪
+ * @property {boolean} [enableLog] - 是否启用日志（默认：开发环境且 VITE_ENABLE_RESPONSE_LOG=true）
+ */
+
+/**
+ * 分页解析结果
+ * @typedef {Object} PaginatedResult
+ * @property {Array<Object>} list - 数据列表
+ * @property {number} total - 总记录数
+ * @property {number} page - 当前页码
+ * @property {number} pageSize - 每页条数
+ * @property {number} totalPages - 总页数
+ * @property {Object|null} statistics - 统计信息
+ * @property {Object|null} extra - 额外数据
+ */
+
+/**
+ * API 响应解析结果
+ * @typedef {Object} ApiResult
+ * @property {boolean} success - 是否成功
+ * @property {*} data - 业务数据
+ * @property {string} message - 消息
+ * @property {string|null} error - 错误信息
  */
 
 // 默认关闭解析跟踪，需要时可在调用处手动启用 enableLog: true
@@ -41,11 +74,9 @@ const normalizeBooleanFields = (data) => {
  * 解析列表数据（增强版）
  * 注意：axios 拦截器已解包 ResponseHandler 格式，response.data 就是业务数据
  *
- * @param {Object} response - API响应对象
- * @param {Object} options - 配置选项
- * @param {string} options.logPrefix - 日志前缀
- * @param {boolean} options.enableLog - 是否启用日志（默认：开发环境启用）
- * @returns {Array} 解析后的列表数组
+ * @param {AxiosResponse} response - API响应对象
+ * @param {ParseOptions} options - 配置选项
+ * @returns {Array<Object>} 解析后的列表数组
  *
  * @example
  * const response = await api.getList();
@@ -101,8 +132,8 @@ export const parseListData = (response, options = {}) => {
  * 解析单个数据对象
  * 注意：axios 拦截器已解包 ResponseHandler 格式，response.data 就是业务数据
  *
- * @param {Object} response - API响应对象
- * @param {Object} options - 配置选项
+ * @param {AxiosResponse} response - API响应对象
+ * @param {ParseOptions} options - 配置选项
  * @returns {Object|null} 解析后的数据对象
  *
  * @example
@@ -128,6 +159,12 @@ export const parseDataObject = (response, options = {}) => {
   return null;
 };
 
+/**
+ * 解析响应数据（兼容多种格式）
+ * @param {AxiosResponse} response - API响应对象
+ * @param {*} [defaultValue=null] - 解析失败时的默认值
+ * @returns {*} 解析后的数据或默认值
+ */
 export const parseResponseData = (response, defaultValue = null) => {
   if (response?.data && typeof response.data === 'object' && 'success' in response.data) {
     return normalizeBooleanFields(response.data.success ? (response.data.data ?? defaultValue) : defaultValue);
@@ -149,7 +186,7 @@ export const parseResponseData = (response, defaultValue = null) => {
  * 注意：axios 拦截器已解包 ResponseHandler 格式
  * 如果业务失败，拦截器会抛出错误，所以这里只需要检查是否有数据
  *
- * @param {Object} response - API响应对象
+ * @param {AxiosResponse} response - API响应对象
  * @returns {boolean} 是否成功
  *
  * @example
@@ -177,8 +214,8 @@ export const isResponseSuccess = (response) => {
 
 /**
  * 获取响应错误消息
- * @param {Object} response - API响应对象
- * @param {string} defaultMessage - 默认错误消息
+ * @param {AxiosResponse} response - API响应对象
+ * @param {string} [defaultMessage='操作失败'] - 默认错误消息
  * @returns {string} 错误消息
  *
  * @example
@@ -198,11 +235,9 @@ export const getResponseError = (response, defaultMessage = '操作失败') => {
  * 解析分页数据（增强版）
  * 注意：axios 拦截器已解包 ResponseHandler 格式，response.data 就是业务数据
  *
- * @param {Object} response - API响应对象
- * @param {Object} options - 配置选项
- * @param {string} options.logPrefix - 日志前缀
- * @param {boolean} options.enableLog - 是否启用日志
- * @returns {Object} 分页数据 {list, total, page, pageSize, totalPages, statistics, extra}
+ * @param {AxiosResponse} response - API响应对象
+ * @param {ParseOptions} options - 配置选项
+ * @returns {PaginatedResult} 分页数据
  *
  * @example
  * const response = await api.getList({ page: 1, pageSize: 20 });
@@ -236,11 +271,9 @@ export const parsePaginatedData = (response, options = {}) => {
 
 /**
  * 解析响应数据 (通用方法)
- * @param {Object} response - API响应对象
- * @param {Object} options - 解析选项
- * @param {string} options.type - 数据类型 ('list' | 'object' | 'paginated')
- * @param {string} options.logPrefix - 日志前缀
- * @returns {*} 解析后的数据
+ * @param {AxiosResponse} response - API响应对象
+ * @param {ParseOptions & {type?: 'list'|'object'|'paginated'}} options - 解析选项
+ * @returns {Array<Object>|Object|null|PaginatedResult} 解析后的数据
  *
  * @example
  * const response = await api.getData();
@@ -263,8 +296,8 @@ export const parseResponse = (response, options = {}) => {
 /**
  * 解析 API 响应（统一入口）
  * 自动处理 ResponseHandler 格式和直接数据格式
- * @param {Object} response - axios 响应对象
- * @returns {Object} { success, data, message, error }
+ * @param {AxiosResponse} response - axios 响应对象
+ * @returns {ApiResult} 解析结果
  *
  * @example
  * const response = await axios.get('/api/data');

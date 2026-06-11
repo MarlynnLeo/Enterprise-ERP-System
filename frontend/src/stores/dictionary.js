@@ -67,11 +67,11 @@ export const useDictionaryStore = defineStore('dictionary', {
     /**
      * 初始化/刷新全局业务字典
      */
-    async fetchDictionary() {
+    async fetchDictionary(force = false) {
       // 避免重复请求
       if (this.isLoading) return;
       // 如果已经加载过并要求优先使用缓存
-      if (this.isLoaded) return;
+      if (this.isLoaded && !force) return;
 
       this.isLoading = true;
       try {

@@ -957,7 +957,7 @@ const supplementReasonOptions = ref([])
 // 获取补料原因
 const fetchSupplementReasons = async () => {
     try {
-        const res = await financeApi.getCostSupplementReasons()
+        const res = await financeApi.cost.getSupplementReasons()
         supplementReasonOptions.value = parseListData(res, { enableLog: false })
     } catch (error) {
         console.error('获取补料原因失败', error)

@@ -635,7 +635,11 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Refresh } from '@element-plus/icons-vue'
 import { inventoryApi, baseDataApi, systemApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
-import { getBusinessTypeCategoryColor } from '@/constants/systemConstants'
+import {
+  getApprovalStatusColor,
+  getApprovalStatusText as getApprovalStatusDictionaryText,
+  getBusinessTypeCategoryColor
+} from '@/constants/systemConstants'
 import { searchMaterials } from '@/utils/searchConfig'
 import { parseListData } from '@/utils/responseParser'
 import { loadLocationOptions } from '@/utils/optionLoaders'
@@ -811,17 +815,12 @@ const getBusinessTypeTag = (code) => {
 
 // 获取审批状态文本
 const getApprovalStatusText = (status) => {
-  return getApprovalStatusText(status) || '待审批'
+  return getApprovalStatusDictionaryText(status) || '待审批'
 }
 
 // 获取审批状态标签类型
 const getApprovalStatusTag = (status) => {
-  const tagMap = {
-    'pending': 'warning',
-    'approved': 'success',
-    'rejected': 'danger'
-  }
-  return tagMap[status] || 'warning'
+  return getApprovalStatusColor(status) || 'warning'
 }
 
 // 加载仓库列表

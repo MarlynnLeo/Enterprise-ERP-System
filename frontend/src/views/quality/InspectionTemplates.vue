@@ -53,6 +53,7 @@
               <el-option label="来料检验" value="incoming" />
               <el-option label="过程检验" value="process" />
               <el-option label="成品检验" value="final" />
+              <el-option label="首件检验" value="first_article" />
             </el-select>
           </el-col>
 
@@ -224,6 +225,7 @@
             <el-option label="来料检验" value="incoming" />
             <el-option label="过程检验" value="process" />
             <el-option label="成品检验" value="final" />
+            <el-option label="首件检验" value="first_article" />
           </el-select>
         </el-form-item>
 

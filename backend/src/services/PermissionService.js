@@ -50,6 +50,17 @@ const PERMISSION_ALIASES = {
   'system:print:template:add': 'system:print:create',
   'system:print:template:edit': 'system:print:update',
   'system:print:template:delete': 'system:print:delete',
+  'finance:ap:invoices:create': 'finance:ap:create',
+  'finance:ap:invoices:update': 'finance:ap:update',
+  'finance:ap:invoices:delete': 'finance:ap:update',
+  'finance:payments:create': 'finance:ap:pay',
+  'finance:payments:print': 'finance:ap:view',
+  'finance:payments:void': 'finance:ap:update',
+};
+
+const EXACT_PERMISSION_ALIASES = {
+  'finance:ap:invoices': 'finance:ap:view',
+  'finance:payments': 'finance:ap:view',
 };
 
 /**
@@ -61,12 +72,19 @@ function expandPermissionsWithAliases(permissions) {
   const expanded = new Set(permissions);
 
   for (const perm of permissions) {
-    // 正向：如果 perm 匹配别名左侧，添加右侧
+    for (const [alias, canonical] of Object.entries(EXACT_PERMISSION_ALIASES)) {
+      if (perm === alias) {
+        expanded.add(canonical);
+      }
+      if (perm === canonical) {
+        expanded.add(alias);
+      }
+    }
+
     for (const [alias, canonical] of Object.entries(PERMISSION_ALIASES)) {
       if (perm === alias || perm.startsWith(`${alias}:`)) {
         expanded.add(perm.replace(alias, canonical));
       }
-      // 反向：如果 perm 匹配别名右侧，添加左侧
       if (perm === canonical || perm.startsWith(`${canonical}:`)) {
         expanded.add(perm.replace(canonical, alias));
       }
