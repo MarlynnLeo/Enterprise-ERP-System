@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * InventoryTransfer.vue
  * @description 前端界面组件文件
@@ -346,7 +346,7 @@
               <el-input v-model="row.remark" placeholder="请输入备注" />
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="80" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+          <el-table-column label="操作" min-width="80" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="{ $index }">
               <el-button type="danger" link @click="removeTransferItem($index)" v-permission="'inventory:transfer:update'">
                 删除

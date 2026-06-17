@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * ProductionProcess.vue
  * @description 生产过程管理页面
@@ -306,7 +306,7 @@
               {{ scope.row.uploadTime ? dayjs(scope.row.uploadTime).format('YYYY-MM-DD HH:mm') : '-' }}
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="100" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+          <el-table-column label="操作" min-width="100" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="scope">
               <el-button size="small" type="primary" @click="openInstructionDoc(scope.row)">
                 查看
@@ -338,7 +338,7 @@
               {{ scope.row.uploadTime ? dayjs(scope.row.uploadTime).format('YYYY-MM-DD HH:mm') : '-' }}
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="100" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+          <el-table-column label="操作" min-width="100" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="scope">
               <el-button size="small" type="primary" @click="openInstructionDoc(scope.row)">
                 查看

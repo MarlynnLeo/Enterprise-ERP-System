@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="module-page page-container">
     <el-card class="header-card">
       <div class="header-content">
@@ -26,7 +26,7 @@
             <el-tag :type="row.is_active ? 'success' : 'info'" size="small">{{ row.is_active ? '启用' : '停用' }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <el-button link type="primary" @click="viewTemplate(row)">详情</el-button>
             <el-button link type="primary" v-permission="'system:workflow:edit'" @click="openTemplateForm(row)">编辑</el-button>

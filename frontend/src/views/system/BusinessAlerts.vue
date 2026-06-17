@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="module-page page-container">
     <!-- 页面头部卡片 -->
     <el-card class="header-card">
@@ -27,7 +27,7 @@
       <el-table-column prop="is_active" label="状态" width="70">
         <template #default="{ row }"><el-switch v-model="row.is_active" v-permission="'system:business-alerts:edit'" :active-value="1" :inactive-value="0" @change="toggleActive(row)" /></template>
       </el-table-column>
-      <el-table-column label="操作" width="80" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+      <el-table-column label="操作" min-width="80" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
         <template #default="{ row }"><el-button link type="primary" v-permission="'system:business-alerts:edit'" @click="openEdit(row)">配置</el-button></template>
       </el-table-column>
       </el-table>

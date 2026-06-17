@@ -91,9 +91,9 @@ class AsyncTaskService {
             }
             return;
           } else {
-            logger.warn(
-              `[异步任务] 跳过成本分录创建 - material_id 为空且非出库单: ${transactionData.reference_no}`
-            );
+      logger.warn(
+        `[异步任务] 不生成成本分录 - material_id 为空且非出库单: ${transactionData.reference_no}`
+      );
             return;
           }
         }

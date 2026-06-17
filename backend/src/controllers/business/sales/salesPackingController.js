@@ -685,13 +685,7 @@ async function calculateAndInsertMaterialsForPlan(connection, planId, productId,
 
       const productInfo =
         products.length > 0 ? `${products[0].code} - ${products[0].name} ` : `ID: ${productId} `;
-      logger.warn(`产品 ${productInfo} 未找到有效的BOM配置，跳过物料需求计算（可后续补充BOM）`);
-      // 在生产计划备注中标记，便于后续筛选和补充
-      await connection.execute(
-        "UPDATE production_plans SET remark = CONCAT(IFNULL(remark, ''), ' [待补充BOM]') WHERE id = ?",
-        [planId]
-      );
-      return;
+      throw new Error(`产品 ${productInfo} 未找到有效的BOM配置，不能生成生产计划物料需求`);
     }
 
     const bomId = bomMasters[0].id;
@@ -721,12 +715,7 @@ async function calculateAndInsertMaterialsForPlan(connection, planId, productId,
     );
 
     if (bomDetails.length === 0) {
-      logger.warn(`BOM ID ${bomId} 中没有物料明细，跳过物料需求计算`);
-      await connection.execute(
-        "UPDATE production_plans SET remark = CONCAT(IFNULL(remark, ''), ' [BOM无明细]') WHERE id = ?",
-        [planId]
-      );
-      return;
+      throw new Error(`BOM ID ${bomId} 中没有物料明细，不能生成生产计划物料需求`);
     }
 
     // 插入物料需求记录
@@ -811,7 +800,9 @@ async function generateProductionAndPurchasePlans(
               continue;
             }
           } catch (checkErr) {
-            logger.warn(`  ⚠️  检查已有生产计划失败（继续创建）: ${checkErr.message}`);
+            throw new Error(`检查已有生产计划失败，不能继续创建: ${checkErr.message}`, {
+              cause: checkErr,
+            });
           }
 
           // 使用统一的编号生成器逐个生成编号（保证唯一性和并发安全）
@@ -848,20 +839,10 @@ async function generateProductionAndPurchasePlans(
 
             const planId = insertResult.insertId;
 
-            // 计算并插入物料需求（没有BOM时跳过，不影响生产计划创建）
-            try {
-              await calculateAndInsertMaterialsForPlan(connection, planId, material_id, shortage);
-              logger.info(
-                `  ✅ 生产计划创建成功: ${planNo} (物料: ${material_name}, 数量: ${shortage}，已计算物料需求)`
-              );
-            } catch (materialError) {
-              // BOM缺失已在函数内部处理（warn+return+标记remark），
-              // 到这里的只有真实系统错误（DB异常/SQL错误等），必须用 error 级别记录
-              logger.error(
-                `生产计划 ${planNo} 物料需求计算异常（非BOM缺失，请排查）: ${materialError.message}`,
-                { stack: materialError.stack }
-              );
-            }
+            await calculateAndInsertMaterialsForPlan(connection, planId, material_id, shortage);
+            logger.info(
+              `  ✅ 生产计划创建成功: ${planNo} (物料: ${material_name}, 数量: ${shortage}，已计算物料需求)`
+            );
             await DocumentLinkService.tryAutoLink(
               'sales_order',
               salesOrderId,
@@ -882,6 +863,7 @@ async function generateProductionAndPurchasePlans(
         logger.info(`✅ 生产计划处理完成: 创建 ${createdCount} 个，跳过 ${skippedCount} 个（已有计划）`);
       } catch (batchError) {
         logger.error('❌ 批量生成生产计划编号失败:', batchError.message);
+        throw batchError;
       }
     }
 
@@ -916,7 +898,9 @@ async function generateProductionAndPurchasePlans(
             logger.info(`📋 外购物料防重复: 原始 ${externalMaterials.length} 个，过滤后 ${filteredMaterials.length} 个`);
           }
         } catch (checkErr) {
-          logger.warn(`  ⚠️  检查已有采购申请失败（继续创建）: ${checkErr.message}`);
+          throw new Error(`检查已有采购申请失败，不能继续创建: ${checkErr.message}`, {
+            cause: checkErr,
+          });
         }
 
         if (filteredMaterials.length === 0) {

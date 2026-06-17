@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="module-page page-container">
     <!-- 页面头部卡片 -->
     <el-card class="header-card">
@@ -47,7 +47,7 @@
       <el-table-column prop="download_count" label="下载" width="60" />
       <el-table-column prop="created_by_name" label="上传人" width="100" />
       <el-table-column prop="created_at" label="上传时间" width="160" />
-      <el-table-column label="操作" width="140" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+      <el-table-column label="操作" min-width="140" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
         <template #default="{ row }">
           <el-button link type="primary" v-permission="'system:documents:view'" @click="handleDownload(row)">下载</el-button>
           <el-popconfirm title="确定删除？" @confirm="handleDelete(row.id)">

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="employees-container">
     <el-card>
       <template #header>
@@ -36,7 +36,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="240" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="240" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <el-button type="primary" size="small" link @click="handleEdit(row)"
               v-permission="'hr:employees:update'">编辑</el-button>

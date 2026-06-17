@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * TodoList.vue
  * @description 仪表盘待办事项列表组件
@@ -40,7 +40,7 @@
             </span>
           </template>
         </el-table-column>
-        <el-table-column :label="$t('common.action')" width="68" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column :label="$t('common.action')" min-width="68" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <el-button
               :type="activeTab === 'pending' ? 'primary' : 'info'"

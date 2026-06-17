@@ -81,7 +81,7 @@
             {{ formatDate(row.effective_date) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <el-button v-permission="'finance:pricing:update'" type="primary" size="small" @click="openPricingDrawer(row)">定价</el-button>
             <el-button type="success" size="small" @click="bom.handleViewBom(row, 'preview', pricing.currentProduct)">BOM</el-button>

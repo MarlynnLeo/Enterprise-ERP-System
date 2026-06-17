@@ -298,7 +298,9 @@ const loadInspectionData = async () => {
       try {
         const materialInfo = await baseDataApi.getMaterial(inspectionData.material_id)
         if (materialInfo?.data?.specs) inspectionData.specs = materialInfo.data.specs
-      } catch { /* 忽略 */ }
+      } catch (error) {
+        console.warn('获取物料型号失败:', error)
+      }
     }
 
     // 填充表单

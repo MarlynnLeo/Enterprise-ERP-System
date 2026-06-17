@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * Performance.vue
  * @description 前端界面组件文件
@@ -46,7 +46,7 @@
           <el-table-column prop="is_active" label="状态" width="80">
             <template #default="{ row }"><el-tag :type="row.is_active ? 'success' : 'info'" size="small">{{ row.is_active ? '启用' : '停用' }}</el-tag></template>
           </el-table-column>
-          <el-table-column label="操作" width="140" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+          <el-table-column label="操作" min-width="140" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="{ row }">
               <el-button link type="primary" v-permission="'hr:performance:edit'" @click="openIndicatorForm(row)">编辑</el-button>
               <el-popconfirm title="确定删除？" @confirm="delIndicator(row.id)">
@@ -71,7 +71,7 @@
               <el-tag :type="periodStatusTag[row.status]" size="small">{{ periodStatusLabel[row.status] }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="200" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+          <el-table-column label="操作" min-width="200" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="{ row }">
               <el-button v-if="row.status === 'draft'" link type="primary" v-permission="'hr:performance:edit'" @click="updatePeriodStatus(row.id, 'in_progress')">开始</el-button>
               <el-button v-if="row.status === 'in_progress'" link type="success" v-permission="'hr:performance:edit'" @click="updatePeriodStatus(row.id, 'scoring')">评分</el-button>
@@ -96,7 +96,7 @@
             <template #default="{ row }"><el-tag :type="evalStatusTag[row.status] || 'info'" size="small">{{ evalStatusLabel[row.status] || row.status }}</el-tag></template>
           </el-table-column>
           <el-table-column prop="evaluator_name" label="考核人" width="100" />
-          <el-table-column label="操作" width="120" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+          <el-table-column label="操作" min-width="120" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="{ row }">
               <el-button link type="primary" v-permission="row.status === 'completed' ? 'hr:performance:view' : 'hr:performance:edit'" @click="viewEval(row)">{{ row.status === 'completed' ? '查看' : '评分' }}</el-button>
             </template>

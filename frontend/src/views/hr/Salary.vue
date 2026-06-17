@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="salary-container">
     <el-card class="box-card">
       <template #header>
@@ -50,7 +50,7 @@
         </el-table-column>
 
         <!-- 操作 -->
-        <el-table-column label="操作" width="100" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="100" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <el-tag v-if="row.status==='approved'" type="success">已确认</el-tag>
             <el-button v-else size="small" type="primary" v-permission="'hr:salary:update'" @click="handleConfirm(row)">确认</el-button>

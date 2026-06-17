@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="app-container">
     <el-card class="header-card">
       <div class="header-content">
@@ -81,7 +81,7 @@
                 {{ row.message || '正常' }}
               </template>
             </el-table-column>
-            <el-table-column label="处理" width="140" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+            <el-table-column label="处理" min-width="140" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="{ row }">
                 <div class="table-actions">
                   <el-button
@@ -343,7 +343,7 @@
             <el-tag v-else type="success">正常</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="230" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="230" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <div class="table-actions">
               <el-button size="small" @click="openEntryDetail(row)">明细</el-button>

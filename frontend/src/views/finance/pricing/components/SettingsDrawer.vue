@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <!-- 定价设置抽屉 -->
   <el-drawer
     v-model="visible"
@@ -94,7 +94,7 @@
                 />
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="150" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+            <el-table-column label="操作" min-width="150" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="{ row }">
                 <el-button type="primary" link size="small" @click="$emit('edit-field', row)" v-permission="'finance:pricing:update'">编辑</el-button>
                 <el-button type="danger" link size="small" @click="$emit('delete-field', row)" v-permission="'finance:pricing:delete'">删除</el-button>

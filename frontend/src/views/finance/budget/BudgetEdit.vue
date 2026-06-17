@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="budget-edit-container">
     <el-card>
       <template #header>
@@ -144,7 +144,7 @@
               <el-input v-model="row.description" placeholder="请输入说明" />
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="80" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+          <el-table-column label="操作" min-width="80" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="{ $index }">
               <el-button v-permission="isEdit ? 'finance:budgets:update' : 'finance:budgets:create'" link type="danger" size="small" @click="handleDeleteDetail($index)">删除</el-button>
             </template>

@@ -1394,7 +1394,7 @@ class CostAccountingService {
         }
       } else {
         logger.warn(
-          `未配置GL标准化科目映射 (4001 或 1405 缺失)，跳过生成凭证: Order ${productionOrderId}`
+          `未配置GL标准化科目映射 (4001 或 1405 缺失)，不能生成凭证: Order ${productionOrderId}`
         );
         throw new Error(`未配置生产成本总账科目映射，不能完成成本结转: Order ${productionOrderId}`);
       }
@@ -2929,7 +2929,7 @@ class CostAccountingService {
       }
 
       if (outboundItems.length === 0) {
-        logger.debug(`[MaterialVoucher] 任务 ${taskId} 无领料记录，跳过凭证生成`);
+        logger.debug(`[MaterialVoucher] 任务 ${taskId} 无领料记录，无需生成凭证`);
         if (shouldManageTransaction) await conn.commit();
         return { skipped: true, reason: '无领料记录' };
       }
@@ -2940,9 +2940,7 @@ class CostAccountingService {
       );
 
       if (totalMaterialCost <= 0) {
-        logger.debug(`[MaterialVoucher] 任务 ${taskId} 领料成本为0，跳过凭证生成`);
-        if (shouldManageTransaction) await conn.commit();
-        return { skipped: true, reason: '领料成本为0' };
+        throw new Error(`任务 ${taskId} 领料成本为 0，不能生成生产领料凭证，请先核对出库成本`);
       }
 
       // 4. 获取会计科目
@@ -3389,7 +3387,7 @@ class CostAccountingService {
       }
 
       if (totalWIP <= 0) {
-        logger.info(`[WIPVoucher] 期间 ${periodId} 无在制品成本，跳过凭证生成`);
+        logger.info(`[WIPVoucher] 期间 ${periodId} 无在制品成本，无需生成凭证`);
         await connection.commit();
         return {
           skipped: true,
@@ -3627,8 +3625,7 @@ class CostAccountingService {
       const totalCost = Precision.round2(Precision.mul(quantity, unitCost));
 
       if (totalCost <= 0) {
-        if (shouldManageTransaction) await conn.commit();
-        return { skipped: true, reason: '成本为0' };
+        throw new Error(`销售成本凭证成本为0，不能生成凭证。salesId=${salesId}, productId=${productId}`);
       }
 
       // 获取产品信息

@@ -14,7 +14,6 @@ const {
   MANUAL_INVOICE_STATUS_TRANSITIONS,
   BANK_BACKED_PAYMENT_METHODS,
 } = require('../constants/financeConstants');
-const { getUserIdByIdentifier } = require('../utils/userUtils');
 const AccountMappingService = require('../services/finance/AccountMappingService');
 const DocumentLinkService = require('../services/business/DocumentLinkService');
 const { financeConfig } = require('../config/financeConfig');
@@ -183,6 +182,14 @@ const linkBankTransactionToVoucher = async (
 };
 
 const resolvePurchaseInvoiceAccounts = async (connection, invoice) => {
+  if (invoice.gl_entry) {
+    return {
+      purchaseCostAccountId:
+        invoice.gl_entry.purchase_cost_account_id || invoice.gl_entry.expense_account_id,
+      payableAccountId: invoice.gl_entry.payable_account_id,
+    };
+  }
+
   const mapping = await AccountMappingService.getDefaultMapping('purchase_invoice', {
     supplier_id: invoice.supplier_id,
   });
@@ -363,115 +370,16 @@ const apModel = {
         );
       }
 
-      // 如果发票状态为"已确认"，则创建会计分录
-      if (invoiceData.status === '已确认') {
-        // 如果没有提供会计分录信息，尝试从配置中获取
-        if (!invoiceData.gl_entry) {
-          logger.info('[AP] 未提供会计分录信息，尝试从配置中获取默认科目映射');
-          const mapping = await AccountMappingService.getDefaultMapping('purchase_invoice', {
-            supplier_id: invoiceData.supplier_id,
-          });
-
-          if (mapping && mapping.debit_account_id && mapping.credit_account_id) {
-            logger.info('[AP] 找到默认科目映射:', mapping);
-
-            // 获取当前会计期间
-            let periodId = null;
-            try {
-              const entryDate = toLocalDateString(invoiceData.invoice_date || currentDateString());
-              const [periods] = await conn.execute(
-                `SELECT id FROM gl_periods
-                 WHERE start_date <= ? AND end_date >= ? AND is_closed = 0
-                 ORDER BY start_date DESC LIMIT 1`,
-                [entryDate, entryDate]
-              );
-              if (periods.length > 0) {
-                periodId = periods[0].id;
-              }
-            } catch (err) {
-              logger.warn('[AP] 获取会计期间失败，会计分录可能缺少期间信息:', err.message);
-            }
-
-            invoiceData.gl_entry = {
-              purchase_cost_account_id: mapping.debit_account_id,
-              payable_account_id: mapping.credit_account_id,
-              period_id: periodId,
-              created_by: invoiceData.created_by || 'system',
-            };
-          } else {
-            logger.warn('[AP] 未找到科目映射配置，跳过会计分录创建');
-          }
+      // 已确认发票必须同步生成总账凭证；缺科目、期间或凭证校验失败时回滚整张发票。
+      if (invoiceData.status === INVOICE_STATUS.CONFIRMED) {
+        if (!amountPolicy.isCreditNote && toCents(invoiceData.total_amount) <= 0) {
+          throw new Error('发票金额必须大于0才能确认');
         }
-
-        // 如果有会计分录信息（提供的或从配置获取的），创建会计分录
-        if (invoiceData.gl_entry) {
-          // [C-1] 日志降级：生产环境避免输出敏感财务信息
-          logger.debug('[AP] 准备创建会计分录，invoiceData:', {
-            invoice_number: invoiceData.invoice_number,
-            invoice_date: invoiceData.invoice_date,
-            invoice_date_type: typeof invoiceData.invoice_date,
-            supplier_name: invoiceData.supplier_name,
-            total_amount: invoiceData.total_amount,
-            gl_entry: invoiceData.gl_entry,
-          });
-
-          // 转换 created_by 为用户ID
-          const createdById = await getUserIdByIdentifier(
-            conn,
-            invoiceData.gl_entry.created_by ?? 'system'
-          );
-
-          const entryData = {
-            entry_number: invoiceData.gl_entry.entry_number ?? null,
-            entry_date: invoiceData.invoice_date ?? null,
-            posting_date: invoiceData.invoice_date ?? null,
-            document_type: '发票',
-            document_number: invoiceData.invoice_number ?? null,
-            period_id: invoiceData.gl_entry.period_id ?? null,
-            description: `供应商 ${invoiceData.supplier_name || '未知供应商'} 应付账款`,
-            created_by: createdById,
-            status: 'posted',
-            is_posted: 1,
-          };
-
-          logger.debug('[AP] entryData准备完成:', entryData);
-
-          // 应付账款分录明细
-          const entryItems = [
-            // 借：采购成本/库存商品
-            {
-              account_id:
-                invoiceData.gl_entry.purchase_cost_account_id ??
-                invoiceData.gl_entry.expense_account_id ??
-                null,
-              debit_amount: amountPolicy.isCreditNote ? 0 : amountPolicy.absoluteAmount,
-              credit_amount: amountPolicy.isCreditNote ? amountPolicy.absoluteAmount : 0,
-              currency_code: invoiceData.currency_code ?? financeConfig.get('invoice.defaultCurrency', 'CNY'),
-              exchange_rate: invoiceData.exchange_rate ?? 1,
-              description: `采购成本 - 发票号: ${invoiceData.invoice_number}`,
-            },
-            // 贷：应付账款
-            {
-              account_id: invoiceData.gl_entry.payable_account_id ?? null,
-              debit_amount: amountPolicy.isCreditNote ? amountPolicy.absoluteAmount : 0,
-              credit_amount: amountPolicy.isCreditNote ? 0 : amountPolicy.absoluteAmount,
-              currency_code: invoiceData.currency_code ?? financeConfig.get('invoice.defaultCurrency', 'CNY'),
-              exchange_rate: invoiceData.exchange_rate ?? 1,
-              description: `应付账款 - 发票号: ${invoiceData.invoice_number}`,
-            },
-          ];
-
-          // 创建会计分录并写入单据链
-          const entryId = await financeModel.createEntry(entryData, entryItems, conn);
-          await linkDocumentToVoucher(
-            conn,
-            'ap_invoice',
-            invoiceId,
-            invoiceData.invoice_number,
-            entryId,
-            createdById
-          );
-        }
+        await createInvoiceConfirmationEntry(
+          conn,
+          { ...invoiceData, id: invoiceId },
+          invoiceData.created_by || 'system'
+        );
       }
 
       if (!connection) {

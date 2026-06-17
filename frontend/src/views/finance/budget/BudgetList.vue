@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="module-page budget-list-container">
     <el-card class="header-card">
       <div class="header-content">
@@ -88,7 +88,7 @@
         </el-table-column>
         <el-table-column prop="creator_name" label="创建人" width="100" />
         <el-table-column prop="created_at" label="创建时间" width="160" />
-        <el-table-column label="操作" width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <el-button link type="primary" size="small" @click="handleView(row)">查看</el-button>
             <el-button link type="primary" size="small" @click="handleEdit(row)" v-if="isBudgetStatus(row.status, 'draft')"

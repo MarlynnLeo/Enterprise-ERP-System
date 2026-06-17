@@ -123,7 +123,7 @@ exports.getUserStatistics = async (req, res) => {
       logger.info(`待办统计: 总数=${totalTodos}, 已完成=${completedTodos}`);
     } catch (todoError) {
       logger.error('查询待办事项失败:', todoError);
-      // 继续执行，使用默认值
+      throw todoError;
     }
 
     // 获取真实登录统计数据
@@ -234,12 +234,7 @@ exports.getUserStatistics = async (req, res) => {
     } catch (dbError) {
       logger.error('查询用户统计数据失败:', dbError);
       logger.error('请确保audit_logs表已创建。运行: node src/database/run-audit-logs-migration.js');
-      // 数据库查询失败时返回0值
-      loginCount = 0;
-      daysActive = 0;
-      lastLogin = new Date();
-      todayOnlineTime = 0;
-      totalOnlineTime = 0;
+      throw dbError;
     }
 
     const statistics = {

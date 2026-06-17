@@ -59,26 +59,17 @@ class CashReportsModel {
       [startDate, endDate]
     );
 
-    // 获取已知的未来现金流，如计划的交易
-    // 注意：需确保 planned_transactions 表存在，否则这一步可能会报错
-    // 这里保留原逻辑，假设表存在或后续会添加
-    let plannedTransactions = [];
-    try {
-      const [pt] = await db.pool.execute(
-        `SELECT
-          DATE(transaction_date) as date,
-          amount,
-          transaction_type as type,
-          description
-        FROM planned_transactions
-        WHERE transaction_date BETWEEN ? AND ?`,
-        [startDate, endDate]
-      );
-      plannedTransactions = pt;
-    } catch (e) {
-      // 忽略表不存在错误
-      logger.warn('获取 planned_transactions 失败，可能是表不存在，跳过:', e.message);
-    }
+    const [plannedTransactions] = await db.pool.execute(
+      `SELECT
+        DATE(transaction_date) as date,
+        amount,
+        transaction_type as type,
+        description
+      FROM planned_transactions
+      WHERE transaction_date BETWEEN ? AND ?
+        AND status IN ('planned', 'approved')`,
+      [startDate, endDate]
+    );
 
     // 合并所有现金流数据
     const cashFlows = [...receivables, ...payables, ...plannedTransactions].sort(

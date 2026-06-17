@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * InventoryStock.vue
  * @description 前端界面组件文件
@@ -267,7 +267,7 @@
                 {{ formatDateTime(row.last_transaction_date, 'YYYY-MM-DD HH:mm:ss') }}
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="120" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+            <el-table-column label="操作" min-width="120" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="{ row }">
                 <el-button size="small" type="primary" link @click="showBatchTransactions(row.batch_number)">
                   查看流水

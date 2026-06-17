@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <!-- BOM价格调整对话框(定价设置专用,简化版) -->
   <el-dialog
     v-model="visible"
@@ -33,7 +33,7 @@
               <span class="subtotal-value">{{ formatPrice(row.subtotal) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="130" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+          <el-table-column label="操作" min-width="130" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="{ row }">
               <div class="bom-actions">
                 <el-button v-permission="'finance:pricing:update'" type="primary" link size="small" @click="$emit('adjust', row)">

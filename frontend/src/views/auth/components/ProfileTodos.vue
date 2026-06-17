@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <el-card class="profile-card profile-todos-card" shadow="hover">
     <template #header>
       <div class="todo-header">
@@ -144,7 +144,7 @@
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+      <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
         <template #default="{ row }">
           <div class="row-actions">
             <el-button

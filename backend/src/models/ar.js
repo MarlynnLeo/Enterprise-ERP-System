@@ -16,7 +16,6 @@ const {
   MANUAL_INVOICE_STATUS_TRANSITIONS,
   BANK_BACKED_PAYMENT_METHODS,
 } = require('../constants/financeConstants');
-const { getUserIdByIdentifier } = require('../utils/userUtils');
 const DocumentLinkService = require('../services/business/DocumentLinkService');
 const { currentDateString, toLocalDateString } = require('../utils/dateUtils');
 
@@ -188,16 +187,20 @@ const createInvoiceConfirmationEntry = async (connection, invoice, createdBy = '
 
   await accountingConfig.loadFromDatabase(db);
   await financeConfig.loadFromDatabase(db);
-  const receivableAccountId = await getAccountIdByCode(
-    connection,
-    accountingConfig.getAccountCode('ACCOUNTS_RECEIVABLE'),
-    '应收账款'
-  );
-  const incomeAccountId = await getAccountIdByCode(
-    connection,
-    accountingConfig.getAccountCode('SALES_REVENUE'),
-    '销售收入'
-  );
+  const receivableAccountId =
+    invoice.gl_entry?.receivable_account_id ||
+    (await getAccountIdByCode(
+      connection,
+      accountingConfig.getAccountCode('ACCOUNTS_RECEIVABLE'),
+      '应收账款'
+    ));
+  const incomeAccountId =
+    invoice.gl_entry?.income_account_id ||
+    (await getAccountIdByCode(
+      connection,
+      accountingConfig.getAccountCode('SALES_REVENUE'),
+      '销售收入'
+    ));
   const periodId = await getOpenPeriodIdByDate(connection, invoice.invoice_date);
   const amountPolicy = normalizeInvoiceAmountPolicy(invoice);
 
@@ -343,70 +346,15 @@ const arModel = {
         );
       }
 
-      // 如果发票状态为"已确认"，则创建会计分录
-      if (invoiceData.status === '已确认' && invoiceData.gl_entry) {
-        // 转换 created_by 为用户ID
-        const createdById = await getUserIdByIdentifier(
-          connection,
-          invoiceData.gl_entry.created_by ?? 'system'
-        );
-
-        // 由于 invoiceData 可能没有携带 customer_name，我们需要查询出来
-        let actualCustomerName = invoiceData.customer_name;
-        if (!actualCustomerName && invoiceData.customer_id) {
-          const [customers] = await connection.query(
-            'SELECT name FROM customers WHERE id = ? AND deleted_at IS NULL',
-            [invoiceData.customer_id]
-          );
-          if (customers.length > 0) {
-            actualCustomerName = customers[0].name;
-          }
+      // 已确认发票必须同步生成总账凭证；缺科目、期间或凭证校验失败时回滚整张发票。
+      if (invoiceData.status === INVOICE_STATUS.CONFIRMED) {
+        if (!amountPolicy.isCreditNote && toCents(invoiceData.total_amount) <= 0) {
+          throw new Error('发票金额必须大于0才能确认');
         }
-
-        const entryData = {
-          entry_number: invoiceData.gl_entry.entry_number ?? null,
-          entry_date: invoiceData.invoice_date ?? null,
-          posting_date: invoiceData.invoice_date ?? null,
-          document_type: '发票',
-          document_number: invoiceData.invoice_number ?? null,
-          period_id: invoiceData.gl_entry.period_id ?? null,
-          description: `客户 ${actualCustomerName || '未知客户'} 应收账款`,
-          created_by: createdById,
-          status: 'posted',
-          is_posted: 1,
-        };
-
-        // 应收账款分录明细
-        const entryItems = [
-          // 借：应收账款
-          {
-            account_id: invoiceData.gl_entry.receivable_account_id ?? null,
-            debit_amount: amountPolicy.isCreditNote ? 0 : amountPolicy.absoluteAmount,
-            credit_amount: amountPolicy.isCreditNote ? amountPolicy.absoluteAmount : 0,
-            currency_code: invoiceData.currency_code ?? financeConfig.get('invoice.defaultCurrency', 'CNY'),
-            exchange_rate: invoiceData.exchange_rate ?? 1,
-            description: `应收账款 - 发票号: ${invoiceData.invoice_number}`,
-          },
-          // 贷：销售收入
-          {
-            account_id: invoiceData.gl_entry.income_account_id ?? null,
-            debit_amount: amountPolicy.isCreditNote ? amountPolicy.absoluteAmount : 0,
-            credit_amount: amountPolicy.isCreditNote ? 0 : amountPolicy.absoluteAmount,
-            currency_code: invoiceData.currency_code ?? financeConfig.get('invoice.defaultCurrency', 'CNY'),
-            exchange_rate: invoiceData.exchange_rate ?? 1,
-            description: `销售收入 - 发票号: ${invoiceData.invoice_number}`,
-          },
-        ];
-
-        // 创建会计分录并写入单据链
-        const entryId = await financeModel.createEntry(entryData, entryItems, connection);
-        await linkDocumentToVoucher(
+        await createInvoiceConfirmationEntry(
           connection,
-          'ar_invoice',
-          invoiceId,
-          invoiceData.invoice_number,
-          entryId,
-          createdById
+          { ...invoiceData, id: invoiceId },
+          invoiceData.created_by || 'system'
         );
       }
 
@@ -875,20 +823,18 @@ const arModel = {
       if (connection) {
         try {
           await connection.rollback();
-        } catch {
-          /* 忽略 */
+        } catch (rollbackError) {
+          logger.warn('回滚应收账款发票事务失败:', rollbackError.message);
         }
-        // 静默忽略该错误
       }
       throw error;
     } finally {
       if (connection) {
         try {
           connection.release();
-        } catch {
-          /* 忽略 */
+        } catch (releaseError) {
+          logger.warn('释放应收账款发票连接失败:', releaseError.message);
         }
-        // 静默忽略该错误
       }
     }
   },

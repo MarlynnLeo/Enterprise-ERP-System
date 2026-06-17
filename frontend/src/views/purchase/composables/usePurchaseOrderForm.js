@@ -11,7 +11,7 @@ import { parseListData, parseResponseData } from '@/utils/responseParser'
 import { searchMaterials } from '@/utils/searchConfig'
 import { useFinanceStore } from '@/stores/finance'
 import { storeToRefs } from 'pinia'
-import { DEFAULT_DELIVERY_DAYS, DEFAULT_VAT_RATE } from '@/constants/purchaseConstants'
+import { DEFAULT_PURCHASE_DELIVERY_DAYS, DEFAULT_PURCHASE_VAT_RATE } from '@/constants/systemConstants'
 import { formatDate } from '@/utils/helpers/dateUtils'
 
 /**
@@ -87,7 +87,7 @@ const toNumberOrNull = (value) => {
   const number = Number(normalized)
   return Number.isNaN(number) ? null : number
 }
-const normalizeTaxRate = (rate, fallback = DEFAULT_VAT_RATE) => {
+const normalizeTaxRate = (rate, fallback = DEFAULT_PURCHASE_VAT_RATE) => {
   const number = toNumberOrNull(rate)
   if (number === null) return fallback
   return number > 1 ? number / 100 : number
@@ -149,7 +149,7 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
     expected_delivery_date: '', supplier_id: '', supplier_name: '',
     contact_person: '', contact_phone: '', notes: '',
     requisition_id: null, requisition_number: '', status: 'draft',
-    tax_rate: DEFAULT_VAT_RATE, subtotal: 0, tax_amount: 0, items: []
+    tax_rate: DEFAULT_PURCHASE_VAT_RATE, subtotal: 0, tax_amount: 0, items: []
   })
 
   const orderRules = {
@@ -388,7 +388,7 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
   // ========== 表单操作 ==========
   const resetOrderForm = () => {
     const deliveryDate = new Date()
-    deliveryDate.setDate(deliveryDate.getDate() + DEFAULT_DELIVERY_DAYS)
+    deliveryDate.setDate(deliveryDate.getDate() + DEFAULT_PURCHASE_DELIVERY_DAYS)
     Object.assign(orderForm, {
       order_number: '', order_date: formatLocalDate(new Date()),
       expected_delivery_date: formatLocalDate(deliveryDate),

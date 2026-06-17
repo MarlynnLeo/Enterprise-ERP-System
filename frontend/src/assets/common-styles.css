@@ -334,6 +334,13 @@
   margin-left: 6px;
 }
 
+/* 全局表格单元格不换行 — 超出内容显示省略号，配合 show-overflow-tooltip 悬浮查看 */
+.el-table .cell {
+  white-space: nowrap !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .el-table .operation-column .cell,
 .el-table .el-table__cell.operation-column .cell {
   display: flex;

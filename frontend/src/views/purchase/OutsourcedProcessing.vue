@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * OutsourcedProcessing.vue
  * @description 前端界面组件文件
@@ -324,7 +324,7 @@
                 <span v-else>{{ scope.row.remark }}</span>
               </template>
             </el-table-column>
-            <el-table-column v-if="!viewOnly" label="操作" width="80" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+            <el-table-column v-if="!viewOnly" label="操作" min-width="80" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="scope">
                 <el-button
                   type="danger"
@@ -406,7 +406,7 @@
                 <span v-else>{{ scope.row.remark }}</span>
               </template>
             </el-table-column>
-            <el-table-column v-if="!viewOnly" label="操作" width="80" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+            <el-table-column v-if="!viewOnly" label="操作" min-width="80" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="scope">
                 <el-button
                   type="danger"
@@ -465,7 +465,7 @@
         <el-table-column prop="name" label="物料名称" min-width="150" />
         <el-table-column prop="specification" label="规格" min-width="120" />
         <el-table-column prop="unit_name" label="单位" width="80" />
-        <el-table-column label="操作" width="80" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="80" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button
               type="primary"
@@ -507,7 +507,7 @@
         <el-table-column prop="name" label="成品名称" min-width="150" />
         <el-table-column prop="specification" label="规格" min-width="120" />
         <el-table-column prop="unit_name" label="单位" width="80" />
-        <el-table-column label="操作" width="80" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="80" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button
               type="primary"

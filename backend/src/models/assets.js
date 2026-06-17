@@ -508,17 +508,9 @@ const assetsModel = {
           totalPages: noPagination ? 1 : Math.ceil(total / pagination.pageSize),
         },
       };
-    } catch {
-      // 出错时返回空结果而不是抛出异常
-      return {
-        assets: [],
-        pagination: {
-          total: 0,
-          page: page,
-          pageSize: pageSize,
-          totalPages: 0,
-        },
-      };
+    } catch (error) {
+      logger.error('获取资产列表失败:', error);
+      throw error;
     }
   },
 
@@ -1579,17 +1571,9 @@ const assetsModel = {
         "SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'asset_categories'"
       );
 
-      // 如果表不存在，直接返回空结果
       if (tables.length === 0) {
-        // 表结构由 migrations/20260312000008_baseline_asset_bank_tables.js 管理
-        // 如果表不存在，说明迁移尚未执行
         logger.warn('asset_categories 表不存在，请确认 Knex 迁移已执行');
-        return {
-          data: [],
-          total: 0,
-          page: 1,
-          limit: limit,
-        };
+        throw new Error('asset_categories 表不存在，请先运行 Knex 迁移');
       }
 
       // 转换参数为数字

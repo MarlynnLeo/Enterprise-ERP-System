@@ -7,8 +7,13 @@ import { ref, reactive, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { purchaseApi } from '@/api'
 import printService from '@/services/printService'
-import { PURCHASE_STATUS_ACTION_TEXT, isValidStatusTransition, getStatusLabel } from '@/constants/purchaseConstants'
-import { getPurchaseStatusText, getPurchaseStatusColor } from '@/constants/systemConstants'
+import {
+  PURCHASE_STATUS_ACTION_TEXT,
+  getPurchaseStatusColor,
+  getPurchaseStatusLabel,
+  getPurchaseStatusText,
+  isValidStatusTransition
+} from '@/constants/systemConstants'
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { formatCurrency } from '@/utils/format'
 import { parseResponseData } from '@/utils/responseParser'
@@ -160,8 +165,8 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
       const orderRes = await purchaseApi.getOrder(id)
       if (!orderRes || !orderRes.data) { ElMessage.error('获取订单信息失败，无法更新状态'); return }
       const currentStatus = orderRes.data.status
-      if (currentStatus === status) { ElMessage.info(`订单当前已经是"${getStatusLabel(status)}"状态`); return }
-      if (!isValidStatusTransition(currentStatus, status)) { ElMessage.error(`无法将订单从"${getStatusLabel(currentStatus)}"状态转换为"${getStatusLabel(status)}"状态`); return }
+      if (currentStatus === status) { ElMessage.info(`订单当前已经是"${getPurchaseStatusLabel(status)}"状态`); return }
+      if (!isValidStatusTransition(currentStatus, status)) { ElMessage.error(`无法将订单从"${getPurchaseStatusLabel(currentStatus)}"状态转换为"${getPurchaseStatusLabel(status)}"状态`); return }
       await ElMessageBox.confirm(`确定要${PURCHASE_STATUS_ACTION_TEXT[status] || '更新'}此采购订单吗？`, '提示', { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' })
       await purchaseApi.updateOrderStatus(id, status)
       ElMessage.success(`订单已${PURCHASE_STATUS_ACTION_TEXT[status] || '更新'}`)
@@ -171,7 +176,7 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
       console.error('更新订单状态失败:', error)
       if (error.response && error.response.data) {
         const errorData = error.response.data
-        if (errorData.error === '当前已经是该状态') ElMessage.info(`订单当前已经是"${getStatusLabel(status)}"状态`)
+        if (errorData.error === '当前已经是该状态') ElMessage.info(`订单当前已经是"${getPurchaseStatusLabel(status)}"状态`)
         else if (errorData.message) ElMessage.error(`更新失败: ${errorData.message}`)
         else if (errorData.error?.message) ElMessage.error(`更新失败: ${errorData.error.message}`)
         else if (errorData.error) ElMessage.error(`更新失败: ${errorData.error}`)

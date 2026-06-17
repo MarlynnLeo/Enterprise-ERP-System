@@ -56,7 +56,7 @@
             {{ formatDate(scope.row.created_at) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="150" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="150" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button size="small" type="primary" @click="viewDetail(scope.row)">
               {{ scope.row.status === '进行中' ? '去盘点' : '查看报告' }}
@@ -168,7 +168,7 @@
               <el-input v-else v-model="scope.row.editNotes" size="small" placeholder="差异说明..." @blur="saveItemNotes(scope.row)"></el-input>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="100" fixed="right" v-if="detailData.status === '进行中'" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+          <el-table-column label="操作" min-width="100" fixed="right" v-if="detailData.status === '进行中'" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="scope">
               <el-button
                 v-permission="'finance:assets:update'"

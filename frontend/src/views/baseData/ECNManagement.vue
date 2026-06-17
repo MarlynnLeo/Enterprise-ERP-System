@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="module-page base-data-list-page page-container">
     <!-- 页面头部卡片 -->
     <el-card class="header-card">
@@ -54,20 +54,34 @@
       </el-table-column>
       <el-table-column prop="requested_by_name" label="申请人" width="100" />
       <el-table-column prop="effective_date" label="生效日期" width="110" />
-      <el-table-column label="操作" width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+      <el-table-column label="操作" min-width="380" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
         <template #default="{ row }">
-          <el-button link type="primary" v-permission="'basedata:ecn:view'" @click="viewDetail(row)">详情</el-button>
+          <el-button size="small" type="primary" v-permission="'basedata:ecn:view'" @click="viewDetail(row)">
+            <el-icon><View /></el-icon> 详情
+          </el-button>
           <!-- 草稿 → 提交审批 -->
-          <el-button v-if="row.status === 'draft'" link type="warning" v-permission="'basedata:ecn:update'" @click="submitForApproval(row)">提交审批</el-button>
+          <el-button v-if="row.status === 'draft'" size="small" type="warning" v-permission="'basedata:ecn:update'" @click="submitForApproval(row)">
+            <el-icon><Promotion /></el-icon> 提交审批
+          </el-button>
           <!-- 已批准 → 开始实施 -->
-          <el-button v-if="row.status === 'approved'" link type="success" v-permission="'basedata:ecn:update'" @click="handleStatusChange(row, 'implementing')">开始实施</el-button>
+          <el-button v-if="row.status === 'approved'" size="small" type="success" v-permission="'basedata:ecn:update'" @click="handleStatusChange(row, 'implementing')">
+            <el-icon><VideoPlay /></el-icon> 开始实施
+          </el-button>
           <!-- 实施中 → 标记完成 -->
-          <el-button v-if="row.status === 'implementing'" link type="success" v-permission="'basedata:ecn:update'" @click="handleStatusChange(row, 'completed')">标记完成</el-button>
+          <el-button v-if="row.status === 'implementing'" size="small" type="success" v-permission="'basedata:ecn:update'" @click="handleStatusChange(row, 'completed')">
+            <el-icon><CircleCheck /></el-icon> 标记完成
+          </el-button>
           <!-- 已拒绝 → 退回草稿 -->
-          <el-button v-if="row.status === 'rejected'" link type="info" v-permission="'basedata:ecn:update'" @click="handleStatusChange(row, 'draft')">退回草稿</el-button>
+          <el-button v-if="row.status === 'rejected'" size="small" v-permission="'basedata:ecn:update'" @click="handleStatusChange(row, 'draft')">
+            <el-icon><RefreshLeft /></el-icon> 退回草稿
+          </el-button>
           <!-- 删除（草稿和已拒绝可删除） -->
-          <el-popconfirm v-if="['draft', 'rejected', 'cancelled'].includes(row.status)" title="确定删除？" @confirm="handleDelete(row.id)">
-            <template #reference><el-button link type="danger" v-permission="'basedata:ecn:delete'">删除</el-button></template>
+          <el-popconfirm v-if="['draft', 'rejected', 'cancelled'].includes(row.status)" title="确定删除？" @confirm="handleDelete(row.id)" confirm-button-type="danger">
+            <template #reference>
+              <el-button size="small" type="danger" v-permission="'basedata:ecn:delete'">
+                <el-icon><Delete /></el-icon> 删除
+              </el-button>
+            </template>
           </el-popconfirm>
         </template>
       </el-table-column>
@@ -209,9 +223,11 @@
               <span v-else>{{ row.new_value }}</span>
             </template>
           </el-table-column>
-          <el-table-column v-if="isEditable" label="操作" width="60" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+          <el-table-column v-if="isEditable" label="操作" min-width="80" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="{ $index }">
-              <el-button link type="danger" size="small" v-permission="formData.id ? 'basedata:ecn:update' : 'basedata:ecn:create'" @click="removeItem($index)">删除</el-button>
+              <el-button size="small" type="danger" v-permission="formData.id ? 'basedata:ecn:update' : 'basedata:ecn:create'" @click="removeItem($index)">
+                <el-icon><Delete /></el-icon> 删除
+              </el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -234,6 +250,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { ecnApi } from '@/api/enhanced'
 import { baseDataApi } from '@/api/baseData'
 import { bomApi } from '@/api/bom'
+import { View, Promotion, VideoPlay, CircleCheck, RefreshLeft, Delete } from '@element-plus/icons-vue'
 
 // 状态映射表
 const statusTypeMap = { draft:'info', pending_approval:'warning', approved:'success', implementing:'primary', completed:'success', rejected:'danger', cancelled:'info' }

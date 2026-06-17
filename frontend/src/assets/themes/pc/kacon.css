@@ -511,14 +511,14 @@
   text-transform: none;
   letter-spacing: 0;
   border-bottom: 1px solid var(--color-border-base) !important;
-  padding: 14px 0 !important;
+  padding: 8px 0 !important;
 }
 
 [data-theme="kacon"] .el-table td.el-table__cell {
   border-bottom: 1px solid var(--color-border-light) !important;
   color: var(--color-text-primary) !important;
   font-size: 13px !important;
-  padding: 14px 0 !important;
+  padding: 8px 0 !important;
 }
 
 [data-theme="kacon"] .el-table--border,

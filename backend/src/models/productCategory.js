@@ -334,27 +334,20 @@ const productCategoryModel = {
       }
 
       // 检查是否有关联的产品
-      try {
-        const productQuery = 'SELECT COUNT(*) as count FROM materials WHERE category_id = ?';
-        const productResult = await pool.query(productQuery, [id]);
+      const productQuery = 'SELECT COUNT(*) as count FROM materials WHERE category_id = ?';
+      const productResult = await pool.query(productQuery, [id]);
 
-        let productRows;
-        if (Array.isArray(productResult)) {
-          productRows = productResult[0];
-        } else if (productResult && productResult.rows) {
-          productRows = productResult.rows;
-        } else {
-          productRows = productResult;
-        }
+      let productRows;
+      if (Array.isArray(productResult)) {
+        productRows = productResult[0];
+      } else if (productResult && productResult.rows) {
+        productRows = productResult.rows;
+      } else {
+        productRows = productResult;
+      }
 
-        if (Array.isArray(productRows) && productRows.length > 0 && productRows[0]?.count > 0) {
-          throw new Error('该分类下存在产品，无法删除');
-        }
-      } catch (productError) {
-        // 如果表不存在，忽略这个检查
-        if (productError.code !== 'ER_NO_SUCH_TABLE') {
-          throw productError;
-        }
+      if (Array.isArray(productRows) && productRows.length > 0 && productRows[0]?.count > 0) {
+        throw new Error('该分类下存在产品，无法删除');
       }
 
       // ✅ 软删除替代硬删除

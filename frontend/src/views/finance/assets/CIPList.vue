@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="cip-list-container">
     <!-- 搜索栏 -->
     <FinanceQueryCard
@@ -84,7 +84,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <template v-if="row.status === '建设中'">
               <el-button v-permission="'finance:assets:update'" type="primary" link size="small" @click="handleAddCost(row)">归集成本</el-button>

@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * ProcessTemplates.vue
  * @description 前端界面组件文件
@@ -347,7 +347,7 @@
                 <el-input v-else v-model="row.remark" placeholder="请输入备注" />
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="80" v-if="dialogType !== 'view'" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+            <el-table-column label="操作" min-width="80" v-if="dialogType !== 'view'" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="{ $index }">
                 <el-button type="danger" size="small" @click="removeProcess($index)">
                   <el-icon><Delete /></el-icon>

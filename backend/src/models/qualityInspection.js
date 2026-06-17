@@ -955,21 +955,9 @@ class QualityInspection {
                           );
                           const unitId = unitInfo.length > 0 ? unitInfo[0].id : null;
 
-                          // ✅ 从源头确保入库单明细的批次号非空
-                          // 若质检单本身未填写批次号，则在此生成一个有效批次号
-                          // 并同步更新质检单的 batch_no 字段，保持数据一致性
-                          let itemBatchNo = (inspection.batch_no || '').trim();
+                          const itemBatchNo = (inspection.batch_no || '').trim();
                           if (!itemBatchNo) {
-                            itemBatchNo = `FQC-${inboundNo}-${task.product_id}`;
-                            // 同步写回质检单，避免后续查询仍为空
-                            await connection.execute(
-                              'UPDATE quality_inspections SET batch_no = ? WHERE id = ?',
-                              [itemBatchNo, id]
-                            );
-                            logger.warn(
-                              `[批次号自动生成] 质检单 ${id} 未填写批次号，` +
-                              `已自动生成批次号: ${itemBatchNo} 并同步写回质检单`
-                            );
+                            throw new Error(`成品检验单 ${id} 未填写批次号，不能自动创建生产入库单`);
                           }
 
                           const inboundQuantity = Number(data.qualified_quantity ?? inspection.qualified_quantity ?? 0);
@@ -977,7 +965,7 @@ class QualityInspection {
                             throw new Error(`成品检验单 ${id} 合格数量必须大于0，不能自动创建入库单`);
                           }
 
-                          // 创建入库单明细（批次号已保证非空）
+                          // 创建入库单明细
                           await connection.execute(
                             `INSERT INTO inventory_inbound_items(
           inbound_id, material_id, quantity, unit_id, location_id, batch_number, remark

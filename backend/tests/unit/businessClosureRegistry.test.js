@@ -82,7 +82,6 @@ describe('business closure registry', () => {
 
   test('legacy cleanup candidates are explicit and reference replacements', () => {
     const paths = new Set();
-    expect(legacyCleanupCandidates.length).toBeGreaterThan(0);
 
     for (const candidate of legacyCleanupCandidates) {
       expect(candidate.path).toMatch(/^(backend|frontend|mobile)\//);

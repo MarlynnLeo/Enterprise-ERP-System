@@ -114,7 +114,7 @@
         <el-table-column prop="payment_date" label="缴纳日期" width="120" />
         <el-table-column prop="creator_name" label="创建人" width="100" />
 
-        <el-table-column label="操作" width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <el-button type="primary" size="small" @click="handleView(row)" :icon="View">查看</el-button>
 

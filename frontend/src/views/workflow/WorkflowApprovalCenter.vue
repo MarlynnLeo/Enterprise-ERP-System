@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="module-page page-container">
     <el-card class="header-card">
       <div class="header-content">
@@ -33,7 +33,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="220" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="220" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <el-button link type="primary" @click="viewInstance(row)">详情</el-button>
             <template v-if="activeTab === 'pending'">

@@ -67,7 +67,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button v-permission="'finance:cost:update'" type="info" size="small" @click="openOverheadConfig(scope.row)">配置专费</el-button>
             <el-button type="primary" size="small" @click="viewDetail(scope.row)">详情</el-button>
@@ -222,7 +222,7 @@
             {{ scope.row.effective_date ? scope.row.effective_date.substring(0, 10) : '' }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="90" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="90" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button size="small" link type="danger" @click="deleteProductOverhead(scope.row)" v-permission="'finance:cost:delete'">删除</el-button>
           </template>

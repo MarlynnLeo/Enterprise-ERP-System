@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * InventoryOutbound.vue
  * @description 前端界面组件文件
@@ -155,7 +155,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="remark" label="备注" min-width="200" show-overflow-tooltip></el-table-column>
-        <el-table-column label="操作" width="420" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="420" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button size="small" v-permission="'inventory:outbound:view'" @click="handleView(scope.row)">
               查看
@@ -368,7 +368,7 @@
             </template>
           </el-table-column>
 
-          <el-table-column label="操作" width="80" fixed="right" v-if="dialogType !== 'view'" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+          <el-table-column label="操作" min-width="80" fixed="right" v-if="dialogType !== 'view'" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="scope">
               <el-button v-if="!scope.row.isSubstitute && !scope.row.is_from_plan" type="danger" size="small"
                 @click="handleRemoveItem(scope.row.originalIndex)"

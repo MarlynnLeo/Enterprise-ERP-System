@@ -82,41 +82,62 @@ export default defineConfig(({ mode }) => {
         transformMixedEsModules: true,
         requireReturnsDefault: 'auto'
       },
-      rollupOptions: {
+      rolldownOptions: {
         output: {
           // 确保正确的模块格式
           format: 'es',
-          // 完全禁用手动分块,让 Vite 自动处理
-          // 这样可以避免所有循环依赖和模块初始化顺序问题
-          manualChunks(id) {
-            if (!id.includes('node_modules')) {
-              return undefined
-            }
+          // 使用 Rolldown 分组拆分大型三方依赖，避免 Element Plus 单包过大。
+          // strictExecutionOrder 用于降低手动分组后的初始化顺序风险。
+          strictExecutionOrder: true,
+          codeSplitting: {
+            includeDependenciesRecursively: false,
+            minSize: 0,
+            groups: [{
+              name(id) {
+                if (!id.includes('node_modules')) {
+                  return null
+                }
 
-            const normalizedId = id.replace(/\\/g, '/')
+                const normalizedId = id.replace(/\\/g, '/')
 
-            if (/\/node_modules\/(vue|vue-router|pinia|vue-i18n)\//.test(normalizedId)) {
-              return 'vendor-vue'
-            }
-            if (/\/node_modules\/(element-plus|@element-plus)\//.test(normalizedId)) {
-              return 'vendor-element'
-            }
-            if (/\/node_modules\/(echarts|chart\.js|zrender)\//.test(normalizedId)) {
-              return 'vendor-charts'
-            }
-            if (normalizedId.includes('/node_modules/exceljs/')) {
-              return 'vendor-exceljs'
-            }
-            if (normalizedId.includes('/node_modules/@vue-office/docx/')) {
-              return 'vendor-office-docx'
-            }
-            if (normalizedId.includes('/node_modules/@vue-office/excel/')) {
-              return 'vendor-office-excel'
-            }
-            if (/\/node_modules\/(html2pdf\.js|jspdf|html2canvas)\//.test(normalizedId)) {
-              return 'vendor-pdf'
-            }
-            return undefined
+                if (/\/node_modules\/(vue|vue-router|pinia|vue-i18n)\//.test(normalizedId)) {
+                  return 'vendor-vue'
+                }
+                if (normalizedId.includes('/node_modules/@element-plus/icons-vue/')) {
+                  return 'vendor-element-icons'
+                }
+                if (normalizedId.includes('/node_modules/element-plus/')) {
+                  const componentMatch = normalizedId.match(/\/node_modules\/element-plus\/(?:es|lib)\/components\/([^/]+)/)
+                  const componentName = componentMatch?.[1]
+                  if (['table', 'table-v2', 'pagination', 'tree', 'tree-select', 'transfer'].includes(componentName)) {
+                    return 'vendor-element-data'
+                  }
+                  if (['form', 'input', 'input-number', 'select', 'option', 'date-picker', 'time-picker', 'checkbox', 'radio', 'switch'].includes(componentName)) {
+                    return 'vendor-element-form'
+                  }
+                  if (['dialog', 'drawer', 'message', 'message-box', 'notification', 'popover', 'tooltip', 'loading'].includes(componentName)) {
+                    return 'vendor-element-feedback'
+                  }
+                  return 'vendor-element-core'
+                }
+                if (/\/node_modules\/(echarts|chart\.js|zrender)\//.test(normalizedId)) {
+                  return 'vendor-charts'
+                }
+                if (normalizedId.includes('/node_modules/exceljs/')) {
+                  return 'vendor-exceljs'
+                }
+                if (normalizedId.includes('/node_modules/@vue-office/docx/')) {
+                  return 'vendor-office-docx'
+                }
+                if (normalizedId.includes('/node_modules/@vue-office/excel/')) {
+                  return 'vendor-office-excel'
+                }
+                if (/\/node_modules\/(html2pdf\.js|jspdf|html2canvas)\//.test(normalizedId)) {
+                  return 'vendor-pdf'
+                }
+                return null
+              }
+            }]
           },
           // 添加文件名哈希
           entryFileNames: 'assets/[name]-[hash].js',

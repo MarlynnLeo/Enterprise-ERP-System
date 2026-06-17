@@ -497,10 +497,6 @@ const assetsController = {
       );
       ResponseHandler.success(res, records, '查询成功');
     } catch (error) {
-      // 如果表不存在，返回空数组
-      if (error.code === 'ER_NO_SUCH_TABLE') {
-        return ResponseHandler.success(res, [], '查询成功');
-      }
       logger.error('查询折旧记录失败:', error);
       ResponseHandler.error(res, '查询折旧记录失败', 'SERVER_ERROR', 500, error);
     }

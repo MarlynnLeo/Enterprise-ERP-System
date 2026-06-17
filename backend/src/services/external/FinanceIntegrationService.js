@@ -297,7 +297,7 @@ class FinanceIntegrationService {
 
       if (orderItems.length === 0) {
         await connection.rollback();
-        return { skipped: true, message: '订单无明细' };
+        throw new Error(`销售订单 ${salesOrder.order_no || salesOrder.id} 没有明细，不能生成应收发票`);
       }
 
       // ✅ 精度修复：使用整数运算避免浮点累加误差（与 GLService 对齐）
@@ -438,7 +438,7 @@ class FinanceIntegrationService {
       }
       if (!customerId) {
         await connection.rollback();
-        return { skipped: true, message: '无法获取客户信息' };
+        throw new Error(`销售退货单 ${salesReturn.return_no || salesReturn.id} 缺少客户信息，不能生成红字应收发票`);
       }
 
       await this.loadConfigurations();
@@ -460,7 +460,7 @@ class FinanceIntegrationService {
 
       if (returnItems.length === 0) {
         await connection.rollback();
-        return { skipped: true, message: '无物料明细' };
+        throw new Error(`销售退货单 ${salesReturn.return_no || salesReturn.id} 没有物料明细，不能生成红字应收发票`);
       }
 
       // ✅ 精度修复：整数运算
@@ -468,7 +468,7 @@ class FinanceIntegrationService {
       const creditNoteAmount = -Math.abs(totalAmount);
       if (totalAmount === 0) {
         await connection.rollback();
-        return { skipped: true, message: '退货金额为0' };
+        throw new Error(`销售退货单 ${salesReturn.return_no || salesReturn.id} 退货金额为0，不能生成红字应收发票`);
       }
 
       const invoiceDateStr = toLocalDateString(salesReturn.return_date || currentDateString());
@@ -605,7 +605,7 @@ class FinanceIntegrationService {
 
       if (receiptItems.length === 0) {
         await connection.rollback();
-        return { skipped: true, message: '无明细' };
+        throw new Error(`采购入库单 ${purchaseReceipt.receipt_no || purchaseReceipt.id} 没有明细，不能生成应付发票`);
       }
 
       // ✅ 精度修复：整数运算
@@ -618,7 +618,7 @@ class FinanceIntegrationService {
       const totalAmount = roundMoney(subtotalAmount + taxAmount);
       if (subtotalAmount <= 0) {
         await connection.rollback();
-        return { skipped: true, message: '入库单物料金额为0，跳过应付发票生成' };
+        throw new Error(`采购入库单 ${purchaseReceipt.receipt_no || purchaseReceipt.id} 物料金额为0，不能生成应付发票`);
       }
       const invoiceDateStr = toLocalDateString(purchaseReceipt.receipt_date || currentDateString());
       const currentPeriod = await this.getCurrentPeriod(connection, invoiceDateStr);
@@ -742,7 +742,7 @@ class FinanceIntegrationService {
 
       if (returnItems.length === 0) {
         if (!isExternalConn) await connection.rollback();
-        return { skipped: true, message: '无明细' };
+        throw new Error(`采购退货单 ${purchaseReturn.return_no || purchaseReturn.id} 没有明细，不能生成红字应付发票`);
       }
 
       // ✅ 精度修复：整数运算
@@ -750,7 +750,7 @@ class FinanceIntegrationService {
       const creditNoteAmount = -Math.abs(totalAmount);
       if (totalAmount === 0) {
         if (!isExternalConn) await connection.rollback();
-        return { skipped: true, message: '金额为0' };
+        throw new Error(`采购退货单 ${purchaseReturn.return_no || purchaseReturn.id} 金额为0，不能生成红字应付发票`);
       }
 
       const invoiceDateStr = toLocalDateString(purchaseReturn.return_date || currentDateString());
@@ -867,14 +867,14 @@ class FinanceIntegrationService {
 
       if (outboundItems.length === 0) {
         await connection.rollback();
-        return { skipped: true, message: '无明细' };
+        throw new Error(`销售出库单 ${salesOutbound.outbound_no || salesOutbound.id} 没有明细，不能生成销售成本凭证`);
       }
 
       // ✅ 精度修复：整数运算
       const totalCost = outboundItems.reduce((sum, item) => sum + Math.round(parseFloat(item.quantity || 0) * parseFloat(item.cost_price || 0) * 100), 0) / 100;
       if (totalCost <= 0) {
         await connection.rollback();
-        return { skipped: true, message: '成本为0' };
+        throw new Error(`销售出库单 ${salesOutbound.outbound_no || salesOutbound.id} 成本为0，不能生成销售成本凭证`);
       }
 
       const outboundDate = salesOutbound.delivery_date
@@ -989,7 +989,7 @@ class FinanceIntegrationService {
       const totalAmount = roundMoney(amountExcludingTax + taxAmount);
       if (totalAmount <= 0) {
         await connection.rollback();
-        return { skipped: true, message: '出库单金额为0，跳过销项税务发票生成' };
+        throw new Error(`销售出库单 ${salesOutbound.outbound_no || salesOutbound.id} 金额为0，不能生成销项税务发票`);
       }
 
       const invoiceData = {
@@ -1091,7 +1091,7 @@ class FinanceIntegrationService {
       const totalAmount = roundMoney(amountExcludingTax + taxAmount);
       if (totalAmount <= 0) {
         await connection.rollback();
-        return { skipped: true, message: '入库单金额为0，跳过进项税务发票生成' };
+        throw new Error(`采购入库单 ${purchaseReceipt.receipt_no || purchaseReceipt.id} 金额为0，不能生成进项税务发票`);
       }
 
       const invoiceData = {
@@ -1208,14 +1208,7 @@ class FinanceIntegrationService {
 
       // 获取会计期间
       const now = toLocalDateString(salesExchange.exchange_date || currentDateString());
-      let currentPeriod;
-      try {
-        currentPeriod = await this.getCurrentPeriod(connection, now);
-      } catch (e) {
-        logger.warn(`换货差价分录: 无可用会计期间 - ${e.message}`);
-        await connection.rollback();
-        return null;
-      }
+      const currentPeriod = await this.getCurrentPeriod(connection, now);
 
       const createdBy = salesExchange.created_by || 0;
 
@@ -1336,7 +1329,7 @@ class FinanceIntegrationService {
         if (shouldManageTransaction) {
           await connection.rollback();
         }
-        return { success: false, skipped: true, message: '发料金额为0' };
+        throw new Error(`外委加工单 ${processing.processing_no || processing.id} 发料金额为0，不能生成外委发料凭证`);
       }
 
       // 获取会计期间
@@ -1396,10 +1389,7 @@ class FinanceIntegrationService {
         await connection.rollback();
       }
       logger.error(`外委发料分录生成失败 - ${processing.processing_no}:`, error.message);
-      if (!shouldManageTransaction) {
-        throw error;
-      }
-      return { success: false, error: error.message };
+      throw error;
     } finally {
       if (shouldManageTransaction) {
         connection.release();
@@ -1495,7 +1485,7 @@ class FinanceIntegrationService {
         if (shouldManageTransaction) {
           await connection.rollback();
         }
-        return { success: false, skipped: true, message: '入库价值为0' };
+        throw new Error(`外委入库单 ${receiptNo} 入库价值为0，不能生成外委入库凭证`);
       }
 
       // 获取会计期间
@@ -1569,10 +1559,7 @@ class FinanceIntegrationService {
         await connection.rollback();
       }
       logger.error(`外委入库分录生成失败 - ${receipt.receipt_no}:`, error.message);
-      if (!shouldManageTransaction) {
-        throw error;
-      }
-      return { success: false, error: error.message };
+      throw error;
     } finally {
       if (shouldManageTransaction) {
         connection.release();

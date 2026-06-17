@@ -165,7 +165,9 @@ class DingtalkSyncService {
           deptNameMap[deptId] = (resp.result.name || '').trim();
           deptParentMap[deptId] = resp.result.parent_id || DINGTALK_ROOT_DEPT_ID;
         }
-      } catch { /* 忽略 */ }
+      } catch (error) {
+        logger.warn('获取钉钉部门详情失败:', { deptId, error: error.message });
+      }
     }
     logger.info(`获取到 ${Object.keys(deptNameMap).length} 个部门名称`);
 

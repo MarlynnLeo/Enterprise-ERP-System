@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * ProductionPlan.vue
  * @description 前端界面组件文件
@@ -1744,7 +1744,7 @@ const formatMaterialForDisplay = (material) => {
               </span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="80" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+          <el-table-column label="操作" min-width="80" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="scope">
               <el-button
                 v-if="shouldShowPurchaseButton(scope.row) && currentPlan && currentPlan.status !== 'completed'"

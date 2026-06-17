@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * DeliveryStats.vue
  * @description 发货统计页面组件
@@ -156,7 +156,7 @@
             {{ formatDate(row.delivery_date) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="200" fixed="right" resizable align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="200" fixed="right" resizable align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <el-button
               v-if="canShip(row)"

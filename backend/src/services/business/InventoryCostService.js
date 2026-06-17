@@ -79,10 +79,13 @@ class InventoryCostService {
       const inboundQty = parseFloat(transaction.quantity) || 0;
       const totalCost = Precision.round2(Precision.mul(inboundQty, inboundUnitCost));
 
-      // 防御：入库成本为 0 时仍继续 MAC 更新（下方），但在 MAC 更新后跳过分录创建
-      const skipEntry = !(totalCost > 0);
-      if (skipEntry) {
-        logger.warn(`[入库成本] 物料 ${material.code} 入库总成本为 0（单价=${inboundUnitCost}, 数量=${inboundQty}），将跳过分录创建`);
+      if (!(inboundQty > 0)) {
+        throw new Error(`物料 ${material.code} 入库数量必须大于 0，不能生成成本分录`);
+      }
+      if (!(totalCost > 0)) {
+        throw new Error(
+          `物料 ${material.code} 入库成本必须大于 0，请先维护采购单价、入库单价或物料成本价`
+        );
       }
 
       // ==========================================
@@ -124,16 +127,6 @@ class InventoryCostService {
       } catch (macErr) {
         logger.error(`⚠️ 更新物料 ${material.code} MAC价格时发生异常:`, macErr);
         // 不阻断凭证流程
-      }
-
-      // 3. 零成本时跳过分录创建（MAC 已在上方更新）
-      if (skipEntry) {
-        await connection.commit();
-        return {
-          skipped: true,
-          totalCost: 0,
-          message: `物料 ${material.code} 入库成本为 0，已跳过分录创建`,
-        };
       }
 
       // 3. 获取当前会计期间
@@ -266,21 +259,13 @@ class InventoryCostService {
       // 2. 计算成本
       // ✅ 出库同理，优先取透传价格，若无则取当下材料已被 MAC 算法维护好的 cost_price 移动加权均价
       const unitCost = transaction.unit_cost !== undefined ? parseFloat(transaction.unit_cost) : parseFloat(material.cost_price || 0);
-      // 防御：单位成本异常(<=0/NaN)时告警
       if (!(unitCost > 0)) {
-        logger.warn(`[出库成本] 物料 ${material.code} 单位成本异常(${unitCost})，请核对采购价/MAC 均价`);
+        throw new Error(`物料 ${material.code} 出库单位成本必须大于 0，请先维护物料成本价`);
       }
       const totalCost = Precision.round2(Precision.mul(Math.abs(parseFloat(transaction.quantity) || 0), unitCost));
 
-      // 总成本为 0 时，跳过分录创建，避免 GLService 校验拒绝（借贷金额不能同时为 0）
       if (!(totalCost > 0)) {
-        await connection.commit();
-        logger.warn(`[出库成本] 物料 ${material.code} 出库总成本为 0，已跳过分录创建（单据: ${transaction.reference_no}）`);
-        return {
-          skipped: true,
-          totalCost: 0,
-          message: `物料 ${material.code} 出库成本为 0，已跳过分录创建`,
-        };
+        throw new Error(`物料 ${material.code} 出库总成本必须大于 0，不能生成成本分录`);
       }
 
       // 3. 获取当前会计期间

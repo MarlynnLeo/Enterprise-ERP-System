@@ -43,7 +43,7 @@
             反冻结
           </el-button>
           <el-button type="info" @click="handleExport" :disabled="!statusInfo.hasRecords"
-            v-permission="'inventory:stock:adjust'">
+            v-permission="'inventory:stock:view'">
             导出报表
           </el-button>
         </el-form-item>
@@ -408,7 +408,6 @@ const handleExecute = async () => {
     })
     const result = parseResponseData(response, {})
     showPreviewDialog.value = false
-    await fetchStatus()
     ElMessage.success(result.message || '年度结存执行成功')
 
     // 刷新状态
@@ -436,7 +435,6 @@ const handleFreeze = async () => {
     const response = await inventoryApi.freezeYearEnd({
       year: parseInt(selectedYear.value)
     })
-    await fetchStatus()
     const result = parseResponseData(response, {})
     ElMessage.success(result.message || '年度结存已冻结')
 

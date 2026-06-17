@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * AssetCategoryList.vue
  * @description 前端界面组件文件
@@ -62,7 +62,7 @@
             <span v-else style="color: var(--color-text-secondary)">0</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="150" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="150" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button size="small" type="primary" @click="handleEdit(scope.row)"
               v-permission="'finance:assets:update'">编辑</el-button>

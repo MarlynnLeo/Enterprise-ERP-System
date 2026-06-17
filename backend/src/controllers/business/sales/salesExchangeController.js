@@ -306,7 +306,6 @@ exports.createSalesExchange = async (req, res) => {
         );
         orderItems.forEach(oi => { orderPriceMap[oi.code] = parseFloat(oi.unit_price) || 0; });
       } catch (e) { logger.warn('获取订单价格失败:', e.message); }
-      // 静默忽略该错误
     }
 
     if (hasNewFormat) {

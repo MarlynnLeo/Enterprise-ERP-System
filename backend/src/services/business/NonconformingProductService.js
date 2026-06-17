@@ -564,9 +564,9 @@ class NonconformingProductService {
         if (inspectionRows.length > 0) {
           inspection = inspectionRows[0];
           inspection.supplier_id = inspection.supplier_id || ncp.supplier_id;
-          inspection.supplier_name = inspection.supplier_name || ncp.supplier_name || '未知供应商';
+          inspection.supplier_name = inspection.supplier_name || ncp.supplier_name || null;
         } else {
-          logger.warn(`检验单ID ${ncp.inspection_id} 不存在, 尝试降级处理`);
+          throw new Error(`不合格品 ${ncp.ncp_no} 关联的检验单 ${ncp.inspection_id} 不存在，不能继续生成让步接收入库单`);
         }
       } else {
         logger.info(`该不合格品 ${ncp.ncp_no} 无检验单关联, 执行无源让步接收建单`);
@@ -585,8 +585,15 @@ class NonconformingProductService {
           orderItemInfo = poiRows[0];
           logger.info(`✅ [让步接收溯源] 查找到原采购明细, 单价: ${orderItemInfo.price}, 单位: ${orderItemInfo.unit_id}`);
         } else {
-          logger.warn(`⚠️ [让步接收溯源] 未在订单 ${inspection.reference_id} 中找到物料 ${ncp.material_id} 的明细`);
+          throw new Error(`不合格品 ${ncp.ncp_no} 未在原采购订单 ${inspection.reference_id} 中找到物料 ${ncp.material_id} 的明细，不能生成让步接收入库单`);
         }
+      }
+
+      if (!orderItemInfo.price || Number(orderItemInfo.price) <= 0) {
+        throw new Error(`不合格品 ${ncp.ncp_no} 缺少有效采购单价，不能生成让步接收入库单`);
+      }
+      if (!inspection.supplier_id || !inspection.supplier_name) {
+        throw new Error(`不合格品 ${ncp.ncp_no} 缺少供应商信息，不能生成让步接收入库单`);
       }
 
       // 🔄 通过统一服务获取物料的默认仓库
@@ -715,10 +722,8 @@ class NonconformingProductService {
         }
       }
 
-      // 如果还是没有物料名称，使用默认值
       if (!materialName) {
-        materialName = `物料ID:${ncp.material_id}`;
-        logger.warn(`⚠️ 无法获取物料名称，使用默认值: ${materialName}`);
+        throw new Error(`不合格品 ${ncp.ncp_no} 缺少物料名称，不能生成采购退货单`);
       }
 
       // 生成退货单号 - 使用配置化的前缀
@@ -739,7 +744,7 @@ class NonconformingProductService {
       // 查询检验单信息以获取供应商和仓库信息
       let inspection = {
         supplier_id: ncp.supplier_id || null,
-        supplier_name: ncp.supplier_name || '未知供应商',
+        supplier_name: ncp.supplier_name || null,
         reference_id: null,
         order_no: null
       };
@@ -764,11 +769,11 @@ class NonconformingProductService {
           inspection = inspectionRows[0];
           // 回补未指派的供应商属性
           inspection.supplier_id = inspection.supplier_id || ncp.supplier_id;
-          inspection.supplier_name = inspection.supplier_name || ncp.supplier_name || '未知供应商';
+          inspection.supplier_name = inspection.supplier_name || ncp.supplier_name || null;
           // 正确映射原始单据属性
           inspection.reference_id = inspection.purchase_order_id; // purchase_order_id 的兼容映射
         } else {
-          logger.warn(`检验单ID ${ncp.inspection_id} 不存在, 尝试降级处理退货`);
+          throw new Error(`不合格品 ${ncp.ncp_no} 关联的检验单 ${ncp.inspection_id} 不存在，不能继续生成采购退货单`);
         }
       } else {
         logger.info(`不合格品 ${ncp.ncp_no} 无检验单关联, 执行无源退货建单`);
@@ -781,6 +786,7 @@ class NonconformingProductService {
                 receipt_no,
                 purchase_order_id as order_id,
                 purchase_order_no as order_no,
+                supplier_id,
                 supplier_name
               FROM v_batch_stock
               WHERE batch_number = ?
@@ -790,7 +796,7 @@ class NonconformingProductService {
             if (originRows.length > 0) {
               const origin = originRows[0];
               inspection.supplier_id = origin.supplier_id || ncp.supplier_id;
-              inspection.supplier_name = origin.supplier_name || ncp.supplier_name || '未知供应商';
+              inspection.supplier_name = origin.supplier_name || ncp.supplier_name || null;
               inspection.reference_id = origin.order_id; // purchase_order_id
               inspection.order_no = origin.order_no;
               inspection.receipt_id = origin.receipt_id;
@@ -798,12 +804,20 @@ class NonconformingProductService {
 
               logger.info(`✅ [血缘追溯建单] 根据批次 ${ncp.batch_no} 成功反查到原始入库单: ${origin.receipt_no}, 采购单: ${origin.order_no}`);
             } else {
-              logger.warn(`⚠️ 无法根据批次 ${ncp.batch_no} 的库存流水找到最初的采购入库单`);
+              throw new Error(`无法根据批次 ${ncp.batch_no} 的库存流水找到最初的采购入库单，不能生成采购退货单`);
             }
-          } catch(traceErr) {
+          } catch (traceErr) {
             logger.error(`批次血缘反查采购来源报错:`, traceErr);
+            throw traceErr;
           }
         }
+      }
+
+      if (!inspection.supplier_id) {
+        throw new Error(`不合格品 ${ncp.ncp_no} 缺少供应商信息，不能生成采购退货单`);
+      }
+      if (!inspection.supplier_name) {
+        throw new Error(`不合格品 ${ncp.ncp_no} 缺少供应商名称，不能生成采购退货单`);
       }
 
       // 🔥 修复：优先从 NCP 关联的入库单获取不良品实际存放的库位（如隔离区），
@@ -827,7 +841,7 @@ class NonconformingProductService {
         }
       }
 
-      // 方式2: 通过库存台账查询该物料实际有库存的非默认库位（兜底）
+      // 方式2: 通过库存台账查询该物料实际有库存的不良品库位
       if (!returnWarehouseId && ncp.material_id) {
         const [ledgerLocationRows] = await connection.query(
           `SELECT il.location_id, l.name as location_name, SUM(il.quantity) as qty
@@ -846,11 +860,8 @@ class NonconformingProductService {
         }
       }
 
-      // 方式3: 最终兜底 - 使用物料的默认仓库（仅适用于没有走隔离区的普通退货）
       if (!returnWarehouseId) {
-        const InventoryService = require('../InventoryService');
-        returnWarehouseId = await InventoryService.getMaterialLocation(ncp.material_id, connection);
-        logger.info(`ℹ️ [退货库位] 未找到不良品专属库位，兜底使用物料默认仓库 (ID: ${returnWarehouseId})`);
+        throw new Error(`不合格品 ${ncp.ncp_no} 未找到实际不良品库存库位，不能生成采购退货单`);
       }
 
       const [warehouseRows] = await connection.query(
@@ -1160,16 +1171,15 @@ class NonconformingProductService {
         orderItems.push(...rows);
       }
 
-      if (orderItems.length === 0) {
-        logger.warn(`未找到采购订单项(无检验单或订单不存在), 使用NCP自身的供应商数据生成换货单`);
-      }
-
-      // 健壮性处理: 当无检验单/原始订单时, 使用NCP自带的供应商数据
       const orderItem = orderItems[0] || {
         order_no: null,
         supplier_id: ncp.supplier_id || null,
-        supplier_name: ncp.supplier_name || '未知供应商'
+        supplier_name: ncp.supplier_name || null
       };
+
+      if (!orderItem.supplier_id || !orderItem.supplier_name) {
+        throw new Error(`不合格品 ${ncp.ncp_no} 缺少供应商信息，不能生成换货单`);
+      }
 
       // 注：replacement_orders 表应在数据库迁移脚本中创建，不在事务中动态建表
 

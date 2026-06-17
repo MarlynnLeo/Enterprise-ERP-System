@@ -14,59 +14,42 @@ exports.getTraceabilityOverview = async (req, res) => {
   try {
     const overview = {};
 
-    // 辅助函数：安全执行查询，表不存在时返回0
-    const safeQueryCount = async (sql, defaultValue = 0) => {
-      try {
-        const result = await db.query(sql);
-        return result.rows?.[0]?.total || defaultValue;
-      } catch (error) {
-        if (error.code === 'ER_NO_SUCH_TABLE') {
-          logger.warn(`表不存在，跳过查询: ${error.message}`);
-          return defaultValue;
-        }
-        throw error;
-      }
+    const queryCount = async (sql, defaultValue = 0) => {
+      const result = await db.query(sql);
+      return result.rows?.[0]?.total || defaultValue;
     };
 
-    const safeQueryRows = async (sql, params = []) => {
-      try {
-        const result = await db.query(sql, params);
-        return result.rows || [];
-      } catch (error) {
-        if (error.code === 'ER_NO_SUCH_TABLE' || error.code === 'ER_BAD_FIELD_ERROR') {
-          logger.warn(`追溯监控查询跳过: ${error.message}`);
-          return [];
-        }
-        throw error;
-      }
+    const queryRows = async (sql, params = []) => {
+      const result = await db.query(sql, params);
+      return result.rows || [];
     };
 
     // 1. 追溯记录总数（单表架构）
-    overview.totalChains = await safeQueryCount(`
+    overview.totalChains = await queryCount(`
       SELECT COUNT(DISTINCT child_batch_number) as total FROM batch_relationships WHERE process_type = 'production'
     `);
 
     // 2. 批次关系条数
-    overview.totalSteps = await safeQueryCount(`
+    overview.totalSteps = await queryCount(`
       SELECT COUNT(*) as total FROM batch_relationships
     `);
 
     // 3. 批次库存总数 (单表架构)
-    overview.totalBatches = await safeQueryCount(`
+    overview.totalBatches = await queryCount(`
       SELECT COUNT(*) as total FROM v_batch_stock
     `);
 
     // 4. 批次关系总数
-    overview.totalRelations = await safeQueryCount(`
+    overview.totalRelations = await queryCount(`
       SELECT COUNT(*) as total FROM batch_relationships
     `);
 
     // 5. 成品销售追溯总数
-    overview.totalSalesTraces = await safeQueryCount(`
+    overview.totalSalesTraces = await queryCount(`
       SELECT COUNT(*) as total FROM product_sales_traceability
     `);
 
-    overview.recentOperations = await safeQueryRows(`
+    overview.recentOperations = await queryRows(`
       SELECT
         DATE(created_at) as operation_date,
         module,
@@ -92,7 +75,7 @@ exports.getTraceabilityOverview = async (req, res) => {
     ResponseHandler.success(res, overview);
   } catch (error) {
     logger.error('获取追溯数据概览失败:', error);
-    ResponseHandler.error(res, '获取追溯数据概览失败');
+    ResponseHandler.error(res, '获取追溯数据概览失败', 'TRACEABILITY_OVERVIEW_ERROR', 500, error);
   }
 };
 
@@ -103,26 +86,17 @@ exports.getTraceabilityCoverage = async (req, res) => {
   try {
     const coverage = {};
 
-    // 辅助函数：安全执行查询，表/列不存在时返回默认值
-    const safeQueryStats = async (sql, defaultResult = { total: 0, traced: 0 }) => {
-      try {
-        const result = await db.query(sql);
-        return {
-          total: result.rows?.[0]?.total || 0,
-          traced: result.rows?.[0]?.traced || 0,
-        };
-      } catch (error) {
-        if (error.code === 'ER_NO_SUCH_TABLE' || error.code === 'ER_BAD_FIELD_ERROR') {
-          logger.warn(`数据库查询跳过: ${error.message}`);
-          return defaultResult;
-        }
-        throw error;
-      }
+    const queryStats = async (sql) => {
+      const result = await db.query(sql);
+      return {
+        total: result.rows?.[0]?.total || 0,
+        traced: result.rows?.[0]?.traced || 0,
+      };
     };
 
     // 1. 采购入库追溯覆盖率
     // 追踪标准：采购入库单的明细行(purchase_receipt_items)中有批次号记录
-    const purchaseStats = await safeQueryStats(`
+    const purchaseStats = await queryStats(`
       SELECT
         COUNT(DISTINCT pr.id) as total,
         COUNT(DISTINCT CASE WHEN pri.batch_number IS NOT NULL AND pri.batch_number != '' THEN pr.id END) as traced
@@ -141,7 +115,7 @@ exports.getTraceabilityCoverage = async (req, res) => {
 
     // 2. 质检追溯覆盖率
     // 追踪标准：质检单记录了 traceability_batch
-    const qualityStats = await safeQueryStats(`
+    const qualityStats = await queryStats(`
       SELECT
         COUNT(DISTINCT qi.id) as total,
         COUNT(DISTINCT CASE WHEN qi.traceability_batch IS NOT NULL AND qi.traceability_batch != '' THEN qi.id END) as traced
@@ -157,7 +131,7 @@ exports.getTraceabilityCoverage = async (req, res) => {
 
     // 3. 生产追溯覆盖率
     // 追踪标准：已完成的生产任务有对应的出库单(物料领用)或入库单(成品入库)
-    const productionStats = await safeQueryStats(`
+    const productionStats = await queryStats(`
       SELECT
         COUNT(DISTINCT pt.id) as total,
         COUNT(DISTINCT CASE WHEN io.id IS NOT NULL THEN pt.id END) as traced
@@ -176,7 +150,7 @@ exports.getTraceabilityCoverage = async (req, res) => {
 
     // 4. 销售出库追溯覆盖率
     // 追踪标准：从产品销售追溯表里能找到对应凭证号的关联
-    const salesStats = await safeQueryStats(`
+    const salesStats = await queryStats(`
       SELECT
         COUNT(DISTINCT so.id) as total,
         COUNT(DISTINCT CASE WHEN pst.id IS NOT NULL THEN so.id END) as traced
@@ -205,14 +179,7 @@ exports.getTraceabilityCoverage = async (req, res) => {
     ResponseHandler.success(res, coverage);
   } catch (error) {
     logger.error('获取追溯覆盖率统计失败:', error);
-    // 返回空数据而不是错误，让前端能正常显示
-    ResponseHandler.success(res, {
-      purchaseReceipt: { total: 0, traced: 0, coverage: 0 },
-      qualityInspection: { total: 0, traced: 0, coverage: 0 },
-      productionTask: { total: 0, traced: 0, coverage: 0 },
-      salesOutbound: { total: 0, traced: 0, coverage: 0 },
-      overall: { total: 0, traced: 0, coverage: 0 },
-    });
+    ResponseHandler.error(res, '获取追溯覆盖率统计失败', 'TRACEABILITY_COVERAGE_ERROR', 500, error);
   }
 };
 
@@ -228,20 +195,14 @@ exports.getDataQualityReport = async (req, res) => {
     };
 
     // 1. 检查孤立的追溯记录（销售追溯中的批次在库存台账中无任何记录）
-    let orphanChains = [];
-    try {
-      const orphanChainsResult = await db.query(`
-        SELECT pst.product_code, pst.product_batch_number as batch_number, pst.created_at
-        FROM product_sales_traceability pst
-        LEFT JOIN inventory_ledger il ON il.batch_number = pst.product_batch_number
-        WHERE il.id IS NULL AND pst.product_batch_number IS NOT NULL AND pst.product_batch_number != ''
-        LIMIT 100
-      `);
-      orphanChains = orphanChainsResult.rows || [];
-    } catch (err) {
-      if (err.code !== 'ER_NO_SUCH_TABLE' && err.code !== 'ER_BAD_FIELD_ERROR') throw err;
-      logger.warn(`跳过查询: ${err.message}`);
-    }
+    const orphanChainsResult = await db.query(`
+      SELECT pst.product_code, pst.product_batch_number as batch_number, pst.created_at
+      FROM product_sales_traceability pst
+      LEFT JOIN inventory_ledger il ON il.batch_number = pst.product_batch_number
+      WHERE il.id IS NULL AND pst.product_batch_number IS NOT NULL AND pst.product_batch_number != ''
+      LIMIT 100
+    `);
+    const orphanChains = orphanChainsResult.rows || [];
 
     if (orphanChains.length > 0) {
       report.issues.push({
@@ -254,19 +215,13 @@ exports.getDataQualityReport = async (req, res) => {
     }
 
     // 2. 检查批次库存数量异常 (单表架构)
-    let negativeStock = [];
-    try {
-      const negativeStockResult = await db.query(`
-        SELECT material_id, batch_number, current_quantity as quantity
-        FROM v_batch_stock
-        WHERE current_quantity < 0
-        LIMIT 100
-      `);
-      negativeStock = negativeStockResult.rows || [];
-    } catch (err) {
-      if (err.code !== 'ER_NO_SUCH_TABLE' && err.code !== 'ER_BAD_FIELD_ERROR') throw err;
-      logger.warn(`跳过查询: ${err.message}`);
-    }
+    const negativeStockResult = await db.query(`
+      SELECT material_id, batch_number, current_quantity as quantity
+      FROM v_batch_stock
+      WHERE current_quantity < 0
+      LIMIT 100
+    `);
+    const negativeStock = negativeStockResult.rows || [];
 
     if (negativeStock.length > 0) {
       report.issues.push({
@@ -279,18 +234,12 @@ exports.getDataQualityReport = async (req, res) => {
     }
 
     // 3. 检查缺失批次号的记录
-    let missingBatchCount = 0;
-    try {
-      const missingBatchResult = await db.query(`
-        SELECT COUNT(*) as count
-        FROM batch_relationships
-        WHERE parent_batch_number IS NULL OR parent_batch_number = '' OR child_batch_number IS NULL OR child_batch_number = ''
-      `);
-      missingBatchCount = missingBatchResult.rows?.[0]?.count || 0;
-    } catch (err) {
-      if (err.code !== 'ER_NO_SUCH_TABLE' && err.code !== 'ER_BAD_FIELD_ERROR') throw err;
-      logger.warn(`跳过查询: ${err.message}`);
-    }
+    const missingBatchResult = await db.query(`
+      SELECT COUNT(*) as count
+      FROM batch_relationships
+      WHERE parent_batch_number IS NULL OR parent_batch_number = '' OR child_batch_number IS NULL OR child_batch_number = ''
+    `);
+    const missingBatchCount = missingBatchResult.rows?.[0]?.count || 0;
 
     if (missingBatchCount > 0) {
       report.issues.push({
@@ -312,10 +261,6 @@ exports.getDataQualityReport = async (req, res) => {
     ResponseHandler.success(res, report);
   } catch (error) {
     logger.error('获取追溯数据质量报告失败:', error);
-    // 返回默认报告而不是错误
-    ResponseHandler.success(res, {
-      issues: [],
-      summary: { totalIssues: 0, errorCount: 0, warningCount: 0, healthScore: 100 },
-    });
+    ResponseHandler.error(res, '获取追溯数据质量报告失败', 'TRACEABILITY_QUALITY_ERROR', 500, error);
   }
 };

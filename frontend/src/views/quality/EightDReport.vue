@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="module-page eight-d-report-container">
     <!-- 统计卡片 -->
     <div class="statistics-row">
@@ -99,7 +99,7 @@
         <el-table-column prop="created_at" label="创建时间" width="100">
           <template #default="{ row }">{{ formatDate(row.created_at) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="420" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="420" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <el-button v-permission="'quality:8d:view'" size="small" @click="handleView(row)">查看</el-button>
             <el-button v-permission="'quality:8d:view'" size="small" @click="_viewLogs(row)">日志</el-button>

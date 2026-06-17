@@ -272,7 +272,7 @@
                  <el-tag :type="scope.row.is_active ? 'success' : 'info'">{{ scope.row.is_active ? '启用' : '禁用' }}</el-tag>
                </template>
             </el-table-column>
-            <el-table-column label="操作" width="180" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+            <el-table-column label="操作" min-width="180" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="scope">
                 <el-button size="small" @click="openReasonDialog(scope.row)" v-permission="'finance:cost:update'">编辑</el-button>
                 <el-button v-permission="'finance:cost:delete'" size="small" type="danger" plain @click="handleDeleteReason(scope.row)">删除</el-button>
@@ -402,7 +402,7 @@
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="100" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+            <el-table-column label="操作" min-width="100" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="scope">
                 <el-button v-permission="'finance:cost:update'" size="small" link type="primary" @click="openEditStdCostDialog(scope.row)">调整</el-button>
               </template>
@@ -522,7 +522,7 @@
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="160" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+            <el-table-column label="操作" min-width="160" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="scope">
                 <el-button size="small" link type="primary" @click="openAllocationRuleDialog(scope.row)" v-permission="'finance:cost:update'">编辑</el-button>
                 <el-button v-permission="'finance:cost:delete'" size="small" link type="danger" @click="handleDeleteAllocationRule(scope.row)">删除</el-button>

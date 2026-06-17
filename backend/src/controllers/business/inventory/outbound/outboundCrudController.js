@@ -631,14 +631,7 @@ const updateOutbound = async (req, res) => {
 
       // 批量预取完成出库时所需的物料库位信息（消除循环内 N+1 查询）
       const completedMaterialIds = items.map(i => i.material_id);
-      let completedMaterialInfoMap;
-      try {
-        completedMaterialInfoMap = await getMaterialInfoMap(connection, completedMaterialIds);
-      } catch (e) {
-        // getBatchMaterialInfo 会对未配置仓库的物料抛错，这里降级为空 Map
-        logger.warn('完成出库时批量获取物料信息失败（可能有物料未配置仓库）:', e.message);
-        completedMaterialInfoMap = new Map();
-      }
+      const completedMaterialInfoMap = await getMaterialInfoMap(connection, completedMaterialIds);
 
       // 处理每个物料项
       for (const item of items) {
@@ -942,8 +935,7 @@ const _createOutbound = async (outboundData) => {
         };
       }
 
-      await connection.commit();
-      return { id: outboundId, outboundNo: outboundNo, warning: '出库单创建成功，但没有明细项' };
+      throw new Error('出库单没有明细项，不能创建');
     }
 
     // 批量获取所有物料的仓库和单位信息（通过 InventoryService 统一入口）

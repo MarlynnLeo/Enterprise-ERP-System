@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="module-page abc-container">
     <!-- 页面标题 -->
     <el-card class="header-card">
@@ -46,7 +46,7 @@
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="160" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+            <el-table-column label="操作" min-width="160" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="{ row }">
                 <el-button type="primary" size="small" @click="editActivity(row)" v-permission="'finance:cost:update'">编辑</el-button>
                 <el-button v-permission="'finance:cost:delete'" type="danger" size="small" @click="deleteActivity(row)">删除</el-button>

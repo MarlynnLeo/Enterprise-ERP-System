@@ -1,8 +1,15 @@
 const fs = require('fs');
 const path = require('path');
+const dotenv = require('dotenv');
 
 const rootDir = path.resolve(__dirname, '..');
 const repoRoot = path.resolve(rootDir, '..');
+
+for (const envPath of [path.join(rootDir, '.env'), path.join(repoRoot, '.env')]) {
+  if (fs.existsSync(envPath)) {
+    dotenv.config({ path: envPath, override: false });
+  }
+}
 let cleanupCandidates = [];
 try {
   ({ legacyCleanupCandidates: cleanupCandidates = [] } = require('../src/services/business/LegacyCodeCleanupRules'));
@@ -155,7 +162,13 @@ async function auditDataConsistency() {
   printHeader('Data Consistency Audit');
   const missingDbVars = ['DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME'].filter(name => !process.env[name]);
   if (missingDbVars.length) {
-    console.warn(`Skipped: missing database env vars ${missingDbVars.join(', ')}`);
+    const message = `Missing database env vars ${missingDbVars.join(', ')}`;
+    if (process.env.AUDIT_DATA_ALLOW_SKIP === '1') {
+      console.warn(`Skipped: ${message}`);
+      return;
+    }
+    console.error(message);
+    process.exitCode = 1;
     return;
   }
 
@@ -164,7 +177,15 @@ async function auditDataConsistency() {
   let connection;
   try {
     connection = await db.getConnection();
-    const auditResult = await runDataConsistencyAudit(connection);
+    const auditResult = await runDataConsistencyAudit(connection, undefined, {
+      onRuleStart: rule => console.log(`running: ${rule.id}`),
+      onRuleEnd: result => {
+        const suffix = result.error
+          ? `error=${result.error}`
+          : `findings=${result.count}`;
+        console.log(`done: ${result.id} ${suffix} durationMs=${result.durationMs}`);
+      },
+    });
     const results = Array.isArray(auditResult) ? auditResult : auditResult?.results || [];
     const failed = results.filter(result => result.count > 0 || result.error);
     printMetric('rules executed', results.length);

@@ -100,8 +100,6 @@ const fetchBomItemsForOutbound = async (connection, outboundId, referenceType, r
   }
 };
 
-// Kept as a compatibility wrapper for legacy callers. It no longer reads raw BOM details.
-
 const fetchBatchBomItemsForOutbound = async (connection, outboundId, taskIds) => {
   if (!Array.isArray(taskIds) || taskIds.length === 0) {
     return { success: false, itemCount: 0, error: '批量发料缺少来源生产任务' };

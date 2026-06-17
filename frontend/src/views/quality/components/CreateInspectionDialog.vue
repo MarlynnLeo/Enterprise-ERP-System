@@ -7,7 +7,7 @@
  *
  * 职责：
  * - 采购单选择与物料联动
- * - 批次号自动生成
+ * - 批次号随源单录入并校验
  * - 表单校验与创建提交
  */
 -->
@@ -202,7 +202,9 @@ const handlePurchaseOrderChange = async (value) => {
           const supplier = supplierResponse.data
           form.supplierCode = supplier.code || supplier.supplier_code || ''
         }
-      } catch { /* 忽略 */ }
+      } catch (error) {
+        console.warn('获取供应商编码失败:', error)
+      }
     }
 
     // 生成批次号

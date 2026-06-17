@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * Reconciliation.vue
  * @description 前端界面组件文件
@@ -141,7 +141,7 @@
             <el-table-column prop="counterparty" label="交易对方" min-width="120" show-overflow-tooltip></el-table-column>
             <el-table-column prop="description" label="交易描述" min-width="180" show-overflow-tooltip></el-table-column>
             <el-table-column prop="referenceNumber" label="参考号" width="110" show-overflow-tooltip></el-table-column>
-            <el-table-column label="操作" width="100" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+            <el-table-column label="操作" min-width="100" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="scope">
                 <el-button v-permission="'finance:cash:reconcile'" type="primary" size="small" @click="markAsReconciled(scope.row)">对账</el-button>
               </template>

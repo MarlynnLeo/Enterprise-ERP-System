@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="module-page page-container">
     <!-- 页面头部卡片 -->
     <el-card class="header-card">
@@ -24,7 +24,7 @@
         <template #default="{ row }"><el-tag size="small">{{ row.source === 'api' ? '自动' : '手动' }}</el-tag></template>
       </el-table-column>
       <el-table-column prop="created_at" label="创建时间" min-width="160" />
-      <el-table-column label="操作" width="80" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+      <el-table-column label="操作" min-width="80" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
         <template #default="{ row }">
           <el-popconfirm title="确定删除？" @confirm="handleDelete(row.id)">
             <template #reference><el-button v-permission="'finance:exchange-rates:update'" link type="danger">删除</el-button></template>

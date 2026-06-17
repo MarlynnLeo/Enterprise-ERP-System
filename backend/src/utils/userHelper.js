@@ -9,6 +9,7 @@
  */
 
 const { pool } = require('../config/db');
+const { logger } = require('./logger');
 
 // 内存级缓存，避免同一请求周期内重复查库
 const nameCache = new Map();
@@ -44,9 +45,9 @@ async function getCurrentUserName(req) {
     nameCache.set(userId, { name: realName, timestamp: Date.now() });
 
     return realName;
-  } catch {
-    // 查询失败时兜底
-    return req.user.username || 'system';
+  } catch (error) {
+    logger.error('查询当前用户真实姓名失败:', error);
+    throw error;
   }
 }
 

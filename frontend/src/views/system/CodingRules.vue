@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="module-page page-container">
     <!-- 页面头部卡片 -->
     <el-card class="header-card">
@@ -69,7 +69,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="description" label="说明" min-width="140" show-overflow-tooltip />
-        <el-table-column label="操作" width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <el-button link type="primary" v-permission="'system:settings:edit'" @click="openForm(row)">编辑</el-button>
             <el-button link type="warning" v-permission="'system:settings:view'" @click="openSequences(row)">序列</el-button>

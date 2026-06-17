@@ -2,7 +2,7 @@
  * AccountLockService.js
  * @description 账号锁定服务 — 防暴力破解
  * 连续登录失败 N 次后自动锁定账号一段时间
- * ✅ v2: 使用 Redis 持久化，支持分布式部署；Redis 不可用时降级为内存
+ * v2: 使用 Redis 持久化，支持分布式部署；生产环境需显式允许才可降级为内存。
  * @date 2026-04-18
  * @version 2.0.0
  */
@@ -15,12 +15,27 @@ const MAX_FAILED_ATTEMPTS = parseInt(process.env.LOGIN_MAX_FAILED_ATTEMPTS) || 1
 const LOCK_DURATION_MINUTES = parseInt(process.env.LOGIN_LOCK_DURATION_MINUTES) || 15;
 const LOCK_DURATION_MS = LOCK_DURATION_MINUTES * 60 * 1000;
 const LOCK_DURATION_SECONDS = LOCK_DURATION_MINUTES * 60;
+const ALLOW_MEMORY_FALLBACK =
+  process.env.ACCOUNT_LOCK_ALLOW_MEMORY_FALLBACK === 'true' ||
+  process.env.NODE_ENV !== 'production';
 
 // Redis key 前缀
 const KEY_PREFIX = 'acc_lock:';
 
 // 内存降级存储
 const memoryStore = new Map();
+let memoryFallbackWarned = false;
+
+function useMemoryFallback(reason) {
+  if (!ALLOW_MEMORY_FALLBACK) {
+    throw new Error(`账号锁定服务需要可用的 Redis；${reason}`);
+  }
+  if (!memoryFallbackWarned) {
+    logger.warn(`账号锁定服务使用内存存储：${reason}`);
+    memoryFallbackWarned = true;
+  }
+  return null;
+}
 
 /**
  * 获取 Redis 客户端（带降级）
@@ -29,10 +44,10 @@ async function getClient() {
   try {
     const client = await getRedisClient();
     if (client && client.isOpen) return client;
-  } catch {
-    // 静默降级
+  } catch (error) {
+    return useMemoryFallback(`Redis 客户端获取失败: ${error.message}`);
   }
-  return null;
+  return useMemoryFallback('Redis 未启用或未连接');
 }
 
 class AccountLockService {
@@ -64,6 +79,7 @@ class AccountLockService {
         return { locked: false, remainingMinutes: 0 };
       } catch (err) {
         logger.error('Redis AccountLock isLocked 错误:', err.message);
+        useMemoryFallback(`Redis 锁定状态读取失败: ${err.message}`);
       }
     }
 
@@ -127,6 +143,7 @@ class AccountLockService {
         return { locked: false, remainingAttempts, lockDurationMinutes: 0 };
       } catch (err) {
         logger.error('Redis AccountLock recordFailedAttempt 错误:', err.message);
+        useMemoryFallback(`Redis 登录失败记录写入失败: ${err.message}`);
       }
     }
 
@@ -153,7 +170,12 @@ class AccountLockService {
   static async clearFailedAttempts(username) {
     const client = await getClient();
     if (client) {
-      try { await client.del(`${KEY_PREFIX}${username}`); } catch { /* 降级 */ }
+      try {
+        await client.del(`${KEY_PREFIX}${username}`);
+      } catch (error) {
+        logger.error('Redis AccountLock clearFailedAttempts 错误:', error.message);
+        useMemoryFallback(`Redis 登录失败记录清理失败: ${error.message}`);
+      }
     }
     memoryStore.delete(username);
   }
@@ -165,7 +187,12 @@ class AccountLockService {
   static async unlock(username) {
     const client = await getClient();
     if (client) {
-      try { await client.del(`${KEY_PREFIX}${username}`); } catch { /* 降级 */ }
+      try {
+        await client.del(`${KEY_PREFIX}${username}`);
+      } catch (error) {
+        logger.error('Redis AccountLock unlock 错误:', error.message);
+        useMemoryFallback(`Redis 手动解锁失败: ${error.message}`);
+      }
     }
     memoryStore.delete(username);
     logger.info(`🔓 [手动解锁] 账号 ${username} 已被管理员解锁`);
@@ -202,6 +229,7 @@ class AccountLockService {
         return locked;
       } catch (err) {
         logger.error('Redis getLockedAccounts 错误:', err.message);
+        useMemoryFallback(`Redis 锁定账号列表读取失败: ${err.message}`);
       }
     }
 

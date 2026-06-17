@@ -40,9 +40,8 @@ class PeriodValidationService {
         message: isFrozen ? `${year}年度库存已冻结，无法创建或修改该年度的库存单据` : null,
       };
     } catch (error) {
-      // 如果表不存在或其他错误，允许操作
-      logger.warn('检查库存年度冻结状态时出错:', error.message);
-      return { isFrozen: false, year: null, message: null };
+      logger.error('检查库存年度冻结状态失败:', error);
+      throw error;
     }
   }
 

@@ -236,8 +236,9 @@ const checkAndUpdateTaskStatus = async (connection, taskId) => {
       [task.product_id]
     );
 
-    // 如果没有BOM，无法判断发料进度，跳过
-    if (boms.length === 0) return;
+    if (boms.length === 0) {
+      throw new Error(`生产任务 ${taskId} 的产品未维护已审核BOM，无法判断发料进度`);
+    }
     const bomId = boms[0].id;
 
     const [bomDetails] = await connection.execute(
@@ -245,7 +246,9 @@ const checkAndUpdateTaskStatus = async (connection, taskId) => {
       [bomId]
     );
 
-    if (bomDetails.length === 0) return;
+    if (bomDetails.length === 0) {
+      throw new Error(`生产任务 ${taskId} 的BOM ${bomId} 没有明细，无法判断发料进度`);
+    }
 
     // 3. 计算发料情况
     let allIssued = true;

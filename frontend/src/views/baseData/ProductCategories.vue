@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * ProductCategories.vue
  * @description 前端界面组件文件
@@ -207,7 +207,7 @@
             </template>
           </el-table-column>
           <el-table-column prop="description" label="描述"></el-table-column>
-          <el-table-column label="操作" width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+          <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="scope">
               <el-button
                 v-if="canUpdate && Number(scope.row.status) !== 1"
@@ -275,7 +275,7 @@
             </template>
           </el-table-column>
           <el-table-column prop="description" label="描述"></el-table-column>
-          <el-table-column label="操作" width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+          <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="scope">
               <el-button
                 v-if="canUpdate && Number(scope.row.status) !== 1"

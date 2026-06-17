@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="module-page cost-version-manage">
     <el-card class="header-card">
       <div class="header-content">
@@ -48,7 +48,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <template v-if="scope.row.status === 'draft'">
               <el-button v-permission="'finance:cost:execute'" size="small" type="warning" @click="handleGenerate(scope.row)" :loading="operatingId === scope.row.id">智能取价</el-button>

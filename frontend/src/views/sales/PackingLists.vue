@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * PackingLists.vue
  * @description 装箱单管理前端界面组件文件
@@ -431,7 +431,7 @@
                   <el-input v-model="scope.row.remark" placeholder="备注"></el-input>
                 </template>
               </el-table-column>
-              <el-table-column label="操作" width="80" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+              <el-table-column label="操作" min-width="80" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
                 <template #default="scope">
                   <el-button
                     size="small"

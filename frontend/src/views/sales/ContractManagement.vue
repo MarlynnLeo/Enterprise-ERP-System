@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="module-page page-container">
     <!-- 页面头部卡片 -->
     <el-card class="header-card">
@@ -65,7 +65,7 @@
       </el-table-column>
       <el-table-column prop="effective_date" label="生效日期" width="110" />
       <el-table-column prop="expiry_date" label="到期日期" width="110" />
-      <el-table-column label="操作" width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+      <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
         <template #default="{ row }">
           <el-button link type="primary" @click="viewDetail(row)">查看</el-button>
           <el-button link type="primary" v-permission="'contract:edit'" @click="openForm(row)">编辑</el-button>

@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * Depreciation.vue
  * @description 前端界面组件文件
@@ -192,7 +192,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="90" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="90" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button
               v-if="scope.row.depreciationAmount > 0 && !scope.row.submitted"

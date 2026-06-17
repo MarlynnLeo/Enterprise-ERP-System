@@ -77,7 +77,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="completion_date" label="完工日期" width="110"></el-table-column>
-        <el-table-column label="操作" width="100" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="100" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button type="primary" size="small" @click="viewDetail(scope.row)">详情</el-button>
           </template>

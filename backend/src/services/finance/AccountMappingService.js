@@ -52,7 +52,7 @@ class AccountMappingService {
       return rows[0];
     } catch (error) {
       logger.error('[AccountMapping] 获取默认映射失败:', { businessType, error: error.message });
-      return null;
+      throw error;
     }
   }
 
@@ -236,7 +236,7 @@ class AccountMappingService {
       return rows;
     } catch (error) {
       logger.error('[AccountMapping] 获取映射列表失败:', error);
-      return [];
+      throw error;
     }
   }
 }

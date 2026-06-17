@@ -758,7 +758,7 @@
           hasFlash.value = true
           return
         } catch {
-          // 保持静默降级，下面统一给出用户提示。
+          // 由下方统一给出用户提示。
         }
       }
 

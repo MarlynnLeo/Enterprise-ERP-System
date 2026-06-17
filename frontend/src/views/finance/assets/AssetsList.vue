@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * AssetsList.vue
  * @description 前端界面组件文件
@@ -131,7 +131,7 @@
             <el-tag v-else type="info" effect="plain" size="small">待审核</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button type="primary" size="small" @click="handleEdit(scope.row)" v-if="!isDisposed(scope.row.status) && scope.row.auditStatus !== 'approved'"
               v-permission="'finance:assets:update'">编辑</el-button>

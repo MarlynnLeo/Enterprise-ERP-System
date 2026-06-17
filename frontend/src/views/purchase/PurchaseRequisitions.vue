@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * PurchaseRequisitions.vue
  * @description 前端界面组件文件
@@ -144,7 +144,7 @@
             {{ formatDate(row.created_at) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <el-button
               size="small"
@@ -307,7 +307,7 @@
                 ></el-input>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="60" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+            <el-table-column label="操作" min-width="60" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="{ $index }">
                 <el-button
                   link

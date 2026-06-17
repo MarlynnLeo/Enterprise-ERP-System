@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * InventoryInbound.vue
  * @description 前端界面组件文件
@@ -369,7 +369,7 @@
                 clearable />
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="80" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+          <el-table-column label="操作" min-width="80" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="{ $index }">
               <el-button
                 type="danger"
@@ -457,7 +457,7 @@
         <el-table-column prop="name" label="物料名称" width="180" />
         <el-table-column prop="specs" label="规格" width="220" />
         <el-table-column prop="unit_name" label="单位" width="80" />
-        <el-table-column label="操作" width="100" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="100" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="handleAddSingleMaterial(row)">
               选择
@@ -518,7 +518,7 @@
             <el-tag :type="getTaskStatusType(row.status)">{{ getTaskStatusText(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="100" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="100" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <el-button type="primary" size="small" @click.stop="selectTask(row)">选择</el-button>
           </template>

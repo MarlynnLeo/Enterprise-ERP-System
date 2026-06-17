@@ -384,7 +384,6 @@ class InspectionTemplateController {
                 });
               }
             } catch (e) { logger.warn('解析 material_types 失败:', e.message); }
-            // 静默忽略该错误
           }
 
           if (rowMaterialIds.length > 0) {
@@ -492,7 +491,6 @@ class InspectionTemplateController {
               });
             }
           } catch (e) { logger.warn('解析 material_types 失败:', e.message); }
-          // 静默忽略该错误
         }
 
         if (rowMaterialIds.length > 0) {

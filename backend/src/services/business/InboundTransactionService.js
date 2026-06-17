@@ -176,25 +176,14 @@ class InboundTransactionService {
             }
           } catch (traceErr) {
             logger.error(`❌ [批次号溯源报错] `, traceErr);
+            throw traceErr;
           }
         }
 
         if (!finalBatchNumber) {
-          // 生产退料/不良退回：溯源失败时自动生成退料批次号
-          // 实际生产中部分物料是手工领用、补料或样品，台账中没有发料记录属于正常情况
-          if (['defective_return', 'production_return'].includes(inboundType)) {
-            const now = new Date();
-            const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
-            finalBatchNumber = `RT-${dateStr}-${item.material_id}-${item.id}`;
-            logger.warn(
-              `⚠️ [批次号自动生成] 退料入库溯源失败，自动生成批次号: ${finalBatchNumber}` +
-              ` (inbound_no=${inboundData.inbound_no}, material_id=${item.material_id})`
-            );
-          } else {
-            throw new Error(
-              `入库明细缺少可追溯批次号: inbound_no=${inboundData.inbound_no}, material_id=${item.material_id}`
-            );
-          }
+          throw new Error(
+            `入库明细缺少可追溯批次号: inbound_no=${inboundData.inbound_no}, material_id=${item.material_id}`
+          );
         }
 
         // 回写明细
@@ -453,34 +442,6 @@ class InboundTransactionService {
                     consumedRows = ledgerRows;
                   }
 
-                  // 若出库单没查到或台账没查到，再尝试历史老办法兜底（按任务号或者入库单号查台账）
-                  if (consumedRows.length === 0) {
-                    const fallbackNos = [];
-                    if (taskCode) fallbackNos.push(taskCode);
-                    if (inboundData.inbound_no) fallbackNos.push(inboundData.inbound_no);
-
-                    if (fallbackNos.length > 0) {
-                        const fallPlaceholders = fallbackNos.map(() => '?').join(',');
-                        const [fallbackRows] = await connection.query(
-                          `SELECT
-                             il.material_id,
-                             il.batch_number    as raw_batch_number,
-                             m.code             as raw_material_code,
-                             ABS(SUM(il.quantity)) as consumed_quantity
-                           FROM inventory_ledger il
-                           JOIN materials m ON il.material_id = m.id
-                           WHERE il.transaction_type IN ('production_outbound', 'outbound')
-                             AND il.reference_no IN (${fallPlaceholders})
-                             AND il.quantity < 0
-                             AND il.batch_number IS NOT NULL
-                             AND il.batch_number != ''
-                           GROUP BY il.material_id, il.batch_number, m.code`,
-                          fallbackNos
-                        );
-                        consumedRows.push(...fallbackRows);
-                    }
-                  }
-
                   const producedQty = parseFloat(inboundItem.quantity) || 1;
 
                   for (const raw of consumedRows) {
@@ -526,13 +487,14 @@ class InboundTransactionService {
                       `[追溯] 成品批次 ${productBatchNo} 已建立 ${consumedRows.length} 条原料消耗关系`
                     );
                   } else {
-                    logger.warn(
-                      `[追溯] 生产任务 ${taskId}(${taskCode}) 未找到对应的原料领用台账，batch_relationships 未写入`
+                    throw new Error(
+                      `生产任务 ${taskId}(${taskCode}) 未找到对应的原料领用台账，不能建立成品批次 ${productBatchNo} 的消耗追溯关系`
                     );
                   }
                 }
               } catch (traceErr) {
                 logger.error('建立生产批次消耗追溯关系失败:', traceErr);
+                throw traceErr;
               }
             }
           }
@@ -582,7 +544,10 @@ class InboundTransactionService {
                 supplierId = supplierRows[0].supplier_id;
                 supplierName = supplierRows[0].supplier_name;
               }
-            } catch (err) { logger.warn('查询供应商信息失败:', err.message); }
+            } catch (err) {
+              logger.error('查询供应商信息失败:', err);
+              throw err;
+            }
 
             await connection.query(`
               INSERT INTO nonconforming_products (

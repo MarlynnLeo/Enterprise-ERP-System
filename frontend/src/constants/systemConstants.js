@@ -168,6 +168,33 @@ const createOptions = (groupCode, filterKeys = null) => {
 
 export const INVENTORY_CHECK_STATUS_OPTIONS = createOptions('inventory_check_status');
 export const PURCHASE_STATUS_OPTIONS = createOptions('purchase_status', ['draft', 'pending', 'approved', 'confirmed', 'received', 'inspecting', 'inspected', 'warehousing', 'partial_received', 'completed', 'cancelled']);
+export const DEFAULT_PURCHASE_DELIVERY_DAYS = 21;
+export const DEFAULT_PURCHASE_VAT_RATE = 0.13;
+export const PURCHASE_STATUS_TRANSITIONS = {
+  draft: ['pending', 'cancelled'],
+  pending: [],
+  confirmed: ['received', 'partial_received', 'cancelled'],
+  approved: ['received', 'partial_received', 'cancelled'],
+  received: ['inspecting', 'cancelled'],
+  inspecting: ['inspected', 'cancelled'],
+  inspected: ['warehousing', 'cancelled'],
+  warehousing: ['completed', 'cancelled'],
+  partial_received: ['received', 'cancelled'],
+  completed: [],
+  cancelled: []
+};
+export const PURCHASE_STATUS_ACTION_TEXT = {
+  draft: '\u9a73\u56de',
+  pending: '\u63d0\u4ea4\u5ba1\u6279',
+  confirmed: '\u6279\u51c6',
+  approved: '\u6279\u51c6',
+  received: '\u786e\u8ba4\u5230\u8d27',
+  inspecting: '\u8bbe\u4e3a\u68c0\u9a8c\u4e2d',
+  inspected: '\u8bbe\u4e3a\u68c0\u9a8c\u5b8c\u6210',
+  warehousing: '\u8bbe\u4e3a\u5165\u5e93\u4e2d',
+  completed: '\u5b8c\u6210',
+  cancelled: '\u53d6\u6d88'
+};
 export const OUTSOURCED_STATUS_OPTIONS = createOptions('outsourced_status');
 export const PURCHASE_RECEIPT_STATUS_OPTIONS = createOptions('purchase_receipt_status');
 export const PURCHASE_RETURN_STATUS_OPTIONS = createOptions('purchase_return_status');
@@ -360,6 +387,7 @@ export const getOrderStatusText = (code) => getText('order_status', code);
 export const getOrderStatusColor = (code) => getColor('order_status', code);
 export const getPurchaseStatusText = (code) => getText('purchase_status', code);
 export const getPurchaseStatusColor = (code) => getColor('purchase_status', code);
+export const getPurchaseStatusLabel = getPurchaseStatusText;
 export const getPurchaseReceiptStatusText = (code) => getText('purchase_receipt_status', code);
 export const getPurchaseReceiptStatusColor = (code) => getColor('purchase_receipt_status', code);
 export const getPurchaseReturnStatusText = (code) => getText('purchase_return_status', code);
@@ -404,7 +432,10 @@ export const getAssetStatusColor = (code) => getColor('asset_status', code);
 export const getAssetTypeText = (code) => getText('asset_type', code);
 
 // 额外补充特定 API
-export const isValidStatusTransition = () => true;
+export const isValidStatusTransition = (currentStatus, newStatus, transitions = PURCHASE_STATUS_TRANSITIONS) => {
+  const allowedTransitions = transitions[currentStatus];
+  return Array.isArray(allowedTransitions) && allowedTransitions.includes(newStatus);
+};
 export const generateStatusCaseSQL = () => '';
 
 // ========== 默认导出 ==========
@@ -437,8 +468,14 @@ export default {
   getOrderStatusColor,
   PURCHASE_STATUS,
   PURCHASE_STATUS_COLORS,
+  PURCHASE_STATUS_ACTION_TEXT,
+  PURCHASE_STATUS_TRANSITIONS,
+  PURCHASE_STATUS_OPTIONS,
+  DEFAULT_PURCHASE_DELIVERY_DAYS,
+  DEFAULT_PURCHASE_VAT_RATE,
   getPurchaseStatusText,
   getPurchaseStatusColor,
+  getPurchaseStatusLabel,
   PURCHASE_RECEIPT_STATUS,
   PURCHASE_RECEIPT_STATUS_COLORS,
   getPurchaseReceiptStatusText,

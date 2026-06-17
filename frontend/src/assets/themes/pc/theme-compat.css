@@ -756,6 +756,36 @@
   --el-button-active-text-color: var(--color-on-info);
 }
 
+/* Link 按钮 — 无背景纯文字，必须使用语义色而非 on-* 白色 */
+[data-theme] .el-button--primary.is-link {
+  --el-button-text-color: var(--color-primary);
+  --el-button-hover-text-color: var(--color-primary-light-3);
+  --el-button-active-text-color: var(--color-primary-dark-2);
+}
+
+[data-theme] .el-button--success.is-link {
+  --el-button-text-color: var(--color-success);
+  --el-button-hover-text-color: var(--color-success);
+  --el-button-active-text-color: var(--color-success-dark);
+}
+
+[data-theme] .el-button--warning.is-link {
+  --el-button-text-color: var(--color-warning);
+  --el-button-hover-text-color: var(--color-warning);
+  --el-button-active-text-color: var(--color-warning-dark);
+}
+
+[data-theme] .el-button--danger.is-link {
+  --el-button-text-color: var(--color-danger);
+  --el-button-hover-text-color: var(--color-danger);
+  --el-button-active-text-color: var(--color-danger-dark);
+}
+
+[data-theme] .el-button--info.is-link {
+  --el-button-text-color: var(--color-info);
+  --el-button-hover-text-color: var(--color-info);
+  --el-button-active-text-color: var(--color-info-dark);
+}
 
 [data-theme] .el-dialog {
   background: var(--theme-dialog-bg) !important;

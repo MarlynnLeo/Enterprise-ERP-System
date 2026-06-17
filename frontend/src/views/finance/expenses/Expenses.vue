@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * Expenses.vue
  * @description 费用管理页面
@@ -144,7 +144,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="created_by_name" label="创建人" width="100" />
-        <el-table-column label="操作" width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <el-button type="primary" size="small" link @click="handleView(row)">查看</el-button>
             <el-button

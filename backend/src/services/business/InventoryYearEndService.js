@@ -234,13 +234,13 @@ class InventoryYearEndService {
 
       // 2. 删除该年度未冻结的旧记录（重新生成）
       const nextYear = year + 1;
-      const [nextFrozenRecords] = await connection.execute(
-        'SELECT COUNT(*) as count FROM inventory_year_end_balances WHERE year = ? AND is_frozen = 1',
+      const [nextYearRecords] = await connection.execute(
+        'SELECT COUNT(*) as count FROM inventory_year_end_balances WHERE year = ?',
         [nextYear]
       );
 
-      if ((parseInt(nextFrozenRecords[0].count, 10) || 0) > 0) {
-        throw new Error(`${nextYear}年度库存结存已冻结，不能重新执行${year}年度库存结存`);
+      if ((parseInt(nextYearRecords[0].count, 10) || 0) > 0) {
+        throw new Error(`${nextYear}年度已存在结存记录，请先删除${nextYear}年度结存后再重新执行${year}年度结存`);
       }
 
       await connection.execute(
@@ -321,21 +321,36 @@ class InventoryYearEndService {
         throw new Error(`${year}年度没有可结存的库存数据`);
       }
 
-      let insertCount = 0;
-      for (const row of ledgerData) {
+      // 4.1 批量预检：收集所有期末负库存，统一报错
+      const parsedRows = ledgerData.map((row) => {
         const openingQty = parseFloat(row.opening_qty) || 0;
         const openingValue = parseFloat(row.opening_value) || 0;
         const inboundQty = parseFloat(row.inbound_qty) || 0;
         const inboundValue = parseFloat(row.inbound_value) || 0;
         const outboundQty = parseFloat(row.outbound_qty) || 0;
         const outboundValue = parseFloat(row.outbound_value) || 0;
-        const closingQty = openingQty + inboundQty - outboundQty;
-        const closingValue = openingValue + inboundValue - outboundValue;
+        return {
+          ...row,
+          openingQty, openingValue,
+          inboundQty, inboundValue,
+          outboundQty, outboundValue,
+          closingQty: openingQty + inboundQty - outboundQty,
+          closingValue: openingValue + inboundValue - outboundValue,
+        };
+      });
 
-        if (closingQty < -0.0001) {
-          throw new Error(`${year}年度存在期末负库存，不能执行结存`);
-        }
+      const negatives = parsedRows.filter((r) => r.closingQty < -0.0001);
+      if (negatives.length > 0) {
+        const detail = negatives.slice(0, 5).map(
+          (r) => `物料${r.material_id}/仓库${r.location_id}(期末=${r.closingQty})`
+        ).join('、');
+        const extra = negatives.length > 5 ? `等共${negatives.length}条` : '';
+        throw new Error(`${year}年度存在期末负库存：${detail}${extra}，不能执行结存`);
+      }
 
+      // 4.2 批量插入
+      let insertCount = 0;
+      for (const row of parsedRows) {
         await connection.execute(
           `
           INSERT INTO inventory_year_end_balances
@@ -348,14 +363,14 @@ class InventoryYearEndService {
             year,
             row.material_id,
             row.location_id,
-            openingQty,
-            openingValue,
-            inboundQty,
-            inboundValue,
-            outboundQty,
-            outboundValue,
-            closingQty,
-            closingValue,
+            row.openingQty,
+            row.openingValue,
+            row.inboundQty,
+            row.inboundValue,
+            row.outboundQty,
+            row.outboundValue,
+            row.closingQty,
+            row.closingValue,
           ]
         );
         insertCount++;
@@ -406,21 +421,30 @@ class InventoryYearEndService {
       const year = this.normalizeYear(params.year);
       const operator = params.operator || 'system';
 
-      // 检查是否有结存记录
+      // 检查是否有结存记录及当前冻结状态
       const [records] = await connection.execute(
-        'SELECT COUNT(*) as count FROM inventory_year_end_balances WHERE year = ?',
+        `SELECT COUNT(*) as count,
+         SUM(CASE WHEN is_frozen = 1 THEN 1 ELSE 0 END) as frozen_count
+         FROM inventory_year_end_balances WHERE year = ?`,
         [year]
       );
 
-      if (records[0].count === 0) {
+      const totalCount = parseInt(records[0].count, 10) || 0;
+      const frozenCount = parseInt(records[0].frozen_count, 10) || 0;
+
+      if (totalCount === 0) {
         throw new Error(`${year}年度没有结存记录，请先执行年度结存`);
+      }
+
+      if (frozenCount === totalCount) {
+        throw new Error(`${year}年度结存已冻结，无需重复冻结`);
       }
 
       // 冻结所有记录
       await connection.execute(
         `UPDATE inventory_year_end_balances
          SET is_frozen = 1, frozen_by = ?, frozen_at = NOW()
-         WHERE year = ?`,
+         WHERE year = ? AND is_frozen = 0`,
         [operator, year]
       );
 
@@ -610,9 +634,9 @@ class InventoryYearEndService {
         LEFT JOIN locations il ON yeb.location_id = il.id
         ${whereClause}
         ORDER BY m.code, il.name
-        LIMIT ${safePageSize} OFFSET ${offset}
+        LIMIT ? OFFSET ?
       `,
-        queryParams
+        [...queryParams, safePageSize, offset]
       );
 
       return {

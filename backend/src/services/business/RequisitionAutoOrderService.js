@@ -77,9 +77,7 @@ async function generateOrdersFromRequisition(requisitionId, conn) {
     );
 
     if (itemsRows.length === 0) {
-      logger.warn(`⚠️ 采购申请 ${requisitionId} 没有物料项，跳过生成采购订单`);
-      if (useOwnConn) await conn.commit();
-      return generatedOrders;
+      throw new Error(`采购申请 ${requisition.requisition_number || requisitionId} 没有物料项，不能自动生成采购订单`);
     }
 
     const defaultTaxRate = normalizeTaxRate(financeConfig.get('tax.defaultVATRate', 0), 0);
@@ -224,16 +222,12 @@ async function generateOrdersFromRequisition(requisitionId, conn) {
         items_count: supplierData.items.length,
       });
 
-      // 自动创建单据关联
-      try {
-        const DocumentLinkService = require('./DocumentLinkService');
-        await DocumentLinkService.tryAutoLink(
-          'purchase_requisition', requisitionId, requisition.requisition_number,
-          'purchase_order', orderId, orderNo, null, conn
-        );
-      } catch (linkErr) {
-        logger.warn(`单据关联创建失败: ${linkErr.message}`);
-      }
+      // 自动创建单据关联。关联失败会破坏采购申请到采购订单的闭环，必须回滚重试。
+      const DocumentLinkService = require('./DocumentLinkService');
+      await DocumentLinkService.tryAutoLink(
+        'purchase_requisition', requisitionId, requisition.requisition_number,
+        'purchase_order', orderId, orderNo, null, conn
+      );
 
       logger.info(`✅ 成功生成采购订单 ${orderNo}，供应商: ${supplierData.supplier_name}，物料数量: ${supplierData.items.length}`);
     }

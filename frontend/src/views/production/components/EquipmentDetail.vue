@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * EquipmentDetail.vue
  * @description Vue组件文件
@@ -166,7 +166,7 @@
             {{ formatDateTime(row.occurred_at) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="150" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="150" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <el-button size="small" @click="acknowledgeAlarm(row.id)">
               确认

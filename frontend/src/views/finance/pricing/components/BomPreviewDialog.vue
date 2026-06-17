@@ -60,7 +60,7 @@
             </template>
           </el-table-column>
           <!-- 编辑模式下显示操作列 -->
-          <el-table-column v-if="mode === 'edit'" label="操作" width="130" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+          <el-table-column v-if="mode === 'edit'" label="操作" min-width="130" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="{ row }">
               <el-button v-permission="'finance:pricing:update'" type="primary" link size="small" @click="$emit('adjust', row)">
                 {{ row.has_adjustment ? '重新调整' : '调整' }}
