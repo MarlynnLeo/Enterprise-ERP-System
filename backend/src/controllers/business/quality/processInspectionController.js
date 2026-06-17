@@ -199,11 +199,10 @@ const processInspectionController = {
 
             const inspectionData = inspection[0];
 
-            // 从规则配置中获取打卡间隔（默认10分钟）
+            // 从规则配置中获取打卡间隔；没有匹配规则时使用系统默认间隔，查询失败则由外层错误处理回滚请求
             let punchInterval = 10;
-            try {
-                const ruleResult = await db.query(
-                    `
+            const ruleResult = await db.query(
+                `
           SELECT punch_interval FROM process_inspection_rules
           WHERE is_enabled = 1
             AND (process_id = ? OR process_id IS NULL)
@@ -214,14 +213,11 @@ const processInspectionController = {
                  ELSE 3 END
           LIMIT 1
         `,
-                    [inspectionData.process_id, inspectionData.product_id]
-                );
-                const rules = ruleResult?.rows || ruleResult;
-                if (rules && rules.length > 0 && rules[0].punch_interval) {
-                    punchInterval = rules[0].punch_interval;
-                }
-            } catch (ruleError) {
-                logger.warn('获取打卡间隔规则失败，使用默认值', ruleError);
+                [inspectionData.process_id, inspectionData.product_id]
+            );
+            const rules = ruleResult?.rows || ruleResult;
+            if (rules && rules.length > 0 && rules[0].punch_interval) {
+                punchInterval = rules[0].punch_interval;
             }
 
             // 检查是否在打卡间隔内已经打卡

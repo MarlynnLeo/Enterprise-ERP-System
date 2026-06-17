@@ -103,7 +103,12 @@ class AqlController {
             const result = await AqlService.calculate(Number(batch_size), String(aql_level));
 
             if (!result.matched) {
-                return ResponseHandler.success(res, result, '未找到匹配的标准', 200);
+                return ResponseHandler.error(
+                    res,
+                    result.message || '未找到匹配的AQL抽样标准',
+                    'VALIDATION_ERROR',
+                    400
+                );
             }
 
             return ResponseHandler.success(res, result, '计算成功');

@@ -171,9 +171,10 @@ class NonconformingProductService {
         responsibleParty = 'supplier';
       } else if (
         inspection.inspection_type === 'process' ||
-        inspection.inspection_type === 'final'
+        inspection.inspection_type === 'final' ||
+        inspection.inspection_type === 'first_article'
       ) {
-        // 过程检验/成品检验 -> 内部责任
+        // 过程检验/首件检验/成品检验 -> 内部责任
         responsibleParty = 'internal';
       }
 
@@ -202,6 +203,7 @@ class NonconformingProductService {
       const inspectionTypeMap = {
         incoming: '来料检验',
         process: '过程检验',
+        first_article: '首件检验',
         final: '成品检验',
       };
       const inspectionTypeCN =

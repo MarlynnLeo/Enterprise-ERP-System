@@ -1,6 +1,7 @@
 const { pool } = require('../../config/db');
 const businessConfig = require('../../config/businessConfig');
 const InspectionClosureService = require('./InspectionClosureService');
+const QualityInspection = require('../../models/qualityInspection');
 // 从统一的业务配置获取检验状态常量（原 utils/constants.js 不存在，已修正）
 const STATUS = { QUALITY: businessConfig.status.inspection };
 
@@ -10,7 +11,7 @@ class InspectionService {
      * 更新检验单状态，并在同一个事务中处理追溯链路与关联单据的更新
      */
     async updateInspectionStatusAndTrace(id, {
-        status, result, remarks,
+        status, remarks,
         qualified_quantity, unqualified_quantity,
         is_aql, aql_standard_id, aql_level, accept_limit, reject_limit
     }) {
@@ -47,12 +48,24 @@ class InspectionService {
                 }
             }
 
+            QualityInspection._validateTerminalStatusAgainstItems(
+                {
+                    ...inspection,
+                    status: finalStatus,
+                    unqualified_quantity: finalUnqualified,
+                    is_aql: is_aql !== undefined ? is_aql : inspection.is_aql,
+                    accept_limit: accept_limit !== undefined ? accept_limit : inspection.accept_limit,
+                    reject_limit: reject_limit !== undefined ? reject_limit : inspection.reject_limit,
+                },
+                finalStatus,
+                items
+            );
+
             // 1. 更新检验单状态
             const updateData = {
                 status: finalStatus,
-                result: result || inspection.result,
-                remarks: remarks || inspection.remarks,
             };
+            if (remarks !== undefined) updateData.note = remarks;
             if (qualified_quantity !== undefined) updateData.qualified_quantity = qualified_quantity;
             if (unqualified_quantity !== undefined) updateData.unqualified_quantity = finalUnqualified;
 

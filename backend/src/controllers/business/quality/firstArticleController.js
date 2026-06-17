@@ -12,6 +12,7 @@ const db = require('../../../config/db');
 const { BUSINESS_RULES } = require('../../../constants/systemConstants');
 const businessConfig = require('../../../config/businessConfig');
 const QualityInspection = require('../../../models/qualityInspection');
+const InspectionClosureService = require('../../../services/quality/InspectionClosureService');
 const {
   generateBatchNo,
   normalizeTaskBatchNo,
@@ -68,7 +69,7 @@ const firstArticleController = {
         maxPageSize: 100,
       });
 
-      let whereClause = "WHERE qi.inspection_type = 'first_article'";
+      let whereClause = "WHERE qi.deleted_at IS NULL AND qi.inspection_type = 'first_article'";
       const params = [];
 
       if (keyword) {
@@ -143,6 +144,7 @@ const firstArticleController = {
           SUM(CASE WHEN first_article_result = 'conditional' THEN 1 ELSE 0 END) as conditional
         FROM quality_inspections
         WHERE inspection_type = 'first_article'
+          AND deleted_at IS NULL
       `);
 
       const rawStats = statsResult.rows && statsResult.rows[0];
@@ -192,7 +194,7 @@ const firstArticleController = {
       }
 
       const existingResult = await db.query(
-        "SELECT id FROM quality_inspections WHERE task_id = ? AND inspection_type = 'first_article'",
+        "SELECT id FROM quality_inspections WHERE task_id = ? AND inspection_type = 'first_article' AND deleted_at IS NULL",
         [task_id]
       );
 
@@ -309,6 +311,7 @@ const firstArticleController = {
    * 更新首检结果
    */
   async updateFirstArticleResult(req, res) {
+    let connection;
     try {
       const { id } = req.params;
       const {
@@ -326,41 +329,59 @@ const firstArticleController = {
         return ResponseHandler.error(res, '首检结果不能为空', 'VALIDATION_ERROR', 400);
       }
 
-      const existingResult = await db.query(
-        "SELECT id, inspection_no, inspection_type, reference_id, reference_no, material_id, supplier_id, product_id, product_name, product_code, process_id, process_name, batch_no, quantity, qualified_quantity, unqualified_quantity, unit, unit_id, status, planned_date, actual_date, inspector_id, inspector_name, punch_time, standard_type, standard_no, template_id, note, created_at, updated_at, traceability_id, traceability_batch, chain_id, chain_step_id, is_first_article, first_article_qty, is_full_inspection, first_article_result, production_can_continue, task_id, is_aql, aql_standard_id, aql_level, accept_limit, reject_limit, deleted_at FROM quality_inspections WHERE id = ? AND inspection_type = 'first_article' AND deleted_at IS NULL",
-        [id]
-      );
-
-      if (!existingResult.rows || existingResult.rows.length === 0) {
-        return ResponseHandler.error(res, '首检单不存在', 'NOT_FOUND', 404);
-      }
-
       const terminalResults = new Set([
         STATUS.FIRST_ARTICLE.PASSED,
         STATUS.FIRST_ARTICLE.FAILED,
         STATUS.FIRST_ARTICLE.CONDITIONAL,
       ]);
-      if (terminalResults.has(first_article_result) && (!Array.isArray(items) || items.length === 0)) {
-        const itemCountResult = await db.query(
-          'SELECT COUNT(*) AS item_count FROM quality_inspection_items WHERE inspection_id = ?',
-          [id]
-        );
-        const itemCount = Number(itemCountResult.rows?.[0]?.item_count || 0);
-        if (itemCount === 0) {
-          return ResponseHandler.error(
-            res,
-            '首检单没有检验项目，不能判定首检结果',
-            'VALIDATION_ERROR',
-            400
-          );
-        }
+      if (!terminalResults.has(first_article_result)) {
+        return ResponseHandler.error(res, '首检结果无效', 'VALIDATION_ERROR', 400);
       }
+
+      const qualifiedQty = Number(qualified_quantity ?? 0);
+      const unqualifiedQty = Number(unqualified_quantity ?? 0);
+      if (!Number.isFinite(qualifiedQty) || !Number.isFinite(unqualifiedQty)) {
+        return ResponseHandler.error(res, '首检合格/不合格数量必须是有效数字', 'VALIDATION_ERROR', 400);
+      }
+
+      connection = await db.pool.getConnection();
+      await connection.beginTransaction();
+
+      const [existingRows] = await connection.query(
+        "SELECT id, inspection_no, inspection_type, reference_id, reference_no, material_id, supplier_id, product_id, product_name, product_code, process_id, process_name, batch_no, quantity, qualified_quantity, unqualified_quantity, unit, unit_id, status, planned_date, actual_date, inspector_id, inspector_name, punch_time, standard_type, standard_no, template_id, note, created_at, updated_at, traceability_id, traceability_batch, chain_id, chain_step_id, is_first_article, first_article_qty, is_full_inspection, first_article_result, production_can_continue, task_id, is_aql, aql_standard_id, aql_level, accept_limit, reject_limit, deleted_at FROM quality_inspections WHERE id = ? AND inspection_type = 'first_article' AND deleted_at IS NULL FOR UPDATE",
+        [id]
+      );
+
+      if (!existingRows || existingRows.length === 0) {
+        await connection.rollback();
+        return ResponseHandler.error(res, '首检单不存在', 'NOT_FOUND', 404);
+      }
+
+      const inspection = existingRows[0];
+      const itemsForValidation =
+        Array.isArray(items) && items.length > 0
+          ? items
+          : await QualityInspection._getStoredInspectionItems(connection, id);
+      const validationStatus =
+        first_article_result === STATUS.FIRST_ARTICLE.CONDITIONAL
+          ? 'partial'
+          : first_article_result;
+      QualityInspection._validateTerminalStatusAgainstItems(
+        {
+          ...inspection,
+          status: validationStatus,
+          qualified_quantity: qualifiedQty,
+          unqualified_quantity: unqualifiedQty,
+        },
+        validationStatus,
+        itemsForValidation
+      );
 
       const canContinue =
         first_article_result === STATUS.FIRST_ARTICLE.PASSED ||
         (first_article_result === STATUS.FIRST_ARTICLE.CONDITIONAL && production_can_continue);
 
-      await db.query(
+      await connection.query(
         `
         UPDATE quality_inspections
         SET
@@ -377,27 +398,23 @@ const firstArticleController = {
       `,
         [
           first_article_result,
-          qualified_quantity || 0,
-          unqualified_quantity || 0,
+          qualifiedQty,
+          unqualifiedQty,
           canContinue,
           inspector_id,
           inspector_name,
           note,
-          first_article_result === STATUS.FIRST_ARTICLE.PASSED
-            ? STATUS.FIRST_ARTICLE.PASSED
-            : first_article_result === STATUS.FIRST_ARTICLE.FAILED
-              ? STATUS.FIRST_ARTICLE.FAILED
-              : STATUS.FIRST_ARTICLE.CONDITIONAL,
+          validationStatus,
           id,
         ]
       );
 
       // 如果有检验项目明细，更新或插入
       if (items && items.length > 0) {
-        await db.query('DELETE FROM quality_inspection_items WHERE inspection_id = ?', [id]);
+        await connection.query('DELETE FROM quality_inspection_items WHERE inspection_id = ?', [id]);
 
         for (const item of items) {
-          await db.query(
+          await connection.query(
             `
             INSERT INTO quality_inspection_items
             (inspection_id, item_name, standard, type, actual_value, result, remark)
@@ -416,43 +433,34 @@ const firstArticleController = {
         }
       }
 
-      // 如果首检不通过，创建不合格品记录
-      if (first_article_result === STATUS.FIRST_ARTICLE.FAILED && unqualified_quantity > 0) {
-        try {
-          await db.query(
-            `
-            INSERT INTO nonconforming_products
-            (inspection_id, product_id, product_name, product_code, batch_no, quantity, type, status, created_at)
-            SELECT
-              id, product_id, product_name, product_code, batch_no, ?, 'first_article_reject', 'pending', NOW()
-            FROM quality_inspections WHERE id = ? AND deleted_at IS NULL
-          `,
-            [unqualified_quantity, id]
-          );
-        } catch (ncError) {
-          logger.error('创建不合格品记录失败:', ncError);
-        }
-      }
+      const closureResult = await InspectionClosureService.closeIfTerminal(
+        {
+          ...inspection,
+          items: itemsForValidation,
+        },
+        {
+          id,
+          status: validationStatus,
+          qualified_quantity: qualifiedQty,
+          unqualified_quantity: unqualifiedQty,
+        },
+        connection
+      );
 
       // 如果首检不通过，自动暂停关联的生产任务
       if (first_article_result === STATUS.FIRST_ARTICLE.FAILED) {
-        try {
-          const inspectionData = existingResult.rows[0];
-          if (inspectionData.task_id) {
-            await db.query(
-              `
+        if (inspection.task_id) {
+          await connection.query(
+            `
               UPDATE production_tasks
               SET status = 'paused',
                   pause_reason = '首检不合格，自动暂停生产',
                   pause_time = NOW()
               WHERE id = ? AND deleted_at IS NULL AND status NOT IN ('completed', 'cancelled')
             `,
-              [inspectionData.task_id]
-            );
-            logger.info(`首检不合格，已暂停生产任务 ID: ${inspectionData.task_id}`);
-          }
-        } catch (pauseError) {
-          logger.error('暂停生产任务失败:', pauseError);
+            [inspection.task_id]
+          );
+          logger.info(`首检不合格，已暂停生产任务 ID: ${inspection.task_id}`);
         }
       }
 
@@ -461,34 +469,41 @@ const firstArticleController = {
         first_article_result === STATUS.FIRST_ARTICLE.PASSED ||
         (first_article_result === STATUS.FIRST_ARTICLE.CONDITIONAL && production_can_continue)
       ) {
-        try {
-          const inspectionData = existingResult.rows[0];
-          if (inspectionData.task_id) {
-            await db.query(
-              `
+        if (inspection.task_id) {
+          await connection.query(
+            `
               UPDATE production_tasks
               SET status = 'in_progress',
                   pause_reason = NULL,
                   pause_time = NULL
               WHERE id = ? AND deleted_at IS NULL AND status = 'paused' AND pause_reason LIKE '%首检不合格%'
             `,
-              [inspectionData.task_id]
-            );
-            logger.info(`首检合格，已恢复生产任务 ID: ${inspectionData.task_id}`);
-          }
-        } catch (resumeError) {
-          logger.error('恢复生产任务失败:', resumeError);
+            [inspection.task_id]
+          );
+          logger.info(`首检合格，已恢复生产任务 ID: ${inspection.task_id}`);
         }
       }
 
+      await connection.commit();
+
       ResponseHandler.success(
         res,
-        { id, first_article_result, production_can_continue: canContinue },
+        { id, first_article_result, production_can_continue: canContinue, ...closureResult },
         '首检结果更新成功'
       );
     } catch (error) {
+      if (connection) {
+        await connection.rollback();
+      }
       logger.error('更新首检结果失败:', error);
-      ResponseHandler.error(res, '更新首检结果失败', 'SERVER_ERROR', 500, error);
+      const statusCode = error.statusCode || 500;
+      const errorCode = error.code || (statusCode === 400 ? 'VALIDATION_ERROR' : 'SERVER_ERROR');
+      const message = statusCode === 400 ? error.message : '更新首检结果失败';
+      ResponseHandler.error(res, message, errorCode, statusCode, error);
+    } finally {
+      if (connection) {
+        connection.release();
+      }
     }
   },
 

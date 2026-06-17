@@ -47,7 +47,8 @@ const getQualityStatistics = async (req, res) => {
               COUNT(CASE WHEN qi.status = 'failed' THEN 1 END) as failed,
               COUNT(CASE WHEN qi.status = 'pending' THEN 1 END) as pending
             FROM quality_inspections qi
-            WHERE qi.inspection_type = 'incoming' ${dateFilter}`,
+            WHERE qi.inspection_type = 'incoming'
+              AND qi.deleted_at IS NULL ${dateFilter}`,
       dateParams
     );
 
@@ -57,7 +58,8 @@ const getQualityStatistics = async (req, res) => {
               COUNT(CASE WHEN qi.status = 'failed' THEN 1 END) as failed,
               COUNT(CASE WHEN qi.status = 'pending' THEN 1 END) as pending
             FROM quality_inspections qi
-            WHERE qi.inspection_type = 'process' ${dateFilter}`,
+            WHERE qi.inspection_type = 'process'
+              AND qi.deleted_at IS NULL ${dateFilter}`,
       dateParams
     );
 
@@ -67,7 +69,8 @@ const getQualityStatistics = async (req, res) => {
               COUNT(CASE WHEN qi.status = 'failed' THEN 1 END) as failed,
               COUNT(CASE WHEN qi.status = 'pending' THEN 1 END) as pending
             FROM quality_inspections qi
-            WHERE qi.inspection_type = 'final' ${dateFilter}`,
+            WHERE qi.inspection_type = 'final'
+              AND qi.deleted_at IS NULL ${dateFilter}`,
       dateParams
     );
 
@@ -77,7 +80,8 @@ const getQualityStatistics = async (req, res) => {
               COUNT(DISTINCT CASE WHEN ${DEFECT_ITEM_RESULT_CONDITION} THEN qii.item_name END) as defect_types
             FROM quality_inspections qi
             LEFT JOIN quality_inspection_items qii ON qi.id = qii.inspection_id
-            WHERE ${DEFECT_INSPECTION_STATUS_CONDITION} ${dateFilter}`,
+            WHERE qi.deleted_at IS NULL
+              AND ${DEFECT_INSPECTION_STATUS_CONDITION} ${dateFilter}`,
       dateParams
     );
 
@@ -111,7 +115,7 @@ const getDefectItems = async (req, res) => {
   try {
     const { page = 1, pageSize = 10, keyword, startDate, endDate } = req.query;
 
-    const whereConds = [DEFECT_INSPECTION_STATUS_CONDITION];
+    const whereConds = ['qi.deleted_at IS NULL', DEFECT_INSPECTION_STATUS_CONDITION];
     const params = [];
 
     if (keyword) {
@@ -170,7 +174,8 @@ const getQualityTrends = async (req, res) => {
       `SELECT DATE_FORMAT(qi.created_at, '%Y-%m') as month, qi.inspection_type,
               COUNT(*) as total, COUNT(CASE WHEN qi.status = 'passed' THEN 1 END) as passed
             FROM quality_inspections qi
-            WHERE qi.created_at >= DATE_SUB(CURDATE(), INTERVAL ? MONTH)
+            WHERE qi.deleted_at IS NULL
+              AND qi.created_at >= DATE_SUB(CURDATE(), INTERVAL ? MONTH)
             GROUP BY month, qi.inspection_type ORDER BY month DESC`,
       [parseInt(months)]
     );
@@ -179,7 +184,8 @@ const getQualityTrends = async (req, res) => {
       `SELECT qii.item_name as defect_type, COUNT(*) as count
             FROM quality_inspection_items qii
             JOIN quality_inspections qi ON qii.inspection_id = qi.id
-            WHERE qi.created_at >= DATE_SUB(CURDATE(), INTERVAL ? MONTH)
+            WHERE qi.deleted_at IS NULL
+              AND qi.created_at >= DATE_SUB(CURDATE(), INTERVAL ? MONTH)
               AND ${DEFECT_ITEM_RESULT_CONDITION}
             GROUP BY qii.item_name ORDER BY count DESC LIMIT 10`,
       [parseInt(months)]
@@ -300,7 +306,7 @@ const getMaterialDefectAnalysis = async (req, res) => {
     let dateCondition = '', queryParams = [];
 
     if (startDate && endDate) {
-      dateCondition = 'WHERE created_at BETWEEN ? AND ?';
+      dateCondition = 'WHERE deleted_at IS NULL AND created_at BETWEEN ? AND ?';
       queryParams = [startDate, `${endDate} 23:59:59`];
     }
 

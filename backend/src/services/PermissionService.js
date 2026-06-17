@@ -67,6 +67,7 @@ const EXACT_PERMISSION_ALIASES = {
   'production:reports': 'production:reports:view',
   'production:equipment': 'production:equipment:view',
   'production:calendar': 'production:calendar:view',
+  'quality:statistics': 'quality:reports:view',
 };
 
 /**

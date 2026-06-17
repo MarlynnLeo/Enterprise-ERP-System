@@ -67,7 +67,8 @@ async function _getInspectionStatsByType(type, req, res) {
                 SUM(CASE WHEN status = 'review' THEN 1 ELSE 0 END) as review,
                 SUM(CASE WHEN status = 'rework' THEN 1 ELSE 0 END) as rework
              FROM quality_inspections
-             WHERE inspection_type = ?`,
+             WHERE inspection_type = ?
+               AND deleted_at IS NULL`,
             [type]
         );
 
@@ -365,6 +366,14 @@ const inspectionController = {
 
             const connection = await db.pool.getConnection();
             try {
+                const [inspectionRows] = await connection.query(
+                    'SELECT id FROM quality_inspections WHERE id = ? AND deleted_at IS NULL',
+                    [id]
+                );
+                if (!inspectionRows || inspectionRows.length === 0) {
+                    return ResponseHandler.error(res, '检验单不存在', 'NOT_FOUND', 404);
+                }
+
                 const [items] = await connection.query(
                     'SELECT id, inspection_id, item_name, standard, type, is_critical, dimension_value, tolerance_upper, tolerance_lower, actual_value, measure_1, measure_2, measure_3, measure_4, measure_5, measure_6, method, result, is_qualified, remark, created_at, updated_at FROM quality_inspection_items WHERE inspection_id = ? ORDER BY id',
                     [id]
@@ -425,7 +434,7 @@ const inspectionController = {
         try {
             const { materialId, productCode, batchNumber, page = 1, pageSize = 20 } = req.query;
 
-            let whereClause = 'WHERE qi.traceability_id IS NULL';
+            let whereClause = 'WHERE qi.deleted_at IS NULL AND qi.traceability_id IS NULL';
             const params = [];
 
             if (materialId) {
@@ -516,6 +525,7 @@ const inspectionController = {
         LEFT JOIN materials m ON qi.material_id = m.id
         LEFT JOIN suppliers s ON qi.supplier_id = s.id
         WHERE qi.batch_no = ?
+          AND qi.deleted_at IS NULL
         ORDER BY qi.created_at DESC
       `,
                 [batchNo]

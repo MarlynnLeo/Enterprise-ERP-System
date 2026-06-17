@@ -114,7 +114,7 @@
               查看
             </el-button>
             <el-button
-              v-if="!['passed', 'failed', 'conditional'].includes(scope.row.status) && !['completed', 'warehousing'].includes(scope.row.task_status) && canInspect"
+              v-if="!['passed', 'failed', 'partial', 'conditional'].includes(scope.row.status) && !['completed', 'warehousing'].includes(scope.row.task_status) && canInspect"
               size="small"
               type="warning"
               @click="handlePunchIn(scope.row)"

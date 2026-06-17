@@ -19,10 +19,194 @@ const STATUS = {
   PRODUCTION_TASK: businessConfig.status.productionTask,
 };
 
+const TERMINAL_INSPECTION_STATUSES = new Set(['passed', 'failed', 'partial', 'completed']);
+const PASS_ITEM_RESULTS = new Set(['passed', 'pass', 'ok', 'qualified', '合格']);
+const FAIL_ITEM_RESULTS = new Set(['failed', 'fail', 'ng', 'nok', 'unqualified', '不合格']);
+const VALID_ITEM_TYPES = new Set([
+  'visual',
+  'dimension',
+  'quantity',
+  'function',
+  'weight',
+  'performance',
+  'safety',
+  'electrical',
+  'qualitative',
+  'other',
+]);
+const READONLY_INSPECTION_UPDATE_FIELDS = new Set([
+  'id',
+  'items',
+  'created_at',
+  'updated_at',
+  'deleted_at',
+]);
+const UPDATEABLE_INSPECTION_FIELDS = new Set([
+  'reference_id',
+  'reference_no',
+  'material_id',
+  'supplier_id',
+  'product_id',
+  'product_name',
+  'product_code',
+  'process_id',
+  'process_name',
+  'batch_no',
+  'quantity',
+  'qualified_quantity',
+  'unqualified_quantity',
+  'unit',
+  'unit_id',
+  'status',
+  'planned_date',
+  'actual_date',
+  'inspector_id',
+  'inspector_name',
+  'punch_time',
+  'standard_type',
+  'standard_no',
+  'template_id',
+  'note',
+  'traceability_id',
+  'traceability_batch',
+  'chain_id',
+  'chain_step_id',
+  'is_first_article',
+  'first_article_qty',
+  'is_full_inspection',
+  'first_article_result',
+  'production_can_continue',
+  'task_id',
+  'is_aql',
+  'aql_standard_id',
+  'aql_level',
+  'accept_limit',
+  'reject_limit',
+]);
+const TERMINAL_VALIDATION_UPDATE_FIELDS = new Set([
+  'status',
+  'items',
+  'quantity',
+  'qualified_quantity',
+  'unqualified_quantity',
+  'is_aql',
+  'aql_standard_id',
+  'aql_level',
+  'accept_limit',
+  'reject_limit',
+]);
+
 /**
  * 质量检验模型类
  */
 class QualityInspection {
+  static _createValidationError(message) {
+    return InspectionTemplateResolver.createValidationError(message);
+  }
+
+  static _normalizeItemType(type) {
+    return VALID_ITEM_TYPES.has(type) ? type : 'other';
+  }
+
+  static _normalizeItemResult(result) {
+    const normalized = String(result || '').trim().toLowerCase();
+    if (PASS_ITEM_RESULTS.has(normalized)) return 'passed';
+    if (FAIL_ITEM_RESULTS.has(normalized)) return 'failed';
+    return null;
+  }
+
+  static _validateTerminalStatusAgainstItems(inspection, status, items) {
+    if (!status || !TERMINAL_INSPECTION_STATUSES.has(status)) return;
+
+    if (!Array.isArray(items) || items.length === 0) {
+      throw this._createValidationError('检验单没有检验项目，不能判定检验结果');
+    }
+
+    const unjudged = items.filter((item) => !this._normalizeItemResult(item.result));
+    if (unjudged.length > 0) {
+      throw this._createValidationError(
+        `还有 ${unjudged.length} 个检验项目未判定，不能关闭检验单`
+      );
+    }
+
+    const failedItems = items.filter((item) => this._normalizeItemResult(item.result) === 'failed');
+    const hasCriticalFailure = failedItems.some(
+      (item) => item.is_critical === true || item.is_critical === 1
+    );
+
+    if ((status === 'passed' || status === 'completed') && failedItems.length > 0) {
+      throw this._createValidationError('检验项目存在不合格项，检验单不能判定为通过');
+    }
+
+    if (status === 'partial' && failedItems.length === 0) {
+      throw this._createValidationError('部分合格必须至少包含一个不合格检验项目');
+    }
+
+    if (status === 'failed' && failedItems.length === 0) {
+      throw this._createValidationError('检验不合格必须至少包含一个不合格检验项目');
+    }
+
+    if (hasCriticalFailure && status !== 'failed') {
+      throw this._createValidationError('关键检验项目不合格时，检验单必须判定为不合格');
+    }
+
+    if (
+      inspection?.is_aql &&
+      status === 'passed' &&
+      Number(inspection.reject_limit) > 0 &&
+      Number(inspection.unqualified_quantity) >= Number(inspection.reject_limit)
+    ) {
+      throw this._createValidationError('不合格数量达到AQL拒收数，检验单不能判定为通过');
+    }
+  }
+
+  static async _getStoredInspectionItems(connection, inspectionId) {
+    const [items] = await connection.query(
+      'SELECT id, inspection_id, item_name, standard, type, is_critical, dimension_value, tolerance_upper, tolerance_lower, actual_value, measure_1, measure_2, measure_3, measure_4, measure_5, measure_6, method, result, is_qualified, remark, created_at, updated_at FROM quality_inspection_items WHERE inspection_id = ? ORDER BY id',
+      [inspectionId]
+    );
+    return items || [];
+  }
+
+  static _buildInspectionUpdate(data, currentInspection) {
+    const updateFields = [];
+    const updateValues = [];
+    const fieldMapping = {
+      inspector: 'inspector_name',
+      remarks: 'note',
+    };
+
+    for (const [key, value] of Object.entries(data)) {
+      if (READONLY_INSPECTION_UPDATE_FIELDS.has(key) || value === undefined) {
+        continue;
+      }
+
+      if (key === 'inspection_no') {
+        if (value && value !== currentInspection.inspection_no) {
+          throw this._createValidationError('检验单号不允许通过更新接口修改');
+        }
+        continue;
+      }
+
+      if (key === 'inspection_type') {
+        if (value && value !== currentInspection.inspection_type) {
+          throw this._createValidationError('检验类型不允许通过更新接口修改');
+        }
+        continue;
+      }
+
+      const fieldName = fieldMapping[key] || key;
+      if (!UPDATEABLE_INSPECTION_FIELDS.has(fieldName)) {
+        throw this._createValidationError(`不允许更新检验单字段: ${key}`);
+      }
+
+      updateFields.push(`${fieldName} = ?`);
+      updateValues.push(value);
+    }
+
+    return { updateFields, updateValues };
+  }
+
   /**
    * 获取所有检验单列表
    * @param {string} type 检验类型: incoming, process, final
@@ -142,7 +326,7 @@ class QualityInspection {
       countQuery += ' AND qi.status = ?';
     }
     if (filters.startDate && filters.endDate) {
-      countQuery += ' AND DATE(qi.created_at) BETWEEN ? AND ?';
+      countQuery += ' AND qi.planned_date BETWEEN ? AND ?';
     }
 
     // 直接使用connection执行查询
@@ -338,47 +522,39 @@ class QualityInspection {
 
       // 如果product_id存在但product_code或product_name为空，从materials表查询
       if (inspection.product_id && (!inspection.product_code || !inspection.product_name)) {
-        try {
-          const [productRows] = await connection.query(
-            'SELECT code, name FROM materials WHERE id = ?',
-            [inspection.product_id]
+        const [productRows] = await connection.query(
+          'SELECT code, name FROM materials WHERE id = ?',
+          [inspection.product_id]
+        );
+        if (productRows && productRows.length > 0) {
+          inspection.product_code = inspection.product_code || productRows[0].code;
+          inspection.product_name = inspection.product_name || productRows[0].name;
+          logger.info(
+            `从materials表查询到产品信息: code = ${inspection.product_code}, name = ${inspection.product_name} `
           );
-          if (productRows && productRows.length > 0) {
-            inspection.product_code = inspection.product_code || productRows[0].code;
-            inspection.product_name = inspection.product_name || productRows[0].name;
-            logger.info(
-              `从materials表查询到产品信息: code = ${inspection.product_code}, name = ${inspection.product_name} `
-            );
-          }
-        } catch (error) {
-          logger.warn('查询产品信息失败:', error.message);
         }
       }
 
       // 如果material_id存在但unit或unit_id为空，从materials表查询补全
       if (inspection.material_id && (!inspection.unit || !inspection.unit_id)) {
-        try {
-          const [materialRows] = await connection.query(
-            'SELECT unit_id FROM materials WHERE id = ?',
-            [inspection.material_id]
-          );
-          if (materialRows && materialRows.length > 0 && materialRows[0].unit_id) {
-            // 补全 unit_id
-            if (!inspection.unit_id) {
-              inspection.unit_id = materialRows[0].unit_id;
-            }
-            // 补全 unit 文本
-            if (!inspection.unit) {
-              const [unitRows] = await connection.query('SELECT name FROM units WHERE id = ?', [
-                materialRows[0].unit_id,
-              ]);
-              if (unitRows && unitRows.length > 0) {
-                inspection.unit = unitRows[0].name;
-              }
+        const [materialRows] = await connection.query(
+          'SELECT unit_id FROM materials WHERE id = ?',
+          [inspection.material_id]
+        );
+        if (materialRows && materialRows.length > 0 && materialRows[0].unit_id) {
+          // 补全 unit_id
+          if (!inspection.unit_id) {
+            inspection.unit_id = materialRows[0].unit_id;
+          }
+          // 补全 unit 文本
+          if (!inspection.unit) {
+            const [unitRows] = await connection.query('SELECT name FROM units WHERE id = ?', [
+              materialRows[0].unit_id,
+            ]);
+            if (unitRows && unitRows.length > 0) {
+              inspection.unit = unitRows[0].name;
             }
           }
-        } catch (error) {
-          logger.warn('查询单位信息失败:', error.message);
         }
       }
 
@@ -386,30 +562,24 @@ class QualityInspection {
       let isExempt = false;
       let isSampling = false;
       if (inspection.material_id) {
-        try {
-          const [methodRows] = await connection.query(
-            `SELECT im.code FROM materials m LEFT JOIN inspection_methods im ON m.inspection_method_id = im.id WHERE m.id = ?`,
-            [inspection.material_id]
-          );
-          if (methodRows && methodRows.length > 0) {
-            const methodCode = methodRows[0].code;
-            if (methodCode === 'exempt') {
-              isExempt = true;
-              logger.info(`✅ 物料 ${inspection.material_id} 检测到免检验配置，将自动视为合格`);
-              // 覆盖单据状态以自动合格
-              inspection.status = 'passed';
-              inspection.inspector_name = '系统(自动免检)';
-              inspection.note = (inspection.note ? inspection.note + ' | ' : '') + '依据物料免检配置，系统自动判定合格';
-            } else if (methodCode === 'sampling') {
-              isSampling = true;
-              logger.info(`📊 物料 ${inspection.material_id} 检测到抽检配置，将自动启用AQL抽样(默认0.65)`);
-              // 自动开启AQL抽样，默认级别0.65
-              inspection.is_aql = 1;
-              inspection.aql_level = '0.65';
-            }
+        const [methodRows] = await connection.query(
+          `SELECT im.code FROM materials m LEFT JOIN inspection_methods im ON m.inspection_method_id = im.id WHERE m.id = ?`,
+          [inspection.material_id]
+        );
+        if (methodRows && methodRows.length > 0) {
+          const methodCode = methodRows[0].code;
+          if (methodCode === 'exempt') {
+            isExempt = true;
+            logger.info(`✅ 物料 ${inspection.material_id} 检测到免检验配置，将自动视为合格`);
+            // 覆盖单据状态以自动合格
+            inspection.status = 'passed';
+            inspection.inspector_name = '系统(自动免检)';
+            inspection.note = (inspection.note ? inspection.note + ' | ' : '') + '依据物料免检配置，系统自动判定合格';
+          } else if (methodCode === 'sampling') {
+            isSampling = true;
+            logger.info(`📊 物料 ${inspection.material_id} 检测到抽检配置，将自动启用AQL抽样`);
+            inspection.is_aql = 1;
           }
-        } catch (err) {
-          logger.warn('查询物料检验方式失败:', err.message);
         }
       }
 
@@ -500,6 +670,12 @@ class QualityInspection {
         }
       }
 
+      if (inspection.is_aql && !inspection.aql_level) {
+        throw InspectionTemplateResolver.createValidationError(
+          'AQL抽检已启用，但未配置AQL等级；请在检验模板或检验单中维护AQL等级'
+        );
+      }
+
       if (
         ['incoming', 'process', 'final', 'first_article'].includes(inspection.inspection_type) &&
         (!inspection.items || !Array.isArray(inspection.items) || inspection.items.length === 0)
@@ -518,24 +694,7 @@ class QualityInspection {
           // 处理备注字段
           const remark = item.remarks || item.remark || null;
 
-          // 确保type字段值有效
-          const validTypes = [
-            'visual',
-            'dimension',
-            'quantity',
-            'function',
-            'weight',
-            'performance',
-            'safety',
-            'electrical',
-            'qualitative',
-            'other',
-          ];
-          let itemType = 'other'; // 默认为other类型
-
-          if (item.type && validTypes.includes(item.type)) {
-            itemType = item.type;
-          }
+          const itemType = this._normalizeItemType(item.type);
 
           // 这里如果是免检我们自动赋予OK通过结果
           let itemResult = null;
@@ -649,7 +808,7 @@ class QualityInspection {
       try {
         // 获取当前检验单的信息
         const [currentInspection] = await connection.query(
-          'SELECT id, inspection_no, inspection_type, reference_id, reference_no, material_id, supplier_id, product_id, product_name, product_code, process_id, process_name, batch_no, quantity, qualified_quantity, unqualified_quantity, unit, unit_id, status, planned_date, actual_date, inspector_id, inspector_name, punch_time, standard_type, standard_no, template_id, note, created_at, updated_at, traceability_id, traceability_batch, chain_id, chain_step_id, is_first_article, first_article_qty, is_full_inspection, first_article_result, production_can_continue, task_id, is_aql, aql_standard_id, aql_level, accept_limit, reject_limit, deleted_at FROM quality_inspections WHERE id = ? AND deleted_at IS NULL',
+          'SELECT id, inspection_no, inspection_type, reference_id, reference_no, material_id, supplier_id, product_id, product_name, product_code, process_id, process_name, batch_no, quantity, qualified_quantity, unqualified_quantity, unit, unit_id, status, planned_date, actual_date, inspector_id, inspector_name, punch_time, standard_type, standard_no, template_id, note, created_at, updated_at, traceability_id, traceability_batch, chain_id, chain_step_id, is_first_article, first_article_qty, is_full_inspection, first_article_result, production_can_continue, task_id, is_aql, aql_standard_id, aql_level, accept_limit, reject_limit, deleted_at FROM quality_inspections WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
           [id]
         );
 
@@ -659,43 +818,31 @@ class QualityInspection {
 
         const inspection = currentInspection[0];
 
-        const terminalStatuses = new Set(['passed', 'failed', 'partial', 'completed']);
+        const effectiveStatus = Object.prototype.hasOwnProperty.call(data, 'status')
+          ? data.status
+          : inspection.status;
+        const shouldValidateTerminalStatus = Object.keys(data).some((key) =>
+          TERMINAL_VALIDATION_UPDATE_FIELDS.has(key)
+        );
+
         if (
-          data.status &&
-          terminalStatuses.has(data.status) &&
+          shouldValidateTerminalStatus &&
+          TERMINAL_INSPECTION_STATUSES.has(effectiveStatus) &&
           ['incoming', 'process', 'final', 'first_article'].includes(inspection.inspection_type)
         ) {
-          const hasSubmittedItems = Array.isArray(data.items) && data.items.length > 0;
-          if (!hasSubmittedItems) {
-            const [[itemStats]] = await connection.query(
-              'SELECT COUNT(*) AS item_count FROM quality_inspection_items WHERE inspection_id = ?',
-              [id]
-            );
-            if (Number(itemStats?.item_count || 0) === 0) {
-              throw InspectionTemplateResolver.createValidationError(
-                '检验单没有检验项目，不能判定来料/过程/成品/首件检验结果'
-              );
-            }
-          }
+          const itemsForValidation =
+            Array.isArray(data.items) && data.items.length > 0
+              ? data.items
+              : await this._getStoredInspectionItems(connection, id);
+          this._validateTerminalStatusAgainstItems(
+            { ...inspection, ...data },
+            effectiveStatus,
+            itemsForValidation
+          );
         }
 
         // 更新检验单基本信息
-        const updateFields = [];
-        const updateValues = [];
-
-        // 处理字段映射，将inspector映射为inspector_name
-        const fieldMapping = {
-          inspector: 'inspector_name',
-        };
-
-        for (const [key, value] of Object.entries(data)) {
-          if (key !== 'items' && value !== undefined) {
-            // 使用映射后的字段名
-            const fieldName = fieldMapping[key] || key;
-            updateFields.push(`${fieldName} = ?`);
-            updateValues.push(value);
-          }
-        }
+        const { updateFields, updateValues } = this._buildInspectionUpdate(data, inspection);
 
         if (updateFields.length > 0) {
           updateValues.push(id);
@@ -703,7 +850,7 @@ class QualityInspection {
           await connection.execute(
             `UPDATE quality_inspections
              SET ${updateFields.join(', ')}
-             WHERE id = ? `,
+             WHERE id = ? AND deleted_at IS NULL`,
             updateValues
           );
         }
@@ -723,24 +870,7 @@ class QualityInspection {
             // 处理remarks和remark字段
             const remark = item.remarks || item.remark || null;
 
-            // 确保type字段值有效，只接受预定义的类型
-            const validTypes = [
-              'visual',
-              'dimension',
-              'quantity',
-              'function',
-              'weight',
-              'performance',
-              'safety',
-              'electrical',
-              'other',
-            ];
-            let itemType = 'other'; // 默认为other类型
-
-            // 如果type有值并且在有效类型列表中，则使用该值，否则使用other
-            if (item.type && validTypes.includes(item.type)) {
-              itemType = item.type;
-            }
+            const itemType = this._normalizeItemType(item.type);
 
             const [updatedItemResult] = await connection.execute(
               `INSERT INTO quality_inspection_items(

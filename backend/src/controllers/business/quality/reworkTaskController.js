@@ -383,22 +383,17 @@ const completeTask = async (req, res) => {
       [actual_date || new Date().toISOString().slice(0, 10), rework_cost, id]
     );
 
-    // 记录质量成本
-    try {
-      await QualityIntegrationService.recordQualityCost(
-        {
-          costType: 'rework',
-          referenceNo: task.rework_no,
-          materialCode: task.material_code,
-          quantity: task.quantity,
-          cost: rework_cost,
-          operator: task.created_by,
-        },
-        connection
-      );
-    } catch (error) {
-      logger.warn('记录质量成本失败(继续完成返工):', error.message);
-    }
+    await QualityIntegrationService.recordQualityCost(
+      {
+        costType: 'rework',
+        referenceNo: task.rework_no,
+        materialCode: task.material_code,
+        quantity: task.quantity,
+        cost: rework_cost,
+        operator: task.created_by,
+      },
+      connection
+    );
 
     // 触发返工复检闭环
     await createReinspectionTask(task, connection);
@@ -472,22 +467,17 @@ const updateStatus = async (req, res) => {
         ['completed', new Date().toISOString().slice(0, 10), id]
       );
 
-      // 记录质量成本
-      try {
-        await QualityIntegrationService.recordQualityCost(
-          {
-            costType: 'rework',
-            referenceNo: task.rework_no,
-            materialCode: task.material_code,
-            quantity: task.quantity,
-            cost: task.rework_cost || 0,
-            operator: task.created_by,
-          },
-          connection
-        );
-      } catch (costError) {
-        logger.warn('记录质量成本失败(继续完成返工):', costError.message);
-      }
+      await QualityIntegrationService.recordQualityCost(
+        {
+          costType: 'rework',
+          referenceNo: task.rework_no,
+          materialCode: task.material_code,
+          quantity: task.quantity,
+          cost: task.rework_cost || 0,
+          operator: task.created_by,
+        },
+        connection
+      );
 
       // 触发返工复检闭环
       await createReinspectionTask(task, connection);
@@ -578,6 +568,7 @@ const updateProgress = async (req, res) => {
       FROM rework_tasks rt
       LEFT JOIN nonconforming_products ncp ON rt.ncp_id = ncp.id
       WHERE rt.id = ?
+      FOR UPDATE
     `, [id]);
 
     if (checkResult.length === 0) {
@@ -616,15 +607,10 @@ const updateProgress = async (req, res) => {
       // 触发闭环
       await createReinspectionTask(taskObj, connection);
 
-      // 记录质量成本 (自动完成时，成本传0或者以后让质检填写)
-      try {
-        await QualityIntegrationService.recordQualityCost({
-            costType: 'rework', referenceNo: taskObj.rework_no, materialCode: taskObj.material_code,
-            quantity: taskObj.quantity, cost: 0, operator: taskObj.created_by
-        }, connection);
-      } catch (ce) {
-        logger.warn('自动完成返工记录质量成本失败:', ce.message);
-      }
+      await QualityIntegrationService.recordQualityCost({
+          costType: 'rework', referenceNo: taskObj.rework_no, materialCode: taskObj.material_code,
+          quantity: taskObj.quantity, cost: 0, operator: taskObj.created_by
+      }, connection);
     }
 
     await connection.commit();

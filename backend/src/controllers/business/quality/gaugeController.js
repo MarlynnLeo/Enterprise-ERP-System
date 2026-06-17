@@ -232,6 +232,19 @@ const gaugeController = {
                 return ResponseHandler.error(res, '量具不存在', 'NOT_FOUND', 404);
             }
 
+            const calibrationCount = await db.query(
+                'SELECT COUNT(*) AS count FROM gauge_calibration_records WHERE gauge_id = ?',
+                [id]
+            );
+            if (Number(calibrationCount.rows?.[0]?.count || 0) > 0) {
+                return ResponseHandler.error(
+                    res,
+                    '该量具已有校准记录，不能删除历史追溯数据；请将量具状态改为报废/停用',
+                    'VALIDATION_ERROR',
+                    400
+                );
+            }
+
             await db.query('DELETE FROM gauges WHERE id = ?', [id]);
 
             ResponseHandler.success(res, { id }, '量具删除成功');

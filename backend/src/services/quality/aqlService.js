@@ -105,7 +105,7 @@ class AqlService {
             return rows.map(r => r.aql_level);
         } catch (err) {
             logger.error('Failed to get available AQL levels:', err);
-            return [];
+            throw err;
         }
     }
 }

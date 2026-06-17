@@ -237,6 +237,11 @@ const spcController = {
             const { id } = req.params;
             const data = req.body;
 
+            const existing = await db.query('SELECT id FROM spc_control_plans WHERE id = ?', [id]);
+            if (!existing.rows || existing.rows.length === 0) {
+                return ResponseHandler.error(res, '控制计划不存在', 'NOT_FOUND', 404);
+            }
+
             delete data.id;
             await updateRecord('spc_control_plans', data, id, CONTROL_PLAN_FIELDS);
 
@@ -253,6 +258,25 @@ const spcController = {
     async deleteControlPlan(req, res) {
         try {
             const { id } = req.params;
+
+            const existing = await db.query('SELECT id FROM spc_control_plans WHERE id = ?', [id]);
+            if (!existing.rows || existing.rows.length === 0) {
+                return ResponseHandler.error(res, '控制计划不存在', 'NOT_FOUND', 404);
+            }
+
+            const pointCount = await db.query(
+                'SELECT COUNT(*) AS count FROM spc_data_points WHERE plan_id = ?',
+                [id]
+            );
+            if (Number(pointCount.rows?.[0]?.count || 0) > 0) {
+                return ResponseHandler.error(
+                    res,
+                    '该控制计划已有SPC采集数据，不能删除历史过程能力数据；请将控制计划停用',
+                    'VALIDATION_ERROR',
+                    400
+                );
+            }
+
             await db.query('DELETE FROM spc_control_plans WHERE id = ?', [id]);
             ResponseHandler.success(res, { id }, '控制计划删除成功');
         } catch (error) {

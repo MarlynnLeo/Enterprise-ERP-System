@@ -112,7 +112,8 @@ class NonconformingProduct {
             logger.warn(`⚠️ [血缘追溯] 追踪断环: 无库中领料记录（该料可能是脏数据创建的退料）。待下发人工核验。`);
           }
         } catch (traceError) {
-          logger.error('❌ [血缘追溯] 核心智能系统遭遇异常 (已接管，转人工):', traceError);
+          logger.error('❌ [血缘追溯] 核心智能系统遭遇异常:', traceError);
+          throw traceError;
         }
       }
 
