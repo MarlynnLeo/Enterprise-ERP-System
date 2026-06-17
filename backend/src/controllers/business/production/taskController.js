@@ -238,7 +238,7 @@ exports.getProductionTaskManagers = async (req, res) => {
     const [managers] = await pool.query(`
       SELECT DISTINCT manager
       FROM production_tasks
-      WHERE manager IS NOT NULL AND manager != ''
+      WHERE deleted_at IS NULL AND manager IS NOT NULL AND manager != ''
       ORDER BY manager ASC
     `);
 
@@ -902,10 +902,10 @@ exports.getProductionTaskById = async (req, res) => {
              p.specs as specification,
              u.name as unit
       FROM production_tasks pt
-      LEFT JOIN production_plans pp ON pt.plan_id = pp.id
+      LEFT JOIN production_plans pp ON pt.plan_id = pp.id AND pp.deleted_at IS NULL
       LEFT JOIN materials p ON pt.product_id = p.id
       LEFT JOIN units u ON p.unit_id = u.id
-      WHERE pt.id = ?
+      WHERE pt.id = ? AND pt.deleted_at IS NULL
     `,
       [id]
     );
@@ -1076,7 +1076,7 @@ exports.updateProductionTaskStatus = async (req, res) => {
       try {
         // 检查是否已经存在首检单
         const [existingFirstArticle] = await connection.query(
-          'SELECT id FROM quality_inspections WHERE inspection_type = ? AND task_id = ?',
+          'SELECT id FROM quality_inspections WHERE inspection_type = ? AND task_id = ? AND deleted_at IS NULL',
           ['first_article', id]
         );
 
@@ -1152,7 +1152,7 @@ exports.updateProductionTaskStatus = async (req, res) => {
       try {
         // 检查是否已经存在过程检验记录
         const [existingProcessInspection] = await connection.query(
-          'SELECT id FROM quality_inspections WHERE inspection_type = ? AND task_id = ?',
+          'SELECT id FROM quality_inspections WHERE inspection_type = ? AND task_id = ? AND deleted_at IS NULL',
           ['process', id]
         );
 
@@ -1240,7 +1240,7 @@ exports.updateProductionTaskStatus = async (req, res) => {
       try {
         // 检查是否已经存在检验单（成品检验类型，reference_id为任务ID）
         const [existingInspection] = await connection.query(
-          'SELECT id FROM quality_inspections WHERE inspection_type = ? AND reference_id = ?',
+          'SELECT id FROM quality_inspections WHERE inspection_type = ? AND reference_id = ? AND deleted_at IS NULL',
           ['final', id]
         );
 
@@ -1427,7 +1427,7 @@ exports.getPendingTasks = async (req, res) => {
         m.name as productName
       FROM production_tasks pt
       LEFT JOIN materials m ON pt.product_id = m.id
-      WHERE pt.status IN (?)
+      WHERE pt.deleted_at IS NULL AND pt.status IN (?)
       ORDER BY pt.expected_end_date ASC
       LIMIT ?
     `;
@@ -1501,6 +1501,7 @@ exports.completeTask = async (req, res) => {
          FROM quality_inspections
          WHERE task_id = ?
            AND inspection_type IN ('first_article', 'process')
+           AND deleted_at IS NULL
            AND (status IS NULL OR status NOT IN ('passed', 'completed', 'cancelled'))`,
         [id]
       );
@@ -1542,7 +1543,7 @@ exports.completeTask = async (req, res) => {
         FROM production_tasks pt
         LEFT JOIN materials m ON pt.product_id = m.id
         LEFT JOIN units u ON m.unit_id = u.id
-        WHERE pt.id = ?
+        WHERE pt.id = ? AND pt.deleted_at IS NULL
       `,
         [id]
       );
@@ -1595,14 +1596,11 @@ exports.completeTask = async (req, res) => {
         const hoursPerUnit = parseFloat(processHours[0]?.total_hours) || 0;
         estimatedHours = hoursPerUnit * Number(quantity);
       } catch (phErr) {
-        logger.warn(`获取工序标准工时失败: ${phErr.message}`);
+        throw new Error(`获取工序标准工时失败: ${phErr.message}`, { cause: phErr });
       }
 
       if (estimatedHours <= 0) {
-        // 标准工时未配置：跳过自动报工，不阻断完工流程
-        const msg = '工序标准工时未配置，无法自动创建报工记录，请联系管理员在【基础数据 - 工序管理】中配置工时后手动报工';
-        logger.warn(`任务 ${task.code} ${msg}`);
-        warnings.push(msg);
+        throw new Error('工序标准工时未配置，无法自动创建报工记录，请先在【基础数据 - 工序管理】中配置工时');
       } else {
         await connection.query(
           `INSERT INTO production_reports

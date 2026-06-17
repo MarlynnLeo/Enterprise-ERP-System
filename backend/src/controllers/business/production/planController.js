@@ -888,7 +888,7 @@ exports.getDashboardProductionPlans = async (req, res) => {
       FROM production_plans pp
       LEFT JOIN materials m ON pp.product_id = m.id
       LEFT JOIN units u ON m.unit_id = u.id
-      WHERE pp.status IN (?)
+      WHERE pp.deleted_at IS NULL AND pp.status IN (?)
       ORDER BY pp.code DESC
     `;
     const query = appendPaginationSQL(baseQuery, safeLimit, 0);

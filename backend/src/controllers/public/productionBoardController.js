@@ -1,6 +1,6 @@
 /**
  * productionBoardController.js
- * @description 生产流程可视化看板控制器（公开访问，无需认证）
+ * @description 生产流程可视化看板控制器（需认证并具备生产看板权限）
  * @date 2025-10-30
  * @version 1.0.0
  */
@@ -23,6 +23,7 @@ exports.getProductionBoardData = async (req, res) => {
         status,
         COUNT(*) as count
       FROM production_plans
+      WHERE deleted_at IS NULL
       GROUP BY status
     `);
 
@@ -32,19 +33,35 @@ exports.getProductionBoardData = async (req, res) => {
         status,
         COUNT(*) as count
       FROM production_tasks
+      WHERE deleted_at IS NULL
       GROUP BY status
     `);
 
     // 3. 获取今日生产统计
     const [todayStats] = await pool.query(`
       SELECT
-        COUNT(DISTINCT pp.id) as plans_count,
-        COUNT(DISTINCT pt.id) as tasks_count,
+        COUNT(*) as plans_count,
         SUM(CASE WHEN pp.status = 'completed' THEN 1 ELSE 0 END) as completed_plans,
-        SUM(CASE WHEN pt.status = 'completed' THEN 1 ELSE 0 END) as completed_tasks
+        (
+          SELECT COUNT(*)
+          FROM production_tasks pt
+          JOIN production_plans p2 ON pt.plan_id = p2.id
+          WHERE DATE(p2.created_at) = CURDATE()
+            AND p2.deleted_at IS NULL
+            AND pt.deleted_at IS NULL
+        ) as tasks_count,
+        (
+          SELECT COUNT(*)
+          FROM production_tasks pt
+          JOIN production_plans p2 ON pt.plan_id = p2.id
+          WHERE DATE(p2.created_at) = CURDATE()
+            AND p2.deleted_at IS NULL
+            AND pt.deleted_at IS NULL
+            AND pt.status = 'completed'
+        ) as completed_tasks
       FROM production_plans pp
-      LEFT JOIN production_tasks pt ON pp.id = pt.plan_id
       WHERE DATE(pp.created_at) = CURDATE()
+        AND pp.deleted_at IS NULL
     `);
 
     // 4. 获取最近的生产计划（动态条数）
@@ -61,11 +78,12 @@ exports.getProductionBoardData = async (req, res) => {
         m.code as product_code,
         m.name as product_name,
         u.name as unit,
-        (SELECT COUNT(*) FROM production_tasks WHERE plan_id = pp.id) as task_count,
-        (SELECT COUNT(*) FROM production_tasks WHERE plan_id = pp.id AND status = 'completed') as completed_task_count
+        (SELECT COUNT(*) FROM production_tasks WHERE plan_id = pp.id AND deleted_at IS NULL) as task_count,
+        (SELECT COUNT(*) FROM production_tasks WHERE plan_id = pp.id AND deleted_at IS NULL AND status = 'completed') as completed_task_count
       FROM production_plans pp
       LEFT JOIN materials m ON pp.product_id = m.id
       LEFT JOIN units u ON m.unit_id = u.id
+      WHERE pp.deleted_at IS NULL
       ORDER BY pp.created_at DESC
       LIMIT ${limit}
     `
@@ -75,11 +93,12 @@ exports.getProductionBoardData = async (req, res) => {
     const [processStats] = await pool.query(`
       SELECT
         COUNT(*) as total_processes,
-        SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_processes,
-        SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) as in_progress_processes,
-        SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending_processes,
-        SUM(CASE WHEN status = 'warehousing' THEN 1 ELSE 0 END) as warehousing_processes
-      FROM production_processes
+        SUM(CASE WHEN pp.status = 'completed' THEN 1 ELSE 0 END) as completed_processes,
+        SUM(CASE WHEN pp.status = 'in_progress' THEN 1 ELSE 0 END) as in_progress_processes,
+        SUM(CASE WHEN pp.status = 'pending' THEN 1 ELSE 0 END) as pending_processes,
+        SUM(CASE WHEN pp.status = 'warehousing' THEN 1 ELSE 0 END) as warehousing_processes
+      FROM production_processes pp
+      JOIN production_tasks pt ON pp.task_id = pt.id AND pt.deleted_at IS NULL
     `);
 
     // 6. 获取检验统计
@@ -91,6 +110,7 @@ exports.getProductionBoardData = async (req, res) => {
         SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending_inspections
       FROM quality_inspections
       WHERE inspection_type = 'final'
+        AND deleted_at IS NULL
     `);
 
     // 7. 获取入库统计（通过检验单关联判断是生产入库）
@@ -260,6 +280,7 @@ exports.getProductionBoardStats = async (req, res) => {
         status,
         COUNT(*) as count
       FROM production_plans
+      WHERE deleted_at IS NULL
       GROUP BY status
 
       UNION ALL
@@ -269,6 +290,7 @@ exports.getProductionBoardStats = async (req, res) => {
         status,
         COUNT(*) as count
       FROM production_tasks
+      WHERE deleted_at IS NULL
       GROUP BY status
     `);
 

@@ -9,6 +9,7 @@ const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 const { validateRequiredFields, validateEnum } = require('../../../utils/validationHelper');
 const { handleError } = require('./shared/errorHandler');
+const { softDelete } = require('../../../utils/softDelete');
 
 const { pool } = require('../../../config/db');
 
@@ -65,7 +66,7 @@ exports.getEquipmentTypes = async (req, res) => {
     const [rows] = await pool.query(
       `SELECT et.*, COUNT(e.id) AS count
        FROM equipment_types et
-       LEFT JOIN equipment e ON e.model = et.name OR e.model = et.code
+       LEFT JOIN equipment e ON (e.model = et.name OR e.model = et.code) AND e.deleted_at IS NULL
        ${whereClause}
        GROUP BY et.id
        ORDER BY et.created_at DESC, et.id DESC
@@ -123,7 +124,7 @@ exports.getEquipmentList = async (req, res) => {
     const status = normalizeListStatus(req.query.status);
 
     // 构建查询条件
-    const conditions = [];
+    const conditions = ['deleted_at IS NULL'];
     const params = [];
 
     if (code) {
@@ -194,13 +195,16 @@ exports.getMaintenanceRecords = async (req, res) => {
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
     const [countResult] = await pool.query(
-      `SELECT COUNT(*) as total FROM equipment_maintenance em LEFT JOIN equipment e ON e.id = em.equipment_id ${whereClause}`,
+      `SELECT COUNT(*) as total
+       FROM equipment_maintenance em
+       JOIN equipment e ON e.id = em.equipment_id AND e.deleted_at IS NULL
+       ${whereClause}`,
       params
     );
     const [rows] = await pool.query(
       `SELECT em.*, e.name AS equipmentName, e.code AS equipmentCode
        FROM equipment_maintenance em
-       LEFT JOIN equipment e ON e.id = em.equipment_id
+       JOIN equipment e ON e.id = em.equipment_id AND e.deleted_at IS NULL
        ${whereClause}
        ORDER BY em.maintenance_date DESC, em.id DESC
        LIMIT ${pageSize} OFFSET ${offset}`,
@@ -239,13 +243,16 @@ exports.getFailureRecords = async (req, res) => {
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
     const [countResult] = await pool.query(
-      `SELECT COUNT(*) as total FROM equipment_failure ef LEFT JOIN equipment e ON e.id = ef.equipment_id ${whereClause}`,
+      `SELECT COUNT(*) as total
+       FROM equipment_failure ef
+       JOIN equipment e ON e.id = ef.equipment_id AND e.deleted_at IS NULL
+       ${whereClause}`,
       params
     );
     const [rows] = await pool.query(
       `SELECT ef.*, ef.repair_status AS status, e.name AS equipmentName, e.code AS equipmentCode
        FROM equipment_failure ef
-       LEFT JOIN equipment e ON e.id = ef.equipment_id
+       JOIN equipment e ON e.id = ef.equipment_id AND e.deleted_at IS NULL
        ${whereClause}
        ORDER BY ef.failure_date DESC, ef.id DESC
        LIMIT ${pageSize} OFFSET ${offset}`,
@@ -284,7 +291,10 @@ exports.getInspectionRecords = async (req, res) => {
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
     const [countResult] = await pool.query(
-      `SELECT COUNT(*) as total FROM equipment_inspection ei LEFT JOIN equipment e ON e.id = ei.equipment_id ${whereClause}`,
+      `SELECT COUNT(*) as total
+       FROM equipment_inspection ei
+       JOIN equipment e ON e.id = ei.equipment_id AND e.deleted_at IS NULL
+       ${whereClause}`,
       params
     );
     const [rows] = await pool.query(
@@ -292,7 +302,7 @@ exports.getInspectionRecords = async (req, res) => {
               COALESCE(ei.remarks, '') AS resultDesc,
               e.name AS equipmentName, e.code AS equipmentCode
        FROM equipment_inspection ei
-       LEFT JOIN equipment e ON e.id = ei.equipment_id
+       JOIN equipment e ON e.id = ei.equipment_id AND e.deleted_at IS NULL
        ${whereClause}
        ORDER BY ei.inspection_date DESC, ei.id DESC
        LIMIT ${pageSize} OFFSET ${offset}`,
@@ -312,7 +322,7 @@ exports.getEquipmentById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const [rows] = await pool.query('SELECT id, code, name, model, manufacturer, purchase_date, inspection_date, next_inspection_date, location, status, responsible_person, description, specs, created_at, updated_at, is_active, deleted_at FROM equipment WHERE id = ?', [id]);
+    const [rows] = await pool.query('SELECT id, code, name, model, manufacturer, purchase_date, inspection_date, next_inspection_date, location, status, responsible_person, description, specs, created_at, updated_at, is_active, deleted_at FROM equipment WHERE id = ? AND deleted_at IS NULL', [id]);
 
     if (rows.length === 0) {
       return ResponseHandler.error(res, '设备不存在', 'NOT_FOUND', 404);
@@ -389,7 +399,7 @@ exports.createEquipment = async (req, res) => {
     }
 
     // 检查设备编号是否已存在
-    const [existingEquipment] = await pool.query('SELECT id FROM equipment WHERE code = ?', [code]);
+    const [existingEquipment] = await pool.query('SELECT id FROM equipment WHERE code = ? AND deleted_at IS NULL', [code]);
 
     if (existingEquipment.length > 0) {
       return ResponseHandler.error(res, '设备编号已存在', 'VALIDATION_ERROR', 400);
@@ -478,7 +488,7 @@ exports.updateEquipment = async (req, res) => {
     } = req.body;
 
     // 检查设备是否存在
-    const [existingEquipment] = await pool.query('SELECT id FROM equipment WHERE id = ?', [id]);
+    const [existingEquipment] = await pool.query('SELECT id FROM equipment WHERE id = ? AND deleted_at IS NULL', [id]);
 
     if (existingEquipment.length === 0) {
       return ResponseHandler.error(res, '设备不存在', 'NOT_FOUND', 404);
@@ -519,7 +529,7 @@ exports.updateEquipment = async (req, res) => {
         responsible_person = ?,
         specs = ?,
         description = ?
-      WHERE id = ?`,
+      WHERE id = ? AND deleted_at IS NULL`,
       [
         name,
         model,
@@ -550,14 +560,16 @@ exports.deleteEquipment = async (req, res) => {
     const { id } = req.params;
 
     // 检查设备是否存在
-    const [existingEquipment] = await pool.query('SELECT id FROM equipment WHERE id = ?', [id]);
+    const [existingEquipment] = await pool.query('SELECT id FROM equipment WHERE id = ? AND deleted_at IS NULL', [id]);
 
     if (existingEquipment.length === 0) {
       return ResponseHandler.error(res, '设备不存在', 'NOT_FOUND', 404);
     }
 
-    // 删除设备数据
-    await pool.query('DELETE FROM equipment WHERE id = ?', [id]);
+    const deletedRows = await softDelete(pool, 'equipment', 'id', id);
+    if (deletedRows === 0) {
+      return ResponseHandler.error(res, '设备删除失败，设备可能已被删除', 'NOT_FOUND', 404);
+    }
 
     ResponseHandler.success(res, null, '设备删除成功');
   } catch (error) {
@@ -578,7 +590,7 @@ exports.updateEquipmentStatus = async (req, res) => {
     }
 
     // 检查设备是否存在
-    const [existingEquipment] = await pool.query('SELECT id FROM equipment WHERE id = ?', [id]);
+    const [existingEquipment] = await pool.query('SELECT id FROM equipment WHERE id = ? AND deleted_at IS NULL', [id]);
 
     if (existingEquipment.length === 0) {
       return ResponseHandler.error(res, '设备不存在', 'NOT_FOUND', 404);
@@ -597,7 +609,7 @@ exports.updateEquipmentStatus = async (req, res) => {
 
     // 更新设备状态
     const [updateResult] = await pool.query(
-      'UPDATE equipment SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      'UPDATE equipment SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND deleted_at IS NULL',
       [status, id]
     );
 
@@ -624,6 +636,7 @@ exports.getEquipmentStats = async (req, res) => {
         SUM(CASE WHEN status = 'repair' THEN 1 ELSE 0 END) as repair,
         SUM(CASE WHEN status = 'scrapped' THEN 1 ELSE 0 END) as scrapped
       FROM equipment
+      WHERE deleted_at IS NULL
     `);
 
     ResponseHandler.success(res, rows[0], '操作成功');
@@ -651,7 +664,7 @@ exports.addMaintenanceRecord = async (req, res) => {
     } = req.body;
 
     // 检查设备是否存在
-    const [existingEquipment] = await pool.query('SELECT id FROM equipment WHERE id = ?', [
+    const [existingEquipment] = await pool.query('SELECT id FROM equipment WHERE id = ? AND deleted_at IS NULL', [
       equipment_id,
     ]);
 
@@ -717,7 +730,7 @@ exports.addFailureRecord = async (req, res) => {
     } = req.body;
 
     // 检查设备是否存在
-    const [existingEquipment] = await pool.query('SELECT id FROM equipment WHERE id = ?', [
+    const [existingEquipment] = await pool.query('SELECT id FROM equipment WHERE id = ? AND deleted_at IS NULL', [
       equipment_id,
     ]);
 
@@ -783,7 +796,7 @@ exports.addInspectionRecord = async (req, res) => {
     } = req.body;
 
     // 检查设备是否存在
-    const [existingEquipment] = await pool.query('SELECT id FROM equipment WHERE id = ?', [
+    const [existingEquipment] = await pool.query('SELECT id FROM equipment WHERE id = ? AND deleted_at IS NULL', [
       equipment_id,
     ]);
 
@@ -866,7 +879,7 @@ exports.importEquipment = async (req, res) => {
 
           // 检查设备编号是否已存在
           const [existingEquipment] = await connection.query(
-            'SELECT id FROM equipment WHERE code = ?',
+            'SELECT id FROM equipment WHERE code = ? AND deleted_at IS NULL',
             [equipment.code]
           );
 

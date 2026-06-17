@@ -60,7 +60,7 @@ exports.getReportSummary = async (req, res) => {
         SUM(pr.defective_quantity) as total_defective,
         COUNT(DISTINCT pr.operator_name) as operator_count
       FROM production_reports pr
-      LEFT JOIN production_tasks pt ON pr.task_id = pt.id
+      JOIN production_tasks pt ON pr.task_id = pt.id AND pt.deleted_at IS NULL
       LEFT JOIN materials m ON pt.product_id = m.id
       ${whereClause}
       GROUP BY pr.task_id, pt.code, m.name
@@ -111,14 +111,17 @@ exports.getReportDetail = async (req, res) => {
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
     const [total] = await pool.query(
-      `SELECT COUNT(*) as count FROM production_reports pr ${whereClause}`,
+      `SELECT COUNT(*) as count
+       FROM production_reports pr
+       JOIN production_tasks pt ON pr.task_id = pt.id AND pt.deleted_at IS NULL
+       ${whereClause}`,
       params
     );
 
     const query = `
       SELECT pr.*, pt.code as task_code, m.name as product_name
       FROM production_reports pr
-      LEFT JOIN production_tasks pt ON pr.task_id = pt.id
+      JOIN production_tasks pt ON pr.task_id = pt.id AND pt.deleted_at IS NULL
       LEFT JOIN materials m ON pt.product_id = m.id
       ${whereClause}
       ORDER BY pr.report_time DESC, pr.created_at DESC
@@ -178,7 +181,7 @@ exports.exportReport = async (req, res) => {
         pr.remarks,
         pr.created_at
       FROM production_reports pr
-      LEFT JOIN production_tasks pt ON pr.task_id = pt.id
+      JOIN production_tasks pt ON pr.task_id = pt.id AND pt.deleted_at IS NULL
       LEFT JOIN materials m ON pt.product_id = m.id
       ${whereClause}
       ORDER BY pr.report_time DESC
@@ -230,7 +233,7 @@ exports.getReportById = async (req, res) => {
       `
       SELECT pr.*, pt.code as task_code, m.name as product_name
       FROM production_reports pr
-      LEFT JOIN production_tasks pt ON pr.task_id = pt.id
+      JOIN production_tasks pt ON pr.task_id = pt.id AND pt.deleted_at IS NULL
       LEFT JOIN materials m ON pt.product_id = m.id
       WHERE pr.id = ?
     `,
@@ -299,6 +302,17 @@ exports.createReport = async (req, res) => {
     if (!Number.isFinite(completedQty) || completedQty <= 0) {
       await connection.rollback();
       return ResponseHandler.error(res, '报工完成数量必须大于0', 'VALIDATION_ERROR', 400);
+    }
+
+    if (process_id) {
+      const [processRows] = await connection.query(
+        'SELECT id FROM production_processes WHERE id = ? AND task_id = ? FOR UPDATE',
+        [process_id, task_id]
+      );
+      if (processRows.length === 0) {
+        await connection.rollback();
+        return ResponseHandler.error(res, '报工工序不属于当前生产任务', 'VALIDATION_ERROR', 400);
+      }
     }
 
     if (qualifiedQty > completedQty) {
@@ -422,6 +436,17 @@ exports.updateReport = async (req, res) => {
     if (newQualifiedQty > newCompletedQty) {
       await connection.rollback();
       return ResponseHandler.error(res, '合格数量不能超过完成数量', 'VALIDATION_ERROR', 400);
+    }
+
+    if (process_id) {
+      const [processRows] = await connection.query(
+        'SELECT id FROM production_processes WHERE id = ? AND task_id = ? FOR UPDATE',
+        [process_id, task_id]
+      );
+      if (processRows.length === 0) {
+        await connection.rollback();
+        return ResponseHandler.error(res, '报工工序不属于当前生产任务', 'VALIDATION_ERROR', 400);
+      }
     }
 
     const [taskRows] = await connection.query(
@@ -560,7 +585,7 @@ exports.getTaskReportStats = async (req, res) => {
       SELECT pt.*, m.name as product_name, m.code as product_code
       FROM production_tasks pt
       LEFT JOIN materials m ON pt.product_id = m.id
-      WHERE pt.id = ?
+      WHERE pt.id = ? AND pt.deleted_at IS NULL
     `,
       [taskId]
     );
@@ -630,9 +655,10 @@ exports.getTaskProcesses = async (req, res) => {
 
     const [processes] = await pool.query(
       `
-      SELECT id, task_id, process_name, sequence, quantity, status, progress
-      FROM production_processes
-      WHERE task_id = ?
+      SELECT pp.id, pp.task_id, pp.process_name, pp.sequence, pp.quantity, pp.status, pp.progress
+      FROM production_processes pp
+      JOIN production_tasks pt ON pp.task_id = pt.id AND pt.deleted_at IS NULL
+      WHERE pp.task_id = ?
       ORDER BY sequence ASC
     `,
       [taskId]
@@ -669,7 +695,10 @@ exports.getReportStatistics = async (req, res) => {
 
     // 获取总报工数
     const [totalResult] = await pool.query(
-      `SELECT COUNT(*) as total FROM production_reports pr ${whereClause}`,
+      `SELECT COUNT(*) as total
+       FROM production_reports pr
+       JOIN production_tasks pt ON pr.task_id = pt.id AND pt.deleted_at IS NULL
+       ${whereClause}`,
       params
     );
 
@@ -681,7 +710,9 @@ exports.getReportStatistics = async (req, res) => {
         COALESCE(SUM(pr.qualified_quantity), 0) as total_qualified,
         COALESCE(SUM(pr.defective_quantity), 0) as total_defective,
         COALESCE(SUM(pr.work_hours), 0) as total_work_hours
-      FROM production_reports pr ${whereClause}
+      FROM production_reports pr
+      JOIN production_tasks pt ON pr.task_id = pt.id AND pt.deleted_at IS NULL
+      ${whereClause}
     `,
       params
     );
@@ -689,7 +720,10 @@ exports.getReportStatistics = async (req, res) => {
     // 获取有报工记录的任务数量
     const [taskResult] = await pool.query(
       `
-      SELECT COUNT(DISTINCT pr.task_id) as task_count FROM production_reports pr ${whereClause}
+      SELECT COUNT(DISTINCT pr.task_id) as task_count
+      FROM production_reports pr
+      JOIN production_tasks pt ON pr.task_id = pt.id AND pt.deleted_at IS NULL
+      ${whereClause}
     `,
       params
     );

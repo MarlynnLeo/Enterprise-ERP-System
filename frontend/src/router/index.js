@@ -182,7 +182,7 @@ router.beforeEach(async (to) => {
       await authStore.fetchUserPermissions()
     } catch (error) {
       console.error('加载权限数据失败:', error)
-      ElMessage.warning('权限数据加载失败，部分页面可能无法访问')
+      ElMessage.error('权限数据加载失败，已拒绝访问受控页面')
     }
   }
 

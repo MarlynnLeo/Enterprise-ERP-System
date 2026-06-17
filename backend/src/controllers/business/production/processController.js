@@ -60,7 +60,7 @@ exports.getProcesses = async (req, res) => {
     const { taskId, status, page = 1, pageSize = 10 } = req.query;
     const { page: safePage, pageSize: safePageSize, offset: safeOffset } = parsePagination(page, pageSize);
 
-    const conditions = [];
+    const conditions = ['pt.deleted_at IS NULL'];
     const params = [];
 
     if (taskId) {
@@ -76,14 +76,17 @@ exports.getProcesses = async (req, res) => {
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
     const [total] = await pool.query(
-      `SELECT COUNT(*) as count FROM production_processes pp ${whereClause}`,
+      `SELECT COUNT(*) as count
+       FROM production_processes pp
+       JOIN production_tasks pt ON pp.task_id = pt.id
+       ${whereClause}`,
       params
     );
 
     const query = `
       SELECT pp.*, pt.code as task_code, pt.product_id, m.name as product_name
       FROM production_processes pp
-      LEFT JOIN production_tasks pt ON pp.task_id = pt.id
+      JOIN production_tasks pt ON pp.task_id = pt.id
       LEFT JOIN materials m ON pt.product_id = m.id
       ${whereClause}
       ORDER BY pp.task_id, pp.sequence
@@ -112,7 +115,7 @@ exports.getProcessById = async (req, res) => {
       `
       SELECT pp.*, pt.code as task_code, pt.product_id, m.name as product_name
       FROM production_processes pp
-      LEFT JOIN production_tasks pt ON pp.task_id = pt.id
+      JOIN production_tasks pt ON pp.task_id = pt.id AND pt.deleted_at IS NULL
       LEFT JOIN materials m ON pt.product_id = m.id
       WHERE pp.id = ?
     `,
@@ -363,6 +366,7 @@ exports.updateProcess = async (req, res) => {
            FROM quality_inspections
            WHERE task_id = ?
              AND inspection_type IN ('first_article', 'process')
+             AND deleted_at IS NULL
              AND (status IS NULL OR status NOT IN ('passed', 'completed', 'cancelled'))`,
           [taskId]
         );
@@ -399,7 +403,7 @@ exports.updateProcess = async (req, res) => {
 
             // 检查是否已经存在检验单。
             const [existingInspection] = await connection.query(
-              'SELECT id FROM quality_inspections WHERE inspection_type = ? AND reference_id = ?',
+              'SELECT id FROM quality_inspections WHERE inspection_type = ? AND reference_id = ? AND deleted_at IS NULL',
               ['final', taskId]
             );
 
@@ -452,10 +456,7 @@ exports.updateProcess = async (req, res) => {
           const hoursPerUnit = parseFloat(processHours[0]?.total_hours) || 0;
 
           if (hoursPerUnit <= 0) {
-            // 标准工时未配置：跳过自动报工，不阻断工序完成流程
-            const msg = '工序标准工时未配置，无法自动创建报工记录，请联系管理员在【基础数据 - 工序管理】中配置工时后手动报工';
-            logger.warn(`任务 ${taskId} ${msg}`);
-            warnings.push(msg);
+            throw new Error('工序标准工时未配置，无法自动创建报工记录，请先在【基础数据 - 工序管理】中配置工时');
           } else {
             const reportNo = await CodeGenerators.generateReportCode(connection);
             const [taskInfoForHook] = await connection.query('SELECT manager, quantity FROM production_tasks WHERE id = ? AND deleted_at IS NULL', [taskId]);
@@ -558,7 +559,11 @@ exports.deleteProcess = async (req, res) => {
     const { id } = req.params;
 
     const [processCheck] = await connection.query(
-      'SELECT id, status FROM production_processes WHERE id = ? FOR UPDATE',
+      `SELECT pp.id, pp.status
+       FROM production_processes pp
+       JOIN production_tasks pt ON pp.task_id = pt.id AND pt.deleted_at IS NULL
+       WHERE pp.id = ?
+       FOR UPDATE`,
       [id]
     );
 
@@ -593,12 +598,13 @@ exports.getProcessCompletionRates = async (req, res) => {
   try {
     const query = `
       SELECT
-        process_name as processName,
+        pp.process_name as processName,
         COUNT(*) as total,
-        SUM(CASE WHEN status = '${PRODUCTION_STATUS_KEYS.COMPLETED}' THEN 1 ELSE 0 END) as completed,
-        ROUND(IFNULL(SUM(CASE WHEN status = '${PRODUCTION_STATUS_KEYS.COMPLETED}' THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0) * 100, 0), 2) as completionRate
-      FROM production_processes
-      GROUP BY process_name
+        SUM(CASE WHEN pp.status = '${PRODUCTION_STATUS_KEYS.COMPLETED}' THEN 1 ELSE 0 END) as completed,
+        ROUND(IFNULL(SUM(CASE WHEN pp.status = '${PRODUCTION_STATUS_KEYS.COMPLETED}' THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0) * 100, 0), 2) as completionRate
+      FROM production_processes pp
+      JOIN production_tasks pt ON pp.task_id = pt.id AND pt.deleted_at IS NULL
+      GROUP BY pp.process_name
       ORDER BY total DESC
       LIMIT 10
     `;

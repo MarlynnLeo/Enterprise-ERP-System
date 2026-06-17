@@ -27,6 +27,7 @@ exports.getDashboardStatistics = async (req, res) => {
         SUM(CASE WHEN status NOT IN ('${PRODUCTION_STATUS_KEYS.COMPLETED}', '${PRODUCTION_STATUS_KEYS.CANCELLED}') THEN 1 ELSE 0 END) as pending,
         SUM(CASE WHEN status = '${PRODUCTION_STATUS_KEYS.DRAFT}' THEN 1 ELSE 0 END) as draft
       FROM production_plans
+      WHERE deleted_at IS NULL
     `);
 
     // 生产任务统计 - 查询所有记录的总计
@@ -37,33 +38,37 @@ exports.getDashboardStatistics = async (req, res) => {
         SUM(CASE WHEN status = '${PRODUCTION_STATUS_KEYS.IN_PROGRESS}' THEN 1 ELSE 0 END) as in_progress,
         SUM(CASE WHEN status = '${PRODUCTION_STATUS_KEYS.PENDING}' THEN 1 ELSE 0 END) as pending
       FROM production_tasks
+      WHERE deleted_at IS NULL
     `);
 
     // 工序完成统计 - 本月完成的工序数
     const [processRows] = await pool.query(`
       SELECT
         COUNT(*) as total,
-        SUM(CASE WHEN status = '${PRODUCTION_STATUS_KEYS.COMPLETED}' THEN 1 ELSE 0 END) as completed
-      FROM production_processes
-      WHERE YEAR(created_at) = YEAR(CURDATE()) AND MONTH(created_at) = MONTH(CURDATE())
+        SUM(CASE WHEN pp.status = '${PRODUCTION_STATUS_KEYS.COMPLETED}' THEN 1 ELSE 0 END) as completed
+      FROM production_processes pp
+      JOIN production_tasks pt ON pp.task_id = pt.id AND pt.deleted_at IS NULL
+      WHERE YEAR(pp.created_at) = YEAR(CURDATE()) AND MONTH(pp.created_at) = MONTH(CURDATE())
     `);
 
     // 生产报工统计 - 总数和今日报工
     const [reportRows] = await pool.query(`
       SELECT
         COUNT(*) as total,
-        SUM(CASE WHEN DATE(report_time) = ? THEN 1 ELSE 0 END) as today
-      FROM production_reports
+        SUM(CASE WHEN DATE(pr.report_time) = ? THEN 1 ELSE 0 END) as today
+      FROM production_reports pr
+      JOIN production_tasks pt ON pr.task_id = pt.id AND pt.deleted_at IS NULL
     `, [today]);
 
     // 今日生产量（用于质量率计算）
     const [productionRows] = await pool.query(`
       SELECT
-        COALESCE(SUM(completed_quantity), 0) as total_quantity,
-        COALESCE(SUM(qualified_quantity), 0) as qualified_quantity,
-        COALESCE(SUM(defective_quantity), 0) as defective_quantity
-      FROM production_reports
-      WHERE DATE(report_time) = ?
+        COALESCE(SUM(pr.completed_quantity), 0) as total_quantity,
+        COALESCE(SUM(pr.qualified_quantity), 0) as qualified_quantity,
+        COALESCE(SUM(pr.defective_quantity), 0) as defective_quantity
+      FROM production_reports pr
+      JOIN production_tasks pt ON pr.task_id = pt.id AND pt.deleted_at IS NULL
+      WHERE DATE(pr.report_time) = ?
     `, [today]);
 
     const plans = planRows[0] || { total: 0, completed: 0, in_progress: 0, pending: 0, draft: 0 };
@@ -151,13 +156,14 @@ exports.getDashboardTrends = async (req, res) => {
 
       const query = `
         SELECT
-          DATE(report_time) as date,
-          SUM(completed_quantity) as completed,
-          SUM(qualified_quantity) as qualified,
-          SUM(defective_quantity) as defective
-        FROM production_reports
-        WHERE DATE(report_time) BETWEEN ? AND ?
-        GROUP BY DATE(report_time)
+          DATE(pr.report_time) as date,
+          SUM(pr.completed_quantity) as completed,
+          SUM(pr.qualified_quantity) as qualified,
+          SUM(pr.defective_quantity) as defective
+        FROM production_reports pr
+        JOIN production_tasks pt ON pr.task_id = pt.id AND pt.deleted_at IS NULL
+        WHERE DATE(pr.report_time) BETWEEN ? AND ?
+        GROUP BY DATE(pr.report_time)
         ORDER BY date ASC
       `;
 
@@ -217,7 +223,7 @@ exports.getDashboardTrends = async (req, res) => {
         `
         SELECT DATE(created_at) AS day, COALESCE(SUM(quantity), 0) AS planned
         FROM production_plans
-        WHERE YEAR(created_at) = ? AND MONTH(created_at) = ?
+        WHERE deleted_at IS NULL AND YEAR(created_at) = ? AND MONTH(created_at) = ?
         GROUP BY DATE(created_at)
         ORDER BY day ASC
       `,
@@ -229,10 +235,11 @@ exports.getDashboardTrends = async (req, res) => {
       // 统计当月每天的完成数量
       const [completedRows] = await pool.query(
         `
-        SELECT DATE(report_time) AS day, COALESCE(SUM(completed_quantity), 0) AS completed
-        FROM production_reports
-        WHERE YEAR(report_time) = ? AND MONTH(report_time) = ?
-        GROUP BY DATE(report_time)
+        SELECT DATE(pr.report_time) AS day, COALESCE(SUM(pr.completed_quantity), 0) AS completed
+        FROM production_reports pr
+        JOIN production_tasks pt ON pr.task_id = pt.id AND pt.deleted_at IS NULL
+        WHERE YEAR(pr.report_time) = ? AND MONTH(pr.report_time) = ?
+        GROUP BY DATE(pr.report_time)
         ORDER BY day ASC
       `,
         [year, month + 1]
@@ -254,30 +261,7 @@ exports.getDashboardTrends = async (req, res) => {
       );
 
       const plannedData = days.map((d) => planMap.get(d) ?? 0);
-      let completedData = days.map((d) => completedMap.get(d) ?? 0);
-
-      // 如果没有报工数据，尝试用已完成的生产任务数量作为完成量兜底
-      if (completedData.every((v) => Number(v) === 0)) {
-        logger.info('[生产趋势] 没有报工数据，尝试使用任务完成数据');
-        const [taskCompletedRows] = await pool.query(
-          `
-          SELECT DATE(updated_at) AS day, COALESCE(SUM(quantity), 0) AS completed
-          FROM production_tasks
-          WHERE status = '${PRODUCTION_STATUS_KEYS.COMPLETED}' AND YEAR(updated_at) = ? AND MONTH(updated_at) = ?
-          GROUP BY DATE(updated_at)
-          ORDER BY day ASC
-        `,
-          [year, month + 1]
-        );
-        logger.info('[生产趋势] 任务完成数据行数:', taskCompletedRows.length);
-        const taskCompletedMap = new Map(
-          taskCompletedRows.map((r) => {
-            const dateStr = typeof r.day === 'string' ? r.day : r.day.toISOString().split('T')[0];
-            return [dateStr, Number(r.completed) || 0];
-          })
-        );
-        completedData = days.map((d) => taskCompletedMap.get(d) ?? 0);
-      }
+      const completedData = days.map((d) => completedMap.get(d) ?? 0);
 
       return ResponseHandler.success(res, { days, plannedData, completedData });
     }
@@ -297,17 +281,18 @@ exports.getDashboardTrends = async (req, res) => {
       const [planRows] = await pool.query(`
         SELECT DATE_FORMAT(created_at, '%Y-%m') AS month, COALESCE(SUM(quantity), 0) AS planned
         FROM production_plans
-        WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 11 MONTH)
+        WHERE deleted_at IS NULL AND created_at >= DATE_SUB(CURDATE(), INTERVAL 11 MONTH)
         GROUP BY DATE_FORMAT(created_at, '%Y-%m')
         ORDER BY month ASC
       `);
 
       // 统计完成数量（报工）
       const [completedRows] = await pool.query(`
-        SELECT DATE_FORMAT(report_time, '%Y-%m') AS month, COALESCE(SUM(completed_quantity), 0) AS completed
-        FROM production_reports
-        WHERE report_time >= DATE_SUB(CURDATE(), INTERVAL 11 MONTH)
-        GROUP BY DATE_FORMAT(report_time, '%Y-%m')
+        SELECT DATE_FORMAT(pr.report_time, '%Y-%m') AS month, COALESCE(SUM(pr.completed_quantity), 0) AS completed
+        FROM production_reports pr
+        JOIN production_tasks pt ON pr.task_id = pt.id AND pt.deleted_at IS NULL
+        WHERE pr.report_time >= DATE_SUB(CURDATE(), INTERVAL 11 MONTH)
+        GROUP BY DATE_FORMAT(pr.report_time, '%Y-%m')
         ORDER BY month ASC
       `);
 
@@ -315,22 +300,7 @@ exports.getDashboardTrends = async (req, res) => {
       const completedMap = new Map(completedRows.map((r) => [r.month, Number(r.completed) || 0]));
 
       const plannedData = months.map((m) => planMap.get(m) ?? 0);
-      let completedData = months.map((m) => completedMap.get(m) ?? 0);
-
-      // 如果没有报工数据，尝试用已完成的生产任务数量作为完成量兜底（可选）
-      if (completedData.every((v) => Number(v) === 0)) {
-        const [taskCompletedRows] = await pool.query(`
-          SELECT DATE_FORMAT(updated_at, '%Y-%m') AS month, COALESCE(SUM(quantity), 0) AS completed
-          FROM production_tasks
-          WHERE status = '${PRODUCTION_STATUS_KEYS.COMPLETED}' AND updated_at >= DATE_SUB(CURDATE(), INTERVAL 11 MONTH)
-          GROUP BY DATE_FORMAT(updated_at, '%Y-%m')
-          ORDER BY month ASC
-        `);
-        const taskCompletedMap = new Map(
-          taskCompletedRows.map((r) => [r.month, Number(r.completed) || 0])
-        );
-        completedData = months.map((m) => taskCompletedMap.get(m) ?? 0);
-      }
+      const completedData = months.map((m) => completedMap.get(m) ?? 0);
 
       return ResponseHandler.success(res, { months, plannedData, completedData });
     }

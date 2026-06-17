@@ -61,25 +61,14 @@ import { tokenManager, permissionManager } from '../utils/unifiedStorage'
 // ✅ 权限别名映射已迁移至后端 PermissionService.js
 // 后端在返回权限列表时会自动展开别名，前端无需再维护硬编码映射
 
-/**
- * 判断权限加载错误是否为临时性错误（网络抖动、服务端过载等）
- * @param {Error & {response?: {status?: number}}} error - 错误对象
- * @returns {boolean} 是否为临时性错误
- */
-const isTransientPermissionLoadError = (error) => {
-  const status = error?.response?.status
-  return !status || status === 429 || status >= 500
-}
-
-
 export const useAuthStore = defineStore('auth', () => {
   const token = ref('')
   const user = ref(tokenManager.getUser() || null)
 
   const savedPermissions = permissionManager.getUserPermissions()
   const permissions = ref(Array.isArray(savedPermissions) ? savedPermissions : [])
-  // 初始化时不将 permissionsLoaded 置为 true，强制初次访问带 permission 的路由时获取最新权限
-  // 但为了不阻塞白屏，我们仍然可以使用缓存的内容作为初始值
+  // 初始化时不将 permissionsLoaded 置为 true，强制初次访问带 permission 的路由时获取最新权限。
+  // 缓存仅用于状态恢复展示；权限判断在后端权限加载完成前一律拒绝。
   const permissionsLoaded = ref(false)
   const permissionsLoading = ref(false) // 权限是否正在加载
 
@@ -218,7 +207,7 @@ export const useAuthStore = defineStore('auth', () => {
         permissions.value = data.permissions
       } else {
         console.error('获取到的权限数据格式不正确:', data)
-        permissions.value = []
+        throw new Error('权限数据格式不正确')
       }
 
       permissionManager.setUserPermissions(permissions.value)
@@ -226,18 +215,6 @@ export const useAuthStore = defineStore('auth', () => {
       return true
     } catch (error) {
       console.error('获取用户权限失败:', error)
-
-      const cachedPermissions = permissionManager.getUserPermissions()
-      const fallbackPermissions = permissions.value.length
-        ? permissions.value
-        : (Array.isArray(cachedPermissions) ? cachedPermissions : [])
-
-      if (isTransientPermissionLoadError(error) && fallbackPermissions.length > 0) {
-        permissions.value = fallbackPermissions
-        permissionsLoaded.value = true
-        permissionManager.setUserPermissions(permissions.value)
-        return true
-      }
 
       permissions.value = []
       permissionsLoaded.value = false

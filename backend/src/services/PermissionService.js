@@ -61,6 +61,12 @@ const PERMISSION_ALIASES = {
 const EXACT_PERMISSION_ALIASES = {
   'finance:ap:invoices': 'finance:ap:view',
   'finance:payments': 'finance:ap:view',
+  'production:plans': 'production:plans:view',
+  'production:tasks': 'production:tasks:view',
+  'production:process': 'production:process:view',
+  'production:reports': 'production:reports:view',
+  'production:equipment': 'production:equipment:view',
+  'production:calendar': 'production:calendar:view',
 };
 
 /**
@@ -158,7 +164,7 @@ class PermissionService {
       return permissions;
     } catch (error) {
       logger.error('获取用户权限失败:', error);
-      return [];
+      throw error;
     }
   }
 
@@ -179,7 +185,7 @@ class PermissionService {
       return result[0].count > 0;
     } catch (error) {
       logger.error('检查管理员权限失败:', error);
-      return false;
+      throw error;
     }
   }
 
