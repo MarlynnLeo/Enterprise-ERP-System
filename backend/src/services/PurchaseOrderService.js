@@ -8,6 +8,12 @@
 const { logger } = require('../utils/logger');
 const { lineAmount, normalizeTaxRate, roundMoney, taxAmount, toNumber } = require('../utils/money');
 
+function createBusinessError(message, statusCode = 400) {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  error.code = statusCode === 404 ? 'NOT_FOUND' : 'VALIDATION_ERROR';
+  return error;
+}
 
 class PurchaseOrderService {
   /**
@@ -48,50 +54,139 @@ class PurchaseOrderService {
   }
 
   /**
-   * 更新采购申请状态
+   * Recalculate requisition completion from active purchase orders.
+   * A requisition is completed only when every requested material quantity has
+   * been covered by non-cancelled, non-deleted purchase orders.
    * @param {Object} connection - 数据库连接
    * @param {number} requisitionId - 申请单ID
-   * @param {string} status - 新状态，默认 'completed'
+   */
+  static async syncRequisitionStatusFromOrders(connection, requisitionId) {
+    if (!requisitionId) return null;
+
+    const [requisitionRows] = await connection.query(
+      'SELECT id, status FROM purchase_requisitions WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+      [requisitionId]
+    );
+    if (requisitionRows.length === 0) {
+      throw createBusinessError(`purchase requisition not found: ${requisitionId}`, 404);
+    }
+    const currentStatus = requisitionRows[0].status;
+    if (!['approved', 'completed'].includes(currentStatus)) {
+      throw createBusinessError(
+        `purchase requisition ${requisitionId} status ${currentStatus} cannot be linked to purchase orders`
+      );
+    }
+
+    const [requisitionItems] = await connection.query(
+      `SELECT material_id, material_code, quantity
+       FROM purchase_requisition_items
+       WHERE requisition_id = ?`,
+      [requisitionId]
+    );
+    if (requisitionItems.length === 0) {
+      throw createBusinessError(`purchase requisition ${requisitionId} has no material items`);
+    }
+
+    const [orderedItems] = await connection.query(
+      `SELECT poi.material_id, poi.material_code, SUM(COALESCE(poi.quantity, 0)) AS ordered_quantity
+       FROM purchase_order_items poi
+       JOIN purchase_orders po ON poi.order_id = po.id
+       WHERE po.requisition_id = ?
+         AND po.deleted_at IS NULL
+         AND po.status <> 'cancelled'
+       GROUP BY poi.material_id, poi.material_code`,
+      [requisitionId]
+    );
+
+    const requiredQuantityByKey = new Map();
+    requisitionItems.forEach((item) => {
+      const key = this.getPrimaryMaterialMatchKey(item);
+      if (!key) {
+        throw createBusinessError('purchase requisition item is missing material identity');
+      }
+      requiredQuantityByKey.set(
+        key,
+        (requiredQuantityByKey.get(key) || 0) + (parseFloat(item.quantity) || 0)
+      );
+    });
+
+    const orderedQuantityByKey = new Map();
+    orderedItems.forEach((item) => {
+      const key = this.getPrimaryMaterialMatchKey(item);
+      if (!key) return;
+      orderedQuantityByKey.set(
+        key,
+        (orderedQuantityByKey.get(key) || 0) + (parseFloat(item.ordered_quantity) || 0)
+      );
+    });
+
+    let totalRequired = 0;
+    let totalOrdered = 0;
+    const allOrdered = [...requiredQuantityByKey.entries()].every(([key, requiredQuantity]) => {
+      const orderedQuantity = orderedQuantityByKey.get(key) || 0;
+      totalRequired += requiredQuantity;
+      totalOrdered += Math.min(orderedQuantity, requiredQuantity);
+      return orderedQuantity + 0.0001 >= requiredQuantity;
+    });
+
+    const nextStatus = allOrdered ? 'completed' : 'approved';
+    if (nextStatus !== currentStatus) {
+      const [updateResult] = await connection.query(
+        `UPDATE purchase_requisitions
+         SET status = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE id = ? AND deleted_at IS NULL`,
+        [nextStatus, requisitionId]
+      );
+      if (!updateResult || updateResult.affectedRows === 0) {
+        throw createBusinessError(`failed to update purchase requisition status: ${requisitionId}`);
+      }
+    }
+
+    logger.info(
+      `采购申请状态同步完成: ID=${requisitionId}, ${currentStatus} -> ${nextStatus}, ordered=${totalOrdered}, required=${totalRequired}`
+    );
+
+    return {
+      requisitionId,
+      status: nextStatus,
+      previousStatus: currentStatus,
+      totalRequired,
+      totalOrdered,
+      completed: allOrdered,
+    };
+  }
+
+  static getPrimaryMaterialMatchKey(item = {}) {
+    const materialId = Number(item.material_id);
+    const materialCode = String(item.material_code || '').trim();
+    if (Number.isInteger(materialId) && materialId > 0) {
+      return `id:${materialId}`;
+    }
+    if (materialCode) {
+      return `code:${materialCode}`;
+    }
+    return null;
+  }
+
+  /**
+   * Backward-compatible entry point. Completion is derived from quantities
+   * instead of being written directly by callers.
    */
   static async updateRequisitionStatus(connection, requisitionId, status = 'completed') {
-    if (!requisitionId) return;
-
-    try {
-      // 首先检查申请单是否存在
-      const [checkReqRows] = await connection.query(
-        'SELECT id, status FROM purchase_requisitions WHERE id = ? AND deleted_at IS NULL',
-        [requisitionId]
-      );
-
-      if (checkReqRows.length > 0) {
-        const currentReqStatus = checkReqRows[0].status;
-        logger.info(
-          `更新采购申请状态: ID=${requisitionId}, 当前状态=${currentReqStatus}, 目标状态=${status}`
-        );
-
-        // 更新采购申请状态
-        const updateRequisitionStatusQuery = `
-          UPDATE purchase_requisitions
-          SET status = ?, updated_at = CURRENT_TIMESTAMP
-          WHERE id = ? AND deleted_at IS NULL
-        `;
-        const [updateResult] = await connection.query(updateRequisitionStatusQuery, [
-          status,
-          requisitionId,
-        ]);
-
-        if (updateResult.affectedRows === 0) {
-          logger.error(`Failed to update purchase requisition status, id=${requisitionId}, no rows affected`);
-        } else {
-          logger.info(`采购申请状态更新成功，ID:${requisitionId}`);
-        }
-      } else {
-        logger.error(`Purchase requisition ${requisitionId} not found, cannot update status`);
-      }
-    } catch (error) {
-      logger.error('更新采购申请状态失败', error);
-      // 不抛出错误，避免影响主要业务流程
+    if (status === 'completed') {
+      return this.syncRequisitionStatusFromOrders(connection, requisitionId);
     }
+
+    const [updateResult] = await connection.query(
+      `UPDATE purchase_requisitions
+       SET status = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ? AND deleted_at IS NULL`,
+      [status, requisitionId]
+    );
+    if (!updateResult || updateResult.affectedRows === 0) {
+      throw createBusinessError(`failed to update purchase requisition status: ${requisitionId}`);
+    }
+    return { requisitionId, status };
   }
 
   /**
@@ -262,7 +357,7 @@ class PurchaseOrderService {
    * @throws {Error} 订单不存在或状态不可编辑时抛出错误
    */
   static async validateOrderEditable(connection, orderId) {
-    const [checkRows] = await connection.query('SELECT status FROM purchase_orders WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [
+    const [checkRows] = await connection.query('SELECT status, requisition_id FROM purchase_orders WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [
       orderId,
     ]);
 

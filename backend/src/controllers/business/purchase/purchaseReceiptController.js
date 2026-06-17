@@ -1549,8 +1549,6 @@ const updateReceiptStatus = async (req, res) => {
       return ResponseHandler.error(res, '更新状态失败', 'SERVER_ERROR', 500, updateError);
     }
 
-    // 使用普通查询提交事务
-    await client.commit();
     await client.commit();
     DomainEventService.dispatchSoon();
 
@@ -1627,7 +1625,10 @@ const updateReceiptStatus = async (req, res) => {
       logger.error('事务回滚失败:', rollbackError);
     }
     logger.error('更新采购入库单状态失败:', error);
-    ResponseHandler.error(res, '更新采购入库单状态失败', 'SERVER_ERROR', 500, error);
+    const statusCode = error.statusCode || 500;
+    const errorCode = error.code || (statusCode === 400 ? 'VALIDATION_ERROR' : 'SERVER_ERROR');
+    const message = statusCode < 500 ? error.message : '更新采购入库单状态失败';
+    ResponseHandler.error(res, message, errorCode, statusCode, error);
   } finally {
     client.release();
   }

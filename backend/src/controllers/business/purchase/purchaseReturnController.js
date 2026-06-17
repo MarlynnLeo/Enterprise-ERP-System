@@ -35,29 +35,47 @@ const createValidationError = (message) => {
   return error;
 };
 
-const validateReturnItemsAgainstReceipt = async (connection, items = [], currentReturnId = null) => {
-  const validItems = Array.isArray(items)
-    ? items.filter((item) => parseFloat(item.returnQuantity || item.return_quantity) > 0)
-    : [];
+const normalizeReturnItems = (items = []) => (Array.isArray(items) ? items : [])
+  .map((item) => ({
+    receipt_item_id: Number(item.receipt_item_id || item.receiptItemId || item.id || 0),
+    return_quantity: parseFloat(item.return_quantity ?? item.returnQuantity ?? 0) || 0,
+  }))
+  .filter((item) => item.return_quantity > 0);
+
+const validateReturnItemsAgainstReceipt = async (
+  connection,
+  receiptId,
+  items = [],
+  currentReturnId = null
+) => {
+  const validItems = normalizeReturnItems(items);
+  if (validItems.length === 0) {
+    throw createValidationError('退货单必须包含至少一条有效明细');
+  }
+
+  const enrichedItems = [];
 
   for (const item of validItems) {
-    const receiptItemId = item.id || item.receipt_item_id;
-    const returnQuantity = parseFloat(item.returnQuantity || item.return_quantity) || 0;
+    const receiptItemId = item.receipt_item_id;
+    const returnQuantity = item.return_quantity;
 
     if (!receiptItemId) {
       throw createValidationError('退货明细缺少原入库单明细ID，不能创建退货单');
     }
 
     const [receiptItems] = await connection.query(
-      `SELECT id, material_name, received_quantity, qualified_quantity, quantity
-       FROM purchase_receipt_items
-       WHERE id = ?
+      `SELECT pri.id, pri.receipt_id, pri.material_id, pri.material_code, pri.material_name,
+              pri.specification, COALESCE(u.name, pri.unit) AS unit, pri.unit_id,
+              pri.received_quantity, pri.qualified_quantity, pri.quantity, pri.price
+       FROM purchase_receipt_items pri
+       LEFT JOIN units u ON pri.unit_id = u.id AND u.deleted_at IS NULL
+       WHERE pri.id = ? AND pri.receipt_id = ?
        FOR UPDATE`,
-      [receiptItemId]
+      [receiptItemId, receiptId]
     );
 
     if (!receiptItems || receiptItems.length === 0) {
-      throw createValidationError(`原入库单明细不存在: ${receiptItemId}`);
+      throw createValidationError(`原入库单明细不存在或不属于当前入库单: ${receiptItemId}`);
     }
 
     const receiptItem = receiptItems[0];
@@ -91,14 +109,29 @@ const validateReturnItemsAgainstReceipt = async (connection, items = [], current
         `物料 ${receiptItem.material_name || receiptItemId} 退货数量超过可退数量: 可退=${maxReturnQuantity - returnedQuantity}, 本次=${returnQuantity}`
       );
     }
+
+    enrichedItems.push({
+      receipt_item_id: receiptItem.id,
+      material_id: receiptItem.material_id,
+      material_code: receiptItem.material_code,
+      material_name: receiptItem.material_name,
+      specification: receiptItem.specification || '',
+      unit: receiptItem.unit || '',
+      unit_id: receiptItem.unit_id || null,
+      quantity: maxReturnQuantity,
+      return_quantity: returnQuantity,
+      price: parseFloat(receiptItem.price) || 0,
+    });
   }
+
+  return enrichedItems;
 };
 
 // 获取采购退货列表
 const calculatePurchaseReturnTotal = (items = []) => {
   const amounts = (Array.isArray(items) ? items : [])
-    .filter((item) => parseFloat(item.returnQuantity || item.return_quantity) > 0)
-    .map((item) => lineAmount(item.returnQuantity || item.return_quantity, item.price || 0));
+    .filter((item) => parseFloat(item.return_quantity ?? item.returnQuantity) > 0)
+    .map((item) => lineAmount(item.return_quantity ?? item.returnQuantity, item.price || 0));
 
   return sumMoney(amounts);
 };
@@ -309,7 +342,7 @@ const createReturn = async (req, res) => {
     } = receiptResult[0];
 
     // 生成退货单号
-    const returnNo = await purchaseModel.generateReturnNo();
+    const returnNo = await purchaseModel.generateReturnNo(connection);
 
     // ✅ 优先使用前端传来的operator,否则使用当前登录用户
     const operator = operatorFromBody || req.user?.real_name || req.user?.username || 'system';
@@ -321,8 +354,8 @@ const createReturn = async (req, res) => {
       finalOperator: operator,
     });
 
-    await validateReturnItemsAgainstReceipt(connection, items);
-    const calculatedTotalAmount = calculatePurchaseReturnTotal(items);
+    const validatedItems = await validateReturnItemsAgainstReceipt(connection, receiptId, items);
+    const calculatedTotalAmount = calculatePurchaseReturnTotal(validatedItems);
 
     // 创建采购退货单
     const insertQuery = `
@@ -353,7 +386,7 @@ const createReturn = async (req, res) => {
     const returnId = result.insertId;
 
     // 创建采购退货物料项目
-    if (items && items.length > 0) {
+    if (validatedItems.length > 0) {
       const insertItemsQuery = `
         INSERT INTO purchase_return_items
         (return_id, receipt_item_id, material_id, material_code, material_name,
@@ -361,22 +394,20 @@ const createReturn = async (req, res) => {
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
 
-      for (const item of items) {
-        if (item.returnQuantity > 0) {
-          await connection.query(insertItemsQuery, [
-            returnId,
-            item.id, // 入库单物料项ID
-            item.materialId,
-            item.materialCode,
-            item.materialName,
-            item.specification,
-            item.unit,
-            item.unitId,
-            item.quantity,
-            item.returnQuantity,
-            item.price,
-          ]);
-        }
+      for (const item of validatedItems) {
+        await connection.query(insertItemsQuery, [
+          returnId,
+          item.receipt_item_id,
+          item.material_id,
+          item.material_code,
+          item.material_name,
+          item.specification,
+          item.unit,
+          item.unit_id,
+          item.quantity,
+          item.return_quantity,
+          item.price,
+        ]);
       }
     }
 
@@ -415,7 +446,7 @@ const updateReturn = async (req, res) => {
     } = req.body;
 
     // 检查退货单是否存在及其状态
-    const checkQuery = 'SELECT status FROM purchase_returns WHERE id = ? AND deleted_at IS NULL FOR UPDATE';
+    const checkQuery = 'SELECT status, receipt_id FROM purchase_returns WHERE id = ? AND deleted_at IS NULL FOR UPDATE';
     const [checkResult] = await connection.query(checkQuery, [id]);
 
     if (checkResult.length === 0) {
@@ -432,8 +463,9 @@ const updateReturn = async (req, res) => {
     // ✅ 优先使用前端传来的operator,否则使用当前登录用户
     const operator = operatorFromBody || req.user?.real_name || req.user?.username || 'system';
 
-    await validateReturnItemsAgainstReceipt(connection, items, id);
-    const calculatedTotalAmount = calculatePurchaseReturnTotal(items);
+    const receiptId = checkResult[0].receipt_id;
+    const validatedItems = await validateReturnItemsAgainstReceipt(connection, receiptId, items, id);
+    const calculatedTotalAmount = calculatePurchaseReturnTotal(validatedItems);
 
     // 更新退货单基本信息
     const updateQuery = `
@@ -455,7 +487,7 @@ const updateReturn = async (req, res) => {
     await connection.query('DELETE FROM purchase_return_items WHERE return_id = ?', [id]);
 
     // 添加新的物料项目
-    if (items && items.length > 0) {
+    if (validatedItems.length > 0) {
       const insertItemsQuery = `
         INSERT INTO purchase_return_items
         (return_id, receipt_item_id, material_id, material_code, material_name,
@@ -463,22 +495,20 @@ const updateReturn = async (req, res) => {
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
 
-      for (const item of items) {
-        if (item.returnQuantity > 0) {
-          await connection.query(insertItemsQuery, [
-            id,
-            item.id, // 入库单物料项ID
-            item.materialId,
-            item.materialCode,
-            item.materialName,
-            item.specification,
-            item.unit,
-            item.unitId,
-            item.quantity,
-            item.returnQuantity,
-            item.price,
-          ]);
-        }
+      for (const item of validatedItems) {
+        await connection.query(insertItemsQuery, [
+          id,
+          item.receipt_item_id,
+          item.material_id,
+          item.material_code,
+          item.material_name,
+          item.specification,
+          item.unit,
+          item.unit_id,
+          item.quantity,
+          item.return_quantity,
+          item.price,
+        ]);
       }
     }
 
@@ -601,47 +631,34 @@ const updateReturnStatus = async (req, res) => {
       const warehouseId = returnResult[0].warehouse_id;
       const receiptId = returnResult[0].receipt_id;
 
+      if (!receiptId) {
+        throw createValidationError('采购退货单缺少原入库单，不能完成退货');
+      }
+      if (!warehouseId) {
+        throw createValidationError('采购退货单缺少出库仓库，不能完成退货');
+      }
+
       // 通过入库单获取采购订单ID
       let orderId = null;
-      if (receiptId) {
-        const receiptQuery = 'SELECT order_id FROM purchase_receipts WHERE id = ? AND deleted_at IS NULL';
-        const [receiptResult] = await connection.query(receiptQuery, [receiptId]);
-        if (receiptResult.length > 0) {
-          orderId = receiptResult[0].order_id;
-          logger.info(`退货单 ${returnNo} 关联的采购订单ID: ${orderId}`);
-        }
+      const receiptQuery = 'SELECT order_id FROM purchase_receipts WHERE id = ? AND deleted_at IS NULL AND status = ?';
+      const [receiptResult] = await connection.query(receiptQuery, [receiptId, STATUS.PURCHASE_RETURN.COMPLETED]);
+      if (receiptResult.length > 0) {
+        orderId = receiptResult[0].order_id;
+        logger.info(`退货单 ${returnNo} 关联的采购订单ID: ${orderId}`);
+      }
+      if (!orderId) {
+        throw createValidationError('原入库单缺少采购订单，不能完成退货');
       }
 
       // 获取退货单物料
-      const itemsQuery = 'SELECT id, return_id, receipt_item_id, material_id, material_code, material_name, specification, unit, unit_id, quantity, return_quantity, price, return_reason, created_at, updated_at FROM purchase_return_items WHERE return_id = ?';
+      const itemsQuery = 'SELECT id, return_id, receipt_item_id, material_id, material_code, material_name, specification, unit, unit_id, quantity, return_quantity, price, price AS unit_price, return_reason, created_at, updated_at FROM purchase_return_items WHERE return_id = ?';
       const [itemsResult] = await connection.query(itemsQuery, [id]);
-
-      // ✅ 修复: 判断是否需要扣减库存
-      // 不再依赖 receiptId 判断是否扣减库存。退货单指定了出库仓库时，只要仓库有库存，就扣减。
-      let shouldDeductStock = false;
-
-      if (warehouseId) {
-        for (const item of itemsResult) {
-          const [stockCheck] = await connection.query(
-            'SELECT COALESCE(SUM(quantity), 0) as qty FROM inventory_ledger WHERE material_id = ? AND location_id = ? FOR UPDATE',
-            [item.material_id, warehouseId]
-          );
-          if (parseFloat(stockCheck[0].qty) > 0) {
-            shouldDeductStock = true;
-            break;
-          }
-        }
+      if (!itemsResult || itemsResult.length === 0) {
+        throw createValidationError('退货单没有明细，不能完成退货');
       }
 
-      if (shouldDeductStock) {
-        logger.info(`退货单 ${returnNo} 所在仓库(ID:${warehouseId})有实际库存,将扣减库存`);
-      } else {
-        logger.info(`退货单 ${returnNo} 所在仓库无库存或未指定仓库,跳过库存扣减`);
-      }
-
-      if (shouldDeductStock) {
-        // 扣减库存
-        for (const item of itemsResult) {
+      // 完成采购退货必须真实扣减库存；库存不足时直接回滚，不能标记为已完成。
+      for (const item of itemsResult) {
           // 获取当前库存（使用新的单表架构）
           const stockQuery = `
             SELECT COALESCE(SUM(quantity), 0) as current_quantity
@@ -655,8 +672,9 @@ const updateReturnStatus = async (req, res) => {
 
           // 确保库存不会变为负数
           if (currentQuantity < returnQuantity) {
-            await connection.rollback();
-            return ResponseHandler.error(res, `物料 ${item.material_name} 库存不足，当前库存: ${currentQuantity}, 退货数量: ${returnQuantity}`, 'VALIDATION_ERROR', 400);
+            throw createValidationError(
+              `物料 ${item.material_name} 库存不足，当前库存: ${currentQuantity}, 退货数量: ${returnQuantity}`
+            );
           }
 
 
@@ -694,104 +712,73 @@ const updateReturnStatus = async (req, res) => {
           logger.info(
             `✅ 库存扣减成功（统一服务）: 物料ID=${item.material_id}, 退货数量=${returnQuantity}`
           );
-        }
-      } else {
-        // 无关联收货单且仓库无库存,跳过库存扣减
-        logger.info(`✅ 退货单 ${returnNo} 无需扣减库存(无关联收货单且仓库无库存)`);
       }
 
       // ✅ 更新采购订单的收货数量和入库数量
-      if (orderId) {
-        logger.info(`准备更新采购订单 ${orderId} 的收货和入库数量`);
+      logger.info(`准备更新采购订单 ${orderId} 的收货和入库数量`);
 
-        for (const item of itemsResult) {
-          const returnQty = parseFloat(item.return_quantity) || 0;
+      for (const item of itemsResult) {
+        const returnQty = parseFloat(item.return_quantity) || 0;
 
-          if (returnQty > 0) {
-            logger.info(
-              `扣减采购订单项目：订单ID=${orderId}, 物料ID=${item.material_id}, 退货数量=${returnQty}`
+        if (returnQty > 0) {
+          logger.info(
+            `扣减采购订单项目：订单ID=${orderId}, 物料ID=${item.material_id}, 退货数量=${returnQty}`
+          );
+
+          const [orderItemRows] = await connection.query(
+            `SELECT received_quantity, warehoused_quantity
+             FROM purchase_order_items
+             WHERE order_id = ? AND material_id = ?
+             FOR UPDATE`,
+            [orderId, item.material_id]
+          );
+
+          if (!orderItemRows || orderItemRows.length === 0) {
+            throw createValidationError(
+              `采购订单项目不存在，不能完成退货: 订单ID=${orderId}, 物料ID=${item.material_id}`
             );
-
-            const [orderItemRows] = await connection.query(
-              `SELECT received_quantity, warehoused_quantity
-               FROM purchase_order_items
-               WHERE order_id = ? AND material_id = ?
-               FOR UPDATE`,
-              [orderId, item.material_id]
-            );
-
-            if (!orderItemRows || orderItemRows.length === 0) {
-              throw createValidationError(
-                `采购订单项目不存在，不能完成退货: 订单ID=${orderId}, 物料ID=${item.material_id}`
-              );
-            }
-
-            const currentReceived = parseFloat(orderItemRows[0].received_quantity) || 0;
-            const currentWarehoused = parseFloat(orderItemRows[0].warehoused_quantity) || 0;
-            if (currentReceived + 0.0001 < returnQty) {
-              throw createValidationError(
-                `采购订单已收货数量不足，不能完成退货: 当前已收=${currentReceived}, 退货=${returnQty}`
-              );
-            }
-            if (shouldDeductStock && currentWarehoused + 0.0001 < returnQty) {
-              throw createValidationError(
-                `采购订单已入库数量不足，不能完成退货: 当前已入库=${currentWarehoused}, 退货=${returnQty}`
-              );
-            }
-
-            // ✅ 修复: 根据库存是否实际扣减（shouldDeductStock）来决定是否扣减已入库数量
-            // 如果 shouldDeductStock 为 true，说明物料实际在库，需同时扣减 received_quantity 和 warehoused_quantity
-            // 否则（未在库退回，或者仓库本身没货），只扣减 received_quantity
-            if (shouldDeductStock) {
-              const updateOrderItemQuery = `
-                UPDATE purchase_order_items
-                SET
-                  received_quantity = received_quantity - ?,
-                  warehoused_quantity = warehoused_quantity - ?,
-                  updated_at = CURRENT_TIMESTAMP
-                WHERE order_id = ? AND material_id = ?
-              `;
-
-              await connection.query(updateOrderItemQuery, [
-                returnQty, // 扣减已收货数量
-                returnQty, // 扣减已入库数量
-                orderId,
-                item.material_id,
-              ]);
-
-              logger.info(
-                `采购订单项目更新成功：已收货和已入库各扣减 ${returnQty} (物料已在库)`
-              );
-            } else {
-              const updateOrderItemQuery = `
-                UPDATE purchase_order_items
-                SET
-                  received_quantity = received_quantity - ?,
-                  updated_at = CURRENT_TIMESTAMP
-                WHERE order_id = ? AND material_id = ?
-              `;
-
-              await connection.query(updateOrderItemQuery, [
-                returnQty, // 扣减已收货数量
-                orderId,
-                item.material_id,
-              ]);
-
-              logger.info(
-                `采购订单项目更新成功：已收货扣减 ${returnQty},已入库保持不变 (物料未在库)`
-              );
-            }
           }
+
+          const currentReceived = parseFloat(orderItemRows[0].received_quantity) || 0;
+          const currentWarehoused = parseFloat(orderItemRows[0].warehoused_quantity) || 0;
+          if (currentReceived + 0.0001 < returnQty) {
+            throw createValidationError(
+              `采购订单已收货数量不足，不能完成退货: 当前已收=${currentReceived}, 退货=${returnQty}`
+            );
+          }
+          if (currentWarehoused + 0.0001 < returnQty) {
+            throw createValidationError(
+              `采购订单已入库数量不足，不能完成退货: 当前已入库=${currentWarehoused}, 退货=${returnQty}`
+            );
+          }
+
+          const updateOrderItemQuery = `
+            UPDATE purchase_order_items
+            SET
+              received_quantity = received_quantity - ?,
+              warehoused_quantity = warehoused_quantity - ?,
+              updated_at = CURRENT_TIMESTAMP
+            WHERE order_id = ? AND material_id = ?
+          `;
+
+          await connection.query(updateOrderItemQuery, [
+            returnQty,
+            returnQty,
+            orderId,
+            item.material_id,
+          ]);
+
+          logger.info(
+            `采购订单项目更新成功：已收货和已入库各扣减 ${returnQty}`
+          );
         }
-
-        // 更新采购订单状态
-        const PurchaseOrderStatusService = require('../../../services/business/PurchaseOrderStatusService');
-        await PurchaseOrderStatusService.updateOrderStatus(orderId, connection);
-
-        logger.info(`采购订单 ${orderId} 状态更新完成`);
-      } else {
-        logger.warn(`退货单 ${returnNo} 没有关联采购订单，跳过更新采购订单`);
       }
+
+      // 更新采购订单状态
+      const PurchaseOrderStatusService = require('../../../services/business/PurchaseOrderStatusService');
+      await PurchaseOrderStatusService.updateOrderStatus(orderId, connection);
+
+      logger.info(`采购订单 ${orderId} 状态更新完成`);
     }
 
     // 更新状态

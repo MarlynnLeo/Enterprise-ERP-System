@@ -232,6 +232,8 @@ async function generateOrdersFromRequisition(requisitionId, conn) {
       logger.info(`✅ 成功生成采购订单 ${orderNo}，供应商: ${supplierData.supplier_name}，物料数量: ${supplierData.items.length}`);
     }
 
+    await PurchaseOrderService.syncRequisitionStatusFromOrders(conn, requisitionId);
+
     logger.info(`✅ 采购申请 ${requisitionId} 共生成了 ${generatedOrders.length} 个采购订单`);
 
     if (useOwnConn) await conn.commit();

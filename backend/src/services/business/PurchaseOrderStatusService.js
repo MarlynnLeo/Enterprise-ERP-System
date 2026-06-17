@@ -132,12 +132,13 @@ class PurchaseOrderStatusService {
       }
 
       const orderQuantity = parseFloat(orderItem[0].quantity) || 0;
-      const cappedReceived = Math.min(totalReceived, orderQuantity);
-
-      if (totalReceived > orderQuantity) {
-        logger.warn(
-          `[PurchaseOrderStatusService] 收货单汇总量(${totalReceived})超过订单量(${orderQuantity})，已截断为订单量`
+      if (totalReceived > orderQuantity + QUANTITY_EPSILON) {
+        const error = new Error(
+          `收货单汇总量超过采购订单数量: 订单ID=${orderId}, 物料ID=${materialId}, 订单数量=${orderQuantity}, 收货汇总=${totalReceived}`
         );
+        error.statusCode = 400;
+        error.code = 'VALIDATION_ERROR';
+        throw error;
       }
 
       // 直接SET，非累加，保证幂等
@@ -145,12 +146,12 @@ class PurchaseOrderStatusService {
         `UPDATE purchase_order_items
          SET received_quantity = ?,
              updated_at = CURRENT_TIMESTAMP
-         WHERE order_id = ? AND material_id = ?`,
-        [cappedReceived, orderId, materialId]
+          WHERE order_id = ? AND material_id = ?`,
+        [totalReceived, orderId, materialId]
       );
 
       logger.info(
-        `[PurchaseOrderStatusService] 全量同步完成: 订单ID=${orderId}, 物料ID=${materialId}, 收货量=${cappedReceived}`
+        `[PurchaseOrderStatusService] 全量同步完成: 订单ID=${orderId}, 物料ID=${materialId}, 收货量=${totalReceived}`
       );
 
       // 更新订单整体状态
@@ -250,9 +251,12 @@ class PurchaseOrderStatusService {
     if (!stats || !stats.canComplete) {
       const totalQuantity = stats ? stats.totalQuantity : 0;
       const totalWarehoused = stats ? stats.totalWarehoused : 0;
-      throw new Error(
+      const error = new Error(
         `采购订单尚未全部入库，不能设置为已完成: 订单数量=${totalQuantity}, 已入库=${totalWarehoused}`
       );
+      error.statusCode = 400;
+      error.code = 'VALIDATION_ERROR';
+      throw error;
     }
 
     return stats;
@@ -549,7 +553,7 @@ class PurchaseOrderStatusService {
 
       // [M-4] 入库数量上限校验：入库数量不能超过合格数量（或收货数量）
       const [orderItem] = await client.execute(
-        'SELECT quantity, received_quantity, qualified_quantity, warehoused_quantity FROM purchase_order_items WHERE order_id = ? AND material_id = ? FOR UPDATE',
+        'SELECT quantity, received_quantity, inspected_quantity, qualified_quantity, warehoused_quantity FROM purchase_order_items WHERE order_id = ? AND material_id = ? FOR UPDATE',
         [orderId, materialId]
       );
 
@@ -557,14 +561,23 @@ class PurchaseOrderStatusService {
         throw new Error(`采购订单项目不存在: 订单ID=${orderId}, 物料ID=${materialId}`);
       }
 
-      const maxAllowed = parseFloat(orderItem[0].qualified_quantity || orderItem[0].received_quantity || orderItem[0].quantity) || 0;
+      const inspectedQuantity = parseFloat(orderItem[0].inspected_quantity) || 0;
+      const qualifiedQuantity = parseFloat(orderItem[0].qualified_quantity) || 0;
+      const receivedQuantity = parseFloat(orderItem[0].received_quantity) || 0;
+      const orderedQuantity = parseFloat(orderItem[0].quantity) || 0;
+      const maxAllowed = inspectedQuantity > 0
+        ? qualifiedQuantity
+        : (receivedQuantity > 0 ? receivedQuantity : orderedQuantity);
       const currentWarehoused = parseFloat(orderItem[0].warehoused_quantity) || 0;
       const newWarehousingQty = parseFloat(warehousingQuantity) || 0;
 
       if (currentWarehoused + newWarehousingQty > maxAllowed + 0.001) {
         const errorMsg = `入库数量超额: 允许上限=${maxAllowed}, 已入库=${currentWarehoused}, 本次入库=${newWarehousingQty}`;
         logger.error(`[PurchaseOrderStatusService] ${errorMsg}`);
-        throw new Error(errorMsg);
+        const error = new Error(errorMsg);
+        error.statusCode = 400;
+        error.code = 'VALIDATION_ERROR';
+        throw error;
       }
 
       // 更新采购订单项目的已入库数量

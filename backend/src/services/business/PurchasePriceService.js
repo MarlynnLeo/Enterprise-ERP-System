@@ -231,6 +231,7 @@ class PurchasePriceService {
       LEFT JOIN suppliers s ON po.supplier_id = s.id
       WHERE ${materialWhere.clause}
         AND po.supplier_id IN (${supplierWhere})
+        AND po.deleted_at IS NULL
         AND po.status NOT IN ('cancelled')
         AND poi.price > 0
       ORDER BY po.order_date DESC, po.id DESC, poi.id DESC
@@ -265,6 +266,7 @@ class PurchasePriceService {
       LEFT JOIN suppliers s ON pr.supplier_id = s.id
       WHERE ${materialWhere.clause}
         AND pr.supplier_id IN (${supplierWhere})
+        AND pr.deleted_at IS NULL
         AND pr.status NOT IN ('cancelled')
         AND pri.price > 0
       ORDER BY pr.receipt_date DESC, pr.id DESC, pri.id DESC
@@ -297,6 +299,7 @@ class PurchasePriceService {
       LEFT JOIN suppliers s ON po.supplier_id = s.id
       WHERE ${materialWhere.clause}
         AND po.supplier_id IS NOT NULL
+        AND po.deleted_at IS NULL
         AND po.status NOT IN ('cancelled')
         AND poi.price > 0
       ORDER BY po.order_date DESC, po.id DESC, poi.id DESC
@@ -330,6 +333,7 @@ class PurchasePriceService {
       LEFT JOIN suppliers s ON pr.supplier_id = s.id
       WHERE ${materialWhere.clause}
         AND pr.supplier_id IS NOT NULL
+        AND pr.deleted_at IS NULL
         AND pr.status NOT IN ('cancelled')
         AND pri.price > 0
       ORDER BY pr.receipt_date DESC, pr.id DESC, pri.id DESC
@@ -355,6 +359,7 @@ class PurchasePriceService {
         tax_rate
       FROM materials
       WHERE ${materialWhere.clause}
+        AND deleted_at IS NULL
       `,
       materialWhere.params
     );

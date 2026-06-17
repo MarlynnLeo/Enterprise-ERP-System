@@ -445,9 +445,15 @@ const createRequisition = async (req, res) => {
               `由销售订单 ${salesOrderNo} 自动生成`
             );
             logger.info('🔧 修复后的备注:', finalRemarks);
+          } else {
+            const sourceError = new Error(`销售订单不存在，无法创建来源采购申请: ${salesOrderId}`);
+            sourceError.statusCode = 400;
+            sourceError.code = 'VALIDATION_ERROR';
+            throw sourceError;
           }
         } catch (queryError) {
           logger.error('❌ 查询销售订单号失败:', queryError);
+          throw queryError;
         }
       }
     }
@@ -587,7 +593,10 @@ const createRequisition = async (req, res) => {
       }
     }
     logger.error('创建采购申请失败:', error);
-    return ResponseHandler.error(res, '操作失败', 'OPERATION_ERROR', 500, error);
+    const statusCode = error.statusCode || 500;
+    const errorCode = error.code || (statusCode === 400 ? 'VALIDATION_ERROR' : 'OPERATION_ERROR');
+    const message = statusCode < 500 ? error.message : '操作失败';
+    return ResponseHandler.error(res, message, errorCode, statusCode, error);
   } finally {
     if (connection) connection.release();
   }
@@ -942,128 +951,6 @@ const getRequisitionById = async (id) => {
     return requisition;
   } catch (error) {
     logger.error('获取采购申请详情失败:', error);
-    throw error;
-  }
-};
-
-// 自动生成采购订单的函数
-
-
-// 获取物料的最近采购信息
-const _getRecentPurchaseInfo = async (connection, materialId) => {
-  try {
-    // 首先尝试获取有价格的最近采购记录
-    const [rows] = await connection.execute(
-      `
-      SELECT
-        po.supplier_id,
-        s.name as supplier_name,
-        s.contact_person,
-        s.contact_phone,
-        poi.price as unit_price,
-        po.order_date
-      FROM purchase_order_items poi
-      JOIN purchase_orders po ON poi.order_id = po.id
-      JOIN suppliers s ON po.supplier_id = s.id
-      WHERE poi.material_id = ?
-      AND poi.price > 0
-      AND po.deleted_at IS NULL
-      AND po.status IN ('confirmed', 'completed', 'pending')
-      ORDER BY po.order_date DESC
-      LIMIT 1
-    `,
-      [materialId]
-    );
-
-    if (rows.length > 0) {
-      return {
-        supplier_id: rows[0].supplier_id,
-        supplier: {
-          id: rows[0].supplier_id,
-          name: rows[0].supplier_name,
-          contact_person: rows[0].contact_person,
-          contact_phone: rows[0].contact_phone,
-        },
-        unit_price: rows[0].unit_price,
-        order_date: rows[0].order_date,
-      };
-    }
-
-    return null;
-  } catch (error) {
-    logger.error('获取最近采购信息失败:', error);
-    return null;
-  }
-};
-
-// 为特定供应商创建采购订单
-const _createPurchaseOrderForSupplier = async (connection, requisition, group, supplierId) => {
-  try {
-    // 生成订单号（传入连接确保事务一致性）
-    const orderNo = await purchaseModel.generateOrderNo(connection);
-
-    // 计算总金额
-    const totalAmount = group.items.reduce((sum, item) => sum + item.total, 0);
-
-    // 计算交货日期（下单时间后推一周）
-    const orderDate = new Date().toISOString().split('T')[0];
-    const expectedDeliveryDate = new Date();
-    expectedDeliveryDate.setDate(expectedDeliveryDate.getDate() + 7);
-    const deliveryDateStr = expectedDeliveryDate.toISOString().split('T')[0];
-
-    // 创建采购订单（添加合同编码字段）
-    const [orderResult] = await connection.execute(
-      `
-      INSERT INTO purchase_orders (
-        order_no, order_date, supplier_id, supplier_name, contract_code,
-        expected_delivery_date, contact_person, contact_phone,
-        total_amount, remarks, status, requisition_id, requisition_number
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `,
-      [
-        orderNo,
-        orderDate,
-        supplierId,
-        group.supplier.name,
-        requisition.contract_code || null, // 从采购申请传递合同编码
-        deliveryDateStr,
-        group.supplier.contact_person,
-        group.supplier.contact_phone,
-        totalAmount,
-        `由采购申请 ${requisition.requisition_number} 自动生成`,
-        'pending',
-        requisition.id,
-        requisition.requisition_number,
-      ]
-    );
-
-    const orderId = orderResult.insertId;
-
-    // 创建订单物料项目
-    for (const item of group.items) {
-      await connection.execute(
-        `
-        INSERT INTO purchase_order_items (
-          order_id, material_id, material_code, material_name,
-          specification, unit, unit_id, price, quantity, total
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `,
-        [
-          orderId,
-          item.material_id,
-          item.material_code,
-          item.material_name,
-          item.specification,
-          item.unit_name,
-          item.unit_id,
-          item.price,
-          item.quantity,
-          item.total,
-        ]
-      );
-    }
-  } catch (error) {
-    logger.error('创建采购订单失败:', error);
     throw error;
   }
 };

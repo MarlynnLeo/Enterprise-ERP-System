@@ -299,12 +299,12 @@ const createOrder = async (req, res) => {
 
       const orderId = result.insertId;
 
-      if (requisitionId) {
-        await PurchaseOrderService.updateRequisitionStatus(connection, requisitionId, 'completed');
-      }
-
       // 插入订单物料项目
       await PurchaseOrderService.insertOrderItems(connection, orderId, orderAmounts.items);
+
+      if (requisitionId) {
+        await PurchaseOrderService.syncRequisitionStatusFromOrders(connection, requisitionId);
+      }
 
       return orderId;
     });
@@ -342,7 +342,8 @@ const updateOrder = async (req, res) => {
       if (!(await canAccessPurchaseOrder(connection, req, id))) {
         throw forbiddenError('No permission to modify this purchase order');
       }
-      await PurchaseOrderService.validateOrderEditable(connection, id);
+      const currentOrder = await PurchaseOrderService.validateOrderEditable(connection, id);
+      const previousRequisitionId = currentOrder.requisition_id;
       const supplierName = await PurchaseOrderService.validateSupplier(connection, supplierId);
       assertPurchaseItemPrices(items || []);
       const orderAmounts = calculateLines(items || [], {
@@ -378,15 +379,23 @@ const updateOrder = async (req, res) => {
         id,
       ]);
 
-      if (requisitionId) {
-        await PurchaseOrderService.updateRequisitionStatus(connection, requisitionId, 'completed');
-      }
-
       // 删除原有物料项目
       await connection.query('DELETE FROM purchase_order_items WHERE order_id = ?', [id]);
 
       // 插入新的物料项目
       await PurchaseOrderService.insertOrderItems(connection, id, orderAmounts.items);
+
+      const affectedRequisitionIds = [...new Set(
+        [previousRequisitionId, requisitionId]
+          .map((value) => Number(value))
+          .filter((value) => Number.isInteger(value) && value > 0)
+      )];
+      for (const affectedRequisitionId of affectedRequisitionIds) {
+        await PurchaseOrderService.syncRequisitionStatusFromOrders(
+          connection,
+          affectedRequisitionId
+        );
+      }
 
       return id;
     });
@@ -413,7 +422,7 @@ const deleteOrder = async (req, res) => {
 
     await DBManager.executeTransaction(async (connection) => {
       const [orders] = await connection.query(
-        'SELECT id, status FROM purchase_orders WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+        'SELECT id, status, requisition_id FROM purchase_orders WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
         [id]
       );
       if (orders.length === 0) {
@@ -430,12 +439,21 @@ const deleteOrder = async (req, res) => {
 
       // 软删除替代硬删除 (物料项目FK仍在，但主表不再物理删除)
       await softDelete(connection, 'purchase_orders', 'id', id);
+      if (orders[0].requisition_id) {
+        await PurchaseOrderService.syncRequisitionStatusFromOrders(
+          connection,
+          orders[0].requisition_id
+        );
+      }
     });
 
     return ResponseHandler.success(res, null, '采购订单删除成功');
   } catch (error) {
     logger.error('删除采购订单失败:', error);
-    return ResponseHandler.error(res, '操作失败', 'OPERATION_ERROR', 500, error);
+    const statusCode = error.statusCode || (error.message === 'purchase order not found' ? 404 : 500);
+    const errorCode = error.code || (statusCode === 404 ? 'NOT_FOUND' : 'OPERATION_ERROR');
+    const message = statusCode < 500 ? error.message : '操作失败';
+    return ResponseHandler.error(res, message, errorCode, statusCode, error);
   }
 };
 
@@ -534,6 +552,13 @@ const updateOrderStatus = async (req, res) => {
         await PurchaseOrderStatusService.updateOrderStatus(id, connection);
       }
 
+      if (currentOrder.requisition_id) {
+        await PurchaseOrderService.syncRequisitionStatusFromOrders(
+          connection,
+          currentOrder.requisition_id
+        );
+      }
+
       return id;
     });
 
@@ -549,10 +574,10 @@ const updateOrderStatus = async (req, res) => {
       'invalid status',
       'purchase order is not fully warehoused',
     ];
-    const isBusinessError = businessErrorMessages.some((message) =>
-      error.message?.startsWith(message)
-    );
-    const statusCode = error.message === 'purchase order not found' ? 404 : isBusinessError ? 400 : 500;
+    const isBusinessError = error.statusCode >= 400 && error.statusCode < 500
+      ? true
+      : businessErrorMessages.some((message) => error.message?.startsWith(message));
+    const statusCode = error.statusCode || (error.message === 'purchase order not found' ? 404 : isBusinessError ? 400 : 500);
     const errorCode = statusCode === 404 ? 'NOT_FOUND' : statusCode === 400 ? 'VALIDATION_ERROR' : 'OPERATION_ERROR';
     const message = isBusinessError ? error.message : '操作失败';
     return ResponseHandler.error(res, message, errorCode, statusCode, error);
@@ -581,7 +606,7 @@ const batchUpdateOrderStatus = async (req, res) => {
 
     const result = await DBManager.executeTransaction(async (connection) => {
       const [orders] = await connection.query(
-        'SELECT id, order_no, status FROM purchase_orders WHERE id IN (?) AND deleted_at IS NULL FOR UPDATE',
+        'SELECT id, order_no, status, requisition_id FROM purchase_orders WHERE id IN (?) AND deleted_at IS NULL FOR UPDATE',
         [uniqueIds]
       );
       const orderMap = new Map(orders.map((order) => [Number(order.id), order]));
@@ -602,6 +627,14 @@ const batchUpdateOrderStatus = async (req, res) => {
         }
 
         if (order.status === newStatus) {
+          if (newStatus === PURCHASE_STATUS.COMPLETED) {
+            try {
+              await PurchaseOrderStatusService.assertOrderCanComplete(id, connection);
+            } catch (completionError) {
+              failures.push({ id, order_no: order.order_no, message: completionError.message });
+              continue;
+            }
+          }
           successes.push({ id, order_no: order.order_no, status: order.status });
           continue;
         }
@@ -631,6 +664,15 @@ const batchUpdateOrderStatus = async (req, res) => {
           }
         }
 
+        if (finalStatus === PURCHASE_STATUS.COMPLETED) {
+          try {
+            await PurchaseOrderStatusService.assertOrderCanComplete(id, connection);
+          } catch (completionError) {
+            failures.push({ id, order_no: order.order_no, message: completionError.message });
+            continue;
+          }
+        }
+
         if (!updatesByStatus[finalStatus]) {
           updatesByStatus[finalStatus] = [];
         }
@@ -643,6 +685,21 @@ const batchUpdateOrderStatus = async (req, res) => {
           'UPDATE purchase_orders SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id IN (?) AND deleted_at IS NULL',
           [status, ids]
         );
+        if (status === PURCHASE_STATUS.COMPLETED) {
+          for (const orderId of ids) {
+            await PurchaseOrderStatusService.updateOrderStatus(orderId, connection);
+          }
+        }
+      }
+
+      const affectedRequisitionIds = [...new Set(
+        successes
+          .map((success) => orderMap.get(Number(success.id))?.requisition_id)
+          .map((value) => Number(value))
+          .filter((value) => Number.isInteger(value) && value > 0)
+      )];
+      for (const requisitionId of affectedRequisitionIds) {
+        await PurchaseOrderService.syncRequisitionStatusFromOrders(connection, requisitionId);
       }
 
       return { successes, failures };
@@ -759,6 +816,7 @@ const getOrderById = async (id) => {
         LEFT JOIN quality_inspections qi ON (qi.reference_id = poi.order_id OR qi.reference_no = po.order_no)
           AND qi.material_id = poi.material_id
           AND qi.inspection_type = 'incoming'
+          AND qi.deleted_at IS NULL
       WHERE
         poi.order_id = ?
       GROUP BY
@@ -801,11 +859,11 @@ const getOrderById = async (id) => {
 const getSuppliers = async (req, res) => {
   try {
     const { status, limit } = req.query;
-    let query = 'SELECT id, code, name, contact_person, contact_phone, status FROM suppliers';
+    let query = 'SELECT id, code, name, contact_person, contact_phone, status FROM suppliers WHERE deleted_at IS NULL';
     const queryParams = [];
 
     if (status !== undefined) {
-      query += ' WHERE status = ?';
+      query += ' AND status = ?';
       queryParams.push(status);
     }
 
@@ -837,6 +895,7 @@ const getRequisitions = async (req, res) => {
       FROM purchase_requisitions r
       LEFT JOIN users u ON r.requester = u.username
       WHERE r.status = ?
+        AND r.deleted_at IS NULL
     `;
 
     const queryParams = [defaultStatus];
@@ -933,7 +992,7 @@ const getRequisition = async (req, res) => {
     const { id } = req.params;
 
     const query =
-      'SELECT r.*, u.real_name as user_real_name FROM purchase_requisitions r LEFT JOIN users u ON r.requester = u.username WHERE r.id = ? AND r.status IN (?, ?)';
+      'SELECT r.*, u.real_name as user_real_name FROM purchase_requisitions r LEFT JOIN users u ON r.requester = u.username WHERE r.id = ? AND r.status IN (?, ?) AND r.deleted_at IS NULL';
     const [rows] = await pool.query(query, [id, 'approved', 'completed']);
 
     if (rows.length === 0) {
