@@ -15,14 +15,15 @@ class OnlineTimeTracker {
   }
 
   createMiddleware() {
-    return async (req, res, next) => {
-      next();
-
-      setImmediate(() => {
+    return (req, res, next) => {
+      // 使用 res.on('finish') 确保在所有中间件（包括异步的 authenticateToken）
+      // 执行完毕后再记录活动，此时 req.user 已被正确设置
+      res.on('finish', () => {
         this.recordActivity(req).catch((error) => {
           logger.debug('Failed to record online activity:', error.message);
         });
       });
+      next();
     };
   }
 

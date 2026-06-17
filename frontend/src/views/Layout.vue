@@ -35,6 +35,7 @@
         class="sidebar-menu app-menu"
         router
         :collapse="isSidebarMenuCollapsed"
+        :collapse-transition="false"
         :unique-opened="false"
         background-color="transparent"
         text-color="var(--el-text-color-primary)"
@@ -81,12 +82,15 @@
           </el-tooltip>
           <el-dropdown trigger="click">
             <div class="user-info">
-              <el-avatar
-                :size="32"
-                :src="userAvatar"
-                class="user-avatar"
-                @error="handleAvatarError"
-              >{{ userInitials }}</el-avatar>
+              <DecorativeAvatarFrame
+                :frame="activeAvatarFrame"
+                :avatar="userAvatar"
+                :name="userName"
+                :size="48"
+                :avatar-size="32"
+                class="header-avatar-frame"
+                @avatar-error="handleAvatarError"
+              />
               <span class="username">{{ userName }}</span>
             </div>
             <template #dropdown>
@@ -154,9 +158,11 @@ import ThemeSelector from '../components/common/ThemeSelector.vue'
 import NotificationCenter from '../components/NotificationCenter.vue'
 import MenuSearch from '../components/common/MenuSearch.vue'
 import SidebarMenu from '../components/layout/SidebarMenu.vue'
+import DecorativeAvatarFrame from './auth/components/DecorativeAvatarFrame.vue'
 import { usePermissionStore } from '../stores/permissionStore'
 import { userApi } from '../api/user'
 import { resolveMenuNavigationState } from '../utils/menuNavigation'
+import { DEFAULT_AVATAR_FRAME, getAvatarFrameConfig } from '../utils/avatarFrames'
 import './layout.css'
 // 图标组件
 import {
@@ -245,9 +251,8 @@ const userName = computed(() => {
 const userAvatar = computed(() => {
   return authStore.user?.avatar || ''
 })
-const userInitials = computed(() => {
-  const name = userName.value
-  return name ? name.charAt(0).toUpperCase() : 'U'
+const activeAvatarFrame = computed(() => {
+  return getAvatarFrameConfig(authStore.user?.avatar_frame, DEFAULT_AVATAR_FRAME)
 })
 // 处理头像加载失败
 const handleAvatarError = () => {
@@ -315,9 +320,7 @@ const toggleSidebar = () => {
   }
 
   sidebarMini.value = true
-  scheduleSidebarFrame(() => {
-    sidebarCollapsed.value = true
-  })
+  sidebarCollapsed.value = true
   scheduleSidebarToggleEnd(220)
 }
 // 用户操作

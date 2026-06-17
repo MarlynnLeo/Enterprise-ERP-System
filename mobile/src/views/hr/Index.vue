@@ -65,25 +65,25 @@
       label: '员工考勤',
       path: '/hr/attendance',
       icon: 'calendar-o',
-      gradient: 'linear-gradient(135deg, var(--color-primary) 0%, #764ba2 100%)'
+      gradient: 'linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%)'
     },
     {
       label: '请假申请',
       path: '/hr/leave/create',
       icon: 'notes-o',
-      gradient: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)'
+      gradient: 'linear-gradient(135deg, var(--color-success) 0%, var(--ds-green-strong) 100%)'
     },
     {
       label: '加班申请',
       path: '/hr/overtime/create',
       icon: 'clock-o',
-      gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)'
+      gradient: 'linear-gradient(135deg, var(--ds-purple) 0%, var(--ds-pink) 100%)'
     },
     {
       label: '排班管理',
       path: '/hr/schedule',
       icon: 'todo-list-o',
-      gradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)'
+      gradient: 'linear-gradient(135deg, var(--module-blue) 0%, var(--ds-cyan-strong) 100%)'
     }
   ])
 

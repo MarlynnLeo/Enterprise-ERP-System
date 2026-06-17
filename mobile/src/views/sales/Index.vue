@@ -78,25 +78,25 @@
       label: '销售订单',
       path: '/sales/orders',
       icon: 'document-text',
-      gradient: 'linear-gradient(135deg, var(--color-primary) 0%, #764ba2 100%)'
+      gradient: 'linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%)'
     },
     {
       label: '新建订单',
       path: '/sales/orders/create',
       icon: 'plus',
-      gradient: 'linear-gradient(135deg, #2CCFB0 0%, #1BA392 100%)'
+      gradient: 'linear-gradient(135deg, var(--color-success) 0%, var(--color-accent) 100%)'
     },
     {
       label: '销售出库',
       path: '/sales/outbound',
       icon: 'truck',
-      gradient: 'linear-gradient(135deg, #FF6B6B 0%, #EE5A52 100%)'
+      gradient: 'linear-gradient(135deg, var(--color-error) 0%, var(--color-danger) 100%)'
     },
     {
       label: '客户管理',
       path: '/sales/customers',
       icon: 'users',
-      gradient: 'linear-gradient(135deg, var(--color-warning) 0%, #FF8A3D 100%)'
+      gradient: 'linear-gradient(135deg, var(--color-warning) 0%, var(--ds-orange-strong) 100%)'
     }
   ])
 

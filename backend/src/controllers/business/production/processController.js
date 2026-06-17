@@ -13,7 +13,7 @@ const businessConfig = require('../../../config/businessConfig');
 const { apiStatusToDbStatus } = require('../../../utils/statusMapper');
 const { PRODUCTION_STATUS_KEYS } = require('../../../constants/systemConstants');
 const { getCurrentUserName } = require('../../../utils/userHelper');
-const { parsePagination } = require('../../../utils/paginationHelper');
+const { parsePagination } = require('../../../utils/safePagination');
 const { CodeGenerators } = require('../../../utils/codeGenerator');
 const { generateBatchNo, syncPlanStatus } = require('../../../services/business/TaskLifecycleService');
 const QualityInspection = require('../../../models/qualityInspection');
@@ -58,7 +58,7 @@ function validateProcessTransition(currentStatus, targetStatus) {
 exports.getProcesses = async (req, res) => {
   try {
     const { taskId, status, page = 1, pageSize = 10 } = req.query;
-    const { safePage, safePageSize, safeOffset } = parsePagination(page, pageSize);
+    const { page: safePage, pageSize: safePageSize, offset: safeOffset } = parsePagination(page, pageSize);
 
     const conditions = [];
     const params = [];

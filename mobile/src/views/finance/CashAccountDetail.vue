@@ -162,7 +162,7 @@
     align-items: center;
     justify-content: center;
     background: rgba(99, 102, 241, 0.1);
-    color: #6366f1;
+    color: var(--color-primary);
     flex-shrink: 0;
   }
   .hero-info {
@@ -195,7 +195,7 @@
   }
 
   .balance-card {
-    background: linear-gradient(135deg, var(--color-primary), #6366f1);
+    background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
     border-radius: 14px;
     padding: 20px;
     color: var(--text-primary);

@@ -65,25 +65,25 @@
       label: '设备台账',
       path: '/equipment/list',
       icon: 'desktop-o',
-      gradient: 'linear-gradient(135deg, var(--color-primary) 0%, #764ba2 100%)'
+      gradient: 'linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%)'
     },
     {
       label: '新建点检',
       path: '/equipment/check/create',
       icon: 'passed',
-      gradient: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)'
+      gradient: 'linear-gradient(135deg, var(--color-success) 0%, var(--ds-green-strong) 100%)'
     },
     {
       label: '故障报修',
       path: '/equipment/repair/create',
       icon: 'warning-o',
-      gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)'
+      gradient: 'linear-gradient(135deg, var(--ds-purple) 0%, var(--ds-pink) 100%)'
     },
     {
       label: '保养计划',
       path: '/equipment/maintenance',
       icon: 'clock-o',
-      gradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)'
+      gradient: 'linear-gradient(135deg, var(--module-blue) 0%, var(--ds-cyan-strong) 100%)'
     }
   ])
 

@@ -111,14 +111,14 @@ export const themes = Object.freeze([
   {
     name: 'kacon',
     label: 'KACON品牌',
-    description: 'KACON 品牌青绿色，适合默认业务操作',
+    description: 'KACON 品牌深翡翠绿，适合默认业务操作',
     icon: 'wap-home-o',
     dataTheme: 'kacon',
     isDark: false,
     preview: {
-      primary: '#00796B',
-      accent: '#006156',
-      bg: '#F5F7FA'
+      primary: '#15803D',
+      accent: '#166534',
+      bg: '#EFF3F8'
     }
   }
 ])

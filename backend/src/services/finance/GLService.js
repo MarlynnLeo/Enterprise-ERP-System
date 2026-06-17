@@ -9,50 +9,12 @@ const db = require('../../config/db');
 const { logger } = require('../../utils/logger');
 const crypto = require('crypto');
 const { financeConfig } = require('../../config/financeConfig');
-
-function toDateString(value) {
-  if (!value) return '';
-  if (value instanceof Date) {
-    const year = value.getFullYear();
-    const month = String(value.getMonth() + 1).padStart(2, '0');
-    const day = String(value.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  }
-  return String(value).slice(0, 10);
-}
-
-function currentDateString() {
-  return toDateString(new Date());
-}
-
-function normalizeDateInput(value, fieldName) {
-  const dateString = toDateString(value);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
-    throw new Error(`${fieldName} must be YYYY-MM-DD`);
-  }
-
-  const [year, month, day] = dateString.split('-').map(Number);
-  const parsed = new Date(Date.UTC(year, month - 1, day));
-  if (
-    parsed.getUTCFullYear() !== year ||
-    parsed.getUTCMonth() + 1 !== month ||
-    parsed.getUTCDate() !== day
-  ) {
-    throw new Error(`${fieldName} is not a valid date`);
-  }
-
-  return dateString;
-}
-
-function isClosedFlag(value) {
-  return value === true || value === 1 || value === '1';
-}
-
-function isDateWithinPeriod(date, period) {
-  const startDate = toDateString(period.start_date);
-  const endDate = toDateString(period.end_date);
-  return date >= startDate && date <= endDate;
-}
+const {
+  currentDateString,
+  normalizeDateInput,
+  isClosedFlag,
+  isDateWithinPeriod,
+} = require('../../models/finance/helpers');
 
 function shouldPostEntry(entryData) {
   return (

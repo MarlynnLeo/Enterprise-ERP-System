@@ -17,6 +17,7 @@ const db = require('../../../config/db');
 const { currentDateString } = require('../../../utils/dateUtils');
 const Precision = require('../../../utils/precision');
 const { roundMoney } = require('../../../utils/money');
+const BusinessError = require('../../../utils/BusinessError');
 
 function validateBusinessDate(value, fieldName) {
   const dateString = value ? String(value).slice(0, 10) : currentDateString();
@@ -208,7 +209,7 @@ const taxController = {
         await connection.rollback();
       }
       logger.error('创建税务发票失败:', error);
-      const isBusinessError = error.code === 'VALIDATION_ERROR'
+      const isBusinessError = BusinessError.is(error)
         || /未配置|会计科目|期间|分录|借贷|不存在/.test(error.message || '');
       return ResponseHandler.error(
         res,
@@ -333,7 +334,7 @@ const taxController = {
     } catch (error) {
       await connection.rollback();
       logger.error('认证税务发票失败:', error);
-      const isBusinessError = error.code === 'VALIDATION_ERROR'
+      const isBusinessError = BusinessError.is(error)
         || /未配置|会计科目|期间|分录|借贷|不存在|状态/.test(error.message || '');
       return ResponseHandler.error(
         res,
@@ -437,7 +438,8 @@ const taxController = {
       return ResponseHandler.success(res, { id: returnId }, '税务申报创建成功', 201);
     } catch (error) {
       logger.error('创建税务申报失败:', error);
-      const isBusinessError = /申报期间|税种|YYYY-MM/.test(error.message || '');
+      const isBusinessError = BusinessError.is(error)
+        || /申报期间|税种|YYYY-MM/.test(error.message || '');
       return ResponseHandler.error(
         res,
         isBusinessError ? error.message : '创建税务申报失败',
@@ -673,7 +675,8 @@ const taxController = {
     } catch (error) {
       await connection.rollback();
       logger.error('缴纳税款失败:', error);
-      const isBusinessError = /不正确|不存在|不足|不能|未配置|未找到|日期格式|有效日期/.test(
+      const isBusinessError = BusinessError.is(error)
+        || /不正确|不存在|不足|不能|未配置|未找到|日期格式|有效日期/.test(
         error.message || ''
       );
       return ResponseHandler.error(

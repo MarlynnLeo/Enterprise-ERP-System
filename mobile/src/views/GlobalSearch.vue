@@ -269,9 +269,9 @@ const getTypeIcon = (type) => {
 const getTypeColor = (type) => {
   const colorMap = {
     'material': '#5E7BF6',
-    'customer': '#2CCFB0',
+    'customer': 'var(--color-success)',
     'supplier': 'var(--color-warning)',
-    'order': '#FF6B6B',
+    'order': 'var(--color-error)',
     'task': '#A48BE0',
     'location': '#FFC759',
     'bom': '#FF8A80'

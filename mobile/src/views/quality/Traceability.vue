@@ -346,13 +346,13 @@
     vertical-align: middle;
 
     &.type-product {
-      background: rgba(103, 193, 217, 0.15);
+      background: color-mix(in srgb, var(--color-primary) 15%, transparent);
       color: #4ba8c0;
     }
 
     &.type-material {
       background: rgba(245, 158, 11, 0.12);
-      color: #d97706;
+      color: var(--color-warning);
     }
   }
 

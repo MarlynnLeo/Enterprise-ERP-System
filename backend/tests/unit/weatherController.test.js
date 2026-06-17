@@ -1,7 +1,7 @@
 /* global afterEach, describe, expect, jest, test */
 
-jest.mock('axios', () => ({
-  get: jest.fn(),
+jest.mock('../../src/utils/httpClient', () => ({
+  httpGet: jest.fn(),
 }));
 
 jest.mock('../../src/utils/logger', () => {
@@ -15,11 +15,13 @@ jest.mock('../../src/utils/logger', () => {
   return Object.assign(logger, { logger });
 });
 
-const axios = require('axios');
+const { httpGet } = require('../../src/utils/httpClient');
+const { logger } = require('../../src/utils/logger');
 
 process.env.OPEN_METEO_BASE_URL = 'https://api.open-meteo.com/v1/forecast';
 process.env.OPEN_METEO_TIMEOUT_MS = '5000';
 process.env.OPEN_METEO_TIMEZONE = 'Asia/Shanghai';
+process.env.OPEN_METEO_RETRIES = '1';
 
 const { getWeather } = require('../../src/controllers/weather/weatherController');
 
@@ -32,31 +34,60 @@ const createResponse = () => {
 
 describe('weatherController', () => {
   afterEach(() => {
-    axios.get.mockReset();
+    httpGet.mockReset();
+    logger.info.mockReset();
+    logger.warn.mockReset();
+    logger.error.mockReset();
+    logger.debug.mockReset();
   });
 
   test('returns unavailable weather without 5xx when upstream weather fetch fails', async () => {
-    axios.get.mockRejectedValueOnce(new Error('upstream timeout'));
+    const error = new Error('Client network socket disconnected before secure TLS connection was established');
+    error.code = 'ECONNRESET';
+    httpGet.mockRejectedValueOnce(error);
     const res = createResponse();
 
-    await getWeather({ query: { city: '乐清' } }, res);
+    await getWeather({ query: { city: '温州' } }, res);
 
+    expect(httpGet).toHaveBeenCalledWith(
+      'https://api.open-meteo.com/v1/forecast',
+      expect.objectContaining({
+        params: expect.objectContaining({
+          latitude: 27.9938,
+          longitude: 120.6994,
+          current: expect.stringContaining('temperature_2m'),
+          timezone: 'Asia/Shanghai',
+          wind_speed_unit: 'kmh',
+        }),
+        timeout: 5000,
+        retries: 1,
+      })
+    );
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
         success: true,
         message: '天气数据暂不可用',
         data: expect.objectContaining({
-          city: '乐清',
+          city: '温州',
           weatherCode: 'cloudy',
           isDefault: true,
         }),
       })
     );
+    expect(logger.warn).toHaveBeenCalledWith(
+      '天气服务暂不可用，已返回默认天气',
+      expect.objectContaining({
+        city: '温州',
+        code: 'ECONNRESET',
+      })
+    );
+    expect(logger.error).not.toHaveBeenCalled();
   });
 
   test('returns current weather data when Open-Meteo responds successfully', async () => {
-    axios.get.mockResolvedValueOnce({
+    httpGet.mockResolvedValueOnce({
+      status: 200,
       data: {
         current: {
           time: '2026-05-06T14:30',
@@ -73,19 +104,20 @@ describe('weatherController', () => {
     });
     const res = createResponse();
 
-    await getWeather({ query: { city: '乐清' } }, res);
+    await getWeather({ query: { city: '上海' } }, res);
 
-    expect(axios.get).toHaveBeenCalledWith(
+    expect(httpGet).toHaveBeenCalledWith(
       'https://api.open-meteo.com/v1/forecast',
       expect.objectContaining({
         params: expect.objectContaining({
-          latitude: 28.1137,
-          longitude: 120.9839,
+          latitude: 31.2304,
+          longitude: 121.4737,
           current: expect.stringContaining('temperature_2m'),
           timezone: 'Asia/Shanghai',
           wind_speed_unit: 'kmh',
         }),
         timeout: 5000,
+        retries: 1,
       })
     );
     expect(res.status).toHaveBeenCalledWith(200);
@@ -93,7 +125,7 @@ describe('weatherController', () => {
       expect.objectContaining({
         success: true,
         data: expect.objectContaining({
-          city: '乐清',
+          city: '上海',
           temperature: '22',
           feelsLike: '23',
           description: '晴',
@@ -111,7 +143,8 @@ describe('weatherController', () => {
   });
 
   test('falls back to default city coordinates for unsupported city names', async () => {
-    axios.get.mockResolvedValueOnce({
+    httpGet.mockResolvedValueOnce({
+      status: 200,
       data: {
         current: {
           time: '2026-05-06T09:15',
@@ -130,13 +163,14 @@ describe('weatherController', () => {
 
     await getWeather({ query: { city: '不存在的城市' } }, res);
 
-    expect(axios.get).toHaveBeenCalledWith(
+    expect(httpGet).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({
         params: expect.objectContaining({
           latitude: 28.1137,
           longitude: 120.9839,
         }),
+        retries: 1,
       })
     );
     expect(res.json).toHaveBeenCalledWith(

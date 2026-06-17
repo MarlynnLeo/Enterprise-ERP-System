@@ -1015,7 +1015,7 @@ const submitAiGenerate = async () => {
   } catch (error) {
     console.error('AI生成失败:', error)
     if (error.response?.data?.message?.includes('ECONNREFUSED') || error.response?.data?.message?.includes('connect')) {
-      ElMessageBox.alert('无法连接到 AI 服务，请确认后端已配置 OLLAMA_API_URL 和 OLLAMA_MODEL，且服务可访问', 'AI 服务未就绪', { type: 'warning' })
+      ElMessageBox.alert('无法连接到 AI 服务，请确认后端已配置 AI_API_KEY 或 NVIDIA_API_KEY，且统一 AI 服务可访问', 'AI 服务未就绪', { type: 'warning' })
     } else {
       ElMessage.error(error.response?.data?.message || 'AI生成失败，请稍后重试')
     }

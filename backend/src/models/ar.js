@@ -1938,6 +1938,63 @@ const arModel = {
       }
     }
   },
+
+
+  /**
+   * 获取客户应收款汇总（含联系人信息和余额筛选）
+   * @param {Object} filters - 筛选条件
+   * @param {string} [filters.customerName] - 客户名称（模糊匹配）
+   * @param {string} [filters.status] - 发票状态
+   * @returns {Promise<Array>} 客户应收款汇总列表
+   */
+  getCustomerReceivablesSummary: async (filters = {}) => {
+    const { customerName, status } = filters;
+    let whereClause = '';
+    const params = [];
+
+    if (customerName) {
+      whereClause += ' AND c.name LIKE ?';
+      params.push(`%${customerName}%`);
+    }
+
+    if (status) {
+      whereClause += ' AND i.status = ?';
+      params.push(status);
+    }
+
+    const [receivables] = await db.pool.execute(
+      `SELECT
+        c.id AS customerId,
+        c.name AS customerName,
+        c.contact_person AS contactPerson,
+        c.contact_phone AS contactPhone,
+        COUNT(i.id) AS invoiceCount,
+        COALESCE(SUM(i.total_amount), 0) AS totalAmount,
+        COALESCE(SUM(i.paid_amount), 0) AS paidAmount,
+        COALESCE(SUM(i.balance_amount), 0) AS balance,
+        MAX(i.invoice_date) AS lastInvoiceDate
+      FROM customers c
+      LEFT JOIN ar_invoices i ON c.id = i.customer_id
+        AND i.status NOT IN ('已付款', '已取消', '草稿', 'void')
+      WHERE c.status = 'active' ${whereClause}
+      GROUP BY c.id, c.name, c.contact_person, c.contact_phone
+      HAVING balance > 0
+      ORDER BY balance DESC`,
+      params
+    );
+
+    return receivables.map((item) => ({
+      customerId: item.customerId,
+      customerName: item.customerName,
+      contactPerson: item.contactPerson,
+      contactPhone: item.contactPhone,
+      invoiceCount: parseInt(item.invoiceCount || 0),
+      totalAmount: parseFloat(item.totalAmount || 0),
+      paidAmount: parseFloat(item.paidAmount || 0),
+      balance: parseFloat(item.balance || 0),
+      lastInvoiceDate: item.lastInvoiceDate,
+    }));
+  },
 };
 
 module.exports = arModel;

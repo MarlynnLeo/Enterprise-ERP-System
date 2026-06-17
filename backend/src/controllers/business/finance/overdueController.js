@@ -10,9 +10,11 @@ const apModel = require('../../../models/ap');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const { currentDateString } = require('../../../utils/dateUtils');
 const { safeParseId } = require('../../../utils/safeParseId');
+const BusinessError = require('../../../utils/BusinessError');
 
 function isBusinessError(error) {
-  return /不存在|已经|状态|无法|不能|期间|科目|余额|原因|positive integer|作废|冲销/.test(
+  return BusinessError.is(error)
+    || /不存在|已经|状态|无法|不能|期间|科目|余额|原因|positive integer|作废|冲销/.test(
     error.message || ''
   );
 }

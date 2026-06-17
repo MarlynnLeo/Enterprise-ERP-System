@@ -658,66 +658,8 @@ const arController = {
   getCustomerReceivables: async (req, res) => {
     try {
       const { customerName, status } = req.query;
-
-      // 从数据库获取客户应收款汇总
-      const connection = await db.pool.getConnection();
-
-      try {
-        // 构建查询条件
-        let whereClause = '';
-        const params = [];
-
-        if (customerName) {
-          whereClause += ' AND c.name LIKE ?';
-          params.push(`%${customerName}%`);
-        }
-
-        if (status) {
-          whereClause += ' AND i.status = ?';
-          params.push(status);
-        }
-
-        // 执行查询
-        const [receivables] = await connection.execute(
-          `
-          SELECT
-            c.id AS customerId,
-            c.name AS customerName,
-            c.contact_person AS contactPerson,
-            c.contact_phone AS contactPhone,
-            COUNT(i.id) AS invoiceCount,
-            COALESCE(SUM(i.total_amount), 0) AS totalAmount,
-            COALESCE(SUM(i.paid_amount), 0) AS paidAmount,
-            COALESCE(SUM(i.balance_amount), 0) AS balance,
-            MAX(i.invoice_date) AS lastInvoiceDate
-          FROM customers c
-          LEFT JOIN ar_invoices i ON c.id = i.customer_id
-            AND i.status NOT IN ('已付款', '已取消', '草稿', 'void')
-          WHERE c.status = 'active' ${whereClause}
-          GROUP BY c.id, c.name, c.contact_person, c.contact_phone
-          HAVING balance > 0
-          ORDER BY balance DESC
-        `,
-          params
-        );
-
-        // 格式化数据
-        const formattedData = receivables.map((item) => ({
-          customerId: item.customerId,
-          customerName: item.customerName,
-          contactPerson: item.contactPerson,
-          contactPhone: item.contactPhone,
-          invoiceCount: parseInt(item.invoiceCount || 0),
-          totalAmount: parseFloat(item.totalAmount || 0),
-          paidAmount: parseFloat(item.paidAmount || 0),
-          balance: parseFloat(item.balance || 0),
-          lastInvoiceDate: item.lastInvoiceDate,
-        }));
-
-        return ResponseHandler.success(res, formattedData, '获取客户应收款成功');
-      } finally {
-        connection.release();
-      }
+      const formattedData = await arModel.getCustomerReceivablesSummary({ customerName, status });
+      return ResponseHandler.success(res, formattedData, '获取客户应收款成功');
     } catch (error) {
       logger.error('获取客户应收款失败:', error);
       return ResponseHandler.error(res, '获取客户应收款失败', 'SERVER_ERROR', 500, error);

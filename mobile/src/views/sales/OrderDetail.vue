@@ -93,7 +93,7 @@
 
         <!-- 加载中 -->
         <div class="loading-container" v-else-if="loading">
-            <van-loading size="24px" vertical color="#a855f7">加载中...</van-loading>
+            <van-loading size="24px" vertical color="var(--color-primary)">加载中...</van-loading>
         </div>
 
         <!-- 错误/空状态 -->
@@ -388,15 +388,15 @@ onMounted(() => {
 
 /* 状态颜色 */
 .bg-yellow-500 {
-    background: linear-gradient(135deg, var(--color-warning), #d97706);
+    background: linear-gradient(135deg, var(--color-warning), var(--ds-orange-strong));
 }
 
 .bg-blue-500 {
-    background: linear-gradient(135deg, var(--color-primary), #2563eb);
+    background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
 }
 
 .bg-indigo-500 {
-    background: linear-gradient(135deg, #6366f1, #4f46e5);
+    background: linear-gradient(135deg, var(--ds-purple), var(--module-purple));
 }
 
 .bg-green-500 {
@@ -408,7 +408,7 @@ onMounted(() => {
 }
 
 .bg-red-500 {
-    background: linear-gradient(135deg, #ef4444, #dc2626);
+    background: linear-gradient(135deg, var(--color-error), var(--color-danger));
 }
 
 .basic-list-item {

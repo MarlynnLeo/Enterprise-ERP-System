@@ -343,13 +343,13 @@
       font-weight: 800;
       color: var(--text-primary);
       &.in {
-        color: #34d399;
+        color: var(--ds-green-strong);
       }
       &.out {
         color: var(--color-danger);
       }
       &.transfer {
-        color: #c084fc;
+        color: var(--ds-purple-strong);
       }
     }
     .stat-label {
@@ -459,19 +459,19 @@
     width: 4px;
     flex-shrink: 0;
     &.accent-green {
-      background: linear-gradient(180deg, var(--color-success), #34d399);
+      background: linear-gradient(180deg, var(--color-success), var(--ds-green-strong));
     }
     &.accent-red {
       background: linear-gradient(180deg, var(--color-danger), var(--color-danger));
     }
     &.accent-purple {
-      background: linear-gradient(180deg, #a855f7, #c084fc);
+      background: linear-gradient(180deg, var(--ds-purple), var(--ds-purple-strong));
     }
     &.accent-yellow {
       background: linear-gradient(180deg, var(--color-warning), var(--color-warning));
     }
     &.accent-blue {
-      background: linear-gradient(180deg, var(--color-primary), #60a5fa);
+      background: linear-gradient(180deg, var(--color-primary), var(--color-accent));
     }
   }
 

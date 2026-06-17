@@ -1,6 +1,6 @@
 /**
  * 8D报告 AI 智能分析服务（专业深度优化版）
- * @description 基于环境变量配置的本地 Ollama 大模型，针对浙江开控电气有限公司(KACON)的成品质量问题
+ * @description 基于统一 OpenAI-compatible AI 配置，针对浙江开控电气有限公司(KACON)的成品质量问题
  *              生成符合 IATF 16949 标准的专业级8D报告
  *
  * 核心优化：
@@ -13,11 +13,11 @@
  */
 
 const { logger } = require('../../utils/logger');
-const { assertOllamaConfigured, getOllamaConfig } = require('../../config/aiConfig');
+const { assertAIConfigured, getAIModel } = require('../../config/aiConfig');
+const UnifiedAIClient = require('../ai/UnifiedAIClient');
 const crypto = require('crypto');
 
-// 本地 Ollama AI 配置（OpenAI 兼容 API）
-const getAIConfig = () => assertOllamaConfigured('8D AI service');
+const getAIConfig = () => assertAIConfigured('8D AI service');
 
 // 速率限制
 const RATE_LIMIT = {
@@ -65,47 +65,34 @@ class EightDAIService {
     }
 
     /**
-     * 调用智谱AI（含重试机制）
+     * 调用统一 AI（含重试机制）
      * @param {string} systemPrompt - 系统提示词
      * @param {string} userPrompt - 用户消息
      * @returns {Promise<{content: string, usage: Object}>}
      */
     static async callAI(systemPrompt, userPrompt) {
-        const { apiUrl, model, timeoutMs } = getAIConfig();
-        const fetchFn = globalThis.fetch;
-        if (typeof fetchFn !== 'function') {
-            throw new Error('当前运行时不支持 fetch，请升级到 Node.js 18+');
-        }
-
-        const requestBody = JSON.stringify({
-            model,
-            messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: userPrompt },
-            ],
-            temperature: 0.35,
-            stream: false,
-        });
+        const { model, provider } = getAIConfig();
 
         for (let attempt = 0; attempt <= RATE_LIMIT.maxRetries; attempt++) {
             try {
                 await this._throttle();
 
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
-                const response = await fetchFn(apiUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: requestBody,
-                    signal: controller.signal,
+                const result = await UnifiedAIClient.createChatCompletion({
+                    serviceName: '8D AI service',
+                    messages: [
+                        { role: 'system', content: systemPrompt },
+                        { role: 'user', content: userPrompt },
+                    ],
+                    temperature: 0.35,
+                    stream: false,
+                    retries: 0,
                 });
+                const { content, usage } = result;
 
-                clearTimeout(timeoutId);
-
-                if (response.status === 429) {
+                logger.info(`[8D-AI] 调用成功 | Provider:${provider} | 模型:${model} | Token: 输入${usage.prompt_tokens} 输出${usage.completion_tokens} 总计${usage.total_tokens}`);
+                return { content, usage };
+            } catch (error) {
+                if (error.status === 429) {
                     if (attempt < RATE_LIMIT.maxRetries) {
                         const delay = Math.min(
                             RATE_LIMIT.baseDelayMs * Math.pow(2, attempt) + crypto.randomInt(0, 1000),
@@ -115,27 +102,20 @@ class EightDAIService {
                         await this._sleep(delay);
                         continue;
                     }
-                    throw new Error('AI服务繁忙，请稍后再试');
+                    throw new Error('AI服务繁忙，请稍后再试', { cause: error });
                 }
 
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`AI API错误: ${response.status} - ${errorText}`);
+                // NVIDIA NIM EngineCore 间歇性 500 错误，自动重试
+                if (attempt < RATE_LIMIT.maxRetries && error.status >= 500) {
+                    const delay = Math.min(
+                        RATE_LIMIT.baseDelayMs * Math.pow(2, attempt) + crypto.randomInt(0, 1000),
+                        RATE_LIMIT.maxDelayMs
+                    );
+                    logger.warn(`[8D-AI] 服务端错误(${error.status})，第${attempt + 1}次重试，等待${Math.round(delay)}ms`);
+                    await this._sleep(delay);
+                    continue;
                 }
 
-                const data = await response.json();
-                const content = data.choices?.[0]?.message?.content;
-                const usage = {
-                    prompt_tokens: data.usage?.prompt_tokens || 0,
-                    completion_tokens: data.usage?.completion_tokens || 0,
-                    total_tokens: data.usage?.total_tokens || 0,
-                };
-
-                logger.info(`[8D-AI] 调用成功 | 模型:${model} | Token: 输入${usage.prompt_tokens} 输出${usage.completion_tokens} 总计${usage.total_tokens}`);
-
-                if (!content) throw new Error('AI返回内容为空');
-                return { content, usage };
-            } catch (error) {
                 if (attempt < RATE_LIMIT.maxRetries && (error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT' || error.name === 'AbortError')) {
                     logger.warn(`[8D-AI] 网络异常或超时，第${attempt + 1}次重试...`);
                     await this._sleep(RATE_LIMIT.baseDelayMs);
@@ -312,7 +292,7 @@ ${contextInfo}
                     d8_lessons_learned: result.d8_lessons_learned || '',
                 },
                 usage,
-                model: getOllamaConfig().model || null,
+                model: getAIModel(),
             };
         } catch (error) {
             logger.error('[8D-AI] 生成8D报告失败:', error.message);

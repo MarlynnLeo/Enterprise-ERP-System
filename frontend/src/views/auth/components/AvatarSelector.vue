@@ -103,7 +103,7 @@
       />
       <div class="preview-copy">
         <strong>{{ currentPreviewFrame.name || '默认头像' }}</strong>
-        <span>{{ currentPreviewFrame.description || '不使用动态头像框' }}</span>
+        <span>{{ currentPreviewFrame.description || '不使用动态头像框。' }}</span>
       </div>
       <el-button
         type="primary"
@@ -124,7 +124,7 @@ import DecorativeAvatarFrame from './DecorativeAvatarFrame.vue'
 const props = defineProps({
   modelValue: {
     type: String,
-    default: 'festival-lantern'
+    default: 'none'
   },
   avatar: {
     type: String,
@@ -148,17 +148,19 @@ const activeCategory = ref('all')
 const categories = [
   { name: 'all', label: '全部' },
   { name: 'featured', label: '推荐' },
-  { name: 'oriental', label: '国风' },
+  { name: 'image', label: '图片框' },
   { name: 'luxury', label: '华丽' },
   { name: 'tech', label: '科技' },
-  { name: 'nature', label: '自然' }
+  { name: 'nature', label: '自然' },
+  { name: 'fantasy', label: '梦幻' }
 ]
 
 const categoryTags = {
-  oriental: ['国风', '节庆'],
-  luxury: ['华丽', '皇冠', '宝石', '桂冠', '金色'],
-  tech: ['科技', '赛博', '直播', '霓虹'],
-  nature: ['自然', '星河', '治愈']
+  image: ['图片框'],
+  luxury: ['华丽', '金色', '火焰', '宝石', '皇冠', '羽翼', '熔岩'],
+  tech: ['科技', '直播', '霓虹', '赛博', '星河'],
+  nature: ['自然', '海洋', '藤蔓', '樱花', '竹叶', '清新'],
+  fantasy: ['月光', '星光', '梦幻', '彩虹', '冰晶', '魔法']
 }
 
 const filteredFrames = computed(() => {
@@ -189,6 +191,7 @@ function getFrameName(id) {
 
 function getFrameTagType(tag) {
   const typeMap = {
+    图片框: 'warning',
     国风: 'danger',
     节庆: 'danger',
     华丽: 'warning',
@@ -196,13 +199,27 @@ function getFrameTagType(tag) {
     宝石: 'success',
     桂冠: 'warning',
     金色: 'warning',
+    月光: 'info',
+    星光: 'info',
+    梦幻: 'primary',
+    樱花: 'danger',
+    冰晶: 'info',
+    彩虹: 'primary',
+    熔岩: 'danger',
+    竹叶: 'success',
+    魔法: 'primary',
+    火焰: 'danger',
+    羽翼: 'warning',
+    海洋: 'primary',
+    藤蔓: 'success',
+    清新: 'success',
     科技: 'primary',
     赛博: 'primary',
     直播: 'primary',
     霓虹: 'primary',
     自然: 'success',
     星河: 'info',
-    治愈: 'success'
+    简约: 'info'
   }
 
   return typeMap[tag] || 'info'
@@ -296,6 +313,7 @@ function applyFrame(id) {
 .frame-tile {
   position: relative;
   min-width: 0;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -327,6 +345,9 @@ function applyFrame(id) {
 }
 
 .tile-preview {
+  width: 112px;
+  height: 112px;
+  flex: 0 0 112px;
   margin-bottom: 2px;
 }
 

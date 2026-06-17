@@ -373,7 +373,7 @@
     width: 4px;
     flex-shrink: 0;
     &.accent-green {
-      background: linear-gradient(180deg, var(--color-success), #34d399);
+      background: linear-gradient(180deg, var(--color-success), var(--ds-green-strong));
     }
     &.accent-red {
       background: linear-gradient(180deg, var(--color-danger), var(--color-danger));

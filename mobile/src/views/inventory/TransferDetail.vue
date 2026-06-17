@@ -382,7 +382,7 @@
     font-size: 0.625rem;
     font-weight: 700;
     border-radius: 9px;
-    background: #a855f7;
+    background: var(--ds-purple);
     color: var(--text-primary);
     padding: 0 5px;
   }
@@ -443,7 +443,7 @@
     width: 4px;
     flex-shrink: 0;
     &.accent-purple {
-      background: linear-gradient(180deg, #a855f7, #c084fc);
+      background: linear-gradient(180deg, var(--ds-purple), var(--ds-purple-strong));
     }
   }
   .card-body {

@@ -231,7 +231,7 @@
     }
     &.draft {
       background: rgba(245, 158, 11, 0.1);
-      color: #d97706;
+      color: var(--color-warning);
     }
   }
 

@@ -231,7 +231,7 @@
   .orb-1 {
     width: 280px;
     height: 280px;
-    background: radial-gradient(circle, #6366f1 0%, transparent 70%);
+    background: radial-gradient(circle, var(--color-primary) 0%, transparent 70%);
     top: -60px;
     left: -40px;
     animation-duration: 14s;
@@ -240,7 +240,7 @@
   .orb-2 {
     width: 220px;
     height: 220px;
-    background: radial-gradient(circle, #a855f7 0%, transparent 70%);
+    background: radial-gradient(circle, var(--ds-purple) 0%, transparent 70%);
     bottom: 10%;
     right: -30px;
     animation-duration: 10s;
@@ -288,7 +288,7 @@
     width: 64px;
     height: 64px;
     border-radius: 20px;
-    background: linear-gradient(135deg, #6366f1, #a855f7);
+    background: linear-gradient(135deg, var(--color-primary), var(--ds-purple));
     box-shadow: 0 8px 32px rgba(99, 102, 241, 0.35);
     margin-bottom: 16px;
   }
@@ -405,7 +405,7 @@
   /* ======================== B-17: 锁定提示 ======================== */
   .lockout-tip {
     text-align: center;
-    color: #f87171;
+    color: var(--color-error);
     font-size: 0.8125rem;
     padding: 8px 0;
     animation: fadeUp 0.3s ease-out;
@@ -417,7 +417,7 @@
     height: 52px;
     border: none;
     border-radius: 14px;
-    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
     color: var(--color-on-primary, #fff);
     font-size: 1rem;
     font-weight: 700;

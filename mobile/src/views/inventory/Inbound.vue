@@ -313,11 +313,11 @@ onMounted(() => {
 .card-accent {
   width: 3px;
   flex-shrink: 0;
-  &.accent-blue { background: linear-gradient(180deg, #3b82f6, #60a5fa); }
-  &.accent-green { background: linear-gradient(180deg, #10b981, #34d399); }
-  &.accent-yellow { background: linear-gradient(180deg, #f59e0b, #fbbf24); }
-  &.accent-red { background: linear-gradient(180deg, #ef4444, #f87171); }
-  &.accent-gray { background: linear-gradient(180deg, #94a3b8, #cbd5e1); }
+  &.accent-blue { background: linear-gradient(180deg, var(--module-blue), var(--ds-blue-strong)); }
+  &.accent-green { background: linear-gradient(180deg, var(--color-success), var(--ds-green-strong)); }
+  &.accent-yellow { background: linear-gradient(180deg, var(--color-warning), var(--ds-yellow-strong)); }
+  &.accent-red { background: linear-gradient(180deg, var(--color-error), var(--color-danger)); }
+  &.accent-gray { background: linear-gradient(180deg, var(--text-tertiary), var(--text-disabled)); }
 }
 
 .card-body {
@@ -346,10 +346,10 @@ onMounted(() => {
   flex-shrink: 0;
   overflow: hidden;
   &.accent-blue { background: rgba(59, 130, 246, 0.1); color: var(--module-blue); }
-  &.accent-green { background: rgba(16, 185, 129, 0.1); color: #10b981; }
-  &.accent-yellow { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
+  &.accent-green { background: color-mix(in srgb, var(--color-success) 10%, transparent); color: var(--color-success); }
+  &.accent-yellow { background: color-mix(in srgb, var(--color-warning) 10%, transparent); color: var(--color-warning); }
   &.accent-red { background: rgba(239, 68, 68, 0.1); color: var(--color-error); }
-  &.accent-gray { background: rgba(148, 163, 184, 0.1); color: #94a3b8; }
+  &.accent-gray { background: color-mix(in srgb, var(--text-tertiary) 10%, transparent); color: var(--text-tertiary); }
 }
 .item-title {
   font-size: 0.9375rem;
@@ -367,9 +367,9 @@ onMounted(() => {
   font-size: 0.625rem;
   font-weight: 700;
   flex-shrink: 0;
-  &.st-draft { background: rgba(148, 163, 184, 0.12); color: #94a3b8; }
+  &.st-draft { background: color-mix(in srgb, var(--text-tertiary) 12%, transparent); color: var(--text-tertiary); }
   &.st-confirmed { background: rgba(59, 130, 246, 0.1); color: var(--module-blue); }
-  &.st-completed { background: rgba(16, 185, 129, 0.12); color: #10b981; }
+  &.st-completed { background: color-mix(in srgb, var(--color-success) 12%, transparent); color: var(--color-success); }
   &.st-cancelled { background: rgba(239, 68, 68, 0.1); color: var(--color-error); }
 }
 

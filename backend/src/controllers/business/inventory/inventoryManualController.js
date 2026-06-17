@@ -189,15 +189,18 @@ const getManualTransactions = async (req, res) => {
       [rows] = await connection.query(listQuery);
     }
 
-    // 查询统计数据
-    const [statsResult] = await connection.execute(
-      `SELECT
-        COUNT(*) as total,
-        SUM(CASE WHEN transaction_type = 'in' THEN 1 ELSE 0 END) as inCount,
-        SUM(CASE WHEN transaction_type = 'out' THEN 1 ELSE 0 END) as outCount,
-        SUM(CASE WHEN DATE(transaction_date) = CURDATE() THEN 1 ELSE 0 END) as todayCount
-      FROM manual_transactions`
-    );
+    // 查询统计数据（复用筛选条件，使统计卡片与列表一致）
+    const statsQuery = `SELECT
+        COUNT(DISTINCT mt.transaction_no) as total,
+        COUNT(DISTINCT CASE WHEN mt.transaction_type = 'in' THEN mt.transaction_no END) as inCount,
+        COUNT(DISTINCT CASE WHEN mt.transaction_type = 'out' THEN mt.transaction_no END) as outCount,
+        COUNT(DISTINCT CASE WHEN DATE(mt.transaction_date) = CURDATE() THEN mt.transaction_no END) as todayCount
+      FROM manual_transactions mt
+      LEFT JOIN materials m ON mt.material_id = m.id
+      ${whereClause}`;
+    const [statsResult] = whereConditions.length > 0
+      ? await connection.execute(statsQuery, queryParams)
+      : await connection.query(statsQuery);
 
     ResponseHandler.success(
       res,
@@ -778,6 +781,13 @@ const approveManualTransaction = async (req, res) => {
         const quantityChange =
           transaction_type === 'in' ? parseFloat(quantity) : -parseFloat(quantity);
 
+        // 入库操作需要生成可追溯的批次号，出库由 FIFO 自动拆批
+        let batch_number = null;
+        if (transaction_type === 'in') {
+          const dateStr = new Date(transaction_date || Date.now()).toISOString().slice(0, 10).replace(/-/g, '');
+          batch_number = `MI-${dateStr}-${transaction_no}`;
+        }
+
         // 插入库存流水（出库时启用库存校验，不允许负库存）
         await _insertInventoryLedgerLocal(connection, {
           material_id,
@@ -786,13 +796,14 @@ const approveManualTransaction = async (req, res) => {
             business_type_code || (transaction_type === 'in' ? 'manual_in' : 'manual_out'),
           quantity: quantityChange,
           unit_id,
+          batch_number,
           reference_no: transaction_no,
           reference_type: 'manual_transaction',
           operator: operator || approver,
           remark,
           transaction_date,
-          checkStockSufficiency: transaction_type === 'out', // 出库时校验库存
-          allowNegativeStock: false, // 不允许负库存
+          checkStockSufficiency: transaction_type === 'out',
+          allowNegativeStock: false,
         });
       }
     }
@@ -871,6 +882,12 @@ const updateManualTransaction = async (req, res) => {
     }
 
     const old = oldRecord[0];
+
+    // 只有待审批的单据才允许修改
+    if (old.approval_status !== 'pending') {
+      await connection.rollback();
+      return ResponseHandler.error(res, '已审批的单据不允许修改', 'VALIDATION_ERROR', 400);
+    }
 
     // 获取物料信息
     const [materialInfo] = await connection.execute('SELECT unit_id FROM materials WHERE id = ? AND deleted_at IS NULL', [
@@ -989,6 +1006,7 @@ const deleteManualTransaction = async (req, res) => {
       const deleteMaterialIds = records.map(r => r.material_id);
       const deleteMaterialInfoMap = await InventoryService.getBatchMaterialInfo(deleteMaterialIds, connection);
 
+      const rollbackOperator = await getCurrentUserName(req);
       for (const data of records) {
         // 从批量预取结果获取物料信息
         const matInfo = deleteMaterialInfoMap.get(data.material_id);
@@ -997,15 +1015,26 @@ const deleteManualTransaction = async (req, res) => {
         // 回滚库存
         const quantityChange =
           data.transaction_type === 'in' ? -parseFloat(data.quantity) : parseFloat(data.quantity);
+
+        // 回滚入库（出库方向）：从原始台账溯源批次号，供 FIFO 自动拆批
+        // 回滚出库（入库方向）：需要生成回滚批次号
+        let rollbackBatchNumber = null;
+        if (quantityChange > 0) {
+          // 入库方向（回滚出库），需要批次号
+          rollbackBatchNumber = `ROLLBACK-${data.transaction_no}-${data.material_id}`;
+        }
+        // quantityChange < 0（回滚入库 = 出库方向），不传批次号由 FIFO 自动分配
+
         await _insertInventoryLedgerLocal(connection, {
           material_id: data.material_id,
           location_id: data.location_id,
           transaction_type: data.transaction_type === 'in' ? 'manual_in' : 'manual_out',
           quantity: quantityChange,
           unit_id,
+          batch_number: rollbackBatchNumber,
           reference_no: data.transaction_no,
           reference_type: 'manual_transaction',
-          operator: await getCurrentUserName(req),
+          operator: rollbackOperator,
           remark: '删除已审批单据-回滚库存',
           transaction_date: data.transaction_date,
         });

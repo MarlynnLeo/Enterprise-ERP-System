@@ -114,13 +114,26 @@ export const useThemeStore = defineStore('theme', () => {
     const toHex = (rv, gv, bv) =>
       `#${[rv, gv, bv].map(c => c.toString(16).padStart(2, '0')).join('')}`
 
+    const light3 = toHex(mix(r, 255, 0.3), mix(g, 255, 0.3), mix(b, 255, 0.3))
+    const light5 = toHex(mix(r, 255, 0.5), mix(g, 255, 0.5), mix(b, 255, 0.5))
+    const light7 = toHex(mix(r, 255, 0.7), mix(g, 255, 0.7), mix(b, 255, 0.7))
+    const light8 = toHex(mix(r, 255, 0.8), mix(g, 255, 0.8), mix(b, 255, 0.8))
+    const light9 = toHex(mix(r, 255, 0.9), mix(g, 255, 0.9), mix(b, 255, 0.9))
+    const dark2 = toHex(mix(r, 0, 0.2), mix(g, 0, 0.2), mix(b, 0, 0.2))
+
     return {
-      '--el-color-primary-light-3': toHex(mix(r, 255, 0.3), mix(g, 255, 0.3), mix(b, 255, 0.3)),
-      '--el-color-primary-light-5': toHex(mix(r, 255, 0.5), mix(g, 255, 0.5), mix(b, 255, 0.5)),
-      '--el-color-primary-light-7': toHex(mix(r, 255, 0.7), mix(g, 255, 0.7), mix(b, 255, 0.7)),
-      '--el-color-primary-light-8': toHex(mix(r, 255, 0.8), mix(g, 255, 0.8), mix(b, 255, 0.8)),
-      '--el-color-primary-light-9': toHex(mix(r, 255, 0.9), mix(g, 255, 0.9), mix(b, 255, 0.9)),
-      '--el-color-primary-dark-2': toHex(mix(r, 0, 0.2), mix(g, 0, 0.2), mix(b, 0, 0.2)),
+      '--color-primary-light-3': light3,
+      '--color-primary-light-5': light5,
+      '--color-primary-light-7': light7,
+      '--color-primary-light-8': light8,
+      '--color-primary-light-9': light9,
+      '--color-primary-dark-2': dark2,
+      '--el-color-primary-light-3': light3,
+      '--el-color-primary-light-5': light5,
+      '--el-color-primary-light-7': light7,
+      '--el-color-primary-light-8': light8,
+      '--el-color-primary-light-9': light9,
+      '--el-color-primary-dark-2': dark2,
     }
   }
 
@@ -142,6 +155,7 @@ export const useThemeStore = defineStore('theme', () => {
 
     // 设置CSS变量
     const primaryColor = appearance.value.primaryColor
+    html.style.setProperty('--color-primary', primaryColor)
     html.style.setProperty('--el-color-primary', primaryColor)
     html.style.setProperty('--font-size-base', `${appearance.value.fontSize}px`)
     html.style.setProperty('--el-font-size-base', `${appearance.value.fontSize}px`)

@@ -66,25 +66,25 @@
       label: '物料管理',
       path: '/basedata/materials',
       icon: 'cube',
-      gradient: 'linear-gradient(135deg, var(--color-primary) 0%, #764ba2 100%)'
+      gradient: 'linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%)'
     },
     {
       label: '客户管理',
       path: '/basedata/customers',
       icon: 'people',
-      gradient: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)'
+      gradient: 'linear-gradient(135deg, var(--color-success) 0%, var(--ds-green-strong) 100%)'
     },
     {
       label: '供应商管理',
       path: '/basedata/suppliers',
       icon: 'briefcase',
-      gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)'
+      gradient: 'linear-gradient(135deg, var(--ds-purple) 0%, var(--ds-pink) 100%)'
     },
     {
       label: '仓库管理',
       path: '/basedata/locations',
       icon: 'home',
-      gradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)'
+      gradient: 'linear-gradient(135deg, var(--module-blue) 0%, var(--ds-cyan-strong) 100%)'
     }
   ])
 

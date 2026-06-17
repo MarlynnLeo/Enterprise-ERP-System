@@ -1,54 +1,56 @@
 /**
  * Mobile KACON brand theme.
- * @description Flat enterprise palette aligned with the PC KACON theme.
+ * @description Serenity Emerald palette aligned with the PC KACON theme v3.0.
  */
 
 :root[data-theme="kacon"] {
-  --bg-primary: #f5f7fa;
+  --bg-primary: #EFF3F8;
   --bg-secondary: #ffffff;
-  --bg-tertiary: #f0f2f5;
+  --bg-tertiary: #F8FAFC;
   --bg-header: #ffffff;
 
-  --border-subtle: rgba(17, 24, 39, 0.08);
-  --surface-hover: #f5f5f5;
-  --surface-active: rgba(0, 121, 107, 0.1);
+  --border-subtle: rgba(229, 231, 235, 0.7);
+  --surface-hover: rgba(22, 163, 74, 0.06);
+  --surface-active: rgba(22, 163, 74, 0.1);
 
-  --surface-elevated: #ffffff;
+  --surface-elevated: rgba(255, 255, 255, 0.75);
   --surface-elevated-hover: var(--surface-hover);
   --surface-elevated-active: var(--surface-active);
   --surface-border: var(--border-subtle);
-  --surface-border-hover: rgba(0, 121, 107, 0.24);
+  --surface-border-hover: rgba(22, 163, 74, 0.24);
 
-  --text-primary: #1a1a1a;
-  --text-secondary: #4a4a4a;
-  --text-tertiary: #8c8c8c;
-  --text-disabled: #bfbfbf;
+  --text-primary: #0F172A;
+  --text-secondary: #475569;
+  --text-tertiary: #64748B;
+  --text-disabled: #CBD5E1;
   --text-on-dark: #ffffff;
   --text-on-dark-secondary: rgba(255, 255, 255, 0.8);
 
-  --color-primary: #00796b;
-  --color-primary-bg: #e6f2f0;
-  --color-success: #34c759;
-  --color-success-bg: #d4f5dd;
-  --color-warning: #f0a020;
-  --color-warning-bg: #fcecd0;
-  --color-error: #e54d42;
-  --color-error-bg: #f9dad8;
-  --color-info: #8c8c8c;
-  --color-info-bg: #e8e8e8;
-  --color-accent: #006156;
+  --color-brand-accent: #16A34A;
+  --color-brand: var(--color-on-primary);
+  --color-primary: #15803D;
+  --color-primary-bg: #F0FDF4;
+  --color-success: #15803D;
+  --color-success-bg: #F0FDF4;
+  --color-warning: #B45309;
+  --color-warning-bg: #FEF3C7;
+  --color-error: #B91C1C;
+  --color-error-bg: #FEE2E2;
+  --color-info: #475569;
+  --color-info-bg: #F1F5F9;
+  --color-accent: #166534;
 
-  --module-blue: #2f80ed;
-  --module-green: #00796b;
-  --module-red: #e54d42;
-  --module-orange: #f0a020;
-  --module-purple: #7c3aed;
-  --module-yellow: #f6c343;
+  --module-blue: #2563EB;
+  --module-green: #15803D;
+  --module-red: #B91C1C;
+  --module-orange: #B45309;
+  --module-purple: #7C3AED;
+  --module-yellow: #FBBF24;
 
-  --shadow-sm: none;
-  --shadow-md: none;
-  --shadow-lg: none;
-  --shadow-glow: none;
+  --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(0, 0, 0, 0.03);
+  --shadow-md: 0 4px 14px rgba(15, 23, 42, 0.05), 0 2px 4px rgba(0, 0, 0, 0.03);
+  --shadow-lg: 0 12px 40px rgba(15, 23, 42, 0.08), 0 4px 12px rgba(0, 0, 0, 0.04);
+  --shadow-glow: 0 2px 12px rgba(22, 163, 74, 0.28);
 
   --van-primary-color: var(--color-primary);
   --van-success-color: var(--color-success);
@@ -60,7 +62,7 @@
   --van-active-color: var(--surface-active);
   --van-background: var(--bg-secondary);
   --van-background-2: var(--bg-primary);
-  --van-border-color: #e8e8e8;
+  --van-border-color: #E5E7EB;
 
   --van-nav-bar-background: var(--bg-header);
   --van-nav-bar-title-text-color: var(--text-primary);
@@ -68,14 +70,14 @@
   --van-nav-bar-text-color: var(--text-secondary);
 
   --van-search-background: var(--bg-primary);
-  --van-search-content-background: #f0f2f5;
+  --van-search-content-background: #F8FAFC;
   --van-search-action-text-color: var(--color-primary);
 
   --van-cell-background: var(--bg-secondary);
   --van-cell-text-color: var(--text-primary);
   --van-cell-value-color: var(--text-secondary);
   --van-cell-label-color: var(--text-tertiary);
-  --van-cell-border-color: #e8e8e8;
+  --van-cell-border-color: #E5E7EB;
   --van-cell-active-color: var(--surface-active);
   --van-cell-group-background: var(--bg-secondary);
   --van-cell-group-title-color: var(--text-secondary);
@@ -95,7 +97,7 @@
   --van-picker-title-text-color: var(--text-primary);
   --van-picker-option-text-color: var(--text-secondary);
 
-  --van-toast-background: rgba(26, 26, 26, 0.9);
+  --van-toast-background: rgba(15, 23, 42, 0.9);
   --van-toast-text-color: #ffffff;
   --van-pull-refresh-text-color: var(--text-secondary);
   --van-list-text-color: var(--text-secondary);
@@ -105,9 +107,9 @@
   --van-tabbar-item-text-color: var(--text-secondary);
   --van-tabbar-item-active-color: var(--color-primary);
 
-  --status-pending: #f0a020;
-  --status-in-progress: #2f80ed;
-  --status-completed: #34c759;
-  --status-failed: #e54d42;
+  --status-pending: #B45309;
+  --status-in-progress: #2563EB;
+  --status-completed: #15803D;
+  --status-failed: #B91C1C;
   --color-on-primary: #ffffff;
 }

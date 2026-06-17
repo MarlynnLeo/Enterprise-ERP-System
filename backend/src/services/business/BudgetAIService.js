@@ -1,5 +1,5 @@
-﻿/**
- * AI预算分析服务 - 基于环境变量配置的本地 Ollama 大模型
+/**
+ * AI预算分析服务 - 基于统一 OpenAI-compatible AI 配置
  *
  * 功能矩阵：
  * 1. 预算编制建议 - 基于历史数据+AI分析推荐预算
@@ -18,15 +18,14 @@
 
 const db = require('../../config/db');
 const { logger } = require('../../utils/logger');
-const { assertOllamaConfigured, getOllamaConfig } = require('../../config/aiConfig');
+const { assertAIConfigured, getAIModel } = require('../../config/aiConfig');
+const UnifiedAIClient = require('../ai/UnifiedAIClient');
 const {
     budgetDetailActualAmountSql,
 } = require('../../utils/finance/budgetUsageSql');
 const crypto = require('crypto');
 
-// 本地 Ollama AI 配置（OpenAI 兼容 API）
-const getAIConfig = () => assertOllamaConfigured('Budget AI service');
-const getAIModel = () => getOllamaConfig().model || null;
+const getAIConfig = () => assertAIConfigured('Budget AI service');
 
 // 速率限制配置
 const RATE_LIMIT_CONFIG = {
@@ -73,7 +72,7 @@ class BudgetAIService {
         const elapsed = now - this._lastRequestTime;
         if (elapsed < RATE_LIMIT_CONFIG.minRequestIntervalMs) {
             const waitTime = RATE_LIMIT_CONFIG.minRequestIntervalMs - elapsed;
-            logger.info(`[Ollama AI限流] 距上次请求仅${elapsed}ms，等待${waitTime}ms...`);
+            logger.info(`[AI限流] 距上次请求仅${elapsed}ms，等待${waitTime}ms...`);
             await this._sleep(waitTime);
         }
         this._lastRequestTime = Date.now();
@@ -118,101 +117,60 @@ class BudgetAIService {
     // ==================== 核心AI调用 ====================
 
     /**
-     * 调用本地 Ollama AI 大模型（含指数退避重试、请求限流、Token追踪）
+     * 调用统一 AI 大模型（含指数退避重试、请求限流、Token追踪）
      * @param {string} systemPrompt - 系统提示词
      * @param {string} userPrompt - 用户消息（包含数据）
      * @returns {Promise<{content: string, usage: Object}>} AI回复内容和Token用量
      */
-    static async callOllamaAI(systemPrompt, userPrompt) {
-        const { apiUrl, model, timeoutMs } = getAIConfig();
-        const fetchFn = globalThis.fetch;
-        if (typeof fetchFn !== 'function') {
-            throw new Error('当前运行时不支持 fetch，请升级到 Node.js 18+');
-        }
+    static async callAI(systemPrompt, userPrompt) {
+        const { model, provider } = getAIConfig();
 
-        const requestBody = JSON.stringify({
-            model,
-            messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: userPrompt },
-            ],
-            temperature: 0.3,
-            stream: false,
-        });
-
-        // 带重试的请求循环
         for (let attempt = 0; attempt <= RATE_LIMIT_CONFIG.maxRetries; attempt++) {
             try {
                 await this._throttle();
 
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
-                const response = await fetchFn(apiUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: requestBody,
-                    signal: controller.signal,
+                const result = await UnifiedAIClient.createChatCompletion({
+                    serviceName: 'Budget AI service',
+                    messages: [
+                        { role: 'system', content: systemPrompt },
+                        { role: 'user', content: userPrompt },
+                    ],
+                    temperature: 0.3,
+                    stream: false,
+                    retries: 0,
                 });
+                const { content, usage } = result;
 
-                clearTimeout(timeoutId);
-
-                // 处理 429 速率限制
-                if (response.status === 429) {
-                    if (attempt < RATE_LIMIT_CONFIG.maxRetries) {
-                        const jitter = crypto.randomInt(0, 1000);
-                        const delayMs = Math.min(
-                            RATE_LIMIT_CONFIG.baseDelayMs * Math.pow(2, attempt) + jitter,
-                            RATE_LIMIT_CONFIG.maxDelayMs
-                        );
-                        logger.warn(`[Ollama AI] 触发速率限制(429)，第${attempt + 1}次重试，等待${Math.round(delayMs)}ms...`);
-                        await this._sleep(delayMs);
-                        continue;
-                    }
-                    throw new Error(`Ollama AI 速率限制: 已重试${RATE_LIMIT_CONFIG.maxRetries}次仍被限流，请稍后再试`);
-                }
-
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    logger.error('Ollama AI API调用失败:', response.status, errorText);
-                    throw new Error(`Ollama AI API错误: ${response.status} - ${errorText}`);
-                }
-
-                const data = await response.json();
-                const content = data.choices?.[0]?.message?.content;
-
-                // Token用量提取（Ollama OpenAI 兼容格式）
-                const usage = {
-                    prompt_tokens: data.usage?.prompt_tokens || 0,
-                    completion_tokens: data.usage?.completion_tokens || 0,
-                    reasoning_tokens: 0,
-                    total_tokens: data.usage?.total_tokens || 0,
-                };
-
-                // 累计Token统计
                 this._totalUsage.prompt_tokens += usage.prompt_tokens;
                 this._totalUsage.completion_tokens += usage.completion_tokens;
                 this._totalUsage.reasoning_tokens += usage.reasoning_tokens;
                 this._totalUsage.total_tokens += usage.total_tokens;
                 this._totalUsage.call_count += 1;
 
-                logger.info(`[Ollama AI] 调用成功 | 模型:${model} | Token: 输入${usage.prompt_tokens} 输出${usage.completion_tokens} 总计${usage.total_tokens}`);
-
-                if (!content) {
-                    logger.error('[Ollama AI] 返回内容为空，完整响应:', JSON.stringify(data, null, 2));
-                    throw new Error('Ollama AI返回内容为空');
-                }
-
+                logger.info(`[AI] 调用成功 | Provider:${provider} | 模型:${model} | Token: 输入${usage.prompt_tokens} 输出${usage.completion_tokens} 总计${usage.total_tokens}`);
                 return { content, usage };
             } catch (error) {
-                if (attempt < RATE_LIMIT_CONFIG.maxRetries && (error.code === 'ECONNRESET' || error.name === 'AbortError')) {
-                    logger.warn(`[Ollama AI] 网络异常或超时，第${attempt + 1}次重试...`);
+                if (error.status === 429 && attempt < RATE_LIMIT_CONFIG.maxRetries) {
+                    const jitter = crypto.randomInt(0, 1000);
+                    const delayMs = Math.min(
+                        RATE_LIMIT_CONFIG.baseDelayMs * Math.pow(2, attempt) + jitter,
+                        RATE_LIMIT_CONFIG.maxDelayMs
+                    );
+                    logger.warn(`[AI] 触发速率限制(429)，第${attempt + 1}次重试，等待${Math.round(delayMs)}ms...`);
+                    await this._sleep(delayMs);
+                    continue;
+                }
+
+                if (
+                    attempt < RATE_LIMIT_CONFIG.maxRetries &&
+                    (error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT' || error.name === 'AbortError')
+                ) {
+                    logger.warn(`[AI] 网络异常或超时，第${attempt + 1}次重试...`);
                     await this._sleep(RATE_LIMIT_CONFIG.baseDelayMs);
                     continue;
                 }
-                logger.error('Ollama AI调用异常:', error.message);
+
+                logger.error('AI调用异常:', error.message);
                 throw error;
             }
         }
@@ -348,7 +306,7 @@ ${departmentId ? `仅针对部门ID: ${departmentId}` : '全公司范围'}
 
             // 3. 调用AI
             logger.info(`[AI预算建议] 开始为${targetYear}年生成建议，${accountsSummary.length}个科目...`);
-            const { content: aiResponse, usage } = await this.callOllamaAI(systemPrompt, userPrompt);
+            const { content: aiResponse, usage } = await this.callAI(systemPrompt, userPrompt);
             const result = this.extractJSON(aiResponse);
 
             // 用真实科目名称补全AI返回数据（AI可能遗漏account_name）
@@ -490,7 +448,7 @@ ${JSON.stringify(executionData, null, 2)}
 
             // 4. 调用AI
             logger.info(`[AI异常检测] 开始检测预算#${budgetId}，${executionData.length}个明细项...`);
-            const { content: aiResponse, usage } = await this.callOllamaAI(systemPrompt, userPrompt);
+            const { content: aiResponse, usage } = await this.callAI(systemPrompt, userPrompt);
             const result = this.extractJSON(aiResponse);
 
             const rates = executionData.map(d => d.rate);
@@ -651,7 +609,7 @@ ${JSON.stringify(executionData, null, 2)}
 
             // 4. 调用AI
             logger.info(`[AI优化建议] 开始分析预算#${budgetId}...`);
-            const { content: aiResponse, usage } = await this.callOllamaAI(systemPrompt, userPrompt);
+            const { content: aiResponse, usage } = await this.callAI(systemPrompt, userPrompt);
             const result = this.extractJSON(aiResponse);
 
             const response = {
@@ -935,7 +893,7 @@ ${JSON.stringify(comparisonData, null, 2)}
             let result;
             let usage = null;
             try {
-                const aiResult = await this.callOllamaAI(systemPrompt, userPrompt);
+                const aiResult = await this.callAI(systemPrompt, userPrompt);
                 usage = aiResult.usage;
                 result = this.extractJSON(aiResult.content);
             } catch (aiError) {
@@ -1081,7 +1039,7 @@ ${JSON.stringify(executionData, null, 2)}
 5. 未来展望`;
 
             logger.info(`[AI综合报告] 开始生成预算#${budgetId}的综合报告...`);
-            const { content: aiResponse, usage } = await this.callOllamaAI(systemPrompt, userPrompt);
+            const { content: aiResponse, usage } = await this.callAI(systemPrompt, userPrompt);
             const result = this.extractJSON(aiResponse);
 
             const response = {

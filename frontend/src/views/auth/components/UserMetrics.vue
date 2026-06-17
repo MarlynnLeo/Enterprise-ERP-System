@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="stats-container">
     <!-- 顶部标题卡片 -->
     <div class="stats-header">
@@ -323,10 +323,10 @@ const monthlyActivity = computed(() => {
   background: var(--color-bg-base);
   border: 1px solid var(--color-border-lighter);
   transition: border-color var(--transition-base), background-color var(--transition-base);
-  min-height: 140px;
+  height: 100%;
+  box-sizing: border-box;
   position: relative;
   overflow: hidden;
-  margin-bottom: 20px;
 }
 
 .metric-card:hover {

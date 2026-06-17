@@ -130,7 +130,6 @@
 :root,
 :root[data-theme="default"],
 :root[data-theme="dark"],
-:root[data-theme="kacon"],
 :root[data-theme="nature"],
 :root[data-theme="premium"],
 :root[data-theme="tech"],
@@ -138,16 +137,43 @@
   --color-on-primary: #0f172a;
 }
 
+:root[data-theme="kacon"] {
+  --color-on-primary: #ffffff;
+}
+
 :root[data-theme="business"],
 :root[data-theme="professional"] {
   --color-on-primary: #ffffff;
 }
 
+:root[data-theme] {
+  --color-border-hover: var(--color-primary-light-5, var(--color-primary));
+  --color-on-success: var(--color-on-primary);
+  --color-on-warning: var(--color-on-primary);
+  --color-on-danger: var(--color-on-primary);
+  --color-on-info: var(--color-on-primary);
+}
+
+:root[data-theme="business"] {
+  --color-on-success: #0f172a;
+  --color-on-warning: #0f172a;
+  --color-on-danger: #0f172a;
+  --color-on-info: #0f172a;
+}
+
+:root[data-theme="professional"] {
+  --color-on-warning: #0f172a;
+}
+
 :root[data-theme="default"],
-:root[data-theme="kacon"],
 :root[data-theme="vibrant"] {
   --color-text-secondary: #6b7280;
   --color-text-muted: #6b7280;
+}
+
+:root[data-theme="kacon"] {
+  --color-text-secondary: #475569;
+  --color-text-muted: #64748b;
 }
 
 :root[data-theme="business"],
@@ -355,11 +381,12 @@
 }
 
 :root[data-theme="kacon"] {
-  --theme-status-radius: 4px;
-  --theme-status-padding: 2px 8px;
-  --theme-status-font-weight: 500;
+  --theme-status-radius: 999px;
+  --theme-status-padding: 3px 10px;
+  --theme-status-font-weight: 600;
   --theme-status-primary-color: var(--color-primary-dark-2);
-  --theme-status-primary-border: color-mix(in srgb, var(--color-primary) 34%, transparent);
+  --theme-status-primary-border: color-mix(in srgb, var(--color-primary) 24%, transparent);
+  --theme-status-shadow: none;
 }
 
 
@@ -576,15 +603,18 @@
 }
 
 :root[data-theme="kacon"] {
-  --theme-dialog-radius: 4px;
-  --theme-dialog-shadow: 0 8px 20px color-mix(in srgb, var(--ds-black) 12%, transparent);
-  --theme-dialog-header-bg: var(--color-bg-section);
-  --theme-feature-card-bg: var(--color-bg-base);
-  --theme-feature-card-color: var(--color-text-primary);
-  --theme-feature-card-border: color-mix(in srgb, var(--color-primary) 28%, var(--color-border-base));
-  --theme-feature-card-shadow: none;
-  --theme-feature-card-hover-shadow: none;
-  --theme-feature-card-decor: linear-gradient(90deg, color-mix(in srgb, var(--color-primary) 8%, transparent), transparent);
+  --theme-dialog-bg: rgba(255, 255, 255, 0.97);
+  --theme-dialog-border: rgba(229, 231, 235, 0.8);
+  --theme-dialog-radius: var(--radius-lg);
+  --theme-dialog-shadow: 0 20px 60px rgba(15, 23, 42, 0.1);
+  --theme-dialog-header-bg: rgba(249, 250, 251, 0.3);
+  --theme-dialog-footer-bg: rgba(249, 250, 251, 0.3);
+  --theme-feature-card-bg: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark-2) 100%);
+  --theme-feature-card-color: #ffffff;
+  --theme-feature-card-border: color-mix(in srgb, var(--color-primary) 30%, transparent);
+  --theme-feature-card-shadow: 0 2px 12px rgba(22, 163, 74, 0.28);
+  --theme-feature-card-hover-shadow: 0 4px 20px rgba(22, 163, 74, 0.35);
+  --theme-feature-card-decor: radial-gradient(circle, rgba(255, 255, 255, 0.10) 0%, transparent 70%);
 }
 
 /* Element Plus buttons inherit the active theme tokens instead of a separate
@@ -615,8 +645,9 @@
   --el-button-hover-text-color: var(--color-on-primary);
   --el-button-hover-bg-color: var(--color-primary-light-3);
   --el-button-hover-border-color: var(--color-primary-light-3);
-  --el-button-active-bg-color: var(--color-primary-dark-2, var(--color-primary));
-  --el-button-active-border-color: var(--color-primary-dark-2, var(--color-primary));
+  --el-button-active-text-color: var(--color-on-primary);
+  --el-button-active-bg-color: var(--color-primary);
+  --el-button-active-border-color: var(--color-primary);
 }
 
 /* Primary 朴素按钮 */
@@ -633,12 +664,13 @@
 [data-theme] .el-button--success {
   --el-button-bg-color: var(--color-success);
   --el-button-border-color: var(--color-success);
-  --el-button-text-color: var(--color-on-primary);
-  --el-button-hover-text-color: var(--color-on-primary);
-  --el-button-hover-bg-color: color-mix(in srgb, var(--color-success) 82%, var(--color-bg-base));
-  --el-button-hover-border-color: color-mix(in srgb, var(--color-success) 82%, var(--color-bg-base));
-  --el-button-active-bg-color: var(--color-success-dark, var(--color-success));
-  --el-button-active-border-color: var(--color-success-dark, var(--color-success));
+  --el-button-text-color: var(--color-on-success);
+  --el-button-hover-text-color: var(--color-on-success);
+  --el-button-hover-bg-color: var(--color-success);
+  --el-button-hover-border-color: var(--color-success);
+  --el-button-active-text-color: var(--color-on-success);
+  --el-button-active-bg-color: var(--color-success);
+  --el-button-active-border-color: var(--color-success);
 }
 
 /* Success 朴素按钮 */
@@ -646,21 +678,23 @@
   --el-button-text-color: var(--color-success);
   --el-button-bg-color: var(--color-success-light);
   --el-button-border-color: color-mix(in srgb, var(--color-success) 50%, var(--color-bg-base));
-  --el-button-hover-text-color: var(--color-on-primary);
+  --el-button-hover-text-color: var(--color-on-success);
   --el-button-hover-bg-color: var(--color-success);
   --el-button-hover-border-color: var(--color-success);
+  --el-button-active-text-color: var(--color-on-success);
 }
 
 /* Warning 按钮 */
 [data-theme] .el-button--warning {
   --el-button-bg-color: var(--color-warning);
   --el-button-border-color: var(--color-warning);
-  --el-button-text-color: var(--color-on-primary);
-  --el-button-hover-text-color: var(--color-on-primary);
-  --el-button-hover-bg-color: color-mix(in srgb, var(--color-warning) 82%, var(--color-bg-base));
-  --el-button-hover-border-color: color-mix(in srgb, var(--color-warning) 82%, var(--color-bg-base));
-  --el-button-active-bg-color: var(--color-warning-dark, var(--color-warning));
-  --el-button-active-border-color: var(--color-warning-dark, var(--color-warning));
+  --el-button-text-color: var(--color-on-warning);
+  --el-button-hover-text-color: var(--color-on-warning);
+  --el-button-hover-bg-color: var(--color-warning);
+  --el-button-hover-border-color: var(--color-warning);
+  --el-button-active-text-color: var(--color-on-warning);
+  --el-button-active-bg-color: var(--color-warning);
+  --el-button-active-border-color: var(--color-warning);
 }
 
 /* Warning 朴素按钮 */
@@ -668,21 +702,23 @@
   --el-button-text-color: var(--color-warning);
   --el-button-bg-color: var(--color-warning-light);
   --el-button-border-color: color-mix(in srgb, var(--color-warning) 50%, var(--color-bg-base));
-  --el-button-hover-text-color: var(--color-on-primary);
+  --el-button-hover-text-color: var(--color-on-warning);
   --el-button-hover-bg-color: var(--color-warning);
   --el-button-hover-border-color: var(--color-warning);
+  --el-button-active-text-color: var(--color-on-warning);
 }
 
 /* Danger 按钮 */
 [data-theme] .el-button--danger {
   --el-button-bg-color: var(--color-danger);
   --el-button-border-color: var(--color-danger);
-  --el-button-text-color: var(--color-on-primary);
-  --el-button-hover-text-color: var(--color-on-primary);
-  --el-button-hover-bg-color: color-mix(in srgb, var(--color-danger) 82%, var(--color-bg-base));
-  --el-button-hover-border-color: color-mix(in srgb, var(--color-danger) 82%, var(--color-bg-base));
-  --el-button-active-bg-color: var(--color-danger-dark, var(--color-danger));
-  --el-button-active-border-color: var(--color-danger-dark, var(--color-danger));
+  --el-button-text-color: var(--color-on-danger);
+  --el-button-hover-text-color: var(--color-on-danger);
+  --el-button-hover-bg-color: var(--color-danger);
+  --el-button-hover-border-color: var(--color-danger);
+  --el-button-active-text-color: var(--color-on-danger);
+  --el-button-active-bg-color: var(--color-danger);
+  --el-button-active-border-color: var(--color-danger);
 }
 
 /* Danger 朴素按钮 */
@@ -690,21 +726,23 @@
   --el-button-text-color: var(--color-danger);
   --el-button-bg-color: var(--color-danger-light);
   --el-button-border-color: color-mix(in srgb, var(--color-danger) 50%, var(--color-bg-base));
-  --el-button-hover-text-color: var(--color-on-primary);
+  --el-button-hover-text-color: var(--color-on-danger);
   --el-button-hover-bg-color: var(--color-danger);
   --el-button-hover-border-color: var(--color-danger);
+  --el-button-active-text-color: var(--color-on-danger);
 }
 
 /* Info 按钮 */
 [data-theme] .el-button--info {
   --el-button-bg-color: var(--color-info);
   --el-button-border-color: var(--color-info);
-  --el-button-text-color: var(--color-on-primary);
-  --el-button-hover-text-color: var(--color-on-primary);
-  --el-button-hover-bg-color: color-mix(in srgb, var(--color-info) 82%, var(--color-bg-base));
-  --el-button-hover-border-color: color-mix(in srgb, var(--color-info) 82%, var(--color-bg-base));
-  --el-button-active-bg-color: var(--color-info-dark, var(--color-info));
-  --el-button-active-border-color: var(--color-info-dark, var(--color-info));
+  --el-button-text-color: var(--color-on-info);
+  --el-button-hover-text-color: var(--color-on-info);
+  --el-button-hover-bg-color: var(--color-info);
+  --el-button-hover-border-color: var(--color-info);
+  --el-button-active-text-color: var(--color-on-info);
+  --el-button-active-bg-color: var(--color-info);
+  --el-button-active-border-color: var(--color-info);
 }
 
 /* Info 朴素按钮 */
@@ -712,9 +750,10 @@
   --el-button-text-color: var(--color-info);
   --el-button-bg-color: var(--color-info-light);
   --el-button-border-color: color-mix(in srgb, var(--color-info) 50%, var(--color-bg-base));
-  --el-button-hover-text-color: var(--color-on-primary);
+  --el-button-hover-text-color: var(--color-on-info);
   --el-button-hover-bg-color: var(--color-info);
   --el-button-hover-border-color: var(--color-info);
+  --el-button-active-text-color: var(--color-on-info);
 }
 
 

@@ -180,6 +180,7 @@
       :title="editingTodo ? '编辑待办' : '新建待办'"
       width="560px"
       class="todo-dialog"
+      append-to-body
       destroy-on-close
     >
       <el-form

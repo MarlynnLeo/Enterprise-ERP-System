@@ -225,13 +225,12 @@ class InventoryService {
         throw new Error(`无效的参数: materialId=${materialId}, locationId=${locationId}`);
       }
 
-      // ✅ 新增：检查缓存
+      // 在事务中（传入 connection）时自动禁用缓存，避免读到过时数据
+      const effectiveUseCache = useCache && !withLock && !connection;
       const cacheKey = `inventory_${materialId}_${locationId}`;
-      if (useCache && !withLock) {
-        // 使用锁时不使用缓存
+      if (effectiveUseCache) {
         const cached = await cacheService.get(cacheKey);
         if (cached !== null) {
-          logger.info(`[缓存命中] 库存查询: ${cacheKey}`);
           return cached;
         }
       }
@@ -251,10 +250,9 @@ class InventoryService {
 
       const quantity = parseFloat(result[0].current_stock);
 
-      // ✅ 新增：缓存结果（5分钟过期）
-      if (useCache && !withLock) {
+      // 缓存结果（5分钟过期），仅在非事务模式下缓存
+      if (effectiveUseCache) {
         await cacheService.set(cacheKey, quantity, 300);
-        logger.info(`[缓存设置] 库存查询: ${cacheKey}, 值: ${quantity}`);
       }
 
       return quantity;
@@ -427,11 +425,14 @@ class InventoryService {
       const beforeQuantity = await this.getCurrentStock(materialId, locationId, connection, true);
 
       // 3. 计算变动数量（统一为正数入库，负数出库）
+      // 防御性取反：当调用方不慎传了正数的出库类型时，自动修正为负数
+      const OUTBOUND_TYPES = [
+        'outbound', 'transfer_out', 'purchase_return',
+        'manual_out', 'sales_outbound', 'production_outbound',
+        'outsourced_outbound', 'sales_exchange_out', 'adjustment_out', 'other_outbound',
+      ];
       let changeQuantity = parseFloat(quantity);
-      if (
-        ['outbound', 'transfer_out', 'purchase_return'].includes(transactionType) &&
-        changeQuantity > 0
-      ) {
+      if (OUTBOUND_TYPES.includes(transactionType) && changeQuantity > 0) {
         changeQuantity = -changeQuantity;
       }
 

@@ -1,6 +1,7 @@
 /* global describe, expect, jest, test */
 
 const {
+  detectSQLInjection,
   sanitizeHTML,
   validateAndSanitizeInput,
 } = require('../../src/middleware/inputValidation');
@@ -13,6 +14,13 @@ const createRequest = (path, body) => ({
   params: {},
   is: jest.fn(() => false),
 });
+
+const createResponse = () => {
+  const res = {};
+  res.status = jest.fn(() => res);
+  res.json = jest.fn(() => res);
+  return res;
+};
 
 describe('inputValidation middleware', () => {
   test('preserves technical communication rich text while escaping ordinary fields', () => {
@@ -61,5 +69,32 @@ describe('inputValidation middleware', () => {
 
     expect(next).toHaveBeenCalledTimes(1);
     expect(req.body.description).toBe(sanitizeHTML('<img src=x onerror=alert(1)>'));
+  });
+
+  test('allows 8D narrative fields to contain quoted business prose', () => {
+    const req = createRequest('/api/quality/eight-d-reports', {
+      d8_lessons_learned: "体系维度：将寿命验证从'可选项目'升级为'强制门径'；流程维度：完善DFMEA复盘。",
+    });
+    const res = createResponse();
+    const next = jest.fn();
+
+    detectSQLInjection(req, res, next);
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(res.status).not.toHaveBeenCalled();
+  });
+
+  test('still blocks high-risk SQL patterns in 8D narrative fields', () => {
+    const req = createRequest('/api/quality/eight-d-reports', {
+      d8_lessons_learned: '复盘内容 UNION SELECT password FROM users',
+    });
+    const res = createResponse();
+    const next = jest.fn();
+
+    detectSQLInjection(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ errorCode: 'SUSPICIOUS_INPUT' }));
   });
 });

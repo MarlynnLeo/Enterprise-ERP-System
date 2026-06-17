@@ -33,5 +33,6 @@ describe('public routes', () => {
         expect.objectContaining({ path: '/production-board/stats', methods: ['get'] }),
       ])
     );
+    expect(routes.filter((route) => route.path === '/production-board')).toHaveLength(1);
   });
 });

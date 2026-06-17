@@ -6,7 +6,7 @@ const { logger } = require('../../utils/logger');
 const { pool } = require('../../config/db');
 const { MARKET_PRICE_CONFIG } = require('../../config/metalPriceConfig');
 
-const axios = require('axios');
+const { httpGet } = require('../../utils/httpClient');
 
 const roundPrice = (value) => parseFloat(Number(value).toFixed(2));
 
@@ -232,7 +232,7 @@ const fetchExchangeRate = async () => {
   }
 
   try {
-    const response = await axios.get(MARKET_PRICE_CONFIG.exchangeRateUrl, {
+    const response = await httpGet(MARKET_PRICE_CONFIG.exchangeRateUrl, {
       timeout: MARKET_PRICE_CONFIG.exchangeRateTimeoutMs,
     });
     if (response.data && response.data.rates && response.data.rates.CNY) {

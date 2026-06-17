@@ -157,8 +157,8 @@
       color: #5E7BF6;
     }
     &.completed {
-      background: rgba(44, 207, 176, 0.15);
-      color: #2CCFB0;
+      background: color-mix(in srgb, var(--color-success) 15%, transparent);
+      color: var(--color-success);
     }
     &.default {
       background: rgba(255, 255, 255, 0.1);

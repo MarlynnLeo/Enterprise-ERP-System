@@ -393,19 +393,19 @@ onMounted(() => {
 }
 
 .card-icon.bg-blue {
-  background: linear-gradient(135deg, var(--color-primary) 0%, #764ba2 100%);
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%);
 }
 
 .card-icon.bg-green {
-  background: linear-gradient(135deg, #2CCFB0 0%, #1BA392 100%);
+  background: linear-gradient(135deg, var(--color-success) 0%, var(--color-accent) 100%);
 }
 
 .card-icon.bg-yellow {
-  background: linear-gradient(135deg, var(--color-warning) 0%, #FF8A3D 100%);
+  background: linear-gradient(135deg, var(--color-warning) 0%, var(--ds-orange-strong) 100%);
 }
 
 .card-icon.bg-purple {
-  background: linear-gradient(135deg, #a855f7 0%, #9333ea 100%);
+  background: linear-gradient(135deg, var(--ds-purple) 0%, var(--module-purple) 100%);
 }
 
 .card-content {
@@ -485,13 +485,13 @@ onMounted(() => {
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--color-primary) 0%, #764ba2 100%);
+  background: linear-gradient(90deg, var(--color-primary) 0%, var(--color-accent) 100%);
   border-radius: 0.25rem;
   transition: width 0.3s ease;
 }
 
 .progress-fill.success {
-  background: linear-gradient(90deg, #2CCFB0 0%, #1BA392 100%);
+  background: linear-gradient(90deg, var(--color-success) 0%, var(--color-accent) 100%);
 }
 
 /* 实时任务 */

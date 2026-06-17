@@ -110,7 +110,7 @@
 
         <!-- 加载中 -->
         <div class="loading-container" v-else-if="loading">
-            <van-loading size="24px" vertical color="#a855f7">加载中...</van-loading>
+            <van-loading size="24px" vertical color="var(--color-primary)">加载中...</van-loading>
         </div>
 
         <!-- 错误/空状态 -->
@@ -459,10 +459,10 @@ onMounted(() => {
     align-items: center;
     justify-content: center;
     overflow: hidden;
-    &.status-draft { background: rgba(148, 163, 184, 0.15); color: #94a3b8; }
+    &.status-draft { background: color-mix(in srgb, var(--text-tertiary) 15%, transparent); color: var(--text-tertiary); }
     &.status-confirmed { background: rgba(59, 130, 246, 0.15); color: var(--module-blue); }
-    &.status-partial { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
-    &.status-completed { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+    &.status-partial { background: color-mix(in srgb, var(--color-warning) 15%, transparent); color: var(--color-warning); }
+    &.status-completed { background: color-mix(in srgb, var(--color-success) 15%, transparent); color: var(--color-success); }
     &.status-cancelled { background: rgba(239, 68, 68, 0.15); color: var(--color-error); }
 }
 
@@ -556,7 +556,7 @@ onMounted(() => {
 .detail-label { color: var(--text-tertiary); }
 .detail-value { color: var(--text-primary); }
 .detail-value.highlight { color: var(--module-purple); font-weight: 600; }
-.text-danger { color: #ef4444 !important; font-weight: 600; }
+.text-danger { color: var(--color-error) !important; font-weight: 600; }
 
 .loading-container,
 .empty-container {

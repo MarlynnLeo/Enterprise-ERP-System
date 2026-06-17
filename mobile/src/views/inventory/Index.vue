@@ -74,25 +74,25 @@
       label: '新建入库',
       path: '/inventory/inbound/create',
       icon: 'plus',
-      gradient: 'linear-gradient(135deg, var(--color-primary) 0%, #764ba2 100%)'
+      gradient: 'linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%)'
     },
     {
       label: '新建出库',
       path: '/inventory/outbound/create',
       icon: 'clipboard-check',
-      gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)'
+      gradient: 'linear-gradient(135deg, var(--ds-purple) 0%, var(--ds-pink) 100%)'
     },
     {
       label: '库存调拨',
       path: '/inventory/transfer/create',
       icon: 'exchange',
-      gradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)'
+      gradient: 'linear-gradient(135deg, var(--module-blue) 0%, var(--ds-cyan-strong) 100%)'
     },
     {
       label: '库存盘点',
       path: '/inventory/check/new',
       icon: 'document-text',
-      gradient: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)'
+      gradient: 'linear-gradient(135deg, var(--color-success) 0%, var(--ds-green-strong) 100%)'
     }
   ])
 

@@ -36,9 +36,6 @@ backend/backups/
 backend/scripts/*
 !backend/scripts/audit-*.js
 !backend/scripts/run-data-consistency-audit.js
-!backend/scripts/repair-*.js
-!backend/scripts/import-ng-2026-sales-orders.js
-backend/logs/backups/
 backend/assets/*.traineddata
 
 # 二进制文件和开发遗留物

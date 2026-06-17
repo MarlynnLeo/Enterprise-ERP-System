@@ -55,7 +55,7 @@ const buildThemeSettings = (themeName, sourceSettings = {}) => {
   return {
     theme: sourceMode || getPresetMode(theme.name),
     preset: theme.name,
-    primaryColor: theme.preview?.primary || previous?.primaryColor || '#00796B',
+    primaryColor: theme.preview?.primary || previous?.primaryColor || '#15803D',
     fontSize: normalizeFontSize(source.fontSize ?? previous?.fontSize)
   }
 }

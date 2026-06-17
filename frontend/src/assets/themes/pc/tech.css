@@ -306,8 +306,8 @@
 [data-theme="tech"] .el-table th {
   color: var(--color-primary) !important;
   font-weight: 600 !important;
-  text-transform: uppercase !important;
-  letter-spacing: 1px !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
   border-bottom: 2px solid color-mix(in srgb, var(--color-primary) 30%, transparent) !important;
 }
 

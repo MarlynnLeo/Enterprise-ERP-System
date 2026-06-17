@@ -187,25 +187,25 @@
     width: 5px;
     flex-shrink: 0;
     &.type-assets {
-      background: linear-gradient(180deg, var(--color-primary), #60a5fa);
+      background: linear-gradient(180deg, var(--color-primary), var(--color-accent));
     }
     &.type-liabilities {
       background: linear-gradient(180deg, var(--color-danger), var(--color-danger));
     }
     &.type-equity {
-      background: linear-gradient(180deg, #8b5cf6, #a78bfa);
+      background: linear-gradient(180deg, var(--ds-purple), var(--ds-purple-strong));
     }
     &.type-costs {
       background: linear-gradient(180deg, var(--color-warning), var(--color-warning));
     }
     &.type-revenue {
-      background: linear-gradient(180deg, var(--color-success), #34d399);
+      background: linear-gradient(180deg, var(--color-success), var(--ds-green-strong));
     }
     &.type-expenses {
-      background: linear-gradient(180deg, #f97316, #fb923c);
+      background: linear-gradient(180deg, var(--ds-orange), var(--ds-orange-strong));
     }
     &.type-default {
-      background: linear-gradient(180deg, var(--text-secondary), #9ca3af);
+      background: linear-gradient(180deg, var(--text-secondary), var(--text-tertiary));
     }
   }
 
@@ -243,11 +243,11 @@
     }
     &.type-equity {
       background: rgba(139, 92, 246, 0.1);
-      color: #8b5cf6;
+      color: var(--ds-purple);
     }
     &.type-costs {
       background: rgba(245, 158, 11, 0.1);
-      color: #d97706;
+      color: var(--color-warning);
     }
     &.type-revenue {
       background: rgba(16, 185, 129, 0.1);

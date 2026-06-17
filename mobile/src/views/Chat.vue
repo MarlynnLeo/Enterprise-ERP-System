@@ -468,7 +468,7 @@ const formatMsgTime = (ts) => {
     width: 10px;
     height: 10px;
     border-radius: 50%;
-    background: #2CCFB0;
+    background: var(--color-success);
     border: 2px solid var(--bg-primary);
   }
 }
@@ -723,7 +723,7 @@ const formatMsgTime = (ts) => {
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: #2CCFB0;
+    background: var(--color-success);
     border: 2px solid var(--bg-primary);
   }
 }

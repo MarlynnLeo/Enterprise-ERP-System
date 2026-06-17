@@ -330,10 +330,16 @@
   border-right: none !important;
 }
 
+/* 菜单容器水平内缩（代替菜单项 margin，避免 collapse 跳动） */
+:root[data-theme="default"] .sidebar-menu {
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
 :root[data-theme="default"] .el-menu-item,
 :root[data-theme="default"] .el-sub-menu__title {
   border-radius: var(--radius-sm);
-  margin: 2px 8px;
+  margin: 0;
   padding-left: 20px !important;
   transition:
     color var(--transition-fast),

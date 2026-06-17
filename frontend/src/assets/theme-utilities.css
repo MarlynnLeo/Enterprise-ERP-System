@@ -470,22 +470,27 @@
 /* Background */
 .bg-primary {
   background-color: var(--color-primary) !important;
+  color: var(--color-on-primary) !important;
 }
 
 .bg-success {
   background-color: var(--color-success) !important;
+  color: var(--color-on-success, var(--color-on-primary)) !important;
 }
 
 .bg-warning {
   background-color: var(--color-warning) !important;
+  color: var(--color-on-warning, var(--color-on-primary)) !important;
 }
 
 .bg-danger {
   background-color: var(--color-danger) !important;
+  color: var(--color-on-danger, var(--color-on-primary)) !important;
 }
 
 .bg-info {
   background-color: var(--color-info) !important;
+  color: var(--color-on-info, var(--color-on-primary)) !important;
 }
 
 .bg-white {

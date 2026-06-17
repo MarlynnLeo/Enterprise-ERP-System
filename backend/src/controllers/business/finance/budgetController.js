@@ -11,16 +11,17 @@ const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const db = require('../../../config/db');
+const BusinessError = require('../../../utils/BusinessError');
 
 const { BUDGET_STATUS_CODE } = budgetModel;
 
 function sendBudgetBusinessError(res, error, fallback) {
-  if (error.statusCode && error.statusCode < 500) {
+  if (BusinessError.is(error)) {
     return ResponseHandler.error(
       res,
       error.message || fallback,
-      error.code || 'VALIDATION_ERROR',
-      error.statusCode,
+      BusinessError.codeOf(error, 'VALIDATION_ERROR'),
+      BusinessError.statusCodeOf(error),
       error
     );
   }

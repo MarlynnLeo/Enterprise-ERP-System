@@ -27,11 +27,7 @@ function isOriginAllowed(origin) {
     return false;
   }
 
-  if (!origin) {
-    // 生产环境拒绝无 Origin 请求，防止非浏览器工具绕过 CORS
-    logger.security('CORS: 生产环境收到无 Origin 请求，已拒绝');
-    return false;
-  }
+  if (!origin) return true;
 
   return allowedOrigins.includes(origin);
 }

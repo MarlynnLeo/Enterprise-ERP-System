@@ -4,6 +4,7 @@ const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 const { getCurrentUserName } = require('../../../utils/userHelper');
 const CodeGeneratorService = require('../../../services/business/CodeGeneratorService');
+const BusinessError = require('../../../utils/BusinessError');
 
 /**
  * 标准成本版本状态常量
@@ -28,8 +29,10 @@ function assertMaxLength(fieldName, value, maxLength) {
 }
 
 function isBusinessError(error) {
-  const messages = ['not found', 'status', 'cannot', 'only', 'exists', 'length cannot exceed'];
-  return messages.some((message) => error.message?.includes(message));
+  return BusinessError.is(error)
+    || ['not found', 'status', 'cannot', 'only', 'exists', 'length cannot exceed'].some(
+      (message) => error.message?.includes(message)
+    );
 }
 
 const standardCostVersionController = {

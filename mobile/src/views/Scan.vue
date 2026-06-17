@@ -329,25 +329,25 @@
       value: 'inbound',
       label: '入库扫码',
       icon: 'download',
-      gradient: 'linear-gradient(135deg, #2CCFB0 0%, #1BA392 100%)'
+      gradient: 'linear-gradient(135deg, var(--color-success) 0%, var(--color-accent) 100%)'
     },
     {
       value: 'outbound',
       label: '出库扫码',
       icon: 'upload',
-      gradient: 'linear-gradient(135deg, var(--color-warning) 0%, #FF8A3D 100%)'
+      gradient: 'linear-gradient(135deg, var(--color-warning) 0%, var(--ds-orange-strong) 100%)'
     },
     {
       value: 'check',
       label: '盘点扫码',
       icon: 'clipboard-check',
-      gradient: 'linear-gradient(135deg, var(--color-primary) 0%, #764ba2 100%)'
+      gradient: 'linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%)'
     },
     {
       value: 'transfer',
       label: '调拨扫码',
       icon: 'refresh',
-      gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)'
+      gradient: 'linear-gradient(135deg, var(--ds-purple) 0%, var(--ds-pink) 100%)'
     }
   ]
 
@@ -936,7 +936,7 @@
   }
 
   .type-tab.active {
-    background: linear-gradient(135deg, var(--color-primary) 0%, #764ba2 100%);
+    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%);
     border-color: transparent;
     color: var(--text-primary);
   }
@@ -1115,7 +1115,7 @@
   }
 
   .result-actions :deep(.van-button--primary) {
-    background: linear-gradient(135deg, var(--color-primary) 0%, #764ba2 100%);
+    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%);
     border: none;
     height: 2.75rem;
     font-size: 1rem;
@@ -1341,7 +1341,7 @@
   }
 
   .popup-actions :deep(.van-button--primary) {
-    background: linear-gradient(135deg, var(--color-primary) 0%, #764ba2 100%);
+    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%);
     border: none;
     height: 2.75rem;
     font-size: 1rem;

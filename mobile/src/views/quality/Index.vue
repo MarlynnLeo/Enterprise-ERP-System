@@ -69,25 +69,25 @@
       label: '来料检验',
       path: '/quality/incoming/create',
       icon: 'cube',
-      gradient: 'linear-gradient(135deg, var(--color-primary) 0%, #764ba2 100%)'
+      gradient: 'linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%)'
     },
     {
       label: '过程检验',
       path: '/quality/process/create',
       icon: 'clipboard-check',
-      gradient: 'linear-gradient(135deg, #2CCFB0 0%, #1BA392 100%)'
+      gradient: 'linear-gradient(135deg, var(--color-success) 0%, var(--color-accent) 100%)'
     },
     {
       label: '成品检验',
       path: '/quality/final/create',
       icon: 'badge-check',
-      gradient: 'linear-gradient(135deg, #FF6B6B 0%, #EE5A52 100%)'
+      gradient: 'linear-gradient(135deg, var(--color-error) 0%, var(--color-danger) 100%)'
     },
     {
       label: '质量追溯',
       path: '/quality/traceability',
       icon: 'search',
-      gradient: 'linear-gradient(135deg, var(--color-warning) 0%, #FF8A3D 100%)'
+      gradient: 'linear-gradient(135deg, var(--color-warning) 0%, var(--ds-orange-strong) 100%)'
     }
   ])
 

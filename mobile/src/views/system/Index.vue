@@ -165,7 +165,7 @@
 
           <div class="monitor-card">
             <div class="monitor-header">
-              <Icon name="records" size="20" color="#2CCFB0" />
+              <Icon name="records" size="20" color="var(--color-success)" />
               <span>内存使用率</span>
             </div>
             <div class="monitor-value">{{ systemMonitor.memory }}%</div>
@@ -230,7 +230,7 @@
       title: '用户档案',
       description: '查看用户详细信息',
       icon: 'contact',
-      color: '#2CCFB0',
+      color: 'var(--color-success)',
       path: '/system/profiles',
       badge: null
     },
@@ -261,7 +261,7 @@
       title: '职位管理',
       description: '管理岗位设置',
       icon: 'medal-o',
-      color: '#FF6B6B',
+      color: 'var(--color-error)',
       path: '/system/positions',
       badge: null
     },
@@ -292,7 +292,7 @@
       title: '权限设置',
       description: '配置功能权限',
       icon: 'lock',
-      color: '#2CCFB0',
+      color: 'var(--color-success)',
       path: '/system/permissions',
       badge: null
     },
@@ -323,7 +323,7 @@
       title: '系统日志',
       description: '查看操作日志',
       icon: 'notes-o',
-      color: '#FF6B6B',
+      color: 'var(--color-error)',
       path: '/system/logs',
       badge: null
     },
@@ -415,7 +415,7 @@
   }
 
   .system-info-card {
-    background: linear-gradient(135deg, var(--color-info), #4a90e2);
+    background: linear-gradient(135deg, var(--color-info), var(--ds-blue-strong));
     border-radius: 16px;
     padding: 20px;
     margin-bottom: 16px;

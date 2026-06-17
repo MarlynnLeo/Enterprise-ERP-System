@@ -9,6 +9,26 @@ const { ResponseHandler } = require('../../utils/responseHandler');
 const { logger } = require('../../utils/logger');
 const { parsePagination } = require('../../utils/safePagination');
 
+function parseDateOnly(value) {
+  if (!value) return null;
+  const raw = String(value).trim();
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const parsed = new Date(year, month - 1, day);
+  if (
+    parsed.getFullYear() !== year ||
+    parsed.getMonth() !== month - 1 ||
+    parsed.getDate() !== day
+  ) {
+    return null;
+  }
+
+  return parsed;
+}
 
 // 记录用户活动
 exports.logActivity = async (req, res) => {
@@ -260,25 +280,8 @@ exports.getOnlineTimeRanking = async (req, res) => {
     const { date } = req.query;
     const db = require('../../config/db');
 
-    // 确定查询日期（默认为昨天）
-    let targetDate;
-    if (date) {
-      targetDate = new Date(date);
-    } else {
-      targetDate = new Date();
-      // 默认为当天，让用户能立刻看到自己的在线时长
-      // targetDate.setDate(targetDate.getDate() - 1);
-    }
-
-    // 设置查询时间范围（昨天的 00:00:00 到 23:59:59）
-    const startDate = new Date(targetDate);
-    startDate.setHours(0, 0, 0, 0);
-    const endDate = new Date(targetDate);
-    endDate.setHours(23, 59, 59, 999);
-
-    // 查询audit_logs表，统计用户在线时长
-    // 逻辑：如果两次请求间隔小于5分钟，认为用户一直在线
-    const query = `
+    // 排行榜统计 SQL（通过操作间隔推算在线时长）
+    const rankingQuery = `
       WITH user_activities AS (
         SELECT
           u.id as user_id,
@@ -332,7 +335,55 @@ exports.getOnlineTimeRanking = async (req, res) => {
       LIMIT 3
     `;
 
-    const [results] = await db.pool.query(query, [startDate, endDate]);
+    // 执行排行查询的辅助函数
+    const queryRanking = async (queryDate) => {
+      const startDate = new Date(queryDate);
+      startDate.setHours(0, 0, 0, 0);
+      const endDate = new Date(queryDate);
+      endDate.setHours(23, 59, 59, 999);
+      const [results] = await db.pool.query(rankingQuery, [startDate, endDate]);
+      return results;
+    };
+
+    let targetDate;
+    let results;
+
+    if (date) {
+      // 用户指定了日期，直接查询
+      targetDate = parseDateOnly(date);
+      if (!targetDate) {
+        return ResponseHandler.error(res, '日期格式无效，请使用 YYYY-MM-DD', 'VALIDATION_ERROR', 400);
+      }
+      results = await queryRanking(targetDate);
+    } else {
+      // 默认查当天
+      targetDate = new Date();
+      results = await queryRanking(targetDate);
+
+      // 当天无数据时，回退到最近有数据的日期（最多回退7天）
+      if (results.length === 0) {
+        const [recentDate] = await db.pool.query(
+          `SELECT DATE(created_at) as log_date
+           FROM audit_logs
+           WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+             AND user_id IS NOT NULL
+           GROUP BY DATE(created_at)
+           ORDER BY log_date DESC
+           LIMIT 1`
+        );
+
+        if (recentDate.length > 0) {
+          targetDate = new Date(recentDate[0].log_date);
+          results = await queryRanking(targetDate);
+        }
+      }
+    }
+
+    // 格式化日期用于前端展示
+    const displayDate = targetDate.toLocaleDateString('zh-CN', {
+      month: 'long',
+      day: 'numeric',
+    });
 
     // 格式化结果
     const rankings = results.map((row, index) => ({
@@ -349,7 +400,7 @@ exports.getOnlineTimeRanking = async (req, res) => {
       displayTime: `${row.hours}小时${row.minutes}分钟`,
     }));
 
-    return ResponseHandler.success(res, rankings);
+    return ResponseHandler.success(res, { rankings, date: displayDate });
   } catch (error) {
     logger.error('获取在线时长排行榜失败:', error);
 

@@ -17,6 +17,7 @@ const { currentDateString } = require('../../../utils/dateUtils');
 const OpeningBalanceService = require('../../../services/business/OpeningBalanceService');
 const { financeConfig } = require('../../../config/financeConfig');
 const { safeParseId } = require('../../../utils/safeParseId');
+const BusinessError = require('../../../utils/BusinessError');
 
 function normalizeMysqlFlag(value) {
   if (value === true || value === 1 || value === 1n) return true;
@@ -546,25 +547,7 @@ const financeController = {
       );
     } catch (error) {
       logger.error('创建会计分录失败:', error);
-      const businessMessages = [
-        '不能',
-        '不能为空',
-        '不平衡',
-        '长度不能超过',
-        '不存在',
-        '未找到',
-        'outside accounting period',
-        'Accounting period',
-        'Posted entry date',
-      ];
-      const isBusinessError = businessMessages.some((message) => error.message.includes(message));
-      ResponseHandler.error(
-        res,
-        error.message || '创建会计分录失败',
-        isBusinessError ? 'VALIDATION_ERROR' : 'SERVER_ERROR',
-        isBusinessError ? 400 : 500,
-        error
-      );
+      BusinessError.handleError(res, error, '创建会计分录失败', ResponseHandler);
     }
   },
 
@@ -687,20 +670,7 @@ const financeController = {
       }
     } catch (error) {
       logger.error('过账会计分录失败:', error);
-      // 将模型层的业务错误（如"不能在已关闭的期间过账"）返回给前端
-      const isBusinessError =
-        error.message.includes('不能') ||
-        error.message.includes('已过账') ||
-        error.message.includes('不存在') ||
-        error.message.includes('已冲销');
-      const statusCode = isBusinessError ? 400 : 500;
-      ResponseHandler.error(
-        res,
-        error.message || '过账会计分录失败',
-        'POST_ERROR',
-        statusCode,
-        error
-      );
+      BusinessError.handleError(res, error, '过账会计分录失败', ResponseHandler);
     }
   },
 
@@ -753,26 +723,7 @@ const financeController = {
       );
     } catch (error) {
       logger.error('冲销会计分录失败:', error);
-      const businessMessages = [
-        '不能',
-        '未过账',
-        '已冲销',
-        '不在会计期间',
-        '未匹配到同一个会计期间',
-        '会计期间不存在',
-        '没有明细',
-        '找不到',
-        '格式必须为',
-        '不是有效日期',
-      ];
-      const isBusinessError = businessMessages.some((message) => error.message.includes(message));
-      ResponseHandler.error(
-        res,
-        error.message || '冲销会计分录失败',
-        isBusinessError ? 'VALIDATION_ERROR' : 'SERVER_ERROR',
-        isBusinessError ? 400 : 500,
-        error
-      );
+      BusinessError.handleError(res, error, '冲销会计分录失败', ResponseHandler);
     }
   },
 

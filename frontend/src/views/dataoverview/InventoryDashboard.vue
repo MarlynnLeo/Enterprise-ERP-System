@@ -111,61 +111,70 @@
       </el-col>
     </el-row>
 
-    <el-row :gutter="20" class="mt-20">
-      <el-col :xs="24" :lg="12" class="mb-20">
-        <el-card class="dashboard-card" shadow="hover">
-          <template #header>
-            <div class="card-header">
-              <span>仓库金额分布</span>
-            </div>
-          </template>
-          <div class="chart-container">
-            <canvas v-if="warehouseValues.length > 0" ref="warehouseChart" height="300"></canvas>
-            <el-empty v-else description="暂无仓库金额数据" />
-          </div>
-        </el-card>
-      </el-col>
-
-      <el-col :xs="24" :lg="12" class="mb-20">
+    <el-row class="mt-20">
+      <el-col :span="24" class="mb-20">
         <el-card class="dashboard-card" shadow="hover">
           <template #header>
             <div class="card-header">
               <span>库存预警概览</span>
+              <el-tag v-if="alertItems.length > 0" type="danger" size="small" effect="plain">
+                {{ alertItems.length }} 项预警
+              </el-tag>
             </div>
           </template>
 
           <div class="alert-overview">
-            <div class="alert-summary">
-              <div class="alert-summary-item danger">
-                <span>零库存</span>
-                <strong>{{ alertSummary.critical }}</strong>
-              </div>
-              <div class="alert-summary-item warning">
-                <span>低库存</span>
-                <strong>{{ alertSummary.low }}</strong>
-              </div>
-              <div class="alert-summary-item info">
-                <span>超额库存</span>
-                <strong>{{ alertSummary.overstock }}</strong>
-              </div>
-            </div>
 
-            <div v-if="visibleAlertItems.length > 0" class="alert-list">
-              <div v-for="item in visibleAlertItems" :key="item.code || item.name" class="alert-item">
-                <div class="alert-item__main">
-                  <div class="alert-item__title">{{ item.name || '-' }}</div>
-                  <div class="alert-item__meta">{{ item.code || '-' }} · {{ item.location || '-' }}</div>
-                </div>
-                <div class="alert-item__value">
-                  <strong :class="{ 'text-danger': isCriticalStock(item), 'text-warning': item.type === 'low' }">
-                    {{ formatQuantity(item.quantity) }}
-                  </strong>
-                  <span>{{ item.unit || '' }}</span>
-                  <el-tag :type="getStatusTagType(item)" size="small">{{ getStatusText(item) }}</el-tag>
-                </div>
-              </div>
-            </div>
+            <el-table
+              v-if="alertItems.length > 0"
+              :data="paginatedAlertItems"
+              border
+              :max-height="400"
+              empty-text="暂无预警物料"
+              class="alert-table"
+            >
+              <el-table-column label="物料名称" prop="name" min-width="160">
+                <template #default="scope">
+                  <div class="alert-cell-name">
+                    <strong>{{ scope.row.name || '-' }}</strong>
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column label="物料编码" prop="code" min-width="140">
+                <template #default="scope">
+                  {{ scope.row.code || '-' }}
+                </template>
+              </el-table-column>
+              <el-table-column label="存放位置" prop="location" min-width="120">
+                <template #default="scope">
+                  {{ scope.row.location || '-' }}
+                </template>
+              </el-table-column>
+              <el-table-column label="当前库存" min-width="100" align="right">
+                <template #default="scope">
+                  <span :class="{ 'text-danger': isCriticalStock(scope.row), 'text-warning': scope.row.type === 'low' }">
+                    {{ formatQuantity(scope.row.quantity) }}
+                  </span>
+                  <span class="unit-text">{{ scope.row.unit || '' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="预警状态" min-width="100" align="center">
+                <template #default="scope">
+                  <el-tag :type="getStatusTagType(scope.row)" size="small">{{ getStatusText(scope.row) }}</el-tag>
+                </template>
+              </el-table-column>
+            </el-table>
             <el-empty v-else description="暂无预警物料" />
+
+            <div class="pagination-container" v-if="alertItems.length > alertPageSize">
+              <el-pagination
+                v-model:current-page="alertCurrentPage"
+                v-model:page-size="alertPageSize"
+                :page-sizes="[5, 10, 20]"
+                layout="total, sizes, prev, pager, next"
+                :total="alertItems.length"
+              />
+            </div>
           </div>
         </el-card>
       </el-col>
@@ -182,7 +191,6 @@ import { parseDataObject } from '@/utils/responseParser'
 import { formatCurrency, formatQuantity } from '@/utils/dashboardUtils'
 import {
   chartColors,
-  createBarChartConfig,
   createLineChartConfig,
   createPieChartConfig
 } from '@/utils/chartConfig'
@@ -190,14 +198,15 @@ import {
 const loading = ref(false)
 const lastUpdated = ref(null)
 const dashboardData = ref({})
-const stockStatistics = ref({})
 const inventoryTrendChart = ref(null)
 const categoryChart = ref(null)
-const warehouseChart = ref(null)
 
 let inventoryTrendInstance = null
 let categoryInstance = null
-let warehouseInstance = null
+
+// 预警列表分页
+const alertCurrentPage = ref(1)
+const alertPageSize = ref(10)
 
 const toNumber = value => Number.parseFloat(value) || 0
 
@@ -272,38 +281,11 @@ const categoryDistribution = computed(() => {
   return []
 })
 
-const warehouseValues = computed(() => {
-  const data = dashboardData.value || {}
-  const stats = stockStatistics.value || {}
-  const source = data.warehouseValues
-    || data.totalValueByLocation
-    || data.locationValues
-    || stats.totalValueByLocation
-    || stats.warehouseValues
-    || []
-
-  return Array.isArray(source)
-    ? source.map(item => ({
-      label: item.label || item.name || item.location_name || '未命名仓库',
-      value: toNumber(item.value ?? item.totalValue ?? item.amount)
-    }))
-    : []
+const paginatedAlertItems = computed(() => {
+  const start = (alertCurrentPage.value - 1) * alertPageSize.value
+  return alertItems.value.slice(start, start + alertPageSize.value)
 })
 
-const visibleAlertItems = computed(() => alertItems.value.slice(0, 6))
-
-const alertSummary = computed(() => {
-  return alertItems.value.reduce((summary, item) => {
-    if (isCriticalStock(item)) {
-      summary.critical += 1
-    } else if (item.type === 'low') {
-      summary.low += 1
-    } else if (item.type === 'overstock') {
-      summary.overstock += 1
-    }
-    return summary
-  }, { critical: 0, low: 0, overstock: 0 })
-})
 
 const isCriticalStock = item => item.type === 'critical' || toNumber(item.quantity) <= 0
 
@@ -325,10 +307,8 @@ const getStatusText = item => {
 const destroyCharts = () => {
   inventoryTrendInstance?.destroy()
   categoryInstance?.destroy()
-  warehouseInstance?.destroy()
   inventoryTrendInstance = null
   categoryInstance = null
-  warehouseInstance = null
 }
 
 const renderCharts = async () => {
@@ -392,32 +372,7 @@ const renderCharts = async () => {
     })
   }
 
-  if (warehouseChart.value && warehouseValues.value.length > 0) {
-    const topWarehouses = warehouseValues.value.slice(0, 8)
-    const config = createBarChartConfig({
-      yAxisFormatter: value => formatCurrency(value),
-      tooltipFormatter: context => `${context.label}: ${formatCurrency(context.raw)}`
-    })
-    config.indexAxis = 'y'
-    config.plugins.legend.display = false
 
-    warehouseInstance = new Chart(warehouseChart.value.getContext('2d'), {
-      type: 'bar',
-      data: {
-        labels: topWarehouses.map(item => item.label),
-        datasets: [
-          {
-            label: '库存金额',
-            data: topWarehouses.map(item => item.value),
-            backgroundColor: chartColors.primary[0],
-            borderColor: chartColors.primary[1],
-            borderWidth: 1
-          }
-        ]
-      },
-      options: config
-    })
-  }
 }
 
 const loadData = async () => {
@@ -425,15 +380,6 @@ const loadData = async () => {
   try {
     const response = await inventoryApi.getDashboardSummary()
     dashboardData.value = parseDataObject(response, { enableLog: false }) || {}
-
-    try {
-      const stockResponse = await inventoryApi.getStockStatistics()
-      stockStatistics.value = parseDataObject(stockResponse, { enableLog: false }) || {}
-    } catch (error) {
-      console.warn('获取库存金额分布失败:', error)
-      stockStatistics.value = {}
-    }
-
     lastUpdated.value = new Date()
     await renderCharts()
   } catch (error) {
@@ -542,93 +488,30 @@ onBeforeUnmount(destroyCharts)
   display: flex;
   flex-direction: column;
   gap: 14px;
-  min-height: 300px;
 }
-.alert-summary {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
+.alert-table {
+  margin-top: 4px;
 }
-.alert-summary-item {
-  padding: 12px;
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 6px;
-  background: var(--el-fill-color-extra-light);
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.alert-summary-item span {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-.alert-summary-item strong {
-  font-size: 24px;
-  line-height: 1;
-  color: var(--el-text-color-primary);
-}
-.alert-summary-item.danger {
-  border-color: var(--el-color-danger-light-7);
-}
-.alert-summary-item.warning {
-  border-color: var(--el-color-warning-light-7);
-}
-.alert-summary-item.info {
-  border-color: var(--el-color-info-light-7);
-}
-.alert-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.alert-item {
-  min-height: 46px;
-  padding: 10px 12px;
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-.alert-item__main {
-  min-width: 0;
-}
-.alert-item__title {
+.alert-cell-name strong {
   font-size: 14px;
-  font-weight: 600;
   color: var(--el-text-color-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
-.alert-item__meta {
-  margin-top: 3px;
+.unit-text {
+  margin-left: 4px;
   font-size: 12px;
   color: var(--el-text-color-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
-.alert-item__value {
-  min-width: 116px;
+.pagination-container {
+  margin-top: 12px;
   display: flex;
-  align-items: center;
   justify-content: flex-end;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-.alert-item__value strong {
-  font-size: 16px;
-  color: var(--el-text-color-primary);
 }
 .text-danger {
-  color: var(--el-color-danger);
+  color: var(--el-color-danger) !important;
   font-weight: bold;
 }
 .text-warning {
-  color: var(--el-color-warning);
+  color: var(--el-color-warning) !important;
   font-weight: bold;
 }
 /* 响应式调整 */
@@ -638,17 +521,6 @@ onBeforeUnmount(destroyCharts)
   }
   .stat-secondary-value {
     font-size: 18px;
-  }
-  .alert-summary {
-    grid-template-columns: 1fr;
-  }
-  .alert-item {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-  .alert-item__value {
-    min-width: 0;
-    justify-content: flex-start;
   }
 }
 </style>

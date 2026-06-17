@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * Notifications.vue
  * @description 通知列表页面
@@ -17,74 +17,53 @@
       </div>
     </el-card>
 
-    <!-- 统计卡片 -->
-    <el-row :gutter="16" class="stats-row">
-      <el-col :xs="12" :sm="8" :md="4" :lg="4">
-        <el-card class="stat-card">
-          <div class="stat-content">
-            <div class="stat-icon stat-icon--primary">
-              <el-icon :size="32"><Bell /></el-icon>
-            </div>
-            <div class="stat-info">
-              <div class="stat-value">{{ total }}</div>
-              <div class="stat-label">全部通知</div>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-      <el-col :xs="12" :sm="8" :md="4" :lg="4">
-        <el-card class="stat-card">
-          <div class="stat-content">
-            <div class="stat-icon stat-icon--danger">
-              <el-icon :size="32"><Message /></el-icon>
-            </div>
-            <div class="stat-info">
-              <div class="stat-value">{{ unreadCount }}</div>
-              <div class="stat-label">未读通知</div>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-      <el-col :xs="12" :sm="8" :md="4" :lg="4">
-        <el-card class="stat-card">
-          <div class="stat-content">
-            <div class="stat-icon stat-icon--info">
-              <el-icon :size="32"><InfoFilled /></el-icon>
-            </div>
-            <div class="stat-info">
-              <div class="stat-value">{{ systemCount }}</div>
-              <div class="stat-label">系统通知</div>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-      <el-col :xs="12" :sm="8" :md="4" :lg="4">
-        <el-card class="stat-card">
-          <div class="stat-content">
-            <div class="stat-icon stat-icon--success">
-              <el-icon :size="32"><Document /></el-icon>
-            </div>
-            <div class="stat-info">
-              <div class="stat-value">{{ businessCount }}</div>
-              <div class="stat-label">业务通知</div>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-      <el-col :xs="12" :sm="8" :md="4" :lg="4">
-        <el-card class="stat-card">
-          <div class="stat-content">
-            <div class="stat-icon stat-icon--warning">
-              <el-icon :size="32"><Warning /></el-icon>
-            </div>
-            <div class="stat-info">
-              <div class="stat-value">{{ warningCount }}</div>
-              <div class="stat-label">预警通知</div>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-    </el-row>
+    <div class="statistics-row">
+      <el-card class="stat-card" shadow="hover">
+        <div class="stat-icon stat-icon--primary">
+          <el-icon :size="24"><Bell /></el-icon>
+        </div>
+        <div class="stat-info">
+          <div class="stat-value">{{ total }}</div>
+          <div class="stat-label">全部通知</div>
+        </div>
+      </el-card>
+      <el-card class="stat-card" shadow="hover">
+        <div class="stat-icon stat-icon--danger">
+          <el-icon :size="24"><Message /></el-icon>
+        </div>
+        <div class="stat-info">
+          <div class="stat-value">{{ unreadCount }}</div>
+          <div class="stat-label">未读通知</div>
+        </div>
+      </el-card>
+      <el-card class="stat-card" shadow="hover">
+        <div class="stat-icon stat-icon--info">
+          <el-icon :size="24"><InfoFilled /></el-icon>
+        </div>
+        <div class="stat-info">
+          <div class="stat-value">{{ systemCount }}</div>
+          <div class="stat-label">系统通知</div>
+        </div>
+      </el-card>
+      <el-card class="stat-card" shadow="hover">
+        <div class="stat-icon stat-icon--success">
+          <el-icon :size="24"><Document /></el-icon>
+        </div>
+        <div class="stat-info">
+          <div class="stat-value">{{ businessCount }}</div>
+          <div class="stat-label">业务通知</div>
+        </div>
+      </el-card>
+      <el-card class="stat-card" shadow="hover">
+        <div class="stat-icon stat-icon--warning">
+          <el-icon :size="24"><Warning /></el-icon>
+        </div>
+        <div class="stat-info">
+          <div class="stat-value">{{ warningCount }}</div>
+          <div class="stat-label">预警通知</div>
+        </div>
+      </el-card>
+    </div>
 
     <!-- 筛选栏 -->
     <el-card class="filter-card">
@@ -455,69 +434,6 @@ onMounted(() => {
   margin: 0;
   font-size: 24px;
   font-weight: 600;
-}
-
-.stats-row {
-  margin-bottom: 20px;
-}
-
-.stat-card {
-  cursor: pointer;
-  transition: border-color 0.2s ease, background-color 0.2s ease;
-}
-
-.stat-card:hover {
-  border-color: var(--el-color-primary-light-6);
-  background: var(--el-fill-color-extra-light);
-}
-
-.stat-content {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.stat-icon {
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--color-on-primary);
-}
-
-.stat-icon--primary {
-  background: var(--el-color-primary);
-}
-
-.stat-icon--danger,
-.stat-icon--warning {
-  background: var(--el-color-danger);
-}
-
-.stat-icon--info {
-  background: var(--el-color-info);
-}
-
-.stat-icon--success {
-  background: var(--el-color-success);
-}
-
-.stat-info {
-  flex: 1;
-}
-
-.stat-value {
-  font-size: 28px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-  margin-bottom: 4px;
-}
-
-.stat-label {
-  font-size: 14px;
-  color: var(--el-text-color-secondary);
 }
 
 .filter-card {

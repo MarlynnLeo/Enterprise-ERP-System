@@ -305,7 +305,7 @@
         color: var(--color-primary);
       }
       &.success {
-        color: #34d399;
+        color: var(--ds-green-strong);
       }
     }
     .stat-label {
@@ -406,16 +406,16 @@
     width: 4px;
     flex-shrink: 0;
     &.status-draft {
-      background: linear-gradient(180deg, var(--text-secondary), #cbd5e1);
+      background: linear-gradient(180deg, var(--text-secondary), var(--text-disabled));
     }
     &.status-pending {
       background: linear-gradient(180deg, var(--color-warning), var(--color-warning));
     }
     &.status-approved {
-      background: linear-gradient(180deg, var(--color-primary), #60a5fa);
+      background: linear-gradient(180deg, var(--color-primary), var(--color-accent));
     }
     &.status-completed {
-      background: linear-gradient(180deg, var(--color-success), #34d399);
+      background: linear-gradient(180deg, var(--color-success), var(--ds-green-strong));
     }
     &.status-cancelled {
       background: linear-gradient(180deg, var(--color-danger), var(--color-danger));

@@ -303,7 +303,7 @@
     margin-bottom: 8px;
     &.pending { background: rgba(255, 170, 0, 0.15); color: #ffaa00; }
     &.in-progress { background: rgba(94, 123, 246, 0.15); color: #5E7BF6; }
-    &.completed, &.received { background: rgba(44, 207, 176, 0.15); color: #2CCFB0; }
+    &.completed, &.received { background: color-mix(in srgb, var(--color-success) 15%, transparent); color: var(--color-success); }
     &.failed { background: rgba(239, 68, 68, 0.15); color: var(--color-error); }
   }
 

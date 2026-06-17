@@ -693,69 +693,11 @@ const apController = {
   getSupplierPayables: async (req, res) => {
     try {
       const { supplierName, status } = req.query;
-
-      // 从数据库获取供应商应付款汇总
-      const connection = await db.pool.getConnection();
-
-      try {
-        // 构建查询条件
-        let whereClause = '';
-        const params = [];
-
-        if (supplierName) {
-          whereClause += ' AND s.name LIKE ?';
-          params.push(`%${supplierName}%`);
-        }
-
-        if (status) {
-          whereClause += ' AND i.status = ?';
-          params.push(status);
-        }
-
-        // 执行查询
-        const [payables] = await connection.execute(
-          `
-          SELECT
-            s.id AS supplierId,
-            s.name AS supplierName,
-            s.contact_person AS contactPerson,
-            s.contact_phone AS contactPhone,
-            COUNT(i.id) AS invoiceCount,
-            COALESCE(SUM(i.total_amount), 0) AS totalAmount,
-            COALESCE(SUM(i.paid_amount), 0) AS paidAmount,
-            COALESCE(SUM(i.balance_amount), 0) AS balance,
-            MAX(i.invoice_date) AS lastInvoiceDate
-          FROM suppliers s
-          LEFT JOIN ap_invoices i ON s.id = i.supplier_id
-            AND i.status IN ('已确认', '部分付款')
-          WHERE s.status = 1 ${whereClause}
-          GROUP BY s.id, s.name, s.contact_person, s.contact_phone
-          HAVING balance > 0
-          ORDER BY balance DESC
-        `,
-          params
-        );
-
-        // 格式化数据
-        const formattedData = payables.map((item) => ({
-          supplierId: item.supplierId,
-          supplierName: item.supplierName,
-          contactPerson: item.contactPerson,
-          contactPhone: item.contactPhone,
-          invoiceCount: parseInt(item.invoiceCount || 0),
-          totalAmount: parseFloat(item.totalAmount || 0),
-          paidAmount: parseFloat(item.paidAmount || 0),
-          balance: parseFloat(item.balance || 0),
-          lastInvoiceDate: item.lastInvoiceDate,
-        }));
-
-        return ResponseHandler.success(res, {
-          data: formattedData,
-          total: formattedData.length,
-        }, '获取供应商应付款成功');
-      } finally {
-        connection.release();
-      }
+      const formattedData = await apModel.getSupplierPayablesSummary({ supplierName, status });
+      return ResponseHandler.success(res, {
+        data: formattedData,
+        total: formattedData.length,
+      }, '获取供应商应付款成功');
     } catch (error) {
       logger.error('获取供应商应付款失败:', error);
       return ResponseHandler.error(res, '获取供应商应付款失败', 'SERVER_ERROR', 500, error);

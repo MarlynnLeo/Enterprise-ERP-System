@@ -83,6 +83,11 @@
   flex-wrap: wrap;
 }
 
+/* el-row 自带 gutter 间距，禁用 gap 避免双重间隙导致换行 */
+.module-page .statistics-row.el-row {
+  gap: 0 !important;
+}
+
 .module-page .statistics-row > .stat-card {
   flex: 1 1 160px !important;
   min-width: 130px;
@@ -210,6 +215,25 @@
 
 .el-table :is(.el-table__fixed, .el-table__fixed-right) {
   background: var(--erp-table-fixed-cell-bg) !important;
+}
+
+/* Keep every Element Plus table header readable on a single line, even when
+   pages force body cells to one-line ellipsis. */
+.el-table .el-table__header-wrapper .el-table__header thead tr th.el-table__cell,
+.el-table .el-table__fixed-header-wrapper .el-table__header thead tr th.el-table__cell,
+.el-table .el-table__fixed-right .el-table__fixed-header-wrapper .el-table__header thead tr th.el-table__cell {
+  overflow: visible !important;
+}
+
+.el-table .el-table__header-wrapper .el-table__header thead tr th.el-table__cell > .cell,
+.el-table .el-table__fixed-header-wrapper .el-table__header thead tr th.el-table__cell > .cell,
+.el-table .el-table__fixed-right .el-table__fixed-header-wrapper .el-table__header thead tr th.el-table__cell > .cell {
+  white-space: nowrap !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  overflow-wrap: normal;
+  word-break: keep-all;
+  line-height: 1.35;
 }
 
 .el-table .el-table__header-wrapper tr > th.el-table__cell.el-table-fixed-column--left,

@@ -55,7 +55,7 @@ const THEME_PRESETS = Object.freeze({
   kacon: Object.freeze({
     id: 'kacon',
     name: 'KACON品牌',
-    primaryColor: process.env.DEFAULT_THEME_PRIMARY_COLOR || '#00A896',
+    primaryColor: process.env.DEFAULT_THEME_PRIMARY_COLOR || '#15803D',
     mode: 'light',
   }),
 });

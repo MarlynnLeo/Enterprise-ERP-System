@@ -496,16 +496,16 @@
       color: #5E7BF6;
     }
     &.completed {
-      background: rgba(44, 207, 176, 0.15);
-      color: #2CCFB0;
+      background: color-mix(in srgb, var(--color-success) 15%, transparent);
+      color: var(--color-success);
     }
     &.received {
-      background: rgba(44, 207, 176, 0.15);
-      color: #2CCFB0;
+      background: color-mix(in srgb, var(--color-success) 15%, transparent);
+      color: var(--color-success);
     }
     &.passed {
       background: rgba(16, 185, 129, 0.15);
-      color: #10b981;
+      color: var(--color-success);
     }
     &.failed {
       background: rgba(239, 68, 68, 0.15);
@@ -513,7 +513,7 @@
     }
     &.partial {
       background: rgba(245, 158, 11, 0.15);
-      color: #f59e0b;
+      color: var(--color-warning);
     }
     &.default {
       background: rgba(255, 255, 255, 0.1);
@@ -625,10 +625,10 @@
 
     &.btn-pass {
       border-color: rgba(16, 185, 129, 0.3);
-      color: #10b981;
+      color: var(--color-success);
       &.active {
         background: rgba(16, 185, 129, 0.15);
-        border-color: #10b981;
+        border-color: var(--color-success);
       }
     }
 
@@ -647,7 +647,7 @@
   }
 
   .result-pass {
-    color: #10b981;
+    color: var(--color-success);
     font-weight: 600;
     font-size: 0.8125rem;
   }

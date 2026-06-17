@@ -5,7 +5,7 @@
  * @version 1.0.0
  */
 
-const axios = require('axios');
+const { httpGet, httpPost } = require('../../utils/httpClient');
 const crypto = require('crypto');
 const { logger } = require('../../utils/logger');
 const dingtalkConfig = require('../../config/dingtalkConfig');
@@ -35,7 +35,7 @@ class DingtalkService {
         throw new Error('钉钉AppKey或AppSecret未配置');
       }
 
-      const response = await axios.get(`${apiBaseUrl}/gettoken`, {
+      const response = await httpGet(`${apiBaseUrl}/gettoken`, {
         params: {
           appkey: appKey,
           appsecret: appSecret,
@@ -103,7 +103,7 @@ class DingtalkService {
         requestBody.agent_id = agentId;
       }
 
-      const response = await axios.post(
+      const response = await httpPost(
         `${apiBaseUrl}/topapi/processinstance/create`,
         requestBody,
         {
@@ -186,7 +186,7 @@ class DingtalkService {
       const accessToken = await this.getAccessToken();
       const { apiBaseUrl } = this.config;
 
-      const response = await axios.post(
+      const response = await httpPost(
         `${apiBaseUrl}/topapi/processinstance/get`,
         { process_instance_id: instanceId },
         {
@@ -373,7 +373,7 @@ class DingtalkService {
       let hasMore = true;
 
       while (hasMore) {
-        const response = await axios.post(
+        const response = await httpPost(
           `${apiBaseUrl}/topapi/processinstance/listids`,
           {
             process_code: processCode,
@@ -667,7 +667,7 @@ class DingtalkService {
       const accessToken = await this.getAccessToken();
       const { apiBaseUrl } = this.config;
 
-      const response = await axios.post(
+      const response = await httpPost(
         `${apiBaseUrl}/topapi/v2/user/getbymobile`,
         { mobile },
         {

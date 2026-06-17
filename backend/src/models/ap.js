@@ -1815,6 +1815,63 @@ const apModel = {
       throw error;
     }
   },
+
+
+  /**
+   * 获取供应商应付款汇总（含联系人信息和余额筛选）
+   * @param {Object} filters - 筛选条件
+   * @param {string} [filters.supplierName] - 供应商名称（模糊匹配）
+   * @param {string} [filters.status] - 发票状态
+   * @returns {Promise<Array>} 供应商应付款汇总列表
+   */
+  getSupplierPayablesSummary: async (filters = {}) => {
+    const { supplierName, status } = filters;
+    let whereClause = '';
+    const params = [];
+
+    if (supplierName) {
+      whereClause += ' AND s.name LIKE ?';
+      params.push(`%${supplierName}%`);
+    }
+
+    if (status) {
+      whereClause += ' AND i.status = ?';
+      params.push(status);
+    }
+
+    const [payables] = await db.pool.execute(
+      `SELECT
+        s.id AS supplierId,
+        s.name AS supplierName,
+        s.contact_person AS contactPerson,
+        s.contact_phone AS contactPhone,
+        COUNT(i.id) AS invoiceCount,
+        COALESCE(SUM(i.total_amount), 0) AS totalAmount,
+        COALESCE(SUM(i.paid_amount), 0) AS paidAmount,
+        COALESCE(SUM(i.balance_amount), 0) AS balance,
+        MAX(i.invoice_date) AS lastInvoiceDate
+      FROM suppliers s
+      LEFT JOIN ap_invoices i ON s.id = i.supplier_id
+        AND i.status IN ('已确认', '部分付款')
+      WHERE s.status = 1 ${whereClause}
+      GROUP BY s.id, s.name, s.contact_person, s.contact_phone
+      HAVING balance > 0
+      ORDER BY balance DESC`,
+      params
+    );
+
+    return payables.map((item) => ({
+      supplierId: item.supplierId,
+      supplierName: item.supplierName,
+      contactPerson: item.contactPerson,
+      contactPhone: item.contactPhone,
+      invoiceCount: parseInt(item.invoiceCount || 0),
+      totalAmount: parseFloat(item.totalAmount || 0),
+      paidAmount: parseFloat(item.paidAmount || 0),
+      balance: parseFloat(item.balance || 0),
+      lastInvoiceDate: item.lastInvoiceDate,
+    }));
+  },
 };
 
 module.exports = apModel;

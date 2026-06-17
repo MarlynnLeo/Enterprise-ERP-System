@@ -24,14 +24,14 @@
   },
   "devDependencies": {
     "@vitejs/plugin-basic-ssl": "^2.1.4",
-    "@vitejs/plugin-vue": "^6.0.3",
+    "@vitejs/plugin-vue": "^6.0.7",
     "eslint": "^10.2.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-vue": "^10.8.0",
     "postcss-px-to-viewport-8-plugin": "^1.2.5",
     "prettier": "^3.8.3",
     "sass": "^1.69.5",
-    "vite": "^7.3.0"
+    "vite": "^8.0.16"
   },
   "overrides": {
     "ws": "8.20.1"

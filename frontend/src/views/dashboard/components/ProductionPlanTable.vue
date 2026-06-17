@@ -6,11 +6,6 @@
 -->
 <template>
   <div class="warning-container">
-    <div class="list-header">
-      <div class="tab-group">
-        <div class="tab active">生产计划</div>
-      </div>
-    </div>
     <div class="table-wrapper">
       <el-table
         :data="warningList"

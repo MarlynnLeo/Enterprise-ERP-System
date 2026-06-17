@@ -313,9 +313,11 @@
 .user-info {
   display: flex;
   align-items: center;
+  gap: 6px;
   cursor: pointer;
-  padding: 4px 12px 4px 4px;
-  border-radius: 20px;
+  min-height: 40px;
+  padding: 2px 12px 2px 2px;
+  border-radius: 999px;
   background: var(--shell-control-bg);
   border: 1px solid var(--shell-control-border);
   transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
@@ -325,14 +327,16 @@
   border-color: var(--shell-accent);
   box-shadow: var(--shell-control-hover-shadow);
 }
-.user-avatar {
-  border: 2px solid transparent;
-  background: linear-gradient(var(--color-bg-base), var(--color-bg-base)) padding-box,
-              linear-gradient(90deg, var(--shell-accent), var(--shell-accent-strong)) border-box;
-  box-shadow: 0 0 10px var(--shell-glow);
+.header-avatar-frame {
+  width: 48px;
+  height: 48px;
+  margin: -5px -2px -5px -5px;
+}
+
+.header-avatar-frame .decorative-avatar {
+  border-width: 2px;
 }
 .username {
-  margin-left: 8px;
   font-size: 14px;
   color: var(--el-text-color-primary);
 }
@@ -421,21 +425,21 @@
   background-color: transparent;
   overflow-x: hidden;
   overflow-y: auto;
+  scrollbar-gutter: stable;
   position: relative;
   z-index: 1;
   margin: 0 10px 10px 10px;
-}
-/* Hide main content scrollbar when dialog is open */
-body.el-popup-parent--hidden .main-content {
-  overflow-y: hidden;
 }
 /* ===== 侧边栏折叠 ===== */
 .sidebar.collapsed {
   flex-basis: var(--shell-sidebar-collapsed-width);
   width: var(--shell-sidebar-collapsed-width) !important;
 }
-.sidebar.is-resizing * {
-  transition-property: color, background-color, border-color, box-shadow, opacity, transform !important;
+.sidebar.is-resizing .logo-container .title,
+.sidebar.is-resizing .app-menu .el-menu-item > span,
+.sidebar.is-resizing .app-menu .el-sub-menu__title > span,
+.sidebar.is-resizing .app-menu .el-sub-menu__icon-arrow {
+  transition-property: opacity, transform, color !important;
 }
 .sidebar.is-mini .sidebar-menu {
   width: 100%;

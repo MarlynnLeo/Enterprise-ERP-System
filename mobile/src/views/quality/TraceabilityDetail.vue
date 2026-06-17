@@ -313,7 +313,7 @@
     font-size: 1.5rem;
 
     &.icon-product {
-      background: rgba(103, 193, 217, 0.12);
+      background: color-mix(in srgb, var(--color-primary) 12%, transparent);
     }
 
     &.icon-material {
@@ -349,13 +349,13 @@
     font-weight: 600;
 
     &.badge-product {
-      background: rgba(103, 193, 217, 0.15);
+      background: color-mix(in srgb, var(--color-primary) 15%, transparent);
       color: #4ba8c0;
     }
 
     &.badge-material {
       background: rgba(245, 158, 11, 0.12);
-      color: #d97706;
+      color: var(--color-warning);
     }
   }
 

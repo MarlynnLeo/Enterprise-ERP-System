@@ -353,7 +353,7 @@
   .brand-name {
     font-size: 1.25rem;
     font-weight: 900;
-    letter-spacing: -0.05em;
+    letter-spacing: 0;
     color: var(--text-primary);
     font-style: italic;
     margin: 0;
@@ -363,12 +363,12 @@
     font-size: 0.625rem;
     font-weight: 900;
     color: var(--color-accent);
-    background: rgba(103, 193, 217, 0.1);
+    background: color-mix(in srgb, var(--color-primary) 10%, transparent);
     padding: 2px 8px;
     border-radius: 6px;
-    border: 1px solid rgba(103, 193, 217, 0.2);
+    border: 1px solid color-mix(in srgb, var(--color-primary) 20%, transparent);
     text-transform: uppercase;
-    letter-spacing: 0.15em;
+    letter-spacing: 0;
   }
 
   .brand-sub {
@@ -376,7 +376,7 @@
     color: var(--text-secondary);
     font-weight: 900;
     text-transform: uppercase;
-    letter-spacing: 0.3em;
+    letter-spacing: 0;
     margin: 2px 0 0;
   }
 
@@ -446,7 +446,7 @@
     height: 100%;
     padding: 6px;
     color: var(--color-accent);
-    background: rgba(103, 193, 217, 0.1);
+    background: color-mix(in srgb, var(--color-primary) 10%, transparent);
     border-radius: 14px;
     border: 1px solid rgba(255, 255, 255, 0.05);
   }
@@ -507,7 +507,7 @@
     font-size: 0.6875rem;
     font-weight: 900;
     text-transform: uppercase;
-    letter-spacing: 0.25em;
+    letter-spacing: 0;
     margin: 0;
   }
 
@@ -516,12 +516,12 @@
     font-size: 1.375rem;
     font-weight: 900;
     font-style: italic;
-    letter-spacing: -0.05em;
+    letter-spacing: 0;
     margin: 4px 0 0;
   }
 
   .dashboard-icon-wrap {
-    background: rgba(103, 193, 217, 0.2);
+    background: color-mix(in srgb, var(--color-primary) 20%, transparent);
     padding: 10px;
     border-radius: 12px;
     border: 1px solid rgba(255, 255, 255, 0.1);
@@ -553,7 +553,7 @@
     font-size: 0.625rem;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: -0.02em;
+    letter-spacing: 0;
     margin: 0 0 6px;
     white-space: nowrap;
     overflow: hidden;
@@ -632,7 +632,7 @@
     font-weight: 900;
     color: var(--text-tertiary);
     text-transform: uppercase;
-    letter-spacing: 0.15em;
+    letter-spacing: 0;
     margin: 0;
   }
 
@@ -652,7 +652,7 @@
     font-size: 0.625rem;
     font-weight: 700;
     color: var(--text-disabled);
-    letter-spacing: 0.05em;
+    letter-spacing: 0;
   }
 
   .toggle-btn {
@@ -743,7 +743,7 @@
     font-size: 0.6875rem;
     font-weight: 700;
     color: var(--text-primary);
-    letter-spacing: -0.02em;
+    letter-spacing: 0;
     white-space: nowrap;
   }
 
@@ -874,7 +874,7 @@
     font-size: 0.875rem;
     font-weight: 900;
     color: var(--text-primary);
-    letter-spacing: -0.02em;
+    letter-spacing: 0;
     margin: 0;
   }
 
@@ -900,7 +900,7 @@
     padding: 3px 8px;
     border-radius: 6px;
     border: 1px solid var(--glass-border);
-    letter-spacing: 0.05em;
+    letter-spacing: 0;
   }
 
   .hi-chevron {

@@ -23,7 +23,6 @@ const productionBoardAccess = [
 
 // 生产流程可视化看板
 router.get('/production-board', productionBoardAccess, productionBoardController.getProductionBoardData);
-router.get('/production-board', productionBoardAccess, productionBoardController.getProductionBoardData);
 router.get('/production-board/stats', productionBoardAccess, productionBoardController.getProductionBoardStats);
 
 module.exports = router;

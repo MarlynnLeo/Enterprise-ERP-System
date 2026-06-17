@@ -76,25 +76,25 @@
       label: '新建申请',
       path: '/purchase/requisitions/new',
       icon: 'document-text',
-      gradient: 'linear-gradient(135deg, var(--color-primary) 0%, #764ba2 100%)'
+      gradient: 'linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%)'
     },
     {
       label: '新建订单',
       path: '/purchase/orders/create',
       icon: 'cart',
-      gradient: 'linear-gradient(135deg, #2CCFB0 0%, #1BA392 100%)'
+      gradient: 'linear-gradient(135deg, var(--color-success) 0%, var(--color-accent) 100%)'
     },
     {
       label: '采购入库',
       path: '/purchase/receipts/create',
       icon: 'cube',
-      gradient: 'linear-gradient(135deg, #FF6B6B 0%, #EE5A52 100%)'
+      gradient: 'linear-gradient(135deg, var(--color-error) 0%, var(--color-danger) 100%)'
     },
     {
       label: '采购概览',
       path: '/purchase/dashboard',
       icon: 'chart-trending-o',
-      gradient: 'linear-gradient(135deg, var(--color-warning) 0%, #FF8A3D 100%)'
+      gradient: 'linear-gradient(135deg, var(--color-warning) 0%, var(--ds-orange-strong) 100%)'
     }
   ])
 

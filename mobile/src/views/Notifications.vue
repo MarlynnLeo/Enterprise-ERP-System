@@ -280,8 +280,8 @@ const getMessageIcon = (type) => {
 const getMessageColor = (type) => {
   const colorMap = {
     'task': '#5E7BF6',
-    'approval': '#2CCFB0',
-    'exception': '#FF6B6B',
+    'approval': 'var(--color-success)',
+    'exception': 'var(--color-error)',
     'system': 'var(--color-warning)'
   };
   return colorMap[type] || 'var(--text-disabled)';

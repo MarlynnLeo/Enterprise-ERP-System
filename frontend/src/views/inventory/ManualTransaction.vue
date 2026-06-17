@@ -983,36 +983,17 @@ const handleQuantityEnter = (index) => {
 // 明细表格合计方法
 const getSummaries = (param) => {
   const { columns, data } = param
-  const sums = []
-
-  columns.forEach((column, index) => {
-    if (index === 0) {
-      sums[index] = '合计'
-      return
+  return columns.map((column, index) => {
+    if (index === 0) return '合计'
+    if (column.label === '数量') {
+      const total = data.reduce((sum, item) => {
+        const val = Number(item.quantity)
+        return sum + (Number.isNaN(val) ? 0 : val)
+      }, 0)
+      return total.toFixed(2)
     }
-
-    // 数量列（第5列，索引为4）
-    if (index === 4) {
-      const values = data.map(item => Number(item.quantity))
-      if (!values.every(value => Number.isNaN(value))) {
-        const total = values.reduce((prev, curr) => {
-          const value = Number(curr)
-          if (!Number.isNaN(value)) {
-            return prev + value
-          } else {
-            return prev
-          }
-        }, 0)
-        sums[index] = total.toFixed(2)
-      } else {
-        sums[index] = '0.00'
-      }
-    } else {
-      sums[index] = ''
-    }
+    return ''
   })
-
-  return sums
 }
 
 // 删除明细行

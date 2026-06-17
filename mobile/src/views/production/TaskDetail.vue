@@ -356,10 +356,10 @@
     border-radius: 4px;
     transition: width 0.5s;
     &.fill-green {
-      background: linear-gradient(90deg, var(--color-success), #34d399);
+      background: linear-gradient(90deg, var(--color-success), var(--ds-green-strong));
     }
     &.fill-blue {
-      background: linear-gradient(90deg, var(--color-primary), #60a5fa);
+      background: linear-gradient(90deg, var(--color-primary), var(--color-accent));
     }
     &.fill-yellow {
       background: linear-gradient(90deg, var(--color-warning), var(--color-warning));

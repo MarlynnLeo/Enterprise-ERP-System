@@ -805,6 +805,8 @@ const adjustInventory = async (req, res) => {
       [id]
     );
 
+    const checkOperator = await getCurrentUserName(req);
+
     // 处理每个物料的库存调整
     for (const item of items) {
       // 只处理有差异的物料
@@ -826,16 +828,23 @@ const adjustInventory = async (req, res) => {
         continue;
       }
 
+      // 盘盈（入库方向）需要生成调整批次号，盘亏（出库方向）由 FIFO 自动拆批
+      let checkBatchNumber = null;
+      if (adjustmentQuantity > 0) {
+        checkBatchNumber = `CK-${check.check_no}-${item.material_id}`;
+      }
+
       // 记录库存交易日志
       await _insertInventoryLedgerLocal(connection, {
         material_id: item.material_id,
         location_id: check.location_id,
         transaction_type: 'check',
         quantity: adjustmentQuantity,
+        batch_number: checkBatchNumber,
         unit_id: item.unit_id,
         reference_no: check.check_no,
         reference_type: 'check',
-        operator: await getCurrentUserName(req),
+        operator: checkOperator,
         remark: `Inventory check adjustment: current stock ${currentQuantity}, counted stock ${newQuantity}, adjustment ${adjustmentQuantity}`,
         transaction_date: check.check_date,
         beforeQuantity: currentQuantity,

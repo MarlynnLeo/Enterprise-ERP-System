@@ -380,7 +380,19 @@ const containsSQLInjection = (input, relaxed = false) => {
  */
 const detectSQLInjection = (req, res, next) => {
   const pathLeaf = (path) => String(path || '').split('.').pop();
-  const isPathField = (path, fields) => fields.includes(pathLeaf(path));
+  const isPathField = (path, fields) => {
+    const leaf = pathLeaf(path);
+    if (fields.includes(leaf)) return true;
+    // 当叶子是纯数字（数组索引）时，取上一级字段名匹配
+    // 例如 d4_contributing_factors.3 → 取 d4_contributing_factors
+    if (/^\d+$/.test(leaf)) {
+      const segments = String(path || '').split('.');
+      if (segments.length >= 2) {
+        return fields.includes(segments[segments.length - 2]);
+      }
+    }
+    return false;
+  };
   const isBusinessNameField = (path) => {
     const leaf = pathLeaf(path);
     return (
@@ -400,6 +412,18 @@ const detectSQLInjection = (req, res, next) => {
     'reason_name',
     'reasonName',
     'reason',
+    // 8D报告 — AI生成的专业质量管理文本，含引号/括号/斜杠(如 GB/T 2828.1)
+    'd2_problem_description',
+    'd3_containment_actions',
+    'd4_root_cause',
+    'd4_contributing_factors',
+    'd5_corrective_actions',
+    'd6_verification_method',
+    'd6_implementation_results',
+    'd7_preventive_actions',
+    'd7_standardization',
+    'd8_summary',
+    'd8_lessons_learned',
   ];
   // 跳过富文本内容字段的检查（HTML内容可能包含类似SQL的模式）
   const shouldSkipPath = (path) => {

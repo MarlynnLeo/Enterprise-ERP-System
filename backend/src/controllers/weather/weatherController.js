@@ -3,13 +3,30 @@
  * @description 提供天气数据查询服务（使用 Open-Meteo API）
  */
 
-const axios = require('axios');
+const { httpGet } = require('../../utils/httpClient');
 const { ResponseHandler } = require('../../utils/responseHandler');
 const { logger } = require('../../utils/logger');
 const { OPEN_METEO_CONFIG } = require('../../config/weatherConfig');
 
 const DEFAULT_CITY = '乐清';
+const WEATHER_SUCCESS_CACHE_TTL_MS = 15 * 60 * 1000;
+const WEATHER_UNAVAILABLE_CACHE_TTL_MS = 5 * 60 * 1000;
+const WEATHER_FAILURE_LOG_COOLDOWN_MS = 5 * 60 * 1000;
+
 let missingWeatherBaseUrlLogged = false;
+const weatherCache = new Map();
+const weatherFailureLogState = new Map();
+
+const CURRENT_WEATHER_FIELDS = [
+  'temperature_2m',
+  'relative_humidity_2m',
+  'apparent_temperature',
+  'weather_code',
+  'wind_speed_10m',
+  'wind_direction_10m',
+  'surface_pressure',
+  'visibility',
+].join(',');
 
 const CITY_COORDINATE_MAP = {
   乐清: { name: '乐清', latitude: 28.1137, longitude: 120.9839 },
@@ -97,12 +114,70 @@ const mapWeatherCode = (weatherCode) => WMO_WEATHER_MAP[Number(weatherCode)] || 
   weatherCode: 'cloudy',
 };
 
+const buildOpenMeteoParams = (location) => ({
+  latitude: location.latitude,
+  longitude: location.longitude,
+  current: CURRENT_WEATHER_FIELDS,
+  timezone: OPEN_METEO_CONFIG.timezone,
+  wind_speed_unit: 'kmh',
+});
+
+const fetchOpenMeteo = async (location) => {
+  const response = await httpGet(OPEN_METEO_CONFIG.baseUrl, {
+    params: buildOpenMeteoParams(location),
+    timeout: OPEN_METEO_CONFIG.timeout,
+    retries: OPEN_METEO_CONFIG.retries,
+  });
+
+  if (response.status && (response.status < 200 || response.status >= 300)) {
+    throw new Error(`Open-Meteo API 响应异常: HTTP ${response.status}`);
+  }
+
+  return response.data;
+};
+
+const getCachedWeather = (cacheKey) => {
+  const cached = weatherCache.get(cacheKey);
+  if (cached && Date.now() < cached.expiresAt) {
+    return cached.data;
+  }
+  weatherCache.delete(cacheKey);
+  return null;
+};
+
+const setCachedWeather = (cacheKey, data, ttlMs) => {
+  weatherCache.set(cacheKey, { data, expiresAt: Date.now() + ttlMs });
+};
+
+const buildWeatherErrorMeta = (error, city) => ({
+  city,
+  error: error?.message || String(error),
+  code: error?.code,
+  name: error?.name,
+});
+
+const logWeatherFetchFailure = (error, city) => {
+  const meta = buildWeatherErrorMeta(error, city);
+  const key = `${city}:${meta.code || meta.name || meta.error}`;
+  const now = Date.now();
+  const lastLoggedAt = weatherFailureLogState.get(key) || 0;
+
+  if (now - lastLoggedAt >= WEATHER_FAILURE_LOG_COOLDOWN_MS) {
+    weatherFailureLogState.set(key, now);
+    logger.warn('天气服务暂不可用，已返回默认天气', meta);
+    return;
+  }
+
+  logger.debug('天气服务暂不可用，继续返回默认天气', meta);
+};
+
 /**
  * 获取天气数据
  */
 const getWeather = async (req, res) => {
-  const { city = DEFAULT_CITY } = req.query;
+  const { city = DEFAULT_CITY } = req.query || {};
   const location = getCityLocation(city);
+  const cacheKey = `weather_${location.name}`;
 
   try {
     if (!OPEN_METEO_CONFIG.baseUrl) {
@@ -117,27 +192,19 @@ const getWeather = async (req, res) => {
       );
     }
 
-    const weatherResponse = await axios.get(OPEN_METEO_CONFIG.baseUrl, {
-      params: {
-        latitude: location.latitude,
-        longitude: location.longitude,
-        current: [
-          'temperature_2m',
-          'relative_humidity_2m',
-          'apparent_temperature',
-          'weather_code',
-          'wind_speed_10m',
-          'wind_direction_10m',
-          'surface_pressure',
-          'visibility',
-        ].join(','),
-        timezone: OPEN_METEO_CONFIG.timezone,
-        wind_speed_unit: 'kmh',
-      },
-      timeout: OPEN_METEO_CONFIG.timeout,
-    });
+    // 优先返回缓存
+    const cached = getCachedWeather(cacheKey);
+    if (cached) {
+      return ResponseHandler.success(
+        res,
+        cached,
+        cached.isDefault ? '天气数据暂不可用' : '操作成功'
+      );
+    }
 
-    const current = weatherResponse.data?.current;
+    const weatherApiData = await fetchOpenMeteo(location);
+
+    const current = weatherApiData?.current;
     if (!current) {
       throw new Error('Open-Meteo API 未返回 current 天气数据');
     }
@@ -158,11 +225,15 @@ const getWeather = async (req, res) => {
       isDefault: false,
     };
 
-    logger.debug('天气数据获取成功', { city: weatherData.city, temperature: weatherData.temperature });
+    // 缓存成功结果
+    setCachedWeather(cacheKey, weatherData, WEATHER_SUCCESS_CACHE_TTL_MS);
+    logger.debug('天气数据获取成功并已缓存', { city: weatherData.city, temperature: weatherData.temperature });
     return ResponseHandler.success(res, weatherData);
   } catch (error) {
-    logger.error('获取天气数据失败:', error);
-    return ResponseHandler.success(res, createUnavailableWeather(location.name), '天气数据暂不可用');
+    const fallbackWeather = createUnavailableWeather(location.name);
+    setCachedWeather(cacheKey, fallbackWeather, WEATHER_UNAVAILABLE_CACHE_TTL_MS);
+    logWeatherFetchFailure(error, location.name);
+    return ResponseHandler.success(res, fallbackWeather, '天气数据暂不可用');
   }
 };
 

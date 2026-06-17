@@ -1,69 +1,72 @@
 /**
  * PC端 - KACON品牌主题
- * @description 扁平化设计，与登录界面品牌色统一
- * @date 2026-03-28
- * @version 2.1.0
- * @设计理念 纯扁平化、无阴影、无渐变、无玻璃效果
- *           以 KACON 品牌 Teal 色为核心的简洁专业风格
+ * @description ERP Brand · Deep Emerald 风格
+ * @date 2026-06-15
+ * @version 3.0.0
+ * @设计理念 低装饰玻璃感、清晰对比、克制圆角、品牌色点缀
+ *           以 Deep Emerald #15803D 为可交互主色，#16A34A 为品牌亮色
+ *           面向 ERP 密集数据界面，优先保证扫描效率和可读性
  */
 
 :root[data-theme="kacon"] {
   /* ==================== 颜色系统 ==================== */
 
-  /* 主色系 - 青绿色系（KACON品牌色） */
-  --color-primary: #00796B;
-  --color-primary-light-3: #339487;
-  --color-primary-light-5: #80bcb5;
-  --color-primary-light-7: #b3d7d3;
-  --color-primary-light-8: #cce4e1;
-  --color-primary-light-9: #e6f2f0;
-  --color-primary-dark-2: #006156;
+  /* 主色系 - Deep Emerald（KACON可访问品牌色） */
+  --color-brand: #16A34A;
+  --color-primary: #15803D;
+  --color-primary-light-3: #16A34A;
+  --color-primary-light-5: #86EFAC;
+  --color-primary-light-7: #BBF7D0;
+  --color-primary-light-8: #DCFCE7;
+  --color-primary-light-9: #F0FDF4;
+  --color-primary-dark-2: #166534;
+  --color-primary-deep: #14532D;
 
   /* 功能色 */
-  --color-success: #34c759;
-  --color-success-light: #d4f5dd;
-  --color-success-dark: #2aa148;
-  --color-warning: #f0a020;
-  --color-warning-light: #fcecd0;
-  --color-warning-dark: #c0801a;
-  --color-danger: #e54d42;
-  --color-danger-light: #f9dad8;
-  --color-danger-dark: #b73e35;
-  --color-info: #8c8c8c;
-  --color-info-light: #e8e8e8;
-  --color-info-dark: #707070;
+  --color-success: #15803D;
+  --color-success-light: #F0FDF4;
+  --color-success-dark: #166534;
+  --color-warning: #B45309;
+  --color-warning-light: #FEF3C7;
+  --color-warning-dark: #92400E;
+  --color-danger: #B91C1C;
+  --color-danger-light: #FEE2E2;
+  --color-danger-dark: #991B1B;
+  --color-info: #475569;
+  --color-info-light: #F1F5F9;
+  --color-info-dark: #334155;
 
   /* 文本颜色 */
-  --color-text-primary: #1a1a1a;
-  --color-text-regular: #4a4a4a;
-  --color-text-secondary: #8c8c8c;
-  --color-text-placeholder: #bfbfbf;
-  --color-text-disabled: #d9d9d9;
+  --color-text-primary: #0F172A;
+  --color-text-regular: #334155;
+  --color-text-secondary: #475569;
+  --color-text-placeholder: #94A3B8;
+  --color-text-disabled: #CBD5E1;
 
   /* 边框颜色 */
-  --color-border-darker: #d9d9d9;
-  --color-border-dark: #e0e0e0;
-  --color-border-base: #e8e8e8;
-  --color-border-light: #f0f0f0;
-  --color-border-lighter: #f5f5f5;
-  --color-border-extra-light: #fafafa;
+  --color-border-darker: #CBD5E1;
+  --color-border-dark: #D1D5DB;
+  --color-border-base: #E5E7EB;
+  --color-border-light: #F3F4F6;
+  --color-border-lighter: #F8FAFC;
+  --color-border-extra-light: #FAFBFC;
 
   /* 背景颜色 */
-  --color-bg-base: #ffffff;
-  --color-bg-page: #f5f5f5;
-  --color-bg-overlay: rgba(0, 0, 0, 0.45);
-  --color-bg-hover: #f5f5f5;
-  --color-bg-light: #fafafa;
+  --color-bg-base: #FFFFFF;
+  --color-bg-page: #EFF3F8;
+  --color-bg-overlay: rgba(15, 23, 42, 0.3);
+  --color-bg-hover: #F8FAFC;
+  --color-bg-light: #F9FAFB;
 
   /* 辅助语义色 */
-  --color-bg-section: #fafafa;
-  --color-text-muted: #8c8c8c;
-  --color-primary-active: #006156;
-  --color-success-gradient-end: #2aa148;
-  --color-warning-gradient-end: #c0801a;
-  --color-danger-gradient-end: #b73e35;
-  --color-danger-hover: #ff7875;
-  --color-info-gradient-end: #707070;
+  --color-bg-section: #F9FAFB;
+  --color-text-muted: #64748B;
+  --color-primary-active: #166534;
+  --color-success-gradient-end: #166534;
+  --color-warning-gradient-end: #92400E;
+  --color-danger-gradient-end: #991B1B;
+  --color-danger-hover: #991B1B;
+  --color-info-gradient-end: #94A3B8;
   --color-on-primary: #ffffff;
 
   /* ========== 间距系统 ========== */
@@ -75,17 +78,18 @@
   --spacing-xxl: 48px;
 
   /* ========== 字体系统 ========== */
-  --font-family-base: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-family-base: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-family-display: 'Space Grotesk', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-family-chinese: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
   --font-family-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
 
   --font-size-xs: 12px;
-  --font-size-sm: 14px;
+  --font-size-sm: 13px;
   --font-size-base: 14px;
   --font-size-md: 14px;
   --font-size-lg: 16px;
   --font-size-xl: 18px;
-  --font-size-xxl: 22px;
+  --font-size-xxl: 24px;
 
   --font-weight-normal: 400;
   --font-weight-medium: 500;
@@ -93,35 +97,44 @@
   --font-weight-bold: 700;
 
   --line-height-base: 1.5;
-  --line-height-heading: 1.3;
+  --line-height-heading: 1.2;
 
-  /* ========== 圆角系统（扁平化：小圆角） ========== */
-  --radius-sm: 4px;
-  --radius-md: 6px;
+  /* ========== 圆角系统（ERP 克制圆角） ========== */
+  --radius-sm: 6px;
+  --radius-md: 8px;
   --radius-lg: 8px;
   --radius-round: 999px;
 
-  /* ========== 阴影系统（扁平化：极简阴影） ========== */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-base: 0 1px 3px rgba(0, 0, 0, 0.06);
-  --shadow-md: 0 2px 6px rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 2px 8px rgba(0, 0, 0, 0.08);
-  --shadow-xl: 0 4px 12px rgba(0, 0, 0, 0.08);
+  /* ========== 阴影系统（柔和品牌色阴影） ========== */
+  --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(0, 0, 0, 0.03);
+  --shadow-base: 0 4px 14px rgba(15, 23, 42, 0.05), 0 2px 4px rgba(0, 0, 0, 0.03);
+  --shadow-md: 0 4px 14px rgba(15, 23, 42, 0.05), 0 2px 4px rgba(0, 0, 0, 0.03);
+  --shadow-lg: 0 12px 40px rgba(15, 23, 42, 0.08), 0 4px 12px rgba(0, 0, 0, 0.04);
+  --shadow-xl: 0 20px 60px rgba(15, 23, 42, 0.1);
 
-  --shadow-card: none;
-  --shadow-card-hover: none;
-  --shadow-inset: none;
+  /* 特殊阴影效果 */
+  --shadow-card: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(0, 0, 0, 0.03);
+  --shadow-card-hover: 0 4px 14px rgba(15, 23, 42, 0.05), 0 2px 4px rgba(0, 0, 0, 0.03);
+  --shadow-inset: inset 0 2px 4px rgba(15, 23, 42, 0.04);
 
-  --shadow-glow-primary: none;
-  --shadow-glow-success: none;
-  --shadow-glow-warning: none;
-  --shadow-glow-danger: none;
+  /* 品牌发光阴影 */
+  --shadow-glow-primary: 0 2px 12px rgba(22, 163, 74, 0.28);
+  --shadow-glow-success: 0 2px 10px rgba(22, 163, 74, 0.2);
+  --shadow-glow-warning: 0 2px 10px rgba(217, 119, 6, 0.2);
+  --shadow-glow-danger: 0 2px 10px rgba(220, 38, 38, 0.2);
+
+  /* KACON 玻璃层：低透明度和低模糊，避免 ERP 页面发灰、掉帧 */
+  --kacon-glass-bg: rgba(255, 255, 255, 0.9);
+  --kacon-glass-bg-strong: rgba(255, 255, 255, 0.97);
+  --kacon-glass-border: rgba(229, 231, 235, 0.78);
+  --kacon-glass-filter: blur(10px) saturate(1.08);
 
   /* ========== 过渡系统 ========== */
   --transition-fast: 0.15s;
-  --transition-base: 0.2s;
-  --transition-slow: 0.3s;
-  --transition-timing: ease;
+  --transition-base: 0.25s;
+  --transition-slow: 0.4s;
+  --transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 
   /* ========== Z-index系统 ========== */
   --z-index-dropdown: 1000;
@@ -135,7 +148,7 @@
 
 
 /* ==================================================================
-   KACON 主题 - 全站扁平化覆盖
+   KACON 主题 - ERP Deep Emerald 全站覆盖
    ================================================================== */
 
 
@@ -143,8 +156,11 @@
 
 [data-theme="kacon"] body,
 [data-theme="kacon"] .layout-container {
-  background: var(--color-bg-page) !important;
-  background-image: none !important;
+  background:
+    radial-gradient(ellipse 80% 80% at 50% -20%, rgba(37, 99, 235, 0.06), transparent),
+    radial-gradient(ellipse 50% 50% at 80% 50%, rgba(22, 163, 74, 0.04), transparent),
+    radial-gradient(ellipse 50% 50% at 20% 80%, rgba(59, 130, 246, 0.05), transparent),
+    var(--color-bg-page) !important;
 }
 
 
@@ -155,65 +171,57 @@
   --shell-accent: var(--color-primary) !important;
   --shell-accent-strong: var(--color-primary-dark-2) !important;
   --shell-accent-soft: var(--color-primary-light-9) !important;
-  --shell-glow: transparent !important;
-  --shell-surface: var(--color-bg-base) !important;
-  --shell-border: var(--color-border-base) !important;
-  --shell-shadow: none !important;
-  --shell-shadow-hover: none !important;
+  --shell-glow: rgba(22, 163, 74, 0.12) !important;
+  --shell-surface: var(--kacon-glass-bg) !important;
+  --shell-border: rgba(229, 231, 235, 0.7) !important;
+  --shell-shadow: 0 1px 3px rgba(15, 23, 42, 0.06) !important;
+  --shell-shadow-hover: 0 4px 14px rgba(15, 23, 42, 0.05) !important;
   --shell-radius-sm: var(--radius-sm) !important;
   --shell-radius-md: var(--radius-md) !important;
-  --shell-radius-lg: var(--radius-md) !important;
-  --shell-control-bg: transparent !important;
-  --shell-control-border: transparent !important;
-  --shell-control-hover-bg: var(--color-bg-hover) !important;
-  --shell-control-hover-shadow: none !important;
+  --shell-radius-lg: var(--radius-lg) !important;
+  --shell-control-bg: rgba(255, 255, 255, 0.6) !important;
+  --shell-control-border: rgba(229, 231, 235, 0.5) !important;
+  --shell-control-hover-bg: rgba(22, 163, 74, 0.06) !important;
+  --shell-control-hover-shadow: 0 2px 8px rgba(22, 163, 74, 0.12) !important;
   --shell-menu-item-height: 44px !important;
 }
 
 
-/* ========== 3. 侧边栏 ========== */
+/* ========== 3. 侧边栏（低模糊玻璃层） ========== */
 
 [data-theme="kacon"] .sidebar,
 [data-theme="kacon"] .app-sidebar {
-  background: var(--color-bg-base) !important;
-  border-right: 1px solid var(--color-border-base) !important;
+  background: var(--kacon-glass-bg) !important;
+  backdrop-filter: var(--kacon-glass-filter) !important;
+  -webkit-backdrop-filter: var(--kacon-glass-filter) !important;
+  border-right: 1px solid var(--kacon-glass-border) !important;
   box-shadow: none !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
   border-radius: 0 !important;
   margin: 0 !important;
   height: 100% !important;
 }
 
-/* Shell sidebar */
-[data-theme="kacon"] .app-sidebar {
-  background: var(--color-bg-base) !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  border-right: 1px solid var(--color-border-base) !important;
-  box-shadow: none !important;
-}
 
 /* Logo容器 */
 [data-theme="kacon"] .logo-container {
-  background: var(--color-bg-base) !important;
-  border-bottom: 1px solid var(--color-border-light) !important;
+  background: transparent !important;
+  border-bottom: 1px solid rgba(22, 163, 74, 0.08) !important;
   box-shadow: none !important;
   border-radius: 0 !important;
 }
 
 [data-theme="kacon"] .logo-container .title {
-  color: var(--color-primary) !important;
+  color: var(--color-text-primary) !important;
   font-weight: 700 !important;
 }
 
-/* Logo 图标 - 移除发光动画 */
+/* Logo 图标 */
 [data-theme="kacon"] .logo {
   filter: none !important;
   animation: none !important;
 }
 
-/* 标题 - 移除渐变文字 */
+/* 标题 - 品牌色 */
 [data-theme="kacon"] .app-title {
   background: none !important;
   -webkit-background-clip: unset !important;
@@ -228,27 +236,40 @@
   border-right: none !important;
 }
 
+/* 菜单容器水平内缩 — 代替菜单项的 margin:0 8px，
+   避免 vertical margin 导致 Element Plus collapse 高度测量跳动
+   (参见 layout.css: "vertical margins cause jumps") */
+[data-theme="kacon"] .sidebar-menu {
+  padding-left: 8px !important;
+  padding-right: 8px !important;
+}
+
 /* 菜单项 - 默认状态 */
 [data-theme="kacon"] .sidebar .el-menu-item,
 [data-theme="kacon"] .sidebar .el-sub-menu__title,
 [data-theme="kacon"] .app-sidebar .el-menu-item,
 [data-theme="kacon"] .app-sidebar .el-sub-menu__title {
-  color: var(--color-text-regular) !important;
-  border-left: 3px solid transparent !important;
-  border-radius: 0 !important;
-  /* 过渡由全局 --el-transition-duration 变量控制，无需单独声明 */
+  color: var(--color-text-secondary) !important;
+  border-radius: var(--radius-md) !important;
+  margin: 0 !important;
+  transition:
+    background-color var(--transition-fast) var(--transition-timing),
+    color var(--transition-fast) var(--transition-timing),
+    box-shadow var(--transition-fast) var(--transition-timing) !important;
+  position: relative !important;
+  overflow: hidden !important;
 }
 
 [data-theme="kacon"] .sidebar .el-menu-item span,
 [data-theme="kacon"] .sidebar .el-sub-menu__title span,
 [data-theme="kacon"] .app-sidebar .el-menu-item span,
 [data-theme="kacon"] .app-sidebar .el-sub-menu__title span {
-  color: var(--color-text-regular) !important;
-  font-size: 14px !important;
-  font-weight: 600 !important;
+  color: var(--color-text-secondary) !important;
+  font-size: 13.5px !important;
+  font-weight: 500 !important;
 }
 
-/* 菜单项图标 - 18px 与加粗文字形成视觉平衡 */
+/* 菜单项图标 */
 [data-theme="kacon"] .sidebar .el-menu-item .el-icon,
 [data-theme="kacon"] .sidebar .el-sub-menu__title .el-icon,
 [data-theme="kacon"] .app-sidebar .el-menu-item .el-icon,
@@ -256,6 +277,8 @@
   color: var(--color-text-secondary) !important;
   font-size: 18px !important;
   filter: none !important;
+  opacity: 0.55;
+  transition: opacity var(--transition-fast) var(--transition-timing) !important;
 }
 
 /* 菜单项 - 悬停 */
@@ -263,9 +286,8 @@
 [data-theme="kacon"] .sidebar .el-sub-menu__title:hover,
 [data-theme="kacon"] .app-sidebar .el-menu-item:hover,
 [data-theme="kacon"] .app-sidebar .el-sub-menu__title:hover {
-  background: var(--color-bg-page) !important;
-  color: var(--color-primary) !important;
-  border-left-color: transparent !important;
+  background: rgba(22, 163, 74, 0.06) !important;
+  color: var(--color-primary-dark-2) !important;
   transform: none !important;
   box-shadow: none !important;
 }
@@ -274,58 +296,74 @@
 [data-theme="kacon"] .sidebar .el-sub-menu__title:hover span,
 [data-theme="kacon"] .app-sidebar .el-menu-item:hover span,
 [data-theme="kacon"] .app-sidebar .el-sub-menu__title:hover span {
-  color: var(--color-primary) !important;
+  color: var(--color-primary-dark-2) !important;
 }
 
 [data-theme="kacon"] .sidebar .el-menu-item:hover .el-icon,
 [data-theme="kacon"] .sidebar .el-sub-menu__title:hover .el-icon,
 [data-theme="kacon"] .app-sidebar .el-menu-item:hover .el-icon,
 [data-theme="kacon"] .app-sidebar .el-sub-menu__title:hover .el-icon {
-  color: var(--color-primary) !important;
+  color: var(--color-primary-dark-2) !important;
+  opacity: 0.8;
 }
 
-/* 菜单项 - 激活 */
+/* 菜单项 - 激活（渐变背景 + 白色文字 + 左侧指示条） */
 [data-theme="kacon"] .sidebar .el-menu-item.is-active,
 [data-theme="kacon"] .app-sidebar .el-menu-item.is-active {
-  background: var(--color-primary-light-9) !important;
-  color: var(--color-primary) !important;
-  border-left-color: var(--color-primary) !important;
-  font-weight: 500;
-  border-radius: 0 !important;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark-2)) !important;
+  color: #fff !important;
+  font-weight: 600;
+  border-radius: var(--radius-md) !important;
+  box-shadow: 0 2px 12px rgba(22, 163, 74, 0.28) !important;
+}
+
+[data-theme="kacon"] .sidebar .el-menu-item.is-active::before,
+[data-theme="kacon"] .app-sidebar .el-menu-item.is-active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 0 999px 999px 0;
+  background: #fff;
 }
 
 [data-theme="kacon"] .sidebar .el-menu-item.is-active span,
 [data-theme="kacon"] .app-sidebar .el-menu-item.is-active span {
-  color: var(--color-primary) !important;
-  font-weight: 700 !important;
+  color: #fff !important;
+  font-weight: 600 !important;
 }
 
 [data-theme="kacon"] .sidebar .el-menu-item.is-active .el-icon,
 [data-theme="kacon"] .app-sidebar .el-menu-item.is-active .el-icon {
-  color: var(--color-primary) !important;
+  color: #fff !important;
+  opacity: 1;
 }
 
 /* Shell menu active state */
 [data-theme="kacon"] .app-menu .el-menu-item.is-active {
-  background: var(--color-primary-light-9) !important;
-  border-left: 3px solid var(--color-primary) !important;
-  border-radius: 0 !important;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark-2)) !important;
+  border-left: none !important;
+  border-radius: var(--radius-md) !important;
+  box-shadow: 0 2px 12px rgba(22, 163, 74, 0.28) !important;
 }
 
 /* Shell menu hover state */
 [data-theme="kacon"] .app-menu .el-menu-item,
 [data-theme="kacon"] .app-menu .el-sub-menu__title {
-  border-radius: 0 !important;
-  transform: none;
-  box-shadow: none;
-  will-change: auto;
+  border-radius: var(--radius-md) !important;
+  transition:
+    background-color var(--transition-fast) var(--transition-timing),
+    color var(--transition-fast) var(--transition-timing),
+    box-shadow var(--transition-fast) var(--transition-timing);
 }
 
 [data-theme="kacon"] .app-menu .el-menu-item:hover,
 [data-theme="kacon"] .app-menu .el-sub-menu__title:hover {
   transform: none;
   box-shadow: none;
-  background-color: var(--color-bg-page) !important;
+  background-color: rgba(22, 163, 74, 0.06) !important;
 }
 
 /* 子菜单激活标题 */
@@ -355,50 +393,56 @@
 }
 
 
-/* ========== 4. 顶部导航栏 ========== */
+/* ========== 4. 顶部导航栏（毛玻璃） ========== */
 
 [data-theme="kacon"] .header,
 [data-theme="kacon"] .el-header {
-  background: var(--color-bg-base) !important;
+  background: var(--kacon-glass-bg) !important;
+  backdrop-filter: var(--kacon-glass-filter) !important;
+  -webkit-backdrop-filter: var(--kacon-glass-filter) !important;
   box-shadow: none !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
   border-radius: 0 !important;
   margin: 0 !important;
   border: none !important;
-  border-bottom: 1px solid var(--color-border-base) !important;
+  border-bottom: 1px solid rgba(229, 231, 235, 0.7) !important;
 }
 
 /* Shell header */
 [data-theme="kacon"] .app-header {
-  background: var(--color-bg-base) !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
+  background: var(--kacon-glass-bg) !important;
+  backdrop-filter: var(--kacon-glass-filter) !important;
+  -webkit-backdrop-filter: var(--kacon-glass-filter) !important;
   border: none !important;
-  border-bottom: 1px solid var(--color-border-base) !important;
+  border-bottom: 1px solid rgba(229, 231, 235, 0.7) !important;
   box-shadow: none !important;
 }
 
-/* 头部图标按钮 - 扁平化 */
+/* 头部图标按钮 */
 [data-theme="kacon"] .icon-button,
 [data-theme="kacon"] .icon-button-wrapper .notification-bell,
 [data-theme="kacon"] .icon-button-wrapper .theme-selector {
   background: transparent !important;
-  border: none !important;
+  border: 1px solid var(--color-border-base) !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
-  border-radius: 4px !important;
+  border-radius: var(--radius-md) !important;
   color: var(--color-text-regular) !important;
+  transition:
+    background-color var(--transition-fast) var(--transition-timing),
+    border-color var(--transition-fast) var(--transition-timing),
+    box-shadow var(--transition-fast) var(--transition-timing),
+    color var(--transition-fast) var(--transition-timing),
+    transform var(--transition-fast) var(--transition-timing) !important;
 }
 
 [data-theme="kacon"] .icon-button:hover,
 [data-theme="kacon"] .icon-button-wrapper .notification-bell:hover,
 [data-theme="kacon"] .icon-button-wrapper .theme-selector:hover {
-  background: var(--color-bg-page) !important;
+  background: rgba(22, 163, 74, 0.06) !important;
   color: var(--color-primary) !important;
-  border-color: transparent !important;
-  transform: none !important;
-  box-shadow: none !important;
+  border-color: var(--color-primary) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 2px 8px rgba(22, 163, 74, 0.12) !important;
 }
 
 /* 用户信息区域 */
@@ -407,17 +451,22 @@
   border: 1px solid var(--color-border-base) !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
-  border-radius: 20px !important;
+  border-radius: 999px !important;
+  transition:
+    background-color var(--transition-fast) var(--transition-timing),
+    border-color var(--transition-fast) var(--transition-timing),
+    box-shadow var(--transition-fast) var(--transition-timing),
+    transform var(--transition-fast) var(--transition-timing) !important;
 }
 
 [data-theme="kacon"] .user-info:hover {
-  background: var(--color-bg-page) !important;
-  border-color: var(--color-border-darker) !important;
-  transform: none !important;
-  box-shadow: none !important;
+  background: rgba(22, 163, 74, 0.06) !important;
+  border-color: var(--color-primary) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 2px 8px rgba(22, 163, 74, 0.12) !important;
 }
 
-/* 头像 - 扁平化 */
+/* 头像 */
 [data-theme="kacon"] .user-avatar {
   border: 2px solid var(--color-primary) !important;
   background: var(--color-bg-base) !important;
@@ -427,27 +476,26 @@
 
 /* ========== 5. 主内容区 ========== */
 
-/* ========== 7. 对话框覆盖 — 已合并至第36节 ========== */
-
 /* Descriptions 组件 */
 [data-theme="kacon"] .el-descriptions {
-  border-radius: 6px !important;
+  border-radius: var(--radius-md) !important;
 }
 
 [data-theme="kacon"] .el-descriptions .el-descriptions__header {
-  background-color: var(--color-bg-light) !important;
+  background-color: rgba(249, 250, 251, 0.3) !important;
 }
 
 [data-theme="kacon"] .el-descriptions .el-descriptions__label {
-  background-color: var(--color-bg-light) !important;
+  background-color: rgba(249, 250, 251, 0.3) !important;
 }
 
 
 /* ========== 10. 表格 ========== */
 
 [data-theme="kacon"] .el-table {
-  border-radius: 0 !important;
+  border-radius: var(--radius-lg) !important;
   border: none !important;
+  overflow: hidden;
 }
 
 [data-theme="kacon"] .el-table::before {
@@ -455,27 +503,47 @@
 }
 
 [data-theme="kacon"] .el-table th.el-table__cell {
-  background: var(--color-bg-light) !important;
+  background: var(--erp-table-fixed-header-bg, var(--color-bg-light)) !important;
+  background-color: var(--erp-table-fixed-header-bg, var(--color-bg-light)) !important;
   color: var(--color-text-secondary) !important;
-  font-size: 14px !important;
-  font-weight: 500 !important;
-  border-bottom: 1px solid var(--color-border-light) !important;
-  padding: 10px 0 !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  text-transform: none;
+  letter-spacing: 0;
+  border-bottom: 1px solid var(--color-border-base) !important;
+  padding: 14px 0 !important;
 }
 
 [data-theme="kacon"] .el-table td.el-table__cell {
-  border-bottom: 1px solid var(--color-border-lighter) !important;
-  color: var(--color-text-regular) !important;
-  font-size: 14px !important;
-  padding: 10px 0 !important;
+  border-bottom: 1px solid var(--color-border-light) !important;
+  color: var(--color-text-primary) !important;
+  font-size: 13px !important;
+  padding: 14px 0 !important;
+}
+
+[data-theme="kacon"] .el-table--border,
+[data-theme="kacon"] .el-table--group {
+  border: 1px solid var(--color-border-base) !important;
+}
+
+[data-theme="kacon"] .el-table--border::before,
+[data-theme="kacon"] .el-table--border::after,
+[data-theme="kacon"] .el-table--border .el-table__inner-wrapper::after {
+  display: block !important;
+  background-color: var(--color-border-base) !important;
+}
+
+[data-theme="kacon"] .el-table--border th.el-table__cell,
+[data-theme="kacon"] .el-table--border td.el-table__cell {
+  border-right: 1px solid var(--color-border-base) !important;
 }
 
 [data-theme="kacon"] .el-table__body tr {
-  transition: background-color 0.1s ease;
+  transition: background-color var(--transition-fast) var(--transition-timing);
 }
 
 [data-theme="kacon"] .el-table__body tr:hover>td.el-table__cell {
-  background-color: var(--color-bg-light) !important;
+  background-color: rgba(22, 163, 74, 0.08) !important;
 }
 
 [data-theme="kacon"] .el-table__body tr.current-row>td.el-table__cell {
@@ -483,7 +551,7 @@
 }
 
 [data-theme="kacon"] .el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
-  background-color: var(--color-bg-light) !important;
+  background-color: rgba(241, 245, 249, 0.48) !important;
 }
 
 /* 表格排序 */
@@ -504,11 +572,14 @@
 /* ========== 11. 输入框 ========== */
 
 [data-theme="kacon"] .el-input__wrapper {
-  border: 1px solid var(--color-border-darker) !important;
-  border-radius: 4px !important;
+  border: 1px solid var(--color-border-base) !important;
+  border-radius: var(--radius-md) !important;
   box-shadow: none !important;
   background: var(--color-bg-base) !important;
-  transition: border-color 0.15s ease !important;
+  transition:
+    background-color var(--transition-fast) var(--transition-timing),
+    border-color var(--transition-fast) var(--transition-timing),
+    box-shadow var(--transition-fast) var(--transition-timing) !important;
 }
 
 [data-theme="kacon"] .el-input__wrapper:hover {
@@ -517,36 +588,43 @@
 }
 
 [data-theme="kacon"] .el-textarea__inner {
-  border: 1px solid var(--color-border-darker) !important;
-  border-radius: 4px !important;
+  border: 1px solid var(--color-border-base) !important;
+  border-radius: var(--radius-md) !important;
   box-shadow: none !important;
+  transition:
+    background-color var(--transition-fast) var(--transition-timing),
+    border-color var(--transition-fast) var(--transition-timing),
+    box-shadow var(--transition-fast) var(--transition-timing) !important;
 }
 
 
 /* ========== 12. 选择器 ========== */
 
 [data-theme="kacon"] .el-select-dropdown {
-  border: 1px solid var(--color-border-base) !important;
-  border-radius: 4px !important;
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--ds-black) 8%, transparent) !important;
+  border: 1px solid rgba(229, 231, 235, 0.8) !important;
+  border-radius: var(--radius-md) !important;
+  box-shadow: var(--shadow-lg) !important;
+  backdrop-filter: var(--kacon-glass-filter) !important;
+  -webkit-backdrop-filter: var(--kacon-glass-filter) !important;
+  background: var(--kacon-glass-bg-strong) !important;
 }
 
 [data-theme="kacon"] .el-select-dropdown__item.is-selected {
   color: var(--color-primary) !important;
-  font-weight: 500 !important;
+  font-weight: 600 !important;
   background-color: var(--color-primary-light-9) !important;
 }
 
 [data-theme="kacon"] .el-select-dropdown__item:hover {
-  background: var(--color-bg-page) !important;
+  background: rgba(22, 163, 74, 0.06) !important;
 }
 
 
 /* ========== 13. 标签页 ========== */
 
 [data-theme="kacon"] .el-tabs__item {
-  color: var(--color-text-secondary) !important;
-  transition: color 0.15s ease !important;
+  color: var(--color-text-muted) !important;
+  transition: color var(--transition-fast) var(--transition-timing) !important;
 }
 
 [data-theme="kacon"] .el-tabs__nav-wrap::after {
@@ -557,16 +635,18 @@
 /* ========== 14. 分页器 ========== */
 
 [data-theme="kacon"] .el-pagination .el-pager li {
-  border-radius: 4px !important;
+  border-radius: var(--radius-round) !important;
 }
 
 [data-theme="kacon"] .el-pagination .el-pager li.is-active {
-  background: var(--color-primary) !important;
-  color: var(--color-on-primary) !important;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark-2)) !important;
+  color: #fff !important;
+  box-shadow: 0 2px 8px rgba(22, 163, 74, 0.25) !important;
 }
 
 [data-theme="kacon"] .el-pagination .el-pager li:hover:not(.is-active) {
   color: var(--color-primary) !important;
+  background: rgba(22, 163, 74, 0.06) !important;
 }
 
 [data-theme="kacon"] .el-pagination button:hover {
@@ -577,30 +657,33 @@
 /* ========== 15. 标签 ========== */
 
 [data-theme="kacon"] .el-tag {
-  border-radius: 4px !important;
+  border-radius: var(--radius-round) !important;
   border: none !important;
 }
 
 /* ========== 17. 下拉菜单 ========== */
 
 [data-theme="kacon"] .el-dropdown-menu {
-  border: 1px solid var(--color-border-base) !important;
-  border-radius: 4px !important;
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--ds-black) 8%, transparent) !important;
-  padding: 4px !important;
-  background: var(--color-bg-base) !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
+  border: 1px solid rgba(229, 231, 235, 0.8) !important;
+  border-radius: var(--radius-md) !important;
+  box-shadow: var(--shadow-lg) !important;
+  padding: 6px !important;
+  background: var(--kacon-glass-bg-strong) !important;
+  backdrop-filter: var(--kacon-glass-filter) !important;
+  -webkit-backdrop-filter: var(--kacon-glass-filter) !important;
 }
 
 [data-theme="kacon"] .el-dropdown-menu__item {
-  border-radius: 4px !important;
-  font-size: 14px !important;
+  border-radius: var(--radius-md) !important;
+  font-size: 13px !important;
+  transition:
+    background-color var(--transition-fast) var(--transition-timing),
+    color var(--transition-fast) var(--transition-timing) !important;
 }
 
 [data-theme="kacon"] .el-dropdown-menu__item:hover {
-  background: var(--color-bg-page) !important;
-  color: var(--color-primary) !important;
+  background: rgba(22, 163, 74, 0.06) !important;
+  color: var(--color-primary-dark-2) !important;
   transform: none !important;
   box-shadow: none !important;
 }
@@ -608,18 +691,18 @@
 /* Shell dropdown */
 [data-theme="kacon"] .user-dropdown,
 [data-theme="kacon"] .language-dropdown {
-  background: var(--color-bg-base) !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  border: 1px solid var(--color-border-base) !important;
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--ds-black) 8%, transparent) !important;
-  border-radius: 4px !important;
+  background: var(--kacon-glass-bg-strong) !important;
+  backdrop-filter: var(--kacon-glass-filter) !important;
+  -webkit-backdrop-filter: var(--kacon-glass-filter) !important;
+  border: 1px solid rgba(229, 231, 235, 0.8) !important;
+  box-shadow: var(--shadow-lg) !important;
+  border-radius: var(--radius-md) !important;
 }
 
 [data-theme="kacon"] .user-dropdown .el-dropdown-menu__item:not(.is-disabled):hover,
 [data-theme="kacon"] .language-dropdown .el-dropdown-menu__item:hover {
-  background: var(--color-bg-page) !important;
-  color: var(--color-primary) !important;
+  background: rgba(22, 163, 74, 0.06) !important;
+  color: var(--color-primary-dark-2) !important;
   transform: none !important;
   box-shadow: none !important;
 }
@@ -639,6 +722,7 @@
 
 [data-theme="kacon"] .el-progress-bar__outer {
   background: var(--color-border-light) !important;
+  border-radius: var(--radius-round) !important;
 }
 
 
@@ -657,7 +741,7 @@
 }
 
 [data-theme="kacon"] .el-link--primary:hover {
-  color: var(--color-primary) !important;
+  color: var(--color-primary-dark-2) !important;
 }
 
 
@@ -669,7 +753,7 @@
 }
 
 [data-theme="kacon"] .el-step__head.is-process .el-step__icon {
-  background: var(--color-primary) !important;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark-2)) !important;
   border-color: var(--color-primary) !important;
 }
 
@@ -685,29 +769,33 @@
 /* ========== 22. 消息/通知 ========== */
 
 [data-theme="kacon"] .el-message {
-  border-radius: 4px !important;
-  border: 1px solid var(--color-border-base) !important;
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--ds-black) 6%, transparent) !important;
+  border-radius: var(--radius-md) !important;
+  border: 1px solid rgba(229, 231, 235, 0.7) !important;
+  box-shadow: var(--shadow-lg) !important;
+  backdrop-filter: var(--kacon-glass-filter) !important;
+  -webkit-backdrop-filter: var(--kacon-glass-filter) !important;
 }
 
 [data-theme="kacon"] .el-notification {
-  border-radius: 6px !important;
-  box-shadow: 0 2px 12px color-mix(in srgb, var(--ds-black) 8%, transparent) !important;
+  border-radius: var(--radius-md) !important;
+  box-shadow: var(--shadow-xl) !important;
+  border: 1px solid rgba(229, 231, 235, 0.7) !important;
 }
 
 
 /* ========== 23. 抽屉 ========== */
 
 [data-theme="kacon"] .el-drawer {
-  box-shadow: -2px 0 8px color-mix(in srgb, var(--ds-black) 6%, transparent) !important;
+  box-shadow: var(--shadow-xl) !important;
 }
 
 [data-theme="kacon"] .el-drawer__header {
-  border-bottom: 1px solid var(--color-border-light) !important;
+  border-bottom: 1px solid rgba(229, 231, 235, 0.7) !important;
   margin-bottom: 0 !important;
-  padding: 16px 20px !important;
+  padding: 18px 24px !important;
   color: var(--color-text-primary) !important;
   font-weight: 600 !important;
+  background: rgba(249, 250, 251, 0.3) !important;
 }
 
 
@@ -725,9 +813,9 @@
 /* ========== 25. 表单标签 ========== */
 
 [data-theme="kacon"] .el-form-item__label {
-  color: var(--color-text-regular) !important;
-  font-weight: 500 !important;
-  font-size: 14px !important;
+  color: var(--color-text-secondary) !important;
+  font-weight: 600 !important;
+  font-size: 13px !important;
 }
 
 
@@ -775,12 +863,12 @@
 }
 
 [data-theme="kacon"] ::-webkit-scrollbar-thumb {
-  background: var(--color-border-darker);
-  border-radius: 3px;
+  background: #cbd5e1;
+  border-radius: 8px;
 }
 
 [data-theme="kacon"] ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-text-placeholder);
+  background: #94a3b8;
 }
 
 [data-theme="kacon"] ::-webkit-scrollbar-track {
@@ -788,39 +876,34 @@
 }
 
 
-/* ========== 31. KACON 过渡策略 ========== */
-/* 通过 Element Plus 原生 CSS 变量全局控制过渡速度
-   不使用通配符 * 封杀，让框架内部的折叠/展开机制正常运作 */
+/* ========== 31. 过渡策略 ========== */
 [data-theme="kacon"] {
-  --el-transition-duration: 0.15s;
-  --el-transition-duration-fast: 0.1s;
+  --el-transition-duration: 0.25s;
+  --el-transition-duration-fast: 0.15s;
 }
 
-/* KACON 扁平风格：对话框/抽屉瞬开瞬关，不需要缩放/淡入动画 */
+/* 对话框/抽屉使用优雅动画 */
 [data-theme="kacon"] .el-overlay {
-  transition: none !important;
+  transition: opacity 0.2s var(--transition-timing) !important;
 }
 
 [data-theme="kacon"] .dialog-fade-enter-active,
 [data-theme="kacon"] .dialog-fade-leave-active,
 [data-theme="kacon"] .el-dialog__wrapper {
-  transition: none !important;
-  animation: none !important;
+  transition: opacity 0.25s var(--transition-timing) !important;
 }
 
 [data-theme="kacon"] .dialog-fade-enter-active .el-dialog,
 [data-theme="kacon"] .dialog-fade-leave-active .el-dialog,
 [data-theme="kacon"] .dialog-fade-enter-active .el-overlay-dialog,
 [data-theme="kacon"] .dialog-fade-leave-active .el-overlay-dialog {
-  transition: none !important;
-  animation: none !important;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.2s var(--transition-timing) !important;
 }
 
-/* 抽屉同理 */
+/* 抽屉过渡 */
 [data-theme="kacon"] .el-drawer__open .el-drawer.rtl,
 [data-theme="kacon"] .el-drawer__open .el-drawer.ltr {
-  transition: none !important;
-  animation: none !important;
+  transition: transform 0.3s var(--transition-timing) !important;
 }
 
 /* ========== 32. 侧边栏收起状态兼容 ========== */
@@ -834,26 +917,27 @@
 }
 
 /* ==================================================================
-   35. 深度覆盖：基础组件色彩大一统与扁平化 (Pagination/Tabs/Forms/Tags)
+   35. 深度覆盖：组件色彩统一
    ================================================================== */
 
 /* ===== 35.1 分页器 (Pagination) ===== */
 [data-theme="kacon"] .el-pagination.is-background .el-pager li:not(.is-disabled).is-active {
-  background-color: var(--color-primary) !important;
-  color: var(--color-on-primary) !important;
-  box-shadow: none !important;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark-2)) !important;
+  color: #fff !important;
+  box-shadow: 0 2px 8px rgba(22, 163, 74, 0.25) !important;
 }
 
 [data-theme="kacon"] .el-pagination.is-background .el-pager li:not(.is-disabled):hover {
   color: var(--color-primary) !important;
-  background-color: var(--color-primary-light-9) !important;
+  background-color: rgba(22, 163, 74, 0.06) !important;
 }
 
 [data-theme="kacon"] .el-pagination.is-background .btn-prev,
 [data-theme="kacon"] .el-pagination.is-background .btn-next,
 [data-theme="kacon"] .el-pagination.is-background .el-pager li {
-  background-color: var(--color-bg-page) !important;
-  border-radius: 4px !important;
+  background-color: #fff !important;
+  border-radius: var(--radius-round) !important;
+  border: 1px solid var(--color-border-base);
 }
 
 
@@ -868,9 +952,9 @@
 }
 
 [data-theme="kacon"] .el-tabs__active-bar {
-  background-color: var(--color-primary) !important;
+  background: linear-gradient(90deg, var(--color-primary), var(--color-brand)) !important;
   height: 3px !important;
-  /* 稍微加粗显得更现代 */
+  border-radius: 2px !important;
 }
 
 
@@ -899,82 +983,83 @@
 }
 
 
-/* ===== 35.5 选中框/边框色彩统一 (Select / Input / Focus...) ===== */
+/* ===== 35.5 Focus 样式统一 ===== */
 [data-theme="kacon"] .el-select .el-input.is-focus .el-input__wrapper {
-  box-shadow: 0 0 0 1px var(--color-primary) inset !important;
+  box-shadow: 0 0 0 1px var(--color-primary) inset, 0 0 0 3px rgba(22, 163, 74, 0.08) !important;
 }
 
 [data-theme="kacon"] .el-input__wrapper.is-focus {
-  box-shadow: 0 0 0 1px var(--color-primary) inset !important;
+  box-shadow: 0 0 0 1px var(--color-primary) inset, 0 0 0 3px rgba(22, 163, 74, 0.08) !important;
 }
 
 [data-theme="kacon"] .el-textarea__inner:focus {
-  box-shadow: 0 0 0 1px var(--color-primary) inset !important;
+  box-shadow: 0 0 0 1px var(--color-primary) inset, 0 0 0 3px rgba(22, 163, 74, 0.08) !important;
 }
 
 
-/* ===== 35.6 标签 (Tag) 色彩修正为扁平主题态 ===== */
+/* ===== 35.6 标签 (Tag) ===== */
 [data-theme="kacon"] .el-tag--primary,
 [data-theme="kacon"] .el-tag {
   background-color: var(--color-primary-light-9) !important;
-  border-color: var(--color-primary) !important;
+  border-color: transparent !important;
   color: var(--color-primary) !important;
-  border-radius: 4px !important;
+  border-radius: var(--radius-round) !important;
+  font-weight: 600;
 }
 
 [data-theme="kacon"] .el-tag--success {
   background-color: var(--color-success-light) !important;
-  border-color: var(--color-success) !important;
-  color: var(--color-success) !important;
+  border-color: transparent !important;
+  color: #15803d !important;
 }
 
 [data-theme="kacon"] .el-tag--warning {
   background-color: var(--color-warning-light) !important;
-  border-color: var(--color-warning) !important;
-  color: var(--color-warning) !important;
+  border-color: transparent !important;
+  color: #b45309 !important;
 }
 
 [data-theme="kacon"] .el-tag--danger {
   background-color: var(--color-danger-light) !important;
-  border-color: var(--color-danger) !important;
-  color: var(--color-danger) !important;
+  border-color: transparent !important;
+  color: #b91c1c !important;
 }
 
 [data-theme="kacon"] .el-tag--info {
-  background-color: var(--color-bg-page) !important;
-  border-color: var(--color-border-darker) !important;
-  color: var(--color-text-regular) !important;
+  background-color: var(--color-info-light) !important;
+  border-color: transparent !important;
+  color: var(--color-text-secondary) !important;
 }
 
 /* 进度条 (Progress) */
 [data-theme="kacon"] .el-progress-bar__inner {
-  background-color: var(--color-primary) !important;
+  background: linear-gradient(90deg, var(--color-primary), var(--color-brand)) !important;
+  border-radius: var(--radius-round) !important;
 }
 
 
 /* ==================================================================
-   36. 弹窗与抽屉 (Dialog & Drawer) 深度扁平化定制
+   36. 弹窗与抽屉 (Dialog & Drawer) 毛玻璃定制
    ================================================================== */
 
 /* ===== 36.1 弹窗基础结构 ===== */
-/* 给弹窗外壳增加清晰的边界感，收敛默认的大范围高斯阴影，改为干脆利落的边线 */
 [data-theme="kacon"] .el-dialog {
-  border-radius: 6px !important;
-  /* 适中圆角，符合商务系统严谨属性 */
-  box-shadow: 0 4px 20px color-mix(in srgb, var(--ds-black) 8%, transparent) !important;
-  border: 1px solid var(--color-border-base) !important;
+  border-radius: var(--radius-lg) !important;
+  box-shadow: var(--shadow-xl) !important;
+  border: 1px solid rgba(229, 231, 235, 0.8) !important;
   overflow: hidden !important;
-  /* 限定模态框内容无法逃逸 */
+  background: var(--kacon-glass-bg-strong) !important;
+  backdrop-filter: var(--kacon-glass-filter) !important;
+  -webkit-backdrop-filter: var(--kacon-glass-filter) !important;
 }
 
 /* ===== 36.2 标题区域 (Header) ===== */
-/* 使用浅色极简底色区分出操作栏 */
 [data-theme="kacon"] .el-dialog__header,
 [data-theme="kacon"] .el-drawer__header {
   margin: 0 !important;
   padding: 18px 24px !important;
-  background-color: var(--color-bg-light) !important;
-  border-bottom: 1px solid var(--color-border-light) !important;
+  background: rgba(249, 250, 251, 0.3) !important;
+  border-bottom: 1px solid rgba(229, 231, 235, 0.7) !important;
   display: flex !important;
   align-items: center !important;
 }
@@ -988,18 +1073,18 @@
   align-items: center !important;
 }
 
-/* 标题左侧增加高定色条 */
+/* 标题左侧品牌色渐变色条 */
 [data-theme="kacon"] .el-dialog__title::before {
   content: "";
   display: block;
   width: 4px;
-  height: 16px;
-  background-color: var(--color-primary);
+  height: 18px;
+  background: linear-gradient(180deg, var(--color-primary), var(--color-brand));
   border-radius: 2px;
   margin-right: 8px;
 }
 
-/* 右上角关闭按钮修正对齐与动效 */
+/* 右上角关闭按钮 */
 [data-theme="kacon"] .el-dialog__headerbtn,
 [data-theme="kacon"] .el-drawer__close-btn {
   top: 18px !important;
@@ -1009,22 +1094,19 @@
 [data-theme="kacon"] .el-dialog__headerbtn:hover .el-dialog__close,
 [data-theme="kacon"] .el-drawer__close-btn:hover {
   color: var(--color-danger) !important;
-  /* 警示色：悬浮变红 */
   transform: none !important;
-  transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
 }
 
 /* ===== 36.3 弹窗主体区 (Body Layout) ===== */
 [data-theme="kacon"] .el-dialog__body {
-  padding: 24px 30px !important;
+  padding: 24px !important;
 }
 
-/* 针对“查看详情”弹窗最常用的 Descriptions 组件，提供完美嵌套样式 */
+/* Descriptions 嵌套样式 */
 [data-theme="kacon"] .el-dialog__body .el-descriptions {
-  border-radius: 4px !important;
+  border-radius: var(--radius-md) !important;
   overflow: hidden !important;
-  border: 1px solid var(--color-border-base) !important;
-  /* 内置一道精细边框 */
+  border: 1px solid rgba(229, 231, 235, 0.7) !important;
 }
 
 [data-theme="kacon"] .el-dialog__body .el-descriptions__header {
@@ -1032,18 +1114,652 @@
 }
 
 [data-theme="kacon"] .el-dialog__body .el-descriptions-item__label.is-bordered-label {
-  background-color: var(--color-bg-light) !important;
-  /* 跟顶槽头部同样的底色 */
-  color: var(--color-text-regular) !important;
-  font-weight: 500 !important;
+  background-color: rgba(249, 250, 251, 0.3) !important;
+  color: var(--color-text-secondary) !important;
+  font-weight: 600 !important;
 }
 
 /* ===== 36.4 弹窗底部操作区 (Footer) ===== */
 [data-theme="kacon"] .el-dialog__footer,
 [data-theme="kacon"] .el-drawer__footer {
   padding: 16px 24px !important;
-  border-top: 1px solid var(--color-border-light) !important;
-  background-color: var(--color-bg-light) !important;
-  /* 底部与头部色彩呼应形成外包装壳 */
+  border-top: 1px solid rgba(229, 231, 235, 0.7) !important;
+  background: rgba(249, 250, 251, 0.3) !important;
   margin: 0 !important;
+}
+
+
+/* ==================================================================
+   37. 按钮 (el-button) — 渐变 + 发光 + 微上浮
+   ================================================================== */
+
+/* ===== 37.1 所有按钮基础 ===== */
+[data-theme="kacon"] .el-button {
+  border-radius: var(--radius-sm) !important;
+  transition:
+    background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+    color 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.15s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+[data-theme="kacon"] .el-button:hover {
+  transform: translateY(-1px);
+}
+
+[data-theme="kacon"] .el-button:active {
+  transform: scale(0.98) !important;
+}
+
+/* 表格内按钮不做上浮，避免行内错位 */
+[data-theme="kacon"] .el-table .el-button:hover,
+[data-theme="kacon"] .el-table .el-button:active {
+  transform: none !important;
+}
+
+[data-theme="kacon"] .el-button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.08), var(--shadow-sm) !important;
+}
+
+/* ===== 37.2 Primary 按钮 — 品牌色渐变 + 发光阴影 ===== */
+[data-theme="kacon"] .el-button--primary:not(.is-plain):not(.is-text):not(.is-link) {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark-2)) !important;
+  border-color: var(--color-primary) !important;
+  color: #fff !important;
+  box-shadow: 0 2px 6px rgba(22, 163, 74, 0.25) !important;
+}
+
+[data-theme="kacon"] .el-button--primary:not(.is-plain):not(.is-text):not(.is-link):hover {
+  background: linear-gradient(135deg, var(--color-primary-dark-2), var(--color-primary)) !important;
+  box-shadow: 0 4px 16px rgba(22, 163, 74, 0.35) !important;
+  transform: translateY(-1px);
+  color: #fff !important;
+}
+
+/* ===== 37.3 Success 按钮 — 渐变 ===== */
+[data-theme="kacon"] .el-button--success:not(.is-plain):not(.is-text):not(.is-link) {
+  background: linear-gradient(135deg, var(--color-success), var(--color-success-dark)) !important;
+  border-color: var(--color-success) !important;
+  color: #fff !important;
+  box-shadow: 0 2px 6px rgba(22, 163, 74, 0.2) !important;
+}
+
+[data-theme="kacon"] .el-button--success:not(.is-plain):not(.is-text):not(.is-link):hover {
+  background: linear-gradient(135deg, var(--color-success-dark), var(--color-success)) !important;
+  box-shadow: 0 4px 14px rgba(22, 163, 74, 0.3) !important;
+}
+
+/* ===== 37.4 Warning 按钮 — 渐变 ===== */
+[data-theme="kacon"] .el-button--warning:not(.is-plain):not(.is-text):not(.is-link) {
+  background: linear-gradient(135deg, var(--color-warning), var(--color-warning-dark)) !important;
+  border-color: var(--color-warning) !important;
+  color: #fff !important;
+  box-shadow: 0 2px 6px rgba(217, 119, 6, 0.2) !important;
+}
+
+[data-theme="kacon"] .el-button--warning:not(.is-plain):not(.is-text):not(.is-link):hover {
+  background: linear-gradient(135deg, var(--color-warning-dark), var(--color-warning)) !important;
+  box-shadow: 0 4px 14px rgba(217, 119, 6, 0.3) !important;
+}
+
+/* ===== 37.5 Danger 按钮 — 渐变 ===== */
+[data-theme="kacon"] .el-button--danger:not(.is-plain):not(.is-text):not(.is-link) {
+  background: linear-gradient(135deg, var(--color-danger), var(--color-danger-dark)) !important;
+  border-color: var(--color-danger) !important;
+  color: #fff !important;
+  box-shadow: 0 2px 6px rgba(220, 38, 38, 0.2) !important;
+}
+
+[data-theme="kacon"] .el-button--danger:not(.is-plain):not(.is-text):not(.is-link):hover {
+  background: linear-gradient(135deg, var(--color-danger-dark), var(--color-danger)) !important;
+  box-shadow: 0 4px 14px rgba(220, 38, 38, 0.3) !important;
+}
+
+/* ===== 37.6 默认按钮 — hover 品牌色边框 ===== */
+[data-theme="kacon"] .el-button:not(.el-button--primary):not(.el-button--success):not(.el-button--warning):not(.el-button--danger):not(.el-button--info):not(.is-text):not(.is-link):hover {
+  border-color: var(--color-primary) !important;
+  color: var(--color-primary) !important;
+}
+
+/* ===== 37.7 禁用态 ===== */
+[data-theme="kacon"] .el-button.is-disabled,
+[data-theme="kacon"] .el-button.is-disabled:hover {
+  opacity: 0.45 !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* ===== 37.8 表格内操作按钮 — 继承 Element Plus 默认尺寸 ===== */
+/* 不覆盖 padding/min-height/font-size，与其他主题保持一致 */
+
+
+/* ==================================================================
+   38. 卡片 (el-card) — 低模糊玻璃层 + 克制圆角 + 柔和阴影
+   ================================================================== */
+
+[data-theme="kacon"] .el-card {
+  background: var(--kacon-glass-bg) !important;
+  backdrop-filter: var(--kacon-glass-filter) !important;
+  -webkit-backdrop-filter: var(--kacon-glass-filter) !important;
+  border-radius: var(--radius-lg) !important;
+  border: 1px solid rgba(229, 231, 235, 0.7) !important;
+  box-shadow: var(--shadow-sm) !important;
+  transition: box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  overflow: hidden;
+}
+
+[data-theme="kacon"] .el-card:hover {
+  box-shadow: var(--shadow-md) !important;
+}
+
+[data-theme="kacon"] .el-card__header {
+  background: rgba(249, 250, 251, 0.3) !important;
+  border-bottom: 1px solid rgba(229, 231, 235, 0.7) !important;
+  font-weight: 600;
+  padding: 16px 24px !important;
+}
+
+[data-theme="kacon"] .el-card:not(.stat-card) > .el-card__body {
+  padding: 24px !important;
+}
+
+
+/* ==================================================================
+   39. 统计卡片 (stat-card) — hover 上浮 + 图标渐变
+   ================================================================== */
+
+[data-theme="kacon"] .stat-card:not(.el-card) {
+  background: var(--kacon-glass-bg) !important;
+  backdrop-filter: var(--kacon-glass-filter) !important;
+  -webkit-backdrop-filter: var(--kacon-glass-filter) !important;
+  border: 1px solid rgba(229, 231, 235, 0.7) !important;
+  border-radius: var(--radius-lg) !important;
+  box-shadow: var(--shadow-sm) !important;
+  transition:
+    background-color 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+    border-color 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+    transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+}
+
+[data-theme="kacon"] .stat-card:not(.el-card):hover {
+  box-shadow: var(--shadow-md) !important;
+  transform: translateY(-1px) !important;
+}
+
+[data-theme="kacon"] .el-card.stat-card {
+  background: var(--kacon-glass-bg) !important;
+  backdrop-filter: var(--kacon-glass-filter) !important;
+  -webkit-backdrop-filter: var(--kacon-glass-filter) !important;
+  border: 1px solid rgba(229, 231, 235, 0.7) !important;
+  transition:
+    background-color 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+    border-color 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+    transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+}
+
+[data-theme="kacon"] .el-card.stat-card:hover {
+  box-shadow: var(--shadow-md) !important;
+  transform: translateY(-1px) !important;
+}
+
+/* 统计卡片图标 — 渐变色 */
+[data-theme="kacon"] .stat-card .stat-icon,
+[data-theme="kacon"] .stat-card .stat-card-auto-icon,
+[data-theme="kacon"] .stat-card .icon-container,
+[data-theme="kacon"] .stat-card .stat-card__icon {
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+}
+
+[data-theme="kacon"] .stat-card:hover .stat-icon,
+[data-theme="kacon"] .stat-card:hover .stat-card-auto-icon,
+[data-theme="kacon"] .stat-card:hover .icon-container,
+[data-theme="kacon"] .stat-card:hover .stat-card__icon {
+  transform: scale(1.03) !important;
+}
+
+/* el-card 内图标用 translateY(-50%) 居中，hover 必须保留 */
+[data-theme="kacon"] .el-card.stat-card:hover .stat-icon,
+[data-theme="kacon"] .el-card.stat-card:hover .stat-card-auto-icon,
+[data-theme="kacon"] .el-card.stat-card:hover .icon-container,
+[data-theme="kacon"] .el-card.stat-card:hover .stat-card__icon {
+  transform: translateY(-50%) scale(1.03) !important;
+}
+
+/* 统计卡片数值 — 大号加粗 */
+[data-theme="kacon"] .stat-card .stat-value,
+[data-theme="kacon"] .stat-card .stat-card__value,
+[data-theme="kacon"] .stat-card .number,
+[data-theme="kacon"] .stat-card .animated-number {
+  font-weight: 800 !important;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+/* 统计卡片标签 — 大写字母间距 */
+[data-theme="kacon"] .stat-card .stat-label,
+[data-theme="kacon"] .stat-card .stat-title,
+[data-theme="kacon"] .stat-card .stat-card__label {
+  font-weight: 600 !important;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 12px !important;
+}
+
+
+/* ==================================================================
+   40. 气泡 / 消息框 / 提示框 — 毛玻璃
+   ================================================================== */
+
+/* Popover — 毛玻璃 */
+[data-theme="kacon"] .el-popover {
+  background: var(--kacon-glass-bg-strong) !important;
+  backdrop-filter: var(--kacon-glass-filter) !important;
+  -webkit-backdrop-filter: var(--kacon-glass-filter) !important;
+  border: 1px solid rgba(229, 231, 235, 0.8) !important;
+  border-radius: var(--radius-md) !important;
+  box-shadow: var(--shadow-lg) !important;
+}
+
+/* MessageBox — 低模糊玻璃层 + 克制圆角 */
+[data-theme="kacon"] .el-message-box {
+  background: var(--kacon-glass-bg-strong) !important;
+  backdrop-filter: var(--kacon-glass-filter) !important;
+  -webkit-backdrop-filter: var(--kacon-glass-filter) !important;
+  border: 1px solid rgba(229, 231, 235, 0.8) !important;
+  border-radius: var(--radius-lg) !important;
+  box-shadow: var(--shadow-xl) !important;
+  overflow: hidden;
+}
+
+[data-theme="kacon"] .el-message-box__header {
+  background: rgba(249, 250, 251, 0.3) !important;
+  border-bottom: 1px solid rgba(229, 231, 235, 0.7) !important;
+  padding: 18px 24px !important;
+}
+
+[data-theme="kacon"] .el-message-box__title {
+  font-weight: 600 !important;
+  display: flex;
+  align-items: center;
+}
+
+[data-theme="kacon"] .el-message-box__content {
+  padding: 24px !important;
+}
+
+[data-theme="kacon"] .el-message-box__btns {
+  padding: 16px 24px !important;
+  border-top: 1px solid rgba(229, 231, 235, 0.7) !important;
+  background: rgba(249, 250, 251, 0.3) !important;
+}
+
+/* Tooltip — 品牌色暗底 */
+[data-theme="kacon"] .el-tooltip__popper.is-dark {
+  background: rgba(15, 23, 42, 0.9) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  border-radius: var(--radius-sm) !important;
+}
+
+
+/* ==================================================================
+   41. 加载遮罩 — 毛玻璃
+   ================================================================== */
+
+[data-theme="kacon"] .el-loading-mask {
+  background-color: rgba(255, 255, 255, 0.72) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+}
+
+
+/* ==================================================================
+   42. 表单项 — 增强 focus 外发光
+   ================================================================== */
+
+/* 日期选择器面板 — 毛玻璃 */
+[data-theme="kacon"] .el-picker-panel {
+  background: var(--kacon-glass-bg-strong) !important;
+  backdrop-filter: var(--kacon-glass-filter) !important;
+  -webkit-backdrop-filter: var(--kacon-glass-filter) !important;
+  border: 1px solid rgba(229, 231, 235, 0.8) !important;
+  border-radius: var(--radius-md) !important;
+  box-shadow: var(--shadow-lg) !important;
+}
+
+
+/* ==================================================================
+   43. 折叠面板 / 时间线 — 品牌色增强
+   ================================================================== */
+
+[data-theme="kacon"] .el-collapse-item__header {
+  border-radius: var(--radius-sm) !important;
+}
+
+[data-theme="kacon"] .el-timeline-item__tail {
+  border-left-color: rgba(22, 163, 74, 0.2) !important;
+}
+
+
+/* ==================================================================
+   44. Alert 提示 — 语义色 + 品牌圆角
+   ================================================================== */
+
+[data-theme="kacon"] .el-alert {
+  border-radius: var(--radius-md) !important;
+  border-width: 1px !important;
+}
+
+[data-theme="kacon"] .el-alert--success {
+  background: var(--color-success-light) !important;
+  border-color: rgba(22, 163, 74, 0.3) !important;
+  color: var(--color-success-dark) !important;
+}
+
+[data-theme="kacon"] .el-alert--warning {
+  background: var(--color-warning-light) !important;
+  border-color: rgba(217, 119, 6, 0.3) !important;
+  color: var(--color-warning-dark) !important;
+}
+
+[data-theme="kacon"] .el-alert--error {
+  background: var(--color-danger-light) !important;
+  border-color: rgba(220, 38, 38, 0.3) !important;
+  color: var(--color-danger-dark) !important;
+}
+
+[data-theme="kacon"] .el-alert--info {
+  background: var(--color-info-light) !important;
+  border-color: rgba(71, 85, 105, 0.2) !important;
+  color: var(--color-text-primary) !important;
+}
+
+
+/* ==================================================================
+   45. 树形控件 (el-tree) — 品牌色高亮
+   ================================================================== */
+
+[data-theme="kacon"] .el-tree {
+  background: transparent !important;
+  color: var(--color-text-primary) !important;
+}
+
+[data-theme="kacon"] .el-tree-node__content:hover {
+  background-color: rgba(22, 163, 74, 0.06) !important;
+}
+
+[data-theme="kacon"] .el-tree-node:focus > .el-tree-node__content {
+  background-color: rgba(22, 163, 74, 0.08) !important;
+}
+
+[data-theme="kacon"] .el-tree-node.is-current > .el-tree-node__content {
+  background-color: var(--color-primary-light-9) !important;
+  color: var(--color-primary) !important;
+}
+
+
+/* ==================================================================
+   46. 头像 (el-avatar) — 品牌色边框
+   ================================================================== */
+
+[data-theme="kacon"] .el-avatar {
+  border: 2px solid var(--color-border-light) !important;
+}
+
+
+/* ==================================================================
+   47. 分割线 (el-divider)
+   ================================================================== */
+
+[data-theme="kacon"] .el-divider {
+  border-color: rgba(229, 231, 235, 0.7) !important;
+}
+
+[data-theme="kacon"] .el-divider__text {
+  background-color: var(--color-bg-base) !important;
+  color: var(--color-text-secondary) !important;
+}
+
+
+/* ==================================================================
+   48. 空状态 (el-empty)
+   ================================================================== */
+
+[data-theme="kacon"] .el-empty__description {
+  color: var(--color-text-secondary) !important;
+}
+
+
+/* ==================================================================
+   49. 描述列表 (el-descriptions) — 内容文字色
+   ================================================================== */
+
+[data-theme="kacon"] .el-descriptions__content {
+  color: var(--color-text-primary) !important;
+}
+
+
+/* ==================================================================
+   50. 进度条文字 (el-progress)
+   ================================================================== */
+
+[data-theme="kacon"] .el-progress__text {
+  color: var(--color-text-primary) !important;
+  font-weight: 600 !important;
+}
+
+
+/* ==================================================================
+   51. 消息提示语义色 (el-message)
+   ================================================================== */
+
+[data-theme="kacon"] .el-message--success {
+  background: rgba(240, 253, 244, 0.95) !important;
+  border-color: rgba(22, 163, 74, 0.3) !important;
+}
+
+[data-theme="kacon"] .el-message--warning {
+  background: rgba(254, 243, 199, 0.95) !important;
+  border-color: rgba(217, 119, 6, 0.3) !important;
+}
+
+[data-theme="kacon"] .el-message--error {
+  background: rgba(254, 226, 226, 0.95) !important;
+  border-color: rgba(220, 38, 38, 0.3) !important;
+}
+
+[data-theme="kacon"] .el-message--info {
+  background: rgba(241, 245, 249, 0.95) !important;
+  border-color: rgba(71, 85, 105, 0.2) !important;
+}
+
+
+/* ==================================================================
+   52. Textarea focus 外发光
+   ================================================================== */
+
+[data-theme="kacon"] .el-textarea__inner:hover {
+  border-color: var(--color-primary) !important;
+}
+
+
+/* ==================================================================
+   53. 输入框内部 (el-input__inner) — 字号/颜色
+   ================================================================== */
+
+[data-theme="kacon"] .el-input__inner {
+  color: var(--color-text-primary) !important;
+}
+
+[data-theme="kacon"] .el-input__inner::placeholder {
+  color: var(--color-text-placeholder) !important;
+}
+
+
+/* ==================================================================
+   54. 选择器 (el-select__wrapper) / 日期 (el-date-editor)
+   ================================================================== */
+
+[data-theme="kacon"] .el-select__wrapper {
+  border-radius: var(--radius-sm) !important;
+}
+
+[data-theme="kacon"] .el-date-editor.el-input__wrapper {
+  border-radius: var(--radius-sm) !important;
+}
+
+
+/* ==================================================================
+   55. 数字输入框 (el-input-number) — 品牌色按钮
+   ================================================================== */
+
+[data-theme="kacon"] .el-input-number__decrease,
+[data-theme="kacon"] .el-input-number__increase {
+  background: var(--color-bg-section) !important;
+  border-color: var(--color-border-base) !important;
+  color: var(--color-text-regular) !important;
+}
+
+[data-theme="kacon"] .el-input-number__decrease:hover,
+[data-theme="kacon"] .el-input-number__increase:hover {
+  color: var(--color-primary) !important;
+}
+
+
+/* ==================================================================
+   56. 单选按钮组 (el-radio-button) — 选中态品牌色
+   ================================================================== */
+
+[data-theme="kacon"] .el-radio-button__inner {
+  border-radius: 0 !important;
+}
+
+[data-theme="kacon"] .el-radio-button__original-radio:checked + .el-radio-button__inner {
+  background-color: var(--color-primary) !important;
+  border-color: var(--color-primary) !important;
+  color: #fff !important;
+  box-shadow: -1px 0 0 0 var(--color-primary) !important;
+}
+
+
+/* ==================================================================
+   57. 骨架屏 (el-skeleton)
+   ================================================================== */
+
+[data-theme="kacon"] .el-skeleton__item {
+  background: var(--color-bg-hover) !important;
+  border-radius: var(--radius-sm) !important;
+}
+
+
+/* ==================================================================
+   58. 统计数值 (el-statistic)
+   ================================================================== */
+
+[data-theme="kacon"] .el-statistic__number {
+  color: var(--color-text-primary) !important;
+  font-weight: 700 !important;
+}
+
+[data-theme="kacon"] .el-statistic__head {
+  color: var(--color-text-secondary) !important;
+}
+
+
+/* ==================================================================
+   59. 结果页 (el-result)
+   ================================================================== */
+
+[data-theme="kacon"] .el-result__title {
+  color: var(--color-text-primary) !important;
+}
+
+[data-theme="kacon"] .el-result__subtitle {
+  color: var(--color-text-secondary) !important;
+}
+
+
+/* ==================================================================
+   60. 步骤条 (el-steps) — 品牌色
+   ================================================================== */
+
+[data-theme="kacon"] .el-steps {
+  color: var(--color-text-secondary) !important;
+}
+
+
+/* ==================================================================
+   61. 标签页头 (el-tabs__header)
+   ================================================================== */
+
+[data-theme="kacon"] .el-tabs__header {
+  border-bottom-color: rgba(229, 231, 235, 0.7) !important;
+}
+
+
+/* ==================================================================
+   62. 折叠面板内容 (el-collapse-item 子元素)
+   ================================================================== */
+
+[data-theme="kacon"] .el-collapse-item__wrap {
+  background: var(--color-bg-base) !important;
+  border-bottom-color: rgba(229, 231, 235, 0.7) !important;
+}
+
+[data-theme="kacon"] .el-collapse-item__content {
+  color: var(--color-text-regular) !important;
+}
+
+
+/* ==================================================================
+   63. 时间线子元素
+   ================================================================== */
+
+[data-theme="kacon"] .el-timeline-item__content {
+  color: var(--color-text-primary) !important;
+}
+
+[data-theme="kacon"] .el-timeline-item__timestamp {
+  color: var(--color-text-secondary) !important;
+  font-weight: 500 !important;
+}
+
+
+/* ==================================================================
+   64. 表格空数据 / 描述列表 / Alert 子元素
+   ================================================================== */
+
+[data-theme="kacon"] .el-table__empty-block {
+  background: var(--color-bg-base) !important;
+}
+
+[data-theme="kacon"] .el-descriptions__body .el-descriptions__cell {
+  border-color: rgba(229, 231, 235, 0.7) !important;
+}
+
+[data-theme="kacon"] .el-alert__title {
+  color: inherit !important;
+  font-weight: 600 !important;
+}
+
+[data-theme="kacon"] .el-alert__description {
+  color: inherit !important;
+  opacity: 0.85;
+}
+
+
+/* ==================================================================
+   65. Popper / Popconfirm — 毛玻璃
+   ================================================================== */
+
+[data-theme="kacon"] .el-popper {
+  border-radius: var(--radius-md) !important;
+}
+
+[data-theme="kacon"] .el-popconfirm__action {
+  padding-top: 12px !important;
 }

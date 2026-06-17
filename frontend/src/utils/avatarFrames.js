@@ -1,58 +1,170 @@
-export const DEFAULT_AVATAR_FRAME = 'festival-lantern'
+export const DEFAULT_AVATAR_FRAME = 'none'
 
 export const AVATAR_FRAME_OPTIONS = Object.freeze([
   {
-    id: 'festival-lantern',
-    name: '锦灯瑞环',
-    description: '金红描边、花簇和灯笼点缀，适合醒目的节庆风头像',
-    tags: ['国风', '节庆'],
-    variant: 'festival-lantern',
+    id: 'golden-halo',
+    name: '金光圣环',
+    description: '透明金色光环图片框，接近你给的参考图效果。',
+    tags: ['图片框', '金色', '华丽'],
+    variant: 'image-frame',
+    image: '/avatar-frames/golden-halo.png',
+    motion: 'breath',
     featured: true
   },
   {
-    id: 'aurora-butterfly',
-    name: '星蝶流光',
-    description: '紫蓝晶环与轻盈蝶翼环绕，带柔和星光闪烁',
-    tags: ['华丽', '自然'],
-    variant: 'aurora-butterfly',
+    id: 'silver-moon',
+    name: '银月星环',
+    description: '银蓝月光图片框，带清冷星环质感。',
+    tags: ['图片框', '月光', '星光'],
+    variant: 'image-frame',
+    image: '/avatar-frames/silver-moon.png',
+    motion: 'slow-spin',
     featured: true
   },
   {
-    id: 'laurel-medal',
-    name: '金桂勋章',
-    description: '金色圆框、桂冠和底座组合，更像正式头像徽章',
-    tags: ['桂冠', '金色'],
-    variant: 'laurel-medal',
+    id: 'flame-phoenix',
+    name: '赤焰羽冠',
+    description: '橙红火焰图片框，适合醒目的头像装扮。',
+    tags: ['图片框', '火焰', '华丽'],
+    variant: 'image-frame',
+    image: '/avatar-frames/flame-phoenix.png',
+    motion: 'breath',
     featured: true
   },
   {
-    id: 'live-crown',
-    name: '霓虹直播',
-    description: '皇冠、LIVE 标识和霓虹能量环，适合更活跃的展示风格',
-    tags: ['直播', '霓虹', '科技'],
-    variant: 'live-crown',
+    id: 'ocean-crystal',
+    name: '海蓝晶环',
+    description: '海蓝水晶图片框，明亮清透。',
+    tags: ['图片框', '海洋', '宝石'],
+    variant: 'image-frame',
+    image: '/avatar-frames/ocean-crystal.png',
+    motion: 'slow-spin',
+    featured: true
+  },
+  {
+    id: 'emerald-vine',
+    name: '翠藤花环',
+    description: '绿色藤蔓图片框，清爽自然。',
+    tags: ['图片框', '藤蔓', '自然'],
+    variant: 'image-frame',
+    image: '/avatar-frames/emerald-vine.png',
+    motion: 'breath',
+    featured: true
+  },
+  {
+    id: 'neon-prism',
+    name: '霓虹棱镜',
+    description: '紫粉霓虹图片框，带一点科技感。',
+    tags: ['图片框', '霓虹', '科技'],
+    variant: 'image-frame',
+    image: '/avatar-frames/neon-prism.png',
+    motion: 'slow-spin',
+    featured: true
+  },
+  {
+    id: 'royal-crown',
+    name: '鎏金皇冠',
+    description: '金色皇冠与宝石圆环图片框，适合醒目的身份展示。',
+    tags: ['图片框', '皇冠', '金色', '华丽'],
+    variant: 'image-frame',
+    image: '/avatar-frames/royal-crown.png',
+    motion: 'breath',
     featured: true
   },
   {
     id: 'galaxy-orbit',
     name: '星河轨道',
-    description: '深色星环、轨道和微光星点，带空间感的动态框',
-    tags: ['星河', '科技'],
-    variant: 'galaxy-orbit',
+    description: '星轨与晶点环绕的图片框，带空间感。',
+    tags: ['图片框', '星河', '科技', '梦幻'],
+    variant: 'image-frame',
+    image: '/avatar-frames/galaxy-orbit.png',
+    motion: 'slow-spin',
     featured: true
   },
   {
-    id: 'crown-gem',
-    name: '皇冠宝石',
-    description: '青绿色光环、皇冠和宝石底饰，轻奢但不刺眼',
-    tags: ['皇冠', '宝石', '华丽'],
-    variant: 'crown-gem',
+    id: 'sakura-dream',
+    name: '樱花梦环',
+    description: '粉色樱花与柔光圆环图片框，轻盈梦幻。',
+    tags: ['图片框', '樱花', '自然', '梦幻'],
+    variant: 'image-frame',
+    image: '/avatar-frames/sakura-dream.png',
+    motion: 'breath',
+    featured: true
+  },
+  {
+    id: 'ice-crystal',
+    name: '冰晶雪环',
+    description: '冰蓝晶体图片框，干净清冷。',
+    tags: ['图片框', '冰晶', '宝石', '梦幻'],
+    variant: 'image-frame',
+    image: '/avatar-frames/ice-crystal.png',
+    motion: 'slow-spin',
+    featured: true
+  },
+  {
+    id: 'cyber-blue',
+    name: '赛博蓝环',
+    description: '蓝色赛博能量图片框，线条更利落。',
+    tags: ['图片框', '赛博', '科技', '霓虹'],
+    variant: 'image-frame',
+    image: '/avatar-frames/cyber-blue.png',
+    motion: 'slow-spin',
+    featured: true
+  },
+  {
+    id: 'rainbow-star',
+    name: '彩虹星芒',
+    description: '彩虹分段圆环和星芒图片框，明亮活泼。',
+    tags: ['图片框', '彩虹', '星光', '梦幻'],
+    variant: 'image-frame',
+    image: '/avatar-frames/rainbow-star.png',
+    motion: 'breath',
+    featured: true
+  },
+  {
+    id: 'lava-dragon',
+    name: '熔岩龙焰',
+    description: '熔岩火焰棱片图片框，视觉冲击更强。',
+    tags: ['图片框', '熔岩', '火焰', '华丽'],
+    variant: 'image-frame',
+    image: '/avatar-frames/lava-dragon.png',
+    motion: 'breath',
+    featured: true
+  },
+  {
+    id: 'pearl-wings',
+    name: '珍珠羽翼',
+    description: '珍珠圆环与羽翼图片框，柔和轻奢。',
+    tags: ['图片框', '羽翼', '宝石', '华丽'],
+    variant: 'image-frame',
+    image: '/avatar-frames/pearl-wings.png',
+    motion: 'breath',
+    featured: true
+  },
+  {
+    id: 'jade-bamboo',
+    name: '青玉竹环',
+    description: '青绿色竹叶图片框，清新自然。',
+    tags: ['图片框', '竹叶', '自然', '清新'],
+    variant: 'image-frame',
+    image: '/avatar-frames/jade-bamboo.png',
+    motion: 'breath',
+    featured: true
+  },
+  {
+    id: 'purple-magic',
+    name: '紫晶魔法',
+    description: '紫色魔法晶环图片框，梦幻感更强。',
+    tags: ['图片框', '魔法', '宝石', '梦幻'],
+    variant: 'image-frame',
+    image: '/avatar-frames/purple-magic.png',
+    motion: 'slow-spin',
     featured: true
   },
   {
     id: 'none',
     name: '无特效',
-    description: '不使用动态头像框',
+    description: '不使用头像框。',
     tags: ['简约'],
     variant: 'none'
   }

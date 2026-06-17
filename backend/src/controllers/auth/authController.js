@@ -318,12 +318,22 @@ const updateAvatarFrame = async (req, res) => {
     const frameId = req.body.frameId || req.body.avatar_frame;
 
     const decorativeFrameIds = new Set([
-      'festival-lantern',
-      'aurora-butterfly',
-      'laurel-medal',
-      'live-crown',
+      'golden-halo',
+      'silver-moon',
+      'flame-phoenix',
+      'ocean-crystal',
+      'emerald-vine',
+      'neon-prism',
+      'royal-crown',
       'galaxy-orbit',
-      'crown-gem',
+      'sakura-dream',
+      'ice-crystal',
+      'cyber-blue',
+      'rainbow-star',
+      'lava-dragon',
+      'pearl-wings',
+      'jade-bamboo',
+      'purple-magic',
     ]);
 
     if (!frameId || (!decorativeFrameIds.has(frameId) && frameId !== 'none')) {
