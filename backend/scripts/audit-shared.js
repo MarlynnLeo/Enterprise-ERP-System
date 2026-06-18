@@ -281,6 +281,56 @@ function auditDataApiUniformity() {
   else console.log('Result: OK');
 }
 
+function auditMobileAuthSecurity() {
+  printHeader('Mobile Auth Security Audit');
+  const authStorePath = path.join(repoRoot, 'mobile', 'src', 'stores', 'auth.js');
+  const apiClientPath = path.join(repoRoot, 'mobile', 'src', 'api', 'client.js');
+  const issues = [];
+
+  const authStore = fs.readFileSync(authStorePath, 'utf8');
+  const apiClient = fs.readFileSync(apiClientPath, 'utf8');
+
+  const localPermissionWrites = [...authStore.matchAll(
+    /safeSaveJSON\(\s*STORAGE_KEYS\.PERMISSIONS\s*,\s*([^,]+),\s*localStorage\s*\)/g
+  )].filter(match => !['null', 'undefined'].includes(match[1].trim()));
+  if (localPermissionWrites.length > 0) {
+    issues.push('mobile auth store writes permission snapshots to localStorage');
+  }
+
+  if (!/safeGetJSON\(\s*STORAGE_KEYS\.PERMISSIONS\s*,\s*\[\]\s*,\s*sessionStorage\s*\)/.test(authStore)) {
+    issues.push('mobile auth store does not initialize permission cache from sessionStorage');
+  }
+
+  const requiredAuthStoreCleanup = [
+    /sessionStorage\.removeItem\(\s*STORAGE_KEYS\.PERMISSIONS\s*\)/,
+    /localStorage\.removeItem\(\s*STORAGE_KEYS\.PERMISSIONS\s*\)/,
+  ];
+  for (const pattern of requiredAuthStoreCleanup) {
+    if (!pattern.test(authStore)) {
+      issues.push(`mobile auth store missing cleanup pattern ${pattern}`);
+    }
+  }
+
+  const requiredApiClientCleanup = [
+    /sessionStorage\.removeItem\(\s*['"]user_permissions['"]\s*\)/,
+    /localStorage\.removeItem\(\s*['"]user_permissions['"]\s*\)/,
+  ];
+  for (const pattern of requiredApiClientCleanup) {
+    if (!pattern.test(apiClient)) {
+      issues.push(`mobile api client missing cleanup pattern ${pattern}`);
+    }
+  }
+
+  printMetric('files checked', 2);
+  printMetric('issues', issues.length);
+  if (issues.length) {
+    issues.forEach(issue => console.error(`- ${issue}`));
+    process.exitCode = 1;
+  } else {
+    console.log('Result: OK');
+  }
+}
+
 function auditNamedArea(area) {
   printHeader(`${area} Audit`);
   const files = walk(path.join(rootDir, 'src'), file => file.endsWith('.js'))
@@ -297,6 +347,7 @@ module.exports = {
   auditLegacyCode,
   auditDataConsistency,
   auditDataApiUniformity,
+  auditMobileAuthSecurity,
   auditNamedArea,
   requireOptional,
 };

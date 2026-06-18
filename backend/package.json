@@ -38,6 +38,7 @@
     "audit:status": "node scripts/audit-status-consistency.js",
     "audit:data": "node scripts/run-data-consistency-audit.js",
     "audit:data-api": "node scripts/audit-data-api-uniformity.js",
+    "audit:mobile-auth": "node scripts/audit-mobile-auth-security.js",
     "audit:legacy": "node scripts/audit-legacy-code.js"
   },
   "keywords": [
