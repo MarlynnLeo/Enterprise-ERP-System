@@ -148,6 +148,7 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem(STORAGE_KEYS.IS_LOGGED_IN)
     localStorage.removeItem('refreshToken')
     sessionStorage.removeItem(STORAGE_KEYS.PERMISSIONS)
+    localStorage.removeItem(STORAGE_KEYS.PERMISSIONS)
     if (typeof window !== 'undefined') {
       delete window.__mobileThemeLoaded
       delete window.__mobileThemeLoadedFor
@@ -238,6 +239,7 @@ export const useAuthStore = defineStore('auth', () => {
       localStorage.removeItem(STORAGE_KEYS.IS_LOGGED_IN)
       sessionStorage.removeItem(STORAGE_KEYS.IS_LOGGED_IN)
       sessionStorage.removeItem(STORAGE_KEYS.PERMISSIONS)
+      localStorage.removeItem(STORAGE_KEYS.PERMISSIONS)
       return false
     }
   }
@@ -299,8 +301,8 @@ export const useAuthStore = defineStore('auth', () => {
             permissions.value = []
           }
 
-          // 权限缓存到 localStorage（跨标签共享，刷新后快速恢复）
-          safeSaveJSON(STORAGE_KEYS.PERMISSIONS, permissions.value, localStorage)
+          // 权限缓存只保留在会话内，避免退出浏览器后残留权限快照。
+          safeSaveJSON(STORAGE_KEYS.PERMISSIONS, permissions.value, sessionStorage)
           permissionsLoaded.value = true
           return true
         } catch (error) {
@@ -341,6 +343,7 @@ export const useAuthStore = defineStore('auth', () => {
     permissionsLoaded.value = false
     permissionsLoading.value = false
     sessionStorage.removeItem(STORAGE_KEYS.PERMISSIONS)
+    localStorage.removeItem(STORAGE_KEYS.PERMISSIONS)
     return await fetchUserPermissions(true)
   }
 

@@ -42,6 +42,7 @@ const clearClientAuthState = () => {
   localStorage.removeItem('user')
   localStorage.removeItem('isLoggedIn')
   localStorage.removeItem('refreshToken')
+  sessionStorage.removeItem('user_permissions')
   localStorage.removeItem('user_permissions')
   if (typeof window !== 'undefined') {
     delete window.__mobileThemeLoaded
