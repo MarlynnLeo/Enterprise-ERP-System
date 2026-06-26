@@ -41,7 +41,7 @@ const INVENTORY_OUTBOUND_TRANSITIONS = {
 
 const INVENTORY_CHECK_TRANSITIONS = {
   draft: ['in_progress', 'cancelled'],
-  in_progress: ['pending', 'completed', 'cancelled'],
+  in_progress: ['pending', 'cancelled'],
   pending: ['completed', 'cancelled'],
   completed: [],
   cancelled: [],
@@ -49,15 +49,53 @@ const INVENTORY_CHECK_TRANSITIONS = {
 
 const SALES_ORDER_TRANSITIONS = {
   draft: ['pending', 'confirmed', 'in_production', 'in_procurement', 'ready_to_ship', 'shortage', 'cancelled'],
-  pending: ['confirmed', 'cancelled'],
-  confirmed: ['in_production', 'in_procurement', 'ready_to_ship', 'shortage', 'cancelled'],
-  in_production: ['ready_to_ship', 'partial_shipped', 'shipped', 'cancelled'],
-  in_procurement: ['ready_to_ship', 'shortage', 'cancelled'],
-  ready_to_ship: ['partial_shipped', 'shipped', 'cancelled'],
-  shortage: ['in_production', 'in_procurement', 'ready_to_ship', 'cancelled'],
-  partial_shipped: ['shipped', 'completed'],
+  pending: ['confirmed', 'in_production', 'in_procurement', 'ready_to_ship', 'shortage', 'cancelled'],
+  confirmed: ['in_production', 'in_procurement', 'ready_to_ship', 'shortage', 'partial_shipped', 'shipped', 'completed', 'cancelled'],
+  in_production: ['ready_to_ship', 'shortage', 'partial_shipped', 'shipped', 'completed', 'cancelled'],
+  in_procurement: ['ready_to_ship', 'shortage', 'partial_shipped', 'shipped', 'completed', 'cancelled'],
+  ready_to_ship: ['partial_shipped', 'shipped', 'completed', 'cancelled'],
+  shortage: ['in_production', 'in_procurement', 'ready_to_ship', 'partial_shipped', 'shipped', 'cancelled'],
+  partial_shipped: ['shipped', 'completed', 'cancelled'],
   shipped: ['delivered', 'completed'],
   delivered: ['completed'],
+  completed: [],
+  cancelled: [],
+};
+
+const SALES_OUTBOUND_TRANSITIONS = {
+  draft: ['processing', 'cancelled'],
+  processing: ['completed', 'cancelled'],
+  completed: [],
+  cancelled: [],
+};
+
+const SALES_PACKING_TRANSITIONS = {
+  draft: ['confirmed', 'cancelled'],
+  confirmed: ['packing', 'cancelled'],
+  packing: ['completed', 'cancelled'],
+  completed: [],
+  cancelled: ['draft'],
+};
+
+const PURCHASE_RETURN_TRANSITIONS = {
+  draft: ['confirmed', 'cancelled'],
+  confirmed: ['completed', 'cancelled'],
+  completed: [],
+  cancelled: [],
+};
+
+const PURCHASE_RECEIPT_STATUS_TRANSITIONS = {
+  draft: ['confirmed', 'completed', 'cancelled'],
+  confirmed: ['completed', 'cancelled'],
+  completed: [],
+  cancelled: [],
+};
+
+// 调拨转换（与 inventoryTransferController 本地规则一致）
+const INVENTORY_TRANSFER_TRANSITIONS = {
+  draft: ['pending', 'cancelled'],
+  pending: ['approved', 'cancelled'],
+  approved: ['completed', 'cancelled'],
   completed: [],
   cancelled: [],
 };
@@ -168,6 +206,42 @@ const BUDGET_TRANSITIONS = {
   [BUDGET_STATUS.CLOSED]: [],
 };
 
+const ECN_STATUS = {
+  DRAFT: 'draft',
+  SUBMITTED: 'submitted',
+  APPROVED: 'approved',
+  REJECTED: 'rejected',
+  CANCELLED: 'cancelled',
+};
+
+const ECN_TRANSITIONS = {
+  [ECN_STATUS.DRAFT]: [ECN_STATUS.SUBMITTED, ECN_STATUS.CANCELLED],
+  [ECN_STATUS.SUBMITTED]: [ECN_STATUS.APPROVED, ECN_STATUS.REJECTED],
+  [ECN_STATUS.APPROVED]: [],
+  [ECN_STATUS.REJECTED]: [ECN_STATUS.DRAFT],
+  [ECN_STATUS.CANCELLED]: [],
+};
+
+const PERFORMANCE_EVALUATION_STATUS = {
+  DRAFT: 'draft',
+  SELF_EVALUATION: 'self_evaluation',
+  MANAGER_REVIEW: 'manager_review',
+  COMPLETED: 'completed',
+};
+
+const PERFORMANCE_EVALUATION_TRANSITIONS = {
+  [PERFORMANCE_EVALUATION_STATUS.DRAFT]: [PERFORMANCE_EVALUATION_STATUS.SELF_EVALUATION],
+  [PERFORMANCE_EVALUATION_STATUS.SELF_EVALUATION]: [PERFORMANCE_EVALUATION_STATUS.MANAGER_REVIEW],
+  [PERFORMANCE_EVALUATION_STATUS.MANAGER_REVIEW]: [PERFORMANCE_EVALUATION_STATUS.COMPLETED],
+  [PERFORMANCE_EVALUATION_STATUS.COMPLETED]: [],
+};
+
+const PERFORMANCE_PERIOD_STATUS = {
+  DRAFT: 'draft',
+  ACTIVE: 'active',
+  CLOSED: 'closed',
+};
+
 const registry = {
   salesOrder: {
     table: 'sales_orders',
@@ -182,6 +256,34 @@ const registry = {
     transitions: SALES_EXCHANGE_TRANSITIONS,
     terminal: terminalFromFlow(SALES_EXCHANGE_TRANSITIONS),
     aliases: { 待处理: 'pending', 处理中: 'processing', 已完成: 'completed', 已拒绝: 'rejected' },
+  },
+  salesOutbound: {
+    table: 'sales_outbound',
+    statusColumn: 'status',
+    transitions: SALES_OUTBOUND_TRANSITIONS,
+    terminal: terminalFromFlow(SALES_OUTBOUND_TRANSITIONS),
+    aliases: {},
+  },
+  salesPacking: {
+    table: 'packing_lists',
+    statusColumn: 'status',
+    transitions: SALES_PACKING_TRANSITIONS,
+    terminal: terminalFromFlow(SALES_PACKING_TRANSITIONS),
+    aliases: {},
+  },
+  purchaseReturn: {
+    table: 'purchase_returns',
+    statusColumn: 'status',
+    transitions: PURCHASE_RETURN_TRANSITIONS,
+    terminal: terminalFromFlow(PURCHASE_RETURN_TRANSITIONS),
+    aliases: {},
+  },
+  purchaseReceiptStatus: {
+    table: 'purchase_receipts',
+    statusColumn: 'status',
+    transitions: PURCHASE_RECEIPT_STATUS_TRANSITIONS,
+    terminal: terminalFromFlow(PURCHASE_RECEIPT_STATUS_TRANSITIONS),
+    aliases: {},
   },
   purchaseOrder: {
     table: 'purchase_orders',
@@ -221,8 +323,8 @@ const registry = {
   inventoryTransfer: {
     table: 'inventory_transfers',
     statusColumn: 'status',
-    transitions: TRANSFER_STATUS_FLOW,
-    terminal: terminalFromFlow(TRANSFER_STATUS_FLOW),
+    transitions: INVENTORY_TRANSFER_TRANSITIONS,
+    terminal: terminalFromFlow(INVENTORY_TRANSFER_TRANSITIONS),
     aliases: {},
   },
   inventoryCheck: {
@@ -304,6 +406,20 @@ const registry = {
       '\u5df2\u5173\u95ed': BUDGET_STATUS.CLOSED,
     },
   },
+  ecn: {
+    table: 'ecn_orders',
+    statusColumn: 'status',
+    transitions: ECN_TRANSITIONS,
+    terminal: terminalFromFlow(ECN_TRANSITIONS),
+    aliases: {},
+  },
+  performanceEvaluation: {
+    table: 'performance_evaluations',
+    statusColumn: 'status',
+    transitions: PERFORMANCE_EVALUATION_TRANSITIONS,
+    terminal: terminalFromFlow(PERFORMANCE_EVALUATION_TRANSITIONS),
+    aliases: {},
+  },
 };
 
 const normalizeStatus = (domain, status) => {
@@ -338,6 +454,24 @@ const isValidTransition = (domain, from, to) => (
 
 module.exports = {
   STATUS_REGISTRY: registry,
+  // 转换定义常量（供控制器直接引用，消除双写）
+  SALES_ORDER_TRANSITIONS,
+  SALES_EXCHANGE_TRANSITIONS,
+  SALES_OUTBOUND_TRANSITIONS,
+  SALES_PACKING_TRANSITIONS,
+  PURCHASE_RETURN_TRANSITIONS,
+  PURCHASE_RECEIPT_STATUS_TRANSITIONS,
+  INVENTORY_INBOUND_TRANSITIONS,
+  INVENTORY_OUTBOUND_TRANSITIONS,
+  INVENTORY_CHECK_TRANSITIONS,
+  INVENTORY_TRANSFER_TRANSITIONS,
+  // ECN / 绩效
+  ECN_STATUS,
+  ECN_TRANSITIONS,
+  PERFORMANCE_EVALUATION_STATUS,
+  PERFORMANCE_EVALUATION_TRANSITIONS,
+  PERFORMANCE_PERIOD_STATUS,
+  // 工具函数
   getStatusDefinition,
   getStatusValues,
   normalizeStatus,

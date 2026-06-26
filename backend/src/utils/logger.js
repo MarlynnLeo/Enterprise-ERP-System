@@ -31,6 +31,39 @@ const formatTime = () => {
   return new Date().toISOString();
 };
 
+// 敏感字段名（值将被替换为 '***'）
+const SENSITIVE_KEYS = new Set([
+  'password', 'newPassword', 'oldPassword', 'confirmPassword',
+  'secret', 'token', 'accessToken', 'refreshToken',
+  'api_key', 'apiKey', 'authorization',
+]);
+
+// 敏感值正则脱敏规则
+const SENSITIVE_VALUE_PATTERNS = [
+  { pattern: /(\d{3})\d{4}(\d{4})/, replacement: '$1****$2', name: 'phone' },           // 手机号
+  { pattern: /(\d{6})\d{8}(\d{4})/, replacement: '$1********$2', name: 'idcard' },       // 身份证
+  { pattern: /(\d{4})\d{8,12}(\d{4})/, replacement: '$1****$2', name: 'bankcard' },      // 银行卡
+  { pattern: /(\w{2})\w+(@\w+\.\w+)/, replacement: '$1***$2', name: 'email' },           // 邮箱
+];
+
+/**
+ * JSON.stringify replacer —— 脱敏敏感数据
+ */
+const sanitizeReplacer = (key, value) => {
+  if (typeof value !== 'string') return value;
+  // 字段名级别脱敏
+  if (SENSITIVE_KEYS.has(key)) return '***';
+  // 值级别正则脱敏（仅对短字符串执行，避免性能开销）
+  if (value.length > 6 && value.length < 50) {
+    for (const rule of SENSITIVE_VALUE_PATTERNS) {
+      if (rule.pattern.test(value)) {
+        return value.replace(rule.pattern, rule.replacement);
+      }
+    }
+  }
+  return value;
+};
+
 // 格式化日志消息
 const formatMessage = (level, message, meta = {}) => {
   const timestamp = formatTime();
@@ -68,7 +101,7 @@ const formatMessage = (level, message, meta = {}) => {
     ...processedMeta,
   };
 
-  return JSON.stringify(logEntry);
+  return JSON.stringify(logEntry, sanitizeReplacer);
 };
 
 // 写入日志文件（使用 WriteStream 异步缓冲，避免 appendFileSync 阻塞事件循环）

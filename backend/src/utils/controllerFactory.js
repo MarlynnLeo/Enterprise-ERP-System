@@ -2,12 +2,31 @@
  * controllerFactory.js
  * @description Controller工厂函数 - 创建标准的CRUD Controller
  * @date 2025-11-24
- * @version 1.0.0
+ * @version 1.1.0
  * @purpose 减少重复代码，统一CRUD操作
  */
 
 const { ResponseHandler } = require('./responseHandler');
 const { logger } = require('./logger');
+
+/**
+ * 异步 Controller 方法包装器
+ * 自动捕获异步错误并交给 Express 错误处理中间件（unifiedErrorHandler）
+ *
+ * 使用方式：
+ *   router.get('/items', asyncHandler(async (req, res) => {
+ *     const data = await service.getAll();
+ *     ResponseHandler.success(res, data);
+ *   }));
+ *
+ * @param {Function} fn - 异步 Controller 方法 (req, res, next) => Promise
+ * @returns {Function} Express 中间件
+ */
+function asyncHandler(fn) {
+  return (req, res, next) => {
+    Promise.resolve(fn(req, res, next)).catch(next);
+  };
+}
 
 /**
  * 创建标准的CRUD Controller
@@ -27,91 +46,64 @@ function createCrudController(service, resourceName, options = {}) {
      * 获取资源列表
      * 支持分页和过滤
      */
-    async getAll(req, res) {
-      try {
-        const { page = 1, pageSize, limit, ...filters } = req.query;
-        const normalizedPage = Math.max(parseInt(page, 10) || 1, 1);
-        const requestedPageSize = parseInt(pageSize || limit, 10) || 10;
-        const normalizedPageSize = Math.min(Math.max(requestedPageSize, 1), 100);
-        const result = await service.getAll(normalizedPage, normalizedPageSize, filters);
+    getAll: asyncHandler(async (req, res) => {
+      const { page = 1, pageSize, limit, ...filters } = req.query;
+      const normalizedPage = Math.max(parseInt(page, 10) || 1, 1);
+      const requestedPageSize = parseInt(pageSize || limit, 10) || 10;
+      const normalizedPageSize = Math.min(Math.max(requestedPageSize, 1), 100);
+      const result = await service.getAll(normalizedPage, normalizedPageSize, filters);
 
-        if (usePaginated && result.total !== undefined) {
-          // 使用分页响应
-          ResponseHandler.paginated(
-            res,
-            result.items || result.data || result.list || result,
-            result.total,
-            result.page || normalizedPage,
-            result.pageSize || normalizedPageSize,
-            `获取${resourceName}列表成功`
-          );
-        } else {
-          // 使用普通响应
-          ResponseHandler.success(res, result, `获取${resourceName}列表成功`);
-        }
-      } catch (error) {
-        logger.error(`获取${resourceName}列表失败:`, error);
-        ResponseHandler.error(res, error.message, 'SERVER_ERROR', 500, error);
+      if (usePaginated && result.total !== undefined) {
+        ResponseHandler.paginated(
+          res,
+          result.items || result.data || result.list || result,
+          result.total,
+          result.page || normalizedPage,
+          result.pageSize || normalizedPageSize,
+          `获取${resourceName}列表成功`
+        );
+      } else {
+        ResponseHandler.success(res, result, `获取${resourceName}列表成功`);
       }
-    },
+    }),
 
     /**
      * 根据ID获取单个资源
      */
-    async getById(req, res) {
-      try {
-        const item = await service.getById(req.params.id);
+    getById: asyncHandler(async (req, res) => {
+      const item = await service.getById(req.params.id);
 
-        if (checkExists && !item) {
-          const message = notFoundMessage || `${resourceName}不存在`;
-          return ResponseHandler.error(res, message, 'NOT_FOUND', 404);
-        }
-
-        ResponseHandler.success(res, item, `获取${resourceName}详情成功`);
-      } catch (error) {
-        logger.error(`获取${resourceName}详情失败:`, error);
-        ResponseHandler.error(res, error.message, 'SERVER_ERROR', 500, error);
+      if (checkExists && !item) {
+        const message = notFoundMessage || `${resourceName}不存在`;
+        return ResponseHandler.error(res, message, 'NOT_FOUND', 404);
       }
-    },
+
+      ResponseHandler.success(res, item, `获取${resourceName}详情成功`);
+    }),
 
     /**
      * 创建新资源
      */
-    async create(req, res) {
-      try {
-        const newItem = await service.create(req.body);
-        ResponseHandler.success(res, newItem, `创建${resourceName}成功`, 201);
-      } catch (error) {
-        logger.error(`创建${resourceName}失败:`, error);
-        ResponseHandler.error(res, error.message, 'SERVER_ERROR', 500, error);
-      }
-    },
+    create: asyncHandler(async (req, res) => {
+      const newItem = await service.create(req.body);
+      ResponseHandler.success(res, newItem, `创建${resourceName}成功`, 201);
+    }),
 
     /**
      * 更新资源
      */
-    async update(req, res) {
-      try {
-        const updatedItem = await service.update(req.params.id, req.body);
-        ResponseHandler.success(res, updatedItem, `更新${resourceName}成功`);
-      } catch (error) {
-        logger.error(`更新${resourceName}失败:`, error);
-        ResponseHandler.error(res, error.message, 'SERVER_ERROR', 500, error);
-      }
-    },
+    update: asyncHandler(async (req, res) => {
+      const updatedItem = await service.update(req.params.id, req.body);
+      ResponseHandler.success(res, updatedItem, `更新${resourceName}成功`);
+    }),
 
     /**
      * 删除资源
      */
-    async delete(req, res) {
-      try {
-        await service.delete(req.params.id);
-        ResponseHandler.success(res, null, `删除${resourceName}成功`, 204);
-      } catch (error) {
-        logger.error(`删除${resourceName}失败:`, error);
-        ResponseHandler.error(res, error.message, 'SERVER_ERROR', 500, error);
-      }
-    },
+    delete: asyncHandler(async (req, res) => {
+      await service.delete(req.params.id);
+      ResponseHandler.success(res, null, `删除${resourceName}成功`, 204);
+    }),
   };
 }
 
@@ -129,6 +121,8 @@ function extendController(baseController, customMethods = {}) {
 }
 
 module.exports = {
+  asyncHandler,
   createCrudController,
   extendController,
 };
+

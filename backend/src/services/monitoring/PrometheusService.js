@@ -102,6 +102,21 @@ class PrometheusService {
       labelNames: ['error_type', 'error_code'],
       registers: [this.register],
     });
+
+    // 前端客户端错误
+    this.clientErrorsTotal = new client.Counter({
+      name: 'erp_client_errors_total',
+      help: '前端客户端错误总数',
+      labelNames: ['error_type'],
+      registers: [this.register],
+    });
+
+    // 慢查询计数
+    this.slowQueriesTotal = new client.Counter({
+      name: 'erp_slow_queries_total',
+      help: '慢查询总数',
+      registers: [this.register],
+    });
   }
 
   /**

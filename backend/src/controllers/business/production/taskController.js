@@ -24,6 +24,7 @@ const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const SchedulingService = require('../../../services/business/SchedulingService');
 const BomExplosionService = require('../../../services/BomExplosionService');
 const { parsePagination, appendPaginationSQL } = require('../../../utils/safePagination');
+const TaskRepository = require('../../../repositories/TaskRepository');
 
 // 任务生命周期相关服务统一在顶部声明，避免运行时动态 require
 const { validateTaskTransition, syncPlanStatus, generateBatchNo } = require('../../../services/business/TaskLifecycleService');
@@ -254,124 +255,12 @@ exports.getProductionTaskManagers = async (req, res) => {
  */
 exports.getProductionTasks = async (req, res) => {
   try {
-    const pagination = parsePagination(req.query.page, req.query.pageSize || req.query.limit, {
-      defaultPageSize: 10,
-      maxPageSize: 100,
-    });
+    const result = await TaskRepository.findListWithPagination(
+      req.query,
+      { page: req.query.page, pageSize: req.query.pageSize || req.query.limit }
+    );
 
-    // 使用公共函数构建过滤条件
-    const { whereClause, queryParams } = buildFilterConditions(req.query);
-    const filterParams = [...queryParams];
-
-    // 主查询
-    const query = appendPaginationSQL(`
-      SELECT pt.*, pp.name as planName, pp.code as plan_code, pp.contract_code, p.name as productName, p.code as productCode, p.specs,
-             u.name as unit,
-             DATE_FORMAT(pt.actual_start_time, '%Y-%m-%d %H:%i:%s') as actual_start_time,
-             EXISTS (
-               SELECT 1 FROM inventory_outbound o
-               WHERE (
-                 o.production_task_id = pt.id
-                 OR (o.reference_type = 'production_task' AND o.reference_id = pt.id)
-                 OR (
-                   o.reference_type = 'batch_production_tasks'
-                   AND o.source_task_ids IS NOT NULL
-                   AND JSON_CONTAINS(o.source_task_ids, CAST(pt.id AS JSON))
-                 )
-               )
-               AND o.status NOT IN ('cancelled', 'reversed')
-               AND o.deleted_at IS NULL
-             ) as has_outbound_document
-      FROM production_tasks pt
-      LEFT JOIN production_plans pp ON pt.plan_id = pp.id
-      LEFT JOIN materials p ON pt.product_id = p.id
-      LEFT JOIN units u ON p.unit_id = u.id
-      WHERE pt.deleted_at IS NULL ${whereClause}
-      ORDER BY pt.created_at DESC
-    `, pagination.limit, pagination.offset);
-
-    // Keep pagination parameters out of count/statistics queries.
-    const [tasks] = await pool.query(query, filterParams);
-
-    // 如果有任务，一次性获取所有任务的工序数据（优化N+1查询问题）
-    if (tasks.length > 0) {
-      const taskIds = tasks.map((task) => task.id);
-      const placeholders = taskIds.map(() => '?').join(',');
-
-      const processQuery = `
-        SELECT
-          pp.id, pp.task_id, pp.process_name, pp.sequence, pp.quantity,
-          pp.progress, pp.status, pp.standard_hours, pp.description, pp.remarks,
-          DATE_FORMAT(pp.planned_start_time, '%Y-%m-%d %H:%i:%s') as plannedStartTime,
-          DATE_FORMAT(pp.planned_end_time, '%Y-%m-%d %H:%i:%s') as plannedEndTime,
-          DATE_FORMAT(pp.actual_start_time, '%Y-%m-%d %H:%i:%s') as actualStartTime,
-          DATE_FORMAT(pp.actual_end_time, '%Y-%m-%d %H:%i:%s') as actualEndTime
-        FROM production_processes pp
-        WHERE pp.task_id IN (${placeholders})
-        ORDER BY pp.task_id, pp.sequence
-      `;
-
-      const [processes] = await pool.query(processQuery, taskIds);
-
-      const processesMap = {};
-      processes.forEach((process) => {
-        if (!processesMap[process.task_id]) {
-          processesMap[process.task_id] = [];
-        }
-        processesMap[process.task_id].push({
-          ...process,
-          processName: process.process_name,
-          plannedStartTime: process.plannedStartTime,
-          plannedEndTime: process.plannedEndTime,
-          actualStartTime: process.actualStartTime,
-          actualEndTime: process.actualEndTime,
-        });
-      });
-
-      tasks.forEach((task) => {
-        task.processes = processesMap[task.id] || [];
-      });
-    }
-
-    // 计数查询
-    const countQuery = `SELECT COUNT(*) as total FROM production_tasks pt
-      LEFT JOIN materials p ON pt.product_id = p.id
-      WHERE pt.deleted_at IS NULL ${whereClause}`;
-    const [totalResult] = await pool.query(countQuery, filterParams);
-    const total = totalResult[0].total;
-
-    // 统计查询
-    const statsQuery = `
-      SELECT
-        COUNT(*) as total,
-        SUM(CASE WHEN pt.status = '${PRODUCTION_STATUS_KEYS.PENDING}' THEN 1 ELSE 0 END) as pending,
-        SUM(CASE WHEN pt.status = '${PRODUCTION_STATUS_KEYS.PREPARING}' THEN 1 ELSE 0 END) as preparing,
-        SUM(CASE WHEN pt.status = '${PRODUCTION_STATUS_KEYS.MATERIAL_ISSUED}' THEN 1 ELSE 0 END) as material_issued,
-        SUM(CASE WHEN pt.status = '${PRODUCTION_STATUS_KEYS.IN_PROGRESS}' THEN 1 ELSE 0 END) as in_progress,
-        SUM(CASE WHEN pt.status = '${PRODUCTION_STATUS_KEYS.COMPLETED}' THEN 1 ELSE 0 END) as completed,
-        SUM(CASE WHEN pt.status = '${PRODUCTION_STATUS_KEYS.CANCELLED}' THEN 1 ELSE 0 END) as cancelled
-      FROM production_tasks pt
-      LEFT JOIN materials p ON pt.product_id = p.id
-      WHERE pt.deleted_at IS NULL ${whereClause}
-    `;
-    const [statsResult] = await pool.query(statsQuery, filterParams);
-    const statistics = statsResult[0] || {
-      total: 0,
-      pending: 0,
-      preparing: 0,
-      material_issued: 0,
-      in_progress: 0,
-      completed: 0,
-      cancelled: 0,
-    };
-
-    return ResponseHandler.success(res, {
-      items: tasks,
-      total,
-      page: pagination.page,
-      pageSize: pagination.pageSize,
-      statistics,
-    });
+    return ResponseHandler.success(res, result);
   } catch (error) {
     logger.error('获取生产任务列表失败:', error);
     handleError(res, error);
@@ -407,20 +296,12 @@ exports.createProductionTask = async (req, res) => {
     let linkedPlan = null;
 
     if (plan_id) {
-      const [planCheck] = await connection.query(
-        `SELECT id, status, product_id, quantity, COALESCE(pushed_quantity, 0) as pushed_quantity
-         FROM production_plans
-         WHERE id = ? AND deleted_at IS NULL
-         FOR UPDATE`,
-        [plan_id]
-      );
+      const linkedPlan = await TaskRepository.findPlanById(connection, plan_id);
 
-      if (planCheck.length === 0) {
+      if (!linkedPlan) {
         await connection.rollback();
         return ResponseHandler.error(res, '生产计划不存在', 'NOT_FOUND', 404);
       }
-
-      linkedPlan = planCheck[0];
       if (linkedPlan.product_id && Number(linkedPlan.product_id) !== Number(product_id)) {
         await connection.rollback();
         return ResponseHandler.error(res, '生产任务产品必须与关联生产计划一致', 'VALIDATION_ERROR', 400);
@@ -440,37 +321,22 @@ exports.createProductionTask = async (req, res) => {
       }
     }
 
-    // 根据产品的生产组自动获取对应的成本中心
-    const costCenterId = await resolveCostCenterIdForProduct(connection, product_id);
+    const costCenterId = await TaskRepository.resolveCostCenterId(connection, product_id);
 
-    const [taskResult] = await connection.query(
-      `
-      INSERT INTO production_tasks
-      (code, plan_id, product_id, quantity, start_date, expected_end_date, manager, remarks, cost_center_id, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'allocated')
-    `,
-      [
-        code,
-        plan_id || null,
-        product_id,
-        taskQuantity,
-        start_date || null,
-        expected_end_date || null,
-        manager || '未分配',
-        remarks || '',
-        costCenterId,
-      ]
-    );
-
-    const taskId = taskResult.insertId;
+    const taskId = await TaskRepository.create(connection, {
+      code,
+      plan_id: plan_id || null,
+      product_id,
+      quantity: taskQuantity,
+      start_date: start_date || null,
+      expected_end_date: expected_end_date || null,
+      manager: manager || '未分配',
+      remarks: remarks || '',
+      cost_center_id: costCenterId,
+    });
 
     if (linkedPlan) {
-      await connection.query(
-        `UPDATE production_plans
-         SET pushed_quantity = COALESCE(pushed_quantity, 0) + ?
-         WHERE id = ? AND deleted_at IS NULL`,
-        [taskQuantity, plan_id]
-      );
+      await TaskRepository.incrementPlanPushedQuantity(connection, plan_id, taskQuantity);
     }
 
     // 自动创建单据关联（生产计划 → 生产任务）
@@ -486,49 +352,31 @@ exports.createProductionTask = async (req, res) => {
     // 如果没有指定工序模板ID，尝试根据产品ID自动查找关联的工序模板
     let effectiveTemplateId = process_template_id;
     if (!effectiveTemplateId && product_id) {
-      const [autoTemplates] = await connection.query(
-        'SELECT id FROM process_templates WHERE product_id = ? AND status = 1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 1',
-        [product_id]
-      );
-      if (autoTemplates.length > 0) {
-        effectiveTemplateId = autoTemplates[0].id;
+      const { templateId } = await TaskRepository.findActiveProcessTemplate(connection, product_id);
+      if (templateId) {
+        effectiveTemplateId = templateId;
         logger.info(`任务 ${code} 自动关联工序模板: ${effectiveTemplateId}`);
       }
     }
 
     if (effectiveTemplateId) {
-      const [templates] = await connection.query('SELECT id, code, name, product_id, description, status, created_at, updated_at, deleted_at FROM process_templates WHERE id = ? AND deleted_at IS NULL', [
+      const [templates] = await connection.query('SELECT id FROM process_templates WHERE id = ? AND deleted_at IS NULL', [
         effectiveTemplateId,
       ]);
 
       if (templates.length === 0) {
         logger.warn(`指定的工序模板 ${effectiveTemplateId} 不存在`);
       } else {
-        const [steps] = await connection.query(
+        const { steps } = await TaskRepository.findActiveProcessTemplate(connection, product_id);
+        const actualSteps = steps.length > 0 ? steps : [];
+
+        // 使用显式的 templateId 重新加载步骤（覆盖前端指定模板和自动发现模板两种场景）
+        const [explicitSteps] = await connection.query(
           'SELECT id, template_id, order_num, name, description, standard_hours, department, remark, created_at, updated_at, instruction_docs FROM process_template_details WHERE template_id = ? ORDER BY order_num',
           [effectiveTemplateId]
         );
-
-        for (const step of steps) {
-          await connection.query(
-            `
-            INSERT INTO production_processes
-            (task_id, process_name, sequence, quantity, progress, status, standard_hours, description, remarks)
-            VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?)
-          `,
-            [
-              taskId,
-              step.name,
-              step.order_num,
-              taskQuantity,
-              0,
-              step.standard_hours || 0, // 从工序模板同步标准工时
-              step.description || '',
-              step.remark || '',
-            ]
-          );
-        }
-        logger.info(`任务 ${code} 已加载 ${steps.length} 道工序`);
+        await TaskRepository.insertProcesses(connection, taskId, taskQuantity, explicitSteps);
+        logger.info(`任务 ${code} 已加载 ${explicitSteps.length} 道工序`);
 
         // ===== 自动排程：填充各工序的计划开始/结束时间 =====
         if (start_date) {
@@ -798,74 +646,35 @@ exports.deleteProductionTask = async (req, res) => {
 
     const { id } = req.params;
 
-    const [taskCheck] = await connection.query(
-      'SELECT id, status, plan_id, quantity FROM production_tasks WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
-      [id]
-    );
+    const task = await TaskRepository.findById(connection, id, true);
 
-    if (taskCheck.length === 0) {
+    if (!task) {
       await connection.rollback();
       return ResponseHandler.error(res, '生产任务不存在', 'NOT_FOUND', 404);
     }
 
     const deletableStatuses = [TASK_STATUS.PENDING, TASK_STATUS.ALLOCATED];
-    if (!deletableStatuses.includes(taskCheck[0].status)) {
+    if (!deletableStatuses.includes(task.status)) {
       await connection.rollback();
       return ResponseHandler.error(res, '只能删除未开始或已分配但尚未执行的生产任务', 'VALIDATION_ERROR', 400);
     }
 
-    const [usageRows] = await connection.query(
-      `SELECT
-         (SELECT COUNT(*) FROM inventory_outbound
-          WHERE (
-            production_task_id = ?
-            OR (reference_type = 'production_task' AND reference_id = ?)
-            OR (
-              reference_type = 'batch_production_tasks'
-              AND source_task_ids IS NOT NULL
-              AND JSON_CONTAINS(source_task_ids, CAST(? AS JSON))
-            )
-          )
-            AND status NOT IN ('cancelled', 'reversed')
-            AND deleted_at IS NULL) as outbound_count,
-         (SELECT COUNT(*) FROM production_reports WHERE task_id = ?) as report_count,
-         (SELECT COUNT(*) FROM quality_inspections
-          WHERE task_id = ? AND deleted_at IS NULL AND (status IS NULL OR status != 'cancelled')) as inspection_count`,
-      [id, id, String(id), id, id]
-    );
-    const usage = usageRows[0] || {};
+    const usage = await TaskRepository.checkDownstreamDocuments(connection, id);
     if (usage.outbound_count > 0 || usage.report_count > 0 || usage.inspection_count > 0) {
       await connection.rollback();
       return ResponseHandler.error(res, '任务已产生发料、报工或检验单据，不能删除，请走取消/关闭流程', 'VALIDATION_ERROR', 400);
     }
 
-    await connection.query('DELETE FROM production_processes WHERE task_id = ?', [id]);
-    await connection.query('DELETE FROM production_reports WHERE task_id = ?', [id]);
-    await softDelete(connection, 'production_tasks', 'id', id);
+    await TaskRepository.deleteWithRelated(connection, id);
 
-    if (taskCheck[0].plan_id) {
-      await connection.query(
-        `UPDATE production_plans
-         SET pushed_quantity = GREATEST(0, COALESCE(pushed_quantity, 0) - ?)
-          WHERE id = ? AND deleted_at IS NULL`,
-        [Number(taskCheck[0].quantity) || 0, taskCheck[0].plan_id]
-      );
+    if (task.plan_id) {
+      await TaskRepository.decrementPlanPushedQuantity(connection, task.plan_id, Number(task.quantity) || 0);
 
-      const [remainingTasks] = await connection.query(
-        `SELECT COUNT(*) as active_count
-         FROM production_tasks
-         WHERE plan_id = ? AND deleted_at IS NULL AND status != ?`,
-        [taskCheck[0].plan_id, TASK_STATUS.CANCELLED]
-      );
-      if (Number(remainingTasks[0]?.active_count || 0) === 0) {
-        await connection.query(
-          `UPDATE production_plans
-           SET status = 'draft'
-            WHERE id = ? AND deleted_at IS NULL AND status NOT IN ('completed', 'cancelled')`,
-          [taskCheck[0].plan_id]
-        );
+      const activeCount = await TaskRepository.countActivePlanTasks(connection, task.plan_id, TASK_STATUS.CANCELLED);
+      if (activeCount === 0) {
+        await TaskRepository.updatePlanStatus(connection, task.plan_id, 'draft');
       } else {
-        await syncPlanStatus(taskCheck[0].plan_id, connection);
+        await syncPlanStatus(task.plan_id, connection);
       }
     }
     await connection.commit();
@@ -887,40 +696,15 @@ exports.getProductionTaskById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const [tasks] = await pool.query(
-      `
-      SELECT pt.*,
-             pt.code as task_code,
-             pt.manager as operator_name,
-             pt.start_date as plan_start_time,
-             pt.expected_end_date as plan_end_time,
-             pt.actual_start_time as actual_start_time,
-             pt.actual_end_date as actual_end_time,
-             pp.name as planName, pp.contract_code,
-             p.name as product_name, p.name as productName,
-             p.code as product_code, p.code as productCode,
-             p.specs as specification,
-             u.name as unit
-      FROM production_tasks pt
-      LEFT JOIN production_plans pp ON pt.plan_id = pp.id AND pp.deleted_at IS NULL
-      LEFT JOIN materials p ON pt.product_id = p.id
-      LEFT JOIN units u ON p.unit_id = u.id
-      WHERE pt.id = ? AND pt.deleted_at IS NULL
-    `,
-      [id]
-    );
-
-    if (tasks.length === 0) {
+    const task = await TaskRepository.findByIdWithDetails(id);
+    if (!task) {
       return ResponseHandler.error(res, '生产任务不存在', 'NOT_FOUND', 404);
     }
 
-    const [processes] = await pool.query(
-      'SELECT id, task_id, process_name, sequence, quantity, planned_start_time, planned_end_time, actual_start_time, actual_end_time, progress, status, description, remarks, created_at, updated_at, sequence_number, standard_hours, efficiency_rate FROM production_processes WHERE task_id = ? ORDER BY sequence',
-      [id]
-    );
+    const processes = await TaskRepository.findProcessesByTaskId(id);
 
     return ResponseHandler.success(res, {
-      ...tasks[0],
+      ...task,
       processes,
     });
   } catch (error) {

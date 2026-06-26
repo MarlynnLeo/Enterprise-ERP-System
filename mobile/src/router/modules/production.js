@@ -68,6 +68,12 @@ export const productionRoutes = [
     component: () => import('@/views/production/Dashboard.vue'),
     meta: { title: '生产看板', permission: 'production' }
   },
+  {
+    path: '/production/anomaly',
+    name: 'ProductionAnomaly',
+    component: () => import('@/views/production/AnomalyReport.vue'),
+    meta: { title: '异常上报', permission: 'production:anomaly' }
+  },
   // 任务快捷路由
   {
     path: '/tasks',

@@ -1,7 +1,7 @@
-<!--
+﻿<!--
 /**
  * Aging.vue
- * @description 应付账款账龄分析页面（与AR应收账龄统一布局和逻辑）
+ * @description 账龄分析页面（与AR应收账龄统一布局和逻辑）
  * @date 2025-08-27
  * @version 2.0.0
  */
@@ -11,7 +11,7 @@
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
-          <h2>应付账款账龄分析</h2>
+          <h2>账龄分析</h2>
           <p class="subtitle">分析供应商账款账龄</p>
         </div>
         <div class="header-actions">
@@ -62,7 +62,7 @@
     <!-- 报表区域 -->
     <el-card class="data-card" v-loading="loading">
       <div class="report-title" v-if="hasData">
-        <h1>应付账款账龄分析表</h1>
+        <h1>账龄分析表</h1>
         <h3>截至：{{ formatDate(queryParams.reportDate) }}</h3>
         <h4>单位：元</h4>
       </div>
@@ -144,7 +144,7 @@
 <script setup>
 import { formatAmount, formatLocalDate } from '@/utils/format';
 import { formatDate } from '@/utils/helpers/dateUtils'
-// 版本标识 - 应付账款账龄分析 v2.0 - 与AR统一布局
+// 版本标识 - 账龄分析 v2.0 - 与AR统一布局
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import { ElMessage } from 'element-plus';
 import { financeApi } from '@/api';
@@ -533,7 +533,7 @@ const exportExcel = async () => {
   const ExcelJS = await loadExcelJS();
   // 创建工作簿
   const workbook = new ExcelJS.Workbook();
-  const worksheet = workbook.addWorksheet('应付账款账龄分析');
+  const worksheet = workbook.addWorksheet('账龄分析');
   // 设置列
   worksheet.columns = [
     { header: '供应商名称', key: 'supplierName', width: 20 },
@@ -572,7 +572,7 @@ const exportExcel = async () => {
   const url = window.URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `应付账款账龄分析_${queryParams.reportDate}.xlsx`;
+  link.download = `账龄分析_${queryParams.reportDate}.xlsx`;
   link.click();
   window.URL.revokeObjectURL(url);
 };
@@ -649,11 +649,6 @@ onUnmounted(() => {
 <style scoped>
 .header-card {
   margin-bottom: 20px;
-}
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
 }
 .title-section h2 {
   margin: 0 0 5px 0;

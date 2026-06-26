@@ -4,7 +4,7 @@
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
-          <h2>汇率维护</h2>
+          <h2>汇率管理</h2>
           <p class="subtitle">维护各币种与人民币的汇率，支持外币结算与报表折算</p>
         </div>
         <el-button v-permission="'finance:exchange-rates:update'" type="primary" @click="openForm">新增汇率</el-button>

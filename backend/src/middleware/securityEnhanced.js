@@ -6,7 +6,6 @@
  * @updated 2026-04-18 - 移除 IP 黑名单（内部系统无需），保留输入检测
  */
 
-const helmet = require('helmet');
 const { logger } = require('../utils/logger');
 const { ResponseHandler } = require('../utils/responseHandler');
 const { UnifiedAppError } = require('./unifiedErrorHandler');
@@ -259,42 +258,11 @@ const fileUploadSecurity = (req, res, next) => {
   next();
 };
 
-// 增强的 Helmet 配置
-const enhancedHelmet = helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'"],
-      imgSrc: ["'self'", 'data:', 'https:'],
-      connectSrc: ["'self'"],
-      fontSrc: ["'self'"],
-      objectSrc: ["'none'"],
-      mediaSrc: ["'self'"],
-      frameSrc: ["'none'"],
-    },
-  },
-  hsts: {
-    maxAge: 31536000,
-    includeSubDomains: true,
-    preload: true,
-  },
-});
-
-// 组合安全中间件（内部系统无需 IP 黑名单和可疑活动检测）
-const securityMiddleware = [
-  enhancedHelmet,
-  pathTraversalDetection,
-  sqlInjectionDetection,
-  xssDetection,
-  fileUploadSecurity,
-];
+// Helmet CSP 由 app.js 统一配置，此处不再重复定义
 
 module.exports = {
-  securityMiddleware,
   sqlInjectionDetection,
   xssDetection,
   pathTraversalDetection,
   fileUploadSecurity,
-  enhancedHelmet,
 };

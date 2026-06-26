@@ -11,7 +11,7 @@
  * 支持环境变量和数据库配置，更加灵活
  *
  * @author 系统开发团队
- * @version 2.0.0
+ * @version 2.1.0
  * @since 2025-12-13
  */
 
@@ -19,50 +19,73 @@ const { accountingConfig } = require('../config/accountingConfig');
 const { logger } = require('../utils/logger');
 
 // ==================== 会计分录单据类型 ====================
-// 必须与数据库 gl_entries 表的 document_type ENUM 定义保持一致
+// 统一使用英文 snake_case 作为数据库存储值
+// 中文显示请使用 DOCUMENT_TYPE_LABELS 映射
 const DOCUMENT_TYPES = {
-  RECEIPT: '收据', // 收据
-  INVOICE: '发票', // 发票
-  PAYMENT: '付款单', // 付款单
-  COLLECTION: '收款单', // 收款单
-  TRANSFER: '转账单', // 转账单
-  ADJUSTMENT: '调整单', // 调整单
-  PROFIT_LOSS_TRANSFER: '损益结转', // 期末损益结转
-  YEAR_END_TRANSFER: '年度结转', // 年度利润结转
+  RECEIPT: 'receipt', // 收据
+  INVOICE: 'invoice', // 发票
+  PAYMENT: 'payment', // 付款单
+  COLLECTION: 'collection', // 收款单
+  TRANSFER: 'transfer', // 转账单
+  ADJUSTMENT: 'adjustment', // 调整单
+  PROFIT_LOSS_TRANSFER: 'profit_loss_transfer', // 期末损益结转
+  YEAR_END_TRANSFER: 'year_end_transfer', // 年度利润结转
+  SALES_OUTBOUND: 'sales_outbound', // 销售出库成本结转
+  PRODUCTION_COST_TRANSFER: 'production_cost_transfer', // 生产成本结转
+};
+
+// 中文显示标签映射（用于前端展示和报表）
+const DOCUMENT_TYPE_LABELS = {
+  [DOCUMENT_TYPES.RECEIPT]: '收据',
+  [DOCUMENT_TYPES.INVOICE]: '发票',
+  [DOCUMENT_TYPES.PAYMENT]: '付款单',
+  [DOCUMENT_TYPES.COLLECTION]: '收款单',
+  [DOCUMENT_TYPES.TRANSFER]: '转账单',
+  [DOCUMENT_TYPES.ADJUSTMENT]: '调整单',
+  [DOCUMENT_TYPES.PROFIT_LOSS_TRANSFER]: '损益结转',
+  [DOCUMENT_TYPES.YEAR_END_TRANSFER]: '年度结转',
+  [DOCUMENT_TYPES.SALES_OUTBOUND]: '销售出库',
+  [DOCUMENT_TYPES.PRODUCTION_COST_TRANSFER]: '生产成本结转',
+  // 兼容旧数据中的 inventory_reclass（未在常量中定义但DB已存在）
+  inventory_reclass: '库存重分类',
 };
 
 // 单据类型业务映射
 const DOCUMENT_TYPE_MAPPING = {
   // 库存相关
-  INVENTORY_INBOUND: DOCUMENT_TYPES.ADJUSTMENT, // 库存入库 -> 调整单
-  INVENTORY_OUTBOUND: DOCUMENT_TYPES.ADJUSTMENT, // 库存出库 -> 调整单
-  INVENTORY_TRANSFER: DOCUMENT_TYPES.TRANSFER, // 库存调拨 -> 转账单
+  INVENTORY_INBOUND: DOCUMENT_TYPES.ADJUSTMENT, // 库存入库 -> adjustment
+  INVENTORY_OUTBOUND: DOCUMENT_TYPES.ADJUSTMENT, // 库存出库 -> adjustment
+  INVENTORY_TRANSFER: DOCUMENT_TYPES.TRANSFER, // 库存调拨 -> transfer
 
   // 采购相关
-  PURCHASE_INVOICE: DOCUMENT_TYPES.INVOICE, // 采购发票 -> 发票
-  PURCHASE_PAYMENT: DOCUMENT_TYPES.PAYMENT, // 采购付款 -> 付款单
+  PURCHASE_INVOICE: DOCUMENT_TYPES.INVOICE, // 采购发票 -> invoice
+  PURCHASE_PAYMENT: DOCUMENT_TYPES.PAYMENT, // 采购付款 -> payment
 
   // 销售相关
-  SALES_INVOICE: DOCUMENT_TYPES.INVOICE, // 销售发票 -> 发票
-  SALES_COLLECTION: DOCUMENT_TYPES.COLLECTION, // 销售收款 -> 收款单
+  SALES_INVOICE: DOCUMENT_TYPES.INVOICE, // 销售发票 -> invoice
+  SALES_COLLECTION: DOCUMENT_TYPES.COLLECTION, // 销售收款 -> collection
+  SALES_OUTBOUND: DOCUMENT_TYPES.SALES_OUTBOUND, // 销售出库成本 -> sales_outbound
+
+  // 生产相关
+  PRODUCTION_COST_TRANSFER: DOCUMENT_TYPES.PRODUCTION_COST_TRANSFER, // 生产成本结转
 
   // 资产相关
-  ASSET_ACQUISITION: DOCUMENT_TYPES.PAYMENT, // 资产购置 -> 付款单
-  ASSET_DISPOSAL: DOCUMENT_TYPES.COLLECTION, // 资产处置 -> 收款单
-  ASSET_DEPRECIATION: DOCUMENT_TYPES.ADJUSTMENT, // 资产折旧 -> 调整单
-  ASSET_IMPAIRMENT: DOCUMENT_TYPES.ADJUSTMENT, // 资产减值 -> 调整单
+  ASSET_ACQUISITION: DOCUMENT_TYPES.PAYMENT, // 资产购置 -> payment
+  ASSET_DISPOSAL: DOCUMENT_TYPES.COLLECTION, // 资产处置 -> collection
+  ASSET_DEPRECIATION: DOCUMENT_TYPES.ADJUSTMENT, // 资产折旧 -> adjustment
+  ASSET_IMPAIRMENT: DOCUMENT_TYPES.ADJUSTMENT, // 资产减值 -> adjustment
 
   // 银行相关
-  BANK_DEPOSIT: DOCUMENT_TYPES.RECEIPT, // 银行存款 -> 收据
-  BANK_WITHDRAWAL: DOCUMENT_TYPES.PAYMENT, // 银行取款 -> 付款单
-  BANK_TRANSFER: DOCUMENT_TYPES.TRANSFER, // 银行转账 -> 转账单
+  BANK_DEPOSIT: DOCUMENT_TYPES.RECEIPT, // 银行存款 -> receipt
+  BANK_WITHDRAWAL: DOCUMENT_TYPES.PAYMENT, // 银行取款 -> payment
+  BANK_TRANSFER: DOCUMENT_TYPES.TRANSFER, // 银行转账 -> transfer
 
   // 现金相关
-  CASH_RECEIPT: DOCUMENT_TYPES.RECEIPT, // 现金收入 -> 收据
-  CASH_PAYMENT: DOCUMENT_TYPES.PAYMENT, // 现金支出 -> 付款单
+  CASH_RECEIPT: DOCUMENT_TYPES.RECEIPT, // 现金收入 -> receipt
+  CASH_PAYMENT: DOCUMENT_TYPES.PAYMENT, // 现金支出 -> payment
 
   // 其他
-  MANUAL_ADJUSTMENT: DOCUMENT_TYPES.ADJUSTMENT, // 手工调整 -> 调整单
+  MANUAL_ADJUSTMENT: DOCUMENT_TYPES.ADJUSTMENT, // 手工调整 -> adjustment
   PROFIT_LOSS_TRANSFER: DOCUMENT_TYPES.PROFIT_LOSS_TRANSFER, // 损益结转
   YEAR_END_TRANSFER: DOCUMENT_TYPES.YEAR_END_TRANSFER, // 年度结转
 };
@@ -166,6 +189,7 @@ const ERROR_MESSAGES = {
 // ==================== 导出 ====================
 module.exports = {
   DOCUMENT_TYPES,
+  DOCUMENT_TYPE_LABELS,
   DOCUMENT_TYPE_MAPPING,
   INVOICE_STATUS,
   MANUAL_INVOICE_STATUS_TRANSITIONS,

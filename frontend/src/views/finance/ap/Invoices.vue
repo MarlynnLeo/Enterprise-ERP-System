@@ -11,7 +11,7 @@
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
-          <h2>采购发票管理</h2>
+          <h2>应付发票</h2>
           <p class="subtitle">采购入库完成后自动生成，手工录入仅用于期初或例外</p>
         </div>
         <el-button
@@ -1235,11 +1235,6 @@ onMounted(() => {
 <style scoped>
 .header-card {
   margin-bottom: 20px;
-}
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
 }
 .title-section h2 {
   margin: 0 0 5px 0;

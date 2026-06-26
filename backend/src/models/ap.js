@@ -1403,7 +1403,7 @@ const apModel = {
       try {
         const [glEntries] = await connection.execute(
           `SELECT id FROM gl_entries
-           WHERE document_number = ? AND document_type IN ('付款单', 'PURCHASE_PAYMENT') AND (is_reversed IS NULL OR is_reversed = 0)`,
+           WHERE document_number = ? AND document_type IN ('payment', 'PURCHASE_PAYMENT', '付款单') AND (is_reversed IS NULL OR is_reversed = 0)`,
           [payment.payment_number]
         );
 

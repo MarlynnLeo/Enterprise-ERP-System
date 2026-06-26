@@ -4,7 +4,7 @@
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
-          <h2>成本差异分析</h2>
+          <h2>成本差异</h2>
           <p class="subtitle">标准成本与实际成本差异对比 / 效率差异分析</p>
         </div>
       </div>
@@ -515,7 +515,6 @@ onMounted(() => {
 <style scoped>
 .cost-variance-container { padding: 20px; }
 .header-card { margin-bottom: 20px; }
-.header-content { display: flex; justify-content: space-between; align-items: center; }
 .title-section h2 { margin: 0; font-size: 24px; color: var(--color-text-primary); }
 .subtitle { margin: 5px 0 0 0; color: var(--color-text-secondary); font-size: 14px; }
 .data-card { margin-bottom: 20px; }

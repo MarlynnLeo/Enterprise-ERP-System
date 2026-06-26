@@ -15,12 +15,32 @@ describe('cors config', () => {
     }
   });
 
-  test('allows requests without Origin in production when CORS is otherwise configured', () => {
+  test('rejects requests without Origin in production (anti-bypass)', () => {
     process.env.NODE_ENV = 'production';
+    process.env.ALLOWED_ORIGINS = 'https://erp.example.com';
+
+    // 审计加固：生产环境拒绝无 Origin 的跨域请求，防止 CORS 绕过
+    expect(isOriginAllowed(undefined)).toBe(false);
+    expect(isOriginAllowed('https://erp.example.com')).toBe(true);
+    expect(isOriginAllowed('https://evil.example.com')).toBe(false);
+  });
+
+  test('allows requests without Origin in development', () => {
+    process.env.NODE_ENV = 'development';
     process.env.ALLOWED_ORIGINS = 'https://erp.example.com';
 
     expect(isOriginAllowed(undefined)).toBe(true);
     expect(isOriginAllowed('https://erp.example.com')).toBe(true);
+    expect(isOriginAllowed('http://localhost:3000')).toBe(true);
     expect(isOriginAllowed('https://evil.example.com')).toBe(false);
   });
+
+  test('rejects all origins in production when ALLOWED_ORIGINS not set', () => {
+    process.env.NODE_ENV = 'production';
+    delete process.env.ALLOWED_ORIGINS;
+
+    expect(isOriginAllowed(undefined)).toBe(false);
+    expect(isOriginAllowed('https://any.example.com')).toBe(false);
+  });
 });
+

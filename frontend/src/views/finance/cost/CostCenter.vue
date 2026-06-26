@@ -4,7 +4,7 @@
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
-          <h2>成本中心管理</h2>
+          <h2>成本中心</h2>
           <p class="subtitle">管理企业成本中心及成本归集</p>
         </div>
         <div class="action-section">
@@ -272,7 +272,6 @@ onMounted(() => {
 <style scoped>
 .cost-center-container { padding: 20px; }
 .header-card { margin-bottom: 20px; }
-.header-content { display: flex; justify-content: space-between; align-items: center; }
 .title-section h2 { margin: 0; font-size: 24px; color: var(--color-text-primary); }
 .subtitle { margin: 5px 0 0 0; color: var(--color-text-secondary); font-size: 14px; }
 .data-card { margin-bottom: 20px; }

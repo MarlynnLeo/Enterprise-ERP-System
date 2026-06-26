@@ -1223,12 +1223,6 @@ const batchDeleteTransfers = async () => {
   margin-bottom: 20px;
 }
 
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
@@ -1247,20 +1241,7 @@ const batchDeleteTransfers = async () => {
   width: calc(100% - 120px);
 }
 
-
-
-
-
-
-
-
 /* 主区域管理样式删除 */
-
-
-
-
-
-
 
 /* 物料选择下拉框样式优化 */
 .el-select .el-input {
@@ -1331,8 +1312,6 @@ const batchDeleteTransfers = async () => {
   height: auto !important;
 }
 
-
-
 .operation-dropdown {
   margin-right: 0;
 }
@@ -1346,9 +1325,6 @@ const batchDeleteTransfers = async () => {
 .table-toolbar {
   margin-bottom: 10px;
 }
-
-
-
 
 /* 详情对话框长文本处理 - 自动添加 */
 :deep(.el-descriptions__content) {

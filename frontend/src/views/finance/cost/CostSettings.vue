@@ -4,7 +4,7 @@
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
-          <h2>成本核算设置</h2>
+          <h2>成本设置</h2>
           <p class="subtitle">成本政策、核算口径、总账映射与月结前置配置</p>
         </div>
         <div class="header-actions">

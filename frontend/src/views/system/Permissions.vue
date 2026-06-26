@@ -1506,7 +1506,6 @@ const handleAddChildMenu = (row) => {
 const handleEditMenu = (row) => {
   menuDialogTitle.value = '编辑菜单';
   menuIsViewMode.value = false;
-  menuIsViewMode.value = false;
   resetMenuForm();
 
   // 填充表单数据
@@ -2058,11 +2057,6 @@ onMounted(async () => {
 <style scoped>
 .header-card {
   margin-bottom: 20px;
-}
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
 }
 .title-section h2 {
   margin: 0 0 5px 0;

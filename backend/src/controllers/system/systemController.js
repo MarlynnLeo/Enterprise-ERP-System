@@ -1139,6 +1139,44 @@ const systemController = {
       return sendBusinessError(res, error, '备份下载失败');
     }
   },
+
+  /**
+   * 接收前端客户端错误上报
+   * POST /api/system/client-errors
+   */
+  async receiveClientError(req, res) {
+    try {
+      const { type, message, stack, name, componentName, lifecycleHook, url, source, lineno, colno } = req.body;
+
+      // 基本校验
+      if (!type || !message) {
+        return ResponseHandler.error(res, '缺少必要参数', 'VALIDATION_ERROR', 400);
+      }
+
+      // 记录到安全日志
+      logger.warn(`🖥️ 前端错误 [${type}]`, {
+        type: 'client_error',
+        errorType: type,
+        errorName: name || 'Unknown',
+        message: String(message).substring(0, 500),
+        stack: stack ? String(stack).substring(0, 1000) : undefined,
+        componentName,
+        lifecycleHook,
+        url: url ? String(url).substring(0, 200) : undefined,
+        source: source ? String(source).substring(0, 200) : undefined,
+        lineno,
+        colno,
+        userId: req.user?.id,
+        username: req.user?.username,
+      });
+
+      return ResponseHandler.success(res, null, '错误已记录');
+    } catch (error) {
+      // 错误上报接口本身不应抛出异常给客户端
+      logger.error('记录前端错误失败:', error);
+      return ResponseHandler.success(res, null, 'ok');
+    }
+  },
 };
 
 module.exports = systemController;

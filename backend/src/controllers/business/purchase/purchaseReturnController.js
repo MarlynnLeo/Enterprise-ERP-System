@@ -16,6 +16,7 @@ const DLQService = require('../../../services/business/DLQService');
 const DomainEventService = require('../../../services/business/DomainEventService');
 const { lineAmount, sumMoney } = require('../../../utils/money');
 const { softDelete } = require('../../../utils/softDelete');
+const { PURCHASE_RETURN_TRANSITIONS } = require('../../../constants/statusRegistry');
 
 
 // 状态常量
@@ -601,13 +602,8 @@ const updateReturnStatus = async (req, res) => {
       return ResponseHandler.error(res, '当前已经是该状态', 'VALIDATION_ERROR', 400);
     }
 
-    // 特定状态转换的验证
-    const validTransitions = {
-      draft: ['confirmed', 'cancelled'],
-      confirmed: ['completed', 'cancelled'],
-      completed: [],
-      cancelled: [],
-    };
+    // 特定状态转换的验证（引用统一状态注册表）
+    const validTransitions = PURCHASE_RETURN_TRANSITIONS;
 
     if (!validTransitions[currentStatus] || !validTransitions[currentStatus].includes(newStatus)) {
       await connection.rollback();

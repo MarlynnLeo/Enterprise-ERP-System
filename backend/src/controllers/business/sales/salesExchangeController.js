@@ -15,6 +15,7 @@ const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const { generateProductionAndPurchasePlans } = require('./salesPackingController');
 const DLQService = require('../../../services/business/DLQService');
 const { parsePagination, appendPaginationSQL } = require('../../../utils/safePagination');
+const { SALES_EXCHANGE_TRANSITIONS } = require('../../../constants/statusRegistry');
 
 exports.getSalesExchanges = async (req, res) => {
   try {
@@ -741,13 +742,8 @@ exports.updateExchangeStatus = async (req, res) => {
     const currentExchange = currentResult[0];
     const previousStatus = currentExchange.status;
 
-    // 状态流转检查（防止非法状态变更）
-    const validTransitions = {
-      'pending': ['processing', 'rejected'],
-      'processing': ['completed', 'rejected'],
-      'completed': [],   // 已完成不可再变更
-      'rejected': [],    // 已拒绝不可再变更
-    };
+    // 状态流转检查（引用统一状态注册表，防止非法状态变更）
+    const validTransitions = SALES_EXCHANGE_TRANSITIONS;
 
     const allowed = validTransitions[previousStatus];
     if (allowed && !allowed.includes(status)) {

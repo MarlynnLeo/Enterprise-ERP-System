@@ -3,7 +3,7 @@
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
-          <h2>资产盘点管理</h2>
+          <h2>资产盘点</h2>
           <p class="subtitle">管理固定资产盘点任务与盘点结果</p>
         </div>
         <el-button v-permission="'finance:assets:create'" type="primary" :icon="Plus" @click="showAddDialog">新建盘点</el-button>
@@ -426,8 +426,6 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.text-success { color: var(--color-success); margin-right: 5px;}
-.text-warning { color: var(--color-warning); margin-right: 5px;}
 .text-danger { color: var(--color-danger); margin-right: 5px;}
 
 .asset-inventory-container {

@@ -374,19 +374,32 @@ export const useAuthStore = defineStore('auth', () => {
     }
 
     // 前缀通配符匹配（如 'production:*' 匹配 'production:tasks:view'）
-    const matched = permissions.value.some(p => {
+    return permissions.value.some(p => {
       if (p.endsWith(':*')) {
         const prefix = p.slice(0, -2)
         return perm.startsWith(prefix + ':')
       }
       return false
     })
-    if (matched) return true
+  }
 
-    // 父级模块兼容：检查 perm 的子权限是否存在
-    // 例如检查 'purchase' 时，用户有 'purchase:requisitions' 也算有权限
-    const prefix = perm + ':'
-    return permissions.value.some(p => p.startsWith(prefix))
+  /**
+   * 检查是否拥有某模块的子权限 — 与网页端 authStore.hasChildPermission 保持一致
+   * 例如检查 'purchase' 时，用户有 'purchase:requisitions' 也算有权限
+   * @param {string} permission - 权限标识
+   * @returns {boolean}
+   */
+  const hasChildPermission = (permission) => {
+    if (!permissionsLoaded.value) {
+      return false
+    }
+
+    if (permissions.value.includes('*')) {
+      return true
+    }
+
+    // 后端已展开别名，直接前缀匹配
+    return permissions.value.some(p => p.startsWith(`${permission}:`))
   }
 
   /**
@@ -438,6 +451,7 @@ export const useAuthStore = defineStore('auth', () => {
     fetchUserPermissions,
     refreshPermissions,
     hasPermission,
+    hasChildPermission,
     refreshAccessToken
   }
 })

@@ -106,5 +106,55 @@ export default [
             permission: 'production:calendar',
             title: '生产日历'
         }
+    },
+    {
+        path: 'production/anomaly',
+        name: 'productionAnomaly',
+        component: () => import('../../views/production/AnomalyReport.vue'),
+        meta: {
+            requiresAuth: true,
+            permission: 'production:anomaly',
+            title: '异常上报'
+        }
+    },
+    {
+        path: 'production/material-readiness',
+        name: 'materialReadiness',
+        component: () => import('../../views/production/MaterialReadiness.vue'),
+        meta: {
+            requiresAuth: true,
+            permission: 'production:material-check',
+            title: '物料齐套检查'
+        }
+    },
+    {
+        path: 'production/work-stations',
+        name: 'workStations',
+        component: () => import('../../views/production/WorkStations.vue'),
+        meta: {
+            requiresAuth: true,
+            permission: 'production:stations',
+            title: '工位管理'
+        }
+    },
+    {
+        path: 'production/process-routes',
+        name: 'processRoutes',
+        component: () => import('../../views/production/ProcessRoutes.vue'),
+        meta: {
+            requiresAuth: true,
+            permission: 'production:routes',
+            title: '工序路线'
+        }
+    },
+    {
+        path: 'production/assembly-board',
+        name: 'assemblyBoard',
+        component: () => import('../../views/production/AssemblyBoard.vue'),
+        meta: {
+            requiresAuth: true,
+            permission: 'production:assembly',
+            title: '装配看板'
+        }
     }
 ]

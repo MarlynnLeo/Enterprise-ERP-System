@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * BankAccounts.vue
  * @description 前端界面组件文件
@@ -11,7 +11,7 @@
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
-          <h2>银行账户管理</h2>
+          <h2>银行账户</h2>
           <p class="subtitle">管理银行账户信息</p>
         </div>
         <el-button v-permission="'finance:cash:create'" type="primary" :icon="Plus" @click="showAddDialog">新增账户</el-button>
@@ -709,12 +709,6 @@ onMounted(() => {
   margin-bottom: 20px;
 }
 
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
@@ -739,15 +733,10 @@ onMounted(() => {
   margin-bottom: 15px;
 }
 
-
-
 /* 对话框高度 - 页面特定，其他样式使用全局主题 */
 :deep(.el-dialog__body) {
   max-height: 60vh;
   overflow-y: auto;
 }
-
-
-
 
 </style>

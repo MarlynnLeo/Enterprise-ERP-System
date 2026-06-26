@@ -1,10 +1,10 @@
 ﻿<template>
-  <div class="finance-settings">
+  <div class="module-page finance-settings">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
-          <h2>财务系统设置</h2>
-          <p class="subtitle">管理财务模块的全局参数、税务规则及业务字典</p>
+          <h2>系统设置</h2>
+          <p class="subtitle">管理财务模块的全局参数、税务规则、业务字典及自动化任务</p>
         </div>
         <div class="header-actions">
           <el-button v-permission="'finance:settings:update'" type="warning" plain @click="handleReset" :loading="resetting">重置为默认</el-button>
@@ -27,7 +27,7 @@
             <el-col :span="8">
               <el-form-item label="默认货币">
                 <el-select v-model="settings.invoice.defaultCurrency" style="width: 100%">
-                  <el-option v-for="item in $dict.getOptions('currency_type')" :key="item.value" :label="item.label" :value="item.value" />
+                  <el-option v-for="item in dictStore.getOptions('currency_type')" :key="item.value" :label="item.label" :value="item.value" />
                 </el-select>
               </el-form-item>
             </el-col>
@@ -265,15 +265,24 @@
           </el-col>
         </el-row>
       </el-tab-pane>
+      <!-- 自动化任务 -->
+      <el-tab-pane label="自动化任务" name="automation">
+        <AutomationTab />
+      </el-tab-pane>
     </el-tabs>
   </div>
 </template>
 
 <script setup>
+import { useDictionaryStore } from '@/stores/dictionary'
 import { ref, reactive, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { financeApi } from '@/api'
+import AutomationTab from './AutomationTab.vue'
+
+const dictStore = useDictionaryStore()
 
 const activeTab = ref('base')
 
@@ -429,8 +438,13 @@ const handleReset = async () => {
   }
 }
 
+const route = useRoute()
 onMounted(() => {
   loadSettings()
+  // 支持 URL query 定位 tab，如 ?tab=automation
+  if (route.query.tab && typeof route.query.tab === 'string') {
+    activeTab.value = route.query.tab
+  }
 })
 </script>
 
@@ -441,12 +455,6 @@ onMounted(() => {
 
 .header-card {
   margin-bottom: 20px;
-}
-
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
 }
 
 .title-section h2 {

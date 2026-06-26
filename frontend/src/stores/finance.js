@@ -107,7 +107,9 @@ export const useFinanceStore = defineStore('finance', () => {
           returnTypes: data.tax.returnTypes || [],
           returnStatuses: data.tax.returnStatuses || [],
           invoiceTypes: data.tax.invoiceTypes || [],
-          invoiceStatuses: data.tax.invoiceStatuses || []
+          invoiceStatuses: data.tax.invoiceStatuses || [],
+          incomeTaxRate: data.tax.incomeTaxRate ?? 0.25,
+          additionalTaxRate: data.tax.additionalTaxRate ?? 0.12
         }
       }
 

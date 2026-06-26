@@ -7,6 +7,7 @@
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
+const { INVENTORY_TRANSFER_TRANSITIONS } = require('../../../constants/statusRegistry');
 const { CodeGenerators } = require('../../../utils/codeGenerator');
 const { parsePagination, appendPaginationSQL } = require('../../../utils/safePagination');
 
@@ -667,14 +668,8 @@ const updateTransferStatus = async (req, res) => {
     const transfer = transferResults[0];
     const currentStatus = transfer.status;
 
-    // 状态转换逻辑验证
-    const validTransitions = {
-      draft: ['pending', 'cancelled'],
-      pending: ['approved', 'cancelled'],
-      approved: ['completed', 'cancelled'],
-      completed: [],
-      cancelled: [],
-    };
+    // 状态转换逻辑验证（引用统一状态注册表）
+    const validTransitions = INVENTORY_TRANSFER_TRANSITIONS;
 
     if (!validTransitions[currentStatus].includes(newStatus)) {
       await connection.rollback();

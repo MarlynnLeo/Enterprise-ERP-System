@@ -1,5 +1,5 @@
 ﻿<template>
-  <div class="entry-form-container">
+  <div class="module-page entry-form-container">
     <el-card class="header-card">
       <div class="header-content">
         <h2>{{ isEdit ? '编辑凭证' : '录入凭证' }}</h2>
@@ -346,11 +346,6 @@ onMounted(() => {
 <style scoped>
 .header-card {
   margin-bottom: 20px;
-}
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
 }
 .header-content h2 {
   margin: 0;

@@ -1,8 +1,20 @@
 /**
  * index.js
- * @description 应用程序入口文件
+ * @description Sequelize 模型注册入口
  * @date 2025-08-27
  * @version 1.0.0
+ *
+ * ⚠️ A-2 ORM 统一计划:
+ * 项目主体使用 mysql2 原生 SQL（390+ 文件），仅以下模块使用 Sequelize：
+ *   - User (user.js)
+ *   - Todo + TodoParticipant (todo.js, todoParticipant.js)
+ *   - InspectionTemplate + InspectionItem + TemplateItemMapping
+ *
+ * 迁移策略（逐模块替换，非一次性重写）：
+ *   1. 新模块一律使用 mysql2 原生 SQL + Service 层
+ *   2. 现有 Sequelize 模块在做功能修改时顺便迁移
+ *   3. 优先迁移 User 模块（被其他模块广泛依赖）
+ *   4. 迁移完成后移除 sequelize 和 config/sequelize.js
  */
 
 const fs = require('fs');

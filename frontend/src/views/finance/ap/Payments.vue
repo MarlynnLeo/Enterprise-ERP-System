@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * Payments.vue
  * @description 前端界面组件文件
@@ -11,7 +11,7 @@
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
-          <h2>付款记录管理</h2>
+          <h2>付款管理</h2>
           <p class="subtitle">从应付发票发起付款，手工录入仅用于例外付款</p>
         </div>
         <el-button v-permission="'finance:ap:pay'" type="info" plain :icon="Plus" @click="showAddDialog">例外付款录入</el-button>
@@ -727,11 +727,6 @@ onMounted(() => {
 <style scoped>
 .header-card {
   margin-bottom: 20px;
-}
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
 }
 .title-section h2 {
   margin: 0 0 5px 0;

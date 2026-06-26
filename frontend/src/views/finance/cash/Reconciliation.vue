@@ -11,7 +11,7 @@
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
-          <h2>银行对账管理</h2>
+          <h2>银行对账</h2>
           <p class="subtitle">银行账户对账与核销</p>
         </div>
         <div class="action-buttons">
@@ -743,12 +743,6 @@ onMounted(async () => {
 
 .header-card {
   margin-bottom: 16px;
-}
-
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
 }
 
 .title-section h2 {

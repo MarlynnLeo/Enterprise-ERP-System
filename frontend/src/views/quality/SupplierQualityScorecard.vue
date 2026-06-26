@@ -19,7 +19,7 @@
       <el-row :gutter="20" class="search-container">
         <el-col :span="5">
           <el-select  v-model="filterGrade" placeholder="等级筛选" clearable @change="fetchScores">
-            <el-option v-for="item in $dict.getOptions('supplier_quality_grade')" :key="item.value" :label="item.label" :value="item.value" />
+            <el-option v-for="item in dictStore.getOptions('supplier_quality_grade')" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </el-col>
         <el-col :span="4">
@@ -150,11 +150,14 @@
 </template>
 
 <script setup>
+import { useDictionaryStore } from '@/stores/dictionary'
 import { ref, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Cpu } from '@element-plus/icons-vue';
 import { qualityApi } from '@/api/quality';
 import dayjs from 'dayjs';
+
+const dictStore = useDictionaryStore()
 
 const loading = ref(false);
 const calculating = ref(false);

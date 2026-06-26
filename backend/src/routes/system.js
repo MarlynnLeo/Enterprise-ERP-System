@@ -311,4 +311,8 @@ router.delete(
   businessTypeController.deleteBusinessType
 );
 
+// ========== 前端错误上报 ==========
+// 接收前端 errorReporter 上报的客户端错误（仅需登录，无需额外权限）
+router.post('/client-errors', systemController.receiveClientError);
+
 module.exports = router;

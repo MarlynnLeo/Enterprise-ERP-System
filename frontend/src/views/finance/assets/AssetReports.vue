@@ -1,47 +1,42 @@
 ﻿<template>
-  <div class="asset-reports-container" v-loading="loading" element-loading-text="正在加载资产报表数据...">
-    <el-card class="header-card mb-4" shadow="never">
-      <div class="header-section">
-        <h2 class="page-title">固定资产报表与预测</h2>
-        <div class="header-actions">
+  <div class="module-page asset-reports-container" v-loading="loading" element-loading-text="正在加载资产报表数据...">
+    <el-card class="header-card" shadow="never">
+      <div class="header-content">
+        <div class="title-section">
+          <h2>资产报表</h2>
+          <p class="subtitle">资产统计与分析</p>
+        </div>
+        <div>
           <el-button @click="loadData" :icon="Refresh">刷新数据</el-button>
           <el-button v-permission="'finance:assets:export'" type="primary" :icon="Download" @click="exportReports">导出报告</el-button>
         </div>
       </div>
     </el-card>
 
-    <!-- 顶层汇总卡片 -->
-    <el-row :gutter="20" class="mb-4">
-      <el-col :span="6">
-        <el-card shadow="hover" class="stat-card" v-loading="loading">
-          <div class="stat-title">总资产数</div>
-          <div class="stat-value text-primary">{{ summary.totalAssets || 0 }}</div>
-        </el-card>
-      </el-col>
-      <el-col :span="6">
-        <el-card shadow="hover" class="stat-card" v-loading="loading">
-          <div class="stat-title">总资产原值</div>
-          <div class="stat-value text-success">{{ formatMoney(summary.totalValue) }}</div>
-        </el-card>
-      </el-col>
-      <el-col :span="6">
-        <el-card shadow="hover" class="stat-card" v-loading="loading">
-          <div class="stat-title">总资产净值</div>
-          <div class="stat-value text-warning">{{ formatMoney(summary.netValue) }}</div>
-        </el-card>
-      </el-col>
-      <el-col :span="6">
-        <el-card shadow="hover" class="stat-card" v-loading="loading">
-          <div class="stat-title">在用资产比例</div>
-          <div class="stat-value text-info">{{ inUseRatio }}%</div>
-        </el-card>
-      </el-col>
-    </el-row>
+    <!-- 顶层汇总卡片 — 使用全局 statistics-row 布局 -->
+    <div class="statistics-row">
+      <el-card class="stat-card" shadow="hover">
+        <div class="stat-value">{{ summary.totalAssets || 0 }}</div>
+        <div class="stat-label">总资产数</div>
+      </el-card>
+      <el-card class="stat-card" shadow="hover">
+        <div class="stat-value">{{ formatMoney(summary.totalValue) }}</div>
+        <div class="stat-label">总资产原值</div>
+      </el-card>
+      <el-card class="stat-card" shadow="hover">
+        <div class="stat-value value-text">{{ formatMoney(summary.netValue) }}</div>
+        <div class="stat-label">总资产净值</div>
+      </el-card>
+      <el-card class="stat-card" shadow="hover">
+        <div class="stat-value">{{ inUseRatio }}%</div>
+        <div class="stat-label">在用资产比例</div>
+      </el-card>
+    </div>
 
     <!-- 图表行 1 -->
-    <el-row :gutter="20" class="mb-4">
+    <el-row :gutter="20" class="chart-row">
       <el-col :span="12">
-        <el-card shadow="hover" class="chart-card">
+        <el-card shadow="hover">
           <template #header>
             <div class="card-header">
               <span>资产状态分布</span>
@@ -51,7 +46,7 @@
         </el-card>
       </el-col>
       <el-col :span="12">
-        <el-card shadow="hover" class="chart-card">
+        <el-card shadow="hover" >
           <template #header>
             <div class="card-header">
               <span>资产类别分布</span>
@@ -63,9 +58,9 @@
     </el-row>
 
     <!-- 图表行 2 -->
-    <el-row :gutter="20" class="mb-4">
+    <el-row :gutter="20" class="chart-row">
       <el-col :span="24">
-        <el-card shadow="hover" class="chart-card">
+        <el-card shadow="hover" >
           <template #header>
             <div class="card-header">
               <span>近12个月资产新增趋势 (按原值)</span>
@@ -77,13 +72,13 @@
     </el-row>
 
     <!-- 图表行 3：折旧预测 -->
-    <el-row :gutter="20" class="mb-4">
+    <el-row :gutter="20" class="chart-row">
       <el-col :span="24">
-        <el-card shadow="hover" class="chart-card">
+        <el-card shadow="hover" >
           <template #header>
             <div class="card-header">
               <span>未来6个月折旧费用预测</span>
-              <el-select v-model="forecastMonths" size="small" @change="loadForecast">
+              <el-select v-model="forecastMonths" size="small" style="width: 120px;" @change="loadForecast">
                 <el-option label="3个月" :value="3" />
                 <el-option label="6个月" :value="6" />
                 <el-option label="12个月" :value="12" />
@@ -407,59 +402,16 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.asset-reports-container {
-  padding: 10px;
-}
-.header-card {
-  border: none;
-}
-.mb-4 {
+.chart-row {
   margin-bottom: 20px;
 }
-.header-section {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.page-title {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--color-text-primary);
-}
-.stat-card {
-  border-radius: 8px;
-  text-align: center;
-}
-.stat-card :deep(.el-card__body) {
-  padding: 14px 20px;
-}
-.stat-title {
-  color: var(--color-text-secondary);
-  font-size: 14px;
-  margin-bottom: 8px;
-}
-.stat-value {
-  font-size: 24px;
-  font-weight: bold;
-}
-.text-primary { color: var(--color-primary); }
-.text-success { color: var(--color-success); }
-.text-warning { color: var(--color-warning); }
-.text-info { color: var(--color-text-secondary); }
-
-.chart-card {
-  border-radius: 8px;
-  margin-bottom: 20px;
+.chart-container {
+  height: 300px;
+  width: 100%;
 }
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-weight: 500;
-}
-.chart-container {
-  height: 300px;
-  width: 100%;
 }
 </style>

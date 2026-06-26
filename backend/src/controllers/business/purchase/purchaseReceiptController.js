@@ -20,6 +20,7 @@ const DomainEventService = require('../../../services/business/DomainEventServic
 const AuditLogService = require('../../../services/system/AuditLogService');
 const { lineAmount, normalizeTaxRate, roundMoney, taxAmount: calculateTaxAmount } = require('../../../utils/money');
 const { financeConfig } = require('../../../config/financeConfig');
+const { PURCHASE_RECEIPT_STATUS_TRANSITIONS } = require('../../../constants/statusRegistry');
 
 // 状态常量
 const STATUS = {
@@ -1634,17 +1635,9 @@ const updateReceiptStatus = async (req, res) => {
   }
 };
 
-// 辅助函数：验证状态变更是否有效
+// 辅助函数：验证状态变更是否有效（引用统一状态注册表）
 function isValidStatusTransition(currentStatus, newStatus) {
-  // 定义有效的状态变更路径
-  const validTransitions = {
-    draft: ['confirmed', 'completed', 'cancelled'], // 允许草稿直接跳转到完成状态
-    confirmed: ['completed', 'cancelled'],
-    completed: [],
-    cancelled: [],
-  };
-
-  return validTransitions[currentStatus]?.includes(newStatus) || false;
+  return PURCHASE_RECEIPT_STATUS_TRANSITIONS[currentStatus]?.includes(newStatus) || false;
 }
 
 // 获取采购收货单统计

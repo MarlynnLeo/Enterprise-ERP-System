@@ -157,6 +157,7 @@ import {
 } from '@element-plus/icons-vue'
 import notificationApi from '@/api/notification'
 import { parseResponseData } from '@/utils/responseParser'
+import { useSocket } from '@/composables/useSocket'
 import {
   getNotificationIcon,
   getNotificationColor,
@@ -318,8 +319,20 @@ const handleVisibilityChange = () => {
   }
 }
 
+// Socket.IO 实时通知（实时推送 + 轮询兜底）
+const { connect: connectSocket } = useSocket({
+  onUnreadCountChange: () => {
+    loadUnreadCount()
+    // 如果弹窗已打开，同步刷新列表
+    if (popoverVisible.value) {
+      loadNotifications()
+    }
+  },
+})
+
 // 生命周期
 onMounted(() => {
+  connectSocket()
   startPolling()
   document.addEventListener('visibilitychange', handleVisibilityChange)
 })

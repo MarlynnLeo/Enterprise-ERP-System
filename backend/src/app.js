@@ -18,6 +18,13 @@ const { ResponseHandler } = require('./utils/responseHandler');
 
 const app = express();
 
+// ==================== 信任代理配置 ====================
+// 生产环境: Docker + Nginx 反代架构下必须配置，否则 req.ip 返回 Nginx 容器 IP
+// 影响: 速率限制、审计日志、可疑活动检测均依赖 req.ip 获取真实客户端 IP
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1); // 信任第一层代理（Nginx）
+}
+
 // 导入路由
 // 移除未使用的routes导入
 const purchaseRoutes = require('./routes/purchaseRoutes');
@@ -48,6 +55,7 @@ const batchTraceabilityRoutes = require('./routes/business/traceability/batchTra
 const traceabilityMonitorRoutes = require('./routes/business/traceability/traceabilityMonitorRoutes');
 const publicRoutes = require('./routes/public');
 const notificationRoutes = require('./routes/system/notificationRoutes');
+const notificationRuleRoutes = require('./routes/system/notificationRuleRoutes');
 const technicalCommunicationRoutes = require('./routes/system/technicalCommunicationRoutes');
 const nonconformingProductRoutes = require('./routes/business/nonconformingProductRoutes');
 const replacementOrderRoutes = require('./routes/business/replacementOrderRoutes');
@@ -66,6 +74,10 @@ const enhancedModulesRoutes = require('./routes/business/enhancedModulesRoutes')
 const userActivityRoutes = require('./routes/userActivityRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
 const dingtalkRoutes = require('./routes/integrations/dingtalkRoutes');
+const anomalyReportRoutes = require('./routes/business/anomalyReportRoutes');
+const productionAssistRoutes = require('./routes/business/productionAssistRoutes');
+const assemblyRoutes = require('./routes/business/assemblyRoutes');
+const employeeSkillRoutes = require('./routes/business/employeeSkillRoutes');
 
 // 表结构由 Knex 迁移文件统一管理
 
@@ -135,7 +147,11 @@ app.use(
   })
 );
 
-// 2. Cookie解析器（用于JWT Cookie）
+// 2. 请求链路追踪 — 为每个请求注入 traceId
+const traceIdMiddleware = require('./middleware/traceId');
+app.use(traceIdMiddleware);
+
+// 2.5. Cookie解析器（用于JWT Cookie）
 app.use(cookieParser());
 
 // 3. CORS配置
@@ -361,6 +377,7 @@ const apiRouteModules = [
   ['/batch-traceability', batchTraceabilityRoutes],
   ['/traceability-monitor', traceabilityMonitorRoutes],
   ['/system/notifications', notificationRoutes],
+  ['/system/notification-rules', notificationRuleRoutes],
   ['/system/technical-communications', technicalCommunicationRoutes],
   ['/quality/nonconforming-products', nonconformingProductRoutes],
   ['/quality/replacement-orders', replacementOrderRoutes],
@@ -377,6 +394,10 @@ const apiRouteModules = [
   ['/workflow', workflowRoutes],
   ['/contracts', contractRoutes],
   ['/enhanced', enhancedModulesRoutes],
+  ['/production/anomaly-reports', anomalyReportRoutes],
+  ['/production/assist', productionAssistRoutes],
+  ['/production/assembly', assemblyRoutes],
+  ['/hr/skills', employeeSkillRoutes],
 ];
 
 const registerApiRouteModules = (router, prefix = '') => {
@@ -384,6 +405,14 @@ const registerApiRouteModules = (router, prefix = '') => {
     router.use(`${prefix}${routePath}`, routeModule);
   });
 };
+
+// ==================== API 文档 ====================
+const swaggerUi = require('swagger-ui-express');
+const swaggerSpec = require('./config/swagger');
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: 'ERP API 文档',
+}));
 
 // 公开路由（无需认证）- 必须在其他路由之前注册
 app.use('/api/public', publicRoutes);
@@ -412,23 +441,11 @@ app.use(unifiedErrorHandler);
 const isTestRuntime = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID;
 
 if (!isTestRuntime) {
-  // ✅ 初始化缓存管理器（支持 Redis 和内存缓存自动切换）
-  const cacheManager = require('./services/cache/CacheManager');
-  const cacheInitTimer = setTimeout(async () => {
-    try {
-      await cacheManager.initialize();
-    } catch (error) {
-      await DLQService.recordSideEffectFailure(
-        'CacheManager:initialize',
-        { runtime: process.env.NODE_ENV || 'development' },
-        error
-      );
-    }
-  }, 1000);
-  cacheInitTimer.unref?.();
+  // 缓存管理器由 index.js startServer() 统一初始化，此处不再重复
 
   // ✅ 启动并挂载各领域事件订阅者 (Domain Event Subscribers)
   require('./events/subscribers/FinanceSubscriber');
+  require('./events/subscribers/NotificationSubscriber');
   require('./events/EventBus').enableCriticalListenerAudit();
   DLQService.startRetryWorker();
 

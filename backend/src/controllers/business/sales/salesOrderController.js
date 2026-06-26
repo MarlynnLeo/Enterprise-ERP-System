@@ -10,6 +10,7 @@ const { logger } = require('../../../utils/logger');
 const db = require('../../../config/db');
 const SalesDao = require('../../../database/salesDao');
 const { SALES_STATUS } = require('../../../constants/systemConstants');
+const { SALES_ORDER_TRANSITIONS } = require('../../../constants/statusRegistry');
 const InventoryReservationService = require('../../../services/InventoryReservationService');
 const ExcelJS = require('exceljs');
 const { softDelete } = require('../../../utils/softDelete');
@@ -503,66 +504,8 @@ exports.updateOrderStatus = async (req, res) => {
 
     const currentStatus = checkResult[0].status;
 
-    // 验证状态转换的合法性
-    const validTransitions = {
-      draft: [
-        'pending',
-        'confirmed',
-        'in_production',
-        'in_procurement',
-        'ready_to_ship',
-        'shortage',
-        'cancelled',
-      ],
-      pending: [
-        'confirmed',
-        'in_production',
-        'in_procurement',
-        'ready_to_ship',
-        'shortage',
-        'cancelled',
-      ],
-      confirmed: [
-        'in_production',
-        'in_procurement',
-        'ready_to_ship',
-        'shortage',
-        'partial_shipped',
-        'shipped',
-        'completed',
-        'cancelled',
-      ],
-      in_production: [
-        'ready_to_ship',
-        'shortage',
-        'partial_shipped',
-        'shipped',
-        'completed',
-        'cancelled',
-      ],
-      in_procurement: [
-        'ready_to_ship',
-        'shortage',
-        'partial_shipped',
-        'shipped',
-        'completed',
-        'cancelled',
-      ],
-      ready_to_ship: ['partial_shipped', 'shipped', 'completed', 'cancelled'],
-      shortage: [
-        'in_production',
-        'in_procurement',
-        'ready_to_ship',
-        'partial_shipped',
-        'shipped',
-        'cancelled',
-      ],
-      partial_shipped: ['shipped', 'completed', 'cancelled'],
-      shipped: ['delivered', 'completed'],
-      delivered: ['completed'],
-      completed: [],
-      cancelled: [],
-    };
+    // 验证状态转换的合法性（引用统一状态注册表，消除双写）
+    const validTransitions = SALES_ORDER_TRANSITIONS;
 
     if (!validTransitions[currentStatus]?.includes(newStatus)) {
       await connection.rollback();

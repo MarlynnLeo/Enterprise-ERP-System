@@ -1,7 +1,7 @@
 ﻿<!--
 /**
  * Expenses.vue
- * @description 费用管理页面
+ * @description 费用台账页面
  * @date 2026-01-17
  * @version 1.0.0
  */
@@ -12,7 +12,7 @@
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
-          <h2>费用管理</h2>
+          <h2>费用台账</h2>
           <p class="subtitle">管理日常费用录入与审批</p>
         </div>
         <div class="action-buttons">
@@ -851,12 +851,6 @@ onMounted(() => {
 
 .header-card {
   margin-bottom: 20px;
-}
-
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
 }
 
 .title-section h2 {

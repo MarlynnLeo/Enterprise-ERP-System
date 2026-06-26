@@ -785,12 +785,6 @@ const handlePrint = async (row) => {
   gap: 8px;
 }
 
-
-
-
-
-
-
 .card-header {
   display: flex;
   justify-content: space-between;
@@ -821,7 +815,6 @@ const handlePrint = async (row) => {
 .criteria-item:last-child {
   border-bottom: none;
 }
-
 
 /* 详情对话框长文本处理 - 自动添加 */
 :deep(.el-descriptions__content) {

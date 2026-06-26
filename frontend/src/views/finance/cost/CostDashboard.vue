@@ -1,9 +1,9 @@
-<template>
+﻿<template>
   <div class="dashboard-container module-page cost-dashboard-page">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
-          <h2>成本驾驶舱</h2>
+          <h2>成本总览</h2>
           <p class="subtitle">生产成本分析与监控中心</p>
         </div>
         <div class="action-buttons">
@@ -760,11 +760,6 @@ onUnmounted(() => {
 .header-card {
   margin-bottom: 20px;
 }
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
 .title-section h2 {
   margin: 0;
   font-size: 20px;
@@ -892,6 +887,5 @@ onUnmounted(() => {
   padding: 20px;
   text-align: center;
 }
-.text-success { color: var(--color-success); }
 .text-danger { color: var(--color-danger); }
 </style>

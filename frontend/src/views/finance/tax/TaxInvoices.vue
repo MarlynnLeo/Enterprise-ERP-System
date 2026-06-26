@@ -1,10 +1,10 @@
-﻿<template>
+<template>
   <div class="module-page tax-invoices-container">
     <!-- 页面标题头 -->
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
-          <h2>税务发票管理</h2>
+          <h2>税务发票</h2>
           <p class="subtitle">由采购和销售业务自动生成，支持票号补录、认证与抵扣</p>
         </div>
         <div class="header-actions">
@@ -358,12 +358,7 @@
           <el-col :span="8">
             <el-form-item label="税率(%)" prop="tax_rate">
               <el-select v-model="createForm.tax_rate" style="width: 100%" @change="calculateTax">
-                <el-option label="0%" :value="0" />
-                <el-option label="1%" :value="1" />
-                <el-option label="3%" :value="3" />
-                <el-option label="6%" :value="6" />
-                <el-option label="9%" :value="9" />
-                <el-option label="13%" :value="13" />
+                <el-option v-for="rate in taxRatePercentOptions" :key="rate" :label="`${rate}%`" :value="rate" />
               </el-select>
             </el-form-item>
           </el-col>
@@ -488,10 +483,20 @@ import { formatAmount, formatLocalDate } from '@/utils/format'
 import { Plus, View, Check, Discount, Delete, ArrowDown, Document, Clock, Download, Upload, Link, CircleClose as Unlink, EditPen } from '@element-plus/icons-vue';
 import { financeApi } from '@/api/finance';
 import { useAuthStore } from '@/stores/auth';
+import { useFinanceStore } from '@/stores/finance';
 
 const authStore = useAuthStore();
+const financeStore = useFinanceStore();
 const canCreateTaxInvoice = computed(() => authStore.hasPermission('finance:tax:create'));
 const canUpdateTaxInvoice = computed(() => authStore.hasPermission('finance:tax:update'));
+
+// 税务发票使用百分比整数制（13 = 13%），需从 financeStore 的小数制转换
+const taxRatePercentOptions = computed(() =>
+  financeStore.vatRateOptions.map(rate => Math.round(rate * 100))
+);
+const defaultTaxRatePercent = computed(() =>
+  Math.round(financeStore.defaultVATRate * 100)
+);
 
 // 搜索表单
 const searchForm = reactive({
@@ -536,7 +541,7 @@ const createForm = reactive({
   supplier_or_customer_name: '',
   supplier_tax_number: '',
   amount_excluding_tax: 0,
-  tax_rate: 13,
+  tax_rate: defaultTaxRatePercent.value,
   tax_amount: 0,
   total_amount: 0,
   remark: ''
@@ -623,6 +628,7 @@ const canChangeDocumentLink = (row) => {
 
 // 加载数据
 const loadData = async () => {
+  await financeStore.loadSettings(); // 确保税率配置已加载
   loading.value = true;
 
   try {
@@ -708,7 +714,7 @@ const handleCreate = () => {
     supplier_or_customer_name: '',
     supplier_tax_number: '',
     amount_excluding_tax: 0,
-    tax_rate: 13,
+    tax_rate: defaultTaxRatePercent.value,
     tax_amount: 0,
     total_amount: 0,
     remark: ''
@@ -1010,12 +1016,6 @@ const handleUnlink = async (row) => {
   margin-bottom: 20px;
 }
 
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
@@ -1040,13 +1040,6 @@ const handleUnlink = async (row) => {
 
 .stats-row {
   margin-bottom: 16px;
-}
-
-.stat-card {
-  border-radius: 8px;
-  border: 1px solid var(--color-border-lighter);
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--ds-black) 5%, transparent);
-  transition: border-color 0.2s ease, background-color 0.2s ease;
 }
 
 .stat-card:hover {

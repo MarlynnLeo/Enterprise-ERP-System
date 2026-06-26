@@ -478,7 +478,6 @@ watch(() => props.visible, (newVal) => {
   font-weight: bold;
 }
 
-
 /* 详情对话框长文本处理 - 自动添加 */
 :deep(.el-descriptions__content) {
   max-width: 300px;

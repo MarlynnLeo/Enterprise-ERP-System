@@ -3,7 +3,7 @@
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
-          <h2>预算管理</h2>
+          <h2>预算列表</h2>
           <p class="subtitle">管理预算方案、审批状态与执行周期</p>
         </div>
         <el-button v-permission="'finance:budgets:create'" type="primary" @click="handleCreate">新增预算</el-button>
@@ -34,7 +34,7 @@
         </el-form-item>
         <el-form-item label="预算类型">
           <el-select v-model="searchForm.budget_type" placeholder="请选择" clearable>
-            <el-option v-for="item in $dict.getOptions('budget_type')" :key="item.value" :label="item.label" :value="item.value" />
+            <el-option v-for="item in dictStore.getOptions('budget_type')" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="状态">
@@ -149,6 +149,7 @@
   </div>
 </template>
 <script setup>
+import { useDictionaryStore } from '@/stores/dictionary'
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { useRouter } from 'vue-router';
@@ -160,6 +161,8 @@ import {
   normalizeBudgetStatusCode
 } from '@/constants/systemConstants';
 import { formatAmount } from '@/utils/format'
+
+const dictStore = useDictionaryStore()
 const router = useRouter();
 const showAdvancedSearch = ref(false);
 // 搜索表单

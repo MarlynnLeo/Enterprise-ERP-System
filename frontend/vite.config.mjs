@@ -1,4 +1,5 @@
 import { defineConfig, loadEnv } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import legacy from '@vitejs/plugin-legacy'
 import path from 'path'
@@ -53,6 +54,12 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           // 不重写路径，保留 /uploads 前缀
           rewrite: (path) => path,
+          secure: false
+        },
+        '/socket.io': {
+          target: apiTarget,
+          changeOrigin: true,
+          ws: true,
           secure: false
         }
       }

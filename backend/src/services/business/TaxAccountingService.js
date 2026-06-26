@@ -14,6 +14,7 @@ const { logger } = require('../../utils/logger');
 const financeModel = require('../../models/finance');
 const DocumentLinkService = require('./DocumentLinkService');
 const { accountingConfig } = require('../../config/accountingConfig');
+const { DOCUMENT_TYPES } = require('../../constants/financeConstants');
 const { roundMoney } = require('../../utils/money');
 const { currentDateString, toLocalDateString } = require('../../utils/dateUtils');
 
@@ -333,7 +334,7 @@ class TaxAccountingService {
         entry_number: entryNumber,
         entry_date: invoiceDate,
         posting_date: invoiceDate,
-        document_type: '发票',
+        document_type: DOCUMENT_TYPES.INVOICE,
         document_number: invoice.invoice_number,
         period_id: periodId,
         description: useTaxReclassification
@@ -496,7 +497,7 @@ class TaxAccountingService {
         entry_number: entryNumber,
         entry_date: invoiceDate,
         posting_date: invoiceDate,
-        document_type: '发票',
+        document_type: DOCUMENT_TYPES.INVOICE,
         document_number: invoice.invoice_number,
         period_id: periodId,
         description: useTaxReclassification
@@ -692,7 +693,7 @@ class TaxAccountingService {
         entry_number: entryNumber,
         entry_date: accountingDate,
         posting_date: accountingDate,
-        document_type: '转账单',
+        document_type: DOCUMENT_TYPES.TRANSFER,
         document_number: taxReturn.return_period,
         period_id: periodId,
         description: `缴纳增值税 - ${taxReturn.return_period}`,

@@ -53,6 +53,15 @@ export default {
                 requiresAuth: true,
                 permission: 'hr:performance'
             }
+        },
+        {
+            path: 'skills',
+            name: 'hr-skills',
+            component: () => import('../../views/hr/EmployeeSkills.vue'),
+            meta: {
+                requiresAuth: true,
+                permission: 'hr:skills'
+            }
         }
     ]
 }

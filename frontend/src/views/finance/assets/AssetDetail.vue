@@ -1,5 +1,5 @@
 ﻿<template>
-  <div class="asset-detail-container">
+  <div class="module-page asset-detail-container">
     <!-- 头部卡片 -->
     <el-card class="header-card" shadow="never">
       <div class="header-content">
@@ -389,12 +389,6 @@ onMounted(() => {
 .header-card {
   margin-bottom: 20px;
   border-radius: 8px;
-}
-
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
 }
 
 .title-section {

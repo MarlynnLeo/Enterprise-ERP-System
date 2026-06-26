@@ -506,7 +506,6 @@ onUnmounted(() => {
   flex: 1;
 }
 
-
 .card-header {
   display: flex;
   justify-content: space-between;

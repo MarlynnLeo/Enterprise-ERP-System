@@ -4,7 +4,7 @@
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
-          <h2>实际成本查询</h2>
+          <h2>实际成本</h2>
           <p class="subtitle">查询生产订单实际成本</p>
         </div>
       </div>
@@ -316,12 +316,6 @@ onMounted(() => {
 
 .header-card {
   margin-bottom: 20px;
-}
-
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
 }
 
 .title-section h2 {

@@ -13,6 +13,7 @@ const SalesOrderStatusService = require('../../../services/business/SalesOrderSt
 const DomainEventService = require('../../../services/business/DomainEventService');
 const DBManager = require('../../../utils/dbManager');
 const { getCurrentUserName } = require('../../../utils/userHelper');
+const { SALES_OUTBOUND_TRANSITIONS } = require('../../../constants/statusRegistry');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const { parsePagination, appendPaginationSQL } = require('../../../utils/safePagination');
 
@@ -830,12 +831,7 @@ exports.updateSalesOutbound = async (req, res) => {
       [id]
     );
 
-    const validTransitions = {
-      draft: ['processing', 'cancelled'],
-      processing: ['completed', 'cancelled'],
-      completed: [],
-      cancelled: [],
-    };
+    const validTransitions = SALES_OUTBOUND_TRANSITIONS;
 
     if (
       status &&

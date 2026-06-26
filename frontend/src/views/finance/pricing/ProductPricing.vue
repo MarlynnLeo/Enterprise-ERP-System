@@ -4,7 +4,7 @@
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
-          <h2>产品定价/成本核算</h2>
+          <h2>产品定价</h2>
           <p class="subtitle">管理产品BOM成本与销售定价</p>
         </div>
         <div class="action-section">
@@ -486,12 +486,6 @@ onMounted(() => {
 
 .header-card, .search-card {
   margin-bottom: 20px;
-}
-
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
 }
 
 .title-section h2 {

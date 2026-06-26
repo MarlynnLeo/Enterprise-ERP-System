@@ -11,7 +11,7 @@
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
-          <h2>资产折旧计提</h2>
+          <h2>折旧管理</h2>
           <p class="subtitle">计算与记录资产折旧</p>
         </div>
         <div class="action-buttons">
@@ -564,11 +564,6 @@ onMounted(() => {
 <style scoped>
 .header-card {
   margin-bottom: 20px;
-}
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
 }
 .title-section h2 {
   margin: 0 0 5px 0;

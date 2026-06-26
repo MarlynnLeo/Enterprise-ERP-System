@@ -1,7 +1,7 @@
-<!--
+﻿<!--
 /**
  * Periods.vue
- * @description 会计期间管理 - 支持批量生成年度月度期间和单个创建
+ * @description 会计期间 - 支持批量生成年度月度期间和单个创建
  * @date 2025-08-27
  * @version 2.0.0
  */
@@ -11,7 +11,7 @@
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
-          <h2>会计期间管理</h2>
+          <h2>会计期间</h2>
           <p class="subtitle">管理会计期间与结转</p>
         </div>
         <div class="header-actions">
@@ -540,12 +540,6 @@ onMounted(() => {
 <style scoped>
 .header-card {
   margin-bottom: 20px;
-}
-
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
 }
 
 .header-actions {

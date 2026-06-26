@@ -92,12 +92,28 @@ process.once('SIGUSR2', async () => {
   }
 });
 
+// 慢查询阈值（毫秒），可通过环境变量覆盖
+const SLOW_QUERY_THRESHOLD = parseInt(process.env.SLOW_QUERY_THRESHOLD, 10) || 3000;
+
 // 统一查询接口（提供给老代码使用）
 const query = async (sql, params) => {
   // 清理参数：将undefined转换为null
   const cleanParams = params ? params.map((param) => (param === undefined ? null : param)) : [];
 
+  const startTime = Date.now();
   const [result] = await pool.execute(sql, cleanParams);
+  const duration = Date.now() - startTime;
+
+  // 慢查询告警
+  if (duration >= SLOW_QUERY_THRESHOLD) {
+    logger.warn(`⚠️ 慢查询检测: ${duration}ms`, {
+      sql: sql.substring(0, 200),
+      duration,
+      threshold: SLOW_QUERY_THRESHOLD,
+      type: 'slow_query',
+    });
+  }
+
   return {
     rows: result,
     insertId: result.insertId,

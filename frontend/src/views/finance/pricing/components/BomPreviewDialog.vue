@@ -196,7 +196,6 @@ const formatSignedPrice = (num) => {
   font-size: 13px;
 }
 
-.mb-4 { margin-bottom: 16px; }
 .mt-4 { margin-top: 16px; }
 
 /* 统计项样式 */
@@ -219,8 +218,6 @@ const formatSignedPrice = (num) => {
   color: var(--color-text-primary);
 }
 
-.text-primary { color: var(--color-primary); }
-.text-success { color: var(--color-success); }
 .text-danger { color: var(--color-danger); }
 
 .price-display {

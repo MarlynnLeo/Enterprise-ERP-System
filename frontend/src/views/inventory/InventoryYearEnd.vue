@@ -580,12 +580,6 @@ onMounted(() => {
   margin-bottom: 16px;
 }
 
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
 .title-section h2 {
   margin: 0;
   font-size: 20px;
@@ -600,13 +594,6 @@ onMounted(() => {
 
 .action-card {
   margin-bottom: 16px;
-}
-
-.statistics-row {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 16px;
-  flex-wrap: wrap;
 }
 
 .stat-card {

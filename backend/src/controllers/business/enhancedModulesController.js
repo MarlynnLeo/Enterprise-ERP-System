@@ -21,7 +21,7 @@ const codingRules = {
   },
   async getById(req, res) {
     try { ResponseHandler.success(res, await CodeGeneratorService.getRuleById(req.params.id)); }
-    catch (e) { ResponseHandler.error(res, e.message); }
+    catch (e) { logger.error('获取编码规则详情失败:', e); ResponseHandler.error(res, e.message); }
   },
   async create(req, res) {
     try { ResponseHandler.success(res, await CodeGeneratorService.createRule(req.body), '创建成功'); }
@@ -33,11 +33,11 @@ const codingRules = {
   },
   async preview(req, res) {
     try { ResponseHandler.success(res, { preview: await CodeGeneratorService.previewCode(req.params.type) }); }
-    catch (e) { ResponseHandler.error(res, e.message); }
+    catch (e) { logger.error('预览编码失败:', e); ResponseHandler.error(res, e.message); }
   },
   async resetSequence(req, res) {
     try { ResponseHandler.success(res, await CodeGeneratorService.resetSequence(req.body.business_type, req.body.period_key), '已重置'); }
-    catch (e) { ResponseHandler.error(res, e.message); }
+    catch (e) { logger.error('重置编码序列失败:', e); ResponseHandler.error(res, e.message); }
   },
   async deleteRule(req, res) {
     try { ResponseHandler.success(res, await CodeGeneratorService.deleteRule(req.params.id), '删除成功'); }
@@ -45,7 +45,7 @@ const codingRules = {
   },
   async getSequences(req, res) {
     try { ResponseHandler.success(res, await CodeGeneratorService.getSequences(req.params.type)); }
-    catch (e) { ResponseHandler.error(res, e.message); }
+    catch (e) { logger.error('获取编码序列失败:', e); ResponseHandler.error(res, e.message); }
   },
 };
 
@@ -53,81 +53,52 @@ const codingRules = {
 const docLinks = {
   async getLinks(req, res) {
     try { ResponseHandler.success(res, await DocumentLinkService.getLinks(req.query.business_type, req.query.business_id, { userPermissions: req.documentLinkUserPermissions || req.userPermissions })); }
-    catch (e) { ResponseHandler.error(res, e.message); }
+    catch (e) { logger.error('获取单据关联失败:', e); ResponseHandler.error(res, e.message); }
   },
   async getFullChain(req, res) {
     try { ResponseHandler.success(res, await DocumentLinkService.getFullChain(req.query.business_type, req.query.business_id, { userPermissions: req.documentLinkUserPermissions || req.userPermissions })); }
-    catch (e) { ResponseHandler.error(res, e.message); }
+    catch (e) { logger.error('获取单据完整链路失败:', e); ResponseHandler.error(res, e.message); }
   },
   async createLink(req, res) {
     try { await DocumentLinkService.createLink(req.body); ResponseHandler.success(res, null, '关联已创建'); }
-    catch (e) { ResponseHandler.error(res, e.message); }
+    catch (e) { logger.error('创建单据关联失败:', e); ResponseHandler.error(res, e.message); }
   },
   async deleteLink(req, res) {
     try { await DocumentLinkService.deleteLink(req.params.id); ResponseHandler.success(res, null, '关联已删除'); }
-    catch (e) { ResponseHandler.error(res, e.message); }
+    catch (e) { logger.error('删除单据关联失败:', e); ResponseHandler.error(res, e.message); }
   },
   async getTypeLabels(req, res) {
     try { ResponseHandler.success(res, DocumentLinkService.getTypeLabels()); }
-    catch (e) { ResponseHandler.error(res, e.message); }
+    catch (e) { logger.error('获取单据类型标签失败:', e); ResponseHandler.error(res, e.message); }
   },
 };
 
 // ==================== 汇率 ====================
+const ExchangeRateService = require('../../services/business/ExchangeRateService');
 const exchangeRates = {
   async getList(req, res) {
     try {
-      const { from_currency, to_currency } = req.query;
-      const pagination = parsePagination(req.query.page, req.query.pageSize, { defaultPageSize: 50, maxPageSize: 100 });
-      let where = 'WHERE deleted_at IS NULL';
-      const vals = [];
-      if (from_currency) { where += ' AND from_currency = ?'; vals.push(from_currency); }
-      if (to_currency) { where += ' AND to_currency = ?'; vals.push(to_currency); }
-      const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM exchange_rates ${where}`, vals);
-      const listSql = appendPaginationSQL(
-        `SELECT id, from_currency, to_currency, rate, effective_date, source, created_by, created_at, deleted_at FROM exchange_rates ${where} ORDER BY effective_date DESC, from_currency`,
-        pagination.limit,
-        pagination.offset
-      );
-      const [rows] = await pool.query(listSql, vals);
-      ResponseHandler.paginated(res, rows, total, pagination.page, pagination.pageSize);
-    } catch (e) { ResponseHandler.error(res, e.message); }
+      const { rows, total, page, pageSize } = await ExchangeRateService.getList(req.query);
+      ResponseHandler.paginated(res, rows, total, page, pageSize);
+    } catch (e) { logger.error('获取汇率列表失败:', e); ResponseHandler.error(res, e.message); }
   },
   async create(req, res) {
     try {
-      const { from_currency, to_currency, rate, effective_date } = req.body;
-      const parsedRate = Number(rate);
-      if (!from_currency || !effective_date || !Number.isFinite(parsedRate) || parsedRate <= 0) {
-        return ResponseHandler.error(res, 'from_currency, effective_date and positive rate are required', 'VALIDATION_ERROR', 400);
-      }
-      const userId = req.user?.id;
-      await pool.query(
-        `INSERT INTO exchange_rates (from_currency, to_currency, rate, effective_date, source, created_by)
-         VALUES (?, ?, ?, ?, 'manual', ?) ON DUPLICATE KEY UPDATE rate = ?, source = 'manual'`,
-        [String(from_currency).toUpperCase(), String(to_currency || 'CNY').toUpperCase(), parsedRate, effective_date, userId, parsedRate]
-      );
+      await ExchangeRateService.upsert(req.body, req.user?.id);
       ResponseHandler.success(res, null, '汇率已保存');
-    } catch (e) { ResponseHandler.error(res, e.message); }
+    } catch (e) { logger.error('保存汇率失败:', e); ResponseHandler.error(res, e.message); }
   },
   async delete(req, res) {
     try {
-      await softDelete(pool, 'exchange_rates', 'id', req.params.id);
+      await ExchangeRateService.delete(req.params.id);
       ResponseHandler.success(res, null, '已删除');
-    } catch (e) { ResponseHandler.error(res, e.message); }
+    } catch (e) { logger.error('删除汇率失败:', e); ResponseHandler.error(res, e.message); }
   },
   async getLatestRate(req, res) {
     try {
-      const { from, to } = req.query;
-      if (!from) {
-        return ResponseHandler.error(res, 'from currency is required', 'VALIDATION_ERROR', 400);
-      }
-      const [[row]] = await pool.query(
-        `SELECT id, from_currency, to_currency, rate, effective_date, source, created_by, created_at, deleted_at FROM exchange_rates WHERE from_currency = ? AND to_currency = ? AND effective_date <= CURDATE() AND deleted_at IS NULL
-         ORDER BY effective_date DESC LIMIT 1`,
-        [String(from).toUpperCase(), String(to || 'CNY').toUpperCase()]
-      );
-      ResponseHandler.success(res, row || null);
-    } catch (e) { ResponseHandler.error(res, e.message); }
+      const row = await ExchangeRateService.getLatestRate(req.query.from, req.query.to);
+      ResponseHandler.success(res, row);
+    } catch (e) { logger.error('获取最新汇率失败:', e); ResponseHandler.error(res, e.message); }
   },
 };
 
@@ -150,7 +121,7 @@ const performance = {
       );
       const [rows] = await pool.query(listSql, vals);
       ResponseHandler.paginated(res, rows, total, pagination.page, pagination.pageSize);
-    } catch (e) { ResponseHandler.error(res, e.message); }
+    } catch (e) { logger.error('获取绩效指标失败:', e); ResponseHandler.error(res, e.message); }
   },
   async createIndicator(req, res) {
     try {
@@ -161,7 +132,7 @@ const performance = {
       );
       const [[row]] = await pool.query('SELECT id, code, name, category, description, unit, target_value, weight, scoring_method, formula, is_active, created_at, updated_at, deleted_at FROM performance_indicators WHERE id = ?', [r.insertId]);
       ResponseHandler.success(res, row, '创建成功');
-    } catch (e) { ResponseHandler.error(res, e.message); }
+    } catch (e) { logger.error('创建绩效指标失败:', e); ResponseHandler.error(res, e.message); }
   },
   async updateIndicator(req, res) {
     try {
@@ -171,20 +142,20 @@ const performance = {
         [d.name, d.category, d.description, d.unit, d.target_value, d.weight, d.scoring_method, d.formula, d.is_active ?? 1, req.params.id]
       );
       ResponseHandler.success(res, null, '更新成功');
-    } catch (e) { ResponseHandler.error(res, e.message); }
+    } catch (e) { logger.error('更新绩效指标失败:', e); ResponseHandler.error(res, e.message); }
   },
   async deleteIndicator(req, res) {
     try {
       await pool.query('UPDATE performance_indicators SET deleted_at = NOW() WHERE id = ? AND deleted_at IS NULL', [req.params.id]);
       ResponseHandler.success(res, null, '已删除');
-    } catch (e) { ResponseHandler.error(res, e.message); }
+    } catch (e) { logger.error('删除绩效指标失败:', e); ResponseHandler.error(res, e.message); }
   },
   // 考核周期
   async getPeriods(req, res) {
     try {
       const [rows] = await pool.query('SELECT id, name, type, start_date, end_date, status, created_by, created_at, updated_at FROM performance_periods ORDER BY start_date DESC');
       ResponseHandler.success(res, rows);
-    } catch (e) { ResponseHandler.error(res, e.message); }
+    } catch (e) { logger.error('获取考核周期失败:', e); ResponseHandler.error(res, e.message); }
   },
   async createPeriod(req, res) {
     try {
@@ -195,13 +166,13 @@ const performance = {
         [d.name, d.type || 'quarterly', d.start_date, d.end_date, 'draft', userId]
       );
       ResponseHandler.success(res, { id: r.insertId }, '创建成功');
-    } catch (e) { ResponseHandler.error(res, e.message); }
+    } catch (e) { logger.error('创建考核周期失败:', e); ResponseHandler.error(res, e.message); }
   },
   async updatePeriodStatus(req, res) {
     try {
       await pool.query('UPDATE performance_periods SET status = ? WHERE id = ?', [req.body.status, req.params.id]);
       ResponseHandler.success(res, null, '状态已更新');
-    } catch (e) { ResponseHandler.error(res, e.message); }
+    } catch (e) { logger.error('更新考核状态失败:', e); ResponseHandler.error(res, e.message); }
   },
   // 评估
   async getEvaluations(req, res) {
@@ -228,7 +199,7 @@ const performance = {
       );
       const [rows] = await pool.query(listSql, vals);
       ResponseHandler.paginated(res, rows, total, pagination.page, pagination.pageSize);
-    } catch (e) { ResponseHandler.error(res, e.message); }
+    } catch (e) { logger.error('获取绩效评估列表失败:', e); ResponseHandler.error(res, e.message); }
   },
   async getEvaluationById(req, res) {
     try {
@@ -237,7 +208,7 @@ const performance = {
       const [items] = await pool.query('SELECT id, evaluation_id, indicator_id, indicator_name, weight, target_value, actual_value, self_score, manager_score, final_score, remark FROM performance_evaluation_items WHERE evaluation_id = ?', [ev.id]);
       ev.items = items;
       ResponseHandler.success(res, ev);
-    } catch (e) { ResponseHandler.error(res, e.message); }
+    } catch (e) { logger.error('获取绩效评估详情失败:', e); ResponseHandler.error(res, e.message); }
   },
   async createEvaluation(req, res) {
     try {
@@ -264,7 +235,7 @@ const performance = {
         ResponseHandler.success(res, { id: evalId }, '创建成功');
       } catch (err) { await conn.rollback(); throw err; }
       finally { conn.release(); }
-    } catch (e) { ResponseHandler.error(res, e.message); }
+    } catch (e) { logger.error('创建绩效评估失败:', e); ResponseHandler.error(res, e.message); }
   },
   async scoreEvaluation(req, res) {
     try {
@@ -288,7 +259,7 @@ const performance = {
         ResponseHandler.success(res, null, '评分已保存');
       } catch (err) { await conn.rollback(); throw err; }
       finally { conn.release(); }
-    } catch (e) { ResponseHandler.error(res, e.message); }
+    } catch (e) { logger.error('绩效评分失败:', e); ResponseHandler.error(res, e.message); }
   },
 };
 
@@ -421,7 +392,7 @@ const ecn = {
       );
       const [rows] = await pool.query(listSql, vals);
       ResponseHandler.paginated(res, rows, total, pagination.page, pagination.pageSize);
-    } catch (e) { ResponseHandler.error(res, e.message); }
+    } catch (e) { logger.error('获取ECN列表失败:', e); ResponseHandler.error(res, e.message); }
   },
   async getById(req, res) {
     try {
@@ -430,7 +401,7 @@ const ecn = {
       const [items] = await pool.query('SELECT id, ecn_id, change_type, material_id, material_code, material_name, bom_id, field_name, old_value, new_value, remark FROM ecn_order_items WHERE ecn_id = ?', [order.id]);
       order.items = items;
       ResponseHandler.success(res, order);
-    } catch (e) { ResponseHandler.error(res, e.message); }
+    } catch (e) { logger.error('获取ECN详情失败:', e); ResponseHandler.error(res, e.message); }
   },
   async create(req, res) {
     try {
@@ -463,7 +434,7 @@ const ecn = {
         ResponseHandler.success(res, { id: ecnId, code }, '创建成功');
       } catch (err) { await conn.rollback(); throw err; }
       finally { conn.release(); }
-    } catch (e) { ResponseHandler.error(res, e.message); }
+    } catch (e) { logger.error('创建ECN失败:', e); ResponseHandler.error(res, e.message); }
   },
   async updateStatus(req, res) {
     const conn = await pool.getConnection();
@@ -547,6 +518,7 @@ const ecn = {
       ResponseHandler.success(res, null, 'Status updated');
     } catch (e) {
       await conn.rollback();
+      logger.error('ECN状态变更失败:', e);
       ResponseHandler.error(res, e.message);
     } finally {
       conn.release();
@@ -622,6 +594,7 @@ const ecn = {
       ResponseHandler.success(res, null, 'Deleted');
     } catch (e) {
       await conn.rollback();
+      logger.error('删除ECN失败:', e);
       ResponseHandler.error(res, e.message);
     } finally {
       conn.release();
@@ -755,7 +728,7 @@ const documents = {
       );
       const [rows] = await pool.query(listSql, vals);
       ResponseHandler.paginated(res, rows, total, pagination.page, pagination.pageSize);
-    } catch (e) { ResponseHandler.error(res, e.message); }
+    } catch (e) { logger.error('获取文档列表失败:', e); ResponseHandler.error(res, e.message); }
   },
   async create(req, res) {
     try {
@@ -786,7 +759,7 @@ const documents = {
         },
       });
       ResponseHandler.success(res, { id: r.insertId }, '上传成功');
-    } catch (e) { ResponseHandler.error(res, e.message); }
+    } catch (e) { logger.error('创建文档失败:', e); ResponseHandler.error(res, e.message); }
   },
   async update(req, res) {
     try {
@@ -797,7 +770,7 @@ const documents = {
       );
       if (result.affectedRows === 0) return ResponseHandler.notFound(res, '文档不存在');
       ResponseHandler.success(res, null, '更新成功');
-    } catch (e) { ResponseHandler.error(res, e.message); }
+    } catch (e) { logger.error('更新文档失败:', e); ResponseHandler.error(res, e.message); }
   },
   async delete(req, res) {
     try {
@@ -809,7 +782,7 @@ const documents = {
       }
       ResponseHandler.success(res, null, '已删除');
     }
-    catch (e) { ResponseHandler.error(res, e.message); }
+    catch (e) { logger.error('删除文档失败:', e); ResponseHandler.error(res, e.message); }
   },
   async download(req, res) {
     try {
@@ -817,7 +790,7 @@ const documents = {
       if (!doc) return ResponseHandler.notFound(res, '文档不存在');
       await pool.query('UPDATE documents SET download_count = download_count + 1 WHERE id = ?', [req.params.id]);
       ResponseHandler.success(res, doc);
-    } catch (e) { ResponseHandler.error(res, e.message); }
+    } catch (e) { logger.error('下载文档失败:', e); ResponseHandler.error(res, e.message); }
   },
 };
 
@@ -827,7 +800,7 @@ const alerts = {
     try {
       const [rows] = await pool.query('SELECT id, code, name, category, condition_type, condition_params, severity, notify_roles, notify_users, is_active, check_interval_minutes, last_checked_at, created_at, updated_at FROM business_alerts ORDER BY category, name');
       ResponseHandler.success(res, rows);
-    } catch (e) { ResponseHandler.error(res, e.message); }
+    } catch (e) { logger.error('获取业务告警失败:', e); ResponseHandler.error(res, e.message); }
   },
   async update(req, res) {
     try {
@@ -839,7 +812,7 @@ const alerts = {
       );
       if (result.affectedRows === 0) return ResponseHandler.notFound(res, '业务告警不存在');
       ResponseHandler.success(res, null, '更新成功');
-    } catch (e) { ResponseHandler.error(res, e.message); }
+    } catch (e) { logger.error('更新业务告警失败:', e); ResponseHandler.error(res, e.message); }
   },
 };
 

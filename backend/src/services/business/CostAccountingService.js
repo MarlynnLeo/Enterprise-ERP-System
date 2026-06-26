@@ -1,8 +1,32 @@
 /**
  * CostAccountingService.js
- * @description 服务层文件
+ * @description 成本核算服务 — 统一入口（Facade）
  * @date 2025-08-27
  * @version 1.0.0
+ *
+ * ⚠️ A-1 重构指南: 本文件 3800+ 行，建议按以下职责拆分为子模块：
+ *
+ * 1. StandardCostCalculator (标准成本)
+ *    - calculateMultiLevelBomCost, calculateStandardCost, ensureStandardCost
+ *    - getMaterialUnitCost, getStandardMaterialCost, getBatchStandardMaterialCosts
+ *
+ * 2. ActualCostCalculator (实际成本)
+ *    - calculateActualCost, calculateActualMaterialCost
+ *    - calculateActualLaborCost, calculateActualOverheadCost, calculateTaskActualCost
+ *
+ * 3. CostVarianceAnalyzer (成本差异)
+ *    - analyzeCostVariance, calculateEfficiencyVariance, allocateVariance
+ *
+ * 4. WIPCostService (在制品)
+ *    - calculatePeriodWIP, calculateOutsourcedWIP, calculateWIPCost, generateWIPVoucher
+ *
+ * 5. CostVoucherService (凭证)
+ *    - generateMaterialVoucher, generateSalesCostVoucher, releaseExistingWIPVoucherIfNeeded
+ *
+ * 6. InventoryCostService (库存成本)
+ *    - recalculateInventoryCost, recalculateMaterialCost
+ *
+ * 拆分步骤: 逐个提取子模块 → 原文件 require 并委托 → 验证无回归 → 移除委托代码
  */
 
 const { logger } = require('../../utils/logger');
@@ -19,6 +43,7 @@ const { currentDateString, toLocalDateString } = require('../../utils/dateUtils'
 const GLService = require('../finance/GLService');
 const Precision = require('../../utils/precision');
 const { financeConfig } = require('../../config/financeConfig');
+const { DOCUMENT_TYPES } = require('../../constants/financeConstants');
 class CostAccountingService {
   /**
    * 成本核算方法枚举
@@ -246,28 +271,20 @@ class CostAccountingService {
         const unitCost = this.getMovementUnitCost(row, allocation.quantity);
         movements.push({
           taskId: allocation.taskId,
-          task_id: allocation.taskId,
           movementType: 'issue',
-          movement_type: 'issue',
           documentId: row.document_id,
           id: row.item_id,
           documentNo: row.document_no,
           movementDate: row.movement_date,
-          issue_date: row.movement_date,
           itemId: row.item_id,
           materialId: row.material_id,
-          material_id: row.material_id,
           materialCode: row.material_code,
-          material_code: row.material_code,
           materialName: row.material_name,
-          material_name: row.material_name,
           category: row.category,
           quantity: allocation.quantity,
           unitCost,
-          unit_cost: unitCost,
           totalCost: allocation.quantity * unitCost,
-          total_cost: allocation.quantity * unitCost,
-          batch_number: null,
+          batchNumber: null,
         });
       }
     }
@@ -324,28 +341,20 @@ class CostAccountingService {
         const quantity = -allocation.quantity;
         movements.push({
           taskId: allocation.taskId,
-          task_id: allocation.taskId,
           movementType: 'return',
-          movement_type: 'return',
           documentId: row.document_id,
           id: row.item_id,
           documentNo: row.document_no,
           movementDate: row.movement_date,
-          issue_date: row.movement_date,
           itemId: row.item_id,
           materialId: row.material_id,
-          material_id: row.material_id,
           materialCode: row.material_code,
-          material_code: row.material_code,
           materialName: row.material_name,
-          material_name: row.material_name,
           category: row.category,
           quantity,
           unitCost,
-          unit_cost: unitCost,
           totalCost: quantity * unitCost,
-          total_cost: quantity * unitCost,
-          batch_number: null,
+          batchNumber: null,
         });
       }
     }
@@ -648,6 +657,7 @@ class CostAccountingService {
 
       // 获取BOM明细，包含has_sub_bom标志
       // 价格优先级: standard_costs表 > cost_price(采购成本)
+      // ✅ P-1 优化: 通过子查询一次性检测子BOM，消除 N+1 查询
       const [items] = await db.pool.execute(
         `SELECT bd.material_id, bd.quantity, bd.has_sub_bom,
                 m.code as material_code, m.name as material_name,
@@ -659,7 +669,13 @@ class CostAccountingService {
                    ORDER BY sc.effective_date DESC LIMIT 1),
                   m.cost_price,
                   0
-                ) as unit_price
+                ) as unit_price,
+                EXISTS(
+                  SELECT 1 FROM bom_masters bm
+                  WHERE bm.product_id = bd.material_id
+                    AND (bm.status = 1 OR bm.approved_by IS NOT NULL)
+                    AND bm.deleted_at IS NULL
+                ) as has_sub_bom_detected
          FROM bom_details bd
          JOIN materials m ON bd.material_id = m.id
          WHERE bd.bom_id = ?`,
@@ -673,16 +689,10 @@ class CostAccountingService {
         const itemQuantity = parseFloat(item.quantity) || 0;
         const totalItemQty = itemQuantity * quantity;
 
-        // 检查是否有子BOM（半成品）
-        let hasSubBom = item.has_sub_bom;
-        if (hasSubBom === undefined || hasSubBom === null) {
-          // 动态检查是否有子BOM
-          const [subBom] = await db.pool.execute(
-            'SELECT id FROM bom_masters WHERE product_id = ? AND (status = 1 OR approved_by IS NOT NULL) AND deleted_at IS NULL LIMIT 1',
-            [item.material_id]
-          );
-          hasSubBom = subBom.length > 0;
-        }
+        // 优先使用 bd.has_sub_bom 字段，回退到子查询检测结果
+        const hasSubBom = (item.has_sub_bom !== undefined && item.has_sub_bom !== null)
+          ? !!item.has_sub_bom
+          : !!item.has_sub_bom_detected;
 
         if (hasSubBom) {
           // 递归计算子BOM成本
@@ -1187,7 +1197,7 @@ class CostAccountingService {
           const baseEntryData = {
             period_id: periodId,
             entry_date: completionDate,
-            document_type: '生产成本结转',
+            document_type: DOCUMENT_TYPES.PRODUCTION_COST_TRANSFER,
             document_number: order.code,
             transaction_id: productionOrderId,
             created_by: 'system',

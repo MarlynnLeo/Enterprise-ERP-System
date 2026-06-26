@@ -10,6 +10,7 @@ const { logger } = require('../../../utils/logger');
 const db = require('../../../config/db');
 const { softDelete } = require('../../../utils/softDelete');
 const DocumentLinkService = require('../../../services/business/DocumentLinkService');
+const { SALES_PACKING_TRANSITIONS } = require('../../../constants/statusRegistry');
 
 const { CodeGenerators } = require('../../../utils/codeGenerator');
 
@@ -540,14 +541,8 @@ exports.updatePackingListStatus = async (req, res) => {
 
     const currentStatus = packingListRows[0].status;
 
-    // 状态转换验证
-    const statusTransitions = {
-      draft: ['confirmed', 'cancelled'],
-      confirmed: ['packing', 'cancelled'],
-      packing: ['completed', 'cancelled'],
-      completed: [], // 已完成不能转换到其他状态
-      cancelled: ['draft'], // 已取消可以重新开始
-    };
+    // 状态转换验证（引用统一状态注册表）
+    const statusTransitions = SALES_PACKING_TRANSITIONS;
 
     if (!statusTransitions[currentStatus].includes(status)) {
       return ResponseHandler.error(res, `不能从状态 "${currentStatus}" 转换到 "${status}"`, 'VALIDATION_ERROR', 400);

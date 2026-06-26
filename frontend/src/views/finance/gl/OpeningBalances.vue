@@ -11,7 +11,7 @@
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
-          <h2>期初余额初始化</h2>
+          <h2>期初余额</h2>
           <p class="subtitle">来源驱动的总账期初初始化</p>
         </div>
         <div class="header-actions">
@@ -273,7 +273,7 @@ const handleBatchSave = async () => {
       balanceDate: balanceDate.value
     })
 
-    ElMessage.success('期初余额初始化完成')
+    ElMessage.success('期初余额完成')
     loadPreview()
   } catch (error) {
     ElMessage.error('初始化失败: ' + (error.message || '未知错误'))
@@ -294,12 +294,6 @@ onMounted(() => {
 
 .header-card {
   margin-bottom: 20px;
-}
-
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
 }
 
 .title-section h2 {
@@ -392,14 +386,6 @@ onMounted(() => {
 
 .data-card {
   margin-bottom: 20px;
-}
-
-.text-success {
-  color: var(--color-success);
-}
-
-.text-warning {
-  color: var(--color-warning);
 }
 
 .text-danger {

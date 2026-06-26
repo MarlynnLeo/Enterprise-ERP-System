@@ -27,7 +27,10 @@ function isOriginAllowed(origin) {
     return false;
   }
 
-  if (!origin) return true;
+  // 生产环境: origin=null/undefined 通常来自非浏览器请求或 file:// 协议
+  // 同源请求不带 Origin 头，但这类请求不受 CORS 限制，不会进入此函数
+  // 此处拒绝无 Origin 的跨域请求，防止 CORS 绕过
+  if (!origin) return false;
 
   return allowedOrigins.includes(origin);
 }

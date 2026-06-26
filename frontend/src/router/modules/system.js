@@ -116,6 +116,15 @@ export default {
                 requiresAuth: true,
                 permission: 'system:business-alerts'
             }
+        },
+        {
+            path: 'notification-rules',
+            name: 'system-notification-rules',
+            component: () => import('../../views/system/NotificationRules.vue'),
+            meta: {
+                requiresAuth: true,
+                permission: 'system:notification-rules'
+            }
         }
     ]
 }

@@ -252,7 +252,7 @@
   import { useRouter, useRoute } from 'vue-router'
   import Icon from '@/components/icons/index.vue'
   import { showToast, showLoadingToast, closeToast } from 'vant'
-  import { baseDataApi, inventoryApi, salesApi } from '@/api'
+  import { baseDataApi, inventoryApi, salesApi, productionApi } from '@/api'
   import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
 
   // 支持的条码格式列表（包含所有常见一维码和二维码）
@@ -289,6 +289,8 @@
   const hasFlash = ref(false)
   const cameras = ref([])         // 所有可用摄像头列表
   const currentCameraIndex = ref(0)  // 当前使用的摄像头索引
+  const assemblyTaskId = ref('')  // 装配防错：当前任务ID
+  const assemblyResult = ref(null)  // 装配防错：验证结果
 
   // 当前摄像头方向标签（显示给用户）
   const currentFacingLabel = computed(() => {
@@ -318,7 +320,8 @@
       { value: 'material', label: '物料', icon: 'cube' },
       { value: 'location', label: '库位', icon: 'location-marker' },
       { value: 'order', label: '订单', icon: 'document-text' },
-      { value: 'product', label: '产品', icon: 'shopping-bag' }
+      { value: 'product', label: '产品', icon: 'shopping-bag' },
+      { value: 'assembly', label: '装配防错', icon: 'shield-check' }
     ]
     return types
   })
@@ -358,7 +361,8 @@
       material: '将物料条码/二维码放入框内',
       location: '将库位条码/二维码放入框内',
       order: '将订单条码/二维码放入框内',
-      product: '将产品条码/二维码放入框内'
+      product: '将产品条码/二维码放入框内',
+      assembly: '扫描物料条码验证是否匹配 BOM'
     }
     return tips[selectedType.value] || '将条码/二维码放入框内'
   })
@@ -391,6 +395,8 @@
         await queryOrder(code)
       } else if (selectedType.value === 'product') {
         await queryMaterial(code)
+      } else if (selectedType.value === 'assembly') {
+        await verifyAssembly(code)
       }
     } catch (error) {
       console.error('查询失败:', error)
@@ -547,6 +553,33 @@
       }
     } catch (error) {
       throw new Error(error.message || '查询订单失败')
+    }
+  }
+
+  // 装配防错验证
+  const verifyAssembly = async (code) => {
+    if (!assemblyTaskId.value) {
+      assemblyResult.value = { success: false, message: '请先配置生产任务ID' }
+      resultData.value = { type: 'assembly' }
+      showToast('请先配置任务ID')
+      return
+    }
+    try {
+      const response = await productionApi.scanVerify({
+        taskId: Number(assemblyTaskId.value),
+        scannedBarcode: code,
+      })
+      const data = response.data || response
+      if (data.result === 'pass') {
+        assemblyResult.value = { success: true, message: `${data.material?.name || '物料'} 匹配 BOM` }
+        showToast({ type: 'success', message: '物料匹配' })
+      } else {
+        assemblyResult.value = { success: false, message: data.reason || '物料不匹配' }
+        showToast({ type: 'fail', message: data.reason || '物料不匹配' })
+      }
+      resultData.value = { type: 'assembly' }
+    } catch (error) {
+      throw new Error(error.message || '扫码验证失败')
     }
   }
 

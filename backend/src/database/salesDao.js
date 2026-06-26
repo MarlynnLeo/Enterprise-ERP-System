@@ -202,6 +202,8 @@ class SalesDao {
       const orderId = result.insertId;
 
       for (const item of items) {
+        // 注意: sales_order_items 使用 tax_percent 字段（等价于 purchase_order_items.tax_rate）
+        // 两者含义相同（小数制，0.13 = 13%），仅字段名不同，历史原因保留
         await connection.execute(
           'INSERT INTO sales_order_items (order_id, material_id, quantity, unit_price, amount, tax_percent, remark) VALUES (?, ?, ?, ?, ?, ?, ?)',
           [orderId, item.material_id, item.quantity, item.unit_price, item.amount, item.tax_percent !== undefined ? item.tax_percent : financeConfig.get('tax.defaultVATRate', 0.13), item.remark]

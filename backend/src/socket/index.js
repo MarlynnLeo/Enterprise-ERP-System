@@ -63,7 +63,7 @@ async function verifySocketToken(token) {
     throw new Error('Invalid token user');
   }
 
-  const [users] = await pool.query(
+  const [users] = await pool.execute(
     `SELECT id, username, real_name, status, token_version
      FROM users
      WHERE id = ?
@@ -91,7 +91,7 @@ async function verifySocketToken(token) {
 }
 
 async function isConversationMember(conversationId, userId) {
-  const [memberRows] = await pool.query(
+  const [memberRows] = await pool.execute(
     'SELECT id FROM chat_conversation_members WHERE conversation_id = ? AND user_id = ? LIMIT 1',
     [conversationId, userId]
   );
@@ -162,7 +162,7 @@ function initSocket(httpServer) {
 
         socket.join(`conv:${conversationId}`);
         // 清零未读数
-        await pool.query(
+        await pool.execute(
           'UPDATE chat_conversation_members SET unread_count = 0, last_read_at = NOW() WHERE conversation_id = ? AND user_id = ?',
           [conversationId, userId]
         );
@@ -197,13 +197,13 @@ function initSocket(httpServer) {
         }
 
         // 插入消息
-        const [result] = await pool.query(
+        const [result] = await pool.execute(
           'INSERT INTO chat_messages (conversation_id, sender_id, content, type) VALUES (?, ?, ?, ?)',
           [conversationId, userId, content, type]
         );
 
         // 获取发送者信息
-        const [userRows] = await pool.query(
+        const [userRows] = await pool.execute(
           'SELECT id, username, real_name, avatar FROM users WHERE id = ?',
           [userId]
         );
@@ -212,13 +212,13 @@ function initSocket(httpServer) {
         const preview = type === 'text' ? content.substring(0, 100) : `[${type === 'image' ? '图片' : '文件'}]`;
 
         // 更新会话最后消息
-        await pool.query(
+        await pool.execute(
           'UPDATE chat_conversations SET last_message_at = NOW(), last_message_preview = ? WHERE id = ?',
           [preview, conversationId]
         );
 
         // 增加其他成员的未读数
-        await pool.query(
+        await pool.execute(
           'UPDATE chat_conversation_members SET unread_count = unread_count + 1 WHERE conversation_id = ? AND user_id != ?',
           [conversationId, userId]
         );
@@ -238,7 +238,7 @@ function initSocket(httpServer) {
         io.to(`conv:${conversationId}`).emit('chat:message', message);
 
         // 同时通知不在会话房间但在线的成员（通过用户专属房间）
-        const [allMembers] = await pool.query(
+        const [allMembers] = await pool.execute(
           'SELECT user_id FROM chat_conversation_members WHERE conversation_id = ? AND user_id != ?',
           [conversationId, userId]
         );

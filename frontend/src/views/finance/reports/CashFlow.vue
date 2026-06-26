@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * CashFlow.vue
  * @description 前端界面组件文件
@@ -11,7 +11,7 @@
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
-          <h2>出纳报表</h2>
+          <h2>现金流量表</h2>
           <p class="subtitle">查看现金流动情况</p>
         </div>
         <div class="header-actions">
@@ -175,7 +175,7 @@ const generateReport = async () => {
     // 计算月末日期
     const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
     const endDate = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
-    // 调用后端API获取出纳报表数据
+    // 调用后端API获取现金流量表数据
     const response = await financeApi.reports.getCashFlow({
       startDate,
       endDate,
@@ -186,12 +186,12 @@ const generateReport = async () => {
       reportData.value = response.data;
       // 计算统计数据
       calculateReportStats();
-      ElMessage.success('出纳报表生成成功');
+      ElMessage.success('现金流量表生成成功');
     } else {
       throw new Error('获取数据失败');
     }
   } catch (error) {
-    ElMessage.error(error.response?.data?.message || error.message || '获取出纳报表数据失败');
+    ElMessage.error(error.response?.data?.message || error.message || '获取现金流量表数据失败');
   } finally {
     loading.value = false;
   }
@@ -268,7 +268,7 @@ const exportExcel = async () => {
   link.click();
   window.URL.revokeObjectURL(url);
 };
-// 准备出纳报表Excel数据
+// 准备现金流量表Excel数据
 const prepareCashierExcelData = (data) => {
   const headerRow = {
     A: '项目',
@@ -344,11 +344,6 @@ onMounted(async () => {
 .header-card {
   margin-bottom: 20px;
 }
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
@@ -385,7 +380,7 @@ onMounted(async () => {
   font-size: 14px;
   color: var(--color-text-regular);
 }
-/* 出纳报表表格样式 */
+/* 现金流量表表格样式 */
 .cashier-table {
   width: 100%;
   border-collapse: collapse;

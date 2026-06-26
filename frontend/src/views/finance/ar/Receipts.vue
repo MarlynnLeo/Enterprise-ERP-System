@@ -11,7 +11,7 @@
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
-          <h2>收款记录管理</h2>
+          <h2>收款管理</h2>
           <p class="subtitle">从应收发票发起收款，手工录入仅用于例外收款</p>
         </div>
         <el-button v-permission="'finance:ar:receive'" type="info" plain :icon="Plus" @click="showAddDialog">例外收款录入</el-button>
@@ -849,12 +849,6 @@ onMounted(() => {
   margin-bottom: 20px;
 }
 
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
@@ -872,11 +866,6 @@ onMounted(() => {
   max-height: 60vh;
   overflow-y: auto;
 }
-
-
-
-
-
 
 /* 详情对话框长文本处理 - 自动添加 */
 :deep(.el-descriptions__content) {

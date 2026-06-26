@@ -3,7 +3,7 @@
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
-          <h2>费用类型管理</h2>
+          <h2>费用类别</h2>
           <p class="subtitle">维护费用分类、子类型和启停状态</p>
         </div>
         <div class="action-buttons">
@@ -313,12 +313,6 @@ onMounted(() => {
 
 .header-card {
   margin-bottom: 20px;
-}
-
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
 }
 
 .title-section h2 {

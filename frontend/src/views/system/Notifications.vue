@@ -6,7 +6,7 @@
  */
 -->
 <template>
-  <div class="notifications-container">
+  <div class="module-page notifications-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -406,12 +406,6 @@ onMounted(() => {
 <style scoped>
 .header-card {
   margin-bottom: 20px;
-}
-
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
 }
 
 .title-section h2 {

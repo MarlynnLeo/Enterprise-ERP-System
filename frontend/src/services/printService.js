@@ -13,7 +13,6 @@ import {
   decodeHtmlEntities as decodeEntities,
   escapeHtml,
   sanitizePrintHtml,
-  writeSafeHtmlDocument,
 } from '@/utils/htmlSecurity'
 import { getCssTokenValue } from '@/utils/designTokens'
 import { parseResponseData } from '@/utils/responseParser'
@@ -255,15 +254,23 @@ const printService = {
 
       // 构建打印样式
       const printTokens = getPrintTokens()
+      const mt = template.margin_top || 10
+      const mr = template.margin_right || 10
+      const mb = template.margin_bottom || 10
+      const ml = template.margin_left || 10
       const style = `
         <style>
           @page {
             size: ${template.paper_size || 'A4'} ${template.orientation || 'portrait'};
-            margin: ${template.margin_top || 10}mm ${template.margin_right || 10}mm ${template.margin_bottom || 10}mm ${template.margin_left || 10}mm;
+            margin: 0;
           }
           body {
-            font-family: Arial, sans-serif;
+            font-family: Arial, 'Microsoft YaHei', sans-serif;
             font-size: 12pt;
+            margin: 0;
+            padding: ${mt}mm ${mr}mm ${mb}mm ${ml}mm;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
           }
           .page-break {
             page-break-after: always;
@@ -282,11 +289,12 @@ const printService = {
         </style>
       `;
 
+      const docTitle = template.name || data?.title || '打印文档'
       return sanitizePrintHtml(`<!DOCTYPE html>
         <html>
           <head>
             <meta charset="utf-8">
-            <title>打印文档</title>
+            <title>${docTitle}</title>
             ${style}
           </head>
           <body>
@@ -321,15 +329,23 @@ const printService = {
 
       // 构建打印样式
       const printTokens = getPrintTokens()
+      const mt = template.margin_top || 10
+      const mr = template.margin_right || 10
+      const mb = template.margin_bottom || 10
+      const ml = template.margin_left || 10
       const style = `
         <style>
           @page {
             size: ${template.paper_size || 'A4'} ${template.orientation || 'portrait'};
-            margin: ${template.margin_top || 10}mm ${template.margin_right || 10}mm ${template.margin_bottom || 10}mm ${template.margin_left || 10}mm;
+            margin: 0;
           }
           body {
-            font-family: Arial, sans-serif;
+            font-family: Arial, 'Microsoft YaHei', sans-serif;
             font-size: 12pt;
+            margin: 0;
+            padding: ${mt}mm ${mr}mm ${mb}mm ${ml}mm;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
           }
           .page-break {
             page-break-after: always;
@@ -348,11 +364,12 @@ const printService = {
         </style>
       `;
 
+      const docTitle = template.name || data?.title || '打印文档'
       return sanitizePrintHtml(`<!DOCTYPE html>
         <html>
           <head>
             <meta charset="utf-8">
-            <title>打印文档</title>
+            <title>${docTitle}</title>
             ${style}
           </head>
           <body>
@@ -390,52 +407,70 @@ const printService = {
     window.print()
   },
 
-  printExistingWindow(targetWindow) {
-    if (!targetWindow) {
-      throw new Error('打印窗口不可用')
-    }
-
-    const triggerPrint = () => {
-      targetWindow.focus?.()
-      targetWindow.print()
-    }
-
-    if (targetWindow.document?.readyState === 'complete') {
-      setTimeout(triggerPrint, 0)
-    } else {
-      targetWindow.onload = triggerPrint
-    }
-
-    return targetWindow
-  },
-
   /**
-   * 打印文档
-   * @param {String} html - 打印内容HTML
+   * 通过隐藏 iframe 打印 HTML 文档
+   * 不打开新窗口、不显示 about:blank，直接弹出浏览器打印对话框
+   * @param {String} html - 打印内容 HTML
+   * @returns {Promise} - 打印完成后 resolve
    */
   printDocument(html) {
-    // 创建打印窗口
-    const printWindow = window.open('', '_blank')
-    writeSafeHtmlDocument(printWindow, html)
-
-    // 等待资源加载完成后打印
-    printWindow.onload = function() {
-      printWindow.print()
-      // 打印完成后关闭窗口
-      printWindow.onafterprint = function() {
-        printWindow.close()
+    return new Promise((resolve) => {
+      // 移除上一次可能残留的打印 iframe
+      const existingFrame = document.getElementById('__erp_print_frame__')
+      if (existingFrame) {
+        existingFrame.remove()
       }
-    }
+
+      // 创建隐藏 iframe
+      const iframe = document.createElement('iframe')
+      iframe.id = '__erp_print_frame__'
+      iframe.style.cssText = 'position:fixed;top:-10000px;left:-10000px;width:0;height:0;border:none;'
+      document.body.appendChild(iframe)
+
+      const iframeDoc = iframe.contentDocument || iframe.contentWindow.document
+      iframeDoc.open()
+      iframeDoc.write(html)
+      iframeDoc.close()
+
+      // 等待 iframe 渲染完成后触发打印
+      const triggerPrint = () => {
+        try {
+          iframe.contentWindow.focus()
+          iframe.contentWindow.print()
+        } catch (e) {
+          console.warn('打印调用失败:', e)
+        }
+
+        // 打印完成或取消后清理 iframe
+        const cleanup = () => {
+          setTimeout(() => {
+            iframe.remove()
+            resolve()
+          }, 100)
+        }
+
+        // 优先使用 onafterprint 事件，兼容直接延迟清理
+        if ('onafterprint' in iframe.contentWindow) {
+          iframe.contentWindow.onafterprint = cleanup
+        } else {
+          // Safari 不支持 onafterprint，延迟清理
+          setTimeout(cleanup, 3000)
+        }
+      }
+
+      // iframe 使用 document.write 后 load 事件在部分浏览器不触发
+      // 用 requestAnimationFrame + setTimeout 确保渲染完成
+      setTimeout(triggerPrint, 300)
+    })
   },
 
   /**
-   * 打印预览
-   * @param {String} html - 打印内容HTML
-   * @returns {Window} - 返回预览窗口
+   * 打印预览（等同于打印，统一使用隐藏 iframe）
+   * @param {String} html - 打印内容 HTML
+   * @returns {Promise}
    */
   previewDocument(html) {
-    const previewWindow = window.open('', '_blank')
-    return writeSafeHtmlDocument(previewWindow, html)
+    return this.printDocument(html)
   }
 }
 

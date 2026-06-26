@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="page-container finance-automation">
+  <div class="module-page page-container finance-automation">
     <!-- 页面标题 -->
     <div class="page-header header-card">
       <h2>财务自动化管理</h2>
@@ -1397,11 +1397,6 @@ onMounted(() => {
 .status-row .status-label {
   font-size: 12px;
   color: var(--color-text-secondary);
-}
-
-.text-success {
-  color: var(--color-success);
-  font-weight: 600;
 }
 
 .text-danger {

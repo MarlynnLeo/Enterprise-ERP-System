@@ -1,5 +1,5 @@
-﻿<template>
-  <div class="app-container">
+<template>
+  <div class="module-page app-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
@@ -316,7 +316,11 @@
             {{ formatDate(row.entry_date) }}
           </template>
         </el-table-column>
-        <el-table-column prop="document_type" label="单据类型" width="120" show-overflow-tooltip />
+        <el-table-column prop="document_type" label="单据类型" width="120" show-overflow-tooltip>
+          <template #default="{ row }">
+            {{ formatDocumentType(row.document_type) }}
+          </template>
+        </el-table-column>
         <el-table-column prop="document_number" label="单据编号" min-width="150" show-overflow-tooltip />
         <el-table-column prop="description" label="摘要" min-width="180" show-overflow-tooltip />
         <el-table-column prop="total_debit" label="借方金额" width="120" align="right">
@@ -457,6 +461,15 @@ import { financeApi } from '@/api'
 import { formatCurrency, formatDate, formatDateTime } from '@/utils/format'
 import { parseDataObject } from '@/utils/responseParser'
 import { useRoute, useRouter } from 'vue-router'
+
+// 英文 document_type -> 中文显示标签
+const DOCUMENT_TYPE_LABELS = {
+  receipt: '收据', invoice: '发票', payment: '付款单', collection: '收款单',
+  transfer: '转账单', adjustment: '调整单', profit_loss_transfer: '损益结转',
+  year_end_transfer: '年度结转', sales_outbound: '销售出库',
+  production_cost_transfer: '生产成本结转', inventory_reclass: '库存重分类',
+}
+const formatDocumentType = (type) => DOCUMENT_TYPE_LABELS[type] || type
 
 const activeStep = ref(0)
 const periods = ref([])
@@ -849,16 +862,6 @@ onMounted(() => {
 }
 
 .header-card,
-.mb-4 {
-  margin-bottom: 20px;
-}
-
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
 .title-section h2 {
   margin: 0 0 5px;
   font-size: 20px;
@@ -904,10 +907,6 @@ onMounted(() => {
 
 .text-secondary {
   color: var(--color-text-secondary);
-}
-
-.text-success {
-  color: var(--color-success);
 }
 
 .text-danger {

@@ -1,7 +1,7 @@
-<!--
+﻿<!--
 /**
  * StandardCashFlow.vue
- * @description 标准现金流量表（间接法）
+ * @description 标准现金流量表(直接法)（间接法）
  * @date 2026-01-31
  * @version 1.0.0
  */
@@ -11,7 +11,7 @@
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
-          <h2>现金流量表</h2>
+          <h2>现金流量表(直接法)</h2>
           <p class="subtitle">间接法 · 符合企业会计准则</p>
         </div>
         <div class="header-actions">
@@ -101,7 +101,7 @@
       <!-- 报表标题 -->
       <div class="report-header" v-if="reportData.items?.length">
         <div class="company-name">{{ companyName }}</div>
-        <div class="report-title">现金流量表</div>
+        <div class="report-title">现金流量表(直接法)</div>
         <div class="report-period">{{ formatReportPeriod() }}</div>
         <div class="report-unit">单位：{{ unitText }}</div>
       </div>
@@ -196,7 +196,7 @@ const generateReport = async () => {
     const data = response.data;
     if (data && data.items && data.items.length > 0) {
       reportData.value = data;
-      ElMessage.success('现金流量表生成成功');
+      ElMessage.success('现金流量表(直接法)生成成功');
     } else {
       reportData.value = data || {};
       ElMessage.warning('未查询到数据，请检查日期范围');
@@ -250,8 +250,8 @@ const printReport = async () => {
     printService.previewDocument(html);
     ElMessage.success('打印预览已打开');
   } catch (error) {
-    console.error('打印现金流量表失败:', error);
-    ElMessage.error('打印现金流量表失败');
+    console.error('打印现金流量表(直接法)失败:', error);
+    ElMessage.error('打印现金流量表(直接法)失败');
   }
 };
 
@@ -265,7 +265,7 @@ const exportExcel = async () => {
   try {
     const ExcelJS = await loadExcelJS();
     const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('现金流量表');
+    const worksheet = workbook.addWorksheet('现金流量表(直接法)');
 
     // 设置列宽
     worksheet.columns = [
@@ -276,7 +276,7 @@ const exportExcel = async () => {
 
     // 添加标题
     worksheet.insertRow(1, [companyName.value || '']);
-    worksheet.insertRow(2, ['现金流量表']);
+    worksheet.insertRow(2, ['现金流量表(直接法)']);
     worksheet.insertRow(3, [`报表期间：${formatReportPeriod()}`]);
     worksheet.insertRow(4, [`单位：${unitText.value}`]);
     worksheet.insertRow(5, []);
@@ -316,7 +316,7 @@ const exportExcel = async () => {
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `现金流量表_${queryParams.startDate}_${queryParams.endDate}.xlsx`;
+    link.download = `现金流量表(直接法)_${queryParams.startDate}_${queryParams.endDate}.xlsx`;
     link.click();
 
     ElMessage.success('导出成功');
@@ -348,12 +348,6 @@ onMounted(async () => {
 .header-card {
   margin-bottom: 16px;
   border-radius: 8px;
-}
-
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
 }
 
 .title-section h2 {

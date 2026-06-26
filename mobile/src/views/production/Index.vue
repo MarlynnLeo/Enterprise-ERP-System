@@ -86,6 +86,12 @@
       path: '/production/dashboard',
       icon: 'chart-trending-o',
       gradient: 'linear-gradient(135deg, var(--color-success) 0%, var(--ds-green-strong) 100%)'
+    },
+    {
+      label: '异常上报',
+      path: '/production/anomaly',
+      icon: 'shield',
+      gradient: 'linear-gradient(135deg, var(--color-danger) 0%, #f97316 100%)'
     }
   ])
 
@@ -124,6 +130,15 @@
       icon: 'clock'
     }
   ])
+  const anomalyModules = ref([
+    {
+      title: '异常上报',
+      desc: '装配异常快速上报与跟踪',
+      path: '/production/anomaly',
+      icon: 'shield',
+      badge: 0
+    }
+  ])
 
   const moduleGroups = computed(() => [
     { title: '计划管理', icon: 'calendar', color: 'text-blue-400', items: planModules.value },
@@ -138,6 +153,12 @@
       icon: 'document-text',
       color: 'text-green-400',
       items: reportModules.value
+    },
+    {
+      title: '异常管理',
+      icon: 'shield',
+      color: 'text-red-400',
+      items: anomalyModules.value
     }
   ])
 

@@ -36,12 +36,12 @@
       <template #advanced>
         <el-form-item label="分类">
           <el-select  v-model="filterForm.category" placeholder="全部分类" clearable>
-            <el-option v-for="item in $dict.getOptions('communication_category')" :key="item.value" :label="item.label" :value="item.value" />
+            <el-option v-for="item in dictStore.getOptions('communication_category')" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="状态">
           <el-select  v-model="filterForm.status" placeholder="全部状态" clearable>
-            <el-option v-for="item in $dict.getOptions('communication_status')" :key="item.value" :label="item.label" :value="item.value" />
+            <el-option v-for="item in dictStore.getOptions('communication_status')" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </el-form-item>
       </template>
@@ -190,7 +190,7 @@
         </el-form-item>
         <el-form-item label="分类" prop="category">
           <el-select v-model="form.category" placeholder="请选择分类">
-            <el-option v-for="item in $dict.getOptions('communication_category')" :key="item.value" :label="item.label" :value="item.value" />
+            <el-option v-for="item in dictStore.getOptions('communication_category')" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="摘要" prop="summary">
@@ -373,6 +373,7 @@
 </template>
 
 <script setup>
+import { useDictionaryStore } from '@/stores/dictionary'
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { formatDateTime } from '@/utils/helpers/dateUtils'
 import { useRoute } from 'vue-router'
@@ -388,6 +389,8 @@ import UserSelector from '@/components/UserSelector.vue'
 import RecipientsList from '@/components/RecipientsList.vue'
 import DOMPurify from 'dompurify'
 import { parseResponseData } from '@/utils/responseParser'
+
+const dictStore = useDictionaryStore()
 // 路由 - 必须在 setup 顶层调用
 const route = useRoute()
 
@@ -832,12 +835,6 @@ onMounted(async () => {
 <style scoped>
 .header-card {
   margin-bottom: 20px;
-}
-
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
 }
 
 .title-section h2 {

@@ -1,10 +1,10 @@
-<template>
+﻿<template>
   <div class="module-page app-container">
     <!-- 头部区域 -->
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
-          <h2>预算执行分析</h2>
+          <h2>预算执行</h2>
           <p class="subtitle">预算执行进度与差异分析</p>
         </div>
       </div>
@@ -320,12 +320,6 @@ onUnmounted(() => {
   margin-bottom: 20px;
 }
 
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
@@ -344,10 +338,6 @@ onUnmounted(() => {
 
 .search-form .el-form-item {
   margin-bottom: 0;
-}
-
-.mb-4 {
-  margin-bottom: 20px;
 }
 
 /* 概览卡片等高对齐 */

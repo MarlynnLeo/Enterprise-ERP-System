@@ -8,6 +8,7 @@ const { financeConfig } = require('../../config/financeConfig');
 const { getUserIdByIdentifier } = require('../../utils/userUtils');
 const DocumentLinkService = require('../business/DocumentLinkService');
 const { logger } = require('../../utils/logger');
+const { DOCUMENT_TYPES } = require('../../constants/financeConstants');
 const { normalizeTaxRate, roundMoney, taxAmount: calculateTaxAmount } = require('../../utils/money');
 const {
   addDaysToDateString,
@@ -889,7 +890,7 @@ class FinanceIntegrationService {
         period_id: currentPeriod.id || null,
         entry_date: outboundDateStr,
         posting_date: outboundDateStr,
-        document_type: 'sales_outbound',
+        document_type: DOCUMENT_TYPES.SALES_OUTBOUND,
         document_number: salesOutbound.outbound_no || null,
         description: `销售成本结转 - 销售出库单 ${salesOutbound.outbound_no}`,
         created_by: createdBy || null,

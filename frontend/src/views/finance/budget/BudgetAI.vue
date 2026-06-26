@@ -1,10 +1,10 @@
-<template>
-  <div class="budget-ai-container">
+﻿<template>
+  <div class="module-page budget-ai-container">
     <!-- 页头卡片 -->
     <el-card class="header-card" shadow="hover">
       <div class="header-content">
         <div class="header-left">
-          <h2 class="page-title">AI 预算智能分析</h2>
+          <h2 class="page-title">AI预算建议</h2>
           <span class="header-desc">基于统一 AI 大模型服务 · 智能预算编制 · 异常检测 · 优化建议</span>
         </div>
         <div class="header-right">
@@ -886,9 +886,7 @@ onBeforeUnmount(() => {
 
 /* ===== 页头卡片（白色简洁） ===== */
 .header-card { margin-bottom: 20px; border-radius: 8px !important; }
-.header-content { display: flex; justify-content: space-between; align-items: center; }
 .header-left { display: flex; flex-direction: column; gap: 4px; }
-.page-title { margin: 0; font-size: 18px; font-weight: 700; color: var(--color-text-primary); }
 .header-desc { font-size: 12px; color: var(--color-text-secondary); }
 .header-right { display: flex; align-items: center; }
 .token-stats { display: flex; gap: 8px; }

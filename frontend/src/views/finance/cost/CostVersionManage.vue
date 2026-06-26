@@ -3,7 +3,7 @@
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
-          <h2>标准成本版本工作台</h2>
+          <h2>成本版本</h2>
           <p class="subtitle">按周期管理标准成本的测算、提交、审核和发布</p>
         </div>
         <el-button v-permission="'finance:cost:execute'" type="primary" :icon="Plus" @click="openCreateDialog">
@@ -268,13 +268,6 @@ onMounted(() => {
 
 .header-card {
   margin-bottom: 20px;
-}
-
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
 }
 
 .title-section h2 {

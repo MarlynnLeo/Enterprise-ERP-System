@@ -1,0 +1,90 @@
+<template>
+  <div class="module-page page-container">
+    <el-card class="header-card">
+      <div class="header-content">
+        <div class="title-section">
+          <h2>物料齐套检查</h2>
+          <p class="subtitle">检查生产任务所需 BOM 物料的库存充足情况</p>
+        </div>
+      </div>
+    </el-card>
+
+    <el-card class="data-card">
+      <el-form :inline="true" style="margin-bottom: 16px">
+        <el-form-item label="生产任务ID">
+          <el-input v-model="taskId" placeholder="输入任务ID" style="width: 200px" @keyup.enter="checkReadiness" />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="checkReadiness" :loading="loading">检查齐套</el-button>
+        </el-form-item>
+      </el-form>
+
+      <template v-if="result">
+        <el-alert
+          :title="result.ready ? '✅ 物料齐套 — 可以开始生产' : `⚠️ 存在缺料 — ${result.shortageItems} 种物料不足`"
+          :type="result.ready ? 'success' : 'warning'"
+          :closable="false"
+          show-icon
+          style="margin-bottom: 16px"
+        />
+
+        <el-descriptions :column="3" border size="small" style="margin-bottom: 16px">
+          <el-descriptions-item label="任务编号">{{ result.taskCode }}</el-descriptions-item>
+          <el-descriptions-item label="计划数量">{{ result.taskQuantity }}</el-descriptions-item>
+          <el-descriptions-item label="BOM 物料数">{{ result.totalItems }}</el-descriptions-item>
+        </el-descriptions>
+
+        <el-table :data="result.details" border stripe>
+          <el-table-column prop="material_code" label="物料编码" width="140" />
+          <el-table-column prop="material_name" label="物料名称" min-width="180" />
+          <el-table-column prop="unit" label="单位" width="60" align="center" />
+          <el-table-column prop="unit_quantity" label="BOM 单位用量" width="120" align="right" />
+          <el-table-column prop="required_qty" label="需求量" width="100" align="right">
+            <template #default="{ row }">{{ row.required_qty.toFixed(2) }}</template>
+          </el-table-column>
+          <el-table-column prop="available_qty" label="库存量" width="100" align="right">
+            <template #default="{ row }">{{ row.available_qty.toFixed(2) }}</template>
+          </el-table-column>
+          <el-table-column prop="shortage_qty" label="缺料量" width="100" align="right">
+            <template #default="{ row }">
+              <span :style="{ color: row.shortage_qty > 0 ? '#F56C6C' : '#67C23A', fontWeight: 600 }">
+                {{ row.shortage_qty.toFixed(2) }}
+              </span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="is_ready" label="状态" width="80" align="center">
+            <template #default="{ row }">
+              <el-tag :type="row.is_ready ? 'success' : 'danger'" size="small">{{ row.is_ready ? '充足' : '缺料' }}</el-tag>
+            </template>
+          </el-table-column>
+        </el-table>
+      </template>
+
+      <el-empty v-if="!result && !loading" description="输入生产任务ID开始检查" />
+    </el-card>
+  </div>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+import { ElMessage } from 'element-plus'
+import { productionAssistApi } from '@/api/productionAssist'
+
+const taskId = ref('')
+const loading = ref(false)
+const result = ref(null)
+
+const checkReadiness = async () => {
+  if (!taskId.value) return ElMessage.warning('请输入任务ID')
+  loading.value = true
+  result.value = null
+  try {
+    const res = await productionAssistApi.checkReadiness(taskId.value)
+    result.value = res.data || res
+  } catch (err) {
+    ElMessage.error(err.response?.data?.message || '检查失败')
+  } finally {
+    loading.value = false
+  }
+}
+</script>

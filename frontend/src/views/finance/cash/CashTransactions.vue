@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * CashTransactions.vue
  * @description 前端界面组件文件
@@ -11,7 +11,7 @@
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
-          <h2>现金交易管理</h2>
+          <h2>现金日记账</h2>
           <p class="subtitle">管理现金收支记录</p>
         </div>
         <div class="action-buttons">
@@ -213,7 +213,7 @@
           <el-col :span="12">
             <el-form-item label="交易类型" prop="type">
               <el-select v-model="transactionForm.type" placeholder="请选择">
-                <el-option v-for="item in $dict.getOptions('cash_transaction_category')" :key="item.value" :label="item.label" :value="item.value" />
+                <el-option v-for="item in dictStore.getOptions('cash_transaction_category')" :key="item.value" :label="item.label" :value="item.value" />
               </el-select>
             </el-form-item>
           </el-col>
@@ -372,6 +372,7 @@
 </template>
 
 <script setup>
+import { useDictionaryStore } from '@/stores/dictionary'
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { getApprovalStatusColor } from '@/constants/systemConstants'
 import { formatCurrency, formatLocalDate } from '@/utils/format'
@@ -381,6 +382,8 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { UploadFilled, Plus } from '@element-plus/icons-vue'
 import { financeApi } from '@/api/finance';
 import printService from '@/services/printService'
+
+const dictStore = useDictionaryStore()
 
 // 数据加载状态
 const loading = ref(false);
@@ -883,12 +886,6 @@ onMounted(() => {
 <style scoped>
 .header-card {
   margin-bottom: 20px;
-}
-
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
 }
 
 .title-section h2 {

@@ -624,6 +624,21 @@ const searchForm = reactive({
   isPosted: ''
 });
 
+// 英文 document_type -> 中文显示标签
+const DOCUMENT_TYPE_LABELS = {
+  receipt: '收据',
+  invoice: '发票',
+  payment: '付款单',
+  collection: '收款单',
+  transfer: '转账单',
+  adjustment: '调整单',
+  profit_loss_transfer: '损益结转',
+  year_end_transfer: '年度结转',
+  sales_outbound: '销售出库',
+  production_cost_transfer: '生产成本结转',
+  inventory_reclass: '库存重分类',
+};
+
 const normalizeEntryRow = (entry) => ({
   id: entry.id,
   entryNumber: (entry.voucher_word && entry.voucher_number)
@@ -632,7 +647,7 @@ const normalizeEntryRow = (entry) => ({
   technicalId: entry.entry_number,
   entryDate: formatDate(entry.entry_date),
   postingDate: formatDate(entry.posting_date),
-  documentType: entry.document_type,
+  documentType: DOCUMENT_TYPE_LABELS[entry.document_type] || entry.document_type,
   documentNumber: entry.document_number,
   periodId: entry.period_id,
   periodName: entry.period_name || `期间 ${entry.period_id}`,
@@ -1057,12 +1072,6 @@ watch(() => [props.fixedType, route.query.type], () => {
   margin-bottom: 20px;
 }
 
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;
@@ -1115,8 +1124,6 @@ watch(() => [props.fixedType, route.query.type], () => {
   margin-right: 8px;
 }
 
-
-
 /* 展开行样式 */
 .expanded-row {
   padding: 20px;
@@ -1163,7 +1170,6 @@ watch(() => [props.fixedType, route.query.type], () => {
 .expanded-row-footer .total-item .value {
   font-size: 16px;
 }
-
 
 /* 详情对话框长文本处理 - 自动添加 */
 :deep(.el-descriptions__content) {

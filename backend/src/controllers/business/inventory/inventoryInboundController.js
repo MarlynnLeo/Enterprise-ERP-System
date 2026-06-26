@@ -7,6 +7,7 @@
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
+const { INVENTORY_INBOUND_TRANSITIONS } = require('../../../constants/statusRegistry');
 
 const db = require('../../../config/db');
 const InventoryService = require('../../../services/InventoryService');
@@ -994,13 +995,8 @@ const updateInboundStatus = async (req, res) => {
 
     const currentStatus = inboundData[0].status;
 
-    // 检查状态转换是否有效
-    const validTransitions = {
-      draft: ['confirmed', 'cancelled'],
-      confirmed: ['completed', 'cancelled'],
-      completed: [],
-      cancelled: [],
-    };
+    // 检查状态转换是否有效（引用统一状态注册表）
+    const validTransitions = INVENTORY_INBOUND_TRANSITIONS;
 
     if (!validTransitions[currentStatus].includes(newStatus) && currentStatus !== newStatus) {
       logger.error('无效的状态转换:', { from: currentStatus, to: newStatus });

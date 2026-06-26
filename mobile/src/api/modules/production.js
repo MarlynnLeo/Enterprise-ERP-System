@@ -130,5 +130,59 @@ export const productionApi = {
   // 取消生产计划
   cancelProductionPlan(id) {
     return api.put(`/production/plans/${id}/status`, { status: 'cancelled' })
+  },
+
+  // 扫码防错
+  scanVerify(data) {
+    return api.post('/production/assist/scan-verify', data)
+  },
+
+  // 异常上报
+  createAnomaly(data) {
+    return api.post('/production/anomaly-reports', data)
+  },
+  getAnomalies(params) {
+    return api.get('/production/anomaly-reports', { params })
+  },
+  getAnomalyById(id) {
+    return api.get(`/production/anomaly-reports/${id}`)
+  },
+  getAnomalyStats() {
+    return api.get('/production/anomaly-reports/stats')
+  },
+  assignAnomaly(id, data) {
+    return api.patch(`/production/anomaly-reports/${id}/assign`, data)
+  },
+  resolveAnomaly(id, data) {
+    return api.patch(`/production/anomaly-reports/${id}/resolve`, data)
+  },
+  closeAnomaly(id) {
+    return api.patch(`/production/anomaly-reports/${id}/close`)
+  },
+
+  // ==================== 装配执行 ====================
+  // 生成工序步骤
+  generateAssemblySteps(taskId) {
+    return api.post(`/production/assembly/tasks/${taskId}/generate-steps`)
+  },
+  // 获取任务的装配步骤
+  getAssemblySteps(taskId) {
+    return api.get(`/production/assembly/tasks/${taskId}/steps`)
+  },
+  // 开始工序
+  startStep(stepId, data) {
+    return api.post(`/production/assembly/steps/${stepId}/start`, data)
+  },
+  // 完成工序
+  completeStep(stepId, data) {
+    return api.post(`/production/assembly/steps/${stepId}/complete`, data)
+  },
+  // 获取步骤详情 (含 SOP)
+  getStepDetail(stepId) {
+    return api.get(`/production/assembly/steps/${stepId}`)
+  },
+  // 装配看板
+  getAssemblyBoard() {
+    return api.get('/production/assembly/board')
   }
 }

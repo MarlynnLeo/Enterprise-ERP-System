@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * Accounts.vue
  * @description 前端界面组件文件
@@ -11,7 +11,7 @@
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
-          <h2>会计科目管理</h2>
+          <h2>会计科目</h2>
           <p class="subtitle">管理会计科目与账户</p>
         </div>
         <el-button
@@ -481,12 +481,6 @@ onMounted(() => {
 <style scoped>
 .header-card {
   margin-bottom: 20px;
-}
-
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
 }
 
 .title-section h2 {

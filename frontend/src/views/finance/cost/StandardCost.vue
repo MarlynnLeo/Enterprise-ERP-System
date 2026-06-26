@@ -4,7 +4,7 @@
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
-          <h2>标准成本管理</h2>
+          <h2>标准成本</h2>
           <p class="subtitle">设置和查询产品标准成本</p>
         </div>
         <el-button v-permission="'finance:cost:execute'" type="primary" @click="showCalculateDialog">计算标准成本</el-button>
@@ -581,12 +581,6 @@ onMounted(() => {
 
 .header-card {
   margin-bottom: 20px;
-}
-
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
 }
 
 .title-section h2 {

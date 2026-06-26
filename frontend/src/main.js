@@ -36,15 +36,14 @@ import './assets/themes/pc/theme-compat.css'
 import './assets/stat-cards.css'
 
 import permissionDirective from './directives/permission'
+import { setupErrorReporter } from '@/utils/errorReporter'
 
 const app = createApp(App)
 const pinia = createPinia()
 initPerformanceMode()
 
-app.config.errorHandler = (err, vm, info) => {
-  console.error('全局错误:', err)
-  console.error('错误信息:', info)
-}
+// 全局错误处理与上报（替代简单的 console.error）
+setupErrorReporter(app)
 
 app.config.warnHandler = (msg, _instance, trace) => {
   const message = typeof msg === 'string' ? msg : 'Non-string Vue warning'

@@ -1,9 +1,9 @@
-<template>
+﻿<template>
   <div class="module-page app-container">
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
-          <h2>试算平衡表</h2>
+          <h2>试算平衡</h2>
           <p class="subtitle">按会计期间核对总账科目的借贷发生额与余额</p>
         </div>
         <el-button v-permission="'finance:reports:view'" :disabled="!tableData.length" @click="exportData">
@@ -207,7 +207,7 @@ const fetchData = async () => {
       isBalanced: Boolean(data.isBalanced)
     }
   } catch (error) {
-    console.error('获取试算平衡表失败:', error)
+    console.error('获取试算平衡失败:', error)
     ElMessage.error(error.message || '获取数据失败')
   } finally {
     loading.value = false
@@ -255,13 +255,13 @@ const exportData = async () => {
   try {
     const ExcelJS = await loadExcelJS()
     const workbook = new ExcelJS.Workbook()
-    const worksheet = workbook.addWorksheet('试算平衡表')
+    const worksheet = workbook.addWorksheet('试算平衡')
     const currentPeriod = periods.value.find(period => period.id === filters.value.period_id)
     const periodName = currentPeriod?.period_name || '未指定期间'
 
     worksheet.mergeCells('A1:J1')
     const titleCell = worksheet.getCell('A1')
-    titleCell.value = `试算平衡表（${periodName}）`
+    titleCell.value = `试算平衡（${periodName}）`
     titleCell.font = { size: 16, bold: true }
     titleCell.alignment = { horizontal: 'center', vertical: 'middle' }
 
@@ -325,7 +325,7 @@ const exportData = async () => {
     const url = window.URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = `试算平衡表_${periodName}_${formatLocalDate(new Date())}.xlsx`
+    link.download = `试算平衡_${periodName}_${formatLocalDate(new Date())}.xlsx`
     link.click()
     window.URL.revokeObjectURL(url)
 
@@ -351,13 +351,6 @@ onMounted(() => {
   margin-bottom: 20px;
 }
 
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-}
-
 .title-section h2 {
   margin: 0 0 5px;
   font-size: 20px;
@@ -376,10 +369,6 @@ onMounted(() => {
 
 .table-container {
   width: 100%;
-}
-
-.mb-4 {
-  margin-bottom: 16px;
 }
 
 .text-muted {

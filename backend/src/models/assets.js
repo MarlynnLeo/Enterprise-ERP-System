@@ -1064,7 +1064,7 @@ const assetsModel = {
           entry_number: entryNumber,
           entry_date: depreciationDateFormatted,
           posting_date: depreciationDateFormatted,
-          document_type: '调整单',
+          document_type: DOCUMENT_TYPE_MAPPING.ASSET_DEPRECIATION,
           document_number: entryNumber,
           period_id: periodId,
           description: `${depreciationDate}月度折旧计提汇总`,

@@ -41,7 +41,7 @@
             clearable
             @change="handleSearch"
           >
-            <el-option v-for="item in $dict.getOptions('delivery_status')" :key="item.value" :label="item.label" :value="item.value" />
+            <el-option v-for="item in dictStore.getOptions('delivery_status')" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="日期范围">
@@ -375,6 +375,7 @@
   </div>
 </template>
 <script setup>
+import { useDictionaryStore } from '@/stores/dictionary'
 import { parseListData } from '@/utils/responseParser'
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -382,6 +383,8 @@ import { Download, Van, Select, Close } from '@element-plus/icons-vue'
 import { salesApi } from '@/api'
 import { useRoute } from 'vue-router'
 import { formatDate } from '@/utils/helpers/dateUtils'
+
+const dictStore = useDictionaryStore()
 const route = useRoute()
 // 常量定义
 const DEFAULT_PAGE_SIZE = 10
@@ -834,11 +837,6 @@ onMounted(() => {
 <style scoped>
 .header-card {
   margin-bottom: 20px;
-}
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
 }
 .title-section h2 {
   margin: 0 0 5px 0;

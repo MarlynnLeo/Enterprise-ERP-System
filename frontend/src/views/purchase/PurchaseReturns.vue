@@ -1021,11 +1021,6 @@ async function printReturn() {
 .header-card {
   margin-bottom: 20px;
 }
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
 .title-section h2 {
   margin: 0 0 5px 0;
   font-size: 20px;

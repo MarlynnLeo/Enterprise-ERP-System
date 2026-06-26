@@ -12,6 +12,7 @@ const InventoryService = require('../../../../services/InventoryService');
 const AsyncTaskService = require('../../../../services/business/AsyncTaskService');
 const businessConfig = require('../../../../config/businessConfig');
 const { getCurrentUserName } = require('../../../../utils/userHelper');
+const { INVENTORY_OUTBOUND_TRANSITIONS } = require('../../../../constants/statusRegistry');
 const { currentDateString } = require('../../../../utils/dateUtils');
 const { checkAndUpdateTaskStatus, _syncProductionStatus } = require('../inventoryConsistencyController');
 
@@ -66,16 +67,8 @@ const updateOutboundStatus = async (req, res) => {
       referenceType = 'production_task';
     }
 
-    // 验证状态转换的合法性
-    // 状态转换规则（与数据库枚举保持一致：draft, confirmed, partial_completed, completed, cancelled）
-    const validTransitions = {
-      draft: ['confirmed', 'cancelled'],
-      confirmed: ['completed', 'partial_completed', 'cancelled'],
-      partial_completed: ['completed'], // 部分完成已有库存扣减，只允许补发完成或走撤销重发接口
-      completed: [],
-      reversed: [],
-      cancelled: [],
-    };
+    // 验证状态转换的合法性（引用统一状态注册表）
+    const validTransitions = INVENTORY_OUTBOUND_TRANSITIONS;
 
     if (!validTransitions[currentStatus] || !validTransitions[currentStatus].includes(newStatus)) {
       await connection.rollback();

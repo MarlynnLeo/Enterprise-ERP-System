@@ -489,12 +489,6 @@ onBeforeUnmount(() => {
   margin-bottom: 16px;
 }
 
-.statistics-row {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
 .stat-card {
   flex: 1;
   text-align: center;

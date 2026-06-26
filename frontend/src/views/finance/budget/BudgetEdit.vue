@@ -35,7 +35,7 @@
           <el-col :span="12">
             <el-form-item label="预算类型" prop="budget_type">
               <el-select v-model="formData.budget_type" placeholder="请选择" style="width: 100%">
-                <el-option v-for="item in $dict.getOptions('budget_type')" :key="item.value" :label="item.label" :value="item.value" />
+                <el-option v-for="item in dictStore.getOptions('budget_type')" :key="item.value" :label="item.label" :value="item.value" />
               </el-select>
             </el-form-item>
           </el-col>
@@ -162,12 +162,15 @@
 </template>
 
 <script setup>
+import { useDictionaryStore } from '@/stores/dictionary'
 import { ref, reactive, computed, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import { useRouter, useRoute } from 'vue-router';
 import { financeApi } from '@/api/finance';
 import { formatAmount } from '@/utils/format'
 import { loadDepartmentOptions } from '@/utils/optionLoaders';
+
+const dictStore = useDictionaryStore()
 
 const router = useRouter();
 const route = useRoute();

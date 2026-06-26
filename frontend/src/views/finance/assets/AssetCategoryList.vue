@@ -11,7 +11,7 @@
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
-          <h2>资产类别管理</h2>
+          <h2>资产类别</h2>
           <p class="subtitle">管理资产分类与属性</p>
         </div>
         <el-button v-permission="'finance:assets:create'" type="primary" :icon="Plus" @click="showAddDialog">新增类别</el-button>
@@ -358,12 +358,6 @@ onMounted(() => {
 <style scoped>
 .header-card {
   margin-bottom: 20px;
-}
-
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
 }
 
 .title-section h2 {

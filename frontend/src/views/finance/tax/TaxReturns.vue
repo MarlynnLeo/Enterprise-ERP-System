@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="tax-returns-container">
     <FinanceQueryCard
       :model="searchForm"
@@ -165,7 +165,7 @@
     </el-card>
 
     <!-- 新增申报对话框 -->
-    <el-dialog title="新增税务申报" v-model="createDialogVisible" width="650px" destroy-on-close>
+    <el-dialog title="新增纳税申报" v-model="createDialogVisible" width="650px" destroy-on-close>
       <el-form :model="createForm" :rules="createRules" ref="createFormRef" label-width="120px">
         <el-row :gutter="20">
           <el-col :span="12">
@@ -309,7 +309,7 @@
     </el-dialog>
 
     <!-- 查看详情对话框 -->
-    <el-dialog title="税务申报详情" v-model="viewDialogVisible" width="650px">
+    <el-dialog title="纳税申报详情" v-model="viewDialogVisible" width="650px">
       <el-descriptions :column="2" border>
         <el-descriptions-item label="申报期间">{{ viewData.return_period }}</el-descriptions-item>
         <el-descriptions-item label="申报类型">
@@ -372,7 +372,14 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { formatAmount, formatLocalDate } from '@/utils/format'
 import { Plus, View, Check, Money, Delete } from '@element-plus/icons-vue';
 import { financeApi } from '@/api';
+import { useFinanceStore } from '@/stores/finance';
 
+const financeStore = useFinanceStore();
+// 企业所得税率（百分比整数，如 25.0 = 25%），从 financeConfig.tax.incomeTaxRate 转换
+const defaultIncomeTaxRatePercent = computed(() => financeStore.isLoaded
+  ? (financeStore.taxConfig.incomeTaxRate ?? 0.25) * 100
+  : 25.0
+);
 // 搜索表单
 const searchForm = reactive({
   return_type: '',
@@ -410,7 +417,7 @@ const createForm = reactive({
   total_cost: 0,
   total_expense: 0,
   taxable_income: 0,
-  income_tax_rate: 25.0,
+  income_tax_rate: defaultIncomeTaxRatePercent.value,
   income_tax_payable: 0,
   remark: ''
 });
@@ -505,12 +512,13 @@ const handleTypeChange = () => {
   createForm.total_cost = 0;
   createForm.total_expense = 0;
   createForm.taxable_income = 0;
-  createForm.income_tax_rate = 25.0;
+  createForm.income_tax_rate = defaultIncomeTaxRatePercent.value;
   createForm.income_tax_payable = 0;
 };
 
 // 加载数据
 const loadData = async () => {
+  await financeStore.loadSettings(); // 确保税率配置已加载
   loading.value = true;
 
   try {
@@ -545,7 +553,7 @@ const loadData = async () => {
       pagination.total = 0;
     }
   } catch (error) {
-    console.error('加载税务申报列表失败:', error);
+    console.error('加载纳税申报列表失败:', error);
     ElMessage.error(error.message || '加载数据失败');
   } finally {
     loading.value = false;
@@ -587,7 +595,7 @@ const submitCreate = async () => {
     createLoading.value = true;
     try {
       await financeApi.tax.createReturn({ ...createForm });
-      ElMessage.success('税务申报创建成功');
+      ElMessage.success('纳税申报创建成功');
       createDialogVisible.value = false;
       loadData();
     } catch (error) {

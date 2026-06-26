@@ -7,6 +7,7 @@
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
+const { INVENTORY_CHECK_TRANSITIONS } = require('../../../constants/statusRegistry');
 const { parsePagination } = require('../../../utils/safePagination');
 
 const db = require('../../../config/db');
@@ -716,14 +717,8 @@ const updateCheckStatus = async (req, res) => {
     const check = checkResult[0];
     const currentStatus = check.status;
 
-    // 状态转换验证
-    const validTransitions = {
-      draft: ['in_progress', 'cancelled'],
-      in_progress: ['pending', 'cancelled'],
-      pending: ['completed', 'cancelled'],
-      completed: [],
-      cancelled: [],
-    };
+    // 状态转换验证（引用统一状态注册表）
+    const validTransitions = INVENTORY_CHECK_TRANSITIONS;
 
     if (!validTransitions[currentStatus].includes(status)) {
       await connection.rollback();

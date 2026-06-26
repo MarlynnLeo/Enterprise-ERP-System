@@ -216,12 +216,18 @@ const unifiedErrorHandler = (err, req, res, _next) => {
   if (process.env.NODE_ENV === 'development') {
     response.details = error.details;
     response.stack = error.stack;
-  } else if (error.details && error.isOperational) {
-    // ✅ 安全修复: 生产环境过滤掉可能包含内部信息的 details 字段
-    // 仅保留不含 originalError/originalMessage/originalStack 的安全详情
-    const {  originalMessage, ...safeDetails } = (error.details || {});
-    if (Object.keys(safeDetails).length > 0) {
-      response.details = safeDetails;
+  } else {
+    // ✅ 生产环境: 5xx 错误隐藏具体异常消息，防止泄露内部实现细节
+    if (error.statusCode >= 500) {
+      response.message = '服务器内部错误，请稍后重试';
+    }
+
+    if (error.details && error.isOperational) {
+      // 安全修复: 过滤可能包含内部信息的 details 字段
+      const { originalMessage, originalStack, originalError, ...safeDetails } = (error.details || {});
+      if (Object.keys(safeDetails).length > 0) {
+        response.details = safeDetails;
+      }
     }
   }
 

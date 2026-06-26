@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * Transactions.vue
  * @description 前端界面组件文件
@@ -11,7 +11,7 @@
     <el-card class="header-card">
       <div class="header-content">
         <div class="title-section">
-          <h2>银行交易管理</h2>
+          <h2>银行流水</h2>
           <p class="subtitle">管理银行收支记录</p>
         </div>
         <div class="action-buttons">
@@ -1400,11 +1400,6 @@ onMounted(() => {
 <style scoped>
 .header-card {
   margin-bottom: 20px;
-}
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
 }
 .title-section h2 {
   margin: 0 0 5px 0;
