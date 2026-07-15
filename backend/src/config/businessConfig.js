@@ -68,6 +68,7 @@ module.exports = {
       CONFIRMED: 'confirmed',
       PARTIAL_COMPLETED: 'partial_completed',
       COMPLETED: 'completed',
+      REVERSED: 'reversed',
       CANCELLED: 'cancelled',
     },
 
@@ -180,13 +181,17 @@ module.exports = {
     },
 
     // 调拨单状态
+    // 调拨状态码与 statusRegistry.INVENTORY_TRANSFER_TRANSITIONS 对齐
+    // IN_TRANSIT / REJECTED 仅读历史数据，新流程不写入
     transfer: {
       DRAFT: 'draft',
       PENDING: 'pending',
       APPROVED: 'approved',
-      IN_TRANSIT: 'in_transit',
       COMPLETED: 'completed',
+      REVERSED: 'reversed',
       CANCELLED: 'cancelled',
+      IN_TRANSIT: 'in_transit',
+      REJECTED: 'rejected',
     },
   },
 

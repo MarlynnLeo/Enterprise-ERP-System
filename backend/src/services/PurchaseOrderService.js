@@ -143,7 +143,7 @@ class PurchaseOrderService {
     }
 
     logger.info(
-      `采购申请状态同步完成: ID=${requisitionId}, ${currentStatus} -> ${nextStatus}, ordered=${totalOrdered}, required=${totalRequired}`
+      `Purchase requisition status synchronized: requisitionId=${requisitionId}, from=${currentStatus}, to=${nextStatus}, ordered=${totalOrdered}, required=${totalRequired}`
     );
 
     return {

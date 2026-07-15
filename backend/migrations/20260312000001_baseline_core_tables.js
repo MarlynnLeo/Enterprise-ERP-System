@@ -12,7 +12,12 @@ exports.up = async function(knex) {
       id INT AUTO_INCREMENT PRIMARY KEY,
       code VARCHAR(50) NOT NULL UNIQUE,
       name VARCHAR(100) NOT NULL,
-      warehouse_name VARCHAR(100) NOT NULL,
+      type VARCHAR(50) DEFAULT 'warehouse',
+      is_default TINYINT NOT NULL DEFAULT 0,
+      area VARCHAR(100),
+      address VARCHAR(255),
+      warehouse_id INT,
+      warehouse_name VARCHAR(100),
       status TINYINT NOT NULL DEFAULT 1,
       remark TEXT,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -34,14 +39,39 @@ exports.up = async function(knex) {
       phone VARCHAR(20),
       department_id INT,
       position VARCHAR(100),
-      role VARCHAR(20) NOT NULL DEFAULT 'user',
+      department VARCHAR(50),
+      role VARCHAR(50) NOT NULL DEFAULT 'user',
       avatar LONGTEXT COMMENT '用户头像(Base64)',
+      avatar_frame VARCHAR(20) DEFAULT 'frame1' COMMENT '用户选择的头像特效ID',
       bio VARCHAR(255) COMMENT '个性签名',
+      last_login_at DATETIME,
+      employee_no VARCHAR(20) UNIQUE,
+      hire_date DATE,
+      birthday DATE,
+      gender ENUM('male', 'female', 'other'),
+      id_card VARCHAR(18),
+      address TEXT,
+      emergency_contact VARCHAR(50),
+      emergency_phone VARCHAR(20),
+      salary DECIMAL(10,2),
+      employee_status ENUM('active', 'inactive', 'resigned', 'suspended') DEFAULT 'active',
+      notes TEXT,
+      password_changed_at TIMESTAMP NULL,
+      password_expires_at TIMESTAMP NULL,
+      failed_login_attempts INT NOT NULL DEFAULT 0,
+      locked_until TIMESTAMP NULL,
+      last_login_ip VARCHAR(45),
+      force_password_change TINYINT NOT NULL DEFAULT 0,
+      two_factor_enabled TINYINT NOT NULL DEFAULT 0,
+      two_factor_secret VARCHAR(32),
+      theme_settings JSON,
       status TINYINT NOT NULL DEFAULT 1,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       INDEX (department_id),
-      INDEX (status)
+      INDEX (status),
+      INDEX idx_users_username_status (username, status),
+      INDEX idx_users_email (email)
     )
   `);
 
@@ -119,6 +149,7 @@ exports.up = async function(knex) {
       id INT AUTO_INCREMENT PRIMARY KEY,
       role_id INT NOT NULL,
       menu_id INT NOT NULL,
+      is_half_checked BOOLEAN NOT NULL DEFAULT false,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       INDEX (role_id),
       INDEX (menu_id),
@@ -184,11 +215,14 @@ exports.up = async function(knex) {
       code VARCHAR(50) NOT NULL UNIQUE COMMENT '客户编码',
       name VARCHAR(100) NOT NULL,
       contact_person VARCHAR(50),
+      phone VARCHAR(20),
       contact_phone VARCHAR(20),
       email VARCHAR(100),
       address TEXT,
+      credit_limit DECIMAL(15,2) DEFAULT 0,
       status TINYINT DEFAULT 1 COMMENT '状态：0-禁用 1-启用',
       remark TEXT COMMENT '备注',
+      customer_type VARCHAR(50) DEFAULT 'direct',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     )
@@ -215,6 +249,60 @@ exports.up = async function(knex) {
       INDEX (category_id),
       INDEX (status)
     )
+  `);
+
+  await knex.raw(`
+    CREATE TABLE IF NOT EXISTS material_attachments (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      material_id INT NOT NULL,
+      file_name VARCHAR(255) NOT NULL,
+      file_path VARCHAR(500) NOT NULL,
+      file_type VARCHAR(100),
+      file_size BIGINT UNSIGNED DEFAULT 0,
+      description TEXT,
+      upload_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      uploader_id INT,
+      uploader_name VARCHAR(100),
+      INDEX idx_material_attachments_material (material_id),
+      INDEX idx_material_attachments_upload_time (upload_time),
+      CONSTRAINT fk_material_attachments_material
+        FOREIGN KEY (material_id) REFERENCES materials(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+
+  await knex.raw(`
+    CREATE TABLE IF NOT EXISTS process_templates (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      code VARCHAR(50) NOT NULL UNIQUE,
+      name VARCHAR(100) NOT NULL,
+      product_id INT,
+      description TEXT,
+      status TINYINT NOT NULL DEFAULT 1,
+      deleted_at TIMESTAMP NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_process_templates_product (product_id),
+      INDEX idx_process_templates_status (status)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+
+  await knex.raw(`
+    CREATE TABLE IF NOT EXISTS process_template_details (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      template_id INT NOT NULL,
+      order_num INT NOT NULL,
+      name VARCHAR(100) NOT NULL,
+      description TEXT,
+      standard_hours DECIMAL(10,2) NOT NULL DEFAULT 0,
+      department VARCHAR(50),
+      remark TEXT,
+      instruction_docs JSON,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_process_template_details_template (template_id),
+      INDEX idx_process_template_details_order (order_num),
+      FOREIGN KEY (template_id) REFERENCES process_templates(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
 
   // 系统设置表
@@ -260,6 +348,7 @@ exports.down = async function(knex) {
   // 基线迁移回滚：按依赖逆序删除
   const tables = [
     'print_templates', 'system_settings',
+    'process_template_details', 'process_templates', 'material_attachments',
     'role_menus', 'menus', 'user_roles', 'roles',
     'materials', 'customers', 'suppliers',
     'units', 'categories', 'departments', 'users', 'locations'

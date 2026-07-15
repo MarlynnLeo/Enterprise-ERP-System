@@ -1,5 +1,5 @@
 ﻿<template>
-  <div class="budget-edit-container">
+  <div class="module-page budget-edit-container">
     <el-card>
       <template #header>
         <div class="card-header">
@@ -25,7 +25,7 @@
                 type="year"
                 placeholder="选择年度"
                 value-format="YYYY"
-                style="width: 100%"
+                class="w-full"
               />
             </el-form-item>
           </el-col>
@@ -34,14 +34,14 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="预算类型" prop="budget_type">
-              <el-select v-model="formData.budget_type" placeholder="请选择" style="width: 100%">
+              <el-select v-model="formData.budget_type" placeholder="请选择" class="w-full">
                 <el-option v-for="item in dictStore.getOptions('budget_type')" :key="item.value" :label="item.label" :value="item.value" />
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="部门" prop="department_id">
-              <el-select v-model="formData.department_id" placeholder="请选择部门" clearable style="width: 100%">
+              <el-select v-model="formData.department_id" placeholder="请选择部门" clearable class="w-full">
                 <el-option
                   v-for="dept in departments"
                   :key="dept.id"
@@ -61,7 +61,7 @@
                 type="date"
                 placeholder="选择日期"
                 value-format="YYYY-MM-DD"
-                style="width: 100%"
+                class="w-full"
               />
             </el-form-item>
           </el-col>
@@ -72,7 +72,7 @@
                 type="date"
                 placeholder="选择日期"
                 value-format="YYYY-MM-DD"
-                style="width: 100%"
+                class="w-full"
               />
             </el-form-item>
           </el-col>
@@ -123,7 +123,7 @@
                 :precision="2"
                 :min="0"
                 controls-position="right"
-                style="width: 100%"
+                class="w-full"
               />
             </template>
           </el-table-column>
@@ -135,7 +135,7 @@
                 :min="0"
                 :max="100"
                 controls-position="right"
-                style="width: 100%"
+                class="w-full"
               />
             </template>
           </el-table-column>

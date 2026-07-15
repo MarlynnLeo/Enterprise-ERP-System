@@ -9,15 +9,11 @@
 <template>
   <div class="module-page quotation-container">
     <!-- 页面标题 -->
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>销售报价管理</h2>
-          <p class="subtitle">管理销售报价与询价</p>
-        </div>
-        <el-button v-permission="'sales:quotations:create'" type="primary" :icon="Plus" @click="showCreateDialog">新增报价单</el-button>
-      </div>
-    </el-card>
+    <PageHeader title="销售报价管理" subtitle="管理销售报价与询价">
+      <template #actions>
+<el-button v-permission="'sales:quotations:create'" type="primary" :icon="Plus" @click="showCreateDialog">新增报价单</el-button>
+      </template>
+    </PageHeader>
     <!-- 搜索区域 -->
     <FinanceQueryCard
       :loading="loading"
@@ -90,7 +86,7 @@
       <el-table
         :data="quotations"
         border
-        style="width: 100%"
+        class="w-full"
         v-loading="loading"
         table-layout="fixed"
       >
@@ -125,7 +121,7 @@
         </el-table-column>
         <el-table-column label="操作" min-width="350" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
-            <el-button size="small" @click="handleView(scope.row)">
+            <el-button class="btn-op-view" type="primary" size="small" @click="handleView(scope.row)">
               查看
             </el-button>
             <el-button
@@ -203,7 +199,7 @@
             clearable
             :remote-method="searchCustomers"
             :loading="customerLoading"
-            style="width: 100%"
+            class="w-full"
           >
             <el-option
               v-for="customer in customers"
@@ -220,13 +216,13 @@
             type="date"
             placeholder="选择有效期"
             :disabled="dialogType === 'view'"
-            style="width: 100%"
+            class="w-full"
           />
         </el-form-item>
 
         <!-- 添加BOM查看字段 -->
         <el-form-item label="选择BOM">
-          <div style="display: flex; gap: 10px; align-items: center;">
+          <div class="flex-gap">
             <el-select
               v-model="selectedProductId"
               placeholder="选择产品BOM"
@@ -237,7 +233,7 @@
               :loading="productLoading"
               :disabled="dialogType === 'view'"
               @change="handleProductBomChange"
-              style="width: 100%"
+              class="w-full"
             >
               <el-option
                 v-for="product in products"
@@ -245,9 +241,9 @@
                 :label="product.name"
                 :value="product.id"
               >
-                <div style="display: flex; justify-content: space-between; align-items: center; width: 100%">
-                  <span style="font-weight: bold">{{ product.code || product.id }}</span>
-                  <span style="color: var(--color-text-muted); font-size: 13px">{{ product.name }}</span>
+                <div class="flex-between-center">
+                  <span class="font-weight-700">{{ product.code || product.id }}</span>
+                  <span class="text-muted text-md">{{ product.name }}</span>
                 </div>
               </el-option>
             </el-select>
@@ -267,7 +263,7 @@
               <el-table
                 :data="quotationForm.items"
                 border
-              style="width: 100%"
+              class="w-full"
               table-layout="fixed"
               :header-cell-style="{ background: 'var(--color-bg-hover)', color: 'var(--color-text-regular)' }"
               empty-text="请添加报价物料"
@@ -284,7 +280,7 @@
                       :loading="productLoading"
                       :disabled="dialogType === 'view'"
                       @change="() => handleProductChange($index)"
-                      style="width: 100%"
+                      class="w-full"
                     >
                       <el-option
                         v-for="product in products"
@@ -292,9 +288,9 @@
                         :label="product.name"
                         :value="product.id"
                       >
-                        <div style="display: flex; justify-content: space-between; align-items: center; width: 100%">
-                          <span style="font-weight: bold">{{ product.code || product.id }}</span>
-                          <span style="color: var(--color-text-muted); font-size: 13px">{{ product.name }}</span>
+                        <div class="flex-between-center">
+                          <span class="font-weight-700">{{ product.code || product.id }}</span>
+                          <span class="text-muted text-md">{{ product.name }}</span>
                         </div>
                       </el-option>
                     </el-select>
@@ -355,14 +351,14 @@
                 </el-table-column>
               </el-table>
 
-            <div class="add-material" style="margin-top: 10px; display: flex; justify-content: space-between; align-items: center;">
+            <div class="add-material mt-10 flex-between-center">
               <el-button type="primary" v-permission="dialogType === 'create' ? 'sales:quotations:create' : 'sales:quotations:update'" @click="addItem" v-if="dialogType !== 'view'">
                 <el-icon><Plus /></el-icon> 添加产品
               </el-button>
 
-              <div style="font-size: 16px; font-weight: bold;" v-if="quotationForm.items.length > 0">
+              <div class="text-lg-bold" v-if="quotationForm.items.length > 0">
                 总计金额：
-                <span style="color: var(--color-danger); font-size: 18px; margin-left: 5px;">
+                <span class="text-amount-lg">
                   {{ formatCurrency(calculateTotalAmount()) }}
                 </span>
               </div>
@@ -386,10 +382,11 @@
       </template>
     </el-dialog>
     <!-- 查看报价单对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="viewDialogVisible"
       title="报价单详情"
-      width="50%"
+      mode="view"
+      content-width="wide"
     >
       <div v-loading="viewDialogLoading">
       <el-descriptions :column="2" border>
@@ -406,19 +403,19 @@
         <el-descriptions-item label="备注" :span="2">{{ currentQuotation.remarks || '无' }}</el-descriptions-item>
       </el-descriptions>
       <el-divider>报价明细</el-divider>
-      <el-table :data="currentQuotation.items" border style="width: 100%">
+      <el-table :data="currentQuotation.items" border class="w-full">
         <el-table-column prop="product_name" label="产品名称" min-width="150" />
         <el-table-column prop="specification" label="规格" min-width="120" />
         <el-table-column prop="quantity" label="数量" width="100" />
       </el-table>
       <!-- 合计行 -->
-      <div style="margin-top: 16px; text-align: right; padding: 12px; background-color: var(--color-bg-hover); border: 1px solid var(--color-border-base); border-radius: 4px;">
-        <span style="font-size: 16px; font-weight: bold; color: var(--color-text-primary);">
+      <div class="summary-box-right">
+        <span class="text-lg-bold text-regular">
           合计：{{ formatCurrency(currentQuotation.total_amount) }}
         </span>
       </div>
       </div>
-    </el-dialog>
+    </AppDialog>
   </div>
 </template>
 <script setup>
@@ -1155,12 +1152,7 @@ const loadBomDetails = async () => {
   padding-left: 8px;
   padding-right: 30px;
 }
-/* 注意：对话框基础样式已在全局主题中定义 */
-:deep(.el-dialog__body) {
-  max-height: calc(80vh - 120px);  /* 页面特定：限制对话框高度 */
-  overflow-y: auto;
-  /* padding、header、footer 样式使用全局主题定义 */
-}
+/* 对话框限高由 dialog-system / AppDialog 统一管理 */
 /* 详情对话框长文本处理 - 自动添加 */
 :deep(.el-descriptions__content) {
   max-width: 300px;

@@ -389,7 +389,14 @@ class BankTransactionModel {
       );
       const createdBy = requirePositiveInteger(transactionData.created_by, 'created_by');
       const amount = normalizePositiveAmount(transactionData.amount, 'amount');
-      const initialStatus = transactionData.status === 'approved' ? 'approved' : 'draft';
+      // 创建只能进入草稿，禁止通过请求载荷绕过提交/复核流程。
+      const initialStatus = 'draft';
+
+      let transactionNumber = String(transactionData.transaction_number || '').trim();
+      if (!transactionNumber) {
+        const CodeGeneratorService = require('../../services/business/CodeGeneratorService');
+        transactionNumber = await CodeGeneratorService.nextCode('bank_transaction', connection);
+      }
 
       const [result] = await connection.execute(
         `INSERT INTO bank_transactions
@@ -398,7 +405,7 @@ class BankTransactionModel {
          reconciliation_date, related_party, category, payment_method, created_by, status)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
-          transactionData.transaction_number,
+          transactionNumber,
           bankAccountId,
           transactionData.transaction_date,
           transactionData.transaction_type,
@@ -419,7 +426,7 @@ class BankTransactionModel {
 
       // 检查银行账户是否存在
       const [bankAccounts] = await connection.execute(
-        'SELECT id, bank_name, account_name, current_balance, is_active FROM bank_accounts WHERE id = ? FOR UPDATE',
+        'SELECT id, bank_name, account_name, currency_code, current_balance, is_active FROM bank_accounts WHERE id = ? FOR UPDATE',
         [bankAccountId]
       );
       if (bankAccounts.length === 0) {
@@ -428,6 +435,9 @@ class BankTransactionModel {
       const bankAccount = bankAccounts[0];
       if (bankAccount.is_active === 0) {
         throw new Error(`银行账户 "${bankAccount.account_name}" 已停用`);
+      }
+      if (String(bankAccount.currency_code || 'CNY').toUpperCase() !== 'CNY') {
+        throw new Error(`银行账户 "${bankAccount.account_name}" 不是人民币账户，当前未启用本位币换算`);
       }
 
       let newBalance = Number.parseFloat(bankAccount.current_balance || 0);
@@ -506,11 +516,14 @@ class BankTransactionModel {
         ? null
         : Math.min(Math.max(parseInt(pageSize, 10) || 20, 1), 100);
 
+      const scopeClause = filters.scopeClause || { join: '', where: '', params: [] };
+
       const fromClause = `
         FROM bank_transactions t
         LEFT JOIN bank_accounts b ON t.bank_account_id = b.id
         LEFT JOIN ar_invoices ar_inv ON t.related_invoice_id = ar_inv.id AND t.related_invoice_type = 'AR'
         LEFT JOIN ap_invoices ap_inv ON t.related_invoice_id = ap_inv.id AND t.related_invoice_type = 'AP'
+        ${scopeClause.join || ''}
       `;
 
       let whereClause = 'WHERE 1=1';
@@ -570,6 +583,11 @@ class BankTransactionModel {
       if (filters.related_party) {
         whereClause += ' AND t.related_party LIKE ?';
         params.push(`%${filters.related_party}%`);
+      }
+
+      if (scopeClause.where) {
+        whereClause += scopeClause.where;
+        params.push(...(scopeClause.params || []));
       }
 
       let total = 0;
@@ -801,11 +819,13 @@ class BankTransactionModel {
       await connection.beginTransaction();
 
       const [transactions] = await connection.execute(
-        `SELECT id, transaction_number, bank_account_id, transaction_date, transaction_type,
-                amount, description, related_party, category, payment_method,
-                created_by, status, is_reconciled, gl_entry_id
-         FROM bank_transactions
-         WHERE id = ?
+        `SELECT bt.id, bt.transaction_number, bt.bank_account_id, bt.transaction_date, bt.transaction_type,
+                bt.amount, bt.description, bt.related_party, bt.category, bt.payment_method,
+                bt.created_by, bt.status, bt.is_reconciled, bt.gl_entry_id,
+                ba.currency_code AS bank_currency_code
+         FROM bank_transactions bt
+         JOIN bank_accounts ba ON ba.id = bt.bank_account_id
+         WHERE bt.id = ?
          FOR UPDATE`,
         [id]
       );
@@ -815,6 +835,12 @@ class BankTransactionModel {
 
       const transaction = transactions[0];
       ensureAuditableTransaction(transaction);
+      if (String(transaction.bank_currency_code || 'CNY').toUpperCase() !== 'CNY') {
+        throw new Error('非人民币银行交易当前不能审核入账');
+      }
+      if (Number(transaction.created_by) === Number(userId)) {
+        throw new Error('制单人不能审核自己的银行交易');
+      }
       if (transaction.is_reconciled === true || transaction.is_reconciled === 1 || transaction.is_reconciled === '1') {
         throw new Error('Reconciled bank transactions cannot be approved');
       }
@@ -861,13 +887,16 @@ class BankTransactionModel {
       await connection.beginTransaction();
 
       const [current] = await connection.execute(
-        'SELECT status FROM bank_transactions WHERE id = ? FOR UPDATE',
+        'SELECT status, created_by FROM bank_transactions WHERE id = ? FOR UPDATE',
         [id]
       );
       if (current.length === 0) {
         throw new Error('Bank transaction does not exist');
       }
       ensureAuditableTransaction(current[0]);
+      if (Number(current[0].created_by) === Number(userId)) {
+        throw new Error('制单人不能复核自己的银行交易');
+      }
 
       const [result] = await connection.execute(
         `UPDATE bank_transactions

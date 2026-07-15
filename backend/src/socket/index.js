@@ -14,7 +14,8 @@ const { PermissionUtils } = require('../utils/authUtils');
 let io = null;
 // userId -> Set<socketId> 的映射，支持多端登录
 const onlineUsers = new Map();
-const allowLegacyAccessTokens = process.env.ALLOW_LEGACY_ACCESS_TOKENS === 'true';
+const allowLegacyAccessTokens =
+  process.env.NODE_ENV !== 'production' && process.env.ALLOW_LEGACY_ACCESS_TOKENS === 'true';
 const CHAT_ACCESS_PERMISSIONS = ['chat:access', 'system:notifications'];
 const CHAT_SEND_PERMISSIONS = ['chat:send', 'chat:access', 'system:notifications'];
 const MAX_CHAT_MESSAGE_LENGTH = 2000;

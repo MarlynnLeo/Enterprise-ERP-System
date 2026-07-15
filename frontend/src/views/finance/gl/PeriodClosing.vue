@@ -1,13 +1,6 @@
 <template>
   <div class="module-page app-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>期末结转</h2>
-          <p class="subtitle">执行损益结转、关账前校验和结转历史追踪</p>
-        </div>
-      </div>
-    </el-card>
+    <PageHeader title="期末结转" subtitle="执行损益结转、关账前校验和结转历史追踪" />
 
     <el-card class="box-card mb-4">
       <el-steps :active="activeStep" finish-status="success" simple class="closing-steps">
@@ -19,7 +12,7 @@
       <div v-if="activeStep === 0" class="step-content">
         <el-form :inline="true" class="search-form">
           <el-form-item label="待结转期间">
-            <el-select v-model="selectedPeriodId" placeholder="选择会计期间" filterable style="width: 240px">
+            <el-select v-model="selectedPeriodId" placeholder="选择会计期间" filterable class="form-control-240">
               <el-option
                 v-for="period in openPeriods"
                 :key="period.id"
@@ -124,7 +117,7 @@
             </el-descriptions-item>
           </el-descriptions>
 
-          <el-table :data="previewData.closingItems || []" border style="width: 100%" height="400">
+          <el-table :data="previewData.closingItems || []" border class="w-full" height="400">
             <el-table-column prop="account_code" label="科目编码" width="120" />
             <el-table-column prop="account_name" label="科目名称" min-width="200" />
             <el-table-column prop="account_type" label="类型" width="100" />
@@ -193,7 +186,7 @@
           placeholder="选择会计期间"
           clearable
           filterable
-          style="width: 240px"
+          class="form-control-240"
           @change="fetchHistory"
         >
           <el-option
@@ -204,7 +197,7 @@
           />
         </el-select>
       </div>
-      <el-table :data="historyList" border style="width: 100%">
+      <el-table :data="historyList" border class="w-full">
         <template #empty>
           <el-empty description="暂无结转历史" />
         </template>
@@ -228,7 +221,7 @@
       v-model="reconciliationDialogVisible"
       title="本期未对账银行流水"
       width="980px"
-      style="max-width: calc(100vw - 32px);"
+      class="dialog-max-vw"
       destroy-on-close
     >
       <div class="dialog-toolbar">
@@ -249,7 +242,7 @@
         :data="allUnreconciledTransactions"
         border
         height="460"
-        style="width: 100%"
+        class="w-full"
       >
         <template #empty>
           <el-empty description="暂无未对账银行流水" />
@@ -282,7 +275,7 @@
       v-model="unpostedDialogVisible"
       title="本期未过账凭证"
       width="980px"
-      style="max-width: calc(100vw - 32px);"
+      class="dialog-max-vw"
       destroy-on-close
     >
       <div class="dialog-toolbar">
@@ -305,7 +298,7 @@
         :data="unpostedEntries"
         border
         height="460"
-        style="width: 100%"
+        class="w-full"
       >
         <template #empty>
           <el-empty description="暂无未过账凭证" />
@@ -379,7 +372,7 @@
       v-model="dateFixDialogVisible"
       :title="dateFixEntry ? `修正日期：${dateFixEntry.entry_number}` : '修正日期'"
       width="520px"
-      style="max-width: calc(100vw - 32px);"
+      class="dialog-max-vw"
       destroy-on-close
     >
       <el-alert
@@ -396,7 +389,7 @@
             v-model="dateFixForm.entry_date"
             type="date"
             value-format="YYYY-MM-DD"
-            style="width: 100%"
+            class="w-full"
           />
         </el-form-item>
         <el-form-item label="过账日期">
@@ -404,7 +397,7 @@
             v-model="dateFixForm.posting_date"
             type="date"
             value-format="YYYY-MM-DD"
-            style="width: 100%"
+            class="w-full"
           />
         </el-form-item>
       </el-form>
@@ -422,14 +415,13 @@
       </template>
     </el-dialog>
 
-    <el-dialog
+    <AppDialog
       v-model="entryDetailVisible"
       :title="currentEntry ? `凭证明细：${currentEntry.entry_number}` : '凭证明细'"
-      width="760px"
-      style="max-width: calc(100vw - 32px);"
-      destroy-on-close
+      mode="view"
+      content-width="wide"
     >
-      <el-table :data="currentEntryItems" border style="width: 100%">
+      <el-table :data="currentEntryItems" border class="w-full">
         <el-table-column prop="accountCode" label="科目编码" width="120" />
         <el-table-column prop="accountName" label="科目名称" min-width="180" show-overflow-tooltip />
         <el-table-column prop="description" label="摘要" min-width="180" show-overflow-tooltip />
@@ -450,7 +442,7 @@
           </template>
         </el-table-column>
       </el-table>
-    </el-dialog>
+    </AppDialog>
   </div>
 </template>
 

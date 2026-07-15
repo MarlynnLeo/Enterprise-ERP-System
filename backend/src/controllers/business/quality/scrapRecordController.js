@@ -381,7 +381,7 @@ const updateStatus = async (req, res) => {
         connection
       );
 
-      logger.info(`✅ 报废记录 ${record.scrap_no} 通过 updateStatus 完成，已触发库存扣减和成本记录`);
+      logger.info(`Scrap record completed through status update: scrapNo=${record.scrap_no}`);
     } else {
       // 其他状态：直接更新
       await connection.query(

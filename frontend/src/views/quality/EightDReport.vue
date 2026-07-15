@@ -1,5 +1,13 @@
 ﻿<template>
   <div class="module-page eight-d-report-container">
+    <PageHeader title="8D问题解决报告" subtitle="闭环跟踪质量问题纠正与预防">
+      <template #actions>
+        <el-button v-permission="'quality:8d:create'" type="primary" @click="handleCreate">
+            <el-icon><Plus /></el-icon>新增8D报告
+          </el-button>
+      </template>
+    </PageHeader>
+
     <!-- 统计卡片 -->
     <div class="statistics-row">
       <el-card class="stat-card" shadow="hover">
@@ -7,31 +15,24 @@
         <div class="stat-label">全部报告</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
-        <div class="stat-value" style="color: var(--color-warning);">{{ statistics.in_progress_count || 0 }}</div>
+        <div class="stat-value text-warning">{{ statistics.in_progress_count || 0 }}</div>
         <div class="stat-label">进行中</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
-        <div class="stat-value" style="color: var(--color-primary);">{{ statistics.review_count || 0 }}</div>
+        <div class="stat-value text-primary">{{ statistics.review_count || 0 }}</div>
         <div class="stat-label">待审核</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
-        <div class="stat-value" style="color: var(--color-success);">{{ statistics.completed_count || 0 }}</div>
+        <div class="stat-value text-success">{{ statistics.completed_count || 0 }}</div>
         <div class="stat-label">已完成</div>
       </el-card>
       <el-card class="stat-card" shadow="hover">
-        <div class="stat-value" style="color: var(--color-danger);">{{ statistics.critical_count || 0 }}</div>
+        <div class="stat-value text-danger">{{ statistics.critical_count || 0 }}</div>
         <div class="stat-label">紧急</div>
       </el-card>
     </div>
-    <el-card class="box-card">
-      <template #header>
-        <div class="card-header">
-          <span>8D问题解决报告</span>
-          <el-button v-permission="'quality:8d:create'" type="primary" @click="handleCreate">
-            <el-icon><Plus /></el-icon>新增8D报告
-          </el-button>
-        </div>
-      </template>
+    <el-card class="data-card">
+
       <!-- 搜索栏 -->
       <FinanceQueryCard :model="searchForm" @search="handleSearch" @reset="handleReset">
         <template #basic>
@@ -63,7 +64,7 @@
         </template>
       </FinanceQueryCard>
       <!-- 表格 -->
-      <el-table :data="tableData" border v-loading="loading" style="width: 100%; margin-top: 16px;">
+      <el-table :data="tableData" border v-loading="loading" class="w-full mt-md">
         <el-table-column prop="report_no" label="报告编号" width="140" show-overflow-tooltip />
         <el-table-column prop="title" label="标题" min-width="160" show-overflow-tooltip />
         <el-table-column prop="ncp_no" label="关联NCP" width="120" show-overflow-tooltip />
@@ -78,7 +79,7 @@
         <el-table-column label="当前阶段" width="100">
           <template #default="{ row }">
             <el-tag v-if="!['completed', 'closed'].includes(row.current_phase)" :type="getPhaseType(row.current_phase)" size="small">{{ getPhaseLabel(row.current_phase) }}</el-tag>
-            <span v-else style="color: var(--color-text-secondary); font-size: 13px;">-</span>
+            <span v-else class="text-muted text-md">-</span>
           </template>
         </el-table-column>
         <el-table-column label="进度" width="130">
@@ -101,7 +102,7 @@
         </el-table-column>
         <el-table-column label="操作" min-width="420" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
-            <el-button v-permission="'quality:8d:view'" size="small" @click="handleView(row)">查看</el-button>
+            <el-button class="btn-op-view" type="primary" v-permission="'quality:8d:view'" size="small" @click="handleView(row)">查看</el-button>
             <el-button v-permission="'quality:8d:view'" size="small" @click="_viewLogs(row)">日志</el-button>
             <el-button v-permission="'quality:8d:view'" size="small" @click="_printCustomerReport(row)">打印</el-button>
             <el-button size="small" type="primary" @click="handleEdit(row)" v-if="canEditReport(row)"
@@ -121,7 +122,7 @@
         :page-sizes="[10, 20, 50]" :total="pagination.total"
         layout="total, sizes, prev, pager, next, jumper"
         @size-change="fetchData" @current-change="fetchData"
-        style="margin-top: 20px; justify-content: flex-end;" />
+        class="pagination-bar" />
     </el-card>
     <!-- 创建/编辑对话框 -->
     <el-dialog v-model="formDialogVisible" :title="isEdit ? '编辑8D报告' : '创建8D报告'" width="920px" destroy-on-close>
@@ -148,7 +149,7 @@
               </el-col>
               <el-col :span="12">
                 <el-form-item label="优先级">
-                  <el-select v-model="formData.priority" style="width: 100%">
+                  <el-select v-model="formData.priority" class="w-full">
                     <el-option label="低" value="low" />
                     <el-option label="中" value="medium" />
                     <el-option label="高" value="high" />
@@ -160,14 +161,14 @@
             <el-row :gutter="16">
               <el-col :span="12">
                 <el-form-item label="发起人" prop="initiated_by">
-                  <el-select v-model="formData.initiated_by" filterable placeholder="谁发现/上报了此问题" style="width: 100%" clearable>
+                  <el-select v-model="formData.initiated_by" filterable placeholder="谁发现/上报了此问题" class="w-full" clearable>
                     <el-option v-for="user in userList" :key="user.id" :label="`${user.real_name || user.username}`" :value="user.real_name || user.username" />
                   </el-select>
                 </el-form-item>
               </el-col>
               <el-col :span="12">
                 <el-form-item label="主负责人" prop="owner">
-                  <el-select v-model="formData.owner" filterable placeholder="整个8D流程推进负责人" style="width: 100%" clearable>
+                  <el-select v-model="formData.owner" filterable placeholder="整个8D流程推进负责人" class="w-full" clearable>
                     <el-option v-for="user in userList" :key="user.id" :label="`${user.real_name || user.username}`" :value="user.real_name || user.username" />
                   </el-select>
                 </el-form-item>
@@ -185,7 +186,7 @@
                     :remote-method="fetchNcpList"
                     :loading="loadingNcp"
                     @change="handleNcpSelect"
-                    style="width: 100%"
+                    class="w-full"
                     clearable
                   >
                     <el-option
@@ -194,15 +195,17 @@
                       :label="`${item.ncp_no} - ${item.material_name}`"
                       :value="item.id"
                     >
-                      <span style="float: left">{{ item.ncp_no }}</span>
-                      <span style="float: right; color: var(--color-text-secondary); font-size: 13px">{{ item.material_name }}</span>
+                      <span class="option-row--split">
+                        <span class="option-code">{{ item.ncp_no }}</span>
+                        <span class="option-name">{{ item.material_name }}</span>
+                      </span>
                     </el-option>
                   </el-select>
                 </el-form-item>
               </el-col>
               <el-col :span="12">
                 <el-form-item label="目标关闭日期">
-                  <el-date-picker v-model="formData.target_close_date" placeholder="选择目标完成日期" style="width: 100%" />
+                  <el-date-picker v-model="formData.target_close_date" placeholder="选择目标完成日期" class="w-full" />
                 </el-form-item>
               </el-col>
             </el-row>
@@ -236,7 +239,7 @@
         <el-tab-pane label="D1 团队" name="d1">
           <el-form :model="formData" label-width="120px">
             <el-form-item label="团队组长">
-              <el-select v-model="formData.d1_team_leader" filterable placeholder="请选择团队组长" style="width: 100%" clearable>
+              <el-select v-model="formData.d1_team_leader" filterable placeholder="请选择团队组长" class="w-full" clearable>
                 <el-option v-for="user in userList" :key="user.id" :label="`${user.real_name || user.username}`" :value="user.real_name || user.username" />
               </el-select>
             </el-form-item>
@@ -254,12 +257,12 @@
             <el-row :gutter="16">
               <el-col :span="12">
                 <el-form-item label="发生日期">
-                  <el-date-picker v-model="formData.d2_occurrence_date" style="width: 100%" />
+                  <el-date-picker v-model="formData.d2_occurrence_date" class="w-full" />
                 </el-form-item>
               </el-col>
               <el-col :span="12">
                 <el-form-item label="影响数量">
-                  <el-input-number v-model="formData.d2_quantity_affected" :min="0" style="width: 100%" />
+                  <el-input-number v-model="formData.d2_quantity_affected" :min="0" class="w-full" />
                 </el-form-item>
               </el-col>
             </el-row>
@@ -267,7 +270,7 @@
               <el-input v-model="formData.d2_defect_type" placeholder="缺陷类型分类" />
             </el-form-item>
             <el-form-item label="责任人">
-              <el-select v-model="formData.d2_responsible_person" filterable placeholder="请选择责任人" style="width: 100%" clearable>
+              <el-select v-model="formData.d2_responsible_person" filterable placeholder="请选择责任人" class="w-full" clearable>
                 <el-option v-for="user in userList" :key="user.id" :label="`${user.real_name || user.username}`" :value="user.real_name || user.username" />
               </el-select>
             </el-form-item>
@@ -280,10 +283,10 @@
               <el-input v-model="formData.d3_containment_actions_str" type="textarea" :rows="4" placeholder="临时遏制措施（每行一条）" />
             </el-form-item>
             <el-form-item label="生效日期">
-              <el-date-picker v-model="formData.d3_effective_date" style="width: 100%" />
+              <el-date-picker v-model="formData.d3_effective_date" class="w-full" />
             </el-form-item>
             <el-form-item label="责任人">
-              <el-select v-model="formData.d3_responsible_person" filterable placeholder="请选择责任人" style="width: 100%" clearable>
+              <el-select v-model="formData.d3_responsible_person" filterable placeholder="请选择责任人" class="w-full" clearable>
                 <el-option v-for="user in userList" :key="user.id" :label="`${user.real_name || user.username}`" :value="user.real_name || user.username" />
               </el-select>
             </el-form-item>
@@ -291,13 +294,13 @@
         </el-tab-pane>
         <!-- D4: 根因分析 -->
         <el-tab-pane label="D4 根因分析" name="d4">
-          <el-alert v-if="formData.current_phase === 'd1_d3'" title="当前处于D1-D3阶段，请先完成初审后再填写D4" type="info" :closable="false" show-icon style="margin-bottom: 16px" />
+          <el-alert v-if="formData.current_phase === 'd1_d3'" title="当前处于D1-D3阶段，请先完成初审后再填写D4" type="info" :closable="false" show-icon class="mb-md" />
           <el-form :model="formData" label-width="120px">
             <el-form-item label="根本原因">
               <el-input v-model="formData.d4_root_cause" type="textarea" :rows="4" placeholder="经分析得出的根本原因..." />
             </el-form-item>
             <el-form-item label="分析方法">
-              <el-select v-model="formData.d4_analysis_method" style="width: 100%">
+              <el-select v-model="formData.d4_analysis_method" class="w-full">
                 <el-option label="5 Why 分析法" value="5why" />
                 <el-option label="鱼骨图（因果图）" value="fishbone" />
                 <el-option label="FMEA 失效模式分析" value="fmea" />
@@ -309,7 +312,7 @@
               <el-input v-model="formData.d4_contributing_factors_str" type="textarea" :rows="3" placeholder="其他促成因素（每行一条）" />
             </el-form-item>
             <el-form-item label="责任人">
-              <el-select v-model="formData.d4_responsible_person" filterable placeholder="请选择责任人" style="width: 100%" clearable>
+              <el-select v-model="formData.d4_responsible_person" filterable placeholder="请选择责任人" class="w-full" clearable>
                 <el-option v-for="user in userList" :key="user.id" :label="`${user.real_name || user.username}`" :value="user.real_name || user.username" />
               </el-select>
             </el-form-item>
@@ -324,14 +327,14 @@
             <el-row :gutter="16">
               <el-col :span="12">
                 <el-form-item label="责任人">
-                  <el-select v-model="formData.d5_responsible_person" filterable placeholder="请选择责任人" style="width: 100%" clearable>
+                  <el-select v-model="formData.d5_responsible_person" filterable placeholder="请选择责任人" class="w-full" clearable>
                     <el-option v-for="user in userList" :key="user.id" :label="`${user.real_name || user.username}`" :value="user.real_name || user.username" />
                   </el-select>
                 </el-form-item>
               </el-col>
               <el-col :span="12">
                 <el-form-item label="目标完成日期">
-                  <el-date-picker v-model="formData.d5_target_date" style="width: 100%" />
+                  <el-date-picker v-model="formData.d5_target_date" class="w-full" />
                 </el-form-item>
               </el-col>
             </el-row>
@@ -347,14 +350,14 @@
               <el-input v-model="formData.d6_verification_method" placeholder="使用的验证方法" />
             </el-form-item>
             <el-form-item label="验证结果">
-              <el-select v-model="formData.d6_verification_result" style="width: 100%">
+              <el-select v-model="formData.d6_verification_result" class="w-full">
                 <el-option label="待验证" value="pending" />
                 <el-option label="通过" value="pass" />
                 <el-option label="未通过" value="fail" />
               </el-select>
             </el-form-item>
             <el-form-item label="责任人">
-              <el-select v-model="formData.d6_responsible_person" filterable placeholder="请选择责任人" style="width: 100%" clearable>
+              <el-select v-model="formData.d6_responsible_person" filterable placeholder="请选择责任人" class="w-full" clearable>
                 <el-option v-for="user in userList" :key="user.id" :label="`${user.real_name || user.username}`" :value="user.real_name || user.username" />
               </el-select>
             </el-form-item>
@@ -370,7 +373,7 @@
               <el-input v-model="formData.d7_standardization" type="textarea" :rows="3" placeholder="需要标准化/制度化的内容" />
             </el-form-item>
             <el-form-item label="责任人">
-              <el-select v-model="formData.d7_responsible_person" filterable placeholder="请选择责任人" style="width: 100%" clearable>
+              <el-select v-model="formData.d7_responsible_person" filterable placeholder="请选择责任人" class="w-full" clearable>
                 <el-option v-for="user in userList" :key="user.id" :label="`${user.real_name || user.username}`" :value="user.real_name || user.username" />
               </el-select>
             </el-form-item>
@@ -378,7 +381,7 @@
         </el-tab-pane>
         <!-- D8: 总结 -->
         <el-tab-pane label="D8 总结关闭" name="d8">
-          <el-alert v-if="formData.current_phase !== 'd8' && formData.current_phase !== 'completed'" title="请先通过D4-D7结案审核后再填写D8总结" type="info" :closable="false" show-icon style="margin-bottom: 16px" />
+          <el-alert v-if="formData.current_phase !== 'd8' && formData.current_phase !== 'completed'" title="请先通过D4-D7结案审核后再填写D8总结" type="info" :closable="false" show-icon class="mb-md" />
           <el-form :model="formData" label-width="120px">
             <el-form-item label="总结">
               <el-input v-model="formData.d8_summary" type="textarea" :rows="4" placeholder="8D报告总结..." />
@@ -390,7 +393,7 @@
               <el-input v-model="formData.d8_team_recognition" type="textarea" :rows="2" placeholder="团队贡献表彰" />
             </el-form-item>
             <el-form-item label="责任人">
-              <el-select v-model="formData.d8_responsible_person" filterable placeholder="请选择责任人" style="width: 100%" clearable>
+              <el-select v-model="formData.d8_responsible_person" filterable placeholder="请选择责任人" class="w-full" clearable>
                 <el-option v-for="user in userList" :key="user.id" :label="`${user.real_name || user.username}`" :value="user.real_name || user.username" />
               </el-select>
             </el-form-item>
@@ -398,7 +401,7 @@
         </el-tab-pane>
       </el-tabs>
       <template #footer>
-        <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+        <div class="flex-between w-full">
           <div>
             <el-button v-permission="'quality:8d:create'" type="success" plain @click="openAiDialog" v-if="!isEdit">
               <el-icon class="el-icon--left"><MagicStick /></el-icon>AI辅助生成
@@ -412,13 +415,18 @@
       </template>
     </el-dialog>
     <!-- 详情对话框 -->
-    <el-dialog v-model="detailDialogVisible" title="8D报告详情" width="920px" destroy-on-close>
-      <div v-if="detailData" id="pdf-detail-content" style="padding: 10px; background-color: var(--color-bg-base);">
+    <AppDialog
+      v-model="detailDialogVisible"
+      title="8D报告详情"
+      mode="view"
+      content-width="wide"
+    >
+      <div v-if="detailData" id="pdf-detail-content" class="detail-print-area">
         <!-- 角色信息卡片 -->
-        <el-row :gutter="16" style="margin-bottom: 16px;">
+        <el-row :gutter="16" class="mb-md">
           <el-col :span="8">
             <el-card shadow="never" class="role-card">
-              <div class="role-icon" style="background: var(--theme-status-success-bg);"><el-icon><List /></el-icon></div>
+              <div class="role-icon role-icon-success"><el-icon><List /></el-icon></div>
               <div class="role-info">
                 <div class="role-title">发起人</div>
                 <div class="role-name">{{ detailData.initiated_by || detailData.created_by || '-' }}</div>
@@ -427,7 +435,7 @@
           </el-col>
           <el-col :span="8">
             <el-card shadow="never" class="role-card">
-              <div class="role-icon" style="background: var(--ds-yellow-bg);">👤</div>
+              <div class="role-icon role-icon-warning">👤</div>
               <div class="role-info">
                 <div class="role-title">主负责人 (Champion)</div>
                 <div class="role-name">{{ detailData.owner || '-' }}</div>
@@ -436,7 +444,7 @@
           </el-col>
           <el-col :span="8">
             <el-card shadow="never" class="role-card">
-              <div class="role-icon" style="background: var(--ds-green-bg);">👥</div>
+              <div class="role-icon role-icon-info">👥</div>
               <div class="role-info">
                 <div class="role-title">D1团队组长</div>
                 <div class="role-name">{{ detailData.d1_team_leader || '-' }}</div>
@@ -445,7 +453,7 @@
           </el-col>
         </el-row>
         <!-- 阶段进度 -->
-        <el-steps :active="getPhaseStep(detailData.current_phase)" finish-status="success" align-center size="small" style="margin-bottom: 20px;">
+        <el-steps :active="getPhaseStep(detailData.current_phase)" finish-status="success" align-center size="small" class="mb-20">
           <el-step title="立案" description="D1-D3" />
           <el-step title="初审" />
           <el-step title="整改" description="D4-D7" />
@@ -459,7 +467,7 @@
           <el-descriptions-item label="关联NCP">{{ detailData.ncp_no || '-' }}</el-descriptions-item>
           <el-descriptions-item label="状态">
             <el-tag :type="getStatusType(detailData.status)">{{ getStatusLabel(detailData.status) }}</el-tag>
-            <el-tag v-if="!['completed', 'closed'].includes(detailData.current_phase)" :type="getPhaseType(detailData.current_phase)" style="margin-left: 8px;">{{ getPhaseLabel(detailData.current_phase) }}</el-tag>
+            <el-tag v-if="!['completed', 'closed'].includes(detailData.current_phase)" :type="getPhaseType(detailData.current_phase)" class="ml-sm">{{ getPhaseLabel(detailData.current_phase) }}</el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="物料">{{ detailData.material_name || '-' }}</el-descriptions-item>
           <el-descriptions-item label="客户">{{ detailData.supplier_name || '-' }}</el-descriptions-item>
@@ -468,7 +476,7 @@
           </el-descriptions-item>
           <el-descriptions-item label="客户联系人">{{ detailData.customer_contact || '-' }}</el-descriptions-item>
         </el-descriptions>
-        <el-timeline style="margin-top: 20px;">
+        <el-timeline class="row-mt-20">
           <el-timeline-item :type="detailData.d1_completed_at ? 'success' : 'info'" timestamp="D1 - 组建团队">
             <p><strong>组长:</strong> {{ detailData.d1_team_leader || '-' }}</p>
             <p><strong>成员:</strong> {{ Array.isArray(detailData.d1_team_members) ? detailData.d1_team_members.join(', ') : (detailData.d1_team_members || '-') }}</p>
@@ -506,7 +514,7 @@
         </el-timeline>
       </div>
       <!-- 审核信息 -->
-      <el-descriptions :column="2" border style="margin-top: 16px" v-if="detailData && (detailData.phase1_approved_by || detailData.reviewed_by)">
+      <el-descriptions :column="2" border class="mt-md" v-if="detailData && (detailData.phase1_approved_by || detailData.reviewed_by)">
         <el-descriptions-item label="初审人" v-if="detailData.phase1_approved_by">{{ detailData.phase1_approved_by }}</el-descriptions-item>
         <el-descriptions-item label="初审时间" v-if="detailData.phase1_approved_at">{{ formatDate(detailData.phase1_approved_at) }}</el-descriptions-item>
         <el-descriptions-item label="结案审核人" v-if="detailData.phase2_approved_by">{{ detailData.phase2_approved_by }}</el-descriptions-item>
@@ -518,16 +526,16 @@
         <span class="dialog-footer">
           <el-button @click="detailDialogVisible = false">关闭</el-button>
           <el-button type="success" @click="exportDetailToPdf" :loading="exportPdfLoading">
-            <el-icon style="margin-right: 4px"><Download /></el-icon> 导出 PDF
+            <el-icon class="mr-sm"><Download /></el-icon> 导出 PDF
           </el-button>
         </span>
       </template>
-    </el-dialog>
+    </AppDialog>
     <!-- 审核对话框 -->
-    <el-dialog v-model="reviewDialogVisible" title="审核8D报告" width="500px">
+    <AppDialog v-model="reviewDialogVisible" title="审核8D报告" mode="form" width="500px">
       <el-alert
         :title="currentRow?.current_phase === 'd1_d3' ? '当前审核：D1-D3初审（审核通过后将进入D4-D7整改阶段）' : '当前审核：D4-D7结案审核（审核通过后将进入D8总结阶段）'"
-        type="info" :closable="false" show-icon style="margin-bottom: 16px" />
+        type="info" :closable="false" show-icon class="mb-md" />
       <el-form :model="reviewForm" label-width="100px">
         <el-form-item label="审核结果" required>
           <el-radio-group v-model="reviewForm.approved">
@@ -543,10 +551,10 @@
         <el-button @click="reviewDialogVisible = false">取消</el-button>
         <el-button v-permission="'quality:8d:update'" type="primary" @click="submitReview" :loading="submitLoading">提交</el-button>
       </template>
-    </el-dialog>
+    </AppDialog>
     <!-- AI生成对话框 -->
     <el-dialog v-model="aiDialogVisible" title="AI智能分析生成" width="600px" append-to-body>
-      <el-alert title="基于KACON公司部门结构，智能生成符合IATF 16949标准的专业8D报告。团队组建将自动匹配品质部/技术部/生产部等真实部门，D2日期使用当天。" type="success" :closable="false" show-icon style="margin-bottom: 20px" />
+      <el-alert title="基于KACON公司部门结构，智能生成符合IATF 16949标准的专业8D报告。团队组建将自动匹配品质部/技术部/生产部等真实部门，D2日期使用当天。" type="success" :closable="false" show-icon class="mb-20" />
       <el-form :model="aiForm" label-width="100px" v-loading="aiLoading" element-loading-text="AI正在深度思考生成中，约需要10-30秒...">
         <el-form-item label="问题描述" required>
           <el-input v-model="aiForm.problemDescription" type="textarea" :rows="5" placeholder="请详细描述问题（5W2H）：什么时候，在哪里，发现了什么缺陷，影响了多少数量，临时是怎么处理的..." />
@@ -580,13 +588,13 @@
       </div>
       <div v-else class="print-container" id="printable-8d-report">
         <!-- 打印视图 -->
-        <h1 style="text-align: center; border-bottom: 2px solid var(--color-border-base); padding-bottom: 20px;">8D 纠正预防措施报告</h1>
-        <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
+        <h1 class="print-title">8D 纠正预防措施报告</h1>
+        <div class="print-meta-row">
           <span><strong>报告编号:</strong> {{ currentPrintRow?.report_no }}</span>
           <span><strong>发生日期:</strong> {{ dayjs(currentPrintRow?.d2_occurrence_date).format('YYYY-MM-DD') }}</span>
           <span><strong>缺陷描述:</strong> {{ currentPrintRow?.d2_defect_type }}</span>
         </div>
-        <table border="1" style="width: 100%; border-collapse: collapse; text-align: left;" cellpadding="8">
+        <table border="1" class="print-table" cellpadding="8">
           <tbody>
             <tr>
               <th width="20%">D1 团队组建</th>
@@ -627,7 +635,7 @@
             </tr>
           </tbody>
         </table>
-        <div style="margin-top: 50px; text-align: right; color: var(--color-text-secondary); font-size: 12px;">自动生成自 MES/ERP 系统 - {{ dayjs().format('YYYY-MM-DD HH:mm') }}</div>
+        <div class="print-footer">自动生成自 MES/ERP 系统 - {{ dayjs().format('YYYY-MM-DD HH:mm') }}</div>
       </div>
       <template #footer>
         <el-button @click="logsDialogVisible = false">关闭</el-button>

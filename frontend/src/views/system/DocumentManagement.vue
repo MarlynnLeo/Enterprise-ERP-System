@@ -1,15 +1,11 @@
 ﻿<template>
   <div class="module-page page-container">
     <!-- 页面头部卡片 -->
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>文档管理</h2>
-          <p class="subtitle">统一管理合同、图纸、规格书、报告等业务文档</p>
-        </div>
-        <el-button type="primary" v-permission="'system:documents:create'" @click="openForm">上传文档</el-button>
-      </div>
-    </el-card>
+    <PageHeader title="文档管理" subtitle="统一管理合同、图纸、规格书、报告等业务文档">
+      <template #actions>
+<el-button type="primary" v-permission="'system:documents:create'" @click="openForm">上传文档</el-button>
+      </template>
+    </PageHeader>
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
@@ -66,7 +62,7 @@
       <el-form :model="form" label-width="90px">
         <el-form-item label="文档名称" required><el-input v-model="form.name" /></el-form-item>
         <el-form-item label="分类">
-          <el-select v-model="form.category" style="width:100%">
+          <el-select v-model="form.category" class="w-full">
             <el-option v-for="(l,k) in catLabel" :key="k" :label="l" :value="k" />
           </el-select>
         </el-form-item>

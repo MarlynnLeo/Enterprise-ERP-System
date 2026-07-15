@@ -141,6 +141,9 @@ class FinanceIntegrationService {
     return await CodeGeneratorService.nextCode(businessType, connection);
   }
 
+  /**
+   * 来源单据幂等查询：任意已存在来源记录均视为已生成（含取消），配合唯一索引防并发双开
+   */
   static async findExistingInvoiceBySource(connection, tableName, sourceType, sourceId) {
     if (!sourceId) return null;
     const allowedTables = {
@@ -153,11 +156,10 @@ class FinanceIntegrationService {
     }
 
     const [rows] = await connection.execute(
-      `SELECT id, ${invoiceNumberColumn} AS invoice_number, total_amount
+      `SELECT id, ${invoiceNumberColumn} AS invoice_number, total_amount, status
        FROM ${tableName}
        WHERE source_type = ?
          AND source_id = ?
-         AND status <> '已取消'
        LIMIT 1
        FOR UPDATE`,
       [sourceType, sourceId]
@@ -168,16 +170,30 @@ class FinanceIntegrationService {
   static async findExistingTaxInvoice(connection, relatedDocumentType, relatedDocumentId) {
     if (!relatedDocumentId) return null;
     const [rows] = await connection.execute(
-      `SELECT id, invoice_number, total_amount
+      `SELECT id, invoice_number, total_amount, status
        FROM tax_invoices
        WHERE related_document_type = ?
          AND related_document_id = ?
-         AND status <> '已作废'
        LIMIT 1
        FOR UPDATE`,
       [relatedDocumentType, relatedDocumentId]
     );
     return rows[0] || null;
+  }
+
+  /**
+   * 锁定业务来源单据，序列化集成生成（无来源行时唯一索引仍兜底）
+   */
+  static async lockSourceDocument(connection, tableName, sourceId) {
+    const allowed = new Set([
+      'sales_orders',
+      'purchase_receipts',
+      'sales_outbound', // 表名单数，与 baseline 一致
+      'sales_returns',
+      'purchase_returns',
+    ]);
+    if (!allowed.has(tableName) || !sourceId) return;
+    await connection.execute(`SELECT id FROM ${tableName} WHERE id = ? FOR UPDATE`, [sourceId]);
   }
 
   static async findExistingActiveGlEntry(connection, documentType, documentNumber) {
@@ -231,6 +247,7 @@ class FinanceIntegrationService {
     const connection = await db.pool.getConnection();
     try {
       await connection.beginTransaction();
+      await this.lockSourceDocument(connection, 'sales_orders', salesOrder.id);
 
       const [orderAmountRows] = await connection.execute(
         `SELECT ROUND(COALESCE(SUM(quantity * unit_price), 0), 2) AS subtotal
@@ -336,6 +353,7 @@ class FinanceIntegrationService {
         source_type: 'sales_order',
         source_id: salesOrder.id || null,
         customer_name: salesOrder.customer_name || null,
+        created_by: createdBy,
         gl_entry: {
           period_id: currentPeriod?.id ?? null,
           receivable_account_id: receivableAccountId,
@@ -389,6 +407,7 @@ class FinanceIntegrationService {
     const connection = await db.pool.getConnection();
     try {
       await connection.beginTransaction();
+      await this.lockSourceDocument(connection, 'sales_returns', salesReturn.id);
 
       const existingInvoice = await this.findExistingInvoiceBySource(
         connection,
@@ -474,6 +493,10 @@ class FinanceIntegrationService {
 
       const invoiceDateStr = toLocalDateString(salesReturn.return_date || currentDateString());
       const currentPeriod = await this.getCurrentPeriod(connection, invoiceDateStr);
+      const createdBy = await getUserIdByIdentifier(
+        connection,
+        salesReturn.created_by || financeConfig.get('system.defaultCreator', 'system')
+      );
 
       const invoiceData = {
         invoice_number: invoiceNumber,
@@ -488,7 +511,13 @@ class FinanceIntegrationService {
         source_type: 'sales_return',
         source_id: salesReturn.id || null,
         customer_name: customerName || null,
-        gl_entry: { period_id: currentPeriod?.id ?? null, receivable_account_id: receivableAccountId, income_account_id: incomeAccountId },
+        created_by: createdBy,
+        gl_entry: {
+          period_id: currentPeriod?.id ?? null,
+          receivable_account_id: receivableAccountId,
+          income_account_id: incomeAccountId,
+          created_by: createdBy,
+        },
         items: returnItems.map(item => ({
           product_id: item.material_id,
           product_name: item.material_name || item.material_code || `material#${item.material_id}`,
@@ -532,6 +561,7 @@ class FinanceIntegrationService {
     const connection = await db.pool.getConnection();
     try {
       await connection.beginTransaction();
+      await this.lockSourceDocument(connection, 'purchase_receipts', purchaseReceipt.id);
 
       const [receiptAmountRows] = await connection.execute(
         `SELECT ROUND(COALESCE(SUM(pri.qualified_quantity * COALESCE(NULLIF(pri.price, 0), NULLIF(poi.price, 0), NULLIF(m.cost_price, 0), 0)), 0), 2) AS subtotal
@@ -641,6 +671,7 @@ class FinanceIntegrationService {
         source_type: 'purchase_receipt',
         source_id: purchaseReceipt.id || null,
         supplier_name: purchaseReceipt.supplier_name || null,
+        created_by: createdBy,
         gl_entry: { period_id: currentPeriod?.id ?? null, payable_account_id: payableAccountId, purchase_cost_account_id: purchaseCostAccountId, created_by: createdBy },
         items: receiptItems.map(item => ({
           material_id: item.material_id,
@@ -688,6 +719,7 @@ class FinanceIntegrationService {
     const connection = externalConn || await db.pool.getConnection();
     try {
       if (!isExternalConn) await connection.beginTransaction();
+      await this.lockSourceDocument(connection, 'purchase_returns', purchaseReturn.id);
 
       const existingInvoice = await this.findExistingInvoiceBySource(
         connection,
@@ -756,6 +788,10 @@ class FinanceIntegrationService {
 
       const invoiceDateStr = toLocalDateString(purchaseReturn.return_date || currentDateString());
       const currentPeriod = await this.getCurrentPeriod(connection, invoiceDateStr);
+      const createdBy = await getUserIdByIdentifier(
+        connection,
+        purchaseReturn.created_by || financeConfig.get('system.defaultCreator', 'system')
+      );
 
       const invoiceData = {
         invoice_number: invoiceNumber,
@@ -770,7 +806,13 @@ class FinanceIntegrationService {
         source_type: 'purchase_return',
         source_id: purchaseReturn.id || null,
         supplier_name: purchaseReturn.supplier_name || null,
-        gl_entry: { period_id: currentPeriod?.id ?? null, payable_account_id: payableAccountId, purchase_cost_account_id: purchaseCostAccountId },
+        created_by: createdBy,
+        gl_entry: {
+          period_id: currentPeriod?.id ?? null,
+          payable_account_id: payableAccountId,
+          purchase_cost_account_id: purchaseCostAccountId,
+          created_by: createdBy,
+        },
         items: returnItems.map(item => ({
           material_id: item.material_id,
           material_name: item.material_name || item.material_code || `material#${item.material_id}`,
@@ -814,14 +856,23 @@ class FinanceIntegrationService {
     const connection = await db.pool.getConnection();
     try {
       await connection.beginTransaction();
+      await this.lockSourceDocument(connection, 'sales_outbound', salesOutbound.id);
 
       const [expectedCostRows] = await connection.execute(
-        `SELECT ROUND(COALESCE(SUM(soi.quantity * COALESCE(NULLIF(m.cost_price, 0), NULLIF(m.price, 0), 0)), 0), 2) AS total_cost
-         FROM sales_outbound_items soi
-         LEFT JOIN materials m ON soi.product_id = m.id
-         WHERE soi.outbound_id = ?`,
-        [salesOutbound.id]
+        `SELECT ROUND(COALESCE(SUM(ABS(il.quantity) * il.unit_cost), 0), 2) AS total_cost,
+                SUM(CASE WHEN COALESCE(il.unit_cost, 0) <= 0 THEN 1 ELSE 0 END) AS invalid_cost_lines
+           FROM inventory_ledger il
+          WHERE il.reference_no = ?
+            AND il.transaction_type = 'sales_outbound'
+            AND il.quantity < 0
+            AND COALESCE(il.unit_cost, 0) > 0`,
+        [salesOutbound.outbound_no]
       );
+      if (Number(expectedCostRows[0]?.invalid_cost_lines || 0) > 0) {
+        throw new Error(
+          `销售出库单 ${salesOutbound.outbound_no || salesOutbound.id} 存在零成本库存流水，不能生成销售成本凭证`
+        );
+      }
       const expectedTotalCost = roundMoney(expectedCostRows[0]?.total_cost || 0);
 
       const existingEntry = await this.findExistingActiveGlEntry(
@@ -857,9 +908,7 @@ class FinanceIntegrationService {
       const inventoryAccountId = accountIds.INVENTORY;
 
       const [outboundItems] = await connection.execute(
-        `SELECT soi.product_id, soi.quantity,
-                COALESCE(NULLIF(m.cost_price, 0), NULLIF(m.price, 0), 0) AS cost_price,
-                m.name as material_name
+        `SELECT soi.product_id, soi.quantity, m.name as material_name
          FROM sales_outbound_items soi
          LEFT JOIN materials m ON soi.product_id = m.id
          WHERE soi.outbound_id = ?`,
@@ -872,7 +921,7 @@ class FinanceIntegrationService {
       }
 
       // ✅ 精度修复：整数运算
-      const totalCost = outboundItems.reduce((sum, item) => sum + Math.round(parseFloat(item.quantity || 0) * parseFloat(item.cost_price || 0) * 100), 0) / 100;
+      const totalCost = expectedTotalCost;
       if (totalCost <= 0) {
         await connection.rollback();
         throw new Error(`销售出库单 ${salesOutbound.outbound_no || salesOutbound.id} 成本为0，不能生成销售成本凭证`);
@@ -894,6 +943,9 @@ class FinanceIntegrationService {
         document_number: salesOutbound.outbound_no || null,
         description: `销售成本结转 - 销售出库单 ${salesOutbound.outbound_no}`,
         created_by: createdBy || null,
+        status: 'posted',
+        is_posted: 1,
+        posting_method: 'automatic',
       };
 
       const entryItems = [
@@ -915,8 +967,6 @@ class FinanceIntegrationService {
         connection
       );
 
-      // 自动凭证在同一事务中立即标记过账（期间状态已由 getCurrentPeriod 在事务开头校验，无需走 postEntry 校验）
-      await connection.execute("UPDATE gl_entries SET is_posted = 1, status = 'posted' WHERE id = ?", [entryId]);
       await connection.commit();
 
       return { entryId, entryNumber, amount: totalCost };
@@ -937,6 +987,7 @@ class FinanceIntegrationService {
     const connection = await db.pool.getConnection();
     try {
       await connection.beginTransaction();
+      await this.lockSourceDocument(connection, 'sales_outbound', salesOutbound.id);
 
       const existingInvoice = await this.findExistingTaxInvoice(
         connection,
@@ -1041,6 +1092,7 @@ class FinanceIntegrationService {
     const connection = await db.pool.getConnection();
     try {
       await connection.beginTransaction();
+      await this.lockSourceDocument(connection, 'purchase_receipts', purchaseReceipt.id);
 
       const existingInvoice = await this.findExistingTaxInvoice(
         connection,
@@ -1221,6 +1273,9 @@ class FinanceIntegrationService {
         document_number: exchangeNo,
         description: description,
         created_by: createdBy,
+        status: 'posted',
+        is_posted: 1,
+        posting_method: 'automatic',
       };
 
       const entryItems = [
@@ -1242,12 +1297,10 @@ class FinanceIntegrationService {
         connection
       );
 
-      // 标记为已过账
-      // 自动凭证在同一事务中立即标记过账（期间状态已由 getCurrentPeriod 在事务开头校验，无需走 postEntry 校验）
-      await connection.execute("UPDATE gl_entries SET is_posted = 1, status = 'posted' WHERE id = ?", [entryId]);
-
       await connection.commit();
-      logger.info(`✅ 换货差价分录生成成功 - ${exchangeNo}: ${differenceAmount > 0 ? '补差价' : '退差价'} ¥${absDiff}`);
+      logger.info(
+        `Sales exchange difference entry generated: exchangeNo=${exchangeNo}, type=${differenceAmount > 0 ? 'supplement' : 'refund'}, amount=${absDiff}`
+      );
       return { entryId, exchangeNo, differenceAmount, type: differenceAmount > 0 ? 'supplement' : 'refund' };
     } catch (error) {
       await connection.rollback();
@@ -1383,7 +1436,9 @@ class FinanceIntegrationService {
         await connection.commit();
       }
 
-      logger.info(`✅ 外委发料分录生成成功 - 加工单: ${processing.processing_no}, 金额: ${totalAmount}`);
+      logger.info(
+        `Outsourced issue GL entry generated: processingNo=${processing.processing_no}, amount=${totalAmount}`
+      );
       return { success: true, entryId, entryNumber, amount: totalAmount };
     } catch (error) {
       if (shouldManageTransaction) {
@@ -1553,7 +1608,9 @@ class FinanceIntegrationService {
         await connection.commit();
       }
 
-      logger.info(`✅ 外委入库分录生成成功 - 入库单: ${receiptNo}, 物料成本: ${materialCost}, 加工费: ${totalProcessingFee}`);
+      logger.info(
+        `Outsourced receipt GL entry generated: receiptNo=${receiptNo}, materialCost=${materialCost}, processingFee=${totalProcessingFee}`
+      );
       return { success: true, entryId, entryNumber, materialCost, processingFee: totalProcessingFee, totalValue: totalInventoryValue };
     } catch (error) {
       if (shouldManageTransaction) {

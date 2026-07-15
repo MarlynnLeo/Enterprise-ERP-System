@@ -85,8 +85,23 @@ describe('打印服务 - 打印模板 /api/print/templates', () => {
     for (const moduleName of modules) {
       const res = await api.get(`/api/print/templates/default?module=${moduleName}`);
 
-      // 某些模块可能没有默认模板或缺少必要参数，接受 200/400/404
-      expect([200, 400, 404]).toContain(res.status);
+      expect(res.status).toBe(400);
+    }
+  });
+
+  test('应按 module/template_type 返回真实默认模板', async () => {
+    const listRes = await api.get('/api/print/templates?is_default=1&status=1&page=1&pageSize=1');
+    expect(listRes.status).toBe(200);
+    const { items } = extractList(listRes.body);
+
+    if (items.length > 0) {
+      const template = items[0];
+      const res = await api.get(
+        `/api/print/templates/default?module=${template.module}&template_type=${template.template_type}`
+      );
+
+      expect(res.status).toBe(200);
+      expect(res.body.data).toHaveProperty('id', template.id);
     }
   });
 });

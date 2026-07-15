@@ -1,20 +1,14 @@
 ﻿<template>
   <div class="module-page cost-ledger-container">
     <!-- 页面标题 -->
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>成本明细账</h2>
-          <p class="subtitle">多维度成本查询与分析</p>
-        </div>
-        <div class="header-actions">
-          <el-button v-permission="'finance:cost:export'" type="primary" @click="exportLedger" :loading="exporting">
+    <PageHeader title="成本明细账" subtitle="多维度成本查询与分析">
+      <template #actions>
+<el-button v-permission="'finance:cost:export'" type="primary" @click="exportLedger" :loading="exporting">
             <el-icon><Download /></el-icon>
             导出Excel
           </el-button>
-        </div>
-      </div>
-    </el-card>
+      </template>
+    </PageHeader>
 
     <!-- 筛选条件 -->
     <FinanceQueryCard
@@ -76,7 +70,7 @@
             </el-table-column>
             <el-table-column prop="total_cost" label="总成本" width="160">
               <template #default="scope">
-                <span style="font-weight: bold; color: var(--color-primary);">{{ formatCurrency(scope.row.total_cost) }}</span>
+                <span class="text-primary font-weight-700">{{ formatCurrency(scope.row.total_cost) }}</span>
               </template>
             </el-table-column>
             <el-table-column prop="unit_cost" label="单位成本" width="130">
@@ -89,7 +83,7 @@
             :total="pagination.total"
             :page-sizes="[10, 20, 50, 100]"
             layout="total, sizes, prev, pager, next, jumper"
-            style="margin-top: 15px; justify-content: flex-end;"
+            class="pagination-bar"
             @change="loadLedger"
           ></el-pagination>
         </el-tab-pane>
@@ -112,7 +106,7 @@
             </el-table-column>
             <el-table-column prop="total_cost" label="总成本" width="160">
               <template #default="scope">
-                <span style="font-weight: bold;">{{ formatCurrency(scope.row.total_cost) }}</span>
+                <span class="font-weight-700">{{ formatCurrency(scope.row.total_cost) }}</span>
               </template>
             </el-table-column>
             <el-table-column prop="avg_unit_cost" label="平均单位成本" width="160">
@@ -139,7 +133,7 @@
             </el-table-column>
             <el-table-column prop="total_cost" label="总成本" width="200">
               <template #default="scope">
-                <span style="font-weight: bold;">{{ formatCurrency(scope.row.total_cost) }}</span>
+                <span class="font-weight-700">{{ formatCurrency(scope.row.total_cost) }}</span>
               </template>
             </el-table-column>
           </el-table>
@@ -162,7 +156,7 @@
             </el-table-column>
             <el-table-column prop="total_cost" label="总成本" min-width="200">
               <template #default="scope">
-                <span style="font-weight: bold;">{{ formatCurrency(scope.row.total_cost) }}</span>
+                <span class="font-weight-700">{{ formatCurrency(scope.row.total_cost) }}</span>
               </template>
             </el-table-column>
           </el-table>
@@ -171,7 +165,12 @@
     </el-card>
 
     <!-- 钻取详情对话框 -->
-    <el-dialog v-model="drilldownVisible" title="成本钻取详情" width="900px">
+    <AppDialog
+      v-model="drilldownVisible"
+      title="成本钻取详情"
+      mode="view"
+      content-width="wide"
+    >
       <div v-if="drilldownData" v-loading="drilldownLoading">
         <!-- 任务基本信息 -->
         <el-descriptions :column="3" border>
@@ -180,14 +179,14 @@
           <el-descriptions-item label="数量">{{ drilldownData.task?.quantity }}</el-descriptions-item>
           <el-descriptions-item label="成本中心">{{ drilldownData.task?.cost_center_name || '-' }}</el-descriptions-item>
           <el-descriptions-item label="总成本">
-            <span style="font-weight: bold; color: var(--color-primary);">{{ formatCurrency(drilldownData.task?.actual_cost) }}</span>
+            <span class="text-primary font-weight-700">{{ formatCurrency(drilldownData.task?.actual_cost) }}</span>
           </el-descriptions-item>
           <el-descriptions-item label="单位成本">{{ formatCurrency(drilldownData.task?.unit_cost) }}</el-descriptions-item>
         </el-descriptions>
 
         <!-- 材料消耗明细 -->
-        <h4 style="margin: 20px 0 10px;">材料消耗明细</h4>
-        <el-table :data="drilldownData.materials" border size="small" max-height="200" style="width: 100%;">
+        <h4 class="section-heading-gap">材料消耗明细</h4>
+        <el-table :data="drilldownData.materials" border size="small" max-height="200" class="w-full">
           <el-table-column prop="material_code" label="物料编码" width="150"></el-table-column>
           <el-table-column prop="material_name" label="物料名称" min-width="200"></el-table-column>
           <el-table-column prop="quantity" label="消耗数量" width="120"></el-table-column>
@@ -200,8 +199,8 @@
         </el-table>
 
         <!-- 工序工时明细 -->
-        <h4 style="margin: 20px 0 10px;">工序工时明细</h4>
-        <el-table :data="drilldownData.processes" border size="small" max-height="200" style="width: 100%;">
+        <h4 class="section-heading-gap">工序工时明细</h4>
+        <el-table :data="drilldownData.processes" border size="small" max-height="200" class="w-full">
           <el-table-column prop="process_name" label="工序名称" width="150"></el-table-column>
           <el-table-column label="标准工时" width="120">
             <template #default="scope">
@@ -230,8 +229,8 @@
         </el-table>
 
         <!-- 关联凭证 -->
-        <h4 style="margin: 20px 0 10px;">关联凭证</h4>
-        <el-table :data="drilldownData.vouchers" border size="small" max-height="150" style="width: 100%;">
+        <h4 class="section-heading-gap">关联凭证</h4>
+        <el-table :data="drilldownData.vouchers" border size="small" max-height="150" class="w-full">
           <el-table-column prop="entry_number" label="凭证号" width="150"></el-table-column>
           <el-table-column prop="description" label="摘要" min-width="200"></el-table-column>
           <el-table-column prop="transaction_type" label="类型" width="120"></el-table-column>
@@ -241,7 +240,7 @@
           </el-table-column>
         </el-table>
       </div>
-    </el-dialog>
+    </AppDialog>
   </div>
 </template>
 

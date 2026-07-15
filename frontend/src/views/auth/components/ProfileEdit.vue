@@ -144,7 +144,7 @@
                 :color="passwordStrengthColor"
                 :show-text="false"
               />
-              <span class="strength-text" :style="{color: passwordStrengthColor}">
+              <span class="strength-text" :class="passwordStrengthClass">
                 {{ passwordStrengthText }}
               </span>
             </div>
@@ -217,10 +217,11 @@ const passwordForm = reactive({
   newPassword: '',
   confirmPassword: ''
 })
-// 密码强度
+// 密码强度（颜色给 el-progress API；文案用语义 class）
 const passwordStrength = ref(0)
 const passwordStrengthText = ref('')
 const passwordStrengthColor = ref('')
+const passwordStrengthClass = ref('')
 const rules = {
   name: [
     { required: true, message: '请输入用户名', trigger: 'blur' },
@@ -286,12 +287,15 @@ const checkStrength = (value) => {
   if (score < 60) {
     passwordStrengthText.value = '弱'
     passwordStrengthColor.value = 'var(--color-danger)'
+    passwordStrengthClass.value = 'strength-weak'
   } else if (score < 80) {
     passwordStrengthText.value = '中'
     passwordStrengthColor.value = 'var(--color-warning)'
+    passwordStrengthClass.value = 'strength-medium'
   } else {
     passwordStrengthText.value = '强'
     passwordStrengthColor.value = 'var(--color-success)'
+    passwordStrengthClass.value = 'strength-strong'
   }
 }
 const submitPasswordChange = async () => {

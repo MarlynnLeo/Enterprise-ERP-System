@@ -9,20 +9,16 @@
 <template>
   <!-- 组件初始化加载状态 -->
   <div v-if="!isComponentReady" class="loading-container" v-loading="true" element-loading-text="正在初始化组件...">
-    <div style="height: 200px; width: 100%;"></div>
+    <div class="chart-box-200"></div>
   </div>
   <div class="module-page inventory-transaction-container" v-else>
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>库存流水报表</h2>
-          <p class="subtitle">查看库存出入库流水记录</p>
-        </div>
-        <el-button type="primary" @click="handleExport">
+    <PageHeader title="库存流水报表" subtitle="查看库存出入库流水记录">
+      <template #actions>
+<el-button type="primary" @click="handleExport">
           <el-icon><Download /></el-icon> 导出报表
         </el-button>
-      </div>
-    </el-card>
+      </template>
+    </PageHeader>
     <!-- 搜索区域 -->
     <FinanceQueryCard
       v-if="searchForm"
@@ -49,17 +45,12 @@
         </el-form-item>
         <el-form-item label="流水类型">
           <el-select v-model="searchForm.transactionType" placeholder="选择流水类型" clearable>
-            <el-option label="入库" value="inbound" />
-            <el-option label="出库" value="outbound" />
-            <el-option label="采购退货" value="purchase_return" />
-            <el-option label="销售退货" value="sales_return" />
-            <el-option label="生产退料" value="production_return" />
-            <el-option label="不良退回" value="defective_return" />
-            <el-option label="调拨" value="transfer" />
-            <el-option label="盘点" value="check" />
-            <el-option label="其他" value="other" />
-            <el-option label="委外出库" value="outsourced_outbound" />
-            <el-option label="委外入库" value="outsourced_inbound" />
+            <el-option
+              v-for="option in transactionTypeOptions"
+              :key="option.value"
+              :label="option.label"
+              :value="option.value"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="仓库位置">
@@ -114,7 +105,7 @@
           <el-table
             :data="transactionList"
             border
-            style="width: 100%"
+            class="w-full"
             v-loading="loading"
             @row-click="handleRowClick"
           >
@@ -165,7 +156,7 @@
             </el-table-column>
             <el-table-column label="操作" min-width="80" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="scope">
-                <el-button size="small" @click.stop="showTransactionDetail(scope.row)">查看</el-button>
+                <el-button class="btn-op-view" type="primary" size="small" @click.stop="showTransactionDetail(scope.row)">查看</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -219,11 +210,11 @@
     </el-card>
 
     <!-- 交易详情对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="detailDialogVisible"
       title="流水详情"
-      width="800px"
-      destroy-on-close
+      mode="view"
+      content-width="wide"
     >
       <el-descriptions :column="2" border v-if="currentTransaction">
         <el-descriptions-item label="流水编号">{{ currentTransaction.transactionNo || '-' }}</el-descriptions-item>
@@ -249,7 +240,7 @@
         <el-descriptions-item label="创建时间" :span="2">{{ formatDateTime(currentTransaction.createdAt) }}</el-descriptions-item>
         <el-descriptions-item label="备注" :span="2">{{ currentTransaction.remarks || '无' }}</el-descriptions-item>
       </el-descriptions>
-    </el-dialog>
+    </AppDialog>
   </div>
 </template>
 <script setup>
@@ -264,11 +255,16 @@ import { Download, TrendCharts, PieChart, Histogram } from '@element-plus/icons-
 import { echarts } from '@/utils/echartsCore'
 import { getInventoryTransactionTypeText, getInventoryTransactionTypeColor } from '@/constants/systemConstants'
 import { getCssTokenValue } from '@/utils/designTokens'
+import { useDictionaryStore } from '@/stores/dictionary'
 import dayjs from 'dayjs'
+const dictionaryStore = useDictionaryStore()
 // 页面数据
 const loading = ref(false)
 const transactionList = ref([])
 const activeTab = ref('list')
+const transactionTypeOptions = computed(() =>
+  dictionaryStore.getOptions('inventory_transaction')
+)
 // 分页数据 - 使用 reactive 确保响应性
 const pagination = reactive({
   currentPage: 1,
@@ -556,6 +552,7 @@ const fetchStatsData = async () => {
 // 获取基础数据
 const fetchBaseData = async () => {
   try {
+    await dictionaryStore.fetchDictionary()
     locationOptions.value = await loadLocationOptions()
   } catch (error) {
     console.error('获取基础数据失败:', error)
@@ -570,10 +567,6 @@ const initCharts = async () => {
   if (typeChartRef.value) {
     typeChart = echarts.init(typeChartRef.value)
     typeChart.setOption({
-      title: {
-        text: '交易类型分布',
-        left: 'center'
-      },
       tooltip: {
         trigger: 'item',
         formatter: '{a} <br/>{b}: {c} ({d}%)'
@@ -618,10 +611,6 @@ const initCharts = async () => {
   if (amountChartRef.value) {
     amountChart = echarts.init(amountChartRef.value)
     amountChart.setOption({
-      title: {
-        text: '交易金额统计',
-        left: 'center'
-      },
       tooltip: {
         trigger: 'axis',
         axisPointer: {
@@ -658,16 +647,12 @@ const initCharts = async () => {
   if (trendChartRef.value) {
     trendChart = echarts.init(trendChartRef.value)
     trendChart.setOption({
-      title: {
-        text: '交易数量趋势',
-        left: 'center'
-      },
       tooltip: {
         trigger: 'axis'
       },
       legend: {
-        data: ['入库', '出库', '调拨', '盘点', '委外入库', '委外出库'],
-        top: 30
+        data: ['入库', '出库', '调拨', '盘点', '委外入库', '委外出库', '其他'],
+        top: 0
       },
       grid: {
         left: '3%',
@@ -750,6 +735,17 @@ const initCharts = async () => {
             focus: 'series'
           },
           data: statsData.trend.outsourced_outbound || []
+        },
+        {
+          name: '其他',
+          type: 'line',
+          smooth: true,
+          stack: 'Total',
+          areaStyle: {},
+          emphasis: {
+            focus: 'series'
+          },
+          data: statsData.trend.other || []
         }
       ]
     })

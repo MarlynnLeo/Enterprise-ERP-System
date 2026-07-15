@@ -158,7 +158,7 @@ module.exports = {
         items: rows,
       });
     } catch (error) {
-      logger.error('获取标准成本列表失败:', error.stack || error.message);
+      logger.error('获取标准成本列表失败:', error);
       ResponseHandler.error(res, '获取标准成本列表失败', 'SERVER_ERROR', 500);
     }
   },

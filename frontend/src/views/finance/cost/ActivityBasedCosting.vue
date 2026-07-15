@@ -1,19 +1,13 @@
 ﻿<template>
   <div class="module-page abc-container">
     <!-- 页面标题 -->
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>作业成本法(ABC)</h2>
-          <p class="subtitle">作业定义管理 / 成本动因配置 / ABC成本分配</p>
-        </div>
-        <div class="actions">
-          <el-button v-permission="'finance:cost:create'" type="primary" @click="showAddDialog">
+    <PageHeader title="作业成本法(ABC)" subtitle="作业定义管理 / 成本动因配置 / ABC成本分配">
+      <template #actions>
+<el-button v-permission="'finance:cost:create'" type="primary" @click="showAddDialog">
             <el-icon><Plus /></el-icon> 新增作业
           </el-button>
-        </div>
-      </div>
-    </el-card>
+      </template>
+    </PageHeader>
 
     <!-- 主内容区 -->
     <el-card class="data-card">
@@ -103,10 +97,10 @@
           <el-input v-model="form.description" type="textarea" :rows="2" />
         </el-form-item>
         <el-form-item label="成本池" prop="cost_pool">
-          <el-input-number v-model="form.cost_pool" :min="0" :precision="2" style="width: 100%" />
+          <el-input-number v-model="form.cost_pool" :min="0" :precision="2" class="w-full" />
         </el-form-item>
         <el-form-item label="成本动因" prop="cost_driver_type">
-          <el-select v-model="form.cost_driver_type" style="width: 100%">
+          <el-select v-model="form.cost_driver_type" class="w-full">
             <el-option
               v-for="item in driverTypes"
               :key="item.value"
@@ -116,7 +110,7 @@
           </el-select>
         </el-form-item>
         <el-form-item label="分配率" prop="driver_rate">
-          <el-input-number v-model="form.driver_rate" :min="0" :precision="4" style="width: 100%" />
+          <el-input-number v-model="form.driver_rate" :min="0" :precision="4" class="w-full" />
         </el-form-item>
         <el-form-item label="状态" prop="status">
           <el-switch v-model="form.status" :active-value="1" :inactive-value="0" />

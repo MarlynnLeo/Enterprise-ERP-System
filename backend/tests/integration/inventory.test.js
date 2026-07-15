@@ -74,8 +74,9 @@ describe('库存模块 /api/inventory', () => {
     test('库存查询应返回 200', async () => {
       const res = await api.get('/api/inventory/stock?page=1&pageSize=5');
 
-      // 库存接口可能不存在，接受 200 或 404
-      expect([200, 404]).toContain(res.status);
+      expect(res.status).toBe(200);
+      const { items } = extractList(res.body);
+      expect(Array.isArray(items)).toBe(true);
     });
   });
 

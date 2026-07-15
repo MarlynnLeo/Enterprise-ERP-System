@@ -5,7 +5,7 @@
  */
 -->
 <template>
-  <div class="automation-tab">
+  <div class="module-page automation-tab">
     <!-- 定时任务状态卡片 -->
     <el-card class="section-card" shadow="never">
       <template #header>
@@ -96,7 +96,7 @@
             <el-select
               v-model="failedJobStatus"
               size="small"
-              style="width: 120px"
+              class="form-control-sm"
               @change="loadFailedJobs"
             >
               <el-option label="待处理" value="pending" />
@@ -173,7 +173,7 @@
           <el-table
             :data="failedJobs"
             size="small"
-            style="width: 100%"
+            class="w-full"
             max-height="320"
             v-loading="failedJobsLoading"
             empty-text="暂无失败任务"
@@ -313,7 +313,7 @@
                   <el-select
                     v-model="yearEndForm.year"
                     placeholder="选择年度"
-                    style="width: 100%"
+                    class="w-full"
                     @change="loadYearEndStatus"
                   >
                     <el-option
@@ -350,7 +350,7 @@
                 <el-button
                   v-permission="'finance:periodEnd:execute'"
                   type="primary"
-                  style="width: 100%"
+                  class="w-full"
                   @click="executeFinanceYearEnd"
                   :loading="financeYearEndLoading"
                   :disabled="
@@ -382,7 +382,7 @@
                   <el-select
                     v-model="inventoryYearEndForm.year"
                     placeholder="选择年度"
-                    style="width: 100%"
+                    class="w-full"
                     @change="loadInventoryYearEndStatus"
                   >
                     <el-option
@@ -459,7 +459,7 @@
           type="info"
           :closable="false"
           show-icon
-          style="margin-bottom: 16px"
+          class="mb-md"
         />
         <el-form :model="productionForm" inline>
           <el-form-item label="生产任务">
@@ -506,7 +506,7 @@
           </el-button>
         </div>
       </template>
-      <el-table :data="executionHistory" style="width: 100%" :empty-text="'暂无执行记录'">
+      <el-table :data="executionHistory" class="w-full" :empty-text="'暂无执行记录'">
         <el-table-column prop="type" label="任务类型" width="150">
           <template #default="scope">
             <el-tag :type="getTaskTypeColor(scope.row.type)" size="small">

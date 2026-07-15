@@ -40,7 +40,13 @@ router.post('/callback', async (req, res) => {
       }
     }
 
-    logger.info('[Dingtalk Callback] 回调数据:', JSON.stringify(callbackData));
+    logger.info('[Dingtalk Callback] Callback received', {
+      eventType: callbackData.EventType,
+      processInstanceId: callbackData.processInstanceId,
+      type: callbackData.type,
+      result: callbackData.result,
+      encrypted: Boolean(encrypt),
+    });
 
     // 处理不同事件类型
     const { EventType } = callbackData;

@@ -18,6 +18,84 @@ const { getCurrentUserName } = require('../../../utils/userHelper');
 // 引入库存一致性校验服务
 const InventoryConsistencyService = require('../../../services/business/InventoryConsistencyService');
 
+const getProductionPlanMaterialColumnSet = async (connection) => {
+  const [columns] = await connection.execute(
+    `
+    SELECT COLUMN_NAME
+    FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'production_plan_materials'
+    `
+  );
+  return new Set(columns.map((column) => column.COLUMN_NAME));
+};
+
+const getTaskRequiredMaterials = async (connection, task) => {
+  if (task.plan_id) {
+    const columnSet = await getProductionPlanMaterialColumnSet(connection);
+    const issueExpression = columnSet.has('issue_quantity')
+      ? 'COALESCE(ppm.issue_quantity, ppm.required_quantity, 0)'
+      : 'COALESCE(ppm.required_quantity, 0)';
+
+    const [planMaterials] = await connection.execute(
+      `
+      SELECT ppm.material_id, SUM(${issueExpression}) AS required_quantity
+      FROM production_plan_materials ppm
+      WHERE ppm.plan_id = ?
+      GROUP BY ppm.material_id
+      HAVING required_quantity > 0
+      `,
+      [task.plan_id]
+    );
+
+    if (planMaterials.length > 0) {
+      const planQuantity = parseFloat(task.plan_quantity) || 0;
+      const taskQuantity = parseFloat(task.quantity) || 0;
+      const scale = planQuantity > 0 ? taskQuantity / planQuantity : 1;
+      return planMaterials.map((item) => ({
+        material_id: item.material_id,
+        required_quantity: (parseFloat(item.required_quantity) || 0) * scale,
+      }));
+    }
+  }
+
+  let bomId = task.plan_bom_id || null;
+  if (!bomId) {
+    const [boms] = await connection.execute(
+      `SELECT id
+       FROM bom_masters
+       WHERE product_id = ?
+         AND deleted_at IS NULL
+         AND (status = 1 OR approved_by IS NOT NULL OR approved_at IS NOT NULL)
+       ORDER BY
+         CASE WHEN status = 1 THEN 0 ELSE 1 END,
+         COALESCE(approved_at, created_at) DESC,
+         id DESC
+       LIMIT 1`,
+      [task.product_id]
+    );
+    bomId = boms[0]?.id || null;
+  }
+
+  if (!bomId) {
+    throw new Error(`生产任务 ${task.id} 的产品未维护有效BOM，无法判断发料进度`);
+  }
+
+  const [bomDetails] = await connection.execute(
+    'SELECT material_id, quantity FROM bom_details WHERE bom_id = ?',
+    [bomId]
+  );
+
+  if (bomDetails.length === 0) {
+    throw new Error(`生产任务 ${task.id} 的BOM ${bomId} 没有明细，无法判断发料进度`);
+  }
+
+  return bomDetails.map((item) => ({
+    material_id: item.material_id,
+    required_quantity: (parseFloat(item.quantity) || 0) * (parseFloat(task.quantity) || 0),
+  }));
+};
+
 // 引入成本凭证服务（用于生成领料凭证）
 
 // 引入重构后的入库处理服务
@@ -107,18 +185,24 @@ const fixNegativeStock = async (req, res) => {
 const _syncProductionStatus = async (connection, outboundStatus, taskId) => {
   if (!taskId) return;
   try {
+    const { promoteTaskStatus, syncPlanStatus } = require('../../../services/business/TaskLifecycleService');
+
     if (outboundStatus === 'confirmed') {
-      // 出库单确认 → 任务变为配料中（仅从较早状态升级）
-      await connection.execute(
-        "UPDATE production_tasks SET status = 'preparing' WHERE id = ? AND deleted_at IS NULL AND status IN ('pending', 'allocated', 'material_issuing')",
-        [taskId]
-      );
+      // 出库单确认 → 任务变为配料中（状态机 + 计划同步）
+      await promoteTaskStatus(connection, taskId, 'preparing', {
+        onlyFrom: ['pending', 'allocated', 'material_issuing'],
+      });
     } else if (outboundStatus === 'completed') {
       // 出库单完成 → 任务变为已发料
-      await connection.execute(
-        "UPDATE production_tasks SET status = 'material_issued' WHERE id = ? AND deleted_at IS NULL AND status IN ('pending', 'allocated', 'preparing', 'material_issuing', 'material_partial_issued')",
-        [taskId]
-      );
+      await promoteTaskStatus(connection, taskId, 'material_issued', {
+        onlyFrom: [
+          'pending',
+          'allocated',
+          'preparing',
+          'material_issuing',
+          'material_partial_issued',
+        ],
+      });
     }
 
     // 联动更新关联的生产计划
@@ -135,10 +219,11 @@ const _syncProductionStatus = async (connection, outboundStatus, taskId) => {
         );
         logger.info(`生产计划 ${planId} 已更新为 preparing（配料中）`);
       } else if (outboundStatus === 'completed') {
-        // 全部任务已发料才更新计划
+        // 全部任务已发料才更新计划（promoteTaskStatus 已 sync 单任务；此处做齐套判断）
+        await syncPlanStatus(planId, connection);
         const [stats] = await connection.execute(
           `SELECT COUNT(*) as total,
-           SUM(CASE WHEN status IN ('material_issued','in_progress','completed') THEN 1 ELSE 0 END) as done
+           SUM(CASE WHEN status IN ('material_issued','in_progress','completed','inspection','warehousing') THEN 1 ELSE 0 END) as done
            FROM production_tasks WHERE plan_id = ? AND deleted_at IS NULL AND status != 'cancelled'`,
           [planId]
         );
@@ -182,7 +267,7 @@ const _syncProductionStatus = async (connection, outboundStatus, taskId) => {
                   [taskId, step.name, step.order_num, taskQuantity, step.standard_hours || 0, step.description || '', step.remark || '']
                 );
               }
-              logger.info(`✅ 出库完成后自动生成了 ${steps.length} 个工序（任务ID: ${taskId}）`);
+              logger.info(`Production processes auto-generated after outbound completion: taskId=${taskId}, stepCount=${steps.length}`);
             }
           }
         }
@@ -204,7 +289,20 @@ const checkAndUpdateTaskStatus = async (connection, taskId) => {
 
     // 1. 获取任务信息
     const [tasks] = await connection.execute(
-      'SELECT product_id, quantity, status FROM production_tasks WHERE id = ? AND deleted_at IS NULL',
+      `SELECT
+         pt.id,
+         pt.product_id,
+         pt.quantity,
+         pt.status,
+         pt.plan_id,
+         pp.quantity AS plan_quantity,
+         pp.bom_id AS plan_bom_id
+       FROM production_tasks pt
+       LEFT JOIN production_plans pp
+         ON pp.id = pt.plan_id
+        AND pp.deleted_at IS NULL
+       WHERE pt.id = ?
+         AND pt.deleted_at IS NULL`,
       [taskId]
     );
     if (tasks.length === 0) return;
@@ -231,7 +329,9 @@ const checkAndUpdateTaskStatus = async (connection, taskId) => {
     // 查找由于productId可能对应多版本BOM，取最新的已审核版本
     const [boms] = await connection.execute(
       `SELECT id FROM bom_masters
-       WHERE product_id = ? AND approved_by IS NOT NULL AND deleted_at IS NULL
+       WHERE product_id = ?
+         AND deleted_at IS NULL
+         AND (status = 1 OR approved_by IS NOT NULL OR approved_at IS NOT NULL)
        ORDER BY created_at DESC LIMIT 1`,
       [task.product_id]
     );
@@ -255,7 +355,7 @@ const checkAndUpdateTaskStatus = async (connection, taskId) => {
 
     // 获取该任务所有的出库明细汇总
     const [issuedSummary] = await connection.execute(
-      `SELECT ioi.material_id, SUM(ioi.actual_quantity) as total_issued
+      `SELECT ioi.material_id, SUM(COALESCE(ioi.actual_quantity, ioi.quantity, 0)) as total_issued
        FROM inventory_outbound io
        JOIN inventory_outbound_items ioi ON io.id = ioi.outbound_id
        WHERE (
@@ -278,8 +378,9 @@ const checkAndUpdateTaskStatus = async (connection, taskId) => {
       issuedMap[row.material_id] = parseFloat(row.total_issued || 0);
     });
 
-    for (const item of bomDetails) {
-      const requiredQty = item.quantity * task.quantity;
+    const requiredMaterials = await getTaskRequiredMaterials(connection, task);
+    for (const item of requiredMaterials) {
+      const requiredQty = parseFloat(item.required_quantity) || 0;
       const issuedQty = issuedMap[item.material_id] || 0;
 
       // 领料数量必须覆盖 BOM 需求数量
@@ -289,24 +390,26 @@ const checkAndUpdateTaskStatus = async (connection, taskId) => {
       }
     }
 
-    // 4. 更新状态
+    // 4. 更新状态（走生命周期状态机）
+    const { promoteTaskStatus } = require('../../../services/business/TaskLifecycleService');
     if (allIssued) {
-      // 全部已发料 -> material_issued
       if (task.status !== 'material_issued') {
-        await connection.execute(
-          "UPDATE production_tasks SET status = 'material_issued', updated_at = NOW() WHERE id = ? AND deleted_at IS NULL",
-          [taskId]
-        );
+        await promoteTaskStatus(connection, taskId, 'material_issued', {
+          onlyFrom: [
+            'pending',
+            'allocated',
+            'preparing',
+            'material_issuing',
+            'material_partial_issued',
+          ],
+        });
         logger.info(`生产任务 ${taskId} 所有物料已发齐，状态更新为 'material_issued'`);
       }
     } else {
-      // 部分发料，设置任务为配料中（preparing），与生产计划状态统一
-      if (['draft', 'allocated', 'preparing', 'material_issuing'].includes(task.status)) {
-        await connection.execute(
-          "UPDATE production_tasks SET status = 'preparing', updated_at = NOW() WHERE id = ? AND deleted_at IS NULL",
-          [taskId]
-        );
-      }
+      // 部分发料 → preparing
+      await promoteTaskStatus(connection, taskId, 'preparing', {
+        onlyFrom: ['pending', 'allocated', 'material_issuing'],
+      });
     }
   } catch (error) {
     logger.error(`检查生产任务 ${taskId} 发料状态失败:`, error);
@@ -425,7 +528,9 @@ async function smartOutboundStock(
     const [bomInfo] = await connection.execute(
       `SELECT bm.id as bom_id
        FROM bom_masters bm
-       WHERE bm.product_id = ? AND bm.approved_by IS NOT NULL AND bm.deleted_at IS NULL`,
+       WHERE bm.product_id = ?
+         AND bm.deleted_at IS NULL
+         AND (bm.status = 1 OR bm.approved_by IS NOT NULL OR bm.approved_at IS NOT NULL)`,
       [productId]
     );
 

@@ -1,17 +1,11 @@
 ﻿<template>
   <div class="module-page asset-reports-container" v-loading="loading" element-loading-text="正在加载资产报表数据...">
-    <el-card class="header-card" shadow="never">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>资产报表</h2>
-          <p class="subtitle">资产统计与分析</p>
-        </div>
-        <div>
-          <el-button @click="loadData" :icon="Refresh">刷新数据</el-button>
+    <PageHeader title="资产报表" subtitle="资产统计与分析">
+      <template #actions>
+<el-button @click="loadData" :icon="Refresh">刷新数据</el-button>
           <el-button v-permission="'finance:assets:export'" type="primary" :icon="Download" @click="exportReports">导出报告</el-button>
-        </div>
-      </div>
-    </el-card>
+      </template>
+    </PageHeader>
 
     <!-- 顶层汇总卡片 — 使用全局 statistics-row 布局 -->
     <div class="statistics-row">
@@ -78,7 +72,7 @@
           <template #header>
             <div class="card-header">
               <span>未来6个月折旧费用预测</span>
-              <el-select v-model="forecastMonths" size="small" style="width: 120px;" @change="loadForecast">
+              <el-select v-model="forecastMonths" size="small" class="form-control-sm" @change="loadForecast">
                 <el-option label="3个月" :value="3" />
                 <el-option label="6个月" :value="6" />
                 <el-option label="12个月" :value="12" />

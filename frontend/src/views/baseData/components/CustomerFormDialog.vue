@@ -18,7 +18,7 @@
         <el-input v-model="form.name" placeholder="请输入客户名称"></el-input>
       </el-form-item>
       <el-form-item label="客户类型" prop="customer_type">
-        <el-select v-model="form.customer_type" placeholder="请选择客户类型" style="width: 100%;">
+        <el-select v-model="form.customer_type" placeholder="请选择客户类型" class="w-full">
           <el-option label="直销客户" value="direct"></el-option>
           <el-option label="经销商" value="distributor"></el-option>
           <el-option label="零售客户" value="retail"></el-option>

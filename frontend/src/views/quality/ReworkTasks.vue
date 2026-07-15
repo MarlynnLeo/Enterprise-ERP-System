@@ -1,5 +1,7 @@
 ﻿<template>
-  <div class="rework-tasks-container">
+  <div class="module-page rework-tasks-container">
+    <PageHeader title="返工任务" subtitle="返工任务创建与执行跟踪" />
+
     <FinanceQueryCard
       :model="searchForm"
       :loading="loading"
@@ -106,7 +108,7 @@
         <el-table-column prop="created_at" label="创建时间" width="160" />
         <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
-            <el-button link type="primary" size="small" @click="viewDetail(row)">详情</el-button>
+            <el-button class="btn-op-view" type="primary" size="small" @click="viewDetail(row)">详情</el-button>
             <el-button
               link
               type="success"
@@ -188,7 +190,7 @@
             type="date"
             placeholder="选择日期"
             value-format="YYYY-MM-DD"
-            style="width: 100%"
+            class="w-full"
           />
         </el-form-item>
         <el-form-item label="返工成本">
@@ -196,7 +198,7 @@
             v-model="completeForm.rework_cost"
             :min="0"
             :precision="2"
-            style="width: 100%"
+            class="w-full"
           />
         </el-form-item>
         <el-form-item label="备注">
@@ -224,7 +226,7 @@
             type="date"
             placeholder="选择日期"
             value-format="YYYY-MM-DD"
-            style="width: 100%"
+            class="w-full"
           />
         </el-form-item>
         <el-form-item label="预计成本">
@@ -232,7 +234,7 @@
             v-model="editForm.rework_cost"
             :min="0"
             :precision="2"
-            style="width: 100%"
+            class="w-full"
           />
         </el-form-item>
       </el-form>
@@ -243,7 +245,12 @@
     </el-dialog>
 
     <!-- 详情对话框 -->
-    <el-dialog v-model="detailDialogVisible" title="返工任务详情" width="700px">
+    <AppDialog
+      v-model="detailDialogVisible"
+      title="返工任务详情"
+      mode="view"
+      content-width="wide"
+    >
       <el-descriptions :column="2" border v-if="detailData">
         <el-descriptions-item label="返工单号">{{ detailData.rework_no }}</el-descriptions-item>
         <el-descriptions-item label="状态">
@@ -269,7 +276,7 @@
       <template #footer>
         <el-button @click="detailDialogVisible = false">关闭</el-button>
       </template>
-    </el-dialog>
+    </AppDialog>
   </div>
 </template>
 

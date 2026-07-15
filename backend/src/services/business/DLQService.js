@@ -140,7 +140,7 @@ class DLQService {
   }
 
   static async listFailedJobs({ status = 'pending', page = 1, pageSize = 50, taskNamePrefixes = [] } = {}) {
-    const allowedStatuses = new Set(['pending', 'retrying', 'resolved', 'ignored']);
+    const allowedStatuses = new Set(['pending', 'retrying', 'resolved', 'failed', 'ignored']);
     const actualPage = Math.max(Number(page) || 1, 1);
     const actualPageSize = Math.min(Math.max(Number(pageSize) || 50, 1), 100);
     const offset = (actualPage - 1) * actualPageSize;
@@ -189,6 +189,28 @@ class DLQService {
        WHERE id = ?`,
       [`\n[resolved_by=${operator}]`, id]
     );
+  }
+
+  static async requeueFailedJobs(ids = []) {
+    const normalizedIds = [...new Set((Array.isArray(ids) ? ids : [ids])
+      .map((id) => Number.parseInt(id, 10))
+      .filter((id) => Number.isInteger(id) && id > 0))];
+    if (normalizedIds.length === 0) return 0;
+
+    const placeholders = normalizedIds.map(() => '?').join(',');
+    const [result] = await db.pool.query(
+      `UPDATE sys_failed_jobs
+          SET status = 'pending',
+              attempts = 0,
+              next_retry_at = NOW(),
+              locked_at = NULL,
+              resolved_at = NULL,
+              updated_at = NOW()
+        WHERE id IN (${placeholders})
+          AND status IN ('failed','ignored')`,
+      normalizedIds
+    );
+    return Number(result.affectedRows || 0);
   }
 
   static async retryJob(job, config = this.getRetryConfig()) {
@@ -265,7 +287,7 @@ class DLQService {
              updated_at = NOW()
          WHERE id = ?`,
         exhausted
-          ? ['ignored', error.message || String(error), error.stack || '', job.id]
+          ? ['failed', error.message || String(error), error.stack || '', job.id]
           : ['pending', error.message || String(error), error.stack || '', nextDelay, job.id]
       );
 

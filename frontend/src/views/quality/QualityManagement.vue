@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="quality-management">
+  <div class="module-page quality-management">
     <router-view />
   </div>
 </template>

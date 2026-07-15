@@ -8,14 +8,7 @@
 -->
 <template>
   <div class="module-page outsourced-receipts-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>外委加工入库管理</h2>
-          <p class="subtitle">管理外委加工入库单据</p>
-        </div>
-      </div>
-    </el-card>
+    <PageHeader title="外委加工入库管理" subtitle="管理外委加工入库单据" />
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
@@ -78,7 +71,7 @@
       <el-table
         :data="receiptList"
         border
-        style="width: 100%"
+        class="w-full"
         v-loading="loading"
       >
         <el-table-column prop="receipt_no" label="入库单号" min-width="150" />
@@ -100,7 +93,7 @@
         </el-table-column>
         <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
-            <el-button
+            <el-button class="btn-op-view" type="primary"
               size="small"
               @click="handleViewReceipt(scope.row)"
             >
@@ -369,11 +362,7 @@ onMounted(() => {
   margin-left: 8px;
 }
 
-/* 对话框高度 - 页面特定，其他样式使用全局主题 */
-:deep(.el-dialog__body) {
-  max-height: 60vh;
-  overflow-y: auto;
-}
+
 
 @media (max-width: 768px) {
   .statistics-row {

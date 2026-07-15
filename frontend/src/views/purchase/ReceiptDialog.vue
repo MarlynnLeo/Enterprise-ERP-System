@@ -47,7 +47,7 @@
                 type="date"
                 placeholder="选择日期"
                 value-format="YYYY-MM-DD"
-                style="width: 100%"
+                class="w-full"
                 :disabled="viewOnly"
               />
             </el-form-item>
@@ -60,7 +60,7 @@
                 v-model="receiptForm.warehouse_id"
                 filterable
                 placeholder="请选择仓库"
-                style="width: 100%"
+                class="w-full"
                 :disabled="viewOnly"
                 @change="handleWarehouseChange"
               >
@@ -102,7 +102,7 @@
           </div>
         </template>
 
-        <el-table :data="receiptForm.items" border style="width: 100%">
+        <el-table :data="receiptForm.items" border class="w-full">
           <el-table-column type="index" width="50" label="序号" />
           <el-table-column prop="product_code" label="成品编码" min-width="120" />
           <el-table-column prop="product_name" label="成品名称" min-width="150" />
@@ -122,7 +122,7 @@
                 :precision="2"
                 controls-position="right"
                 size="small"
-                style="width: 100%"
+                class="w-full"
                 @change="calculateRowTotal(scope.row)"
               />
               <span v-else>{{ scope.row.actual_quantity }}</span>

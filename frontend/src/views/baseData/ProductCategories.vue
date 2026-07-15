@@ -8,12 +8,8 @@
 -->
 <template>
   <div class="module-page base-data-list-page product-categories-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>物料类型管理</h2>
-          <p class="subtitle">管理物料类型、物料来源与检验方式</p>
-        </div>
+    <PageHeader title="物料类型管理" subtitle="管理物料类型、物料来源与检验方式">
+      <template #actions>
         <el-dropdown v-if="canCreate" @command="handleDropdownCommand" trigger="click">
           <el-button type="primary">
             <el-icon><Plus /></el-icon> 新增
@@ -33,8 +29,8 @@
             </el-dropdown-menu>
           </template>
         </el-dropdown>
-      </div>
-    </el-card>
+      </template>
+    </PageHeader>
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
@@ -106,7 +102,7 @@
           row-key="id"
           border
           :tree-props="{ children: 'children', hasChildren: 'hasChildren' }"
-          style="width: 100%"
+          class="w-full"
         >
         <el-table-column prop="name" label="类型名称" :width="hasSearchFilters ? 200 : 220"></el-table-column>
         <el-table-column prop="code" label="类型编码" width="150"></el-table-column>
@@ -187,7 +183,7 @@
           v-loading="sourceLoading"
           :data="sourceTableData"
           border
-          style="width: 100%"
+          class="w-full"
         >
           <el-table-column prop="name" label="来源名称" width="200"></el-table-column>
           <el-table-column prop="code" label="来源编码" width="150"></el-table-column>
@@ -262,7 +258,7 @@
           v-loading="inspectionLoading"
           :data="inspectionTableData"
           border
-          style="width: 100%"
+          class="w-full"
         >
           <el-table-column prop="name" label="方式名称" width="200"></el-table-column>
           <el-table-column prop="code" label="方式编码" width="150"></el-table-column>
@@ -348,7 +344,7 @@
             filterable
             check-strictly
             :render-after-expand="true"
-            style="width: 100%"
+            class="w-full"
           />
         </el-form-item>
         <el-form-item label="类型名称" prop="name">
@@ -358,7 +354,7 @@
           <el-input v-model="formData.code" placeholder="请输入类型编码"></el-input>
         </el-form-item>
         <el-form-item label="排序" prop="sort">
-          <el-input-number v-model="formData.sort" :min="0" style="width: 100%"></el-input-number>
+          <el-input-number v-model="formData.sort" :min="0" class="w-full"></el-input-number>
         </el-form-item>
         <el-form-item label="状态" prop="status">
           <el-radio-group v-model="formData.status">
@@ -412,7 +408,7 @@
           </el-radio-group>
         </el-form-item>
         <el-form-item label="排序" prop="sort">
-          <el-input-number v-model="sourceFormData.sort" :min="0" style="width: 100%"></el-input-number>
+          <el-input-number v-model="sourceFormData.sort" :min="0" class="w-full"></el-input-number>
         </el-form-item>
         <el-form-item label="状态" prop="status">
           <el-radio-group v-model="sourceFormData.status">
@@ -460,7 +456,7 @@
           <el-input v-model="inspectionFormData.code" placeholder="请输入检验方式编码"></el-input>
         </el-form-item>
         <el-form-item label="排序" prop="sort">
-          <el-input-number v-model="inspectionFormData.sort" :min="0" style="width: 100%"></el-input-number>
+          <el-input-number v-model="inspectionFormData.sort" :min="0" class="w-full"></el-input-number>
         </el-form-item>
         <el-form-item label="状态" prop="status">
           <el-radio-group v-model="inspectionFormData.status">

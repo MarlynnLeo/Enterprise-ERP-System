@@ -236,6 +236,9 @@ async function ensureCoreMenus(knex) {
 
 async function ensureAdminUser(knex) {
   const bcrypt = require('bcryptjs');
+  const testPassword = process.env.NODE_ENV === 'test'
+    ? process.env.TEST_ADMIN_PASSWORD || process.env.DEFAULT_ADMIN_PASSWORD || '123456'
+    : null;
 
   let adminUser = await knex('users').where({ username: 'admin' }).first();
   if (!adminUser) {
@@ -245,10 +248,10 @@ async function ensureAdminUser(knex) {
       throw new Error('DEFAULT_ADMIN_PASSWORD or DEFAULT_ADMIN_PASSWORD_HASH is required for production seeding');
     }
 
-    const generatedPassword = !passwordHash && !plainPassword
+    const generatedPassword = !passwordHash && !plainPassword && !testPassword
       ? `Dev-${require('crypto').randomUUID()}`
       : null;
-    const bcryptHash = passwordHash || await bcrypt.hash(plainPassword || generatedPassword, 10);
+    const bcryptHash = passwordHash || await bcrypt.hash(testPassword || plainPassword || generatedPassword, 10);
 
     const [adminId] = await knex('users').insert({
       username: 'admin',
@@ -264,6 +267,10 @@ async function ensureAdminUser(knex) {
     if (generatedPassword) {
       console.log(`[Seed] Generated one-time development admin password: ${generatedPassword}`);
     }
+  } else if (testPassword) {
+    await knex('users')
+      .where({ id: adminUser.id })
+      .update({ password: await bcrypt.hash(testPassword, 10), updated_at: knex.fn.now() });
   }
 
   const adminRole = await knex('roles').where({ code: 'admin' }).first();
@@ -300,11 +307,133 @@ async function grantAdminMenus(knex) {
   }
 }
 
+async function ensureOperationalFinanceActions(knex) {
+  const actions = [
+    {
+      parentPermission: 'finance:entries:view',
+      permission: 'finance:entries:update',
+      name: '编辑凭证',
+      roleCodes: ['admin', 'system_admin', 'finance_manager', 'accountant'],
+    },
+    {
+      parentPermission: 'finance:entries:view',
+      permission: 'finance:entries:approve',
+      name: '审核凭证',
+      roleCodes: ['admin', 'system_admin', 'finance_manager'],
+    },
+    {
+      parentPermission: 'finance:entries:view',
+      permission: 'finance:entries:delete',
+      name: '删除凭证',
+      roleCodes: ['admin', 'system_admin', 'finance_manager'],
+    },
+    {
+      parentPermission: 'finance:closing:view',
+      permission: 'finance:closing:execute',
+      name: '执行结账',
+      roleCodes: ['admin', 'system_admin', 'finance_manager'],
+    },
+  ];
+
+  for (const action of actions) {
+    const parent = await knex('menus').where({ permission: action.parentPermission }).first();
+    if (!parent) continue;
+
+    let menu = await knex('menus').where({ permission: action.permission }).first();
+    if (menu) {
+      await knex('menus').where({ id: menu.id }).update({
+        parent_id: parent.id,
+        name: action.name,
+        type: 2,
+        visible: 1,
+        status: 1,
+        updated_at: knex.fn.now(),
+      });
+    } else {
+      const [menuId] = await knex('menus').insert({
+        parent_id: parent.id,
+        name: action.name,
+        path: '',
+        component: '',
+        icon: '',
+        permission: action.permission,
+        type: 2,
+        visible: 1,
+        status: 1,
+        sort_order: 900,
+        created_at: knex.fn.now(),
+        updated_at: knex.fn.now(),
+      });
+      menu = { id: menuId };
+    }
+
+    const roles = await knex('roles').select('id').whereIn('code', action.roleCodes);
+    for (const role of roles) {
+      for (const menuId of [parent.id, menu.id]) {
+        const exists = await knex('role_menus')
+          .where({ role_id: role.id, menu_id: menuId })
+          .first();
+        if (!exists) {
+          await knex('role_menus').insert({
+            role_id: role.id,
+            menu_id: menuId,
+            created_at: knex.fn.now(),
+          });
+        }
+      }
+    }
+  }
+}
+
+async function syncPermissionSsot(knex) {
+  const requiredTables = ['permissions', 'role_permissions', 'menus', 'role_menus'];
+  for (const table of requiredTables) {
+    if (!(await knex.schema.hasTable(table))) return;
+  }
+
+  await knex.raw(`
+    INSERT INTO permissions (code, name, module, status, source, created_at, updated_at)
+    SELECT DISTINCT m.permission,
+           COALESCE(NULLIF(m.name, ''), m.permission),
+           SUBSTRING_INDEX(m.permission, ':', 1),
+           1,
+           'menu',
+           NOW(),
+           NOW()
+      FROM menus m
+     WHERE m.permission IS NOT NULL AND m.permission <> ''
+    ON DUPLICATE KEY UPDATE
+      status = 1,
+      updated_at = NOW()
+  `);
+
+  if (await knex.schema.hasColumn('menus', 'permission_id')) {
+    await knex.raw(`
+      UPDATE menus m
+      JOIN permissions p ON BINARY p.code = BINARY m.permission
+         SET m.permission_id = p.id
+       WHERE m.permission IS NOT NULL AND m.permission <> ''
+    `);
+  }
+
+  await knex.raw(`
+    INSERT IGNORE INTO role_permissions (role_id, permission_id, created_at)
+    SELECT DISTINCT rm.role_id, p.id, NOW()
+      FROM role_menus rm
+      JOIN menus m ON m.id = rm.menu_id
+      JOIN permissions p ON BINARY p.code = BINARY m.permission
+     WHERE m.permission IS NOT NULL AND m.permission <> ''
+       AND COALESCE(m.status, 1) = 1
+  `);
+}
+
 exports.seed = async function seed(knex) {
   await ensureCoreRoles(knex);
   await ensureAdminUser(knex);
   await ensureCoreMenus(knex);
+  await ensureOperationalFinanceActions(knex);
   await grantAdminMenus(knex);
+  await syncPermissionSsot(knex);
 
   const hasCostSettings = await knex.schema.hasTable('cost_settings');
   if (hasCostSettings) {

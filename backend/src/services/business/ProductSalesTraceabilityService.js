@@ -7,6 +7,10 @@ const { logger } = require('../../utils/logger');
 const db = require('../../config/db');
 
 class ProductSalesTraceabilityService {
+  static _toDbValue(value) {
+    return value === undefined ? null : value;
+  }
+
   /**
    * 处理成品销售出库时的追溯记录
    * @param {Object} salesData - 销售出库数据
@@ -35,21 +39,32 @@ class ProductSalesTraceabilityService {
         operator,
       } = salesData;
 
-      logger.info(`🚚 处理成品销售出库追溯: ${outbound_no}, 客户ID: ${customer_id}`);
+      logger.info(
+        `Processing product sales traceability: outboundNo=${outbound_no}, customerId=${customer_id}`
+      );
 
-      // 为每个销售的产品建立追溯关系
+      // 为每个销售的产品建立追溯关系（扣库 + 追溯）
       for (const item of items) {
+        const productId = item.product_id || item.productId || item.material_id || item.materialId;
+        const quantity = item.quantity || item.actual_quantity || item.actualQuantity;
+        if (!productId) {
+          throw new Error('销售出库明细缺少产品物料ID，无法建立销售追溯');
+        }
+
         await this.createProductSalesTraceability(connection, {
           outbound_id,
           outbound_no,
           order_id,
           customer_id,
           delivery_date,
-          product_id: item.product_id,
-          quantity: item.quantity,
+          product_id: productId,
+          quantity,
           operator,
         });
       }
+
+      // 扣库成功后，同事务核销销售订单预留（支持多订单 source_order_id）
+      await this.consumeSalesReservations(connection, order_id, items);
 
       if (shouldRelease) {
         await connection.commit();
@@ -70,6 +85,34 @@ class ProductSalesTraceabilityService {
       if (shouldRelease) {
         connection.release();
       }
+    }
+  }
+
+  /**
+   * 按订单汇总明细并核销 inventory_reservations（与扣库同事务）
+   */
+  static async consumeSalesReservations(connection, fallbackOrderId, items) {
+    const InventoryReservationService = require('../InventoryReservationService');
+    const byOrder = new Map();
+
+    for (const item of items || []) {
+      const materialId =
+        item.product_id || item.productId || item.material_id || item.materialId;
+      const qty = parseFloat(item.quantity || item.actual_quantity || item.actualQuantity || 0);
+      const oid = item.source_order_id || item.order_id || fallbackOrderId;
+      if (!oid || !materialId || !(qty > 0)) continue;
+
+      if (!byOrder.has(oid)) {
+        byOrder.set(oid, []);
+      }
+      byOrder.get(oid).push({ material_id: materialId, quantity: qty });
+    }
+
+    for (const [oid, consumedItems] of byOrder.entries()) {
+      await InventoryReservationService.consumeReservation(oid, consumedItems, connection);
+      logger.info(
+        `销售出库核销预留: orderId=${oid}, items=${consumedItems.length}`
+      );
     }
   }
 
@@ -142,7 +185,7 @@ class ProductSalesTraceabilityService {
             batch.allocated_quantity,
             delivery_date,
             operator,
-          ]
+          ].map(this._toDbValue)
         );
 
         // ✅ 使用 InventoryService 更新库存
@@ -158,6 +201,7 @@ class ProductSalesTraceabilityService {
             remark: `销售出库给客户: ${customer.name}`,
             batchNumber: batch.batch_number,
             transactionDate: delivery_date,
+            idempotencyKey: `sales_outbound:${outbound_no}:${product_id}:${batch.batch_number}:${batch.location_id}`,
           },
           connection
         );
@@ -170,10 +214,33 @@ class ProductSalesTraceabilityService {
 
   /**
    * 使用FIFO原则分配成品批次 (单表架构版本)
+   * 先按库位加库存锁，再读可用批次，避免并发销售超卖
    */
   static async allocateProductBatchesFIFO(connection, productId, requiredQuantity) {
     try {
-      // ✅ 从 v_batch_stock 视图获取FIFO批次
+      const InventoryService = require('../InventoryService');
+
+      // 先找出有库存的库位并加锁（与 InventoryService.updateStock 同一把锁）
+      const [locationRows] = await connection.execute(
+        `SELECT location_id
+         FROM inventory_ledger
+         WHERE material_id = ? AND location_id IS NOT NULL
+         GROUP BY location_id
+         HAVING COALESCE(SUM(quantity), 0) > 0`,
+        [productId]
+      );
+
+      for (const row of locationRows) {
+        await InventoryService.getCurrentStock(
+          productId,
+          row.location_id,
+          connection,
+          true,
+          false
+        );
+      }
+
+      // 锁后再读 FIFO 批次视图，保证并发下不会重复分配
       const [availableBatches] = await connection.execute(
         `
         SELECT
@@ -184,24 +251,27 @@ class ProductSalesTraceabilityService {
         FROM v_batch_stock
         WHERE material_id = ?
           AND current_quantity > 0
-        ORDER BY receipt_date ASC
+        ORDER BY receipt_date ASC, batch_number ASC
           `,
         [productId]
       );
 
       const allocatedBatches = [];
-      let remainingQuantity = requiredQuantity;
+      let remainingQuantity = parseFloat(requiredQuantity) || 0;
 
       for (const batch of availableBatches) {
         if (remainingQuantity <= 0) break;
 
-        const allocatedQuantity = Math.min(batch.available_quantity, remainingQuantity);
+        const available = parseFloat(batch.available_quantity) || 0;
+        if (available <= 0) continue;
+
+        const allocatedQuantity = Math.min(available, remainingQuantity);
 
         allocatedBatches.push({
           batch_number: batch.batch_number,
           location_id: batch.location_id,
           allocated_quantity: allocatedQuantity,
-          before_quantity: batch.available_quantity,
+          before_quantity: available,
         });
 
         remainingQuantity -= allocatedQuantity;

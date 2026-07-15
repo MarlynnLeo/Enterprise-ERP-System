@@ -4,7 +4,7 @@
       v-loading="loading"
       :data="tableData"
       border
-      style="width: 100%"
+      class="w-full"
       ref="tableRef"
       @selection-change="handleSelectionChange"
     >
@@ -53,7 +53,7 @@
       <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
         <template #default="scope">
           <div class="table-actions">
-          <el-button size="small" @click="handleView(scope.row)">
+          <el-button class="btn-op-view" type="primary" size="small" @click="handleView(scope.row)">
             <el-icon><View /></el-icon> 查看
           </el-button>
           <!-- 历史版本只显示查看按钮 -->

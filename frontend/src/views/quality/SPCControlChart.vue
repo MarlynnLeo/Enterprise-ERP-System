@@ -1,19 +1,20 @@
 <template>
-  <div class="spc-container">
+  <div class="module-page spc-container">
+    <PageHeader title="SPC 控制计划" subtitle="过程能力与控制图分析">
+      <template #actions>
+        <el-button v-permission="'quality:spc:update'" type="primary" size="small" @click="handleAddPlan">
+                <el-icon><Plus /></el-icon>新增
+              </el-button>
+      </template>
+    </PageHeader>
+
     <el-row :gutter="16">
       <!-- 左侧：控制计划列表 -->
       <el-col :span="8">
-        <el-card class="box-card">
-          <template #header>
-            <div class="card-header">
-              <span>SPC 控制计划</span>
-              <el-button v-permission="'quality:spc:update'" type="primary" size="small" @click="handleAddPlan">
-                <el-icon><Plus /></el-icon>新增
-              </el-button>
-            </div>
-          </template>
+        <el-card class="data-card">
 
-          <el-input v-model="planKeyword" placeholder="搜索计划" clearable style="margin-bottom:12px" @keyup.enter="fetchPlans">
+
+          <el-input v-model="planKeyword" placeholder="搜索计划" clearable class="mb-md" @keyup.enter="fetchPlans">
             <template #prefix><el-icon><Search /></el-icon></template>
           </el-input>
 
@@ -37,12 +38,12 @@
 
       <!-- 右侧：控制图 + CPK -->
       <el-col :span="16">
-        <el-card v-if="selectedPlan" class="box-card">
+        <el-card v-if="selectedPlan" class="data-card">
           <template #header>
             <div class="card-header">
               <div>
-                <span style="font-size:16px;font-weight:600">{{ selectedPlan.plan_name }}</span>
-                <span style="margin-left:12px;color:var(--color-text-secondary);font-size:13px">{{ selectedPlan.characteristic }}</span>
+                <span class="text-lg font-weight-600">{{ selectedPlan.plan_name }}</span>
+                <span class="ml-sm text-muted text-md">{{ selectedPlan.characteristic }}</span>
               </div>
               <div>
                 <el-button v-permission="'quality:spc:update'" type="success" size="small" @click="showDataInput = true">
@@ -60,7 +61,7 @@
             <el-row :gutter="16" class="cpk-row" v-if="cpkData">
               <el-col :span="4">
                 <div class="cpk-card">
-                  <div class="cpk-value" :style="{ color: cpkColor(cpkData.cpk) }">{{ cpkData.cpk ?? 'N/A' }}</div>
+                  <div class="cpk-value" :class="cpkClass(cpkData.cpk)">{{ cpkData.cpk ?? 'N/A' }}</div>
                   <div class="cpk-label">CPK</div>
                 </div>
               </el-col>
@@ -90,7 +91,7 @@
               </el-col>
               <el-col :span="4">
                 <div class="cpk-card">
-                  <div class="cpk-value" :style="{ color: cpkColor(cpkData.cpk) }">
+                  <div class="cpk-value" :class="cpkClass(cpkData.cpk)">
                     {{ cpkLevel(cpkData.cpk) }}
                   </div>
                   <div class="cpk-label">能力评级</div>
@@ -144,7 +145,7 @@
           </div>
         </el-card>
 
-        <el-card v-else class="box-card">
+        <el-card v-else class="data-card">
           <el-empty description="请从左侧选择一个控制计划" />
         </el-card>
       </el-col>
@@ -162,24 +163,24 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="规格上限" prop="usl">
-              <el-input-number v-model="planForm.usl" :precision="4" style="width:100%" />
+              <el-input-number v-model="planForm.usl" :precision="4" class="w-full" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="规格下限" prop="lsl">
-              <el-input-number v-model="planForm.lsl" :precision="4" style="width:100%" />
+              <el-input-number v-model="planForm.lsl" :precision="4" class="w-full" />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="目标值">
-              <el-input-number v-model="planForm.target_value" :precision="4" style="width:100%" />
+              <el-input-number v-model="planForm.target_value" :precision="4" class="w-full" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="子组大小">
-              <el-input-number v-model="planForm.subgroup_size" :min="2" :max="10" style="width:100%" />
+              <el-input-number v-model="planForm.subgroup_size" :min="2" :max="10" class="w-full" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -197,10 +198,10 @@
     <el-dialog v-model="showDataInput" title="录入SPC测量数据" width="500px">
       <el-form label-width="100px">
         <el-form-item label="子组号">
-          <el-input-number v-model="dataForm.subgroup_no" :min="1" style="width:100%" />
+          <el-input-number v-model="dataForm.subgroup_no" :min="1" class="w-full" />
         </el-form-item>
         <el-form-item :label="`样本${i+1}`" v-for="(_, i) in dataForm.samples" :key="i">
-          <el-input-number v-model="dataForm.samples[i].measured_value" :precision="4" style="width:100%" placeholder="实测值" />
+          <el-input-number v-model="dataForm.samples[i].measured_value" :precision="4" class="w-full" placeholder="实测值" />
         </el-form-item>
         <el-form-item>
           <el-button v-permission="'quality:spc:update'" type="primary" link @click="addSample">+ 添加样本</el-button>
@@ -244,13 +245,13 @@ const dataForm = reactive({
   samples: Array.from({ length: 5 }, () => ({ measured_value: null }))
 });
 
-const cpkColor = (cpk) => {
-  if (cpk == null) return 'var(--color-text-secondary)';
-  if (cpk >= 1.67) return 'var(--color-success)';
-  if (cpk >= 1.33) return 'var(--color-primary)';
-  if (cpk >= 1.0) return 'var(--color-warning)';
-  return 'var(--color-danger)';
-};
+const cpkClass = (cpk) => {
+  if (cpk == null) return 'text-muted'
+  if (cpk >= 1.67) return 'text-success'
+  if (cpk >= 1.33) return 'text-primary'
+  if (cpk >= 1.0) return 'text-warning'
+  return 'text-danger'
+}
 
 const cpkLevel = (cpk) => {
   if (cpk == null) return '-';

@@ -36,6 +36,14 @@ backend/backups/
 backend/scripts/*
 !backend/scripts/audit-*.js
 !backend/scripts/run-data-consistency-audit.js
+!backend/scripts/repair-inventory-ledger-costs.js
+!backend/scripts/restore-backup.js
+!backend/scripts/test-finance-flow.js
+!backend/scripts/test-production-inventory-flow.js
+!backend/scripts/verify-finance-coding-rules.js
+!backend/scripts/verify-migration-integrity.js
+!backend/scripts/lib/
+!backend/scripts/lib/assert-safe-live-database.js
 backend/assets/*.traineddata
 
 # 二进制文件和开发遗留物
@@ -44,3 +52,6 @@ backend/assets/*.traineddata
 *.tmp
 *.old
 _*.cjs
+
+# Local full-audit transcripts are reproducible CI output, not source artifacts.
+/full-*.txt

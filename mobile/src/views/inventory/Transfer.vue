@@ -185,11 +185,13 @@
   const getStatusText = (s) =>
     ({
       draft: '草稿',
-      pending: '待审批',
-      approved: '已批准',
+      pending: '待审核',
+      approved: '已审核',
       completed: '已完成',
+      reversed: '已冲销',
       cancelled: '已取消',
-      in_progress: '调拨中'
+      in_transit: '运输中',
+      rejected: '已拒绝'
     })[s] || s
   const getStatusAccent = (s) =>
     ({
@@ -197,8 +199,10 @@
       pending: 'status-pending',
       approved: 'status-approved',
       completed: 'status-completed',
+      reversed: 'status-cancelled',
       cancelled: 'status-cancelled',
-      in_progress: 'status-approved'
+      in_transit: 'status-approved',
+      rejected: 'status-cancelled'
     })[s] || 'status-default'
 
   const filteredList = computed(() => {

@@ -1,5 +1,5 @@
 <template>
-  <div class="tax-returns-container">
+  <div class="module-page tax-returns-container">
     <FinanceQueryCard
       :model="searchForm"
       :expanded="showAdvancedSearch"
@@ -51,7 +51,7 @@
         v-loading="loading"
         border
         stripe
-        style="width: 100%"
+        class="w-full"
         :height="tableHeight"
       >
         <el-table-column type="index" label="序号" width="60" />
@@ -96,7 +96,7 @@
         <!-- 通用列 -->
         <el-table-column prop="tax_payable" label="应纳税额" width="120">
           <template #default="{ row }">
-            <span style="color: var(--color-danger); font-weight: bold;">
+            <span class="text-danger font-weight-700">
               {{ formatAmount(row.return_type === '增值税' ? row.tax_payable : row.income_tax_payable) }}
             </span>
           </template>
@@ -116,7 +116,7 @@
 
         <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
-            <el-button type="primary" size="small" @click="handleView(row)" :icon="View">查看</el-button>
+            <el-button class="btn-op-view" type="primary" size="small" @click="handleView(row)" :icon="View">查看</el-button>
 
             <!-- 提交申报按钮：只在草稿状态显示 -->
             <el-button
@@ -139,6 +139,14 @@
               :icon="Money"
             >缴纳税款</el-button>
 
+            <el-button
+              v-if="row.status === '已缴纳'"
+              type="danger"
+              size="small"
+              @click="handleVoidPayment(row)"
+              v-permission="'finance:tax:pay'"
+            >作废缴纳</el-button>
+
             <!-- 删除按钮：只在草稿状态显示 -->
             <el-button
               v-if="row.status === '草稿'"
@@ -160,7 +168,7 @@
         layout="total, sizes, prev, pager, next, jumper"
         @size-change="handleSizeChange"
         @current-change="handlePageChange"
-        style="margin-top: 20px; justify-content: flex-end"
+        class="pagination-bar"
       />
     </el-card>
 
@@ -170,7 +178,7 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="申报类型" prop="return_type">
-              <el-select v-model="createForm.return_type" placeholder="请选择" style="width: 100%" @change="handleTypeChange">
+              <el-select v-model="createForm.return_type" placeholder="请选择" class="w-full" @change="handleTypeChange">
                 <el-option label="增值税" value="增值税" />
                 <el-option label="企业所得税" value="企业所得税" />
               </el-select>
@@ -178,7 +186,7 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="申报期间" prop="return_period">
-              <el-date-picker v-model="createForm.return_period" type="month" placeholder="选择期间" value-format="YYYY-MM" style="width: 100%" />
+              <el-date-picker v-model="createForm.return_period" type="month" placeholder="选择期间" value-format="YYYY-MM" class="w-full" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -189,36 +197,36 @@
           <el-row :gutter="20">
             <el-col :span="12">
               <el-form-item label="销售额">
-                <el-input-number v-model="createForm.sales_amount" :precision="2" :min="0" style="width: 100%" @change="calcVATPayable" />
+                <el-input-number v-model="createForm.sales_amount" :precision="2" :min="0" class="w-full" @change="calcVATPayable" />
               </el-form-item>
             </el-col>
             <el-col :span="12">
               <el-form-item label="销项税额">
-                <el-input-number v-model="createForm.sales_output_tax" :precision="2" :min="0" style="width: 100%" @change="calcVATPayable" />
+                <el-input-number v-model="createForm.sales_output_tax" :precision="2" :min="0" class="w-full" @change="calcVATPayable" />
               </el-form-item>
             </el-col>
           </el-row>
           <el-row :gutter="20">
             <el-col :span="12">
               <el-form-item label="采购额">
-                <el-input-number v-model="createForm.purchase_amount" :precision="2" :min="0" style="width: 100%" />
+                <el-input-number v-model="createForm.purchase_amount" :precision="2" :min="0" class="w-full" />
               </el-form-item>
             </el-col>
             <el-col :span="12">
               <el-form-item label="进项税额">
-                <el-input-number v-model="createForm.purchase_input_tax" :precision="2" :min="0" style="width: 100%" @change="calcVATPayable" />
+                <el-input-number v-model="createForm.purchase_input_tax" :precision="2" :min="0" class="w-full" @change="calcVATPayable" />
               </el-form-item>
             </el-col>
           </el-row>
           <el-row :gutter="20">
             <el-col :span="12">
               <el-form-item label="进项税转出">
-                <el-input-number v-model="createForm.input_tax_deduction" :precision="2" :min="0" style="width: 100%" @change="calcVATPayable" />
+                <el-input-number v-model="createForm.input_tax_deduction" :precision="2" :min="0" class="w-full" @change="calcVATPayable" />
               </el-form-item>
             </el-col>
             <el-col :span="12">
               <el-form-item label="应纳税额">
-                <el-input-number v-model="createForm.tax_payable" :precision="2" style="width: 100%" disabled />
+                <el-input-number v-model="createForm.tax_payable" :precision="2" class="w-full" disabled />
               </el-form-item>
             </el-col>
           </el-row>
@@ -230,36 +238,36 @@
           <el-row :gutter="20">
             <el-col :span="12">
               <el-form-item label="营业收入">
-                <el-input-number v-model="createForm.total_revenue" :precision="2" :min="0" style="width: 100%" @change="calcIncomeTax" />
+                <el-input-number v-model="createForm.total_revenue" :precision="2" :min="0" class="w-full" @change="calcIncomeTax" />
               </el-form-item>
             </el-col>
             <el-col :span="12">
               <el-form-item label="营业成本">
-                <el-input-number v-model="createForm.total_cost" :precision="2" :min="0" style="width: 100%" @change="calcIncomeTax" />
+                <el-input-number v-model="createForm.total_cost" :precision="2" :min="0" class="w-full" @change="calcIncomeTax" />
               </el-form-item>
             </el-col>
           </el-row>
           <el-row :gutter="20">
             <el-col :span="12">
               <el-form-item label="期间费用">
-                <el-input-number v-model="createForm.total_expense" :precision="2" :min="0" style="width: 100%" @change="calcIncomeTax" />
+                <el-input-number v-model="createForm.total_expense" :precision="2" :min="0" class="w-full" @change="calcIncomeTax" />
               </el-form-item>
             </el-col>
             <el-col :span="12">
               <el-form-item label="应纳税所得额">
-                <el-input-number v-model="createForm.taxable_income" :precision="2" style="width: 100%" disabled />
+                <el-input-number v-model="createForm.taxable_income" :precision="2" class="w-full" disabled />
               </el-form-item>
             </el-col>
           </el-row>
           <el-row :gutter="20">
             <el-col :span="12">
               <el-form-item label="税率(%)">
-                <el-input-number v-model="createForm.income_tax_rate" :precision="1" :min="0" :max="100" style="width: 100%" @change="calcIncomeTax" />
+                <el-input-number v-model="createForm.income_tax_rate" :precision="1" :min="0" :max="100" class="w-full" @change="calcIncomeTax" />
               </el-form-item>
             </el-col>
             <el-col :span="12">
               <el-form-item label="应纳所得税额">
-                <el-input-number v-model="createForm.income_tax_payable" :precision="2" style="width: 100%" disabled />
+                <el-input-number v-model="createForm.income_tax_payable" :precision="2" class="w-full" disabled />
               </el-form-item>
             </el-col>
           </el-row>
@@ -288,7 +296,7 @@
           <strong>{{ formatAmount(payAmount) }}</strong>
         </el-form-item>
         <el-form-item v-if="payAmount !== null && payAmount > 0" label="付款账户" required>
-          <el-select v-model="payForm.bank_account_id" placeholder="请选择银行账户" filterable style="width: 100%">
+          <el-select v-model="payForm.bank_account_id" placeholder="请选择银行账户" filterable class="w-full">
             <el-option
               v-for="account in bankAccounts"
               :key="account.id"
@@ -299,7 +307,7 @@
           </el-select>
         </el-form-item>
         <el-form-item label="缴纳日期" required>
-          <el-date-picker v-model="payForm.payment_date" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
+          <el-date-picker v-model="payForm.payment_date" type="date" value-format="YYYY-MM-DD" class="w-full" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -309,7 +317,12 @@
     </el-dialog>
 
     <!-- 查看详情对话框 -->
-    <el-dialog title="纳税申报详情" v-model="viewDialogVisible" width="650px">
+    <AppDialog
+      v-model="viewDialogVisible"
+      title="纳税申报详情"
+      mode="view"
+      content-width="wide"
+    >
       <el-descriptions :column="2" border>
         <el-descriptions-item label="申报期间">{{ viewData.return_period }}</el-descriptions-item>
         <el-descriptions-item label="申报类型">
@@ -331,7 +344,7 @@
           <el-descriptions-item label="进项税额">{{ formatAmount(viewData.purchase_input_tax) }}</el-descriptions-item>
           <el-descriptions-item label="进项税转出">{{ formatAmount(viewData.input_tax_deduction) }}</el-descriptions-item>
           <el-descriptions-item label="应纳税额">
-            <span style="color: var(--color-danger); font-weight: bold;">{{ formatAmount(viewData.tax_payable) }}</span>
+            <span class="text-danger font-weight-700">{{ formatAmount(viewData.tax_payable) }}</span>
           </el-descriptions-item>
         </el-descriptions>
       </template>
@@ -346,7 +359,7 @@
           <el-descriptions-item label="应纳税所得额">{{ formatAmount(viewData.taxable_income) }}</el-descriptions-item>
           <el-descriptions-item label="税率">{{ formatTaxRate(viewData.income_tax_rate) }}</el-descriptions-item>
           <el-descriptions-item label="应纳所得税额">
-            <span style="color: var(--color-danger); font-weight: bold;">{{ formatAmount(viewData.income_tax_payable) }}</span>
+            <span class="text-danger font-weight-700">{{ formatAmount(viewData.income_tax_payable) }}</span>
           </el-descriptions-item>
         </el-descriptions>
       </template>
@@ -362,7 +375,7 @@
       <template #footer>
         <el-button @click="viewDialogVisible = false">关闭</el-button>
       </template>
-    </el-dialog>
+    </AppDialog>
   </div>
 </template>
 
@@ -726,6 +739,29 @@ const confirmPay = async () => {
     }
   } finally {
     payLoading.value = false;
+  }
+};
+
+const handleVoidPayment = async (row) => {
+  try {
+    const { value } = await ElMessageBox.prompt(
+      `确定作废 ${row.return_period} ${row.return_type} 的缴税记录吗？将冲销银行流水与会计凭证。`,
+      '作废税款缴纳',
+      {
+        confirmButtonText: '确认作废',
+        cancelButtonText: '取消',
+        inputPattern: /\S+/,
+        inputErrorMessage: '请填写作废原因',
+        type: 'warning',
+      }
+    );
+    await financeApi.tax.voidReturnPayment(row.id, { void_reason: value });
+    ElMessage.success('税款缴纳已作废');
+    await loadData();
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error(error.message || '作废失败');
+    }
   }
 };
 

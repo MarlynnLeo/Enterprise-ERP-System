@@ -77,6 +77,10 @@ const formatMessage = (level, message, meta = {}) => {
       code: meta.code,
       name: meta.name,
     };
+  } else if (Array.isArray(meta)) {
+    processedMeta = { meta };
+  } else if (meta !== null && meta !== undefined && typeof meta !== 'object') {
+    processedMeta = { meta };
   } else if (meta && typeof meta === 'object') {
     // 深度处理meta中的Error对象
     processedMeta = {};

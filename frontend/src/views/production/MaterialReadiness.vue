@@ -1,18 +1,11 @@
 <template>
   <div class="module-page page-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>物料齐套检查</h2>
-          <p class="subtitle">检查生产任务所需 BOM 物料的库存充足情况</p>
-        </div>
-      </div>
-    </el-card>
+    <PageHeader title="物料齐套检查" subtitle="检查生产任务所需 BOM 物料的库存充足情况" />
 
     <el-card class="data-card">
-      <el-form :inline="true" style="margin-bottom: 16px">
+      <el-form :inline="true" class="mb-md">
         <el-form-item label="生产任务ID">
-          <el-input v-model="taskId" placeholder="输入任务ID" style="width: 200px" @keyup.enter="checkReadiness" />
+          <el-input v-model="taskId" placeholder="输入任务ID" class="form-control-lg" @keyup.enter="checkReadiness" />
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="checkReadiness" :loading="loading">检查齐套</el-button>
@@ -21,14 +14,14 @@
 
       <template v-if="result">
         <el-alert
-          :title="result.ready ? '✅ 物料齐套 — 可以开始生产' : `⚠️ 存在缺料 — ${result.shortageItems} 种物料不足`"
+          :title="result.ready ? '物料齐套 — 可以开始生产' : `存在缺料 — ${result.shortageItems} 种物料不足`"
           :type="result.ready ? 'success' : 'warning'"
           :closable="false"
           show-icon
-          style="margin-bottom: 16px"
+          class="mb-md"
         />
 
-        <el-descriptions :column="3" border size="small" style="margin-bottom: 16px">
+        <el-descriptions :column="3" border size="small" class="mb-md">
           <el-descriptions-item label="任务编号">{{ result.taskCode }}</el-descriptions-item>
           <el-descriptions-item label="计划数量">{{ result.taskQuantity }}</el-descriptions-item>
           <el-descriptions-item label="BOM 物料数">{{ result.totalItems }}</el-descriptions-item>
@@ -47,7 +40,7 @@
           </el-table-column>
           <el-table-column prop="shortage_qty" label="缺料量" width="100" align="right">
             <template #default="{ row }">
-              <span :style="{ color: row.shortage_qty > 0 ? '#F56C6C' : '#67C23A', fontWeight: 600 }">
+              <span class="font-weight-600" :class="row.shortage_qty > 0 ? 'text-danger' : 'text-success'">
                 {{ row.shortage_qty.toFixed(2) }}
               </span>
             </template>

@@ -94,6 +94,9 @@ describe('WorkflowService approval gates', () => {
     const conn = {
       query: jest.fn()
         .mockResolvedValueOnce([[{ id: 7 }]])
+        .mockResolvedValueOnce([[{ allowed: 1 }]])
+        .mockResolvedValueOnce([{ affectedRows: 0 }])
+        .mockResolvedValueOnce([{ affectedRows: 1 }])
         .mockResolvedValueOnce([{ affectedRows: 1 }]),
     };
 
@@ -109,9 +112,31 @@ describe('WorkflowService approval gates', () => {
       [[3]]
     );
     expect(conn.query).toHaveBeenNthCalledWith(
-      2,
-      'UPDATE workflow_instance_nodes SET approver_id = ? WHERE id = ?',
-      [7, 99]
+      4,
+      expect.stringContaining('INSERT INTO workflow_node_approvers'),
+      [99, 7, 1, 'pending']
     );
+    expect(conn.query).toHaveBeenNthCalledWith(
+      5,
+      expect.stringContaining('UPDATE workflow_instance_nodes'),
+      [7, 'department', '[7]', 'any', 0, 99]
+    );
+  });
+
+  test('rejects unimplemented automatic timeout decisions', () => {
+    expect(() => workflowService._validateTemplateData({
+      code: 'WF-TIMEOUT',
+      name: 'Timeout workflow',
+      business_type: 'contract',
+      nodes: [{
+        node_name: 'Approval',
+        node_type: 'approval',
+        sequence: 1,
+        approver_type: 'user',
+        approver_ids: [2],
+        timeout_hours: 1,
+        timeout_action: 'auto_approve',
+      }],
+    })).toThrow('仅支持超时提醒');
   });
 });

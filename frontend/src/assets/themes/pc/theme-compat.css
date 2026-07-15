@@ -787,12 +787,22 @@
   --el-button-active-text-color: var(--color-info-dark);
 }
 
+/* 对话框视觉 token：不写 max-height/width/margin（布局由 dialog-system.css 负责） */
 [data-theme] .el-dialog {
-  background: var(--theme-dialog-bg) !important;
-  border: 1px solid var(--theme-dialog-border) !important;
-  border-radius: var(--theme-dialog-radius) !important;
-  box-shadow: var(--theme-dialog-shadow) !important;
-  color: var(--color-text-primary) !important;
+  background: var(--theme-dialog-bg);
+  border: 1px solid var(--theme-dialog-border);
+  box-shadow: var(--theme-dialog-shadow);
+  color: var(--color-text-primary);
+}
+
+[data-theme] .el-dialog:not(.is-fullscreen) {
+  border-radius: var(--theme-dialog-radius, 12px);
+}
+
+[data-theme] .el-dialog.is-fullscreen {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 [data-theme] .el-dialog .el-dialog__header,

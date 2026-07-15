@@ -16,6 +16,10 @@ const { RATE_LIMIT_CONFIG } = require('../config/security');
 const { getRedisClient } = require('../config/redisClient');
 const { ResponseHandler } = require('../utils/responseHandler');
 
+const ALLOW_MEMORY_FALLBACK =
+  process.env.NODE_ENV !== 'production' ||
+  process.env.RATE_LIMIT_ALLOW_MEMORY_FALLBACK === 'true';
+
 /**
  * 为指定配置创建 RedisStore（每个 limiter 独立实例）
  * @param {import('redis').RedisClientType} redisClient
@@ -48,7 +52,7 @@ function buildLimiter(config, redisClient, storePrefix, extra = {}) {
   // 如果 Redis 可用，创建独立的 RedisStore
   if (redisClient) {
     opts.store = createRedisStore(redisClient, storePrefix);
-    logger.info(`✅ 限流器 [${storePrefix}] 已启用 Redis 分布式存储`);
+    logger.info(`Rate limiter enabled with Redis store: prefix=${storePrefix}`);
   }
 
   return rateLimit(opts);
@@ -65,11 +69,21 @@ async function initLimiters() {
   let redisClient = null;
   try {
     redisClient = await getRedisClient();
-    if (!redisClient) {
-      logger.warn('⚠️ Redis 不可用，限流降级为内存模式');
-    }
   } catch (err) {
-    logger.warn('⚠️ Redis 连接失败，限流降级为内存模式:', err.message);
+    if (!ALLOW_MEMORY_FALLBACK) {
+      logger.error('Redis connection failed; production rate limiting cannot start safely', err);
+      throw new Error(`Production rate limiting requires Redis: ${err.message}`, { cause: err });
+    }
+    logger.warn('Redis connection failed; rate limiting is using in-memory mode:', err.message);
+  }
+
+  if (!redisClient) {
+    if (!ALLOW_MEMORY_FALLBACK) {
+      throw new Error(
+        'Production rate limiting requires Redis. Set RATE_LIMIT_ALLOW_MEMORY_FALLBACK=true only for an explicitly accepted single-instance deployment.'
+      );
+    }
+    logger.warn('Redis is unavailable; rate limiting is using in-memory mode');
   }
 
   // 通用 API 限流器 — 独立 prefix: rl:api:
@@ -120,7 +134,17 @@ const apiLimiter = (req, res, next) => {
     return _apiLimiter(req, res, next);
   }
   // 初始化尚未完成，等待后执行
-  storeReady.then(() => _apiLimiter(req, res, next)).catch(() => next());
+  storeReady
+    .then(() => _apiLimiter(req, res, next))
+    .catch((error) => {
+      logger.error('API rate limiter initialization failed', error);
+      ResponseHandler.error(
+        res,
+        '请求保护服务暂不可用，请稍后重试',
+        'RATE_LIMIT_SERVICE_UNAVAILABLE',
+        503
+      );
+    });
 };
 
 // 登录/认证接口限流
@@ -128,7 +152,17 @@ const authLimiter = (req, res, next) => {
   if (_authLimiter) {
     return _authLimiter(req, res, next);
   }
-  storeReady.then(() => _authLimiter(req, res, next)).catch(() => next());
+  storeReady
+    .then(() => _authLimiter(req, res, next))
+    .catch((error) => {
+      logger.error('Authentication rate limiter initialization failed', error);
+      ResponseHandler.error(
+        res,
+        '登录保护服务暂不可用，请稍后重试',
+        'AUTH_RATE_LIMIT_SERVICE_UNAVAILABLE',
+        503
+      );
+    });
 };
 
 // 导出限流器

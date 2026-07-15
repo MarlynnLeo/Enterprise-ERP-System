@@ -8,15 +8,11 @@
 -->
 <template>
   <div class="module-page base-data-list-page">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>库位管理</h2>
-          <p class="subtitle">管理仓库库位配置</p>
-        </div>
-        <el-button v-if="canCreate" type="primary" :icon="Plus" @click="handleAdd">新增库位</el-button>
-      </div>
-    </el-card>
+    <PageHeader title="库位管理" subtitle="管理仓库库位配置">
+      <template #actions>
+<el-button v-if="canCreate" type="primary" :icon="Plus" @click="handleAdd">新增库位</el-button>
+      </template>
+    </PageHeader>
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
@@ -64,7 +60,7 @@
         v-loading="loading"
         :data="tableData"
         border
-        style="width: 100%"
+        class="w-full"
       >
         <template #empty>
           <el-empty description="暂无库位数据" />
@@ -156,7 +152,7 @@
           <el-input v-model="form.code" placeholder="请输入库位编码"></el-input>
         </el-form-item>
         <el-form-item label="库位类型" prop="type">
-          <el-select v-model="form.type" placeholder="请选择库位类型" style="width: 100%">
+          <el-select v-model="form.type" placeholder="请选择库位类型" class="w-full">
             <el-option
               v-for="item in locationTypes"
               :key="item.value"

@@ -8,13 +8,11 @@
 import { useAuthStore } from '../stores/auth'
 import { watch } from 'vue'
 
-// 隐藏元素 - 优化版，避免影响 Element Plus 组件状态
+// 隐藏元素：不参与点击与读屏；菜单类仍尽量用 visibility 保布局
 function hideElement(el) {
-  // 标记元素为权限不足
   el.setAttribute('data-permission-denied', 'true')
-
-  // 使用 visibility 而不是 display，保持元素在 DOM 中的位置和状态
-  // 这样可以避免影响 Element Plus el-menu 组件的内部状态管理
+  el.setAttribute('aria-hidden', 'true')
+  el.setAttribute('tabindex', '-1')
   el.style.visibility = 'hidden'
   el.style.position = 'absolute'
   el.style.pointerEvents = 'none'
@@ -22,6 +20,11 @@ function hideElement(el) {
   el.style.overflow = 'hidden'
   el.style.margin = '0'
   el.style.padding = '0'
+  // 按钮类：额外禁用，防止 DevTools 改回 visibility 后仍可点
+  if (el.tagName === 'BUTTON' || el.getAttribute('role') === 'button' || el.classList?.contains('el-button')) {
+    el.setAttribute('disabled', 'disabled')
+    el.style.display = 'none'
+  }
 }
 
 // 显示元素 - 优化版
@@ -31,8 +34,10 @@ function showElement(el) {
     el.removeAttribute('data-permission-denied')
     el.removeAttribute('data-permission-pending')
 
-    // 移除隐藏样式
-    el.style.display = ''  // 移除 display 样式
+    el.removeAttribute('aria-hidden')
+    el.removeAttribute('tabindex')
+    el.removeAttribute('disabled')
+    el.style.display = ''
     el.style.visibility = ''
     el.style.position = ''
     el.style.pointerEvents = ''
@@ -49,15 +54,18 @@ function showElement(el) {
  * 仅额外保留侧边栏父级菜单可见性的向上兼容判断
  */
 function checkPermission(authStore, permission) {
-  // 1. 核心权限判断统一委托给 authStore（支持 *通配符、精确匹配、前缀通配符）
+  if (Array.isArray(permission)) {
+    return permission.some((p) => checkPermission(authStore, p))
+  }
+
+  // 1. 精确 / 通配符
   if (authStore.hasPermission(permission)) {
     return true
   }
 
-  // 2. 侧边栏顶级菜单特殊逻辑：如果检查的是父级菜单（如 'sales'），
-  //    只要用户拥有该模块下的任何子权限，就允许看到该父级菜单入口
-  //    具体按钮/动作权限必须精确命中，避免 parent -> child 的误放大。
-  return !String(permission).includes(':') && authStore.hasChildPermission(permission)
+  // 2. 与路由守卫对齐：父级或中间码（如 system:users）拥有任意子权限即可
+  //    hasChildPermission 匹配 `${permission}:*`，不会把 create 放大成 view
+  return authStore.hasChildPermission(permission)
 }
 
 export const permission = {

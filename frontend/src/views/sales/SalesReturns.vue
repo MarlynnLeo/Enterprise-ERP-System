@@ -9,15 +9,11 @@
 <template>
   <div class="module-page outbound-container">
     <!-- 页面标题 -->
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>销售退货管理</h2>
-          <p class="subtitle">管理销售退货与处理</p>
-        </div>
-        <el-button type="primary" :icon="Plus" @click="openCreateDialog" v-permission="'sales:returns:create'">增加退货单</el-button>
-      </div>
-    </el-card>
+    <PageHeader title="销售退货管理" subtitle="管理销售退货与处理">
+      <template #actions>
+<el-button type="primary" :icon="Plus" @click="openCreateDialog" v-permission="'sales:returns:create'">增加退货单</el-button>
+      </template>
+    </PageHeader>
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
@@ -36,7 +32,7 @@
       </template>
       <template #advanced>
         <el-form-item label="退货状态">
-          <el-select v-model="statusFilter" placeholder="退货状态" clearable @change="handleSearch" style="width: 100%">
+          <el-select v-model="statusFilter" placeholder="退货状态" clearable @change="handleSearch" class="w-full">
             <el-option
               v-for="item in returnStatuses"
               :key="item.value"
@@ -88,7 +84,7 @@
       <el-table
         :data="returnRecords"
         border
-        style="width: 100%"
+        class="w-full"
         v-loading="loading"
         table-layout="fixed"
       >
@@ -104,7 +100,7 @@
               </el-descriptions>
 
               <div class="products-title">退货物品</div>
-              <el-table :data="props.row.items || []" border style="width: 100%" table-layout="fixed">
+              <el-table :data="props.row.items || []" border class="w-full" table-layout="fixed">
                 <el-table-column prop="productCode" label="产品编码" width="120" />
                 <el-table-column prop="productName" label="产品名称" />
                 <el-table-column prop="specification" label="规格" />
@@ -136,7 +132,7 @@
         </el-table-column>
         <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
-            <el-button
+            <el-button class="btn-op-view" type="primary"
               size="small"
               @click="handleView(scope.row)"
             >
@@ -194,7 +190,12 @@
     </el-card>
 
     <!-- 退货单详情对话框 -->
-    <el-dialog v-model="detailsVisible" title="退货单详情" width="900px">
+    <AppDialog
+      v-model="detailsVisible"
+      title="退货单详情"
+      mode="view"
+      content-width="wide"
+    >
       <div v-if="currentReturn" v-loading="!currentReturn">
         <el-descriptions :column="2" border>
           <el-descriptions-item label="退货单号">{{ currentReturn.return_no || currentReturn.returnNo || currentReturn.id }}</el-descriptions-item>
@@ -210,7 +211,7 @@
         </el-descriptions>
 
         <h3 class="mt-4">退货明细</h3>
-        <el-table :data="currentReturn.items || []" style="width: 100%" border>
+        <el-table :data="currentReturn.items || []" class="w-full" border>
           <el-table-column type="index" width="50" label="#" />
           <el-table-column prop="material_code" label="物料编码" width="120" />
           <el-table-column prop="material_name" label="物料名称" min-width="160" />
@@ -226,7 +227,7 @@
           <el-button type="primary" @click="handlePrintReturn" :loading="printLoading">打印</el-button>
         </span>
       </template>
-    </el-dialog>
+    </AppDialog>
     <!-- 新增退货单对话框 -->
     <el-dialog v-model="createDialog.visible" title="新增退货单" width="900px">
       <el-form :model="createForm" ref="createFormRef" label-width="100px">
@@ -248,7 +249,7 @@
         </el-form-item>
 
         <el-divider content-position="left">退货明细</el-divider>
-        <el-table :data="createForm.items" border style="width:100%">
+        <el-table :data="createForm.items" border class="w-full">
           <el-table-column type="index" width="50" label="#" />
           <el-table-column prop="material_code" label="产品编码" width="120" />
           <el-table-column prop="material_name" label="产品名称" min-width="140" />
@@ -802,12 +803,6 @@ const handlePrintReturn = async () => {
 
 .return-detail {
   padding: 16px;
-}
-
-/* 对话框高度 - 页面特定，其他样式使用全局主题 */
-:deep(.el-dialog__body) {
-  max-height: 60vh;
-  overflow-y: auto;
 }
 
 /* 详情对话框长文本处理 - 自动添加 */

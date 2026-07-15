@@ -1,25 +1,19 @@
 ﻿<template>
   <div class="module-page expense-categories-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>费用类别</h2>
-          <p class="subtitle">维护费用分类、子类型和启停状态</p>
-        </div>
-        <div class="action-buttons">
-          <el-button v-permission="'finance:expenses:create'" type="primary" @click="handleAdd(null)">
+    <PageHeader title="费用类别" subtitle="维护费用分类、子类型和启停状态">
+      <template #actions>
+<el-button v-permission="'finance:expenses:create'" type="primary" @click="handleAdd(null)">
             <el-icon><Plus /></el-icon>
             新增一级类型
           </el-button>
-        </div>
-      </div>
-    </el-card>
+      </template>
+    </PageHeader>
 
     <el-card class="data-card">
       <el-table
         v-loading="loading"
         :data="categoryList"
-        style="width: 100%"
+        class="w-full"
         row-key="id"
         :tree-props="{ children: 'children', hasChildren: 'hasChildren' }"
         border
@@ -98,7 +92,7 @@
           <el-input v-model="categoryForm.name" placeholder="请输入类型名称" />
         </el-form-item>
         <el-form-item label="上级类型">
-          <el-select v-model="categoryForm.parent_id" placeholder="无（一级类型）" clearable style="width: 100%">
+          <el-select v-model="categoryForm.parent_id" placeholder="无（一级类型）" clearable class="w-full">
             <el-option
               v-for="cat in parentCategories"
               :key="cat.id"

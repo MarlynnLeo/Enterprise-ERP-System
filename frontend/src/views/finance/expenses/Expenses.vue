@@ -9,22 +9,16 @@
 <template>
   <div class="module-page expenses-container">
     <!-- 页面标题 -->
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>费用台账</h2>
-          <p class="subtitle">管理日常费用录入与审批</p>
-        </div>
-        <div class="action-buttons">
-          <el-button v-permission="'finance:expenses:update'" @click="handleSyncDingtalk" :loading="syncing">
+    <PageHeader title="费用台账" subtitle="管理日常费用录入与审批">
+      <template #actions>
+<el-button v-permission="'finance:expenses:update'" @click="handleSyncDingtalk" :loading="syncing">
             <el-icon><Refresh /></el-icon> 同步钉钉审批
           </el-button>
           <el-button v-permission="'finance:expenses:create'" type="primary" @click="handleAdd">
             <el-icon><Plus /></el-icon> 新增费用
           </el-button>
-        </div>
-      </div>
-    </el-card>
+      </template>
+    </PageHeader>
 
     <!-- 统计卡片 -->
     <div class="stats-row">
@@ -116,7 +110,7 @@
 
     <!-- 数据表格 -->
     <el-card class="data-card">
-      <el-table :data="expenseList" style="width: 100%" border v-loading="loading">
+      <el-table :data="expenseList" class="w-full" border v-loading="loading">
         <template #empty>
           <el-empty description="暂无费用数据" />
         </template>
@@ -146,7 +140,7 @@
         <el-table-column prop="created_by_name" label="创建人" width="100" />
         <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
-            <el-button type="primary" size="small" link @click="handleView(row)">查看</el-button>
+            <el-button class="btn-op-view" type="primary" size="small" @click="handleView(row)">查看</el-button>
             <el-button
               v-if="['draft', 'rejected'].includes(row.status)"
               type="warning" size="small" link
@@ -171,6 +165,12 @@
               @click="handlePay(row)"
               v-permission="'finance:expenses:pay'"
             >付款</el-button>
+            <el-button
+              v-if="row.status === 'paid'"
+              type="danger" size="small" link
+              @click="handleVoidPayment(row)"
+              v-permission="'finance:expenses:pay'"
+            >作废付款</el-button>
             <el-button
               v-if="['draft', 'pending', 'approved', 'rejected'].includes(row.status)"
               type="info" size="small" link
@@ -201,10 +201,12 @@
     </el-card>
 
     <!-- 新增/编辑对话框 -->
-    <el-dialog
-      :title="dialogMode === 'add' ? '新增费用' : dialogMode === 'edit' ? '编辑费用' : '费用详情'"
+    <AppDialog
       v-model="dialogVisible"
-      width="700px"
+      :title="dialogMode === 'add' ? '新增费用' : dialogMode === 'edit' ? '编辑费用' : '费用详情'"
+      :mode="dialogMode === 'view' ? 'view' : 'form'"
+      width="800px"
+      content-width="wide"
       :close-on-click-modal="false"
     >
       <el-form
@@ -227,7 +229,7 @@
                 :options="categoryTree"
                 :props="{ value: 'id', label: 'name', emitPath: false }"
                 placeholder="选择费用类型"
-                style="width: 100%"
+                class="w-full"
               />
             </el-form-item>
           </el-col>
@@ -244,7 +246,7 @@
                 :min="0.01"
                 :controls="false"
                 placeholder="请输入金额"
-                style="width: 100%"
+                class="w-full"
               />
             </el-form-item>
           </el-col>
@@ -255,7 +257,7 @@
                 type="date"
                 placeholder="选择日期"
                 value-format="YYYY-MM-DD"
-                style="width: 100%"
+                class="w-full"
               />
             </el-form-item>
           </el-col>
@@ -311,7 +313,7 @@
         <el-button v-permission="expenseForm.id ? 'finance:expenses:update' : 'finance:expenses:create'" type="primary" @click="handleSave" :loading="saving">保存</el-button>
         <el-button v-permission="expenseForm.id ? 'finance:expenses:update' : 'finance:expenses:create'" type="success" @click="handleSaveAndSubmit" :loading="saving">保存并提交</el-button>
       </template>
-    </el-dialog>
+    </AppDialog>
 
     <!-- 审批对话框 -->
     <el-dialog title="费用审批" v-model="approveDialogVisible" width="500px">
@@ -346,7 +348,7 @@
           <el-input :value="formatMoney(currentExpense?.amount)" disabled />
         </el-form-item>
         <el-form-item label="付款账户" prop="bank_account_id">
-          <el-select v-model="payForm.bank_account_id" placeholder="选择付款账户" style="width: 100%">
+          <el-select v-model="payForm.bank_account_id" placeholder="选择付款账户" class="w-full">
             <el-option
               v-for="account in bankAccounts"
               :key="account.id"
@@ -361,7 +363,7 @@
             type="date"
             value-format="YYYY-MM-DD"
             placeholder="选择付款日期"
-            style="width: 100%"
+            class="w-full"
           />
         </el-form-item>
       </el-form>
@@ -760,6 +762,11 @@ const handlePay = (row) => {
 const handlePayAction = async () => {
   try {
     await payFormRef.value.validate()
+    await ElMessageBox.confirm(
+      `确认支付费用「${currentExpense.value.title || currentExpense.value.expense_number}」吗？`,
+      '确认付款',
+      { type: 'warning', confirmButtonText: '确认付款', cancelButtonText: '取消' }
+    )
     paying.value = true
 
     await financeApi.payExpense(currentExpense.value.id, {
@@ -776,6 +783,27 @@ const handlePayAction = async () => {
     }
   } finally {
     paying.value = false
+  }
+}
+
+// 作废已付款
+const handleVoidPayment = async (row) => {
+  try {
+    const { value } = await ElMessageBox.prompt('请填写作废原因', '作废费用付款', {
+      confirmButtonText: '确认作废',
+      cancelButtonText: '取消',
+      inputPattern: /\S+/,
+      inputErrorMessage: '作废原因不能为空',
+      type: 'warning',
+    })
+    await financeApi.voidExpensePayment(row.id, { void_reason: value })
+    ElMessage.success('费用付款已作废')
+    fetchExpenses()
+    fetchStats()
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error('作废失败: ' + (error.message || '未知错误'))
+    }
   }
 }
 

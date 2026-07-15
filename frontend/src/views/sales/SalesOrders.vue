@@ -9,15 +9,11 @@
 <template>
   <div class="module-page outbound-container">
     <!-- 页面标题 -->
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>{{ $t('page.sales.orders.title') }}</h2>
-          <p class="subtitle">管理销售订单与跟踪</p>
-        </div>
-        <el-button type="primary" :icon="Plus" v-permission="'sales:orders:create'" @click="handleAdd">{{ $t('page.sales.orders.add') }}</el-button>
-      </div>
-    </el-card>
+    <PageHeader :title="$t('page.sales.orders.title')" subtitle="管理销售订单与跟踪">
+      <template #actions>
+<el-button type="primary" :icon="Plus" v-permission="'sales:orders:create'" @click="handleAdd">{{ $t('page.sales.orders.add') }}</el-button>
+      </template>
+    </PageHeader>
     <!-- 搜索区域 -->
     <FinanceQueryCard
       :loading="loading"
@@ -37,7 +33,7 @@
       </template>
       <template #advanced>
         <el-form-item :label="$t('page.sales.orders.status')">
-          <el-select v-model="statusFilter" :placeholder="$t('page.sales.orders.status')" clearable @change="() => handleSearch(true)" style="width: 110px !important">
+          <el-select v-model="statusFilter" :placeholder="$t('page.sales.orders.status')" clearable @change="() => handleSearch(true)" class="form-control-xs">
             <el-option
               v-for="item in orderStatuses"
               :key="item.value"
@@ -47,7 +43,7 @@
           </el-select>
         </el-form-item>
         <el-form-item label="操作人">
-          <el-select v-model="operatorFilter" placeholder="请选择" clearable @change="handleOperatorChange" style="width: 110px !important">
+          <el-select v-model="operatorFilter" placeholder="请选择" clearable @change="handleOperatorChange" class="form-control-xs">
             <el-option
               v-for="item in operators"
               :key="item.id"
@@ -69,7 +65,7 @@
         </el-form-item>
       </template>
       <template #actions>
-          <el-dropdown style="margin-left: 12px;">
+          <el-dropdown class="ml-sm">
             <el-button type="primary">
               更多操作<el-icon class="el-icon--right"><ArrowDown /></el-icon>
             </el-button>
@@ -110,7 +106,7 @@
       <el-table
         :data="tableData"
         border
-        style="width: 100%"
+        class="w-full"
         v-loading="loading"
       >
         <template #empty>
@@ -128,22 +124,22 @@
               </el-descriptions>
 
               <el-divider>订单物料</el-divider>
-              <el-table :data="props.row.items" border style="width: 100%" table-layout="fixed">
+              <el-table :data="props.row.items" border class="w-full" table-layout="fixed">
                 <el-table-column prop="material_code" label="物料编码" width="120" show-overflow-tooltip>
                   <template #default="{ row }">
                     <span v-if="row.material_code || row.code">
                       {{ row.material_code || row.code }}
                     </span>
-                    <span v-else-if="row.product_code || row.product_specs" style="color: var(--color-warning);">
+                    <span v-else-if="row.product_code || row.product_specs" class="text-warning">
                       {{ row.product_code || row.product_specs }}
                       <el-tooltip content="该产品暂未匹配到物料，请在系统中补充" placement="top">
-                        <el-icon style="margin-left: 4px;"><WarningFilled /></el-icon>
+                        <el-icon class="ml-sm"><WarningFilled /></el-icon>
                       </el-tooltip>
                     </span>
-                    <span v-else style="color: var(--color-danger);">
+                    <span v-else class="text-danger">
                       待补充
                       <el-tooltip content="该产品暂无编码，请补充物料信息" placement="top">
-                        <el-icon style="margin-left: 4px;"><WarningFilled /></el-icon>
+                        <el-icon class="ml-sm"><WarningFilled /></el-icon>
                       </el-tooltip>
                     </span>
                   </template>
@@ -153,14 +149,14 @@
                     <span v-if="row.material_name || row.name">
                       {{ row.material_name || row.name }}
                     </span>
-                    <span v-else style="color: var(--color-text-disabled);">-</span>
+                    <span v-else class="text-disabled">-</span>
                   </template>
                 </el-table-column>
                 <el-table-column prop="specification" label="规格" show-overflow-tooltip />
                 <el-table-column prop="quantity" label="数量" width="100" show-overflow-tooltip />
                 <el-table-column prop="stock_quantity" label="库存数量" width="100" show-overflow-tooltip>
                   <template #default="{ row }">
-                    <span :style="{ color: (row.stock_quantity || 0) >= (row.quantity || 0) ? 'var(--color-success)' : 'var(--color-danger)' }">
+                    <span :class="(row.stock_quantity || 0) >= (row.quantity || 0) ? 'text-stock-ok' : 'text-stock-low'">
                       {{ (typeof row.stock_quantity === 'number' ? row.stock_quantity : parseFloat(row.stock_quantity) || 0).toFixed(2) }}
                     </span>
                   </template>
@@ -236,9 +232,10 @@
         </el-table-column>
         <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
-            <el-button
+            <el-button class="btn-op-view" type="primary"
               size="small"
               v-permission="'sales:orders:view'"
+              :disabled="actionLoadingId === row.id"
               @click="handleView(row)"
             >
               查看
@@ -249,6 +246,7 @@
               v-permission="'sales:orders:update'"
               @click="handleEdit(row)"
               v-if="row.status === 'draft' || row.status === 'pending'"
+              :disabled="actionLoadingId === row.id"
             >
               编辑
             </el-button>
@@ -258,10 +256,17 @@
               v-if="canConfirm(row)"
             >
               <template #reference>
-                <el-button size="small" type="primary" v-permission="'sales:orders:update'">确认</el-button>
+                <el-button size="small" type="primary" v-permission="'sales:orders:update'" :loading="actionLoadingId === row.id">确认</el-button>
               </template>
             </el-popconfirm>
-            <el-button size="small" type="success" v-permission="'sales:orders:update'" @click="handleShip(row)" v-if="canShip(row)">发货</el-button>
+            <el-button
+              size="small"
+              type="success"
+              v-permission="'sales:orders:update'"
+              @click="handleShip(row)"
+              v-if="canShip(row)"
+              :loading="actionLoadingId === row.id"
+            >发货</el-button>
             <el-popconfirm
               title="确定要锁定该订单吗？锁定后无法修改。"
               @confirm="handleLock(row)"
@@ -269,7 +274,7 @@
               v-if="canLock(row)"
             >
               <template #reference>
-                <el-button size="small" type="warning" v-permission="'sales:orders:update'">锁定</el-button>
+                <el-button size="small" type="warning" v-permission="'sales:orders:update'" :loading="actionLoadingId === row.id">锁定</el-button>
               </template>
             </el-popconfirm>
             <el-popconfirm
@@ -278,7 +283,7 @@
               v-if="canUnlock(row)"
             >
               <template #reference>
-                <el-button size="small" type="info" v-permission="'sales:orders:update'">解锁</el-button>
+                <el-button size="small" type="info" v-permission="'sales:orders:update'" :loading="actionLoadingId === row.id">解锁</el-button>
               </template>
             </el-popconfirm>
             <el-popconfirm
@@ -288,7 +293,7 @@
               v-if="canCancel(row)"
             >
               <template #reference>
-                <el-button size="small" type="danger" v-permission="'sales:orders:update'">取消</el-button>
+                <el-button size="small" type="danger" v-permission="'sales:orders:update'" :loading="actionLoadingId === row.id">取消</el-button>
               </template>
             </el-popconfirm>
           </template>
@@ -312,14 +317,15 @@
         </el-pagination>
       </div>
     </el-card>
-    <!-- 新增/编辑订单对话框 -->
-    <el-dialog
+    <!-- 新增/编辑订单对话框（宽表单，统一走 AppDialog） -->
+    <AppDialog
       v-model="dialogVisible"
+      mode="form"
+      wide
       :title="dialogType === 'add' ? '新增订单' : '编辑订单'"
-      width="58%"
-      destroy-on-close
+      :loading="dialogLoading"
+      :close-on-click-modal="false"
     >
-      <div v-loading="dialogLoading">
       <el-form :model="form" :rules="rules" ref="formRef" label-width="100px" @keydown="salesFormKeydown">
         <el-row :gutter="20">
           <el-col :span="8">
@@ -329,11 +335,14 @@
                 placeholder="请选择客户（支持客户编码/名称搜索）"
                 filterable
                 remote
+                reserve-keyword
+                clearable
                 :remote-method="searchCustomers"
                 :loading="customerSearchLoading"
+                @visible-change="(open) => { if (open && !filteredCustomers.length) searchCustomers('') }"
                 @change="handleCustomerChange"
                 @keyup.enter="handleCustomerEnterKey"
-                style="width: 100%"
+                class="w-full"
               >
                 <el-option
                   v-for="item in filteredCustomers"
@@ -341,8 +350,8 @@
                   :label="`${item.code} - ${item.name}`"
                   :value="item.id"
                 >
-                  <span style="float: left">{{ item.code }} - {{ item.name }}</span>
-                  <span style="float: right; color: var(--color-text-muted); font-size: 13px">{{ item.contact_person || '无联系人' }}</span>
+                  <span class="option-code">{{ item.code }} - {{ item.name }}</span>
+                  <span class="option-name">{{ item.contact_person || '无联系人' }}</span>
                 </el-option>
               </el-select>
             </el-form-item>
@@ -353,7 +362,7 @@
                 ref="contractCodeInput"
                 v-model="form.contract_code"
                 placeholder="请输入合同编码"
-                style="width: 100%"
+                class="w-full"
               />
             </el-form-item>
           </el-col>
@@ -365,7 +374,7 @@
                 placeholder="选择交付日期"
                 format="YYYY-MM-DD"
                 value-format="YYYY-MM-DD"
-                style="width: 100%"
+                class="w-full"
               />
             </el-form-item>
           </el-col>
@@ -394,7 +403,7 @@
             <el-table
               :data="form.items"
               border
-              style="width: 100%"
+              class="w-full"
               table-layout="fixed"
               :header-cell-style="{ background: 'var(--color-bg-hover)', color: 'var(--color-text-regular)' }"
               empty-text="请添加订单物料"
@@ -410,16 +419,16 @@
                     @select="(item) => handleMaterialSelect(item, $index)"
                     @keydown.enter.prevent="handleMaterialEnter($index)"
                     @clear="handleMaterialClear($index)"
-                    style="width: 100%"
+                    class="w-full"
                     :trigger-on-focus="false"
                     :debounce="300"
                     :class="{ 'is-required-field': !row.material_id }"
                   >
                     <template #default="{ item }">
-                      <div style="display: flex; align-items: center; gap: 12px; padding: 4px 0;">
-                        <span style="font-weight: 500; font-size: 13px; min-width: 100px;">{{ item.code }}</span>
-                        <span style="color: var(--color-text-regular); font-size: 13px; flex: 1;">{{ item.name }}</span>
-                        <span v-if="item.specs" style="color: var(--color-text-secondary); font-size: 12px;">{{ item.specs }}</span>
+                      <div class="option-row gap-12">
+                        <span class="option-row__code">{{ item.code }}</span>
+                        <span class="option-row__name">{{ item.name }}</span>
+                        <span v-if="item.specs" class="text-muted text-sm">{{ item.specs }}</span>
                       </div>
                     </template>
                   </el-autocomplete>
@@ -467,7 +476,7 @@
                     placeholder="税率"
                     size="small"
                     @change="calculateItemAmount($index)"
-                    style="width: 100%"
+                    class="w-full"
                   >
                     <el-option
                       v-for="rate in vatRateOptions"
@@ -506,7 +515,7 @@
                 </template>
               </el-table-column>
             </el-table>
-            <div class="add-material" style="margin-top: 10px;">
+            <div class="add-material mt-10">
               <el-button type="primary" @click="addMaterial">
                 <el-icon><Plus /></el-icon>添加物料
               </el-button>
@@ -514,37 +523,36 @@
           </div>
         </el-form-item>
         <!-- 订单汇总 -->
-        <div class="order-summary" style="margin-top: 15px; padding: 12px; background: var(--color-bg-hover); border-radius: 4px;">
+        <div class="order-summary summary-box">
           <el-row :gutter="20">
-            <el-col :span="8" style="text-align: right;">
-              <span style="color: var(--color-text-regular);">小计: {{ formatCurrency(form.subtotal) }}</span>
+            <el-col :span="8" class="text-right">
+              <span class="text-regular">小计: {{ formatCurrency(form.subtotal) }}</span>
             </el-col>
-            <el-col :span="8" style="text-align: right;">
-              <span style="color: var(--color-warning);">税额: {{ formatCurrency(form.tax_amount) }}</span>
+            <el-col :span="8" class="text-right">
+              <span class="text-warning">税额: {{ formatCurrency(form.tax_amount) }}</span>
             </el-col>
-            <el-col :span="8" style="text-align: right;">
-              <span style="font-weight: bold; color: var(--color-primary); font-size: 16px;">合计: {{ formatCurrency(form.total_amount) }}</span>
+            <el-col :span="8" class="text-right">
+              <span class="text-primary font-weight-700">合计: {{ formatCurrency(form.total_amount) }}</span>
             </el-col>
           </el-row>
         </div>
-        <el-form-item label="备注" style="margin-top: 15px;">
+        <el-form-item label="备注" class="mt-15">
           <el-input type="textarea" v-model="form.remark" />
         </el-form-item>
       </el-form>
-      </div>
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="dialogVisible = false">取消</el-button>
           <el-button v-permission="dialogType === 'add' ? 'sales:orders:create' : 'sales:orders:update'" type="primary" @click="handleSubmit" :loading="dialogLoading">保存</el-button>
         </span>
       </template>
-    </el-dialog>
+    </AppDialog>
     <!-- 订单详情对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="detailsVisible"
       title="订单详情"
-      width="55%"
-      destroy-on-close
+      mode="view"
+      content-width="wide"
     >
       <div v-loading="detailsLoading">
         <template v-if="currentOrder">
@@ -557,7 +565,7 @@
             <el-descriptions-item label="合同编码">{{ currentOrder.contract_code || '-' }}</el-descriptions-item>
             <el-descriptions-item label="交付日期">{{ formatDate(currentOrder.deliveryDate) }}</el-descriptions-item>
             <el-descriptions-item label="订单金额">
-              <span style="font-weight: bold; color: var(--color-primary);">{{ formatCurrency(currentOrder.totalAmount) }}</span>
+              <span class="text-primary font-weight-700">{{ formatCurrency(currentOrder.totalAmount) }}</span>
             </el-descriptions-item>
             <el-descriptions-item label="联系人">{{ currentOrder.contact || '-' }}</el-descriptions-item>
             <el-descriptions-item label="联系电话">{{ currentOrder.phone || '-' }}</el-descriptions-item>
@@ -565,7 +573,7 @@
             <el-descriptions-item label="备注" :span="3">{{ currentOrder.remark || '-' }}</el-descriptions-item>
           </el-descriptions>
           <el-divider content-position="left">订单物料明细</el-divider>
-          <el-table :data="currentOrder.items || []" border style="width: 100%" table-layout="fixed">
+          <el-table :data="currentOrder.items || []" border class="w-full" table-layout="fixed">
             <el-table-column prop="material_code" label="物料编码" width="140" show-overflow-tooltip />
             <el-table-column prop="material_name" label="物料名称" min-width="160" show-overflow-tooltip />
             <el-table-column prop="specification" label="规格" width="120" show-overflow-tooltip />
@@ -594,7 +602,7 @@
         <el-button @click="detailsVisible = false">关闭</el-button>
         <el-button type="primary" @click="handlePrintOrder" :loading="printLoading" v-if="currentOrder">打印</el-button>
       </template>
-    </el-dialog>
+    </AppDialog>
     <!-- 导入对话框 -->
     <el-dialog
       title="导入订单"
@@ -613,7 +621,7 @@
         :limit="1"
         accept=".xlsx, .xls"
         :on-change="handleFileChange"
-        style="margin-top: 15px;"
+        class="mt-15"
       >
         <template #trigger>
           <el-button type="primary">选择文件</el-button>
@@ -759,11 +767,11 @@ const {
 // 键盘导航：Enter 跳转下一字段
 const { onFormKeydown: salesFormKeydown } = useFormKeyboardNav(() => handleSubmit())
 const {
-  detailsVisible, detailsLoading, currentOrder,
+  detailsVisible, detailsLoading, currentOrder, actionLoadingId,
   handleConfirm, handleCancel, handleShip,
   handleLock, handleUnlock, handleView,
   canConfirm, canShip, canCancel, canLock, canUnlock
-} = useOrderActions(fetchData, tableData)
+} = useOrderActions(fetchData, ordersData)
 const {
   importDialogVisible, uploadRef,
   importing, importResult,
@@ -1125,12 +1133,7 @@ onUnmounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* 对话框滚动样式 */
-:deep(.el-dialog__body) {
-  max-height: 70vh;
-  overflow-y: auto;
-  overflow-x: hidden;
-}
+/* 表单弹窗滚动由 dialog-system / AppDialog 统一管理 */
 /* 表格容器宽度控制 */
 .materials-table-container {
   width: 100%;

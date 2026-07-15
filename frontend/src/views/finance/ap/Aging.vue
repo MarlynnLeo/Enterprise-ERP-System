@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * Aging.vue
  * @description 账龄分析页面（与AR应收账龄统一布局和逻辑）
@@ -8,19 +8,13 @@
 -->
 <template>
   <div class="module-page aging-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>账龄分析</h2>
-          <p class="subtitle">分析供应商账款账龄</p>
-        </div>
-        <div class="header-actions">
-          <el-button type="primary" @click="generateReport" v-permission="'finance:reports:view'">生成报表</el-button>
+    <PageHeader title="账龄分析" subtitle="分析供应商账款账龄">
+      <template #actions>
+<el-button type="primary" @click="generateReport" v-permission="'finance:reports:view'">生成报表</el-button>
           <el-button v-permission="'finance:reports:view'" @click="exportExcel" :disabled="!hasData">导出Excel</el-button>
           <el-button v-permission="'finance:reports:view'" @click="printReport" :disabled="!hasData">打印报表</el-button>
-        </div>
-      </div>
-    </el-card>
+      </template>
+    </PageHeader>
 
     <!-- 搜索条件区域 -->
     <FinanceQueryCard
@@ -70,7 +64,7 @@
       <div class="report-body" v-if="hasData">
         <el-table
           :data="safeReportData"
-          style="width: 100%"
+          class="w-full"
           :summary-method="getSummaries"
           show-summary
           border
@@ -710,11 +704,7 @@ onUnmounted(() => {
 .empty-tip {
   padding: 40px 0;
 }
-/* 对话框高度 - 页面特定，其他样式使用全局主题 */
-:deep(.el-dialog__body) {
-  max-height: 60vh;
-  overflow-y: auto;
-}
+
 /* 打印样式 */
 @media print {
   .filter-card,

@@ -8,8 +8,36 @@
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 const { getMaterialBatchNumber } = require('./helpers');
+const DataScopeService = require('../../../services/DataScopeService');
 
 const db = require('../../../config/db');
+
+async function getScopedLocationIds(req) {
+  const scope = await DataScopeService.getRequestScope(req);
+  if (Number(scope?.type) !== DataScopeService.DATA_SCOPE.CUSTOM) return null;
+  return (scope.locationIds || []).map(Number).filter((id) => Number.isInteger(id) && id > 0);
+}
+
+function parsePositiveId(value) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function assertRequestedLocationsAllowed(requestedLocationIds, scopedLocationIds) {
+  if (!scopedLocationIds) return true;
+  const allowed = new Set(scopedLocationIds.map(Number));
+  return requestedLocationIds.every((locationId) => allowed.has(Number(locationId)));
+}
+
+function buildScopedLocationSql(alias, scopedLocationIds) {
+  if (!scopedLocationIds) return { sql: '', params: [] };
+  if (scopedLocationIds.length === 0) return { sql: ' AND 1 = 0', params: [] };
+  const column = alias ? `${alias}.location_id` : 'location_id';
+  return {
+    sql: ` AND ${column} IN (${scopedLocationIds.map(() => '?').join(',')})`,
+    params: scopedLocationIds,
+  };
+}
 
 // 统一库存查询子查询（基于 inventory_ledger 单表架构聚合计算当前库存）
 const STOCK_SUBQUERY = `(SELECT material_id, location_id, COALESCE(SUM(quantity), 0) as quantity, MAX(updated_at) as updated_at FROM inventory_stock_balances WHERE batch_number <> '__LOCATION_LOCK__' GROUP BY material_id, location_id)`;
@@ -45,6 +73,12 @@ const getBatchMaterialStock = async (req, res) => {
     }
 
     // 构建批量查询SQL
+    const scopedLocationIds = await getScopedLocationIds(req);
+    const requestedLocationIds = materials.map((item) => parsePositiveId(item.locationId)).filter(Boolean);
+    if (!assertRequestedLocationsAllowed(requestedLocationIds, scopedLocationIds)) {
+      return ResponseHandler.forbidden(res, 'Location is outside current user data scope');
+    }
+
     const materialConditions = materials.map(() => '(m.id = ? AND s.location_id = ?)').join(' OR ');
     const params = [];
     materials.forEach((item) => {
@@ -146,11 +180,28 @@ const getBatchInventory = async (req, res) => {
         .map((id) => Number.parseInt(id, 10))
         .filter((id) => Number.isInteger(id) && id > 0)
       : [];
+    const scopedLocationIds = await getScopedLocationIds(req);
+    if (!assertRequestedLocationsAllowed(locationIdList, scopedLocationIds)) {
+      return ResponseHandler.forbidden(res, 'Location is outside current user data scope');
+    }
+    const effectiveLocationIdList = scopedLocationIds
+      ? (locationIdList.length > 0 ? locationIdList : scopedLocationIds)
+      : locationIdList;
+    if (scopedLocationIds && effectiveLocationIdList.length === 0) {
+      return ResponseHandler.success(
+        res,
+        {
+          data: [],
+          summary: { totalMaterials: materialIdList.length, totalRecords: 0, hasStock: 0, zeroStock: 0 },
+        },
+        '批量库存查询成功'
+      );
+    }
     const materialPlaceholders = materialIdList.map(() => '?').join(',');
-    const locationFilter = locationIdList.length > 0
-      ? `AND location_id IN (${locationIdList.map(() => '?').join(',')})`
+    const locationFilter = effectiveLocationIdList.length > 0
+      ? `AND location_id IN (${effectiveLocationIdList.map(() => '?').join(',')})`
       : '';
-    const inventoryParams = [...materialIdList, ...locationIdList];
+    const inventoryParams = [...materialIdList, ...effectiveLocationIdList];
 
     // 优化的库存查询SQL - 优先使用事务记录聚合，库存表作为补充
     const inventoryQuery = `
@@ -208,7 +259,7 @@ const getBatchInventory = async (req, res) => {
     });
 
     // 如果没有指定库位，查询所有启用的库位（只查一次）
-    let resolvedLocations = locationIdList.length > 0 ? locationIdList : null;
+    let resolvedLocations = effectiveLocationIdList.length > 0 ? effectiveLocationIdList : null;
     if (!resolvedLocations) {
       const [activeLocations] = await connection.execute(
         'SELECT id FROM locations WHERE status = 1 AND deleted_at IS NULL ORDER BY id ASC LIMIT 10'
@@ -282,6 +333,13 @@ const getBatchInventoryDetail = async (req, res) => {
 
     // ✅ 单表架构：从 inventory_ledger 聚合查询批次库存
     // 修复：移除对 location_id 的强制聚合，使得同批次跨库位可以合并展示，并过滤掉数量<=0的无意义批次及错误的无批次负结存
+    const scopedLocationIds = await getScopedLocationIds(req);
+    const requestedLocationId = parsePositiveId(location_id);
+    if (requestedLocationId && !assertRequestedLocationsAllowed([requestedLocationId], scopedLocationIds)) {
+      return ResponseHandler.forbidden(res, 'Location is outside current user data scope');
+    }
+    const scopeLocationFilter = buildScopedLocationSql('', scopedLocationIds);
+
     const query = `
       SELECT
         vbs.material_id,
@@ -313,7 +371,7 @@ const getBatchInventoryDetail = async (req, res) => {
           MAX(supplier_name) as supplier_name,
           MAX(expiry_date) as expiry_date
         FROM inventory_ledger
-        WHERE material_id = ? ${location_id ? 'AND location_id = ?' : ''}
+        WHERE material_id = ? ${location_id ? 'AND location_id = ?' : ''}${scopeLocationFilter.sql}
         GROUP BY material_id, COALESCE(batch_number, '[无批次]')
         HAVING SUM(quantity) > 0
       ) vbs
@@ -325,6 +383,7 @@ const getBatchInventoryDetail = async (req, res) => {
 
     const params = [location_id || null, material_id];
     if (location_id) params.push(location_id);
+    params.push(...scopeLocationFilter.params);
     params.push(location_id || null);
 
     const [rows] = await db.pool.execute(query, params);
@@ -347,6 +406,9 @@ const getBatchTransactionsDetail = async (req, res) => {
     }
 
     // 单表架构：直接查询 inventory_ledger
+    const scopedLocationIds = await getScopedLocationIds(req);
+    const scopeLocationFilter = buildScopedLocationSql('il', scopedLocationIds);
+
     const query = `
       SELECT
         il.id,
@@ -370,10 +432,17 @@ const getBatchTransactionsDetail = async (req, res) => {
       LEFT JOIN locations l ON il.location_id = l.id
       WHERE il.material_id = ?
         AND (il.batch_number = ? OR (il.batch_number IS NULL AND ? = '[无批次]') OR (il.batch_number = '' AND ? = '[无批次]'))
+        ${scopeLocationFilter.sql}
       ORDER BY il.created_at DESC
     `;
 
-    const [rows] = await db.pool.execute(query, [material_id, batch_number, batch_number, batch_number]);
+    const [rows] = await db.pool.execute(query, [
+      material_id,
+      batch_number,
+      batch_number,
+      batch_number,
+      ...scopeLocationFilter.params,
+    ]);
 
     ResponseHandler.success(res, rows, '获取批次流水成功');
   } catch (error) {

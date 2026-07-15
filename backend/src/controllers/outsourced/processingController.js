@@ -271,7 +271,6 @@ const createProcessing = async (req, res) => {
   } catch (error) {
     await connection.rollback();
     logger.error('创建外委加工单失败:', error);
-    logger.error('错误详情:', error.stack);
     ResponseHandler.error(res, '创建外委加工单失败', 'SERVER_ERROR', 500, error);
   } finally {
     connection.release();
@@ -413,7 +412,6 @@ const updateProcessing = async (req, res) => {
   } catch (error) {
     await connection.rollback();
     logger.error('更新外委加工单失败:', error);
-    logger.error('错误详情:', error.stack);
     ResponseHandler.error(res, '更新外委加工单失败', 'SERVER_ERROR', 500, error);
   } finally {
     connection.release();
@@ -563,7 +561,7 @@ const updateProcessingStatus = async (req, res) => {
             },
             connection
           );
-          logger.info(`✅ 外委发料扣减成功: 物料ID=${material.material_id}, 数量=${material.quantity}`);
+          logger.info(`Outsourced issue stock deducted: materialId=${material.material_id}, quantity=${material.quantity}`);
         } catch (stockError) {
           warnings.push(`物料 ${material.material_name} 扣减失败: ${stockError.message}`);
           throw stockError; // 抛出错误以回滚事务，防止发料不成功却更新状态
@@ -626,7 +624,7 @@ const updateProcessingStatus = async (req, res) => {
               },
               connection
             );
-            logger.info(`✅ 外委取消退料成功: 物料ID=${material.material_id}, 数量=${material.quantity}`);
+            logger.info(`Outsourced cancellation stock returned: materialId=${material.material_id}, quantity=${material.quantity}`);
           } catch (returnError) {
             logger.error(`外委取消退料失败: 物料ID=${material.material_id}`, returnError.message);
             throw returnError;
@@ -892,7 +890,6 @@ const createReceipt = async (req, res) => {
   } catch (error) {
     await connection.rollback();
     logger.error('创建外委加工入库单失败:', error);
-    logger.error('错误详情:', error.stack);
 
     // 提供更友好的错误信息
     let errorMessage = '创建外委加工入库单失败';
@@ -1086,7 +1083,7 @@ const updateReceiptStatus = async (req, res) => {
             connection
           );
 
-          logger.info(`✅ 外委入库成功: 物料ID=${material_id}, 数量=${actualQuantity}`);
+          logger.info(`Outsourced receipt stock posted: materialId=${material_id}, quantity=${actualQuantity}`);
         } catch (error) {
           logger.error(`处理物料ID ${item.product_id} 的入库库存时出错:`, error);
           throw error;

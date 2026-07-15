@@ -8,11 +8,11 @@
   <el-dialog v-model="dialogVisible" title="新建首检单" width="600px" destroy-on-close @close="handleClose">
     <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
       <el-form-item label="生产任务" prop="task_id">
-        <el-select v-model="form.task_id" placeholder="选择生产任务" filterable style="width: 100%" @change="handleTaskChange">
+        <el-select v-model="form.task_id" placeholder="选择生产任务" filterable class="w-full" @change="handleTaskChange">
           <el-option v-for="task in taskOptions" :key="task.id" :label="`${task.code} - ${task.product_name}`" :value="task.id">
-            <div style="display: flex; justify-content: space-between;">
+            <div class="flex-between">
               <span>{{ task.code }}</span>
-              <span style="color: var(--color-text-secondary); font-size: 12px;">{{ task.product_name }} ({{ task.quantity }}件)</span>
+              <span class="text-muted text-sm">{{ task.product_name }} ({{ task.quantity }}件)</span>
             </div>
           </el-option>
         </el-select>
@@ -25,7 +25,7 @@
       </el-form-item>
       <el-form-item label="首检数量">
         <el-input-number v-model="form.first_article_qty" :min="1" :max="selectedTask?.quantity || 999" />
-        <span style="margin-left: 10px; color: var(--color-text-secondary);">
+        <span class="ml-sm text-muted">
           <el-tag v-if="isFullInspection" type="warning" size="small">全检</el-tag>
           <el-tag v-else type="primary" size="small">抽检</el-tag>
         </span>
@@ -34,7 +34,7 @@
         <el-input v-model="form.batch_no" placeholder="留空时由后端按生产任务生成" />
       </el-form-item>
       <el-form-item label="计划日期" prop="planned_date">
-        <el-date-picker v-model="form.planned_date" type="date" placeholder="选择日期" style="width: 100%" />
+        <el-date-picker v-model="form.planned_date" type="date" placeholder="选择日期" class="w-full" />
       </el-form-item>
       <el-form-item label="检验员">
         <el-input v-model="form.inspector_name" placeholder="自动获取" disabled />

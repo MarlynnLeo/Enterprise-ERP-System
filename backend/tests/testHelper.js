@@ -7,6 +7,10 @@
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
+if (!/(test|uat)/i.test(String(process.env.DB_NAME || ''))) {
+  throw new Error(`Integration tests require an isolated test/UAT database: ${process.env.DB_NAME || '<empty>'}`);
+}
+
 const request = require('supertest');
 
 // Cache an authenticated cookie agent so tests follow the production auth mode.

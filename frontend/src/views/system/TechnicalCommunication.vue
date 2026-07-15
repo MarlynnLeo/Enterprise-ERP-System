@@ -7,15 +7,11 @@
 -->
 <template>
   <div class="module-page technical-communication-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>即时通讯</h2>
-          <p class="subtitle">发布与查看即时通讯</p>
-        </div>
-        <el-button type="primary" :icon="Plus" @click="handleCreate" v-permission="'system:tech-comm:create'">发布通讯</el-button>
-      </div>
-    </el-card>
+    <PageHeader title="即时通讯" subtitle="发布与查看即时通讯">
+      <template #actions>
+<el-button type="primary" :icon="Plus" @click="handleCreate" v-permission="'system:tech-comm:create'">发布通讯</el-button>
+      </template>
+    </PageHeader>
 
     <!-- 筛选栏 -->
     <FinanceQueryCard
@@ -171,10 +167,12 @@
     </el-card>
 
     <!-- 查看/编辑对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="dialogVisible"
       :title="dialogTitle"
-      width="60%"
+      :mode="dialogType === 'view' ? 'view' : 'form'"
+      width="800px"
+      content-width="wide"
       :close-on-click-modal="false"
       @close="handleDialogClose"
     >
@@ -346,7 +344,7 @@
               :rows="3"
               placeholder="写下你的评论..."
             />
-            <el-button type="primary" @click="handleAddComment" style="margin-top: 10px;">
+            <el-button type="primary" @click="handleAddComment" class="mt-10">
               发表评论
             </el-button>
           </div>
@@ -368,7 +366,7 @@
           {{ dialogType === 'create' ? '发布' : '保存' }}
         </el-button>
       </template>
-    </el-dialog>
+    </AppDialog>
   </div>
 </template>
 

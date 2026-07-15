@@ -240,21 +240,20 @@
   box-shadow: 0 0 0 3px var(--color-primary-light-9);
 }
 
-/* 对话框样式优化 */
-:root[data-theme="default"] .el-dialog {
-  border-radius: var(--radius-lg) !important;
+/* 对话框：仅视觉（布局见 dialog-system.css / AppDialog） */
+:root[data-theme="default"] {
+  --theme-dialog-radius: var(--radius-lg);
+}
+
+:root[data-theme="default"] .el-dialog:not(.is-fullscreen) {
+  border-radius: var(--theme-dialog-radius);
   box-shadow: var(--shadow-xl);
-  overflow: hidden;
-  max-height: 85vh !important;
-  display: flex !important;
-  flex-direction: column !important;
 }
 
 :root[data-theme="default"] .el-dialog__header {
   padding: var(--spacing-md) var(--spacing-lg);
   border-bottom: 1px solid var(--color-border-extra-light);
   background-color: var(--color-bg-light);
-  flex-shrink: 0;
 }
 
 :root[data-theme="default"] .el-dialog__title {
@@ -265,16 +264,12 @@
 
 :root[data-theme="default"] .el-dialog__body {
   padding: var(--spacing-lg);
-  max-height: 65vh;
-  overflow-y: auto;
-  flex: 1;
 }
 
 :root[data-theme="default"] .el-dialog__footer {
   padding: var(--spacing-sm) var(--spacing-lg) var(--spacing-md);
   border-top: 1px solid var(--color-border-extra-light);
   background-color: var(--color-bg-light);
-  flex-shrink: 0;
 }
 
 /* 标签样式优化 */
@@ -432,10 +427,7 @@
     --spacing-xl: 20px;
   }
 
-  :root[data-theme="default"] .el-dialog {
-    width: 90% !important;
-    margin: 5vh auto !important;
-  }
+  /* 小屏表单宽度由 dialog-system.css 统一处理 */
 
   :root[data-theme="default"] .el-message {
     min-width: 280px;

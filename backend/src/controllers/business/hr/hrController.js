@@ -80,53 +80,23 @@ const getEmployeeByUser = async (userId) => {
 
 // ========== W-03: 使用 HrService 白名单映射替代动态表名拼接 ==========
 const tryStartRequestWorkflow = async ({
-  table,
   businessType,
   businessId,
   businessCode,
   title,
   userId,
+  connection,
 }) => {
-  const [[template]] = await pool.query(
-    `SELECT id
-     FROM workflow_templates
-     WHERE business_type = ? AND is_active = 1 AND deleted_at IS NULL
-     ORDER BY version DESC
-     LIMIT 1`,
-    [businessType]
+  const WorkflowService = require('../../../services/business/WorkflowService');
+  const result = await WorkflowService.tryStartWorkflow(
+    businessType,
+    businessId,
+    businessCode,
+    title,
+    userId,
+    connection
   );
-
-  if (!template) {
-    await HrService.updateWorkflowStatus(table, businessId, {
-      workflow_status: 'not_configured',
-      workflow_error: '未配置启用的审批流程，申请已进入待处理',
-    });
-    return { started: false, message: '申请已提交，审批流程尚未配置' };
-  }
-
-  try {
-    const WorkflowService = require('../../../services/business/WorkflowService');
-    const result = await WorkflowService.tryStartWorkflow(
-      businessType,
-      businessId,
-      businessCode,
-      title,
-      userId
-    );
-    await HrService.updateWorkflowStatus(table, businessId, {
-      workflow_instance_id: result.instance_id || null,
-      workflow_status: 'started',
-      workflow_error: null,
-    });
-    return { started: true, ...result };
-  } catch (error) {
-    logger.error('[HR] 审批流程启动失败:', error);
-    await HrService.updateWorkflowStatus(table, businessId, {
-      workflow_status: 'failed',
-      workflow_error: error.message || '审批流程启动失败',
-    });
-    return { started: false, message: error.message || '审批流程启动失败' };
-  }
+  return { started: true, ...result };
 };
 
 // ---------- 员工管理 ---------- //
@@ -274,40 +244,33 @@ const createLeaveRequest = async (req, res) => {
     if (!reason) return ResponseHandler.error(res, '请填写请假事由', 'VALIDATION_ERROR', 400);
 
     const requestNo = buildRequestNo('QJ');
-    const [result] = await pool.query(
-      `INSERT INTO hr_leave_requests
-       (request_no, applicant_user_id, employee_id, leave_type, start_date, end_date, duration, reason, status, created_by, updated_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        requestNo,
-        userId,
-        employee?.id || null,
-        leaveType,
-        startDate,
-        endDate,
-        duration,
-        reason,
-        REQUEST_STATUS.PENDING,
-        userId,
-        userId,
-      ]
-    );
-
-    const workflow = await tryStartRequestWorkflow({
-      table: 'hr_leave_requests',
-      businessType: 'hr_leave',
-      businessId: result.insertId,
-      businessCode: requestNo,
-      title: `请假申请 ${requestNo}`,
-      userId,
-    });
-
-    return ResponseHandler.success(
-      res,
-      { id: result.insertId, request_no: requestNo, workflow },
-      workflow.started ? '请假申请已提交审批' : workflow.message,
-      201
-    );
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [result] = await connection.query(
+        `INSERT INTO hr_leave_requests
+         (request_no, applicant_user_id, employee_id, leave_type, start_date, end_date, duration, reason, status, created_by, updated_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [requestNo, userId, employee?.id || null, leaveType, startDate, endDate, duration,
+         reason, REQUEST_STATUS.PENDING, userId, userId]
+      );
+      const workflow = await tryStartRequestWorkflow({
+        businessType: 'hr_leave', businessId: result.insertId, businessCode: requestNo,
+        title: `请假申请 ${requestNo}`, userId, connection,
+      });
+      await connection.commit();
+      return ResponseHandler.success(
+        res,
+        { id: result.insertId, request_no: requestNo, workflow },
+        '请假申请已提交审批',
+        201
+      );
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
   } catch (error) {
     logger.error('[HR] 提交请假申请失败:', error);
     return ResponseHandler.error(res, '提交请假申请失败: ' + error.message, 'OPERATION_ERROR', 500, error);
@@ -349,41 +312,33 @@ const createOvertimeRequest = async (req, res) => {
     if (!reason) return ResponseHandler.error(res, '请填写加班原因', 'VALIDATION_ERROR', 400);
 
     const requestNo = buildRequestNo('JB');
-    const [result] = await pool.query(
-      `INSERT INTO hr_overtime_requests
-       (request_no, applicant_user_id, employee_id, overtime_date, start_time, end_time, hours, overtime_type, reason, status, created_by, updated_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        requestNo,
-        userId,
-        employee?.id || null,
-        overtimeDate,
-        startTime || null,
-        endTime || null,
-        hours,
-        overtimeType,
-        reason,
-        REQUEST_STATUS.PENDING,
-        userId,
-        userId,
-      ]
-    );
-
-    const workflow = await tryStartRequestWorkflow({
-      table: 'hr_overtime_requests',
-      businessType: 'hr_overtime',
-      businessId: result.insertId,
-      businessCode: requestNo,
-      title: `加班申请 ${requestNo}`,
-      userId,
-    });
-
-    return ResponseHandler.success(
-      res,
-      { id: result.insertId, request_no: requestNo, workflow },
-      workflow.started ? '加班申请已提交审批' : workflow.message,
-      201
-    );
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [result] = await connection.query(
+        `INSERT INTO hr_overtime_requests
+         (request_no, applicant_user_id, employee_id, overtime_date, start_time, end_time, hours, overtime_type, reason, status, created_by, updated_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [requestNo, userId, employee?.id || null, overtimeDate, startTime || null,
+         endTime || null, hours, overtimeType, reason, REQUEST_STATUS.PENDING, userId, userId]
+      );
+      const workflow = await tryStartRequestWorkflow({
+        businessType: 'hr_overtime', businessId: result.insertId, businessCode: requestNo,
+        title: `加班申请 ${requestNo}`, userId, connection,
+      });
+      await connection.commit();
+      return ResponseHandler.success(
+        res,
+        { id: result.insertId, request_no: requestNo, workflow },
+        '加班申请已提交审批',
+        201
+      );
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
   } catch (error) {
     logger.error('[HR] 提交加班申请失败:', error);
     return ResponseHandler.error(res, '提交加班申请失败: ' + error.message, 'OPERATION_ERROR', 500, error);
@@ -518,7 +473,10 @@ const importAttendanceExcel = async (req, res) => {
         }
       }
     }
-    logger.info(`[HR] [Excel导入] 列映射: ${JSON.stringify(colIndexMap)}`);
+    logger.debug('[HR] Excel import column mapping resolved', {
+      mappedColumnCount: Object.keys(colIndexMap).length,
+      mappedFields: Object.values(colIndexMap),
+    });
 
     let imported = 0, skipped = 0;
     const connection = await pool.getConnection();
@@ -643,27 +601,30 @@ const calculateSalary = async (req, res) => {
 const confirmSalary = async (req, res) => {
   try {
     const { id } = req.params;
-    await pool.query("UPDATE hr_salary_records SET status = 'approved' WHERE id = ?", [id]);
-    return ResponseHandler.success(res, null, '工资单确认成功');
+    const SalaryService = require('../../../services/business/hr/salaryService');
+    const result = await SalaryService.confirmAndPostSalary(id, req.user?.id || null);
+    return ResponseHandler.success(res, result, result.skipped ? result.message : '工资单确认成功，已生成计提凭证');
   } catch (error) {
     logger.error('[HR] 确认工资单失败:', error);
-    return ResponseHandler.error(res, '确认失败', 'OPERATION_ERROR', 500, error);
+    return ResponseHandler.error(res, error.message || '确认失败', 'OPERATION_ERROR', 500, error);
   }
 };
 
-// 批量确认当月所有草稿工资单
+// 批量确认当月所有草稿工资单（并生成计提凭证）
 const batchConfirmSalary = async (req, res) => {
   try {
     const { period } = req.body;
     if (!period) return ResponseHandler.error(res, '缺少周期参数', 'VALIDATION_ERROR', 400);
-    const [result] = await pool.query(
-      "UPDATE hr_salary_records SET status = 'approved' WHERE period = ? AND status = 'draft'",
-      [period]
+    const SalaryService = require('../../../services/business/hr/salaryService');
+    const result = await SalaryService.batchConfirmAndPost(period, req.user?.id || null);
+    return ResponseHandler.success(
+      res,
+      { count: result.count },
+      `已批量确认 ${result.count} 条工资单并生成计提凭证`
     );
-    return ResponseHandler.success(res, { count: result.affectedRows }, `已批量确认 ${result.affectedRows} 条工资单`);
   } catch (error) {
     logger.error('[HR] 批量确认失败:', error);
-    return ResponseHandler.error(res, '批量确认失败', 'OPERATION_ERROR', 500, error);
+    return ResponseHandler.error(res, error.message || '批量确认失败', 'OPERATION_ERROR', 500, error);
   }
 };
 

@@ -215,11 +215,22 @@ async function assertRoleIsValid(connection, roleData, id = null) {
     throw new Error('角色编码已存在');
   }
 
+  // data_scope: 1 ALL | 2 DEPT+子 | 3 DEPT | 4 SELF | 5 CUSTOM
+  const dataScope = roleData.data_scope !== undefined && roleData.data_scope !== null
+    ? Number(roleData.data_scope)
+    : undefined;
+  if (dataScope !== undefined) {
+    if (![1, 2, 3, 4, 5].includes(dataScope)) {
+      throw new Error('data_scope 必须是 1-5');
+    }
+  }
+
   return {
     ...roleData,
     name,
     code,
     status: roleData.status !== undefined ? normalizeBinaryStatus(roleData.status) : 1,
+    data_scope: dataScope,
   };
 }
 
@@ -253,15 +264,8 @@ async function assertMenuIsValid(connection, menuData, id = null) {
 
   const idClause = targetId ? ' AND id <> ?' : '';
   const idParams = targetId ? [targetId] : [];
-  if (data.permission) {
-    const [samePermission] = await connection.execute(
-      `SELECT id FROM menus WHERE permission = ?${idClause} LIMIT 1`,
-      [data.permission, ...idParams]
-    );
-    if (samePermission.length > 0) {
-      throw new Error('菜单权限标识已存在');
-    }
-  }
+  // 权限码允许多菜单共享（同一 view 挂多个页面/按钮是 ERP 常态）
+  // 仅对「按钮 type=2 + 相同 path」做重复校验无意义；路径唯一性见下方
 
   if (data.path && data.type < 2) {
     const [samePath] = await connection.execute(
@@ -473,6 +477,15 @@ const systemModel = {
       }
 
       await connection.commit();
+
+      // user_roles 变更：模型层清缓存（控制器再清亦可幂等）
+      try {
+        const PermissionService = require('../services/PermissionService');
+        await PermissionService.clearUserPermissionsCache(userId);
+      } catch {
+        // 不阻断主流程
+      }
+
       return {
         id: userId,
         username,
@@ -567,6 +580,14 @@ const systemModel = {
       }
 
       await connection.commit();
+
+      try {
+        const PermissionService = require('../services/PermissionService');
+        await PermissionService.clearUserPermissionsCache(userId);
+      } catch {
+        // 不阻断主流程
+      }
+
       return { id: userId, ...userData, status, roleIds: roleIds || undefined };
     } catch (error) {
       await connection.rollback();
@@ -823,15 +844,34 @@ const systemModel = {
 
     const role = rows[0];
 
-    // 获取角色的权限
-    const [permissions] = await pool.execute(
+    // 角色菜单（导航）
+    const [menus] = await pool.execute(
       `SELECT m.* FROM menus m
        JOIN role_menus rm ON m.id = rm.menu_id
        WHERE rm.role_id = ?`,
       [id]
     );
+    role.menus = menus;
+    role.permissions = menus; // 兼容旧前端字段
 
-    role.permissions = permissions;
+    // 鉴权权限码 SSOT
+    try {
+      const [permCodes] = await pool.execute(
+        `SELECT p.id, p.code, p.name, p.module
+           FROM permissions p
+           JOIN role_permissions rp ON rp.permission_id = p.id
+          WHERE rp.role_id = ? AND p.status = 1
+          ORDER BY p.code`,
+        [id]
+      );
+      role.permissionCodes = permCodes.map((p) => p.code);
+      role.permissionRecords = permCodes;
+    } catch (e) {
+      if (e.code !== 'ER_NO_SUCH_TABLE') throw e;
+      role.permissionCodes = [
+        ...new Set(menus.map((m) => m.permission).filter(Boolean)),
+      ];
+    }
 
     return role;
   },
@@ -862,16 +902,17 @@ const systemModel = {
         }
       }
 
-      // 插入角色基本信息
+      // 插入角色基本信息（含 data_scope，默认 SELF=4 更安全；admin 创建路径另设）
+      const dataScope = data.data_scope !== undefined ? data.data_scope : 4;
       const [result] = await connection.execute(
-        `INSERT INTO roles (name, code, description, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, NOW(), NOW())`,
-        [data.name, data.code, data.description, data.status]
+        `INSERT INTO roles (name, code, description, status, data_scope, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, NOW(), NOW())`,
+        [data.name, data.code, data.description, data.status, dataScope]
       );
 
       const roleId = result.insertId;
 
-      // 插入角色菜单权限关联
+      // 插入角色菜单 + 同步 role_permissions（鉴权 SSOT）
       const menuIds = normalizeIdList(data.menuIds, 'menuIds');
       await assertExistingMenuIds(connection, menuIds);
       if (menuIds.length > 0) {
@@ -882,9 +923,22 @@ const systemModel = {
           ]);
         }
       }
+      const { syncRolePermissionsFromMenus } = require('../services/PermissionRegistry');
+      await syncRolePermissionsFromMenus(connection, roleId, menuIds);
 
       await connection.commit();
-      return { id: roleId, ...data, menuIds };
+
+      // createRole 若带 menuIds，立即清全局缓存，避免新角色赋权后读到旧图
+      if (menuIds.length > 0) {
+        try {
+          const PermissionService = require('../services/PermissionService');
+          await PermissionService.clearUserPermissionsCache();
+        } catch {
+          // ignore
+        }
+      }
+
+      return { id: roleId, ...data, data_scope: dataScope, menuIds };
     } catch (error) {
       await connection.rollback();
       throw error;
@@ -901,27 +955,36 @@ const systemModel = {
       if (!existing) throw new Error('NOT_FOUND: role not found');
       const data = await assertRoleIsValid(connection, roleData, id);
 
-      // 如果有基本信息需要更新
-      if (data.name !== undefined) {
-        // 更新角色基本信息
+      // 基本信息 + data_scope
+      if (data.name !== undefined || data.data_scope !== undefined) {
+        const [[current]] = await connection.execute(
+          'SELECT name, code, description, status, data_scope FROM roles WHERE id = ?',
+          [id]
+        );
+        const nextName = data.name !== undefined ? data.name : current.name;
+        const nextCode = data.code !== undefined ? data.code : current.code;
+        const nextDesc = data.description !== undefined ? data.description : current.description;
+        const nextStatus = data.status !== undefined ? data.status : current.status;
+        const nextScope =
+          data.data_scope !== undefined ? data.data_scope : current.data_scope;
+
         await connection.execute(
           `UPDATE roles SET
             name = ?,
             code = ?,
             description = ?,
             status = ?,
+            data_scope = ?,
             updated_at = NOW()
            WHERE id = ?`,
-          [data.name, data.code, data.description, data.status, id]
+          [nextName, nextCode, nextDesc, nextStatus, nextScope, id]
         );
       }
 
-      // 更新角色菜单权限关联
+      // 更新角色菜单 + 同步 role_permissions
       if (data.menuIds !== undefined) {
-        // 先删除现有权限关联
         await connection.execute('DELETE FROM role_menus WHERE role_id = ?', [id]);
 
-        // 添加新的权限关联
         const menuIds = normalizeIdList(data.menuIds, 'menuIds');
         await assertExistingMenuIds(connection, menuIds);
         if (menuIds.length > 0) {
@@ -932,9 +995,19 @@ const systemModel = {
             ]);
           }
         }
+        const { syncRolePermissionsFromMenus } = require('../services/PermissionRegistry');
+        await syncRolePermissionsFromMenus(connection, id, menuIds);
       }
 
       await connection.commit();
+
+      try {
+        const PermissionService = require('../services/PermissionService');
+        await PermissionService.clearUserPermissionsCache();
+      } catch {
+        // ignore
+      }
+
       return { id, ...data };
     } catch (error) {
       await connection.rollback();
@@ -968,8 +1041,13 @@ const systemModel = {
         throw new Error('该角色已被用户使用，不能删除');
       }
 
-      // 删除角色菜单关联
+      // 删除角色菜单 / 权限关联
       await connection.execute('DELETE FROM role_menus WHERE role_id = ?', [id]);
+      try {
+        await connection.execute('DELETE FROM role_permissions WHERE role_id = ?', [id]);
+      } catch (e) {
+        if (e.code !== 'ER_NO_SUCH_TABLE') throw e;
+      }
 
       // 删除角色
       const [result] = await connection.execute('DELETE FROM roles WHERE id = ?', [id]);
@@ -1063,9 +1141,16 @@ const systemModel = {
       );
       const menuId = result.insertId;
 
-      // 2. 自动继承父菜单的角色权限
+      // 绑定 permissions SSOT + permission_id
+      const {
+        bindMenuPermission,
+        grantMenuPermissionToRoles,
+      } = require('../services/PermissionRegistry');
+      await bindMenuPermission(connection, menuId, data.permission, data.name);
+
+      // 2. 自动继承父菜单的角色权限（role_menus + role_permissions）
+      const grantedRoleIds = [];
       if (data.parent_id) {
-        // 子菜单：获取拥有父菜单权限的所有角色，并为它们添加新菜单权限
         const [parentRoles] = await connection.execute(
           'SELECT role_id FROM role_menus WHERE menu_id = ?',
           [data.parent_id]
@@ -1076,12 +1161,12 @@ const systemModel = {
             role.role_id,
             menuId,
           ]);
+          grantedRoleIds.push(role.role_id);
         }
         logger.info(
           `新菜单 "${menuData.name}" (ID: ${menuId}) 已自动继承父菜单的 ${parentRoles.length} 个角色权限`
         );
       } else {
-        // 顶级菜单：自动分配给所有管理员角色
         const [adminRoles] = await connection.execute(
           "SELECT id FROM roles WHERE name LIKE '%管理员%' OR code = 'admin'"
         );
@@ -1091,13 +1176,26 @@ const systemModel = {
             role.id,
             menuId,
           ]);
+          grantedRoleIds.push(role.id);
         }
         logger.info(
           `新顶级菜单 "${menuData.name}" (ID: ${menuId}) 已自动分配给 ${adminRoles.length} 个管理员角色`
         );
       }
 
+      if (grantedRoleIds.length > 0) {
+        await grantMenuPermissionToRoles(connection, menuId, grantedRoleIds);
+      }
+
       await connection.commit();
+
+      try {
+        const PermissionService = require('../services/PermissionService');
+        await PermissionService.clearUserPermissionsCache();
+      } catch {
+        // ignore
+      }
+
       return { id: menuId, ...data };
     } catch (error) {
       await connection.rollback();
@@ -1174,7 +1272,19 @@ const systemModel = {
         ]
       );
 
+      // 同步 permissions SSOT + permission_id
+      const { bindMenuPermission } = require('../services/PermissionRegistry');
+      await bindMenuPermission(connection, id, data.permission, data.name);
+
       await connection.commit();
+
+      try {
+        const PermissionService = require('../services/PermissionService');
+        await PermissionService.clearUserPermissionsCache();
+      } catch {
+        // ignore
+      }
+
       return result.affectedRows > 0;
     } catch (error) {
       await connection.rollback();
@@ -1220,13 +1330,41 @@ const systemModel = {
         throw new Error('该菜单下有子菜单，不能删除');
       }
 
+      // 受影响角色：删菜单后须重算 role_permissions
+      const [affectedRoles] = await connection.execute(
+        'SELECT DISTINCT role_id FROM role_menus WHERE menu_id = ?',
+        [id]
+      );
+
       // 删除角色菜单关联
       await connection.execute('DELETE FROM role_menus WHERE menu_id = ?', [id]);
 
       // 删除菜单
       const [result] = await connection.execute('DELETE FROM menus WHERE id = ?', [id]);
 
+      // 同步鉴权 SSOT：按剩余菜单重建 role_permissions
+      const { syncRolePermissionsFromMenus } = require('../services/PermissionRegistry');
+      for (const row of affectedRoles) {
+        const [remain] = await connection.execute(
+          'SELECT menu_id FROM role_menus WHERE role_id = ?',
+          [row.role_id]
+        );
+        await syncRolePermissionsFromMenus(
+          connection,
+          row.role_id,
+          remain.map((m) => m.menu_id)
+        );
+      }
+
       await connection.commit();
+
+      try {
+        const PermissionService = require('../services/PermissionService');
+        await PermissionService.clearUserPermissionsCache();
+      } catch {
+        // ignore
+      }
+
       return result.affectedRows > 0;
     } catch (error) {
       await connection.rollback();

@@ -7,17 +7,14 @@
  */
 -->
 <template>
-  <div class="production-dashboard">
-    <el-card class="header-card">
-      <div style="display: flex; justify-content: space-between; align-items: center;">
-        <h2>生产数据概览</h2>
-        <div>
-          <span v-if="lastUpdated" class="last-updated">
+  <div class="module-page overview-page production-dashboard">
+    <PageHeader title="生产数据概览">
+      <template #actions>
+        <span v-if="lastUpdated" class="last-updated">
             最后更新: {{ new Date(lastUpdated).toLocaleTimeString() }}
           </span>
-        </div>
-      </div>
-    </el-card>
+      </template>
+    </PageHeader>
     <!-- 统计卡片 -->
     <el-row :gutter="20" class="mt-20">
       <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-20">
@@ -147,7 +144,7 @@
           </div>
           <el-table
             :data="filteredPendingTasks"
-            style="width: 100%"
+            class="w-full"
             v-loading="loading"
             border
             :max-height="400"
@@ -179,7 +176,7 @@
             </el-table-column>
             <el-table-column label="操作" min-width="120" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="scope">
-                <el-button
+                <el-button class="btn-op-view"
                   type="primary"
                   text
                   size="small"

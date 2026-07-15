@@ -22,7 +22,7 @@ async function getRedisClient() {
 
   const enabled = process.env.REDIS_ENABLED === 'true';
   if (!enabled) {
-    logger.info('Redis 未启用 (REDIS_ENABLED != true)，跳过连接');
+    logger.debug('Redis is disabled; connection skipped');
     return null;
   }
 
@@ -46,7 +46,7 @@ async function getRedisClient() {
       client.on('reconnecting', () => logger.warn('Redis 重连中…'));
 
       await client.connect();
-      logger.info(`✅ Redis 已连接 (${process.env.REDIS_HOST || DEFAULT_REDIS_HOST}:${process.env.REDIS_PORT || 6379})`);
+      logger.info(`Redis connected (${process.env.REDIS_HOST || DEFAULT_REDIS_HOST}:${process.env.REDIS_PORT || 6379})`);
       return client;
     } catch (err) {
       logger.error('Redis 连接失败，限流将回退到内存:', err.message);
@@ -64,10 +64,13 @@ function buildRedisUrl() {
   const host = process.env.REDIS_HOST || DEFAULT_REDIS_HOST;
   const port = process.env.REDIS_PORT || 6379;
   const password = process.env.REDIS_PASSWORD || '';
-  const username = process.env.REDIS_USERNAME || 'erp_app';
+  const username = process.env.REDIS_USERNAME || '';
   const db = process.env.REDIS_DB || 0;
-  // Redis 6+ ACL 格式: redis://username:password@host:port/db
-  const auth = password ? `${username}:${encodeURIComponent(password)}@` : '';
+  // Redis default user: redis://:password@host:port/db
+  // Redis 6+ ACL user: redis://username:password@host:port/db
+  const encodedPassword = encodeURIComponent(password);
+  const encodedUsername = encodeURIComponent(username);
+  const auth = password ? `${username ? `${encodedUsername}:` : ':'}${encodedPassword}@` : '';
   return `redis://${auth}${host}:${port}/${db}`;
 }
 

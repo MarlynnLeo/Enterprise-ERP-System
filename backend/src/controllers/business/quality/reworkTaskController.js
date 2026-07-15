@@ -99,7 +99,7 @@ const createReinspectionTask = async (task, connection) => {
       connection
     );
 
-    logger.info(`✅ 闭环达成: 已为返工任务 ${task.rework_no} 生成复检质检单 ${newInspectionNo}`);
+    logger.info(`Rework loop closed with reinspection created: reworkNo=${task.rework_no}, inspectionNo=${newInspectionNo}`);
   } catch(e) {
     logger.error(`创建返工复检单失败: ${e.message}`);
     throw e;
@@ -482,7 +482,7 @@ const updateStatus = async (req, res) => {
       // 触发返工复检闭环
       await createReinspectionTask(task, connection);
 
-      logger.info(`✅ 返工任务 ${task.rework_no} 通过 updateStatus 完成，已触发复检单创建和成本记录`);
+      logger.info(`Rework task completed through status update: reworkNo=${task.rework_no}`);
     } else {
       // 其他状态：直接更新
       await connection.query(

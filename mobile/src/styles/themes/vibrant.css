@@ -29,17 +29,17 @@
   --color-primary-bg: #ffe9e9;
   --color-success: #4ecdc4;
   --color-success-bg: #e5f8f7;
-  --color-warning: #ffe66d;
-  --color-warning-bg: #fff8d8;
-  --color-error: #ff4757;
-  --color-error-bg: #ffe1e5;
+  --color-warning: #FFA94D;
+  --color-warning-bg: #ffe0c2;
+  --color-error: #FF4757;
+  --color-error-bg: #ffe3e6;
   --color-info: #45b7d1;
   --color-info-bg: #e2f4f8;
   --color-accent: #4ecdc4;
 
   --module-blue: #45b7d1;
   --module-green: #4ecdc4;
-  --module-red: #ff6b6b;
+  --module-red: #FF4757;
   --module-orange: #ff9f43;
   --module-purple: #a55eea;
   --module-yellow: #feca57;
@@ -52,7 +52,7 @@
   --van-primary-color: var(--color-primary);
   --van-success-color: var(--color-success);
   --van-danger-color: var(--color-error);
-  --van-warning-color: #b06000;
+  --van-warning-color: var(--color-warning);
   --van-text-color: var(--text-primary);
   --van-text-color-2: var(--text-secondary);
   --van-text-color-3: var(--text-tertiary);
@@ -81,7 +81,7 @@
   --van-tabbar-item-text-color: var(--text-secondary);
   --van-tabbar-item-active-color: var(--color-primary);
 
-  --status-pending: #b06000;
+  --status-pending: #cc873e;
   --status-in-progress: #45b7d1;
   --status-completed: #4ecdc4;
   --status-failed: #ff4757;

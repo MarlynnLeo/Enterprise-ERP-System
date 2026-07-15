@@ -8,33 +8,33 @@
 
 const { PURCHASE_STATUS, PURCHASE_STATUS_TRANSITIONS } = require('./purchaseConstants');
 const {
-  TRANSFER_STATUS_FLOW,
   PRODUCTION_PLAN_STATUS_FLOW,
   PRODUCTION_TASK_STATUS_FLOW,
   PRODUCTION_PROCESS_STATUS_FLOW,
 } = require('./systemConstants');
 
-const valuesFromFlow = (flow) => Array.from(new Set([
-  ...Object.keys(flow),
-  ...Object.values(flow).flat(),
-]));
+const valuesFromFlow = (flow) =>
+  Array.from(new Set([...Object.keys(flow), ...Object.values(flow).flat()]));
 
-const terminalFromFlow = (flow) => Object.entries(flow)
-  .filter(([, next]) => Array.isArray(next) && next.length === 0)
-  .map(([status]) => status);
+const terminalFromFlow = (flow) =>
+  Object.entries(flow)
+    .filter(([, next]) => Array.isArray(next) && next.length === 0)
+    .map(([status]) => status);
 
 const INVENTORY_INBOUND_TRANSITIONS = {
   draft: ['confirmed', 'cancelled'],
   confirmed: ['completed', 'cancelled'],
-  completed: [],
+  completed: ['reversed'],
+  reversed: [],
   cancelled: [],
 };
 
 const INVENTORY_OUTBOUND_TRANSITIONS = {
   draft: ['confirmed', 'cancelled'],
   confirmed: ['completed', 'partial_completed', 'cancelled'],
-  partial_completed: ['completed'],
-  completed: [],
+  // partial_completed / completed 可通过 cancel 冲销为 reversed（与 outboundStatusController 一致）
+  partial_completed: ['completed', 'reversed'],
+  completed: ['reversed'],
   reversed: [],
   cancelled: [],
 };
@@ -48,13 +48,58 @@ const INVENTORY_CHECK_TRANSITIONS = {
 };
 
 const SALES_ORDER_TRANSITIONS = {
-  draft: ['pending', 'confirmed', 'in_production', 'in_procurement', 'ready_to_ship', 'shortage', 'cancelled'],
-  pending: ['confirmed', 'in_production', 'in_procurement', 'ready_to_ship', 'shortage', 'cancelled'],
-  confirmed: ['in_production', 'in_procurement', 'ready_to_ship', 'shortage', 'partial_shipped', 'shipped', 'completed', 'cancelled'],
-  in_production: ['ready_to_ship', 'shortage', 'partial_shipped', 'shipped', 'completed', 'cancelled'],
-  in_procurement: ['ready_to_ship', 'shortage', 'partial_shipped', 'shipped', 'completed', 'cancelled'],
+  draft: [
+    'pending',
+    'confirmed',
+    'in_production',
+    'in_procurement',
+    'ready_to_ship',
+    'shortage',
+    'cancelled',
+  ],
+  pending: [
+    'confirmed',
+    'in_production',
+    'in_procurement',
+    'ready_to_ship',
+    'shortage',
+    'cancelled',
+  ],
+  confirmed: [
+    'in_production',
+    'in_procurement',
+    'ready_to_ship',
+    'shortage',
+    'partial_shipped',
+    'shipped',
+    'completed',
+    'cancelled',
+  ],
+  in_production: [
+    'ready_to_ship',
+    'shortage',
+    'partial_shipped',
+    'shipped',
+    'completed',
+    'cancelled',
+  ],
+  in_procurement: [
+    'ready_to_ship',
+    'shortage',
+    'partial_shipped',
+    'shipped',
+    'completed',
+    'cancelled',
+  ],
   ready_to_ship: ['partial_shipped', 'shipped', 'completed', 'cancelled'],
-  shortage: ['in_production', 'in_procurement', 'ready_to_ship', 'partial_shipped', 'shipped', 'cancelled'],
+  shortage: [
+    'in_production',
+    'in_procurement',
+    'ready_to_ship',
+    'partial_shipped',
+    'shipped',
+    'cancelled',
+  ],
   partial_shipped: ['shipped', 'completed', 'cancelled'],
   shipped: ['delivered', 'completed'],
   delivered: ['completed'],
@@ -65,7 +110,20 @@ const SALES_ORDER_TRANSITIONS = {
 const SALES_OUTBOUND_TRANSITIONS = {
   draft: ['processing', 'cancelled'],
   processing: ['completed', 'cancelled'],
-  completed: [],
+  // completed → reversed：库存 + 财务补偿闭环（SalesOutboundReversalService）
+  completed: ['reversed'],
+  reversed: [],
+  cancelled: [],
+};
+
+// 销售报价（轻量生命周期，供审计与前端统一）
+const SALES_QUOTATION_TRANSITIONS = {
+  draft: ['sent', 'accepted', 'rejected', 'cancelled'],
+  sent: ['accepted', 'rejected', 'cancelled', 'expired'],
+  accepted: ['converted', 'cancelled'],
+  rejected: [],
+  expired: [],
+  converted: [],
   cancelled: [],
 };
 
@@ -84,6 +142,8 @@ const PURCHASE_RETURN_TRANSITIONS = {
   cancelled: [],
 };
 
+// 与业务控制器 STATUS 对齐：无独立 inspecting 态（质检在 quality 模块）
+// 保留 draft→completed 一步完成（收货即入库）以兼容现网流程
 const PURCHASE_RECEIPT_STATUS_TRANSITIONS = {
   draft: ['confirmed', 'completed', 'cancelled'],
   confirmed: ['completed', 'cancelled'],
@@ -91,13 +151,17 @@ const PURCHASE_RECEIPT_STATUS_TRANSITIONS = {
   cancelled: [],
 };
 
-// 调拨转换（与 inventoryTransferController 本地规则一致）
+// 调拨转换 SSOT（与 inventoryTransferController / systemConstants.TRANSFER_STATUS_FLOW 一致）
+// in_transit / rejected 仅兼容历史数据，新流程不再写入
 const INVENTORY_TRANSFER_TRANSITIONS = {
   draft: ['pending', 'cancelled'],
   pending: ['approved', 'cancelled'],
   approved: ['completed', 'cancelled'],
-  completed: [],
+  completed: ['reversed'],
+  reversed: [],
   cancelled: [],
+  in_transit: ['completed', 'cancelled', 'reversed'],
+  rejected: ['draft', 'cancelled'],
 };
 
 const SALES_EXCHANGE_TRANSITIONS = {
@@ -116,13 +180,8 @@ const PURCHASE_REQUISITION_TRANSITIONS = {
   cancelled: [],
 };
 
-const PURCHASE_RECEIPT_TRANSITIONS = {
-  draft: ['confirmed', 'cancelled'],
-  confirmed: ['inspecting', 'completed', 'cancelled'],
-  inspecting: ['completed', 'cancelled'],
-  completed: [],
-  cancelled: [],
-};
+// 与 PURCHASE_RECEIPT_STATUS_TRANSITIONS 统一，消除双状态机
+const PURCHASE_RECEIPT_TRANSITIONS = PURCHASE_RECEIPT_STATUS_TRANSITIONS;
 
 const EIGHT_D_REPORT_TRANSITIONS = {
   draft: ['in_progress', 'review'],
@@ -262,6 +321,13 @@ const registry = {
     statusColumn: 'status',
     transitions: SALES_OUTBOUND_TRANSITIONS,
     terminal: terminalFromFlow(SALES_OUTBOUND_TRANSITIONS),
+    aliases: {},
+  },
+  salesQuotation: {
+    table: 'sales_quotations',
+    statusColumn: 'status',
+    transitions: SALES_QUOTATION_TRANSITIONS,
+    terminal: terminalFromFlow(SALES_QUOTATION_TRANSITIONS),
     aliases: {},
   },
   salesPacking: {
@@ -435,7 +501,8 @@ const getStatusValues = (domain) => {
   return def ? valuesFromFlow(def.transitions) : [];
 };
 
-const isKnownStatus = (domain, status) => getStatusValues(domain).includes(normalizeStatus(domain, status));
+const isKnownStatus = (domain, status) =>
+  getStatusValues(domain).includes(normalizeStatus(domain, status));
 
 const isTerminalStatus = (domain, status) => {
   const def = getStatusDefinition(domain);
@@ -448,9 +515,8 @@ const getAllowedTransitions = (domain, status) => {
   return def.transitions[normalizeStatus(domain, status)] || [];
 };
 
-const isValidTransition = (domain, from, to) => (
-  getAllowedTransitions(domain, from).includes(normalizeStatus(domain, to))
-);
+const isValidTransition = (domain, from, to) =>
+  getAllowedTransitions(domain, from).includes(normalizeStatus(domain, to));
 
 module.exports = {
   STATUS_REGISTRY: registry,
@@ -458,6 +524,7 @@ module.exports = {
   SALES_ORDER_TRANSITIONS,
   SALES_EXCHANGE_TRANSITIONS,
   SALES_OUTBOUND_TRANSITIONS,
+  SALES_QUOTATION_TRANSITIONS,
   SALES_PACKING_TRANSITIONS,
   PURCHASE_RETURN_TRANSITIONS,
   PURCHASE_RECEIPT_STATUS_TRANSITIONS,

@@ -28,6 +28,7 @@ const DOCUMENT_TYPES = {
   COLLECTION: 'collection', // 收款单
   TRANSFER: 'transfer', // 转账单
   ADJUSTMENT: 'adjustment', // 调整单
+  EXPENSE: 'expense', // 费用单
   PROFIT_LOSS_TRANSFER: 'profit_loss_transfer', // 期末损益结转
   YEAR_END_TRANSFER: 'year_end_transfer', // 年度利润结转
   SALES_OUTBOUND: 'sales_outbound', // 销售出库成本结转
@@ -42,11 +43,13 @@ const DOCUMENT_TYPE_LABELS = {
   [DOCUMENT_TYPES.COLLECTION]: '收款单',
   [DOCUMENT_TYPES.TRANSFER]: '转账单',
   [DOCUMENT_TYPES.ADJUSTMENT]: '调整单',
+  [DOCUMENT_TYPES.EXPENSE]: '费用单',
   [DOCUMENT_TYPES.PROFIT_LOSS_TRANSFER]: '损益结转',
   [DOCUMENT_TYPES.YEAR_END_TRANSFER]: '年度结转',
   [DOCUMENT_TYPES.SALES_OUTBOUND]: '销售出库',
   [DOCUMENT_TYPES.PRODUCTION_COST_TRANSFER]: '生产成本结转',
-  // 兼容旧数据中的 inventory_reclass（未在常量中定义但DB已存在）
+  // 历史遗留显示名（新数据不再写入这些值）
+  费用单: '费用单',
   inventory_reclass: '库存重分类',
 };
 
@@ -84,6 +87,9 @@ const DOCUMENT_TYPE_MAPPING = {
   CASH_RECEIPT: DOCUMENT_TYPES.RECEIPT, // 现金收入 -> receipt
   CASH_PAYMENT: DOCUMENT_TYPES.PAYMENT, // 现金支出 -> payment
 
+  // 费用
+  EXPENSE_PAYMENT: DOCUMENT_TYPES.EXPENSE, // 费用付款 -> expense
+
   // 其他
   MANUAL_ADJUSTMENT: DOCUMENT_TYPES.ADJUSTMENT, // 手工调整 -> adjustment
   PROFIT_LOSS_TRANSFER: DOCUMENT_TYPES.PROFIT_LOSS_TRANSFER, // 损益结转
@@ -98,6 +104,22 @@ const INVOICE_STATUS = {
   PAID: '已付款',
   OVERDUE: '已逾期',
   CANCELLED: '已取消',
+};
+
+/** 税务发票（tax_invoices）状态 — 与库内中文状态一致，业务代码禁止字面量散落 */
+const TAX_INVOICE_STATUS = {
+  DRAFT: '草稿',
+  CERTIFIED: '已认证',
+  DEDUCTED: '已抵扣',
+  VOIDED: '已作废',
+};
+
+/** 税票关联业务单据类型显示名（历史列 related_document_type） */
+const TAX_RELATED_DOCUMENT_TYPES = {
+  SALES_OUTBOUND: '销售出库单',
+  SALES_RETURN: '销售退货单',
+  PURCHASE_RECEIPT: '采购收货单',
+  PURCHASE_RETURN: '采购退货单',
 };
 
 const MANUAL_INVOICE_STATUS_TRANSITIONS = {
@@ -186,12 +208,24 @@ const ERROR_MESSAGES = {
   ENTRY_ALREADY_REVERSED: '分录已冲销',
 };
 
+/**
+ * 财务行级 DataScope 产品策略（与 ScopeGuard + resourcePolicies.financeShared 联动）
+ * - all（默认）：共享财务中心 — finance 资源 list/assert 按 ALL（仍强制 stampOwner）
+ * - role | owner：与业务单据一致，按角色 data_scope（ALL/DEPT/SELF）行级隔离
+ * 环境变量：FINANCE_DATA_SCOPE_POLICY=all|role|owner
+ */
+const FINANCE_DATA_SCOPE_POLICY = (
+  process.env.FINANCE_DATA_SCOPE_POLICY || 'all'
+).toLowerCase();
+
 // ==================== 导出 ====================
 module.exports = {
   DOCUMENT_TYPES,
   DOCUMENT_TYPE_LABELS,
   DOCUMENT_TYPE_MAPPING,
   INVOICE_STATUS,
+  TAX_INVOICE_STATUS,
+  TAX_RELATED_DOCUMENT_TYPES,
   MANUAL_INVOICE_STATUS_TRANSITIONS,
   BANK_BACKED_PAYMENT_METHODS,
   ACCOUNT_TYPES,
@@ -200,4 +234,5 @@ module.exports = {
   PERIOD_STATUS,
   ENTRY_STATUS,
   ERROR_MESSAGES,
+  FINANCE_DATA_SCOPE_POLICY,
 };

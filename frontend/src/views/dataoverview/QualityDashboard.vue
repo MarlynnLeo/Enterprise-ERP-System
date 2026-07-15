@@ -7,10 +7,8 @@
  */
 -->
 <template>
-  <div class="quality-dashboard">
-    <el-card class="header-card">
-      <h2>质量数据概览</h2>
-    </el-card>
+  <div class="module-page overview-page quality-dashboard">
+    <PageHeader title="质量数据概览" subtitle="质量业务关键指标与趋势" />
 
     <!-- 统计卡片 -->
     <el-row :gutter="20" class="mt-lg">
@@ -168,7 +166,7 @@
             </el-table-column>
             <el-table-column label="操作" min-width="120" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="scope">
-                <el-button
+                <el-button class="btn-op-view"
                   type="primary"
                   text
                   size="small"

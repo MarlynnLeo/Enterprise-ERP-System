@@ -63,26 +63,19 @@ export function usePricing() {
                 page: currentPage.value,
                 pageSize: pageSize.value,
                 search: searchQuery.value,
-                filterType: filterType.value
+                filterType: filterType.value,
+                // 服务端分页筛选，避免前端截断导致 total 错误
+                lowMarginThreshold: settingsForm.lowMarginThreshold,
             });
 
             let list = res.data.list;
-            let listTotal = res.data.total;
+            const listTotal = res.data.total;
 
-            // 应用成本变动阈值
+            // 应用成本变动阈值（展示标记）
             list = list.map(row => {
                 const showCostWarning = row.cost_variance_percent > settingsForm.costVarianceThreshold;
                 return { ...row, cost_variance_flag: showCostWarning };
             });
-
-            // 低利润率筛选
-            if (filterType.value === 'low_margin') {
-                list = list.filter(row =>
-                    row.profit_margin !== null &&
-                    row.profit_margin < settingsForm.lowMarginThreshold
-                );
-                listTotal = list.length;
-            }
 
             tableData.value = list;
             total.value = listTotal;

@@ -128,6 +128,11 @@ app.use(
         frameSrc: ["'none'"],
       },
     },
+    // 生产环境启用 HSTS（仅 HTTPS 生效；开发 HTTP 不强制）
+    hsts:
+      process.env.NODE_ENV === 'production'
+        ? { maxAge: 31536000, includeSubDomains: true, preload: false }
+        : false,
     crossOriginEmbedderPolicy: false, // 允许跨域资源
     crossOriginResourcePolicy: { policy: 'cross-origin' },
   })
@@ -181,7 +186,7 @@ if (process.env.ENABLE_INPUT_SANITIZATION !== 'false') {
   app.use(detectSQLInjection);
   app.use(xssDetection);
   app.use(validateAndSanitizeInput);
-  logger.info('✅ 路径遍历检测、SQL注入检测、XSS检测和输入清理已启用');
+  logger.info('Input security middleware enabled: path traversal, SQL injection, XSS, and sanitization');
 }
 
 // 添加响应格式化中间件
@@ -214,7 +219,10 @@ const metricsPermission = requirePermission('system:monitor');
 const PUBLIC_UPLOAD_DIRS = ['/avatars', '/public', '/logos'];
 const UPLOADS_ROOT = path.resolve('uploads');
 const uploadFileDownloadPermission = requirePermission('system:files:download');
-const uploadDocumentPermission = requirePermission(['system:documents:view', 'system:files:download']);
+const uploadDocumentPermission = requirePermission([
+  'system:documents:view',
+  'system:files:download',
+]);
 
 function normalizeUploadRequestPath(requestPath) {
   const rawPath = String(requestPath || '').replace(/\\/g, '/');
@@ -247,7 +255,7 @@ function getStaticUploadPath(filePath) {
 
 function setUploadStaticHeaders(res, filePath) {
   const staticPath = getStaticUploadPath(filePath);
-  const isPublicDir = PUBLIC_UPLOAD_DIRS.some(dir => isUploadPathInDir(staticPath, dir));
+  const isPublicDir = PUBLIC_UPLOAD_DIRS.some((dir) => isUploadPathInDir(staticPath, dir));
   if (isPublicDir) {
     res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
     return;
@@ -256,32 +264,36 @@ function setUploadStaticHeaders(res, filePath) {
 }
 const uploadObjectAccessPermission = createUploadFileAccessMiddleware(permissionForUploadPath);
 
-app.use('/uploads', (req, res, next) => {
-  // 安全检查：禁止路径遍历（如 ../）
-  const decodedPath = decodeUploadRequestPath(req.path);
-  if (decodedPath === null) {
-    return ResponseHandler.error(res, 'Invalid file path', 'VALIDATION_ERROR', 400);
-  }
-  const rawPath = decodedPath.replace(/\\/g, '/');
-  const requestedPath = normalizeUploadRequestPath(rawPath);
-  if (rawPath.split('/').includes('..')) {
-    return ResponseHandler.forbidden(res, '禁止访问');
-  }
+app.use(
+  '/uploads',
+  (req, res, next) => {
+    // 安全检查：禁止路径遍历（如 ../）
+    const decodedPath = decodeUploadRequestPath(req.path);
+    if (decodedPath === null) {
+      return ResponseHandler.error(res, 'Invalid file path', 'VALIDATION_ERROR', 400);
+    }
+    const rawPath = decodedPath.replace(/\\/g, '/');
+    const requestedPath = normalizeUploadRequestPath(rawPath);
+    if (rawPath.split('/').includes('..')) {
+      return ResponseHandler.forbidden(res, '禁止访问');
+    }
 
-  // 公开目录无需认证（解决登录页面加载头像时401循环）
-  const isPublicDir = PUBLIC_UPLOAD_DIRS.some(dir => isUploadPathInDir(requestedPath, dir));
-  if (isPublicDir) {
-    return next();
-  }
+    // 公开目录无需认证（解决登录页面加载头像时401循环）
+    const isPublicDir = PUBLIC_UPLOAD_DIRS.some((dir) => isUploadPathInDir(requestedPath, dir));
+    if (isPublicDir) {
+      return next();
+    }
 
-  // 非公开目录需要认证（保护合同、发票、BOM附件等敏感文件）
-  req.uploadsRequestedPath = requestedPath;
-  return uploadsAuth(req, res, () => uploadObjectAccessPermission(req, res, next));
-}, express.static(UPLOADS_ROOT, {
-  etag: true,
-  lastModified: true,
-  setHeaders: setUploadStaticHeaders,
-}));
+    // 非公开目录需要认证（保护合同、发票、BOM附件等敏感文件）
+    req.uploadsRequestedPath = requestedPath;
+    return uploadsAuth(req, res, () => uploadObjectAccessPermission(req, res, next));
+  },
+  express.static(UPLOADS_ROOT, {
+    etag: true,
+    lastModified: true,
+    setHeaders: setUploadStaticHeaders,
+  })
+);
 
 // 在线时长追踪中间件
 const onlineTimeTracker = require('./middleware/onlineTimeTracker');
@@ -290,24 +302,21 @@ app.use(onlineTimeTracker.createMiddleware());
 // ✅ Prometheus 监控中间件（记录所有 HTTP 请求）
 app.use(prometheusMiddleware);
 
-// Prometheus 指标端点 - 仅允许内网IP或已认证用户访问
-app.get('/metrics', (req, res, next) => {
-  const ip = req.ip || req.connection.remoteAddress || '';
-  const isInternalIp = /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.|::1|::ffff:127\.)/.test(ip);
-  if (isInternalIp) {
-    return next();
+// Prometheus 指标端点：一律要求认证 + system:monitor（禁止仅凭内网 IP 免鉴权）
+app.get(
+  '/metrics',
+  metricsAuth,
+  metricsPermission,
+  async (_, res) => {
+    try {
+      res.set('Content-Type', prometheusService.getContentType());
+      const metrics = await prometheusService.getMetrics();
+      res.end(metrics);
+    } catch (error) {
+      res.status(500).end(error.message);
+    }
   }
-  // 非内网IP需要认证并具备监控权限
-  return metricsAuth(req, res, () => metricsPermission(req, res, next));
-}, async (_, res) => {
-  try {
-    res.set('Content-Type', prometheusService.getContentType());
-    const metrics = await prometheusService.getMetrics();
-    res.end(metrics);
-  } catch (error) {
-    res.status(500).end(error.message);
-  }
-});
+);
 
 // 健康检查端点
 app.get('/api/ping', (_, res) => {
@@ -318,13 +327,15 @@ app.get('/api/ping', (_, res) => {
   });
 });
 
+// CSRF Token 获取端点（须在 CSRF 校验中间件之前注册，且始终公开可访问）
+app.get('/api/csrf-token', getCsrfTokenEnhanced);
+// 兼容少数代理把 /api 剥掉后的访问
+app.get('/csrf-token', getCsrfTokenEnhanced);
+
 // 启用CSRF保护（条件性）
 if (process.env.ENABLE_CSRF !== 'false') {
   app.use(conditionalCsrfProtection);
 }
-
-// CSRF Token 获取端点
-app.get('/api/csrf-token', getCsrfTokenEnhanced);
 
 app.get('/api/health', async (_, res) => {
   // [A-2 修复] 真实探测数据库状态，而非硬编码
@@ -409,10 +420,21 @@ const registerApiRouteModules = (router, prefix = '') => {
 // ==================== API 文档 ====================
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./config/swagger');
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
-  customCss: '.swagger-ui .topbar { display: none }',
-  customSiteTitle: 'ERP API 文档',
-}));
+const enableApiDocs =
+  process.env.NODE_ENV !== 'production' || process.env.ENABLE_API_DOCS === 'true';
+if (enableApiDocs) {
+  const apiDocsAccessControl =
+    process.env.NODE_ENV === 'production' ? [uploadsAuth, metricsPermission] : [];
+  app.use(
+    '/api-docs',
+    ...apiDocsAccessControl,
+    swaggerUi.serve,
+    swaggerUi.setup(swaggerSpec, {
+      customCss: '.swagger-ui .topbar { display: none }',
+      customSiteTitle: 'ERP API 文档',
+    })
+  );
+}
 
 // 公开路由（无需认证）- 必须在其他路由之前注册
 app.use('/api/public', publicRoutes);
@@ -456,7 +478,7 @@ if (!isTestRuntime) {
       try {
         ScheduledTaskService.startAllTasks();
       } catch (error) {
-        logger.warn('⚠️ 财务自动化定时任务启动失败:', error.message);
+        logger.warn('Finance automation scheduled tasks failed to start:', error.message);
       }
     }, 5000);
     scheduledTaskTimer.unref?.();

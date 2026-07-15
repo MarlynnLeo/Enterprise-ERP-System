@@ -1,27 +1,21 @@
 <template>
   <div class="module-page page-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>工序路线管理</h2>
-          <p class="subtitle">定义产品的装配工序路线，配置每道工序的工位、工时和物料</p>
-        </div>
-        <div class="action-section">
-          <el-button type="primary" @click="openCreateDialog">
+    <PageHeader title="工序路线管理" subtitle="定义产品的装配工序路线，配置每道工序的工位、工时和物料">
+      <template #actions>
+<el-button type="primary" v-permission="'production:routes:create'" @click="openCreateDialog">
             <el-icon><Plus /></el-icon> 新增路线
           </el-button>
-        </div>
-      </div>
-    </el-card>
+      </template>
+    </PageHeader>
 
     <!-- 筛选 -->
     <el-card class="data-card">
-      <el-form :inline="true" style="margin-bottom: 16px">
+      <el-form :inline="true" class="mb-md">
         <el-form-item label="关键字">
-          <el-input v-model="filters.keyword" placeholder="路线名称/产品名称" clearable style="width: 200px" @keyup.enter="loadList" />
+          <el-input v-model="filters.keyword" placeholder="路线名称/产品名称" clearable class="form-control-lg" @keyup.enter="loadList" />
         </el-form-item>
         <el-form-item label="状态">
-          <el-select v-model="filters.isActive" placeholder="全部" clearable style="width: 100px" @change="loadList">
+          <el-select v-model="filters.isActive" placeholder="全部" clearable class="form-control-100" @change="loadList">
             <el-option label="启用" :value="1" />
             <el-option label="停用" :value="0" />
           </el-select>
@@ -53,11 +47,11 @@
         </el-table-column>
         <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" size="small" @click="viewDetail(row.id)">查看</el-button>
-            <el-button link type="primary" size="small" @click="editRoute(row.id)">编辑</el-button>
+            <el-button class="btn-op-view" type="primary" size="small" @click="viewDetail(row.id)">查看</el-button>
+            <el-button link type="primary" size="small" v-permission="'production:routes:update'" @click="editRoute(row.id)">编辑</el-button>
             <el-popconfirm title="确定删除?" @confirm="handleDelete(row.id)">
               <template #reference>
-                <el-button link type="danger" size="small">删除</el-button>
+                <el-button link type="danger" size="small" v-permission="'production:routes:delete'">删除</el-button>
               </template>
             </el-popconfirm>
           </template>
@@ -68,15 +62,21 @@
         v-if="total > 0"
         :current-page="page" :page-size="pageSize" :total="total"
         layout="total, prev, pager, next"
-        style="margin-top: 16px; justify-content: flex-end"
+        class="pagination-bar"
         @current-change="p => { page = p; loadList() }"
       />
     </el-card>
 
     <!-- 详情/编辑弹窗 -->
-    <el-dialog v-model="detailVisible" :title="isEditing ? '编辑工序路线' : '工序路线详情'" width="900px" destroy-on-close>
+    <AppDialog
+      v-model="detailVisible"
+      :title="isEditing ? '编辑工序路线' : '工序路线详情'"
+      :mode="isEditing ? 'form' : 'view'"
+      width="900px"
+      content-width="wide"
+    >
       <template v-if="routeDetail">
-        <el-descriptions :column="3" border style="margin-bottom: 20px">
+        <el-descriptions :column="3" border class="mb-20">
           <el-descriptions-item label="产品">{{ routeDetail.product_name }} ({{ routeDetail.product_code }})</el-descriptions-item>
           <el-descriptions-item label="路线名称">{{ routeDetail.name }}</el-descriptions-item>
           <el-descriptions-item label="版本">{{ routeDetail.version }}</el-descriptions-item>
@@ -84,7 +84,7 @@
           <el-descriptions-item label="工序数">{{ routeDetail.steps?.length || 0 }} 道</el-descriptions-item>
         </el-descriptions>
 
-        <h4 style="margin-bottom: 12px">工序步骤</h4>
+        <h4 class="mb-md">工序步骤</h4>
         <el-table :data="routeDetail.steps" border size="small">
           <el-table-column prop="sequence" label="序号" width="60" align="center" />
           <el-table-column prop="step_name" label="工序名称" width="150" />
@@ -96,17 +96,17 @@
           <el-table-column label="所需物料" min-width="200">
             <template #default="{ row }">
               <div v-if="row.materials?.length">
-                <el-tag v-for="m in row.materials" :key="m.material_id" size="small" style="margin: 2px" :type="m.is_scan_required ? 'danger' : ''">
+                <el-tag v-for="m in row.materials" :key="m.material_id" size="small" class="chip-gap" :type="m.is_scan_required ? 'danger' : ''">
                   {{ m.material_name }} × {{ m.quantity }}
                   <span v-if="m.is_scan_required"> 📷</span>
                 </el-tag>
               </div>
-              <span v-else style="color: #909399">-</span>
+              <span v-else class="text-muted">-</span>
             </template>
           </el-table-column>
           <el-table-column label="SOP" width="60" align="center">
             <template #default="{ row }">
-              <el-icon v-if="row.sop_content" style="color: #67c23a"><Check /></el-icon>
+              <el-icon v-if="row.sop_content" class="text-success"><Check /></el-icon>
               <span v-else>-</span>
             </template>
           </el-table-column>
@@ -115,7 +115,7 @@
       <template #footer>
         <el-button @click="detailVisible = false">关闭</el-button>
       </template>
-    </el-dialog>
+    </AppDialog>
 
     <!-- 创建弹窗 -->
     <el-dialog v-model="createVisible" title="新增工序路线" width="800px" destroy-on-close>
@@ -124,7 +124,7 @@
           <el-col :span="12">
             <el-form-item label="产品" required>
               <el-select v-model="createForm.product_id" filterable remote :remote-method="searchProducts"
-                :loading="searchLoading" placeholder="搜索产品" style="width: 100%">
+                :loading="searchLoading" placeholder="搜索产品" class="w-full">
                 <el-option v-for="p in productOptions" :key="p.id" :label="`${p.code} - ${p.name}`" :value="p.id" />
               </el-select>
             </el-form-item>
@@ -141,9 +141,9 @@
           </el-col>
         </el-row>
 
-        <h4 style="margin: 16px 0 12px">
+        <h4 class="section-subhead">
           工序步骤
-          <el-button type="primary" size="small" link @click="addStep" style="margin-left: 12px">+ 添加工序</el-button>
+          <el-button type="primary" size="small" link v-permission="'production:routes:create'" @click="addStep" class="ml-sm">+ 添加工序</el-button>
         </h4>
 
         <el-table :data="createForm.steps" border size="small">
@@ -162,26 +162,26 @@
           </el-table-column>
           <el-table-column label="标准工时(分)" width="120">
             <template #default="{ row }">
-              <el-input-number v-model="row.standard_minutes" size="small" :min="0" :step="5" style="width: 100%" />
+              <el-input-number v-model="row.standard_minutes" size="small" :min="0" :step="5" class="w-full" />
             </template>
           </el-table-column>
           <el-table-column label="工位" width="140">
             <template #default="{ row }">
-              <el-select v-model="row.station_id" size="small" placeholder="选择" clearable style="width: 100%">
+              <el-select v-model="row.station_id" size="small" placeholder="选择" clearable class="w-full">
                 <el-option v-for="s in stationOptions" :key="s.id" :label="s.name" :value="s.id" />
               </el-select>
             </template>
           </el-table-column>
           <el-table-column label="操作" width="60" align="center">
             <template #default="{ $index }">
-              <el-button link type="danger" size="small" @click="createForm.steps.splice($index, 1)">删除</el-button>
+              <el-button link type="danger" size="small" v-permission="'production:routes:create'" @click="createForm.steps.splice($index, 1)">删除</el-button>
             </template>
           </el-table-column>
         </el-table>
       </el-form>
       <template #footer>
         <el-button @click="createVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleCreate" :loading="saving">保存</el-button>
+        <el-button type="primary" v-permission="'production:routes:create'" @click="handleCreate" :loading="saving">保存</el-button>
       </template>
     </el-dialog>
   </div>
@@ -260,7 +260,7 @@ const searchProducts = async (query) => {
   if (!query || query.length < 1) return
   searchLoading.value = true
   try {
-    const { data } = await api.get('/base/materials', { params: { keyword: query, pageSize: 20 } })
+    const { data } = await api.get('/base-data/materials', { params: { keyword: query, pageSize: 20 } })
     productOptions.value = data?.data?.list || data?.list || []
   } catch {} finally {
     searchLoading.value = false

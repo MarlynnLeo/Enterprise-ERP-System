@@ -208,7 +208,7 @@ class ContractService {
       if (!current) throw new Error('合同不存在');
       const allowedTransitions = {
         draft:            ['pending_approval', 'cancelled'],
-        pending_approval: ['cancelled'],        // 等待工作流处理
+        pending_approval: [],                   // 等待工作流处理；需先在审批中心撤回
         active:           ['executing', 'terminated', 'cancelled'],
         executing:        ['completed', 'terminated'],
         completed:        [],
@@ -224,8 +224,12 @@ class ContractService {
       let finalStatus = status;
       if (status === 'pending_approval') {
         const WorkflowService = require('./WorkflowService');
+        await conn.query(
+          "UPDATE contracts SET status = 'pending_approval' WHERE id = ? AND deleted_at IS NULL",
+          [id]
+        );
         const wfResult = await WorkflowService.tryStartWorkflow(
-          'contract', id, current.code, `合同 ${current.code} ${current.name} 审批`, userId
+          'contract', id, current.code, `合同 ${current.code} ${current.name} 审批`, userId, conn
         );
         if (wfResult.auto_approved) { finalStatus = 'active'; }
       }

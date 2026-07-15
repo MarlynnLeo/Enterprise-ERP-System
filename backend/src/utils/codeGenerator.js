@@ -158,6 +158,21 @@ const CodeGenerators = {
     return CodeGeneratorService.nextCode('expense_payment', connection);
   },
 
+  /** 生成银行交易流水编号 */
+  async generateBankTransactionCode(connection) {
+    return CodeGeneratorService.nextCode('bank_transaction', connection);
+  },
+
+  /** 生成税款缴纳流水编号 */
+  async generateTaxPaymentCode(connection) {
+    return CodeGeneratorService.nextCode('tax_payment', connection);
+  },
+
+  /** 生成预算编号 */
+  async generateBudgetCode(connection) {
+    return CodeGeneratorService.nextCode('budget', connection);
+  },
+
   // ========== 资产模块 ==========
 
   /** 生成固定资产盘点编号 */

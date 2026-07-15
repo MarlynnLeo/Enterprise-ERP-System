@@ -518,7 +518,7 @@ const materialController = {
       const successList = [];
       const errorList = [];
 
-      logger.info(`开始导入物料，共${req.body.length} 条数据`);
+      logger.info(`Material import started: rowCount=${req.body.length}`);
 
       // 1. 批量加载所有分类（编码和名称映射）
       const [allCategories] = await dbPool.query('SELECT id, code, name FROM categories WHERE deleted_at IS NULL');

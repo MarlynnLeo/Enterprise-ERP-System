@@ -6,7 +6,7 @@
 -->
 <template>
   <el-dialog v-model="dialogVisible" title="首检检验" width="750px" destroy-on-close @close="handleClose">
-    <el-descriptions :column="3" border style="margin-bottom: 20px">
+    <el-descriptions :column="3" border class="mb-20">
       <el-descriptions-item label="检验单号">{{ inspection?.inspection_no }}</el-descriptions-item>
       <el-descriptions-item label="生产任务">{{ inspection?.task_code }}</el-descriptions-item>
       <el-descriptions-item label="产品名称">{{ inspection?.product_name }}</el-descriptions-item>
@@ -23,12 +23,12 @@
       <el-row :gutter="16">
         <el-col :span="12">
           <el-form-item label="合格数量" prop="qualified_quantity">
-            <el-input-number v-model="form.qualified_quantity" :min="0" :max="Number(inspection?.quantity) || 999" style="width: 100%" @change="calcUnqualified" />
+            <el-input-number v-model="form.qualified_quantity" :min="0" :max="Number(inspection?.quantity) || 999" class="w-full" @change="calcUnqualified" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
           <el-form-item label="不合格数量">
-            <el-input-number v-model="form.unqualified_quantity" :min="0" disabled style="width: 100%" />
+            <el-input-number v-model="form.unqualified_quantity" :min="0" disabled class="w-full" />
           </el-form-item>
         </el-col>
       </el-row>
@@ -38,14 +38,14 @@
           <el-radio value="failed"><el-tag type="danger">不合格</el-tag></el-radio>
           <el-radio value="conditional"><el-tag type="warning">有条件放行</el-tag></el-radio>
         </el-radio-group>
-        <div style="margin-top: 8px; font-size: 12px; color: var(--color-text-secondary);">
+        <div class="mt-sm text-sm text-muted">
           <el-icon><InfoFilled /></el-icon> 首检结果会根据检验项目结果自动判定
         </div>
       </el-form-item>
 
       <el-form-item v-if="form.first_article_result === 'conditional'" label="允许继续生产">
         <el-switch v-model="form.production_can_continue" />
-        <span style="margin-left: 10px; color: var(--color-text-secondary); font-size: 12px;">开启后生产任务可继续进行</span>
+        <span class="ml-sm text-muted text-sm">开启后生产任务可继续进行</span>
       </el-form-item>
       <el-form-item label="检验员" prop="inspector_name">
         <el-input v-model="form.inspector_name" placeholder="自动获取" disabled />
@@ -53,7 +53,7 @@
 
       <!-- 检验项目明细 -->
       <el-divider content-position="left">检验项目</el-divider>
-      <el-table :data="form.items" border size="small" style="margin-bottom: 16px">
+      <el-table :data="form.items" border size="small" class="mb-md">
         <el-table-column prop="item_name" label="检验项目" min-width="120">
           <template #default="{ row }">
             <el-input v-model="row.item_name" size="small" placeholder="项目名称" />

@@ -28,14 +28,19 @@ const {
   fetchBatchBomItemsForOutbound,
   parseSourceTaskIds,
 } = require('./outboundBomController');
+const ScopeGuard = require('../../../../authorization/ScopeGuard');
 
 const updateOutboundStatus = async (req, res) => {
   const connection = await db.pool.getConnection();
   try {
-    await connection.beginTransaction();
-
     const { id } = req.params;
     const { newStatus } = req.body;
+
+    if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'inventory_outbound', id, '无权变更该出库单状态'))) {
+      return;
+    }
+
+    await connection.beginTransaction();
 
     // 检查出库单是否存在
     const [checkResult] = await connection.execute(
@@ -356,6 +361,7 @@ const updateOutboundStatus = async (req, res) => {
                     referenceType: 'outbound',
                     operator: outboundInfo[0].operator,
                     remark: `出库单号: ${outboundInfo[0].outbound_no}`,
+                    idempotencyKey: `${dynamicTransactionType}:${outboundInfo[0].outbound_no}:${item.material_id}:${locationId}:${actualQuantity}`,
                   },
                   connection
                 );
@@ -466,10 +472,16 @@ const updateOutboundStatus = async (req, res) => {
 
         // 如果关联了生产任务,更新任务状态为material_partial_issued
         if (referenceId && referenceType === 'production_task') {
-          await connection.execute('UPDATE production_tasks SET status = ? WHERE id = ? AND deleted_at IS NULL', [
-            'material_partial_issued',
-            referenceId,
-          ]);
+          const { promoteTaskStatus } = require('../../../../services/business/TaskLifecycleService');
+          await promoteTaskStatus(connection, referenceId, 'material_partial_issued', {
+            onlyFrom: [
+              'pending',
+              'allocated',
+              'preparing',
+              'material_issuing',
+              'material_partial_issued',
+            ],
+          });
           logger.info(`产任务 ${referenceId} 状态已更新为 material_partial_issued`);
         }
       }
@@ -478,16 +490,19 @@ const updateOutboundStatus = async (req, res) => {
         const finalTaskStatus = hasShortage
           ? STATUS.PRODUCTION_TASK.MATERIAL_PARTIAL_ISSUED
           : STATUS.PRODUCTION_TASK.MATERIAL_ISSUED;
+        const { promoteTaskStatus } = require('../../../../services/business/TaskLifecycleService');
+        for (const tid of batchTaskIds) {
+          await promoteTaskStatus(connection, tid, finalTaskStatus, {
+            onlyFrom: [
+              'pending',
+              'allocated',
+              'preparing',
+              'material_issuing',
+              'material_partial_issued',
+            ],
+          });
+        }
         const placeholders = batchTaskIds.map(() => '?').join(',');
-
-        await connection.execute(
-          `UPDATE production_tasks
-           SET status = ?, updated_at = NOW()
-           WHERE id IN (${placeholders})
-              AND deleted_at IS NULL
-              AND status IN ('pending', 'allocated', 'preparing', 'material_issuing')`,
-          [finalTaskStatus, ...batchTaskIds]
-        );
 
         if (!hasShortage) {
           await connection.execute(
@@ -519,7 +534,7 @@ const updateOutboundStatus = async (req, res) => {
           const actualTaskStatus = finalTaskStatus[0]?.status;
 
           // 使用服务创建生产过程记录
-          const ProductionProcessService = require('../../../services/business/ProductionProcessService');
+          const ProductionProcessService = require('../../../../services/business/ProductionProcessService');
           const processRemarks =
             actualTaskStatus === STATUS.PRODUCTION_TASK.MATERIAL_PARTIAL_ISSUED
               ? '出库单部分完成后自动创建（部分发料）'
@@ -546,7 +561,7 @@ const updateOutboundStatus = async (req, res) => {
              WHERE id IN (${placeholders})`,
             batchTaskIds
           );
-          const ProductionProcessService = require('../../../services/business/ProductionProcessService');
+          const ProductionProcessService = require('../../../../services/business/ProductionProcessService');
 
           for (const task of taskStatuses) {
             const processRemarks =
@@ -645,7 +660,7 @@ const updateOutboundStatus = async (req, res) => {
           }
         }
       } catch (asyncError) {
-        const DLQService = require('../../../services/business/DLQService');
+        const DLQService = require('../../../../services/business/DLQService');
         await DLQService.recordSideEffectFailure(
           'InventoryOutbound:asyncSideEffects',
           { outboundId: id, status: newStatus },
@@ -831,7 +846,8 @@ const cancelOutboundReissue = async (req, res) => {
          id, status, reference_id, reference_type, outbound_no, outbound_type,
          production_task_id, source_task_ids, is_batch_outbound, remark
        FROM inventory_outbound
-       WHERE id = ? AND deleted_at IS NULL`,
+       WHERE id = ? AND deleted_at IS NULL
+       FOR UPDATE`,
       [id]
     );
 
@@ -1030,6 +1046,8 @@ const cancelOutboundReissue = async (req, res) => {
           remark: `撤销出库单 ${outbound_no}，来源台账 ${ledger.id}`,
           unitId: ledger.unit_id,
           batchNumber: ledger.batch_number || `REV-${outbound_no}-${ledger.id}`,
+          // 按原台账行幂等，防止并发重复回冲
+          idempotencyKey: `outbound_cancel:${outbound_no}:ledger:${ledger.id}`,
         },
         connection
       );
@@ -1038,12 +1056,28 @@ const cancelOutboundReissue = async (req, res) => {
       reversedQuantity += qty;
     }
 
-    await connection.execute(
+    const [statusUpdate] = await connection.execute(
       `UPDATE inventory_outbound
        SET status = ?, remark = CONCAT(COALESCE(remark, ''), ?), updated_at = NOW()
-       WHERE id = ? AND deleted_at IS NULL`,
-      [STATUS.OUTBOUND.REVERSED, ` [已由 ${operator} 撤销]`, id]
+       WHERE id = ? AND deleted_at IS NULL
+         AND status IN (?, ?)`,
+      [
+        STATUS.OUTBOUND.REVERSED,
+        ` [已由 ${operator} 撤销]`,
+        id,
+        STATUS.OUTBOUND.COMPLETED,
+        STATUS.OUTBOUND.PARTIAL_COMPLETED,
+      ]
     );
+    if (!statusUpdate.affectedRows) {
+      await connection.rollback();
+      return ResponseHandler.error(
+        res,
+        '出库单状态已变更，无法撤销（可能已被并发处理）',
+        'VALIDATION_ERROR',
+        400
+      );
+    }
 
     const affectedTaskIds =
       reference_type === 'production_task' && reference_id
@@ -1070,12 +1104,13 @@ const cancelOutboundReissue = async (req, res) => {
       let insertResult;
       let bomResult;
 
+      const reissueCreatedBy = req.user?.id || req.user?.userId || outbound.created_by || null;
       if (isBatchReissue) {
         [insertResult] = await connection.execute(
           `INSERT INTO inventory_outbound
             (outbound_no, outbound_date, status, outbound_type, operator, remark,
-             reference_type, source_task_ids, is_batch_outbound, created_at, updated_at)
-           VALUES (?, CURDATE(), ?, ?, ?, ?, ?, ?, 1, NOW(), NOW())`,
+             reference_type, source_task_ids, is_batch_outbound, created_by, created_at, updated_at)
+           VALUES (?, CURDATE(), ?, ?, ?, ?, ?, ?, 1, ?, NOW(), NOW())`,
           [
             newOutboundNo,
             STATUS.OUTBOUND.DRAFT,
@@ -1084,6 +1119,7 @@ const cancelOutboundReissue = async (req, res) => {
             `由已撤销的批量出库单 ${outbound_no} 按统一净需求重新生成，请在完成前核实明细。`,
             'batch_production_tasks',
             JSON.stringify(batchTaskIds),
+            reissueCreatedBy,
           ]
         );
 
@@ -1096,8 +1132,8 @@ const cancelOutboundReissue = async (req, res) => {
         [insertResult] = await connection.execute(
           `INSERT INTO inventory_outbound
             (outbound_no, outbound_date, status, outbound_type, operator, remark,
-             reference_id, reference_type, production_task_id, created_at, updated_at)
-           VALUES (?, CURDATE(), ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+             reference_id, reference_type, production_task_id, created_by, created_at, updated_at)
+           VALUES (?, CURDATE(), ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
           [
             newOutboundNo,
             STATUS.OUTBOUND.DRAFT,
@@ -1107,6 +1143,7 @@ const cancelOutboundReissue = async (req, res) => {
             reference_id,
             reference_type,
             productionTaskId,
+            reissueCreatedBy,
           ]
         );
 
@@ -1137,19 +1174,16 @@ const cancelOutboundReissue = async (req, res) => {
 
     if (affectedTaskIds.length > 0) {
       const placeholders = affectedTaskIds.map(() => '?').join(',');
-      await connection.execute(
-        `UPDATE production_tasks
-         SET status = ?, updated_at = NOW()
-         WHERE id IN (${placeholders})
-            AND deleted_at IS NULL
-            AND status IN (?, ?)`,
-        [
-          STATUS.PRODUCTION_TASK.PREPARING,
-          ...affectedTaskIds,
-          STATUS.PRODUCTION_TASK.MATERIAL_ISSUED,
-          STATUS.PRODUCTION_TASK.MATERIAL_PARTIAL_ISSUED,
-        ]
-      );
+      // 撤销发料后回退到配料中（状态机允许 material_issued → preparing）
+      const { promoteTaskStatus } = require('../../../../services/business/TaskLifecycleService');
+      for (const tid of affectedTaskIds) {
+        await promoteTaskStatus(connection, tid, STATUS.PRODUCTION_TASK.PREPARING, {
+          onlyFrom: [
+            STATUS.PRODUCTION_TASK.MATERIAL_ISSUED,
+            STATUS.PRODUCTION_TASK.MATERIAL_PARTIAL_ISSUED,
+          ],
+        });
+      }
 
       await connection.execute(
         `UPDATE production_plans pp

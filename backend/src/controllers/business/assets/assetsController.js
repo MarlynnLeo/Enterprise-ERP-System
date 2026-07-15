@@ -220,6 +220,7 @@ const assetsController = {
         custodian: req.body.responsible || null,
         status: getAssetStatusText(req.body.status),
         notes: req.body.notes || null,
+        created_by: await getCurrentUserName(req),
       };
 
       // 调用模型方法创建资产
@@ -275,7 +276,12 @@ const assetsController = {
         return ResponseHandler.error(res, '无效的资产ID', 'VALIDATION_ERROR', 400);
       }
 
-      logger.info('更新数据:', req.body);
+      logger.debug('Asset update payload normalized', {
+        assetId,
+        changedFields: Object.keys(req.body || {}),
+        hasLocation: Boolean(req.body?.location),
+        hasDepartment: Boolean(req.body?.department),
+      });
 
       // 检查资产是否存在
       const existingAsset = await assetsModel.getAssetById(assetId);
@@ -656,29 +662,50 @@ const assetsController = {
    * 审核/反审核资产
    */
   auditAsset: async (req, res) => {
+    const connection = await db.pool.getConnection();
     try {
+      await connection.beginTransaction();
       const assetId = safeParseId(req.params.id);
       const { action } = req.body; // 'approve' or 'reject'
 
       if (isNaN(assetId)) {
+        await connection.rollback();
         return ResponseHandler.error(res, '无效的资产ID', 'VALIDATION_ERROR', 400);
       }
 
       if (!['approve', 'reject'].includes(action)) {
+        await connection.rollback();
         return ResponseHandler.error(res, '无效的审核操作', 'VALIDATION_ERROR', 400);
       }
 
-      const asset = await assetsModel.getAssetById(assetId);
+      const [assets] = await connection.execute(
+        'SELECT id, status, audit_status, created_by FROM fixed_assets WHERE id = ? FOR UPDATE',
+        [assetId]
+      );
+      const asset = assets[0];
       if (!asset) {
+        await connection.rollback();
         return ResponseHandler.error(res, '资产不存在', 'NOT_FOUND', 404);
+      }
+
+      const currentUserName = await getCurrentUserName(req);
+      if (action === 'approve' && String(asset.created_by || '') === String(currentUserName || '')) {
+        await connection.rollback();
+        return ResponseHandler.error(res, '资产制单人与审核人必须分离', 'VALIDATION_ERROR', 400);
+      }
+      const expectedAuditStatus = action === 'approve' ? 'draft' : 'approved';
+      if (asset.audit_status !== expectedAuditStatus) {
+        await connection.rollback();
+        return ResponseHandler.error(res, '资产审核状态已变更，请刷新后重试', 'VALIDATION_ERROR', 409);
       }
 
       if (action === 'reject') {
         if (DISPOSED_ASSET_STATUSES.has(String(asset.status || '').trim())) {
+          await connection.rollback();
           return ResponseHandler.error(res, '已处置资产不能反审核', 'VALIDATION_ERROR', 400);
         }
 
-        const [usageRows] = await db.pool.query(
+        const [usageRows] = await connection.query(
           `SELECT
              (SELECT COUNT(*) FROM fixed_asset_depreciation_details WHERE asset_id = ?) AS depreciation_detail_count,
              (SELECT COUNT(*) FROM asset_depreciation WHERE asset_id = ?) AS depreciation_count,
@@ -696,6 +723,7 @@ const assetsController = {
           Number(usage.voucher_link_count || 0) > 0;
 
         if (hasFinancialUsage) {
+          await connection.rollback();
           return ResponseHandler.error(
             res,
             '资产已发生折旧、减值、调拨或凭证关联，不能反审核',
@@ -706,18 +734,26 @@ const assetsController = {
       }
 
       const auditStatus = action === 'approve' ? 'approved' : 'draft';
-      const auditedBy = action === 'approve' ? (await getCurrentUserName(req)) : null;
+      const auditedBy = action === 'approve' ? currentUserName : null;
       const auditedAt = action === 'approve' ? new Date() : null;
 
-      await db.pool.query(
-        'UPDATE fixed_assets SET audit_status = ?, audited_by = ?, audited_at = ? WHERE id = ?',
-        [auditStatus, auditedBy, auditedAt, assetId]
+      const [auditUpdate] = await connection.query(
+        'UPDATE fixed_assets SET audit_status = ?, audited_by = ?, audited_at = ? WHERE id = ? AND audit_status = ?',
+        [auditStatus, auditedBy, auditedAt, assetId, expectedAuditStatus]
       );
+      if (auditUpdate.affectedRows !== 1) {
+        throw new Error('资产审核状态已变更，请刷新后重试');
+      }
+
+      await connection.commit();
 
       const message = action === 'approve' ? '资产审核通过' : '资产已反审核';
       return ResponseHandler.success(res, { auditStatus, auditedBy, auditedAt }, message);
     } catch (error) {
+      await connection.rollback();
       ResponseHandler.error(res, '审核操作失败', 'SERVER_ERROR', 500, error);
+    } finally {
+      connection.release();
     }
   },
 

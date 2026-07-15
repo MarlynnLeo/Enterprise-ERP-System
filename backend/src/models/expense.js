@@ -11,7 +11,10 @@ const db = require('../config/db');
 const { parsePagination, appendPaginationSQL } = require('../utils/safePagination');
 const DocumentLinkService = require('../services/business/DocumentLinkService');
 const BudgetControlService = require('../services/business/BudgetControlService');
+const VoucherReversalService = require('../services/finance/VoucherReversalService');
+const { DOCUMENT_TYPES } = require('../constants/financeConstants');
 const { currentDateString, toLocalDateString } = require('../utils/dateUtils');
+const { isTruthyFlag } = require('../utils/finance/settlementMath');
 
 function toDateString(value) {
   if (!value) return currentDateString();
@@ -627,6 +630,7 @@ const expenseModel = {
    */
   async getExpenses(filters = {}, page = 1, pageSize = 20) {
     try {
+      const scopeClause = filters.scopeClause || { join: '', where: '', params: [] };
       let whereClause = 'WHERE e.deleted_at IS NULL';
       const params = [];
 
@@ -656,14 +660,14 @@ const expenseModel = {
         params.push(kw, kw, kw);
       }
 
-      if (filters.created_by) {
-        whereClause += ' AND e.created_by = ?';
-        params.push(filters.created_by);
+      if (scopeClause.where) {
+        whereClause += scopeClause.where;
+        params.push(...(scopeClause.params || []));
       }
 
       // 获取总数
       const [countResult] = await db.pool.execute(
-        `SELECT COUNT(*) as total FROM expenses e ${whereClause}`,
+        `SELECT COUNT(*) as total FROM expenses e ${scopeClause.join || ''} ${whereClause}`,
         params
       );
       // MySQL BigInt 返回字符串，需转换为数字
@@ -684,6 +688,7 @@ const expenseModel = {
         LEFT JOIN expense_categories pc ON c.parent_id = pc.id
         LEFT JOIN users u ON e.created_by = u.id
         LEFT JOIN users au ON e.approved_by = au.id
+        ${scopeClause.join || ''}
         ${whereClause}
         ORDER BY e.created_at DESC`,
         safeLimit, safeOffset
@@ -848,7 +853,7 @@ const expenseModel = {
       }
 
       // 职责分离(SoD)：不允许审批自己创建或提交的费用单，防止自审自批
-      if (action === 'approve' && userId !== null && userId !== undefined) {
+      if (userId !== null && userId !== undefined) {
         const approverId = Number(userId);
         const creatorId = Number(current[0].created_by);
         const submitterId = Number(current[0].submitted_by);
@@ -858,10 +863,13 @@ const expenseModel = {
       }
 
       const newStatus = action === 'approve' ? 'approved' : 'rejected';
-      await connection.execute(
-        'UPDATE expenses SET status = ?, approved_by = ?, approved_at = NOW(), approval_remark = ? WHERE id = ?',
+      const [approvalResult] = await connection.execute(
+        "UPDATE expenses SET status = ?, approved_by = ?, approved_at = NOW(), approval_remark = ? WHERE id = ? AND status = 'pending'",
         [newStatus, userId, remark, id]
       );
+      if (approvalResult.affectedRows !== 1) {
+        throw new Error('费用状态已变更，请刷新后重试');
+      }
       await connection.commit();
       return { success: true, status: newStatus };
     } catch (error) {
@@ -944,12 +952,12 @@ const expenseModel = {
       const [existingVoucherEntries] = await connection.execute(
         `SELECT id, entry_number
          FROM gl_entries
-         WHERE document_type = '费用单'
-           AND document_number = ?
+         WHERE document_number = ?
+           AND document_type = ?
            AND COALESCE(is_reversed, 0) = 0
          LIMIT 1
          FOR UPDATE`,
-        [expense.expense_number]
+        [expense.expense_number, DOCUMENT_TYPES.EXPENSE]
       );
       if (existingVoucherEntries.length > 0) {
         throw new Error(
@@ -1054,7 +1062,7 @@ const expenseModel = {
             const entryData = {
               entry_date: paymentDate,
               posting_date: paymentDate,
-              document_type: '费用单',
+              document_type: DOCUMENT_TYPES.EXPENSE,
               document_number: expense.expense_number,
               period_id: periods[0].id,
               description: `费用付款: ${expense.title}`,
@@ -1313,12 +1321,39 @@ const expenseModel = {
   },
 
   /**
-   * 从钉钉回调更新费用状态
+   * 从钉钉回调更新费用状态（受状态机约束，禁止改动已付款）
    * @param {number} expenseId 费用ID
    * @param {Object} data 更新数据
    */
   async updateExpenseFromDingtalk(expenseId, data) {
+    const connection = await db.pool.getConnection();
     try {
+      await connection.beginTransaction();
+
+      const [rows] = await connection.execute(
+        'SELECT id, status FROM expenses WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+        [expenseId]
+      );
+      if (!rows[0]) {
+        throw new Error('费用记录不存在');
+      }
+
+      const currentStatus = rows[0].status;
+      if (currentStatus === 'paid') {
+        throw new Error('已付款费用不允许通过钉钉回调修改状态');
+      }
+
+      const allowedFromPending = new Set(['approved', 'rejected', 'cancelled', 'pending']);
+      if (data.status !== undefined) {
+        if (currentStatus === 'pending' && !allowedFromPending.has(data.status)) {
+          throw new Error(`钉钉回调不允许将费用从 ${currentStatus} 改为 ${data.status}`);
+        }
+        if (currentStatus !== 'pending' && data.status !== currentStatus) {
+          // 非待审状态只允许同步钉钉元数据，不允许改业务状态
+          delete data.status;
+        }
+      }
+
       const fields = [];
       const params = [];
 
@@ -1338,19 +1373,143 @@ const expenseModel = {
         fields.push('approved_at = ?');
         params.push(data.approved_at);
       }
+      if (data.approved_by !== undefined) {
+        fields.push('approved_by = ?');
+        params.push(data.approved_by);
+      }
 
       if (fields.length === 0) {
+        await connection.commit();
         return { success: true };
       }
 
       params.push(expenseId);
-      await db.pool.execute(`UPDATE expenses SET ${fields.join(', ')} WHERE id = ?`, params);
+      await connection.execute(`UPDATE expenses SET ${fields.join(', ')} WHERE id = ?`, params);
+      await connection.commit();
 
-      logger.info(`[Dingtalk] 费用 ${expenseId} 状态已更新: ${JSON.stringify(data)}`);
+      logger.info('[Dingtalk] Expense status updated', {
+        expenseId,
+        status: data.status,
+        approvedBy: data.approved_by,
+        approvedAt: data.approved_at,
+      });
       return { success: true };
     } catch (error) {
+      await connection.rollback();
       logger.error('从钉钉更新费用状态失败:', error);
       throw error;
+    } finally {
+      connection.release();
+    }
+  },
+
+  /**
+   * 作废已付款费用：冲销银行流水与总账，状态回退为已审批
+   */
+  async voidExpensePayment(id, voidData = {}) {
+    const connection = await db.pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const voidedBy = Number.parseInt(voidData.voided_by, 10);
+      if (!Number.isInteger(voidedBy) || voidedBy <= 0) {
+        throw new Error('voided_by must be a positive integer');
+      }
+      const voidReason = String(voidData.void_reason || '').trim();
+      if (!voidReason) {
+        throw new Error('请填写作废原因');
+      }
+
+      const [rows] = await connection.execute(
+        `SELECT id, expense_number, title, amount, status, payment_bank_account_id, payment_transaction_id
+         FROM expenses WHERE id = ? AND deleted_at IS NULL FOR UPDATE`,
+        [id]
+      );
+      if (!rows[0]) {
+        throw new Error('费用记录不存在');
+      }
+      const expense = rows[0];
+      if (expense.status !== 'paid') {
+        throw new Error('仅已付款费用可以作废付款');
+      }
+
+      const bankTransactionId = expense.payment_transaction_id;
+      if (bankTransactionId) {
+        const [bankTxs] = await connection.execute(
+          `SELECT id, transaction_number, bank_account_id, amount, is_reconciled, gl_entry_id
+           FROM bank_transactions WHERE id = ? FOR UPDATE`,
+          [bankTransactionId]
+        );
+        if (bankTxs.length === 0) {
+          throw new Error('关联银行流水不存在，无法作废付款');
+        }
+        const bankTx = bankTxs[0];
+        if (isTruthyFlag(bankTx.is_reconciled)) {
+          throw new Error('关联银行流水已对账，请先取消对账后再作废付款');
+        }
+
+        const [accounts] = await connection.execute(
+          'SELECT id FROM bank_accounts WHERE id = ? FOR UPDATE',
+          [bankTx.bank_account_id]
+        );
+        if (accounts.length === 0) {
+          throw new Error('付款账户不存在');
+        }
+
+        const reversalDate = currentDateString();
+        const reversalNumber = `${bankTx.transaction_number}-VOID`;
+        await connection.execute(
+          `INSERT INTO bank_transactions
+           (transaction_number, bank_account_id, transaction_date, transaction_type,
+            amount, reference_number, description, is_reconciled, related_party, status, created_by)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            reversalNumber,
+            bankTx.bank_account_id,
+            reversalDate,
+            '转入',
+            bankTx.amount,
+            expense.expense_number,
+            `冲销费用付款 - 原因: ${voidReason}`,
+            false,
+            '内部费用',
+            'approved',
+            voidedBy,
+          ]
+        );
+        await connection.execute(
+          'UPDATE bank_accounts SET current_balance = current_balance + ?, last_transaction_date = ? WHERE id = ?',
+          [bankTx.amount, reversalDate, bankTx.bank_account_id]
+        );
+      }
+
+      await VoucherReversalService.reverseBusinessVouchers(connection, {
+        sourceType: 'expense',
+        sourceId: expense.id,
+        documentNumber: expense.expense_number,
+        documentType: DOCUMENT_TYPES.EXPENSE,
+        voidedBy,
+        reason: `冲销费用付款 - 原因: ${voidReason}`,
+      });
+
+      await connection.execute(
+        `UPDATE expenses SET
+           status = 'approved',
+           paid_at = NULL,
+           payment_bank_account_id = NULL,
+           payment_transaction_id = NULL
+         WHERE id = ?`,
+        [id]
+      );
+
+      await connection.commit();
+      logger.info(`[费用付款作废] expense#${id} ${expense.expense_number}`);
+      return { success: true };
+    } catch (error) {
+      await connection.rollback();
+      logger.error('作废费用付款失败:', error);
+      throw error;
+    } finally {
+      connection.release();
     }
   },
 

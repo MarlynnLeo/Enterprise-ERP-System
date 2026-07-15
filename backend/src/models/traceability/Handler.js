@@ -11,6 +11,18 @@ const dayjs = require('dayjs');
 const Core = require('./Core');
 
 class TraceabilityHandler {
+  static summarizeTracePayload(data = {}) {
+    return {
+      inboundNo: data.inbound_no || data.inboundNo,
+      outboundNo: data.outbound_no || data.outboundNo,
+      materialId: data.material_id || data.materialId,
+      productId: data.product_id || data.productId,
+      batchNo: data.batch_no || data.batchNumber,
+      referenceId: data.reference_id || data.referenceId,
+      quantity: data.quantity,
+    };
+  }
+
   /**
    * 自动创建追溯记录
    * @param {string} triggerType - 触发类型 (purchase, inbound, inspection, production, product_warehouse, production_return, defective_return, sales_return, outbound, production_outbound, sales_outbound, sales)
@@ -19,7 +31,10 @@ class TraceabilityHandler {
    */
   static async handleAutoTraceability(triggerType, data) {
     try {
-      logger.info(`开始自动处理追溯逻辑，类型：${triggerType}`, data);
+      logger.debug('Auto traceability handling started', {
+        triggerType,
+        ...this.summarizeTracePayload(data),
+      });
 
       let result = null;
 
@@ -53,7 +68,10 @@ class TraceabilityHandler {
           result = await this._handleOutboundTraceability(data);
           break;
         case 'sales': // 销售出库
-          logger.info('处理成品销售出库追溯', data);
+          logger.debug('Handling product sales outbound traceability', {
+            triggerType,
+            ...this.summarizeTracePayload(data),
+          });
           break;
         default:
           logger.warn(`未知的追溯触发类型: ${triggerType}`);
@@ -78,7 +96,7 @@ class TraceabilityHandler {
       // 目前主要逻辑由getTraceabilityRecords等查询方法动态关联
 
       // 示例：检查是否需要创建新的批次追踪记录
-      logger.info('处理采购入库追溯', data);
+      logger.debug('Handling purchase inbound traceability', this.summarizeTracePayload(data));
 
       // 实际业务中，可能将数据写入 traceability 表
       // 但当前设计 traceability 表主要存储成品批次信息
@@ -98,7 +116,7 @@ class TraceabilityHandler {
   static async _handleOutboundTraceability(data) {
     try {
       // 领料出库作为生产追溯的重要节点
-      logger.info('处理出料/发料出库追溯', data);
+      logger.debug('Handling material outbound traceability', this.summarizeTracePayload(data));
 
       // 根据当前架构，出库记录也主要依靠流水和表关联
       return { success: true, message: '发料追溯处理完成' };

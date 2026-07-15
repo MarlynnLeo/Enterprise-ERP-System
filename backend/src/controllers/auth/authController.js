@@ -30,7 +30,7 @@ const login = async (req, res) => {
     // 1. 检查账号是否被锁定
     const lockStatus = await AccountLockService.isLocked(username);
     if (lockStatus.locked) {
-      logger.warn(`🔒 [登录拒绝] 账号 ${username} 处于锁定状态，剩余 ${lockStatus.remainingMinutes} 分钟`);
+      logger.warn(`Login rejected because account is locked: username=${username}, remainingMinutes=${lockStatus.remainingMinutes}`);
       return ResponseHandler.error(
         res,
         `账号已被锁定，请 ${lockStatus.remainingMinutes} 分钟后再试`,
@@ -58,7 +58,7 @@ const login = async (req, res) => {
 
     // 4. 验证密码（防御性检查：确保密码哈希存在）
     if (!user.password) {
-      logger.error(`⚠️ 用户 ${username}(ID:${user.id}) 的密码哈希字段为空，拒绝登录`);
+      logger.error(`Login rejected because password hash is missing: username=${username}, userId=${user.id}`);
       return ResponseHandler.error(res, '账户数据异常，请联系管理员', 'SERVER_ERROR', 500);
     }
     const isMatch = await PasswordSecurity.verifyPassword(password, user.password);
@@ -94,7 +94,7 @@ const login = async (req, res) => {
       '登录成功'
     );
 
-    logger.info('用户登录成功:', { userId: user.id, username: user.username });
+    logger.info('User login succeeded', { userId: user.id, username: user.username });
   } catch (error) {
     logger.error('[Auth] 登录失败:', error);
     ResponseHandler.error(res, '服务器错误', 'SERVER_ERROR', 500, error);
@@ -190,19 +190,37 @@ const changePassword = async (req, res) => {
       );
     }
 
-    // 加密新密码
-    const hashedNewPassword = await PasswordSecurity.hashPassword(newPassword);
+    // 密码历史：禁止重复使用最近 N 次密码
+    const db = require('../../config/db');
+    const connection = await db.pool.getConnection();
+    try {
+      const historyOk = await PasswordSecurity.checkPasswordHistory(
+        userId,
+        newPassword,
+        connection
+      );
+      if (!historyOk) {
+        return ResponseHandler.error(
+          res,
+          '新密码不能与最近使用过的密码相同',
+          'VALIDATION_ERROR',
+          400
+        );
+      }
 
-    // ✅ 安全修复: 更新密码时同时递增 token_version，强制所有设备重新登录
-    await AuthService.updatePassword(userId, hashedNewPassword);
+      const hashedNewPassword = await PasswordSecurity.hashPassword(newPassword);
+      // 更新密码时递增 token_version，强制所有设备重新登录
+      await AuthService.updatePassword(userId, hashedNewPassword);
+      await PasswordSecurity.savePasswordHistory(userId, hashedNewPassword, connection);
+    } finally {
+      connection.release();
+    }
 
-    // 清除当前设备的 Cookie，迫使重新登录
     clearTokenCookies(res);
-
-    ResponseHandler.success(res, null, '密码修改成功，请重新登录');
+    return ResponseHandler.success(res, null, '密码修改成功，请重新登录');
   } catch (error) {
     logger.error('[Auth] 修改密码失败:', error);
-    ResponseHandler.error(res, '服务器错误', 'SERVER_ERROR', 500, error);
+    return ResponseHandler.error(res, '服务器错误', 'SERVER_ERROR', 500, error);
   }
 };
 

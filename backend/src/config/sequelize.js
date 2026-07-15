@@ -32,39 +32,103 @@ const sequelize = new Sequelize(config.database, config.username, config.passwor
   timezone: config.timezone,
 });
 
+const isTestRuntime = process.env.NODE_ENV === 'test' || Boolean(process.env.JEST_WORKER_ID);
+let initRetryTimer = null;
+let pendingRetryResolve = null;
+let initializationCancelled = false;
+let initPromise = null;
+
+const getDefaultMaxRetries = () => (isTestRuntime ? 0 : 3);
+
+const clearInitRetryTimer = () => {
+  if (initRetryTimer) {
+    clearTimeout(initRetryTimer);
+    initRetryTimer = null;
+  }
+
+  if (pendingRetryResolve) {
+    pendingRetryResolve(false);
+    pendingRetryResolve = null;
+  }
+};
+
+const waitForRetry = (delay) =>
+  new Promise((resolve) => {
+    pendingRetryResolve = resolve;
+    initRetryTimer = setTimeout(() => {
+      initRetryTimer = null;
+      pendingRetryResolve = null;
+      resolve(true);
+    }, delay);
+    initRetryTimer.unref?.();
+  });
+
 // 验证连接并初始化
-const initSequelize = async (retryCount = 0, maxRetries = 3) => {
+const initSequelize = async (retryCount = 0, maxRetries = getDefaultMaxRetries()) => {
+  if (initializationCancelled) {
+    return false;
+  }
+
   try {
     // 尝试连接数据库
     await sequelize.authenticate();
 
     return true;
-  } catch {
-    // Error logged
-    if (retryCount < maxRetries) {
-      const delay = Math.pow(2, retryCount) * 2000; // 指数退避：2s, 4s, 8s
-      return new Promise((resolve) => {
-        setTimeout(async () => {
-          const result = await initSequelize(retryCount + 1, maxRetries);
-          resolve(result);
-        }, delay);
-      });
-    } else {
-      logger.error('💥 数据库连接失败，已达到最大重试次数');
-      logger.error('🔧 请检查数据库配置和网络连接');
-
-      // 在开发环境中不退出进程，允许手动重试
-      if (process.env.NODE_ENV === 'production') {
-        process.exit(1);
-      }
-
+  } catch (error) {
+    if (initializationCancelled) {
       return false;
     }
+
+    if (retryCount < maxRetries) {
+      const delay = Math.pow(2, retryCount) * 2000; // 指数退避：2s, 4s, 8s
+      const shouldRetry = await waitForRetry(delay);
+      if (!shouldRetry || initializationCancelled) {
+        return false;
+      }
+
+      return initSequelize(retryCount + 1, maxRetries);
+    }
+
+    logger.error('Database connection failed after maximum retries', {
+      message: error.message,
+      attempts: retryCount + 1,
+      maxRetries,
+    });
+
+    // 在生产环境中数据库不可用时终止进程，避免服务以不完整状态运行
+    if (process.env.NODE_ENV === 'production') {
+      process.exit(1);
+    }
+
+    return false;
   }
+};
+
+const startSequelizeInitialization = (options = {}) => {
+  initializationCancelled = false;
+
+  if (!initPromise) {
+    const maxRetries = options.maxRetries ?? getDefaultMaxRetries();
+    initPromise = initSequelize(0, maxRetries).finally(() => {
+      initPromise = null;
+    });
+  }
+
+  return initPromise;
+};
+
+const stopSequelizeInitialization = () => {
+  initializationCancelled = true;
+  clearInitRetryTimer();
 };
 
 // 启动连接
 // 注: Sequelize 连接池关闭由 db.js 中的 gracefulShutdown 统一管理
-initSequelize();
+if (!isTestRuntime || process.env.SEQUELIZE_AUTO_INIT === 'true') {
+  startSequelizeInitialization();
+}
+
+sequelize.initSequelize = startSequelizeInitialization;
+sequelize.stopInitialization = stopSequelizeInitialization;
 
 module.exports = sequelize;

@@ -1,7 +1,7 @@
 const NAVIGATION_MENUS = [
   {
     parentPermission: 'production',
-    name: 'Production Data View',
+    name: '生产数据看板',
     path: '/production/data-view',
     component: 'production/ProductionDataView',
     icon: 'icon-data-board',

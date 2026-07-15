@@ -174,74 +174,158 @@ class AssemblyExecutionService {
 
   /**
    * 完成工序 (in_progress → completed)
+   * 全部装配工序完成后：与主过程闭环对齐 — 推进任务待检 + 自动建终检（能推则推）
    */
   static async completeStep(stepId, data = {}) {
     const { remark } = data;
+    const connection = await pool.getConnection();
 
-    const [steps] = await pool.query(
-      'SELECT id, task_id, sequence, status, started_at FROM assembly_task_steps WHERE id = ?',
-      [stepId]
-    );
-    if (steps.length === 0) throw new Error('工序步骤不存在');
+    try {
+      await connection.beginTransaction();
 
-    const step = steps[0];
-    if (step.status !== 'in_progress') {
-      throw new Error(`当前状态为 ${step.status}，仅 in_progress 状态可完成`);
-    }
+      const [steps] = await connection.query(
+        'SELECT id, task_id, sequence, status, started_at FROM assembly_task_steps WHERE id = ? FOR UPDATE',
+        [stepId]
+      );
+      if (steps.length === 0) throw new Error('工序步骤不存在');
 
-    // 计算实际工时
-    const now = new Date();
-    const startedAt = new Date(step.started_at);
-    const actualMinutes = Math.round((now - startedAt) / 60000 * 100) / 100;
-
-    await pool.query(
-      `UPDATE assembly_task_steps
-       SET status = 'completed', completed_at = ?, actual_minutes = ?, remark = COALESCE(?, remark)
-       WHERE id = ?`,
-      [now, actualMinutes, remark, stepId]
-    );
-
-    // 统计完成情况
-    const [[{ totalSteps, completedSteps, remaining }]] = await pool.query(
-      `SELECT COUNT(*) as totalSteps,
-              SUM(CASE WHEN status IN ('completed', 'skipped') THEN 1 ELSE 0 END) as completedSteps,
-              SUM(CASE WHEN status NOT IN ('completed', 'skipped') THEN 1 ELSE 0 END) as remaining
-       FROM assembly_task_steps WHERE task_id = ?`,
-      [step.task_id]
-    );
-
-    // 同步 production_tasks.progress（闭环关键：工序进度回写到任务进度）
-    const progressPercent = totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0;
-    await pool.query(
-      'UPDATE production_tasks SET progress = ? WHERE id = ? AND deleted_at IS NULL',
-      [Math.min(progressPercent, 99), step.task_id]  // 进度最高99%，100%由完工流程设置
-    );
-
-    const allDone = remaining === 0;
-    if (allDone) {
-      logger.info(`[装配执行] 任务 ${step.task_id} 全部工序完成，触发通知`);
-
-      // 闭环：发出事件通知，其他模块可监听决定后续动作（如自动完工、通知管理员等）
-      try {
-        const EventBus = require('../../events/EventBus');
-        EventBus.emit('ASSEMBLY_ALL_STEPS_COMPLETED', {
-          taskId: step.task_id,
-          totalSteps,
-          totalActualMinutes: await this._getTotalActualMinutes(step.task_id),
-          completedAt: now,
-        });
-      } catch (e) {
-        logger.warn('[装配执行] 发送 ASSEMBLY_ALL_STEPS_COMPLETED 事件失败:', e.message);
+      const step = steps[0];
+      if (step.status !== 'in_progress') {
+        throw new Error(`当前状态为 ${step.status}，仅 in_progress 状态可完成`);
       }
+
+      const now = new Date();
+      const startedAt = new Date(step.started_at);
+      const actualMinutes = Math.round(((now - startedAt) / 60000) * 100) / 100;
+
+      await connection.query(
+        `UPDATE assembly_task_steps
+         SET status = 'completed', completed_at = ?, actual_minutes = ?, remark = COALESCE(?, remark)
+         WHERE id = ?`,
+        [now, actualMinutes, remark, stepId]
+      );
+
+      const [[{ totalSteps, completedSteps, remaining }]] = await connection.query(
+        `SELECT COUNT(*) as totalSteps,
+                SUM(CASE WHEN status IN ('completed', 'skipped') THEN 1 ELSE 0 END) as completedSteps,
+                SUM(CASE WHEN status NOT IN ('completed', 'skipped') THEN 1 ELSE 0 END) as remaining
+         FROM assembly_task_steps WHERE task_id = ?`,
+        [step.task_id]
+      );
+
+      const progressPercent = totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0;
+      // 全部完成时进度由主链待检/完工接管；未全完成封顶 99
+      const progressToWrite = remaining === 0 ? 100 : Math.min(progressPercent, 99);
+      await connection.query(
+        'UPDATE production_tasks SET progress = ? WHERE id = ? AND deleted_at IS NULL',
+        [progressToWrite, step.task_id]
+      );
+
+      const allDone = Number(remaining) === 0;
+      let mainChainPromoted = false;
+      let finalInspectionCreated = false;
+
+      if (allDone) {
+        logger.info(`[装配执行] 任务 ${step.task_id} 全部工序完成，对齐主链待检闭环`);
+        const result = await this._promoteTaskOnAssemblyComplete(connection, step.task_id);
+        mainChainPromoted = result.promoted;
+        finalInspectionCreated = result.finalInspectionCreated;
+      }
+
+      await connection.commit();
+
+      if (allDone) {
+        try {
+          const EventBus = require('../../events/EventBus');
+          EventBus.emit('ASSEMBLY_ALL_STEPS_COMPLETED', {
+            taskId: step.task_id,
+            totalSteps,
+            totalActualMinutes: await this._getTotalActualMinutes(step.task_id),
+            completedAt: now,
+            mainChainPromoted,
+            finalInspectionCreated,
+          });
+        } catch (e) {
+          logger.warn('[装配执行] 发送 ASSEMBLY_ALL_STEPS_COMPLETED 事件失败:', e.message);
+        }
+      }
+
+      return {
+        step: await this.getStepDetail(stepId),
+        actualMinutes,
+        progressPercent: progressToWrite,
+        allStepsCompleted: allDone,
+        taskId: step.task_id,
+        mainChainPromoted,
+        finalInspectionCreated,
+      };
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  }
+
+  /**
+   * 装配全完成 → 主链待检 + 终检（与工序全完成共用 FinalInspectionService / 状态机路径）
+   * 未发料任务在自动推进子图中不可达 inspection，返回 promoted=false
+   */
+  static async _promoteTaskOnAssemblyComplete(connection, taskId) {
+    const { promoteTaskToward } = require('./TaskLifecycleService');
+    const FinalInspectionService = require('./FinalInspectionService');
+
+    const [tasks] = await connection.query(
+      `SELECT id, code, status FROM production_tasks WHERE id = ? AND deleted_at IS NULL FOR UPDATE`,
+      [taskId]
+    );
+    if (tasks.length === 0) {
+      return { promoted: false, finalInspectionCreated: false };
+    }
+    const task = tasks[0];
+
+    let promoteResult;
+    try {
+      promoteResult = await promoteTaskToward(connection, taskId, 'inspection', {
+        requireOpenInspectionClear: true,
+        setCompletedQuantityToPlan: true,
+        strict: true,
+      });
+    } catch (promoteErr) {
+      logger.warn(`[装配执行] 任务 ${task.code} 推进待检失败: ${promoteErr.message}`);
+      return { promoted: false, finalInspectionCreated: false };
     }
 
-    return {
-      step: await this.getStepDetail(stepId),
-      actualMinutes,
-      progressPercent,
-      allStepsCompleted: allDone,
-      taskId: step.task_id,
-    };
+    if (
+      !promoteResult.promoted &&
+      promoteResult.reason !== 'already' &&
+      promoteResult.status !== 'inspection'
+    ) {
+      logger.warn(
+        `[装配执行] 任务 ${task.code} 状态 ${task.status} 无法进入待检: ${promoteResult.reason}`
+      );
+      return { promoted: false, finalInspectionCreated: false };
+    }
+
+    const promoted =
+      !!promoteResult.promoted ||
+      promoteResult.reason === 'already' ||
+      promoteResult.status === 'inspection';
+
+    let finalInspectionCreated = false;
+    try {
+      const ensure = await FinalInspectionService.ensureForTask(connection, taskId, {
+        note: '装配工序全部完成后自动创建',
+      });
+      finalInspectionCreated = !!ensure.created;
+      if (finalInspectionCreated) {
+        logger.info(`[装配执行] 任务 ${task.code} 已自动创建终检单`);
+      }
+    } catch (inspErr) {
+      logger.warn(`[装配执行] 任务 ${task.code} 创建终检失败: ${inspErr.message}`);
+    }
+
+    return { promoted, finalInspectionCreated };
   }
 
   /**

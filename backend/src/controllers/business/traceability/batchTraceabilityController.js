@@ -12,6 +12,8 @@ const InventoryTraceabilityService = require('../../../services/business/Invento
 const ProductSalesTraceabilityService = require('../../../services/business/ProductSalesTraceabilityService');
 const db = require('../../../config/db');
 const ExcelJS = require('exceljs');
+const { getInventoryTransactionTypeText } = require('../../../constants/systemConstants');
+const BusinessTypeService = require('../../../services/BusinessTypeService');
 
 const toRows = (result) => (Array.isArray(result.rows) ? result.rows : (result.rows ? [result.rows] : []));
 const toPlainRows = (result) => {
@@ -747,6 +749,7 @@ const batchTraceabilityController = {
   async exportTraceabilityReport(req, res) {
     try {
       const { materialCode, batchNumber } = req.query;
+      const inventoryTypeMap = await BusinessTypeService.getGroupMap('inventory_transaction');
       const requestedDirection = req.query.direction;
       let direction = requestedDirection || 'forward';
 
@@ -921,20 +924,13 @@ const batchTraceabilityController = {
         transactionHeaderRow.font = { bold: true };
 
         transactions.forEach((trans) => {
-          const typeText =
-            {
-              in: '入库',
-              out: '出库',
-              transfer: '转移',
-              adjust: '调整',
-              reserve: '预留',
-              unreserve: '取消预留',
-              purchase_inbound: '采购入库',
-              production_inbound: '生产入库',
-              production_outbound: '生产领料',
-              sales_outbound: '销售出库',
-              return_inbound: '退货入库',
-            }[trans.transaction_type] || trans.transaction_type;
+          const typeText = {
+            reserve: '预留',
+            unreserve: '取消预留',
+            return_inbound: '退货入库',
+          }[trans.transaction_type]
+            || inventoryTypeMap[trans.transaction_type]
+            || getInventoryTransactionTypeText(trans.transaction_type);
 
           worksheet.addRow([
             typeText,

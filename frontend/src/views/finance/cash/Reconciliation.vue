@@ -8,18 +8,12 @@
 -->
 <template>
   <div class="module-page reconciliation-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>银行对账</h2>
-          <p class="subtitle">银行账户对账与核销</p>
-        </div>
-        <div class="action-buttons">
-          <el-button v-permission="'finance:cash:reconcile'" type="primary" @click="startReconciliation">开始对账</el-button>
+    <PageHeader title="银行对账" subtitle="银行账户对账与核销">
+      <template #actions>
+<el-button v-permission="'finance:cash:reconcile'" type="primary" @click="startReconciliation">开始对账</el-button>
           <el-button v-permission="'finance:cash:reconcile'" type="success" @click="importStatement" :disabled="!selectedAccount || !dateRange">导入对账单</el-button>
-        </div>
-      </div>
-    </el-card>
+      </template>
+    </PageHeader>
 
     <!-- 账户选择 -->
     <FinanceQueryCard
@@ -115,7 +109,7 @@
           <el-table
             :data="unreconciledItems"
             border
-            style="width: 100%"
+            class="w-full"
             v-loading="loading"
             @selection-change="handleUnreconciledSelect"
           >
@@ -175,14 +169,14 @@
               <template #trigger>
                 <el-button type="primary">选择文件</el-button>
               </template>
-              <el-button v-permission="'finance:cash:reconcile'" style="margin-left: 10px;" type="success" @click="uploadFile" :loading="uploading">上传</el-button>
+              <el-button v-permission="'finance:cash:reconcile'" class="ml-sm" type="success" @click="uploadFile" :loading="uploading">上传</el-button>
               <template #tip>
                 <div class="el-upload__tip">支持.xlsx, .csv格式，请选择符合模板的银行对账单文件</div>
               </template>
             </el-upload>
           </div>
 
-          <el-table v-else :data="importedStatement" border style="width: 100%">
+          <el-table v-else :data="importedStatement" border class="w-full">
             <el-table-column type="selection" width="55"></el-table-column>
             <el-table-column prop="transactionDate" label="交易日期" width="120"></el-table-column>
             <el-table-column label="交易类型" width="100">
@@ -230,7 +224,7 @@
         </el-tab-pane>
 
         <el-tab-pane label="已对账项目" name="reconciled">
-          <el-table :data="reconciledItems" border style="width: 100%" v-loading="loading">
+          <el-table :data="reconciledItems" border class="w-full" v-loading="loading">
             <el-table-column prop="transactionDate" label="交易日期" width="120"></el-table-column>
             <el-table-column label="交易类型" width="100">
               <template #default="scope">
@@ -296,7 +290,7 @@
 
         <div class="matching-transactions">
           <h4>可匹配的账面交易</h4>
-          <el-table :data="matchingTransactions" border style="width: 100%" @selection-change="handleSelectionChange">
+          <el-table :data="matchingTransactions" border class="w-full" @selection-change="handleSelectionChange">
             <el-table-column type="selection" width="55"></el-table-column>
             <el-table-column prop="transactionDate" label="交易日期" width="120"></el-table-column>
             <el-table-column label="交易类型" width="100">
@@ -336,7 +330,7 @@ import { formatCurrency, formatLocalDate } from '@/utils/format'
 
 import { ref, reactive, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { Check } from '@element-plus/icons-vue'
 
 import { financeApi } from '@/api/finance';
@@ -619,6 +613,16 @@ const markAsReconciled = async (transaction) => {
 // 取消对账
 const cancelReconciliation = async (transaction) => {
   try {
+    await ElMessageBox.confirm(
+      `确定取消交易「${transaction.transaction_number || transaction.id}」的对账标记吗？`,
+      '取消对账确认',
+      {
+        confirmButtonText: '确定取消对账',
+        cancelButtonText: '返回',
+        type: 'warning',
+      }
+    );
+
     await financeApi.reconciliation.cancelReconciliation({
       transactionId: transaction.id,
       accountId: selectedAccount.value
@@ -629,8 +633,9 @@ const cancelReconciliation = async (transaction) => {
     // 刷新对账数据
     searchReconciliation();
   } catch (error) {
+    if (error === 'cancel' || error === 'close') return;
     console.error('取消对账失败:', error);
-    ElMessage.error('取消对账失败');
+    ElMessage.error(error?.response?.data?.message || error?.message || '取消对账失败');
   }
 };
 
@@ -857,12 +862,6 @@ onMounted(async () => {
 
 .positive-value {
   color: var(--color-success);
-}
-
-/* 对话框高度 */
-:deep(.el-dialog__body) {
-  max-height: 60vh;
-  overflow-y: auto;
 }
 
 /* 工具栏样式 */

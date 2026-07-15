@@ -92,6 +92,12 @@ exports.getSalesOutbound = async (req, res) => {
     const connection = await db.pool.getConnection();
 
     try {
+      const ScopeGuard = require('../../../authorization/ScopeGuard');
+      const scopeClause = await ScopeGuard.applyListScope(req, 'sales_outbound', {
+        tableAlias: 'so',
+        ownerAlias: 'sales_outbound_owner_scope',
+      });
+
       // 构建查询条件
       let whereClause = '';
       const queryParams = [];
@@ -116,12 +122,16 @@ exports.getSalesOutbound = async (req, res) => {
         queryParams.push(status);
       }
 
+      whereClause += scopeClause.where;
+      queryParams.push(...scopeClause.params);
+
       // 查询总数
       const countQuery = `
         SELECT COUNT(*) as total
         FROM sales_outbound so
         LEFT JOIN sales_orders o ON so.order_id = o.id AND o.deleted_at IS NULL
         LEFT JOIN customers c ON o.customer_id = c.id
+        ${scopeClause.join}
         WHERE so.deleted_at IS NULL ${whereClause}
       `;
 
@@ -134,6 +144,7 @@ exports.getSalesOutbound = async (req, res) => {
         FROM sales_outbound so
         LEFT JOIN sales_orders o ON so.order_id = o.id AND o.deleted_at IS NULL
         LEFT JOIN customers c ON o.customer_id = c.id
+        ${scopeClause.join}
         WHERE so.deleted_at IS NULL ${whereClause}
         ORDER BY so.created_at DESC
       `,
@@ -269,6 +280,11 @@ exports.getSalesOutboundById = async (req, res) => {
     const { id } = req.params;
 
     connection = await getConnection();
+
+    const ScopeGuard = require('../../../authorization/ScopeGuard');
+    if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'sales_outbound', id, '无权访问该销售出库单'))) {
+      return;
+    }
 
     // 查询出库单主信息
     const query = `
@@ -504,22 +520,26 @@ exports.createSalesOutbound = async (req, res) => {
     }
     const created_by = getAuthenticatedUserId(req);
 
-    logger.info(
-      '销售出库单创建请求:',
-      JSON.stringify(
-        {
-          order_id,
-          related_orders,
-          is_multi_order,
-          delivery_date,
-          status,
-          remarks,
-          items_count: items?.length || 0,
-        },
-        null,
-        2
-      )
-    );
+    // 创建仅允许 draft；完成扣库必须走更新为 completed 路径
+    if (status && status !== 'draft') {
+      return ResponseHandler.error(
+        res,
+        '创建销售出库单仅允许 draft，完成发货请通过更新状态为 completed',
+        'VALIDATION_ERROR',
+        400
+      );
+    }
+    const createStatus = 'draft';
+
+    logger.debug('Sales outbound create payload normalized', {
+      orderId: order_id,
+      relatedOrderCount: related_orders.length,
+      isMultiOrder: Boolean(is_multi_order),
+      deliveryDate: delivery_date,
+      status: createStatus,
+      hasRemarks: Boolean(remarks),
+      itemCount: items?.length || 0,
+    });
 
     // 验证日期格式转换
     let formattedDeliveryDate;
@@ -616,7 +636,7 @@ exports.createSalesOutbound = async (req, res) => {
       is_multi_order,
       is_multi_order ? JSON.stringify(related_orders) : null,
       formattedDeliveryDate,
-      status || 'draft',
+      createStatus,
       remarks,
       created_by,
     ]);
@@ -663,7 +683,7 @@ exports.createSalesOutbound = async (req, res) => {
             await assertSalesOutboundQuantities(connection, validItems, {
               orderId: order_id,
               isMultiOrder: is_multi_order,
-              status: status || 'draft',
+              status: createStatus,
             });
 
             const detailQuery = `
@@ -803,7 +823,15 @@ exports.updateSalesOutbound = async (req, res) => {
       items,
     } = req.body;
 
-    logger.info('请求数据:', req.body);
+    logger.debug('Sales outbound update payload normalized', {
+      id,
+      orderId: order_id,
+      relatedOrderCount: Array.isArray(related_orders) ? related_orders.length : 0,
+      isMultiOrder: Boolean(is_multi_order),
+      status,
+      hasRemarks: Boolean(remarks),
+      itemCount: Array.isArray(items) ? items.length : 0,
+    });
 
     // 转换日期格式为YYYY-MM-DD
     const formattedDeliveryDate = delivery_date
@@ -811,6 +839,12 @@ exports.updateSalesOutbound = async (req, res) => {
       : new Date().toISOString().split('T')[0];
 
     connection = await getConnection();
+
+    const ScopeGuard = require('../../../authorization/ScopeGuard');
+    if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'sales_outbound', id, '无权修改该销售出库单'))) {
+      return;
+    }
+
     await connection.beginTransaction();
 
     // 1. 检查出库单是否存在并获取当前状态和明细
@@ -1105,7 +1139,7 @@ exports.updateSalesOutbound = async (req, res) => {
     });
 
     if (items && items.length > 0) {
-      logger.info('🔄 基于出库物料更新所有相关订单状态...');
+      logger.info('Updating related sales order statuses from outbound materials');
       try {
         const results = await SalesOrderStatusService.updateOrderStatusByMaterials(
           items,
@@ -1140,7 +1174,7 @@ exports.updateSalesOutbound = async (req, res) => {
             }
           });
         } else if (finalOrderId) {
-          logger.info(`📦 回退：开始智能更新单个订单 ${finalOrderId} 状态...`);
+          logger.info(`Fallback sales order status update started: orderId=${finalOrderId}`);
           try {
             const result = await SalesOrderStatusService.updateOrderStatus(
               finalOrderId,
@@ -1157,7 +1191,7 @@ exports.updateSalesOutbound = async (req, res) => {
       // 没有物料信息时使用原有逻辑
       if (finalIsMultiOrder && finalRelatedOrders && finalRelatedOrders.length > 0) {
         logger.info(
-          `📦 开始智能更新 ${finalRelatedOrders.length} 个订单状态 [${finalRelatedOrders.join(', ')}]`
+          `Sales order status batch update started: count=${finalRelatedOrders.length}, orderIds=${finalRelatedOrders.join(',')}`
         );
         const updateResults = await SalesOrderStatusService.updateMultipleOrderStatus(
           finalRelatedOrders,
@@ -1171,7 +1205,7 @@ exports.updateSalesOutbound = async (req, res) => {
           }
         });
       } else if (finalOrderId) {
-        logger.info(`📦 开始智能更新单个订单 ${finalOrderId} 状态...`);
+        logger.info(`Sales order status update started: orderId=${finalOrderId}`);
         try {
           const result = await SalesOrderStatusService.updateOrderStatus(finalOrderId, connection);
           logger.info(`订单 ${finalOrderId} 状态: ${result.status} (${result.message})`);
@@ -1221,11 +1255,12 @@ exports.updateSalesOutbound = async (req, res) => {
         currentUserId: req.user?.id ?? null,
       };
     } catch (evtError) {
-      logger.error('⚠️ 财务事件数据准备失败，但不阻塞出库', evtError);
+      logger.error('Financial event payload preparation failed; outbound processing will continue', evtError);
     }
 
+    let domainEventId = null;
     if (eventPayload && isJustCompleted) {
-      await DomainEventService.enqueue(
+      domainEventId = await DomainEventService.enqueue(
         'SALES_OUTBOUND_COMPLETED',
         eventPayload,
         {
@@ -1239,7 +1274,7 @@ exports.updateSalesOutbound = async (req, res) => {
 
     // ========== 提交主事务，释放所有行锁 ==========
     await connection.commit();
-    DomainEventService.dispatchSoon();
+    DomainEventService.dispatchSoon(domainEventId);
 
     const [updatedOutbound] = await connection.query(
       `SELECT so.*, o.order_no, c.name as customer_name
@@ -1289,6 +1324,176 @@ exports.updateSalesOutbound = async (req, res) => {
   }
 };
 
+/**
+ * 冲销已完成销售出库：按台账回冲库存，状态 → reversed
+ * 幂等：outbound_cancel 流水 + 条件状态更新
+ */
+exports.reverseSalesOutbound = async (req, res) => {
+  let connection;
+  try {
+    const { id } = req.params;
+    connection = await getConnection();
+    await connection.beginTransaction();
+
+    const [rows] = await connection.query(
+      `SELECT id, outbound_no, order_id, status, is_multi_order, related_orders, delivery_date
+       FROM sales_outbound
+       WHERE id = ? AND deleted_at IS NULL
+       FOR UPDATE`,
+      [id]
+    );
+    if (rows.length === 0) {
+      await connection.rollback();
+      return ResponseHandler.notFound(res, '销售出库单不存在');
+    }
+
+    const outbound = rows[0];
+    if (outbound.status === 'reversed') {
+      await connection.rollback();
+      return ResponseHandler.success(res, { id: Number(id), status: 'reversed' }, '出库单已冲销');
+    }
+    if (outbound.status !== 'completed') {
+      await connection.rollback();
+      return ResponseHandler.error(
+        res,
+        `仅已完成出库单可冲销，当前状态: ${outbound.status}`,
+        'VALIDATION_ERROR',
+        400
+      );
+    }
+
+    const outboundNo = outbound.outbound_no;
+    const [already] = await connection.execute(
+      `SELECT COUNT(*) AS count
+       FROM inventory_ledger
+       WHERE reference_no = ?
+         AND transaction_type = 'outbound_cancel'
+         AND quantity > 0
+         AND reference_type = 'sales_outbound_reversal'`,
+      [outboundNo]
+    );
+    if (Number(already[0]?.count || 0) > 0) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '该出库单已有冲销流水，禁止重复冲销', 'VALIDATION_ERROR', 400);
+    }
+
+    const [ledgerRows] = await connection.execute(
+      `SELECT id, material_id, location_id, unit_id, batch_number, ABS(quantity) AS qty
+       FROM inventory_ledger
+       WHERE reference_no = ?
+         AND quantity < 0
+         AND transaction_type IN ('sales_outbound', 'outbound')
+       ORDER BY material_id ASC, location_id ASC, id ASC`,
+      [outboundNo]
+    );
+
+    if (ledgerRows.length === 0) {
+      await connection.rollback();
+      return ResponseHandler.error(
+        res,
+        '找不到该出库单的扣库台账，无法安全冲销',
+        'VALIDATION_ERROR',
+        400
+      );
+    }
+
+    const InventoryService = require('../../../services/InventoryService');
+    const operator = await getCurrentUserName(req);
+    let reversedQty = 0;
+
+    for (const ledger of ledgerRows) {
+      const qty = parseFloat(ledger.qty) || 0;
+      if (qty <= 0 || !ledger.location_id) continue;
+
+      await InventoryService.updateStock(
+        {
+          materialId: ledger.material_id,
+          locationId: ledger.location_id,
+          quantity: qty, // 加回库存
+          // 与库存出库冲销共用 outbound_cancel（字段长度受限）
+          transactionType: 'outbound_cancel',
+          referenceNo: outboundNo,
+          referenceType: 'sales_outbound_reversal',
+          operator: operator || 'system',
+          remark: `冲销销售出库 ${outboundNo}，来源台账 ${ledger.id}`,
+          unitId: ledger.unit_id,
+          batchNumber: ledger.batch_number || `REV-SOB-${outboundNo}-${ledger.id}`,
+          idempotencyKey: `sales_outbound_cancel:${outboundNo}:ledger:${ledger.id}`,
+        },
+        connection
+      );
+      reversedQty += qty;
+    }
+
+    const [statusUpdate] = await connection.execute(
+      `UPDATE sales_outbound
+       SET status = 'reversed', updated_at = NOW()
+       WHERE id = ? AND deleted_at IS NULL AND status = 'completed'`,
+      [id]
+    );
+    if (!statusUpdate.affectedRows) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '出库单状态已变更，请刷新后重试', 'VALIDATION_ERROR', 400);
+    }
+
+    // P0：财务补偿闭环（成本 GL / 销项税 / 安全取消未收款 AR）
+    const SalesOutboundReversalService = require('../../../services/business/SalesOutboundReversalService');
+    let financeCompensation = null;
+    try {
+      financeCompensation = await SalesOutboundReversalService.compensateFinance(connection, {
+        outboundNo,
+        outboundId: Number(id),
+        orderId: outbound.order_id ? Number(outbound.order_id) : null,
+        operator: operator || 'system',
+      });
+    } catch (finErr) {
+      await connection.rollback();
+      const status = finErr.statusCode || 400;
+      return ResponseHandler.error(
+        res,
+        finErr.message || '财务冲销失败，已中止出库冲销',
+        finErr.code || 'FINANCE_REVERSAL_BLOCKED',
+        status
+      );
+    }
+
+    // 冲销后尝试恢复订单为 ready_to_ship（若仍有未发完数量，由状态服务再判定）
+    if (outbound.order_id) {
+      try {
+        await SalesOrderStatusService.updateOrderStatus(outbound.order_id, connection);
+      } catch (statusErr) {
+        logger.warn(`销售出库冲销后订单状态同步失败: ${statusErr.message}`);
+      }
+    }
+
+    await connection.commit();
+    return ResponseHandler.success(
+      res,
+      {
+        id: Number(id),
+        outbound_no: outboundNo,
+        status: 'reversed',
+        reversedQuantity: reversedQty,
+        reversedLedgerCount: ledgerRows.length,
+        financeCompensation,
+      },
+      '销售出库冲销成功，库存与财务已回冲'
+    );
+  } catch (error) {
+    if (connection) {
+      try {
+        await connection.rollback();
+      } catch {
+        // ignore
+      }
+    }
+    logger.error('冲销销售出库失败:', error);
+    return ResponseHandler.error(res, error.message || '冲销销售出库失败', 'SERVER_ERROR', 500, error);
+  } finally {
+    if (connection) connection.release();
+  }
+};
+
 // 删除出库单功能（仅允许草稿或待处理状态，已完成的出库单禁止删除以保护库存和财务数据一致性）
 
 exports.deleteSalesOutbound = async (req, res) => {
@@ -1297,6 +1502,12 @@ exports.deleteSalesOutbound = async (req, res) => {
     const { id } = req.params;
 
     connection = await getConnection();
+
+    const ScopeGuard = require('../../../authorization/ScopeGuard');
+    if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'sales_outbound', id, '无权删除该销售出库单'))) {
+      return;
+    }
+
     await connection.beginTransaction();
 
     const [outboundResult] = await connection.query(

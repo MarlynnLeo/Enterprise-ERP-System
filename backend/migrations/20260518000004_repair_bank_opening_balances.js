@@ -26,37 +26,37 @@ async function logRepair(trx, metric, value) {
   });
 }
 
-function utf8Hex(hex) {
-  return `CONVERT(UNHEX('${hex}') USING utf8mb4)`;
+function hexLiteral(hex) {
+  return `'${hex}'`;
 }
 
 function signedTransactionExpression() {
   const incomeTypes = [
-    utf8Hex('E5AD98E6ACBE'), // 存款
-    utf8Hex('E8BDACE585A5'), // 转入
-    utf8Hex('E588A9E681AF'), // 利息
-    utf8Hex('E694B6E585A5'), // 收入
-    "'income'",
-    "'deposit'",
-    "'transfer_in'",
-    "'interest'",
+    hexLiteral('E5AD98E6ACBE'), // 存款
+    hexLiteral('E8BDACE585A5'), // 转入
+    hexLiteral('E588A9E681AF'), // 利息
+    hexLiteral('E694B6E585A5'), // 收入
+    hexLiteral('696E636F6D65'),
+    hexLiteral('6465706F736974'),
+    hexLiteral('7472616E736665725F696E'),
+    hexLiteral('696E746572657374'),
   ].join(',');
 
   const expenseTypes = [
-    utf8Hex('E58F96E6ACBE'), // 取款
-    utf8Hex('E8BDACE587BA'), // 转出
-    utf8Hex('E8B4B9E794A8'), // 费用
-    utf8Hex('E694AFE587BA'), // 支出
-    "'expense'",
-    "'withdrawal'",
-    "'transfer_out'",
-    "'fee'",
+    hexLiteral('E58F96E6ACBE'), // 取款
+    hexLiteral('E8BDACE587BA'), // 转出
+    hexLiteral('E8B4B9E794A8'), // 费用
+    hexLiteral('E694AFE587BA'), // 支出
+    hexLiteral('657870656E7365'),
+    hexLiteral('7769746864726177616C'),
+    hexLiteral('7472616E736665725F6F7574'),
+    hexLiteral('666565'),
   ].join(',');
 
   return `
     CASE
-      WHEN t.transaction_type IN (${incomeTypes}) THEN t.amount
-      WHEN t.transaction_type IN (${expenseTypes}) THEN -t.amount
+      WHEN HEX(t.transaction_type) IN (${incomeTypes}) THEN t.amount
+      WHEN HEX(t.transaction_type) IN (${expenseTypes}) THEN -t.amount
       ELSE 0
     END
   `;

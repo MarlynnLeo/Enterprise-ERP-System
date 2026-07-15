@@ -3,12 +3,14 @@
  * 解决权限系统中的缓存不一致和逻辑重复问题
  *
  * 设计原则:
- *   1. 管理员(admin角色)拥有超级权限(*通配符)，无需在menus表中注册每个权限
- *   2. 普通用户权限从 roles -> role_menus -> menus 三表关联获取
- *   3. 权限结果带缓存(默认5分钟)，服务启动时自动清除旧缓存
+ *   1. 管理员(admin角色)拥有超级权限(*通配符)，无需在 permissions 表注册每个权限
+ *   2. 普通用户权限从 roles → role_permissions → permissions 获取（鉴权 SSOT）
+ *   3. menus / role_menus 负责导航可见性；赋权时同步写入 role_permissions
+ *   4. 权限结果带缓存(默认5分钟)，服务启动时自动清除旧缓存
  *
  * @date 2025-12-15
  * @updated 2026-02-27 - 管理员权限与menus表解耦，使用通配符机制
+ * @updated 2026-07-10 - 鉴权 SSOT 切换到 permissions + role_permissions
  */
 
 const { logger } = require('../utils/logger');
@@ -68,6 +70,12 @@ const EXACT_PERMISSION_ALIASES = {
   'production:equipment': 'production:equipment:view',
   'production:calendar': 'production:calendar:view',
   'quality:statistics': 'quality:reports:view',
+  // 系统用户粗粒度 ↔ :view
+  'system:users': 'system:users:view',
+  'system:departments': 'system:departments:view',
+  'system:roles': 'system:roles:view',
+  // 协同选人可与用户查看互通
+  'todo:collaborate': 'system:users:view',
 };
 
 /**
@@ -120,8 +128,8 @@ class PermissionService {
   /**
    * 获取用户权限列表（带缓存）
    *
-   * 管理员: 直接返回 ['*'] 通配符，不查询menus表
-   * 普通用户: 从角色关联的menus中获取permission字段
+   * 管理员: 直接返回 ['*'] 通配符
+   * 普通用户: 从 role_permissions → permissions.code 获取（SSOT）
    *
    * @param {number} userId - 用户ID
    * @param {boolean} forceRefresh - 是否强制刷新缓存
@@ -135,32 +143,29 @@ class PermissionService {
       if (!forceRefresh) {
         const cachedPermissions = await cacheService.get(cacheKey);
         if (cachedPermissions !== null) {
-          logger.debug(`✅ [缓存命中] 用户权限: ${cacheKey}, 权限数: ${cachedPermissions.length}`);
+          logger.debug(`Permission cache hit: cacheKey=${cacheKey}, permissionCount=${cachedPermissions.length}`);
           return cachedPermissions;
         }
       }
 
-      logger.debug(`❌ [缓存未命中] 用户权限: ${cacheKey}, 将从数据库查询`);
+      logger.debug(`Permission cache miss: cacheKey=${cacheKey}`);
 
       // 检查是否是管理员
       const isAdmin = await this.isAdmin(userId);
       let permissions = [];
 
       if (isAdmin) {
-        // ✅ 根本修复: 管理员直接返回通配符，不依赖menus表注册
-        // 通配符 '*' 会被 PermissionUtils.hasPermission() 识别，自动通过所有权限检查
-        // 这样新增路由权限标识时无需同步更新menus表
+        // 管理员通配符，不依赖 permissions 表全量注册
         permissions = ['*'];
-        logger.debug(`👑 [管理员权限] 用户 ${userId} 拥有超级权限(通配符*)`);
+        logger.debug(`Admin wildcard permissions loaded: userId=${userId}`);
       } else {
-        // 普通用户获取角色权限
         permissions = await this.getUserRolePermissions(userId);
-        logger.debug(`👤 [用户权限] 用户 ${userId} 权限数: ${permissions.length}`);
+        logger.debug(`User permissions loaded: userId=${userId}, permissionCount=${permissions.length}`);
       }
 
       // 缓存结果
       await cacheService.set(cacheKey, permissions, this.CACHE_CONFIG.TTL);
-      logger.debug(`💾 [缓存设置] 用户权限已缓存: ${cacheKey}, 权限数: ${permissions.length}`);
+      logger.debug(`Permission cache stored: cacheKey=${cacheKey}, permissionCount=${permissions.length}`);
 
       return permissions;
     } catch (error) {
@@ -191,28 +196,40 @@ class PermissionService {
   }
 
   /**
-   * 获取系统中所有已注册的权限（用于前端权限管理页面展示）
-   * 注意: 此方法不再用于管理员权限判断，仅供UI展示和权限分配使用
+   * 获取系统中所有已注册的权限（permissions 表 SSOT）
+   * 用于 UI 展示与 production-readiness 注册校验
    * @returns {Promise<Array<string>>}
    */
   static async getAllSystemPermissions() {
-    const [permissions] = await pool.execute(
-      `SELECT DISTINCT permission FROM menus
-       WHERE permission IS NOT NULL
-       AND permission != ''
-       AND status = 1
-       ORDER BY permission`
+    try {
+      const [rows] = await pool.execute(
+        `SELECT code FROM permissions
+          WHERE status = 1
+          ORDER BY code`
+      );
+      if (rows.length > 0) {
+        return rows.map((p) => p.code).filter(Boolean);
+      }
+    } catch (error) {
+      // 表未迁移时回退 menus（兼容旧库）
+      if (error.code !== 'ER_NO_SUCH_TABLE') throw error;
+      logger.warn('permissions 表不存在，回退 menus 注册表');
+    }
+
+    const [legacy] = await pool.execute(
+      `SELECT DISTINCT permission AS code FROM menus
+        WHERE permission IS NOT NULL AND permission != '' AND status = 1
+        ORDER BY permission`
     );
-    return permissions.map((p) => p.permission).filter(Boolean);
+    return legacy.map((p) => p.code).filter(Boolean);
   }
 
   /**
-   * 获取用户的角色权限
+   * 获取用户的角色权限（role_permissions SSOT）
    * @param {number} userId - 用户ID
    * @returns {Promise<Array<string>>}
    */
   static async getUserRolePermissions(userId) {
-    // 1. 获取用户的角色
     const [userRoles] = await pool.execute(
       `SELECT r.id, r.code, r.name FROM roles r
        JOIN user_roles ur ON r.id = ur.role_id
@@ -221,29 +238,60 @@ class PermissionService {
     );
 
     if (!userRoles.length) {
-      logger.warn(`⚠️ 用户 ${userId} 没有分配任何角色`);
+      logger.warn(`User ${userId} has no assigned roles`);
       return [];
     }
 
-    // 2. 获取角色的权限
     const roleIds = userRoles.map((role) => role.id);
     const placeholders = roleIds.map(() => '?').join(',');
 
-    const [permissions] = await pool.execute(
-      `SELECT DISTINCT m.permission
-       FROM menus m
-       JOIN role_menus rm ON m.id = rm.menu_id
-       WHERE rm.role_id IN (${placeholders})
-       AND m.permission IS NOT NULL
-       AND m.permission != ''
-       AND m.status = 1
-       ORDER BY m.permission`,
-      roleIds
-    );
+    let rawPermissions;
+    try {
+      const [permissions] = await pool.execute(
+        `SELECT DISTINCT p.code AS permission
+           FROM permissions p
+           JOIN role_permissions rp ON rp.permission_id = p.id
+          WHERE rp.role_id IN (${placeholders})
+            AND p.status = 1
+          ORDER BY p.code`,
+        roleIds
+      );
+      rawPermissions = permissions.map((p) => p.permission).filter(Boolean);
 
-    const rawPermissions = permissions.map((p) => p.permission).filter(Boolean);
+      // 兼容：role_permissions 尚未回填时回退 role_menus（过渡期）
+      if (rawPermissions.length === 0) {
+        const [legacy] = await pool.execute(
+          `SELECT DISTINCT m.permission
+             FROM menus m
+             JOIN role_menus rm ON m.id = rm.menu_id
+            WHERE rm.role_id IN (${placeholders})
+              AND m.permission IS NOT NULL AND m.permission != ''
+              AND m.status = 1
+            ORDER BY m.permission`,
+          roleIds
+        );
+        rawPermissions = legacy.map((p) => p.permission).filter(Boolean);
+        if (rawPermissions.length > 0) {
+          logger.warn(
+            `User ${userId} role_permissions empty; fallback role_menus (${rawPermissions.length} codes)`
+          );
+        }
+      }
+    } catch (error) {
+      if (error.code !== 'ER_NO_SUCH_TABLE') throw error;
+      const [legacy] = await pool.execute(
+        `SELECT DISTINCT m.permission
+           FROM menus m
+           JOIN role_menus rm ON m.id = rm.menu_id
+          WHERE rm.role_id IN (${placeholders})
+            AND m.permission IS NOT NULL AND m.permission != ''
+            AND m.status = 1
+          ORDER BY m.permission`,
+        roleIds
+      );
+      rawPermissions = legacy.map((p) => p.permission).filter(Boolean);
+    }
 
-    // 展开别名，确保前端路由权限标识与数据库权限标识的双向兼容
     return expandPermissionsWithAliases(rawPermissions);
   }
 
@@ -255,10 +303,10 @@ class PermissionService {
     if (userId) {
       const cacheKey = `${this.CACHE_CONFIG.PREFIX.USER_PERMISSIONS}${userId}`;
       await cacheService.delete(cacheKey);
-      logger.info(`🗑️ [清除缓存] 已清除用户 ${userId} 的权限缓存`);
+      logger.info(`User permission cache cleared: userId=${userId}`);
     } else {
       const count = await cacheService.deleteByPrefix(this.CACHE_CONFIG.PREFIX.USER_PERMISSIONS);
-      logger.info(`🗑️ [批量清除缓存] 已清除所有用户权限缓存: ${count} 个`);
+      logger.info(`All user permission caches cleared: count=${count}`);
     }
   }
 
@@ -268,7 +316,7 @@ class PermissionService {
    */
   static async initOnStartup() {
     await this.clearUserPermissionsCache();
-    logger.info('🔄 [权限服务] 启动初始化完成，已清除所有权限缓存');
+    logger.info('Permission service startup initialized; all permission caches cleared');
   }
 }
 

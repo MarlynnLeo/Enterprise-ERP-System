@@ -144,14 +144,15 @@ class PurchaseReceiptService {
       // 5. 插入采购入库单明细
       await connection.query(
         `INSERT INTO purchase_receipt_items (
-          receipt_id, material_id, material_code, material_name,
+          receipt_id, order_item_id, material_id, material_code, material_name,
           specification, unit_id, ordered_quantity, quantity,
           received_quantity, qualified_quantity, batch_number, price,
           tax_rate, amount_excluding_tax, tax_amount, total_amount,
           remarks, from_inspection
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           receiptId,
+          context.orderItemId,
           materialId,
           context.materialCode,
           context.materialName,
@@ -239,6 +240,7 @@ class PurchaseReceiptService {
     }
 
     return {
+      orderItemId: row.order_item_id,
       orderNo: row.order_no || '',
       supplierId: row.supplier_id,
       supplierName: row.supplier_name || '',

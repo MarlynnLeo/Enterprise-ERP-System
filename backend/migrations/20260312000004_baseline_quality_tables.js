@@ -4,6 +4,92 @@
  */
 
 exports.up = async function(knex) {
+  await knex.raw(`
+    CREATE TABLE IF NOT EXISTS quality_inspections (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      inspection_no VARCHAR(20) NOT NULL UNIQUE,
+      inspection_type ENUM('incoming', 'process', 'final', 'first_article') NOT NULL,
+      reference_id INT,
+      reference_no VARCHAR(20),
+      material_id INT,
+      supplier_id INT,
+      product_id INT,
+      product_name VARCHAR(100),
+      product_code VARCHAR(50),
+      process_id INT,
+      process_name VARCHAR(100),
+      batch_no VARCHAR(50) NOT NULL,
+      quantity DECIMAL(10,2) NOT NULL,
+      qualified_quantity DECIMAL(10,2),
+      unqualified_quantity DECIMAL(10,2),
+      unit VARCHAR(10) NOT NULL,
+      unit_id INT,
+      status ENUM('pending', 'in_progress', 'passed', 'failed', 'partial', 'conditional', 'completed') DEFAULT 'pending',
+      planned_date DATE NOT NULL,
+      actual_date DATE,
+      inspector_id INT,
+      inspector_name VARCHAR(50),
+      punch_time DATETIME,
+      standard_type ENUM('factory', 'customer', 'industry', 'national'),
+      standard_no VARCHAR(50),
+      template_id INT,
+      note TEXT,
+      traceability_id INT,
+      traceability_batch VARCHAR(50),
+      chain_id INT,
+      chain_step_id INT,
+      is_first_article TINYINT NOT NULL DEFAULT 0,
+      first_article_qty INT NOT NULL DEFAULT 5,
+      is_full_inspection TINYINT NOT NULL DEFAULT 0,
+      first_article_result ENUM('pending', 'passed', 'failed', 'conditional') DEFAULT 'pending',
+      production_can_continue TINYINT NOT NULL DEFAULT 0,
+      task_id INT,
+      is_aql TINYINT NOT NULL DEFAULT 0,
+      aql_standard_id INT,
+      aql_level VARCHAR(20),
+      accept_limit INT,
+      reject_limit INT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_quality_inspections_reference (reference_id),
+      INDEX idx_quality_inspections_material (material_id),
+      INDEX idx_quality_inspections_supplier (supplier_id),
+      INDEX idx_quality_inspections_product (product_id),
+      INDEX idx_quality_inspections_status (status),
+      INDEX idx_quality_inspections_task (task_id),
+      INDEX idx_quality_inspections_batch (batch_no)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+
+  await knex.raw(`
+    CREATE TABLE IF NOT EXISTS quality_inspection_items (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      inspection_id INT NOT NULL,
+      item_name VARCHAR(100) NOT NULL,
+      standard VARCHAR(200) NOT NULL,
+      type VARCHAR(20) NOT NULL,
+      is_critical TINYINT NOT NULL DEFAULT 0,
+      dimension_value DECIMAL(10,3),
+      tolerance_upper DECIMAL(10,3),
+      tolerance_lower DECIMAL(10,3),
+      actual_value VARCHAR(200),
+      measure_1 DECIMAL(10,3),
+      measure_2 DECIMAL(10,3),
+      measure_3 DECIMAL(10,3),
+      measure_4 DECIMAL(10,3),
+      measure_5 DECIMAL(10,3),
+      measure_6 DECIMAL(10,3),
+      method VARCHAR(200),
+      result VARCHAR(100),
+      is_qualified TINYINT,
+      remark TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_quality_inspection_items_inspection (inspection_id),
+      FOREIGN KEY (inspection_id) REFERENCES quality_inspections(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+
   // Nonconforming products must exist before downstream quality handling tables add FK references.
   await knex.raw(`
     CREATE TABLE IF NOT EXISTS nonconforming_products (
@@ -182,6 +268,8 @@ exports.down = async function(knex) {
     'scrap_records',
     'nonconforming_product_actions',
     'nonconforming_products',
+    'quality_inspection_items',
+    'quality_inspections',
   ];
   for (const table of tables) {
     await knex.raw(`DROP TABLE IF EXISTS \`${table}\``);

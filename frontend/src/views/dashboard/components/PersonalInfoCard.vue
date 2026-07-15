@@ -7,17 +7,17 @@
 <template>
   <div class="combined-info-card">
     <div v-if="loading" class="loading-section">
-      <el-skeleton animated style="width: 100%">
+      <el-skeleton animated class="w-full">
         <template #template>
-          <div style="display: flex; gap: 20px; align-items: center;">
-            <div style="flex: 1;">
-              <el-skeleton-item variant="text" style="width: 60%; margin-bottom: 8px;" />
-              <el-skeleton-item variant="text" style="width: 80%;" />
+          <div class="flex-row gap-20">
+            <div class="flex-1">
+              <el-skeleton-item variant="text" class="skel-line skel-w-60" />
+              <el-skeleton-item variant="text" class="skel-line skel-w-80" />
             </div>
-            <el-skeleton-item variant="circle" style="width: 60px; height: 60px;" />
-            <div style="flex: 1;">
-              <el-skeleton-item variant="text" style="width: 60%; margin-bottom: 8px;" />
-              <el-skeleton-item variant="text" style="width: 80%;" />
+            <el-skeleton-item variant="circle" class="skel-avatar" />
+            <div class="flex-1">
+              <el-skeleton-item variant="text" class="skel-line skel-w-60" />
+              <el-skeleton-item variant="text" class="skel-line skel-w-80" />
             </div>
           </div>
         </template>
@@ -36,15 +36,15 @@
           <span>{{ userProfile?.department_name || '未设置' }}</span>
         </div>
       </div>
-      <!-- 中间：头像 -->
+      <!-- 中间：头像特效（与个人中心同源） -->
       <div class="center-avatar">
-        <div class="avatar-container">
-          <div class="avatar-glow"></div>
-          <div class="avatar-particles">
-            <span class="particle" v-for="i in 8" :key="i" :style="`--i: ${i}`"></span>
-          </div>
-          <img :src="userProfile?.avatar || '/default-avatar.webp'" class="avatar" />
-        </div>
+        <DecorativeAvatarFrame
+          :frame="avatarFrameConfig"
+          :avatar="userProfile?.avatar || ''"
+          :name="userProfile?.real_name || userProfile?.username || ''"
+          :size="64"
+          class="dash-avatar-frame"
+        />
       </div>
       <!-- 右侧：天气信息 -->
       <div class="right-weather">
@@ -94,8 +94,11 @@ import {
   PartlyCloudy,
   WindPower
 } from '@element-plus/icons-vue'
+import { computed } from 'vue'
+import DecorativeAvatarFrame from '@/views/auth/components/DecorativeAvatarFrame.vue'
+import { getAvatarFrameConfig } from '@/utils/avatarFrames'
 
-defineProps({
+const props = defineProps({
   userProfile: {
     type: Object,
     default: null
@@ -109,6 +112,10 @@ defineProps({
     default: false
   }
 })
+
+const avatarFrameConfig = computed(() =>
+  getAvatarFrameConfig(props.userProfile?.avatar_frame || props.userProfile?.avatarFrame)
+)
 </script>
 
 <style scoped>
@@ -121,7 +128,7 @@ defineProps({
   margin-bottom: var(--spacing-lg);
   height: 90px;
   position: relative;
-  overflow: hidden;
+  overflow: visible;
   transition: border-color var(--transition-base) ease, box-shadow var(--transition-base) ease, background-color var(--transition-base) ease;
   border: 1px solid var(--theme-feature-card-border);
 }
@@ -195,37 +202,20 @@ defineProps({
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* 中间头像 */
+/* 中间头像特效 */
 .center-avatar {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 80px;
+  width: 72px;
   height: 100%;
   align-self: center;
-}
-.center-avatar .avatar-container {
-  position: relative;
-  width: 60px;
-  height: 60px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.center-avatar .avatar {
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 2px solid color-mix(in srgb, var(--ds-white) 50%, transparent);
-  box-shadow: 0 0 15px color-mix(in srgb, var(--ds-white) 30%, transparent);
   z-index: 2;
-  transition: background-color var(--transition-base) ease, border-color var(--transition-base) ease, color var(--transition-base) ease, box-shadow var(--transition-base) ease, opacity var(--transition-base) ease, transform var(--transition-base) ease;
+  overflow: visible;
 }
-.center-avatar .avatar:hover {
-  border-color: color-mix(in srgb, var(--ds-white) 80%, transparent);
-  box-shadow: 0 0 20px color-mix(in srgb, var(--ds-white) 50%, transparent);
+.dash-avatar-frame {
+  flex-shrink: 0;
 }
 /* 右侧天气信息 */
 .right-weather {
@@ -294,70 +284,6 @@ defineProps({
 }
 .weather-detail-icon {
   font-size: 12px;
-}
-/* 头像光环效果 */
-.avatar-glow {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 80px;
-  height: 80px;
-  border-radius: 50%;
-  background: radial-gradient(circle, color-mix(in srgb, var(--ds-blue) 30%, transparent) 0%, transparent 70%);
-  animation: glowPulse 3s ease-in-out infinite;
-  z-index: 0;
-}
-@keyframes glowPulse {
-  0%, 100% {
-    transform: translate(-50%, -50%) scale(1);
-    opacity: 0.5;
-  }
-  50% {
-    transform: translate(-50%, -50%) scale(1.1);
-    opacity: 0.8;
-  }
-}
-/* 粒子容器 */
-.avatar-particles {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 80px;
-  height: 80px;
-  transform: translate(-50%, -50%);
-  z-index: 0;
-}
-/* 粒子特效 */
-.particle {
-  --i: 0;
-  position: absolute;
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: linear-gradient(45deg, var(--ds-blue), var(--ds-cyan-strong));
-  box-shadow: 0 0 6px color-mix(in srgb, var(--ds-blue) 80%, transparent);
-  top: 50%;
-  left: 50%;
-  animation: particleOrbit 4s linear infinite;
-  animation-delay: calc(var(--i) * -0.5s);
-  opacity: 0;
-}
-@keyframes particleOrbit {
-  0% {
-    transform: translate(-50%, -50%) rotate(calc(var(--i) * 45deg)) translateX(40px) scale(0);
-    opacity: 0;
-  }
-  10% {
-    opacity: 1;
-  }
-  90% {
-    opacity: 1;
-  }
-  100% {
-    transform: translate(-50%, -50%) rotate(calc(var(--i) * 45deg + 360deg)) translateX(40px) scale(1);
-    opacity: 0;
-  }
 }
 /* 响应式媒体查询 */
 @media (max-width: 768px) {

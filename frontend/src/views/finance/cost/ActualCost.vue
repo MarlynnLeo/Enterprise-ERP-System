@@ -1,14 +1,7 @@
 ﻿<template>
   <div class="module-page actual-cost-container">
     <!-- 页面标题 -->
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>实际成本</h2>
-          <p class="subtitle">查询生产订单实际成本</p>
-        </div>
-      </div>
-    </el-card>
+    <PageHeader title="实际成本" subtitle="查询生产订单实际成本" />
 
     <!-- 搜索表单 -->
     <FinanceQueryCard
@@ -44,7 +37,7 @@
 
     <!-- 数据表格 -->
     <el-card class="data-card">
-      <el-table :data="costList" border v-loading="loading" style="width: 100%">
+      <el-table :data="costList" border v-loading="loading" class="w-full">
         <el-table-column prop="order_number" label="生产订单号" width="150"></el-table-column>
         <el-table-column prop="product_code" label="产品编码" width="150"></el-table-column>
         <el-table-column prop="product_name" label="产品名称" width="260"></el-table-column>
@@ -66,7 +59,7 @@
         </el-table-column>
         <el-table-column label="总成本" width="140">
           <template #default="scope">
-            <span style="font-weight: bold; color: var(--color-primary);">
+            <span class="text-primary font-weight-700">
               {{ formatCurrency(scope.row.total_cost) }}
             </span>
           </template>
@@ -79,7 +72,7 @@
         <el-table-column prop="completion_date" label="完工日期" width="110"></el-table-column>
         <el-table-column label="操作" min-width="100" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
-            <el-button type="primary" size="small" @click="viewDetail(scope.row)">详情</el-button>
+            <el-button class="btn-op-view" type="primary" size="small" @click="viewDetail(scope.row)">详情</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -99,7 +92,12 @@
     </el-card>
 
     <!-- 成本详情对话框 -->
-    <el-dialog v-model="detailDialogVisible" title="实际成本详情" width="900px">
+    <AppDialog
+      v-model="detailDialogVisible"
+      title="实际成本详情"
+      mode="view"
+      content-width="wide"
+    >
       <div v-if="currentDetail">
         <el-descriptions :column="3" border>
           <el-descriptions-item label="生产订单号">{{ currentDetail.order_number }}</el-descriptions-item>
@@ -201,7 +199,7 @@
           </el-tab-pane>
         </el-tabs>
       </div>
-    </el-dialog>
+    </AppDialog>
   </div>
 </template>
 

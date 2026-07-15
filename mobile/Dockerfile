@@ -1,4 +1,4 @@
-# 阶段1：构建移动端
+# Mobile web production image
 FROM node:20-alpine AS builder
 
 WORKDIR /app
@@ -8,19 +8,13 @@ RUN npm ci
 
 COPY . .
 
-# 构建生产版本
 RUN npm run build
 
-# 阶段2：Nginx 生产服务
 FROM nginx:1.27-alpine
 
-# 复制构建产物
 COPY --from=builder /app/dist /usr/share/nginx/html
-
-# 复制 nginx 配置
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# 设置时区
 RUN apk add --no-cache tzdata
 ENV TZ=Asia/Shanghai
 

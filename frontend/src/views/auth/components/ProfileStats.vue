@@ -6,8 +6,7 @@
           :frame="activeAvatarFrame"
           :avatar="avatar"
           :name="name"
-          :size="150"
-          :avatar-size="100"
+          :size="148"
           @avatar-error="handleError"
         />
 
@@ -72,7 +71,7 @@ const props = defineProps({
   avatar: String,
   avatarFrame: {
     type: String,
-    default: 'frame1'
+    default: 'none'
   },
   avatarFrameConfig: {
     type: Object,
@@ -136,11 +135,12 @@ const handleError = () => {
 .avatar-wrapper {
   position: relative;
   margin-bottom: 15px;
-  width: 150px;
-  height: 150px;
+  width: 148px;
+  height: 148px;
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: visible;
 }
 .avatar-uploader {
   position: absolute;

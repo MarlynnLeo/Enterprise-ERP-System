@@ -45,7 +45,6 @@
                 :avatar="champion.avatar"
                 :name="champion.realName"
                 :size="92"
-                :avatar-size="68"
                 :default-avatar="DEFAULT_AVATAR"
               />
             </div>
@@ -74,7 +73,6 @@
                 :avatar="entry.avatar"
                 :name="entry.realName"
                 :size="66"
-                :avatar-size="50"
                 :default-avatar="DEFAULT_AVATAR"
               />
             </div>

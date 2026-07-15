@@ -1,14 +1,10 @@
 <template>
   <div class="module-page business-types-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>系统字典管理</h2>
-          <p class="subtitle">管理业务类型、状态字典和通用选项</p>
-        </div>
-        <el-button v-permission="'system:business-types:create'" type="primary" :icon="Plus" @click="handleCreate">新增字典项</el-button>
-      </div>
-    </el-card>
+    <PageHeader title="系统字典管理" subtitle="管理业务类型、状态字典和通用选项">
+      <template #actions>
+<el-button v-permission="'system:business-types:create'" type="primary" :icon="Plus" @click="handleCreate">新增字典项</el-button>
+      </template>
+    </PageHeader>
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
@@ -121,7 +117,7 @@
                 </template>
               </el-popconfirm>
 
-              <el-button
+              <el-button class="btn-op-view"
                 v-if="row.status === 1 || String(row.status) === '1'"
                 size="small"
                 type="primary"
@@ -152,13 +148,15 @@
     </el-card>
 
     <!-- 新增/编辑/查看对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="dialogVisible"
       :title="dialogTitle"
-      width="600px"
+      :mode="dialogType === 'view' ? 'view' : 'form'"
+      width="640px"
+      content-width="wide"
     >
       <template v-if="dialogType === 'view'">
-        <el-descriptions :column="1" border style="margin-bottom: 20px;">
+        <el-descriptions :column="1" border class="mb-20">
           <el-descriptions-item label="字典分组">{{ form.group_code || '-' }}</el-descriptions-item>
           <el-descriptions-item label="业务编码">{{ form.code || '-' }}</el-descriptions-item>
           <el-descriptions-item label="业务名称">{{ form.name || '-' }}</el-descriptions-item>
@@ -205,7 +203,7 @@
           <el-select
             v-model="form.tag_type"
             placeholder="Element Plus 标签颜色类型"
-            style="width: 100%"
+            class="w-full"
           >
             <el-option label="默认 (Info)" value="info" />
             <el-option label="主色 (Primary)" value="primary" />
@@ -218,7 +216,7 @@
           <el-select
             v-model="form.category"
             placeholder="主要用于出入库类型(可为空)"
-            style="width: 100%"
+            class="w-full"
             clearable
           >
             <el-option
@@ -254,7 +252,7 @@
         <el-button @click="dialogVisible = false">{{ dialogType === 'view' ? '关闭' : '取消' }}</el-button>
         <el-button v-if="dialogType !== 'view'" v-permission="dialogType === 'create' ? 'system:business-types:create' : 'system:business-types:update'" type="primary" @click="handleSubmit" :loading="submitting">确定</el-button>
       </template>
-    </el-dialog>
+    </AppDialog>
   </div>
 </template>
 

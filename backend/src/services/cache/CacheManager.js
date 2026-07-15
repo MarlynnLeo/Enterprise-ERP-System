@@ -37,7 +37,7 @@ class CacheManager {
       if (!redisEnabled) {
         this.useRedis = false;
         this.initialized = true;
-        logger.info('✅ 缓存管理器: Redis 已禁用，使用内存缓存（单机模式）');
+        logger.info('Cache manager initialized with in-memory cache because Redis is disabled');
         return;
       }
 
@@ -46,10 +46,10 @@ class CacheManager {
 
       if (redisConnected) {
         this.useRedis = true;
-        logger.info('✅ 缓存管理器: 使用 Redis 缓存（支持分布式）');
+        logger.info('Cache manager initialized with Redis cache');
       } else {
         this.useRedis = false;
-        logger.warn('⚠️ 缓存管理器: Redis 不可用，降级使用内存缓存（仅支持单机）');
+        logger.warn('Cache manager fell back to in-memory cache because Redis is unavailable');
       }
 
       this.initialized = true;
@@ -209,7 +209,7 @@ class CacheManager {
         return await redisCacheService.flushAll();
       } else {
         this.memoryCache.flushAll();
-        logger.info('所有内存缓存已清空');
+        logger.debug('All in-memory caches cleared');
         return true;
       }
     } catch (error) {

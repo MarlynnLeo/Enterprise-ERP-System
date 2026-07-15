@@ -8,20 +8,15 @@
 -->
 <template>
   <div class="module-page opening-balances-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>期初余额</h2>
-          <p class="subtitle">来源驱动的总账期初初始化</p>
-        </div>
-        <div class="header-actions">
-          <el-date-picker
+    <PageHeader title="期初余额" subtitle="来源驱动的总账期初初始化">
+      <template #actions>
+<el-date-picker
             v-model="balanceDate"
             type="date"
             placeholder="期初日期"
             format="YYYY-MM-DD"
             value-format="YYYY-MM-DD"
-            style="width: 150px; margin-right: 10px;"
+            class="form-control-150-mr"
             @change="loadPreview"
           />
           <el-button @click="loadPreview" :loading="loading">
@@ -30,9 +25,8 @@
           <el-button v-permission="'finance:accounts:update'" type="primary" @click="handleBatchSave" :loading="saving">
             <el-icon><Check /></el-icon> 完成初始化
           </el-button>
-        </div>
-      </div>
-    </el-card>
+      </template>
+    </PageHeader>
 
     <div v-if="warnings.length" class="warning-list">
       <el-alert
@@ -84,7 +78,7 @@
     <el-card class="data-card">
       <el-table
         :data="accountList"
-        style="width: 100%"
+        class="w-full"
         border
         v-loading="loading"
         row-key="id"
@@ -122,7 +116,7 @@
               :min="0"
               :controls="false"
               placeholder="期初余额"
-              style="width: 100%"
+              class="w-full"
             />
             <span v-else class="generated-amount">{{ formatCurrency(row.opening_amount) }}</span>
           </template>

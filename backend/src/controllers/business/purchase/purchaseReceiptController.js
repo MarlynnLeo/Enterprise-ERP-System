@@ -81,6 +81,11 @@ const getReceipts = async (req, res) => {
     const offset = (actualPage - 1) * actualPageSize;
 
     // 构建 WHERE 条件（数据查询和计数查询共用）
+    const ScopeGuard = require('../../../authorization/ScopeGuard');
+    const scopeClause = await ScopeGuard.applyListScope(req, 'purchase_receipt', {
+      tableAlias: 'r',
+      ownerAlias: 'purchase_receipt_owner_scope',
+    });
     let whereClause = ' WHERE r.deleted_at IS NULL';
     const queryParams = [];
 
@@ -114,10 +119,13 @@ const getReceipts = async (req, res) => {
       queryParams.push(status);
     }
 
+    whereClause += scopeClause.where || '';
+    queryParams.push(...(scopeClause.params || []));
+
     const connection = await db.pool.getConnection();
     try {
       // 1. 快速计数查询（只查主表，不走 JOIN）
-      const countQuery = `SELECT COUNT(*) as total FROM purchase_receipts r ${whereClause}`;
+      const countQuery = `SELECT COUNT(*) as total FROM purchase_receipts r ${scopeClause.join} ${whereClause}`;
       const [countResult] = await connection.query(countQuery, queryParams);
       const totalCount = countResult[0].total;
 
@@ -133,6 +141,7 @@ const getReceipts = async (req, res) => {
         LEFT JOIN suppliers s ON r.supplier_id = s.id
         LEFT JOIN locations l ON r.warehouse_id = l.id
         LEFT JOIN users u ON u.username = r.operator
+        ${scopeClause.join}
         ${whereClause}
         ORDER BY r.created_at DESC LIMIT ${actualPageSize} OFFSET ${offset}
       `;
@@ -176,6 +185,16 @@ const getReceipts = async (req, res) => {
 
 // 获取采购入库详情
 const getReceipt = async (req, res) => {
+  {
+    const { id } = req.params;
+    if (id !== null && id !== undefined && id !== '') {
+      const ScopeGuard = require('../../../authorization/ScopeGuard');
+      if (!(await ScopeGuard.assertAccess(db.pool, req, 'purchase_receipt', id))) {
+        return ResponseHandler.forbidden(res, '无权访问该采购入库单');
+      }
+    }
+  }
+
   let connection;
   let retryCount = 0;
   const maxRetries = 3;
@@ -394,7 +413,7 @@ const createReceipt = async (req, res) => {
       return error;
     };
 
-    logger.info('解构后的数据:', {
+    logger.debug('Purchase receipt payload normalized', {
       orderId,
       supplierId,
       warehouseId,
@@ -405,9 +424,9 @@ const createReceipt = async (req, res) => {
       inspectionId,
       material_id,
       only_inspection_material,
-      items类型: typeof items,
-      items是否数组: Array.isArray(items),
-      items长度: items.length,
+      itemsType: typeof items,
+      itemsIsArray: Array.isArray(items),
+      itemsLength: items.length,
     });
 
     // 验证必填字段
@@ -633,9 +652,9 @@ const createReceipt = async (req, res) => {
       INSERT INTO purchase_receipts (
         receipt_no, order_id, order_no, supplier_id, supplier_name,
         warehouse_id, warehouse_name, receipt_date, operator, remarks, status,
-        from_inspection, inspection_id, idempotency_key, idempotency_hash, active_inspection_key
+        from_inspection, inspection_id, idempotency_key, idempotency_hash, active_inspection_key, created_by
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     // 确保所有参数都不是undefined
@@ -656,6 +675,7 @@ const createReceipt = async (req, res) => {
       receiptIdempotencyKey,
       idempotencyHash,
       inspectionId ? `INSPECTION:${inspectionId}` : null,
+      (() => { const ScopeGuard = require('../../../authorization/ScopeGuard'); return ScopeGuard.tryStampOwner(req, 'purchase_receipt').created_by; })(),
     ];
 
     // 检查任何参数是否为undefined
@@ -737,7 +757,7 @@ const createReceipt = async (req, res) => {
             `✅ 从检验单 ${inspectionId} 获取到 ${inspectionBatchMap.size} 个物料的批次号`
           );
         } else {
-          logger.warn(`⚠️ 检验单 ${inspectionId} 没有批次号数据`);
+          logger.warn(`Inspection has no batch number data: inspectionId=${inspectionId}`);
         }
       } catch (inspectionError) {
         logger.error('获取检验单批次号失败:', inspectionError);
@@ -769,10 +789,10 @@ const createReceipt = async (req, res) => {
 
       const insertItemsQuery = `
         INSERT INTO purchase_receipt_items
-        (receipt_id, material_id, material_code, material_name,
+        (receipt_id, order_item_id, material_id, material_code, material_name,
          specification, unit_id, ordered_quantity, quantity, received_quantity, qualified_quantity,
          batch_number, price, tax_rate, amount_excluding_tax, tax_amount, total_amount, remarks, from_inspection)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
 
       const receiptMaterialIds = [...new Set(
@@ -795,20 +815,21 @@ const createReceipt = async (req, res) => {
 
         if (orderId) {
           const [orderPrices] = await client.query(
-            `SELECT material_id, price, tax_rate
+            `SELECT id AS order_item_id, material_id, price, tax_rate
              FROM purchase_order_items
-             WHERE order_id = ? AND material_id IN (${materialPlaceholders}) AND price > 0
-             ORDER BY id DESC`,
+             WHERE order_id = ? AND material_id IN (${materialPlaceholders})
+             ORDER BY id`,
             [orderId, ...receiptMaterialIds]
           );
           orderPrices.forEach((row) => {
             const key = Number(row.material_id);
-            if (!orderContextMap.has(key)) {
-              orderContextMap.set(key, {
-                price: parseFloat(row.price) || 0,
-                taxRate: normalizeTaxRate(row.tax_rate, financeConfig.get('tax.defaultVATRate', 0.13)),
-              });
-            }
+            const contexts = orderContextMap.get(key) || [];
+            contexts.push({
+              orderItemId: Number(row.order_item_id),
+              price: parseFloat(row.price) || 0,
+              taxRate: normalizeTaxRate(row.tax_rate, financeConfig.get('tax.defaultVATRate', 0.13)),
+            });
+            orderContextMap.set(key, contexts);
           });
         }
       }
@@ -849,6 +870,28 @@ const createReceipt = async (req, res) => {
             throw new Error(`第${i + 1}个物料项缺少物料ID`);
           }
 
+          const orderContexts = orderContextMap.get(currentMaterialId) || [];
+          const requestedOrderItemId = Number(item.orderItemId || item.order_item_id) || null;
+          let orderContext;
+          if (requestedOrderItemId) {
+            orderContext = orderContexts.find(
+              (context) => context.orderItemId === requestedOrderItemId
+            );
+            if (!orderContext) {
+              throw createValidationError(
+                `第${i + 1}个物料项指定的采购订单明细不属于当前订单或物料`
+              );
+            }
+          } else if (orderContexts.length === 1) {
+            [orderContext] = orderContexts;
+          } else if (orderContexts.length === 0) {
+            throw createValidationError(`第${i + 1}个物料项不属于当前采购订单`);
+          } else {
+            throw createValidationError(
+              `采购订单中物料 ${materialCode || currentMaterialId} 存在多条明细，请明确提供采购订单明细ID`
+            );
+          }
+
           if (
             inspectionContext &&
             String(currentMaterialId) !== String(inspectionContext.material_id)
@@ -887,7 +930,7 @@ const createReceipt = async (req, res) => {
           // 获取价格：优先使用传入价格，其次从本采购订单获取，最后走统一采购取价服务
           let itemPrice = parseFloat(item.price ?? item.unit_price) || 0;
           if (itemPrice <= 0 && currentMaterialId) {
-            itemPrice = orderContextMap.get(currentMaterialId)?.price || 0;
+            itemPrice = orderContext.price || 0;
             if (itemPrice > 0) {
               logger.info(`物料 ${materialCode} 从采购订单获取价格: ${itemPrice}`);
             }
@@ -898,6 +941,12 @@ const createReceipt = async (req, res) => {
             if (itemPrice > 0) {
               logger.info(`物料 ${materialCode} 从统一采购取价服务获取价格: ${itemPrice}`);
             }
+          }
+
+          if (!(itemPrice > 0)) {
+            throw createValidationError(
+              `物料 ${materialCode} 缺少有效采购成本，不能完成收货入库；请先维护采购订单单价或收货单价`
+            );
           }
 
           const receiptQuantity = parseFloat(
@@ -925,7 +974,7 @@ const createReceipt = async (req, res) => {
 
           // 确保所有参数都不是undefined
           const taxRate = normalizeTaxRate(
-            item.tax_rate ?? item.taxRate ?? orderContextMap.get(currentMaterialId)?.taxRate,
+            item.tax_rate ?? item.taxRate ?? orderContext.taxRate,
             financeConfig.get('tax.defaultVATRate', 0.13)
           );
           const amountExcludingTax = lineAmount(receiptQuantity, itemPrice);
@@ -936,6 +985,7 @@ const createReceipt = async (req, res) => {
 
           const itemParams = [
             receiptId,
+            orderContext.orderItemId,
             currentMaterialId,
             materialCode,
             materialName,
@@ -1038,7 +1088,6 @@ const createReceipt = async (req, res) => {
     logger.error('创建采购入库单失败，详细错误:', error);
     logger.error('错误类型:', error.constructor.name);
     logger.error('错误消息:', error.message);
-    logger.error('错误栈:', error.stack);
     const statusCode = error.statusCode || 500;
     const errorCode = error.code || (statusCode === 400 ? 'VALIDATION_ERROR' : 'SERVER_ERROR');
     const message = statusCode === 400 ? error.message : '创建采购入库单失败';
@@ -1056,6 +1105,16 @@ const createReceipt = async (req, res) => {
 
 // 更新采购入库
 const updateReceipt = async (req, res) => {
+  {
+    const { id } = req.params;
+    if (id !== null && id !== undefined && id !== '') {
+      const ScopeGuard = require('../../../authorization/ScopeGuard');
+      if (!(await ScopeGuard.assertAccess(db.pool, req, 'purchase_receipt', id))) {
+        return ResponseHandler.forbidden(res, '无权修改该采购入库单');
+      }
+    }
+  }
+
   const client = await db.getClient();
 
   try {
@@ -1247,6 +1306,16 @@ const updateReceipt = async (req, res) => {
 
 // 更新采购入库状态
 const updateReceiptStatus = async (req, res) => {
+  {
+    const { id } = req.params;
+    if (id !== null && id !== undefined && id !== '') {
+      const ScopeGuard = require('../../../authorization/ScopeGuard');
+      if (!(await ScopeGuard.assertAccess(db.pool, req, 'purchase_receipt', id))) {
+        return ResponseHandler.forbidden(res, '无权变更该采购入库单状态');
+      }
+    }
+  }
+
   const client = await db.pool.getConnection();
 
   try {
@@ -1327,6 +1396,10 @@ const updateReceiptStatus = async (req, res) => {
     // 以避免双重扣减和数据库死锁
 
     // 如果状态更新为completed，调用批次管理和追溯链路服务
+    // Reconciliation only counts confirmed/completed receipts, so expose the
+    // target status inside this transaction before recalculating quantities.
+    await client.query(updateQuery, updateParams);
+
     if (
       currentStatus === STATUS.PURCHASE_RECEIPT.DRAFT &&
       [STATUS.PURCHASE_RECEIPT.CONFIRMED, STATUS.PURCHASE_RECEIPT.COMPLETED].includes(status)
@@ -1405,6 +1478,13 @@ const updateReceiptStatus = async (req, res) => {
                 receipt_id: id,
                 receipt_no: receipt.receipt_no,
               }));
+
+            const invalidCostItem = batchItems.find((item) => !(Number(item.unit_cost) > 0));
+            if (invalidCostItem) {
+              throw new Error(
+                `采购收货单 ${receipt.receipt_no} 的物料 ${invalidCostItem.material_code || invalidCostItem.material_id} 缺少大于0的采购成本，不能完成入库`
+              );
+            }
 
             if (batchItems.length > 0) {
               await InventoryTraceabilityService.handlePurchaseReceipt(
@@ -1491,7 +1571,6 @@ const updateReceiptStatus = async (req, res) => {
               }
             } catch (orderError) {
               logger.error('更新采购订单状态失败:', orderError);
-              logger.error('错误堆栈:', orderError.stack);
               throw orderError;
             }
           } else {
@@ -1509,10 +1588,10 @@ const updateReceiptStatus = async (req, res) => {
 
     }
 
-    // 💡 关键修改：业务逻辑执行完成后，再执行状态更新
-    // 这样可以最小化持有 purchase_receipts 行锁的时间，防止超时
+    // The status was updated earlier in this transaction so reconciliation
+    // could include the current receipt. Audit and event creation stay atomic.
+    let domainEventId = null;
     try {
-      await client.query(updateQuery, updateParams);
       await AuditLogService.log({
         request_id: requestId,
         operator_id: req.user?.id || null,
@@ -1530,7 +1609,7 @@ const updateReceiptStatus = async (req, res) => {
       }, client);
 
       if (status === STATUS.PURCHASE_RECEIPT.COMPLETED && currentStatus !== STATUS.PURCHASE_RECEIPT.COMPLETED) {
-        await DomainEventService.enqueue(
+        domainEventId = await DomainEventService.enqueue(
           'PURCHASE_RECEIPT_COMPLETED',
           {
             receiptId: id,
@@ -1551,7 +1630,7 @@ const updateReceiptStatus = async (req, res) => {
     }
 
     await client.commit();
-    DomainEventService.dispatchSoon();
+    DomainEventService.dispatchSoon(domainEventId);
 
     // ==========================================
     // [核心] 采购入库完成后，异步触发 MAC(移动加权均价) 成本更新
@@ -1592,7 +1671,9 @@ const updateReceiptStatus = async (req, res) => {
                 },
                 { userId: req.user?.username || 'system' }
               );
-              logger.info(`🔥 物料 ${item.material_code} MAC 成本凭证生成成功 (单价=${unitPrice}, 数量=${qty})`);
+              logger.info(
+                `Material ${item.material_code} MAC cost entry generated (unitPrice=${unitPrice}, quantity=${qty})`
+              );
             } catch (costErr) {
               await DLQService.recordSideEffectFailure(
                 'CostAccounting:PurchaseInboundMAC',

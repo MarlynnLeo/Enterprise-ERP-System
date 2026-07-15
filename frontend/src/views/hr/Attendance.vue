@@ -1,5 +1,5 @@
 <template>
-  <div class="attendance-container">
+  <div class="module-page attendance-container">
     <el-card>
       <template #header>
         <div class="card-header">
@@ -7,7 +7,7 @@
           <div class="header-actions">
             <el-date-picker
               v-model="period" type="month" value-format="YYYY-MM"
-              @change="fetchAttendance" style="width:140px; margin-right:10px"
+              @change="fetchAttendance" class="form-control-140-mr"
               :clearable="false" />
             <el-button v-permission="'hr:attendance:update'" @click="rulesDialogVisible = true">
               <el-icon><Setting /></el-icon> 规则设置
@@ -17,14 +17,14 @@
               :on-change="handleFileSelected">
               <el-button type="warning" v-permission="'hr:attendance:update'"><el-icon><Upload /></el-icon> 导入Excel</el-button>
             </el-upload>
-            <el-button type="success" :loading="syncing" v-permission="'hr:attendance:update'" @click="handleSyncDingtalk" style="margin-left:10px">
+            <el-button type="success" :loading="syncing" v-permission="'hr:attendance:update'" @click="handleSyncDingtalk" class="ml-sm">
               <el-icon><Refresh /></el-icon> 钉钉拉取
             </el-button>
           </div>
         </div>
       </template>
 
-      <el-table :data="tableData" border v-loading="loading" height="calc(100vh - 250px)" style="width:100%" size="small">
+      <el-table :data="tableData" border v-loading="loading" height="calc(100vh - 250px)" class="w-full" size="small">
         <el-table-column prop="department_name" label="部门" width="80" fixed />
         <el-table-column prop="name" label="姓名" width="70" fixed />
         <el-table-column label="出勤天数">
@@ -63,7 +63,7 @@
     <!-- 考勤规则配置弹窗 -->
     <el-dialog title="考勤规则配置" v-model="rulesDialogVisible" width="750px" :close-on-click-modal="false">
       <div v-loading="rulesLoading">
-        <div v-for="(group, groupName) in groupedRules" :key="groupName" style="margin-bottom: 20px">
+        <div v-for="(group, groupName) in groupedRules" :key="groupName" class="mb-20">
           <el-divider content-position="left">{{ groupName }}</el-divider>
           <div v-for="rule in group" :key="rule.id" class="rule-item">
             <div class="rule-header">
@@ -78,7 +78,7 @@
                       v-if="typeof val === 'number'"
                       :model-value="val"
                       @change="v => editRuleField(rule, key, v)"
-                      :controls="false" size="small" style="width: 100px" />
+                      :controls="false" size="small" class="form-control-100" />
                     <el-switch
                       v-else-if="typeof val === 'boolean'"
                       :model-value="val"
@@ -87,14 +87,14 @@
                     <el-input
                       v-else :model-value="val"
                       @change="v => editRuleField(rule, key, v)"
-                      size="small" style="width: 150px" />
+                      size="small" class="form-control-md" />
                   </div>
                 </template>
               </div>
               <div class="rule-desc">
                 <el-input
                   v-model="rule.description" size="small" placeholder="规则说明"
-                  style="width: 100%" />
+                  class="w-full" />
               </div>
             </div>
           </div>

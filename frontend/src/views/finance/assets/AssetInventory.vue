@@ -1,14 +1,10 @@
 ﻿<template>
   <div class="module-page asset-inventory-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>资产盘点</h2>
-          <p class="subtitle">管理固定资产盘点任务与盘点结果</p>
-        </div>
-        <el-button v-permission="'finance:assets:create'" type="primary" :icon="Plus" @click="showAddDialog">新建盘点</el-button>
-      </div>
-    </el-card>
+    <PageHeader title="资产盘点" subtitle="管理固定资产盘点任务与盘点结果">
+      <template #actions>
+<el-button v-permission="'finance:assets:create'" type="primary" :icon="Plus" @click="showAddDialog">新建盘点</el-button>
+      </template>
+    </PageHeader>
 
     <FinanceQueryCard
       :model="searchForm"
@@ -101,12 +97,12 @@
     </el-dialog>
 
     <!-- 盘点详情对话框 (简化版,也可单独做页面) -->
-    <el-dialog
-      :title="detailData.status === '进行中' ? '资产盘点执行' : '资产盘点报告'"
+    <AppDialog
       v-model="detailVisible"
-      width="60%"
-      custom-class="inventory-detail-dialog"
-      top="5vh">
+      :title="detailData.status === '进行中' ? '资产盘点执行' : '资产盘点报告'"
+      mode="view"
+      content-width="wide"
+    >
 
       <div v-if="detailData.id" class="detail-layout">
         <div class="header-info">
@@ -149,7 +145,7 @@
                 v-model="scope.row.editValue"
                 :min="0"
                 controls-position="right"
-                style="width: 100%"
+                class="w-full"
                 size="small"
                 @change="(val) => handleQuantityChange(scope.row, val)"
               ></el-input-number>
@@ -199,7 +195,7 @@
           </el-button>
         </span>
       </template>
-    </el-dialog>
+    </AppDialog>
   </div>
 </template>
 

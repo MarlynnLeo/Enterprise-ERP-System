@@ -8,15 +8,11 @@
 -->
 <template>
   <div class="module-page inventory-inbound-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>入库管理</h2>
-          <p class="subtitle">管理入库单据与记录</p>
-        </div>
-        <el-button v-if="canCreate" type="primary" :icon="Plus" @click="handleCreate">新建入库单</el-button>
-      </div>
-    </el-card>
+    <PageHeader title="入库管理" subtitle="管理入库单据与记录">
+      <template #actions>
+<el-button v-if="canCreate" type="primary" :icon="Plus" @click="handleCreate">新建入库单</el-button>
+      </template>
+    </PageHeader>
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
@@ -85,7 +81,7 @@
     <el-card class="data-card">
       <el-table
         :data="tableData"
-        style="width: 100%"
+        class="w-full"
         v-loading="loading"
         border
       >
@@ -103,27 +99,27 @@
         <el-table-column prop="material_code" label="物料编码" width="120">
           <template #default="{ row }">
             <span v-if="row.material_code">{{ row.material_code }}</span>
-            <span v-else-if="row.items_count > 1" style="color: var(--color-text-secondary);">多个物料</span>
-            <span v-else style="color: var(--color-text-disabled);">-</span>
+            <span v-else-if="row.items_count > 1" class="text-muted">多个物料</span>
+            <span v-else class="text-disabled">-</span>
           </template>
         </el-table-column>
         <el-table-column prop="material_name" label="物料名称" width="157" show-overflow-tooltip>
           <template #default="{ row }">
             <span v-if="row.material_name">{{ row.material_name }}</span>
-            <span v-else-if="row.items_count > 1" style="color: var(--color-text-secondary);">多个物料</span>
-            <span v-else style="color: var(--color-text-disabled);">-</span>
+            <span v-else-if="row.items_count > 1" class="text-muted">多个物料</span>
+            <span v-else class="text-disabled">-</span>
           </template>
         </el-table-column>
         <el-table-column prop="material_specs" label="型号规格" width="180" show-overflow-tooltip>
           <template #default="{ row }">
             <span v-if="row.material_specs">{{ row.material_specs }}</span>
-            <span v-else style="color: var(--color-text-disabled);">-</span>
+            <span v-else class="text-disabled">-</span>
           </template>
         </el-table-column>
         <el-table-column prop="first_item_quantity" label="数量" width="80">
           <template #default="{ row }">
             <span v-if="row.first_item_quantity">{{ row.first_item_quantity }}</span>
-            <span v-else-if="row.total_quantity" style="color: var(--color-primary);" :title="`总数量：${row.total_quantity}`">{{ row.total_quantity }}</span>
+            <span v-else-if="row.total_quantity" class="text-primary" :title="`总数量：${row.total_quantity}`">{{ row.total_quantity }}</span>
             <span v-else>-</span>
           </template>
         </el-table-column>
@@ -144,14 +140,26 @@
         <el-table-column prop="remark" label="备注" width="180" show-overflow-tooltip />
         <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
-            <el-button size="small" @click="handleView(row.id)">查看</el-button>
+            <el-button class="btn-op-view" type="primary"
+              size="small"
+              v-permission="'inventory:inbound:view'"
+              @click="handleView(row.id)"
+            >
+              查看
+            </el-button>
             <el-popconfirm
               v-if="row.status === 'draft'"
               title="确定要确认该入库单吗？"
               @confirm="handleUpdateStatus(row.id, 'confirmed')"
             >
               <template #reference>
-                <el-button size="small" type="primary">确认</el-button>
+                <el-button
+                  size="small"
+                  type="primary"
+                  v-permission="'inventory:inbound:update'"
+                >
+                  确认
+                </el-button>
               </template>
             </el-popconfirm>
             <el-popconfirm
@@ -160,17 +168,29 @@
               @confirm="handleUpdateStatus(row.id, 'completed')"
             >
               <template #reference>
-                <el-button size="small" type="primary">完成</el-button>
+                <el-button
+                  size="small"
+                  type="primary"
+                  v-permission="'inventory:inbound:update'"
+                >
+                  完成
+                </el-button>
               </template>
             </el-popconfirm>
             <el-popconfirm
-              v-if="row.status === 'draft'"
+              v-if="['draft', 'confirmed'].includes(row.status)"
               title="确定要取消该入库单吗？"
               @confirm="handleUpdateStatus(row.id, 'cancelled')"
               confirm-button-type="danger"
             >
               <template #reference>
-                <el-button size="small" type="danger">取消</el-button>
+                <el-button
+                  size="small"
+                  type="danger"
+                  v-permission="'inventory:inbound:update'"
+                >
+                  取消
+                </el-button>
               </template>
             </el-popconfirm>
           </template>
@@ -210,7 +230,7 @@
               <el-select
                 v-model="form.inbound_type"
                 placeholder="请选择入库类型"
-                style="width: 100%"
+                class="w-full"
                 @change="handleInboundTypeChange"
               >
                 <el-option
@@ -229,7 +249,7 @@
                 type="date"
                 placeholder="选择日期"
                 value-format="YYYY-MM-DD"
-                style="width: 100%"
+                class="w-full"
               />
             </el-form-item>
           </el-col>
@@ -238,7 +258,7 @@
               <el-select
                 v-model="form.location_id"
                 placeholder="请选择仓库"
-                style="width: 100%"
+                class="w-full"
                 @change="handleLocationChange"
               >
                 <el-option
@@ -294,7 +314,7 @@
         <el-table
           :data="form.items"
           border
-          style="width: 100%"
+          class="w-full"
           :header-cell-style="{ background: 'var(--color-bg-hover)', color: 'var(--color-text-regular)' }"
           empty-text="请添加入库物料"
         >
@@ -309,7 +329,7 @@
                 @select="(item) => handleMaterialSelect(item, $index)"
                 @keydown.enter.prevent="handleMaterialEnter($index)"
                 @clear="handleMaterialClear($index)"
-                style="width: 100%"
+                class="w-full"
                 :trigger-on-focus="true"
                 :debounce="300"
                 :hide-loading="false"
@@ -317,17 +337,17 @@
                 value-key="code"
               >
                 <template #default="{ item }">
-                  <div style="display: flex; align-items: center; padding: 4px 0; font-size: 13px;">
-                    <span style="font-weight: bold; color: var(--color-text-primary); min-width: 80px;">
+                  <div class="option-row">
+                    <span class="option-row__code">
                       {{ item.code }}
                     </span>
-                    <span style="color: var(--color-text-regular); margin: 0 8px; flex: 1;">
+                    <span class="option-row__name">
                       {{ item.name }}
                     </span>
-                    <span style="color: var(--color-text-secondary); margin: 0 8px; min-width: 100px;">
+                    <span class="option-row__meta">
                       {{ item.specs }}
                     </span>
-                    <span style="color: var(--color-primary); font-weight: bold; min-width: 60px; text-align: right;">
+                    <span class="option-row__stock">
                       库存: {{ item.stock_quantity || 0 }}
                     </span>
                   </div>
@@ -375,15 +395,19 @@
                 type="danger"
                 size="small"
                 @click="handleRemoveItem($index)"
-                v-permission="'inventory:inbound:update'"
+                v-permission="dialogType === 'create' ? 'inventory:inbound:create' : 'inventory:inbound:update'"
               >
                 删除
               </el-button>
             </template>
           </el-table-column>
         </el-table>
-        <div class="add-material" style="margin-top: 10px;">
-          <el-button type="primary" @click="handleAddItem">
+        <div class="add-material mt-10">
+          <el-button
+            type="primary"
+            v-permission="dialogType === 'create' ? 'inventory:inbound:create' : 'inventory:inbound:update'"
+            @click="handleAddItem"
+          >
             <el-icon><Plus /></el-icon>添加物料
           </el-button>
         </div>
@@ -391,15 +415,23 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="handleSubmit" :loading="submitLoading">确定</el-button>
+          <el-button
+            type="primary"
+            v-permission="dialogType === 'create' ? 'inventory:inbound:create' : 'inventory:inbound:update'"
+            @click="handleSubmit"
+            :loading="submitLoading"
+          >
+            确定
+          </el-button>
         </span>
       </template>
     </el-dialog>
     <!-- 查看入库单对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="viewDialogVisible"
       title="入库单详情"
-      width="50%"
+      mode="view"
+      content-width="wide"
     >
       <div v-loading="viewLoading">
       <el-descriptions :column="2" border>
@@ -415,7 +447,7 @@
         <el-descriptions-item label="备注">{{ currentInbound.remark }}</el-descriptions-item>
       </el-descriptions>
       <el-divider>入库明细</el-divider>
-      <el-table :data="currentInbound.items" border style="width: 100%">
+      <el-table :data="currentInbound.items" border class="w-full">
         <el-table-column prop="material_code" label="物料编码" width="120" />
         <el-table-column prop="material_name" label="物料名称" min-width="150" />
         <el-table-column prop="quantity" label="数量" width="100" />
@@ -428,7 +460,7 @@
         <el-button @click="viewDialogVisible = false">关闭</el-button>
         <el-button type="primary" @click="handlePrintInbound" :loading="printLoading">打印</el-button>
       </template>
-    </el-dialog>
+    </AppDialog>
     <!-- 物料选择对话框 -->
     <el-dialog
       v-model="materialDialogVisible"
@@ -448,7 +480,7 @@
       </el-form>
       <el-table
         :data="materialTableData"
-        style="width: 100%"
+        class="w-full"
         v-loading="materialLoading"
         @selection-change="handleMaterialSelectionChange"
       >
@@ -505,7 +537,7 @@
         :data="productionTasks"
         v-loading="taskLoading"
         border
-        style="width: 100%"
+        class="w-full"
         @row-click="handleTaskRowClick"
         highlight-current-row
       >
@@ -538,7 +570,7 @@
           :data="taskMaterialRecords"
           v-loading="taskMaterialLoading"
           border
-          style="width: 100%"
+          class="w-full"
           @selection-change="handleReturnMaterialSelection"
         >
           <el-table-column type="selection" width="55" :selectable="checkReturnSelectable" />
@@ -548,14 +580,14 @@
           <el-table-column prop="issued_quantity" label="领料数量" width="100" />
           <el-table-column prop="returned_quantity" label="已退数量" width="100">
             <template #default="{ row }">
-              <span :style="{ color: row.returned_quantity > 0 ? 'var(--color-warning)' : '' }">
+              <span :class="row.returned_quantity > 0 ? 'text-warning' : ''">
                 {{ row.returned_quantity || 0 }}
               </span>
             </template>
           </el-table-column>
           <el-table-column prop="max_returnable_quantity" label="可退数量" width="100">
             <template #default="{ row }">
-              <span :style="{ color: row.max_returnable_quantity > 0 ? 'var(--color-success)' : 'var(--color-text-secondary)' }">
+              <span :class="row.max_returnable_quantity > 0 ? 'text-success' : 'text-muted'">
                 {{ row.max_returnable_quantity }}
               </span>
             </template>
@@ -1502,11 +1534,6 @@ const handleReturnFromProduction = async (taskId, taskCode) => {
   margin-top: 4px;
   color: var(--color-text-regular);
   font-size: 12px;
-}
-/* 对话框高度 - 页面特定，其他样式使用全局主题 */
-:deep(.el-dialog__body) {
-  max-height: 60vh;
-  overflow-y: auto;
 }
 /* 详情对话框长文本处理 - 自动添加 */
 :deep(.el-descriptions__content) {

@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * EquipmentList.vue
  * @description 前端界面组件文件
@@ -9,19 +9,13 @@
 <template>
   <div class="module-page equipment-list-container">
     <!-- 页面标题 -->
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>设备台账</h2>
-          <p class="subtitle">管理设备信息与维护</p>
-        </div>
-        <div class="header-actions">
-          <el-button type="success" :icon="Download" @click="downloadTemplate">下载模板</el-button>
+    <PageHeader title="设备台账" subtitle="管理设备信息与维护">
+      <template #actions>
+<el-button type="success" :icon="Download" @click="downloadTemplate">下载模板</el-button>
           <el-button type="warning" :icon="Upload" @click="showImportDialog" v-permission="'production:equipment:create'">批量导入</el-button>
           <el-button type="primary" :icon="Plus" @click="openDialog(false)" v-permission="'production:equipment:create'">添加设备</el-button>
-        </div>
-      </div>
-    </el-card>
+      </template>
+    </PageHeader>
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
@@ -80,7 +74,7 @@
         v-loading="loading"
         :data="tableData"
         border
-        style="width: 100%; margin-top: 16px;"
+        class="w-full mt-md"
       >
         <template #empty>
           <el-empty description="暂无设备数据" />
@@ -115,7 +109,7 @@
         </el-table-column>
         <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
-            <el-button size="small" @click="viewEquipment(scope.row)">查看</el-button>
+            <el-button class="btn-op-view" type="primary" size="small" @click="viewEquipment(scope.row)">查看</el-button>
             <el-button
               size="small"
               type="primary"
@@ -206,7 +200,7 @@
                 v-model="form.purchase_date"
                 type="date"
                 placeholder="选择购买日期"
-                style="width: 100%"
+                class="w-full"
               ></el-date-picker>
             </el-form-item>
           </el-col>
@@ -216,7 +210,7 @@
                 v-model="form.inspection_date"
                 type="date"
                 placeholder="选择检验日期"
-                style="width: 100%"
+                class="w-full"
               ></el-date-picker>
             </el-form-item>
           </el-col>
@@ -229,7 +223,7 @@
                 v-model="form.next_inspection_date"
                 type="date"
                 placeholder="选择下次检验日期"
-                style="width: 100%"
+                class="w-full"
               ></el-date-picker>
             </el-form-item>
           </el-col>
@@ -257,7 +251,7 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="设备状态" prop="status">
-              <el-select v-model="form.status" placeholder="请选择设备状态" style="width: 100%">
+              <el-select v-model="form.status" placeholder="请选择设备状态" class="w-full">
                 <el-option label="正常" value="normal"></el-option>
                 <el-option label="维护中" value="maintenance"></el-option>
                 <el-option label="维修中" value="repair"></el-option>
@@ -284,11 +278,11 @@
     </el-dialog>
 
     <!-- 查看设备详情对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="viewDialogVisible"
       title="设备详情"
-      width="800px"
-      destroy-on-close
+      mode="view"
+      content-width="wide"
     >
       <el-descriptions :column="2" border>
         <el-descriptions-item label="设备编号">{{ currentEquipment.code }}</el-descriptions-item>
@@ -312,7 +306,7 @@
       <el-tabs v-model="activeTab" class="detail-tabs">
         <el-tab-pane label="维护记录" name="maintenance">
           <el-empty v-if="!currentEquipment.maintenanceRecords || currentEquipment.maintenanceRecords.length === 0" description="暂无维护记录" />
-          <el-table v-else :data="currentEquipment.maintenanceRecords" border style="width: 100%">
+          <el-table v-else :data="currentEquipment.maintenanceRecords" border class="w-full">
             <el-table-column prop="maintenance_date" label="维护日期" width="120"></el-table-column>
             <el-table-column prop="maintenance_type" label="维护类型" width="120"></el-table-column>
             <el-table-column prop="maintenance_person" label="维护人员" width="100"></el-table-column>
@@ -322,7 +316,7 @@
         </el-tab-pane>
         <el-tab-pane label="故障记录" name="failure">
           <el-empty v-if="!currentEquipment.failureRecords || currentEquipment.failureRecords.length === 0" description="暂无故障记录" />
-          <el-table v-else :data="currentEquipment.failureRecords" border style="width: 100%">
+          <el-table v-else :data="currentEquipment.failureRecords" border class="w-full">
             <el-table-column prop="failure_date" label="故障日期" width="120"></el-table-column>
             <el-table-column prop="failure_type" label="故障类型" width="120"></el-table-column>
             <el-table-column prop="reporter" label="报告人" width="100"></el-table-column>
@@ -332,7 +326,7 @@
         </el-tab-pane>
         <el-tab-pane label="检查记录" name="inspection">
           <el-empty v-if="!currentEquipment.inspectionRecords || currentEquipment.inspectionRecords.length === 0" description="暂无检查记录" />
-          <el-table v-else :data="currentEquipment.inspectionRecords" border style="width: 100%">
+          <el-table v-else :data="currentEquipment.inspectionRecords" border class="w-full">
             <el-table-column prop="inspection_date" label="检查日期" width="120"></el-table-column>
             <el-table-column prop="inspector" label="检查人员" width="100"></el-table-column>
             <el-table-column prop="inspection_type" label="检查类型" width="120"></el-table-column>
@@ -341,7 +335,7 @@
           </el-table>
         </el-tab-pane>
       </el-tabs>
-    </el-dialog>
+    </AppDialog>
 
     <!-- 批量导入对话框 -->
     <el-dialog
@@ -392,7 +386,7 @@
 
         <div v-if="importPreview.length > 0" class="preview-section">
           <h4>数据预览（前5条）</h4>
-          <el-table :data="importPreview.slice(0, 5)" border style="width: 100%" max-height="300">
+          <el-table :data="importPreview.slice(0, 5)" border class="w-full" max-height="300">
             <el-table-column prop="code" label="设备编号" width="120"></el-table-column>
             <el-table-column prop="name" label="设备名称" width="150"></el-table-column>
             <el-table-column prop="model" label="型号" width="100"></el-table-column>
@@ -1007,12 +1001,6 @@ const downloadTemplate = async () => {
 
 .stat-card.scrapped .stat-value {
   color: var(--color-text-secondary);
-}
-
-/* 对话框高度 - 页面特定，其他样式使用全局主题 */
-:deep(.el-dialog__body) {
-  max-height: 60vh;
-  overflow-y: auto;
 }
 
 /* 批量导入样式 */

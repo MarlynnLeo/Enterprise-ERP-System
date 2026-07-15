@@ -20,18 +20,29 @@ class BudgetControlService {
    * @param {number} year - 年度
    * @returns {Promise<string>} 预算编号
    */
-  static async generateBudgetNo(year) {
+  static async generateBudgetNo(year, connection = null) {
     try {
+      const CodeGeneratorService = require('./CodeGeneratorService');
+      // 优先统一编码引擎（并发安全）
+      try {
+        return await CodeGeneratorService.nextCode('budget', connection);
+      } catch (codeError) {
+        if (!/编码规则未配置/.test(codeError.message || '')) {
+          throw codeError;
+        }
+        logger.warn('budget 编码规则未配置，回退到事务内序号生成');
+      }
+
+      const conn = connection || db.pool;
       const prefix = `BG${year}`;
-      const [result] = await db.pool.execute(
-        `SELECT MAX(budget_no) as max_no FROM budgets WHERE budget_no LIKE ?`,
+      const [result] = await conn.execute(
+        `SELECT MAX(budget_no) as max_no FROM budgets WHERE budget_no LIKE ? FOR UPDATE`,
         [`${prefix}%`]
       );
 
       let nextSeq = 1;
       if (result[0].max_no) {
-        // 提取末尾数字部分
-        const currentSeq = parseInt(result[0].max_no.replace(prefix, ''), 10);
+        const currentSeq = parseInt(String(result[0].max_no).replace(prefix, ''), 10);
         nextSeq = (currentSeq || 0) + 1;
       }
 

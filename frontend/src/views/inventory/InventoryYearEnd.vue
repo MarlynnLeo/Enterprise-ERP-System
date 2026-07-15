@@ -1,13 +1,6 @@
 <template>
   <div class="module-page year-end-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>年度库存结存</h2>
-          <p class="subtitle">执行年度库存结存、冻结和查看明细</p>
-        </div>
-      </div>
-    </el-card>
+    <PageHeader title="年度库存结存" subtitle="执行年度库存结存、冻结和查看明细" />
 
     <!-- 操作区域 -->
     <el-card class="action-card">
@@ -100,7 +93,7 @@
       <el-table
         :data="balanceList"
         border
-        style="width: 100%"
+        class="w-full"
         v-loading="listLoading"
         show-summary
         :summary-method="getYearEndSummary"
@@ -182,7 +175,12 @@
       </div>
     </el-card>
 
-    <el-dialog v-model="showPreviewDialog" title="年度库存结存预览" width="900px">
+    <AppDialog
+      v-model="showPreviewDialog"
+      title="年度库存结存预览"
+      mode="view"
+      content-width="wide"
+    >
       <template v-if="previewData">
         <el-table :data="previewData.checks || []" border size="small" class="preview-checks">
           <el-table-column prop="name" label="检查项" width="180" />
@@ -240,7 +238,7 @@
           执行结存
         </el-button>
       </template>
-    </el-dialog>
+    </AppDialog>
   </div>
 </template>
 

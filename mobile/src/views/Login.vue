@@ -107,13 +107,16 @@
 
 <script setup>
   import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
-  import { useRouter } from 'vue-router'
+  import { useRouter, useRoute } from 'vue-router'
   import { showToast } from 'vant'
   import { useAuthStore } from '@/stores/auth'
+  import { useDictionaryStore } from '@/stores/dictionary'
   import { APP_INFO } from '@/config/app'
 
   const router = useRouter()
+  const route = useRoute()
   const authStore = useAuthStore()
+  const dictionaryStore = useDictionaryStore()
 
   const username = ref('')
   const password = ref('')
@@ -180,11 +183,29 @@
     loading.value = true
     try {
       await authStore.login({ username: username.value, password: password.value })
+      await dictionaryStore.fetchDictionary(true)
       localStorage.setItem('isLoggedIn', 'true')
       // B-17: 登录成功，重置失败计数
       failCount.value = 0
       lockoutRemaining.value = 0
-      showToast({ type: 'success', message: '登录成功', duration: 800, onClose: () => router.push('/') })
+      showToast({
+        type: 'success',
+        message: '登录成功',
+        duration: 800,
+        onClose: () => {
+          // 仅允许站内相对路径 redirect，防止开放重定向
+          const raw = route.query.redirect
+          const redirect = Array.isArray(raw) ? raw[0] : raw
+          const safe =
+            typeof redirect === 'string' &&
+            redirect.startsWith('/') &&
+            !redirect.startsWith('//') &&
+            !redirect.includes('://')
+              ? redirect
+              : '/'
+          router.replace(safe)
+        }
+      })
     } catch (error) {
       console.error('登录失败:', error)
       // B-17: 记录失败次数，连续失败 3 次后启用递增延迟

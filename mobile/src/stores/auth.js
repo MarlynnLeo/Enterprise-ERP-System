@@ -62,11 +62,11 @@ const normalizeUserData = (userData) => {
 export const useAuthStore = defineStore('auth', () => {
   // ==================== 状态 ====================
   // 后端使用 httpOnly cookie 管理 accessToken / refreshToken，前端无需操作 token
-  // user 信息存 localStorage（关闭浏览器后仍可恢复登录态）
+  // 用户信息优先 sessionStorage；localStorage 仅存最小化登录标记（降低共享设备 PII）
   const token = ref('')
   const user = ref(normalizeUserData(
-    safeGetJSON(STORAGE_KEYS.USER, null, localStorage) ||
-    safeGetJSON(STORAGE_KEYS.USER, null, sessionStorage)
+    safeGetJSON(STORAGE_KEYS.USER, null, sessionStorage) ||
+    safeGetJSON(STORAGE_KEYS.USER, null, localStorage)
   ))
   const profileLoaded = ref(false)
   const refreshToken = ref('')
@@ -80,14 +80,20 @@ export const useAuthStore = defineStore('auth', () => {
   const permissionsLoaded = ref(false)
   const permissionsLoading = ref(false)
 
+  // 冷启动会话探测：cookie 可能有效但 user 尚未恢复
+  const sessionProbed = ref(false)
+
   // ==================== 计算属性 ====================
-  // 判定是否已认证：有用户数据 或 有本地登录标记（cookie 可能仍有效）
+  // 与 PC 对齐：以 user 为准；探测完成前可短暂用登录标记触发 profile 拉取
   const isAuthenticated = computed(() => {
-    if (!!user.value) return true
-    // 本地有登录标记时，说明之前登录过，cookie 可能仍有效
-    const wasLoggedIn = localStorage.getItem(STORAGE_KEYS.IS_LOGGED_IN) === 'true' ||
-      sessionStorage.getItem(STORAGE_KEYS.IS_LOGGED_IN) === 'true'
-    return wasLoggedIn
+    if (user.value) return true
+    if (!sessionProbed.value) {
+      return (
+        localStorage.getItem(STORAGE_KEYS.IS_LOGGED_IN) === 'true' ||
+        sessionStorage.getItem(STORAGE_KEYS.IS_LOGGED_IN) === 'true'
+      )
+    }
+    return false
   })
   const userId = computed(() => user.value?.id)
   const username = computed(() => user.value?.username)
@@ -113,14 +119,18 @@ export const useAuthStore = defineStore('auth', () => {
     if (userData) {
       user.value = userData
       profileLoaded.value = true
-      // 同时写入 localStorage 和 sessionStorage，确保关闭浏览器后仍可恢复
-      safeSaveJSON(STORAGE_KEYS.USER, userData, localStorage)
+      // 完整用户资料仅放 sessionStorage；localStorage 仅存 id/username 便于会话恢复探测
       safeSaveJSON(STORAGE_KEYS.USER, userData, sessionStorage)
+      safeSaveJSON(
+        STORAGE_KEYS.USER,
+        { id: userData.id, username: userData.username },
+        localStorage
+      )
     }
 
-    // 标记登录状态到 localStorage（关闭浏览器后仍保留）
-    localStorage.setItem(STORAGE_KEYS.IS_LOGGED_IN, 'true')
+    // 登录标记：session 为主，local 仅布尔标记
     sessionStorage.setItem(STORAGE_KEYS.IS_LOGGED_IN, 'true')
+    localStorage.setItem(STORAGE_KEYS.IS_LOGGED_IN, 'true')
     if (typeof window !== 'undefined') {
       delete window.__mobileThemeLoaded
       delete window.__mobileThemeLoadedFor
@@ -205,6 +215,12 @@ export const useAuthStore = defineStore('auth', () => {
     } catch {
       // 即使后端登出失败，也要清除本地数据
     } finally {
+      try {
+        const { disconnectSocket } = await import('@/composables/useSocket')
+        disconnectSocket()
+      } catch {
+        // ignore
+      }
       clearAuthData()
     }
   }
@@ -221,17 +237,24 @@ export const useAuthStore = defineStore('auth', () => {
       if (userData) {
         user.value = userData
         profileLoaded.value = true
-        // 同步保存到 localStorage 和 sessionStorage
-        safeSaveJSON(STORAGE_KEYS.USER, userData, localStorage)
+        sessionProbed.value = true
         safeSaveJSON(STORAGE_KEYS.USER, userData, sessionStorage)
+        safeSaveJSON(
+          STORAGE_KEYS.USER,
+          { id: userData.id, username: userData.username },
+          localStorage
+        )
+        sessionStorage.setItem(STORAGE_KEYS.IS_LOGGED_IN, 'true')
         localStorage.setItem(STORAGE_KEYS.IS_LOGGED_IN, 'true')
         return true
       }
+      sessionProbed.value = true
       return false
     } catch {
       // 请求失败说明 cookie 已过期，清除本地登录标记
       user.value = null
       profileLoaded.value = false
+      sessionProbed.value = true
       permissions.value = []
       permissionsLoaded.value = false
       localStorage.removeItem(STORAGE_KEYS.USER)
@@ -254,8 +277,12 @@ export const useAuthStore = defineStore('auth', () => {
     if (response.data) {
       user.value = normalizeUserData({ ...user.value, ...response.data })
       profileLoaded.value = true
-      safeSaveJSON(STORAGE_KEYS.USER, user.value, localStorage)
       safeSaveJSON(STORAGE_KEYS.USER, user.value, sessionStorage)
+      safeSaveJSON(
+        STORAGE_KEYS.USER,
+        { id: user.value?.id, username: user.value?.username },
+        localStorage
+      )
     }
     return true
   }
@@ -432,6 +459,7 @@ export const useAuthStore = defineStore('auth', () => {
     token,
     user,
     profileLoaded,
+    sessionProbed,
     refreshToken,
     permissions,
     permissionsLoaded,

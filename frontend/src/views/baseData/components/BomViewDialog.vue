@@ -1,15 +1,12 @@
 <template>
-  <el-dialog
+  <AppDialog
     title="查看BOM详情"
+    mode="view"
+    content-width="wide"
     :model-value="modelValue"
     @update:model-value="val => emit('update:modelValue', val)"
-    width="800px"
-    append-to-body
-    destroy-on-close
-    class="bom-view-dialog"
   >
-    <div class="dialog-content-wrapper">
-      <div v-if="bomData">
+    <div v-if="bomData">
         <el-descriptions :column="2" border>
           <el-descriptions-item label="产品名称">{{ bomData.product_name || bomData.productName }}</el-descriptions-item>
           <el-descriptions-item label="产品编码">{{ bomData.product_code || bomData.productCode }}</el-descriptions-item>
@@ -30,7 +27,7 @@
         <!-- 显示附件 -->
         <div v-if="bomData.attachment" class="attachment-section">
           <h3>附件</h3>
-          <div class="attachment-preview" style="margin-top: 10px; display: flex; gap: 15px;">
+          <div class="attachment-preview mt-10 flex-row gap-15">
             <el-button v-if="isImage(bomData.attachment) || isPdf(bomData.attachment)" type="primary" @click="previewAttachment(bomData.attachment)">
               <el-icon><View /></el-icon> 预览附件
             </el-button>
@@ -41,7 +38,7 @@
         </div>
 
         <!-- 使用Tabs展示BOM明细 -->
-        <el-tabs v-model="activeTab" style="margin-top: 20px;">
+        <el-tabs v-model="activeTab" class="mt-20">
           <el-tab-pane label="BOM明细" name="details">
             <el-table :data="displayDetails" border max-height="400" row-key="id" default-expand-all :tree-props="{ children: 'children', hasChildren: 'hasChildren' }">
               <el-table-column label="结构" prop="wbs" width="90"></el-table-column>
@@ -57,7 +54,6 @@
             </el-table>
           </el-tab-pane>
         </el-tabs>
-      </div>
     </div>
 
     <!-- 图片预览器 -->
@@ -70,7 +66,7 @@
     <template #footer>
       <el-button @click="emit('update:modelValue', false)">关闭</el-button>
     </template>
-  </el-dialog>
+  </AppDialog>
 </template>
 
 <script setup>
@@ -186,23 +182,5 @@ const downloadAttachment = async (url) => {
   padding: 10px;
   background-color: var(--color-bg-hover);
   border-radius: 4px;
-}
-</style>
-
-<style>
-.bom-view-dialog {
-  display: flex;
-  flex-direction: column;
-  margin-top: 5vh !important;
-  max-height: 90vh;
-  overflow: hidden;
-}
-
-.bom-view-dialog .el-dialog__body {
-  flex: 1;
-  overflow-y: auto;
-  min-height: 0;
-  padding-top: 10px;
-  padding-bottom: 20px;
 }
 </style>

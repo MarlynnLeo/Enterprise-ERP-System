@@ -728,7 +728,7 @@ async function calculateAndInsertMaterialsForPlan(connection, planId, productId,
       );
     }
 
-    logger.info(`    📦 已为生产计划 ${planId} 计算并保存 ${bomDetails.length} 个物料需求`);
+    logger.info(`Production plan material requirements saved: planId=${planId}, count=${bomDetails.length}`);
   } catch (error) {
     logger.error('计算生产计划物料需求失败:', error);
     throw error;
@@ -768,7 +768,7 @@ async function generateProductionAndPurchasePlans(
     // 处理自产物料 - 逐个生成生产计划（防重复：检查同物料+同销售订单是否已有未完成生产计划）
     if (internalMaterials.length > 0) {
       try {
-        logger.info(`📝 开始为 ${internalMaterials.length} 个自产物料生成生产计划`);
+        logger.info(`Production plan generation started for internal materials: count=${internalMaterials.length}`);
         let createdCount = 0;
         let skippedCount = 0;
 
@@ -850,14 +850,14 @@ async function generateProductionAndPurchasePlans(
             );
             createdCount++;
           } catch (planError) {
-            logger.error(`  ❌ 生产计划创建失败(物料: ${material_name}): `, planError.message);
+            logger.error(`Production plan creation failed: materialName=${material_name}`, planError.message);
             throw planError;
           }
         }
 
-        logger.info(`✅ 生产计划处理完成: 创建 ${createdCount} 个，跳过 ${skippedCount} 个（已有计划）`);
+        logger.info(`Production plan processing completed: createdCount=${createdCount}, skippedCount=${skippedCount}`);
       } catch (batchError) {
-        logger.error('❌ 批量生成生产计划编号失败:', batchError.message);
+        logger.error('Batch production plan number generation failed:', batchError.message);
         throw batchError;
       }
     }
@@ -885,12 +885,16 @@ async function generateProductionAndPurchasePlans(
             filteredMaterials = externalMaterials.filter(item => {
               const existingQty = existingMap.get(item.material_id);
               if (existingQty && existingQty >= item.shortage) {
-                logger.info(`  ⏭️  跳过外购物料 ${item.material_name}: 已有采购申请（数量: ${existingQty}，需求: ${item.shortage}）`);
+                logger.info(
+                  `Purchase requisition generation skipped for external material: materialName=${item.material_name}, existingQuantity=${existingQty}, requiredQuantity=${item.shortage}`
+                );
                 return false;
               }
               return true;
             });
-            logger.info(`📋 外购物料防重复: 原始 ${externalMaterials.length} 个，过滤后 ${filteredMaterials.length} 个`);
+            logger.info(
+              `External material deduplication completed: originalCount=${externalMaterials.length}, filteredCount=${filteredMaterials.length}`
+            );
           }
         } catch (checkErr) {
           throw new Error(`检查已有采购申请失败，不能继续创建: ${checkErr.message}`, {
@@ -899,7 +903,7 @@ async function generateProductionAndPurchasePlans(
         }
 
         if (filteredMaterials.length === 0) {
-          logger.info('✅ 所有外购物料已有采购申请，跳过创建');
+          logger.info('All externally purchased materials already have purchase requisitions; skipping creation');
         } else {
           const reqNo = await generatePurchaseRequisitionNo(connection);
 
@@ -914,7 +918,7 @@ async function generateProductionAndPurchasePlans(
   VALUES(?, ?, ?, ?, ?, ?, ?, NOW())
           `;
 
-          logger.info('📝 创建采购申请，包含', filteredMaterials.length, '个外购物料');
+          logger.info(`Purchase requisition creation started for external materials: count=${filteredMaterials.length}`);
 
           // 构建备注内容（简化版，因为合同编码已独立）
           const requisitionRemark = `由销售订单${salesOrderNo} 自动生成`;
@@ -932,7 +936,7 @@ async function generateProductionAndPurchasePlans(
               );
               if (userRows.length > 0 && userRows[0].real_name) {
                 realName = userRows[0].real_name;
-                logger.info(`✅ 从数据库查询到用户真实姓名: ${realName} `);
+                logger.info(`Requester real name resolved from database: realName=${realName}`);
               }
             } catch (err) {
               logger.error('查询用户真实姓名失败:', err);
@@ -973,7 +977,7 @@ async function generateProductionAndPurchasePlans(
               shortage,
             ]);
 
-            logger.info(`  ✅ 添加物料: ${material_name} (数量: ${shortage})`);
+            logger.info(`Purchase requisition item added: materialName=${material_name}, quantity=${shortage}`);
           }
 
           await DocumentLinkService.tryAutoLink(
@@ -986,15 +990,15 @@ async function generateProductionAndPurchasePlans(
             userInfo.id || userInfo.userId || null,
             connection
           );
-          logger.info(`✅ 采购申请创建成功: ${reqNo} (包含${filteredMaterials.length}个物料)`);
+          logger.info(`Purchase requisition created: requisitionNo=${reqNo}, itemCount=${filteredMaterials.length}`);
         }
       } catch (reqError) {
-        logger.error('❌ 采购申请创建失败:', reqError.message);
+        logger.error('Purchase requisition creation failed:', reqError.message);
         throw reqError;
       }
     }
 
-    logger.info(`✅ 销售订单 ${salesOrderId} 的生产计划和采购申请生成完成`);
+    logger.info(`Sales order production plan and purchase requisition generation completed: salesOrderId=${salesOrderId}`);
   } catch (error) {
     logger.error('生成生产计划和采购申请失败:', error);
     throw error;

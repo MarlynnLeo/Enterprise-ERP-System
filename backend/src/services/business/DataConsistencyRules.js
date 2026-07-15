@@ -154,6 +154,144 @@ const consistencyRules = [
     `,
   },
   {
+    id: 'inventory.outbound_cost_matches_source_batch',
+    severity: 'critical',
+    closure: 'inventoryControl',
+    description: 'Outbound inventory cost must match the proven cost of the source batch, never a sales price.',
+    sql: `
+      SELECT l.id, l.transaction_no, l.reference_no, l.material_id, l.batch_number,
+             l.unit_cost AS outbound_unit_cost,
+             (
+               SELECT source.unit_cost
+                 FROM inventory_ledger source
+                WHERE source.material_id = l.material_id
+                  AND source.location_id = l.location_id
+                  AND source.batch_number = l.batch_number
+                  AND source.quantity > 0
+                  AND source.id < l.id
+                ORDER BY source.id DESC
+                LIMIT 1
+             ) AS source_unit_cost
+        FROM inventory_ledger l
+       WHERE l.quantity < -0.000001
+         AND l.batch_number IS NOT NULL
+         AND l.batch_number <> ''
+         AND EXISTS (
+           SELECT 1 FROM inventory_ledger source
+            WHERE source.material_id = l.material_id
+              AND source.location_id = l.location_id
+              AND source.batch_number = l.batch_number
+              AND source.quantity > 0
+              AND source.id < l.id
+         )
+         AND (
+           COALESCE((
+             SELECT source.unit_cost
+               FROM inventory_ledger source
+              WHERE source.material_id = l.material_id
+                AND source.location_id = l.location_id
+                AND source.batch_number = l.batch_number
+                AND source.quantity > 0
+                AND source.id < l.id
+              ORDER BY source.id DESC
+              LIMIT 1
+           ), 0) <= 0
+           OR ABS(COALESCE(l.unit_cost, 0) - COALESCE((
+             SELECT source.unit_cost
+               FROM inventory_ledger source
+              WHERE source.material_id = l.material_id
+                AND source.location_id = l.location_id
+                AND source.batch_number = l.batch_number
+                AND source.quantity > 0
+                AND source.id < l.id
+              ORDER BY source.id DESC
+              LIMIT 1
+           ), 0)) > 0.000001
+         )
+    `,
+  },
+  {
+    id: 'inventory.stock_balances_match_ledger',
+    severity: 'critical',
+    closure: 'inventoryControl',
+    description: 'Inventory stock balances must match signed ledger quantity and value by material/location/batch.',
+    sql: `
+      SELECT material_id, location_id, batch_number,
+             ROUND(balance_quantity, 6) AS balance_quantity,
+             ROUND(ledger_quantity, 6) AS ledger_quantity,
+             ROUND(balance_value, 2) AS balance_value,
+             ROUND(ledger_value, 2) AS ledger_value
+      FROM (
+        SELECT b.material_id,
+               b.location_id,
+               b.batch_number,
+               COALESCE(b.quantity, 0) AS balance_quantity,
+               COALESCE(l.ledger_quantity, 0) AS ledger_quantity,
+               COALESCE(b.total_value, 0) AS balance_value,
+               COALESCE(l.ledger_value, 0) AS ledger_value
+        FROM inventory_stock_balances b
+        LEFT JOIN (
+          SELECT material_id,
+                 location_id,
+                 batch_key,
+                 SUM(COALESCE(quantity, 0)) AS ledger_quantity,
+                 SUM(CASE
+                   WHEN COALESCE(quantity, 0) < 0 THEN -ABS(COALESCE(total_value, 0))
+                   ELSE ABS(COALESCE(total_value, 0))
+                 END) AS ledger_value
+          FROM (
+            SELECT material_id,
+                   location_id,
+                   COALESCE(NULLIF(batch_number, ''), '') COLLATE utf8mb4_unicode_ci AS batch_key,
+                   quantity,
+                   total_value
+            FROM inventory_ledger
+            WHERE material_id IS NOT NULL AND location_id IS NOT NULL
+          ) ledger_source
+          GROUP BY material_id, location_id, batch_key
+        ) l
+          ON l.material_id = b.material_id
+         AND l.location_id = b.location_id
+         AND l.batch_key = b.batch_number COLLATE utf8mb4_unicode_ci
+        UNION ALL
+        SELECT l.material_id,
+               l.location_id,
+               l.batch_key AS batch_number,
+               0 AS balance_quantity,
+               l.ledger_quantity,
+               0 AS balance_value,
+               l.ledger_value
+        FROM (
+          SELECT material_id,
+                 location_id,
+                 batch_key,
+                 SUM(COALESCE(quantity, 0)) AS ledger_quantity,
+                 SUM(CASE
+                   WHEN COALESCE(quantity, 0) < 0 THEN -ABS(COALESCE(total_value, 0))
+                   ELSE ABS(COALESCE(total_value, 0))
+                 END) AS ledger_value
+          FROM (
+            SELECT material_id,
+                   location_id,
+                   COALESCE(NULLIF(batch_number, ''), '') COLLATE utf8mb4_unicode_ci AS batch_key,
+                   quantity,
+                   total_value
+            FROM inventory_ledger
+            WHERE material_id IS NOT NULL AND location_id IS NOT NULL
+          ) ledger_source
+          GROUP BY material_id, location_id, batch_key
+        ) l
+        LEFT JOIN inventory_stock_balances b
+          ON b.material_id = l.material_id
+         AND b.location_id = l.location_id
+         AND b.batch_number COLLATE utf8mb4_unicode_ci = l.batch_key
+        WHERE b.id IS NULL
+      ) stock_reconciliation
+      WHERE ABS(ROUND(balance_quantity - ledger_quantity, 6)) > 0.000001
+         OR ABS(ROUND(balance_value - ledger_value, 2)) > 0.05
+    `,
+  },
+  {
     id: 'purchase.completed_orders_not_over_received',
     severity: 'high',
     closure: 'procureToPay',
@@ -164,6 +302,74 @@ const consistencyRules = [
       JOIN purchase_orders po ON po.id = poi.order_id
       WHERE po.deleted_at IS NULL
         AND COALESCE(poi.received_quantity, 0) - COALESCE(poi.quantity, 0) > 0.000001
+    `,
+  },
+  {
+    id: 'purchase.receipt_items_link_order_items',
+    severity: 'high',
+    closure: 'procureToPay',
+    description: 'Purchase receipt items must link to the matching purchase order item.',
+    sql: `
+      SELECT pri.id AS receipt_item_id, pr.id AS receipt_id, pr.receipt_no,
+             pr.order_id, pri.order_item_id, pri.material_id
+      FROM purchase_receipt_items pri
+      JOIN purchase_receipts pr ON pr.id = pri.receipt_id
+      LEFT JOIN purchase_order_items poi ON poi.id = pri.order_item_id
+      WHERE pr.deleted_at IS NULL
+        AND pr.order_id IS NOT NULL
+        AND (
+          pri.order_item_id IS NULL
+          OR poi.id IS NULL
+          OR poi.order_id <> pr.order_id
+          OR poi.material_id <> pri.material_id
+        )
+    `,
+  },
+  {
+    id: 'purchase.order_received_quantity_matches_receipts',
+    severity: 'high',
+    closure: 'procureToPay',
+    description: 'Purchase order received quantities must match confirmed and completed receipts.',
+    sql: `
+      SELECT poi.id AS order_item_id, po.order_no, poi.material_id,
+             poi.received_quantity,
+             GREATEST(
+               COALESCE(receipts.received_quantity, 0),
+               COALESCE(inspections.inspected_quantity, 0)
+             ) AS source_quantity
+      FROM purchase_order_items poi
+      JOIN purchase_orders po ON po.id = poi.order_id
+      LEFT JOIN (
+        SELECT pr.order_id, pri.material_id,
+               SUM(COALESCE(NULLIF(pri.received_quantity, 0), pri.quantity, pri.qualified_quantity, 0))
+                 AS received_quantity
+        FROM purchase_receipt_items pri
+        JOIN purchase_receipts pr ON pr.id = pri.receipt_id
+        WHERE pr.deleted_at IS NULL
+          AND pr.status IN ('confirmed', 'completed')
+        GROUP BY pr.order_id, pri.material_id
+      ) receipts ON receipts.order_id = poi.order_id
+                AND receipts.material_id = poi.material_id
+      LEFT JOIN (
+        SELECT qi.reference_id AS order_id, qi.material_id,
+               SUM(COALESCE(NULLIF(qi.quantity, 0), qi.qualified_quantity, 0))
+                 AS inspected_quantity
+        FROM quality_inspections qi
+        WHERE qi.inspection_type = 'incoming'
+          AND qi.deleted_at IS NULL
+          AND qi.status NOT IN ('cancelled', 'rejected')
+        GROUP BY qi.reference_id, qi.material_id
+      ) inspections ON inspections.order_id = poi.order_id
+                   AND inspections.material_id = poi.material_id
+      WHERE po.deleted_at IS NULL
+        AND ABS(
+          COALESCE(poi.received_quantity, 0)
+          - GREATEST(
+              COALESCE(receipts.received_quantity, 0),
+              COALESCE(inspections.inspected_quantity, 0)
+            )
+        )
+              > 0.000001
     `,
   },
   {
@@ -197,6 +403,65 @@ const consistencyRules = [
       WHERE t.deleted_at IS NULL
       GROUP BY t.id, t.quantity
       HAVING reported_quantity - COALESCE(t.quantity, 0) > 0.000001
+    `,
+  },
+  {
+    id: 'production.completed_task_has_production_inbound',
+    severity: 'high',
+    closure: 'planToProduce',
+    description: 'Completed production tasks must have a completed production inbound linked via final inspection.',
+    sql: `
+      SELECT t.id AS task_id, t.code, t.status
+      FROM production_tasks t
+      WHERE t.deleted_at IS NULL
+        AND t.status = 'completed'
+        AND NOT EXISTS (
+          SELECT 1
+          FROM quality_inspections qi
+          JOIN inventory_inbound ii ON ii.inspection_id = qi.id
+            AND ii.inbound_type = 'production'
+            AND ii.status IN ('completed', 'confirmed')
+            AND COALESCE(ii.is_deleted, 0) = 0
+          WHERE qi.inspection_type = 'final'
+            AND qi.deleted_at IS NULL
+            AND (qi.reference_id = t.id OR qi.task_id = t.id)
+        )
+        AND NOT EXISTS (
+          SELECT 1
+          FROM inventory_inbound ii
+          WHERE ii.inbound_type = 'production'
+            AND ii.reference_type = 'production_task'
+            AND ii.reference_id = t.id
+            AND ii.status IN ('completed', 'confirmed')
+            AND COALESCE(ii.is_deleted, 0) = 0
+        )
+    `,
+  },
+  {
+    id: 'production.material_issued_has_outbound_ledger',
+    severity: 'medium',
+    closure: 'planToProduce',
+    description: 'Tasks at material_issued or later should have production outbound evidence.',
+    sql: `
+      SELECT t.id AS task_id, t.code, t.status
+      FROM production_tasks t
+      WHERE t.deleted_at IS NULL
+        AND t.status IN ('material_issued', 'in_progress', 'inspection', 'warehousing', 'completed')
+        AND NOT EXISTS (
+          SELECT 1
+          FROM inventory_outbound o
+          WHERE o.deleted_at IS NULL
+            AND o.status IN ('completed', 'partial_completed', 'confirmed')
+            AND (
+              o.production_task_id = t.id
+              OR (o.reference_type = 'production_task' AND o.reference_id = t.id)
+              OR (
+                o.reference_type = 'batch_production_tasks'
+                AND o.source_task_ids IS NOT NULL
+                AND JSON_CONTAINS(o.source_task_ids, CAST(t.id AS JSON), '$')
+              )
+            )
+        )
     `,
   },
   {

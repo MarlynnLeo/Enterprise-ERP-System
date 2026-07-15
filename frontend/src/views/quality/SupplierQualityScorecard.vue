@@ -1,16 +1,21 @@
 ﻿<template>
-  <div class="supplier-quality-container">
+  <div class="module-page supplier-quality-container">
+    <PageHeader title="供应商质量计分卡" subtitle="供应商质量绩效评估">
+      <template #actions>
+        <el-button v-permission="'quality:supplier-quality:update'" type="primary" @click="handleCalculate" :loading="calculating">
+              <el-icon><Cpu /></el-icon>计算本月得分
+            </el-button>
+      </template>
+    </PageHeader>
+
     <!-- 顶部操作栏 -->
-    <el-card class="box-card">
+    <el-card class="data-card">
       <template #header>
         <div class="card-header">
           <span>供应商质量计分卡</span>
           <div>
             <el-date-picker v-model="selectedPeriod" type="month" value-format="YYYY-MM"
-              placeholder="选择月份" style="width:160px;margin-right:12px" @change="fetchScores" />
-            <el-button v-permission="'quality:supplier-quality:update'" type="primary" @click="handleCalculate" :loading="calculating">
-              <el-icon><Cpu /></el-icon>计算本月得分
-            </el-button>
+              placeholder="选择月份" class="form-control-md mr-sm" @change="fetchScores" />
           </div>
         </div>
       </template>
@@ -28,7 +33,7 @@
       </el-row>
 
       <!-- 表格 -->
-      <el-table v-loading="loading" :data="tableData" border style="width: 100%"
+      <el-table v-loading="loading" :data="tableData" border class="w-full"
         :row-class-name="tableRowClassName" @row-click="handleRowClick">
         <el-table-column prop="supplier_name" label="供应商" width="300" show-overflow-tooltip />
         <el-table-column prop="period" label="月份" width="100" />
@@ -36,14 +41,14 @@
           <el-table-column prop="total_lots" label="批次数" width="100" />
           <el-table-column prop="lot_accept_rate" label="合格率(%)" width="100">
             <template #default="scope">
-              <span :style="{ color: scope.row.lot_accept_rate >= 95 ? 'var(--color-success)' : scope.row.lot_accept_rate >= 80 ? 'var(--color-warning)' : 'var(--color-danger)', fontWeight: 'bold' }">
+              <span :class="acceptRateClass(scope.row.lot_accept_rate)">
                 {{ scope.row.lot_accept_rate }}%
               </span>
             </template>
           </el-table-column>
           <el-table-column prop="ppm" label="PPM" width="100">
             <template #default="scope">
-              <span :style="{ color: scope.row.ppm <= 500 ? 'var(--color-success)' : scope.row.ppm <= 2000 ? 'var(--color-warning)' : 'var(--color-danger)' }">
+              <span :class="ppmClass(scope.row.ppm)">
                 {{ scope.row.ppm }}
               </span>
             </template>
@@ -52,7 +57,7 @@
         <el-table-column label="交付">
           <el-table-column prop="delivery_rate" label="准时率(%)" width="135">
             <template #default="scope">
-              <span :style="{ fontWeight: 'bold' }">{{ scope.row.delivery_rate }}%</span>
+              <span class="font-weight-700">{{ scope.row.delivery_rate }}%</span>
             </template>
           </el-table-column>
         </el-table-column>
@@ -72,14 +77,14 @@
           </el-table-column>
           <el-table-column prop="total_score" label="总分" width="100">
             <template #default="scope">
-              <span style="font-weight:bold;font-size:15px" :style="{ color: gradeColor(scope.row.grade) }">
+              <span class="score-grade" :class="gradeClass(scope.row.grade)">
                 {{ scope.row.total_score }}
               </span>
             </template>
           </el-table-column>
           <el-table-column prop="grade" label="等级" width="100">
             <template #default="scope">
-              <el-tag :type="gradeType(scope.row.grade)" effect="dark" size="large" style="font-weight:bold">
+              <el-tag :type="gradeType(scope.row.grade)" effect="dark" size="large" class="font-weight-700">
                 {{ scope.row.grade }}
               </el-tag>
             </template>
@@ -108,7 +113,7 @@
         <el-table-column prop="supplier_name" label="供应商" />
         <el-table-column prop="total_score" label="综合得分" width="100" sortable>
           <template #default="scope">
-            <span style="font-weight:bold" :style="{ color: gradeColor(scope.row.grade) }">{{ scope.row.total_score }}</span>
+            <span class="font-weight-700" :class="gradeClass(scope.row.grade)">{{ scope.row.total_score }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="grade" label="等级" width="80">
@@ -134,7 +139,7 @@
         <el-table-column prop="response_score" label="响应得分" width="100" />
         <el-table-column prop="total_score" label="总分" width="80">
           <template #default="scope">
-            <span style="font-weight:bold" :style="{ color: gradeColor(scope.row.grade) }">{{ scope.row.total_score }}</span>
+            <span class="font-weight-700" :class="gradeClass(scope.row.grade)">{{ scope.row.total_score }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="grade" label="等级" width="70">
@@ -175,8 +180,19 @@ const trendVisible = ref(false);
 const trendData = ref([]);
 const trendSupplierName = ref('');
 
-const gradeType = (g) => ({ A: 'success', B: '', C: 'warning', D: 'danger' }[g] || 'info');
-const gradeColor = (g) => ({ A: 'var(--color-success)', B: 'var(--color-primary)', C: 'var(--color-warning)', D: 'var(--color-danger)' }[g] || 'var(--color-text-secondary)');
+const gradeType = (g) => ({ A: 'success', B: '', C: 'warning', D: 'danger' }[g] || 'info')
+const gradeClass = (g) =>
+  ({ A: 'text-success', B: 'text-primary', C: 'text-warning', D: 'text-danger' }[g] || 'text-muted')
+const acceptRateClass = (rate) => {
+  if (rate >= 95) return 'score-good'
+  if (rate >= 80) return 'score-warn'
+  return 'score-bad'
+}
+const ppmClass = (ppm) => {
+  if (ppm <= 500) return 'score-good'
+  if (ppm <= 2000) return 'score-warn'
+  return 'score-bad'
+}
 
 const tableRowClassName = ({ row }) => {
   if (row.grade === 'D') return 'row-danger';

@@ -299,15 +299,15 @@ onMounted(async () => {
 }
 
 .summary-item.success strong {
-  color: #67c23a;
+  color: var(--color-success);
 }
 
 .summary-item.warning strong {
-  color: #e6a23c;
+  color: var(--color-warning);
 }
 
 .summary-item.danger strong {
-  color: #f56c6c;
+  color: var(--color-danger);
 }
 
 .check-table {

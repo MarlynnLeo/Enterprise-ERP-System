@@ -1,10 +1,9 @@
-﻿<template>
+<template>
   <el-dialog
     title="BOM版本对比"
     :model-value="modelValue"
     @update:model-value="val => emit('update:modelValue', val)"
     width="50%"
-    top="3vh"
     destroy-on-close
   >
     <!-- 选择两个BOM -->
@@ -19,7 +18,7 @@
               filterable
               remote
               reserve-keyword
-              style="width: 100%"
+              class="w-full"
               :loading="loadingList"
               :remote-method="searchBomOptions"
             >
@@ -33,7 +32,7 @@
             </el-select>
           </el-card>
         </el-col>
-        <el-col :span="2" style="display: flex; align-items: center; justify-content: center;">
+        <el-col :span="2" class="flex-row flex-center">
           <el-icon :size="28" color="var(--color-primary)"><Switch /></el-icon>
         </el-col>
         <el-col :span="11">
@@ -45,7 +44,7 @@
               filterable
               remote
               reserve-keyword
-              style="width: 100%"
+              class="w-full"
               :loading="loadingList"
               :remote-method="searchBomOptions"
             >
@@ -60,7 +59,7 @@
           </el-card>
         </el-col>
       </el-row>
-      <div style="text-align: center; margin-top: 20px;">
+      <div class="text-center mt-20">
         <el-button
           type="primary"
           :disabled="!selectedBomA || !selectedBomB"
@@ -74,15 +73,15 @@
 
     <!-- 对比结果 -->
     <div v-if="compareResult" class="compare-result">
-      <div style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
+      <div class="mb-md flex-between">
         <el-button @click="compareResult = null" size="small">
           <el-icon><ArrowLeft /></el-icon> 重新选择
         </el-button>
         <div>
-          <el-tag type="success" effect="plain" style="margin-right: 8px;">
+          <el-tag type="success" effect="plain" class="mr-8">
             ● 新增 {{ compareResult.stats.added }}
           </el-tag>
-          <el-tag type="danger" effect="plain" style="margin-right: 8px;">
+          <el-tag type="danger" effect="plain" class="mr-8">
             ● 删除 {{ compareResult.stats.removed }}
           </el-tag>
           <el-tag type="warning" effect="plain">
@@ -92,7 +91,7 @@
       </div>
 
       <!-- BOM头信息对比 -->
-      <el-row :gutter="16" style="margin-bottom: 16px;">
+      <el-row :gutter="16" class="mb-md">
         <el-col :span="12">
           <el-card shadow="never" class="bom-header-card">
             <template #header>
@@ -116,7 +115,7 @@
       </el-row>
 
       <!-- 差异明细表 -->
-      <el-table :data="compareResult.diffRows" border style="width: 100%" :row-class-name="diffRowClass">
+      <el-table :data="compareResult.diffRows" border class="w-full" :row-class-name="diffRowClass">
         <el-table-column label="差异类型" width="90">
           <template #default="{ row }">
             <el-tag v-if="row.type === 'added'" type="success" size="small">新增</el-tag>
@@ -144,10 +143,10 @@
         <el-table-column label="单位" prop="unit_name" width="80" />
         <el-table-column label="变更说明" min-width="180">
           <template #default="{ row }">
-            <span v-if="row.type === 'added'" style="color: var(--color-success);">BOM A 新增此物料</span>
-            <span v-else-if="row.type === 'removed'" style="color: var(--color-danger);">BOM A 中已移除此物料</span>
-            <span v-else-if="row.type === 'changed'" style="color: var(--color-warning);">{{ row.changeDesc }}</span>
-            <span v-else style="color: var(--color-text-secondary);">无变化</span>
+            <span v-if="row.type === 'added'" class="text-success">BOM A 新增此物料</span>
+            <span v-else-if="row.type === 'removed'" class="text-danger">BOM A 中已移除此物料</span>
+            <span v-else-if="row.type === 'changed'" class="text-warning">{{ row.changeDesc }}</span>
+            <span v-else class="text-muted">无变化</span>
           </template>
         </el-table-column>
       </el-table>

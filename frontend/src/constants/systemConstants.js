@@ -13,6 +13,23 @@ import { startCase } from 'lodash-es';
 // =======================
 // 防御性编程：在面临新部署、后端升级数据丢失或外网波动时兜底显示
 const FALLBACK_DICTIONARY = {
+  inventory_transaction: {
+    inbound: { name: '其他入库', color: 'success' },
+    outbound: { name: '其他出库', color: 'danger' },
+    in: { name: '入库', color: 'success' },
+    out: { name: '出库', color: 'danger' },
+    defective_return: { name: '不良退回', color: 'success' },
+    production_return: { name: '生产退料', color: 'success' },
+    purchase_return: { name: '采购退货', color: 'warning' },
+    sales_return: { name: '销售退货', color: 'warning' },
+    outsourced_outbound: { name: '委外出库', color: 'danger' },
+    outsourced_inbound: { name: '委外入库', color: 'success' },
+    outsourced_return: { name: '外协退料', color: 'success' },
+    inbound_cancel: { name: '撤销入库', color: 'danger' },
+    outbound_cancel: { name: '撤销出库', color: 'success' },
+    transfer_cancel_in: { name: '撤销调拨入库', color: 'danger' },
+    transfer_cancel_out: { name: '撤销调拨出库', color: 'success' }
+  },
   production_status: {
     draft: { name: '未开始', color: 'info' },
     pending: { name: '未开始', color: 'info' },
@@ -216,9 +233,9 @@ export const VALIDATION_RULES = {
 export const BUSINESS_RULES = {};
 
 export const INVENTORY_TRANSACTION_GROUPS = {
-  INCREASE: ['inbound', 'in', 'purchase_inbound', 'production_inbound', 'outsourced_inbound', 'sales_return', 'sales_exchange_return', 'transfer_in', 'adjustment_in', 'initial_import', 'correction', 'outbound_cancel'],
-  DECREASE: ['outbound', 'out', 'production_outbound', 'outsourced_outbound', 'sale', 'sales_outbound', 'sales_exchange_out', 'transfer_out', 'adjustment_out', 'purchase_return'],
-  TRANSFER: ['transfer', 'transfer_in', 'transfer_out']
+  INCREASE: ['inbound', 'in', 'purchase_inbound', 'production_inbound', 'outsourced_inbound', 'sales_return', 'sales_exchange_return', 'transfer_in', 'adjustment_in', 'initial_import', 'correction', 'outbound_cancel', 'transfer_cancel_out'],
+  DECREASE: ['outbound', 'out', 'production_outbound', 'outsourced_outbound', 'sale', 'sales_outbound', 'sales_exchange_out', 'transfer_out', 'adjustment_out', 'purchase_return', 'inbound_cancel', 'transfer_cancel_in'],
+  TRANSFER: ['transfer', 'transfer_in', 'transfer_out', 'transfer_cancel_in', 'transfer_cancel_out']
 };
 
 export const FIRST_ARTICLE_CONFIG = {

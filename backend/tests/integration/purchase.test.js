@@ -75,7 +75,7 @@ describe('采购模块 /api/purchase', () => {
     test('查询不存在的订单应返回 404 或空数据', async () => {
       const res = await api.get('/api/purchase/orders/999999');
 
-      expect([404, 200]).toContain(res.status);
+      expect(res.status).toBe(404);
     });
   });
 

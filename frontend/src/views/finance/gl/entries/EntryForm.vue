@@ -1,26 +1,23 @@
 ﻿<template>
   <div class="module-page entry-form-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <h2>{{ isEdit ? '编辑凭证' : '录入凭证' }}</h2>
-        <div>
-          <el-button @click="goBack">返回</el-button>
-          <el-button v-permission="'finance:entries:create'" type="primary" @click="saveEntry" :loading="saving">保存</el-button>
-        </div>
-      </div>
-    </el-card>
+    <PageHeader :title="isEdit ? '编辑凭证' : '录入凭证'" subtitle="总账凭证录入与保存">
+      <template #actions>
+        <el-button @click="goBack">返回</el-button>
+        <el-button v-permission="'finance:entries:create'" type="primary" @click="saveEntry" :loading="saving">保存</el-button>
+      </template>
+    </PageHeader>
 
     <el-card class="form-card">
       <el-form :model="entryForm" :rules="rules" ref="formRef" label-width="100px" class="main-form">
         <el-row :gutter="20">
           <el-col :span="8">
             <el-form-item label="记账日期" prop="entry_date">
-              <el-date-picker v-model="entryForm.entry_date" type="date" value-format="YYYY-MM-DD" style="width: 100%"></el-date-picker>
+              <el-date-picker v-model="entryForm.entry_date" type="date" value-format="YYYY-MM-DD" class="w-full"></el-date-picker>
             </el-form-item>
           </el-col>
           <el-col :span="8">
             <el-form-item label="凭证字" prop="voucher_word">
-              <el-select v-model="entryForm.voucher_word" style="width: 100%">
+              <el-select v-model="entryForm.voucher_word" class="w-full">
                 <el-option label="记" value="记"></el-option>
                 <el-option label="收" value="收"></el-option>
                 <el-option label="付" value="付"></el-option>
@@ -30,7 +27,7 @@
           </el-col>
           <el-col :span="8">
             <el-form-item label="附单据数" prop="document_number">
-              <el-input-number v-model="entryForm.document_number" :min="0" style="width: 100%"></el-input-number>
+              <el-input-number v-model="entryForm.document_number" :min="0" class="w-full"></el-input-number>
             </el-form-item>
           </el-col>
         </el-row>
@@ -49,7 +46,7 @@
           <el-button v-permission="'finance:entries:create'" type="success" size="small" plain @click="addItem">添加明细行</el-button>
         </div>
 
-        <el-table :data="entryForm.items" border style="width: 100%" class="entry-table">
+        <el-table :data="entryForm.items" border class="w-full entry-table">
           <el-table-column label="摘要" width="200">
             <template #default="scope">
               <el-input v-model="scope.row.description" placeholder="明细摘要"></el-input>
@@ -63,7 +60,7 @@
                 :props="{ checkStrictly: true, value: 'id', label: 'fullName', emitPath: false }"
                 placeholder="请选择科目"
                 filterable
-                style="width: 100%"
+                class="w-full"
                 @change="(val) => handleAccountChange(val, scope.$index)"
               ></el-cascader>
 
@@ -93,7 +90,7 @@
                 v-model="scope.row.debit_amount"
                 :precision="2" :step="100" :min="0"
                 :controls="false"
-                style="width: 100%"
+                class="w-full"
                 @change="() => scope.row.credit_amount = scope.row.debit_amount > 0 ? 0 : scope.row.credit_amount"
               ></el-input-number>
             </template>
@@ -104,7 +101,7 @@
                 v-model="scope.row.credit_amount"
                 :precision="2" :step="100" :min="0"
                 :controls="false"
-                style="width: 100%"
+                class="w-full"
                 @change="() => scope.row.debit_amount = scope.row.credit_amount > 0 ? 0 : scope.row.debit_amount"
               ></el-input-number>
             </template>

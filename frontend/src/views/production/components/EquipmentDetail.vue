@@ -108,7 +108,7 @@
       </el-col>
     </el-row>
     <!-- 当前参数数据 -->
-    <el-card title="当前参数数据" style="margin-top: 20px;">
+    <el-card title="当前参数数据" class="mt-20">
       <template #header>
         <div class="card-header">
           <span>当前参数数据</span>
@@ -145,7 +145,7 @@
       </el-table>
     </el-card>
     <!-- 活跃报警 -->
-    <el-card title="活跃报警" style="margin-top: 20px;" v-if="equipment.activeAlarms && equipment.activeAlarms.length > 0">
+    <el-card title="活跃报警" class="mt-20" v-if="equipment.activeAlarms && equipment.activeAlarms.length > 0">
       <template #header>
         <span>活跃报警</span>
       </template>

@@ -39,7 +39,13 @@ module.exports = {
         : 1;
       const isActive = req.body.is_active !== undefined ? req.body.is_active : 1;
       const id = req.params.id || req.body.id;
-      logger.info('Save Supplement Reason Body:', req.body);
+      logger.debug('Supplement reason payload normalized', {
+        id,
+        reasonCode: reason_code,
+        hasReasonName: Boolean(reason_name),
+        isIncludedInCost: Boolean(isIncludedInCost),
+        isActive: Boolean(isActive),
+      });
 
       if (!reason_code || !reason_name) {
         return ResponseHandler.error(res, '原因代码和名称不能为空');

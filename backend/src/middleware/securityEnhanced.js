@@ -126,7 +126,7 @@ const sqlInjectionDetection = (req, res, next) => {
       const patterns = skipMode === 'relaxed' ? SQL_INJECTION_PATTERNS_RELAXED : SQL_INJECTION_PATTERNS;
       for (const pattern of patterns) {
         if (pattern.test(value)) {
-          logger.security('⚠️ 检测到SQL注入尝试', {
+          logger.security('Security event: SQL injection attempt detected', {
             ip: req.ip,
             url: req.originalUrl,
             path,
@@ -169,7 +169,7 @@ const xssDetection = (req, res, next) => {
     if (typeof value === 'string') {
       for (const pattern of XSS_PATTERNS) {
         if (pattern.test(value)) {
-          logger.security('⚠️ 检测到XSS攻击尝试', {
+          logger.security('Security event: XSS attempt detected', {
             ip: req.ip,
             url: req.originalUrl,
             path,
@@ -206,7 +206,7 @@ const pathTraversalDetection = (req, res, next) => {
 
   for (const pattern of PATH_TRAVERSAL_PATTERNS) {
     if (pattern.test(url)) {
-      logger.security('⚠️ 检测到路径遍历攻击尝试', {
+      logger.security('Security event: path traversal attempt detected', {
         ip: req.ip,
         url: req.originalUrl,
         userAgent: req.get('User-Agent'),
@@ -238,7 +238,7 @@ const fileUploadSecurity = (req, res, next) => {
       ];
 
       if (!allowedMimeTypes.includes(file.mimetype)) {
-        logger.security('⚠️ 未授权文件类型上传尝试', {
+        logger.security('Security event: unauthorized file type upload attempt detected', {
           ip: req.ip,
           filename: file.originalname,
           mimetype: file.mimetype,

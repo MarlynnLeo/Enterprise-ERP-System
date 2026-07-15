@@ -82,9 +82,15 @@ const pathToI18nKey = {
   '/production/report': 'menu.productionReport',
   '/production/equipment-monitoring': 'menu.equipmentMonitoring',
   '/production/material-shortage': 'menu.materialShortage',
+  '/production/material-readiness': 'menu.materialReadiness',
   '/production/mrp': 'menu.mrpPlanning',
   '/production/data-view': 'menu.productionDataView',
   '/production/gantt': 'menu.productionGantt',
+  '/production/calendar': 'menu.productionCalendar',
+  '/production/anomaly': 'menu.productionAnomaly',
+  '/production/work-stations': 'menu.workStations',
+  '/production/process-routes': 'menu.processRoutes',
+  '/production/assembly-board': 'menu.assemblyBoard',
 
   // 基础数据
   '/basedata/materials': 'menu.materials',
@@ -164,6 +170,7 @@ const pathToI18nKey = {
   '/system/permissions': 'menu.permissions',
   '/system/print': 'menu.print',
   '/system/notifications': 'menu.notifications',
+  '/system/notification-rules': 'menu.notificationRules',
   '/system/business-types': 'menu.businessTypes',
   '/system/technical-communication': 'menu.technicalCommunication',
   '/system/workflow': 'menu.workflow',

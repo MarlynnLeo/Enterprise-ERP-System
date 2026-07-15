@@ -103,7 +103,9 @@ class SalesOrderStatusService {
         const returnedQty = returnedMap[materialId] || 0;
         if (returnedQty > 0) {
           shippedMap[materialId] = Math.max(0, shippedMap[materialId] - returnedQty);
-          logger.info(`📦 订单${orderId} 物料${materialId}: 毛发货${shippedMap[materialId] + returnedQty}, 退货${returnedQty}, 净发货${shippedMap[materialId]}`);
+          logger.info(
+            `Sales order net shipped quantity calculated: orderId=${orderId}, materialId=${materialId}, grossShipped=${shippedMap[materialId] + returnedQty}, returned=${returnedQty}, netShipped=${shippedMap[materialId]}`
+          );
         }
       });
 
@@ -292,7 +294,9 @@ class SalesOrderStatusService {
         );
       }
 
-      logger.info(`🔄 检测到 ${affectedOrders.length} 个订单包含已出库物料，开始更新状态...`);
+      logger.info(
+        `Updating sales order statuses for outbound materials: affectedOrders=${affectedOrders.length}`
+      );
 
       const results = [];
       for (const orderRow of affectedOrders) {

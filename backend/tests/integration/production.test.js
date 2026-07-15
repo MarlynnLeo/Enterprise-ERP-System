@@ -165,8 +165,9 @@ describe('生产管理 - 生产任务 /api/production/tasks', () => {
       const taskId = items[0].id;
       const res = await api.get(`/api/production/tasks/${taskId}/bom`);
 
-      // BOM 可能不存在，接受 200 或 404
-      expect([200, 404]).toContain(res.status);
+      expect(res.status).toBe(200);
+      const data = res.body.data || res.body;
+      expect(Array.isArray(data)).toBe(true);
     }
   });
 });

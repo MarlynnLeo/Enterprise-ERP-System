@@ -9,21 +9,15 @@
 <template>
   <div class="module-page production-data-view-container">
     <!-- 页面标题 -->
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>生产数据看板</h2>
-          <p class="subtitle">生产全局数据总览与分析</p>
-        </div>
-        <div class="header-actions">
-          <el-radio-group v-model="trendGranularity" size="small" @change="fetchTrends">
+    <PageHeader title="生产数据看板" subtitle="生产全局数据总览与分析">
+      <template #actions>
+<el-radio-group v-model="trendGranularity" size="small" @change="fetchTrends">
             <el-radio-button value="day">本月日视图</el-radio-button>
             <el-radio-button value="month">近12月</el-radio-button>
           </el-radio-group>
           <el-button :icon="Refresh" circle @click="refreshAll" :loading="loading" />
-        </div>
-      </div>
-    </el-card>
+      </template>
+    </PageHeader>
 
     <!-- 统计卡片 -->
     <el-row :gutter="16" class="stat-cards" v-loading="loading">
@@ -117,7 +111,8 @@
                     <div class="custom-progress__track">
                       <div
                         class="custom-progress__bar"
-                        :style="{ width: row.rate + '%', backgroundColor: getBarColor(row.rate) }"
+                        :class="getBarClass(row.rate)"
+                        :style="{ width: row.rate + '%' }"
                       ></div>
                     </div>
                     <span class="custom-progress__text">{{ row.rate }}%</span>
@@ -136,7 +131,7 @@
       <div class="chart-card">
         <div class="chart-card__header">
           <span><el-icon><SetUp /></el-icon> 排程甘特图</span>
-          <div style="display: flex; align-items: center; gap: 8px">
+          <div class="flex-row gap-sm">
             <el-date-picker
               v-model="ganttDateRange"
               type="daterange"
@@ -144,7 +139,7 @@
               start-placeholder="开始"
               end-placeholder="结束"
               size="small"
-              style="width: 240px"
+              class="form-control-240"
               value-format="YYYY-MM-DD"
               @change="fetchGanttData"
             />
@@ -272,12 +267,12 @@ const statusMap = {
 const getStatusText = (s) => statusMap[s]?.text || s
 const getStatusType = (s) => statusMap[s]?.type || 'info'
 
-// 自定义进度条颜色
-const getBarColor = (pct) => {
-  if (pct >= 80) return getCssTokenValue('success')
-  if (pct >= 40) return getCssTokenValue('primary')
-  if (pct > 0) return getCssTokenValue('warning')
-  return getCssTokenValue('border')
+// 自定义进度条颜色 class
+const getBarClass = (pct) => {
+  if (pct >= 80) return 'bar-success'
+  if (pct >= 40) return 'bar-primary'
+  if (pct > 0) return 'bar-warning'
+  return 'bar-muted'
 }
 
 // ============ 数据请求 ============

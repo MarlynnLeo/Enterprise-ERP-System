@@ -117,7 +117,14 @@ export function useUnifiedDataFetching(apiFunction, options = {}) {
   /**
    * 核心数据获取函数
    */
-  const fetchData = async (customParams = {}, showLoading = true) => {
+  /**
+   * @param {Object} customParams
+   * @param {boolean} showLoading
+   * @param {Object} [options]
+   * @param {boolean} [options.force=false] 强制重新请求（跳过 in-flight 复用与 composable 级缓存）
+   */
+  const fetchData = async (customParams = {}, showLoading = true, options = {}) => {
+    const force = options === true || options?.force === true
     let finalParams = { ...params.value, ...customParams }
     if (enablePagination && pagination) {
       finalParams = {
@@ -127,7 +134,8 @@ export function useUnifiedDataFetching(apiFunction, options = {}) {
       }
     }
     const cacheKey = getCacheKey(finalParams)
-    if (inFlightPromise && inFlightKey === cacheKey) {
+    // 非强制时才复用 in-flight；写操作后的刷新必须 force，否则会吃到变更前的旧请求结果
+    if (!force && inFlightPromise && inFlightKey === cacheKey) {
       return inFlightPromise
     }
 
@@ -138,12 +146,16 @@ export function useUnifiedDataFetching(apiFunction, options = {}) {
     error.value = null
     try {
       // 检查缓存
-      const cachedData = getFromCache(cacheKey)
-      if (cachedData) {
-        if (requestId === activeRequestId) {
-          updateData(cachedData)
+      if (!force) {
+        const cachedData = getFromCache(cacheKey)
+        if (cachedData) {
+          if (requestId === activeRequestId) {
+            updateData(cachedData)
+          }
+          return cachedData
         }
-        return cachedData
+      } else if (enableCache && cache) {
+        cache.delete(cacheKey)
       }
       // API调用（带重试）
       const apiCall = () => apiFunction(finalParams)
@@ -262,7 +274,7 @@ export function useUnifiedDataFetching(apiFunction, options = {}) {
   /**
    * 通用方法
    */
-  const refresh = () => fetchData()
+  const refresh = () => fetchData({}, true, { force: true })
   const updateParams = (newParams) => {
     params.value = { ...params.value, ...newParams }
   }

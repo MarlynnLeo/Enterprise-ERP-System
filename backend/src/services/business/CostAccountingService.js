@@ -41,6 +41,7 @@ const { currentDateString, toLocalDateString } = require('../../utils/dateUtils'
  * 处理产品成本核算、标准成本、实际成本计算和成本差异分析
  */
 const GLService = require('../finance/GLService');
+const InventoryService = require('../InventoryService');
 const Precision = require('../../utils/precision');
 const { financeConfig } = require('../../config/financeConfig');
 const { DOCUMENT_TYPES } = require('../../constants/financeConstants');
@@ -58,6 +59,30 @@ class CostAccountingService {
   /**
    * 成本要素枚举
    */
+  static INVENTORY_COSTING_METHOD_ALIASES = {
+    fifo: 'fifo',
+    weighted_average: 'weighted_average',
+    moving_average: 'weighted_average',
+    average: 'weighted_average',
+    mac: 'weighted_average',
+  };
+
+  static normalizeInventoryCostingMethod(method = this.COSTING_METHOD.WEIGHTED_AVERAGE) {
+    const normalizedKey = String(method || this.COSTING_METHOD.WEIGHTED_AVERAGE)
+      .trim()
+      .toLowerCase();
+    const normalizedMethod = this.INVENTORY_COSTING_METHOD_ALIASES[normalizedKey];
+    if (!normalizedMethod) {
+      throw new BusinessError(
+        `不支持的库存成本重算方法: ${method}`,
+        null,
+        'INVALID_COSTING_METHOD',
+        400
+      );
+    }
+    return normalizedMethod;
+  }
+
   static COST_ELEMENT = {
     MATERIAL: 'material', // 直接材料
     LABOR: 'labor', // 直接人工
@@ -1005,6 +1030,22 @@ class CostAccountingService {
       }
 
       const order = orderInfo[0];
+
+      // 终态门禁：禁止对未入库完成的任务写实际成本/改材料成本价/过账
+      const allowedCostStatuses = new Set(['completed', 'warehousing']);
+      if (!allowedCostStatuses.has(order.status)) {
+        throw new Error(
+          `生产任务 ${order.code || productionOrderId} 状态为「${order.status}」，仅入库中/已完成任务可核算实际成本`
+        );
+      }
+      const planQty = Number(order.quantity) || 0;
+      const doneQty = Number(order.completed_quantity) || 0;
+      if (planQty > 0 && doneQty + 1e-9 < planQty && order.status !== 'completed') {
+        throw new Error(
+          `生产任务 ${order.code || productionOrderId} 完工数量 ${doneQty}/${planQty} 未满产，且未完成入库，不能核算实际成本`
+        );
+      }
+
       const completionDate = this.toDateOnly(order.completed_at || currentDateString()); // 使用完工日期作为记账日期
 
       // 检查期间是否开启 (GL Check) - 修正错误的调法
@@ -1029,6 +1070,12 @@ class CostAccountingService {
       );
 
       const totalActualCost = materialCost.totalCost + laborCost.totalCost + overheadCost.totalCost;
+
+      if (!Number.isFinite(totalActualCost) || totalActualCost <= 0) {
+        throw new Error(
+          `生产任务 ${order.code || productionOrderId} 实际成本为0或无效，不能完成成本核算和成品入库`
+        );
+      }
 
       // 保存实际成本记录
 
@@ -1083,20 +1130,78 @@ class CostAccountingService {
 
         await connection.execute(
           `UPDATE inventory_ledger il
-           JOIN inventory_inbound_items iii
-             ON iii.material_id = il.material_id
-            AND iii.batch_number COLLATE utf8mb4_0900_ai_ci =
+           JOIN (
+             SELECT DISTINCT
+                    iii.material_id,
+                    iii.batch_number COLLATE utf8mb4_0900_ai_ci AS batch_number
+             FROM inventory_inbound ii
+             JOIN inventory_inbound_items iii ON iii.inbound_id = ii.id
+             LEFT JOIN quality_inspections qi ON qi.id = ii.inspection_id
+             WHERE iii.material_id = ?
+               AND iii.batch_number IS NOT NULL
+               AND iii.batch_number != ''
+               AND (
+                 (ii.reference_type = 'production_task' AND ii.reference_id = ?)
+                 OR qi.task_id = ?
+               )
+             UNION
+             SELECT DISTINCT
+                    product_id AS material_id,
+                    batch_no COLLATE utf8mb4_0900_ai_ci AS batch_number
+             FROM quality_inspections
+             WHERE task_id = ?
+               AND product_id = ?
+               AND batch_no IS NOT NULL
+               AND batch_no != ''
+             UNION
+             SELECT
+                    product_id AS material_id,
+                    batch_number COLLATE utf8mb4_0900_ai_ci AS batch_number
+             FROM production_tasks
+             WHERE id = ?
+               AND product_id = ?
+               AND batch_number IS NOT NULL
+               AND batch_number != ''
+           ) task_batches
+             ON task_batches.material_id = il.material_id
+            AND task_batches.batch_number COLLATE utf8mb4_0900_ai_ci =
                 il.batch_number COLLATE utf8mb4_0900_ai_ci
-           JOIN inventory_inbound ii
-             ON ii.id = iii.inbound_id
-            AND ii.reference_type = 'production_task'
-            AND ii.reference_id = ?
            SET il.unit_cost = ?,
                il.total_value = ROUND(ABS(il.quantity) * ?, 2)
-           WHERE il.transaction_type = 'production_inbound'
+           WHERE il.transaction_type IN ('production_inbound', 'sales_outbound')
              AND il.material_id = ?`,
-          [productionOrderId, finishedGoodsUnitCost, finishedGoodsUnitCost, order.product_id]
+          [
+            order.product_id,
+            productionOrderId,
+            productionOrderId,
+            productionOrderId,
+            order.product_id,
+            productionOrderId,
+            order.product_id,
+            finishedGoodsUnitCost,
+            finishedGoodsUnitCost,
+            order.product_id,
+          ]
         );
+
+        await connection.execute(
+          `UPDATE inventory_inbound ii
+           JOIN (
+             SELECT ii.id AS inbound_id, ROUND(SUM(ABS(iii.quantity) * ?), 2) AS total_amount
+             FROM inventory_inbound ii
+             JOIN inventory_inbound_items iii ON iii.inbound_id = ii.id
+             LEFT JOIN quality_inspections qi ON qi.id = ii.inspection_id
+             WHERE iii.material_id = ?
+               AND (
+                 (ii.reference_type = 'production_task' AND ii.reference_id = ?)
+                 OR qi.task_id = ?
+               )
+             GROUP BY ii.id
+           ) inbound_cost ON inbound_cost.inbound_id = ii.id
+           SET ii.total_amount = inbound_cost.total_amount`,
+          [finishedGoodsUnitCost, order.product_id, productionOrderId, productionOrderId]
+        );
+        await InventoryService.rebuildStockBalancesForMaterial(order.product_id, connection);
       }
 
       logger.info(
@@ -1455,16 +1560,26 @@ class CostAccountingService {
     productionOrderId,
     method = this.COSTING_METHOD.WEIGHTED_AVERAGE
   ) {
-    const materialIssues = await this.collectTaskMaterialMovements(connection, [
-      productionOrderId,
-    ]);
+    const materialIssues = (
+      await this.collectTaskMaterialMovements(connection, [productionOrderId])
+    ).map((issue) => ({
+      ...issue,
+      material_id: issue.material_id ?? issue.materialId,
+      material_code: issue.material_code ?? issue.materialCode,
+      material_name: issue.material_name ?? issue.materialName,
+      unit_cost: issue.unit_cost ?? issue.unitCost,
+      issue_date: issue.issue_date ?? issue.movementDate,
+      batch_number: issue.batch_number ?? issue.batchNumber,
+    }));
 
     let totalCost = 0;
     const details = [];
     const costVariances = [];
 
     // ✅ 性能优化: 批量预取所有物料的标准成本，消除 N+1 查询
-    const uniqueMaterialIds = [...new Set(materialIssues.map((i) => i.material_id))];
+    const uniqueMaterialIds = [
+      ...new Set(materialIssues.map((i) => i.material_id).filter(Boolean)),
+    ];
     const standardCostMap = await this.getBatchStandardMaterialCosts(connection, uniqueMaterialIds);
 
     for (const issue of materialIssues) {
@@ -1584,6 +1699,7 @@ class CostAccountingService {
     }
 
     // 严格从全局 SSOT 获取费率，去除防御性补偿代码
+    await globalConfigManager.init();
     const defaultHourlyRate = globalConfigManager.getConfig().cost.laborRate;
 
     let totalCost = 0;
@@ -2056,6 +2172,7 @@ class CostAccountingService {
     materialId = null,
     method = this.COSTING_METHOD.WEIGHTED_AVERAGE
   ) {
+    const normalizedMethod = this.normalizeInventoryCostingMethod(method);
     const connection = await db.pool.getConnection();
     try {
       await connection.beginTransaction();
@@ -2087,7 +2204,7 @@ class CostAccountingService {
       const results = [];
 
       for (const material of materials) {
-        const result = await this.recalculateMaterialCost(connection, material.id, method);
+        const result = await this.recalculateMaterialCost(connection, material.id, normalizedMethod);
         results.push({
           materialId: material.id,
           materialCode: material.code,
@@ -2099,7 +2216,7 @@ class CostAccountingService {
       await connection.commit();
 
       return {
-        method,
+        method: normalizedMethod,
         processedCount: results.length,
         results,
       };
@@ -2120,6 +2237,7 @@ class CostAccountingService {
    * @returns {Object} 计算结果
    */
   static async recalculateMaterialCost(connection, materialId, method) {
+    const normalizedMethod = this.normalizeInventoryCostingMethod(method);
     // 获取库存交易记录（按时间排序，处理字段名兼容性）
     let transactions;
     try {
@@ -2150,13 +2268,10 @@ class CostAccountingService {
     let currentUnitCost = 0;
 
     for (const transaction of transactions) {
-      if (
-        transaction.transaction_type === 'inbound' ||
-        transaction.transaction_type === 'purchase_inbound' ||
-        transaction.transaction_type === 'production_inbound'
-      ) {
+      const signedQuantity = this.toNumber(transaction.quantity, 0);
+      if (signedQuantity > 0) {
         // 入库处理
-        const inboundQuantity = transaction.quantity;
+        const inboundQuantity = Math.abs(signedQuantity);
         // 尝试从不同字段获取单位成本
         const inboundUnitCost =
           transaction.unit_cost ||
@@ -2166,7 +2281,7 @@ class CostAccountingService {
           0;
         const inboundValue = inboundQuantity * inboundUnitCost;
 
-        if (method === this.COSTING_METHOD.WEIGHTED_AVERAGE) {
+        if (normalizedMethod === this.COSTING_METHOD.WEIGHTED_AVERAGE) {
           // 加权平均法
           const totalValue = currentValue + inboundValue;
           const totalQuantity = currentQuantity + inboundQuantity;
@@ -2177,7 +2292,7 @@ class CostAccountingService {
 
           currentQuantity = totalQuantity;
           currentValue = totalValue;
-        } else if (method === this.COSTING_METHOD.FIFO) {
+        } else if (normalizedMethod === this.COSTING_METHOD.FIFO) {
           // 先进先出法（简化处理）
           currentQuantity += inboundQuantity;
           currentValue += inboundValue;
@@ -2185,13 +2300,9 @@ class CostAccountingService {
             currentUnitCost = currentValue / currentQuantity;
           }
         }
-      } else if (
-        transaction.transaction_type === 'outbound' ||
-        transaction.transaction_type === 'sales_outbound' ||
-        transaction.transaction_type === 'production_outbound'
-      ) {
+      } else if (signedQuantity < 0) {
         // 出库处理
-        const outboundQuantity = transaction.quantity;
+        const outboundQuantity = Math.abs(signedQuantity);
         const outboundValue = outboundQuantity * currentUnitCost;
 
         currentQuantity -= outboundQuantity;
@@ -2204,10 +2315,10 @@ class CostAccountingService {
 
       // 更新交易记录的单位成本（尝试不同的字段名）
       try {
-        await connection.execute('UPDATE inventory_ledger SET unit_cost = ? WHERE id = ?', [
-          currentUnitCost,
-          transaction.id,
-        ]);
+        await connection.execute(
+          'UPDATE inventory_ledger SET unit_cost = ?, total_value = ROUND(ABS(quantity) * ?, 2) WHERE id = ?',
+          [currentUnitCost, currentUnitCost, transaction.id]
+        );
       } catch (error) {
         if (error.message.includes('Unknown column')) {
           // 如果unit_cost字段不存在，尝试更新amount字段
@@ -2231,6 +2342,7 @@ class CostAccountingService {
       currentUnitCost,
       materialId,
     ]);
+    await InventoryService.rebuildStockBalancesForMaterial(materialId, connection);
 
     return {
       finalQuantity: currentQuantity,
@@ -2857,6 +2969,13 @@ class CostAccountingService {
    * @returns {Promise<Object>} 凭证信息
    */
   static async generateMaterialVoucher(taskId, connection = null, outboundId = null) {
+    // 已废弃：生产领料/成本统一由 calculateActualCost 使用 document_type=PRODUCTION_MATERIAL 生成，
+    // 避免与中文 document_type「生产领料」双记。
+    throw new Error(
+      'generateMaterialVoucher 已废弃。请使用 CostAccountingService.calculateActualCost(taskId) 作为唯一成本过账入口。'
+    );
+
+    // eslint-disable-next-line no-unreachable
     const conn = connection || (await db.pool.getConnection());
     const shouldManageTransaction = !connection;
 
@@ -3624,6 +3743,13 @@ class CostAccountingService {
    * @returns {Promise<Object>} 凭证信息
    */
   static async generateSalesCostVoucher(salesId, productId, quantity, unitCost, connection = null) {
+    // 已废弃：销售成本统一由 FinanceIntegrationService.generateCostEntryFromSalesOutbound
+    // 使用 document_type=sales_outbound，避免 SALES_COST / SALE-{id} 双记。
+    throw new Error(
+      'generateSalesCostVoucher 已废弃。请使用 FinanceIntegrationService.generateCostEntryFromSalesOutbound。'
+    );
+
+    // eslint-disable-next-line no-unreachable
     const conn = connection || (await db.pool.getConnection());
     const shouldManageTransaction = !connection;
 

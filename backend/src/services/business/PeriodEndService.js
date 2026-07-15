@@ -10,6 +10,7 @@ const db = require('../../config/db');
 const financeModel = require('../../models/finance');
 const { DOCUMENT_TYPE_MAPPING } = require('../../constants/financeConstants');
 const { accountingConfig } = require('../../config/accountingConfig');
+const CostClosingService = require('./CostClosingService');
 
 /**
  * 期末处理服务
@@ -18,6 +19,139 @@ const { accountingConfig } = require('../../config/accountingConfig');
 class PeriodEndService {
   static roundMoney(value) {
     return Math.round((parseFloat(value) || 0) * 100) / 100;
+  }
+
+  static async assertCoreClosingControls(connection, period) {
+    const costChecks = await CostClosingService.collectChecks(connection, period);
+    const failedCostChecks = costChecks.filter((check) => !check.passed);
+    if (failedCostChecks.length > 0) {
+      throw new Error(
+        `成本结账检查未通过：${failedCostChecks.map((check) => `${check.title}(${check.count})`).join('、')}`
+      );
+    }
+
+    const [[failedJobs]] = await connection.execute(
+      `SELECT COUNT(*) AS count
+         FROM sys_failed_jobs
+        WHERE status IN ('pending','retrying','failed','ignored')
+          AND LOWER(task_name) REGEXP 'finance|cost|voucher|tax|purchase|sales|production|财务|成本|凭证|税|采购|销售|生产'`
+    );
+    if (Number(failedJobs.count || 0) > 0) {
+      throw new Error(`仍有 ${failedJobs.count} 个未解决的财务集成失败任务，不能关账`);
+    }
+
+    const [[invalidStock]] = await connection.execute(
+      `SELECT COUNT(*) AS count
+         FROM inventory_stock_balances
+        WHERE (ABS(COALESCE(quantity, 0)) < 0.000001 AND ABS(COALESCE(total_value, 0)) > 0.01)
+           OR (COALESCE(quantity, 0) > 0 AND COALESCE(total_value, 0) <= 0)
+           OR (COALESCE(quantity, 0) < 0)
+           OR (COALESCE(total_value, 0) < 0)`
+    );
+    if (Number(invalidStock.count || 0) > 0) {
+      throw new Error(`存在 ${invalidStock.count} 条不可能的库存数量/价值余额，不能关账`);
+    }
+
+    const [[purchaseGaps]] = await connection.execute(
+      `SELECT COUNT(*) AS count
+         FROM purchase_receipts pr
+        WHERE pr.deleted_at IS NULL
+          AND pr.status = 'completed'
+          AND pr.receipt_date BETWEEN ? AND ?
+          AND (
+            NOT EXISTS (
+              SELECT 1 FROM ap_invoices ai
+               WHERE ai.source_type = 'purchase_receipt' AND ai.source_id = pr.id
+            )
+            OR NOT EXISTS (
+              SELECT 1 FROM tax_invoices ti
+               WHERE ti.related_document_type = '采购入库单'
+                 AND ti.related_document_id = pr.id
+                 AND ti.invoice_type = '进项'
+                 AND ti.status <> '已作废'
+            )
+          )`,
+      [period.start_date, period.end_date]
+    );
+    if (Number(purchaseGaps.count || 0) > 0) {
+      throw new Error(`本期有 ${purchaseGaps.count} 张采购收货单未完成应付/进项税闭环`);
+    }
+
+    const [[salesGaps]] = await connection.execute(
+      `SELECT COUNT(*) AS count
+         FROM sales_outbound so
+        WHERE so.deleted_at IS NULL
+          AND so.status = 'completed'
+          AND so.delivery_date BETWEEN ? AND ?
+          AND (
+            NOT EXISTS (
+              SELECT 1 FROM gl_entries ge
+               WHERE ge.document_type = 'sales_outbound'
+                 AND ge.document_number = so.outbound_no
+                 AND COALESCE(ge.is_posted, 0) = 1
+                 AND COALESCE(ge.is_reversed, 0) = 0
+            )
+            OR NOT EXISTS (
+              SELECT 1 FROM tax_invoices ti
+               WHERE ti.related_document_type = '销售出库单'
+                 AND ti.related_document_id = so.id
+                 AND ti.invoice_type = '销项'
+                 AND ti.status <> '已作废'
+            )
+          )`,
+      [period.start_date, period.end_date]
+    );
+    if (Number(salesGaps.count || 0) > 0) {
+      throw new Error(`本期有 ${salesGaps.count} 张销售出库单未完成收入/销售成本闭环`);
+    }
+
+    const [[productionGaps]] = await connection.execute(
+      `SELECT COUNT(*) AS count
+         FROM production_tasks pt
+        WHERE pt.deleted_at IS NULL
+          AND pt.status = 'completed'
+          AND DATE(COALESCE(pt.completed_at, pt.actual_end_date, pt.created_at)) BETWEEN ? AND ?
+          AND (
+            COALESCE(pt.actual_cost, 0) <= 0
+            OR NOT EXISTS (
+              SELECT 1 FROM gl_entries ge
+               WHERE ge.transaction_id = pt.id
+                 AND ge.transaction_type LIKE 'PRODUCTION_%'
+                 AND COALESCE(ge.is_posted, 0) = 1
+                 AND COALESCE(ge.is_reversed, 0) = 0
+            )
+          )`,
+      [period.start_date, period.end_date]
+    );
+    if (Number(productionGaps.count || 0) > 0) {
+      throw new Error(`本期有 ${productionGaps.count} 个完工任务未完成实际成本/成本凭证闭环`);
+    }
+
+    const [[depreciationGaps]] = await connection.execute(
+      `SELECT COUNT(*) AS count
+         FROM fixed_assets fa
+        WHERE fa.audit_status = 'approved'
+          AND fa.status NOT IN ('报废','已处置','已出售','已转让','已捐赠')
+          AND fa.depreciation_method <> '不计提'
+          AND fa.acquisition_date <= ?
+          AND COALESCE(fa.current_value, fa.net_value, 0) > COALESCE(fa.salvage_value, 0)
+          AND NOT EXISTS (
+            SELECT 1 FROM asset_depreciation ad
+             WHERE ad.asset_id = fa.id
+               AND ad.period_id = ?
+               AND COALESCE(ad.is_posted, 0) = 1
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM fixed_asset_depreciation_details fadd
+             WHERE fadd.asset_id = fa.id
+               AND fadd.depreciation_date BETWEEN ? AND ?
+               AND fadd.entry_id IS NOT NULL
+          )`,
+      [period.end_date, period.id, period.start_date, period.end_date]
+    );
+    if (Number(depreciationGaps.count || 0) > 0) {
+      throw new Error(`本期有 ${depreciationGaps.count} 项固定资产未完成折旧过账`);
+    }
   }
 
   static toDateString(value) {
@@ -658,6 +792,8 @@ class PeriodEndService {
         );
       }
 
+      await this.assertCoreClosingControls(connection, period);
+
       const trialBalance = await financeModel.getTrialBalance(period_id);
       if (!trialBalance.isBalanced) {
         throw new Error('试算平衡表借贷不平衡，请先检查凭证或期初余额');
@@ -680,10 +816,14 @@ class PeriodEndService {
       // 3. 计算期末余额
       await this.calculatePeriodEndBalances(connection, period_id, period);
 
-      // 4. 更新期间状态
+      // 4. 更新期间状态（status 虚拟列由 is_closed/is_locked 生成 → closed）
       await connection.execute(
         `UPDATE gl_periods
-         SET is_closed = true, closed_by = ?, closed_at = ?, closing_date = ?
+         SET is_closed = true,
+             is_locked = 1,
+             closed_by = ?,
+             closed_at = ?,
+             closing_date = ?
          WHERE id = ?`,
         [closed_by, new Date(), closing_date || new Date(), period_id]
       );
@@ -928,6 +1068,71 @@ class PeriodEndService {
    * @param {Object} periodData 期间数据
    * @returns {Object} 开启结果
    */
+  /**
+   * 硬锁定已关闭期间（status → locked），禁止记账与重开
+   */
+  static async lockPeriod({ period_id, locked_by }) {
+    const connection = await db.pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [periodInfo] = await connection.execute(
+        'SELECT id, period_name, is_closed, is_locked FROM gl_periods WHERE id = ? FOR UPDATE',
+        [period_id]
+      );
+      if (periodInfo.length === 0) throw new Error('会计期间不存在');
+      if (!periodInfo[0].is_closed) {
+        throw new Error('仅已关闭的期间可以硬锁定，请先结账');
+      }
+      if (Number(periodInfo[0].is_locked) === 1) {
+        await connection.commit();
+        return { periodId: period_id, message: '期间已是锁定状态' };
+      }
+      await connection.execute(
+        'UPDATE gl_periods SET is_locked = 1, updated_at = NOW() WHERE id = ?',
+        [period_id]
+      );
+      await connection.commit();
+      logger.info(
+        `[期间] ${periodInfo[0].period_name} 已硬锁定 by ${locked_by || 'system'}`
+      );
+      return { periodId: period_id, periodName: periodInfo[0].period_name, message: '期间已硬锁定' };
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  }
+
+  /**
+   * 解除硬锁定（仍保持 closed，需 reopen 才能记账）
+   */
+  static async unlockPeriod({ period_id, unlocked_by }) {
+    const connection = await db.pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [periodInfo] = await connection.execute(
+        'SELECT id, period_name, is_locked FROM gl_periods WHERE id = ? FOR UPDATE',
+        [period_id]
+      );
+      if (periodInfo.length === 0) throw new Error('会计期间不存在');
+      await connection.execute(
+        'UPDATE gl_periods SET is_locked = 0, updated_at = NOW() WHERE id = ?',
+        [period_id]
+      );
+      await connection.commit();
+      logger.info(
+        `[期间] ${periodInfo[0].period_name} 已解锁 by ${unlocked_by || 'system'}`
+      );
+      return { periodId: period_id, periodName: periodInfo[0].period_name, message: '期间已解锁' };
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  }
+
   static async reopenPeriod(periodData) {
     const connection = await db.pool.getConnection();
     try {
@@ -950,6 +1155,9 @@ class PeriodEndService {
       }
 
       const period = periodInfo[0];
+      if (Number(period.is_locked) === 1 || period.is_locked === true) {
+        throw new Error('会计期间已硬锁定(locked)，禁止重开。请先解锁后再操作。');
+      }
 
       // 检查是否有后续期间已关闭
       const [laterPeriods] = await connection.execute(
@@ -962,44 +1170,54 @@ class PeriodEndService {
       }
 
       const [closingEntries] = await connection.execute(
-        `SELECT id FROM gl_entries
-         WHERE period_id = ? AND document_type = ?
+        `SELECT id, entry_number, is_reversed
+         FROM gl_entries
+         WHERE period_id = ?
+           AND document_type = ?
+           AND COALESCE(is_reversed, 0) = 0
          FOR UPDATE`,
         [period_id, DOCUMENT_TYPE_MAPPING.PROFIT_LOSS_TRANSFER]
       );
 
-      if (closingEntries.length > 0) {
-        const entryIds = closingEntries.map((entry) => entry.id);
-        const placeholders = entryIds.map(() => '?').join(',');
-
-        await connection.query(
-          `DELETE FROM document_links
-           WHERE (target_type = 'finance_voucher' AND target_id IN (${placeholders}))
-              OR (source_type = 'finance_voucher' AND source_id IN (${placeholders}))`,
-          [...entryIds, ...entryIds]
-        );
-
-        // 删除损益结转分录，明细由外键级联删除
-        await connection.query(`DELETE FROM gl_entries WHERE id IN (${placeholders})`, entryIds);
-      }
-
-      // 删除期末余额
-      await connection.execute('DELETE FROM gl_period_balances WHERE period_id = ?', [period_id]);
-
-      // 更新期间状态
+      // 先打开期间，再冲销结转凭证（冲销需要开放期间）；status 虚拟列 → open
       await connection.execute(
         `UPDATE gl_periods
-         SET is_closed = false, closed_by = NULL, closed_at = NULL,
-             closing_date = NULL, reopened_by = ?, reopened_at = ?
+         SET is_closed = false,
+             is_locked = 0,
+             closed_by = NULL,
+             closed_at = NULL,
+             closing_date = NULL,
+             reopened_by = ?,
+             reopened_at = ?
          WHERE id = ?`,
         [reopened_by, new Date(), period_id]
       );
+
+      // 冲销损益结转凭证（保留审计轨迹，禁止硬删）
+      const reverseDate = this.toDateString(period.end_date) || this.toDateString(new Date());
+      for (const entry of closingEntries) {
+        await financeModel.reverseEntry(
+          entry.id,
+          {
+            entry_date: reverseDate,
+            posting_date: reverseDate,
+            period_id,
+            description: `期间重新开启，冲销损益结转 ${entry.entry_number || entry.id}`,
+            created_by: reopened_by,
+          },
+          connection
+        );
+      }
+
+      // 期末余额快照在反结账后失效，删除后由再次关账重建
+      await connection.execute('DELETE FROM gl_period_balances WHERE period_id = ?', [period_id]);
 
       await connection.commit();
 
       return {
         periodId: period_id,
         periodName: period.period_name,
+        reversedClosingEntries: closingEntries.length,
         message: '期间重新开启完成',
       };
     } catch (error) {

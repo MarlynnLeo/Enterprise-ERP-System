@@ -8,15 +8,11 @@
 -->
 <template>
   <div class="module-page purchase-receipts-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>采购收货管理</h2>
-          <p class="subtitle">管理采购收货与验收</p>
-        </div>
-        <el-button type="primary" :icon="Plus" v-permission="'purchase:receipts:create'" @click="showAddDialog">新建收货单</el-button>
-      </div>
-    </el-card>
+    <PageHeader title="采购收货管理" subtitle="管理采购收货与验收">
+      <template #actions>
+<el-button type="primary" :icon="Plus" v-permission="'purchase:receipts:create'" @click="showAddDialog">新建收货单</el-button>
+      </template>
+    </PageHeader>
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
@@ -81,7 +77,7 @@
         v-loading="loading"
         :data="receipts"
         border
-        style="width: 100%"
+        class="w-full"
       >
         <template #empty>
           <el-empty description="暂无收货单数据" />
@@ -99,13 +95,14 @@
         <el-table-column prop="status" label="状态" min-width="100">
           <template #default="scope">
             <el-tag :type="getStatusType(scope.row.status)">{{ getStatusText(scope.row.status) }}</el-tag>
-            <el-tag v-if="scope.row.inspectionId" type="success" size="small" style="margin-left: 5px;">已检验</el-tag>
+            <el-tag v-if="scope.row.inspectionId" type="success" size="small" class="ml-sm">已检验</el-tag>
           </template>
         </el-table-column>
         <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
-            <el-button
+            <el-button class="btn-op-view" type="primary"
               size="small"
+              v-permission="'purchase:receipts:view'"
               @click="viewReceipt(scope.row)"
             >
               查看
@@ -120,14 +117,14 @@
               编辑
             </el-button>
             <el-button
-              v-if="scope.row.status === 'draft'"
+              v-if="canCompleteReceipt(scope.row)"
               size="small"
               type="success"
               v-permission="'purchase:receipts:update'"
               @click="directCompleteReceipt(scope.row)"
             >入库</el-button>
             <el-popconfirm
-              v-if="scope.row.status === 'draft'"
+              v-if="canCancelReceipt(scope.row)"
               title="确定要取消该收货单吗？"
               @confirm="cancelReceipt(scope.row)"
               confirm-button-type="warning"
@@ -154,11 +151,11 @@
     </el-card>
 
     <!-- 查看收货单详情对话框 -->
-    <el-dialog
-      title="收货单详情"
+    <AppDialog
       v-model="viewDialog.show"
-      width="800px"
-      destroy-on-close
+      title="收货单详情"
+      mode="view"
+      content-width="wide"
     >
       <div v-loading="detailLoading">
         <el-descriptions border :column="2">
@@ -173,7 +170,7 @@
           <el-descriptions-item label="入库仓库">{{ viewDialog.receipt.warehouse_name }}</el-descriptions-item>
           <el-descriptions-item v-if="viewDialog.receipt.inspectionId" label="检验状态" :span="2">
             <el-tag type="success">已通过来料检验</el-tag>
-            <span v-if="viewDialog.receipt.inspectionNo" style="margin-left: 10px">检验单号: {{ viewDialog.receipt.inspectionNo }}</span>
+            <span v-if="viewDialog.receipt.inspectionNo" class="ml-10">检验单号: {{ viewDialog.receipt.inspectionNo }}</span>
           </el-descriptions-item>
           <el-descriptions-item label="备注" :span="2">{{ viewDialog.receipt.remarks }}</el-descriptions-item>
         </el-descriptions>
@@ -184,7 +181,7 @@
             <el-empty description="暂无物料数据"></el-empty>
           </div>
         </template>
-        <el-table v-else :data="viewDialog.receipt.items || []" border style="width: 100%">
+        <el-table v-else :data="viewDialog.receipt.items || []" border class="w-full">
           <el-table-column type="index" label="序号" width="60"></el-table-column>
           <el-table-column label="物料名称" prop="material_name" min-width="150">
             <template #default="scope">
@@ -241,7 +238,7 @@
           <el-button v-permission="'purchase:receipts:view'" type="primary" @click="printReceipt" v-if="viewDialog.receipt.id">打印</el-button>
         </span>
       </template>
-    </el-dialog>
+    </AppDialog>
 
     <!-- 新建/编辑收货单对话框 -->
     <el-dialog
@@ -258,7 +255,7 @@
                 v-model="receiptDialog.form.orderId"
                 placeholder="请选择订单"
                 filterable
-                style="width: 100%"
+                class="w-full"
                 @change="handleOrderChange"
               >
                 <el-option
@@ -277,14 +274,14 @@
                 type="date"
                 placeholder="选择日期"
                 value-format="YYYY-MM-DD"
-                style="width: 100%"
+                class="w-full"
               ></el-date-picker>
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="供应商" prop="supplierId">
-              <div v-if="selectedSupplierName" style="display: flex; align-items: center; margin-bottom: 10px;">
-                <el-tag type="success" size="large" style="margin-right: 10px;">
+              <div v-if="selectedSupplierName" class="flex-center-mb">
+                <el-tag type="success" size="large" class="mr-10">
                   <strong>{{ selectedSupplierName }}</strong>
                 </el-tag>
                 <el-button link @click="selectedSupplierName = null">
@@ -295,7 +292,7 @@
                 v-model="receiptDialog.form.supplierId"
                 placeholder="请选择供应商"
                 filterable
-                style="width: 100%"
+                class="w-full"
                 value-key="id"
                 v-if="!selectedSupplierName"
               >
@@ -305,9 +302,9 @@
                   :label="item.name || item.supplier_name"
                   :value="Number(item.id || item.supplier_id)"
                 >
-                  <div style="display: flex; flex-direction: column;">
+                  <div class="flex-col">
                     <span>{{ item.name || item.supplier_name }}</span>
-                    <small style="color: var(--color-text-secondary)">
+                    <small class="text-muted">
                       {{ item.address || item.supplier_address || '' }}
                     </small>
                   </div>
@@ -326,7 +323,7 @@
                 v-model="receiptDialog.form.warehouseId"
                 placeholder="请选择仓库"
                 filterable
-                style="width: 100%"
+                class="w-full"
                 @change="(val) => {
                   // 确保ID是数字类型
                   if (val) {
@@ -345,15 +342,15 @@
                   :label="`${item.name}${item.code ? ` (${item.code})` : ''}`"
                   :value="Number(item.id)"
                 >
-                  <div style="display: flex; flex-direction: column;">
+                  <div class="flex-col">
                     <span>{{ item.name }}</span>
-                    <small style="color: var(--color-text-secondary)">
+                    <small class="text-muted">
                       ID: {{ Number(item.id) }} | 代码: {{ item.code || '无' }} | 类型: {{ item.type || '标准' }}
                     </small>
                   </div>
                 </el-option>
               </el-select>
-              <div v-if="warehouses.length === 0" style="color: var(--color-danger); font-size: 12px; margin-top: 5px;">
+              <div v-if="warehouses.length === 0" class="text-danger-hint">
                 警告：系统中未找到有效的仓库，请先创建仓库
               </div>
             </el-form-item>
@@ -365,7 +362,7 @@
                 placeholder="选择已检验合格/部分合格的来料单"
                 filterable
                 clearable
-                style="width: 100%"
+                class="w-full"
                 @change="handleInspectionChange"
               >
                 <el-option
@@ -374,13 +371,13 @@
                   :label="`${item.inspection_no} - ${item.item_name}`"
                   :value="item.id"
                 >
-                  <div style="display: flex; justify-content: space-between; align-items: center">
+                  <div class="flex-between">
                     <span>{{ item.inspection_no }}</span>
                     <el-tag size="small" :type="getReceiptableInspectionStatusType(item.status)">
                       {{ getReceiptableInspectionStatusText(item.status) }}
                     </el-tag>
                   </div>
-                  <div style="font-size: 12px; color: var(--color-text-secondary)">
+                  <div class="meta-secondary-sm">
                     {{ item.item_name }} - {{ item.supplier_name ? (item.supplier_name.includes('(') ? item.supplier_name.split('(')[0].trim() : item.supplier_name) : '' }} - 批次: {{ item.batch_no }}
                   </div>
                 </el-option>
@@ -401,7 +398,7 @@
 
         <div class="mt-4">
           <div class="mb-2 font-weight-bold">物料清单</div>
-          <el-table :data="receiptDialog.form.items" border style="width: 100%">
+          <el-table :data="receiptDialog.form.items" border class="w-full">
             <el-table-column type="index" label="序号" width="50"></el-table-column>
             <el-table-column label="物料名称" prop="materialName" min-width="150"></el-table-column>
             <el-table-column label="规格" prop="specification" min-width="120"></el-table-column>
@@ -519,6 +516,10 @@ const warehouses = ref([]);
 const qualifiedInspections = ref([]);
 const loadingQualifiedInspections = ref(false);
 const RECEIPTABLE_INSPECTION_STATUSES = ['passed', 'partial', 'completed'];
+const COMPLETABLE_RECEIPT_STATUSES = ['draft', 'confirmed'];
+const CANCELLABLE_RECEIPT_STATUSES = ['draft', 'confirmed'];
+const canCompleteReceipt = (receipt) => COMPLETABLE_RECEIPT_STATUSES.includes(receipt?.status);
+const canCancelReceipt = (receipt) => CANCELLABLE_RECEIPT_STATUSES.includes(receipt?.status);
 const extractInspectionRows = (response) => {
   const responseData = parseResponseData(response, {});
   if (Array.isArray(responseData)) return responseData;
@@ -1091,6 +1092,7 @@ async function handleOrderChange(orderId) {
       }
 
       return {
+        orderItemId: item.orderItemId || item.order_item_id || item.id,
         materialId,
         materialCode,
         materialName,
@@ -1215,6 +1217,8 @@ const submitReceipt = async () => {
       warehouseId: receiptDialog.form.warehouseId, // 添加驼峰命名格式
       remarks: receiptDialog.form.remarks,
       items: receiptDialog.form.items.map(item => ({
+        order_item_id: item.orderItemId,
+        orderItemId: item.orderItemId,
         id: item.id, // 添加物料项ID，编辑时必需
         material_id: item.materialId,
         materialId: item.materialId, // 添加驼峰命名格式
@@ -1669,6 +1673,7 @@ async function directCompleteReceipt(receipt) {
     });
     ElMessage.success('入库单已确认完成');
     loadReceipts();
+    loadReceiptStats();
   } catch (error) {
     console.error('确认入库失败:', error);
     let errorMessage = '确认入库失败';
@@ -1769,11 +1774,6 @@ function handleQualifiedQuantityChange(item) {
 /* 操作按钮样式 - 与库存出库页面保持一致 */
 .el-table .el-button + .el-button {
   margin-left: 8px;
-}
-/* 对话框高度 - 页面特定，其他样式使用全局主题 */
-:deep(.el-dialog__body) {
-  max-height: 60vh;
-  overflow-y: auto;
 }
 /* 响应式布局 - 针对6个统计卡片的特殊处理 */
 @media (max-width: 1400px) {

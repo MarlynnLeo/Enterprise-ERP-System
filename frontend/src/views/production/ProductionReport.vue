@@ -8,12 +8,8 @@
 -->
 <template>
   <div class="module-page production-report-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>生产报工管理</h2>
-          <p class="subtitle">管理生产报工记录</p>
-        </div>
+    <PageHeader title="生产报工管理" subtitle="管理生产报工记录">
+      <template #actions>
         <el-button
           v-if="canCreate"
           type="primary"
@@ -22,8 +18,8 @@
         >
           新增报工
         </el-button>
-      </div>
-    </el-card>
+      </template>
+    </PageHeader>
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
@@ -91,7 +87,7 @@
           <el-table
             :data="summaryData"
             border
-            style="width: 100%"
+            class="w-full"
             v-loading="loading"
             stripe
           >
@@ -134,7 +130,7 @@
           <el-table
             :data="detailData"
             border
-            style="width: 100%"
+            class="w-full"
             v-loading="loading"
             stripe
           >
@@ -179,7 +175,7 @@
             <el-table-column prop="reporter" label="报工人" width="120" />
             <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="scope">
-                <el-button
+                <el-button class="btn-op-view"
                   v-if="canView"
                   size="small"
                   type="primary"
@@ -228,11 +224,11 @@
     </el-card>
 
     <!-- 报工详情弹窗 -->
-    <el-dialog
+    <AppDialog
       v-model="detailVisible"
       title="报工详情"
-      width="650px"
-      destroy-on-close
+      mode="view"
+      content-width="wide"
     >
       <el-descriptions :column="2" border size="medium">
         <el-descriptions-item label="任务编号" label-align="right" width="120px">{{ reportDetail.taskCode }}</el-descriptions-item>
@@ -261,7 +257,7 @@
           <el-button v-permission="'production:reports:view'" type="primary" @click="printReport" v-if="reportDetail.id">打印报工单</el-button>
         </span>
       </template>
-    </el-dialog>
+    </AppDialog>
 
     <!-- 新增/编辑报工弹窗 -->
     <el-dialog
@@ -286,7 +282,7 @@
               <el-select
                 v-model="formData.taskId"
                 placeholder="选择生产任务"
-                style="width: 100%"
+                class="w-full"
                 filterable
                 @change="handleTaskFormChange"
               >
@@ -297,8 +293,8 @@
                   :value="task.id"
                 >
                   <div style="display: flex; justify-content: space-between; align-items: center; width: 100%">
-                    <span style="font-weight: bold">{{ task.code }}</span>
-                    <span style="color: var(--color-text-muted); font-size: 13px">{{ task.productName }}</span>
+                    <span class="font-weight-700">{{ task.code }}</span>
+                    <span class="text-muted text-md">{{ task.productName }}</span>
                   </div>
                 </el-option>
               </el-select>
@@ -316,7 +312,7 @@
                   <el-divider direction="vertical" />
                   <span>已报工: <b>{{ taskReportStats.reported_quantity }}</b></span>
                   <el-divider direction="vertical" />
-                  <span>剩余: <b style="color: var(--color-warning)">{{ taskReportStats.remaining_quantity }}</b></span>
+                  <span>剩余: <b class="text-warning">{{ taskReportStats.remaining_quantity }}</b></span>
                   <el-divider direction="vertical" />
                   <span>完成率: <b>{{ taskReportStats.completion_rate }}</b></span>
                   <el-divider direction="vertical" />
@@ -334,7 +330,7 @@
               <el-select
                 v-model="formData.processId"
                 placeholder="选择工序（可选）"
-                style="width: 100%"
+                class="w-full"
                 clearable
                 @change="handleProcessChange"
               >
@@ -344,7 +340,7 @@
                   :label="`${process.sequence}. ${process.process_name}`"
                   :value="process.id"
                 >
-                  <div style="display: flex; justify-content: space-between; align-items: center">
+                  <div class="flex-between">
                     <span>{{ process.sequence }}. {{ process.process_name }}</span>
                     <el-tag size="small" :type="process.status === 'completed' ? 'success' : (process.status === 'in_progress' ? 'warning' : 'info')">
                       {{ process.status === 'completed' ? '已完成' : (process.status === 'in_progress' ? '进行中' : '待开始') }}
@@ -363,7 +359,7 @@
                 v-model="formData.reportDate"
                 type="date"
                 placeholder="选择报工日期"
-                style="width: 100%"
+                class="w-full"
                 format="YYYY-MM-DD"
                 value-format="YYYY-MM-DD"
               />
@@ -386,22 +382,22 @@
           </el-col>
           <el-col :span="8">
             <el-form-item label="完成数量" prop="completedQuantity">
-              <el-input-number
+              <el-input
                 v-model="formData.completedQuantity"
-                :min="0"
-                :max="formData.plannedQuantity"
-                style="width: 100%"
-                @change="handleQuantityChange"
+                inputmode="decimal"
+                placeholder="请输入完成数量"
+                class="w-full"
+                @input="handleQuantityChange"
               />
             </el-form-item>
           </el-col>
           <el-col :span="8">
             <el-form-item label="合格数量" prop="qualifiedQuantity">
-              <el-input-number
+              <el-input
                 v-model="formData.qualifiedQuantity"
-                :min="0"
-                :max="formData.completedQuantity"
-                style="width: 100%"
+                inputmode="decimal"
+                placeholder="请输入合格数量"
+                class="w-full"
               />
             </el-form-item>
           </el-col>
@@ -420,12 +416,11 @@
         <el-row :gutter="20">
           <el-col :span="24">
             <el-form-item label="工时(小时)" prop="workHours">
-              <el-input-number
+              <el-input
                 v-model="formData.workHours"
-                :min="0"
-                :precision="1"
-                :step="0.5"
-                style="width: 100%"
+                inputmode="decimal"
+                placeholder="请输入工时"
+                class="w-full"
               />
             </el-form-item>
           </el-col>
@@ -532,7 +527,10 @@ const formData = ref({
 
 // 不合格数量计算属性
 const unqualifiedQuantity = computed(() => {
-  return formData.value.completedQuantity - formData.value.qualifiedQuantity
+  const completedQuantity = Number(formData.value.completedQuantity)
+  const qualifiedQuantity = Number(formData.value.qualifiedQuantity)
+  if (!Number.isFinite(completedQuantity) || !Number.isFinite(qualifiedQuantity)) return 0
+  return completedQuantity - qualifiedQuantity
 })
 
 // 详情弹窗
@@ -543,12 +541,27 @@ const reportDetail = ref({})
 const reportModalVisible = ref(false)
 
 // 表单验证规则
+const validateNonNegativeNumber = (_rule, value, callback) => {
+  if (value === '' || value === null || value === undefined) {
+    callback(new Error('请输入数量'))
+    return
+  }
+
+  const number = Number(value)
+  if (!Number.isFinite(number) || number < 0) {
+    callback(new Error('请输入大于或等于 0 的数字'))
+    return
+  }
+
+  callback()
+}
+
 const rules = {
   taskId: [{ required: true, message: '请选择生产任务', trigger: 'change' }],
   reportDate: [{ required: true, message: '请选择报工日期', trigger: 'change' }],
-  completedQuantity: [{ required: true, message: '请输入完成数量', trigger: 'blur' }],
-  qualifiedQuantity: [{ required: true, message: '请输入合格数量', trigger: 'blur' }],
-  workHours: [{ required: true, message: '请输入工时', trigger: 'blur' }],
+  completedQuantity: [{ validator: validateNonNegativeNumber, trigger: 'blur' }],
+  qualifiedQuantity: [{ validator: validateNonNegativeNumber, trigger: 'blur' }],
+  workHours: [{ validator: validateNonNegativeNumber, trigger: 'blur' }],
   reporter: [{ required: true, message: '请输入报工人', trigger: 'blur' }]
 }
 
@@ -759,18 +772,31 @@ const viewReportDetail = (record) => {
 
 // 编辑报工
 const handleEditReport = (record) => {
+  const taskId = record.task_id ?? record.taskId
+  const taskExists = taskList.value.some(task => String(task.id) === String(taskId))
+
+  // 历史报工对应的任务可能已完成，不在“生产中”任务列表内；补入只读回显项，
+  // 避免 el-select 找不到选项时直接显示数据库 ID。
+  if (!taskExists && taskId != null) {
+    taskList.value.unshift({
+      id: taskId,
+      code: record.taskCode || record.task_code || `任务 ${taskId}`,
+      productName: record.productName || record.product_name || ''
+    })
+  }
+
   // 填充表单数据
   formData.value = {
     id: record.id,
-    taskId: record.task_id,
-    processId: record.process_id,
+    taskId,
+    processId: record.process_id ?? record.processId,
     processName: record.process_name || record.processName || '',
-    reportDate: dayjs(record.report_time).format('YYYY-MM-DD'),
-    plannedQuantity: record.report_quantity || 0,
-    completedQuantity: record.completed_quantity || 0,
-    qualifiedQuantity: record.qualified_quantity || 0,
-    workHours: record.work_hours || 8,
-    reporter: record.operator_name || '',
+    reportDate: dayjs(record.report_time || record.reportDate).format('YYYY-MM-DD'),
+    plannedQuantity: record.report_quantity ?? record.plannedQuantity ?? 0,
+    completedQuantity: record.completed_quantity ?? record.completedQuantity ?? 0,
+    qualifiedQuantity: record.qualified_quantity ?? record.qualifiedQuantity ?? 0,
+    workHours: record.work_hours ?? record.workHours ?? 8,
+    reporter: record.operator_name || record.reporter || '',
     remarks: record.remarks || ''
   }
 
@@ -874,8 +900,11 @@ const handleProcessChange = (processId) => {
 
 // 完成数量变更处理
 const handleQuantityChange = (value) => {
+  const completedQuantity = Number(value)
+  if (!Number.isFinite(completedQuantity)) return
+
   // 如果合格数量大于新的完成数量，则修改合格数量
-  if (formData.value.qualifiedQuantity > value) {
+  if (Number(formData.value.qualifiedQuantity) > completedQuantity) {
     formData.value.qualifiedQuantity = value
   }
 }
@@ -885,13 +914,18 @@ const handleReportSubmit = async () => {
   try {
     await formRef.value.validate()
 
+    const completedQuantity = Number(formData.value.completedQuantity)
+    const qualifiedQuantity = Number(formData.value.qualifiedQuantity)
+    const plannedQuantity = Number(formData.value.plannedQuantity)
+    const workHours = Number(formData.value.workHours)
+
     // 检查完成数量和合格数量
-    if (formData.value.completedQuantity > formData.value.plannedQuantity) {
+    if (completedQuantity > plannedQuantity) {
       ElMessage.warning('完成数量不能大于计划数量')
       return
     }
 
-    if (formData.value.qualifiedQuantity > formData.value.completedQuantity) {
+    if (qualifiedQuantity > completedQuantity) {
       ElMessage.warning('合格数量不能大于完成数量')
       return
     }
@@ -903,12 +937,12 @@ const handleReportSubmit = async () => {
       process_name: formData.value.processName,
       operator_name: formData.value.reporter,
       report_time: formData.value.reportDate,
-      report_quantity: formData.value.completedQuantity,
-      completed_quantity: formData.value.completedQuantity,
-      qualified_quantity: formData.value.qualifiedQuantity,
-      defective_quantity: formData.value.completedQuantity - formData.value.qualifiedQuantity,
-      unqualified_quantity: formData.value.completedQuantity - formData.value.qualifiedQuantity,
-      work_hours: formData.value.workHours,
+      report_quantity: completedQuantity,
+      completed_quantity: completedQuantity,
+      qualified_quantity: qualifiedQuantity,
+      defective_quantity: completedQuantity - qualifiedQuantity,
+      unqualified_quantity: completedQuantity - qualifiedQuantity,
+      work_hours: workHours,
       remarks: formData.value.remarks
     }
 

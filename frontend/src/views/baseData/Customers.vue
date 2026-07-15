@@ -8,15 +8,11 @@
 -->
 <template>
   <div class="module-page base-data-list-page">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>{{ $t('page.baseData.customers.title') }}</h2>
-          <p class="subtitle">管理客户基础信息</p>
-        </div>
-        <el-button v-if="canCreate" type="primary" :icon="Plus" @click="handleAdd">{{ $t('page.baseData.customers.add') }}</el-button>
-      </div>
-    </el-card>
+    <PageHeader :title="$t('page.baseData.customers.title')" subtitle="管理客户基础信息">
+      <template #actions>
+<el-button v-if="canCreate" type="primary" :icon="Plus" @click="handleAdd">{{ $t('page.baseData.customers.add') }}</el-button>
+      </template>
+    </PageHeader>
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
@@ -81,7 +77,7 @@
         v-loading="loading"
         :data="tableData"
         border
-        style="width: 100%"
+        class="w-full"
       >
         <template #empty>
           <el-empty description="暂无客户数据" />

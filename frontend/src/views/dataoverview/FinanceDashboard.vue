@@ -7,17 +7,14 @@
  */
 -->
 <template>
-  <div class="finance-dashboard">
-    <el-card class="header-card">
-      <div class="flex justify-between align-center">
-        <h2>财务数据概览</h2>
-        <div>
-          <span v-if="lastUpdated" class="last-updated">
+  <div class="module-page overview-page finance-dashboard">
+    <PageHeader title="财务数据概览">
+      <template #actions>
+        <span v-if="lastUpdated" class="last-updated">
             最后更新: {{ new Date(lastUpdated).toLocaleTimeString() }}
           </span>
-        </div>
-      </div>
-    </el-card>
+      </template>
+    </PageHeader>
     <!-- 统计卡片 -->
     <el-row :gutter="20" class="mt-lg">
       <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-lg">
@@ -157,9 +154,8 @@
             </el-table-column>
             <el-table-column label="操作" min-width="120" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="scope">
-                <el-button
+                <el-button class="btn-op-view"
                   type="primary"
-                  link
                   size="small"
                   @click="$router.push('/finance/cash/bank-transactions?account=' + scope.row.id)"
                 >查看</el-button>

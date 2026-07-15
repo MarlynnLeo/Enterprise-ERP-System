@@ -8,21 +8,17 @@
 -->
 <template>
   <div class="module-page accounts-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>会计科目</h2>
-          <p class="subtitle">管理会计科目与账户</p>
-        </div>
-        <el-button
+    <PageHeader title="会计科目" subtitle="管理会计科目与账户">
+      <template #actions>
+<el-button
           type="primary"
           :icon="Plus"
           @click="showAddDialog"
           v-permission="'finance:accounts:create'">
           新增科目
         </el-button>
-      </div>
-    </el-card>
+      </template>
+    </PageHeader>
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
@@ -55,7 +51,7 @@
     <el-card class="data-card">
       <el-table
         :data="accountList"
-        style="width: 100%"
+        class="w-full"
         row-key="id"
         border
         :tree-props="{ children: 'children', hasChildren: 'hasChildren' }"
@@ -154,7 +150,7 @@
           <el-input v-model="accountForm.account_name" placeholder="请输入科目名称"></el-input>
         </el-form-item>
         <el-form-item label="科目类型" prop="account_type">
-          <el-select v-model="accountForm.account_type" placeholder="请选择科目类型" style="width: 100%">
+          <el-select v-model="accountForm.account_type" placeholder="请选择科目类型" class="w-full">
             <el-option label="资产" value="资产"></el-option>
             <el-option label="负债" value="负债"></el-option>
             <el-option label="所有者权益" value="所有者权益"></el-option>
@@ -181,7 +177,7 @@
             }"
             placeholder="请选择父科目"
             clearable
-            style="width: 100%"
+            class="w-full"
           >
           </el-cascader>
         </el-form-item>
@@ -495,9 +491,4 @@ onMounted(() => {
   color: var(--color-text-secondary);
 }
 
-/* 对话框高度 - 页面特定，其他样式使用全局主题 */
-:deep(.el-dialog__body) {
-  max-height: 60vh;
-  overflow-y: auto;
-}
 </style>

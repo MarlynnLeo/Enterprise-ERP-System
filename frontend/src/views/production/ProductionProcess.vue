@@ -8,14 +8,7 @@
 -->
 <template>
   <div class="module-page production-process-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>生产过程管理</h2>
-          <p class="subtitle">管理生产工序与进度</p>
-        </div>
-      </div>
-    </el-card>
+    <PageHeader title="生产过程管理" subtitle="管理生产工序与进度" />
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
@@ -93,7 +86,7 @@
       <el-table
         :data="taskList"
         border
-        style="width: 100%"
+        class="w-full"
         v-loading="loading"
         :fit="true"
         row-key="id"
@@ -204,7 +197,7 @@
           <template #default="scope">
             <span
               class="countdown-text"
-              :style="{ color: getCountdownColor(scope.row.expected_end_date, scope.row.status) }"
+              :class="getCountdownClass(scope.row.expected_end_date, scope.row.status)"
             >
               {{ getCountdown(scope.row.expected_end_date, scope.row.status) }}
             </span>
@@ -292,14 +285,15 @@
     </el-card>
 
     <!-- 查看单个工序作业指导书对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="instructionDocsVisible"
       :title="`${currentProcessName} - 作业指导书`"
-      width="600px"
+      mode="view"
+      content-width="wide"
     >
       <div v-loading="instructionDocsLoading">
       <div v-if="currentInstructionDocs.length > 0">
-        <el-table :data="currentInstructionDocs" border style="width: 100%">
+        <el-table :data="currentInstructionDocs" border class="w-full">
           <el-table-column prop="name" label="文件名称" min-width="200" />
           <el-table-column label="上传时间" width="180">
             <template #default="scope">
@@ -308,7 +302,7 @@
           </el-table-column>
           <el-table-column label="操作" min-width="100" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="scope">
-              <el-button size="small" type="primary" @click="openInstructionDoc(scope.row)">
+              <el-button class="btn-op-view" size="small" type="primary" @click="openInstructionDoc(scope.row)">
                 查看
               </el-button>
             </template>
@@ -320,17 +314,18 @@
       <template #footer>
         <el-button @click="instructionDocsVisible = false">关闭</el-button>
       </template>
-    </el-dialog>
+    </AppDialog>
 
     <!-- 查看任务所有工序作业指导书对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="allInstructionDocsVisible"
       title="作业指导书"
-      width="700px"
+      mode="view"
+      content-width="wide"
     >
       <div v-loading="allInstructionDocsLoading">
       <div v-if="allProcessInstructionDocs.length > 0">
-        <el-table :data="allProcessInstructionDocs" border style="width: 100%">
+        <el-table :data="allProcessInstructionDocs" border class="w-full">
           <el-table-column prop="processName" label="工序名称" width="120" />
           <el-table-column prop="name" label="文件名称" min-width="200" />
           <el-table-column label="上传时间" width="180">
@@ -340,7 +335,7 @@
           </el-table-column>
           <el-table-column label="操作" min-width="100" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="scope">
-              <el-button size="small" type="primary" @click="openInstructionDoc(scope.row)">
+              <el-button class="btn-op-view" size="small" type="primary" @click="openInstructionDoc(scope.row)">
                 查看
               </el-button>
             </template>
@@ -352,64 +347,40 @@
       <template #footer>
         <el-button @click="allInstructionDocsVisible = false">关闭</el-button>
       </template>
-    </el-dialog>
+    </AppDialog>
 
     <!-- 文件预览对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="previewVisible"
+      mode="preview"
       :title="previewFileName"
-      :width="isPreviewFullScreen ? '100%' : '90%'"
-      :top="isPreviewFullScreen ? '0' : '5vh'"
       :close-on-click-modal="false"
-      :fullscreen="isPreviewFullScreen"
-      destroy-on-close
-      class="preview-dialog"
     >
-      <template #header>
-        <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-          <span>{{ previewFileName }}</span>
-          <el-button
-            :icon="isPreviewFullScreen ? 'Close' : 'FullScreen'"
-            circle
-            @click="togglePreviewFullScreen"
-            :title="isPreviewFullScreen ? '退出全屏' : '全屏显示'"
-          />
-        </div>
-      </template>
-
-      <div :style="{ height: isPreviewFullScreen ? 'calc(100vh - 120px)' : '80vh', width: '100%', position: 'relative' }">
-        <!-- Word文档预览 -->
-        <VueOfficeDocx
-          v-if="previewFileType === '.docx' || previewFileType === '.doc'"
-          :src="previewFileUrl"
-          style="height: 100%;"
-          @rendered="handleDocRendered"
-          @error="handleDocError"
-        />
-
-        <!-- Excel文档预览 -->
-        <VueOfficeExcel
-          v-else-if="previewFileType === '.xlsx' || previewFileType === '.xls'"
-          :src="previewFileUrl"
-          style="height: 100%;"
-          @rendered="handleDocRendered"
-          @error="handleDocError"
-        />
-
-        <!-- 其他文件类型使用iframe -->
-        <iframe
-          v-else
-          :src="previewFileUrl"
-          style="width: 100%; height: 100%; border: none;"
-          frameborder="0"
-        ></iframe>
-      </div>
-
+      <VueOfficeDocx
+        v-if="previewFileType === '.docx' || previewFileType === '.doc'"
+        :src="previewFileUrl"
+        class="preview-fill"
+        @rendered="handleDocRendered"
+        @error="handleDocError"
+      />
+      <VueOfficeExcel
+        v-else-if="previewFileType === '.xlsx' || previewFileType === '.xls'"
+        :src="previewFileUrl"
+        class="preview-fill"
+        @rendered="handleDocRendered"
+        @error="handleDocError"
+      />
+      <iframe
+        v-else
+        :src="previewFileUrl"
+        class="iframe-full"
+        frameborder="0"
+      ></iframe>
       <template #footer>
         <el-button @click="previewVisible = false">关闭</el-button>
         <el-button type="primary" @click="downloadFile">下载文件</el-button>
       </template>
-    </el-dialog>
+    </AppDialog>
 
     <!-- 更新进度弹窗 -->
     <el-dialog
@@ -434,7 +405,7 @@
         <el-row :gutter="20">
           <el-col :span="24">
             <el-form-item label="当前状态" prop="status">
-              <el-select v-model="formData.status" placeholder="请选择状态" style="width: 100%">
+              <el-select v-model="formData.status" placeholder="请选择状态" class="w-full">
                 <el-option label="未开始" value="pending" v-if="formData.progress === 0" />
                 <el-option label="生产中" value="in_progress" v-if="formData.progress < 100" />
                 <el-option label="已完成" value="completed" v-if="formData.progress === 100" />
@@ -465,7 +436,7 @@
                 v-model="formData.actualStartTime"
                 type="datetime"
                 placeholder="选择实际开始时间"
-                style="width: 100%"
+                class="w-full"
               />
             </el-form-item>
           </el-col>
@@ -478,7 +449,7 @@
                 v-model="formData.actualEndTime"
                 type="datetime"
                 placeholder="选择实际结束时间"
-                style="width: 100%"
+                class="w-full"
               />
             </el-form-item>
           </el-col>
@@ -588,7 +559,7 @@
               highlight-current-row
               @current-change="handleBomSelect"
               v-loading="bomLoading"
-              style="margin-bottom: 10px; max-height: 200px; overflow-y: auto;"
+              class="preview-scroll-box"
             >
               <el-table-column prop="material_code" label="编码" width="120" />
               <el-table-column prop="material_name" label="名称" min-width="120" />
@@ -607,7 +578,7 @@
             placeholder="搜索物料（如不在BOM中）"
             :remote-method="searchMaterials"
             :loading="materialLoading"
-            style="width: 100%"
+            class="w-full"
             @change="handleMaterialChange"
           >
             <el-option
@@ -626,7 +597,7 @@
                 v-model="applyPartsForm.quantity"
                 :min="0.01"
                 :precision="2"
-                style="width: 100%"
+                class="w-full"
               />
             </el-form-item>
           </el-col>
@@ -638,7 +609,7 @@
         </el-row>
 
         <el-form-item label="补料原因" prop="reason">
-          <el-select v-model="applyPartsForm.reason" placeholder="请选择原因" style="width: 100%" allow-create filterable>
+          <el-select v-model="applyPartsForm.reason" placeholder="请选择原因" class="w-full" allow-create filterable>
             <el-option
               v-for="item in supplementReasonOptions"
               :key="item.id"
@@ -655,7 +626,7 @@
           type="success"
           :closable="false"
           show-icon
-          style="margin-bottom: 12px;"
+          class="mb-12"
         />
 
         <el-form-item label="详细说明">
@@ -701,7 +672,7 @@
             size="small"
             max-height="250"
             @selection-change="handleReturnSelectionChange"
-            style="width: 100%"
+            class="w-full"
           >
             <el-table-column type="selection" width="40" />
             <el-table-column prop="material_code" label="编码" width="120" />
@@ -716,13 +687,13 @@
                   :precision="2"
                   size="small"
                   controls-position="right"
-                  style="width: 100%"
+                  class="w-full"
                 />
               </template>
             </el-table-column>
           </el-table>
           <el-empty v-else description="该任务无BOM数据" :image-size="40" />
-          <div v-if="returnItems.length > 0" style="margin-top: 8px; color: var(--color-success); font-size: 13px;">
+          <div v-if="returnItems.length > 0" class="return-hint">
             已选择 {{ returnItems.length }} 种物料退料
           </div>
         </el-form-item>
@@ -751,7 +722,8 @@
 
 <script setup>
 import { defineAsyncComponent, ref, onMounted, watch, computed } from 'vue'
-import { ElMessage } from 'element-plus'
+import { useRouter } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 import dayjs from 'dayjs'
 import { formatDate, formatDateTime } from '@/utils/helpers/dateUtils'
@@ -768,6 +740,7 @@ import { useAuthStore } from '@/stores/auth'
 import { buildResourceUrl } from '@/config/app'
 // 权限store
 const authStore = useAuthStore()
+const router = useRouter()
 const BATCH_MATERIAL_QUERY_LIMIT = 100
 const chunkArray = (items, size) => {
   const chunks = []
@@ -1274,41 +1247,22 @@ const getCountdown = (expectedEndDate, status) => {
   }
 }
 
-// 获取倒计时颜色
-const getCountdownColor = (expectedEndDate, status) => {
-  // 如果任务已完成或已取消，使用灰色
+// 倒计时语义 class（替代行内颜色）
+const getCountdownClass = (expectedEndDate, status) => {
   if (status === 'completed' || status === 'done' || status === 'cancelled' || status === 'cancel') {
-    return 'var(--color-text-secondary)'
+    return 'text-muted'
   }
-
-  if (!expectedEndDate) {
-    return 'var(--color-text-secondary)'
-  }
+  if (!expectedEndDate) return 'text-muted'
 
   const now = new Date()
   const endDate = new Date(expectedEndDate)
   const diff = endDate - now
+  if (diff < 0) return 'text-danger'
 
-  // 已逾期 - 红色
-  if (diff < 0) {
-    return 'var(--color-danger)'
-  }
-
-  // 计算剩余天数
   const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-
-  // 剩余1天以内 - 橙色
-  if (days < 1) {
-    return 'var(--color-warning)'
-  }
-
-  // 剩余3天以内 - 黄色
-  if (days < 3) {
-    return 'var(--color-warning-dark, var(--color-warning))'
-  }
-
-  // 正常 - 绿色
-  return 'var(--color-success)'
+  if (days < 1) return 'text-warning'
+  if (days < 3) return 'text-warning'
+  return 'text-success'
 }
 
 // 获取负责人列表
@@ -1512,10 +1466,37 @@ const handleQuickComplete = async (row, task) => {
     fetchTaskList()
   } catch (error) {
     console.error('完成工序失败:', error)
-    ElMessage.error(error.message || error.response?.data?.message || '操作失败')
+    await handleProcessUpdateError(error, '完成工序失败')
   } finally {
     loading.value = false
   }
+}
+
+/** 工序更新失败：优先展示后端业务提示，支持跳转检验单 */
+const handleProcessUpdateError = async (error, fallback = '操作失败') => {
+  const data = error?.response?.data || {}
+  const message = data.message || error?.message || fallback
+  const action = data.action
+  const code = data.errorCode || data.code
+
+  if (code === 'OPEN_INSPECTIONS' || action?.route) {
+    try {
+      await ElMessageBox.confirm(message, '无法完成工序', {
+        type: 'warning',
+        confirmButtonText: action?.buttonText || '去处理检验单',
+        cancelButtonText: '关闭',
+        distinguishCancelAndClose: true,
+      })
+      if (action?.route) {
+        router.push(action.route)
+      }
+    } catch {
+      // 用户关闭
+    }
+    return
+  }
+
+  ElMessage.error(message)
 }
 
 // 文件预览相关状态
@@ -1523,7 +1504,6 @@ const previewVisible = ref(false)
 const previewFileUrl = ref('')
 const previewFileName = ref('')
 const previewFileType = ref('')
-const isPreviewFullScreen = ref(false)
 const originalFileUrl = ref('')
 
 // 打开文件预览
@@ -1581,11 +1561,6 @@ const handleDocError = () => {
   ElMessage.error('文档加载失败，请尝试下载到本地查看')
 }
 
-// 切换预览全屏
-const togglePreviewFullScreen = () => {
-  isPreviewFullScreen.value = !isPreviewFullScreen.value
-}
-
 // 检查任务是否有作业指导书(简化判断,有产品ID就认为可能有)
 const hasInstructionDocs = (task) => {
   return !!(task.product_id || task.productId)
@@ -1640,7 +1615,7 @@ const handleModalOk = async () => {
     fetchTaskList()
   } catch (error) {
     console.error('更新进度失败:', error)
-    ElMessage.error('更新进度失败: ' + (error.response?.data?.message || error.message))
+    await handleProcessUpdateError(error, '更新进度失败')
   }
 }
 
@@ -1872,6 +1847,14 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.preview-fill {
+  height: 100%;
+}
+.iframe-full {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
 .header-card {
   margin-bottom: 20px;
 }

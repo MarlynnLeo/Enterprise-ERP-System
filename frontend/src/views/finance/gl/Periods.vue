@@ -8,18 +8,12 @@
 -->
 <template>
   <div class="module-page periods-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>会计期间</h2>
-          <p class="subtitle">管理会计期间与结转</p>
-        </div>
-        <div class="header-actions">
-          <el-button v-permission="'finance:periods:create'" type="primary" :icon="Plus" @click="showBatchDialog">批量生成年度期间</el-button>
+    <PageHeader title="会计期间" subtitle="管理会计期间与结转">
+      <template #actions>
+<el-button v-permission="'finance:periods:create'" type="primary" :icon="Plus" @click="showBatchDialog">批量生成年度期间</el-button>
           <el-button v-permission="'finance:periods:create'" @click="showAddDialog">新增单个期间</el-button>
-        </div>
-      </div>
-    </el-card>
+      </template>
+    </PageHeader>
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
@@ -56,7 +50,7 @@
     <el-card class="data-card">
       <el-table
         :data="periodList"
-        style="width: 100%"
+        class="w-full"
         row-key="id"
         border
         v-loading="loading"
@@ -100,14 +94,14 @@
               type="warning"
               size="small"
               @click="handleClose(scope.row)"
-              v-permission="'finance:periods:update'"
+              v-permission="'finance:closing:execute'"
             >关闭期间</el-button>
             <el-button
               v-if="scope.row.isClosed"
               type="success"
               size="small"
               @click="handleReopen(scope.row)"
-              v-permission="'finance:periods:update'"
+              v-permission="'finance:closing:execute'"
             >重新开启</el-button>
           </template>
         </el-table-column>
@@ -136,13 +130,13 @@
     >
       <el-form :model="batchForm" ref="batchFormRef" label-width="100px" class="period-form">
         <el-form-item label="财政年度" prop="fiscalYear" :rules="[{ required: true, message: '请选择财政年度', trigger: 'change' }]">
-          <el-input-number v-model="batchForm.fiscalYear" :min="2000" :max="2100" style="width: 100%"></el-input-number>
+          <el-input-number v-model="batchForm.fiscalYear" :min="2000" :max="2100" class="w-full"></el-input-number>
         </el-form-item>
         <el-alert
           type="info"
           :closable="false"
           show-icon
-          style="margin-bottom: 16px"
+          class="mb-md"
         >
           <template #default>
             将自动生成 <strong>{{ batchForm.fiscalYear }}年1月 ~ {{ batchForm.fiscalYear }}年12月</strong> 共 12 个月度会计期间。已存在的月份将自动跳过。
@@ -168,7 +162,7 @@
           <el-input v-model="periodForm.periodName" placeholder="请输入期间名称，如：2026年01月"></el-input>
         </el-form-item>
         <el-form-item label="财政年度" prop="fiscalYear">
-          <el-input-number v-model="periodForm.fiscalYear" :min="2000" :max="2100" style="width: 100%"></el-input-number>
+          <el-input-number v-model="periodForm.fiscalYear" :min="2000" :max="2100" class="w-full"></el-input-number>
         </el-form-item>
         <el-form-item label="开始日期" prop="startDate">
           <el-date-picker
@@ -177,7 +171,7 @@
             placeholder="选择开始日期"
             format="YYYY-MM-DD"
             value-format="YYYY-MM-DD"
-            style="width: 100%"
+            class="w-full"
           ></el-date-picker>
         </el-form-item>
         <el-form-item label="结束日期" prop="endDate">
@@ -187,7 +181,7 @@
             placeholder="选择结束日期"
             format="YYYY-MM-DD"
             value-format="YYYY-MM-DD"
-            style="width: 100%"
+            class="w-full"
           ></el-date-picker>
         </el-form-item>
         <el-form-item label="期间类型" prop="isAdjusting">

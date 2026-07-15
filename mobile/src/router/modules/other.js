@@ -81,83 +81,104 @@ export const otherRoutes = [
     path: '/hr/employees',
     name: 'HREmployees',
     component: () => import('@/views/hr/Employees.vue'),
-    meta: { title: '员工档案', permission: 'hr' }
+    meta: { title: '员工档案', permission: 'hr:employees' }
   },
   {
     path: '/hr/employees/create',
     name: 'CreateEmployee',
     component: () => import('@/views/hr/CreateEmployee.vue'),
-    meta: { title: '新员工入职', permission: 'hr' }
+    meta: { title: '新员工入职', permission: 'hr:employees:create' }
   },
   {
     path: '/hr/departments',
     name: 'HRDepartments',
     component: () => import('@/views/hr/Departments.vue'),
-    meta: { title: '部门管理', permission: 'hr' }
+    meta: { title: '部门管理', permission: 'system:departments' }
   },
   {
     path: '/hr/departments/create',
     name: 'CreateDepartment',
     component: () => import('@/views/hr/CreateDepartment.vue'),
-    meta: { title: '新增部门', permission: 'hr' }
+    meta: { title: '新增部门', permission: 'system:departments' }
   },
   {
     path: '/hr/attendance',
     name: 'HRAttendance',
     component: () => import('@/views/hr/Attendance.vue'),
-    meta: { title: '考勤记录', permission: 'hr' }
+    meta: { title: '考勤记录', permission: 'hr:attendance' }
   },
   {
     path: '/hr/attendance/manual',
     name: 'CreateAttendance',
     component: () => import('@/views/hr/CreateAttendance.vue'),
-    meta: { title: '手动补卡', permission: 'hr' }
+    meta: { title: '手动补卡', permission: 'hr:attendance:create' }
   },
   {
     path: '/hr/leave',
     name: 'HRLeave',
     component: () => import('@/views/hr/Leave.vue'),
-    meta: { title: '请假审阅', permission: 'hr' }
+    meta: { title: '请假审阅', permission: 'hr:attendance' }
   },
   {
     path: '/hr/overtime',
     name: 'HROvertime',
     component: () => import('@/views/hr/Overtime.vue'),
-    meta: { title: '加班审批', permission: 'hr' }
+    meta: { title: '加班审批', permission: 'hr:attendance' }
   },
   {
     path: '/hr/leave/create',
     name: 'CreateLeave',
     component: () => import('@/views/hr/CreateLeave.vue'),
-    meta: { title: '请假申请', permission: 'hr' }
+    meta: { title: '请假申请', permission: 'hr:attendance:create' }
   },
   {
     path: '/hr/overtime/create',
     name: 'CreateOvertime',
     component: () => import('@/views/hr/CreateOvertime.vue'),
-    meta: { title: '加班申请', permission: 'hr' }
+    meta: { title: '加班申请', permission: 'hr:attendance:create' }
   },
   {
     path: '/hr/schedule',
     name: 'HRSchedule',
     component: () => import('@/views/hr/Schedule.vue'),
-    meta: { title: '排班管理', permission: 'hr' }
+    meta: { title: '排班管理', permission: 'hr:attendance' }
   },
 
-  // 扫码功能
+  // 扫码功能（需库存/生产/质检任一查看权限，避免任意登录可扫）
   {
     path: '/scan',
     name: 'Scan',
     component: () => import('@/views/Scan.vue'),
-    meta: { title: '扫码功能' }
+    meta: {
+      title: '扫码功能',
+      permission: [
+        'inventory:stock:view',
+        'inventory:outbound:view',
+        'inventory:inbound:view',
+        'inventory:check:view',
+        'production:tasks:view',
+        'quality:inspections:view',
+        'basedata:materials:view'
+      ]
+    }
   },
 
-  // 全局搜索
+  // 全局搜索（至少需要一个业务模块查看权）
   {
     path: '/search',
     name: 'GlobalSearch',
     component: () => import('@/views/GlobalSearch.vue'),
-    meta: { title: '全局搜索' }
+    meta: {
+      title: '全局搜索',
+      permission: [
+        'basedata:materials:view',
+        'sales:orders:view',
+        'purchase:orders:view',
+        'inventory:stock:view',
+        'production:tasks:view',
+        'quality:inspections:view'
+      ]
+    }
   },
 
   // 消息通知
@@ -182,126 +203,27 @@ export const otherRoutes = [
     meta: { title: '即时通讯', permission: ['chat:access', 'system:notifications'] }
   },
 
-  // 系统管理
+  // 我的审批（对接后端 workflow API）
+  {
+    path: '/workflow/approvals',
+    name: 'WorkflowApprovals',
+    component: () => import('@/views/workflow/Approvals.vue'),
+    meta: { title: '我的审批', permission: 'system:workflow:use' }
+  },
+
+  // 系统 L3 控制台（角色/权限/备份/维护/配置）仅 PC — 见 MOBILE_PRODUCT_LAYER.md
+  // 移动端仅保留通知、会话只读入口（可选）
   {
     path: '/system',
     name: 'SystemIndex',
     component: () => import('@/views/system/Index.vue'),
-    meta: { title: '系统管理', permission: 'system' }
-  },
-  {
-    path: '/system/users',
-    name: 'SystemUsers',
-    component: () => import('@/views/system/Users.vue'),
-    meta: { title: '用户管理', permission: 'system' }
-  },
-  {
-    path: '/system/users/create',
-    name: 'CreateUser',
-    component: () => import('@/views/system/Users.vue'),
-    meta: { title: '创建用户', permission: 'system' }
-  },
-  {
-    path: '/system/users/:id',
-    name: 'UserDetail',
-    component: () => import('@/views/system/Users.vue'),
-    meta: { title: '用户详情', permission: 'system' }
-  },
-  {
-    path: '/system/departments',
-    name: 'SystemDepartments',
-    component: () => import('@/views/system/Departments.vue'),
-    meta: { title: '部门管理', permission: 'system' }
-  },
-  {
-    path: '/system/departments/:id',
-    name: 'SystemDepartmentDetail',
-    component: () => import('@/views/common/RecordDetail.vue'),
-    meta: { title: '部门详情', permission: 'system', resource: 'systemDepartment' }
-  },
-  {
-    path: '/system/roles',
-    name: 'SystemRoles',
-    component: () => import('@/views/system/Roles.vue'),
-    meta: { title: '角色管理', permission: 'system' }
-  },
-  {
-    path: '/system/roles/:id',
-    name: 'SystemRoleDetail',
-    component: () => import('@/views/common/RecordDetail.vue'),
-    meta: { title: '角色详情', permission: 'system', resource: 'systemRole' }
-  },
-  {
-    path: '/system/permissions',
-    name: 'SystemPermissions',
-    component: () => import('@/views/system/Permissions.vue'),
-    meta: { title: '权限管理', permission: 'system' }
-  },
-  {
-    path: '/system/permissions/:id',
-    name: 'SystemPermissionDetail',
-    component: () => import('@/views/common/RecordDetail.vue'),
-    meta: { title: '权限详情', permission: 'system', resource: 'systemPermission' }
-  },
-  {
-    path: '/system/config',
-    name: 'SystemConfig',
-    component: () => import('@/views/system/Config.vue'),
-    meta: { title: '系统配置', permission: 'system' }
-  },
-  {
-    path: '/system/logs',
-    name: 'SystemLogs',
-    component: () => import('@/views/system/Logs.vue'),
-    meta: { title: '系统日志', permission: 'system' }
-  },
-  {
-    path: '/system/logs/:id',
-    name: 'SystemLogDetail',
-    component: () => import('@/views/common/RecordDetail.vue'),
-    meta: { title: '日志详情', permission: 'system', resource: 'systemLog' }
-  },
-  {
-    path: '/system/access-control',
-    name: 'SystemAccessControl',
-    component: () => import('@/views/system/AccessControl.vue'),
-    meta: { title: '访问控制', permission: 'system' }
-  },
-  {
-    path: '/system/backup',
-    name: 'SystemBackup',
-    component: () => import('@/views/system/Backup.vue'),
-    meta: { title: '数据备份', permission: 'system' }
+    meta: { title: '系统', permission: 'system:notifications' }
   },
   {
     path: '/system/hierarchy',
     name: 'SystemHierarchy',
     component: () => import('@/views/system/Hierarchy.vue'),
-    meta: { title: '组织架构', permission: 'system' }
-  },
-  {
-    path: '/system/maintenance',
-    name: 'SystemMaintenance',
-    component: () => import('@/views/system/SystemMaintenance.vue'),
-    meta: { title: '系统维护', permission: 'system' }
-  },
-  {
-    path: '/system/positions',
-    name: 'SystemPositions',
-    component: () => import('@/views/system/Positions.vue'),
-    meta: { title: '岗位管理', permission: 'system' }
-  },
-  {
-    path: '/system/profiles',
-    name: 'SystemProfiles',
-    component: () => import('@/views/system/Profiles.vue'),
-    meta: { title: '配置文件', permission: 'system' }
-  },
-  {
-    path: '/system/sessions',
-    name: 'SystemSessions',
-    component: () => import('@/views/system/Sessions.vue'),
-    meta: { title: '会话管理', permission: 'system' }
+    meta: { title: '组织架构', permission: 'system:departments:view' }
   },
 
   // 个人中心

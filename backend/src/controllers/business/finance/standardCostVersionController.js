@@ -162,9 +162,12 @@ const standardCostVersionController = {
       const id = safeParseId(req.params.id, '版本ID');
       const approved_by = await getCurrentUserName(req);
 
-      const [version] = await connection.execute('SELECT status, effective_date FROM standard_cost_versions WHERE id = ? FOR UPDATE', [id]);
+      const [version] = await connection.execute('SELECT status, effective_date, created_by FROM standard_cost_versions WHERE id = ? FOR UPDATE', [id]);
       if (version.length === 0) throw new Error('Version not found');
       if (version[0].status !== COST_VERSION_STATUS.PENDING) throw new Error('Version is not pending approval');
+      if (String(version[0].created_by || '') === String(approved_by || '')) {
+        throw new Error('标准成本版本制单人与审批人必须分离');
+      }
 
       const [[costCount]] = await connection.execute(
         'SELECT COUNT(*) as count FROM standard_costs WHERE version_id = ?',
@@ -180,10 +183,13 @@ const standardCostVersionController = {
       await connection.execute('UPDATE standard_costs SET status = ?, is_active = 0 WHERE status = ?', [COST_VERSION_STATUS.ARCHIVED, COST_VERSION_STATUS.ACTIVE]);
 
       // 将当前版本设为 active
-      await connection.execute(
-        'UPDATE standard_cost_versions SET status = ?, approved_by = ?, approved_at = NOW() WHERE id = ?',
-        [COST_VERSION_STATUS.ACTIVE, approved_by, id]
+      const [approvalUpdate] = await connection.execute(
+        'UPDATE standard_cost_versions SET status = ?, approved_by = ?, approved_at = NOW() WHERE id = ? AND status = ?',
+        [COST_VERSION_STATUS.ACTIVE, approved_by, id, COST_VERSION_STATUS.PENDING]
       );
+      if (approvalUpdate.affectedRows !== 1) {
+        throw new Error('标准成本版本状态已变更，请刷新后重试');
+      }
 
       await connection.execute(
         'UPDATE standard_costs SET status = ?, is_active = 1, effective_date = ? WHERE version_id = ?',

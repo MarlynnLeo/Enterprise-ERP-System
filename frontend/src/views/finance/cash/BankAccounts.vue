@@ -8,15 +8,11 @@
 -->
 <template>
   <div class="module-page bank-accounts-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>银行账户</h2>
-          <p class="subtitle">管理银行账户信息</p>
-        </div>
-        <el-button v-permission="'finance:cash:create'" type="primary" :icon="Plus" @click="showAddDialog">新增账户</el-button>
-      </div>
-    </el-card>
+    <PageHeader title="银行账户" subtitle="管理银行账户信息">
+      <template #actions>
+<el-button v-permission="'finance:cash:create'" type="primary" :icon="Plus" @click="showAddDialog">新增账户</el-button>
+      </template>
+    </PageHeader>
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
@@ -68,12 +64,16 @@
     <el-card class="data-card">
       <el-table
         :data="accountList"
-        style="width: 100%"
+        class="w-full"
         border
         v-loading="loading"
       >
         <el-table-column prop="accountName" label="账户名称" min-width="110" show-overflow-tooltip></el-table-column>
-        <el-table-column prop="accountNumber" label="账号" min-width="180" show-overflow-tooltip></el-table-column>
+        <el-table-column prop="accountNumber" label="账号" min-width="180" show-overflow-tooltip>
+          <template #default="scope">
+            {{ maskBankAccount(scope.row.accountNumber) }}
+          </template>
+        </el-table-column>
         <el-table-column prop="bankName" label="开户银行" min-width="180" show-overflow-tooltip></el-table-column>
         <el-table-column prop="branchName" label="开户网点" min-width="190" show-overflow-tooltip></el-table-column>
         <el-table-column prop="accountType" label="账户类型" width="100"></el-table-column>
@@ -152,7 +152,7 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="币种" prop="currency">
-              <el-select v-model="accountForm.currency" placeholder="请选择币种" style="width: 100%">
+              <el-select v-model="accountForm.currency" placeholder="请选择币种" class="w-full">
                 <el-option label="人民币" value="CNY"></el-option>
                 <el-option label="美元" value="USD"></el-option>
                 <el-option label="欧元" value="EUR"></el-option>
@@ -167,7 +167,7 @@
                 v-model="accountForm.initialBalance"
                 :precision="2"
                 :step="1000"
-                style="width: 100%"
+                class="w-full"
                 :disabled="!isNewAccount"
               ></el-input-number>
             </el-form-item>
@@ -183,13 +183,13 @@
                 placeholder="选择开户日期"
                 format="YYYY-MM-DD"
                 value-format="YYYY-MM-DD"
-                style="width: 100%"
+                class="w-full"
               ></el-date-picker>
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="账户状态" prop="status">
-              <el-select v-model="accountForm.status" placeholder="请选择状态" style="width: 100%">
+              <el-select v-model="accountForm.status" placeholder="请选择状态" class="w-full">
                 <el-option label="正常" value="active"></el-option>
                 <el-option label="冻结" value="frozen"></el-option>
               </el-select>
@@ -198,7 +198,7 @@
         </el-row>
 
         <el-form-item label="账户类型" prop="accountType">
-          <el-select v-model="accountForm.accountType" placeholder="请选择账户类型" style="width: 100%">
+          <el-select v-model="accountForm.accountType" placeholder="请选择账户类型" class="w-full">
             <el-option label="活期" value="活期"></el-option>
             <el-option label="定期" value="定期"></el-option>
             <el-option label="信用卡" value="信用卡"></el-option>
@@ -263,7 +263,7 @@
 
       <el-table
         :data="transactionsList"
-        style="width: 100%"
+        class="w-full"
         border
         v-loading="transactionsLoading"
         :max-height="450"
@@ -316,7 +316,7 @@
 <script setup>
 import { parsePaginatedData, parseDataObject } from '@/utils/responseParser'
 import { getCommonStatusText, getCommonStatusColor } from '@/constants/systemConstants'
-import { formatCurrency, formatLocalDate } from '@/utils/format'
+import { formatCurrency, formatLocalDate, maskBankAccount } from '@/utils/format'
 
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -731,12 +731,6 @@ onMounted(() => {
 
 .transaction-filters {
   margin-bottom: 15px;
-}
-
-/* 对话框高度 - 页面特定，其他样式使用全局主题 */
-:deep(.el-dialog__body) {
-  max-height: 60vh;
-  overflow-y: auto;
 }
 
 </style>

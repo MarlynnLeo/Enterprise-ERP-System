@@ -136,7 +136,8 @@ class InventoryTraceabilityService {
         remarks,
       } = productionData;
 
-      // 1. 创建成品批次
+      // 1. 登记成品批次：默认不写库存（库存只由生产入库单确认产生，防双入账）
+      const postStock = productionData.postStock === true || productionData.post_stock === true;
       const productBatch = await BatchManagementService.createBatch({
         material_id: product_id,
         material_code: product_code,
@@ -149,12 +150,14 @@ class InventoryTraceabilityService {
         warehouse_id,
         warehouse_name,
         location,
-        unit_cost: 0, // 生产成本需要单独计算
+        unit_cost: 0,
         transaction_type: 'production_inbound',
         reference_type: 'production_task',
         reference_no: production_order_no || `TASK-${production_task_id}`,
         reference_id: production_task_id,
         created_by: operator,
+        skipStockPost: !postStock,
+        idempotencyKey: `production_inbound:${production_task_id}:${batch_number}`,
       }, connection);
 
       // 2. 记录原料消耗关系

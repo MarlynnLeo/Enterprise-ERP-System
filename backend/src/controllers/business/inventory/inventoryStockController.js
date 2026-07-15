@@ -14,6 +14,7 @@ const dayjs = require('dayjs');
 
 const db = require('../../../config/db');
 const InventoryService = require('../../../services/InventoryService');
+const BusinessTypeService = require('../../../services/BusinessTypeService');
 const { getCurrentUserName } = require('../../../utils/userHelper');
 const { getInventoryLedger } = require('./inventoryLedgerController');
 const DataScopeService = require('../../../services/DataScopeService');
@@ -578,7 +579,17 @@ const adjustStock = async (req, res) => {
   try {
     await connection.beginTransaction();
 
-    const { materialId, locationId, quantity, type, remark } = req.body;
+    const {
+      materialId,
+      locationId,
+      quantity,
+      type,
+      remark,
+      batchNumber,
+      batch_number: batchNumberSnake,
+      unitCost,
+      unit_cost: unitCostSnake,
+    } = req.body;
 
     // 验证必填字段
     if (!materialId || !locationId || !quantity) {
@@ -594,6 +605,11 @@ const adjustStock = async (req, res) => {
     } else {
       // 调整入库：确保数量为正数
       actualQuantity = Math.abs(actualQuantity);
+    }
+
+    const resolvedUnitCost = Number(unitCost ?? unitCostSnake);
+    if (type !== 'out' && !(resolvedUnitCost > 0)) {
+      throw new Error('调整入库必须填写大于0的单位成本');
     }
 
     // 使用新的库存服务获取当前库存
@@ -638,6 +654,11 @@ const adjustStock = async (req, res) => {
     // 生成调整单号
     const adjustmentNo = await CodeGenerators.generateAdjustmentCode(connection);
 
+    // 入库必须有可追溯批次：优先用前端录入，否则用调整单号作为业务批次（可追溯到调整单）
+    const explicitBatch = String(batchNumber || batchNumberSnake || '').trim();
+    const inboundBatchNumber =
+      changeQuantity > 0 ? explicitBatch || adjustmentNo : explicitBatch || null;
+
     // 使用新的库存服务更新库存
     const result = await InventoryService.updateStock(
       {
@@ -649,6 +670,8 @@ const adjustStock = async (req, res) => {
         referenceType: 'manual_adjustment',
         operator,
         remark: remark || '',
+        batchNumber: inboundBatchNumber,
+        unitCost: type === 'out' ? null : resolvedUnitCost,
       },
       connection
     );
@@ -702,7 +725,19 @@ const adjustStock = async (req, res) => {
   } catch (error) {
     await connection.rollback();
     logger.error('调整库存失败:', error);
-    ResponseHandler.error(res, '调整库存失败', 'SERVER_ERROR', 500, error);
+    const message = error?.message || '调整库存失败';
+    // 业务校验类错误返回 400，便于前端直接展示原因（批次/库存不足/期间锁定等）
+    const isBusinessError =
+      /批次|库存不足|必填|不存在|无效|期间|结账|不能|禁止|缺少/.test(message) ||
+      error?.code === 'VALIDATION_ERROR' ||
+      error?.statusCode === 400;
+    ResponseHandler.error(
+      res,
+      message.startsWith('调整库存失败') ? message : `调整库存失败: ${message}`,
+      isBusinessError ? 'VALIDATION_ERROR' : 'SERVER_ERROR',
+      isBusinessError ? 400 : 500,
+      error
+    );
   } finally {
     connection.release();
   }
@@ -718,6 +753,7 @@ const getMaterialRecords = async (req, res) => {
 
     // 先加载业务类型缓存
     await loadBusinessTypeCache();
+    const inventoryTypeMap = await BusinessTypeService.getGroupMap('inventory_transaction');
 
     // 验证物料ID是否存在
     const checkMaterialQuery = `
@@ -767,7 +803,7 @@ const getMaterialRecords = async (req, res) => {
             id: item.id,
             date: item.date,
             transaction_type: item.transactionType,
-            type: getInventoryTransactionTypeText(item.transactionType),
+            type: inventoryTypeMap[item.transactionType] || getInventoryTransactionTypeText(item.transactionType),
             batch_number: item.batchNumber || '',
             quantity: item.quantity,
             before_quantity: item.beforeQuantity,
@@ -1347,6 +1383,11 @@ const importStock = async (req, res) => {
 
         // 生成调整单号
         const adjustmentNo = await CodeGenerators.generateAdjustmentCode(connection);
+        // 正数入库必须有可追溯批次；导入使用稳定批次号
+        const importBatch =
+          stock.batch_number ||
+          stock.batchNumber ||
+          (adjustmentQuantity > 0 ? `IMP-${adjustmentNo}-${materialId}` : null);
 
         // 使用统一的 InventoryService 更新库存
         const InventoryService = require('../../../services/InventoryService');
@@ -1361,7 +1402,8 @@ const importStock = async (req, res) => {
             operator: await getCurrentUserName(req),
             remark: stock.remark || '初始导入',
             unitId: material.unit_id || null,
-            batchNumber: null,
+            batchNumber: importBatch,
+            idempotencyKey: `initial_import:${adjustmentNo}:${materialId}:${locationId}`,
           },
           connection
         );
@@ -1418,6 +1460,7 @@ const importStock = async (req, res) => {
 const exportStockData = async (req, res) => {
   try {
     const filters = req.body;
+    const inventoryTypeMap = await BusinessTypeService.getGroupMap('inventory_transaction');
     logger.info('开始导出库存数据，过滤条件:', filters);
 
     // ========== 1. 构建与 getStockList 完全一致的筛选条件 ==========
@@ -1563,23 +1606,7 @@ const exportStockData = async (req, res) => {
       logger.info(`批量查询流水完成，涉及 ${Object.keys(recordsMap).length} 种物料`);
     }
 
-    // ========== 4. 流水类型中文映射 ==========
-    const txTypeMap = {
-      'in': '入库', 'out': '出库',
-      'purchase_inbound': '采购入库', 'production_inbound': '生产入库',
-      'outsourced_inbound': '委外入库', 'sales_return': '销售退货',
-      'transfer_in': '调拨入库', 'adjustment_in': '盘点盘盈',
-      'sales_outbound': '销售出库', 'production_outbound': '生产领料',
-      'outsourced_outbound': '委外领料', 'purchase_return': '采购退货',
-      'transfer_out': '调拨出库', 'adjustment_out': '盘点盘亏',
-      'initial_import': '期初导入', 'correction': '差异修正',
-      'outbound_cancel': '出库撤销', 'inbound': '入库', 'outbound': '出库',
-      'sale': '销售出库', 'sales_exchange_return': '换货退回',
-      'sales_exchange_out': '换货发出', 'inventory_init': '库存初始化',
-      'manual_in': '手动入库', 'production_return': '生产退料'
-    };
-
-    // ========== 5. ExcelJS 渲染 ==========
+    // ========== 4. ExcelJS 渲染 ==========
     const ExcelJS = require('exceljs');
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('库存明细及状态');
@@ -1663,7 +1690,8 @@ const exportStockData = async (req, res) => {
 
         // 流水数据行
         materialRecords.forEach(rec => {
-          const typeText = txTypeMap[rec.transaction_type] || rec.transaction_type;
+          const typeText = inventoryTypeMap[rec.transaction_type]
+            || getInventoryTransactionTypeText(rec.transaction_type);
           const recRow = worksheet.addRow({
             material_code: '',
             material_name: '',

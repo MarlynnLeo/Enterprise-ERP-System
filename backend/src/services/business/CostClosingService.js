@@ -117,6 +117,8 @@ class CostClosingService {
          WHERE po.deleted_at IS NULL
            AND ${periodDateClause('po.order_date')}
            AND (
+             (COALESCE(poi.quantity, 0) > 0 AND COALESCE(poi.price, 0) <= 0)
+             OR
              ABS(COALESCE(poi.total, 0) - ROUND(COALESCE(poi.quantity, 0) * COALESCE(poi.price, 0), 2)) > 0.05
              OR ABS(COALESCE(poi.amount_excluding_tax, 0) - ROUND(COALESCE(poi.quantity, 0) * COALESCE(poi.price, 0), 2)) > 0.05
            )
@@ -128,7 +130,10 @@ class CostClosingService {
          WHERE pr.deleted_at IS NULL
            AND pr.status IN ('confirmed', 'completed')
            AND ${periodDateClause('pr.receipt_date')}
-           AND ABS(COALESCE(pri.price, 0) - COALESCE(poi.price, 0)) > 0.05
+           AND (
+             (COALESCE(pri.quantity, pri.received_quantity, 0) > 0 AND COALESCE(pri.price, 0) <= 0)
+             OR ABS(COALESCE(pri.price, 0) - COALESCE(poi.price, 0)) > 0.05
+           )
         UNION ALL
         SELECT 'receipt_amount' AS issue_type, pri.id, pr.receipt_no AS source_no, pri.total_amount AS amount
           FROM purchase_receipt_items pri
@@ -136,15 +141,81 @@ class CostClosingService {
          WHERE pr.deleted_at IS NULL
            AND ${periodDateClause('pr.receipt_date')}
            AND (
+             (COALESCE(pri.quantity, pri.received_quantity, 0) > 0 AND COALESCE(pri.price, 0) <= 0)
+             OR
              ABS(COALESCE(pri.amount_excluding_tax, 0) - ROUND(COALESCE(pri.quantity, 0) * COALESCE(pri.price, 0), 2)) > 0.05
              OR ABS(COALESCE(pri.total_amount, 0) - ROUND(COALESCE(pri.amount_excluding_tax, 0) + COALESCE(pri.tax_amount, 0), 2)) > 0.05
            )
+        UNION ALL
+        SELECT 'receipt_order_link' AS issue_type, pri.id, pr.receipt_no AS source_no,
+               pri.total_amount AS amount
+          FROM purchase_receipt_items pri
+          JOIN purchase_receipts pr ON pr.id = pri.receipt_id
+          LEFT JOIN purchase_order_items poi ON poi.id = pri.order_item_id
+         WHERE pr.deleted_at IS NULL
+           AND pr.order_id IS NOT NULL
+           AND ${periodDateClause('pr.receipt_date')}
+           AND (
+             pri.order_item_id IS NULL
+             OR poi.id IS NULL
+             OR poi.order_id <> pr.order_id
+             OR poi.material_id <> pri.material_id
+           )
+        UNION ALL
+        SELECT 'order_received_quantity' AS issue_type, poi.id, po.order_no AS source_no,
+               poi.received_quantity AS amount
+          FROM purchase_order_items poi
+          JOIN purchase_orders po ON po.id = poi.order_id
+          LEFT JOIN (
+            SELECT pr.order_id, pri.material_id,
+                   SUM(COALESCE(NULLIF(pri.received_quantity, 0), pri.quantity, pri.qualified_quantity, 0))
+                     AS received_quantity
+              FROM purchase_receipt_items pri
+              JOIN purchase_receipts pr ON pr.id = pri.receipt_id
+             WHERE pr.deleted_at IS NULL
+               AND pr.status IN ('confirmed', 'completed')
+             GROUP BY pr.order_id, pri.material_id
+          ) receipts ON receipts.order_id = poi.order_id
+                    AND receipts.material_id = poi.material_id
+          LEFT JOIN (
+            SELECT qi.reference_id AS order_id, qi.material_id,
+                   SUM(COALESCE(NULLIF(qi.quantity, 0), qi.qualified_quantity, 0))
+                     AS inspected_quantity
+              FROM quality_inspections qi
+             WHERE qi.inspection_type = 'incoming'
+               AND qi.deleted_at IS NULL
+               AND qi.status NOT IN ('cancelled', 'rejected')
+             GROUP BY qi.reference_id, qi.material_id
+          ) inspections ON inspections.order_id = poi.order_id
+                       AND inspections.material_id = poi.material_id
+         WHERE po.deleted_at IS NULL
+           AND ${periodDateClause('po.order_date')}
+           AND ABS(
+             COALESCE(poi.received_quantity, 0)
+             - GREATEST(
+                 COALESCE(receipts.received_quantity, 0),
+                 COALESCE(inspections.inspected_quantity, 0)
+               )
+           )
+               > 0.000001
       ) issues`;
-    const purchaseParams = [...periodParams, ...periodParams, ...periodParams];
+    const purchaseParams = [
+      ...periodParams,
+      ...periodParams,
+      ...periodParams,
+      ...periodParams,
+      ...periodParams,
+    ];
 
     const inventoryIssueSql = `
       SELECT issue_type, id, transaction_no, amount
       FROM (
+        SELECT 'zero_cost_ledger' AS issue_type, il.id, il.transaction_no, il.total_value AS amount
+          FROM inventory_ledger il
+         WHERE ${periodDateClause('COALESCE(il.transaction_date, DATE(il.created_at))')}
+           AND ABS(COALESCE(il.quantity, 0)) > 0
+           AND (COALESCE(il.unit_cost, 0) <= 0 OR COALESCE(il.total_value, 0) <= 0)
+        UNION ALL
         SELECT 'ledger_formula' AS issue_type, il.id, il.transaction_no, il.total_value AS amount
           FROM inventory_ledger il
          WHERE ${periodDateClause('COALESCE(il.transaction_date, DATE(il.created_at))')}
@@ -160,8 +231,34 @@ class CostClosingService {
            AND pr.status IN ('confirmed', 'completed')
            AND pr.deleted_at IS NULL
            AND ABS(COALESCE(il.unit_cost, 0) - COALESCE(pri.price, 0)) > 0.05
+        UNION ALL
+        SELECT 'outbound_batch_cost' AS issue_type, il.id, il.transaction_no, il.total_value AS amount
+          FROM inventory_ledger il
+         WHERE ${periodDateClause('COALESCE(il.transaction_date, DATE(il.created_at))')}
+           AND il.quantity < 0
+           AND il.batch_number IS NOT NULL
+           AND il.batch_number <> ''
+           AND EXISTS (
+             SELECT 1 FROM inventory_ledger source
+              WHERE source.material_id = il.material_id
+                AND source.location_id = il.location_id
+                AND source.batch_number = il.batch_number
+                AND source.quantity > 0
+                AND source.id < il.id
+           )
+           AND ABS(COALESCE(il.unit_cost, 0) - COALESCE((
+             SELECT source.unit_cost
+               FROM inventory_ledger source
+              WHERE source.material_id = il.material_id
+                AND source.location_id = il.location_id
+                AND source.batch_number = il.batch_number
+                AND source.quantity > 0
+                AND source.id < il.id
+              ORDER BY source.id DESC
+              LIMIT 1
+           ), 0)) > 0.000001
       ) issues`;
-    const inventoryParams = [...periodParams, ...periodParams];
+    const inventoryParams = [...periodParams, ...periodParams, ...periodParams, ...periodParams];
 
     const standardIssueSql = `
       SELECT id, material_id, product_id, cost_element, standard_price, status, is_active
@@ -175,10 +272,10 @@ class CostClosingService {
         FROM production_tasks
        WHERE deleted_at IS NULL
          AND status IN ('completed', 'warehousing')
-         AND ${periodDateClause('COALESCE(completed_at, actual_end_date, updated_at)')}
+         AND ${periodDateClause('COALESCE(completed_at, actual_end_date, DATE(created_at))')}
          AND (
            actual_cost IS NULL
-           OR COALESCE(actual_cost, 0) < 0
+           OR COALESCE(actual_cost, 0) <= 0
            OR COALESCE(material_cost, 0) < 0
            OR COALESCE(labor_cost, 0) < 0
            OR COALESCE(overhead_cost, 0) < 0
@@ -202,7 +299,7 @@ class CostClosingService {
           LEFT JOIN cost_variance_records cvr ON cvr.task_id = pt.id
          WHERE pt.deleted_at IS NULL
            AND pt.status IN ('completed', 'warehousing')
-           AND ${periodDateClause('COALESCE(pt.completed_at, pt.actual_end_date, pt.updated_at)')}
+           AND ${periodDateClause('COALESCE(pt.completed_at, pt.actual_end_date, DATE(pt.created_at))')}
            AND cvr.id IS NULL
       ) issues`;
     const varianceParams = [...periodParams, ...periodParams];

@@ -257,42 +257,77 @@ const confirmSubmitRequisition = async () => {
     }
 
     batchLoading.value = true
-    const planCodes = Array.from(new Set(selectedShortages.value.map(item => item.plan_code)))
-    // 准备采购申请数据（使用用户编辑后的数量）
-    const materials = confirmMaterialList.value.map(item => ({
-      material_id: item.material_id,
-      material_code: item.material_code,
-      material_name: item.material_name,
-      specs: item.material_specs,
-      unit: item.unit,
-      quantity: parseFloat(item.edit_quantity), // 使用编辑后的数量
-      remarks: `生产计划缺料 - ${item.plans.map(p => p.plan_code).join(', ')}`
-    }))
-    // 生成备注信息
-    const remarks = `根据生产计划缺料统计自动生成 - 涉及计划: ${planCodes.join(', ')}`
-    // 创建采购申请
-    const response = await purchaseApi.createRequisition({
-      request_date: dayjs().format('YYYY-MM-DD'),
-      materials: materials,
-      remarks: remarks
-    })
-    const result = parseApiResponse(response)
-    if (result.success && result.data) {
-      const requisitionNo = result.data.requisition_number || result.data.requisitionNo || '新申请单'
-      ElMessage({
-        message: `采购申请创建成功！申请单号：${requisitionNo}，共 ${materials.length} 种物料`,
-        type: 'success',
-        duration: 5000,
-        showClose: true
-      })
-      confirmDialogVisible.value = false
-      clearSelection()
-      batchLoading.value = false
-      await fetchShortageData(true)
-    } else {
-      batchLoading.value = false
-      throw new Error(result.error || '创建失败')
+    // 仅允许带生产计划来源的申请（source_type/source_id/source_material_id）
+    const planMaterialMap = new Map()
+    for (const row of selectedShortages.value) {
+      if (row.purchase_status === 'requested') continue
+      const planId = row.plan_id
+      if (!planId) {
+        throw new Error(`物料 ${row.material_code || row.material_id} 缺少生产计划来源，无法创建采购申请`)
+      }
+      if (!planMaterialMap.has(planId)) {
+        planMaterialMap.set(planId, {
+          plan_id: planId,
+          plan_code: row.plan_code,
+          materials: new Map()
+        })
+      }
+      const bucket = planMaterialMap.get(planId)
+      const confirmItem = confirmMaterialList.value.find(m => m.material_id === row.material_id)
+      const qty = parseFloat(confirmItem?.edit_quantity ?? row.shortage_quantity) || 0
+      if (qty <= 0) continue
+      if (bucket.materials.has(row.material_id)) {
+        bucket.materials.get(row.material_id).quantity += qty
+      } else {
+        bucket.materials.set(row.material_id, {
+          material_id: row.material_id,
+          material_code: row.material_code,
+          material_name: row.material_name,
+          specs: row.material_specs,
+          unit: row.unit,
+          quantity: qty,
+          remarks: `生产计划缺料 - ${row.plan_code}`
+        })
+      }
     }
+
+    if (planMaterialMap.size === 0) {
+      throw new Error('没有可提交的缺料明细（可能均已请购或数量无效）')
+    }
+
+    const createdNos = []
+    let materialCount = 0
+    for (const bucket of planMaterialMap.values()) {
+      for (const mat of bucket.materials.values()) {
+        const response = await purchaseApi.createRequisition({
+          request_date: dayjs().format('YYYY-MM-DD'),
+          materials: [mat],
+          remarks: `根据生产计划缺料统计自动生成 - 计划: ${bucket.plan_code}`,
+          source_type: 'production_plan',
+          source_id: bucket.plan_id,
+          source_material_id: mat.material_id
+        })
+        const result = parseApiResponse(response)
+        if (!(result.success && result.data)) {
+          throw new Error(result.error || `计划 ${bucket.plan_code} 物料 ${mat.material_code} 创建失败`)
+        }
+        const no = result.data.requisition_number || result.data.requisitionNo || ''
+        if (no) {
+          createdNos.push(result.data.already_exists ? `${no}(已存在)` : no)
+        }
+        materialCount += 1
+      }
+    }
+    ElMessage({
+      message: `采购申请处理完成：${materialCount} 种物料，单号：${createdNos.join('、') || '—'}`,
+      type: 'success',
+      duration: 5000,
+      showClose: true
+    })
+    confirmDialogVisible.value = false
+    clearSelection()
+    batchLoading.value = false
+    await fetchShortageData(true)
   } catch (error) {
     console.error('批量创建采购申请失败:', error)
     ElMessage.error(error.message || '批量创建采购申请失败')
@@ -312,15 +347,11 @@ onMounted(() => {
 <template>
   <div class="module-page material-shortage-container">
     <!-- 页面标题 -->
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>{{ props.pageTitle }}</h2>
-          <p class="subtitle">{{ props.pageSubtitle }}</p>
-        </div>
+    <PageHeader :title="props.pageTitle" :subtitle="props.pageSubtitle">
+      <template #actions>
         <el-button type="success" :icon="Download" @click="handleExport" v-permission="'production:plans:export'">导出</el-button>
-      </div>
-    </el-card>
+      </template>
+    </PageHeader>
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
@@ -365,7 +396,7 @@ onMounted(() => {
         ref="shortageTableRef"
         :data="shortageList"
         border
-        style="width: 100%"
+        class="w-full"
         v-loading="loading"
         :default-sort="{ prop: 'start_date', order: 'ascending' }"
         @selection-change="handleSelectionChange"
@@ -493,7 +524,7 @@ onMounted(() => {
         <el-table
           :data="confirmMaterialList"
           border
-          style="width: 100%"
+          class="w-full"
           max-height="400"
         >
           <el-table-column type="index" label="序号" width="60" />

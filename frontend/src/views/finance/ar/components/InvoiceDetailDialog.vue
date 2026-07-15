@@ -7,11 +7,11 @@
  */
 -->
 <template>
-  <el-dialog
+  <AppDialog
     title="发票详情"
+    mode="view"
     :model-value="modelValue"
     @update:model-value="$emit('update:modelValue', $event)"
-    width="800px"
   >
     <div class="invoice-details">
       <!-- 基本信息 -->
@@ -32,10 +32,10 @@
 
       <!-- 明细项 -->
       <div class="details-section">
-        <div class="detail-title" style="margin-top: 20px; margin-bottom: 15px;">
+        <div class="detail-title mt-20 mb-md">
           <h3>发票明细项</h3>
         </div>
-        <el-table :data="invoice.items || []" border style="width: 100%; min-width: 100%;">
+        <el-table :data="invoice.items || []" border class="w-full">
           <el-table-column prop="productName" label="商品/服务名称" min-width="150">
             <template #default="scope">
               {{ scope.row.productName || scope.row.name || '-' }}
@@ -62,7 +62,7 @@
         <el-button v-permission="'finance:ar:view'" type="success" @click="$emit('print')">打印</el-button>
       </span>
     </template>
-  </el-dialog>
+  </AppDialog>
 </template>
 
 <script setup>
@@ -110,11 +110,7 @@ defineEmits(['update:modelValue', 'print'])
   min-width: 600px;
 }
 /* 对话框自适应高度 */
-:deep(.el-dialog__body) {
-  max-height: 70vh;
-  overflow-y: auto;
-  padding: 20px 24px;
-}
+
 /* 详情对话框长文本处理 */
 :deep(.el-descriptions__content) {
   max-width: 300px;

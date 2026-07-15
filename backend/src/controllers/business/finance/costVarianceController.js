@@ -286,7 +286,7 @@ module.exports = {
         threshold,
       });
     } catch (error) {
-      logger.error('获取成本预警失败:', error.stack || error.message || error);
+      logger.error('获取成本预警失败:', error);
       ResponseHandler.error(res, '获取成本预警失败', 'SERVER_ERROR', 500);
     }
   },

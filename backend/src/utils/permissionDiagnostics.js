@@ -128,16 +128,29 @@ class PermissionDiagnostics {
           'SELECT COUNT(*) as count FROM role_menus WHERE role_id = ?',
           [role.id]
         );
-        const [permCount] = await pool.execute(
-          `SELECT COUNT(DISTINCT m.permission) as count
-           FROM menus m
-           JOIN role_menus rm ON m.id = rm.menu_id
-           WHERE rm.role_id = ? AND m.permission IS NOT NULL AND m.permission != ''`,
-          [role.id]
-        );
+        let permCountVal = 0;
+        try {
+          const [permCount] = await pool.execute(
+            `SELECT COUNT(DISTINCT p.code) as count
+               FROM permissions p
+               JOIN role_permissions rp ON rp.permission_id = p.id
+              WHERE rp.role_id = ? AND p.status = 1`,
+            [role.id]
+          );
+          permCountVal = permCount[0].count;
+        } catch {
+          const [legacy] = await pool.execute(
+            `SELECT COUNT(DISTINCT m.permission) as count
+               FROM menus m
+               JOIN role_menus rm ON m.id = rm.menu_id
+              WHERE rm.role_id = ? AND m.permission IS NOT NULL AND m.permission != ''`,
+            [role.id]
+          );
+          permCountVal = legacy[0].count;
+        }
         logger.info(`   角色 ${role.name}:`);
         logger.info(`     - 关联菜单数: ${menuCount[0].count}`);
-        logger.info(`     - 有效权限数: ${permCount[0].count}`);
+        logger.info(`     - 有效权限数(role_permissions): ${permCountVal}`);
       }
       logger.info('');
 

@@ -98,8 +98,8 @@ exports.up = async function up(knex) {
       UPDATE purchase_receipts receipt
       LEFT JOIN inventory_ledger ledger
         ON ledger.receipt_id = receipt.id
-        OR ledger.receipt_no = receipt.receipt_no
-        OR ledger.reference_no = receipt.receipt_no
+        OR BINARY ledger.receipt_no = BINARY receipt.receipt_no
+        OR BINARY ledger.reference_no = BINARY receipt.receipt_no
       SET receipt.status = 'draft'
       WHERE receipt.status IN ('completed', 'warehoused')
         AND ledger.id IS NULL
@@ -107,7 +107,8 @@ exports.up = async function up(knex) {
 
     await trx.raw(`
       UPDATE sales_order_items item
-      JOIN materials material ON material.specs = REPLACE(item.product_specs, '-TEST', '')
+      JOIN materials material
+        ON BINARY material.specs = BINARY REPLACE(item.product_specs, '-TEST', '')
       SET
         item.material_id = material.id,
         item.product_code = material.code,

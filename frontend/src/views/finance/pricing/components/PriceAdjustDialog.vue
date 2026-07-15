@@ -17,7 +17,7 @@
         <el-input-number
           :model-value="form.original_price"
           disabled
-          style="width: 100%"
+          class="w-full"
           :controls="false"
         />
       </el-form-item>
@@ -27,7 +27,7 @@
           :min="0"
           :precision="2"
           :step="0.01"
-          style="width: 100%"
+          class="w-full"
           @update:model-value="updateFormField('adjusted_price', $event)"
         />
       </el-form-item>

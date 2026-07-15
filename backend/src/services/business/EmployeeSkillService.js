@@ -4,7 +4,6 @@
  */
 
 const { pool } = require('../../config/db');
-const { logger } = require('../../utils/logger');
 
 class EmployeeSkillService {
   /** 列表查询（支持筛选） */
@@ -16,16 +15,26 @@ class EmployeeSkillService {
     let where = 'WHERE es.deleted_at IS NULL';
     const values = [];
 
-    if (userId) { where += ' AND es.user_id = ?'; values.push(userId); }
-    if (skillCategory) { where += ' AND es.skill_category = ?'; values.push(skillCategory); }
-    if (level) { where += ' AND es.level = ?'; values.push(level); }
+    if (userId) {
+      where += ' AND es.user_id = ?';
+      values.push(userId);
+    }
+    if (skillCategory) {
+      where += ' AND es.skill_category = ?';
+      values.push(skillCategory);
+    }
+    if (level) {
+      where += ' AND es.level = ?';
+      values.push(level);
+    }
     if (keyword) {
       where += ' AND (es.skill_name LIKE ? OR u.real_name LIKE ?)';
       values.push(`%${keyword}%`, `%${keyword}%`);
     }
 
     const [[{ total }]] = await pool.query(
-      `SELECT COUNT(*) as total FROM employee_skills es LEFT JOIN users u ON es.user_id = u.id ${where}`, values
+      `SELECT COUNT(*) as total FROM employee_skills es LEFT JOIN users u ON es.user_id = u.id ${where}`,
+      values
     );
 
     const [list] = await pool.query(
@@ -65,9 +74,17 @@ class EmployeeSkillService {
     const [result] = await pool.query(
       `INSERT INTO employee_skills (user_id, skill_name, skill_category, level, certified_date, expiry_date, certificate_no, certified_by, remark)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [data.user_id, data.skill_name, data.skill_category, data.level || 'beginner',
-       data.certified_date || null, data.expiry_date || null,
-       data.certificate_no || null, data.certified_by || null, data.remark || null]
+      [
+        data.user_id,
+        data.skill_name,
+        data.skill_category,
+        data.level || 'beginner',
+        data.certified_date || null,
+        data.expiry_date || null,
+        data.certificate_no || null,
+        data.certified_by || null,
+        data.remark || null,
+      ]
     );
     return this.getById(result.insertId);
   }
@@ -76,7 +93,16 @@ class EmployeeSkillService {
   static async update(id, data) {
     const fields = [];
     const values = [];
-    const updatable = ['skill_name', 'skill_category', 'level', 'certified_date', 'expiry_date', 'certificate_no', 'certified_by', 'remark'];
+    const updatable = [
+      'skill_name',
+      'skill_category',
+      'level',
+      'certified_date',
+      'expiry_date',
+      'certificate_no',
+      'certified_by',
+      'remark',
+    ];
 
     for (const key of updatable) {
       if (data[key] !== undefined) {
@@ -161,7 +187,7 @@ class EmployeeSkillService {
     const [rows] = await pool.query(
       'SELECT DISTINCT skill_category FROM employee_skills WHERE deleted_at IS NULL ORDER BY skill_category'
     );
-    return rows.map(r => r.skill_category);
+    return rows.map((r) => r.skill_category);
   }
 
   /** 获取即将到期的技能证书（30天内） */

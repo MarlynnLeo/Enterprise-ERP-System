@@ -63,7 +63,7 @@ class InventoryAlertService {
         };
       }
 
-      logger.info(`📦 发现 ${lowStockItems.length} 个低库存物料`);
+      logger.info(`Low stock materials detected: count=${lowStockItems.length}`);
 
       // 2. 检查已有待处理的采购申请中各物料的在途数量（精确数量级扣减，避免与销售订单自动化重复）
       const materialIds = lowStockItems.map((item) => item.material_id);
@@ -90,13 +90,17 @@ class InventoryAlertService {
         const pendingQty = pendingQuantityMap.get(item.material_id) || 0;
         if (pendingQty >= item.shortage_quantity) {
           // 已有采购申请完全覆盖缺口，跳过
-          logger.info(`  ⏭️  跳过物料 ${item.material_code} ${item.material_name}: 已有在途采购 ${pendingQty} >= 缺口 ${item.shortage_quantity}`);
+          logger.info(
+            `Low stock auto-requisition skipped: materialCode=${item.material_code}, materialName=${item.material_name}, pendingQuantity=${pendingQty}, shortageQuantity=${item.shortage_quantity}`
+          );
           continue;
         }
         // 只补差额
         const adjustedShortage = item.shortage_quantity - pendingQty;
         if (pendingQty > 0) {
-          logger.info(`  📉 物料 ${item.material_code} ${item.material_name}: 缺口 ${item.shortage_quantity} - 已有在途 ${pendingQty} = 实际补充 ${adjustedShortage}`);
+          logger.info(
+            `Low stock shortage adjusted: materialCode=${item.material_code}, materialName=${item.material_name}, shortageQuantity=${item.shortage_quantity}, pendingQuantity=${pendingQty}, adjustedShortage=${adjustedShortage}`
+          );
         }
         newLowStockItems.push({
           ...item,
@@ -175,7 +179,7 @@ class InventoryAlertService {
 
       await connection.commit();
 
-      logger.info(`✅ 自动创建采购申请 ${requisitionNo}，包含 ${newLowStockItems.length} 个物料`);
+      logger.info(`Purchase requisition auto-created for low stock: requisitionNo=${requisitionNo}, itemCount=${newLowStockItems.length}`);
 
       // 6. 发送系统通知
       await this.sendLowStockNotification(newLowStockItems, requisitionNo, requisitionId);
@@ -300,7 +304,9 @@ class InventoryAlertService {
         await this.sendBatchExpiryNotification(expired, expiringSoon);
       }
 
-      logger.info(`📦 批次过期检查: ${expired.length}个已过期, ${expiringSoon.length}个即将过期`);
+      logger.info(
+        `Batch expiry check completed: expiredCount=${expired.length}, expiringSoonCount=${expiringSoon.length}`
+      );
 
       return {
         success: true,

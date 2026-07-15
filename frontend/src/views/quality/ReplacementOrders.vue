@@ -1,5 +1,7 @@
 ﻿<template>
-  <div class="replacement-orders-container">
+  <div class="module-page replacement-orders-container">
+    <PageHeader title="换货单" subtitle="不合格换货业务处理" />
+
     <FinanceQueryCard
       :model="searchForm"
       :loading="loading"
@@ -109,7 +111,7 @@
         <el-table-column prop="created_at" label="创建时间" width="160" />
         <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
-            <el-button link type="primary" size="small" @click="viewDetail(row)">详情</el-button>
+            <el-button class="btn-op-view" type="primary" size="small" @click="viewDetail(row)">详情</el-button>
             <el-button
               link
               type="success"
@@ -167,7 +169,7 @@
             :min="0.01"
             :max="currentRow.quantity - (currentRow.received_quantity || 0)"
             :precision="2"
-            style="width: 100%"
+            class="w-full"
           />
         </el-form-item>
         <el-form-item label="实际到货日期">
@@ -176,7 +178,7 @@
             type="date"
             placeholder="选择日期"
             value-format="YYYY-MM-DD"
-            style="width: 100%"
+            class="w-full"
           />
         </el-form-item>
         <el-form-item label="备注">
@@ -201,7 +203,7 @@
             type="date"
             placeholder="选择日期"
             value-format="YYYY-MM-DD"
-            style="width: 100%"
+            class="w-full"
           />
         </el-form-item>
         <el-form-item label="备注">
@@ -215,7 +217,12 @@
     </el-dialog>
 
     <!-- 详情对话框 -->
-    <el-dialog v-model="detailDialogVisible" title="换货单详情" width="700px">
+    <AppDialog
+      v-model="detailDialogVisible"
+      title="换货单详情"
+      mode="view"
+      content-width="wide"
+    >
       <el-descriptions :column="2" border v-if="detailData">
         <el-descriptions-item label="换货单号">{{ detailData.replacement_no }}</el-descriptions-item>
         <el-descriptions-item label="状态">
@@ -243,7 +250,7 @@
       <template #footer>
         <el-button @click="detailDialogVisible = false">关闭</el-button>
       </template>
-    </el-dialog>
+    </AppDialog>
   </div>
 </template>
 

@@ -386,18 +386,43 @@ const bomService = {
     };
   },
 
+  /**
+   * 解析有效单位 ID：明细 > 物料主数据 > 系统默认单位
+   */
+  _resolveUnitId(detail, unitMap, defaultUnitId) {
+    const candidates = [
+      detail.unit_id,
+      detail.unitId,
+      unitMap?.get(Number(detail.material_id)),
+      defaultUnitId,
+    ];
+    for (const raw of candidates) {
+      const n = Number(raw);
+      if (Number.isInteger(n) && n > 0) return n;
+    }
+    return null;
+  },
+
   // 验证和规范化明细数据
-  validateAndNormalizeDetail(detail) {
+  validateAndNormalizeDetail(detail, unitMap = null, defaultUnitId = null) {
     if (!detail.material_id) {
       throw new Error('物料ID不能为空');
     }
-    const unitId = Number(detail.unit_id);
-    if (!Number.isInteger(unitId) || unitId <= 0) {
-      throw new Error('BOM明细单位ID不能为空');
+    const materialId = Number(detail.material_id);
+    if (!Number.isInteger(materialId) || materialId <= 0) {
+      throw new Error(`物料ID无效: ${detail.material_id}`);
+    }
+
+    const unitId = this._resolveUnitId(detail, unitMap, defaultUnitId);
+    if (!unitId) {
+      const code = detail.material_code || detail.code || materialId;
+      throw new Error(
+        `BOM明细单位不能为空（物料 ${code}）。请在「基础数据-物料」中为该物料设置计量单位，或先维护至少一个单位档案`
+      );
     }
 
     return {
-      material_id: Number(detail.material_id),
+      material_id: materialId,
       quantity: Number(detail.quantity) || 0,
       unit_id: unitId,
       remark: detail.remark || null,
@@ -408,14 +433,66 @@ const bomService = {
 
   // ✅ 公共方法: BOM 明细批量插入（createBom/updateBom 共用）
   async _insertBomDetails(connection, bomId, details) {
+    if (!Array.isArray(details) || details.length === 0) {
+      throw new Error('BOM明细不能为空');
+    }
+
     const idMapping = {};
-    const sortedDetails = details.sort((a, b) => (a.level || 1) - (b.level || 1));
-    const materialIds = sortedDetails.map((detail) => detail.material_id);
+    const sortedDetails = [...details].sort((a, b) => (a.level || 1) - (b.level || 1));
+    const materialIds = [
+      ...new Set(
+        sortedDetails
+          .map((detail) => Number(detail.material_id))
+          .filter((id) => Number.isInteger(id) && id > 0)
+      ),
+    ];
+
+    if (materialIds.length === 0) {
+      throw new Error('BOM明细缺少有效的物料ID，请重新选择物料');
+    }
+
+    // 批量查询物料默认单位
+    const unitMap = new Map();
+    const placeholders = materialIds.map(() => '?').join(',');
+    const [unitRows] = await connection.execute(
+      `SELECT id, code, unit_id FROM materials
+       WHERE id IN (${placeholders}) AND (deleted_at IS NULL)`,
+      materialIds
+    );
+    const foundIds = new Set();
+    for (const row of unitRows) {
+      foundIds.add(Number(row.id));
+      if (row.unit_id !== null && row.unit_id !== undefined && Number(row.unit_id) > 0) {
+        unitMap.set(Number(row.id), Number(row.unit_id));
+      }
+    }
+    const missingMaterials = materialIds.filter((id) => !foundIds.has(id));
+    if (missingMaterials.length) {
+      throw new Error(`以下物料不存在或已删除: ${missingMaterials.join(', ')}`);
+    }
+
+    // 系统默认单位（物料未维护单位时兜底，优先「个」）
+    let defaultUnitId = null;
+    const [defaultUnits] = await connection.execute(
+      `SELECT id FROM units
+       WHERE (deleted_at IS NULL)
+         AND (name IN ('个', 'PCS', 'pcs', '只', '件') OR code IN ('PCS', 'EA', 'PC'))
+       ORDER BY id ASC LIMIT 1`
+    );
+    if (defaultUnits.length) {
+      defaultUnitId = Number(defaultUnits[0].id);
+    } else {
+      const [anyUnit] = await connection.execute(
+        `SELECT id FROM units WHERE deleted_at IS NULL ORDER BY id ASC LIMIT 1`
+      );
+      if (anyUnit.length) defaultUnitId = Number(anyUnit[0].id);
+    }
+
     const BomExplosionService = require('./BomExplosionService');
     const subBomMap = await BomExplosionService.getLatestApprovedBomMap(materialIds, connection);
 
     for (const detail of sortedDetails) {
-      const normalizedDetail = this.validateAndNormalizeDetail(detail);
+      const normalizedDetail = this.validateAndNormalizeDetail(detail, unitMap, defaultUnitId);
 
       let actualParentId = 0;
       if (detail.parent_id && detail.parent_id !== 0 && detail.parent_id !== '0') {
@@ -481,6 +558,21 @@ const bomService = {
       // 验证和规范化BOM数据
       const normalizedBomData = this.validateAndNormalizeBomData(bomData);
 
+      // 产品+版本唯一约束：先查重，给出可读错误（避免 ER_DUP_ENTRY 500）
+      const [dupRows] = await connection.execute(
+        `SELECT id, version FROM bom_masters
+         WHERE product_id = ? AND deleted_at IS NULL
+           AND LOWER(version) = LOWER(?)
+         LIMIT 1`,
+        [normalizedBomData.product_id, normalizedBomData.version]
+      );
+      if (dupRows.length > 0) {
+        const nextVer = await this.getNextVersion(connection, normalizedBomData.product_id);
+        throw new Error(
+          `该产品已存在版本「${dupRows[0].version}」，不能重复创建。建议使用新版本号：${nextVer}（可在表单中修改版本号后重试）`
+        );
+      }
+
       const [result] = await connection.execute(
         'INSERT INTO bom_masters (product_id, version, status, remark, attachment, created_by, updated_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
         [
@@ -536,7 +628,11 @@ const bomService = {
     } catch (error) {
       await connection.rollback();
       logger.error('创建BOM失败:', error);
-      throw new Error(`创建BOM失败: ${error.message}`, { cause: error });
+      // 保留原始业务文案，便于控制器识别校验类错误
+      if (error.message && !String(error.message).startsWith('创建BOM失败:')) {
+        error.message = `创建BOM失败: ${error.message}`;
+      }
+      throw error;
     } finally {
       connection.release();
     }

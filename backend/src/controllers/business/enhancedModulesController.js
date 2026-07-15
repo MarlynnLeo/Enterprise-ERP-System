@@ -100,6 +100,18 @@ const exchangeRates = {
       ResponseHandler.success(res, row);
     } catch (e) { logger.error('获取最新汇率失败:', e); ResponseHandler.error(res, e.message); }
   },
+  /** 从 public-apis 多源同步最新汇率到库 */
+  async syncPublic(req, res) {
+    try {
+      const from = req.body?.from || req.query?.from || 'USD';
+      const to = req.body?.to || req.query?.to || 'CNY';
+      const row = await ExchangeRateService.syncFromPublicApi(from, to, req.user?.id);
+      ResponseHandler.success(res, row, '公开汇率同步成功');
+    } catch (e) {
+      logger.error('同步公开汇率失败:', e);
+      ResponseHandler.error(res, e.message || '同步公开汇率失败');
+    }
+  },
 };
 
 // ==================== 绩效管理 ====================
@@ -492,8 +504,12 @@ const ecn = {
         }
 
         const WorkflowService = require('../../services/business/WorkflowService');
+        await conn.query(
+          "UPDATE ecn_orders SET status = 'pending_approval' WHERE id = ?",
+          [req.params.id]
+        );
         const wfResult = await WorkflowService.tryStartWorkflow(
-          'ecn', req.params.id, current.code, `ECN ${current.code} ${current.title} review`, userId
+          'ecn', req.params.id, current.code, `ECN ${current.code} ${current.title} review`, userId, conn
         );
         if (wfResult.auto_approved) { finalStatus = 'approved'; }
       }

@@ -1,5 +1,5 @@
 <template>
-  <div class="purchase-history">
+  <div class="module-page purchase-history">
     <div class="history-panel">
       <!-- 顶部搜索栏 -->
       <div class="search-bar">

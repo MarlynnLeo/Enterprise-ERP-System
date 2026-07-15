@@ -200,9 +200,11 @@ exports.getMaterialShortageSummary = async (req, res) => {
             FROM purchase_requisitions pr
             INNER JOIN purchase_requisition_items pri ON pr.id = pri.requisition_id
             WHERE pri.material_id = m.id
-              AND pr.remarks LIKE CONCAT('%', pp.code, '%')
-              AND pr.status != 'cancelled'
-              AND pr.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+              AND pr.status NOT IN ('cancelled', 'rejected')
+              AND pr.deleted_at IS NULL
+              AND pr.source_type = 'production_plan'
+              AND pr.source_id = pp.id
+              AND (pr.source_material_id IS NULL OR pr.source_material_id = m.id)
           ) THEN 'requested'
           ELSE 'pending'
         END as purchase_status

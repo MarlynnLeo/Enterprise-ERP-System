@@ -8,20 +8,14 @@
 -->
 <template>
   <div class="module-page transactions-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>现金日记账</h2>
-          <p class="subtitle">管理现金收支记录</p>
-        </div>
-        <div class="action-buttons">
-          <el-button v-permission="'finance:cash:create'" type="primary" :icon="Plus" @click="showAddDialog">新增交易</el-button>
+    <PageHeader title="现金日记账" subtitle="管理现金收支记录">
+      <template #actions>
+<el-button v-permission="'finance:cash:create'" type="primary" :icon="Plus" @click="showAddDialog">新增交易</el-button>
           <el-button v-permission="'finance:cash:export'" type="success" @click="exportTransactions">导出数据</el-button>
           <el-button v-permission="'finance:cash:create'" type="warning" @click="showImportDialog">导入数据</el-button>
           <el-button v-permission="'finance:cash:view'" type="primary" plain @click="printCashStatement">打印</el-button>
-        </div>
-      </div>
-    </el-card>
+      </template>
+    </PageHeader>
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
@@ -88,7 +82,7 @@
         v-loading="loading"
         stripe
         border
-        style="width: 100%"
+        class="w-full"
         :default-sort="{ prop: 'transactionDate', order: 'descending' }"
       >
         <el-table-column prop="transactionDate" label="交易日期" width="120" sortable>
@@ -130,7 +124,7 @@
           <template #default="scope">
             <div class="operation-buttons">
               <!-- 查看按钮：始终显示 -->
-              <el-button
+              <el-button class="btn-op-view"
                 type="primary"
                 size="small"
                 @click="handleView(scope.row)"
@@ -225,7 +219,7 @@
                 placeholder="选择日期"
                 format="YYYY-MM-DD"
                 value-format="YYYY-MM-DD"
-                style="width: 100%"
+                class="w-full"
               />
             </el-form-item>
           </el-col>
@@ -239,7 +233,7 @@
                 :min="0"
                 :precision="2"
                 placeholder="请输入金额"
-                style="width: 100%"
+                class="w-full"
               />
             </el-form-item>
           </el-col>
@@ -328,10 +322,11 @@
     </el-dialog>
 
     <!-- 查看交易详情对话框 -->
-    <el-dialog
-      title="交易详情"
+    <AppDialog
       v-model="viewDialogVisible"
-      width="600px"
+      title="交易详情"
+      mode="view"
+      content-width="wide"
     >
       <div class="transaction-detail-header">
         <div class="detail-item">
@@ -356,7 +351,7 @@
         </div>
       </div>
 
-      <el-descriptions :column="2" border style="margin-top: 20px;">
+      <el-descriptions :column="2" border class="mt-20">
         <el-descriptions-item label="交易金额">
           <span :class="currentTransaction.type === 'income' ? 'amount-income' : 'amount-expense'">
             {{ formatCurrency(currentTransaction.amount) }}
@@ -367,7 +362,7 @@
         <el-descriptions-item label="凭证号">{{ currentTransaction.referenceNumber || '-' }}</el-descriptions-item>
         <el-descriptions-item label="交易描述" :span="2">{{ currentTransaction.description || '-' }}</el-descriptions-item>
       </el-descriptions>
-    </el-dialog>
+    </AppDialog>
   </div>
 </template>
 

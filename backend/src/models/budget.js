@@ -452,7 +452,7 @@ const budgetModel = {
       await connection.beginTransaction();
 
       const [budgets] = await connection.execute(
-        'SELECT id, status FROM budgets WHERE id = ? FOR UPDATE',
+        'SELECT id, status, created_by FROM budgets WHERE id = ? FOR UPDATE',
         [id]
       );
 
@@ -597,6 +597,13 @@ const budgetModel = {
       const normalizedStatus = getBudgetStatusValue(status);
 
       assertBudgetTransition(budgets[0].status, normalizedStatus);
+
+      if (
+        extraData.approved_by &&
+        Number(budgets[0].created_by) === Number(extraData.approved_by)
+      ) {
+        throw createBudgetError('预算制单人与审批人必须分离');
+      }
 
       if (isBudgetStatus(normalizedStatus, BUDGET_STATUS_CODE.PENDING_APPROVAL)) {
         const [detailCount] = await connection.execute(

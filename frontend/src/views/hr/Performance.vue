@@ -9,14 +9,9 @@
 <template>
   <div class="module-page page-container">
     <!-- 页面头部卡片 -->
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>绩效管理</h2>
-          <p class="subtitle">管理 KPI 指标库、考核周期与员工绩效评估</p>
-        </div>
-        <div class="operation-btns">
-          <el-radio-group v-model="activeTab" @change="onTabChange">
+    <PageHeader title="绩效管理" subtitle="管理 KPI 指标库、考核周期与员工绩效评估">
+      <template #actions>
+<el-radio-group v-model="activeTab" @change="onTabChange">
             <el-radio-button value="indicators">KPI指标库</el-radio-button>
             <el-radio-button value="periods">考核周期</el-radio-button>
             <el-radio-button value="evaluations">绩效评估</el-radio-button>
@@ -24,9 +19,8 @@
           <el-button v-if="activeTab === 'indicators'" type="primary" v-permission="'hr:performance:edit'" @click="openIndicatorForm()">新建指标</el-button>
           <el-button v-if="activeTab === 'periods'" type="primary" v-permission="'hr:performance:edit'" @click="openPeriodForm()">新建周期</el-button>
           <el-button v-if="activeTab === 'evaluations'" type="primary" v-permission="'hr:performance:edit'" @click="openEvalForm()">发起评估</el-button>
-        </div>
-      </div>
-    </el-card>
+      </template>
+    </PageHeader>
 
     <!-- 数据卡片 -->
     <el-card class="data-card">
@@ -87,7 +81,7 @@
           <el-table-column prop="employee_name" label="员工" width="120" />
           <el-table-column prop="period_name" label="考核周期" min-width="180" />
           <el-table-column prop="total_score" label="总分" width="80">
-            <template #default="{ row }"><span :style="{ color: row.total_score >= 80 ? 'var(--color-success)' : row.total_score >= 60 ? 'var(--color-warning)' : 'var(--color-danger)', fontWeight: 'bold' }">{{ row.total_score || '--' }}</span></template>
+            <template #default="{ row }"><span class="font-weight-700" :class="row.total_score >= 80 ? 'text-success' : row.total_score >= 60 ? 'text-warning' : 'text-danger'">{{ row.total_score || '--' }}</span></template>
           </el-table-column>
           <el-table-column prop="grade" label="等级" width="60">
             <template #default="{ row }"><el-tag v-if="row.grade" :type="gradeTag[row.grade] || 'info'" size="small">{{ row.grade }}</el-tag></template>
@@ -115,13 +109,13 @@
         <el-form-item label="编码" required><el-input v-model="indicatorForm.code" :disabled="!!indicatorForm.id" /></el-form-item>
         <el-form-item label="名称" required><el-input v-model="indicatorForm.name" /></el-form-item>
         <el-form-item label="分类">
-          <el-select v-model="indicatorForm.category" style="width:100%">
+          <el-select v-model="indicatorForm.category" class="w-full">
             <el-option v-for="(l,k) in catLabel" :key="k" :label="l" :value="k" />
           </el-select>
         </el-form-item>
         <el-row :gutter="16">
-          <el-col :span="12"><el-form-item label="权重(%)"><el-input-number v-model="indicatorForm.weight" :min="0" :max="100" style="width:100%" /></el-form-item></el-col>
-          <el-col :span="12"><el-form-item label="目标值"><el-input-number v-model="indicatorForm.target_value" style="width:100%" /></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="权重(%)"><el-input-number v-model="indicatorForm.weight" :min="0" :max="100" class="w-full" /></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="目标值"><el-input-number v-model="indicatorForm.target_value" class="w-full" /></el-form-item></el-col>
         </el-row>
         <el-form-item label="描述"><el-input v-model="indicatorForm.description" type="textarea" :rows="2" /></el-form-item>
       </el-form>
@@ -136,13 +130,13 @@
       <el-form :model="periodForm" label-width="90px">
         <el-form-item label="名称" required><el-input v-model="periodForm.name" /></el-form-item>
         <el-form-item label="类型">
-          <el-select v-model="periodForm.type" style="width:100%">
+          <el-select v-model="periodForm.type" class="w-full">
             <el-option v-for="(l,k) in periodTypeLabel" :key="k" :label="l" :value="k" />
           </el-select>
         </el-form-item>
         <el-row :gutter="16">
-          <el-col :span="12"><el-form-item label="开始日期" required><el-date-picker v-model="periodForm.start_date" type="date" value-format="YYYY-MM-DD" style="width:100%" /></el-form-item></el-col>
-          <el-col :span="12"><el-form-item label="结束日期" required><el-date-picker v-model="periodForm.end_date" type="date" value-format="YYYY-MM-DD" style="width:100%" /></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="开始日期" required><el-date-picker v-model="periodForm.start_date" type="date" value-format="YYYY-MM-DD" class="w-full" /></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="结束日期" required><el-date-picker v-model="periodForm.end_date" type="date" value-format="YYYY-MM-DD" class="w-full" /></el-form-item></el-col>
         </el-row>
       </el-form>
       <template #footer>

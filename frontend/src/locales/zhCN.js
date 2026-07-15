@@ -102,9 +102,15 @@ export default {
     productionReport: '生产报工',
     equipmentMonitoring: '设备监控',
     materialShortage: '缺料统计',
+    materialReadiness: '物料齐套检查',
     mrpPlanning: '生产需求',
     productionDataView: '生产数据看板',
     productionGantt: '排程甘特图',
+    productionCalendar: '生产日历',
+    productionAnomaly: '异常上报',
+    workStations: '工位管理',
+    processRoutes: '工序路线',
+    assemblyBoard: '装配看板',
 
     // 基础数据
     baseData: '基础数据',
@@ -247,6 +253,7 @@ export default {
     permissions: '权限设置',
     print: '打印设置',
     notifications: '通知管理',
+    notificationRules: '通知规则',
     technicalCommunication: '技术沟通',
     workflow: '工作流管理',
     codingRules: '编码规则',

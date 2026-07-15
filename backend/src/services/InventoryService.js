@@ -36,8 +36,7 @@ class InventoryService {
   static _isMissingBalanceTableError(error) {
     return (
       error &&
-      (error.code === 'ER_NO_SUCH_TABLE' ||
-        /inventory_stock_balances/i.test(error.message || ''))
+      (error.code === 'ER_NO_SUCH_TABLE' || /inventory_stock_balances/i.test(error.message || ''))
     );
   }
 
@@ -67,7 +66,9 @@ class InventoryService {
     } catch (error) {
       if (this._isMissingBalanceTableError(error)) {
         this.balanceTableAvailable = false;
-        logger.warn('inventory_stock_balances table is not available; using ledger-only stock checks');
+        logger.warn(
+          'inventory_stock_balances table is not available; using ledger-only stock checks'
+        );
         return false;
       }
       throw error;
@@ -75,7 +76,15 @@ class InventoryService {
   }
 
   static async _adjustStockBalance(
-    { materialId, locationId, batchNumber, quantity, unitCost = null, totalValue = null, ledgerId = null },
+    {
+      materialId,
+      locationId,
+      batchNumber,
+      quantity,
+      unitCost = null,
+      totalValue = null,
+      ledgerId = null,
+    },
     connection
   ) {
     if (this.balanceTableAvailable === false) {
@@ -86,6 +95,10 @@ class InventoryService {
     if (normalizedBatch === this.LOCATION_LOCK_BATCH) {
       return;
     }
+    const signedTotalValue =
+      totalValue === null || totalValue === undefined
+        ? null
+        : (Number(quantity) < 0 ? -1 : 1) * Math.abs(Number(totalValue) || 0);
 
     try {
       await connection.execute(
@@ -100,14 +113,125 @@ class InventoryService {
           version = version + 1,
           last_ledger_id = COALESCE(VALUES(last_ledger_id), last_ledger_id),
           updated_at = NOW()`,
-        [materialId, locationId, normalizedBatch, quantity, unitCost, totalValue, ledgerId]
+        [materialId, locationId, normalizedBatch, quantity, unitCost, signedTotalValue, ledgerId]
       );
       this.balanceTableAvailable = true;
     } catch (error) {
       if (this._isMissingBalanceTableError(error)) {
         this.balanceTableAvailable = false;
-        logger.warn('inventory_stock_balances table is not available; skipped stock balance maintenance');
+        logger.warn(
+          'inventory_stock_balances table is not available; skipped stock balance maintenance'
+        );
         return;
+      }
+      throw error;
+    }
+  }
+
+  static async rebuildStockBalancesForMaterial(materialId, connection) {
+    if (!connection) {
+      throw new Error('rebuildStockBalancesForMaterial必须在数据库事务中调用');
+    }
+    if (!materialId) {
+      throw new Error(`无效的物料ID: ${materialId}`);
+    }
+    if (this.balanceTableAvailable === false) {
+      return false;
+    }
+
+    try {
+      await connection.execute(
+        `INSERT INTO inventory_stock_balances (
+          material_id, location_id, batch_number, quantity, unit_cost, total_value,
+          version, last_ledger_id, created_at, updated_at
+        )
+        SELECT
+          material_id,
+          location_id,
+          batch_key AS batch_number,
+          SUM(COALESCE(quantity, 0)) AS quantity,
+          CASE
+            WHEN ABS(SUM(COALESCE(quantity, 0))) > 0.000001
+              THEN ABS(SUM(signed_total_value) / SUM(COALESCE(quantity, 0)))
+            ELSE NULL
+          END AS unit_cost,
+          SUM(signed_total_value) AS total_value,
+          1 AS version,
+          MAX(id) AS last_ledger_id,
+          NOW(),
+          NOW()
+        FROM (
+          SELECT id,
+                 material_id,
+                 location_id,
+                 COALESCE(NULLIF(batch_number, ''), '') COLLATE utf8mb4_unicode_ci AS batch_key,
+                 quantity,
+                 CASE
+                   WHEN COALESCE(quantity, 0) < 0 THEN -ABS(COALESCE(total_value, 0))
+                   ELSE ABS(COALESCE(total_value, 0))
+                 END AS signed_total_value
+          FROM inventory_ledger
+          WHERE material_id = ?
+            AND location_id IS NOT NULL
+        ) ledger_source
+        GROUP BY material_id, location_id, batch_key
+        ON DUPLICATE KEY UPDATE
+          quantity = VALUES(quantity),
+          unit_cost = VALUES(unit_cost),
+          total_value = VALUES(total_value),
+          version = version + 1,
+          last_ledger_id = VALUES(last_ledger_id),
+          updated_at = NOW()`,
+        [materialId]
+      );
+
+      await connection.execute(
+        `UPDATE inventory_stock_balances b
+         LEFT JOIN (
+           SELECT material_id,
+                  location_id,
+                  batch_key
+           FROM (
+             SELECT material_id,
+                    location_id,
+                    COALESCE(NULLIF(batch_number, ''), '') COLLATE utf8mb4_unicode_ci AS batch_key
+             FROM inventory_ledger
+             WHERE material_id = ?
+               AND location_id IS NOT NULL
+           ) ledger_source
+           GROUP BY material_id, location_id, batch_key
+         ) l
+           ON l.material_id = b.material_id
+          AND l.location_id = b.location_id
+          AND l.batch_key = b.batch_number COLLATE utf8mb4_unicode_ci
+            SET b.quantity = 0,
+                b.unit_cost = NULL,
+                b.total_value = 0,
+                b.version = b.version + 1,
+                b.last_ledger_id = NULL,
+                b.updated_at = NOW()
+          WHERE b.material_id = ?
+            AND b.batch_number <> ?
+            AND l.material_id IS NULL
+            AND (
+              ABS(COALESCE(b.quantity, 0)) > 0.000001
+              OR ABS(COALESCE(b.total_value, 0)) > 0.05
+              OR b.unit_cost IS NOT NULL
+              OR b.last_ledger_id IS NOT NULL
+            )`,
+        [materialId, materialId, this.LOCATION_LOCK_BATCH]
+      );
+
+      this.balanceTableAvailable = true;
+      await this.clearStockCache(materialId);
+      return true;
+    } catch (error) {
+      if (this._isMissingBalanceTableError(error)) {
+        this.balanceTableAvailable = false;
+        logger.warn(
+          'inventory_stock_balances table is not available; skipped stock balance rebuild'
+        );
+        return false;
       }
       throw error;
     }
@@ -141,6 +265,103 @@ class InventoryService {
     }
   }
 
+  static _positiveNumber(...values) {
+    for (const value of values) {
+      if (value === null || value === undefined || value === '') continue;
+      const numberValue = Number(value);
+      if (Number.isFinite(numberValue) && numberValue > 0) return numberValue;
+    }
+    return 0;
+  }
+
+  static async _getMaterialCost(materialId, connection) {
+    const [rows] = await connection.execute(
+      `SELECT m.cost_price,
+              CASE
+                WHEN ms.type = 'external' OR m.material_type = 'raw' THEN m.price
+                ELSE NULL
+              END AS external_reference_price,
+              (
+                SELECT sc.standard_price
+                FROM standard_costs sc
+                WHERE (sc.material_id = m.id OR sc.product_id = m.id)
+                  AND sc.status = 'active'
+                  AND sc.is_active = 1
+                  AND sc.standard_price > 0
+                  AND sc.effective_date <= CURDATE()
+                  AND (sc.expiry_date IS NULL OR sc.expiry_date >= CURDATE())
+                ORDER BY sc.effective_date DESC, sc.id DESC
+                LIMIT 1
+              ) AS active_standard_cost
+       FROM materials m
+       LEFT JOIN material_sources ms ON ms.id = m.material_source_id
+       WHERE m.id = ? AND m.deleted_at IS NULL`,
+      [materialId]
+    );
+    return this._positiveNumber(
+      rows[0]?.cost_price,
+      rows[0]?.active_standard_cost,
+      rows[0]?.external_reference_price
+    );
+  }
+
+  static async _getBatchUnitCost({ materialId, locationId, batchNumber }, connection) {
+    if (!batchNumber) return 0;
+    const [rows] = await connection.execute(
+      `SELECT
+         SUM(CASE WHEN quantity > 0 THEN quantity * COALESCE(NULLIF(unit_cost, 0), NULLIF(total_value / NULLIF(quantity, 0), 0), 0) ELSE 0 END)
+           / NULLIF(SUM(CASE WHEN quantity > 0 THEN quantity ELSE 0 END), 0) AS unit_cost
+       FROM inventory_ledger
+       WHERE material_id = ?
+         AND location_id = ?
+         AND batch_number = ?`,
+      [materialId, locationId, batchNumber]
+    );
+    return this._positiveNumber(rows[0]?.unit_cost);
+  }
+
+  static async _getReferenceUnitCost({ materialId, referenceNo, referenceType }, connection) {
+    const refType = String(referenceType || '').toLowerCase();
+    const refNo = referenceNo || null;
+    if (!refNo) return 0;
+
+    if (refType === 'purchase_receipt' || refType === 'inbound') {
+      const [rows] = await connection.execute(
+        `SELECT pri.price AS receipt_price, poi.price AS order_price
+         FROM purchase_receipts pr
+         LEFT JOIN purchase_receipt_items pri
+           ON pri.receipt_id = pr.id AND pri.material_id = ?
+         LEFT JOIN purchase_order_items poi
+           ON poi.order_id = pr.order_id AND poi.material_id = ?
+         WHERE pr.receipt_no = ? OR pr.receipt_no = (
+           SELECT receipt_no FROM inventory_ledger
+           WHERE reference_no = ? AND material_id = ? AND receipt_no IS NOT NULL
+           LIMIT 1
+         )
+         LIMIT 1`,
+        [materialId, materialId, refNo, refNo, materialId]
+      );
+      return this._positiveNumber(rows[0]?.receipt_price, rows[0]?.order_price);
+    }
+
+    // 销售出库价格和销售订单单价是售价，绝不能作为库存成本来源。
+    if (refType === 'sales_outbound') return 0;
+
+    return 0;
+  }
+
+  static async _resolveUnitCost(
+    { materialId, locationId, batchNumber, referenceNo, referenceType, unitCost },
+    connection
+  ) {
+    return this._positiveNumber(
+      unitCost,
+      await this._getBatchUnitCost({ materialId, locationId, batchNumber }, connection),
+      await this._getReferenceUnitCost({ materialId, referenceNo, referenceType }, connection),
+      await this._getMaterialCost(materialId, connection)
+    );
+  }
+
   static normalizeTransactionDate(value) {
     const date = value ? new Date(value) : new Date();
     if (Number.isNaN(date.getTime())) {
@@ -149,10 +370,7 @@ class InventoryService {
     return date.toISOString().slice(0, 10);
   }
 
-  static async resolveTransactionDate(
-    { transactionDate, referenceType, referenceNo },
-    connection
-  ) {
+  static async resolveTransactionDate({ transactionDate, referenceType, referenceNo }, connection) {
     if (transactionDate) {
       return this.normalizeTransactionDate(transactionDate);
     }
@@ -165,15 +383,43 @@ class InventoryService {
 
     const sourceMap = {
       inbound: { table: 'inventory_inbound', noColumn: 'inbound_no', dateColumn: 'inbound_date' },
-      outbound: { table: 'inventory_outbound', noColumn: 'outbound_no', dateColumn: 'outbound_date' },
-      transfer: { table: 'inventory_transfers', noColumn: 'transfer_no', dateColumn: 'transfer_date' },
-      inventory_check: { table: 'inventory_checks', noColumn: 'check_no', dateColumn: 'check_date' },
+      outbound: {
+        table: 'inventory_outbound',
+        noColumn: 'outbound_no',
+        dateColumn: 'outbound_date',
+      },
+      transfer: {
+        table: 'inventory_transfers',
+        noColumn: 'transfer_no',
+        dateColumn: 'transfer_date',
+      },
+      inventory_check: {
+        table: 'inventory_checks',
+        noColumn: 'check_no',
+        dateColumn: 'check_date',
+      },
       check: { table: 'inventory_checks', noColumn: 'check_no', dateColumn: 'check_date' },
-      purchase_receipt: { table: 'purchase_receipts', noColumn: 'receipt_no', dateColumn: 'receipt_date' },
-      purchase_return: { table: 'purchase_returns', noColumn: 'return_no', dateColumn: 'return_date' },
-      sales_outbound: { table: 'sales_outbound', noColumn: 'outbound_no', dateColumn: 'delivery_date' },
+      purchase_receipt: {
+        table: 'purchase_receipts',
+        noColumn: 'receipt_no',
+        dateColumn: 'receipt_date',
+      },
+      purchase_return: {
+        table: 'purchase_returns',
+        noColumn: 'return_no',
+        dateColumn: 'return_date',
+      },
+      sales_outbound: {
+        table: 'sales_outbound',
+        noColumn: 'outbound_no',
+        dateColumn: 'delivery_date',
+      },
       sales_return: { table: 'sales_returns', noColumn: 'return_no', dateColumn: 'return_date' },
-      sales_exchange: { table: 'sales_exchanges', noColumn: 'exchange_no', dateColumn: 'exchange_date' },
+      sales_exchange: {
+        table: 'sales_exchanges',
+        noColumn: 'exchange_no',
+        dateColumn: 'exchange_date',
+      },
       scrap_record: { table: 'scrap_records', noColumn: 'scrap_no', dateColumn: 'scrap_date' },
     };
     const source = sourceMap[refType];
@@ -235,20 +481,42 @@ class InventoryService {
         }
       }
 
-      const lockSql = withLock ? ' FOR UPDATE' : '';
       if (withLock && connection) {
         await this._lockStockLocation(materialId, locationId, connection);
       }
 
-      // 直接从 inventory_ledger 表计算当前库存
-      const [result] = await conn.execute(
-        `SELECT COALESCE(SUM(quantity), 0) as current_stock
-         FROM inventory_ledger
-         WHERE material_id = ? AND location_id = ?${lockSql}`,
-        [materialId, locationId]
-      );
+      // 优先读 balance 表（写路径已维护）；缺失表或异常时回退 ledger SUM
+      let quantity = null;
+      if (this.balanceTableAvailable !== false) {
+        try {
+          const [balRows] = await conn.execute(
+            `SELECT COALESCE(SUM(quantity), 0) as current_stock
+             FROM inventory_stock_balances
+             WHERE material_id = ? AND location_id = ?
+               AND batch_number <> ?`,
+            [materialId, locationId, this.LOCATION_LOCK_BATCH]
+          );
+          quantity = parseFloat(balRows[0].current_stock);
+          this.balanceTableAvailable = true;
+        } catch (error) {
+          if (this._isMissingBalanceTableError(error)) {
+            this.balanceTableAvailable = false;
+          } else {
+            throw error;
+          }
+        }
+      }
 
-      const quantity = parseFloat(result[0].current_stock);
+      if (quantity === null) {
+        const lockSql = withLock ? ' FOR UPDATE' : '';
+        const [result] = await conn.execute(
+          `SELECT COALESCE(SUM(quantity), 0) as current_stock
+           FROM inventory_ledger
+           WHERE material_id = ? AND location_id = ?${lockSql}`,
+          [materialId, locationId]
+        );
+        quantity = parseFloat(result[0].current_stock);
+      }
 
       // 缓存结果（5分钟过期），仅在非事务模式下缓存
       if (effectiveUseCache) {
@@ -279,20 +547,59 @@ class InventoryService {
     }
 
     try {
-      // 构建批量查询条件
       const conditions = materialLocationPairs
         .map(() => '(material_id = ? AND location_id = ?)')
         .join(' OR ');
       const params = materialLocationPairs.flatMap((pair) => [pair.material_id, pair.location_id]);
 
-      // 一次性查询所有库存
-      const [results] = await conn.execute(
-        `SELECT material_id, location_id, COALESCE(SUM(quantity), 0) as quantity
-         FROM inventory_ledger
-         WHERE ${conditions}
-         GROUP BY material_id, location_id`,
-        params
-      );
+      let results = [];
+      if (this.balanceTableAvailable !== false) {
+        try {
+          const balParams = [...params, this.LOCATION_LOCK_BATCH];
+          const [balRows] = await conn.execute(
+            `SELECT material_id, location_id, COALESCE(SUM(quantity), 0) as quantity
+             FROM inventory_stock_balances
+             WHERE (${conditions}) AND batch_number <> ?
+             GROUP BY material_id, location_id`,
+            balParams
+          );
+          results = balRows;
+          this.balanceTableAvailable = true;
+        } catch (error) {
+          if (this._isMissingBalanceTableError(error)) {
+            this.balanceTableAvailable = false;
+          } else {
+            throw error;
+          }
+        }
+      }
+
+      if (this.balanceTableAvailable === false || results.length === 0) {
+        // 回退台账，或 balance 无行时补 ledger（无行也可能真是 0 库存）
+        const [ledgerRows] = await conn.execute(
+          `SELECT material_id, location_id, COALESCE(SUM(quantity), 0) as quantity
+           FROM inventory_ledger
+           WHERE ${conditions}
+           GROUP BY material_id, location_id`,
+          params
+        );
+        if (this.balanceTableAvailable === false) {
+          results = ledgerRows;
+        } else {
+          // balance 可用但部分键无行：用 ledger 补全
+          const map = new Map(
+            results.map((r) => [`${r.material_id}-${r.location_id}`, parseFloat(r.quantity)])
+          );
+          ledgerRows.forEach((r) => {
+            const key = `${r.material_id}-${r.location_id}`;
+            if (!map.has(key)) map.set(key, parseFloat(r.quantity));
+          });
+          results = [...map.entries()].map(([key, quantity]) => {
+            const [material_id, location_id] = key.split('-').map(Number);
+            return { material_id, location_id, quantity };
+          });
+        }
+      }
 
       // 补充没有记录的物料-库位组合
       const resultMap = new Map();
@@ -414,7 +721,7 @@ class InventoryService {
       );
       const PeriodValidationService = require('./business/PeriodValidationService');
       const inventoryCheck =
-        await PeriodValidationService.validateInventoryTransaction(resolvedTransactionDate);
+        await PeriodValidationService.validateInventoryTransaction(resolvedTransactionDate, connection);
       if (!inventoryCheck.allowed) {
         throw new Error(inventoryCheck.message);
       }
@@ -426,10 +733,23 @@ class InventoryService {
 
       // 3. 计算变动数量（统一为正数入库，负数出库）
       // 防御性取反：当调用方不慎传了正数的出库类型时，自动修正为负数
+      // 仅「业务方向为减少库存」的类型在误传正数时取反。
+      // 冲销类需注意方向：
+      //   outbound_cancel / transfer_cancel_out → 加回库存（不要取反）
+      //   inbound_cancel / transfer_cancel_in   → 扣回库存
       const OUTBOUND_TYPES = [
-        'outbound', 'transfer_out', 'purchase_return',
-        'manual_out', 'sales_outbound', 'production_outbound',
-        'outsourced_outbound', 'sales_exchange_out', 'adjustment_out', 'other_outbound',
+        'outbound',
+        'transfer_out',
+        'purchase_return',
+        'manual_out',
+        'sales_outbound',
+        'production_outbound',
+        'outsourced_outbound',
+        'sales_exchange_out',
+        'adjustment_out',
+        'other_outbound',
+        'inbound_cancel',
+        'transfer_cancel_in',
       ];
       let changeQuantity = parseFloat(quantity);
       if (OUTBOUND_TYPES.includes(transactionType) && changeQuantity > 0) {
@@ -453,14 +773,13 @@ class InventoryService {
       }
       // 如果允许负库存并且真实发生负库存，打印警告
       if (afterQuantity < 0 && allowNegativeStock && changeQuantity < 0) {
-        logger.warn(`[库存警告] 允许负库存出库: 物料${materialId} @ ${locationId}, 当前${beforeQuantity}, 出库${Math.abs(changeQuantity)}, 变动后${afterQuantity}`);
+        logger.warn(
+          `[库存警告] 允许负库存出库: 物料${materialId} @ ${locationId}, 当前${beforeQuantity}, 出库${Math.abs(changeQuantity)}, 变动后${afterQuantity}`
+        );
       }
 
       // 6. 验证物料和库位是否存在
       await this._validateMaterialAndLocation(materialId, locationId, connection);
-
-      // 6.5 记录交易单价 (不再反写物料主数据的 cost_price，遵照标准成本法)
-      const actualUnitCost = unitCost !== null ? parseFloat(unitCost) : 0;
 
       // FIFO批次处理：如果是扣减库存且没有提供批次号，则自动按FIFO拆分批次
       let finalBatchNumbers = [];
@@ -520,6 +839,7 @@ class InventoryService {
 
       // 7. 插入库存台账记录（如果按FIFO拆分，会有多条记录，累积计算 before/after）
       let currentBefore = beforeQuantity;
+      let lastLedgerId = null;
 
       for (const batchInfo of finalBatchNumbers) {
         // 还原当前批次的实际变动量（正负号）
@@ -529,6 +849,24 @@ class InventoryService {
           idempotencyKey && finalBatchNumbers.length > 1
             ? `${idempotencyKey}:${batchInfo.batchNumber}`
             : idempotencyKey;
+        const actualUnitCost = await this._resolveUnitCost(
+          {
+            materialId,
+            locationId,
+            batchNumber: batchInfo.batchNumber,
+            referenceNo,
+            referenceType,
+            unitCost,
+          },
+          connection
+        );
+
+        if (!(Number(actualUnitCost) > 0)) {
+          throw new Error(
+            `库存变动缺少有效成本：materialId=${materialId}, referenceNo=${referenceNo}, ` +
+              `transactionType=${transactionType}, batch=${batchInfo.batchNumber || ''}`
+          );
+        }
 
         // 计算流水账总金额
         const currentTotalValue = Precision.round(
@@ -576,9 +914,10 @@ class InventoryService {
             purchaseOrderNo,
             receiptId,
             receiptNo,
-            ledgerIdempotencyKey
+            ledgerIdempotencyKey,
           ]
         );
+        lastLedgerId = ledgerResult.insertId || lastLedgerId;
         await this._adjustStockBalance(
           {
             materialId,
@@ -620,8 +959,8 @@ class InventoryService {
         beforeQuantity,
         afterQuantity,
         changeQuantity,
-        // 由于可能拆分为多条FIFO记录，这里不再返回单一的 transactionId
-        // 如果调用方确实需要，可以在调用方通过其他方式查询，或者这里返回最后一笔的 ID（目前业务不需要这个具体的 insertId）
+        // FIFO 拆分时返回最后一笔台账 id，供调整单等调用方关联财务分录
+        transactionId: lastLedgerId,
         duration,
       };
     } catch (error) {
@@ -703,7 +1042,7 @@ class InventoryService {
     // 2. 查询刚才 transfer_out 写入的台账，取回被 FIFO 拆分的各批次
     //    用于向目标库位写入完全对应的批次，保证批次追溯双向一致
     const [outLedger] = await connection.execute(
-      `SELECT batch_number, ABS(quantity) as qty
+      `SELECT batch_number, ABS(quantity) as qty, unit_cost
        FROM inventory_ledger
        WHERE material_id = ? AND location_id = ?
          AND reference_no = ? AND transaction_type = 'transfer_out'
@@ -727,6 +1066,7 @@ class InventoryService {
             remark: `${remark} (转入)`,
             unitId,
             batchNumber: row.batch_number, // ✅ 继承原批次
+            unitCost: row.unit_cost,
           },
           connection
         );
@@ -756,7 +1096,6 @@ class InventoryService {
       sourceResult,
     };
   }
-
 
   /**
    * 验证库存是否充足
@@ -918,10 +1257,11 @@ class InventoryService {
     const conn = connection || db.pool;
 
     try {
+      // 仅统计 active 预留，与 InventoryReservationService 一致（已 released 不占可用量）
       const [result] = await conn.execute(
         `SELECT COALESCE(SUM(reserved_quantity), 0) as reserved
          FROM inventory_reservations
-         WHERE material_id = ? AND location_id = ?`,
+         WHERE material_id = ? AND location_id = ? AND status = 'active'`,
         [materialId, locationId]
       );
 
@@ -940,11 +1280,11 @@ class InventoryService {
       // 清除指定物料和库位的缓存
       const cacheKey = `inventory_${materialId}_${locationId}`;
       await cacheService.delete(cacheKey);
-      logger.info(`[缓存清理] 已清除: ${cacheKey}`);
+      logger.debug(`Inventory cache cleared: key=${cacheKey}`);
     } else {
       // 清除该物料的所有缓存
       await cacheService.deleteByPrefix(`inventory_${materialId}_`);
-      logger.info(`[缓存清理] 已清除所有库存缓存: inventory_${materialId}_*`);
+      logger.debug(`Inventory caches cleared for material: materialId=${materialId}`);
     }
   }
   /**
@@ -976,9 +1316,7 @@ class InventoryService {
 
     const locationId = rows[0].location_id;
     if (!locationId) {
-      throw new Error(
-        `物料 ${materialId} 未配置默认仓库，请在【物料管理】中设置存放仓库后再操作`
-      );
+      throw new Error(`物料 ${materialId} 未配置默认仓库，请在【物料管理】中设置存放仓库后再操作`);
     }
 
     return locationId;

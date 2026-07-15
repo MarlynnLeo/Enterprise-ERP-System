@@ -9,7 +9,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { salesApi, baseDataApi } from '@/api'
 import { parseListData } from '@/utils/responseParser'
 import { searchMaterials } from '@/utils/searchConfig'
-import { loadCustomerOptions, searchCustomerOptions } from '@/utils/optionLoaders'
+import { loadCustomerOptions, searchCustomerOptions, loadMaterialOptions } from '@/utils/optionLoaders'
 import { checkInventory } from '@/composables/useInventoryCheck'
 import { useFinanceStore } from '@/stores/finance'
 import { storeToRefs } from 'pinia'
@@ -162,23 +162,21 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
 
   // ========== 客户操作 ==========
 
+  const mapCustomerOption = (customer) => ({
+    id: customer.id,
+    code: customer.code || customer.customer_code || `C${customer.id}`,
+    name: customer.name,
+    contact_person: customer.contact_person,
+    contact_phone: customer.contact_phone || customer.phone,
+    address: customer.address
+  })
+
   const fetchCustomers = async () => {
     try {
+      // 拉全量启用客户，不再被 pageSize=50 截断
       const customersData = await loadCustomerOptions()
-      if (customersData.length > 0) {
-        customers.value = customersData.map(customer => ({
-          id: customer.id,
-          code: customer.code || customer.customer_code || `C${customer.id}`,
-          name: customer.name,
-          contact_person: customer.contact_person,
-          contact_phone: customer.contact_phone,
-          address: customer.address
-        }))
-        filteredCustomers.value = [...customers.value]
-      } else {
-        customers.value = []
-        filteredCustomers.value = []
-      }
+      customers.value = (customersData || []).map(mapCustomerOption)
+      filteredCustomers.value = [...customers.value]
     } catch (error) {
       console.error('获取客户数据失败:', error)
       ElMessage.error('获取客户数据失败')
@@ -191,20 +189,12 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
     customerSearchLoading.value = true
     const keyword = String(query || '').trim()
     ;(async () => {
-      if (query) {
-        const remoteCustomers = await searchCustomerOptions(keyword)
-        customers.value = remoteCustomers.map(customer => ({
-          id: customer.id,
-          code: customer.code || customer.customer_code || `C${customer.id}`,
-          name: customer.name,
-          contact_person: customer.contact_person,
-          contact_phone: customer.contact_phone,
-          address: customer.address
-        }))
-        filteredCustomers.value = [...customers.value]
-      } else {
-        await fetchCustomers()
-      }
+      // 无关键字：拉全量启用客户；有关键字：服务端按编码/名称搜
+      const remoteCustomers = keyword
+        ? await searchCustomerOptions(keyword)
+        : await loadCustomerOptions()
+      customers.value = remoteCustomers.map(mapCustomerOption)
+      filteredCustomers.value = [...customers.value]
       customerSearchLoading.value = false
     })().catch(error => {
       console.error('搜索客户失败:', error)
@@ -534,12 +524,9 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
     if (products.value.length === 0) {
       try {
         materialsLoading.value = true
-        const materialsRes = await baseDataApi.getMaterials({ pageSize: 50, page: 1 })
-        const resData = materialsRes.data
-        const materialsData = Array.isArray(resData) ? resData
-          : Array.isArray(resData?.list) ? resData.list
-          : Array.isArray(resData?.data) ? resData.data : []
-        products.value = materialsData.map(material => ({
+        // 与客户下拉一致：分页拉全量启用物料，避免只显示 50 条
+        const materialsData = await loadMaterialOptions()
+        products.value = (materialsData || []).map(material => ({
           id: material.id, code: material.code || '', value: material.code || '',
           name: material.name || '', material_name: material.name || '',
           specs: material.specs || material.specification || '',

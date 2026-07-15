@@ -8,15 +8,11 @@
 -->
 <template>
   <div class="module-page inventory-transfer-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>库存调拨管理</h2>
-          <p class="subtitle">管理库存调拨与转移</p>
-        </div>
-        <el-button type="primary" :icon="Plus" @click="openTransferDialog()">新建调拨单</el-button>
-      </div>
-    </el-card>
+    <PageHeader title="库存调拨管理" subtitle="管理库存调拨与转移">
+      <template #actions>
+<el-button type="primary" :icon="Plus" @click="openTransferDialog()">新建调拨单</el-button>
+      </template>
+    </PageHeader>
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
@@ -106,7 +102,7 @@
         v-loading="loading"
         :data="transferList"
         border
-        style="width: 100%"
+        class="w-full"
         @selection-change="handleSelectionChange"
       >
         <template #empty>
@@ -171,7 +167,7 @@
                 </template>
               </el-dropdown>
 
-              <el-button size="small" @click="viewTransfer(scope.row.id)">
+              <el-button class="btn-op-view" type="primary" size="small" @click="viewTransfer(scope.row.id)">
                 查看
               </el-button>
 
@@ -222,7 +218,7 @@
                 type="date"
                 placeholder="选择调拨日期"
                 value-format="YYYY-MM-DD"
-                style="width: 100%"
+                class="w-full"
               />
             </el-form-item>
           </el-col>
@@ -231,7 +227,7 @@
               <el-select
                 v-model="transferForm.from_location_id"
                 placeholder="选择源库位"
-                style="width: 100%"
+                class="w-full"
                 filterable
                 @change="handleFromLocationChange"
               >
@@ -252,7 +248,7 @@
               <el-select
                 v-model="transferForm.to_location_id"
                 placeholder="选择目标库位"
-                style="width: 100%"
+                class="w-full"
                 filterable
               >
                 <el-option
@@ -288,13 +284,13 @@
           </el-button>
         </div>
 
-        <el-table :data="transferForm.items" border style="width: 100%">
+        <el-table :data="transferForm.items" border class="w-full">
           <el-table-column label="物料" min-width="200">
             <template #default="{ row, $index }">
               <el-select
                 v-model="row.material_id"
                 placeholder="请选择或输入关键字搜索"
-                style="width: 100%"
+                class="w-full"
                 filterable
                 remote
                 reserve-keyword
@@ -327,7 +323,7 @@
                 :min="0.01"
                 :max="row.available_stock || 999999"
                 step="0.01"
-                style="width: 100%"
+                class="w-full"
               />
             </template>
           </el-table-column>
@@ -366,10 +362,11 @@
     </el-dialog>
 
     <!-- 查看调拨单详情对话框 -->
-    <el-dialog
-      title="调拨单详情"
+    <AppDialog
       v-model="viewDialogVisible"
-      width="50%"
+      title="调拨单详情"
+      mode="view"
+      content-width="wide"
     >
       <div v-loading="detailLoading" id="print-section">
         <el-descriptions :column="3" border>
@@ -384,7 +381,7 @@
           <el-descriptions-item label="备注" :span="3">{{ transferDetail.remarks || '无' }}</el-descriptions-item>
         </el-descriptions>
 
-        <h3 style="margin-top: 20px;">物料明细</h3>
+        <h3 class="mt-20">物料明细</h3>
         <el-table :data="transferDetail.items || []" border style="width: 100%; margin-top: 10px;">
           <el-table-column type="index" label="序号" width="50"></el-table-column>
           <el-table-column prop="material_code" label="物料编码" min-width="150" show-overflow-tooltip></el-table-column>
@@ -400,7 +397,7 @@
           <el-button @click="viewDialogVisible = false">关闭</el-button>
         </div>
       </template>
-    </el-dialog>
+    </AppDialog>
   </div>
 </template>
 

@@ -1,13 +1,8 @@
 <template>
   <div class="module-page production-gantt-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>排程甘特图</h2>
-          <p class="subtitle">按生产组查看任务排程、延期和日期异常</p>
-        </div>
-        <div class="page-actions">
-          <el-date-picker
+    <PageHeader title="排程甘特图" subtitle="按生产组查看任务排程、延期和日期异常">
+      <template #actions>
+<el-date-picker
             v-model="dateRange"
             class="range-picker"
             type="daterange"
@@ -21,9 +16,8 @@
           />
           <el-button :icon="Refresh" :loading="loading" @click="fetchGanttData">刷新</el-button>
           <el-button type="primary" @click="goToTask">任务排程</el-button>
-        </div>
-      </div>
-    </el-card>
+      </template>
+    </PageHeader>
 
     <div class="gantt-summary" v-if="hasData || meta.generatedAt">
       <div class="summary-item">
@@ -133,7 +127,7 @@
           :max="160"
           :step="5"
           :show-tooltip="false"
-          style="width: 120px;"
+          class="form-control-sm"
         />
         <span class="zoom-label">{{ dayColumnWidth }}px</span>
       </div>

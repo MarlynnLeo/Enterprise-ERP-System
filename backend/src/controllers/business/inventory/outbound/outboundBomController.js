@@ -296,6 +296,7 @@ const supplementOutbound = async (req, res) => {
       // 补发时正常扣减库存
       logger.info(`物料 ${materialName} 补发扣减库存: ${supplementQty}`);
 
+      const refNo = `${originalOutbound.outbound_no}-补发`;
       await InventoryService.updateStock(
         {
           materialId: item.material_id,
@@ -303,9 +304,10 @@ const supplementOutbound = async (req, res) => {
           quantity: -supplementQty,
           transactionType: 'outbound',
           referenceType: 'outbound_supplement',
-          referenceNo: originalOutbound.outbound_no + '-补发',
+          referenceNo: refNo,
           operator: 'system',
           remark: `补发: ${remark || ''}`,
+          idempotencyKey: `outbound_supplement:${refNo}:${item.material_id}:${locationId}:${supplementQty}:${item.outbound_item_id}`,
         },
         connection
       );
@@ -329,12 +331,18 @@ const supplementOutbound = async (req, res) => {
         ['completed', id]
       );
 
-      // 更新生产任务状态为已发料
+      // 更新生产任务状态为已发料（走生命周期状态机）
       if (originalOutbound.reference_type === 'production_task' && originalOutbound.reference_id) {
-        await connection.execute('UPDATE production_tasks SET status = ? WHERE id = ? AND deleted_at IS NULL', [
-          'material_issued',
-          originalOutbound.reference_id,
-        ]);
+        const { promoteTaskStatus } = require('../../../../services/business/TaskLifecycleService');
+        await promoteTaskStatus(connection, originalOutbound.reference_id, 'material_issued', {
+          onlyFrom: [
+            'pending',
+            'allocated',
+            'preparing',
+            'material_issuing',
+            'material_partial_issued',
+          ],
+        });
         logger.info(
           `生产任务 ${originalOutbound.reference_id} 状态已更新为 material_issued (补发完成)`
         );
@@ -364,7 +372,7 @@ const supplementOutbound = async (req, res) => {
           const currentStatus = taskStatus[0].status;
 
           // 使用服务创建生产过程记录
-          const ProductionProcessService = require('../../../services/business/ProductionProcessService');
+          const ProductionProcessService = require('../../../../services/business/ProductionProcessService');
           const processRemarks = allFulfilled ? '补发完成后自动创建' : '补发后自动创建（部分发料）';
 
           await ProductionProcessService.createProductionProcessIfNeeded(
@@ -414,7 +422,7 @@ const batchOutbound = async (req, res) => {
 
     // ===== 年度结存校验 =====
     const dateToCheck = outbound_date || new Date().toISOString().split('T')[0];
-    const PeriodValidationService = require('../../../services/business/PeriodValidationService');
+    const PeriodValidationService = require('../../../../services/business/PeriodValidationService');
     const inventoryCheck = await PeriodValidationService.validateInventoryTransaction(dateToCheck);
     if (!inventoryCheck.allowed) {
       await connection.rollback();
@@ -530,10 +538,11 @@ const batchOutbound = async (req, res) => {
     }
 
     // 5. 创建出库单
+    const createdBy = req.user?.id || req.user?.userId || null;
     const [outboundResult] = await connection.execute(
       `INSERT INTO inventory_outbound
-        (outbound_no, outbound_date, status, outbound_type, remark, operator, reference_type, source_task_ids, is_batch_outbound, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+        (outbound_no, outbound_date, status, outbound_type, remark, operator, reference_type, source_task_ids, is_batch_outbound, created_by, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
       [
         outboundNo,
         formattedOutboundDate,
@@ -544,6 +553,7 @@ const batchOutbound = async (req, res) => {
         'batch_production_tasks',
         JSON.stringify(task_ids),
         1,
+        createdBy,
       ]
     );
 

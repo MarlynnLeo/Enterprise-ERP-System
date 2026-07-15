@@ -79,7 +79,7 @@
   --van-picker-background: var(--bg-secondary);
   --van-tabbar-background: #ffffff;
   --van-tabbar-item-text-color: var(--text-secondary);
-  --van-tabbar-item-active-color: var(--color-success);
+  --van-tabbar-item-active-color: var(--color-primary);
 
   --status-pending: #b7791f;
   --status-in-progress: #1f4e79;

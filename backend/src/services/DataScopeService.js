@@ -1,3 +1,15 @@
+/**
+ * DataScopeService — 行级数据范围 SSOT
+ *
+ * DATA_SCOPE:
+ *   1 ALL | 2 DEPT_AND_CHILDREN | 3 DEPT | 4 SELF | 5 CUSTOM
+ *
+ * 安全约定（根源修复）：
+ * - 未解析到 scope 时不得按 ALL 放行
+ * - 列表与单记录使用同一套 owner/location 规则
+ * - operator 等字符串字段不参与授权
+ */
+
 const { pool } = require('../config/db');
 const { logger } = require('../utils/logger');
 
@@ -12,7 +24,13 @@ const DATA_SCOPE = {
 class DataScopeService {
   static async getUserDataScope(userId) {
     if (!userId) {
-      return { type: DATA_SCOPE.SELF, userId: null, departmentId: null, departmentIds: [], locationIds: [] };
+      return {
+        type: DATA_SCOPE.SELF,
+        userId: null,
+        departmentId: null,
+        departmentIds: [],
+        locationIds: [],
+      };
     }
 
     const [users] = await pool.execute(
@@ -30,13 +48,26 @@ class DataScopeService {
     );
 
     if (roles.some((role) => role.code === 'admin')) {
-      return { type: DATA_SCOPE.ALL, userId, departmentId: user.department_id, departmentIds: [], locationIds: [] };
+      return {
+        type: DATA_SCOPE.ALL,
+        userId,
+        departmentId: user.department_id,
+        departmentIds: [],
+        locationIds: [],
+      };
     }
 
     const roleScopes = roles.map((role) => Number(role.data_scope || DATA_SCOPE.SELF));
+    // 多角色取最宽（数值最小）
     const type = roleScopes.length ? Math.min(...roleScopes) : DATA_SCOPE.SELF;
     if (type === DATA_SCOPE.ALL) {
-      return { type, userId, departmentId: user.department_id, departmentIds: [], locationIds: [] };
+      return {
+        type,
+        userId,
+        departmentId: user.department_id,
+        departmentIds: [],
+        locationIds: [],
+      };
     }
 
     const roleIds = roles.map((role) => role.id);
@@ -114,8 +145,9 @@ class DataScopeService {
     }
   }
 
+  /** 仅显式 ALL 才放行；null/undefined 视为非 ALL（失败关闭） */
   static isAllScope(scope) {
-    return !scope || Number(scope.type) === DATA_SCOPE.ALL;
+    return Boolean(scope) && Number(scope.type) === DATA_SCOPE.ALL;
   }
 
   static getUserId(req) {
@@ -124,7 +156,16 @@ class DataScopeService {
 
   static async attachRequestScope(req) {
     const userId = this.getUserId(req);
-    if (!userId) return null;
+    if (!userId) {
+      req.authzScope = {
+        type: DATA_SCOPE.SELF,
+        userId: null,
+        departmentId: null,
+        departmentIds: [],
+        locationIds: [],
+      };
+      return req.authzScope;
+    }
     const scope = await this.getUserDataScope(userId);
     req.authzScope = scope;
     return scope;
@@ -137,7 +178,18 @@ class DataScopeService {
     return scope;
   }
 
+  /**
+   * 构建列表 SQL 作用域
+   * options:
+   *  - tableAlias, ownerColumn, ownerAlias
+   *  - locationColumn + includeLocation：CUSTOM 时叠加库位过滤
+   */
   static buildOwnerScopeClause(scope, options = {}) {
+    // 无 scope → 拒绝（失败关闭）
+    if (!scope) {
+      return { join: '', where: ' AND 1 = 0', params: [] };
+    }
+
     if (this.isAllScope(scope)) {
       return { join: '', where: '', params: [] };
     }
@@ -145,10 +197,16 @@ class DataScopeService {
     const tableAlias = options.tableAlias || 't';
     const ownerColumn = options.ownerColumn || 'created_by';
     const ownerAlias = options.ownerAlias || `${tableAlias}_owner_scope`;
+    const locationColumn = options.locationColumn || null;
+    const includeLocation = Boolean(options.includeLocation && locationColumn);
     const q = (identifier) => `\`${String(identifier).replace(/`/g, '``')}\``;
     const ownerExpr = `${tableAlias}.${q(ownerColumn)}`;
 
+    // SELF：仅本人
     if (Number(scope.type) === DATA_SCOPE.SELF) {
+      if (!scope.userId) {
+        return { join: '', where: ' AND 1 = 0', params: [] };
+      }
       return {
         join: '',
         where: ` AND ${ownerExpr} = ?`,
@@ -156,6 +214,39 @@ class DataScopeService {
       };
     }
 
+    // CUSTOM：部门 或 库位（任一命中）
+    if (Number(scope.type) === DATA_SCOPE.CUSTOM) {
+      const parts = [];
+      const params = [];
+      let join = '';
+
+      if (scope.departmentIds.length > 0) {
+        join = ` LEFT JOIN users ${ownerAlias} ON ${ownerAlias}.id = ${ownerExpr}`;
+        parts.push(
+          `${ownerAlias}.department_id IN (${scope.departmentIds.map(() => '?').join(',')})`
+        );
+        params.push(...scope.departmentIds);
+      }
+
+      if (includeLocation && scope.locationIds.length > 0) {
+        parts.push(
+          `${tableAlias}.${q(locationColumn)} IN (${scope.locationIds.map(() => '?').join(',')})`
+        );
+        params.push(...scope.locationIds);
+      }
+
+      if (parts.length === 0) {
+        return { join: '', where: ' AND 1 = 0', params: [] };
+      }
+
+      return {
+        join,
+        where: ` AND (${parts.join(' OR ')})`,
+        params,
+      };
+    }
+
+    // 部门 / 部门及下级
     if (scope.departmentIds.length > 0) {
       return {
         join: ` LEFT JOIN users ${ownerAlias} ON ${ownerAlias}.id = ${ownerExpr}`,
@@ -176,10 +267,13 @@ class DataScopeService {
     const scope = await this.getRequestScope(req);
     if (this.isAllScope(scope)) return true;
 
+    // CUSTOM：必须在授权库位内
     if (Number(scope.type) === DATA_SCOPE.CUSTOM) {
+      if (!scope.locationIds.length) return false;
       return scope.locationIds.includes(Number(locationId));
     }
 
+    // 非 CUSTOM 文档级用 owner；库位本身不按部门拦截（库存物理共享）
     return true;
   }
 
@@ -190,7 +284,20 @@ class DataScopeService {
     const idColumn = options.idColumn || 'id';
     const ownerColumn = options.ownerColumn || null;
     const locationColumn = options.locationColumn || null;
-    const deletedAtColumn = options.deletedAtColumn === false ? null : (options.deletedAtColumn || 'deleted_at');
+    const deletedAtColumn =
+      options.deletedAtColumn === false
+        ? null
+        : options.deletedAtColumn || 'deleted_at';
+    const extraSoftDelete = options.extraSoftDelete || null;
+
+    if (Number(scope.type) === DATA_SCOPE.SELF && !ownerColumn) {
+      return false;
+    }
+
+    if (!ownerColumn && !locationColumn) {
+      return false;
+    }
+
     const q = (identifier) => `\`${String(identifier).replace(/`/g, '``')}\``;
     const selectParts = [`t.${q(idColumn)} AS id`];
 
@@ -209,14 +316,41 @@ class DataScopeService {
     if (deletedAtColumn) {
       sql += ` AND t.${q(deletedAtColumn)} IS NULL`;
     }
+    if (extraSoftDelete?.column) {
+      sql += ` AND t.${q(extraSoftDelete.column)} = ?`;
+    }
     sql += ' LIMIT 1';
 
-    const [rows] = await connection.execute(sql, [recordId]);
+    const params = [recordId];
+    if (extraSoftDelete?.column) {
+      params.push(extraSoftDelete.value ?? 0);
+    }
+
+    const [rows] = await connection.execute(sql, params);
     const row = rows[0];
     if (!row) return false;
 
     if (Number(scope.type) === DATA_SCOPE.SELF) {
-      return ownerColumn ? Number(row.owner_id) === Number(scope.userId) : true;
+      return Number(row.owner_id) === Number(scope.userId);
+    }
+
+    // CUSTOM：部门或库位命中即可
+    if (Number(scope.type) === DATA_SCOPE.CUSTOM) {
+      if (
+        ownerColumn &&
+        scope.departmentIds.length > 0 &&
+        scope.departmentIds.includes(Number(row.owner_department_id))
+      ) {
+        return true;
+      }
+      if (
+        locationColumn &&
+        scope.locationIds.length > 0 &&
+        scope.locationIds.includes(Number(row.location_id))
+      ) {
+        return true;
+      }
+      return false;
     }
 
     if (ownerColumn && scope.departmentIds.length > 0) {
@@ -231,7 +365,7 @@ class DataScopeService {
       }
     }
 
-    return !(ownerColumn || locationColumn);
+    return false;
   }
 }
 

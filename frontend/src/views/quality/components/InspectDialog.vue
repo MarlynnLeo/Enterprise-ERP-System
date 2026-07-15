@@ -21,7 +21,7 @@
         type="info"
         show-icon
         :closable="false"
-        style="margin-bottom: 12px"
+        class="mb-md"
       />
       <el-form-item label="检验项目" prop="items">
         <div class="inspection-items">
@@ -69,8 +69,8 @@
                     'result-select-failed': scope.row.result === 'failed'
                   }"
                 >
-                  <el-option label="合格" value="passed" style="color: var(--color-success); font-weight: bold;" />
-                  <el-option label="不合格" value="failed" style="color: var(--color-danger); font-weight: bold;" />
+                  <el-option label="合格" value="passed" class="text-success font-weight-700" />
+                  <el-option label="不合格" value="failed" class="text-danger font-weight-700" />
                 </el-select>
               </template>
             </el-table-column>
@@ -92,7 +92,7 @@
         </el-col>
         <el-col :span="8" v-if="inspectForm.is_aql">
           <el-form-item label="AQL 级别">
-            <el-select v-model="inspectForm.aql_level" placeholder="请选择" @change="handleAqlChange" :loading="samplingLoading" style="width: 100px;">
+            <el-select v-model="inspectForm.aql_level" placeholder="请选择" @change="handleAqlChange" :loading="samplingLoading" class="form-control-100">
               <el-option v-for="lvl in availableAqlLevels" :key="lvl" :label="lvl" :value="lvl" />
             </el-select>
           </el-form-item>

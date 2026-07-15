@@ -94,6 +94,10 @@ export const systemApi = {
     return api.put(`/system/users/${id}/password/reset`, data)
   },
 
+  getBusinessTypeDictionary() {
+    return api.get('/system/business-types/dictionary')
+  },
+
   // ==================== 通知管理 ====================
   getNotifications(params) {
     return api.get('/system/notifications', { params })
@@ -116,5 +120,15 @@ export const systemApi = {
   },
   batchDeleteNotifications(ids) {
     return api.post('/system/notifications/batch-delete', { ids })
+  },
+
+  createBackup() {
+    return api.post('/system/backup')
+  },
+  getBackups() {
+    return api.get('/system/backups')
+  },
+  verifyBackup(filename) {
+    return api.get(`/system/backups/${encodeURIComponent(filename)}/verify`)
   }
 }

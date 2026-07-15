@@ -144,10 +144,12 @@
             block
             @click="submitForApproval"
             :loading="actionLoading"
+            :disabled="!hasSupplier"
             style="margin-bottom: 10px"
           >
             提交审批
           </Button>
+          <div v-if="!hasSupplier" class="supplier-hint">请先编辑订单并设置供应商后再提交审批</div>
           <Button
             v-permission="'purchase:orders:delete'"
             type="danger"
@@ -226,7 +228,7 @@
 </template>
 
 <script setup>
-  import { ref, onMounted } from 'vue'
+  import { ref, computed, onMounted } from 'vue'
   import { useRouter, useRoute } from 'vue-router'
   import { NavBar, Icon, Button, Loading, Empty, showToast, showConfirmDialog } from 'vant'
   import { purchaseApi } from '@/api'
@@ -268,9 +270,18 @@
 
   // === 状态操作 === //
 
+  const hasSupplier = computed(() => {
+    const id = order.value?.supplier_id ?? order.value?.supplierId
+    return !(id === null || id === undefined || id === '' || id === 0 || id === '0')
+  })
+
   // 草稿 → 提交审批 (draft → pending)
   const submitForApproval = async () => {
     try {
+      if (!hasSupplier.value) {
+        showToast('请先编辑订单并设置供应商后再提交审批')
+        return
+      }
       await showConfirmDialog({ title: '提交审批', message: '确定提交该订单进行审批？' })
       actionLoading.value = true
       await purchaseApi.updateOrderStatus(order.value.id, 'pending')
@@ -594,6 +605,15 @@
 
   .action-buttons {
     padding: 16px 0;
+  }
+
+  .supplier-hint {
+    margin: -4px 0 12px;
+    padding: 0 4px;
+    color: var(--van-danger-color, #ee0a24);
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    text-align: center;
   }
 
   .loading-container,

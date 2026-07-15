@@ -64,13 +64,13 @@ describe('PermissionService', () => {
       expect(pool.execute).not.toHaveBeenCalled();
     });
 
-    test('缓存未命中时应查询数据库', async () => {
+    test('缓存未命中时应查询数据库（role_permissions SSOT）', async () => {
       cacheService.get.mockResolvedValueOnce(null);
       // isAdmin 查询
       pool.execute.mockResolvedValueOnce([[{ count: 0 }]]);
       // getUserRolePermissions - 获取角色
       pool.execute.mockResolvedValueOnce([[{ id: 2, code: 'editor', name: '编辑' }]]);
-      // 获取权限
+      // 从 role_permissions → permissions 获取权限
       pool.execute.mockResolvedValueOnce([[
         { permission: 'basedata:materials:view' },
         { permission: 'basedata:materials:create' },
@@ -80,6 +80,11 @@ describe('PermissionService', () => {
       expect(result).toContain('basedata:materials:view');
       expect(result).toContain('basedata:materials:create');
       expect(cacheService.set).toHaveBeenCalled();
+      // 确认走了 permissions / role_permissions SQL
+      const permSql = pool.execute.mock.calls.find(
+        (c) => typeof c[0] === 'string' && c[0].includes('role_permissions')
+      );
+      expect(permSql).toBeTruthy();
     });
 
     test('管理员应返回通配符权限', async () => {
@@ -115,6 +120,45 @@ describe('PermissionService', () => {
       // 'basedata:bom' -> 'basedata:boms' 别名展开
       expect(result).toContain('basedata:bom:view');
       expect(result).toContain('basedata:boms:view');
+    });
+
+    test('getAllSystemPermissions 优先读 permissions 表', async () => {
+      pool.execute.mockResolvedValueOnce([
+        [{ code: 'sales:orders:view' }, { code: 'finance:ar:view' }],
+      ]);
+      const list = await PermissionService.getAllSystemPermissions();
+      expect(list).toEqual(['sales:orders:view', 'finance:ar:view']);
+      expect(pool.execute.mock.calls[0][0]).toContain('FROM permissions');
+    });
+
+    test('should expand legacy print permissions to canonical print permissions', async () => {
+      pool.execute.mockResolvedValueOnce([[{ id: 3, code: 'print_user', name: 'Print User' }]]);
+      pool.execute.mockResolvedValueOnce([[
+        { permission: 'system:print:add' },
+        { permission: 'system:print:edit' },
+        { permission: 'system:print:template:delete' },
+      ]]);
+
+      const result = await PermissionService.getUserRolePermissions(11);
+
+      expect(result).toContain('system:print:add');
+      expect(result).toContain('system:print:edit');
+      expect(result).toContain('system:print:template:delete');
+      expect(result).toContain('system:print:create');
+      expect(result).toContain('system:print:update');
+      expect(result).toContain('system:print:delete');
+    });
+
+    test('system:users 与 system:users:view / todo:collaborate 应互通展开', async () => {
+      pool.execute.mockResolvedValueOnce([[{ id: 4, code: 'hr', name: 'HR' }]]);
+      pool.execute.mockResolvedValueOnce([[
+        { permission: 'system:users:view' },
+      ]]);
+
+      const result = await PermissionService.getUserRolePermissions(12);
+      expect(result).toContain('system:users:view');
+      expect(result).toContain('system:users');
+      expect(result).toContain('todo:collaborate');
     });
   });
 

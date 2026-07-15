@@ -23,6 +23,11 @@ exports.getSalesExchanges = async (req, res) => {
     const pagination = parsePagination(page, pageSize, { maxPageSize: 100, defaultPageSize: 10 });
 
     // 构建查询条件
+    const ScopeGuard = require('../../../authorization/ScopeGuard');
+    const scopeClause = await ScopeGuard.applyListScope(req, 'sales_exchange', {
+      tableAlias: 'se',
+      ownerAlias: 'sales_exchange_owner_scope',
+    });
     let whereClause = '';
     const queryParams = [];
 
@@ -47,10 +52,14 @@ exports.getSalesExchanges = async (req, res) => {
       queryParams.push(status);
     }
 
+    whereClause += scopeClause.where || '';
+    queryParams.push(...(scopeClause.params || []));
+
     // 查询总数
     const countQuery = `
       SELECT COUNT(*) as total
       FROM sales_exchanges se
+      ${scopeClause.join}
       WHERE se.deleted_at IS NULL ${whereClause}
       `;
 
@@ -65,6 +74,7 @@ exports.getSalesExchanges = async (req, res) => {
         SELECT se.*,
                se.return_amount, se.new_amount, se.difference_amount
         FROM sales_exchanges se
+        ${scopeClause.join}
         WHERE se.deleted_at IS NULL ${whereClause}
         ORDER BY se.created_at DESC
       `,
@@ -121,6 +131,16 @@ exports.getSalesExchanges = async (req, res) => {
 
 
 exports.getSalesExchangeById = async (req, res) => {
+  {
+    const { id } = req.params;
+    if (id !== null && id !== undefined && id !== '') {
+      const ScopeGuard = require('../../../authorization/ScopeGuard');
+      if (!(await ScopeGuard.assertAccess(db.pool, req, 'sales_exchange', id))) {
+        return ResponseHandler.forbidden(res, '无权访问该销售换货单');
+      }
+    }
+  }
+
   try {
     const { id } = req.params;
 
@@ -399,7 +419,9 @@ exports.createSalesExchange = async (req, res) => {
       'UPDATE sales_exchanges SET return_amount = ?, new_amount = ?, difference_amount = ? WHERE id = ?',
       [returnAmt, newAmt, diffAmt, exchangeId]
     );
-    logger.info(`💰 换货单 ${exchangeNo} 金额: 退回=${returnAmt}, 换出=${newAmt}, 差价=${diffAmt}`);
+    logger.info(
+      `Sales exchange ${exchangeNo} amount calculated: return=${returnAmt}, replacement=${newAmt}, difference=${diffAmt}`
+    );
 
     // 如果创建时状态就是"已完成"，立即处理库存操作
     if (reason === '已完成' && (hasNewFormat || hasOldFormat)) {
@@ -433,16 +455,26 @@ exports.createSalesExchange = async (req, res) => {
 
 
 exports.updateSalesExchange = async (req, res) => {
+  {
+    const { id } = req.params;
+    if (id !== null && id !== undefined && id !== '') {
+      const ScopeGuard = require('../../../authorization/ScopeGuard');
+      if (!(await ScopeGuard.assertAccess(db.pool, req, 'sales_exchange', id))) {
+        return ResponseHandler.forbidden(res, '无权修改该销售换货单');
+      }
+    }
+  }
+
   let connection;
   try {
     const { id } = req.params;
 
-    logger.info('请求数据:', JSON.stringify(req.body, null, 2));
+    logger.debug('Sales exchange update payload', req.body);
 
     const { orderNo, customerName, contactPhone, exchangeDate, reason, remark, items, status } =
       req.body;
 
-    logger.info('解析后的字段:', {
+    logger.debug('Sales exchange update fields parsed', {
       orderNo,
       customerName,
       contactPhone,
@@ -591,10 +623,12 @@ exports.updateSalesExchange = async (req, res) => {
       'UPDATE sales_exchanges SET return_amount = ?, new_amount = ?, difference_amount = ? WHERE id = ? AND deleted_at IS NULL',
       [returnAmt, newAmt, diffAmt, id]
     );
-    logger.info(`💰 换货单更新金额: 退回=${returnAmt}, 换出=${newAmt}, 差价=${diffAmt}`);
+    logger.info(
+      `Sales exchange amount updated: return=${returnAmt}, replacement=${newAmt}, difference=${diffAmt}`
+    );
 
     // 如果状态变为"已完成"，处理库存操作
-    logger.info('库存处理检查:', {
+    logger.debug('Sales exchange inventory processing check', {
       status: status,
       currentStatus: currentStatus,
       condition: status === '已完成' && currentStatus !== '已完成',
@@ -615,7 +649,7 @@ exports.updateSalesExchange = async (req, res) => {
         pendingExchangeForFinance = exchangeInfo[0];
       }
     } else {
-      logger.info('跳过库存处理，原因:', {
+      logger.debug('Sales exchange inventory processing skipped', {
         statusNotCompleted: status !== '已完成',
         alreadyCompleted: currentStatus === '已完成',
       });
@@ -629,7 +663,9 @@ exports.updateSalesExchange = async (req, res) => {
         try {
           const FinanceIntegrationService = require('../../../services/external/FinanceIntegrationService');
           await FinanceIntegrationService.generateExchangeDifferenceEntry(pendingExchangeForFinance);
-          logger.info(`✅ 销售换货差价分录自动生成成功 - 换货单: ${pendingExchangeForFinance.exchange_no}`);
+          logger.info(
+            `Sales exchange difference entry generated: exchangeNo=${pendingExchangeForFinance.exchange_no}`
+          );
         } catch (financeError) {
           await DLQService.recordSideEffectFailure(
             'FinanceIntegration:SalesExchangeDifferenceEntry',
@@ -649,7 +685,6 @@ exports.updateSalesExchange = async (req, res) => {
       await connection.rollback();
     }
     logger.error('更新销售换货单失败:', error);
-    logger.error('错误堆栈:', error.stack);
     ResponseHandler.error(res, '更新销售换货单失败', 'SERVER_ERROR', 500, error);
   } finally {
     if (connection) {
@@ -661,6 +696,16 @@ exports.updateSalesExchange = async (req, res) => {
 // 添加删除换货单功能
 
 exports.deleteSalesExchange = async (req, res) => {
+  {
+    const { id } = req.params;
+    if (id !== null && id !== undefined && id !== '') {
+      const ScopeGuard = require('../../../authorization/ScopeGuard');
+      if (!(await ScopeGuard.assertAccess(db.pool, req, 'sales_exchange', id))) {
+        return ResponseHandler.forbidden(res, '无权删除该销售换货单');
+      }
+    }
+  }
+
   let connection;
   try {
     const { id } = req.params;
@@ -710,6 +755,16 @@ exports.deleteSalesExchange = async (req, res) => {
 // 更新换货单状态（前端 salesApi.updateExchangeStatus 对应接口）
 
 exports.updateExchangeStatus = async (req, res) => {
+  {
+    const { id } = req.params;
+    if (id !== null && id !== undefined && id !== '') {
+      const ScopeGuard = require('../../../authorization/ScopeGuard');
+      if (!(await ScopeGuard.assertAccess(db.pool, req, 'sales_exchange', id))) {
+        return ResponseHandler.forbidden(res, '无权变更该销售换货单状态');
+      }
+    }
+  }
+
   let connection;
   try {
     const { id } = req.params;
@@ -764,7 +819,7 @@ exports.updateExchangeStatus = async (req, res) => {
     if (status === 'completed' && previousStatus !== 'completed') {
       const operator = await getCurrentUserName(req);
       await processExchangeInventory(connection, id, operator);
-      logger.info(`✅ 换货单 ${currentExchange.exchange_no} 完成，库存已处理`);
+      logger.info(`Sales exchange ${currentExchange.exchange_no} completed and inventory processed`);
 
       // 获取换货单信息用于 commit 后异步生成差价分录
       const [exchangeInfo] = await connection.query('SELECT id, exchange_no, order_id, order_no, customer_id, customer_name, contact_phone, exchange_date, exchange_reason, status, remarks, created_by, created_at, updated_at, return_amount, new_amount, difference_amount, deleted_at FROM sales_exchanges WHERE id = ? AND deleted_at IS NULL', [id]);
@@ -781,7 +836,9 @@ exports.updateExchangeStatus = async (req, res) => {
         try {
           const FinanceIntegrationService = require('../../../services/external/FinanceIntegrationService');
           await FinanceIntegrationService.generateExchangeDifferenceEntry(pendingExchangeForFinance);
-          logger.info(`✅ 换货差价分录自动生成成功 - 换货单: ${pendingExchangeForFinance.exchange_no}`);
+          logger.info(
+            `Sales exchange difference entry generated: exchangeNo=${pendingExchangeForFinance.exchange_no}`
+          );
         } catch (financeError) {
           await DLQService.recordSideEffectFailure(
             'FinanceIntegration:SalesExchangeDifferenceEntry',
@@ -900,7 +957,7 @@ async function processExchangeInventory(connection, exchangeId, operator) {
         },
         connection
       );
-      logger.info(`✅ 换货退回入库完成（统一服务）: 物料${item.material_id}, 数量${quantity} `);
+      logger.info(`Sales exchange return received: materialId=${item.material_id}, quantity=${quantity}`);
     }
 
     // 处理换出商品 - 减少库存
@@ -963,7 +1020,7 @@ async function processExchangeInventory(connection, exchangeId, operator) {
         },
         connection
       );
-      logger.info(`✅ 换货发出完成（统一服务）: 物料${item.material_id}, 数量${-quantity} `);
+      logger.info(`Sales exchange replacement issued: materialId=${item.material_id}, quantity=${-quantity}`);
     }
   } catch (error) {
     logger.error('处理换货库存操作失败:', error);
@@ -974,23 +1031,25 @@ async function processExchangeInventory(connection, exchangeId, operator) {
 // 根据物料来源自动生成后续单据（使用统一的新函数）
 async function autoGenerateFollowUpDocuments(salesOrderId, items, userInfo) {
   try {
-    logger.info('🚀🚀🚀 autoGenerateFollowUpDocuments 被调用了！销售订单ID:', salesOrderId);
-    logger.info('📋 销售订单物料列表:', items);
+    logger.debug('Generating sales order follow-up documents', {
+      salesOrderId,
+      itemCount: Array.isArray(items) ? items.length : 0,
+    });
 
     // 获取物料信息和来源类型，同时检查库存
     const materialsBySource = await getMaterialsBySourceWithInventoryCheck(items);
 
-    logger.info('📊 库存检查结果:', {
-      自产物料: materialsBySource.internal.length,
-      外购物料: materialsBySource.external.length,
-      库存充足: materialsBySource.sufficient.length,
+    logger.info('Sales order inventory check completed', {
+      internalShortage: materialsBySource.internal.length,
+      externalShortage: materialsBySource.external.length,
+      sufficient: materialsBySource.sufficient.length,
     });
 
     // 合并库存不足的物料列表
     const insufficientItems = [...materialsBySource.internal, ...materialsBySource.external];
 
     if (insufficientItems.length === 0) {
-      logger.info('✅ 所有物料库存充足，无需生成生产计划或采购申请');
+      logger.info('Sales order inventory is sufficient; no production plan or purchase requisition needed');
       const connection = await db.pool.getConnection();
       try {
         await connection.beginTransaction();
@@ -1021,7 +1080,7 @@ async function autoGenerateFollowUpDocuments(salesOrderId, items, userInfo) {
       }
     }
 
-    logger.info(`⚠️  发现 ${insufficientItems.length} 个物料库存不足，准备生成计划`);
+    logger.info(`Sales order has ${insufficientItems.length} material shortages; generating follow-up plans`);
 
     // 使用统一的生成函数（支持用户信息、合同编码、批量编号生成）
     const connection = await db.pool.getConnection();
@@ -1123,20 +1182,20 @@ async function getMaterialsBySourceWithInventoryCheck(items) {
 
           if (material.source_type === 'internal') {
             materialsBySource.internal.push(insufficientItem);
-            logger.info(
-              `  🏭 自产物料: ${material.code} - ${material.name}, 缺货: ${insufficientItem.shortage} `
+            logger.debug(
+              `Internal material shortage: code=${material.code}, name=${material.name}, shortage=${insufficientItem.shortage}`
             );
           } else if (material.source_type === 'external') {
             materialsBySource.external.push(insufficientItem);
-            logger.info(
-              `  🛒 外购物料: ${material.code} - ${material.name}, 缺货: ${insufficientItem.shortage} `
+            logger.debug(
+              `External material shortage: code=${material.code}, name=${material.name}, shortage=${insufficientItem.shortage}`
             );
           } else {
             // 如果来源类型未设置，默认作为外购物料处理
             insufficientItem.source_type = 'external';
             materialsBySource.external.push(insufficientItem);
             logger.warn(
-              `  ⚠️  物料来源未设置，默认为外购: ${material.code} - ${material.name}, 缺货: ${insufficientItem.shortage} `
+              `Material source is not configured; defaulting to external purchase: code=${material.code}, name=${material.name}, shortage=${insufficientItem.shortage}`
             );
           }
         }

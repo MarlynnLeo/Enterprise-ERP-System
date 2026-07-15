@@ -198,6 +198,7 @@ export const financeApi = {
         getReturn: (id) => api.get(`/finance/tax/returns/${id}`),
         submitReturn: (id, data) => api.post(`/finance/tax/returns/${id}/submit`, data),
         payReturn: (id, data) => api.post(`/finance/tax/returns/${id}/pay`, data),
+        voidReturnPayment: (id, data) => api.post(`/finance/tax/returns/${id}/void-payment`, data),
         deleteReturn: (id) => api.delete(`/finance/tax/returns/${id}`),
         getAccountConfig: () => api.get('/finance/tax/account-config'),
         createAccountConfig: (data) => api.post('/finance/tax/account-config', data),
@@ -368,6 +369,7 @@ export const financeApi = {
     submitExpense: (id) => api.post(`/finance/expenses/${id}/submit`),
     approveExpense: (id, data) => api.post(`/finance/expenses/${id}/approve`, data),
     payExpense: (id, data) => api.post(`/finance/expenses/${id}/pay`, data),
+    voidExpensePayment: (id, data) => api.post(`/finance/expenses/${id}/void-payment`, data),
     cancelExpense: (id) => api.post(`/finance/expenses/${id}/cancel`),
     importDingtalkExpenses: (data) => api.post('/dingtalk/import', data),
 

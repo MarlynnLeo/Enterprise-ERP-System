@@ -59,6 +59,7 @@ const fetchExistingSourceRequisition = async (connection, sourceInfo, lock = fal
 
 // 获取采购申请列表
 const getRequisitions = async (req, res) => {
+  // DataScope list wired below
   try {
     const {
       page = 1,
@@ -73,10 +74,17 @@ const getRequisitions = async (req, res) => {
     } = req.query;
     const pagination = parsePagination(page, pageSize, { defaultPageSize: 10, maxPageSize: 100 });
 
+    const ScopeGuard = require('../../../authorization/ScopeGuard');
+    const scopeClause = await ScopeGuard.applyListScope(req, 'purchase_requisition', {
+      tableAlias: 'r',
+      ownerAlias: 'purchase_requisition_owner_scope',
+    });
+
     let query = `
       SELECT r.*, u.real_name as user_real_name, COUNT(*) OVER() as total_count
       FROM purchase_requisitions r
       LEFT JOIN users u ON r.requester = u.username
+      ${scopeClause.join}
       WHERE r.deleted_at IS NULL
     `;
 
@@ -139,6 +147,8 @@ const getRequisitions = async (req, res) => {
     // 直接在查询字符串中嵌入LIMIT和OFFSET值
     const limitValue = pagination.limit;
     const offsetValue = pagination.offset;
+    query += scopeClause.where || '';
+    queryParams.push(...(scopeClause.params || []));
     query += ` ORDER BY r.created_at DESC LIMIT ${limitValue} OFFSET ${offsetValue}`;
 
     const [rows] = await db.pool.execute(query, queryParams);
@@ -240,6 +250,16 @@ const getRequisitions = async (req, res) => {
 
 // 获取采购申请详情
 const getRequisition = async (req, res) => {
+  {
+    const { id } = req.params;
+    if (id !== null && id !== undefined && id !== '') {
+      const ScopeGuard = require('../../../authorization/ScopeGuard');
+      if (!(await ScopeGuard.assertAccess(db.pool, req, 'purchase_requisition', id))) {
+        return ResponseHandler.forbidden(res, '无权访问该采购申请');
+      }
+    }
+  }
+
   try {
     const { id } = req.params;
 
@@ -437,14 +457,14 @@ const createRequisition = async (req, res) => {
           );
           if (orderRows && orderRows.length > 0) {
             const salesOrderNo = orderRows[0].order_no;
-            logger.info('✅ 查询到销售订单号:', salesOrderNo);
+            logger.info('Sales order number resolved for purchase requisition', { salesOrderNo });
 
             // 替换备注中的ID为订单号
             finalRemarks = remarks.replace(
               /由销售订单\s*\d+\s*自动生成/,
               `由销售订单 ${salesOrderNo} 自动生成`
             );
-            logger.info('🔧 修复后的备注:', finalRemarks);
+            logger.info('Purchase requisition remarks normalized', { remarks: finalRemarks });
           } else {
             const sourceError = new Error(`销售订单不存在，无法创建来源采购申请: ${salesOrderId}`);
             sourceError.statusCode = 400;
@@ -452,7 +472,7 @@ const createRequisition = async (req, res) => {
             throw sourceError;
           }
         } catch (queryError) {
-          logger.error('❌ 查询销售订单号失败:', queryError);
+          logger.error('Failed to resolve sales order number for purchase requisition:', queryError);
           throw queryError;
         }
       }
@@ -462,10 +482,12 @@ const createRequisition = async (req, res) => {
     const createQuery = `
       INSERT INTO purchase_requisitions
       (requisition_number, request_date, requester, contract_code, real_name, remarks, status,
-       source_type, source_id, source_material_id, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+       source_type, source_id, source_material_id, created_by, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `;
 
+    const ScopeGuard = require('../../../authorization/ScopeGuard');
+    const ownerStamp = ScopeGuard.tryStampOwner(req, 'purchase_requisition');
     const [result] = await connection.execute(createQuery, [
       requisitionNo,
       finalRequestDate,
@@ -476,6 +498,7 @@ const createRequisition = async (req, res) => {
       sourceInfo?.sourceType || null,
       sourceInfo?.sourceId || null,
       sourceInfo?.sourceMaterialId || null,
+    ownerStamp.created_by,
     ]);
 
     const requisitionId = result.insertId;
@@ -604,6 +627,16 @@ const createRequisition = async (req, res) => {
 
 // 更新采购申请
 const updateRequisition = async (req, res) => {
+  {
+    const { id } = req.params;
+    if (id !== null && id !== undefined && id !== '') {
+      const ScopeGuard = require('../../../authorization/ScopeGuard');
+      if (!(await ScopeGuard.assertAccess(db.pool, req, 'purchase_requisition', id))) {
+        return ResponseHandler.forbidden(res, '无权修改该采购申请');
+      }
+    }
+  }
+
   let connection;
 
   try {
@@ -751,6 +784,16 @@ const updateRequisition = async (req, res) => {
 
 // 删除采购申请
 const deleteRequisition = async (req, res) => {
+  {
+    const { id } = req.params;
+    if (id !== null && id !== undefined && id !== '') {
+      const ScopeGuard = require('../../../authorization/ScopeGuard');
+      if (!(await ScopeGuard.assertAccess(db.pool, req, 'purchase_requisition', id))) {
+        return ResponseHandler.forbidden(res, '无权删除该采购申请');
+      }
+    }
+  }
+
   let connection;
 
   try {
@@ -792,6 +835,16 @@ const deleteRequisition = async (req, res) => {
 
 // 更新采购申请状态
 const updateRequisitionStatus = async (req, res) => {
+  {
+    const { id } = req.params;
+    if (id !== null && id !== undefined && id !== '') {
+      const ScopeGuard = require('../../../authorization/ScopeGuard');
+      if (!(await ScopeGuard.assertAccess(db.pool, req, 'purchase_requisition', id))) {
+        return ResponseHandler.forbidden(res, '无权变更该采购申请状态');
+      }
+    }
+  }
+
   let connection;
 
   try {
@@ -855,9 +908,13 @@ const updateRequisitionStatus = async (req, res) => {
         [id]
       );
       const reqNo = reqInfo[0]?.requisition_number || id;
+      await connection.execute(
+        "UPDATE purchase_requisitions SET status = 'submitted', updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        [id]
+      );
       const wfResult = await WorkflowService.tryStartWorkflow(
         'purchase_requisition', id, reqNo,
-        `采购申请 ${reqNo} 审批`, userId
+        `采购申请 ${reqNo} 审批`, userId, connection
       );
       if (wfResult.auto_approved) {
         finalStatus = 'approved';

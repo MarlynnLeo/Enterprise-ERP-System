@@ -118,12 +118,22 @@ export default {
             }
         },
         {
+            path: 'backup',
+            name: 'system-backup',
+            component: () => import('../../views/system/Backup.vue'),
+            meta: {
+                requiresAuth: true,
+                permission: 'system:backup:view'
+            }
+        },
+        {
             path: 'notification-rules',
             name: 'system-notification-rules',
             component: () => import('../../views/system/NotificationRules.vue'),
             meta: {
                 requiresAuth: true,
-                permission: 'system:notification-rules'
+                permission: 'system:notification-rules',
+                title: '通知规则'
             }
         }
     ]

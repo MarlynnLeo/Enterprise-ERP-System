@@ -8,15 +8,11 @@
 -->
 <template>
   <div class="module-page assets-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>资产台账</h2>
-          <p class="subtitle">管理固定资产与折旧</p>
-        </div>
-        <el-button v-permission="'finance:assets:create'" type="primary" :icon="Plus" @click="showAddDialog">新增资产</el-button>
-      </div>
-    </el-card>
+    <PageHeader title="资产台账" subtitle="管理固定资产与折旧">
+      <template #actions>
+<el-button v-permission="'finance:assets:create'" type="primary" :icon="Plus" @click="showAddDialog">新增资产</el-button>
+      </template>
+    </PageHeader>
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
@@ -89,7 +85,7 @@
     <el-card class="data-card">
       <el-table
         :data="assetList"
-        style="width: 100%"
+        class="w-full"
         border
         v-loading="loading"
       >
@@ -136,7 +132,7 @@
             <el-button type="primary" size="small" @click="handleEdit(scope.row)" v-if="!isDisposed(scope.row.status) && scope.row.auditStatus !== 'approved'"
               v-permission="'finance:assets:update'">编辑</el-button>
             <el-button v-permission="'finance:assets:update'" type="success" size="small" @click="handleAudit(scope.row, 'approve')" v-if="scope.row.auditStatus !== 'approved' && !isDisposed(scope.row.status)">审核</el-button>
-            <el-dropdown v-if="showAssetMore(scope.row)" trigger="click" @command="(cmd) => handleMoreCommand(cmd, scope.row)" style="margin-left: 8px;">
+            <el-dropdown v-if="showAssetMore(scope.row)" trigger="click" @command="(cmd) => handleMoreCommand(cmd, scope.row)" class="ml-sm">
               <el-button size="small">
                 更多<el-icon class="el-icon--right"><ArrowDown /></el-icon>
               </el-button>
@@ -190,7 +186,7 @@
           <el-input v-model="assetForm.assetName" placeholder="请输入资产名称"></el-input>
         </el-form-item>
         <el-form-item label="资产类别" prop="categoryId">
-          <el-select v-model="assetForm.categoryId" placeholder="请选择资产类别" style="width: 100%" @change="onCategoryChange">
+          <el-select v-model="assetForm.categoryId" placeholder="请选择资产类别" class="w-full" @change="onCategoryChange">
             <el-option
               v-for="item in categoryOptions"
               :key="item.id"
@@ -209,13 +205,13 @@
                 placeholder="选择购入日期"
                 format="YYYY-MM-DD"
                 value-format="YYYY-MM-DD"
-                style="width: 100%"
+                class="w-full"
               ></el-date-picker>
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="原值" prop="originalValue">
-              <el-input v-model="assetForm.originalValue" placeholder="请输入原值" style="width: 100%">
+              <el-input v-model="assetForm.originalValue" placeholder="请输入原值" class="w-full">
                 <template #prepend>¥</template>
               </el-input>
             </el-form-item>
@@ -225,14 +221,14 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="使用年限" prop="usefulLife">
-              <el-input v-model="assetForm.usefulLife" placeholder="请输入年限" style="width: 100%">
+              <el-input v-model="assetForm.usefulLife" placeholder="请输入年限" class="w-full">
                 <template #append>年</template>
               </el-input>
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="残值率" prop="salvageRate">
-              <el-input v-model="assetForm.salvageRate" placeholder="请输入残值率" style="width: 100%">
+              <el-input v-model="assetForm.salvageRate" placeholder="请输入残值率" class="w-full">
                 <template #append>%</template>
               </el-input>
             </el-form-item>
@@ -256,7 +252,7 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="使用部门" prop="department">
-              <el-select v-model="assetForm.department" placeholder="请选择部门" style="width: 100%">
+              <el-select v-model="assetForm.department" placeholder="请选择部门" class="w-full">
                 <el-option
                   v-for="item in departmentOptions"
                   :key="item.id"
@@ -276,7 +272,7 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="状态" prop="status">
-              <el-select v-model="assetForm.status" placeholder="请选择状态" style="width: 100%">
+              <el-select v-model="assetForm.status" placeholder="请选择状态" class="w-full">
                 <el-option label="在用" value="in_use"></el-option>
                 <el-option label="闲置" value="idle"></el-option>
                 <el-option label="维修" value="under_repair"></el-option>
@@ -326,7 +322,7 @@
           <el-input v-model="transferForm.originalLocation" placeholder="请输入原存放地点" readonly></el-input>
         </el-form-item>
         <el-form-item label="新部门" prop="newDepartment">
-          <el-select v-model="transferForm.newDepartment" placeholder="请选择新部门" style="width: 100%">
+          <el-select v-model="transferForm.newDepartment" placeholder="请选择新部门" class="w-full">
             <el-option
               v-for="item in departmentOptions"
               :key="item.id"
@@ -348,7 +344,7 @@
             placeholder="选择调拨日期"
             format="YYYY-MM-DD"
             value-format="YYYY-MM-DD"
-            style="width: 100%"
+            class="w-full"
           ></el-date-picker>
         </el-form-item>
         <el-form-item label="调拨原因" prop="transferReason">
@@ -388,7 +384,7 @@
           <span class="value-text">{{ formatCurrency(disposeForm.netValue) }}</span>
         </el-form-item>
         <el-form-item label="处置方式" prop="disposeType">
-          <el-select v-model="disposeForm.disposeType" placeholder="请选择处置方式" style="width: 100%">
+          <el-select v-model="disposeForm.disposeType" placeholder="请选择处置方式" class="w-full">
             <el-option label="报废" value="scrap"></el-option>
             <el-option label="变卖" value="sale"></el-option>
             <el-option label="损毁" value="damage"></el-option>
@@ -396,10 +392,10 @@
           </el-select>
         </el-form-item>
         <el-form-item label="处置金额" prop="disposeAmount">
-          <el-input-number v-model="disposeForm.disposeAmount" :precision="2" :min="0" style="width: 100%"></el-input-number>
+          <el-input-number v-model="disposeForm.disposeAmount" :precision="2" :min="0" class="w-full"></el-input-number>
         </el-form-item>
         <el-form-item v-if="Number(disposeForm.disposeAmount || 0) > 0" label="收款账户" prop="bankAccountId">
-          <el-select v-model="disposeForm.bankAccountId" placeholder="请选择实际收款银行账户" filterable style="width: 100%">
+          <el-select v-model="disposeForm.bankAccountId" placeholder="请选择实际收款银行账户" filterable class="w-full">
             <el-option
               v-for="account in bankAccountOptions"
               :key="account.id"
@@ -418,7 +414,7 @@
             placeholder="选择处置日期"
             format="YYYY-MM-DD"
             value-format="YYYY-MM-DD"
-            style="width: 100%"
+            class="w-full"
           ></el-date-picker>
         </el-form-item>
         <el-form-item label="处置原因" prop="reason">
@@ -454,14 +450,14 @@
           <span class="value-text">{{ formatCurrency(splitForm.originalValue) }}</span>
         </el-form-item>
         <el-form-item label="拆分金额" prop="split_cost">
-          <el-input-number v-model="splitForm.split_cost" :precision="2" :min="0.01" :max="splitForm.originalValue - 0.01" style="width: 100%"></el-input-number>
+          <el-input-number v-model="splitForm.split_cost" :precision="2" :min="0.01" :max="splitForm.originalValue - 0.01" class="w-full"></el-input-number>
           <div style="font-size: 12px; color: var(--color-text-secondary); margin-top: 4px;">拆出部分的价值，剩余原值将被扣除</div>
         </el-form-item>
         <el-form-item label="新资产名称" prop="new_asset_name">
           <el-input v-model="splitForm.new_asset_name" placeholder="默认为：原名称-拆分X"></el-input>
         </el-form-item>
         <el-form-item label="新使用部门">
-          <el-select v-model="splitForm.department_id" placeholder="选填，默认同原资产" style="width: 100%" clearable>
+          <el-select v-model="splitForm.department_id" placeholder="选填，默认同原资产" class="w-full" clearable>
             <el-option
               v-for="item in departmentOptions"
               :key="item.id"
@@ -500,13 +496,13 @@
           :description="'¥ ' + formatCurrency(impairmentForm.netValue)"
           type="warning"
           :closable="false"
-          style="margin-bottom: 20px"
+          class="mb-20"
         />
         <el-form-item label="减值金额" prop="impairment_amount">
-          <el-input-number v-model="impairmentForm.impairment_amount" :min="0.01" :max="impairmentForm.netValue" :precision="2" :step="100" style="width: 100%" />
+          <el-input-number v-model="impairmentForm.impairment_amount" :min="0.01" :max="impairmentForm.netValue" :precision="2" :step="100" class="w-full" />
         </el-form-item>
         <el-form-item label="减值日期" prop="impairment_date">
-          <el-date-picker v-model="impairmentForm.impairment_date" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
+          <el-date-picker v-model="impairmentForm.impairment_date" type="date" value-format="YYYY-MM-DD" class="w-full" />
         </el-form-item>
         <el-form-item label="减值原因" prop="reason">
           <el-input v-model="impairmentForm.reason" type="textarea" :rows="3" placeholder="请输入发生减值的原因（如：损坏、技术淘汰等）" />
@@ -1305,11 +1301,6 @@ onMounted(() => {
   margin: 0;
   font-size: 14px;
   color: var(--color-text-secondary);
-}
-
-:deep(.el-dialog__body) {
-  max-height: 60vh;
-  overflow-y: auto;
 }
 
 :deep(.el-descriptions__content) {

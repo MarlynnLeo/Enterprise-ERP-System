@@ -1,5 +1,5 @@
 ﻿<template>
-  <div class="cip-list-container">
+  <div class="module-page cip-list-container">
     <!-- 搜索栏 -->
     <FinanceQueryCard
       :model="searchForm"
@@ -40,7 +40,7 @@
         </div>
       </template>
 
-      <el-table :data="tableData" v-loading="loading" border stripe style="width: 100%">
+      <el-table :data="tableData" v-loading="loading" border stripe class="w-full">
         <el-table-column prop="project_code" label="工程编号" width="140" />
         <el-table-column prop="project_name" label="工程名称" min-width="180" show-overflow-tooltip />
         <el-table-column prop="budget" label="预算金额" width="130">
@@ -130,19 +130,19 @@
           <el-input v-model="form.project_name" placeholder="请输入工程名称" />
         </el-form-item>
         <el-form-item label="预算金额" prop="budget">
-          <el-input-number v-model="form.budget" :min="0" :precision="2" :controls="false" style="width: 100%" />
+          <el-input-number v-model="form.budget" :min="0" :precision="2" :controls="false" class="w-full" />
         </el-form-item>
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="开工日期">
               <el-date-picker v-model="form.start_date" type="date" value-format="YYYY-MM-DD"
-                placeholder="请选择" style="width: 100%" />
+                placeholder="请选择" class="w-full" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="预计完工">
               <el-date-picker v-model="form.estimated_end_date" type="date" value-format="YYYY-MM-DD"
-                placeholder="请选择" style="width: 100%" />
+                placeholder="请选择" class="w-full" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -175,9 +175,9 @@
         <el-descriptions-item label="当前归集">{{ formatMoney(currentProject?.accumulated_amount) }}</el-descriptions-item>
         <el-descriptions-item label="预算金额">{{ formatMoney(currentProject?.budget) }}</el-descriptions-item>
       </el-descriptions>
-      <el-form style="margin-top: 16px" label-width="100px">
+      <el-form class="mt-md" label-width="100px">
         <el-form-item label="归集金额" required>
-          <el-input-number v-model="costAmount" :min="0.01" :precision="2" :controls="false" style="width: 100%"
+          <el-input-number v-model="costAmount" :min="0.01" :precision="2" :controls="false" class="w-full"
             placeholder="请输入归集金额" />
         </el-form-item>
       </el-form>
@@ -189,10 +189,10 @@
 
     <!-- 转固对话框 -->
     <el-dialog v-model="transferDialogVisible" title="在建工程转固" width="600px" destroy-on-close>
-      <el-alert type="warning" :closable="false" style="margin-bottom: 16px">
+      <el-alert type="warning" :closable="false" class="mb-md">
         转固后，在建工程将标记为"已转固"，并在固定资产中生成一条新记录。此操作不可撤销。
       </el-alert>
-      <el-descriptions :column="2" border style="margin-bottom: 16px">
+      <el-descriptions :column="2" border class="mb-md">
         <el-descriptions-item label="工程编号">{{ currentProject?.project_code }}</el-descriptions-item>
         <el-descriptions-item label="工程名称">{{ currentProject?.project_name }}</el-descriptions-item>
         <el-descriptions-item label="归集成本">{{ formatMoney(currentProject?.accumulated_amount) }}</el-descriptions-item>
@@ -208,17 +208,17 @@
           <el-col :span="12">
             <el-form-item label="入账日期">
               <el-date-picker v-model="transferForm.acquisition_date" type="date" value-format="YYYY-MM-DD"
-                style="width: 100%" />
+                class="w-full" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="使用年限">
-              <el-input-number v-model="transferForm.useful_life" :min="1" :max="50" style="width: 100%" />
+              <el-input-number v-model="transferForm.useful_life" :min="1" :max="50" class="w-full" />
             </el-form-item>
           </el-col>
         </el-row>
         <el-form-item label="折旧方法">
-          <el-select v-model="transferForm.depreciation_method" style="width: 100%">
+          <el-select v-model="transferForm.depreciation_method" class="w-full">
             <el-option label="直线法" value="straight_line" />
             <el-option label="双倍余额递减法" value="double_declining" />
             <el-option label="年数总和法" value="sum_of_years" />
@@ -226,7 +226,7 @@
         </el-form-item>
         <el-form-item label="残值">
           <el-input-number v-model="transferForm.salvage_value" :min="0" :precision="2" :controls="false"
-            style="width: 100%" />
+            class="w-full" />
         </el-form-item>
       </el-form>
       <template #footer>

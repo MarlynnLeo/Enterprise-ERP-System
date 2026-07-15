@@ -93,9 +93,15 @@
         <VanButton round block type="primary" @click="handleConfirm" :loading="actionLoading">
           确认发票
         </VanButton>
-      </div>
-      <div class="action-section" v-else-if="invoice.status === '已确认'" v-permission="'finance:ap:update'">
-        <VanButton round block type="danger" @click="handleVoid" :loading="actionLoading">
+        <VanButton
+          class="mt-2"
+          round
+          block
+          type="danger"
+          plain
+          @click="handleVoid"
+          :loading="actionLoading"
+        >
           作废发票
         </VanButton>
       </div>

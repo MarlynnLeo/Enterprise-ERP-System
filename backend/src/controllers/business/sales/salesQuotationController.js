@@ -40,6 +40,11 @@ exports.getSalesQuotations = async (req, res) => {
 
     // 构建查询条件
 
+    const ScopeGuard = require('../../../authorization/ScopeGuard');
+    const scopeClause = await ScopeGuard.applyListScope(req, 'sales_quotation', {
+      tableAlias: 'q',
+      ownerAlias: 'sales_quotation_owner_scope',
+    });
     const params = [];
     let whereClause = '';
 
@@ -75,8 +80,9 @@ exports.getSalesQuotations = async (req, res) => {
       const [countRows] = await conn.query(
         `SELECT COUNT(*) as total FROM sales_quotations q
          LEFT JOIN customers c ON q.customer_id = c.id
-         WHERE q.deleted_at IS NULL ${whereClause}`,
-        params
+         ${scopeClause.join}
+         WHERE q.deleted_at IS NULL ${whereClause}${scopeClause.where}`,
+        [...params, ...(scopeClause.params || [])]
       );
 
       const total = countRows[0].total;
@@ -88,10 +94,11 @@ exports.getSalesQuotations = async (req, res) => {
          FROM sales_quotations q
          LEFT JOIN customers c ON q.customer_id = c.id
          LEFT JOIN users u ON q.created_by = u.id
-         WHERE q.deleted_at IS NULL ${whereClause}
+         ${scopeClause.join}
+         WHERE q.deleted_at IS NULL ${whereClause}${scopeClause.where}
          ORDER BY q.created_at DESC
          LIMIT ${actualPageSize} OFFSET ${offset}`,
-        params
+        [...params, ...(scopeClause.params || [])]
       );
 
       // 批量查询所有明细（避免N+1查询问题）
@@ -191,6 +198,16 @@ exports.getSalesQuotationStatistics = async (req, res) => {
 
 
 exports.getSalesQuotation = async (req, res) => {
+  {
+    const { id } = req.params;
+    if (id !== null && id !== undefined && id !== '') {
+      const ScopeGuard = require('../../../authorization/ScopeGuard');
+      if (!(await ScopeGuard.assertAccess(require('../../../config/db').pool, req, 'sales_quotation', id))) {
+        return ResponseHandler.forbidden(res, '无权访问该销售报价单');
+      }
+    }
+  }
+
   // 获取数据库连接
   const conn = await getConnection();
 
@@ -336,6 +353,16 @@ exports.createSalesQuotation = async (req, res) => {
 
 
 exports.updateSalesQuotation = async (req, res) => {
+  {
+    const { id } = req.params;
+    if (id !== null && id !== undefined && id !== '') {
+      const ScopeGuard = require('../../../authorization/ScopeGuard');
+      if (!(await ScopeGuard.assertAccess(require('../../../config/db').pool, req, 'sales_quotation', id))) {
+        return ResponseHandler.forbidden(res, '无权修改该销售报价单');
+      }
+    }
+  }
+
   // 获取数据库连接
   const conn = await getConnection();
 
@@ -443,6 +470,16 @@ exports.updateSalesQuotation = async (req, res) => {
 // 添加删除报价单功能
 
 exports.deleteSalesQuotation = async (req, res) => {
+  {
+    const { id } = req.params;
+    if (id !== null && id !== undefined && id !== '') {
+      const ScopeGuard = require('../../../authorization/ScopeGuard');
+      if (!(await ScopeGuard.assertAccess(require('../../../config/db').pool, req, 'sales_quotation', id))) {
+        return ResponseHandler.forbidden(res, '无权删除该销售报价单');
+      }
+    }
+  }
+
   // 获取数据库连接
   const conn = await getConnection();
 
@@ -496,6 +533,16 @@ exports.deleteSalesQuotation = async (req, res) => {
 // 报价单转订单
 
 exports.convertQuotationToOrder = async (req, res) => {
+  {
+    const { id } = req.params;
+    if (id !== null && id !== undefined && id !== '') {
+      const ScopeGuard = require('../../../authorization/ScopeGuard');
+      if (!(await ScopeGuard.assertAccess(require('../../../config/db').pool, req, 'sales_quotation', id))) {
+        return ResponseHandler.forbidden(res, '无权转换该销售报价单');
+      }
+    }
+  }
+
   const conn = await getConnection();
 
   try {

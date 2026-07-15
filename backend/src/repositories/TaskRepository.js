@@ -95,8 +95,9 @@ class TaskRepository {
       maxPageSize: 100,
     });
 
+    const scopeClause = paginationParams.scopeClause || { join: '', where: '', params: [] };
     const { whereClause, queryParams } = TaskRepository.buildFilterConditions(filters);
-    const filterParams = [...queryParams];
+    const filterParams = [...queryParams, ...(scopeClause.params || [])];
 
     // 主查询
     const listSql = appendPaginationSQL(
@@ -122,7 +123,8 @@ class TaskRepository {
        LEFT JOIN production_plans pp ON pt.plan_id = pp.id
        LEFT JOIN materials p ON pt.product_id = p.id
        LEFT JOIN units u ON p.unit_id = u.id
-       WHERE pt.deleted_at IS NULL ${whereClause}
+       ${scopeClause.join || ''}
+       WHERE pt.deleted_at IS NULL ${whereClause}${scopeClause.where || ''}
        ORDER BY pt.created_at DESC`,
       pagination.limit,
       pagination.offset
@@ -160,7 +162,8 @@ class TaskRepository {
     const [countResult] = await pool.query(
       `SELECT COUNT(*) as total FROM production_tasks pt
        LEFT JOIN materials p ON pt.product_id = p.id
-       WHERE pt.deleted_at IS NULL ${whereClause}`,
+       ${scopeClause.join || ''}
+       WHERE pt.deleted_at IS NULL ${whereClause}${scopeClause.where || ''}`,
       filterParams
     );
     const total = countResult[0].total;
@@ -177,7 +180,8 @@ class TaskRepository {
          SUM(CASE WHEN pt.status = '${PRODUCTION_STATUS_KEYS.CANCELLED}' THEN 1 ELSE 0 END) as cancelled
        FROM production_tasks pt
        LEFT JOIN materials p ON pt.product_id = p.id
-       WHERE pt.deleted_at IS NULL ${whereClause}`,
+       ${scopeClause.join || ''}
+       WHERE pt.deleted_at IS NULL ${whereClause}${scopeClause.where || ''}`,
       filterParams
     );
 
@@ -266,8 +270,8 @@ class TaskRepository {
   static async create(conn, data) {
     const [result] = await conn.query(
       `INSERT INTO production_tasks
-       (code, plan_id, product_id, quantity, start_date, expected_end_date, manager, remarks, cost_center_id, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'allocated')`,
+       (code, plan_id, product_id, quantity, start_date, expected_end_date, manager, remarks, cost_center_id, created_by, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'allocated')`,
       [
         data.code,
         data.plan_id || null,
@@ -278,6 +282,7 @@ class TaskRepository {
         data.manager || '未分配',
         data.remarks || '',
         data.cost_center_id,
+        data.created_by || null,
       ]
     );
     return result.insertId;

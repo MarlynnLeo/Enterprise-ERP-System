@@ -1,15 +1,11 @@
 ﻿<template>
   <div class="module-page page-container">
     <!-- 页面头部卡片 -->
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>编码规则管理</h2>
-          <p class="subtitle">配置各业务单据的自动编号规则，支持前缀、日期、流水号组合</p>
-        </div>
-        <el-button type="primary" :icon="Plus" v-permission="'system:settings:edit'" @click="openForm()">新增规则</el-button>
-      </div>
-    </el-card>
+    <PageHeader title="编码规则管理" subtitle="配置各业务单据的自动编号规则，支持前缀、日期、流水号组合">
+      <template #actions>
+<el-button type="primary" :icon="Plus" v-permission="'system:settings:edit'" @click="openForm()">新增规则</el-button>
+      </template>
+    </PageHeader>
     <!-- 搜索区域 -->
     <FinanceQueryCard
       @search="filterList"
@@ -35,7 +31,7 @@
     <el-card class="data-card">
       <el-table :data="filteredData" v-loading="loading" border stripe
         :row-class-name="({row}) => row.is_active ? '' : 'row-disabled'"
-        style="width:100%">
+        class="w-full">
         <el-table-column prop="business_type" label="业务类型" width="180" sortable>
           <template #default="{ row }">
             <span class="code-text">{{ row.business_type }}</span>
@@ -95,7 +91,7 @@
           </el-col>
           <el-col :span="8">
             <el-form-item label="日期格式">
-              <el-select v-model="form.date_format" style="width:100%" clearable placeholder="选择格式">
+              <el-select v-model="form.date_format" class="w-full" clearable placeholder="选择格式">
                 <el-option label="无" value="" />
                 <el-option label="YYMMDD" value="YYMMDD" />
                 <el-option label="YYMM" value="YYMM" />
@@ -107,7 +103,7 @@
           </el-col>
           <el-col :span="8">
             <el-form-item label="分隔符">
-              <el-select v-model="form.separator" style="width:100%">
+              <el-select v-model="form.separator" class="w-full">
                 <el-option label="无" value="" />
                 <el-option label="-" value="-" />
                 <el-option label="_" value="_" />
@@ -119,24 +115,24 @@
         <el-row :gutter="16">
           <el-col :span="6">
             <el-form-item label="流水号位数">
-              <el-input-number v-model="form.sequence_length" :min="1" :max="10" style="width:100%" />
+              <el-input-number v-model="form.sequence_length" :min="1" :max="10" class="w-full" />
             </el-form-item>
           </el-col>
           <el-col :span="6">
             <el-form-item label="重置周期">
-              <el-select v-model="form.reset_cycle" style="width:100%">
+              <el-select v-model="form.reset_cycle" class="w-full">
                 <el-option v-for="(l,k) in cycleLabel" :key="k" :label="l" :value="k" />
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="6">
             <el-form-item label="起始值">
-              <el-input-number v-model="form.initial_value" :min="0" style="width:100%" />
+              <el-input-number v-model="form.initial_value" :min="0" class="w-full" />
             </el-form-item>
           </el-col>
           <el-col :span="6">
             <el-form-item label="步长">
-              <el-input-number v-model="form.step" :min="1" :max="100" style="width:100%" />
+              <el-input-number v-model="form.step" :min="1" :max="100" class="w-full" />
             </el-form-item>
           </el-col>
         </el-row>

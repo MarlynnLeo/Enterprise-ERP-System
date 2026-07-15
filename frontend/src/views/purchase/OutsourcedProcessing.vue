@@ -8,15 +8,11 @@
 -->
 <template>
   <div class="module-page outsourced-processing-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>外委加工管理</h2>
-          <p class="subtitle">管理外委加工订单</p>
-        </div>
-        <el-button type="primary" :icon="Plus" v-permission="'purchase:processing:create'" @click="handleAddProcessing">新建加工单</el-button>
-      </div>
-    </el-card>
+    <PageHeader title="外委加工管理" subtitle="管理外委加工订单">
+      <template #actions>
+<el-button type="primary" :icon="Plus" v-permission="'purchase:processing:create'" @click="handleAddProcessing">新建加工单</el-button>
+      </template>
+    </PageHeader>
     <!-- 搜索区域 -->
     <FinanceQueryCard
       :model="searchForm"
@@ -83,7 +79,7 @@
       <el-table
         :data="processingList"
         border
-        style="width: 100%"
+        class="w-full"
         v-loading="loading"
       >
         <el-table-column prop="processing_no" label="加工单号" min-width="150" />
@@ -112,7 +108,7 @@
         </el-table-column>
         <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
-            <el-button
+            <el-button class="btn-op-view" type="primary"
               size="small"
               @click="handleViewProcessing(scope.row)"
             >
@@ -206,7 +202,7 @@
                   type="date"
                   placeholder="选择日期"
                   value-format="YYYY-MM-DD"
-                  style="width: 100%"
+                  class="w-full"
                   :disabled="viewOnly"
                 />
               </el-form-item>
@@ -219,7 +215,7 @@
                   remote
                   reserve-keyword
                   placeholder="请选择加工厂"
-                  style="width: 100%"
+                  class="w-full"
                   :disabled="viewOnly"
                   :remote-method="loadSuppliers"
                   :loading="supplierLoading"
@@ -241,7 +237,7 @@
                   type="date"
                   placeholder="选择日期"
                   value-format="YYYY-MM-DD"
-                  style="width: 100%"
+                  class="w-full"
                   :disabled="viewOnly"
                 />
               </el-form-item>
@@ -294,7 +290,7 @@
             </div>
           </template>
 
-          <el-table :data="processingForm.materials" border style="width: 100%">
+          <el-table :data="processingForm.materials" border class="w-full">
             <el-table-column type="index" width="50" label="序号" />
             <el-table-column prop="material_code" label="物料编码" min-width="120" />
             <el-table-column prop="material_name" label="物料名称" min-width="150" />
@@ -309,7 +305,7 @@
                   :precision="2"
                   controls-position="right"
                   size="small"
-                  style="width: 100%"
+                  class="w-full"
                 />
                 <span v-else>{{ scope.row.quantity }}</span>
               </template>
@@ -355,7 +351,7 @@
             </div>
           </template>
 
-          <el-table :data="processingForm.products" border style="width: 100%">
+          <el-table :data="processingForm.products" border class="w-full">
             <el-table-column type="index" width="50" label="序号" />
             <el-table-column prop="product_code" label="成品编码" min-width="120" />
             <el-table-column prop="product_name" label="成品名称" min-width="150" />
@@ -370,7 +366,7 @@
                   :precision="2"
                   controls-position="right"
                   size="small"
-                  style="width: 100%"
+                  class="w-full"
                   @change="calculateRowTotal(scope.row)"
                 />
                 <span v-else>{{ scope.row.quantity }}</span>
@@ -385,7 +381,7 @@
                   :precision="2"
                   controls-position="right"
                   size="small"
-                  style="width: 100%"
+                  class="w-full"
                   @change="calculateRowTotal(scope.row)"
                 />
                 <span v-else>{{ formatPrice(scope.row.unit_price) }}</span>
@@ -457,7 +453,7 @@
       <el-table
         :data="filteredMaterials"
         border
-        style="width: 100%"
+        class="w-full"
         height="400px"
         @row-click="handleSelectMaterial"
       >
@@ -499,7 +495,7 @@
       <el-table
         :data="filteredProducts"
         border
-        style="width: 100%"
+        class="w-full"
         height="400px"
         @row-click="handleSelectProduct"
       >
@@ -1211,11 +1207,6 @@ onMounted(() => {
   color: var(--color-danger);
   font-weight: bold;
   margin-left: 10px;
-}
-/* 对话框高度 - 页面特定，其他样式使用全局主题 */
-:deep(.el-dialog__body) {
-  max-height: 60vh;
-  overflow-y: auto;
 }
 @media (max-width: 768px) {
   .statistics-row {

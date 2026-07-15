@@ -19,11 +19,50 @@ const hashValue = (value) => {
   return Math.abs(hash).toString(36)
 }
 
-const getAuthCacheKey = (headers) => {
-  const authHeader = String(getHeader(headers, 'Authorization') || '').trim()
-  if (!authHeader) return 'anon'
+/**
+ * 缓存身份键：Cookie 会话下没有 Authorization，必须按登录用户隔离。
+ * 优先 config.metadata.userId / 全局 __erpUserId，否则退回 Authorization，最后 anon。
+ */
+const getAuthCacheKey = (headers, config = {}) => {
+  const userId =
+    config.metadata?.userId ??
+    config.userId ??
+    (typeof window !== 'undefined' ? window.__erpUserId : null)
 
-  return `auth:${hashValue(authHeader.replace(/^Bearer\s+/i, ''))}`
+  if (userId !== undefined && userId !== null && userId !== '') {
+    return `user:${String(userId)}`
+  }
+
+  const authHeader = String(getHeader(headers, 'Authorization') || '').trim()
+  if (authHeader) {
+    return `auth:${hashValue(authHeader.replace(/^Bearer\s+/i, ''))}`
+  }
+
+  return 'anon'
+}
+
+/** 模块级清空：供 logout / 401 跨实例清理 */
+const optimizerClearHandlers = new Set()
+
+export const clearAllRequestCaches = () => {
+  optimizerClearHandlers.forEach((fn) => {
+    try {
+      fn()
+    } catch {
+      // ignore
+    }
+  })
+}
+
+export const setRequestCacheUserId = (userId) => {
+  if (typeof window === 'undefined') return
+  if (userId === undefined || userId === null || userId === '') {
+    delete window.__erpUserId
+  } else {
+    window.__erpUserId = userId
+  }
+  // 切换用户后立即清空，防止串数据
+  clearAllRequestCaches()
 }
 
 const stableSerialize = (value) => {
@@ -81,7 +120,10 @@ export const applyRequestOptimizer = (apiInstance, axios, options = {}) => {
 
   const clearCache = () => {
     responseCache.clear()
+    inflightRequests.clear()
   }
+
+  optimizerClearHandlers.add(clearCache)
 
   const notifyMutation = () => {
     if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
@@ -104,7 +146,7 @@ export const applyRequestOptimizer = (apiInstance, axios, options = {}) => {
       config.url || '',
       stableSerialize(config.params),
       stableSerialize(config.data),
-      getAuthCacheKey(config.headers),
+      getAuthCacheKey(config.headers, config),
     ].join('::')
   }
 
@@ -185,7 +227,9 @@ export const applyRequestOptimizer = (apiInstance, axios, options = {}) => {
     (response) => {
       const method = String(response.config?.method || '').toLowerCase()
       if (MUTATION_METHODS.has(method)) {
-        clearCache()
+        // 必须清空所有 axios 实例缓存：业务里常见 api 写 + fastApi 读，
+        // 若只清当前实例，列表/详情会继续命中旧 GET 缓存，操作后要点刷新才更新。
+        clearAllRequestCaches()
         notifyMutation()
       }
       return response
@@ -193,7 +237,7 @@ export const applyRequestOptimizer = (apiInstance, axios, options = {}) => {
     (error) => {
       const method = String(error.config?.method || '').toLowerCase()
       if (MUTATION_METHODS.has(method)) {
-        clearCache()
+        clearAllRequestCaches()
         notifyMutation()
       }
       return Promise.reject(error)

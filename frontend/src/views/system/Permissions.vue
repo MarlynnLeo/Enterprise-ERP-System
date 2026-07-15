@@ -8,14 +8,7 @@
 -->
 <template>
   <div class="module-page permissions-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>权限管理</h2>
-          <p class="subtitle">管理角色与菜单权限</p>
-        </div>
-      </div>
-    </el-card>
+    <PageHeader title="权限管理" subtitle="管理角色与菜单权限" />
     <!-- 表格区域 -->
     <el-card class="data-card">
       <template #header>
@@ -39,13 +32,18 @@
           >
         </div>
 
-        <el-table :data="roleList" style="width: 100%" border v-loading="roleLoading">
+        <el-table :data="roleList" class="w-full" border v-loading="roleLoading">
           <template #empty>
             <el-empty description="暂无角色数据" />
           </template>
-          <el-table-column prop="name" label="角色名称" width="180"></el-table-column>
-          <el-table-column prop="code" label="角色编码" width="280"></el-table-column>
-          <el-table-column prop="description" label="角色描述" min-width="400"></el-table-column>
+          <el-table-column prop="name" label="角色名称" width="160"></el-table-column>
+          <el-table-column prop="code" label="角色编码" width="160"></el-table-column>
+          <el-table-column label="数据范围" width="140">
+            <template #default="scope">
+              <el-tag type="info" size="small">{{ dataScopeLabel(scope.row.data_scope) }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="description" label="角色描述" min-width="280"></el-table-column>
           <el-table-column label="状态" width="100">
             <template #default="scope">
               <el-tag :type="String(scope.row.status) === '1' ? 'success' : 'danger'">
@@ -56,7 +54,7 @@
           <el-table-column prop="createTime" label="创建时间" width="180"></el-table-column>
           <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="scope">
-              <div style="display: flex; gap: 5px; flex-wrap: wrap">
+              <div class="flex-wrap">
                 <el-popconfirm
                   v-if="String(scope.row.status) !== '1'"
                   title="确定要启用该角色吗？"
@@ -116,10 +114,7 @@
           </el-table-column>
         </el-table>
         <!-- 角色分页 -->
-        <div
-          class="pagination-container"
-          style="display: flex; justify-content: flex-end; margin-top: 20px"
-        >
+        <div class="pagination-container flex-end mt-20">
           <el-pagination
             background
             layout="total, sizes, prev, pager, next, jumper"
@@ -154,7 +149,7 @@
 
         <el-table
           :data="menuList"
-          style="width: 100%"
+          class="w-full"
           border
           row-key="id"
           :tree-props="{ children: 'children', hasChildren: 'hasChildren' }"
@@ -198,7 +193,7 @@
           </el-table-column>
           <el-table-column label="操作" min-width="400" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="scope">
-              <div style="display: flex; gap: 5px; flex-wrap: wrap">
+              <div class="flex-wrap">
                 <el-popconfirm
                   v-if="String(scope.row.status) !== '1'"
                   title="确定要显示该菜单吗？"
@@ -277,11 +272,20 @@
     </el-card>
 
     <!-- 角色添加/编辑/查看对话框 -->
-    <el-dialog :title="roleDialogTitle" v-model="roleDialogVisible" width="600px">
+    <AppDialog
+      v-model="roleDialogVisible"
+      :title="roleDialogTitle"
+      :mode="roleIsViewMode ? 'view' : 'form'"
+      width="640px"
+      content-width="wide"
+    >
       <template v-if="roleIsViewMode">
-        <el-descriptions :column="1" border style="margin-bottom: 20px">
+        <el-descriptions :column="1" border class="mb-20">
           <el-descriptions-item label="角色名称">{{ roleForm.name || '-' }}</el-descriptions-item>
           <el-descriptions-item label="角色编码">{{ roleForm.code || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="数据范围">{{
+            dataScopeLabel(roleForm.data_scope)
+          }}</el-descriptions-item>
           <el-descriptions-item label="状态">
             <el-tag :type="Number(roleForm.status) === 1 ? 'success' : 'danger'">
               {{ Number(roleForm.status) === 1 ? '启用' : '禁用' }}
@@ -298,6 +302,17 @@
         </el-form-item>
         <el-form-item label="角色编码" prop="code">
           <el-input v-model="roleForm.code" placeholder="请输入角色编码"></el-input>
+        </el-form-item>
+        <el-form-item label="数据范围" prop="data_scope">
+          <el-select v-model="roleForm.data_scope" placeholder="选择数据范围" class="w-full">
+            <el-option
+              v-for="opt in dataScopeOptions"
+              :key="opt.value"
+              :label="opt.label"
+              :value="opt.value"
+            />
+          </el-select>
+          <div class="form-tip">控制业务单据行级可见范围（ALL/部门/本人等）</div>
         </el-form-item>
         <el-form-item label="角色描述" prop="description">
           <el-input
@@ -329,13 +344,12 @@
           >
         </span>
       </template>
-    </el-dialog>
+    </AppDialog>
     <!-- 分配权限对话框 -->
     <el-dialog
       title="分配权限"
       v-model="permissionDialogVisible"
       width="960px"
-      top="5vh"
       destroy-on-close
       @opened="onPermissionDialogOpened"
     >
@@ -353,7 +367,7 @@
           v-model="permSearchKeyword"
           placeholder="搜索权限名称或编码..."
           clearable
-          style="width: 260px"
+          class="form-control-260"
           size="small"
         >
           <template #prefix
@@ -464,9 +478,15 @@
       </template>
     </el-dialog>
     <!-- 菜单添加/编辑/查看对话框 -->
-    <el-dialog :title="menuDialogTitle" v-model="menuDialogVisible" width="600px">
+    <AppDialog
+      v-model="menuDialogVisible"
+      :title="menuDialogTitle"
+      :mode="menuIsViewMode ? 'view' : 'form'"
+      width="640px"
+      content-width="wide"
+    >
       <template v-if="menuIsViewMode">
-        <el-descriptions :column="2" border style="margin-bottom: 20px">
+        <el-descriptions :column="2" border class="mb-20">
           <el-descriptions-item label="上级菜单" :span="2">
             {{
               menuForm.parentId === 0
@@ -494,7 +514,7 @@
             menuForm.permission || '-'
           }}</el-descriptions-item>
           <el-descriptions-item label="图标" v-if="menuForm.type !== 2" :span="2">
-            <el-icon v-if="menuForm.icon" style="vertical-align: middle; margin-right: 5px"
+            <el-icon v-if="menuForm.icon" class="icon-middle-sm"
               ><component :is="menuForm.icon"
             /></el-icon>
             {{ menuForm.icon || '-' }}
@@ -512,7 +532,7 @@
             :render-after-expand="true"
             :props="{ label: 'name', children: 'children' }"
             placeholder="请选择上级菜单"
-            style="width: 100%"
+            class="w-full"
           ></el-tree-select>
         </el-form-item>
         <el-form-item label="菜单类型" prop="type">
@@ -542,7 +562,7 @@
             v-model="menuForm.sort"
             :min="0"
             :max="999"
-            style="width: 100%"
+            class="w-full"
           ></el-input-number>
         </el-form-item>
         <el-form-item label="状态" prop="status">
@@ -567,7 +587,7 @@
           >
         </span>
       </template>
-    </el-dialog>
+    </AppDialog>
   </div>
 </template>
 <script setup>
@@ -635,12 +655,25 @@ const treeKey = ref(Date.now()); // 用于强制树组件重新渲染
 // 权限搜索关键词
 const permSearchKeyword = ref('');
 // 角色表单
+const dataScopeOptions = [
+  { value: 1, label: '全部数据 (ALL)' },
+  { value: 2, label: '本部门及下级' },
+  { value: 3, label: '仅本部门' },
+  { value: 4, label: '仅本人 (SELF)' },
+  { value: 5, label: '自定义' },
+];
+const dataScopeLabel = (v) => {
+  const n = Number(v);
+  const hit = dataScopeOptions.find((o) => o.value === n);
+  return hit ? hit.label : v == null || v === '' ? '-' : String(v);
+};
 const roleForm = reactive({
   id: null,
   name: '',
   code: '',
   description: '',
   status: 1,
+  data_scope: 4,
 });
 // 菜单表单
 const menuForm = reactive({
@@ -998,6 +1031,7 @@ const handleViewRole = (row) => {
   Object.assign(roleForm, row);
   // 特殊处理状态展示
   roleForm.status = Number(row.status);
+  roleForm.data_scope = Number(row.data_scope) || 4;
   roleDialogVisible.value = true;
 };
 // 编辑角色
@@ -1012,6 +1046,8 @@ const handleEditRole = (row) => {
       roleForm[key] = row[key];
     }
   });
+  roleForm.status = Number(row.status);
+  roleForm.data_scope = Number(row.data_scope) || 4;
 
   roleDialogVisible.value = true;
 };
@@ -1595,6 +1631,7 @@ const resetRoleForm = () => {
   roleForm.code = '';
   roleForm.description = '';
   roleForm.status = 1;
+  roleForm.data_scope = 4;
 
   // 清除校验
   if (roleFormRef.value) {
@@ -2162,6 +2199,12 @@ onMounted(async () => {
 .mt-10 {
   margin-top: 10px;
 }
+.form-tip {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--color-text-secondary, var(--color-text-secondary));
+  line-height: 1.4;
+}
 .permission-examples {
   border: none;
   margin-top: 10px;
@@ -2243,11 +2286,6 @@ onMounted(async () => {
   background-color: var(--color-border-light);
 }
 /* 注意：对话框基础样式已在全局主题中定义，这里只定义页面特定样式 */
-:deep(.el-dialog__body) {
-  max-height: 70vh; /* 页面特定：确保能看到更多菜单项 */
-  overflow-y: auto;
-  /* padding 使用全局主题的 24px */
-}
 /* ========== 分配权限对话框样式 ========== */
 .perm-toolbar {
   display: flex;

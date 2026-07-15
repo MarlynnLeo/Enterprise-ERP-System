@@ -8,14 +8,7 @@
 -->
 <template>
   <div class="module-page print-templates-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>打印管理</h2>
-          <p class="subtitle">管理打印模板与配置</p>
-        </div>
-      </div>
-    </el-card>
+    <PageHeader title="打印管理" subtitle="管理打印模板与配置" />
 
     <!-- 标签切换区域 -->
     <el-card class="search-card">
@@ -71,7 +64,7 @@
     <el-card class="data-card">
       <el-table
         :data="printTemplates"
-        style="width: 100%"
+        class="w-full"
         border
         v-loading="loadingTemplates"
       >
@@ -128,7 +121,7 @@
     <!-- 公司信息配置 -->
     <template v-if="activeTab === 'company'">
       <el-card class="data-card">
-        <el-form :model="companyInfo" label-width="120px" style="max-width: 800px;">
+        <el-form :model="companyInfo" label-width="120px" class="w-max-800">
           <el-form-item label="公司名称">
             <el-input v-model="companyInfo.company_name" placeholder="请输入公司名称" />
           </el-form-item>
@@ -156,10 +149,10 @@
           type="info"
           :closable="false"
           show-icon
-          style="margin-top: 20px;"
+          class="row-mt-20"
         >
           这些信息将用于所有打印模板中，可以在模板中使用以下变量：
-          <div style="margin-top: 8px; font-family: 'Courier New', monospace;">
+          <div class="mono-sm">
             <code v-text="'{' + '{company_name}' + '}'"></code> - 公司名称<br>
             <code v-text="'{' + '{company_phone}' + '}'"></code> - 公司电话<br>
             <code v-text="'{' + '{company_fax}' + '}'"></code> - 公司传真<br>
@@ -187,7 +180,7 @@
         </el-form-item>
 
         <el-form-item label="所属模块" prop="module">
-          <el-select v-model="currentTemplate.module" placeholder="选择所属模块" style="width: 100%">
+          <el-select v-model="currentTemplate.module" placeholder="选择所属模块" class="w-full">
             <el-option
               v-for="item in moduleOptions"
               :key="item.value"
@@ -198,7 +191,7 @@
         </el-form-item>
 
         <el-form-item label="模板类型" prop="template_type">
-          <el-select v-model="currentTemplate.template_type" placeholder="选择模板类型" style="width: 100%">
+          <el-select v-model="currentTemplate.template_type" placeholder="选择模板类型" class="w-full">
             <el-option
               v-for="item in templateTypeOptions"
               :key="item.value"
@@ -281,8 +274,7 @@
                 type="textarea"
                 :rows="20"
                 placeholder="输入HTML模板内容"
-                style="width: 100%; min-width: 600px; font-family: 'Courier New', monospace; font-size: 13px;"
-                class="template-content-input"
+                class="mono-table template-content-input"
                 @input="onCodeEditorInput"
               />
               <div class="template-buttons">
@@ -296,8 +288,7 @@
                 type="textarea"
                 :rows="20"
                 placeholder="输入HTML模板内容"
-                style="width: 100%; min-width: 600px; font-family: 'Courier New', monospace; font-size: 13px;"
-                class="template-content-input"
+                class="mono-table template-content-input"
                 @input="onCodeEditorInput"
               />
             </div>
@@ -334,17 +325,17 @@
     </el-dialog>
 
     <!-- 模板预览对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="previewDialogVisible"
       title="模板预览"
-      width="80%"
-      destroy-on-close
+      mode="preview"
+      content-width="full"
       @opened="onPreviewDialogOpened"
     >
       <div class="preview-container">
         <iframe
           ref="previewIframe"
-          style="width: 100%; height: 500px; border: none; background: var(--color-bg-base);"
+          class="chart-box-500"
         ></iframe>
       </div>
 
@@ -353,7 +344,7 @@
           <el-button @click="previewDialogVisible = false">关闭</el-button>
         </span>
       </template>
-    </el-dialog>
+    </AppDialog>
   </div>
 </template>
 

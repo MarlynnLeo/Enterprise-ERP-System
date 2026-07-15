@@ -8,15 +8,11 @@
 -->
 <template>
   <div class="module-page inventory-report-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>库存报表</h2>
-          <p class="subtitle">查看库存汇总与分析报表</p>
-        </div>
-        <el-button v-permission="'inventory:report:export'" type="primary" @click="handleExport">导出报表</el-button>
-      </div>
-    </el-card>
+    <PageHeader title="库存报表" subtitle="查看库存汇总与分析报表">
+      <template #actions>
+<el-button v-permission="'inventory:report:export'" type="primary" @click="handleExport">导出报表</el-button>
+      </template>
+    </PageHeader>
     <!-- 搜索区域 -->
     <FinanceQueryCard
       :model="searchForm"
@@ -176,7 +172,7 @@
       <el-table
         :data="reportData"
         border
-        style="width: 100%"
+        class="w-full"
         v-loading="loading"
       >
         <el-table-column prop="materialCode" label="物料编码" width="170" />
@@ -228,7 +224,7 @@
       <el-table
         :data="reportData"
         border
-        style="width: 100%"
+        class="w-full"
         v-loading="loading"
         show-summary
         :summary-method="getPeriodSummary"
@@ -325,7 +321,7 @@
       <el-table
         :data="reportData"
         border
-        style="width: 100%"
+        class="w-full"
         v-loading="loading"
       >
         <el-table-column prop="date" label="日期" width="100">
@@ -406,7 +402,7 @@
       <el-table
         :data="reportData"
         border
-        style="width: 100%"
+        class="w-full"
         v-loading="loading"
         :default-sort="{prop: 'turnoverRate', order: 'descending'}"
       >
@@ -482,7 +478,7 @@
       <el-table
         :data="reportData"
         border
-        style="width: 100%"
+        class="w-full"
         v-loading="loading"
         :default-sort="{prop: 'agingDays', order: 'descending'}"
       >
@@ -551,7 +547,7 @@
       <el-table
         :data="reportData"
         border
-        style="width: 100%"
+        class="w-full"
         v-loading="loading"
       >
         <el-table-column prop="materialCode" label="物料编码" width="150" />
@@ -595,7 +591,7 @@
       <el-table
         :data="reportData"
         border
-        style="width: 100%"
+        class="w-full"
         v-loading="loading"
       >
         <el-table-column prop="categoryName" label="物料类别" width="250" />
@@ -648,7 +644,7 @@
       <el-table
         :data="reportData"
         border
-        style="width: 100%"
+        class="w-full"
         v-loading="loading"
       >
         <el-table-column prop="materialCode" label="物料编码" width="170" />

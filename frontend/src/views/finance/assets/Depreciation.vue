@@ -8,22 +8,16 @@
 -->
 <template>
   <div class="module-page depreciation-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>折旧管理</h2>
-          <p class="subtitle">计算与记录资产折旧</p>
-        </div>
-        <div class="action-buttons">
-          <el-button type="primary" @click="calculateDepreciation" :loading="loading" v-permission="'finance:assets:execute'">计算折旧</el-button>
+    <PageHeader title="折旧管理" subtitle="计算与记录资产折旧">
+      <template #actions>
+<el-button type="primary" @click="calculateDepreciation" :loading="loading" v-permission="'finance:assets:execute'">计算折旧</el-button>
           <el-button type="success" @click="confirmBatchDepreciation" :disabled="!hasDepreciation || savingDepreciation || selectedAssets.length === 0" v-permission="'finance:assets:execute'">
             批量计提{{ selectedAssets.length > 0 ? `(${selectedAssets.length})` : '' }}
             <el-icon v-if="savingDepreciation"><Loading /></el-icon>
           </el-button>
           <el-button v-permission="'finance:assets:export'" type="warning" @click="exportData" :disabled="!hasDepreciation">导出数据</el-button>
-        </div>
-      </div>
-    </el-card>
+      </template>
+    </PageHeader>
 
     <!-- 搜索表单 -->
     <FinanceQueryCard
@@ -112,7 +106,7 @@
         v-else
         ref="depTableRef"
         :data="filteredAssetsList"
-        style="width: 100%"
+        class="w-full"
         border
         stripe
         v-loading="loading"

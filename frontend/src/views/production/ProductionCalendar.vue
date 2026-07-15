@@ -8,18 +8,12 @@
 -->
 <template>
   <div class="module-page production-calendar-container">
-    <!-- 页面标题 -->
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>生产日历设置</h2>
-          <p class="subtitle">班次配置与月度排班管理</p>
-        </div>
-        <el-button :icon="Refresh" circle @click="refreshAll" :loading="loading" />
-      </div>
-    </el-card>
+    <PageHeader title="生产日历设置" subtitle="维护班次、休息日和临时加班安排，支撑生产排程计算">
+      <template #actions>
+        <el-button :icon="Refresh" circle @click="refreshAll" :loading="loading" aria-label="刷新" />
+      </template>
+    </PageHeader>
 
-    <!-- 默认班次配置 -->
     <el-card class="data-card">
       <template #header>
         <div class="card-header">
@@ -27,22 +21,23 @@
           <el-tag size="small" type="info">排程计算使用默认班次</el-tag>
         </div>
       </template>
+
       <el-table :data="calendars" v-loading="loading" border stripe size="small">
         <el-table-column prop="name" label="班次名称" width="120" />
         <el-table-column label="上班" width="90">
-          <template #default="{ row }">{{ fmtTime(row.work_start) }}</template>
+          <template #default="{ row }">{{ fmtTime(row.work_start) || '-' }}</template>
         </el-table-column>
         <el-table-column label="下班" width="90">
-          <template #default="{ row }">{{ fmtTime(row.work_end) }}</template>
+          <template #default="{ row }">{{ fmtTime(row.work_end) || '-' }}</template>
         </el-table-column>
         <el-table-column label="午休" width="140">
           <template #default="{ row }">
-            {{ row.break_start ? fmtTime(row.break_start) + ' ~ ' + fmtTime(row.break_end) : '—' }}
+            {{ row.break_start ? `${fmtTime(row.break_start)} ~ ${fmtTime(row.break_end)}` : '-' }}
           </template>
         </el-table-column>
         <el-table-column label="晚餐" width="140">
           <template #default="{ row }">
-            {{ row.dinner_start ? fmtTime(row.dinner_start) + ' ~ ' + fmtTime(row.dinner_end) : '—' }}
+            {{ row.dinner_start ? `${fmtTime(row.dinner_start)} ~ ${fmtTime(row.dinner_end)}` : '-' }}
           </template>
         </el-table-column>
         <el-table-column label="工时" width="90">
@@ -59,19 +54,26 @@
         </el-table-column>
         <el-table-column label="默认" width="70">
           <template #default="{ row }">
-            <el-tag v-if="row.is_default" type="success" size="small" effect="dark">✓</el-tag>
+            <el-tag v-if="row.is_default" type="success" size="small" effect="dark">是</el-tag>
           </template>
         </el-table-column>
         <el-table-column v-if="canUpdateCalendar" label="操作" width="160" fixed="right">
           <template #default="{ row }">
             <el-button size="small" type="primary" link @click="openEdit(row)">编辑</el-button>
-            <el-button size="small" type="success" link :disabled="!!row.is_default" @click="handleSetDefault(row)">设为默认</el-button>
+            <el-button
+              size="small"
+              type="success"
+              link
+              :disabled="!!row.is_default"
+              @click="handleSetDefault(row)"
+            >
+              设为默认
+            </el-button>
           </template>
         </el-table-column>
       </el-table>
     </el-card>
 
-    <!-- 月历视图 -->
     <el-card class="data-card calendar-section">
       <template #header>
         <div class="card-header">
@@ -80,16 +82,15 @@
             <el-button :icon="ArrowLeft" size="small" @click="prevMonth" />
             <span class="month-label">{{ currentYear }}年{{ currentMonth }}月</span>
             <el-button :icon="ArrowRight" size="small" @click="nextMonth" />
-            <el-button size="small" @click="goToday" style="margin-left: 8px">今天</el-button>
+            <el-button size="small" @click="goToday" class="ml-sm">今天</el-button>
           </div>
         </div>
       </template>
+
       <div v-loading="calendarLoading">
-        <!-- 星期头 -->
         <div class="calendar-grid">
           <div class="calendar-weekday" v-for="w in weekdays" :key="w">{{ w }}</div>
 
-          <!-- 日期格子 -->
           <div
             v-for="cell in calendarCells"
             :key="cell.dateStr"
@@ -115,7 +116,7 @@
               </template>
               <template v-else>
                 <span v-if="cell.isWorkday" class="cell-badge default-work">工作日</span>
-                <span v-else class="cell-badge default-rest">休息</span>
+                <span v-else class="cell-badge default-rest">休息日</span>
               </template>
             </div>
             <div class="calendar-cell__time" v-if="cell.isCurrentMonth && cell.isWorkday && cell.hasOverride">
@@ -124,17 +125,15 @@
           </div>
         </div>
 
-        <!-- 图例 -->
         <div class="calendar-legend">
           <span class="legend-item"><span class="legend-dot default-work"></span>默认工作日</span>
           <span class="legend-item"><span class="legend-dot default-rest"></span>默认休息日</span>
-          <span class="legend-item"><span class="legend-dot override-work"></span>加班（覆盖）</span>
-          <span class="legend-item"><span class="legend-dot override-rest"></span>放假（覆盖）</span>
+          <span class="legend-item"><span class="legend-dot override-work"></span>加班或覆盖工作日</span>
+          <span class="legend-item"><span class="legend-dot override-rest"></span>放假或覆盖休息日</span>
         </div>
       </div>
     </el-card>
 
-    <!-- 编辑班次弹窗 -->
     <el-dialog v-model="editVisible" :title="`编辑班次 - ${editForm.name || ''}`" width="520px" destroy-on-close>
       <el-form ref="editFormRef" :model="editForm" :rules="formRules" label-width="100px">
         <el-form-item label="班次名称" prop="name">
@@ -144,12 +143,12 @@
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="上班时间" prop="work_start">
-              <el-time-picker v-model="editForm.work_start" format="HH:mm" value-format="HH:mm" style="width:100%" />
+              <el-time-picker v-model="editForm.work_start" format="HH:mm" value-format="HH:mm" class="w-full" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="下班时间" prop="work_end">
-              <el-time-picker v-model="editForm.work_end" format="HH:mm" value-format="HH:mm" style="width:100%" />
+              <el-time-picker v-model="editForm.work_end" format="HH:mm" value-format="HH:mm" class="w-full" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -157,12 +156,12 @@
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="午休开始">
-              <el-time-picker v-model="editForm.break_start" format="HH:mm" value-format="HH:mm" style="width:100%" clearable />
+              <el-time-picker v-model="editForm.break_start" format="HH:mm" value-format="HH:mm" class="w-full" clearable />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="午休结束">
-              <el-time-picker v-model="editForm.break_end" format="HH:mm" value-format="HH:mm" style="width:100%" clearable />
+              <el-time-picker v-model="editForm.break_end" format="HH:mm" value-format="HH:mm" class="w-full" clearable />
             </el-form-item>
           </el-col>
         </el-row>
@@ -170,12 +169,12 @@
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="晚餐开始">
-              <el-time-picker v-model="editForm.dinner_start" format="HH:mm" value-format="HH:mm" style="width:100%" clearable />
+              <el-time-picker v-model="editForm.dinner_start" format="HH:mm" value-format="HH:mm" class="w-full" clearable />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="晚餐结束">
-              <el-time-picker v-model="editForm.dinner_end" format="HH:mm" value-format="HH:mm" style="width:100%" clearable />
+              <el-time-picker v-model="editForm.dinner_end" format="HH:mm" value-format="HH:mm" class="w-full" clearable />
             </el-form-item>
           </el-col>
         </el-row>
@@ -190,12 +189,11 @@
       </template>
     </el-dialog>
 
-    <!-- 编辑单日弹窗 -->
     <el-dialog v-model="dayEditVisible" :title="dayEditTitle" width="480px" destroy-on-close>
       <el-form :model="dayEditForm" label-width="100px">
         <el-form-item label="日期">
           <el-tag>{{ dayEditForm.calendar_date }}</el-tag>
-          <el-tag type="info" style="margin-left:8px">{{ dayEditForm.weekdayText }}</el-tag>
+          <el-tag type="info" class="ml-sm">{{ dayEditForm.weekdayText }}</el-tag>
         </el-form-item>
 
         <el-form-item label="工作状态">
@@ -210,36 +208,36 @@
           <el-row :gutter="16">
             <el-col :span="12">
               <el-form-item label="上班时间">
-                <el-time-picker v-model="dayEditForm.work_start" format="HH:mm" value-format="HH:mm" style="width:100%" clearable :placeholder="defaultCalendarText.work_start" />
+                <el-time-picker v-model="dayEditForm.work_start" format="HH:mm" value-format="HH:mm" class="w-full" clearable :placeholder="defaultCalendarText.work_start" />
               </el-form-item>
             </el-col>
             <el-col :span="12">
               <el-form-item label="下班时间">
-                <el-time-picker v-model="dayEditForm.work_end" format="HH:mm" value-format="HH:mm" style="width:100%" clearable :placeholder="defaultCalendarText.work_end" />
+                <el-time-picker v-model="dayEditForm.work_end" format="HH:mm" value-format="HH:mm" class="w-full" clearable :placeholder="defaultCalendarText.work_end" />
               </el-form-item>
             </el-col>
           </el-row>
           <el-row :gutter="16">
             <el-col :span="12">
               <el-form-item label="午休开始">
-                <el-time-picker v-model="dayEditForm.break_start" format="HH:mm" value-format="HH:mm" style="width:100%" clearable :placeholder="defaultCalendarText.break_start" />
+                <el-time-picker v-model="dayEditForm.break_start" format="HH:mm" value-format="HH:mm" class="w-full" clearable :placeholder="defaultCalendarText.break_start" />
               </el-form-item>
             </el-col>
             <el-col :span="12">
               <el-form-item label="午休结束">
-                <el-time-picker v-model="dayEditForm.break_end" format="HH:mm" value-format="HH:mm" style="width:100%" clearable :placeholder="defaultCalendarText.break_end" />
+                <el-time-picker v-model="dayEditForm.break_end" format="HH:mm" value-format="HH:mm" class="w-full" clearable :placeholder="defaultCalendarText.break_end" />
               </el-form-item>
             </el-col>
           </el-row>
           <el-row :gutter="16">
             <el-col :span="12">
               <el-form-item label="晚餐开始">
-                <el-time-picker v-model="dayEditForm.dinner_start" format="HH:mm" value-format="HH:mm" style="width:100%" clearable :placeholder="defaultCalendarText.dinner_start" />
+                <el-time-picker v-model="dayEditForm.dinner_start" format="HH:mm" value-format="HH:mm" class="w-full" clearable :placeholder="defaultCalendarText.dinner_start" />
               </el-form-item>
             </el-col>
             <el-col :span="12">
               <el-form-item label="晚餐结束">
-                <el-time-picker v-model="dayEditForm.dinner_end" format="HH:mm" value-format="HH:mm" style="width:100%" clearable :placeholder="defaultCalendarText.dinner_end" />
+                <el-time-picker v-model="dayEditForm.dinner_end" format="HH:mm" value-format="HH:mm" class="w-full" clearable :placeholder="defaultCalendarText.dinner_end" />
               </el-form-item>
             </el-col>
           </el-row>
@@ -251,7 +249,7 @@
       </el-form>
       <template #footer>
         <el-button v-if="dayEditForm.hasOverride" type="danger" @click="handleResetDay" :loading="saving">恢复默认</el-button>
-        <div style="flex:1"></div>
+        <div class="flex-1"></div>
         <el-button @click="dayEditVisible = false">取消</el-button>
         <el-button type="primary" :loading="saving" @click="handleSaveDay">保存</el-button>
       </template>
@@ -268,30 +266,36 @@ import { parseListData } from '@/utils/responseParser'
 import { useAuthStore } from '@/stores/auth'
 import dayjs from 'dayjs'
 
-// ============ 响应式数据 ============
 const authStore = useAuthStore()
 const loading = ref(false)
 const saving = ref(false)
 const calendarLoading = ref(false)
 const calendars = ref([])
 
-// 班次编辑
 const editVisible = ref(false)
 const editFormRef = ref(null)
-const editForm = ref({ id: null, name: '', work_start: '', work_end: '', break_start: '', break_end: '', dinner_start: '', dinner_end: '', exclude_weekends: false })
+const editForm = ref({
+  id: null,
+  name: '',
+  work_start: '',
+  work_end: '',
+  break_start: '',
+  break_end: '',
+  dinner_start: '',
+  dinner_end: '',
+  exclude_weekends: false,
+})
 const formRules = {
   name: [{ required: true, message: '请输入班次名称', trigger: 'blur' }],
   work_start: [{ required: true, message: '请选择上班时间', trigger: 'change' }],
   work_end: [{ required: true, message: '请选择下班时间', trigger: 'change' }],
 }
 
-// 月历
 const currentYear = ref(dayjs().year())
-const currentMonth = ref(dayjs().month() + 1) // 1-12
-const overrides = ref(new Map()) // dateStr -> override
+const currentMonth = ref(dayjs().month() + 1)
+const overrides = ref(new Map())
 const weekdays = ['一', '二', '三', '四', '五', '六', '日']
 
-// 单日编辑
 const dayEditVisible = ref(false)
 const dayEditForm = ref({
   calendar_date: '',
@@ -307,7 +311,6 @@ const dayEditForm = ref({
   hasOverride: false,
 })
 
-// ============ 计算属性 ============
 const defaultCalendar = computed(() => calendars.value.find(c => c.is_default) || calendars.value[0] || {})
 const canUpdateCalendar = computed(() =>
   authStore.hasPermission('production:calendar:update') ||
@@ -323,33 +326,32 @@ const defaultCalendarText = computed(() => ({
   dinner_end: fmtTime(defaultCalendar.value.dinner_end) || '17:30',
 }))
 
-const dayEditTitle = computed(() => `编辑 ${dayEditForm.value.calendar_date}（${dayEditForm.value.weekdayText}）`)
+const dayEditTitle = computed(() =>
+  `编辑 ${dayEditForm.value.calendar_date}（${dayEditForm.value.weekdayText}）`
+)
 
 const calendarCells = computed(() => {
   const cells = []
   const firstDay = dayjs(`${currentYear.value}-${String(currentMonth.value).padStart(2, '0')}-01`)
   const daysInMonth = firstDay.daysInMonth()
 
-  // 星期一=0, 星期日=6
   let startDow = firstDay.day() - 1
   if (startDow < 0) startDow = 6
 
-  // 上个月补齐
-  const prevMonth = firstDay.subtract(1, 'month')
-  const prevDays = prevMonth.daysInMonth()
+  const prevMonthDate = firstDay.subtract(1, 'month')
+  const prevDays = prevMonthDate.daysInMonth()
   for (let i = startDow - 1; i >= 0; i--) {
     const d = prevDays - i
-    const dateStr = prevMonth.date(d).format('YYYY-MM-DD')
+    const dateStr = prevMonthDate.date(d).format('YYYY-MM-DD')
     cells.push({ day: d, dateStr, isCurrentMonth: false, isWorkday: true, isToday: false, hasOverride: false })
   }
 
-  // 本月
   const today = dayjs().format('YYYY-MM-DD')
   const cal = defaultCalendar.value
   for (let d = 1; d <= daysInMonth; d++) {
     const dateDayjs = firstDay.date(d)
     const dateStr = dateDayjs.format('YYYY-MM-DD')
-    const dow = dateDayjs.day() // 0=周日
+    const dow = dateDayjs.day()
 
     const override = overrides.value.get(dateStr)
     let isWorkday
@@ -365,7 +367,6 @@ const calendarCells = computed(() => {
       work_start = override.work_start
       work_end = override.work_end
     } else {
-      // 用全局默认判断
       isWorkday = !(cal.exclude_weekends && (dow === 0 || dow === 6))
     }
 
@@ -382,24 +383,29 @@ const calendarCells = computed(() => {
     })
   }
 
-  // 下个月补齐到 42 格（6行）
-  const nextMonth = firstDay.add(1, 'month')
+  const nextMonthDate = firstDay.add(1, 'month')
   const remaining = 42 - cells.length
   for (let d = 1; d <= remaining; d++) {
-    const dateStr = nextMonth.date(d).format('YYYY-MM-DD')
+    const dateStr = nextMonthDate.date(d).format('YYYY-MM-DD')
     cells.push({ day: d, dateStr, isCurrentMonth: false, isWorkday: true, isToday: false, hasOverride: false })
   }
 
   return cells
 })
 
-// ============ 工具函数 ============
-function fmtTime(t) { return t ? String(t).substring(0, 5) : '' }
+function fmtTime(t) {
+  return t ? String(t).substring(0, 5) : ''
+}
+
 function calcWorkHours(row) {
-  const toMin = (s) => { const p = String(s).split(':'); return parseInt(p[0]) * 60 + parseInt(p[1] || 0) }
+  if (!row.work_start || !row.work_end) return '0.0'
+  const toMin = (s) => {
+    const p = String(s).split(':')
+    return Number.parseInt(p[0], 10) * 60 + Number.parseInt(p[1] || 0, 10)
+  }
   const total = toMin(row.work_end) - toMin(row.work_start)
-  const brk = (row.break_start && row.break_end) ? toMin(row.break_end) - toMin(row.break_start) : 0
-  const dnr = (row.dinner_start && row.dinner_end) ? toMin(row.dinner_end) - toMin(row.dinner_start) : 0
+  const brk = row.break_start && row.break_end ? toMin(row.break_end) - toMin(row.break_start) : 0
+  const dnr = row.dinner_start && row.dinner_end ? toMin(row.dinner_end) - toMin(row.dinner_start) : 0
   return ((total - brk - dnr) / 60).toFixed(1)
 }
 
@@ -421,7 +427,7 @@ async function handleCalendarImpact(impact) {
   }
 
   const blockedText = summary.blocked > 0
-    ? `；${summary.blocked} 个任务已有发料、报工、检验或状态锁定，需要人工处理`
+    ? `，${summary.blocked} 个任务已有发料、报工、检验或状态锁定，需要人工处理`
     : ''
   const sampleText = reschedulableTasks
     .slice(0, 3)
@@ -460,7 +466,6 @@ async function handleCalendarImpact(impact) {
   }
 }
 
-// ============ 数据请求 ============
 async function fetchCalendars() {
   loading.value = true
   try {
@@ -512,7 +517,6 @@ async function refreshAll() {
   }
 }
 
-// ============ 月份导航 ============
 function prevMonth() {
   if (currentMonth.value === 1) {
     currentYear.value--
@@ -521,6 +525,7 @@ function prevMonth() {
     currentMonth.value--
   }
 }
+
 function nextMonth() {
   if (currentMonth.value === 12) {
     currentYear.value++
@@ -529,6 +534,7 @@ function nextMonth() {
     currentMonth.value++
   }
 }
+
 function goToday() {
   currentYear.value = dayjs().year()
   currentMonth.value = dayjs().month() + 1
@@ -536,7 +542,6 @@ function goToday() {
 
 watch([currentYear, currentMonth], () => fetchOverrides())
 
-// ============ 班次编辑 ============
 function openEdit(row) {
   if (!canUpdateCalendar.value) return
   editForm.value = {
@@ -559,7 +564,12 @@ async function handleSave() {
     return
   }
   if (!editFormRef.value) return
-  try { await editFormRef.value.validate() } catch { return }
+  try {
+    await editFormRef.value.validate()
+  } catch {
+    return
+  }
+
   saving.value = true
   try {
     const res = await productionApi.updateCalendar(editForm.value.id, editForm.value)
@@ -567,7 +577,7 @@ async function handleSave() {
     ElMessage.success('班次配置更新成功')
     editVisible.value = false
     await fetchCalendars()
-    await fetchOverrides() // 刷新月历（默认规则可能改变）
+    await fetchOverrides()
     await handleCalendarImpact(data.impact)
   } catch (e) {
     ElMessage.error('更新失败: ' + (e.message || '未知错误'))
@@ -581,6 +591,7 @@ async function handleSetDefault(row) {
     ElMessage.error('无权维护生产日历')
     return
   }
+
   try {
     const res = await productionApi.setDefaultCalendar(row.id)
     const data = getResponseData(res)
@@ -592,7 +603,6 @@ async function handleSetDefault(row) {
   }
 }
 
-// ============ 单日编辑 ============
 function openDayEdit(cell) {
   if (!canUpdateCalendar.value) return
   const dow = dayjs(cell.dateStr).day()
@@ -619,6 +629,7 @@ async function handleSaveDay() {
     ElMessage.error('无权维护生产日历')
     return
   }
+
   saving.value = true
   try {
     const res = await productionApi.saveCalendarOverrides({
@@ -651,6 +662,7 @@ async function handleResetDay() {
     ElMessage.error('无权维护生产日历')
     return
   }
+
   saving.value = true
   try {
     const res = await productionApi.deleteCalendarOverride(dayEditForm.value.calendar_date)
@@ -666,18 +678,17 @@ async function handleResetDay() {
   }
 }
 
-// ============ 初始化 ============
 fetchCalendars()
 fetchOverrides()
 </script>
 
 <style scoped>
-/* 标题区域的 card-header 复用全局 module-page 样式 */
 .card-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
+
 .card-header span {
   display: flex;
   align-items: center;
@@ -685,12 +696,12 @@ fetchOverrides()
   font-weight: 600;
 }
 
-/* 月份导航 */
 .month-nav {
   display: flex;
   align-items: center;
   gap: 8px;
 }
+
 .month-label {
   font-size: 15px;
   font-weight: 700;
@@ -699,12 +710,12 @@ fetchOverrides()
   color: var(--color-text-primary);
 }
 
-/* 日历网格 */
 .calendar-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   gap: 4px;
 }
+
 .calendar-weekday {
   text-align: center;
   font-size: 12px;
@@ -714,7 +725,6 @@ fetchOverrides()
   border-bottom: 1px solid var(--color-border-lighter);
 }
 
-/* 日期格子 */
 .calendar-cell {
   min-height: 78px;
   padding: 6px;
@@ -726,34 +736,40 @@ fetchOverrides()
   flex-direction: column;
   gap: 2px;
 }
+
 .calendar-cell:hover {
   border-color: var(--color-primary);
   box-shadow: 0 0 0 1px var(--color-primary);
 }
+
 .calendar-cell.is-other-month {
   opacity: 0.3;
   cursor: default;
 }
+
 .calendar-cell.is-other-month:hover {
   border-color: var(--color-border-lighter);
   box-shadow: none;
 }
+
 .calendar-cell.is-today {
   border-color: var(--color-primary);
   border-width: 2px;
 }
 
-/* 工作日/休息日颜色 */
 .calendar-cell.is-workday {
   background: color-mix(in srgb, var(--color-success) 6%, var(--color-bg-base));
 }
+
 .calendar-cell.is-rest {
   background: color-mix(in srgb, var(--color-border-light) 30%, var(--color-bg-base));
 }
+
 .calendar-cell.is-override.is-workday {
   background: color-mix(in srgb, var(--color-warning) 12%, var(--color-bg-base));
   border-color: var(--color-warning);
 }
+
 .calendar-cell.is-override.is-rest {
   background: color-mix(in srgb, var(--color-danger) 8%, var(--color-bg-base));
   border-color: var(--color-danger);
@@ -764,15 +780,16 @@ fetchOverrides()
   font-weight: 700;
   color: var(--color-text-primary);
 }
+
 .calendar-cell__info {
   font-size: 11px;
 }
+
 .calendar-cell__time {
   font-size: 10px;
   color: var(--color-text-secondary);
 }
 
-/* 标签 */
 .cell-badge {
   display: inline-block;
   padding: 0 4px;
@@ -781,56 +798,65 @@ fetchOverrides()
   line-height: 16px;
   font-weight: 500;
 }
+
 .cell-badge.work {
   background: var(--color-warning);
-  color: #fff;
+  color: var(--color-bg-base);
 }
+
 .cell-badge.rest {
   background: var(--color-danger);
-  color: #fff;
+  color: var(--color-bg-base);
 }
+
 .cell-badge.default-work {
   color: var(--color-success);
 }
+
 .cell-badge.default-rest {
   color: var(--color-text-secondary);
 }
 
-/* 图例 */
 .calendar-legend {
   display: flex;
   gap: 16px;
   padding: 12px 0 4px;
   font-size: 12px;
   color: var(--color-text-secondary);
+  flex-wrap: wrap;
 }
+
 .legend-item {
   display: flex;
   align-items: center;
   gap: 4px;
 }
+
 .legend-dot {
   width: 12px;
   height: 12px;
   border-radius: 3px;
   border: 1px solid var(--color-border-lighter);
 }
+
 .legend-dot.default-work {
   background: color-mix(in srgb, var(--color-success) 15%, var(--color-bg-base));
 }
+
 .legend-dot.default-rest {
   background: color-mix(in srgb, var(--color-border-light) 40%, var(--color-bg-base));
 }
+
 .legend-dot.override-work {
   background: color-mix(in srgb, var(--color-warning) 25%, var(--color-bg-base));
   border-color: var(--color-warning);
 }
+
 .legend-dot.override-rest {
   background: color-mix(in srgb, var(--color-danger) 15%, var(--color-bg-base));
   border-color: var(--color-danger);
 }
 
-/* 弹窗底部按钮 */
 :deep(.el-dialog__footer) {
   display: flex;
   align-items: center;

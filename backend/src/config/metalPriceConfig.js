@@ -1,18 +1,27 @@
-const DEFAULT_EXCHANGE_RATE_TIMEOUT_MS = 5000;
+/**
+ * 金属 / 汇率外部数据源配置
+ * 默认接入 public-apis 生态免费源（多源故障转移见 PublicMarketDataService）
+ */
+
+const DEFAULT_EXCHANGE_RATE_TIMEOUT_MS = 8000;
 const DEFAULT_EXCHANGE_RATE_FALLBACK = 7.24;
 const DEFAULT_REFRESH_CRON = '0 */4 * * *';
 const DEFAULT_STARTUP_DELAY_MS = 5000;
 
+// 默认汇率 URL：Frankfurter（public-apis Currency Exchange，No Auth）
+// 注意：api.frankfurter.app 会 301，使用 api.frankfurter.dev
+const DEFAULT_EXCHANGE_RATE_URL = 'https://api.frankfurter.dev/v1/latest?base=USD&symbols=CNY';
+
 const DEFAULT_REFERENCE_PRICES = Object.freeze({
   GOLD: 34529.35,
-  PLATINUM: 9020,
+  SILVER: 450,
   ALUMINUM: 19150,
   COPPER: 69200,
 });
 
 const DEFAULT_EXTERNAL_BENCHMARKS = Object.freeze({
   GOLD_USD_PER_OZ: 2050,
-  PLATINUM_USD_PER_OZ: 950,
+  SILVER_USD_PER_OZ: 30,
 });
 
 const parseNumber = (value, fallback) => {
@@ -23,7 +32,8 @@ const parseNumber = (value, fallback) => {
 const readString = (value) => (typeof value === 'string' ? value.trim() : '');
 
 const MARKET_PRICE_CONFIG = Object.freeze({
-  exchangeRateUrl: readString(process.env.METAL_PRICE_EXCHANGE_RATE_URL),
+  // 单 URL（兼容旧逻辑）；真正拉取走 PublicMarketDataService 多源
+  exchangeRateUrl: readString(process.env.METAL_PRICE_EXCHANGE_RATE_URL) || DEFAULT_EXCHANGE_RATE_URL,
   exchangeRateTimeoutMs: parseNumber(
     process.env.METAL_PRICE_EXCHANGE_RATE_TIMEOUT_MS,
     DEFAULT_EXCHANGE_RATE_TIMEOUT_MS
@@ -34,11 +44,13 @@ const MARKET_PRICE_CONFIG = Object.freeze({
   ),
   refreshCron: readString(process.env.METAL_PRICE_REFRESH_CRON) || DEFAULT_REFRESH_CRON,
   startupDelayMs: parseNumber(process.env.METAL_PRICE_STARTUP_DELAY_MS, DEFAULT_STARTUP_DELAY_MS),
+  // 是否启用 Yahoo 金属期货公开接口
+  enableYahooMetals: String(process.env.METAL_PRICE_ENABLE_YAHOO || 'true').toLowerCase() !== 'false',
   referencePrices: Object.freeze({
     GOLD: parseNumber(process.env.METAL_PRICE_GOLD_REFERENCE_CNY_PER_OZ, DEFAULT_REFERENCE_PRICES.GOLD),
-    PLATINUM: parseNumber(
-      process.env.METAL_PRICE_PLATINUM_REFERENCE_CNY_PER_OZ,
-      DEFAULT_REFERENCE_PRICES.PLATINUM
+    SILVER: parseNumber(
+      process.env.METAL_PRICE_SILVER_REFERENCE_CNY_PER_OZ,
+      DEFAULT_REFERENCE_PRICES.SILVER
     ),
     ALUMINUM: parseNumber(
       process.env.METAL_PRICE_ALUMINUM_REFERENCE_CNY_PER_TON,
@@ -54,13 +66,14 @@ const MARKET_PRICE_CONFIG = Object.freeze({
       process.env.METAL_PRICE_GOLD_USD_PER_OZ,
       DEFAULT_EXTERNAL_BENCHMARKS.GOLD_USD_PER_OZ
     ),
-    PLATINUM_USD_PER_OZ: parseNumber(
-      process.env.METAL_PRICE_PLATINUM_USD_PER_OZ,
-      DEFAULT_EXTERNAL_BENCHMARKS.PLATINUM_USD_PER_OZ
+    SILVER_USD_PER_OZ: parseNumber(
+      process.env.METAL_PRICE_SILVER_USD_PER_OZ,
+      DEFAULT_EXTERNAL_BENCHMARKS.SILVER_USD_PER_OZ
     ),
   }),
 });
 
 module.exports = {
   MARKET_PRICE_CONFIG,
+  DEFAULT_EXCHANGE_RATE_URL,
 };

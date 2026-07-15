@@ -7,7 +7,19 @@
  */
 -->
 <template>
-  <div class="template-container">
+  <div class="module-page template-container">
+    <PageHeader title="检验模板管理" subtitle="检验项目模板与默认规则">
+      <template #actions>
+        <el-button
+              type="primary"
+              @click="handleCreate"
+              v-permission="'quality:templates:create'"
+            >
+              新建模板
+            </el-button>
+      </template>
+    </PageHeader>
+
     <div style="margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; background-color: var(--color-bg-base); padding: 12px 20px; border-radius: 4px; box-shadow: 0 1px 4px color-mix(in srgb, var(--ds-slate) 8%, transparent);">
       <div style="font-size: 16px; font-weight: bold; color: var(--color-text-primary);">检验控制库</div>
       <el-radio-group v-model="viewType" size="default">
@@ -17,18 +29,11 @@
     </div>
     <!-- 检验模板页面 -->
     <div v-show="viewType === 'templates'">
-      <el-card class="box-card">
+      <el-card class="data-card">
       <template #header>
         <div class="card-header">
           <span>检验模板管理</span>
           <div class="header-buttons">
-            <el-button
-              type="primary"
-              @click="handleCreate"
-              v-permission="'quality:templates:create'"
-            >
-              新建模板
-            </el-button>
           </div>
         </div>
       </template>
@@ -49,7 +54,7 @@
           </el-col>
 
           <el-col :span="3">
-            <el-select v-model="typeFilter" placeholder="检验类型" clearable @change="handleSearch" style="width: 100%">
+            <el-select v-model="typeFilter" placeholder="检验类型" clearable @change="handleSearch" class="w-full">
               <el-option label="来料检验" value="incoming" />
               <el-option label="过程检验" value="process" />
               <el-option label="成品检验" value="final" />
@@ -58,7 +63,7 @@
           </el-col>
 
           <el-col :span="2">
-            <el-select v-model="statusFilter" placeholder="状态" clearable @change="handleSearch" style="width: 100%">
+            <el-select v-model="statusFilter" placeholder="状态" clearable @change="handleSearch" class="w-full">
               <el-option label="启用" value="active" />
               <el-option label="停用" value="inactive" />
               <el-option label="草稿" value="draft" />
@@ -86,7 +91,7 @@
       <el-table
         :data="templateList"
         border
-        style="width: 100%; margin-top: 16px;"
+        class="w-full mt-md"
         v-loading="loading"
       >
         <el-table-column prop="template_code" label="模板编号" min-width="100" />
@@ -138,7 +143,7 @@
         </el-table-column>
         <el-table-column label="操作" fixed="right" min-width="360" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
-            <el-button
+            <el-button class="btn-op-view" type="primary"
               size="small"
               @click="handleView(scope.row)"
             >
@@ -221,7 +226,7 @@
         </el-form-item>
 
         <el-form-item label="检验类型" prop="inspection_type">
-          <el-select v-model="form.inspection_type" placeholder="请选择检验类型" style="width: 100%">
+          <el-select v-model="form.inspection_type" placeholder="请选择检验类型" class="w-full">
             <el-option label="来料检验" value="incoming" />
             <el-option label="过程检验" value="process" />
             <el-option label="成品检验" value="final" />
@@ -259,7 +264,7 @@
               :loading="loadingMaterials"
               @change="handleMaterialChange"
               @focus="handleMaterialSelectFocus"
-              style="width: 100%"
+              class="w-full"
               popper-class="material-select-popper"
             >
               <el-option
@@ -337,7 +342,7 @@
                 <el-table
                   :data="form.items"
                   border
-                  style="width: 100%"
+                  class="w-full"
                   table-layout="fixed"
                   size="small"
                 >
@@ -377,7 +382,7 @@
                       <el-select
                         v-model="scope.row.type"
                         placeholder="选择类型"
-                        style="width: 100%"
+                        class="w-full"
                         size="small"
                       >
                         <el-option label="外观" value="visual" />
@@ -404,7 +409,7 @@
                         type="number"
                         :step="0.001"
                       />
-                      <span v-else style="color: var(--color-text-secondary);">仅尺寸类型</span>
+                      <span v-else class="text-muted">仅尺寸类型</span>
                     </template>
                   </el-table-column>
                   <el-table-column prop="tolerance_upper" label="上公差(+)" width="100">
@@ -417,7 +422,7 @@
                         type="number"
                         :step="0.001"
                       />
-                      <span v-else style="color: var(--color-text-secondary);">仅尺寸类型</span>
+                      <span v-else class="text-muted">仅尺寸类型</span>
                     </template>
                   </el-table-column>
                   <el-table-column prop="tolerance_lower" label="下公差(-)" width="100">
@@ -430,7 +435,7 @@
                         type="number"
                         :step="0.001"
                       />
-                      <span v-else style="color: var(--color-text-secondary);">仅尺寸类型</span>
+                      <span v-else class="text-muted">仅尺寸类型</span>
                     </template>
                   </el-table-column>
                   <el-table-column label="操作" min-width="80" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
@@ -460,10 +465,11 @@
       </template>
     </el-dialog>
     <!-- 查看模板详情对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="viewDialogVisible"
       title="检验模板详情"
-      width="800px"
+      mode="view"
+      content-width="wide"
     >
       <el-descriptions :column="2" border>
         <el-descriptions-item label="模板编号">{{ currentTemplate?.template_code }}</el-descriptions-item>
@@ -530,7 +536,7 @@
           </el-table>
         </div>
       </div>
-    </el-dialog>
+    </AppDialog>
     <!-- 检验标准选择对话框 -->
     <el-dialog
       v-model="standardSelectorVisible"
@@ -578,7 +584,7 @@
           <el-table
             :data="reusableStandards"
             border
-            style="width: 100%; margin-top: 16px"
+            class="w-full mt-md"
             height="400px"
             v-loading="loadingStandards"
             @row-dblclick="selectStandard"
@@ -634,7 +640,7 @@
           <el-input v-model="newStandardForm.standard" placeholder="请输入检验标准" />
         </el-form-item>
         <el-form-item label="检验类型" required>
-          <el-select v-model="newStandardForm.type" placeholder="请选择检验类型" style="width: 100%">
+          <el-select v-model="newStandardForm.type" placeholder="请选择检验类型" class="w-full">
             <el-option label="外观" value="visual" />
             <el-option label="尺寸" value="dimension" />
             <el-option label="功能" value="function" />

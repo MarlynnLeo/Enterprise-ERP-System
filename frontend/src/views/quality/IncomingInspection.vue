@@ -13,6 +13,14 @@
 -->
 <template>
   <div class="module-page inspection-container">
+    <PageHeader title="来料检验管理" subtitle="来料检验单创建、执行与判定">
+      <template #actions>
+        <el-button type="primary" v-if="canCreate" @click="createDialogVisible = true">
+          <el-icon><Plus /></el-icon>新增
+        </el-button>
+      </template>
+    </PageHeader>
+
     <!-- 统计卡片 -->
     <div class="statistics-row">
       <el-card class="stat-card" shadow="hover">
@@ -37,70 +45,45 @@
       </el-card>
     </div>
 
-    <el-card class="box-card">
-      <template #header>
-        <div class="card-header">
-          <span>来料检验管理</span>
-        </div>
+    <FinanceQueryCard :model="searchFormModel" :loading="loading" @search="handleSearch" @reset="handleRefresh">
+      <template #basic>
+        <el-form-item label="关键词">
+          <el-input
+            v-model="searchKeyword"
+            placeholder="检验单号/物料名称/供应商"
+            clearable
+            @keyup.enter="handleSearch"
+          />
+        </el-form-item>
+        <el-form-item label="检验状态">
+          <el-select v-model="statusFilter" placeholder="检验状态" clearable class="form-control-md">
+            <el-option label="待检验" value="pending" />
+            <el-option label="合格" value="passed" />
+            <el-option label="不合格" value="failed" />
+            <el-option label="部分合格" value="partial" />
+          </el-select>
+        </el-form-item>
       </template>
+      <template #advanced>
+        <el-form-item label="时间范围">
+          <el-date-picker
+            v-model="dateRange"
+            type="daterange"
+            range-separator="至"
+            start-placeholder="开始日期"
+            end-placeholder="结束日期"
+            value-format="YYYY-MM-DD"
+          />
+        </el-form-item>
+      </template>
+    </FinanceQueryCard>
 
-      <!-- 搜索表单 -->
-      <div class="search-container">
-        <el-row :gutter="16">
-          <el-col :span="4">
-            <el-input
-              v-model="searchKeyword"
-              placeholder="请输入检验单号/物料名称/供应商"
-              @keyup.enter="handleSearch"
-              clearable >
-              <template #prefix>
-                <el-icon><Search /></el-icon>
-              </template>
-            </el-input>
-          </el-col>
-
-          <el-col :span="3">
-            <el-select v-model="statusFilter" placeholder="检验状态" clearable @change="handleSearch" style="width: 100%">
-              <el-option label="待检验" value="pending" />
-              <el-option label="合格" value="passed" />
-              <el-option label="不合格" value="failed" />
-              <el-option label="部分合格" value="partial" />
-            </el-select>
-          </el-col>
-
-          <el-col :span="5">
-            <el-date-picker
-              v-model="dateRange"
-              type="daterange"
-              range-separator="至"
-              start-placeholder="开始日期"
-              end-placeholder="结束日期"
-              @change="handleSearch"
-              style="width: 100%"
-            />
-          </el-col>
-
-          <el-col :span="6">
-            <div class="search-buttons">
-              <el-button type="primary" @click="handleSearch" :loading="loading">
-                <el-icon v-if="!loading"><Search /></el-icon>查询
-              </el-button>
-              <el-button @click="handleRefresh" :loading="loading">
-                <el-icon v-if="!loading"><Refresh /></el-icon>重置
-              </el-button>
-              <el-button type="primary" v-if="canCreate" @click="createDialogVisible = true">
-                <el-icon><Plus /></el-icon>新增
-              </el-button>
-            </div>
-          </el-col>
-        </el-row>
-      </div>
-
+    <el-card class="data-card">
       <!-- 检验单列表 -->
       <el-table
         :data="inspectionList"
         border
-        style="width: 100%; margin-top: 16px;"
+        class="w-full"
         v-loading="loading"
       >
         <template #empty>
@@ -131,19 +114,19 @@
         </el-table-column>
         <el-table-column prop="qualified_quantity" label="合格数" min-width="90" show-overflow-tooltip>
           <template #default="scope">
-            <span v-if="scope.row.qualified_quantity !== null && scope.row.qualified_quantity !== undefined" style="color: var(--color-success); font-weight: bold;">
+            <span v-if="scope.row.qualified_quantity !== null && scope.row.qualified_quantity !== undefined" class="text-success font-weight-700">
               {{ Math.floor(scope.row.qualified_quantity) }}
             </span>
-            <span v-else style="color: var(--color-text-secondary);">-</span>
+            <span v-else class="text-muted">-</span>
           </template>
         </el-table-column>
         <el-table-column prop="unqualified_quantity" label="不合格" min-width="70" show-overflow-tooltip>
           <template #default="scope">
-            <span v-if="scope.row.unqualified_quantity !== null && scope.row.unqualified_quantity !== undefined && scope.row.unqualified_quantity > 0" style="color: var(--color-danger); font-weight: bold;">
+            <span v-if="scope.row.unqualified_quantity !== null && scope.row.unqualified_quantity !== undefined && scope.row.unqualified_quantity > 0" class="text-danger font-weight-700">
               {{ Math.floor(scope.row.unqualified_quantity) }}
             </span>
-            <span v-else-if="scope.row.unqualified_quantity === 0" style="color: var(--color-text-secondary);">0</span>
-            <span v-else style="color: var(--color-text-secondary);">-</span>
+            <span v-else-if="scope.row.unqualified_quantity === 0" class="text-muted">0</span>
+            <span v-else class="text-muted">-</span>
           </template>
         </el-table-column>
         <el-table-column prop="inspectionDate" label="检验日期" min-width="100" show-overflow-tooltip>
@@ -162,7 +145,7 @@
         <el-table-column prop="batchNo" label="批次号" min-width="170" show-overflow-tooltip />
         <el-table-column label="操作" fixed="right" min-width="320" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
-            <el-button size="small" @click="handleView(scope.row)">查看</el-button>
+            <el-button class="btn-op-view" type="primary" size="small" @click="handleView(scope.row)">查看</el-button>
             <el-button
               v-if="scope.row.status === 'pending' && canInspect"
               size="small"
@@ -247,7 +230,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { Search, Refresh, Plus } from '@element-plus/icons-vue'
+import { Plus } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { qualityApi, baseDataApi } from '@/api'
 import { parseListData, parsePaginatedData, parseResponseData } from '@/utils/responseParser'
@@ -280,6 +263,11 @@ const canCreate = computed(() => authStore.hasPermission('quality:inspections:cr
 const canInspect = computed(() => authStore.hasPermission('quality:inspections:update') || authStore.isAdmin)
 const statusFilter = ref('')
 const dateRange = ref([])
+const searchFormModel = computed(() => ({
+  keyword: searchKeyword.value,
+  status: statusFilter.value,
+  dateRange: dateRange.value,
+}))
 
 // ===== 表格数据相关 =====
 const loading = ref(false)

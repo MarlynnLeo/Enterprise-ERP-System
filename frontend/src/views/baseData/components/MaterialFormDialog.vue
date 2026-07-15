@@ -28,18 +28,18 @@
               filterable
               :filter-method="cascaderFilterMethod"
               :debounce="300"
-              style="width: 100%"
+              class="w-full"
               @change="handleCascaderChange"
             />
           </el-form-item>
         </el-col>
         <el-col :span="12">
           <el-form-item label="物料编码" prop="code">
-            <div style="display: flex; gap: 8px;">
+            <div class="flex-gap">
               <el-input
                 v-model="form.code"
                 placeholder="选择大类自动生成"
-                style="flex: 1;"
+                class="flex-1"
               ></el-input>
               <el-button
                 type="primary"
@@ -63,7 +63,7 @@
         </el-col>
         <el-col :span="8">
           <el-form-item label="物料类型" prop="category_id">
-            <el-select v-model="form.category_id" placeholder="请选择物料类型" style="width: 100%">
+            <el-select v-model="form.category_id" placeholder="请选择物料类型" class="w-full">
               <el-option
                 v-for="item in categoryOptions"
                 :key="item.id"
@@ -75,7 +75,7 @@
         </el-col>
         <el-col :span="8">
           <el-form-item label="单位" prop="unit_id">
-            <el-select v-model="form.unit_id" placeholder="请选择单位" style="width: 100%">
+            <el-select v-model="form.unit_id" placeholder="请选择单位" class="w-full">
               <el-option
                 v-for="item in unitOptions"
                 :key="item.id"
@@ -91,7 +91,7 @@
       <el-row :gutter="16">
         <el-col :span="8">
           <el-form-item label="检验方式" prop="inspection_method_id">
-            <el-select v-model="form.inspection_method_id" placeholder="请选择检验方式" clearable style="width: 100%">
+            <el-select v-model="form.inspection_method_id" placeholder="请选择检验方式" clearable class="w-full">
               <el-option
                 v-for="item in inspectionMethodOptions"
                 :key="item.id"
@@ -103,14 +103,16 @@
         </el-col>
         <el-col :span="8">
           <el-form-item label="物料来源" prop="material_source_id">
-            <el-select v-model="form.material_source_id" placeholder="请选择物料来源" style="width: 100%">
+            <el-select v-model="form.material_source_id" placeholder="请选择物料来源" class="w-full">
               <el-option
                 v-for="item in materialSourceOptions"
                 :key="item.id"
                 :label="item.name"
                 :value="item.id">
-                <span style="float: left">{{ item.name }}</span>
-                <span style="float: right; color: var(--color-text-muted); font-size: 13px">{{ getSourceTypeLabel(item.type) }}</span>
+                <span class="option-row--split">
+                  <span class="option-code">{{ item.name }}</span>
+                  <span class="option-name">{{ getSourceTypeLabel(item.type) }}</span>
+                </span>
               </el-option>
             </el-select>
           </el-form-item>
@@ -143,14 +145,16 @@
               reserve-keyword
               :remote-method="searchSuppliers"
               :loading="supplierLoading"
-              style="width: 100%">
+              class="w-full">
               <el-option
                 v-for="item in filteredSupplierOptions"
                 :key="item.id"
                 :label="item.name"
                 :value="item.id">
-                <span style="float: left">{{ item.name }}</span>
-                <span style="float: right; color: var(--color-text-muted); font-size: 13px">{{ item.code }}</span>
+                <span class="option-row--split">
+                  <span class="option-code">{{ item.name }}</span>
+                  <span class="option-name">{{ item.code }}</span>
+                </span>
               </el-option>
             </el-select>
           </el-form-item>
@@ -165,14 +169,16 @@
               v-model="form.production_group_id"
               placeholder="请选择生产组"
               clearable
-              style="width: 100%">
+              class="w-full">
               <el-option
                 v-for="item in productionGroupOptions"
                 :key="item.id"
                 :label="item.name"
                 :value="item.id">
-                <span style="float: left">{{ item.name }}</span>
-                <span style="float: right; color: var(--color-text-muted); font-size: 13px">{{ item.code }}</span>
+                <span class="option-row--split">
+                  <span class="option-code">{{ item.name }}</span>
+                  <span class="option-name">{{ item.code }}</span>
+                </span>
               </el-option>
             </el-select>
           </el-form-item>
@@ -201,7 +207,7 @@
             <el-select
               v-model="form.location_id"
               placeholder="请选择仓库"
-              style="width: 100%">
+              class="w-full">
               <el-option
                 v-for="item in locationOptions"
                 :key="item.id"
@@ -218,7 +224,7 @@
               placeholder="请选择负责人"
               clearable
               filterable
-              style="width: 100%"
+              class="w-full"
             >
               <el-option
                 v-for="item in managerOptions"
@@ -271,7 +277,7 @@
         </el-col>
         <el-col v-if="canMaintainPrice" :span="8">
           <el-form-item label="税率">
-            <el-select v-model="form.tax_rate" placeholder="请选择税率" style="width: 100%">
+            <el-select v-model="form.tax_rate" placeholder="请选择税率" class="w-full">
               <el-option
                 v-for="rate in financeStore.vatRateOptions"
                 :key="rate"

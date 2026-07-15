@@ -20,6 +20,7 @@
   --radius-xl: 1.5rem;
   --radius-2xl: 2rem;
   --radius-full: 9999px;
+  --radius-round: 9999px;  /* PC 端别名兼容 */
 
   /* Spacing */
   --spacing-xs: 0.25rem;

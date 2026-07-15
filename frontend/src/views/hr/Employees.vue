@@ -1,8 +1,8 @@
 ﻿<template>
-  <div class="employees-container">
+  <div class="module-page employees-container">
     <el-card>
       <template #header>
-        <div class="card-header" style="display:flex; justify-content:space-between; align-items:center;">
+        <div class="card-header flex-between">
           <span>员工档案与薪酬基数设定</span>
           <div>
             <el-button type="success" :loading="syncing" v-permission="'hr:employees:create'" @click="handleSyncDingtalk">
@@ -13,7 +13,7 @@
         </div>
       </template>
 
-      <el-table :data="tableData" border v-loading="loading" height="calc(100vh - 250px)" style="width:100%">
+      <el-table :data="tableData" border v-loading="loading" height="calc(100vh - 250px)" class="w-full">
         <el-table-column type="index" label="序号" width="55" fixed />
         <el-table-column prop="employee_no" label="工号" width="240" fixed show-overflow-tooltip />
         <el-table-column prop="name" label="姓名" width="100" fixed />
@@ -65,14 +65,14 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="所属部门">
-              <el-select v-model="formData.department_id" placeholder="请选择部门" style="width:100%" filterable clearable>
+              <el-select v-model="formData.department_id" placeholder="请选择部门" class="w-full" filterable clearable>
                 <el-option v-for="d in departmentList" :key="d.id" :label="d.name" :value="d.id" />
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="社保类型">
-              <el-select v-model="formData.insurance_type" style="width:100%">
+              <el-select v-model="formData.insurance_type" class="w-full">
                 <el-option label="有社有公" value="有社有公" />
                 <el-option label="有社无公" value="有社无公" />
                 <el-option label="无社无公" value="无社无公" />
@@ -83,7 +83,7 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="在职状态">
-              <el-select v-model="formData.employment_status" style="width:100%">
+              <el-select v-model="formData.employment_status" class="w-full">
                 <el-option label="在职" value="active" />
                 <el-option label="离职" value="left" />
               </el-select>
@@ -95,12 +95,12 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="基本工资">
-              <el-input-number v-model="formData.base_salary" :min="0" :precision="2" :controls="false" style="width:100%" />
+              <el-input-number v-model="formData.base_salary" :min="0" :precision="2" :controls="false" class="w-full" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="拆分报税基数">
-              <el-input-number v-model="formData.split_base_salary" :min="0" :precision="2" :controls="false" style="width:100%" />
+              <el-input-number v-model="formData.split_base_salary" :min="0" :precision="2" :controls="false" class="w-full" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -109,24 +109,24 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="职位/外补">
-              <el-input-number v-model="formData.position_allowance" :min="0" :precision="2" :controls="false" style="width:100%" />
+              <el-input-number v-model="formData.position_allowance" :min="0" :precision="2" :controls="false" class="w-full" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="房补/交补">
-              <el-input-number v-model="formData.housing_allowance" :min="0" :precision="2" :controls="false" style="width:100%" />
+              <el-input-number v-model="formData.housing_allowance" :min="0" :precision="2" :controls="false" class="w-full" />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="餐补">
-              <el-input-number v-model="formData.meal_allowance" :min="0" :precision="2" :controls="false" style="width:100%" />
+              <el-input-number v-model="formData.meal_allowance" :min="0" :precision="2" :controls="false" class="w-full" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="加班时薪">
-              <el-input-number v-model="formData.overtime_rate" :min="0" :precision="2" :controls="false" style="width:100%" />
+              <el-input-number v-model="formData.overtime_rate" :min="0" :precision="2" :controls="false" class="w-full" />
             </el-form-item>
           </el-col>
         </el-row>

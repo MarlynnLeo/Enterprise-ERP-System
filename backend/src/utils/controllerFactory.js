@@ -7,7 +7,6 @@
  */
 
 const { ResponseHandler } = require('./responseHandler');
-const { logger } = require('./logger');
 
 /**
  * 异步 Controller 方法包装器
@@ -49,8 +48,13 @@ function createCrudController(service, resourceName, options = {}) {
     getAll: asyncHandler(async (req, res) => {
       const { page = 1, pageSize, limit, ...filters } = req.query;
       const normalizedPage = Math.max(parseInt(page, 10) || 1, 1);
-      const requestedPageSize = parseInt(pageSize || limit, 10) || 10;
-      const normalizedPageSize = Math.min(Math.max(requestedPageSize, 1), 100);
+      // 允许 all/0 表示不分页（用于下拉全量选项）
+      const rawSize = pageSize ?? limit;
+      const wantAll = rawSize === 'all' || rawSize === '0' || rawSize === 0;
+      const requestedPageSize = wantAll ? null : (parseInt(rawSize, 10) || 10);
+      const normalizedPageSize = wantAll
+        ? null
+        : Math.min(Math.max(requestedPageSize, 1), 500);
       const result = await service.getAll(normalizedPage, normalizedPageSize, filters);
 
       if (usePaginated && result.total !== undefined) {
@@ -125,4 +129,3 @@ module.exports = {
   createCrudController,
   extendController,
 };
-

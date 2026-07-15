@@ -55,6 +55,11 @@ const getTransferList = async (req, res) => {
     } = req.query;
     const pagination = parsePagination(page, limit, { maxPageSize: 100, defaultPageSize: 10 });
 
+    const ScopeGuard = require('../../../authorization/ScopeGuard');
+    const scopeClause = await ScopeGuard.applyListScope(req, 'inventory_transfer', {
+      tableAlias: 't',
+      ownerAlias: 'inventory_transfer_owner_scope',
+    });
     let whereClause = 'WHERE 1=1';
     const params = [];
 
@@ -100,9 +105,12 @@ const getTransferList = async (req, res) => {
       params.push(`%${materialName}%`, `%${materialName}%`, `%${materialName}%`);
     }
 
+    whereClause += scopeClause.where || '';
+    params.push(...(scopeClause.params || []));
+
     // 获取总记录数
     const [countResult] = await db.pool.execute(
-      `SELECT COUNT(*) as total FROM inventory_transfers t ${whereClause}`,
+      `SELECT COUNT(*) as total FROM inventory_transfers t ${scopeClause.join} ${whereClause}`,
       params
     );
 
@@ -131,6 +139,7 @@ const getTransferList = async (req, res) => {
       FROM inventory_transfers t
       LEFT JOIN locations fl ON t.from_location_id = fl.id
       LEFT JOIN locations tl ON t.to_location_id = tl.id
+      ${scopeClause.join}
       ${whereClause}
       ORDER BY t.created_at DESC`,
       pagination.limit,
@@ -156,6 +165,16 @@ const getTransferList = async (req, res) => {
 // 获取库存调拨单详情
 
 const getTransferDetail = async (req, res) => {
+  {
+    const { id } = req.params;
+    if (id !== null && id !== undefined && id !== '') {
+      const ScopeGuard = require('../../../authorization/ScopeGuard');
+      if (!(await ScopeGuard.assertAccess(db.pool, req, 'inventory_transfer', id))) {
+        return ResponseHandler.forbidden(res, '无权访问该调拨单');
+      }
+    }
+  }
+
   try {
     const { id } = req.params;
 
@@ -413,8 +432,9 @@ const createTransfer = async (req, res) => {
         to_location_id,
         status,
         remark,
-        creator
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        creator,
+        created_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         transfer_no,
         transfer_date,
@@ -423,6 +443,7 @@ const createTransfer = async (req, res) => {
         status,
         remark || '',
         req.user?.username || 'system',
+        (() => { const ScopeGuard = require('../../../authorization/ScopeGuard'); return ScopeGuard.tryStampOwner(req, 'inventory_transfer').created_by; })(),
       ]
     );
 
@@ -464,6 +485,16 @@ const createTransfer = async (req, res) => {
 // 更新库存调拨单
 
 const updateTransfer = async (req, res) => {
+  {
+    const { id } = req.params;
+    if (id !== null && id !== undefined && id !== '') {
+      const ScopeGuard = require('../../../authorization/ScopeGuard');
+      if (!(await ScopeGuard.assertAccess(db.pool, req, 'inventory_transfer', id))) {
+        return ResponseHandler.forbidden(res, '无权修改该调拨单');
+      }
+    }
+  }
+
   const connection = await db.pool.getConnection();
   try {
     await connection.beginTransaction();
@@ -586,6 +617,16 @@ const updateTransfer = async (req, res) => {
 // 删除库存调拨单
 
 const deleteTransfer = async (req, res) => {
+  {
+    const { id } = req.params;
+    if (id !== null && id !== undefined && id !== '') {
+      const ScopeGuard = require('../../../authorization/ScopeGuard');
+      if (!(await ScopeGuard.assertAccess(db.pool, req, 'inventory_transfer', id))) {
+        return ResponseHandler.forbidden(res, '无权删除该调拨单');
+      }
+    }
+  }
+
   const connection = await db.pool.getConnection();
   try {
     await connection.beginTransaction();
@@ -632,117 +673,213 @@ const deleteTransfer = async (req, res) => {
 // 更新库存调拨单状态
 
 const updateTransferStatus = async (req, res) => {
-  const connection = await db.pool.getConnection();
-  try {
-    await connection.beginTransaction();
-
+  {
     const { id } = req.params;
-    const { newStatus } = req.body;
-
-    // 验证状态参数
-    const validStatuses = ['draft', 'pending', 'approved', 'completed', 'cancelled'];
-    if (!validStatuses.includes(newStatus)) {
-      await connection.rollback();
-      return ResponseHandler.error(res, '无效的状态值', 'VALIDATION_ERROR', 400);
+    if (id !== null && id !== undefined && id !== '') {
+      const ScopeGuard = require('../../../authorization/ScopeGuard');
+      if (!(await ScopeGuard.assertAccess(db.pool, req, 'inventory_transfer', id))) {
+        return ResponseHandler.forbidden(res, '无权变更该调拨单状态');
+      }
     }
+  }
 
-    // 获取当前调拨单信息
-    const [transferResults] = await connection.execute(
-      `SELECT
-        t.*,
-        fl.name as from_location_name,
-        tl.name as to_location_name
-      FROM inventory_transfers t
-      LEFT JOIN locations fl ON t.from_location_id = fl.id
-      LEFT JOIN locations tl ON t.to_location_id = tl.id
-      WHERE t.id = ?
-      FOR UPDATE`,
-      [id]
-    );
+  const { id } = req.params;
+  const { newStatus } = req.body;
 
-    if (transferResults.length === 0) {
-      await connection.rollback();
-      return ResponseHandler.error(res, '调拨单不存在', 'NOT_FOUND', 404);
-    }
+  const validStatuses = ['draft', 'pending', 'approved', 'completed', 'reversed', 'cancelled'];
+  if (!validStatuses.includes(newStatus)) {
+    return ResponseHandler.error(res, '无效的状态值', 'VALIDATION_ERROR', 400);
+  }
 
-    const transfer = transferResults[0];
-    const currentStatus = transfer.status;
+  const isDeadlockError = (err) =>
+    err && (err.code === 'ER_LOCK_DEADLOCK' || /Deadlock/i.test(err.message || ''));
 
-    // 状态转换逻辑验证（引用统一状态注册表）
-    const validTransitions = INVENTORY_TRANSFER_TRANSITIONS;
+  const operatorName = await getCurrentUserName(req);
+  let lastError = null;
 
-    if (!validTransitions[currentStatus].includes(newStatus)) {
-      await connection.rollback();
-      return ResponseHandler.error(res, `调拨单状态无法从 "${currentStatus}" 变更为 "${newStatus}"`, 'VALIDATION_ERROR', 400);
-    }
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    const connection = await db.pool.getConnection();
+    try {
+      await connection.beginTransaction();
 
-    // 如果状态从'approved'变更为'completed'，执行实际的库存转移
-    if (currentStatus === STATUS.TRANSFER.APPROVED && newStatus === STATUS.TRANSFER.COMPLETED) {
-      // 获取调拨单物料明细
-      const [items] = await connection.execute(
+      const [transferResults] = await connection.execute(
         `SELECT
-          i.id,
-          i.material_id,
-          i.quantity,
-          m.name as material_name,
-          m.unit_id
-        FROM inventory_transfer_items i
-        LEFT JOIN materials m ON i.material_id = m.id
-        WHERE i.transfer_id = ?`,
+          t.*,
+          fl.name as from_location_name,
+          tl.name as to_location_name
+        FROM inventory_transfers t
+        LEFT JOIN locations fl ON t.from_location_id = fl.id
+        LEFT JOIN locations tl ON t.to_location_id = tl.id
+        WHERE t.id = ?
+        FOR UPDATE`,
         [id]
       );
 
-      // 获取库位名称用于备注（循环外只查一次，所有物料共享同一源/目标库位）
-      const fromLocationName = transfer.from_location_name || `库位ID:${transfer.from_location_id}`;
-      const toLocationName = transfer.to_location_name || `库位ID:${transfer.to_location_id}`;
+      if (transferResults.length === 0) {
+        await connection.rollback();
+        return ResponseHandler.error(res, '调拨单不存在', 'NOT_FOUND', 404);
+      }
 
-      // 处理每个物料的库存转移 - 使用统一的库存服务
-      for (const item of items) {
-        const materialId = item.material_id;
-        const quantity = parseFloat(item.quantity);
+      const transfer = transferResults[0];
+      const currentStatus = transfer.status;
+      const validTransitions = INVENTORY_TRANSFER_TRANSITIONS;
 
-        // 使用统一的库存服务进行库存转移
-        try {
+      if (
+        !validTransitions[currentStatus] ||
+        !validTransitions[currentStatus].includes(newStatus)
+      ) {
+        await connection.rollback();
+        return ResponseHandler.error(
+          res,
+          `调拨单状态无法从 "${currentStatus}" 变更为 "${newStatus}"`,
+          'VALIDATION_ERROR',
+          400
+        );
+      }
+
+      if (currentStatus === STATUS.TRANSFER.APPROVED && newStatus === STATUS.TRANSFER.COMPLETED) {
+        const [items] = await connection.execute(
+          `SELECT
+            i.id,
+            i.material_id,
+            i.quantity,
+            m.name as material_name,
+            m.unit_id
+          FROM inventory_transfer_items i
+          LEFT JOIN materials m ON i.material_id = m.id
+          WHERE i.transfer_id = ?
+          ORDER BY i.material_id ASC, i.id ASC`,
+          [id]
+        );
+
+        const fromLocationName =
+          transfer.from_location_name || `库位ID:${transfer.from_location_id}`;
+        const toLocationName = transfer.to_location_name || `库位ID:${transfer.to_location_id}`;
+
+        for (const item of items) {
           await InventoryService.transferStock(
             {
-              materialId,
+              materialId: item.material_id,
               fromLocationId: transfer.from_location_id,
               toLocationId: transfer.to_location_id,
-              quantity,
+              quantity: parseFloat(item.quantity),
               referenceNo: transfer.transfer_no,
               referenceType: 'transfer',
-              operator: await getCurrentUserName(req),
+              operator: operatorName,
               remark: `从 ${fromLocationName} 调拨至 ${toLocationName}`,
               unitId: item.unit_id,
             },
             connection
           );
-        } catch (error) {
-          logger.error(
-            `库存转移失败 - 物料ID:${materialId}, 调拨单:${transfer.transfer_no}:`,
-            error
-          );
-          throw error;
         }
       }
+
+      if (
+        currentStatus === STATUS.TRANSFER.COMPLETED &&
+        newStatus === STATUS.TRANSFER.REVERSED
+      ) {
+        const [already] = await connection.execute(
+          `SELECT COUNT(*) AS count
+           FROM inventory_ledger
+           WHERE reference_no = ?
+             AND transaction_type IN ('transfer_cancel_in', 'transfer_cancel_out')`,
+          [transfer.transfer_no]
+        );
+        if (Number(already[0]?.count || 0) > 0) {
+          await connection.rollback();
+          return ResponseHandler.error(
+            res,
+            '该调拨单已有冲销流水，禁止重复冲销',
+            'VALIDATION_ERROR',
+            400
+          );
+        }
+
+        const [ledgerRows] = await connection.execute(
+          `SELECT id, material_id, location_id, unit_id, batch_number, quantity, transaction_type
+           FROM inventory_ledger
+           WHERE reference_no = ?
+             AND transaction_type IN ('transfer_out', 'transfer_in')
+           ORDER BY material_id ASC, location_id ASC, id ASC`,
+          [transfer.transfer_no]
+        );
+
+        if (ledgerRows.length === 0) {
+          await connection.rollback();
+          return ResponseHandler.error(
+            res,
+            '找不到该调拨单台账，无法安全冲销',
+            'VALIDATION_ERROR',
+            400
+          );
+        }
+
+        for (const ledger of ledgerRows) {
+          const qty = parseFloat(ledger.quantity) || 0;
+          if (qty === 0 || !ledger.location_id) continue;
+
+          const reverseQty = -qty;
+          const reverseType =
+            ledger.transaction_type === 'transfer_out'
+              ? 'transfer_cancel_out'
+              : 'transfer_cancel_in';
+
+          await InventoryService.updateStock(
+            {
+              materialId: ledger.material_id,
+              locationId: ledger.location_id,
+              quantity: reverseQty,
+              transactionType: reverseType,
+              referenceNo: transfer.transfer_no,
+              referenceType: 'transfer_reversal',
+              operator: operatorName,
+              remark: `冲销调拨单 ${transfer.transfer_no}，来源台账 ${ledger.id}`,
+              unitId: ledger.unit_id,
+              batchNumber:
+                ledger.batch_number || `REV-TR-${transfer.transfer_no}-${ledger.id}`,
+              idempotencyKey: `transfer_cancel:${transfer.transfer_no}:ledger:${ledger.id}`,
+            },
+            connection
+          );
+        }
+      }
+
+      const [statusUpdate] = await connection.execute(
+        'UPDATE inventory_transfers SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND deleted_at IS NULL AND status = ?',
+        [newStatus, id, currentStatus]
+      );
+      if (!statusUpdate.affectedRows) {
+        await connection.rollback();
+        return ResponseHandler.error(
+          res,
+          '调拨单状态已变更，请刷新后重试',
+          'VALIDATION_ERROR',
+          400
+        );
+      }
+
+      await connection.commit();
+      return ResponseHandler.success(res, { id, status: newStatus }, '调拨单状态更新成功');
+    } catch (error) {
+      try {
+        await connection.rollback();
+      } catch {
+        // ignore
+      }
+      lastError = error;
+      if (isDeadlockError(error) && attempt < 3) {
+        logger.warn(`调拨状态更新死锁，整事务重试 ${attempt}/3: transferId=${id}`);
+        await new Promise((r) => setTimeout(r, 40 * attempt));
+        continue;
+      }
+      logger.error('更新库存调拨单状态失败:', error);
+      return ResponseHandler.error(res, '更新库存调拨单状态失败', 'SERVER_ERROR', 500, error);
+    } finally {
+      connection.release();
     }
-
-    // 更新调拨单状态
-    await connection.execute(
-      'UPDATE inventory_transfers SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND deleted_at IS NULL',
-      [newStatus, id]
-    );
-
-    await connection.commit();
-
-    ResponseHandler.success(res, { id, status: newStatus }, '调拨单状态更新成功');
-  } catch (error) {
-    await connection.rollback();
-    logger.error('更新库存调拨单状态失败:', error);
-    ResponseHandler.error(res, '更新库存调拨单状态失败', 'SERVER_ERROR', 500, error);
-  } finally {
-    connection.release();
   }
+
+  return ResponseHandler.error(res, '更新库存调拨单状态失败', 'SERVER_ERROR', 500, lastError);
 };
 
 // 获取调拨单统计信息

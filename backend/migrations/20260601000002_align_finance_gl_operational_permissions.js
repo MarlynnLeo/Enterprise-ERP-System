@@ -69,7 +69,7 @@ async function grantMenuToRoles(trx, menuId, roleIds) {
 async function alignActions(trx, parentPermission, actions) {
   const parentMenu = await firstMenuByPermission(trx, parentPermission);
   if (!parentMenu) {
-    throw new Error(`Missing parent permission menu: ${parentPermission}`);
+    return;
   }
 
   for (const action of actions) {

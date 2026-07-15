@@ -1,14 +1,44 @@
+/**
+ * 头像特效配置
+ * 保留全部原有图片框资源；仅做参数与兼容增强，不删特效。
+ */
+
 export const DEFAULT_AVATAR_FRAME = 'none'
+
+/**
+ * 若用户曾短暂保存过 CSS 企业环 id，映射回原图片特效，避免空白。
+ * 正常用户的 golden-halo 等 id 不受影响。
+ */
+export const LEGACY_AVATAR_FRAME_MAP = Object.freeze({
+  'executive-gold': 'golden-halo',
+  'slate-steel': 'silver-moon',
+  'signal-blue': 'cyber-blue',
+  'ocean-depth': 'ocean-crystal',
+  'jade-soft': 'emerald-vine',
+  amethyst: 'purple-magic',
+  'rose-quartz': 'sakura-dream',
+  'frost-edge': 'ice-crystal',
+  'ember-glow': 'flame-phoenix',
+  'pearl-soft': 'pearl-wings',
+  'midnight-orbit': 'galaxy-orbit',
+  'aurora-flow': 'neon-prism',
+  obsidian: 'none',
+  frame1: 'golden-halo',
+  frame2: 'silver-moon',
+  frame3: 'ocean-crystal'
+})
 
 export const AVATAR_FRAME_OPTIONS = Object.freeze([
   {
     id: 'golden-halo',
     name: '金光圣环',
-    description: '透明金色光环图片框，接近你给的参考图效果。',
+    description: '透明金色光环图片框，接近参考图效果。',
     tags: ['图片框', '金色', '华丽'],
     variant: 'image-frame',
     image: '/avatar-frames/golden-halo.png',
     motion: 'breath',
+    // 外溢装饰多，头像略小以露出光环
+    avatarRatio: 0.62,
     featured: true
   },
   {
@@ -19,6 +49,7 @@ export const AVATAR_FRAME_OPTIONS = Object.freeze([
     variant: 'image-frame',
     image: '/avatar-frames/silver-moon.png',
     motion: 'slow-spin',
+    avatarRatio: 0.64,
     featured: true
   },
   {
@@ -29,6 +60,7 @@ export const AVATAR_FRAME_OPTIONS = Object.freeze([
     variant: 'image-frame',
     image: '/avatar-frames/flame-phoenix.png',
     motion: 'breath',
+    avatarRatio: 0.62,
     featured: true
   },
   {
@@ -39,6 +71,7 @@ export const AVATAR_FRAME_OPTIONS = Object.freeze([
     variant: 'image-frame',
     image: '/avatar-frames/ocean-crystal.png',
     motion: 'slow-spin',
+    avatarRatio: 0.64,
     featured: true
   },
   {
@@ -49,6 +82,7 @@ export const AVATAR_FRAME_OPTIONS = Object.freeze([
     variant: 'image-frame',
     image: '/avatar-frames/emerald-vine.png',
     motion: 'breath',
+    avatarRatio: 0.64,
     featured: true
   },
   {
@@ -59,6 +93,7 @@ export const AVATAR_FRAME_OPTIONS = Object.freeze([
     variant: 'image-frame',
     image: '/avatar-frames/neon-prism.png',
     motion: 'slow-spin',
+    avatarRatio: 0.64,
     featured: true
   },
   {
@@ -68,7 +103,9 @@ export const AVATAR_FRAME_OPTIONS = Object.freeze([
     tags: ['图片框', '皇冠', '金色', '华丽'],
     variant: 'image-frame',
     image: '/avatar-frames/royal-crown.png',
+    // 皇冠非对称，不用整图旋转
     motion: 'breath',
+    avatarRatio: 0.66,
     featured: true
   },
   {
@@ -79,6 +116,7 @@ export const AVATAR_FRAME_OPTIONS = Object.freeze([
     variant: 'image-frame',
     image: '/avatar-frames/galaxy-orbit.png',
     motion: 'slow-spin',
+    avatarRatio: 0.64,
     featured: true
   },
   {
@@ -88,7 +126,9 @@ export const AVATAR_FRAME_OPTIONS = Object.freeze([
     tags: ['图片框', '樱花', '自然', '梦幻'],
     variant: 'image-frame',
     image: '/avatar-frames/sakura-dream.png',
+    // 樱花非对称，呼吸即可
     motion: 'breath',
+    avatarRatio: 0.66,
     featured: true
   },
   {
@@ -99,6 +139,7 @@ export const AVATAR_FRAME_OPTIONS = Object.freeze([
     variant: 'image-frame',
     image: '/avatar-frames/ice-crystal.png',
     motion: 'slow-spin',
+    avatarRatio: 0.64,
     featured: true
   },
   {
@@ -109,6 +150,7 @@ export const AVATAR_FRAME_OPTIONS = Object.freeze([
     variant: 'image-frame',
     image: '/avatar-frames/cyber-blue.png',
     motion: 'slow-spin',
+    avatarRatio: 0.64,
     featured: true
   },
   {
@@ -119,6 +161,7 @@ export const AVATAR_FRAME_OPTIONS = Object.freeze([
     variant: 'image-frame',
     image: '/avatar-frames/rainbow-star.png',
     motion: 'breath',
+    avatarRatio: 0.64,
     featured: true
   },
   {
@@ -129,6 +172,7 @@ export const AVATAR_FRAME_OPTIONS = Object.freeze([
     variant: 'image-frame',
     image: '/avatar-frames/lava-dragon.png',
     motion: 'breath',
+    avatarRatio: 0.62,
     featured: true
   },
   {
@@ -139,6 +183,7 @@ export const AVATAR_FRAME_OPTIONS = Object.freeze([
     variant: 'image-frame',
     image: '/avatar-frames/pearl-wings.png',
     motion: 'breath',
+    avatarRatio: 0.64,
     featured: true
   },
   {
@@ -149,6 +194,7 @@ export const AVATAR_FRAME_OPTIONS = Object.freeze([
     variant: 'image-frame',
     image: '/avatar-frames/jade-bamboo.png',
     motion: 'breath',
+    avatarRatio: 0.64,
     featured: true
   },
   {
@@ -159,6 +205,7 @@ export const AVATAR_FRAME_OPTIONS = Object.freeze([
     variant: 'image-frame',
     image: '/avatar-frames/purple-magic.png',
     motion: 'slow-spin',
+    avatarRatio: 0.64,
     featured: true
   },
   {
@@ -166,7 +213,8 @@ export const AVATAR_FRAME_OPTIONS = Object.freeze([
     name: '无特效',
     description: '不使用头像框。',
     tags: ['简约'],
-    variant: 'none'
+    variant: 'none',
+    avatarRatio: 1
   }
 ])
 
@@ -177,10 +225,20 @@ export const AVATAR_FRAME_CONFIGS = Object.freeze(
 export const normalizeAvatarFrameId = (frameId, fallback = DEFAULT_AVATAR_FRAME) => {
   const rawFrameId = String(frameId || '').trim()
   if (!rawFrameId) return fallback
-  return AVATAR_FRAME_CONFIGS[rawFrameId] ? rawFrameId : fallback
+  if (AVATAR_FRAME_CONFIGS[rawFrameId]) return rawFrameId
+  const mapped = LEGACY_AVATAR_FRAME_MAP[rawFrameId]
+  if (mapped && AVATAR_FRAME_CONFIGS[mapped]) return mapped
+  return fallback
 }
 
 export const getAvatarFrameConfig = (frameId, fallback = DEFAULT_AVATAR_FRAME) => {
   const normalizedFrameId = normalizeAvatarFrameId(frameId, fallback)
   return AVATAR_FRAME_CONFIGS[normalizedFrameId] || AVATAR_FRAME_CONFIGS[fallback] || AVATAR_FRAME_CONFIGS.none
+}
+
+/** 头像相对外框尺寸比例 */
+export const getAvatarInnerRatio = (frame) => {
+  if (!frame || frame.variant === 'none') return 1
+  if (typeof frame.avatarRatio === 'number') return frame.avatarRatio
+  return frame.variant === 'image-frame' ? 0.64 : 0.78
 }

@@ -8,15 +8,11 @@
 -->
 <template>
   <div class="module-page base-data-list-page">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>工序模板管理</h2>
-          <p class="subtitle">管理生产工序模板配置</p>
-        </div>
-        <el-button v-if="canCreate" type="primary" :icon="Plus" @click="showCreateDialog">新增工序模板</el-button>
-      </div>
-    </el-card>
+    <PageHeader title="工序模板管理" subtitle="管理生产工序模板配置">
+      <template #actions>
+<el-button v-if="canCreate" type="primary" :icon="Plus" @click="showCreateDialog">新增工序模板</el-button>
+      </template>
+    </PageHeader>
     <!-- 搜索区域 -->
     <FinanceQueryCard
       :model="searchForm"
@@ -60,7 +56,7 @@
       <el-table
         :data="templateList"
         border
-        style="width: 100%"
+        class="w-full"
         v-loading="loading"
       >
         <template #empty>
@@ -69,7 +65,7 @@
         <!-- 展开详情列 -->
         <el-table-column type="expand" width="50">
           <template #default="props">
-            <div class="process-detail" style="padding: 10px 20px">
+            <div class="process-detail p-detail">
               <h4>工序列表</h4>
               <el-table :data="props.row.processes" border>
                 <el-table-column prop="order_num" label="工序顺序" width="100" />
@@ -114,9 +110,9 @@
         </el-table-column>
         <el-table-column label="操作" min-width="330" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
-            <el-button
+            <el-button class="btn-op-view"
               size="small"
-              type="info"
+              type="primary"
               @click="handleView(scope.row)">
               <el-icon><View /></el-icon> 查看
             </el-button>
@@ -181,15 +177,16 @@
         />
       </div>
     </el-card>
-    <!-- 创建/编辑对话框 -->
-    <el-dialog
+    <!-- 创建/编辑/查看对话框 -->
+    <AppDialog
       v-model="dialogVisible"
+      :mode="dialogType === 'view' ? 'view' : 'form'"
       :title="dialogType === 'create' ? '新增工序模板' : (dialogType === 'view' ? '查看工序模板' : '编辑工序模板')"
       width="800px"
-      destroy-on-close
+      content-width="wide"
     >
       <template v-if="dialogType === 'view'">
-        <el-descriptions :column="2" border style="margin-bottom: 20px;">
+        <el-descriptions :column="2" border class="mb-20">
           <el-descriptions-item label="模板编号">{{ form.code || '-' }}</el-descriptions-item>
           <el-descriptions-item label="模板名称">{{ form.name }}</el-descriptions-item>
           <el-descriptions-item label="关联产品">
@@ -220,7 +217,7 @@
                 remote
                 :remote-method="remoteSearchProduct"
                 clearable
-                style="width: 100%"
+                class="w-full"
               >
                 <el-option
                   v-for="product in productOptions"
@@ -311,7 +308,7 @@
 
             <el-table-column label="作业指导书" min-width="200">
               <template #default="{ row }">
-                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                <div class="flex-row flex-wrap gap-sm">
                   <el-upload
                     v-if="dialogType !== 'view'"
                     :show-file-list="false"
@@ -324,20 +321,20 @@
                     </el-button>
                   </el-upload>
                   <!-- 已上传文件列表 -->
-                  <div v-if="row.instructionDocs && row.instructionDocs.length > 0" style="display: flex; gap: 4px; flex-wrap: wrap;">
+                  <div v-if="row.instructionDocs && row.instructionDocs.length > 0" class="flex-wrap">
                     <el-tag
                       v-for="(doc, index) in row.instructionDocs"
                       :key="index"
                       :closable="dialogType !== 'view'"
                       @close="removeInstructionDoc(row, index)"
                       @click="viewInstructionDoc(doc)"
-                      style="cursor: pointer;"
+                      class="cursor-pointer"
                       type="success"
                     >
                       {{ doc.name || `文件${index + 1}` }}
                     </el-tag>
                   </div>
-                  <span v-else-if="dialogType === 'view'" style="color: var(--color-text-secondary);">暂无指导书</span>
+                  <span v-else-if="dialogType === 'view'" class="text-muted">暂无指导书</span>
                 </div>
               </template>
             </el-table-column>
@@ -362,7 +359,7 @@
           <el-button v-if="dialogType !== 'view'" type="primary" @click="submitForm">确定</el-button>
         </span>
       </template>
-    </el-dialog>
+    </AppDialog>
     <!-- 文件预览对话框 -->
     <ProcessTemplatePreviewDialog
       v-model="previewDialogVisible"

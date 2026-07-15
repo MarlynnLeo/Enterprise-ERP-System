@@ -322,10 +322,14 @@
   color: var(--color-text-secondary) !important;
 }
 
-/* 对话框专业化 */
-[data-theme="professional"] .el-dialog {
-  border-radius: 4px !important;
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--color-bg-overlay) 15%, transparent) !important;
+/* 对话框专业化（仅视觉） */
+[data-theme="professional"] {
+  --theme-dialog-radius: 4px;
+}
+
+[data-theme="professional"] .el-dialog:not(.is-fullscreen) {
+  border-radius: var(--theme-dialog-radius);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--color-bg-overlay) 15%, transparent);
 }
 
 [data-theme="professional"] .el-dialog__header {

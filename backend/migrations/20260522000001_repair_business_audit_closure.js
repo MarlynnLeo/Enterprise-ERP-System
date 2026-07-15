@@ -83,7 +83,7 @@ exports.up = async function up(knex) {
           FROM inventory_ledger
          WHERE transaction_type IN ('purchase_inbound', 'purchase_in', 'inbound')
          GROUP BY receipt_id, receipt_no, material_id
-      ) l ON (l.receipt_id = r.id OR l.receipt_no = r.receipt_no)
+      ) l ON (l.receipt_id = r.id OR BINARY l.receipt_no = BINARY r.receipt_no)
          AND l.material_id = ri.material_id
          SET ri.quantity = GREATEST(
                COALESCE(ri.quantity, 0),
@@ -167,7 +167,7 @@ exports.up = async function up(knex) {
                 FROM inventory_ledger
                WHERE reference_type = 'purchase_return'
                GROUP BY reference_no, material_id
-            ) ledger ON ledger.reference_no = items.return_no
+            ) ledger ON BINARY ledger.reference_no = BINARY items.return_no
                     AND ledger.material_id = items.material_id
            GROUP BY items.return_no, items.material_id, items.return_qty, ledger.current_qty
           HAVING ABS(target_qty - current_qty) > 0.0001
@@ -210,7 +210,7 @@ exports.up = async function up(knex) {
                  AND so.status = 'completed'
                GROUP BY so.outbound_no, soi.product_id
             ) items
-            LEFT JOIN inventory_ledger l ON l.reference_no = items.outbound_no
+            LEFT JOIN inventory_ledger l ON BINARY l.reference_no = BINARY items.outbound_no
                                        AND l.material_id = items.product_id
                                        AND l.reference_type IN ('sales_outbound', 'outbound', 'sales')
            GROUP BY items.outbound_no, items.product_id, items.outbound_qty
@@ -257,7 +257,7 @@ exports.up = async function up(knex) {
                  AND ib.status = 'completed'
                GROUP BY ib.inbound_no, ii.material_id, COALESCE(ii.location_id, ib.location_id)
             ) items
-            LEFT JOIN inventory_ledger l ON l.reference_no = items.inbound_no
+            LEFT JOIN inventory_ledger l ON BINARY l.reference_no = BINARY items.inbound_no
                                        AND l.material_id = items.material_id
            GROUP BY items.inbound_no, items.material_id, items.inbound_qty
           HAVING ABS(target_qty - current_qty) > 0.0001
@@ -302,7 +302,7 @@ exports.up = async function up(knex) {
                  AND ob.status = 'completed'
                GROUP BY ob.outbound_no, oi.material_id
             ) items
-            LEFT JOIN inventory_ledger l ON l.reference_no = items.outbound_no
+            LEFT JOIN inventory_ledger l ON BINARY l.reference_no = BINARY items.outbound_no
                                        AND l.material_id = items.material_id
            GROUP BY items.outbound_no, items.material_id, items.outbound_qty
           HAVING ABS(target_qty - current_qty) > 0.0001

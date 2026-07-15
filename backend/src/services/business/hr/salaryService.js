@@ -110,14 +110,20 @@ class SalaryService {
                           + mealAllowance + fullAttendance + personalPerf + teamPerf
                           + leaveDeduction + lateFine);
 
-        // 五险一金 按基数比例计算
+        // 五险一金：优先规则表 / 环境变量，避免写死
+        const pensionRate = parseFloat(
+          ruleMap.pension_personal_rate?.rate ?? process.env.HR_PENSION_RATE ?? 0.105
+        );
+        const housingRate = parseFloat(
+          ruleMap.housing_fund_personal_rate?.rate ?? process.env.HR_HOUSING_FUND_RATE ?? 0.05
+        );
         let pension = 0;
         let housingFund = 0;
         if (att.insurance_type === '有社有公') {
-          pension = round2(-(base * 0.105));     // 社保个人部分约10.5%
-          housingFund = round2(-(base * 0.05));   // 公积金个人5%
+          pension = round2(-(base * pensionRate));
+          housingFund = round2(-(base * housingRate));
         } else if (att.insurance_type === '有社无公') {
-          pension = round2(-(base * 0.105));
+          pension = round2(-(base * pensionRate));
         }
 
         const netSalary = round2(grossSalary + pension + housingFund);
@@ -171,6 +177,153 @@ class SalaryService {
     } finally {
       connection.release();
     }
+  }
+
+  /**
+   * 确认工资单并生成计提凭证：
+   * 借：管理费用(ADMIN_EXPENSE)  贷：应付职工薪酬(EMPLOYEE_PAYABLE)
+   * 幂等：同一 salary 记录 document_number=SAL-{id} 已存在则跳过
+   */
+  static async confirmAndPostSalary(salaryId, userId = null) {
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+
+      const [rows] = await connection.execute(
+        `SELECT s.*, e.name AS employee_name, e.employee_no
+         FROM hr_salary_records s
+         LEFT JOIN hr_employees e ON e.id = s.employee_id
+         WHERE s.id = ?
+         FOR UPDATE`,
+        [salaryId]
+      );
+      if (rows.length === 0) {
+        throw new Error('工资单不存在');
+      }
+      const salary = rows[0];
+      if (salary.status === 'approved' && salary.gl_entry_id) {
+        await connection.commit();
+        return { skipped: true, message: '已确认且已有凭证', entryId: salary.gl_entry_id };
+      }
+
+      const gross = parseFloat(salary.gross_salary) || 0;
+      if (gross <= 0) {
+        throw new Error('应发工资为0，不能生成计提凭证');
+      }
+
+      const FinanceIntegrationService = require('../../external/FinanceIntegrationService');
+      const financeModel = require('../../../models/finance');
+      const { currentDateString } = require('../../../utils/dateFormatter');
+
+      const accountIds = await FinanceIntegrationService.resolveAccountIds([
+        'ADMIN_EXPENSE',
+        'EMPLOYEE_PAYABLE',
+      ]);
+
+      const docNumber = `SAL-${salary.id}`;
+      const [existing] = await connection.execute(
+        `SELECT id, entry_number FROM gl_entries
+         WHERE document_number = ? AND COALESCE(is_reversed, 0) = 0
+         LIMIT 1`,
+        [docNumber]
+      );
+      if (existing.length > 0) {
+        await connection.execute(
+          `UPDATE hr_salary_records SET status = 'approved', gl_entry_id = COALESCE(gl_entry_id, ?) WHERE id = ?`,
+          [existing[0].id, salaryId]
+        );
+        await connection.commit();
+        return {
+          skipped: true,
+          entryId: existing[0].id,
+          entryNumber: existing[0].entry_number,
+          message: '凭证已存在',
+        };
+      }
+
+      const entryDate =
+        salary.period && /^\d{4}-\d{2}$/.test(salary.period)
+          ? `${salary.period}-28`
+          : currentDateString();
+
+      const GLService = require('../../finance/GLService');
+      let resolvedPeriodId = null;
+      try {
+        resolvedPeriodId = await GLService.getPeriodIdByDate(entryDate);
+      } catch {
+        resolvedPeriodId = null;
+      }
+
+      const entryData = {
+        period_id: resolvedPeriodId,
+        entry_date: entryDate,
+        posting_date: entryDate,
+        document_type: 'adjustment',
+        document_number: docNumber,
+        description: `工资计提 ${salary.period || ''} ${salary.employee_name || salary.employee_id}`,
+        created_by: userId || 'system',
+        is_posted: 1,
+        status: 'posted',
+      };
+      const entryItems = [
+        {
+          account_id: accountIds.ADMIN_EXPENSE,
+          debit_amount: gross,
+          credit_amount: 0,
+          description: `工资费用-${salary.employee_name || salary.employee_id}`,
+        },
+        {
+          account_id: accountIds.EMPLOYEE_PAYABLE,
+          debit_amount: 0,
+          credit_amount: gross,
+          description: `应付职工薪酬-${salary.employee_name || salary.employee_id}`,
+        },
+      ];
+
+      const entryId = await financeModel.createEntry(entryData, entryItems, connection);
+
+      // gl_entry_id 列可能不存在，兼容
+      try {
+        await connection.execute(
+          `UPDATE hr_salary_records
+           SET status = 'approved', gl_entry_id = ?, updated_at = NOW()
+           WHERE id = ?`,
+          [entryId, salaryId]
+        );
+      } catch (colErr) {
+        if (/Unknown column 'gl_entry_id'/i.test(colErr.message || '')) {
+          await connection.execute(
+            `UPDATE hr_salary_records SET status = 'approved' WHERE id = ?`,
+            [salaryId]
+          );
+        } else {
+          throw colErr;
+        }
+      }
+
+      await connection.commit();
+      logger.info(`[薪酬] 工资单 ${salaryId} 已确认并生成凭证 entryId=${entryId}`);
+      return { entryId, documentNumber: docNumber, amount: gross };
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  }
+
+  static async batchConfirmAndPost(period, userId = null) {
+    const [drafts] = await pool.execute(
+      `SELECT id FROM hr_salary_records WHERE period = ? AND status = 'draft'`,
+      [period]
+    );
+    const results = [];
+    for (const row of drafts) {
+      // 每条独立事务
+
+      results.push(await this.confirmAndPostSalary(row.id, userId));
+    }
+    return { count: results.length, results };
   }
 }
 

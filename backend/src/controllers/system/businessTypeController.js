@@ -58,6 +58,22 @@ const getAllBusinessTypes = async (req, res) => {
   }
 };
 
+/** Active display rules consumed by authenticated business pages. */
+const getActiveBusinessTypeDictionary = async (req, res) => {
+  try {
+    const [types] = await pool.execute(
+      `SELECT code, name, category, group_code, description, icon, color, tag_type, sort_order
+       FROM business_types
+       WHERE status = 1
+       ORDER BY group_code, category, sort_order, id`
+    );
+    ResponseHandler.success(res, types, '获取业务字典成功');
+  } catch (error) {
+    logger.error('获取业务字典失败:', error);
+    ResponseHandler.error(res, '获取业务字典失败', 'SERVER_ERROR', 500, error);
+  }
+};
+
 /**
  * 根据分类获取库存业务类型（向后兼容遗留接口）
  */
@@ -340,6 +356,7 @@ const updateSortOrder = async (req, res) => {
 
 module.exports = {
   getAllBusinessTypes,
+  getActiveBusinessTypeDictionary,
   getBusinessTypesByCategory,
   getBusinessTypeGroups,
   getBusinessTypeById,

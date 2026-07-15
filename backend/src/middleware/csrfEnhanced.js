@@ -34,7 +34,20 @@ const {
   doubleCsrfProtection, // CSRF 保护中间件
 } = doubleCsrf({
   getSecret: getCsrfSecret,
-  getSessionIdentifier: (req) => req.ip || 'anonymous', // 使用客户端 IP 作为会话标识
+  // 绑定登录会话（access cookie 优先），避免 NAT 共享 IP 误伤
+  getSessionIdentifier: (req) => {
+    const access =
+      req.cookies?.accessToken ||
+      req.cookies?.token ||
+      req.signedCookies?.accessToken ||
+      '';
+    if (access && typeof access === 'string') {
+      return `sess:${access.slice(0, 48)}`;
+    }
+    const uid = req.user?.id;
+    if (uid) return `uid:${uid}`;
+    return `ip:${req.ip || 'anonymous'}`;
+  },
   cookieName: csrfCookieName,
   cookieOptions: {
     httpOnly: true,

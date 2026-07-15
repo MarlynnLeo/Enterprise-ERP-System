@@ -723,6 +723,38 @@ const taxModel = {
         throw new Error('关联的单据不存在');
       }
 
+      // 源业务单据身份不可变：已绑定采购入库/销售出库时禁止改写，
+      // 避免幂等键失效导致重复生成税票。AR/AP 关联仅追加备注。
+      const SOURCE_DOC_TYPES = new Set(['采购入库单', '销售出库单']);
+      const [existingRows] = await conn.execute(
+        `SELECT id, related_document_type, related_document_id, remark
+         FROM tax_invoices WHERE id = ?`,
+        [taxInvoiceId]
+      );
+      if (existingRows.length === 0) {
+        throw new Error('税务发票不存在');
+      }
+      const existing = existingRows[0];
+      if (SOURCE_DOC_TYPES.has(existing.related_document_type)) {
+        const note = `\n[linked_${documentType}=${documentId}]`;
+        if (!(existing.remark || '').includes(note.trim())) {
+          await conn.execute(
+            `UPDATE tax_invoices
+             SET remark = CONCAT(COALESCE(remark, ''), ?)
+             WHERE id = ?`,
+            [note, taxInvoiceId]
+          );
+        }
+        logger.info('税务发票保留源业务单据关联，仅记录 AR/AP 链接', {
+          taxInvoiceId,
+          sourceType: existing.related_document_type,
+          sourceId: existing.related_document_id,
+          documentType,
+          documentId,
+        });
+        return true;
+      }
+
       const [result] = await conn.execute(
         'UPDATE tax_invoices SET related_document_type = ?, related_document_id = ? WHERE id = ?',
         [documentType, documentId, taxInvoiceId]

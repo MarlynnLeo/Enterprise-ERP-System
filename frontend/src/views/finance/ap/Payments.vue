@@ -8,15 +8,11 @@
 -->
 <template>
   <div class="module-page payments-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>付款管理</h2>
-          <p class="subtitle">从应付发票发起付款，手工录入仅用于例外付款</p>
-        </div>
-        <el-button v-permission="'finance:ap:pay'" type="info" plain :icon="Plus" @click="showAddDialog">例外付款录入</el-button>
-      </div>
-    </el-card>
+    <PageHeader title="付款管理" subtitle="从应付发票发起付款，手工录入仅用于例外付款">
+      <template #actions>
+<el-button v-permission="'finance:ap:pay'" type="info" plain :icon="Plus" @click="showAddDialog">例外付款录入</el-button>
+      </template>
+    </PageHeader>
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
@@ -68,7 +64,7 @@
     <el-card class="data-card">
       <el-table
         :data="paymentList"
-        style="width: 100%"
+        class="w-full"
         border
         v-loading="loading"
       >
@@ -96,7 +92,7 @@
         <el-table-column prop="notes" label="备注" min-width="120" show-overflow-tooltip></el-table-column>
         <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
-            <el-button type="info" size="small" @click="handleViewDetail(scope.row)">详情</el-button>
+            <el-button class="btn-op-view" type="primary" size="small" @click="handleViewDetail(scope.row)">详情</el-button>
             <el-button v-permission="'finance:ap:update'"
               v-if="scope.row.status === 'normal'"
               type="warning"
@@ -141,7 +137,7 @@
             v-model="paymentForm.invoiceId"
             placeholder="请选择关联发票"
             filterable
-            style="width: 100%"
+            class="w-full"
             @change="handleInvoiceChange"
           >
             <el-option
@@ -162,7 +158,7 @@
             placeholder="选择付款日期"
             format="YYYY-MM-DD"
             value-format="YYYY-MM-DD"
-            style="width: 100%"
+            class="w-full"
           ></el-date-picker>
         </el-form-item>
         <el-form-item label="发票金额">
@@ -175,10 +171,10 @@
           <el-input v-model="paymentForm.balance" disabled></el-input>
         </el-form-item>
         <el-form-item label="付款金额" prop="amount">
-          <el-input-number v-model="paymentForm.amount" :precision="2" :min="0" :max="paymentForm.balanceValue" style="width: 100%"></el-input-number>
+          <el-input-number v-model="paymentForm.amount" :precision="2" :min="0" :max="paymentForm.balanceValue" class="w-full"></el-input-number>
         </el-form-item>
         <el-form-item label="付款方式" prop="paymentMethod">
-          <el-select v-model="paymentForm.paymentMethod" placeholder="请选择付款方式" style="width: 100%">
+          <el-select v-model="paymentForm.paymentMethod" placeholder="请选择付款方式" class="w-full">
             <el-option label="现金" value="cash"></el-option>
             <el-option label="银行转账" value="bank_transfer"></el-option>
             <el-option label="支票" value="check"></el-option>
@@ -216,7 +212,7 @@
             v-model="paymentForm.bankAccountId"
             placeholder="选择付款账户"
             filterable
-            style="width: 100%"
+            class="w-full"
           >
             <el-option
               v-for="account in bankAccountOptions"
@@ -225,7 +221,7 @@
               :value="account.id"
             ></el-option>
           </el-select>
-          <div class="form-tip"><el-icon style="vertical-align: middle; color: var(--color-primary);"><InfoFilled /></el-icon> 选择后将自动创建银行交易记录并更新账户余额</div>
+          <div class="form-tip"><el-icon class="icon-inline text-primary"><InfoFilled /></el-icon> 选择后将自动创建银行交易记录并更新账户余额</div>
         </el-form-item>
 
         <el-form-item label="参考号" prop="referenceNumber" v-if="paymentForm.paymentMethod !== 'cash'">
@@ -240,10 +236,11 @@
       </template>
     </el-dialog>
     <!-- 详情对话框 -->
-    <el-dialog
-      title="付款记录详情"
+    <AppDialog
       v-model="detailDialogVisible"
-      width="650px"
+      title="付款记录详情"
+      mode="view"
+      content-width="wide"
     >
       <el-descriptions :column="2" border>
         <el-descriptions-item label="付款编号">{{ detailData.paymentNumber }}</el-descriptions-item>
@@ -263,7 +260,7 @@
           <el-descriptions-item label="作废原因" :span="2">{{ detailData.void_reason }}</el-descriptions-item>
         </template>
       </el-descriptions>
-    </el-dialog>
+    </AppDialog>
     <!-- 作废对话框 -->
     <el-dialog
       title="作废付款记录"
@@ -273,12 +270,12 @@
       <el-alert
         type="warning"
         :closable="false"
-        style="margin-bottom: 20px;"
+        class="mb-20"
       >
         <template #title>
-          <div style="font-weight: bold;">确认作废该付款记录？</div>
+          <div class="font-weight-700">确认作废该付款记录？</div>
         </template>
-        <div style="margin-top: 10px; line-height: 1.6;">
+        <div class="mt-10 line-height-tight">
           作废后将执行以下操作：<br>
           ✓ 恢复发票的应付余额<br>
           ✓ 冲销相关的银行交易记录<br>
@@ -758,11 +755,6 @@ onMounted(() => {
   margin-top: 5px;
   line-height: 1.2;
   padding-left: 5px;
-}
-/* 对话框高度 - 页面特定，其他样式使用全局主题 */
-:deep(.el-dialog__body) {
-  max-height: 60vh;
-  overflow-y: auto;
 }
 @media (max-width: 768px) {
   .search-form-container {

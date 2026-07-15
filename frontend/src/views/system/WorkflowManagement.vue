@@ -1,17 +1,11 @@
 ﻿<template>
   <div class="module-page page-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>工作流模板</h2>
-          <p class="subtitle">配置业务单据的审批流程模板</p>
-        </div>
-        <div class="operation-btns">
-          <el-button @click="goApprovalCenter">我的审批</el-button>
+    <PageHeader title="工作流模板" subtitle="配置业务单据的审批流程模板">
+      <template #actions>
+<el-button @click="goApprovalCenter">我的审批</el-button>
           <el-button v-permission="'system:workflow:create'" type="primary" @click="openTemplateForm()">新建模板</el-button>
-        </div>
-      </div>
-    </el-card>
+      </template>
+    </PageHeader>
 
     <el-card class="data-card">
       <el-table :data="tableData" v-loading="loading" border stripe>
@@ -28,7 +22,7 @@
         </el-table-column>
         <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
-            <el-button link type="primary" @click="viewTemplate(row)">详情</el-button>
+            <el-button class="btn-op-view" type="primary" size="small" @click="viewTemplate(row)">详情</el-button>
             <el-button link type="primary" v-permission="'system:workflow:edit'" @click="openTemplateForm(row)">编辑</el-button>
             <el-popconfirm title="确定删除？" @confirm="delTemplate(row.id)">
               <template #reference>
@@ -67,7 +61,7 @@
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="业务类型" required>
-              <el-select v-model="form.business_type" style="width:100%">
+              <el-select v-model="form.business_type" class="w-full">
                 <el-option v-for="(label, key) in btLabel" :key="key" :label="label" :value="key" />
               </el-select>
             </el-form-item>
@@ -92,11 +86,12 @@
               <el-input v-model="node.node_name" placeholder="节点名称" size="small" />
             </el-col>
             <el-col :span="5">
-              <el-select v-model="node.approver_type" size="small" style="width:100%">
+              <el-select v-model="node.approver_type" size="small" class="w-full">
                 <el-option label="部门主管" value="manager" />
                 <el-option label="发起人" value="self" />
                 <el-option label="指定用户" value="user" />
                 <el-option label="指定角色" value="role" />
+                <el-option label="指定部门" value="department" />
               </el-select>
             </el-col>
             <el-col :span="6">
@@ -109,15 +104,21 @@
               <span v-else class="node-hint">系统自动分配</span>
             </el-col>
             <el-col :span="3">
-              <el-select v-model="node.multi_approve_type" size="small" style="width:100%">
+              <el-select v-model="node.multi_approve_type" size="small" class="w-full">
                 <el-option label="任一通过" value="any" />
                 <el-option label="全部通过" value="all" />
+                <el-option label="依次审批" value="sequential" />
               </el-select>
             </el-col>
             <el-col :span="2">
               <el-button link type="danger" size="small" @click="form.nodes.splice(index, 1)">删除</el-button>
             </el-col>
           </el-row>
+          <el-checkbox
+            v-if="node.approver_type !== 'self'"
+            v-model="node.allow_self_approval"
+            class="self-approval-option"
+          >允许发起人参与审批（默认关闭）</el-checkbox>
         </div>
         <el-button link type="primary" @click="addNode">+ 添加节点</el-button>
       </el-form>
@@ -134,7 +135,12 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="detailVis" title="模板详情" width="650px" destroy-on-close>
+    <AppDialog
+      v-model="detailVis"
+      title="模板详情"
+      mode="view"
+      content-width="wide"
+    >
       <template v-if="detail">
         <el-descriptions :column="2" border size="small">
           <el-descriptions-item label="名称">{{ detail.name || detail.title }}</el-descriptions-item>
@@ -153,7 +159,7 @@
           </el-timeline-item>
         </el-timeline>
       </template>
-    </el-dialog>
+    </AppDialog>
   </div>
 </template>
 
@@ -223,6 +229,7 @@ const toEditableNode = (node = {}) => ({
   node_type: node.node_type || 'approval',
   approver_type: node.approver_type || 'manager',
   multi_approve_type: node.multi_approve_type || 'any',
+  allow_self_approval: node.approver_type === 'self' || Boolean(node.allow_self_approval),
   approver_ids_text: normalizeApproverIdsText(node.approver_ids)
 })
 
@@ -235,6 +242,7 @@ const toPayloadNode = (node, index) => {
     approver_type: node.approver_type || 'manager',
     multi_approve_type: node.multi_approve_type || 'any'
   }
+  payload.allow_self_approval = payload.approver_type === 'self' || Boolean(node.allow_self_approval)
 
   delete payload.approver_ids_text
   payload.approver_ids = requiresApproverIds(payload.approver_type)
@@ -285,6 +293,7 @@ const addNode = () => {
     node_type: 'approval',
     approver_type: 'manager',
     multi_approve_type: 'any',
+    allow_self_approval: false,
     sequence: form.value.nodes.length,
     approver_ids_text: ''
   })

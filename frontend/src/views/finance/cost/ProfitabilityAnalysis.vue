@@ -1,14 +1,9 @@
 <template>
   <div class="module-page profitability-container">
     <!-- 页面标题 -->
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>盈利分析</h2>
-          <p class="subtitle">产品盈利排名 / 客户盈利贡献 / 盈利趋势</p>
-        </div>
-        <div class="actions">
-          <el-date-picker
+    <PageHeader title="盈利分析" subtitle="产品盈利排名 / 客户盈利贡献 / 盈利趋势">
+      <template #actions>
+<el-date-picker
             v-model="dateRange"
             type="daterange"
             range-separator="至"
@@ -16,14 +11,13 @@
             end-placeholder="结束日期"
             format="YYYY-MM-DD"
             value-format="YYYY-MM-DD"
-            style="width: 260px; margin-right: 10px"
+            class="form-control-260-mr"
           />
           <el-button type="primary" @click="loadAllData">
             <el-icon><Refresh /></el-icon> 刷新
           </el-button>
-        </div>
-      </div>
-    </el-card>
+      </template>
+    </PageHeader>
 
     <!-- 汇总卡片 -->
     <el-row :gutter="20" class="summary-row">

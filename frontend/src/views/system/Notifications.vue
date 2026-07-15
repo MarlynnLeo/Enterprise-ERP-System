@@ -7,15 +7,11 @@
 -->
 <template>
   <div class="module-page notifications-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>通知中心</h2>
-          <p class="subtitle">查看系统通知与消息</p>
-        </div>
-        <el-button type="primary" :icon="Check" @click="handleMarkAllRead" v-if="unreadCount > 0">全部标记为已读</el-button>
-      </div>
-    </el-card>
+    <PageHeader title="通知中心" subtitle="查看系统通知与消息">
+      <template #actions>
+<el-button type="primary" :icon="Check" @click="handleMarkAllRead" v-if="unreadCount > 0">全部标记为已读</el-button>
+      </template>
+    </PageHeader>
 
     <div class="statistics-row">
       <el-card class="stat-card" shadow="hover">
@@ -170,11 +166,11 @@
     </el-card>
 
     <!-- 通知详情对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="detailDialogVisible"
       :title="currentNotification?.title || '通知详情'"
-      width="600px"
-      destroy-on-close
+      mode="view"
+      content-width="wide"
     >
       <div class="notification-detail" v-if="currentNotification">
         <div class="detail-header">
@@ -186,7 +182,7 @@
             type="danger"
             size="large"
             effect="dark"
-            style="margin-left: 8px;"
+            class="ml-sm"
           >
             紧急
           </el-tag>
@@ -194,7 +190,7 @@
             v-else-if="currentNotification.priority === 1"
             type="warning"
             size="large"
-            style="margin-left: 8px;"
+            class="ml-sm"
           >
             重要
           </el-tag>
@@ -207,7 +203,7 @@
         <div class="detail-meta" v-if="currentNotification.link">
           <el-divider />
           <p class="meta-label">关联链接：</p>
-          <el-button type="primary" @click="gotoNotificationLink">
+          <el-button class="btn-op-view" type="primary" size="small" @click="gotoNotificationLink">
             <el-icon><Link /></el-icon>
             前往查看
           </el-button>
@@ -223,7 +219,7 @@
           标记已读并关闭
         </el-button>
       </template>
-    </el-dialog>
+    </AppDialog>
   </div>
 </template>
 

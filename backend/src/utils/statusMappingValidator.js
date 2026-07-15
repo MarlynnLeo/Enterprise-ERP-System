@@ -12,6 +12,7 @@ const {
   INVENTORY_TRANSACTION_TYPES,
   INVENTORY_CHECK_STATUS,
   TRANSFER_STATUS,
+  TRANSFER_STATUS_FLOW,
   ORDER_STATUS,
   PURCHASE_STATUS,
   SALES_STATUS,
@@ -105,15 +106,8 @@ const validateStatusTransition = (fromStatus, toStatus, type) => {
       completed: [],
       cancelled: [],
     },
-    transfer: {
-      draft: ['pending', 'cancelled'],
-      pending: ['approved', 'rejected', 'cancelled'],
-      approved: ['in_transit', 'cancelled'],
-      in_transit: ['completed', 'cancelled'],
-      completed: [],
-      cancelled: [],
-      rejected: ['draft'],
-    },
+    // 与 systemConstants.TRANSFER_STATUS_FLOW / statusRegistry 对齐
+    transfer: TRANSFER_STATUS_FLOW,
     order: {
       draft: ['pending', 'cancelled'],
       pending: ['confirmed', 'cancelled'],

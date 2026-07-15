@@ -196,11 +196,26 @@ class GLService {
           throw new Error(`第${index + 1}行借方和贷方金额不能同时为0`);
         }
 
+        const currencyCode = String(
+          item.currency_code || financeConfig.get('invoice.defaultCurrency', 'CNY')
+        ).toUpperCase();
+        const exchangeRate = Number(item.exchange_rate ?? 1);
+        if (currencyCode !== 'CNY') {
+          throw new Error(
+            `第${index + 1}行币种 ${currencyCode} 暂未启用本位币换算，禁止直接写入总账以免报表错计`
+          );
+        }
+        if (!Number.isFinite(exchangeRate) || exchangeRate <= 0 || Math.abs(exchangeRate - 1) > 0.000001) {
+          throw new Error(`第${index + 1}行人民币汇率必须为1`);
+        }
+
         return {
           ...item,
           account_id: accountId,
           debit_amount: debitCents / 100,
           credit_amount: creditCents / 100,
+          currency_code: currencyCode,
+          exchange_rate: exchangeRate,
         };
       });
 
@@ -226,7 +241,7 @@ class GLService {
       let resolvedPeriodId = entryData.period_id || null;
       if (resolvedPeriodId) {
         const [periods] = await conn.execute(
-          `SELECT id, is_closed, period_name, start_date, end_date
+          `SELECT id, is_closed, is_locked, period_name, start_date, end_date, status
            FROM gl_periods
            WHERE id = ?
            FOR UPDATE`,
@@ -243,6 +258,12 @@ class GLService {
             `entry_date ${entryDate} or posting_date ${postingDate} is outside accounting period ${periods[0].period_name}`
           );
         }
+        if (
+          (Number(periods[0].is_locked) === 1 || periods[0].status === 'locked') &&
+          !entryData.allow_closed_period
+        ) {
+          throw new Error(`不能在已锁定的会计期间 [${periods[0].period_name}] 创建分录`);
+        }
         if (isClosedFlag(periods[0].is_closed) && !entryData.allow_closed_period) {
           throw new Error(`不能在已关闭的会计期间 [${periods[0].period_name}] 创建分录`);
         }
@@ -251,7 +272,7 @@ class GLService {
       // 4. 处理创建人 (标准化为用户ID)
       if (!resolvedPeriodId && shouldPostEntry(entryData)) {
         const [periods] = await conn.execute(
-          `SELECT id, is_closed, period_name, start_date, end_date
+          `SELECT id, is_closed, is_locked, period_name, start_date, end_date, status
            FROM gl_periods
            WHERE ? BETWEEN start_date AND end_date
              AND ? BETWEEN start_date AND end_date
@@ -267,6 +288,12 @@ class GLService {
           );
         }
 
+        if (
+          (Number(periods[0].is_locked) === 1 || periods[0].status === 'locked') &&
+          !entryData.allow_closed_period
+        ) {
+          throw new Error(`不能在已锁定的会计期间 [${periods[0].period_name}] 创建分录`);
+        }
         if (isClosedFlag(periods[0].is_closed) && !entryData.allow_closed_period) {
           throw new Error(`不能在已关闭的会计期间 [${periods[0].period_name}] 创建分录`);
         }
@@ -276,6 +303,10 @@ class GLService {
 
       const { getUserIdByIdentifier } = require('../../utils/userUtils');
       const createdById = await getUserIdByIdentifier(conn, entryData.created_by || 'system');
+      const isPosted = shouldPostEntry(entryData);
+      const postingMethod = entryData.posting_method || (isPosted ? 'automatic' : null);
+      const postedBy = entryData.posted_by ? Number.parseInt(entryData.posted_by, 10) || null : null;
+      const postedAt = isPosted ? (entryData.posted_at || new Date()) : null;
 
       const accountPlaceholders = accountIds.map(() => '?').join(',');
       const [activeAccounts] = await conn.query(
@@ -325,8 +356,10 @@ class GLService {
       const [result] = await conn.execute(
         `
                 INSERT INTO gl_entries
-                (entry_number, entry_date, posting_date, period_id, document_type, document_number, description, created_by, transaction_type, transaction_id, voucher_word, voucher_number, status, is_posted)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (entry_number, entry_date, posting_date, period_id, document_type, document_number,
+                 description, created_by, transaction_type, transaction_id, voucher_word,
+                 voucher_number, status, is_posted, posted_by, posted_at, posting_method, approved_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `,
         [
           entryNumber,
@@ -341,8 +374,12 @@ class GLService {
           entryData.transaction_id || null,
           voucherWord,
           voucherNumber,
-          entryData.status || 'draft',
-          entryData.is_posted || 0,
+          isPosted ? 'posted' : (entryData.status || 'draft'),
+          isPosted ? 1 : 0,
+          postedBy,
+          postedAt,
+          postingMethod,
+          entryData.approved_at || null,
         ]
       );
 
@@ -355,14 +392,18 @@ class GLService {
         item.account_id,
         item.debit_amount || 0,
         item.credit_amount || 0,
-        item.currency_code || financeConfig.get('invoice.defaultCurrency', 'CNY'),
-        item.exchange_rate || 1,
+        item.currency_code,
+        item.exchange_rate,
         item.cost_center_id || null,
+        item.project_id || null,
+        item.customer_id || null,
+        item.supplier_id || null,
+        item.employee_id || null,
         item.description || null,
       ]);
       await conn.query(
         `INSERT INTO gl_entry_items
-         (entry_id, line_number, account_id, debit_amount, credit_amount, currency_code, exchange_rate, cost_center_id, description)
+         (entry_id, line_number, account_id, debit_amount, credit_amount, currency_code, exchange_rate, cost_center_id, project_id, customer_id, supplier_id, employee_id, description)
          VALUES ?`,
         [itemValues]
       );

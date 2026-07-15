@@ -83,6 +83,8 @@ module.exports = {
     try {
       connection = await db.pool.getConnection();
 
+      const scopeClause = filters.scopeClause || { join: '', where: '', params: [] };
+
       let query = `
         SELECT
           e.*,
@@ -114,6 +116,7 @@ module.exports = {
           FROM gl_entry_items
           GROUP BY entry_id
         ) entry_totals ON entry_totals.entry_id = e.id
+        ${scopeClause.join || ''}
         WHERE 1=1
       `;
       const params = [];
@@ -154,6 +157,11 @@ module.exports = {
         params.push(filters.is_posted ? 1 : 0);
       }
 
+      if (scopeClause.where) {
+        query += scopeClause.where;
+        params.push(...(scopeClause.params || []));
+      }
+
       const pagination = parsePagination(page, pageSize, {
         defaultPageSize: 20,
         maxPageSize: 100,
@@ -164,51 +172,57 @@ module.exports = {
 
       const [entries] = await connection.execute(query, params);
 
-      let countQuery = 'SELECT COUNT(*) as total FROM gl_entries WHERE 1=1';
+      let countQuery = `SELECT COUNT(*) as total FROM gl_entries e ${scopeClause.join || ''} WHERE 1=1`;
       const countParams = [];
 
       if (filters.entry_number) {
-        countQuery += ' AND entry_number LIKE ?';
+        countQuery += ' AND e.entry_number LIKE ?';
         countParams.push(`%${filters.entry_number}%`);
       }
 
       if (filters.start_date && filters.end_date) {
-        countQuery += ' AND entry_date BETWEEN ? AND ?';
+        countQuery += ' AND e.entry_date BETWEEN ? AND ?';
         countParams.push(filters.start_date, filters.end_date);
       } else if (filters.start_date) {
-        countQuery += ' AND entry_date >= ?';
+        countQuery += ' AND e.entry_date >= ?';
         countParams.push(filters.start_date);
       } else if (filters.end_date) {
-        countQuery += ' AND entry_date <= ?';
+        countQuery += ' AND e.entry_date <= ?';
         countParams.push(filters.end_date);
       }
 
       if (filters.document_type) {
-        countQuery += ' AND document_type = ?';
+        countQuery += ' AND e.document_type = ?';
         countParams.push(filters.document_type);
       }
 
       if (filters.voucher_word) {
-        countQuery += ' AND voucher_word = ?';
+        countQuery += ' AND e.voucher_word = ?';
         countParams.push(filters.voucher_word);
       }
 
       if (filters.period_id) {
-        countQuery += ' AND period_id = ?';
+        countQuery += ' AND e.period_id = ?';
         countParams.push(parseInt(filters.period_id));
       }
 
       if (filters.is_posted !== undefined) {
-        countQuery += ' AND is_posted = ?';
+        countQuery += ' AND e.is_posted = ?';
         countParams.push(filters.is_posted ? 1 : 0);
+      }
+
+      if (scopeClause.where) {
+        countQuery += scopeClause.where;
+        countParams.push(...(scopeClause.params || []));
       }
 
       const [countResult] = await connection.execute(countQuery, countParams);
       const total = countResult[0].total;
 
+      // 统计与列表同过滤（含 DataScope）
       let statsQuery = `SELECT
-        SUM(CASE WHEN is_posted = 1 THEN 1 ELSE 0 END) as posted_count,
-        SUM(CASE WHEN is_posted = 0 THEN 1 ELSE 0 END) as unposted_count,
+        SUM(CASE WHEN e.is_posted = 1 THEN 1 ELSE 0 END) as posted_count,
+        SUM(CASE WHEN e.is_posted = 0 THEN 1 ELSE 0 END) as unposted_count,
         COALESCE((SELECT SUM(ei.debit_amount) FROM gl_entry_items ei
           INNER JOIN gl_entries se ON ei.entry_id = se.id WHERE 1=1`;
       const statsParams = [];
@@ -244,37 +258,41 @@ module.exports = {
         statsParams.push(filters.is_posted ? 1 : 0);
       }
 
-      statsQuery += '), 0) as total_amount FROM gl_entries WHERE 1=1';
+      statsQuery += `), 0) as total_amount FROM gl_entries e ${scopeClause.join || ''} WHERE 1=1`;
 
       if (filters.entry_number) {
-        statsQuery += ' AND entry_number LIKE ?';
+        statsQuery += ' AND e.entry_number LIKE ?';
         statsParams.push(`%${filters.entry_number}%`);
       }
       if (filters.start_date && filters.end_date) {
-        statsQuery += ' AND entry_date BETWEEN ? AND ?';
+        statsQuery += ' AND e.entry_date BETWEEN ? AND ?';
         statsParams.push(filters.start_date, filters.end_date);
       } else if (filters.start_date) {
-        statsQuery += ' AND entry_date >= ?';
+        statsQuery += ' AND e.entry_date >= ?';
         statsParams.push(filters.start_date);
       } else if (filters.end_date) {
-        statsQuery += ' AND entry_date <= ?';
+        statsQuery += ' AND e.entry_date <= ?';
         statsParams.push(filters.end_date);
       }
       if (filters.document_type) {
-        statsQuery += ' AND document_type = ?';
+        statsQuery += ' AND e.document_type = ?';
         statsParams.push(filters.document_type);
       }
       if (filters.voucher_word) {
-        statsQuery += ' AND voucher_word = ?';
+        statsQuery += ' AND e.voucher_word = ?';
         statsParams.push(filters.voucher_word);
       }
       if (filters.period_id) {
-        statsQuery += ' AND period_id = ?';
+        statsQuery += ' AND e.period_id = ?';
         statsParams.push(parseInt(filters.period_id));
       }
       if (filters.is_posted !== undefined) {
-        statsQuery += ' AND is_posted = ?';
+        statsQuery += ' AND e.is_posted = ?';
         statsParams.push(filters.is_posted ? 1 : 0);
+      }
+      if (scopeClause.where) {
+        statsQuery += scopeClause.where;
+        statsParams.push(...(scopeClause.params || []));
       }
 
       const [statsResult] = await connection.execute(statsQuery, statsParams);
@@ -398,14 +416,18 @@ module.exports = {
   /**
    * 过账会计分录
    */
-  postEntry: async (id) => {
+  postEntry: async (id, userId) => {
+    const normalizedUserId = Number.parseInt(userId, 10);
+    if (!Number.isInteger(normalizedUserId) || normalizedUserId <= 0) {
+      throw new Error('无法识别当前过账用户');
+    }
     const connection = await db.pool.getConnection();
     try {
       await connection.beginTransaction();
 
       const [entries] = await connection.execute(
         `SELECT e.id, e.is_posted, e.is_reversed, e.entry_date, e.posting_date, e.period_id,
-                p.is_closed, p.period_name, p.start_date, p.end_date
+                e.created_by, p.is_closed, p.is_locked, p.period_name, p.start_date, p.end_date
          FROM gl_entries e
          LEFT JOIN gl_periods p ON e.period_id = p.id
          WHERE e.id = ?
@@ -427,6 +449,10 @@ module.exports = {
         throw new Error('已冲销的凭证不能过账');
       }
 
+      if (Number(entry.created_by) === normalizedUserId) {
+        throw new Error('制单人与过账人必须分离，不能过账自己创建的凭证');
+      }
+
       const entryDate = normalizeDateInput(entry.entry_date, '记账日期');
       const postingDate = normalizeDateInput(entry.posting_date || entry.entry_date, '过账日期');
       let resolvedPeriodId = entry.period_id;
@@ -435,7 +461,7 @@ module.exports = {
         // 凭证日期在所属期间内，直接使用当前期间
       } else {
         const [periods] = await connection.execute(
-          `SELECT id, is_closed, period_name, start_date, end_date
+          `SELECT id, is_closed, is_locked, period_name, start_date, end_date
            FROM gl_periods
            WHERE ? BETWEEN start_date AND end_date
              AND ? BETWEEN start_date AND end_date
@@ -456,18 +482,31 @@ module.exports = {
         }
         resolvedPeriodId = periods[0].id;
         entry.is_closed = periods[0].is_closed;
+        entry.is_locked = periods[0].is_locked;
         entry.period_name = periods[0].period_name;
       }
 
       if (isClosedFlag(entry.is_closed)) {
         throw new Error(`不能在已关闭的会计期间 [${entry.period_name}] 过账凭证`);
       }
+      if (Number(entry.is_locked) === 1 || entry.is_locked === true) {
+        throw new Error(`不能在已锁定的会计期间 [${entry.period_name}] 过账凭证`);
+      }
 
       await assertEntryCanBePosted(connection, id);
 
       const [result] = await connection.execute(
-        "UPDATE gl_entries SET is_posted = 1, status = 'posted', period_id = ? WHERE id = ?",
-        [resolvedPeriodId, id]
+        `UPDATE gl_entries
+            SET is_posted = 1,
+                status = 'posted',
+                period_id = ?,
+                approved_by = ?,
+                approved_at = NOW(),
+                posted_by = ?,
+                posted_at = NOW(),
+                posting_method = 'manual'
+          WHERE id = ? AND COALESCE(is_posted, 0) = 0`,
+        [resolvedPeriodId, String(normalizedUserId), normalizedUserId, id]
       );
 
       await connection.commit();
@@ -483,13 +522,23 @@ module.exports = {
 
   /**
    * 冲销会计分录
+   * @param {number} id 原凭证 ID
+   * @param {Object} reversalData 冲销参数
+   * @param {Object|null} connection 可选：复用外层事务连接
    */
-  reverseEntry: async (id, reversalData) => {
-    const connection = await db.pool.getConnection();
-    try {
-      await connection.beginTransaction();
+  reverseEntry: async (id, reversalData, connection = null) => {
+    const shouldManageTransaction = !connection;
+    const conn = connection || (await db.pool.getConnection());
 
-      const [entries] = await connection.execute('SELECT id, entry_number, entry_date, posting_date, document_type, document_number, active_document_number, period_id, is_posted, is_reversed, reversal_entry_id, description, created_by, approved_by, created_at, updated_at, voucher_word, voucher_number, status, transaction_type, transaction_id FROM gl_entries WHERE id = ? FOR UPDATE', [id]);
+    try {
+      if (shouldManageTransaction) {
+        await conn.beginTransaction();
+      }
+
+      const [entries] = await conn.execute(
+        'SELECT id, entry_number, entry_date, posting_date, document_type, document_number, active_document_number, period_id, is_posted, is_reversed, reversal_entry_id, description, created_by, approved_by, created_at, updated_at, voucher_word, voucher_number, status, transaction_type, transaction_id FROM gl_entries WHERE id = ? FOR UPDATE',
+        [id]
+      );
       if (entries.length === 0) {
         throw new Error('找不到要冲销的分录');
       }
@@ -504,7 +553,7 @@ module.exports = {
         throw new Error('凭证已冲销，不能重复冲销');
       }
 
-      const [sourceEntries] = await connection.execute(
+      const [sourceEntries] = await conn.execute(
         `SELECT id, entry_number
          FROM gl_entries
          WHERE reversal_entry_id = ?
@@ -522,15 +571,16 @@ module.exports = {
         '过账日期'
       );
       const reversalPeriod = await resolveOpenPeriodForDates(
-        connection,
+        conn,
         reversalData.period_id,
         entryDate,
         postingDate
       );
 
-      const [items] = await connection.execute('SELECT id, entry_id, line_number, account_id, debit_amount, credit_amount, description, cost_center_id, project_id, created_at, updated_at, currency_code, exchange_rate, customer_id, supplier_id, employee_id FROM gl_entry_items WHERE entry_id = ? FOR UPDATE', [
-        id,
-      ]);
+      const [items] = await conn.execute(
+        'SELECT id, entry_id, line_number, account_id, debit_amount, credit_amount, description, cost_center_id, project_id, created_at, updated_at, currency_code, exchange_rate, customer_id, supplier_id, employee_id FROM gl_entry_items WHERE entry_id = ? FOR UPDATE',
+        [id]
+      );
 
       if (items.length === 0) {
         throw new Error('原凭证没有明细，不能冲销');
@@ -543,7 +593,7 @@ module.exports = {
       let reversalDocumentNumber = documentBase.slice(0, 50);
 
       for (let suffix = 2; suffix <= 100; suffix++) {
-        const [existingDocuments] = await connection.execute(
+        const [existingDocuments] = await conn.execute(
           `SELECT id FROM gl_entries
            WHERE document_type <=> ?
              AND document_number = ?
@@ -563,7 +613,6 @@ module.exports = {
         }
       }
 
-      // 使用自身的 createEntry 方法
       const reversalEntryId = await getSelf().createEntry(
         {
           entry_date: entryDate,
@@ -584,24 +633,34 @@ module.exports = {
           currency_code: item.currency_code || financeConfig.get('invoice.defaultCurrency', 'CNY'),
           exchange_rate: item.exchange_rate || 1,
           cost_center_id: item.cost_center_id,
+          project_id: item.project_id,
+          customer_id: item.customer_id,
+          supplier_id: item.supplier_id,
+          employee_id: item.employee_id,
           description: `冲销明细: ${item.description || ''}`,
         })),
-        connection
+        conn
       );
 
-      await connection.execute(
+      await conn.execute(
         "UPDATE gl_entries SET is_reversed = true, reversal_entry_id = ?, status = 'reversed' WHERE id = ?",
         [reversalEntryId, id]
       );
 
-      await connection.commit();
+      if (shouldManageTransaction) {
+        await conn.commit();
+      }
       return reversalEntryId;
     } catch (error) {
-      await connection.rollback();
+      if (shouldManageTransaction) {
+        await conn.rollback();
+      }
       logger.error('冲销会计分录失败:', error);
       throw error;
     } finally {
-      connection.release();
+      if (shouldManageTransaction) {
+        conn.release();
+      }
     }
   },
 };

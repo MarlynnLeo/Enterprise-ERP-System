@@ -44,7 +44,7 @@ class GlobalConfigManager {
       );
 
       if (cstSettings.length === 0) {
-         logger.error('❌ 致命错误：系统未提取到有效的成本基础配置 (cost_settings)，拒绝启动以避免核算裸奔。');
+         logger.error('Fatal configuration error: valid cost_settings were not loaded; startup refused to prevent unconfigured costing.');
          throw new Error('Missing Cost Settings in SSOT Initialization');
       }
 
@@ -72,7 +72,7 @@ class GlobalConfigManager {
       // 4. 深度冻结 (不可变保证)
       this.config = this._deepFreeze(mergedConfig);
       this.isInitialized = true;
-      logger.info('✅ 全局 SSOT 配置树初始化并冻结完成');
+      logger.info('Global SSOT configuration tree initialized and frozen');
       return this.config;
     } catch (error) {
       logger.error('SSOT 全局配置树初始化失败:', error);

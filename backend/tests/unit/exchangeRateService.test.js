@@ -17,9 +17,16 @@ jest.mock('../../src/utils/softDelete', () => ({
 jest.mock('../../src/utils/logger', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn() },
 }));
+jest.mock('../../src/utils/dateUtils', () => ({
+  currentDateString: () => '2026-07-10',
+}));
+jest.mock('../../src/services/external/PublicMarketDataService', () => ({
+  fetchExchangeRate: jest.fn(),
+}));
 
 const { pool } = require('../../src/config/db');
 const { softDelete } = require('../../src/utils/softDelete');
+const PublicMarketDataService = require('../../src/services/external/PublicMarketDataService');
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -115,20 +122,43 @@ describe('ExchangeRateService', () => {
       await expect(ExchangeRateService.getLatestRate(null)).rejects.toThrow('from currency');
     });
 
-    test('should return null when no rate found', async () => {
-      pool.query.mockResolvedValueOnce([[undefined]]);
-      const result = await ExchangeRateService.getLatestRate('JPY');
-      expect(result).toBeNull();
+    test('should auto-sync from public API when no rate found', async () => {
+      pool.query
+        .mockResolvedValueOnce([[]]) // empty latest
+        .mockResolvedValueOnce([{ affectedRows: 1 }]); // upsert
+      PublicMarketDataService.fetchExchangeRate.mockResolvedValueOnce({
+        rate: 6.9,
+        source: 'vatcomply.com',
+      });
+      const result = await ExchangeRateService.getLatestRate('EUR', 'CNY');
+      expect(result.rate).toBe(6.9);
+      expect(PublicMarketDataService.fetchExchangeRate).toHaveBeenCalled();
     });
 
     test('should return the rate row when found', async () => {
       const row = { id: 1, from_currency: 'USD', to_currency: 'CNY', rate: 7.25 };
-      pool.query.mockResolvedValueOnce([[[row]]]);
-      // Note: pool.query returns [[row]] for destructured [[row]]
-      pool.query.mockReset();
       pool.query.mockResolvedValueOnce([[row]]);
       const result = await ExchangeRateService.getLatestRate('USD', 'CNY');
       expect(result).toEqual(row);
+    });
+  });
+
+  describe('syncFromPublicApi', () => {
+    test('should fetch public rate and upsert', async () => {
+      PublicMarketDataService.fetchExchangeRate.mockResolvedValueOnce({
+        rate: 6.95,
+        source: 'frankfurter.dev',
+        date: '2026-07-09',
+      });
+      pool.query.mockResolvedValueOnce([{ affectedRows: 1 }]);
+
+      const row = await ExchangeRateService.syncFromPublicApi('USD', 'CNY', 1);
+      expect(row.rate).toBe(6.95);
+      expect(row.source).toContain('frankfurter');
+      expect(pool.query).toHaveBeenCalledWith(
+        expect.stringContaining('INSERT INTO exchange_rates'),
+        expect.arrayContaining(['USD', 'CNY', 6.95])
+      );
     });
   });
 });

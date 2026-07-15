@@ -11,9 +11,12 @@ const { pool } = require('../../../config/db');
 const { handleError } = require('./shared/errorHandler');
 const ExcelJS = require('exceljs');
 const businessConfig = require('../../../config/businessConfig');
-const { apiStatusToDbStatus } = require('../../../utils/statusMapper');
 const { CodeGenerators } = require('../../../utils/codeGenerator');
 const { parsePagination } = require('../../../utils/safePagination');
+const {
+  promoteTaskToInspection,
+  promoteTaskToInProgress,
+} = require('../../../services/business/TaskLifecycleService');
 
 // 状态常量（统一引用 businessConfig，消除硬编码）
 const TASK_STATUS = businessConfig.status.productionTask;
@@ -22,6 +25,17 @@ const PROC_STATUS = {
   IN_PROGRESS: 'in_progress',
   COMPLETED: 'completed',
 };
+
+const PROCESS_STATE_MACHINE = {
+  pending: ['in_progress', 'completed'],
+  in_progress: ['completed'],
+  completed: [],
+};
+
+function canTransitionProcess(current, target) {
+  if (current === target) return true;
+  return (PROCESS_STATE_MACHINE[current] || []).includes(target);
+}
 
 /**
  * 获取报工汇总
@@ -752,88 +766,139 @@ exports.getReportStatistics = async (req, res) => {
 };
 
 /**
- * 同步任务及工序进度的内部辅助函数
- * @param {Object} connection - 数据库连接实体
- * @param {Number} task_id - 任务ID
- * @param {Number} process_id - 工序ID
+ * 同步任务及工序进度。
+ * 报工只维护数量/进度；任务状态推进必须走 TaskLifecycleService（禁止旁路跳过状态机）。
  */
 async function syncProgressAndStatus(connection, task_id, process_id) {
-  // 1. 同步工序状态
+  // 1. 同步工序进度（状态机合法才切换）
   if (process_id) {
-    const [procCheck] = await connection.query('SELECT id, quantity FROM production_processes WHERE id = ? FOR UPDATE', [process_id]);
+    const [procCheck] = await connection.query(
+      'SELECT id, quantity, status FROM production_processes WHERE id = ? FOR UPDATE',
+      [process_id]
+    );
     if (procCheck.length > 0) {
       const procQuantity = parseFloat(procCheck[0].quantity) || 0;
-      const [procStats] = await connection.query('SELECT COALESCE(SUM(completed_quantity), 0) as total_proc_reported FROM production_reports WHERE process_id = ?', [process_id]);
+      const currentProcStatus = procCheck[0].status;
+      const [procStats] = await connection.query(
+        'SELECT COALESCE(SUM(completed_quantity), 0) as total_proc_reported FROM production_reports WHERE process_id = ?',
+        [process_id]
+      );
       const totalProcReported = parseFloat(procStats[0].total_proc_reported) || 0;
 
-      let procProgress = procQuantity > 0 ? Math.round((totalProcReported / procQuantity) * 100) : (totalProcReported > 0 ? 100 : 0);
+      let procProgress =
+        procQuantity > 0
+          ? Math.round((totalProcReported / procQuantity) * 100)
+          : totalProcReported > 0
+            ? 100
+            : 0;
       if (procProgress > 100) procProgress = 100;
-      const procStatus = procProgress >= 100 ? PROC_STATUS.COMPLETED : (totalProcReported > 0 ? PROC_STATUS.IN_PROGRESS : PROC_STATUS.PENDING);
 
-      await connection.query('UPDATE production_processes SET progress = ?, status = ? WHERE id = ?', [procProgress, procStatus, process_id]);
+      let desiredProcStatus =
+        procProgress >= 100
+          ? PROC_STATUS.COMPLETED
+          : totalProcReported > 0
+            ? PROC_STATUS.IN_PROGRESS
+            : PROC_STATUS.PENDING;
+
+      if (!canTransitionProcess(currentProcStatus, desiredProcStatus)) {
+        // 终态或非法跳转：只更新进度，不改状态
+        desiredProcStatus = currentProcStatus;
+      }
+
+      await connection.query(
+        'UPDATE production_processes SET progress = ?, status = ? WHERE id = ?',
+        [procProgress, desiredProcStatus, process_id]
+      );
     }
   }
 
-  // 2. 同步任务状态
-  const [taskCheck] = await connection.query('SELECT id, status, quantity FROM production_tasks WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [task_id]);
+  // 2. 只写数量与进度，不直接 UPDATE status
+  const [taskCheck] = await connection.query(
+    'SELECT id, status, quantity FROM production_tasks WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+    [task_id]
+  );
   if (taskCheck.length === 0) return null;
   const task = taskCheck[0];
   const planQuantity = parseFloat(task.quantity) || 0;
 
-  const [reportStats] = await connection.query('SELECT COALESCE(SUM(completed_quantity), 0) as total_reported FROM production_reports WHERE task_id = ?', [task_id]);
+  const [reportStats] = await connection.query(
+    'SELECT COALESCE(SUM(completed_quantity), 0) as total_reported FROM production_reports WHERE task_id = ?',
+    [task_id]
+  );
   const totalReported = parseFloat(reportStats[0].total_reported) || 0;
-  const taskProgress = planQuantity > 0
-    ? Math.min(100, Math.round((totalReported / planQuantity) * 100))
-    : (totalReported > 0 ? 100 : 0);
+  const taskProgress =
+    planQuantity > 0
+      ? Math.min(100, Math.round((totalReported / planQuantity) * 100))
+      : totalReported > 0
+        ? 100
+        : 0;
 
   await connection.query(
     'UPDATE production_tasks SET completed_quantity = ?, progress = ? WHERE id = ? AND deleted_at IS NULL',
-    [Math.min(totalReported, planQuantity), taskProgress, task_id]
+    [Math.min(totalReported, planQuantity || totalReported), taskProgress, task_id]
   );
 
-  const [processes] = await connection.query('SELECT id, status FROM production_processes WHERE task_id = ?', [task_id]);
-
+  // 3. 状态推进：仅通过生命周期服务
   let apiStatus = null;
-  if (processes.length > 0) {
-    const allCompleted = processes.every(p => [PROC_STATUS.COMPLETED, 'qc_passed', 'qc_failed'].includes(p.status));
-    const anyInProgress = processes.some(p => [PROC_STATUS.IN_PROGRESS, PROC_STATUS.COMPLETED, 'qc_passed', 'qc_failed'].includes(p.status));
+  const [processes] = await connection.query(
+    'SELECT id, status FROM production_processes WHERE task_id = ?',
+    [task_id]
+  );
 
-    if (allCompleted) {
-      apiStatus = TASK_STATUS.INSPECTION;
-    } else if (
-      anyInProgress &&
+  const hasProcesses = processes.length > 0;
+  const allProcessesCompleted =
+    hasProcesses &&
+    processes.every((p) =>
+      [PROC_STATUS.COMPLETED, 'qc_passed', 'qc_failed'].includes(p.status)
+    );
+  const anyProcessStarted = hasProcesses
+    ? processes.some((p) =>
+        [PROC_STATUS.IN_PROGRESS, PROC_STATUS.COMPLETED, 'qc_passed', 'qc_failed'].includes(
+          p.status
+        )
+      )
+    : totalReported > 0;
+  const fullyReported = planQuantity > 0 && totalReported >= planQuantity;
+
+  try {
+    if (
+      anyProcessStarted &&
       [
-        TASK_STATUS.PENDING,
-        TASK_STATUS.ALLOCATED,
         TASK_STATUS.MATERIAL_ISSUED,
         TASK_STATUS.MATERIAL_PARTIAL_ISSUED,
       ].includes(task.status)
     ) {
+      await promoteTaskToInProgress(connection, task_id);
       apiStatus = TASK_STATUS.IN_PROGRESS;
     }
-  } else {
-    // 兼容当任务没有配置工序时，沿用老逻辑
-    if (totalReported >= planQuantity && planQuantity > 0) {
-      apiStatus = TASK_STATUS.INSPECTION;
-    } else if (
-      totalReported > 0 &&
-      [
-        TASK_STATUS.PENDING,
-        TASK_STATUS.ALLOCATED,
-        TASK_STATUS.MATERIAL_ISSUED,
-        TASK_STATUS.MATERIAL_PARTIAL_ISSUED,
-      ].includes(task.status)
+
+    // 报工满产且工序全完（或无工序）→ 进入待检；首检/过程检未关闭时不推进
+    if (
+      (allProcessesCompleted || (!hasProcesses && fullyReported)) &&
+      (task.status === TASK_STATUS.IN_PROGRESS || apiStatus === TASK_STATUS.IN_PROGRESS)
     ) {
-      apiStatus = TASK_STATUS.IN_PROGRESS;
+      const result = await promoteTaskToInspection(connection, task_id, {
+        setCompletedQuantityToPlan: fullyReported || allProcessesCompleted,
+        requireOpenInspectionClear: true,
+      });
+      if (result.promoted || result.status === 'inspection') {
+        apiStatus = TASK_STATUS.INSPECTION;
+      }
+    }
+  } catch (lifecycleError) {
+    // 未关闭检验等：进度已写，状态保持，不阻断报工提交
+    if (lifecycleError.code === 'OPEN_INSPECTIONS') {
+      logger.warn(
+        `任务 ${task_id} 报工后未推进状态: ${lifecycleError.message}`
+      );
+    } else if (/不允许从/.test(lifecycleError.message || '')) {
+      logger.warn(
+        `任务 ${task_id} 报工后状态转移被状态机拒绝: ${lifecycleError.message}`
+      );
+    } else {
+      throw lifecycleError;
     }
   }
 
-  if (apiStatus && apiStatus !== task.status) {
-    const dbStatus = apiStatusToDbStatus(apiStatus, 'productionTask');
-    if (dbStatus) {
-      await connection.query('UPDATE production_tasks SET status = ? WHERE id = ? AND deleted_at IS NULL', [dbStatus, task_id]);
-      logger.info(`任务 ${task_id} 状态已根据进度计算同步更新: ${task.status} → ${dbStatus} (API: ${apiStatus})`);
-    }
-  }
   return { totalReported, apiStatus };
 }

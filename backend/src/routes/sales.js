@@ -76,6 +76,7 @@ router.get('/outbound/material/:materialId', requirePermission('sales:outbound:v
 router.get('/outbound/:id', requirePermission('sales:outbound:view'), salesOutboundController.getSalesOutboundById);
 router.post('/outbound', requirePermission('sales:outbound:create'), requirePriceMutationPermission('update'), salesOutboundController.createSalesOutbound);
 router.put('/outbound/:id', requirePermission('sales:outbound:update'), requirePriceMutationPermission('update'), salesOutboundController.updateSalesOutbound);
+router.post('/outbound/:id/reverse', requirePermission('sales:outbound:update'), salesOutboundController.reverseSalesOutbound);
 router.delete('/outbound/:id', requirePermission('sales:outbound:delete'), salesOutboundController.deleteSalesOutbound);
 
 // Sales Return routes

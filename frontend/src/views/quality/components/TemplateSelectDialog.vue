@@ -18,7 +18,7 @@
               <span class="template-desc">{{ tmpl.description || '无描述' }}</span>
               <span class="template-items">
                 检验项: {{ (tmpl.items || tmpl.InspectionItems || []).length }} 项
-                <el-tag v-if="tmpl.is_general" size="small" type="info" style="margin-left: 6px">通用</el-tag>
+                <el-tag v-if="tmpl.is_general" size="small" type="info" class="ml-4">通用</el-tag>
               </span>
             </div>
           </el-radio>

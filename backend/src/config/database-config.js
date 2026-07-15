@@ -11,6 +11,11 @@ function parsePositiveIntEnv(name, defaultValue) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : defaultValue;
 }
 
+function parseNonNegativeIntEnv(name, defaultValue) {
+  const parsed = Number.parseInt(process.env[name], 10);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : defaultValue;
+}
+
 // 验证必需的环境变量
 const requiredEnvVars = ['DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME'];
 const missingVars = requiredEnvVars.filter((varName) => !process.env[varName]);
@@ -28,16 +33,15 @@ const DATABASE_CONFIG = {
   database: process.env.DB_NAME,
 };
 
-
 // MySQL2 连接池配置
 const POOL_CONFIG = {
   ...DATABASE_CONFIG,
   waitForConnections: true,
   connectionLimit: parsePositiveIntEnv('DB_CONNECTION_LIMIT', 20),
-  queueLimit: 0,
+  queueLimit: parseNonNegativeIntEnv('DB_QUEUE_LIMIT', 0),
 
   // 连接保活防断联配置
-  connectTimeout: 20000,
+  connectTimeout: parsePositiveIntEnv('DB_CONNECT_TIMEOUT', 20000),
   enableKeepAlive: true,
   keepAliveInitialDelay: 10000, // 10秒后开始 TCP 保活探测
 
@@ -75,15 +79,16 @@ const SEQUELIZE_CONFIG = {
   host: DATABASE_CONFIG.host,
   port: DATABASE_CONFIG.port,
   dialect: 'mysql',
-  logging: process.env.ENABLE_SQL_LOG === 'true' ? (sql) => logger.debug('SQL query', { sql }) : false,
+  logging:
+    process.env.ENABLE_SQL_LOG === 'true' ? (sql) => logger.debug('SQL query', { sql }) : false,
 
   // 连接池配置
   pool: {
     max: parsePositiveIntEnv('SEQUELIZE_POOL_MAX', 10),
     min: 0,
     acquire: 30000,
-    idle: 30000,    // 30秒空闲即释放
-    evict: 10000,   // 10秒扫描一次死连接
+    idle: 30000, // 30秒空闲即释放
+    evict: 10000, // 10秒扫描一次死连接
     handleDisconnects: true,
   },
 
@@ -116,7 +121,7 @@ const SEQUELIZE_CONFIG = {
 
   dialectOptions: {
     decimalNumbers: true,
-    connectTimeout: 20000,
+    connectTimeout: parsePositiveIntEnv('DB_CONNECT_TIMEOUT', 20000),
     enableKeepAlive: true,
     keepAliveInitialDelay: 10000,
   },

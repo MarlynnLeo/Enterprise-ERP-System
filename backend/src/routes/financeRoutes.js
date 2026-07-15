@@ -59,6 +59,7 @@ router.put('/expenses/:id', requirePermission('finance:expenses:update'), expens
 router.post('/expenses/:id/submit', requirePermission('finance:expenses:update'), expenseController.submitExpense);
 router.post('/expenses/:id/approve', requirePermission('finance:expenses:approve'), expenseController.approveExpense);
 router.post('/expenses/:id/pay', requirePermission('finance:expenses:pay'), expenseController.payExpense);
+router.post('/expenses/:id/void-payment', requirePermission('finance:expenses:pay'), expenseController.voidExpensePayment);
 router.post('/expenses/:id/cancel', requirePermission('finance:expenses:update'), expenseController.cancelExpense);
 router.delete('/expenses/:id', requirePermission('finance:expenses:delete'), expenseController.deleteExpense);
 
@@ -91,7 +92,7 @@ router.get('/entries/:id', requirePermission('finance:entries:view'), financeCon
 router.get('/entries/:id/items', requirePermission('finance:entries:view'), financeController.getEntryItems);
 router.post('/entries', requirePermission('finance:entries:create'), financeController.createEntry);
 router.patch('/entries/:id/post', requirePermission('finance:entries:approve'), financeController.postEntry);
-router.post('/entries/:id/reverse', requirePermission('finance:entries:update'), financeController.reverseEntry);
+router.post('/entries/:id/reverse', requirePermission('finance:entries:approve'), financeController.reverseEntry);
 router.delete('/entries/:id', requirePermission('finance:entries:delete'), financeController.deleteEntry);
 
 // 3. 会计期间管理
@@ -100,7 +101,8 @@ router.get('/periods/:id', requirePermission('finance:periods:view'), financeCon
 router.post('/periods', requirePermission('finance:periods:create'), financeController.createPeriod);
 router.put('/periods/:id', requirePermission('finance:periods:update'), financeController.updatePeriod);
 router.patch('/periods/:id/close', requirePermission('finance:closing:execute'), financeController.closePeriod);
-router.patch('/periods/:id/reopen', requirePermission('finance:periods:update'), financeController.reopenPeriod);
+// 反结账与关账同级权限，避免仅有期间维护权限即可抹掉结转凭证
+router.patch('/periods/:id/reopen', requirePermission('finance:closing:execute'), financeController.reopenPeriod);
 
 // 3. 试算平衡表
 router.get('/gl/trial-balance', requirePermission('finance:reports:view'), financeController.getTrialBalance);
@@ -130,11 +132,11 @@ router.put('/ap/invoices/:id/status', requirePermission('finance:ap:update'), ap
 router.get('/ap/payments', requirePermission('finance:ap:view'), apController.getPayments);
 router.get('/ap/payments/:id', requirePermission('finance:ap:view'), apController.getPaymentById);
 router.post('/ap/payments', requirePermission('finance:ap:pay'), apController.createPayment);
-router.post('/ap/payments/:id/void', requirePermission('finance:ap:update'), apController.voidPayment); // 作废付款记录
+router.post('/ap/payments/:id/void', requirePermission('finance:ap:pay'), apController.voidPayment); // 作废付款与付款同级权限
 // 批量付款
 router.post('/ap/payments/batch', requirePermission('finance:ap:pay'), apBatchController.batchPayments);
 // AP付款冲销
-router.post('/ap/payments/:id/reverse', requirePermission('finance:ap:update'), overdueController.reversePayment);
+router.post('/ap/payments/:id/reverse', requirePermission('finance:ap:pay'), overdueController.reversePayment);
 
 // 3. 应付账款分析
 router.get('/ap/supplier-payables', requirePermission('finance:reports:view'), apController.getSupplierPayables);
@@ -160,11 +162,11 @@ router.get('/ar/receipts/unpaid-invoices', requirePermission('finance:ar:view'),
 router.get('/ar/receipts', requirePermission('finance:ar:view'), arController.getReceipts);
 router.get('/ar/receipts/:id', requirePermission('finance:ar:view'), arController.getReceiptById);
 router.post('/ar/receipts', requirePermission('finance:ar:receive'), arController.createReceipt);
-router.post('/ar/receipts/:id/void', requirePermission('finance:ar:update'), arController.voidReceipt); // 作废收款记录
+router.post('/ar/receipts/:id/void', requirePermission('finance:ar:receive'), arController.voidReceipt); // 作废收款与收款同级权限
 // 批量收款
 router.post('/ar/receipts/batch', requirePermission('finance:ar:receive'), arBatchController.batchReceipts);
 // AR收款冲销
-router.post('/ar/receipts/:id/reverse', requirePermission('finance:ar:update'), overdueController.reverseReceipt);
+router.post('/ar/receipts/:id/reverse', requirePermission('finance:ar:receive'), overdueController.reverseReceipt);
 
 // 3. 应收账款分析
 router.get('/ar/customer-receivables', requirePermission('finance:reports:view'), arController.getCustomerReceivables);
@@ -206,7 +208,7 @@ router.get('/assets/:id', requirePermission('finance:assets:view'), assetsContro
 router.post('/assets', requirePermission('finance:assets:create'), assetsController.createAsset);
 router.put('/assets/:id', requirePermission('finance:assets:update'), assetsController.updateAsset);
 router.post('/assets/:id/depreciation', requirePermission('finance:assets:execute'), assetsController.calculateDepreciation);
-router.post('/assets/:id/dispose', requirePermission('finance:assets:update'), assetsController.disposeAsset);
+router.post('/assets/:id/dispose', requirePermission('finance:assets:execute'), assetsController.disposeAsset);
 router.post('/assets/:id/transfer', requirePermission('finance:assets:update'), assetsController.transferAsset);
 router.post('/assets/:id/split', requirePermission('finance:assets:update'), assetsController.splitAsset);
 router.post('/assets/:id/audit', requirePermission('finance:assets:update'), assetsController.auditAsset);

@@ -48,10 +48,9 @@ describe('设备管理 /api/equipment', () => {
 // ==================== 设备监控 ====================
 describe('设备监控 /api/equipment-monitoring', () => {
   test('应返回设备监控数据', async () => {
-    const res = await api.get('/api/equipment-monitoring?page=1&pageSize=5');
+    const res = await api.get('/api/equipment-monitoring/equipment?page=1&pageSize=5');
 
-    // 可能未配置设备监控表
-    expect([200, 404, 500]).toContain(res.status);
+    expect(res.status).toBe(200);
   });
 });
 
@@ -112,10 +111,18 @@ describe('生产异常报告 /api/production/anomaly-reports', () => {
 // ==================== 生产辅助 ====================
 describe('生产辅助 /api/production/assist', () => {
   test('应返回辅助工具列表', async () => {
-    const res = await api.get('/api/production/assist?page=1&pageSize=5');
+    const res = await api.get('/api/production/assist/verification-logs?page=1&pageSize=5');
+    expect(res.status).toBe(200);
+  });
 
-    // 可能返回列表或具体功能端点
-    expect([200, 404]).toContain(res.status);
+  test('应返回生产辅助具体子路由', async () => {
+    const readinessRes = await api
+      .post('/api/production/assist/material-readiness/batch')
+      .send({ taskIds: [] });
+    expect(readinessRes.status).toBe(200);
+
+    const logsRes = await api.get('/api/production/assist/verification-logs?page=1&pageSize=5');
+    expect(logsRes.status).toBe(200);
   });
 });
 
@@ -142,9 +149,9 @@ describe('批次追溯 /api/batch-traceability', () => {
 // ==================== 追溯监控 ====================
 describe('追溯监控 /api/traceability-monitor', () => {
   test('应返回追溯监控数据', async () => {
-    const res = await api.get('/api/traceability-monitor');
+    const res = await api.get('/api/traceability-monitor/overview');
 
-    expect([200, 404]).toContain(res.status);
+    expect(res.status).toBe(200);
   });
 });
 
@@ -187,10 +194,8 @@ describe('聊天 /api/chat', () => {
 // ==================== 财务自动化 ====================
 describe('财务自动化 /api/finance/automation', () => {
   test('财务自动化路由应可访问（仅POST端点）', async () => {
-    // 财务自动化全是 POST 端点，GET 会 404，确认模块已加载
-    const res = await api.get('/api/finance/automation/rules');
-    // 无 GET 端点，返回 404 是预期行为
-    expect(res.status).toBe(404);
+    const res = await api.get('/api/finance/automation/scheduled-tasks/status');
+    expect(res.status).toBe(200);
   });
 });
 

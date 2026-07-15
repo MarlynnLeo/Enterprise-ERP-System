@@ -8,15 +8,11 @@
 -->
 <template>
   <div class="module-page bom-management-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>BOM管理</h2>
-          <p class="subtitle">管理产品物料清单，支持多级BOM结构与版本控制</p>
-        </div>
-        <el-button v-if="canCreate" type="primary" :icon="Plus" @click="handleAdd">新增BOM</el-button>
-      </div>
-    </el-card>
+    <PageHeader title="BOM管理" subtitle="管理产品物料清单，支持多级BOM结构与版本控制">
+      <template #actions>
+<el-button v-if="canCreate" type="primary" :icon="Plus" @click="handleAdd">新增BOM</el-button>
+      </template>
+    </PageHeader>
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
@@ -44,8 +40,8 @@
               :key="item.id"
               :label="`${item.code} - ${item.name}`"
               :value="item.id">
-              <span style="float: left">{{ item.code }}</span>
-              <span style="float: right; color: var(--color-text-muted); font-size: 13px">{{ item.name }}</span>
+              <span class="option-code">{{ item.code }}</span>
+              <span class="option-name">{{ item.name }}</span>
             </el-option>
           </el-select>
         </el-form-item>
@@ -142,14 +138,14 @@
         :title="`共找到 ${locateResults.length} 个BOM包含物料 '${locateKeyword}'`"
         type="success"
         :closable="false"
-        style="margin-bottom: 16px"
+        class="mb-md"
       />
       <el-alert
         v-else
         :title="`未找到包含物料 '${locateKeyword}' 的BOM`"
         type="warning"
         :closable="false"
-        style="margin-bottom: 16px"
+        class="mb-md"
       />
       <el-table :data="locateResults" border max-height="400" v-if="locateResults.length > 0">
         <el-table-column prop="product_code" label="产品编码" width="130" />
@@ -178,7 +174,7 @@
             v-model="copySelectedBomId"
             placeholder="请选择要复制的源BOM"
             filterable
-            style="width: 100%"
+            class="w-full"
           >
             <el-option
               v-for="bom in tableData"
@@ -200,15 +196,15 @@
             :loading="loadingProductsForCopy"
             no-data-text="没有找到匹配的产品"
             loading-text="搜索中..."
-            style="width: 100%"
+            class="w-full"
           >
             <el-option
               v-for="item in copyProductOptions"
               :key="item.id"
               :label="`${item.code} - ${item.name}`"
               :value="item.id">
-              <span style="float: left">{{ item.code }}</span>
-              <span style="float: right; color: var(--color-text-muted); font-size: 13px">{{ item.name }}</span>
+              <span class="option-code">{{ item.code }}</span>
+              <span class="option-name">{{ item.name }}</span>
             </el-option>
           </el-select>
         </el-form-item>

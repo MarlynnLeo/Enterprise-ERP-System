@@ -8,15 +8,11 @@
 -->
 <template>
   <div class="module-page inventory-check-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>库存盘点管理</h2>
-          <p class="subtitle">管理库存盘点与差异处理</p>
-        </div>
-        <el-button type="primary" :icon="Plus" v-permission="'inventory:check:create'" @click="openCheckDialog()">新建盘点单</el-button>
-      </div>
-    </el-card>
+    <PageHeader title="库存盘点管理" subtitle="管理库存盘点与差异处理">
+      <template #actions>
+<el-button type="primary" :icon="Plus" v-permission="'inventory:check:create'" @click="openCheckDialog()">新建盘点单</el-button>
+      </template>
+    </PageHeader>
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
@@ -87,7 +83,7 @@
         v-loading="loading"
         :data="checkList"
         border
-        style="width: 100%"
+        class="w-full"
       >
         <el-table-column prop="check_no" label="盘点单号" min-width="120" show-overflow-tooltip></el-table-column>
         <el-table-column prop="check_date" label="盘点日期" min-width="110"></el-table-column>
@@ -117,7 +113,7 @@
         <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <div class="operation-btns">
-              <el-button size="small" v-permission="'inventory:check:view'" @click="viewCheck(scope.row.id)">查看</el-button>
+              <el-button class="btn-op-view" type="primary" size="small" v-permission="'inventory:check:view'" @click="viewCheck(scope.row.id)">查看</el-button>
               <el-button
                 size="small"
                 type="primary"
@@ -182,7 +178,7 @@
                 type="date"
                 placeholder="选择盘点日期"
                 value-format="YYYY-MM-DD"
-                style="width: 100%"
+                class="w-full"
               ></el-date-picker>
             </el-form-item>
           </el-col>
@@ -191,7 +187,7 @@
               <el-select
                 v-model="checkForm.check_type"
                 placeholder="选择盘点类型"
-                style="width: 100%"
+                class="w-full"
               >
                 <el-option
                   v-for="item in checkTypeOptions"
@@ -207,7 +203,7 @@
               <el-select
                 v-model="checkForm.warehouse_id"
                 placeholder="选择仓库/库区"
-                style="width: 100%"
+                class="w-full"
                 filterable
                 @change="handleWarehouseChange"
               >
@@ -262,7 +258,7 @@
                 <el-select
                   v-model="scope.row.material_id"
                   placeholder="选择或搜索物料"
-                  style="width: 100%"
+                  class="w-full"
                   filterable
                   remote
                   reserve-keyword
@@ -290,7 +286,7 @@
               <el-input-number
                 v-model="scope.row.actual_qty"
                 :min="0"
-                style="width: 100%"
+                class="w-full"
               ></el-input-number>
             </template>
           </el-table-column>
@@ -341,10 +337,11 @@
       </template>
     </el-dialog>
     <!-- 查看盘点单详情对话框 -->
-    <el-dialog
+    <AppDialog
       title="盘点单详情"
       v-model="viewDialogVisible"
-      width="80%"
+      mode="view"
+      content-width="wide"
     >
       <div v-loading="detailLoading">
         <el-descriptions :column="3" border>
@@ -373,7 +370,7 @@
           </template>
         </el-descriptions>
 
-        <h3 style="margin-top: 20px;">物料明细</h3>
+        <h3 class="mt-20">物料明细</h3>
         <el-table :data="checkDetail.items || []" border style="width: 100%; margin-top: 10px;">
           <el-table-column type="index" label="序号" width="50"></el-table-column>
           <el-table-column prop="material_code" label="物料编码" min-width="120"></el-table-column>
@@ -398,7 +395,7 @@
           <el-button type="warning" v-if="checkDetail.status === 'pending'" @click="adjustInventory(checkDetail.id)">调整库存</el-button>
         </div>
       </template>
-    </el-dialog>
+    </AppDialog>
     <!-- 调整库存确认对话框 -->
     <el-dialog
       title="库存调整确认"

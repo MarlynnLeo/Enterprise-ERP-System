@@ -8,7 +8,6 @@
 const { logger } = require('../utils/logger');
 const { softDelete } = require('../utils/softDelete');
 const db = require('../config/db');
-const { apiStatusToDbStatus } = require('../utils/statusMapper');
 const { parsePagination, appendPaginationSQL } = require('../utils/safePagination');
 const businessConfig = require('../config/businessConfig');
 const CodeGeneratorService = require('../services/business/CodeGeneratorService');
@@ -261,12 +260,15 @@ class QualityInspection {
       `;
     }
 
+    const scopeClause = filters.scopeClause || { join: '', where: '', params: [] };
+
     query += `
       FROM quality_inspections qi
       LEFT JOIN materials m ON qi.inspection_type = 'incoming' AND qi.material_id = m.id
       LEFT JOIN materials proc_m ON qi.inspection_type IN('process', 'final') AND qi.product_id = proc_m.id
       LEFT JOIN production_tasks pt ON qi.inspection_type IN('process', 'final') AND qi.reference_id = pt.id
       LEFT JOIN materials task_m ON pt.product_id = task_m.id
+      ${scopeClause.join || ''}
       `;
 
     // 根据选项添加供应商连接
@@ -298,6 +300,12 @@ class QualityInspection {
       sqlParams.push(filters.startDate, filters.endDate);
     }
 
+    // DataScope 列表过滤
+    if (scopeClause.where) {
+      query += scopeClause.where;
+      sqlParams.push(...(scopeClause.params || []));
+    }
+
     // 获取总数的查询 - 单独构建COUNT查询，避免子查询干扰
     let countQuery = `
       SELECT COUNT(*) as total
@@ -306,6 +314,7 @@ class QualityInspection {
       LEFT JOIN materials proc_m ON qi.inspection_type IN('process', 'final') AND qi.product_id = proc_m.id
       LEFT JOIN production_tasks pt ON qi.inspection_type IN('process', 'final') AND qi.reference_id = pt.id
       LEFT JOIN materials task_m ON pt.product_id = task_m.id
+      ${scopeClause.join || ''}
       `;
 
     if (includeSupplier) {
@@ -327,6 +336,9 @@ class QualityInspection {
     }
     if (filters.startDate && filters.endDate) {
       countQuery += ' AND qi.planned_date BETWEEN ? AND ?';
+    }
+    if (scopeClause.where) {
+      countQuery += scopeClause.where;
     }
 
     // 直接使用connection执行查询
@@ -509,7 +521,7 @@ class QualityInspection {
         if (orderRows && orderRows.length > 0) {
           inspection.reference_id = orderRows[0].id;
           logger.info(
-            `✅ 自动查找到采购订单ID: ${inspection.reference_id} (订单号: ${inspection.reference_no})`
+            `Purchase order reference resolved automatically: purchaseOrderId=${inspection.reference_id}, orderNo=${inspection.reference_no}`
           );
         } else {
           throw new Error(`来料检验单缺少有效采购订单引用: ${inspection.reference_no}`);
@@ -570,17 +582,40 @@ class QualityInspection {
           const methodCode = methodRows[0].code;
           if (methodCode === 'exempt') {
             isExempt = true;
-            logger.info(`✅ 物料 ${inspection.material_id} 检测到免检验配置，将自动视为合格`);
+            logger.info(
+              `Material inspection exemption applied: materialId=${inspection.material_id}`
+            );
             // 覆盖单据状态以自动合格
             inspection.status = 'passed';
             inspection.inspector_name = '系统(自动免检)';
             inspection.note = (inspection.note ? inspection.note + ' | ' : '') + '依据物料免检配置，系统自动判定合格';
           } else if (methodCode === 'sampling') {
             isSampling = true;
-            logger.info(`📊 物料 ${inspection.material_id} 检测到抽检配置，将自动启用AQL抽样`);
+            logger.info(
+              `AQL sampling enabled by material inspection method: materialId=${inspection.material_id}`
+            );
             inspection.is_aql = 1;
           }
         }
+      }
+
+      // DataScope owner：无 inspector_id 时用姓名反查，再不行用 admin
+      let inspectorId = inspection.inspector_id || null;
+      if (!inspectorId && inspection.inspector_name) {
+        const [iu] = await connection.query(
+          'SELECT id FROM users WHERE username = ? OR real_name = ? LIMIT 1',
+          [inspection.inspector_name, inspection.inspector_name]
+        );
+        inspectorId = iu[0]?.id || null;
+      }
+      if (!inspectorId) {
+        const [admins] = await connection.query(
+          `SELECT u.id FROM users u
+           JOIN user_roles ur ON ur.user_id = u.id
+           JOIN roles r ON r.id = ur.role_id
+           WHERE r.code = 'admin' LIMIT 1`
+        );
+        inspectorId = admins[0]?.id || 1;
       }
 
       // 创建检验单
@@ -617,11 +652,11 @@ class QualityInspection {
           inspection.planned_date,
           isExempt ? new Date() : null, // 实际检验日期
           inspection.note,
-          inspection.inspector_id || null,
+          inspectorId,
           inspection.inspector_name || null, // 检验员姓名
           inspection.status || 'pending',
           inspection.inspection_type === 'first_article' || inspection.is_first_article ? 1 : 0,
-          inspection.first_article_qty || null,
+          inspection.first_article_qty ?? 5,
           inspection.is_full_inspection ? 1 : 0,
           inspection.first_article_result || (inspection.inspection_type === 'first_article' ? 'pending' : null),
           inspection.production_can_continue ? 1 : 0,
@@ -797,8 +832,15 @@ class QualityInspection {
     let connection;
     const useOwnConnection = !externalConnection;
     try {
-      logger.info('开始更新检验单，ID:', id);
-      logger.info('更新数据:', JSON.stringify(data));
+      logger.debug('Updating quality inspection', { id });
+      logger.debug('Quality inspection update payload normalized', {
+        id,
+        status: data.status,
+        qualifiedQuantity: data.qualified_quantity,
+        unqualifiedQuantity: data.unqualified_quantity,
+        itemCount: Array.isArray(data.items) ? data.items.length : 0,
+        hasActualDate: Boolean(data.actual_date),
+      });
 
       connection = externalConnection || await db.pool.getConnection();
       if (useOwnConnection) {
@@ -926,202 +968,89 @@ class QualityInspection {
           }
         }
 
-        // 如果是成品检验，根据检验单状态同步更新生产任务、计划和过程的状态
-        // 成品检验的reference_id就是生产任务ID
+        // 成品终检：任务状态机 + 生产入库（领域服务，禁止模型内拼装入库 SQL）
         if (inspection.inspection_type === 'final' && inspection.reference_id && data.status) {
           try {
             const taskId = inspection.reference_id;
             const newInspectionStatus = data.status;
+            const {
+              promoteTaskToward,
+              syncPlanStatus,
+            } = require('../services/business/TaskLifecycleService');
+            const ProductionInboundService = require('../services/business/ProductionInboundService');
 
-            // 查找生产任务和计划
             const [taskResult] = await connection.query(
-              'SELECT id, plan_id FROM production_tasks WHERE id = ?',
+              'SELECT id, plan_id, status FROM production_tasks WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
               [taskId]
             );
 
             if (taskResult.length > 0) {
               const planId = taskResult[0].plan_id;
-
-              // 根据检验单状态确定任务和计划的目标状态（API格式）
-              let apiStatus = null;
+              let targetTaskStatus = null;
 
               if (newInspectionStatus === 'in_progress') {
-                // 检验中 → 任务、计划、过程都变为检验中
-                apiStatus = STATUS.PRODUCTION_TASK.IN_PROGRESS;
-                logger.info(
-                  `检验单状态变为检验中，准备更新任务 ${taskId} 和计划 ${planId} 状态为检验中`
-                );
+                targetTaskStatus = STATUS.PRODUCTION_TASK.INSPECTION;
               } else if (newInspectionStatus === 'passed') {
-                // 检验合格 → 任务、计划、过程都变为入库中
-                apiStatus = STATUS.PRODUCTION_TASK.WAREHOUSING;
-                logger.info(
-                  `检验单状态变为合格，准备更新任务 ${taskId} 和计划 ${planId} 状态为入库中`
-                );
+                targetTaskStatus = STATUS.PRODUCTION_TASK.WAREHOUSING;
               }
 
-              if (apiStatus) {
-                // 将API状态转换为数据库ENUM状态
-                const dbStatus = apiStatusToDbStatus(apiStatus, 'productionTask');
-                logger.info(`状态转换: API = ${apiStatus}, 数据库 = ${dbStatus} `);
-
-                // 更新生产任务状态
-                await connection.execute('UPDATE production_tasks SET status = ? WHERE id = ?', [
-                  dbStatus,
+              if (targetTaskStatus) {
+                const promoteResult = await promoteTaskToward(
+                  connection,
                   taskId,
-                ]);
-                logger.info(`生产任务 ${taskId} 状态已更新为 ${dbStatus} (API: ${apiStatus})`);
-
-                // 更新生产过程状态
-                await connection.execute(
-                  'UPDATE production_processes SET status = ? WHERE task_id = ?',
-                  [dbStatus, taskId]
+                  targetTaskStatus,
+                  { requireOpenInspectionClear: false }
                 );
-                logger.info(`生产任务 ${taskId} 的所有生产过程状态已更新为 ${dbStatus} `);
+                logger.info(
+                  `生产任务 ${taskId} 生命周期推进: ${promoteResult.status} (promoted=${promoteResult.promoted}, reason=${promoteResult.reason || ''})`
+                );
 
-                if (planId) {
-                  // 检查该计划下的所有任务是否都达到了目标状态
-                  const [taskStats] = await connection.query(
-                    `
-      SELECT
-      COUNT(*) as total,
-        SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as target_count,
-        SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) as cancelled_count
-                    FROM production_tasks
-                    WHERE plan_id = ?
-        `,
-                    [dbStatus, planId]
+                if (newInspectionStatus === 'passed') {
+                  await connection.execute(
+                    `UPDATE production_processes
+                     SET status = 'completed'
+                     WHERE task_id = ?
+                       AND status NOT IN ('completed', 'cancelled')`,
+                    [taskId]
                   );
-
-                  const { total: totalTasks, target_count, cancelled_count } = taskStats[0];
-
-                  // 转换为数字，避免类型问题
-                  const totalTasksNum = Number(totalTasks) || 0;
-                  const targetCountNum = Number(target_count) || 0;
-                  const cancelledCountNum = Number(cancelled_count) || 0;
-
-                  const allTasksReady = targetCountNum === totalTasksNum - cancelledCountNum;
-
-                  // 只有当所有有效任务都达到目标状态时，才更新计划状态
-                  if (allTasksReady && totalTasksNum > 0) {
-                    await connection.execute(
-                      'UPDATE production_plans SET status = ? WHERE id = ?',
-                      [dbStatus, planId]
-                    );
-                    logger.info(`生产计划 ${planId} 状态已更新为 ${dbStatus} (API: ${apiStatus})`);
-                  }
                 }
 
-                // 如果检验通过，自动创建入库单
+                if (planId) {
+                  await syncPlanStatus(planId, connection);
+                }
+
                 if (newInspectionStatus === 'passed') {
-                  try {
-                    // 获取任务和产品信息（包含物料的默认仓库）
-                    const [taskInfo] = await connection.query(
-                      `SELECT pt.id, pt.code, pt.product_id, pt.quantity,
-        m.code as product_code, m.name as product_name,
-        m.location_id as material_location_id
-                       FROM production_tasks pt
-                       LEFT JOIN materials m ON pt.product_id = m.id
-                       WHERE pt.id = ? `,
-                      [taskId]
+                  let inboundCreatedBy =
+                    data.inspector_id || inspection.inspector_id || null;
+                  const operator =
+                    data.inspector_name || inspection.inspector_name || '系统';
+                  if (!inboundCreatedBy && operator && operator !== '系统') {
+                    const [opUsers] = await connection.execute(
+                      'SELECT id FROM users WHERE username = ? OR real_name = ? LIMIT 1',
+                      [operator, operator]
                     );
-
-                    if (taskInfo.length === 0) {
-                      throw new Error(`成品检验单 ${id} 关联的生产任务不存在，不能自动创建入库单`);
-                    }
-
-                    const task = taskInfo[0];
-
-                      // 检查是否已经存在入库单
-                      const [existingInbound] = await connection.query(
-                        'SELECT id FROM inventory_inbound WHERE inspection_id = ?',
-                        [id]
-                      );
-
-                      if (existingInbound.length === 0) {
-                        // 优先使用物料的默认仓库
-                        let locationId = task.material_location_id;
-
-                        // 如果物料没有设置默认仓库，通过统一服务获取（会抛错提示配置）
-                        if (!locationId) {
-                          const InventoryService = require('../services/InventoryService');
-                          locationId = await InventoryService.getMaterialLocation(task.product_id, connection);
-                        }
-
-                        if (!locationId) {
-                          throw new Error(`产品 ${task.product_id} 未配置可用仓库，不能自动创建入库单`);
-                        } else {
-                          // 生成入库单号 — 使用统一编码引擎
-                          const { CodeGenerators } = require('../utils/codeGenerator');
-                          const inboundNo = await CodeGenerators.generateInboundCode(connection);
-
-                          // 获取操作人（优先使用检验员姓名，否则使用系统）
-                          const operator =
-                            data.inspector_name || inspection.inspector_name || '系统';
-
-                          // 创建入库单（包含操作人字段）
-                          const [inboundResult] = await connection.execute(
-                            `INSERT INTO inventory_inbound(
-          inbound_no, inbound_type, inspection_id, location_id,
-          inbound_date, status, operator, remark
-        ) VALUES(?, ?, ?, ?, ?, ?, ?, ?)`,
-                            [
-                              inboundNo,
-                              'production',
-                              id,
-                              locationId,
-                              new Date(),
-                              'draft',
-                              operator,
-                              `检验单 ${inspection.inspection_no} 通过后自动创建`,
-                            ]
-                          );
-
-                          const inboundId = inboundResult.insertId;
-
-                          // 获取单位信息
-                          const [unitInfo] = await connection.query(
-                            'SELECT id FROM units WHERE name = ? LIMIT 1',
-                            ['个']
-                          );
-                          const unitId = unitInfo.length > 0 ? unitInfo[0].id : null;
-
-                          const itemBatchNo = (inspection.batch_no || '').trim();
-                          if (!itemBatchNo) {
-                            throw new Error(`成品检验单 ${id} 未填写批次号，不能自动创建生产入库单`);
-                          }
-
-                          const inboundQuantity = Number(data.qualified_quantity ?? inspection.qualified_quantity ?? 0);
-                          if (!Number.isFinite(inboundQuantity) || inboundQuantity <= 0) {
-                            throw new Error(`成品检验单 ${id} 合格数量必须大于0，不能自动创建入库单`);
-                          }
-
-                          // 创建入库单明细
-                          await connection.execute(
-                            `INSERT INTO inventory_inbound_items(
-          inbound_id, material_id, quantity, unit_id, location_id, batch_number, remark
-        ) VALUES(?, ?, ?, ?, ?, ?, ?)`,
-                            [
-                              inboundId,
-                              task.product_id,
-                              inboundQuantity,
-                              unitId,
-                              locationId,
-                              itemBatchNo,
-                              `生产任务 ${task.code}`,
-                            ]
-                          );
-
-                          logger.info(
-                            `检验单 ${id} 通过，自动创建入库单 ${inboundNo} (ID: ${inboundId})`
-                          );
-                        }
-                      } else {
-                        logger.info(`检验单 ${id} 已存在入库单，跳过创建`);
-                      }
-                  } catch (inboundError) {
-                    logger.error(`检验单 ${id} 自动创建入库单失败: `, inboundError);
-                    throw inboundError;
+                    inboundCreatedBy = opUsers[0]?.id || null;
                   }
+
+                  await ProductionInboundService.createDraftFromFinalInspection(connection, {
+                    inspection: {
+                      ...inspection,
+                      id,
+                      inspection_type: inspection.inspection_type,
+                      inspection_no: inspection.inspection_no,
+                      reference_id: inspection.reference_id,
+                      task_id: inspection.task_id || inspection.reference_id,
+                      batch_no: inspection.batch_no,
+                      qualified_quantity:
+                        data.qualified_quantity ?? inspection.qualified_quantity,
+                      inspector_id: inboundCreatedBy,
+                      inspector_name: operator,
+                    },
+                    qualifiedQuantity:
+                      data.qualified_quantity ?? inspection.qualified_quantity,
+                    operator,
+                    createdBy: inboundCreatedBy,
+                  });
                 }
               }
             }
@@ -1131,10 +1060,64 @@ class QualityInspection {
           }
         }
 
+        // 首件/工序检验通过后：若工序已全部完成，尝试推进任务进入待检并创建终检
+        if (
+          ['first_article', 'process'].includes(inspection.inspection_type) &&
+          data.status &&
+          ['passed', 'completed'].includes(String(data.status))
+        ) {
+          const taskIdForPromote = inspection.task_id || inspection.reference_id;
+          if (taskIdForPromote) {
+            try {
+              const {
+                promoteTaskToInspection,
+              } = require('../services/business/TaskLifecycleService');
+              const [procStats] = await connection.query(
+                `SELECT
+                   COUNT(*) AS total,
+                   SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed,
+                   SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) AS cancelled
+                 FROM production_processes
+                 WHERE task_id = ?`,
+                [taskIdForPromote]
+              );
+              const total = Number(procStats[0]?.total || 0);
+              const completed = Number(procStats[0]?.completed || 0);
+              const cancelled = Number(procStats[0]?.cancelled || 0);
+              const allDone = total > 0 && completed === total - cancelled;
+              if (allDone) {
+                const promoteResult = await promoteTaskToInspection(connection, taskIdForPromote, {
+                  setCompletedQuantityToPlan: true,
+                  requireOpenInspectionClear: true,
+                });
+                if (promoteResult?.promoted || promoteResult?.status === 'inspection') {
+                  const FinalInspectionService = require('../services/business/FinalInspectionService');
+                  await FinalInspectionService.ensureForTask(connection, taskIdForPromote, {
+                    note: '首件/工序检验完成后自动创建终检',
+                  });
+                  logger.info(
+                    `首件/工序检验通过后任务 ${taskIdForPromote} 已推进待检并确保终检单`
+                  );
+                }
+              }
+            } catch (promoteAfterInspectErr) {
+              if (promoteAfterInspectErr.code === 'OPEN_INSPECTIONS') {
+                logger.info(
+                  `首件/工序检验更新后仍有未关闭检验，暂不推进任务: ${promoteAfterInspectErr.message}`
+                );
+              } else {
+                logger.warn(
+                  `首件/工序检验通过后推进任务失败: ${promoteAfterInspectErr.message}`
+                );
+              }
+            }
+          }
+        }
+
         if (useOwnConnection) {
           await connection.commit();
         }
-        logger.info('提交事务成功');
+        logger.debug('Quality inspection update transaction committed', { id });
 
         return { id, ...data };
       } catch (error) {
@@ -1146,8 +1129,7 @@ class QualityInspection {
         throw error;
       }
     } catch (error) {
-      logger.error('更新检验单失败:', error.message);
-      logger.error('错误堆栈:', error.stack);
+      logger.error('更新检验单失败:', error);
       throw error;
     } finally {
       if (connection && useOwnConnection) {

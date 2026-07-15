@@ -48,7 +48,7 @@ const getCheckStatistics = async (req, res) => {
         COUNT(*) as total,
         SUM(CASE WHEN status = 'draft' THEN 1 ELSE 0 END) as draft,
         SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pendingCount,
-        SUM(CASE WHEN status = 'inProgress' THEN 1 ELSE 0 END) as inProgressCount,
+        SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) as inProgressCount,
         SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completedCount,
         SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) as cancelledCount
       FROM inventory_checks
@@ -78,6 +78,11 @@ const getCheckList = async (req, res) => {
     } = req.query;
     const pagination = parsePagination(page, limit, { defaultPageSize: 20, maxPageSize: 100 });
 
+    const ScopeGuard = require('../../../authorization/ScopeGuard');
+    const scopeClause = await ScopeGuard.applyListScope(req, 'inventory_check', {
+      tableAlias: 'c',
+      ownerAlias: 'inventory_check_owner_scope',
+    });
     let whereClause = 'WHERE 1=1';
     const params = [];
 
@@ -122,10 +127,14 @@ const getCheckList = async (req, res) => {
       params.push(`%${materialName}%`, `%${materialName}%`, `%${materialName}%`);
     }
 
+    whereClause += scopeClause.where || '';
+    params.push(...(scopeClause.params || []));
+
     const countQuery = `
       SELECT COUNT(*) as total
       FROM inventory_checks c
       LEFT JOIN locations l ON c.location_id = l.id
+      ${scopeClause.join}
       ${whereClause}
     `;
 
@@ -151,6 +160,7 @@ const getCheckList = async (req, res) => {
       FROM inventory_checks c
       LEFT JOIN locations l ON c.location_id = l.id
       LEFT JOIN users u ON c.created_by = u.id
+      ${scopeClause.join}
       ${whereClause}
       ORDER BY c.created_at DESC
       LIMIT ${pagination.limit} OFFSET ${pagination.offset}
@@ -183,6 +193,16 @@ const getCheckList = async (req, res) => {
 // 获取库存盘点详情
 
 const getCheckDetail = async (req, res) => {
+  {
+    const { id } = req.params;
+    if (id !== null && id !== undefined && id !== '') {
+      const ScopeGuard = require('../../../authorization/ScopeGuard');
+      if (!(await ScopeGuard.assertAccess(db.pool, req, 'inventory_check', id))) {
+        return ResponseHandler.forbidden(res, '无权访问该盘点单');
+      }
+    }
+  }
+
   try {
     const { id } = req.params;
 
@@ -488,6 +508,16 @@ const addCheckItem = async (req, res) => {
 };
 
 const updateCheck = async (req, res) => {
+  {
+    const { id } = req.params;
+    if (id !== null && id !== undefined && id !== '') {
+      const ScopeGuard = require('../../../authorization/ScopeGuard');
+      if (!(await ScopeGuard.assertAccess(db.pool, req, 'inventory_check', id))) {
+        return ResponseHandler.forbidden(res, '无权修改该盘点单');
+      }
+    }
+  }
+
   const connection = await db.pool.getConnection();
   try {
     await connection.beginTransaction();
@@ -570,6 +600,16 @@ const updateCheck = async (req, res) => {
 // 删除库存盘点单
 
 const deleteCheck = async (req, res) => {
+  {
+    const { id } = req.params;
+    if (id !== null && id !== undefined && id !== '') {
+      const ScopeGuard = require('../../../authorization/ScopeGuard');
+      if (!(await ScopeGuard.assertAccess(db.pool, req, 'inventory_check', id))) {
+        return ResponseHandler.forbidden(res, '无权删除该盘点单');
+      }
+    }
+  }
+
   const connection = await db.pool.getConnection();
   try {
     await connection.beginTransaction();
@@ -690,6 +730,16 @@ const submitCheckResult = async (req, res) => {
 // 更新盘点单状态
 
 const updateCheckStatus = async (req, res) => {
+  {
+    const { id } = req.params;
+    if (id !== null && id !== undefined && id !== '') {
+      const ScopeGuard = require('../../../authorization/ScopeGuard');
+      if (!(await ScopeGuard.assertAccess(db.pool, req, 'inventory_check', id))) {
+        return ResponseHandler.forbidden(res, '无权变更该盘点单状态');
+      }
+    }
+  }
+
   const connection = await db.pool.getConnection();
   try {
     await connection.beginTransaction();
@@ -850,11 +900,17 @@ const adjustInventory = async (req, res) => {
       // 只需要插入调整记录，无需直接更新库存表
     }
 
-    // 更新盘点单状态为已完成
-    await connection.execute(
-      'UPDATE inventory_checks SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND deleted_at IS NULL',
-      ['completed', id]
+    // 更新盘点单状态为已完成（条件更新防并发重复调账）
+    const [statusResult] = await connection.execute(
+      `UPDATE inventory_checks
+       SET status = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ? AND deleted_at IS NULL AND status = ?`,
+      ['completed', id, 'pending']
     );
+    if (!statusResult.affectedRows) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '盘点单状态已变更，请刷新后重试', 'VALIDATION_ERROR', 400);
+    }
 
     await connection.commit();
 

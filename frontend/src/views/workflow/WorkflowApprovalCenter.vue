@@ -1,19 +1,13 @@
 ﻿<template>
   <div class="module-page page-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>我的审批</h2>
-          <p class="subtitle">查看我发起的流程，并处理分配给我的审批节点</p>
-        </div>
-        <div class="operation-btns">
-          <el-radio-group v-model="activeTab" @change="onTabChange">
+    <PageHeader title="我的审批" subtitle="查看我发起的流程，并处理分配给我的审批节点">
+      <template #actions>
+<el-radio-group v-model="activeTab" @change="onTabChange">
             <el-radio-button value="pending">待我审批</el-radio-button>
             <el-radio-button value="initiated">我发起的</el-radio-button>
           </el-radio-group>
-        </div>
-      </div>
-    </el-card>
+      </template>
+    </PageHeader>
 
     <el-card class="data-card">
       <el-table :data="tableData" v-loading="loading" border stripe>
@@ -35,7 +29,7 @@
         </el-table-column>
         <el-table-column label="操作" min-width="220" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
-            <el-button link type="primary" @click="viewInstance(row)">详情</el-button>
+            <el-button class="btn-op-view" type="primary" size="small" @click="viewInstance(row)">详情</el-button>
             <template v-if="activeTab === 'pending'">
               <el-button type="success" size="small" @click="openApproval(row, 'approve')">通过</el-button>
               <el-button type="danger" size="small" @click="openApproval(row, 'reject')">拒绝</el-button>
@@ -55,7 +49,12 @@
       </div>
     </el-card>
 
-    <el-dialog v-model="detailVis" title="审批详情" width="650px" destroy-on-close>
+    <AppDialog
+      v-model="detailVis"
+      title="审批详情"
+      mode="view"
+      content-width="wide"
+    >
       <template v-if="detail">
         <el-descriptions :column="2" border size="small">
           <el-descriptions-item label="标题">{{ detail.title }}</el-descriptions-item>
@@ -78,11 +77,16 @@
               {{ nLabel[node.status] || node.status || '待配置' }}
             </el-tag>
             <div v-if="node.approver_name" class="node-meta">{{ node.approver_name }} {{ node.acted_at || '' }}</div>
+            <div v-for="item in (node.approvers || [])" :key="item.id" class="node-meta">
+              {{ item.approver_name || item.approver_id }} · {{ nLabel[item.status] || item.status }}
+              <span v-if="item.acted_at"> · {{ item.acted_at }}</span>
+              <span v-if="item.comment"> · {{ item.comment }}</span>
+            </div>
             <div v-if="node.comment" class="node-comment">{{ node.comment }}</div>
           </el-timeline-item>
         </el-timeline>
       </template>
-    </el-dialog>
+    </AppDialog>
 
     <el-dialog v-model="approvalVis" :title="approvalAct === 'approve' ? '审批通过' : '审批拒绝'" width="420px">
       <el-input v-model="approvalComment" type="textarea" :rows="3" placeholder="审批意见" />
@@ -128,7 +132,7 @@ const btLabel = {
 }
 const sLabel = { pending: '待审批', in_progress: '审批中', approved: '已通过', rejected: '已拒绝', cancelled: '已取消', withdrawn: '已撤回' }
 const sTag = { pending: 'info', in_progress: 'warning', approved: 'success', rejected: 'danger', cancelled: 'info', withdrawn: 'info' }
-const nLabel = { pending: '待审批', in_progress: '审批中', approved: '已通过', rejected: '已拒绝', skipped: '已跳过', timeout: '已超时' }
+const nLabel = { pending: '待审批', waiting: '等待前序', in_progress: '审批中', approved: '已通过', rejected: '已拒绝', skipped: '已跳过', timeout: '已超时' }
 
 const fetchData = async () => {
   loading.value = true

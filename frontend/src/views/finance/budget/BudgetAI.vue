@@ -1,20 +1,14 @@
 ﻿<template>
   <div class="module-page budget-ai-container">
     <!-- 页头卡片 -->
-    <el-card class="header-card" shadow="hover">
-      <div class="header-content">
-        <div class="header-left">
-          <h2 class="page-title">AI预算建议</h2>
-          <span class="header-desc">基于统一 AI 大模型服务 · 智能预算编制 · 异常检测 · 优化建议</span>
+    <PageHeader title="AI预算建议" subtitle="基于统一 AI 大模型服务 · 智能预算编制 · 异常检测 · 优化建议">
+      <template #actions>
+        <div class="token-stats flex-row gap-sm" v-if="usageStats.call_count > 0">
+          <el-tag type="primary" effect="plain" round>调用 <strong>{{ usageStats.call_count }}</strong> 次</el-tag>
+          <el-tag type="success" effect="plain" round>消耗 <strong>{{ formatTokens(usageStats.total_tokens) }}</strong> Tokens</el-tag>
         </div>
-        <div class="header-right">
-          <div class="token-stats" v-if="usageStats.call_count > 0">
-            <el-tag type="primary" effect="plain" round>调用 <strong>{{ usageStats.call_count }}</strong> 次</el-tag>
-            <el-tag type="success" effect="plain" round>消耗 <strong>{{ formatTokens(usageStats.total_tokens) }}</strong> Tokens</el-tag>
-          </div>
-        </div>
-      </div>
-    </el-card>
+      </template>
+    </PageHeader>
 
     <!-- 功能标签页 -->
     <el-tabs v-model="activeTab" type="border-card" class="ai-tabs">
@@ -63,7 +57,7 @@
               <el-card shadow="hover" class="stat-card gradient-orange">
                 <div class="stat-label">数据来源</div>
                 <div class="stat-value-sm">{{ recommendation.data_source }}</div>
-                <div class="ai-model-tag"><el-icon style="vertical-align: middle; font-size: 14px;"><Cpu /></el-icon> {{ recommendation.ai_model }}</div>
+                <div class="ai-model-tag"><el-icon class="icon-mid-sm"><Cpu /></el-icon> {{ recommendation.ai_model }}</div>
               </el-card>
             </el-col>
           </el-row>
@@ -75,30 +69,30 @@
             :description="recommendation.trend_analysis" show-icon :closable="false" class="ai-alert" />
 
           <!-- 图表区 -->
-          <el-row :gutter="20" style="margin-top:16px">
+          <el-row :gutter="20" class="mt-md">
             <el-col :span="14">
               <el-card shadow="hover"><template #header>预算建议 vs 历史平均</template>
-                <div ref="recBarChart" style="height:350px"></div>
+                <div ref="recBarChart" class="chart-box-350"></div>
               </el-card>
             </el-col>
             <el-col :span="10">
               <el-card shadow="hover"><template #header>预算构成分布</template>
-                <div ref="recPieChart" style="height:350px"></div>
+                <div ref="recPieChart" class="chart-box-350"></div>
               </el-card>
             </el-col>
           </el-row>
 
           <!-- 建议明细表 -->
-          <el-card shadow="hover" style="margin-top:16px">
+          <el-card shadow="hover" class="mt-md">
             <template #header>
-              <div style="display:flex;justify-content:space-between;align-items:center">
-                <span><el-icon style="vertical-align: middle;"><List /></el-icon> 科目预算建议明细</span>
+              <div class="flex-between">
+                <span><el-icon class="icon-mid"><List /></el-icon> 科目预算建议明细</span>
                 <el-button v-permission="'finance:budgets:create'" type="success" size="small" @click="createBudgetFromAI" :loading="loading.createBudget" :disabled="!selectedRecs.length">
                   <el-icon><Promotion /></el-icon> 一键生成预算 ({{ selectedRecs.length }}项)
                 </el-button>
               </div>
             </template>
-            <el-table :data="recommendation.recommendations" border stripe max-height="400" style="width:100%" @selection-change="(rows) => selectedRecs = rows" ref="recTableRef">
+            <el-table :data="recommendation.recommendations" border stripe max-height="400" class="w-full" @selection-change="(rows) => selectedRecs = rows" ref="recTableRef">
               <el-table-column type="selection" width="50" />
               <el-table-column prop="account_code" label="科目代码" width="100" />
               <el-table-column prop="account_name" label="科目名称" min-width="130" />
@@ -125,14 +119,14 @@
           </el-card>
 
           <!-- 风险提示 & 优化建议 -->
-          <el-row :gutter="20" style="margin-top:16px" v-if="recommendation.risk_warnings?.length || recommendation.optimization_tips?.length">
+          <el-row :gutter="20" class="mt-md" v-if="recommendation.risk_warnings?.length || recommendation.optimization_tips?.length">
             <el-col :span="12" v-if="recommendation.risk_warnings?.length">
-              <el-card shadow="hover" class="tip-card risk"><template #header><span><el-icon style="vertical-align: middle; color: var(--color-warning);"><Warning /></el-icon> 风险提示</span></template>
+              <el-card shadow="hover" class="tip-card risk"><template #header><span><el-icon class="icon-mid-warning"><Warning /></el-icon> 风险提示</span></template>
                 <ul class="tip-list"><li v-for="(w, i) in recommendation.risk_warnings" :key="i">{{ w }}</li></ul>
               </el-card>
             </el-col>
             <el-col :span="12" v-if="recommendation.optimization_tips?.length">
-              <el-card shadow="hover" class="tip-card success"><template #header><span><el-icon style="vertical-align: middle; color: var(--color-primary);"><InfoFilled /></el-icon> 优化建议</span></template>
+              <el-card shadow="hover" class="tip-card success"><template #header><span><el-icon class="icon-mid-primary"><InfoFilled /></el-icon> 优化建议</span></template>
                 <ul class="tip-list"><li v-for="(t, i) in recommendation.optimization_tips" :key="i">{{ t }}</li></ul>
               </el-card>
             </el-col>
@@ -193,12 +187,12 @@
             :description="anomalies.overall_assessment" show-icon :closable="false" class="ai-alert" />
 
           <!-- 散点图 -->
-          <el-card shadow="hover" style="margin-top:16px"><template #header>执行率 vs 预算金额 散点分析</template>
-            <div ref="anomalyScatterChart" style="height:350px"></div>
+          <el-card shadow="hover" class="mt-md"><template #header>执行率 vs 预算金额 散点分析</template>
+            <div ref="anomalyScatterChart" class="chart-box-350"></div>
           </el-card>
 
           <!-- 异常列表 -->
-          <el-card shadow="hover" style="margin-top:16px"><template #header>异常清单</template>
+          <el-card shadow="hover" class="mt-md"><template #header>异常清单</template>
             <el-table :data="anomalies.anomalies" border stripe max-height="400">
               <el-table-column label="严重度" width="80">
                 <template #default="{ row }">
@@ -216,7 +210,10 @@
               </el-table-column>
               <el-table-column label="执行率" width="85">
                 <template #default="{ row }">
-                  <span :class="row.execution_rate > 100 ? 'text-red' : row.execution_rate < 20 ? 'text-orange' : 'text-green'" style="font-weight:bold">{{ row.execution_rate }}%</span>
+                  <span
+                    class="font-weight-700"
+                    :class="row.execution_rate > 100 ? 'text-danger' : row.execution_rate < 20 ? 'text-warning' : 'text-success'"
+                  >{{ row.execution_rate }}%</span>
                 </template>
               </el-table-column>
               <el-table-column prop="type" label="类型" width="80">
@@ -227,8 +224,8 @@
             </el-table>
           </el-card>
 
-          <el-card v-if="anomalies.management_advice?.length" shadow="hover" style="margin-top:16px" class="tip-card info">
-            <template #header><span><el-icon style="vertical-align: middle;"><Memo /></el-icon> 管理层建议</span></template>
+          <el-card v-if="anomalies.management_advice?.length" shadow="hover" class="mt-md tip-card info">
+            <template #header><span><el-icon class="icon-mid"><Memo /></el-icon> 管理层建议</span></template>
             <ul class="tip-list"><li v-for="(a, i) in anomalies.management_advice" :key="i">{{ a }}</li></ul>
           </el-card>
         </div>
@@ -259,7 +256,7 @@
           <el-row :gutter="20" class="summary-row">
             <el-col :span="6">
               <el-card shadow="hover" class="stat-card health-card">
-                <div ref="healthGaugeChart" style="height:140px"></div>
+                <div ref="healthGaugeChart" class="chart-box-140"></div>
                 <div class="health-title">预算健康度</div>
               </el-card>
             </el-col>
@@ -279,7 +276,7 @@
               <el-card shadow="hover" class="stat-card gradient-blue">
                 <div class="stat-label">整体执行率</div>
                 <div class="stat-value">{{ optimization.summary?.overall_rate || 0 }}%</div>
-                <div class="ai-model-tag"><el-icon style="vertical-align: middle; font-size: 14px;"><Cpu /></el-icon> {{ optimization.ai_model }}</div>
+                <div class="ai-model-tag"><el-icon class="icon-mid-sm"><Cpu /></el-icon> {{ optimization.ai_model }}</div>
               </el-card>
             </el-col>
           </el-row>
@@ -288,13 +285,13 @@
             :description="optimization.overall_analysis" show-icon :closable="false" class="ai-alert" />
 
           <!-- 桑基图 -->
-          <el-card v-if="optimization.sankey_data" shadow="hover" style="margin-top:16px">
+          <el-card v-if="optimization.sankey_data" shadow="hover" class="mt-md">
             <template #header>资金调配流向图</template>
-            <div ref="sankeyChart" style="height:350px"></div>
+            <div ref="sankeyChart" class="chart-box-350"></div>
           </el-card>
 
           <!-- 资金调配方案 -->
-          <el-card shadow="hover" style="margin-top:16px"><template #header>资金调配方案</template>
+          <el-card shadow="hover" class="mt-md"><template #header>资金调配方案</template>
             <el-table :data="optimization.adjustments" border stripe max-height="350">
               <el-table-column label="优先级" width="70">
                 <template #default="{ row }"><el-tag :type="row.priority === '高' ? 'danger' : row.priority === '中' ? 'warning' : 'info'" size="small">{{ row.priority }}</el-tag></template>
@@ -323,7 +320,7 @@
           </el-card>
 
           <!-- 战略建议 -->
-          <el-row :gutter="16" style="margin-top:16px" v-if="optimization.strategic_suggestions?.length">
+          <el-row :gutter="16" class="mt-md" v-if="optimization.strategic_suggestions?.length">
             <el-col :span="8" v-for="(s, i) in optimization.strategic_suggestions" :key="i">
               <el-card shadow="hover" class="suggestion-card">
                 <div class="suggestion-header">
@@ -344,7 +341,7 @@
           <el-form :inline="true" class="search-form" >
             <el-form-item label="对比年度">
               <el-date-picker v-model="cmpYear1" type="year" placeholder="第一年" value-format="YYYY" />
-              <span style="margin:0 8px;color:var(--color-text-secondary)">vs</span>
+              <span class="vs-sep">vs</span>
               <el-date-picker v-model="cmpYear2" type="year" placeholder="第二年" value-format="YYYY" />
             </el-form-item>
             <el-form-item>
@@ -381,13 +378,13 @@
           <el-alert v-if="comparison.overall_comparison" title="AI 对比分析" type="info"
             :description="comparison.overall_comparison" show-icon :closable="false" class="ai-alert" />
 
-          <el-card shadow="hover" style="margin-top:16px"><template #header>年度预算对比图</template>
-            <div ref="comparisonBarChart" style="height:380px"></div>
+          <el-card shadow="hover" class="mt-md"><template #header>年度预算对比图</template>
+            <div ref="comparisonBarChart" class="chart-box-380"></div>
           </el-card>
 
-          <el-row :gutter="20" style="margin-top:16px">
+          <el-row :gutter="20" class="mt-md">
             <el-col :span="12" v-if="comparison.key_changes?.length">
-              <el-card shadow="hover" class="tip-card info"><template #header><span><el-icon style="vertical-align: middle;"><Refresh /></el-icon> 关键变化</span></template>
+              <el-card shadow="hover" class="tip-card info"><template #header><span><el-icon class="icon-mid"><Refresh /></el-icon> 关键变化</span></template>
                 <div v-for="(c, i) in comparison.key_changes" :key="i" class="change-item">
                   <el-tag size="small" :type="c.change_type === '大幅增长' ? 'danger' : c.change_type === '大幅下降' ? 'success' : 'info'">{{ c.change_type }}</el-tag>
                   <strong>{{ c.account_name }}</strong>: {{ c.description }}
@@ -396,11 +393,11 @@
             </el-col>
             <el-col :span="12">
               <el-card shadow="hover" class="tip-card success" v-if="comparison.trend_insights?.length">
-                <template #header><span><el-icon style="vertical-align: middle;"><TrendCharts /></el-icon> 趋势洞察</span></template>
+                <template #header><span><el-icon class="icon-mid"><TrendCharts /></el-icon> 趋势洞察</span></template>
                 <ul class="tip-list"><li v-for="(t, i) in comparison.trend_insights" :key="i">{{ t }}</li></ul>
               </el-card>
-              <el-card shadow="hover" class="tip-card risk" v-if="comparison.recommendations?.length" style="margin-top:16px">
-                <template #header><span><el-icon style="vertical-align: middle; color: var(--color-primary);"><InfoFilled /></el-icon> 改进建议</span></template>
+              <el-card shadow="hover" class="tip-card risk mt-md" v-if="comparison.recommendations?.length">
+                <template #header><span><el-icon class="icon-mid-primary"><InfoFilled /></el-icon> 改进建议</span></template>
                 <ul class="tip-list"><li v-for="(r, i) in comparison.recommendations" :key="i">{{ r }}</li></ul>
               </el-card>
             </el-col>
@@ -432,7 +429,7 @@
         <div v-if="report && !loading.report" class="report-container">
           <!-- 管理层摘要 -->
           <el-card shadow="hover" class="report-section">
-            <template #header><span class="report-header"><el-icon style="vertical-align: middle;"><Stamp /></el-icon> 管理层摘要</span>
+            <template #header><span class="report-header"><el-icon class="icon-mid"><Stamp /></el-icon> 管理层摘要</span>
               <el-tag :type="report.report?.health_level === '健康' || report.report?.health_level === '良好' ? 'success' : report.report?.health_level === '一般' ? 'warning' : 'danger'" effect="dark">
                 健康度 {{ report.report?.health_score }}/100 · {{ report.report?.health_level }}
               </el-tag>
@@ -442,7 +439,7 @@
 
           <!-- 分析章节 -->
           <el-card v-for="(sec, i) in report.report?.sections" :key="i" shadow="hover" class="report-section">
-            <template #header><span class="report-header"><el-icon style="vertical-align: middle;"><Document /></el-icon> {{ sec.title }}</span></template>
+            <template #header><span class="report-header"><el-icon class="icon-mid"><Document /></el-icon> {{ sec.title }}</span></template>
             <p class="report-text">{{ sec.content }}</p>
             <div v-if="sec.key_metrics?.length" class="metrics-row">
               <div v-for="(m, j) in sec.key_metrics" :key="j" class="metric-item">
@@ -454,7 +451,7 @@
 
           <!-- 异常清单 -->
           <el-card v-if="report.report?.anomalies?.length" shadow="hover" class="report-section">
-            <template #header><span class="report-header"><el-icon style="vertical-align: middle; color: var(--color-danger);"><Warning /></el-icon> 异常项清单</span></template>
+            <template #header><span class="report-header"><el-icon class="icon-mid-danger"><Warning /></el-icon> 异常项清单</span></template>
             <el-table :data="report.report.anomalies" border stripe size="small">
               <el-table-column prop="account" label="科目" min-width="120" />
               <el-table-column label="严重度" width="80">
@@ -467,7 +464,7 @@
 
           <!-- 行动计划 -->
           <el-card v-if="report.report?.action_plan?.length" shadow="hover" class="report-section">
-            <template #header><span class="report-header"><el-icon style="vertical-align: middle;"><List /></el-icon> 行动计划</span></template>
+            <template #header><span class="report-header"><el-icon class="icon-mid"><List /></el-icon> 行动计划</span></template>
             <el-table :data="report.report.action_plan" border stripe size="small">
               <el-table-column label="优先级" width="80">
                 <template #default="{ row }"><el-tag :type="row.priority === '紧急' ? 'danger' : row.priority === '重要' ? 'warning' : 'info'" size="small" effect="dark">{{ row.priority }}</el-tag></template>
@@ -480,7 +477,7 @@
 
           <!-- 未来展望 -->
           <el-card v-if="report.report?.outlook" shadow="hover" class="report-section">
-            <template #header><span class="report-header"><el-icon style="vertical-align: middle;"><View /></el-icon> 未来展望</span></template>
+            <template #header><span class="report-header"><el-icon class="icon-mid"><View /></el-icon> 未来展望</span></template>
             <p class="report-text">{{ report.report.outlook }}</p>
           </el-card>
         </div>

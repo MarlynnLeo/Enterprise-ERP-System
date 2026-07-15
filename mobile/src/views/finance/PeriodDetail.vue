@@ -79,7 +79,14 @@
           <SvgIcon name="info" size="1rem" />
           <span>期末结转（关账）请在 PC 端「财务 → 期末结转」中操作</span>
         </div>
-        <Button v-else type="primary" block round @click="handleReopen">重新开启</Button>
+        <Button
+          v-else
+          v-permission="'finance:closing:execute'"
+          type="primary"
+          block
+          round
+          @click="handleReopen"
+        >重新开启</Button>
       </div>
     </div>
 

@@ -1,29 +1,23 @@
 <template>
   <div class="module-page page-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>工位管理</h2>
-          <p class="subtitle">管理装配产线和工位，查看工位实时状态</p>
-        </div>
-        <div class="action-section">
-          <el-button type="primary" @click="openDialog()">
+    <PageHeader title="工位管理" subtitle="管理装配产线和工位，查看工位实时状态">
+      <template #actions>
+<el-button type="primary" v-permission="'production:stations:create'" @click="openDialog()">
             <el-icon><Plus /></el-icon> 新增工位
           </el-button>
-        </div>
-      </div>
-    </el-card>
+      </template>
+    </PageHeader>
 
     <!-- 筛选 -->
     <el-card class="data-card">
-      <el-form :inline="true" style="margin-bottom: 16px">
+      <el-form :inline="true" class="mb-md">
         <el-form-item label="产线">
-          <el-select v-model="filters.lineCode" placeholder="全部产线" clearable style="width: 150px" @change="loadList">
+          <el-select v-model="filters.lineCode" placeholder="全部产线" clearable class="form-control-md" @change="loadList">
             <el-option v-for="l in lines" :key="l.line_code" :label="l.line_name || l.line_code" :value="l.line_code" />
           </el-select>
         </el-form-item>
         <el-form-item label="类型">
-          <el-select v-model="filters.stationType" placeholder="全部类型" clearable style="width: 120px" @change="loadList">
+          <el-select v-model="filters.stationType" placeholder="全部类型" clearable class="form-control-sm" @change="loadList">
             <el-option label="装配" value="assembly" />
             <el-option label="测试" value="test" />
             <el-option label="包装" value="pack" />
@@ -31,7 +25,7 @@
           </el-select>
         </el-form-item>
         <el-form-item label="关键字">
-          <el-input v-model="filters.keyword" placeholder="编号/名称" clearable style="width: 160px" @keyup.enter="loadList" />
+          <el-input v-model="filters.keyword" placeholder="编号/名称" clearable class="form-control-md" @keyup.enter="loadList" />
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="loadList">查询</el-button>
@@ -80,10 +74,10 @@
         <el-table-column prop="sort_order" label="排序" width="70" align="center" />
         <el-table-column label="操作" width="150" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" size="small" @click="openDialog(row)">编辑</el-button>
+            <el-button link type="primary" size="small" v-permission="'production:stations:update'" @click="openDialog(row)">编辑</el-button>
             <el-popconfirm title="确定删除?" @confirm="handleDelete(row.id)">
               <template #reference>
-                <el-button link type="danger" size="small">删除</el-button>
+                <el-button link type="danger" size="small" v-permission="'production:stations:delete'">删除</el-button>
               </template>
             </el-popconfirm>
           </template>
@@ -94,7 +88,7 @@
         v-if="total > 0"
         :current-page="page" :page-size="pageSize" :total="total"
         layout="total, prev, pager, next"
-        style="margin-top: 16px; justify-content: flex-end"
+        class="pagination-bar"
         @current-change="p => { page = p; loadList() }"
       />
     </el-card>
@@ -115,7 +109,7 @@
           <el-input v-model="form.line_name" placeholder="如 一号产线" />
         </el-form-item>
         <el-form-item label="工位类型">
-          <el-select v-model="form.station_type" style="width: 100%">
+          <el-select v-model="form.station_type" class="w-full">
             <el-option label="装配" value="assembly" />
             <el-option label="测试" value="test" />
             <el-option label="包装" value="pack" />
@@ -134,7 +128,12 @@
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSave" :loading="saving">保存</el-button>
+        <el-button
+          type="primary"
+          v-permission="editId ? 'production:stations:update' : 'production:stations:create'"
+          @click="handleSave"
+          :loading="saving"
+        >保存</el-button>
       </template>
     </el-dialog>
   </div>
@@ -174,7 +173,7 @@ const loadList = async () => {
     })
     list.value = data?.data?.list || data?.list || []
     total.value = data?.data?.total || data?.total || 0
-  } catch (e) {
+  } catch {
     ElMessage.error('加载失败')
   } finally {
     loading.value = false
@@ -250,25 +249,25 @@ onMounted(() => {
   gap: 12px;
   margin-bottom: 20px;
   padding: 16px;
-  background: var(--el-fill-color-lighter, #f5f7fa);
+  background: var(--el-fill-color-lighter, var(--color-bg-section));
   border-radius: 8px;
 }
 .station-card {
   min-width: 140px;
   padding: 12px 16px;
-  background: #fff;
+  background: var(--color-bg-base);
   border-radius: 8px;
-  border: 2px solid #e4e7ed;
+  border: 2px solid var(--color-border-lighter, var(--el-border-color-lighter));
   text-align: center;
   transition: all 0.3s;
 }
 .station-card.busy {
-  border-color: var(--el-color-danger-light-3, #f89898);
-  background: #fef0f0;
+  border-color: var(--el-color-danger-light-3, var(--color-danger-light-3, var(--color-danger)));
+  background: var(--el-color-danger-light-9);
 }
 .station-card.idle {
-  border-color: var(--el-color-success-light-3, #95d475);
-  background: #f0f9eb;
+  border-color: var(--el-color-success-light-3, var(--color-success-light-3, var(--color-success)));
+  background: var(--el-color-success-light-9);
 }
 .station-code {
   font-size: 16px;
@@ -277,13 +276,13 @@ onMounted(() => {
 }
 .station-name {
   font-size: 13px;
-  color: #606266;
+  color: var(--color-text-regular);
   margin-bottom: 8px;
 }
 .station-info {
   margin-top: 8px;
   font-size: 12px;
-  color: #909399;
+  color: var(--color-text-secondary);
   line-height: 1.6;
 }
 </style>

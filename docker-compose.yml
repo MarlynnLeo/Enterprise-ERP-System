@@ -1,7 +1,27 @@
 version: '3.8'
 
 services:
-  # ==================== 后端服务 ====================
+  erp-redis:
+    image: redis:7-alpine
+    container_name: erp-redis
+    restart: unless-stopped
+    command: >
+      sh -c "redis-server
+      --appendonly yes
+      --requirepass \"$${REDIS_PASSWORD:?REDIS_PASSWORD is required}\""
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    volumes:
+      - erp-redis-data:/data
+    networks:
+      - erp-network
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" ping | grep PONG"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
   erp-backend:
     build:
       context: ./backend
@@ -14,59 +34,57 @@ services:
       - NODE_ENV=production
       - PORT=8080
       - PUBLIC_API_BASE_URL=${PUBLIC_API_BASE_URL}
-      # 数据库 — 连接宿主机 MySQL
       - DB_HOST=${DB_HOST}
       - DB_PORT=${DB_PORT:-3306}
       - DB_USER=${DB_USER:-root}
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_NAME=${DB_NAME:-mes}
-      # 数据库连接池
       - DB_CONNECTION_LIMIT=10
       - DB_QUEUE_LIMIT=20
       - DB_CONNECT_TIMEOUT=60000
-      # JWT
       - JWT_SECRET=${JWT_SECRET}
       - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
       - JWT_ACCESS_TOKEN_EXPIRY=2h
       - JWT_REFRESH_TOKEN_EXPIRY=7d
       - JWT_ACCESS_EXPIRY=2h
       - JWT_REFRESH_EXPIRY=7d
-      # CSRF
       - CSRF_SECRET=${CSRF_SECRET}
-      # CORS – 生产环境必须显式配置允许的前端来源
+      - DEFAULT_ADMIN_PASSWORD_HASH=${DEFAULT_ADMIN_PASSWORD_HASH}
+      - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
-      # Redis
       - REDIS_ENABLED=true
-      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_HOST=${REDIS_HOST:-erp-redis}
       - REDIS_PORT=${REDIS_PORT:-6379}
       - REDIS_PASSWORD=${REDIS_PASSWORD}
       - REDIS_DB=0
-      # Ollama
       - OLLAMA_HOST=${OLLAMA_HOST}
       - OLLAMA_OCR_MODEL=deepseek-ocr:latest
       - OLLAMA_TIMEOUT=60000
-      # 智谱AI
       - ZHIPU_API_KEY=${ZHIPU_API_KEY}
-      # SiliconFlow
       - SILICONFLOW_API_KEY=${SILICONFLOW_API_KEY}
       - SILICONFLOW_VLM_MODEL=deepseek-ai/DeepSeek-OCR
-      # 日志
       - LOG_LEVEL=info
       - ENABLE_DEBUG_LOG=false
       - ENABLE_SQL_LOG=false
+      - BACKUP_DIR=/app/backups
+      - BACKUP_RETENTION_DAYS=${BACKUP_RETENTION_DAYS:-30}
+      - BACKUP_RETENTION_COUNT=${BACKUP_RETENTION_COUNT:-30}
     volumes:
       - erp-uploads:/app/uploads
       - erp-logs:/app/logs
+      - erp-backups:/app/backups
     networks:
       - erp-network
+    depends_on:
+      erp-redis:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/api/ping"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/api/health"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 30s
 
-  # ==================== 前端服务 ====================
   erp-frontend:
     build:
       context: ./frontend
@@ -87,7 +105,6 @@ services:
       retries: 3
       start_period: 10s
 
-  # ==================== 移动端服务 ====================
   erp-mobile:
     build:
       context: ./mobile
@@ -116,4 +133,8 @@ volumes:
   erp-uploads:
     driver: local
   erp-logs:
+    driver: local
+  erp-backups:
+    driver: local
+  erp-redis-data:
     driver: local

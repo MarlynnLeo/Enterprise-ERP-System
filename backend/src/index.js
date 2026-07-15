@@ -7,7 +7,26 @@ const { server: serverConfig } = require('./config');
 
 // SIGUSR2 (nodemon) 信号处理已由 db.js 统一管理（关闭连接池后重启）
 
+/**
+ * 启动时迁移策略：
+ * - production 默认关闭（须发布流水线显式 migrate）
+ * - 开发/测试默认开启
+ * - 可用 AUTO_MIGRATE=true|false 覆盖
+ */
+function shouldAutoMigrate() {
+  if (process.env.AUTO_MIGRATE === 'true') return true;
+  if (process.env.AUTO_MIGRATE === 'false') return false;
+  return process.env.NODE_ENV !== 'production';
+}
+
 async function runMigrations() {
+  if (!shouldAutoMigrate()) {
+    logger.info(
+      'AUTO_MIGRATE disabled (production default). Run `npm run migrate` in release pipeline.'
+    );
+    return;
+  }
+
   let knex;
 
   try {

@@ -8,15 +8,11 @@
 -->
 <template>
   <div class="module-page base-data-list-page">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>产品大类管理</h2>
-          <p class="subtitle">管理产品大类配置</p>
-        </div>
-        <el-button v-if="canCreate" type="primary" :icon="Plus" @click="handleAdd">新增大类</el-button>
-      </div>
-    </el-card>
+    <PageHeader title="产品大类管理" subtitle="管理产品大类配置">
+      <template #actions>
+<el-button v-if="canCreate" type="primary" :icon="Plus" @click="handleAdd">新增大类</el-button>
+      </template>
+    </PageHeader>
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
@@ -83,7 +79,7 @@
         row-key="id"
         border
         :tree-props="{ children: 'children' }"
-        style="width: 100%"
+        class="w-full"
       >
         <template #empty>
           <el-empty description="暂无大类数据" />
@@ -182,7 +178,7 @@
             }"
             clearable
             placeholder="请选择上级大类"
-            style="width: 100%"
+            class="w-full"
           ></el-cascader>
         </el-form-item>
         <el-form-item label="大类名称" prop="name">
@@ -232,7 +228,7 @@
             :limit="1"
             accept=".xlsx, .xls"
             :on-change="handleFileChange"
-            style="margin-top: 15px;"
+            class="mt-15"
           >
             <template #trigger>
               <el-button type="primary">选择文件</el-button>

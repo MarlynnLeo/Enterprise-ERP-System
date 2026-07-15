@@ -1,5 +1,5 @@
 <template>
-  <div class="production-board">
+  <div class="module-page production-board">
     <!-- 头部 -->
     <div class="board-header">
       <div class="header-content">
@@ -27,7 +27,7 @@
             </el-checkbox>
           </div>
         </el-checkbox-group>
-        <h4 style="margin-top: 20px;">调整显示顺序（拖拽排序）</h4>
+        <h4 class="mt-20">调整显示顺序（拖拽排序）</h4>
         <div class="card-order-list">
           <div
             v-for="(cardKey, index) in tempCardOrder"
@@ -46,7 +46,7 @@
             </div>
           </div>
         </div>
-        <h4 style="margin-top: 20px;">最近生产计划显示条数</h4>
+        <h4 class="mt-20">最近生产计划显示条数</h4>
         <div class="limit-setting">
           <el-slider
             v-model="tempRecentPlansLimit"
@@ -58,7 +58,7 @@
             input-size="small"
           />
         </div>
-        <h4 style="margin-top: 20px;">自动滚动设置</h4>
+        <h4 class="mt-20">自动滚动设置</h4>
         <div class="scroll-setting">
           <div class="scroll-row">
             <span>开启自动滚动</span>
@@ -245,7 +245,7 @@
               ref="tableRef"
               :data="boardData.recentPlans"
               stripe
-              style="width: 100%"
+              class="w-full"
               :height="autoScroll ? visibleRows * 48 + 48 : undefined"
             >
               <el-table-column prop="code" label="计划编号" width="150" />

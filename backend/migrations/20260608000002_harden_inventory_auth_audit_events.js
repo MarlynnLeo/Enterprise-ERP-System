@@ -80,17 +80,28 @@ exports.up = async function up(knex) {
       SELECT
         material_id,
         location_id,
-        COALESCE(NULLIF(batch_number, ''), '') AS batch_number,
+        batch_key AS batch_number,
         COALESCE(SUM(quantity), 0) AS quantity,
         NULL,
-        COALESCE(SUM(COALESCE(total_value, 0)), 0),
+        COALESCE(SUM(signed_total_value), 0),
         0,
         MAX(id),
         NOW(),
         NOW()
-      FROM inventory_ledger
-      WHERE material_id IS NOT NULL AND location_id IS NOT NULL
-      GROUP BY material_id, location_id, COALESCE(NULLIF(batch_number, ''), '')
+      FROM (
+        SELECT id,
+               material_id,
+               location_id,
+               COALESCE(NULLIF(batch_number, ''), '') COLLATE utf8mb4_unicode_ci AS batch_key,
+               quantity,
+               CASE
+                 WHEN COALESCE(quantity, 0) < 0 THEN -ABS(COALESCE(total_value, 0))
+                 ELSE ABS(COALESCE(total_value, 0))
+               END AS signed_total_value
+        FROM inventory_ledger
+        WHERE material_id IS NOT NULL AND location_id IS NOT NULL
+      ) ledger_source
+      GROUP BY material_id, location_id, batch_key
       ON DUPLICATE KEY UPDATE
         quantity = VALUES(quantity),
         total_value = VALUES(total_value),

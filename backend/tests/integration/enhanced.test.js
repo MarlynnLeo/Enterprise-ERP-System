@@ -85,8 +85,7 @@ describe('增强模块 - 汇率 /api/enhanced/exchange-rates', () => {
   test('应返回最新汇率', async () => {
     const res = await api.get('/api/enhanced/exchange-rates/latest?from=USD&to=CNY');
 
-    // 可能没有配置汇率数据
-    expect([200, 404]).toContain(res.status);
+    expect(res.status).toBe(200);
   });
 });
 

@@ -26,6 +26,10 @@ const AuditAction = {
   PRINT: 'print',
   LOGIN: 'login',
   LOGOUT: 'logout',
+  /** 角色菜单/权限图变更 */
+  PERMISSION_ASSIGN: 'permission_assign',
+  /** 用户角色分配变更 */
+  ROLE_ASSIGN: 'role_assign',
 };
 
 /**

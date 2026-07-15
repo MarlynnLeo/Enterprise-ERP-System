@@ -151,6 +151,12 @@ const getReturns = async (req, res) => {
     } = req.query;
     const pagination = parsePagination(page, pageSize, { defaultPageSize: 10, maxPageSize: 100 });
 
+    const ScopeGuard = require('../../../authorization/ScopeGuard');
+    const scopeClause = await ScopeGuard.applyListScope(req, 'purchase_return', {
+      tableAlias: 'r',
+      ownerAlias: 'purchase_return_owner_scope',
+    });
+
     // 创建两个查询：一个用于获取分页数据，一个用于计算总数
     let dataQuery = `
       SELECT
@@ -161,12 +167,14 @@ const getReturns = async (req, res) => {
       FROM purchase_returns r
       LEFT JOIN suppliers s ON r.supplier_id = s.id AND s.deleted_at IS NULL
       LEFT JOIN locations l ON r.warehouse_id = l.id
+      ${scopeClause.join}
       WHERE r.deleted_at IS NULL
     `;
 
     let countQuery = `
       SELECT COUNT(*) as total_count
       FROM purchase_returns r
+      ${scopeClause.join}
       WHERE r.deleted_at IS NULL
     `;
 
@@ -222,6 +230,10 @@ const getReturns = async (req, res) => {
     }
 
     // 添加排序和分页
+    dataQuery += scopeClause.where || '';
+    countQuery += scopeClause.where || '';
+    queryParams.push(...(scopeClause.params || []));
+    countParams.push(...(scopeClause.params || []));
     dataQuery += ` ORDER BY r.created_at DESC LIMIT ${pagination.limit} OFFSET ${pagination.offset}`;
 
     // 执行数据查询
@@ -256,6 +268,16 @@ const getReturns = async (req, res) => {
 
 // 获取采购退货详情
 const getReturn = async (req, res) => {
+  {
+    const { id } = req.params;
+    if (id !== null && id !== undefined && id !== '') {
+      const ScopeGuard = require('../../../authorization/ScopeGuard');
+      if (!(await ScopeGuard.assertAccess(db.pool, req, 'purchase_return', id))) {
+        return ResponseHandler.forbidden(res, '无权访问该采购退货单');
+      }
+    }
+  }
+
   try {
     const { id } = req.params;
 
@@ -348,7 +370,7 @@ const createReturn = async (req, res) => {
     // ✅ 优先使用前端传来的operator,否则使用当前登录用户
     const operator = operatorFromBody || req.user?.real_name || req.user?.username || 'system';
 
-    logger.info('✅ 创建退货单 - 操作人:', {
+    logger.info('Creating purchase return', {
       operatorFromBody,
       userRealName: req.user?.real_name,
       username: req.user?.username,
@@ -363,9 +385,9 @@ const createReturn = async (req, res) => {
       INSERT INTO purchase_returns (
         return_no, receipt_id, receipt_no, source_type, supplier_id, supplier_name,
         warehouse_id, warehouse_name, return_date, reason,
-        total_amount, operator, remarks, status
+        total_amount, operator, remarks, status, created_by
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
     const [result] = await connection.query(insertQuery, [
       returnNo,
@@ -382,6 +404,7 @@ const createReturn = async (req, res) => {
       operator,
       remarks,
       'draft',
+      (() => { const ScopeGuard = require('../../../authorization/ScopeGuard'); return ScopeGuard.tryStampOwner(req, 'purchase_return').created_by; })(),
     ]);
 
     const returnId = result.insertId;
@@ -432,6 +455,16 @@ const createReturn = async (req, res) => {
 
 // 更新采购退货
 const updateReturn = async (req, res) => {
+  {
+    const { id } = req.params;
+    if (id !== null && id !== undefined && id !== '') {
+      const ScopeGuard = require('../../../authorization/ScopeGuard');
+      if (!(await ScopeGuard.assertAccess(db.pool, req, 'purchase_return', id))) {
+        return ResponseHandler.forbidden(res, '无权修改该采购退货单');
+      }
+    }
+  }
+
   const connection = await pool.getConnection();
 
   try {
@@ -533,6 +566,16 @@ const updateReturn = async (req, res) => {
 
 // 删除采购退货单（仅允许删除草稿，避免已确认/已完成单据影响库存链路）
 const deleteReturn = async (req, res) => {
+  {
+    const { id } = req.params;
+    if (id !== null && id !== undefined && id !== '') {
+      const ScopeGuard = require('../../../authorization/ScopeGuard');
+      if (!(await ScopeGuard.assertAccess(db.pool, req, 'purchase_return', id))) {
+        return ResponseHandler.forbidden(res, '无权删除该采购退货单');
+      }
+    }
+  }
+
   const connection = await pool.getConnection();
 
   try {
@@ -570,6 +613,16 @@ const deleteReturn = async (req, res) => {
 
 // 更新采购退货状态
 const updateReturnStatus = async (req, res) => {
+  {
+    const { id } = req.params;
+    if (id !== null && id !== undefined && id !== '') {
+      const ScopeGuard = require('../../../authorization/ScopeGuard');
+      if (!(await ScopeGuard.assertAccess(db.pool, req, 'purchase_return', id))) {
+        return ResponseHandler.forbidden(res, '无权变更该采购退货单状态');
+      }
+    }
+  }
+
   const connection = await pool.getConnection();
 
   try {
@@ -694,6 +747,7 @@ const updateReturnStatus = async (req, res) => {
               unitId,
               batchNumber: null, // 退货通常不指定批次
               unitCost: item.unit_price, // 透传退货单价以保证存货账面精确相减
+              idempotencyKey: `purchase_return:${returnNo}:${item.material_id}:${warehouseId}:${returnQuantity}:${item.id}`,
             },
             connection
           );
@@ -777,16 +831,20 @@ const updateReturnStatus = async (req, res) => {
       logger.info(`采购订单 ${orderId} 状态更新完成`);
     }
 
-    // 更新状态
+    // 更新状态（条件更新防并发重复完成）
     const updateQuery = `
       UPDATE purchase_returns
       SET status = ?, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ? AND deleted_at IS NULL
+      WHERE id = ? AND deleted_at IS NULL AND status = ?
     `;
-    await connection.query(updateQuery, [newStatus, id]);
+    const [statusResult] = await connection.query(updateQuery, [newStatus, id, currentStatus]);
+    if (!statusResult.affectedRows) {
+      throw createValidationError('退货单状态已变更，请刷新后重试');
+    }
 
+    let domainEventId = null;
     if (newStatus === STATUS.PURCHASE_RETURN.COMPLETED) {
-      await DomainEventService.enqueue(
+      domainEventId = await DomainEventService.enqueue(
         'PURCHASE_RETURN_COMPLETED',
         {
           returnId: id,
@@ -802,7 +860,7 @@ const updateReturnStatus = async (req, res) => {
     }
 
     await connection.commit();
-    DomainEventService.dispatchSoon();
+    DomainEventService.dispatchSoon(domainEventId);
 
     // 获取更新后的数据（事务已提交，使用全局pool可以读到最新数据）
     const updatedReturn = await getReturnById(id);

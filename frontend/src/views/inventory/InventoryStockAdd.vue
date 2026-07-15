@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="inventory-stock-add">
+  <div class="module-page inventory-stock-add">
     <el-dialog
       :model-value="modelValue"
       @update:model-value="$emit('update:modelValue', $event)"
@@ -34,7 +34,7 @@
             reserve-keyword
             :remote-method="searchMaterials"
             :loading="loadingMaterials"
-            style="width: 100%"
+            class="w-full"
             @change="handleMaterialChange"
             @focus="handleSelectFocus"
             clearable
@@ -69,7 +69,7 @@
         </el-form-item>
 
         <el-form-item label="调整类型" prop="type">
-          <el-select v-model="form.type" placeholder="选择调整类型" style="width: 100%">
+          <el-select v-model="form.type" placeholder="选择调整类型" class="w-full">
             <el-option label="调整入库" value="in" />
             <el-option label="调整出库" value="out" />
           </el-select>
@@ -81,7 +81,7 @@
             :precision="2"
             :step="1"
             :min="form.type === 'out' ? 0.01 : 0.01"
-            style="width: 100%"
+            class="w-full"
           />
           <div class="quantity-note" v-if="form.type === 'out'">
             调整出库时请输入正数，系统会自动减少库存
@@ -89,6 +89,31 @@
           <div class="quantity-note" v-if="form.type === 'in'">
             调整入库时请输入正数，系统会自动增加库存
           </div>
+        </el-form-item>
+
+        <el-form-item v-if="form.type === 'in'" label="单位成本" prop="unitCost">
+          <el-input-number
+            v-model="form.unitCost"
+            :precision="6"
+            :step="0.01"
+            :min="0.000001"
+            class="w-full"
+          />
+          <el-text class="search-tip" size="small" type="warning">
+            调整入库必须填写真实成本，不能使用销售价格代替。
+          </el-text>
+        </el-form-item>
+
+        <el-form-item v-if="form.type === 'in'" label="批次号" prop="batchNumber">
+          <el-input
+            v-model="form.batchNumber"
+            clearable
+            maxlength="64"
+            placeholder="可选；不填则系统使用调整单号作为可追溯批次"
+          />
+          <el-text class="search-tip" size="small" type="info">
+            调整入库需要可追溯批次。留空时将自动使用调整单号（如 TZ20260713001）。
+          </el-text>
         </el-form-item>
 
         <el-form-item label="备注" prop="remark">
@@ -134,6 +159,8 @@ const form = reactive({
   materialId: '',
   type: 'in',
   quantity: 1,
+  unitCost: null,
+  batchNumber: '',
   remark: ''
 })
 const rules = {
@@ -146,6 +173,15 @@ const rules = {
   quantity: [
     { required: true, message: '请输入数量', trigger: 'blur' },
     { type: 'number', message: '数量必须为数字', trigger: 'blur' }
+  ],
+  unitCost: [
+    {
+      validator: (_rule, value, callback) => {
+        if (form.type === 'in' && !(Number(value) > 0)) callback(new Error('请输入大于0的单位成本'))
+        else callback()
+      },
+      trigger: 'blur'
+    }
   ]
 }
 // ===== 工具函数 =====
@@ -248,15 +284,24 @@ const submitForm = async () => {
           locationId,
           quantity: quantity,
           type: form.type,
-          remark: form.remark
+          remark: form.remark,
+          // 入库批次：有录入则传给后端；空则后端用调整单号兜底
+          batchNumber: form.type === 'in' ? (form.batchNumber || '').trim() : undefined,
+          unitCost: form.type === 'in' ? Number(form.unitCost) : undefined,
         }
         await inventoryApi.adjustStock(data)
 
+        ElMessage.success('库存调整成功')
         emit('success')
         emit('update:modelValue', false)
         resetForm()
       } catch (error) {
-        ElMessage.error(error.message || '提交失败')
+        const msg =
+          error?.response?.data?.message ||
+          error?.response?.data?.error ||
+          error?.message ||
+          '提交失败'
+        ElMessage.error(msg)
         console.error(error)
       } finally {
         submitting.value = false
@@ -274,6 +319,8 @@ const resetForm = () => {
   form.materialId = ''
   form.type = 'in'
   form.quantity = 1
+  form.unitCost = null
+  form.batchNumber = ''
   form.remark = ''
 }
 </script>

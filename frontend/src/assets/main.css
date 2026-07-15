@@ -101,12 +101,7 @@ body {
   transition: none !important;
 }
 
-.el-overlay .el-overlay-dialog .el-dialog,
-.el-dialog {
-  border-radius: var(--theme-dialog-radius, 12px);
-  overflow: hidden;
-}
-
+/* 对话框布局见 dialog-system.css；此处只保留视觉默认（主题可覆盖） */
 .el-dialog .el-dialog__header {
   background: var(--theme-dialog-header-bg, linear-gradient(135deg, var(--el-fill-color-light, var(--color-bg-hover)) 0%, var(--el-bg-color, var(--color-bg-base)) 100%));
   border-bottom: 1px solid var(--el-border-color-lighter, var(--color-border-lighter));

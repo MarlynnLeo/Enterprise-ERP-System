@@ -1,84 +1,165 @@
-/**
- * auditLogInterceptor.js
- * @description HTTP拦截切面，自动记录关键业务接口的黑匣子审计日志
- */
-
 const AuditLogService = require('../services/system/AuditLogService');
 
-// ✅ 安全修复: 审计日志脱敏 — 过滤敏感字段避免密码/Token 记入日志
-const SENSITIVE_FIELDS = ['password', 'currentPassword', 'newPassword', 'confirmPassword', 'token', 'accessToken', 'refreshToken', 'secret', 'apiKey', 'api_key'];
-const maskSensitiveData = (data) => {
+const AUDITED_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+const SENSITIVE_FIELDS = [
+  'password',
+  'currentPassword',
+  'newPassword',
+  'confirmPassword',
+  'token',
+  'accessToken',
+  'refreshToken',
+  'secret',
+  'apiKey',
+  'api_key',
+  'authorization',
+];
+
+function maskSensitiveData(data) {
   if (!data || typeof data !== 'object') return data;
+
   const masked = Array.isArray(data) ? [...data] : { ...data };
   for (const key of Object.keys(masked)) {
-    if (SENSITIVE_FIELDS.some(f => key.toLowerCase().includes(f.toLowerCase()))) {
+    const normalizedKey = key.toLowerCase();
+    if (SENSITIVE_FIELDS.some((field) => normalizedKey.includes(field.toLowerCase()))) {
       masked[key] = '***REDACTED***';
-    } else if (typeof masked[key] === 'object' && masked[key] !== null) {
+    } else if (masked[key] && typeof masked[key] === 'object') {
       masked[key] = maskSensitiveData(masked[key]);
     }
   }
   return masked;
-};
+}
 
-const auditLogInterceptor = async (req, res, next) => {
-  // 只拦截具有副作用的 HTTP 动作
-  if (!['POST', 'PUT', 'DELETE'].includes(req.method)) {
-    return next();
-  }
+function getRequestPath(req) {
+  return String(req.originalUrl || req.url || '').split('?')[0] || '/';
+}
 
-  // 避免过度记录普通查询或登录行为
-  if (req.originalUrl.includes('/login') || req.originalUrl.includes('/auth') || req.method === 'GET') {
-    return next();
-  }
+function shouldAudit(req) {
+  if (!AUDITED_METHODS.has(req.method)) return false;
 
-  const moduleName = req.baseUrl ? req.baseUrl.split('/').pop() : 'UNKNOWN';
-  const targetTable = moduleName; // 近似表名
+  const requestPath = getRequestPath(req);
+  return !requestPath.startsWith('/api/auth') && !requestPath.includes('/login');
+}
 
-  // 记录原有的 res.send 拦截以便在请求完毕后统一写入审计日志
-  const originalSend = res.send;
+function inferAction(method) {
+  if (method === 'POST') return 'CREATE';
+  if (method === 'PUT' || method === 'PATCH') return 'UPDATE';
+  if (method === 'DELETE') return 'DELETE';
+  return 'UNKNOWN';
+}
 
-  // 代理 res.send
-  res.send = function (data) {
-    res.send = originalSend;
+function inferModule(req) {
+  const parts = getRequestPath(req).split('/').filter(Boolean);
+  return parts[1] || parts[0] || 'UNKNOWN';
+}
 
-    // 如果业务请求成功，则发起异步写入审计日志不阻塞响应
-    if (res.statusCode >= 200 && res.statusCode < 300) {
-      let action = 'UNKNOWN';
-      if (req.method === 'POST') action = 'CREATE';
-      if (req.method === 'PUT') action = 'UPDATE';
-      if (req.method === 'DELETE') action = 'DELETE';
-
-      let targetId = req.params?.id || req.body?.id || 'N/A';
-      // 有些路由以数组批量传入
-      if (req.body?.ids && Array.isArray(req.body.ids)) {
-        targetId = req.body.ids.join(',');
-      }
-
-      const operator = req.user ? { id: req.user.id, name: req.user.name || req.user.username } : { id: 'SYS', name: '系统操作' };
-
-      AuditLogService.log({
-        request_id: req.headers['x-request-id'] || req.headers['x-correlation-id'] || req.id || null,
-        operator_id: String(operator.id),
-        operator_name: String(operator.name),
-        action,
-        module: moduleName,
-        target_table: targetTable,
-        target_id: String(targetId),
-        new_payload: req.method !== 'DELETE' ? maskSensitiveData(req.body) : null,
-        method: req.method,
-        path: req.originalUrl,
-        ip_address: req.ip || req.connection.remoteAddress,
-        user_agent: req.headers['user-agent'],
-        remarks: `由 ${req.method} ${req.originalUrl} 触发`
-      }).catch(() => {
-        // 静默，服务层已处理并打印
-      });
+function inferTargetId(req) {
+  const paramPriority = [
+    'id', 'entryId', 'periodId', 'receiptId', 'invoiceId', 'transactionId',
+    'salesOrderId', 'purchaseOrderId', 'taskId', 'transaction_no', 'receipt_no',
+  ];
+  for (const key of paramPriority) {
+    if (req.params?.[key] !== undefined && req.params?.[key] !== null && req.params?.[key] !== '') {
+      return req.params[key];
     }
+  }
+  const remainingParam = Object.values(req.params || {}).find(
+    (value) => value !== undefined && value !== null && value !== ''
+  );
+  if (remainingParam !== undefined) return remainingParam;
+  if (resolvableAuditTarget(req)) return resolvableAuditTarget(req);
+  if (req.body?.id) return req.body.id;
+  if (Array.isArray(req.body?.ids)) return req.body.ids.join(',');
 
-    return res.send(data);
+  const actionSegments = new Set([
+    'approve', 'reject', 'audit', 'post', 'reverse', 'close', 'reopen', 'submit',
+    'status', 'retry', 'resolve', 'confirm', 'cancel', 'complete', 'execute',
+  ]);
+  const parts = getRequestPath(req).split('/').filter(Boolean).map(decodeURIComponent);
+  while (parts.length > 0 && actionSegments.has(String(parts.at(-1)).toLowerCase())) {
+    parts.pop();
+  }
+  const candidate = parts.at(-1);
+  if (
+    candidate &&
+    /\d/.test(candidate) &&
+    !['api', inferModule(req)].includes(candidate.toLowerCase())
+  ) {
+    return candidate;
+  }
+  return 'N/A';
+}
+
+function resolvableAuditTarget(req) {
+  return resTarget(req.res?.locals?.auditTargetId) || resTarget(req.auditTargetId);
+}
+
+function resTarget(value) {
+  return value !== undefined && value !== null && value !== '' ? value : null;
+}
+
+function inferTargetTable(req) {
+  const path = getRequestPath(req).toLowerCase();
+  const mappings = [
+    ['/finance/entries', 'gl_entries'],
+    ['/finance/periods', 'gl_periods'],
+    ['/manual-transactions', 'manual_transactions'],
+    ['/purchase/receipts', 'purchase_receipts'],
+    ['/sales/outbound', 'sales_outbound'],
+    ['/inventory/inbound', 'inventory_inbound'],
+    ['/inventory/outbound', 'inventory_outbound'],
+    ['/cash-transactions', 'cash_transactions'],
+    ['/bank-transactions', 'bank_transactions'],
+  ];
+  return mappings.find(([prefix]) => path.includes(prefix))?.[1] || inferModule(req);
+}
+
+function getOperator(req) {
+  if (!req.user) {
+    return { id: 'SYS', name: 'System' };
+  }
+
+  return {
+    id: req.user.id || req.user.userId || 'UNKNOWN',
+    name: req.user.name || req.user.real_name || req.user.username || 'UNKNOWN',
   };
+}
 
-  next();
-};
+function auditLogInterceptor(req, res, next) {
+  if (!shouldAudit(req)) {
+    return next();
+  }
+
+  res.on('finish', () => {
+    if (res.statusCode < 200 || res.statusCode >= 300) return;
+
+    const moduleName = inferModule(req);
+    const operator = getOperator(req);
+
+    AuditLogService.log({
+      request_id: req.headers['x-request-id'] || req.headers['x-correlation-id'] || req.id || null,
+      operator_id: String(operator.id),
+      operator_name: String(operator.name),
+      action: inferAction(req.method),
+      module: moduleName,
+      target_table: inferTargetTable(req),
+      target_id: String(inferTargetId(req)),
+      new_payload: req.method !== 'DELETE' ? maskSensitiveData(req.body) : null,
+      method: req.method,
+      path: req.originalUrl,
+      ip_address: req.ip || req.connection?.remoteAddress,
+      user_agent: req.headers['user-agent'],
+      remarks: `Triggered by ${req.method} ${req.originalUrl}`,
+    }).catch(() => {
+      // AuditLogService owns durable fallback logging; keep the response path non-blocking.
+    });
+  });
+
+  return next();
+}
 
 module.exports = auditLogInterceptor;
+module.exports.maskSensitiveData = maskSensitiveData;
+module.exports.shouldAudit = shouldAudit;
+module.exports.inferTargetId = inferTargetId;
+module.exports.inferTargetTable = inferTargetTable;

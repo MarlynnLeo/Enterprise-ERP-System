@@ -36,26 +36,27 @@ const pool = rawPool;
 // 启动连接池管理器(异步)
 (async () => {
   try {
-    await manager.start();
+    const started = await manager.start();
+    if (!started) return;
 
     // 初始化数据库管理器
     const dbManager = new DBManager('main');
     dbManager.initialize();
 
-    logger.info('✅ 数据库系统初始化完成');
+    logger.info('Database system initialized');
   } catch (error) {
-    logger.error('❌ 数据库系统初始化失败:', error);
+    logger.error('Database system initialization failed:', error);
     process.exit(1);
   }
 })();
 
 // 监听管理器事件
 manager.on('health:critical', ({ failedCount }) => {
-  logger.error(`⚠️  数据库连接池健康检查严重失败 (${failedCount}次),请立即检查数据库连接`);
+  logger.error(`Database connection pool health check failed repeatedly: failedCount=${failedCount}`);
 });
 
 manager.on('leak:detected', (leaks) => {
-  logger.warn(`⚠️  检测到 ${leaks.length} 个可能的连接泄漏`);
+  logger.warn(`Potential database connection leaks detected: count=${leaks.length}`);
 });
 
 // 优雅关闭处理
@@ -70,7 +71,7 @@ const gracefulShutdown = async (signal) => {
     } catch { /* Redis 可能未启用 */ }
 
     await poolFactory.closeAll();
-    logger.info('✅ 所有数据库连接池已关闭');
+    logger.info('All database connection pools closed');
     process.exit(0);
   } catch (error) {
     logger.error('关闭数据库连接池失败:', error);
@@ -84,7 +85,7 @@ process.once('SIGUSR2', async () => {
   logger.info(`收到 SIGUSR2 信号(nodemon),开始优雅关闭...`);
   try {
     await poolFactory.closeAll();
-    logger.info('✅ 所有数据库连接池已关闭');
+    logger.info('All database connection pools closed');
     process.kill(process.pid, 'SIGUSR2');
   } catch (error) {
     logger.error('关闭数据库连接池失败:', error);
@@ -106,7 +107,7 @@ const query = async (sql, params) => {
 
   // 慢查询告警
   if (duration >= SLOW_QUERY_THRESHOLD) {
-    logger.warn(`⚠️ 慢查询检测: ${duration}ms`, {
+    logger.warn(`Slow query detected: durationMs=${duration}`, {
       sql: sql.substring(0, 200),
       duration,
       threshold: SLOW_QUERY_THRESHOLD,

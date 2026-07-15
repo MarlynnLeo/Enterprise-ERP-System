@@ -108,7 +108,7 @@
     <template #footer>
       <div class="drawer-footer">
         <el-button v-permission="'finance:pricing:update'" type="info" plain @click="$emit('reset')" v-if="activeTab === 'thresholds'">恢复默认</el-button>
-        <div style="flex: 1"></div>
+        <div class="flex-1"></div>
         <el-button @click="visible = false">取消</el-button>
         <el-button v-permission="'finance:pricing:update'" type="primary" @click="$emit('save')" v-if="activeTab === 'thresholds'">保存设置</el-button>
       </div>

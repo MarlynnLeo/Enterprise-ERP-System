@@ -20,6 +20,8 @@ export const systemApi = {
     updateRoleStatus: (id, data) => api.put(`/system/roles/${id}/status`, data),
     getRolePermissions: (id) => api.get(`/system/roles/${id}/permissions`),
     updateRolePermissions: (id, data) => api.put(`/system/roles/${id}/permissions`, data),
+    /** 权限码注册表 SSOT */
+    getPermissionCodes: (params) => api.get('/system/permission-codes', { params }),
 
     // 菜单管理
     getMenus: (params) => api.get('/system/menus', { params }),
@@ -63,10 +65,12 @@ export const systemApi = {
     resolveFailedJob: (id) => api.put(`/system/failed-jobs/${id}/resolve`),
     createBackup: () => api.post('/system/backup'),
     getBackups: () => api.get('/system/backups'),
+    verifyBackup: (filename) => api.get(`/system/backups/${encodeURIComponent(filename)}/verify`),
     downloadBackup: (filename) => api.get(`/system/backups/${encodeURIComponent(filename)}`, { responseType: 'blob' }),
 
     // 业务类型管理
     getBusinessTypeGroups: () => api.get('/system/business-types/groups'),
+    getBusinessTypeDictionary: () => api.get('/system/business-types/dictionary'),
     getBusinessTypes: (params) => api.get('/system/business-types', { params }),
     getBusinessTypesByCategory: (category) => api.get(`/system/business-types/category/${category}`),
     getBusinessType: (id) => api.get(`/system/business-types/${id}`),

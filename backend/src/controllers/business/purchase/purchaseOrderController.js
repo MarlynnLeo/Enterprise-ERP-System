@@ -26,13 +26,11 @@ const { desensitizeDataForUser } = require('../../../utils/desensitizer');
 const { calculateLines, normalizeTaxRate } = require('../../../utils/money');
 const { parsePagination } = require('../../../utils/safePagination');
 const { financeConfig } = require('../../../config/financeConfig');
-const DataScopeService = require('../../../services/DataScopeService');
+const ScopeGuard = require('../../../authorization/ScopeGuard');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
 
 async function canAccessPurchaseOrder(connection, req, id) {
-  return DataScopeService.assertRecordAccess(connection, req, 'purchase_orders', id, {
-    ownerColumn: 'created_by',
-  });
+  return ScopeGuard.assertAccess(connection, req, 'purchase_order', id);
 }
 
 function forbiddenError(message) {
@@ -49,7 +47,7 @@ function assertPurchaseItemPrices(items = []) {
       const rawPrice = item.price ?? item.unit_price ?? item.unitPrice;
       if (rawPrice === null || rawPrice === undefined || rawPrice === '') return true;
       const price = Number(rawPrice);
-      return !Number.isFinite(price) || price < 0;
+      return !Number.isFinite(price) || price <= 0;
     })
     .map(({ index }) => index + 1);
 
@@ -75,7 +73,7 @@ const getOrders = async (req, res) => {
       status,
     } = req.query;
     const pagination = parsePagination(page, pageSize, { defaultPageSize: 10, maxPageSize: 100 });
-    const scopeClause = await DataScopeService.buildRequestOwnerScopeClause(req, {
+    const scopeClause = await ScopeGuard.applyListScope(req, 'purchase_order', {
       tableAlias: 'o',
       ownerAlias: 'purchase_order_owner_scope',
     });
@@ -523,14 +521,23 @@ const updateOrderStatus = async (req, res) => {
         );
       }
 
+      // 提交审批前必须已设置供应商，否则审批通过后无法到货
+      if (newStatus === 'pending' && !currentOrder.supplier_id) {
+        throw new Error('提交审批前请先设置供应商');
+      }
+
       // 提交审批时尝试发起工作流
       let finalStatus = newStatus;
       if (newStatus === 'pending') {
         const WorkflowService = require('../../../services/business/WorkflowService');
         const userId = req.user?.userId || req.user?.id;
+        await connection.query(
+          "UPDATE purchase_orders SET status = 'pending', updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+          [id]
+        );
         const wfResult = await WorkflowService.tryStartWorkflow(
           'purchase_order', id, currentOrder.order_no,
-          `采购订单 ${currentOrder.order_no} 审批`, userId
+          `采购订单 ${currentOrder.order_no} 审批`, userId, connection
         );
         if (wfResult.auto_approved) {
           finalStatus = 'approved';
@@ -573,6 +580,8 @@ const updateOrderStatus = async (req, res) => {
       'approved status',
       'invalid status',
       'purchase order is not fully warehoused',
+      '提交审批前请先设置供应商',
+      '无效的状态变更',
     ];
     const isBusinessError = error.statusCode >= 400 && error.statusCode < 500
       ? true
@@ -606,7 +615,7 @@ const batchUpdateOrderStatus = async (req, res) => {
 
     const result = await DBManager.executeTransaction(async (connection) => {
       const [orders] = await connection.query(
-        'SELECT id, order_no, status, requisition_id FROM purchase_orders WHERE id IN (?) AND deleted_at IS NULL FOR UPDATE',
+        'SELECT id, order_no, status, requisition_id, supplier_id FROM purchase_orders WHERE id IN (?) AND deleted_at IS NULL FOR UPDATE',
         [uniqueIds]
       );
       const orderMap = new Map(orders.map((order) => [Number(order.id), order]));
@@ -648,16 +657,30 @@ const batchUpdateOrderStatus = async (req, res) => {
           continue;
         }
 
+        if (newStatus === 'pending' && !order.supplier_id) {
+          failures.push({
+            id,
+            order_no: order.order_no,
+            message: '提交审批前请先设置供应商',
+          });
+          continue;
+        }
+
         let finalStatus = newStatus;
         if (newStatus === 'pending') {
           const WorkflowService = require('../../../services/business/WorkflowService');
           const userId = req.user?.userId || req.user?.id;
+          await connection.query(
+            "UPDATE purchase_orders SET status = 'pending', updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            [id]
+          );
           const wfResult = await WorkflowService.tryStartWorkflow(
             'purchase_order',
             id,
             order.order_no,
             `采购订单 ${order.order_no} 审批`,
-            userId
+            userId,
+            connection
           );
           if (wfResult.auto_approved) {
             finalStatus = 'approved';

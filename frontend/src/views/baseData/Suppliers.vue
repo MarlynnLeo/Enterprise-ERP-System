@@ -8,15 +8,11 @@
 -->
 <template>
   <div class="module-page base-data-list-page">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>{{ $t('page.baseData.suppliers.title') }}</h2>
-          <p class="subtitle">管理供应商基础信息</p>
-        </div>
-        <el-button v-if="canCreate" type="primary" :icon="Plus" @click="handleAdd">{{ $t('page.baseData.suppliers.add') }}</el-button>
-      </div>
-    </el-card>
+    <PageHeader :title="$t('page.baseData.suppliers.title')" subtitle="管理供应商基础信息">
+      <template #actions>
+<el-button v-if="canCreate" type="primary" :icon="Plus" @click="handleAdd">{{ $t('page.baseData.suppliers.add') }}</el-button>
+      </template>
+    </PageHeader>
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
@@ -73,7 +69,7 @@
         v-loading="loading"
         :data="tableData"
         border
-        style="width: 100%"
+        class="w-full"
       >
         <template #empty>
           <el-empty description="暂无供应商数据" />
@@ -207,7 +203,7 @@
       v-model="importDialogVisible"
       width="500px"
     >
-      <div style="margin-bottom: 20px;">
+      <div class="mb-20">
         <el-button type="primary" @click="downloadTemplate">
           <el-icon><Download /></el-icon> 下载模板
         </el-button>

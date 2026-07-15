@@ -8,15 +8,11 @@
 -->
 <template>
   <div class="module-page departments-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>部门管理</h2>
-          <p class="subtitle">管理组织架构与部门</p>
-        </div>
-        <el-button type="primary" :icon="Plus" v-permission="'system:departments:create'" @click="showAddDialog">新增部门</el-button>
-      </div>
-    </el-card>
+    <PageHeader title="部门管理" subtitle="管理组织架构与部门">
+      <template #actions>
+<el-button type="primary" :icon="Plus" v-permission="'system:departments:create'" @click="showAddDialog">新增部门</el-button>
+      </template>
+    </PageHeader>
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
@@ -47,7 +43,7 @@
     <el-card class="data-card">
       <el-table
         :data="pagedDepartmentList"
-        style="width: 100%"
+        class="w-full"
         border
         row-key="id"
         :tree-props="{children: 'children', hasChildren: 'hasChildren'}"
@@ -79,7 +75,7 @@
         </el-table-column>
         <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
-            <div style="display: flex; gap: 5px; flex-wrap: wrap;">
+            <div class="flex-wrap">
               <el-popconfirm
                 v-if="String(scope.row.status) !== '1'"
                 title="确定要启用该部门吗？"
@@ -105,7 +101,7 @@
                 </template>
               </el-popconfirm>
 
-              <el-button
+              <el-button class="btn-op-view"
                 v-if="String(scope.row.status) === '1'"
                 type="primary"
                 size="small"
@@ -145,7 +141,7 @@
       </el-table>
 
       <!-- 分页 -->
-      <div class="pagination-container" style="display: flex; justify-content: flex-end; margin-top: 20px;">
+      <div class="pagination-container flex-end mt-20">
         <el-pagination
           background
           layout="total, sizes, prev, pager, next, jumper"
@@ -160,13 +156,15 @@
     </el-card>
 
     <!-- 添加/编辑/查看对话框 -->
-    <el-dialog
-      :title="dialogTitle"
+    <AppDialog
       v-model="dialogVisible"
+      :title="dialogTitle"
+      :mode="isViewMode ? 'view' : 'form'"
       width="600px"
+      content-width="wide"
     >
       <template v-if="isViewMode">
-        <el-descriptions :column="2" border style="margin-bottom: 20px;">
+        <el-descriptions :column="2" border class="mb-20">
           <el-descriptions-item label="上级部门" v-if="departmentForm.parent_id">{{ parentDepartmentName || '-' }}</el-descriptions-item>
           <el-descriptions-item label="部门名称">{{ departmentForm.name || '-' }}</el-descriptions-item>
           <el-descriptions-item label="部门编码">{{ departmentForm.code || '-' }}</el-descriptions-item>
@@ -199,7 +197,7 @@
             placeholder="请选择部门负责人"
             filterable
             clearable
-            style="width: 100%"
+            class="w-full"
           >
             <el-option
               v-for="user in userOptions"
@@ -207,8 +205,10 @@
               :label="user.real_name || user.username"
               :value="user.id"
             >
-              <span style="float: left">{{ user.real_name || user.username }}</span>
-              <span style="float: right; color: var(--color-text-muted); font-size: 13px">{{ user.department_name || '无部门' }}</span>
+              <span class="option-row--split">
+                <span class="option-code">{{ user.real_name || user.username }}</span>
+                <span class="option-name">{{ user.department_name || '无部门' }}</span>
+              </span>
             </el-option>
           </el-select>
         </el-form-item>
@@ -236,7 +236,7 @@
           <el-button v-if="!isViewMode" v-permission="departmentForm.id ? 'system:departments:update' : 'system:departments:create'" type="primary" @click="saveDepartment" :loading="saveLoading">确认</el-button>
         </span>
       </template>
-    </el-dialog>
+    </AppDialog>
   </div>
 </template>
 

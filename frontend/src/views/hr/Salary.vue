@@ -1,5 +1,5 @@
 ﻿<template>
-  <div class="salary-container">
+  <div class="module-page salary-container">
     <el-card class="box-card">
       <template #header>
         <div class="card-header">
@@ -11,7 +11,7 @@
               placeholder="选择计薪月份"
               value-format="YYYY-MM"
               @change="fetchData"
-              style="margin-right: 15px; width: 140px;"
+              class="form-control-140-mr"
               :clearable="false"
             />
             <el-button type="warning" v-permission="'hr:salary:update'" @click="handleCalculate" :loading="calcLoading">
@@ -28,7 +28,7 @@
       </template>
 
       <!-- 主要工资明细表 -->
-      <el-table :data="tableData" border v-loading="loading" style="width: 100%" height="calc(100vh - 250px)">
+      <el-table :data="tableData" border v-loading="loading" class="w-full" height="calc(100vh - 250px)">
         <el-table-column type="index" label="序号" width="60" fixed />
         <el-table-column prop="employee_no" label="工号" width="100" fixed show-overflow-tooltip />
         <el-table-column prop="employee_name" label="姓名" width="100" fixed />

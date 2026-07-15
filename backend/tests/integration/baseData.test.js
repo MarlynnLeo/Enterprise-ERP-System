@@ -61,10 +61,10 @@ describe('基础数据 - 物料管理 /api/base-data/materials', () => {
   });
 
   test('应返回下一个物料编码', async () => {
-    // next-code 可能需要 categoryCode 参数，接受 200 或 400
-    const res = await api.get('/api/base-data/materials/next-code');
+    const res = await api.get('/api/base-data/materials/next-code?prefix=MAT');
 
-    expect([200, 400]).toContain(res.status);
+    expect(res.status).toBe(200);
+    expect(res.body.data).toHaveProperty('nextSequence');
   });
 
   test('查询已有物料应返回详情', async () => {
@@ -101,14 +101,17 @@ describe('基础数据 - 物料管理 /api/base-data/materials', () => {
   });
 
   test('查询已有物料的BOM', async () => {
-    const listRes = await api.get('/api/base-data/materials?page=1&pageSize=1');
+    const listRes = await api.get('/api/base-data/boms?page=1&pageSize=1');
     const { items } = extractList(listRes.body);
 
     if (items.length > 0) {
-      const id = items[0].id;
-      const res = await api.get(`/api/base-data/materials/${id}/bom`);
-      // 物料可能没有BOM，接受200或404
-      expect([200, 404]).toContain(res.status);
+      const productId = items[0].product_id;
+      const res = await api.get(`/api/base-data/materials/${productId}/bom`);
+      expect(res.status).toBe(200);
+      const data = res.body.data || res.body;
+      expect(Array.isArray(data)).toBe(true);
+      expect(data.length).toBeGreaterThan(0);
+      expect(data[0]).toHaveProperty('product_code');
     }
   });
 });
@@ -130,10 +133,9 @@ describe('基础数据 - BOM管理 /api/base-data/boms', () => {
   });
 
   test('应返回循环引用检测结果', async () => {
-    // detect-circular 可能需要特定参数，接受 200 或 400
     const res = await api.get('/api/base-data/boms/detect-circular');
 
-    expect([200, 400]).toContain(res.status);
+    expect(res.status).toBe(400);
   });
 
   test('查询已有BOM应返回详情', async () => {

@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="user-profile">
+  <div class="user-profile module-page">
     <!-- 加载状态 -->
     <el-card v-if="isLoading" class="profile-card loading-card" shadow="hover">
       <el-skeleton :rows="5" animated />
@@ -27,8 +27,8 @@
           type="button"
           role="tab"
           :aria-selected="activeTab === tab.id"
-          :class="{ active: activeTab === tab.id }"
           class="profile-nav-item"
+          :class="{ active: activeTab === tab.id }"
           @click="activeTab = tab.id"
         >
           <span class="nav-icon">

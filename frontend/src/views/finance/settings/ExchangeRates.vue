@@ -1,15 +1,11 @@
 ﻿<template>
   <div class="module-page page-container">
     <!-- 页面头部卡片 -->
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>汇率管理</h2>
-          <p class="subtitle">维护各币种与人民币的汇率，支持外币结算与报表折算</p>
-        </div>
-        <el-button v-permission="'finance:exchange-rates:update'" type="primary" @click="openForm">新增汇率</el-button>
-      </div>
-    </el-card>
+    <PageHeader title="汇率管理" subtitle="维护各币种与人民币的汇率，支持外币结算与报表折算">
+      <template #actions>
+<el-button v-permission="'finance:exchange-rates:update'" type="primary" @click="openForm">新增汇率</el-button>
+      </template>
+    </PageHeader>
 
     <!-- 数据表格 -->
     <el-card class="data-card">
@@ -41,13 +37,13 @@
     <el-dialog v-model="formVis" title="新增汇率" width="400px">
       <el-form :model="form" label-width="90px">
         <el-form-item label="源币种" required>
-          <el-select v-model="form.from_currency" filterable style="width:100%">
+          <el-select v-model="form.from_currency" filterable class="w-full">
             <el-option v-for="c in currencies" :key="c" :label="c" :value="c" />
           </el-select>
         </el-form-item>
         <el-form-item label="目标币种"><el-input v-model="form.to_currency" placeholder="默认 CNY" /></el-form-item>
-        <el-form-item label="汇率" required><el-input-number v-model="form.rate" :precision="6" :min="0" style="width:100%" /></el-form-item>
-        <el-form-item label="生效日期" required><el-date-picker v-model="form.effective_date" type="date" value-format="YYYY-MM-DD" style="width:100%" /></el-form-item>
+        <el-form-item label="汇率" required><el-input-number v-model="form.rate" :precision="6" :min="0" class="w-full" /></el-form-item>
+        <el-form-item label="生效日期" required><el-date-picker v-model="form.effective_date" type="date" value-format="YYYY-MM-DD" class="w-full" /></el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="formVis = false">取消</el-button>

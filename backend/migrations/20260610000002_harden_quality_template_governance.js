@@ -68,7 +68,7 @@ async function renameNoisyIncomingSpecificTemplates(knex) {
       AND it.status IN ('active', 'inactive', 'draft')
       AND (
         it.template_name IN ('测试', 'test')
-        OR it.template_name = m.code
+        OR BINARY it.template_name = BINARY m.code
       )
   `);
 }

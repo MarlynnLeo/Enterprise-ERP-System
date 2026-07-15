@@ -15,6 +15,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { userApi } from '@/api/user'
 import { tokenManager, permissionManager } from '../utils/unifiedStorage'
+import { clearAllRequestCaches, setRequestCacheUserId } from '@/utils/requestOptimizer'
 
 /**
  * 用户信息对象
@@ -71,6 +72,8 @@ export const useAuthStore = defineStore('auth', () => {
   // 缓存仅用于状态恢复展示；权限判断在后端权限加载完成前一律拒绝。
   const permissionsLoaded = ref(false)
   const permissionsLoading = ref(false) // 权限是否正在加载
+  // 本会话是否已向后端校验过 Cookie（冷启动防伪登录）
+  const sessionProbed = ref(false)
 
   const isAuthenticated = computed(() => Boolean(user.value))
   const isAdmin = computed(() => permissionsLoaded.value && permissions.value.includes('*'))
@@ -84,10 +87,30 @@ export const useAuthStore = defineStore('auth', () => {
 
   // 初始化设置
   setAuthHeader()
+  if (user.value?.id) {
+    setRequestCacheUserId(user.value.id)
+  }
+
+  const clearClientSession = () => {
+    token.value = ''
+    user.value = null
+    permissions.value = []
+    permissionsLoaded.value = false
+    permissionsLoading.value = false
+    sessionProbed.value = false
+    permissionManager.clearUserPermissions()
+    localStorage.removeItem('theme_settings')
+    tokenManager.clearAll()
+    setRequestCacheUserId(null)
+    clearAllRequestCaches()
+  }
 
   // 登录
   const login = async (credentials) => {
     try {
+      // 切换账号前先清缓存，避免串用户
+      clearAllRequestCaches()
+
       const response = await userApi.login(credentials)
 
       // 拦截器已解包，response.data 就是 { user }
@@ -99,6 +122,7 @@ export const useAuthStore = defineStore('auth', () => {
         throw new Error('登录响应缺少用户信息')
       }
       tokenManager.setUser(user.value)
+      setRequestCacheUserId(user.value.id)
 
       setAuthHeader()
 
@@ -122,17 +146,7 @@ export const useAuthStore = defineStore('auth', () => {
     } catch (error) {
       console.error('登出请求失败:', error)
     } finally {
-      token.value = ''
-      user.value = null
-      permissions.value = []
-      permissionsLoaded.value = false
-      permissionsLoading.value = false
-
-      // ✅ 优化: 清除权限缓存和主题缓存
-      permissionManager.clearUserPermissions()
-      localStorage.removeItem('theme_settings')
-
-      tokenManager.clearAll()
+      clearClientSession()
     }
   }
 
@@ -150,13 +164,17 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  // 获取用户信息
+  // 获取用户信息（同时作为 Cookie 会话探测）
   const fetchUserProfile = async (includePermissions = false) => {
     try {
       const response = await userApi.getProfileFast()
       // 拦截器已解包，response.data 就是用户信息
       user.value = response.data
       tokenManager.setUser(user.value)
+      if (user.value?.id) {
+        setRequestCacheUserId(user.value.id)
+      }
+      sessionProbed.value = true
 
       if (includePermissions) {
         await fetchUserPermissions()
@@ -164,6 +182,8 @@ export const useAuthStore = defineStore('auth', () => {
 
       return true
     } catch (error) {
+      // Cookie 失效：清理本地“伪登录”状态
+      clearClientSession()
       throw error
     }
   }
@@ -296,6 +316,7 @@ export const useAuthStore = defineStore('auth', () => {
     isAdmin,
     login,
     logout,
+    clearClientSession,
     updateUser,
     fetchUserProfile,
     fetchUserPermissions,
@@ -303,6 +324,7 @@ export const useAuthStore = defineStore('auth', () => {
     hasPermission,
     hasChildPermission,
     setAuthHeader,
-    realName
+    realName,
+    sessionProbed
   }
 })

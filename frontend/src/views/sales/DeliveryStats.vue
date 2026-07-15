@@ -9,14 +9,7 @@
 <template>
   <div class="module-page outbound-container">
     <!-- 页面标题 -->
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>发货统计</h2>
-          <p class="subtitle">统计发货数据与分析</p>
-        </div>
-      </div>
-    </el-card>
+    <PageHeader title="发货统计" subtitle="统计发货数据与分析" />
     <!-- 搜索区域 -->
     <FinanceQueryCard
       :model="searchForm"
@@ -81,7 +74,7 @@
         ref="deliveryTableRef"
         :data="tableData"
         border
-        style="width: 100%"
+        class="w-full"
         v-loading="loading"
         table-layout="fixed"
         @selection-change="handleSelectionChange"
@@ -193,11 +186,11 @@
       </div>
     </el-card>
     <!-- 发货明细对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="detailDialogVisible"
       title="发货明细"
-      width="55%"
-      destroy-on-close
+      mode="view"
+      content-width="wide"
     >
       <div v-if="orderDetails">
         <div class="order-info">
@@ -215,7 +208,7 @@
             <el-descriptions-item label="合同编码">{{ orderDetails.orderInfo.contract_code || '-' }}</el-descriptions-item>
           </el-descriptions>
         </div>
-        <div class="delivery-details" style="margin-top: 20px;">
+        <div class="delivery-details mt-20">
           <h4>发货明细</h4>
           <el-table :data="orderDetails.details" border stripe>
             <el-table-column prop="material_code" label="产品编码" width="120" />
@@ -251,7 +244,7 @@
           </el-table>
         </div>
       </div>
-    </el-dialog>
+    </AppDialog>
     <!-- 发货对话框 -->
     <el-dialog
       v-model="shippingDialogVisible"
@@ -265,7 +258,7 @@
           type="info"
           :closable="false"
           show-icon
-          style="margin-bottom: 16px"
+          class="mb-md"
         >
           <template v-if="isBatchShipping">
             已选择 {{ shippingItems.length }} 个订单项，请为每个项目填写发货数量
@@ -302,13 +295,13 @@
                 :min="0"
                 :max="Math.min(row.unshipped_quantity, row.stock_quantity || 0)"
                 size="small"
-                style="width: 100%"
+                class="w-full"
                 @input="handleShippingQuantityInput(row)"
               />
             </template>
           </el-table-column>
         </el-table>
-        <div style="margin-top: 16px">
+        <div class="mt-md">
           <el-form :model="shippingForm" label-width="100px">
             <el-form-item label="出库日期">
               <el-date-picker
@@ -890,10 +883,6 @@ onMounted(() => {
   margin-bottom: var(--spacing-base);
 }
 /* 发货对话框样式 */
-:deep(.el-dialog__body) {
-  max-height: 60vh;
-  overflow-y: auto;
-}
 /* 详情对话框长文本处理 - 自动添加 */
 :deep(.el-descriptions__content) {
   max-width: 300px;

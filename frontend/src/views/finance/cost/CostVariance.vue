@@ -1,14 +1,7 @@
 ﻿<template>
   <div class="module-page cost-variance-container">
     <!-- 页面标题 -->
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>成本差异</h2>
-          <p class="subtitle">标准成本与实际成本差异对比 / 效率差异分析</p>
-        </div>
-      </div>
-    </el-card>
+    <PageHeader title="成本差异" subtitle="标准成本与实际成本差异对比 / 效率差异分析" />
 
     <!-- 主要内容区 -->
     <el-card class="data-card">
@@ -17,9 +10,9 @@
         <el-tab-pane label="成本差异" name="cost">
           <!-- 搜索表单 -->
           <div class="search-form-inline">
-            <el-input v-model="searchForm.orderNumber" placeholder="生产订单号" clearable style="width: 180px; margin-right: 10px;"></el-input>
-            <el-input v-model="searchForm.productName" placeholder="产品名称" clearable style="width: 180px; margin-right: 10px;"></el-input>
-            <el-select v-model="searchForm.varianceType" placeholder="差异类型" clearable style="width: 130px; margin-right: 10px;">
+            <el-input v-model="searchForm.orderNumber" placeholder="生产订单号" clearable class="form-control-180"></el-input>
+            <el-input v-model="searchForm.productName" placeholder="产品名称" clearable class="form-control-180"></el-input>
+            <el-select v-model="searchForm.varianceType" placeholder="差异类型" clearable class="form-control-130">
               <el-option label="全部" value=""></el-option>
               <el-option label="有利差异" value="favorable"></el-option>
               <el-option label="不利差异" value="unfavorable"></el-option>
@@ -32,7 +25,7 @@
           </div>
 
           <!-- 数据表格 -->
-          <el-table :data="varianceList" border v-loading="loading" style="width: 100%; margin-top: 15px;">
+          <el-table :data="varianceList" border v-loading="loading" class="w-full mt-15">
             <el-table-column prop="order_number" label="生产订单号" width="160"></el-table-column>
             <el-table-column prop="product_name" label="产品名称" min-width="200"></el-table-column>
             <el-table-column prop="quantity" label="数量" width="80"></el-table-column>
@@ -44,21 +37,21 @@
             </el-table-column>
             <el-table-column label="总差异" width="120">
               <template #default="scope">
-                <span :style="{ color: scope.row.total_variance >= 0 ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 'bold' }">
+                <span :class="(scope.row.total_variance ) >= 0 ? 'text-stock-ok font-weight-700' : 'text-stock-low font-weight-700'">
                   {{ formatCurrency(scope.row.total_variance) }}
                 </span>
               </template>
             </el-table-column>
             <el-table-column label="材料差异" width="120">
               <template #default="scope">
-                <span :style="{ color: scope.row.material_variance >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }">
+                <span :class="(scope.row.material_variance ) >= 0 ? 'text-stock-ok' : 'text-stock-low'">
                   {{ formatCurrency(scope.row.material_variance) }}
                 </span>
               </template>
             </el-table-column>
             <el-table-column label="人工差异" width="120">
               <template #default="scope">
-                <span :style="{ color: scope.row.labor_variance >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }">
+                <span :class="(scope.row.labor_variance ) >= 0 ? 'text-stock-ok' : 'text-stock-low'">
                   {{ formatCurrency(scope.row.labor_variance) }}
                 </span>
               </template>
@@ -72,7 +65,7 @@
             </el-table-column>
             <el-table-column label="操作" min-width="90" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="scope">
-                <el-button type="primary" size="small" @click="viewDetail(scope.row)">详情</el-button>
+                <el-button class="btn-op-view" type="primary" size="small" @click="viewDetail(scope.row)">详情</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -83,7 +76,7 @@
             :page-sizes="[10, 20, 50]"
             :total="pagination.total"
             layout="total, sizes, prev, pager, next"
-            style="margin-top: 15px; justify-content: flex-end;"
+            class="pagination-end"
             @change="loadVarianceData"
           />
         </el-tab-pane>
@@ -93,15 +86,15 @@
           <div class="search-form-inline">
             <el-date-picker v-model="effDateRange" type="daterange" range-separator="至"
                             start-placeholder="开始日期" end-placeholder="结束日期" value-format="YYYY-MM-DD"
-                            style="width: 280px; margin-right: 10px;"></el-date-picker>
-            <el-select v-model="effCostCenter" placeholder="成本中心" clearable style="width: 150px; margin-right: 10px;">
+                            class="form-control-280-mr"></el-date-picker>
+            <el-select v-model="effCostCenter" placeholder="成本中心" clearable class="form-control-150-mr">
               <el-option v-for="cc in costCenterOptions" :key="cc.id" :label="cc.name" :value="cc.id"></el-option>
             </el-select>
             <el-button type="primary" @click="loadEfficiencyData">查询</el-button>
           </div>
 
           <!-- 效率差异汇总 -->
-          <el-row :gutter="20" style="margin-top: 20px;">
+          <el-row :gutter="20" class="row-mt-20">
             <el-col :span="6">
               <el-card shadow="hover">
                 <div class="stat-card">
@@ -122,7 +115,7 @@
               <el-card shadow="hover">
                 <div class="stat-card">
                   <div class="stat-title">效率差异(小时)</div>
-                  <div class="stat-value" :style="{ color: effSummary.efficiency_variance >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }">
+                  <div class="stat-value" :class="(effSummary.efficiency_variance ) >= 0 ? 'text-stock-ok' : 'text-stock-low'">
                     {{ effSummary.efficiency_variance.toFixed(2) }}
                   </div>
                 </div>
@@ -132,7 +125,7 @@
               <el-card shadow="hover">
                 <div class="stat-card">
                   <div class="stat-title">效率率</div>
-                  <div class="stat-value" :style="{ color: effSummary.efficiency_rate >= 100 ? 'var(--color-success)' : 'var(--color-danger)' }">
+                  <div class="stat-value" :class="(effSummary.efficiency_rate ) >= 100 ? 'text-stock-ok' : 'text-stock-low'">
                     {{ effSummary.efficiency_rate.toFixed(1) }}%
                   </div>
                 </div>
@@ -141,7 +134,7 @@
           </el-row>
 
           <!-- 效率差异明细 -->
-          <el-table :data="efficiencyList" border v-loading="effLoading" style="width: 100%; margin-top: 20px;">
+          <el-table :data="efficiencyList" border v-loading="effLoading" class="w-full mt-md">
             <el-table-column prop="task_code" label="任务编号" width="160"></el-table-column>
             <el-table-column prop="product_name" label="产品" min-width="180"></el-table-column>
             <el-table-column prop="cost_center_name" label="成本中心" width="120"></el-table-column>
@@ -154,7 +147,7 @@
             </el-table-column>
             <el-table-column label="效率差异" width="110">
               <template #default="scope">
-                <span :style="{ color: scope.row.efficiency_variance >= 0 ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 'bold' }">
+                <span :class="(scope.row.efficiency_variance ) >= 0 ? 'text-stock-ok font-weight-700' : 'text-stock-low font-weight-700'">
                   {{ (scope.row.efficiency_variance || 0).toFixed(2) }} h
                 </span>
               </template>
@@ -168,7 +161,7 @@
             </el-table-column>
             <el-table-column label="成本影响" width="120">
               <template #default="scope">
-                <span :style="{ color: scope.row.cost_impact >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }">
+                <span :class="(scope.row.cost_impact ) >= 0 ? 'text-stock-ok' : 'text-stock-low'">
                   {{ formatCurrency(scope.row.cost_impact) }}
                 </span>
               </template>
@@ -180,12 +173,12 @@
         <el-tab-pane label="产能利用" name="capacity">
           <div class="search-form-inline">
             <el-date-picker v-model="capDateRange" type="month" placeholder="选择月份" value-format="YYYY-MM"
-                            style="width: 150px; margin-right: 10px;"></el-date-picker>
+                            class="form-control-150-mr"></el-date-picker>
             <el-button type="primary" @click="loadCapacityData">查询</el-button>
           </div>
 
           <!-- 产能利用汇总 -->
-          <el-row :gutter="20" style="margin-top: 20px;">
+          <el-row :gutter="20" class="row-mt-20">
             <el-col :span="6">
               <el-card shadow="hover">
                 <div class="stat-card">
@@ -206,7 +199,7 @@
               <el-card shadow="hover">
                 <div class="stat-card">
                   <div class="stat-title">闲置产能(工时)</div>
-                  <div class="stat-value" style="color: var(--color-text-secondary);">{{ capacitySummary.idle_capacity.toFixed(0) }}</div>
+                  <div class="stat-value text-muted">{{ capacitySummary.idle_capacity.toFixed(0) }}</div>
                 </div>
               </el-card>
             </el-col>
@@ -214,7 +207,7 @@
               <el-card shadow="hover">
                 <div class="stat-card">
                   <div class="stat-title">利用率</div>
-                  <div class="stat-value" :style="{ color: capacitySummary.utilization_rate >= 80 ? 'var(--color-success)' : 'var(--color-danger)' }">
+                  <div class="stat-value" :class="(capacitySummary.utilization_rate ) >= 80 ? 'text-stock-ok' : 'text-stock-low'">
                     {{ capacitySummary.utilization_rate.toFixed(1) }}%
                   </div>
                 </div>
@@ -223,7 +216,7 @@
           </el-row>
 
           <!-- 按成本中心的产能利用明细 -->
-          <el-table :data="capacityList" border v-loading="capLoading" style="width: 100%; margin-top: 20px;">
+          <el-table :data="capacityList" border v-loading="capLoading" class="w-full mt-md">
             <el-table-column prop="cost_center_name" label="成本中心" width="150"></el-table-column>
             <el-table-column prop="standard_capacity" label="标准产能(h)" width="130"></el-table-column>
             <el-table-column prop="actual_used" label="实际利用(h)" width="130"></el-table-column>
@@ -236,7 +229,7 @@
             </el-table-column>
             <el-table-column label="闲置成本" width="130">
               <template #default="scope">
-                <span style="color: var(--color-text-secondary);">{{ formatCurrency(scope.row.idle_cost) }}</span>
+                <span class="text-muted">{{ formatCurrency(scope.row.idle_cost) }}</span>
               </template>
             </el-table-column>
           </el-table>
@@ -245,7 +238,12 @@
     </el-card>
 
     <!-- 差异详情对话框 -->
-    <el-dialog v-model="detailDialogVisible" title="成本差异详情" width="900px">
+    <AppDialog
+      v-model="detailDialogVisible"
+      title="成本差异详情"
+      mode="view"
+      content-width="wide"
+    >
       <div v-if="currentDetail">
         <el-descriptions :column="2" border>
           <el-descriptions-item label="生产订单号">{{ currentDetail.order_number }}</el-descriptions-item>
@@ -266,7 +264,7 @@
           </el-table-column>
           <el-table-column label="差异金额" width="150">
             <template #default="scope">
-              <span :style="{ color: scope.row.variance >= 0 ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 'bold' }">
+              <span :class="(scope.row.variance ) >= 0 ? 'text-stock-ok font-weight-700' : 'text-stock-low font-weight-700'">
                 {{ formatCurrency(scope.row.variance) }}
               </span>
             </template>
@@ -285,7 +283,7 @@
           </el-table-column>
         </el-table>
       </div>
-    </el-dialog>
+    </AppDialog>
   </div>
 </template>
 

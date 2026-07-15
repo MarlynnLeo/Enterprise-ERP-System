@@ -8,6 +8,18 @@
 -->
 <template>
   <div class="module-page inspection-container">
+    <PageHeader title="成品检验管理" subtitle="成品检验任务与结果管理">
+      <template #actions>
+        <el-button
+          type="primary"
+          @click="handleCreate"
+          v-permission="'quality:inspections:create'"
+        >
+          新增
+        </el-button>
+      </template>
+    </PageHeader>
+
     <!-- 统计卡片 -->
     <div class="statistics-row">
       <el-card class="stat-card" shadow="hover">
@@ -31,79 +43,47 @@
         <div class="stat-label">复检</div>
       </el-card>
     </div>
-    <el-card class="box-card">
-      <template #header>
-        <div class="card-header">
-          <span>成品检验管理</span>
-        </div>
+
+    <FinanceQueryCard :model="searchFormModel" @search="handleSearch" @reset="handleRefresh">
+      <template #basic>
+        <el-form-item label="关键词">
+          <el-input
+            v-model="searchKeyword"
+            placeholder="检验单号/工单号/产品名称"
+            clearable
+            @keyup.enter="handleSearch"
+          />
+        </el-form-item>
+        <el-form-item label="检验状态">
+          <el-select v-model="statusFilter" placeholder="检验状态" clearable class="form-control-md">
+            <el-option label="待检验" value="pending" />
+            <el-option label="检验中" value="in_progress" />
+            <el-option label="合格" value="passed" />
+            <el-option label="不合格" value="failed" />
+            <el-option label="复检" value="review" />
+          </el-select>
+        </el-form-item>
       </template>
+      <template #advanced>
+        <el-form-item label="时间范围">
+          <el-date-picker
+            v-model="dateRange"
+            type="daterange"
+            range-separator="至"
+            start-placeholder="开始日期"
+            end-placeholder="结束日期"
+            value-format="YYYY-MM-DD"
+          />
+        </el-form-item>
+      </template>
+    </FinanceQueryCard>
 
-      <!-- 搜索表单 -->
-      <div class="search-container">
-        <el-row :gutter="16">
-          <el-col :span="4">
-            <el-input
-              v-model="searchKeyword"
-              placeholder="请输入检验单号/工单号/产品名称"
-              @keyup.enter="handleSearch"
-              clearable >
-              <template #prefix>
-                <el-icon><Search /></el-icon>
-              </template>
-            </el-input>
-          </el-col>
-
-          <el-col :span="3">
-            <el-select v-model="statusFilter" placeholder="检验状态" clearable @change="handleSearch" style="width: 100%">
-              <el-option label="待检验" value="pending" />
-              <el-option label="检验中" value="in_progress" />
-              <el-option label="合格" value="passed" />
-              <el-option label="不合格" value="failed" />
-              <el-option label="复检" value="review" />
-            </el-select>
-          </el-col>
-
-          <el-col :span="5">
-            <el-date-picker
-              v-model="dateRange"
-              type="daterange"
-              range-separator="至"
-              start-placeholder="开始日期"
-              end-placeholder="结束日期"
-              @change="handleSearch"
-              style="width: 100%"
-            />
-          </el-col>
-
-          <el-col :span="6">
-            <div class="search-buttons">
-              <el-button
-                type="primary"
-                @click="handleSearch"
-              >
-                查询
-              </el-button>
-              <el-button
-                @click="handleRefresh"
-              >
-                重置
-              </el-button>
-              <el-button
-                type="primary"
-                @click="handleCreate"
-
-                v-permission="'quality:inspections:create'">
-                新增
-              </el-button>
-            </div>
-          </el-col>
-        </el-row>
-      </div>
+    <el-card class="data-card">
       <!-- 检验单列表 -->
       <el-table
         :data="inspectionList"
         border
-        style="width: 100%; margin-top: 16px;"
+        class="w-full mt-md"
         v-loading="loading"
       >
         <el-table-column prop="inspection_no" label="检验单号" min-width="130" />
@@ -118,14 +98,14 @@
         </el-table-column>
         <el-table-column prop="qualified_quantity" label="合格数" min-width="80">
           <template #default="scope">
-            <span v-if="scope.row.qualified_quantity !== null && scope.row.qualified_quantity !== undefined" style="color: var(--color-success); font-weight: bold;">{{ scope.row.qualified_quantity }}</span>
-            <span v-else style="color: var(--color-text-secondary);">-</span>
+            <span v-if="scope.row.qualified_quantity !== null && scope.row.qualified_quantity !== undefined" class="text-success font-weight-700">{{ scope.row.qualified_quantity }}</span>
+            <span v-else class="text-muted">-</span>
           </template>
         </el-table-column>
         <el-table-column prop="unqualified_quantity" label="不合格" min-width="80">
           <template #default="scope">
-            <span v-if="scope.row.unqualified_quantity > 0" style="color: var(--color-danger); font-weight: bold;">{{ scope.row.unqualified_quantity }}</span>
-            <span v-else style="color: var(--color-text-secondary);">{{ scope.row.unqualified_quantity === 0 ? '0' : '-' }}</span>
+            <span v-if="scope.row.unqualified_quantity > 0" class="text-danger font-weight-700">{{ scope.row.unqualified_quantity }}</span>
+            <span v-else class="text-muted">{{ scope.row.unqualified_quantity === 0 ? '0' : '-' }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="inspection_date" label="检验日期" min-width="110">
@@ -149,7 +129,7 @@
         </el-table-column>
         <el-table-column label="操作" fixed="right" min-width="320" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
-            <el-button
+            <el-button class="btn-op-view" type="primary"
               size="small"
               @click="handleView(scope.row)"
             >
@@ -278,7 +258,7 @@
           type="info"
           show-icon
           :closable="false"
-          style="margin-bottom: 16px"
+          class="mb-md"
         />
 
         <el-form-item label="计划检验日期" prop="plannedDate">
@@ -326,7 +306,7 @@
     >
       <el-form ref="inspectFormRef" :model="inspectForm" :rules="inspectRules" label-width="100px">
         <!-- 产品信息头部面板 -->
-        <el-descriptions :column="4" border size="small" style="margin-bottom: 16px;">
+        <el-descriptions :column="4" border size="small" class="mb-md">
           <el-descriptions-item label="产品名称">{{ inspectForm.product_name || '-' }}</el-descriptions-item>
           <el-descriptions-item label="工单号">{{ inspectForm.reference_no || '-' }}</el-descriptions-item>
           <el-descriptions-item label="批次号">{{ inspectForm.batch_no || '-' }}</el-descriptions-item>
@@ -338,19 +318,19 @@
           type="info"
           show-icon
           :closable="false"
-          style="margin-bottom: 12px"
+          class="mb-12"
         />
         <!-- 检验项目表格 -->
         <el-form-item label="检验项目" prop="items">
-          <div style="width: 100%;">
-            <div style="display: flex; justify-content: flex-end; margin-bottom: 8px;">
-              <el-button type="success" size="small" @click="handleAllPassed"><el-icon style="margin-right: 4px;"><Select /></el-icon>全部合格</el-button>
+          <div class="w-full">
+            <div class="flex-end-mb">
+              <el-button type="success" size="small" @click="handleAllPassed"><el-icon class="mr-sm"><Select /></el-icon>全部合格</el-button>
             </div>
-            <el-table :data="inspectForm.items" border style="width: 100%;">
+            <el-table :data="inspectForm.items" border class="w-full">
               <el-table-column prop="item_name" label="检验项目" width="120" show-overflow-tooltip>
                 <template #default="scope">
                   <span>{{ scope.row.item_name }}</span>
-                  <el-icon v-if="scope.row.is_critical" style="color: var(--color-warning); margin-left: 4px;" :size="14"><StarFilled /></el-icon>
+                  <el-icon v-if="scope.row.is_critical" class="icon-warning-ml" :size="14"><StarFilled /></el-icon>
                 </template>
               </el-table-column>
               <el-table-column label="标准±公差" width="150" show-overflow-tooltip>
@@ -379,8 +359,8 @@
                       'result-select-failed': scope.row.result === 'failed'
                     }"
                   >
-                    <el-option label="合格" value="passed" style="color: var(--color-success); font-weight: bold;" />
-                    <el-option label="不合格" value="failed" style="color: var(--color-danger); font-weight: bold;" />
+                    <el-option label="合格" value="passed" class="text-success font-weight-700" />
+                    <el-option label="不合格" value="failed" class="text-danger font-weight-700" />
                   </el-select>
                 </template>
               </el-table-column>
@@ -401,7 +381,7 @@
                 :min="0"
                 :max="inspectForm.quantity"
                 :controls="false"
-                style="width: 100%"
+                class="w-full"
                 @change="onQualifiedQuantityChange"
               />
             </el-form-item>
@@ -412,7 +392,7 @@
                 v-model="inspectForm.unqualified_quantity"
                 :min="0"
                 :controls="false"
-                style="width: 100%"
+                class="w-full"
                 disabled
               />
             </el-form-item>
@@ -423,7 +403,7 @@
                 v-model="inspectForm.inspectionDate"
                 type="date"
                 placeholder="选择检验日期"
-                style="width: 100%"
+                class="w-full"
               />
             </el-form-item>
           </el-col>
@@ -454,10 +434,11 @@
     </el-dialog>
 
     <!-- 查看检验单弹窗 -->
-    <el-dialog
+    <AppDialog
       v-model="viewDialogVisible"
       :title="currentInspection && currentInspection.inspection_no ? `检验单详情 - ${currentInspection.inspection_no}` : '检验单详情'"
-      width="800px"
+      mode="view"
+      content-width="wide"
     >
       <template v-if="currentInspection && currentInspection.inspection_no">
         <el-descriptions :column="3" border>
@@ -473,28 +454,28 @@
           <el-descriptions-item label="检验日期">{{ formatDate(currentInspection.inspection_date) }}</el-descriptions-item>
           <el-descriptions-item label="检验数量">{{ currentInspection.quantity }} {{ currentInspection.unit }}</el-descriptions-item>
           <el-descriptions-item label="合格数">
-            <span v-if="currentInspection.qualified_quantity !== null && currentInspection.qualified_quantity !== undefined" style="color: var(--color-success); font-weight: bold;">{{ currentInspection.qualified_quantity }}</span>
-            <span v-else style="color: var(--color-text-secondary);">-</span>
+            <span v-if="currentInspection.qualified_quantity !== null && currentInspection.qualified_quantity !== undefined" class="text-success font-weight-700">{{ currentInspection.qualified_quantity }}</span>
+            <span v-else class="text-muted">-</span>
           </el-descriptions-item>
           <el-descriptions-item label="不合格数">
-            <span v-if="currentInspection.unqualified_quantity > 0" style="color: var(--color-danger); font-weight: bold;">{{ currentInspection.unqualified_quantity }}</span>
-            <span v-else style="color: var(--color-text-secondary);">{{ currentInspection.unqualified_quantity === 0 ? '0' : '-' }}</span>
+            <span v-if="currentInspection.unqualified_quantity > 0" class="text-danger font-weight-700">{{ currentInspection.unqualified_quantity }}</span>
+            <span v-else class="text-muted">{{ currentInspection.unqualified_quantity === 0 ? '0' : '-' }}</span>
           </el-descriptions-item>
           <el-descriptions-item label="检验员">{{ currentInspection.inspector_name || currentInspection.inspector || '-' }}</el-descriptions-item>
           <el-descriptions-item label="引用模板">{{ currentInspection.template_name || '-' }}</el-descriptions-item>
           <el-descriptions-item label="合格率">
             <span v-if="currentInspection.qualified_quantity !== null && currentInspection.quantity"
-                  :style="{ color: (currentInspection.qualified_quantity / currentInspection.quantity) >= 1 ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 'bold' }">
+                  :class="(currentInspection.qualified_quantity / currentInspection.quantity) >= 1 ? 'text-stock-ok font-weight-700' : 'text-stock-low font-weight-700'">
               {{ ((currentInspection.qualified_quantity / currentInspection.quantity) * 100).toFixed(1) }}%
             </span>
-            <span v-else style="color: var(--color-text-secondary);">-</span>
+            <span v-else class="text-muted">-</span>
           </el-descriptions-item>
           <el-descriptions-item label="标准编号">{{ currentInspection.standard_no || '-' }}</el-descriptions-item>
           <el-descriptions-item label="备注" :span="3">{{ currentInspection.note || '-' }}</el-descriptions-item>
         </el-descriptions>
-        <div class="inspection-items" style="margin-top: 20px;">
+        <div class="inspection-items row-mt-20">
           <h4>检验项目</h4>
-          <el-table :data="currentInspection.items" border style="width: 100%">
+          <el-table :data="currentInspection.items" border class="w-full">
             <el-table-column prop="item_name" label="项目名称" min-width="140" />
             <el-table-column prop="standard" label="标准" min-width="160" />
             <el-table-column prop="actual_value" label="实测值" min-width="100" />
@@ -502,7 +483,7 @@
               <template #default="scope">
                 <el-tag v-if="scope.row.result === 'passed' || scope.row.result === 'pass'" type="success" size="small">合格</el-tag>
                 <el-tag v-else-if="scope.row.result === 'failed' || scope.row.result === 'fail'" type="danger" size="small">不合格</el-tag>
-                <span v-else style="color: var(--color-text-secondary);">{{ scope.row.result || '-' }}</span>
+                <span v-else class="text-muted">{{ scope.row.result || '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column prop="remarks" label="备注" min-width="140" />
@@ -512,7 +493,7 @@
       <template v-else>
         <el-empty description="暂无检验单数据" />
       </template>
-    </el-dialog>
+    </AppDialog>
 
     <!-- 检验报告弹窗 -->
     <el-dialog
@@ -573,7 +554,7 @@
 
         <div class="report-items">
           <h3>检验项目：</h3>
-          <el-table :data="currentInspection.items" border style="width: 100%">
+          <el-table :data="currentInspection.items" border class="w-full">
             <el-table-column type="index" width="50" label="序号" />
             <el-table-column prop="item_name" label="检验项目" width="150" />
             <el-table-column prop="standard" label="检验标准" min-width="180" />
@@ -721,7 +702,7 @@ import { parseListData, parseResponseData } from '@/utils/responseParser';
 import { ref, reactive, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, Select, StarFilled } from '@element-plus/icons-vue'
+import { Select, StarFilled } from '@element-plus/icons-vue'
 import 'dayjs'
 import { qualityApi, productionApi } from '@/api'
 import printService from '@/services/printService'
@@ -768,6 +749,11 @@ const dateRange = computed({
     }
   }
 })
+const searchFormModel = computed(() => ({
+  keyword: filters.keyword,
+  status: filters.status,
+  dateRange: dateRange.value,
+}))
 // 表格数据相关
 const loading = ref(false)
 const submitLoading = ref(false)

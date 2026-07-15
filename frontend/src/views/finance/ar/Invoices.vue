@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * Invoices.vue
  * @description 前端界面组件文件
@@ -8,21 +8,17 @@
 -->
 <template>
   <div class="module-page invoices-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>应收发票</h2>
-          <p class="subtitle">管理销售发票与核销</p>
-        </div>
-        <el-button
+    <PageHeader title="应收发票" subtitle="管理销售发票与核销">
+      <template #actions>
+<el-button
           type="primary"
           :icon="Plus"
           @click="showAddDialog"
           v-permission="'finance:ar:create'">
           新增发票
         </el-button>
-      </div>
-    </el-card>
+      </template>
+    </PageHeader>
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
@@ -138,7 +134,7 @@
                 v-permission="'finance:ar:receive'">
                 收款
               </el-button>
-              <el-button type="info" size="small" @click="handleViewDetails(scope.row)">查看</el-button>
+              <el-button class="btn-op-view" type="primary" size="small" @click="handleViewDetails(scope.row)">查看</el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -900,11 +896,7 @@ const handlePrint = async () => {
   min-width: 600px;
 }
 /* 对话框自适应高度 */
-:deep(.el-dialog__body) {
-  max-height: 70vh;
-  overflow-y: auto;
-  padding: 20px 24px;
-}
+
 /* 移除操作列右侧空白 */
 .invoice-items :deep(.el-table__body-wrapper .el-table__cell:last-child) {
   padding-right: 8px;

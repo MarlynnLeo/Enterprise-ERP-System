@@ -349,18 +349,35 @@
   background: rgba(239, 68, 68, 0.13) !important;
 }
 
+[data-theme="premium"] {
+  --theme-dialog-radius: 8px;
+}
+
 [data-theme="premium"] .el-dialog,
 [data-theme="premium"] .el-drawer,
 [data-theme="premium"] .el-popover,
 [data-theme="premium"] .el-popper,
 [data-theme="premium"] .el-dropdown-menu,
 [data-theme="premium"] .theme-dropdown {
-  color: #fafafa !important;
-  background: #121214 !important;
-  border: 1px solid rgba(255, 255, 255, 0.1) !important;
-  border-radius: 8px !important;
-  box-shadow: var(--shadow-xl) !important;
-  /* Dialogs are opaque, so backdrop blur adds GPU cost without visual benefit. */
+  color: #fafafa;
+  background: #121214;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: var(--shadow-xl);
+}
+
+[data-theme="premium"] .el-dialog:not(.is-fullscreen),
+[data-theme="premium"] .el-drawer,
+[data-theme="premium"] .el-popover,
+[data-theme="premium"] .el-popper,
+[data-theme="premium"] .el-dropdown-menu,
+[data-theme="premium"] .theme-dropdown {
+  border-radius: var(--theme-dialog-radius);
+}
+
+[data-theme="premium"] .el-dialog.is-fullscreen {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 [data-theme="premium"] .el-dialog__title,

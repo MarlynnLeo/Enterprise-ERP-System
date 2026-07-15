@@ -10,7 +10,6 @@ const { logger } = require('../../../utils/logger');
 
 
 const apModel = require('../../../models/ap');
-const { financeConfig } = require('../../../config/financeConfig');
 const db = require('../../../config/db');
 const BankAccountModel = require('../../../models/cash/Account');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
@@ -21,6 +20,7 @@ const {
   INVOICE_STATUS,
   BANK_BACKED_PAYMENT_METHODS,
 } = require('../../../constants/financeConstants');
+const ScopeGuard = require('../../../authorization/ScopeGuard');
 
 const isPaymentBusinessError = (error) =>
   /不存在|已经|状态|无法|不能|期间|科目|余额|原因|positive integer|作废|冲销/.test(
@@ -52,34 +52,18 @@ const apController = {
    */
   generateInvoiceNumber: async (req, res) => {
     try {
-      // 获取当前日期
-      const now = new Date();
-      const year = now.getFullYear();
-      const month = String(now.getMonth() + 1).padStart(2, '0');
-      const day = String(now.getDate()).padStart(2, '0');
-      const dateStr = `${year}${month}${day}`;
-
-      // 确保配置已加载
-      await financeConfig.loadFromDatabase(db);
-      const prefix = financeConfig.get('invoice.invoiceNumberPrefix.AP', 'AP');
-
-      // 使用 MAX 提取当日最大序号，避免删除记录或并发时编号重复
-      const [result] = await db.pool.execute(
-        `SELECT MAX(CAST(SUBSTRING_INDEX(invoice_number, '-', -1) AS UNSIGNED)) as maxSerial
-         FROM ap_invoices WHERE invoice_number LIKE ?`,
-        [`${prefix}-${dateStr}-%`]
-      );
-
-      const nextSerial = (result[0].maxSerial || 0) + 1;
-      const serialNumber = String(nextSerial).padStart(4, '0');
-
-      // 生成发票编号: PREFIX-YYYYMMDD-序号
-      const invoiceNumber = `${prefix}-${dateStr}-${serialNumber}`;
-
+      // 统一走编码规则引擎，保证并发安全
+      const invoiceNumber = await CodeGeneratorService.nextCode('ap_invoice');
       return ResponseHandler.success(res, { invoiceNumber }, '生成发票编号成功');
     } catch (error) {
       logger.error('生成发票编号失败:', error);
-      return ResponseHandler.error(res, '生成发票编号失败', 'SERVER_ERROR', 500, error);
+      return ResponseHandler.error(
+        res,
+        error.message || '生成发票编号失败',
+        'SERVER_ERROR',
+        500,
+        error
+      );
     }
   },
 
@@ -117,6 +101,12 @@ const apController = {
       if (endDate) filters.end_date = endDate;
       if (status) filters.status = status;
 
+      // 行级 DataScope（SSOT：ScopeGuard）
+      filters.scopeClause = await ScopeGuard.applyListScope(req, 'ap_invoice', {
+        tableAlias: 'a',
+        ownerAlias: 'ap_invoice_owner_scope',
+      });
+
       // 调用模型方法获取数据
       const result = await apModel.getInvoices(filters, numPage, numLimit);
 
@@ -145,6 +135,9 @@ const apController = {
       if (isNaN(invoiceId)) {
         return ResponseHandler.error(res, '无效的发票ID', 'VALIDATION_ERROR', 400);
       }
+      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'ap_invoice', invoiceId, '无权访问该应付发票'))) {
+        return;
+      }
       const invoice = await apModel.getInvoiceById(invoiceId);
 
       if (!invoice) {
@@ -167,6 +160,9 @@ const apController = {
       const invoiceId = safeParseId(req.params.id);
       if (isNaN(invoiceId)) {
         return ResponseHandler.error(res, '无效的发票ID', 'VALIDATION_ERROR', 400);
+      }
+      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'ap_invoice', invoiceId, '无权访问该应付发票'))) {
+        return;
       }
       const invoice = await apModel.getInvoiceById(invoiceId);
 
@@ -208,13 +204,14 @@ const apController = {
         return ResponseHandler.error(res, '缺少必要的发票信息（发票编号、供应商、发票日期、到期日）', 'VALIDATION_ERROR', 400);
       }
 
-      // 验证金额
-      const amount = parseFloat(invoiceData.amount);
-      if (isNaN(amount) || amount <= 0) {
+      const items = normalizeInvoiceItems(invoiceData.items);
+      const hasItems = items.length > 0;
+      const amount = parseFloat(invoiceData.amount || invoiceData.total_amount);
+      if (!hasItems && (isNaN(amount) || amount <= 0)) {
         return ResponseHandler.error(res, '发票金额必须大于0', 'VALIDATION_ERROR', 400);
       }
 
-      // 准备数据以匹配数据库字段
+      // 准备数据以匹配数据库字段（金额/税额由模型服务端权威重算）
       const formattedData = {
         invoice_number: invoiceData.invoiceNumber,
         supplier_invoice_number:
@@ -222,10 +219,13 @@ const apController = {
         supplier_id: invoiceData.supplierId,
         invoice_date: invoiceData.invoiceDate,
         due_date: invoiceData.dueDate,
-        total_amount: amount,
+        total_amount: Number.isFinite(amount) && amount > 0 ? amount : 0,
+        tax_rate: invoiceData.tax_rate ?? invoiceData.taxRate ?? 0,
+        tax_amount: invoiceData.tax_amount ?? invoiceData.taxAmount,
         notes: invoiceData.notes,
-        status: '草稿', // 设置默认状态为草稿
-        items: normalizeInvoiceItems(invoiceData.items),
+        status: '草稿',
+        items,
+        ...ScopeGuard.stampOwner(req, 'ap_invoice'),
       };
 
       // 调用模型方法创建发票
@@ -253,6 +253,10 @@ const apController = {
 
       if (!status) {
         return ResponseHandler.error(res, '缺少状态参数', 'VALIDATION_ERROR', 400);
+      }
+
+      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'ap_invoice', invoiceId, '无权变更该应付发票状态'))) {
+        return;
       }
 
       const manualStatuses = [INVOICE_STATUS.CONFIRMED, INVOICE_STATUS.CANCELLED];
@@ -291,8 +295,14 @@ const apController = {
    */
   updateInvoice: async (req, res) => {
     try {
-      const invoiceId = req.params.id;
+      const invoiceId = safeParseId(req.params.id);
       const invoiceData = req.body;
+      if (!invoiceId) {
+        return ResponseHandler.error(res, '无效的发票ID', 'VALIDATION_ERROR', 400);
+      }
+      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'ap_invoice', invoiceId, '无权修改该应付发票'))) {
+        return;
+      }
 
       // 检查发票是否存在
       const existingInvoice = await apModel.getInvoiceById(invoiceId);
@@ -401,6 +411,10 @@ const apController = {
       if (endDate) filters.end_date = endDate;
       if (paymentMethod) filters.payment_method = paymentMethod;
       if (status) filters.status = status; // 添加状态筛选
+      filters.scopeClause = await ScopeGuard.applyListScope(req, 'ap_payment', {
+        tableAlias: 'p',
+        ownerAlias: 'ap_payment_owner_scope',
+      });
 
       // 调用模型方法获取付款记录列表
       const result = await apModel.getPayments(filters, parseInt(page), parseInt(limit));
@@ -453,6 +467,9 @@ const apController = {
       const paymentId = safeParseId(req.params.id);
       if (isNaN(paymentId)) {
         return ResponseHandler.error(res, '无效的付款记录ID', 'VALIDATION_ERROR', 400);
+      }
+      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'ap_payment', paymentId, '无权访问该付款记录'))) {
+        return;
       }
       const payment = await apModel.getPaymentById(paymentId);
 
@@ -514,6 +531,17 @@ const apController = {
         );
       }
 
+      if (!(await ScopeGuard.denyUnlessAccess(
+        res,
+        db.pool,
+        req,
+        'ap_invoice',
+        paymentData.invoiceId,
+        '无权对该应付发票付款'
+      ))) {
+        return;
+      }
+
       // 查询发票信息，确保发票存在并获取供应商ID和金额信息
       const invoice = await apModel.getInvoiceById(paymentData.invoiceId);
 
@@ -535,22 +563,37 @@ const apController = {
         );
       }
 
-      // 检查付款金额是否超过未付余额 (精度修复: 分/整数比对)
+      // 检查付款核销金额（实付+折扣）是否超过未付余额 (精度修复: 分/整数比对)
       const payAmountCents = Math.round(parseFloat(paymentData.amount || 0) * 100);
-      if (payAmountCents <= 0) {
+      if (payAmountCents < 0) {
         return ResponseHandler.error(
           res,
-          '付款金额必须大于0',
+          '付款金额不能为负数',
           'VALIDATION_ERROR',
           400
         );
       }
 
-      const invoiceBalanceCents = Math.round(parseFloat(invoice.balance || invoice.balance_amount || 0) * 100);
-      if (payAmountCents > invoiceBalanceCents) {
+      const discountAmount = parseFloat(paymentData.discountAmount || 0);
+      if (isNaN(discountAmount) || discountAmount < 0) {
+        return ResponseHandler.error(res, '折扣金额不能为负数', 'VALIDATION_ERROR', 400);
+      }
+      const discountCents = Math.round(discountAmount * 100);
+      if (payAmountCents === 0 && discountCents === 0) {
         return ResponseHandler.error(
           res,
-          `付款金额 ${paymentData.amount} 超过发票未付余额 ${invoice.balance || invoice.balance_amount}`,
+          '付款金额与折扣金额不能同时为0',
+          'VALIDATION_ERROR',
+          400
+        );
+      }
+
+      const settlementCents = payAmountCents + discountCents;
+      const invoiceBalanceCents = Math.round(parseFloat(invoice.balance || invoice.balance_amount || 0) * 100);
+      if (settlementCents > invoiceBalanceCents) {
+        return ResponseHandler.error(
+          res,
+          `付款核销金额 ${settlementCents / 100}（含折扣）超过发票未付余额 ${invoice.balance || invoice.balance_amount}`,
           'VALIDATION_ERROR',
           400
         );
@@ -607,6 +650,7 @@ const apController = {
         reference_number: paymentData.referenceNumber || null,
         bank_account_id: paymentData.bankAccountId || null,
         notes: paymentData.notes || '',
+        ...ScopeGuard.stampOwner(req, 'ap_payment'),
       };
 
       // 构建付款明细项数组
@@ -614,7 +658,7 @@ const apController = {
         {
           invoice_id: paymentData.invoiceId,
           amount: parseFloat(paymentData.amount),
-          discount_amount: parseFloat(paymentData.discountAmount || 0),
+          discount_amount: discountAmount,
         },
       ];
 

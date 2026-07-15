@@ -1,5 +1,5 @@
 <template>
-  <div class="budget-analysis-container">
+  <div class="module-page budget-analysis-container">
     <el-card v-loading="loading">
       <template #header>
         <div class="card-header">
@@ -9,7 +9,7 @@
       </template>
 
       <!-- 总体执行情况 -->
-      <el-row :gutter="20" style="margin-bottom: 20px">
+      <el-row :gutter="20" class="mb-20">
         <el-col :span="6">
           <el-statistic title="预算总额" :value="analysis.totalBudgetAmount" :precision="2" />
         </el-col>
@@ -25,12 +25,12 @@
       </el-row>
 
       <!-- 统计信息 -->
-      <el-row :gutter="20" style="margin-bottom: 20px">
+      <el-row :gutter="20" class="mb-20">
         <el-col :span="8">
           <el-card shadow="hover">
             <el-statistic title="超预算项目" :value="analysis.statistics?.overBudget || 0">
               <template #suffix>
-                <span style="color: var(--color-danger)">项</span>
+                <span class="text-danger">项</span>
               </template>
             </el-statistic>
           </el-card>
@@ -39,7 +39,7 @@
           <el-card shadow="hover">
             <el-statistic title="接近预算项目" :value="analysis.statistics?.nearBudget || 0">
               <template #suffix>
-                <span style="color: var(--color-warning)">项</span>
+                <span class="text-warning">项</span>
               </template>
             </el-statistic>
           </el-card>
@@ -48,7 +48,7 @@
           <el-card shadow="hover">
             <el-statistic title="正常项目" :value="analysis.statistics?.normalBudget || 0">
               <template #suffix>
-                <span style="color: var(--color-success)">项</span>
+                <span class="text-success">项</span>
               </template>
             </el-statistic>
           </el-card>

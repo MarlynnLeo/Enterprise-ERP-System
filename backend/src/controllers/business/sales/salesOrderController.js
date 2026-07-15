@@ -18,7 +18,7 @@ const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const { parsePagination, appendPaginationSQL } = require('../../../utils/safePagination');
 const { desensitizeDataForUser } = require('../../../utils/desensitizer');
 const { calculateLines, normalizeTaxRate } = require('../../../utils/money');
-const DataScopeService = require('../../../services/DataScopeService');
+const ScopeGuard = require('../../../authorization/ScopeGuard');
 
 const { STATUS, getConnection, generateSalesOrderNo } = require('./salesShared');
 const { autoGenerateFollowUpDocuments } = require('./salesExchangeController');
@@ -27,9 +27,7 @@ const { financeConfig } = require('../../../config/financeConfig');
 const SYNC_SALES_ORDER_STATUS_DRIFT = false;
 
 async function canAccessSalesOrder(connection, req, id) {
-  return DataScopeService.assertRecordAccess(connection, req, 'sales_orders', id, {
-    ownerColumn: 'created_by',
-  });
+  return ScopeGuard.assertAccess(connection, req, 'sales_order', id);
 }
 
 function assertSalesOrderItemPrices(items = []) {
@@ -110,7 +108,7 @@ exports.getSalesOrders = async (req, res) => {
       // 构建查询条件
       let whereClause = '';
       const params = [];
-      const scopeClause = await DataScopeService.buildRequestOwnerScopeClause(req, {
+      const scopeClause = await ScopeGuard.applyListScope(req, 'sales_order', {
         tableAlias: 'so',
         ownerAlias: 'sales_order_owner_scope',
       });
@@ -577,6 +575,20 @@ exports.updateOrderStatus = async (req, res) => {
           : [[]];
         const stockMap = new Map(allStockInfo.map(s => [s.material_id, parseFloat(s.current_quantity) || 0]));
 
+        // 批量 active 预留（扣除本单后的他人占用）
+        const [allReserved] = materialIds.length > 0
+          ? await connection.execute(
+              `SELECT material_id, COALESCE(SUM(reserved_quantity), 0) AS reserved
+               FROM inventory_reservations
+               WHERE material_id IN (${matPh}) AND status = 'active' AND order_id <> ?
+               GROUP BY material_id`,
+              [...materialIds, id]
+            )
+          : [[]];
+        const reservedMap = new Map(
+          allReserved.map((r) => [r.material_id, parseFloat(r.reserved) || 0])
+        );
+
         for (const item of orderItems) {
           if (item.material_id) {
             // 从批量结果中获取物料信息
@@ -608,12 +620,14 @@ exports.updateOrderStatus = async (req, res) => {
               }
             }
 
-            // 从批量结果中获取库存
-            const currentStock = stockMap.get(item.material_id) || 0;
+            // 可用量 = 台账库存 - 其它订单 active 预留（本单预留在确认前通常尚无）
+            const onHand = stockMap.get(item.material_id) || 0;
+            const reservedOthers = reservedMap.get(item.material_id) || 0;
+            const currentStock = Math.max(0, onHand - reservedOthers);
             const requiredQuantity = parseFloat(item.quantity);
 
             logger.info(
-              `📦 物料 ${item.material_name} (${item.material_code}): 需要${requiredQuantity}, 库存${currentStock}`
+              `📦 物料 ${item.material_name} (${item.material_code}): 需要${requiredQuantity}, 在库${onHand}, 他单预留${reservedOthers}, 可用${currentStock}`
             );
 
             if (currentStock < requiredQuantity) {
@@ -735,6 +749,19 @@ exports.updateOrderStatus = async (req, res) => {
           WHERE id = ? AND deleted_at IS NULL`,
         [getAuthenticatedUserId(req) || checkResult[0].created_by, 'Auto reserved by fulfillment flow', id]
       );
+    }
+
+    // P0：取消订单必须释放 active 预留并解锁，避免库存假占用
+    if (newStatus === STATUS.SALES_ORDER.CANCELLED) {
+      const userId = getAuthenticatedUserId(req) || checkResult[0].created_by;
+      await InventoryReservationService.releaseInventoryReservation(id, userId, connection);
+      await connection.execute(
+        `UPDATE sales_orders
+         SET is_locked = FALSE, locked_at = NULL, locked_by = NULL, lock_reason = NULL, updated_at = NOW()
+         WHERE id = ? AND deleted_at IS NULL`,
+        [id]
+      );
+      logger.info(`订单 ${id} 已取消，库存预留已释放`);
     }
 
     // 获取更新后的订单
@@ -1046,7 +1073,14 @@ exports.deleteSalesOrder = async (req, res) => {
       return ResponseHandler.error(res, `此订单已有 ${exchangeCheck[0].count} 条关联换货单，无法删除。请先处理相关换货单。`, 'VALIDATION_ERROR', 400);
     }
 
-    // 6. 安全删除：先删除明细，再软删除主表
+    // 6. 删除前释放可能残留的 active 预留（draft/pending 通常无预留，防御性清理）
+    await InventoryReservationService.releaseInventoryReservation(
+      id,
+      getAuthenticatedUserId(req),
+      connection
+    );
+
+    // 7. 安全删除：先删除明细，再软删除主表
     await connection.query('DELETE FROM sales_order_items WHERE order_id = ?', [id]);
     // ✅ 软删除替代硬删除
     await softDelete(connection, 'sales_orders', 'id', id);

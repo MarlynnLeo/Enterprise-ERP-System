@@ -24,16 +24,24 @@ router.use(authenticateToken);
 
 // ========== 用户管理路由 ==========
 // ✅ 安全修复：添加权限检查
-router.get('/users', requirePermission('system:users'), systemController.getAllUsers);
+router.get(
+  '/users',
+  requirePermission(['system:users:view', 'system:users']),
+  systemController.getAllUsers
+);
 
-// 获取用户简单列表（无分页）- 用于下拉选择，仅需登录
-router.get('/users/list', requirePermission('system:users'), systemController.getUsersList);
+// 获取用户简单列表（无分页）- 用于下拉选择
+router.get(
+  '/users/list',
+  requirePermission(['system:users:view', 'system:users']),
+  systemController.getUsersList
+);
 
 // ✅ 安全修复：用户管理操作添加权限检查
 router.get(
   '/users/:id',
   validateIdParam,
-  requirePermission('system:users'),
+  requirePermission(['system:users:view', 'system:users']),
   systemController.getUserById
 );
 router.post('/users', requirePermission('system:users:create'), systemController.createUser);
@@ -97,6 +105,13 @@ router.delete(
   validateIdParam,
   requirePermission('system:departments:delete'),
   systemController.deleteDepartment
+);
+
+// ========== 权限码注册表（permissions SSOT）==========
+router.get(
+  '/permission-codes',
+  requirePermission('system:permissions'),
+  systemController.getPermissionCodes
 );
 
 // ========== 角色管理路由 ==========
@@ -272,6 +287,8 @@ router.post('/backup', requirePermission('system:backup:create'), systemControll
 
 router.get('/backups', requirePermission('system:backup:view'), systemController.getBackups);
 
+router.get('/backups/:filename/verify', requirePermission('system:backup:view'), systemController.verifyBackup);
+
 router.get('/backups/:filename', requirePermission('system:backup:download'), systemController.downloadBackup);
 
 // ⚠️ SQL执行端点已移除（安全原因）
@@ -279,6 +296,8 @@ router.get('/backups/:filename', requirePermission('system:backup:download'), sy
 // 原端点: POST /exec-sql (已禁用)
 
 // ========== 业务类型管理路由 ==========
+// 业务页面与管理页面读取同一张 business_types 表；消费端只需登录。
+router.get('/business-types/dictionary', businessTypeController.getActiveBusinessTypeDictionary);
 router.get('/business-types', requirePermission('system:business-types'), businessTypeController.getAllBusinessTypes);
 router.get('/business-types/groups', requirePermission('system:business-types'), businessTypeController.getBusinessTypeGroups);
 router.get('/business-types/category/:category', requirePermission('system:business-types'), businessTypeController.getBusinessTypesByCategory);

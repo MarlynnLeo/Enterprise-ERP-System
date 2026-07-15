@@ -92,7 +92,22 @@ const bomController = {
       ResponseHandler.success(res, newBom, '创建BOM成功', 201);
     } catch (error) {
       logger.error('创建BOM失败:', error);
-      ResponseHandler.error(res, error.message, 'SERVER_ERROR', 500, error);
+      // 参数/业务校验类错误返回 400，避免前端只看到笼统 500
+      // createBom 会包装为「创建BOM失败: xxx」，以及 MySQL 唯一键冲突
+      const raw = error.cause?.message || error.message || '创建BOM失败';
+      const msg = String(raw).replace(/^创建BOM失败:\s*/, '');
+      const isDup = error.code === 'ER_DUP_ENTRY' || /Duplicate entry|已存在版本|不能重复/.test(msg);
+      const isValidation =
+        isDup || /不能为空|必填|无效|未维护|循环|不存在|已删除/.test(msg);
+      ResponseHandler.error(
+        res,
+        isDup && !/已存在版本/.test(msg)
+          ? '该产品下版本号已存在，请更换版本号后重试'
+          : msg,
+        isValidation ? 'VALIDATION_ERROR' : 'SERVER_ERROR',
+        isValidation ? 400 : 500,
+        error
+      );
     }
   },
 
@@ -467,7 +482,7 @@ const bomController = {
 
   async getMaterialBom(req, res) {
     try {
-      const { materialId } = req.params;
+      const materialId = safeParseId(req.params.materialId || req.params.id, 'materialId');
 
       // 查询该物料作为产品的BOM
       const { pool } = require('../../../config/db');
@@ -491,6 +506,9 @@ const bomController = {
 
       ResponseHandler.success(res, results, '获取物料BOM成功');
     } catch (error) {
+      if (error.statusCode === 400) {
+        return ResponseHandler.error(res, error.message, 'VALIDATION_ERROR', 400);
+      }
       logger.error('获取物料BOM失败:', error);
       ResponseHandler.error(res, error.message, 'SERVER_ERROR', 500, error);
     }

@@ -94,8 +94,46 @@ class FinanceSubscriber {
             },
             'Finance:CalculateActualCostFromProductionTask': async (payload) => {
                 if (!payload.isFullComplete) return;
+                const db = require('../../config/db');
+                const [taskRows] = await db.pool.execute(
+                    'SELECT status FROM production_tasks WHERE id = ? AND deleted_at IS NULL',
+                    [payload.taskId]
+                );
+                if (!['completed', 'warehousing'].includes(taskRows[0]?.status)) {
+                    return; // 未入库完成，跳过，不重试
+                }
                 const CostAccountingService = require('../../services/business/CostAccountingService');
                 await CostAccountingService.calculateActualCost(payload.taskId);
+            },
+            'FinanceIntegration:InventoryAdjustmentEntry': async (payload) => {
+                const db = require('../../config/db');
+                const [rows] = await db.pool.execute(
+                    `SELECT id, material_id, location_id, transaction_type, transaction_date,
+                            quantity, unit_cost, reference_no, reference_type
+                       FROM inventory_ledger
+                      WHERE reference_no = ?
+                        AND material_id = ?
+                        AND location_id = ?
+                      ORDER BY id DESC
+                      LIMIT 1`,
+                    [payload.adjustmentNo, payload.materialId, payload.locationId]
+                );
+                if (rows.length === 0) {
+                    throw new Error(`Inventory adjustment ledger not found: ${payload.adjustmentNo}`);
+                }
+
+                const ledger = rows[0];
+                const InventoryCostService = require('../../services/business/InventoryCostService');
+                const transaction = {
+                    ...ledger,
+                    transaction_type: payload.adjustedTransactionType || ledger.transaction_type,
+                    reference_type: 'inventory_adjustment',
+                };
+                if (Number(ledger.quantity) > 0) {
+                    await InventoryCostService.generateInboundCostEntry(transaction);
+                } else {
+                    await InventoryCostService.generateOutboundCostEntry(transaction);
+                }
             },
             'Finance:PurchaseReceiptCompleted': async (payload) => {
                 await this.handlePurchaseReceiptCompleted(payload);
@@ -302,56 +340,40 @@ class FinanceSubscriber {
             '财务幂等表'
         );
 
-        try {
-            const [rows] = await db.pool.execute(
-                `SELECT id FROM ${safeTable} WHERE source_type = ? AND source_id = ? LIMIT 1`,
-                [sourceType, sourceId]
-            );
-            return rows.length > 0;
-        } catch (error) {
-            logger.warn(`[FinanceSubscriber] 来源幂等检查异常 (${safeTable}): ${error.message}`);
-            return false;
-        }
+        // fail-closed：查询失败必须抛出，禁止按「不存在」继续生成
+        const [rows] = await db.pool.execute(
+            `SELECT id FROM ${safeTable} WHERE source_type = ? AND source_id = ? LIMIT 1`,
+            [sourceType, sourceId]
+        );
+        return rows.length > 0;
     }
 
     async glEntryExistsByDocument(documentNumber, documentType) {
         const db = require('../../config/db');
-        try {
-            const [rows] = await db.pool.execute(
-                `SELECT id
-                 FROM gl_entries
-                 WHERE document_type = ?
-                   AND document_number = ?
-                   AND COALESCE(is_reversed, 0) = 0
-                 LIMIT 1`,
-                [documentType, documentNumber]
-            );
-            return rows.length > 0;
-        } catch (error) {
-            logger.warn(`[FinanceSubscriber] 总账幂等检查异常 (${documentNumber}): ${error.message}`);
-            return false;
-        }
+        const [rows] = await db.pool.execute(
+            `SELECT id
+             FROM gl_entries
+             WHERE document_type = ?
+               AND document_number = ?
+               AND COALESCE(is_reversed, 0) = 0
+             LIMIT 1`,
+            [documentType, documentNumber]
+        );
+        return rows.length > 0;
     }
 
     async taxInvoiceExistsByRelatedDocument(documentType, documentId) {
         const db = require('../../config/db');
-        try {
-            const [rows] = await db.pool.execute(
-                `SELECT id
-                 FROM tax_invoices
-                 WHERE related_document_type = ?
-                   AND related_document_id = ?
-                   AND status <> '已作废'
-                 LIMIT 1`,
-                [documentType, documentId]
-            );
-            return rows.length > 0;
-        } catch (error) {
-            logger.warn(
-                `[FinanceSubscriber] 税票幂等检查异常 (${documentType}:${documentId}): ${error.message}`
-            );
-            return false;
-        }
+        // 与唯一索引一致：任意关联记录均视为已生成
+        const [rows] = await db.pool.execute(
+            `SELECT id
+             FROM tax_invoices
+             WHERE related_document_type = ?
+               AND related_document_id = ?
+             LIMIT 1`,
+            [documentType, documentId]
+        );
+        return rows.length > 0;
     }
 
     async recordFailure(taskName, payload, error, logMessage) {
@@ -391,13 +413,13 @@ class FinanceSubscriber {
                         receiptId
                     );
                     if (apExists) {
-                        logger.info(`⏭️ [FinanceSubscriber] 入库单 ${receiptNo} 已生成过应付发票，跳过`);
+                        logger.info(`[FinanceSubscriber] AP invoice already exists; skipped: receiptNo=${receiptNo}`);
                     } else {
                         await FinanceIntegrationService.generateAPInvoiceFromPurchaseReceipt(
                             receipt,
                             currentUserId
                         );
-                        logger.info(`✅ [FinanceSubscriber] 应付发票自动生成成功 - 入库单: ${receiptNo}`);
+                        logger.info(`[FinanceSubscriber] AP invoice generated: receiptNo=${receiptNo}`);
                     }
                 } catch (invoiceError) {
                     await this.recordFailure(
@@ -415,13 +437,13 @@ class FinanceSubscriber {
                         receiptId
                     );
                     if (taxExists) {
-                        logger.info(`⏭️ [FinanceSubscriber] 入库单 ${receiptNo} 已生成过进项发票，跳过`);
+                        logger.info(`[FinanceSubscriber] Input tax invoice already exists; skipped: receiptNo=${receiptNo}`);
                     } else {
                         await FinanceIntegrationService.generateInputTaxInvoiceFromPurchaseReceipt(
                             receipt,
                             currentUserId
                         );
-                        logger.info(`✅ [FinanceSubscriber] 进项发票自动生成成功 - 入库单: ${receiptNo}`);
+                        logger.info(`[FinanceSubscriber] Input tax invoice generated: receiptNo=${receiptNo}`);
                     }
                 } catch (taxError) {
                     await this.recordFailure(
@@ -433,7 +455,7 @@ class FinanceSubscriber {
                 }
             }
         } catch (criticalError) {
-            logger.error(`❌ [FinanceSubscriber] 致命错误！导致入库单 ${receiptId} 财务处理中断:`, criticalError);
+            logger.error(`[FinanceSubscriber] Purchase receipt finance processing failed: receiptId=${receiptId}`, criticalError);
             await DLQService.recordSideEffectFailure(
                 'Finance:PurchaseReceiptCompleted',
                 { receiptId, currentUserId },
@@ -467,13 +489,13 @@ class FinanceSubscriber {
                         order.id
                     );
                     if (arExists) {
-                        logger.info(`⏭️ [FinanceSubscriber] 订单 ${order.order_no} 已生成过应收发票，跳过`);
+                        logger.info(`[FinanceSubscriber] AR invoice already exists; skipped: orderNo=${order.order_no}`);
                     } else {
                         await FinanceIntegrationService.generateARInvoiceFromSalesOrder(
                             order,
                             currentUserId
                         );
-                        logger.info(`✅ [FinanceSubscriber] 应收发票自动生成成功 - 订单: ${order.order_no}`);
+                        logger.info(`[FinanceSubscriber] AR invoice generated: orderNo=${order.order_no}`);
                     }
                 } catch (invoiceError) {
                     await this.recordFailure(
@@ -489,13 +511,13 @@ class FinanceSubscriber {
             try {
                 const costExists = await this.glEntryExistsByDocument(outboundNo, 'sales_outbound');
                 if (costExists) {
-                    logger.info(`⏭️ [FinanceSubscriber] 出库单 ${outboundNo} 已生成过成本分录，跳过`);
+                    logger.info(`[FinanceSubscriber] Sales cost GL entry already exists; skipped: outboundNo=${outboundNo}`);
                 } else {
                     await FinanceIntegrationService.generateCostEntryFromSalesOutbound(
                         outboundData,
                         currentUserId
                     );
-                    logger.info(`✅ [FinanceSubscriber] 销售成本分录自动生成成功 - 出库单: ${outboundNo}`);
+                    logger.info(`[FinanceSubscriber] Sales cost GL entry generated: outboundNo=${outboundNo}`);
                 }
             } catch (costError) {
                 await this.recordFailure(
@@ -513,13 +535,13 @@ class FinanceSubscriber {
                     outboundData.id
                 );
                 if (taxExists) {
-                    logger.info(`⏭️ [FinanceSubscriber] 出库单 ${outboundNo} 已生成过销项发票，跳过`);
+                    logger.info(`[FinanceSubscriber] Output tax invoice already exists; skipped: outboundNo=${outboundNo}`);
                 } else {
                     await FinanceIntegrationService.generateOutputTaxInvoiceFromSalesOutbound(
                         outboundData,
                         currentUserId
                     );
-                    logger.info(`✅ [FinanceSubscriber] 销项发票自动生成成功 - 出库单: ${outboundNo}`);
+                    logger.info(`[FinanceSubscriber] Output tax invoice generated: outboundNo=${outboundNo}`);
                 }
             } catch (taxError) {
                 await this.recordFailure(
@@ -530,11 +552,11 @@ class FinanceSubscriber {
                 );
             }
 
-            logger.info(`[FinanceSubscriber] 🎉 出库单 ${outboundNo} 相关的财务流转已全部按序完成！`);
+            logger.info(`[FinanceSubscriber] Sales outbound finance flow completed: outboundNo=${outboundNo}`);
 
         } catch (criticalError) {
             // 顶层防御，确保订阅者的崩溃绝对不抛给上层发布者
-            logger.error(`❌ [FinanceSubscriber] 致命错误！导致部分出库 ${outboundNo} 财务处理中断:`, criticalError);
+            logger.error(`[FinanceSubscriber] Sales outbound finance processing failed: outboundNo=${outboundNo}`, criticalError);
             await DLQService.recordSideEffectFailure(
                 'Finance:SalesOutboundCompleted',
                 { outboundNo, outboundData, salesOrderId: salesOrder?.id, currentUserId },
@@ -603,13 +625,29 @@ class FinanceSubscriber {
         logger.info(`[FinanceSubscriber] 收到生产完工广播，由于 SSOT 解耦架构限制，开始后台成本核算 - 任务ID: ${taskId}, 任务号: ${taskCode}`);
 
         try {
-            if (isFullComplete) {
-                const CostAccountingService = require('../../services/business/CostAccountingService');
-                await CostAccountingService.calculateActualCost(taskId);
-                logger.info(`✅ [FinanceSubscriber] 任务 ${taskCode} 实际成本自动核算与 GL 分录生成成功`);
-            } else {
-                logger.info(`ℹ️ [FinanceSubscriber] 任务 ${taskCode} 本次为部分完工，将在全部完工后统筹生成成本凭证`);
+            if (!isFullComplete) {
+                logger.info(`[FinanceSubscriber] Production task partially completed; cost voucher deferred: taskCode=${taskCode}`);
+                return;
             }
+
+            // 成本核算仅在任务已入库完成(completed)或入库中(warehousing)时执行；
+            // completeTask 只到 inspection，此时不应入 DLQ。
+            const db = require('../../config/db');
+            const [taskRows] = await db.pool.execute(
+                'SELECT id, code, status FROM production_tasks WHERE id = ? AND deleted_at IS NULL',
+                [taskId]
+            );
+            const status = taskRows[0]?.status;
+            if (!['completed', 'warehousing'].includes(status)) {
+                logger.info(
+                    `[FinanceSubscriber] Skip cost calc until warehouse complete: taskCode=${taskCode}, status=${status}`
+                );
+                return;
+            }
+
+            const CostAccountingService = require('../../services/business/CostAccountingService');
+            await CostAccountingService.calculateActualCost(taskId);
+            logger.info(`[FinanceSubscriber] Production actual cost and GL entry generated: taskCode=${taskCode}`);
         } catch (costError) {
             // 在独立的订阅者上下文中进行捕获，不再污染请求核心链路
             await this.recordFailure(

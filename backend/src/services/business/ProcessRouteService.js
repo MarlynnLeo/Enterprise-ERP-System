@@ -5,7 +5,6 @@
  */
 
 const { pool } = require('../../config/db');
-const { logger } = require('../../utils/logger');
 
 class ProcessRouteService {
   // ==================== 工序路线 CRUD ====================
@@ -22,7 +21,10 @@ class ProcessRouteService {
     let where = 'WHERE pr.deleted_at IS NULL';
     const values = [];
 
-    if (productId) { where += ' AND pr.product_id = ?'; values.push(productId); }
+    if (productId) {
+      where += ' AND pr.product_id = ?';
+      values.push(productId);
+    }
     if (isActive !== undefined && isActive !== '') {
       where += ' AND pr.is_active = ?';
       values.push(parseInt(isActive, 10));
@@ -36,7 +38,8 @@ class ProcessRouteService {
       `SELECT COUNT(*) as total
        FROM process_routes pr
        LEFT JOIN materials m ON pr.product_id = m.id
-       ${where}`, values
+       ${where}`,
+      values
     );
 
     const [list] = await pool.query(
@@ -120,7 +123,7 @@ class ProcessRouteService {
       if (Array.isArray(steps)) {
         for (let i = 0; i < steps.length; i++) {
           const step = steps[i];
-          const seq = step.sequence || (i + 1);
+          const seq = step.sequence || i + 1;
           const minutes = parseFloat(step.standard_minutes) || 0;
           totalMinutes += minutes;
 
@@ -128,9 +131,17 @@ class ProcessRouteService {
             `INSERT INTO process_route_steps
              (route_id, sequence, step_name, step_code, station_id, standard_minutes, description, sop_content, sop_images)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [routeId, seq, step.step_name, step.step_code || null,
-             step.station_id || null, minutes, step.description || null,
-             step.sop_content || null, step.sop_images ? JSON.stringify(step.sop_images) : null]
+            [
+              routeId,
+              seq,
+              step.step_name,
+              step.step_code || null,
+              step.station_id || null,
+              minutes,
+              step.description || null,
+              step.sop_content || null,
+              step.sop_images ? JSON.stringify(step.sop_images) : null,
+            ]
           );
 
           // 创建工序物料
@@ -139,7 +150,12 @@ class ProcessRouteService {
               await connection.query(
                 `INSERT INTO process_step_materials (step_id, material_id, quantity, is_scan_required)
                  VALUES (?, ?, ?, ?)`,
-                [stepResult.insertId, mat.material_id, mat.quantity || 1, mat.is_scan_required ? 1 : 0]
+                [
+                  stepResult.insertId,
+                  mat.material_id,
+                  mat.quantity || 1,
+                  mat.is_scan_required ? 1 : 0,
+                ]
               );
             }
           }
@@ -147,10 +163,10 @@ class ProcessRouteService {
       }
 
       // 更新总工时
-      await connection.query(
-        'UPDATE process_routes SET total_standard_minutes = ? WHERE id = ?',
-        [totalMinutes, routeId]
-      );
+      await connection.query('UPDATE process_routes SET total_standard_minutes = ? WHERE id = ?', [
+        totalMinutes,
+        routeId,
+      ]);
 
       await connection.commit();
       return this.getById(routeId);
@@ -165,7 +181,7 @@ class ProcessRouteService {
   /**
    * 更新工序路线
    */
-  static async update(id, data, userId) {
+  static async update(id, data, _userId) {
     const { name, version, is_active, steps } = data;
 
     const connection = await pool.getConnection();
@@ -175,14 +191,24 @@ class ProcessRouteService {
       // 更新路线基本信息
       const fields = [];
       const values = [];
-      if (name !== undefined) { fields.push('name = ?'); values.push(name); }
-      if (version !== undefined) { fields.push('version = ?'); values.push(version); }
-      if (is_active !== undefined) { fields.push('is_active = ?'); values.push(is_active); }
+      if (name !== undefined) {
+        fields.push('name = ?');
+        values.push(name);
+      }
+      if (version !== undefined) {
+        fields.push('version = ?');
+        values.push(version);
+      }
+      if (is_active !== undefined) {
+        fields.push('is_active = ?');
+        values.push(is_active);
+      }
 
       if (fields.length > 0) {
         values.push(id);
         await connection.query(
-          `UPDATE process_routes SET ${fields.join(', ')} WHERE id = ?`, values
+          `UPDATE process_routes SET ${fields.join(', ')} WHERE id = ?`,
+          values
         );
       }
 
@@ -194,7 +220,7 @@ class ProcessRouteService {
         let totalMinutes = 0;
         for (let i = 0; i < steps.length; i++) {
           const step = steps[i];
-          const seq = step.sequence || (i + 1);
+          const seq = step.sequence || i + 1;
           const minutes = parseFloat(step.standard_minutes) || 0;
           totalMinutes += minutes;
 
@@ -202,9 +228,17 @@ class ProcessRouteService {
             `INSERT INTO process_route_steps
              (route_id, sequence, step_name, step_code, station_id, standard_minutes, description, sop_content, sop_images)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [id, seq, step.step_name, step.step_code || null,
-             step.station_id || null, minutes, step.description || null,
-             step.sop_content || null, step.sop_images ? JSON.stringify(step.sop_images) : null]
+            [
+              id,
+              seq,
+              step.step_name,
+              step.step_code || null,
+              step.station_id || null,
+              minutes,
+              step.description || null,
+              step.sop_content || null,
+              step.sop_images ? JSON.stringify(step.sop_images) : null,
+            ]
           );
 
           if (Array.isArray(step.materials)) {
@@ -212,7 +246,12 @@ class ProcessRouteService {
               await connection.query(
                 `INSERT INTO process_step_materials (step_id, material_id, quantity, is_scan_required)
                  VALUES (?, ?, ?, ?)`,
-                [stepResult.insertId, mat.material_id, mat.quantity || 1, mat.is_scan_required ? 1 : 0]
+                [
+                  stepResult.insertId,
+                  mat.material_id,
+                  mat.quantity || 1,
+                  mat.is_scan_required ? 1 : 0,
+                ]
               );
             }
           }

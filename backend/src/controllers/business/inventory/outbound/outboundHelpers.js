@@ -320,13 +320,17 @@ const issueOutboundItemFromDetail = async ({
     );
   }
 
+  const materialId = item.material_id || item.materialId;
+  const txType = isProductionOutboundReference(referenceType)
+    ? 'production_outbound'
+    : 'outbound';
+  const batchKey = batchNumber || 'NOBATCH';
+
   return InventoryService.updateStock(
     {
-      materialId: item.material_id || item.materialId,
+      materialId,
       locationId,
-      transactionType: isProductionOutboundReference(referenceType)
-        ? 'production_outbound'
-        : 'outbound',
+      transactionType: txType,
       quantity: -actualQuantity,
       unitId,
       referenceNo: outboundNo,
@@ -336,6 +340,7 @@ const issueOutboundItemFromDetail = async ({
       issue_reason: issueReason,
       is_excess: isExcess,
       batchNumber,
+      idempotencyKey: `${txType}:${outboundNo}:${materialId}:${locationId}:${batchKey}:${actualQuantity}`,
     },
     connection
   );

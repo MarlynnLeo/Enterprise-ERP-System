@@ -9,6 +9,7 @@ const { logger } = require('../utils/logger');
 const db = require('../config/db');
 const financeModel = require('./finance');
 const {
+  DOCUMENT_TYPES,
   DOCUMENT_TYPE_MAPPING,
   INVOICE_STATUS,
   MANUAL_INVOICE_STATUS_TRANSITIONS,
@@ -16,13 +17,22 @@ const {
 } = require('../constants/financeConstants');
 const AccountMappingService = require('../services/finance/AccountMappingService');
 const DocumentLinkService = require('../services/business/DocumentLinkService');
+const VoucherReversalService = require('../services/finance/VoucherReversalService');
 const { financeConfig } = require('../config/financeConfig');
 const { accountingConfig } = require('../config/accountingConfig');
 const { parsePagination } = require('../utils/safePagination');
 const { currentDateString, toLocalDateString } = require('../utils/dateUtils');
-
-const toCents = (value) => Math.round((parseFloat(value) || 0) * 100);
-const fromCents = (value) => value / 100;
+const {
+  toCents,
+  fromCents,
+  parseSettlementLine,
+  assertWithinBalance,
+  assertBankBalanceSufficient,
+  invoiceStatusAfterSettlement,
+  isTruthyFlag,
+  assertInvoiceSettlementsEligible,
+} = require('../utils/finance/settlementMath');
+const { applyNormalizedInvoiceAmounts } = require('../utils/finance/invoiceAmounts');
 
 const resolveInvoiceItemAmount = (item) =>
   item.amount !== undefined && item.amount !== null
@@ -63,12 +73,6 @@ const normalizeInvoiceAmountPolicy = (invoiceData) => {
     isCreditNote: totalCents < 0,
   };
 };
-
-const SETTLEMENT_STATUSES = new Set([
-  INVOICE_STATUS.CONFIRMED,
-  INVOICE_STATUS.PARTIAL_PAID,
-  INVOICE_STATUS.OVERDUE,
-]);
 
 const getOpenPeriodIdByDate = async (connection, entryDate) => {
   const date = toLocalDateString(entryDate || currentDateString());
@@ -295,7 +299,7 @@ const buildPaymentGlEntry = async (connection, paymentData) => {
 
   return {
     period_id: periodId,
-    created_by: financeConfig.get('system.defaultCreator', 'system'),
+    created_by: paymentData.created_by || financeConfig.get('system.defaultCreator', 'system'),
     payable_account_id: payableAccountId,
     bank_account_id: bankAccountId,
   };
@@ -316,11 +320,25 @@ const apModel = {
         await conn.beginTransaction();
       }
 
+      // 服务端权威重算未税/税额/价税合计
+      applyNormalizedInvoiceAmounts(invoiceData);
+
       // 计算余额 - 确保使用正确的字段名
       const amountPolicy = normalizeInvoiceAmountPolicy(invoiceData);
       const balanceAmount = amountPolicy.totalAmount;
       invoiceData.total_amount = amountPolicy.totalAmount;
       assertInvoiceItemsMatchTotal(invoiceData.items, invoiceData.total_amount, invoiceData);
+
+      // owner：created_by 必须写入，供 DataScope 行级授权
+      const ownerId =
+        invoiceData.created_by !== null &&
+        invoiceData.created_by !== undefined &&
+        invoiceData.created_by !== ''
+          ? invoiceData.created_by
+          : invoiceData.gl_entry?.created_by !== null &&
+              invoiceData.gl_entry?.created_by !== undefined
+            ? invoiceData.gl_entry.created_by
+            : null;
 
       // 插入应付账款发票
       const [result] = await conn.execute(
@@ -328,8 +346,9 @@ const apModel = {
         (invoice_number, supplier_id, invoice_date, due_date,
          total_amount, paid_amount, balance_amount,
          currency_code, exchange_rate, status, terms, notes,
-         supplier_invoice_number, source_type, source_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         supplier_invoice_number, source_type, source_id,
+         created_by, updated_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           invoiceData.invoice_number,
           invoiceData.supplier_id,
@@ -347,6 +366,8 @@ const apModel = {
           invoiceData.supplier_invoice_number ?? null,
           invoiceData.source_type ?? null,
           invoiceData.source_id ?? null,
+          ownerId,
+          ownerId,
         ]
       );
 
@@ -482,6 +503,8 @@ const apModel = {
     // 优化：移除不必要的表存在性检查，直接使用JOIN查询
     // 如果suppliers表不存在，JOIN查询会自动处理
 
+    const scopeClause = filters.scopeClause || { join: '', where: '', params: [] };
+
     // 构建WHERE子句和参数
     let whereClause = 'WHERE 1=1';
     const params = [];
@@ -523,12 +546,17 @@ const apModel = {
       whereClause += ' AND a.status = ?';
       params.push(filters.status);
     }
+    if (scopeClause.where) {
+      whereClause += scopeClause.where;
+      params.push(...(scopeClause.params || []));
+    }
 
     // 查询总记录数 - 使用统一的JOIN查询
     const countQuery = `
         SELECT COUNT(*) as total
         FROM ap_invoices a
         LEFT JOIN suppliers s ON a.supplier_id = s.id
+        ${scopeClause.join || ''}
         ${whereClause}`;
 
     const [countResult] = await db.pool.execute(countQuery, params);
@@ -558,6 +586,7 @@ const apModel = {
               a.status, DATE_FORMAT(a.created_at, '%Y-%m-%d') as createdAt
         FROM ap_invoices a
         LEFT JOIN suppliers s ON a.supplier_id = s.id
+        ${scopeClause.join || ''}
         ${whereClause}
         ORDER BY a.invoice_date DESC, a.id DESC
         LIMIT ${numPageSize} OFFSET ${offset}`;
@@ -777,10 +806,17 @@ const apModel = {
   /**
    * 创建付款记录
    */
-  createPayment: async (paymentData, paymentItems) => {
-    const connection = await db.pool.getConnection();
+  /**
+   * 创建付款记录
+   * @param {Object|null} externalConnection 可选外层事务连接（批量付款时复用）
+   */
+  createPayment: async (paymentData, paymentItems, externalConnection = null) => {
+    const isExternalTransaction = !!externalConnection;
+    const connection = externalConnection || (await db.pool.getConnection());
     try {
-      await connection.beginTransaction();
+      if (!isExternalTransaction) {
+        await connection.beginTransaction();
+      }
 
       if (
         BANK_BACKED_PAYMENT_METHODS.has(paymentData.payment_method) &&
@@ -793,8 +829,8 @@ const apModel = {
       const [result] = await connection.execute(
         `INSERT INTO ap_payments
         (payment_number, supplier_id, payment_date, total_amount,
-         payment_method, reference_number, bank_account_id, notes)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+         payment_method, reference_number, bank_account_id, notes, created_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           paymentData.payment_number,
           paymentData.supplier_id,
@@ -804,6 +840,7 @@ const apModel = {
           paymentData.reference_number || null,
           paymentData.bank_account_id || null,
           paymentData.notes || null,
+          paymentData.created_by || null,
         ]
       );
 
@@ -822,13 +859,15 @@ const apModel = {
         0
       );
       if (requestedTotalCents !== itemsTotalCents) {
-        throw new Error('付款单总金额必须等于付款明细金额合计');
+        throw new Error('付款单总金额必须等于付款明细金额合计（不含折扣）');
       }
 
       // 插入付款明细并更新发票状态
-      let totalPaidCents = 0;
+      // totalCashCents = 实际出账；totalSettlementCents = 核销额（出账+折扣）
+      let totalCashCents = 0;
+      let totalSettlementCents = 0;
+      let totalDiscountCents = 0;
       for (const item of sortedPaymentItems) {
-        // 获取发票当前信息
         const [invoices] = await connection.execute(
           'SELECT id, invoice_number, supplier_invoice_number, supplier_id, invoice_date, due_date, total_amount, paid_amount, balance_amount, currency_code, exchange_rate, status, terms, notes, created_at, updated_at, source_type, source_id, created_by, updated_by FROM ap_invoices WHERE id = ? FOR UPDATE',
           [item.invoice_id]
@@ -839,59 +878,52 @@ const apModel = {
         }
 
         const invoice = invoices[0];
-        linkedInvoices.push({ id: invoice.id, invoice_number: invoice.invoice_number });
-        if (!SETTLEMENT_STATUSES.has(invoice.status)) {
-          throw new Error(
-            `发票 ${invoice.invoice_number} 当前状态为"${invoice.status}"，不能直接付款`
-          );
+        if (
+          String(invoice.currency_code || 'CNY').toUpperCase() !== 'CNY' ||
+          Math.abs(Number(invoice.exchange_rate || 1) - 1) > 0.000001
+        ) {
+          throw new Error(`发票 ${invoice.invoice_number} 为非人民币业务，当前未启用本位币换算，不能核销`);
         }
+        linkedInvoices.push({ id: invoice.id, invoice_number: invoice.invoice_number });
+        assertInvoiceSettlementsEligible(invoice.status, `发票 ${invoice.invoice_number}`);
 
-        // 插入付款明细
+        const line = parseSettlementLine(item);
+        assertWithinBalance(
+          line.settlementCents,
+          toCents(invoice.balance_amount),
+          `发票 ${invoice.invoice_number} 付款核销金额`
+        );
+
         await connection.execute(
           'INSERT INTO ap_payment_items (payment_id, invoice_id, amount, discount_amount) VALUES (?, ?, ?, ?)',
-          [paymentId, item.invoice_id, item.amount, item.discount_amount || 0]
+          [paymentId, item.invoice_id, line.cashAmount, line.discountAmount]
         );
 
-        // ===== [H-3] 超额付款校验 =====
-        const currentBalance = toCents(invoice.balance_amount);
-        const payAmount = toCents(item.amount);
-        if (payAmount > currentBalance + 1) {
-          // 允许1分钱容差（浮点数取整误差）
-          throw new Error(
-            `付款金额 ${item.amount} 超过发票 ${invoice.invoice_number} 余额 ${invoice.balance_amount}`
-          );
-        }
-
-        // ===== [H-2] 整数化精度控制 =====
-        const paidAmountCents = toCents(invoice.paid_amount) + payAmount;
+        const paidAmountCents = toCents(invoice.paid_amount) + line.settlementCents;
         const totalAmountCents = toCents(invoice.total_amount);
         const newPaidAmount = fromCents(paidAmountCents);
-        const newBalanceAmount = fromCents(totalAmountCents - paidAmountCents);
+        const newBalanceAmount = fromCents(Math.max(0, totalAmountCents - paidAmountCents));
+        const newStatus = invoiceStatusAfterSettlement(paidAmountCents, totalAmountCents);
 
-        // 确定新的状态
-        let newStatus;
-        if (newBalanceAmount <= 0.001) {
-          newStatus = '已付款';
-        } else if (newPaidAmount > 0) {
-          newStatus = '部分付款';
-        } else {
-          newStatus = invoice.status;
-        }
-
-        // 更新发票
         await connection.execute(
           'UPDATE ap_invoices SET paid_amount = ?, balance_amount = ?, status = ? WHERE id = ?',
-          [newPaidAmount, Math.max(0, newBalanceAmount), newStatus, item.invoice_id]
+          [newPaidAmount, newBalanceAmount, newStatus, item.invoice_id]
         );
 
-        totalPaidCents += Math.round(parseFloat(item.amount) * 100);
+        totalCashCents += line.cashCents;
+        totalSettlementCents += line.settlementCents;
+        totalDiscountCents += line.discountCents;
       }
 
-      const totalPaid = totalPaidCents / 100;
+      const totalPaid = fromCents(totalCashCents);
+      const totalSettlement = fromCents(totalSettlementCents);
+      const totalDiscount = fromCents(totalDiscountCents);
 
-      // 如果是银行类付款，更新银行账户余额并创建银行交易记录
-      if (BANK_BACKED_PAYMENT_METHODS.has(paymentData.payment_method)) {
-        // 获取银行账户信息
+      // 如果是银行类付款且有实际出账金额，更新银行账户余额并创建银行交易记录
+      if (
+        BANK_BACKED_PAYMENT_METHODS.has(paymentData.payment_method) &&
+        totalCashCents > 0
+      ) {
         const [bankAccounts] = await connection.execute(
           'SELECT id, account_number, account_name, bank_name, branch_name, currency_code, current_balance, opening_balance, account_type, is_active, contact_person, contact_phone, notes, created_at, updated_at, created_by, updated_by, last_transaction_date FROM bank_accounts WHERE id = ? FOR UPDATE',
           [paymentData.bank_account_id]
@@ -902,11 +934,16 @@ const apModel = {
         }
 
         const bankAccount = bankAccounts[0];
+        if (String(bankAccount.currency_code || 'CNY').toUpperCase() !== 'CNY') {
+          throw new Error(`银行账户 "${bankAccount.account_name}" 不是人民币账户，当前不能用于付款`);
+        }
         if (bankAccount.is_active === 0) {
           throw new Error(`银行账户 "${bankAccount.account_name}" 已被冻结，无法用于付款`);
         }
 
-        // 创建银行交易记录
+        assertBankBalanceSufficient(toCents(bankAccount.current_balance), totalCashCents);
+
+        // 创建银行交易记录（仅实付金额，不含折扣）
         const [bankTransactionResult] = await connection.execute(
           `INSERT INTO bank_transactions
           (transaction_number, bank_account_id, transaction_date, transaction_type,
@@ -921,7 +958,8 @@ const apModel = {
             totalPaid,
             paymentData.reference_number || null,
             `应付账款付款 - 供应商: ${paymentData.supplier_name || '未知供应商'}` +
-              (sortedPaymentItems.length > 1 ? ` (含${sortedPaymentItems.length}张发票)` : ''),
+              (sortedPaymentItems.length > 1 ? ` (含${sortedPaymentItems.length}张发票)` : '') +
+              (totalDiscountCents > 0 ? `；折扣 ${totalDiscount}` : ''),
             false,
             paymentData.supplier_name || '未知供应商',
             sortedPaymentItems[0]?.invoice_id || null,
@@ -931,12 +969,10 @@ const apModel = {
         );
         bankTransactionId = bankTransactionResult.insertId;
 
-        await connection.execute(
-          'UPDATE bank_accounts SET current_balance = current_balance - ?, last_transaction_date = ? WHERE id = ?',
-          [totalPaid, paymentData.payment_date, paymentData.bank_account_id]
-        );
+        const BankBalanceService = require('../services/business/BankBalanceService');
+        await BankBalanceService.syncAccountBalance(connection, paymentData.bank_account_id);
 
-        logger.info(`[AP付款] 银行账户余额已更新: ${bankAccount.account_name}`);
+        logger.info(`[AP付款] 银行账户余额已按流水重算: ${bankAccount.account_name}`);
       }
 
       const glEntry = await buildPaymentGlEntry(connection, paymentData);
@@ -955,23 +991,38 @@ const apModel = {
           is_posted: 1,
         };
 
-        // 付款分录明细
+        // 付款分录：借应付(核销额) = 贷银行(实付) + 贷财务费用(折扣冲减)
         const entryItems = [
-          // 借：应付账款
           {
             account_id: glEntry.payable_account_id,
-            debit_amount: totalPaid,
+            debit_amount: totalSettlement,
             credit_amount: 0,
             description: `应付账款减少 - 付款单号: ${paymentData.payment_number}`,
           },
-          // 贷：银行/现金
-          {
+        ];
+        if (totalCashCents > 0) {
+          entryItems.push({
             account_id: glEntry.bank_account_id,
             debit_amount: 0,
             credit_amount: totalPaid,
             description: `付款 - 付款单号: ${paymentData.payment_number}`,
-          },
-        ];
+          });
+        }
+        if (totalDiscountCents > 0) {
+          const discountAccountId =
+            glEntry.discount_account_id ||
+            (await getAccountIdByCode(
+              connection,
+              accountingConfig.getAccountCode('FINANCE_EXPENSE'),
+              '财务费用(现金折扣)'
+            ));
+          entryItems.push({
+            account_id: discountAccountId,
+            debit_amount: 0,
+            credit_amount: totalDiscount,
+            description: `现金折扣 - 付款单号: ${paymentData.payment_number}`,
+          });
+        }
 
         // 创建会计分录
         glEntryId = await financeModel.createEntry(entryData, entryItems, connection);
@@ -1034,10 +1085,14 @@ const apModel = {
         );
       }
 
-      await connection.commit();
+      if (!isExternalTransaction) {
+        await connection.commit();
+      }
       return paymentId;
     } catch (error) {
-      await connection.rollback();
+      if (!isExternalTransaction) {
+        await connection.rollback();
+      }
       logger.error('创建付款记录失败:', {
         error: error.message,
         paymentNumber: paymentData.payment_number,
@@ -1048,7 +1103,9 @@ const apModel = {
       });
       throw error;
     } finally {
-      connection.release();
+      if (!isExternalTransaction) {
+        connection.release();
+      }
     }
   },
 
@@ -1112,6 +1169,8 @@ const apModel = {
       const numPageSize = pagination.pageSize;
       const offset = pagination.offset;
 
+      const scopeClause = filters.scopeClause || { join: '', where: '', params: [] };
+
       // 构建查询，直接关联供应商表获取供应商名称，并通过付款明细表关联获取发票编号
       let query = `
         SELECT p.id, p.payment_number, p.supplier_id,
@@ -1127,6 +1186,7 @@ const apModel = {
                 LIMIT 1) as invoice_number
         FROM ap_payments p
         LEFT JOIN suppliers s ON p.supplier_id = s.id
+        ${scopeClause.join || ''}
         WHERE 1=1
       `;
 
@@ -1170,6 +1230,11 @@ const apModel = {
         params.push(filters.status);
       }
 
+      if (scopeClause.where) {
+        query += scopeClause.where;
+        params.push(...(scopeClause.params || []));
+      }
+
       // 使用直接拼接进行分页（LIMIT/OFFSET已经过严格验证）
       query += ` ORDER BY p.payment_date DESC, p.id DESC LIMIT ${numPageSize} OFFSET ${offset}`;
 
@@ -1181,6 +1246,7 @@ const apModel = {
         SELECT COUNT(*) as total
         FROM ap_payments p
         LEFT JOIN suppliers s ON p.supplier_id = s.id
+        ${scopeClause.join || ''}
         WHERE 1=1
       `;
 
@@ -1224,6 +1290,11 @@ const apModel = {
         countParams.push(filters.status);
       }
 
+      if (scopeClause.where) {
+        countQuery += scopeClause.where;
+        countParams.push(...(scopeClause.params || []));
+      }
+
       const [countResult] = await db.pool.execute(countQuery, countParams);
       const total = countResult[0].total;
 
@@ -1261,7 +1332,7 @@ const apModel = {
 
       // 1. 获取付款记录详情
       const [payments] = await connection.execute(
-        `SELECT p.*, pi.invoice_id, pi.amount as item_amount
+        `SELECT p.*, pi.invoice_id, pi.amount as item_amount, pi.discount_amount as item_discount_amount
          FROM ap_payments p
          LEFT JOIN ap_payment_items pi ON p.id = pi.payment_id
          WHERE p.id = ?
@@ -1296,11 +1367,10 @@ const apModel = {
         [voidedBy, voidData.void_reason, paymentId]
       );
 
-      // 4. 恢复关联发票的余额和状态
+      // 4. 恢复关联发票的余额和状态（核销额 = 实付 + 折扣）
       for (const item of payments) {
         if (!item.invoice_id) continue;
 
-        // 获取发票当前信息
         const [invoices] = await connection.execute(
           'SELECT id, invoice_number, supplier_invoice_number, supplier_id, invoice_date, due_date, total_amount, paid_amount, balance_amount, currency_code, exchange_rate, status, terms, notes, created_at, updated_at, source_type, source_id, created_by, updated_by FROM ap_invoices WHERE id = ? FOR UPDATE',
           [item.invoice_id]
@@ -1309,29 +1379,19 @@ const apModel = {
         if (invoices.length === 0) continue;
 
         const invoice = invoices[0];
+        const settleBackCents = parseSettlementLine({
+          amount: item.item_amount,
+          discount_amount: item.item_discount_amount,
+        }).settlementCents;
+        const paidAmountCents = Math.max(0, toCents(invoice.paid_amount) - settleBackCents);
+        const totalAmountCents = toCents(invoice.total_amount);
+        const newPaidAmount = fromCents(paidAmountCents);
+        const newBalanceAmount = fromCents(Math.max(0, totalAmountCents - paidAmountCents));
+        const newStatus = invoiceStatusAfterSettlement(paidAmountCents, totalAmountCents);
 
-        // [H-2 补链] 计算恢复后的金额 — 整数化精度控制（与 createPayment 对齐）
-        const paidAmountCents =
-          Math.round(parseFloat(invoice.paid_amount) * 100) -
-          Math.round(parseFloat(item.item_amount) * 100);
-        const totalAmountCents = Math.round(parseFloat(invoice.total_amount) * 100);
-        const newPaidAmount = Math.max(0, paidAmountCents) / 100;
-        const newBalanceAmount = (totalAmountCents - Math.max(0, paidAmountCents)) / 100;
-
-        // 确定新的状态
-        let newStatus;
-        if (newPaidAmount <= 0.001) {
-          newStatus = '已确认'; // 完全未付款
-        } else if (newBalanceAmount > 0.001) {
-          newStatus = '部分付款';
-        } else {
-          newStatus = '已付款';
-        }
-
-        // 更新发票
         await connection.execute(
           'UPDATE ap_invoices SET paid_amount = ?, balance_amount = ?, status = ? WHERE id = ?',
-          [newPaidAmount, Math.max(0, newBalanceAmount), newStatus, item.invoice_id]
+          [newPaidAmount, newBalanceAmount, newStatus, item.invoice_id]
         );
 
         logger.info(`[作废付款] 已恢复发票 ${invoice.invoice_number} 的余额: ${newBalanceAmount}`);
@@ -1349,109 +1409,72 @@ const apModel = {
             [payment.payment_number, payment.bank_account_id]
           );
 
-          if (bankTxs.length > 0) {
-            const originalTx = bankTxs[0];
-            const reversalDate = currentDateString();
-            originalBankTransactionId = originalTx.id;
-            originalBankTransactionNumber = originalTx.transaction_number;
-            reversalBankTransactionNumber = `${payment.payment_number}-VOID`;
-
-            const [bankAccounts] = await connection.execute(
-              'SELECT id FROM bank_accounts WHERE id = ? FOR UPDATE',
-              [payment.bank_account_id]
+          if (bankTxs.length === 0) {
+            throw new Error(
+              `未找到付款单 ${payment.payment_number} 对应的银行流水，无法作废（资金类付款必须有银行链路）`
             );
-            if (bankAccounts.length === 0) {
-              throw new Error('付款账户不存在，无法冲销银行交易');
-            }
-
-            // 创建冲销交易（转入，增加余额）
-            const [reversalBankTxResult] = await connection.execute(
-              `INSERT INTO bank_transactions
-               (transaction_number, bank_account_id, transaction_date, transaction_type,
-               amount, reference_number, description, is_reconciled, related_party, status)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-              [
-                reversalBankTransactionNumber,
-                payment.bank_account_id,
-                reversalDate,
-                '转入', // 冲销付款是转入（退回资金）
-                payment.total_amount,
-                payment.payment_number,
-                `冲销付款记录 - 原因: ${voidData.void_reason}`,
-                false,
-                originalTx.related_party || '',
-                'approved',
-              ]
-            );
-            reversalBankTransactionId = reversalBankTxResult.insertId;
-
-            // 更新银行账户余额（增加余额）
-            await connection.execute(
-              'UPDATE bank_accounts SET current_balance = current_balance + ?, last_transaction_date = ? WHERE id = ?',
-              [payment.total_amount, reversalDate, payment.bank_account_id]
-            );
-
-            logger.info('[作废付款] 已创建冲销银行交易并更新账户余额');
           }
+
+          const originalTx = bankTxs[0];
+          if (isTruthyFlag(originalTx.is_reconciled)) {
+            throw new Error('关联银行流水已对账，请先取消对账后再作废付款');
+          }
+
+          const reversalDate = currentDateString();
+          originalBankTransactionId = originalTx.id;
+          originalBankTransactionNumber = originalTx.transaction_number;
+          reversalBankTransactionNumber = `${payment.payment_number}-VOID`;
+
+          const [bankAccounts] = await connection.execute(
+            'SELECT id FROM bank_accounts WHERE id = ? FOR UPDATE',
+            [payment.bank_account_id]
+          );
+          if (bankAccounts.length === 0) {
+            throw new Error('付款账户不存在，无法冲销银行交易');
+          }
+
+          const [reversalBankTxResult] = await connection.execute(
+            `INSERT INTO bank_transactions
+             (transaction_number, bank_account_id, transaction_date, transaction_type,
+             amount, reference_number, description, is_reconciled, related_party, status)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              reversalBankTransactionNumber,
+              payment.bank_account_id,
+              reversalDate,
+              '转入',
+              payment.total_amount,
+              payment.payment_number,
+              `冲销付款记录 - 原因: ${voidData.void_reason}`,
+              false,
+              originalTx.related_party || '',
+              'approved',
+            ]
+          );
+          reversalBankTransactionId = reversalBankTxResult.insertId;
+
+          const BankBalanceService = require('../services/business/BankBalanceService');
+          await BankBalanceService.syncAccountBalance(connection, payment.bank_account_id);
+
+          logger.info('[作废付款] 已创建冲销银行交易并按流水重算余额');
         } catch (err) {
           logger.error(`[作废付款] 冲销银行交易失败: ${err.message}`);
           throw new Error(`冲销银行交易失败: ${err.message}`, { cause: err });
         }
       }
 
-      // 6. 冲销关联的会计凭证（付款单号作为document_number）
+      // 6. 按单据链路冲销关联总账凭证（规范 document_type = payment）
       try {
-        const [glEntries] = await connection.execute(
-          `SELECT id FROM gl_entries
-           WHERE document_number = ? AND document_type IN ('payment', 'PURCHASE_PAYMENT', '付款单') AND (is_reversed IS NULL OR is_reversed = 0)`,
-          [payment.payment_number]
-        );
-
-        if (glEntries.length > 0) {
-          for (const glEntry of glEntries) {
-            // 获取原分录明细
-            const [items] = await connection.execute(
-              'SELECT id, entry_id, line_number, account_id, debit_amount, credit_amount, description, cost_center_id, project_id, created_at, updated_at, currency_code, exchange_rate, customer_id, supplier_id, employee_id FROM gl_entry_items WHERE entry_id = ?',
-              [glEntry.id]
-            );
-
-            const reversalDocumentNumber = `${payment.payment_number}-VOID`;
-            const reversalDate = currentDateString();
-            const periodId = await getOpenPeriodIdByDate(connection, reversalDate);
-
-            const reversalEntryId = await financeModel.createEntry(
-              {
-                entry_date: reversalDate,
-                posting_date: reversalDate,
-                document_type: DOCUMENT_TYPE_MAPPING.PURCHASE_PAYMENT,
-                document_number: reversalDocumentNumber,
-                period_id: periodId,
-                description: `冲销付款凭证 - 原因: ${voidData.void_reason}`,
-                created_by: voidedBy,
-                status: 'posted',
-                is_posted: 1,
-              },
-              items.map((item) => ({
-                account_id: item.account_id,
-                debit_amount: item.credit_amount,
-                credit_amount: item.debit_amount,
-                currency_code: item.currency_code || financeConfig.get('invoice.defaultCurrency', 'CNY'),
-                exchange_rate: item.exchange_rate || 1,
-                description: `冲销: ${item.description || ''}`,
-              })),
-              connection
-            );
-
-            // 标记原凭证为已冲销
-            await connection.execute(
-              "UPDATE gl_entries SET is_reversed = 1, reversal_entry_id = ?, status = 'reversed' WHERE id = ?",
-              [reversalEntryId, glEntry.id]
-            );
-            const reversalEntryNumber = await getEntryNumberById(connection, reversalEntryId);
-            reversalEntries.push({ entryId: reversalEntryId, entryNumber: reversalEntryNumber });
-
-            logger.info(`[作废付款] 已冲销GL凭证 ID=${glEntry.id}, 冲销凭证 ID=${reversalEntryId}`);
-          }
+        const reversed = await VoucherReversalService.reverseBusinessVouchers(connection, {
+          sourceType: 'ap_payment',
+          sourceId: paymentId,
+          documentNumber: payment.payment_number,
+          documentType: DOCUMENT_TYPES.PAYMENT,
+          voidedBy,
+          reason: `冲销付款凭证 - 原因: ${voidData.void_reason}`,
+        });
+        for (const item of reversed) {
+          reversalEntries.push({ entryId: item.entryId, entryNumber: item.entryNumber });
         }
       } catch (err) {
         logger.error(`[作废付款] 冲销GL凭证失败: ${err.message}`);

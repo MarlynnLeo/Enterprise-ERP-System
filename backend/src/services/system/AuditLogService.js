@@ -1,12 +1,35 @@
-/**
- * AuditLogService.js
- * @description 自动拦截器使用的审计日志写入服务
- * ✅ 重构: 统一写入 audit_logs 表，与 AuditService 使用同一张表
- * 消除 sys_audit_logs / audit_logs 双表冗余
- */
-
+const fs = require('fs');
+const path = require('path');
 const db = require('../../config/db');
 const { logger } = require('../../utils/logger');
+
+const AUDIT_FAILURE_LOG = path.resolve(
+  process.env.AUDIT_FAILURE_LOG || path.join(process.cwd(), 'logs', 'audit-failures.ndjson')
+);
+
+async function writeAuditFailure(params, error) {
+  try {
+    await fs.promises.mkdir(path.dirname(AUDIT_FAILURE_LOG), { recursive: true });
+    await fs.promises.appendFile(
+      AUDIT_FAILURE_LOG,
+      `${JSON.stringify({
+        failed_at: new Date().toISOString(),
+        error: error?.message || String(error),
+        request_id: params?.request_id || params?.requestId || null,
+        operator_id: params?.operator_id || null,
+        action: params?.action || null,
+        module: params?.module || null,
+        method: params?.method || null,
+        path: params?.path || null,
+        target_table: params?.target_table || params?.entity_type || null,
+        target_id: params?.target_id || params?.entity_id || null,
+      })}\n`,
+      'utf8'
+    );
+  } catch (fallbackError) {
+    logger.error('Audit fallback write failed:', fallbackError);
+  }
+}
 
 class AuditLogService {
   static diffObjects(oldValue = {}, newValue = {}) {
@@ -26,20 +49,6 @@ class AuditLogService {
     return diff;
   }
 
-  /**
-   * 记录审计日志（统一写入 audit_logs 表）
-   * @param {Object} params
-   * @param {string} params.operator_id - 操作员ID
-   * @param {string} params.operator_name - 操作员名称
-   * @param {string} params.action - 操作类型 (CREATE/UPDATE/DELETE)
-   * @param {string} params.module - 模块名称
-   * @param {string} params.target_table - 修改的底层表名
-   * @param {string} params.target_id - 修改的主键ID
-   * @param {Object} params.new_payload - 新修改的数据JSON
-   * @param {string} params.ip_address - 操作IP
-   * @param {string} params.user_agent - 终端浏览器信息
-   * @param {string} params.remarks - 重要说明
-   */
   static async log(params, connection = null) {
     try {
       const conn = connection || (await db.pool.getConnection());
@@ -106,10 +115,11 @@ class AuditLogService {
         if (!connection) conn.release();
       }
     } catch (err) {
-      // 审计日志报错绝不能阻断业务流程！记录最底层日志告警。
-      logger.error('💥 [审计日志埋点失败] AuditLogService.log 严重异常:', err);
+      logger.error('AuditLogService.log failed:', err);
+      await writeAuditFailure(params, err);
     }
   }
 }
 
 module.exports = AuditLogService;
+module.exports.writeAuditFailure = writeAuditFailure;

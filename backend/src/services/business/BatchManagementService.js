@@ -53,7 +53,7 @@ class BatchManagementService {
         created_by,
       } = batchData;
 
-      // 写入 inventory_ledger 台账
+      // 写入 inventory_ledger 台账（可跳过：仅登记追溯关系时）
       // 优先使用业务上下文判断交易类型，避免依赖单号前缀造成 RCV/GR 等编码规则差异断链。
       const refNo = reference_no || referenceNo || receipt_no || `BATCH-${batch_number}`;
       const refType = reference_type || referenceType || 'batch_create';
@@ -64,34 +64,46 @@ class BatchManagementService {
         txType = 'production_inbound';
       }
 
-      await InventoryService.updateStock(
-        {
-          materialId: material_id,
-          locationId: warehouse_id,
-          quantity: original_quantity,
-          transactionType: txType,
-          referenceNo: refNo,
-          referenceType: refType,
-          operator: created_by || 'system',
-          remark: `批次入库: ${batch_number}`,
-          unitId: unit ? await this._getUnitId(connection, unit) : null,
-          batchNumber: batch_number,
-          supplierId: supplier_id,
-          supplierName: supplier_name,
-          productionDate: production_date,
-          expiryDate: expiry_date,
-          warehouseName: warehouse_name,
-          unitCost: unit_cost, // ✅ 新增：透传单价供成本核算
-          purchaseOrderId: purchase_order_id, // ✅ 原生批次追踪属性透传
-          purchaseOrderNo: purchase_order_no,
-          receiptId: receipt_id,
-          receiptNo: receipt_no,
-          transactionDate: transaction_date || transactionDate || receipt_date,
-        },
-        connection
-      );
+      const skipStockPost =
+        batchData.skipStockPost === true ||
+        batchData.post_stock === false ||
+        batchData.postStock === false;
 
-      logger.info(`✅ 批次创建成功(单表架构): ${batch_number}, 数量: ${original_quantity}`);
+      if (!skipStockPost) {
+        // 正式入库路径才记账；追溯登记可 skip，避免与生产入库单双入账
+        await InventoryService.updateStock(
+          {
+            materialId: material_id,
+            locationId: warehouse_id,
+            quantity: original_quantity,
+            transactionType: txType,
+            referenceNo: refNo,
+            referenceType: refType,
+            operator: created_by || 'system',
+            remark: `批次入库: ${batch_number}`,
+            unitId: unit ? await this._getUnitId(connection, unit) : null,
+            batchNumber: batch_number,
+            supplierId: supplier_id,
+            supplierName: supplier_name,
+            productionDate: production_date,
+            expiryDate: expiry_date,
+            warehouseName: warehouse_name,
+            unitCost: unit_cost,
+            purchaseOrderId: purchase_order_id,
+            purchaseOrderNo: purchase_order_no,
+            receiptId: receipt_id,
+            receiptNo: receipt_no,
+            transactionDate: transaction_date || transactionDate || receipt_date,
+            idempotencyKey:
+              batchData.idempotencyKey ||
+              batchData.idempotency_key ||
+              `${txType}:${refNo}:${material_id}:${batch_number}`,
+          },
+          connection
+        );
+      }
+
+      logger.info(`Batch created: batchNumber=${batch_number}, originalQuantity=${original_quantity}`);
 
       if (!isExternalTransaction) {
         await connection.commit();

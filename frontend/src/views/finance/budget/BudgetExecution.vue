@@ -1,14 +1,7 @@
 ﻿<template>
   <div class="module-page app-container">
     <!-- 头部区域 -->
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>预算执行</h2>
-          <p class="subtitle">预算执行进度与差异分析</p>
-        </div>
-      </div>
-    </el-card>
+    <PageHeader title="预算执行" subtitle="预算执行进度与差异分析" />
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
@@ -99,7 +92,7 @@
             <span>执行明细表</span>
           </div>
         </template>
-        <el-table :data="analysisData.details" border style="width: 100%" stripe>
+        <el-table :data="analysisData.details" border class="w-full" stripe>
           <el-table-column prop="account_code" label="科目编码" width="120" sortable />
           <el-table-column prop="account_name" label="预算科目" min-width="150" />
           <el-table-column prop="budget_amount" label="预算金额" width="150">

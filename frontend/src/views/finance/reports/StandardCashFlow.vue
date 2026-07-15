@@ -8,19 +8,13 @@
 -->
 <template>
   <div class="module-page report-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>现金流量表(直接法)</h2>
-          <p class="subtitle">间接法 · 符合企业会计准则</p>
-        </div>
-        <div class="header-actions">
-          <el-button type="primary" @click="generateReport" v-permission="'finance:reports:standard-cash-flow:view'">生成报表</el-button>
+    <PageHeader title="现金流量表(直接法)" subtitle="间接法 · 符合企业会计准则">
+      <template #actions>
+<el-button type="primary" @click="generateReport" v-permission="'finance:reports:standard-cash-flow:view'">生成报表</el-button>
           <el-button v-permission="'finance:reports:standard-cash-flow:view'" @click="printReport" :disabled="!reportData.items?.length">打印报表</el-button>
           <el-button v-permission="'finance:reports:standard-cash-flow:view'" @click="exportExcel" :disabled="!reportData.items?.length">导出Excel</el-button>
-        </div>
-      </div>
-    </el-card>
+      </template>
+    </PageHeader>
 
     <!-- 查询条件区域 -->
     <FinanceQueryCard

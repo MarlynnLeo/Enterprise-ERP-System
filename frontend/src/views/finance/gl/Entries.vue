@@ -8,21 +8,17 @@
 -->
 <template>
   <div class="module-page entries-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>{{ pageTitle }}</h2>
-          <p class="subtitle">管理会计凭证与分录</p>
-        </div>
-        <el-button
+    <PageHeader :title="pageTitle" subtitle="管理会计凭证与分录">
+      <template #actions>
+<el-button
           type="primary"
           :icon="Plus"
           @click="createEntry"
           v-permission="'finance:entries:create'">
           新增凭证
         </el-button>
-      </div>
-    </el-card>
+      </template>
+    </PageHeader>
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
@@ -105,7 +101,7 @@
     <el-card class="data-card">
       <el-table
         :data="entriesList"
-        style="width: 100%"
+        class="w-full"
         row-key="id"
         border
         v-loading="loading"
@@ -118,20 +114,20 @@
                 <h4>凭证明细</h4>
                 <span class="expanded-row-description">{{ props.row.description }}</span>
               </div>
-              <el-table :data="props.row.items || []" border style="width: 100%;" class="inner-table">
+              <el-table :data="props.row.items || []" border class="w-full inner-table">
                 <el-table-column prop="accountCode" label="科目编码" width="120"></el-table-column>
                 <el-table-column prop="accountName" label="科目名称" width="180"></el-table-column>
                 <el-table-column prop="debitAmount" label="借方金额" width="150">
                   <template #default="scope">
-                    <span style="color: var(--color-success);" v-if="scope.row.debitAmount > 0">{{ scope.row.debitAmount.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' }) }}</span>
-                    <span style="color: var(--color-danger);" v-else-if="scope.row.debitAmount < 0">{{ scope.row.debitAmount.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' }) }}</span>
+                    <span class="text-success" v-if="scope.row.debitAmount > 0">{{ scope.row.debitAmount.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' }) }}</span>
+                    <span class="text-danger" v-else-if="scope.row.debitAmount < 0">{{ scope.row.debitAmount.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' }) }}</span>
                     <span v-else>-</span>
                   </template>
                 </el-table-column>
                 <el-table-column prop="creditAmount" label="贷方金额" width="150">
                   <template #default="scope">
-                    <span style="color: var(--color-danger);" v-if="scope.row.creditAmount > 0">{{ scope.row.creditAmount.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' }) }}</span>
-                    <span style="color: var(--color-success);" v-else-if="scope.row.creditAmount < 0">{{ scope.row.creditAmount.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' }) }}</span>
+                    <span class="text-danger" v-if="scope.row.creditAmount > 0">{{ scope.row.creditAmount.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' }) }}</span>
+                    <span class="text-success" v-else-if="scope.row.creditAmount < 0">{{ scope.row.creditAmount.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' }) }}</span>
                     <span v-else>-</span>
                   </template>
                 </el-table-column>
@@ -192,7 +188,7 @@
           <template #default="scope">
             <div class="operation-buttons">
               <!-- 查看按钮：始终显示 -->
-              <el-button
+              <el-button class="btn-op-view"
                 type="primary"
                 size="small"
                 @click="viewEntry(scope.row)"
@@ -247,10 +243,11 @@
     </el-card>
 
     <!-- 查看凭证明细对话框 -->
-    <el-dialog
-      title="凭证明细"
+    <AppDialog
       v-model="detailDialogVisible"
-      width="900px"
+      title="凭证明细"
+      mode="view"
+      content-width="wide"
     >
       <template #header>
         <div class="dialog-header">
@@ -285,20 +282,20 @@
         <span class="value">{{ currentEntry.description }}</span>
       </div>
 
-      <el-table :data="currentEntryItems" border style="width: 100%; margin-top: 20px;">
+      <el-table :data="currentEntryItems" border class="w-full mt-md">
         <el-table-column prop="accountCode" label="科目编码" width="120"></el-table-column>
         <el-table-column prop="accountName" label="科目名称" width="180"></el-table-column>
         <el-table-column prop="debitAmount" label="借方金额" width="150">
           <template #default="scope">
-            <span style="color: var(--color-success);" v-if="scope.row.debitAmount > 0">{{ scope.row.debitAmount.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' }) }}</span>
-            <span style="color: var(--color-danger);" v-else-if="scope.row.debitAmount < 0">{{ scope.row.debitAmount.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' }) }}</span>
+            <span class="text-success" v-if="scope.row.debitAmount > 0">{{ scope.row.debitAmount.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' }) }}</span>
+            <span class="text-danger" v-else-if="scope.row.debitAmount < 0">{{ scope.row.debitAmount.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' }) }}</span>
             <span v-else>-</span>
           </template>
         </el-table-column>
         <el-table-column prop="creditAmount" label="贷方金额" width="150">
           <template #default="scope">
-            <span style="color: var(--color-danger);" v-if="scope.row.creditAmount > 0">{{ scope.row.creditAmount.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' }) }}</span>
-            <span style="color: var(--color-success);" v-else-if="scope.row.creditAmount < 0">{{ scope.row.creditAmount.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' }) }}</span>
+            <span class="text-danger" v-if="scope.row.creditAmount > 0">{{ scope.row.creditAmount.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' }) }}</span>
+            <span class="text-success" v-else-if="scope.row.creditAmount < 0">{{ scope.row.creditAmount.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' }) }}</span>
             <span v-else>-</span>
           </template>
         </el-table-column>
@@ -316,7 +313,7 @@
         </div>
       </div>
       </div>
-    </el-dialog>
+    </AppDialog>
 
     <!-- 冲销凭证对话框 -->
     <el-dialog
@@ -339,7 +336,7 @@
             type="date"
             value-format="YYYY-MM-DD"
             placeholder="选择冲销日期"
-            style="width: 100%;"
+            class="w-full"
             @change="handleReversalDateChange"
           />
         </el-form-item>
@@ -349,7 +346,7 @@
             type="date"
             value-format="YYYY-MM-DD"
             placeholder="选择过账日期"
-            style="width: 100%;"
+            class="w-full"
             @change="handleReversalPostingDateChange"
           />
         </el-form-item>
@@ -357,7 +354,7 @@
           <el-select
             v-model="reversalForm.period_id"
             placeholder="选择会计期间"
-            style="width: 100%;"
+            class="w-full"
             @change="handleReversalPeriodChange"
           >
             <el-option

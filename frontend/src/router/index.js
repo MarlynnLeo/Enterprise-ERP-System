@@ -10,6 +10,7 @@ import { useAuthStore } from '../stores/auth'
 import { useThemeStore } from '../stores/theme'
 import { ElMessage } from 'element-plus'
 import { runWhenIdle } from '@/utils/performanceMode'
+import i18n from '../locales'
 
 // 导入路由模块
 import basedataRoute from './modules/basedata'
@@ -98,7 +99,9 @@ const router = createRouter({
           component: () => import('../views/workflow/WorkflowApprovalCenter.vue'),
           meta: {
             requiresAuth: true,
-            title: '我的审批'
+            title: '我的审批',
+            // 与后端 system:workflow:use 对齐
+            permission: 'system:workflow:use'
           }
         },
         systemRoute,
@@ -141,18 +144,30 @@ router.beforeEach(async (to) => {
 
   // 设置页面标题
   if (to.meta.title) {
-    document.title = `${to.meta.title} - ERP系统`
+    // i18n 就绪时用 meta.titleKey，否则回退中文 title
+    const t = i18n?.global?.t
+    const titleKey = to.meta.titleKey
+    const pageTitle =
+      (titleKey && t ? t(titleKey) : null) || to.meta.title || 'ERP'
+    document.title = `${pageTitle} - ERP`
   } else {
-    document.title = 'ERP系统'
+    document.title = 'ERP'
   }
 
-  // 检查用户是否登录。PC 端认证令牌在 HttpOnly Cookie 中，刷新页面或新标签页
-  // 没有本地 user 缓存时，先向后端探测一次会话。
-  if (to.meta.requiresAuth && !authStore.isAuthenticated) {
-    try {
-      await authStore.fetchUserProfile()
-    } catch {
-      return '/login'
+  // 检查用户是否登录。PC 端认证令牌在 HttpOnly Cookie 中。
+  // 冷启动即使本地有 user 缓存，也定期/首次向后端探测会话，避免 Cookie 失效仍显示已登录。
+  if (to.meta.requiresAuth) {
+    const needSessionProbe =
+      !authStore.isAuthenticated ||
+      !authStore.user ||
+      !authStore.sessionProbed
+
+    if (needSessionProbe) {
+      try {
+        await authStore.fetchUserProfile()
+      } catch {
+        return '/login'
+      }
     }
 
     if (!authStore.isAuthenticated) {

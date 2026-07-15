@@ -35,6 +35,7 @@ afterAll(async () => {
     const sequelizePath = require.resolve('../src/config/sequelize');
     if (require.cache[sequelizePath]) {
       const sequelize = require('../src/config/sequelize');
+      sequelize.stopInitialization?.();
       await withCleanupTimeout(() => sequelize.close());
     }
   } catch {

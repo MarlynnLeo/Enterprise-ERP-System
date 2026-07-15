@@ -1,5 +1,5 @@
 <template>
-  <div class="budget-detail-container">
+  <div class="module-page budget-detail-container">
     <el-card v-loading="loading">
       <template #header>
         <div class="card-header">

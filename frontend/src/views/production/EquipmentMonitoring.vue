@@ -9,17 +9,13 @@
 <template>
   <div class="module-page equipment-monitoring-container">
     <!-- 页面标题 -->
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>设备监控</h2>
-          <p class="subtitle">实时监控生产设备运行状态</p>
-        </div>
+    <PageHeader title="设备监控" subtitle="实时监控生产设备运行状态">
+      <template #actions>
         <el-button @click="refreshData" :loading="loading">
           <el-icon><Refresh /></el-icon> 刷新
         </el-button>
-      </div>
-    </el-card>
+      </template>
+    </PageHeader>
 
     <!-- 统计卡片 -->
     <el-row :gutter="20" class="stats-cards statistics-row">
@@ -128,7 +124,7 @@
         stripe
         border
         @row-click="handleRowClick"
-        style="cursor: pointer;"
+        class="cursor-pointer"
       >
         <el-table-column prop="equipment_code" label="设备编码" width="120" />
         <el-table-column prop="equipment_name" label="设备名称" min-width="150" />
@@ -156,7 +152,7 @@
         </el-table-column>
         <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
-            <el-button size="small" @click.stop="viewDetail(row)">
+            <el-button class="btn-op-view" type="primary" size="small" @click.stop="viewDetail(row)">
               详情
             </el-button>
             <el-button size="small" @click.stop="viewRealTimeData(row)">
@@ -195,18 +191,18 @@
     </el-card>
 
     <!-- 设备详情对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="detailDialogVisible"
       title="设备详情"
-      width="80%"
-      :before-close="handleDetailClose"
+      mode="view"
+      content-width="wide"
     >
       <EquipmentDetail
         v-if="selectedEquipment"
         :equipment-id="selectedEquipment.id"
         @close="detailDialogVisible = false"
       />
-    </el-dialog>
+    </AppDialog>
 
     <!-- 实时数据对话框 -->
     <el-dialog
@@ -347,11 +343,6 @@ const viewDetail = (equipment) => {
 const viewRealTimeData = (equipment) => {
   selectedEquipment.value = equipment
   realTimeDialogVisible.value = true
-}
-
-const handleDetailClose = () => {
-  detailDialogVisible.value = false
-  selectedEquipment.value = null
 }
 
 const handleRealTimeClose = () => {

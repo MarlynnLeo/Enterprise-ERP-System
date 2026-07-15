@@ -83,7 +83,7 @@ export const useDictionaryStore = defineStore('dictionary', {
           return;
         }
 
-        const response = await apiToUse.getBusinessTypes({ status: 1 });
+        const response = await apiToUse.getBusinessTypeDictionary();
         if (response.data) {
           // 处理后端分页包裹或者直接数组的格式
           const allTypes = Array.isArray(response.data) ? response.data : (response.data.list || []);

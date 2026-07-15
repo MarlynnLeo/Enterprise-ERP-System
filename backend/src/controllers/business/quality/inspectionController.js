@@ -35,7 +35,13 @@ async function _getInspectionsByType(type, req, res, extraFilters = {}) {
             keyword, status, startDate, endDate,
         } = req.query;
 
-        const filters = { keyword, status, startDate, endDate, ...extraFilters };
+        const ScopeGuard = require('../../../authorization/ScopeGuard');
+        const scopeClause = await ScopeGuard.applyListScope(req, 'quality_inspection', {
+            tableAlias: 'qi',
+            ownerAlias: 'quality_inspection_owner_scope',
+        });
+
+        const filters = { keyword, status, startDate, endDate, scopeClause, ...extraFilters };
 
         const pagination = parsePagination(page, req.query.limit ?? req.query.pageSize, {
             defaultPageSize: 20,
@@ -131,6 +137,11 @@ const inspectionController = {
             const { id } = req.params;
             const { include_supplier, include_reference, with_details } = req.query;
 
+            const ScopeGuard = require('../../../authorization/ScopeGuard');
+            if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'quality_inspection', id, '无权访问该检验单'))) {
+                return;
+            }
+
             const options = {
                 include_supplier: include_supplier === 'true',
                 include_reference: include_reference === 'true',
@@ -178,6 +189,13 @@ const inspectionController = {
 
             connection = await db.pool.getConnection();
             await connection.beginTransaction();
+
+            // owner 闭环：无 inspector_id 时强制当前登录用户
+            if (!inspection.inspector_id) {
+                const ScopeGuard = require('../../../authorization/ScopeGuard');
+                const stamp = ScopeGuard.tryStampOwner(req, 'quality_inspection');
+                inspection.inspector_id = stamp.inspector_id;
+            }
 
             const result = await QualityInspection.createInspection(inspection, connection);
 

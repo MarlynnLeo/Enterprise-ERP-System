@@ -5,7 +5,7 @@
  */
 -->
 <template>
-  <el-dialog v-model="dialogVisible" title="首检详情" width="700px" destroy-on-close>
+  <AppDialog v-model="dialogVisible" title="首检详情" mode="view">
     <el-descriptions :column="2" border>
       <el-descriptions-item label="检验单号">{{ inspection?.inspection_no }}</el-descriptions-item>
       <el-descriptions-item label="生产任务号">{{ inspection?.task_code }}</el-descriptions-item>
@@ -37,7 +37,7 @@
     </el-descriptions>
 
     <!-- 检验项目明细 -->
-    <div v-if="inspectionItems.length > 0" style="margin-top: 20px;">
+    <div v-if="inspectionItems.length > 0" class="mt-20">
       <el-divider content-position="left">检验项目明细</el-divider>
       <el-table :data="inspectionItems" border size="small">
         <el-table-column prop="item_name" label="检验项目" />
@@ -57,7 +57,7 @@
     <template #footer>
       <el-button @click="dialogVisible = false">关闭</el-button>
     </template>
-  </el-dialog>
+  </AppDialog>
 </template>
 
 <script setup>

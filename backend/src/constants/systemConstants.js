@@ -52,10 +52,10 @@ const getWarehouseTypeText = (type) => {
 // 兼容入口：标准业务类型以数据库 business_types 表为准，新代码优先使用 BusinessTypeService。
 const INVENTORY_TRANSACTION_TYPES = {
   // 基础类型
-  inbound: '生产入库',
-  outbound: '生产出库',
-  in: '生产入库',
-  out: '生产出库',
+  inbound: '其他入库',
+  outbound: '其他出库',
+  in: '入库',
+  out: '出库',
 
   // 调拨类型
   transfer: '调拨',
@@ -84,7 +84,10 @@ const INVENTORY_TRANSACTION_TYPES = {
   adjustment: '库存调整',
   adjustment_in: '调整入库',
   adjustment_out: '调整出库',
+  inbound_cancel: '撤销入库',
   outbound_cancel: '撤销出库',
+  transfer_cancel_in: '撤销调拨入库',
+  transfer_cancel_out: '撤销调拨出库',
   initial_import: '初始导入',
   manual_adjustment: '手动调整',
   manual_in: '手工入库',
@@ -106,6 +109,7 @@ const INVENTORY_TRANSACTION_GROUPS = {
     'outsourced_inbound',
     'outsourced_return',
     'outbound_cancel',
+    'transfer_cancel_out',
   ],
   // 减少库存的类型
   DECREASE: [
@@ -116,9 +120,11 @@ const INVENTORY_TRANSACTION_GROUPS = {
     'outsourced_outbound',
     'sale',
     'sales_outbound',
+    'inbound_cancel',
+    'transfer_cancel_in',
   ],
   // 调拨相关类型
-  TRANSFER: ['transfer', 'transfer_in', 'transfer_out'],
+  TRANSFER: ['transfer', 'transfer_in', 'transfer_out', 'transfer_cancel_in', 'transfer_cancel_out'],
   // 调整类型
   ADJUSTMENT: ['check', 'adjust', 'adjustment', 'correction'],
 };
@@ -135,25 +141,30 @@ const INBOUND_TYPES = {
 };
 
 // ==================== 调拨单状态映射 ====================
+// 与 statusRegistry.INVENTORY_TRANSFER_TRANSITIONS 对齐（权威 SSOT）
 const TRANSFER_STATUS = {
   draft: '草稿',
   pending: '待审核',
   approved: '已审核',
-  in_transit: '运输中',
   completed: '已完成',
+  reversed: '已冲销',
   cancelled: '已取消',
+  // 遗留标签（历史数据/旧前端）
+  in_transit: '运输中',
   rejected: '已拒绝',
 };
 
-// 调拨单状态流转规则
+// 调拨单状态流转规则（与 inventoryTransferController / statusRegistry 一致）
 const TRANSFER_STATUS_FLOW = {
   draft: ['pending', 'cancelled'],
-  pending: ['approved', 'rejected', 'cancelled'],
-  approved: ['in_transit', 'cancelled'],
-  in_transit: ['completed', 'cancelled'],
-  completed: [], // 终态
-  cancelled: [], // 终态
-  rejected: ['draft'], // 可以重新提交
+  pending: ['approved', 'cancelled'],
+  approved: ['completed', 'cancelled'],
+  completed: ['reversed'],
+  reversed: [],
+  cancelled: [],
+  // 兼容历史 in_transit / rejected
+  in_transit: ['completed', 'cancelled', 'reversed'],
+  rejected: ['draft', 'cancelled'],
 };
 
 // ==================== 订单状态映射 ====================
@@ -293,18 +304,31 @@ const PRODUCTION_PLAN_STATUS_FLOW = {
 
 // 生产任务状态流转规则
 const PRODUCTION_TASK_STATUS_FLOW = {
-  pending: ['allocated', 'material_issuing', 'cancelled'], // 待处理 → 分配中 | 发料中 | 已取消
-  allocated: ['material_issuing', 'cancelled'], // 分配中 → 发料中 | 已取消
-  material_issuing: ['preparing', 'material_issued', 'cancelled'], // 发料中 → 配料中 | 已发料 | 已取消
-  preparing: ['material_issued', 'material_partial_issued', 'in_progress', 'cancelled'], // 配料中 → 已发料 | 部分发料 | 生产中 | 已取消
-  material_issued: ['in_progress', 'cancelled'], // 已发料 → 生产中 | 已取消
-  material_partial_issued: ['in_progress', 'cancelled'], // 部分发料 → 生产中 | 已取消
-  in_progress: ['inspection', 'paused', 'cancelled'], // 生产中 → 待检验 | 已暂停 | 已取消
-  paused: ['in_progress', 'cancelled'], // 已暂停 → 恢复生产 | 已取消
-  inspection: ['in_progress', 'warehousing', 'cancelled'], // 待检验 → 检验中(in_progress) | 入库中 | 已取消
-  warehousing: ['completed'], // 入库中 → 已完成
-  completed: [], // 已完成（终态）
-  cancelled: [], // 已取消（终态）
+  pending: [
+    'allocated',
+    'preparing',
+    'material_issuing',
+    'material_partial_issued',
+    'material_issued',
+    'cancelled',
+  ],
+  allocated: [
+    'preparing',
+    'material_issuing',
+    'material_partial_issued',
+    'material_issued',
+    'cancelled',
+  ],
+  preparing: ['material_issuing', 'material_partial_issued', 'material_issued', 'cancelled'],
+  material_issuing: ['material_partial_issued', 'material_issued', 'preparing', 'cancelled'],
+  material_issued: ['in_progress', 'preparing', 'cancelled'], // preparing: 撤销发料回退
+  material_partial_issued: ['material_issuing', 'material_issued', 'in_progress', 'cancelled'],
+  in_progress: ['inspection', 'paused', 'cancelled'],
+  paused: ['in_progress', 'cancelled'],
+  inspection: ['warehousing', 'completed', 'in_progress', 'cancelled'],
+  warehousing: ['completed', 'cancelled'],
+  completed: [],
+  cancelled: [],
 };
 
 // 生产工序状态流转规则

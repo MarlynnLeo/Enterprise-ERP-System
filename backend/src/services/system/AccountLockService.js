@@ -9,9 +9,13 @@
 
 const { logger } = require('../../utils/logger');
 const { getRedisClient } = require('../../config/redisClient');
+const { PASSWORD_POLICY } = require('../../config/security');
 
-// 配置
-const MAX_FAILED_ATTEMPTS = parseInt(process.env.LOGIN_MAX_FAILED_ATTEMPTS) || 10;
+// 配置：与 security.PASSWORD_POLICY.maxAttempts 对齐（可用环境变量覆盖）
+const MAX_FAILED_ATTEMPTS =
+  parseInt(process.env.LOGIN_MAX_FAILED_ATTEMPTS, 10) ||
+  Number(PASSWORD_POLICY?.maxAttempts) ||
+  5;
 const LOCK_DURATION_MINUTES = parseInt(process.env.LOGIN_LOCK_DURATION_MINUTES) || 15;
 const LOCK_DURATION_MS = LOCK_DURATION_MINUTES * 60 * 1000;
 const LOCK_DURATION_SECONDS = LOCK_DURATION_MINUTES * 60;
@@ -124,7 +128,7 @@ class AccountLockService {
           // 设置 Redis TTL = 锁定时间 + 5分钟缓冲
           await client.setEx(key, LOCK_DURATION_SECONDS + 300, JSON.stringify(record));
 
-          logger.warn(`🔒 [账号锁定] 用户 ${username} 连续 ${record.failedCount} 次登录失败，已锁定 ${LOCK_DURATION_MINUTES} 分钟`, {
+          logger.warn(`Account locked after repeated login failures: username=${username}, failedCount=${record.failedCount}, lockMinutes=${LOCK_DURATION_MINUTES}`, {
             username, ip, failedCount: record.failedCount,
             lockedUntil: new Date(record.lockedUntil).toISOString(),
           });
@@ -136,7 +140,7 @@ class AccountLockService {
         await client.setEx(key, 1800, JSON.stringify(record));
 
         const remainingAttempts = MAX_FAILED_ATTEMPTS - record.failedCount;
-        logger.info(`⚠️ [登录失败] 用户 ${username} 第 ${record.failedCount} 次失败，剩余 ${remainingAttempts} 次机会`, {
+        logger.info(`Login failure recorded: username=${username}, failedCount=${record.failedCount}, remainingAttempts=${remainingAttempts}`, {
           username, ip,
         });
 
@@ -155,7 +159,7 @@ class AccountLockService {
     if (record.failedCount >= MAX_FAILED_ATTEMPTS) {
       record.lockedUntil = Date.now() + LOCK_DURATION_MS;
       memoryStore.set(username, record);
-      logger.warn(`🔒 [账号锁定] 用户 ${username} 连续 ${record.failedCount} 次登录失败（内存模式）`);
+      logger.warn(`Account locked after repeated login failures in memory mode: username=${username}, failedCount=${record.failedCount}`);
       return { locked: true, remainingAttempts: 0, lockDurationMinutes: LOCK_DURATION_MINUTES };
     }
 

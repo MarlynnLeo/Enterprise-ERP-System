@@ -272,6 +272,7 @@ const getManualTransaction = async (req, res) => {
         mt.material_id,
         mt.location_id,
         mt.quantity,
+        mt.unit_cost,
         m.code as material_code,
         m.name as material_name,
         m.specs as specification,
@@ -319,19 +320,17 @@ const createManualTransaction = async (req, res) => {
       return ResponseHandler.error(res, message, code, status);
     };
 
-    logger.info('=== 收到创建手工出入库请求 ===');
-    logger.info('req.body:', JSON.stringify(req.body, null, 2));
-    logger.info('req.user:', req.user);
-
     const { transaction_type: businessTypeCode, transaction_date, remark, items } = req.body;
 
     const operator = await getCurrentUserName(req);
+    const createdBy = Number.parseInt(req.user?.id, 10) || null;
 
-    logger.info('解析后的字段:', {
+    logger.debug('Manual inventory transaction payload normalized', {
       businessTypeCode,
-      transaction_date,
-      remark,
-      items,
+      transactionDate: transaction_date,
+      hasRemark: Boolean(remark),
+      itemCount: Array.isArray(items) ? items.length : 0,
+      userId: req.user?.id,
       operator,
     });
 
@@ -427,6 +426,10 @@ const createManualTransaction = async (req, res) => {
         logger.error(`第${i + 1}条明细仓库不存在:`, item);
         return failValidation(`第${i + 1}条明细仓库不存在`);
       }
+      const unitCost = Number(item.unit_cost ?? item.unitCost);
+      if (transaction_type === 'in' && (!Number.isFinite(unitCost) || unitCost <= 0)) {
+        return failValidation(`第${i + 1}条入库明细必须填写大于0的单位成本`);
+      }
     }
 
     // 生成单据编号 — 使用统一编码引擎
@@ -440,6 +443,9 @@ const createManualTransaction = async (req, res) => {
       const material_id = Number(item.material_id);
       const location_id = Number(item.location_id);
       const quantity = Number(item.quantity);
+      const unitCost = transaction_type === 'in'
+        ? Number(item.unit_cost ?? item.unitCost)
+        : null;
 
       // 从批量预取结果获取物料信息
 
@@ -447,8 +453,8 @@ const createManualTransaction = async (req, res) => {
       // 插入手工出入库记录 - 默认状态为待审批
       await connection.execute(
         `INSERT INTO manual_transactions
-          (transaction_no, transaction_type, business_type_code, transaction_date, material_id, location_id, quantity, remark, operator, approval_status, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', NOW(), NOW())`,
+          (transaction_no, transaction_type, business_type_code, transaction_date, material_id, location_id, quantity, unit_cost, remark, operator, created_by, approval_status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', NOW(), NOW())`,
         [
           transaction_no,
           transaction_type,
@@ -457,8 +463,10 @@ const createManualTransaction = async (req, res) => {
           material_id,
           location_id,
           quantity,
+          unitCost,
           remark,
           operator,
+          createdBy,
         ]
       );
 
@@ -488,7 +496,7 @@ const createManualTransaction = async (req, res) => {
  */
 
 const createManualTransactionInternal = async (connection, params) => {
-  const { businessTypeCode, transaction_date, remark, items, operator } = params;
+  const { businessTypeCode, transaction_date, remark, items, operator, createdBy = null } = params;
 
   logger.info('=== 内部创建手工出入库 ===');
   logger.info('参数:', { businessTypeCode, transaction_date, remark, items, operator });
@@ -562,6 +570,10 @@ const createManualTransactionInternal = async (connection, params) => {
     if (!validLocationIds.has(locationId)) {
       throw new Error(`第${i + 1}条明细仓库不存在`);
     }
+    const unitCost = Number(item.unit_cost ?? item.unitCost);
+    if (transaction_type === 'in' && (!Number.isFinite(unitCost) || unitCost <= 0)) {
+      throw new Error(`第${i + 1}条入库明细必须填写大于0的单位成本`);
+    }
   }
 
   // 生成单据编号 — 使用统一编码引擎
@@ -579,6 +591,9 @@ const createManualTransactionInternal = async (connection, params) => {
     const material_id = Number(item.material_id);
     const location_id = Number(item.location_id);
     const quantity = Number(item.quantity);
+    const unitCost = transaction_type === 'in'
+      ? Number(item.unit_cost ?? item.unitCost)
+      : null;
 
     // 从批量预取结果获取物料信息
     const matInfo = approvalMaterialInfoMap.get(material_id);
@@ -589,8 +604,8 @@ const createManualTransactionInternal = async (connection, params) => {
     // 插入手工出入库记录 - 默认状态为待审批
     await connection.execute(
       `INSERT INTO manual_transactions
-        (transaction_no, transaction_type, business_type_code, transaction_date, material_id, location_id, quantity, remark, operator, approval_status, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', NOW(), NOW())`,
+        (transaction_no, transaction_type, business_type_code, transaction_date, material_id, location_id, quantity, unit_cost, remark, operator, created_by, approval_status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', NOW(), NOW())`,
       [
         transaction_no,
         transaction_type,
@@ -599,8 +614,10 @@ const createManualTransactionInternal = async (connection, params) => {
         material_id,
         location_id,
         quantity,
+        unitCost,
         remark,
         operator,
+        createdBy,
       ]
     );
   }
@@ -623,6 +640,7 @@ const createExchange = async (req, res) => {
       return_material_id,
       return_location_id,
       return_quantity,
+      return_unit_cost,
       issue_material_id,
       issue_location_id,
       issue_quantity,
@@ -638,6 +656,8 @@ const createExchange = async (req, res) => {
       !return_location_id ||
       !Number.isFinite(Number(return_quantity)) ||
       Number(return_quantity) <= 0 ||
+      !Number.isFinite(Number(return_unit_cost)) ||
+      Number(return_unit_cost) <= 0 ||
       !issue_material_id ||
       !issue_location_id ||
       !Number.isFinite(Number(issue_quantity)) ||
@@ -657,9 +677,11 @@ const createExchange = async (req, res) => {
           material_id: return_material_id,
           location_id: return_location_id,
           quantity: return_quantity,
+          unit_cost: return_unit_cost,
         },
       ],
       operator,
+      createdBy: Number.parseInt(req.user?.id, 10) || null,
     });
 
     logger.info(`创建退回单成功: ${returnTransactionNo}`);
@@ -677,6 +699,7 @@ const createExchange = async (req, res) => {
         },
       ],
       operator,
+      createdBy: Number.parseInt(req.user?.id, 10) || null,
     });
 
     logger.info(`创建补发单成功: ${issueTransactionNo}`);
@@ -705,25 +728,30 @@ const createExchange = async (req, res) => {
  */
 
 const approveManualTransaction = async (req, res) => {
+  const { id } = req.params;
+  const { action, remark: approvalRemark } = req.body;
+  if (!['approve', 'reject'].includes(action)) {
+    return ResponseHandler.error(res, '无效的审批操作', 'VALIDATION_ERROR', 400);
+  }
+
   const connection = await db.getConnection();
   try {
     await connection.beginTransaction();
 
-    const { id } = req.params;
-    const { action, remark: approvalRemark } = req.body; // action: 'approve' 或 'reject'
     const approver = req.user?.name || req.user?.username || 'system';
+    const approverId = Number.parseInt(req.user?.id, 10) || null;
 
     logger.info('=== 审批手工出入库 ===', { id, action, approver });
 
-    // 验证action
-    if (!['approve', 'reject'].includes(action)) {
-      return ResponseHandler.error(res, '无效的审批操作', 'VALIDATION_ERROR', 400);
-    }
-
-    // 查询所有同单号的记录
-    const [records] = await connection.execute('SELECT id, transaction_no, transaction_type, business_type_code, transaction_date, material_id, location_id, quantity, remark, operator, created_at, updated_at, approval_status, approved_by, approved_at, approval_remark FROM manual_transactions WHERE id = ?', [
-      id,
-    ]);
+    const [records] = await connection.execute(
+      `SELECT id, transaction_no, transaction_type, business_type_code, transaction_date,
+              material_id, location_id, quantity, unit_cost, remark, operator, created_by,
+              created_at, updated_at, approval_status, approved_by, approved_at, approval_remark
+         FROM manual_transactions
+        WHERE id = ?
+        FOR UPDATE`,
+      [id]
+    );
 
     if (records.length === 0) {
       await connection.rollback();
@@ -731,6 +759,16 @@ const approveManualTransaction = async (req, res) => {
     }
 
     const record = records[0];
+
+    const legacyCreatorMatches = !record.created_by && [
+      req.user?.username,
+      req.user?.name,
+      req.user?.real_name,
+    ].filter(Boolean).some((name) => String(name) === String(record.operator));
+    if ((approverId && Number(record.created_by) === approverId) || legacyCreatorMatches) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '制单人不能审批自己的手工出入库单', 'VALIDATION_ERROR', 400);
+    }
 
     // 检查是否已审批
     if (record.approval_status !== 'pending') {
@@ -740,19 +778,45 @@ const approveManualTransaction = async (req, res) => {
 
     // 获取同一单号的所有记录
     const [allRecords] = await connection.execute(
-      'SELECT id, transaction_no, transaction_type, business_type_code, transaction_date, material_id, location_id, quantity, remark, operator, created_at, updated_at, approval_status, approved_by, approved_at, approval_remark FROM manual_transactions WHERE transaction_no = ?',
+      `SELECT id, transaction_no, transaction_type, business_type_code, transaction_date,
+              material_id, location_id, quantity, unit_cost, remark, operator, created_by,
+              created_at, updated_at, approval_status, approved_by, approved_at, approval_remark
+         FROM manual_transactions
+        WHERE transaction_no = ?
+        ORDER BY id
+        FOR UPDATE`,
       [record.transaction_no]
     );
+
+    if (allRecords.some((item) => item.approval_status !== 'pending')) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '单据明细审批状态不一致，请刷新后重试', 'VALIDATION_ERROR', 409);
+    }
+
+    if (action === 'approve') {
+      const PeriodValidationService = require('../../../services/business/PeriodValidationService');
+      const inventoryCheck = await PeriodValidationService.validateInventoryTransaction(
+        record.transaction_date,
+        connection
+      );
+      if (!inventoryCheck.allowed) {
+        await connection.rollback();
+        return ResponseHandler.error(res, inventoryCheck.message, 'VALIDATION_ERROR', 400);
+      }
+    }
 
     const newStatus = action === 'approve' ? 'approved' : 'rejected';
 
     // 更新所有同单号记录的审批状态
-    await connection.execute(
+    const [approvalUpdate] = await connection.execute(
       `UPDATE manual_transactions
        SET approval_status = ?, approved_by = ?, approved_at = NOW(), approval_remark = ?
-       WHERE transaction_no = ?`,
+       WHERE transaction_no = ? AND approval_status = 'pending'`,
       [newStatus, approver, approvalRemark || '', record.transaction_no]
     );
+    if (Number(approvalUpdate.affectedRows) !== allRecords.length) {
+      throw new Error('单据已被其他人处理，请刷新后重试');
+    }
 
     // 如果是审批通过，执行库存变动
     if (action === 'approve') {
@@ -775,6 +839,9 @@ const approveManualTransaction = async (req, res) => {
 
         // 从批量预取结果获取物料信息
         const matInfo = approveMaterialInfoMap.get(material_id);
+        if (!matInfo) {
+          throw new Error(`物料ID ${material_id} 不存在`);
+        }
         const unit_id = matInfo.unitId;
 
         // 计算库存变化量
@@ -785,7 +852,7 @@ const approveManualTransaction = async (req, res) => {
         let batch_number = null;
         if (transaction_type === 'in') {
           const dateStr = new Date(transaction_date || Date.now()).toISOString().slice(0, 10).replace(/-/g, '');
-          batch_number = `MI-${dateStr}-${transaction_no}`;
+          batch_number = `MI-${dateStr}-${transaction_no}-${item.id}`;
         }
 
         // 插入库存流水（出库时启用库存校验，不允许负库存）
@@ -802,6 +869,7 @@ const approveManualTransaction = async (req, res) => {
           operator: operator || approver,
           remark,
           transaction_date,
+          unit_cost: transaction_type === 'in' ? Number(item.unit_cost) : null,
           checkStockSufficiency: transaction_type === 'out',
           allowNegativeStock: false,
         });
@@ -839,30 +907,36 @@ const updateManualTransaction = async (req, res) => {
   try {
     await connection.beginTransaction();
 
-    const { id } = req.params;
+    const { transaction_no } = req.params;
     const {
+      item_id,
       transaction_type: businessTypeCode,
       transaction_date,
       material_id,
       location_id,
       quantity,
+      unit_cost,
       remark,
-      operator,
     } = req.body;
 
-    // 从业务类型编码中提取实际的 transaction_type (in/out)
-    let transaction_type;
-    if (businessTypeCode.includes('_in')) {
-      transaction_type = 'in';
-    } else if (businessTypeCode.includes('_out')) {
-      transaction_type = 'out';
-    } else {
-      // 兼容直接传入 'in' 或 'out' 的情况
-      transaction_type = businessTypeCode;
+    if (!businessTypeCode || !transaction_date) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '缺少必填字段', 'VALIDATION_ERROR', 400);
     }
 
-    // 验证 transaction_type 是否有效
+    let transaction_type;
+    const [businessTypes] = await connection.execute(
+      'SELECT category FROM business_types WHERE code = ? AND status = 1',
+      [businessTypeCode]
+    );
+    if (businessTypes[0]?.category === 'in' || businessTypeCode === 'in' || businessTypeCode.includes('_in')) {
+      transaction_type = 'in';
+    } else if (businessTypes[0]?.category === 'out' || businessTypeCode === 'out' || businessTypeCode.includes('_out')) {
+      transaction_type = 'out';
+    }
+
     if (transaction_type !== 'in' && transaction_type !== 'out') {
+      await connection.rollback();
       return ResponseHandler.error(
         res,
         '无效的业务类型，必须是入库或出库类型',
@@ -871,94 +945,104 @@ const updateManualTransaction = async (req, res) => {
       );
     }
 
-    // 查询原记录
-    const [oldRecord] = await connection.execute('SELECT id, transaction_no, transaction_type, business_type_code, transaction_date, material_id, location_id, quantity, remark, operator, created_at, updated_at, approval_status, approved_by, approved_at, approval_remark FROM manual_transactions WHERE id = ?', [
-      id,
-    ]);
+    const [documentItems] = await connection.execute(
+      `SELECT id, transaction_no, transaction_type, business_type_code, transaction_date,
+              material_id, location_id, quantity, unit_cost, remark, operator, created_by,
+              approval_status
+         FROM manual_transactions
+        WHERE transaction_no = ?
+        ORDER BY id
+        FOR UPDATE`,
+      [transaction_no]
+    );
 
-    if (oldRecord.length === 0) {
+    if (documentItems.length === 0) {
       await connection.rollback();
-      return ResponseHandler.error(res, '记录不存在', 'NOT_FOUND', 404);
+      return ResponseHandler.error(res, '单据不存在', 'NOT_FOUND', 404);
     }
 
-    const old = oldRecord[0];
+    let old;
+    if (item_id) {
+      old = documentItems.find((item) => Number(item.id) === Number(item_id));
+      if (!old) {
+        await connection.rollback();
+        return ResponseHandler.error(res, '指定明细不属于该单据', 'VALIDATION_ERROR', 400);
+      }
+    } else if (documentItems.length === 1) {
+      old = documentItems[0];
+    } else {
+      await connection.rollback();
+      return ResponseHandler.error(res, '多明细单据修改时必须指定 item_id', 'VALIDATION_ERROR', 400);
+    }
 
-    // 只有待审批的单据才允许修改
-    if (old.approval_status !== 'pending') {
+    if (documentItems.some((item) => item.approval_status !== 'pending')) {
       await connection.rollback();
       return ResponseHandler.error(res, '已审批的单据不允许修改', 'VALIDATION_ERROR', 400);
     }
 
-    // 获取物料信息
-    const [materialInfo] = await connection.execute('SELECT unit_id FROM materials WHERE id = ? AND deleted_at IS NULL', [
-      material_id,
-    ]);
+    const normalizedMaterialId = Number(material_id);
+    const normalizedLocationId = Number(location_id);
+    const normalizedQuantity = Number(quantity);
+    const normalizedUnitCost = Number(unit_cost);
+    if (
+      !normalizedMaterialId ||
+      !normalizedLocationId ||
+      !Number.isFinite(normalizedQuantity) ||
+      normalizedQuantity <= 0 ||
+      (transaction_type === 'in' && (!Number.isFinite(normalizedUnitCost) || normalizedUnitCost <= 0))
+    ) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '明细数据不完整、数量无效或入库成本无效', 'VALIDATION_ERROR', 400);
+    }
+
+    const PeriodValidationService = require('../../../services/business/PeriodValidationService');
+    const inventoryCheck = await PeriodValidationService.validateInventoryTransaction(
+      transaction_date,
+      connection
+    );
+    if (!inventoryCheck.allowed) {
+      await connection.rollback();
+      return ResponseHandler.error(res, inventoryCheck.message, 'VALIDATION_ERROR', 400);
+    }
+
+    const [materialInfo] = await connection.execute(
+      'SELECT id FROM materials WHERE id = ? AND deleted_at IS NULL',
+      [normalizedMaterialId]
+    );
 
     if (materialInfo.length === 0) {
       await connection.rollback();
       return ResponseHandler.error(res, '物料不存在', 'NOT_FOUND', 404);
     }
-
-    const unit_id = materialInfo[0].unit_id;
-
-    // 如果关键字段有变化，需要回滚原库存并重新计算
-    if (
-      old.material_id !== material_id ||
-      old.location_id !== location_id ||
-      old.quantity !== quantity ||
-      old.transaction_type !== transaction_type
-    ) {
-      // 回滚原库存
-      const oldQuantityChange =
-        old.transaction_type === 'in' ? -parseFloat(old.quantity) : parseFloat(old.quantity);
-      await _insertInventoryLedgerLocal(connection, {
-        material_id: old.material_id,
-        location_id: old.location_id,
-        transaction_type: old.transaction_type === 'in' ? 'manual_in' : 'manual_out',
-        quantity: oldQuantityChange,
-        unit_id,
-        reference_no: old.transaction_no,
-        reference_type: 'manual_transaction',
-        operator,
-        remark: '修改手工出入库-回滚',
-        transaction_date: old.transaction_date,
-      });
-
-      // 应用新库存
-      const newQuantityChange =
-        transaction_type === 'in' ? parseFloat(quantity) : -parseFloat(quantity);
-      await _insertInventoryLedgerLocal(connection, {
-        material_id,
-        location_id,
-        transaction_type: transaction_type === 'in' ? 'manual_in' : 'manual_out',
-        quantity: newQuantityChange,
-        unit_id,
-        reference_no: old.transaction_no,
-        reference_type: 'manual_transaction',
-        operator,
-        remark,
-        transaction_date,
-      });
+    const [locationInfo] = await connection.execute(
+      'SELECT id FROM locations WHERE id = ? AND deleted_at IS NULL',
+      [normalizedLocationId]
+    );
+    if (locationInfo.length === 0) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '仓库不存在', 'NOT_FOUND', 404);
     }
 
-    // 更新记录
-    await connection.execute(
+    const [updateResult] = await connection.execute(
       `UPDATE manual_transactions
        SET transaction_type = ?, business_type_code = ?, transaction_date = ?, material_id = ?, location_id = ?,
-           quantity = ?, remark = ?, operator = ?, updated_at = NOW()
-       WHERE id = ?`,
+           quantity = ?, unit_cost = ?, remark = ?, updated_at = NOW()
+       WHERE id = ? AND approval_status = 'pending'`,
       [
         transaction_type,
         businessTypeCode,
         transaction_date,
-        material_id,
-        location_id,
-        quantity,
+        normalizedMaterialId,
+        normalizedLocationId,
+        normalizedQuantity,
+        transaction_type === 'in' ? normalizedUnitCost : null,
         remark,
-        operator,
-        id,
+        old.id,
       ]
     );
+    if (updateResult.affectedRows !== 1) {
+      throw new Error('单据已被其他人处理，请刷新后重试');
+    }
 
     await connection.commit();
 
@@ -985,7 +1069,12 @@ const deleteManualTransaction = async (req, res) => {
 
     // 查询单据的所有明细
     const [records] = await connection.execute(
-      'SELECT id, transaction_no, transaction_type, business_type_code, transaction_date, material_id, location_id, quantity, remark, operator, created_at, updated_at, approval_status, approved_by, approved_at, approval_remark FROM manual_transactions WHERE transaction_no = ?',
+      `SELECT id, transaction_no, transaction_type, business_type_code, transaction_date,
+              material_id, location_id, quantity, unit_cost, remark, operator, created_by,
+              created_at, updated_at, approval_status, approved_by, approved_at, approval_remark
+         FROM manual_transactions
+        WHERE transaction_no = ?
+        FOR UPDATE`,
       [transaction_no]
     );
 
@@ -996,6 +1085,16 @@ const deleteManualTransaction = async (req, res) => {
 
     const firstRecord = records[0];
     const approvalStatus = firstRecord.approval_status;
+
+    if (approvalStatus !== STATUS.APPROVAL.PENDING) {
+      await connection.rollback();
+      return ResponseHandler.error(
+        res,
+        '已审批或已拒绝的单据必须保留审计记录，不能删除；如需更正请走冲销流程',
+        'VALIDATION_ERROR',
+        400
+      );
+    }
 
     // 检查审批状态
     if (approvalStatus === STATUS.APPROVAL.APPROVED) {

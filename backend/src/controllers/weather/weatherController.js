@@ -3,30 +3,18 @@
  * @description 提供天气数据查询服务（使用 Open-Meteo API）
  */
 
-const { httpGet } = require('../../utils/httpClient');
 const { ResponseHandler } = require('../../utils/responseHandler');
 const { logger } = require('../../utils/logger');
 const { OPEN_METEO_CONFIG } = require('../../config/weatherConfig');
+const PublicMarketDataService = require('../../services/external/PublicMarketDataService');
 
 const DEFAULT_CITY = '乐清';
 const WEATHER_SUCCESS_CACHE_TTL_MS = 15 * 60 * 1000;
 const WEATHER_UNAVAILABLE_CACHE_TTL_MS = 5 * 60 * 1000;
 const WEATHER_FAILURE_LOG_COOLDOWN_MS = 5 * 60 * 1000;
 
-let missingWeatherBaseUrlLogged = false;
 const weatherCache = new Map();
 const weatherFailureLogState = new Map();
-
-const CURRENT_WEATHER_FIELDS = [
-  'temperature_2m',
-  'relative_humidity_2m',
-  'apparent_temperature',
-  'weather_code',
-  'wind_speed_10m',
-  'wind_direction_10m',
-  'surface_pressure',
-  'visibility',
-].join(',');
 
 const CITY_COORDINATE_MAP = {
   乐清: { name: '乐清', latitude: 28.1137, longitude: 120.9839 },
@@ -114,28 +102,6 @@ const mapWeatherCode = (weatherCode) => WMO_WEATHER_MAP[Number(weatherCode)] || 
   weatherCode: 'cloudy',
 };
 
-const buildOpenMeteoParams = (location) => ({
-  latitude: location.latitude,
-  longitude: location.longitude,
-  current: CURRENT_WEATHER_FIELDS,
-  timezone: OPEN_METEO_CONFIG.timezone,
-  wind_speed_unit: 'kmh',
-});
-
-const fetchOpenMeteo = async (location) => {
-  const response = await httpGet(OPEN_METEO_CONFIG.baseUrl, {
-    params: buildOpenMeteoParams(location),
-    timeout: OPEN_METEO_CONFIG.timeout,
-    retries: OPEN_METEO_CONFIG.retries,
-  });
-
-  if (response.status && (response.status < 200 || response.status >= 300)) {
-    throw new Error(`Open-Meteo API 响应异常: HTTP ${response.status}`);
-  }
-
-  return response.data;
-};
-
 const getCachedWeather = (cacheKey) => {
   const cached = weatherCache.get(cacheKey);
   if (cached && Date.now() < cached.expiresAt) {
@@ -174,24 +140,72 @@ const logWeatherFetchFailure = (error, city) => {
 /**
  * 获取天气数据
  */
+const mapOpenMeteoToPayload = (location, current) => {
+  const weatherType = mapWeatherCode(current.weather_code);
+  return {
+    city: location.name,
+    temperature: formatNumber(current.temperature_2m),
+    feelsLike: formatNumber(current.apparent_temperature),
+    description: weatherType.description,
+    weatherCode: weatherType.weatherCode,
+    windSpeed: formatNumber(current.wind_speed_10m),
+    windDir: formatWindDirection(current.wind_direction_10m),
+    humidity: formatNumber(current.relative_humidity_2m),
+    pressure: formatNumber(current.surface_pressure),
+    visibility: formatVisibility(current.visibility),
+    updateTime: formatUpdateTime(current.time),
+    isDefault: false,
+    source: 'open-meteo',
+  };
+};
+
+const mapWttrToPayload = (location, wttr) => ({
+  city: location.name,
+  temperature: formatNumber(wttr.temperature),
+  feelsLike: formatNumber(wttr.feelsLike),
+  description: wttr.description || '未知',
+  weatherCode: 'cloudy',
+  windSpeed: formatNumber(wttr.windSpeed),
+  windDir: wttr.windDir || '--',
+  humidity: formatNumber(wttr.humidity),
+  pressure: formatNumber(wttr.pressure),
+  visibility:
+    wttr.visibility !== null &&
+    wttr.visibility !== undefined &&
+    Number.isFinite(Number(wttr.visibility))
+      ? String(wttr.visibility)
+      : '-',
+  updateTime: '',
+  isDefault: false,
+  source: 'wttr.in',
+});
+
+/**
+ * 多源拉取：Open-Meteo → wttr.in
+ */
+const fetchWeatherPayload = async (location) => {
+  try {
+    const { data } = await PublicMarketDataService.fetchOpenMeteoCurrent({
+      latitude: location.latitude,
+      longitude: location.longitude,
+      timezone: OPEN_METEO_CONFIG.timezone,
+    });
+    if (!data?.current) throw new Error('Open-Meteo missing current');
+    return mapOpenMeteoToPayload(location, data.current);
+  } catch (primaryError) {
+    if (!OPEN_METEO_CONFIG.enableWttrFallback) throw primaryError;
+    logger.warn(`Open-Meteo 失败，尝试 wttr.in: ${primaryError.message}`);
+    const wttr = await PublicMarketDataService.fetchWttrIn(location.name);
+    return mapWttrToPayload(location, wttr);
+  }
+};
+
 const getWeather = async (req, res) => {
   const { city = DEFAULT_CITY } = req.query || {};
   const location = getCityLocation(city);
   const cacheKey = `weather_${location.name}`;
 
   try {
-    if (!OPEN_METEO_CONFIG.baseUrl) {
-      if (!missingWeatherBaseUrlLogged) {
-        logger.warn('OPEN_METEO_BASE_URL is not configured; returning unavailable weather.');
-        missingWeatherBaseUrlLogged = true;
-      }
-      return ResponseHandler.success(
-        res,
-        createUnavailableWeather(location.name),
-        'Weather data is not configured'
-      );
-    }
-
     // 优先返回缓存
     const cached = getCachedWeather(cacheKey);
     if (cached) {
@@ -202,32 +216,14 @@ const getWeather = async (req, res) => {
       );
     }
 
-    const weatherApiData = await fetchOpenMeteo(location);
+    const weatherData = await fetchWeatherPayload(location);
 
-    const current = weatherApiData?.current;
-    if (!current) {
-      throw new Error('Open-Meteo API 未返回 current 天气数据');
-    }
-
-    const weatherType = mapWeatherCode(current.weather_code);
-    const weatherData = {
-      city: location.name,
-      temperature: formatNumber(current.temperature_2m),
-      feelsLike: formatNumber(current.apparent_temperature),
-      description: weatherType.description,
-      weatherCode: weatherType.weatherCode,
-      windSpeed: formatNumber(current.wind_speed_10m),
-      windDir: formatWindDirection(current.wind_direction_10m),
-      humidity: formatNumber(current.relative_humidity_2m),
-      pressure: formatNumber(current.surface_pressure),
-      visibility: formatVisibility(current.visibility),
-      updateTime: formatUpdateTime(current.time),
-      isDefault: false,
-    };
-
-    // 缓存成功结果
     setCachedWeather(cacheKey, weatherData, WEATHER_SUCCESS_CACHE_TTL_MS);
-    logger.debug('天气数据获取成功并已缓存', { city: weatherData.city, temperature: weatherData.temperature });
+    logger.debug('天气数据获取成功并已缓存', {
+      city: weatherData.city,
+      temperature: weatherData.temperature,
+      source: weatherData.source,
+    });
     return ResponseHandler.success(res, weatherData);
   } catch (error) {
     const fallbackWeather = createUnavailableWeather(location.name);

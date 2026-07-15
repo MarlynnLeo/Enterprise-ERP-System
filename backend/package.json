@@ -9,7 +9,7 @@
     "dev": "nodemon --watch src --watch migrations --watch knexfile.js --ignore logs/** --ignore uploads/** --ignore coverage/** --expose-gc src/index.js",
     "test": "jest --runInBand",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage",
+    "test:coverage": "jest --coverage --runInBand",
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
     "format": "prettier --write \"src/**/*.js\"",
@@ -17,10 +17,17 @@
     "migrate": "npx knex migrate:latest",
     "migrate:rollback": "npx knex migrate:rollback",
     "migrate:status": "npx knex migrate:status",
+    "migrations:verify": "node scripts/verify-migration-integrity.js",
+    "migrations:manifest": "node scripts/verify-migration-integrity.js --write",
     "seed": "npx knex seed:run",
+    "restore:offline": "node scripts/restore-backup.js",
     "audit:closure": "node scripts/audit-business-closure.js",
     "audit:functional": "node scripts/audit-functional-coverage.js",
     "audit:finance": "node scripts/audit-finance-core.js",
+    "test:finance-flow": "node scripts/test-finance-flow.js",
+    "test:production-inventory-flow": "node scripts/test-production-inventory-flow.js",
+    "replay:sales-outbound-dlq": "node scripts/replay-sales-outbound-dlq.js",
+    "verify:coding-rules": "node scripts/verify-finance-coding-rules.js",
     "audit:finance-integrations": "node scripts/audit-finance-integrations.js",
     "audit:cash-settlement": "node scripts/audit-cash-settlement.js",
     "audit:invoice-generation": "node scripts/audit-invoice-generation.js",
@@ -34,12 +41,19 @@
     "repair:quality-integrations": "node scripts/repair-quality-integrations.js",
     "repair:production-integrations": "node scripts/repair-production-integrations.js",
     "repair:sales-integrations": "node scripts/repair-sales-integrations.js",
+    "repair:inventory-ledger-costs": "node scripts/repair-inventory-ledger-costs.js",
     "import:ng-sales-2026": "node scripts/import-ng-2026-sales-orders.js",
     "audit:status": "node scripts/audit-status-consistency.js",
     "audit:data": "node scripts/run-data-consistency-audit.js",
+    "audit:inventory-types": "node scripts/audit-inventory-transaction-types.js",
     "audit:data-api": "node scripts/audit-data-api-uniformity.js",
     "audit:mobile-auth": "node scripts/audit-mobile-auth-security.js",
-    "audit:legacy": "node scripts/audit-legacy-code.js"
+    "audit:workflow": "node scripts/audit-workflow-permission-closure.js",
+    "audit:legacy": "node scripts/audit-legacy-code.js",
+    "audit:production-readiness": "node scripts/audit-production-readiness.js",
+    "audit:module-completeness": "node scripts/audit-module-completeness.js",
+    "audit:all": "npm run audit:closure && npm run audit:functional && npm run audit:status && npm run audit:data && npm run audit:data-api && npm run audit:inventory-types && npm run audit:workflow && npm run audit:sales-integrations && npm run audit:quality-integrations && npm run audit:production-integrations && npm run audit:invoice-generation && npm run audit:finance && npm run audit:finance-integrations && npm run audit:cash-settlement && npm run audit:cost && npm run audit:mobile-auth && npm run audit:legacy && npm run audit:production-readiness && npm run audit:module-completeness && npm run verify:coding-rules",
+    "perf:smoke": "node scripts/perf-smoke.js"
   },
   "keywords": [
     "factory",
@@ -88,6 +102,9 @@
     "supertest": "^7.2.2"
   },
   "overrides": {
+    "@istanbuljs/load-nyc-config": {
+      "js-yaml": "4.2.0"
+    },
     "uuid": "11.1.1",
     "ws": "8.21.0"
   },

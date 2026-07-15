@@ -5,6 +5,28 @@
  */
 
 exports.up = async function(knex) {
+  await knex.raw(`
+    CREATE TABLE IF NOT EXISTS equipment (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      code VARCHAR(50) NOT NULL UNIQUE,
+      name VARCHAR(100) NOT NULL,
+      model VARCHAR(100),
+      manufacturer VARCHAR(100),
+      purchase_date DATE,
+      inspection_date DATE,
+      next_inspection_date DATE,
+      location VARCHAR(100),
+      status ENUM('normal','maintenance','repair','scrapped') DEFAULT 'normal',
+      responsible_person VARCHAR(50),
+      description TEXT,
+      specs TEXT,
+      is_active TINYINT(1) DEFAULT 1,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_equipment_status (status)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='设备台账表'
+  `);
+
   // ===== 费用管理 =====
   await knex.raw(`
     CREATE TABLE IF NOT EXISTS expense_categories (
@@ -225,6 +247,7 @@ exports.up = async function(knex) {
 
 exports.down = async function(knex) {
   const tables = [
+    'equipment',
     'user_pricing_settings', 'cost_alert_settings',
     'traceability_process', 'eight_d_reports',
     'packing_list_details', 'packing_lists', 'packing_list_sequences',

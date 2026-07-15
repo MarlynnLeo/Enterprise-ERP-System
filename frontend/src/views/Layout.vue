@@ -59,11 +59,17 @@
       <el-header class="header app-header">
         <div class="header-left">
           <el-tooltip content="展开/收起侧边栏" placement="bottom" :show-after="500">
-            <div class="icon-button toggle-sidebar" @click="toggleSidebar">
+            <button
+              type="button"
+              class="icon-button toggle-sidebar"
+              aria-label="展开或收起侧边栏"
+              :aria-expanded="!sidebarCollapsed"
+              @click="toggleSidebar"
+            >
               <el-icon>
                 <icon-menu />
               </el-icon>
-            </div>
+            </button>
           </el-tooltip>
           <breadcrumb />
         </div>
@@ -76,7 +82,7 @@
           </div>
           <!-- 通知中心 -->
           <el-tooltip content="通知中心" placement="bottom" :show-after="500">
-            <div class="icon-button-wrapper">
+            <div class="icon-button-wrapper" aria-label="通知中心" role="button" tabindex="0">
               <NotificationCenter />
             </div>
           </el-tooltip>
@@ -86,8 +92,7 @@
                 :frame="activeAvatarFrame"
                 :avatar="userAvatar"
                 :name="userName"
-                :size="48"
-                :avatar-size="32"
+                :size="44"
                 class="header-avatar-frame"
                 @avatar-error="handleAvatarError"
               />
@@ -101,7 +106,7 @@
                 </el-dropdown-item>
                 <el-dropdown-item @click="handleAvatarFrame">
                   <el-icon><icon-picture-rounded /></el-icon>
-                  头像特效
+                  {{ $t('common.avatarEffect') }}
                 </el-dropdown-item>
                 <el-dropdown-item>
                   <el-dropdown placement="left-start" trigger="hover">
@@ -343,9 +348,13 @@ const handleLogout = () => {
     confirmButtonText: t('common.confirm'),
     cancelButtonText: t('common.cancel'),
     type: 'warning'
-  }).then(() => {
-    authStore.logout()
-    router.push('/login')
+  }).then(async () => {
+    try {
+      await authStore.logout()
+    } finally {
+      // 硬跳转，确保内存缓存与 SPA 状态彻底重置
+      window.location.replace('/login')
+    }
     ElMessage.success(t('message.logoutSuccess'))
   }).catch(() => {})
 }

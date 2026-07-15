@@ -8,11 +8,13 @@
 
 const { pool } = require('../../config/db');
 const { softDelete } = require('../../utils/softDelete');
-const { logger } = require('../../utils/logger');
 const cache = require('../../utils/cacheManager');
 const { parsePagination, appendPaginationSQL } = require('../../utils/safePagination');
+const { currentDateString } = require('../../utils/dateUtils');
+const { logger } = require('../../utils/logger');
 
-const RATE_COLUMNS = 'id, from_currency, to_currency, rate, effective_date, source, created_by, created_at, deleted_at';
+const RATE_COLUMNS =
+  'id, from_currency, to_currency, rate, effective_date, source, created_by, created_at, deleted_at';
 
 class ExchangeRateService {
   /**
@@ -28,10 +30,19 @@ class ExchangeRateService {
     const pagination = parsePagination(page, pageSize, { defaultPageSize: 50, maxPageSize: 100 });
     let where = 'WHERE deleted_at IS NULL';
     const vals = [];
-    if (from_currency) { where += ' AND from_currency = ?'; vals.push(from_currency); }
-    if (to_currency) { where += ' AND to_currency = ?'; vals.push(to_currency); }
+    if (from_currency) {
+      where += ' AND from_currency = ?';
+      vals.push(from_currency);
+    }
+    if (to_currency) {
+      where += ' AND to_currency = ?';
+      vals.push(to_currency);
+    }
 
-    const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM exchange_rates ${where}`, vals);
+    const [[{ total }]] = await pool.query(
+      `SELECT COUNT(*) AS total FROM exchange_rates ${where}`,
+      vals
+    );
     const listSql = appendPaginationSQL(
       `SELECT ${RATE_COLUMNS} FROM exchange_rates ${where} ORDER BY effective_date DESC, from_currency`,
       pagination.limit,
@@ -58,7 +69,14 @@ class ExchangeRateService {
     await pool.query(
       `INSERT INTO exchange_rates (from_currency, to_currency, rate, effective_date, source, created_by)
        VALUES (?, ?, ?, ?, 'manual', ?) ON DUPLICATE KEY UPDATE rate = ?, source = 'manual'`,
-      [String(from_currency).toUpperCase(), String(to_currency || 'CNY').toUpperCase(), parsedRate, effective_date, userId, parsedRate]
+      [
+        String(from_currency).toUpperCase(),
+        String(to_currency || 'CNY').toUpperCase(),
+        parsedRate,
+        effective_date,
+        userId,
+        parsedRate,
+      ]
     );
     // 失效相关缓存
     cache.invalidatePrefix('rate:');
@@ -84,14 +102,59 @@ class ExchangeRateService {
       throw new Error('from currency is required');
     }
     const cacheKey = `rate:${String(from).toUpperCase()}:${String(to).toUpperCase()}`;
-    return cache.getOrSet(cacheKey, async () => {
-      const [[row]] = await pool.query(
-        `SELECT ${RATE_COLUMNS} FROM exchange_rates WHERE from_currency = ? AND to_currency = ? AND effective_date <= CURDATE() AND deleted_at IS NULL
+    return cache.getOrSet(
+      cacheKey,
+      async () => {
+        const [[row]] = await pool.query(
+          `SELECT ${RATE_COLUMNS} FROM exchange_rates WHERE from_currency = ? AND to_currency = ? AND effective_date <= CURDATE() AND deleted_at IS NULL
          ORDER BY effective_date DESC LIMIT 1`,
-        [String(from).toUpperCase(), String(to).toUpperCase()]
-      );
-      return row || null;
-    }, 300); // TTL 5 分钟
+          [String(from).toUpperCase(), String(to).toUpperCase()]
+        );
+        // 库内无记录时自动从公开 API 拉取并落库
+        if (!row) {
+          try {
+            const synced = await this.syncFromPublicApi(from, to);
+            return synced;
+          } catch (error) {
+            logger.warn(`[ExchangeRate] auto-sync failed: ${error.message}`);
+            return null;
+          }
+        }
+        return row;
+      },
+      300
+    ); // TTL 5 分钟
+  }
+
+  /**
+   * 从 public-apis 生态多源拉取汇率并 upsert
+   * @param {string} from
+   * @param {string} [to='CNY']
+   * @param {number} [userId]
+   */
+  static async syncFromPublicApi(from = 'USD', to = 'CNY', userId = null) {
+    const PublicMarketDataService = require('../external/PublicMarketDataService');
+    const { rate, source } = await PublicMarketDataService.fetchExchangeRate(from, to);
+    const effectiveDate = currentDateString();
+    const fromC = String(from).toUpperCase();
+    const toC = String(to).toUpperCase();
+
+    await pool.query(
+      `INSERT INTO exchange_rates (from_currency, to_currency, rate, effective_date, source, created_by)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE rate = VALUES(rate), source = VALUES(source), effective_date = VALUES(effective_date)`,
+      [fromC, toC, rate, effectiveDate, `public:${source}`, userId]
+    );
+    cache.invalidatePrefix('rate:');
+    logger.info(`[ExchangeRate] synced ${fromC}/${toC}=${rate} via ${source}`);
+
+    return {
+      from_currency: fromC,
+      to_currency: toC,
+      rate,
+      effective_date: effectiveDate,
+      source: `public:${source}`,
+    };
   }
 }
 

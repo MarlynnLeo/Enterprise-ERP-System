@@ -108,6 +108,18 @@ router.post('/returns/:id/submit', requirePermission('finance:tax:update'), taxC
 router.post('/returns/:id/pay', requirePermission('finance:tax:pay'), requirePermission(PRICE_UPDATE_PERMISSIONS), taxController.payTaxReturn);
 
 /**
+ * @route   POST /finance/tax/returns/:id/void-payment
+ * @desc    作废税款缴纳（冲销银行与凭证，回退为已申报）
+ * @access  Private
+ */
+router.post(
+  '/returns/:id/void-payment',
+  requirePermission('finance:tax:pay'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
+  taxController.voidTaxReturnPayment
+);
+
+/**
  * @route   DELETE /finance/tax/returns/:id
  * @desc    删除税务申报（仅草稿状态）
  * @access  Private

@@ -8,6 +8,14 @@
 -->
 <template>
   <div class="module-page inspection-container">
+    <PageHeader title="过程检验管理" subtitle="过程检验任务与结果管理">
+      <template #actions>
+        <el-button v-permission="'quality:settings:view'" type="primary" @click="showRulesDialog = true">
+              <el-icon><Setting /></el-icon>检验规则
+            </el-button>
+      </template>
+    </PageHeader>
+
     <!-- 统计卡片 -->
     <div class="statistics-row">
       <el-card class="stat-card" shadow="hover">
@@ -32,50 +40,38 @@
       </el-card>
     </div>
 
-    <el-card class="box-card">
-      <template #header>
-        <div class="card-header">
-          <span>过程检验管理</span>
-          <div class="header-actions">
-            <el-button v-permission="'quality:settings:view'" type="primary" @click="showRulesDialog = true">
-              <el-icon><Setting /></el-icon>检验规则
-            </el-button>
-          </div>
-        </div>
+    <FinanceQueryCard :model="searchForm" @search="handleSearch" @reset="handleRefresh">
+      <template #basic>
+        <el-form-item label="关键词">
+          <el-input v-model="searchKeyword" placeholder="检验单号/工单号/产品名称" clearable @keyup.enter="handleSearch" />
+        </el-form-item>
+        <el-form-item label="检验状态">
+          <el-select v-model="statusFilter" placeholder="检验状态" clearable class="form-control-md">
+            <el-option label="待检验" value="pending" />
+            <el-option label="合格" value="passed" />
+            <el-option label="不合格" value="failed" />
+            <el-option label="返工" value="rework" />
+          </el-select>
+        </el-form-item>
       </template>
+      <template #advanced>
+        <el-form-item label="时间范围">
+          <el-date-picker v-model="dateRange" type="daterange" range-separator="至" start-placeholder="开始日期" end-placeholder="结束日期" value-format="YYYY-MM-DD" />
+        </el-form-item>
+      </template>
+      <template #actions>
+        <el-button type="primary" v-if="canCreate" @click="handleCreate">
+          <el-icon><Plus /></el-icon>新增
+        </el-button>
+      </template>
+    </FinanceQueryCard>
 
-      <!-- 搜索表单 -->
-      <FinanceQueryCard :model="searchForm" @search="handleSearch" @reset="handleRefresh">
-        <template #basic>
-          <el-form-item label="关键词">
-            <el-input v-model="searchKeyword" placeholder="检验单号/工单号/产品名称" clearable @keyup.enter="handleSearch" />
-          </el-form-item>
-          <el-form-item label="检验状态">
-            <el-select v-model="statusFilter" placeholder="检验状态" clearable>
-              <el-option label="待检验" value="pending" />
-              <el-option label="合格" value="passed" />
-              <el-option label="不合格" value="failed" />
-              <el-option label="返工" value="rework" />
-            </el-select>
-          </el-form-item>
-        </template>
-        <template #advanced>
-          <el-form-item label="时间范围">
-            <el-date-picker v-model="dateRange" type="daterange" range-separator="至" start-placeholder="开始日期" end-placeholder="结束日期" />
-          </el-form-item>
-        </template>
-        <template #actions>
-          <el-button type="primary" v-if="canCreate" @click="handleCreate">
-            <el-icon><Plus /></el-icon>新增
-          </el-button>
-        </template>
-      </FinanceQueryCard>
-
+    <el-card class="data-card">
       <!-- 检验单列表 -->
       <el-table
         :data="inspectionList"
         border
-        style="width: 100%; margin-top: 16px;"
+        class="w-full"
         v-loading="loading"
       >
         <el-table-column prop="inspection_no" label="检验单号" min-width="140" />
@@ -107,7 +103,7 @@
         </el-table-column>
         <el-table-column label="操作" fixed="right" min-width="320" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
-            <el-button
+            <el-button class="btn-op-view" type="primary"
               size="small"
               @click="handleView(scope.row)"
             >
@@ -250,10 +246,11 @@
     </el-dialog>
 
     <!-- 查看检验单详情弹窗 -->
-    <el-dialog
+    <AppDialog
       v-model="viewDialogVisible"
       title="检验单详情"
-      width="800px"
+      mode="view"
+      content-width="wide"
     >
       <div v-loading="viewLoading" class="detail-container">
         <!-- 基本信息 -->
@@ -292,7 +289,7 @@
           <el-empty v-else description="暂无打卡记录" />
         </div>
       </div>
-    </el-dialog>
+    </AppDialog>
 
 
 
@@ -679,7 +676,7 @@ const handleJudge = async (row) => {
   try {
     const { ElMessageBox } = await import('element-plus')
     const { value: result } = await ElMessageBox.confirm(
-      `检验单 ${row.inspection_no} 已巡检 ${row.punch_count || 0} 次，请判定结果：`,
+      `检验单 ${row.inspection_no} 已巡检 ${row.punch_count || 0} 次，请判定结果：\n（将同步把所有检验项目判定为相同结果）`,
       '过程检验判定',
       {
         distinguishCancelAndClose: true,
@@ -695,12 +692,50 @@ const handleJudge = async (row) => {
        throw action // close 直接退出
      })
 
-    // 调用后端更新状态
+    // 后端关闭检验单要求每个检验项目都有 result；快捷判定时一并提交项目结果
+    let items = Array.isArray(row.items) ? row.items : (Array.isArray(row.inspection_items) ? row.inspection_items : [])
+    if (!items.length) {
+      try {
+        const detailRes = await qualityApi.getProcessInspection(row.id)
+        const detail = detailRes?.data || detailRes || {}
+        items = detail.items || detail.inspection_items || detail.inspectionItems || []
+      } catch (detailErr) {
+        console.warn('获取检验项目失败，将仅提交状态:', detailErr)
+      }
+    }
+
+    if (!items.length) {
+      ElMessage.warning('该检验单没有检验项目，请先配置检验模板/项目后再判定')
+      return
+    }
+
+    const itemResult = result === 'passed' ? 'passed' : 'failed'
+    const payloadItems = items.map((item) => ({
+      id: item.id,
+      item_name: item.item_name || item.name || '检验项',
+      standard: item.standard || item.specification || '',
+      type: item.type || 'other',
+      is_critical: item.is_critical === true || item.is_critical === 1 ? 1 : 0,
+      result: itemResult,
+      actual_value: item.actual_value ?? item.measured_value ?? item.measuredValue ?? null,
+      dimension_value: item.dimension_value ?? null,
+      tolerance_upper: item.tolerance_upper ?? null,
+      tolerance_lower: item.tolerance_lower ?? null,
+      measure_1: item.measure_1 ?? null,
+      measure_2: item.measure_2 ?? null,
+      measure_3: item.measure_3 ?? null,
+      measure_4: item.measure_4 ?? null,
+      measure_5: item.measure_5 ?? null,
+      measure_6: item.measure_6 ?? null,
+      remark: item.remark || item.remarks || (result === 'passed' ? '快捷判定合格' : '快捷判定不合格'),
+    }))
+
     await qualityApi.updateProcessInspection(row.id, {
       status: result,
       inspector_id: authStore.userId,
       inspector_name: authStore.realName || authStore.username,
-      actual_date: dayjs().format('YYYY-MM-DD')
+      actual_date: dayjs().format('YYYY-MM-DD'),
+      items: payloadItems,
     })
 
     ElMessage.success(result === 'passed' ? '已判定合格' : '已判定不合格')
@@ -708,7 +743,11 @@ const handleJudge = async (row) => {
   } catch (err) {
     if (err === 'close') return // 关闭弹窗忽略
     console.error('判定失败:', err)
-    ElMessage.error(err.message || '判定操作失败')
+    const msg =
+      err?.response?.data?.message ||
+      err?.message ||
+      (err?.response?.status === 404 ? '接口不存在或后端未启动，请检查服务后刷新重试' : '判定操作失败')
+    ElMessage.error(msg)
   }
 }
 

@@ -19,6 +19,8 @@ const CashTransactionModel = require('../../../../models/cash/CashTransaction');
 const { getAuthenticatedUserId } = require('../../../../utils/authContext');
 const { currentDateString } = require('../../../../utils/dateUtils');
 const { safeParseId } = require('../../../../utils/safeParseId');
+const ScopeGuard = require('../../../../authorization/ScopeGuard');
+const db = require('../../../../config/db');
 
 /**
  * 安全的 parseFloat，返回 NaN 时抛出明确错误
@@ -45,6 +47,10 @@ const cashTransactionController = {
         endDate,
         search,
       };
+      filters.scopeClause = await ScopeGuard.applyListScope(req, 'cash_transaction', {
+        tableAlias: 't',
+        ownerAlias: 'cash_txn_owner_scope',
+      });
 
       const result = await CashTransactionModel.getCashTransactions(filters);
 
@@ -71,6 +77,10 @@ const cashTransactionController = {
       const id = safeParseId(req.params.id);
       if (isNaN(id)) {
         return ResponseHandler.validationError(res, [{ msg: '无效的交易ID' }]);
+      }
+
+      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'cash_transaction', id, '无权访问该现金交易'))) {
+        return;
       }
 
       const transaction = await CashTransactionModel.getCashTransactionById(id);
@@ -103,7 +113,7 @@ const cashTransactionController = {
         counterparty: req.body.counterparty,
         description: req.body.description,
         reference_number: req.body.referenceNumber || req.body.reference_number,
-        created_by: getAuthenticatedUserId(req),
+        ...ScopeGuard.stampOwner(req, 'cash_transaction'),
       };
 
       const result = await CashTransactionModel.createCashTransaction(transactionData);
@@ -138,6 +148,10 @@ const cashTransactionController = {
         return ResponseHandler.error(res, '无效的交易ID', 'VALIDATION_ERROR', 400);
       }
 
+      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'cash_transaction', id, '无权修改该现金交易'))) {
+        return;
+      }
+
       const transactionData = {
         transaction_type: req.body.type || req.body.transaction_type,
         transaction_date: req.body.transactionDate || req.body.transaction_date,
@@ -169,6 +183,10 @@ const cashTransactionController = {
       const id = safeParseId(req.params.id);
       if (isNaN(id)) {
         return ResponseHandler.error(res, '无效的交易ID', 'VALIDATION_ERROR', 400);
+      }
+
+      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'cash_transaction', id, '无权删除该现金交易'))) {
+        return;
       }
 
       const deleted = await CashTransactionModel.deleteCashTransaction(id);

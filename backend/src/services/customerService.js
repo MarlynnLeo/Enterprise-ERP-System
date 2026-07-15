@@ -7,7 +7,8 @@ const customerService = {
     try {
       const safePage = Math.max(1, parseInt(page, 10) || 1);
       const noPagination = pageSize === null || pageSize === undefined;
-      const safePageSize = noPagination ? null : Math.max(1, Math.min(100, parseInt(pageSize, 10) || 10));
+      // 下拉选项可能需要较多记录；上限 500，全量时 pageSize=null
+      const safePageSize = noPagination ? null : Math.max(1, Math.min(500, parseInt(pageSize, 10) || 10));
       const offset = noPagination ? 0 : (safePage - 1) * safePageSize;
       let whereClause = 'deleted_at IS NULL';
       const params = [];
@@ -24,10 +25,11 @@ const customerService = {
         whereClause += ' AND customer_type = ?';
         params.push(filters.customer_type);
       }
-      // 支持通用搜索参数，搜索客户名称
+      // 通用搜索：编码 / 名称 / 联系人
       if (filters.search) {
-        whereClause += ' AND name LIKE ?';
-        params.push(`%${filters.search}%`);
+        whereClause += ' AND (name LIKE ? OR code LIKE ? OR contact_person LIKE ?)';
+        const like = `%${filters.search}%`;
+        params.push(like, like, like);
       }
       if (filters.status !== undefined && filters.status !== '') {
         whereClause += ' AND status = ?';

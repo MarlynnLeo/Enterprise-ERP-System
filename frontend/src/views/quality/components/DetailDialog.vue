@@ -11,7 +11,12 @@
  */
 -->
 <template>
-  <el-dialog v-model="dialogVisible" :title="`检验详情 - ${inspection?.inspectionNo || inspection?.inspection_no || ''}`" width="55%" destroy-on-close>
+  <AppDialog
+    v-model="dialogVisible"
+    :title="`检验详情 - ${inspection?.inspectionNo || inspection?.inspection_no || ''}`"
+    mode="view"
+    content-width="wide"
+  >
     <div v-loading="loading">
       <template v-if="inspection">
         <el-descriptions :column="3" border>
@@ -27,12 +32,12 @@
           <el-descriptions-item label="批次号">{{ inspection.batchNo || inspection.batch_no || '-' }}</el-descriptions-item>
           <el-descriptions-item label="检验数量">{{ Math.floor(inspection.quantity || 0) }}</el-descriptions-item>
           <el-descriptions-item label="合格数">
-            <span v-if="inspection.qualified_quantity !== null && inspection.qualified_quantity !== undefined" style="color: var(--color-success); font-weight: bold;">{{ Math.floor(inspection.qualified_quantity) }}</span>
-            <span v-else style="color: var(--color-text-secondary);">-</span>
+            <span v-if="inspection.qualified_quantity !== null && inspection.qualified_quantity !== undefined" class="text-success font-weight-700">{{ Math.floor(inspection.qualified_quantity) }}</span>
+            <span v-else class="text-muted">-</span>
           </el-descriptions-item>
           <el-descriptions-item label="不合格数">
-            <span v-if="inspection.unqualified_quantity > 0" style="color: var(--color-danger); font-weight: bold;">{{ Math.floor(inspection.unqualified_quantity) }}</span>
-            <span v-else style="color: var(--color-text-secondary);">{{ inspection.unqualified_quantity === 0 ? '0' : '-' }}</span>
+            <span v-if="inspection.unqualified_quantity > 0" class="text-danger font-weight-700">{{ Math.floor(inspection.unqualified_quantity) }}</span>
+            <span v-else class="text-muted">{{ inspection.unqualified_quantity === 0 ? '0' : '-' }}</span>
           </el-descriptions-item>
           <el-descriptions-item label="检验日期">{{ inspection.inspectionDate || inspection.actual_date || '-' }}</el-descriptions-item>
           <el-descriptions-item label="检验员">{{ inspection.inspector || inspection.inspector_name || '-' }}</el-descriptions-item>
@@ -41,7 +46,7 @@
         <!-- 检验项目 -->
         <template v-if="inspection.items && inspection.items.length > 0">
           <el-divider content-position="left">检验项目</el-divider>
-          <el-table :data="inspection.items" border style="width: 100%" max-height="300">
+          <el-table :data="inspection.items" border class="w-full" max-height="300">
             <el-table-column prop="item_name" label="检验项目" width="100" show-overflow-tooltip />
             <el-table-column label="标准" min-width="80" show-overflow-tooltip>
               <template #default="{ row }">{{ row.standard || row.dimension_info || '-' }}</template>
@@ -49,13 +54,16 @@
             <el-table-column label="测量值">
               <el-table-column v-for="n in 6" :key="n" :label="`${n}#`" min-width="55">
                 <template #default="{ row }">
-                  <span :style="{ color: row[`measure_${n}`] ? 'var(--color-text-primary)' : 'var(--color-text-placeholder)' }">{{ row[`measure_${n}`] || '-' }}</span>
+                  <span :class="row[`measure_${n}`] ? 'text-primary' : 'text-muted'">{{ row[`measure_${n}`] || '-' }}</span>
                 </template>
               </el-table-column>
             </el-table-column>
             <el-table-column label="范围/平均" width="100">
               <template #default="{ row }">
-                <span :style="{ color: row.result === 'passed' || row.result === 'pass' ? 'var(--color-success)' : row.result === 'failed' || row.result === 'fail' ? 'var(--color-danger)' : '', fontWeight: 'bold' }">
+                <span
+                  class="font-weight-700"
+                  :class="row.result === 'passed' || row.result === 'pass' ? 'text-success' : row.result === 'failed' || row.result === 'fail' ? 'text-danger' : ''"
+                >
                   {{ row.actual_value || '-' }}
                 </span>
               </template>
@@ -64,7 +72,7 @@
               <template #default="{ row }">
                 <el-tag v-if="row.result === 'pass' || row.result === 'passed' || row.result === '合格'" type="success" size="small">合格</el-tag>
                 <el-tag v-else-if="row.result === 'fail' || row.result === 'failed' || row.result === '不合格'" type="danger" size="small">不合格</el-tag>
-                <span v-else style="color: var(--color-text-secondary);">{{ row.result || '-' }}</span>
+                <span v-else class="text-muted">{{ row.result || '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column prop="remarks" label="备注" min-width="100" show-overflow-tooltip />
@@ -77,7 +85,7 @@
       <el-button @click="dialogVisible = false">关闭</el-button>
       <el-button v-permission="'quality:inspections:update'" v-if="inspection?.status === 'pending'" type="primary" @click="handleGoInspect">去检验</el-button>
     </template>
-  </el-dialog>
+  </AppDialog>
 </template>
 <script setup>
 import { ref, computed, watch } from 'vue'

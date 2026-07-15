@@ -346,43 +346,49 @@ class CashTransactionModel {
         defaultPageSize: 10,
         maxPageSize: 100,
       });
+      const scopeClause = filters.scopeClause || { join: '', where: '', params: [] };
 
       let whereClause = 'WHERE 1=1';
       const params = [];
 
       if (filters.type) {
-        whereClause += ' AND transaction_type = ?';
+        whereClause += ' AND t.transaction_type = ?';
         params.push(filters.type);
       }
 
       if (filters.category) {
-        whereClause += ' AND category = ?';
+        whereClause += ' AND t.category = ?';
         params.push(filters.category);
       }
 
       if (filters.startDate) {
-        whereClause += ' AND transaction_date >= ?';
+        whereClause += ' AND t.transaction_date >= ?';
         params.push(filters.startDate);
       }
 
       if (filters.endDate) {
-        whereClause += ' AND transaction_date <= ?';
+        whereClause += ' AND t.transaction_date <= ?';
         params.push(filters.endDate);
       }
 
       if (filters.search) {
         whereClause += ` AND (
-          transaction_number LIKE ?
-          OR counterparty LIKE ?
-          OR description LIKE ?
-          OR reference_number LIKE ?
+          t.transaction_number LIKE ?
+          OR t.counterparty LIKE ?
+          OR t.description LIKE ?
+          OR t.reference_number LIKE ?
         )`;
         const keyword = `%${filters.search}%`;
         params.push(keyword, keyword, keyword, keyword);
       }
 
+      if (scopeClause.where) {
+        whereClause += scopeClause.where;
+        params.push(...(scopeClause.params || []));
+      }
+
       const [countResult] = await db.pool.execute(
-        `SELECT COUNT(*) as total FROM cash_transactions ${whereClause}`,
+        `SELECT COUNT(*) as total FROM cash_transactions t ${scopeClause.join || ''} ${whereClause}`,
         params
       );
       const total = parseInt(countResult[0].total) || 0;
@@ -390,26 +396,27 @@ class CashTransactionModel {
       // 查询数据
       const dataQuery = `
         SELECT
-          id,
-          transaction_date as transactionDate,
-          transaction_type as type,
-          amount,
-          category,
-          counterparty,
-          description,
-          reference_number as referenceNumber,
-          transaction_number as transactionNumber,
-          status,
-          gl_entry_id as glEntryId,
-          approved_by as approvedBy,
-          approved_at as approvedAt,
-          reject_reason as rejectReason,
-          created_by as createdBy,
-          created_at as createdAt,
-          updated_at as updatedAt
-        FROM cash_transactions
+          t.id,
+          t.transaction_date as transactionDate,
+          t.transaction_type as type,
+          t.amount,
+          t.category,
+          t.counterparty,
+          t.description,
+          t.reference_number as referenceNumber,
+          t.transaction_number as transactionNumber,
+          t.status,
+          t.gl_entry_id as glEntryId,
+          t.approved_by as approvedBy,
+          t.approved_at as approvedAt,
+          t.reject_reason as rejectReason,
+          t.created_by as createdBy,
+          t.created_at as createdAt,
+          t.updated_at as updatedAt
+        FROM cash_transactions t
+        ${scopeClause.join || ''}
         ${whereClause}
-        ORDER BY transaction_date DESC, created_at DESC
+        ORDER BY t.transaction_date DESC, t.created_at DESC
         LIMIT ${pagination.limit} OFFSET ${pagination.offset}
       `;
 
@@ -796,6 +803,9 @@ class CashTransactionModel {
         throw new Error('Cash transaction does not exist');
       }
       ensureAuditableCashTransaction(current[0]);
+      if (Number(current[0].created_by) === Number(userId)) {
+        throw new Error('制单人不能审核自己的现金交易');
+      }
 
       const entryInfo = await createApprovedCashTransactionGlEntry(
         connection,
@@ -845,13 +855,16 @@ class CashTransactionModel {
       await connection.beginTransaction();
 
       const [current] = await connection.execute(
-        'SELECT status FROM cash_transactions WHERE id = ? FOR UPDATE',
+        'SELECT status, created_by FROM cash_transactions WHERE id = ? FOR UPDATE',
         [id]
       );
       if (current.length === 0) {
         throw new Error('Cash transaction does not exist');
       }
       ensureAuditableCashTransaction(current[0]);
+      if (Number(current[0].created_by) === Number(userId)) {
+        throw new Error('制单人不能复核自己的现金交易');
+      }
 
       const [result] = await connection.execute(
         `UPDATE cash_transactions

@@ -1,14 +1,7 @@
 ﻿<template>
   <div class="module-page page-container">
     <!-- 页面头部卡片 -->
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>业务告警配置</h2>
-          <p class="subtitle">配置库存、财务、质量、生产等业务告警规则与检查频率</p>
-        </div>
-      </div>
-    </el-card>
+    <PageHeader title="业务告警配置" subtitle="配置库存、财务、质量、生产等业务告警规则与检查频率" />
 
     <!-- 数据表格 -->
     <el-card class="data-card">
@@ -37,11 +30,11 @@
       <el-form :model="editForm" label-width="100px">
         <el-form-item label="告警名称"><el-input v-model="editForm.name" /></el-form-item>
         <el-form-item label="级别">
-          <el-select v-model="editForm.severity" style="width:100%">
+          <el-select v-model="editForm.severity" class="w-full">
             <el-option label="提示" value="info" /><el-option label="警告" value="warning" /><el-option label="严重" value="critical" />
           </el-select>
         </el-form-item>
-        <el-form-item label="检查间隔(分)"><el-input-number v-model="editForm.check_interval_minutes" :min="1" style="width:100%" /></el-form-item>
+        <el-form-item label="检查间隔(分)"><el-input-number v-model="editForm.check_interval_minutes" :min="1" class="w-full" /></el-form-item>
         <el-form-item label="启用"><el-switch v-model="editForm.is_active" :active-value="1" :inactive-value="0" /></el-form-item>
       </el-form>
       <template #footer>

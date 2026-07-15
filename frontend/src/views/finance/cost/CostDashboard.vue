@@ -1,22 +1,16 @@
 ﻿<template>
   <div class="dashboard-container module-page cost-dashboard-page">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>成本总览</h2>
-          <p class="subtitle">生产成本分析与监控中心</p>
-        </div>
-        <div class="action-buttons">
-          <el-button type="primary" @click="refreshData">刷新数据</el-button>
+    <PageHeader title="成本总览" subtitle="生产成本分析与监控中心">
+      <template #actions>
+<el-button type="primary" @click="refreshData">刷新数据</el-button>
           <el-button v-permission="'finance:cost:view'" type="success" @click="goCostClosing">
             <el-icon><CircleCheck /></el-icon> 成本关账
           </el-button>
           <el-button v-permission="'finance:cost:execute'" type="warning" @click="showWIPDialog = true">
             <el-icon><Setting /></el-icon> 月末成本结转
           </el-button>
-        </div>
-      </div>
-    </el-card>
+      </template>
+    </PageHeader>
     <!-- 核心指标卡片 -->
     <el-row :gutter="20" class="stat-row statistics-row">
       <el-col :xs="24" :sm="8" v-for="(stat, index) in statistics" :key="index">
@@ -160,19 +154,19 @@
       <el-form :model="alertSettings" label-width="150px">
         <el-form-item label="总成本差异阈值">
           <el-input-number v-model="alertSettings.variance_threshold" :min="1" :max="100" :precision="1" />
-          <span style="margin-left: 10px;">%</span>
+          <span class="ml-sm">%</span>
         </el-form-item>
         <el-form-item label="材料成本差异阈值">
           <el-input-number v-model="alertSettings.material_threshold" :min="1" :max="100" :precision="1" />
-          <span style="margin-left: 10px;">%</span>
+          <span class="ml-sm">%</span>
         </el-form-item>
         <el-form-item label="人工成本差异阈值">
           <el-input-number v-model="alertSettings.labor_threshold" :min="1" :max="100" :precision="1" />
-          <span style="margin-left: 10px;">%</span>
+          <span class="ml-sm">%</span>
         </el-form-item>
         <el-form-item label="制造费用差异阈值">
           <el-input-number v-model="alertSettings.overhead_threshold" :min="1" :max="100" :precision="1" />
-          <span style="margin-left: 10px;">%</span>
+          <span class="ml-sm">%</span>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -184,7 +178,7 @@
     <el-dialog v-model="showWIPDialog" title="月末成本结转" width="600px">
       <el-form label-width="120px">
         <el-form-item label="选择会计期间">
-          <el-select v-model="selectedPeriodId" placeholder="请选择期间" style="width: 100%;" :loading="periodsLoading">
+          <el-select v-model="selectedPeriodId" placeholder="请选择期间" class="w-full" :loading="periodsLoading">
             <el-option
               v-for="period in periods"
               :key="period.id"

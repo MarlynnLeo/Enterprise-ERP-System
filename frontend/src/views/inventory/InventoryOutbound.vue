@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * InventoryOutbound.vue
  * @description 前端界面组件文件
@@ -8,15 +8,11 @@
 -->
 <template>
   <div class="module-page inventory-outbound-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>出库管理</h2>
-          <p class="subtitle">管理出库单据与记录</p>
-        </div>
-        <el-button type="primary" :icon="Plus" v-permission="'inventory:outbound:create'" @click="handleAdd">新建出库单</el-button>
-      </div>
-    </el-card>
+    <PageHeader title="出库管理" subtitle="管理出库单据与记录">
+      <template #actions>
+<el-button type="primary" :icon="Plus" v-permission="'inventory:outbound:create'" @click="handleAdd">新建出库单</el-button>
+      </template>
+    </PageHeader>
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
@@ -87,7 +83,7 @@
 
     <!-- 数据表格 -->
     <el-card class="data-card">
-      <el-table ref="outboundTableRef" :data="outboundList" border style="width: 100%" v-loading="loading"
+      <el-table ref="outboundTableRef" :data="outboundList" border class="w-full" v-loading="loading"
         @selection-change="handleSelectionChange">
         <template #empty>
           <el-empty description="暂无出库单数据" />
@@ -157,7 +153,7 @@
         <el-table-column prop="remark" label="备注" min-width="200" show-overflow-tooltip></el-table-column>
         <el-table-column label="操作" min-width="420" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
-            <el-button size="small" v-permission="'inventory:outbound:view'" @click="handleView(scope.row)">
+            <el-button class="btn-op-view" type="primary" size="small" v-permission="'inventory:outbound:view'" @click="handleView(scope.row)">
               查看
             </el-button>
             <!-- 草稿和已确认状态显示编辑按钮 -->
@@ -188,6 +184,11 @@
               @click="handleUpdateStatus(scope.row, 'completed')">
               完成
             </el-button>
+            <el-button v-if="['draft', 'confirmed'].includes(scope.row.status)" size="small" type="warning"
+              v-permission="'inventory:outbound:update'"
+              @click="handleUpdateStatus(scope.row, 'cancelled')">
+              取消
+            </el-button>
 
             <!-- 已出库状态显示撤销重发按钮 -->
             <el-button v-if="scope.row.status === 'completed' || scope.row.status === 'partial_completed'" size="small" type="danger"
@@ -216,17 +217,17 @@
     <el-dialog v-model="dialogVisible"
       :title="dialogType === 'add' ? '新增出库单' : dialogType === 'supplement' ? '补发出库单' : '编辑出库单'" width="55%"
       destroy-on-close>
-      <div v-loading="editLoading" style="min-height: 100px;">
+      <div v-loading="editLoading" class="min-h-form">
       <el-form ref="outboundFormRef" :model="outboundForm" :rules="outboundRules" label-width="120px">
         <el-row :gutter="20">
           <el-col :span="8">
             <el-form-item label="生产任务" prop="production_task_id">
-              <el-select v-model="outboundForm.production_task_id" placeholder="选择生产任务" style="width: 100%"
+              <el-select v-model="outboundForm.production_task_id" placeholder="选择生产任务" class="w-full"
                 @change="handleProductionPlanChange" clearable filterable>
                 <el-option v-for="item in productionPlanOptions" :key="item.id"
                   :label="`${item.code} - ${item.name} (${item.quantity}${item.unit_name || ''})`" :value="item.id">
-                  <span style="float: left">{{ item.code }}</span>
-                  <span style="float: right; color: var(--color-text-muted); font-size: 13px">{{ item.name }}</span>
+                  <span class="option-code">{{ item.code }}</span>
+                  <span class="option-name">{{ item.name }}</span>
                 </el-option>
               </el-select>
             </el-form-item>
@@ -238,7 +239,7 @@
           </el-col>
           <el-col :span="8">
             <el-form-item label="出库日期" prop="outbound_date">
-              <el-date-picker v-model="outboundForm.outbound_date" type="date" placeholder="选择日期" style="width: 100%" />
+              <el-date-picker v-model="outboundForm.outbound_date" type="date" placeholder="选择日期" class="w-full" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -256,19 +257,19 @@
 
         <el-divider content-position="center">出库明细</el-divider>
 
-        <el-table :data="expandedTableData" border style="width: 100%"
+        <el-table :data="expandedTableData" border class="w-full"
           :header-cell-style="{ background: 'var(--color-bg-hover)', color: 'var(--color-text-regular)' }" empty-text="请添加出库物料">
           <el-table-column label="序号" width="55">
             <template #default="scope">
               <span v-if="!scope.row.isSubstitute">{{ scope.row.originalIndex + 1 }}</span>
-              <span v-else style="margin-left: 20px; color: var(--color-text-secondary);">└</span>
+              <span v-else class="tree-indent">└</span>
             </template>
           </el-table-column>
 
           <el-table-column label="物料编码" min-width="120" show-overflow-tooltip>
             <template #default="scope">
               <!-- 真实出库明细 -->
-              <span v-if="scope.row.isSubstitute" style="color: var(--color-success);">
+              <span v-if="scope.row.isSubstitute" class="text-success">
                 {{ scope.row.material_code || scope.row.materialCode }}
               </span>
               <!-- 来自生产计划的物料(只读) -->
@@ -282,20 +283,20 @@
                 :fetch-suggestions="(query, callback) => fetchMaterialSuggestions(query, callback, scope.row.originalIndex)"
                 @select="(item) => handleMaterialSelectAutocomplete(item, scope.row.originalIndex)"
                 @keydown.enter.prevent="handleMaterialEnter(scope.row.originalIndex)"
-                @clear="handleMaterialClear(scope.row.originalIndex)" style="width: 100%" :trigger-on-focus="true"
+                @clear="handleMaterialClear(scope.row.originalIndex)" class="w-full" :trigger-on-focus="true"
                 :debounce="300" :hide-loading="false" :popper-append-to-body="false" value-key="code">
                 <template #default="{ item }">
-                  <div style="display: flex; align-items: center; padding: 4px 0; font-size: 13px;">
-                    <span style="font-weight: bold; color: var(--color-text-primary); min-width: 80px;">
+                  <div class="option-row">
+                    <span class="option-row__code">
                       {{ item.code }}
                     </span>
-                    <span style="color: var(--color-text-regular); margin: 0 8px; flex: 1;">
+                    <span class="option-row__name">
                       {{ item.name }}
                     </span>
-                    <span style="color: var(--color-text-secondary); margin: 0 8px; min-width: 100px;">
+                    <span class="option-row__meta">
                       {{ item.specs }}
                     </span>
-                    <span style="color: var(--color-primary); font-weight: bold; min-width: 60px; text-align: right;">
+                    <span class="option-row__stock">
                       库存: {{ item.stock_quantity || 0 }}
                     </span>
                   </div>
@@ -310,16 +311,16 @@
 
           <el-table-column label="物料名称" min-width="120" show-overflow-tooltip>
             <template #default="scope">
-              <span :style="scope.row.isSubstitute ? 'color: var(--color-success);' : ''">
+              <span :class="scope.row.isSubstitute ? 'is-substitute' : ''">
                 {{ scope.row.material_name || scope.row.materialName }}
-                <el-tag v-if="scope.row.isSubstitute" type="success" size="small" style="margin-left: 5px;">替代</el-tag>
+                <el-tag v-if="scope.row.isSubstitute" type="success" size="small" class="ml-sm">替代</el-tag>
               </span>
             </template>
           </el-table-column>
 
           <el-table-column label="规格" min-width="120" show-overflow-tooltip>
             <template #default="scope">
-              <span :style="scope.row.isSubstitute ? 'color: var(--color-success);' : ''">
+              <span :class="scope.row.isSubstitute ? 'is-substitute' : ''">
                 {{ scope.row.specification || scope.row.specs || '无规格' }}
               </span>
             </template>
@@ -327,7 +328,7 @@
 
           <el-table-column label="单位" min-width="80" show-overflow-tooltip>
             <template #default="scope">
-              <span :style="scope.row.isSubstitute ? 'color: var(--color-success);' : ''">
+              <span :class="scope.row.isSubstitute ? 'is-substitute' : ''">
                 {{ scope.row.unit_name || scope.row.unit }}
               </span>
             </template>
@@ -335,7 +336,7 @@
 
           <el-table-column label="出库库位" min-width="100" show-overflow-tooltip>
             <template #default="scope">
-              <span :style="scope.row.isSubstitute ? 'color: var(--color-success);' : ''">
+              <span :class="scope.row.isSubstitute ? 'is-substitute' : ''">
                 {{ scope.row.location_name }}
               </span>
             </template>
@@ -344,7 +345,7 @@
           <el-table-column label="库存" min-width="80" show-overflow-tooltip>
             <template #default="scope">
               <span
-                :style="scope.row.isSubstitute ? 'color: var(--color-success); font-size: 12px;' : ((dialogType === 'supplement' && (scope.row.stock_quantity || 0) <= 0) ? 'color: var(--color-danger);' : '')">
+                :class="scope.row.isSubstitute ? 'is-substitute-sm' : ((dialogType === 'supplement' && (scope.row.stock_quantity || 0) <= 0) ? 'text-stock-low' : '')">
                 {{ scope.row.stock_quantity || scope.row.stockQuantity || 0 }}
               </span>
             </template>
@@ -352,7 +353,7 @@
 
           <el-table-column label="出库" min-width="120" show-overflow-tooltip>
             <template #default="scope">
-              <div v-if="scope.row.isSubstitute" style="color: var(--color-success); font-size: 12px;">
+              <div v-if="scope.row.isSubstitute" class="is-substitute-sm">
                 {{ Math.floor(scope.row.quantity || 0) }}
               </div>
               <el-input v-else-if="dialogType !== 'view' && !scope.row.is_from_plan"
@@ -379,7 +380,7 @@
           </el-table-column>
         </el-table>
 
-        <div class="add-material" style="margin-top: 10px;" v-if="dialogType !== 'view'">
+        <div class="add-material mt-10" v-if="dialogType !== 'view'">
           <el-button type="primary" v-permission="dialogType === 'add' ? 'inventory:outbound:create' : 'inventory:outbound:update'" @click="handleAddItem">
             <el-icon>
               <Plus />
@@ -400,8 +401,8 @@
     </el-dialog>
 
     <!-- 查看出库单对话框 -->
-    <el-dialog v-model="viewDialogVisible" title="出库单详情" width="50%">
-      <div v-loading="viewLoading" style="min-height: 100px;">
+    <AppDialog v-model="viewDialogVisible" title="出库单详情" mode="view" content-width="wide">
+      <div v-loading="viewLoading" class="min-h-form">
       <el-descriptions :column="2" border>
         <el-descriptions-item label="出库单号">{{ currentOutbound.outbound_no }}</el-descriptions-item>
         <el-descriptions-item label="出库日期">{{ formatDate(currentOutbound.outbound_date) }}</el-descriptions-item>
@@ -422,59 +423,59 @@
 
       <el-divider>出库明细</el-divider>
 
-      <el-table :data="viewExpandedTableData" border style="width: 100%" class="detail-table">
+      <el-table :data="viewExpandedTableData" border class="w-full detail-table">
         <el-table-column label="序号" width="55">
           <template #default="scope">
             <span v-if="!scope.row.isSubstitute">{{ scope.row.originalIndex + 1 }}</span>
-            <span v-else style="margin-left: 20px; color: var(--color-text-secondary);">└</span>
+            <span v-else class="tree-indent">└</span>
           </template>
         </el-table-column>
         <el-table-column label="物料编码" min-width="120" show-overflow-tooltip>
           <template #default="scope">
-            <span :style="scope.row.isSubstitute ? 'color: var(--color-success);' : ''">
+            <span :class="scope.row.isSubstitute ? 'is-substitute' : ''">
               {{ scope.row.material_code || scope.row.materialCode }}
             </span>
           </template>
         </el-table-column>
         <el-table-column label="物料名称" min-width="120" show-overflow-tooltip>
           <template #default="scope">
-            <span :style="scope.row.isSubstitute ? 'color: var(--color-success);' : ''">
+            <span :class="scope.row.isSubstitute ? 'is-substitute' : ''">
               {{ scope.row.material_name || scope.row.materialName }}
-              <el-tag v-if="scope.row.isSubstitute" type="success" size="small" style="margin-left: 5px;">替代</el-tag>
+              <el-tag v-if="scope.row.isSubstitute" type="success" size="small" class="ml-sm">替代</el-tag>
             </span>
           </template>
         </el-table-column>
         <el-table-column label="规格" min-width="120" show-overflow-tooltip>
           <template #default="scope">
-            <span :style="scope.row.isSubstitute ? 'color: var(--color-success);' : ''">
+            <span :class="scope.row.isSubstitute ? 'is-substitute' : ''">
               {{ scope.row.specification || scope.row.specs || '无规格' }}
             </span>
           </template>
         </el-table-column>
         <el-table-column label="单位" min-width="80" show-overflow-tooltip>
           <template #default="scope">
-            <span :style="scope.row.isSubstitute ? 'color: var(--color-success);' : ''">
+            <span :class="scope.row.isSubstitute ? 'is-substitute' : ''">
               {{ scope.row.unit_name || scope.row.unit }}
             </span>
           </template>
         </el-table-column>
         <el-table-column label="数量" min-width="100" show-overflow-tooltip>
           <template #default="scope">
-            <span :style="scope.row.isSubstitute ? 'color: var(--color-success);' : ''">
+            <span :class="scope.row.isSubstitute ? 'is-substitute' : ''">
               {{ Math.floor(scope.row.quantity || 0) }}
             </span>
           </template>
         </el-table-column>
         <el-table-column label="出库库位" width="100" fixed="right">
           <template #default="scope">
-            <span :style="scope.row.isSubstitute ? 'color: var(--color-success);' : ''">
+            <span :class="scope.row.isSubstitute ? 'is-substitute' : ''">
               {{ scope.row.location_name }}
             </span>
           </template>
         </el-table-column>
       </el-table>
       </div>
-    </el-dialog>
+    </AppDialog>
 
     <!-- 选择物料对话框 -->
     <el-dialog v-model="materialDialogVisible" title="选择物料" width="50%">
@@ -490,7 +491,7 @@
         </el-input>
       </div>
 
-      <el-table :data="materialList" border style="width: 100%" height="400px" @row-click="handleSelectMaterial"
+      <el-table :data="materialList" border class="w-full" height="400px" @row-click="handleSelectMaterial"
         v-loading="loadingMaterials">
         <el-table-column prop="code" label="物料编码" width="120" />
         <el-table-column prop="name" label="物料名称" />
@@ -534,15 +535,15 @@
             </thead>
             <tbody>
               <tr v-for="(item, index) in printExpandedTableData" :key="index"
-                :style="item.isSubstitute ? 'color: var(--color-success);' : ''">
+                :class="item.isSubstitute ? 'is-substitute' : ''">
                 <td>
                   <span v-if="!item.isSubstitute">{{ item.originalIndex + 1 }}</span>
-                  <span v-else style="margin-left: 20px;">└</span>
+                  <span v-else class="tree-indent">└</span>
                 </td>
                 <td>{{ item.material_code || item.materialCode }}</td>
                 <td>
                   {{ item.material_name || item.materialName }}
-                  <span v-if="item.isSubstitute" style="font-size: 12px; color: var(--color-success);">[替代]</span>
+                  <span v-if="item.isSubstitute" class="is-substitute-sm">[替代]</span>
                 </td>
                 <td>{{ item.specification || item.specs || '-' }}</td>
                 <td>{{ item.unit_name || item.unit }}</td>
@@ -1559,8 +1560,9 @@ export default {
         console.error('保存出库单失败:', error)
         const errorData = error.response?.data
 
-        // 处理超额领料警告
-        if (errorData?.code === 'EXCESS_ISSUE' && errorData?.details) {
+        // 处理超额领料警告（后端字段为 errorCode，兼容历史 code）
+        const errCode = errorData?.errorCode || errorData?.code
+        if (errCode === 'EXCESS_ISSUE' && errorData?.details) {
           const excessMessage = h('div', [
             h('div', { style: { fontWeight: 'bold', marginBottom: '10px' } }, '检测到以下超额领料项，是否确认继续？'),
             ...errorData.details.map(d =>
@@ -2239,12 +2241,6 @@ export default {
   color: var(--color-text-secondary);
   margin-top: 4px;
   line-height: 1.2;
-}
-
-/* 对话框高度 - 页面特定，其他样式使用全局主题 */
-:deep(.el-dialog__body) {
-  max-height: 60vh;
-  overflow-y: auto;
 }
 
 /* 详情对话框中的长文本处理 */

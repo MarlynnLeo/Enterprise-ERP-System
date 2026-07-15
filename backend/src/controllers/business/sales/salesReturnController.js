@@ -122,6 +122,12 @@ exports.getSalesReturns = async (req, res) => {
 
     conn = await getConnection();
 
+    const ScopeGuard = require('../../../authorization/ScopeGuard');
+    const scopeClause = await ScopeGuard.applyListScope(req, 'sales_return', {
+      tableAlias: 'sr',
+      ownerAlias: 'sales_return_owner_scope',
+    });
+
     let whereClause = '';
     const queryParams = [];
 
@@ -145,11 +151,15 @@ exports.getSalesReturns = async (req, res) => {
       queryParams.push(status);
     }
 
+    whereClause += scopeClause.where;
+    queryParams.push(...scopeClause.params);
+
     const countQuery = `
       SELECT COUNT(*) as total
       FROM sales_returns sr
       LEFT JOIN sales_orders o ON sr.order_id = o.id AND o.deleted_at IS NULL
       LEFT JOIN customers c ON o.customer_id = c.id
+      ${scopeClause.join}
       WHERE sr.deleted_at IS NULL ${whereClause}
       `;
 
@@ -162,6 +172,7 @@ exports.getSalesReturns = async (req, res) => {
       FROM sales_returns sr
       LEFT JOIN sales_orders o ON sr.order_id = o.id AND o.deleted_at IS NULL
       LEFT JOIN customers c ON o.customer_id = c.id
+      ${scopeClause.join}
       WHERE sr.deleted_at IS NULL ${whereClause}
       ORDER BY sr.created_at DESC
       `,
@@ -269,6 +280,11 @@ exports.getSalesReturnById = async (req, res) => {
     const { id } = req.params;
 
     conn = await getConnection();
+
+    const ScopeGuard = require('../../../authorization/ScopeGuard');
+    if (!(await ScopeGuard.denyUnlessAccess(res, conn, req, 'sales_return', id, '无权访问该销售退货单'))) {
+      return;
+    }
 
     const query = `
       SELECT sr.*, c.name as customer_name, c.contact_person, c.contact_phone, o.order_no
@@ -500,6 +516,12 @@ exports.updateSalesReturn = async (req, res) => {
     }
 
     connection = await getConnection();
+
+    const ScopeGuard = require('../../../authorization/ScopeGuard');
+    if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'sales_return', id, '无权修改该销售退货单'))) {
+      return;
+    }
+
     await connection.beginTransaction();
 
     const [returnRows] = await connection.query(
@@ -717,6 +739,7 @@ exports.updateSalesReturn = async (req, res) => {
               remark: `销售退货入库：${material.code} ${material.name}`,
               unitId: material.unit_id,
               batchNumber: `RT-${actualReturnNo}-${productId}`,
+              idempotencyKey: `sales_return:${actualReturnNo}:${productId}:${warehouseId}:${changeQuantity}`,
             },
             connection
           );
@@ -749,8 +772,9 @@ exports.updateSalesReturn = async (req, res) => {
       }
     }
 
+    let domainEventId = null;
     if (pendingReturnForFinance) {
-      await DomainEventService.enqueue(
+      domainEventId = await DomainEventService.enqueue(
         'SALES_RETURN_COMPLETED',
         {
           returnId: pendingReturnForFinance.id,
@@ -767,7 +791,7 @@ exports.updateSalesReturn = async (req, res) => {
     }
 
     await connection.commit();
-    DomainEventService.dispatchSoon();
+    DomainEventService.dispatchSoon(domainEventId);
 
     if (pendingSalesReturnCostTasks.length > 0) {
       setImmediate(async () => {
@@ -822,6 +846,12 @@ exports.updateSalesReturnStatus = async (req, res) => {
     }
 
     connection = await getConnection();
+
+    const ScopeGuard = require('../../../authorization/ScopeGuard');
+    if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'sales_return', id, '无权变更该销售退货单状态'))) {
+      return;
+    }
+
     const [returns] = await connection.query(
       'SELECT id, status FROM sales_returns WHERE id = ? AND deleted_at IS NULL',
       [id]
@@ -887,6 +917,12 @@ exports.deleteSalesReturn = async (req, res) => {
     const { id } = req.params;
 
     connection = await getConnection();
+
+    const ScopeGuard = require('../../../authorization/ScopeGuard');
+    if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'sales_return', id, '无权删除该销售退货单'))) {
+      return;
+    }
+
     await connection.beginTransaction();
 
     const [returnRows] = await connection.query(
@@ -909,10 +945,7 @@ exports.deleteSalesReturn = async (req, res) => {
       await connection.rollback();
       return ResponseHandler.error(
         res,
-        `Cannot delete sales return in status "${returnOrder.status}"`,
-        /*
-        `鏃犳硶鍒犻櫎鐘舵€佷负 "${returnOrder.status}" 鐨勯€€璐у崟`,
-        */
+        `无法删除状态为 "${returnOrder.status}" 的销售退货单`,
         'VALIDATION_ERROR',
         400
       );

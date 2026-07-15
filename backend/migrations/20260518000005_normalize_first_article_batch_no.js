@@ -19,7 +19,7 @@ exports.up = async function up(knex) {
         AND pt.code IS NOT NULL
         AND pt.code <> ''
         AND qi.batch_no REGEXP '^B-?PT[0-9]{12}(-[0-9]{6}-[0-9]+)?$'
-        AND qi.batch_no <> CONCAT('B-', REPLACE(pt.code, '-', ''))
+        AND BINARY qi.batch_no <> BINARY CONCAT('B-', REPLACE(pt.code, '-', ''))
     `);
   });
 };

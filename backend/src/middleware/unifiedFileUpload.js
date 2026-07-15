@@ -106,30 +106,100 @@ class FileUploadConfig {
   }
 }
 
+// Magic bytes — 防止仅靠 MIME/扩展名伪造上传
+const MAGIC_SIGNATURES = {
+  'image/jpeg': [[0xff, 0xd8, 0xff]],
+  'image/png': [[0x89, 0x50, 0x4e, 0x47]],
+  'image/gif': [
+    [0x47, 0x49, 0x46, 0x38, 0x37, 0x61],
+    [0x47, 0x49, 0x46, 0x38, 0x39, 0x61],
+  ],
+  'image/webp': null, // special RIFF+WEBP
+  'image/bmp': [[0x42, 0x4d]],
+  'application/pdf': [[0x25, 0x50, 0x44, 0x46]], // %PDF
+  'application/zip': [
+    [0x50, 0x4b, 0x03, 0x04],
+    [0x50, 0x4b, 0x05, 0x06],
+  ],
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': [
+    [0x50, 0x4b, 0x03, 0x04],
+  ],
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': [
+    [0x50, 0x4b, 0x03, 0x04],
+  ],
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': [
+    [0x50, 0x4b, 0x03, 0x04],
+  ],
+  'application/msword': [[0xd0, 0xcf, 0x11, 0xe0]],
+  'application/vnd.ms-excel': [[0xd0, 0xcf, 0x11, 0xe0]],
+  'application/vnd.ms-powerpoint': [[0xd0, 0xcf, 0x11, 0xe0]],
+  'text/plain': null, // skip binary magic
+  'text/csv': null,
+  'application/octet-stream': null,
+};
+
 // 文件验证器
 class FileValidator {
+  static matchesMagic(buffer, mimetype) {
+    if (!buffer || buffer.length < 4) return false;
+    if (mimetype === 'image/webp') {
+      return (
+        buffer.subarray(0, 4).equals(Buffer.from('RIFF')) &&
+        buffer.length >= 12 &&
+        buffer.subarray(8, 12).equals(Buffer.from('WEBP'))
+      );
+    }
+    const sigs = MAGIC_SIGNATURES[mimetype];
+    if (sigs === null) return true; // 文本等跳过
+    if (!sigs) {
+      // 未知 MIME：若扩展名是图片/pdf 则拒绝；其它放行扩展名校验结果
+      return true;
+    }
+    return sigs.some((sig) => {
+      if (buffer.length < sig.length) return false;
+      for (let i = 0; i < sig.length; i++) {
+        if (buffer[i] !== sig[i]) return false;
+      }
+      return true;
+    });
+  }
+
+  static async readFileHead(file, length = 16) {
+    if (file.buffer && Buffer.isBuffer(file.buffer)) {
+      return file.buffer.subarray(0, Math.min(length, file.buffer.length));
+    }
+    if (file.path) {
+      const fsSync = require('fs');
+      const fd = fsSync.openSync(file.path, 'r');
+      try {
+        const buf = Buffer.alloc(length);
+        const n = fsSync.readSync(fd, buf, 0, length, 0);
+        return buf.subarray(0, n);
+      } finally {
+        fsSync.closeSync(fd);
+      }
+    }
+    return null;
+  }
+
   static validateFile(file, config) {
     const errors = [];
 
-    // 检查文件大小
     if (file.size > config.getMaxFileSize()) {
       errors.push(`文件大小不能超过 ${this.formatFileSize(config.getMaxFileSize())}`);
     }
 
-    // 检查文件扩展名
     const ext = path.extname(file.originalname).toLowerCase();
     const allowedExtensions = config.getAllowedExtensions();
     if (!allowedExtensions.includes(ext)) {
       errors.push(`不支持的文件类型，允许的类型: ${allowedExtensions.join(', ')}`);
     }
 
-    // 检查MIME类型
     const allowedMimeTypes = config.getAllowedMimeTypes();
     if (!allowedMimeTypes.includes(file.mimetype)) {
       errors.push('不支持的文件格式');
     }
 
-    // 检查文件名安全性
     if (this.hasUnsafeCharacters(file.originalname)) {
       errors.push('文件名包含不安全的字符');
     }
@@ -138,6 +208,52 @@ class FileValidator {
       isValid: errors.length === 0,
       errors,
     };
+  }
+
+  /** 落盘后校验 magic bytes；失败应删除文件 */
+  static async validateMagicAfterUpload(file) {
+    if (!file) return { isValid: true, errors: [] };
+    const sig = MAGIC_SIGNATURES[file.mimetype];
+    if (sig === null || sig === undefined) {
+      // 未知 MIME：若是图片/pdf 扩展仍强制读头
+      const ext = path.extname(file.originalname || '').toLowerCase();
+      if (!['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.pdf'].includes(ext)) {
+        return { isValid: true, errors: [] };
+      }
+    }
+    try {
+      const head = await this.readFileHead(file, 16);
+      if (!head) return { isValid: true, errors: [] };
+      const mime = file.mimetype;
+      if (MAGIC_SIGNATURES[mime] === null) return { isValid: true, errors: [] };
+      if (MAGIC_SIGNATURES[mime] && !this.matchesMagic(head, mime)) {
+        return {
+          isValid: false,
+          errors: ['文件内容与声明类型不符（magic bytes 校验失败）'],
+        };
+      }
+      // 扩展名与常见图片/pdf 交叉检查
+      const ext = path.extname(file.originalname || '').toLowerCase();
+      const extMimeMap = {
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.png': 'image/png',
+        '.gif': 'image/gif',
+        '.webp': 'image/webp',
+        '.bmp': 'image/bmp',
+        '.pdf': 'application/pdf',
+      };
+      const expected = extMimeMap[ext];
+      if (expected && MAGIC_SIGNATURES[expected] && !this.matchesMagic(head, expected)) {
+        return {
+          isValid: false,
+          errors: ['文件内容与扩展名不符（magic bytes 校验失败）'],
+        };
+      }
+      return { isValid: true, errors: [] };
+    } catch {
+      return { isValid: false, errors: ['无法读取文件内容进行安全校验'] };
+    }
   }
 
   static hasUnsafeCharacters(filename) {
@@ -239,7 +355,7 @@ function createFileUploadMiddleware(options = {}) {
       ? upload.array(config.fieldName, config.maxFiles)
       : upload.single(config.fieldName);
 
-    uploadHandler(req, res, (err) => {
+    uploadHandler(req, res, async (err) => {
       if (err) {
         let error;
 
@@ -263,6 +379,32 @@ function createFileUploadMiddleware(options = {}) {
         }
 
         return next(error);
+      }
+
+      try {
+        const uploaded = req.files?.length ? req.files : req.file ? [req.file] : [];
+        for (const file of uploaded) {
+          const magic = await FileValidator.validateMagicAfterUpload(file);
+          if (!magic.isValid) {
+            if (file.path) {
+              try {
+                await fs.unlink(file.path);
+              } catch {
+                /* ignore */
+              }
+            }
+            return next(
+              ErrorFactory.business(
+                'INVALID_FILE_TYPE',
+                magic.errors.join('; ') || '文件内容安全校验失败'
+              )
+            );
+          }
+        }
+      } catch (magicError) {
+        return next(
+          ErrorFactory.business('FILE_UPLOAD_ERROR', magicError.message || '文件安全校验失败')
+        );
       }
 
       // 添加文件信息到请求对象

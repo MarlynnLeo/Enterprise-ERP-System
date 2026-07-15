@@ -4,7 +4,6 @@
  */
 
 const { pool } = require('../../config/db');
-const { logger } = require('../../utils/logger');
 
 class AssemblyVerificationService {
   /**
@@ -47,10 +46,14 @@ class AssemblyVerificationService {
     if (bomCheck.length === 0) {
       // 物料不在 BOM 中
       const log = await this._saveLog({
-        taskId, materialId: material.id, scannedBarcode,
-        expectedBarcode: material.code, result: 'fail',
+        taskId,
+        materialId: material.id,
+        scannedBarcode,
+        expectedBarcode: material.code,
+        result: 'fail',
         failReason: `物料 ${material.code}(${material.name}) 不在该任务的 BOM 中`,
-        operatorId, station,
+        operatorId,
+        station,
       });
       return {
         result: 'fail',
@@ -62,9 +65,14 @@ class AssemblyVerificationService {
 
     // 4. 验证通过
     const log = await this._saveLog({
-      taskId, materialId: material.id, scannedBarcode,
-      expectedBarcode: material.code, result: 'pass',
-      failReason: null, operatorId, station,
+      taskId,
+      materialId: material.id,
+      scannedBarcode,
+      expectedBarcode: material.code,
+      result: 'pass',
+      failReason: null,
+      operatorId,
+      station,
       bomDetailId: bomCheck[0].bom_detail_id,
     });
 
@@ -82,8 +90,17 @@ class AssemblyVerificationService {
       `INSERT INTO assembly_verification_logs
        (task_id, bom_detail_id, material_id, scanned_barcode, expected_barcode, result, fail_reason, operator_id, station)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [data.taskId, data.bomDetailId || null, data.materialId, data.scannedBarcode,
-       data.expectedBarcode, data.result, data.failReason, data.operatorId, data.station || null]
+      [
+        data.taskId,
+        data.bomDetailId || null,
+        data.materialId,
+        data.scannedBarcode,
+        data.expectedBarcode,
+        data.result,
+        data.failReason,
+        data.operatorId,
+        data.station || null,
+      ]
     );
     return { id: result.insertId, result: data.result };
   }
@@ -97,12 +114,22 @@ class AssemblyVerificationService {
     let where = 'WHERE 1=1';
     const values = [];
 
-    if (taskId) { where += ' AND avl.task_id = ?'; values.push(taskId); }
-    if (operatorId) { where += ' AND avl.operator_id = ?'; values.push(operatorId); }
-    if (result) { where += ' AND avl.result = ?'; values.push(result); }
+    if (taskId) {
+      where += ' AND avl.task_id = ?';
+      values.push(taskId);
+    }
+    if (operatorId) {
+      where += ' AND avl.operator_id = ?';
+      values.push(operatorId);
+    }
+    if (result) {
+      where += ' AND avl.result = ?';
+      values.push(result);
+    }
 
     const [[{ total }]] = await pool.query(
-      `SELECT COUNT(*) as total FROM assembly_verification_logs avl ${where}`, values
+      `SELECT COUNT(*) as total FROM assembly_verification_logs avl ${where}`,
+      values
     );
 
     const [list] = await pool.query(

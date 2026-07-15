@@ -83,7 +83,6 @@ class PurchaseOrderStatusService {
       await this.updateOrderStatus(orderId, client);
     } catch (error) {
       logger.error('更新采购订单项目收货数量失败:', error);
-      logger.error('错误堆栈:', error.stack);
       throw error;
     }
   }
@@ -101,21 +100,32 @@ class PurchaseOrderStatusService {
 
     try {
       logger.info(
-        `[PurchaseOrderStatusService] 全量同步收货数量：订单ID=${orderId}, 物料ID=${materialId}`
+        `[PurchaseOrderStatusService] Syncing received quantity from receipts: orderId=${orderId}, materialId=${materialId}`
       );
 
       // 从所有非草稿、非取消的收货单汇总该物料的实际收货量
       const [result] = await client.execute(
-        `SELECT COALESCE(SUM(
-           COALESCE(NULLIF(ri.received_quantity, 0), ri.quantity, ri.qualified_quantity, 0)
-         ), 0) AS total_received
-         FROM purchase_receipt_items ri
-         JOIN purchase_receipts r ON ri.receipt_id = r.id
-         WHERE r.order_id = ?
-           AND ri.material_id = ?
-           AND r.status IN ('confirmed', 'completed')
-           AND r.deleted_at IS NULL`,
-        [orderId, materialId]
+        `SELECT GREATEST(
+           COALESCE((
+             SELECT SUM(COALESCE(NULLIF(ri.received_quantity, 0), ri.quantity, ri.qualified_quantity, 0))
+             FROM purchase_receipt_items ri
+             JOIN purchase_receipts r ON ri.receipt_id = r.id
+             WHERE r.order_id = ?
+               AND ri.material_id = ?
+               AND r.status IN ('confirmed', 'completed')
+               AND r.deleted_at IS NULL
+           ), 0),
+           COALESCE((
+             SELECT SUM(COALESCE(NULLIF(qi.quantity, 0), qi.qualified_quantity, 0))
+             FROM quality_inspections qi
+             WHERE qi.reference_id = ?
+               AND qi.material_id = ?
+               AND qi.inspection_type = 'incoming'
+               AND qi.deleted_at IS NULL
+               AND qi.status NOT IN ('cancelled', 'rejected')
+           ), 0)
+         ) AS total_received`,
+        [orderId, materialId, orderId, materialId]
       );
 
       const totalReceived = parseFloat(result[0]?.total_received) || 0;
@@ -151,13 +161,13 @@ class PurchaseOrderStatusService {
       );
 
       logger.info(
-        `[PurchaseOrderStatusService] 全量同步完成: 订单ID=${orderId}, 物料ID=${materialId}, 收货量=${totalReceived}`
+        `[PurchaseOrderStatusService] Received quantity synchronized: orderId=${orderId}, materialId=${materialId}, totalReceived=${totalReceived}`
       );
 
       // 更新订单整体状态
       await this.updateOrderStatus(orderId, client);
     } catch (error) {
-      logger.error('全量同步收货数量失败:', error);
+      logger.error('Received quantity synchronization failed:', error);
       throw error;
     }
   }
@@ -403,7 +413,6 @@ class PurchaseOrderStatusService {
       await this.updateOrderStatus(orderId, client);
     } catch (error) {
       logger.error('更新采购订单项目检验数量失败:', error);
-      logger.error('错误堆栈:', error.stack);
       throw error;
     }
   }
@@ -596,13 +605,12 @@ class PurchaseOrderStatusService {
         throw new Error(`采购订单项目不存在: 订单ID=${orderId}, 物料ID=${materialId}`);
       }
 
-      logger.info('[PurchaseOrderStatusService] 入库数量更新完成');
+      logger.info('[PurchaseOrderStatusService] Warehousing quantity updated');
 
       // 更新订单整体状态
       await this.updateOrderStatus(orderId, client);
     } catch (error) {
       logger.error('更新采购订单项目入库数量失败:', error);
-      logger.error('错误堆栈:', error.stack);
       throw error;
     }
   }

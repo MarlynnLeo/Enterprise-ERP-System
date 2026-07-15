@@ -8,13 +8,9 @@
 -->
 <template>
   <div class="module-page invoices-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>应付发票</h2>
-          <p class="subtitle">采购入库完成后自动生成，手工录入仅用于期初或例外</p>
-        </div>
-        <el-button
+    <PageHeader title="应付发票" subtitle="采购入库完成后自动生成，手工录入仅用于期初或例外">
+      <template #actions>
+<el-button
           type="info"
           plain
           :icon="Plus"
@@ -23,8 +19,8 @@
         >
           期初/例外录入
         </el-button>
-      </div>
-    </el-card>
+      </template>
+    </PageHeader>
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
@@ -80,7 +76,7 @@
 
     <!-- 表格区域 -->
     <el-card class="data-card">
-      <el-table :data="invoiceList" style="width: 100%" border v-loading="loading">
+      <el-table :data="invoiceList" class="w-full" border v-loading="loading">
         <template #empty>
           <el-empty description="暂无发票数据" />
         </template>
@@ -152,7 +148,7 @@
             >
               付款
             </el-button>
-            <el-button type="info" size="small" @click="handleViewDetails(scope.row)"
+            <el-button class="btn-op-view" type="primary" size="small" @click="handleViewDetails(scope.row)"
               >查看</el-button
             >
           </template>
@@ -205,7 +201,7 @@
                 v-model="invoiceForm.supplierId"
                 placeholder="请选择供应商"
                 filterable
-                style="width: 100%"
+                class="w-full"
               >
                 <el-option
                   v-for="supplier in supplierOptions"
@@ -228,7 +224,7 @@
                 placeholder="选择开票日期"
                 format="YYYY-MM-DD"
                 value-format="YYYY-MM-DD"
-                style="width: 100%"
+                class="w-full"
                 @change="handleInvoiceDateChange"
               ></el-date-picker>
             </el-form-item>
@@ -241,7 +237,7 @@
                 placeholder="选择到期日期"
                 format="YYYY-MM-DD"
                 value-format="YYYY-MM-DD"
-                style="width: 100%"
+                class="w-full"
               ></el-date-picker>
             </el-form-item>
           </el-col>
@@ -253,7 +249,7 @@
               <el-select
                 v-model="paymentTerms"
                 placeholder="选择付款期限"
-                style="width: 100%"
+                class="w-full"
                 @change="handlePaymentTermsChange"
               >
                 <el-option
@@ -269,9 +265,9 @@
 
         <!-- 发票明细项 -->
         <div class="invoice-items">
-          <h3 style="margin-bottom: 12px; font-size: 14px">发票明细</h3>
+          <h3 class="section-title-sm">发票明细</h3>
           <div class="details-table-container">
-            <el-table :data="invoiceForm.items" border size="small" style="width: 100%">
+            <el-table :data="invoiceForm.items" border size="small" class="w-full">
               <el-table-column label="物料/服务" width="140">
                 <template #default="scope">
                   <el-select
@@ -282,7 +278,7 @@
                     :remote-method="debouncedSearchMaterials"
                     :loading="loadingMaterials"
                     size="small"
-                    style="width: 100%"
+                    class="w-full"
                     @change="() => handleMaterialChange(scope.row)"
                   >
                     <el-option
@@ -336,7 +332,7 @@
                     link
                     @click="removeInvoiceItem(scope.$index)"
                     v-permission="'finance:ap:update'"
-                    style="padding: 4px 0"
+                    class="py-4"
                   >
                     删除
                   </el-button>
@@ -344,7 +340,7 @@
               </el-table-column>
             </el-table>
           </div>
-          <div class="add-item" style="margin-top: 10px">
+          <div class="add-item mt-10">
             <el-button
               v-permission="'finance:ap:create'"
               type="primary"
@@ -356,15 +352,7 @@
         </div>
 
         <!-- 税率和总计 -->
-        <div
-          class="invoice-total"
-          style="
-            margin-top: 16px;
-            padding: 12px;
-            background: var(--color-bg-hover);
-            border-radius: 4px;
-          "
-        >
+        <div class="invoice-total invoice-total-box">
           <el-row :gutter="20">
             <el-col :span="8">
               <el-form-item label="税率" label-width="60px">
@@ -372,7 +360,7 @@
                   v-model="invoiceForm.taxRate"
                   placeholder="税率"
                   size="small"
-                  style="width: 100%"
+                  class="w-full"
                 >
                   <el-option
                     v-for="rate in vatRateOptions"
@@ -384,25 +372,16 @@
               </el-form-item>
             </el-col>
             <el-col :span="16">
-              <div style="display: flex; flex-direction: column; gap: 4px; padding-top: 4px">
-                <div style="display: flex; justify-content: space-between; font-size: 13px">
+              <div class="flex-col pt-4">
+                <div class="flex-between text-md">
                   <span>小计：</span>
                   <span>{{ formatCurrency(calculateSubtotal()) }}</span>
                 </div>
-                <div style="display: flex; justify-content: space-between; font-size: 13px">
+                <div class="flex-between text-md">
                   <span>税额：</span>
                   <span>{{ formatCurrency(calculateTax()) }}</span>
                 </div>
-                <div
-                  style="
-                    display: flex;
-                    justify-content: space-between;
-                    font-size: 15px;
-                    font-weight: bold;
-                    color: var(--color-primary);
-                    margin-top: 4px;
-                  "
-                >
+                <div class="total-line-primary">
                   <span>总计：</span>
                   <span>{{ formatCurrency(calculateTotal()) }}</span>
                 </div>
@@ -411,7 +390,7 @@
           </el-row>
         </div>
 
-        <el-form-item label="备注" label-width="60px" style="margin-top: 16px">
+        <el-form-item label="备注" label-width="60px" class="mt-md">
           <el-input
             v-model="invoiceForm.notes"
             type="textarea"
@@ -459,7 +438,7 @@
             placeholder="选择付款日期"
             format="YYYY-MM-DD"
             value-format="YYYY-MM-DD"
-            style="width: 100%"
+            class="w-full"
           ></el-date-picker>
         </el-form-item>
         <el-form-item label="付款金额" prop="amount">
@@ -468,14 +447,14 @@
             :precision="2"
             :min="0"
             :max="paymentForm.balanceValue"
-            style="width: 100%"
+            class="w-full"
           ></el-input-number>
         </el-form-item>
         <el-form-item label="付款方式" prop="paymentMethod">
           <el-select
             v-model="paymentForm.paymentMethod"
             placeholder="请选择付款方式"
-            style="width: 100%"
+            class="w-full"
           >
             <el-option label="现金" value="cash"></el-option>
             <el-option label="银行转账" value="bank_transfer"></el-option>
@@ -492,7 +471,7 @@
           <el-select
             v-model="paymentForm.bankAccountId"
             placeholder="请选择银行账户"
-            style="width: 100%"
+            class="w-full"
             filterable
             :loading="bankAccountsLoading"
           >
@@ -502,9 +481,9 @@
               :label="`${account.bankName} - ${account.accountName}`"
               :value="account.id"
             >
-              <div style="display: flex; justify-content: space-between; align-items: center">
+              <div class="flex-between">
                 <span>{{ account.bankName }} - {{ account.accountName }}</span>
-                <span style="color: var(--color-text-muted); font-size: 13px">{{
+                <span class="text-muted text-md">{{
                   formatCurrency(account.balance)
                 }}</span>
               </div>
@@ -535,7 +514,12 @@
     </el-dialog>
 
     <!-- 发票明细查看对话框 -->
-    <el-dialog title="发票详情查看" v-model="detailsDialogVisible" width="800px">
+    <AppDialog
+      v-model="detailsDialogVisible"
+      title="发票详情查看"
+      mode="view"
+      content-width="wide"
+    >
       <div v-loading="detailsLoading">
         <!-- 基本信息 -->
         <el-descriptions :column="2" border>
@@ -576,7 +560,7 @@
         <div class="detail-title">
           <h3>发票明细项</h3>
         </div>
-        <el-table :data="invoiceDetail.items || []" border style="width: 100%">
+        <el-table :data="invoiceDetail.items || []" border class="w-full">
           <el-table-column prop="materialName" label="物料/服务" min-width="150"></el-table-column>
           <el-table-column prop="description" label="描述" min-width="200"></el-table-column>
           <el-table-column prop="quantity" label="数量" width="100"></el-table-column>
@@ -610,7 +594,7 @@
           >
         </span>
       </template>
-    </el-dialog>
+    </AppDialog>
   </div>
 </template>
 <script setup>
@@ -1317,11 +1301,6 @@ onMounted(() => {
   min-width: 550px;
 }
 /* 对话框自适应高度 */
-:deep(.el-dialog__body) {
-  max-height: 70vh;
-  overflow-y: auto;
-  padding: 20px 24px;
-}
 /* 移除操作列右侧空白 */
 .invoice-items :deep(.el-table__body-wrapper .el-table__cell:last-child) {
   padding-right: 8px;

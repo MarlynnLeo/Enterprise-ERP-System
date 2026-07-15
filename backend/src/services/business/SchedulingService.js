@@ -967,8 +967,9 @@ class SchedulingService {
             )) as outbound_count,
          (SELECT COUNT(*) FROM production_reports WHERE task_id = ?) as report_count,
          (SELECT COUNT(*)
-          FROM quality_inspections qi
+         FROM quality_inspections qi
           WHERE qi.task_id = ?
+            AND qi.inspection_type IN ('first_article', 'process', 'final')
             AND qi.deleted_at IS NULL
             AND (qi.status IS NULL OR qi.status NOT IN ('cancelled'))) as inspection_count`,
       [task.id, task.id, String(task.id), task.id, task.id]
@@ -980,10 +981,23 @@ class SchedulingService {
       Number(usage.report_count || 0) > 0 ||
       Number(usage.inspection_count || 0) > 0
     ) {
+      logger.warn('[排程] 任务存在执行单据，阻止重新排程', {
+        taskId: task.id,
+        taskCode: task.code,
+        outboundCount: Number(usage.outbound_count || 0),
+        reportCount: Number(usage.report_count || 0),
+        inspectionCount: Number(usage.inspection_count || 0),
+      });
       const error = new Error(
         `任务 ${task.code} 已有关联发料、报工或检验单据，不能重新排程；请先走撤销/关闭流程`
       );
       error.statusCode = 400;
+      error.details = {
+        taskId: task.id,
+        outboundCount: Number(usage.outbound_count || 0),
+        reportCount: Number(usage.report_count || 0),
+        inspectionCount: Number(usage.inspection_count || 0),
+      };
       throw error;
     }
   }

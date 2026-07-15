@@ -98,36 +98,63 @@ exports.up = async function (knex) {
     ]);
   }
 
-  // 在 menus 中插入「通知规则」菜单项
+  // 在 menus 中插入「通知规则」菜单项（挂到系统管理下，禁止写死 parent_id）
   const menuExists = await knex('menus').where({ permission: 'system:notification-rules' }).first();
   if (!menuExists) {
-    await knex('menus').insert({
-      name: '通知规则',
-      path: '/system/notification-rules',
-      component: 'system/NotificationRules',
-      permission: 'system:notification-rules',
-      type: 1,
-      visible: 1,
-      parent_id: 12,
-      sort_order: 12,
-      status: 1,
-      created_at: knex.fn.now(),
-    });
+    const systemMenu =
+      (await knex('menus')
+        .where((qb) => {
+          qb.where({ path: '/system' }).orWhere({ permission: 'system' }).orWhere({ name: '系统管理' });
+        })
+        .andWhere((qb) => {
+          qb.whereNull('parent_id').orWhere('parent_id', 0);
+        })
+        .first()) ||
+      (await knex('menus').where({ name: '系统管理' }).orWhere({ permission: 'system' }).first());
 
-    // 将新菜单分配给 admin 角色
-    const adminRole = await knex('roles').where({ code: 'admin' }).first();
-    const newMenu = await knex('menus').where({ permission: 'system:notification-rules' }).first();
-    if (adminRole && newMenu) {
-      const assigned = await knex('role_menus')
-        .where({ role_id: adminRole.id, menu_id: newMenu.id })
-        .first();
-      if (!assigned) {
-        await knex('role_menus').insert({
-          role_id: adminRole.id,
-          menu_id: newMenu.id,
-          created_at: knex.fn.now(),
-        });
+    const systemParentId = systemMenu?.id;
+    if (!systemParentId) {
+      console.warn('[notification_rules] 未找到「系统管理」菜单，跳过菜单插入');
+    } else {
+      await knex('menus').insert({
+        name: '通知规则',
+        path: '/system/notification-rules',
+        component: 'system/NotificationRules',
+        permission: 'system:notification-rules',
+        icon: 'icon-bell',
+        type: 1,
+        visible: 1,
+        parent_id: systemParentId,
+        sort_order: 12,
+        status: 1,
+        created_at: knex.fn.now(),
+      });
+
+      // 将新菜单分配给 admin 角色
+      const adminRole = await knex('roles').where({ code: 'admin' }).first();
+      const newMenu = await knex('menus').where({ permission: 'system:notification-rules' }).first();
+      if (adminRole && newMenu) {
+        const assigned = await knex('role_menus')
+          .where({ role_id: adminRole.id, menu_id: newMenu.id })
+          .first();
+        if (!assigned) {
+          await knex('role_menus').insert({
+            role_id: adminRole.id,
+            menu_id: newMenu.id,
+            created_at: knex.fn.now(),
+          });
+        }
       }
+    }
+  } else {
+    // 已存在时纠偏：若误挂在其他模块下，挪回系统管理
+    const systemMenu =
+      (await knex('menus').where({ path: '/system' }).first()) ||
+      (await knex('menus').where({ name: '系统管理' }).orWhere({ permission: 'system' }).first());
+    if (systemMenu?.id && menuExists.parent_id !== systemMenu.id) {
+      await knex('menus')
+        .where({ id: menuExists.id })
+        .update({ parent_id: systemMenu.id, updated_at: knex.fn.now() });
     }
   }
 };

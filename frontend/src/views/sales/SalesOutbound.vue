@@ -9,15 +9,11 @@
 <template>
   <div class="module-page outbound-container">
     <!-- 页面标题 -->
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>销售出库管理</h2>
-          <p class="subtitle">管理销售出库单据</p>
-        </div>
-        <el-button type="primary" :icon="Plus" v-permission="'sales:outbound:create'" @click="showCreateDialog">增加出库单</el-button>
-      </div>
-    </el-card>
+    <PageHeader title="销售出库管理" subtitle="管理销售出库单据">
+      <template #actions>
+<el-button type="primary" :icon="Plus" v-permission="'sales:outbound:create'" @click="showCreateDialog">增加出库单</el-button>
+      </template>
+    </PageHeader>
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
@@ -87,7 +83,7 @@
       <el-table
         :data="outbounds"
         border
-        style="width: 100%"
+        class="w-full"
         v-loading="loading"
       >
         <el-table-column prop="outbound_no" label="出库单号" width="150" fixed />
@@ -97,44 +93,44 @@
             <div v-if="scope.row.is_multi_order || (scope.row.order_nos && scope.row.order_nos.includes(',')) || (Array.isArray(scope.row.related_orders) && scope.row.related_orders.length > 1)">
               <el-popover placement="top-start" width="280" trigger="click">
                 <template #reference>
-                  <el-tag size="small" type="success" style="cursor: pointer;">
+                  <el-tag size="small" type="success" class="cursor-pointer">
                     多订单
                   </el-tag>
                 </template>
                 <div>
-                  <div style="font-weight: bold; margin-bottom: 6px;">关联订单列表</div>
+                  <div class="font-weight-700 mb-sm">关联订单列表</div>
                   <!-- 优先显示 related_order_details 数组（包含完整订单信息） -->
                   <div v-if="Array.isArray(scope.row.related_order_details) && scope.row.related_order_details.length > 0">
-                    <div v-for="(order, index) in scope.row.related_order_details" :key="index" style="margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                    <div v-for="(order, index) in scope.row.related_order_details" :key="index" class="cell-ellipsis-mb">
                       <strong>{{ order.order_no }}</strong>
-                      <span v-if="order.customer_name" style="color: var(--color-text-regular); margin-left: 8px;">{{ order.customer_name }}</span>
+                      <span v-if="order.customer_name" class="text-regular ml-sm">{{ order.customer_name }}</span>
                     </div>
                   </div>
 
                   <!-- 其次显示 order_nos 字符串拆分 -->
                   <div v-else-if="scope.row.order_nos && typeof scope.row.order_nos === 'string'">
-                    <div v-for="(no, index) in scope.row.order_nos.split(',')" :key="index" style="margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                    <div v-for="(no, index) in scope.row.order_nos.split(',')" :key="index" class="cell-ellipsis-mb">
                       <strong>{{ no.trim() }}</strong>
                     </div>
                   </div>
 
                   <!-- 显示单个 order_no -->
                   <div v-else-if="scope.row.order_no">
-                    <div style="margin-bottom: 4px;">
+                    <div class="mb-xs">
                       <strong>{{ scope.row.order_no }}</strong>
                     </div>
                   </div>
 
                   <!-- 如果都没有，显示提示信息 -->
                   <div v-else>
-                    <div style="color: var(--color-text-secondary); font-size: 12px;">
+                    <div class="text-muted text-sm">
                       暂无订单详情
                     </div>
                   </div>
                 </div>
               </el-popover>
             </div>
-            <div v-else-if="scope.row.order_no || scope.row.order_nos" class="text-blue-600" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+            <div v-else-if="scope.row.order_no || scope.row.order_nos" class="text-primary nowrap cell-ellipsis">
               <i class="el-icon-document"></i>
               <span :title="scope.row.order_no || scope.row.order_nos">{{ scope.row.order_no || scope.row.order_nos }}</span>
             </div>
@@ -161,7 +157,7 @@
         </el-table-column>
         <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
-            <el-button size="small" @click="showDetails(scope.row)">
+            <el-button class="btn-op-view" type="primary" size="small" @click="showDetails(scope.row)">
               查看
             </el-button>
             <el-button
@@ -201,6 +197,15 @@
               完成
             </el-button>
             <el-button
+              v-if="['draft', 'processing'].includes(scope.row.status)"
+              size="small"
+              type="warning"
+              v-permission="'sales:outbound:update'"
+              @click="handleStatusChange(scope.row, 'cancelled')"
+            >
+              取消
+            </el-button>
+            <el-button
               v-if="scope.row.status === 'completed'"
               size="small"
               type="success"
@@ -230,8 +235,13 @@
       </div>
     </el-card>
     <!-- 出库单详情对话框 -->
-    <el-dialog v-model="detailsVisible" title="出库单详情" width="50%">
-      <div v-loading="detailsLoading" style="min-height: 100px;">
+    <AppDialog
+      v-model="detailsVisible"
+      title="出库单详情"
+      mode="view"
+      content-width="wide"
+    >
+      <div v-loading="detailsLoading" class="min-h-form">
       <div v-if="currentOutbound" class="outbound-detail-content">
         <el-descriptions :column="2" border>
           <el-descriptions-item label="出库单号">{{ currentOutbound.outbound_no }}</el-descriptions-item>
@@ -246,7 +256,7 @@
         </el-descriptions>
         <el-divider>出库明细</el-divider>
 
-        <el-table :data="currentOutbound.items || []" style="width: 100%" border>
+        <el-table :data="currentOutbound.items || []" class="w-full" border>
           <el-table-column prop="product_code" label="物料编码" width="120" />
           <el-table-column prop="product_name" label="物料名称" min-width="150" show-overflow-tooltip />
           <el-table-column prop="specification" label="规格" min-width="150" show-overflow-tooltip />
@@ -255,7 +265,7 @@
         </el-table>
       </div>
       </div>
-    </el-dialog>
+    </AppDialog>
     <!-- 创建/编辑出库单对话框 -->
     <el-dialog
       v-model="dialogVisible"
@@ -263,7 +273,7 @@
       width="50%"
       destroy-on-close
     >
-      <div v-loading="dialogLoading" style="min-height: 100px;">
+      <div v-loading="dialogLoading" class="min-h-form">
       <el-form :model="outboundForm" ref="outboundFormRef" :rules="rules" label-width="100px">
         <el-form-item label="关联订单">
           <div class="multi-order-container">
@@ -272,7 +282,7 @@
               placeholder="选择订单后自动添加（支持搜索订单号/客户名称/合同编码）"
               @change="handleAddOrder"
               filterable
-              style="width: 100%"
+              class="w-full"
               clearable
             >
               <el-option
@@ -284,13 +294,13 @@
             </el-select>
           </div>
           <!-- 显示已关联的订单 -->
-          <div v-if="outboundForm.relatedOrders.length > 0" style="margin-top: 10px; width: 100%;">
+          <div v-if="outboundForm.relatedOrders.length > 0" class="mt-10 w-full">
             <el-tag
               v-for="order in outboundForm.relatedOrders"
               :key="order.id"
               type="primary"
               effect="plain"
-              style="margin-right: 8px; margin-bottom: 5px;"
+              class="mr-sm mb-5"
             >
               {{ order.order_no }}
               <span v-if="order.customer">({{ order.customer }})</span>
@@ -298,7 +308,7 @@
           </div>
         </el-form-item>
         <el-form-item label="客户信息" prop="customer_id">
-          <div style="display: flex; gap: 10px;">
+          <div class="flex-gap">
             <el-select
               v-model="outboundForm.customer_id"
               placeholder="请输入客户名称或编码进行搜索"
@@ -306,7 +316,7 @@
               remote
               :remote-method="searchCustomers"
               :loading="customerLoading"
-              style="flex: 1;"
+              class="flex-1"
               @change="handleCustomerChange"
               clearable
             >
@@ -316,8 +326,8 @@
                 :label="`${customer.name}${customer.code ? ' (' + customer.code + ')' : ''}`"
                 :value="customer.id"
               >
-                <span style="float: left">{{ customer.name }}</span>
-                <span v-if="customer.code" style="float: right; color: var(--color-text-muted); font-size: 13px">{{ customer.code }}</span>
+                <span class="option-code">{{ customer.name }}</span>
+                <span v-if="customer.code" class="option-name">{{ customer.code }}</span>
               </el-option>
             </el-select>
             <el-button type="primary" @click="openCustomerProductsDialog" :disabled="!outboundForm.customer_id">
@@ -347,7 +357,7 @@
             placeholder="选择出库日期"
             format="YYYY-MM-DD"
             value-format="YYYY-MM-DD"
-            style="width: 100%"
+            class="w-full"
           />
         </el-form-item>
 
@@ -358,7 +368,7 @@
             <el-table
               :data="outboundForm.items"
               border
-              style="width: 100%"
+              class="w-full"
               table-layout="fixed"
               :header-cell-style="{ background: 'var(--color-bg-hover)', color: 'var(--color-text-regular)' }"
               empty-text="该订单所有物料已完全发货，无需再次出库"
@@ -374,7 +384,7 @@
                         </el-tag>
                       </template>
                       <div>
-                        <div v-for="source in row.source_orders" :key="source.id" style="margin-bottom: 4px;">
+                        <div v-for="source in row.source_orders" :key="source.id" class="mb-xs">
                           <strong>{{ source.order_no }}</strong>: {{ source.quantity }}个
                         </div>
                       </div>
@@ -391,8 +401,8 @@
               <el-table-column label="订单总量" width="90">
                 <template #default="{ row }">
                   <div>
-                    <span style="color: var(--color-primary); font-weight: bold;">{{ row.order_quantity || row.quantity }}</span>
-                    <div v-if="row.source_orders && row.source_orders.length > 1" style="font-size: 10px; color: var(--color-text-secondary);">
+                    <span class="text-primary font-weight-700">{{ row.order_quantity || row.quantity }}</span>
+                    <div v-if="row.source_orders && row.source_orders.length > 1" class="meta-xs">
                       合并{{ row.source_orders.length }}单
                     </div>
                   </div>
@@ -400,12 +410,12 @@
               </el-table-column>
               <el-table-column label="已发货" width="80">
                 <template #default="{ row }">
-                  <span style="color: var(--color-warning); font-weight: bold;">{{ row.shipped_quantity || 0 }}</span>
+                  <span class="text-warning font-weight-700">{{ row.shipped_quantity || 0 }}</span>
                 </template>
               </el-table-column>
               <el-table-column label="剩余" width="80">
                 <template #default="{ row }">
-                  <span style="color: var(--color-danger); font-weight: bold;">{{ row.remaining_quantity || row.quantity }}</span>
+                  <span class="text-danger font-weight-700">{{ row.remaining_quantity || row.quantity }}</span>
                 </template>
               </el-table-column>
               <el-table-column label="发货数量" width="120">
@@ -422,7 +432,7 @@
               <el-table-column label="单位" prop="unit_name" width="60" />
               <el-table-column label="库存" width="80">
                 <template #default="{ row }">
-                  <span :style="{ color: (row.stock_quantity || 0) > 0 ? 'var(--color-success)' : 'var(--color-danger)' }">
+                  <span :class="(row.stock_quantity || 0) > 0 ? 'text-stock-ok' : 'text-stock-low'">
                     {{ row.stock_quantity || 0 }}
                   </span>
                 </template>
@@ -469,11 +479,11 @@
           type="info"
           :closable="false"
           show-icon
-          style="margin-bottom: 15px;"
+          class="mb-15"
         />
 
         <!-- 搜索区域 -->
-        <el-card class="search-card" style="margin-bottom: 15px;">
+        <el-card class="search-card mb-15">
           <el-form :inline="true" class="search-form">
             <el-form-item label="搜索">
               <el-input
@@ -501,7 +511,7 @@
         <el-table
           :data="customerProducts"
           border
-          style="width: 100%"
+          class="w-full"
           v-loading="customerProductsLoading"
           :header-cell-style="{ background: 'var(--color-bg-hover)', color: 'var(--color-text-regular)' }"
           @selection-change="handleProductSelectionChange"
@@ -1877,11 +1887,6 @@ const printOutbound = async (row) => {
     padding: 10px;
     box-shadow: none;
   }
-}
-/* 对话框高度 - 页面特定，其他样式使用全局主题 */
-:deep(.el-dialog__body) {
-  max-height: 60vh;
-  overflow-y: auto;
 }
 /* 多订单样式 */
 .multi-order-container {

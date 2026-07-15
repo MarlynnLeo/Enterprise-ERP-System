@@ -506,7 +506,7 @@
   background: var(--erp-table-fixed-header-bg, var(--color-bg-light)) !important;
   background-color: var(--erp-table-fixed-header-bg, var(--color-bg-light)) !important;
   color: var(--color-text-secondary) !important;
-  font-size: 12px !important;
+  font-size: 14px !important;
   font-weight: 600 !important;
   text-transform: none;
   letter-spacing: 0;
@@ -517,7 +517,7 @@
 [data-theme="kacon"] .el-table td.el-table__cell {
   border-bottom: 1px solid var(--color-border-light) !important;
   color: var(--color-text-primary) !important;
-  font-size: 13px !important;
+  font-size: 14px !important;
   padding: 8px 0 !important;
 }
 
@@ -1042,15 +1042,27 @@
    36. 弹窗与抽屉 (Dialog & Drawer) 毛玻璃定制
    ================================================================== */
 
-/* ===== 36.1 弹窗基础结构 ===== */
+/* ===== 36.1 弹窗视觉（布局不在主题里约束） ===== */
+[data-theme="kacon"] {
+  --theme-dialog-radius: var(--radius-lg);
+}
+
 [data-theme="kacon"] .el-dialog {
-  border-radius: var(--radius-lg) !important;
-  box-shadow: var(--shadow-xl) !important;
-  border: 1px solid rgba(229, 231, 235, 0.8) !important;
-  overflow: hidden !important;
-  background: var(--kacon-glass-bg-strong) !important;
-  backdrop-filter: var(--kacon-glass-filter) !important;
-  -webkit-backdrop-filter: var(--kacon-glass-filter) !important;
+  background: var(--kacon-glass-bg-strong);
+  backdrop-filter: var(--kacon-glass-filter);
+  -webkit-backdrop-filter: var(--kacon-glass-filter);
+  border: 1px solid rgba(229, 231, 235, 0.8);
+  box-shadow: var(--shadow-xl);
+}
+
+[data-theme="kacon"] .el-dialog:not(.is-fullscreen) {
+  border-radius: var(--theme-dialog-radius);
+}
+
+[data-theme="kacon"] .el-dialog.is-fullscreen {
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
 }
 
 /* ===== 36.2 标题区域 (Header) ===== */

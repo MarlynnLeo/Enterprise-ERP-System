@@ -18,21 +18,20 @@ import { registerStatCardIcons } from '@/plugins/statCardIcons'
 import { initOperationColumnAutoWidth } from '@/plugins/operationColumnAutoWidth'
 import { initPerformanceMode, runWhenIdle } from '@/utils/performanceMode'
 import FinanceQueryCard from './components/common/FinanceQueryCard.vue'
+import PageHeader from './components/ui/PageHeader.vue'
+import EmptyState from './components/ui/EmptyState.vue'
+import AppDialog from './components/ui/AppDialog.vue'
 import './assets/main.css'
+import './assets/dialog-system.css'
 import './assets/common-styles.css'
+import './assets/ui-utilities.css'
+import './assets/price-panel.css'
 import './assets/theme-utilities.css'
 import './assets/scrollbar.css'
 import 'element-plus/theme-chalk/dark/css-vars.css'
-import './assets/themes/pc/default.css'
-import './assets/themes/pc/dark.css'
-import './assets/themes/pc/tech.css'
-import './assets/themes/pc/business.css'
-import './assets/themes/pc/vibrant.css'
-import './assets/themes/pc/nature.css'
-import './assets/themes/pc/professional.css'
-import './assets/themes/pc/kacon.css'
-import './assets/themes/pc/premium.css'
+/* 主题：兼容层 + 默认 KACON 首屏；其余预设由 themeLoader 按需加载 */
 import './assets/themes/pc/theme-compat.css'
+import './assets/themes/pc/kacon.css'
 import './assets/stat-cards.css'
 
 import permissionDirective from './directives/permission'
@@ -82,6 +81,9 @@ if (authStore.isAuthenticated) {
 app.use(ElementPlus)
 app.use(permissionDirective)
 app.component('FinanceQueryCard', FinanceQueryCard)
+app.component('PageHeader', PageHeader)
+app.component('EmptyState', EmptyState)
+app.component('AppDialog', AppDialog)
 registerElementIcons(app)
 registerStatCardIcons(app)
 

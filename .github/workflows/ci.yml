@@ -8,8 +8,36 @@ on:
 
 jobs:
   backend:
-    name: Backend Lint
+    name: Backend Lint And Test
     runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: erp_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    env:
+      NODE_ENV: test
+      DISABLE_CRON: 'true'
+      ENABLE_RATE_LIMIT: 'false'
+      REDIS_ENABLED: 'false'
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: root
+      DB_NAME: erp_test
+      JWT_SECRET: ci-test-jwt-secret-change-in-production
+      JWT_REFRESH_SECRET: ci-test-refresh-secret-change-in-production
+      CSRF_SECRET: ci-test-csrf-secret-change-in-production
+      DEFAULT_ADMIN_PASSWORD: '123456'
 
     steps:
       - name: Checkout
@@ -30,9 +58,35 @@ jobs:
         working-directory: backend
         run: npm run lint
 
-      - name: Test backend
+      - name: Verify immutable migrations
         working-directory: backend
-        run: npm test -- --forceExit --detectOpenHandles
+        run: npm run migrations:verify
+
+      - name: Prepare test database
+        working-directory: backend
+        run: |
+          npm run migrate
+          npm run seed
+
+      - name: Test backend with coverage gate
+        working-directory: backend
+        run: npm run test:coverage -- --detectOpenHandles
+
+      - name: Run professional ERP audits
+        working-directory: backend
+        run: npm run audit:all
+
+      - name: Run full write-path UAT
+        working-directory: backend
+        env:
+          RUN_LIVE_UAT: '1'
+        run: npm test -- tests/integration/uat-full-business-flow.test.js --detectOpenHandles
+
+      - name: Run workflow atomicity UAT
+        working-directory: backend
+        env:
+          RUN_LIVE_WORKFLOW_UAT: '1'
+        run: npm test -- tests/integration/workflow-closure-live.test.js --detectOpenHandles
 
   frontend:
     name: Frontend Lint And Build
@@ -56,6 +110,10 @@ jobs:
       - name: Lint frontend
         working-directory: frontend
         run: npm run lint
+
+      - name: Test frontend interactions
+        working-directory: frontend
+        run: npm test
 
       - name: Build frontend
         working-directory: frontend
@@ -83,6 +141,10 @@ jobs:
       - name: Lint mobile
         working-directory: mobile
         run: npm run lint
+
+      - name: Test mobile workflows
+        working-directory: mobile
+        run: npm test
 
       - name: Build mobile
         working-directory: mobile

@@ -1,62 +1,36 @@
 <!--
-/**
- * Index.vue
- * @description 移动端应用文件
-  * @date 2025-08-27
- * @version 1.0.0
- */
+  移动端系统入口：仅 L1/L2 能力（通知等）
+  L3 角色/权限/备份/配置 仅 PC — 见 backend/docs/MOBILE_PRODUCT_LAYER.md
 -->
 <template>
   <div class="system-page">
-    <NavBar title="系统管理" left-arrow @click-left="$router.go(-1)" />
+    <NavBar title="系统" left-arrow @click-left="$router.go(-1)" />
 
     <div class="content-container">
-      <!-- 系统信息卡片 -->
       <div class="system-info-card">
         <div class="info-header">
           <div class="system-logo">
             <Icon name="setting-o" size="32" color="#5E7BF6" />
           </div>
           <div class="system-details">
-            <div class="system-name">ERP管理系统</div>
-            <div class="system-version">版本 v{{ systemInfo.version }}</div>
-            <div class="system-status">
-              <div class="status-indicator" :class="systemInfo.status"></div>
-              <span>{{ getStatusText(systemInfo.status) }}</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="info-stats">
-          <div class="stat-item">
-            <div class="stat-value">{{ systemInfo.onlineUsers }}</div>
-            <div class="stat-label">在线用户</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-value">{{ systemInfo.totalUsers }}</div>
-            <div class="stat-label">总用户数</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-value">{{ systemInfo.uptime }}</div>
-            <div class="stat-label">运行时间</div>
+            <div class="system-name">现场终端</div>
+            <div class="system-version">管理台功能请使用 PC 端</div>
           </div>
         </div>
       </div>
 
-      <!-- 管理功能模块 -->
       <div class="management-modules">
         <div class="module-section">
-          <div class="section-title">用户管理</div>
+          <div class="section-title">现场可用</div>
           <div class="module-grid">
             <div
-              v-for="module in userModules"
+              v-for="module in fieldModules"
               :key="module.key"
               class="module-item"
               @click="navigateTo(module.path)"
             >
               <div class="module-icon">
                 <Icon :name="module.icon" size="24" :color="module.color" />
-                <Badge v-if="module.badge" :content="module.badge" />
               </div>
               <div class="module-content">
                 <div class="module-title">{{ module.title }}</div>
@@ -67,576 +41,126 @@
           </div>
         </div>
 
-        <div class="module-section">
-          <div class="section-title">组织管理</div>
-          <div class="module-grid">
-            <div
-              v-for="module in orgModules"
-              :key="module.key"
-              class="module-item"
-              @click="navigateTo(module.path)"
-            >
-              <div class="module-icon">
-                <Icon :name="module.icon" size="24" :color="module.color" />
-                <Badge v-if="module.badge" :content="module.badge" />
-              </div>
-              <div class="module-content">
-                <div class="module-title">{{ module.title }}</div>
-                <div class="module-description">{{ module.description }}</div>
-              </div>
-              <Icon name="arrow" size="12" color="var(--text-disabled)" />
-            </div>
-          </div>
-        </div>
-
-        <div class="module-section">
-          <div class="section-title">权限管理</div>
-          <div class="module-grid">
-            <div
-              v-for="module in permissionModules"
-              :key="module.key"
-              class="module-item"
-              @click="navigateTo(module.path)"
-            >
-              <div class="module-icon">
-                <Icon :name="module.icon" size="24" :color="module.color" />
-                <Badge v-if="module.badge" :content="module.badge" />
-              </div>
-              <div class="module-content">
-                <div class="module-title">{{ module.title }}</div>
-                <div class="module-description">{{ module.description }}</div>
-              </div>
-              <Icon name="arrow" size="12" color="var(--text-disabled)" />
-            </div>
-          </div>
-        </div>
-
-        <div class="module-section">
-          <div class="section-title">系统设置</div>
-          <div class="module-grid">
-            <div
-              v-for="module in systemModules"
-              :key="module.key"
-              class="module-item"
-              @click="navigateTo(module.path)"
-            >
-              <div class="module-icon">
-                <Icon :name="module.icon" size="24" :color="module.color" />
-                <Badge v-if="module.badge" :content="module.badge" />
-              </div>
-              <div class="module-content">
-                <div class="module-title">{{ module.title }}</div>
-                <div class="module-description">{{ module.description }}</div>
-              </div>
-              <Icon name="arrow" size="12" color="var(--text-disabled)" />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 快速操作 -->
-      <div class="quick-actions">
-        <div class="section-title">快速操作</div>
-        <div class="action-buttons">
-          <Button type="primary" size="large" icon="plus" @click="createUser"> 新建用户 </Button>
-          <Button type="default" size="large" icon="cluster-o" @click="createDepartment">
-            新建部门
-          </Button>
-          <Button type="default" size="large" icon="shield-o" @click="createRole">
-            新建角色
-          </Button>
-        </div>
-      </div>
-
-      <!-- 系统监控 -->
-      <div class="system-monitoring">
-        <div class="section-title">系统监控</div>
-        <div class="monitoring-cards">
-          <div class="monitor-card">
-            <div class="monitor-header">
-              <Icon name="chart-trending-o" size="20" color="#5E7BF6" />
-              <span>CPU使用率</span>
-            </div>
-            <div class="monitor-value">{{ systemMonitor.cpu }}%</div>
-            <div class="monitor-chart">
-              <div class="chart-bar" :style="{ width: `${systemMonitor.cpu}%` }"></div>
-            </div>
-          </div>
-
-          <div class="monitor-card">
-            <div class="monitor-header">
-              <Icon name="records" size="20" color="var(--color-success)" />
-              <span>内存使用率</span>
-            </div>
-            <div class="monitor-value">{{ systemMonitor.memory }}%</div>
-            <div class="monitor-chart">
-              <div class="chart-bar memory" :style="{ width: `${systemMonitor.memory}%` }"></div>
-            </div>
-          </div>
-
-          <div class="monitor-card">
-            <div class="monitor-header">
-              <Icon name="database-o" size="20" color="var(--color-warning)" />
-              <span>磁盘使用率</span>
-            </div>
-            <div class="monitor-value">{{ systemMonitor.disk }}%</div>
-            <div class="monitor-chart">
-              <div class="chart-bar disk" :style="{ width: `${systemMonitor.disk}%` }"></div>
-            </div>
-          </div>
-        </div>
+        <van-notice-bar
+          left-icon="info-o"
+          text="用户/角色/权限/备份/系统配置/凭证编制等高危能力已限制为 PC 端操作。"
+          wrapable
+          :scrollable="false"
+          class="pc-only-tip"
+        />
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-  import { ref, reactive, onMounted } from 'vue'
-  import { useRouter } from 'vue-router'
-  import { NavBar, Icon, Badge, Button } from 'vant'
-  import { systemApi } from '@/api'
+import { computed } from 'vue'
+import { useRouter } from 'vue-router'
+import { NavBar, Icon, NoticeBar as VanNoticeBar } from 'vant'
+import { useAuthStore } from '@/stores/auth'
 
-  const router = useRouter()
+const router = useRouter()
+const authStore = useAuthStore()
 
-  // 系统信息
-  const systemInfo = reactive({
-    version: import.meta.env.VITE_APP_VERSION || '',
-    status: 'running', // running, maintenance, error
-    onlineUsers: 0,
-    totalUsers: 0,
-    uptime: '-'
-  })
-
-  // 系统监控数据
-  const systemMonitor = reactive({
-    cpu: 0,
-    memory: 0,
-    disk: 0
-  })
-
-  // 用户管理模块
-  const userModules = ref([
-    {
-      key: 'users',
-      title: '用户管理',
-      description: '管理系统用户账号',
-      icon: 'friends-o',
-      color: '#5E7BF6',
-      path: '/system/users',
-      badge: null
-    },
-    {
-      key: 'profiles',
-      title: '用户档案',
-      description: '查看用户详细信息',
-      icon: 'contact',
-      color: 'var(--color-success)',
-      path: '/system/profiles',
-      badge: null
-    },
-    {
-      key: 'sessions',
-      title: '在线会话',
-      description: '管理用户登录会话',
-      icon: 'clock-o',
-      color: 'var(--color-warning)',
-      path: '/system/sessions',
-      badge: systemInfo.onlineUsers
-    }
-  ])
-
-  // 组织管理模块
-  const orgModules = ref([
-    {
-      key: 'departments',
-      title: '部门管理',
-      description: '管理组织架构',
-      icon: 'cluster-o',
-      color: '#A48BE0',
-      path: '/system/departments',
-      badge: null
-    },
-    {
-      key: 'positions',
-      title: '职位管理',
-      description: '管理岗位设置',
-      icon: 'medal-o',
-      color: 'var(--color-error)',
-      path: '/system/positions',
-      badge: null
-    },
-    {
-      key: 'hierarchy',
-      title: '组织架构',
-      description: '查看组织结构图',
-      icon: 'tree',
-      color: '#FFC759',
-      path: '/system/hierarchy',
-      badge: null
-    }
-  ])
-
-  // 权限管理模块
-  const permissionModules = ref([
-    {
-      key: 'roles',
-      title: '角色管理',
-      description: '管理用户角色',
-      icon: 'shield-o',
-      color: '#5E7BF6',
-      path: '/system/roles',
-      badge: null
-    },
-    {
-      key: 'permissions',
-      title: '权限设置',
-      description: '配置功能权限',
-      icon: 'lock',
-      color: 'var(--color-success)',
-      path: '/system/permissions',
-      badge: null
-    },
-    {
-      key: 'access-control',
-      title: '访问控制',
-      description: '管理访问策略',
-      icon: 'eye-o',
-      color: 'var(--color-warning)',
-      path: '/system/access-control',
-      badge: null
-    }
-  ])
-
-  // 系统设置模块
-  const systemModules = ref([
-    {
-      key: 'config',
-      title: '系统配置',
-      description: '基础参数设置',
-      icon: 'setting-o',
-      color: '#A48BE0',
-      path: '/system/config',
-      badge: null
-    },
-    {
-      key: 'logs',
-      title: '系统日志',
-      description: '查看操作日志',
-      icon: 'notes-o',
-      color: 'var(--color-error)',
-      path: '/system/logs',
-      badge: null
-    },
-    {
-      key: 'backup',
-      title: '数据备份',
-      description: '备份恢复管理',
-      icon: 'replay',
-      color: '#FFC759',
-      path: '/system/backup',
-      badge: null
-    },
-    {
-      key: 'maintenance',
-      title: '系统维护',
-      description: '系统维护工具',
-      icon: 'service-o',
-      color: '#FF8A80',
-      path: '/system/maintenance',
-      badge: null
-    }
-  ])
-
-  import { getSystemStatusText } from '@/constants/systemConstants'
-
-  // 获取状态文本
-  const getStatusText = (status) => {
-    return getSystemStatusText(status)
+const allFieldModules = [
+  {
+    key: 'notifications',
+    title: '消息通知',
+    description: '系统与业务通知',
+    path: '/system/notifications',
+    icon: 'bell',
+    color: '#5E7BF6',
+    permission: 'system:notifications'
+  },
+  {
+    key: 'hierarchy',
+    title: '组织架构',
+    description: '查看组织树（只读）',
+    path: '/system/hierarchy',
+    icon: 'cluster-o',
+    color: '#07c160',
+    permission: 'system:departments:view'
+  },
+  {
+    key: 'approvals',
+    title: '我的审批',
+    description: '待办审批中心',
+    path: '/workflow/approvals',
+    icon: 'todo-list-o',
+    color: '#ff976a',
+    permission: 'system:workflow:use'
   }
+]
 
-  // 导航到指定页面
-  const navigateTo = (path) => {
-    if (!path) {
-      /* Feature Unlocked */
-      return
-    }
-    router.push(path)
-  }
+const fieldModules = computed(() =>
+  allFieldModules.filter(
+    (m) => !m.permission || authStore.hasPermission(m.permission) || authStore.hasChildPermission?.(m.permission)
+  )
+)
 
-  // 快速操作
-  const createUser = () => {
-    router.push('/system/users/create')
-  }
-
-  const createDepartment = () => {
-    router.push('/system/departments')
-  }
-
-  const createRole = () => {
-    router.push('/system/roles')
-  }
-
-  const getTotalFromResponse = (response) => {
-    const data = response.data || response || {}
-    if (typeof data.total === 'number') return data.total
-    if (Array.isArray(data)) return data.length
-    if (Array.isArray(data.list)) return data.list.length
-    if (Array.isArray(data.items)) return data.items.length
-    return 0
-  }
-
-  const loadSystemOverview = async () => {
-    try {
-      const [usersRes, departmentsRes] = await Promise.all([
-        systemApi.getUsers({ page: 1, pageSize: 1 }),
-        systemApi.getDepartments({ page: 1, pageSize: 1 })
-      ])
-      systemInfo.totalUsers = getTotalFromResponse(usersRes)
-      const sessions = userModules.value.find((item) => item.key === 'sessions')
-      if (sessions) sessions.badge = systemInfo.onlineUsers || null
-      const departments = orgModules.value.find((item) => item.key === 'departments')
-      if (departments) departments.badge = getTotalFromResponse(departmentsRes) || null
-    } catch (error) {
-      console.error('加载系统概览失败:', error)
-    }
-  }
-
-  onMounted(loadSystemOverview)
+const navigateTo = (path) => {
+  router.push(path)
+}
 </script>
 
-<style lang="scss" scoped>
-  .system-page {
-    min-height: 100%;
-    background-color: var(--bg-primary);
-  }
-
-  .content-container {
-    padding: 12px;
-  }
-
-  .system-info-card {
-    background: linear-gradient(135deg, var(--color-info), var(--ds-blue-strong));
-    border-radius: 16px;
-    padding: 20px;
-    margin-bottom: 16px;
-    color: var(--text-primary);
-
-    .info-header {
-      display: flex;
-      align-items: center;
-      margin-bottom: 16px;
-
-      .system-logo {
-        margin-right: 16px;
-        padding: 12px;
-        background: rgba(255, 255, 255, 0.2);
-        border-radius: 12px;
-      }
-
-      .system-details {
-        flex: 1;
-
-        .system-name {
-          font-size: 1.125rem;
-          font-weight: 600;
-          margin-bottom: 4px;
-        }
-
-        .system-version {
-          font-size: 0.875rem;
-          opacity: 0.8;
-          margin-bottom: 8px;
-        }
-
-        .system-status {
-          display: flex;
-          align-items: center;
-          font-size: 0.75rem;
-
-          .status-indicator {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            margin-right: 6px;
-
-            &.running {
-              color: var(--color-success);
-            }
-
-            &.maintenance {
-              color: var(--color-warning);
-            }
-
-            &.error {
-              color: var(--color-error);
-            }
-          }
-        }
-      }
-    }
-
-    .info-stats {
-      display: flex;
-      justify-content: space-between;
-
-      .stat-item {
-        text-align: center;
-
-        .stat-value {
-          font-size: 1.25rem;
-          font-weight: 600;
-          margin-bottom: 4px;
-        }
-
-        .stat-label {
-          font-size: 0.75rem;
-          opacity: 0.8;
-        }
-      }
-    }
-  }
-
-  .management-modules {
-    .module-section {
-      margin-bottom: 20px;
-
-      .section-title {
-        font-size: 1rem;
-        font-weight: 600;
-        color: var(--text-primary);
-        margin-bottom: 12px;
-        padding-left: 4px;
-      }
-
-      .module-grid {
-        background: var(--bg-secondary);
-        border-radius: 12px;
-        overflow: hidden;
-
-        .module-item {
-          display: flex;
-          align-items: center;
-          padding: 16px;
-          border-bottom: 1px solid var(--surface-border, var(--border-subtle));
-          transition: background-color 0.2s;
-
-          &:last-child {
-            border-bottom: none;
-          }
-
-          &:active {
-            background-color: var(--bg-secondary);
-          }
-
-          .module-icon {
-            position: relative;
-            margin-right: 16px;
-            padding: 8px;
-            background-color: var(--bg-secondary);
-            border-radius: 8px;
-          }
-
-          .module-content {
-            flex: 1;
-
-            .module-title {
-              font-size: 0.875rem;
-              font-weight: 500;
-              color: var(--text-primary);
-              margin-bottom: 4px;
-            }
-
-            .module-description {
-              font-size: 0.75rem;
-              color: var(--text-secondary);
-            }
-          }
-        }
-      }
-    }
-  }
-
-  .quick-actions {
-    margin-bottom: 20px;
-
-    .section-title {
-      font-size: 1rem;
-      font-weight: 600;
-      color: var(--text-primary);
-      margin-bottom: 12px;
-      padding-left: 4px;
-    }
-
-    .action-buttons {
-      display: flex;
-      gap: 12px;
-
-      .van-button {
-        flex: 1;
-      }
-    }
-  }
-
-  .system-monitoring {
-    .section-title {
-      font-size: 1rem;
-      font-weight: 600;
-      color: var(--text-primary);
-      margin-bottom: 12px;
-      padding-left: 4px;
-    }
-
-    .monitoring-cards {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-
-      .monitor-card {
-        background: var(--bg-secondary);
-        border-radius: 12px;
-        padding: 16px;
-
-        .monitor-header {
-          display: flex;
-          align-items: center;
-          margin-bottom: 8px;
-          font-size: 0.875rem;
-          color: var(--text-primary);
-
-          span {
-            margin-left: 8px;
-          }
-        }
-
-        .monitor-value {
-          font-size: 1.5rem;
-          font-weight: 600;
-          color: var(--text-primary);
-          margin-bottom: 8px;
-        }
-
-        .monitor-chart {
-          height: 6px;
-          background-color: var(--bg-tertiary);
-          border-radius: 3px;
-          overflow: hidden;
-
-          .chart-bar {
-            height: 100%;
-            color: var(--color-info);
-            border-radius: 3px;
-            transition: width 0.3s ease;
-
-            &.memory {
-              color: var(--color-success);
-            }
-
-            &.disk {
-              color: var(--color-warning);
-            }
-          }
-        }
-      }
-    }
-  }
+<style scoped>
+.system-page {
+  min-height: 100vh;
+  background: var(--bg-page, #f7f8fa);
+}
+.content-container {
+  padding: 12px 16px 24px;
+}
+.system-info-card {
+  background: var(--bg-card, #fff);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.info-header {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.system-name {
+  font-size: 16px;
+  font-weight: 700;
+}
+.system-version {
+  font-size: 12px;
+  color: var(--text-secondary, #969799);
+  margin-top: 4px;
+}
+.section-title {
+  font-size: 13px;
+  color: var(--text-secondary, #969799);
+  margin: 8px 0 10px;
+  font-weight: 600;
+}
+.module-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-card, #fff);
+  border-radius: 10px;
+  padding: 14px 12px;
+  margin-bottom: 8px;
+}
+.module-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+.module-description {
+  font-size: 12px;
+  color: var(--text-secondary, #969799);
+  margin-top: 2px;
+}
+.module-content {
+  flex: 1;
+  min-width: 0;
+}
+.pc-only-tip {
+  margin-top: 16px;
+  border-radius: 8px;
+}
 </style>

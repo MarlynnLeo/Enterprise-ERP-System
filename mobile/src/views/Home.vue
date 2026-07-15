@@ -189,12 +189,25 @@
     { title: '财务管理', path: '/finance', colorClass: 'mod-yellow', icon: BanknotesIcon, permission: 'finance' },
     { title: '设备管理', path: '/equipment', colorClass: 'mod-amber', icon: WrenchScrewdriverIcon, permission: 'production:equipment:view' },
     { title: '人事管理', path: '/hr', colorClass: 'mod-teal', icon: UserGroupIcon, permission: 'hr' },
+    {
+      title: '我的审批',
+      path: '/workflow/approvals',
+      colorClass: 'mod-indigo',
+      icon: ClipboardDocumentListIcon,
+      permission: 'system:workflow:use'
+    },
     { title: '系统设置', path: '/system', colorClass: 'mod-gray', icon: Cog6ToothIcon, permission: 'system' }
   ])
 
   // 过滤后的可用菜单
   const availableMenus = computed(() => {
-    return allMenus.value.filter(menu => authStore.hasPermission(menu.permission))
+    return allMenus.value.filter((menu) => {
+      const p = menu.permission
+      if (!p) return true
+      if (authStore.hasPermission(p)) return true
+      // 模块父级：有任意子权限则显示入口
+      return !String(p).includes(':') && authStore.hasChildPermission(p)
+    })
   })
 
   // 控制显示的菜单（展开/折叠）
@@ -204,14 +217,39 @@
 
   // 快捷操作
   const quickActionsConfig = ref([
-    { title: '扫码查询', desc: '扫描二维码/条形码快速定位', path: '/scan', tag: 'SCAN', permission: '*' },
+    {
+      title: '扫码查询',
+      desc: '扫描二维码/条形码快速定位',
+      path: '/scan',
+      tag: 'SCAN',
+      permission: [
+        'inventory:stock:view',
+        'inventory:outbound:view',
+        'inventory:inbound:view',
+        'production:tasks:view',
+        'basedata:materials:view'
+      ]
+    },
     { title: '库存查询', desc: '查看物料实时库存与批次', path: '/inventory/stock', tag: 'INV', permission: 'inventory' },
-    { title: '生产任务', desc: '查看和管理生产任务进度', path: '/production/tasks', tag: 'PROD', permission: 'production' }
+    { title: '生产任务', desc: '查看和管理生产任务进度', path: '/production/tasks', tag: 'PROD', permission: 'production' },
+    {
+      title: '我的审批',
+      desc: '处理待办审批与已发起流程',
+      path: '/workflow/approvals',
+      tag: 'WF',
+      permission: 'system:workflow:use'
+    }
   ])
 
   // 过滤后的快捷操作
   const quickActions = computed(() => {
-    return quickActionsConfig.value.filter(action => authStore.hasPermission(action.permission))
+    return quickActionsConfig.value.filter((action) => {
+      const p = action.permission
+      if (!p) return true
+      if (authStore.hasPermission(p)) return true
+      if (Array.isArray(p)) return p.some((item) => authStore.hasPermission(item))
+      return !String(p).includes(':') && authStore.hasChildPermission(p)
+    })
   })
 
   const navigateTo = (path) => router.push(path)

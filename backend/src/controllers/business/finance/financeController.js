@@ -18,6 +18,7 @@ const OpeningBalanceService = require('../../../services/business/OpeningBalance
 const { financeConfig } = require('../../../config/financeConfig');
 const { safeParseId } = require('../../../utils/safeParseId');
 const BusinessError = require('../../../utils/BusinessError');
+const ScopeGuard = require('../../../authorization/ScopeGuard');
 
 function normalizeMysqlFlag(value) {
   if (value === true || value === 1 || value === 1n) return true;
@@ -403,8 +404,9 @@ const financeController = {
         return ResponseHandler.error(res, '记账日期为必填项', 'VALIDATION_ERROR', 400);
       }
 
-      // 自动推断 created_by：优先从数据库获取真实姓名
-      const resolvedCreatedBy = getAuthenticatedUserId(req);
+      // owner 强制当前登录用户（ScopeGuard SSOT）
+      const ownerStamp = ScopeGuard.stampOwner(req, 'gl_entry');
+      const resolvedCreatedBy = ownerStamp.created_by;
 
       // 自动推断 period_id：优先使用请求体中的值，否则根据 entry_date 自动查找对应的开放会计期间
       let resolvedPeriodId = period_id;
@@ -578,6 +580,11 @@ const financeController = {
       if (period_id) filters.period_id = parseInt(period_id);
       if (is_posted !== undefined) filters.is_posted = is_posted === 'true';
 
+      filters.scopeClause = await ScopeGuard.applyListScope(req, 'gl_entry', {
+        tableAlias: 'e',
+        ownerAlias: 'gl_entry_owner_scope',
+      });
+
       const result = await financeModel.getEntries(filters, parseInt(page), parseInt(pageSize));
 
       ResponseHandler.success(res, result, '获取会计分录列表成功');
@@ -593,6 +600,9 @@ const financeController = {
   getEntryById: async (req, res) => {
     try {
       const id = safeParseId(req.params.id, '凭证ID');
+      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'gl_entry', id, '无权访问该会计分录'))) {
+        return;
+      }
       const entry = await financeModel.getEntryById(id);
 
       if (!entry) {
@@ -612,6 +622,9 @@ const financeController = {
   getEntryItems: async (req, res) => {
     try {
       const id = safeParseId(req.params.id, '凭证ID');
+      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'gl_entry', id, '无权访问该会计分录'))) {
+        return;
+      }
 
       // 先检查分录是否存在
       const entry = await financeModel.getEntryById(id);
@@ -660,8 +673,11 @@ const financeController = {
   postEntry: async (req, res) => {
     try {
       const id = safeParseId(req.params.id, '凭证ID');
+      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'gl_entry', id, '无权过账该会计分录'))) {
+        return;
+      }
 
-      const success = await financeModel.postEntry(id);
+      const success = await financeModel.postEntry(id, getAuthenticatedUserId(req));
 
       if (success) {
         ResponseHandler.success(res, { message: '会计分录过账成功' }, '过账成功');
@@ -691,6 +707,10 @@ const financeController = {
         );
       }
 
+      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'gl_entry', id, '无权冲销该会计分录'))) {
+        return;
+      }
+
       // 检查分录是否存在
       const entry = await financeModel.getEntryById(id);
       if (!entry) {
@@ -702,15 +722,14 @@ const financeController = {
         return ResponseHandler.error(res, '会计分录已冲销', 'VALIDATION_ERROR', 400);
       }
 
-      // 使用当前登录用户的真实姓名作为创建人
-      const createdBy = getAuthenticatedUserId(req);
+      const ownerStamp = ScopeGuard.stampOwner(req, 'gl_entry');
 
       const reversalEntryId = await financeModel.reverseEntry(id, {
         entry_date,
         posting_date: posting_date || entry_date,
         period_id,
         description,
-        created_by: createdBy,
+        created_by: ownerStamp.created_by,
       });
 
       ResponseHandler.success(
@@ -733,6 +752,9 @@ const financeController = {
   deleteEntry: async (req, res) => {
     try {
       const id = safeParseId(req.params.id, '凭证ID');
+      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'gl_entry', id, '无权删除该会计分录'))) {
+        return;
+      }
 
       const success = await financeModel.deleteEntry(id);
 

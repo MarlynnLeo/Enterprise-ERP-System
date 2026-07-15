@@ -1,15 +1,11 @@
 ﻿<template>
   <div class="module-page base-data-list-page page-container">
     <!-- 页面头部卡片 -->
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>工程变更管理 (ECN/ECO)</h2>
-          <p class="subtitle">管理产品、BOM、工艺的工程变更通知与变更订单</p>
-        </div>
-        <el-button type="primary" v-permission="'basedata:ecn:create'" @click="openForm()">新建ECN</el-button>
-      </div>
-    </el-card>
+    <PageHeader title="工程变更管理 (ECN/ECO)" subtitle="管理产品、BOM、工艺的工程变更通知与变更订单">
+      <template #actions>
+<el-button type="primary" v-permission="'basedata:ecn:create'" @click="openForm()">新建ECN</el-button>
+      </template>
+    </PageHeader>
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
@@ -56,7 +52,7 @@
       <el-table-column prop="effective_date" label="生效日期" width="110" />
       <el-table-column label="操作" min-width="380" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
         <template #default="{ row }">
-          <el-button size="small" type="primary" v-permission="'basedata:ecn:view'" @click="viewDetail(row)">
+          <el-button class="btn-op-view" size="small" type="primary" v-permission="'basedata:ecn:view'" @click="viewDetail(row)">
             <el-icon><View /></el-icon> 详情
           </el-button>
           <!-- 草稿 → 提交审批 -->
@@ -93,15 +89,21 @@
     </el-card>
 
     <!-- 新建/编辑/查看 ECN 弹窗 -->
-    <el-dialog v-model="formVis" :title="dialogTitle" width="800px" destroy-on-close>
+    <AppDialog
+      v-model="formVis"
+      :title="dialogTitle"
+      :mode="isEditable ? 'form' : 'view'"
+      width="800px"
+      content-width="wide"
+    >
       <el-form :model="formData" label-width="100px">
         <el-row :gutter="16">
           <el-col :span="8"><el-form-item label="标题" required><el-input v-model="formData.title" :disabled="!isEditable" /></el-form-item></el-col>
           <el-col :span="8"><el-form-item label="类型">
-            <el-select v-model="formData.type" style="width:100%" :disabled="!isEditable"><el-option label="ECN" value="ecn" /><el-option label="ECO" value="eco" /></el-select>
+            <el-select v-model="formData.type" class="w-full" :disabled="!isEditable"><el-option label="ECN" value="ecn" /><el-option label="ECO" value="eco" /></el-select>
           </el-form-item></el-col>
           <el-col :span="8"><el-form-item label="优先级">
-            <el-select v-model="formData.priority" style="width:100%" :disabled="!isEditable">
+            <el-select v-model="formData.priority" class="w-full" :disabled="!isEditable">
               <el-option label="低" value="low" /><el-option label="中" value="medium" /><el-option label="高" value="high" /><el-option label="紧急" value="urgent" />
             </el-select>
           </el-form-item></el-col>
@@ -113,13 +115,13 @@
 
         <!-- 变更明细区域 -->
         <el-divider content-position="left">变更明细</el-divider>
-        <div v-if="isEditable" style="margin-bottom: 12px;">
+        <div v-if="isEditable" class="mb-md">
           <el-button type="primary" size="small" v-permission="formData.id ? 'basedata:ecn:update' : 'basedata:ecn:create'" @click="addItem">+ 添加变更项</el-button>
         </div>
         <el-table v-if="formData.items && formData.items.length" :data="formData.items" border size="small">
           <el-table-column label="变更类型" width="150">
             <template #default="{ row }">
-              <el-select v-if="isEditable" v-model="row.change_type" size="small" style="width:100%">
+              <el-select v-if="isEditable" v-model="row.change_type" size="small" class="w-full">
                 <el-option label="BOM新增物料" value="bom_add" />
                 <el-option label="BOM移除物料" value="bom_remove" />
                 <el-option label="BOM修改" value="bom_modify" />
@@ -140,7 +142,7 @@
                 :loading="bomSearching"
                 placeholder="搜索产品/BOM版本"
                 size="small"
-                style="width:100%"
+                class="w-full"
                 @change="(val) => onBomSelect(row, val)"
                 @focus="() => searchBom('')"
               >
@@ -173,7 +175,7 @@
                 :loading="materialSearching"
                 placeholder="搜索编码/名称"
                 size="small"
-                style="width:100%"
+                class="w-full"
                 @change="(val) => onMaterialSelect(row, val)"
               >
                 <!-- 如果已选但不在搜索结果中，保留已选项 -->
@@ -196,7 +198,7 @@
           <!-- 字段名 -->
           <el-table-column label="字段" width="120">
             <template #default="{ row }">
-              <el-select v-if="isEditable && ['bom_modify','material_modify'].includes(row.change_type)" v-model="row.field_name" size="small" style="width:100%" placeholder="选择字段">
+              <el-select v-if="isEditable && ['bom_modify','material_modify'].includes(row.change_type)" v-model="row.field_name" size="small" class="w-full" placeholder="选择字段">
                 <template v-if="row.change_type === 'bom_modify'">
                   <el-option label="数量" value="quantity" />
                   <el-option label="备注" value="remark" />
@@ -240,7 +242,7 @@
         <!-- 草稿状态下编辑保存 -->
         <el-button v-if="formData.id && formData.status === 'draft'" type="primary" v-permission="'basedata:ecn:update'" @click="handleUpdate" :loading="saving">保存修改</el-button>
       </template>
-    </el-dialog>
+    </AppDialog>
   </div>
 </template>
 

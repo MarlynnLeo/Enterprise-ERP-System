@@ -20,7 +20,7 @@
         <div class="number" v-if="!loading">
           <span class="animated-number" :data-value="stat.value">{{ stat.value }}</span>
         </div>
-        <el-skeleton-item v-else variant="h3" style="width: 40px; height: 32px;" />
+        <el-skeleton-item v-else variant="h3" class="skel-icon" />
         <div class="text">{{ stat.label }}</div>
       </div>
       <!-- 数据更新指示器 -->

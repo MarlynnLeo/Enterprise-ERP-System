@@ -20,7 +20,7 @@
       <footer v-show="showTabbar" class="app-tabbar-shell" aria-label="底部导航">
         <Tabbar class="app-tabbar" route :fixed="false" :safe-area-inset-bottom="false">
           <TabbarItem name="Home" to="/" icon="home-o" replace>首页</TabbarItem>
-          <TabbarItem name="Scan" to="/scan" icon="scan" replace>扫码</TabbarItem>
+          <TabbarItem v-if="canScan" name="Scan" to="/scan" icon="scan" replace>扫码</TabbarItem>
           <TabbarItem name="Notifications" to="/system/notifications" icon="bell" replace>通知</TabbarItem>
           <TabbarItem name="Profile" to="/profile" icon="user-o" replace>我的</TabbarItem>
         </Tabbar>
@@ -47,6 +47,19 @@
   const tabbarRouteNames = new Set(['Home', 'Scan', 'Notifications', 'Profile'])
 
   const isStandalone = computed(() => pwaState.value.isStandalone)
+  // 扫码 Tab 与路由权限对齐，避免无业务权限仍露出入口
+  const canScan = computed(() => {
+    const perms = [
+      'inventory:stock:view',
+      'inventory:outbound:view',
+      'inventory:inbound:view',
+      'inventory:check:view',
+      'production:tasks:view',
+      'quality:inspections:view',
+      'basedata:materials:view'
+    ]
+    return perms.some((p) => authStore.hasPermission(p))
+  })
   const showTabbar = computed(() => {
     if (!authStore.isAuthenticated) return false
     if (route.meta?.hideTabbar) return false

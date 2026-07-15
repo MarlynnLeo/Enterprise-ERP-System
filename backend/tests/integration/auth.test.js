@@ -22,7 +22,10 @@ describe('认证模块 /api/auth', () => {
     test('正确的用户名密码应返回 200、用户信息和 HttpOnly Cookie', async () => {
       const res = await request(app)
         .post('/api/auth/login')
-        .send({ username: 'admin', password: '123456' });
+        .send({
+          username: process.env.TEST_ADMIN_USERNAME,
+          password: process.env.TEST_ADMIN_PASSWORD,
+        });
 
       expect(res.status).toBe(200);
       expect(res.body.data?.user || res.body.user).toBeTruthy();

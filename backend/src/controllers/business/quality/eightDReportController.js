@@ -346,7 +346,7 @@ const createReport = async (req, res) => {
                     const isArr = Array.isArray(v);
                     const t = typeof v;
                     if (isArr || t === 'object') {
-                        logger.error(`[${i}] ${columns[i]} => TYPE: ${isArr ? 'Array' : t}, VAL: ${JSON.stringify(v)}`);
+                        logger.error(`[${i}] ${columns[i]} => TYPE: ${isArr ? 'Array' : t}`);
                     }
                 });
                 logger.error('=============================');

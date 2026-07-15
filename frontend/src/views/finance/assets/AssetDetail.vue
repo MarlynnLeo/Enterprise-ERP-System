@@ -1,20 +1,15 @@
 ﻿<template>
   <div class="module-page asset-detail-container">
     <!-- 头部卡片 -->
-    <el-card class="header-card" shadow="never">
-      <div class="header-content">
-        <div class="title-section">
-          <el-button link :icon="Back" @click="goBack" class="back-btn">返回列表</el-button>
-          <h2>{{ assetCode }} - {{ assetInfo.assetName }}</h2>
-          <el-tag :type="getStatusType(assetInfo.status)" class="status-tag">
-            {{ getStatusText(assetInfo.status) }}
-          </el-tag>
-        </div>
-        <div class="action-section">
-          <el-button v-permission="'finance:assets:update'" type="danger" @click="openImpairmentDialog" v-if="assetInfo.status === 'in_use' || assetInfo.status === 'idle'">计提减值</el-button>
-        </div>
-      </div>
-    </el-card>
+    <PageHeader :title="`${assetCode || ''} - ${assetInfo.assetName || '资产详情'}`" subtitle="固定资产详情与折旧属性">
+      <template #actions>
+        <el-button link :icon="Back" @click="goBack" class="back-btn">返回列表</el-button>
+        <el-tag :type="getStatusType(assetInfo.status)" class="status-tag">
+          {{ getStatusText(assetInfo.status) }}
+        </el-tag>
+        <el-button v-permission="'finance:assets:update'" type="danger" @click="openImpairmentDialog" v-if="assetInfo.status === 'in_use' || assetInfo.status === 'idle'">计提减值</el-button>
+      </template>
+    </PageHeader>
 
     <div class="main-content">
       <!-- 左侧：基本信息与折旧属性 -->
@@ -88,7 +83,7 @@
             </el-tab-pane>
 
             <el-tab-pane label="折旧历史" name="depreciation">
-              <el-table :data="depreciationHistory" v-loading="depHistoryLoading" style="width: 100%" size="small" border max-height="400">
+              <el-table :data="depreciationHistory" v-loading="depHistoryLoading" class="w-full" size="small" border max-height="400">
                 <el-table-column prop="depreciation_date" label="折旧日期" width="100">
                   <template #default="scope">{{ formatDate(scope.row.depreciation_date) }}</template>
                 </el-table-column>
@@ -103,13 +98,13 @@
                 <el-table-column prop="voucher_no" label="总账凭证号" width="180">
                   <template #default="scope">
                     <el-tag v-if="scope.row.voucher_no" type="success" size="small">{{ scope.row.voucher_no }}</el-tag>
-                    <span v-else style="color: var(--color-text-secondary)">-</span>
+                    <span v-else class="text-muted">-</span>
                   </template>
                 </el-table-column>
               </el-table>
             </el-tab-pane>
             <el-tab-pane label="减值记录" name="impairment">
-              <el-table :data="impairmentHistory" v-loading="impLoading" style="width: 100%" size="small" border max-height="400">
+              <el-table :data="impairmentHistory" v-loading="impLoading" class="w-full" size="small" border max-height="400">
                 <el-table-column prop="impairment_date" label="减值日期" width="100">
                   <template #default="scope">{{ formatDate(scope.row.impairment_date) }}</template>
                 </el-table-column>
@@ -135,13 +130,13 @@
           :description="formatCurrency(assetInfo.netValue)"
           type="warning"
           :closable="false"
-          style="margin-bottom: 20px"
+          class="mb-20"
         />
         <el-form-item label="减值金额" prop="impairment_amount">
-          <el-input-number v-model="impairmentForm.impairment_amount" :min="0.01" :max="assetInfo.netValue" :precision="2" :step="100" style="width: 100%" />
+          <el-input-number v-model="impairmentForm.impairment_amount" :min="0.01" :max="assetInfo.netValue" :precision="2" :step="100" class="w-full" />
         </el-form-item>
         <el-form-item label="减值日期" prop="impairment_date">
-          <el-date-picker v-model="impairmentForm.impairment_date" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
+          <el-date-picker v-model="impairmentForm.impairment_date" type="date" value-format="YYYY-MM-DD" class="w-full" />
         </el-form-item>
         <el-form-item label="减值原因" prop="reason">
           <el-input v-model="impairmentForm.reason" type="textarea" :rows="3" placeholder="请输入发生减值的原因（如：损坏、技术淘汰等）" />

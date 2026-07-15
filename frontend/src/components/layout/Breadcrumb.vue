@@ -212,9 +212,15 @@ const getTitleByPath = (path, prevPath = '') => {
     'process': t('menu.productionProcess'),
     'equipment-monitoring': t('menu.equipmentMonitoring'),
     'material-shortage': t('menu.materialShortage'),
+    'material-readiness': t('menu.materialReadiness'),
     'mrp': t('menu.mrpPlanning'),
     'data-view': t('menu.productionDataView'),
     'gantt': t('menu.productionGantt'),
+    'calendar': t('menu.productionCalendar'),
+    'anomaly': t('menu.productionAnomaly'),
+    'work-stations': t('menu.workStations'),
+    'process-routes': t('menu.processRoutes'),
+    'assembly-board': t('menu.assemblyBoard'),
 
     // 基础数据
     'basedata': t('menu.baseData'),
@@ -362,6 +368,7 @@ const getTitleByPath = (path, prevPath = '') => {
     'documents': t('menu.documents'),
     'business-alerts': t('menu.businessAlerts'),
     'notifications': t('menu.notifications'),
+    'notification-rules': t('menu.notificationRules'),
     'settings': t('menu.financeSettings'),
     'exchange-rates': t('menu.exchangeRates'),
 

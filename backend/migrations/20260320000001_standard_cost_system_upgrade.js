@@ -2,7 +2,7 @@ exports.up = async function(knex) {
   // 1. Create standard_cost_versions table
   await knex.raw(`
     CREATE TABLE IF NOT EXISTS standard_cost_versions (
-      id INT AUTO_INCREMENT PRIMARY KEY,
+      id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
       version_no VARCHAR(50) NOT NULL UNIQUE COMMENT '版本号',
       version_name VARCHAR(100) NOT NULL COMMENT '版本名',
       status ENUM('draft', 'pending', 'active', 'archived') NOT NULL DEFAULT 'draft' COMMENT '版本状态',

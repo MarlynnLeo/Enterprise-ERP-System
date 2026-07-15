@@ -74,9 +74,14 @@
           :show-message="false"
         >
           <el-form-item prop="username">
+            <label class="sr-only" for="login-username">账号</label>
             <el-input
+              id="login-username"
               v-model="loginForm.username"
+              name="username"
+              autocomplete="username"
               placeholder="请输入手机号或邮箱"
+              aria-label="账号"
               class="brand-input"
               clearable
               @keyup.enter="handleLogin"
@@ -84,10 +89,15 @@
           </el-form-item>
 
           <el-form-item prop="password">
+            <label class="sr-only" for="login-password">密码</label>
             <el-input
+              id="login-password"
               v-model="loginForm.password"
+              name="password"
               type="password"
+              autocomplete="current-password"
               placeholder="请输入密码"
+              aria-label="密码"
               show-password
               class="brand-input"
               @keyup.enter="handleLogin"
@@ -474,6 +484,18 @@ async function handleLogin() {
 
 .login-form {
   width: 100%;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 :deep(.brand-input .el-input__wrapper) {

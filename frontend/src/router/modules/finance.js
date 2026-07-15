@@ -1,5 +1,5 @@
 /**
- * 璐㈠姟绠＄悊妯″潡璺敱
+ * 财务管理模块路由
  */
 import ModuleContainer from '../../components/common/ModuleContainer.vue'
 
@@ -18,7 +18,7 @@ export default {
             name: 'finance-dashboard',
             redirect: '/finance/gl/accounts'
         },
-        // 鎬昏处妯″潡璺敱
+        // 总账模块路由
         {
             path: 'gl/accounts',
             name: 'gl-accounts',
@@ -73,7 +73,7 @@ export default {
                 permission: 'finance:periods:view'
             }
         },
-        // 涓撶敤鍑瘉璺敱
+        // 专用凭证路由
         {
             path: 'gl/entries/receipt',
             name: 'gl-receipt-entry',
@@ -81,8 +81,8 @@ export default {
             meta: {
                 requiresAuth: true,
                 permission: 'finance:entries:create',
-                title: '鏀舵鍑瘉',
-                voucherType: '鏀舵鍑瘉'
+                title: '收款凭证',
+                voucherType: '收款凭证'
             }
         },
         {
@@ -92,8 +92,8 @@ export default {
             meta: {
                 requiresAuth: true,
                 permission: 'finance:entries:create',
-                title: '浠樻鍑瘉',
-                voucherType: '浠樻鍑瘉'
+                title: '付款凭证',
+                voucherType: '付款凭证'
             }
         },
         {
@@ -103,8 +103,8 @@ export default {
             meta: {
                 requiresAuth: true,
                 permission: 'finance:entries:create',
-                title: '杞处鍑瘉',
-                voucherType: '杞处鍑瘉'
+                title: '转账凭证',
+                voucherType: '转账凭证'
             }
         },
         {
@@ -123,11 +123,11 @@ export default {
             meta: {
                 requiresAuth: true,
                 permission: 'finance:entries:create',
-                title: '璁拌处鍑瘉',
-                voucherType: '璁拌处鍑瘉'
+                title: '记账凭证',
+                voucherType: '记账凭证'
             }
         },
-        // 搴旀敹璐︽妯″潡璺敱
+        // 应收账款模块路由
         {
             path: 'ar/invoices',
             name: 'ar-invoices',
@@ -155,7 +155,7 @@ export default {
                 permission: 'finance:reports:view'
             }
         },
-        // 搴斾粯璐︽妯″潡璺敱
+        // 应付账款模块路由
         {
             path: 'ap/invoices',
             name: 'ap-invoices',
@@ -183,7 +183,7 @@ export default {
                 permission: 'finance:reports:view'
             }
         },
-        // 鍥哄畾璧勪骇妯″潡璺敱
+        // 固定资产模块路由
         {
             path: 'assets/list',
             name: 'assets-list',
@@ -247,7 +247,7 @@ export default {
                 permission: 'finance:assets:view'
             }
         },
-        // 鐜伴噾绠＄悊妯″潡璺敱
+        // 现金管理模块路由
         {
             path: 'cash',
             name: 'finance-cash',
@@ -289,7 +289,7 @@ export default {
                 permission: 'finance:cash:reconcile'
             }
         },
-        // 璐㈠姟鎶ヨ〃妯″潡璺敱
+        // 财务报表模块路由
         {
             path: 'reports/balance-sheet',
             name: 'balance-sheet',
@@ -369,7 +369,7 @@ export default {
                 permission: 'finance:tax:view'
             }
         },
-        // 棰勭畻绠＄悊妯″潡璺敱
+        // 预算管理模块路由
         {
             path: 'budget',
             name: 'finance-budget',
@@ -447,7 +447,7 @@ export default {
                 permission: 'finance:budgets:view'
             }
         },
-        // 鎴愭湰鏍哥畻妯″潡璺敱
+        // 成本核算模块路由
         {
             path: 'cost',
             name: 'finance-cost',
@@ -476,7 +476,7 @@ export default {
             name: 'cost-versions',
             component: () => import('../../views/finance/cost/CostVersionManage.vue'),
             meta: {
-                title: '鏍囧噯鎴愭湰鐗堟湰绠＄悊',
+                title: '标准成本版本管理',
                 requiresAuth: true,
                 permission: 'finance:cost:view'
             }
@@ -486,7 +486,7 @@ export default {
             name: 'cost-closing',
             component: () => import('../../views/finance/cost/CostClosing.vue'),
             meta: {
-                title: '鎴愭湰鍏宠处',
+                title: '成本关账',
                 requiresAuth: true,
                 permission: 'finance:cost:view'
             }
@@ -563,7 +563,7 @@ export default {
                 permission: 'finance:pricing:view'
             }
         },
-        // 璐圭敤绠＄悊妯″潡璺敱
+        // 费用管理模块路由
         {
             path: 'expenses',
             name: 'expenses',

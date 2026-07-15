@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { API_CONFIG, normalizeApiRequestUrl } from '@/config/app';
-import { applyRequestOptimizer } from '@/utils/requestOptimizer';
+import { applyRequestOptimizer, clearAllRequestCaches } from '@/utils/requestOptimizer';
+import { ElMessage } from 'element-plus';
 // 使用环境变量，如果没有设置则使用相对路径
 const API_URL = API_CONFIG.defaultBaseURL;
 const UNSAFE_METHODS = new Set(['post', 'put', 'patch', 'delete']);
@@ -50,21 +51,59 @@ const isCrossOriginAbsoluteRequest = (config) => {
     return Boolean(requestUrl && requestUrl.origin !== origin);
 };
 
+/** 解析 CSRF 接口完整路径，避免 baseURL + 绝对路径拼接出错 */
+const resolveCsrfTokenUrl = () => {
+    const base = String(API_URL || '/api').replace(/\/+$/, '');
+    if (!base || base === '/') return '/api/csrf-token';
+    if (base.endsWith('/api')) return `${base}/csrf-token`;
+    // 已是完整 API 根（如 https://host/api）或自定义前缀
+    return `${base}/csrf-token`;
+};
+
+const requestCsrfTokenOnce = async () => {
+    // 使用绝对站点路径，不依赖 baseURL 拼接（开发环境走 Vite /api 代理）
+    const response = await axios.get(resolveCsrfTokenUrl(), {
+        timeout: API_CONFIG.fastTimeoutMs,
+        withCredentials: true,
+    });
+    const body = response?.data || {};
+    const token = body.csrfToken || body.token || body.data?.csrfToken || '';
+    if (!token) {
+        throw new Error('CSRF 响应中未包含令牌');
+    }
+    return token;
+};
+
 const fetchCsrfToken = async () => {
     if (csrfToken) return csrfToken;
 
     if (!csrfTokenPromise) {
-        csrfTokenPromise = axios.get('/csrf-token', {
-            baseURL: API_URL,
-            timeout: API_CONFIG.fastTimeoutMs,
-            withCredentials: true
-        }).then((response) => {
-            const token = response.data?.csrfToken || response.data?.token || response.data?.data?.csrfToken || '';
-            csrfToken = token;
-            return token;
-        }).finally(() => {
-            csrfTokenPromise = null;
-        });
+        csrfTokenPromise = (async () => {
+            try {
+                csrfToken = await requestCsrfTokenOnce();
+                return csrfToken;
+            } catch {
+                // 后端刚重启或代理瞬断时重试一次
+                await new Promise((resolve) => setTimeout(resolve, 400));
+                try {
+                    csrfToken = await requestCsrfTokenOnce();
+                    return csrfToken;
+                } catch (secondError) {
+                    csrfToken = '';
+                    const status = secondError?.response?.status;
+                    const message =
+                        status === 404
+                            ? '无法获取安全令牌（/api/csrf-token 404）。请确认后端已启动（默认端口 8080），并刷新页面后重试。'
+                            : `无法获取安全令牌: ${secondError?.response?.data?.message || secondError?.message || '网络错误'}`;
+                    const error = new Error(message);
+                    error.response = secondError?.response;
+                    error.cause = secondError;
+                    throw error;
+                }
+            } finally {
+                csrfTokenPromise = null;
+            }
+        })();
     }
 
     return csrfTokenPromise;
@@ -152,9 +191,14 @@ const setupInterceptors = (apiInstance) => {
         }
 
         if (shouldAttachCsrfToken(config, isTrustedApiRequest)) {
-            const csrf = await fetchCsrfToken();
-            if (csrf) {
-                config.headers['X-CSRF-Token'] = csrf;
+            try {
+                const csrf = await fetchCsrfToken();
+                if (csrf) {
+                    config.headers['X-CSRF-Token'] = csrf;
+                }
+            } catch (csrfError) {
+                // 明确抛出中文错误，避免只显示 axiosInstance.js 行号
+                return Promise.reject(csrfError);
             }
         }
         return config;
@@ -218,14 +262,40 @@ const setupInterceptors = (apiInstance) => {
                     return apiInstance(originalRequest);
                 } catch (refreshError) {
                     processQueue(refreshError);
+                    clearAllRequestCaches();
+                    try {
+                        // 动态导入避免循环依赖
+                        const { useAuthStore } = await import('@/stores/auth');
+                        const authStore = useAuthStore();
+                        if (typeof authStore.clearClientSession === 'function') {
+                            authStore.clearClientSession();
+                        }
+                    } catch {
+                        // ignore store cleanup errors
+                    }
                     if (!window.location.pathname.includes('/login')) {
-                        window.location.href = '/login';
+                        window.location.replace('/login');
                     }
                     return Promise.reject(refreshError);
                 } finally {
                     isRefreshing = false;
                 }
             }
+
+            // 业务权限拒绝：统一提示（CSRF 已在上方单独处理）
+            if (
+                error.response?.status === 403 &&
+                csrfErrorCode !== 'INVALID_CSRF_TOKEN' &&
+                !originalRequest._forbiddenToastShown
+            ) {
+                originalRequest._forbiddenToastShown = true;
+                const msg =
+                    error.response?.data?.message ||
+                    error.response?.data?.error ||
+                    '您没有权限执行此操作';
+                ElMessage.error(msg);
+            }
+
             return Promise.reject(error);
         }
     );

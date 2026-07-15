@@ -1,14 +1,15 @@
 <template>
-  <div class="aql-standards-container">
-    <el-card class="box-card">
-      <template #header>
-        <div class="card-header">
-          <span>AQL 抽样标准库</span>
-          <el-button v-permission="'quality:aql:create'" type="primary" @click="handleAdd">
+  <div class="module-page aql-standards-container">
+    <PageHeader title="AQL 抽样标准库" subtitle="维护抽样方案与合格判定标准">
+      <template #actions>
+        <el-button v-permission="'quality:aql:create'" type="primary" @click="handleAdd">
             <el-icon><Plus /></el-icon>新增标准
           </el-button>
-        </div>
       </template>
+    </PageHeader>
+
+    <el-card class="data-card">
+
 
       <!-- Search & Filter -->
       <FinanceQueryCard :model="searchForm" @search="handleSearch" @reset="handleReset">
@@ -30,7 +31,7 @@
         v-loading="loading"
         :data="tableData"
         border
-        style="width: 100%; margin-top: 20px"
+        class="w-full mt-md"
       >
         <el-table-column prop="code" label="标准编号" width="150" />
         <el-table-column prop="name" label="标准名称" width="200" show-overflow-tooltip />
@@ -47,12 +48,12 @@
         <el-table-column prop="sample_size" label="抽样数 (n)" width="120" />
         <el-table-column prop="accept_limit" label="允收数 (Ac)" width="120">
           <template #default="scope">
-            <span style="color: var(--color-success); font-weight: bold">{{ scope.row.accept_limit }}</span>
+            <span class="text-success font-weight-700">{{ scope.row.accept_limit }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="reject_limit" label="拒收数 (Re)" width="120">
           <template #default="scope">
-            <span style="color: var(--color-danger); font-weight: bold">{{ scope.row.reject_limit }}</span>
+            <span class="text-danger font-weight-700">{{ scope.row.reject_limit }}</span>
           </template>
         </el-table-column>
 
@@ -113,12 +114,12 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="AQL 级别" prop="aql_level">
-              <el-input-number v-model="form.aql_level" :precision="2" :step="0.1" :min="0.01" style="width: 100%" placeholder="如 0.65" />
+              <el-input-number v-model="form.aql_level" :precision="2" :step="0.1" :min="0.01" class="w-full" placeholder="如 0.65" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="抽样数 (n)" prop="sample_size">
-              <el-input-number v-model="form.sample_size" :min="1" style="width: 100%" />
+              <el-input-number v-model="form.sample_size" :min="1" class="w-full" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -126,7 +127,7 @@
         <el-form-item label="适用批量范围" required>
           <el-col :span="11">
             <el-form-item prop="batch_min">
-              <el-input-number v-model="form.batch_min" :min="1" style="width: 100%" placeholder="最小批量" />
+              <el-input-number v-model="form.batch_min" :min="1" class="w-full" placeholder="最小批量" />
             </el-form-item>
           </el-col>
           <el-col class="text-center" :span="2" style="text-align: center; line-height: 32px;">
@@ -134,7 +135,7 @@
           </el-col>
           <el-col :span="11">
             <el-form-item prop="batch_max">
-              <el-input-number v-model="form.batch_max" :min="form.batch_min" style="width: 100%" placeholder="最大批量" />
+              <el-input-number v-model="form.batch_max" :min="form.batch_min" class="w-full" placeholder="最大批量" />
             </el-form-item>
           </el-col>
         </el-form-item>
@@ -142,12 +143,12 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="允收数 (Ac)" prop="accept_limit">
-              <el-input-number v-model="form.accept_limit" :min="0" style="width: 100%" />
+              <el-input-number v-model="form.accept_limit" :min="0" class="w-full" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="拒收数 (Re)" prop="reject_limit">
-              <el-input-number v-model="form.reject_limit" :min="form.accept_limit + 1" style="width: 100%" />
+              <el-input-number v-model="form.reject_limit" :min="form.accept_limit + 1" class="w-full" />
             </el-form-item>
           </el-col>
         </el-row>

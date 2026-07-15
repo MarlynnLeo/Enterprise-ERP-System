@@ -9,6 +9,9 @@ const expenseModel = require('../../../models/expense');
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
+const ScopeGuard = require('../../../authorization/ScopeGuard');
+const db = require('../../../config/db');
+const { safeParseId } = require('../../../utils/safeParseId');
 
 const expenseController = {
   // ==================== 初始化 ====================
@@ -138,7 +141,6 @@ const expenseController = {
         startDate,
         endDate,
         keyword,
-        created_by,
       } = req.query;
 
       const filters = {};
@@ -147,7 +149,11 @@ const expenseController = {
       if (startDate) filters.startDate = startDate;
       if (endDate) filters.endDate = endDate;
       if (keyword) filters.keyword = keyword;
-      if (created_by) filters.created_by = parseInt(created_by);
+      // 行级 DataScope（忽略查询串 created_by，避免 IDOR 越权窥探）
+      filters.scopeClause = await ScopeGuard.applyListScope(req, 'expense', {
+        tableAlias: 'e',
+        ownerAlias: 'expense_owner_scope',
+      });
 
       const result = await expenseModel.getExpenses(filters, parseInt(page), parseInt(pageSize));
       ResponseHandler.success(res, result, '获取费用列表成功');
@@ -162,7 +168,13 @@ const expenseController = {
    */
   async getExpenseById(req, res) {
     try {
-      const { id } = req.params;
+      const id = safeParseId(req.params.id);
+      if (!id) {
+        return ResponseHandler.error(res, '无效的费用ID', 'VALIDATION_ERROR', 400);
+      }
+      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'expense', id, '无权访问该费用记录'))) {
+        return;
+      }
       const data = await expenseModel.getExpenseById(id);
 
       if (!data) {
@@ -198,7 +210,7 @@ const expenseController = {
 
       const data = {
         ...req.body,
-        created_by: getAuthenticatedUserId(req),
+        ...ScopeGuard.stampOwner(req, 'expense'),
       };
 
       const result = await expenseModel.createExpense(data);
@@ -214,7 +226,13 @@ const expenseController = {
    */
   async updateExpense(req, res) {
     try {
-      const { id } = req.params;
+      const id = safeParseId(req.params.id);
+      if (!id) {
+        return ResponseHandler.error(res, '无效的费用ID', 'VALIDATION_ERROR', 400);
+      }
+      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'expense', id, '无权修改该费用记录'))) {
+        return;
+      }
       const result = await expenseModel.updateExpense(id, req.body);
       ResponseHandler.success(res, result, '费用更新成功');
     } catch (error) {
@@ -229,7 +247,13 @@ const expenseController = {
    */
   async submitExpense(req, res) {
     try {
-      const { id } = req.params;
+      const id = safeParseId(req.params.id);
+      if (!id) {
+        return ResponseHandler.error(res, '无效的费用ID', 'VALIDATION_ERROR', 400);
+      }
+      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'expense', id, '无权提交该费用记录'))) {
+        return;
+      }
       const userId = getAuthenticatedUserId(req);
       const { useDingtalk = true, dingtalkUserId, deptId } = req.body;
 
@@ -303,7 +327,13 @@ const expenseController = {
    */
   async approveExpense(req, res) {
     try {
-      const { id } = req.params;
+      const id = safeParseId(req.params.id);
+      if (!id) {
+        return ResponseHandler.error(res, '无效的费用ID', 'VALIDATION_ERROR', 400);
+      }
+      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'expense', id, '无权审批该费用记录'))) {
+        return;
+      }
       const { action, remark } = req.body; // action: 'approve' | 'reject'
       const userId = getAuthenticatedUserId(req);
 
@@ -325,7 +355,13 @@ const expenseController = {
    */
   async payExpense(req, res) {
     try {
-      const { id } = req.params;
+      const id = safeParseId(req.params.id);
+      if (!id) {
+        return ResponseHandler.error(res, '无效的费用ID', 'VALIDATION_ERROR', 400);
+      }
+      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'expense', id, '无权付款该费用记录'))) {
+        return;
+      }
       const { bank_account_id, transaction_id, payment_date, cost_center_id } = req.body;
 
       if (!bank_account_id) {
@@ -342,7 +378,7 @@ const expenseController = {
         transaction_id,
         payment_date,
         cost_center_id,
-        created_by: getAuthenticatedUserId(req),
+        ...ScopeGuard.stampOwner(req, 'expense'),
       });
       ResponseHandler.success(res, result, '付款成功，已自动生成会计凭证');
     } catch (error) {
@@ -356,11 +392,35 @@ const expenseController = {
    */
   async deleteExpense(req, res) {
     try {
-      const { id } = req.params;
+      const id = safeParseId(req.params.id);
+      if (!id) {
+        return ResponseHandler.error(res, '无效的费用ID', 'VALIDATION_ERROR', 400);
+      }
+      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'expense', id, '无权删除该费用记录'))) {
+        return;
+      }
       const result = await expenseModel.deleteExpense(id);
       ResponseHandler.success(res, result, '费用删除成功');
     } catch (error) {
       logger.error('删除费用记录失败:', error);
+      ResponseHandler.error(res, error.message, 'VALIDATION_ERROR', 400);
+    }
+  },
+
+  /**
+   * 作废已付款费用
+   */
+  async voidExpensePayment(req, res) {
+    try {
+      const { id } = req.params;
+      const { void_reason } = req.body;
+      const result = await expenseModel.voidExpensePayment(id, {
+        voided_by: getAuthenticatedUserId(req),
+        void_reason,
+      });
+      ResponseHandler.success(res, result, '费用付款已作废，银行与凭证已冲销');
+    } catch (error) {
+      logger.error('作废费用付款失败:', error);
       ResponseHandler.error(res, error.message, 'VALIDATION_ERROR', 400);
     }
   },

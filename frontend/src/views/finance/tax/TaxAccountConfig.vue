@@ -1,5 +1,5 @@
 <template>
-  <div class="tax-account-config-container">
+  <div class="module-page tax-account-config-container">
     <el-card>
       <template #header>
         <div class="card-header">
@@ -60,7 +60,7 @@
             v-model="formData.account_id"
             filterable
             placeholder="请选择会计科目"
-            style="width: 100%"
+            class="w-full"
           >
             <el-option
               v-for="account in accounts"

@@ -102,9 +102,15 @@ export default {
     productionReport: 'Production Report',
     equipmentMonitoring: 'Equipment Monitoring',
     materialShortage: 'Material Shortage',
+    materialReadiness: 'Material Readiness',
     mrpPlanning: 'MRP Planning',
     productionDataView: 'Production Dashboard',
     productionGantt: 'Scheduling Gantt Chart',
+    productionCalendar: 'Production Calendar',
+    productionAnomaly: 'Anomaly Reports',
+    workStations: 'Work Stations',
+    processRoutes: 'Process Routes',
+    assemblyBoard: 'Assembly Board',
 
     // Base Data
     baseData: 'Base Data',
@@ -247,6 +253,7 @@ export default {
     permissions: 'Permissions',
     print: 'Print Settings',
     notifications: 'Notifications',
+    notificationRules: 'Notification Rules',
     technicalCommunication: 'Technical Communication',
     workflow: 'Workflow Management',
     codingRules: 'Coding Rules',

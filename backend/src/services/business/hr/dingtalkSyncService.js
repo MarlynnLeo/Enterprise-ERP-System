@@ -86,7 +86,17 @@ class DingtalkSyncService {
     if (resp.errcode !== 0) throw new Error(`获取子部门失败: errcode=${resp.errcode}, errmsg=${resp.errmsg}`);
 
     const result = resp.result;
-    logger.info(`[钉钉] 部门 ${deptId} 的子部门原始返回: ${JSON.stringify(result)}`);
+    logger.debug('[Dingtalk] Sub-department response received', {
+      deptId,
+      resultType: Array.isArray(result) ? 'array' : typeof result,
+      departmentCount: Array.isArray(result)
+        ? result.length
+        : Array.isArray(result?.department)
+          ? result.department.length
+          : Array.isArray(result?.dept_id_list)
+            ? result.dept_id_list.length
+            : 0,
+    });
 
     // 兼容多种返回格式
     // 格式1: result 直接是部门对象数组 [{dept_id:123, name:'xxx'}, ...]

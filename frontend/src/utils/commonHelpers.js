@@ -697,29 +697,9 @@ export const debounce = CommonUtils.debounce.bind(CommonUtils);
 export const throttle = CommonUtils.throttle.bind(CommonUtils);
 export const generateId = CommonUtils.generateId.bind(CommonUtils);
 
-// 统一的API错误处理（需要 ElMessage）
-let ElMessage = null;
-try {
-  const elementPlus = require('element-plus');
-  ElMessage = elementPlus.ElMessage;
-} catch {
-  // Element Plus 未加载时的降级处理
-}
-
-export const handleApiError = (error, operation = '操作', showMessage = true) => {
-  console.error(`${operation}失败:`, error);
-
-  if (showMessage && ElMessage) {
-    const message = error.response?.data?.message || error.message || `${operation}失败`;
-    ElMessage.error(message);
-  }
-
-  return {
-    success: false,
-    error: error.message || `${operation}失败`,
-    details: error.response?.data
-  };
-};
+// 统一错误处理：委托 errorHandler（审计 F-P1-4）
+import { handleApiError } from './errorHandler'
+export { handleApiError }
 
 export default {
   DateFormatter,
@@ -730,7 +710,6 @@ export default {
   PurchaseHelper,
   CommonUtils,
   ReportHelper,
-  // 导出独立函数
   formatOrderData,
   formatOrderDataList,
   calculateCountdown,

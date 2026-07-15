@@ -1,10 +1,13 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const readline = require('readline');
 const mysql = require('mysql2');
 const { pool } = require('../../config/db');
 
 const BACKUP_DIR = path.resolve(process.env.BACKUP_DIR || path.join(__dirname, '../../../backups'));
+const BACKUP_RETENTION_DAYS = Math.max(1, Number.parseInt(process.env.BACKUP_RETENTION_DAYS, 10) || 30);
+const BACKUP_RETENTION_COUNT = Math.max(1, Number.parseInt(process.env.BACKUP_RETENTION_COUNT, 10) || 30);
 
 function quoteIdentifier(identifier) {
   return `\`${String(identifier).replace(/`/g, '``')}\``;
@@ -16,6 +19,7 @@ function formatSqlValue(value) {
   if (value instanceof Date) {
     return mysql.escape(value.toISOString().slice(0, 19).replace('T', ' '));
   }
+  if (typeof value === 'object') return mysql.escape(JSON.stringify(value));
   return mysql.escape(value);
 }
 
@@ -43,38 +47,113 @@ async function writeLine(stream, line = '') {
   }
 }
 
+async function sha256File(filePath) {
+  return new Promise((resolve, reject) => {
+    const hash = crypto.createHash('sha256');
+    const readStream = fs.createReadStream(filePath);
+    readStream.on('data', (chunk) => hash.update(chunk));
+    readStream.on('end', () => resolve(hash.digest('hex')));
+    readStream.on('error', reject);
+  });
+}
+
+function isStatementBalanced(sql) {
+  let quote = null;
+  let escaped = false;
+  let parenDepth = 0;
+
+  for (const char of sql) {
+    if (quote) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === '\\') {
+        escaped = true;
+      } else if (char === quote) {
+        quote = null;
+      }
+      continue;
+    }
+
+    if (char === '\'' || char === '"') {
+      quote = char;
+    } else if (char === '(') {
+      parenDepth += 1;
+    } else if (char === ')') {
+      parenDepth -= 1;
+      if (parenDepth < 0) return false;
+    }
+  }
+
+  return !quote && parenDepth === 0;
+}
+
+async function scanBackupSql(filePath) {
+  const checks = {
+    lineCount: 0,
+    statementCount: 0,
+    tableCount: 0,
+    insertCount: 0,
+    hasForeignKeyOff: false,
+    hasForeignKeyOn: false,
+    hasInvalidStatement: false,
+    hasUnterminatedStatement: false,
+  };
+  let statement = '';
+
+  const input = fs.createReadStream(filePath, { encoding: 'utf8' });
+  const rl = readline.createInterface({ input, crlfDelay: Infinity });
+
+  for await (const line of rl) {
+    checks.lineCount += 1;
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('--')) continue;
+
+    statement += `${line}\n`;
+    if (!trimmed.endsWith(';')) continue;
+
+    const normalized = statement.trim();
+    checks.statementCount += 1;
+    checks.hasForeignKeyOff = checks.hasForeignKeyOff || /SET\s+FOREIGN_KEY_CHECKS\s*=\s*0/i.test(normalized);
+    checks.hasForeignKeyOn = checks.hasForeignKeyOn || /SET\s+FOREIGN_KEY_CHECKS\s*=\s*1/i.test(normalized);
+    if (/^CREATE\s+TABLE/i.test(normalized)) checks.tableCount += 1;
+    if (/^INSERT\s+INTO/i.test(normalized)) checks.insertCount += 1;
+    if (!isStatementBalanced(normalized)) checks.hasInvalidStatement = true;
+    statement = '';
+  }
+
+  checks.hasUnterminatedStatement = statement.trim().length > 0;
+  return checks;
+}
+
 async function dumpTable(stream, tableName) {
   const quotedTable = quoteIdentifier(tableName);
   const [[createRow]] = await pool.query(`SHOW CREATE TABLE ${quotedTable}`);
   const createSql = createRow['Create Table'];
+  const [columnDefinitions] = await pool.query(`SHOW FULL COLUMNS FROM ${quotedTable}`);
+  const columns = columnDefinitions
+    .filter((column) => !/GENERATED/i.test(String(column.Extra || '')))
+    .map((column) => column.Field);
+  const quotedColumns = columns.map(quoteIdentifier).join(', ');
 
   await writeLine(stream, `DROP TABLE IF EXISTS ${quotedTable};`);
   await writeLine(stream, `${createSql};`);
   await writeLine(stream);
 
-  // 备份场景需要所有列，使用 SELECT * 是合理的（在注释中说明原因）
+  // Generated columns are recreated by DDL and must not be present in INSERT statements.
   // 分页流式查询：每次取 FETCH_SIZE 行，避免大表一次性加载导致 OOM
   const FETCH_SIZE = 1000;
   const INSERT_BATCH = 200;
   let offset = 0;
-  let columns = null;
-  let quotedColumns = null;
 
   while (true) {
     const [batch] = await pool.query(
-      `SELECT * FROM ${quotedTable} LIMIT ${FETCH_SIZE} OFFSET ${offset}`
+      `SELECT ${quotedColumns} FROM ${quotedTable} LIMIT ${FETCH_SIZE} OFFSET ${offset}`
     );
 
     if (batch.length === 0) {
       // 首批即为空 → 空表
       if (offset === 0) await writeLine(stream);
       break;
-    }
-
-    // 首批时确定列名
-    if (!columns) {
-      columns = Object.keys(batch[0]);
-      quotedColumns = columns.map(quoteIdentifier).join(', ');
     }
 
     // 按 INSERT_BATCH 分组写入 INSERT 语句
@@ -96,13 +175,52 @@ async function dumpTable(stream, tableName) {
 }
 
 class BackupService {
+  async pruneBackups() {
+    await ensureBackupTable();
+    const [rows] = await pool.query(
+      `SELECT id, filename, file_path, created_at
+       FROM system_backups
+       WHERE status = 'success'
+       ORDER BY created_at DESC, id DESC`
+    );
+    const cutoff = Date.now() - BACKUP_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+    const expired = rows.filter(
+      (row, index) => index >= BACKUP_RETENTION_COUNT || new Date(row.created_at).getTime() < cutoff
+    );
+    let deleted = 0;
+
+    for (const backup of expired) {
+      const resolvedPath = path.resolve(backup.file_path);
+      const relativePath = path.relative(BACKUP_DIR, resolvedPath);
+      if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) continue;
+
+      for (const target of [resolvedPath, `${resolvedPath}.sha256`]) {
+        try {
+          await fs.promises.unlink(target);
+        } catch (error) {
+          if (error.code !== 'ENOENT') throw error;
+        }
+      }
+      await pool.query('DELETE FROM system_backups WHERE id = ?', [backup.id]);
+      deleted += 1;
+    }
+
+    await pool.query(
+      `DELETE FROM system_backups
+       WHERE status = 'failed' AND created_at < DATE_SUB(NOW(), INTERVAL ? DAY)`,
+      [BACKUP_RETENTION_DAYS]
+    );
+    return { deleted, retention_days: BACKUP_RETENTION_DAYS, retention_count: BACKUP_RETENTION_COUNT };
+  }
+
   async createBackup(createdBy) {
     await ensureBackupTable();
     await fs.promises.mkdir(BACKUP_DIR, { recursive: true });
 
-    const timestamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
+    const timestamp = new Date().toISOString().replace(/\D/g, '').slice(0, 17);
     const filename = `backup_${timestamp}.sql`;
     const filePath = path.join(BACKUP_DIR, filename);
+    const checksumPath = `${filePath}.sha256`;
     const stream = fs.createWriteStream(filePath, { encoding: 'utf8' });
 
     try {
@@ -125,12 +243,10 @@ class BackupService {
       // 流式计算文件哈希，避免大文件一次性读入内存
       const stats = await fs.promises.stat(filePath);
       const fileSize = stats.size;
-      const checksum = await new Promise((resolve, reject) => {
-        const hash = crypto.createHash('sha256');
-        const readStream = fs.createReadStream(filePath);
-        readStream.on('data', (chunk) => hash.update(chunk));
-        readStream.on('end', () => resolve(hash.digest('hex')));
-        readStream.on('error', reject);
+      const checksum = await sha256File(filePath);
+      await fs.promises.writeFile(checksumPath, `${checksum}  ${filename}\n`, {
+        encoding: 'utf8',
+        flag: 'wx',
       });
 
       await pool.query(
@@ -139,13 +255,22 @@ class BackupService {
         [filename, filePath, fileSize, checksum, createdBy || null]
       );
 
-      return { filename, file_size: fileSize, checksum };
+      let retention;
+      try {
+        retention = await this.pruneBackups();
+      } catch (error) {
+        retention = { warning: error.message };
+      }
+
+      return { filename, file_size: fileSize, checksum, retention };
     } catch (error) {
       stream.destroy();
-      try {
-        await fs.promises.unlink(filePath);
-      } catch {
-        // ignore cleanup errors
+      for (const target of [filePath, checksumPath]) {
+        try {
+          await fs.promises.unlink(target);
+        } catch {
+          // ignore cleanup errors
+        }
       }
       await pool.query(
         `INSERT INTO system_backups (filename, file_path, file_size, status, message, created_by)
@@ -190,6 +315,60 @@ class BackupService {
 
     await fs.promises.access(resolvedPath, fs.constants.R_OK);
     return { ...backup, file_path: resolvedPath };
+  }
+
+  async verifyBackup(filename) {
+    const backup = await this.getBackupFile(filename);
+    const stats = await fs.promises.stat(backup.file_path);
+    const checksum = await sha256File(backup.file_path);
+    const sqlScan = await scanBackupSql(backup.file_path);
+
+    const checks = [
+      {
+        name: 'file_size_matches_record',
+        ok: Number(stats.size) === Number(backup.file_size),
+        expected: Number(backup.file_size),
+        actual: Number(stats.size),
+      },
+      {
+        name: 'checksum_matches_record',
+        ok: !backup.checksum || checksum === backup.checksum,
+        expected: backup.checksum || null,
+        actual: checksum,
+      },
+      {
+        name: 'foreign_key_checks_disabled_before_restore',
+        ok: sqlScan.hasForeignKeyOff,
+      },
+      {
+        name: 'foreign_key_checks_reenabled_after_restore',
+        ok: sqlScan.hasForeignKeyOn,
+      },
+      {
+        name: 'contains_table_definitions',
+        ok: sqlScan.tableCount > 0,
+        actual: sqlScan.tableCount,
+      },
+      {
+        name: 'statements_are_complete',
+        ok: !sqlScan.hasUnterminatedStatement,
+      },
+      {
+        name: 'statements_are_balanced',
+        ok: !sqlScan.hasInvalidStatement,
+      },
+    ];
+
+    return {
+      filename: backup.filename,
+      file_size: stats.size,
+      checksum,
+      statement_count: sqlScan.statementCount,
+      table_count: sqlScan.tableCount,
+      insert_count: sqlScan.insertCount,
+      valid: checks.every((check) => check.ok),
+      checks,
+    };
   }
 }
 

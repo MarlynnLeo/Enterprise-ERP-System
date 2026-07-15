@@ -41,14 +41,15 @@
           <el-icon><StarFilled /></el-icon>
         </span>
 
-        <DecorativeAvatarFrame
-          :frame="frame"
-          :avatar="avatar"
-          :name="name"
-          :size="112"
-          :avatar-size="72"
-          class="tile-preview"
-        />
+        <div class="tile-preview-wrap">
+          <DecorativeAvatarFrame
+            :frame="frame"
+            :avatar="avatar"
+            :name="name"
+            :size="112"
+            class="tile-preview"
+          />
+        </div>
 
         <span class="frame-name">{{ frame.name }}</span>
         <span class="frame-desc">{{ frame.description }}</span>
@@ -99,7 +100,6 @@
         :avatar="avatar"
         :name="name"
         :size="190"
-        :avatar-size="120"
       />
       <div class="preview-copy">
         <strong>{{ currentPreviewFrame.name || '默认头像' }}</strong>
@@ -169,23 +169,26 @@ const filteredFrames = computed(() => {
   }
 
   if (activeCategory.value === 'featured') {
-    return props.frames.filter(frame => frame.featured)
+    return props.frames.filter((frame) => frame.featured)
   }
 
   const targetTags = categoryTags[activeCategory.value] || []
-  return props.frames.filter(frame => frame.tags?.some(tag => targetTags.includes(tag)))
+  return props.frames.filter((frame) => frame.tags?.some((tag) => targetTags.includes(tag)))
 })
 
 const currentPreviewFrame = computed(() => {
-  return props.frames.find(frame => frame.id === previewFrame.value) || props.frames[0] || {}
+  return props.frames.find((frame) => frame.id === previewFrame.value) || props.frames[0] || {}
 })
 
-watch(() => props.modelValue, (value) => {
-  previewFrame.value = value
-})
+watch(
+  () => props.modelValue,
+  (value) => {
+    previewFrame.value = value
+  }
+)
 
 function getFrameName(id) {
-  const frame = props.frames.find(item => item.id === id)
+  const frame = props.frames.find((item) => item.id === id)
   return frame ? frame.name : '默认头像'
 }
 
@@ -313,7 +316,7 @@ function applyFrame(id) {
 .frame-tile {
   position: relative;
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -341,14 +344,22 @@ function applyFrame(id) {
 
 .frame-tile.active {
   border-color: var(--color-success);
-  background: var(--color-success-light);
+  background: var(--color-success-light, color-mix(in srgb, var(--color-success) 8%, var(--color-bg-base)));
+}
+
+.tile-preview-wrap {
+  width: 112px;
+  height: 112px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
 }
 
 .tile-preview {
   width: 112px;
   height: 112px;
   flex: 0 0 112px;
-  margin-bottom: 2px;
 }
 
 .frame-name {
@@ -402,6 +413,7 @@ function applyFrame(id) {
   border: 1px solid var(--color-border-lighter);
   border-radius: var(--radius-md);
   background: var(--color-bg-hover);
+  overflow: visible;
 }
 
 .preview-copy {

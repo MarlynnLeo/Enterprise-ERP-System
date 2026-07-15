@@ -25,13 +25,15 @@ class PoolManager extends EventEmitter {
     this.healthCheckTimer = null;
     this.failedChecks = 0;
     this.started = false;
+    this.closed = false;
     this.activeConnections = new Set();
     // 连接回收统计
     this._stats = { autoReclaimed: 0, totalAcquired: 0 };
   }
 
   async start() {
-    if (this.started) return;
+    if (this.closed) return false;
+    if (this.started) return true;
     this.started = true;
 
     // 启动健康检查
@@ -50,10 +52,13 @@ class PoolManager extends EventEmitter {
       await this._warmup();
     }
 
+    if (this.closed) return false;
     logger.info(`[PoolManager] 连接池 "${this.name}" 管理器已启动`);
+    return true;
   }
 
   async _healthCheck() {
+    if (this.closed) return;
     try {
       const conn = await this.pool.getConnection();
       await conn.ping();
@@ -68,14 +73,19 @@ class PoolManager extends EventEmitter {
   }
 
   async _warmup() {
+    if (this.closed) return;
     const count = this.options.warmupConnections || 2;
     const conns = [];
     try {
       for (let i = 0; i < count; i++) {
+        if (this.closed) return;
         const conn = await this.pool.getConnection();
         conns.push(conn);
       }
     } catch (error) {
+      if (this.closed && /pool is closed/i.test(error.message || '')) {
+        return;
+      }
       logger.warn(`[PoolManager] 预热连接失败: ${error.message}`);
     } finally {
       for (const conn of conns) {
@@ -90,6 +100,8 @@ class PoolManager extends EventEmitter {
   }
 
   async close() {
+    if (this.closed) return;
+    this.closed = true;
     if (this.healthCheckTimer) {
       clearInterval(this.healthCheckTimer);
       this.healthCheckTimer = null;

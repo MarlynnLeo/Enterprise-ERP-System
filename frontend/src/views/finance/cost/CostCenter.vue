@@ -1,19 +1,13 @@
 ﻿<template>
   <div class="module-page cost-center-container">
     <!-- 页面标题 -->
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>成本中心</h2>
-          <p class="subtitle">管理企业成本中心及成本归集</p>
-        </div>
-        <div class="action-section">
-          <el-button v-permission="'finance:cost:create'" type="primary" @click="showCreateDialog">
+    <PageHeader title="成本中心" subtitle="管理企业成本中心及成本归集">
+      <template #actions>
+<el-button v-permission="'finance:cost:create'" type="primary" @click="showCreateDialog">
             <el-icon><Plus /></el-icon> 新增成本中心
           </el-button>
-        </div>
-      </div>
-    </el-card>
+      </template>
+    </PageHeader>
     <!-- 标签页 -->
     <el-card class="data-card">
       <el-tabs v-model="activeTab">
@@ -28,7 +22,7 @@
                   <el-icon><OfficeBuilding /></el-icon>
                   {{ scope.row.department_name }}
                 </span>
-                <span v-else style="color: var(--color-text-secondary);">-</span>
+                <span v-else class="text-muted">-</span>
               </template>
             </el-table-column>
             <el-table-column prop="type" label="类型" width="100">
@@ -81,7 +75,7 @@
             </el-table-column>
             <el-table-column prop="total_cost" label="总成本" width="200">
               <template #default="scope">
-                <span style="font-weight: bold; color: var(--color-primary);">{{ formatCurrency(scope.row.total_cost) }}</span>
+                <span class="text-primary font-weight-700">{{ formatCurrency(scope.row.total_cost) }}</span>
               </template>
             </el-table-column>
             <el-table-column prop="task_count" label="任务数" width="145"></el-table-column>
@@ -99,14 +93,14 @@
           <el-input v-model="centerForm.name" placeholder="成本中心名称" maxlength="100" show-word-limit></el-input>
         </el-form-item>
         <el-form-item label="类型" prop="type">
-          <el-select v-model="centerForm.type" style="width: 100%;">
+          <el-select v-model="centerForm.type" class="w-full">
             <el-option label="生产部门" value="production"></el-option>
             <el-option label="服务部门" value="service"></el-option>
             <el-option label="管理部门" value="administration"></el-option>
           </el-select>
         </el-form-item>
         <el-form-item label="上级中心">
-          <el-select v-model="centerForm.parent_id" clearable style="width: 100%;">
+          <el-select v-model="centerForm.parent_id" clearable class="w-full">
             <el-option v-for="c in centerOptions" :key="c.id" :label="`${c.code} - ${c.name}`" :value="c.id"></el-option>
           </el-select>
         </el-form-item>

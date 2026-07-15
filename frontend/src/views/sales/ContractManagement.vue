@@ -1,15 +1,11 @@
 ﻿<template>
   <div class="module-page page-container">
     <!-- 页面头部卡片 -->
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>合同管理</h2>
-          <p class="subtitle">管理采购、销售、服务等合同的全生命周期</p>
-        </div>
-        <el-button type="primary" v-permission="'contract:create'" @click="openForm()">新建合同</el-button>
-      </div>
-    </el-card>
+    <PageHeader title="合同管理" subtitle="管理采购、销售、服务等合同的全生命周期">
+      <template #actions>
+<el-button type="primary" v-permission="'contract:create'" @click="openForm()">新建合同</el-button>
+      </template>
+    </PageHeader>
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
@@ -46,7 +42,7 @@
 
     <!-- 数据表格 -->
     <el-card class="data-card">
-      <el-table :data="tableData" v-loading="loading" border stripe style="width:100%">
+      <el-table :data="tableData" v-loading="loading" border stripe class="w-full">
       <el-table-column prop="code" label="合同编号" width="160" />
       <el-table-column prop="name" label="合同名称" min-width="200" show-overflow-tooltip />
       <el-table-column prop="type" label="类型" width="100">
@@ -67,7 +63,7 @@
       <el-table-column prop="expiry_date" label="到期日期" width="110" />
       <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
         <template #default="{ row }">
-          <el-button link type="primary" @click="viewDetail(row)">查看</el-button>
+          <el-button class="btn-op-view" type="primary" size="small" @click="viewDetail(row)">查看</el-button>
           <el-button link type="primary" v-permission="'contract:edit'" @click="openForm(row)">编辑</el-button>
           <el-popconfirm title="确定删除此合同？" @confirm="handleDelete(row.id)">
             <template #reference><el-button link type="danger" v-permission="'contract:delete'">删除</el-button></template>
@@ -93,7 +89,7 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="合同类型" required>
-              <el-select v-model="formData.type" style="width:100%">
+              <el-select v-model="formData.type" class="w-full">
                 <el-option label="采购合同" value="purchase" />
                 <el-option label="销售合同" value="sales" />
                 <el-option label="服务合同" value="service" />
@@ -117,17 +113,17 @@
         <el-row :gutter="16">
           <el-col :span="8">
             <el-form-item label="合同金额">
-              <el-input-number v-model="formData.total_amount" :min="0" :precision="2" style="width:100%" />
+              <el-input-number v-model="formData.total_amount" :min="0" :precision="2" class="w-full" />
             </el-form-item>
           </el-col>
           <el-col :span="8">
             <el-form-item label="生效日期">
-              <el-date-picker v-model="formData.effective_date" type="date" value-format="YYYY-MM-DD" style="width:100%" />
+              <el-date-picker v-model="formData.effective_date" type="date" value-format="YYYY-MM-DD" class="w-full" />
             </el-form-item>
           </el-col>
           <el-col :span="8">
             <el-form-item label="到期日期">
-              <el-date-picker v-model="formData.expiry_date" type="date" value-format="YYYY-MM-DD" style="width:100%" />
+              <el-date-picker v-model="formData.expiry_date" type="date" value-format="YYYY-MM-DD" class="w-full" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -145,7 +141,12 @@
     </el-dialog>
 
     <!-- 合同详情对话框 -->
-    <el-dialog v-model="detailVisible" title="合同详情" width="900px" destroy-on-close>
+    <AppDialog
+      v-model="detailVisible"
+      title="合同详情"
+      mode="view"
+      content-width="wide"
+    >
       <template v-if="detailData">
         <el-descriptions :column="2" border>
           <el-descriptions-item label="合同编号">{{ detailData.code }}</el-descriptions-item>
@@ -188,7 +189,7 @@
           </el-table-column>
         </el-table>
       </template>
-    </el-dialog>
+    </AppDialog>
   </div>
 </template>
 

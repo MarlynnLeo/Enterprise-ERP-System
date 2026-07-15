@@ -8,15 +8,11 @@
 -->
 <template>
   <div class="module-page purchase-returns-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>采购退货管理</h2>
-          <p class="subtitle">管理采购退货与处理</p>
-        </div>
-        <el-button type="primary" :icon="Plus" @click="showAddDialog" v-permission="'purchase:returns:create'">新建退货单</el-button>
-      </div>
-    </el-card>
+    <PageHeader title="采购退货管理" subtitle="管理采购退货与处理">
+      <template #actions>
+<el-button type="primary" :icon="Plus" @click="showAddDialog" v-permission="'purchase:returns:create'">新建退货单</el-button>
+      </template>
+    </PageHeader>
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
@@ -85,7 +81,7 @@
         v-loading="loading"
         :data="returnList"
         border
-        style="width: 100%"
+        class="w-full"
       >
         <template #empty>
           <el-empty description="暂无退货单数据" />
@@ -107,8 +103,9 @@
         </el-table-column>
         <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
-            <el-button
+            <el-button class="btn-op-view" type="primary"
               size="small"
+              v-permission="'purchase:returns:view'"
               @click="viewReturn(scope.row)"
             >
               查看
@@ -180,11 +177,11 @@
     </el-card>
 
     <!-- 查看退货单详情对话框 -->
-    <el-dialog
-      title="退货单详情"
+    <AppDialog
       v-model="viewDialog.show"
-      width="800px"
-      destroy-on-close
+      title="退货单详情"
+      mode="view"
+      content-width="wide"
     >
       <div v-loading="viewDialog.loading">
         <el-descriptions border :column="2">
@@ -201,7 +198,7 @@
         </el-descriptions>
 
         <el-divider content-position="center">退货物料</el-divider>
-        <el-table :data="viewDialog.return.items || []" border style="width: 100%">
+        <el-table :data="viewDialog.return.items || []" border class="w-full">
           <el-table-column type="index" label="序号" width="60"></el-table-column>
           <el-table-column label="物料名称" prop="materialName" min-width="150" show-overflow-tooltip></el-table-column>
           <el-table-column label="规格" prop="specification" min-width="150" show-overflow-tooltip></el-table-column>
@@ -227,7 +224,7 @@
           <el-button v-permission="'purchase:returns:view'" type="primary" @click="printReturn" v-if="viewDialog.return.id">打印</el-button>
         </span>
       </template>
-    </el-dialog>
+    </AppDialog>
 
     <!-- 新建/编辑退货单对话框 -->
     <el-dialog
@@ -245,7 +242,7 @@
                 v-model="returnDialog.form.receiptId"
                 placeholder="请选择收货单"
                 filterable
-                style="width: 100%"
+                class="w-full"
                 @change="handleReceiptChange"
               >
                 <el-option
@@ -264,7 +261,7 @@
                 type="date"
                 placeholder="选择日期"
                 value-format="YYYY-MM-DD"
-                style="width: 100%"
+                class="w-full"
               ></el-date-picker>
             </el-form-item>
           </el-col>
@@ -292,7 +289,7 @@
 
         <div class="mt-4">
           <div class="mb-2 font-weight-bold">物料清单</div>
-          <el-table :data="returnDialog.form.items" border style="width: 100%">
+          <el-table :data="returnDialog.form.items" border class="w-full">
             <el-table-column type="index" label="序号" width="50"></el-table-column>
             <el-table-column label="物料名称" prop="materialName" min-width="150"></el-table-column>
             <el-table-column label="规格" prop="specification" min-width="120"></el-table-column>
@@ -338,7 +335,7 @@
                   v-model="scope.row.returnReason"
                   placeholder="请选择"
                   size="small"
-                  style="width: 100%"
+                  class="w-full"
                   :disabled="!scope.row.returnQuantity"
                 >
                   <el-option
@@ -374,7 +371,13 @@
       </div>
       <template #footer>
         <el-button @click="statusDialog.visible = false">取消</el-button>
-        <el-button type="primary" @click="updateStatus">确认</el-button>
+        <el-button
+          v-permission="'purchase:returns:update'"
+          type="primary"
+          @click="updateStatus"
+        >
+          确认
+        </el-button>
       </template>
     </el-dialog>
   </div>

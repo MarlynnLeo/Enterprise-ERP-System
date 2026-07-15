@@ -1,5 +1,13 @@
 <template>
-  <div class="gauge-management-container">
+  <div class="module-page gauge-management-container">
+    <PageHeader title="量具台账" subtitle="量具台账、校准与状态管理">
+      <template #actions>
+        <el-button v-permission="'quality:gauges:create'" type="primary" @click="handleAdd">
+            <el-icon><Plus /></el-icon>新增量具
+          </el-button>
+      </template>
+    </PageHeader>
+
     <!-- 统计卡片 -->
     <el-row :gutter="16" class="stats-row">
       <el-col :span="6">
@@ -14,7 +22,7 @@
       <el-col :span="6">
         <el-card shadow="hover" class="stat-card">
           <div class="stat-content">
-            <div class="stat-number" style="color: var(--color-success)">{{ stats.inUse }}</div>
+            <div class="stat-number text-success">{{ stats.inUse }}</div>
             <div class="stat-label">使用中</div>
           </div>
           <el-icon class="stat-icon success"><CircleCheck /></el-icon>
@@ -23,7 +31,7 @@
       <el-col :span="6">
         <el-card shadow="hover" class="stat-card">
           <div class="stat-content">
-            <div class="stat-number" style="color: var(--color-warning)">{{ stats.dueSoon }}</div>
+            <div class="stat-number text-warning">{{ stats.dueSoon }}</div>
             <div class="stat-label">即将到期</div>
           </div>
           <el-icon class="stat-icon warning"><Warning /></el-icon>
@@ -32,7 +40,7 @@
       <el-col :span="6">
         <el-card shadow="hover" class="stat-card">
           <div class="stat-content">
-            <div class="stat-number" style="color: var(--color-danger)">{{ stats.overdue }}</div>
+            <div class="stat-number text-danger">{{ stats.overdue }}</div>
             <div class="stat-label">已逾期</div>
           </div>
           <el-icon class="stat-icon danger"><CircleClose /></el-icon>
@@ -40,15 +48,8 @@
       </el-col>
     </el-row>
 
-    <el-card class="box-card">
-      <template #header>
-        <div class="card-header">
-          <span>量具台账</span>
-          <el-button v-permission="'quality:gauges:create'" type="primary" @click="handleAdd">
-            <el-icon><Plus /></el-icon>新增量具
-          </el-button>
-        </div>
-      </template>
+    <el-card class="data-card">
+
 
       <!-- 搜索 -->
       <FinanceQueryCard :model="searchForm" @search="handleSearch" @reset="handleReset">
@@ -74,7 +75,7 @@
       </FinanceQueryCard>
 
       <!-- 表格 -->
-      <el-table v-loading="loading" :data="tableData" border style="width: 100%; margin-top: 20px">
+      <el-table v-loading="loading" :data="tableData" border class="w-full mt-md">
         <el-table-column prop="gauge_no" label="量具编号" width="130" />
         <el-table-column prop="gauge_name" label="量具名称" width="150" show-overflow-tooltip />
         <el-table-column prop="gauge_type" label="类型" width="100" />
@@ -89,7 +90,7 @@
         </el-table-column>
         <el-table-column label="下次校准" width="120">
           <template #default="scope">
-            <span :style="{ color: scope.row.days_until_due < 0 ? 'var(--color-danger)' : scope.row.days_until_due <= 30 ? 'var(--color-warning)' : '' }">
+            <span :class="scope.row.days_until_due < 0 ? 'text-danger' : scope.row.days_until_due <= 30 ? 'text-warning' : ''">
               {{ scope.row.next_calibration_date ? formatDate(scope.row.next_calibration_date) : '-' }}
             </span>
           </template>
@@ -181,12 +182,12 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="校准周期(天)">
-              <el-input-number v-model="form.calibration_cycle_days" :min="1" :max="3650" style="width:100%" />
+              <el-input-number v-model="form.calibration_cycle_days" :min="1" :max="3650" class="w-full" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="上次校准日期">
-              <el-date-picker v-model="form.last_calibration_date" type="date" value-format="YYYY-MM-DD" style="width:100%" />
+              <el-date-picker v-model="form.last_calibration_date" type="date" value-format="YYYY-MM-DD" class="w-full" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -215,7 +216,7 @@
           <el-input :value="calForm._gauge_name" disabled />
         </el-form-item>
         <el-form-item label="校准日期" prop="calibration_date">
-          <el-date-picker v-model="calForm.calibration_date" type="date" value-format="YYYY-MM-DD" style="width:100%" />
+          <el-date-picker v-model="calForm.calibration_date" type="date" value-format="YYYY-MM-DD" class="w-full" />
         </el-form-item>
         <el-form-item label="校准类型">
           <el-radio-group v-model="calForm.calibration_type">
@@ -224,7 +225,7 @@
           </el-radio-group>
         </el-form-item>
         <el-form-item label="校准结果" prop="result">
-          <el-select v-model="calForm.result" style="width:100%">
+          <el-select v-model="calForm.result" class="w-full">
             <el-option label="合格" value="qualified" />
             <el-option label="不合格" value="unqualified" />
             <el-option label="限用" value="limited" />
@@ -237,7 +238,7 @@
           <el-input v-model="calForm.certificate_no" />
         </el-form-item>
         <el-form-item label="偏差值">
-          <el-input-number v-model="calForm.deviation" :precision="6" style="width:100%" />
+          <el-input-number v-model="calForm.deviation" :precision="6" class="w-full" />
         </el-form-item>
         <el-form-item label="备注">
           <el-input v-model="calForm.note" type="textarea" :rows="2" />

@@ -38,22 +38,26 @@ export function useExchangeRate() {
     USDCNY: {
       pair: 'USD/CNY',
       value: exchangeRates.value.USDCNY,
-      change: exchangeRates.value.USDCNY_change
+      change: exchangeRates.value.USDCNY_change,
+      unit: '中间价'
     },
     EURCNY: {
       pair: 'EUR/CNY',
       value: exchangeRates.value.EURCNY,
-      change: exchangeRates.value.EURCNY_change
+      change: exchangeRates.value.EURCNY_change,
+      unit: '中间价'
     },
     GBPCNY: {
       pair: 'GBP/CNY',
       value: exchangeRates.value.GBPCNY,
-      change: exchangeRates.value.GBPCNY_change
+      change: exchangeRates.value.GBPCNY_change,
+      unit: '中间价'
     },
     JPYCNY: {
       pair: 'JPY/CNY',
       value: exchangeRates.value.JPYCNY,
-      change: exchangeRates.value.JPYCNY_change
+      change: exchangeRates.value.JPYCNY_change,
+      unit: '中间价'
     }
   }))
 

@@ -1,21 +1,14 @@
-# =============================================================================
-# ERP 持续部署（CD）流水线
-# =============================================================================
-# 触发条件：main 分支 push 或手动触发
-# 构建流程：后端测试 → 前端构建 → 移动端构建 → Docker 镜像构建 → 可选推送
-# =============================================================================
-
 name: ERP CD
 
 on:
-  # 主分支推送时自动触发
-  push:
+  workflow_run:
+    workflows: [ERP CI]
+    types: [completed]
     branches: [main]
-  # 支持手动触发，可选择是否推送镜像到注册表
   workflow_dispatch:
     inputs:
       push_images:
-        description: '是否推送 Docker 镜像到注册表'
+        description: 'Push Docker images to registry'
         required: false
         default: 'false'
         type: choice
@@ -23,138 +16,158 @@ on:
           - 'true'
           - 'false'
 
-# 环境变量：Docker 注册表配置（在 GitHub Settings → Secrets 中设置）
 env:
-  # Docker 注册表地址（如：registry.cn-hangzhou.aliyuncs.com/your-namespace）
   DOCKER_REGISTRY: ${{ vars.DOCKER_REGISTRY || '' }}
-  # 镜像标签：使用 Git SHA 短哈希
-  IMAGE_TAG: ${{ github.sha }}
+  IMAGE_TAG: ${{ github.event.workflow_run.head_sha || github.sha }}
 
-# 同一分支只允许一个部署流程运行，新的推送会取消旧的
 concurrency:
   group: cd-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  # ===========================================================================
-  # 步骤 1：后端测试
-  # ===========================================================================
-  backend-test:
-    name: 后端测试
+  release-gate:
+    name: Require Successful CI
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
+    steps:
+      - name: Confirm release source
+        run: echo "Releasing ${{ github.event.workflow_run.head_sha || github.sha }} after CI success"
+
+  backend-test:
+    name: Backend Test
+    needs: release-gate
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: erp_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    env:
+      NODE_ENV: test
+      DISABLE_CRON: 'true'
+      ENABLE_RATE_LIMIT: 'false'
+      REDIS_ENABLED: 'false'
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: root
+      DB_NAME: erp_test
+      JWT_SECRET: ci-test-jwt-secret-change-in-production
+      JWT_REFRESH_SECRET: ci-test-refresh-secret-change-in-production
+      CSRF_SECRET: ci-test-csrf-secret-change-in-production
+      DEFAULT_ADMIN_PASSWORD: '123456'
 
     steps:
-      # 1. 拉取代码
-      - name: Checkout 代码
+      - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
-      # 2. 设置 Node.js 20 运行环境
-      - name: 设置 Node.js 20
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: npm
           cache-dependency-path: backend/package-lock.json
 
-      # 3. 安装后端依赖（使用 npm ci 确保依赖精确一致）
-      - name: 安装后端依赖
+      - name: Install backend dependencies
         working-directory: backend
         run: npm ci
 
-      # 4. 执行后端测试（forceExit 避免 Jest 挂起）
-      - name: 运行后端测试
+      - name: Prepare test database
         working-directory: backend
-        run: npm test -- --forceExit --detectOpenHandles
+        run: |
+          npm run migrate
+          npm run seed
 
-  # ===========================================================================
-  # 步骤 2：前端构建
-  # ===========================================================================
+      - name: Run backend tests
+        working-directory: backend
+        run: npm test -- --detectOpenHandles
+
+      - name: Run full write-path UAT
+        working-directory: backend
+        env:
+          RUN_LIVE_UAT: '1'
+        run: npm test -- tests/integration/uat-full-business-flow.test.js --detectOpenHandles
+
   frontend-build:
-    name: 前端构建
+    name: Frontend Build
+    needs: release-gate
     runs-on: ubuntu-latest
 
     steps:
-      # 1. 拉取代码
-      - name: Checkout 代码
+      - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
-      # 2. 设置 Node.js 20 运行环境
-      - name: 设置 Node.js 20
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      # 3. 安装前端依赖
-      - name: 安装前端依赖
+      - name: Install frontend dependencies
         working-directory: frontend
         run: npm ci
 
-      # 4. 构建前端生产版本
-      - name: 构建前端
+      - name: Build frontend
         working-directory: frontend
         run: npm run build
 
-      # 5. 上传构建产物供后续 Docker 构建使用
-      - name: 上传前端构建产物
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-dist
-          path: frontend/dist
-          retention-days: 1
-
-  # ===========================================================================
-  # 步骤 3：移动端构建
-  # ===========================================================================
   mobile-build:
-    name: 移动端构建
+    name: Mobile Build
+    needs: release-gate
     runs-on: ubuntu-latest
 
     steps:
-      # 1. 拉取代码
-      - name: Checkout 代码
+      - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
-      # 2. 设置 Node.js 20 运行环境
-      - name: 设置 Node.js 20
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: npm
           cache-dependency-path: mobile/package-lock.json
 
-      # 3. 安装移动端依赖
-      - name: 安装移动端依赖
+      - name: Install mobile dependencies
         working-directory: mobile
         run: npm ci
 
-      # 4. 构建移动端生产版本
-      - name: 构建移动端
+      - name: Build mobile
         working-directory: mobile
         run: npm run build
 
-  # ===========================================================================
-  # 步骤 4：Docker 镜像构建与推送
-  # ===========================================================================
   docker-build:
-    name: Docker 镜像构建
+    name: Docker Image Build
     runs-on: ubuntu-latest
-    # 依赖前置步骤全部成功
-    needs: [backend-test, frontend-build, mobile-build]
+    needs: [release-gate, backend-test, frontend-build, mobile-build]
 
     steps:
-      # 1. 拉取代码
-      - name: Checkout 代码
+      - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
-      # 2. 设置 Docker Buildx（支持缓存和多平台构建）
-      - name: 设置 Docker Buildx
+      - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # 3. 构建后端 Docker 镜像
-      #    使用 GitHub Actions 缓存加速构建（缓存 Docker 层）
-      - name: 构建后端镜像
+      - name: Build backend image
         uses: docker/build-push-action@v6
         with:
           context: ./backend
@@ -166,15 +179,7 @@ jobs:
           cache-from: type=gha,scope=backend
           cache-to: type=gha,mode=max,scope=backend
 
-      # 4. 下载前端构建产物（来自 frontend-build 步骤）
-      - name: 下载前端构建产物
-        uses: actions/download-artifact@v4
-        with:
-          name: frontend-dist
-          path: frontend/dist
-
-      # 5. 构建前端 Docker 镜像
-      - name: 构建前端镜像
+      - name: Build frontend image
         uses: docker/build-push-action@v6
         with:
           context: ./frontend
@@ -186,65 +191,73 @@ jobs:
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend
 
-      # 6. 验证构建的镜像是否正常
-      - name: 验证镜像
-        run: |
-          echo "=== 后端镜像信息 ==="
-          docker images erp-backend
-          echo ""
-          echo "=== 前端镜像信息 ==="
-          docker images erp-frontend
+      - name: Build mobile image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./mobile
+          file: ./mobile/Dockerfile
+          load: true
+          tags: |
+            erp-mobile:${{ env.IMAGE_TAG }}
+            erp-mobile:latest
+          cache-from: type=gha,scope=mobile
+          cache-to: type=gha,mode=max,scope=mobile
 
-      # 7. 可选：推送镜像到 Docker 注册表
-      #    需要在 GitHub Secrets 中配置：
-      #    - DOCKER_REGISTRY: 注册表地址
-      #    - DOCKER_USERNAME: 注册表用户名
-      #    - DOCKER_PASSWORD: 注册表密码
-      - name: 登录 Docker 注册表
+      - name: Verify images
+        run: |
+          docker images erp-backend
+          docker images erp-frontend
+          docker images erp-mobile
+
+      - name: Login to Docker registry
         if: >
           env.DOCKER_REGISTRY != '' &&
-          (github.event.inputs.push_images == 'true' || github.event_name == 'push')
+          (github.event.inputs.push_images == 'true' || github.event_name == 'workflow_run')
         uses: docker/login-action@v3
         with:
           registry: ${{ env.DOCKER_REGISTRY }}
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: 推送后端镜像到注册表
+      - name: Push backend image
         if: >
           env.DOCKER_REGISTRY != '' &&
-          (github.event.inputs.push_images == 'true' || github.event_name == 'push')
+          (github.event.inputs.push_images == 'true' || github.event_name == 'workflow_run')
         run: |
-          # 给镜像打上注册表前缀标签
           docker tag erp-backend:${{ env.IMAGE_TAG }} ${{ env.DOCKER_REGISTRY }}/erp-backend:${{ env.IMAGE_TAG }}
           docker tag erp-backend:latest ${{ env.DOCKER_REGISTRY }}/erp-backend:latest
-          # 推送到注册表
           docker push ${{ env.DOCKER_REGISTRY }}/erp-backend:${{ env.IMAGE_TAG }}
           docker push ${{ env.DOCKER_REGISTRY }}/erp-backend:latest
-          echo "✅ 后端镜像已推送: ${{ env.DOCKER_REGISTRY }}/erp-backend:${{ env.IMAGE_TAG }}"
 
-      - name: 推送前端镜像到注册表
+      - name: Push frontend image
         if: >
           env.DOCKER_REGISTRY != '' &&
-          (github.event.inputs.push_images == 'true' || github.event_name == 'push')
+          (github.event.inputs.push_images == 'true' || github.event_name == 'workflow_run')
         run: |
-          # 给镜像打上注册表前缀标签
           docker tag erp-frontend:${{ env.IMAGE_TAG }} ${{ env.DOCKER_REGISTRY }}/erp-frontend:${{ env.IMAGE_TAG }}
           docker tag erp-frontend:latest ${{ env.DOCKER_REGISTRY }}/erp-frontend:latest
-          # 推送到注册表
           docker push ${{ env.DOCKER_REGISTRY }}/erp-frontend:${{ env.IMAGE_TAG }}
           docker push ${{ env.DOCKER_REGISTRY }}/erp-frontend:latest
-          echo "✅ 前端镜像已推送: ${{ env.DOCKER_REGISTRY }}/erp-frontend:${{ env.IMAGE_TAG }}"
 
-      # 8. 构建摘要输出
-      - name: 输出部署摘要
+      - name: Push mobile image
+        if: >
+          env.DOCKER_REGISTRY != '' &&
+          (github.event.inputs.push_images == 'true' || github.event_name == 'workflow_run')
         run: |
-          echo "## 🚀 CD 构建摘要" >> $GITHUB_STEP_SUMMARY
+          docker tag erp-mobile:${{ env.IMAGE_TAG }} ${{ env.DOCKER_REGISTRY }}/erp-mobile:${{ env.IMAGE_TAG }}
+          docker tag erp-mobile:latest ${{ env.DOCKER_REGISTRY }}/erp-mobile:latest
+          docker push ${{ env.DOCKER_REGISTRY }}/erp-mobile:${{ env.IMAGE_TAG }}
+          docker push ${{ env.DOCKER_REGISTRY }}/erp-mobile:latest
+
+      - name: Write deployment summary
+        run: |
+          echo "## ERP CD build summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| 项目 | 值 |" >> $GITHUB_STEP_SUMMARY
-          echo "|------|-----|" >> $GITHUB_STEP_SUMMARY
+          echo "| Item | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
           echo "| Git SHA | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| 后端镜像 | \`erp-backend:${{ env.IMAGE_TAG }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| 前端镜像 | \`erp-frontend:${{ env.IMAGE_TAG }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| 触发方式 | ${{ github.event_name }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 构建时间 | $(date -u '+%Y-%m-%d %H:%M:%S UTC') |" >> $GITHUB_STEP_SUMMARY
+          echo "| Backend image | \`erp-backend:${{ env.IMAGE_TAG }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Frontend image | \`erp-frontend:${{ env.IMAGE_TAG }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Mobile image | \`erp-mobile:${{ env.IMAGE_TAG }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Trigger | ${{ github.event_name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build time | $(date -u '+%Y-%m-%d %H:%M:%S UTC') |" >> $GITHUB_STEP_SUMMARY

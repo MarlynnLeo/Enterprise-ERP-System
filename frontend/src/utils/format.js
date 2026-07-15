@@ -80,6 +80,25 @@ export const formatLocalDate = (date = new Date()) => formatDate(date);
 export const formatLocalMonth = (date = new Date()) => formatLocalDate(date).slice(0, 7);
 
 /**
+ * 银行账号脱敏展示
+ * 保留前4后4，中间以 * 代替；过短则原样返回
+ * @param {string|number} accountNumber
+ * @returns {string}
+ */
+export const maskBankAccount = (accountNumber) => {
+    if (accountNumber === undefined || accountNumber === null || accountNumber === '') {
+        return '-';
+    }
+    const text = String(accountNumber).replace(/\s+/g, '');
+    if (text.length <= 8) {
+        return text;
+    }
+    const head = text.slice(0, 4);
+    const tail = text.slice(-4);
+    return `${head}${'*'.repeat(Math.min(text.length - 8, 8))}${tail}`;
+};
+
+/**
  * 格式化日期时间 (YYYY-MM-DD HH:mm:ss)
  * @param {string|Date} date - 日期时间
  * @returns {string} 格式化后的日期时间字符串

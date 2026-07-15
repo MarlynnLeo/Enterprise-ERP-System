@@ -8,19 +8,13 @@
 -->
 <template>
   <div class="module-page report-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>资产负债表</h2>
-          <p class="subtitle">查看资产负债状况</p>
-        </div>
-        <div class="header-actions">
-          <el-button type="primary" @click="generateReport" v-permission="'finance:reports:view'">生成报表</el-button>
+    <PageHeader title="资产负债表" subtitle="查看资产负债状况">
+      <template #actions>
+<el-button type="primary" @click="generateReport" v-permission="'finance:reports:view'">生成报表</el-button>
           <el-button v-permission="'finance:reports:view'" @click="printReport" :disabled="!reportData.summary">打印报表</el-button>
           <el-button v-permission="'finance:reports:view'" @click="exportExcel" :disabled="!reportData.summary">导出Excel</el-button>
-        </div>
-      </div>
-    </el-card>
+      </template>
+    </PageHeader>
 
     <!-- 查询条件区域 -->
     <FinanceQueryCard
@@ -80,7 +74,7 @@
               <h3>资产</h3>
               <el-table
                 :data="assetData"
-                style="width: 100%"
+                class="w-full"
                 :show-header="true"
                 border
                 row-key="id"
@@ -118,7 +112,7 @@
               <h3>负债和所有者权益</h3>
               <el-table
                 :data="liabilityEquityData"
-                style="width: 100%"
+                class="w-full"
                 :show-header="true"
                 border
                 row-key="id"

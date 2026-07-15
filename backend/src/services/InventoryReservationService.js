@@ -270,34 +270,101 @@ class InventoryReservationService {
     return result[0].count > 0;
   }
 
-  async consumeReservation(orderId, consumedItems) {
-    const connection = await db.pool.getConnection();
+  /**
+   * 出库发货时按数量核销预留（支持同事务 connection）。
+   * 部分发货：扣减 reserved_quantity；扣完则 status=consumed。
+   * @param {number} orderId
+   * @param {Array<{material_id?:number,product_id?:number,quantity?:number,consumed_quantity?:number}>} consumedItems
+   * @param {import('mysql2/promise').PoolConnection|null} connection
+   */
+  async consumeReservation(orderId, consumedItems, connection = null) {
+    const conn = connection || (await db.pool.getConnection());
+    const shouldReleaseConnection = !connection;
 
     try {
-      await connection.beginTransaction();
-
-      if (consumedItems.length > 0) {
-        const materialIds = consumedItems.map(item => item.material_id);
-        const placeholders = materialIds.map(() => '?').join(',');
-        await connection.execute(
-          `UPDATE inventory_reservations
-           SET status = 'consumed', reservation_key = NULL, updated_at = NOW()
-           WHERE order_id = ? AND material_id IN (${placeholders}) AND status = 'active'`,
-          [orderId, ...materialIds]
-        );
+      if (!connection) {
+        await conn.beginTransaction();
       }
 
-      await connection.commit();
+      if (!orderId || !Array.isArray(consumedItems) || consumedItems.length === 0) {
+        if (!connection) {
+          await conn.commit();
+        }
+        return {
+          success: true,
+          message: 'No reservation consumption required',
+          consumedCount: 0,
+        };
+      }
+
+      let consumedCount = 0;
+
+      for (const item of consumedItems) {
+        const materialId = item.material_id || item.product_id;
+        let remaining = parseFloat(item.quantity ?? item.consumed_quantity ?? 0);
+        if (!materialId || !(remaining > 0)) {
+          continue;
+        }
+
+        const [rows] = await conn.execute(
+          `SELECT id, reserved_quantity
+           FROM inventory_reservations
+           WHERE order_id = ? AND material_id = ? AND status = 'active'
+           ORDER BY id ASC
+           FOR UPDATE`,
+          [orderId, materialId]
+        );
+
+        for (const row of rows) {
+          if (remaining <= 0) break;
+          const reserved = parseFloat(row.reserved_quantity) || 0;
+          if (reserved <= 0) continue;
+
+          if (reserved <= remaining + 1e-9) {
+            await conn.execute(
+              `UPDATE inventory_reservations
+               SET status = 'consumed',
+                   reserved_quantity = 0,
+                   reservation_key = NULL,
+                   released_at = NOW(),
+                   updated_at = NOW()
+               WHERE id = ? AND status = 'active'`,
+              [row.id]
+            );
+            remaining -= reserved;
+            consumedCount += 1;
+          } else {
+            await conn.execute(
+              `UPDATE inventory_reservations
+               SET reserved_quantity = reserved_quantity - ?,
+                   updated_at = NOW()
+               WHERE id = ? AND status = 'active'`,
+              [remaining, row.id]
+            );
+            remaining = 0;
+            consumedCount += 1;
+          }
+        }
+      }
+
+      if (!connection) {
+        await conn.commit();
+      }
 
       return {
         success: true,
-        message: `Consumed reservations for ${consumedItems.length} items`,
+        message: `Consumed reservations for order ${orderId} (${consumedCount} rows touched)`,
+        consumedCount,
       };
     } catch (error) {
-      await connection.rollback();
+      if (!connection) {
+        await conn.rollback();
+      }
       throw error;
     } finally {
-      connection.release();
+      if (shouldReleaseConnection) {
+        conn.release();
+      }
     }
   }
 }

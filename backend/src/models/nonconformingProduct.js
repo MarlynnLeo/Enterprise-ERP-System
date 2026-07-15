@@ -38,14 +38,14 @@ class NonconformingProduct {
         if (materialRows.length > 0) {
           materialName = materialName || materialRows[0].name;
           materialCode = materialCode || materialRows[0].code;
-          logger.info(`✅ 自动填充物料信息: ${materialCode} - ${materialName}`);
+          logger.info(`NCP material information populated: materialCode=${materialCode}, materialName=${materialName}`);
         }
       }
 
       // ✅ 全自动防呆溯源逻辑：从生产线发送的不合格品，利用传来的工单编号自动反查历史挂靠供应商
       if (ncpData.source_task_no && (!ncpData.batch_no || !ncpData.supplier_id)) {
         try {
-          logger.info(`🔍 [血缘追溯] 捕获生产线退料，任务号:${ncpData.source_task_no} 物料:${ncpData.material_id}，启动跨表溯源...`);
+          logger.info(`NCP source trace started: taskNo=${ncpData.source_task_no}, materialId=${ncpData.material_id}`);
           // 1. 在 `inventory_ledger` 与 `inventory_outbound` 联合查找该物料在此工单领料的最新批次号
           const [ledgerRows] = await connection.query(`
             SELECT il.batch_number
@@ -60,7 +60,7 @@ class NonconformingProduct {
 
           if (ledgerRows.length > 0 && ledgerRows[0].batch_number) {
             ncpData.batch_no = ledgerRows[0].batch_number;
-            logger.info(`✅ [血缘追溯] 第1跳: 提取到工单原始领料的有效批次号 => ${ncpData.batch_no}`);
+            logger.info(`NCP source trace batch resolved: batchNo=${ncpData.batch_no}`);
 
             // 2. 拿着批次号反查采购入库记录拿到供应商（JOIN suppliers 表取权威名称）
             const [receiptRows] = await connection.query(`
@@ -76,7 +76,7 @@ class NonconformingProduct {
               ncpData.supplier_id = receiptRows[0].supplier_id;
               ncpData.supplier_name = receiptRows[0].supplier_name;
               ncpData.responsible_party = 'supplier';
-              logger.info(`✅ [血缘追溯] 第2跳: 完美匹配采购入库的责任供货商 => ${ncpData.supplier_name}`);
+              logger.info(`NCP source trace supplier resolved from purchase receipt: supplierName=${ncpData.supplier_name}`);
             } else {
               // 备用：从 inventory_ledger 查该批次最初的采购入库(inbound)交易记录
               const [inboundLedgerRows] = await connection.query(`
@@ -102,17 +102,17 @@ class NonconformingProduct {
                     ncpData.supplier_id = suppRows[0].supplier_id;
                     ncpData.supplier_name = suppRows[0].supplier_name;
                     ncpData.responsible_party = 'supplier';
-                    logger.info(`✅ [血缘追溯] 第2跳(备用): 由台账穿透至源头入库单的责任人 => ${ncpData.supplier_name}`);
+                    logger.info(`NCP source trace supplier resolved from ledger fallback: supplierName=${ncpData.supplier_name}`);
                  }
               } else {
                  logger.warn('[血缘追溯] 未在采购收货侧查获批号来源，已转入人工核验。');
               }
             }
           } else {
-            logger.warn(`⚠️ [血缘追溯] 追踪断环: 无库中领料记录（该料可能是脏数据创建的退料）。待下发人工核验。`);
+            logger.warn(`NCP source trace is incomplete: taskNo=${ncpData.source_task_no}, materialId=${ncpData.material_id}`);
           }
         } catch (traceError) {
-          logger.error('❌ [血缘追溯] 核心智能系统遭遇异常:', traceError);
+          logger.error('NCP source trace failed:', traceError);
           throw traceError;
         }
       }

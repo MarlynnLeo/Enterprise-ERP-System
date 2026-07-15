@@ -21,7 +21,7 @@ const materialService = {
       const validPageSize = noPagination ? null : Math.min(Math.max(1, parseInt(pageSize, 10) || 10), 100);
       const offset = noPagination ? 0 : (validPage - 1) * validPageSize;
 
-      logger.debug('🔍 getAllMaterials 查询参数:', {
+      logger.debug('getAllMaterials query parameters', {
         page: validPage,
         pageSize: validPageSize,
         filters,
@@ -80,7 +80,7 @@ const materialService = {
           const keywordParam = `%${searchTerm}%`;
           params.push(keywordParam, keywordParam, keywordParam);
           whereConditions.push(`(${searchConditions.join(' OR ')})`);
-          logger.debug('📝 添加搜索条件:', { searchTerm, keywordParam });
+          logger.debug('Material search condition added', { searchTerm, keywordParam });
         }
       } else if (filters.name || filters.code || filters.specs) {
         // 单独搜索条件（向后兼容）
@@ -136,7 +136,7 @@ const materialService = {
       const [countResult] = await pool.query(countSql, params);
       const total = countResult[0].total;
 
-      logger.debug('📊 查询总数:', total);
+      logger.debug('Material query total count', { total });
 
       // 添加排序和分页      // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入SQL
       sql += ' ORDER BY m.id DESC';
@@ -144,7 +144,7 @@ const materialService = {
         sql += ` LIMIT ${Number(validPageSize)} OFFSET ${Number(offset)}`;
       }
 
-      logger.debug('🔍 执行SQL查询...');
+      logger.debug('Executing material query');
       const [data] = await pool.query(sql, params);
 
       logger.debug('的查询结果:', data.length, '条记录');

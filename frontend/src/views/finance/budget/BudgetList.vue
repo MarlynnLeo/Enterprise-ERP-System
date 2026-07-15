@@ -1,14 +1,10 @@
 ﻿<template>
   <div class="module-page budget-list-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>预算列表</h2>
-          <p class="subtitle">管理预算方案、审批状态与执行周期</p>
-        </div>
-        <el-button v-permission="'finance:budgets:create'" type="primary" @click="handleCreate">新增预算</el-button>
-      </div>
-    </el-card>
+    <PageHeader title="预算列表" subtitle="管理预算方案、审批状态与执行周期">
+      <template #actions>
+<el-button v-permission="'finance:budgets:create'" type="primary" @click="handleCreate">新增预算</el-button>
+      </template>
+    </PageHeader>
 
     <FinanceQueryCard
       :model="searchForm"
@@ -90,7 +86,7 @@
         <el-table-column prop="created_at" label="创建时间" width="160" />
         <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
-            <el-button link type="primary" size="small" @click="handleView(row)">查看</el-button>
+            <el-button class="btn-op-view" type="primary" size="small" @click="handleView(row)">查看</el-button>
             <el-button link type="primary" size="small" @click="handleEdit(row)" v-if="isBudgetStatus(row.status, 'draft')"
               v-permission="'finance:budgets:update'">编辑</el-button>
             <el-popconfirm
@@ -143,7 +139,7 @@
         layout="total, sizes, prev, pager, next, jumper"
         @size-change="fetchData"
         @current-change="fetchData"
-        style="margin-top: 20px; justify-content: flex-end"
+        class="pagination-bar"
       />
     </el-card>
   </div>

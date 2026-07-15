@@ -79,4 +79,54 @@ describe('InventoryReservationService', () => {
       shortage: 7,
     });
   });
+
+  it('partially consumes active reservations by quantity in an external connection', async () => {
+    const conn = {
+      execute: jest
+        .fn()
+        .mockResolvedValueOnce([[{ id: 11, reserved_quantity: 10 }]])
+        .mockResolvedValueOnce([{ affectedRows: 1 }]),
+    };
+
+    const result = await InventoryReservationService.consumeReservation(
+      300,
+      [{ material_id: 1001, quantity: 4 }],
+      conn
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.consumedCount).toBe(1);
+    expect(conn.execute).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining('FOR UPDATE'),
+      [300, 1001]
+    );
+    expect(conn.execute).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining('reserved_quantity = reserved_quantity - ?'),
+      [4, 11]
+    );
+  });
+
+  it('fully consumes reservation rows when ship quantity covers reserved amount', async () => {
+    const conn = {
+      execute: jest
+        .fn()
+        .mockResolvedValueOnce([[{ id: 12, reserved_quantity: 5 }]])
+        .mockResolvedValueOnce([{ affectedRows: 1 }]),
+    };
+
+    const result = await InventoryReservationService.consumeReservation(
+      301,
+      [{ product_id: 1001, quantity: 5 }],
+      conn
+    );
+
+    expect(result.success).toBe(true);
+    expect(conn.execute).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining("status = 'consumed'"),
+      [12]
+    );
+  });
 });

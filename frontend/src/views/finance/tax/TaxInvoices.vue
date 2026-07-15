@@ -1,17 +1,11 @@
 <template>
   <div class="module-page tax-invoices-container">
     <!-- 页面标题头 -->
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>税务发票</h2>
-          <p class="subtitle">由采购和销售业务自动生成，支持票号补录、认证与抵扣</p>
-        </div>
-        <div class="header-actions">
-          <el-button v-if="canCreateTaxInvoice" type="info" plain @click="handleCreate" :icon="Plus">例外发票录入</el-button>
-        </div>
-      </div>
-    </el-card>
+    <PageHeader title="税务发票" subtitle="由采购和销售业务自动生成，支持票号补录、认证与抵扣">
+      <template #actions>
+<el-button v-if="canCreateTaxInvoice" type="info" plain @click="handleCreate" :icon="Plus">例外发票录入</el-button>
+      </template>
+    </PageHeader>
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
@@ -113,7 +107,7 @@
         v-loading="loading"
         border
         stripe
-        style="width: 100%"
+        class="w-full"
       >
         <el-table-column type="index" label="序号" width="60" />
         <el-table-column prop="invoice_type" label="类型" width="80">
@@ -126,8 +120,8 @@
         <el-table-column prop="invoice_number" label="发票号码" width="190">
           <template #default="{ row }">
             <template v-if="row.invoice_number && row.invoice_number.startsWith('待补录-')">
-              <span style="color: var(--color-text-disabled); font-style: italic; font-size: 12px;">
-                <el-icon style="vertical-align: middle; margin-right: 2px"><Clock /></el-icon>
+              <span class="text-italic-disabled">
+                <el-icon class="icon-mid-mr2"><Clock /></el-icon>
                 {{ row.invoice_number }}
               </span>
             </template>
@@ -170,8 +164,8 @@
                 {{ getDocTypeLabel(row.related_document_type) }}: {{ row.linked_document_number }}
               </el-tag>
             </template>
-            <span v-else-if="row.related_document_type" style="color: var(--color-text-secondary); font-size: 12px">{{ row.related_document_type }}</span>
-            <span v-else style="color: var(--color-text-disabled); font-size: 12px">未关联</span>
+            <span v-else-if="row.related_document_type" class="text-muted-sm">{{ row.related_document_type }}</span>
+            <span v-else class="text-disabled text-sm">未关联</span>
           </template>
         </el-table-column>
         <el-table-column label="操作" min-width="100" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
@@ -230,16 +224,16 @@
         layout="total, sizes, prev, pager, next, jumper"
         @size-change="handleSizeChange"
         @current-change="handlePageChange"
-        style="margin-top: 20px; justify-content: flex-end"
+        class="pagination-end"
       />
     </el-card>
 
     <!-- 查看详情对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="detailDialogVisible"
       title="发票详情"
-      width="700px"
-      destroy-on-close
+      mode="view"
+      content-width="wide"
     >
       <el-descriptions :column="2" border v-if="currentInvoice">
         <el-descriptions-item label="发票类型">
@@ -271,14 +265,14 @@
         <el-descriptions-item label="认证日期" v-if="currentInvoice.certification_date">{{ currentInvoice.certification_date }}</el-descriptions-item>
         <el-descriptions-item label="抵扣日期" v-if="currentInvoice.deduction_date">{{ currentInvoice.deduction_date }}</el-descriptions-item>
         <el-descriptions-item label="关联单据" :span="2" v-if="currentInvoice.linked_document_number">
-          <el-tag :type="getDocTypeTagType(currentInvoice.related_document_type)" size="small" effect="plain" style="margin-right: 8px">
+          <el-tag :type="getDocTypeTagType(currentInvoice.related_document_type)" size="small" effect="plain" class="mr-sm">
             {{ getDocTypeLabel(currentInvoice.related_document_type) }}
           </el-tag>
-          <span style="font-weight: 600">{{ currentInvoice.linked_document_number }}</span>
-          <span v-if="currentInvoice.linked_document_amount !== null && currentInvoice.linked_document_amount !== undefined" style="margin-left: 12px; color: var(--color-primary)">
+          <span class="font-weight-600">{{ currentInvoice.linked_document_number }}</span>
+          <span v-if="currentInvoice.linked_document_amount !== null && currentInvoice.linked_document_amount !== undefined" class="text-primary ml-sm">
             {{ formatMoney(currentInvoice.linked_document_amount) }}
           </span>
-          <el-tag v-if="currentInvoice.linked_document_status" size="small" style="margin-left: 8px">
+          <el-tag v-if="currentInvoice.linked_document_status" size="small" class="ml-sm">
             {{ currentInvoice.linked_document_status }}
           </el-tag>
         </el-descriptions-item>
@@ -293,7 +287,7 @@
       <template #footer>
         <el-button @click="detailDialogVisible = false">关闭</el-button>
       </template>
-    </el-dialog>
+    </AppDialog>
 
     <!-- 新增发票对话框 -->
     <el-dialog
@@ -306,7 +300,7 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="发票类型" prop="invoice_type">
-              <el-select v-model="createForm.invoice_type" placeholder="请选择" style="width: 100%">
+              <el-select v-model="createForm.invoice_type" placeholder="请选择" class="w-full">
                 <el-option label="进项" value="进项" />
                 <el-option label="销项" value="销项" />
               </el-select>
@@ -319,7 +313,7 @@
                 type="date"
                 placeholder="选择日期"
                 value-format="YYYY-MM-DD"
-                style="width: 100%"
+                class="w-full"
               />
             </el-form-item>
           </el-col>
@@ -350,14 +344,14 @@
                   :precision="2"
                   :min="0.01"
                   :controls="false"
-                  style="width: 100%"
+                  class="w-full"
                   @change="calculateTax"
               />
             </el-form-item>
           </el-col>
           <el-col :span="8">
             <el-form-item label="税率(%)" prop="tax_rate">
-              <el-select v-model="createForm.tax_rate" style="width: 100%" @change="calculateTax">
+              <el-select v-model="createForm.tax_rate" class="w-full" @change="calculateTax">
                 <el-option v-for="rate in taxRatePercentOptions" :key="rate" :label="`${rate}%`" :value="rate" />
               </el-select>
             </el-form-item>
@@ -369,7 +363,7 @@
                 :precision="2"
                 :controls="false"
                 disabled
-                style="width: 100%"
+                class="w-full"
               />
             </el-form-item>
           </el-col>
@@ -380,7 +374,7 @@
             :precision="2"
             :controls="false"
             disabled
-            style="width: 100%"
+            class="w-full"
           />
         </el-form-item>
         <el-form-item label="备注">
@@ -413,7 +407,7 @@
             placeholder="输入发票号或供应商/客户名搜索"
             clearable
             @input="debounceSearchDocuments"
-            style="margin-bottom: 12px"
+            class="mb-12"
           />
           <el-table
             :data="availableDocuments"
@@ -423,7 +417,7 @@
             max-height="300"
             @row-click="selectLinkDocument"
             highlight-current-row
-            style="cursor: pointer"
+            class="cursor-pointer"
           >
             <el-table-column prop="invoice_number" label="发票号" width="160" />
             <el-table-column :prop="linkForm.document_type === 'ap_invoice' ? 'supplier_name' : 'customer_name'" :label="linkForm.document_type === 'ap_invoice' ? '供应商' : '客户'" min-width="150" show-overflow-tooltip />
@@ -438,7 +432,7 @@
               </template>
             </el-table-column>
           </el-table>
-          <div v-if="linkForm.selected_id" style="margin-top: 12px; padding: 8px 12px; background: var(--color-success-light); border-radius: 4px; color: var(--color-success)">
+          <div v-if="linkForm.selected_id" class="selected-link-box">
             已选择: {{ linkForm.selected_number }}
           </div>
         </el-form-item>
@@ -456,7 +450,7 @@
         type="info"
         :closable="false"
         show-icon
-        style="margin-bottom: 16px"
+        class="mb-md"
       />
       <el-form label-width="80px">
         <el-form-item label="发票号码">

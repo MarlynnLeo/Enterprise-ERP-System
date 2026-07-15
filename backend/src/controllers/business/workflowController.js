@@ -34,7 +34,8 @@ module.exports = {
 
   async updateTemplate(req, res) {
     try {
-      const data = await WorkflowService.updateTemplate(req.params.id, req.body);
+      const userId = req.user?.userId || req.user?.id;
+      const data = await WorkflowService.updateTemplate(req.params.id, req.body, userId);
       ResponseHandler.success(res, data, '更新成功');
     } catch (e) { logger.error('更新模板失败:', e); ResponseHandler.error(res, e.message); }
   },

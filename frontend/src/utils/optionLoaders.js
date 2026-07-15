@@ -3,9 +3,11 @@ import { productionApi } from '@/api/production'
 import { purchaseApi } from '@/api/purchase'
 import { qualityApi } from '@/api/quality'
 import { systemApi } from '@/api/system'
-import { parseListData } from '@/utils/responseParser'
+import { parseListData, parsePaginatedData } from '@/utils/responseParser'
 
 export const OPTION_PAGE_SIZE = 50
+/** 下拉全量拉取时的单页大小（与后端上限对齐） */
+export const OPTION_FETCH_PAGE_SIZE = 200
 export const OPTION_CACHE_TTL_MS = 5 * 60 * 1000
 
 const cache = new Map()
@@ -92,13 +94,36 @@ export const loadDepartmentOptions = (params = {}) => {
   )
 }
 
-export const loadSupplierOptions = (params = {}) =>
-  loadCachedList('suppliers', baseDataApi.getSuppliers, params, { defaults: { status: 1 } })
+/**
+ * 分页拉全量列表（下拉选项用，避免只显示第一页 50 条）
+ * @param {Function} request - API 方法
+ * @param {Object} baseParams - 查询参数（不含 page/pageSize）
+ */
+const fetchAllOptionPages = async (request, baseParams = {}) => {
+  const pageSize = OPTION_FETCH_PAGE_SIZE
+  let page = 1
+  const all = []
+  let total = Infinity
 
-export const searchSupplierOptions = (keyword = '', params = {}) =>
-  loadSupplierOptions({ ...params, keyword: String(keyword || '').trim() || undefined })
+  while (all.length < total && page <= 50) {
+    const response = await request({
+      ...baseParams,
+      page,
+      pageSize,
+    })
+    const { list, total: t } = parsePaginatedData(response, { enableLog: false })
+    const chunk = Array.isArray(list) && list.length ? list : parseListData(response, { enableLog: false })
+    all.push(...chunk)
+    const knownTotal = Number(t)
+    total = Number.isFinite(knownTotal) && knownTotal >= 0 ? knownTotal : all.length
+    if (!chunk.length || chunk.length < pageSize || all.length >= total) break
+    page += 1
+  }
 
-const normalizeCustomerParams = (params = {}) => {
+  return all
+}
+
+const normalizeKeywordSearch = (params = {}) => {
   const normalized = { ...(params || {}) }
   if (normalized.keyword && !normalized.search) {
     normalized.search = normalized.keyword
@@ -107,22 +132,69 @@ const normalizeCustomerParams = (params = {}) => {
   return normalized
 }
 
-export const loadCustomerOptions = (params = {}) =>
-  loadCachedList('customers', baseDataApi.getCustomers, normalizeCustomerParams(params), {
-    defaults: {},
-  })
+/** 供应商下拉：默认启用，分页拉全 */
+export const loadSupplierOptions = (params = {}) => {
+  const { status, page: _p, pageSize: _ps, limit: _l, ...rest } = params || {}
+  const base = {
+    ...rest,
+    status: status !== undefined && status !== '' ? status : 1,
+  }
+  const key = `suppliers:all:${stableSerialize(base)}`
+  return withOptionCache(key, () => fetchAllOptionPages(baseDataApi.getSuppliers, base))
+}
 
-export const searchCustomerOptions = (keyword = '', params = {}) =>
-  loadCustomerOptions({ ...params, search: String(keyword || '').trim() || undefined })
+export const searchSupplierOptions = (keyword = '', params = {}) => {
+  const kw = String(keyword || '').trim()
+  return loadSupplierOptions({
+    ...params,
+    // 后端供应商多用 keyword；同时带 search 兼容
+    keyword: kw || undefined,
+    search: kw || undefined,
+  })
+}
+
+const normalizeCustomerParams = (params = {}) => normalizeKeywordSearch(params)
+
+/** 客户下拉：默认 active，分页拉全 */
+export const loadCustomerOptions = (params = {}) => {
+  const { status, page: _p, pageSize: _ps, limit: _l, ...rest } = normalizeCustomerParams(params)
+  const base = {
+    ...rest,
+    status: status !== undefined && status !== '' ? status : 'active',
+  }
+  const key = `customers:all:${stableSerialize(base)}`
+  return withOptionCache(key, () => fetchAllOptionPages(baseDataApi.getCustomers, base))
+}
+
+export const searchCustomerOptions = (keyword = '', params = {}) => {
+  const search = String(keyword || '').trim()
+  return loadCustomerOptions({
+    ...params,
+    search: search || undefined,
+  })
+}
 
 export const loadLocationOptions = (params = {}) =>
   loadCachedList('locations', baseDataApi.getLocations, params, { defaults: { status: 1 } })
 
-export const loadMaterialOptions = (params = {}) =>
-  loadCachedList('materials', baseDataApi.getMaterials, params, { defaults: { status: 1 } })
+/** 物料下拉：默认启用，分页拉全 */
+export const loadMaterialOptions = (params = {}) => {
+  const { status, page: _p, pageSize: _ps, limit: _l, ...rest } = normalizeKeywordSearch(params)
+  const base = {
+    ...rest,
+    status: status !== undefined && status !== '' ? status : 1,
+  }
+  const key = `materials:all:${stableSerialize(base)}`
+  return withOptionCache(key, () => fetchAllOptionPages(baseDataApi.getMaterials, base))
+}
 
-export const searchMaterialOptions = (keyword = '', params = {}) =>
-  loadMaterialOptions({ ...params, search: String(keyword || '').trim() || undefined })
+export const searchMaterialOptions = (keyword = '', params = {}) => {
+  const search = String(keyword || '').trim()
+  return loadMaterialOptions({
+    ...params,
+    search: search || undefined,
+  })
+}
 
 export const loadProductionProcessOptions = (params = {}) =>
   loadCachedList('production-processes', productionApi.getProductionProcesses, params)

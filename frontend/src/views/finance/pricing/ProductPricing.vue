@@ -1,23 +1,17 @@
 ﻿<template>
   <div class="module-page pricing-container">
     <!-- Header -->
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>产品定价</h2>
-          <p class="subtitle">管理产品BOM成本与销售定价</p>
-        </div>
-        <div class="action-section">
-          <el-button v-permission="'finance:pricing:export'" type="primary" @click="pricing.handleExport" :loading="pricing.exporting.value">
+    <PageHeader title="产品定价" subtitle="管理产品BOM成本与销售定价">
+      <template #actions>
+<el-button v-permission="'finance:pricing:export'" type="primary" @click="pricing.handleExport" :loading="pricing.exporting.value">
             <el-icon><Download /></el-icon>
             导出
           </el-button>
           <el-button v-permission="'finance:pricing:update'" type="primary" @click="settingsVisible = true">
             <el-icon><Setting /></el-icon> 定价设置
           </el-button>
-        </div>
-      </div>
-    </el-card>
+      </template>
+    </PageHeader>
 
     <!-- Search -->
     <FinanceQueryCard
@@ -55,7 +49,7 @@
 
     <!-- Table -->
     <el-card class="data-card">
-      <el-table :data="pricing.tableData.value" border style="width: 100%" v-loading="pricing.loading.value" stripe>
+      <el-table :data="pricing.tableData.value" border class="w-full" v-loading="pricing.loading.value" stripe>
         <el-table-column prop="product_code" label="产品编码" width="120" />
         <el-table-column prop="product_name" label="产品名称" min-width="150" />
         <el-table-column prop="product_specs" label="规格型号" width="150" show-overflow-tooltip />
@@ -152,7 +146,7 @@
                   :precision="2"
                   :step="1"
                   @change="() => pricing.handleMarginChange(calculateAdjustedCost)"
-                  style="width: 100%"
+                  class="w-full"
                 />
               </el-form-item>
             </el-col>
@@ -163,7 +157,7 @@
                   :precision="2"
                   :min="0"
                   @change="() => pricing.handlePriceChange(calculateAdjustedCost)"
-                  style="width: 100%"
+                  class="w-full"
                 />
               </el-form-item>
             </el-col>
@@ -180,7 +174,7 @@
               collapse-tags-tooltip
               :max-collapse-tags="2"
               placeholder="选择要应用的策略字段"
-              style="width: 100%"
+              class="w-full"
               @change="handleStrategyFieldsSelect"
             >
               <el-option
@@ -218,7 +212,7 @@
               v-model="pricing.pricingForm.effective_date"
               type="date"
               placeholder="选择生效日期"
-              style="width: 100%"
+              class="w-full"
               value-format="YYYY-MM-DD"
             />
           </el-form-item>
@@ -313,7 +307,7 @@
           <div class="form-tip">只能包含英文字母、数字和下划线</div>
         </el-form-item>
         <el-form-item label="字段类型" prop="field_type">
-          <el-select v-model="strategy.form.field_type" style="width: 100%">
+          <el-select v-model="strategy.form.field_type" class="w-full">
             <el-option label="金额" value="amount" />
             <el-option label="百分比" value="percentage" />
           </el-select>
@@ -326,7 +320,7 @@
           <div class="form-tip">开启后，该字段的数值将计入成本计算</div>
         </el-form-item>
         <el-form-item label="排序" prop="sort_order">
-          <el-input-number v-model="strategy.form.sort_order" :min="0" :max="999" style="width: 100%" />
+          <el-input-number v-model="strategy.form.sort_order" :min="0" :max="999" class="w-full" />
         </el-form-item>
         <el-form-item label="描述">
           <el-input v-model="strategy.form.description" type="textarea" :rows="3" />

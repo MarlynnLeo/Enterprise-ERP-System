@@ -8,15 +8,11 @@
 -->
 <template>
   <div class="module-page inventory-stock-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>库存明细</h2>
-          <p class="subtitle">查看库存明细与变动记录</p>
-        </div>
-        <el-button v-if="canEdit" type="primary" :icon="Plus" @click="stockAddDialogVisible = true">{{ $t('common.adjust') }}</el-button>
-      </div>
-    </el-card>
+    <PageHeader title="库存明细" subtitle="查看库存明细与变动记录">
+      <template #actions>
+<el-button v-if="canEdit" type="primary" :icon="Plus" @click="stockAddDialogVisible = true">{{ $t('common.adjust') }}</el-button>
+      </template>
+    </PageHeader>
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
@@ -154,7 +150,7 @@
         ref="tableRef"
         :data="tableData"
         border
-        style="width: 100%"
+        class="w-full"
         v-loading="loading"
         @selection-change="handleSelectionChange"
         @sort-change="handleSortChange"
@@ -184,7 +180,7 @@
         <el-table-column label="操作" min-width="180" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <div class="operation-btns">
-              <el-button size="small" @click="handleViewDetail(scope.row)" v-permission="'inventory:stock:view-detail'">查看明细</el-button>
+              <el-button class="btn-op-view" type="primary" size="small" @click="handleViewDetail(scope.row)" v-permission="'inventory:stock:view-detail'">查看明细</el-button>
               <el-button
                 v-if="isLowStock(scope.row)"
                 size="small"
@@ -214,25 +210,15 @@
       </div>
     </el-card>
 
-    <!-- 明细对话框 -->
-    <el-dialog
+    <!-- 明细对话框（查看：AppDialog mode=view 居中弹窗） -->
+    <AppDialog
       v-model="detailDialogVisible"
       title="库存明细"
-      :width="dialogWidth"
-      :fullscreen="isFullscreen"
+      mode="view"
+      content-width="wide"
+      :loading="detailLoading"
     >
-      <template #header>
-        <div class="dialog-header">
-          <span>库存明细</span>
-          <el-button
-            :icon="isFullscreen ? 'FullScreen' : 'FullScreen'"
-            circle
-            size="small"
-            @click="isFullscreen = !isFullscreen"
-          />
-        </div>
-      </template>
-      <div v-loading="detailLoading">
+      <div>
       <el-descriptions :column="3" border>
         <el-descriptions-item label="物料编码">{{ currentDetail.material_code }}</el-descriptions-item>
         <el-descriptions-item label="物料名称">{{ currentDetail.material_name }}</el-descriptions-item>
@@ -242,18 +228,18 @@
         <el-descriptions-item label="类别">{{ currentDetail.category_name }}</el-descriptions-item>
       </el-descriptions>
 
-      <el-tabs v-model="activeTab" style="margin-top: 20px">
+      <el-tabs v-model="activeTab" class="mt-20">
         <!-- 批次库存标签页 -->
         <el-tab-pane label="批次库存" name="batch">
           <el-table :data="batchInventory" border v-loading="batchLoading">
             <el-table-column prop="batch_number" label="批次号" width="210">
               <template #default="{ row }">
-                <el-tag type="primary" style="cursor: pointer;" @click="goToTraceability(row.batch_number, currentDetail.material_code)" title="点击跳转至追溯页面">{{ row.batch_number }}</el-tag>
+                <el-tag type="primary" class="cursor-pointer" @click="goToTraceability(row.batch_number, currentDetail.material_code)" title="点击跳转至追溯页面">{{ row.batch_number }}</el-tag>
               </template>
             </el-table-column>
             <el-table-column prop="current_quantity" label="当前数量" width="120">
               <template #default="{ row }">
-                <span style="font-weight: bold; color: var(--color-primary);">{{ formatQuantity(row.current_quantity) }}</span>
+                <span class="text-primary font-weight-700">{{ formatQuantity(row.current_quantity) }}</span>
               </template>
             </el-table-column>
             <el-table-column prop="unit_name" label="单位" width="80" />
@@ -287,28 +273,24 @@
             >
               <!-- 折叠面板标题 -->
               <template #title>
-                <div style="display: flex; align-items: center; width: 100%; padding: 8px 0;">
-                  <el-icon style="margin-right: 8px; font-size: 16px;">
+                <div class="collapse-title-row">
+                  <el-icon class="mr-8">
                     <Document />
                   </el-icon>
-                  <div style="flex: 1; display: flex; align-items: center; gap: 16px;">
-                    <span style="font-weight: bold; font-size: 14px;">
+                  <div class="collapse-title-meta">
+                    <span class="collapse-title-label">
                       {{ group.documentType }} {{ group.documentNo }}
                     </span>
                     <el-tag :type="getTypeTagType(group.transactionType, group.type)" size="small">
                       {{ group.type }}
                     </el-tag>
-                    <span :style="{
-                      color: group.totalQuantity > 0 ? 'var(--color-success)' : 'var(--color-danger)',
-                      fontWeight: 'bold',
-                      fontSize: '14px'
-                    }">
+                    <span :class="group.totalQuantity > 0 ? 'qty-up' : 'qty-down'">
                       总数量: {{ group.totalQuantity > 0 ? '+' : '' }}{{ formatQuantity(group.totalQuantity) }}
                     </span>
-                    <span style="color: var(--color-text-secondary); font-size: 13px;">
+                    <span class="text-muted text-md">
                       {{ formatDateTime(group.date, 'YYYY-MM-DD HH:mm:ss') }}
                     </span>
-                    <span style="color: var(--color-text-secondary); font-size: 13px;">
+                    <span class="text-muted text-md">
                       操作人: {{ group.operator }}
                     </span>
                     <el-tag v-if="group.items.length > 1" type="info" size="small">
@@ -319,20 +301,17 @@
               </template>
 
               <!-- 折叠面板内容 - 批次明细 -->
-              <div style="padding: 0 20px 10px 40px;">
-                <el-table :data="group.items" border size="small" style="margin-top: 10px;">
+              <div class="collapse-panel-body">
+                <el-table :data="group.items" border size="small" class="mt-10">
                   <el-table-column prop="batch_number" label="批次号" width="200">
                     <template #default="{ row }">
-                      <el-tag v-if="row.batch_number" type="primary" size="small" style="cursor: pointer;" @click="goToTraceability(row.batch_number, currentDetail.material_code)" title="点击跳转至追溯页面">{{ row.batch_number }}</el-tag>
-                      <span v-else style="color: var(--color-text-secondary);">-</span>
+                      <el-tag v-if="row.batch_number" type="primary" size="small" class="cursor-pointer" @click="goToTraceability(row.batch_number, currentDetail.material_code)" title="点击跳转至追溯页面">{{ row.batch_number }}</el-tag>
+                      <span v-else class="text-muted">-</span>
                     </template>
                   </el-table-column>
                   <el-table-column prop="quantity" label="数量" width="80">
                     <template #default="{ row }">
-                      <span :style="{
-                        color: row.quantity > 0 ? 'var(--color-success)' : 'var(--color-danger)',
-                        fontWeight: 'bold'
-                      }">
+                      <span class="qty-delta" :class="row.quantity > 0 ? 'text-success' : 'text-danger'">
                         {{ row.quantity > 0 ? '+' : '' }}{{ formatQuantity(row.quantity) }}
                       </span>
                     </template>
@@ -349,7 +328,7 @@
                   </el-table-column>
                   <el-table-column prop="remark" label="备注" min-width="200">
                     <template #default="{ row }">
-                      <span style="color: var(--color-text-regular);">{{ row.remark || '-' }}</span>
+                      <span class="text-regular">{{ row.remark || '-' }}</span>
                     </template>
                   </el-table-column>
                 </el-table>
@@ -358,11 +337,11 @@
           </el-collapse>
           <el-empty v-if="filteredGroupedRecords && filteredGroupedRecords.length === 0" :description="currentBatchFilter ? '该批次暂无流水记录' : '暂无流水记录'" />
           <!-- F6: 批次过滤提示 -->
-          <div v-if="currentBatchFilter" style="margin-top: 10px; text-align: center;">
+          <div v-if="currentBatchFilter" class="mt-10 text-center">
             <el-tag type="info" closable @close="currentBatchFilter = ''">当前筛选批次: {{ currentBatchFilter }}</el-tag>
           </div>
           <!-- F7: 加载更多 -->
-          <div v-if="groupedRecords.length > recordsDisplayLimit" style="text-align: center; margin-top: 10px;">
+          <div v-if="groupedRecords.length > recordsDisplayLimit" class="mt-10 text-center">
             <el-button @click="recordsDisplayLimit += 20" type="primary" link>加载更多 (已显示 {{ Math.min(recordsDisplayLimit, filteredGroupedRecords.length) }}/{{ filteredGroupedRecords.length }})</el-button>
           </div>
         </el-tab-pane>
@@ -466,7 +445,7 @@
         </el-tab-pane>
       </el-tabs>
       </div>
-    </el-dialog>
+    </AppDialog>
 
     <!-- 库存调整对话框 -->
     <InventoryStockAdd v-model="stockAddDialogVisible" @success="handleStockAddSuccess" />
@@ -547,13 +526,6 @@ const loading = ref(false)
 const tableRef = ref(null) // 表格引用
 const selectedRows = ref([]) // 选中的行
 const batchLoading = ref(false) // 批量操作加载状态
-
-// 对话框相关
-const isFullscreen = ref(false)
-const dialogWidth = computed(() => {
-  if (isFullscreen.value) return '100%'
-  return window.innerWidth < 768 ? '95%' : '50%'
-})
 
 // 统计数据
 const statistics = reactive({
@@ -1094,16 +1066,7 @@ onMounted(() => {
 
 // 获取类型显示文本
 const getTypeText = (type) => {
-  const customMap = {
-    'defective_return': '不良退回',
-    'production_return': '生产退料',
-    'purchase_return': '采购退货',
-    'sales_return': '销售退货',
-    'outsourced_outbound': '委外出库',
-    'outsourced_inbound': '委外入库',
-    'outsourced_return': '外协退料'
-  };
-  return customMap[type] || getInventoryTransactionTypeText(type) || type;
+  return getInventoryTransactionTypeText(type) || type;
 }
 
 // 获取类型标签颜色（使用统一常量）
@@ -1210,11 +1173,6 @@ const isOutOfStock = (row) => {
 /* 注意：对话框、descriptions等全局样式已在 themes/pc/default.css 中统一定义 */
 /* 仅保留页面特定的样式 */
 
-:deep(.el-dialog__body) {
-  max-height: 60vh;  /* 仅设置最大高度，其他样式使用全局 */
-  overflow-y: auto;
-}
-
 /* 详情对话框长文本处理 - 自动添加 */
 :deep(.el-descriptions__content) {
   max-width: 300px;
@@ -1229,20 +1187,6 @@ const isOutOfStock = (row) => {
 }
 
 /* 对话框头部 */
-.dialog-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  width: 100%;
-  padding-right: 40px;
-}
-
-.dialog-header span {
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--color-text-primary);
-}
-
 /* 操作按钮 */
 .operation-btns {
   display: flex;
@@ -1275,8 +1219,12 @@ const isOutOfStock = (row) => {
 
 /* 总金额卡片 */
 .amount-total-card {
-  background: linear-gradient(135deg, #fdf6ec 0%, #faecd8 100%);
-  border: 1px solid #f5dab1;
+  background: linear-gradient(
+    135deg,
+    var(--el-color-warning-light-9) 0%,
+    var(--el-color-warning-light-8) 100%
+  );
+  border: 1px solid var(--el-color-warning-light-5);
   border-radius: 10px;
 }
 
@@ -1293,7 +1241,7 @@ const isOutOfStock = (row) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(230, 162, 60, 0.12);
+  background: color-mix(in srgb, var(--color-warning) 12%, transparent);
   border-radius: 14px;
   flex-shrink: 0;
 }
@@ -1311,7 +1259,7 @@ const isOutOfStock = (row) => {
 .amount-value {
   font-size: 24px;
   font-weight: 700;
-  color: #c68a17;
+  color: var(--color-warning);
   line-height: 1.2;
   letter-spacing: -0.5px;
 }
@@ -1364,14 +1312,14 @@ const isOutOfStock = (row) => {
   border-radius: 4px;
   font-size: 11px;
   font-weight: 700;
-  color: #fff;
+  color: var(--color-bg-base);
   background: var(--color-primary);
   flex-shrink: 0;
 }
 
-.category-value-item:nth-child(1) .category-rank { background: #e6a23c; }
-.category-value-item:nth-child(2) .category-rank { background: #909399; }
-.category-value-item:nth-child(3) .category-rank { background: #cd7f32; }
+.category-value-item:nth-child(1) .category-rank { background: var(--color-warning); }
+.category-value-item:nth-child(2) .category-rank { background: var(--color-text-secondary); }
+.category-value-item:nth-child(3) .category-rank { background: var(--el-color-warning-dark-2, var(--color-warning)); }
 
 .category-name {
   font-size: 13px;
@@ -1391,7 +1339,7 @@ const isOutOfStock = (row) => {
 .category-value-bar-wrapper {
   flex: 1;
   height: 8px;
-  background: var(--color-fill-light, #f0f2f5);
+  background: var(--color-fill-light, var(--el-fill-color-light));
   border-radius: 4px;
   overflow: hidden;
   min-width: 60px;
@@ -1400,7 +1348,7 @@ const isOutOfStock = (row) => {
 .category-value-bar {
   height: 100%;
   border-radius: 4px;
-  background: linear-gradient(90deg, var(--color-primary) 0%, var(--color-primary-light-3, #79bbff) 100%);
+  background: linear-gradient(90deg, var(--color-primary) 0%, var(--color-primary-light-3, var(--color-primary-light-3, var(--color-primary))) 100%);
   transition: width 0.6s ease;
   min-width: 4px;
 }
@@ -1426,13 +1374,13 @@ const isOutOfStock = (row) => {
   align-items: center;
   gap: 8px;
   padding: 6px 10px;
-  background: var(--color-fill-lighter, #fafafa);
+  background: var(--color-fill-lighter, var(--el-fill-color-blank));
   border-radius: 6px;
   transition: background 0.2s;
 }
 
 .location-value-item:hover {
-  background: var(--color-fill-light, #f0f2f5);
+  background: var(--color-fill-light, var(--el-fill-color-light));
 }
 
 .location-value-label {

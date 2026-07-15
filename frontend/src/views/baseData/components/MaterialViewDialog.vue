@@ -1,12 +1,10 @@
-﻿<template>
-  <el-dialog
+<template>
+  <AppDialog
     title="查看物料详情"
+    mode="view"
     :model-value="modelValue"
+    content-width="default"
     @update:model-value="val => emit('update:modelValue', val)"
-    width="720px"
-    class="material-view-dialog"
-    style="max-width: calc(100vw - 32px);"
-    destroy-on-close
   >
     <div v-if="viewData" class="material-view-content">
       <el-descriptions :column="2" border class="custom-descriptions">
@@ -92,20 +90,20 @@
         </el-descriptions-item>
         <el-descriptions-item label="附件" :span="2">
           <template v-if="viewData.attachments && viewData.attachments.length">
-            <div v-for="(file, index) in viewData.attachments" :key="index" style="margin-bottom: 4px;">
+            <div v-for="(file, index) in viewData.attachments" :key="index" class="mb-xs">
               <el-link type="primary" :href="file.url || file.file_path" target="_blank" :underline="false">
-                <el-icon style="margin-right: 4px;"><Document /></el-icon>{{ file.original_name || file.name || file.file_name || '附件' + (index + 1) }}
+                <el-icon class="mr-sm"><Document /></el-icon>{{ file.original_name || file.name || file.file_name || '附件' + (index + 1) }}
               </el-link>
             </div>
           </template>
-          <span v-else style="color: var(--color-text-secondary);">无</span>
+          <span v-else class="text-muted">无</span>
         </el-descriptions-item>
       </el-descriptions>
     </div>
     <template #footer>
       <el-button @click="emit('update:modelValue', false)">关闭</el-button>
     </template>
-  </el-dialog>
+  </AppDialog>
 </template>
 
 <script setup>
@@ -115,41 +113,28 @@ import { Document } from '@element-plus/icons-vue'
 defineProps({
   modelValue: Boolean,
   viewData: Object,
-  canViewCost: { type: Boolean, default: false },  // 🔒 查看采购成本权限
-  canViewPrice: { type: Boolean, default: false }  // 🔒 查看销售价格权限
+  canViewCost: { type: Boolean, default: false },
+  canViewPrice: { type: Boolean, default: false }
 })
 const emit = defineEmits(['update:modelValue'])
 
 const formatTaxRate = (value) => {
-  if (value === null || value === undefined || value === '') return '-';
-  const rate = Number(value);
-  if (Number.isNaN(rate)) return '-';
-  return `${(rate * 100).toFixed(0)}%`;
+  if (value === null || value === undefined || value === '') return '-'
+  const rate = Number(value)
+  if (Number.isNaN(rate)) return '-'
+  return `${(rate * 100).toFixed(0)}%`
 }
 </script>
 
 <style scoped>
-.material-view-content {
-  max-height: min(68vh, 680px);
-  overflow: auto;
-}
-
-.material-view-dialog :deep(.el-dialog__body) {
-  padding: 16px 20px;
-}
-
-.material-view-dialog :deep(.el-dialog__footer) {
-  padding: 12px 20px 16px;
-}
-
 .custom-descriptions :deep(table) {
-  table-layout: fixed !important;
-  width: 100% !important;
+  table-layout: fixed;
+  width: 100%;
 }
 
 .custom-descriptions :deep(.el-descriptions__label) {
-  white-space: nowrap !important;
-  width: 112px !important;
+  white-space: nowrap;
+  width: 112px;
   min-width: 96px;
   color: var(--color-text-secondary);
 }
@@ -176,12 +161,8 @@ const formatTaxRate = (value) => {
 }
 
 @media (max-width: 768px) {
-  .material-view-content {
-    max-height: 72vh;
-  }
-
   .custom-descriptions :deep(.el-descriptions__label) {
-    width: 92px !important;
+    width: 92px;
     min-width: 80px;
   }
 }

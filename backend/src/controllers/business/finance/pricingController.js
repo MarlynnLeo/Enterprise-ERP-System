@@ -34,11 +34,15 @@ exports.getPricingList = async (req, res) => {
     }
 
     // 筛选条件
-    // low_margin 筛选已移至前端实现（使用用户自定义阈值）
+    const lowMarginThreshold = Number.parseFloat(req.query.lowMarginThreshold);
     if (filterType === 'no_pricing') {
       whereClause += ' AND pp.id IS NULL';
     } else if (filterType === 'cost_variance') {
       applyFilterLater = true; // 成本变动需要计算后筛选
+    } else if (filterType === 'low_margin') {
+      const threshold = Number.isFinite(lowMarginThreshold) ? lowMarginThreshold : 10;
+      whereClause += ' AND pp.id IS NOT NULL AND pp.profit_margin IS NOT NULL AND pp.profit_margin < ?';
+      params.push(threshold);
     }
 
     // 查询当前有效定价
@@ -475,29 +479,60 @@ exports.calculateBomCost = async (req, res) => {
   }
 };
 
-// 价格验证规则
-const validatePricing = (cost, price, margin) => {
+// 价格验证规则（与前端 settings 对齐，settings 可选）
+const validatePricing = (cost, price, margin, settings = {}) => {
   const costNum = parseFloat(cost) || 0;
   const priceNum = parseFloat(price) || 0;
   const marginNum = parseFloat(margin) || 0;
+  const allowCostPrice = settings.allowCostPrice === true;
+  const minProfitMargin =
+    settings.minProfitMargin === undefined || settings.minProfitMargin === null
+      ? -100
+      : Number(settings.minProfitMargin);
+  const lowMarginThreshold =
+    settings.lowMarginThreshold === undefined || settings.lowMarginThreshold === null
+      ? 10
+      : Number(settings.lowMarginThreshold);
 
-  // 售价不能低于成本
-  if (priceNum < costNum) {
+  if (!allowCostPrice && priceNum < costNum) {
     throw new Error('售价不能低于成本价');
   }
+  if (!allowCostPrice && priceNum === costNum && costNum > 0) {
+    throw new Error('未开启「允许等于成本价」时，售价必须高于成本价');
+  }
 
-  // 利润率合理范围检查
   if (marginNum < -100 || marginNum > 1000) {
     throw new Error('利润率超出合理范围（-100% ~ 1000%）');
   }
 
-  // 低利润率预警
-  if (marginNum < 10 && marginNum >= 0) {
-    return { valid: true, warning: '⚠️ 低利润率预警：当前利润率低于10%，请确认' };
+  if (Number.isFinite(minProfitMargin) && marginNum < minProfitMargin) {
+    throw new Error(`利润率不能低于 ${minProfitMargin}%`);
+  }
+
+  if (
+    Number.isFinite(lowMarginThreshold) &&
+    marginNum < lowMarginThreshold &&
+    marginNum >= minProfitMargin
+  ) {
+    return {
+      valid: true,
+      warning: `低利润率预警：当前利润率低于${lowMarginThreshold}%，请确认`,
+    };
   }
 
   return { valid: true };
 };
+
+async function loadUserPricingSettings(connection, userId) {
+  if (!userId) return {};
+  const [rows] = await connection.query(
+    'SELECT settings_json FROM user_pricing_settings WHERE user_id = ? LIMIT 1',
+    [userId]
+  );
+  if (!rows.length) return {};
+  const raw = rows[0].settings_json;
+  return typeof raw === 'string' ? JSON.parse(raw || '{}') : raw || {};
+}
 
 // 创建/更新产品定价
 exports.createPricing = async (req, res) => {
@@ -531,9 +566,20 @@ exports.createPricing = async (req, res) => {
       return ResponseHandler.error(res, validationError.message, 'VALIDATION_ERROR', 400);
     }
 
-    // 价格验证
+    connection = await getConnection();
+
+    // 价格验证（读取用户定价策略设置）
     try {
-      const validation = validatePricing(costPrice, suggestedPrice, profitMargin);
+      const userSettings = await loadUserPricingSettings(
+        connection,
+        getAuthenticatedUserId(req)
+      );
+      const validation = validatePricing(
+        costPrice,
+        suggestedPrice,
+        profitMargin,
+        userSettings
+      );
       if (validation.warning) {
         logger.warn(validation.warning);
       }
@@ -541,7 +587,6 @@ exports.createPricing = async (req, res) => {
       return ResponseHandler.error(res, validationError.message, 'VALIDATION_ERROR', 400);
     }
 
-    connection = await getConnection();
     await connection.beginTransaction();
 
     const [products] = await connection.query('SELECT id FROM materials WHERE id = ? AND deleted_at IS NULL', [product_id]);

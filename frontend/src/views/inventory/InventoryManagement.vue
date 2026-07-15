@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="inventory-content">
+  <div class="module-page inventory-content">
     <router-view></router-view>
   </div>
 </template>

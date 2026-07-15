@@ -9,15 +9,11 @@
 <template>
   <div class="module-page packing-lists-container">
     <!-- 页面标题 -->
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>装箱单管理</h2>
-          <p class="subtitle">管理装箱单与发货</p>
-        </div>
-        <el-button v-permission="'sales:packing:create'" type="primary" :icon="Plus" @click="handleAdd">新增装箱单</el-button>
-      </div>
-    </el-card>
+    <PageHeader title="装箱单管理" subtitle="管理装箱单与发货">
+      <template #actions>
+<el-button v-permission="'sales:packing:create'" type="primary" :icon="Plus" @click="handleAdd">新增装箱单</el-button>
+      </template>
+    </PageHeader>
     <!-- 搜索区域 -->
     <FinanceQueryCard
       @search="handleSearch(true)"
@@ -57,7 +53,7 @@
         </el-form-item>
       </template>
       <template #actions>
-          <el-dropdown style="margin-left: 8px;">
+          <el-dropdown class="ml-sm">
             <el-button type="primary">
               更多操作<el-icon class="el-icon--right"><ArrowDown /></el-icon>
             </el-button>
@@ -106,7 +102,7 @@
       <el-table
         :data="tableData"
         border
-        style="width: 100%"
+        class="w-full"
         v-loading="loading"
         table-layout="fixed"
         :default-sort="{prop: 'packing_list_no', order: 'descending'}"
@@ -131,7 +127,7 @@
               </el-descriptions>
 
               <div class="products-title">装箱明细</div>
-              <el-table :data="props.row.details" border style="width: 100%" table-layout="fixed">
+              <el-table :data="props.row.details" border class="w-full" table-layout="fixed">
                 <el-table-column prop="item_no" label="编号" width="120">
                   <template #default="{ row }">
                     {{ row.item_no || '-' }}
@@ -219,7 +215,7 @@
         </el-table-column>
         <el-table-column label="操作" :width="getColumnWidth('operations', 320)" min-width="320" fixed="right" resizable align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
-            <el-button
+            <el-button class="btn-op-view" type="primary"
               size="small"
               @click="handleView(scope.row)"
             >
@@ -285,7 +281,7 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="客户编号" prop="customer_code">
-              <el-input v-model="form.customer_code" placeholder="请输入客户编号" style="width: 100%" @blur="handleCustomerCodeBlur">
+              <el-input v-model="form.customer_code" placeholder="请输入客户编号" class="w-full" @blur="handleCustomerCodeBlur">
                 <template #append>
                   <el-button @click="searchCustomerByCode">查询</el-button>
                 </template>
@@ -296,7 +292,7 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="销售订单号" prop="sales_order_no">
-              <el-input v-model="form.sales_order_no" placeholder="请输入销售订单号" style="width: 100%" @blur="handleSalesOrderNoBlur">
+              <el-input v-model="form.sales_order_no" placeholder="请输入销售订单号" class="w-full" @blur="handleSalesOrderNoBlur">
                 <template #append>
                   <el-button @click="searchSalesOrderByNo">查询</el-button>
                 </template>
@@ -311,7 +307,7 @@
                 placeholder="选择装箱日期"
                 format="YYYY-MM-DD"
                 value-format="YYYY-MM-DD"
-                style="width: 100%">
+                class="w-full">
               </el-date-picker>
             </el-form-item>
           </el-col>
@@ -319,12 +315,12 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="客户名称">
-              <el-input v-model="form.customer_name" placeholder="客户名称" readonly style="width: 100%"></el-input>
+              <el-input v-model="form.customer_name" placeholder="客户名称" readonly class="w-full"></el-input>
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="订单金额">
-              <el-input v-model="form.order_amount" placeholder="订单金额" readonly style="width: 100%"></el-input>
+              <el-input v-model="form.order_amount" placeholder="订单金额" readonly class="w-full"></el-input>
             </el-form-item>
           </el-col>
         </el-row>
@@ -346,7 +342,7 @@
             <el-table
               :data="form.details"
               border
-              style="width: 100%"
+              class="w-full"
               table-layout="fixed"
               :header-cell-style="{ background: 'var(--color-bg-hover)', color: 'var(--color-text-regular)' }"
               empty-text="请添加装箱明细"
@@ -368,7 +364,7 @@
                   <el-select
                     v-model="scope.row.product_id"
                     placeholder="请输入或选择物料"
-                    style="width: 100%"
+                    class="w-full"
                     filterable
                     remote
                     reserve-keyword
@@ -388,12 +384,12 @@
               </el-table-column>
               <el-table-column label="产品名称" width="200">
                 <template #default="scope">
-                  <el-input v-model="scope.row.product_name" placeholder="产品名称" readonly style="width: 100%"></el-input>
+                  <el-input v-model="scope.row.product_name" placeholder="产品名称" readonly class="w-full"></el-input>
                 </template>
               </el-table-column>
               <el-table-column label="规格型号" width="150">
                 <template #default="scope">
-                  <el-input v-model="scope.row.product_specs" placeholder="规格型号" readonly style="width: 100%"></el-input>
+                  <el-input v-model="scope.row.product_specs" placeholder="规格型号" readonly class="w-full"></el-input>
                 </template>
               </el-table-column>
               <el-table-column label="数量" width="100">
@@ -413,7 +409,7 @@
                   <el-input
                     v-model="scope.row.unit_code"
                     placeholder="请输入单位编号"
-                    style="width: 100%"
+                    class="w-full"
                     @blur="handleUnitCodeBlur($event, scope.$index)">
                     <template #append>
                       <el-button @click="searchUnitByCode(scope.$index)">查询</el-button>
@@ -423,7 +419,7 @@
               </el-table-column>
               <el-table-column label="单位名称" width="100">
                 <template #default="scope">
-                  <el-input v-model="scope.row.unit_name" placeholder="单位名称" readonly style="width: 100%"></el-input>
+                  <el-input v-model="scope.row.unit_name" placeholder="单位名称" readonly class="w-full"></el-input>
                 </template>
               </el-table-column>
               <el-table-column label="备注" width="150">
@@ -455,11 +451,11 @@
       </template>
     </el-dialog>
     <!-- 查看装箱单详情对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="detailsVisible"
       title="装箱单详情"
-      width="60%"
-      destroy-on-close
+      mode="view"
+      content-width="wide"
     >
       <div v-if="currentPackingList" class="packing-details">
         <!-- 装箱单基本信息 -->
@@ -482,7 +478,7 @@
 
         <!-- 装箱明细列表 -->
         <div class="products-title">装箱明细</div>
-        <el-table :data="currentPackingList.details" border style="width: 100%" table-layout="fixed">
+        <el-table :data="currentPackingList.details" border class="w-full" table-layout="fixed">
           <el-table-column prop="item_no" label="编号" width="120">
             <template #default="{ row }">
               {{ row.item_no || '-' }}
@@ -500,7 +496,7 @@
           <el-table-column prop="remark" label="备注" />
         </el-table>
       </div>
-    </el-dialog>
+    </AppDialog>
   </div>
 </template>
 <script setup>
@@ -1439,11 +1435,6 @@ const handleSalesOrderNoBlur = (event) => {
 }
 :deep(.el-select-dropdown__wrap) {
   max-height: 400px !important;
-}
-/* 对话框高度 - 页面特定，其他样式使用全局主题 */
-:deep(.el-dialog__body) {
-  max-height: 60vh;
-  overflow-y: auto;
 }
 /* 隐藏数字输入框的加减按钮 */
 :deep(.el-input__inner[type="number"]) {

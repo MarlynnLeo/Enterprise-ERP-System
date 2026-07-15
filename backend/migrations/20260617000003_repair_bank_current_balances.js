@@ -2,38 +2,38 @@ async function hasTable(knex, tableName) {
   return knex.schema.hasTable(tableName);
 }
 
-function utf8Hex(hex) {
-  return `CONVERT(UNHEX('${hex}') USING utf8mb4)`;
+function hexLiteral(hex) {
+  return `'${hex}'`;
 }
 
 function signedTransactionExpression(alias = 't') {
   const column = `${alias}.transaction_type`;
   const amount = `${alias}.amount`;
   const inflowTypes = [
-    utf8Hex('E5AD98E6ACBE'), // deposit
-    utf8Hex('E8BDACE585A5'), // transfer in
-    utf8Hex('E588A9E681AF'), // interest
-    utf8Hex('E694B6E585A5'), // income
-    "'income'",
-    "'deposit'",
-    "'transfer_in'",
-    "'interest'",
+    hexLiteral('E5AD98E6ACBE'), // deposit
+    hexLiteral('E8BDACE585A5'), // transfer in
+    hexLiteral('E588A9E681AF'), // interest
+    hexLiteral('E694B6E585A5'), // income
+    hexLiteral('696E636F6D65'),
+    hexLiteral('6465706F736974'),
+    hexLiteral('7472616E736665725F696E'),
+    hexLiteral('696E746572657374'),
   ].join(',');
   const outflowTypes = [
-    utf8Hex('E58F96E6ACBE'), // withdrawal
-    utf8Hex('E8BDACE587BA'), // transfer out
-    utf8Hex('E8B4B9E794A8'), // fee
-    utf8Hex('E694AFE587BA'), // expense
-    "'expense'",
-    "'withdrawal'",
-    "'transfer_out'",
-    "'fee'",
+    hexLiteral('E58F96E6ACBE'), // withdrawal
+    hexLiteral('E8BDACE587BA'), // transfer out
+    hexLiteral('E8B4B9E794A8'), // fee
+    hexLiteral('E694AFE587BA'), // expense
+    hexLiteral('657870656E7365'),
+    hexLiteral('7769746864726177616C'),
+    hexLiteral('7472616E736665725F6F7574'),
+    hexLiteral('666565'),
   ].join(',');
 
   return `
     CASE
-      WHEN ${column} IN (${inflowTypes}) THEN COALESCE(${amount}, 0)
-      WHEN ${column} IN (${outflowTypes}) THEN -COALESCE(${amount}, 0)
+      WHEN HEX(${column}) IN (${inflowTypes}) THEN COALESCE(${amount}, 0)
+      WHEN HEX(${column}) IN (${outflowTypes}) THEN -COALESCE(${amount}, 0)
       ELSE 0
     END
   `;

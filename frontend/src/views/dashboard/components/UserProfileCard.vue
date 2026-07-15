@@ -7,17 +7,17 @@
 <template>
   <div class="combined-info-card">
     <div v-if="loading" class="loading-section">
-      <el-skeleton animated style="width: 100%">
+      <el-skeleton animated class="w-full">
         <template #template>
-          <div style="display: flex; gap: 20px; align-items: center;">
-            <div style="flex: 1;">
-              <el-skeleton-item variant="text" style="width: 60%; margin-bottom: 8px;" />
-              <el-skeleton-item variant="text" style="width: 80%;" />
+          <div class="flex-row gap-20">
+            <div class="flex-1">
+              <el-skeleton-item variant="text" class="skel-line skel-w-60" />
+              <el-skeleton-item variant="text" class="skel-line skel-w-80" />
             </div>
-            <el-skeleton-item variant="circle" style="width: 60px; height: 60px;" />
-            <div style="flex: 1;">
-              <el-skeleton-item variant="text" style="width: 60%; margin-bottom: 8px;" />
-              <el-skeleton-item variant="text" style="width: 80%;" />
+            <el-skeleton-item variant="circle" class="skel-avatar" />
+            <div class="flex-1">
+              <el-skeleton-item variant="text" class="skel-line skel-w-60" />
+              <el-skeleton-item variant="text" class="skel-line skel-w-80" />
             </div>
           </div>
         </template>
@@ -36,15 +36,15 @@
           <span>{{ userProfile?.department_name || '未设置' }}</span>
         </div>
       </div>
-      <!-- 中间：头像 -->
+      <!-- 中间：头像特效（与个人中心同源） -->
       <div class="center-avatar">
-        <div class="avatar-container">
-          <div class="avatar-glow"></div>
-          <div class="avatar-particles">
-            <span class="particle" v-for="i in 8" :key="i" :style="`--i: ${i}`"></span>
-          </div>
-          <img :src="userProfile?.avatar || '/default-avatar.webp'" class="avatar" />
-        </div>
+        <DecorativeAvatarFrame
+          :frame="avatarFrameConfig"
+          :avatar="userProfile?.avatar || ''"
+          :name="userProfile?.real_name || userProfile?.username || ''"
+          :size="64"
+          class="dash-avatar-frame"
+        />
       </div>
       <!-- 右侧：天气信息 -->
       <div class="right-weather">
@@ -94,8 +94,11 @@ import {
   PartlyCloudy,
   WindPower
 } from '@element-plus/icons-vue'
+import { computed } from 'vue'
+import DecorativeAvatarFrame from '@/views/auth/components/DecorativeAvatarFrame.vue'
+import { getAvatarFrameConfig } from '@/utils/avatarFrames'
 
-defineProps({
+const props = defineProps({
   userProfile: {
     type: Object,
     default: null
@@ -109,4 +112,8 @@ defineProps({
     default: false
   }
 })
+
+const avatarFrameConfig = computed(() =>
+  getAvatarFrameConfig(props.userProfile?.avatar_frame || props.userProfile?.avatarFrame)
+)
 </script>

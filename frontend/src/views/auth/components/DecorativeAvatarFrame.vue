@@ -1,21 +1,24 @@
 <template>
   <div
     class="decorative-avatar-frame"
-    :class="[frameClass, motionClass, { 'is-none': !frameImage }]"
-    :style="frameStyle"
+    :class="rootClasses"
+    :style="frameCssVars"
+    role="img"
+    :aria-label="frame?.name || '用户头像'"
   >
+    <!-- 原有图片特效框（全部保留） -->
     <img
       v-if="frameImage"
       class="avatar-frame-image"
-      :style="frameImageStyle"
       :src="frameImage"
       alt=""
       aria-hidden="true"
       draggable="false"
+      @error="onFrameImageError"
     />
 
     <el-avatar
-      :size="avatarSize"
+      :size="resolvedAvatarSize"
       :src="avatar || defaultAvatar"
       class="decorative-avatar"
       @error="handleError"
@@ -26,7 +29,8 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { getAvatarInnerRatio } from '@/utils/avatarFrames'
 
 const props = defineProps({
   frame: {
@@ -45,9 +49,10 @@ const props = defineProps({
     type: Number,
     default: 140
   },
+  /** 传 0 则按特效配置自动算占比 */
   avatarSize: {
     type: Number,
-    default: 100
+    default: 0
   },
   defaultAvatar: {
     type: String,
@@ -57,42 +62,56 @@ const props = defineProps({
 
 const emit = defineEmits(['avatar-error'])
 
-const frameImage = computed(() => props.frame?.image || '')
-const frameClass = computed(() => props.frame?.id ? `frame-${props.frame.id}` : 'frame-none')
-const motionClass = computed(() => props.frame?.motion ? `frame-motion-${props.frame.motion}` : '')
-const frameStyle = computed(() => ({
-  position: 'relative',
-  width: `${props.size}px`,
-  height: `${props.size}px`,
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  flex: `0 0 ${props.size}px`,
-  overflow: 'hidden',
+const imageLoadFailed = ref(false)
+
+watch(
+  () => props.frame?.image,
+  () => {
+    imageLoadFailed.value = false
+  }
+)
+
+const frameImage = computed(() => {
+  if (imageLoadFailed.value) return ''
+  return props.frame?.image || ''
+})
+
+const isNone = computed(
+  () => !props.frame || props.frame.variant === 'none' || props.frame.id === 'none' || !frameImage.value
+)
+
+const resolvedAvatarSize = computed(() => {
+  if (props.avatarSize > 0) return props.avatarSize
+  const ratio = getAvatarInnerRatio(props.frame)
+  return Math.max(20, Math.round(props.size * ratio))
+})
+
+const rootClasses = computed(() => {
+  const id = props.frame?.id || 'none'
+  const motion = props.frame?.motion || 'none'
+  return [
+    `frame-${id}`,
+    `variant-${props.frame?.variant || 'none'}`,
+    motion && motion !== 'none' ? `frame-motion-${motion}` : '',
+    { 'is-none': isNone.value }
+  ]
+})
+
+const frameCssVars = computed(() => ({
   '--frame-size': `${props.size}px`,
-  '--avatar-size': `${props.avatarSize}px`
+  '--avatar-size': `${resolvedAvatarSize.value}px`
 }))
-const frameImageStyle = computed(() => ({
-  position: 'absolute',
-  inset: '0',
-  width: `${props.size}px`,
-  height: `${props.size}px`,
-  minWidth: `${props.size}px`,
-  minHeight: `${props.size}px`,
-  maxWidth: `${props.size}px`,
-  maxHeight: `${props.size}px`,
-  zIndex: 2,
-  display: 'block',
-  objectFit: 'contain',
-  pointerEvents: 'none',
-  userSelect: 'none'
-}))
+
 const fallbackInitial = computed(() => {
   return props.name ? props.name.slice(0, 1).toUpperCase() : 'U'
 })
 
 function handleError() {
   emit('avatar-error')
+}
+
+function onFrameImageError() {
+  imageLoadFailed.value = true
 }
 </script>
 
@@ -108,28 +127,29 @@ function handleError() {
   justify-content: center;
   flex: 0 0 var(--frame-size);
   box-sizing: border-box;
-  overflow: hidden;
-  contain: layout paint;
+  /* 允许光环/星点外溢，避免被裁成硬边 */
+  overflow: visible;
   isolation: isolate;
   line-height: 1;
   vertical-align: middle;
+  /* 禁止 contain:layout，避免 fixed/绝对定位子层错位 */
+  contain: style;
 }
 
+/* —— 图片特效框 —— */
 .avatar-frame-image {
   position: absolute;
   inset: 0;
   width: var(--frame-size);
   height: var(--frame-size);
-  min-width: var(--frame-size);
-  min-height: var(--frame-size);
-  max-width: var(--frame-size);
-  max-height: var(--frame-size);
   z-index: 2;
   display: block;
   object-fit: contain;
   pointer-events: none;
   user-select: none;
-  transform-origin: center;
+  transform-origin: center center;
+  /* 轻微投影，减轻「贴图假」 */
+  filter: drop-shadow(0 2px 6px color-mix(in srgb, var(--color-text-primary, #000) 12%, transparent));
 }
 
 .decorative-avatar {
@@ -138,11 +158,14 @@ function handleError() {
   width: var(--avatar-size) !important;
   height: var(--avatar-size) !important;
   flex: 0 0 var(--avatar-size);
-  border: 3px solid var(--el-bg-color);
-  background: var(--el-fill-color);
+  border: 2px solid var(--el-bg-color, var(--color-bg-base));
+  background: var(--el-fill-color, var(--color-fill-light));
   color: var(--el-text-color-secondary);
   font-size: calc(var(--avatar-size) * 0.32);
-  box-shadow: 0 2px 12px color-mix(in srgb, var(--color-text-primary) 8%, transparent);
+  font-weight: 600;
+  box-shadow:
+    0 1px 2px color-mix(in srgb, var(--color-text-primary, #000) 8%, transparent),
+    0 4px 12px color-mix(in srgb, var(--color-text-primary, #000) 6%, transparent);
 }
 
 :deep(.decorative-avatar img) {
@@ -153,20 +176,30 @@ function handleError() {
 }
 
 .is-none .decorative-avatar {
-  box-shadow: 0 2px 12px color-mix(in srgb, var(--color-text-primary) 8%, transparent);
+  border-color: var(--color-border-lighter, var(--el-border-color-lighter));
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--color-text-primary, #000) 6%, transparent);
 }
 
+/* —— 动画优化：更柔、更慢，不再猛缩放 —— */
 .frame-motion-breath .avatar-frame-image {
-  animation: avatarFrameImageBreath 3.2s ease-in-out infinite;
+  animation: avatarFrameImageBreath 4s ease-in-out infinite;
 }
 
 .frame-motion-slow-spin .avatar-frame-image {
-  animation: avatarFrameImageSpin 14s linear infinite;
+  animation: avatarFrameImageSpin 22s linear infinite;
 }
 
 @keyframes avatarFrameImageBreath {
-  0%, 100% { transform: scale(1); opacity: 0.96; }
-  50% { transform: scale(1.035); opacity: 1; }
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.94;
+    filter: drop-shadow(0 2px 6px color-mix(in srgb, var(--color-text-primary, #000) 12%, transparent));
+  }
+  50% {
+    transform: scale(1.018);
+    opacity: 1;
+    filter: drop-shadow(0 3px 10px color-mix(in srgb, var(--color-text-primary, #000) 16%, transparent));
+  }
 }
 
 @keyframes avatarFrameImageSpin {
@@ -176,8 +209,13 @@ function handleError() {
 
 @media (prefers-reduced-motion: reduce) {
   .avatar-frame-image {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
+    animation: none !important;
   }
+}
+
+/* 顶栏等超小尺寸：减弱阴影即可 */
+.decorative-avatar-frame[style*='--frame-size: 44px'] .avatar-frame-image,
+.decorative-avatar-frame[style*='--frame-size: 48px'] .avatar-frame-image {
+  filter: drop-shadow(0 1px 3px color-mix(in srgb, var(--color-text-primary, #000) 10%, transparent));
 }
 </style>

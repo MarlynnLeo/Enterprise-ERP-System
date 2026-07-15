@@ -402,10 +402,6 @@ class InspectionTemplateController {
       );
     } catch (error) {
       logger.error('获取模板列表失败:', error);
-      logger.error('错误详情:', {
-        message: error.message,
-        stack: error.stack,
-      });
       ResponseHandler.error(res, '获取模板列表失败', 'SERVER_ERROR', 500, error);
     }
   }
@@ -585,11 +581,6 @@ class InspectionTemplateController {
     } catch (error) {
       await t.rollback();
       logger.error('创建模板失败:', error);
-      logger.error('错误详情:', {
-        message: error.message,
-        stack: error.stack,
-        name: error.name,
-      });
       const statusCode = error.statusCode || 500;
       const errorCode = error.code || (statusCode === 400 ? 'VALIDATION_ERROR' : 'SERVER_ERROR');
       const message = statusCode === 400 ? error.message : `创建模板失败: ${error.message}`;

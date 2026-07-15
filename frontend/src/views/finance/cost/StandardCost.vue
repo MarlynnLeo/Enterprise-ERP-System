@@ -1,15 +1,11 @@
 ﻿<template>
   <div class="module-page standard-cost-container">
     <!-- 页面标题 -->
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>标准成本</h2>
-          <p class="subtitle">设置和查询产品标准成本</p>
-        </div>
-        <el-button v-permission="'finance:cost:execute'" type="primary" @click="showCalculateDialog">计算标准成本</el-button>
-      </div>
-    </el-card>
+    <PageHeader title="标准成本" subtitle="设置和查询产品标准成本">
+      <template #actions>
+<el-button v-permission="'finance:cost:execute'" type="primary" @click="showCalculateDialog">计算标准成本</el-button>
+      </template>
+    </PageHeader>
 
     <!-- 搜索表单 -->
     <FinanceQueryCard
@@ -29,7 +25,7 @@
 
     <!-- 数据表格 -->
     <el-card class="data-card">
-      <el-table :data="costList" border v-loading="loading" style="width: 100%">
+      <el-table :data="costList" border v-loading="loading" class="w-full">
         <el-table-column prop="product_code" label="产品编码" width="140"></el-table-column>
         <el-table-column prop="product_name" label="产品名称" width="350"></el-table-column>
         <el-table-column label="材料成本" width="130">
@@ -49,7 +45,7 @@
         </el-table-column>
         <el-table-column label="总成本" width="130">
           <template #default="scope">
-            <span style="font-weight: bold; color: var(--color-primary);">
+            <span class="text-primary font-weight-700">
               {{ formatCurrency(scope.row.total_cost) }}
             </span>
           </template>
@@ -70,7 +66,7 @@
         <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button v-permission="'finance:cost:update'" type="info" size="small" @click="openOverheadConfig(scope.row)">配置专费</el-button>
-            <el-button type="primary" size="small" @click="viewDetail(scope.row)">详情</el-button>
+            <el-button class="btn-op-view" type="primary" size="small" @click="viewDetail(scope.row)">详情</el-button>
             <el-button v-permission="'finance:cost:execute'" type="warning" size="small" @click="recalculate(scope.row)">重算</el-button>
           </template>
         </el-table-column>
@@ -94,7 +90,7 @@
     <el-dialog v-model="calculateDialogVisible" title="计算标准成本" width="600px">
       <el-form :model="calculateForm" label-width="100px">
         <el-form-item label="选择产品" required>
-          <el-select v-model="calculateForm.productId" placeholder="请选择产品" filterable style="width: 100%">
+          <el-select v-model="calculateForm.productId" placeholder="请选择产品" filterable class="w-full">
             <el-option
               v-for="product in productOptions"
               :key="product.id"
@@ -104,7 +100,7 @@
           </el-select>
         </el-form-item>
         <el-form-item label="计算数量" required>
-          <el-input-number v-model="calculateForm.quantity" :min="1" :max="10000" style="width: 100%"></el-input-number>
+          <el-input-number v-model="calculateForm.quantity" :min="1" :max="10000" class="w-full"></el-input-number>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -114,7 +110,12 @@
     </el-dialog>
 
     <!-- 成本详情对话框 -->
-    <el-dialog v-model="detailDialogVisible" title="标准成本详情" width="800px">
+    <AppDialog
+      v-model="detailDialogVisible"
+      title="标准成本详情"
+      mode="view"
+      content-width="wide"
+    >
       <div v-if="currentDetail">
         <el-descriptions :column="2" border>
           <el-descriptions-item label="产品编码">{{ currentDetail.product_code }}</el-descriptions-item>
@@ -177,33 +178,33 @@
                 </el-table-column>
                 <el-table-column prop="cost" label="分摊金额" width="130">
                   <template #default="{row}">
-                    <span style="color:var(--color-danger); font-weight:bold;">{{ formatCurrency(row.cost) }}</span>
+                    <span class="text-danger font-weight-700">{{ formatCurrency(row.cost) }}</span>
                   </template>
                 </el-table-column>
               </el-table>
-              <div style="margin-top: 16px; text-align: right; font-size: 15px;">
-                <span style="font-weight: bold; color: var(--color-text-primary); margin-right: 12px;">制造费用总计:</span>
-                <span style="font-size: 18px; font-weight: bold; color: var(--color-danger);">{{ formatCurrency(currentDetail.overhead_cost) }}</span>
+              <div class="detail-total-row">
+                <span class="detail-total-label">制造费用总计:</span>
+                <span class="detail-total-amount">{{ formatCurrency(currentDetail.overhead_cost) }}</span>
               </div>
             </template>
             <el-empty v-else description="暂无制造费用明细" :image-size="60"></el-empty>
-            <div style="margin-top: 16px; color: var(--color-text-secondary); font-size: 13px;">
+            <div class="help-text-mt">
               <p>* 制造费用 = 各专属规则与全局通用规则的累加之和。</p>
               <p>* 单项费用 = 基数数值 × 计算费率。</p>
             </div>
           </el-tab-pane>
         </el-tabs>
       </div>
-    </el-dialog>
+    </AppDialog>
 
     <!-- 专属制造费用配置对话框 -->
     <el-dialog v-model="overheadDialogVisible" title="单品专属制费配置" width="750px">
-      <div v-if="currentSelectedProduct" style="margin-bottom: 16px;">
+      <div v-if="currentSelectedProduct" class="mb-md">
         <el-alert :title="`正在为产品 ${currentSelectedProduct.product_code} - ${currentSelectedProduct.product_name} 配置专属制造费用`" type="info" :closable="false" show-icon></el-alert>
       </div>
 
-      <div style="margin-bottom: 16px; display:flex; justify-content: space-between;">
-        <span style="line-height:32px; font-weight:bold;">已配置专属规则</span>
+      <div class="flex-between-mb">
+        <span class="section-title-line">已配置专属规则</span>
         <el-button type="primary" size="small" @click="openAddOverheadForm" v-permission="'finance:cost:create'">新增专属费率</el-button>
       </div>
 
@@ -214,7 +215,7 @@
         </el-table-column>
         <el-table-column prop="rate" label="单品费率">
           <template #default="scope">
-            <span style="color:var(--color-danger); font-weight:bold">{{ Number(scope.row.rate).toFixed(4) }}</span>
+            <span class="text-danger font-weight-700">{{ Number(scope.row.rate).toFixed(4) }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="effective_date" label="生效日期" width="100">
@@ -236,16 +237,16 @@
       <el-dialog v-model="addOverheadFormVisible" title="新增单品费率" width="500px" append-to-body>
         <el-form :model="overheadForm" label-width="120px">
           <el-form-item label="引用全局模板" required>
-             <el-select v-model="overheadForm.templateId" @change="handleTemplateChange" placeholder="选择全局规则模板（如：模具费）" style="width:100%">
+             <el-select v-model="overheadForm.templateId" @change="handleTemplateChange" placeholder="选择全局规则模板（如：模具费）" class="w-full">
                <el-option v-for="tpl in globalOverheadTemplates" :key="tpl.id" :label="tpl.name" :value="tpl.id"></el-option>
              </el-select>
-             <div style="font-size: 12px; color: var(--color-text-secondary); margin-top: 4px;">引用模板会自动继承规则名称和分摊标准，并赋予该价格最高优先级。</div>
+             <div class="help-text-sm">引用模板会自动继承规则名称和分摊标准，并赋予该价格最高优先级。</div>
           </el-form-item>
           <el-form-item label="单品专属价格" required>
-            <el-input-number v-model="overheadForm.rate" :precision="4" :step="1" style="width:100%"></el-input-number>
+            <el-input-number v-model="overheadForm.rate" :precision="4" :step="1" class="w-full"></el-input-number>
           </el-form-item>
           <el-form-item label="生效日期" required>
-            <el-date-picker v-model="overheadForm.effective_date" type="date" value-format="YYYY-MM-DD" style="width:100%"></el-date-picker>
+            <el-date-picker v-model="overheadForm.effective_date" type="date" value-format="YYYY-MM-DD" class="w-full"></el-date-picker>
           </el-form-item>
         </el-form>
         <template #footer>

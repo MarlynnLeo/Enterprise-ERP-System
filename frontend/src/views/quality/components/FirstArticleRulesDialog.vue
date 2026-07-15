@@ -6,9 +6,9 @@
 -->
 <template>
   <el-dialog v-model="dialogVisible" title="首检规则配置" width="900px" destroy-on-close>
-    <div style="margin-bottom: 16px;">
+    <div class="mb-md">
       <el-button v-permission="'quality:settings:create'" type="primary" @click="showAddRule = true"><el-icon><Plus /></el-icon>添加规则</el-button>
-      <el-alert type="info" :closable="false" style="margin-top: 10px;">
+      <el-alert type="info" :closable="false" class="mt-10">
         <template #title>
           <span>默认规则：首检数量 <b>{{ DEFAULT_QTY }}只</b>，生产数量小于 <b>{{ DEFAULT_FULL_INSPECTION_THRESHOLD }}只</b> 时全检。可针对特定产品配置个性化规则。</span>
         </template>
@@ -53,7 +53,7 @@
             remote
             :remote-method="debouncedSearchProducts"
             :loading="loadingProducts"
-            style="width: 100%"
+            class="w-full"
             :disabled="!!editingRule"
           >
             <el-option v-for="p in productOptions" :key="p.id" :label="`${p.code || '无编码'} - ${p.name || '未命名'}`" :value="p.id" />
@@ -61,14 +61,14 @@
         </el-form-item>
         <el-form-item label="首检数量" prop="first_article_qty">
           <el-input-number v-model="ruleForm.first_article_qty" :min="1" :max="100" />
-          <span style="margin-left: 10px; color: var(--color-text-secondary);">只</span>
+          <span class="ml-sm text-muted">只</span>
         </el-form-item>
         <el-form-item label="全检阈值" prop="full_inspection_threshold">
           <el-input-number v-model="ruleForm.full_inspection_threshold" :min="1" :max="100" />
-          <span style="margin-left: 10px; color: var(--color-text-secondary);">生产数量小于此值时全检</span>
+          <span class="ml-sm text-muted">生产数量小于此值时全检</span>
         </el-form-item>
         <el-form-item label="检验模板">
-          <el-select v-model="ruleForm.template_id" placeholder="选择检验模板" clearable style="width: 100%">
+          <el-select v-model="ruleForm.template_id" placeholder="选择检验模板" clearable class="w-full">
             <el-option v-for="t in templateOptions" :key="t.id" :label="t.template_name || t.name" :value="t.id" />
           </el-select>
         </el-form-item>

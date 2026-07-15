@@ -8,15 +8,11 @@
 -->
 <template>
   <div class="module-page category-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>资产类别</h2>
-          <p class="subtitle">管理资产分类与属性</p>
-        </div>
-        <el-button v-permission="'finance:assets:create'" type="primary" :icon="Plus" @click="showAddDialog">新增类别</el-button>
-      </div>
-    </el-card>
+    <PageHeader title="资产类别" subtitle="管理资产分类与属性">
+      <template #actions>
+<el-button v-permission="'finance:assets:create'" type="primary" :icon="Plus" @click="showAddDialog">新增类别</el-button>
+      </template>
+    </PageHeader>
 
     <FinanceQueryCard
       :loading="loading"
@@ -34,7 +30,7 @@
     <el-card class="data-card">
       <el-table
         :data="filteredCategoryList"
-        style="width: 100%"
+        class="w-full"
         border
         v-loading="loading"
       >
@@ -59,7 +55,7 @@
         <el-table-column prop="asset_count" label="资产数量" width="100">
           <template #default="scope">
             <el-tag v-if="scope.row.asset_count > 0" type="success" size="small">{{ scope.row.asset_count }}</el-tag>
-            <span v-else style="color: var(--color-text-secondary)">0</span>
+            <span v-else class="text-muted">0</span>
           </template>
         </el-table-column>
         <el-table-column label="操作" min-width="150" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
@@ -107,10 +103,10 @@
           <el-input v-model="categoryForm.code" placeholder="请输入类别编码"></el-input>
         </el-form-item>
         <el-form-item label="折旧年限" prop="default_useful_life">
-          <el-input-number v-model="categoryForm.default_useful_life" :min="1" :max="50" style="width: 100%"></el-input-number>
+          <el-input-number v-model="categoryForm.default_useful_life" :min="1" :max="50" class="w-full"></el-input-number>
         </el-form-item>
         <el-form-item label="折旧方法" prop="default_depreciation_method">
-          <el-select v-model="categoryForm.default_depreciation_method" placeholder="请选择折旧方法" style="width: 100%">
+          <el-select v-model="categoryForm.default_depreciation_method" placeholder="请选择折旧方法" class="w-full">
             <el-option label="直线法" value="straight_line"></el-option>
             <el-option label="双倍余额递减法" value="double_declining"></el-option>
             <el-option label="年数总和法" value="sum_of_years"></el-option>
@@ -124,7 +120,7 @@
             :min="0"
             :max="30"
             :step="0.5"
-            style="width: 100%"
+            class="w-full"
           ></el-input-number>
         </el-form-item>
         <el-form-item label="描述" prop="description">

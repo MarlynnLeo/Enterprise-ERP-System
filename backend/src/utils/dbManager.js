@@ -30,17 +30,17 @@ class DBManager {
 
     try {
       await connection.beginTransaction();
-      logger.debug('🔄 开始数据库事务');
+      logger.debug('Database transaction started');
 
       const result = await callback(connection);
 
       await connection.commit();
-      logger.debug('✅ 数据库事务提交成功');
+      logger.debug('Database transaction committed');
 
       return result;
     } catch (error) {
       await connection.rollback();
-      logger.error('❌ 数据库事务回滚:', error.message);
+      logger.error('Database transaction rolled back:', error.message);
       throw error;
     } finally {
       connection.release();

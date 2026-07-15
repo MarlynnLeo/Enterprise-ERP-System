@@ -67,15 +67,35 @@ class NotificationSubscriber {
    * 统一事件处理入口
    * 1. 从数据库查询该事件的所有启用规则（带 60 秒缓存）
    * 2. 对每条规则：解析接收人 + 渲染模板 + 写入通知表 + Socket.IO 推送
+   *
+   * 陈旧领域事件（积压补跑）策略：
+   * - 超过 1 小时：完全跳过通知（财务等其它订阅者仍会执行）
+   * - 5 分钟～1 小时：只写库不实时弹窗，避免用户点一次入库刷屏
+   * - 5 分钟内：写库 + Socket 实时弹窗
    */
   async handleEvent(eventName, payload) {
     try {
+      const meta = payload?.__domainEvent || {};
+      const createdAtMs = meta.createdAt ? new Date(meta.createdAt).getTime() : Date.now();
+      const ageMs = Number.isFinite(createdAtMs) ? Date.now() - createdAtMs : 0;
+      const STALE_SKIP_MS = 60 * 60 * 1000; // 1 小时
+      const REALTIME_MS = 5 * 60 * 1000; // 5 分钟
+
+      if (ageMs > STALE_SKIP_MS) {
+        logger.info(
+          `[NotificationSubscriber] 跳过陈旧事件通知: ${eventName} domainEventId=${meta.id || '-'} ageMin=${Math.round(ageMs / 60000)}`
+        );
+        return;
+      }
+
       // 查询匹配规则
       const rules = await NotificationRuleService.getActiveRulesByEvent(eventName);
       if (rules.length === 0) return;
 
+      const allowRealtimePush = ageMs <= REALTIME_MS;
+
       for (const rule of rules) {
-        await this._processRule(eventName, rule, payload);
+        await this._processRule(eventName, rule, payload, { allowRealtimePush });
       }
     } catch (error) {
       // 通知发送失败不应影响主业务流程
@@ -86,8 +106,10 @@ class NotificationSubscriber {
   /**
    * 处理单条规则
    */
-  async _processRule(eventName, rule, payload) {
+  async _processRule(eventName, rule, payload, options = {}) {
     try {
+      const allowRealtimePush = options.allowRealtimePush !== false;
+
       // 1. 解析接收人
       const recipientIds = await NotificationRuleService.resolveRecipients(rule);
       if (recipientIds.length === 0) {
@@ -119,15 +141,16 @@ class NotificationSubscriber {
         dedupeBySource: true,
       });
 
-      // 5. Socket.IO 实时推送
-      if (result.inserted > 0) {
+      // 5. Socket.IO 实时推送（仅新鲜事件，避免积压补跑刷屏）
+      if (result.inserted > 0 && allowRealtimePush) {
         pushToOnlineUsers(recipientIds, notification);
       }
 
       if (result.inserted > 0) {
         logger.info(
           `🔔 [NotificationSubscriber] ${eventName} 规则 "${rule.name}" → 发送 ${result.inserted} 条通知` +
-            (result.skipped > 0 ? `，跳过 ${result.skipped} 条（去重）` : '')
+            (result.skipped > 0 ? `，跳过 ${result.skipped} 条（去重）` : '') +
+            (allowRealtimePush ? '' : '（无实时弹窗，积压补跑）')
         );
       }
     } catch (error) {

@@ -5,7 +5,6 @@
  */
 
 const { pool } = require('../../config/db');
-const { logger } = require('../../utils/logger');
 
 class WorkStationService {
   /**
@@ -20,8 +19,14 @@ class WorkStationService {
     let where = 'WHERE 1=1';
     const values = [];
 
-    if (lineCode) { where += ' AND ws.line_code = ?'; values.push(lineCode); }
-    if (stationType) { where += ' AND ws.station_type = ?'; values.push(stationType); }
+    if (lineCode) {
+      where += ' AND ws.line_code = ?';
+      values.push(lineCode);
+    }
+    if (stationType) {
+      where += ' AND ws.station_type = ?';
+      values.push(stationType);
+    }
     if (isActive !== undefined && isActive !== '') {
       where += ' AND ws.is_active = ?';
       values.push(parseInt(isActive, 10));
@@ -32,7 +37,8 @@ class WorkStationService {
     }
 
     const [[{ total }]] = await pool.query(
-      `SELECT COUNT(*) as total FROM work_stations ws ${where}`, values
+      `SELECT COUNT(*) as total FROM work_stations ws ${where}`,
+      values
     );
 
     const [list] = await pool.query(
@@ -69,12 +75,31 @@ class WorkStationService {
    * 创建工位
    */
   static async create(data) {
-    const { code, name, line_code, line_name, station_type, capacity, equipment_id, sort_order, description } = data;
+    const {
+      code,
+      name,
+      line_code,
+      line_name,
+      station_type,
+      capacity,
+      equipment_id,
+      sort_order,
+      description,
+    } = data;
     const [result] = await pool.query(
       `INSERT INTO work_stations (code, name, line_code, line_name, station_type, capacity, equipment_id, sort_order, description)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [code, name, line_code || null, line_name || null, station_type || 'assembly',
-       capacity || 1, equipment_id || null, sort_order || 0, description || null]
+      [
+        code,
+        name,
+        line_code || null,
+        line_name || null,
+        station_type || 'assembly',
+        capacity || 1,
+        equipment_id || null,
+        sort_order || 0,
+        description || null,
+      ]
     );
     return this.getById(result.insertId);
   }
@@ -85,8 +110,18 @@ class WorkStationService {
   static async update(id, data) {
     const fields = [];
     const values = [];
-    const allowedFields = ['code', 'name', 'line_code', 'line_name', 'station_type',
-      'capacity', 'equipment_id', 'is_active', 'sort_order', 'description'];
+    const allowedFields = [
+      'code',
+      'name',
+      'line_code',
+      'line_name',
+      'station_type',
+      'capacity',
+      'equipment_id',
+      'is_active',
+      'sort_order',
+      'description',
+    ];
 
     for (const field of allowedFields) {
       if (data[field] !== undefined) {
@@ -98,9 +133,7 @@ class WorkStationService {
     if (fields.length === 0) return this.getById(id);
 
     values.push(id);
-    await pool.query(
-      `UPDATE work_stations SET ${fields.join(', ')} WHERE id = ?`, values
-    );
+    await pool.query(`UPDATE work_stations SET ${fields.join(', ')} WHERE id = ?`, values);
     return this.getById(id);
   }
 

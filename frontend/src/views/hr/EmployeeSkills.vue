@@ -1,35 +1,29 @@
 <template>
   <div class="module-page page-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>员工技能矩阵</h2>
-          <p class="subtitle">管理员工技能认证与技能矩阵</p>
-        </div>
-        <div class="operation-btns">
-          <el-button @click="viewMode = viewMode === 'list' ? 'matrix' : 'list'">
+    <PageHeader title="员工技能矩阵" subtitle="管理员工技能认证与技能矩阵">
+      <template #actions>
+<el-button @click="viewMode = viewMode === 'list' ? 'matrix' : 'list'">
             {{ viewMode === 'list' ? '矩阵视图' : '列表视图' }}
           </el-button>
-          <el-button type="primary" @click="openForm()">新增技能</el-button>
-        </div>
-      </div>
-    </el-card>
+          <el-button type="primary" v-permission="'hr:skills:create'" @click="openForm()">新增技能</el-button>
+      </template>
+    </PageHeader>
 
     <el-card class="data-card">
       <!-- 列表视图 -->
       <template v-if="viewMode === 'list'">
-        <div class="filter-bar" style="margin-bottom: 16px">
+        <div class="filter-bar mb-md">
           <el-row :gutter="12">
             <el-col :span="5">
               <el-input v-model="filters.keyword" placeholder="搜索员工/技能" clearable @clear="fetchData" @keyup.enter="fetchData" />
             </el-col>
             <el-col :span="4">
-              <el-select v-model="filters.skillCategory" placeholder="技能类别" clearable @change="fetchData" style="width:100%">
+              <el-select v-model="filters.skillCategory" placeholder="技能类别" clearable @change="fetchData" class="w-full">
                 <el-option v-for="c in categories" :key="c" :label="c" :value="c" />
               </el-select>
             </el-col>
             <el-col :span="4">
-              <el-select v-model="filters.level" placeholder="技能等级" clearable @change="fetchData" style="width:100%">
+              <el-select v-model="filters.level" placeholder="技能等级" clearable @change="fetchData" class="w-full">
                 <el-option label="初学" value="beginner" />
                 <el-option label="中级" value="intermediate" />
                 <el-option label="高级" value="advanced" />
@@ -55,13 +49,13 @@
           <el-table-column prop="certified_date" label="认证日期" width="110" />
           <el-table-column prop="expiry_date" label="到期日期" width="110">
             <template #default="{ row }">
-              <span :style="{ color: isExpired(row.expiry_date) ? '#F56C6C' : '' }">{{ row.expiry_date || '-' }}</span>
+              <span :class="isExpired(row.expiry_date) ? 'text-danger' : ''">{{ row.expiry_date || '-' }}</span>
             </template>
           </el-table-column>
           <el-table-column label="操作" width="140" fixed="right">
             <template #default="{ row }">
-              <el-button link type="primary" @click="openForm(row)">编辑</el-button>
-              <el-button link type="danger" @click="handleDelete(row.id)">删除</el-button>
+              <el-button link type="primary" v-permission="'hr:skills:update'" @click="openForm(row)">编辑</el-button>
+              <el-button link type="danger" v-permission="'hr:skills:delete'" @click="handleDelete(row.id)">删除</el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -115,7 +109,7 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="技能等级" required>
-              <el-select v-model="form.level" style="width:100%">
+              <el-select v-model="form.level" class="w-full">
                 <el-option label="初学" value="beginner" />
                 <el-option label="中级" value="intermediate" />
                 <el-option label="高级" value="advanced" />
@@ -127,12 +121,12 @@
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="认证日期">
-              <el-date-picker v-model="form.certified_date" value-format="YYYY-MM-DD" style="width:100%" />
+              <el-date-picker v-model="form.certified_date" value-format="YYYY-MM-DD" class="w-full" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="到期日期">
-              <el-date-picker v-model="form.expiry_date" value-format="YYYY-MM-DD" style="width:100%" />
+              <el-date-picker v-model="form.expiry_date" value-format="YYYY-MM-DD" class="w-full" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -141,7 +135,12 @@
       </el-form>
       <template #footer>
         <el-button @click="formVis = false">取消</el-button>
-        <el-button type="primary" @click="submitForm" :loading="saving">确定</el-button>
+        <el-button
+          type="primary"
+          v-permission="editId ? 'hr:skills:update' : 'hr:skills:create'"
+          @click="submitForm"
+          :loading="saving"
+        >确定</el-button>
       </template>
     </el-dialog>
   </div>

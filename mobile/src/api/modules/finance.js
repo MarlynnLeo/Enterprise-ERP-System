@@ -1,17 +1,8 @@
 /**
  * 财务管理 API 模块
  *
- * W-23: 清理重复 API 方法
- *   - getARInvoice / getARInvoiceById → 保留 getARInvoice，getARInvoiceById 指向同一方法
- *   - getAPInvoice / getAPInvoiceById → 保留 getAPInvoice，getAPInvoiceById 指向同一方法
- *   - getAsset / getAssetById → 保留 getAsset，getAssetById 指向同一方法
- *   - getCashAccount / getCashAccountById → 保留 getCashAccount，getCashAccountById 指向同一方法
- *
- * W-24: rejectEntry / reverseEntry 语义区分
- *   - reverseEntry: 会计冲销 — 创建一笔方向相反的凭证来抵消原凭证
- *   - rejectEntry: 语义上是"拒绝/驳回"，但实际调用同一冲销端点（/reverse）
- *     两者均调用 POST /finance/entries/:id/reverse，
- *     区别在于 rejectEntry 会自动填充当前日期和默认描述
+ * reverseEntry: 会计冲销（创建相反分录）
+ * rejectEntry: 已废弃别名，请勿当作草稿驳回
  */
 import api from '../client'
 
@@ -69,23 +60,22 @@ export const financeApi = {
   },
 
   /**
-   * 驳回凭证 — 语义上为"拒绝/驳回"操作
-   * 实际调用与 reverseEntry 相同的冲销端点（POST /finance/entries/:id/reverse），
-   * 区别：自动填充当前日期和默认描述 '移动端冲销凭证'。
-   * 如果后端未来提供独立的 reject 端点，此方法应迁移到新端点。
-   * @param {number} id - 原凭证 ID
-   * @param {string|Object} reason - 驳回原因（字符串）或完整的冲销参数对象
+   * @deprecated 请使用 reverseEntry。此方法保留兼容，强制走冲销语义并要求明确原因。
    */
   rejectEntry(id, reason) {
+    if (typeof console !== 'undefined' && console.warn) {
+      console.warn('[financeApi.rejectEntry] 已废弃，请改用 reverseEntry，避免误当作草稿驳回')
+    }
     const today = new Date().toISOString().slice(0, 10)
-    const payload = typeof reason === 'object' && reason !== null
-      ? reason
-      : {
-          entry_date: today,
-          posting_date: today,
-          description: reason || '移动端冲销凭证'
-        }
-    return api.post(`/finance/entries/${id}/reverse`, payload)
+    const payload =
+      typeof reason === 'object' && reason !== null
+        ? reason
+        : {
+            entry_date: today,
+            posting_date: today,
+            description: reason || '移动端冲销凭证',
+          }
+    return this.reverseEntry(id, payload)
   },
 
   // 会计期间 — 后端路由: /api/finance/periods

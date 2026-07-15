@@ -9,6 +9,7 @@ import router from './router'
 import { initTheme } from './composables/useTheme'
 import { initPwaViewport } from './utils/pwaViewport'
 import permissionDirective from './directives/permission'
+import { useDictionaryStore } from './stores/dictionary'
 
 import {
   ActionBar,
@@ -94,6 +95,7 @@ const vantComponents = [
 vantComponents.forEach((component) => app.use(component))
 
 app.use(pinia)
+useDictionaryStore(pinia).fetchDictionary().catch(() => {})
 app.use(router)
 app.use(permissionDirective)
 

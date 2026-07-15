@@ -1,16 +1,12 @@
 ﻿<template>
   <div class="module-page cost-version-manage">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>成本版本</h2>
-          <p class="subtitle">按周期管理标准成本的测算、提交、审核和发布</p>
-        </div>
-        <el-button v-permission="'finance:cost:execute'" type="primary" :icon="Plus" @click="openCreateDialog">
+    <PageHeader title="成本版本" subtitle="按周期管理标准成本的测算、提交、审核和发布">
+      <template #actions>
+<el-button v-permission="'finance:cost:execute'" type="primary" :icon="Plus" @click="openCreateDialog">
           新建成本周期版本
         </el-button>
-      </div>
-    </el-card>
+      </template>
+    </PageHeader>
 
     <el-card class="data-card">
       <div class="table-toolbar">
@@ -32,7 +28,7 @@
         title="草稿版本不影响线上核算；审核生效后会成为标准成本、差异分析和后续出库核算的成本基准。"
       />
 
-      <el-table :data="versionList" v-loading="loading" border style="width: 100%">
+      <el-table :data="versionList" v-loading="loading" border class="w-full">
         <el-table-column prop="version_no" label="版本编码" width="160" />
         <el-table-column prop="version_name" label="版本说明" min-width="200" />
         <el-table-column prop="effective_date" label="计划生效日期" width="140">
@@ -80,7 +76,7 @@
         title="新版本会以草稿状态创建，不影响当前线上业务核算。完成测算和核对后，再提交审核并发布生效。"
         type="info"
         show-icon
-        style="margin-bottom: 20px"
+        class="mb-20"
         :closable="false"
       />
       <el-form :model="form" :rules="rules" ref="formRef" label-width="120px">
@@ -91,7 +87,7 @@
           <el-input v-model="form.version_name" placeholder="如：2026年第二季度标准成本核算表" />
         </el-form-item>
         <el-form-item label="计划生效日期" prop="effective_date">
-          <el-date-picker v-model="form.effective_date" type="date" placeholder="选择日期" value-format="YYYY-MM-DD" style="width: 100%" />
+          <el-date-picker v-model="form.effective_date" type="date" placeholder="选择日期" value-format="YYYY-MM-DD" class="w-full" />
         </el-form-item>
         <el-form-item label="备注说明">
           <el-input v-model="form.remark" type="textarea" :rows="2" />

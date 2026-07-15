@@ -15,7 +15,7 @@
             <el-select
               v-model="form.product_id"
               placeholder="请选择产品或输入关键词搜索"
-              style="width: 100%"
+              class="w-full"
               filterable
               remote
               reserve-keyword
@@ -23,16 +23,18 @@
               :loading="loadingProducts"
               no-data-text="没有找到匹配的产品"
               loading-text="搜索中..."
-              :disabled="isEditMode">
+              :disabled="isEditMode"
+              @change="handleProductChange"
+            >
               <el-option
                 v-for="item in productOptions"
                 :key="item.id"
                 :label="`${item.code} - ${item.name}`"
                 :value="item.id">
-                <div style="display: flex; justify-content: space-between; align-items: center">
-                  <span style="font-weight: bold">{{ item.code }}</span>
-                  <span style="color: var(--color-text-muted); margin-left: 10px">{{ item.name }}</span>
-                  <span style="color: var(--color-text-secondary); font-size: 12px" v-if="item.specs">{{ item.specs }}</span>
+                <div class="flex-between">
+                  <span class="font-weight-700">{{ item.code }}</span>
+                  <span class="text-muted ml-sm">{{ item.name }}</span>
+                  <span class="text-muted text-sm" v-if="item.specs">{{ item.specs }}</span>
                 </div>
               </el-option>
             </el-select>
@@ -45,8 +47,8 @@
                 v-model="form.version"
                 disabled
               />
-              <div style="font-size: 12px; color: var(--color-warning); margin-top: 4px;">
-                <el-icon style="vertical-align: middle;"><InfoFilled /></el-icon>
+              <div class="text-sm text-warning mt-4">
+                <el-icon class="icon-inline"><InfoFilled /></el-icon>
                 保存时版本号将自动升级（旧版本会被保留）
               </div>
             </template>
@@ -55,6 +57,9 @@
                 v-model="form.version"
                 placeholder="请输入版本号，如：V1.1"
                 clearable />
+              <div class="text-sm text-muted mt-4">
+                选择产品后将自动建议下一版本；同一产品不能重复使用已有版本号
+              </div>
             </template>
           </el-form-item>
         </el-col>
@@ -95,11 +100,11 @@
       <!-- BOM明细 -->
       <el-divider content-position="left">BOM明细</el-divider>
       <div class="bom-details">
-        <div style="margin-bottom: 15px;">
+        <div class="mb-md">
           <el-button type="primary" @click="addDetail">
             <el-icon><Plus /></el-icon> 添加一级明细
           </el-button>
-          <el-text type="info" size="small" style="margin-left: 10px;">
+          <el-text type="info" size="small" class="ml-sm">
             提示：点击表格中的"添加子级"按钮可为该物料添加下级明细
           </el-text>
         </div>
@@ -118,7 +123,7 @@
                 <el-select
                   v-model="scope.row.material_code"
                   placeholder="请选择物料或输入关键词搜索"
-                  style="width: 100%"
+                  class="w-full"
                   filterable
                   remote
                   reserve-keyword
@@ -133,9 +138,9 @@
                     :key="item.id"
                     :label="item.code"
                     :value="item.code">
-                    <div style="display: flex; justify-content: space-between; align-items: center">
-                      <span style="font-weight: bold">{{ item.code }}</span>
-                      <span style="color: var(--color-text-muted); margin-left: 10px">{{ item.name }}</span>
+                    <div class="flex-between">
+                      <span class="font-weight-700">{{ item.code }}</span>
+                      <span class="text-muted ml-sm">{{ item.name }}</span>
                     </div>
                   </el-option>
                 </el-select>
@@ -161,7 +166,7 @@
                 :step="1"
                 :controls="false"
                 placeholder="用量"
-                style="width: 100%"
+                class="w-full"
               />
             </template>
           </el-table-column>
@@ -339,6 +344,41 @@ const searchProducts = async (query) => {
     }
   } else {
     productOptions.value = []
+  }
+}
+
+/** 根据已有 BOM 计算下一版本号 V1.1 → V1.2 */
+const calcNextVersion = (versions = []) => {
+  let maxMajor = 1
+  let maxMinor = 0
+  let found = false
+  for (const v of versions) {
+    const match = String(v || '').match(/V(\d+)\.(\d+)/i)
+    if (match) {
+      found = true
+      const major = parseInt(match[1], 10)
+      const minor = parseInt(match[2], 10)
+      if (major > maxMajor || (major === maxMajor && minor > maxMinor)) {
+        maxMajor = major
+        maxMinor = minor
+      }
+    }
+  }
+  if (!found) return 'V1.1'
+  return `V${maxMajor}.${maxMinor + 1}`
+}
+
+/** 选择产品后自动建议未占用的版本号，避免 uk_product_version 冲突 */
+const handleProductChange = async (productId) => {
+  if (!productId || isEditMode.value) return
+  try {
+    const res = await bomApi.getBoms({ product_id: productId, page: 1, pageSize: 100 })
+    const list = parseListData(res)
+    const versions = list.map((b) => b.version).filter(Boolean)
+    form.version = calcNextVersion(versions)
+  } catch (e) {
+    console.error('获取产品已有BOM版本失败:', e)
+    // 失败时保留当前版本，提交时由后端校验
   }
 }
 // 附件处理
@@ -525,25 +565,44 @@ const searchMaterialsForRow = async (query, row) => {
     row.materialOptions = []
   }
 }
+const clearMaterialRow = (row) => {
+  row.material_code = ''
+  row.material_id = null
+  row.material_name = ''
+  row.material_specs = ''
+  row.unit_id = null
+  row.unit_name = ''
+}
+
 const handleMaterialCodeChangeByRow = async (val, row) => {
   const material = row.materialOptions?.find(m => m.code === val)
   if (material) {
     row.material_id = material.id
     row.material_name = material.name
     row.material_specs = material.specs || material.specification || ''
-    row.unit_id = material.unit_id || null
+    // 列表接口可能缺 unit_id：用 unit_id / unitId，没有则稍后按物料详情补
+    row.unit_id = material.unit_id ?? material.unitId ?? null
     row.unit_name = material.unit_name || material.unit || ''
+
+    // 若单位缺失，拉一次物料详情补齐（避免提交 500）
+    if (!row.unit_id && material.id) {
+      try {
+        const detailRes = await materialApi.getMaterial(material.id)
+        const detail = parseResponseData(detailRes, material) || material
+        row.unit_id = detail.unit_id ?? detail.unitId ?? null
+        row.unit_name = detail.unit_name || detail.unit || row.unit_name || ''
+      } catch (e) {
+        console.error('补齐物料单位失败:', e)
+      }
+    }
+
     if (form.product_id && material.id) {
       try {
         const res = await bomApi.detectCircularReference(form.product_id, material.id)
         const result = parseResponseData(res, {})
         if (result.hasCircle) {
           ElMessage.error(`检测到循环引用！路径: ${result.path}，该物料不能添加到此BOM`)
-          row.material_code = ''
-          row.material_id = null
-          row.material_name = ''
-          row.material_specs = ''
-          row.unit_name = ''
+          clearMaterialRow(row)
         }
       } catch (error) {
         console.error('检测BOM循环引用失败:', error)
@@ -562,11 +621,32 @@ const submitForm = async () => {
         return
       }
 
-      const invalidDetails = form.details.some(d => !d.material_code || !d.quantity)
-      if (invalidDetails) {
+      const missingMaterial = form.details.some(d => !d.material_id || !d.material_code || !d.quantity)
+      if (missingMaterial) {
         ElMessage.warning('请补全物料编码和用量信息')
         return
       }
+
+      // 提交前补齐 unit_id；物料档案未维护单位时由后端用默认单位「个」兜底
+      for (const d of form.details) {
+        if (d.material_id && (!d.unit_id || Number(d.unit_id) <= 0)) {
+          try {
+            const detailRes = await materialApi.getMaterial(d.material_id)
+            const detail = parseResponseData(detailRes, {}) || {}
+            d.unit_id = detail.unit_id ?? detail.unitId ?? null
+            d.unit_name = detail.unit_name || d.unit_name || ''
+          } catch {
+            /* 后端会按物料主数据/默认单位补全 */
+          }
+        }
+        // 规范化为数字，避免传字符串/空串
+        if (d.unit_id != null && d.unit_id !== '') {
+          d.unit_id = Number(d.unit_id) || null
+        }
+        d.material_id = Number(d.material_id)
+        d.quantity = Number(d.quantity)
+      }
+
       submitting.value = true
       try {
         let attachmentPath = form.attachment
@@ -581,23 +661,62 @@ const submitForm = async () => {
           }
           attachmentPath = uploadedUrl
         }
-        const payload = {
-          ...form,
-          attachment: attachmentPath, // 仅传回最终的后台资源路径
-          details: form.details.map(({ children, materialOptions, loading, ...rest }) => rest)
+
+        // 新建：提交前按产品已有版本自动对齐下一版本，避免 uk_product_version 冲突
+        if (!form.id && form.product_id) {
+          await handleProductChange(form.product_id)
         }
+
+        const buildPayload = () => ({
+          product_id: Number(form.product_id),
+          version: String(form.version || 'V1.1').trim(),
+          remark: form.remark || null,
+          status: form.status !== undefined && form.status !== '' ? Number(form.status) : 1,
+          attachment: attachmentPath,
+          details: form.details.map((d) => ({
+            id: d.id,
+            parent_id: d.parent_id ?? 0,
+            level: d.level || 1,
+            material_id: Number(d.material_id),
+            material_code: d.material_code,
+            quantity: Number(d.quantity) || 0,
+            unit_id: d.unit_id != null && Number(d.unit_id) > 0 ? Number(d.unit_id) : null,
+            remark: d.remark || null,
+          })),
+        })
+
         if (form.id) {
-          await bomApi.updateBom(form.id, payload)
+          await bomApi.updateBom(form.id, buildPayload())
           ElMessage.success('更新成功')
         } else {
-          await bomApi.createBom(payload)
-          ElMessage.success('创建成功')
+          try {
+            await bomApi.createBom(buildPayload())
+          } catch (createErr) {
+            // 版本冲突时再拉一次下一版本并重试一次
+            const m =
+              createErr?.response?.data?.message ||
+              createErr?.message ||
+              ''
+            if (/已存在版本|Duplicate entry|不能重复|uk_product_version/i.test(m)) {
+              await handleProductChange(form.product_id)
+              ElMessage.warning(`版本号冲突，已自动改为 ${form.version} 并重试`)
+              await bomApi.createBom(buildPayload())
+            } else {
+              throw createErr
+            }
+          }
+          ElMessage.success(`创建成功（版本 ${form.version}）`)
         }
         emit('success')
         handleClose()
       } catch (error) {
         console.error('提交失败:', error)
-        ElMessage.error(error.message || '操作失败')
+        const msg =
+          error?.response?.data?.message ||
+          error?.response?.data?.error?.message ||
+          error?.message ||
+          '操作失败'
+        ElMessage.error(String(msg).replace(/^创建BOM失败:\s*/, ''))
       } finally {
         submitting.value = false
       }

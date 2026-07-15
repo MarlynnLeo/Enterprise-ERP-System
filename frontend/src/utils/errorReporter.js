@@ -13,7 +13,7 @@
  *   setupErrorReporter(app)
  */
 
-import axios from 'axios'
+import { api } from '@/services/axiosInstance'
 
 // 上报节流 — 避免错误风暴时频繁请求
 const REPORT_INTERVAL = 5000 // 5 秒内同一类错误只上报一次
@@ -48,7 +48,7 @@ function reportError(errorInfo) {
   if (!shouldReport(errorKey)) return
 
   // 静默上报，不影响用户体验
-  axios.post('/api/system/client-errors', errorInfo).catch(() => {
+  api.post('/system/client-errors', errorInfo).catch(() => {
     // 上报失败不处理（避免循环错误）
   })
 }

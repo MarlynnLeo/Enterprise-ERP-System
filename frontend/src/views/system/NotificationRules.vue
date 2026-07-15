@@ -1,19 +1,13 @@
 <template>
   <div class="module-page page-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>通知规则</h2>
-          <p class="subtitle">配置业务事件的自动通知推送规则</p>
-        </div>
-        <div class="operation-btns">
-          <el-button v-permission="'system:notification-rules'" type="primary" @click="openForm()">新建规则</el-button>
-        </div>
-      </div>
-    </el-card>
+    <PageHeader title="通知规则" subtitle="配置业务事件的自动通知推送规则">
+      <template #actions>
+<el-button v-permission="'system:notification-rules'" type="primary" @click="openForm()">新建规则</el-button>
+      </template>
+    </PageHeader>
 
     <el-card class="data-card">
-      <div class="filter-bar" style="margin-bottom: 16px">
+      <div class="filter-bar mb-md">
         <el-row :gutter="12">
           <el-col :span="6">
             <el-input v-model="filters.keyword" placeholder="搜索规则名称" clearable @clear="fetchData" @keyup.enter="fetchData">
@@ -21,12 +15,12 @@
             </el-input>
           </el-col>
           <el-col :span="5">
-            <el-select v-model="filters.event_type" placeholder="事件类型" clearable @change="fetchData" style="width:100%">
+            <el-select v-model="filters.event_type" placeholder="事件类型" clearable @change="fetchData" class="w-full">
               <el-option v-for="evt in supportedEvents" :key="evt.event_type" :label="evt.label" :value="evt.event_type" />
             </el-select>
           </el-col>
           <el-col :span="4">
-            <el-select v-model="filters.is_active" placeholder="状态" clearable @change="fetchData" style="width:100%">
+            <el-select v-model="filters.is_active" placeholder="状态" clearable @change="fetchData" class="w-full">
               <el-option label="启用" :value="1" />
               <el-option label="禁用" :value="0" />
             </el-select>
@@ -96,7 +90,7 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="事件类型" required>
-              <el-select v-model="form.event_type" style="width:100%" @change="onEventChange">
+              <el-select v-model="form.event_type" class="w-full" @change="onEventChange">
                 <el-option-group v-for="group in groupedEvents" :key="group.label" :label="group.label">
                   <el-option v-for="evt in group.items" :key="evt.event_type" :label="evt.label" :value="evt.event_type" />
                 </el-option-group>
@@ -108,7 +102,7 @@
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="接收人类型" required>
-              <el-select v-model="form.recipient_type" style="width:100%">
+              <el-select v-model="form.recipient_type" class="w-full">
                 <el-option label="按权限" value="permission" />
                 <el-option label="按角色" value="role" />
                 <el-option label="按部门" value="department" />
@@ -118,7 +112,7 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="优先级">
-              <el-select v-model="form.priority" style="width:100%">
+              <el-select v-model="form.priority" class="w-full">
                 <el-option label="低" :value="0" />
                 <el-option label="中" :value="1" />
                 <el-option label="高" :value="2" />
@@ -145,7 +139,7 @@
         <el-form-item label="内容模板" required>
           <el-input v-model="form.content_template" type="textarea" :rows="3" placeholder="支持 ${变量} 占位符，如：任务 ${taskCode} 已完工" />
           <div class="form-hint" v-if="currentEventVars.length > 0">
-            可用变量：<el-tag v-for="v in currentEventVars" :key="v" size="small" type="info" style="margin: 2px">{{ '${' + v + '}' }}</el-tag>
+            可用变量：<el-tag v-for="v in currentEventVars" :key="v" size="small" type="info" class="chip-gap">{{ '${' + v + '}' }}</el-tag>
           </div>
         </el-form-item>
         <el-form-item label="跳转链接">
@@ -366,7 +360,7 @@ onMounted(() => {
 
 <style scoped>
 .form-hint {
-  color: var(--color-text-secondary, #909399);
+  color: var(--color-text-secondary, var(--color-text-secondary));
   font-size: 12px;
   line-height: 1.6;
   margin-top: 4px;

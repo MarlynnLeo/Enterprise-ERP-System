@@ -1,12 +1,13 @@
 /**
- * 角色模型 - 权限关联专用
- * ✅ 重构: 仅保留 getRoleMenus / setRoleMenus（权限分配相关）
- * 角色 CRUD 由 models/system.js 统一管理，此处不再重复实现
+ * 角色模型 - 菜单/权限关联
+ * - role_menus：导航可见性
+ * - role_permissions：鉴权 SSOT（由 PermissionRegistry 同步）
  */
 
 const { pool } = require('../config/db');
 const { logger } = require('../utils/logger');
 const DBManager = require('../utils/dbManager');
+const { syncRolePermissionsFromMenus } = require('../services/PermissionRegistry');
 
 /**
  * 获取角色的菜单权限
@@ -27,27 +28,56 @@ const getRoleMenus = async (roleId) => {
 };
 
 /**
- * 分配角色菜单/权限
- * ✅ 已集成事务处理
- * @param {number} roleId - 角色ID
- * @param {Array} menuIds - 菜单ID数组
- * @returns {Promise<boolean>} 是否成功
+ * 获取角色的权限码列表（SSOT）
+ */
+const getRolePermissionCodes = async (roleId) => {
+  try {
+    const [rows] = await pool.execute(
+      `SELECT p.code
+         FROM permissions p
+         JOIN role_permissions rp ON rp.permission_id = p.id
+        WHERE rp.role_id = ? AND p.status = 1
+        ORDER BY p.code`,
+      [roleId]
+    );
+    return rows.map((r) => r.code);
+  } catch (error) {
+    if (error.code === 'ER_NO_SUCH_TABLE') {
+      // 未迁移时从菜单推导
+      const [legacy] = await pool.execute(
+        `SELECT DISTINCT m.permission AS code
+           FROM menus m
+           JOIN role_menus rm ON rm.menu_id = m.id
+          WHERE rm.role_id = ?
+            AND m.permission IS NOT NULL AND m.permission <> ''
+            AND m.status = 1
+          ORDER BY m.permission`,
+        [roleId]
+      );
+      return legacy.map((r) => r.code);
+    }
+    throw error;
+  }
+};
+
+/**
+ * 分配角色菜单，并同步 role_permissions（鉴权图）
+ * @param {number} roleId
+ * @param {Array} menuIds
+ * @returns {Promise<boolean>}
  */
 const setRoleMenus = async (roleId, menuIds = []) => {
   try {
-    const normalizedMenuIds = [...new Set((Array.isArray(menuIds) ? menuIds : []).map((id) => Number(id)))].filter(
-      (id) => Number.isInteger(id) && id > 0
-    );
+    const normalizedMenuIds = [
+      ...new Set((Array.isArray(menuIds) ? menuIds : []).map((id) => Number(id))),
+    ].filter((id) => Number.isInteger(id) && id > 0);
 
-    // ✅ 使用事务处理确保数据一致性
     const result = await DBManager.executeTransaction(async (connection) => {
-      // 步骤1: 先删除该角色的所有菜单关联
       const [deleteResult] = await connection.execute('DELETE FROM role_menus WHERE role_id = ?', [
         roleId,
       ]);
       logger.info(`[事务] 删除角色 ${roleId} 的菜单关联: ${deleteResult.affectedRows} 行`);
 
-      // 步骤2: 如果有新的菜单ID，则插入新关联
       if (normalizedMenuIds.length > 0) {
         const placeholders = normalizedMenuIds.map(() => '?').join(',');
         const [existingMenus] = await connection.execute(
@@ -62,7 +92,6 @@ const setRoleMenus = async (roleId, menuIds = []) => {
 
         const values = normalizedMenuIds.map(() => '(?, ?)').join(',');
         const params = [];
-
         for (const menuId of normalizedMenuIds) {
           params.push(roleId, menuId);
         }
@@ -74,12 +103,23 @@ const setRoleMenus = async (roleId, menuIds = []) => {
         logger.info(`[事务] 为角色 ${roleId} 添加菜单关联: ${insertResult.affectedRows} 行`);
       }
 
+      // 鉴权 SSOT：同步 role_permissions
+      const sync = await syncRolePermissionsFromMenus(connection, roleId, normalizedMenuIds);
+      logger.info(
+        `[事务] 角色 ${roleId} role_permissions 同步完成: inserted=${sync.inserted}`
+      );
+
       return true;
     });
 
-    logger.info(`[事务成功] 角色 ${roleId} 的菜单关联更新完成`);
+    logger.info(`[事务成功] 角色 ${roleId} 的菜单/权限关联更新完成`);
 
-    // ✅ 缓存清除由调用方(systemController)统一管理
+    try {
+      const PermissionService = require('../services/PermissionService');
+      await PermissionService.clearUserPermissionsCache();
+    } catch (cacheError) {
+      logger.warn(`[权限缓存] setRoleMenus 后清理失败: ${cacheError.message}`);
+    }
 
     return result;
   } catch (error) {
@@ -90,5 +130,6 @@ const setRoleMenus = async (roleId, menuIds = []) => {
 
 module.exports = {
   getRoleMenus,
+  getRolePermissionCodes,
   setRoleMenus,
 };

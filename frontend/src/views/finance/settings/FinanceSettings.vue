@@ -1,17 +1,11 @@
 ﻿<template>
   <div class="module-page finance-settings">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>系统设置</h2>
-          <p class="subtitle">管理财务模块的全局参数、税务规则、业务字典及自动化任务</p>
-        </div>
-        <div class="header-actions">
-          <el-button v-permission="'finance:settings:update'" type="warning" plain @click="handleReset" :loading="resetting">重置为默认</el-button>
+    <PageHeader title="系统设置" subtitle="管理财务模块的全局参数、税务规则、业务字典及自动化任务">
+      <template #actions>
+<el-button v-permission="'finance:settings:update'" type="warning" plain @click="handleReset" :loading="resetting">重置为默认</el-button>
           <el-button v-permission="'finance:settings:update'" type="primary" @click="handleSave" :loading="saving">保存设置</el-button>
-        </div>
-      </div>
-    </el-card>
+      </template>
+    </PageHeader>
 
     <el-tabs v-model="activeTab" class="settings-tabs" type="border-card" v-loading="loading">
 
@@ -21,12 +15,12 @@
           <el-row :gutter="24">
             <el-col :span="8">
               <el-form-item label="默认付款期限（天）">
-                <el-input-number v-model="settings.invoice.defaultPaymentTermDays" :min="1" :max="365" style="width: 100%" />
+                <el-input-number v-model="settings.invoice.defaultPaymentTermDays" :min="1" :max="365" class="w-full" />
               </el-form-item>
             </el-col>
             <el-col :span="8">
               <el-form-item label="默认货币">
-                <el-select v-model="settings.invoice.defaultCurrency" style="width: 100%">
+                <el-select v-model="settings.invoice.defaultCurrency" class="w-full">
                   <el-option v-for="item in dictStore.getOptions('currency_type')" :key="item.value" :label="item.label" :value="item.value" />
                 </el-select>
               </el-form-item>
@@ -68,7 +62,7 @@
                   allow-create
                   default-first-option
                   placeholder="输入天数并回车添加"
-                  style="width: 100%"
+                  class="w-full"
                 >
                   <el-option :value="0" label="即时付款 (0)" />
                   <el-option :value="7" label="7天" />
@@ -82,7 +76,7 @@
             </el-col>
             <el-col :span="12">
               <el-form-item label="默认每页显示条数">
-                <el-select v-model="settings.invoice.pagination.defaultPageSize" style="width: 100%">
+                <el-select v-model="settings.invoice.pagination.defaultPageSize" class="w-full">
                   <el-option
                     v-for="size in settings.invoice.pagination.pageSizeOptions"
                     :key="size"
@@ -104,12 +98,12 @@
               <template #header>税率配置</template>
               <el-form :model="settings.tax" label-position="top">
                 <el-form-item label="默认增值税率">
-                  <el-select v-model="settings.tax.defaultVATRate" style="width: 100%">
+                  <el-select v-model="settings.tax.defaultVATRate" class="w-full">
                     <el-option v-for="rate in settings.tax.vatRateOptions" :key="rate" :label="formatPercent(rate)" :value="rate" />
                   </el-select>
                 </el-form-item>
                 <el-form-item label="可选税率列表">
-                  <el-select v-model="settings.tax.vatRateOptions" multiple style="width: 100%">
+                  <el-select v-model="settings.tax.vatRateOptions" multiple class="w-full">
                     <el-option label="0%" :value="0" />
                     <el-option label="1%" :value="0.01" />
                     <el-option label="3%" :value="0.03" />
@@ -121,12 +115,12 @@
                 <el-row :gutter="12">
                    <el-col :span="12">
                      <el-form-item label="企业所得税率">
-                      <el-input-number v-model="settings.tax.incomeTaxRate" :min="0" :max="1" :step="0.01" :precision="2" style="width: 100%" />
+                      <el-input-number v-model="settings.tax.incomeTaxRate" :min="0" :max="1" :step="0.01" :precision="2" class="w-full" />
                     </el-form-item>
                    </el-col>
                    <el-col :span="12">
                      <el-form-item label="附加税费率">
-                      <el-input-number v-model="settings.tax.additionalTaxRate" :min="0" :max="1" :step="0.01" :precision="2" style="width: 100%" />
+                      <el-input-number v-model="settings.tax.additionalTaxRate" :min="0" :max="1" :step="0.01" :precision="2" class="w-full" />
                     </el-form-item>
                    </el-col>
                 </el-row>
@@ -138,17 +132,17 @@
               <template #header>税务字典</template>
               <el-form :model="settings.tax" label-position="top">
                 <el-form-item label="申报类型">
-                  <el-select v-model="settings.tax.returnTypes" multiple filterable allow-create default-first-option placeholder="输入并回车添加" style="width: 100%">
+                  <el-select v-model="settings.tax.returnTypes" multiple filterable allow-create default-first-option placeholder="输入并回车添加" class="w-full">
                     <el-option v-for="item in settings.tax.returnTypes" :key="item" :label="item" :value="item" />
                   </el-select>
                 </el-form-item>
                 <el-form-item label="申报状态">
-                  <el-select v-model="settings.tax.returnStatuses" multiple filterable allow-create default-first-option placeholder="输入并回车添加" style="width: 100%">
+                  <el-select v-model="settings.tax.returnStatuses" multiple filterable allow-create default-first-option placeholder="输入并回车添加" class="w-full">
                     <el-option v-for="item in settings.tax.returnStatuses" :key="item" :label="item" :value="item" />
                   </el-select>
                 </el-form-item>
                 <el-form-item label="税务发票类型">
-                  <el-select v-model="settings.tax.invoiceTypes" multiple filterable allow-create default-first-option placeholder="输入并回车添加" style="width: 100%">
+                  <el-select v-model="settings.tax.invoiceTypes" multiple filterable allow-create default-first-option placeholder="输入并回车添加" class="w-full">
                     <el-option v-for="item in settings.tax.invoiceTypes" :key="item" :label="item" :value="item" />
                   </el-select>
                 </el-form-item>
@@ -166,7 +160,7 @@
               <h4>支付方式配置</h4>
               <el-button v-permission="'finance:settings:update'" size="small" type="primary" :icon="Plus" @click="addPaymentMethod">添加</el-button>
             </div>
-            <el-table :data="settings.bank.paymentMethods" border style="width: 100%" height="400">
+            <el-table :data="settings.bank.paymentMethods" border class="w-full" height="400">
               <el-table-column label="显示名称 (Label)" prop="label">
                 <template #default="scope">
                   <el-input v-model="scope.row.label" placeholder="显示名称" />
@@ -188,11 +182,11 @@
             <div class="section-header">
               <h4>交易类型 (系统核心)</h4>
             </div>
-            <el-table :data="settings.bank.transactionTypes" border style="width: 100%">
+            <el-table :data="settings.bank.transactionTypes" border class="w-full">
               <el-table-column label="显示名称" prop="label" />
               <el-table-column label="代码值" prop="value" />
             </el-table>
-            <el-alert title="注：交易类型涉及系统核心逻辑，暂开放查看，不可修改代码值。" type="info" :closable="false" style="margin-top: 10px;" />
+            <el-alert title="注：交易类型涉及系统核心逻辑，暂开放查看，不可修改代码值。" type="info" :closable="false" class="mt-10" />
           </el-col>
         </el-row>
       </el-tab-pane>
@@ -208,7 +202,7 @@
               allow-create
               default-first-option
               placeholder="输入并回车添加"
-              style="width: 100%"
+              class="w-full"
             >
               <el-option v-for="item in settings.gl.documentTypes" :key="item" :label="item" :value="item" />
             </el-select>
@@ -226,12 +220,12 @@
                 <el-row :gutter="12">
                     <el-col :span="12">
                         <el-form-item label="金额精度">
-                          <el-input-number v-model="settings.businessRules.amountPrecision" :min="0" :max="6" style="width: 100%" />
+                          <el-input-number v-model="settings.businessRules.amountPrecision" :min="0" :max="6" class="w-full" />
                         </el-form-item>
                     </el-col>
                     <el-col :span="12">
                         <el-form-item label="汇率精度">
-                          <el-input-number v-model="settings.businessRules.exchangeRatePrecision" :min="2" :max="8" style="width: 100%" />
+                          <el-input-number v-model="settings.businessRules.exchangeRatePrecision" :min="2" :max="8" class="w-full" />
                         </el-form-item>
                     </el-col>
                 </el-row>

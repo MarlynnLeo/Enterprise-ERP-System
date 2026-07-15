@@ -1,3 +1,5 @@
+import { useDictionaryStore } from '@/stores/dictionary'
+
 /**
  * 系统统一常量配置
  *
@@ -17,10 +19,10 @@
 // ==================== 库存事务类型映射 ====================
 export const INVENTORY_TRANSACTION_TYPES = {
   // 基础类型
-  inbound: '生产入库',
-  outbound: '生产出库',
-  in: '生产入库',
-  out: '生产出库',
+  inbound: '其他入库',
+  outbound: '其他出库',
+  in: '入库',
+  out: '出库',
 
   // 调拨类型
   transfer: '调拨',
@@ -46,7 +48,10 @@ export const INVENTORY_TRANSACTION_TYPES = {
   adjustment: '库存调整',
   adjustment_in: '调整入库',
   adjustment_out: '调整出库',
+  inbound_cancel: '撤销入库',
   outbound_cancel: '撤销出库',
+  transfer_cancel_in: '撤销调拨入库',
+  transfer_cancel_out: '撤销调拨出库',
   initial_import: '初始导入',
   manual_adjustment: '手动调整',
   other: '其他',
@@ -87,7 +92,10 @@ export const INVENTORY_TRANSACTION_COLORS = {
   adjust: 'info',
   adjustment_in: 'success', // 调整入库 - 绿色
   adjustment_out: 'danger', // 调整出库 - 红色
+  inbound_cancel: 'danger', // 撤销入库 - 红色（库存回退）
   outbound_cancel: 'success', // 撤销出库 - 绿色（库存回退）
+  transfer_cancel_in: 'danger', // 撤销调拨入库 - 红色
+  transfer_cancel_out: 'success', // 撤销调拨出库 - 绿色
   initial_import: 'success', // 初始导入 - 绿色
   manual_adjustment: 'warning', // 手动调整 - 橙色
   other: 'info',
@@ -507,6 +515,10 @@ export const COMMON_STATUS_COLORS = {
  * @returns {string} 中文名称
  */
 export const getInventoryTransactionTypeText = (type) => {
+  try {
+    const item = useDictionaryStore().getItem('inventory_transaction', type)
+    if (item?.name) return item.name
+  } catch {}
   return INVENTORY_TRANSACTION_TYPES[type] || type
 }
 
@@ -516,6 +528,10 @@ export const getInventoryTransactionTypeText = (type) => {
  * @returns {string} 颜色类型
  */
 export const getInventoryTransactionTypeColor = (type) => {
+  try {
+    const item = useDictionaryStore().getItem('inventory_transaction', type)
+    if (item?.tag_type) return item.tag_type
+  } catch {}
   return INVENTORY_TRANSACTION_COLORS[type] || 'info'
 }
 

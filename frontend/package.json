@@ -9,6 +9,8 @@
     "build:legacy": "vite build --mode legacy",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
+    "test": "vitest run --config vitest.config.mjs",
+    "test:watch": "vitest --config vitest.config.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -19,7 +21,7 @@
     "chart.js": "^4.4.8",
     "dayjs": "^1.11.10",
     "dompurify": "^3.3.1",
-    "echarts": "^5.6.0",
+    "echarts": "^6.1.0",
     "element-plus": "^2.4.2",
     "exceljs": "^4.4.0",
     "handlebars": "^4.7.8",
@@ -34,12 +36,15 @@
   "devDependencies": {
     "@vitejs/plugin-legacy": "^8.0.2",
     "@vitejs/plugin-vue": "^6.0.7",
+    "@vue/test-utils": "^2.4.11",
     "eslint": "^10.2.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-vue": "^10.8.0",
+    "jsdom": "^26.1.0",
     "sass": "^1.69.5",
     "terser": "^5.43.1",
-    "vite": "^8.0.16"
+    "vite": "^8.0.16",
+    "vitest": "^3.2.7"
   },
   "overrides": {
     "uuid": "11.1.1"

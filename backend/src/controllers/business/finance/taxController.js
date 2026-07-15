@@ -18,6 +18,7 @@ const { currentDateString } = require('../../../utils/dateUtils');
 const Precision = require('../../../utils/precision');
 const { roundMoney } = require('../../../utils/money');
 const BusinessError = require('../../../utils/BusinessError');
+const { isTruthyFlag } = require('../../../utils/finance/settlementMath');
 
 function validateBusinessDate(value, fieldName) {
   const dateString = value ? String(value).slice(0, 10) : currentDateString();
@@ -38,29 +39,9 @@ function validateBusinessDate(value, fieldName) {
   return dateString;
 }
 
-async function generateTaxPaymentTransactionNumber(connection, paymentDate) {
-  const txDateStr = paymentDate.replace(/-/g, '');
-  const prefix = `TAX-${txDateStr}-`;
-  const [rows] = await connection.execute(
-    `SELECT transaction_number
-     FROM bank_transactions
-     WHERE transaction_number LIKE ?
-     ORDER BY transaction_number DESC
-     LIMIT 1
-     FOR UPDATE`,
-    [`${prefix}%`]
-  );
-
-  let nextNumber = 1;
-  if (rows.length > 0) {
-    const lastSegment = String(rows[0].transaction_number).split('-').pop();
-    const parsed = Number.parseInt(lastSegment, 10);
-    if (Number.isInteger(parsed) && parsed > 0) {
-      nextNumber = parsed + 1;
-    }
-  }
-
-  return `${prefix}${String(nextNumber).padStart(4, '0')}`;
+async function generateTaxPaymentTransactionNumber(connection) {
+  const CodeGeneratorService = require('../../../services/business/CodeGeneratorService');
+  return CodeGeneratorService.nextCode('tax_payment', connection);
 }
 
 function ensureTaxInvoiceCanChangeLink(invoice) {
@@ -595,7 +576,7 @@ const taxController = {
           );
         }
 
-        const txNumber = await generateTaxPaymentTransactionNumber(connection, paymentDate);
+        const txNumber = await generateTaxPaymentTransactionNumber(connection);
         const [bankTransactionResult] = await connection.execute(
           `INSERT INTO bank_transactions
            (transaction_number, bank_account_id, transaction_date, transaction_type,
@@ -621,10 +602,8 @@ const taxController = {
         );
         bankTransactionId = bankTransactionResult.insertId;
 
-        await connection.execute(
-          'UPDATE bank_accounts SET current_balance = current_balance - ?, last_transaction_date = ? WHERE id = ?',
-          [payableAmount, paymentDate, bank_account_id]
-        );
+        const BankBalanceService = require('../../../services/business/BankBalanceService');
+        await BankBalanceService.syncAccountBalance(connection, bank_account_id);
 
         entryInfo = await TaxAccountingService.generateVATReturnEntry(
           taxReturn,
@@ -682,6 +661,138 @@ const taxController = {
       return ResponseHandler.error(
         res,
         error.message || '缴纳税款失败',
+        isBusinessError ? 'VALIDATION_ERROR' : 'SERVER_ERROR',
+        isBusinessError ? 400 : 500,
+        error
+      );
+    } finally {
+      connection.release();
+    }
+  },
+
+  /**
+   * 作废税款缴纳
+   * POST /finance/tax/returns/:id/void-payment
+   */
+  voidTaxReturnPayment: async (req, res) => {
+    const connection = await db.pool.getConnection();
+    try {
+      const id = safeParseId(req.params.id, '申报ID');
+      const voidReason = String(req.body?.void_reason || '').trim();
+      if (!voidReason) {
+        return ResponseHandler.error(res, '请填写作废原因', 'VALIDATION_ERROR', 400);
+      }
+
+      await connection.beginTransaction();
+      const userId = getAuthenticatedUserId(req);
+
+      const [taxReturns] = await connection.execute(
+        `SELECT id, return_period, return_type, tax_payable, tax_paid, status, gl_entry_id
+         FROM tax_returns WHERE id = ? FOR UPDATE`,
+        [id]
+      );
+      if (taxReturns.length === 0) {
+        await connection.rollback();
+        return ResponseHandler.error(res, '税务申报不存在', 'NOT_FOUND', 404);
+      }
+      const taxReturn = taxReturns[0];
+      if (taxReturn.status !== '已缴纳') {
+        await connection.rollback();
+        return ResponseHandler.error(res, '仅已缴纳的申报可以作废付款', 'VALIDATION_ERROR', 400);
+      }
+
+      const taxPaid = roundMoney(taxReturn.tax_paid || 0);
+      if (taxPaid > 0) {
+        const [bankTxs] = await connection.execute(
+          `SELECT id, transaction_number, bank_account_id, amount, is_reconciled, gl_entry_id
+           FROM bank_transactions
+           WHERE tax_return_id = ?
+             AND COALESCE(status, 'approved') = 'approved'
+           ORDER BY id DESC
+           LIMIT 1
+           FOR UPDATE`,
+          [id]
+        );
+        if (bankTxs.length === 0) {
+          throw new Error('未找到税款缴纳银行流水，无法作废');
+        }
+        const bankTx = bankTxs[0];
+        if (isTruthyFlag(bankTx.is_reconciled)) {
+          throw new Error('关联银行流水已对账，请先取消对账后再作废');
+        }
+
+        await connection.execute(
+          'SELECT id FROM bank_accounts WHERE id = ? FOR UPDATE',
+          [bankTx.bank_account_id]
+        );
+        const reversalDate = currentDateString();
+        const reversalNumber = `${bankTx.transaction_number}-VOID`;
+        await connection.execute(
+          `INSERT INTO bank_transactions
+           (transaction_number, bank_account_id, transaction_date, transaction_type,
+            amount, reference_number, description, is_reconciled, related_party, category,
+            tax_return_id, status, created_by)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            reversalNumber,
+            bankTx.bank_account_id,
+            reversalDate,
+            '转入',
+            bankTx.amount,
+            taxReturn.return_period,
+            `冲销税款缴纳 - 原因: ${voidReason}`,
+            false,
+            '税务机关',
+            '税费',
+            taxReturn.id,
+            'approved',
+            userId,
+          ]
+        );
+        const BankBalanceService = require('../../../services/business/BankBalanceService');
+        await BankBalanceService.syncAccountBalance(connection, bankTx.bank_account_id);
+
+        // 缴税凭证通常挂在银行流水 gl_entry_id 上
+        const entryIdToReverse = bankTx.gl_entry_id || taxReturn.gl_entry_id;
+        if (!entryIdToReverse) {
+          throw new Error('未找到税款缴纳会计凭证，无法作废');
+        }
+        const financeModel = require('../../../models/finance');
+        await financeModel.reverseEntry(
+          entryIdToReverse,
+          {
+            entry_date: currentDateString(),
+            posting_date: currentDateString(),
+            description: `冲销税款缴纳 - 原因: ${voidReason}`,
+            created_by: userId,
+          },
+          connection
+        );
+      }
+
+      const payableAmount =
+        taxReturn.return_type === '增值税'
+          ? roundMoney(taxReturn.tax_payable || 0)
+          : roundMoney(taxReturn.tax_payable || 0);
+
+      await connection.execute(
+        `UPDATE tax_returns
+         SET status = '已申报', payment_date = NULL, tax_paid = 0, tax_balance = ?, gl_entry_id = NULL
+         WHERE id = ?`,
+        [payableAmount, id]
+      );
+
+      await connection.commit();
+      return ResponseHandler.success(res, null, '税款缴纳已作废，银行与凭证已冲销');
+    } catch (error) {
+      await connection.rollback();
+      logger.error('作废税款缴纳失败:', error);
+      const isBusinessError =
+        BusinessError.is(error) ||
+        /不正确|不存在|不能|请先|仅|未找到|对账|原因|positive/.test(error.message || '');
+      return ResponseHandler.error(
+        res,
+        error.message || '作废税款缴纳失败',
         isBusinessError ? 'VALIDATION_ERROR' : 'SERVER_ERROR',
         isBusinessError ? 400 : 500,
         error

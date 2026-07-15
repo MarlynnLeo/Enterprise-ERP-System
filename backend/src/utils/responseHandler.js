@@ -77,6 +77,8 @@ class ResponseHandler {
       success: false,
       message: safeMessage,
       errorCode,
+      // 兼容前端历史判断字段（如 error.response.data.code === 'EXCESS_ISSUE'）
+      code: errorCode,
       timestamp: new Date().toISOString(),
     };
 

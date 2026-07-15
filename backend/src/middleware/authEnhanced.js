@@ -15,7 +15,17 @@ const { logger } = require('../utils/logger');
 const { ResponseHandler } = require('../utils/responseHandler');
 const { pool } = require('../config/db');
 
-const allowLegacyAccessTokens = process.env.ALLOW_LEGACY_ACCESS_TOKENS === 'true';
+// 生产环境强制关闭遗留 token（无 tokenVersion 一律拒绝）
+const allowLegacyAccessTokens =
+  process.env.NODE_ENV !== 'production' && process.env.ALLOW_LEGACY_ACCESS_TOKENS === 'true';
+
+if (process.env.NODE_ENV === 'production' && process.env.ALLOW_LEGACY_ACCESS_TOKENS === 'true') {
+  // 启动时仅 warn 一次（模块加载）
+  const { logger: bootLogger } = require('../utils/logger');
+  bootLogger.warn(
+    '[安全] 生产环境已忽略 ALLOW_LEGACY_ACCESS_TOKENS=true，必须使用带 tokenVersion 的令牌'
+  );
+}
 
 function createAuthError(message, code = 'INVALID_TOKEN', statusCode = 401) {
   const error = new Error(message);
@@ -175,7 +185,17 @@ const authenticateRefreshToken = async (req, res, next) => {
     }
 
     const dbTokenVersion = Number(user.token_version || 0);
-    if (decoded.tokenVersion !== undefined && Number(decoded.tokenVersion) !== dbTokenVersion) {
+    // 与 Access Token 对齐：生产/全部环境均要求 tokenVersion 存在且匹配
+    if (decoded.tokenVersion === undefined || decoded.tokenVersion === null) {
+      clearTokenCookies(res);
+      return ResponseHandler.error(
+        res,
+        '刷新令牌缺少版本信息，请重新登录',
+        'TOKEN_VERSION_REQUIRED',
+        401
+      );
+    }
+    if (Number(decoded.tokenVersion) !== dbTokenVersion) {
       clearTokenCookies(res);
       return ResponseHandler.error(res, '刷新令牌已失效，请重新登录', 'TOKEN_REVOKED', 401);
     }

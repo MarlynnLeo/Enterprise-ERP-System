@@ -32,12 +32,18 @@ function showElement(el) {
 }
 
 /**
- * 统一权限检查
- * 核心逻辑委托给 authStore.hasPermission()
- * hasPermission 已包含精确匹配、通配符、父级兼容逻辑，无需重复
+ * 统一权限检查 — 与桌面端对齐
+ * 精确权限 + 模块父级（无冒号时 hasChildPermission）
  */
 function checkPermission(authStore, permission) {
-  return authStore.hasPermission(permission)
+  if (Array.isArray(permission)) {
+    return permission.some((p) => checkPermission(authStore, p))
+  }
+  if (authStore.hasPermission(permission)) {
+    return true
+  }
+  // 与 PC / 路由守卫统一：中间码也可被子权限满足
+  return authStore.hasChildPermission(permission)
 }
 
 export const permission = {

@@ -25,9 +25,24 @@
   padding: 0 !important;
 }
 
+/* 看板/特殊页兼容：根节点带 module-page 时统一内边距可选 */
+.module-page.dashboard-page,
+.module-page.overview-page {
+  padding: 0 !important;
+}
+
 .module-page > :where(.header-card, .search-card, .action-card, .data-card, .empty-card) {
   margin-bottom: 20px !important;
 }
+
+/*
+ * 操作列按钮约定（与主题主色一致）：
+ * - 查看/详情：type="primary" size="small" class="btn-op-view"
+ * - 编辑：type="primary" plain 或 warning，视模块
+ * - 删除：type="danger"
+ * 勿使用无 type 的默认白底按钮做「查看」，避免各页风格不一。
+ * 颜色由 Element Plus + 主题 token（--el-color-primary）提供。
+ */
 
 .module-page .header-content {
   display: flex !important;
@@ -341,6 +356,22 @@
   text-overflow: ellipsis;
 }
 
+/* ERP 业务录入统一使用无步进按钮的数字输入外观。
+   保留 el-input-number 的 min/max/precision 数值约束，只移除容易误触的 +/- 控件。 */
+.el-input-number .el-input-number__decrease,
+.el-input-number .el-input-number__increase {
+  display: none !important;
+}
+
+.el-input-number .el-input__wrapper {
+  padding-right: 11px;
+  padding-left: 11px;
+}
+
+.el-input-number .el-input__inner {
+  text-align: left;
+}
+
 .el-table .operation-column .cell,
 .el-table .el-table__cell.operation-column .cell {
   display: flex;
@@ -350,6 +381,10 @@
   gap: 6px;
   min-width: 0;
   white-space: nowrap;
+  /* 操作列按钮不可被全局 ellipsis 裁切，否则 fixed 列上点击无响应 */
+  overflow: visible !important;
+  text-overflow: clip !important;
+  pointer-events: auto;
 }
 
 .el-table th.operation-column-header .cell,

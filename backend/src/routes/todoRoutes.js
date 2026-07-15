@@ -9,6 +9,7 @@ const express = require('express');
 const router = express.Router();
 const todoController = require('../controllers/common/todoController');
 const { authenticateToken } = require('../middleware/authEnhanced');
+const { requirePermission } = require('../middleware/requirePermission');
 
 // 请求处理中间件
 
@@ -21,8 +22,12 @@ router.get('/', todoController.getAllTodos);
 // 按条件过滤待办事项
 router.get('/filter', todoController.filterTodos);
 
-// 获取可选择的用户列表（用于协同任务）
-router.get('/available-users', todoController.getAvailableUsers);
+// 获取可选择的用户列表（协同任务）— 需具备查看用户或使用待办权限
+router.get(
+  '/available-users',
+  requirePermission(['system:users:view', 'system:users', 'todo:collaborate']),
+  todoController.getAvailableUsers
+);
 
 // 获取单个待办事项
 router.get('/:id', todoController.getTodoById);

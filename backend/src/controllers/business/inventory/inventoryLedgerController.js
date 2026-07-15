@@ -61,16 +61,21 @@ const _insertInventoryLedgerLocal = async (
     transaction_date = null,
     transactionDate = null,
     unit_cost = null,
+    idempotency_key = null,
+    idempotencyKey = null,
   }
 ) => {
   try {
+    const refNo = reference_no || 'SYSTEM';
+    const refType = reference_type || 'SYSTEM';
+    const batchKey = batch_number || 'NOBATCH';
     const params = {
       materialId: material_id,
       locationId: location_id,
       quantity,
       transactionType: transaction_type,
-      referenceNo: reference_no || 'SYSTEM',
-      referenceType: reference_type || 'SYSTEM',
+      referenceNo: refNo,
+      referenceType: refType,
       operator: operator || 'system',
       remark: remark || '',
       unitId: unit_id,
@@ -82,6 +87,10 @@ const _insertInventoryLedgerLocal = async (
       allowNegativeStock,
       transactionDate: transactionDate || transaction_date,
       unitCost: unit_cost,
+      idempotencyKey:
+        idempotencyKey ||
+        idempotency_key ||
+        `${transaction_type}:${refNo}:${material_id}:${location_id}:${batchKey}:${quantity}`,
     };
 
     return await InventoryService.updateStock(params, connection);
@@ -358,16 +367,16 @@ const getTransactionList = async (req, res) => {
 
     // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
     const [transactions] = await connection.query(query, params);
+    const inventoryTypeRules = await BusinessTypeService.getTypesByGroup('inventory_transaction');
+    const inventoryTypeMap = Object.fromEntries(
+      inventoryTypeRules.map((item) => [item.code, item.name])
+    );
 
     // 处理数据 - 添加交易类型名称
     const formattedTransactions = transactions.map((trans) => {
       // 根据交易类型添加交易类型名称，特殊处理采购退货
-      let transactionTypeName;
-      if (trans.transactionType === 'purchase_return') {
-        transactionTypeName = '采购退货';
-      } else {
-        transactionTypeName = getInventoryTransactionTypeText(trans.transactionType);
-      }
+      const transactionTypeName = inventoryTypeMap[trans.transactionType]
+        || getInventoryTransactionTypeText(trans.transactionType);
 
       // 统一格式转换，确保数字字段是数字而不是字符串，但保留null和undefined
       const beforeQuantity =
@@ -423,20 +432,39 @@ const getTransactionList = async (req, res) => {
     const whereClauseForStats =
       statsConditions.length > 0 ? 'WHERE ' + statsConditions.join(' AND ') : '';
 
+    const increaseTypes = inventoryTypeRules
+      .filter((item) => item.category === 'in')
+      .map((item) => item.code);
+    const decreaseTypes = inventoryTypeRules
+      .filter((item) => item.category === 'out')
+      .map((item) => item.code);
+    const transferTypes = inventoryTypeRules
+      .filter((item) => item.category === 'transfer')
+      .map((item) => item.code);
+    const increasePlaceholders = increaseTypes.map(() => '?').join(', ');
+    const decreasePlaceholders = decreaseTypes.map(() => '?').join(', ');
+    const transferPlaceholders = transferTypes.map(() => '?').join(', ');
+    const statsQueryParams = [
+      ...increaseTypes,
+      ...decreaseTypes,
+      ...transferTypes,
+      ...statsParams,
+    ];
+
     // 查询所有统计数据 - 使用新的单表架构
     const [statsResult] = await connection.query(
       `SELECT
          COUNT(*) as totalTransactions,
          SUM(CASE
-           WHEN LOWER(transaction_type) IN ('inbound', 'in', 'transfer_in', '入库', '调拨入库') THEN 1
+           WHEN transaction_type IN (${increasePlaceholders}) THEN 1
            ELSE 0
          END) as inboundCount,
          SUM(CASE
-           WHEN LOWER(transaction_type) IN ('outbound', 'out', 'transfer_out', '出库', '调拨出库') THEN 1
+           WHEN transaction_type IN (${decreasePlaceholders}) THEN 1
            ELSE 0
          END) as outboundCount,
          SUM(CASE
-           WHEN LOWER(transaction_type) IN ('transfer', 'transfer_in', 'transfer_out', '调拨', '调拨入库', '调拨出库') THEN 1
+           WHEN transaction_type IN (${transferPlaceholders}) THEN 1
            ELSE 0
          END) as transferCount,
          SUM(CASE
@@ -447,7 +475,7 @@ const getTransactionList = async (req, res) => {
          COUNT(DISTINCT operator) as uniqueOperators
        FROM inventory_ledger
        ${whereClauseForStats}`,
-      statsParams
+      statsQueryParams
     );
 
     // 处理统计数据
@@ -527,6 +555,13 @@ const getTransactionStats = async (req, res) => {
       transactionType = '',
       locationId = '',
     } = req.query;
+    const inventoryTypeRules = await BusinessTypeService.getTypesByGroup('inventory_transaction');
+    const inventoryTypeMap = Object.fromEntries(
+      inventoryTypeRules.map((item) => [item.code, item.name])
+    );
+    const inventoryCategoryMap = Object.fromEntries(
+      inventoryTypeRules.map((item) => [item.code, item.category])
+    );
 
     // 构建查询条件
     const conditions = [];
@@ -570,12 +605,12 @@ const getTransactionStats = async (req, res) => {
     // 2. 交易金额统计（按月分组）
     const [amountStats] = await connection.query(
       `SELECT
-         DATE_FORMAT(t.created_at, '%Y-%m') as month,
-         COUNT(*) as count
+         DATE_FORMAT(COALESCE(t.transaction_date, DATE(t.created_at)), '%Y-%m') as month,
+         COALESCE(SUM(ABS(COALESCE(t.quantity, 0)) * COALESCE(t.unit_cost, 0)), 0) as amount
        FROM inventory_ledger t
        LEFT JOIN materials m ON t.material_id = m.id
        ${whereClause}
-       GROUP BY DATE_FORMAT(t.created_at, '%Y-%m')
+       GROUP BY DATE_FORMAT(COALESCE(t.transaction_date, DATE(t.created_at)), '%Y-%m')
        ORDER BY month`,
       params
     );
@@ -600,13 +635,13 @@ const getTransactionStats = async (req, res) => {
     // 按日期查询各类型的交易数量 - 使用新的单表架构
     const [trendData] = await connection.query(
       `SELECT
-         DATE(t.created_at) as date,
+         COALESCE(t.transaction_date, DATE(t.created_at)) as date,
          t.transaction_type,
          COUNT(*) as count
        FROM inventory_ledger t
        LEFT JOIN materials m ON t.material_id = m.id
        ${whereClause}
-       GROUP BY DATE(t.created_at), t.transaction_type
+       GROUP BY COALESCE(t.transaction_date, DATE(t.created_at)), t.transaction_type
        ORDER BY date`,
       params
     );
@@ -618,6 +653,8 @@ const getTransactionStats = async (req, res) => {
       outbound: Array(dateRange.length).fill(0),
       transfer: Array(dateRange.length).fill(0),
       check: Array(dateRange.length).fill(0),
+      outsourced_inbound: Array(dateRange.length).fill(0),
+      outsourced_outbound: Array(dateRange.length).fill(0),
       other: Array(dateRange.length).fill(0),
     };
 
@@ -645,39 +682,15 @@ const getTransactionStats = async (req, res) => {
             const count = parseInt(item.count || 0);
 
             // 将具体的交易类型映射到分类
-            if (
-              [
-                'inbound',
-                'in',
-                'purchase_inbound',
-                'production_inbound',
-                'outsourced_inbound',
-                'sales_return',
-                'purchase_return',
-                'sales_exchange_return',
-                'adjustment_in',
-                'manual_in',
-                'other_inbound',
-                'production_return'
-              ].includes(transType)
-            ) {
+            if (transType === 'outsourced_inbound') {
+              trend.outsourced_inbound[dateIndex] += count;
+            } else if (transType === 'outsourced_outbound') {
+              trend.outsourced_outbound[dateIndex] += count;
+            } else if (inventoryCategoryMap[transType] === 'in') {
               trend.inbound[dateIndex] += count;
-            } else if (
-              [
-                'outbound',
-                'out',
-                'sales_outbound',
-                'production_outbound',
-                'outsourced_outbound',
-                'sale',
-                'sales_exchange_out',
-                'adjustment_out',
-                'manual_out',
-                'other_outbound'
-              ].includes(transType)
-            ) {
+            } else if (inventoryCategoryMap[transType] === 'out') {
               trend.outbound[dateIndex] += count;
-            } else if (['transfer', 'transfer_in', 'transfer_out'].includes(transType)) {
+            } else if (inventoryCategoryMap[transType] === 'transfer') {
               trend.transfer[dateIndex] += count;
             } else if (['check'].includes(transType)) {
               trend.check[dateIndex] += count;
@@ -690,15 +703,17 @@ const getTransactionStats = async (req, res) => {
     }
 
     // 处理类型分布数据为饼图格式
-    const typeDistributionData = typeDistribution.map((item) => ({
-      name: getInventoryTransactionTypeText(item.type),
-      value: parseInt(item.count),
-    }));
+    const typeDistributionData = Object.values(typeDistribution.reduce((result, item) => {
+      const name = inventoryTypeMap[item.type] || getInventoryTransactionTypeText(item.type);
+      if (!result[name]) result[name] = { name, value: 0 };
+      result[name].value += Number(item.count || 0);
+      return result;
+    }, {}));
 
     // 处理统计数据为柱状图格式
     const amountStatsData = amountStats.map((item) => ({
       name: item.month,
-      value: parseInt(item.count || 0),
+      value: Number(item.amount || 0),
     }));
 
     ResponseHandler.success(
@@ -1109,13 +1124,15 @@ const exportTransactionReport = async (req, res) => {
     );
 
     // 格式化数据，添加中文标题
+    const inventoryTypeMap = await BusinessTypeService.getGroupMap('inventory_transaction');
     const transactions = rawTransactions.map((t) => ({
       流水编号: t.reference_no,
       交易时间: new Date(t.created_at).toLocaleString(),
       物料编码: t.material_code,
       物料名称: t.material_name,
       规格: t.specs,
-      流水类型: getInventoryTransactionTypeText(t.transaction_type),
+      流水类型: inventoryTypeMap[t.transaction_type]
+        || getInventoryTransactionTypeText(t.transaction_type),
       数量: t.quantity,
       变动前数量: t.before_quantity,
       变动后数量: t.after_quantity,
@@ -1986,6 +2003,7 @@ const getInventoryLedger = async (req, res) => {
     // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
     const [countResult] = await connection.query(countQuery, params);
     const [items] = await connection.query(detailQuery, params);
+    const inventoryTypeMap = await BusinessTypeService.getGroupMap('inventory_transaction');
 
     // 性能优化：inventory_ledger 表已存储 before_quantity / after_quantity，
     // 直接使用 SQL 查询结果，不再逐物料查全量历史重算（消除 N+1 查询）。
@@ -1993,13 +2011,9 @@ const getInventoryLedger = async (req, res) => {
       const beforeQty = parseFloat(item.before_quantity || 0);
       const afterQty = parseFloat(item.after_quantity || 0);
 
-      // 添加交易类型文本
-      let transactionTypeText;
-      if (item.transactionType === 'purchase_return') {
-        transactionTypeText = '采购退货';
-      } else {
-        transactionTypeText = getInventoryTransactionTypeText(item.transactionType);
-      }
+      // 交易类型名称来自系统业务类型规则，固定常量仅作容灾兜底。
+      const transactionTypeText = inventoryTypeMap[item.transactionType]
+        || getInventoryTransactionTypeText(item.transactionType);
 
       return {
         ...item,

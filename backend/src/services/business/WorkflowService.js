@@ -60,7 +60,7 @@ class WorkflowService {
     if (!template) return null;
 
     const [nodes] = await pool.query(
-      'SELECT id, template_id, node_name, node_type, sequence, approver_type, approver_ids, multi_approve_type, condition_expression, timeout_hours, timeout_action, created_at FROM workflow_template_nodes WHERE template_id = ? ORDER BY sequence', [id]
+      'SELECT id, template_id, node_name, node_type, sequence, approver_type, approver_ids, multi_approve_type, allow_self_approval, condition_expression, timeout_hours, timeout_action, created_at FROM workflow_template_nodes WHERE template_id = ? ORDER BY sequence', [id]
     );
     template.nodes = nodes;
     return template;
@@ -72,6 +72,14 @@ class WorkflowService {
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
+
+      if (data.is_active ?? 1) {
+        await conn.query(
+          `UPDATE workflow_templates SET is_active = 0
+           WHERE business_type = ? AND is_active = 1 AND deleted_at IS NULL`,
+          [data.business_type]
+        );
+      }
 
       const [result] = await conn.query(
         `INSERT INTO workflow_templates (code, name, business_type, description, trigger_condition, is_active, created_by)
@@ -100,30 +108,45 @@ class WorkflowService {
   }
 
   /** 更新模板 */
-  async updateTemplate(id, data) {
+  async updateTemplate(id, data, userId) {
     this._validateTemplateData(data, { requireCode: false });
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
 
-      await conn.query(
-        `UPDATE workflow_templates SET name = ?, business_type = ?, description = ?,
-         trigger_condition = ?, is_active = ?, version = version + 1 WHERE id = ?`,
-        [data.name, data.business_type, data.description || null,
-         data.trigger_condition ? JSON.stringify(data.trigger_condition) : null,
-         data.is_active ?? 1, id]
+      const [[current]] = await conn.query(
+        `SELECT id, code, business_type, version, created_by
+         FROM workflow_templates WHERE id = ? AND deleted_at IS NULL FOR UPDATE`,
+        [id]
       );
+      if (!current) throw new Error('Workflow template not found');
 
-      // 重建节点
-      if (data.nodes) {
-        await conn.query('DELETE FROM workflow_template_nodes WHERE template_id = ?', [id]);
-        for (const node of data.nodes) {
-          await this._insertTemplateNode(conn, id, node);
-        }
+      const nextActive = data.is_active ?? 1;
+      if (nextActive) {
+        await conn.query(
+          `UPDATE workflow_templates SET is_active = 0
+           WHERE business_type = ? AND is_active = 1 AND deleted_at IS NULL`,
+          [data.business_type]
+        );
+      } else {
+        await conn.query('UPDATE workflow_templates SET is_active = 0 WHERE id = ?', [id]);
+      }
+
+      const [result] = await conn.query(
+        `INSERT INTO workflow_templates
+         (code, name, business_type, description, trigger_condition, is_active, version, created_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [data.code || current.code, data.name, data.business_type, data.description || null,
+         data.trigger_condition ? JSON.stringify(data.trigger_condition) : null,
+         nextActive, Number(current.version) + 1, userId || current.created_by]
+      );
+      const newTemplateId = result.insertId;
+      for (const node of data.nodes) {
+        await this._insertTemplateNode(conn, newTemplateId, node);
       }
 
       await conn.commit();
-      return this.getTemplateById(id);
+      return this.getTemplateById(newTemplateId);
     } catch (err) {
       await conn.rollback();
       throw err;
@@ -134,17 +157,33 @@ class WorkflowService {
 
   /** 删除模板 */
   async deleteTemplate(id) {
+    const [[usage]] = await pool.query(
+      'SELECT COUNT(*) AS count FROM workflow_instances WHERE template_id = ?',
+      [id]
+    );
+    if (Number(usage?.count) > 0) {
+      const [result] = await pool.query(
+        'UPDATE workflow_templates SET is_active = 0 WHERE id = ? AND deleted_at IS NULL',
+        [id]
+      );
+      return result.affectedRows > 0;
+    }
     return softDelete(pool, 'workflow_templates', 'id', id);
   }
 
   // ==================== 审批流程发起 & 处理 ====================
 
   /** 发起审批 */
-  async startWorkflow({ business_type, business_id, business_code, title, initiator_id }) {
+  async startWorkflow({ business_type, business_id, business_code, title, initiator_id, connection = null }) {
     const businessType = this._assertSupportedBusinessType(business_type);
+    const businessId = Number(business_id);
+    const initiatorId = Number(initiator_id);
+    if (!Number.isInteger(businessId) || businessId <= 0) throw new Error('Invalid workflow business ID');
+    if (!Number.isInteger(initiatorId) || initiatorId <= 0) throw new Error('Invalid workflow initiator');
+    const queryExecutor = connection || pool;
 
     // 1. 查找匹配的活跃模板
-    const [[template]] = await pool.query(
+    const [[template]] = await queryExecutor.query(
       `SELECT id, code, name, business_type, description, trigger_condition, is_active, version, created_by, created_at, updated_at, deleted_at FROM workflow_templates
        WHERE business_type = ? AND is_active = 1 AND deleted_at IS NULL
        ORDER BY version DESC LIMIT 1`,
@@ -156,8 +195,8 @@ class WorkflowService {
     }
 
     // 2. 获取模板节点
-    const [templateNodes] = await pool.query(
-      'SELECT id, template_id, node_name, node_type, sequence, approver_type, approver_ids, multi_approve_type, condition_expression, timeout_hours, timeout_action, created_at FROM workflow_template_nodes WHERE template_id = ? ORDER BY sequence',
+    const [templateNodes] = await queryExecutor.query(
+      'SELECT id, template_id, node_name, node_type, sequence, approver_type, approver_ids, multi_approve_type, allow_self_approval, condition_expression, timeout_hours, timeout_action, created_at FROM workflow_template_nodes WHERE template_id = ? ORDER BY sequence',
       [template.id]
     );
 
@@ -169,9 +208,12 @@ class WorkflowService {
       throw new Error(`业务类型 ${businessType} 的审批流程缺少审批节点，单据已挂起，请完善工作流模板`);
     }
 
-    const conn = await pool.getConnection();
+    const ownsConnection = !connection;
+    const conn = connection || await pool.getConnection();
     try {
-      await conn.beginTransaction();
+      if (ownsConnection) await conn.beginTransaction();
+
+      await this._assertBusinessReadyForWorkflow(conn, businessType, businessId, initiatorId);
 
       const [[existingInstance]] = await conn.query(
         `SELECT id, status
@@ -183,7 +225,7 @@ class WorkflowService {
          ORDER BY id DESC
          LIMIT 1
          FOR UPDATE`,
-        [businessType, business_id]
+        [businessType, businessId]
       );
       if (existingInstance) {
         throw new Error(`该单据已有进行中的审批流程，审批实例ID: ${existingInstance.id}`);
@@ -194,7 +236,7 @@ class WorkflowService {
         `INSERT INTO workflow_instances
          (template_id, business_type, business_id, business_code, title, status, initiator_id, started_at)
          VALUES (?, ?, ?, ?, ?, 'in_progress', ?, NOW())`,
-        [template.id, businessType, business_id, business_code || '', title, initiator_id]
+        [template.id, businessType, businessId, business_code || '', title, initiatorId]
       );
       const instanceId = instResult.insertId;
 
@@ -203,10 +245,15 @@ class WorkflowService {
       for (const tn of templateNodes) {
         const [nodeResult] = await conn.query(
           `INSERT INTO workflow_instance_nodes
-           (instance_id, template_node_id, node_name, node_type, sequence, status)
-           VALUES (?, ?, ?, ?, ?, ?)`,
+           (instance_id, template_node_id, node_name, node_type, sequence, status,
+            approver_type, approver_ids, multi_approve_type, allow_self_approval)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [instanceId, tn.id, tn.node_name, tn.node_type, tn.sequence,
-           tn.node_type === 'start' ? 'approved' : 'pending']
+           tn.node_type === 'start' ? 'approved' : 'pending', tn.approver_type,
+           tn.approver_ids
+             ? (typeof tn.approver_ids === 'string' ? tn.approver_ids : JSON.stringify(tn.approver_ids))
+             : null,
+           tn.multi_approve_type || 'any', tn.allow_self_approval ? 1 : 0]
         );
         if (!firstApprovalNodeId && tn.node_type === 'approval') {
           firstApprovalNodeId = nodeResult.insertId;
@@ -231,17 +278,26 @@ class WorkflowService {
            WHERE win.id = ?`, [firstApprovalNodeId]
         );
         if (currentTplNode) {
-          await this._assignApprover(conn, firstApprovalNodeId, currentTplNode, initiator_id);
+          await this._assignApprover(conn, firstApprovalNodeId, currentTplNode, initiatorId, instanceId);
         }
       }
 
-      await conn.commit();
+      await this._updateBusinessWorkflowLink(conn, businessType, businessId, instanceId, 'in_progress');
+      await this._logAction(conn, {
+        instanceId,
+        action: 'start',
+        actorId: initiatorId,
+        fromStatus: null,
+        toStatus: 'in_progress',
+      });
+
+      if (ownsConnection) await conn.commit();
       return { auto_approved: false, instance_id: instanceId, message: '审批流程已发起' };
     } catch (err) {
-      await conn.rollback();
+      if (ownsConnection) await conn.rollback();
       throw err;
     } finally {
-      conn.release();
+      if (ownsConnection) conn.release();
     }
   }
 
@@ -257,39 +313,65 @@ class WorkflowService {
 
       // 1. 验证节点状态
       const [[node]] = await conn.query(
-        "SELECT id, instance_id, template_node_id, node_name, node_type, sequence, status, approver_id, approver_name, comment, acted_at, created_at FROM workflow_instance_nodes WHERE id = ? AND instance_id = ? AND status = 'in_progress' FOR UPDATE",
+        "SELECT id, instance_id, template_node_id, node_name, node_type, sequence, status, approver_id, approver_name, comment, acted_at, created_at, approver_type, multi_approve_type, allow_self_approval FROM workflow_instance_nodes WHERE id = ? AND instance_id = ? AND status = 'in_progress' FOR UPDATE",
         [node_id, instance_id]
       );
       if (!node) throw new Error('审批节点不存在或已处理');
 
-      // 1.5 验证审批人身份：只有节点指定的审批人或管理员可操作
-      const isAdmin = await PermissionService.isAdmin(approver_id);
-      if (!node.approver_id && !isAdmin) {
-        throw new Error('该审批节点未分配审批人，请联系管理员修复流程模板');
-      }
-      if (node.approver_id && node.approver_id !== approver_id && !isAdmin) {
-        throw new Error('您不是该审批节点的指定审批人，无权操作');
-      }
-
-      // 获取审批人姓名
       const [[instLock]] = await conn.query(
         "SELECT id, status, initiator_id, business_type, business_id FROM workflow_instances WHERE id = ? AND status IN ('pending','in_progress') FOR UPDATE",
         [instance_id]
       );
       if (!instLock) throw new Error('Workflow instance is not pending or in progress');
 
+      const [[assignment]] = await conn.query(
+        `SELECT id, instance_node_id, approver_id, sequence, status
+         FROM workflow_node_approvers
+         WHERE instance_node_id = ? AND approver_id = ? AND status = 'pending'
+         FOR UPDATE`,
+        [node_id, approver_id]
+      );
+      const [[{ assignment_count: assignmentCount }]] = await conn.query(
+        'SELECT COUNT(*) AS assignment_count FROM workflow_node_approvers WHERE instance_node_id = ?',
+        [node_id]
+      );
+      if (!assignment) {
+        const legacyAdmin = Number(assignmentCount) === 0 && await PermissionService.isAdmin(approver_id);
+        if (!legacyAdmin || (node.approver_id && Number(node.approver_id) !== Number(approver_id))) {
+          throw new Error('您不是该审批节点当前待处理的审批人，无权操作');
+        }
+      }
+      if (
+        Number(instLock.initiator_id) === Number(approver_id) &&
+        !node.allow_self_approval &&
+        node.approver_type !== 'self'
+      ) {
+        throw new Error('发起人不能审批自己的单据');
+      }
+
       const [[user]] = await conn.query('SELECT real_name, username FROM users WHERE id = ?', [approver_id]);
       const approverName = user?.real_name || user?.username || String(approver_id);
 
-      // 2. 更新节点状态
-      const newStatus = action === 'approve' ? 'approved' : 'rejected';
-      await conn.query(
-        `UPDATE workflow_instance_nodes SET status = ?, approver_id = ?, approver_name = ?, comment = ?, acted_at = NOW()
-         WHERE id = ?`,
-        [newStatus, approver_id, approverName, comment || null, node_id]
-      );
+      if (assignment) {
+        await conn.query(
+          `UPDATE workflow_node_approvers
+           SET status = ?, comment = ?, acted_at = NOW() WHERE id = ?`,
+          [action === 'approve' ? 'approved' : 'rejected', comment || null, assignment.id]
+        );
+      }
 
       if (action === 'reject') {
+        await conn.query(
+          `UPDATE workflow_instance_nodes
+           SET status = 'rejected', approver_id = ?, approver_name = ?, comment = ?, acted_at = NOW()
+           WHERE id = ?`,
+          [approver_id, approverName, comment || null, node_id]
+        );
+        await conn.query(
+          `UPDATE workflow_node_approvers SET status = 'skipped'
+           WHERE instance_node_id = ? AND status IN ('pending', 'waiting')`,
+          [node_id]
+        );
         // 拒绝 → 整个流程终止
         await conn.query(
           "UPDATE workflow_instances SET status = 'rejected', result_comment = ?, completed_at = NOW() WHERE id = ?",
@@ -302,7 +384,66 @@ class WorkflowService {
         );
         // 回调更新业务单据状态为拒绝
         await this._onWorkflowRejected(conn, instLock.business_type, instLock.business_id);
+        await this._logAction(conn, {
+          instanceId: Number(instance_id), nodeId: Number(node_id), action: 'reject',
+          actorId: Number(approver_id), actorName: approverName,
+          fromStatus: 'in_progress', toStatus: 'rejected', comment,
+        });
       } else {
+        const mode = node.multi_approve_type || 'any';
+        let nodeComplete = true;
+        if (mode === 'any') {
+          await conn.query(
+            `UPDATE workflow_node_approvers SET status = 'skipped'
+             WHERE instance_node_id = ? AND status IN ('pending', 'waiting')`,
+            [node_id]
+          );
+        } else if (mode === 'all') {
+          const [[{ remaining }]] = await conn.query(
+            `SELECT COUNT(*) AS remaining FROM workflow_node_approvers
+             WHERE instance_node_id = ? AND status IN ('pending', 'waiting')`,
+            [node_id]
+          );
+          nodeComplete = Number(remaining) === 0;
+        } else if (mode === 'sequential') {
+          const [[nextAssignment]] = await conn.query(
+            `SELECT id, approver_id FROM workflow_node_approvers
+             WHERE instance_node_id = ? AND status = 'waiting'
+             ORDER BY sequence LIMIT 1 FOR UPDATE`,
+            [node_id]
+          );
+          if (nextAssignment) {
+            await conn.query(
+              "UPDATE workflow_node_approvers SET status = 'pending' WHERE id = ?",
+              [nextAssignment.id]
+            );
+            await conn.query(
+              'UPDATE workflow_instance_nodes SET approver_id = ? WHERE id = ?',
+              [nextAssignment.approver_id, node_id]
+            );
+            nodeComplete = false;
+          }
+        }
+
+        await this._logAction(conn, {
+          instanceId: Number(instance_id), nodeId: Number(node_id), action: 'approve',
+          actorId: Number(approver_id), actorName: approverName,
+          fromStatus: 'in_progress', toStatus: nodeComplete ? 'approved' : 'in_progress', comment,
+          metadata: { mode, nodeComplete },
+        });
+
+        if (!nodeComplete) {
+          await conn.commit();
+          return this.getInstanceById(instance_id);
+        }
+
+        await conn.query(
+          `UPDATE workflow_instance_nodes
+           SET status = 'approved', approver_id = ?, approver_name = ?, comment = ?, acted_at = NOW()
+           WHERE id = ?`,
+          [approver_id, approverName, comment || null, node_id]
+        );
+
         // 通过 → 预查询实例数据（合并两次查询为一次）
         const [pendingNodes] = await conn.query(
           "SELECT id, instance_id, template_node_id, node_name, node_type, sequence, status, approver_id, approver_name, comment, acted_at, created_at FROM workflow_instance_nodes WHERE instance_id = ? AND status = 'pending' AND node_type = 'approval' ORDER BY sequence LIMIT 1 FOR UPDATE",
@@ -324,10 +465,16 @@ class WorkflowService {
           // 分配下一审批人
           if (nextNode.template_node_id) {
             const [[tplNode]] = await conn.query(
-              'SELECT id, template_id, node_name, node_type, sequence, approver_type, approver_ids, multi_approve_type, condition_expression, timeout_hours, timeout_action, created_at FROM workflow_template_nodes WHERE id = ?', [nextNode.template_node_id]
+              'SELECT id, template_id, node_name, node_type, sequence, approver_type, approver_ids, multi_approve_type, allow_self_approval, condition_expression, timeout_hours, timeout_action, created_at FROM workflow_template_nodes WHERE id = ?', [nextNode.template_node_id]
             );
             if (tplNode) {
-              await this._assignApprover(conn, nextNode.id, tplNode, instLock.initiator_id);
+              await this._assignApprover(
+                conn,
+                nextNode.id,
+                tplNode,
+                instLock.initiator_id,
+                Number(instance_id)
+              );
             }
           }
         } else {
@@ -343,6 +490,10 @@ class WorkflowService {
 
           // 回调更新业务单据状态
           await this._onWorkflowApproved(conn, instLock.business_type, instLock.business_id, approver_id);
+          await this._logAction(conn, {
+            instanceId: Number(instance_id), action: 'complete', actorId: Number(approver_id),
+            actorName: approverName, fromStatus: 'in_progress', toStatus: 'approved', comment,
+          });
         }
       }
 
@@ -378,9 +529,20 @@ class WorkflowService {
         "UPDATE workflow_instance_nodes SET status = 'skipped' WHERE instance_id = ? AND status IN ('pending','in_progress')",
         [instance_id]
       );
+      await conn.query(
+        `UPDATE workflow_node_approvers wna
+         JOIN workflow_instance_nodes win ON win.id = wna.instance_node_id
+         SET wna.status = 'skipped'
+         WHERE win.instance_id = ? AND wna.status IN ('pending', 'waiting')`,
+        [instance_id]
+      );
 
       // 回退业务单据状态到初始状态
       await this._onWorkflowWithdrawn(conn, inst.business_type, inst.business_id);
+      await this._logAction(conn, {
+        instanceId: Number(instance_id), action: 'withdraw', actorId: Number(userId),
+        fromStatus: inst.status, toStatus: 'withdrawn',
+      });
 
       await conn.commit();
       return { success: true };
@@ -407,9 +569,36 @@ class WorkflowService {
     if (!instance) return null;
 
     const [nodes] = await pool.query(
-      'SELECT id, instance_id, template_node_id, node_name, node_type, sequence, status, approver_id, approver_name, comment, acted_at, created_at FROM workflow_instance_nodes WHERE instance_id = ? ORDER BY sequence', [id]
+      'SELECT id, instance_id, template_node_id, node_name, node_type, sequence, status, approver_id, approver_name, comment, acted_at, created_at, approver_type, approver_ids, multi_approve_type, allow_self_approval FROM workflow_instance_nodes WHERE instance_id = ? ORDER BY sequence', [id]
     );
+    const nodeIds = nodes.map((node) => Number(node.id));
+    if (nodeIds.length) {
+      const [approvers] = await pool.query(
+        `SELECT wna.id, wna.instance_node_id, wna.approver_id, wna.sequence, wna.status,
+                wna.comment, wna.acted_at, wna.assigned_at,
+                COALESCE(u.real_name, u.username) AS approver_name
+         FROM workflow_node_approvers wna
+         LEFT JOIN users u ON u.id = wna.approver_id
+         WHERE wna.instance_node_id IN (?)
+         ORDER BY wna.instance_node_id, wna.sequence`,
+        [nodeIds]
+      );
+      const byNode = new Map();
+      for (const approver of approvers) {
+        const key = Number(approver.instance_node_id);
+        if (!byNode.has(key)) byNode.set(key, []);
+        byNode.get(key).push(approver);
+      }
+      nodes.forEach((node) => { node.approvers = byNode.get(Number(node.id)) || []; });
+    }
     instance.nodes = nodes;
+    const [actions] = await pool.query(
+      `SELECT id, instance_id, node_id, action, actor_id, actor_name, from_status,
+              to_status, comment, metadata, created_at
+       FROM workflow_action_logs WHERE instance_id = ? ORDER BY id`,
+      [id]
+    );
+    instance.actions = actions;
     return instance;
   }
 
@@ -432,14 +621,20 @@ class WorkflowService {
          AND wi.deleted_at IS NULL
          AND (
            wi.initiator_id = ?
-           OR EXISTS (
-             SELECT 1
-             FROM workflow_instance_nodes win
-             WHERE win.instance_id = wi.id AND win.approver_id = ?
-           )
+            OR EXISTS (
+              SELECT 1
+              FROM workflow_instance_nodes win
+              WHERE win.instance_id = wi.id AND win.approver_id = ?
+            )
+            OR EXISTS (
+              SELECT 1
+              FROM workflow_instance_nodes win
+              JOIN workflow_node_approvers wna ON wna.instance_node_id = win.id
+              WHERE win.instance_id = wi.id AND wna.approver_id = ?
+            )
          )
        LIMIT 1`,
-      [instanceId, userId, userId]
+      [instanceId, userId, userId, userId]
     );
 
     return Boolean(row);
@@ -481,20 +676,32 @@ class WorkflowService {
     const businessStatusSql = this._buildPendingBusinessStatusSql();
     const fromSql = `FROM workflow_instance_nodes win
        JOIN workflow_instances wi ON wi.id = win.instance_id
+       LEFT JOIN workflow_node_approvers wna
+         ON wna.instance_node_id = win.id AND wna.approver_id = ? AND wna.status = 'pending'
        ${businessStatusSql.joins}`;
     const where = `WHERE win.status = 'in_progress'
        AND wi.status IN ('pending','in_progress')
        AND wi.deleted_at IS NULL
-       AND win.approver_id = ?
+       AND (
+         wna.id IS NOT NULL
+         OR (
+           win.approver_id = ?
+           AND NOT EXISTS (
+             SELECT 1 FROM workflow_node_approvers existing
+             WHERE existing.instance_node_id = win.id
+           )
+         )
+       )
        ${businessStatusSql.filter}`;
-    const values = [userId, ...businessStatusSql.values];
+    const values = [userId, userId, ...businessStatusSql.values];
 
     const [[{ total }]] = await pool.query(
       `SELECT COUNT(*) AS total ${fromSql} ${where}`, values
     );
 
     const listSql = appendPaginationSQL(
-      `SELECT win.*, wi.title, wi.business_type, wi.business_id, wi.business_code,
+       `SELECT win.*, wna.id AS assignment_id, wna.sequence AS approval_sequence,
+                wi.title, wi.business_type, wi.business_id, wi.business_code,
                wi.status AS instance_status, u.real_name AS initiator_name
        ${fromSql}
        LEFT JOIN users u ON u.id = wi.initiator_id
@@ -520,70 +727,161 @@ class WorkflowService {
 
   // ==================== 内部方法 ====================
 
+  async _assertBusinessReadyForWorkflow(conn, businessType, businessId, initiatorId) {
+    const cfg = WorkflowService.BUSINESS_STATUS_MAP[businessType];
+    const deletedFilter = cfg.hasDeletedAt === false ? '' : ' AND deleted_at IS NULL';
+    const ownerSelect = cfg.ownerColumn ? `, ${cfg.ownerColumn} AS owner_id` : '';
+    const [[document]] = await conn.query(
+      `SELECT id, status${ownerSelect} FROM \`${cfg.table}\`
+       WHERE id = ?${deletedFilter} FOR UPDATE`,
+      [businessId]
+    );
+    if (!document) throw new Error(`Business document not found [${businessType}:${businessId}]`);
+    if (!cfg.pendingStatuses.includes(document.status)) {
+      throw new Error(`Business document must be in approval-pending status, received [${document.status}]`);
+    }
+    if (cfg.ownerColumn && Number(document.owner_id) !== Number(initiatorId)) {
+      const isAdmin = await PermissionService.isAdmin(initiatorId);
+      if (!isAdmin) throw new Error('Only the document owner can initiate its approval workflow');
+    }
+  }
+
+  async _updateBusinessWorkflowLink(conn, businessType, businessId, instanceId, workflowStatus) {
+    const cfg = WorkflowService.BUSINESS_STATUS_MAP[businessType];
+    await conn.query(
+      `UPDATE \`${cfg.table}\`
+       SET workflow_instance_id = ?, workflow_status = ?, workflow_error = NULL
+       WHERE id = ?`,
+      [instanceId, workflowStatus, businessId]
+    );
+  }
+
+  async _logAction(conn, data = {}) {
+    await conn.query(
+      `INSERT INTO workflow_action_logs
+       (instance_id, node_id, action, actor_id, actor_name, from_status, to_status,
+        comment, metadata, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+      [data.instanceId, data.nodeId || null, data.action, data.actorId || null,
+       data.actorName || null, data.fromStatus || null, data.toStatus || null,
+       data.comment || null, data.metadata ? JSON.stringify(data.metadata) : null]
+    );
+  }
+
   /** 为审批节点分配审批人 */
-  async _assignApprover(conn, nodeId, templateNode, initiatorId) {
-    let approverId = null;
+  async _assignApprover(conn, nodeId, templateNode, initiatorId, instanceId = null) {
+    let candidateIds = [];
+    const label = templateNode.node_name || '审批节点';
 
     switch (templateNode.approver_type) {
       case 'user': {
-        const ids = this._parseApproverIds(templateNode.approver_ids, templateNode.node_name || '审批节点');
-        if (ids.length > 0) approverId = ids[0]; // 简化: 取第一个
-        break;
-      }
-      case 'manager': {
-        // 获取发起人的部门主管（通过 manager_id 外键精确匹配）
-        const [[initiator]] = await conn.query(
-          'SELECT department_id FROM users WHERE id = ?', [initiatorId]
-        );
-        if (initiator?.department_id) {
-          const [[dept]] = await conn.query(
-            'SELECT manager_id FROM departments WHERE id = ?', [initiator.department_id]
+        const ids = this._parseApproverIds(templateNode.approver_ids, label);
+        if (ids.length) {
+          const [users] = await conn.query(
+            'SELECT id FROM users WHERE id IN (?) AND status = 1 ORDER BY id',
+            [ids]
           );
-          if (dept?.manager_id) {
-            approverId = dept.manager_id;
-          }
+          candidateIds = users.map((user) => Number(user.id));
         }
         break;
       }
+      case 'manager': {
+        const [[manager]] = await conn.query(
+          `SELECT d.manager_id AS id
+           FROM users u JOIN departments d ON d.id = u.department_id
+           JOIN users manager_user ON manager_user.id = d.manager_id AND manager_user.status = 1
+           WHERE u.id = ?`,
+          [initiatorId]
+        );
+        if (manager?.id) candidateIds = [Number(manager.id)];
+        break;
+      }
       case 'role': {
-        const roleIds = this._parseApproverIds(templateNode.approver_ids, templateNode.node_name || '审批节点');
-        if (roleIds.length > 0) {
+        const roleIds = this._parseApproverIds(templateNode.approver_ids, label);
+        if (roleIds.length) {
           const [users] = await conn.query(
-            `SELECT DISTINCT ur.user_id FROM user_roles ur WHERE ur.role_id IN (?)`,
+            `SELECT DISTINCT u.id
+             FROM user_roles ur JOIN users u ON u.id = ur.user_id AND u.status = 1
+             WHERE ur.role_id IN (?) ORDER BY u.id`,
             [roleIds]
           );
-          if (users.length > 0) approverId = users[0].user_id;
+          candidateIds = users.map((user) => Number(user.id));
         }
         break;
       }
       case 'department': {
-        const departmentIds = this._parseApproverIds(templateNode.approver_ids, templateNode.node_name || '审批节点');
-        if (departmentIds.length > 0) {
+        const departmentIds = this._parseApproverIds(templateNode.approver_ids, label);
+        if (departmentIds.length) {
           const [users] = await conn.query(
             `SELECT u.id
-             FROM users u
-             LEFT JOIN departments d ON d.id = u.department_id
+             FROM users u LEFT JOIN departments d ON d.id = u.department_id
              WHERE u.department_id IN (?) AND u.status = 1
-             ORDER BY CASE WHEN d.manager_id = u.id THEN 0 ELSE 1 END, u.id
-             LIMIT 1`,
+             ORDER BY CASE WHEN d.manager_id = u.id THEN 0 ELSE 1 END, u.id`,
             [departmentIds]
           );
-          if (users.length > 0) approverId = users[0].id;
+          candidateIds = users.map((user) => Number(user.id));
         }
         break;
       }
       case 'self':
-        approverId = initiatorId;
+        candidateIds = [Number(initiatorId)];
         break;
+      default:
+        throw new Error(`Unsupported approver type: ${templateNode.approver_type}`);
     }
 
-    if (approverId) {
-      await conn.query(
-        'UPDATE workflow_instance_nodes SET approver_id = ? WHERE id = ?',
-        [approverId, nodeId]
+    candidateIds = [...new Set(candidateIds.filter((id) => Number.isInteger(id) && id > 0))];
+    const allowSelf = templateNode.approver_type === 'self' || Boolean(templateNode.allow_self_approval);
+    if (!allowSelf) candidateIds = candidateIds.filter((id) => id !== Number(initiatorId));
+    const authorizedIds = [];
+    for (const candidateId of candidateIds) {
+      const [[access]] = await conn.query(
+        `SELECT 1 AS allowed
+         FROM users u
+         LEFT JOIN user_roles ur ON ur.user_id = u.id
+         LEFT JOIN roles r ON r.id = ur.role_id AND r.status = 1
+         LEFT JOIN role_permissions rp ON rp.role_id = r.id
+         LEFT JOIN permissions p ON p.id = rp.permission_id AND p.status = 1
+         WHERE u.id = ? AND u.status = 1
+           AND (u.role = 'admin' OR r.code = 'admin' OR p.code IN ('*', 'system:workflow:*', 'system:workflow:use'))
+         LIMIT 1`,
+        [candidateId]
       );
-    } else {
-      throw new Error(`审批节点 ${nodeId} 无法自动分配审批人，请检查流程模板审批人配置`);
+      if (access) authorizedIds.push(candidateId);
+    }
+    candidateIds = authorizedIds;
+    if (!candidateIds.length) {
+      throw new Error(`审批节点 ${nodeId} 无可用审批人：请检查账号状态、职责分离和审批中心权限`);
+    }
+
+    const mode = templateNode.multi_approve_type || 'any';
+    await conn.query('DELETE FROM workflow_node_approvers WHERE instance_node_id = ?', [nodeId]);
+    for (let index = 0; index < candidateIds.length; index += 1) {
+      const status = mode === 'sequential' && index > 0 ? 'waiting' : 'pending';
+      await conn.query(
+        `INSERT INTO workflow_node_approvers
+         (instance_node_id, approver_id, sequence, status, assigned_at)
+         VALUES (?, ?, ?, ?, NOW())`,
+        [nodeId, candidateIds[index], index + 1, status]
+      );
+    }
+    await conn.query(
+      `UPDATE workflow_instance_nodes
+       SET approver_id = ?, approver_type = ?, approver_ids = ?,
+           multi_approve_type = ?, allow_self_approval = ?
+       WHERE id = ?`,
+      [candidateIds[0], templateNode.approver_type,
+       JSON.stringify(candidateIds), mode, allowSelf ? 1 : 0, nodeId]
+    );
+
+    if (instanceId) {
+      await this._logAction(conn, {
+        instanceId,
+        nodeId,
+        action: 'assign',
+        toStatus: 'in_progress',
+        metadata: { approverIds: candidateIds, mode },
+      });
     }
   }
 
@@ -636,10 +934,27 @@ class WorkflowService {
 
     const allowedApproverTypes = new Set(['user', 'role', 'department', 'self', 'manager']);
     const allowedMultiApproveTypes = new Set(['any', 'all', 'sequential']);
+    const allowedNodeTypes = new Set(['start', 'approval', 'end']);
+    const sequences = new Set();
     data.nodes.forEach((node, index) => {
       const label = `第 ${index + 1} 个审批节点`;
       if (!String(node.node_name || '').trim()) {
         throw new Error(`${label}名称不能为空`);
+      }
+      const nodeType = node.node_type || 'approval';
+      if (!allowedNodeTypes.has(nodeType)) {
+        throw new Error(`${label}类型尚未实现，当前仅支持开始、审批和结束节点`);
+      }
+      const sequence = Number(node.sequence ?? index);
+      if (!Number.isInteger(sequence) || sequences.has(sequence)) {
+        throw new Error(`${label}顺序必须是唯一整数`);
+      }
+      sequences.add(sequence);
+      node.sequence = sequence;
+      if (nodeType !== 'approval') {
+        node.approver_ids = null;
+        node.allow_self_approval = false;
+        return;
       }
       const approverType = node.approver_type || 'user';
       if (!allowedApproverTypes.has(approverType)) {
@@ -648,6 +963,9 @@ class WorkflowService {
       const multiApproveType = node.multi_approve_type || 'any';
       if (!allowedMultiApproveTypes.has(multiApproveType)) {
         throw new Error(`${label}多人审批类型无效`);
+      }
+      if ((node.timeout_hours || 0) > 0 && (node.timeout_action || 'notify') !== 'notify') {
+        throw new Error(`${label}仅支持超时提醒，不允许未实现的自动通过或自动拒绝`);
       }
 
       if (['user', 'role', 'department'].includes(approverType)) {
@@ -659,19 +977,25 @@ class WorkflowService {
       } else {
         node.approver_ids = null;
       }
+      node.allow_self_approval = approverType === 'self' || Boolean(node.allow_self_approval);
     });
+    if (!data.nodes.some((node) => (node.node_type || 'approval') === 'approval')) {
+      throw new Error('工作流模板至少需要一个审批节点');
+    }
   }
 
   /** 插入模板节点（统一节点写入逻辑，消除 createTemplate/updateTemplate 重复） */
   async _insertTemplateNode(conn, templateId, node) {
     await conn.query(
       `INSERT INTO workflow_template_nodes
-       (template_id, node_name, node_type, sequence, approver_type, approver_ids, multi_approve_type, condition_expression, timeout_hours, timeout_action)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (template_id, node_name, node_type, sequence, approver_type, approver_ids,
+        multi_approve_type, allow_self_approval, condition_expression, timeout_hours, timeout_action)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [templateId, node.node_name, node.node_type || 'approval', node.sequence || 0,
        node.approver_type || 'user',
        node.approver_ids ? JSON.stringify(node.approver_ids) : null,
        node.multi_approve_type || 'any',
+       node.allow_self_approval ? 1 : 0,
        node.condition_expression ? JSON.stringify(node.condition_expression) : null,
        node.timeout_hours || 0, node.timeout_action || 'notify']
     );
@@ -687,12 +1011,12 @@ class WorkflowService {
    * extra: 审批通过时的附加SQL片段
    */
   static BUSINESS_STATUS_MAP = {
-    purchase_order:       { table: 'purchase_orders',       approved: 'approved', rejected: 'draft',    withdrawn: 'draft', pendingStatuses: ['pending'], extra: '' },
-    purchase_requisition: { table: 'purchase_requisitions', approved: 'approved', rejected: 'draft',    withdrawn: 'draft', pendingStatuses: ['pending'], extra: '' },
-    contract:             { table: 'contracts',              approved: 'active',   rejected: 'draft',    withdrawn: 'draft', pendingStatuses: ['pending_approval'], extra: '' },
-    ecn:                  { table: 'ecn_orders',             approved: 'approved', rejected: 'rejected', withdrawn: 'draft', pendingStatuses: ['pending_approval'], extra: ', approved_by = ?, approved_at = NOW()' },
-    hr_leave:             { table: 'hr_leave_requests',      approved: 'approved', rejected: 'rejected', withdrawn: 'withdrawn', pendingStatuses: ['pending'], hasDeletedAt: false, extra: '' },
-    hr_overtime:          { table: 'hr_overtime_requests',   approved: 'approved', rejected: 'rejected', withdrawn: 'withdrawn', pendingStatuses: ['pending'], hasDeletedAt: false, extra: '' },
+    purchase_order:       { table: 'purchase_orders',       ownerColumn: 'created_by', approved: 'approved', rejected: 'draft',    withdrawn: 'draft', pendingStatuses: ['pending'], extra: '' },
+    purchase_requisition: { table: 'purchase_requisitions', ownerColumn: 'created_by', approved: 'approved', rejected: 'draft',    withdrawn: 'draft', pendingStatuses: ['submitted'], extra: '' },
+    contract:             { table: 'contracts',              ownerColumn: 'created_by', approved: 'active',   rejected: 'draft',    withdrawn: 'draft', pendingStatuses: ['pending_approval'], extra: '' },
+    ecn:                  { table: 'ecn_orders',             ownerColumn: 'requested_by', approved: 'approved', rejected: 'rejected', withdrawn: 'draft', pendingStatuses: ['pending_approval'], extra: ', approved_by = ?, approved_at = NOW()' },
+    hr_leave:             { table: 'hr_leave_requests',      ownerColumn: 'applicant_user_id', approved: 'approved', rejected: 'rejected', withdrawn: 'withdrawn', pendingStatuses: ['pending'], hasDeletedAt: false, extra: '' },
+    hr_overtime:          { table: 'hr_overtime_requests',   ownerColumn: 'applicant_user_id', approved: 'approved', rejected: 'rejected', withdrawn: 'withdrawn', pendingStatuses: ['pending'], hasDeletedAt: false, extra: '' },
   };
 
   _buildPendingBusinessStatusSql() {
@@ -745,18 +1069,23 @@ class WorkflowService {
         throw new Error(`Business document not found [${businessType}:${businessId}]`);
       }
 
-      const allowedSourceStatuses = ['pending', 'pending_approval', 'submitted', 'in_review', 'approving'];
+      const allowedSourceStatuses = cfg.pendingStatuses;
       if (!allowedSourceStatuses.includes(businessRow.status)) {
         throw new Error(
           `Business document status [${businessRow.status}] cannot be changed to [${targetStatus}] by workflow callback`
         );
       }
 
-      const params = [targetStatus];
+      const params = [targetStatus, action];
       const extraSql = action === 'approved' ? (cfg.extra || '') : '';
       if (extraSql.includes('approved_by')) params.push(approverId);
       params.push(businessId);
-      await conn.query(`UPDATE ${cfg.table} SET status = ?${extraSql} WHERE id = ?`, params);
+      await conn.query(
+        `UPDATE \`${cfg.table}\`
+         SET status = ?, workflow_status = ?, workflow_error = NULL${extraSql}
+         WHERE id = ?`,
+        params
+      );
       logger.info(`工作流${action}回调: ${businessType}#${businessId} → ${targetStatus}`);
 
       // 采购申购单批准后自动生成采购订单
@@ -794,7 +1123,7 @@ class WorkflowService {
    * 便捷方法：尝试发起审批流。审批配置缺失或启动失败时必须抛错，避免业务单据绕过审批。
    * @returns {{ auto_approved: boolean, instance_id?: number }}
    */
-  async tryStartWorkflow(businessType, businessId, businessCode, title, userId) {
+  async tryStartWorkflow(businessType, businessId, businessCode, title, userId, connection = null) {
     try {
       return await this.startWorkflow({
         business_type: businessType,
@@ -802,6 +1131,7 @@ class WorkflowService {
         business_code: businessCode,
         title: title || `${businessType} ${businessCode || businessId} 审批`,
         initiator_id: userId,
+        connection,
       });
     } catch (e) {
       logger.warn(`审批流发起失败 [${businessType}:${businessId}]: ${e.message}`);
@@ -811,4 +1141,5 @@ class WorkflowService {
 }
 
 const workflowService = new WorkflowService();
+workflowService.BUSINESS_STATUS_MAP = WorkflowService.BUSINESS_STATUS_MAP;
 module.exports = workflowService;

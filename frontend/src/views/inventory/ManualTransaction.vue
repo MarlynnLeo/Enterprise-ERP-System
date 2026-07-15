@@ -8,18 +8,12 @@
 -->
 <template>
   <div class="module-page manual-transaction-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>手工出入库</h2>
-          <p class="subtitle">管理手工出入库单据</p>
-        </div>
-        <div>
-          <el-button type="primary" :icon="Plus" v-permission="'inventory:manual:create'" @click="handleCreate">新建出入库单</el-button>
+    <PageHeader title="手工出入库" subtitle="管理手工出入库单据">
+      <template #actions>
+<el-button type="primary" :icon="Plus" v-permission="'inventory:manual:create'" @click="handleCreate">新建出入库单</el-button>
           <el-button type="warning" :icon="Refresh" v-permission="'inventory:manual:create'" @click="handleExchange">调货</el-button>
-        </div>
-      </div>
-    </el-card>
+      </template>
+    </PageHeader>
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
@@ -91,7 +85,7 @@
     <el-card class="data-card">
       <el-table
         :data="tableData"
-        style="width: 100%"
+        class="w-full"
         v-loading="loading"
         border
       >
@@ -139,7 +133,7 @@
         <el-table-column prop="remark" label="备注" min-width="120" show-overflow-tooltip />
         <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
-            <el-button size="small" v-permission="'inventory:manual:view'" @click="handleView(row)">查看</el-button>
+            <el-button class="btn-op-view" type="primary" size="small" v-permission="'inventory:manual:view'" @click="handleView(row)">查看</el-button>
             <el-button
               v-if="row.approval_status === 'pending'"
               size="small"
@@ -192,7 +186,7 @@
           </el-col>
           <el-col :span="8">
             <el-form-item label="业务类型" prop="transaction_type">
-              <el-select v-model="form.transaction_type" placeholder="请选择业务类型" style="width: 100%">
+              <el-select v-model="form.transaction_type" placeholder="请选择业务类型" class="w-full">
                 <el-option-group label="入库类型">
                   <el-option
                     v-for="item in inboundTypes"
@@ -219,7 +213,7 @@
                 type="date"
                 placeholder="选择日期"
                 value-format="YYYY-MM-DD"
-                style="width: 100%"
+                class="w-full"
               />
             </el-form-item>
           </el-col>
@@ -248,7 +242,7 @@
           <el-table
             :data="form.items"
             border
-            style="width: 100%"
+            class="w-full"
             max-height="400"
             :header-cell-style="{ background: 'var(--color-bg-hover)', color: 'var(--color-text-regular)' }"
             empty-text="请添加物料，按 Enter 键快速录入"
@@ -268,7 +262,7 @@
                   @select="(item) => handleMaterialSelect(item, $index)"
                   @keydown.enter.prevent="handleMaterialEnter($index)"
                   @clear="handleMaterialClear($index)"
-                  style="width: 100%"
+                  class="w-full"
                   :trigger-on-focus="true"
                   :debounce="300"
                   :hide-loading="false"
@@ -276,10 +270,10 @@
                   :popper-append-to-body="false"
                 >
                   <template #default="{ item }">
-                    <div style="display: flex; align-items: center; gap: 12px; padding: 4px 0;">
-                      <span style="font-weight: 500; font-size: 13px; min-width: 100px;">{{ item.code }}</span>
-                      <span style="color: var(--color-text-regular); font-size: 13px; flex: 1;">{{ item.name }}</span>
-                      <span v-if="item.specs" style="color: var(--color-text-secondary); font-size: 12px;">{{ item.specs }}</span>
+                    <div class="option-row gap-12">
+                      <span class="option-row__code">{{ item.code }}</span>
+                      <span class="option-row__name">{{ item.name }}</span>
+                      <span v-if="item.specs" class="text-muted text-sm">{{ item.specs }}</span>
                     </div>
                   </template>
                 </el-autocomplete>
@@ -310,7 +304,7 @@
                   :ref="(el) => setLocationSelectRef(el, $index)"
                   v-model="row.location_id"
                   placeholder="选择仓库"
-                  style="width: 100%"
+                  class="w-full"
                   @change="handleLocationChange($index)"
                   @keydown.enter.prevent="handleLocationEnter($index)"
                 >
@@ -326,7 +320,7 @@
 
             <el-table-column label="库存" width="80">
               <template #default="{ row }">
-                <span :style="{ color: row.stock_quantity > 0 ? 'var(--color-success)' : 'var(--color-text-secondary)' }">
+                <span :class="row.stock_quantity > 0 ? 'text-success' : 'text-muted'">
                   {{ row.stock_quantity || 0 }}
                 </span>
               </template>
@@ -342,8 +336,22 @@
                   :step="1"
                   :controls="false"
                   placeholder="数量"
-                  style="width: 100%"
+                  class="w-full"
                   @keydown.enter.prevent="handleQuantityEnter($index)"
+                />
+              </template>
+            </el-table-column>
+
+            <el-table-column v-if="isInboundForm" label="单位成本" width="140">
+              <template #default="{ row }">
+                <el-input-number
+                  v-model="row.unit_cost"
+                  :min="0.000001"
+                  :precision="6"
+                  :step="0.01"
+                  :controls="false"
+                  placeholder="必填"
+                  class="w-full"
                 />
               </template>
             </el-table-column>
@@ -372,10 +380,11 @@
     </el-dialog>
 
     <!-- 查看对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="viewDialogVisible"
       title="出入库单详情"
-      width="50%"
+      mode="view"
+      content-width="wide"
     >
       <div v-loading="viewLoading">
       <el-descriptions :column="2" border>
@@ -393,7 +402,7 @@
 
       <el-divider>出入库明细</el-divider>
 
-      <el-table :data="currentRecord.items || []" border style="width: 100%">
+      <el-table :data="currentRecord.items || []" border class="w-full">
         <el-table-column label="序号" width="60" type="index" />
         <el-table-column label="物料编码" width="130" show-overflow-tooltip>
           <template #default="{ row }">
@@ -425,13 +434,18 @@
             {{ row.quantity }}
           </template>
         </el-table-column>
+        <el-table-column label="单位成本" width="120">
+          <template #default="{ row }">
+            {{ row.unit_cost ?? '-' }}
+          </template>
+        </el-table-column>
       </el-table>
       </div>
 
       <template #footer>
         <el-button @click="viewDialogVisible = false">关闭</el-button>
       </template>
-    </el-dialog>
+    </AppDialog>
 
     <!-- 调货对话框 -->
     <el-dialog
@@ -453,7 +467,7 @@
                 type="date"
                 placeholder="选择日期"
                 value-format="YYYY-MM-DD"
-                style="width: 100%"
+                class="w-full"
               />
             </el-form-item>
           </el-col>
@@ -476,7 +490,7 @@
                 placeholder="请输入物料编码或名称"
                 :remote-method="searchReturnMaterials"
                 :loading="returnMaterialLoading"
-                style="width: 100%"
+                class="w-full"
                 @change="handleReturnMaterialChange"
               >
                 <el-option
@@ -485,9 +499,9 @@
                   :label="`${item.code} - ${item.name}`"
                   :value="item.id"
                 >
-                  <div style="display: flex; justify-content: space-between">
+                  <div class="flex-between">
                     <span>{{ item.code }} - {{ item.name }}</span>
-                    <span style="color: var(--color-text-muted); font-size: 12px">{{ item.specs || '无规格' }}</span>
+                    <span class="text-muted text-sm">{{ item.specs || '无规格' }}</span>
                   </div>
                 </el-option>
               </el-select>
@@ -502,7 +516,7 @@
                 :step="1"
                 :controls="false"
                 placeholder="数量"
-                style="width: 100%"
+                class="w-full"
               />
             </el-form-item>
           </el-col>
@@ -515,6 +529,21 @@
               :closable="false"
               show-icon
             />
+          </el-col>
+        </el-row>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="退回单位成本" prop="return_unit_cost">
+              <el-input-number
+                v-model="exchangeForm.return_unit_cost"
+                :min="0.000001"
+                :precision="6"
+                :step="0.01"
+                :controls="false"
+                placeholder="请输入真实单位成本"
+                class="w-full"
+              />
+            </el-form-item>
           </el-col>
         </el-row>
 
@@ -530,7 +559,7 @@
                 placeholder="请输入物料编码或名称"
                 :remote-method="searchIssueMaterials"
                 :loading="issueMaterialLoading"
-                style="width: 100%"
+                class="w-full"
                 @change="handleIssueMaterialChange"
               >
                 <el-option
@@ -539,9 +568,9 @@
                   :label="`${item.code} - ${item.name}`"
                   :value="item.id"
                 >
-                  <div style="display: flex; justify-content: space-between">
+                  <div class="flex-between">
                     <span>{{ item.code }} - {{ item.name }}</span>
-                    <span style="color: var(--color-text-muted); font-size: 12px">{{ item.specs || '无规格' }}</span>
+                    <span class="text-muted text-sm">{{ item.specs || '无规格' }}</span>
                   </div>
                 </el-option>
               </el-select>
@@ -556,7 +585,7 @@
                 :step="1"
                 :controls="false"
                 placeholder="数量"
-                style="width: 100%"
+                class="w-full"
               />
             </el-form-item>
           </el-col>
@@ -584,7 +613,7 @@
         >
           确定
         </el-button>
-        <div v-if="!canSubmitExchange" style="color: var(--color-danger); font-size: 12px; margin-top: 8px;">
+        <div v-if="!canSubmitExchange" class="text-danger text-sm mt-sm">
           提示：请确保退回和补发物料都已设置默认仓库
         </div>
       </template>
@@ -608,7 +637,7 @@
         <el-descriptions-item label="明细数量">{{ approvalForm.item_count || 0 }} 条</el-descriptions-item>
       </el-descriptions>
 
-      <el-form :model="approvalForm" label-width="80px" style="margin-top: 20px;">
+      <el-form :model="approvalForm" label-width="80px" class="mt-20">
         <el-form-item label="审批备注">
           <el-input
             v-model="approvalForm.remark"
@@ -795,6 +824,11 @@ const outboundTypes = computed(() => {
   return businessTypes.value.filter(item => item.category === 'out')
 })
 
+const isInboundForm = computed(() => {
+  const type = businessTypesMap.value[form.transaction_type]
+  return type?.category === 'in' || form.transaction_type === 'in' || String(form.transaction_type).includes('_in')
+})
+
 // 获取业务类型名称
 const getBusinessTypeName = (code) => {
   // 优先使用 business_type_code，如果没有则兼容旧数据（将 'in'/'out' 转换为 'manual_in'/'manual_out'）
@@ -845,7 +879,8 @@ const handleAddMaterialRow = () => {
     unit_name: '',
     location_id: null,
     stock_quantity: 0,
-    quantity: ''
+    quantity: '',
+    unit_cost: null
   })
 
   // 聚焦到新行的物料编码输入框
@@ -1232,6 +1267,7 @@ const exchangeForm = reactive({
   return_location_id: null,
   return_location_name: '',
   return_quantity: '',
+  return_unit_cost: null,
   issue_material_id: null,
   issue_location_id: null,
   issue_location_name: '',
@@ -1246,6 +1282,10 @@ const exchangeFormRules = {
   return_quantity: [
     { required: true, message: '请输入退回数量', trigger: 'blur' },
     { type: 'number', min: 0.01, message: '数量必须大于0', trigger: 'blur' }
+  ],
+  return_unit_cost: [
+    { required: true, message: '请输入退回单位成本', trigger: 'blur' },
+    { type: 'number', min: 0.000001, message: '单位成本必须大于0', trigger: 'blur' }
   ],
   issue_material_id: [{ required: true, message: '请选择补发物料', trigger: 'change' }],
   issue_quantity: [
@@ -1354,6 +1394,7 @@ const handleExchange = () => {
     return_location_id: null,
     return_location_name: '',
     return_quantity: '',
+    return_unit_cost: null,
     issue_material_id: null,
     issue_location_id: null,
     issue_location_name: '',
@@ -1389,6 +1430,7 @@ const handleExchangeSubmit = async () => {
         return_material_id: exchangeForm.return_material_id,
         return_location_id: exchangeForm.return_location_id,
         return_quantity: Number(exchangeForm.return_quantity),
+        return_unit_cost: Number(exchangeForm.return_unit_cost),
         issue_material_id: exchangeForm.issue_material_id,
         issue_location_id: exchangeForm.issue_location_id,
         issue_quantity: Number(exchangeForm.issue_quantity)
@@ -1428,6 +1470,10 @@ const handleSubmit = async () => {
     }
     if (!item.quantity || item.quantity <= 0) {
       ElMessage.warning(`第${i + 1}行：请输入有效数量`)
+      return
+    }
+    if (isInboundForm.value && (!Number.isFinite(Number(item.unit_cost)) || Number(item.unit_cost) <= 0)) {
+      ElMessage.warning(`第${i + 1}行：请输入大于0的真实单位成本`)
       return
     }
   }
@@ -1486,7 +1532,8 @@ const handleSubmit = async () => {
         items: form.items.map(item => ({
           material_id: item.material_id,
           location_id: item.location_id,
-          quantity: Number(item.quantity)
+          quantity: Number(item.quantity),
+          unit_cost: isInboundForm.value ? Number(item.unit_cost) : null
         }))
       }
 

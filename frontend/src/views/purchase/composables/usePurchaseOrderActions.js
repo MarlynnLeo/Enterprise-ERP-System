@@ -18,6 +18,16 @@ import { formatDate } from '@/utils/helpers/dateUtils'
 import { formatCurrency } from '@/utils/format'
 import { parseResponseData } from '@/utils/responseParser'
 
+/** 采购订单是否已设置有效供应商（用于提交审批前校验） */
+export function hasPurchaseOrderSupplier(order) {
+  if (!order) return false
+  const id = order.supplier_id ?? order.supplierId
+  if (id === null || id === undefined || id === '' || id === 0 || id === '0') return false
+  const name = order.supplier_name ?? order.supplierName
+  if (name === '暂无设置供应商') return false
+  return true
+}
+
 export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
   const isBlankAmount = (value) => value === null || value === undefined || value === ''
   const toNumberOrNull = (value) => {
@@ -65,7 +75,10 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
   const orderTableRef = ref(null)
   const selectedOrders = ref([])
   const batchLoading = ref(false)
-  const canBatchSubmit = computed(() => { if (selectedOrders.value.length === 0) return false; return selectedOrders.value.every(order => order.status === 'draft') })
+  const canBatchSubmit = computed(() => {
+    if (selectedOrders.value.length === 0) return false
+    return selectedOrders.value.every(order => order.status === 'draft' && hasPurchaseOrderSupplier(order))
+  })
 
   // 统计数据
   const orderStats = ref({ total: 0, totalAmount: 0, pendingCount: 0, approvedCount: 0, completedCount: 0 })
@@ -164,9 +177,15 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
     try {
       const orderRes = await purchaseApi.getOrder(id)
       if (!orderRes || !orderRes.data) { ElMessage.error('获取订单信息失败，无法更新状态'); return }
-      const currentStatus = orderRes.data.status
+      const orderData = orderRes.data
+      const currentStatus = orderData.status
       if (currentStatus === status) { ElMessage.info(`订单当前已经是"${getPurchaseStatusLabel(status)}"状态`); return }
       if (!isValidStatusTransition(currentStatus, status)) { ElMessage.error(`无法将订单从"${getPurchaseStatusLabel(currentStatus)}"状态转换为"${getPurchaseStatusLabel(status)}"状态`); return }
+      // 提交审批前必须已设置供应商，否则审批通过后无法到货/补设供应商
+      if (status === 'pending' && !hasPurchaseOrderSupplier(orderData)) {
+        ElMessage.warning('请先编辑订单并设置供应商，再提交审批')
+        return
+      }
       await ElMessageBox.confirm(`确定要${PURCHASE_STATUS_ACTION_TEXT[status] || '更新'}此采购订单吗？`, '提示', { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' })
       await purchaseApi.updateOrderStatus(id, status)
       ElMessage.success(`订单已${PURCHASE_STATUS_ACTION_TEXT[status] || '更新'}`)
@@ -317,6 +336,11 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
 
   const handleBatchSubmit = async () => {
     try {
+      const missingSupplier = selectedOrders.value.filter(order => !hasPurchaseOrderSupplier(order))
+      if (missingSupplier.length > 0) {
+        ElMessage.warning(`有 ${missingSupplier.length} 个订单未设置供应商，请先编辑设置后再提交审批`)
+        return
+      }
       await ElMessageBox.confirm(`确定要批量提交选中的 ${selectedOrders.value.length} 个订单吗？`, '批量提交', { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' })
       batchLoading.value = true
       const response = await purchaseApi.batchUpdateOrderStatus(selectedOrders.value.map(order => order.id), 'pending')
@@ -336,6 +360,7 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
     orderTableRef, selectedOrders, batchLoading, canBatchSubmit,
     orderStats, formatDate, formatCurrency, getStatusText, getStatusType,
     getCountdownText, getCountdownType,
+    hasPurchaseOrderSupplier,
     viewOrder, viewRequisition, updateStatus, deleteOrder,
     openReceiveDialog, handleReceiveQuantityChange, confirmReceive, updateReceiving,
     printOrder, getOrderStats,

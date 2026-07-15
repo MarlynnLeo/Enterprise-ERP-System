@@ -4,7 +4,7 @@
       v-loading="loading"
       :data="tableData"
       border
-      style="width: 100%"
+      class="w-full"
     >
       <template #empty>
         <el-empty description="暂无物料数据" />
@@ -62,7 +62,7 @@
               </template>
             </el-popconfirm>
 
-            <el-button
+            <el-button class="btn-op-view"
               v-if="String(scope.row.status) === '1'"
               size="small"
               type="primary"

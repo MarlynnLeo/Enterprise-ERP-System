@@ -1,17 +1,13 @@
 ﻿<template>
   <div class="module-page app-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>试算平衡</h2>
-          <p class="subtitle">按会计期间核对总账科目的借贷发生额与余额</p>
-        </div>
-        <el-button v-permission="'finance:reports:view'" :disabled="!tableData.length" @click="exportData">
+    <PageHeader title="试算平衡" subtitle="按会计期间核对总账科目的借贷发生额与余额">
+      <template #actions>
+<el-button v-permission="'finance:reports:view'" :disabled="!tableData.length" @click="exportData">
           <el-icon><Download /></el-icon>
           导出
         </el-button>
-      </div>
-    </el-card>
+      </template>
+    </PageHeader>
 
     <FinanceQueryCard
       :model="filters"
@@ -54,7 +50,7 @@
           v-loading="loading"
           :data="tableData"
           border
-          style="width: 100%"
+          class="w-full"
           show-summary
           :summary-method="getSummaries"
           height="calc(100vh - 400px)"

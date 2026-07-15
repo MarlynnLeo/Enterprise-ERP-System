@@ -124,6 +124,12 @@ const ROUTE_PERMISSION_RULES = [
   { pattern: /^\/equipment\/maintenance\/create$/, permission: 'production:equipment:update' },
   { pattern: /^\/equipment\/(check|repair)\/create$/, permission: 'production:equipment:update' },
   { pattern: /^\/equipment(\/.*)?$/, permission: 'production:equipment:view' },
+  { pattern: /^\/hr\/employees\/create$/, permission: 'hr:employees:create' },
+  { pattern: /^\/hr\/employees(\/:id)?$/, permission: 'hr:employees' },
+  { pattern: /^\/hr\/departments(\/.*)?$/, permission: 'system:departments' },
+  { pattern: /^\/hr\/attendance\/manual$/, permission: 'hr:attendance:create' },
+  { pattern: /^\/hr\/(leave|overtime)\/create$/, permission: 'hr:attendance:create' },
+  { pattern: /^\/hr\/(attendance|leave|overtime|schedule)(\/.*)?$/, permission: 'hr:attendance' },
   { pattern: /^\/hr(\/.*)?$/, permission: 'hr' },
   { pattern: /^\/system\/users\/create$/, permission: 'system:users:create' },
   { pattern: /^\/system\/users(\/:id)?$/, permission: 'system:users' },
@@ -230,7 +236,17 @@ router.beforeEach(async (to) => {
     }
 
     const requiredPermission = to.meta.permission
-    let hasPermission = authStore.hasPermission(requiredPermission)
+    // 与桌面对齐：精确权限 或 子权限前缀（system:users → system:users:view）
+    const checkRoutePerm = (perm) => {
+      if (Array.isArray(perm)) {
+        return perm.some((p) => checkRoutePerm(p))
+      }
+      return (
+        authStore.hasPermission(perm) || authStore.hasChildPermission(perm)
+      )
+    }
+
+    let hasPermission = checkRoutePerm(requiredPermission)
 
     // W-27: 仅在距离上次刷新超过 5 分钟时才执行权限刷新
     if (!hasPermission && authStore.permissionsLoaded) {
@@ -239,7 +255,7 @@ router.beforeEach(async (to) => {
         try {
           await authStore.refreshPermissions()
           lastPermissionRefreshTime = now
-          hasPermission = authStore.hasPermission(requiredPermission)
+          hasPermission = checkRoutePerm(requiredPermission)
         } catch (error) {
           console.error('[router] Failed to refresh permissions:', error)
         }

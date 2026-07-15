@@ -1,22 +1,16 @@
 <template>
   <div class="module-page page-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>装配看板</h2>
-          <p class="subtitle">实时查看各工位状态和生产任务装配进度</p>
-        </div>
-        <div class="action-section">
-          <el-button @click="loadBoard" :loading="loading">
+    <PageHeader title="装配看板" subtitle="实时查看各工位状态和生产任务装配进度">
+      <template #actions>
+<el-button @click="loadBoard" :loading="loading">
             <el-icon><Refresh /></el-icon> 刷新
           </el-button>
-        </div>
-      </div>
-    </el-card>
+      </template>
+    </PageHeader>
 
     <!-- 工位状态看板 -->
     <el-card class="data-card" v-loading="loading">
-      <h3 style="margin-bottom: 16px">工位实时状态</h3>
+      <h3 class="mb-md">工位实时状态</h3>
       <div class="board-grid" v-if="boardData.stations?.length">
         <div v-for="s in boardData.stations" :key="s.id"
           class="board-station" :class="s.status">
@@ -29,7 +23,7 @@
           <div class="bs-name">{{ s.name }}</div>
           <div class="bs-line">{{ s.line_name || s.line_code || '' }}</div>
           <template v-if="s.status === 'busy'">
-            <el-divider style="margin: 8px 0" />
+            <el-divider class="divider-tight" />
             <div class="bs-task">
               <div class="bs-label">任务</div>
               <div class="bs-value">{{ s.task_code }}</div>
@@ -57,18 +51,18 @@
     </el-card>
 
     <!-- 任务进度 -->
-    <el-card class="data-card" style="margin-top: 16px">
-      <h3 style="margin-bottom: 16px">装配任务进度</h3>
+    <el-card class="data-card mt-md">
+      <h3 class="mb-md">装配任务进度</h3>
       <el-table :data="boardData.taskProgress" border stripe v-if="boardData.taskProgress?.length">
         <el-table-column prop="task_code" label="任务编号" width="140" />
         <el-table-column prop="product_name" label="产品" min-width="150" />
         <el-table-column label="进度" min-width="250">
           <template #default="{ row }">
-            <div style="display: flex; align-items: center; gap: 12px">
+            <div class="flex-row gap-12">
               <el-progress :percentage="row.progress_percent" :stroke-width="18"
-                :color="row.progress_percent === 100 ? '#67c23a' : '#409eff'"
-                style="flex: 1" />
-              <span style="white-space: nowrap; font-size: 13px; color: #606266">
+                :color="row.progress_percent === 100 ? 'var(--color-success)' : 'var(--color-primary)'"
+                class="flex-1" />
+              <span class="nowrap text-md text-regular">
                 {{ row.completed_steps }}/{{ row.total_steps }} 道
               </span>
             </div>
@@ -83,7 +77,7 @@
         </el-table-column>
         <el-table-column label="操作" width="100">
           <template #default="{ row }">
-            <el-button link type="primary" size="small" @click="viewTaskSteps(row.task_id)">详情</el-button>
+            <el-button class="btn-op-view" type="primary" size="small" @click="viewTaskSteps(row.task_id)">详情</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -91,8 +85,13 @@
     </el-card>
 
     <!-- 任务工序详情弹窗 -->
-    <el-dialog v-model="stepsVisible" title="装配工序详情" width="800px" destroy-on-close>
-      <el-steps :active="activeStepIndex" align-center finish-status="success" v-if="taskSteps.length" style="margin-bottom: 24px">
+    <AppDialog
+      v-model="stepsVisible"
+      title="装配工序详情"
+      mode="view"
+      content-width="wide"
+    >
+      <el-steps :active="activeStepIndex" align-center finish-status="success" v-if="taskSteps.length" class="mb-24">
         <el-step v-for="s in taskSteps" :key="s.id" :title="s.step_name"
           :status="s.status === 'completed' ? 'finish' : s.status === 'in_progress' ? 'process' : s.status === 'skipped' ? 'error' : 'wait'" />
       </el-steps>
@@ -123,7 +122,7 @@
           <template #default="{ row }">{{ row.completed_at || '-' }}</template>
         </el-table-column>
       </el-table>
-    </el-dialog>
+    </AppDialog>
   </div>
 </template>
 
@@ -193,19 +192,19 @@ onUnmounted(() => {
   gap: 16px;
 }
 .board-station {
-  border: 2px solid #e4e7ed;
+  border: 2px solid var(--color-border-lighter, var(--el-border-color-lighter));
   border-radius: 12px;
   padding: 16px;
-  background: #fff;
+  background: var(--color-bg-base);
   transition: all 0.3s;
 }
 .board-station.busy {
-  border-color: #f56c6c;
-  background: linear-gradient(135deg, #fef0f0 0%, #fff 100%);
+  border-color: var(--color-danger);
+  background: linear-gradient(135deg, var(--el-color-danger-light-9) 0%, var(--color-bg-base) 100%);
 }
 .board-station.idle {
-  border-color: #67c23a;
-  background: linear-gradient(135deg, #f0f9eb 0%, #fff 100%);
+  border-color: var(--color-success);
+  background: linear-gradient(135deg, var(--el-color-success-light-9) 0%, var(--color-bg-base) 100%);
 }
 .bs-header {
   display: flex;
@@ -216,15 +215,15 @@ onUnmounted(() => {
 .bs-code {
   font-size: 18px;
   font-weight: 700;
-  color: #303133;
+  color: var(--color-text-primary);
 }
 .bs-name {
   font-size: 14px;
-  color: #606266;
+  color: var(--color-text-regular);
 }
 .bs-line {
   font-size: 12px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 .bs-task {
   display: flex;
@@ -234,19 +233,19 @@ onUnmounted(() => {
 }
 .bs-label {
   font-size: 12px;
-  color: #909399;
+  color: var(--color-text-secondary);
 }
 .bs-value {
   font-size: 13px;
-  color: #303133;
+  color: var(--color-text-primary);
   font-weight: 500;
 }
 .bs-value.highlight {
-  color: #e6a23c;
+  color: var(--color-warning);
   font-weight: 700;
 }
 .bs-value.timer {
-  color: #f56c6c;
+  color: var(--color-danger);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }

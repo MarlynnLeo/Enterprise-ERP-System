@@ -429,7 +429,7 @@ class QualityIntegrationService {
     setImmediate(async () => {
       try {
         const DomainEventService = require('./DomainEventService');
-        await DomainEventService.enqueue(
+        const eventId = await DomainEventService.enqueue(
           'PURCHASE_RECEIPT_COMPLETED',
           { receiptId, currentUserId },
           {
@@ -438,7 +438,7 @@ class QualityIntegrationService {
             dedupKey: `PURCHASE_RECEIPT_COMPLETED:${receiptId}`,
           }
         );
-        DomainEventService.dispatchSoon();
+        DomainEventService.dispatchSoon(eventId);
       } catch (error) {
         logger.error('Failed to enqueue PURCHASE_RECEIPT_COMPLETED:', error);
       }
@@ -474,6 +474,7 @@ class QualityIntegrationService {
           operator: scrapRecord.created_by || 'system',
           remark: `Scrap inventory deduction - ${scrapRecord.scrap_reason || ''}`,
           unitId: material.unit_id || null,
+          idempotencyKey: `scrap:${scrapRecord.scrap_no}:${material.id}:${locationId}:${scrapRecord.quantity}`,
         },
         connection
       );

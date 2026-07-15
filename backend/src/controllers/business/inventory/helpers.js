@@ -7,7 +7,6 @@
 
 const { logger } = require('../../../utils/logger');
 const businessConfig = require('../../../config/businessConfig');
-const PeriodValidationService = require('../../../services/business/PeriodValidationService');
 
 const STATUS = {
   OUTBOUND: businessConfig.status.outbound,
@@ -15,7 +14,7 @@ const STATUS = {
   PRODUCTION_TASK: businessConfig.status.productionTask,
   PRODUCTION_PLAN: businessConfig.status.productionPlan,
   APPROVAL: businessConfig.status.approval,
-  TRANSFER: businessConfig.status.transfer
+  TRANSFER: businessConfig.status.transfer,
 };
 
 /**
@@ -56,129 +55,7 @@ const getMaterialBatchNumber = async (connection, materialId, locationId = null)
   }
 };
 
-/**
- * 插入库存流水记录（本地辅助函数）
- */
-const insertInventoryLedgerLocal = async (connection, {
-  material_id,
-  location_id,
-  transaction_type,
-  quantity,
-  unit_id,
-  batch_number = null,
-  reference_no,
-  reference_type,
-  operator,
-  remark = null,
-  beforeQuantity = null,
-  afterQuantity = null,
-  transactionDate = null,
-  checkStockSufficiency = false,
-  allowNegativeStock = true
-}) => {
-  try {
-    // 验证必填字段
-    if (!material_id || !location_id || !transaction_type || quantity === undefined || quantity === null) {
-      throw new Error('缺少必填字段: material_id, location_id, transaction_type, quantity');
-    }
-
-    // 解析数量
-    const parsedQuantity = parseFloat(quantity);
-    if (isNaN(parsedQuantity)) {
-      throw new Error(`无效的数量值: ${quantity}`);
-    }
-
-    // 验证 unit_id
-    let validUnitId = unit_id;
-    if (!validUnitId) {
-      const [materialInfo] = await connection.execute(
-        'SELECT unit_id FROM materials WHERE id = ? AND deleted_at IS NULL',
-        [material_id]
-      );
-      if (materialInfo.length === 0) {
-        throw new Error(`物料不存在: ${material_id}`);
-      }
-      validUnitId = materialInfo[0].unit_id;
-    }
-
-    // 获取当前库存（使用行级锁）
-    const [stockRecords] = await connection.execute(
-      `SELECT COALESCE(SUM(quantity), 0) as total_quantity
-       FROM inventory_ledger
-       WHERE material_id = ? AND location_id = ?
-       FOR UPDATE`,
-      [material_id, location_id]
-    );
-
-    const currentQuantity = parseFloat(stockRecords[0].total_quantity || 0);
-    const calculatedBeforeQuantity = beforeQuantity !== null ? beforeQuantity : currentQuantity;
-    const calculatedAfterQuantity = afterQuantity !== null ? afterQuantity : (calculatedBeforeQuantity + parsedQuantity);
-
-    // 库存充足性检查
-    if (checkStockSufficiency && !allowNegativeStock && calculatedAfterQuantity < 0) {
-      throw new Error(`库存不足: 当前库存 ${calculatedBeforeQuantity}, 需要 ${Math.abs(parsedQuantity)}, 差额 ${Math.abs(calculatedAfterQuantity)}`);
-    }
-
-    // 构建完整备注
-    const ledgerDate = transactionDate || new Date().toISOString().slice(0, 10);
-    const inventoryCheck = await PeriodValidationService.validateInventoryTransaction(ledgerDate);
-    if (!inventoryCheck.allowed) {
-      throw new Error(inventoryCheck.message);
-    }
-
-    const fullRemark = remark || `${transaction_type} - ${reference_no || 'N/A'}`;
-
-    // 插入库存流水记录
-    const sql = `INSERT INTO inventory_ledger (
-      transaction_type,
-      material_id,
-      location_id,
-      quantity,
-      unit_id,
-      batch_number,
-      reference_no,
-      reference_type,
-      operator,
-      remark,
-      before_quantity,
-      after_quantity,
-      transaction_date,
-      created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`;
-
-    const params = [
-      transaction_type,
-      material_id,
-      location_id,
-      parsedQuantity,
-      validUnitId,
-      batch_number || null,
-      reference_no || null,
-      reference_type || null,
-      operator || 'system',
-      fullRemark,
-
-      calculatedBeforeQuantity,
-      calculatedAfterQuantity,
-      ledgerDate
-    ];
-
-    const [result] = await connection.execute(sql, params);
-
-    return {
-      id: result.insertId,
-      before_quantity: calculatedBeforeQuantity,
-      after_quantity: calculatedAfterQuantity,
-      quantity: parsedQuantity
-    };
-  } catch (error) {
-    logger.error('插入库存流水记录失败:', error);
-    throw error;
-  }
-};
-
 module.exports = {
   STATUS,
   getMaterialBatchNumber,
-  insertInventoryLedgerLocal
 };

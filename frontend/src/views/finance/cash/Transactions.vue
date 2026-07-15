@@ -8,20 +8,14 @@
 -->
 <template>
   <div class="module-page transactions-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>银行流水</h2>
-          <p class="subtitle">管理银行收支记录</p>
-        </div>
-        <div class="action-buttons">
-          <el-button v-permission="'finance:cash:create'" type="primary" :icon="Plus" @click="showAddDialog">新增交易</el-button>
+    <PageHeader title="银行流水" subtitle="管理银行收支记录">
+      <template #actions>
+<el-button v-permission="'finance:cash:create'" type="primary" :icon="Plus" @click="showAddDialog">新增交易</el-button>
           <el-button v-permission="'finance:cash:export'" type="success" @click="exportTransactions">导出数据</el-button>
           <el-button v-permission="'finance:cash:create'" type="warning" @click="showImportDialog">导入数据</el-button>
           <el-button v-permission="'finance:cash:view'" type="primary" plain @click="printBankStatement">打印</el-button>
-        </div>
-      </div>
-    </el-card>
+      </template>
+    </PageHeader>
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
@@ -93,7 +87,7 @@
     <el-card class="data-card">
       <el-table
         :data="transactionList"
-        style="width: 100%"
+        class="w-full"
         border
         v-loading="loading"
         show-overflow-tooltip
@@ -167,7 +161,7 @@
           <template #default="scope">
             <div class="operation-buttons">
               <!-- 查看按钮：始终显示 -->
-              <el-button
+              <el-button class="btn-op-view"
                 type="primary"
                 size="small"
                 @click="handleView(scope.row)"
@@ -254,12 +248,12 @@
             placeholder="选择交易日期"
             format="YYYY-MM-DD"
             value-format="YYYY-MM-DD"
-            style="width: 100%"
+            class="w-full"
           ></el-date-picker>
         </el-form-item>
 
         <el-form-item :label="transactionForm.type === 'transfer' ? '源账户' : '交易账户'" prop="accountId">
-          <el-select v-model="transactionForm.accountId" placeholder="请选择账户" style="width: 100%">
+          <el-select v-model="transactionForm.accountId" placeholder="请选择账户" class="w-full">
             <el-option
               v-for="item in accountOptions"
               :key="item.id"
@@ -270,7 +264,7 @@
         </el-form-item>
 
         <el-form-item v-if="transactionForm.type === 'transfer'" label="目标账户" prop="targetAccountId">
-          <el-select v-model="transactionForm.targetAccountId" placeholder="请选择目标账户" style="width: 100%">
+          <el-select v-model="transactionForm.targetAccountId" placeholder="请选择目标账户" class="w-full">
             <el-option
               v-for="item in accountOptions.filter(acc => acc.id !== transactionForm.accountId)"
               :key="item.id"
@@ -285,14 +279,14 @@
             v-model="transactionForm.amount"
             :precision="2"
             :step="100"
-            style="width: 100%"
+            class="w-full"
           ></el-input-number>
         </el-form-item>
 
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="交易分类" prop="category">
-              <el-select v-model="transactionForm.category" placeholder="请选择分类" style="width: 100%">
+              <el-select v-model="transactionForm.category" placeholder="请选择分类" class="w-full">
                 <el-option-group v-if="transactionForm.type === 'income'" label="收入类别">
                   <el-option
                     v-for="cat in bankConfig.transactionCategories?.income || []"
@@ -322,7 +316,7 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="支付方式" prop="paymentMethod">
-              <el-select v-model="transactionForm.paymentMethod" placeholder="请选择支付方式" style="width: 100%">
+              <el-select v-model="transactionForm.paymentMethod" placeholder="请选择支付方式" class="w-full">
                 <el-option
                   v-for="method in bankConfig.paymentMethods"
                   :key="method.value"
@@ -378,7 +372,7 @@
             <p>4. 必填字段：交易日期、账户名称、交易类型、交易金额</p>
           </template>
         </el-alert>
-        <div class="upload-area" style="margin-top: 20px;">
+        <div class="upload-area mt-20">
           <el-upload
             ref="uploadRef"
             :auto-upload="false"
@@ -400,7 +394,7 @@
             </template>
           </el-upload>
         </div>
-        <div v-if="importResult" class="import-result" style="margin-top: 20px;">
+        <div v-if="importResult" class="import-result mt-20">
           <el-alert
             :title="importResult.message"
             :type="importResult.success ? 'success' : 'error'"
@@ -413,8 +407,8 @@
                 <p>成功导入: {{ importResult.data.summary?.successCount || 0 }}</p>
                 <p>失败记录: {{ importResult.data.summary?.errorCount || 0 }}</p>
                 <div v-if="importResult.data.errors && importResult.data.errors.length > 0">
-                  <p style="margin-top: 10px; font-weight: bold;">错误详情:</p>
-                  <ul style="margin: 5px 0; padding-left: 20px;">
+                  <p class="mt-10 font-weight-700">错误详情:</p>
+                  <ul class="error-list">
                     <li v-for="error in importResult.data.errors" :key="error">{{ error }}</li>
                   </ul>
                 </div>
@@ -441,10 +435,11 @@
     </el-dialog>
 
     <!-- 查看交易详情对话框 -->
-    <el-dialog
-      title="交易详情"
+    <AppDialog
       v-model="viewDialogVisible"
-      width="700px"
+      title="交易详情"
+      mode="view"
+      content-width="wide"
     >
       <div class="transaction-detail-header">
         <div class="detail-item">
@@ -469,7 +464,7 @@
         </div>
       </div>
 
-      <el-descriptions :column="2" border style="margin-top: 20px;">
+      <el-descriptions :column="2" border class="mt-20">
         <el-descriptions-item label="交易金额">
           <span :class="currentTransaction.type === 'income' ? 'positive-value' : (currentTransaction.type === 'expense' ? 'negative-value' : '')">
             {{ formatCurrency(currentTransaction.amount) }}
@@ -487,7 +482,7 @@
         </el-descriptions-item>
         <el-descriptions-item label="交易描述" :span="2">{{ currentTransaction.description || '-' }}</el-descriptions-item>
       </el-descriptions>
-    </el-dialog>
+    </AppDialog>
   </div>
 </template>
 <script setup>
@@ -1420,11 +1415,6 @@ onMounted(() => {
 }
 .positive-value {
   color: var(--color-success);
-}
-/* 对话框高度 - 页面特定，其他样式使用全局主题 */
-:deep(.el-dialog__body) {
-  max-height: 60vh;
-  overflow-y: auto;
 }
 /* 详情对话框长文本处理 */
 :deep(.el-descriptions__content) {

@@ -191,12 +191,12 @@ const getLevelTagType = (level) => {
   if (l === 2) return 'warning';
   return 'danger';
 };
-const getLevelTagStyle = (level) => {
-  const l = level || 1;
-  if (l === 2) return { backgroundColor: 'var(--color-warning)', borderColor: 'var(--color-warning)', color: 'var(--color-on-primary)' };
-  if (l >= 3) return { backgroundColor: 'color-mix(in srgb, var(--color-primary) 60%, var(--color-danger))', borderColor: 'color-mix(in srgb, var(--color-primary) 60%, var(--color-danger))', color: 'var(--color-on-primary)' };
-  return {};
-};
+const getLevelTagClass = (level) => {
+  const l = level || 1
+  if (l === 2) return 'level-tag-l2'
+  if (l >= 3) return 'level-tag-l3'
+  return ''
+}
 // 通用工具函数：获取规格信息
 const getSpecification = (item) => {
   if (!item) return '';
@@ -1260,15 +1260,11 @@ const formatMaterialForDisplay = (material) => {
 </script>
 <template>
   <div class="module-page production-plan-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>生产计划管理</h2>
-          <p class="subtitle">统筹产能排期与物料协调</p>
-        </div>
+    <PageHeader title="生产计划管理" subtitle="统筹产能排期与物料协调">
+      <template #actions>
         <el-button type="primary" :icon="Plus" @click="showCreateModal" v-permission="'production:plans:create'">新建生产计划</el-button>
-      </div>
-    </el-card>
+      </template>
+    </PageHeader>
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
@@ -1351,7 +1347,7 @@ const formatMaterialForDisplay = (material) => {
       <el-table
         :data="planList"
         border
-        style="width: 100%"
+        class="w-full"
         v-loading="loading"
         row-key="id"
       >
@@ -1382,10 +1378,10 @@ const formatMaterialForDisplay = (material) => {
                 <el-descriptions-item label="结束日期">{{ formatDate(props.row.end_date) }}</el-descriptions-item>
                 <el-descriptions-item label="计划数量">{{ formatQuantity(props.row.quantity) }}</el-descriptions-item>
                 <el-descriptions-item label="已下推数量">
-                  <span style="color: var(--color-success);">{{ props.row.pushed_quantity || 0 }}</span>
+                  <span class="text-success">{{ props.row.pushed_quantity || 0 }}</span>
                 </el-descriptions-item>
                 <el-descriptions-item label="剩余数量">
-                  <span style="font-weight: 600; color: var(--color-primary);">
+                  <span class="text-primary font-weight-600">
                     {{ (props.row.quantity || 0) - (props.row.pushed_quantity || 0) }}
                   </span>
                 </el-descriptions-item>
@@ -1446,7 +1442,7 @@ const formatMaterialForDisplay = (material) => {
                 v-if="scope.row.end_date && new Date(scope.row.end_date) > new Date(scope.row.delivery_date)"
                 size="small"
                 type="danger"
-                style="margin-left: 4px"
+                class="ml-4"
               >
                 超{{ Math.ceil((new Date(scope.row.end_date) - new Date(scope.row.delivery_date)) / 86400000) }}天
               </el-tag>
@@ -1454,7 +1450,7 @@ const formatMaterialForDisplay = (material) => {
                 v-else-if="scope.row.end_date"
                 size="small"
                 type="success"
-                style="margin-left: 4px"
+                class="ml-4"
               >OK</el-tag>
             </template>
             <span v-else class="text-secondary">—</span>
@@ -1467,14 +1463,14 @@ const formatMaterialForDisplay = (material) => {
         </el-table-column>
         <el-table-column label="已下推" width="70">
           <template #default="scope">
-            <span style="color: var(--color-success);">
+            <span class="text-success">
               {{ scope.row.pushed_quantity || 0 }}
             </span>
           </template>
         </el-table-column>
         <el-table-column label="剩余" width="65">
           <template #default="scope">
-            <span style="font-weight: 600; color: var(--color-primary);">
+            <span class="text-primary font-weight-600">
               {{ (scope.row.quantity || 0) - (scope.row.pushed_quantity || 0) }}
             </span>
           </template>
@@ -1507,7 +1503,7 @@ const formatMaterialForDisplay = (material) => {
         <el-table-column label="操作" min-width="72" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <div class="table-actions">
-              <el-button size="small" @click="viewPlanDetail(scope.row)" v-permission="'production:plans:view'">查看</el-button>
+              <el-button class="btn-op-view" type="primary" size="small" @click="viewPlanDetail(scope.row)" v-permission="'production:plans:view'">查看</el-button>
               <el-button
                 v-if="canEditPlan(scope.row)"
                 size="small"
@@ -1574,7 +1570,7 @@ const formatMaterialForDisplay = (material) => {
       width="55%"
       @close="handleModalCancel"
     >
-      <div v-loading="modalLoading" style="min-height: 100px;">
+      <div v-loading="modalLoading" class="min-h-form">
       <el-form
         ref="formRef"
         :model="formData"
@@ -1602,7 +1598,7 @@ const formatMaterialForDisplay = (material) => {
                 v-model="formData.startDate"
                 type="date"
                 placeholder="可选，排程后自动回填"
-                style="width: 100%"
+                class="w-full"
                 @change="updateEndDate"
               />
             </el-form-item>
@@ -1618,7 +1614,7 @@ const formatMaterialForDisplay = (material) => {
                 default-first-option
                 :remote-method="debouncedSearchProducts"
                 :loading="loadingProducts"
-                style="width: 100%"
+                class="w-full"
                 @change="handleProductChange"
                 @focus="handleProductSelectFocus"
                 @visible-change="handleSelectVisibleChange"
@@ -1636,7 +1632,7 @@ const formatMaterialForDisplay = (material) => {
                   :disabled="!product.hasBom"
                 >
                   <span :class="{ 'no-bom': !product.hasBom }">{{ product.code }} - {{ product.name }}</span>
-                  <el-tag v-if="!product.hasBom" type="danger" size="small" style="margin-left: 8px">
+                  <el-tag v-if="!product.hasBom" type="danger" size="small" class="ml-sm">
                     无BOM
                   </el-tag>
                 </el-option>
@@ -1661,7 +1657,7 @@ const formatMaterialForDisplay = (material) => {
                 v-model="formData.endDate"
                 type="date"
                 placeholder="可选，排程后自动回填"
-                style="width: 100%"
+                class="w-full"
                 :disabled-date="disableBeforeStartDate"
               />
             </el-form-item>
@@ -1672,7 +1668,7 @@ const formatMaterialForDisplay = (material) => {
                 v-model="formData.deliveryDate"
                 type="date"
                 placeholder="必填：客户要求的交货日期"
-                style="width: 100%"
+                class="w-full"
               />
             </el-form-item>
           </el-col>
@@ -1682,7 +1678,7 @@ const formatMaterialForDisplay = (material) => {
                 v-model="formData.quantity"
                 type="text"
                 maxlength="5"
-                style="width: 100%"
+                class="w-full"
                 placeholder="请输入"
                 @input="handleQuantityInput"
                 @change="calculateMaterials"
@@ -1694,11 +1690,11 @@ const formatMaterialForDisplay = (material) => {
         <el-table
           :data="materialList"
           border
-          style="width: 100%"
+          class="w-full"
         >
           <el-table-column label="层级" width="70">
             <template #default="scope">
-              <el-tag size="small" :type="getLevelTagType(scope.row.level)" :style="getLevelTagStyle(scope.row.level)">L{{ scope.row.level || 1 }}</el-tag>
+              <el-tag size="small" :type="getLevelTagType(scope.row.level)" :class="getLevelTagClass(scope.row.level)">L{{ scope.row.level || 1 }}</el-tag>
             </template>
           </el-table-column>
 
@@ -1768,11 +1764,11 @@ const formatMaterialForDisplay = (material) => {
       </template>
     </el-dialog>
     <!-- 计划详情对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="planDetailVisible"
       title="生产计划详情"
-      width="55%"
-      destroy-on-close
+      mode="view"
+      content-width="wide"
     >
       <div v-loading="planDetailLoading">
         <template v-if="currentPlan">
@@ -1795,10 +1791,10 @@ const formatMaterialForDisplay = (material) => {
           </el-descriptions>
           <!-- 物料需求 -->
           <el-divider content-position="left">物料需求</el-divider>
-          <el-table :data="currentPlan.materials || []" border style="width: 100%" max-height="350">
+          <el-table :data="currentPlan.materials || []" border class="w-full" max-height="350">
             <el-table-column label="层级" width="70">
               <template #default="{ row }">
-                <el-tag size="small" :type="getLevelTagType(row.level)" :style="getLevelTagStyle(row.level)">L{{ row.level || 1 }}</el-tag>
+                <el-tag size="small" :type="getLevelTagType(row.level)" :class="getLevelTagClass(row.level)">L{{ row.level || 1 }}</el-tag>
               </template>
             </el-table-column>
 
@@ -1828,7 +1824,7 @@ const formatMaterialForDisplay = (material) => {
       <template #footer>
         <el-button @click="planDetailVisible = false">关闭</el-button>
       </template>
-    </el-dialog>
+    </AppDialog>
     <!-- 下推数量选择对话框 -->
     <el-dialog
       v-model="pushDownDialogVisible"
@@ -1840,22 +1836,22 @@ const formatMaterialForDisplay = (material) => {
           title="计划信息"
           type="info"
           :closable="false"
-          style="margin-bottom: 20px;"
+          class="mb-20"
         >
-          <div style="line-height: 1.8;">
+          <div class="line-height-loose">
             <div><strong>计划编号：</strong>{{ pushDownPlan.code }}</div>
             <div><strong>产品名称：</strong>{{ pushDownPlan.productName }}</div>
             <div><strong>计划数量：</strong>{{ pushDownPlan.quantity }} 只</div>
-            <div><strong>已下推：</strong><span style="color: var(--color-success);">{{ pushDownPlan.pushed_quantity || 0 }} 只</span></div>
-            <div><strong>剩余可推：</strong><span style="color: var(--color-primary); font-weight: 600;">{{ (pushDownPlan.quantity || 0) - (pushDownPlan.pushed_quantity || 0) }} 只</span></div>
+            <div><strong>已下推：</strong><span class="text-success">{{ pushDownPlan.pushed_quantity || 0 }} 只</span></div>
+            <div><strong>剩余可推：</strong><span class="text-primary font-weight-600">{{ (pushDownPlan.quantity || 0) - (pushDownPlan.pushed_quantity || 0) }} 只</span></div>
           </div>
         </el-alert>
-        <el-radio-group v-model="pushDownType" style="margin-bottom: 20px;">
+        <el-radio-group v-model="pushDownType" class="mb-20">
           <el-radio value="full" size="large">
-            <span style="font-size: 15px;">全部下推（{{ (pushDownPlan.quantity || 0) - (pushDownPlan.pushed_quantity || 0) }} 只）</span>
+            <span class="text-lg">全部下推（{{ (pushDownPlan.quantity || 0) - (pushDownPlan.pushed_quantity || 0) }} 只）</span>
           </el-radio>
           <el-radio value="partial" size="large">
-            <span style="font-size: 15px;">部分下推</span>
+            <span class="text-lg">部分下推</span>
           </el-radio>
         </el-radio-group>
         <el-form v-if="pushDownType === 'partial'" label-width="100px">
@@ -1867,7 +1863,7 @@ const formatMaterialForDisplay = (material) => {
               :step="1"
               placeholder="请输入数量"
             />
-            <span style="margin-left: 10px; color: var(--color-text-secondary);">
+            <span class="ml-sm text-muted">
               / {{ (pushDownPlan.quantity || 0) - (pushDownPlan.pushed_quantity || 0) }} 只（剩余）
             </span>
           </el-form-item>

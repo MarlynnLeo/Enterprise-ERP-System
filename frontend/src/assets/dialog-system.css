@@ -1,0 +1,143 @@
+/**
+ * dialog-system.css — 对话框布局 SSOT
+ *
+ * - 所有弹窗垂直水平居中（含裸 el-dialog / AppDialog）
+ * - view/form：中间对话框，限高可滚动（不是浏览器全屏）
+ * - preview：可选手动全屏
+ */
+
+:root {
+  --app-dialog-modal-max-height: min(90vh, 960px);
+  --app-dialog-modal-body-max-height: min(72vh, 780px);
+  --app-dialog-z-index: 3000;
+  --app-dialog-content-max-width: 100%;
+}
+
+/* ---------- 遮罩 + 全站弹窗居中 ---------- */
+.el-overlay.el-modal-dialog,
+.el-overlay:has(> .el-overlay-dialog) {
+  position: fixed;
+  inset: 0;
+}
+
+/* Element Plus 遮罩内容层：flex 居中，替代 top:15vh / 8vh 偏上 */
+.el-overlay-dialog {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  overflow: auto;
+}
+
+/* 取消 EP 默认 margin-top:15vh，避免「有的居中有的偏上」 */
+.el-dialog:not(.is-fullscreen) {
+  box-sizing: border-box;
+  border-radius: var(--theme-dialog-radius, var(--el-dialog-border-radius, 12px));
+  margin: 0 !important;
+  --el-dialog-margin-top: 0 !important;
+}
+
+.el-dialog.is-align-center {
+  margin: 0 !important;
+}
+
+/* ---------- view / form 限高可滚动 ---------- */
+.el-dialog.app-dialog--modal:not(.is-fullscreen),
+.el-dialog.app-dialog--form:not(.is-fullscreen),
+.el-dialog.app-dialog--view:not(.is-fullscreen) {
+  display: flex;
+  flex-direction: column;
+  max-height: var(--app-dialog-modal-max-height);
+  overflow: hidden;
+}
+
+.el-dialog.app-dialog--modal:not(.is-fullscreen) .el-dialog__header,
+.el-dialog.app-dialog--modal:not(.is-fullscreen) .el-dialog__footer,
+.el-dialog.app-dialog--form:not(.is-fullscreen) .el-dialog__header,
+.el-dialog.app-dialog--form:not(.is-fullscreen) .el-dialog__footer,
+.el-dialog.app-dialog--view:not(.is-fullscreen) .el-dialog__header,
+.el-dialog.app-dialog--view:not(.is-fullscreen) .el-dialog__footer {
+  flex-shrink: 0;
+}
+
+.el-dialog.app-dialog--modal:not(.is-fullscreen) .el-dialog__body,
+.el-dialog.app-dialog--form:not(.is-fullscreen) .el-dialog__body,
+.el-dialog.app-dialog--view:not(.is-fullscreen) .el-dialog__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: var(--app-dialog-modal-body-max-height);
+  overflow: auto;
+}
+
+.el-dialog.app-dialog--form-wide:not(.is-fullscreen) {
+  max-width: 1280px;
+}
+
+/* ---------- preview 手动全屏 ---------- */
+.el-overlay .el-dialog.is-fullscreen,
+.el-dialog.is-fullscreen,
+.el-dialog.app-dialog--preview.is-fullscreen {
+  --el-dialog-width: 100%;
+  --el-dialog-margin-top: 0;
+  width: 100%;
+  max-width: 100%;
+  height: 100%;
+  max-height: none;
+  margin: 0 !important;
+  border-radius: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.el-dialog.is-fullscreen .el-dialog__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  overflow: auto;
+}
+
+.el-dialog.is-fullscreen .el-dialog__header,
+.el-dialog.is-fullscreen .el-dialog__footer {
+  flex-shrink: 0;
+}
+
+.el-overlay:has(.el-dialog.is-fullscreen) {
+  z-index: var(--app-dialog-z-index);
+}
+
+.el-overlay:has(.el-dialog.is-fullscreen) .el-overlay-dialog {
+  display: flex !important;
+  align-items: stretch !important;
+  justify-content: stretch !important;
+  inset: 0;
+  overflow: hidden;
+}
+
+/* 内容区 */
+.app-dialog-view-body,
+.app-dialog-form-body {
+  width: 100%;
+  max-width: var(--app-dialog-content-max-width);
+  box-sizing: border-box;
+}
+
+.app-dialog-preview-body {
+  position: relative;
+  width: 100%;
+  height: min(70vh, 720px);
+  min-height: 320px;
+}
+
+.el-dialog.app-dialog--preview.is-fullscreen .app-dialog-preview-body {
+  height: calc(100vh - 140px);
+}
+
+@media (max-width: 768px) {
+  .el-dialog.app-dialog--modal:not(.is-fullscreen),
+  .el-dialog.app-dialog--form:not(.is-fullscreen),
+  .el-dialog.app-dialog--view:not(.is-fullscreen),
+  .el-dialog:not(.is-fullscreen) {
+    width: calc(100vw - 24px) !important;
+    max-width: calc(100vw - 24px);
+  }
+}

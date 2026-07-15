@@ -1,0 +1,356 @@
+﻿/* 仪表盘金属/汇率价格面板（SSOT） */
+/* 金属价格卡片样式 - 一行两张布局 */
+.metal-price-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 10px;
+}
+.price-card {
+  border-radius: var(--radius-md);
+  padding: 12px;
+  transition: background-color var(--transition-base) ease, border-color var(--transition-base) ease, color var(--transition-base) ease, box-shadow var(--transition-base) ease, opacity var(--transition-base) ease, transform var(--transition-base) ease;
+  box-shadow: 0 2px 4px color-mix(in srgb, var(--ds-black) 5%, transparent);
+  position: relative;
+  overflow: hidden;
+  animation: cardFadeIn 0.6s ease-out;
+}
+@keyframes cardFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+/* 黄金卡片 - 金色主题 */
+.price-card-gold {
+  background: linear-gradient(135deg, var(--ds-yellow-bg) 0%, var(--ds-yellow-strong) 100%);
+  border: 1px solid var(--ds-yellow);
+  animation-delay: 0.1s;
+}
+.price-card-gold:hover {
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--ds-yellow) 30%, transparent);
+  border-color: var(--ds-orange);
+}
+/* 白银卡片 - 银白色主题 */
+.price-card-silver {
+  background: linear-gradient(135deg, var(--color-bg-hover) 0%, var(--ds-gray-bg) 100%);
+  border: 1px solid var(--ds-gray);
+  animation-delay: 0.2s;
+}
+.price-card-silver:hover {
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--ds-gray) 30%, transparent);
+  border-color: var(--color-text-regular);
+}
+/* 铝卡片 - 蓝色主题 */
+.price-card-aluminum {
+  background: linear-gradient(135deg, var(--ds-blue-bg) 0%, var(--ds-blue-strong) 100%);
+  border: 1px solid var(--ds-blue);
+  animation-delay: 0.3s;
+}
+.price-card-aluminum:hover {
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--ds-blue) 30%, transparent);
+  border-color: var(--color-primary-dark-2, var(--color-primary));
+}
+/* 铜卡片 - 橙红色主题 */
+.price-card-copper {
+  background: linear-gradient(135deg, var(--ds-orange-bg) 0%, var(--ds-orange-strong) 100%);
+  border: 1px solid var(--ds-orange);
+  animation-delay: 0.4s;
+}
+.price-card-copper:hover {
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--ds-orange) 30%, transparent);
+  border-color: var(--ds-orange);
+}
+.price-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.metal-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.metal-icon {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: inline-block;
+  animation: none;
+}
+/* 不同金属的图标颜色 */
+.metal-icon-gold {
+  background: var(--ds-yellow);
+  box-shadow: none;
+}
+.metal-icon-silver {
+  background: var(--ds-gray);
+  box-shadow: none;
+}
+.metal-icon-aluminum {
+  background: var(--ds-blue);
+  box-shadow: none;
+}
+.metal-icon-copper {
+  background: var(--ds-orange);
+  box-shadow: none;
+}
+.metal-name {
+  font-weight: 600;
+  font-size: 14px;
+}
+/* 不同金属名称的颜色 */
+.price-card-gold .metal-name {
+  color: var(--ds-orange);
+}
+.price-card-silver .metal-name {
+  color: var(--color-text-regular);
+}
+.price-card-aluminum .metal-name {
+  color: var(--color-primary);
+}
+.price-card-copper .metal-name {
+  color: var(--ds-orange);
+}
+.price-change {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+}
+.price-change.positive {
+  color: var(--color-success);
+  background-color: color-mix(in srgb, var(--color-success) 10%, transparent);
+}
+.price-change.negative {
+  color: var(--color-danger);
+  background-color: color-mix(in srgb, var(--color-danger) 10%, transparent);
+}
+.price-change.neutral {
+  color: var(--color-text-secondary);
+  background-color: color-mix(in srgb, var(--ds-gray) 10%, transparent);
+}
+.price-value {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 4px;
+  background: linear-gradient(135deg, currentColor 0%, currentColor 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease, transform 0.3s ease;
+}
+/* 不同金属价格的颜色 */
+.price-card-gold .price-value {
+  color: var(--ds-orange);
+  text-shadow: 0 2px 4px color-mix(in srgb, var(--ds-orange) 20%, transparent);
+}
+.price-card-silver .price-value {
+  color: var(--color-text-regular);
+  text-shadow: 0 2px 4px color-mix(in srgb, var(--ds-gray) 20%, transparent);
+}
+.price-card-aluminum .price-value {
+  color: var(--color-primary);
+  text-shadow: 0 2px 4px color-mix(in srgb, var(--color-primary) 20%, transparent);
+}
+.price-card-copper .price-value {
+  color: var(--ds-orange);
+  text-shadow: 0 2px 4px color-mix(in srgb, var(--ds-orange) 20%, transparent);
+}
+.price-unit {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  margin-bottom: 8px;
+}
+.price-trend {
+  height: 40px;
+}
+.mini-chart {
+  width: 100%;
+  height: 100%;
+}
+.last-update {
+  text-align: center;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  margin-top: 10px;
+  padding: 8px;
+  background: var(--color-bg-section);
+  border-radius: var(--radius-md);
+  border-left: 3px solid var(--color-primary);
+}
+/* 我发起表格特定样式 */
+.list-container .el-table__body {
+  width: 100% !important;
+}
+.list-container .el-table__header {
+  width: 100% !important;
+}
+.list-container .el-table__body-wrapper {
+  overflow-x: hidden;
+}
+/* 价格面板：Tab 切换，无内部滚动 */
+.price-exchange-panel .chart-header {
+  height: 45px;
+  flex: 0 0 auto;
+  padding: 0;
+  border-bottom: 1px solid var(--color-border-lighter);
+  box-sizing: border-box;
+}
+.price-panel-tabs {
+  height: 100%;
+  display: flex;
+  align-items: center;
+}
+.price-panel-tabs .tab {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  padding: 0 15px;
+  position: relative;
+  color: var(--color-text-regular);
+  font-size: 14px;
+  cursor: pointer;
+  user-select: none;
+}
+.price-panel-tabs .tab:hover {
+  color: var(--color-primary);
+  background-color: color-mix(in srgb, var(--ds-blue) 5%, transparent);
+}
+.price-panel-tabs .tab.active {
+  color: var(--color-primary);
+  font-weight: 700;
+}
+.price-panel-tabs .tab.active::after {
+  content: '';
+  position: absolute;
+  right: 15px;
+  bottom: 0;
+  left: 15px;
+  height: 2px;
+  background: var(--color-primary);
+  border-radius: 2px 2px 0 0;
+}
+.price-panel-body {
+  overflow: hidden;
+  max-height: none;
+  padding: 8px 4px 4px;
+}
+.price-panel-pane {
+  min-height: 280px;
+}
+/* 汇率卡片：与金属价格卡片同尺寸（2×2 网格、同 padding/字号/走势高度） */
+.exchange-rate-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 10px;
+  margin-bottom: 12px;
+}
+.rate-card {
+  background: var(--theme-feature-card-bg);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  color: var(--theme-feature-card-color);
+  position: relative;
+  overflow: hidden;
+  transition: background-color var(--transition-base) ease, border-color var(--transition-base) ease,
+    color var(--transition-base) ease, box-shadow var(--transition-base) ease,
+    opacity var(--transition-base) ease, transform var(--transition-base) ease;
+  box-shadow: 0 2px 4px color-mix(in srgb, var(--ds-black) 5%, transparent);
+  border: 1px solid var(--theme-feature-card-border);
+  /* 不设 min-height，高度由内容与金属卡片一致 */
+  animation: cardFadeIn 0.6s ease-out;
+}
+.rate-card:hover {
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--ds-black) 10%, transparent);
+}
+.rate-card:nth-child(1) {
+  background: var(--theme-feature-card-bg);
+  animation-delay: 0.1s;
+}
+.rate-card:nth-child(2) {
+  background: var(--theme-status-danger-bg);
+  border-color: var(--theme-status-danger-border);
+  color: var(--theme-status-danger-color);
+  animation-delay: 0.2s;
+}
+.rate-card:nth-child(3) {
+  background: var(--theme-status-primary-bg);
+  border-color: var(--theme-status-primary-border);
+  color: var(--theme-status-primary-color);
+  animation-delay: 0.3s;
+}
+.rate-card:nth-child(4) {
+  background: var(--theme-status-success-bg);
+  border-color: var(--theme-status-success-border);
+  color: var(--theme-status-success-color);
+  animation-delay: 0.4s;
+}
+.rate-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.price-refresh-button {
+  margin-left: auto;
+  color: var(--color-primary);
+}
+.currency-pair {
+  font-size: 14px;
+  font-weight: 600;
+}
+.rate-value {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 4px;
+  line-height: 1.3;
+}
+.rate-unit {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  margin-bottom: 8px;
+  opacity: 0.9;
+}
+.rate-trend {
+  height: 40px;
+}
+.mini-chart {
+  width: 100%;
+  height: 100%;
+}
+.exchange-rate-chart {
+  background: var(--color-bg-base);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  margin: 0 10px 12px;
+  box-shadow: 0 2px 4px color-mix(in srgb, var(--ds-black) 5%, transparent);
+  border: 1px solid var(--color-border-lighter, var(--color-border));
+}
+.exchange-rate-chart-canvas {
+  width: 100%;
+  height: 160px;
+}
+.rate-change {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+}
+.rate-change.positive {
+  color: var(--color-success);
+  background-color: color-mix(in srgb, var(--color-success) 10%, transparent);
+}
+.rate-change.negative {
+  color: var(--color-danger);
+  background-color: color-mix(in srgb, var(--color-danger) 10%, transparent);
+}
+.rate-change.neutral {
+  color: var(--color-text-secondary);
+  background-color: color-mix(in srgb, var(--ds-gray) 10%, transparent);
+}

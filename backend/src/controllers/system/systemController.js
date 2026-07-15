@@ -9,7 +9,8 @@ const { ResponseHandler } = require('../../utils/responseHandler');
 const { logger } = require('../../utils/logger');
 
 const systemModel = require('../../models/system');
-const { AuditService, AuditAction, AuditModule } = require('../../services/AuditService');
+const { AuditService } = require('../../services/AuditService');
+const PermissionChangeService = require('../../services/PermissionChangeService');
 const { pool } = require('../../config/db');
 const cacheService = require('../../services/cache/CacheManager');
 const DLQService = require('../../services/business/DLQService');
@@ -144,6 +145,16 @@ const systemController = {
         allowAdminRole: isSuperAdminRequest(req),
       });
 
+      // 写入 user_roles 后清缓存，避免后续立刻登录读到脏缓存
+      if (newUser?.id) {
+        await PermissionService.clearUserPermissionsCache(newUser.id);
+        if (Array.isArray(newUser.roleIds) && newUser.roleIds.length > 0) {
+          await PermissionChangeService.auditUserRoles(req, newUser.id, [], newUser.roleIds, {
+            username: newUser.username,
+          });
+        }
+      }
+
       const result = omitUserSecrets(newUser);
 
       ResponseHandler.success(
@@ -174,11 +185,21 @@ const systemController = {
         return ResponseHandler.error(res, '禁止越权修改超级管理员信息', 'FORBIDDEN', 403);
       }
 
+      const oldRoleIds =
+        userData.roleIds !== undefined
+          ? await PermissionChangeService.getUserRoleIds(id)
+          : null;
 
       const updatedUser = await systemModel.updateUser(id, userData, {
         allowAdminRole: isSuperAdminRequest(req),
       });
       await PermissionService.clearUserPermissionsCache(id);
+
+      if (oldRoleIds && userData.roleIds !== undefined) {
+        await PermissionChangeService.auditUserRoles(req, id, oldRoleIds, userData.roleIds, {
+          username: updatedUser?.username || userData.username,
+        });
+      }
 
       ResponseHandler.success(res, omitUserSecrets(updatedUser), '更新用户成功');
     } catch (error) {
@@ -219,7 +240,7 @@ const systemController = {
       try {
         const PermissionService = require('../../services/PermissionService');
         await PermissionService.clearUserPermissionsCache(id);
-        logger.info(`✅ 已清除用户 ${id} 的权限缓存`);
+        logger.info(`User permission cache cleared: userId=${id}`);
       } catch (cacheError) {
         logger.warn('清除缓存失败:', cacheError.message);
       }
@@ -421,7 +442,23 @@ const systemController = {
   async createRole(req, res) {
     try {
       const roleData = req.body;
+      // 新建角色默认 SELF；仅允许 1-5
+      if (roleData.data_scope === undefined || roleData.data_scope === null || roleData.data_scope === '') {
+        roleData.data_scope = 4;
+      }
       const newRole = await systemModel.createRole(roleData);
+
+      try {
+        await PermissionChangeService.auditRoleProfile(req, newRole.id, null, {
+          id: newRole.id,
+          name: newRole.name,
+          code: newRole.code,
+          data_scope: newRole.data_scope,
+          menuIds: newRole.menuIds || [],
+        });
+      } catch {
+        // 审计失败不阻断
+      }
 
       ResponseHandler.success(res, newRole, '创建角色成功', 201);
     } catch (error) {
@@ -443,11 +480,28 @@ const systemController = {
       if (String(id) === '1') {
         roleData.code = 'admin';
         roleData.status = 1;
+        // 超管始终 ALL
+        if (roleData.data_scope !== undefined) roleData.data_scope = 1;
       }
 
+      const before = await PermissionChangeService.getRoleSnapshot(id);
       const result = await systemModel.updateRole(id, roleData);
 
       await PermissionService.clearUserPermissionsCache();
+
+      const after = await PermissionChangeService.getRoleSnapshot(id);
+      if (before && after) {
+        await PermissionChangeService.auditRoleProfile(req, id, before, after);
+        if (roleData.menuIds !== undefined) {
+          await PermissionChangeService.auditRoleMenus(
+            req,
+            id,
+            before.menuIds,
+            after.menuIds,
+            { roleName: after.name }
+          );
+        }
+      }
 
       ResponseHandler.success(res, result, '更新角色成功');
     } catch (error) {
@@ -499,7 +553,7 @@ const systemController = {
       try {
         const PermissionService = require('../../services/PermissionService');
         await PermissionService.clearUserPermissionsCache();
-        logger.info(`✅ 已清除所有用户权限缓存（角色 ${id} 状态变更）`);
+        logger.info(`All user permission caches cleared after role status change: roleId=${id}`);
       } catch (cacheError) {
         logger.warn('清除缓存失败:', cacheError.message);
       }
@@ -671,6 +725,60 @@ const systemController = {
     }
   },
 
+  /**
+   * 权限码注册表列表（permissions SSOT）
+   */
+  async getPermissionCodes(req, res) {
+    try {
+      const { module: moduleFilter, keyword, page = 1, pageSize = 50 } = req.query;
+      const pagination = parsePagination(page, pageSize, {
+        defaultPageSize: 50,
+        maxPageSize: 500,
+      });
+      let where = 'WHERE status = 1';
+      const params = [];
+      if (moduleFilter) {
+        where += ' AND module = ?';
+        params.push(moduleFilter);
+      }
+      if (keyword) {
+        where += ' AND (code LIKE ? OR name LIKE ?)';
+        const kw = `%${keyword}%`;
+        params.push(kw, kw);
+      }
+      const [[{ total }]] = await pool.execute(
+        `SELECT COUNT(*) AS total FROM permissions ${where}`,
+        params
+      );
+      const [rows] = await pool.query(
+        `SELECT id, code, name, module, description, source, status, created_at, updated_at
+           FROM permissions ${where}
+          ORDER BY module, code
+          LIMIT ${pagination.limit} OFFSET ${pagination.offset}`,
+        params
+      );
+      return ResponseHandler.paginated(
+        res,
+        rows,
+        total,
+        pagination.page,
+        pagination.pageSize,
+        '获取权限码列表成功'
+      );
+    } catch (error) {
+      if (error.code === 'ER_NO_SUCH_TABLE') {
+        const list = await PermissionService.getAllSystemPermissions();
+        return ResponseHandler.success(
+          res,
+          list.map((code) => ({ code })),
+          '获取权限码列表成功（兼容 menus）'
+        );
+      }
+      logger.error('获取权限码列表失败:', error);
+      return ResponseHandler.error(res, '获取权限码列表失败', 'SERVER_ERROR', 500, error);
+    }
+  },
+
   async getRolesList(req, res) {
     try {
       const pageSize = Math.min(Math.max(parseInt(req.query.limit || req.query.pageSize, 10) || 100, 1), 100);
@@ -732,24 +840,17 @@ const systemController = {
       try {
         const PermissionService = require('../../services/PermissionService');
         await PermissionService.clearUserPermissionsCache(); // 清除所有用户权限缓存
-        logger.info(`✅ [权限更新] 角色 ${id} (${role.name}) 的权限缓存已清除`);
+        logger.info(`Role permission cache cleared after permission update: roleId=${id}, roleName=${role.name}`);
       } catch (cacheError) {
-        logger.error('❌ 清除缓存失败:', cacheError);
+        logger.error('Permission cache clear failed:', cacheError);
       }
 
-      // ✅ 使用统一的 AuditService 记录权限变更审计日志
+      // 权限变更审计：菜单差集 + permission 码差集
       try {
-        await AuditService.log({
-          userId: req.user.id,
-          username: req.user.username,
-          module: AuditModule.SYSTEM,
-          action: AuditAction.UPDATE,
-          entityType: 'role',
-          entityId: String(id),
-          oldValue: { menuIds: oldMenuIds },
-          newValue: { menuIds, halfCheckedIds, uncheckedIds },
-          ipAddress: req.ip || req.connection?.remoteAddress,
-          userAgent: req.headers['user-agent'],
+        await PermissionChangeService.auditRoleMenus(req, id, oldMenuIds, menuIds, {
+          roleName: role.name,
+          halfCheckedIds,
+          uncheckedIds,
         });
         logger.info(`[审计日志] 用户 ${req.user.username} 更新了角色 ${role.name} 的权限`);
       } catch (auditError) {
@@ -862,6 +963,7 @@ const systemController = {
       try {
         let insertedCount = 0;
         let updatedCount = 0;
+        const { bindMenuPermission } = require('../../services/PermissionRegistry');
 
         // 批量查出所有已存在的菜单 permission（消除 N+1）
         const allPermissions = menus.map(m => m.permission).filter(Boolean);
@@ -870,6 +972,7 @@ const systemController = {
           ? await connection.execute(`SELECT id, permission FROM menus WHERE permission IN (${permPh})`, allPermissions)
           : [[]];
         const existingSet = new Set(existingMenus.map(m => m.permission));
+        const existingIdByPerm = new Map(existingMenus.map((m) => [m.permission, m.id]));
 
         for (const menu of menus) {
           // 使用 INSERT ... ON DUPLICATE KEY UPDATE 减少逐条查询
@@ -879,16 +982,18 @@ const systemController = {
             menu.parentId || 0, menu.name, menu.path || '', menu.component || '',
             menu.icon || '', menu.type || 1, visible, status, menu.sort || 0,
           ];
-          if (existingSet.has(menu.permission)) {
+          let menuId = null;
+          if (menu.permission && existingSet.has(menu.permission)) {
             await connection.execute(
               `UPDATE menus SET parent_id = ?, name = ?, path = ?, component = ?, icon = ?,
                type = ?, visible = ?, status = ?, sort_order = ?, updated_at = NOW()
                WHERE permission = ?`,
               [...params, menu.permission]
             );
+            menuId = existingIdByPerm.get(menu.permission);
             updatedCount++;
           } else {
-            await connection.execute(
+            const [ins] = await connection.execute(
               `INSERT INTO menus (parent_id, name, path, component, icon, permission, type, visible, status, sort_order, created_at, updated_at)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
               [
@@ -896,8 +1001,16 @@ const systemController = {
                 menu.icon || '', menu.permission, menu.type || 1, visible, status, menu.sort || 0,
               ]
             );
-            existingSet.add(menu.permission);
+            menuId = ins.insertId;
+            if (menu.permission) {
+              existingSet.add(menu.permission);
+              existingIdByPerm.set(menu.permission, menuId);
+            }
             insertedCount++;
+          }
+          // 同步 permissions SSOT
+          if (menuId && menu.permission) {
+            await bindMenuPermission(connection, menuId, menu.permission, menu.name);
           }
         }
 
@@ -1101,8 +1214,10 @@ const systemController = {
   async retryFailedJobs(req, res) {
     try {
       const limit = req.body?.limit || req.query?.limit || 20;
+      const ids = req.body?.ids;
+      const requeued = ids ? await DLQService.requeueFailedJobs(ids) : 0;
       const result = await DLQService.retryPendingJobs({ limit });
-      return ResponseHandler.success(res, result, '失败任务重试已执行');
+      return ResponseHandler.success(res, { ...result, requeued }, '失败任务重试已执行');
     } catch (error) {
       logger.error('重试失败任务失败:', error);
       return ResponseHandler.error(res, '重试失败任务失败', 'SERVER_ERROR', 500, error);
@@ -1137,6 +1252,21 @@ const systemController = {
     } catch (error) {
       logger.error('备份下载失败:', error);
       return sendBusinessError(res, error, '备份下载失败');
+    }
+  },
+
+  async verifyBackup(req, res) {
+    try {
+      const { filename } = req.params;
+      const result = await BackupService.verifyBackup(filename);
+      return ResponseHandler.success(
+        res,
+        result,
+        result.valid ? 'backup verification passed' : 'backup verification failed'
+      );
+    } catch (error) {
+      logger.error('Backup verification failed:', error);
+      return sendBusinessError(res, error, 'backup verification failed');
     }
   },
 

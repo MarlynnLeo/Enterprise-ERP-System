@@ -1,10 +1,14 @@
 <template>
-  <div class="equipment-record-page">
-    <el-card>
+  <div class="module-page equipment-record-page page-container">
+    <PageHeader :title="title">
+      <template #actions>
+        <el-button :icon="Refresh" @click="loadData">刷新</el-button>
+      </template>
+    </PageHeader>
+    <el-card class="data-card">
       <template #header>
         <div class="page-header">
-          <h3>{{ title }}</h3>
-          <el-button :icon="Refresh" @click="loadData">刷新</el-button>
+          <span class="text-regular">筛选与列表</span>
         </div>
       </template>
 

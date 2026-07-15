@@ -8,15 +8,11 @@
 -->
 <template>
   <div class="module-page receipts-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>收款管理</h2>
-          <p class="subtitle">从应收发票发起收款，手工录入仅用于例外收款</p>
-        </div>
-        <el-button v-permission="'finance:ar:receive'" type="info" plain :icon="Plus" @click="showAddDialog">例外收款录入</el-button>
-      </div>
-    </el-card>
+    <PageHeader title="收款管理" subtitle="从应收发票发起收款，手工录入仅用于例外收款">
+      <template #actions>
+<el-button v-permission="'finance:ar:receive'" type="info" plain :icon="Plus" @click="showAddDialog">例外收款录入</el-button>
+      </template>
+    </PageHeader>
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
@@ -71,10 +67,10 @@
       type="info"
       show-icon
       :closable="false"
-      style="margin-bottom: 20px;"
+      class="mb-20"
     >
       <template #default>
-        <el-button type="primary" size="small" @click="clearInvoiceFilter" style="margin-left: 10px;">
+        <el-button type="primary" size="small" @click="clearInvoiceFilter" class="ml-sm">
           查看全部收款记录
         </el-button>
       </template>
@@ -84,7 +80,7 @@
     <el-card class="data-card">
       <el-table
         :data="receiptList"
-        style="width: 100%"
+        class="w-full"
         border
         v-loading="loading"
       >
@@ -119,7 +115,7 @@
         <el-table-column prop="notes" label="备注" min-width="120" show-overflow-tooltip></el-table-column>
         <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
-            <el-button type="info" size="small" @click="handleViewDetail(scope.row)">详情</el-button>
+            <el-button class="btn-op-view" type="primary" size="small" @click="handleViewDetail(scope.row)">详情</el-button>
             <el-button v-permission="'finance:ar:update'"
               v-if="scope.row.status === 'normal'"
               type="warning"
@@ -164,7 +160,7 @@
             v-model="receiptForm.invoiceId"
             placeholder="请选择关联发票"
             filterable
-            style="width: 100%"
+            class="w-full"
             @change="handleInvoiceChange"
           >
             <el-option
@@ -185,7 +181,7 @@
             placeholder="选择收款日期"
             format="YYYY-MM-DD"
             value-format="YYYY-MM-DD"
-            style="width: 100%"
+            class="w-full"
           ></el-date-picker>
         </el-form-item>
         <el-form-item label="发票金额">
@@ -198,10 +194,10 @@
           <el-input v-model="receiptForm.balance" disabled></el-input>
         </el-form-item>
         <el-form-item label="收款金额" prop="amount">
-          <el-input-number v-model="receiptForm.amount" :precision="2" :min="0" :max="receiptForm.balanceValue" style="width: 100%"></el-input-number>
+          <el-input-number v-model="receiptForm.amount" :precision="2" :min="0" :max="receiptForm.balanceValue" class="w-full"></el-input-number>
         </el-form-item>
         <el-form-item label="收款方式" prop="paymentMethod">
-          <el-select v-model="receiptForm.paymentMethod" placeholder="请选择收款方式" style="width: 100%" @change="handlePaymentMethodChange">
+          <el-select v-model="receiptForm.paymentMethod" placeholder="请选择收款方式" class="w-full" @change="handlePaymentMethodChange">
             <el-option label="现金" value="cash"></el-option>
             <el-option label="银行转账" value="bank_transfer"></el-option>
             <el-option label="支票" value="check"></el-option>
@@ -210,7 +206,7 @@
           </el-select>
         </el-form-item>
         <el-form-item label="收款账户" prop="bankAccountId" v-if="showBankAccountField">
-          <el-select v-model="receiptForm.bankAccountId" placeholder="选择收款账户" filterable style="width: 100%">
+          <el-select v-model="receiptForm.bankAccountId" placeholder="选择收款账户" filterable class="w-full">
             <el-option
               v-for="account in bankAccounts"
               :key="account.id"
@@ -218,7 +214,7 @@
               :value="account.id"
             ></el-option>
           </el-select>
-          <div class="form-tip"><el-icon style="vertical-align: middle; color: var(--color-primary);"><InfoFilled /></el-icon> 选择后将自动创建银行交易记录并更新账户余额</div>
+          <div class="form-tip"><el-icon class="icon-inline text-primary"><InfoFilled /></el-icon> 选择后将自动创建银行交易记录并更新账户余额</div>
         </el-form-item>
         <el-form-item label="备注" prop="notes">
           <el-input
@@ -238,10 +234,11 @@
     </el-dialog>
 
     <!-- 详情对话框 -->
-    <el-dialog
-      title="收款记录详情"
+    <AppDialog
       v-model="detailDialogVisible"
-      width="650px"
+      title="收款记录详情"
+      mode="view"
+      content-width="wide"
     >
       <el-descriptions :column="2" border>
         <el-descriptions-item label="收款编号">{{ detailData.receipt_number }}</el-descriptions-item>
@@ -268,7 +265,7 @@
           <el-descriptions-item label="作废原因" :span="2">{{ detailData.void_reason }}</el-descriptions-item>
         </template>
       </el-descriptions>
-    </el-dialog>
+    </AppDialog>
 
     <!-- 作废对话框 -->
     <el-dialog
@@ -279,12 +276,12 @@
       <el-alert
         type="warning"
         :closable="false"
-        style="margin-bottom: 20px;"
+        class="mb-20"
       >
         <template #title>
-          <div style="font-weight: bold;">确认作废该收款记录？</div>
+          <div class="font-weight-700">确认作废该收款记录？</div>
         </template>
-        <div style="margin-top: 10px; line-height: 1.6;">
+        <div class="mt-10 line-height-tight">
           作废后将执行以下操作：<br>
           ✓ 恢复发票的应收余额<br>
           ✓ 冲销相关的银行交易记录<br>
@@ -859,12 +856,6 @@ onMounted(() => {
   margin: 0;
   font-size: 14px;
   color: var(--color-text-secondary);
-}
-
-/* 对话框高度 - 页面特定，其他样式使用全局主题 */
-:deep(.el-dialog__body) {
-  max-height: 60vh;
-  overflow-y: auto;
 }
 
 /* 详情对话框长文本处理 - 自动添加 */

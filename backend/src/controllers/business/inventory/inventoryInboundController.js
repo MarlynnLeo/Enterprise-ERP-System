@@ -13,7 +13,6 @@ const db = require('../../../config/db');
 const InventoryService = require('../../../services/InventoryService');
 const businessConfig = require('../../../config/businessConfig');
 const { CodeGenerators } = require('../../../utils/codeGenerator');
-const { _insertInventoryLedgerLocal } = require('./inventoryLedgerController');
 const { parsePagination } = require('../../../utils/safePagination');
 
 // 统一库存查询子查询（基于 inventory_ledger 单表架构聚合计算当前库存）
@@ -36,6 +35,7 @@ const INBOUND_STATUS_TEXT = {
   draft: '草稿',
   confirmed: '已确认',
   completed: '已完成',
+  reversed: '已冲销',
   cancelled: '已取消',
 };
 const getStatusText = (status) => INBOUND_STATUS_TEXT[status] || status || '未知';
@@ -83,9 +83,14 @@ const getInboundList = async (req, res) => {
     } = req.query;
 
     // 开始查询入库单列表
+    const ScopeGuard = require('../../../authorization/ScopeGuard');
+    const scopeClause = await ScopeGuard.applyListScope(req, 'inventory_inbound', {
+      tableAlias: 'i',
+      ownerAlias: 'inbound_owner_scope',
+    });
 
-    // 构建查询条件
-    let whereClause = 'WHERE 1=1';
+    // 构建查询条件（兼容 is_deleted + deleted_at）
+    let whereClause = 'WHERE i.is_deleted = 0 AND i.deleted_at IS NULL';
     const params = [];
 
     if (inboundNo) {
@@ -124,6 +129,9 @@ const getInboundList = async (req, res) => {
       params.push(`%${materialName}%`, `%${materialName}%`, `%${materialName}%`);
     }
 
+    whereClause += scopeClause.where;
+    params.push(...scopeClause.params);
+
     // 计算分页
     const pagination = parsePagination(page, pageSize, {
       defaultPageSize: 20,
@@ -135,7 +143,7 @@ const getInboundList = async (req, res) => {
 
     // 获取总记录数
     const [totalResult] = await connection.execute(
-      `SELECT COUNT(*) as total FROM inventory_inbound i ${whereClause}`,
+      `SELECT COUNT(*) as total FROM inventory_inbound i ${scopeClause.join} ${whereClause}`,
       params
     );
 
@@ -156,8 +164,8 @@ const getInboundList = async (req, res) => {
         CASE
           WHEN i.operator = 'system' THEN '系统'
           ELSE COALESCE(
-            (SELECT u.real_name FROM users u WHERE u.username = i.operator LIMIT 1),
-            (SELECT u.username FROM users u WHERE u.username = i.operator LIMIT 1),
+            (SELECT u.real_name FROM users u WHERE BINARY u.username = BINARY i.operator LIMIT 1),
+            (SELECT u.username FROM users u WHERE BINARY u.username = BINARY i.operator LIMIT 1),
             i.operator
           )
         END as operator_name,
@@ -191,6 +199,7 @@ const getInboundList = async (req, res) => {
          FROM inventory_inbound_items ii
          LEFT JOIN materials m ON ii.material_id = m.id
        ) first_item ON i.id = first_item.inbound_id AND first_item.rn = 1
+       ${scopeClause.join}
        ${whereClause}
        ORDER BY i.created_at DESC
        LIMIT ${pageSizeNum} OFFSET ${offset}
@@ -227,7 +236,7 @@ const getInboundStatistics = async (req, res) => {
   const connection = await db.pool.getConnection();
   try {
     const { inboundNo, startDate, endDate, locationId, inboundType, materialName } = req.query;
-    let whereClause = 'WHERE 1=1';
+    let whereClause = 'WHERE is_deleted = 0 AND deleted_at IS NULL';
     const params = [];
 
     if (inboundNo) {
@@ -297,6 +306,10 @@ const getInboundDetail = async (req, res) => {
     const { id } = req.params;
 
     // 查询入库单详情
+    const ScopeGuard = require('../../../authorization/ScopeGuard');
+    if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'inventory_inbound', id, '无权访问该入库单'))) {
+      return;
+    }
 
     // 获取入库单主表信息
     const [inboundResult] = await connection.execute(
@@ -380,6 +393,12 @@ const createInbound = async (req, res) => {
       throw new Error('缺少必填字段：入库日期、仓库、状态、操作员、物料项不能为空');
     }
 
+    // 创建仅允许草稿/已确认；完成写库存必须走状态接口
+    const allowedCreateStatuses = [STATUS.INBOUND.DRAFT, STATUS.INBOUND.CONFIRMED];
+    if (!allowedCreateStatuses.includes(status)) {
+      throw new Error('创建入库单仅允许 draft/confirmed，完成入库请使用状态接口');
+    }
+
     // ===== 年度结存校验 =====
     const PeriodValidationService = require('../../../services/business/PeriodValidationService');
     const inventoryCheck = await PeriodValidationService.validateInventoryTransaction(inbound_date);
@@ -396,11 +415,13 @@ const createInbound = async (req, res) => {
     // ✅ 使用统一编码规则引擎生成入库单号
     const inbound_no = await CodeGenerators.generateInboundCode(connection);
 
-    // 插入入库单主表（包含入库类型和关联信息）
+    // 插入入库单主表（包含入库类型和关联信息 + DataScope owner）
+    const ScopeGuard = require('../../../authorization/ScopeGuard');
+    const ownerStamp = ScopeGuard.tryStampOwner(req, 'inventory_inbound');
     const [inboundResult] = await connection.execute(
       `INSERT INTO inventory_inbound
-       (inbound_no, inbound_date, inbound_type, reference_type, reference_id, reference_no, location_id, status, operator, remark)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (inbound_no, inbound_date, inbound_type, reference_type, reference_id, reference_no, location_id, status, operator, remark, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         inbound_no,
         inbound_date,
@@ -412,6 +433,7 @@ const createInbound = async (req, res) => {
         status,
         operator,
         remark,
+        ownerStamp.created_by,
       ]
     );
 
@@ -421,7 +443,7 @@ const createInbound = async (req, res) => {
     const inboundMaterialIds = items.map(i => i.material_id);
     const inboundMaterialInfoMap = await InventoryService.getBatchMaterialInfo(inboundMaterialIds, connection);
 
-    // 插入入库单明细
+    // 插入入库单明细（创建路径不写库存）
     for (const item of items) {
       if (!item.material_id || !item.quantity || item.quantity <= 0) {
         throw new Error('物料信息不完整或数量无效');
@@ -445,23 +467,6 @@ const createInbound = async (req, res) => {
           item.remark || null,
         ]
       );
-
-      // 更新库存
-      if (status === STATUS.INBOUND.COMPLETED) {
-        await _insertInventoryLedgerLocal(connection, {
-          material_id: item.material_id,
-          location_id: itemLocationId, // 修复 Bug: 把 inboundId 或表头 location_id 强转为 itemLocationId
-          transaction_type: inbound_type === 'production_return' ? 'production_return' : (inbound_type.includes('_') ? inbound_type : `${inbound_type}_inbound`),
-          quantity: parseFloat(item.quantity),
-          unit_id: unitId,
-          reference_no: inbound_no,
-          reference_type: 'inbound',
-          operator: operator,
-          batch_number: item.batch_number || null,
-          transaction_date: inbound_date,
-          unit_cost: item.unit_cost || item.price || matInfo.costPrice || matInfo.price || 0,
-        });
-      }
     }
 
     await connection.commit();
@@ -480,7 +485,16 @@ const createInbound = async (req, res) => {
   } catch (error) {
     await connection.rollback();
     logger.error('创建入库单失败:', error);
-    ResponseHandler.error(res, '创建入库单失败', 'SERVER_ERROR', 500, error);
+    const msg = error?.message || '创建入库单失败';
+    const isValidation =
+      /缺少必填|仅允许 draft\/confirmed|请使用状态接口|年度结存|必须关联|物料信息/.test(msg);
+    ResponseHandler.error(
+      res,
+      isValidation ? msg : '创建入库单失败',
+      isValidation ? 'VALIDATION_ERROR' : 'SERVER_ERROR',
+      isValidation ? 400 : 500,
+      error
+    );
   } finally {
     connection.release();
   }
@@ -489,16 +503,23 @@ const createInbound = async (req, res) => {
 const updateInbound = async (req, res) => {
   const connection = await db.pool.getConnection();
   try {
-    await connection.beginTransaction();
-
     const id = toRequiredInteger(req.params.id);
     if (!id) {
-      await connection.rollback();
       return ResponseHandler.error(res, '无效的入库单ID', 'VALIDATION_ERROR', 400);
     }
 
+    const ScopeGuard = require('../../../authorization/ScopeGuard');
+    if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'inventory_inbound', id, '无权修改该入库单'))) {
+      return;
+    }
+
+    await connection.beginTransaction();
+
     const [inboundRows] = await connection.execute(
-      'SELECT id, inbound_no, inbound_date, inbound_type, reference_type, reference_id, reference_no, location_id, status, total_amount, total_amount_unit, operator, inspection_id, inspection_no, remark, created_at, updated_at, created_by, updated_by, is_deleted FROM inventory_inbound WHERE id = ? AND is_deleted = 0 FOR UPDATE',
+      `SELECT id, inbound_no, inbound_date, inbound_type, reference_type, reference_id, reference_no, location_id, status, total_amount, total_amount_unit, operator, inspection_id, inspection_no, remark, created_at, updated_at, created_by, updated_by, is_deleted
+       FROM inventory_inbound
+       WHERE id = ? AND is_deleted = 0 AND deleted_at IS NULL
+       FOR UPDATE`,
       [id]
     );
 
@@ -594,7 +615,7 @@ const updateInbound = async (req, res) => {
            operator = ?,
            remark = ?,
            updated_at = NOW()
-       WHERE id = ? AND is_deleted = 0`,
+       WHERE id = ? AND is_deleted = 0 AND deleted_at IS NULL`,
       [
         inbound_date,
         inbound_type || 'other',
@@ -683,12 +704,20 @@ const createInboundFromQuality = async (req, res) => {
     }
     // ===== 年度结存校验结束 =====
 
-    // 检查质检单状态是否合格
+    // 检查质检单状态是否合格；入库类型/引用由 documentReferences SSOT 解析
     let inspectionContext = null;
+    const {
+      resolveInboundFromInspection,
+      INBOUND_TYPE_KEYS,
+    } = require('../../../constants/documentReferences');
+    let inboundType = INBOUND_TYPE_KEYS.OTHER;
+    let referenceType = null;
+    let referenceId = null;
     if (inspection_id) {
       const [inspectionResult] = await connection.execute(
         `SELECT id, status, inspection_no, inspection_type, product_id, product_name,
-                product_code, quantity, qualified_quantity, unit
+                product_code, quantity, qualified_quantity, unit,
+                reference_id, reference_no, task_id, batch_no
          FROM quality_inspections
          WHERE id = ?
          FOR UPDATE`,
@@ -727,27 +756,69 @@ const createInboundFromQuality = async (req, res) => {
           '该质检单已创建过入库单'
         );
       }
+
+      const inboundMeta = resolveInboundFromInspection(inspectionContext);
+      inboundType = inboundMeta.inboundType;
+      referenceType = inboundMeta.referenceType;
+      referenceId = inboundMeta.referenceId;
+
+      if (
+        inboundType === INBOUND_TYPE_KEYS.PRODUCTION &&
+        !referenceId
+      ) {
+        await connection.rollback();
+        return ResponseHandler.error(
+          res,
+          '成品终检未关联生产任务，不能创建生产入库单',
+          'VALIDATION_ERROR',
+          400
+        );
+      }
     }
 
     // ✅ 使用统一编码规则引擎生成入库单号
     const inbound_no = await CodeGenerators.generateInboundCode(connection);
 
-    // 创建入库单
+    // 创建入库单（写入 created_by 闭环 DataScope + 业务类型/来源，保证生产闭环）
+    const ScopeGuard = require('../../../authorization/ScopeGuard');
+    const ownerStamp = ScopeGuard.tryStampOwner(req, 'inventory_inbound');
     const [inboundResult] = await connection.execute(
-      'INSERT INTO inventory_inbound (inbound_no, inbound_date, location_id, operator, status, remark, inspection_id, inspection_no, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())',
+      `INSERT INTO inventory_inbound (
+         inbound_no, inbound_date, inbound_type, reference_type, reference_id,
+         location_id, operator, status, remark, inspection_id, inspection_no,
+         created_by, created_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
       [
         inbound_no,
         inbound_date,
+        inboundType,
+        referenceType,
+        referenceId,
         location_id,
         operator,
         'draft',
         remark || null,
         inspection_id || null,
-        inspection_no || null,
+        inspection_no || inspectionContext?.inspection_no || null,
+        ownerStamp.created_by,
       ]
     );
 
     const inbound_id = inboundResult.insertId;
+
+    // 生产入库草稿创建时推进任务至入库中（状态机路径，非裸 UPDATE）
+    if (inboundType === INBOUND_TYPE_KEYS.PRODUCTION && referenceId) {
+      const { promoteTaskToward } = require('../../../services/business/TaskLifecycleService');
+      const promoteResult = await promoteTaskToward(connection, referenceId, 'warehousing', {
+        requireOpenInspectionClear: false,
+        strict: false,
+      });
+      if (!promoteResult.promoted && promoteResult.reason !== 'already') {
+        logger.warn(
+          `[from-quality] 任务 ${referenceId} 未推进至 warehousing: ${promoteResult.reason || promoteResult.status}`
+        );
+      }
+    }
 
     // 从质检单获取产品信息
     let productId = null;
@@ -787,7 +858,7 @@ const createInboundFromQuality = async (req, res) => {
             // 更新入库单的库位，与物料保持一致
             if (materialLocationId && materialLocationId !== location_id) {
               await connection.execute(
-                'UPDATE inventory_inbound SET location_id = ? WHERE id = ? AND is_deleted = 0',
+                'UPDATE inventory_inbound SET location_id = ? WHERE id = ? AND is_deleted = 0 AND deleted_at IS NULL',
                 [materialLocationId, inbound_id]
               );
             }
@@ -959,77 +1030,122 @@ const createInboundFromQuality = async (req, res) => {
   }
 };
 
-// 更新入库单状态
+// 更新入库单状态（死锁时整事务重试）
 
 const updateInboundStatus = async (req, res) => {
-  const connection = await db.pool.getConnection();
-  try {
-    await connection.beginTransaction();
+  const { id } = req.params;
+  const { newStatus } = req.body;
 
-    const { id } = req.params;
-    const { newStatus } = req.body;
+  if (!id || isNaN(parseInt(id, 10))) {
+    return ResponseHandler.error(res, '无效的入库单ID', 'VALIDATION_ERROR', 400);
+  }
 
-    // 验证入库单ID是否为有效数字
-    if (!id || isNaN(parseInt(id))) {
-      logger.error('无效的入库单ID:', id);
-      throw new Error('无效的入库单ID');
+  const validStatuses = ['draft', 'confirmed', 'completed', 'reversed', 'cancelled'];
+  if (!validStatuses.includes(newStatus)) {
+    return ResponseHandler.error(res, '无效的状态值', 'VALIDATION_ERROR', 400);
+  }
+
+  const isDeadlockError = (err) =>
+    err && (err.code === 'ER_LOCK_DEADLOCK' || /Deadlock/i.test(err.message || ''));
+
+  // 状态变更前先做 DataScope 校验（与列表/详情同一策略）
+  {
+    const ScopeGuard = require('../../../authorization/ScopeGuard');
+    const preConn = await db.pool.getConnection();
+    try {
+      if (!(await ScopeGuard.denyUnlessAccess(res, preConn, req, 'inventory_inbound', id, '无权变更该入库单状态'))) {
+        return;
+      }
+    } finally {
+      preConn.release();
     }
+  }
 
-    // 验证状态值
-    const validStatuses = ['draft', 'confirmed', 'completed', 'cancelled'];
-    if (!validStatuses.includes(newStatus)) {
-      logger.error('无效的状态值:', newStatus);
-      throw new Error('无效的状态值');
-    }
+  let lastError = null;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    const connection = await db.pool.getConnection();
+    try {
+      await connection.beginTransaction();
 
-    // 获取当前入库单信息
-    const [inboundData] = await connection.execute(
-      'SELECT id, inbound_no, inbound_date, inbound_type, reference_type, reference_id, reference_no, location_id, status, total_amount, total_amount_unit, operator, inspection_id, inspection_no, remark, created_at, updated_at, created_by, updated_by, is_deleted FROM inventory_inbound WHERE id = ? AND is_deleted = 0 FOR UPDATE',
-      [id]
-    );
-
-    if (inboundData.length === 0) {
-      logger.error('入库单不存在, ID:', id);
-      throw new Error(`入库单不存在 (ID: ${id})`);
-    }
-
-    const currentStatus = inboundData[0].status;
-
-    // 检查状态转换是否有效（引用统一状态注册表）
-    const validTransitions = INVENTORY_INBOUND_TRANSITIONS;
-
-    if (!validTransitions[currentStatus].includes(newStatus) && currentStatus !== newStatus) {
-      logger.error('无效的状态转换:', { from: currentStatus, to: newStatus });
-      throw new Error(`无法从 "${currentStatus}" 状态转换为 "${newStatus}" 状态`);
-    }
-
-    // 如果状态变更为已完成，更新库存
-    if (newStatus === STATUS.INBOUND.COMPLETED) {
-      // 调用抽离好的服务完成核心入库逻辑以及所有副产物（如NCP生成、批次溯源等）
-      await InboundTransactionService.confirmInbound(
-        connection,
-        id,
-        inboundData[0].operator || 'system',
-        inboundData[0]
+      const [inboundData] = await connection.execute(
+        `SELECT id, inbound_no, inbound_date, inbound_type, reference_type, reference_id, reference_no, location_id, status, total_amount, total_amount_unit, operator, inspection_id, inspection_no, remark, created_at, updated_at, created_by, updated_by, is_deleted
+         FROM inventory_inbound
+         WHERE id = ? AND is_deleted = 0 AND deleted_at IS NULL
+         FOR UPDATE`,
+        [id]
       );
 
+      if (inboundData.length === 0) {
+        await connection.rollback();
+        return ResponseHandler.error(res, `入库单不存在 (ID: ${id})`, 'NOT_FOUND', 404);
+      }
+
+      const currentStatus = inboundData[0].status;
+      const validTransitions = INVENTORY_INBOUND_TRANSITIONS;
+
+      if (
+        !validTransitions[currentStatus] ||
+        (!validTransitions[currentStatus].includes(newStatus) && currentStatus !== newStatus)
+      ) {
+        await connection.rollback();
+        return ResponseHandler.error(
+          res,
+          `无法从 "${currentStatus}" 状态转换为 "${newStatus}" 状态`,
+          'VALIDATION_ERROR',
+          400
+        );
+      }
+
+      if (newStatus === STATUS.INBOUND.COMPLETED) {
+        await InboundTransactionService.confirmInbound(
+          connection,
+          id,
+          inboundData[0].operator || 'system',
+          inboundData[0]
+        );
+      }
+
+      if (newStatus === STATUS.INBOUND.REVERSED) {
+        await InboundTransactionService.reverseInbound(
+          connection,
+          id,
+          inboundData[0].operator || 'system',
+          inboundData[0]
+        );
+      }
+
+      const [statusUpdate] = await connection.execute(
+        'UPDATE inventory_inbound SET status = ?, updated_at = NOW() WHERE id = ? AND is_deleted = 0 AND deleted_at IS NULL AND status = ?',
+        [newStatus, id, currentStatus]
+      );
+      if (!statusUpdate.affectedRows) {
+        await connection.rollback();
+        return ResponseHandler.error(res, '入库单状态已变更，请刷新后重试', 'VALIDATION_ERROR', 400);
+      }
+
+      await connection.commit();
+      return ResponseHandler.success(res, null, '入库单状态更新成功');
+    } catch (error) {
+      try {
+        await connection.rollback();
+      } catch {
+        // ignore
+      }
+      lastError = error;
+      if (isDeadlockError(error) && attempt < 3) {
+        logger.warn(`更新入库单状态死锁，整事务重试 ${attempt}/3: inboundId=${id}`);
+        await new Promise((r) => setTimeout(r, 40 * attempt));
+        continue;
+      }
+      logger.error('更新入库单状态失败:', error);
+      return ResponseHandler.error(res, '更新入库单状态失败', 'SERVER_ERROR', 500, error);
+    } finally {
+      connection.release();
     }
-
-    // 核心入库逻辑成功后再推进状态，避免“状态已完成但库存/追溯未落地”
-    await connection.execute('UPDATE inventory_inbound SET status = ? WHERE id = ? AND is_deleted = 0', [
-      newStatus,
-      id,
-    ]);
-
-    await connection.commit();
-    ResponseHandler.success(res, null, '入库单状态更新成功');
-  } catch (error) {
-    await connection.rollback();
-    logger.error('更新入库单状态失败:', error);
-    ResponseHandler.error(res, '更新入库单状态失败', 'SERVER_ERROR', 500, error);
-  } finally {
-    connection.release();
   }
+
+  logger.error('更新入库单状态失败(重试用尽):', lastError);
+  return ResponseHandler.error(res, '更新入库单状态失败', 'SERVER_ERROR', 500, lastError);
 };
 
 // 获取物料列表 - 从baseData获取

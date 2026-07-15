@@ -12,7 +12,7 @@ export function useMetalPrices(updateMiniChartsGeneric) {
   // 金属价格数据（统一按克计算）
   const metalPrices = ref({
     GOLD: { name: '黄金', price: '--', changePercent: 0, unit: '¥/克' },
-    PLATINUM: { name: '白金', price: '--', changePercent: 0, unit: '¥/克' },
+    SILVER: { name: '白银', price: '--', changePercent: 0, unit: '¥/克' },
     ALUMINUM: { name: '铝', price: '--', changePercent: 0, unit: '¥/吨' },
     COPPER: { name: '铜', price: '--', changePercent: 0, unit: '¥/吨' },
     lastUpdate: null
@@ -21,7 +21,7 @@ export function useMetalPrices(updateMiniChartsGeneric) {
   // 金属价格历史数据
   const metalPriceHistory = ref({
     GOLD: [],
-    PLATINUM: [],
+    SILVER: [],
     ALUMINUM: [],
     COPPER: []
   })
@@ -56,8 +56,8 @@ export function useMetalPrices(updateMiniChartsGeneric) {
         Object.keys(data).forEach(symbol => {
           if (metalPrices.value[symbol] && data[symbol]) {
             let priceInGrams
-            // 贵金属（黄金、白金）从盎司转换为克
-            if (symbol === 'GOLD' || symbol === 'PLATINUM') {
+            // 贵金属（黄金、白银）从盎司转换为克
+            if (symbol === 'GOLD' || symbol === 'SILVER') {
               // 后端返回 ¥/盎司,转换为 ¥/克: 价格 ÷ 31.1035
               priceInGrams = data[symbol].price / GRAMS_PER_TROY_OUNCE
               metalPrices.value[symbol].unit = '¥/克'

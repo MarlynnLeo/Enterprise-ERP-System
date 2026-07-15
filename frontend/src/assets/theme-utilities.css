@@ -747,3 +747,68 @@
 .animate-zoomIn {
   animation: zoomIn var(--transition-base) ease-out;
 }
+
+/* ==========================================================================
+   主题性能策略（不删特效）
+   - 中高端：完整保留毛玻璃 / 阴影 / 动画
+   - 仅 html.perf-low-end / perf-reduced-motion 时降级
+   ========================================================================== */
+
+/* 系统「减少动态效果」：只关动画，不关毛玻璃外观 */
+html.perf-reduced-motion *,
+html.perf-reduced-motion *::before,
+html.perf-reduced-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+/*
+ * 低端 / 省流：才关闭昂贵绘制
+ * 正常设备绝不改主题视觉 token
+ */
+html.perf-low-end {
+  --kacon-glass-filter: none;
+  --shadow-sm: 0 1px 2px color-mix(in srgb, var(--color-text-primary, #000) 6%, transparent);
+  --shadow-md: 0 1px 3px color-mix(in srgb, var(--color-text-primary, #000) 8%, transparent);
+  --shadow-lg: 0 2px 6px color-mix(in srgb, var(--color-text-primary, #000) 10%, transparent);
+  --shadow-xl: 0 2px 8px color-mix(in srgb, var(--color-text-primary, #000) 12%, transparent);
+  --theme-dialog-shadow: 0 4px 16px color-mix(in srgb, var(--color-text-primary, #000) 12%, transparent);
+  --theme-status-shadow: none;
+  --transition-fast: 0.1s ease;
+  --transition-base: 0.14s ease;
+  --transition-slow: 0.18s ease;
+}
+
+html.perf-low-end *,
+html.perf-low-end *::before,
+html.perf-low-end *::after {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html.perf-low-end .el-button,
+html.perf-low-end .el-card,
+html.perf-low-end .el-menu-item,
+html.perf-low-end .el-sub-menu__title,
+html.perf-low-end .sidebar,
+html.perf-low-end .app-sidebar {
+  transition-property: color, background-color, border-color, opacity !important;
+  transition-duration: 0.12s !important;
+}
+
+/*
+ * 布局隔离：禁止 contain: layout
+ * layout contain 会改变 fixed 定位的包含块，破坏弹层/全屏对话框。
+ * 弹层一律 append-to-body（AppDialog 强制），此处仅用 style 隔离。
+ */
+html:not(.perf-low-end) .main-content,
+html:not(.perf-low-end) .app-main,
+html:not(.perf-low-end) .layout-content,
+html:not(.perf-low-end) .sidebar,
+html:not(.perf-low-end) .app-sidebar,
+html:not(.perf-low-end) .header,
+html:not(.perf-low-end) .app-header {
+  contain: style;
+}

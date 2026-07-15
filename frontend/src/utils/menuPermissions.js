@@ -67,7 +67,7 @@ const appendRoutePermissionEntries = (menus) => {
     {
       id: 9303,
       parentId: 2,
-      name: 'Production Data View',
+      name: '生产数据看板',
       path: '/production/data-view',
       component: 'production/ProductionDataView',
       icon: 'icon-data-board',
@@ -79,7 +79,7 @@ const appendRoutePermissionEntries = (menus) => {
     {
       id: 9304,
       parentId: 2,
-      name: 'Production Gantt',
+      name: '排程甘特图',
       path: '/production/gantt',
       component: 'production/ProductionGantt',
       icon: 'icon-data-line',

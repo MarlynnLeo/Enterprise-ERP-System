@@ -1,19 +1,13 @@
 ﻿<template>
   <div class="cost-settings module-page">
     <!-- 页面标题 -->
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>成本设置</h2>
-          <p class="subtitle">成本政策、核算口径、总账映射与月结前置配置</p>
-        </div>
-        <div class="header-actions">
-          <el-button @click="goRoute('/finance/cost/versions')">标准成本版本</el-button>
+    <PageHeader title="成本设置" subtitle="成本政策、核算口径、总账映射与月结前置配置">
+      <template #actions>
+<el-button @click="goRoute('/finance/cost/versions')">标准成本版本</el-button>
           <el-button @click="goRoute('/finance/cost/closing')">成本关账检查</el-button>
           <el-button v-permission="'finance:cost:update'" type="primary" @click="saveSettings" :loading="saving">保存设置</el-button>
-        </div>
-      </div>
-    </el-card>
+      </template>
+    </PageHeader>
 
     <el-row :gutter="16" class="governance-row">
       <el-col :xs="24" :lg="8">
@@ -95,7 +89,7 @@
                 <el-row :gutter="24">
                   <el-col :span="12">
                     <el-form-item label="成本核算方法">
-                      <el-select v-model="settingsForm.costingMethod" placeholder="请选择" style="width: 100%">
+                      <el-select v-model="settingsForm.costingMethod" placeholder="请选择" class="w-full">
                         <el-option label="先进先出(FIFO)" value="fifo"></el-option>
                         <el-option label="后进先出(LIFO)" value="lifo"></el-option>
                         <el-option label="加权平均" value="weighted_average"></el-option>
@@ -119,12 +113,12 @@
                 <el-row :gutter="24">
                   <el-col :span="12">
                     <el-form-item label="计时费率（元/小时）">
-                      <el-input-number v-model="settingsForm.laborRate" :min="0" :precision="2" :step="1" style="width: 100%" />
+                      <el-input-number v-model="settingsForm.laborRate" :min="0" :precision="2" :step="1" class="w-full" />
                     </el-form-item>
                   </el-col>
                   <el-col :span="12">
                     <el-form-item label="计件费率（元/件）" v-if="settingsForm.wagePaymentMethod === 'piece'">
-                      <el-input-number v-model="settingsForm.pieceRate" :min="0" :precision="2" :step="0.5" style="width: 100%" />
+                      <el-input-number v-model="settingsForm.pieceRate" :min="0" :precision="2" :step="0.5" class="w-full" />
                     </el-form-item>
                   </el-col>
                 </el-row>
@@ -132,33 +126,36 @@
                 <el-row :gutter="24">
                   <el-col :span="12">
                     <el-form-item label="制造费用率（旧版兜底）">
-                      <el-input-number v-model="settingsForm.overheadRate" :min="0" :max="10" :precision="4" :step="0.05" style="width: 100%" />
-                      <div style="font-size: 12px; color: var(--color-text-secondary); margin-top: 4px;">仅在分摊规则引擎无法计算时作为降级方案</div>
+                      <el-input-number v-model="settingsForm.overheadRate" :min="0" :max="10" :precision="4" :step="0.05" class="w-full" />
+                      <div class="help-text-sm">仅在分摊规则引擎无法计算时作为降级方案</div>
                     </el-form-item>
                   </el-col>
                 </el-row>
 
                 <el-divider content-position="left">兜底成本拆分比例</el-divider>
-                <el-alert type="info" :closable="false" style="margin-bottom: 16px;" description="当产品无BOM且无标准成本时，系统将按以下比例拆分产品价格估算成本。三项之和必须等于 1.0。" />
+                <el-alert type="info" :closable="false" class="mb-md" description="当产品无BOM且无标准成本时，系统将按以下比例拆分产品价格估算成本。三项之和必须等于 1.0。" />
                 <el-row :gutter="24">
                   <el-col :span="8">
                     <el-form-item label="材料占比">
-                      <el-input-number v-model="settingsForm.fallbackMaterialRatio" :min="0" :max="1" :precision="4" :step="0.05" style="width: 100%" />
+                      <el-input-number v-model="settingsForm.fallbackMaterialRatio" :min="0" :max="1" :precision="4" :step="0.05" class="w-full" />
                     </el-form-item>
                   </el-col>
                   <el-col :span="8">
                     <el-form-item label="人工占比">
-                      <el-input-number v-model="settingsForm.fallbackLaborRatio" :min="0" :max="1" :precision="4" :step="0.05" style="width: 100%" />
+                      <el-input-number v-model="settingsForm.fallbackLaborRatio" :min="0" :max="1" :precision="4" :step="0.05" class="w-full" />
                     </el-form-item>
                   </el-col>
                   <el-col :span="8">
                     <el-form-item label="制费占比">
-                      <el-input-number v-model="settingsForm.fallbackOverheadRatio" :min="0" :max="1" :precision="4" :step="0.05" style="width: 100%" />
+                      <el-input-number v-model="settingsForm.fallbackOverheadRatio" :min="0" :max="1" :precision="4" :step="0.05" class="w-full" />
                     </el-form-item>
                   </el-col>
                 </el-row>
-                <div v-if="Math.abs((settingsForm.fallbackMaterialRatio + settingsForm.fallbackLaborRatio + settingsForm.fallbackOverheadRatio) - 1.0) > 0.001" style="color: var(--color-danger); font-size: 13px; margin-bottom: 12px;">
-                  ⚠️ 三项之和为 {{ (settingsForm.fallbackMaterialRatio + settingsForm.fallbackLaborRatio + settingsForm.fallbackOverheadRatio).toFixed(4) }}，必须等于 1.0
+                <div
+                  v-if="Math.abs((settingsForm.fallbackMaterialRatio + settingsForm.fallbackLaborRatio + settingsForm.fallbackOverheadRatio) - 1.0) > 0.001"
+                  class="text-danger mb-12"
+                >
+                  三项之和为 {{ (settingsForm.fallbackMaterialRatio + settingsForm.fallbackLaborRatio + settingsForm.fallbackOverheadRatio).toFixed(4) }}，必须等于 1.0
                 </div>
 
                 <el-form-item label="配置说明">
@@ -209,20 +206,20 @@
             title="这里仅维护成本业务生成总账凭证时使用的科目映射，保存后请到成本关账检查中验证凭证链路。"
           />
 
-          <el-table :data="glMappings" border style="width: 100%">
+          <el-table :data="glMappings" border class="w-full">
             <el-table-column prop="mapping_key" label="业务类型代码" width="180" />
             <el-table-column prop="mapping_name" label="业务名称" width="180" />
             <el-table-column prop="account_id" label="对应会计科目">
                <template #default="scope">
-                 <el-select v-model="scope.row.account_id" placeholder="选择科目" style="width: 100%" filterable>
+                 <el-select v-model="scope.row.account_id" placeholder="选择科目" class="w-full" filterable>
                     <el-option
                       v-for="acc in glAccounts"
                       :key="acc.id"
                       :label="acc.account_code + ' ' + acc.account_name"
                       :value="acc.id"
                     >
-                      <span style="float: left">{{ acc.account_code }}</span>
-                      <span style="float: right; color: var(--color-text-muted); font-size: 13px">{{ acc.account_name }}</span>
+                      <span class="option-code">{{ acc.account_code }}</span>
+                      <span class="option-name">{{ acc.account_name }}</span>
                     </el-option>
                  </el-select>
                </template>
@@ -255,7 +252,7 @@
             title="补料原因在生产/库存侧发生，这里只维护是否进入成本核算，避免形成两套原因主数据。"
           />
 
-          <el-table :data="supplementReasons" border style="width: 100%" v-loading="reasonsLoading">
+          <el-table :data="supplementReasons" border class="w-full" v-loading="reasonsLoading">
             <el-table-column prop="reason_name" label="原因名称" min-width="150" />
             <el-table-column prop="reason_code" label="原因代码" width="150" />
             <el-table-column label="计入成本" width="120">
@@ -358,7 +355,7 @@
           />
 
           <!-- 搜索区域 -->
-          <el-form :inline="true" class="search-form" style="margin-bottom: 16px;">
+          <el-form :inline="true" class="search-form mb-md">
             <el-form-item label="物料编码">
               <el-input  v-model="stdCostSearch.material_code" placeholder="请输入" size="small" clearable />
             </el-form-item>
@@ -377,7 +374,7 @@
           </el-form>
 
           <!-- 表格 -->
-          <el-table :data="materialStandardCosts" border style="width: 100%" v-loading="stdCostLoading">
+          <el-table :data="materialStandardCosts" border class="w-full" v-loading="stdCostLoading">
             <el-table-column prop="material_code" label="物料编码" width="120" />
             <el-table-column prop="material_name" label="物料名称" min-width="180" />
             <el-table-column prop="specs" label="规格" width="220" />
@@ -388,7 +385,7 @@
             </el-table-column>
             <el-table-column prop="standard_price" label="标准成本" width="120">
               <template #default="scope">
-                <span style="color: var(--color-primary); font-weight: 600;">{{ scope.row.standard_price ? Number(scope.row.standard_price).toFixed(2) : '-' }}</span>
+                <span class="text-primary font-weight-600">{{ scope.row.standard_price ? Number(scope.row.standard_price).toFixed(2) : '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column prop="effective_date" label="生效日期" width="110" />
@@ -416,7 +413,7 @@
             :total="stdCostTotal"
             layout="total, sizes, prev, pager, next"
             :page-sizes="[10, 20, 50]"
-            style="margin-top: 16px; justify-content: flex-end;"
+            class="pagination-end"
             @size-change="fetchMaterialStandardCosts"
             @current-change="fetchMaterialStandardCosts"
           />
@@ -424,15 +421,15 @@
 
         <!-- 批量冻结对话框 -->
         <el-dialog v-model="freezeDialogVisible" title="批量冻结物料标准成本" width="500px">
-          <el-alert type="info" :closable="false" style="margin-bottom: 16px;">
+          <el-alert type="info" :closable="false" class="mb-md">
             批量冻结将读取所有物料的当前采购成本（cost_price），作为标准成本写入系统。原有效的标准成本将自动失效。
           </el-alert>
           <el-form :model="freezeForm" label-width="100px">
             <el-form-item label="生效日期" required>
-              <el-date-picker v-model="freezeForm.effective_date" type="date" placeholder="选择生效日期" value-format="YYYY-MM-DD" style="width: 100%;" />
+              <el-date-picker v-model="freezeForm.effective_date" type="date" placeholder="选择生效日期" value-format="YYYY-MM-DD" class="w-full" />
             </el-form-item>
             <el-form-item label="失效日期">
-              <el-date-picker v-model="freezeForm.expiry_date" type="date" placeholder="不填则长期有效" value-format="YYYY-MM-DD" style="width: 100%;" />
+              <el-date-picker v-model="freezeForm.expiry_date" type="date" placeholder="不填则长期有效" value-format="YYYY-MM-DD" class="w-full" />
             </el-form-item>
           </el-form>
           <template #footer>
@@ -448,13 +445,13 @@
               <span>{{ editStdCostForm.material_code }} - {{ editStdCostForm.material_name }}</span>
             </el-form-item>
             <el-form-item label="标准成本" required>
-              <el-input-number v-model="editStdCostForm.standard_price" :min="0" :precision="2" style="width: 100%;" />
+              <el-input-number v-model="editStdCostForm.standard_price" :min="0" :precision="2" class="w-full" />
             </el-form-item>
             <el-form-item label="生效日期">
-              <el-date-picker v-model="editStdCostForm.effective_date" type="date" value-format="YYYY-MM-DD" style="width: 100%;" />
+              <el-date-picker v-model="editStdCostForm.effective_date" type="date" value-format="YYYY-MM-DD" class="w-full" />
             </el-form-item>
             <el-form-item label="失效日期">
-              <el-date-picker v-model="editStdCostForm.expiry_date" type="date" placeholder="不填则长期有效" value-format="YYYY-MM-DD" style="width: 100%;" />
+              <el-date-picker v-model="editStdCostForm.expiry_date" type="date" placeholder="不填则长期有效" value-format="YYYY-MM-DD" class="w-full" />
             </el-form-item>
             <el-form-item label="状态">
               <el-switch v-model="editStdCostForm.is_active" active-text="有效" inactive-text="失效" />
@@ -486,13 +483,13 @@
             title="制造费用规则优先于基础配置中的旧版兜底费率；无规则命中时才会回退到兜底逻辑。"
           />
 
-          <el-table :data="allocationRules" border style="width: 100%" v-loading="allocationRulesLoading">
+          <el-table :data="allocationRules" border class="w-full" v-loading="allocationRulesLoading">
             <el-table-column prop="priority" label="优先级" width="80" />
             <el-table-column prop="name" label="规则名称" min-width="150" />
             <el-table-column label="指定产品" min-width="150">
               <template #default="scope">
-                <span v-if="scope.row.product_id" style="color:var(--color-primary);">{{ scope.row.product_name || scope.row.product_code || `ID:${scope.row.product_id}` }}</span>
-                <span v-else style="color:var(--color-text-secondary);">全部产品</span>
+                <span v-if="scope.row.product_id" class="text-primary">{{ scope.row.product_name || scope.row.product_code || `ID:${scope.row.product_id}` }}</span>
+                <span v-else class="text-muted">全部产品</span>
               </template>
             </el-table-column>
             <el-table-column prop="product_category" label="指定类别" width="120">
@@ -547,7 +544,7 @@
                 placeholder="精确匹配到单个产品（最高优先级）"
                 :remote-method="searchMaterials"
                 :loading="materialsSearching"
-                style="width: 100%"
+                class="w-full"
               >
                 <el-option
                   v-for="item in materialOptions"
@@ -561,24 +558,24 @@
               <el-input v-model="allocationRuleForm.product_category" placeholder="指定产品类别（优先级次之）" />
             </el-form-item>
             <el-form-item label="成本中心">
-              <el-select v-model="allocationRuleForm.cost_center_id" clearable placeholder="全厂通用" style="width: 100%;">
+              <el-select v-model="allocationRuleForm.cost_center_id" clearable placeholder="全厂通用" class="w-full">
                 <el-option v-for="cc in costCenterOptions" :key="cc.id" :label="cc.name" :value="cc.id" />
               </el-select>
             </el-form-item>
             <el-form-item label="分摊基础" required>
-              <el-select v-model="allocationRuleForm.allocation_base" placeholder="选择基准" style="width: 100%;">
+              <el-select v-model="allocationRuleForm.allocation_base" placeholder="选择基准" class="w-full">
                 <el-option v-for="base in allocationBases" :key="base.value" :label="base.label" :value="base.value" />
               </el-select>
             </el-form-item>
             <el-form-item label="费率" required>
-              <el-input-number v-model="allocationRuleForm.rate" :precision="4" :step="0.1" style="width: 100%;" />
+              <el-input-number v-model="allocationRuleForm.rate" :precision="4" :step="0.1" class="w-full" />
             </el-form-item>
             <el-form-item label="匹配优先级">
-              <el-input-number v-model="allocationRuleForm.priority" :min="0" :max="999" style="width: 100%;" />
+              <el-input-number v-model="allocationRuleForm.priority" :min="0" :max="999" class="w-full" />
               <div class="form-hint">数字越大优先级越高（精确指定了产品的规则固定拥有最高匹配权）</div>
             </el-form-item>
             <el-form-item label="生效日期" required>
-              <el-date-picker v-model="allocationRuleForm.effective_date" type="date" value-format="YYYY-MM-DD" style="width: 100%;" />
+              <el-date-picker v-model="allocationRuleForm.effective_date" type="date" value-format="YYYY-MM-DD" class="w-full" />
             </el-form-item>
             <el-form-item label="状态">
               <el-switch v-model="allocationRuleForm.is_active" active-text="启用" inactive-text="禁用" />

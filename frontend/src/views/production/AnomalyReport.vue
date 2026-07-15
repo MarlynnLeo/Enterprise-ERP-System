@@ -1,35 +1,29 @@
 <template>
   <div class="module-page page-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>异常上报 (Andon)</h2>
-          <p class="subtitle">装配异常快速上报与跟踪处理</p>
-        </div>
-        <div class="operation-btns">
-          <el-button type="primary" @click="openForm()">上报异常</el-button>
-        </div>
-      </div>
-    </el-card>
+    <PageHeader title="异常上报 (Andon)" subtitle="装配异常快速上报与跟踪处理">
+      <template #actions>
+<el-button type="primary" v-permission="'production:anomaly:create'" @click="openForm()">上报异常</el-button>
+      </template>
+    </PageHeader>
 
     <!-- 统计卡片 -->
-    <el-row :gutter="12" style="margin-bottom: 16px">
+    <el-row :gutter="12" class="mb-md">
       <el-col :span="6" v-for="(item, key) in statsConfig" :key="key">
         <el-card shadow="hover" class="stat-card">
-          <div class="stat-value" :style="{ color: item.color }">{{ stats[key] || 0 }}</div>
+          <div class="stat-value" :class="item.colorClass">{{ stats[key] || 0 }}</div>
           <div class="stat-label">{{ item.label }}</div>
         </el-card>
       </el-col>
     </el-row>
 
     <el-card class="data-card">
-      <div class="filter-bar" style="margin-bottom: 16px">
+      <div class="filter-bar mb-md">
         <el-row :gutter="12">
           <el-col :span="5">
             <el-input v-model="filters.keyword" placeholder="搜索标题/编号" clearable @clear="fetchData" @keyup.enter="fetchData" />
           </el-col>
           <el-col :span="4">
-            <el-select v-model="filters.status" placeholder="状态" clearable @change="fetchData" style="width:100%">
+            <el-select v-model="filters.status" placeholder="状态" clearable @change="fetchData" class="w-full">
               <el-option label="待处理" value="open" />
               <el-option label="处理中" value="processing" />
               <el-option label="已解决" value="resolved" />
@@ -37,7 +31,7 @@
             </el-select>
           </el-col>
           <el-col :span="4">
-            <el-select v-model="filters.severity" placeholder="严重程度" clearable @change="fetchData" style="width:100%">
+            <el-select v-model="filters.severity" placeholder="严重程度" clearable @change="fetchData" class="w-full">
               <el-option label="低" value="low" />
               <el-option label="中" value="medium" />
               <el-option label="高" value="high" />
@@ -69,10 +63,10 @@
         <el-table-column prop="created_at" label="上报时间" width="160" />
         <el-table-column label="操作" width="220" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click="viewDetail(row)">详情</el-button>
-            <el-button link type="warning" v-if="row.status === 'open'" @click="handleAssign(row)">指派</el-button>
-            <el-button link type="success" v-if="row.status === 'processing'" @click="handleResolve(row)">解决</el-button>
-            <el-button link type="info" v-if="row.status === 'resolved'" @click="handleClose(row.id)">关闭</el-button>
+            <el-button class="btn-op-view" type="primary" size="small" @click="viewDetail(row)">详情</el-button>
+            <el-button link type="warning" v-if="row.status === 'open'" v-permission="'production:anomaly:update'" @click="handleAssign(row)">指派</el-button>
+            <el-button link type="success" v-if="row.status === 'processing'" v-permission="'production:anomaly:update'" @click="handleResolve(row)">解决</el-button>
+            <el-button link type="info" v-if="row.status === 'resolved'" v-permission="'production:anomaly:update'" @click="handleClose(row.id)">关闭</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -89,14 +83,14 @@
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="类别" required>
-              <el-select v-model="form.category" style="width:100%">
+              <el-select v-model="form.category" class="w-full">
                 <el-option v-for="(label, key) in categoryLabel" :key="key" :label="label" :value="key" />
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="严重程度" required>
-              <el-select v-model="form.severity" style="width:100%">
+              <el-select v-model="form.severity" class="w-full">
                 <el-option v-for="(label, key) in severityLabel" :key="key" :label="label" :value="key" />
               </el-select>
             </el-form-item>
@@ -107,12 +101,18 @@
       </el-form>
       <template #footer>
         <el-button @click="formVis = false">取消</el-button>
-        <el-button type="primary" @click="submitReport" :loading="saving">提交</el-button>
+        <el-button type="primary" v-permission="'production:anomaly:create'" @click="submitReport" :loading="saving">提交</el-button>
       </template>
     </el-dialog>
 
     <!-- 详情/解决对话框 -->
-    <el-dialog v-model="detailVis" :title="detailMode === 'resolve' ? '解决异常' : '异常详情'" width="650px" destroy-on-close>
+    <AppDialog
+      v-model="detailVis"
+      :title="detailMode === 'resolve' ? '解决异常' : '异常详情'"
+      :mode="detailMode === 'resolve' ? 'form' : 'view'"
+      width="650px"
+      content-width="wide"
+    >
       <template v-if="detail">
         <el-descriptions :column="2" border size="small">
           <el-descriptions-item label="编号">{{ detail.code }}</el-descriptions-item>
@@ -126,15 +126,15 @@
           <el-descriptions-item label="处理人">{{ detail.assignee_name || '-' }}</el-descriptions-item>
           <el-descriptions-item label="解决方案" :span="2" v-if="detail.resolution">{{ detail.resolution }}</el-descriptions-item>
         </el-descriptions>
-        <div v-if="detailMode === 'resolve'" style="margin-top: 16px">
+        <div v-if="detailMode === 'resolve'" class="mt-md">
           <el-input v-model="resolution" type="textarea" :rows="3" placeholder="请输入解决方案" />
         </div>
       </template>
       <template #footer v-if="detailMode === 'resolve'">
         <el-button @click="detailVis = false">取消</el-button>
-        <el-button type="primary" @click="submitResolve" :loading="saving">确认解决</el-button>
+        <el-button type="primary" v-permission="'production:anomaly:update'" @click="submitResolve" :loading="saving">确认解决</el-button>
       </template>
-    </el-dialog>
+    </AppDialog>
   </div>
 </template>
 
@@ -168,10 +168,10 @@ const severityTag = { low: 'info', medium: 'warning', high: 'danger', critical: 
 const statusLabel = { open: '待处理', processing: '处理中', resolved: '已解决', closed: '已关闭' }
 const statusTag = { open: 'danger', processing: 'warning', resolved: 'success', closed: 'info' }
 const statsConfig = {
-  open: { label: '待处理', color: '#E6A23C' },
-  processing: { label: '处理中', color: '#409EFF' },
-  resolved: { label: '已解决', color: '#67C23A' },
-  closed: { label: '已关闭', color: '#909399' },
+  open: { label: '待处理', colorClass: 'text-warning' },
+  processing: { label: '处理中', colorClass: 'text-primary' },
+  resolved: { label: '已解决', colorClass: 'text-success' },
+  closed: { label: '已关闭', colorClass: 'text-muted' },
 }
 
 const fetchData = async () => {
@@ -260,5 +260,5 @@ onMounted(() => { fetchData(); fetchStats() })
 
 <style scoped>
 .stat-value { font-size: 28px; font-weight: 700; }
-.stat-label { font-size: 13px; color: var(--color-text-secondary, #909399); margin-top: 4px; }
+.stat-label { font-size: 13px; color: var(--color-text-secondary, var(--color-text-secondary)); margin-top: 4px; }
 </style>

@@ -8,6 +8,8 @@ const InventoryService = require('../InventoryService');
 const { ENABLE_TRACEABILITY } = require('../../config/features');
 const db = require('../../config/db');
 const NonconformingProduct = require('../../models/nonconformingProduct');
+const { validateTaskTransition } = require('./TaskLifecycleService');
+const CostAccountingService = require('./CostAccountingService');
 
 const DLQService = require('./DLQService');
 const AsyncTaskService = require('./AsyncTaskService');
@@ -83,6 +85,33 @@ class InboundTransactionService {
     };
     const transactionType = transactionTypeMap[inboundType] || 'inbound';
 
+    let productionUnitCost = null;
+    if (inboundType === 'production') {
+      let taskId =
+        inboundData.reference_type === 'production_task'
+          ? Number(inboundData.reference_id)
+          : null;
+      if (!taskId && inspection_id) {
+        const [taskRefs] = await connection.execute(
+          `SELECT COALESCE(task_id, reference_id) AS task_id
+             FROM quality_inspections
+            WHERE id = ? AND deleted_at IS NULL
+            LIMIT 1`,
+          [inspection_id]
+        );
+        taskId = Number(taskRefs[0]?.task_id) || null;
+      }
+      if (!taskId) {
+        throw new Error(`生产入库单 ${inboundData.inbound_no} 未关联生产任务，不能核算成品成本`);
+      }
+
+      const costResult = await CostAccountingService.calculateActualCost(taskId, connection);
+      productionUnitCost = Number(costResult?.actualCost?.unitCost) || 0;
+      if (productionUnitCost <= 0) {
+        throw new Error(`生产任务 ${taskId} 实际单位成本无效，不能完成成品入库`);
+      }
+    }
+
     logger.info('入库交易类型:', { inbound_type: inboundType, transaction_type: transactionType });
 
     for (const item of items) {
@@ -102,7 +131,11 @@ class InboundTransactionService {
       }
 
       const currentStock = await InventoryService.getCurrentStock(
-        item.material_id, itemLocationId, connection, false, false
+        item.material_id,
+        itemLocationId,
+        connection,
+        false,
+        false
       );
 
       const beforeQuantity = currentStock;
@@ -111,7 +144,10 @@ class InboundTransactionService {
       // 处理批次溯源：判断是否产线退料或不良退回，追溯原始批次
       let finalBatchNumber = item.batch_number;
       if (!finalBatchNumber) {
-        if (['defective_return', 'production_return'].includes(inboundType) && inboundData.reference_id) {
+        if (
+          ['defective_return', 'production_return'].includes(inboundType) &&
+          inboundData.reference_id
+        ) {
           try {
             // reference_id 可能是出库单ID或生产任务ID
             // 策略1: 按出库单ID查出单号，再从台账匹配批次
@@ -136,7 +172,9 @@ class InboundTransactionService {
               );
               if (ledgerRows.length > 0) {
                 finalBatchNumber = ledgerRows[0].batch_number;
-                logger.info(`🔄 [批次号溯源成功] 通过出库单 ${outboundNo} 找回原始发料批次号: ${finalBatchNumber}`);
+                logger.info(
+                  `Batch trace resolved from outbound ${outboundNo}: batchNumber=${finalBatchNumber}`
+                );
               }
             }
 
@@ -165,17 +203,21 @@ class InboundTransactionService {
                 );
                 if (ledgerRows.length > 0) {
                   finalBatchNumber = ledgerRows[0].batch_number;
-                  logger.info(`🔄 [批次号溯源成功] 通过生产任务关联出库单 ${ob.outbound_no} 找回批次号: ${finalBatchNumber}`);
+                  logger.info(
+                    `Batch trace resolved from production outbound ${ob.outbound_no}: batchNumber=${finalBatchNumber}`
+                  );
                   break;
                 }
               }
             }
 
             if (!finalBatchNumber) {
-              logger.warn(`⚠️ [批次号溯源失败] 未找到 reference_id=${inboundData.reference_id} 对物料 ${item.material_id} 的发料记录`);
+              logger.warn(
+                `Batch trace not found: referenceId=${inboundData.reference_id}, materialId=${item.material_id}`
+              );
             }
           } catch (traceErr) {
-            logger.error(`❌ [批次号溯源报错] `, traceErr);
+            logger.error('Batch trace resolution failed', traceErr);
             throw traceErr;
           }
         }
@@ -193,7 +235,7 @@ class InboundTransactionService {
         );
       }
 
-      const sideEffectItem = inboundItems.find(row => row.id === item.id);
+      const sideEffectItem = inboundItems.find((row) => row.id === item.id);
       if (sideEffectItem) {
         sideEffectItem.batch_number = finalBatchNumber;
       }
@@ -206,20 +248,48 @@ class InboundTransactionService {
         after: afterQuantity,
       });
 
-      // 记录库存台账
-      await InventoryService.updateStock({
-        materialId: item.material_id,
-        locationId: itemLocationId,
-        quantity: parseFloat(item.quantity),
-        transactionType: transactionType,
-        referenceNo: inboundData.inbound_no,
-        referenceType: 'inbound',
-        operator: operator,
-        remark: inboundData.remark || '',
-        unitId: unitId,
-        batchNumber: finalBatchNumber,
-        transactionDate: inboundData.inbound_date,
-      }, connection);
+      let resolvedUnitCost = inboundType === 'production'
+        ? productionUnitCost
+        : Number(matInfo.costPrice) || 0;
+      if (['sales_return', 'production_return', 'defective_return'].includes(inboundType)) {
+        const [sourceCosts] = await connection.execute(
+          `SELECT unit_cost
+             FROM inventory_ledger
+            WHERE material_id = ?
+              AND batch_number = ?
+              AND quantity < 0
+              AND COALESCE(unit_cost, 0) > 0
+            ORDER BY id DESC
+            LIMIT 1`,
+          [item.material_id, finalBatchNumber]
+        );
+        resolvedUnitCost = Number(sourceCosts[0]?.unit_cost) || 0;
+      }
+      if (resolvedUnitCost <= 0) {
+        throw new Error(
+          `入库单 ${inboundData.inbound_no} 的物料 ${item.material_id} 缺少可证明的正数单位成本，不能入库`
+        );
+      }
+
+      // 记录库存台账（幂等：同一入库明细只入一次）
+      await InventoryService.updateStock(
+        {
+          materialId: item.material_id,
+          locationId: itemLocationId,
+          quantity: parseFloat(item.quantity),
+          transactionType: transactionType,
+          referenceNo: inboundData.inbound_no,
+          referenceType: 'inbound',
+          operator: operator,
+          remark: inboundData.remark || '',
+          unitId: unitId,
+          batchNumber: finalBatchNumber,
+          transactionDate: inboundData.inbound_date,
+          unitCost: resolvedUnitCost,
+          idempotencyKey: `inbound_confirm:${inboundData.inbound_no}:item:${item.id}`,
+        },
+        connection
+      );
 
       // 根据入库类型确定追溯触发类型
       const traceTypeMap = {
@@ -241,18 +311,16 @@ class InboundTransactionService {
         batch_no: finalBatchNumber,
         source_type: inboundType,
         reference_id: inboundData.reference_id || null,
-        operator
+        operator,
       };
 
       // 采用死信队列包裹器处理
-      DLQService.runWithRetry(
-        `CreateTraceability_${item.material_id}`,
-        tracePayload,
-        async () => {
-          logger.info(`🔄 异步触发追溯记录构建 - 入库单: ${inboundData.inbound_no}, 类型: ${traceTriggerType}`);
-          await AsyncTaskService.createTraceabilityAsync(traceTriggerType, tracePayload);
-        }
-      );
+      DLQService.runWithRetry(`CreateTraceability_${item.material_id}`, tracePayload, async () => {
+        logger.info(
+          `Traceability build scheduled: inboundNo=${inboundData.inbound_no}, type=${traceTriggerType}`
+        );
+        await AsyncTaskService.createTraceabilityAsync(traceTriggerType, tracePayload);
+      });
     }
 
     await this.syncProductionCompletion(connection, inboundInfo[0], inboundItems, inspection_id);
@@ -271,46 +339,157 @@ class InboundTransactionService {
     if (inspections.length === 0 || !inspections[0].reference_id) return;
 
     const taskId = inspections[0].reference_id;
-    const dbStatus = 'completed';
     const [taskResult] = await connection.query(
-      'SELECT id, plan_id, code FROM production_tasks WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+      'SELECT id, plan_id, code, status FROM production_tasks WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
       [taskId]
     );
     if (taskResult.length === 0) {
       throw new Error(`成品入库关联的生产任务不存在: ${taskId}`);
     }
 
-    const planId = taskResult[0].plan_id;
-    await connection.execute('UPDATE production_tasks SET status = ? WHERE id = ? AND deleted_at IS NULL', [
-      dbStatus,
-      taskId,
-    ]);
-    await connection.execute('UPDATE production_processes SET status = ? WHERE task_id = ?', [
-      dbStatus,
-      taskId,
-    ]);
-
-    if (planId) {
-      const [planTasks] = await connection.query(
-        'SELECT status FROM production_tasks WHERE plan_id = ? AND deleted_at IS NULL FOR UPDATE',
-        [planId]
-      );
-
-      const totalTasks = planTasks.length;
-      const targetCount = planTasks.filter((task) => task.status === dbStatus).length;
-      const cancelledCount = planTasks.filter((task) => task.status === 'cancelled').length;
-
-      if (totalTasks > 0 && targetCount === totalTasks - cancelledCount) {
-        await connection.execute('UPDATE production_plans SET status = ? WHERE id = ? AND deleted_at IS NULL', [
-          dbStatus,
-          planId,
-        ]);
+    const task = taskResult[0];
+    if (task.status !== 'completed') {
+      const transition = validateTaskTransition(task.status, 'completed');
+      if (!transition.valid) {
+        throw new Error(
+          `生产入库无法完成任务 ${task.code}: ${transition.message}`
+        );
       }
+      await connection.execute(
+        'UPDATE production_tasks SET status = ? WHERE id = ? AND deleted_at IS NULL',
+        ['completed', taskId]
+      );
+    }
+
+    if (task.plan_id) {
+      const { syncPlanStatus } = require('./TaskLifecycleService');
+      await syncPlanStatus(task.plan_id, connection);
     }
 
     logger.info(
-      `生产入库 ${inboundData.inbound_no} 已同步完成生产任务 ${taskResult[0].code || taskId} 状态`
+      `生产入库 ${inboundData.inbound_no} 已同步完成生产任务 ${task.code || taskId} 状态`
     );
+
+    // 任务已 completed：事务提交后触发成本核算（completeTask 阶段仅 inspection，此前被门禁跳过）
+    const code = task.code || taskId;
+    setImmediate(() => {
+      try {
+        const EventBus = require('../../events/EventBus');
+        EventBus.emit('PRODUCTION_TASK_COMPLETED', {
+          taskId,
+          taskCode: code,
+          isFullComplete: true,
+        });
+      } catch (emitErr) {
+        logger.warn(`生产入库后触发成本事件失败: ${emitErr.message}`);
+      }
+    });
+  }
+
+  /**
+   * 冲销已完成入库：按原正向台账逐行回冲（幂等）
+   * 锁序固定 material_id, location_id, ledger.id，降低与并发库存事务死锁概率
+   */
+  static async reverseInbound(connection, inboundId, operator, inboundData) {
+    const inboundNo = inboundData.inbound_no;
+    if (!inboundNo) {
+      throw new Error('入库单号缺失，无法冲销');
+    }
+
+    const [already] = await connection.execute(
+      `SELECT COUNT(*) AS count
+       FROM inventory_ledger
+       WHERE reference_no = ?
+         AND transaction_type = 'inbound_cancel'
+         AND quantity < 0`,
+      [inboundNo]
+    );
+    if (Number(already[0]?.count || 0) > 0) {
+      throw new Error('该入库单已有冲销流水，禁止重复冲销');
+    }
+
+    const [ledgerRows] = await connection.execute(
+      `SELECT
+         id,
+         material_id,
+         location_id,
+         unit_id,
+         batch_number,
+         ABS(quantity) AS qty
+       FROM inventory_ledger
+       WHERE reference_no = ?
+         AND quantity > 0
+         AND (
+           reference_type IN ('inbound', 'production_inbound', 'purchase_inbound')
+           OR reference_type IS NULL
+           OR reference_type = ''
+         )
+       ORDER BY material_id ASC, location_id ASC, id ASC`,
+      [inboundNo]
+    );
+
+    // 兼容仅写 transaction_type 未写 reference_type 的历史数据
+    let rows = ledgerRows;
+    if (rows.length === 0) {
+      const [fallback] = await connection.execute(
+        `SELECT id, material_id, location_id, unit_id, batch_number, ABS(quantity) AS qty
+         FROM inventory_ledger
+         WHERE reference_no = ? AND quantity > 0
+         ORDER BY material_id ASC, location_id ASC, id ASC`,
+        [inboundNo]
+      );
+      rows = fallback;
+    }
+
+    if (rows.length === 0) {
+      throw new Error('找不到该入库单的正向台账，无法安全冲销');
+    }
+
+    // 先按固定顺序预锁库位，再回冲
+    const lockKeys = new Set();
+    for (const ledger of rows) {
+      if (!ledger.location_id || !ledger.material_id) continue;
+      const key = `${ledger.material_id}:${ledger.location_id}`;
+      if (lockKeys.has(key)) continue;
+      lockKeys.add(key);
+      await InventoryService.getCurrentStock(
+        ledger.material_id,
+        ledger.location_id,
+        connection,
+        true,
+        false
+      );
+    }
+
+    for (const ledger of rows) {
+      const qty = parseFloat(ledger.qty) || 0;
+      if (qty <= 0) continue;
+      if (!ledger.location_id) {
+        throw new Error(`台账 ${ledger.id} 缺少库位，无法冲销`);
+      }
+
+      await InventoryService.updateStock(
+        {
+          materialId: ledger.material_id,
+          locationId: ledger.location_id,
+          quantity: -qty,
+          transactionType: 'inbound_cancel',
+          referenceNo: inboundNo,
+          referenceType: 'inbound_reversal',
+          operator: operator || 'system',
+          remark: `冲销入库单 ${inboundNo}，来源台账 ${ledger.id}`,
+          unitId: ledger.unit_id,
+          batchNumber: ledger.batch_number || `REV-IN-${inboundNo}-${ledger.id}`,
+          idempotencyKey: `inbound_cancel:${inboundNo}:ledger:${ledger.id}`,
+        },
+        connection
+      );
+    }
+
+    logger.info(
+      `入库单 ${inboundNo} 冲销完成，回冲 ${rows.length} 条台账`
+    );
+    return { reversedCount: rows.length };
   }
 
   /**
@@ -324,107 +503,114 @@ class InboundTransactionService {
       inboundItems[0].material_id;
 
     if (shouldCreateTrace) {
-      DLQService.runWithRetry(`产品入库追溯记录创建-${inboundData.inbound_no}`, { inboundId, inboundData, inspection_id }, async () => {
-        try {
-          for (const item of inboundItems) {
-            try {
-              let productCode = item.material_code;
-              let productName = item.material_name;
+      DLQService.runWithRetry(
+        `产品入库追溯记录创建-${inboundData.inbound_no}`,
+        { inboundId, inboundData, inspection_id },
+        async () => {
+          try {
+            for (const item of inboundItems) {
+              try {
+                let productCode = item.material_code;
+                let productName = item.material_name;
 
-              if (!productCode || !productName) {
-                const conn = await db.pool.getConnection();
-                try {
-                  const [materialInfo] = await conn.execute(
-                    'SELECT code, name FROM materials WHERE id = ? AND deleted_at IS NULL',
-                    [item.material_id]
-                  );
-                  if (materialInfo.length > 0) {
-                    productCode = materialInfo[0].code;
-                    productName = materialInfo[0].name;
-                  } else {
-                    continue;
+                if (!productCode || !productName) {
+                  const conn = await db.pool.getConnection();
+                  try {
+                    const [materialInfo] = await conn.execute(
+                      'SELECT code, name FROM materials WHERE id = ? AND deleted_at IS NULL',
+                      [item.material_id]
+                    );
+                    if (materialInfo.length > 0) {
+                      productCode = materialInfo[0].code;
+                      productName = materialInfo[0].name;
+                    } else {
+                      continue;
+                    }
+                  } finally {
+                    conn.release();
                   }
-                } finally {
-                  conn.release();
                 }
-              }
 
-              if (!item.batch_number) {
-                throw new Error(
-                  `产品入库追溯缺少批次号: inbound_no=${inboundData.inbound_no}, material_id=${item.material_id}`
-                );
-              }
-              const batchNumber = item.batch_number;
-
-              if (inspection_id) {
-                const conn = await db.pool.getConnection();
-                try {
-                  await conn.execute(
-                    'UPDATE quality_inspections SET traceability_batch = ? WHERE id = ? AND deleted_at IS NULL',
-                    [batchNumber, inspection_id]
+                if (!item.batch_number) {
+                  throw new Error(
+                    `产品入库追溯缺少批次号: inbound_no=${inboundData.inbound_no}, material_id=${item.material_id}`
                   );
-                } finally {
-                  conn.release();
                 }
+                const batchNumber = item.batch_number;
+
+                if (inspection_id) {
+                  const conn = await db.pool.getConnection();
+                  try {
+                    await conn.execute(
+                      'UPDATE quality_inspections SET traceability_batch = ? WHERE id = ? AND deleted_at IS NULL',
+                      [batchNumber, inspection_id]
+                    );
+                  } finally {
+                    conn.release();
+                  }
+                }
+              } catch (itemTraceError) {
+                logger.error(`为物料 ${item.material_id} 创建入库追溯记录失败:`, itemTraceError);
+                throw itemTraceError;
               }
-            } catch (itemTraceError) {
-              logger.error(`为物料 ${item.material_id} 创建入库追溯记录失败:`, itemTraceError);
-              throw itemTraceError;
             }
+          } catch (traceError) {
+            logger.error('异步创建产品入库追溯记录失败:', traceError);
+            throw traceError;
           }
-        } catch (traceError) {
-          logger.error('异步创建产品入库追溯记录失败:', traceError);
-          throw traceError;
         }
-      });
+      );
     }
 
     // 建立原料→成品批次追溯关系；生产任务/计划状态已在主事务中同步完成
     if (inboundData.inbound_type === 'production' && inspection_id) {
-      DLQService.runWithRetry(`生产入库批次关系-${inboundData.inbound_no}`, { inboundData, inspection_id }, async () => {
-        const connection = await db.pool.getConnection();
-        try {
-          // 查找绑定的成品质检单，获取关联的生产任务ID
-          const [inspections] = await connection.query(
-            "SELECT reference_id FROM quality_inspections WHERE id = ? AND inspection_type = 'final' AND deleted_at IS NULL",
-            [inspection_id]
-          );
-          if (inspections.length > 0 && inspections[0].reference_id) {
-            const taskId = inspections[0].reference_id;
-
-            // 查找生产任务和计划
-            const [taskResult] = await connection.query(
-              'SELECT id, plan_id, code FROM production_tasks WHERE id = ? AND deleted_at IS NULL',
-              [taskId]
+      DLQService.runWithRetry(
+        `生产入库批次关系-${inboundData.inbound_no}`,
+        { inboundData, inspection_id },
+        async () => {
+          const connection = await db.pool.getConnection();
+          try {
+            // 查找绑定的成品质检单，获取关联的生产任务ID
+            const [inspections] = await connection.query(
+              "SELECT reference_id FROM quality_inspections WHERE id = ? AND inspection_type = 'final' AND deleted_at IS NULL",
+              [inspection_id]
             );
+            if (inspections.length > 0 && inspections[0].reference_id) {
+              const taskId = inspections[0].reference_id;
 
-            if (taskResult.length > 0) {
-              const taskCode = taskResult[0].code;
+              // 查找生产任务和计划
+              const [taskResult] = await connection.query(
+                'SELECT id, plan_id, code FROM production_tasks WHERE id = ? AND deleted_at IS NULL',
+                [taskId]
+              );
 
-              // ✅ 建立原料 → 成品的 batch_relationships 追溯消耗关系
-              // 思路：生产入库时成品已有批次号，从 inventory_ledger 查该生产任务
-              //       对应的 production_outbound 台账，即可得到实际领用的原料批次
-              try {
-                for (const inboundItem of inboundItems) {
-                  const productBatchNo = inboundItem.batch_number;
-                  if (!productBatchNo) continue;
+              if (taskResult.length > 0) {
+                const taskCode = taskResult[0].code;
 
-                  // 查询该生产任务下实际领用的原料批次（来自对应的生产出库单领料）
-                  // 1. 获取该生产任务对应的所有出库单号
-                  const [outbounds] = await connection.query(
-                    `SELECT outbound_no FROM inventory_outbound
+                // ✅ 建立原料 → 成品的 batch_relationships 追溯消耗关系
+                // 思路：生产入库时成品已有批次号，从 inventory_ledger 查该生产任务
+                //       对应的 production_outbound 台账，即可得到实际领用的原料批次
+                try {
+                  for (const inboundItem of inboundItems) {
+                    const productBatchNo = inboundItem.batch_number;
+                    if (!productBatchNo) continue;
+
+                    // 查询该生产任务下实际领用的原料批次（来自对应的生产出库单领料）
+                    // 1. 获取该生产任务对应的所有出库单号
+                    const [outbounds] = await connection.query(
+                      `SELECT outbound_no FROM inventory_outbound
                      WHERE production_task_id = ? OR (reference_type = 'production_task' AND reference_id = ?)`,
-                    [taskId, taskId]
-                  );
+                      [taskId, taskId]
+                    );
 
-                  let consumedRows = [];
-                  if (outbounds.length > 0) {
-                    const outNos = outbounds.map(o => o.outbound_no);
-                    const placeholders = outNos.map(() => '?').join(',');
+                    let consumedRows = [];
+                    if (outbounds.length > 0) {
+                      const outNos = outbounds.map((o) => o.outbound_no);
+                      const placeholders = outNos.map(() => '?').join(',');
 
-                    // 2. 查询这些出库单在台账中的扣减明细
-                    const [ledgerRows] = await connection.query(
-                      `SELECT
+                      // 2. 查询这些出库单在台账中的扣减明细
+                      const [ledgerRows] = await connection.query(
+                        `SELECT
                          il.material_id,
                          il.batch_number    as raw_batch_number,
                          m.code             as raw_material_code,
@@ -437,26 +623,26 @@ class InboundTransactionService {
                          AND il.batch_number IS NOT NULL
                          AND il.batch_number != ''
                        GROUP BY il.material_id, il.batch_number, m.code`,
-                      outNos
-                    );
-                    consumedRows = ledgerRows;
-                  }
+                        outNos
+                      );
+                      consumedRows = ledgerRows;
+                    }
 
-                  const producedQty = parseFloat(inboundItem.quantity) || 1;
+                    const producedQty = parseFloat(inboundItem.quantity) || 1;
 
-                  for (const raw of consumedRows) {
-                    // 避免重复写入（幂等保护）
-                    const [existing] = await connection.query(
-                      `SELECT id FROM batch_relationships
+                    for (const raw of consumedRows) {
+                      // 避免重复写入（幂等保护）
+                      const [existing] = await connection.query(
+                        `SELECT id FROM batch_relationships
                        WHERE parent_batch_number = ? AND child_batch_number = ?
                          AND parent_material_code = ? AND relationship_type = 'consume'
                        LIMIT 1`,
-                      [raw.raw_batch_number, productBatchNo, raw.raw_material_code]
-                    );
-                    if (existing.length > 0) continue;
+                        [raw.raw_batch_number, productBatchNo, raw.raw_material_code]
+                      );
+                      if (existing.length > 0) continue;
 
-                    await connection.execute(
-                      `INSERT INTO batch_relationships (
+                      await connection.execute(
+                        `INSERT INTO batch_relationships (
                          parent_batch_id, child_batch_id,
                          parent_material_code, child_material_code,
                          parent_batch_number,  child_batch_number,
@@ -466,72 +652,82 @@ class InboundTransactionService {
                          operator,             remarks,       created_at
                        ) VALUES (NULL, NULL, ?, ?, ?, ?, 'consume', ?, ?, ?, 'production',
                                  'production_task', ?, ?, ?, ?, NOW())`,
-                      [
-                        raw.raw_material_code,
-                        inboundItem.material_code || '',
-                        raw.raw_batch_number,
-                        productBatchNo,
-                        parseFloat(raw.consumed_quantity),
-                        producedQty,
-                        producedQty > 0 ? parseFloat(raw.consumed_quantity) / producedQty : 1,
-                        taskId,
-                        taskCode || inboundData.inbound_no,
-                        inboundData.operator || 'system',
-                        `生产任务 ${taskCode || taskId} 原料消耗追溯`
-                      ]
-                    );
-                  }
+                        [
+                          raw.raw_material_code,
+                          inboundItem.material_code || '',
+                          raw.raw_batch_number,
+                          productBatchNo,
+                          parseFloat(raw.consumed_quantity),
+                          producedQty,
+                          producedQty > 0 ? parseFloat(raw.consumed_quantity) / producedQty : 1,
+                          taskId,
+                          taskCode || inboundData.inbound_no,
+                          inboundData.operator || 'system',
+                          `生产任务 ${taskCode || taskId} 原料消耗追溯`,
+                        ]
+                      );
+                    }
 
-                  if (consumedRows.length > 0) {
-                    logger.info(
-                      `[追溯] 成品批次 ${productBatchNo} 已建立 ${consumedRows.length} 条原料消耗关系`
-                    );
-                  } else {
-                    throw new Error(
-                      `生产任务 ${taskId}(${taskCode}) 未找到对应的原料领用台账，不能建立成品批次 ${productBatchNo} 的消耗追溯关系`
-                    );
+                    if (consumedRows.length > 0) {
+                      logger.info(
+                        `[追溯] 成品批次 ${productBatchNo} 已建立 ${consumedRows.length} 条原料消耗关系`
+                      );
+                    } else {
+                      throw new Error(
+                        `生产任务 ${taskId}(${taskCode}) 未找到对应的原料领用台账，不能建立成品批次 ${productBatchNo} 的消耗追溯关系`
+                      );
+                    }
                   }
+                } catch (traceErr) {
+                  logger.error('建立生产批次消耗追溯关系失败:', traceErr);
+                  throw traceErr;
                 }
-              } catch (traceErr) {
-                logger.error('建立生产批次消耗追溯关系失败:', traceErr);
-                throw traceErr;
               }
             }
+          } catch (err) {
+            logger.error('异步建立生产入库批次关系失败:', err);
+            throw err;
+          } finally {
+            connection.release();
           }
-        } catch (err) {
-          logger.error('异步建立生产入库批次关系失败:', err);
-          throw err;
-        } finally {
-          connection.release();
         }
-      });
+      );
     }
-
 
     // 处理缺陷退货直接生成NCP
     if (inboundData.inbound_type === 'defective_return') {
-      DLQService.runWithRetry(`生成退料不良NCP单-${inboundData.inbound_no}`, { inboundItems, inbound_no: inboundData.inbound_no }, async () => {
-        const connection = await db.pool.getConnection();
-        try {
-          await connection.beginTransaction();
-          for (const item of inboundItems) {
-            const ncpNo = await NonconformingProduct.generateNcpNo();
-            let unitName = 'pcs';
-            if (item.unit_id) {
-              const [unitRows] = await connection.execute('SELECT name FROM units WHERE id = ? AND deleted_at IS NULL', [item.unit_id]);
-              if (unitRows.length > 0 && unitRows[0].name) unitName = unitRows[0].name;
-            }
+      DLQService.runWithRetry(
+        `生成退料不良NCP单-${inboundData.inbound_no}`,
+        { inboundItems, inbound_no: inboundData.inbound_no },
+        async () => {
+          const connection = await db.pool.getConnection();
+          try {
+            await connection.beginTransaction();
+            for (const item of inboundItems) {
+              const ncpNo = await NonconformingProduct.generateNcpNo();
+              let unitName = 'pcs';
+              if (item.unit_id) {
+                const [unitRows] = await connection.execute(
+                  'SELECT name FROM units WHERE id = ? AND deleted_at IS NULL',
+                  [item.unit_id]
+                );
+                if (unitRows.length > 0 && unitRows[0].name) unitName = unitRows[0].name;
+              }
 
-            let locationName = '隔离区';
-            if (inboundData.location_id) {
-              const [locRows] = await connection.execute('SELECT name FROM locations WHERE id = ? AND deleted_at IS NULL', [inboundData.location_id]);
-              if (locRows.length > 0) locationName = locRows[0].name;
-            }
+              let locationName = '隔离区';
+              if (inboundData.location_id) {
+                const [locRows] = await connection.execute(
+                  'SELECT name FROM locations WHERE id = ? AND deleted_at IS NULL',
+                  [inboundData.location_id]
+                );
+                if (locRows.length > 0) locationName = locRows[0].name;
+              }
 
-            let supplierId = null;
-            let supplierName = null;
-            try {
-              const [supplierRows] = await connection.query(`
+              let supplierId = null;
+              let supplierName = null;
+              try {
+                const [supplierRows] = await connection.query(
+                  `
                 SELECT r.supplier_id, COALESCE(s.name, r.supplier_name) AS supplier_name
                 FROM purchase_receipts r
                 JOIN purchase_receipt_items ri ON r.id = ri.receipt_id
@@ -539,44 +735,66 @@ class InboundTransactionService {
                 WHERE ri.material_id = ?
                 ORDER BY r.created_at DESC
                 LIMIT 1
-              `, [item.material_id]);
-              if (supplierRows.length > 0) {
-                supplierId = supplierRows[0].supplier_id;
-                supplierName = supplierRows[0].supplier_name;
+              `,
+                  [item.material_id]
+                );
+                if (supplierRows.length > 0) {
+                  supplierId = supplierRows[0].supplier_id;
+                  supplierName = supplierRows[0].supplier_name;
+                }
+              } catch (err) {
+                logger.error('查询供应商信息失败:', err);
+                throw err;
               }
-            } catch (err) {
-              logger.error('查询供应商信息失败:', err);
-              throw err;
-            }
 
-            await connection.query(`
+              await connection.query(
+                `
               INSERT INTO nonconforming_products (
                 ncp_no, inspection_id, inspection_no, material_id, material_code, material_name,
                 batch_no, quantity, unit, defect_type, defect_description, severity,
                 supplier_id, supplier_name, disposition, current_location, isolation_area,
                 responsible_party, note, created_by, status
               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `, [
-              ncpNo, null, null, item.material_id, item.material_code || '', item.material_name || '',
-              null, item.quantity, unitName, 'incoming_defect',
-              `【自动登记】产线退回来料不良。退库单 ${inboundData.inbound_no}，原始流: ${inboundData.reference_no || '无'}`,
-              'minor', supplierId, supplierName, 'pending', locationName, locationName,
-              supplierId ? 'supplier' : 'unknown',
-              `退料不良自动单-入库: ${inboundData.inbound_no}`,
-              inboundData.operator || 'system', 'pending'
-            ]);
+            `,
+                [
+                  ncpNo,
+                  null,
+                  null,
+                  item.material_id,
+                  item.material_code || '',
+                  item.material_name || '',
+                  null,
+                  item.quantity,
+                  unitName,
+                  'incoming_defect',
+                  `【自动登记】产线退回来料不良。退库单 ${inboundData.inbound_no}，原始流: ${inboundData.reference_no || '无'}`,
+                  'minor',
+                  supplierId,
+                  supplierName,
+                  'pending',
+                  locationName,
+                  locationName,
+                  supplierId ? 'supplier' : 'unknown',
+                  `退料不良自动单-入库: ${inboundData.inbound_no}`,
+                  inboundData.operator || 'system',
+                  'pending',
+                ]
+              );
 
-            logger.info(`✅ [流程引擎] 退料入库单 ${inboundData.inbound_no} 直接生成NCP记录: ${ncpNo}`);
+              logger.info(
+                `Nonconforming product record generated from return inbound: inboundNo=${inboundData.inbound_no}, ncpNo=${ncpNo}`
+              );
+            }
+            await connection.commit();
+          } catch (e) {
+            await connection.rollback();
+            logger.error(`退料入库单生成NCP失败:`, e);
+            throw e;
+          } finally {
+            connection.release();
           }
-          await connection.commit();
-        } catch (e) {
-          await connection.rollback();
-          logger.error(`退料入库单生成NCP失败:`, e);
-          throw e;
-        } finally {
-          connection.release();
         }
-      });
+      );
     }
 
     // ✅ 统一入口：入库后检查所有 in_production/in_procurement 的销售订单

@@ -30,39 +30,43 @@ function utf8Hex(hex) {
   return `CONVERT(UNHEX('${hex}') USING utf8mb4)`;
 }
 
+function hexLiteral(hex) {
+  return `'${hex}'`;
+}
+
 function signedTransactionExpression(alias = 't') {
   const typeColumn = `${alias}.transaction_type`;
   const incomeTypes = [
-    utf8Hex('E5AD98E6ACBE'),
-    utf8Hex('E8BDACE585A5'),
-    utf8Hex('E588A9E681AF'),
-    utf8Hex('E694B6E585A5'),
-    "'income'",
-    "'deposit'",
-    "'transfer_in'",
-    "'interest'",
+    hexLiteral('E5AD98E6ACBE'),
+    hexLiteral('E8BDACE585A5'),
+    hexLiteral('E588A9E681AF'),
+    hexLiteral('E694B6E585A5'),
+    hexLiteral('696E636F6D65'),
+    hexLiteral('6465706F736974'),
+    hexLiteral('7472616E736665725F696E'),
+    hexLiteral('696E746572657374'),
   ].join(',');
   const expenseTypes = [
-    utf8Hex('E58F96E6ACBE'),
-    utf8Hex('E8BDACE587BA'),
-    utf8Hex('E8B4B9E794A8'),
-    utf8Hex('E694AFE587BA'),
-    "'expense'",
-    "'withdrawal'",
-    "'transfer_out'",
-    "'fee'",
+    hexLiteral('E58F96E6ACBE'),
+    hexLiteral('E8BDACE587BA'),
+    hexLiteral('E8B4B9E794A8'),
+    hexLiteral('E694AFE587BA'),
+    hexLiteral('657870656E7365'),
+    hexLiteral('7769746864726177616C'),
+    hexLiteral('7472616E736665725F6F7574'),
+    hexLiteral('666565'),
   ].join(',');
 
   return `
     CASE
-      WHEN ${typeColumn} IN (${incomeTypes}) THEN ${alias}.amount
-      WHEN ${typeColumn} IN (${expenseTypes}) THEN -${alias}.amount
+      WHEN HEX(${typeColumn}) IN (${incomeTypes}) THEN ${alias}.amount
+      WHEN HEX(${typeColumn}) IN (${expenseTypes}) THEN -${alias}.amount
       ELSE 0
     END
   `;
 }
 
-async function getTaxAccountIds(trx) {
+async function getTaxAccountIds(trx, requireComplete = true) {
   const rows = await trx('tax_account_config')
     .select('config_key', 'account_id')
     .whereIn('config_key', [
@@ -84,9 +88,10 @@ async function getTaxAccountIds(trx) {
     'VAT_INPUT_TAX',
     'VAT_OUTPUT_TAX',
   ]) {
-    if (!ids[key]) {
+    if (requireComplete && !ids[key]) {
       throw new Error(`Missing active tax account config: ${key}`);
     }
+    if (!ids[key]) ids[key] = null;
   }
   return ids;
 }
@@ -148,7 +153,7 @@ exports.up = async function up(knex) {
           JOIN tmp_ar_single_overpaid t
             ON bt.related_invoice_id = t.invoice_id
            AND bt.related_invoice_type = 'AR'
-           AND bt.transaction_number = t.receipt_number
+           AND BINARY bt.transaction_number = BINARY t.receipt_number
           SET bt.amount = t.target_amount
         `);
       }
@@ -219,8 +224,6 @@ exports.up = async function up(knex) {
       (await hasTable(knex, 'gl_entries')) &&
       (await hasTable(knex, 'gl_entry_items'))
     ) {
-      const accounts = await getTaxAccountIds(trx);
-
       await trx.raw('DROP TEMPORARY TABLE IF EXISTS tmp_tax_empty_gl');
       await trx.raw(`
         CREATE TEMPORARY TABLE tmp_tax_empty_gl AS
@@ -239,6 +242,10 @@ exports.up = async function up(knex) {
 
       const [taxEmptyRows] = await trx.raw('SELECT COUNT(*) AS count FROM tmp_tax_empty_gl');
       await logRepair(trx, 'tax', 'tax_invoices_linked_empty_gl', taxEmptyRows[0]?.count || 0);
+      const accounts = await getTaxAccountIds(
+        trx,
+        Number(taxEmptyRows[0]?.count || 0) > 0
+      );
 
       await trx.raw(`
         INSERT INTO gl_entry_items
@@ -310,7 +317,7 @@ exports.up = async function up(knex) {
     if ((await hasTable(knex, 'ap_invoices')) && (await hasTable(knex, 'purchase_returns'))) {
       const [apSourceResult] = await trx.raw(`
         UPDATE ap_invoices ai
-        JOIN purchase_returns pr ON ai.notes LIKE CONCAT('%', pr.return_no, '%')
+        JOIN purchase_returns pr ON LOCATE(BINARY pr.return_no, BINARY ai.notes) > 0
         SET ai.source_type = 'purchase_return',
             ai.source_id = pr.id
         WHERE ROUND(COALESCE(ai.total_amount, 0), 2) < 0

@@ -6,9 +6,9 @@
 -->
 <template>
   <el-dialog v-model="dialogVisible" title="过程检验规则配置" width="900px" destroy-on-close>
-    <div style="margin-bottom: 16px;">
+    <div class="mb-md">
       <el-button v-permission="'quality:settings:create'" type="primary" @click="showAddRule = true"><el-icon><Plus /></el-icon>添加规则</el-button>
-      <el-alert type="info" :closable="false" style="margin-top: 10px;">
+      <el-alert type="info" :closable="false" class="mt-10">
         <template #title>
           <span>默认规则：每 <b>{{ DEFAULT_INTERVAL }}分钟</b> 检验一次，抽检比例 <b>{{ DEFAULT_SAMPLE_RATE }}%</b>，巡检打卡间隔 <b>{{ DEFAULT_PUNCH_INTERVAL }}分钟</b>。可针对特定工序/产品配置个性化规则。</span>
         </template>
@@ -49,7 +49,7 @@
     <el-dialog v-model="showAddRule" :title="editingRule ? '编辑规则' : '添加规则'" width="500px" append-to-body>
       <el-form ref="ruleFormRef" :model="ruleForm" :rules="ruleFormRules" label-width="100px">
         <el-form-item label="工序">
-          <el-select v-model="ruleForm.process_id" placeholder="全部工序" filterable clearable style="width: 100%">
+          <el-select v-model="ruleForm.process_id" placeholder="全部工序" filterable clearable class="w-full">
             <el-option v-for="p in processOptions" :key="p.id" :label="p.name" :value="p.id" />
           </el-select>
         </el-form-item>
@@ -62,25 +62,25 @@
             :remote-method="debouncedSearchProducts"
             :loading="loadingProducts"
             clearable
-            style="width: 100%"
+            class="w-full"
           >
             <el-option v-for="p in productOptions" :key="p.id" :label="`${p.code || '无编码'} - ${p.name || '未命名'}`" :value="p.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="检验间隔" prop="inspection_interval">
           <el-input-number v-model="ruleForm.inspection_interval" :min="5" :max="480" />
-          <span style="margin-left: 10px; color: var(--color-text-secondary);">分钟</span>
+          <span class="ml-sm text-muted">分钟</span>
         </el-form-item>
         <el-form-item label="抽检比例" prop="sample_rate">
           <el-input-number v-model="ruleForm.sample_rate" :min="1" :max="100" />
-          <span style="margin-left: 10px; color: var(--color-text-secondary);">%</span>
+          <span class="ml-sm text-muted">%</span>
         </el-form-item>
         <el-form-item label="打卡间隔" prop="punch_interval">
           <el-input-number v-model="ruleForm.punch_interval" :min="1" :max="60" />
-          <span style="margin-left: 10px; color: var(--color-text-secondary);">分钟 (防止重复打卡)</span>
+          <span class="ml-sm text-muted">分钟 (防止重复打卡)</span>
         </el-form-item>
         <el-form-item label="检验模板">
-          <el-select v-model="ruleForm.template_id" placeholder="选择检验模板" clearable style="width: 100%">
+          <el-select v-model="ruleForm.template_id" placeholder="选择检验模板" clearable class="w-full">
             <el-option v-for="t in templateOptions" :key="t.id" :label="t.template_name || t.name" :value="t.id" />
           </el-select>
         </el-form-item>

@@ -8,15 +8,11 @@
 -->
 <template>
   <div class="module-page base-data-list-page">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>产品单位管理</h2>
-          <p class="subtitle">管理计量单位配置</p>
-        </div>
-        <el-button v-if="canCreate" type="primary" :icon="Plus" @click="handleAdd">新增单位</el-button>
-      </div>
-    </el-card>
+    <PageHeader title="产品单位管理" subtitle="管理计量单位配置">
+      <template #actions>
+<el-button v-if="canCreate" type="primary" :icon="Plus" @click="handleAdd">新增单位</el-button>
+      </template>
+    </PageHeader>
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
@@ -67,7 +63,7 @@
         v-loading="loading"
         :data="tableData"
         border
-        style="width: 100%"
+        class="w-full"
       >
         <template #empty>
           <el-empty description="暂无单位数据" />

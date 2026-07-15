@@ -26,29 +26,12 @@ export const financeRoutes = [
     component: () => import('@/views/finance/Entries.vue'),
     meta: { title: '会计凭证', permission: 'finance' }
   },
-  {
-    path: '/finance/gl/entries/create',
-    name: 'GLEntryCreate',
-    component: () => import('@/views/finance/CreateEntry.vue'),
-    meta: { title: '新建凭证', permission: 'finance' }
-  },
+  // L4：新建凭证 / 期间关账仅 PC（见 MOBILE_PRODUCT_LAYER）
   {
     path: '/finance/gl/entries/:id',
     name: 'GLEntryDetail',
     component: () => import('@/views/finance/EntryDetail.vue'),
-    meta: { title: '凭证详情', permission: 'finance' }
-  },
-  {
-    path: '/finance/gl/periods',
-    name: 'GLPeriods',
-    component: () => import('@/views/finance/Periods.vue'),
-    meta: { title: '会计期间', permission: 'finance' }
-  },
-  {
-    path: '/finance/gl/periods/:id',
-    name: 'GLPeriodDetail',
-    component: () => import('@/views/finance/PeriodDetail.vue'),
-    meta: { title: '期间详情', permission: 'finance' }
+    meta: { title: '凭证详情', permission: 'finance', mobileReadOnly: true }
   },
   {
     path: '/finance/ar/invoices',

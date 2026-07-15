@@ -9,15 +9,11 @@
 <template>
   <div class="module-page outbound-container">
     <!-- 页面标题 -->
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>销售换货管理</h2>
-          <p class="subtitle">管理销售换货与处理</p>
-        </div>
-        <el-button v-permission="'sales:exchanges:create'" type="primary" :icon="Plus" @click="handleCreate">新增换货单</el-button>
-      </div>
-    </el-card>
+    <PageHeader title="销售换货管理" subtitle="管理销售换货与处理">
+      <template #actions>
+<el-button v-permission="'sales:exchanges:create'" type="primary" :icon="Plus" @click="handleCreate">新增换货单</el-button>
+      </template>
+    </PageHeader>
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
@@ -36,7 +32,7 @@
       </template>
       <template #advanced>
         <el-form-item label="换货状态">
-          <el-select v-model="statusFilter" placeholder="换货状态" clearable @change="handleSearch" style="width: 100%">
+          <el-select v-model="statusFilter" placeholder="换货状态" clearable @change="handleSearch" class="w-full">
             <el-option
               v-for="item in exchangeStatuses"
               :key="item.value"
@@ -86,7 +82,7 @@
       <el-table
         :data="exchangeRecords"
         border
-        style="width: 100%"
+        class="w-full"
         v-loading="loading"
         table-layout="fixed"
       >
@@ -101,17 +97,20 @@
         <el-table-column prop="reason" label="换货原因" min-width="150" />
         <el-table-column label="退回金额" width="110">
           <template #default="scope">
-            <span style="color: var(--color-success);">{{ formatCurrency(scope.row.returnAmount) }}</span>
+            <span class="text-success">{{ formatCurrency(scope.row.returnAmount) }}</span>
           </template>
         </el-table-column>
         <el-table-column label="换出金额" width="110">
           <template #default="scope">
-            <span style="color: var(--color-primary);">{{ formatCurrency(scope.row.newAmount) }}</span>
+            <span class="text-primary">{{ formatCurrency(scope.row.newAmount) }}</span>
           </template>
         </el-table-column>
         <el-table-column label="差价" width="110">
           <template #default="scope">
-            <span :style="{ color: scope.row.differenceAmount > 0 ? 'var(--color-danger)' : scope.row.differenceAmount < 0 ? 'var(--color-success)' : 'var(--color-text-secondary)', fontWeight: 'bold' }">
+            <span
+              class="font-weight-700"
+              :class="scope.row.differenceAmount > 0 ? 'amount-positive' : scope.row.differenceAmount < 0 ? 'amount-negative' : 'amount-zero'"
+            >
               {{ formatSignedCurrency(scope.row.differenceAmount) }}
             </span>
           </template>
@@ -123,7 +122,7 @@
         </el-table-column>
         <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
-            <el-button
+            <el-button class="btn-op-view" type="primary"
               size="small"
               @click="handleView(scope.row)"
             >
@@ -205,15 +204,15 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="原订单号" prop="orderNo">
-              <div style="display: flex; gap: 8px; align-items: center; width: 100%;">
+              <div class="flex-gap-8 w-full">
                 <el-input
                   v-model="exchangeForm.orderNo"
                   placeholder="请选择已完成出库的订单"
                   readonly
-                  style="flex: 1; min-width: 0;"
+                  class="flex-1-min0"
                 />
-                <el-button type="primary" @click="openOrderDialog" style="flex-shrink: 0;">选择订单</el-button>
-                <span v-if="exchangeForm.customerName" style="color: var(--color-success); font-size: 12px; flex-shrink: 0;">
+                <el-button type="primary" @click="openOrderDialog" class="flex-shrink-0">选择订单</el-button>
+                <span v-if="exchangeForm.customerName" class="is-substitute-sm flex-shrink-0">
                   <el-icon><Check /></el-icon>
                 </span>
               </div>
@@ -232,7 +231,7 @@
                 v-model="exchangeForm.exchangeDate"
                 type="date"
                 placeholder="选择换货日期"
-                style="width: 100%"
+                class="w-full"
               />
             </el-form-item>
           </el-col>
@@ -245,10 +244,10 @@
         <el-row :gutter="20" v-if="selectedOrderInfo">
           <el-col :span="24">
             <el-form-item label="出库信息">
-              <el-tag type="success" size="small" style="margin-right: 8px;">
+              <el-tag type="success" size="small" class="mr-sm">
                 <el-icon><Check /></el-icon> 已完成出库
               </el-tag>
-              <span style="color: var(--color-text-secondary); font-size: 12px;">
+              <span class="text-muted text-sm">
                 出库日期：{{ selectedOrderInfo.deliveryDate || '未知' }}
               </span>
             </el-form-item>
@@ -261,10 +260,10 @@
           />
         </el-form-item>
         <el-form-item label="退回商品">
-          <div style="margin-bottom: 10px; color: var(--color-text-regular); font-size: 14px;">
+          <div class="section-label">
             从已出库的商品中选择需要退回的商品
           </div>
-          <el-table :data="exchangeForm.returnItems" border style="width: 100%">
+          <el-table :data="exchangeForm.returnItems" border class="w-full">
             <el-table-column prop="productCode" label="产品编码" width="120" />
             <el-table-column prop="productName" label="产品名称" min-width="150" />
             <el-table-column prop="specification" label="规格" min-width="120" />
@@ -279,12 +278,12 @@
             </el-table-column>
             <el-table-column label="单价" width="100">
               <template #default="scope">
-                <span style="color: var(--color-text-secondary);">{{ formatCurrency(scope.row.unitPrice) }}</span>
+                <span class="text-muted">{{ formatCurrency(scope.row.unitPrice) }}</span>
               </template>
             </el-table-column>
             <el-table-column label="金额" width="110">
               <template #default="scope">
-                <span style="color: var(--color-success);">{{ formatExchangeLineAmount(scope.row.returnQuantity, scope.row.unitPrice) }}</span>
+                <span class="text-success">{{ formatExchangeLineAmount(scope.row.returnQuantity, scope.row.unitPrice) }}</span>
               </template>
             </el-table-column>
             <el-table-column prop="returnReason" label="退回原因" min-width="150">
@@ -310,13 +309,13 @@
           </el-table>
         </el-form-item>
         <el-form-item label="换出商品">
-          <div style="margin-bottom: 10px; color: var(--color-text-regular); font-size: 14px;">
+          <div class="section-label">
             选择要发给客户的新商品
-            <el-button type="primary" size="small" @click="openProductDialog" style="margin-left: 10px;">
+            <el-button type="primary" size="small" @click="openProductDialog" class="ml-10">
               <el-icon><Plus /></el-icon> 添加商品
             </el-button>
           </div>
-          <el-table :data="exchangeForm.newItems" border style="width: 100%">
+          <el-table :data="exchangeForm.newItems" border class="w-full">
             <el-table-column prop="productCode" label="产品编码" width="120" />
             <el-table-column prop="productName" label="产品名称" min-width="150" />
             <el-table-column prop="specification" label="规格" min-width="120" />
@@ -331,12 +330,12 @@
             </el-table-column>
             <el-table-column label="单价" width="100">
               <template #default="scope">
-                <span style="color: var(--color-text-secondary);">{{ formatCurrency(scope.row.unitPrice) }}</span>
+                <span class="text-muted">{{ formatCurrency(scope.row.unitPrice) }}</span>
               </template>
             </el-table-column>
             <el-table-column label="金额" width="110">
               <template #default="scope">
-                <span style="color: var(--color-primary);">{{ formatExchangeLineAmount(scope.row.newQuantity, scope.row.unitPrice) }}</span>
+                <span class="text-primary">{{ formatExchangeLineAmount(scope.row.newQuantity, scope.row.unitPrice) }}</span>
               </template>
             </el-table-column>
             <el-table-column prop="newReason" label="换出说明" min-width="150">
@@ -363,10 +362,13 @@
         </el-form-item>
         <!-- 金额汇总 -->
         <el-form-item label="金额汇总">
-          <div style="display: flex; gap: 24px; align-items: center; padding: 8px 0;">
-            <span>退回总价: <span style="color: var(--color-success); font-weight: bold;">{{ formatCurrency(calcReturnTotal()) }}</span></span>
-            <span>换出总价: <span style="color: var(--color-primary); font-weight: bold;">{{ formatCurrency(calcNewTotal()) }}</span></span>
-            <span>差价: <span :style="{ color: calcDifference() > 0 ? 'var(--color-danger)' : calcDifference() < 0 ? 'var(--color-success)' : 'var(--color-text-secondary)', fontWeight: 'bold', fontSize: '16px' }">
+          <div class="flex-gap-24">
+            <span>退回总价: <span class="text-success font-weight-700">{{ formatCurrency(calcReturnTotal()) }}</span></span>
+            <span>换出总价: <span class="text-primary font-weight-700">{{ formatCurrency(calcNewTotal()) }}</span></span>
+            <span>差价: <span
+              class="font-weight-700 text-lg-bold"
+              :class="calcDifference() > 0 ? 'amount-positive' : calcDifference() < 0 ? 'amount-negative' : 'amount-zero'"
+            >
               {{ formatSignedCurrency(calcDifference()) }}
             </span></span>
             <el-tag v-if="calcDifference() === 0" type="success" size="small">等值换货</el-tag>
@@ -392,10 +394,11 @@
       </template>
     </el-dialog>
     <!-- 查看换货单详情对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="detailDialogVisible"
       title="换货单详情"
-      width="50%"
+      mode="view"
+      content-width="wide"
     >
       <div v-loading="detailDialogLoading">
       <el-descriptions :column="3" border v-if="currentExchange">
@@ -409,13 +412,16 @@
         </el-descriptions-item>
         <el-descriptions-item label="换货原因" :span="3">{{ currentExchange.reason || currentExchange.exchange_reason || '-' }}</el-descriptions-item>
         <el-descriptions-item label="退回金额">
-          <span style="color: var(--color-success); font-weight: bold;">{{ formatCurrency(currentExchange.returnAmount ?? currentExchange.return_amount) }}</span>
+          <span class="text-success font-weight-700">{{ formatCurrency(currentExchange.returnAmount ?? currentExchange.return_amount) }}</span>
         </el-descriptions-item>
         <el-descriptions-item label="换出金额">
-          <span style="color: var(--color-primary); font-weight: bold;">{{ formatCurrency(currentExchange.newAmount ?? currentExchange.new_amount) }}</span>
+          <span class="text-primary font-weight-700">{{ formatCurrency(currentExchange.newAmount ?? currentExchange.new_amount) }}</span>
         </el-descriptions-item>
         <el-descriptions-item label="差价">
-          <span :style="{ color: (parseFloat(currentExchange.differenceAmount || currentExchange.difference_amount || 0)) > 0 ? 'var(--color-danger)' : (parseFloat(currentExchange.differenceAmount || currentExchange.difference_amount || 0)) < 0 ? 'var(--color-success)' : 'var(--color-text-secondary)', fontWeight: 'bold' }">
+          <span
+            class="font-weight-700"
+            :class="(parseFloat(currentExchange.differenceAmount || currentExchange.difference_amount || 0)) > 0 ? 'amount-positive' : (parseFloat(currentExchange.differenceAmount || currentExchange.difference_amount || 0)) < 0 ? 'amount-negative' : 'amount-zero'"
+          >
             {{ formatSignedCurrency(currentExchange.differenceAmount ?? currentExchange.difference_amount) }}
           </span>
         </el-descriptions-item>
@@ -430,7 +436,7 @@
         <el-table
           :data="getReturnItems(currentExchange?.items || [])"
           border
-          style="width: 100%"
+          class="w-full"
           :empty-text="'暂无退回商品'"
         >
           <el-table-column prop="product_code" label="产品编码" width="120" />
@@ -453,7 +459,7 @@
           </el-table-column>
           <el-table-column label="金额" width="110">
             <template #default="scope">
-              <span style="color: var(--color-success);">{{ formatCurrency(scope.row.amount) }}</span>
+              <span class="text-success">{{ formatCurrency(scope.row.amount) }}</span>
             </template>
           </el-table-column>
           <el-table-column prop="exchange_reason" label="退回原因" min-width="150" />
@@ -469,7 +475,7 @@
         <el-table
           :data="getExchangeItems(currentExchange?.items || [])"
           border
-          style="width: 100%"
+          class="w-full"
           :empty-text="'暂无换出商品'"
         >
           <el-table-column prop="product_code" label="产品编码" width="120" />
@@ -487,7 +493,7 @@
           </el-table-column>
           <el-table-column label="金额" width="110">
             <template #default="scope">
-              <span style="color: var(--color-primary);">{{ formatCurrency(scope.row.amount) }}</span>
+              <span class="text-primary">{{ formatCurrency(scope.row.amount) }}</span>
             </template>
           </el-table-column>
           <el-table-column prop="exchange_reason" label="换出原因" min-width="150" />
@@ -500,18 +506,18 @@
           <el-button @click="detailDialogVisible = false">关闭</el-button>
         </span>
       </template>
-    </el-dialog>
+    </AppDialog>
     <!-- 商品选择对话框 -->
     <el-dialog
       v-model="productDialogVisible"
       title="选择商品"
       width="55%"
     >
-      <div style="margin-bottom: 16px;">
+      <div class="mb-md">
         <el-input
           v-model="productDialog.keyword"
           placeholder="搜索商品编码、名称"
-          style="width: 300px; margin-right: 10px;"
+          class="w-300"
           @keyup.enter="loadProducts"
         />
         <el-button type="primary" @click="loadProducts">搜索</el-button>
@@ -519,7 +525,7 @@
       <el-table
         :data="productDialog.list"
         border
-        style="width: 100%"
+        class="w-full"
         @selection-change="handleProductSelection"
       >
         <el-table-column type="selection" width="55" />
@@ -529,14 +535,14 @@
         <el-table-column prop="unit_name" label="单位" width="80" />
         <el-table-column prop="stock_quantity" label="库存数量" width="100">
           <template #default>
-            <span :style="{ color: row.stock_quantity > 0 ? 'var(--color-success)' : 'var(--color-danger)' }">
+            <span :class="row.stock_quantity > 0 ? 'text-stock-ok' : 'text-stock-low'">
               {{ row.stock_quantity }}
             </span>
           </template>
         </el-table-column>
         <el-table-column prop="location_name" label="库位" width="100" />
       </el-table>
-      <div style="margin-top: 16px; text-align: center;">
+      <div class="mt-md text-center">
         <el-pagination
           v-model:current-page="productDialog.page"
           v-model:page-size="productDialog.pageSize"
@@ -556,7 +562,7 @@
     </el-dialog>
     <!-- 选择订单对话框 -->
     <el-dialog v-model="orderDialog.visible" title="选择已完成出库的订单" width="900px">
-      <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+      <div class="flex-gap-8-mb">
         <el-input
           v-model="orderDialog.keyword"
           placeholder="按订单号/客户名搜索已出库订单"
@@ -583,7 +589,7 @@
           </template>
         </el-table-column>
       </el-table>
-      <div class="pagination-container" style="margin-top: 16px;">
+      <div class="pagination-container mt-md">
         <el-pagination
           v-model:current-page="orderDialog.page"
           v-model:page-size="orderDialog.pageSize"
@@ -1354,11 +1360,8 @@ const getExchangeItems = (items) => {
   display: flex;
   gap: 4px;
 }
-.el-dialog .el-form {
-  max-height: 60vh;
-  overflow-y: auto;
-}
-.el-dialog .el-descriptions {
+.el-dialog .el-descriptions,
+.app-dialog-view-body .el-descriptions {
   margin-bottom: var(--spacing-lg);
 }
 /* 商品区域样式 */
@@ -1383,12 +1386,6 @@ const getExchangeItems = (items) => {
 .exchange-quantity {
   color: var(--ds-red-strong);
   font-weight: 600;
-}
-/* 对话框高度 - 页面特定，其他样式使用全局主题 */
-:deep(.el-dialog__body) {
-  max-height: 60vh;
-  overflow-y: auto;
-  overflow-x: hidden;
 }
 /* 确保对话框内容不会超出宽度 - 页面特定需求 */
 /* 基础overflow样式已在全局主题定义，这里保持兼容性 */
@@ -1425,9 +1422,9 @@ const getExchangeItems = (items) => {
     gap: var(--spacing-base);
     align-items: flex-start;
   }
-  .el-dialog {
+  .el-dialog:not(.is-fullscreen) {
     width: 95% !important;
-    margin: 5vh auto;
+    margin: 0 !important; /* 与全站居中一致，勿再用 5vh 偏上 */
   }
 }
 /* 详情对话框长文本处理 - 自动添加 */

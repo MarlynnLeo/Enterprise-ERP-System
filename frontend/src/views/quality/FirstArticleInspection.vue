@@ -8,6 +8,14 @@
 -->
 <template>
   <div class="module-page inspection-container">
+    <PageHeader title="首检管理" subtitle="首件检验记录与放行管理">
+      <template #actions>
+        <el-button v-permission="'quality:settings:view'" type="primary" @click="showRulesDialog = true">
+              <el-icon><Setting /></el-icon>首检规则
+            </el-button>
+      </template>
+    </PageHeader>
+
     <!-- 统计卡片 -->
     <div class="statistics-row">
       <el-card class="stat-card" shadow="hover">
@@ -31,41 +39,30 @@
         <div class="stat-label">有条件放行</div>
       </el-card>
     </div>
-    <el-card class="box-card">
-      <template #header>
-        <div class="card-header">
-          <span>首检管理</span>
-          <div>
-            <el-button v-permission="'quality:settings:view'" type="primary" @click="showRulesDialog = true">
-              <el-icon><Setting /></el-icon>首检规则
-            </el-button>
-          </div>
-        </div>
+    <FinanceQueryCard :model="searchForm" @search="handleSearch" @reset="handleReset">
+      <template #basic>
+        <el-form-item label="关键词">
+          <el-input v-model="searchKeyword" placeholder="检验单号/任务号/产品名称" clearable @keyup.enter="handleSearch" />
+        </el-form-item>
+        <el-form-item label="检验状态">
+          <el-select v-model="statusFilter" placeholder="检验状态" clearable class="form-control-md">
+            <el-option v-for="opt in statusOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
+          </el-select>
+        </el-form-item>
       </template>
+      <template #advanced>
+        <el-form-item label="时间范围">
+          <el-date-picker v-model="dateRange" type="daterange" range-separator="至" start-placeholder="开始日期" end-placeholder="结束日期" value-format="YYYY-MM-DD" />
+        </el-form-item>
+      </template>
+      <template #actions>
+        <el-button v-permission="'quality:inspections:create'" type="primary" @click="showCreateDialog = true"><el-icon><Plus /></el-icon>新增</el-button>
+      </template>
+    </FinanceQueryCard>
 
-      <!-- 搜索表单 -->
-      <FinanceQueryCard :model="searchForm" @search="handleSearch" @reset="handleReset">
-        <template #basic>
-          <el-form-item label="关键词">
-            <el-input v-model="searchKeyword" placeholder="检验单号/任务号/产品名称" clearable @keyup.enter="handleSearch" />
-          </el-form-item>
-          <el-form-item label="检验状态">
-            <el-select v-model="statusFilter" placeholder="检验状态" clearable>
-              <el-option v-for="opt in statusOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
-            </el-select>
-          </el-form-item>
-        </template>
-        <template #advanced>
-          <el-form-item label="时间范围">
-            <el-date-picker v-model="dateRange" type="daterange" range-separator="至" start-placeholder="开始日期" end-placeholder="结束日期" />
-          </el-form-item>
-        </template>
-        <template #actions>
-          <el-button v-permission="'quality:inspections:create'" type="primary" @click="showCreateDialog = true"><el-icon><Plus /></el-icon>新增</el-button>
-        </template>
-      </FinanceQueryCard>
+    <el-card class="data-card">
       <!-- 首检单列表 -->
-      <el-table :data="inspectionList" border style="width: 100%; margin-top: 16px;" v-loading="loading">
+      <el-table :data="inspectionList" border class="w-full" v-loading="loading">
         <el-table-column prop="inspection_no" label="检验单号" min-width="140" />
         <el-table-column prop="task_code" label="生产任务号" min-width="130" />
         <el-table-column prop="product_name" label="产品名称" min-width="160" />
@@ -94,7 +91,7 @@
         </el-table-column>
         <el-table-column label="操作" fixed="right" min-width="320" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
-            <el-button size="small" @click="handleView(row)">查看</el-button>
+            <el-button class="btn-op-view" type="primary" size="small" @click="handleView(row)">查看</el-button>
             <el-button v-permission="'quality:inspections:update'" v-if="row.first_article_result === 'pending'" size="small" type="primary" @click="handleInspect(row)">检验</el-button>
             <el-button v-permission="'quality:inspections:update'" v-if="row.first_article_result === 'failed'" size="small" type="warning" @click="handleReinspect(row)">重检</el-button>
             <el-button v-permission="'quality:inspections:view'" v-if="row.first_article_result === 'passed'" size="small" type="success" @click="handlePrint(row)">打印</el-button>

@@ -159,7 +159,9 @@ class NonconformingProductService {
           [inspection.id]
         );
         if (existing.length > 0) {
-          logger.info(`⏭️ NCP ${existing[0].ncp_no} 已存在于检验单 ${inspection.inspection_no}，跳过重复创建`);
+          logger.info(
+            `NCP already exists for inspection; duplicate creation skipped: ncpNo=${existing[0].ncp_no}, inspectionNo=${inspection.inspection_no}`
+          );
           return { id: existing[0].id, ncp_no: existing[0].ncp_no, skipped: true };
         }
       }
@@ -464,7 +466,7 @@ class NonconformingProductService {
 
       await NonconformingProduct.update(ncpId, updateData, connection);
 
-      logger.info(`✅ Completed handling for NCP ${ncp.ncp_no}, disposition: ${ncp.disposition}`);
+      logger.info(`NCP handling completed: ncpNo=${ncp.ncp_no}, disposition=${ncp.disposition}`);
 
       // 🚀 根据处理方式自动执行后续流程
       // 将最新的 handling_cost 注入到 ncp 快照中，以便后续处理函数使用
@@ -534,7 +536,7 @@ class NonconformingProductService {
    */
   static async handleUseAsIs(ncp, quantity, connection) {
     try {
-      logger.info(`🔄 处理让步接收: ${ncp.ncp_no}, 数量: ${quantity}`);
+      logger.info(`Processing NCP use-as-is disposition: ncpNo=${ncp.ncp_no}, quantity=${quantity}`);
 
       // 生成入库单号 - 使用配置化的前缀
       const date = new Date();
@@ -585,7 +587,9 @@ class NonconformingProductService {
         );
         if (poiRows.length > 0) {
           orderItemInfo = poiRows[0];
-          logger.info(`✅ [让步接收溯源] 查找到原采购明细, 单价: ${orderItemInfo.price}, 单位: ${orderItemInfo.unit_id}`);
+          logger.info(
+            `NCP use-as-is source purchase item resolved: ncpNo=${ncp.ncp_no}, unitPrice=${orderItemInfo.price}, unitId=${orderItemInfo.unit_id}`
+          );
         } else {
           throw new Error(`不合格品 ${ncp.ncp_no} 未在原采购订单 ${inspection.reference_id} 中找到物料 ${ncp.material_id} 的明细，不能生成让步接收入库单`);
         }
@@ -608,7 +612,7 @@ class NonconformingProductService {
         [warehouseId]
       );
       const warehouseName = warehouseRows.length > 0 ? warehouseRows[0].name : '物料默认仓库';
-      logger.info(`✅ 使用物料默认仓库: ${warehouseName} (ID: ${warehouseId})`);
+      logger.info(`Material default warehouse selected: warehouseId=${warehouseId}, warehouseName=${warehouseName}`);
 
       // 创建采购入库单
       const [receiptResult] = await connection.query(
@@ -707,7 +711,7 @@ class NonconformingProductService {
    */
   static async handleReturn(ncp, quantity, connection) {
     try {
-      logger.info(`🔄 处理退货: ${ncp.ncp_no}, 数量: ${quantity}`);
+      logger.info(`Processing NCP return disposition: ncpNo=${ncp.ncp_no}, quantity=${quantity}`);
 
       // ✅ 如果物料名称为空，从物料表获取
       let materialName = ncp.material_name;
@@ -720,7 +724,7 @@ class NonconformingProductService {
         if (materialRows.length > 0) {
           materialName = materialRows[0].name;
           materialCode = materialCode || materialRows[0].code;
-          logger.info(`✅ 从物料表获取物料信息: ${materialCode} - ${materialName}`);
+          logger.info(`Material information resolved for NCP return: materialCode=${materialCode}, materialName=${materialName}`);
         }
       }
 
@@ -804,7 +808,9 @@ class NonconformingProductService {
               inspection.receipt_id = origin.receipt_id;
               inspection.receipt_no = origin.receipt_no;
 
-              logger.info(`✅ [血缘追溯建单] 根据批次 ${ncp.batch_no} 成功反查到原始入库单: ${origin.receipt_no}, 采购单: ${origin.order_no}`);
+              logger.info(
+                `NCP return source resolved from batch: batchNo=${ncp.batch_no}, receiptNo=${origin.receipt_no}, orderNo=${origin.order_no}`
+              );
             } else {
               throw new Error(`无法根据批次 ${ncp.batch_no} 的库存流水找到最初的采购入库单，不能生成采购退货单`);
             }
@@ -839,7 +845,9 @@ class NonconformingProductService {
         );
         if (inboundLocationRows.length > 0) {
           returnWarehouseId = inboundLocationRows[0].location_id;
-          logger.info(`✅ [退货库位] 从检验单关联的不良品入库单获取到实际库位: ${inboundLocationRows[0].location_name} (ID: ${returnWarehouseId})`);
+          logger.info(
+            `NCP return warehouse resolved from inspection inbound: warehouseId=${returnWarehouseId}, warehouseName=${inboundLocationRows[0].location_name}`
+          );
         }
       }
 
@@ -858,7 +866,9 @@ class NonconformingProductService {
         );
         if (ledgerLocationRows.length > 0) {
           returnWarehouseId = ledgerLocationRows[0].location_id;
-          logger.info(`✅ [退货库位] 从库存台账反查到不良品存放位置: ${ledgerLocationRows[0].location_name} (ID: ${returnWarehouseId})`);
+          logger.info(
+            `NCP return warehouse resolved from inventory ledger: warehouseId=${returnWarehouseId}, warehouseName=${ledgerLocationRows[0].location_name}`
+          );
         }
       }
 
@@ -892,7 +902,7 @@ class NonconformingProductService {
         }
       }
 
-      logger.info(`✅ 自动创建退货单 - 操作人: ${operator} (来源: ${ncp.created_by || 'system'})`);
+      logger.info(`Creating purchase return from NCP: ncpNo=${ncp.ncp_no}, operator=${operator}, sourceUser=${ncp.created_by || 'system'}`);
 
       // 创建采购退货单(写入purchase_returns表)
       const [returnResult] = await connection.query(
@@ -992,7 +1002,7 @@ class NonconformingProductService {
           },
           { dedupeByDay: true }
         );
-        logger.info(`📧 退货通知已发送给采购部门，退货单: ${returnNo}`);
+        logger.info(`Purchase return notification sent: returnNo=${returnNo}`);
       } catch (notifyError) {
         const DLQService = require('./DLQService');
         await DLQService.recordSideEffectFailure(
@@ -1014,7 +1024,7 @@ class NonconformingProductService {
    */
   static async handleScrap(ncp, quantity, connection) {
     try {
-      logger.info(`🔄 处理报废: ${ncp.ncp_no}, 数量: ${quantity}`);
+      logger.info(`Processing NCP scrap disposition: ncpNo=${ncp.ncp_no}, quantity=${quantity}`);
 
       // 生成报废单号 - 使用配置化的前缀
       const date = new Date();
@@ -1056,7 +1066,7 @@ class NonconformingProductService {
       );
       const scrapId = scrapResult.insertId;
 
-      logger.info(`✅ 已创建报废记录: ${scrapNo}, 数量: ${quantity}`);
+      logger.info(`Scrap record created from NCP: scrapNo=${scrapNo}, quantity=${quantity}`);
 
       // 记录操作日志
       await connection.query(
@@ -1085,7 +1095,7 @@ class NonconformingProductService {
    */
   static async handleRework(ncp, quantity, connection) {
     try {
-      logger.info(`🔄 处理返工: ${ncp.ncp_no}, 数量: ${quantity}`);
+      logger.info(`Processing NCP rework disposition: ncpNo=${ncp.ncp_no}, quantity=${quantity}`);
 
       // 使用编码引擎生成返工单号
       const CodeGenSvc = require('./CodeGeneratorService');
@@ -1116,7 +1126,7 @@ class NonconformingProductService {
       );
       const reworkId = reworkResult.insertId;
 
-      logger.info(`✅ 已创建返工任务: ${reworkNo}, 数量: ${quantity}`);
+      logger.info(`Rework task created from NCP: reworkNo=${reworkNo}, quantity=${quantity}`);
 
       // 记录操作日志
       await connection.query(
@@ -1315,7 +1325,7 @@ class NonconformingProductService {
       AUTO_DISPOSITION_CONFIG.notify_users = config.notify_users;
     }
 
-    logger.info('🔧 Auto disposition config updated:', AUTO_DISPOSITION_CONFIG);
+    logger.info('Auto disposition config updated', AUTO_DISPOSITION_CONFIG);
     return AUTO_DISPOSITION_CONFIG;
   }
 

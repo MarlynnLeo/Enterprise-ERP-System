@@ -49,7 +49,10 @@ class ScheduledTaskService {
     // 每30分钟执行业务告警检查（基于 business_alerts 配置表）
     this.scheduleBusinessAlertCheck();
 
-    logger.info(`✅ 财务/库存/告警定时任务已全部启动 (共 ${this.tasks.size} 个)`);
+    // 每分钟小批量派发领域事件积压（避免业务操作时一次清空队列刷屏通知）
+    this.scheduleDomainEventDispatch();
+
+    logger.info(`Scheduled finance, inventory, and alert tasks started: taskCount=${this.tasks.size}`);
   }
 
   /**
@@ -103,6 +106,34 @@ class ScheduledTaskService {
 
     task.start();
     this.tasks.set('monthlyDepreciation', task);
+  }
+
+  /**
+   * 领域事件积压小批量派发
+   * 每分钟最多处理 5 条，避免用户一次操作触发历史事件通知刷屏
+   */
+  static scheduleDomainEventDispatch() {
+    const task = cron.schedule(
+      '* * * * *',
+      async () => {
+        try {
+          const DomainEventService = require('./DomainEventService');
+          const count = await DomainEventService.dispatchPending(5);
+          if (count > 0) {
+            logger.info(`[ScheduledTask] Domain event backlog dispatched: ${count}`);
+          }
+        } catch (error) {
+          logger.warn('[ScheduledTask] Domain event dispatch failed:', error.message);
+        }
+      },
+      {
+        scheduled: false,
+        timezone: 'Asia/Shanghai',
+      }
+    );
+
+    task.start();
+    this.tasks.set('domainEventDispatch', task);
   }
 
   /**

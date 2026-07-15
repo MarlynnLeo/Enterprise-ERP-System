@@ -23,7 +23,7 @@
         </el-col>
         <el-col :span="12">
           <el-form-item label="客户" prop="customerId">
-            <el-select v-model="editableForm.customerId" placeholder="请选择客户" filterable style="width: 100%">
+            <el-select v-model="editableForm.customerId" placeholder="请选择客户" filterable class="w-full">
               <el-option
                 v-for="customer in customerOptions"
                 :key="customer.id"
@@ -45,7 +45,7 @@
               placeholder="选择开票日期"
               format="YYYY-MM-DD"
               value-format="YYYY-MM-DD"
-              style="width: 100%"
+              class="w-full"
             ></el-date-picker>
           </el-form-item>
         </el-col>
@@ -57,7 +57,7 @@
               placeholder="选择到期日期"
               format="YYYY-MM-DD"
               value-format="YYYY-MM-DD"
-              style="width: 100%"
+              class="w-full"
             ></el-date-picker>
           </el-form-item>
         </el-col>
@@ -65,12 +65,12 @@
 
       <!-- 发票明细项 -->
       <div class="invoice-items">
-        <h3 style="margin-bottom: 12px; font-size: 14px;">发票明细</h3>
+        <h3 class="section-title-sm">发票明细</h3>
         <div class="details-table-container">
-          <el-table :data="editableForm.items" border size="small" style="width: 100%">
+          <el-table :data="editableForm.items" border size="small" class="w-full">
             <el-table-column label="商品/服务" width="140">
               <template #default="scope">
-                <el-select v-model="scope.row.productId" placeholder="选择" filterable size="small" style="width: 100%" @change="() => handleProductChange(scope.row)">
+                <el-select v-model="scope.row.productId" placeholder="选择" filterable size="small" class="w-full" @change="() => handleProductChange(scope.row)">
                   <el-option
                     v-for="product in productOptions"
                     :key="product.id"
@@ -108,24 +108,24 @@
                   link
                   @click="removeInvoiceItem(scope.$index)"
                   v-permission="'finance:ar:update'"
-                  style="padding: 4px 0;">
+                  class="py-4">
                   删除
                 </el-button>
               </template>
             </el-table-column>
           </el-table>
         </div>
-        <div class="add-item" style="margin-top: 10px;">
+        <div class="add-item mt-10">
           <el-button v-permission="'finance:ar:create'" type="primary" size="small" @click="addInvoiceItem">添加明细项</el-button>
         </div>
       </div>
 
       <!-- 税率和总计 -->
-      <div class="invoice-total" style="margin-top: 16px; padding: 12px; background: var(--color-bg-hover); border-radius: 4px;">
+      <div class="invoice-total invoice-total-box">
         <el-row :gutter="20">
           <el-col :span="8">
             <el-form-item label="税率" label-width="60px">
-              <el-select v-model="editableForm.taxRate" placeholder="税率" size="small" style="width: 100%">
+              <el-select v-model="editableForm.taxRate" placeholder="税率" size="small" class="w-full">
                 <el-option
                   v-for="rate in vatRateOptions"
                   :key="rate"
@@ -136,16 +136,16 @@
             </el-form-item>
           </el-col>
           <el-col :span="16">
-            <div style="display: flex; flex-direction: column; gap: 4px; padding-top: 4px;">
-              <div style="display: flex; justify-content: space-between; font-size: 13px;">
+            <div class="flex-col pt-4">
+              <div class="flex-between text-md">
                 <span>小计：</span>
                 <span>{{ formatCurrency(calculateSubtotal()) }}</span>
               </div>
-              <div style="display: flex; justify-content: space-between; font-size: 13px;">
+              <div class="flex-between text-md">
                 <span>税额：</span>
                 <span>{{ formatCurrency(calculateTax()) }}</span>
               </div>
-              <div style="display: flex; justify-content: space-between; font-size: 15px; font-weight: bold; color: var(--color-primary); margin-top: 4px;">
+              <div class="total-line-primary">
                 <span>总计：</span>
                 <span>{{ formatCurrency(calculateTotal()) }}</span>
               </div>
@@ -154,7 +154,7 @@
         </el-row>
       </div>
 
-      <el-form-item label="备注" label-width="60px" style="margin-top: 16px;">
+      <el-form-item label="备注" label-width="60px" class="mt-md">
         <el-input
           v-model="editableForm.notes"
           type="textarea"
@@ -317,11 +317,6 @@ defineExpose({
   min-width: 550px;
 }
 /* 对话框自适应高度 */
-:deep(.el-dialog__body) {
-  max-height: 70vh;
-  overflow-y: auto;
-  padding: 20px 24px;
-}
 /* 移除操作列右侧空白 */
 .invoice-items :deep(.el-table__body-wrapper .el-table__cell:last-child) {
   padding-right: 8px;

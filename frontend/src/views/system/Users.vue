@@ -8,15 +8,11 @@
 -->
 <template>
   <div class="module-page users-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>用户管理</h2>
-          <p class="subtitle">管理系统用户与账号</p>
-        </div>
-        <el-button type="primary" :icon="Plus" v-permission="'system:users:create'" @click="showAddDialog">新增用户</el-button>
-      </div>
-    </el-card>
+    <PageHeader title="用户管理" subtitle="管理系统用户与账号">
+      <template #actions>
+<el-button type="primary" :icon="Plus" v-permission="'system:users:create'" @click="showAddDialog">新增用户</el-button>
+      </template>
+    </PageHeader>
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
@@ -57,7 +53,7 @@
     <el-card class="data-card">
       <el-table
         :data="userList"
-        style="width: 100%"
+        class="w-full"
         border
         v-loading="loading"
       >
@@ -80,7 +76,7 @@
         <el-table-column prop="createTime" label="创建时间" width="180"></el-table-column>
         <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
-            <div style="display: flex; gap: 5px; flex-wrap: wrap;">
+            <div class="flex-wrap">
               <el-popconfirm
                 v-if="String(scope.row.status) !== '1'"
                 title="确定要启用该用户吗？"
@@ -106,7 +102,7 @@
                 </template>
               </el-popconfirm>
 
-              <el-button
+              <el-button class="btn-op-view"
                 v-if="String(scope.row.status) === '1'"
                 type="primary"
                 size="small"
@@ -145,13 +141,15 @@
     </el-card>
 
     <!-- 添加/编辑/查看对话框 -->
-    <el-dialog
-      :title="dialogTitle"
+    <AppDialog
       v-model="dialogVisible"
+      :title="dialogTitle"
+      :mode="isViewMode ? 'view' : 'form'"
       width="600px"
+      content-width="wide"
     >
       <template v-if="isViewMode">
-        <el-descriptions :column="2" border style="margin-bottom: 20px;">
+        <el-descriptions :column="2" border class="mb-20">
           <el-descriptions-item label="用户名">{{ userForm.username || '-' }}</el-descriptions-item>
           <el-descriptions-item label="姓名">{{ userForm.name || '-' }}</el-descriptions-item>
           <el-descriptions-item label="邮箱">{{ userForm.email || '-' }}</el-descriptions-item>
@@ -192,7 +190,7 @@
           <el-input v-model="userForm.password" placeholder="请输入密码" type="password"></el-input>
         </el-form-item>
         <el-form-item label="部门" prop="department_id">
-          <el-select v-model="userForm.department_id" placeholder="请选择部门" style="width: 100%">
+          <el-select v-model="userForm.department_id" placeholder="请选择部门" class="w-full">
             <el-option
               v-for="dept in departmentOptions"
               :key="dept.id"
@@ -202,7 +200,7 @@
           </el-select>
         </el-form-item>
         <el-form-item label="角色" prop="roleIds">
-          <el-select v-model="userForm.roleIds" placeholder="请选择角色" multiple style="width: 100%">
+          <el-select v-model="userForm.roleIds" placeholder="请选择角色" multiple class="w-full">
             <el-option
               v-for="role in roleOptions"
               :key="role.id"
@@ -224,7 +222,7 @@
           <el-button v-if="!isViewMode" v-permission="userForm.id ? 'system:users:update' : 'system:users:create'" type="primary" @click="saveUser" :loading="saveLoading">确认</el-button>
         </span>
       </template>
-    </el-dialog>
+    </AppDialog>
   </div>
 </template>
 

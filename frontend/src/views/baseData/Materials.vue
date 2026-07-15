@@ -8,15 +8,11 @@
 -->
 <template>
   <div class="module-page materials-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>{{ $t('page.baseData.materials.title') }}</h2>
-          <p class="subtitle">管理物料基础信息</p>
-        </div>
-        <el-button v-if="canCreate" type="primary" :icon="Plus" @click="handleAdd">{{ $t('page.baseData.materials.add') }}</el-button>
-      </div>
-    </el-card>
+    <PageHeader :title="$t('page.baseData.materials.title')" subtitle="管理物料基础信息">
+      <template #actions>
+<el-button v-if="canCreate" type="primary" :icon="Plus" @click="handleAdd">{{ $t('page.baseData.materials.add') }}</el-button>
+      </template>
+    </PageHeader>
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
@@ -49,7 +45,7 @@
         </el-form-item>
       </template>
       <template #actions>
-          <el-dropdown @command="handleMoreCommand" v-if="canExport || canImport" style="margin-left: 8px;">
+          <el-dropdown @command="handleMoreCommand" v-if="canExport || canImport" class="ml-sm">
             <el-button type="success" class="action-btn">
               更多操作<el-icon class="el-icon--right"><ArrowDown /></el-icon>
             </el-button>
@@ -117,7 +113,7 @@
 
     <!-- 导入对话框 -->
     <el-dialog title="导入物料" v-model="importDialogVisible" width="520px">
-      <div style="margin-bottom: 16px;">
+      <div class="mb-md">
         <el-button type="primary" link @click="handleDownloadTemplate">
           <el-icon><Download /></el-icon> 下载导入模板
         </el-button>
@@ -133,7 +129,7 @@
         :on-remove="() => importFile = null"
       >
         <el-icon style="font-size: 40px; color: var(--el-color-primary);"><Upload /></el-icon>
-        <div style="margin-top: 8px;">将文件拖到此处，或<em>点击上传</em></div>
+        <div class="mt-sm">将文件拖到此处，或<em>点击上传</em></div>
         <template #tip>
           <div class="el-upload__tip">仅支持 .xlsx / .xls 格式</div>
         </template>

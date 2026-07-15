@@ -8,19 +8,13 @@
 -->
 <template>
   <div class="module-page report-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>现金流量表</h2>
-          <p class="subtitle">查看现金流动情况</p>
-        </div>
-        <div class="header-actions">
-          <el-button type="primary" @click="generateReport" v-permission="'finance:reports:view'">生成报表</el-button>
+    <PageHeader title="现金流量表" subtitle="查看现金流动情况">
+      <template #actions>
+<el-button type="primary" @click="generateReport" v-permission="'finance:reports:view'">生成报表</el-button>
           <el-button v-permission="'finance:reports:view'" @click="printReport" :disabled="!reportData.length">打印报表</el-button>
           <el-button v-permission="'finance:reports:view'" @click="exportExcel" :disabled="!reportData.length">导出Excel</el-button>
-        </div>
-      </div>
-    </el-card>
+      </template>
+    </PageHeader>
     <!-- 查询条件区域 -->
     <FinanceQueryCard
       :model="queryParams"

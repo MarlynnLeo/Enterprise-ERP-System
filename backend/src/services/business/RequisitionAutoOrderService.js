@@ -36,7 +36,7 @@ async function generateOrdersFromRequisition(requisitionId, conn) {
   try {
     if (useOwnConn) await conn.beginTransaction();
 
-    logger.info(`✅ 采购申请 ${requisitionId} 已批准，开始自动生成采购订单...`);
+    logger.info(`Purchase requisition approved; generating purchase orders: requisitionId=${requisitionId}`);
 
     // 获取采购申请的基本信息
     const [requisitionRows] = await conn.execute(
@@ -142,7 +142,7 @@ async function generateOrdersFromRequisition(requisitionId, conn) {
       const missingMaterials = itemsBySupplier[NO_SUPPLIER_KEY].items
         .map(item => item.material_code || item.m_code || item.material_name || item.material_id)
         .join(', ');
-      logger.warn(`⚠️ 采购申请 ${requisitionId} 存在未维护供应商且无历史供应商的物料（将生成供应商为空的采购订单，后续可补充）: ${missingMaterials}`);
+      logger.warn(`Purchase requisition has materials without supplier history: requisitionId=${requisitionId}, materials=${missingMaterials}`);
     }
 
     const purchaseModel = require('../../models/purchase');
@@ -172,12 +172,28 @@ async function generateOrdersFromRequisition(requisitionId, conn) {
       const taxAmountTotal = sumMoney(calculatedItems.map((item) => item.tax_amount));
       const totalAmount = roundMoney(subtotal + taxAmountTotal);
 
+      // owner 闭环：优先申请人用户 id，其次 requester 用户名映射，避免自动单无 created_by
+      let createdBy = null;
+      try {
+        if (requisition.requester_id) {
+          createdBy = Number(requisition.requester_id) || null;
+        } else if (requisition.requester) {
+          const [urows] = await conn.execute(
+            'SELECT id FROM users WHERE username = ? OR real_name = ? LIMIT 1',
+            [requisition.requester, requisition.requester]
+          );
+          createdBy = urows[0]?.id || null;
+        }
+      } catch {
+        createdBy = null;
+      }
+
       const [orderResult] = await conn.execute(
         `INSERT INTO purchase_orders (
           order_no, order_date, supplier_id, supplier_name, contract_code,
           expected_delivery_date, contact_person, contact_phone,
-          subtotal, tax_rate, tax_amount, total_amount, remarks, status, requisition_id, requisition_number
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          subtotal, tax_rate, tax_amount, total_amount, remarks, status, requisition_id, requisition_number, created_by
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           orderNo,
           currentDateString(),
@@ -195,6 +211,7 @@ async function generateOrdersFromRequisition(requisitionId, conn) {
           'draft',
           requisitionId,
           requisition.requisition_number,
+          createdBy,
         ]
       );
       const orderId = orderResult.insertId;
@@ -229,12 +246,12 @@ async function generateOrdersFromRequisition(requisitionId, conn) {
         'purchase_order', orderId, orderNo, null, conn
       );
 
-      logger.info(`✅ 成功生成采购订单 ${orderNo}，供应商: ${supplierData.supplier_name}，物料数量: ${supplierData.items.length}`);
+      logger.info(`Purchase order generated from requisition: orderNo=${orderNo}, supplierName=${supplierData.supplier_name}, itemCount=${supplierData.items.length}`);
     }
 
     await PurchaseOrderService.syncRequisitionStatusFromOrders(conn, requisitionId);
 
-    logger.info(`✅ 采购申请 ${requisitionId} 共生成了 ${generatedOrders.length} 个采购订单`);
+    logger.info(`Purchase requisition auto-order generation completed: requisitionId=${requisitionId}, orderCount=${generatedOrders.length}`);
 
     if (useOwnConn) await conn.commit();
     return generatedOrders;

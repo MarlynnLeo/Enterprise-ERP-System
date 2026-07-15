@@ -15,6 +15,7 @@ exports.up = async function(knex) {
   ];
 
   for (const table of tables) {
+    if (!(await knex.schema.hasTable(table))) continue;
     const hasColumn = await knex.schema.hasColumn(table, 'deleted_at');
     if (!hasColumn) {
       await knex.schema.alterTable(table, (t) => {
@@ -42,6 +43,7 @@ exports.down = async function(knex) {
   ];
 
   for (const table of tables) {
+    if (!(await knex.schema.hasTable(table))) continue;
     const hasColumn = await knex.schema.hasColumn(table, 'deleted_at');
     if (hasColumn) {
       await knex.schema.alterTable(table, (t) => {

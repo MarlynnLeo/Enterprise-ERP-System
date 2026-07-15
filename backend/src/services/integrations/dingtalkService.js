@@ -543,7 +543,7 @@ class DingtalkService {
           imported++;
           logger.info(`[Dingtalk] 导入审批: ${instanceId} -> ${expenseNumber}`);
         } catch (err) {
-          logger.error(`[Dingtalk] 处理审批 ${instanceId} 失败:`, err.message, err.stack);
+          logger.error(`[Dingtalk] Approval processing failed: instanceId=${instanceId}`, err);
         }
       }
 

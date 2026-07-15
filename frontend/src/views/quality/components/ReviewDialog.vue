@@ -17,7 +17,7 @@
       <p>您正在对不合格检验单进行复检操作，复检后的结果将覆盖原检验结果。</p>
     </el-alert>
 
-    <el-form ref="reviewFormRef" :model="reviewForm" :rules="reviewRules" label-width="100px" style="margin-top: 20px;">
+    <el-form ref="reviewFormRef" :model="reviewForm" :rules="reviewRules" label-width="100px" class="mt-20">
       <el-form-item label="检验项目" prop="items">
         <div class="inspection-items">
           <el-table :data="reviewForm.items" border>
@@ -50,14 +50,14 @@
                 <el-select
                   v-model="scope.row.result"
                   placeholder="选择结果"
-                  style="width: 100%"
+                  class="w-full"
                   :class="{
                     'result-select-passed': scope.row.result === 'passed',
                     'result-select-failed': scope.row.result === 'failed'
                   }"
                 >
-                  <el-option label="合格" value="passed" style="color: var(--color-success); font-weight: bold;" />
-                  <el-option label="不合格" value="failed" style="color: var(--color-danger); font-weight: bold;" />
+                  <el-option label="合格" value="passed" class="text-success font-weight-700" />
+                  <el-option label="不合格" value="failed" class="text-danger font-weight-700" />
                 </el-select>
               </template>
             </el-table-column>
@@ -98,7 +98,7 @@
       </el-form-item>
 
       <el-form-item label="复检原因" prop="reviewReason">
-        <el-select v-model="reviewForm.reviewReason" placeholder="选择复检原因" style="width: 100%">
+        <el-select v-model="reviewForm.reviewReason" placeholder="选择复检原因" class="w-full">
           <el-option label="初检仪器校准有误" value="instrument_error" />
           <el-option label="初检方法不当" value="method_error" />
           <el-option label="供应商申请复检" value="supplier_request" />

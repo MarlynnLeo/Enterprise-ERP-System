@@ -542,24 +542,50 @@ exports.toggleTodoStatus = async (req, res) => {
   }
 };
 
-// 获取可选择的用户列表（用于协同任务）
+// 获取可选择的用户列表（用于协同任务）— 脱敏 + DataScope
 exports.getAvailableUsers = async (req, res) => {
   try {
     const currentUserId = req.user.id;
+    const DataScopeService = require('../../services/DataScopeService');
+    const scope = await DataScopeService.getRequestScope(req);
 
-    // 获取所有用户（排除当前用户）
+    const where = {
+      id: { [Op.ne]: currentUserId },
+      status: 1,
+    };
+
+    // 非全量数据范围：仅本部门（及下级）或无法解析时仅本人不可见他人
+    if (!DataScopeService.isAllScope(scope)) {
+      if (scope.departmentIds && scope.departmentIds.length > 0) {
+        where.department_id = { [Op.in]: scope.departmentIds };
+      } else if (Number(scope.type) === DataScopeService.DATA_SCOPE.SELF) {
+        // 本人范围：协同场景仅允许选同部门，无部门则返回空列表
+        if (scope.departmentId) {
+          where.department_id = scope.departmentId;
+        } else {
+          return ResponseHandler.success(res, []);
+        }
+      } else {
+        return ResponseHandler.success(res, []);
+      }
+    }
+
     const users = await models.User.findAll({
-      where: {
-        id: {
-          [Op.ne]: currentUserId,
-        },
-      },
-      attributes: ['id', 'username', 'real_name', 'email', 'role'],
+      where,
+      // 不返回 email / role 等敏感字段
+      attributes: ['id', 'username', 'real_name', 'department_id'],
       order: [['real_name', 'ASC']],
       limit: AVAILABLE_USERS_LIMIT,
     });
 
-    return ResponseHandler.success(res, users);
+    const safe = users.map((u) => ({
+      id: u.id,
+      username: u.username,
+      real_name: u.real_name || u.username,
+      department_id: u.department_id || null,
+    }));
+
+    return ResponseHandler.success(res, safe);
   } catch (error) {
     logger.error('获取用户列表失败:', error);
     return ResponseHandler.error(res, '获取用户列表失败', 'SERVER_ERROR', 500, error);

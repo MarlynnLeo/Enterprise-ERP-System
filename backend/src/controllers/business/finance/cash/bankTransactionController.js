@@ -22,6 +22,8 @@ const ReconciliationModel = require('../../../../models/cash/Reconciliation');
 const { getAuthenticatedUserId } = require('../../../../utils/authContext');
 const { currentDateString, toLocalDateString } = require('../../../../utils/dateUtils');
 const { safeParseId } = require('../../../../utils/safeParseId');
+const ScopeGuard = require('../../../../authorization/ScopeGuard');
+const db = require('../../../../config/db');
 
 /**
  * 安全的 parseFloat，返回 NaN 时抛出明确错误
@@ -63,6 +65,10 @@ const bankTransactionController = {
         is_reconciled: isReconciled,
         status: req.query.status || null,
       };
+      filters.scopeClause = await ScopeGuard.applyListScope(req, 'bank_transaction', {
+        tableAlias: 't',
+        ownerAlias: 'bank_txn_owner_scope',
+      });
 
       const pagination = parsePagination(req.query.page, req.query.limit || req.query.pageSize, {
         defaultPageSize: 10,
@@ -111,6 +117,10 @@ const bankTransactionController = {
         status: req.query.status || null,
         noPagination: true,
       };
+      filters.scopeClause = await ScopeGuard.applyListScope(req, 'bank_transaction', {
+        tableAlias: 't',
+        ownerAlias: 'bank_txn_owner_scope',
+      });
 
       const result = await BankTransactionModel.getBankTransactions(filters);
       ResponseHandler.success(res, { list: result.transactions || [] }, '获取银行交易打印数据成功');
@@ -126,6 +136,10 @@ const bankTransactionController = {
 
       if (isNaN(id)) {
         return ResponseHandler.error(res, '无效的交易ID', 'VALIDATION_ERROR', 400);
+      }
+
+      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'bank_transaction', id, '无权访问该银行交易'))) {
+        return;
       }
 
       // 调用正确的银行交易查询方法
@@ -167,7 +181,7 @@ const bankTransactionController = {
         related_party: req.body.related_party || null,
         category: req.body.category || null,
         payment_method: req.body.payment_method || null,
-        created_by: getAuthenticatedUserId(req),
+        ...ScopeGuard.stampOwner(req, 'bank_transaction'),
       };
 
       // 检查必要字段
@@ -215,6 +229,10 @@ const bankTransactionController = {
 
       if (isNaN(id)) {
         return ResponseHandler.error(res, '无效的交易ID', 'VALIDATION_ERROR', 400);
+      }
+
+      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'bank_transaction', id, '无权修改该银行交易'))) {
+        return;
       }
 
       // 检查交易是否存在
@@ -265,6 +283,10 @@ const bankTransactionController = {
 
       if (isNaN(id)) {
         return ResponseHandler.error(res, '无效的交易ID', 'VALIDATION_ERROR', 400);
+      }
+
+      if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'bank_transaction', id, '无权删除该银行交易'))) {
+        return;
       }
 
       // 检查交易是否存在

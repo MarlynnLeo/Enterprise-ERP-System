@@ -65,13 +65,14 @@ router.delete('/coding-rules/:id', requirePermission('system:settings:edit'), co
 // ========== 单据关联 ==========
 router.get('/document-links', requireDocumentLinkView, docLinks.getLinks);
 router.get('/document-links/chain', requireDocumentLinkView, docLinks.getFullChain);
-router.get('/document-links/types', docLinks.getTypeLabels);
+router.get('/document-links/types', requirePermission('system:documents:view'), docLinks.getTypeLabels);
 router.post('/document-links', requirePermission('system:documents:edit'), docLinks.createLink);
 router.delete('/document-links/:id', requirePermission('system:documents:edit'), docLinks.deleteLink);
 
 // ========== 汇率 ==========
 router.get('/exchange-rates', requirePermission('finance:exchange-rates:view'), exchangeRates.getList);
 router.get('/exchange-rates/latest', requirePermission('finance:exchange-rates:view'), exchangeRates.getLatestRate);
+router.post('/exchange-rates/sync-public', requirePermission('finance:exchange-rates:update'), exchangeRates.syncPublic);
 router.post('/exchange-rates', requirePermission('finance:exchange-rates:update'), exchangeRates.create);
 router.delete('/exchange-rates/:id', requirePermission('finance:exchange-rates:update'), exchangeRates.delete);
 

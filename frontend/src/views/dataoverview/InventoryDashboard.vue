@@ -1,15 +1,12 @@
 <template>
-  <div class="inventory-dashboard">
-    <el-card class="header-card">
-      <div style="display: flex; justify-content: space-between; align-items: center;">
-        <h2>库存数据概览</h2>
-        <div>
-          <span v-if="lastUpdated" class="last-updated">
+  <div class="module-page overview-page inventory-dashboard">
+    <PageHeader title="库存数据概览">
+      <template #actions>
+        <span v-if="lastUpdated" class="last-updated">
             最后更新: {{ lastUpdated.toLocaleTimeString() }}
           </span>
-        </div>
-      </div>
-    </el-card>
+      </template>
+    </PageHeader>
     <!-- 统计卡片 -->
     <el-row :gutter="20" class="mt-20">
       <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-20">

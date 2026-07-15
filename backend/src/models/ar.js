@@ -11,16 +11,25 @@ const financeModel = require('./finance');
 const { accountingConfig } = require('../config/accountingConfig');
 const { financeConfig } = require('../config/financeConfig');
 const {
+  DOCUMENT_TYPES,
   DOCUMENT_TYPE_MAPPING,
   INVOICE_STATUS,
   MANUAL_INVOICE_STATUS_TRANSITIONS,
   BANK_BACKED_PAYMENT_METHODS,
 } = require('../constants/financeConstants');
 const DocumentLinkService = require('../services/business/DocumentLinkService');
+const VoucherReversalService = require('../services/finance/VoucherReversalService');
 const { currentDateString, toLocalDateString } = require('../utils/dateUtils');
-
-const toCents = (value) => Math.round((parseFloat(value) || 0) * 100);
-const fromCents = (value) => value / 100;
+const {
+  toCents,
+  fromCents,
+  parseSettlementLine,
+  assertWithinBalance,
+  invoiceStatusAfterSettlement,
+  isTruthyFlag,
+  assertInvoiceSettlementsEligible,
+} = require('../utils/finance/settlementMath');
+const { applyNormalizedInvoiceAmounts } = require('../utils/finance/invoiceAmounts');
 
 const resolveInvoiceItemAmount = (item) =>
   item.amount !== undefined && item.amount !== null
@@ -61,12 +70,6 @@ const normalizeInvoiceAmountPolicy = (invoiceData) => {
     isCreditNote: totalCents < 0,
   };
 };
-
-const SETTLEMENT_STATUSES = new Set([
-  INVOICE_STATUS.CONFIRMED,
-  INVOICE_STATUS.PARTIAL_PAID,
-  INVOICE_STATUS.OVERDUE,
-]);
 
 const getOpenPeriodIdByDate = async (connection, entryDate) => {
   const date = toLocalDateString(entryDate || currentDateString());
@@ -269,7 +272,7 @@ const buildReceiptGlEntry = async (connection, receiptData) => {
 
   return {
     period_id: periodId,
-    created_by: financeConfig.get('system.defaultCreator', 'system'),
+    created_by: receiptData.created_by || financeConfig.get('system.defaultCreator', 'system'),
     receivable_account_id: receivableAccountId,
     bank_account_id: bankAccountId,
   };
@@ -291,10 +294,24 @@ const arModel = {
         await connection.beginTransaction();
       }
 
+      // 服务端权威重算未税/税额/价税合计，不信任前端 total_amount
+      applyNormalizedInvoiceAmounts(invoiceData);
+
       // 计算余额
       const amountPolicy = normalizeInvoiceAmountPolicy(invoiceData);
       const balanceAmount = amountPolicy.totalAmount;
       assertInvoiceItemsMatchTotal(invoiceData.items, invoiceData.total_amount, invoiceData);
+
+      // owner：created_by 必须写入，供 DataScope 行级授权（禁止只写 gl_entry.created_by）
+      const ownerId =
+        invoiceData.created_by !== null &&
+        invoiceData.created_by !== undefined &&
+        invoiceData.created_by !== ''
+          ? invoiceData.created_by
+          : invoiceData.gl_entry?.created_by !== null &&
+              invoiceData.gl_entry?.created_by !== undefined
+            ? invoiceData.gl_entry.created_by
+            : null;
 
       // 插入应收账款发票
       const [result] = await connection.query(
@@ -302,8 +319,9 @@ const arModel = {
         (invoice_number, customer_id, invoice_date, due_date,
          total_amount, paid_amount, balance_amount,
          currency_code, exchange_rate, status, terms, notes,
-         customer_invoice_number, source_type, source_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         customer_invoice_number, source_type, source_id,
+         created_by, updated_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           invoiceData.invoice_number,
           invoiceData.customer_id,
@@ -320,6 +338,8 @@ const arModel = {
           invoiceData.customer_invoice_number || null,
           invoiceData.source_type || null,
           invoiceData.source_id || null,
+          ownerId,
+          ownerId,
         ]
       );
 
@@ -407,6 +427,8 @@ const arModel = {
     try {
       connection = await db.getConnection();
 
+      const scopeClause = filters.scopeClause || { join: '', where: '', params: [] };
+
       // 构建基本查询
       let query = `
         SELECT a.id, a.invoice_number, a.customer_id, c.name as customer_name,
@@ -416,6 +438,7 @@ const arModel = {
                a.status, a.currency_code, a.customer_invoice_number
         FROM ar_invoices a
         LEFT JOIN customers c ON a.customer_id = c.id
+        ${scopeClause.join || ''}
         WHERE 1=1
       `;
       const params = [];
@@ -456,6 +479,10 @@ const arModel = {
         query += ' AND a.status = ?';
         params.push(filters.status);
       }
+      if (scopeClause.where) {
+        query += scopeClause.where;
+        params.push(...(scopeClause.params || []));
+      }
 
       // 使用直接拼接进行分页（LIMIT/OFFSET已经过严格验证）
       const limit = parseInt(actualPageSize);
@@ -465,44 +492,49 @@ const arModel = {
       const [invoiceResults] = await connection.execute(query, params);
       const invoices = invoiceResults || [];
 
-      // 计算总记录数
-      const countQuery = `
+      // 计算总记录数（与主查询同一过滤 + DataScope）
+      let countQuery = `
         SELECT COUNT(*) as total
         FROM ar_invoices a
         LEFT JOIN customers c ON a.customer_id = c.id
+        ${scopeClause.join || ''}
         WHERE 1=1
-        ${filters.invoice_number ? ' AND a.invoice_number LIKE ?' : ''}
-        ${filters.customer_invoice_number ? ' AND a.customer_invoice_number LIKE ?' : ''}
-        ${filters.customer_id ? ' AND a.customer_id = ?' : ''}
-        ${filters.customer_name ? ' AND c.name LIKE ?' : ''}
-        ${
-          filters.start_date && filters.end_date
-            ? ' AND a.invoice_date BETWEEN ? AND ?'
-            : filters.start_date
-              ? ' AND a.invoice_date >= ?'
-              : filters.end_date
-                ? ' AND a.invoice_date <= ?'
-                : ''
-        }
-        ${filters.status ? ' AND a.status = ?' : ''}
       `;
-
-      // 重新构建计数查询参数
       const countParams = [];
-      if (filters.invoice_number) countParams.push(`%${filters.invoice_number}%`);
+      if (filters.invoice_number) {
+        countQuery += ' AND a.invoice_number LIKE ?';
+        countParams.push(`%${filters.invoice_number}%`);
+      }
       if (filters.customer_invoice_number) {
+        countQuery += ' AND a.customer_invoice_number LIKE ?';
         countParams.push(`%${filters.customer_invoice_number}%`);
       }
-      if (filters.customer_id) countParams.push(filters.customer_id);
-      if (filters.customer_name) countParams.push(`%${filters.customer_name}%`);
+      if (filters.customer_id) {
+        countQuery += ' AND a.customer_id = ?';
+        countParams.push(filters.customer_id);
+      }
+      if (filters.customer_name) {
+        countQuery += ' AND c.name LIKE ?';
+        countParams.push(`%${filters.customer_name}%`);
+      }
       if (filters.start_date && filters.end_date) {
+        countQuery += ' AND a.invoice_date BETWEEN ? AND ?';
         countParams.push(filters.start_date, filters.end_date);
       } else if (filters.start_date) {
+        countQuery += ' AND a.invoice_date >= ?';
         countParams.push(filters.start_date);
       } else if (filters.end_date) {
+        countQuery += ' AND a.invoice_date <= ?';
         countParams.push(filters.end_date);
       }
-      if (filters.status) countParams.push(filters.status);
+      if (filters.status) {
+        countQuery += ' AND a.status = ?';
+        countParams.push(filters.status);
+      }
+      if (scopeClause.where) {
+        countQuery += scopeClause.where;
+        countParams.push(...(scopeClause.params || []));
+      }
 
       const [countResult] = await connection.execute(countQuery, countParams);
       const total = countResult[0]?.total || 0;
@@ -841,12 +873,16 @@ const arModel = {
 
   /**
    * 创建收款记录
+   * @param {Object|null} externalConnection 可选外层事务连接（批量收款时复用）
    */
-  createReceipt: async (receiptData, receiptItems) => {
-    let connection = null;
+  createReceipt: async (receiptData, receiptItems, externalConnection = null) => {
+    const isExternalTransaction = !!externalConnection;
+    let connection = externalConnection;
     try {
-      connection = await db.getConnection();
-      await connection.beginTransaction();
+      if (!isExternalTransaction) {
+        connection = await db.getConnection();
+        await connection.beginTransaction();
+      }
 
       if (
         BANK_BACKED_PAYMENT_METHODS.has(receiptData.payment_method) &&
@@ -859,8 +895,8 @@ const arModel = {
       const [result] = await connection.execute(
         `INSERT INTO ar_receipts
         (receipt_number, customer_id, receipt_date, total_amount,
-         payment_method, reference_number, bank_account_id, notes)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+         payment_method, reference_number, bank_account_id, notes, created_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           receiptData.receipt_number,
           receiptData.customer_id,
@@ -870,6 +906,7 @@ const arModel = {
           receiptData.reference_number || null,
           receiptData.bank_account_id || null,
           receiptData.notes || null,
+          receiptData.created_by || null,
         ]
       );
 
@@ -888,13 +925,15 @@ const arModel = {
         0
       );
       if (requestedTotalCents !== itemsTotalCents) {
-        throw new Error('收款单总金额必须等于收款明细金额合计');
+        throw new Error('收款单总金额必须等于收款明细金额合计（不含折扣）');
       }
 
       // 插入收款明细并更新发票状态
-      let totalPaidCents = 0;
+      // totalCashCents = 实际到账；totalSettlementCents = 核销额（到账+折扣）
+      let totalCashCents = 0;
+      let totalSettlementCents = 0;
+      let totalDiscountCents = 0;
       for (const item of sortedReceiptItems) {
-        // 获取发票当前信息
         const [invoices] = await connection.execute(
           'SELECT id, invoice_number, customer_invoice_number, customer_id, invoice_date, due_date, total_amount, paid_amount, balance_amount, currency_code, exchange_rate, status, terms, notes, source_type, source_id, created_by, updated_by, created_at, updated_at FROM ar_invoices WHERE id = ? FOR UPDATE',
           [item.invoice_id]
@@ -905,58 +944,52 @@ const arModel = {
         }
 
         const invoice = invoices[0];
-        linkedInvoices.push({ id: invoice.id, invoice_number: invoice.invoice_number });
-        if (!SETTLEMENT_STATUSES.has(invoice.status)) {
-          throw new Error(
-            `发票 ${invoice.invoice_number} 当前状态为"${invoice.status}"，不能直接收款`
-          );
+        if (
+          String(invoice.currency_code || 'CNY').toUpperCase() !== 'CNY' ||
+          Math.abs(Number(invoice.exchange_rate || 1) - 1) > 0.000001
+        ) {
+          throw new Error(`发票 ${invoice.invoice_number} 为非人民币业务，当前未启用本位币换算，不能核销`);
         }
+        linkedInvoices.push({ id: invoice.id, invoice_number: invoice.invoice_number });
+        assertInvoiceSettlementsEligible(invoice.status, `发票 ${invoice.invoice_number}`);
 
-        // 插入收款明细
+        const line = parseSettlementLine(item);
+        assertWithinBalance(
+          line.settlementCents,
+          toCents(invoice.balance_amount),
+          `发票 ${invoice.invoice_number} 收款核销金额`
+        );
+
         await connection.execute(
           'INSERT INTO ar_receipt_items (receipt_id, invoice_id, amount, discount_amount) VALUES (?, ?, ?, ?)',
-          [receiptId, item.invoice_id, item.amount, item.discount_amount || 0]
+          [receiptId, item.invoice_id, line.cashAmount, line.discountAmount]
         );
 
-        // ===== [H-3] 超额收款校验 =====
-        const currentBalance = toCents(invoice.balance_amount);
-        const receiveAmount = toCents(item.amount);
-        if (receiveAmount > currentBalance + 1) {
-          // 允许1分钱容差（浮点数取整误差）
-          throw new Error(
-            `收款金额 ${item.amount} 超过发票 ${invoice.invoice_number} 余额 ${invoice.balance_amount}`
-          );
-        }
-
-        // ===== [H-2] 整数化精度控制 =====
-        const paidAmountCents = toCents(invoice.paid_amount) + receiveAmount;
+        const paidAmountCents = toCents(invoice.paid_amount) + line.settlementCents;
         const totalAmountCents = toCents(invoice.total_amount);
         const newPaidAmount = fromCents(paidAmountCents);
-        const newBalanceAmount = fromCents(totalAmountCents - paidAmountCents);
+        const newBalanceAmount = fromCents(Math.max(0, totalAmountCents - paidAmountCents));
+        const newStatus = invoiceStatusAfterSettlement(paidAmountCents, totalAmountCents);
 
-        // 确定新的状态
-        let newStatus;
-        if (newBalanceAmount <= 0.001) {
-          newStatus = '已付款';
-        } else if (newPaidAmount > 0) {
-          newStatus = '部分付款';
-        } else {
-          newStatus = invoice.status;
-        }
-
-        // 更新发票
         await connection.execute(
           'UPDATE ar_invoices SET paid_amount = ?, balance_amount = ?, status = ? WHERE id = ?',
-          [newPaidAmount, Math.max(0, newBalanceAmount), newStatus, item.invoice_id]
+          [newPaidAmount, newBalanceAmount, newStatus, item.invoice_id]
         );
 
-        totalPaidCents += Math.round(parseFloat(item.amount) * 100);
+        totalCashCents += line.cashCents;
+        totalSettlementCents += line.settlementCents;
+        totalDiscountCents += line.discountCents;
       }
 
-      const totalPaid = totalPaidCents / 100;
+      const totalPaid = fromCents(totalCashCents);
+      const totalSettlement = fromCents(totalSettlementCents);
+      const totalDiscount = fromCents(totalDiscountCents);
 
-      // 如果是银行类收款，更新银行账户余额并创建银行交易记录
-      if (BANK_BACKED_PAYMENT_METHODS.has(receiptData.payment_method)) {
+      // 如果是银行类收款且有实际到账金额，更新银行账户余额并创建银行交易记录
+      if (
+        BANK_BACKED_PAYMENT_METHODS.has(receiptData.payment_method) &&
+        totalCashCents > 0
+      ) {
         const [bankAccounts] = await connection.execute(
           'SELECT id, account_number, account_name, bank_name, branch_name, currency_code, current_balance, opening_balance, account_type, is_active, contact_person, contact_phone, notes, created_at, updated_at, created_by, updated_by, last_transaction_date FROM bank_accounts WHERE id = ? FOR UPDATE',
           [receiptData.bank_account_id]
@@ -967,11 +1000,14 @@ const arModel = {
         }
 
         const bankAccount = bankAccounts[0];
+        if (String(bankAccount.currency_code || 'CNY').toUpperCase() !== 'CNY') {
+          throw new Error(`银行账户 "${bankAccount.account_name}" 不是人民币账户，当前不能用于收款`);
+        }
         if (bankAccount.is_active === 0) {
           throw new Error(`银行账户 "${bankAccount.account_name}" 已被冻结，无法用于收款`);
         }
 
-        // 创建银行交易记录
+        // 创建银行交易记录（仅实收金额，不含折扣）
         const [bankTransactionResult] = await connection.execute(
           `INSERT INTO bank_transactions
           (transaction_number, bank_account_id, transaction_date, transaction_type,
@@ -986,7 +1022,8 @@ const arModel = {
             totalPaid,
             receiptData.reference_number || null,
             `应收账款收款 - 客户: ${receiptData.customer_name || '未知客户'}` +
-              (sortedReceiptItems.length > 1 ? ` (含${sortedReceiptItems.length}张发票)` : ''),
+              (sortedReceiptItems.length > 1 ? ` (含${sortedReceiptItems.length}张发票)` : '') +
+              (totalDiscountCents > 0 ? `；折扣 ${totalDiscount}` : ''),
             false,
             receiptData.customer_name || '未知客户',
             sortedReceiptItems[0]?.invoice_id || null,
@@ -996,12 +1033,11 @@ const arModel = {
         );
         bankTransactionId = bankTransactionResult.insertId;
 
-        await connection.execute(
-          'UPDATE bank_accounts SET current_balance = current_balance + ?, last_transaction_date = ? WHERE id = ?',
-          [totalPaid, receiptData.receipt_date, receiptData.bank_account_id]
-        );
+        // 以流水 SSOT 重算余额，避免增量加减漂移
+        const BankBalanceService = require('../services/business/BankBalanceService');
+        await BankBalanceService.syncAccountBalance(connection, receiptData.bank_account_id);
 
-        logger.info(`[AR收款] 银行账户余额已更新: ${bankAccount.account_name}`);
+        logger.info(`[AR收款] 银行账户余额已按流水重算: ${bankAccount.account_name}`);
       }
 
       const glEntry = await buildReceiptGlEntry(connection, receiptData);
@@ -1020,23 +1056,37 @@ const arModel = {
           is_posted: 1,
         };
 
-        // 收款分录明细
-        const entryItems = [
-          // 借：银行/现金
-          {
+        // 收款分录：借银行(实收) + 借财务费用(折扣) = 贷应收账款(核销额)
+        const entryItems = [];
+        if (totalCashCents > 0) {
+          entryItems.push({
             account_id: glEntry.bank_account_id,
             debit_amount: totalPaid,
             credit_amount: 0,
             description: `收款 - 收款单号: ${receiptData.receipt_number}`,
-          },
-          // 贷：应收账款
-          {
-            account_id: glEntry.receivable_account_id,
-            debit_amount: 0,
-            credit_amount: totalPaid,
-            description: `应收账款减少 - 收款单号: ${receiptData.receipt_number}`,
-          },
-        ];
+          });
+        }
+        if (totalDiscountCents > 0) {
+          const discountAccountId =
+            glEntry.discount_account_id ||
+            (await getAccountIdByCode(
+              connection,
+              accountingConfig.getAccountCode('FINANCE_EXPENSE'),
+              '财务费用(现金折扣)'
+            ));
+          entryItems.push({
+            account_id: discountAccountId,
+            debit_amount: totalDiscount,
+            credit_amount: 0,
+            description: `现金折扣 - 收款单号: ${receiptData.receipt_number}`,
+          });
+        }
+        entryItems.push({
+          account_id: glEntry.receivable_account_id,
+          debit_amount: 0,
+          credit_amount: totalSettlement,
+          description: `应收账款减少 - 收款单号: ${receiptData.receipt_number}`,
+        });
 
         // 创建会计分录
         glEntryId = await financeModel.createEntry(entryData, entryItems, connection);
@@ -1099,26 +1149,23 @@ const arModel = {
         );
       }
 
-      await connection.commit();
-
-      if (connection) {
-        connection.release();
-        connection = null;
+      if (!isExternalTransaction) {
+        await connection.commit();
       }
 
       return receiptId;
     } catch (error) {
       logger.error('创建收款记录失败:', error);
-      if (connection) {
+      if (!isExternalTransaction && connection) {
         try {
           await connection.rollback();
         } catch (rollbackError) {
           logger.error('事务回滚失败:', rollbackError);
         }
       }
-      throw error; // 仍然抛出错误，因为这是创建操作，需要让调用者知道失败
+      throw error;
     } finally {
-      if (connection) {
+      if (!isExternalTransaction && connection) {
         try {
           connection.release();
         } catch (releaseError) {
@@ -1184,6 +1231,8 @@ const arModel = {
       // 限制一次获取的数据量
       const actualPageSize = Math.min(Math.max(parseInt(pageSize, 10) || 20, 1), 100);
 
+      const scopeClause = filters.scopeClause || { join: '', where: '', params: [] };
+
       let query = `
         SELECT r.*, c.name as customer_name,
                (SELECT i.invoice_number
@@ -1192,6 +1241,7 @@ const arModel = {
                 WHERE ri.receipt_id = r.id LIMIT 1) as invoice_number
         FROM ar_receipts r
         LEFT JOIN customers c ON r.customer_id = c.id
+        ${scopeClause.join || ''}
         WHERE 1=1
       `;
       const params = [];
@@ -1244,6 +1294,11 @@ const arModel = {
         params.push(filters.invoice_number);
       }
 
+      if (scopeClause.where) {
+        query += scopeClause.where;
+        params.push(...(scopeClause.params || []));
+      }
+
       // 使用直接拼接进行分页（LIMIT/OFFSET已经过严格验证）
       const limit = parseInt(actualPageSize);
       const offset = parseInt((page - 1) * actualPageSize);
@@ -1253,52 +1308,57 @@ const arModel = {
       connection = await db.getConnection();
       const [receipts] = await connection.query(query, params);
 
-      // 获取总记录数
-      const countQuery = `
+      // 获取总记录数（与主查询同一过滤 + DataScope）
+      let countQuery = `
         SELECT COUNT(*) as total
         FROM ar_receipts r
         LEFT JOIN customers c ON r.customer_id = c.id
+        ${scopeClause.join || ''}
         WHERE 1=1
-        ${filters.receipt_number ? ' AND r.receipt_number LIKE ?' : ''}
-        ${filters.customer_id ? ' AND r.customer_id = ?' : ''}
-        ${filters.customer_name ? ' AND c.name LIKE ?' : ''}
-        ${
-          filters.start_date && filters.end_date
-            ? ' AND r.receipt_date BETWEEN ? AND ?'
-            : filters.start_date
-              ? ' AND r.receipt_date >= ?'
-              : filters.end_date
-                ? ' AND r.receipt_date <= ?'
-                : ''
-        }
-        ${filters.payment_method ? ' AND r.payment_method = ?' : ''}
-        ${filters.status ? ' AND r.status = ?' : ''}
-        ${
-          filters.invoice_number
-            ? ` AND EXISTS (
-              SELECT 1 FROM ar_receipt_items ri
-              JOIN ar_invoices i ON ri.invoice_id = i.id
-              WHERE ri.receipt_id = r.id AND i.invoice_number = ?
-            )`
-            : ''
-        }
       `;
-
-      // 重新构建计数查询参数
       const countParams = [];
-      if (filters.receipt_number) countParams.push(`%${filters.receipt_number}%`);
-      if (filters.customer_id) countParams.push(filters.customer_id);
-      if (filters.customer_name) countParams.push(`%${filters.customer_name}%`);
+      if (filters.receipt_number) {
+        countQuery += ' AND r.receipt_number LIKE ?';
+        countParams.push(`%${filters.receipt_number}%`);
+      }
+      if (filters.customer_id) {
+        countQuery += ' AND r.customer_id = ?';
+        countParams.push(filters.customer_id);
+      }
+      if (filters.customer_name) {
+        countQuery += ' AND c.name LIKE ?';
+        countParams.push(`%${filters.customer_name}%`);
+      }
       if (filters.start_date && filters.end_date) {
+        countQuery += ' AND r.receipt_date BETWEEN ? AND ?';
         countParams.push(filters.start_date, filters.end_date);
       } else if (filters.start_date) {
+        countQuery += ' AND r.receipt_date >= ?';
         countParams.push(filters.start_date);
       } else if (filters.end_date) {
+        countQuery += ' AND r.receipt_date <= ?';
         countParams.push(filters.end_date);
       }
-      if (filters.payment_method) countParams.push(filters.payment_method);
-      if (filters.status) countParams.push(filters.status);
-      if (filters.invoice_number) countParams.push(filters.invoice_number);
+      if (filters.payment_method) {
+        countQuery += ' AND r.payment_method = ?';
+        countParams.push(filters.payment_method);
+      }
+      if (filters.status) {
+        countQuery += ' AND r.status = ?';
+        countParams.push(filters.status);
+      }
+      if (filters.invoice_number) {
+        countQuery += ` AND EXISTS (
+          SELECT 1 FROM ar_receipt_items ri
+          JOIN ar_invoices i ON ri.invoice_id = i.id
+          WHERE ri.receipt_id = r.id AND i.invoice_number = ?
+        )`;
+        countParams.push(filters.invoice_number);
+      }
+      if (scopeClause.where) {
+        countQuery += scopeClause.where;
+        countParams.push(...(scopeClause.params || []));
+      }
 
       const [countResult] = await connection.execute(countQuery, countParams);
       const total = countResult[0].total;
@@ -1343,7 +1403,7 @@ const arModel = {
 
       // 1. 获取收款记录详情
       const [receipts] = await connection.execute(
-        `SELECT r.*, ri.invoice_id, ri.amount as item_amount
+        `SELECT r.*, ri.invoice_id, ri.amount as item_amount, ri.discount_amount as item_discount_amount
          FROM ar_receipts r
          LEFT JOIN ar_receipt_items ri ON r.id = ri.receipt_id
          WHERE r.id = ?
@@ -1378,11 +1438,10 @@ const arModel = {
         [voidedBy, voidData.void_reason, receiptId]
       );
 
-      // 4. 恢复关联发票的余额和状态
+      // 4. 恢复关联发票的余额和状态（核销额 = 实收 + 折扣）
       for (const item of receipts) {
         if (!item.invoice_id) continue;
 
-        // 获取发票当前信息
         const [invoices] = await connection.execute(
           'SELECT id, invoice_number, customer_invoice_number, customer_id, invoice_date, due_date, total_amount, paid_amount, balance_amount, currency_code, exchange_rate, status, terms, notes, source_type, source_id, created_by, updated_by, created_at, updated_at FROM ar_invoices WHERE id = ? FOR UPDATE',
           [item.invoice_id]
@@ -1391,29 +1450,19 @@ const arModel = {
         if (invoices.length === 0) continue;
 
         const invoice = invoices[0];
+        const settleBackCents = parseSettlementLine({
+          amount: item.item_amount,
+          discount_amount: item.item_discount_amount,
+        }).settlementCents;
+        const paidAmountCents = Math.max(0, toCents(invoice.paid_amount) - settleBackCents);
+        const totalAmountCents = toCents(invoice.total_amount);
+        const newPaidAmount = fromCents(paidAmountCents);
+        const newBalanceAmount = fromCents(Math.max(0, totalAmountCents - paidAmountCents));
+        const newStatus = invoiceStatusAfterSettlement(paidAmountCents, totalAmountCents);
 
-        // [H-2 补链] 计算恢复后的金额 — 整数化精度控制（与 createReceipt 对齐）
-        const paidAmountCents =
-          Math.round(parseFloat(invoice.paid_amount) * 100) -
-          Math.round(parseFloat(item.item_amount) * 100);
-        const totalAmountCents = Math.round(parseFloat(invoice.total_amount) * 100);
-        const newPaidAmount = Math.max(0, paidAmountCents) / 100;
-        const newBalanceAmount = (totalAmountCents - Math.max(0, paidAmountCents)) / 100;
-
-        // 确定新的状态
-        let newStatus;
-        if (newPaidAmount <= 0.001) {
-          newStatus = '已确认'; // 完全未收款
-        } else if (newBalanceAmount > 0.001) {
-          newStatus = '部分付款';
-        } else {
-          newStatus = '已付款';
-        }
-
-        // 更新发票
         await connection.execute(
           'UPDATE ar_invoices SET paid_amount = ?, balance_amount = ?, status = ? WHERE id = ?',
-          [newPaidAmount, Math.max(0, newBalanceAmount), newStatus, item.invoice_id]
+          [newPaidAmount, newBalanceAmount, newStatus, item.invoice_id]
         );
 
         logger.info(`[作废收款] 已恢复发票 ${invoice.invoice_number} 的余额: ${newBalanceAmount}`);
@@ -1431,110 +1480,73 @@ const arModel = {
             [receipt.receipt_number, receipt.bank_account_id]
           );
 
-          if (bankTxs.length > 0) {
-            const originalTx = bankTxs[0];
-            const reversalDate = currentDateString();
-            originalBankTransactionId = originalTx.id;
-            originalBankTransactionNumber = originalTx.transaction_number;
-            reversalBankTransactionNumber = `${receipt.receipt_number}-VOID`;
-
-            const [bankAccounts] = await connection.execute(
-              'SELECT id FROM bank_accounts WHERE id = ? FOR UPDATE',
-              [receipt.bank_account_id]
+          if (bankTxs.length === 0) {
+            throw new Error(
+              `未找到收款单 ${receipt.receipt_number} 对应的银行流水，无法作废（资金类收款必须有银行链路）`
             );
-            if (bankAccounts.length === 0) {
-              throw new Error('收款账户不存在，无法冲销银行交易');
-            }
-
-            // 创建冲销交易（转出，负数金额）
-            const [reversalBankTxResult] = await connection.execute(
-              `INSERT INTO bank_transactions
-               (transaction_number, bank_account_id, transaction_date, transaction_type,
-               amount, reference_number, description, is_reconciled, related_party, status)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-              [
-                reversalBankTransactionNumber,
-                receipt.bank_account_id,
-                reversalDate,
-                '转出', // 冲销是转出
-                receipt.total_amount,
-                receipt.receipt_number,
-                `冲销收款记录 - 原因: ${voidData.void_reason}`,
-                false,
-                originalTx.related_party || '',
-                'approved',
-              ]
-            );
-            reversalBankTransactionId = reversalBankTxResult.insertId;
-
-            // 更新银行账户余额（减少余额）
-            await connection.execute(
-              'UPDATE bank_accounts SET current_balance = current_balance - ?, last_transaction_date = ? WHERE id = ?',
-              [receipt.total_amount, reversalDate, receipt.bank_account_id]
-            );
-
-            logger.info('[作废收款] 已创建冲销银行交易并更新账户余额');
           }
+
+          const originalTx = bankTxs[0];
+          if (isTruthyFlag(originalTx.is_reconciled)) {
+            throw new Error('关联银行流水已对账，请先取消对账后再作废收款');
+          }
+
+          const reversalDate = currentDateString();
+          originalBankTransactionId = originalTx.id;
+          originalBankTransactionNumber = originalTx.transaction_number;
+          reversalBankTransactionNumber = `${receipt.receipt_number}-VOID`;
+
+          const [bankAccounts] = await connection.execute(
+            'SELECT id FROM bank_accounts WHERE id = ? FOR UPDATE',
+            [receipt.bank_account_id]
+          );
+          if (bankAccounts.length === 0) {
+            throw new Error('收款账户不存在，无法冲销银行交易');
+          }
+
+          // 创建冲销交易（转出）
+          const [reversalBankTxResult] = await connection.execute(
+            `INSERT INTO bank_transactions
+             (transaction_number, bank_account_id, transaction_date, transaction_type,
+             amount, reference_number, description, is_reconciled, related_party, status)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              reversalBankTransactionNumber,
+              receipt.bank_account_id,
+              reversalDate,
+              '转出',
+              receipt.total_amount,
+              receipt.receipt_number,
+              `冲销收款记录 - 原因: ${voidData.void_reason}`,
+              false,
+              originalTx.related_party || '',
+              'approved',
+            ]
+          );
+          reversalBankTransactionId = reversalBankTxResult.insertId;
+
+          const BankBalanceService = require('../services/business/BankBalanceService');
+          await BankBalanceService.syncAccountBalance(connection, receipt.bank_account_id);
+
+          logger.info('[作废收款] 已创建冲销银行交易并按流水重算余额');
         } catch (err) {
           logger.error(`[作废收款] 冲销银行交易失败: ${err.message}`);
-          // 银行交易冲销失败也要抛出错误，因为这会导致数据不一致
           throw new Error(`冲销银行交易失败: ${err.message}`, { cause: err });
         }
       }
 
-      // 6. 冲销关联的会计凭证（收款单号作为document_number）
+      // 6. 按单据链路冲销关联总账凭证（规范 document_type = collection）
       try {
-        const [glEntries] = await connection.execute(
-          `SELECT id FROM gl_entries
-           WHERE document_number = ? AND document_type = '收款单' AND (is_reversed IS NULL OR is_reversed = 0)`,
-          [receipt.receipt_number]
-        );
-
-        if (glEntries.length > 0) {
-          for (const glEntry of glEntries) {
-            // 获取原分录明细
-            const [items] = await connection.execute(
-              'SELECT id, entry_id, line_number, account_id, debit_amount, credit_amount, description, cost_center_id, project_id, created_at, updated_at, currency_code, exchange_rate, customer_id, supplier_id, employee_id FROM gl_entry_items WHERE entry_id = ?',
-              [glEntry.id]
-            );
-
-            const reversalDocumentNumber = `${receipt.receipt_number}-VOID`;
-            const reversalDate = currentDateString();
-            const periodId = await getOpenPeriodIdByDate(connection, reversalDate);
-
-            const reversalEntryId = await financeModel.createEntry(
-              {
-                entry_date: reversalDate,
-                posting_date: reversalDate,
-                document_type: DOCUMENT_TYPE_MAPPING.SALES_COLLECTION,
-                document_number: reversalDocumentNumber,
-                period_id: periodId,
-                description: `冲销收款凭证 - 原因: ${voidData.void_reason}`,
-                created_by: voidedBy,
-                status: 'posted',
-                is_posted: 1,
-              },
-              items.map((item) => ({
-                account_id: item.account_id,
-                debit_amount: item.credit_amount,
-                credit_amount: item.debit_amount,
-                currency_code: item.currency_code || financeConfig.get('invoice.defaultCurrency', 'CNY'),
-                exchange_rate: item.exchange_rate || 1,
-                description: `冲销: ${item.description || ''}`,
-              })),
-              connection
-            );
-
-            // 标记原凭证为已冲销
-            await connection.execute(
-              "UPDATE gl_entries SET is_reversed = 1, reversal_entry_id = ?, status = 'reversed' WHERE id = ?",
-              [reversalEntryId, glEntry.id]
-            );
-            const reversalEntryNumber = await getEntryNumberById(connection, reversalEntryId);
-            reversalEntries.push({ entryId: reversalEntryId, entryNumber: reversalEntryNumber });
-
-            logger.info(`[作废收款] 已冲销GL凭证 ID=${glEntry.id}, 冲销凭证 ID=${reversalEntryId}`);
-          }
+        const reversed = await VoucherReversalService.reverseBusinessVouchers(connection, {
+          sourceType: 'ar_receipt',
+          sourceId: receiptId,
+          documentNumber: receipt.receipt_number,
+          documentType: DOCUMENT_TYPES.COLLECTION,
+          voidedBy,
+          reason: `冲销收款凭证 - 原因: ${voidData.void_reason}`,
+        });
+        for (const item of reversed) {
+          reversalEntries.push({ entryId: item.entryId, entryNumber: item.entryNumber });
         }
       } catch (err) {
         logger.error(`[作废收款] 冲销GL凭证失败: ${err.message}`);

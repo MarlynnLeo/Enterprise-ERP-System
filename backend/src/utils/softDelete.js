@@ -34,9 +34,39 @@ function normalizeExecResult(execResult) {
  * @param {*} pkValue - 主键值
  * @returns {Promise<number>} affectedRows
  */
+/**
+ * 部分历史表同时使用 is_deleted（tinyint）与 deleted_at。
+ * softDelete 双写，避免通用工具只写 deleted_at 导致业务过滤器失效。
+ */
+const LEGACY_IS_DELETED_TABLES = new Set(['inventory_inbound']);
+
 async function softDelete(conn, table, pkField, pkValue) {
   const exec = conn.execute || conn.query;
-  const sql = `UPDATE \`${table}\` SET deleted_at = NOW() WHERE \`${pkField}\` = ? AND deleted_at IS NULL`;
+  let sql;
+  if (LEGACY_IS_DELETED_TABLES.has(table)) {
+    // 兼容仅有 is_deleted 的旧库：尽量双写 deleted_at
+    sql = `UPDATE \`${table}\`
+            SET is_deleted = 1,
+                deleted_at = COALESCE(deleted_at, NOW())
+          WHERE \`${pkField}\` = ?
+            AND (is_deleted = 0 OR is_deleted IS NULL)
+            AND deleted_at IS NULL`;
+    try {
+      const result = normalizeExecResult(await exec.call(conn, sql, [pkValue]));
+      logger.debug(`[softDelete] ${table}.${pkField}=${pkValue} → affected=${result.affectedRows}`);
+      return result.affectedRows;
+    } catch (error) {
+      // deleted_at 列不存在时回退只写 is_deleted
+      if (!/Unknown column 'deleted_at'/i.test(error.message || '')) {
+        throw error;
+      }
+      sql = `UPDATE \`${table}\` SET is_deleted = 1 WHERE \`${pkField}\` = ? AND (is_deleted = 0 OR is_deleted IS NULL)`;
+      const result = normalizeExecResult(await exec.call(conn, sql, [pkValue]));
+      return result.affectedRows;
+    }
+  }
+
+  sql = `UPDATE \`${table}\` SET deleted_at = NOW() WHERE \`${pkField}\` = ? AND deleted_at IS NULL`;
   const result = normalizeExecResult(await exec.call(conn, sql, [pkValue]));
   logger.debug(`[softDelete] ${table}.${pkField}=${pkValue} → affected=${result.affectedRows}`);
   return result.affectedRows;

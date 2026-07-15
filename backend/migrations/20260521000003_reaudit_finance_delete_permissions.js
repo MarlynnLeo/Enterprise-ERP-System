@@ -60,7 +60,7 @@ exports.up = async function up(knex) {
         SELECT r.id, m.id, 0
         FROM roles r
         JOIN menus m ON m.permission = ?
-        WHERE (r.code = 'admin' OR r.name IN (${utf8Hex('E7AEA1E79086E59198')}, ${utf8Hex('E8B685E7BAA7E7AEA1E79086E59198')}, 'admin'))
+        WHERE (r.code = 'admin' OR HEX(r.name) IN ('E7AEA1E79086E59198', 'E8B685E7BAA7E7AEA1E79086E59198', '61646D696E'))
           AND NOT EXISTS (
             SELECT 1 FROM role_menus rm WHERE rm.role_id = r.id AND rm.menu_id = m.id
           )

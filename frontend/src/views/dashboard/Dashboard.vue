@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="dashboard-container">
+  <div class="module-page dashboard-page dashboard-container">
     <div class="main-layout">
       <!-- 工作概览和个人信息 -->
       <el-row :gutter="20">
@@ -26,7 +26,7 @@
               <div class="number" v-if="!isLoadingStats">
                 <span class="animated-number" :data-value="stat.value">{{ stat.value }}</span>
               </div>
-              <el-skeleton-item v-else variant="h3" style="width: 40px; height: 32px;" />
+              <el-skeleton-item v-else variant="h3" class="skel-icon" />
               <div class="text">{{ stat.label }}</div>
             </div>
             <!-- 添加数据更新指示器 -->
@@ -118,80 +118,20 @@
         </el-col>
 
         <el-col :xs="24" :sm="24" :md="8">
-          <div class="chart-container">
-            <div class="chart-header">
-              <div class="tab-group">
-                <div class="tab active">实时价格与汇率</div>
-                <el-tooltip content="手动刷新数据" placement="top">
-                  <el-button
-                    link
-                    size="small"
-                    @click="refreshAllPrices"
-                    :loading="exchangeRateLoading || metalPricesLoading"
-                    class="price-refresh-button"
-                  >
-                    <el-icon><Refresh /></el-icon>
-                  </el-button>
-                </el-tooltip>
-              </div>
-            </div>
-            <div class="chart-body">
-              <div class="scrollable-content" @scroll="handleScroll" ref="scrollContainer">
-                <!-- 金属价格卡片显示 -->
-                <div class="section-title">金属实时价格</div>
-                <div class="metal-price-cards">
-                  <div class="price-card" :class="`price-card-${key.toLowerCase()}`" v-for="(metal, key) in metalPriceCards" :key="key">
-                    <div class="price-card-header">
-                      <div class="metal-info">
-                        <span class="metal-icon" :class="`metal-icon-${key.toLowerCase()}`"></span>
-                        <span class="metal-name">{{ metal.name }}</span>
-                      </div>
-                      <span class="price-change" :class="getChangeClass(metal.changePercent)">
-                        {{ formatChange(metal.changePercent) }}%
-                      </span>
-                    </div>
-                    <div class="price-value">{{ formatPrice(metal.price) }}</div>
-                    <div class="price-unit">{{ metal.unit }}</div>
-                    <div class="price-trend">
-                      <div class="mini-chart" :ref="el => setMetalMiniChartRef(key, el)"></div>
-                    </div>
-                  </div>
-                </div>
-                <div class="section-divider"></div>
-                <!-- 汇率卡片显示 -->
-                <div class="section-title">实时汇率走势</div>
-                <div class="exchange-rate-cards">
-                  <div class="rate-card" v-for="(rate, key) in exchangeRateCards" :key="key">
-                    <div class="rate-card-header">
-                      <span class="currency-pair">{{ rate.pair }}</span>
-                      <span class="rate-change" :class="getChangeClass(rate.change)">
-                        {{ formatChange(rate.change) }}
-                      </span>
-                    </div>
-                    <div class="rate-value">{{ rate.value || '--' }}</div>
-                    <div class="rate-trend">
-                      <div class="mini-chart" :ref="el => setMiniChartRef(key, el)"></div>
-                    </div>
-                  </div>
-                </div>
-                <!-- 主要汇率走势图 -->
-                <div class="exchange-rate-chart">
-                  <div ref="exchangeRateChartRef" class="exchange-rate-chart-canvas"></div>
-                </div>
-                <div class="last-update" v-if="exchangeRates.lastUpdate">
-                  最后更新: {{ formatTime(exchangeRates.lastUpdate) }}
-                  <span v-if="exchangeRates.dataSource" class="data-source">
-                    | 数据源: {{ exchangeRates.dataSource }}
-                  </span>
-                </div>
-              </div>
-              <!-- 滚动提示 -->
-              <div class="scroll-indicator" v-show="showScrollIndicator" @click="scrollToBottom">
-                <el-icon><ArrowDown /></el-icon>
-                <span>向下滚动查看更多</span>
-              </div>
-            </div>
-          </div>
+          <PriceExchangePanel
+            :metal-price-cards="metalPriceCards"
+            :exchange-rate-cards="exchangeRateCards"
+            :exchange-rate-loading="exchangeRateLoading"
+            :metal-prices-loading="metalPricesLoading"
+            :metal-last-update="metalPrices.lastUpdate"
+            :exchange-last-update="exchangeRates.lastUpdate"
+            :data-source="exchangeRates.dataSource || ''"
+            :set-mini-chart-ref="setMiniChartRef"
+            :set-metal-mini-chart-ref="setMetalMiniChartRef"
+            :set-exchange-rate-chart-ref="setExchangeRateChartRef"
+            @refresh="refreshAllPrices"
+            @tab-change="onPricePanelTabChange"
+          />
         </el-col>
       </el-row>
       <!-- 日历和预警并排在同一行 -->
@@ -248,12 +188,10 @@ import {
   UserFilled,
   Bell,
   Warning,
-  ArrowDown,
   ArrowLeft,
   ArrowRight,
   Document,
   DocumentRemove,
-  Refresh,
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 // ========== 组合式函数导入 ==========
@@ -266,6 +204,7 @@ import { useProductionPlans } from './composables/useProductionPlans'
 import OnlineTimeRanking from './components/OnlineTimeRanking.vue'
 import PersonalInfoCard from './components/PersonalInfoCard.vue'
 import ProductionPlanTable from './components/ProductionPlanTable.vue'
+import PriceExchangePanel from './components/PriceExchangePanel.vue'
 import { parseResponseData } from '@/utils/responseParser'
 import logger from '@/utils/logger'
 // ========== 解构组合式函数 ==========
@@ -274,18 +213,23 @@ const {
   exchangeRates,
   exchangeRateLoading,
   exchangeRateCards,
+  exchangeRateChartRef,
   setMiniChartRef,
   fetchExchangeRates,
   initExchangeRateChart,
   updateMiniChartsGeneric,
   disposeCharts
 } = useExchangeRate()
+const setExchangeRateChartRef = (element) => {
+  exchangeRateChartRef.value = element
+}
 const {
   metalPrices,
   metalPricesLoading,
   metalPriceCards,
   setMetalMiniChartRef,
   fetchMetalPrices,
+  updateMetalMiniCharts,
   disposeMetalCharts
 } = useMetalPrices(updateMiniChartsGeneric)
 const {
@@ -359,9 +303,15 @@ const statCards = computed(() => [
     label: '文档数量'
   }
 ])
-// 滚动相关
-const scrollContainer = ref(null)
-const showScrollIndicator = ref(true)
+// 价格面板 Tab 切换后刷新对应图表
+const onPricePanelTabChange = async (tab) => {
+  await nextTick()
+  if (tab === 'metal') {
+    updateMetalMiniCharts()
+  } else {
+    initExchangeRateChart()
+  }
+}
 // 定时器管理
 let userDataTimer = null
 let exchangeRateTimer = null
@@ -384,44 +334,6 @@ const TODO_STATUS_MAP = {
 }
 const getEventTypeClass = (type) => EVENT_TYPE_MAP[type] || ''
 const getStatusClass = (status) => TODO_STATUS_MAP[status] || ''
-// ========== 本地方法 ==========
-// 检查是否需要滚动指示器
-const checkScrollIndicator = () => {
-  nextTick(() => {
-    if (scrollContainer.value) {
-      const container = scrollContainer.value
-      const scrollHeight = container.scrollHeight
-      const clientHeight = container.clientHeight
-      showScrollIndicator.value = scrollHeight > clientHeight
-    }
-  })
-}
-// 滚动到底部
-const scrollToBottom = () => {
-  if (scrollContainer.value) {
-    scrollContainer.value.scrollTo({
-      top: scrollContainer.value.scrollHeight,
-      behavior: 'smooth'
-    })
-  }
-}
-// 处理滚动事件
-const handleScroll = (event) => {
-  const container = event.target
-  const scrollTop = container.scrollTop
-  const scrollHeight = container.scrollHeight
-  const clientHeight = container.clientHeight
-  if (scrollHeight <= clientHeight) {
-    showScrollIndicator.value = false
-    return
-  }
-  const scrollProgress = scrollTop / (scrollHeight - clientHeight)
-  if (scrollProgress >= 0.95) {
-    showScrollIndicator.value = false
-  } else if (scrollTop === 0) {
-    showScrollIndicator.value = true
-  }
-}
 // 加载用户数据
 const loadUserProfile = async (force = false) => {
   try {
@@ -463,35 +375,6 @@ const loadDashboardStats = async () => {
   if (documentsResult.status === 'fulfilled') {
     statistics.value.documentCount = getTotalFromResponse(documentsResult.value)
   }
-}
-// 格式化价格显示（添加千分位分隔符）
-const formatPrice = (price) => {
-  if (price === null || price === undefined || price === '' || price === '--') return '--'
-  const value = Number(price)
-  if (Number.isNaN(value)) return '--'
-  return `¥${value.toLocaleString('zh-CN', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  })}`
-}
-// 格式化变化值
-const formatChange = (change) => {
-  if (!change || change === 0) return '0.0000'
-  const sign = change > 0 ? '+' : ''
-  return `${sign}${change.toFixed(4)}`
-}
-// 获取变化样式类
-const getChangeClass = (change) => {
-  if (!change || change === 0) return 'neutral'
-  return change > 0 ? 'positive' : 'negative'
-}
-// 格式化时间
-const formatTime = (date) => {
-  return new Date(date).toLocaleTimeString('zh-CN', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
-  })
 }
 // 刷新所有价格数据（金属+汇率）
 const refreshAllPrices = async () => {
@@ -552,8 +435,8 @@ onMounted(async () => {
     fetchWeatherData(),
     fetchExchangeRates(),
     fetchMetalPrices()
-  ]).then(() => {
-    checkScrollIndicator()
+  ]).catch((error) => {
+    logger.error('外部价格数据加载失败:', error)
   })
   // 设置定时刷新
   userDataTimer = setInterval(() => {
@@ -1509,342 +1392,7 @@ watch(() => currentDate.value, (newValue) => {
     justify-content: center;
   }
 }
-/* 金属价格卡片样式 - 一行两张布局 */
-.metal-price-cards {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  padding: 10px;
-}
-.price-card {
-  border-radius: var(--radius-md);
-  padding: 12px;
-  transition: background-color var(--transition-base) ease, border-color var(--transition-base) ease, color var(--transition-base) ease, box-shadow var(--transition-base) ease, opacity var(--transition-base) ease, transform var(--transition-base) ease;
-  box-shadow: 0 2px 4px color-mix(in srgb, var(--ds-black) 5%, transparent);
-  position: relative;
-  overflow: hidden;
-  animation: cardFadeIn 0.6s ease-out;
-}
-@keyframes cardFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-/* 黄金卡片 - 金色主题 */
-.price-card-gold {
-  background: linear-gradient(135deg, var(--ds-yellow-bg) 0%, var(--ds-yellow-strong) 100%);
-  border: 1px solid var(--ds-yellow);
-  animation-delay: 0.1s;
-}
-.price-card-gold:hover {
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--ds-yellow) 30%, transparent);
-  border-color: var(--ds-orange);
-}
-/* 白金卡片 - 银白色主题 */
-.price-card-platinum {
-  background: linear-gradient(135deg, var(--color-bg-hover) 0%, var(--ds-gray-bg) 100%);
-  border: 1px solid var(--ds-gray);
-  animation-delay: 0.2s;
-}
-.price-card-platinum:hover {
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--ds-gray) 30%, transparent);
-  border-color: var(--color-text-regular);
-}
-/* 铝卡片 - 蓝色主题 */
-.price-card-aluminum {
-  background: linear-gradient(135deg, var(--ds-blue-bg) 0%, var(--ds-blue-strong) 100%);
-  border: 1px solid var(--ds-blue);
-  animation-delay: 0.3s;
-}
-.price-card-aluminum:hover {
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--ds-blue) 30%, transparent);
-  border-color: var(--color-primary-dark-2, var(--color-primary));
-}
-/* 铜卡片 - 橙红色主题 */
-.price-card-copper {
-  background: linear-gradient(135deg, var(--ds-orange-bg) 0%, var(--ds-orange-strong) 100%);
-  border: 1px solid var(--ds-orange);
-  animation-delay: 0.4s;
-}
-.price-card-copper:hover {
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--ds-orange) 30%, transparent);
-  border-color: var(--ds-orange);
-}
-.price-card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-}
-.metal-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.metal-icon {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  display: inline-block;
-  animation: none;
-}
-/* 不同金属的图标颜色 */
-.metal-icon-gold {
-  background: var(--ds-yellow);
-  box-shadow: none;
-}
-.metal-icon-platinum {
-  background: var(--ds-gray);
-  box-shadow: none;
-}
-.metal-icon-aluminum {
-  background: var(--ds-blue);
-  box-shadow: none;
-}
-.metal-icon-copper {
-  background: var(--ds-orange);
-  box-shadow: none;
-}
-.metal-name {
-  font-weight: 600;
-  font-size: 14px;
-}
-/* 不同金属名称的颜色 */
-.price-card-gold .metal-name {
-  color: var(--ds-orange);
-}
-.price-card-platinum .metal-name {
-  color: var(--color-text-regular);
-}
-.price-card-aluminum .metal-name {
-  color: var(--color-primary);
-}
-.price-card-copper .metal-name {
-  color: var(--ds-orange);
-}
-.price-change {
-  font-size: 12px;
-  font-weight: 500;
-  padding: 2px 6px;
-  border-radius: var(--radius-sm);
-}
-.price-change.positive {
-  color: var(--color-success);
-  background-color: color-mix(in srgb, var(--color-success) 10%, transparent);
-}
-.price-change.negative {
-  color: var(--color-danger);
-  background-color: color-mix(in srgb, var(--color-danger) 10%, transparent);
-}
-.price-change.neutral {
-  color: var(--color-text-secondary);
-  background-color: color-mix(in srgb, var(--ds-gray) 10%, transparent);
-}
-.price-value {
-  font-size: 18px;
-  font-weight: 700;
-  margin-bottom: 4px;
-  background: linear-gradient(135deg, currentColor 0%, currentColor 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease, transform 0.3s ease;
-}
-/* 不同金属价格的颜色 */
-.price-card-gold .price-value {
-  color: var(--ds-orange);
-  text-shadow: 0 2px 4px color-mix(in srgb, var(--ds-orange) 20%, transparent);
-}
-.price-card-platinum .price-value {
-  color: var(--color-text-regular);
-  text-shadow: 0 2px 4px color-mix(in srgb, var(--ds-gray) 20%, transparent);
-}
-.price-card-aluminum .price-value {
-  color: var(--color-primary);
-  text-shadow: 0 2px 4px color-mix(in srgb, var(--color-primary) 20%, transparent);
-}
-.price-card-copper .price-value {
-  color: var(--ds-orange);
-  text-shadow: 0 2px 4px color-mix(in srgb, var(--ds-orange) 20%, transparent);
-}
-.price-unit {
-  font-size: 11px;
-  color: var(--color-text-secondary);
-  margin-bottom: 8px;
-}
-.price-trend {
-  height: 40px;
-}
-.mini-chart {
-  width: 100%;
-  height: 100%;
-}
-.last-update {
-  text-align: center;
-  font-size: 12px;
-  color: var(--color-text-secondary);
-  margin-top: 10px;
-  padding: 8px;
-  background: var(--color-bg-section);
-  border-radius: var(--radius-md);
-  border-left: 3px solid var(--color-primary);
-}
-/* 我发起表格特定样式 */
-.list-container :deep(.el-table__body) {
-  width: 100% !important;
-}
-.list-container :deep(.el-table__header) {
-  width: 100% !important;
-}
-.list-container :deep(.el-table__body-wrapper) {
-  overflow-x: hidden;
-}
-/* 滚动容器样式 */
-.scrollable-content {
-  max-height: 500px;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding-right: 8px;
-  /* 确保滚动到底部 */
-  scroll-behavior: smooth;
-}
-/* 汇率卡片样式 */
-.exchange-rate-cards {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-  margin-bottom: var(--spacing-lg);
-}
-.rate-card {
-  background: var(--theme-feature-card-bg);
-  border-radius: var(--radius-lg);
-  padding: 12px;
-  color: var(--theme-feature-card-color);
-  position: relative;
-  overflow: hidden;
-  transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.4s cubic-bezier(0.4, 0, 0.2, 1), color 0.4s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1), transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: var(--theme-feature-card-shadow);
-  border: 1px solid var(--theme-feature-card-border);
-  min-height: 120px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  animation: slideInUp 0.6s ease-out;
-}
-@keyframes slideInUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-.rate-card::before {
-  content: '';
-  position: absolute;
-  top: -50%;
-  right: -50%;
-  width: 200%;
-  height: 200%;
-  background: var(--theme-feature-card-decor);
-  animation: rotate 15s linear infinite;
-  pointer-events: none;
-}
-.rate-card:hover {
-  transform: none;
-  box-shadow: var(--theme-feature-card-hover-shadow);
-}
-.rate-card:nth-child(1) {
-  background: var(--theme-feature-card-bg);
-}
-.rate-card:nth-child(2) {
-  background: var(--theme-status-danger-bg);
-  border-color: var(--theme-status-danger-border);
-  color: var(--theme-status-danger-color);
-}
-.rate-card:nth-child(3) {
-  background: var(--theme-status-primary-bg);
-  border-color: var(--theme-status-primary-border);
-  color: var(--theme-status-primary-color);
-}
-.rate-card:nth-child(4) {
-  background: var(--theme-status-success-bg);
-  border-color: var(--theme-status-success-border);
-  color: var(--theme-status-success-color);
-}
-.rate-card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-}
-.price-refresh-button {
-  margin-left: auto;
-  color: var(--color-primary);
-}
-.currency-pair {
-  font-size: 14px;
-  font-weight: 600;
-  opacity: 0.9;
-}
-.rate-value {
-  font-size: 18px;
-  font-weight: bold;
-  margin-bottom: 6px;
-  text-shadow: 0 1px 2px color-mix(in srgb, var(--ds-black) 10%, transparent);
-  flex: 1;
-  display: flex;
-  align-items: center;
-}
-.rate-trend {
-  height: 35px;
-  margin-top: 4px;
-}
-.mini-chart {
-  width: 100%;
-  height: 100%;
-}
-.exchange-rate-chart {
-  background: var(--color-bg-base);
-  border-radius: var(--radius-lg);
-  padding: 12px;
-  margin-bottom: 12px;
-  box-shadow: 0 2px 12px color-mix(in srgb, var(--ds-black) 10%, transparent);
-}
-.exchange-rate-chart-canvas {
-  width: 100%;
-  height: 160px;
-}
-.rate-change {
-  font-size: 11px;
-  font-weight: 600;
-  padding: 4px 8px;
-  border-radius: var(--radius-lg);
-  background: color-mix(in srgb, var(--ds-white) 20%, transparent);
-  backdrop-filter: blur(10px);
-  border: 1px solid color-mix(in srgb, var(--ds-white) 30%, transparent);
-}
-.rate-change.positive {
-  color: var(--color-on-primary);
-  background: color-mix(in srgb, var(--ds-green) 30%, transparent);
-  border-color: color-mix(in srgb, var(--ds-green) 50%, transparent);
-}
-.rate-change.negative {
-  color: var(--color-on-primary);
-  background: color-mix(in srgb, var(--ds-red) 30%, transparent);
-  border-color: color-mix(in srgb, var(--ds-red) 50%, transparent);
-}
-.rate-change.neutral {
-  color: var(--color-on-primary);
-  background: color-mix(in srgb, var(--ds-gray) 30%, transparent);
-  border-color: color-mix(in srgb, var(--ds-gray) 50%, transparent);
-}
+/* 价格面板样式见 assets/price-panel.css */
 /* 滚动指示器样式 */
 .scroll-indicator {
   position: absolute;

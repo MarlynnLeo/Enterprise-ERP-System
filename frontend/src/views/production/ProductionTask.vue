@@ -8,14 +8,9 @@
 -->
 <template>
   <div class="module-page production-task-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>生产任务管理</h2>
-          <p class="subtitle">管理生产任务分配与执行</p>
-        </div>
-        <div style="display: flex; gap: 8px">
-          <el-button type="primary" :icon="Plus" v-permission="'production:tasks:create'" @click="showCreateModal">创建任务</el-button>
+    <PageHeader title="生产任务管理" subtitle="管理生产任务分配与执行">
+      <template #actions>
+<el-button type="primary" :icon="Plus" v-permission="'production:tasks:create'" @click="showCreateModal">创建任务</el-button>
           <el-button
             type="success"
             :icon="SetUp"
@@ -25,9 +20,8 @@
           >
             一键排程 ({{ selectedTasks.length }})
           </el-button>
-        </div>
-      </div>
-    </el-card>
+      </template>
+    </PageHeader>
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
@@ -112,7 +106,7 @@
       <el-table
         :data="taskList"
         border
-        style="width: 100%"
+        class="w-full"
         v-loading="loading"
         @selection-change="handleSelectionChange"
       >
@@ -207,7 +201,7 @@
           <template #default="scope">
             <div class="table-actions">
               <!-- 查看按钮 -->
-              <el-button v-permission="'production:tasks:view'"
+              <el-button class="btn-op-view" v-permission="'production:tasks:view'"
                 size="small"
                 type="primary"
                 @click="showTaskDetail(scope.row)"
@@ -300,7 +294,7 @@
                 filterable
                 allow-create
                 default-first-option
-                style="width: 100%"
+                class="w-full"
               >
                 <el-option
                   v-for="group in productionUsers.filter(g => g && g.name)"
@@ -308,8 +302,8 @@
                   :label="group.name"
                   :value="group.name"
                 >
-                  <span style="float: left">{{ group.name }}</span>
-                  <span style="float: right; color: var(--color-text-muted); font-size: 13px">{{ group.code }}</span>
+                  <span class="option-code">{{ group.name }}</span>
+                  <span class="option-name">{{ group.code }}</span>
                 </el-option>
               </el-select>
             </el-form-item>
@@ -322,7 +316,7 @@
               <el-select
                 v-model="formData.planId"
                 placeholder="请输入计划编号或产品名称搜索"
-                style="width: 100%"
+                class="w-full"
                 @change="handlePlanChange"
                 filterable
                 remote
@@ -338,9 +332,9 @@
                   :label="`${plan.code} - ${plan.productName}`"
                   :value="plan.id"
                 >
-                  <div style="display: flex; justify-content: space-between; align-items: center">
+                  <div class="flex-between">
                     <span>{{ plan.code }}</span>
-                    <span style="color: var(--color-text-secondary); font-size: 13px">{{ plan.productName }} ({{ plan.status }})</span>
+                    <span class="meta-md">{{ plan.productName }} ({{ plan.status }})</span>
                   </div>
                 </el-option>
               </el-select>
@@ -370,7 +364,7 @@
               <el-select
                 v-model="formData.processTemplateId"
                 placeholder="选择工序模板"
-                style="width: 100%"
+                class="w-full"
                 @change="handleProcessTemplateChange"
                 :loading="processTemplateLoading"
               >
@@ -380,9 +374,9 @@
                   :label="template.name"
                   :value="template.id"
                 >
-                  <div style="display: flex; justify-content: space-between; align-items: center">
+                  <div class="flex-between">
                     <span>{{ template.name }}</span>
-                    <span style="color: var(--color-text-secondary); font-size: 13px">{{ (template.details || []).length }}个工序</span>
+                    <span class="meta-md">{{ (template.details || []).length }}个工序</span>
                   </div>
                 </el-option>
               </el-select>
@@ -399,7 +393,7 @@
                 v-model="formData.startDate"
                 type="datetime"
                 placeholder="选择开始时间"
-                style="width: 100%"
+                class="w-full"
                 format="YYYY-MM-DD HH:mm"
                 value-format="YYYY-MM-DD HH:mm"
                 :default-time="new Date(2026, 0, 1, 8, 0, 0)"
@@ -432,22 +426,22 @@
             >
               <template #title>
                 <span>⏱ 预计耗时：<b>{{ scheduleInfo.totalHours }}小时</b>（{{ scheduleInfo.totalMinutes }}分钟）</span>
-                <span style="margin-left: 16px">📅 预计结束：<b>{{ scheduleInfo.estimatedEndTime }}</b></span>
+                <span class="ml-16">📅 预计结束：<b>{{ scheduleInfo.estimatedEndTime }}</b></span>
               </template>
             </el-alert>
           </el-col>
         </el-row>
 
         <!-- 冲突提醒 -->
-        <el-row :gutter="20" v-if="conflictInfo.hasConflict" style="margin-top: 8px">
+        <el-row :gutter="20" v-if="conflictInfo.hasConflict" class="mt-8">
           <el-col :span="24">
             <el-alert type="warning" :closable="false" show-icon>
               <template #title>⚠️ 时间冲突检测</template>
               <template #default>
-                <div v-for="(c, i) in conflictInfo.conflicts" :key="i" style="margin-top: 4px; font-size: 13px">
+                <div v-for="(c, i) in conflictInfo.conflicts" :key="i" class="mt-sm text-md">
                   <span>• 任务 <b>{{ c.taskCode }}</b>（{{ c.productName }} {{ c.quantity }}件）占用 {{ c.occupiedFrom }} ~ {{ c.occupiedTo }}</span>
-                  <span style="margin-left: 8px; color: var(--color-warning)">重叠 {{ c.overlapMinutes }}分钟</span>
-                  <el-button size="small" type="primary" link @click="applySuggestedStart(c.suggestedStart)" style="margin-left: 8px">
+                  <span class="text-warning-ml">重叠 {{ c.overlapMinutes }}分钟</span>
+                  <el-button size="small" type="primary" link @click="applySuggestedStart(c.suggestedStart)" class="ml-sm">
                     采纳建议 → {{ c.suggestedStart }}
                   </el-button>
                 </div>
@@ -456,7 +450,7 @@
           </el-col>
         </el-row>
 
-        <el-row :gutter="20" style="margin-top: 8px">
+        <el-row :gutter="20" class="mt-8">
           <el-col :span="24">
             <el-form-item label="备注" prop="remarks">
               <el-input
@@ -478,10 +472,11 @@
     </el-dialog>
 
     <!-- 任务详情对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="detailVisible"
       title="任务详情"
-      width="800px"
+      mode="view"
+      content-width="wide"
     >
       <el-descriptions :column="2" border>
         <el-descriptions-item label="任务编号">{{ taskDetail.code }}</el-descriptions-item>
@@ -519,7 +514,7 @@
           <el-button v-permission="'production:tasks:view'" type="primary" @click="printTaskDetail" v-if="taskDetail.id">打印任务单</el-button>
         </span>
       </template>
-    </el-dialog>
+    </AppDialog>
 
     <!-- 一键排程对话框 -->
     <el-dialog
@@ -528,12 +523,12 @@
       width="800px"
       destroy-on-close
     >
-      <el-alert type="info" :closable="false" style="margin-bottom: 12px">
+      <el-alert type="info" :closable="false" class="mb-12">
         <template #title>同一生产组的任务按顺序串行排程；不同生产组可并行生产</template>
       </el-alert>
 
       <!-- 开始时间 -->
-      <el-form :inline="true" style="margin-bottom: 12px">
+      <el-form :inline="true" class="mb-12">
         <el-form-item label="排程起始时间">
           <el-date-picker
             v-model="batchStartTime"
@@ -542,7 +537,7 @@
             format="YYYY-MM-DD HH:mm"
             value-format="YYYY-MM-DD HH:mm"
             :default-time="new Date(2026, 0, 1, 8, 0, 0)"
-            style="width: 220px"
+            class="w-220"
           />
         </el-form-item>
       </el-form>
@@ -558,7 +553,7 @@
           <el-table :data="group.tasks" border size="small" max-height="350">
             <el-table-column label="顺序" width="55">
               <template #default="{ $index }">
-                <span style="font-weight: 700; color: var(--el-color-primary)">{{ $index + 1 }}</span>
+                <span class="text-primary-bold">{{ $index + 1 }}</span>
               </template>
             </el-table-column>
             <el-table-column prop="code" label="任务编号" width="150" />
@@ -579,17 +574,17 @@
       </el-tabs>
 
       <!-- 排程结果预览 -->
-      <div v-if="batchResult.length > 0" style="margin-top: 12px">
+      <div v-if="batchResult.length > 0" class="mt-12">
         <el-divider content-position="center">排程结果</el-divider>
         <!-- 汇总警告 -->
-        <div v-if="batchResult.some(r => r.warning || r.deliveryStatus === 'overdue')" style="margin-bottom: 8px">
+        <div v-if="batchResult.some(r => r.warning || r.deliveryStatus === 'overdue')" class="mb-sm">
           <el-alert
             v-if="batchResult.filter(r => r.warning).length > 0"
             :title="`⚠️ ${batchResult.filter(r => r.warning).length} 个任务缺少工时数据，排程时间不准确（按默认1天排程）`"
             type="warning"
             :closable="false"
             show-icon
-            style="margin-bottom: 6px"
+            class="mb-6"
           />
           <el-alert
             v-if="batchResult.filter(r => r.deliveryStatus === 'overdue').length > 0"
@@ -609,7 +604,7 @@
           <el-table-column label="耗时" width="80">
             <template #default="{ row }">
               <span>{{ row.totalHours }}h</span>
-              <el-icon v-if="row.warning" style="color: var(--color-warning); margin-left: 4px" :title="row.warning"><WarningFilled /></el-icon>
+              <el-icon v-if="row.warning" class="icon-warning-ml" :title="row.warning"><WarningFilled /></el-icon>
             </template>
           </el-table-column>
           <el-table-column prop="startTime" label="开始时间" width="150" />
@@ -656,7 +651,7 @@
             v-model="materialIssueForm.issueDate"
             type="date"
             placeholder="选择发料日期"
-            style="width: 100%"
+            class="w-full"
             format="YYYY-MM-DD"
             value-format="YYYY-MM-DD"
           />
@@ -1585,22 +1580,26 @@ const submitOutbound = async (outboundData, task) => {
       throw new Error(outboundRes.data.message || '创建出库单失败')
     }
   } catch (error) {
-    // 超额领料需要用户确认
-    if (error.response?.data?.code === 'EXCESS_ISSUE') {
-      const excessItems = error.response.data.details || []
+    // 超额领料需要用户确认（后端 ResponseHandler 字段为 errorCode，兼容历史 code）
+    const errorData = error.response?.data || {}
+    const errorCode = errorData.errorCode || errorData.code
+    if (errorCode === 'EXCESS_ISSUE') {
+      const excessItems = errorData.details || []
       const excessDesc = excessItems.map(item =>
-        `• 物料ID ${item.materialId}：${item.message || `超出 ${item.excessQty}`}`
+        `• ${item.materialName || item.materialCode || `物料ID ${item.materialId}`}：${item.message || `超出 ${item.excessQty}`}`
       ).join('\n')
 
       try {
         await ElMessageBox.confirm(
           `检测到以下物料存在超额领料：\n\n${excessDesc}\n\n是否确认允许超额领料？`,
           '超额领料确认',
-          { confirmButtonText: '确认超额领料', cancelButtonText: '取消', type: 'warning' }
+          { confirmButtonText: '确认超额领料', cancelButtonText: '取消', type: 'warning', distinguishCancelAndClose: true }
         )
         // 用户确认 → 重新提交，携带超额许可标记
         outboundData.allowExcess = true
+        outboundData.allow_excess = true
         outboundData.issueReason = `生产任务 ${task.code} 超额领料（已确认）`
+        outboundData.issue_reason = outboundData.issueReason
         await submitOutbound(outboundData, task)
       } catch {
         ElMessage.info('已取消超额领料')

@@ -184,8 +184,8 @@ const assetsModel = {
         (asset_code, asset_name, asset_type, category_id, acquisition_date,
          acquisition_cost, depreciation_method, useful_life, salvage_value,
          current_value, net_value, accumulated_depreciation, location_id, department_id,
-         custodian, status, notes)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         custodian, status, notes, created_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           assetData.asset_code,
           assetData.asset_name,
@@ -204,6 +204,7 @@ const assetsModel = {
           assetData.custodian || null,
           assetData.status || '在用',
           assetData.notes || null,
+          assetData.created_by || null,
         ]
       );
 

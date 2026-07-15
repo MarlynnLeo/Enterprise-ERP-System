@@ -6,8 +6,6 @@ const { logger } = require('../../utils/logger');
 const { pool } = require('../../config/db');
 const { MARKET_PRICE_CONFIG } = require('../../config/metalPriceConfig');
 
-const { httpGet } = require('../../utils/httpClient');
-
 const roundPrice = (value) => parseFloat(Number(value).toFixed(2));
 
 const calculateChange = (oldPrice, newPrice) => {
@@ -21,7 +19,7 @@ const calculateChange = (oldPrice, newPrice) => {
 
 const METAL_DEFINITIONS = {
   GOLD: { name: '黄金', unit: '¥/盎司' },
-  PLATINUM: { name: '白金', unit: '¥/盎司' },
+  SILVER: { name: '白银', unit: '¥/盎司' },
   ALUMINUM: { name: '铝', unit: '¥/吨' },
   COPPER: { name: '铜', unit: '¥/吨' },
 };
@@ -46,7 +44,7 @@ const metalPricesData = createInitialMetalPrices();
 // 价格历史数据
 const priceHistory = {
   GOLD: [],
-  PLATINUM: [],
+  SILVER: [],
   ALUMINUM: [],
   COPPER: [],
 };
@@ -215,47 +213,61 @@ const loadPersistedHistory = async (symbol) => {
 
 // 汇率缓存
 let cachedExchangeRate = MARKET_PRICE_CONFIG.exchangeRateFallback;
-let missingExchangeRateUrlLogged = false;
+
+const PublicMarketDataService = require('../../services/external/PublicMarketDataService');
 
 /**
- * 获取免费汇率数据
+ * 多源免费汇率（public-apis：Frankfurter / ER-API / VATComply / currency-api）
  */
 const fetchExchangeRate = async () => {
-  if (!MARKET_PRICE_CONFIG.exchangeRateUrl) {
-    if (!missingExchangeRateUrlLogged) {
-      logger.warn(
-        'METAL_PRICE_EXCHANGE_RATE_URL is not configured; using configured USD/CNY fallback rate.'
-      );
-      missingExchangeRateUrlLogged = true;
-    }
-    return cachedExchangeRate;
-  }
-
   try {
-    const response = await httpGet(MARKET_PRICE_CONFIG.exchangeRateUrl, {
-      timeout: MARKET_PRICE_CONFIG.exchangeRateTimeoutMs,
-    });
-    if (response.data && response.data.rates && response.data.rates.CNY) {
-      cachedExchangeRate = response.data.rates.CNY;
-      logger.info(`汇率更新成功: 1 USD = ${cachedExchangeRate} CNY`);
+    const { rate, source } = await PublicMarketDataService.fetchExchangeRate('USD', 'CNY');
+    if (Number.isFinite(rate) && rate > 0) {
+      cachedExchangeRate = rate;
+      logger.info(`汇率更新成功: 1 USD = ${cachedExchangeRate} CNY (via ${source})`);
       return cachedExchangeRate;
     }
   } catch (error) {
-    logger.warn(`获取汇率失败，使用缓存值 ${cachedExchangeRate}: ${error.message}`);
+    logger.warn(`获取汇率失败，使用缓存/回退值 ${cachedExchangeRate}: ${error.message}`);
   }
   return cachedExchangeRate;
 };
 
 /**
- * 获取金属价格（使用免费公开数据 + 配置基准价）
- * 由于完全免费的实时金属API很少，采用以下策略：
- * 1. 获取最新汇率（USD/CNY）
- * 2. 基于配置的国际基准价格生成人民币参考价
+ * 获取金属价格
+ * 1. 多源 USD/CNY 汇率
+ * 2. Yahoo Finance 公开期货报价（金/铂/铝/铜）折算人民币
+ * 3. 失败则回退配置基准价
  */
 const fetchRealMetalPrices = async () => {
   logger.info('开始更新金属价格...');
   try {
     const rate = await fetchExchangeRate();
+
+    if (MARKET_PRICE_CONFIG.enableYahooMetals) {
+      try {
+        const metals = await PublicMarketDataService.fetchMetalPricesCny(rate);
+        for (const [symbol, info] of Object.entries(metals)) {
+          await applyMetalPrice(symbol, info.price, info.source);
+        }
+        // 未拉到的金属用配置价补齐
+        for (const symbol of Object.keys(METAL_DEFINITIONS)) {
+          if (!metals[symbol] && MARKET_PRICE_CONFIG.referencePrices[symbol]) {
+            await applyMetalPrice(
+              symbol,
+              MARKET_PRICE_CONFIG.referencePrices[symbol],
+              'CONFIGURED_REFERENCE'
+            );
+          }
+        }
+        logger.info(
+          `金属价格更新完成 (Yahoo 公开行情 + FX=${rate.toFixed(4)}, 成功 ${Object.keys(metals).length} 种)`
+        );
+        return;
+      } catch (metalError) {
+        logger.warn(`Yahoo 金属行情失败，回退配置基准: ${metalError.message}`);
+      }
+    }
 
     await applyMetalPrice(
       'GOLD',
@@ -263,8 +275,8 @@ const fetchRealMetalPrices = async () => {
       'EXTERNAL_REFERENCE'
     );
     await applyMetalPrice(
-      'PLATINUM',
-      MARKET_PRICE_CONFIG.externalBenchmarks.PLATINUM_USD_PER_OZ * rate,
+      'SILVER',
+      MARKET_PRICE_CONFIG.externalBenchmarks.SILVER_USD_PER_OZ * rate,
       'EXTERNAL_REFERENCE'
     );
     await applyMetalPrice('ALUMINUM', MARKET_PRICE_CONFIG.referencePrices.ALUMINUM, 'CONFIGURED_REFERENCE');

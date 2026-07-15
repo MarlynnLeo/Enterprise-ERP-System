@@ -4,7 +4,6 @@
  */
 
 const { pool } = require('../../config/db');
-const { logger } = require('../../utils/logger');
 
 class MaterialReadinessService {
   /**
@@ -29,7 +28,17 @@ class MaterialReadinessService {
       [task.product_id]
     );
     if (bomMasters.length === 0) {
-      return { ready: true, totalItems: 0, readyItems: 0, shortageItems: 0, details: [], message: '该产品无 BOM 定义' };
+      // 无 BOM 不能判定齐套：避免假齐套放行发料/开工
+      return {
+        ready: false,
+        totalItems: 0,
+        readyItems: 0,
+        shortageItems: 0,
+        details: [],
+        taskCode: task.code,
+        taskQuantity: task.quantity,
+        message: '该产品无 BOM 定义，无法判定齐套',
+      };
     }
 
     // 3. 获取 BOM 明细
@@ -45,11 +54,20 @@ class MaterialReadinessService {
     );
 
     if (bomDetails.length === 0) {
-      return { ready: true, totalItems: 0, readyItems: 0, shortageItems: 0, details: [], message: 'BOM 无物料明细' };
+      return {
+        ready: false,
+        totalItems: 0,
+        readyItems: 0,
+        shortageItems: 0,
+        details: [],
+        taskCode: task.code,
+        taskQuantity: task.quantity,
+        message: 'BOM 无物料明细，无法判定齐套',
+      };
     }
 
     // 4. 计算每种物料的需求量（BOM 单位用量 × 任务数量）
-    const materialIds = bomDetails.map(d => d.material_id);
+    const materialIds = bomDetails.map((d) => d.material_id);
     const [stockRows] = await pool.query(
       `SELECT material_id, SUM(quantity) AS available_qty
        FROM inventory_stock_balances
@@ -59,10 +77,12 @@ class MaterialReadinessService {
     );
 
     const stockMap = {};
-    stockRows.forEach(s => { stockMap[s.material_id] = Number(s.available_qty); });
+    stockRows.forEach((s) => {
+      stockMap[s.material_id] = Number(s.available_qty);
+    });
 
     // 5. 汇总结果
-    const details = bomDetails.map(item => {
+    const details = bomDetails.map((item) => {
       const requiredQty = Number(item.unit_quantity) * Number(task.quantity);
       const availableQty = stockMap[item.material_id] || 0;
       const shortageQty = Math.max(0, requiredQty - availableQty);
@@ -80,7 +100,7 @@ class MaterialReadinessService {
       };
     });
 
-    const readyItems = details.filter(d => d.is_ready).length;
+    const readyItems = details.filter((d) => d.is_ready).length;
     const shortageItems = details.length - readyItems;
 
     return {

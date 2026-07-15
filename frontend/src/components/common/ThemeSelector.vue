@@ -17,6 +17,8 @@
           :key="preset.id"
           :command="preset.id"
           :divided="preset.id === firstPresetId"
+          @mouseenter="prefetchPreset(preset.id)"
+          @focus="prefetchPreset(preset.id)"
         >
           <div class="theme-item" :class="{ 'is-active': currentPreset === preset.id }">
             <span class="theme-item__check" aria-hidden="true">
@@ -47,6 +49,7 @@ import { computed } from 'vue'
 import { useThemeStore } from '@/stores/theme'
 import { Check, Moon, Sunny } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import { prefetchThemeCss } from '@/utils/themeLoader'
 
 const themeStore = useThemeStore()
 
@@ -59,6 +62,13 @@ const currentPresetAriaLabel = computed(() => `当前主题：${currentPresetNam
 const themeIcon = computed(() => {
   return themeStore.isDark ? Moon : Sunny
 })
+
+/** 悬停预取，切换时少等一帧 */
+const prefetchPreset = (presetId) => {
+  if (presetId && presetId !== currentPreset.value) {
+    prefetchThemeCss(presetId)
+  }
+}
 
 const handleThemeChange = async (presetId) => {
   const preset = themeStore.themePresets[presetId]

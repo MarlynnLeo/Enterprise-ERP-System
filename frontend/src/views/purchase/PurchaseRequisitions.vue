@@ -8,15 +8,11 @@
 -->
 <template>
   <div class="module-page purchase-requisitions-container">
-    <el-card class="header-card">
-      <div class="header-content">
-        <div class="title-section">
-          <h2>采购申请管理</h2>
-          <p class="subtitle">管理采购需求与申请</p>
-        </div>
-        <el-button type="primary" :icon="Plus" v-permission="'purchase:requisitions:create'" @click="showCreateDialog">新建采购申请</el-button>
-      </div>
-    </el-card>
+    <PageHeader title="采购申请管理" subtitle="管理采购需求与申请">
+      <template #actions>
+<el-button type="primary" :icon="Plus" v-permission="'purchase:requisitions:create'" @click="showCreateDialog">新建采购申请</el-button>
+      </template>
+    </PageHeader>
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
@@ -110,7 +106,7 @@
         v-loading="loading"
         :data="requisitions"
         border
-        style="width: 100%"
+        class="w-full"
         @selection-change="handleSelectionChange"
       >
         <el-table-column type="selection" width="55" fixed="left"></el-table-column>
@@ -146,7 +142,7 @@
         </el-table-column>
         <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
-            <el-button
+            <el-button class="btn-op-view" type="primary"
               size="small"
               v-permission="'purchase:requisitions:view'"
               @click="viewRequisition(row)"
@@ -236,7 +232,7 @@
             v-model="requisitionForm.requestDate"
             type="date"
             placeholder="选择日期"
-            style="width: 100%"
+            class="w-full"
             value-format="YYYY-MM-DD"
           ></el-date-picker>
         </el-form-item>
@@ -256,7 +252,7 @@
         </el-form-item>
         <el-divider content-position="center">申请物料</el-divider>
         <div class="materials-list">
-          <el-table :data="requisitionForm.materials" border style="width: 100%">
+          <el-table :data="requisitionForm.materials" border class="w-full">
             <el-table-column label="序号" type="index" width="55"></el-table-column>
             <el-table-column label="物料编码" width="150" show-overflow-tooltip>
               <template #default="{ row, $index }">
@@ -268,15 +264,15 @@
                   :fetch-suggestions="(query, callback) => fetchMaterialSuggestions(query, callback, $index)"
                   @select="(item) => handleMaterialSelect(item, $index)"
                   @keydown.enter="handleMaterialEnter($index)"
-                  style="width: 100%"
+                  class="w-full"
                   :trigger-on-focus="false"
                   :debounce="300"
                 >
                   <template #default="{ item }">
-                    <div style="display: flex; align-items: center; gap: 12px; padding: 4px 0;">
-                      <span style="font-weight: 500; font-size: 13px; min-width: 100px;">{{ item.code }}</span>
-                      <span style="color: var(--color-text-regular); font-size: 13px; flex: 1;">{{ item.name }}</span>
-                      <span v-if="item.specs" style="color: var(--color-text-secondary); font-size: 12px;">{{ item.specs }}</span>
+                    <div class="flex-row gap-12 py-4">
+                      <span class="option-code-fixed">{{ item.code }}</span>
+                      <span class="text-regular text-md flex-1">{{ item.name }}</span>
+                      <span v-if="item.specs" class="text-muted text-sm">{{ item.specs }}</span>
                     </div>
                   </template>
                 </el-autocomplete>
@@ -321,7 +317,7 @@
               </template>
             </el-table-column>
           </el-table>
-          <div class="add-material" style="margin-top: 10px;">
+          <div class="add-material mt-10">
             <el-button type="primary" v-permission="requisitionDialog.isEdit ? 'purchase:requisitions:update' : 'purchase:requisitions:create'" @click="addMaterialRow">
               <el-icon><Plus /></el-icon>添加物料
             </el-button>
@@ -335,11 +331,11 @@
       </template>
     </el-dialog>
     <!-- 采购申请详情对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="viewDialog.visible"
       title="采购申请详情"
-      width="830px"
-      destroy-on-close
+      mode="view"
+      content-width="wide"
     >
       <div v-loading="viewDialog.loading">
         <el-descriptions border :column="2">
@@ -356,7 +352,7 @@
         <el-descriptions-item label="备注" :span="2">{{ viewData.remarks || '无' }}</el-descriptions-item>
       </el-descriptions>
       <el-divider content-position="center">申请物料</el-divider>
-      <el-table :data="viewData.materials || []" border style="width: 100%">
+      <el-table :data="viewData.materials || []" border class="w-full">
         <el-table-column label="物料编码" prop="material_code" min-width="110" show-overflow-tooltip>
           <template #default="{ row }">
             {{ row.material_code || row.materialCode || '未知' }}
@@ -388,7 +384,7 @@
         <el-button @click="viewDialog.visible = false">关闭</el-button>
         <el-button type="primary" @click="handlePrintRequisition" :loading="printLoading">打印</el-button>
       </template>
-    </el-dialog>
+    </AppDialog>
     <!-- 状态更新确认对话框 -->
     <el-dialog
       v-model="statusDialog.visible"
@@ -401,7 +397,13 @@
       </div>
       <template #footer>
         <el-button @click="statusDialog.visible = false">取消</el-button>
-        <el-button type="primary" @click="updateStatus">确认</el-button>
+        <el-button
+          v-permission="'purchase:requisitions:update'"
+          type="primary"
+          @click="updateStatus"
+        >
+          确认
+        </el-button>
       </template>
     </el-dialog>
     <!-- 审批对话框 -->
@@ -417,7 +419,7 @@
           <el-descriptions-item label="申请人">{{ approvalDialog.row?.real_name || approvalDialog.row?.requester || '-' }}</el-descriptions-item>
           <el-descriptions-item label="备注">{{ approvalDialog.row?.remarks || '无' }}</el-descriptions-item>
         </el-descriptions>
-        <el-form label-width="80px" style="margin-top: 16px;">
+        <el-form label-width="80px" class="mt-md">
           <el-form-item label="审批意见">
             <el-input v-model="approvalDialog.comment" type="textarea" :rows="3" placeholder="请输入审批意见（选填）" />
           </el-form-item>
@@ -425,8 +427,22 @@
       </div>
       <template #footer>
         <el-button @click="approvalDialog.visible = false">取消</el-button>
-        <el-button type="danger" @click="handleApproval('reject')" :loading="approvalDialog.loading">拒绝</el-button>
-        <el-button type="success" @click="handleApproval('approve')" :loading="approvalDialog.loading">通过</el-button>
+        <el-button
+          v-permission="'purchase:requisitions:update'"
+          type="danger"
+          @click="handleApproval('reject')"
+          :loading="approvalDialog.loading"
+        >
+          拒绝
+        </el-button>
+        <el-button
+          v-permission="'purchase:requisitions:update'"
+          type="success"
+          @click="handleApproval('approve')"
+          :loading="approvalDialog.loading"
+        >
+          通过
+        </el-button>
       </template>
     </el-dialog>
     <!-- 浮动批量操作栏 -->
@@ -439,6 +455,7 @@
         <div class="batch-buttons">
           <el-button
             v-if="canBatchSubmit"
+            v-permission="'purchase:requisitions:update'"
             type="success"
             @click="handleBatchSubmit"
             :loading="batchLoading"

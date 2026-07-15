@@ -9,6 +9,7 @@ const db = require('../../config/db');
 const { logger } = require('../../utils/logger');
 const { CodeGenerators } = require('../../utils/codeGenerator');
 const PeriodValidationService = require('./PeriodValidationService');
+const InventoryService = require('../InventoryService');
 
 class InventoryConsistencyService {
   /**
@@ -115,13 +116,15 @@ class InventoryConsistencyService {
    * 检查负库存
    * @returns {Promise<Array>} 负库存列表
    */
-  static async checkNegativeStock() {
+  static async checkNegativeStock(connection = null) {
+    const conn = connection || db.pool;
     try {
-      const [results] = await db.pool.execute(`
+      const [results] = await conn.execute(`
         SELECT
           il.material_id,
           m.code as material_code,
           m.name as material_name,
+          m.unit_id,
           il.location_id,
           l.name as location_name,
           SUM(il.quantity) as current_stock
@@ -205,8 +208,7 @@ class InventoryConsistencyService {
     try {
       await connection.beginTransaction();
 
-      // 获取负库存列表
-      const negativeStocks = await this.checkNegativeStock();
+      const negativeStocks = await this.checkNegativeStock(connection);
 
       if (negativeStocks.length === 0) {
         await connection.commit();
@@ -224,28 +226,37 @@ class InventoryConsistencyService {
       let adjustedCount = 0;
 
       for (const item of negativeStocks) {
-        const adjustQuantity = Math.abs(parseFloat(item.current_stock));
+        const currentStock = await InventoryService.getCurrentStock(
+          item.material_id,
+          item.location_id,
+          connection,
+          true,
+          false
+        );
+        if (currentStock >= 0) {
+          continue;
+        }
 
-        // 插入库存调整记录
-        await connection.execute(
-          `
-          INSERT INTO inventory_ledger (
-            material_id, location_id, transaction_type, transaction_no,
-            reference_no, reference_type, quantity, before_quantity, after_quantity,
-            operator, remark, transaction_date
-          ) VALUES (?, ?, 'adjustment_in', ?, ?, 'inventory_adjustment', ?, ?, ?, ?, ?, CURRENT_DATE)
-        `,
-          [
-            item.material_id,
-            item.location_id,
-            adjustmentNo,
-            adjustmentNo,
-            adjustQuantity,
-            parseFloat(item.current_stock),
-            0, // 调整后库存为0
+        const adjustQuantity = Math.abs(parseFloat(currentStock));
+        const adjustmentBatchNumber = `ADJ-${adjustmentNo}-${item.material_id}-${item.location_id}`;
+
+        await InventoryService.updateStock(
+          {
+            materialId: item.material_id,
+            locationId: item.location_id,
+            quantity: adjustQuantity,
+            transactionType: 'adjustment_in',
+            referenceNo: adjustmentNo,
+            referenceType: 'inventory_adjustment',
             operator,
-            `系统自动调整负库存，原库存: ${item.current_stock}`,
-          ]
+            remark: `System auto-adjust negative stock, original stock: ${currentStock}`,
+            unitId: item.unit_id || null,
+            batchNumber: adjustmentBatchNumber,
+            transactionDate: adjustmentDate,
+            allowNegativeStock: false,
+            idempotencyKey: `negative-stock:${adjustmentNo}:${item.material_id}:${item.location_id}`,
+          },
+          connection
         );
 
         adjustedCount++;

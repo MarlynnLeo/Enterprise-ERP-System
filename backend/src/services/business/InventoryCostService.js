@@ -24,6 +24,21 @@ const Precision = require('../../utils/precision');
  * 处理库存变动时的成本分录自动生成
  */
 class InventoryCostService {
+  static calculateMacFromBalances(balances, fallbackUnitCost) {
+    const totals = (balances || []).reduce(
+      (result, balance) => ({
+        quantity: Precision.add(result.quantity, parseFloat(balance.quantity) || 0),
+        value: Precision.add(result.value, parseFloat(balance.total_value) || 0),
+      }),
+      { quantity: 0, value: 0 }
+    );
+
+    if (totals.quantity > 0 && totals.value > 0) {
+      return Precision.div(totals.value, totals.quantity);
+    }
+    return parseFloat(fallbackUnitCost) || 0;
+  }
+
   static isProductionIssueTransaction(transaction = {}) {
     const transactionType = transaction.transaction_type || transaction.transactionType;
     const referenceType = transaction.reference_type || transaction.referenceType;
@@ -92,29 +107,18 @@ class InventoryCostService {
       // [新增] 实施移动加权平均成本 (MAC) 闭环更新
       // ==========================================
       const oldCostPrice = parseFloat(material.cost_price || 0);
-      let newMac = inboundUnitCost; // 默认 fallback
+      let newMac = inboundUnitCost;
 
       try {
-        // [H-4] 使用 FOR UPDATE 锁防止并发入库时 MAC 计算错误
-        // 由于是异步任务或后续调用，台账里可能已经包含了本次插入的 quantity
-        const [stockRes] = await connection.execute(
-          'SELECT COALESCE(SUM(quantity), 0) as total_qty FROM inventory_ledger WHERE material_id = ? FOR UPDATE',
+        // 结存表已经包含本次库存变动，直接按结存数量和金额计算 MAC。
+        const [stockBalances] = await connection.execute(
+          `SELECT quantity, total_value
+             FROM inventory_stock_balances
+            WHERE material_id = ?
+            FOR UPDATE`,
           [transaction.material_id]
         );
-        const currentTotalQty = parseFloat(stockRes[0].total_qty) || 0;
-
-        // 尝试推算出在本次入库发生前的那一刻，系统里还有多少库存
-        // 退回逻辑：oldQty = 当前总数量 - 本次入库数量
-        const oldQty = Math.max(0, currentTotalQty - inboundQty);
-
-        // ⚠️ 已知局限(H7)：此处用 SUM(quantity) 反推"入库前库存"，在并发/乱序入账/退货场景下 oldQty 可能不准，
-        //    且 oldCostPrice 取自被本流程反复改写的 materials.cost_price。彻底修复应基于持久化的"结存数量+结存金额"
-        //    递推(或台账留存单笔成本后用 SUM(quantity*unit_cost)/SUM(quantity))，需先确认 inventory_ledger 数据模型。
-        if (oldQty > 0) {
-          const oldTotalValue = Precision.mul(oldQty, oldCostPrice);
-          const newTotalQty = Precision.add(oldQty, inboundQty);
-          newMac = Precision.div(Precision.add(oldTotalValue, totalCost), newTotalQty);
-        }
+        newMac = this.calculateMacFromBalances(stockBalances, inboundUnitCost);
 
         // 回写到 materials 表 (确保其回归反映真实库存账面的职责)
         if (newMac > 0) {
@@ -122,10 +126,12 @@ class InventoryCostService {
             'UPDATE materials SET cost_price = ? WHERE id = ? AND deleted_at IS NULL',
             [newMac.toFixed(4), transaction.material_id]
           );
-          logger.info(`🔥 物料 ${material.code} MAC(移动加权均价)更新完成: 旧单价=${oldCostPrice}, 旧存量=${oldQty}, 本次单价=${inboundUnitCost}, 本次数量=${inboundQty} => 新均价=${newMac.toFixed(4)}`);
+          logger.info(
+            `Material ${material.code} MAC updated: oldUnitCost=${oldCostPrice}, inboundUnitCost=${inboundUnitCost}, inboundQuantity=${inboundQty}, newUnitCost=${newMac.toFixed(4)}`
+          );
         }
       } catch (macErr) {
-        logger.error(`⚠️ 更新物料 ${material.code} MAC价格时发生异常:`, macErr);
+        logger.error(`Failed to update material ${material.code} MAC price:`, macErr);
         // 不阻断凭证流程
       }
 

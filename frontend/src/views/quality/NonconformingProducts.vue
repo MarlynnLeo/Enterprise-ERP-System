@@ -1,5 +1,7 @@
 <template>
   <div class="module-page nonconforming-container">
+    <PageHeader title="不合格品" subtitle="不合格品登记、处置与闭环" />
+
     <!-- 统计卡片 -->
     <div class="statistics-row">
       <el-card class="stat-card" shadow="hover">
@@ -23,12 +25,8 @@
         <div class="stat-label">已关闭</div>
       </el-card>
     </div>
-    <el-card class="box-card">
-      <template #header>
-        <div class="card-header">
-          <span>不合格品</span>
-        </div>
-      </template>
+    <el-card class="data-card">
+
       <!-- 搜索表单 -->
       <div class="search-container">
         <FinanceQueryCard
@@ -97,7 +95,7 @@
       <el-table
         :data="tableData"
         border
-        style="width: 100%; margin-top: 16px;"
+        class="w-full mt-md"
         v-loading="loading"
       >
         <el-table-column prop="ncp_no" label="不合格品编号" width="130" show-overflow-tooltip />
@@ -107,7 +105,7 @@
         <el-table-column prop="batch_no" label="批次号" width="200" show-overflow-tooltip />
         <el-table-column prop="quantity" label="数量" width="80">
           <template #default="scope">
-            <span style="color: var(--color-danger); font-weight: bold;">
+            <span class="text-danger font-weight-700">
               {{ Math.floor(scope.row.quantity || 0) }}
             </span>
           </template>
@@ -137,7 +135,7 @@
         </el-table-column>
         <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
-            <el-button size="small" @click="handleView(row)">查看</el-button>
+            <el-button class="btn-op-view" type="primary" size="small" @click="handleView(row)">查看</el-button>
             <el-button v-permission="'quality:nonconforming:update'" size="small" type="primary" @click="handleDispose(row)" v-if="row.status === 'pending'">
               处理决策
             </el-button>
@@ -175,11 +173,16 @@
         layout="total, sizes, prev, pager, next, jumper"
         @size-change="fetchData"
         @current-change="fetchData"
-        style="margin-top: 20px; text-align: right;"
+        class="mt-20 text-right"
       />
     </el-card>
     <!-- Details Dialog -->
-    <el-dialog v-model="detailsDialogVisible" title="不合格品详情" width="800px">
+    <AppDialog
+      v-model="detailsDialogVisible"
+      title="不合格品详情"
+      mode="view"
+      content-width="wide"
+    >
       <el-descriptions :column="2" border v-if="currentNcp">
         <el-descriptions-item label="不合格品编号">{{ currentNcp.ncp_no }}</el-descriptions-item>
         <el-descriptions-item label="检验单号">{{ currentNcp.inspection_no }}</el-descriptions-item>
@@ -199,7 +202,7 @@
         <el-descriptions-item label="缺陷描述" :span="2">{{ currentNcp.defect_description }}</el-descriptions-item>
         <el-descriptions-item label="供应商">
           <el-tag v-if="currentNcp.supplier_name" type="warning">{{ currentNcp.supplier_name }}</el-tag>
-          <span v-else style="color: var(--color-text-secondary);">未关联</span>
+          <span v-else class="text-muted">未关联</span>
         </el-descriptions-item>
         <el-descriptions-item label="责任方">
           <el-tag v-if="currentNcp.responsible_party === 'supplier'" type="danger">供应商</el-tag>
@@ -210,7 +213,7 @@
         <el-descriptions-item label="处理人">{{ currentNcp.disposition_by }}</el-descriptions-item>
         <el-descriptions-item label="当前位置" :span="2">{{ currentNcp.current_location }}</el-descriptions-item>
       </el-descriptions>
-    </el-dialog>
+    </AppDialog>
     <!-- 特采申请 Dialog -->
     <el-dialog v-model="applyConcessionDialogVisible" title="申请特采 (让步接收)" width="500px">
       <el-form :model="applyConcessionForm" label-width="100px">
@@ -225,7 +228,7 @@
     </el-dialog>
     <!-- 特采审批 Dialog -->
     <el-dialog v-model="approveConcessionDialogVisible" title="特采审批" width="500px">
-        <el-descriptions border :column="1" style="margin-bottom: 20px;">
+        <el-descriptions border :column="1" class="mb-20">
           <el-descriptions-item label="申请理由">{{ currentNcp?.concession_reason || '-' }}</el-descriptions-item>
         </el-descriptions>
         <el-form :model="approveConcessionForm" label-width="100px">
@@ -247,19 +250,19 @@
         title="请选择不合格品的处理方式"
         type="info"
         :closable="false"
-        style="margin-bottom: 20px;"
+        class="mb-20"
       >
         <template #default>
           <div v-if="currentNcp">
             <p><strong>不合格品编号:</strong> {{ currentNcp.ncp_no }}</p>
             <p><strong>物料名称:</strong> {{ currentNcp.material_name }}</p>
-            <p><strong>不合格数量:</strong> <span style="color: var(--color-danger); font-weight: bold;">{{ Math.floor(currentNcp.quantity || 0) }} {{ currentNcp.unit }}</span></p>
+            <p><strong>不合格数量:</strong> <span class="text-danger font-weight-700">{{ Math.floor(currentNcp.quantity || 0) }} {{ currentNcp.unit }}</span></p>
           </div>
         </template>
       </el-alert>
       <el-form :model="disposeForm" label-width="120px">
         <el-form-item label="处理方式" required>
-          <el-select v-model="disposeForm.disposition" placeholder="请选择处理方式" style="width: 100%;">
+          <el-select v-model="disposeForm.disposition" placeholder="请选择处理方式" class="w-full">
             <el-option label="退货 - 退回供应商" value="return" />
             <el-option label="换货 - 供应商换货" value="replacement" />
             <el-option label="返工 - 返工处理" value="rework" />
@@ -276,7 +279,7 @@
           />
         </el-form-item>
         <el-form-item label="责任方" required>
-          <el-select v-model="disposeForm.responsible_party" placeholder="请选择责任方" style="width: 100%;">
+          <el-select v-model="disposeForm.responsible_party" placeholder="请选择责任方" class="w-full">
             <el-option label="供应商" value="supplier" />
             <el-option label="内部" value="internal" />
             <el-option label="未知" value="unknown" />
@@ -286,7 +289,7 @@
           <el-select
             v-model="disposeForm.supplier_id"
             placeholder="请搜索并选择产生不良的供应商"
-            style="width: 100%;"
+            class="w-full"
             filterable
             remote
             reserve-keyword

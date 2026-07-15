@@ -1,5 +1,7 @@
 <template>
   <div class="module-page inspection-container">
+    <PageHeader title="质量统计" subtitle="质量指标汇总与趋势分析" />
+
     <!-- 日期筛选 -->
     <FinanceQueryCard
       :model="{ dateRange }"
@@ -56,22 +58,14 @@
     <!-- 处理方式分布 & 成本分析 -->
     <el-row :gutter="20" class="equal-height-row">
       <el-col :span="12">
-        <el-card class="box-card">
-          <template #header>
-            <div class="card-header">
-              <span>处理方式分布</span>
-            </div>
-          </template>
+        <el-card class="data-card">
+
           <div ref="dispositionChart" class="chart-height-md"></div>
         </el-card>
       </el-col>
       <el-col :span="12">
-        <el-card class="box-card">
-          <template #header>
-            <div class="card-header">
-              <span>质量成本分析</span>
-            </div>
-          </template>
+        <el-card class="data-card">
+
           <div class="cost-analysis">
             <el-row :gutter="20">
               <el-col :span="12">
@@ -110,7 +104,7 @@
     </el-row>
 
     <!-- 趋势分析 -->
-    <el-card class="box-card">
+    <el-card class="data-card">
       <template #header>
         <div class="card-header">
           <span>不合格品趋势分析</span>
@@ -126,11 +120,7 @@
 
     <!-- 供应商质量分析 -->
     <el-card class="box-card mb-16">
-      <template #header>
-        <div class="card-header">
-          <span>供应商质量分析 (Top 20)</span>
-        </div>
-      </template>
+
       <el-table :data="supplierData" border class="w-full">
         <el-table-column type="index" label="排名" width="60" />
         <el-table-column prop="supplier_name" label="供应商名称" min-width="200" />
@@ -145,11 +135,7 @@
 
     <!-- 物料缺陷分析 -->
     <el-card class="box-card mb-16">
-      <template #header>
-        <div class="card-header">
-          <span>物料缺陷分析 (Top 20)</span>
-        </div>
-      </template>
+
       <el-table :data="materialData" border class="w-full">
         <el-table-column type="index" label="排名" width="60" />
         <el-table-column prop="material_code" label="物料编码" width="150" />
