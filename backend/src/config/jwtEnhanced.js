@@ -138,7 +138,7 @@ const getTokensFromCookies = (req) => {
  * @param {string} refreshToken - 刷新令牌
  */
 const setTokensToCookies = (res, accessToken, refreshToken) => {
-  const isProd = process.env.NODE_ENV === 'production';
+  const isProd = process.env.NODE_ENV === 'production' && process.env.COOKIE_SECURE !== 'false';
 
   // 设置访问令牌Cookie（2小时）
   res.cookie('accessToken', accessToken, {

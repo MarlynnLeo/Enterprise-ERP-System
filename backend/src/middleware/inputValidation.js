@@ -427,6 +427,20 @@ const detectSQLInjection = (req, res, next) => {
   ];
   // 跳过富文本内容字段的检查（HTML内容可能包含类似SQL的模式）
   const shouldSkipPath = (path) => {
+    if (req.path === '/api/system/client-errors') {
+      return isPathField(path, [
+        'type',
+        'message',
+        'stack',
+        'name',
+        'componentName',
+        'lifecycleHook',
+        'url',
+        'source',
+        'userAgent',
+      ]);
+    }
+
     // 打印模板API的HTML内容字段
     if (req.path.startsWith('/api/print/')) {
       if (

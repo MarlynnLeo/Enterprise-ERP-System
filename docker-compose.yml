@@ -1,9 +1,8 @@
-version: '3.8'
+name: kacon-erp
 
 services:
-  erp-redis:
+  redis:
     image: redis:7-alpine
-    container_name: erp-redis
     restart: unless-stopped
     command: >
       sh -c "redis-server
@@ -22,16 +21,17 @@ services:
       retries: 3
       start_period: 10s
 
-  erp-backend:
+  backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: erp-backend
     restart: unless-stopped
     ports:
       - "18080:8080"
     environment:
       - NODE_ENV=production
+      - COOKIE_SECURE=${COOKIE_SECURE:-false}
+      - COOKIE_SAME_SITE=${COOKIE_SAME_SITE:-lax}
       - PORT=8080
       - PUBLIC_API_BASE_URL=${PUBLIC_API_BASE_URL}
       - DB_HOST=${DB_HOST}
@@ -53,7 +53,7 @@ services:
       - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
       - REDIS_ENABLED=true
-      - REDIS_HOST=${REDIS_HOST:-erp-redis}
+      - REDIS_HOST=${REDIS_HOST:-redis}
       - REDIS_PORT=${REDIS_PORT:-6379}
       - REDIS_PASSWORD=${REDIS_PASSWORD}
       - REDIS_DB=0
@@ -76,7 +76,7 @@ services:
     networks:
       - erp-network
     depends_on:
-      erp-redis:
+      redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/api/health"]
@@ -85,41 +85,39 @@ services:
       retries: 3
       start_period: 30s
 
-  erp-frontend:
+  frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: erp-frontend
     restart: unless-stopped
     ports:
       - "18081:80"
     depends_on:
-      erp-backend:
+      backend:
         condition: service_healthy
     networks:
       - erp-network
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:80/"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 10s
 
-  erp-mobile:
+  mobile:
     build:
       context: ./mobile
       dockerfile: Dockerfile
-    container_name: erp-mobile
     restart: unless-stopped
     ports:
       - "18082:80"
     depends_on:
-      erp-backend:
+      backend:
         condition: service_healthy
     networks:
       - erp-network
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:80/"]
       interval: 30s
       timeout: 5s
       retries: 3

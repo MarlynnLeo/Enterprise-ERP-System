@@ -13,6 +13,9 @@ const { ResponseHandler } = require('../utils/responseHandler');
 
 const isProduction = process.env.NODE_ENV === 'production';
 const isTest = process.env.NODE_ENV === 'test';
+const secureCookies = process.env.COOKIE_SECURE === undefined
+  ? isProduction
+  : process.env.COOKIE_SECURE === 'true';
 
 if (isProduction && !process.env.CSRF_SECRET) {
   throw new Error('CSRF_SECRET environment variable is required in production.');
@@ -27,7 +30,7 @@ const getCsrfSecret = () => process.env.CSRF_SECRET || developmentCsrfSecret;
 
 // 配置 CSRF 保护
 // __Host- 前缀要求 Secure=true，开发环境（HTTP）下需要使用普通 cookie 名
-const csrfCookieName = isProduction ? '__Host-psifi.x-csrf-token' : 'psifi.x-csrf-token';
+const csrfCookieName = secureCookies ? '__Host-psifi.x-csrf-token' : 'psifi.x-csrf-token';
 
 const {
   generateCsrfToken, // 生成 CSRF token（新版 API）
@@ -51,7 +54,7 @@ const {
   cookieName: csrfCookieName,
   cookieOptions: {
     httpOnly: true,
-    secure: isProduction,
+    secure: secureCookies,
     sameSite: isProduction ? 'strict' : 'lax', // 开发环境使用 lax，兼容代理转发
     path: '/',
     maxAge: 86400000, // 24小时

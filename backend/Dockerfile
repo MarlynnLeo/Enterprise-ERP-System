@@ -8,7 +8,9 @@ RUN apk add --no-cache python3 make g++ tzdata
 
 COPY package*.json ./
 
-RUN npm ci --omit=dev && npm cache clean --force
+RUN npm config set registry https://registry.npmmirror.com && \
+    npm ci --omit=dev --fetch-retries=5 --fetch-retry-mintimeout=20000 --fetch-retry-maxtimeout=120000 && \
+    npm cache clean --force
 
 COPY src/ ./src/
 COPY migrations/ ./migrations/

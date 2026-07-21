@@ -55,3 +55,9 @@ _*.cjs
 
 # Local full-audit transcripts are reproducible CI output, not source artifacts.
 /full-*.txt
+
+# Local deployment packages and browser automation artifacts.
+*.tar.gz
+.playwright-cli/
+**/__pycache__/
+*.pyc

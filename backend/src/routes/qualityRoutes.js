@@ -29,7 +29,7 @@ const processInspCtrl = require('../controllers/business/quality/processInspecti
 const qualityStatCtrl = require('../controllers/business/quality/qualityStatisticsController');
 
 // 独立控制器（未变更）
-const inspectionTemplateController = require('../controllers/business/quality/inspectionTemplateController');
+const inspectionTemplateController = require('../controllers/business/quality/InspectionTemplateController');
 const aqlController = require('../controllers/business/quality/aqlController');
 const ncpController = require('../controllers/business/quality/nonconformingProductController');
 

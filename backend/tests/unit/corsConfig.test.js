@@ -15,12 +15,14 @@ describe('cors config', () => {
     }
   });
 
-  test('rejects requests without Origin in production (anti-bypass)', () => {
+  test('allows same-origin requests without Origin but rejects unknown production origins', () => {
     process.env.NODE_ENV = 'production';
     process.env.ALLOWED_ORIGINS = 'https://erp.example.com';
 
     // 审计加固：生产环境拒绝无 Origin 的跨域请求，防止 CORS 绕过
-    expect(isOriginAllowed(undefined)).toBe(false);
+    // Same-origin and health-check requests do not carry Origin; explicit
+    // origins still must be present in the production allow-list.
+    expect(isOriginAllowed(undefined)).toBe(true);
     expect(isOriginAllowed('https://erp.example.com')).toBe(true);
     expect(isOriginAllowed('https://evil.example.com')).toBe(false);
   });
@@ -43,4 +45,3 @@ describe('cors config', () => {
     expect(isOriginAllowed('https://any.example.com')).toBe(false);
   });
 });
-

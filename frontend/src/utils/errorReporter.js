@@ -18,6 +18,7 @@ import { api } from '@/services/axiosInstance'
 // 上报节流 — 避免错误风暴时频繁请求
 const REPORT_INTERVAL = 5000 // 5 秒内同一类错误只上报一次
 const reportedErrors = new Map()
+let canReportError = () => false
 
 /**
  * 判断是否应该上报（防抖 + 去重）
@@ -44,6 +45,8 @@ function shouldReport(errorKey) {
  * 上报错误到后端
  */
 function reportError(errorInfo) {
+  if (!canReportError()) return
+
   const errorKey = `${errorInfo.type}:${errorInfo.message}`
   if (!shouldReport(errorKey)) return
 
@@ -75,7 +78,9 @@ function extractErrorInfo(error) {
  * 安装全局错误处理器
  * @param {import('vue').App} app - Vue app 实例
  */
-export function setupErrorReporter(app) {
+export function setupErrorReporter(app, options = {}) {
+  canReportError = typeof options.canReport === 'function' ? options.canReport : () => false
+
   // 1. Vue 组件渲染错误
   app.config.errorHandler = (error, instance, info) => {
     console.error('[Vue Error]', error)

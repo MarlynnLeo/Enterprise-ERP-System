@@ -16,6 +16,7 @@ import { ref, computed } from 'vue'
 import { userApi } from '@/api/user'
 import { tokenManager, permissionManager } from '../utils/unifiedStorage'
 import { clearAllRequestCaches, setRequestCacheUserId } from '@/utils/requestOptimizer'
+import { resetCsrfToken } from '@/services/axiosInstance'
 
 /**
  * 用户信息对象
@@ -103,6 +104,7 @@ export const useAuthStore = defineStore('auth', () => {
     tokenManager.clearAll()
     setRequestCacheUserId(null)
     clearAllRequestCaches()
+    resetCsrfToken()
   }
 
   // 登录
@@ -112,6 +114,7 @@ export const useAuthStore = defineStore('auth', () => {
       clearAllRequestCaches()
 
       const response = await userApi.login(credentials)
+      resetCsrfToken()
 
       // 拦截器已解包，response.data 就是 { user }
       const data = response.data

@@ -9,6 +9,11 @@ const ABSOLUTE_URL_PATTERN = /^[a-z][a-z\d+\-.]*:/i;
 let csrfToken = '';
 let csrfTokenPromise = null;
 
+export const resetCsrfToken = () => {
+    csrfToken = '';
+    csrfTokenPromise = null;
+};
+
 const getWindowOrigin = () => (
     typeof window !== 'undefined' && window.location?.origin ? window.location.origin : ''
 );
@@ -255,6 +260,7 @@ const setupInterceptors = (apiInstance) => {
                 try {
                     // Refresh is cookie-based; the backend rotates HttpOnly cookies.
                     await apiInstance.post('/auth/refresh');
+                    resetCsrfToken();
                     originalRequest.headers = originalRequest.headers || {};
                     delete originalRequest.headers['Authorization'];
                     delete originalRequest.headers.authorization;

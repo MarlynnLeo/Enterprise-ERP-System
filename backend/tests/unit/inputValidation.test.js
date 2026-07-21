@@ -97,4 +97,22 @@ describe('inputValidation middleware', () => {
     expect(res.status).toHaveBeenCalledWith(403);
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ errorCode: 'SUSPICIOUS_INPUT' }));
   });
+
+  test('allows browser diagnostics on the client error reporting route', () => {
+    const req = createRequest('/api/system/client-errors', {
+      type: 'vue_error',
+      message: "Cannot read properties of undefined (reading 'querySelectorAll')",
+      stack: 'Evaluating a string as JavaScript violates the Content Security Policy directive',
+      userAgent:
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36',
+      url: 'http://192.168.1.251:18081/',
+    });
+    const res = createResponse();
+    const next = jest.fn();
+
+    detectSQLInjection(req, res, next);
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(res.status).not.toHaveBeenCalled();
+  });
 });

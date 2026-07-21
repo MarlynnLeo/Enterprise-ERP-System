@@ -18,10 +18,14 @@ export function cancelIdleTask(id) {
 
 function isLowEndDevice() {
   if (typeof navigator === 'undefined') return false
-  const memory = navigator.deviceMemory || 4
-  const cores = navigator.hardwareConcurrency || 4
+  const memory = Number(navigator.deviceMemory)
+  const cores = Number(navigator.hardwareConcurrency)
   // 更积极：4C/4G 及以下视为低端，关闭昂贵视觉效果
-  return memory <= 4 || cores <= 4
+  // Non-secure LAN origins do not expose deviceMemory. Unknown hardware
+  // information must not be treated as a 4 GB / 4 core device.
+  const hasMemoryInfo = Number.isFinite(memory) && memory > 0
+  const hasCoreInfo = Number.isFinite(cores) && cores > 0
+  return (hasMemoryInfo && memory <= 4) || (hasCoreInfo && cores <= 4)
 }
 
 function prefersReducedMotion() {

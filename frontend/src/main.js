@@ -69,6 +69,9 @@ themeStore.initTheme()
 
 const authStore = useAuthStore(pinia)
 authStore.setAuthHeader()
+setupErrorReporter(app, {
+  canReport: () => authStore.isAuthenticated && authStore.sessionProbed
+})
 
 const dictionaryStore = useDictionaryStore(pinia)
 if (authStore.isAuthenticated) {
