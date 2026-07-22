@@ -1149,9 +1149,12 @@ const systemController = {
 
   async getSystemInfo(req, res) {
     try {
+      const [databaseVersion] = await pool.query('SELECT VERSION() AS version');
       const info = {
         appName: 'ERP System',
-        version: '1.0.0',
+        version: process.env.npm_package_version || '1.0.0',
+        nodeVersion: process.versions.node,
+        databaseVersion: databaseVersion[0]?.version || null,
         environment: process.env.NODE_ENV || 'development',
         timestamp: new Date().toISOString(),
       };

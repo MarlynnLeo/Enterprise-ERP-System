@@ -763,11 +763,11 @@ const showBusinessWarnings = (res) => {
 }
 
 // 导入样式
-import '@vue-office/docx/lib/index.css'
-import '@vue-office/excel/lib/index.css'
+import '@vue-office/docx/lib/v3/index.css'
+import '@vue-office/excel/lib/v3/index.css'
 
-const VueOfficeDocx = defineAsyncComponent(() => import('@vue-office/docx'))
-const VueOfficeExcel = defineAsyncComponent(() => import('@vue-office/excel'))
+const VueOfficeDocx = defineAsyncComponent(() => import('@vue-office/docx/lib/v3/index.js'))
+const VueOfficeExcel = defineAsyncComponent(() => import('@vue-office/excel/lib/v3/index.js'))
 
 // 数据定义
 const loading = ref(false)

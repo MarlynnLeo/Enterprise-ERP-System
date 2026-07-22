@@ -163,6 +163,16 @@ const CORE_MENUS = [
   { id: 129, name: '编码规则', path: '/system/coding-rules', component: 'system/CodingRules', permission: 'system:settings', parent_id: 12, sort_order: 9 },
   { id: 1210, name: '文档管理', path: '/system/documents', component: 'system/DocumentManagement', permission: 'system:documents', parent_id: 12, sort_order: 10 },
   { id: 1211, name: '业务告警', path: '/system/business-alerts', component: 'system/BusinessAlerts', permission: 'system:business-alerts', parent_id: 12, sort_order: 11 },
+  { id: 1212, name: '通知规则', path: '/system/notification-rules', component: 'system/NotificationRules', permission: 'system:notification-rules', parent_id: 12, sort_order: 12 },
+];
+
+const DEFAULT_APPROVAL_TEMPLATES = [
+  ['purchase_order', 'DEFAULT_PURCHASE_ORDER_APPROVAL', 'Purchase order approval'],
+  ['purchase_requisition', 'DEFAULT_PURCHASE_REQUISITION_APPROVAL', 'Purchase requisition approval'],
+  ['contract', 'DEFAULT_CONTRACT_APPROVAL', 'Contract approval'],
+  ['ecn', 'DEFAULT_ECN_APPROVAL', 'Engineering change approval'],
+  ['hr_leave', 'DEFAULT_HR_LEAVE_APPROVAL', 'Leave request approval'],
+  ['hr_overtime', 'DEFAULT_HR_OVERTIME_APPROVAL', 'Overtime request approval'],
 ];
 
 async function insertWithPreferredId(knex, tableName, record) {
@@ -427,6 +437,80 @@ async function syncPermissionSsot(knex) {
   `);
 }
 
+async function ensureDefaultApprovalTemplates(knex) {
+  const requiredTables = ['permissions', 'role_permissions', 'workflow_templates', 'workflow_template_nodes'];
+  for (const table of requiredTables) {
+    if (!(await knex.schema.hasTable(table))) return;
+  }
+
+  const adminRole = await knex('roles').where({ code: 'admin' }).first('id');
+  const adminUser = await knex('users').where({ username: 'admin' }).first('id');
+  if (!adminRole || !adminUser) return;
+
+  let permission = await knex('permissions').where({ code: 'system:workflow:use' }).first('id');
+  if (!permission) {
+    const [id] = await knex('permissions').insert({
+      code: 'system:workflow:use',
+      name: 'Use approval center',
+      module: 'system',
+      description: 'Submit and process assigned workflow approvals',
+      status: 1,
+      source: 'system',
+      created_at: knex.fn.now(),
+      updated_at: knex.fn.now(),
+    });
+    permission = { id };
+  }
+
+  const permissionGrant = await knex('role_permissions')
+    .where({ role_id: adminRole.id, permission_id: permission.id })
+    .first('role_id');
+  if (!permissionGrant) {
+    await knex('role_permissions').insert({
+      role_id: adminRole.id,
+      permission_id: permission.id,
+      created_at: knex.fn.now(),
+    });
+  }
+
+  for (const [businessType, code, name] of DEFAULT_APPROVAL_TEMPLATES) {
+    const active = await knex('workflow_templates')
+      .where({ business_type: businessType, is_active: 1 })
+      .whereNull('deleted_at')
+      .first('id');
+    if (active) continue;
+
+    const latest = await knex('workflow_templates')
+      .where({ code })
+      .orderBy('version', 'desc')
+      .first('version');
+    const [templateId] = await knex('workflow_templates').insert({
+      code,
+      name,
+      business_type: businessType,
+      description: 'Safe default: any authorized administrator except the initiator may approve',
+      is_active: 1,
+      version: Number(latest?.version || 0) + 1,
+      created_by: adminUser.id,
+      created_at: knex.fn.now(),
+      updated_at: knex.fn.now(),
+    });
+    await knex('workflow_template_nodes').insert({
+      template_id: templateId,
+      node_name: 'Administrator approval',
+      node_type: 'approval',
+      sequence: 1,
+      approver_type: 'role',
+      approver_ids: JSON.stringify([adminRole.id]),
+      multi_approve_type: 'any',
+      allow_self_approval: 0,
+      timeout_hours: 0,
+      timeout_action: 'notify',
+      created_at: knex.fn.now(),
+    });
+  }
+}
+
 exports.seed = async function seed(knex) {
   await ensureCoreRoles(knex);
   await ensureAdminUser(knex);
@@ -434,6 +518,7 @@ exports.seed = async function seed(knex) {
   await ensureOperationalFinanceActions(knex);
   await grantAdminMenus(knex);
   await syncPermissionSsot(knex);
+  await ensureDefaultApprovalTemplates(knex);
 
   const hasCostSettings = await knex.schema.hasTable('cost_settings');
   if (hasCostSettings) {

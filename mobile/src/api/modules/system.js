@@ -73,6 +73,9 @@ export const systemApi = {
   getConfig(params) {
     return api.get('/system/settings', { params })
   },
+  getSystemInfo() {
+    return api.get('/system/info')
+  },
 
   // ==================== 用户管理 ====================
   getUsers(params) {

@@ -49,11 +49,11 @@
 import { defineAsyncComponent, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { commonApi } from '@/api'
-import '@vue-office/docx/lib/index.css'
-import '@vue-office/excel/lib/index.css'
+import '@vue-office/docx/lib/v3/index.css'
+import '@vue-office/excel/lib/v3/index.css'
 
-const VueOfficeDocx = defineAsyncComponent(() => import('@vue-office/docx'))
-const VueOfficeExcel = defineAsyncComponent(() => import('@vue-office/excel'))
+const VueOfficeDocx = defineAsyncComponent(() => import('@vue-office/docx/lib/v3/index.js'))
+const VueOfficeExcel = defineAsyncComponent(() => import('@vue-office/excel/lib/v3/index.js'))
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },

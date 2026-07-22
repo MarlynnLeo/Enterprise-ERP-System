@@ -145,7 +145,7 @@
               v-if="scope.row.status === 'confirmed'"
               size="small"
               type="success"
-              @click="handleCreateAndComplete(scope.row)"
+              @click="handleCreateReceipt(scope.row)"
               v-permission="'purchase:processing-receipts:create'"
             >
               创建入库单
@@ -1059,31 +1059,11 @@ const updateProcessingStatus = async (row, status) => {
     ElMessage.error('状态更新失败: ' + (error.response?.data?.message || error.message));
   }
 };
-// 创建入库单
-const _handleCreateReceipt = (row) => {
+// 创建入库单。加工单完成由后端确认入库单时事务性联动。
+const handleCreateReceipt = (row) => {
   selectedProcessingId.value = row.id;
   receiptDialogMode.value = 'create';
   receiptDialogVisible.value = true;
-};
-// 创建入库单并自动完成加工单
-const handleCreateAndComplete = async (row) => {
-  selectedProcessingId.value = row.id;
-  receiptDialogMode.value = 'create';
-  receiptDialogVisible.value = true;
-
-  // 添加监听一次性事件，当入库单创建成功后，自动将加工单状态更新为已完成
-  const onSuccess = async () => {
-    try {
-      await updateProcessingStatus(row, 'completed');
-      // 移除监听器，避免重复执行
-      window.removeEventListener('receipt-created', onSuccess);
-    } catch (error) {
-      console.error('自动更新加工单状态失败:', error);
-    }
-  };
-
-  // 通过一次性事件监听器监听入库单创建成功
-  window.addEventListener('receipt-created', onSuccess, { once: true });
 };
 // 查看外委加工单
 const handleViewProcessing = (row) => {

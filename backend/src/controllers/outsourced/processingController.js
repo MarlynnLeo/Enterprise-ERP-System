@@ -30,7 +30,9 @@ const STATUS = {
 // 加工单状态转换规则
 const PROCESSING_STATUS_TRANSITIONS = {
   pending: new Set(['confirmed', 'cancelled']),
-  confirmed: new Set(['in_progress', 'completed', 'cancelled']),
+  // Completion is a side effect of confirming the related receipt. It must
+  // never be writable through the processing-order status endpoint.
+  confirmed: new Set(['cancelled']),
   in_progress: new Set(['completed', 'cancelled']),
   completed: new Set(),
   cancelled: new Set(),
@@ -1143,4 +1145,5 @@ module.exports = {
   createReceipt,
   updateReceipt,
   updateReceiptStatus,
+  PROCESSING_STATUS_TRANSITIONS,
 };

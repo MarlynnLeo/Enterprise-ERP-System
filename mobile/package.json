@@ -31,6 +31,7 @@
     "eslint": "^10.2.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-vue": "^10.8.0",
+    "globals": "^17.5.0",
     "jsdom": "^26.1.0",
     "postcss-px-to-viewport-8-plugin": "^1.2.5",
     "prettier": "^3.8.3",

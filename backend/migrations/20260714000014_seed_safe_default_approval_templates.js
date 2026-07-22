@@ -13,7 +13,9 @@ exports.up = async function up(knex) {
   const adminRole = await knex('roles').where({ code: 'admin' }).first('id');
   const adminUser = await knex('users').where({ username: 'admin' }).first('id');
   if (!adminRole || !adminUser) {
-    throw new Error('Admin role and user are required before seeding approval templates');
+    // A migration must be runnable before optional seed data exists. The
+    // default templates are completed by the idempotent system seed.
+    return;
   }
 
   let permission = await knex('permissions').where({ code: 'system:workflow:use' }).first('id');

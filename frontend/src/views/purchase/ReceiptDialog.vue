@@ -370,22 +370,11 @@ const handleSubmit = async () => {
     processing.value = true;
 
     try {
-      let response;
-
       if (props.mode === 'create') {
-        response = await purchaseApi.outsourcedReceipts.create(receiptForm);
+        await purchaseApi.outsourcedReceipts.create(receiptForm);
         ElMessage.success('创建外委加工入库单成功');
-
-        // 拦截器已解包，response.data 就是业务数据
-        // 触发入库单创建成功事件
-        window.dispatchEvent(new CustomEvent('receipt-created', {
-          detail: {
-            receiptId: response.data?.id,
-            processingId: receiptForm.processing_id
-          }
-        }));
       } else if (props.mode === 'edit') {
-        response = await purchaseApi.outsourcedReceipts.update(props.receiptId, receiptForm);
+        await purchaseApi.outsourcedReceipts.update(props.receiptId, receiptForm);
         ElMessage.success('更新外委加工入库单成功');
       }
 
