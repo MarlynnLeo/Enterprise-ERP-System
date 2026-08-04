@@ -1,5 +1,7 @@
 ﻿<template>
   <div class="module-page cip-list-container">
+    <PageHeader title="在建工程" subtitle="在建工程归集、预算执行与转固" />
+
     <!-- 搜索栏 -->
     <FinanceQueryCard
       :model="searchForm"
@@ -30,7 +32,7 @@
     </FinanceQueryCard>
 
     <!-- 操作栏 + 表格 -->
-    <el-card shadow="never">
+    <el-card class="data-card" shadow="never">
       <template #header>
         <div class="card-header">
           <span>在建工程列表</span>

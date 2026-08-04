@@ -76,7 +76,7 @@ const _insertInventoryLedgerLocal = async (
       transactionType: transaction_type,
       referenceNo: refNo,
       referenceType: refType,
-      operator: operator || 'system',
+      operator: operator || null,
       remark: remark || '',
       unitId: unit_id,
       batchNumber: batch_number,

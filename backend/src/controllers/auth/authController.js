@@ -78,7 +78,7 @@ const login = async (req, res) => {
     const { accessToken, refreshToken } = generateTokens(user);
 
     // 设置令牌到HttpOnly Cookie
-    setTokensToCookies(res, accessToken, refreshToken);
+    setTokensToCookies(req, res, accessToken, refreshToken);
 
     // Access/refresh tokens are set only as HttpOnly cookies.
     ResponseHandler.success(
@@ -216,7 +216,7 @@ const changePassword = async (req, res) => {
       connection.release();
     }
 
-    clearTokenCookies(res);
+    clearTokenCookies(req, res);
     return ResponseHandler.success(res, null, '密码修改成功，请重新登录');
   } catch (error) {
     logger.error('[Auth] 修改密码失败:', error);
@@ -379,7 +379,7 @@ const logout = async (req, res) => {
     }
 
     // 清除Cookie中的令牌
-    clearTokenCookies(res);
+    clearTokenCookies(req, res);
 
     ResponseHandler.success(res, null, '登出成功');
 
@@ -403,7 +403,7 @@ const refreshToken = async (req, res) => {
     }
 
     if (Number(user.status) !== 1) {
-      clearTokenCookies(res);
+      clearTokenCookies(req, res);
       return ResponseHandler.error(res, '账号已被禁用，请联系管理员', 'ACCOUNT_DISABLED', 403);
     }
 
@@ -412,7 +412,7 @@ const refreshToken = async (req, res) => {
       req.user.tokenVersion === undefined ||
       Number(user.token_version || 0) !== Number(req.user.tokenVersion)
     ) {
-      clearTokenCookies(res);
+      clearTokenCookies(req, res);
       return ResponseHandler.error(res, '令牌已被撤销', 'UNAUTHORIZED', 401);
     }
 
@@ -420,7 +420,7 @@ const refreshToken = async (req, res) => {
     const { accessToken, refreshToken: newRefreshToken } = generateTokens(user);
 
     // 设置新的令牌到Cookie
-    setTokensToCookies(res, accessToken, newRefreshToken);
+    setTokensToCookies(req, res, accessToken, newRefreshToken);
 
     ResponseHandler.success(
       res,

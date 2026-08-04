@@ -102,7 +102,16 @@
           </template>
         </el-table-column>
         <el-table-column prop="contact_person" :label="$t('page.baseData.customers.contact')" width="90"></el-table-column>
-        <el-table-column prop="contact_phone" :label="$t('page.baseData.customers.phone')" width="120"></el-table-column>
+        <el-table-column prop="contact_phone" :label="$t('page.baseData.customers.phone')" width="120">
+          <template #default="scope">
+            {{ scope.row.contact_phone || scope.row.phone || '—' }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="payment_term_days" label="账期(天)" width="90">
+          <template #default="scope">
+            {{ scope.row.payment_term_days != null ? scope.row.payment_term_days : '—' }}
+          </template>
+        </el-table-column>
         <el-table-column prop="email" :label="$t('user.email')" min-width="160">
           <template #default="scope">
             <el-tooltip :content="scope.row.email" placement="top" :show-after="500">

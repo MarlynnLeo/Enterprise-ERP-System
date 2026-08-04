@@ -125,13 +125,13 @@
 
               <el-divider>订单物料</el-divider>
               <el-table :data="props.row.items" border class="w-full" table-layout="fixed">
-                <el-table-column prop="material_code" label="物料编码" width="120" show-overflow-tooltip>
+                <el-table-column prop="materialCode" label="物料编码" width="120" show-overflow-tooltip>
                   <template #default="{ row }">
-                    <span v-if="row.material_code || row.code">
-                      {{ row.material_code || row.code }}
+                    <span v-if="row.materialCode || row.code">
+                      {{ row.materialCode || row.code }}
                     </span>
-                    <span v-else-if="row.product_code || row.product_specs" class="text-warning">
-                      {{ row.product_code || row.product_specs }}
+                    <span v-else-if="row.productCode || row.productSpecs" class="text-warning">
+                      {{ row.productCode || row.productSpecs }}
                       <el-tooltip content="该产品暂未匹配到物料，请在系统中补充" placement="top">
                         <el-icon class="ml-sm"><WarningFilled /></el-icon>
                       </el-tooltip>
@@ -144,27 +144,27 @@
                     </span>
                   </template>
                 </el-table-column>
-                <el-table-column prop="material_name" label="物料名称" show-overflow-tooltip>
+                <el-table-column prop="materialName" label="物料名称" show-overflow-tooltip>
                   <template #default="{ row }">
-                    <span v-if="row.material_name || row.name">
-                      {{ row.material_name || row.name }}
+                    <span v-if="row.materialName || row.name">
+                      {{ row.materialName || row.name }}
                     </span>
                     <span v-else class="text-disabled">-</span>
                   </template>
                 </el-table-column>
                 <el-table-column prop="specification" label="规格" show-overflow-tooltip />
                 <el-table-column prop="quantity" label="数量" width="100" show-overflow-tooltip />
-                <el-table-column prop="stock_quantity" label="库存数量" width="100" show-overflow-tooltip>
+                <el-table-column prop="stockQuantity" label="库存数量" width="100" show-overflow-tooltip>
                   <template #default="{ row }">
-                    <span :class="(row.stock_quantity || 0) >= (row.quantity || 0) ? 'text-stock-ok' : 'text-stock-low'">
-                      {{ (typeof row.stock_quantity === 'number' ? row.stock_quantity : parseFloat(row.stock_quantity) || 0).toFixed(2) }}
+                    <span :class="(row.stockQuantity || 0) >= (row.quantity || 0) ? 'text-stock-ok' : 'text-stock-low'">
+                      {{ (typeof row.stockQuantity === 'number' ? row.stockQuantity : parseFloat(row.stockQuantity) || 0).toFixed(2) }}
                     </span>
                   </template>
                 </el-table-column>
-                <el-table-column prop="unit_name" label="单位" width="80" show-overflow-tooltip />
-                <el-table-column prop="unit_price" label="单价" width="100" show-overflow-tooltip>
+                <el-table-column prop="unitName" label="单位" width="80" show-overflow-tooltip />
+                <el-table-column prop="unitPrice" label="单价" width="100" show-overflow-tooltip>
                   <template #default="{ row }">
-                    {{ formatCurrency(row.unit_price) }}
+                    {{ formatCurrency(row.unitPrice) }}
                   </template>
                 </el-table-column>
                 <el-table-column prop="amount" label="金额" width="120" show-overflow-tooltip>
@@ -172,9 +172,9 @@
                     {{ formatCurrency(row.amount) }}
                   </template>
                 </el-table-column>
-                <el-table-column prop="remark" label="备注" width="120" show-overflow-tooltip>
+                <el-table-column prop="remarks" label="备注" width="120" show-overflow-tooltip>
                   <template #default="{ row }">
-                    {{ row.remark || row.remarks || '-' }}
+                    {{ row.remarks || '-' }}
                   </template>
                 </el-table-column>
               </el-table>
@@ -182,18 +182,18 @@
           </template>
         </el-table-column>
 
-        <el-table-column prop="order_no" label="订单编号" width="120" fixed resizable show-overflow-tooltip>
+        <el-table-column prop="orderNo" label="订单编号" width="120" fixed resizable show-overflow-tooltip>
         </el-table-column>
-        <el-table-column prop="customer" label="客户名称" width="250" resizable show-overflow-tooltip>
+        <el-table-column prop="customerName" label="客户名称" width="250" resizable show-overflow-tooltip>
         </el-table-column>
-        <el-table-column prop="created_by_real_name" label="操作人" width="100" resizable show-overflow-tooltip>
+        <el-table-column prop="createdByRealName" label="操作人" width="100" resizable show-overflow-tooltip>
           <template #default="{ row }">
-            {{ row.created_by_real_name || row.created_by_name || '-' }}
+            {{ row.createdByRealName || row.createdByName || '-' }}
           </template>
         </el-table-column>
-        <el-table-column prop="contract_code" label="合同编码" width="170" resizable show-overflow-tooltip>
+        <el-table-column prop="contractCode" label="合同编码" width="170" resizable show-overflow-tooltip>
           <template #default="{ row }">
-            {{ row.contract_code || '-' }}
+            {{ row.contractCode || '-' }}
           </template>
         </el-table-column>
         <el-table-column prop="totalAmount" label="订单金额" width="120" resizable show-overflow-tooltip>
@@ -201,7 +201,7 @@
             {{ formatCurrency(row.totalAmount) }}
           </template>
         </el-table-column>
-        <el-table-column prop="order_date" label="下单日期" width="120" sortable="custom" resizable show-overflow-tooltip>
+        <el-table-column prop="orderDate" label="下单日期" width="120" sortable="custom" resizable show-overflow-tooltip>
           <template #default="{ row }">
             {{ getOrderDate(row) }}
           </template>
@@ -557,31 +557,31 @@
       <div v-loading="detailsLoading">
         <template v-if="currentOrder">
           <el-descriptions :column="3" border>
-            <el-descriptions-item label="订单编号">{{ currentOrder.order_no }}</el-descriptions-item>
-            <el-descriptions-item label="客户名称">{{ currentOrder.customer_name || currentOrder.customer }}</el-descriptions-item>
+            <el-descriptions-item label="订单编号">{{ currentOrder.orderNo }}</el-descriptions-item>
+            <el-descriptions-item label="客户名称">{{ currentOrder.customerName || currentOrder.customer }}</el-descriptions-item>
             <el-descriptions-item label="状态">
               <el-tag :type="getSalesStatusColor(currentOrder.status)">{{ getSalesStatusText(currentOrder.status) }}</el-tag>
             </el-descriptions-item>
-            <el-descriptions-item label="合同编码">{{ currentOrder.contract_code || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="合同编码">{{ currentOrder.contractCode || '-' }}</el-descriptions-item>
             <el-descriptions-item label="交付日期">{{ formatDate(currentOrder.deliveryDate) }}</el-descriptions-item>
             <el-descriptions-item label="订单金额">
               <span class="text-primary font-weight-700">{{ formatCurrency(currentOrder.totalAmount) }}</span>
             </el-descriptions-item>
-            <el-descriptions-item label="联系人">{{ currentOrder.contact || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="联系电话">{{ currentOrder.phone || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="联系人">{{ currentOrder.contact || currentOrder.contactPerson || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="联系电话">{{ currentOrder.phone || currentOrder.contactPhone || '-' }}</el-descriptions-item>
             <el-descriptions-item label="收货地址">{{ currentOrder.address || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="备注" :span="3">{{ currentOrder.remark || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="备注" :span="3">{{ currentOrder.remarks || '-' }}</el-descriptions-item>
           </el-descriptions>
           <el-divider content-position="left">订单物料明细</el-divider>
           <el-table :data="currentOrder.items || []" border class="w-full" table-layout="fixed">
-            <el-table-column prop="material_code" label="物料编码" width="140" show-overflow-tooltip />
-            <el-table-column prop="material_name" label="物料名称" min-width="160" show-overflow-tooltip />
+            <el-table-column prop="materialCode" label="物料编码" width="140" show-overflow-tooltip />
+            <el-table-column prop="materialName" label="物料名称" min-width="160" show-overflow-tooltip />
             <el-table-column prop="specification" label="规格" width="120" show-overflow-tooltip />
             <el-table-column prop="quantity" label="数量" width="90" />
-            <el-table-column prop="unit_name" label="单位" width="70" />
+            <el-table-column prop="unitName" label="单位" width="70" />
             <el-table-column label="单价" width="100">
               <template #default="{ row }">
-                {{ formatCurrency(row.unit_price) }}
+                {{ formatCurrency(row.unitPrice) }}
               </template>
             </el-table-column>
             <el-table-column label="金额" width="120">
@@ -589,9 +589,9 @@
                 {{ formatCurrency(row.amount) }}
               </template>
             </el-table-column>
-            <el-table-column prop="remark" label="备注" width="120" show-overflow-tooltip>
+            <el-table-column prop="remarks" label="备注" width="120" show-overflow-tooltip>
               <template #default="{ row }">
-                {{ row.remark || '-' }}
+                {{ row.remarks || '-' }}
               </template>
             </el-table-column>
           </el-table>
@@ -709,16 +709,16 @@ const formatPrintAmount = (value) => {
 // 数据规范化处理函数
 const normalizeOrdersData = (orders) => {
   if (!Array.isArray(orders)) return []
-  return orders.map(order => ({
+  // 后端已输出 camel；此处仅补全缺省与排序，不再做 snake 双读
+  return orders.map((order) => ({
     ...order,
-    orderDate: order.orderDate || order.order_date || order.created_at,
-    deliveryDate: order.deliveryDate || order.delivery_date,
-    updated_at: order.updated_at || order.created_at || order.order_date || new Date().toISOString(),
-    totalAmount: normalizeAmount(order.totalAmount ?? order.total_amount),
+    orderDate: order.orderDate || order.createdAt,
+    deliveryDate: order.deliveryDate,
+    totalAmount: normalizeAmount(order.totalAmount),
     items: Array.isArray(order.items) ? order.items : []
   })).sort((a, b) => {
-    const orderNoA = a.order_no || ''
-    const orderNoB = b.order_no || ''
+    const orderNoA = a.orderNo || ''
+    const orderNoB = b.orderNo || ''
     return orderNoB.localeCompare(orderNoA)
   })
 }
@@ -857,11 +857,11 @@ const getOrderDateFromOrderNo = (orderNo) => {
   } catch { return '' }
 }
 const getOrderDate = (row) => {
-  for (const value of [row.orderDate, row.order_date, row.created_at]) {
+  for (const value of [row.orderDate, row.createdAt]) {
     const formatted = formatDate(value)
     if (formatted && formatted !== '-') return formatted
   }
-  return getOrderDateFromOrderNo(row.order_no) || '-'
+  return getOrderDateFromOrderNo(row.orderNo) || '-'
 }
 // ========== 打印功能 ==========
 const printLoading = ref(false)
@@ -871,20 +871,21 @@ const handlePrintOrder = async () => {
   try {
     // 组装打印数据，匹配模板变量
     const order = currentOrder.value
+    // 打印模板变量仍为 snake；从 camel 业务对象单向映射
     const printData = {
-      order_no: order.order_no || '',
+      order_no: order.orderNo || '',
       order_date: getOrderDate(order) || '',
       delivery_date: formatDate(order.deliveryDate) || '',
-      customer_name: order.customer_name || order.customer || '',
-      contact_phone: order.phone || '',
+      customer_name: order.customerName || order.customer || '',
+      contact_phone: order.phone || order.contactPhone || '',
       delivery_address: order.address || '',
-      total_amount: formatPrintAmount(order.totalAmount ?? order.total_amount),
-      remark: order.remark || '',
-      operator: order.created_by_real_name || order.created_by_name || '',
+      total_amount: formatPrintAmount(order.totalAmount),
+      remark: order.remarks || '',
+      operator: order.createdByRealName || order.createdByName || '',
       items: (order.items || []).map((item, idx) => ({
         index: idx + 1,
-        product_code: item.material_code || item.code || '',
-        product_name: item.material_name || item.name || '',
+        product_code: item.materialCode || item.code || '',
+        product_name: item.materialName || item.name || '',
         specification: item.specification || '',
         quantity: parseFloat(item.quantity || 0).toFixed(2),
         unit_name: item.unit_name || '',

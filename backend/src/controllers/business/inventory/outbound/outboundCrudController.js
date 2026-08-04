@@ -24,6 +24,8 @@ const {
 } = require('./outboundHelpers');
 
 const { fetchBomItemsForOutbound } = require('./outboundBomController');
+const { resolveActorLabel } = require('../../../../utils/userUtils');
+const { inventoryOutboundMap } = require('../../../../utils/inventory/inventoryFieldMap');
 
 const getOutboundList = async (req, res) => {
   try {
@@ -194,12 +196,26 @@ const getOutboundList = async (req, res) => {
       }
     }
 
-    // 处理状态显示和日期格式
-    const items = outbounds.map((item) => ({
-      ...item,
-      created_at: item.created_at_formatted, // 使用格式化后的时间
-      status_text: getStatusText(item.status),
-    }));
+    // 出参仅 camel（inventoryOutboundMap）
+    const items = outbounds.map((item) => {
+      const api = inventoryOutboundMap.toApi({
+        ...item,
+        remarks: item.remark,
+      });
+      api.operatorName = item.operator_name ?? null;
+      api.locationNames = item.location_names ?? null;
+      api.productionGroupNames = item.production_group_names ?? null;
+      api.productCode = item.product_code ?? null;
+      api.productSpecs = item.product_specs ?? null;
+      api.productQuantity =
+        item.product_quantity != null ? Number(item.product_quantity) : null;
+      api.itemsCount = Number(item.items_count) || 0;
+      api.totalQuantity = Number(item.total_quantity) || 0;
+      api.itemUnitName = item.item_unit_name ?? null;
+      api.createdAtFormatted = item.created_at_formatted ?? null;
+      api.statusText = getStatusText(item.status);
+      return api;
+    });
 
     ResponseHandler.paginated(
       res,
@@ -487,19 +503,18 @@ const getOutboundDetail = async (req, res) => {
         ? outboundResult[0].reference_id
         : null;
 
-    const outboundDetail = {
+    const outboundDetail = inventoryOutboundMap.toApi({
       ...outboundResult[0],
+      remark: outboundResult[0].remark,
+      location_id: locationId,
+      location_name: locationName,
+      production_task_id: productionTaskId,
+      production_task_code: outboundResult[0].production_task_code || null,
+      production_task_product_name: outboundResult[0].production_task_product_name || null,
+      production_task_quantity: outboundResult[0].production_task_quantity || null,
+      status_text: getStatusText(outboundResult[0].status),
       items: enhancedItems,
-      location_id: locationId, // 使用从明细项中获取的location_id
-      location_name: locationName, // 使用从明细项中获取的location_name
-      production_task_id: productionTaskId, // 如果关联的是生产任务，返回任务ID
-      production_task_code: outboundResult[0].production_task_code || null, // 生产任务编号
-      production_task_product_name: outboundResult[0].production_task_product_name || null, // 生产任务产品名称
-      production_task_quantity: outboundResult[0].production_task_quantity || null, // 生产任务数量
-      production_plan_id: null, // 由于数据库表中没有production_plan_id字段，设置默认值为null
-      production_plan_code: null, // 由于数据库表中没有production_plan_id字段，无法获取计划代码
-      production_plan_name: null, // 由于数据库表中没有production_plan_id字段，无法获取计划名称
-    };
+    });
 
     await connection.commit(); // 提交事务
     ResponseHandler.success(res, outboundDetail, '获取出库单详情成功');
@@ -694,7 +709,7 @@ const _createOutbound = async (outboundData) => {
     const outboundNo = await CodeGenerators.generateInventoryOutboundCode(connection);
 
     // 获取操作人信息
-    const operator = outboundData.operator || 'system';
+    const operator = await resolveActorLabel(connection, outboundData.operator);
 
     // 创建仅允许草稿/已确认；完成扣库必须走状态接口，避免 CRUD 与 status 双路径
     const requestedStatus = outboundData.status || STATUS.OUTBOUND.DRAFT;
@@ -1055,45 +1070,37 @@ const _createOutbound = async (outboundData) => {
 
 const createOutbound = async (req, res) => {
   try {
-    // 从请求体中获取出库单数据
-    const outboundData = req.body;
-
-    // 格式化日期为 YYYY-MM-DD
+    // HTTP camel → 内部适配结构（inventoryOutboundMap）
+    const mapped = inventoryOutboundMap.fromApi(req.body || {});
     const formatDateForDB = (date) => {
       if (!date) return null;
       const d = new Date(date);
+      if (Number.isNaN(d.getTime())) return null;
       const year = d.getFullYear();
       const month = String(d.getMonth() + 1).padStart(2, '0');
       const day = String(d.getDate()).padStart(2, '0');
       return `${year}-${month}-${day}`;
     };
 
-    // 适配字段名称 - 前端可能使用不同的字段名
+    // _createOutbound 内部仍用 camel 适配对象（历史实现）
     const adaptedData = {
-      outboundDate: formatDateForDB(outboundData.outbound_date || outboundData.outboundDate),
-      status: outboundData.status || 'draft',
-      operator: outboundData.operator || await getCurrentUserName(req),
+      outboundDate: formatDateForDB(mapped.outbound_date),
+      status: mapped.status || 'draft',
+      operator: mapped.operator || (await getCurrentUserName(req)),
       created_by: req.user?.id || req.user?.userId || null,
-      remark: outboundData.remark || outboundData.remarks,
-      // 出库类型标记（前端传入）
-      outbound_type: outboundData.outbound_type || 'manual',
-      // 转换productionTaskId
-      productionTaskId: outboundData.production_task_id || outboundData.productionTaskId,
-      // 补料申请相关字段
-      issue_reason: outboundData.issue_reason || outboundData.issueReason,
-      isExcess:
-        outboundData.is_excess || outboundData.isExcess || outboundData.force_excess || false,
-      // 允许超额 - 用于补料申请场景
-      allowExcess:
-        outboundData.allowExcess || outboundData.allow_excess || outboundData.force_excess || false,
-      // 转换items数组字段名
-      items: Array.isArray(outboundData.items)
-        ? outboundData.items.map((item) => ({
-          materialId: item.material_id || item.materialId,
-          quantity: item.quantity,
-          unitId: item.unit_id || item.unitId,
-          remark: item.remark || item.remarks,
-        }))
+      remark: mapped.remark ?? null,
+      outbound_type: mapped.outbound_type || 'manual',
+      productionTaskId: mapped.production_task_id ?? null,
+      issue_reason: mapped.issue_reason ?? null,
+      isExcess: Boolean(mapped.is_excess),
+      allowExcess: Boolean(mapped.allow_excess || mapped.is_excess),
+      items: Array.isArray(mapped.items)
+        ? mapped.items.map((item) => ({
+            materialId: item.material_id,
+            quantity: item.quantity,
+            unitId: item.unit_id,
+            remark: item.remark,
+          }))
         : [],
     };
 

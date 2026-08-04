@@ -1055,7 +1055,11 @@ const submitApplyParts = async () => {
         // 步骤2：来料不良 → 自动生成不良退回入库单（直接退入隔离区）
         if (isDefectiveReason.value && applyPartsForm.value.returnLocationId) {
           try {
-            const currentUser = authStore.user?.username || authStore.user?.real_name || 'system'
+            const currentUser = authStore.user?.username || authStore.user?.real_name || authStore.user?.name || ''
+            if (!currentUser) {
+              ElMessage.error('无法识别当前登录用户，请重新登录后再操作')
+              return
+            }
 
             const inboundPayload = {
               inbound_date: dayjs().format('YYYY-MM-DD'),
@@ -1781,7 +1785,11 @@ const submitReturnMaterial = async () => {
 
   try {
     submittingReturn.value = true
-    const currentUser = authStore.user?.username || authStore.user?.real_name || 'system'
+    const currentUser = authStore.user?.username || authStore.user?.real_name || authStore.user?.name || ''
+    if (!currentUser) {
+      ElMessage.error('无法识别当前登录用户，请重新登录后再操作')
+      return
+    }
 
     const materialLocations = {}
     let firstLocationId = null

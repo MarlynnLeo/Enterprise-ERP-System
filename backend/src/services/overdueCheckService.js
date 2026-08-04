@@ -12,19 +12,8 @@
 const arModel = require('../models/ar');
 const apModel = require('../models/ap');
 const { logger } = require('../utils/logger');
-const NotificationService = require('./NotificationService');
-
-/**
- * 获取拥有指定权限（或 admin 角色）的用户 ID 列表
- */
-async function getNotificationUsers(permissionCodes) {
-  try {
-    return await NotificationService.getUserIdsByPermissions(permissionCodes, { includeAdmins: true });
-  } catch (error) {
-    logger.error('[逾期检查] 获取通知用户失败:', error);
-    return [];
-  }
-}
+const EventBus = require('../events/EventBus');
+const { EVENT_TYPES } = require('../events/NotificationEventRegistry');
 
 /**
  * 根据逾期天数计算通知优先级
@@ -69,44 +58,34 @@ async function checkOverdueInvoices({ model, type, label, counterpartyField, cou
       return { success: true, count: 0, invoices: [] };
     }
 
-    // 获取有权限接收通知的用户
-    const notifyUserIds = await getNotificationUsers([
-      'finance:overdue:notify',
-      type === 'ar' ? 'finance:ar:view' : 'finance:ap:view',
-    ]);
-    if (notifyUserIds.length === 0) {
-      logger.warn('[逾期检查] 没有配置通知接收人，跳过发送');
-      return { success: true, count: overdueInvoices.length, invoices: overdueInvoices };
-    }
-
-    const notificationJobs = overdueInvoices.map((invoice) => {
+    let emitted = 0;
+    for (const invoice of overdueInvoices) {
       const overdueDays = calculateOverdueDays(invoice.due_date, today);
       const priority = getOverduePriority(overdueDays);
       const counterpartyName = invoice[counterpartyField] || '未知';
-      const title = `${label}发票逾期提醒`;
-      const content = `[逾期提醒] ${type.toUpperCase()}发票 ${invoice.invoice_number} 已逾期 ${overdueDays} 天，${counterpartyLabel}: ${counterpartyName}, 余额: ¥${invoice.balance_amount}`;
-
-      logger.warn(content);
-
-      return {
-        userIds: notifyUserIds,
-        notification: {
-          type: 'overdue_invoice',
-          title,
-          content,
-          link: `/finance/${type}/invoices`,
-          linkParams: { invoice_id: invoice.id },
-          priority,
-          sourceType: 'overdue_invoice',
-          sourceId: invoice.id,
-        },
+      const eventName = type === 'ar'
+        ? EVENT_TYPES.FINANCE_AR_INVOICE_OVERDUE
+        : EVENT_TYPES.FINANCE_AP_INVOICE_OVERDUE;
+      const payload = {
+        invoiceId: invoice.id,
+        invoiceNumber: invoice.invoice_number,
+        overdueDays,
+        balanceAmount: invoice.balance_amount,
+        dueDate: invoice.due_date,
+        customerName: type === 'ar' ? counterpartyName : undefined,
+        supplierName: type === 'ap' ? counterpartyName : undefined,
+        notificationType: 'overdue_invoice',
+        notificationPriority: priority,
+        notificationDedupe: 'day',
       };
-    });
+      const hasListener = await EventBus.emitAsync(eventName, payload);
+      if (hasListener) emitted += 1;
+      logger.warn(
+        `[逾期提醒] ${type.toUpperCase()}发票 ${invoice.invoice_number} 已逾期 ${overdueDays} 天，${counterpartyLabel}: ${counterpartyName}, 余额: ¥${invoice.balance_amount}`
+      );
+    }
 
-    const notifyResult = await NotificationService.notifyMany(notificationJobs);
-    logger.info(
-      `[逾期检查] ${label}逾期通知发送完成 inserted=${notifyResult.inserted}, skipped=${notifyResult.skipped}`
-    );
+    logger.info(`[逾期检查] ${label}逾期事件派发完成 emitted=${emitted}`);
 
     return {
       success: true,

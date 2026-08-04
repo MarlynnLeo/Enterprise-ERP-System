@@ -18,6 +18,8 @@ const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const { parsePagination, appendPaginationSQL } = require('../../../utils/safePagination');
 
 const { STATUS, getConnection, generateSalesOutboundNo } = require('./salesShared');
+const { getRequestActorLabel } = require('../../../utils/userUtils');
+const { salesOutboundMap, salesOutboundItemMap } = require('../../../utils/sales/salesFieldMap');
 
 const createValidationError = (message) => {
   const error = new Error(message);
@@ -223,10 +225,11 @@ exports.getSalesOutbound = async (req, res) => {
         if (item.status === STATUS.OUTBOUND.CANCELLED) statusStats.cancelledCount = count;
       });
 
+      // 出参统一 camelCase（salesOutboundMap）
       ResponseHandler.success(
         res,
         {
-          list: results,
+          list: (results || []).map((row) => salesOutboundMap.toApi(row)),
           total,
           page: pagination.page,
           pageSize: pagination.pageSize,
@@ -305,7 +308,8 @@ exports.getSalesOutboundById = async (req, res) => {
 
     // 查询明细数据
       const itemsQuery = `
-        SELECT soi.id, soi.outbound_id, soi.product_id, soi.quantity, soi.source_order_id
+        SELECT soi.id, soi.outbound_id, soi.product_id, soi.quantity, soi.price, soi.amount,
+               soi.source_order_id, soi.source_order_no
         FROM sales_outbound_items soi
         WHERE soi.outbound_id = ?
       `;
@@ -364,13 +368,18 @@ exports.getSalesOutboundById = async (req, res) => {
           const unit = material.unit_id ? unitsResult.find((u) => u.id === material.unit_id) : null;
           const returnedQty = returnedMap.get(item.product_id) || 0;
 
+          // 内部仍用 snake 组装，最后经 salesOutboundItemMap.toApi 输出
           return {
             id: item.id,
             outbound_id: item.outbound_id,
             product_id: item.product_id,
             quantity: item.quantity,
+            price: item.price,
+            amount: item.amount,
+            source_order_id: item.source_order_id,
+            source_order_no: item.source_order_no,
             returned_quantity: returnedQty,
-            returnable_quantity: Math.max(0, item.quantity - returnedQty),
+            returnable_quantity: Math.max(0, (parseFloat(item.quantity) || 0) - returnedQty),
             material_name: material.name,
             material_code: material.code,
             specification: material.specs,
@@ -379,20 +388,15 @@ exports.getSalesOutboundById = async (req, res) => {
           };
         });
 
-        const formattedItems = items.map((item) => ({
-          id: item.id,
-          outbound_id: item.outbound_id,
-          product_id: item.product_id,
-          quantity: item.quantity,
-          returned_quantity: item.returned_quantity,
-          returnable_quantity: item.returnable_quantity,
-          product_name: item.material_name || `未知物料(ID:${item.product_id})`,
-          product_code: item.material_code || '未知代码',
-          specification: item.specification || '无规格信息',
-          unit: item.unit_name || '未知单位',
-        }));
-
-        outbound.items = formattedItems;
+        outbound.items = items.map((item) => {
+          const apiItem = salesOutboundItemMap.toApi(item);
+          // 展示名：未知物料兜底
+          if (!apiItem.materialName) {
+            apiItem.materialName = `未知物料(ID:${apiItem.productId})`;
+          }
+          if (!apiItem.materialCode) apiItem.materialCode = '未知代码';
+          return apiItem;
+        });
       } else {
         outbound.items = [];
       }
@@ -480,7 +484,10 @@ exports.getSalesOutboundById = async (req, res) => {
         ];
       }
 
-    return ResponseHandler.success(res, outbound);
+    // 详情出参：主表 + 已是 camel 的 items
+    const payload = salesOutboundMap.toApi(outbound);
+    payload.items = outbound.items || [];
+    return ResponseHandler.success(res, payload);
   } catch (error) {
     logger.error('获取销售出库单详情失败:', error);
     ResponseHandler.error(res, '获取销售出库单详情失败', 'SERVER_ERROR', 500, error);
@@ -496,28 +503,25 @@ exports.createSalesOutbound = async (req, res) => {
   let connection;
 
   try {
-    const {
-      order_id,
-      related_orders: rawRelatedOrders = [],
-      is_multi_order = false,
-      delivery_date,
-      status,
-      remarks,
-      items = [],
-    } = req.body;
+    // HTTP camel → 内部 snake（唯一入参边界，不再吸收 snake 顶层键）
+    const mapped = salesOutboundMap.fromApi(req.body || {});
+    const order_id = mapped.order_id;
+    const is_multi_order = Boolean(mapped.is_multi_order);
+    let related_orders = mapped.related_orders ?? [];
+    const delivery_date = mapped.delivery_date;
+    const status = mapped.status;
+    const remarks = mapped.remarks;
+    const items = Array.isArray(mapped.items) ? mapped.items : [];
 
-    // 处理related_orders参数，支持JSON字符串或数组
-    let related_orders = [];
-    if (typeof rawRelatedOrders === 'string') {
+    if (typeof related_orders === 'string') {
       try {
-        related_orders = JSON.parse(rawRelatedOrders);
+        related_orders = JSON.parse(related_orders);
       } catch (error) {
         logger.error('解析related_orders JSON失败:', error);
         return ResponseHandler.error(res, '无效的关联订单格式', 'VALIDATION_ERROR', 400);
       }
-    } else if (Array.isArray(rawRelatedOrders)) {
-      related_orders = rawRelatedOrders;
     }
+    if (!Array.isArray(related_orders)) related_orders = [];
     const created_by = getAuthenticatedUserId(req);
 
     // 创建仅允许 draft；完成扣库必须走更新为 completed 路径
@@ -544,7 +548,6 @@ exports.createSalesOutbound = async (req, res) => {
     // 验证日期格式转换
     let formattedDeliveryDate;
     try {
-      // 支持 ISO 格式日期或标准日期字符串
       if (delivery_date) {
         formattedDeliveryDate = new Date(delivery_date).toISOString().split('T')[0];
       } else {
@@ -784,7 +787,7 @@ exports.createSalesOutbound = async (req, res) => {
       {
         message: '销售出库单创建成功',
         id: outboundId,
-        outbound_no: outboundNo,
+        outboundNo,
       },
       '创建成功',
       201
@@ -1221,30 +1224,67 @@ exports.updateSalesOutbound = async (req, res) => {
     // ========== 在事务内预先查好下游需要的数据（仅读取，不编排）==========
     let eventPayload = null;
     try {
-      let fullSalesOrder = null;
-      let customerId = null;
-      let customerName = null;
+      // 收集全部关联订单 ID（单订单 + 多订单 + 明细 source_order_id）
+      const relatedOrderIdSet = new Set();
+      if (finalOrderId) relatedOrderIdSet.add(Number(finalOrderId));
+      if (Array.isArray(finalRelatedOrders)) {
+        finalRelatedOrders.forEach((oid) => {
+          const n = Number(oid);
+          if (Number.isInteger(n) && n > 0) relatedOrderIdSet.add(n);
+        });
+      }
+      if (currentOutbound.related_orders) {
+        try {
+          const parsed =
+            typeof currentOutbound.related_orders === 'string'
+              ? JSON.parse(currentOutbound.related_orders)
+              : currentOutbound.related_orders;
+          if (Array.isArray(parsed)) {
+            parsed.forEach((oid) => {
+              const n = Number(oid);
+              if (Number.isInteger(n) && n > 0) relatedOrderIdSet.add(n);
+            });
+          }
+        } catch {
+          // ignore parse errors
+        }
+      }
+      const [sourceOrderRows] = await connection.execute(
+        `SELECT DISTINCT source_order_id FROM sales_outbound_items
+         WHERE outbound_id = ? AND source_order_id IS NOT NULL`,
+        [id]
+      );
+      sourceOrderRows.forEach((row) => {
+        const n = Number(row.source_order_id);
+        if (Number.isInteger(n) && n > 0) relatedOrderIdSet.add(n);
+      });
 
-      if (finalOrderId) {
+      const orderIds = [...relatedOrderIdSet].filter(Boolean);
+      let salesOrdersList = [];
+      if (orderIds.length > 0) {
+        const ph = orderIds.map(() => '?').join(',');
         const [salesOrders] = await connection.execute(
           `SELECT so.*, c.name as customer_name
            FROM sales_orders so
            LEFT JOIN customers c ON so.customer_id = c.id
-           WHERE so.id = ? AND so.deleted_at IS NULL`,
-          [finalOrderId]
+           WHERE so.id IN (${ph}) AND so.deleted_at IS NULL`,
+          orderIds
         );
-        if (salesOrders.length > 0) {
-          fullSalesOrder = salesOrders[0];
-          customerId = fullSalesOrder.customer_id ?? null;
-          customerName = fullSalesOrder.customer_name ?? null;
-        }
+        salesOrdersList = salesOrders;
       }
+
+      const fullSalesOrder = salesOrdersList[0] || null;
+      const customerId =
+        fullSalesOrder?.customer_id ?? currentOutbound.customer_id ?? null;
+      const customerName = fullSalesOrder?.customer_name ?? null;
 
       eventPayload = {
         salesOrder: fullSalesOrder,
+        salesOrders: salesOrdersList,
         outboundData: {
           id: id ?? null,
           outbound_no: currentOutbound.outbound_no ?? null,
+          order_id: finalOrderId ?? currentOutbound.order_id ?? null,
           delivery_date: formattedDeliveryDate ?? currentOutbound.delivery_date ?? null,
           outbound_date: formattedDeliveryDate ?? currentOutbound.delivery_date ?? null,
           customer_id: customerId,
@@ -1414,7 +1454,7 @@ exports.reverseSalesOutbound = async (req, res) => {
           transactionType: 'outbound_cancel',
           referenceNo: outboundNo,
           referenceType: 'sales_outbound_reversal',
-          operator: operator || 'system',
+          operator: operator || getRequestActorLabel(req),
           remark: `冲销销售出库 ${outboundNo}，来源台账 ${ledger.id}`,
           unitId: ledger.unit_id,
           batchNumber: ledger.batch_number || `REV-SOB-${outboundNo}-${ledger.id}`,
@@ -1444,7 +1484,7 @@ exports.reverseSalesOutbound = async (req, res) => {
         outboundNo,
         outboundId: Number(id),
         orderId: outbound.order_id ? Number(outbound.order_id) : null,
-        operator: operator || 'system',
+        operator: operator || getRequestActorLabel(req),
       });
     } catch (finErr) {
       await connection.rollback();
@@ -1457,13 +1497,104 @@ exports.reverseSalesOutbound = async (req, res) => {
       );
     }
 
-    // 冲销后尝试恢复订单为 ready_to_ship（若仍有未发完数量，由状态服务再判定）
-    if (outbound.order_id) {
+    // 冲销后：同步所有关联订单状态 + 重新预留剩余未发数量
+    const relatedOrderIds = new Set();
+    if (outbound.order_id) relatedOrderIds.add(Number(outbound.order_id));
+    if (outbound.related_orders) {
       try {
-        await SalesOrderStatusService.updateOrderStatus(outbound.order_id, connection);
-      } catch (statusErr) {
-        logger.warn(`销售出库冲销后订单状态同步失败: ${statusErr.message}`);
+        const parsed =
+          typeof outbound.related_orders === 'string'
+            ? JSON.parse(outbound.related_orders)
+            : outbound.related_orders;
+        if (Array.isArray(parsed)) {
+          parsed.forEach((oid) => {
+            const n = Number(oid);
+            if (Number.isInteger(n) && n > 0) relatedOrderIds.add(n);
+          });
+        }
+      } catch {
+        // ignore
       }
+    }
+    const [srcOrders] = await connection.execute(
+      `SELECT DISTINCT source_order_id FROM sales_outbound_items
+       WHERE outbound_id = ? AND source_order_id IS NOT NULL`,
+      [id]
+    );
+    srcOrders.forEach((r) => {
+      const n = Number(r.source_order_id);
+      if (Number.isInteger(n) && n > 0) relatedOrderIds.add(n);
+    });
+
+    const orderIdList = [...relatedOrderIds].filter(Boolean);
+    for (const orderId of orderIdList) {
+      try {
+        await SalesOrderStatusService.updateOrderStatus(orderId, connection);
+      } catch (statusErr) {
+        logger.warn(`销售出库冲销后订单 ${orderId} 状态同步失败: ${statusErr.message}`);
+      }
+    }
+
+    // 重新预留：库存已回冲，为仍未发完的订单行建立 active 预留
+    try {
+      const InventoryReservationService = require('../../../services/InventoryReservationService');
+      const userId = req.user?.id || null;
+      for (const orderId of orderIdList) {
+        const [orderRows] = await connection.execute(
+          `SELECT id, order_no, status FROM sales_orders
+           WHERE id = ? AND deleted_at IS NULL FOR UPDATE`,
+          [orderId]
+        );
+        if (!orderRows.length) continue;
+        const order = orderRows[0];
+        if (['cancelled', 'completed'].includes(String(order.status))) continue;
+
+        const [items] = await connection.execute(
+          `SELECT material_id, quantity AS ordered_quantity
+           FROM sales_order_items WHERE order_id = ?`,
+          [orderId]
+        );
+        if (!items.length) continue;
+
+        // 剩余可发 = 订购 − 其它未冲销出库
+        const remainingItems = [];
+        for (const item of items) {
+          const [shipped] = await connection.execute(
+            `SELECT COALESCE(SUM(sobi.quantity), 0) AS shipped_qty
+             FROM sales_outbound_items sobi
+             JOIN sales_outbound sob ON sob.id = sobi.outbound_id
+             WHERE sob.deleted_at IS NULL
+               AND sob.status IN ('processing', 'completed')
+               AND sobi.product_id = ?
+               AND (sob.order_id = ? OR sobi.source_order_id = ?)`,
+            [item.material_id, orderId, orderId]
+          );
+          const ordered = parseFloat(item.ordered_quantity) || 0;
+          const shipQty = parseFloat(shipped[0]?.shipped_qty) || 0;
+          const remain = Math.max(0, ordered - shipQty);
+          if (remain > 0.0001) {
+            remainingItems.push({
+              material_id: item.material_id,
+              quantity: remain,
+              ordered_quantity: remain,
+            });
+          }
+        }
+        if (remainingItems.length) {
+          await InventoryReservationService.reserveInventoryForOrder(
+            orderId,
+            order.order_no,
+            remainingItems,
+            userId,
+            connection
+          );
+          logger.info(
+            `销售出库冲销后订单 ${order.order_no} 已重预留 ${remainingItems.length} 行`
+          );
+        }
+      }
+    } catch (reserveErr) {
+      logger.warn(`销售出库冲销后重预留失败: ${reserveErr.message}`);
     }
 
     await connection.commit();
@@ -1476,6 +1607,7 @@ exports.reverseSalesOutbound = async (req, res) => {
         reversedQuantity: reversedQty,
         reversedLedgerCount: ledgerRows.length,
         financeCompensation,
+        relatedOrderIds: orderIdList,
       },
       '销售出库冲销成功，库存与财务已回冲'
     );

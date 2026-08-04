@@ -996,9 +996,14 @@ const expenseModel = {
         paymentData.cost_center_id,
         '成本中心ID'
       );
-      const budgetDepartmentId = costCenterId
-        ? await getCostCenterDepartmentId(connection, costCenterId)
-        : null;
+      // 预算部门：优先显式 department_id，其次成本中心映射
+      let budgetDepartmentId = normalizeOptionalPositiveInteger(
+        paymentData.department_id,
+        '部门ID'
+      );
+      if (!budgetDepartmentId && costCenterId) {
+        budgetDepartmentId = await getCostCenterDepartmentId(connection, costCenterId);
+      }
 
       // 5. 更新银行账户余额
       const newBalance = parseFloat(bankAccount.current_balance) - expenseAmount;
@@ -1066,7 +1071,13 @@ const expenseModel = {
               document_number: expense.expense_number,
               period_id: periods[0].id,
               description: `费用付款: ${expense.title}`,
-              created_by: paymentData.created_by || 'system',
+              // created_by 必须是用户 ID（数字）；禁止写 'system' 字符串
+              created_by:
+                paymentData.created_by ||
+                paymentData.paid_by ||
+                expense.approved_by ||
+                expense.created_by ||
+                null,
               status: 'posted',
               is_posted: 1,
             };

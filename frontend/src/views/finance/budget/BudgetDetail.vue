@@ -1,10 +1,15 @@
 <template>
   <div class="module-page budget-detail-container">
-    <el-card v-loading="loading">
+    <PageHeader title="预算详情" subtitle="查看预算方案与执行概况">
+      <template #actions>
+        <el-button @click="handleBack">返回</el-button>
+      </template>
+    </PageHeader>
+
+    <el-card class="data-card" shadow="never" v-loading="loading">
       <template #header>
         <div class="card-header">
-          <span>预算详情</span>
-          <el-button @click="handleBack">返回</el-button>
+          <span>基本信息</span>
         </div>
       </template>
 

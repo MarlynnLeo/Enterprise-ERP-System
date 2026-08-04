@@ -33,6 +33,7 @@ const {
   assertInvoiceSettlementsEligible,
 } = require('../utils/finance/settlementMath');
 const { applyNormalizedInvoiceAmounts } = require('../utils/finance/invoiceAmounts');
+const { toInvoiceApi } = require('../utils/finance/invoiceFieldMap');
 
 const resolveInvoiceItemAmount = (item) =>
   item.amount !== undefined && item.amount !== null
@@ -109,7 +110,7 @@ const getAccountIdByCode = async (connection, accountCode, accountLabel) => {
   return accounts[0].id;
 };
 
-const assertManualStatusTransition = (currentStatus, nextStatus) => {
+const assertManualStatusTransition = (currentStatus, nextStatus, invoice = null) => {
   if (currentStatus === nextStatus) {
     return;
   }
@@ -119,6 +120,17 @@ const assertManualStatusTransition = (currentStatus, nextStatus) => {
     throw new Error(
       `不允许从"${currentStatus}"手工变更为"${nextStatus}"；付款状态只能由付款/作废流程自动维护`
     );
+  }
+
+  // 已确认/逾期 → 取消：必须未付款
+  if (
+    nextStatus === INVOICE_STATUS.CANCELLED &&
+    [INVOICE_STATUS.CONFIRMED, INVOICE_STATUS.OVERDUE].includes(currentStatus)
+  ) {
+    const paid = Math.abs(toCents(invoice?.paid_amount || 0));
+    if (paid > 0) {
+      throw new Error('发票已有付款记录，不能直接取消；请先作废相关付款');
+    }
   }
 };
 
@@ -206,12 +218,23 @@ const resolvePurchaseInvoiceAccounts = async (connection, invoice) => {
   }
 
   await accountingConfig.loadFromDatabase(db);
-  return {
-    purchaseCostAccountId: await getAccountIdByCode(
+  // 专业默认：借 GR/IR（暂估应付），与入库集成路径一致；无 GR/IR 再回退采购成本
+  let debitAccountId;
+  try {
+    debitAccountId = await getAccountIdByCode(
+      connection,
+      accountingConfig.getAccountCode('GR_IR'),
+      'GR/IR暂估'
+    );
+  } catch {
+    debitAccountId = await getAccountIdByCode(
       connection,
       accountingConfig.getAccountCode('PURCHASE_COST'),
       '采购成本'
-    ),
+    );
+  }
+  return {
+    purchaseCostAccountId: debitAccountId,
     payableAccountId: await getAccountIdByCode(
       connection,
       accountingConfig.getAccountCode('ACCOUNTS_PAYABLE'),
@@ -220,7 +243,15 @@ const resolvePurchaseInvoiceAccounts = async (connection, invoice) => {
   };
 };
 
-const createInvoiceConfirmationEntry = async (connection, invoice, createdBy = 'system') => {
+const createInvoiceConfirmationEntry = async (connection, invoice, createdBy = null) => {
+  const { resolveActorUserId } = require('../utils/userUtils');
+  createdBy = await resolveActorUserId(
+    connection,
+    createdBy,
+    invoice.created_by,
+    invoice.updated_by,
+    invoice.gl_entry?.created_by
+  );
   const shouldCreateEntry = await ensureNoActiveInvoiceEntry(connection, invoice.invoice_number);
   if (!shouldCreateEntry) {
     return null;
@@ -230,8 +261,101 @@ const createInvoiceConfirmationEntry = async (connection, invoice, createdBy = '
     connection,
     invoice
   );
+  await accountingConfig.loadFromDatabase(db);
+  await financeConfig.loadFromDatabase(db);
+  const inputTaxAccountId =
+    invoice.gl_entry?.input_tax_account_id ||
+    (await getAccountIdByCode(
+      connection,
+      accountingConfig.getAccountCode('VAT_INPUT_TAX'),
+      '进项税额'
+    ).catch(() => null));
+
   const periodId = await getOpenPeriodIdByDate(connection, invoice.invoice_date);
   const amountPolicy = normalizeInvoiceAmountPolicy(invoice);
+  const totalAbs = amountPolicy.absoluteAmount;
+  const taxAbs = Math.abs(toCents(invoice.tax_amount || 0)) / 100;
+  let netAbs = Math.abs(
+    toCents(invoice.amount_excluding_tax ?? invoice.subtotal ?? invoice.subtotal_amount ?? 0)
+  ) / 100;
+  if (netAbs <= 0 && totalAbs > 0) {
+    netAbs = Math.max(0, Math.round((totalAbs - taxAbs) * 100) / 100);
+  }
+  // 价税分离 fail-closed：有税额时必须拆进项税，禁止采购成本含税
+  const { TAX_SPLIT_FAIL_CLOSED } = require('../constants/financeConstants');
+  const canSplitTax =
+    taxAbs > 0.0001 && inputTaxAccountId && Math.abs(netAbs + taxAbs - totalAbs) <= 0.02;
+  if (taxAbs > 0.0001 && !canSplitTax) {
+    if (TAX_SPLIT_FAIL_CLOSED) {
+      if (!inputTaxAccountId) {
+        throw new Error('未配置进项税科目(VAT_INPUT_TAX)，禁止确认含税应付发票（价税分离 fail-closed）');
+      }
+      throw new Error(
+        `价税金额不平（未税 ${netAbs} + 税 ${taxAbs} ≠ 合计 ${totalAbs}），禁止确认发票`
+      );
+    }
+    logger.warn('[AP] 价税分离失败，降级两行价税合计', {
+      invoiceNumber: invoice.invoice_number,
+      netAbs,
+      taxAbs,
+      totalAbs,
+    });
+  }
+  const splitTax = canSplitTax;
+  const currency = invoice.currency_code || financeConfig.get('invoice.defaultCurrency', 'CNY');
+  const rate = invoice.exchange_rate || 1;
+  const isCn = amountPolicy.isCreditNote;
+
+  const supplierId = invoice.supplier_id ? Number(invoice.supplier_id) : null;
+  const items = splitTax
+    ? [
+        {
+          account_id: purchaseCostAccountId,
+          debit_amount: isCn ? 0 : netAbs,
+          credit_amount: isCn ? netAbs : 0,
+          currency_code: currency,
+          exchange_rate: rate,
+          supplier_id: supplierId,
+          description: `采购/GR-IR(未税) - 发票号: ${invoice.invoice_number}`,
+        },
+        {
+          account_id: inputTaxAccountId,
+          debit_amount: isCn ? 0 : taxAbs,
+          credit_amount: isCn ? taxAbs : 0,
+          currency_code: currency,
+          exchange_rate: rate,
+          description: `进项税额 - 发票号: ${invoice.invoice_number}`,
+        },
+        {
+          account_id: payableAccountId,
+          debit_amount: isCn ? totalAbs : 0,
+          credit_amount: isCn ? 0 : totalAbs,
+          currency_code: currency,
+          exchange_rate: rate,
+          supplier_id: supplierId,
+          description: `应付账款(价税合计) - 发票号: ${invoice.invoice_number}`,
+        },
+      ]
+    : [
+        {
+          account_id: purchaseCostAccountId,
+          debit_amount: isCn ? 0 : totalAbs,
+          credit_amount: isCn ? totalAbs : 0,
+          currency_code: currency,
+          exchange_rate: rate,
+          supplier_id: supplierId,
+          description: `采购/GR-IR - 发票号: ${invoice.invoice_number}`,
+        },
+        {
+          account_id: payableAccountId,
+          debit_amount: isCn ? totalAbs : 0,
+          credit_amount: isCn ? 0 : totalAbs,
+          currency_code: currency,
+          exchange_rate: rate,
+          supplier_id: supplierId,
+          description: `应付账款 - 发票号: ${invoice.invoice_number}`,
+        },
+      ];
 
   const entryId = await financeModel.createEntry(
     {
@@ -245,24 +369,7 @@ const createInvoiceConfirmationEntry = async (connection, invoice, createdBy = '
       status: 'posted',
       is_posted: 1,
     },
-    [
-      {
-        account_id: purchaseCostAccountId,
-        debit_amount: amountPolicy.isCreditNote ? 0 : amountPolicy.absoluteAmount,
-        credit_amount: amountPolicy.isCreditNote ? amountPolicy.absoluteAmount : 0,
-        currency_code: invoice.currency_code || financeConfig.get('invoice.defaultCurrency', 'CNY'),
-        exchange_rate: invoice.exchange_rate || 1,
-        description: `采购成本 - 发票号: ${invoice.invoice_number}`,
-      },
-      {
-        account_id: payableAccountId,
-        debit_amount: amountPolicy.isCreditNote ? amountPolicy.absoluteAmount : 0,
-        credit_amount: amountPolicy.isCreditNote ? 0 : amountPolicy.absoluteAmount,
-        currency_code: invoice.currency_code || financeConfig.get('invoice.defaultCurrency', 'CNY'),
-        exchange_rate: invoice.exchange_rate || 1,
-        description: `应付账款 - 发票号: ${invoice.invoice_number}`,
-      },
-    ],
+    items,
     connection
   );
 
@@ -299,7 +406,7 @@ const buildPaymentGlEntry = async (connection, paymentData) => {
 
   return {
     period_id: periodId,
-    created_by: paymentData.created_by || financeConfig.get('system.defaultCreator', 'system'),
+    created_by: paymentData.created_by || financeConfig.get('system.defaultCreator', null),
     payable_account_id: payableAccountId,
     bank_account_id: bankAccountId,
   };
@@ -340,21 +447,25 @@ const apModel = {
             ? invoiceData.gl_entry.created_by
             : null;
 
-      // 插入应付账款发票
+      // 插入应付账款发票（含未税/税额/税率，供价税分离与账龄分析）
       const [result] = await conn.execute(
         `INSERT INTO ap_invoices
         (invoice_number, supplier_id, invoice_date, due_date,
-         total_amount, paid_amount, balance_amount,
+         total_amount, amount_excluding_tax, tax_amount, tax_rate,
+         paid_amount, balance_amount,
          currency_code, exchange_rate, status, terms, notes,
          supplier_invoice_number, source_type, source_id,
          created_by, updated_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           invoiceData.invoice_number,
           invoiceData.supplier_id,
           invoiceData.invoice_date,
           invoiceData.due_date,
           amountPolicy.totalAmount,
+          invoiceData.amount_excluding_tax ?? invoiceData.subtotal ?? null,
+          invoiceData.tax_amount ?? null,
+          invoiceData.tax_rate ?? null,
           0, // 初始已付金额为0
           balanceAmount,
 
@@ -391,16 +502,40 @@ const apModel = {
         );
       }
 
-      // 已确认发票必须同步生成总账凭证；缺科目、期间或凭证校验失败时回滚整张发票。
+      // 已确认发票默认同步生成总账凭证；合并生成路径可 skip_gl_entry，由上层写一张合并凭证。
       if (invoiceData.status === INVOICE_STATUS.CONFIRMED) {
         if (!amountPolicy.isCreditNote && toCents(invoiceData.total_amount) <= 0) {
           throw new Error('发票金额必须大于0才能确认');
         }
-        await createInvoiceConfirmationEntry(
-          conn,
-          { ...invoiceData, id: invoiceId },
-          invoiceData.created_by || 'system'
-        );
+        // 强制三单匹配时：来源为收货的 AP 须先有 confirmed 匹配单
+        if (
+          invoiceData.source_type === 'purchase_receipt' &&
+          invoiceData.source_id
+        ) {
+          try {
+            const ThreeWayMatchService = require('../services/finance/ThreeWayMatchService');
+            if (await ThreeWayMatchService.isMatchRequired()) {
+              const ok = await ThreeWayMatchService.hasConfirmedMatchForReceipt(
+                invoiceData.source_id
+              );
+              if (!ok) {
+                throw new Error(
+                  '已开启三单匹配强制：请先完成并确认 PO-收货-发票匹配，再确认应付'
+                );
+              }
+            }
+          } catch (e) {
+            if (e.message && e.message.includes('三单匹配')) throw e;
+            // 表未建时忽略强制
+          }
+        }
+        if (!invoiceData.skip_gl_entry) {
+          await createInvoiceConfirmationEntry(
+            conn,
+            { ...invoiceData, id: invoiceId },
+            invoiceData.created_by
+          );
+        }
       }
 
       if (!connection) {
@@ -450,13 +585,10 @@ const apModel = {
 
     const invoice = invoices[0];
 
-    // 查询发票明细项
+    // 查询发票明细项（库列 snake；出参由 toInvoiceApi 统一 camel）
     const [items] = await db.pool.execute(
-      `SELECT i.id, i.material_id as materialId, i.material_id as material_id, i.description,
-              i.quantity, i.unit_price as unitPrice, i.unit_price as unit_price, i.amount,
-              m.code as materialCode, m.code as material_code,
-              m.name as materialName, m.name as material_name,
-              m.specs as specification, m.specs as specs
+      `SELECT i.id, i.material_id, i.description, i.quantity, i.unit_price, i.amount,
+              m.code AS material_code, m.name AS material_name, m.specs AS specification
        FROM ap_invoice_items i
        LEFT JOIN materials m ON i.material_id = m.id
        WHERE i.invoice_id = ?
@@ -464,28 +596,8 @@ const apModel = {
       [id]
     );
 
-    // 添加明细项到发票数据
     invoice.items = items;
-
-    // 格式化数据以符合前端期望
-    const result = {
-      id: invoice.id,
-      invoiceNumber: invoice.invoice_number,
-      supplierInvoiceNumber: invoice.supplier_invoice_number,
-      supplierId: invoice.supplier_id,
-      supplierName: invoice.supplier_name,
-      invoiceDate: invoice.invoice_date,
-      dueDate: invoice.due_date,
-      amount: invoice.total_amount,
-      paidAmount: invoice.paid_amount,
-      balance: invoice.balance_amount,
-      status: invoice.status,
-      notes: invoice.notes,
-      items: items,
-      createdAt: invoice.created_at,
-    };
-
-    return result;
+    return toInvoiceApi(invoice, 'ap');
   },
 
   /**
@@ -575,15 +687,15 @@ const apModel = {
     // 分页参数处理
     const offset = pagination.offset;
 
-    // 执行数据查询 - 使用统一的JOIN查询
+    // 列表 SQL 只选 snake 列；出参统一 toInvoiceApi（禁止 SQL 里 AS camel 双轨）
     const dataQuery = `
-        SELECT a.id, a.invoice_number as invoiceNumber, a.supplier_invoice_number as supplierInvoiceNumber, a.supplier_id as supplierId,
-              s.name as supplierName,
-              DATE_FORMAT(a.invoice_date, '%Y-%m-%d') as invoiceDate,
-              DATE_FORMAT(a.due_date, '%Y-%m-%d') as dueDate,
-              a.total_amount as amount,
-              a.paid_amount as paidAmount, a.balance_amount as balance,
-              a.status, DATE_FORMAT(a.created_at, '%Y-%m-%d') as createdAt
+        SELECT a.id, a.invoice_number, a.supplier_invoice_number, a.supplier_id,
+              s.name AS supplier_name,
+              DATE_FORMAT(a.invoice_date, '%Y-%m-%d') AS invoice_date,
+              DATE_FORMAT(a.due_date, '%Y-%m-%d') AS due_date,
+              a.total_amount, a.amount_excluding_tax, a.tax_amount, a.tax_rate,
+              a.paid_amount, a.balance_amount, a.terms, a.source_type, a.source_id,
+              a.status, DATE_FORMAT(a.created_at, '%Y-%m-%d') AS created_at
         FROM ap_invoices a
         LEFT JOIN suppliers s ON a.supplier_id = s.id
         ${scopeClause.join || ''}
@@ -591,12 +703,10 @@ const apModel = {
         ORDER BY a.invoice_date DESC, a.id DESC
         LIMIT ${numPageSize} OFFSET ${offset}`;
 
-    // 使用 query 而不是 execute，避免 LIMIT/OFFSET 参数化问题
-    const [invoices] = await db.pool.query(dataQuery, params);
+    const [rows] = await db.pool.query(dataQuery, params);
 
-    // 返回结果
     return {
-      data: invoices,
+      data: (rows || []).map((row) => toInvoiceApi(row, 'ap')),
       total,
       page: numPage,
       pageSize: numPageSize,
@@ -626,24 +736,80 @@ const apModel = {
       }
 
       const invoice = invoices[0];
-      assertManualStatusTransition(invoice.status, status);
+      assertManualStatusTransition(invoice.status, status, invoice);
 
       if (invoice.status !== status && status === INVOICE_STATUS.CONFIRMED) {
         const amountPolicy = normalizeInvoiceAmountPolicy(invoice);
         if (!amountPolicy.isCreditNote && toCents(invoice.total_amount) <= 0) {
           throw new Error('发票金额必须大于0才能确认');
         }
+        if (invoice.source_type === 'purchase_receipt' && invoice.source_id) {
+          try {
+            const ThreeWayMatchService = require('../services/finance/ThreeWayMatchService');
+            if (await ThreeWayMatchService.isMatchRequired()) {
+              const ok = await ThreeWayMatchService.hasConfirmedMatchForReceipt(invoice.source_id);
+              if (!ok) {
+                throw new Error(
+                  '已开启三单匹配强制：请先完成并确认 PO-收货-发票匹配，再确认应付'
+                );
+              }
+            }
+          } catch (e) {
+            if (e.message && e.message.includes('三单匹配')) throw e;
+          }
+        }
         await createInvoiceConfirmationEntry(
           connection,
           invoice,
-          options.updated_by || options.created_by || 'system'
+          options.updated_by || options.created_by
         );
+      }
+
+      // 已确认/逾期→取消：冲销关联确认凭证（未付款已在 assertManualStatusTransition 校验）
+      if (
+        invoice.status !== status &&
+        status === INVOICE_STATUS.CANCELLED &&
+        [INVOICE_STATUS.CONFIRMED, INVOICE_STATUS.OVERDUE].includes(invoice.status)
+      ) {
+        const VoucherReversalService = require('../services/finance/VoucherReversalService');
+        const { resolveActorUserId } = require('../utils/userUtils');
+        const voidedBy = await resolveActorUserId(
+          connection,
+          options.updated_by,
+          options.created_by,
+          invoice.created_by
+        );
+        try {
+          await VoucherReversalService.reverseBusinessVouchers(connection, {
+            sourceType: 'ap_invoice',
+            sourceId: invoice.id,
+            documentNumber: invoice.invoice_number,
+            documentType: DOCUMENT_TYPE_MAPPING.PURCHASE_INVOICE,
+            voidedBy,
+            reason: `应付发票作废 ${invoice.invoice_number}`,
+          });
+        } catch (revErr) {
+          // 历史数据可能无 GL 凭证；其余冲销失败必须阻断作废，避免账实不一致
+          if (!/未找到|不存在|not found|NO_ENTRY|无可冲销/i.test(String(revErr.message || ''))) {
+            throw revErr;
+          }
+          logger.warn(`[AP] 作废时未找到可冲销凭证: ${revErr.message}`);
+        }
       }
 
       if (invoice.status !== status) {
         await connection.execute(
           'UPDATE ap_invoices SET status = ?, updated_at = NOW() WHERE id = ?',
           [status, id]
+        );
+      }
+
+      if (status === INVOICE_STATUS.CANCELLED || status === 'cancelled' || status === 'void' || status === '作废') {
+        const FinanceIntegrationService = require('../services/external/FinanceIntegrationService');
+        await FinanceIntegrationService.releaseInvoiceSourceOnCancel(
+          connection,
+          'ap_invoices',
+          id
         );
       }
 
@@ -668,7 +834,8 @@ const apModel = {
 
       const [currentInvoice] = await connection.execute(
         `SELECT id, status, invoice_number, supplier_id, invoice_date, due_date,
-                total_amount, paid_amount, balance_amount
+                total_amount, amount_excluding_tax, tax_amount, tax_rate,
+                paid_amount, balance_amount, terms, notes
          FROM ap_invoices
          WHERE id = ?
          FOR UPDATE`,
@@ -716,11 +883,12 @@ const apModel = {
       invoiceData.total_amount = amountPolicy.totalAmount;
       assertInvoiceItemsMatchTotal(invoiceData.items, invoiceData.total_amount, invoiceData);
 
-      // 更新发票主数据（供应商发票号、备注等始终可更新）
+      // 更新发票主数据（含未税/税额/税率，与 create 对称）
       await connection.execute(
         `UPDATE ap_invoices
          SET invoice_number = ?, supplier_invoice_number = ?, supplier_id = ?, invoice_date = ?,
-             due_date = ?, total_amount = ?, balance_amount = ?, notes = ?, updated_at = NOW()
+             due_date = ?, total_amount = ?, amount_excluding_tax = ?, tax_amount = ?, tax_rate = ?,
+             balance_amount = ?, terms = ?, notes = ?, updated_at = NOW()
          WHERE id = ?`,
         [
           invoiceData.invoice_number,
@@ -729,7 +897,11 @@ const apModel = {
           invoiceData.invoice_date,
           invoiceData.due_date,
           invoiceData.total_amount,
+          invoiceData.amount_excluding_tax ?? invoiceData.subtotal ?? null,
+          invoiceData.tax_amount ?? null,
+          invoiceData.tax_rate ?? null,
           invoiceData.total_amount - (invoiceData.paid_amount || 0), // 重新计算余额
+          invoiceData.terms ?? null,
           invoiceData.notes || null,
           invoiceData.id,
         ]
@@ -773,14 +945,22 @@ const apModel = {
           apSource[0].source_type === 'purchase_receipt' &&
           apSource[0].source_id
         ) {
+          const {
+            TAX_RELATED_DOCUMENT_TYPES,
+            taxRelatedDocumentTypeMatchList,
+          } = require('../constants/financeConstants');
+          const receiptTaxTypes = taxRelatedDocumentTypeMatchList(
+            TAX_RELATED_DOCUMENT_TYPES.PURCHASE_RECEIPT
+          );
+          const receiptTaxPlaceholders = receiptTaxTypes.map(() => '?').join(', ');
           const [syncResult] = await connection.execute(
             `UPDATE tax_invoices
              SET invoice_number = ?, updated_at = NOW()
-             WHERE related_document_type = '采购入库单'
+             WHERE related_document_type IN (${receiptTaxPlaceholders})
                AND related_document_id = ?
                AND status = '未认证'
                AND gl_entry_id IS NULL`,
-            [invoiceData.supplier_invoice_number, apSource[0].source_id]
+            [invoiceData.supplier_invoice_number, ...receiptTaxTypes, apSource[0].source_id]
           );
           if (syncResult.affectedRows > 0) {
             logger.info('[AP→Tax同步] 供应商发票号同步成功', {
@@ -818,11 +998,54 @@ const apModel = {
         await connection.beginTransaction();
       }
 
+      // 大额付款审批钩子
+      const PaymentApprovalGuard = require('../services/finance/PaymentApprovalGuard');
+      const payAmount = Array.isArray(paymentItems)
+        ? paymentItems.reduce((s, it) => s + Number(it.amount || it.payment_amount || 0), 0)
+        : Number(paymentData.amount || paymentData.total_amount || 0);
+      await PaymentApprovalGuard.assertPayable({
+        amount: payAmount,
+        approved: paymentData.approved,
+        skipApproval: paymentData.skipApproval,
+        workflowStatus: paymentData.workflow_status || paymentData.workflowStatus,
+        approvalNo: paymentData.approval_no || paymentData.approvalNo,
+        approvedBy: paymentData.created_by || paymentData.approved_by,
+        paymentRef: paymentData.payment_number,
+        remark: paymentData.notes,
+        connection,
+      });
+
       if (
         BANK_BACKED_PAYMENT_METHODS.has(paymentData.payment_method) &&
         !paymentData.bank_account_id
       ) {
         throw new Error(`${paymentData.payment_method}必须选择付款账户`);
+      }
+
+      // 预算硬控：传入费用科目时占用预算；无适用预算则跳过（skipIfNoBudget）
+      const budgetAccountId =
+        paymentData.budget_account_id ||
+        paymentData.gl_entry?.expense_account_id ||
+        paymentData.gl_entry?.purchase_cost_account_id ||
+        null;
+      if (budgetAccountId) {
+        const BudgetControlService = require('../services/business/BudgetControlService');
+        await BudgetControlService.executeBudgetControl(
+          {
+            accountId: budgetAccountId,
+            departmentId:
+              paymentData.department_id || paymentData.gl_entry?.department_id || null,
+            amount: paymentData.total_amount,
+            date: paymentData.payment_date,
+            documentType: 'ap_payment',
+            documentId: null,
+            documentNo: paymentData.payment_number,
+            description: `应付付款 ${paymentData.payment_number}`,
+            userId: paymentData.created_by,
+            skipIfNoBudget: true,
+          },
+          connection
+        );
       }
 
       // 插入付款记录
@@ -869,7 +1092,7 @@ const apModel = {
       let totalDiscountCents = 0;
       for (const item of sortedPaymentItems) {
         const [invoices] = await connection.execute(
-          'SELECT id, invoice_number, supplier_invoice_number, supplier_id, invoice_date, due_date, total_amount, paid_amount, balance_amount, currency_code, exchange_rate, status, terms, notes, created_at, updated_at, source_type, source_id, created_by, updated_by FROM ap_invoices WHERE id = ? FOR UPDATE',
+          'SELECT id, invoice_number, supplier_invoice_number, supplier_id, invoice_date, due_date, total_amount, amount_excluding_tax, tax_amount, tax_rate, paid_amount, balance_amount, currency_code, exchange_rate, status, terms, notes, created_at, updated_at, source_type, source_id, created_by, updated_by FROM ap_invoices WHERE id = ? FOR UPDATE',
           [item.invoice_id]
         );
 
@@ -1372,7 +1595,7 @@ const apModel = {
         if (!item.invoice_id) continue;
 
         const [invoices] = await connection.execute(
-          'SELECT id, invoice_number, supplier_invoice_number, supplier_id, invoice_date, due_date, total_amount, paid_amount, balance_amount, currency_code, exchange_rate, status, terms, notes, created_at, updated_at, source_type, source_id, created_by, updated_by FROM ap_invoices WHERE id = ? FOR UPDATE',
+          'SELECT id, invoice_number, supplier_invoice_number, supplier_id, invoice_date, due_date, total_amount, amount_excluding_tax, tax_amount, tax_rate, paid_amount, balance_amount, currency_code, exchange_rate, status, terms, notes, created_at, updated_at, source_type, source_id, created_by, updated_by FROM ap_invoices WHERE id = ? FOR UPDATE',
           [item.invoice_id]
         );
 
@@ -1802,6 +2025,201 @@ const apModel = {
       balance: parseFloat(item.balance || 0),
       lastInvoiceDate: item.lastInvoiceDate,
     }));
+  },
+
+  /**
+   * 应付结算看板：数量 + 金额汇总 + 未结清明细
+   * settlementKey: all | unpaid | partial | paid | overdue | open
+   */
+  getSettlementDashboard: async (filters = {}) => {
+    const { startDate, endDate, supplierName, settlementKey = 'open', limit = 50 } = filters;
+    const where = ["a.status NOT IN ('草稿', '已取消', 'cancelled', 'void', '作废')"];
+    const params = [];
+
+    if (startDate) {
+      where.push('a.invoice_date >= ?');
+      params.push(startDate);
+    }
+    if (endDate) {
+      where.push('a.invoice_date <= ?');
+      params.push(endDate);
+    }
+    if (supplierName) {
+      where.push('s.name LIKE ?');
+      params.push(`%${supplierName}%`);
+    }
+
+    const whereSql = where.join(' AND ');
+
+    const [summaryRows] = await db.pool.execute(
+      `SELECT
+         COUNT(*) AS total_count,
+         COALESCE(SUM(a.total_amount), 0) AS total_amount,
+         COALESCE(SUM(a.paid_amount), 0) AS paid_amount,
+         COALESCE(SUM(a.balance_amount), 0) AS balance_amount,
+         SUM(CASE WHEN a.status = '已付款' OR COALESCE(a.balance_amount, 0) <= 0.005 THEN 1 ELSE 0 END) AS paid_count,
+         COALESCE(SUM(CASE WHEN a.status = '已付款' OR COALESCE(a.balance_amount, 0) <= 0.005 THEN a.total_amount ELSE 0 END), 0) AS paid_total_amount,
+         SUM(CASE
+               WHEN a.status = '部分付款'
+                 OR (COALESCE(a.paid_amount, 0) > 0.005 AND COALESCE(a.balance_amount, 0) > 0.005)
+             THEN 1 ELSE 0 END) AS partial_count,
+         COALESCE(SUM(CASE
+               WHEN a.status = '部分付款'
+                 OR (COALESCE(a.paid_amount, 0) > 0.005 AND COALESCE(a.balance_amount, 0) > 0.005)
+             THEN a.balance_amount ELSE 0 END), 0) AS partial_balance,
+         SUM(CASE
+               WHEN a.status IN ('已确认', '已逾期')
+                AND COALESCE(a.paid_amount, 0) <= 0.005
+                AND COALESCE(a.balance_amount, 0) > 0.005
+             THEN 1 ELSE 0 END) AS unpaid_count,
+         COALESCE(SUM(CASE
+               WHEN a.status IN ('已确认', '已逾期')
+                AND COALESCE(a.paid_amount, 0) <= 0.005
+                AND COALESCE(a.balance_amount, 0) > 0.005
+             THEN a.balance_amount ELSE 0 END), 0) AS unpaid_balance,
+         SUM(CASE
+               WHEN a.status = '已逾期'
+                AND COALESCE(a.balance_amount, 0) > 0.005
+             THEN 1
+               WHEN COALESCE(a.balance_amount, 0) > 0.005
+                AND a.due_date IS NOT NULL
+                AND a.due_date < CURDATE()
+                AND a.status NOT IN ('已付款')
+             THEN 1 ELSE 0 END) AS overdue_count,
+         COALESCE(SUM(CASE
+               WHEN a.status = '已逾期'
+                AND COALESCE(a.balance_amount, 0) > 0.005
+             THEN a.balance_amount
+               WHEN COALESCE(a.balance_amount, 0) > 0.005
+                AND a.due_date IS NOT NULL
+                AND a.due_date < CURDATE()
+                AND a.status NOT IN ('已付款')
+             THEN a.balance_amount ELSE 0 END), 0) AS overdue_balance,
+         SUM(CASE WHEN COALESCE(a.balance_amount, 0) > 0.005 THEN 1 ELSE 0 END) AS open_count,
+         COALESCE(SUM(CASE WHEN COALESCE(a.balance_amount, 0) > 0.005 THEN a.balance_amount ELSE 0 END), 0) AS open_balance
+       FROM ap_invoices a
+       LEFT JOIN suppliers s ON a.supplier_id = s.id
+       WHERE ${whereSql}`,
+      params
+    );
+
+    const s = summaryRows[0] || {};
+    const summary = {
+      totalCount: Number(s.total_count || 0),
+      totalAmount: Number(s.total_amount || 0),
+      paidAmount: Number(s.paid_amount || 0),
+      balanceAmount: Number(s.balance_amount || 0),
+      paidCount: Number(s.paid_count || 0),
+      paidTotalAmount: Number(s.paid_total_amount || 0),
+      partialCount: Number(s.partial_count || 0),
+      partialBalance: Number(s.partial_balance || 0),
+      unpaidCount: Number(s.unpaid_count || 0),
+      unpaidBalance: Number(s.unpaid_balance || 0),
+      overdueCount: Number(s.overdue_count || 0),
+      overdueBalance: Number(s.overdue_balance || 0),
+      openCount: Number(s.open_count || 0),
+      openBalance: Number(s.open_balance || 0),
+    };
+
+    const detailWhere = [...where];
+    const detailParams = [...params];
+    const key = String(settlementKey || 'open').toLowerCase();
+
+    if (key === 'paid') {
+      detailWhere.push("(a.status = '已付款' OR COALESCE(a.balance_amount, 0) <= 0.005)");
+    } else if (key === 'partial') {
+      detailWhere.push(`(
+        a.status = '部分付款'
+        OR (COALESCE(a.paid_amount, 0) > 0.005 AND COALESCE(a.balance_amount, 0) > 0.005)
+      )`);
+    } else if (key === 'unpaid') {
+      detailWhere.push(`(
+        a.status IN ('已确认', '已逾期')
+        AND COALESCE(a.paid_amount, 0) <= 0.005
+        AND COALESCE(a.balance_amount, 0) > 0.005
+      )`);
+    } else if (key === 'overdue') {
+      detailWhere.push(`(
+        (a.status = '已逾期' AND COALESCE(a.balance_amount, 0) > 0.005)
+        OR (
+          COALESCE(a.balance_amount, 0) > 0.005
+          AND a.due_date IS NOT NULL
+          AND a.due_date < CURDATE()
+          AND a.status NOT IN ('已付款')
+        )
+      )`);
+    } else if (key === 'open') {
+      detailWhere.push('COALESCE(a.balance_amount, 0) > 0.005');
+    }
+
+    const limitNum = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200);
+    const [details] = await db.pool.execute(
+      `SELECT
+         a.id,
+         a.invoice_number,
+         a.supplier_invoice_number,
+         a.supplier_id,
+         s.name AS supplier_name,
+         a.invoice_date,
+         a.due_date,
+         a.total_amount,
+         a.paid_amount,
+         a.balance_amount,
+         a.status,
+         a.source_type,
+         a.source_id,
+         CASE
+           WHEN a.status = '已付款' OR COALESCE(a.balance_amount, 0) <= 0.005 THEN 'paid'
+           WHEN a.status = '已逾期'
+             OR (COALESCE(a.balance_amount, 0) > 0.005 AND a.due_date IS NOT NULL AND a.due_date < CURDATE())
+             THEN 'overdue'
+           WHEN a.status = '部分付款'
+             OR (COALESCE(a.paid_amount, 0) > 0.005 AND COALESCE(a.balance_amount, 0) > 0.005)
+             THEN 'partial'
+           ELSE 'unpaid'
+         END AS settlement_bucket,
+         CASE
+           WHEN a.due_date IS NULL THEN NULL
+           ELSE DATEDIFF(CURDATE(), a.due_date)
+         END AS overdue_days
+       FROM ap_invoices a
+       LEFT JOIN suppliers s ON a.supplier_id = s.id
+       WHERE ${detailWhere.join(' AND ')}
+       ORDER BY
+         CASE
+           WHEN a.status = '已逾期' OR (COALESCE(a.balance_amount,0) > 0.005 AND a.due_date < CURDATE()) THEN 0
+           WHEN COALESCE(a.balance_amount,0) > 0.005 THEN 1
+           ELSE 2
+         END,
+         a.due_date ASC,
+         a.id DESC
+       LIMIT ${limitNum}`,
+      detailParams
+    );
+
+    return {
+      side: 'ap',
+      asOf: new Date().toISOString().slice(0, 10),
+      settlementKey: key,
+      summary,
+      details: details.map((row) => ({
+        id: row.id,
+        invoiceNumber: row.invoice_number,
+        supplierInvoiceNumber: row.supplier_invoice_number || null,
+        partyId: row.supplier_id,
+        partyName: row.supplier_name,
+        invoiceDate: row.invoice_date,
+        dueDate: row.due_date,
+        totalAmount: Number(row.total_amount || 0),
+        paidAmount: Number(row.paid_amount || 0),
+        balanceAmount: Number(row.balance_amount || 0),
+        status: row.status,
+        sourceType: row.source_type,
+        sourceId: row.source_id,
+        settlementBucket: row.settlement_bucket,
+        overdueDays: row.overdue_days == null ? null : Number(row.overdue_days),
+      })),
+    };
   },
 };
 

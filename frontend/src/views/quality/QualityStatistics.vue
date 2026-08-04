@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="module-page inspection-container">
     <PageHeader title="质量统计" subtitle="质量指标汇总与趋势分析" />
 
@@ -119,7 +119,7 @@
     </el-card>
 
     <!-- 供应商质量分析 -->
-    <el-card class="box-card mb-16">
+    <el-card class="data-card mb-16">
 
       <el-table :data="supplierData" border class="w-full">
         <el-table-column type="index" label="排名" width="60" />
@@ -134,7 +134,7 @@
     </el-card>
 
     <!-- 物料缺陷分析 -->
-    <el-card class="box-card mb-16">
+    <el-card class="data-card mb-16">
 
       <el-table :data="materialData" border class="w-full">
         <el-table-column type="index" label="排名" width="60" />
@@ -467,13 +467,9 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.inspection-container {
-  padding: 20px;
-}
+.inspection-container { /* spacing via module-page */ }
 
-.box-card {
-  margin-bottom: 16px;
-}
+
 
 .stat-card {
   flex: 1;

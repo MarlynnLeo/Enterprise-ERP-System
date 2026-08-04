@@ -336,10 +336,6 @@ onMounted(() => {
   margin-bottom: 0;
 }
 
-.data-card {
-  margin-bottom: 20px;
-}
-
 .pagination-container {
   margin-top: 20px;
   display: flex;

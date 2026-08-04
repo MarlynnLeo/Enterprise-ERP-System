@@ -82,16 +82,16 @@
         <template #empty>
           <el-empty description="暂无收货单数据" />
         </template>
-        <el-table-column prop="receipt_no" label="收货单号" min-width="120" show-overflow-tooltip></el-table-column>
-        <el-table-column prop="receipt_date" label="收货日期" min-width="110">
+        <el-table-column prop="receiptNo" label="收货单号" min-width="120" show-overflow-tooltip></el-table-column>
+        <el-table-column prop="receiptDate" label="收货日期" min-width="110">
           <template #default="scope">
-            {{ formatDate(scope.row.receipt_date) }}
+            {{ formatDate(scope.row.receiptDate) }}
           </template>
         </el-table-column>
-        <el-table-column prop="order_no" label="关联订单" min-width="120" show-overflow-tooltip></el-table-column>
-        <el-table-column prop="supplier_name" label="供应商" min-width="300" show-overflow-tooltip></el-table-column>
+        <el-table-column prop="orderNo" label="关联订单" min-width="120" show-overflow-tooltip></el-table-column>
+        <el-table-column prop="supplierName" label="供应商" min-width="300" show-overflow-tooltip></el-table-column>
         <el-table-column prop="receiver" label="收货人" min-width="100"></el-table-column>
-        <el-table-column prop="warehouse_name" label="入库仓库" min-width="120" show-overflow-tooltip></el-table-column>
+        <el-table-column prop="warehouseName" label="入库仓库" min-width="120" show-overflow-tooltip></el-table-column>
         <el-table-column prop="status" label="状态" min-width="100">
           <template #default="scope">
             <el-tag :type="getStatusType(scope.row.status)">{{ getStatusText(scope.row.status) }}</el-tag>
@@ -159,13 +159,13 @@
     >
       <div v-loading="detailLoading">
         <el-descriptions border :column="2">
-          <el-descriptions-item label="收货单号">{{ viewDialog.receipt.receipt_no }}</el-descriptions-item>
+          <el-descriptions-item label="收货单号">{{ viewDialog.receipt.receiptNo }}</el-descriptions-item>
           <el-descriptions-item label="收货日期">{{ formatDate(viewDialog.receipt.receipt_date) }}</el-descriptions-item>
           <el-descriptions-item label="状态">
             <el-tag :type="getStatusType(viewDialog.receipt.status)">{{ getStatusText(viewDialog.receipt.status) }}</el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="关联订单">{{ viewDialog.receipt.order_no }}</el-descriptions-item>
-          <el-descriptions-item label="供应商">{{ viewDialog.receipt.supplier_name }}</el-descriptions-item>
+          <el-descriptions-item label="关联订单">{{ viewDialog.receipt.orderNo }}</el-descriptions-item>
+          <el-descriptions-item label="供应商">{{ viewDialog.receipt.supplierName }}</el-descriptions-item>
           <el-descriptions-item label="收货人">{{ viewDialog.receipt.receiver }}</el-descriptions-item>
           <el-descriptions-item label="入库仓库">{{ viewDialog.receipt.warehouse_name }}</el-descriptions-item>
           <el-descriptions-item v-if="viewDialog.receipt.inspectionId" label="检验状态" :span="2">
@@ -175,6 +175,12 @@
           <el-descriptions-item label="备注" :span="2">{{ viewDialog.receipt.remarks }}</el-descriptions-item>
         </el-descriptions>
 
+        <FinanceStreamStatus
+          v-if="viewDialog.receipt?.id"
+          document-type="purchase_receipt"
+          :document-id="viewDialog.receipt.id"
+        />
+
         <el-divider content-position="center">收货物料</el-divider>
         <template v-if="!viewDialog.receipt.items || viewDialog.receipt.items.length === 0">
           <div class="no-data-info">
@@ -183,7 +189,7 @@
         </template>
         <el-table v-else :data="viewDialog.receipt.items || []" border class="w-full">
           <el-table-column type="index" label="序号" width="60"></el-table-column>
-          <el-table-column label="物料名称" prop="material_name" min-width="150">
+          <el-table-column label="物料名称" prop="materialName" min-width="150">
             <template #default="scope">
               {{ scope.row.material_name || scope.row.materialName || '未知物料' }}
             </template>
@@ -198,22 +204,22 @@
               {{ scope.row.specification || scope.row.specs || scope.row.standard || scope.row.model || scope.row.spec || '未提供' }}
             </template>
           </el-table-column>
-          <el-table-column label="单位" prop="unit_name" min-width="80">
+          <el-table-column label="单位" prop="unitName" min-width="80">
             <template #default="scope">
               {{ scope.row.unit_name || scope.row.unit || '个' }}
             </template>
           </el-table-column>
-          <el-table-column label="订单数量" prop="ordered_quantity" min-width="100">
+          <el-table-column label="订单数量" prop="orderedQuantity" min-width="100">
             <template #default="scope">
               {{ Number(scope.row.ordered_quantity || scope.row.quantity || 0).toFixed(2) }}
             </template>
           </el-table-column>
-          <el-table-column label="实收数量" prop="received_quantity" min-width="100">
+          <el-table-column label="实收数量" prop="receivedQuantity" min-width="100">
             <template #default="scope">
               {{ Number(scope.row.received_quantity || 0).toFixed(2) }}
             </template>
           </el-table-column>
-          <el-table-column label="合格数量" prop="qualified_quantity" min-width="100">
+          <el-table-column label="合格数量" prop="qualifiedQuantity" min-width="100">
             <template #default="scope">
               {{ Number(scope.row.qualified_quantity || 0).toFixed(2) }}
             </template>
@@ -464,6 +470,7 @@ import {
   getPurchaseReceiptStatusText,
   getPurchaseReceiptStatusColor
 } from '@/constants/systemConstants';
+import FinanceStreamStatus from '@/views/finance/components/FinanceStreamStatus.vue';
 
 const isBlankAmount = (value) => value === null || value === undefined || value === '';
 // 初始化认证存储

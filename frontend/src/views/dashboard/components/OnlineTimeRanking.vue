@@ -219,6 +219,8 @@ function isSameUser(left, right) {
   display: flex;
   flex-direction: column;
   background: var(--color-bg-base);
+  container-type: inline-size;
+  container-name: online-ranking;
 }
 
 .ranking-header {
@@ -565,6 +567,80 @@ function isSameUser(left, right) {
 
   .champion-avatar {
     grid-row: 1 / span 2;
+  }
+}
+
+@container online-ranking (max-width: 440px) {
+  .ranking-body {
+    padding: 12px;
+  }
+
+  .ranking-content,
+  .ranking-skeleton {
+    grid-template-rows: minmax(122px, 1fr) auto;
+    gap: 10px;
+  }
+
+  .champion-card {
+    padding: 12px;
+  }
+
+  .champion-main {
+    grid-template-columns: 82px minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .champion-avatar {
+    width: 78px;
+    height: 78px;
+    grid-row: 1 / span 2;
+    transform: scale(0.85);
+    transform-origin: center;
+  }
+
+  .champion-info h3 {
+    font-size: 16px;
+  }
+
+  .champion-time {
+    grid-column: 2;
+    font-size: 15px;
+  }
+
+  .runner-grid,
+  .skeleton-row {
+    gap: 8px;
+  }
+
+  .runner-card {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto 58px auto auto;
+    justify-items: center;
+    row-gap: 5px;
+    padding: 9px 8px;
+    text-align: center;
+  }
+
+  .runner-card .avatar-wrap {
+    width: 58px;
+    height: 58px;
+    transform: scale(0.84);
+    transform-origin: center;
+  }
+
+  .runner-info {
+    width: 100%;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .mini-bar {
+    width: 100%;
+    grid-column: 1;
+  }
+
+  .skeleton-row span {
+    height: 126px;
   }
 }
 

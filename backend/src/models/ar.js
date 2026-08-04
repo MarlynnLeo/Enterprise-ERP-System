@@ -30,6 +30,7 @@ const {
   assertInvoiceSettlementsEligible,
 } = require('../utils/finance/settlementMath');
 const { applyNormalizedInvoiceAmounts } = require('../utils/finance/invoiceAmounts');
+const { toInvoiceApi } = require('../utils/finance/invoiceFieldMap');
 
 const resolveInvoiceItemAmount = (item) =>
   item.amount !== undefined && item.amount !== null
@@ -106,7 +107,7 @@ const getAccountIdByCode = async (connection, accountCode, accountLabel) => {
   return accounts[0].id;
 };
 
-const assertManualStatusTransition = (currentStatus, nextStatus) => {
+const assertManualStatusTransition = (currentStatus, nextStatus, invoice = null) => {
   if (currentStatus === nextStatus) {
     return;
   }
@@ -116,6 +117,16 @@ const assertManualStatusTransition = (currentStatus, nextStatus) => {
     throw new Error(
       `不允许从"${currentStatus}"手工变更为"${nextStatus}"；收款状态只能由收款/作废流程自动维护`
     );
+  }
+
+  if (
+    nextStatus === INVOICE_STATUS.CANCELLED &&
+    [INVOICE_STATUS.CONFIRMED, INVOICE_STATUS.OVERDUE].includes(currentStatus)
+  ) {
+    const paid = Math.abs(toCents(invoice?.paid_amount || 0));
+    if (paid > 0) {
+      throw new Error('发票已有收款记录，不能直接取消；请先作废相关收款');
+    }
   }
 };
 
@@ -182,7 +193,15 @@ const linkBankTransactionToVoucher = async (
   );
 };
 
-const createInvoiceConfirmationEntry = async (connection, invoice, createdBy = 'system') => {
+const createInvoiceConfirmationEntry = async (connection, invoice, createdBy = null) => {
+  const { resolveActorUserId } = require('../utils/userUtils');
+  createdBy = await resolveActorUserId(
+    connection,
+    createdBy,
+    invoice.created_by,
+    invoice.updated_by,
+    invoice.gl_entry?.created_by
+  );
   const shouldCreateEntry = await ensureNoActiveInvoiceEntry(connection, invoice.invoice_number);
   if (!shouldCreateEntry) {
     return null;
@@ -204,8 +223,98 @@ const createInvoiceConfirmationEntry = async (connection, invoice, createdBy = '
       accountingConfig.getAccountCode('SALES_REVENUE'),
       '销售收入'
     ));
+  // 价税分离：有税额时贷记销项税，避免收入含税
+  const outputTaxAccountId =
+    invoice.gl_entry?.output_tax_account_id ||
+    (await getAccountIdByCode(
+      connection,
+      accountingConfig.getAccountCode('VAT_OUTPUT_TAX'),
+      '销项税额'
+    ).catch(() => null));
+
   const periodId = await getOpenPeriodIdByDate(connection, invoice.invoice_date);
   const amountPolicy = normalizeInvoiceAmountPolicy(invoice);
+  const totalAbs = amountPolicy.absoluteAmount;
+  const taxAbs = Math.abs(toCents(invoice.tax_amount || 0)) / 100;
+  let netAbs = Math.abs(
+    toCents(invoice.amount_excluding_tax ?? invoice.subtotal ?? invoice.subtotal_amount ?? 0)
+  ) / 100;
+  if (netAbs <= 0 && totalAbs > 0) {
+    netAbs = Math.max(0, Math.round((totalAbs - taxAbs) * 100) / 100);
+  }
+  // 价税分离：税额>0 时必须拆分；fail-closed 时禁止降级为收入含税两行
+  const { TAX_SPLIT_FAIL_CLOSED } = require('../constants/financeConstants');
+  const canSplitTax =
+    taxAbs > 0.0001 && outputTaxAccountId && Math.abs(netAbs + taxAbs - totalAbs) <= 0.02;
+  if (taxAbs > 0.0001 && !canSplitTax) {
+    if (TAX_SPLIT_FAIL_CLOSED) {
+      if (!outputTaxAccountId) {
+        throw new Error('未配置销项税科目(VAT_OUTPUT_TAX)，禁止确认含税应收发票（价税分离 fail-closed）');
+      }
+      throw new Error(
+        `价税金额不平（未税 ${netAbs} + 税 ${taxAbs} ≠ 合计 ${totalAbs}），禁止确认发票`
+      );
+    }
+    logger.warn('[AR] 价税分离失败，降级两行价税合计', {
+      invoiceNumber: invoice.invoice_number,
+      netAbs,
+      taxAbs,
+      totalAbs,
+    });
+  }
+  const splitTax = canSplitTax;
+  const currency = invoice.currency_code || financeConfig.get('invoice.defaultCurrency', 'CNY');
+  const rate = invoice.exchange_rate || 1;
+  const isCn = amountPolicy.isCreditNote;
+
+  const customerId = invoice.customer_id ? Number(invoice.customer_id) : null;
+  const items = splitTax
+    ? [
+        {
+          account_id: receivableAccountId,
+          debit_amount: isCn ? 0 : totalAbs,
+          credit_amount: isCn ? totalAbs : 0,
+          currency_code: currency,
+          exchange_rate: rate,
+          customer_id: customerId,
+          description: `应收账款(价税合计) - 发票号: ${invoice.invoice_number}`,
+        },
+        {
+          account_id: incomeAccountId,
+          debit_amount: isCn ? netAbs : 0,
+          credit_amount: isCn ? 0 : netAbs,
+          currency_code: currency,
+          exchange_rate: rate,
+          description: `销售收入(未税) - 发票号: ${invoice.invoice_number}`,
+        },
+        {
+          account_id: outputTaxAccountId,
+          debit_amount: isCn ? taxAbs : 0,
+          credit_amount: isCn ? 0 : taxAbs,
+          currency_code: currency,
+          exchange_rate: rate,
+          description: `销项税额 - 发票号: ${invoice.invoice_number}`,
+        },
+      ]
+    : [
+        {
+          account_id: receivableAccountId,
+          debit_amount: isCn ? 0 : totalAbs,
+          credit_amount: isCn ? totalAbs : 0,
+          currency_code: currency,
+          exchange_rate: rate,
+          customer_id: customerId,
+          description: `应收账款 - 发票号: ${invoice.invoice_number}`,
+        },
+        {
+          account_id: incomeAccountId,
+          debit_amount: isCn ? totalAbs : 0,
+          credit_amount: isCn ? 0 : totalAbs,
+          currency_code: currency,
+          exchange_rate: rate,
+          description: `销售收入 - 发票号: ${invoice.invoice_number}`,
+        },
+      ];
 
   const entryId = await financeModel.createEntry(
     {
@@ -219,24 +328,7 @@ const createInvoiceConfirmationEntry = async (connection, invoice, createdBy = '
       status: 'posted',
       is_posted: 1,
     },
-    [
-      {
-        account_id: receivableAccountId,
-        debit_amount: amountPolicy.isCreditNote ? 0 : amountPolicy.absoluteAmount,
-        credit_amount: amountPolicy.isCreditNote ? amountPolicy.absoluteAmount : 0,
-        currency_code: invoice.currency_code || financeConfig.get('invoice.defaultCurrency', 'CNY'),
-        exchange_rate: invoice.exchange_rate || 1,
-        description: `应收账款 - 发票号: ${invoice.invoice_number}`,
-      },
-      {
-        account_id: incomeAccountId,
-        debit_amount: amountPolicy.isCreditNote ? amountPolicy.absoluteAmount : 0,
-        credit_amount: amountPolicy.isCreditNote ? 0 : amountPolicy.absoluteAmount,
-        currency_code: invoice.currency_code || financeConfig.get('invoice.defaultCurrency', 'CNY'),
-        exchange_rate: invoice.exchange_rate || 1,
-        description: `销售收入 - 发票号: ${invoice.invoice_number}`,
-      },
-    ],
+    items,
     connection
   );
 
@@ -272,7 +364,7 @@ const buildReceiptGlEntry = async (connection, receiptData) => {
 
   return {
     period_id: periodId,
-    created_by: receiptData.created_by || financeConfig.get('system.defaultCreator', 'system'),
+    created_by: receiptData.created_by || financeConfig.get('system.defaultCreator', null),
     receivable_account_id: receivableAccountId,
     bank_account_id: bankAccountId,
   };
@@ -313,21 +405,25 @@ const arModel = {
             ? invoiceData.gl_entry.created_by
             : null;
 
-      // 插入应收账款发票
+      // 插入应收账款发票（含未税/税额/税率）
       const [result] = await connection.query(
         `INSERT INTO ar_invoices
         (invoice_number, customer_id, invoice_date, due_date,
-         total_amount, paid_amount, balance_amount,
+         total_amount, amount_excluding_tax, tax_amount, tax_rate,
+         paid_amount, balance_amount,
          currency_code, exchange_rate, status, terms, notes,
          customer_invoice_number, source_type, source_id,
          created_by, updated_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           invoiceData.invoice_number,
           invoiceData.customer_id,
           invoiceData.invoice_date,
           invoiceData.due_date,
           amountPolicy.totalAmount,
+          invoiceData.amount_excluding_tax ?? invoiceData.subtotal ?? null,
+          invoiceData.tax_amount ?? null,
+          invoiceData.tax_rate ?? null,
           0, // 初始已付金额为0
           balanceAmount,
           invoiceData.currency_code || financeConfig.get('invoice.defaultCurrency', 'CNY'),
@@ -366,16 +462,18 @@ const arModel = {
         );
       }
 
-      // 已确认发票必须同步生成总账凭证；缺科目、期间或凭证校验失败时回滚整张发票。
+      // 已确认发票默认同步生成总账凭证；合并生成路径可 skip_gl_entry，由上层写一张合并凭证。
       if (invoiceData.status === INVOICE_STATUS.CONFIRMED) {
         if (!amountPolicy.isCreditNote && toCents(invoiceData.total_amount) <= 0) {
           throw new Error('发票金额必须大于0才能确认');
         }
-        await createInvoiceConfirmationEntry(
-          connection,
-          { ...invoiceData, id: invoiceId },
-          invoiceData.created_by || 'system'
-        );
+        if (!invoiceData.skip_gl_entry) {
+          await createInvoiceConfirmationEntry(
+            connection,
+            { ...invoiceData, id: invoiceId },
+            invoiceData.created_by
+          );
+        }
       }
 
       if (!isExternalTransaction) {
@@ -434,8 +532,10 @@ const arModel = {
         SELECT a.id, a.invoice_number, a.customer_id, c.name as customer_name,
                DATE_FORMAT(a.invoice_date, '%Y-%m-%d') as invoice_date,
                DATE_FORMAT(a.due_date, '%Y-%m-%d') as due_date,
-               a.total_amount, a.paid_amount, a.balance_amount,
-               a.status, a.currency_code, a.customer_invoice_number
+               a.total_amount, a.amount_excluding_tax, a.tax_amount, a.tax_rate,
+               a.paid_amount, a.balance_amount,
+               a.status, a.currency_code, a.terms, a.customer_invoice_number,
+               a.source_type, a.source_id
         FROM ar_invoices a
         LEFT JOIN customers c ON a.customer_id = c.id
         ${scopeClause.join || ''}
@@ -490,7 +590,7 @@ const arModel = {
       query += ` ORDER BY a.invoice_date DESC, a.id DESC LIMIT ${limit} OFFSET ${offset}`;
 
       const [invoiceResults] = await connection.execute(query, params);
-      const invoices = invoiceResults || [];
+      const invoices = (invoiceResults || []).map((row) => toInvoiceApi(row, 'ar'));
 
       // 计算总记录数（与主查询同一过滤 + DataScope）
       let countQuery = `
@@ -571,9 +671,11 @@ const arModel = {
         `SELECT a.id, a.invoice_number, a.customer_id, c.name as customer_name,
                 DATE_FORMAT(a.invoice_date, '%Y-%m-%d') as invoice_date,
                 DATE_FORMAT(a.due_date, '%Y-%m-%d') as due_date,
-                a.total_amount, a.paid_amount, a.balance_amount,
-                a.status, a.currency_code, a.terms, a.notes,
-                a.customer_invoice_number, a.source_type, a.source_id
+                a.total_amount, a.amount_excluding_tax, a.tax_amount, a.tax_rate,
+                a.paid_amount, a.balance_amount,
+                a.status, a.currency_code, a.exchange_rate, a.terms, a.notes,
+                a.customer_invoice_number, a.source_type, a.source_id,
+                DATE_FORMAT(a.created_at, '%Y-%m-%d') as created_at
          FROM ar_invoices a
          LEFT JOIN customers c ON a.customer_id = c.id
          WHERE a.id = ?`,
@@ -586,12 +688,8 @@ const arModel = {
 
       const invoice = invoices[0];
       const [items] = await connection.execute(
-        `SELECT i.id, i.product_id as productId, i.product_id as product_id, i.description,
-                i.quantity, i.unit_price as unitPrice, i.unit_price as unit_price, i.amount,
-                p.code as productCode, p.code as product_code,
-                p.name as productName, p.name as product_name,
-                p.code as material_code, p.name as material_name,
-                p.specs as specification, p.specs as specs
+        `SELECT i.id, i.product_id, i.description, i.quantity, i.unit_price, i.amount,
+                p.code AS product_code, p.name AS product_name, p.specs AS specification
          FROM ar_invoice_items i
          LEFT JOIN materials p ON i.product_id = p.id
          WHERE i.invoice_id = ?
@@ -599,7 +697,7 @@ const arModel = {
         [id]
       );
       invoice.items = items;
-      return invoice;
+      return toInvoiceApi(invoice, 'ar');
     } catch (error) {
       logger.error('查询应收账款发票详情失败:', error);
       throw error;
@@ -636,7 +734,7 @@ const arModel = {
       }
 
       const invoice = invoices[0];
-      assertManualStatusTransition(invoice.status, status);
+      assertManualStatusTransition(invoice.status, status, invoice);
 
       if (invoice.status !== status && status === INVOICE_STATUS.CONFIRMED) {
         const amountPolicy = normalizeInvoiceAmountPolicy(invoice);
@@ -646,14 +744,56 @@ const arModel = {
         await createInvoiceConfirmationEntry(
           connection,
           invoice,
-          options.updated_by || options.created_by || 'system'
+          options.updated_by || options.created_by
         );
+      }
+
+      // 已确认/逾期→取消：冲销关联确认凭证（未收款已在 assertManualStatusTransition 校验）
+      if (
+        invoice.status !== status &&
+        status === INVOICE_STATUS.CANCELLED &&
+        [INVOICE_STATUS.CONFIRMED, INVOICE_STATUS.OVERDUE].includes(invoice.status)
+      ) {
+        const VoucherReversalService = require('../services/finance/VoucherReversalService');
+        const { resolveActorUserId } = require('../utils/userUtils');
+        const voidedBy = await resolveActorUserId(
+          connection,
+          options.updated_by,
+          options.created_by,
+          invoice.created_by
+        );
+        try {
+          await VoucherReversalService.reverseBusinessVouchers(connection, {
+            sourceType: 'ar_invoice',
+            sourceId: invoice.id,
+            documentNumber: invoice.invoice_number,
+            documentType: DOCUMENT_TYPE_MAPPING.SALES_INVOICE,
+            voidedBy,
+            reason: `应收发票作废 ${invoice.invoice_number}`,
+          });
+        } catch (revErr) {
+          // 历史数据可能无 GL 凭证；其余冲销失败必须阻断作废，避免账实不一致
+          if (!/未找到|不存在|not found|NO_ENTRY|无可冲销/i.test(String(revErr.message || ''))) {
+            throw revErr;
+          }
+          logger.warn(`[AR] 作废时未找到可冲销凭证: ${revErr.message}`);
+        }
       }
 
       if (invoice.status !== status) {
         await connection.execute(
           'UPDATE ar_invoices SET status = ?, updated_at = NOW() WHERE id = ?',
           [status, id]
+        );
+      }
+
+      // 取消后释放 source 唯一键，允许同业务单据重新生成
+      if (status === INVOICE_STATUS.CANCELLED || status === 'cancelled' || status === 'void' || status === '作废') {
+        const FinanceIntegrationService = require('../services/external/FinanceIntegrationService');
+        await FinanceIntegrationService.releaseInvoiceSourceOnCancel(
+          connection,
+          'ar_invoices',
+          id
         );
       }
 
@@ -695,7 +835,8 @@ const arModel = {
       // 检查发票是否存在及状态
       const [existing] = await connection.execute(
         `SELECT id, status, invoice_number, customer_id, invoice_date, due_date,
-                total_amount, paid_amount, balance_amount
+                total_amount, amount_excluding_tax, tax_amount, tax_rate,
+                paid_amount, balance_amount, terms, notes
          FROM ar_invoices
          WHERE id = ?
          FOR UPDATE`,
@@ -754,7 +895,7 @@ const arModel = {
       const balanceAmount = totalAmount - paidAmount;
       assertInvoiceItemsMatchTotal(invoiceData.items, totalAmount, invoiceData);
 
-      // 更新发票主表
+      // 更新发票主表（含未税/税额/税率，与 create 对称）
       await connection.execute(
         `UPDATE ar_invoices SET
           invoice_number = ?,
@@ -763,7 +904,11 @@ const arModel = {
           invoice_date = ?,
           due_date = ?,
           total_amount = ?,
+          amount_excluding_tax = ?,
+          tax_amount = ?,
+          tax_rate = ?,
           balance_amount = ?,
+          terms = ?,
           notes = ?,
           updated_at = NOW()
         WHERE id = ?`,
@@ -774,7 +919,11 @@ const arModel = {
           invoiceData.invoice_date,
           invoiceData.due_date,
           totalAmount,
+          invoiceData.amount_excluding_tax ?? invoiceData.subtotal ?? null,
+          invoiceData.tax_amount ?? null,
+          invoiceData.tax_rate ?? null,
           balanceAmount,
+          invoiceData.terms ?? null,
           invoiceData.notes || null,
           invoiceData.id,
         ]
@@ -807,38 +956,55 @@ const arModel = {
         }
       }
 
-      // ===== 自动同步开票号码到税务发票 =====
+      // ===== 自动同步开票号码到税务发票（支持出库级 / 订单级） =====
       if (invoiceData.customer_invoice_number) {
-        // 查找该AR发票对应的销售订单
         const [arSource] = await connection.execute(
           'SELECT source_type, source_id FROM ar_invoices WHERE id = ?',
           [invoiceData.id]
         );
-        if (
-          arSource.length > 0 &&
-          arSource[0].source_type === 'sales_order' &&
-          arSource[0].source_id
-        ) {
-          // 通过销售订单ID查找对应的销售出库单
-          const [outbounds] = await connection.execute(
-            'SELECT id FROM sales_outbound WHERE order_id = ?',
-            [arSource[0].source_id]
-          );
-          for (const ob of outbounds) {
+        if (arSource.length > 0 && arSource[0].source_id) {
+          const sourceType = arSource[0].source_type;
+          const sourceId = arSource[0].source_id;
+          let outboundIds = [];
+
+          if (sourceType === 'sales_outbound') {
+            outboundIds = [sourceId];
+          } else if (sourceType === 'sales_order') {
+            const [outbounds] = await connection.execute(
+              `SELECT id FROM sales_outbound
+               WHERE deleted_at IS NULL
+                 AND (order_id = ? OR id IN (
+                   SELECT outbound_id FROM sales_outbound_items WHERE source_order_id = ?
+                 ))`,
+              [sourceId, sourceId]
+            );
+            outboundIds = outbounds.map((o) => o.id);
+          }
+
+          for (const outboundId of outboundIds) {
+            const {
+              TAX_RELATED_DOCUMENT_TYPES,
+              taxRelatedDocumentTypeMatchList,
+            } = require('../constants/financeConstants');
+            const outboundTaxTypes = taxRelatedDocumentTypeMatchList(
+              TAX_RELATED_DOCUMENT_TYPES.SALES_OUTBOUND
+            );
+            const outboundTaxPlaceholders = outboundTaxTypes.map(() => '?').join(', ');
             const [syncResult] = await connection.execute(
               `UPDATE tax_invoices
                SET invoice_number = ?, updated_at = NOW()
-               WHERE related_document_type = '销售出库单'
+               WHERE related_document_type IN (${outboundTaxPlaceholders})
                  AND related_document_id = ?
                  AND status = '未认证'
                  AND gl_entry_id IS NULL`,
-              [invoiceData.customer_invoice_number, ob.id]
+              [invoiceData.customer_invoice_number, ...outboundTaxTypes, outboundId]
             );
             if (syncResult.affectedRows > 0) {
               logger.info('[AR→Tax同步] 开票号码已同步到税务发票', {
                 arInvoiceId: invoiceData.id,
+                sourceType,
                 customerInvoiceNumber: invoiceData.customer_invoice_number,
-                outboundId: ob.id,
+                outboundId,
               });
             }
           }
@@ -935,7 +1101,7 @@ const arModel = {
       let totalDiscountCents = 0;
       for (const item of sortedReceiptItems) {
         const [invoices] = await connection.execute(
-          'SELECT id, invoice_number, customer_invoice_number, customer_id, invoice_date, due_date, total_amount, paid_amount, balance_amount, currency_code, exchange_rate, status, terms, notes, source_type, source_id, created_by, updated_by, created_at, updated_at FROM ar_invoices WHERE id = ? FOR UPDATE',
+          'SELECT id, invoice_number, customer_invoice_number, customer_id, invoice_date, due_date, total_amount, amount_excluding_tax, tax_amount, tax_rate, paid_amount, balance_amount, currency_code, exchange_rate, status, terms, notes, source_type, source_id, created_by, updated_by, created_at, updated_at FROM ar_invoices WHERE id = ? FOR UPDATE',
           [item.invoice_id]
         );
 
@@ -1443,7 +1609,7 @@ const arModel = {
         if (!item.invoice_id) continue;
 
         const [invoices] = await connection.execute(
-          'SELECT id, invoice_number, customer_invoice_number, customer_id, invoice_date, due_date, total_amount, paid_amount, balance_amount, currency_code, exchange_rate, status, terms, notes, source_type, source_id, created_by, updated_by, created_at, updated_at FROM ar_invoices WHERE id = ? FOR UPDATE',
+          'SELECT id, invoice_number, customer_invoice_number, customer_id, invoice_date, due_date, total_amount, amount_excluding_tax, tax_amount, tax_rate, paid_amount, balance_amount, currency_code, exchange_rate, status, terms, notes, source_type, source_id, created_by, updated_by, created_at, updated_at FROM ar_invoices WHERE id = ? FOR UPDATE',
           [item.invoice_id]
         );
 
@@ -1952,6 +2118,200 @@ const arModel = {
       balance: parseFloat(item.balance || 0),
       lastInvoiceDate: item.lastInvoiceDate,
     }));
+  },
+
+  /**
+   * 应收结算看板：数量 + 金额汇总 + 未结清明细
+   * settlementKey: all | unpaid | partial | paid | overdue | open
+   */
+  getSettlementDashboard: async (filters = {}) => {
+    const { startDate, endDate, customerName, settlementKey = 'open', limit = 50 } = filters;
+    const where = ["a.status NOT IN ('草稿', '已取消', 'cancelled', 'void', '作废')"];
+    const params = [];
+
+    if (startDate) {
+      where.push('a.invoice_date >= ?');
+      params.push(startDate);
+    }
+    if (endDate) {
+      where.push('a.invoice_date <= ?');
+      params.push(endDate);
+    }
+    if (customerName) {
+      where.push('c.name LIKE ?');
+      params.push(`%${customerName}%`);
+    }
+
+    const whereSql = where.join(' AND ');
+
+    const [summaryRows] = await db.pool.execute(
+      `SELECT
+         COUNT(*) AS total_count,
+         COALESCE(SUM(a.total_amount), 0) AS total_amount,
+         COALESCE(SUM(a.paid_amount), 0) AS paid_amount,
+         COALESCE(SUM(a.balance_amount), 0) AS balance_amount,
+         SUM(CASE WHEN a.status = '已付款' OR COALESCE(a.balance_amount, 0) <= 0.005 THEN 1 ELSE 0 END) AS paid_count,
+         COALESCE(SUM(CASE WHEN a.status = '已付款' OR COALESCE(a.balance_amount, 0) <= 0.005 THEN a.total_amount ELSE 0 END), 0) AS paid_total_amount,
+         SUM(CASE
+               WHEN a.status = '部分付款'
+                 OR (COALESCE(a.paid_amount, 0) > 0.005 AND COALESCE(a.balance_amount, 0) > 0.005)
+             THEN 1 ELSE 0 END) AS partial_count,
+         COALESCE(SUM(CASE
+               WHEN a.status = '部分付款'
+                 OR (COALESCE(a.paid_amount, 0) > 0.005 AND COALESCE(a.balance_amount, 0) > 0.005)
+             THEN a.balance_amount ELSE 0 END), 0) AS partial_balance,
+         SUM(CASE
+               WHEN a.status IN ('已确认', '已逾期')
+                AND COALESCE(a.paid_amount, 0) <= 0.005
+                AND COALESCE(a.balance_amount, 0) > 0.005
+             THEN 1 ELSE 0 END) AS unpaid_count,
+         COALESCE(SUM(CASE
+               WHEN a.status IN ('已确认', '已逾期')
+                AND COALESCE(a.paid_amount, 0) <= 0.005
+                AND COALESCE(a.balance_amount, 0) > 0.005
+             THEN a.balance_amount ELSE 0 END), 0) AS unpaid_balance,
+         SUM(CASE
+               WHEN a.status = '已逾期'
+                AND COALESCE(a.balance_amount, 0) > 0.005
+             THEN 1
+               WHEN COALESCE(a.balance_amount, 0) > 0.005
+                AND a.due_date IS NOT NULL
+                AND a.due_date < CURDATE()
+                AND a.status NOT IN ('已付款')
+             THEN 1 ELSE 0 END) AS overdue_count,
+         COALESCE(SUM(CASE
+               WHEN a.status = '已逾期'
+                AND COALESCE(a.balance_amount, 0) > 0.005
+             THEN a.balance_amount
+               WHEN COALESCE(a.balance_amount, 0) > 0.005
+                AND a.due_date IS NOT NULL
+                AND a.due_date < CURDATE()
+                AND a.status NOT IN ('已付款')
+             THEN a.balance_amount ELSE 0 END), 0) AS overdue_balance,
+         SUM(CASE WHEN COALESCE(a.balance_amount, 0) > 0.005 THEN 1 ELSE 0 END) AS open_count,
+         COALESCE(SUM(CASE WHEN COALESCE(a.balance_amount, 0) > 0.005 THEN a.balance_amount ELSE 0 END), 0) AS open_balance
+       FROM ar_invoices a
+       LEFT JOIN customers c ON a.customer_id = c.id
+       WHERE ${whereSql}`,
+      params
+    );
+
+    const s = summaryRows[0] || {};
+    const summary = {
+      totalCount: Number(s.total_count || 0),
+      totalAmount: Number(s.total_amount || 0),
+      paidAmount: Number(s.paid_amount || 0),
+      balanceAmount: Number(s.balance_amount || 0),
+      paidCount: Number(s.paid_count || 0),
+      paidTotalAmount: Number(s.paid_total_amount || 0),
+      partialCount: Number(s.partial_count || 0),
+      partialBalance: Number(s.partial_balance || 0),
+      unpaidCount: Number(s.unpaid_count || 0),
+      unpaidBalance: Number(s.unpaid_balance || 0),
+      overdueCount: Number(s.overdue_count || 0),
+      overdueBalance: Number(s.overdue_balance || 0),
+      openCount: Number(s.open_count || 0),
+      openBalance: Number(s.open_balance || 0),
+    };
+
+    const detailWhere = [...where];
+    const detailParams = [...params];
+    const key = String(settlementKey || 'open').toLowerCase();
+
+    if (key === 'paid') {
+      detailWhere.push("(a.status = '已付款' OR COALESCE(a.balance_amount, 0) <= 0.005)");
+    } else if (key === 'partial') {
+      detailWhere.push(`(
+        a.status = '部分付款'
+        OR (COALESCE(a.paid_amount, 0) > 0.005 AND COALESCE(a.balance_amount, 0) > 0.005)
+      )`);
+    } else if (key === 'unpaid') {
+      detailWhere.push(`(
+        a.status IN ('已确认', '已逾期')
+        AND COALESCE(a.paid_amount, 0) <= 0.005
+        AND COALESCE(a.balance_amount, 0) > 0.005
+      )`);
+    } else if (key === 'overdue') {
+      detailWhere.push(`(
+        (a.status = '已逾期' AND COALESCE(a.balance_amount, 0) > 0.005)
+        OR (
+          COALESCE(a.balance_amount, 0) > 0.005
+          AND a.due_date IS NOT NULL
+          AND a.due_date < CURDATE()
+          AND a.status NOT IN ('已付款')
+        )
+      )`);
+    } else if (key === 'open') {
+      detailWhere.push('COALESCE(a.balance_amount, 0) > 0.005');
+    }
+    // all: 无额外条件
+
+    const limitNum = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200);
+    const [details] = await db.pool.execute(
+      `SELECT
+         a.id,
+         a.invoice_number,
+         a.customer_id,
+         c.name AS customer_name,
+         a.invoice_date,
+         a.due_date,
+         a.total_amount,
+         a.paid_amount,
+         a.balance_amount,
+         a.status,
+         a.source_type,
+         a.source_id,
+         CASE
+           WHEN a.status = '已付款' OR COALESCE(a.balance_amount, 0) <= 0.005 THEN 'paid'
+           WHEN a.status = '已逾期'
+             OR (COALESCE(a.balance_amount, 0) > 0.005 AND a.due_date IS NOT NULL AND a.due_date < CURDATE())
+             THEN 'overdue'
+           WHEN a.status = '部分付款'
+             OR (COALESCE(a.paid_amount, 0) > 0.005 AND COALESCE(a.balance_amount, 0) > 0.005)
+             THEN 'partial'
+           ELSE 'unpaid'
+         END AS settlement_bucket,
+         CASE
+           WHEN a.due_date IS NULL THEN NULL
+           ELSE DATEDIFF(CURDATE(), a.due_date)
+         END AS overdue_days
+       FROM ar_invoices a
+       LEFT JOIN customers c ON a.customer_id = c.id
+       WHERE ${detailWhere.join(' AND ')}
+       ORDER BY
+         CASE
+           WHEN a.status = '已逾期' OR (COALESCE(a.balance_amount,0) > 0.005 AND a.due_date < CURDATE()) THEN 0
+           WHEN COALESCE(a.balance_amount,0) > 0.005 THEN 1
+           ELSE 2
+         END,
+         a.due_date ASC,
+         a.id DESC
+       LIMIT ${limitNum}`,
+      detailParams
+    );
+
+    return {
+      side: 'ar',
+      asOf: new Date().toISOString().slice(0, 10),
+      settlementKey: key,
+      summary,
+      details: details.map((row) => ({
+        id: row.id,
+        invoiceNumber: row.invoice_number,
+        partyId: row.customer_id,
+        partyName: row.customer_name,
+        invoiceDate: row.invoice_date,
+        dueDate: row.due_date,
+        totalAmount: Number(row.total_amount || 0),
+        paidAmount: Number(row.paid_amount || 0),
+        balanceAmount: Number(row.balance_amount || 0),
+        status: row.status,
+        sourceType: row.source_type,
+        sourceId: row.source_id,
+        settlementBucket: row.settlement_bucket,
+        overdueDays: row.overdue_days == null ? null : Number(row.overdue_days),
+      })),
+    };
   },
 };
 

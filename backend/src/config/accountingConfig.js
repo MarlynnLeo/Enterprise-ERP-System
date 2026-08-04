@@ -47,10 +47,11 @@ const DEFAULT_ACCOUNT_CODES = {
   ACCOUNTS_PAYABLE: process.env.ACCOUNT_AP || '2202', // 应付账款
   ADVANCE_RECEIPTS: process.env.ACCOUNT_ADVANCE_RECEIPTS || '2131', // 预收账款
   EMPLOYEE_PAYABLE: process.env.ACCOUNT_EMPLOYEE_PAYABLE || '2201', // 应付职工薪酬
-  TAX_PAYABLE: process.env.ACCOUNT_TAX_PAYABLE || '2221', // 应交税费
-  VAT_INPUT_TAX: process.env.ACCOUNT_VAT_INPUT_TAX || process.env.ACCOUNT_TAX_PAYABLE || '2221', // 增值税进项税额
-  VAT_OUTPUT_TAX: process.env.ACCOUNT_VAT_OUTPUT_TAX || process.env.ACCOUNT_TAX_PAYABLE || '2221', // 增值税销项税额
-  VAT_PAYABLE: process.env.ACCOUNT_VAT_PAYABLE || process.env.ACCOUNT_TAX_PAYABLE || '2221', // 应交增值税
+  TAX_PAYABLE: process.env.ACCOUNT_TAX_PAYABLE || '2221', // 应交税费（总类）
+  // 进项/销项必须用明细科目，禁止默认落到 2221 总类（否则辅助核算与税务申报不专业）
+  VAT_INPUT_TAX: process.env.ACCOUNT_VAT_INPUT_TAX || '222101', // 应交增值税-进项税额
+  VAT_OUTPUT_TAX: process.env.ACCOUNT_VAT_OUTPUT_TAX || '222102', // 应交增值税-销项税额
+  VAT_PAYABLE: process.env.ACCOUNT_VAT_PAYABLE || '222103', // 应交增值税
   LONG_TERM_LOANS: process.env.ACCOUNT_LONG_TERM_LOANS || '2501', // 长期借款
 
   // ==================== 所有者权益类 ====================
@@ -95,9 +96,30 @@ DEFAULT_ACCOUNT_CODES.WIP =
  * 会计科目配置类
  * 支持从数据库动态加载配置
  */
+/**
+ * 规范化会计科目映射：
+ * - 缺键用默认明细科目补齐
+ * - VAT_INPUT/OUTPUT/PAYABLE 禁止等于总类 TAX_PAYABLE(2221)；若被配成总类则拒绝并回落默认
+ * 不做“静默改写已配置的其他明细码”——仅拒绝非法总类。
+ */
+function normalizeAccountCodes(codes = {}) {
+  const next = { ...DEFAULT_ACCOUNT_CODES, ...codes };
+  const taxPayable = next.TAX_PAYABLE || DEFAULT_ACCOUNT_CODES.TAX_PAYABLE;
+  const rejectCoarse = (key, fallback) => {
+    const v = next[key];
+    if (!v || v === taxPayable || v === '2221') {
+      next[key] = fallback;
+    }
+  };
+  rejectCoarse('VAT_INPUT_TAX', DEFAULT_ACCOUNT_CODES.VAT_INPUT_TAX);
+  rejectCoarse('VAT_OUTPUT_TAX', DEFAULT_ACCOUNT_CODES.VAT_OUTPUT_TAX);
+  rejectCoarse('VAT_PAYABLE', DEFAULT_ACCOUNT_CODES.VAT_PAYABLE);
+  return next;
+}
+
 class AccountingConfig {
   constructor() {
-    this.accountCodes = { ...DEFAULT_ACCOUNT_CODES };
+    this.accountCodes = normalizeAccountCodes({ ...DEFAULT_ACCOUNT_CODES });
     this.cache = null;
     this.cacheTime = null;
     this.cacheTTL = 5 * 60 * 1000; // 缓存5分钟
@@ -149,8 +171,7 @@ class AccountingConfig {
           }
 
           const dbConfig = JSON.parse(cleanValue);
-          // 合并配置：数据库配置覆盖默认配置
-          this.accountCodes = { ...DEFAULT_ACCOUNT_CODES, ...dbConfig };
+          this.accountCodes = normalizeAccountCodes(dbConfig);
           this.cache = this.accountCodes;
           this.cacheTime = Date.now();
         } catch (parseError) {
@@ -177,7 +198,9 @@ class AccountingConfig {
    */
   async saveToDatabase(db, config) {
     try {
-      const value = JSON.stringify(config);
+      // 写入前规范化：禁止把进项/销项存成总类 2221
+      const normalized = normalizeAccountCodes(config || {});
+      const value = JSON.stringify(normalized);
       await db.pool.execute(
         `INSERT INTO system_settings (\`key\`, \`value\`, description)
          VALUES ('accounting.account_codes', ?, '会计科目编码映射配置')
@@ -185,8 +208,7 @@ class AccountingConfig {
         [value, value]
       );
 
-      // 更新缓存
-      this.accountCodes = { ...DEFAULT_ACCOUNT_CODES, ...config };
+      this.accountCodes = normalized;
       this.cache = this.accountCodes;
       this.cacheTime = Date.now();
 

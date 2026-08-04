@@ -106,6 +106,20 @@ const INVOICE_STATUS = {
   CANCELLED: '已取消',
 };
 
+/** 视为「无效/可重生来源」的发票状态（查重与唯一业务语义） */
+const INACTIVE_INVOICE_STATUSES = Object.freeze([
+  INVOICE_STATUS.CANCELLED,
+  'cancelled',
+  'void',
+  '作废',
+  'VOID',
+  'VOIDED',
+]);
+
+/** 价税分离失败策略：true=拒绝确认；false=降级两行（历史兼容，生产建议 true） */
+const TAX_SPLIT_FAIL_CLOSED =
+  String(process.env.FINANCE_TAX_SPLIT_FAIL_CLOSED || 'true').toLowerCase() !== 'false';
+
 /** 税务发票（tax_invoices）状态 — 与库内中文状态一致，业务代码禁止字面量散落 */
 const TAX_INVOICE_STATUS = {
   DRAFT: '草稿',
@@ -114,16 +128,66 @@ const TAX_INVOICE_STATUS = {
   VOIDED: '已作废',
 };
 
-/** 税票关联业务单据类型显示名（历史列 related_document_type） */
+/**
+ * 税票关联业务单据类型 — 英文 SSOT（新写入必须用此值）
+ * 历史库中可能仍存中文别名，查询请用 taxRelatedDocumentTypeMatchList()
+ */
 const TAX_RELATED_DOCUMENT_TYPES = {
-  SALES_OUTBOUND: '销售出库单',
-  SALES_RETURN: '销售退货单',
-  PURCHASE_RECEIPT: '采购收货单',
-  PURCHASE_RETURN: '采购退货单',
+  SALES_OUTBOUND: 'sales_outbound',
+  SALES_RETURN: 'sales_return',
+  PURCHASE_RECEIPT: 'purchase_receipt',
+  PURCHASE_RETURN: 'purchase_return',
+  AP_INVOICE: 'ap_invoice',
+  AR_INVOICE: 'ar_invoice',
 };
+
+/** 历史中文别名（只读兼容，禁止新写入） */
+const TAX_RELATED_DOCUMENT_TYPE_LEGACY = {
+  sales_outbound: ['销售出库单'],
+  sales_return: ['销售退货单'],
+  purchase_receipt: ['采购入库单', '采购收货单'],
+  purchase_return: ['采购退货单'],
+};
+
+/** 前端/报表显示名（兼容英文 SSOT 与历史中文） */
+const TAX_RELATED_DOCUMENT_TYPE_LABELS = {
+  sales_outbound: '销售出库',
+  sales_return: '销售退货',
+  purchase_receipt: '采购入库',
+  purchase_return: '采购退货',
+  ap_invoice: '应付发票',
+  ar_invoice: '应收发票',
+  销售出库单: '销售出库',
+  销售退货单: '销售退货',
+  采购入库单: '采购入库',
+  采购收货单: '采购入库',
+  采购退货单: '采购退货',
+};
+
+/**
+ * 查询匹配列表：canonical 英文键 + 历史中文别名
+ * @param {string} documentType - 英文 SSOT 或历史中文
+ * @returns {string[]}
+ */
+function taxRelatedDocumentTypeMatchList(documentType) {
+  const key = String(documentType || '').trim();
+  if (!key) return [];
+  if (TAX_RELATED_DOCUMENT_TYPE_LEGACY[key]) {
+    return [key, ...TAX_RELATED_DOCUMENT_TYPE_LEGACY[key]];
+  }
+  for (const [canonical, aliases] of Object.entries(TAX_RELATED_DOCUMENT_TYPE_LEGACY)) {
+    if (aliases.includes(key)) {
+      return [canonical, ...aliases];
+    }
+  }
+  return [key];
+}
 
 const MANUAL_INVOICE_STATUS_TRANSITIONS = {
   [INVOICE_STATUS.DRAFT]: [INVOICE_STATUS.CONFIRMED, INVOICE_STATUS.CANCELLED],
+  // 已确认且未核销：允许作废（业务层须校验 paid_amount≈0 并冲销 GL）
+  [INVOICE_STATUS.CONFIRMED]: [INVOICE_STATUS.CANCELLED],
+  [INVOICE_STATUS.OVERDUE]: [INVOICE_STATUS.CANCELLED],
 };
 
 // 会产生银行流水和银行账户余额变化的结算方式。
@@ -226,6 +290,11 @@ module.exports = {
   INVOICE_STATUS,
   TAX_INVOICE_STATUS,
   TAX_RELATED_DOCUMENT_TYPES,
+  TAX_RELATED_DOCUMENT_TYPE_LEGACY,
+  TAX_RELATED_DOCUMENT_TYPE_LABELS,
+  taxRelatedDocumentTypeMatchList,
+  INACTIVE_INVOICE_STATUSES,
+  TAX_SPLIT_FAIL_CLOSED,
   MANUAL_INVOICE_STATUS_TRANSITIONS,
   BANK_BACKED_PAYMENT_METHODS,
   ACCOUNT_TYPES,

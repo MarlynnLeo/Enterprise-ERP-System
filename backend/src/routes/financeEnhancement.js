@@ -13,6 +13,7 @@ const { requirePermission } = require('../middleware/requirePermission');
 const DLQService = require('../services/business/DLQService');
 const { ResponseHandler } = require('../utils/responseHandler');
 const { PRICE_EXPORT_PERMISSIONS, PRICE_UPDATE_PERMISSIONS } = require('../utils/desensitizer');
+const { getRequestActorLabel } = require('../utils/userUtils');
 const {
   desensitizeSensitiveResponse,
   requirePriceMutationPermission,
@@ -27,22 +28,73 @@ const FINANCE_FAILED_JOB_PREFIXES = ['Finance:', 'FinanceIntegration:'];
 
 // ==================== 自动化集成路由 ====================
 
+// ----- 专业主路径列表 -----
+
 /**
- * @route POST /api/finance/integration/ar-invoice/:salesOrderId
- * @desc 从销售订单生成应收发票
- * @access Private
+ * @route GET /api/finance/integration/eligible-purchase-receipts
+ * @desc 可生成凭证的采购入库单（专业主路径：按入库开应付）
  */
-router.post(
-  '/integration/ar-invoice/:salesOrderId',
-  requirePermission('finance:ar:create'),
+router.get(
+  '/integration/eligible-purchase-receipts',
+  requirePermission('finance:entries:create'),
   requirePermission(PRICE_UPDATE_PERMISSIONS),
-  FinanceEnhancementController.generateARInvoiceFromSalesOrder
+  FinanceEnhancementController.listEligiblePurchaseReceiptsForVoucher
 );
 
 /**
+ * @route GET /api/finance/integration/eligible-sales-outbounds
+ * @desc 可生成凭证的销售出库单（专业主路径：按出库开应收）
+ */
+router.get(
+  '/integration/eligible-sales-outbounds',
+  requirePermission('finance:entries:create'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
+  FinanceEnhancementController.listEligibleSalesOutboundsForVoucher
+);
+
+// ----- 例外列表（订单级，不推荐日常使用） -----
+
+router.get(
+  '/integration/eligible-sales-orders',
+  requirePermission('finance:entries:create'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
+  FinanceEnhancementController.listEligibleSalesOrdersForVoucher
+);
+
+router.get(
+  '/integration/eligible-purchase-orders',
+  requirePermission('finance:entries:create'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
+  FinanceEnhancementController.listEligiblePurchaseOrdersForVoucher
+);
+
+/**
+ * @route POST /api/finance/integration/batch-preview
+ * @desc 批量预览从业务单据生成的凭证草稿（多选 = 多张独立凭证，可改后确认）
+ */
+router.post(
+  '/integration/batch-preview',
+  requirePermission('finance:entries:create'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
+  FinanceEnhancementController.batchPreviewVouchersFromOrders
+);
+
+/**
+ * @route POST /api/finance/integration/batch-generate
+ * @desc 批量从业务单据生成发票+凭证（多选 = 多张独立凭证；可带 overrides）
+ */
+router.post(
+  '/integration/batch-generate',
+  requirePermission('finance:entries:create'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
+  FinanceEnhancementController.batchGenerateVouchersFromOrders
+);
+
+// ----- 单条生成：主路径 -----
+
+/**
  * @route POST /api/finance/integration/ap-invoice/:receiptId
- * @desc 从采购入库单生成应付发票
- * @access Private
+ * @desc 从采购入库单生成应付发票 + 凭证（专业主路径）
  */
 router.post(
   '/integration/ap-invoice/:receiptId',
@@ -51,7 +103,164 @@ router.post(
   FinanceEnhancementController.generateAPInvoiceFromPurchaseReceipt
 );
 
+/**
+ * @route POST /api/finance/integration/ar-invoice-from-outbound/:outboundId
+ * @desc 从销售出库单生成应收发票 + 凭证（专业主路径）
+ */
+router.post(
+  '/integration/ar-invoice-from-outbound/:outboundId',
+  requirePermission('finance:ar:create'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
+  FinanceEnhancementController.generateARInvoiceFromSalesOutbound
+);
+
+/** 闭环补齐：进项税 / 销项税 / 销售成本（force） */
+router.post(
+  '/integration/tax-input/:receiptId',
+  requirePermission('finance:tax:create'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
+  async (req, res, next) => {
+    try {
+      const FinanceIntegrationService = require('../services/external/FinanceIntegrationService');
+      const db = require('../config/db');
+      const [rows] = await db.pool.execute(
+        'SELECT * FROM purchase_receipts WHERE id = ? AND deleted_at IS NULL',
+        [req.params.receiptId]
+      );
+      if (!rows[0]) {
+        return res.status(404).json({ success: false, message: '入库单不存在' });
+      }
+      const result = await FinanceIntegrationService.generateInputTaxInvoiceFromPurchaseReceipt(
+        rows[0],
+        req.user?.id,
+        { force: true }
+      );
+      return res.json({ success: true, data: result });
+    } catch (e) {
+      return next(e);
+    }
+  }
+);
+router.post(
+  '/integration/tax-output/:outboundId',
+  requirePermission('finance:tax:create'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
+  async (req, res, next) => {
+    try {
+      const FinanceIntegrationService = require('../services/external/FinanceIntegrationService');
+      const db = require('../config/db');
+      const [rows] = await db.pool.execute(
+        'SELECT * FROM sales_outbound WHERE id = ? AND deleted_at IS NULL',
+        [req.params.outboundId]
+      );
+      if (!rows[0]) {
+        return res.status(404).json({ success: false, message: '出库单不存在' });
+      }
+      const result = await FinanceIntegrationService.generateOutputTaxInvoiceFromSalesOutbound(
+        rows[0],
+        req.user?.id,
+        { force: true }
+      );
+      return res.json({ success: true, data: result });
+    } catch (e) {
+      return next(e);
+    }
+  }
+);
+router.post(
+  '/integration/cost-entry/:outboundId',
+  requirePermission('finance:entries:create'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
+  async (req, res, next) => {
+    try {
+      const FinanceIntegrationService = require('../services/external/FinanceIntegrationService');
+      const db = require('../config/db');
+      const [rows] = await db.pool.execute(
+        'SELECT * FROM sales_outbound WHERE id = ? AND deleted_at IS NULL',
+        [req.params.outboundId]
+      );
+      if (!rows[0]) {
+        return res.status(404).json({ success: false, message: '出库单不存在' });
+      }
+      const result = await FinanceIntegrationService.generateCostEntryFromSalesOutbound(
+        rows[0],
+        req.user?.id,
+        { force: true }
+      );
+      return res.json({ success: true, data: result });
+    } catch (e) {
+      return next(e);
+    }
+  }
+);
+
+// ----- 单条生成：例外（订单级） -----
+
+router.post(
+  '/integration/ar-invoice/:salesOrderId',
+  requirePermission('finance:ar:create'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
+  FinanceEnhancementController.generateARInvoiceFromSalesOrder
+);
+
+router.post(
+  '/integration/ap-invoice-from-po/:purchaseOrderId',
+  requirePermission('finance:ap:create'),
+  requirePermission(PRICE_UPDATE_PERMISSIONS),
+  FinanceEnhancementController.generateAPInvoiceFromPurchaseOrder
+);
+
 // 注意: 审批工作流路由已移除，审批功能统一通过 RBAC 权限按钮控制
+
+// ==================== 三单匹配 / 业财状态 ====================
+
+router.post(
+  '/integration/three-way-match/from-receipt/:receiptId',
+  requirePermission('finance:ap:create'),
+  FinanceEnhancementController.createThreeWayMatchFromReceipt
+);
+router.get(
+  '/integration/three-way-match',
+  requirePermission('finance:ap:view'),
+  FinanceEnhancementController.listThreeWayMatches
+);
+router.get(
+  '/integration/three-way-match/:id',
+  requirePermission('finance:ap:view'),
+  FinanceEnhancementController.getThreeWayMatch
+);
+router.post(
+  '/integration/three-way-match/:id/confirm',
+  requirePermission('finance:ap:update'),
+  FinanceEnhancementController.confirmThreeWayMatch
+);
+router.put(
+  '/integration/three-way-match/:id/lines',
+  requirePermission('finance:ap:update'),
+  FinanceEnhancementController.updateThreeWayMatchLines
+);
+router.post(
+  '/integration/three-way-match/:id/cancel',
+  requirePermission('finance:ap:update'),
+  FinanceEnhancementController.cancelThreeWayMatch
+);
+
+router.get(
+  '/integration/document-status/purchase-receipt/:receiptId',
+  requirePermission(['finance:ap:view', 'purchase:receipts:view']),
+  FinanceEnhancementController.getPurchaseReceiptFinanceStatus
+);
+router.get(
+  '/integration/document-status/sales-outbound/:outboundId',
+  requirePermission(['finance:ar:view', 'sales:outbound:view']),
+  FinanceEnhancementController.getSalesOutboundFinanceStatus
+);
+
+router.get(
+  '/cash/bank-reconciliation-balance-sheet',
+  requirePermission('finance:cash:reconcile'),
+  FinanceEnhancementController.getBankReconciliationBalanceSheet
+);
 
 // ==================== 期末处理路由 ====================
 
@@ -121,7 +330,7 @@ router.post('/automation/failed-jobs/retry', requirePermission('finance:automati
 router.put('/automation/failed-jobs/:id/resolve', requirePermission('finance:automation:execute'), async (req, res) => {
   try {
     const { id } = req.params;
-    const operator = req.user?.username || req.user?.real_name || 'system';
+    const operator = getRequestActorLabel(req);
     await DLQService.markResolved(id, operator);
     return ResponseHandler.success(res, { id: Number(id) }, '财务自动化失败任务已标记为已处理');
   } catch (error) {

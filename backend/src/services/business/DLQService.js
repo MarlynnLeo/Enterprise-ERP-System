@@ -180,14 +180,19 @@ class DLQService {
     };
   }
 
-  static async markResolved(id, operator = 'system') {
+  static async markResolved(id, operator) {
+    const { resolveActorLabel } = require('../../utils/userUtils');
+    const resolvedBy =
+      operator != null && operator !== '' && operator !== 'system' && operator !== 'SYSTEM'
+        ? String(operator)
+        : await resolveActorLabel(null);
     await db.pool.query(
       `UPDATE sys_failed_jobs
        SET status = 'resolved',
            resolved_at = NOW(),
            error_message = CONCAT(COALESCE(error_message, ''), ?)
        WHERE id = ?`,
-      [`\n[resolved_by=${operator}]`, id]
+      [`\n[resolved_by=${resolvedBy}]`, id]
     );
   }
 

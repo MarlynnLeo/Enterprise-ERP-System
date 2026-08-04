@@ -6,53 +6,16 @@
  */
 
 const { pool } = require('../../config/db');
-const { logger } = require('../../utils/logger');
 const { softDelete } = require('../../utils/softDelete');
 const { parsePagination, appendPaginationSQL } = require('../../utils/safePagination');
 const NotificationService = require('../NotificationService');
+const NotificationRecipientService = require('../NotificationRecipientService');
+const NotificationResponsibilityService = require('./NotificationResponsibilityService');
+const { RECIPIENT_TYPES: RECIPIENT_TYPE_VALUES } = require('../../constants/notification');
+const { getEvent, getEvents } = require('../../events/NotificationEventRegistry');
 
-/**
- * 系统支持的事件类型及其可用变量
- * 用于前端下拉列表和模板编辑器的变量提示
- */
-const SUPPORTED_EVENTS = [
-  {
-    event_type: 'PRODUCTION_TASK_COMPLETED',
-    label: '生产任务完工',
-    variables: ['taskId', 'taskCode', 'productName', 'isFullComplete'],
-    category: '生产管理',
-  },
-  {
-    event_type: 'PURCHASE_RECEIPT_COMPLETED',
-    label: '采购收货入库',
-    variables: ['receiptId', 'receiptNo', 'supplierName'],
-    category: '采购管理',
-  },
-  {
-    event_type: 'SALES_OUTBOUND_COMPLETED',
-    label: '销售出库完成',
-    variables: ['outboundId', 'outboundNo', 'customerName'],
-    category: '销售管理',
-  },
-  {
-    event_type: 'SALES_RETURN_COMPLETED',
-    label: '销售退货完成',
-    variables: ['returnId', 'returnNo', 'customerName'],
-    category: '销售管理',
-  },
-  {
-    event_type: 'PURCHASE_RETURN_COMPLETED',
-    label: '采购退货完成',
-    variables: ['returnId', 'returnNo', 'supplierName'],
-    category: '采购管理',
-  },
-  {
-    event_type: 'ANOMALY_REPORTED',
-    label: '装配异常上报',
-    variables: ['anomalyId', 'code', 'title', 'category', 'severity', 'reporterName', 'location'],
-    category: '生产管理',
-  },
-];
+const RECIPIENT_TYPES = new Set(Object.values(RECIPIENT_TYPE_VALUES));
+const SUPPORTED_EVENTS = getEvents();
 
 class NotificationRuleService {
   // ==================== CRUD ====================
@@ -129,22 +92,22 @@ class NotificationRuleService {
    * 创建规则
    */
   async createRule(data, userId) {
-    this._validateRuleData(data);
+    const normalized = await this._validateRuleData(data);
 
     const [result] = await pool.query(
       `INSERT INTO notification_rules
        (name, event_type, recipient_type, recipient_config, title_template, content_template, link_template, priority, is_active, created_by)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        data.name,
-        data.event_type,
-        data.recipient_type || 'permission',
-        JSON.stringify(data.recipient_config),
-        data.title_template,
-        data.content_template,
-        data.link_template || null,
-        data.priority ?? 1,
-        data.is_active ?? 1,
+        normalized.name,
+        normalized.event_type,
+        normalized.recipient_type,
+        JSON.stringify(normalized.recipient_config),
+        normalized.title_template,
+        normalized.content_template,
+        normalized.link_template || null,
+        normalized.priority,
+        normalized.is_active,
         userId,
       ]
     );
@@ -158,7 +121,9 @@ class NotificationRuleService {
    * 更新规则
    */
   async updateRule(id, data) {
-    this._validateRuleData(data);
+    const current = await this.getRuleById(id);
+    if (!current) return null;
+    const normalized = await this._validateRuleData(data, id);
 
     await pool.query(
       `UPDATE notification_rules SET
@@ -167,15 +132,15 @@ class NotificationRuleService {
          priority = ?, is_active = ?, updated_at = NOW()
        WHERE id = ? AND deleted_at IS NULL`,
       [
-        data.name,
-        data.event_type,
-        data.recipient_type || 'permission',
-        JSON.stringify(data.recipient_config),
-        data.title_template,
-        data.content_template,
-        data.link_template || null,
-        data.priority ?? 1,
-        data.is_active ?? 1,
+        normalized.name,
+        normalized.event_type,
+        normalized.recipient_type,
+        JSON.stringify(normalized.recipient_config),
+        normalized.title_template,
+        normalized.content_template,
+        normalized.link_template || null,
+        normalized.priority,
+        normalized.is_active,
         id,
       ]
     );
@@ -196,6 +161,11 @@ class NotificationRuleService {
    * 切换启用/禁用
    */
   async toggleActive(id, isActive) {
+    const current = await this.getRuleById(id);
+    if (!current) return null;
+    if (isActive) {
+      await this._validateRuleData({ ...current, is_active: 1 }, id);
+    }
     await pool.query(
       'UPDATE notification_rules SET is_active = ?, updated_at = NOW() WHERE id = ? AND deleted_at IS NULL',
       [isActive ? 1 : 0, id]
@@ -251,41 +221,38 @@ class NotificationRuleService {
 
     if (!config || config.length === 0) return [];
 
-    switch (rule.recipient_type) {
-      case 'permission':
-        return NotificationService.getUserIdsByPermissions(config, { includeAdmins: true });
+    return NotificationRecipientService.resolveRecipients(rule.recipient_type, config);
+  }
 
-      case 'role': {
-        const roleIds = config.map(Number).filter(Boolean);
-        if (roleIds.length === 0) return [];
-        const [users] = await pool.query(
-          `SELECT DISTINCT ur.user_id
-           FROM user_roles ur
-           JOIN users u ON u.id = ur.user_id AND u.status = 1
-           WHERE ur.role_id IN (?)`,
-          [roleIds]
-        );
-        return users.map((u) => u.user_id);
-      }
+  async previewRecipients(data) {
+    const recipientType = data.recipient_type || RECIPIENT_TYPE_VALUES.PERMISSION;
+    const recipientConfig = await NotificationRecipientService.validateConfig(
+      recipientType,
+      data.recipient_config
+    );
+    return NotificationRecipientService.preview(recipientType, recipientConfig);
+  }
 
-      case 'department': {
-        const deptIds = config.map(Number).filter(Boolean);
-        if (deptIds.length === 0) return [];
-        const [users] = await pool.query(
-          'SELECT id FROM users WHERE department_id IN (?) AND status = 1',
-          [deptIds]
-        );
-        return users.map((u) => u.id);
-      }
+  async getRecipientOptions() {
+    return NotificationRecipientService.getOptions();
+  }
 
-      case 'user': {
-        return config.map(Number).filter(Boolean);
-      }
+  async sendTestNotification(id, userId) {
+    const rule = await this.getRuleById(id);
+    if (!rule) return null;
 
-      default:
-        logger.warn(`[NotificationRuleService] 未知接收人类型: ${rule.recipient_type}`);
-        return [];
-    }
+    const event = getEvent(rule.event_type);
+    const samples = Object.fromEntries((event?.variables || []).map((variable) => [variable, `[${variable}]`]));
+    const notification = {
+      type: 'notification_test',
+      title: `[测试] ${this.renderTemplate(rule.title_template, samples)}`,
+      content: this.renderTemplate(rule.content_template, samples),
+      link: this.renderTemplate(rule.link_template, samples) || null,
+      priority: rule.priority,
+      createdBy: userId,
+    };
+    const result = await NotificationService.notifyUsers([userId], notification, { dedupeByDay: false });
+    return { rule, result };
   }
 
   /**
@@ -347,9 +314,12 @@ class NotificationRuleService {
     return vars;
   }
 
-  _validateRuleData(data) {
+  async _validateRuleData(data, ruleId = null) {
     if (!data.name || !String(data.name).trim()) {
       throw new Error('规则名称不能为空');
+    }
+    if (String(data.name).trim().length > 100) {
+      throw new Error('规则名称不能超过 100 个字符');
     }
     if (!data.event_type || !String(data.event_type).trim()) {
       throw new Error('事件类型不能为空');
@@ -357,12 +327,99 @@ class NotificationRuleService {
     if (!data.title_template || !String(data.title_template).trim()) {
       throw new Error('标题模板不能为空');
     }
+    if (String(data.title_template).length > 200) {
+      throw new Error('标题模板不能超过 200 个字符');
+    }
     if (!data.content_template || !String(data.content_template).trim()) {
       throw new Error('内容模板不能为空');
     }
-    if (!data.recipient_config || !Array.isArray(data.recipient_config) || data.recipient_config.length === 0) {
-      throw new Error('接收人配置不能为空');
+    if (String(data.content_template).length > 2000) {
+      throw new Error('内容模板不能超过 2000 个字符');
     }
+    const event = getEvent(data.event_type);
+    if (!event) {
+      throw new Error('不支持的事件类型');
+    }
+    const recipientType = data.recipient_type || RECIPIENT_TYPE_VALUES.PERMISSION;
+    if (!RECIPIENT_TYPES.has(recipientType)) {
+      throw new Error('不支持的接收人类型');
+    }
+    const recipientConfig = await NotificationRecipientService.validateConfig(
+      recipientType,
+      data.recipient_config
+    );
+    const priority = Number(data.priority ?? 1);
+    if (![0, 1, 2].includes(priority)) {
+      throw new Error('通知优先级必须为 0、1 或 2');
+    }
+
+    const templates = [data.title_template, data.content_template, data.link_template || ''];
+    const usedVariables = [...new Set(templates.flatMap((template) =>
+      [...String(template).matchAll(/\$\{(\w+)}/g)].map((match) => match[1])
+    ))];
+    const invalidVariables = usedVariables.filter((variable) => !event.variables.includes(variable));
+    if (invalidVariables.length) {
+      throw new Error(`模板包含不可用变量: ${invalidVariables.join(', ')}`);
+    }
+
+    const link = String(data.link_template || '').trim();
+    if (link && (!link.startsWith('/') || link.startsWith('//') || link.includes('\\'))) {
+      throw new Error('跳转链接必须是以 / 开头的系统内部路由');
+    }
+
+    const isActive = Number(data.is_active ?? 1) ? 1 : 0;
+    const [duplicateCandidates] = await pool.query(
+      `SELECT id, recipient_config
+         FROM notification_rules
+        WHERE event_type = ?
+          AND recipient_type = ?
+          AND is_active = 1
+          AND deleted_at IS NULL
+          ${ruleId ? 'AND id <> ?' : ''}
+        LIMIT 100`,
+      [data.event_type, recipientType, ...(ruleId ? [ruleId] : [])]
+    );
+    const normalizedConfigJson = JSON.stringify(recipientConfig);
+    const hasDuplicate = duplicateCandidates.some((candidate) => {
+      const parsedConfig = this._parseJson(candidate.recipient_config);
+      if (!Array.isArray(parsedConfig)) return false;
+      const existingConfig = recipientType === 'permission'
+        ? [...parsedConfig].map(String).sort()
+        : [...parsedConfig].map(Number).sort((a, b) => a - b);
+      return JSON.stringify(existingConfig) === normalizedConfigJson;
+    });
+    if (isActive && hasDuplicate) {
+      throw new Error('已存在相同事件和接收范围的启用规则');
+    }
+
+    if (isActive) {
+      const preview = await NotificationRecipientService.preview(recipientType, recipientConfig);
+      if (!preview.count) {
+        throw new Error('启用规则前必须至少匹配一名启用用户');
+      }
+      if (preview.exceedsBroadcastThreshold) {
+        throw new Error(`接收范围达到启用用户的 ${Math.round(preview.ratio * 100)}%，请缩小范围后再启用`);
+      }
+    }
+
+    await NotificationResponsibilityService.validateRuleRecipients(
+      data.event_type,
+      recipientType,
+      recipientConfig,
+      { active: isActive === 1 }
+    );
+
+    return {
+      name: String(data.name).trim(),
+      event_type: data.event_type,
+      recipient_type: recipientType,
+      recipient_config: recipientConfig,
+      title_template: String(data.title_template).trim(),
+      content_template: String(data.content_template).trim(),
+      link_template: link,
+      priority,
+      is_active: isActive,
+    };
   }
 
   _parseJson(value) {

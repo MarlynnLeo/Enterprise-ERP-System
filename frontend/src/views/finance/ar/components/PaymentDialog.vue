@@ -15,19 +15,19 @@
   >
     <el-form :model="editableForm" :rules="paymentRules" ref="paymentFormRef" label-width="100px">
       <el-form-item label="发票编号">
-        <el-input v-model="editableForm.invoice_number" disabled></el-input>
+        <el-input v-model="editableForm.invoiceNumber" disabled></el-input>
       </el-form-item>
       <el-form-item label="客户名称">
-        <el-input v-model="editableForm.customer_name" disabled></el-input>
+        <el-input v-model="editableForm.customerName" disabled></el-input>
       </el-form-item>
       <el-form-item label="发票金额">
-        <el-input v-model="editableForm.total_amount" disabled></el-input>
+        <el-input v-model="editableForm.totalAmount" disabled></el-input>
       </el-form-item>
       <el-form-item label="已付金额">
-        <el-input v-model="editableForm.paid_amount" disabled></el-input>
+        <el-input v-model="editableForm.paidAmount" disabled></el-input>
       </el-form-item>
       <el-form-item label="剩余金额">
-        <el-input v-model="editableForm.balance_amount" disabled></el-input>
+        <el-input v-model="editableForm.balanceAmount" disabled></el-input>
       </el-form-item>
       <el-form-item label="收款日期" prop="paymentDate">
         <el-date-picker

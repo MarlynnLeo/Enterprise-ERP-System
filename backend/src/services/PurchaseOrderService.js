@@ -7,6 +7,7 @@
 
 const { logger } = require('../utils/logger');
 const { lineAmount, normalizeTaxRate, roundMoney, taxAmount, toNumber } = require('../utils/money');
+const { resolveUnitPrice } = require('../utils/unitPriceFields');
 
 function createBusinessError(message, statusCode = 400) {
   const error = new Error(message);
@@ -208,12 +209,15 @@ class PurchaseOrderService {
       total_price: totalPrice,
     } = item;
 
-    // 兼容price和unit_price字段
-    const rawPrice = price ?? unit_price;
-    if (rawPrice === null || rawPrice === undefined || rawPrice === '') {
+    // 库列权威名为 price；入参兼容 unit_price / unitPrice
+    const hasRaw =
+      (price !== null && price !== undefined && price !== '') ||
+      (unit_price !== null && unit_price !== undefined && unit_price !== '') ||
+      (item.unitPrice !== null && item.unitPrice !== undefined && item.unitPrice !== '');
+    if (!hasRaw) {
       throw new Error(`物料 ${material_code || material_id} 的单价缺失，请先维护采购价格`);
     }
-    const itemPrice = toNumber(rawPrice, Number.NaN);
+    const itemPrice = resolveUnitPrice(item, { fallback: Number.NaN });
     const itemQuantity = toNumber(quantity, 0);
     const itemTaxRate = normalizeTaxRate(item.tax_rate ?? item.taxPercent ?? item.tax_percent, 0);
     const itemAmount = totalPrice !== undefined
@@ -259,11 +263,20 @@ class PurchaseOrderService {
       material_name: itemName,
       specification: itemSpec,
       unit_id: itemUnitId,
-      price: itemPrice,
+      price: itemPrice, // 写入 purchase_order_items.price
+      unit_price: itemPrice, // 内存双写，便于后续逻辑统一读取
       quantity: itemQuantity,
       tax_rate: itemTaxRate,
       tax_amount: itemTaxAmount,
       amount: itemAmount,
+      metal_symbol: item.metal_symbol || null,
+      metal_price: item.metal_price ?? null,
+      metal_price_min: item.metal_price_min ?? null,
+      metal_price_max: item.metal_price_max ?? null,
+      metal_price_band_label: item.metal_price_band_label || null,
+      price_source: item.price_source || null,
+      metal_price_scheme_id: item.metal_price_scheme_id ?? null,
+      metal_price_item_id: item.metal_price_item_id ?? null,
     };
   }
 
@@ -304,7 +317,7 @@ class PurchaseOrderService {
       return;
     }
 
-    const placeholders = processedItems.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
+    const placeholders = processedItems.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
     const values = [];
     for (const item of processedItems) {
       values.push(
@@ -320,13 +333,21 @@ class PurchaseOrderService {
         item.amount,
         item.amount,
         item.tax_rate,
-        item.tax_amount
+        item.tax_amount,
+        item.metal_symbol || null,
+        item.metal_price ?? null,
+        item.metal_price_min ?? null,
+        item.metal_price_max ?? null,
+        item.metal_price_band_label || null,
+        item.price_source || null,
+        item.metal_price_scheme_id ?? null,
+        item.metal_price_item_id ?? null
       );
     }
 
     await connection.query(
       `INSERT INTO purchase_order_items
-      (order_id, material_id, material_code, material_name, specification, unit, unit_id, price, quantity, total, amount_excluding_tax, tax_rate, tax_amount)
+      (order_id, material_id, material_code, material_name, specification, unit, unit_id, price, quantity, total, amount_excluding_tax, tax_rate, tax_amount, metal_symbol, metal_price, metal_price_min, metal_price_max, metal_price_band_label, price_source, metal_price_scheme_id, metal_price_item_id)
       VALUES ${placeholders}`,
       values
     );

@@ -86,13 +86,15 @@ class DepreciationService {
 
       if (assets.length === 0) {
         // 没有资产也要记录日志
+        const { resolveActorLabel } = require('../../utils/userUtils');
+        const logUser = await resolveActorLabel(connection);
         await connection.execute(
           `INSERT INTO operation_logs (module, operation, username, request_data, created_at)
            VALUES (?, ?, ?, ?, NOW())`,
           [
             'finance',
             'depreciation',
-            'system',
+            logUser,
             JSON.stringify({
               period: normalizedPeriodMonth,
               assetCount: 0,
@@ -131,13 +133,15 @@ class DepreciationService {
 
       if (depreciationEntries.length === 0) {
         // 资产已折旧完毕也要记录日志
+        const { resolveActorLabel } = require('../../utils/userUtils');
+        const logUser = await resolveActorLabel(connection);
         await connection.execute(
           `INSERT INTO operation_logs (module, operation, username, request_data, created_at)
            VALUES (?, ?, ?, ?, NOW())`,
           [
             'finance',
             'depreciation',
-            'system',
+            logUser,
             JSON.stringify({
               period: normalizedPeriodMonth,
               assetCount: 0,
@@ -173,13 +177,15 @@ class DepreciationService {
       );
 
       // 记录操作日志
+      const { resolveActorLabel } = require('../../utils/userUtils');
+      const logUser = await resolveActorLabel(connection);
       await connection.execute(
         `INSERT INTO operation_logs (module, operation, username, request_data, created_at)
          VALUES (?, ?, ?, ?, NOW())`,
         [
           'finance',
           'depreciation',
-          'system',
+          logUser,
           JSON.stringify({
             period: normalizedPeriodMonth,
             assetCount: depreciationEntries.length,
@@ -323,10 +329,14 @@ class DepreciationService {
     // 获取会计期间（根据折旧月份的第一天）
     const entryDate = `${periodMonth}-01`;
 
-    // 获取系统默认创建人
+    // 正规操作人：配置默认 → 首个启用用户（禁止 'system' 字面量）
     const { financeConfig } = require('../../config/financeConfig');
+    const { resolveActorUserId } = require('../../utils/userUtils');
     await financeConfig.loadFromDatabase(db);
-    const defaultCreator = financeConfig.get('system.defaultCreator', 'system');
+    const defaultCreator = await resolveActorUserId(
+      connection,
+      financeConfig.get('system.defaultCreator', null)
+    );
 
     // 准备分录数据
     const entryData = {

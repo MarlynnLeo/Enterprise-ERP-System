@@ -7,10 +7,12 @@
 
 const { logger } = require('../../utils/logger');
 const { currentDateString } = require('../../utils/dateUtils');
+const { resolveActorLabel, resolveActorUserId } = require('../../utils/userUtils');
 const {
   INVOICE_STATUS,
   TAX_INVOICE_STATUS,
   TAX_RELATED_DOCUMENT_TYPES,
+  taxRelatedDocumentTypeMatchList,
 } = require('../../constants/financeConstants');
 
 class SalesOutboundReversalService {
@@ -28,8 +30,9 @@ class SalesOutboundReversalService {
       outboundNo,
       outboundId,
       orderId = null,
-      operator = 'system',
+      operator: operatorInput = null,
     } = options;
+    const operator = await resolveActorLabel(connection, operatorInput);
 
     const summary = {
       costGlReversed: 0,
@@ -137,7 +140,7 @@ class SalesOutboundReversalService {
           entry_date: today,
           posting_date: today,
           description: `销售出库冲销 ${outboundNo}`,
-          created_by: operator || 'system',
+          created_by: await resolveActorLabel(null, operator),
         },
         connection
       );
@@ -147,13 +150,15 @@ class SalesOutboundReversalService {
   }
 
   static async voidRelatedTaxInvoices(connection, outboundId, operator) {
+    const types = taxRelatedDocumentTypeMatchList(TAX_RELATED_DOCUMENT_TYPES.SALES_OUTBOUND);
+    const placeholders = types.map(() => '?').join(', ');
     const [taxRows] = await connection.execute(
       `SELECT id, status, gl_entry_id, invoice_number
        FROM tax_invoices
-       WHERE related_document_type = ?
+       WHERE related_document_type IN (${placeholders})
          AND related_document_id = ?
        FOR UPDATE`,
-      [TAX_RELATED_DOCUMENT_TYPES.SALES_OUTBOUND, outboundId]
+      [...types, outboundId]
     );
 
     if (taxRows.length === 0) return 0;
@@ -183,7 +188,7 @@ class SalesOutboundReversalService {
               entry_date: today,
               posting_date: today,
               description: `销售出库冲销回冲销项税 ${tax.invoice_number || tax.id}`,
-              created_by: operator || 'system',
+              created_by: await resolveActorLabel(null, operator),
             },
             connection
           );
@@ -272,7 +277,7 @@ class SalesOutboundReversalService {
               entry_date: today,
               posting_date: today,
               description: `销售出库冲销取消应收 ${inv.invoice_number}`,
-              created_by: operator || 'system',
+              created_by: await resolveActorLabel(null, operator),
             },
             connection
           );

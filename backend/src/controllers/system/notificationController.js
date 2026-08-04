@@ -8,6 +8,8 @@ const { ResponseHandler } = require('../../utils/responseHandler');
 const { logger } = require('../../utils/logger');
 const { parsePagination, appendPaginationSQL } = require('../../utils/safePagination');
 const NotificationService = require('../../services/NotificationService');
+const NotificationRecipientService = require('../../services/NotificationRecipientService');
+const { AuditService, AuditAction, AuditModule } = require('../../services/AuditService');
 
 class NotificationController {
   /**
@@ -19,7 +21,7 @@ class NotificationController {
       const { page = 1, pageSize = 20, type, isRead, priority } = req.query;
 
       const pagination = parsePagination(page, pageSize, { defaultPageSize: 20, maxPageSize: 100 });
-      const whereConditions = ['user_id = ?'];
+      const whereConditions = ['user_id = ?', 'is_suppressed = 0'];
       const params = [userId];
 
       if (type) {
@@ -83,7 +85,7 @@ class NotificationController {
       const userId = req.user.id;
 
       const result = await db.query(
-        'SELECT id, title, content, type, source, user_id, link, link_params, source_type, source_id, created_by, metadata, is_read, priority, read_at, created_at, updated_at FROM notifications WHERE id = ? AND user_id = ?',
+        'SELECT id, title, content, type, source, user_id, link, link_params, source_type, source_id, created_by, metadata, is_read, priority, read_at, created_at, updated_at FROM notifications WHERE id = ? AND user_id = ? AND is_suppressed = 0',
         [id, userId]
       );
 
@@ -106,7 +108,7 @@ class NotificationController {
       const userId = req.user.id;
 
       const result = await db.query(
-        'SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND is_read = 0',
+        'SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND is_read = 0 AND is_suppressed = 0',
         [userId]
       );
 
@@ -126,7 +128,7 @@ class NotificationController {
       const userId = req.user.id;
 
       const result = await db.query(
-        'UPDATE notifications SET is_read = 1, read_at = NOW() WHERE id = ? AND user_id = ?',
+        'UPDATE notifications SET is_read = 1, read_at = NOW() WHERE id = ? AND user_id = ? AND is_suppressed = 0',
         [id, userId]
       );
       if (result.affectedRows === 0) {
@@ -154,13 +156,13 @@ class NotificationController {
         const placeholders = targetIds.map(() => '?').join(',');
         await db.query(
           `UPDATE notifications SET is_read = 1, read_at = NOW()
-           WHERE id IN (${placeholders}) AND user_id = ?`,
+           WHERE id IN (${placeholders}) AND user_id = ? AND is_suppressed = 0`,
           [...targetIds, userId]
         );
       } else {
         // 标记所有未读通知
         await db.query(
-          'UPDATE notifications SET is_read = 1, read_at = NOW() WHERE user_id = ? AND is_read = 0',
+          'UPDATE notifications SET is_read = 1, read_at = NOW() WHERE user_id = ? AND is_read = 0 AND is_suppressed = 0',
           [userId]
         );
       }
@@ -180,7 +182,7 @@ class NotificationController {
       const { id } = req.params;
       const userId = req.user.id;
 
-      const result = await db.query('DELETE FROM notifications WHERE id = ? AND user_id = ?', [id, userId]);
+      const result = await db.query('DELETE FROM notifications WHERE id = ? AND user_id = ? AND is_suppressed = 0', [id, userId]);
       if (result.affectedRows === 0) {
         return ResponseHandler.notFound(res, '通知不存在');
       }
@@ -207,7 +209,7 @@ class NotificationController {
 
       const placeholders = targetIds.map(() => '?').join(',');
       const result = await db.query(
-        `DELETE FROM notifications WHERE id IN (${placeholders}) AND user_id = ?`,
+        `DELETE FROM notifications WHERE id IN (${placeholders}) AND user_id = ? AND is_suppressed = 0`,
         [...targetIds, userId]
       );
 
@@ -235,6 +237,17 @@ class NotificationController {
         sourceId,
       } = req.body;
 
+      await NotificationRecipientService.validateConfig('user', [userId]);
+      if (!title || String(title).trim().length > 200) {
+        return ResponseHandler.error(res, '通知标题不能为空且不能超过 200 个字符', 'VALIDATION_ERROR', 400);
+      }
+      if (content && String(content).length > 10000) {
+        return ResponseHandler.error(res, '通知内容不能超过 10000 个字符', 'VALIDATION_ERROR', 400);
+      }
+      if (link && (!String(link).startsWith('/') || String(link).startsWith('//'))) {
+        return ResponseHandler.error(res, '通知链接必须是系统内部路径', 'VALIDATION_ERROR', 400);
+      }
+
       const result = await NotificationService.notifyUsers(
         [userId],
         {
@@ -251,10 +264,25 @@ class NotificationController {
         { dedupeBySource: true }
       );
 
+      await AuditService.logFromRequest(
+        req,
+        AuditModule.SYSTEM,
+        AuditAction.CREATE,
+        'notification',
+        sourceId || null,
+        null,
+        { userId, type, title, sourceType, sourceId }
+      );
+
       ResponseHandler.success(res, result, '通知创建成功');
     } catch (error) {
       logger.error('创建通知失败:', error);
-      ResponseHandler.error(res, '创建通知失败');
+      ResponseHandler.error(
+        res,
+        error.code === 'VALIDATION_ERROR' ? error.message : '创建通知失败',
+        error.code === 'VALIDATION_ERROR' ? 'VALIDATION_ERROR' : 'ERROR',
+        error.code === 'VALIDATION_ERROR' ? 400 : 500
+      );
     }
   }
 
@@ -267,6 +295,21 @@ class NotificationController {
 
       if (!notifications || notifications.length === 0) {
         return ResponseHandler.error(res, '通知列表不能为空');
+      }
+      if (!Array.isArray(notifications) || notifications.length > 100) {
+        return ResponseHandler.error(res, '批量通知数量必须在 1 到 100 条之间', 'VALIDATION_ERROR', 400);
+      }
+      await NotificationRecipientService.validateConfig(
+        'user',
+        notifications.map((item) => item.userId)
+      );
+      for (const item of notifications) {
+        if (!item.title || String(item.title).trim().length > 200) {
+          return ResponseHandler.error(res, '每条通知都必须有不超过 200 个字符的标题', 'VALIDATION_ERROR', 400);
+        }
+        if (item.link && (!String(item.link).startsWith('/') || String(item.link).startsWith('//'))) {
+          return ResponseHandler.error(res, '通知链接必须是系统内部路径', 'VALIDATION_ERROR', 400);
+        }
       }
 
       const result = await NotificationService.notifyMany(
@@ -287,10 +330,25 @@ class NotificationController {
         { dedupeBySource: true }
       );
 
+      await AuditService.logFromRequest(
+        req,
+        AuditModule.SYSTEM,
+        AuditAction.CREATE,
+        'notification_batch',
+        null,
+        null,
+        { count: notifications.length, userIds: notifications.map((item) => item.userId) }
+      );
+
       ResponseHandler.success(res, result, '批量通知创建成功');
     } catch (error) {
       logger.error('批量创建通知失败:', error);
-      ResponseHandler.error(res, '批量创建通知失败');
+      ResponseHandler.error(
+        res,
+        error.code === 'VALIDATION_ERROR' ? error.message : '批量创建通知失败',
+        error.code === 'VALIDATION_ERROR' ? 'VALIDATION_ERROR' : 'ERROR',
+        error.code === 'VALIDATION_ERROR' ? 400 : 500
+      );
     }
   }
 }

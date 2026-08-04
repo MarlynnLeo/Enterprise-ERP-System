@@ -1,11 +1,7 @@
 <template>
-  <div class="module-page page-container">
-    <div class="toolbar">
-      <div>
-        <h2>数据备份</h2>
-        <p>数据库备份、下载与恢复前校验</p>
-      </div>
-      <div class="toolbar-actions">
+  <div class="module-page backup-page">
+    <PageHeader title="数据备份" subtitle="数据库备份、下载与恢复前校验">
+      <template #actions>
         <el-button :icon="Refresh" @click="loadBackups" :loading="loading">刷新</el-button>
         <el-button
           type="primary"
@@ -16,8 +12,8 @@
         >
           手动备份
         </el-button>
-      </div>
-    </div>
+      </template>
+    </PageHeader>
 
     <el-alert
       v-if="lastVerification"
@@ -171,35 +167,6 @@ onMounted(loadBackups)
 </script>
 
 <style scoped>
-.module-page {
-  padding: 16px;
-}
-
-.toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 12px;
-}
-
-.toolbar h2 {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 600;
-}
-
-.toolbar p {
-  margin: 4px 0 0;
-  color: var(--el-text-color-secondary);
-  font-size: 13px;
-}
-
-.toolbar-actions {
-  display: flex;
-  gap: 8px;
-}
-
 .verify-alert {
   margin-bottom: 12px;
 }
@@ -218,16 +185,5 @@ onMounted(loadBackups)
   padding: 4px 16px;
   color: var(--el-text-color-regular);
   font-size: 13px;
-}
-
-@media (max-width: 720px) {
-  .toolbar {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .toolbar-actions {
-    justify-content: flex-start;
-  }
 }
 </style>

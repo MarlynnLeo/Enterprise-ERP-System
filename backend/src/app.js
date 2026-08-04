@@ -89,6 +89,7 @@ const {
   handleUnhandledRejection,
 } = require('./middleware/unifiedErrorHandler');
 const { logger } = require('./utils/logger');
+const { isHttpsRequest } = require('./utils/cookieSecurity');
 const DLQService = require('./services/business/DLQService');
 
 // 导入 CSRF 保护中间件
@@ -129,14 +130,21 @@ app.use(
       },
     },
     // 生产环境启用 HSTS（仅 HTTPS 生效；开发 HTTP 不强制）
-    hsts:
-      process.env.NODE_ENV === 'production'
-        ? { maxAge: 31536000, includeSubDomains: true, preload: false }
-        : false,
+    hsts: false, // set per-request below for mixed HTTP/HTTPS entry points
     crossOriginEmbedderPolicy: false, // 允许跨域资源
     crossOriginResourcePolicy: { policy: 'cross-origin' },
   })
 );
+
+
+// Only advertise HSTS on actual HTTPS requests so internal HTTP entry points
+// are not permanently upgraded by the browser.
+app.use((req, res, next) => {
+  if (process.env.NODE_ENV === 'production' && isHttpsRequest(req)) {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+  next();
+});
 
 // 1.5 API响应压缩 - 显著减少响应体积
 app.use(

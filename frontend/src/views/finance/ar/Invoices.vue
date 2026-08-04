@@ -74,23 +74,33 @@
           <template #empty>
             <el-empty description="暂无发票数据" />
           </template>
-          <el-table-column prop="invoice_number" label="发票编号" width="220"></el-table-column>
-          <el-table-column prop="customer_name" label="客户名称" width="220"></el-table-column>
-          <el-table-column prop="invoice_date" label="开票日期" width="120"></el-table-column>
-          <el-table-column prop="due_date" label="到期日期" width="120"></el-table-column>
-          <el-table-column prop="total_amount" label="金额" width="160">
+          <el-table-column prop="invoiceNumber" label="发票编号" width="180" />
+          <el-table-column prop="customerName" label="客户名称" min-width="160" />
+          <el-table-column prop="invoiceDate" label="开票日期" width="110" />
+          <el-table-column prop="dueDate" label="到期日期" width="110" />
+          <el-table-column prop="totalAmount" label="价税合计" width="120">
             <template #default="scope">
-              {{ formatCurrency(scope.row.total_amount) }}
+              {{ formatCurrency(scope.row.totalAmount) }}
             </template>
           </el-table-column>
-          <el-table-column prop="paid_amount" label="已付金额" width="160">
+          <el-table-column prop="amountExcludingTax" label="未税" width="110">
             <template #default="scope">
-              {{ formatCurrency(scope.row.paid_amount) }}
+              {{ formatCurrency(scope.row.amountExcludingTax) }}
             </template>
           </el-table-column>
-          <el-table-column prop="balance_amount" label="剩余金额" width="160">
+          <el-table-column prop="taxAmount" label="税额" width="100">
             <template #default="scope">
-              {{ formatCurrency(scope.row.balance_amount) }}
+              {{ formatCurrency(scope.row.taxAmount) }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="paidAmount" label="已收金额" width="120">
+            <template #default="scope">
+              {{ formatCurrency(scope.row.paidAmount) }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="balanceAmount" label="剩余金额" width="120">
+            <template #default="scope">
+              {{ formatCurrency(scope.row.balanceAmount) }}
             </template>
           </el-table-column>
           <el-table-column label="状态" width="110">
@@ -119,7 +129,11 @@
                 确认
               </el-button>
               <el-button
-                v-if="scope.row.status === '草稿'"
+                v-if="
+                  scope.row.status === '草稿' ||
+                  (['已确认', '已逾期'].includes(scope.row.status) &&
+                    Math.abs(Number(scope.row.paidAmount || 0)) < 0.005)
+                "
                 type="warning"
                 size="small"
                 @click="handleStatusChange(scope.row, '已取消')"
@@ -127,7 +141,7 @@
                 取消
               </el-button>
               <el-button
-                v-if="['已确认', '部分付款', '已逾期'].includes(scope.row.status) && scope.row.balance_amount > 0"
+                v-if="['已确认', '部分付款', '已逾期'].includes(scope.row.status) && scope.row.balanceAmount > 0"
                 type="success"
                 size="small"
                 @click="handleRecordPayment(scope.row)"
@@ -231,14 +245,16 @@ const bankAccounts = ref([]);
 const detailsDialogVisible = ref(false);
 const invoiceDetails = reactive({
   id: null,
-  invoice_number: '',
-  customer_name: '',
+  invoiceNumber: '',
+  customerName: '',
   customerId: null,
-  invoice_date: '',
-  due_date: '',
-  total_amount: 0,
-  paid_amount: 0,
-  balance_amount: 0,
+  invoiceDate: '',
+  dueDate: '',
+  totalAmount: 0,
+  amountExcludingTax: 0,
+  taxAmount: 0,
+  paidAmount: 0,
+  balanceAmount: 0,
   status: '',
   createdAt: '',
   notes: '',
@@ -256,30 +272,30 @@ const searchForm = reactive({
   dateRange: [],
   status: ''
 });
-// 发票表单
+// 发票表单（API camelCase 契约）
 const invoiceForm = reactive({
   id: null,
-  invoice_number: '',
+  invoiceNumber: '',
   customerId: null,
-  invoice_date: formatLocalDate(new Date()),
-  due_date: '',
+  invoiceDate: formatLocalDate(new Date()),
+  dueDate: '',
   items: [],
   notes: '',
-  taxRate: defaultVATRate.value // 使用动态配置的默认税率
+  taxRate: defaultVATRate.value
 });
 // 收款表单
 const paymentForm = reactive({
   invoiceId: null,
-  invoice_number: '',
-  customer_name: '',
-  total_amount: '',
-  paid_amount: '',
-  balance_amount: '',
+  invoiceNumber: '',
+  customerName: '',
+  totalAmount: '',
+  paidAmount: '',
+  balanceAmount: '',
   balanceValue: 0,
   paymentDate: formatLocalDate(new Date()),
   amount: 0,
   paymentMethod: 'bank_transfer',
-  bankAccountId: null,  // 添加银行账户ID字段
+  bankAccountId: null,
   notes: ''
 });
 
@@ -404,14 +420,22 @@ const showAddDialog = () => {
 };
 const handleStatusChange = async (row, status) => {
   const actionText = status === '已确认' ? '确认' : '取消';
+  const isCancelConfirmed =
+    status === '已取消' && ['已确认', '已逾期'].includes(row.status);
+  const invNo = row.invoiceNumber;
+  const confirmMsg = isCancelConfirmed
+    ? `确定取消已确认发票 ${invNo} 吗？将冲销关联会计凭证并释放来源单据，未收款发票才可取消。`
+    : `确定要${actionText}发票 ${invNo} 吗？`;
   try {
-    await ElMessageBox.confirm(
-      `确定要${actionText}发票 ${row.invoice_number} 吗？`,
-      `${actionText}发票`,
-      { type: status === '已确认' ? 'success' : 'warning' }
-    );
+    await ElMessageBox.confirm(confirmMsg, `${actionText}发票`, {
+      type: status === '已确认' ? 'success' : 'warning',
+    });
     await financeApi.updateARInvoiceStatus(row.id, { status });
-    ElMessage.success(`发票已${status === '已确认' ? '确认' : '取消'}`);
+    ElMessage.success(
+      isCancelConfirmed
+        ? '发票已取消，关联凭证已冲销'
+        : `发票已${status === '已确认' ? '确认' : '取消'}`
+    );
     loadInvoices();
   } catch (error) {
     if (error === 'cancel' || error === 'close') return;
@@ -429,51 +453,39 @@ const handleEdit = async (row) => {
 
     resetInvoiceForm();
 
-    // 填充表单数据，确保字段名称正确映射
     invoiceForm.id = invoice.id;
-    invoiceForm.invoice_number = invoice.invoice_number;
-    invoiceForm.customerId = invoice.customer_id;
-    invoiceForm.invoice_date = invoice.invoice_date;
-    invoiceForm.due_date = invoice.due_date;
+    invoiceForm.invoiceNumber = invoice.invoiceNumber;
+    invoiceForm.customerId = invoice.customerId != null ? parseInt(invoice.customerId, 10) : null;
+    invoiceForm.invoiceDate = invoice.invoiceDate;
+    invoiceForm.dueDate = invoice.dueDate;
     invoiceForm.notes = invoice.notes || '';
-    invoiceForm.taxRate = invoice.taxRate !== undefined ? invoice.taxRate : defaultVATRate.value;
+    invoiceForm.taxRate = invoice.taxRate != null ? invoice.taxRate : defaultVATRate.value;
 
-    // 从发票对象中直接获取明细项
     if (invoice.items && Array.isArray(invoice.items)) {
-      // 确保明细项数据格式正确
-      invoiceForm.items = invoice.items.map(item => ({
+      invoiceForm.items = invoice.items.map((item) => ({
         id: item.id,
-        productId: parseInt(item.productId) || parseInt(item.product_id) || null,
+        productId: item.productId != null ? parseInt(item.productId, 10) : null,
         description: item.description || '',
         quantity: parseFloat(item.quantity) || 0,
-        unitPrice: parseFloat(item.unitPrice) || parseFloat(item.unit_price) || 0,
+        unitPrice: parseFloat(item.unitPrice) || 0,
         amount: parseFloat(item.amount) || 0
       }));
-
-      // 如果没有明细项，添加默认一个明细项
-      if (invoiceForm.items.length === 0) {
-        addInvoiceItem();
-      }
+      if (invoiceForm.items.length === 0) addInvoiceItem();
     } else {
-      // 如果没有明细项，添加默认一个明细项
       addInvoiceItem();
     }
 
-    // 打印排障信息
     dialogVisible.value = true;
   } catch (error) {
     logger.error('获取发票详情失败:', error);
     ElMessage.error('获取发票详情失败: ' + (error.message || '未知错误'));
-
-    // 出错时也显示对话框，但添加一个默认明细项
     resetInvoiceForm();
     if (row) {
-      // 使用列表中的基本信息
       invoiceForm.id = row.id;
-      invoiceForm.invoice_number = row.invoice_number;
-      invoiceForm.customerId = row.customer_id;
-      invoiceForm.invoice_date = row.invoice_date;
-      invoiceForm.due_date = row.due_date;
+      invoiceForm.invoiceNumber = row.invoiceNumber;
+      invoiceForm.customerId = row.customerId;
+      invoiceForm.invoiceDate = row.invoiceDate;
+      invoiceForm.dueDate = row.dueDate;
     }
     addInvoiceItem();
     dialogVisible.value = true;
@@ -498,16 +510,17 @@ const handleViewDetails = async (row) => {
       const response = await financeApi.getARInvoice(row.id);
       const invoice = response.data;
 
-      // 限制数据量，只复制必要的字段
       invoiceDetails.id = invoice.id;
-      invoiceDetails.invoice_number = invoice.invoice_number;
-      invoiceDetails.customer_name = invoice.customer_name;
+      invoiceDetails.invoiceNumber = invoice.invoiceNumber;
+      invoiceDetails.customerName = invoice.customerName;
       invoiceDetails.customerId = invoice.customerId;
-      invoiceDetails.invoice_date = invoice.invoice_date;
-      invoiceDetails.due_date = invoice.due_date;
-      invoiceDetails.total_amount = invoice.total_amount;
-      invoiceDetails.paid_amount = invoice.paid_amount;
-      invoiceDetails.balance_amount = invoice.balance_amount;
+      invoiceDetails.invoiceDate = invoice.invoiceDate;
+      invoiceDetails.dueDate = invoice.dueDate;
+      invoiceDetails.totalAmount = invoice.totalAmount;
+      invoiceDetails.amountExcludingTax = invoice.amountExcludingTax;
+      invoiceDetails.taxAmount = invoice.taxAmount;
+      invoiceDetails.paidAmount = invoice.paidAmount;
+      invoiceDetails.balanceAmount = invoice.balanceAmount;
       invoiceDetails.status = invoice.status;
       invoiceDetails.createdAt = invoice.createdAt;
       invoiceDetails.notes = invoice.notes;
@@ -560,19 +573,17 @@ const loadBankAccounts = async () => {
 
 // 记录收款
 const handleRecordPayment = async (row) => {
-  // 直接使用数据库字段，避免前端浮点减法与DB值不一致
-  const balance = parseFloat(row.balance_amount) || 0;
+  const balance = parseFloat(row.balanceAmount) || 0;
 
-  // 填充收款表单
   paymentForm.invoiceId = row.id;
-  paymentForm.invoice_number = row.invoice_number;
-  paymentForm.customer_name = row.customer_name;
-  paymentForm.total_amount = formatCurrency(row.total_amount);
-  paymentForm.paid_amount = formatCurrency(row.paid_amount);
-  paymentForm.balance_amount = formatCurrency(balance);
+  paymentForm.invoiceNumber = row.invoiceNumber;
+  paymentForm.customerName = row.customerName;
+  paymentForm.totalAmount = formatCurrency(row.totalAmount);
+  paymentForm.paidAmount = formatCurrency(row.paidAmount);
+  paymentForm.balanceAmount = formatCurrency(balance);
   paymentForm.balanceValue = balance;
-  paymentForm.amount = balance; // 默认填充剩余金额
-  paymentForm.bankAccountId = null; // 重置银行账户选择
+  paymentForm.amount = balance;
+  paymentForm.bankAccountId = null;
 
   // 加载银行账户列表
   await loadBankAccounts();
@@ -604,20 +615,22 @@ const saveInvoice = async () => {
       saveLoading.value = true;
       try {
         // 准备提交的数据
+        // 对外契约：仅 camelCase（Controller fromInvoiceApi 入模）
         const data = {
           id: invoiceForm.id,
-          invoice_number: invoiceForm.invoice_number,
+          invoiceNumber: invoiceForm.invoiceNumber,
           customerId: invoiceForm.customerId,
-          invoiceDate: invoiceForm.invoice_date,
-          dueDate: invoiceForm.due_date,
+          invoiceDate: invoiceForm.invoiceDate,
+          dueDate: invoiceForm.dueDate,
           notes: invoiceForm.notes,
-          total_amount: invoiceFormDialogRef.value?.calculateTotal() || 0,
-          items: invoiceForm.items.map(item => ({
+          taxRate: invoiceForm.taxRate,
+          totalAmount: invoiceFormDialogRef.value?.calculateTotal() || 0,
+          items: invoiceForm.items.map((item) => ({
             id: item.id,
-            product_id: item.productId,
+            productId: item.productId,
             description: item.description,
             quantity: parseFloat(item.quantity),
-            unit_price: parseFloat(item.unitPrice),
+            unitPrice: parseFloat(item.unitPrice),
             amount: parseFloat(item.amount)
           }))
         };
@@ -682,10 +695,10 @@ const savePayment = async () => {
 // 重置发票表单
 const resetInvoiceForm = () => {
   invoiceForm.id = null;
-  invoiceForm.invoice_number = '';
+  invoiceForm.invoiceNumber = '';
   invoiceForm.customerId = null;
-  invoiceForm.invoice_date = formatLocalDate(new Date());
-  invoiceForm.due_date = '';
+  invoiceForm.invoiceDate = formatLocalDate(new Date());
+  invoiceForm.dueDate = '';
   invoiceForm.items = [];
   invoiceForm.notes = '';
   invoiceForm.taxRate = defaultVATRate.value;
@@ -722,43 +735,45 @@ const handlePrint = async () => {
     return;
   }
   try {
+    // 打印模板变量仍用 snake（模板引擎约定）；业务对象一律 camel
     const items = (invoiceDetails.items || []).map((item, index) => {
       const qty = Number(item.quantity || 0);
-      const hasPrice = item.unit_price !== null && item.unit_price !== undefined && item.unit_price !== ''
-        || item.unitPrice !== null && item.unitPrice !== undefined && item.unitPrice !== '';
-      const price = hasPrice ? Number(item.unit_price ?? item.unitPrice) : null;
-      const amount = item.amount !== null && item.amount !== undefined && item.amount !== ''
-        ? Number(item.amount)
-        : (price === null ? null : qty * price);
+      const price = item.unitPrice != null && item.unitPrice !== '' ? Number(item.unitPrice) : null;
+      const amount =
+        item.amount != null && item.amount !== ''
+          ? Number(item.amount)
+          : price === null
+            ? null
+            : qty * price;
 
       return {
         index: index + 1,
-        item_code: item.product_code || item.material_code || item.item_code || '',
-        item_name: item.product_name || item.productName || item.material_name || '-',
-        specification: item.specification || item.specs || '',
+        item_code: item.productCode || '',
+        item_name: item.productName || '-',
+        specification: item.specification || '',
         quantity: qty.toString(),
         unit_price: price === null || Number.isNaN(price) ? '-' : price.toFixed(2),
-        tax_amount: item.tax_amount === null || item.tax_amount === undefined || item.tax_amount === '' ? '-' : Number(item.tax_amount).toFixed(2),
+        tax_amount: '-',
         amount: amount === null || Number.isNaN(amount) ? '-' : amount.toFixed(2)
       };
     });
-    const subtotal = items.every(item => item.amount !== '-')
+    const subtotal = items.every((item) => item.amount !== '-')
       ? items.reduce((sum, item) => sum + Number(String(item.amount).replace(/,/g, '')), 0)
       : null;
-    const taxAmount = invoiceDetails.tax_amount;
+    const taxAmount = invoiceDetails.taxAmount;
 
     const html = await printService.generateByDefaultTemplate('finance', 'invoice', {
-      invoice_number: invoiceDetails.invoice_number || '-',
-      invoice_date: invoiceDetails.invoice_date || '-',
-      customer_name: invoiceDetails.customer_name || '-',
-      order_no: invoiceDetails.order_no || invoiceDetails.sales_order_no || '',
-      tax_rate: invoiceDetails.tax_rate || '',
+      invoice_number: invoiceDetails.invoiceNumber || '-',
+      invoice_date: invoiceDetails.invoiceDate || '-',
+      customer_name: invoiceDetails.customerName || '-',
+      order_no: '',
+      tax_rate: invoiceDetails.taxRate ?? '',
       status: getStatusText(invoiceDetails),
-      subtotal: formatCurrency(invoiceDetails.subtotal ?? subtotal),
+      subtotal: formatCurrency(subtotal),
       tax_amount: formatCurrency(taxAmount),
-      total_amount: formatCurrency(invoiceDetails.total_amount ?? (subtotal === null || taxAmount === null || taxAmount === undefined ? null : subtotal + Number(taxAmount))),
-      paid_amount: formatCurrency(invoiceDetails.paid_amount),
-      balance_amount: formatCurrency(invoiceDetails.balance_amount),
+      total_amount: formatCurrency(invoiceDetails.totalAmount),
+      paid_amount: formatCurrency(invoiceDetails.paidAmount),
+      balance_amount: formatCurrency(invoiceDetails.balanceAmount),
       notes: invoiceDetails.notes || '',
       print_time: new Date().toLocaleString(),
       items

@@ -20,6 +20,8 @@ const STOCK_SUBQUERY = `(SELECT material_id, location_id, COALESCE(SUM(quantity)
 
 // 引入重构后的入库处理服务
 const InboundTransactionService = require('../../../services/business/InboundTransactionService');
+const { getRequestActorLabel } = require('../../../utils/userUtils');
+const { inventoryInboundMap } = require('../../../utils/inventory/inventoryFieldMap');
 
 const STATUS = {
   OUTBOUND: businessConfig.status.outbound,
@@ -207,11 +209,23 @@ const getInboundList = async (req, res) => {
 
     const [rows] = await connection.execute(query, params);
 
-    // 处理状态显示
-    const items = rows.map((item) => ({
-      ...item,
-      status_text: getStatusText(item.status),
-    }));
+    // 出参仅 camel（inventoryInboundMap）
+    const items = rows.map((item) => {
+      const api = inventoryInboundMap.toApi({
+        ...item,
+        remarks: item.remark,
+      });
+      api.operatorName = item.operator_name ?? null;
+      api.itemsCount = Number(item.items_count) || 0;
+      api.totalQuantity = Number(item.total_quantity) || 0;
+      api.materialCode = item.material_code ?? null;
+      api.materialName = item.material_name ?? null;
+      api.materialSpecs = item.material_specs ?? null;
+      api.firstItemQuantity =
+        item.first_item_quantity != null ? Number(item.first_item_quantity) : null;
+      api.statusText = getStatusText(item.status);
+      return api;
+    });
 
     const endTime = Date.now();
     const _queryTime = endTime - startTime;
@@ -346,11 +360,12 @@ const getInboundDetail = async (req, res) => {
       [inboundResult[0].location_id, id]
     );
 
-    const inboundDetail = {
+    const inboundDetail = inventoryInboundMap.toApi({
       ...inboundResult[0],
-      items: itemsResult,
+      remark: inboundResult[0].remark,
       status_text: getStatusText(inboundResult[0].status),
-    };
+      items: itemsResult,
+    });
 
     const endTime = Date.now();
     const _queryTime = endTime - startTime;
@@ -371,22 +386,18 @@ const createInbound = async (req, res) => {
   try {
     await connection.beginTransaction();
 
-    const {
-      inbound_date,
-      location_id,
-      status,
-      operator,
-      remark = null,
-      items,
-      // 新增字段：入库类型和关联单据
-      inbound_type = 'other',
-      reference_type = null,
-      reference_id = null,
-      reference_no = null,
-    } = req.body;
-
-    // 使用统一的字段名：location_id
-    const warehouseId = location_id;
+    // HTTP camel → snake（inventoryInboundMap）
+    const mapped = inventoryInboundMap.fromApi(req.body || {});
+    const inbound_date = mapped.inbound_date;
+    const warehouseId = mapped.location_id ?? mapped.warehouse_id;
+    const status = mapped.status;
+    const operator = mapped.operator;
+    const remark = mapped.remark ?? null;
+    const items = mapped.items || [];
+    const inbound_type = mapped.inbound_type || 'other';
+    const reference_type = mapped.reference_type ?? null;
+    const reference_id = mapped.reference_id ?? null;
+    const reference_no = mapped.reference_no ?? null;
 
     // 验证必填字段
     if (!inbound_date || !warehouseId || !status || !operator || !items || items.length === 0) {
@@ -440,8 +451,11 @@ const createInbound = async (req, res) => {
     const inboundId = inboundResult.insertId;
 
     // 批量预取所有物料信息（消除循环内 N+1 查询）
-    const inboundMaterialIds = items.map(i => i.material_id);
-    const inboundMaterialInfoMap = await InventoryService.getBatchMaterialInfo(inboundMaterialIds, connection);
+    const inboundMaterialIds = items.map((i) => i.material_id);
+    const inboundMaterialInfoMap = await InventoryService.getBatchMaterialInfo(
+      inboundMaterialIds,
+      connection
+    );
 
     // 插入入库单明细（创建路径不写库存）
     for (const item of items) {
@@ -1100,7 +1114,7 @@ const updateInboundStatus = async (req, res) => {
         await InboundTransactionService.confirmInbound(
           connection,
           id,
-          inboundData[0].operator || 'system',
+          inboundData[0].operator || getRequestActorLabel(req),
           inboundData[0]
         );
       }
@@ -1109,7 +1123,7 @@ const updateInboundStatus = async (req, res) => {
         await InboundTransactionService.reverseInbound(
           connection,
           id,
-          inboundData[0].operator || 'system',
+          inboundData[0].operator || getRequestActorLabel(req),
           inboundData[0]
         );
       }

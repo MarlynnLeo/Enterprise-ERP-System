@@ -1,16 +1,13 @@
-<template>
+﻿<template>
   <div class="cost-closing-page module-page">
-    <section class="page-toolbar header-card">
-      <div>
-        <h2>成本关账</h2>
-        <p>{{ statusText }}</p>
-      </div>
-      <div class="toolbar-actions">
+    <PageHeader title="成本关账" :subtitle="statusText">
+      <template #actions>
         <el-select
           v-model="selectedPeriodId"
           placeholder="选择期间"
           filterable
           :loading="periodsLoading"
+          class="form-control-240"
           @change="loadStatus"
         >
           <el-option
@@ -31,8 +28,8 @@
         >
           执行闭环
         </el-button>
-      </div>
-    </section>
+      </template>
+    </PageHeader>
 
     <section class="summary-band statistics-row">
       <div class="summary-item stat-card">
@@ -86,23 +83,25 @@
       title="该期间成本链路已闭环，可以进入财务关账流程。"
     />
 
-    <el-table class="check-table" :data="checks" border v-loading="loading">
-      <el-table-column label="结果" width="100">
-        <template #default="{ row }">
-          <el-tag :type="checkTagType(row.status)">{{ checkLabel(row.status) }}</el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column prop="title" label="检查项" min-width="160" />
-      <el-table-column prop="description" label="闭环要求" min-width="260" />
-      <el-table-column prop="count" label="异常数" width="100" align="right" />
-      <el-table-column label="样例" min-width="260">
-        <template #default="{ row }">
-          <span class="sample-text">{{ sampleText(row.sampleRows) }}</span>
-        </template>
-      </el-table-column>
-    </el-table>
+    <el-card class="data-card" shadow="never">
+      <el-table class="check-table" :data="checks" border v-loading="loading">
+        <el-table-column label="结果" width="100">
+          <template #default="{ row }">
+            <el-tag :type="checkTagType(row.status)">{{ checkLabel(row.status) }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="title" label="检查项" min-width="160" />
+        <el-table-column prop="description" label="闭环要求" min-width="260" />
+        <el-table-column prop="count" label="异常数" width="100" align="right" />
+        <el-table-column label="样例" min-width="260">
+          <template #default="{ row }">
+            <span class="sample-text">{{ sampleText(row.sampleRows) }}</span>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-card>
 
-    <section v-if="executionResult" class="result-panel">
+    <section v-if="executionResult" class="result-panel data-card">
       <h3>最近执行结果</h3>
       <el-descriptions :column="3" border>
         <el-descriptions-item label="WIP任务数">
@@ -244,43 +243,6 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.cost-closing-page {
-  padding: 0;
-}
-
-.page-toolbar {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  align-items: center;
-  padding: 16px 20px;
-  border: 1px solid var(--color-border-lighter);
-  border-radius: var(--radius-md, 12px);
-  background: var(--color-bg-base);
-  box-shadow: var(--shadow-sm);
-  margin-bottom: 16px;
-}
-
-.page-toolbar h2 {
-  margin: 0 0 6px;
-  font-size: 22px;
-}
-
-.page-toolbar p {
-  margin: 0;
-  color: var(--color-text-secondary);
-}
-
-.toolbar-actions {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-}
-
-.toolbar-actions .el-select {
-  width: 240px;
-}
-
 .summary-band {
   margin-bottom: 16px;
 }
@@ -329,15 +291,6 @@ onMounted(async () => {
 }
 
 @media (max-width: 900px) {
-  .page-toolbar {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .toolbar-actions {
-    flex-wrap: wrap;
-  }
-
   .summary-band {
     grid-template-columns: repeat(2, minmax(120px, 1fr));
   }

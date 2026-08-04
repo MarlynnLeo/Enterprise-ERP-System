@@ -16,7 +16,12 @@ export const supplierApi = {
 
     exportSuppliers: baseDataApi.exportSuppliers,
     importSuppliers: baseDataApi.importSuppliers,
-    downloadSupplierTemplate: baseDataApi.downloadSupplierTemplate
+    downloadSupplierTemplate: baseDataApi.downloadSupplierTemplate,
+    getSupplierMetalPriceSchemes: baseDataApi.getSupplierMetalPriceSchemes,
+    getSupplierMetalPriceScheme: baseDataApi.getSupplierMetalPriceScheme,
+    createSupplierMetalPriceScheme: baseDataApi.createSupplierMetalPriceScheme,
+    updateSupplierMetalPriceScheme: baseDataApi.updateSupplierMetalPriceScheme,
+    deleteSupplierMetalPriceScheme: baseDataApi.deleteSupplierMetalPriceScheme
 };
 
 export default supplierApi;

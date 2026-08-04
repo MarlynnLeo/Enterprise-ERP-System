@@ -62,3 +62,5 @@ _*.cjs
 .playwright-cli/
 **/__pycache__/
 *.pyc
+tmp/
+excl/

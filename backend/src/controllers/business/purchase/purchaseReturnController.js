@@ -17,6 +17,7 @@ const DomainEventService = require('../../../services/business/DomainEventServic
 const { lineAmount, sumMoney } = require('../../../utils/money');
 const { softDelete } = require('../../../utils/softDelete');
 const { PURCHASE_RETURN_TRANSITIONS } = require('../../../constants/statusRegistry');
+const { getRequestActorLabel } = require('../../../utils/userUtils');
 
 
 // 状态常量
@@ -368,7 +369,7 @@ const createReturn = async (req, res) => {
     const returnNo = await purchaseModel.generateReturnNo(connection);
 
     // ✅ 优先使用前端传来的operator,否则使用当前登录用户
-    const operator = operatorFromBody || req.user?.real_name || req.user?.username || 'system';
+    const operator = operatorFromBody || getRequestActorLabel(req);
 
     logger.info('Creating purchase return', {
       operatorFromBody,
@@ -495,7 +496,7 @@ const updateReturn = async (req, res) => {
     }
 
     // ✅ 优先使用前端传来的operator,否则使用当前登录用户
-    const operator = operatorFromBody || req.user?.real_name || req.user?.username || 'system';
+    const operator = operatorFromBody || getRequestActorLabel(req);
 
     const receiptId = checkResult[0].receipt_id;
     const validatedItems = await validateReturnItemsAgainstReceipt(connection, receiptId, items, id);
@@ -742,7 +743,7 @@ const updateReturnStatus = async (req, res) => {
               transactionType: 'purchase_return',
               referenceNo: returnNo,
               referenceType: 'purchase_return',
-              operator: 'system',
+              operator: getRequestActorLabel(req),
               remark: `采购退货：${returnNo}`,
               unitId,
               batchNumber: null, // 退货通常不指定批次
@@ -880,7 +881,7 @@ const updateReturnStatus = async (req, res) => {
                 material_id: task.materialId,
                 quantity: task.returnQuantity,
                 unit_cost: task.unitPrice,
-                operator: 'system',
+                operator: getRequestActorLabel(req),
               });
             } catch (costErr) {
               await DLQService.recordSideEffectFailure(

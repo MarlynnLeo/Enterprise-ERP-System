@@ -35,8 +35,8 @@
   /* 文本色 - 5级 */
   --color-text-primary: #2C3E50;      /* 主要文字 */
   --color-text-regular: #34495E;      /* 常规文字 */
-  --color-text-secondary: #7F8C8D;    /* 次要文字 */
-  --color-text-placeholder: #BDC3C7;  /* 占位文字 */
+  --color-text-secondary: #64748B;    /* 次要文字 */
+  --color-text-placeholder: #64748B;  /* 占位文字 */
   --color-text-disabled: #BDC3C7;     /* 禁用文字 */
 
   /* 边框色 - 4级 */
@@ -56,7 +56,7 @@
 
   /* 补充色 */
   --color-bg-section: #F5F6F7;
-  --color-text-muted: #7F8C8D;
+  --color-text-muted: #64748B;
   --color-primary-active: #233140;
   --color-success-gradient-end: #1f8b4d;
   --color-warning-gradient-end: #c27d0e;

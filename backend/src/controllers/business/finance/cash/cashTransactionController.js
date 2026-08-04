@@ -376,6 +376,34 @@ const cashTransactionController = {
       return sendCashBusinessError(res, error, '驳回操作失败');
     }
   },
+
+  /**
+   * 作废已审核现金交易（冲销凭证）
+   */
+  voidCashTransaction: async (req, res) => {
+    try {
+      const id = safeParseId(req.params.id);
+      if (isNaN(id)) {
+        return ResponseHandler.error(res, '无效的交易ID', 'VALIDATION_ERROR', 400);
+      }
+      const userId = getAuthenticatedUserId(req);
+      const reason = (req.body && (req.body.reason || req.body.remark)) || '作废冲销';
+      const result = await CashTransactionModel.voidApprovedTransaction(id, userId, reason);
+      return ResponseHandler.success(
+        res,
+        {
+          id,
+          status: 'void',
+          reversalEntryId: result.reversalEntryId,
+          reversalEntryNumber: result.reversalEntryNumber,
+        },
+        '现金交易已作废并冲销凭证'
+      );
+    } catch (error) {
+      logger.error('作废现金交易失败:', error);
+      return sendCashBusinessError(res, error, '作废操作失败');
+    }
+  },
 };
 
 module.exports = cashTransactionController;

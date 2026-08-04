@@ -1,6 +1,7 @@
 const db = require('../../../config/db');
 const pool = db.pool;
 const { logger } = require('../../../utils/logger');
+const { resolveActorLabel, resolveActorUserId } = require('../../../utils/userUtils');
 
 class SalaryService {
   /**
@@ -261,7 +262,7 @@ class SalaryService {
         document_type: 'adjustment',
         document_number: docNumber,
         description: `工资计提 ${salary.period || ''} ${salary.employee_name || salary.employee_id}`,
-        created_by: userId || 'system',
+        created_by: await resolveActorUserId(null, userId),
         is_posted: 1,
         status: 'posted',
       };

@@ -1,5 +1,5 @@
 ﻿<template>
-  <div class="module-page app-container">
+  <div class="module-page trial-balance-page">
     <PageHeader title="试算平衡" subtitle="按会计期间核对总账科目的借贷发生额与余额">
       <template #actions>
 <el-button v-permission="'finance:reports:view'" :disabled="!tableData.length" @click="exportData">
@@ -338,31 +338,7 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.app-container {
-  padding: 20px;
-}
-
-.header-card,
-.search-card {
-  margin-bottom: 20px;
-}
-
-.title-section h2 {
-  margin: 0 0 5px;
-  font-size: 20px;
-  color: var(--color-text-primary);
-}
-
-.subtitle {
-  margin: 0;
-  font-size: 14px;
-  color: var(--color-text-secondary);
-}
-
-.search-form .el-form-item {
-  margin-bottom: 0;
-}
-
+/* 根节点交给 .module-page（padding:0 + data-card 间距），勿再套 app-container */
 .table-container {
   width: 100%;
 }

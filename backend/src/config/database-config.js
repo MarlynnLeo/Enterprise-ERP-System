@@ -141,7 +141,8 @@ const POOL_SAFETY_CONFIG = {
    * 超过此时间后连接将被强制回收并记录告警日志
    * 注意：对于确实需要长时间运行的大事务，应在业务层显式延长
    */
-  maxConnectionHoldTime: parsePositiveIntEnv('DB_MAX_HOLD_TIME', 30000),
+  // 合并凭证等批量事务可能略超 30s；超时会 rollback+destroy，过短易中断正常业务
+  maxConnectionHoldTime: parsePositiveIntEnv('DB_MAX_HOLD_TIME', 120000),
 
   /**
    * 获取连接超时时间（毫秒）

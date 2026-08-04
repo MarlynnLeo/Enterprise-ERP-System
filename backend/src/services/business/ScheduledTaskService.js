@@ -12,6 +12,7 @@ const PeriodEndService = require('./PeriodEndService');
 const InventoryConsistencyService = require('./InventoryConsistencyService');
 const InventoryAlertService = require('./InventoryAlertService');
 const NotificationService = require('../NotificationService');
+const { EVENT_TYPES } = require('../../events/NotificationEventRegistry');
 
 /**
  * 定时任务调度服务
@@ -238,9 +239,10 @@ class ScheduledTaskService {
         try {
           logger.info('开始执行低库存预警检查...');
 
+          const { resolveActorLabel } = require('../../utils/userUtils');
           const result = await InventoryAlertService.checkLowStockAndCreateRequisition({
             autoCreate: true,
-            operator: 'system',
+            operator: await resolveActorLabel(null),
           });
 
           logger.info(`低库存预警检查完成: ${result.message}`);
@@ -483,7 +485,7 @@ class ScheduledTaskService {
 
         if (hit) {
           triggered++;
-          // 通知目标用户（notify_users > notify_roles > 管理员角色）
+          // 通知目标用户（notify_users > notify_roles；未配置时不隐式广播）
           let targetUserIds = [];
           if (alert.notify_users) {
             try { targetUserIds = JSON.parse(alert.notify_users); } catch { targetUserIds = []; }
@@ -505,17 +507,6 @@ class ScheduledTaskService {
             } catch { /* ignore */ }
           }
           targetUserIds = [...new Set(targetUserIds.map(Number).filter(Number.isInteger))];
-
-          if (!targetUserIds.length) {
-            const [admins] = await pool.query(
-              `SELECT DISTINCT u.id
-               FROM users u
-               JOIN user_roles ur ON ur.user_id = u.id
-               JOIN roles r ON r.id = ur.role_id
-               WHERE u.status = 1 AND (r.code = 'admin' OR r.name LIKE '%管理员%')`
-            );
-            targetUserIds = admins.map((user) => user.id);
-          }
 
           if (!targetUserIds.length) {
             logger.warn(`业务告警触发但未找到通知对象: [${alert.code}] ${alert.name}`);
@@ -636,18 +627,15 @@ class ScheduledTaskService {
       const sourceId =
         (String(title).split('').reduce((hash, ch) => ((hash << 5) - hash) + ch.charCodeAt(0), 0) >>> 0) %
         2147483647;
-      await NotificationService.notifyByPermissions(
-        ['finance:automation:view'],
-        {
-          type: 'finance_auto',
-          title,
-          content: message,
-          priority: 1,
-          sourceType: 'scheduled_task',
-          sourceId,
-        },
-        { dedupeByDay: true }
-      );
+      const EventBus = require('../../events/EventBus');
+      await EventBus.emitAsync(EVENT_TYPES.FINANCE_AUTOMATION_COMPLETED, {
+        title,
+        message,
+        sourceId,
+        notificationType: 'finance_auto',
+        notificationPriority: 1,
+        notificationDedupe: 'day',
+      });
     } catch (error) {
       logger.error('发送通知失败:', error);
     }
@@ -664,18 +652,15 @@ class ScheduledTaskService {
       const sourceId =
         (String(title).split('').reduce((hash, ch) => ((hash << 5) - hash) + ch.charCodeAt(0), 0) >>> 0) %
         2147483647;
-      await NotificationService.notifyByPermissions(
-        ['finance:automation:view'],
-        {
-          type: 'finance_error',
-          title,
-          content: error,
-          priority: 2,
-          sourceType: 'scheduled_task_error',
-          sourceId,
-        },
-        { dedupeByDay: true }
-      );
+      const EventBus = require('../../events/EventBus');
+      await EventBus.emitAsync(EVENT_TYPES.FINANCE_AUTOMATION_FAILED, {
+        title,
+        message: error,
+        sourceId,
+        notificationType: 'finance_error',
+        notificationPriority: 2,
+        notificationDedupe: 'day',
+      });
     } catch (err) {
       logger.error('发送错误通知失败:', err);
     }

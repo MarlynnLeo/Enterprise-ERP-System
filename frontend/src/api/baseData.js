@@ -65,6 +65,11 @@ export const baseDataApi = {
     exportSuppliers: (params) => api.post('/base-data/suppliers/export', params, { responseType: 'blob' }),
     importSuppliers: (formData) => uploadForm('/base-data/suppliers/import', formData),
     downloadSupplierTemplate: () => api.get('/base-data/suppliers/template', { responseType: 'blob' }),
+    getSupplierMetalPriceSchemes: (supplierId, params = {}) => api.get(`/base-data/suppliers/${supplierId}/metal-price-schemes`, { params }),
+    getSupplierMetalPriceScheme: (supplierId, schemeId) => api.get(`/base-data/suppliers/${supplierId}/metal-price-schemes/${schemeId}`),
+    createSupplierMetalPriceScheme: (supplierId, data) => api.post(`/base-data/suppliers/${supplierId}/metal-price-schemes`, data),
+    updateSupplierMetalPriceScheme: (supplierId, schemeId, data) => api.put(`/base-data/suppliers/${supplierId}/metal-price-schemes/${schemeId}`, data),
+    deleteSupplierMetalPriceScheme: (supplierId, schemeId) => api.delete(`/base-data/suppliers/${supplierId}/metal-price-schemes/${schemeId}`),
 
     getMaterials: (params = {}) => api.get('/base-data/materials', { params }),
     getMaterial: (id) => api.get(`/base-data/materials/${id}`),

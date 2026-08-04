@@ -18,7 +18,12 @@ class InventoryAlertService {
    * @returns {Promise<Object>} 检查结果
    */
   static async checkLowStockAndCreateRequisition(options = {}) {
-    const { autoCreate = true, operator = 'system' } = options;
+    const { resolveActorLabel } = require('../../utils/userUtils');
+    const operator =
+      options.operator != null && options.operator !== '' && options.operator !== 'system'
+        ? options.operator
+        : await resolveActorLabel(null);
+    const { autoCreate = true } = options;
     const connection = await db.pool.getConnection();
 
     try {

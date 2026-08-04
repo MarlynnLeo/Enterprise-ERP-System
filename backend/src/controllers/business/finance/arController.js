@@ -15,13 +15,17 @@ const BankAccountModel = require('../../../models/cash/Account');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const { safeParseId } = require('../../../utils/safeParseId');
 const CodeGeneratorService = require('../../../services/business/CodeGeneratorService');
-const { currentDateString } = require('../../../utils/dateUtils');
+const { currentDateString, toLocalDateString } = require('../../../utils/dateUtils');
 const {
   INVOICE_STATUS,
   BANK_BACKED_PAYMENT_METHODS,
 } = require('../../../constants/financeConstants');
 const ScopeGuard = require('../../../authorization/ScopeGuard');
 const db = require('../../../config/db');
+const {
+  fromInvoiceApi,
+  fromInvoiceListQuery,
+} = require('../../../utils/finance/invoiceFieldMap');
 
 const isReceiptBusinessError = (error) =>
   /不存在|已经|状态|无法|不能|期间|科目|余额|原因|positive integer|作废|冲销/.test(
@@ -63,22 +67,8 @@ const arController = {
         maxPageSize: 100,
       });
 
-      // 简化过滤条件处理
-      const filters = {};
-      if (req.query.invoiceNumber || req.query.invoice_number) {
-        filters.invoice_number = req.query.invoiceNumber || req.query.invoice_number;
-      }
-      if (req.query.customerInvoiceNumber || req.query.customer_invoice_number) {
-        filters.customer_invoice_number =
-          req.query.customerInvoiceNumber || req.query.customer_invoice_number;
-      }
-      if (req.query.customerId) filters.customer_id = req.query.customerId;
-      if (req.query.customerName || req.query.customer_name) {
-        filters.customer_name = req.query.customerName || req.query.customer_name;
-      }
-      if (req.query.startDate) filters.start_date = req.query.startDate;
-      if (req.query.endDate) filters.end_date = req.query.endDate;
-      if (req.query.status) filters.status = req.query.status;
+      // HTTP query(camel) → 模型 filters(snake)
+      const filters = fromInvoiceListQuery(req.query, 'ar');
 
       // 行级 DataScope（SSOT：ScopeGuard；默认 all=共享财务中心）
       filters.scopeClause = await ScopeGuard.applyListScope(req, 'ar_invoice', {
@@ -156,51 +146,30 @@ const arController = {
    */
   createInvoice: async (req, res) => {
     try {
-      const invoiceData = req.body;
-      const invoiceNumber = invoiceData.invoiceNumber || invoiceData.invoice_number;
-      const customerId = invoiceData.customerId || invoiceData.customer_id;
-      const invoiceDate = invoiceData.invoiceDate || invoiceData.invoice_date;
-      const dueDate = invoiceData.dueDate || invoiceData.due_date;
+      const mapped = fromInvoiceApi(req.body, 'ar');
+      const modelData = {
+        ...mapped,
+        status: INVOICE_STATUS.DRAFT,
+        currency_code:
+          mapped.currency_code || financeConfig.get('invoice.defaultCurrency', 'CNY'),
+        ...ScopeGuard.stampOwner(req, 'ar_invoice'),
+      };
 
-      // 验证必填字段
       if (
-        !invoiceNumber ||
-        !customerId ||
-        !invoiceDate ||
-        !dueDate
+        !modelData.invoice_number ||
+        !modelData.customer_id ||
+        !modelData.invoice_date ||
+        !modelData.due_date
       ) {
         return ResponseHandler.error(res, '缺少必要的发票信息', 'VALIDATION_ERROR', 400);
       }
 
-      const items = Array.isArray(invoiceData.items) ? invoiceData.items : [];
-      const hasItems = items.length > 0;
-      const amount = parseFloat(invoiceData.amount || invoiceData.total_amount);
-      if (!hasItems && (isNaN(amount) || amount <= 0)) {
+      const hasItems = Array.isArray(modelData.items) && modelData.items.length > 0;
+      const total = Number(modelData.total_amount);
+      if (!hasItems && (!Number.isFinite(total) || total <= 0)) {
         return ResponseHandler.error(res, '发票金额必须大于0', 'VALIDATION_ERROR', 400);
       }
 
-      // 准备数据模型所需的格式（金额/税额由模型服务端权威重算）
-      const modelData = {
-        invoice_number: invoiceNumber,
-        customer_id: customerId,
-        invoice_date: invoiceDate,
-        due_date: dueDate,
-        total_amount: Number.isFinite(amount) && amount > 0 ? amount : 0,
-        tax_rate: invoiceData.tax_rate ?? invoiceData.taxRate ?? 0,
-        tax_amount: invoiceData.tax_amount ?? invoiceData.taxAmount,
-        currency_code:
-          invoiceData.currency ||
-          invoiceData.currency_code ||
-          financeConfig.get('invoice.defaultCurrency', 'CNY'),
-        customer_invoice_number:
-          invoiceData.customerInvoiceNumber || invoiceData.customer_invoice_number || null,
-        status: INVOICE_STATUS.DRAFT,
-        notes: invoiceData.notes || '',
-        items,
-        ...ScopeGuard.stampOwner(req, 'ar_invoice'),
-      };
-
-      // 调用模型方法创建发票
       const invoiceId = await arModel.createInvoice(modelData);
 
       // 返回成功结果
@@ -297,12 +266,17 @@ const arController = {
         total_amount: parseFloat(invoice.total_amount || 0),
         paid_amount: parseFloat(invoice.paid_amount || 0),
         balance_amount: parseFloat(invoice.balance_amount || 0),
-        items: (invoice.items || []).map((item) => ({
-          ...item,
-          quantity: parseFloat(item.quantity || 0),
-          unit_price: parseFloat(item.unit_price || 0),
-          amount: parseFloat(item.amount || 0),
-        })),
+        items: (invoice.items || []).map((item) => {
+          const unitPrice =
+            parseFloat(item.unit_price ?? item.unitPrice ?? item.price ?? 0) || 0;
+          return {
+            ...item,
+            quantity: parseFloat(item.quantity || 0),
+            price: unitPrice,
+            unit_price: unitPrice,
+            amount: parseFloat(item.amount || 0),
+          };
+        }),
       };
 
       return ResponseHandler.success(res, formattedInvoice, '获取发票编辑数据成功');
@@ -336,19 +310,17 @@ const arController = {
 
       if (existingInvoice.status !== INVOICE_STATUS.DRAFT) {
         const financialFields = [
-          'amount',
-          'total_amount',
+          'totalAmount',
+          'amountExcludingTax',
+          'taxAmount',
+          'taxRate',
           'invoiceNumber',
-          'invoice_number',
           'customerId',
-          'customer_id',
           'invoiceDate',
-          'invoice_date',
           'dueDate',
-          'due_date',
           'items',
         ];
-        const hasFinancialField = financialFields.some(field => invoiceData[field] !== undefined);
+        const hasFinancialField = financialFields.some((field) => invoiceData[field] !== undefined);
         if (hasFinancialField) {
           return ResponseHandler.error(
             res,
@@ -360,8 +332,7 @@ const arController = {
 
         const success = await arModel.updateInvoice({
           id: invoiceId,
-          customer_invoice_number:
-            invoiceData.customerInvoiceNumber || invoiceData.customer_invoice_number,
+          customer_invoice_number: invoiceData.customerInvoiceNumber ?? null,
           notes: invoiceData.notes,
         });
 
@@ -371,27 +342,16 @@ const arController = {
         return ResponseHandler.error(res, '发票更新失败', 'SERVER_ERROR', 500);
       }
 
-      // 验证并转换金额
-      const amount = parseFloat(invoiceData.amount || invoiceData.total_amount);
-      if (isNaN(amount) || amount <= 0) {
+      const formattedData = {
+        ...fromInvoiceApi(invoiceData, 'ar'),
+        id: invoiceId,
+      };
+      const total = Number(formattedData.total_amount);
+      const hasItems = Array.isArray(formattedData.items) && formattedData.items.length > 0;
+      if (!hasItems && (!Number.isFinite(total) || total <= 0)) {
         return ResponseHandler.error(res, '发票金额必须大于0', 'VALIDATION_ERROR', 400);
       }
 
-      // 准备数据以匹配数据库字段
-      const formattedData = {
-        id: invoiceId,
-        invoice_number: invoiceData.invoiceNumber || invoiceData.invoice_number,
-        customer_id: invoiceData.customerId || invoiceData.customer_id,
-        invoice_date: invoiceData.invoiceDate || invoiceData.invoice_date,
-        due_date: invoiceData.dueDate || invoiceData.due_date,
-        total_amount: amount,
-        customer_invoice_number:
-          invoiceData.customerInvoiceNumber || invoiceData.customer_invoice_number || null,
-        notes: invoiceData.notes,
-        items: invoiceData.items,
-      };
-
-      // 调用模型方法更新发票
       const success = await arModel.updateInvoice(formattedData);
 
       if (success) {
@@ -696,6 +656,25 @@ const arController = {
   },
 
   /**
+   * 应收结算看板（数量 + 金额 + 明细）
+   */
+  getSettlementDashboard: async (req, res) => {
+    try {
+      const data = await arModel.getSettlementDashboard({
+        startDate: req.query.startDate || req.query.start_date,
+        endDate: req.query.endDate || req.query.end_date,
+        customerName: req.query.customerName || req.query.customer_name,
+        settlementKey: req.query.settlementKey || req.query.settlement_key || 'open',
+        limit: req.query.limit || req.query.pageSize || 50,
+      });
+      return ResponseHandler.success(res, data, '获取应收结算看板成功');
+    } catch (error) {
+      logger.error('获取应收结算看板失败:', error);
+      return ResponseHandler.error(res, '获取应收结算看板失败', 'SERVER_ERROR', 500, error);
+    }
+  },
+
+  /**
    * 获取客户应收款
    */
   getCustomerReceivables: async (req, res) => {
@@ -806,29 +785,24 @@ const arController = {
    */
   getReceivablesAging: async (req, res) => {
     try {
-      // 获取查询参数
       const { reportDate, customerType, customerName } = req.query;
-
-      // 从数据库获取真实数据
+      const asOf = toLocalDateString(reportDate || currentDateString());
       const connection = await db.pool.getConnection();
 
       try {
-        // 构建查询条件
         let whereClause = '';
-        const params = [];
+        const params = [asOf, asOf, asOf, asOf, asOf];
 
-        // 增加按客户类型过滤
         if (customerType) {
           whereClause += ' AND c.customer_type = ?';
           params.push(customerType);
         }
-
         if (customerName) {
           whereClause += ' AND c.name LIKE ?';
           params.push(`%${customerName}%`);
         }
 
-        // 执行查询，获取应收账款数据
+        // asOf 账龄：以 reportDate（默认今天）为基准
         const [receivables] = await connection.execute(
           `
           SELECT
@@ -837,23 +811,23 @@ const arController = {
             c.customer_type AS customerType,
             COALESCE(SUM(i.balance_amount), 0) AS totalAmount,
             COALESCE(SUM(CASE
-              WHEN DATEDIFF(CURDATE(), i.due_date) <= 0 THEN i.balance_amount
+              WHEN DATEDIFF(?, i.due_date) <= 0 THEN i.balance_amount
               ELSE 0
             END), 0) AS currentAmount,
             COALESCE(SUM(CASE
-              WHEN DATEDIFF(CURDATE(), i.due_date) BETWEEN 1 AND 30 THEN i.balance_amount
+              WHEN DATEDIFF(?, i.due_date) BETWEEN 1 AND 30 THEN i.balance_amount
               ELSE 0
             END), 0) AS within30Days,
             COALESCE(SUM(CASE
-              WHEN DATEDIFF(CURDATE(), i.due_date) BETWEEN 31 AND 60 THEN i.balance_amount
+              WHEN DATEDIFF(?, i.due_date) BETWEEN 31 AND 60 THEN i.balance_amount
               ELSE 0
             END), 0) AS within60Days,
             COALESCE(SUM(CASE
-              WHEN DATEDIFF(CURDATE(), i.due_date) BETWEEN 61 AND 90 THEN i.balance_amount
+              WHEN DATEDIFF(?, i.due_date) BETWEEN 61 AND 90 THEN i.balance_amount
               ELSE 0
             END), 0) AS within90Days,
             COALESCE(SUM(CASE
-              WHEN DATEDIFF(CURDATE(), i.due_date) > 90 THEN i.balance_amount
+              WHEN DATEDIFF(?, i.due_date) > 90 THEN i.balance_amount
               ELSE 0
             END), 0) AS over90Days,
             c.contact_person AS contactPerson,
@@ -861,11 +835,12 @@ const arController = {
           FROM
             customers c
           LEFT JOIN
-            ar_invoices i ON c.id = i.customer_id AND i.status NOT IN ('已付款', '已取消', '草稿', 'void')
+            ar_invoices i ON c.id = i.customer_id
+            AND i.status NOT IN ('已付款', '已取消', '草稿', 'void', '作废', 'cancelled')
           WHERE
             c.status = 'active' ${whereClause}
           GROUP BY
-            c.id, c.name, c.contact_person, c.contact_phone, c.phone
+            c.id, c.name, c.customer_type, c.contact_person, c.contact_phone, c.phone
           HAVING
             totalAmount > 0
           ORDER BY
@@ -874,7 +849,6 @@ const arController = {
           params
         );
 
-        // 格式化数据
         const formattedData = receivables.map((item) => ({
           customerId: item.customerId,
           customerName: item.customerName,
@@ -885,22 +859,20 @@ const arController = {
           within60Days: parseFloat(item.within60Days || 0),
           within90Days: parseFloat(item.within90Days || 0),
           over90Days: parseFloat(item.over90Days || 0),
-          lastPaymentDate: null, // 移除对不存在的列的引用
+          lastPaymentDate: null,
           contactPerson: item.contactPerson,
           contactPhone: item.contactPhone,
         }));
 
-        // 返回数据
         return ResponseHandler.success(
           res,
           {
             data: formattedData,
-            reportDate: reportDate || currentDateString(),
+            reportDate: asOf,
           },
           '获取应收账款账龄分析成功'
         );
       } finally {
-        // 释放连接
         connection.release();
       }
     } catch (error) {

@@ -28,6 +28,12 @@ const THEME_CSS_LOADERS = {
 const loadedThemes = new Set(['kacon'])
 /** @type {Map<string, Promise<void>>} */
 const inflight = new Map()
+let compatibilityFinalPromise
+
+const ensureFinalCompatibilityCss = () => {
+  compatibilityFinalPromise ||= import('@/assets/themes/pc/theme-compat-final.css')
+  return compatibilityFinalPromise
+}
 
 export const ALL_THEME_IDS = Object.freeze(THEME_PRESET_LIST.map((p) => p.id))
 
@@ -52,6 +58,7 @@ export async function ensureThemeCss(presetId) {
   }
 
   const task = loader()
+    .then(() => ensureFinalCompatibilityCss())
     .then(() => {
       loadedThemes.add(id)
     })
@@ -100,7 +107,7 @@ export function prefetchAllThemes(exceptId) {
 
   ALL_THEME_IDS.forEach((id, index) => {
     if (id === exceptId || loadedThemes.has(id)) return
-    // 错开预取，避免同时打满网络
+    // Stagger requests so idle prefetching does not compete with the app.
     setTimeout(() => prefetchThemeCss(id), 400 + index * 350)
   })
 }

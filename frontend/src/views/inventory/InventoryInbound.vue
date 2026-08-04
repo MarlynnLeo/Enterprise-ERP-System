@@ -88,43 +88,43 @@
         <template #empty>
           <el-empty description="暂无入库单数据" />
         </template>
-        <el-table-column prop="inbound_no" label="入库单号" width="135" />
-        <el-table-column prop="inbound_type" label="入库类型" width="110">
+        <el-table-column prop="inboundNo" label="入库单号" width="135" />
+        <el-table-column prop="inboundType" label="入库类型" width="110">
           <template #default="{ row }">
             <el-tag :type="getInboundTypeTagType(row.inbound_type)" size="small">
               {{ getInboundTypeText(row.inbound_type) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="material_code" label="物料编码" width="120">
+        <el-table-column prop="materialCode" label="物料编码" width="120">
           <template #default="{ row }">
             <span v-if="row.material_code">{{ row.material_code }}</span>
             <span v-else-if="row.items_count > 1" class="text-muted">多个物料</span>
             <span v-else class="text-disabled">-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="material_name" label="物料名称" width="157" show-overflow-tooltip>
+        <el-table-column prop="materialName" label="物料名称" width="157" show-overflow-tooltip>
           <template #default="{ row }">
             <span v-if="row.material_name">{{ row.material_name }}</span>
             <span v-else-if="row.items_count > 1" class="text-muted">多个物料</span>
             <span v-else class="text-disabled">-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="material_specs" label="型号规格" width="180" show-overflow-tooltip>
+        <el-table-column prop="materialSpecs" label="型号规格" width="180" show-overflow-tooltip>
           <template #default="{ row }">
             <span v-if="row.material_specs">{{ row.material_specs }}</span>
             <span v-else class="text-disabled">-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="first_item_quantity" label="数量" width="80">
+        <el-table-column prop="firstItemQuantity" label="数量" width="80">
           <template #default="{ row }">
             <span v-if="row.first_item_quantity">{{ row.first_item_quantity }}</span>
             <span v-else-if="row.total_quantity" class="text-primary" :title="`总数量：${row.total_quantity}`">{{ row.total_quantity }}</span>
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="inbound_date" label="入库日期" width="100" />
-        <el-table-column prop="location_name" label="仓库" width="100" />
+        <el-table-column prop="inboundDate" label="入库日期" width="100" />
+        <el-table-column prop="locationName" label="仓库" width="100" />
         <el-table-column prop="status" label="状态" width="100">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)">
@@ -132,7 +132,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="operator_name" label="操作人" width="80">
+        <el-table-column prop="operatorName" label="操作人" width="80">
           <template #default="scope">
             {{ scope.row.operator_name || scope.row.operator || '未知' }}
           </template>

@@ -70,10 +70,11 @@ const DEFAULT_FINANCE_CONFIG = {
 
   // ==================== 系统配置 ====================
   system: {
-    // 默认创建人（用于系统自动操作）
-    defaultCreator: process.env.FINANCE_DEFAULT_CREATOR || 'system',
-    // 默认操作人（用于系统自动操作）
-    defaultOperator: process.env.FINANCE_DEFAULT_OPERATOR || 'system',
+    // 默认创建人：用户 ID 或 username；空则由 resolveActorUserId 回落到首个启用用户
+    // 禁止使用字面量 'system'（不是 users 表有效身份）
+    defaultCreator: process.env.FINANCE_DEFAULT_CREATOR || null,
+    // 默认操作人：同上
+    defaultOperator: process.env.FINANCE_DEFAULT_OPERATOR || null,
   },
 
   // ==================== 状态配置 ====================

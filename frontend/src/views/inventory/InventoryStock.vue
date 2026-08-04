@@ -577,7 +577,7 @@ const groupedRecords = computed(() => {
         transactionType: record.transaction_type,
         type: record.type || getTypeText(record.transaction_type),
         date: record.date,
-        operator: record.operator || 'system',
+        operator: record.operator || '—',
         totalQuantity: 0,
         items: []
       }

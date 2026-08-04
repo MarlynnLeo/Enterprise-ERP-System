@@ -12,6 +12,7 @@ const { parsePagination } = require('../../../utils/safePagination');
 const db = require('../../../config/db');
 const { softDelete } = require('../../../utils/softDelete');
 const purchaseModel = require('../../../models/purchase');
+const { getRequestActorLabel } = require('../../../utils/userUtils');
 
 const toNullableInteger = (value) => {
   if (value === undefined || value === null || value === '') return null;
@@ -398,7 +399,7 @@ const createRequisition = async (req, res) => {
     } = req.body;
 
     // 使用请求中提供的requester或者从认证信息中获取
-    const finalRequester = requester || req.user?.username || 'system';
+    const finalRequester = requester || getRequestActorLabel(req);
 
     // 获取真实姓名：优先使用前端提供的，其次使用当前认证用户的，最后尝试从数据库中查询
     let finalRealName = real_name || req.user?.real_name || '';

@@ -7,7 +7,7 @@
  */
 -->
 <template>
-  <div class="base-data-content">
+  <div class="module-page base-data-content">
     <router-view></router-view>
   </div>
 </template>

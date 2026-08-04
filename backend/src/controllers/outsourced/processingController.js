@@ -15,6 +15,7 @@ const DocumentLinkService = require('../../services/business/DocumentLinkService
 const InventoryService = require('../../services/InventoryService');
 const { safeString, safeNumber } = require('../../utils/typeHelper');
 const { parsePagination, appendPaginationSQL } = require('../../utils/safePagination');
+const { getRequestActorLabel } = require('../../utils/userUtils');
 
 // 状态常量
 const STATUS = {
@@ -556,7 +557,7 @@ const updateProcessingStatus = async (req, res) => {
               transactionType: 'outsourced_outbound',
               referenceNo: existingProcessing[0].processing_no,
               referenceType: 'outsourced_processing_material',
-              operator: 'system',
+              operator: getRequestActorLabel(req),
               remark: `外委加工发料 ${existingProcessing[0].processing_no}`,
               unitId: material.unit_id,
               batchNumber: null,
@@ -619,7 +620,7 @@ const updateProcessingStatus = async (req, res) => {
                 transactionType: 'outsourced_return',
                 referenceNo: existingProcessing[0].processing_no,
                 referenceType: 'outsourced_processing_cancel',
-                operator: 'system',
+                operator: getRequestActorLabel(req),
                 remark: `外委加工取消退料 ${existingProcessing[0].processing_no}`,
                 unitId: material.unit_id,
                 batchNumber: null,
@@ -1077,7 +1078,7 @@ const updateReceiptStatus = async (req, res) => {
               transactionType: 'outsourced_inbound',
               referenceNo: existingReceipt[0].receipt_no,
               referenceType: 'outsourced_processing_receipt',
-              operator: existingReceipt[0].operator || 'system',
+              operator: existingReceipt[0].operator || getRequestActorLabel(req),
               remark: `外委加工入库 ${existingReceipt[0].receipt_no}`,
               unitId: item.unit_id,
               batchNumber: null,

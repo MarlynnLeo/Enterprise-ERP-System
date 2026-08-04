@@ -29,6 +29,7 @@ const {
   parseSourceTaskIds,
 } = require('./outboundBomController');
 const ScopeGuard = require('../../../../authorization/ScopeGuard');
+const { getRequestActorLabel, resolveActorLabel } = require('../../../../utils/userUtils');
 
 const updateOutboundStatus = async (req, res) => {
   const connection = await db.pool.getConnection();
@@ -86,7 +87,7 @@ const updateOutboundStatus = async (req, res) => {
 
     if (currentStatus === STATUS.OUTBOUND.DRAFT && newStatus === STATUS.OUTBOUND.CONFIRMED) {
       // 获取当前用户
-      const currentUser = req.user?.username || 'system';
+      const currentUser = getRequestActorLabel(req);
       updateQuery += ', operator = ?';
       updateParams.push(currentUser);
       logger.info(`出库单 ${id} 确认，记录操作人: ${currentUser}`);
@@ -1301,7 +1302,7 @@ const reversePostedGLEntriesForOutbound = async (outboundNo, operator) => {
           entry_date: today,
           posting_date: today,
           description: `Outbound reversal ${outboundNo}`,
-          created_by: operator || 'system',
+          created_by: await resolveActorLabel(null, operator),
         });
         reversedCount += 1;
       } catch (error) {

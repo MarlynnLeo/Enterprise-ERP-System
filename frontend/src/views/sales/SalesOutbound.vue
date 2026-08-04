@@ -86,11 +86,11 @@
         class="w-full"
         v-loading="loading"
       >
-        <el-table-column prop="outbound_no" label="出库单号" width="150" fixed />
+        <el-table-column prop="outboundNo" label="出库单号" width="150" fixed />
         <el-table-column label="关联订单" width="200">
           <template #default="scope">
             <!-- 判断是否为多订单：检查order_nos是否包含逗号，或者related_orders数组长度大于1 -->
-            <div v-if="scope.row.is_multi_order || (scope.row.order_nos && scope.row.order_nos.includes(',')) || (Array.isArray(scope.row.related_orders) && scope.row.related_orders.length > 1)">
+            <div v-if="scope.row.isMultiOrder || (scope.row.orderNos && String(scope.row.orderNos).includes(',')) || (Array.isArray(scope.row.relatedOrders) && scope.row.relatedOrders.length > 1)">
               <el-popover placement="top-start" width="280" trigger="click">
                 <template #reference>
                   <el-tag size="small" type="success" class="cursor-pointer">
@@ -102,22 +102,22 @@
                   <!-- 优先显示 related_order_details 数组（包含完整订单信息） -->
                   <div v-if="Array.isArray(scope.row.related_order_details) && scope.row.related_order_details.length > 0">
                     <div v-for="(order, index) in scope.row.related_order_details" :key="index" class="cell-ellipsis-mb">
-                      <strong>{{ order.order_no }}</strong>
-                      <span v-if="order.customer_name" class="text-regular ml-sm">{{ order.customer_name }}</span>
+                      <strong>{{ order.orderNo }}</strong>
+                      <span v-if="order.customerName" class="text-regular ml-sm">{{ order.customerName }}</span>
                     </div>
                   </div>
 
                   <!-- 其次显示 order_nos 字符串拆分 -->
-                  <div v-else-if="scope.row.order_nos && typeof scope.row.order_nos === 'string'">
-                    <div v-for="(no, index) in scope.row.order_nos.split(',')" :key="index" class="cell-ellipsis-mb">
+                  <div v-else-if="scope.row.orderNos && typeof scope.row.orderNos === 'string'">
+                    <div v-for="(no, index) in scope.row.orderNos.split(',')" :key="index" class="cell-ellipsis-mb">
                       <strong>{{ no.trim() }}</strong>
                     </div>
                   </div>
 
                   <!-- 显示单个 order_no -->
-                  <div v-else-if="scope.row.order_no">
+                  <div v-else-if="scope.row.orderNo">
                     <div class="mb-xs">
-                      <strong>{{ scope.row.order_no }}</strong>
+                      <strong>{{ scope.row.orderNo }}</strong>
                     </div>
                   </div>
 
@@ -130,16 +130,16 @@
                 </div>
               </el-popover>
             </div>
-            <div v-else-if="scope.row.order_no || scope.row.order_nos" class="text-primary nowrap cell-ellipsis">
+            <div v-else-if="scope.row.orderNo || scope.row.orderNos" class="text-primary nowrap cell-ellipsis">
               <i class="el-icon-document"></i>
-              <span :title="scope.row.order_no || scope.row.order_nos">{{ scope.row.order_no || scope.row.order_nos }}</span>
+              <span :title="scope.row.orderNo || scope.row.orderNos">{{ scope.row.orderNo || scope.row.orderNos }}</span>
             </div>
             <div v-else class="text-gray-500">
               无关联订单
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="customer_name" label="客户名称" min-width="200" />
+        <el-table-column prop="customerName" label="客户名称" min-width="200" />
         <el-table-column prop="contract_code" label="合同编码" width="450" show-overflow-tooltip>
           <template #default="{ row }">
             {{ row.contract_code || '-' }}
@@ -244,9 +244,9 @@
       <div v-loading="detailsLoading" class="min-h-form">
       <div v-if="currentOutbound" class="outbound-detail-content">
         <el-descriptions :column="2" border>
-          <el-descriptions-item label="出库单号">{{ currentOutbound.outbound_no }}</el-descriptions-item>
-          <el-descriptions-item label="关联订单号">{{ currentOutbound.order_no }}</el-descriptions-item>
-          <el-descriptions-item label="客户名称">{{ currentOutbound.customer_name }}</el-descriptions-item>
+          <el-descriptions-item label="出库单号">{{ currentOutbound.outboundNo }}</el-descriptions-item>
+          <el-descriptions-item label="关联订单号">{{ currentOutbound.orderNo || currentOutbound.orderNos }}</el-descriptions-item>
+          <el-descriptions-item label="客户名称">{{ currentOutbound.customerName }}</el-descriptions-item>
           <el-descriptions-item label="合同编码">{{ currentOutbound.contract_code || '-' }}</el-descriptions-item>
           <el-descriptions-item label="出库日期">{{ formatDate(currentOutbound.delivery_date) }}</el-descriptions-item>
           <el-descriptions-item label="状态">
@@ -254,6 +254,13 @@
           </el-descriptions-item>
           <el-descriptions-item label="创建时间" :span="2">{{ formatDate(currentOutbound.created_at) }}</el-descriptions-item>
         </el-descriptions>
+
+        <FinanceStreamStatus
+          v-if="currentOutbound?.id"
+          document-type="sales_outbound"
+          :document-id="currentOutbound.id"
+        />
+
         <el-divider>出库明细</el-divider>
 
         <el-table :data="currentOutbound.items || []" class="w-full" border>
@@ -288,7 +295,7 @@
               <el-option
                 v-for="order in availableOrders"
                 :key="order.id"
-                :label="`${order.order_no} - ${order.customer || ''} ${order.contract_code ? '- ' + order.contract_code : ''} (${getOrderStatusText(order.status)})`"
+                :label="`${order.orderNo} - ${order.customer || ''} ${order.contract_code ? '- ' + order.contract_code : ''} (${getOrderStatusText(order.status)})`"
                 :value="order.id"
               />
             </el-select>
@@ -302,7 +309,7 @@
               effect="plain"
               class="mr-sm mb-5"
             >
-              {{ order.order_no }}
+              {{ order.orderNo }}
               <span v-if="order.customer">({{ order.customer }})</span>
             </el-tag>
           </div>
@@ -376,22 +383,22 @@
               <el-table-column type="selection" width="55" />
               <el-table-column label="来源订单" width="130">
                 <template #default="{ row }">
-                  <div v-if="row.source_orders && row.source_orders.length > 1">
+                  <div v-if="row.sourceOrders && row.sourceOrders.length > 1">
                     <el-popover placement="top" width="300" trigger="hover">
                       <template #reference>
                         <el-tag size="small" type="success">
-                          {{ row.source_orders.length }}个订单
+                          {{ row.sourceOrders.length }}个订单
                         </el-tag>
                       </template>
                       <div>
-                        <div v-for="source in row.source_orders" :key="source.id" class="mb-xs">
-                          <strong>{{ source.order_no }}</strong>: {{ source.quantity }}个
+                        <div v-for="source in row.sourceOrders" :key="source.id" class="mb-xs">
+                          <strong>{{ source.orderNo }}</strong>: {{ source.quantity }}个
                         </div>
                       </div>
                     </el-popover>
                   </div>
                   <div v-else>
-                    {{ row.order_no }}
+                    {{ row.orderNo }}
                   </div>
                 </template>
               </el-table-column>
@@ -402,8 +409,8 @@
                 <template #default="{ row }">
                   <div>
                     <span class="text-primary font-weight-700">{{ row.order_quantity || row.quantity }}</span>
-                    <div v-if="row.source_orders && row.source_orders.length > 1" class="meta-xs">
-                      合并{{ row.source_orders.length }}单
+                    <div v-if="row.sourceOrders && row.sourceOrders.length > 1" class="meta-xs">
+                      合并{{ row.sourceOrders.length }}单
                     </div>
                   </div>
                 </template>
@@ -519,10 +526,10 @@
           <el-table-column type="selection" width="55" />
           <el-table-column label="订单号" width="130">
             <template #default="{ row }">
-              <span :title="row.order_nos || row.order_no">
-                {{ (row.order_nos || row.order_no || '').length > 12 ?
-                    (row.order_nos || row.order_no || '').substring(0, 12) + '...' :
-                    (row.order_nos || row.order_no || '') }}
+              <span :title="row.orderNos || row.orderNo">
+                {{ (row.orderNos || row.orderNo || '').length > 12 ?
+                    (row.orderNos || row.orderNo || '').substring(0, 12) + '...' :
+                    (row.orderNos || row.orderNo || '') }}
               </span>
             </template>
           </el-table-column>
@@ -587,6 +594,7 @@ import { salesApi, inventoryApi } from '@/api'
 import { usePaginatedFetching, useFormSubmit } from '@/composables/useDataFetching'
 import printService from '@/services/printService'
 import { Search, Refresh, Plus } from '@element-plus/icons-vue'
+import FinanceStreamStatus from '@/views/finance/components/FinanceStreamStatus.vue'
 // 状态变量
 const loading = ref(false)
 const orders = ref([])
@@ -618,7 +626,7 @@ const customerLoading = ref(false)
 const outboundForm = ref({
   order_id: '', // 保留兼容性
   customer_id: '',
-  customer_name: '',
+  customerName: '',
   contact: '',
   phone: '',
   address: '',
@@ -838,7 +846,7 @@ const showCreateDialog = () => {
   outboundForm.value = {
     order_id: '',
     customer_id: '',
-    customer_name: '',
+    customerName: '',
     contact: '',
     phone: '',
     address: '',
@@ -871,12 +879,12 @@ const showEditDialog = async (row) => {
     // 1. 处理关联订单数据
     let formRelatedOrders = []
     // 尝试解析 related_orders 字段
-    if (fullOutboundData.related_orders) {
-      if (Array.isArray(fullOutboundData.related_orders)) {
-        formRelatedOrders = fullOutboundData.related_orders
-      } else if (typeof fullOutboundData.related_orders === 'string') {
+    if (fullOutboundData.relatedOrders) {
+      if (Array.isArray(fullOutboundData.relatedOrders)) {
+        formRelatedOrders = fullOutboundData.relatedOrders
+      } else if (typeof fullOutboundData.relatedOrders === 'string') {
         try {
-          const parsed = JSON.parse(fullOutboundData.related_orders)
+          const parsed = JSON.parse(fullOutboundData.relatedOrders)
           // 如果解析出来的是ID数组，需要转换成对象数组
           if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] !== 'object') {
              // 这种情况比较少见，通常后端会返回详情对象
@@ -903,8 +911,8 @@ const showEditDialog = async (row) => {
     if (formRelatedOrders.length === 0 && (fullOutboundData.order_id || row.order_id)) {
        formRelatedOrders.push({
          id: fullOutboundData.order_id || row.order_id,
-         order_no: fullOutboundData.order_no || row.order_no,
-         customer: fullOutboundData.customer_name || row.customer_name,
+         orderNo: fullOutboundData.orderNo || row.orderNo,
+         customer: fullOutboundData.customerName || row.customer_name,
          customer_id: fullOutboundData.customer_id || row.customer_id
        })
     }
@@ -912,12 +920,12 @@ const showEditDialog = async (row) => {
     const formItems = (fullOutboundData.items || []).map(item => {
        // 解析 source_orders JSON
        let sourceOrders = []
-       if (item.source_orders) {
-          if (Array.isArray(item.source_orders)) {
-             sourceOrders = item.source_orders
-          } else if (typeof item.source_orders === 'string') {
+       if (item.sourceOrders) {
+          if (Array.isArray(item.sourceOrders)) {
+             sourceOrders = item.sourceOrders
+          } else if (typeof item.sourceOrders === 'string') {
              try {
-                sourceOrders = JSON.parse(item.source_orders)
+                sourceOrders = JSON.parse(item.sourceOrders)
              } catch(e) { console.warn('解析 source_orders JSON 失败:', e.message) }
           }
        }
@@ -929,9 +937,9 @@ const showEditDialog = async (row) => {
          // 确保物料编码存在
          material_code: item.material_code || item.product_code || item.code,
          // 来源订单信息
-         source_orders: sourceOrders,
+         sourceOrders: sourceOrders,
          // 确保 order_no 存在：优先使用item里的，如果没有则使用主单的
-         order_no: item.order_no || item.source_order_no || fullOutboundData.order_no || row.order_no,
+         orderNo: item.orderNo || item.sourceOrderNo || fullOutboundData.orderNo || row.orderNo,
          // 如果 order_quantity 缺失，尝试用 total_order_quantity 或 quantity
          order_quantity: item.order_quantity || item.total_order_quantity || item.quantity,
          // 确保数量是数字
@@ -943,21 +951,21 @@ const showEditDialog = async (row) => {
     if (currentCustomerId) {
        customerOptions.value = [{
          id: Number(currentCustomerId), // 确保ID类型一致
-         name: fullOutboundData.customer_name || row.customer_name,
+         name: fullOutboundData.customerName || row.customer_name,
          code: ''
        }]
 
        // 设置当前客户状态，以便可以进行产品查询
        currentCustomer.value = {
          id: Number(currentCustomerId),
-         name: fullOutboundData.customer_name || row.customer_name
+         name: fullOutboundData.customerName || row.customer_name
        }
     }
     outboundForm.value = {
       id: row.id,
       order_id: fullOutboundData.order_id || row.order_id,
       customer_id: currentCustomerId ? Number(currentCustomerId) : '',
-      customer_name: fullOutboundData.customer_name || row.customer_name,
+      customerName: fullOutboundData.customerName || row.customer_name,
       contact: fullOutboundData.contact_person || row.contact_name || fullOutboundData.contact || '',
       phone: fullOutboundData.contact_phone || row.contact_phone || fullOutboundData.phone || '',
       address: fullOutboundData.delivery_address || row.address || fullOutboundData.address || '',
@@ -1025,33 +1033,35 @@ const submitOutbound = async () => {
   }
 
   // 验证发货数量不能超过订单数量
-  const invalidQuantityItems = validItems.filter(item => item.quantity > item.order_quantity);
+  const invalidQuantityItems = validItems.filter(
+    (item) => item.quantity > (item.orderQuantity ?? item.order_quantity)
+  );
   if (invalidQuantityItems.length > 0) {
-    ElMessage.warning(`以下物料发货数量超过订单数量：${invalidQuantityItems.map(item => item.material_code).join(', ')}`);
+    ElMessage.warning(
+      `以下物料发货数量超过订单数量：${invalidQuantityItems.map((item) => item.materialCode || item.material_code).join(', ')}`
+    );
     return;
   }
-  // 构建提交数据
+  // 构建提交数据（仅 camel，与 salesOutboundMap.fromApi 对齐）
   const submitData = {
-    outbound_date: outboundForm.value.delivery_date,
-    delivery_date: outboundForm.value.delivery_date,
-    order_id: outboundForm.value.relatedOrders.length === 1 ? outboundForm.value.relatedOrders[0].id : null,
-    related_orders: JSON.stringify(outboundForm.value.relatedOrders.map(order => order.id)),
-    is_multi_order: outboundForm.value.relatedOrders.length > 1,
+    deliveryDate: outboundForm.value.deliveryDate || outboundForm.value.delivery_date,
+    orderId:
+      outboundForm.value.relatedOrders.length === 1
+        ? outboundForm.value.relatedOrders[0].id
+        : null,
+    relatedOrders: outboundForm.value.relatedOrders.map((order) => order.id),
+    isMultiOrder: outboundForm.value.relatedOrders.length > 1,
     status: outboundForm.value.status || 'draft',
     remarks: outboundForm.value.remarks || '',
-    ...(outboundForm.value.warehouse_id ? { warehouse_id: outboundForm.value.warehouse_id } : {}),
-    items: validItems.map(item => ({
-      material_id: item.material_id || item.product_id,
-      product_id: item.material_id || item.product_id,
-      unit_id: item.unit_id,
+    items: validItems.map((item) => ({
+      productId: item.productId || item.materialId || item.material_id || item.product_id,
+      materialId: item.materialId || item.productId || item.material_id || item.product_id,
+      unitId: item.unitId || item.unit_id,
       quantity: item.quantity,
-      price: item.unit_price || 0,
+      unitPrice: item.unitPrice ?? item.unit_price ?? 0,
       remarks: item.remarks || '',
-      source_order_id: item.order_id,
-      source_order_no: item.order_no,
-      source_orders: item.source_orders ? JSON.stringify(item.source_orders) : null,
-      order_id: item.order_id === 'multiple' ? null : item.order_id,
-      order_no: item.order_no
+      sourceOrderId: item.orderId === 'multiple' ? null : item.orderId,
+      sourceOrderNo: item.orderNo
     }))
   };
   // 使用统一的表单提交Hook
@@ -1135,8 +1145,8 @@ const addOrderToOutbound = async () => {
     // 添加到关联订单列表
     outboundForm.value.relatedOrders.push({
       id: orderDetails.id,
-      order_no: orderDetails.order_no,
-      customer: orderDetails.customer_name || orderDetails.customer,
+      orderNo: orderDetails.orderNo,
+      customer: orderDetails.customerName || orderDetails.customer,
       customer_id: orderDetails.customer_id,
       contract_code: orderDetails.contract_code || '', // 添加合同编码
       contact: orderDetails.contact || orderDetails.contact_person,
@@ -1194,7 +1204,7 @@ const addOrderToOutbound = async () => {
             unit_price: item.unit_price,
             stock_quantity: realStockQuantity, // 使用实时库存数据
             shipping_status: item.shipping_status, // 发货状态
-            order_no: orderDetails.order_no, // 标记来源订单
+            orderNo: orderDetails.orderNo, // 标记来源订单
             order_id: orderDetails.id
           }
         })
@@ -1209,7 +1219,7 @@ const addOrderToOutbound = async () => {
             // 没有重复物料，直接添加
             outboundForm.value.items.push({
               ...newItem,
-              source_orders: [{ id: orderDetails.id, order_no: orderDetails.order_no, quantity: newItem.quantity }], // 记录来源订单
+              sourceOrders: [{ id: orderDetails.id, orderNo: orderDetails.orderNo, quantity: newItem.quantity }], // 记录来源订单
               total_order_quantity: newItem.quantity // 总订单数量
             })
         } else {
@@ -1222,23 +1232,23 @@ const addOrderToOutbound = async () => {
           existingItem.total_order_quantity = existingItem.order_quantity
 
           // 记录多个来源订单
-          if (!existingItem.source_orders) {
-            existingItem.source_orders = [{
-              id: existingItem.order_id,
-              order_no: existingItem.order_no,
+          if (!existingitem.sourceOrders) {
+            existingitem.sourceOrders = [{
+              id: existingitem.orderId,
+              orderNo: existingitem.orderNo,
               quantity: existingItem.order_quantity - newItem.quantity
             }]
           }
-          existingItem.source_orders.push({
+          existingitem.sourceOrders.push({
             id: orderDetails.id,
-            order_no: orderDetails.order_no,
+            orderNo: orderDetails.orderNo,
             quantity: newItem.quantity
           })
 
           // 更新订单号显示（显示多个订单）
-          const orderNos = existingItem.source_orders.map(order => order.order_no)
-          existingItem.order_no = orderNos.join(', ')
-          existingItem.order_id = 'multiple' // 标记为多订单物料
+          const orderNos = existingitem.sourceOrders.map(order => order.orderNo)
+          existingitem.orderNo = orderNos.join(', ')
+          existingitem.orderId = 'multiple' // 标记为多订单物料
         }
       })
     }
@@ -1250,9 +1260,9 @@ const addOrderToOutbound = async () => {
     const partialCount = orderDetails.partial_shipped_items_count || 0
 
     if (itemsCount === 0) {
-      ElMessage.warning(`订单 ${orderDetails.order_no} 的所有物料已完全发货，无需再次出库`)
+      ElMessage.warning(`订单 ${orderDetails.orderNo} 的所有物料已完全发货，无需再次出库`)
     } else {
-      let message = `已添加订单 ${orderDetails.order_no}，包含 ${itemsCount} 个待发货物料`
+      let message = `已添加订单 ${orderDetails.orderNo}，包含 ${itemsCount} 个待发货物料`
       if (unshippedCount > 0 && partialCount > 0) {
         message += `（${unshippedCount}个未发货，${partialCount}个部分发货）`
       } else if (unshippedCount > 0) {
@@ -1525,25 +1535,25 @@ const addSelectedProductsToOutbound = async () => {
         existingItem.quantity = (existingItem.quantity || 0) + product.selected_quantity
 
         // 更新来源订单信息
-        if (!existingItem.source_orders) {
-          existingItem.source_orders = []
+        if (!existingitem.sourceOrders) {
+          existingitem.sourceOrders = []
         }
 
         // 添加新的来源订单信息
-        if (product.order_ids && product.order_nos) {
+        if (product.order_ids && product.orderNos) {
           const orderIds = product.order_ids.split(',')
-          const orderNos = product.order_nos.split(', ')
+          const orderNos = product.orderNos.split(', ')
 
           orderIds.forEach((orderId, index) => {
             const orderIdNum = parseInt(orderId.trim())
             const orderNo = orderNos[index] ? orderNos[index].trim() : ''
 
             // 检查是否已存在该订单信息
-            const existingSource = existingItem.source_orders.find(source => source.id === orderIdNum)
+            const existingSource = existingitem.sourceOrders.find(source => source.id === orderIdNum)
             if (!existingSource) {
-              existingItem.source_orders.push({
+              existingitem.sourceOrders.push({
                 id: orderIdNum,
-                order_no: orderNo,
+                orderNo: orderNo,
                 quantity: product.selected_quantity
               })
             } else {
@@ -1563,18 +1573,18 @@ const addSelectedProductsToOutbound = async () => {
           existingItem.quantity = product.selected_quantity
 
           // 重置来源订单信息
-          existingItem.source_orders = []
-          if (product.order_ids && product.order_nos) {
+          existingitem.sourceOrders = []
+          if (product.order_ids && product.orderNos) {
             const orderIds = product.order_ids.split(',')
-            const orderNos = product.order_nos.split(', ')
+            const orderNos = product.orderNos.split(', ')
 
             orderIds.forEach((orderId, index) => {
               const orderIdNum = parseInt(orderId.trim())
               const orderNo = orderNos[index] ? orderNos[index].trim() : ''
 
-              existingItem.source_orders.push({
+              existingitem.sourceOrders.push({
                 id: orderIdNum,
-                order_no: orderNo,
+                orderNo: orderNo,
                 quantity: product.selected_quantity
               })
             })
@@ -1592,9 +1602,9 @@ const addSelectedProductsToOutbound = async () => {
   // 添加新产品（处理多订单合并的情况）
   for (const product of newProducts) {
     // 确保订单被添加到关联订单列表中（处理多订单情况）
-    if (product.order_ids && product.order_nos) {
+    if (product.order_ids && product.orderNos) {
       const orderIds = product.order_ids.split(',')
-      const orderNos = product.order_nos.split(', ')
+      const orderNos = product.orderNos.split(', ')
 
       // 为每个订单添加到关联订单列表
       orderIds.forEach((orderId, index) => {
@@ -1605,7 +1615,7 @@ const addSelectedProductsToOutbound = async () => {
         if (!existingOrder) {
           outboundForm.value.relatedOrders.push({
             id: orderIdNum,
-            order_no: orderNo,
+            orderNo: orderNo,
             customer: currentCustomer.value.name,
             customer_id: currentCustomer.value.id,
             contract_code: product.contract_code || '',
@@ -1637,11 +1647,11 @@ const addSelectedProductsToOutbound = async () => {
               unit_id: product.unit_id,
               unit_price: product.unit_price || 0,
               stock_quantity: product.stock_quantity,
-              order_no: orderDetail.order_no,
+              orderNo: orderDetail.orderNo,
               order_id: orderDetail.order_id,
-              source_orders: [{
+              sourceOrders: [{
                 id: orderDetail.order_id,
-                order_no: orderDetail.order_no,
+                orderNo: orderDetail.orderNo,
                 quantity: allocatedQuantity
               }]
             })
@@ -1660,7 +1670,7 @@ const addSelectedProductsToOutbound = async () => {
           unit_id: product.unit_id,
           unit_price: product.unit_price || 0,
           stock_quantity: product.stock_quantity,
-          order_no: product.order_nos || product.order_no || '',
+          orderNo: product.orderNos || product.orderNo || '',
           order_id: parseInt(product.order_ids) || product.order_id || ''
         })
       }
@@ -1677,7 +1687,7 @@ const addSelectedProductsToOutbound = async () => {
         unit_id: product.unit_id,
         unit_price: product.unit_price || 0,
         stock_quantity: product.stock_quantity,
-        order_no: product.order_no || '',
+        orderNo: product.orderNo || '',
         order_id: product.order_id || ''
       })
     }

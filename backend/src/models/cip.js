@@ -11,6 +11,7 @@ const financeModel = require('./finance');
 const DocumentLinkService = require('../services/business/DocumentLinkService');
 const { accountingConfig } = require('../config/accountingConfig');
 const { currentDateString } = require('../utils/dateUtils');
+const { resolveActorLabel, resolveActorUserId } = require('../utils/userUtils');
 
 function mapAssetType(value) {
     const typeMap = {
@@ -158,7 +159,7 @@ const cipModel = {
     },
 
     /**
-     * 创建在建工程
+     * 创建在建工程（累计金额强制 0，仅允许白名单字段）
      */
     createCipProject: async (data) => {
         try {
@@ -170,7 +171,7 @@ const cipModel = {
                     data.project_code,
                     data.project_name,
                     data.budget || 0,
-                    data.accumulated_amount || 0,
+                    0, // 累计金额只允许由过账推导，禁止客户端写入
                     data.start_date || null,
                     data.estimated_end_date || null,
                     data.status || '建设中',
@@ -187,18 +188,29 @@ const cipModel = {
     },
 
     /**
-     * 更新在建工程
+     * 更新在建工程 — 列白名单，禁止 mass assignment / 标识符注入
      */
     updateCipProject: async (id, data) => {
         try {
+            const ALLOWED_UPDATE_COLUMNS = new Set([
+                'project_code',
+                'project_name',
+                'budget',
+                'start_date',
+                'estimated_end_date',
+                'status',
+                'responsible',
+                'department',
+                'notes',
+            ]);
+            // 禁止客户端改写累计金额（由财务过账维护）
             const fields = [];
             const values = [];
 
-            Object.keys(data).forEach(key => {
-                if (key !== 'id' && key !== 'created_at' && key !== 'updated_at') {
-                    fields.push(`${key} = ?`);
-                    values.push(data[key]);
-                }
+            Object.keys(data || {}).forEach((key) => {
+                if (!ALLOWED_UPDATE_COLUMNS.has(key)) return;
+                fields.push(`${key} = ?`);
+                values.push(data[key]);
             });
 
             if (fields.length === 0) return true;
@@ -266,7 +278,7 @@ const cipModel = {
             const usefulLifeMonths = Math.max(1, Number.parseInt(assetData.useful_life, 10) || 5) * 12;
             const assetType = mapAssetType(assetData.asset_type);
             const depreciationMethod = mapDepreciationMethod(assetData.depreciation_method);
-            const operatorName = operator.operatorName || String(operator.userId || operator || 'system');
+            const operatorName = operator.operatorName || String(operator.userId || await resolveActorLabel(null, operator));
             const createdBy = operator.userId || operator;
 
             // 2. 插入新固定资产 (复用 assetsModel 的构建逻辑，或者直接执行 INSERT)

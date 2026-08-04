@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * ProductionDashboard.vue
  * @description 前端界面组件文件
@@ -8,7 +8,7 @@
 -->
 <template>
   <div class="module-page overview-page production-dashboard">
-    <PageHeader title="生产数据概览">
+    <PageHeader title="生产数据概览" subtitle="计划、任务与产出关键指标">
       <template #actions>
         <span v-if="lastUpdated" class="last-updated">
             最后更新: {{ new Date(lastUpdated).toLocaleTimeString() }}
@@ -16,80 +16,52 @@
       </template>
     </PageHeader>
     <!-- 统计卡片 -->
-    <el-row :gutter="20" class="mt-20">
-      <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-20">
+    <el-row :gutter="16" class="stats-row">
+      <el-col :xs="24" :sm="12" :md="6" :lg="6">
         <el-card class="stat-card primary-card" shadow="hover">
-          <div class="stat-content">
-            <div class="stat-title">生产计划</div>
-            <div class="stat-info">
-              <div class="stat-main">
-                <div class="stat-value">{{ statistics.plans?.total || 0 }}</div>
-                <div class="stat-label">总数</div>
-              </div>
-              <div class="stat-secondary">
-                <div class="stat-secondary-value">{{ statistics.plans?.pending || 0 }}</div>
-                <div class="stat-secondary-label">待完成</div>
-              </div>
-            </div>
+          <div class="stat-value">{{ statistics.plans?.total || 0 }}</div>
+          <div class="stat-label">生产计划</div>
+          <div class="stat-secondary">
+            <span class="stat-secondary-value">{{ statistics.plans?.pending || 0 }}</span>
+            <span class="stat-secondary-label">待完成</span>
           </div>
         </el-card>
       </el-col>
-      <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-20">
+      <el-col :xs="24" :sm="12" :md="6" :lg="6">
         <el-card class="stat-card success-card" shadow="hover">
-          <div class="stat-content">
-            <div class="stat-title">生产任务</div>
-            <div class="stat-info">
-              <div class="stat-main">
-                <div class="stat-value">{{ statistics.tasks?.total || 0 }}</div>
-                <div class="stat-label">总数</div>
-              </div>
-              <div class="stat-secondary">
-                <div class="stat-secondary-value">{{ statistics.tasks?.inProgress || 0 }}</div>
-                <div class="stat-secondary-label">进行中</div>
-              </div>
-            </div>
+          <div class="stat-value">{{ statistics.tasks?.total || 0 }}</div>
+          <div class="stat-label">生产任务</div>
+          <div class="stat-secondary">
+            <span class="stat-secondary-value">{{ statistics.tasks?.inProgress || 0 }}</span>
+            <span class="stat-secondary-label">进行中</span>
           </div>
         </el-card>
       </el-col>
-      <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-20">
+      <el-col :xs="24" :sm="12" :md="6" :lg="6">
         <el-card class="stat-card info-card" shadow="hover">
-          <div class="stat-content">
-            <div class="stat-title">工序完成</div>
-            <div class="stat-info">
-              <div class="stat-main">
-                <div class="stat-value">{{ statistics.processes?.completed || 0 }}</div>
-                <div class="stat-label">本月完成</div>
-              </div>
-              <div class="stat-secondary">
-                <div class="stat-secondary-value">{{ statistics.processes?.rate || '0%' }}</div>
-                <div class="stat-secondary-label">完成率</div>
-              </div>
-            </div>
+          <div class="stat-value">{{ statistics.processes?.completed || 0 }}</div>
+          <div class="stat-label">工序完成</div>
+          <div class="stat-secondary">
+            <span class="stat-secondary-value">{{ statistics.processes?.rate || '0%' }}</span>
+            <span class="stat-secondary-label">完成率</span>
           </div>
         </el-card>
       </el-col>
-      <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-20">
+      <el-col :xs="24" :sm="12" :md="6" :lg="6">
         <el-card class="stat-card warning-card" shadow="hover">
-          <div class="stat-content">
-            <div class="stat-title">生产报工</div>
-            <div class="stat-info">
-              <div class="stat-main">
-                <div class="stat-value">{{ statistics.reports?.total || 0 }}</div>
-                <div class="stat-label">总数</div>
-              </div>
-              <div class="stat-secondary">
-                <div class="stat-secondary-value">{{ statistics.reports?.today || 0 }}</div>
-                <div class="stat-secondary-label">今日报工</div>
-              </div>
-            </div>
+          <div class="stat-value">{{ statistics.reports?.total || 0 }}</div>
+          <div class="stat-label">生产报工</div>
+          <div class="stat-secondary">
+            <span class="stat-secondary-value">{{ statistics.reports?.today || 0 }}</span>
+            <span class="stat-secondary-label">今日报工</span>
           </div>
         </el-card>
       </el-col>
     </el-row>
     <!-- 图表区域 -->
-    <el-row :gutter="20" class="mt-20">
-      <el-col :xs="24" :md="12" class="mb-20">
-        <el-card shadow="hover">
+    <el-row :gutter="16" class="mt-md">
+      <el-col :xs="24" :md="12">
+        <el-card class="dashboard-card" shadow="hover">
           <template #header>
             <div class="card-header">
               <span>生产趋势</span>
@@ -110,8 +82,8 @@
           </div>
         </el-card>
       </el-col>
-      <el-col :xs="24" :md="12" class="mb-20">
-        <el-card shadow="hover">
+      <el-col :xs="24" :md="12">
+        <el-card class="dashboard-card" shadow="hover">
           <template #header>
             <div class="card-header">
               <span>工序完成率分布</span>
@@ -126,7 +98,7 @@
     <!-- 待处理生产任务 -->
     <el-row class="mt-20">
       <el-col :span="24">
-        <el-card shadow="hover">
+        <el-card class="dashboard-card" shadow="hover">
           <template #header>
             <div class="card-header-with-search">
               <span>待处理生产任务</span>
@@ -615,103 +587,6 @@ async function loadAndUpdateProductionTrends() {
 }
 </script>
 <style scoped>
-.production-dashboard {
-  padding: 10px;
-}
-.header-card {
-  margin-bottom: var(--spacing-lg);
-}
-.header-card h2 {
-  margin: 0;
-  font-size: 22px;
-  color: var(--el-text-color-primary);
-}
-.last-updated {
-  margin-left: 10px;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-.mt-20 {
-  margin-top: var(--spacing-lg);
-}
-.mb-20 {
-  margin-bottom: var(--spacing-lg);
-}
-.primary-card {
-  border-top: 4px solid var(--el-color-primary);
-}
-.success-card {
-  border-top: 4px solid var(--el-color-success);
-}
-.info-card {
-  border-top: 4px solid var(--el-color-info);
-}
-.warning-card {
-  border-top: 4px solid var(--el-color-warning);
-}
-.danger-card {
-  border-top: 4px solid var(--el-color-danger);
-}
-.stat-content {
-  flex-grow: 1;
-  padding: 10px 0;
-}
-.stat-title {
-  font-size: 16px;
-  font-weight: bold;
-  margin-bottom: 15px;
-  color: var(--el-text-color-primary);
-}
-.stat-info {
-  display: flex;
-  justify-content: space-between;
-}
-.stat-main {
-  text-align: left;
-}
-.stat-secondary {
-  text-align: right;
-}
-.stat-secondary-value {
-  font-size: 20px;
-  font-weight: 500;
-  line-height: 1.2;
-  color: var(--el-text-color-primary);
-}
-.stat-secondary-label {
-  font-size: 14px;
-  color: var(--el-text-color-secondary);
-}
-.card-footer {
-  padding-top: 10px;
-  border-top: 1px solid var(--el-border-color-lighter);
-}
-.chart-container {
-  width: 100%;
-  height: 300px;
-  position: relative;
-}
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.card-header span {
-  font-size: 16px;
-  font-weight: bold;
-}
-.card-header-with-search {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.card-header-with-search span {
-  font-size: 16px;
-  font-weight: bold;
-}
-.search-input {
-  max-width: 200px;
-}
 .text-danger {
   color: var(--el-color-danger);
   font-weight: bold;
@@ -721,17 +596,7 @@ async function loadAndUpdateProductionTrends() {
   font-weight: bold;
 }
 /* 响应式调整 */
-@media (max-width: 768px) {
-  .search-input {
-    max-width: 120px;
-  }
-  .stat-value {
-    font-size: 22px;
-  }
-  .stat-secondary-value {
-    font-size: 18px;
-  }
-}
+
 /* 详情对话框长文本处理 - 自动添加 */
 :deep(.el-descriptions__content) {
   max-width: 300px;

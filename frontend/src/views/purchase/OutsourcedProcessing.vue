@@ -188,7 +188,7 @@
       <div v-loading="processingDialogLoading">
       <el-form ref="processingFormRef" :model="processingForm" :rules="processingRules" label-width="100px" class="form-container">
         <!-- 基本信息 -->
-        <el-card class="box-card">
+        <el-card class="data-card">
           <template #header>
             <div class="card-header">
               <span>基本信息</span>
@@ -274,7 +274,7 @@
           </el-form-item>
         </el-card>
         <!-- 发料物料 -->
-        <el-card class="box-card">
+        <el-card class="data-card">
           <template #header>
             <div class="card-header">
               <span>发料物料</span>
@@ -335,7 +335,7 @@
           </el-table>
         </el-card>
         <!-- 加工成品 -->
-        <el-card class="box-card">
+        <el-card class="data-card">
           <template #header>
             <div class="card-header">
               <span>加工成品</span>
@@ -1162,9 +1162,7 @@ onMounted(() => {
   margin-left: 8px;
 }
 /* 处理对话框相关样式 */
-.box-card {
-  margin-bottom: var(--spacing-lg);
-}
+
 .card-header {
   display: flex;
   justify-content: space-between;

@@ -201,6 +201,9 @@
   border-bottom: 1px solid var(--color-border-lighter);
   box-sizing: border-box;
 }
+.price-exchange-panel {
+  container-type: inline-size;
+}
 .price-panel-tabs {
   height: 100%;
   display: flex;
@@ -353,4 +356,64 @@
 .rate-change.neutral {
   color: var(--color-text-secondary);
   background-color: color-mix(in srgb, var(--ds-gray) 10%, transparent);
+}
+
+@container (max-width: 300px) {
+  .metal-price-cards,
+  .exchange-rate-cards {
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .price-card,
+  .rate-card {
+    min-width: 0;
+    padding: 8px;
+  }
+
+  .price-card-header,
+  .rate-card-header {
+    min-width: 0;
+    gap: 4px;
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .metal-info {
+    min-width: 0;
+    gap: 5px;
+  }
+
+  .metal-icon {
+    flex: 0 0 12px;
+    width: 12px;
+    height: 12px;
+  }
+
+  .metal-name,
+  .currency-pair {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .price-change,
+  .rate-change {
+    flex: 0 1 auto;
+    min-width: 0;
+    align-self: flex-start;
+    padding: 2px 4px;
+    font-size: 10px;
+    white-space: nowrap;
+  }
+
+  .price-value,
+  .rate-value {
+    overflow-wrap: normal;
+    word-break: normal;
+    font-size: 14px;
+    line-height: 1.15;
+    white-space: nowrap;
+  }
 }

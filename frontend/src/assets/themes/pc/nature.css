@@ -33,10 +33,10 @@
   --color-info-dark: #297bc0;
 
   /* 文本色 - 5级 */
-  --color-text-primary: #2D3436;      /* 主要文字（深灰） */
-  --color-text-regular: #4A5568;      /* 常规文字（中灰） */
-  --color-text-secondary: #718096;    /* 次要文字（浅灰） */
-  --color-text-placeholder: #A0AEC0;  /* 占位文字 */
+  --color-text-primary: #1F6F32;      /* 主要文字 */
+  --color-text-regular: #2F6F3E;      /* 常规文字 */
+  --color-text-secondary: #4B6F56;    /* 次要文字 */
+  --color-text-placeholder: #4B6F56;  /* 占位文字 */
   --color-text-disabled: #CBD5E0;     /* 禁用文字 */
 
   /* 边框色 - 4级 */
@@ -56,14 +56,14 @@
 
   /* 补充色 */
   --color-bg-section: #F0FFF4;
-  --color-text-muted: #718096;
+  --color-text-muted: #4B6F56;
   --color-primary-active: #40a651;
   --color-success-gradient-end: #40a651;
   --color-warning-gradient-end: #ca9d14;
   --color-danger-gradient-end: #cc5656;
   --color-danger-hover: #ff8888;
   --color-info-gradient-end: #297bc0;
-  --color-on-primary: #ffffff;
+  --color-on-primary: #000000;
 
   /* 自然主题特有颜色（大自然元素） */
   --color-leaf: #40C057;              /* 叶绿 */
@@ -232,17 +232,8 @@
   color: var(--color-text-primary) !important;
 }
 
-[data-theme="nature"] .header *,
-[data-theme="nature"] .el-header * {
-  color: var(--color-text-primary) !important;
-}
-
-[data-theme="nature"] .header span,
-[data-theme="nature"] .el-header span,
 [data-theme="nature"] .header .username,
-[data-theme="nature"] .el-header .username,
-[data-theme="nature"] .header .user-info,
-[data-theme="nature"] .el-header .user-info {
+[data-theme="nature"] .el-header .username {
   color: var(--color-text-primary) !important;
 }
 
@@ -252,23 +243,6 @@
 }
 
 /* 顶部菜单样式 */
-[data-theme="nature"] .header .el-menu-item,
-[data-theme="nature"] .el-header .el-menu-item {
-  color: var(--color-text-primary) !important;
-}
-
-[data-theme="nature"] .header .el-menu-item:hover,
-[data-theme="nature"] .el-header .el-menu-item:hover {
-  color: var(--color-text-primary) !important;
-  background: color-mix(in srgb, var(--color-bg-overlay) 10%, transparent) !important;
-}
-
-[data-theme="nature"] .header .el-menu-item.is-active,
-[data-theme="nature"] .el-header .el-menu-item.is-active {
-  color: var(--color-text-primary) !important;
-  background: color-mix(in srgb, var(--color-bg-overlay) 15%, transparent) !important;
-}
-
 /* 表格组件 */
 [data-theme="nature"] .el-table {
   background: var(--color-bg-base) !important;

@@ -1,9 +1,7 @@
 ﻿<template>
-  <div class="module-page app-container">
-    <!-- 头部区域 -->
+  <div class="module-page budget-execution-page">
     <PageHeader title="预算执行" subtitle="预算执行进度与差异分析" />
 
-    <!-- 搜索区域 -->
     <FinanceQueryCard
       :loading="loading"
       @search="fetchAnalysis"
@@ -23,58 +21,51 @@
       </template>
     </FinanceQueryCard>
 
-    <div v-if="analysisData" v-loading="loading">
+    <div v-if="analysisData" v-loading="loading" class="analysis-body">
       <!-- 概览卡片 -->
-      <el-row :gutter="20" class="mb-4">
-        <el-col :span="6">
-          <el-card shadow="hover">
-            <template #header>
-              <div class="card-header">总预算</div>
-            </template>
-            <div class="card-value">{{ formatCurrency(summary.total_budget) }}</div>
+      <el-row :gutter="16" class="stats-row">
+        <el-col :xs="12" :sm="12" :md="6">
+          <el-card shadow="hover" class="stat-card summary-card">
+            <div class="stat-label">总预算</div>
+            <div class="stat-value">{{ formatCurrency(summary.total_budget) }}</div>
           </el-card>
         </el-col>
-        <el-col :span="6">
-          <el-card shadow="hover">
-            <template #header>
-              <div class="card-header">实际执行</div>
-            </template>
-            <div class="card-value text-blue">{{ formatCurrency(summary.total_actual) }}</div>
+        <el-col :xs="12" :sm="12" :md="6">
+          <el-card shadow="hover" class="stat-card summary-card">
+            <div class="stat-label">实际执行</div>
+            <div class="stat-value text-primary">{{ formatCurrency(summary.total_actual) }}</div>
           </el-card>
         </el-col>
-        <el-col :span="6">
-          <el-card shadow="hover">
-            <template #header>
-              <div class="card-header">预算结余</div>
-            </template>
-            <div class="card-value" :class="summary.total_variance >= 0 ? 'text-green' : 'text-red'">
+        <el-col :xs="12" :sm="12" :md="6">
+          <el-card shadow="hover" class="stat-card summary-card">
+            <div class="stat-label">预算结余</div>
+            <div
+              class="stat-value"
+              :class="summary.total_variance >= 0 ? 'text-success' : 'text-danger'"
+            >
               {{ formatCurrency(summary.total_variance) }}
             </div>
           </el-card>
         </el-col>
-        <el-col :span="6">
-          <el-card shadow="hover">
-            <template #header>
-              <div class="card-header">总体执行率</div>
-            </template>
-            <div class="card-value">
-              <el-progress
-                type="dashboard"
-                :percentage="Math.min(summary.total_execution_rate, 100)"
-                :status="getProgressStatus(summary.total_execution_rate)"
-                :width="80"
-              >
-                <template #default>
-                  <span class="percentage-value">{{ summary.total_execution_rate.toFixed(1) }}%</span>
-                </template>
-              </el-progress>
-            </div>
+        <el-col :xs="12" :sm="12" :md="6">
+          <el-card shadow="hover" class="stat-card summary-card summary-card--progress">
+            <div class="stat-label">总体执行率</div>
+            <el-progress
+              type="dashboard"
+              :percentage="Math.min(summary.total_execution_rate, 100)"
+              :status="getProgressStatus(summary.total_execution_rate)"
+              :width="80"
+            >
+              <template #default>
+                <span class="percentage-value">{{ summary.total_execution_rate.toFixed(1) }}%</span>
+              </template>
+            </el-progress>
           </el-card>
         </el-col>
       </el-row>
 
       <!-- 图表区域 -->
-      <el-card class="mb-4" shadow="hover">
+      <el-card class="data-card" shadow="never">
         <template #header>
           <div class="card-header">
             <span>预算执行对比图</span>
@@ -86,7 +77,7 @@
       </el-card>
 
       <!-- 详细表格 -->
-      <el-card shadow="hover">
+      <el-card class="data-card" shadow="never">
         <template #header>
           <div class="card-header">
             <span>执行明细表</span>
@@ -305,74 +296,72 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.app-container {
-  padding: 20px;
-}
+/* 根节点交给 .module-page；卡片间距由 data-card / stats-row 约定 */
 
-.header-card {
-  margin-bottom: 20px;
-}
-
-.title-section h2 {
-  margin: 0 0 5px 0;
-  font-size: 20px;
-  color: var(--color-text-primary);
-}
-
-.subtitle {
-  margin: 0;
-  font-size: 14px;
-  color: var(--color-text-secondary);
-}
-
-.search-card {
-  margin-bottom: 20px;
-}
-
-.search-form .el-form-item {
-  margin-bottom: 0;
-}
-
-/* 概览卡片等高对齐 */
-.mb-4.el-row {
-  display: flex;
-  align-items: stretch;
-}
-.mb-4 .el-col {
-  display: flex;
-}
-.mb-4 .el-col > .el-card {
-  width: 100%;
+.analysis-body {
   display: flex;
   flex-direction: column;
+  gap: 0;
 }
-.mb-4 .el-col > .el-card :deep(.el-card__body) {
-  flex: 1;
+
+.summary-card {
+  height: 100%;
+  text-align: center;
+}
+
+.summary-card :deep(.el-card__body) {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  min-height: 110px;
+  gap: 8px;
+}
+
+.summary-card--progress :deep(.el-card__body) {
+  min-height: 140px;
+}
+
+.stat-label {
+  font-size: 13px;
+  color: var(--color-text-secondary, var(--el-text-color-secondary));
+}
+
+.stat-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--color-text-primary, var(--el-text-color-primary));
+  line-height: 1.2;
+}
+
+.text-primary {
+  color: var(--color-primary);
+}
+
+.text-success {
+  color: var(--color-success);
+}
+
+.text-danger {
+  color: var(--color-danger);
 }
 
 .card-header {
-  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
 }
-.card-value {
-  font-size: 24px;
-  font-weight: bold;
-  text-align: center;
-  padding: 10px 0;
-}
-.text-blue { color: var(--color-primary); }
-.text-green { color: var(--color-success); }
-.text-red { color: var(--color-danger); }
 
 .chart-container {
   position: relative;
   height: 400px;
   width: 100%;
 }
+
 .percentage-value {
   display: block;
-  font-size: 20px;
+  font-size: 18px;
+  font-weight: 600;
 }
 </style>

@@ -8,6 +8,8 @@ const { logger } = require('../../../utils/logger');
 const { createCrudController } = require('../../../utils/controllerFactory');
 
 const supplierService = require('../../../services/supplierService');
+const SupplierMetalRangePriceService = require('../../../services/business/SupplierMetalRangePriceService');
+const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const customerService = require('../../../services/customerService');
 
 const baseSupplierController = createCrudController(supplierService, '供应商');
@@ -148,6 +150,61 @@ const supplierCustomerController = {
     } catch (error) {
       logger.error('导入客户失败:', error);
       ResponseHandler.error(res, error.message, 'SERVER_ERROR', 500, error);
+    }
+  },
+
+
+  async listSupplierMetalPriceSchemes(req, res) {
+    try {
+      const schemes = await SupplierMetalRangePriceService.listSchemes(req.params.id, {
+        metalSymbol: req.query.metal_symbol || req.query.metalSymbol,
+        enabledOnly: String(req.query.enabled_only || '').toLowerCase() === 'true',
+      });
+      return ResponseHandler.success(res, schemes, '获取供应商区间报价方案成功');
+    } catch (error) {
+      logger.error('获取供应商区间报价方案失败:', error);
+      return ResponseHandler.error(res, error.message || '获取供应商区间报价方案失败', 'SERVER_ERROR', 500, error);
+    }
+  },
+
+  async getSupplierMetalPriceScheme(req, res) {
+    try {
+      const scheme = await SupplierMetalRangePriceService.getSchemeById(req.params.schemeId);
+      if (!scheme || Number(scheme.supplier_id) !== Number(req.params.id)) {
+        return ResponseHandler.notFound(res, '区间报价方案不存在');
+      }
+      return ResponseHandler.success(res, scheme, '获取供应商区间报价详情成功');
+    } catch (error) {
+      logger.error('获取供应商区间报价详情失败:', error);
+      return ResponseHandler.error(res, error.message || '获取供应商区间报价详情失败', 'SERVER_ERROR', 500, error);
+    }
+  },
+
+  async saveSupplierMetalPriceScheme(req, res) {
+    try {
+      const actorId = getAuthenticatedUserId(req);
+      const scheme = await SupplierMetalRangePriceService.saveScheme(
+        req.params.id,
+        { ...req.body, id: req.params.schemeId || req.body.id },
+        actorId
+      );
+      return ResponseHandler.success(res, scheme, '保存供应商区间报价成功');
+    } catch (error) {
+      logger.error('保存供应商区间报价失败:', error);
+      return ResponseHandler.error(res, error.message || '保存供应商区间报价失败', 'VALIDATION_ERROR', 400, error);
+    }
+  },
+
+  async deleteSupplierMetalPriceScheme(req, res) {
+    try {
+      const deleted = await SupplierMetalRangePriceService.deleteScheme(req.params.id, req.params.schemeId);
+      if (!deleted) {
+        return ResponseHandler.notFound(res, '区间报价方案不存在');
+      }
+      return ResponseHandler.success(res, true, '删除供应商区间报价成功');
+    } catch (error) {
+      logger.error('删除供应商区间报价失败:', error);
+      return ResponseHandler.error(res, error.message || '删除供应商区间报价失败', 'SERVER_ERROR', 500, error);
     }
   },
 

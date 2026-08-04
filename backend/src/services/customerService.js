@@ -55,8 +55,8 @@ const customerService = {
       // 获取分页数据
       // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
       const listQuery = noPagination
-        ? `SELECT id, code, name, contact_person, phone, email, address, credit_limit, status, created_at, updated_at, contact_phone, remark, customer_type, deleted_at FROM customers WHERE ${whereClause} ORDER BY id DESC`
-        : `SELECT id, code, name, contact_person, phone, email, address, credit_limit, status, created_at, updated_at, contact_phone, remark, customer_type, deleted_at FROM customers WHERE ${whereClause} ORDER BY id DESC LIMIT ${safePageSize} OFFSET ${offset}`;
+        ? `SELECT id, code, name, contact_person, phone, email, address, credit_limit, status, payment_term_days, created_at, updated_at, contact_phone, remark, customer_type, deleted_at FROM customers WHERE ${whereClause} ORDER BY id DESC`
+        : `SELECT id, code, name, contact_person, phone, email, address, credit_limit, status, payment_term_days, created_at, updated_at, contact_phone, remark, customer_type, deleted_at FROM customers WHERE ${whereClause} ORDER BY id DESC LIMIT ${safePageSize} OFFSET ${offset}`;
       const [rows] = await pool.query(listQuery, params);
 
       return {
@@ -73,7 +73,10 @@ const customerService = {
 
   async getCustomerById(id) {
     try {
-      const [rows] = await pool.query('SELECT id, code, name, contact_person, phone, email, address, credit_limit, status, created_at, updated_at, contact_phone, remark, customer_type, deleted_at FROM customers WHERE id = ? AND deleted_at IS NULL', [id]);
+      const [rows] = await pool.query(
+        'SELECT id, code, name, contact_person, phone, email, address, credit_limit, status, payment_term_days, created_at, updated_at, contact_phone, remark, customer_type, deleted_at FROM customers WHERE id = ? AND deleted_at IS NULL',
+        [id]
+      );
       return rows[0];
     } catch (error) {
       logger.error(`获取客户详情失败 (ID: ${id}):`, error);
@@ -94,7 +97,14 @@ const customerService = {
         remark,
         customer_type = 'direct',
         credit_limit = 0,
+        payment_term_days,
       } = data;
+      const termDays =
+        payment_term_days != null && payment_term_days !== ''
+          ? Math.max(0, Math.min(3650, parseInt(payment_term_days, 10) || 30))
+          : 30;
+      // 契约：入参只认 contact_phone；库内 phone 为历史冗余列，写入点唯一镜像
+      const phoneCanonical = contact_phone || null;
 
       // 如果没有提供客户编码，自动生成一个
       let customerCode = code;
@@ -116,26 +126,29 @@ const customerService = {
 
       const sql = `
         INSERT INTO customers
-        (code, name, contact_person, contact_phone, email, address, status, remark, customer_type, credit_limit)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (code, name, contact_person, contact_phone, phone, email, address, status, remark, customer_type, credit_limit, payment_term_days)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
       const [result] = await pool.query(sql, [
         customerCode,
         name,
         contact_person || null,
-        contact_phone || null,
+        phoneCanonical,
+        phoneCanonical,
         email || null,
         address || null,
         status === undefined || status === '' ? 1 : status, // 默认为1（启用）
         remark || null,
         customer_type || 'direct',
         credit_limit || 0,
+        termDays,
       ]);
 
       // 获取插入的完整记录
-      const [newCustomer] = await pool.query('SELECT id, code, name, contact_person, phone, email, address, credit_limit, status, created_at, updated_at, contact_phone, remark, customer_type, deleted_at FROM customers WHERE id = ? AND deleted_at IS NULL', [
-        result.insertId,
-      ]);
+      const [newCustomer] = await pool.query(
+        'SELECT id, code, name, contact_person, phone, email, address, credit_limit, status, payment_term_days, created_at, updated_at, contact_phone, remark, customer_type, deleted_at FROM customers WHERE id = ? AND deleted_at IS NULL',
+        [result.insertId]
+      );
       return newCustomer[0];
     } catch (error) {
       logger.error('创建客户失败:', error);
@@ -146,23 +159,37 @@ const customerService = {
   async updateCustomer(id, data) {
     try {
       // 验证客户是否存在
-      const [existing] = await pool.query('SELECT id, code, name, contact_person, phone, email, address, credit_limit, status, created_at, updated_at, contact_phone, remark, customer_type, deleted_at FROM customers WHERE id = ? AND deleted_at IS NULL', [id]);
+      const [existing] = await pool.query(
+        'SELECT id, code, name, contact_person, phone, email, address, credit_limit, status, payment_term_days, created_at, updated_at, contact_phone, remark, customer_type, deleted_at FROM customers WHERE id = ? AND deleted_at IS NULL',
+        [id]
+      );
       if (!existing || existing.length === 0) {
         throw new Error('客户不存在');
       }
+
+      // 入参只认 contact_phone；同步镜像到 phone 列
+      const phoneCanonical =
+        data.contact_phone !== undefined ? data.contact_phone : undefined;
 
       // 定义允许更新的字段及其值
       const validFields = {
         code: data.code,
         name: data.name,
         contact_person: data.contact_person,
-        contact_phone: data.contact_phone,
+        contact_phone: phoneCanonical,
+        phone: phoneCanonical,
         email: data.email,
         address: data.address,
         status: data.status === undefined || data.status === '' ? undefined : data.status,
         remark: data.remark,
         customer_type: data.customer_type,
         credit_limit: data.credit_limit === undefined ? undefined : data.credit_limit || 0,
+        payment_term_days:
+          data.payment_term_days !== undefined && data.payment_term_days !== null && data.payment_term_days !== ''
+            ? Math.max(0, Math.min(3650, parseInt(data.payment_term_days, 10) || 0))
+            : data.payment_term_days === null
+              ? null
+              : undefined,
       };
 
       // 过滤掉未定义的字段
@@ -187,7 +214,10 @@ const customerService = {
       await pool.query(`UPDATE customers SET ${fields} WHERE id = ? AND deleted_at IS NULL`, values);
 
       // 获取并返回更新后的完整数据
-      const [updated] = await pool.query('SELECT id, code, name, contact_person, phone, email, address, credit_limit, status, created_at, updated_at, contact_phone, remark, customer_type, deleted_at FROM customers WHERE id = ? AND deleted_at IS NULL', [id]);
+      const [updated] = await pool.query(
+        'SELECT id, code, name, contact_person, phone, email, address, credit_limit, status, payment_term_days, created_at, updated_at, contact_phone, remark, customer_type, deleted_at FROM customers WHERE id = ? AND deleted_at IS NULL',
+        [id]
+      );
       return updated[0];
     } catch (error) {
       logger.error('更新客户失败:', error);

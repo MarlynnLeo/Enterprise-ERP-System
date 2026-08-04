@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * QualityDashboard.vue
  * @description 前端界面组件文件
@@ -8,87 +8,59 @@
 -->
 <template>
   <div class="module-page overview-page quality-dashboard">
-    <PageHeader title="质量数据概览" subtitle="质量业务关键指标与趋势" />
+    <PageHeader title="质量数据概览" subtitle="检验批次、合格率与不良分析" />
 
     <!-- 统计卡片 -->
-    <el-row :gutter="20" class="mt-lg">
-      <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-lg">
+    <el-row :gutter="16" class="stats-row">
+      <el-col :xs="24" :sm="12" :md="6" :lg="6">
         <el-card class="stat-card primary-card" shadow="hover">
-          <div class="stat-content">
-            <div class="stat-title">来料检验</div>
-            <div class="stat-info">
-              <div class="stat-main">
-                <div class="stat-value">{{ statistics.incoming?.total || 0 }}</div>
-                <div class="stat-label">总批次数</div>
-              </div>
-              <div class="stat-secondary">
-                <div class="stat-secondary-value">{{ statistics.incoming?.passRate || '0%' }}</div>
-                <div class="stat-secondary-label">合格率</div>
-              </div>
-            </div>
+          <div class="stat-value">{{ statistics.incoming?.total || 0 }}</div>
+          <div class="stat-label">来料检验</div>
+          <div class="stat-secondary">
+            <span class="stat-secondary-value">{{ statistics.incoming?.passRate || '0%' }}</span>
+            <span class="stat-secondary-label">合格率</span>
           </div>
         </el-card>
       </el-col>
 
-      <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-lg">
+      <el-col :xs="24" :sm="12" :md="6" :lg="6">
         <el-card class="stat-card success-card" shadow="hover">
-          <div class="stat-content">
-            <div class="stat-title">过程检验</div>
-            <div class="stat-info">
-              <div class="stat-main">
-                <div class="stat-value">{{ statistics.process?.total || 0 }}</div>
-                <div class="stat-label">总批次数</div>
-              </div>
-              <div class="stat-secondary">
-                <div class="stat-secondary-value">{{ statistics.process?.passRate || '0%' }}</div>
-                <div class="stat-secondary-label">合格率</div>
-              </div>
-            </div>
+          <div class="stat-value">{{ statistics.process?.total || 0 }}</div>
+          <div class="stat-label">过程检验</div>
+          <div class="stat-secondary">
+            <span class="stat-secondary-value">{{ statistics.process?.passRate || '0%' }}</span>
+            <span class="stat-secondary-label">合格率</span>
           </div>
         </el-card>
       </el-col>
 
-      <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-20">
+      <el-col :xs="24" :sm="12" :md="6" :lg="6">
         <el-card class="stat-card info-card" shadow="hover">
-          <div class="stat-content">
-            <div class="stat-title">成品检验</div>
-            <div class="stat-info">
-              <div class="stat-main">
-                <div class="stat-value">{{ statistics.final?.total || 0 }}</div>
-                <div class="stat-label">总批次数</div>
-              </div>
-              <div class="stat-secondary">
-                <div class="stat-secondary-value">{{ statistics.final?.passRate || '0%' }}</div>
-                <div class="stat-secondary-label">合格率</div>
-              </div>
-            </div>
+          <div class="stat-value">{{ statistics.final?.total || 0 }}</div>
+          <div class="stat-label">成品检验</div>
+          <div class="stat-secondary">
+            <span class="stat-secondary-value">{{ statistics.final?.passRate || '0%' }}</span>
+            <span class="stat-secondary-label">合格率</span>
           </div>
         </el-card>
       </el-col>
 
-      <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-20">
+      <el-col :xs="24" :sm="12" :md="6" :lg="6">
         <el-card class="stat-card warning-card" shadow="hover">
-          <div class="stat-content">
-            <div class="stat-title">不良品分析</div>
-            <div class="stat-info">
-              <div class="stat-main">
-                <div class="stat-value">{{ statistics.defects?.total || 0 }}</div>
-                <div class="stat-label">不良品数</div>
-              </div>
-              <div class="stat-secondary">
-                <div class="stat-secondary-value">{{ statistics.defects?.types || 0 }}</div>
-                <div class="stat-secondary-label">不良类型</div>
-              </div>
-            </div>
+          <div class="stat-value">{{ statistics.defects?.total || 0 }}</div>
+          <div class="stat-label">不良品分析</div>
+          <div class="stat-secondary">
+            <span class="stat-secondary-value">{{ statistics.defects?.types || 0 }}</span>
+            <span class="stat-secondary-label">不良类型</span>
           </div>
         </el-card>
       </el-col>
     </el-row>
 
     <!-- 图表区域 -->
-    <el-row :gutter="20" class="mt-lg">
-      <el-col :xs="24" :md="12" class="mb-lg">
-        <el-card shadow="hover">
+    <el-row :gutter="16" class="mt-md">
+      <el-col :xs="24" :md="12">
+        <el-card class="dashboard-card" shadow="hover">
           <template #header>
             <div class="card-header">
               <span>各阶段检验合格率趋势</span>
@@ -104,8 +76,8 @@
         </el-card>
       </el-col>
 
-      <el-col :xs="24" :md="12" class="mb-lg">
-        <el-card shadow="hover">
+      <el-col :xs="24" :md="12">
+        <el-card class="dashboard-card" shadow="hover">
           <template #header>
             <div class="card-header">
               <span>不良原因分类</span>
@@ -121,7 +93,7 @@
     <!-- 最近不合格项目 -->
     <el-row class="mt-lg">
       <el-col :span="24">
-        <el-card shadow="hover">
+        <el-card class="dashboard-card" shadow="hover">
           <template #header>
             <div class="card-header-with-search">
               <span>最近不合格项目</span>
@@ -586,144 +558,13 @@ watch(timeRange, () => {
 </script>
 
 <style scoped>
-.quality-dashboard {
-  padding: 10px;
-}
-
-.header-card {
-  margin-bottom: var(--spacing-lg);
-}
-
-.header-card h2 {
-  margin: 0;
-  font-size: 22px;
-  color: var(--color-text-primary);
-}
-
-.mt-lg {
-  margin-top: var(--spacing-lg);
-}
-
-.mb-lg {
-  margin-bottom: var(--spacing-lg);
-}
-
-.primary-card {
-  border-top: 4px solid var(--color-primary);
-}
-
-.success-card {
-  border-top: 4px solid var(--color-success);
-}
-
-.info-card {
-  border-top: 4px solid var(--color-info);
-}
-
-.warning-card {
-  border-top: 4px solid var(--color-warning);
-}
-
-.danger-card {
-  border-top: 4px solid var(--color-danger);
-}
-
-.stat-content {
-  flex-grow: 1;
-  padding: 10px 0;
-}
-
-.stat-title {
-  font-size: 16px;
-  font-weight: bold;
-  margin-bottom: 15px;
-  color: var(--color-text-primary);
-}
-
-.stat-info {
-  display: flex;
-  justify-content: space-between;
-}
-
-.stat-main {
-  text-align: left;
-}
-
-
-.stat-secondary {
-  text-align: right;
-}
-
-.stat-secondary-value {
-  font-size: 20px;
-  font-weight: 500;
-  line-height: 1.2;
-  color: var(--color-text-primary);
-}
-
-.stat-secondary-label {
-  font-size: 14px;
-  color: var(--color-text-secondary);
-}
-
-.card-footer {
-  padding-top: 10px;
-  border-top: 1px solid var(--color-border-lighter);
-}
-
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.card-header span {
-  font-size: 16px;
-  font-weight: bold;
-}
-
-.card-header-with-search {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.card-header-with-search span {
-  font-size: 16px;
-  font-weight: bold;
-}
-
-.search-input {
-  max-width: 200px;
-}
-
-.chart-container {
-  width: 100%;
-  height: 300px;
-  position: relative;
-}
-
-
-
 .text-muted {
   color: var(--color-text-secondary);
   font-size: 12px;
 }
 
 /* 响应式调整 */
-@media (max-width: 768px) {
-  .search-input {
-    max-width: 120px;
-  }
 
-  .stat-value {
-    font-size: 22px;
-  }
-
-  .stat-secondary-value {
-    font-size: 18px;
-  }
-}
 
 
 /* 详情对话框长文本处理 - 自动添加 */

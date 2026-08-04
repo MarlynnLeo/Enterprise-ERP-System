@@ -5,6 +5,8 @@ const InventoryTraceabilityService = require('./InventoryTraceabilityService');
 const DocumentLinkService = require('./DocumentLinkService');
 const { normalizeTaxRate, roundMoney, taxAmount: calculateTaxAmount } = require('../../utils/money');
 const { financeConfig } = require('../../config/financeConfig');
+const { normalizeUserId, firstValidUserId } = require('../../utils/userUtils');
+const { resolveActorLabel, resolveActorUserId } = require('../../utils/userUtils');
 
 class QualityIntegrationService {
   static toNumber(value, fallback = 0) {
@@ -18,12 +20,11 @@ class QualityIntegrationService {
   }
 
   static createdById(value) {
-    const number = Number(value);
-    return Number.isInteger(number) && number > 0 ? number : null;
+    return normalizeUserId(value);
   }
 
-  static actorName(user, fallback = 'system') {
-    return user?.real_name || user?.username || fallback || 'system';
+  static actorName(user, fallback = null) {
+    return user?.real_name || user?.username || fallback || null;
   }
 
   static async getMaterialContext(materialId, connection) {
@@ -144,7 +145,10 @@ class QualityIntegrationService {
 
     const receiptDate = this.toDateOnly(actualDate);
     const operator = this.actorName(user, replacementOrder.created_by);
-    const createdBy = this.createdById(user?.id);
+    const createdBy = firstValidUserId(user?.id, replacementOrder.created_by);
+    if (!createdBy) {
+      throw new Error(`Replacement order ${replacementOrder.replacement_no} has no traceable owner`);
+    }
     const material = await this.getMaterialContext(replacementOrder.material_id, connection);
     const orderContext = await this.getPurchaseOrderContext(replacementOrder, connection);
     const ncp = await this.getNcpContext(replacementOrder, connection);
@@ -173,8 +177,8 @@ class QualityIntegrationService {
       `INSERT INTO purchase_receipts (
          receipt_no, order_id, order_no, supplier_id, supplier_name,
          warehouse_id, warehouse_name, receipt_date, operator, remarks,
-         total_amount, total_tax_amount, from_inspection, inspection_id, status
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         total_amount, total_tax_amount, from_inspection, inspection_id, status, created_by
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         receiptNo,
         orderContext.order_id || null,
@@ -191,6 +195,7 @@ class QualityIntegrationService {
         0,
         ncp?.inspection_id || null,
         'completed',
+        createdBy,
       ]
     );
 
@@ -471,7 +476,7 @@ class QualityIntegrationService {
           transactionType: 'scrap',
           referenceNo: scrapRecord.scrap_no,
           referenceType: 'scrap_record',
-          operator: scrapRecord.created_by || 'system',
+          operator: await resolveActorLabel(null, scrapRecord.created_by),
           remark: `Scrap inventory deduction - ${scrapRecord.scrap_reason || ''}`,
           unitId: material.unit_id || null,
           idempotencyKey: `scrap:${scrapRecord.scrap_no}:${material.id}:${locationId}:${scrapRecord.quantity}`,

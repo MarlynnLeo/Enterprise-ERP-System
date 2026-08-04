@@ -1,11 +1,11 @@
 <template>
-  <div class="module-page equipment-record-page page-container">
-    <PageHeader :title="title">
+  <div class="module-page equipment-record-page">
+    <PageHeader :title="title" subtitle="设备台账与记录查询">
       <template #actions>
         <el-button :icon="Refresh" @click="loadData">刷新</el-button>
       </template>
     </PageHeader>
-    <el-card class="data-card">
+    <el-card class="data-card" shadow="never">
       <template #header>
         <div class="page-header">
           <span class="text-regular">筛选与列表</span>
@@ -169,9 +169,7 @@ onMounted(loadData)
 </script>
 
 <style scoped>
-.equipment-record-page {
-  padding: 20px;
-}
+/* 间距交给 .module-page / .data-card */
 
 .page-header {
   display: flex;

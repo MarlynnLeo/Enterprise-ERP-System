@@ -41,7 +41,7 @@
   --color-text-primary: #172033;
   --color-text-regular: #334155;
   --color-text-secondary: #64748B;
-  --color-text-placeholder: #94A3B8;
+  --color-text-placeholder: #64748B;
   --color-text-disabled: #CBD5E1;
 
   /* 边框颜色 - 低对比度 */
@@ -61,7 +61,7 @@
 
   /* 补充色 */
   --color-bg-section: #F8FAFC;
-  --color-text-muted: #94A3B8;
+  --color-text-muted: #64748B;
   --color-primary-active: #173B5C;
   --color-sidebar-text: #EAF2F8;
   --color-sidebar-text-muted: #B8C7D9;
@@ -447,11 +447,6 @@
 /* 空状态 */
 [data-theme="professional"] .el-empty__description {
   color: var(--color-text-secondary) !important;
-}
-
-/* 扁平化特点 - 去除过多装饰 */
-[data-theme="professional"] * {
-  letter-spacing: 0;
 }
 
 /* 分割线 */

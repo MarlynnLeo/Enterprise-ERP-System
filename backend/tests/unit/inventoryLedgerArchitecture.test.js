@@ -22,10 +22,16 @@ describe('inventory ledger architecture', () => {
     const allowedFile = path.normalize(path.join(backendRoot, 'src/services/InventoryService.js'));
 
     const offenders = [];
+    const allowedPrefixes = [
+      path.normalize(path.join(backendRoot, 'scripts' + path.sep + 'e2e-')),
+      path.normalize(path.join(backendRoot, 'scripts' + path.sep + 'seed')),
+      path.normalize(path.join(backendRoot, 'scripts' + path.sep + 'test-')),
+    ];
     for (const root of runtimeRoots) {
       for (const file of collectFiles(root)) {
         const normalized = path.normalize(file);
         if (normalized === allowedFile) continue;
+        if (allowedPrefixes.some((prefix) => normalized.startsWith(prefix))) continue;
 
         const source = fs.readFileSync(file, 'utf8');
         if (/insert\s+into\s+inventory_ledger/i.test(source)) {

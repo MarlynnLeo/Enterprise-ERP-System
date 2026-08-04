@@ -36,7 +36,7 @@
   --color-text-primary: #E5EAF3;      /* 主要文字 */
   --color-text-regular: #CFD3DC;      /* 常规文字 */
   --color-text-secondary: #A3A6AD;    /* 次要文字 */
-  --color-text-placeholder: #8D9095;  /* 占位文字 */
+  --color-text-placeholder: #A3A6AD;  /* 占位文字 */
   --color-text-disabled: #6C6E72;     /* 禁用文字 */
 
   /* 边框颜色 - 4个层级 */
@@ -56,14 +56,14 @@
   --color-bg-section: #1E1E1E;        /* 区块/卡片背景 */
 
   /* 辅助语义色 */
-  --color-text-muted: #6C6E72;
+  --color-text-muted: #A3A6AD;
   --color-primary-active: #2563EB;
   --color-success-gradient-end: #16A34A;
   --color-warning-gradient-end: #D97706;
   --color-danger-gradient-end: #DC2626;
   --color-danger-hover: #FCA5A5;
   --color-info-gradient-end: #64748B;
-  --color-on-primary: #ffffff;
+  --color-on-primary: #000000;
 
   /* ========== 间距系统 ========== */
   --spacing-xs: 4px;

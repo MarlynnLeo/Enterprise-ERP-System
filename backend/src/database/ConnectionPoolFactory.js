@@ -200,29 +200,50 @@ class ConnectionPoolFactory {
         : null;
 
       // 设置自动回收定时器
+      // 重要：超时后必须 rollback + destroy，不能只 release。
+      // 否则未提交事务会随连接回到池中，变成僵尸锁（gl_periods FOR UPDATE 等会卡死 50s+）。
       let released = false;
+      const originalRelease = conn.release.bind(conn);
+      const originalDestroy = typeof conn.destroy === 'function' ? conn.destroy.bind(conn) : null;
+
       const autoReclaimTimer = setTimeout(() => {
-        if (!released) {
-          released = true;
-          manager._stats.autoReclaimed++;
-          manager.activeConnections.delete(conn);
+        if (released) return;
+        released = true;
+        manager._stats.autoReclaimed++;
+        manager.activeConnections.delete(conn);
 
-          logger.warn(
-            `[连接池] ⚠️ 连接 #${conn.threadId} 持有超过 ${maxHoldTime / 1000}s，自动强制回收！` +
-            (acquireStack ? `\n获取位置:\n${acquireStack.split('\n').slice(2, 6).join('\n')}` : '')
-          );
+        logger.warn(
+          `[连接池] ⚠️ 连接 #${conn.threadId} 持有超过 ${maxHoldTime / 1000}s，强制 rollback+destroy！` +
+            (acquireStack
+              ? `\n获取位置:\n${acquireStack.split('\n').slice(2, 6).join('\n')}`
+              : '')
+        );
 
-          try {
-            originalRelease();
-          } catch {
-            // 连接已损坏，忽略释放错误
-          }
-        }
+        // 异步尽力回滚并销毁；不阻塞定时器回调
+        Promise.resolve()
+          .then(async () => {
+            try {
+              if (typeof conn.rollback === 'function') {
+                await conn.rollback();
+              }
+            } catch {
+              /* ignore */
+            }
+            try {
+              if (originalDestroy) {
+                originalDestroy();
+              } else {
+                originalRelease();
+              }
+            } catch {
+              /* ignore */
+            }
+          })
+          .catch(() => {});
       }, maxHoldTime);
       autoReclaimTimer.unref?.();
 
       // 包装 release()，确保只执行一次并清除定时器
-      const originalRelease = conn.release.bind(conn);
       conn.release = function safeRelease() {
         if (released) return; // 防止重复释放
         released = true;

@@ -89,18 +89,18 @@
           <el-empty description="暂无出库单数据" />
         </template>
         <el-table-column type="selection" width="55" fixed="left"></el-table-column>
-        <el-table-column prop="outbound_no" label="出库单号" min-width="150" show-overflow-tooltip></el-table-column>
-        <el-table-column prop="product_code" label="物料编码" min-width="120" show-overflow-tooltip>
+        <el-table-column prop="outboundNo" label="出库单号" min-width="150" show-overflow-tooltip></el-table-column>
+        <el-table-column prop="productCode" label="物料编码" min-width="120" show-overflow-tooltip>
           <template #default="scope">
             {{ scope.row.product_code || '-' }}
           </template>
         </el-table-column>
-        <el-table-column prop="product_specs" label="型号规格" min-width="130" show-overflow-tooltip>
+        <el-table-column prop="productSpecs" label="型号规格" min-width="130" show-overflow-tooltip>
           <template #default="scope">
             {{ scope.row.product_specs || '-' }}
           </template>
         </el-table-column>
-        <el-table-column prop="outbound_date" label="出库日期" min-width="110" show-overflow-tooltip>
+        <el-table-column prop="outboundDate" label="出库日期" min-width="110" show-overflow-tooltip>
           <template #default="scope">
             {{ formatDate(scope.row.outbound_date) }}
           </template>
@@ -138,7 +138,7 @@
             {{ scope.row.operator_name || scope.row.operator }}
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" min-width="100" show-overflow-tooltip>
+        <el-table-column prop="createdAtFormatted" label="创建时间" min-width="100" show-overflow-tooltip>
           <template #default="scope">
             {{ formatDate(scope.row.created_at) }}
           </template>

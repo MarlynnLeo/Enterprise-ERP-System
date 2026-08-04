@@ -109,7 +109,7 @@ const authenticateToken = async (req, res, next) => {
     logger.warn('Token验证失败:', { error: error.message, path: req.path });
 
     if (['TOKEN_REVOKED', 'ACCOUNT_DISABLED', 'USER_NOT_FOUND'].includes(error.code)) {
-      clearTokenCookies(res);
+      clearTokenCookies(req, res);
     }
 
     return ResponseHandler.error(
@@ -140,7 +140,7 @@ const optionalAuth = async (req, res, next) => {
     // 忽略错误，继续处理
     logger.debug('可选认证失败:', error.message);
     if (['TOKEN_REVOKED', 'ACCOUNT_DISABLED', 'USER_NOT_FOUND'].includes(error.code)) {
-      clearTokenCookies(res);
+      clearTokenCookies(req, res);
     }
   }
   next();
@@ -175,19 +175,19 @@ const authenticateRefreshToken = async (req, res, next) => {
     const user = users[0];
 
     if (!user) {
-      clearTokenCookies(res);
+      clearTokenCookies(req, res);
       return ResponseHandler.error(res, '用户不存在', 'USER_NOT_FOUND', 401);
     }
 
     if (Number(user.status) !== 1) {
-      clearTokenCookies(res);
+      clearTokenCookies(req, res);
       return ResponseHandler.error(res, '账号已被禁用', 'ACCOUNT_DISABLED', 403);
     }
 
     const dbTokenVersion = Number(user.token_version || 0);
     // 与 Access Token 对齐：生产/全部环境均要求 tokenVersion 存在且匹配
     if (decoded.tokenVersion === undefined || decoded.tokenVersion === null) {
-      clearTokenCookies(res);
+      clearTokenCookies(req, res);
       return ResponseHandler.error(
         res,
         '刷新令牌缺少版本信息，请重新登录',
@@ -196,7 +196,7 @@ const authenticateRefreshToken = async (req, res, next) => {
       );
     }
     if (Number(decoded.tokenVersion) !== dbTokenVersion) {
-      clearTokenCookies(res);
+      clearTokenCookies(req, res);
       return ResponseHandler.error(res, '刷新令牌已失效，请重新登录', 'TOKEN_REVOKED', 401);
     }
 

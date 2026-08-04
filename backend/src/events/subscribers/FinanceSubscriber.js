@@ -9,6 +9,10 @@ const EventBus = require('../EventBus');
 const FinanceIntegrationService = require('../../services/external/FinanceIntegrationService');
 const { logger } = require('../../utils/logger');
 const DLQService = require('../../services/business/DLQService');
+const {
+  TAX_RELATED_DOCUMENT_TYPES,
+  taxRelatedDocumentTypeMatchList,
+} = require('../../constants/financeConstants');
 
 class FinanceSubscriber {
     constructor() {
@@ -36,7 +40,7 @@ class FinanceSubscriber {
             'Finance:GenerateInputTaxInvoiceFromPurchaseReceipt': async (payload) => {
                 const receipt = await this.fetchPurchaseReceipt(payload.receiptId);
                 const exists = await this.taxInvoiceExistsByRelatedDocument(
-                    '采购入库单',
+                    TAX_RELATED_DOCUMENT_TYPES.PURCHASE_RECEIPT,
                     receipt.id
                 );
                 if (!exists) {
@@ -66,7 +70,10 @@ class FinanceSubscriber {
             },
             'Finance:GenerateOutputTaxInvoiceFromSalesOutbound': async (payload) => {
                 const outbound = payload.outboundData || await this.fetchSalesOutbound(payload.outboundId);
-                const exists = await this.taxInvoiceExistsByRelatedDocument('销售出库单', outbound.id);
+                const exists = await this.taxInvoiceExistsByRelatedDocument(
+                    TAX_RELATED_DOCUMENT_TYPES.SALES_OUTBOUND,
+                    outbound.id
+                );
                 if (!exists) {
                     await FinanceIntegrationService.generateOutputTaxInvoiceFromSalesOutbound(
                         outbound,
@@ -334,16 +341,21 @@ class FinanceSubscriber {
 
     async existsBySource(table, sourceType, sourceId) {
         const db = require('../../config/db');
+        const { INACTIVE_INVOICE_STATUSES } = require('../../constants/financeConstants');
         const safeTable = this.assertAllowedIdentifier(
             table,
             ['ar_invoices', 'ap_invoices'],
             '财务幂等表'
         );
 
-        // fail-closed：查询失败必须抛出，禁止按「不存在」继续生成
+        // 仅有效发票视为已生成；已取消/作废允许重生
+        const inactivePh = INACTIVE_INVOICE_STATUSES.map(() => '?').join(', ');
         const [rows] = await db.pool.execute(
-            `SELECT id FROM ${safeTable} WHERE source_type = ? AND source_id = ? LIMIT 1`,
-            [sourceType, sourceId]
+            `SELECT id FROM ${safeTable}
+             WHERE source_type = ? AND source_id = ?
+               AND status NOT IN (${inactivePh})
+             LIMIT 1`,
+            [sourceType, sourceId, ...INACTIVE_INVOICE_STATUSES]
         );
         return rows.length > 0;
     }
@@ -364,14 +376,17 @@ class FinanceSubscriber {
 
     async taxInvoiceExistsByRelatedDocument(documentType, documentId) {
         const db = require('../../config/db');
-        // 与唯一索引一致：任意关联记录均视为已生成
+        const types = taxRelatedDocumentTypeMatchList(documentType);
+        if (types.length === 0 || !documentId) return false;
+        const placeholders = types.map(() => '?').join(', ');
+        // 与唯一索引一致：任意关联记录均视为已生成（兼容历史中文 type）
         const [rows] = await db.pool.execute(
             `SELECT id
              FROM tax_invoices
-             WHERE related_document_type = ?
+             WHERE related_document_type IN (${placeholders})
                AND related_document_id = ?
              LIMIT 1`,
-            [documentType, documentId]
+            [...types, documentId]
         );
         return rows.length > 0;
     }
@@ -433,7 +448,7 @@ class FinanceSubscriber {
                 // 2. 生成进项发票（幂等检查）
                 try {
                     const taxExists = await this.taxInvoiceExistsByRelatedDocument(
-                        '采购入库单',
+                        TAX_RELATED_DOCUMENT_TYPES.PURCHASE_RECEIPT,
                         receiptId
                     );
                     if (taxExists) {
@@ -472,39 +487,60 @@ class FinanceSubscriber {
      */
     async handleSalesOutboundCompleted(payload) {
         const { salesOrder, outboundData, currentUserId } = payload;
-        const salesOrders = Array.isArray(payload.salesOrders) && payload.salesOrders.length > 0
+        let salesOrders = Array.isArray(payload.salesOrders) && payload.salesOrders.length > 0
             ? payload.salesOrders
             : (salesOrder ? [salesOrder] : []);
-        const outboundNo = outboundData.outbound_no;
+        const outboundNo = outboundData?.outbound_no;
+        const outboundId = outboundData?.id;
+
+        // 多订单/缺载荷时补齐关联销售订单（专业闭环：合并出库也必须能开 AR）
+        if ((!salesOrders || salesOrders.length === 0) && outboundId) {
+            try {
+                salesOrders = await this.fetchSalesOrdersForOutbound(
+                    outboundId,
+                    outboundData?.order_id || null
+                );
+            } catch (fetchErr) {
+                logger.warn(`[FinanceSubscriber] 补齐出库关联订单失败: ${fetchErr.message}`);
+            }
+        }
 
         logger.info(`[FinanceSubscriber] 收到出库完工广播，开始串行生成财务数据 - 出库单: ${outboundNo}`);
 
         try {
-            // 1. 生成应收发票（幂等检查）
-            for (const order of salesOrders) {
-                try {
-                    const arExists = await this.existsBySource(
-                        'ar_invoices',
-                        'sales_order',
-                        order.id
+            // 1. 按出库交货量生成应收（source=sales_outbound）；禁止首出整单开票
+            try {
+                const arOutboundExists = await this.existsBySource(
+                    'ar_invoices',
+                    'sales_outbound',
+                    outboundId
+                );
+                if (arOutboundExists) {
+                    logger.info(
+                        `[FinanceSubscriber] AR invoice for outbound already exists; skipped: outboundNo=${outboundNo}`
                     );
-                    if (arExists) {
-                        logger.info(`[FinanceSubscriber] AR invoice already exists; skipped: orderNo=${order.order_no}`);
-                    } else {
-                        await FinanceIntegrationService.generateARInvoiceFromSalesOrder(
-                            order,
-                            currentUserId
-                        );
-                        logger.info(`[FinanceSubscriber] AR invoice generated: orderNo=${order.order_no}`);
-                    }
-                } catch (invoiceError) {
-                    await this.recordFailure(
-                        'Finance:GenerateARInvoiceFromSalesOrder',
-                        { salesOrderId: order.id, orderNo: order.order_no, outboundNo, currentUserId },
-                        invoiceError,
-                        '⚠️ [FinanceSubscriber] 应收发票自动生成失败'
+                } else {
+                    await FinanceIntegrationService.generateARInvoiceFromSalesOutbound(
+                        outboundData,
+                        salesOrders,
+                        currentUserId
+                    );
+                    logger.info(
+                        `[FinanceSubscriber] AR invoice generated from outbound: outboundNo=${outboundNo}`
                     );
                 }
+            } catch (invoiceError) {
+                await this.recordFailure(
+                    'Finance:GenerateARInvoiceFromSalesOutbound',
+                    {
+                        outboundId,
+                        outboundNo,
+                        salesOrderIds: salesOrders.map((o) => o.id),
+                        currentUserId,
+                    },
+                    invoiceError,
+                    '⚠️ [FinanceSubscriber] 出库应收发票自动生成失败'
+                );
             }
 
             // 2. 结转销售成本（幂等检查：检查 gl_entries 是否已有此出库单的成本分录）
@@ -531,7 +567,7 @@ class FinanceSubscriber {
             // 3. 生成销项发票（幂等检查）
             try {
                 const taxExists = await this.taxInvoiceExistsByRelatedDocument(
-                    '销售出库单',
+                    TAX_RELATED_DOCUMENT_TYPES.SALES_OUTBOUND,
                     outboundData.id
                 );
                 if (taxExists) {

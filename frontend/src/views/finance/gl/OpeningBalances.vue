@@ -316,7 +316,7 @@ onMounted(() => {
 
 .stats-row {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
   gap: 20px;
   margin-bottom: 20px;
 }
@@ -364,6 +364,7 @@ onMounted(() => {
 
 .stat-info {
   flex: 1;
+  min-width: 0;
 }
 
 .stat-value {
@@ -376,10 +377,6 @@ onMounted(() => {
   font-size: 14px;
   color: var(--color-text-secondary);
   margin-top: 4px;
-}
-
-.data-card {
-  margin-bottom: 20px;
 }
 
 .text-danger {

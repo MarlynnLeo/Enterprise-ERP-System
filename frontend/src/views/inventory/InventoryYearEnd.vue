@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="module-page year-end-container">
     <PageHeader title="年度库存结存" subtitle="执行年度库存结存、冻结和查看明细" />
 
@@ -613,10 +613,6 @@ onMounted(() => {
 }
 
 .empty-card {
-  margin-bottom: 16px;
-}
-
-.data-card {
   margin-bottom: 16px;
 }
 

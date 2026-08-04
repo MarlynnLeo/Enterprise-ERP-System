@@ -237,14 +237,14 @@ class GLService {
 
       const accountIds = [...new Set(normalizedItems.map((item) => item.account_id))];
 
-      // 3. 期间状态校验 (不允许在已关闭期间创建分录)
+      // 3. 期间状态校验（只读，禁止 FOR UPDATE：长事务+FOR UPDATE 易造成锁等待 50s+）
       let resolvedPeriodId = entryData.period_id || null;
       if (resolvedPeriodId) {
         const [periods] = await conn.execute(
           `SELECT id, is_closed, is_locked, period_name, start_date, end_date, status
            FROM gl_periods
            WHERE id = ?
-           FOR UPDATE`,
+           LIMIT 1`,
           [resolvedPeriodId]
         );
         if (periods.length === 0) {
@@ -269,7 +269,7 @@ class GLService {
         }
       }
 
-      // 4. 处理创建人 (标准化为用户ID)
+      // 4. 按日期解析开放期间（只读）
       if (!resolvedPeriodId && shouldPostEntry(entryData)) {
         const [periods] = await conn.execute(
           `SELECT id, is_closed, is_locked, period_name, start_date, end_date, status
@@ -277,8 +277,7 @@ class GLService {
            WHERE ? BETWEEN start_date AND end_date
              AND ? BETWEEN start_date AND end_date
            ORDER BY start_date DESC
-           LIMIT 1
-           FOR UPDATE`,
+           LIMIT 1`,
           [entryDate, postingDate]
         );
 
@@ -301,8 +300,13 @@ class GLService {
         resolvedPeriodId = periods[0].id;
       }
 
-      const { getUserIdByIdentifier } = require('../../utils/userUtils');
-      const createdById = await getUserIdByIdentifier(conn, entryData.created_by || 'system');
+      const { resolveActorUserId } = require('../../utils/userUtils');
+      // resolveActorUserId 是 async，必须 await；否则 createdById 为 Promise，写入会异常/挂起
+      const createdById = await resolveActorUserId(
+        conn,
+        entryData.created_by,
+        entryData.posted_by
+      );
       const isPosted = shouldPostEntry(entryData);
       const postingMethod = entryData.posting_method || (isPosted ? 'automatic' : null);
       const postedBy = entryData.posted_by ? Number.parseInt(entryData.posted_by, 10) || null : null;
@@ -319,23 +323,18 @@ class GLService {
         throw new Error(`会计科目不存在或未启用: ${missingAccountIds.join(', ')}`);
       }
 
-      // 5. 自动生成凭证字号 (核心并发控制逻辑)
-      // 默认凭证字统一为 "记"
+      // 5. 凭证字号：禁止对 gl_entries 做 MAX...FOR UPDATE（间隙锁会拖死合并长事务）
       const voucherWord = entryData.voucher_word || '记';
       let voucherNumber = entryData.voucher_number;
-
-      // 如果没有指定凭证号，则自动生成 (使用 FOR UPDATE 锁)
       if (!voucherNumber) {
-        // 锁定该期间+凭证字的最大号，防止并发导致跳号或重号
-        const [maxVoucher] = await conn.execute(
-          `SELECT MAX(voucher_number) as max_num FROM gl_entries
-                     WHERE period_id = ? AND voucher_word = ? FOR UPDATE`,
-          [resolvedPeriodId || 0, voucherWord]
+        voucherNumber = await this.nextVoucherNumber(
+          conn,
+          resolvedPeriodId || 0,
+          voucherWord
         );
-        voucherNumber = (maxVoucher[0].max_num || 0) + 1;
       }
 
-      // 6. 生成或采用业务指定的凭证编号
+      // 6. 凭证编号
       const entryNumber = entryData.entry_number
         ? String(entryData.entry_number).trim()
         : await this.generateEntryNumber(conn);
@@ -344,7 +343,7 @@ class GLService {
       }
       if (entryData.entry_number) {
         const [existingEntries] = await conn.execute(
-          'SELECT id FROM gl_entries WHERE entry_number = ? LIMIT 1 FOR UPDATE',
+          'SELECT id FROM gl_entries WHERE entry_number = ? LIMIT 1',
           [entryNumber]
         );
         if (existingEntries.length > 0) {
@@ -432,33 +431,84 @@ class GLService {
   }
 
   /**
+   * 读出现有最大凭证字号（无锁），作为序列下限，避免与历史数据冲突
+   */
+  static async peekMaxVoucherNumber(connection, periodId, voucherWord) {
+    const [rows] = await connection.execute(
+      `SELECT MAX(voucher_number) AS max_num FROM gl_entries
+       WHERE period_id = ? AND voucher_word = ?`,
+      [periodId || 0, voucherWord || '记']
+    );
+    return Number(rows[0]?.max_num) || 0;
+  }
+
+  /**
+   * 读出当日最大 JE 序号（无锁）
+   */
+  static async peekMaxEntrySeq(connection, prefix) {
+    const [rows] = await connection.execute(
+      `SELECT entry_number FROM gl_entries
+       WHERE entry_number LIKE ?
+       ORDER BY entry_number DESC LIMIT 1`,
+      [`${prefix}%`]
+    );
+    if (!rows.length) return 0;
+    const lastNum = parseInt(String(rows[0].entry_number).substring(prefix.length), 10);
+    return Number.isNaN(lastNum) ? 0 : lastNum;
+  }
+
+  /**
+   * 期间+凭证字 下一凭证号（无表级 FOR UPDATE）
+   * coding_sequences 原子自增，并用 gl_entries 现有 MAX 作下限，防重复
+   */
+  static async nextVoucherNumber(connection, periodId, voucherWord) {
+    const word = voucherWord || '记';
+    const floor = await this.peekMaxVoucherNumber(connection, periodId, word);
+    const periodKey = `P${periodId || 0}:${word}`.slice(0, 20);
+    try {
+      const [res] = await connection.query(
+        `INSERT INTO coding_sequences (business_type, period_key, current_value)
+         VALUES ('gl_voucher_no', ?, ?)
+         ON DUPLICATE KEY UPDATE current_value = LAST_INSERT_ID(GREATEST(current_value, ?) + 1)`,
+        [periodKey, floor + 1, floor]
+      );
+      if (res.affectedRows === 1) return floor + 1;
+      const [[seq]] = await connection.query('SELECT LAST_INSERT_ID() AS current_value');
+      return Number(seq.current_value) || floor + 1;
+    } catch {
+      return floor + 1;
+    }
+  }
+
+  /**
    * 生成分录技术编号 (内部唯一标识)
    * 格式: JE + 日期(YYYYMMDD) + 4位递增序号
-   * 使用 FOR UPDATE 锁保证并发安全，避免编号碰撞
-   * @param {Object} connection - 数据库连接（需在事务内调用）
-   * @returns {Promise<string>} 分录编号
+   * coding_sequences 原子自增 + 现有 MAX 作下限，避免 FOR UPDATE 与重复号
    */
   static async generateEntryNumber(connection) {
     const dateStr = currentDateString().replace(/-/g, '');
     const prefix = `JE${dateStr}`;
+    const periodKey = dateStr;
+    const floor = await this.peekMaxEntrySeq(connection, prefix);
 
-    // 使用 FOR UPDATE 锁获取当天最大编号
-    const [maxEntry] = await connection.execute(
-      `SELECT entry_number FROM gl_entries
-       WHERE entry_number LIKE ?
-       ORDER BY entry_number DESC LIMIT 1 FOR UPDATE`,
-      [`${prefix}%`]
-    );
-
-    let seq = 1;
-    if (maxEntry.length > 0) {
-      const lastNum = parseInt(maxEntry[0].entry_number.substring(prefix.length));
-      if (!isNaN(lastNum)) {
-        seq = lastNum + 1;
+    try {
+      const [res] = await connection.query(
+        `INSERT INTO coding_sequences (business_type, period_key, current_value)
+         VALUES ('gl_entry_number', ?, ?)
+         ON DUPLICATE KEY UPDATE current_value = LAST_INSERT_ID(GREATEST(current_value, ?) + 1)`,
+        [periodKey, floor + 1, floor]
+      );
+      let seq;
+      if (res.affectedRows === 1) {
+        seq = floor + 1;
+      } else {
+        const [[row]] = await connection.query('SELECT LAST_INSERT_ID() AS current_value');
+        seq = Number(row.current_value) || floor + 1;
       }
+      return `${prefix}${String(seq).padStart(4, '0')}`;
+    } catch {
+      return `${prefix}${String(floor + 1).padStart(4, '0')}`;
     }
-
-    return `${prefix}${seq.toString().padStart(4, '0')}`;
   }
 
   /**

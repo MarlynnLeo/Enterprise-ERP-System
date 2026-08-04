@@ -268,6 +268,5 @@ onMounted(() => {
 .header-card { margin-bottom: 20px; }
 .title-section h2 { margin: 0; font-size: 24px; color: var(--color-text-primary); }
 .subtitle { margin: 5px 0 0 0; color: var(--color-text-secondary); font-size: 14px; }
-.data-card { margin-bottom: 20px; }
 .report-toolbar { margin-bottom: 15px; }
 </style>

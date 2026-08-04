@@ -19,6 +19,7 @@ const { parsePagination } = require('../../utils/safePagination');
 
 // 以下模块原散落于各函数体内，统一移至顶部（P1 治理）
 const PermissionService = require('../../services/PermissionService');
+const { getRequestActorLabel } = require('../../utils/userUtils');
 
 function omitUserSecrets(user) {
   if (!user || typeof user !== 'object') return user;
@@ -42,8 +43,9 @@ function normalizeBinaryStatus(status) {
   throw new Error('status must be 0 or 1');
 }
 
-function isSuperAdminRequest(req) {
-  return String(req.user?.id || req.user?.userId || '') === '1';
+async function isSuperAdminRequest(req) {
+  const userId = req.user?.id || req.user?.userId;
+  return userId ? PermissionService.isAdmin(userId) : false;
 }
 
 async function targetUserHasAdminRole(userId) {
@@ -51,17 +53,25 @@ async function targetUserHasAdminRole(userId) {
     `SELECT COUNT(*) AS count
      FROM user_roles ur
      JOIN roles r ON ur.role_id = r.id
-     WHERE ur.user_id = ? AND r.code = 'admin' AND r.status = 1`,
+     WHERE ur.user_id = ? AND r.is_super_admin = 1 AND r.status = 1`,
     [userId]
   );
   return Number(result?.count || 0) > 0;
 }
 
 async function assertCanManageTargetUser(req, userId) {
-  if (isSuperAdminRequest(req)) return;
-  if (String(userId) === '1' || await targetUserHasAdminRole(userId)) {
+  if (await isSuperAdminRequest(req)) return;
+  if (await targetUserHasAdminRole(userId)) {
     throw new Error('FORBIDDEN: managing admin users requires super administrator');
   }
+}
+
+async function roleIsSuperAdmin(roleId) {
+  const [[role]] = await pool.execute(
+    'SELECT is_super_admin FROM roles WHERE id = ? LIMIT 1',
+    [roleId]
+  );
+  return Number(role?.is_super_admin || 0) === 1;
 }
 
 function sendBusinessError(res, error, fallbackMessage = '操作失败') {
@@ -142,7 +152,7 @@ const systemController = {
     try {
       const userData = req.body;
       const newUser = await systemModel.createUser(userData, {
-        allowAdminRole: isSuperAdminRequest(req),
+        allowAdminRole: await isSuperAdminRequest(req),
       });
 
       // 写入 user_roles 后清缓存，避免后续立刻登录读到脏缓存
@@ -180,18 +190,13 @@ const systemController = {
 
       await assertCanManageTargetUser(req, id);
 
-      // 安全检查：禁止非超管修改超管信息
-      if (String(id) === '1' && String(req.user?.id) !== '1') {
-        return ResponseHandler.error(res, '禁止越权修改超级管理员信息', 'FORBIDDEN', 403);
-      }
-
       const oldRoleIds =
         userData.roleIds !== undefined
           ? await PermissionChangeService.getUserRoleIds(id)
           : null;
 
       const updatedUser = await systemModel.updateUser(id, userData, {
-        allowAdminRole: isSuperAdminRequest(req),
+        allowAdminRole: await isSuperAdminRequest(req),
       });
       await PermissionService.clearUserPermissionsCache(id);
 
@@ -215,14 +220,8 @@ const systemController = {
 
       await assertCanManageTargetUser(req, id);
 
-      // 安全检查：禁止非超管操作超管状态，且超管不可被禁用
-      if (String(id) === '1') {
-        if (String(req.user?.id) !== '1') {
-          return ResponseHandler.error(res, '禁止越权修改超级管理员状态', 'FORBIDDEN', 403);
-        }
-        if (String(status) === '0' || Number(status) === 0) {
-          return ResponseHandler.error(res, '超级管理员账号不允许禁用', 'FORBIDDEN', 403);
-        }
+      if (await targetUserHasAdminRole(id) && (String(status) === '0' || Number(status) === 0)) {
+        return ResponseHandler.error(res, '超级管理员账号不允许禁用', 'FORBIDDEN', 403);
       }
 
       if (status === undefined) {
@@ -258,11 +257,6 @@ const systemController = {
       const { password } = req.body;
 
       await assertCanManageTargetUser(req, id);
-
-      // 安全检查：禁止非超管重置超管密码
-      if (String(id) === '1' && String(req.user?.id) !== '1') {
-        return ResponseHandler.error(res, '禁止越权重置超级管理员密码', 'FORBIDDEN', 403);
-      }
 
       if (!password) {
         return ResponseHandler.error(res, '缺少密码参数', 'VALIDATION_ERROR', 400);
@@ -472,13 +466,12 @@ const systemController = {
       const { id } = req.params;
       const roleData = req.body;
 
-      // 安全检查：禁止非超管修改超管角色
-      if (String(id) === '1' && String(req.user?.id) !== '1') {
+      const targetIsSuperAdmin = await roleIsSuperAdmin(id);
+      if (targetIsSuperAdmin && !(await isSuperAdminRequest(req))) {
         return ResponseHandler.error(res, '禁止越权修改超级管理员角色', 'FORBIDDEN', 403);
       }
 
-      if (String(id) === '1') {
-        roleData.code = 'admin';
+      if (targetIsSuperAdmin) {
         roleData.status = 1;
         // 超管始终 ALL
         if (roleData.data_scope !== undefined) roleData.data_scope = 1;
@@ -515,8 +508,7 @@ const systemController = {
       const { id } = req.params;
       const { status } = req.body;
 
-      // 安全检查：超级管理员角色不可禁用
-      if (String(id) === '1' && (String(status) === '0' || Number(status) === 0)) {
+      if (await roleIsSuperAdmin(id) && (String(status) === '0' || Number(status) === 0)) {
         return ResponseHandler.error(res, '系统内置超级管理员角色不允许禁用', 'FORBIDDEN', 403);
       }
 
@@ -569,8 +561,7 @@ const systemController = {
     try {
       const { id } = req.params;
 
-      // 安全检查：超级管理员角色不可删除
-      if (String(id) === '1') {
+      if (await roleIsSuperAdmin(id)) {
         return ResponseHandler.error(res, '系统内置超级管理员角色不允许删除', 'FORBIDDEN', 403);
       }
 
@@ -818,8 +809,7 @@ const systemController = {
       const { id } = req.params;
       const { menuIds, halfCheckedIds, uncheckedIds } = req.body;
 
-      // 安全检查：禁止非超管修改超管角色的权限
-      if (String(id) === '1' && String(req.user?.id) !== '1') {
+      if (await roleIsSuperAdmin(id) && !(await isSuperAdminRequest(req))) {
         return ResponseHandler.error(res, '禁止越权修改超级管理员角色的权限', 'FORBIDDEN', 403);
       }
 
@@ -1205,7 +1195,7 @@ const systemController = {
   async resolveFailedJob(req, res) {
     try {
       const { id } = req.params;
-      const operator = req.user?.username || req.user?.real_name || 'system';
+      const operator = getRequestActorLabel(req);
       await DLQService.markResolved(id, operator);
       return ResponseHandler.success(res, { id: Number(id) }, '失败任务已标记为已处理');
     } catch (error) {

@@ -16,6 +16,7 @@ const { generateProductionAndPurchasePlans } = require('./salesPackingController
 const DLQService = require('../../../services/business/DLQService');
 const { parsePagination, appendPaginationSQL } = require('../../../utils/safePagination');
 const { SALES_EXCHANGE_TRANSITIONS } = require('../../../constants/statusRegistry');
+const { getRequestActorLabel } = require('../../../utils/userUtils');
 
 exports.getSalesExchanges = async (req, res) => {
   try {
@@ -425,7 +426,7 @@ exports.createSalesExchange = async (req, res) => {
 
     // 如果创建时状态就是"已完成"，立即处理库存操作
     if (reason === '已完成' && (hasNewFormat || hasOldFormat)) {
-      await processExchangeInventory(connection, exchangeId, req.user?.username || 'system');
+      await processExchangeInventory(connection, exchangeId, getRequestActorLabel(req));
     }
 
     await connection.commit();
@@ -638,7 +639,7 @@ exports.updateSalesExchange = async (req, res) => {
     let pendingExchangeForFinance = null;
 
     if (status === '已完成' && currentStatus !== '已完成') {
-      await processExchangeInventory(connection, id, req.user?.username || 'system');
+      await processExchangeInventory(connection, id, getRequestActorLabel(req));
 
       // 获取换货单信息用于生成差价分录
       const [exchangeInfo] = await connection.query('SELECT id, exchange_no, order_id, order_no, customer_id, customer_name, contact_phone, exchange_date, exchange_reason, status, remarks, created_by, created_at, updated_at, return_amount, new_amount, difference_amount, deleted_at FROM sales_exchanges WHERE id = ? AND deleted_at IS NULL', [

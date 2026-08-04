@@ -19,6 +19,7 @@ const { financeConfig } = require('../../../config/financeConfig');
 const { safeParseId } = require('../../../utils/safeParseId');
 const BusinessError = require('../../../utils/BusinessError');
 const ScopeGuard = require('../../../authorization/ScopeGuard');
+const { getRequestActorLabel } = require('../../../utils/userUtils');
 
 function normalizeMysqlFlag(value) {
   if (value === true || value === 1 || value === 1n) return true;
@@ -1006,7 +1007,7 @@ const financeController = {
       const PeriodEndService = require('../../../services/business/PeriodEndService');
       const result = await PeriodEndService.closePeriod({
         period_id: parseInt(id),
-        closed_by: req.user?.id || 'system',
+        closed_by: req.user?.id || null,
         closing_date: currentDateString(),
       });
 
@@ -1050,7 +1051,7 @@ const financeController = {
       const PeriodEndService = require('../../../services/business/PeriodEndService');
       const result = await PeriodEndService.reopenPeriod({
         period_id: parseInt(id),
-        reopened_by: req.user?.id || 'system',
+        reopened_by: (req.user?.id ?? null),
       });
 
       ResponseHandler.success(res, result, '会计期间重新开启成功');

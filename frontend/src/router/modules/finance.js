@@ -108,12 +108,14 @@ export default {
             }
         },
         {
+            // 历史全屏录入页已废弃，统一跳转到凭证列表（对话框录入）
             path: 'gl/entries/create',
             name: 'gl-entry-create',
-            component: () => import('../../views/finance/gl/entries/EntryForm.vue'),
+            redirect: { name: 'gl-entries' },
             meta: {
                 requiresAuth: true,
-                permission: 'finance:entries:create'
+                permission: 'finance:entries:create',
+                hidden: true
             }
         },
         {
@@ -147,6 +149,16 @@ export default {
             }
         },
         {
+            path: 'ar/settlement',
+            name: 'ar-settlement',
+            component: () => import('../../views/finance/ar/Settlement.vue'),
+            meta: {
+                requiresAuth: true,
+                permission: 'finance:ar:view',
+                title: '应收待结算'
+            }
+        },
+        {
             path: 'ar/aging',
             name: 'ar-aging',
             component: () => import('../../views/finance/ar/Aging.vue'),
@@ -172,6 +184,26 @@ export default {
             meta: {
                 requiresAuth: true,
                 permission: 'finance:ap:view'
+            }
+        },
+        {
+            path: 'ap/settlement',
+            name: 'ap-settlement',
+            component: () => import('../../views/finance/ap/Settlement.vue'),
+            meta: {
+                requiresAuth: true,
+                permission: 'finance:ap:view',
+                title: '应付待结算'
+            }
+        },
+        {
+            path: 'ap/three-way-match',
+            name: 'ap-three-way-match',
+            component: () => import('../../views/finance/ap/ThreeWayMatch.vue'),
+            meta: {
+                requiresAuth: true,
+                permission: 'finance:ap:view',
+                title: '三单匹配'
             }
         },
         {

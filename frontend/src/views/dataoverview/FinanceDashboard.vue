@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * FinanceDashboard.vue
  * @description 前端界面组件文件
@@ -8,7 +8,7 @@
 -->
 <template>
   <div class="module-page overview-page finance-dashboard">
-    <PageHeader title="财务数据概览">
+    <PageHeader title="财务数据概览" subtitle="收支、应收应付与资金概况">
       <template #actions>
         <span v-if="lastUpdated" class="last-updated">
             最后更新: {{ new Date(lastUpdated).toLocaleTimeString() }}
@@ -16,82 +16,54 @@
       </template>
     </PageHeader>
     <!-- 统计卡片 -->
-    <el-row :gutter="20" class="mt-lg">
-      <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-lg">
+    <el-row :gutter="16" class="stats-row">
+      <el-col :xs="24" :sm="12" :md="6" :lg="6">
         <el-card class="stat-card primary-card" shadow="hover">
-          <div class="stat-content">
-            <div class="stat-title">本月收入</div>
-            <div class="stat-info">
-              <div class="stat-main">
-                <div class="stat-value">{{ formatCurrency(statistics.currentMonth?.income) }}</div>
-                <div class="stat-label">收入总额</div>
-              </div>
-              <div class="stat-secondary">
-                <div class="stat-secondary-value">{{ statistics.currentMonth?.count || 0 }}</div>
-                <div class="stat-secondary-label">收入笔数</div>
-              </div>
-            </div>
+          <div class="stat-value">{{ formatCurrency(statistics.currentMonth?.income) }}</div>
+          <div class="stat-label">本月收入</div>
+          <div class="stat-secondary">
+            <span class="stat-secondary-value">{{ statistics.currentMonth?.count || 0 }}</span>
+            <span class="stat-secondary-label">收入笔数</span>
           </div>
         </el-card>
       </el-col>
 
-      <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-lg">
+      <el-col :xs="24" :sm="12" :md="6" :lg="6">
         <el-card class="stat-card success-card" shadow="hover">
-          <div class="stat-content">
-            <div class="stat-title">本月支出</div>
-            <div class="stat-info">
-              <div class="stat-main">
-                <div class="stat-value">{{ formatCurrency(statistics.currentMonth?.expense) }}</div>
-                <div class="stat-label">支出总额</div>
-              </div>
-              <div class="stat-secondary">
-                <div class="stat-secondary-value">{{ statistics.currentMonth?.expenseCount || 0 }}</div>
-                <div class="stat-secondary-label">支出笔数</div>
-              </div>
-            </div>
+          <div class="stat-value">{{ formatCurrency(statistics.currentMonth?.expense) }}</div>
+          <div class="stat-label">本月支出</div>
+          <div class="stat-secondary">
+            <span class="stat-secondary-value">{{ statistics.currentMonth?.expenseCount || 0 }}</span>
+            <span class="stat-secondary-label">支出笔数</span>
           </div>
         </el-card>
       </el-col>
 
-      <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-lg">
+      <el-col :xs="24" :sm="12" :md="6" :lg="6">
         <el-card class="stat-card info-card" shadow="hover">
-          <div class="stat-content">
-            <div class="stat-title">应收账款</div>
-            <div class="stat-info">
-              <div class="stat-main">
-                <div class="stat-value">{{ formatCurrency(statistics.receivables?.total) }}</div>
-                <div class="stat-label">应收总额</div>
-              </div>
-              <div class="stat-secondary">
-                <div class="stat-secondary-value">{{ statistics.receivables?.overdue || 0 }}</div>
-                <div class="stat-secondary-label">逾期数量</div>
-              </div>
-            </div>
+          <div class="stat-value">{{ formatCurrency(statistics.receivables?.total) }}</div>
+          <div class="stat-label">应收账款</div>
+          <div class="stat-secondary">
+            <span class="stat-secondary-value">{{ statistics.receivables?.overdue || 0 }}</span>
+            <span class="stat-secondary-label">逾期数量</span>
           </div>
         </el-card>
       </el-col>
 
-      <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-lg">
+      <el-col :xs="24" :sm="12" :md="6" :lg="6">
         <el-card class="stat-card warning-card" shadow="hover">
-          <div class="stat-content">
-            <div class="stat-title">应付账款</div>
-            <div class="stat-info">
-              <div class="stat-main">
-                <div class="stat-value">{{ formatCurrency(statistics.payables?.total) }}</div>
-                <div class="stat-label">应付总额</div>
-              </div>
-              <div class="stat-secondary">
-                <div class="stat-secondary-value">{{ statistics.payables?.due || 0 }}</div>
-                <div class="stat-secondary-label">待付数量</div>
-              </div>
-            </div>
+          <div class="stat-value">{{ formatCurrency(statistics.payables?.total) }}</div>
+          <div class="stat-label">应付账款</div>
+          <div class="stat-secondary">
+            <span class="stat-secondary-value">{{ statistics.payables?.due || 0 }}</span>
+            <span class="stat-secondary-label">待付数量</span>
           </div>
         </el-card>
       </el-col>
     </el-row>
     <!-- 图表区域 -->
-    <el-row :gutter="20" class="mt-lg">
-      <el-col :xs="24" :md="12" class="mb-lg">
+    <el-row :gutter="16" class="mt-md">
+      <el-col :xs="24" :md="12">
         <el-card shadow="hover" class="chart-card">
           <template #header>
             <div class="card-header">
@@ -108,7 +80,7 @@
           </div>
         </el-card>
       </el-col>
-      <el-col :xs="24" :md="12" class="mb-lg">
+      <el-col :xs="24" :md="12">
         <el-card shadow="hover" class="chart-card">
           <template #header>
             <div class="card-header">
@@ -126,9 +98,9 @@
       </el-col>
     </el-row>
     <!-- 现金流及财务指标 -->
-    <el-row :gutter="20" class="mt-lg">
-      <el-col :xs="24" :md="12" class="mb-lg">
-        <el-card shadow="hover">
+    <el-row :gutter="16" class="mt-md">
+      <el-col :xs="24" :md="12">
+        <el-card class="dashboard-card" shadow="hover">
           <template #header>
             <div class="card-header">
               <span>银行账户余额</span>
@@ -165,8 +137,8 @@
         </el-card>
       </el-col>
 
-      <el-col :xs="24" :md="12" class="mb-lg">
-        <el-card shadow="hover">
+      <el-col :xs="24" :md="12">
+        <el-card class="dashboard-card" shadow="hover">
           <template #header>
             <div class="card-header">
               <span>重要财务指标</span>
@@ -989,85 +961,6 @@ watch([timeRange, chartType], ([newTimeRange, newChartType], [oldTimeRange, oldC
 });
 </script>
 <style scoped>
-.finance-dashboard {
-  padding: 10px;
-}
-.header-card {
-  margin-bottom: var(--spacing-lg);
-}
-.header-card h2 {
-  margin: 0;
-  font-size: 22px;
-  color: var(--color-text-primary);
-}
-.last-updated {
-  margin-left: 10px;
-  font-size: 12px;
-  color: var(--color-text-secondary);
-}
-.primary-card {
-  border-top: 4px solid var(--color-primary);
-}
-.success-card {
-  border-top: 4px solid var(--color-success);
-}
-.info-card {
-  border-top: 4px solid var(--color-info);
-}
-.warning-card {
-  border-top: 4px solid var(--color-warning);
-}
-.danger-card {
-  border-top: 4px solid var(--color-danger);
-}
-.stat-content {
-  flex-grow: 1;
-  padding: 10px 0;
-}
-.stat-title {
-  font-size: 16px;
-  font-weight: bold;
-  margin-bottom: 15px;
-  color: var(--color-text-primary);
-}
-.stat-info {
-  display: flex;
-  justify-content: space-between;
-}
-.stat-main {
-  text-align: left;
-}
-.stat-secondary {
-  text-align: right;
-}
-.stat-secondary-value {
-  font-size: 20px;
-  font-weight: 500;
-  line-height: 1.2;
-  color: var(--color-text-primary);
-}
-.stat-secondary-label {
-  font-size: 14px;
-  color: var(--color-text-secondary);
-}
-.card-footer {
-  padding-top: 10px;
-  border-top: 1px solid var(--color-border-lighter);
-}
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.card-header span {
-  font-size: 16px;
-  font-weight: bold;
-}
-.chart-container {
-  width: 100%;
-  height: 300px;
-  position: relative;
-}
 .chart-card {
   height: 100%;
   display: flex;
@@ -1124,14 +1017,6 @@ watch([timeRange, chartType], ([newTimeRange, newChartType], [oldTimeRange, oldC
 }
 /* 响应式调整 */
 @media (max-width: 768px) {
-  .stat-value {
-    font-size: 22px;
-  }
-
-  .stat-secondary-value {
-    font-size: 18px;
-  }
-
   .financial-metrics {
     grid-template-columns: 1fr;
   }

@@ -10,21 +10,15 @@
 const EventBus = require('../EventBus');
 const NotificationRuleService = require('../../services/system/NotificationRuleService');
 const NotificationService = require('../../services/NotificationService');
+const NotificationGovernanceConfig = require('../../services/system/NotificationGovernanceConfig');
+const { getSourceId, getSubscribableEventTypes } = require('../NotificationEventRegistry');
 const { logger } = require('../../utils/logger');
 
 /**
  * 所有可被监听的事件类型
  * 当数据库中有对应规则且启用时才会实际发送通知
  */
-const SUBSCRIBABLE_EVENTS = [
-  'PRODUCTION_TASK_COMPLETED',
-  'PURCHASE_RECEIPT_COMPLETED',
-  'SALES_OUTBOUND_COMPLETED',
-  'SALES_RETURN_COMPLETED',
-  'PURCHASE_RETURN_COMPLETED',
-  'ANOMALY_REPORTED',
-  'ASSEMBLY_ALL_STEPS_COMPLETED',
-];
+const SUBSCRIBABLE_EVENTS = getSubscribableEventTypes();
 
 /**
  * 通过 Socket.IO 推送实时通知给在线用户
@@ -69,8 +63,7 @@ class NotificationSubscriber {
    * 2. 对每条规则：解析接收人 + 渲染模板 + 写入通知表 + Socket.IO 推送
    *
    * 陈旧领域事件（积压补跑）策略：
-   * - 超过 1 小时：完全跳过通知（财务等其它订阅者仍会执行）
-   * - 5 分钟～1 小时：只写库不实时弹窗，避免用户点一次入库刷屏
+   * - 超过 5 分钟：仍持久化通知，但不实时弹窗
    * - 5 分钟内：写库 + Socket 实时弹窗
    */
   async handleEvent(eventName, payload) {
@@ -78,28 +71,21 @@ class NotificationSubscriber {
       const meta = payload?.__domainEvent || {};
       const createdAtMs = meta.createdAt ? new Date(meta.createdAt).getTime() : Date.now();
       const ageMs = Number.isFinite(createdAtMs) ? Date.now() - createdAtMs : 0;
-      const STALE_SKIP_MS = 60 * 60 * 1000; // 1 小时
-      const REALTIME_MS = 5 * 60 * 1000; // 5 分钟
-
-      if (ageMs > STALE_SKIP_MS) {
-        logger.info(
-          `[NotificationSubscriber] 跳过陈旧事件通知: ${eventName} domainEventId=${meta.id || '-'} ageMin=${Math.round(ageMs / 60000)}`
-        );
-        return;
-      }
+      const governance = await NotificationGovernanceConfig.get();
+      const realtimeWindowMs = governance.realtimeWindowMinutes * 60 * 1000;
 
       // 查询匹配规则
       const rules = await NotificationRuleService.getActiveRulesByEvent(eventName);
       if (rules.length === 0) return;
 
-      const allowRealtimePush = ageMs <= REALTIME_MS;
+      const allowRealtimePush = ageMs <= realtimeWindowMs;
 
       for (const rule of rules) {
         await this._processRule(eventName, rule, payload, { allowRealtimePush });
       }
     } catch (error) {
-      // 通知发送失败不应影响主业务流程
-      logger.warn(`[NotificationSubscriber] ${eventName} 通知处理失败:`, error.message);
+      logger.warn(`[NotificationSubscriber] ${eventName} 通知处理失败，等待领域事件重试:`, error.message);
+      throw error;
     }
   }
 
@@ -124,26 +110,27 @@ class NotificationSubscriber {
 
       // 3. 构建通知源标识（用于去重）
       const sourceType = `notification_rule:${rule.id}`;
-      const sourceId = this._extractSourceId(eventName, payload);
+      const sourceId = getSourceId(eventName, payload);
 
       // 4. 写入通知表（NotificationService 自带去重逻辑）
       const notification = {
-        type: 'business',
+        type: payload.notificationType || 'business',
         title,
         content,
         link: link || null,
-        priority: rule.priority,
+        priority: payload.notificationPriority ?? rule.priority,
         sourceType,
         sourceId,
       };
 
       const result = await NotificationService.notifyUsers(recipientIds, notification, {
-        dedupeBySource: true,
+        dedupeBySource: payload.notificationDedupe !== 'day',
+        dedupeByDay: payload.notificationDedupe === 'day',
       });
 
       // 5. Socket.IO 实时推送（仅新鲜事件，避免积压补跑刷屏）
       if (result.inserted > 0 && allowRealtimePush) {
-        pushToOnlineUsers(recipientIds, notification);
+        pushToOnlineUsers(result.insertedUserIds, notification);
       }
 
       if (result.inserted > 0) {
@@ -155,32 +142,10 @@ class NotificationSubscriber {
       }
     } catch (error) {
       logger.warn(`[NotificationSubscriber] 规则 "${rule.name}" 处理失败:`, error.message);
+      throw error;
     }
   }
 
-  /**
-   * 从事件 payload 提取源 ID（用于通知去重）
-   */
-  _extractSourceId(eventName, payload) {
-    switch (eventName) {
-      case 'PRODUCTION_TASK_COMPLETED':
-        return payload.taskId;
-      case 'PURCHASE_RECEIPT_COMPLETED':
-        return payload.receiptId;
-      case 'SALES_OUTBOUND_COMPLETED':
-        return payload.outboundData?.id;
-      case 'SALES_RETURN_COMPLETED':
-        return payload.returnId;
-      case 'PURCHASE_RETURN_COMPLETED':
-        return payload.returnId;
-      case 'ANOMALY_REPORTED':
-        return payload.anomalyId;
-      case 'ASSEMBLY_ALL_STEPS_COMPLETED':
-        return payload.taskId;
-      default:
-        return null;
-    }
-  }
 }
 
 module.exports = new NotificationSubscriber();

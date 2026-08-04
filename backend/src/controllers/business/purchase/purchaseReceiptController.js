@@ -19,8 +19,15 @@ const DLQService = require('../../../services/business/DLQService');
 const DomainEventService = require('../../../services/business/DomainEventService');
 const AuditLogService = require('../../../services/system/AuditLogService');
 const { lineAmount, normalizeTaxRate, roundMoney, taxAmount: calculateTaxAmount } = require('../../../utils/money');
+const { resolveUnitPrice } = require('../../../utils/unitPriceFields');
 const { financeConfig } = require('../../../config/financeConfig');
 const { PURCHASE_RECEIPT_STATUS_TRANSITIONS } = require('../../../constants/statusRegistry');
+const { getRequestActorLabel } = require('../../../utils/userUtils');
+const {
+  purchaseReceiptMap,
+  purchaseReceiptItemMap,
+  toNumber: toNumberSafe,
+} = require('../../../utils/purchase/purchaseFieldMap');
 
 // 状态常量
 const STATUS = {
@@ -147,18 +154,16 @@ const getReceipts = async (req, res) => {
       `;
       const [result] = await connection.query(dataQuery, queryParams);
 
-      // 整合入库单数据（列表页不需要物料详情，提高响应速度）
-      const receipts = result.map((row) => {
-        return {
+      // 列表：snake 行 → camel API（purchaseReceiptMap）
+      const receipts = result.map((row) =>
+        purchaseReceiptMap.toApi({
           ...row,
-          // 用 JOIN 获取的关联名称覆盖可能为空的冗余字段
           order_no: row.joined_order_no || row.order_no || '',
           supplier_name: row.joined_supplier_name || row.supplier_name || '',
           warehouse_name: row.joined_warehouse_name || row.warehouse_name || '',
-          // 优先使用从用户表获取的真实姓名
           receiver: row.operator === 'system' ? '系统' : row.real_name || row.operator || '',
-        };
-      });
+        })
+      );
 
       const hasPerm = await hasFinancePermission(req.user);
       const desensitizedReceipts = desensitizeData(receipts, hasPerm);
@@ -262,65 +267,29 @@ const getReceipt = async (req, res) => {
 
       const [itemsResult] = await connection.query(itemsQuery, [receiptId]);
 
-      // 格式化物料项为前端需要的格式
-      const formattedItems = itemsResult.map((item) => ({
-        id: item.id,
-        receipt_id: item.receipt_id,
-        material_id: item.material_id,
-        material_code: item.material_code,
-        material_name: item.material_name,
-        specification: item.specs,
-        unit_id: item.unit_id,
-        unit_name: item.unit_name,
-        ordered_quantity: item.ordered_quantity || 0,
-        received_quantity: item.received_quantity || 0,
-        qualified_quantity: item.qualified_quantity || 0,
-        price: item.price || 0,
-        remarks: item.remarks || '',
-        // 同时提供驼峰命名格式
-        materialId: item.material_id,
-        materialCode: item.material_code,
-        materialName: item.material_name,
-        unitId: item.unit_id,
-        unitName: item.unit_name,
-        orderedQuantity: item.ordered_quantity || 0,
-        receivedQuantity: item.received_quantity || 0,
-        qualifiedQuantity: item.qualified_quantity || 0,
-      }));
+      // 明细：仅 camel（purchaseReceiptItemMap）；扩展数量字段一并输出
+      const formattedItems = itemsResult.map((item) => {
+        const apiItem = purchaseReceiptItemMap.toApi({
+          ...item,
+          specification: item.specs,
+        });
+        apiItem.unitId = item.unit_id ?? null;
+        apiItem.unitName = item.unit_name ?? null;
+        apiItem.orderedQuantity = toNumberSafe(item.ordered_quantity, 0);
+        apiItem.receivedQuantity = toNumberSafe(item.received_quantity, 0);
+        return apiItem;
+      });
 
-      // 格式化日期（防止数据库中存在无效日期值导致 toISOString 崩溃）
-      let receiptDate = null;
-      if (receipt.receipt_date) {
-        const d = new Date(receipt.receipt_date);
-        receiptDate = isNaN(d.getTime()) ? String(receipt.receipt_date).slice(0, 10) : d.toISOString().split('T')[0];
-      }
-
-      // 准备返回的结果对象（同时提供下划线格式和驼峰格式）
-      const response = {
-        id: receipt.id,
-        receipt_no: receipt.receipt_no,
-        order_id: receipt.order_id,
+      const response = purchaseReceiptMap.toApi({
+        ...receipt,
         order_no: receipt.order_no,
-        supplier_id: receipt.supplier_id,
         supplier_name: receipt.supplier_name,
-        warehouse_id: receipt.warehouse_id,
         warehouse_name: receipt.warehouse_name,
-        receipt_date: receiptDate,
-        operator: receipt.operator,
         receiver: receipt.operator === 'system' ? '系统' : receipt.real_name || receipt.operator,
-        status: receipt.status,
-        remarks: receipt.remarks || '',
-        items: formattedItems,
-        // 同时提供驼峰命名格式
-        receiptNo: receipt.receipt_no,
-        orderId: receipt.order_id,
-        orderNo: receipt.order_no,
-        supplierId: receipt.supplier_id,
-        supplierName: receipt.supplier_name,
-        warehouseId: receipt.warehouse_id,
-        warehouseName: receipt.warehouse_name,
-        receiptDate: receiptDate,
-      };
+        items: undefined,
+      });
+      response.items = formattedItems;
+      response.remarks = response.remarks || '';
 
       const hasPerm = await hasFinancePermission(req.user);
       const desensitizedResponse = desensitizeData(response, hasPerm);
@@ -368,44 +337,50 @@ const createReceipt = async (req, res) => {
     client = await db.pool.getConnection();
     await client.beginTransaction();
 
-    // 从请求中提取数据，并确保所有值都是有效的（不是undefined）
-    const {
-      orderId,
-      supplierId,
-      warehouseId,
-      receiptDate,
-      receiver = '', // 收货人，使用真实姓名
-      remarks = '', // 默认为空字符串而不是undefined
-      items: rawItems = [], // 默认为空数组而不是undefined
-      from_inspection, // 是否来自检验单自动创建（下划线格式）
-      fromInspection, // 是否来自检验单自动创建（驼峰格式）
-      material_id = null, // 如果来自检验单，指定的物料ID
-      only_inspection_material = false, // 标记是否只包含检验物料，不获取订单中其他物料
-    } = req.body;
+    // HTTP camel → 内部（purchaseReceiptMap）；质检来源标志仅认 camel fromInspection / inspectionId
+    const mapped = purchaseReceiptMap.fromApi(req.body || {});
+    const orderId = mapped.order_id ?? req.body?.orderId;
+    const supplierId = mapped.supplier_id ?? req.body?.supplierId;
+    const warehouseId = mapped.warehouse_id ?? req.body?.warehouseId;
+    const receiptDate = mapped.receipt_date ?? req.body?.receiptDate;
+    const receiver = req.body?.receiver || '';
+    const remarks = mapped.remarks ?? req.body?.remarks ?? '';
+    const rawItems = mapped.items ?? req.body?.items ?? [];
+    const fromInspection = Boolean(req.body?.fromInspection);
+    const material_id = req.body?.materialId ?? req.body?.material_id ?? null;
+    const only_inspection_material = Boolean(
+      req.body?.onlyInspectionMaterial ?? req.body?.only_inspection_material
+    );
 
-    const inspectionId = req.body.inspectionId || req.body.inspection_id || null;
+    const inspectionId = req.body?.inspectionId ?? null;
     let inspectionContext = null;
 
-    // 兼容两种命名方式；只要带 inspection_id，就按质检来源处理，避免前端漏传标记时绕过去重与校验
-    const isFromInspection = Boolean(from_inspection || fromInspection || inspectionId);
-    const clientIdempotencyKey = getIdempotencyKey(req);
+    // 带 inspectionId 即按质检来源处理
+    const isFromInspection = Boolean(fromInspection || inspectionId);
+    const clientIdempotencyKey = getIdempotencyKey(req) || mapped.idempotency_key;
     const receiptIdempotencyKey = inspectionId
       ? `purchase_receipt:inspection:${inspectionId}`
       : clientIdempotencyKey
         ? `purchase_receipt:manual:${clientIdempotencyKey}`
         : null;
-    // 强制转换items为数组
-    let items = Array.isArray(rawItems) ? rawItems : [];
-    const idempotencyHash = sha256(stableStringify({
-      orderId,
-      supplierId,
-      warehouseId,
-      receiptDate,
-      receiver,
-      remarks,
-      inspectionId,
-      items,
-    }));
+    // 明细：契约层已转 snake；若仍是原始 camel 再 map 一次
+    let items = Array.isArray(rawItems)
+      ? rawItems.map((it) =>
+          it.material_id != null || it.price != null ? it : purchaseReceiptItemMap.fromApi(it)
+        )
+      : [];
+    const idempotencyHash = sha256(
+      stableStringify({
+        orderId,
+        supplierId,
+        warehouseId,
+        receiptDate,
+        receiver,
+        remarks,
+        inspectionId,
+        items,
+      })
+    );
     const createValidationError = (message) => {
       const error = new Error(message);
       error.statusCode = 400;
@@ -927,8 +902,8 @@ const createReceipt = async (req, res) => {
             logger.warn(`物料 ${materialCode} 没有批次号，将不记录批次信息`);
           }
 
-          // 获取价格：优先使用传入价格，其次从本采购订单获取，最后走统一采购取价服务
-          let itemPrice = parseFloat(item.price ?? item.unit_price) || 0;
+          // 获取价格：优先使用传入价格（price/unit_price），其次采购订单，最后统一取价
+          let itemPrice = resolveUnitPrice(item);
           if (itemPrice <= 0 && currentMaterialId) {
             itemPrice = orderContext.price || 0;
             if (itemPrice > 0) {
@@ -1496,7 +1471,7 @@ const updateReceiptStatus = async (req, res) => {
                   warehouse_id: receipt.warehouse_id,
                   warehouse_name: receipt.warehouse_name,
                   receipt_date: receipt.receipt_date,
-                  operator: receipt.operator || 'system',
+                  operator: receipt.operator || getRequestActorLabel(req),
                   items: batchItems,
                 },
                 client
@@ -1595,7 +1570,7 @@ const updateReceiptStatus = async (req, res) => {
       await AuditLogService.log({
         request_id: requestId,
         operator_id: req.user?.id || null,
-        operator_name: req.user?.username || req.user?.name || 'system',
+        operator_name: getRequestActorLabel(req),
         action: 'UPDATE_STATUS',
         module: 'purchase_receipt',
         target_table: 'purchase_receipts',
@@ -1669,7 +1644,7 @@ const updateReceiptStatus = async (req, res) => {
                   reference_no: `GR-${id}`,
                   transaction_type: 'purchase_inbound',
                 },
-                { userId: req.user?.username || 'system' }
+                { userId: getRequestActorLabel(req) }
               );
               logger.info(
                 `Material ${item.material_code} MAC cost entry generated (unitPrice=${unitPrice}, quantity=${qty})`

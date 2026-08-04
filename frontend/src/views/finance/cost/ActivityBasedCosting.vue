@@ -297,10 +297,6 @@ onMounted(() => {
   font-size: 13px;
 }
 
-.data-card {
-  margin-bottom: 20px;
-}
-
 .allocated-cost {
   color: var(--color-success);
   font-weight: bold;

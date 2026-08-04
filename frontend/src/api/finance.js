@@ -7,6 +7,7 @@
  */
 
 import { api } from '../services/axiosInstance';
+import { API_CONFIG } from '../config/app';
 
 /**
  * @typedef {import('axios').AxiosResponse} AxiosResponse
@@ -153,6 +154,8 @@ export const financeApi = {
     updateARInvoice: (id, data) => api.put(`/finance/ar/invoices/${id}`, data),
     updateARInvoiceStatus: (id, data) => api.put(`/finance/ar/invoices/${id}/status`, data),
     getARInvoicePayments: (id) => api.get(`/finance/ar/invoices/${id}/payments`),
+    getARSettlementDashboard: (params) =>
+      api.get('/finance/ar/settlement-dashboard', { params }),
 
     // ============ 应付账款（AP）============
     // 注意：实际后端路由为 /finance/ap/invoices，不是 /finance/payables
@@ -163,10 +166,64 @@ export const financeApi = {
     updateAPInvoiceStatus: (id, data) => api.put(`/finance/ap/invoices/${id}/status`, data),
     getAPInvoicePayments: (id) => api.get(`/finance/ap/invoices/${id}/payments`),
     getUnpaidAPInvoices: () => api.get('/finance/ap/invoices/unpaid'),
+    getAPSettlementDashboard: (params) =>
+      api.get('/finance/ap/settlement-dashboard', { params }),
+
+    // 三单匹配 / 业财状态
+    createThreeWayMatchFromReceipt: (receiptId, data) =>
+      api.post(`/finance/integration/three-way-match/from-receipt/${receiptId}`, data),
+    listThreeWayMatches: (params) =>
+      api.get('/finance/integration/three-way-match', { params }),
+    getThreeWayMatch: (id) => api.get(`/finance/integration/three-way-match/${id}`),
+    confirmThreeWayMatch: (id, data) =>
+      api.post(`/finance/integration/three-way-match/${id}/confirm`, data || {}),
+    updateThreeWayMatchLines: (id, data) =>
+      api.put(`/finance/integration/three-way-match/${id}/lines`, data),
+    cancelThreeWayMatch: (id, data) =>
+      api.post(`/finance/integration/three-way-match/${id}/cancel`, data || {}),
+    getPurchaseReceiptFinanceStatus: (receiptId) =>
+      api.get(`/finance/integration/document-status/purchase-receipt/${receiptId}`),
+    getSalesOutboundFinanceStatus: (outboundId) =>
+      api.get(`/finance/integration/document-status/sales-outbound/${outboundId}`),
+    getBankReconciliationBalanceSheet: (params) =>
+      api.get('/finance/cash/bank-reconciliation-balance-sheet', { params }),
 
     integration: {
-        generateARInvoiceFromSalesOrder: (salesOrderId) => api.post(`/finance/integration/ar-invoice/${salesOrderId}`),
-        generateAPInvoiceFromPurchaseReceipt: (receiptId) => api.post(`/finance/integration/ap-invoice/${receiptId}`)
+        // 专业主路径
+        getEligiblePurchaseReceipts: (params) =>
+            api.get('/finance/integration/eligible-purchase-receipts', { params }),
+        getEligibleSalesOutbounds: (params) =>
+            api.get('/finance/integration/eligible-sales-outbounds', { params }),
+        // 例外（订单级）
+        getEligibleSalesOrders: (params) =>
+            api.get('/finance/integration/eligible-sales-orders', { params }),
+        getEligiblePurchaseOrders: (params) =>
+            api.get('/finance/integration/eligible-purchase-orders', { params }),
+        /** 批量预览：默认多选合并为 1 张凭证草稿（可改后再确认） */
+        batchPreviewFromOrders: (data) =>
+            api.post('/finance/integration/batch-preview', data, {
+              timeout: API_CONFIG.longTimeoutMs,
+            }),
+        /** 批量生成：默认合并 1 张总账；可带 overrides（长超时，避免锁等待被 20s 掐断） */
+        batchGenerateFromOrders: (data) =>
+            api.post('/finance/integration/batch-generate', data, {
+              timeout: API_CONFIG.longTimeoutMs,
+            }),
+        generateAPInvoiceFromPurchaseReceipt: (receiptId) =>
+            api.post(`/finance/integration/ap-invoice/${receiptId}`),
+        generateARInvoiceFromSalesOutbound: (outboundId) =>
+            api.post(`/finance/integration/ar-invoice-from-outbound/${outboundId}`),
+        generateARInvoiceFromSalesOrder: (salesOrderId) =>
+            api.post(`/finance/integration/ar-invoice/${salesOrderId}`),
+        generateAPInvoiceFromPurchaseOrder: (purchaseOrderId) =>
+            api.post(`/finance/integration/ap-invoice-from-po/${purchaseOrderId}`),
+        /** 闭环补齐：税票 / 成本凭证（force） */
+        generateInputTaxFromReceipt: (receiptId) =>
+            api.post(`/finance/integration/tax-input/${receiptId}`),
+        generateOutputTaxFromOutbound: (outboundId) =>
+            api.post(`/finance/integration/tax-output/${outboundId}`),
+        generateCostEntryFromOutbound: (outboundId) =>
+            api.post(`/finance/integration/cost-entry/${outboundId}`),
     },
 
     // 收款记录

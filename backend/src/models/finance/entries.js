@@ -613,6 +613,13 @@ module.exports = {
         }
       }
 
+      const { resolveActorUserId } = require('../../utils/userUtils');
+      const actorId = await resolveActorUserId(
+        conn,
+        reversalData.created_by,
+        originalEntry.created_by
+      );
+
       const reversalEntryId = await getSelf().createEntry(
         {
           entry_date: entryDate,
@@ -621,7 +628,7 @@ module.exports = {
           document_number: reversalDocumentNumber,
           period_id: reversalPeriod.id,
           description: `冲销分录 ${originalEntry.entry_number}: ${reversalData.description || ''}`,
-          created_by: reversalData.created_by || 'system',
+          created_by: actorId,
           voucher_word: voucherWord,
           status: 'posted',
           is_posted: 1,

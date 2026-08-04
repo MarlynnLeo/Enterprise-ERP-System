@@ -66,15 +66,8 @@
     // 详情路由
     detailRoute: '/finance/gl/entries/:id',
 
-    // 右上角按钮
-    headerActions: [
-      {
-        icon: 'plus',
-        label: '新建凭证',
-        action: 'create',
-        handler: () => router.push('/finance/gl/entries/create')
-      }
-    ]
+    // 新建凭证仅 PC 端（对话框录入）；移动端只读列表/详情
+    headerActions: []
   }))
 
   // 加载凭证数据

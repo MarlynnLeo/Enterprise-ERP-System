@@ -220,6 +220,7 @@
 .el-card.stat-card > .el-card__body {
   position: relative;
   min-height: 82px;
+  overflow: hidden;
   padding: 16px 16px 16px 76px !important;
   display: flex !important;
   flex-direction: column;
@@ -364,6 +365,227 @@
 .stat-card__sub {
   font-size: 12px;
   color: var(--color-text-secondary);
+}
+
+/* ============================================================
+ * 数据概览统计卡 — 对齐 /production/plan 风格
+ * 布局：主数字在上 → 标签在下 → 副指标底栏；自动图标在右侧
+ * ============================================================ */
+.overview-page .stats-row.el-row,
+.module-page.overview-page > .el-row.stats-row {
+  align-items: stretch;
+  margin-bottom: 16px !important;
+}
+
+.overview-page .stats-row > .el-col {
+  display: flex;
+  margin-bottom: 0 !important;
+}
+
+.overview-page .stats-row > .el-col > .el-card.stat-card {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.overview-page .el-card.stat-card.primary-card {
+  --stat-card-accent: var(--color-primary);
+}
+.overview-page .el-card.stat-card.success-card {
+  --stat-card-accent: var(--color-success);
+}
+.overview-page .el-card.stat-card.info-card {
+  --stat-card-accent: var(--color-info, var(--color-primary-light-3));
+}
+.overview-page .el-card.stat-card.warning-card {
+  --stat-card-accent: var(--color-warning);
+}
+.overview-page .el-card.stat-card.danger-card {
+  --stat-card-accent: var(--color-danger);
+}
+
+/* 图标在右：右侧留槽，左侧放数字（与生产计划一致的「数在上、文在下」） */
+.overview-page .el-card.stat-card > .el-card__body {
+  position: relative !important;
+  flex: 1;
+  min-height: 96px !important;
+  height: 100%;
+  padding: 16px 72px 14px 16px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  justify-content: center !important;
+  text-align: left !important;
+  box-sizing: border-box;
+  overflow: hidden;
+  gap: 0;
+}
+
+/* 自动图标靠右垂直居中 */
+.overview-page .el-card.stat-card .stat-card-auto-icon,
+.overview-page .el-card.stat-card .stat-icon,
+.overview-page .el-card.stat-card .icon-container {
+  position: absolute !important;
+  left: auto !important;
+  right: 16px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  width: var(--stat-card-icon-size) !important;
+  height: var(--stat-card-icon-size) !important;
+  min-width: var(--stat-card-icon-size) !important;
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* 兼容旧 DOM（stat-content 包裹）与新 DOM（value/label 直出） */
+.overview-page .el-card.stat-card .stat-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  min-width: 0;
+  padding: 0 !important;
+  margin: 0 !important;
+  gap: 4px;
+}
+
+.overview-page .el-card.stat-card .stat-info,
+.overview-page .el-card.stat-card .stat-main {
+  display: contents;
+}
+
+.overview-page .el-card.stat-card .stat-title {
+  /* 旧标题并入主 label 语义：隐藏，避免与 stat-label 重复抢版 */
+  display: none !important;
+}
+
+.overview-page .el-card.stat-card .stat-value {
+  order: 1;
+  position: relative;
+  z-index: 2;
+  font-size: 24px !important;
+  font-weight: 700 !important;
+  line-height: 1.2 !important;
+  color: var(--color-text-primary) !important;
+  margin: 0 0 4px !important;
+  word-break: break-all;
+  max-width: 100%;
+}
+
+.overview-page .el-card.stat-card .stat-label {
+  order: 2;
+  position: relative;
+  z-index: 2;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  line-height: 1.35 !important;
+  color: var(--color-text-secondary) !important;
+  margin: 0 !important;
+}
+
+/* 副指标：主信息下方横排，不再并排占右半边 */
+.overview-page .el-card.stat-card .stat-secondary {
+  order: 3;
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  width: 100%;
+  max-width: 100%;
+  margin-top: 10px !important;
+  padding-top: 8px;
+  border-top: 1px solid var(--stat-card-border, var(--color-border-lighter));
+  text-align: left !important;
+}
+
+.overview-page .el-card.stat-card .stat-secondary-value {
+  display: inline !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  line-height: 1.3 !important;
+  color: var(--color-text-primary) !important;
+  margin: 0 !important;
+  word-break: break-all;
+}
+
+.overview-page .el-card.stat-card .stat-secondary-label {
+  display: inline !important;
+  font-size: 12px !important;
+  font-weight: 400 !important;
+  line-height: 1.3 !important;
+  color: var(--color-text-secondary) !important;
+  margin: 0 !important;
+}
+
+.overview-page .el-card.stat-card .stat-secondary-value::after {
+  content: '';
+}
+
+/* 副指标：值 + 空格 + 标签同一行 */
+.overview-page .el-card.stat-card .stat-secondary-value + .stat-secondary-label {
+  margin-left: 2px !important;
+}
+
+.overview-page .last-updated {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.overview-page .chart-container {
+  width: 100%;
+  height: 300px;
+  position: relative;
+}
+
+.overview-page .card-header,
+.overview-page .card-header-with-search {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.overview-page .card-header span,
+.overview-page .card-header-with-search > span {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.overview-page .search-input {
+  max-width: 200px;
+}
+
+@media (max-width: 768px) {
+  .overview-page .el-card.stat-card > .el-card__body {
+    min-height: 88px !important;
+    padding: 14px 60px 12px 14px !important;
+  }
+
+  .overview-page .el-card.stat-card .stat-card-auto-icon,
+  .overview-page .el-card.stat-card .stat-icon,
+  .overview-page .el-card.stat-card .icon-container {
+    right: 12px !important;
+    left: auto !important;
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
+  }
+
+  .overview-page .el-card.stat-card .stat-value {
+    font-size: 20px !important;
+  }
+
+  .overview-page .search-input {
+    max-width: 140px;
+  }
 }
 
 .stat-card__sub em {

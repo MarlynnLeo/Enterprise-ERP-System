@@ -13,6 +13,7 @@ const DomainEventService = require('../../../services/business/DomainEventServic
 const { parsePagination, appendPaginationSQL } = require('../../../utils/safePagination');
 
 const { STATUS, getConnection } = require('./salesShared');
+const { getRequestActorLabel } = require('../../../utils/userUtils');
 
 const SALES_RETURN_STATUS_LABELS = {
   [STATUS.SALES_RETURN.DRAFT]: '草稿',
@@ -735,7 +736,7 @@ exports.updateSalesReturn = async (req, res) => {
               transactionType: 'sales_return',
               referenceNo: actualReturnNo,
               referenceType: 'sales_return',
-              operator: 'system',
+              operator: getRequestActorLabel(req),
               remark: `销售退货入库：${material.code} ${material.name}`,
               unitId: material.unit_id,
               batchNumber: `RT-${actualReturnNo}-${productId}`,
@@ -790,6 +791,19 @@ exports.updateSalesReturn = async (req, res) => {
       );
     }
 
+    // 退货完成后刷新关联销售订单状态（净发货量可能回落）
+    if (pendingReturnForFinance?.order_id) {
+      try {
+        const SalesOrderStatusService = require('../../../services/business/SalesOrderStatusService');
+        await SalesOrderStatusService.updateOrderStatus(
+          pendingReturnForFinance.order_id,
+          connection
+        );
+      } catch (soErr) {
+        logger.warn(`销售退货后订单状态同步失败: ${soErr.message}`);
+      }
+    }
+
     await connection.commit();
     DomainEventService.dispatchSoon(domainEventId);
 
@@ -799,7 +813,7 @@ exports.updateSalesReturn = async (req, res) => {
           const InventoryCostService = require('../../../services/business/InventoryCostService');
           for (const task of pendingSalesReturnCostTasks) {
             await InventoryCostService.generateInboundCostEntry(task, {
-              userId: req.user?.username || req.user?.id || 'system',
+              userId: req.user?.username || (req.user?.id ?? null),
             });
           }
           logger.info(`销售退货成本冲回分录生成完成 - 退货单: ${pendingReturnForFinance?.return_no || id}`);

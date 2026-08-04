@@ -203,7 +203,13 @@ class InventoryConsistencyService {
    * @param {string} operator - 操作人
    * @returns {Promise<Object>} 调整结果
    */
-  static async generateAdjustmentForNegativeStock(operator = 'system') {
+  static async generateAdjustmentForNegativeStock(operator) {
+    const { resolveActorLabel } = require('../../utils/userUtils');
+    const actor =
+      operator != null && operator !== '' && operator !== 'system' && operator !== 'SYSTEM'
+        ? String(operator)
+        : await resolveActorLabel(null);
+
     const connection = await db.pool.getConnection();
     try {
       await connection.beginTransaction();
@@ -248,7 +254,7 @@ class InventoryConsistencyService {
             transactionType: 'adjustment_in',
             referenceNo: adjustmentNo,
             referenceType: 'inventory_adjustment',
-            operator,
+            operator: actor,
             remark: `System auto-adjust negative stock, original stock: ${currentStock}`,
             unitId: item.unit_id || null,
             batchNumber: adjustmentBatchNumber,

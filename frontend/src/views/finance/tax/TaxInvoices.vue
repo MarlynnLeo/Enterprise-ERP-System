@@ -597,10 +597,18 @@ const getStatusType = (status) => {
 // 获取关联单据类型标签
 const getDocTypeLabel = (type) => {
   const labelMap = {
-    'ap_invoice': '应付发票',
-    'ar_invoice': '应收发票',
-    '采购入库单': '采购入库',
-    '销售出库单': '销售出库'
+    ap_invoice: '应付发票',
+    ar_invoice: '应收发票',
+    purchase_receipt: '采购入库',
+    sales_outbound: '销售出库',
+    sales_return: '销售退货',
+    purchase_return: '采购退货',
+    // 历史中文 type（兼容旧数据）
+    采购入库单: '采购入库',
+    采购收货单: '采购入库',
+    销售出库单: '销售出库',
+    销售退货单: '销售退货',
+    采购退货单: '采购退货'
   };
   return labelMap[type] || type || '未知';
 };
@@ -608,10 +616,17 @@ const getDocTypeLabel = (type) => {
 // 获取关联单据类型 Tag 颜色（与发票类型颜色一致：进项=绿色，销项=黄色）
 const getDocTypeTagType = (type) => {
   const typeMap = {
-    'ap_invoice': 'warning',
-    'ar_invoice': 'success',
-    '采购入库单': 'success',
-    '销售出库单': 'warning'
+    ap_invoice: 'warning',
+    ar_invoice: 'success',
+    purchase_receipt: 'success',
+    sales_outbound: 'warning',
+    sales_return: 'warning',
+    purchase_return: 'success',
+    采购入库单: 'success',
+    采购收货单: 'success',
+    销售出库单: 'warning',
+    销售退货单: 'warning',
+    采购退货单: 'success'
   };
   return typeMap[type] || 'info';
 };

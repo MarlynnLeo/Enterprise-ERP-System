@@ -1,5 +1,8 @@
 const Precision = require('./precision');
 
+// 注意：resolveUnitPrice 在 unitPriceFields 中依赖 toNumber，故此处只做轻量解析，
+// 避免与 unitPriceFields 循环依赖。业务侧优先用 unitPriceFields.resolveUnitPrice。
+
 function toNumber(value, fallback = 0) {
   if (value === null || value === undefined || value === '') return fallback;
 
@@ -8,6 +11,23 @@ function toNumber(value, fallback = 0) {
     : value;
   const number = Number(normalized);
   return Number.isFinite(number) ? number : fallback;
+}
+
+/**
+ * 从明细对象解析单价（兼容 price / unit_price / unitPrice）
+ * 与 unitPriceFields.resolveUnitPrice 行为对齐的精简版，供 money.calculateLines 使用。
+ */
+function resolveLineUnitPrice(item, fallback = 0) {
+  if (item === null || item === undefined || item === '') return fallback;
+  if (typeof item !== 'object') return toNumber(item, fallback);
+  const raw =
+    item.unit_price ??
+    item.unitPrice ??
+    item.price ??
+    item.cost_price ??
+    item.sale_price;
+  if (raw === null || raw === undefined || raw === '') return fallback;
+  return toNumber(raw, fallback);
 }
 
 function roundMoney(value) {
@@ -64,7 +84,8 @@ function calculateLines(items = [], options = {}) {
 
   const lines = items.map((item) => {
     const quantity = toNumber(item.quantity, 0);
-    const price = toNumber(item.price ?? item.unit_price ?? item.unitPrice, 0);
+    // 统一：price 与 unit_price 同值写出，避免上下游只认其中一个
+    const price = resolveLineUnitPrice(item, 0);
     const rate = normalizeTaxRate(item.tax_rate ?? item.taxRate ?? item.tax_percent ?? item.taxPercent, defaultTaxRate);
     const amount = lineAmount(quantity, price);
     const tax = item.tax_amount !== undefined || item.taxAmount !== undefined
@@ -76,6 +97,7 @@ function calculateLines(items = [], options = {}) {
       quantity,
       price,
       unit_price: price,
+      unitPrice: price,
       tax_rate: rate,
       tax_percent: rate,
       tax_amount: tax,
@@ -100,6 +122,7 @@ function calculateLines(items = [], options = {}) {
 
 module.exports = {
   toNumber,
+  resolveLineUnitPrice,
   roundMoney,
   normalizeTaxRate,
   lineAmount,

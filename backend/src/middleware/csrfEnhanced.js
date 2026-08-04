@@ -10,12 +10,15 @@ const { doubleCsrf } = require('csrf-csrf');
 const crypto = require('crypto');
 const { logger } = require('../utils/logger');
 const { ResponseHandler } = require('../utils/responseHandler');
+const {
+  clearCsrfCookies,
+  getCookieSameSite,
+  getCsrfCookieName,
+  shouldUseSecureCookies,
+} = require('../utils/cookieSecurity');
 
 const isProduction = process.env.NODE_ENV === 'production';
 const isTest = process.env.NODE_ENV === 'test';
-const secureCookies = process.env.COOKIE_SECURE === undefined
-  ? isProduction
-  : process.env.COOKIE_SECURE === 'true';
 
 if (isProduction && !process.env.CSRF_SECRET) {
   throw new Error('CSRF_SECRET environment variable is required in production.');
@@ -28,49 +31,53 @@ if (!isProduction && !isTest && !process.env.CSRF_SECRET) {
 
 const getCsrfSecret = () => process.env.CSRF_SECRET || developmentCsrfSecret;
 
-// 配置 CSRF 保护
-// __Host- 前缀要求 Secure=true，开发环境（HTTP）下需要使用普通 cookie 名
-const csrfCookieName = secureCookies ? '__Host-psifi.x-csrf-token' : 'psifi.x-csrf-token';
+const getSessionIdentifier = (req) => {
+  const access =
+    req.cookies?.accessToken || req.cookies?.token || req.signedCookies?.accessToken || '';
+  if (access && typeof access === 'string') {
+    return `sess:${access.slice(0, 48)}`;
+  }
+  const uid = req.user?.id;
+  if (uid) return `uid:${uid}`;
+  return `ip:${req.ip || 'anonymous'}`;
+};
 
-const {
-  generateCsrfToken, // 生成 CSRF token（新版 API）
-  doubleCsrfProtection, // CSRF 保护中间件
-} = doubleCsrf({
-  getSecret: getCsrfSecret,
-  // 绑定登录会话（access cookie 优先），避免 NAT 共享 IP 误伤
-  getSessionIdentifier: (req) => {
-    const access =
-      req.cookies?.accessToken ||
-      req.cookies?.token ||
-      req.signedCookies?.accessToken ||
-      '';
-    if (access && typeof access === 'string') {
-      return `sess:${access.slice(0, 48)}`;
-    }
-    const uid = req.user?.id;
-    if (uid) return `uid:${uid}`;
-    return `ip:${req.ip || 'anonymous'}`;
-  },
-  cookieName: csrfCookieName,
-  cookieOptions: {
-    httpOnly: true,
-    secure: secureCookies,
-    sameSite: isProduction ? 'strict' : 'lax', // 开发环境使用 lax，兼容代理转发
-    path: '/',
-    maxAge: 86400000, // 24小时
-  },
-  size: 64, // token 大小
-  ignoredMethods: ['GET', 'HEAD', 'OPTIONS'], // 忽略的 HTTP 方法
-  getTokenFromRequest: (req) => {
-    // 从请求头或请求体中获取 token
-    return req.headers['x-csrf-token'] || req.body._csrf;
-  },
-});
+const createCsrfVariant = (secure) =>
+  doubleCsrf({
+    getSecret: getCsrfSecret,
+    getSessionIdentifier,
+    cookieName: secure ? getCsrfCookieName({ secure: true, protocol: 'https' }) : getCsrfCookieName({ protocol: 'http' }),
+    cookieOptions: {
+      httpOnly: true,
+      secure,
+      sameSite: getCookieSameSite(),
+      path: '/',
+      maxAge: 86400000,
+    },
+    size: 64,
+    ignoredMethods: ['GET', 'HEAD', 'OPTIONS'],
+    getTokenFromRequest: (req) => req.headers['x-csrf-token'] || req.body._csrf,
+  });
+
+const csrfVariants = {
+  secure: createCsrfVariant(true),
+  insecure: createCsrfVariant(false),
+};
+
+const getCsrfVariant = (req) =>
+  shouldUseSecureCookies(req) ? csrfVariants.secure : csrfVariants.insecure;
+
+const generateCsrfToken = (req, res) => getCsrfVariant(req).generateCsrfToken(req, res);
+
+const doubleCsrfProtection = (req, res, next) =>
+  getCsrfVariant(req).doubleCsrfProtection(req, res, next);
 
 /**
  * CSRF Token获取端点
  */
 const getCsrfToken = (req, res) => {
+  // Ensure only the cookie variant for the current transport remains.
+  clearCsrfCookies(res);
   const csrfToken = generateCsrfToken(req, res);
   res.json({
     success: true,

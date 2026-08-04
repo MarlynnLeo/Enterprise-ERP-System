@@ -1,6 +1,6 @@
 <template>
   <div class="module-page overview-page inventory-dashboard">
-    <PageHeader title="库存数据概览">
+    <PageHeader title="库存数据概览" subtitle="库存总量、出入库与预警">
       <template #actions>
         <span v-if="lastUpdated" class="last-updated">
             最后更新: {{ lastUpdated.toLocaleTimeString() }}
@@ -8,79 +8,51 @@
       </template>
     </PageHeader>
     <!-- 统计卡片 -->
-    <el-row :gutter="20" class="mt-20">
-      <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-20">
+    <el-row :gutter="16" class="stats-row">
+      <el-col :xs="24" :sm="12" :md="6" :lg="6">
         <el-card class="stat-card primary-card" shadow="hover">
-          <div class="stat-content">
-            <div class="stat-title">总库存量</div>
-            <div class="stat-info">
-              <div class="stat-main">
-                <div class="stat-value">{{ formatQuantity(statistics.totalStock) }}</div>
-                <div class="stat-label">库存总量</div>
-              </div>
-              <div class="stat-secondary">
-                <div class="stat-secondary-value">{{ formatCurrency(statistics.totalValue) }}</div>
-                <div class="stat-secondary-label">总价值</div>
-              </div>
-            </div>
+          <div class="stat-value">{{ formatQuantity(statistics.totalStock) }}</div>
+          <div class="stat-label">总库存量</div>
+          <div class="stat-secondary">
+            <span class="stat-secondary-value">{{ formatCurrency(statistics.totalValue) }}</span>
+            <span class="stat-secondary-label">总价值</span>
           </div>
         </el-card>
       </el-col>
-      <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-20">
+      <el-col :xs="24" :sm="12" :md="6" :lg="6">
         <el-card class="stat-card success-card" shadow="hover">
-          <div class="stat-content">
-            <div class="stat-title">本月入库</div>
-            <div class="stat-info">
-              <div class="stat-main">
-                <div class="stat-value">{{ statistics.inbound.count }}</div>
-                <div class="stat-label">入库单数</div>
-              </div>
-              <div class="stat-secondary">
-                <div class="stat-secondary-value">{{ formatQuantity(statistics.inbound.items) }}</div>
-                <div class="stat-secondary-label">物料数</div>
-              </div>
-            </div>
+          <div class="stat-value">{{ statistics.inbound.count }}</div>
+          <div class="stat-label">本月入库</div>
+          <div class="stat-secondary">
+            <span class="stat-secondary-value">{{ formatQuantity(statistics.inbound.items) }}</span>
+            <span class="stat-secondary-label">物料数</span>
           </div>
         </el-card>
       </el-col>
-      <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-20">
+      <el-col :xs="24" :sm="12" :md="6" :lg="6">
         <el-card class="stat-card info-card" shadow="hover">
-          <div class="stat-content">
-            <div class="stat-title">本月出库</div>
-            <div class="stat-info">
-              <div class="stat-main">
-                <div class="stat-value">{{ statistics.outbound.count }}</div>
-                <div class="stat-label">出库单数</div>
-              </div>
-              <div class="stat-secondary">
-                <div class="stat-secondary-value">{{ formatQuantity(statistics.outbound.items) }}</div>
-                <div class="stat-secondary-label">物料数</div>
-              </div>
-            </div>
+          <div class="stat-value">{{ statistics.outbound.count }}</div>
+          <div class="stat-label">本月出库</div>
+          <div class="stat-secondary">
+            <span class="stat-secondary-value">{{ formatQuantity(statistics.outbound.items) }}</span>
+            <span class="stat-secondary-label">物料数</span>
           </div>
         </el-card>
       </el-col>
-      <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-20">
+      <el-col :xs="24" :sm="12" :md="6" :lg="6">
         <el-card class="stat-card warning-card" shadow="hover">
-          <div class="stat-content">
-            <div class="stat-title">库存预警</div>
-            <div class="stat-info">
-              <div class="stat-main">
-                <div class="stat-value">{{ statistics.alerts.low }}</div>
-                <div class="stat-label">低库存</div>
-              </div>
-              <div class="stat-secondary">
-                <div class="stat-secondary-value">{{ formatQuantity(statistics.alerts.overstock) }}</div>
-                <div class="stat-secondary-label">超额库存</div>
-              </div>
-            </div>
+          <div class="stat-value">{{ statistics.alerts.low }}</div>
+          <div class="stat-label">库存预警</div>
+          <div class="stat-secondary">
+            <span class="stat-secondary-value">{{ formatQuantity(statistics.alerts.overstock) }}</span>
+            <span class="stat-secondary-label">超额库存</span>
           </div>
         </el-card>
       </el-col>
     </el-row>
     <!-- 图表区域 -->
-    <el-row :gutter="20" class="mt-20">
-      <el-col :xs="24" :md="12" class="mb-20">
+    <el-row :gutter="16" class="mt-md">
+      <el-col :xs="24" :md="12">
         <el-card class="dashboard-card" shadow="hover">
           <template #header>
             <div class="card-header">
@@ -93,7 +65,7 @@
         </el-card>
       </el-col>
 
-      <el-col :xs="24" :md="12" class="mb-20">
+      <el-col :xs="24" :md="12">
         <el-card class="dashboard-card" shadow="hover">
           <template #header>
             <div class="card-header">
@@ -109,7 +81,7 @@
     </el-row>
 
     <el-row class="mt-20">
-      <el-col :span="24" class="mb-20">
+      <el-col :span="24">
         <el-card class="dashboard-card" shadow="hover">
           <template #header>
             <div class="card-header">
@@ -392,91 +364,9 @@ onBeforeUnmount(destroyCharts)
 </script>
 
 <style scoped>
-.inventory-dashboard {
-  padding: 10px;
-}
-.header-card {
-  margin-bottom: var(--spacing-lg);
-}
-.header-card h2 {
-  margin: 0;
-  font-size: 22px;
-  color: var(--el-text-color-primary);
-}
-.last-updated {
-  margin-left: 10px;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-.mt-20 {
-  margin-top: var(--spacing-lg);
-}
-.mb-20 {
-  margin-bottom: var(--spacing-lg);
-}
-.primary-card {
-  border-top: 4px solid var(--el-color-primary);
-}
-.success-card {
-  border-top: 4px solid var(--el-color-success);
-}
-.info-card {
-  border-top: 4px solid var(--el-color-info);
-}
-.warning-card {
-  border-top: 4px solid var(--el-color-warning);
-}
-.stat-content {
-  flex-grow: 1;
-  padding: 10px 0;
-}
-.stat-title {
-  font-size: 16px;
-  font-weight: bold;
-  margin-bottom: 15px;
-  color: var(--el-text-color-primary);
-}
-.stat-info {
-  display: flex;
-  justify-content: space-between;
-}
-.stat-main {
-  text-align: left;
-}
-.stat-secondary {
-  text-align: right;
-}
-.stat-secondary-value {
-  font-size: 20px;
-  font-weight: 500;
-  line-height: 1.2;
-  color: var(--el-text-color-primary);
-}
-.stat-secondary-label {
-  font-size: 14px;
-  color: var(--el-text-color-secondary);
-}
-.card-footer {
-  padding-top: 10px;
-  border-top: 1px solid var(--el-border-color-lighter);
-}
 /* 图表区域 */
 .dashboard-card {
   height: 100%;
-}
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.card-header span {
-  font-size: 16px;
-  font-weight: bold;
-}
-.chart-container {
-  width: 100%;
-  height: 300px;
-  position: relative;
 }
 .chart-container :deep(.el-empty) {
   height: 100%;
@@ -512,12 +402,5 @@ onBeforeUnmount(destroyCharts)
   font-weight: bold;
 }
 /* 响应式调整 */
-@media (max-width: 768px) {
-  .stat-value {
-    font-size: 22px;
-  }
-  .stat-secondary-value {
-    font-size: 18px;
-  }
-}
+
 </style>

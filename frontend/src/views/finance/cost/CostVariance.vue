@@ -515,7 +515,6 @@ onMounted(() => {
 .header-card { margin-bottom: 20px; }
 .title-section h2 { margin: 0; font-size: 24px; color: var(--color-text-primary); }
 .subtitle { margin: 5px 0 0 0; color: var(--color-text-secondary); font-size: 14px; }
-.data-card { margin-bottom: 20px; }
 .search-form-inline { display: flex; align-items: center; flex-wrap: wrap; }
 .stat-card { text-align: center; padding: 10px; }
 .stat-title { font-size: 14px; color: var(--color-text-secondary); margin-bottom: 8px; }

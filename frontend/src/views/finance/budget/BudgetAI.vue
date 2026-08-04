@@ -71,12 +71,12 @@
           <!-- 图表区 -->
           <el-row :gutter="20" class="mt-md">
             <el-col :span="14">
-              <el-card shadow="hover"><template #header>预算建议 vs 历史平均</template>
+              <el-card class="dashboard-card" shadow="hover"><template #header>预算建议 vs 历史平均</template>
                 <div ref="recBarChart" class="chart-box-350"></div>
               </el-card>
             </el-col>
             <el-col :span="10">
-              <el-card shadow="hover"><template #header>预算构成分布</template>
+              <el-card class="dashboard-card" shadow="hover"><template #header>预算构成分布</template>
                 <div ref="recPieChart" class="chart-box-350"></div>
               </el-card>
             </el-col>
@@ -121,12 +121,12 @@
           <!-- 风险提示 & 优化建议 -->
           <el-row :gutter="20" class="mt-md" v-if="recommendation.risk_warnings?.length || recommendation.optimization_tips?.length">
             <el-col :span="12" v-if="recommendation.risk_warnings?.length">
-              <el-card shadow="hover" class="tip-card risk"><template #header><span><el-icon class="icon-mid-warning"><Warning /></el-icon> 风险提示</span></template>
+              <el-card shadow="hover" class="tip-card risk dashboard-card"><template #header><span><el-icon class="icon-mid-warning"><Warning /></el-icon> 风险提示</span></template>
                 <ul class="tip-list"><li v-for="(w, i) in recommendation.risk_warnings" :key="i">{{ w }}</li></ul>
               </el-card>
             </el-col>
             <el-col :span="12" v-if="recommendation.optimization_tips?.length">
-              <el-card shadow="hover" class="tip-card success"><template #header><span><el-icon class="icon-mid-primary"><InfoFilled /></el-icon> 优化建议</span></template>
+              <el-card shadow="hover" class="tip-card success dashboard-card"><template #header><span><el-icon class="icon-mid-primary"><InfoFilled /></el-icon> 优化建议</span></template>
                 <ul class="tip-list"><li v-for="(t, i) in recommendation.optimization_tips" :key="i">{{ t }}</li></ul>
               </el-card>
             </el-col>
@@ -322,7 +322,7 @@
           <!-- 战略建议 -->
           <el-row :gutter="16" class="mt-md" v-if="optimization.strategic_suggestions?.length">
             <el-col :span="8" v-for="(s, i) in optimization.strategic_suggestions" :key="i">
-              <el-card shadow="hover" class="suggestion-card">
+              <el-card shadow="hover" class="suggestion-card dashboard-card">
                 <div class="suggestion-header">
                   <span class="suggestion-title">{{ s.title }}</span>
                   <el-tag :type="s.impact === '高' ? 'danger' : s.impact === '中' ? 'warning' : 'info'" size="small">{{ s.impact }}影响</el-tag>
@@ -384,7 +384,7 @@
 
           <el-row :gutter="20" class="mt-md">
             <el-col :span="12" v-if="comparison.key_changes?.length">
-              <el-card shadow="hover" class="tip-card info"><template #header><span><el-icon class="icon-mid"><Refresh /></el-icon> 关键变化</span></template>
+              <el-card shadow="hover" class="tip-card info dashboard-card"><template #header><span><el-icon class="icon-mid"><Refresh /></el-icon> 关键变化</span></template>
                 <div v-for="(c, i) in comparison.key_changes" :key="i" class="change-item">
                   <el-tag size="small" :type="c.change_type === '大幅增长' ? 'danger' : c.change_type === '大幅下降' ? 'success' : 'info'">{{ c.change_type }}</el-tag>
                   <strong>{{ c.account_name }}</strong>: {{ c.description }}
@@ -392,11 +392,11 @@
               </el-card>
             </el-col>
             <el-col :span="12">
-              <el-card shadow="hover" class="tip-card success" v-if="comparison.trend_insights?.length">
+              <el-card shadow="hover" class="tip-card success dashboard-card" v-if="comparison.trend_insights?.length">
                 <template #header><span><el-icon class="icon-mid"><TrendCharts /></el-icon> 趋势洞察</span></template>
                 <ul class="tip-list"><li v-for="(t, i) in comparison.trend_insights" :key="i">{{ t }}</li></ul>
               </el-card>
-              <el-card shadow="hover" class="tip-card risk mt-md" v-if="comparison.recommendations?.length">
+              <el-card shadow="hover" class="tip-card risk mt-md dashboard-card" v-if="comparison.recommendations?.length">
                 <template #header><span><el-icon class="icon-mid-primary"><InfoFilled /></el-icon> 改进建议</span></template>
                 <ul class="tip-list"><li v-for="(r, i) in comparison.recommendations" :key="i">{{ r }}</li></ul>
               </el-card>

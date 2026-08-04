@@ -843,7 +843,7 @@ class WorkflowService {
          LEFT JOIN role_permissions rp ON rp.role_id = r.id
          LEFT JOIN permissions p ON p.id = rp.permission_id AND p.status = 1
          WHERE u.id = ? AND u.status = 1
-           AND (u.role = 'admin' OR r.code = 'admin' OR p.code IN ('*', 'system:workflow:*', 'system:workflow:use'))
+           AND (r.is_super_admin = 1 OR p.code IN ('*', 'system:workflow:*', 'system:workflow:use'))
          LIMIT 1`,
         [candidateId]
       );

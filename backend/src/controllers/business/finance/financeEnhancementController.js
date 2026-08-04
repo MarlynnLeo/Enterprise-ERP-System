@@ -8,13 +8,14 @@
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 
-const FinanceIntegrationService = require('../../../services/external/FinanceIntegrationService');
+const ManualVoucherService = require('../../../services/finance/ManualVoucherService');
 const PeriodEndService = require('../../../services/business/PeriodEndService');
 const CostAccountingService = require('../../../services/business/CostAccountingService');
 const AdvancedReportsService = require('../../../services/utils/AdvancedReportsService');
 const db = require('../../../config/db');
 const { toLocalDateString } = require('../../../utils/dateUtils');
 const { safeParseId } = require('../../../utils/safeParseId');
+const { getRequestActorLabel } = require('../../../utils/userUtils');
 
 function getDefaultReportRange(query = {}) {
   const today = new Date();
@@ -34,69 +35,217 @@ function parsePositiveInteger(value, fallback, max = 100) {
   return Math.min(parsed, max);
 }
 
+/** 统一错误响应（ManualVoucherService 抛出的业务错误带 statusCode/code） */
+function respondServiceError(res, error, fallbackMessage) {
+  const status = error.statusCode || 500;
+  const code = error.code || (status >= 500 ? 'SERVER_ERROR' : 'BAD_REQUEST');
+  if (status >= 500) {
+    logger.error(fallbackMessage, error);
+  }
+  return ResponseHandler.error(res, error.message || fallbackMessage, code, status, error);
+}
+
+function respondGenerateResult(res, result, successMessage, skipMessagePrefix) {
+  if (result?.skipped) {
+    const inv = result.invoiceNumber ? `（${result.invoiceNumber}）` : '';
+    return ResponseHandler.success(
+      res,
+      result,
+      result.message || `${skipMessagePrefix}${inv}，无需重复生成`
+    );
+  }
+  return ResponseHandler.success(res, result, successMessage);
+}
+
 /**
  * 财务增强功能控制器
  * 处理财务模块的增强功能API请求
  * 注意: 审批功能已移除，统一通过 RBAC 权限按钮控制
  */
 class FinanceEnhancementController {
-  // ==================== 自动化集成功能 ====================
+  // ==================== 手工凭证集成（委托 ManualVoucherService） ====================
 
-  /**
-   * 从销售订单生成应收发票
-   */
-  static async generateARInvoiceFromSalesOrder(req, res) {
+  /** 专业主路径：可生成凭证的采购入库单 */
+  static async listEligiblePurchaseReceiptsForVoucher(req, res) {
     try {
-      const salesOrderId = safeParseId(req.params.salesOrderId);
-
-      // 获取销售订单信息
-      const [salesOrders] = await db.pool.execute('SELECT id, order_no, customer_id, quotation_id, contract_code, total_amount, payment_terms, delivery_date, status, invoice_status, remarks, created_by, created_at, updated_at, is_locked, locked_at, locked_by, lock_reason, tax_rate, tax_amount, subtotal, deleted_at FROM sales_orders WHERE id = ? AND deleted_at IS NULL', [
-        salesOrderId,
-      ]);
-
-      if (salesOrders.length === 0) {
-        return ResponseHandler.error(res, '销售订单不存在', 'NOT_FOUND', 404);
-      }
-
-      // 传递当前操作用户ID
-      const result = await FinanceIntegrationService.generateARInvoiceFromSalesOrder(
-        salesOrders[0],
-        req.user?.id
+      const { list, total, page, pageSize } =
+        await ManualVoucherService.listEligiblePurchaseReceipts(req.query);
+      return ResponseHandler.paginated(
+        res,
+        list,
+        total,
+        page,
+        pageSize,
+        '可生成凭证的采购入库单'
       );
-
-      ResponseHandler.success(res, result, '应收发票生成成功');
     } catch (error) {
-      logger.error('生成应收发票失败:', error);
-      ResponseHandler.error(res, error.message || '生成应收发票失败', 'SERVER_ERROR', 500, error);
+      return respondServiceError(res, error, '获取可生成凭证采购入库单失败');
+    }
+  }
+
+  /** 专业主路径：可生成凭证的销售出库单 */
+  static async listEligibleSalesOutboundsForVoucher(req, res) {
+    try {
+      const { list, total, page, pageSize } =
+        await ManualVoucherService.listEligibleSalesOutbounds(req.query);
+      return ResponseHandler.paginated(
+        res,
+        list,
+        total,
+        page,
+        pageSize,
+        '可生成凭证的销售出库单'
+      );
+    } catch (error) {
+      return respondServiceError(res, error, '获取可生成凭证销售出库单失败');
+    }
+  }
+
+  /** 例外：订单级销售（不推荐主路径） */
+  static async listEligibleSalesOrdersForVoucher(req, res) {
+    try {
+      const { list, total, page, pageSize } =
+        await ManualVoucherService.listEligibleSalesOrders(req.query);
+      return ResponseHandler.paginated(res, list, total, page, pageSize, '可生成凭证的销售订单');
+    } catch (error) {
+      return respondServiceError(res, error, '获取可生成凭证销售订单失败');
+    }
+  }
+
+  /** 例外：订单级采购（不推荐主路径） */
+  static async listEligiblePurchaseOrdersForVoucher(req, res) {
+    try {
+      const { list, total, page, pageSize } =
+        await ManualVoucherService.listEligiblePurchaseOrders(req.query);
+      return ResponseHandler.paginated(res, list, total, page, pageSize, '可生成凭证的采购订单');
+    } catch (error) {
+      return respondServiceError(res, error, '获取可生成凭证采购订单失败');
     }
   }
 
   /**
-   * 从采购入库单生成应付发票
+   * body: { businessType, ids, merge?=true }
+   * 默认合并为一张凭证预览
    */
+  static async batchPreviewVouchersFromOrders(req, res) {
+    try {
+      const businessType = String(req.body?.businessType || req.body?.type || '').trim();
+      const data = await ManualVoucherService.batchPreview(businessType, req.body?.ids, {
+        merge: req.body?.merge,
+      });
+      return ResponseHandler.success(
+        res,
+        data,
+        data.message ||
+          `预览完成：可生成 ${data.readyCount} 张，已存在 ${data.skippedCount}，失败 ${data.failedCount}`
+      );
+    } catch (error) {
+      return respondServiceError(res, error, '预览凭证失败');
+    }
+  }
+
+  /**
+   * body: { businessType, ids, merge?=true, overrides? }
+   * 默认：各单开票 + 1 张合并总账；merge=false 时一单一证
+   */
+  static async batchGenerateVouchersFromOrders(req, res) {
+    try {
+      const businessType = String(req.body?.businessType || req.body?.type || '').trim();
+      const data = await ManualVoucherService.batchGenerate(
+        businessType,
+        req.body?.ids,
+        req.user?.id || null,
+        req.body?.overrides || null,
+        { merge: req.body?.merge }
+      );
+      const voucherHint = data.merge
+        ? data.mergedEntry
+          ? `（合并为 1 张凭证 ${data.mergedEntry.entryNumber || data.mergedEntry.entryId}）`
+          : '（合并模式）'
+        : `（共 ${data.successCount} 张独立凭证）`;
+      return ResponseHandler.success(
+        res,
+        data,
+        `批量生成完成：成功 ${data.successCount}，已存在 ${data.skippedCount}，失败 ${data.failedCount}${voucherHint}`
+      );
+    } catch (error) {
+      return respondServiceError(res, error, '批量生成凭证失败');
+    }
+  }
+
+  /** 主路径：出库 → 应收 */
+  static async generateARInvoiceFromSalesOutbound(req, res) {
+    try {
+      const outboundId = safeParseId(req.params.outboundId);
+      const { result } = await ManualVoucherService.generateFromSalesOutbound(
+        outboundId,
+        req.user?.id
+      );
+      return respondGenerateResult(
+        res,
+        result,
+        '应收发票与会计凭证生成成功',
+        '该销售出库单已生成应收发票'
+      );
+    } catch (error) {
+      return respondServiceError(res, error, '从销售出库单生成应收失败');
+    }
+  }
+
+  /** 主路径：入库 → 应付 */
   static async generateAPInvoiceFromPurchaseReceipt(req, res) {
     try {
       const receiptId = safeParseId(req.params.receiptId);
-
-      // 获取采购入库单信息
-      const [receipts] = await db.pool.execute('SELECT id, receipt_no, order_id, order_no, supplier_id, supplier_name, warehouse_id, warehouse_name, receipt_date, operator, inspection_id, remarks, total_amount, total_tax_amount, from_inspection, status, invoice_status, created_at, updated_at, deleted_at FROM purchase_receipts WHERE id = ? AND deleted_at IS NULL', [
+      const { result } = await ManualVoucherService.generateFromPurchaseReceipt(
         receiptId,
-      ]);
-
-      if (receipts.length === 0) {
-        return ResponseHandler.error(res, '采购入库单不存在', 'NOT_FOUND', 404);
-      }
-
-      // 传递当前操作用户ID
-      const result = await FinanceIntegrationService.generateAPInvoiceFromPurchaseReceipt(
-        receipts[0],
         req.user?.id
       );
-
-      ResponseHandler.success(res, result, '应付发票生成成功');
+      return respondGenerateResult(
+        res,
+        result,
+        '应付发票与会计凭证生成成功',
+        '该采购入库单已生成应付发票'
+      );
     } catch (error) {
-      logger.error('生成应付发票失败:', error);
-      ResponseHandler.error(res, error.message || '生成应付发票失败', 'SERVER_ERROR', 500, error);
+      return respondServiceError(res, error, '生成应付发票失败');
+    }
+  }
+
+  /** 例外：整单销售订单（补录） */
+  static async generateARInvoiceFromSalesOrder(req, res) {
+    try {
+      const salesOrderId = safeParseId(req.params.salesOrderId);
+      const { result } = await ManualVoucherService.generateFromSalesOrder(
+        salesOrderId,
+        req.user?.id
+      );
+      return respondGenerateResult(
+        res,
+        result,
+        '应收发票与会计凭证生成成功',
+        '该销售订单已生成应收发票'
+      );
+    } catch (error) {
+      return respondServiceError(res, error, '生成应收发票失败');
+    }
+  }
+
+  /** 例外：整单采购订单（补录） */
+  static async generateAPInvoiceFromPurchaseOrder(req, res) {
+    try {
+      const purchaseOrderId = safeParseId(req.params.purchaseOrderId);
+      const { result } = await ManualVoucherService.generateFromPurchaseOrder(
+        purchaseOrderId,
+        req.user?.id
+      );
+      return respondGenerateResult(
+        res,
+        result,
+        '应付发票与会计凭证生成成功',
+        '该采购订单已生成应付发票'
+      );
+    } catch (error) {
+      return respondServiceError(res, error, '从采购订单生成应付发票失败');
     }
   }
 
@@ -123,6 +272,132 @@ class FinanceEnhancementController {
         500,
         error
       );
+    }
+  }
+
+  // ==================== 三单匹配 / 业财状态 ====================
+
+  static async createThreeWayMatchFromReceipt(req, res) {
+    try {
+      const ThreeWayMatchService = require('../../../services/finance/ThreeWayMatchService');
+      const receiptId = safeParseId(req.params.receiptId);
+      const data = await ThreeWayMatchService.createFromReceipt(receiptId, {
+        userId: req.user?.id,
+        supplierInvoiceNumber: req.body?.supplierInvoiceNumber,
+        remark: req.body?.remark,
+      });
+      return ResponseHandler.success(res, data, '三单匹配单已创建');
+    } catch (error) {
+      return respondServiceError(res, error, '创建三单匹配失败');
+    }
+  }
+
+  static async listThreeWayMatches(req, res) {
+    try {
+      const ThreeWayMatchService = require('../../../services/finance/ThreeWayMatchService');
+      const data = await ThreeWayMatchService.list(req.query);
+      return ResponseHandler.paginated(
+        res,
+        data.list,
+        data.total,
+        data.page,
+        data.pageSize,
+        '三单匹配列表'
+      );
+    } catch (error) {
+      return respondServiceError(res, error, '获取三单匹配列表失败');
+    }
+  }
+
+  static async getThreeWayMatch(req, res) {
+    try {
+      const ThreeWayMatchService = require('../../../services/finance/ThreeWayMatchService');
+      const id = safeParseId(req.params.id);
+      const data = await ThreeWayMatchService.getById(id);
+      if (!data) return ResponseHandler.error(res, '匹配单不存在', 'NOT_FOUND', 404);
+      return ResponseHandler.success(res, data, '三单匹配详情');
+    } catch (error) {
+      return respondServiceError(res, error, '获取三单匹配详情失败');
+    }
+  }
+
+  static async confirmThreeWayMatch(req, res) {
+    try {
+      const ThreeWayMatchService = require('../../../services/finance/ThreeWayMatchService');
+      const id = safeParseId(req.params.id);
+      const data = await ThreeWayMatchService.confirm(id, req.user?.id, {
+        forceVariance: req.body?.forceVariance === true || req.body?.force === true,
+      });
+      return ResponseHandler.success(res, data, '三单匹配已确认');
+    } catch (error) {
+      return respondServiceError(res, error, '确认三单匹配失败');
+    }
+  }
+
+  static async updateThreeWayMatchLines(req, res) {
+    try {
+      const ThreeWayMatchService = require('../../../services/finance/ThreeWayMatchService');
+      const id = safeParseId(req.params.id);
+      const lines = req.body?.lines || req.body?.items || [];
+      const data = await ThreeWayMatchService.updateInvoiceLines(id, lines, {
+        userId: req.user?.id,
+        remark: req.body?.remark,
+      });
+      return ResponseHandler.success(res, data, '发票量价已更新');
+    } catch (error) {
+      return respondServiceError(res, error, '更新三单匹配失败');
+    }
+  }
+
+  static async cancelThreeWayMatch(req, res) {
+    try {
+      const ThreeWayMatchService = require('../../../services/finance/ThreeWayMatchService');
+      const id = safeParseId(req.params.id);
+      const data = await ThreeWayMatchService.cancel(
+        id,
+        req.user?.id,
+        req.body?.reason || ''
+      );
+      return ResponseHandler.success(res, data, '三单匹配已取消');
+    } catch (error) {
+      return respondServiceError(res, error, '取消三单匹配失败');
+    }
+  }
+
+  static async getPurchaseReceiptFinanceStatus(req, res) {
+    try {
+      const FinanceDocumentStatusService = require('../../../services/finance/FinanceDocumentStatusService');
+      const id = safeParseId(req.params.receiptId);
+      const data = await FinanceDocumentStatusService.getPurchaseReceiptStatus(id);
+      if (!data) return ResponseHandler.error(res, '入库单不存在', 'NOT_FOUND', 404);
+      return ResponseHandler.success(res, data, '采购入库业财状态');
+    } catch (error) {
+      return respondServiceError(res, error, '获取业财状态失败');
+    }
+  }
+
+  static async getSalesOutboundFinanceStatus(req, res) {
+    try {
+      const FinanceDocumentStatusService = require('../../../services/finance/FinanceDocumentStatusService');
+      const id = safeParseId(req.params.outboundId);
+      const data = await FinanceDocumentStatusService.getSalesOutboundStatus(id);
+      if (!data) return ResponseHandler.error(res, '出库单不存在', 'NOT_FOUND', 404);
+      return ResponseHandler.success(res, data, '销售出库业财状态');
+    } catch (error) {
+      return respondServiceError(res, error, '获取业财状态失败');
+    }
+  }
+
+  static async getBankReconciliationBalanceSheet(req, res) {
+    try {
+      const BankReconciliationReportService = require('../../../services/finance/BankReconciliationReportService');
+      const data = await BankReconciliationReportService.getBalanceSheet({
+        accountId: req.query.accountId || req.query.account_id,
+        asOfDate: req.query.asOfDate || req.query.as_of_date,
+      });
+      return ResponseHandler.success(res, data, '银行余额调节表');
+    } catch (error) {
+      return respondServiceError(res, error, '获取银行余额调节表失败');
     }
   }
 
@@ -186,7 +461,7 @@ class FinanceEnhancementController {
   static async yearEndTransfer(req, res) {
     try {
       const yearData = req.body;
-      yearData.transferred_by = req.user?.name || req.user?.username || 'system';
+      yearData.transferred_by = getRequestActorLabel(req);
       const result = await PeriodEndService.yearEndTransfer(yearData);
       ResponseHandler.success(res, result, '年度结转完成');
     } catch (error) {
@@ -271,7 +546,7 @@ class FinanceEnhancementController {
           status: row.status === 200 || row.status === null ? 'success' : 'failed',
           result: requestData.message || row.operation,
           executedAt: row.executed_at,
-          executedBy: row.executed_by || 'system',
+          executedBy: (row.executed_by || getRequestActorLabel(req) || null),
         };
       });
 

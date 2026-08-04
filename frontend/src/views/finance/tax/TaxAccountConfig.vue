@@ -1,12 +1,17 @@
 <template>
   <div class="module-page tax-account-config-container">
-    <el-card>
+    <PageHeader title="税务科目配置" subtitle="进销项税与税务相关会计科目映射">
+      <template #actions>
+        <el-button v-permission="'finance:tax:create'" type="primary" @click="handleAdd">
+          新增配置
+        </el-button>
+      </template>
+    </PageHeader>
+
+    <el-card class="data-card" shadow="never">
       <template #header>
         <div class="card-header">
-          <span>税务科目配置</span>
-          <el-button v-permission="'finance:tax:create'" type="primary" @click="handleAdd">
-            新增配置
-          </el-button>
+          <span>配置列表</span>
         </div>
       </template>
 

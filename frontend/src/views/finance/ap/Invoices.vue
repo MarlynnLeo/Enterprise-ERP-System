@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * Invoices.vue
  * @description 前端界面组件文件
@@ -8,7 +8,7 @@
 -->
 <template>
   <div class="module-page invoices-container">
-    <PageHeader title="应付发票" subtitle="采购入库完成后自动生成，手工录入仅用于期初或例外">
+    <PageHeader title="应付发票" subtitle="请在会计凭证页选择采购订单手工生成；本页手工录入仅用于期初或例外">
       <template #actions>
 <el-button
           type="info"
@@ -74,7 +74,7 @@
       </template>
     </FinanceQueryCard>
 
-    <!-- 表格区域 -->
+<!-- 表格区域 -->
     <el-card class="data-card">
       <el-table :data="invoiceList" class="w-full" border v-loading="loading">
         <template #empty>
@@ -85,19 +85,29 @@
         <el-table-column prop="supplierName" label="供应商" min-width="180"></el-table-column>
         <el-table-column prop="invoiceDate" label="开票日期" width="110"></el-table-column>
         <el-table-column prop="dueDate" label="到期日期" width="110"></el-table-column>
-        <el-table-column prop="amount" label="金额" width="130">
+        <el-table-column prop="totalAmount" label="价税合计" width="120">
           <template #default="scope">
-            {{ formatCurrency(scope.row.amount) }}
+            {{ formatCurrency(scope.row.totalAmount) }}
           </template>
         </el-table-column>
-        <el-table-column prop="paidAmount" label="已付金额" width="130">
+        <el-table-column prop="amountExcludingTax" label="未税" width="110">
+          <template #default="scope">
+            {{ formatCurrency(scope.row.amountExcludingTax) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="taxAmount" label="税额" width="100">
+          <template #default="scope">
+            {{ formatCurrency(scope.row.taxAmount) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="paidAmount" label="已付金额" width="120">
           <template #default="scope">
             {{ formatCurrency(scope.row.paidAmount) }}
           </template>
         </el-table-column>
-        <el-table-column prop="balance" label="剩余金额" width="130">
+        <el-table-column prop="balanceAmount" label="剩余金额" width="120">
           <template #default="scope">
-            {{ formatCurrency(scope.row.amount - scope.row.paidAmount) }}
+            {{ formatCurrency(scope.row.balanceAmount) }}
           </template>
         </el-table-column>
         <el-table-column label="状态" min-width="100">
@@ -128,7 +138,11 @@
               确认
             </el-button>
             <el-button
-              v-if="scope.row.status === '草稿'"
+              v-if="
+                scope.row.status === '草稿' ||
+                (['已确认', '已逾期'].includes(scope.row.status) &&
+                  Math.abs(Number(scope.row.paidAmount || 0)) < 0.005)
+              "
               type="warning"
               size="small"
               @click="handleStatusChange(scope.row, '已取消')"
@@ -139,7 +153,7 @@
             <el-button
               v-if="
                 ['已确认', '部分付款', '已逾期'].includes(scope.row.status) &&
-                scope.row.amount - scope.row.paidAmount > 0
+                (scope.row.balanceAmount ?? 0) > 0
               "
               v-permission="'finance:ap:pay'"
               type="success"
@@ -536,14 +550,23 @@
             invoiceDetail.invoiceDate
           }}</el-descriptions-item>
           <el-descriptions-item label="到期日期">{{ invoiceDetail.dueDate }}</el-descriptions-item>
-          <el-descriptions-item label="总金额">{{
-            formatCurrency(invoiceDetail.amount)
+          <el-descriptions-item label="未税金额">{{
+            formatCurrency(invoiceDetail.amountExcludingTax)
+          }}</el-descriptions-item>
+          <el-descriptions-item label="税额">{{
+            formatCurrency(invoiceDetail.taxAmount)
+          }}</el-descriptions-item>
+          <el-descriptions-item label="价税合计">{{
+            formatCurrency(invoiceDetail.totalAmount)
+          }}</el-descriptions-item>
+          <el-descriptions-item label="付款条款">{{
+            invoiceDetail.terms || '—'
           }}</el-descriptions-item>
           <el-descriptions-item label="已付金额">{{
             formatCurrency(invoiceDetail.paidAmount)
           }}</el-descriptions-item>
           <el-descriptions-item label="剩余金额">{{
-            formatCurrency(invoiceDetail.balance)
+            formatCurrency(invoiceDetail.balanceAmount)
           }}</el-descriptions-item>
           <el-descriptions-item label="状态">
             <el-tag :type="getStatusType(invoiceDetail)">{{ getStatusText(invoiceDetail) }}</el-tag>
@@ -584,7 +607,7 @@
             @click="handleRecordPayment(invoiceDetail)"
             v-if="
               ['已确认', '部分付款', '已逾期'].includes(invoiceDetail.status) &&
-              invoiceDetail.balance > 0
+              invoiceDetail.balanceAmount > 0
             "
             v-permission="'finance:ap:pay'"
             >记录付款</el-button
@@ -918,14 +941,21 @@ const showAddDialog = () => {
 };
 const handleStatusChange = async (row, status) => {
   const actionText = status === '已确认' ? '确认' : '取消';
+  const isCancelConfirmed =
+    status === '已取消' && ['已确认', '已逾期'].includes(row.status);
+  const confirmMsg = isCancelConfirmed
+    ? `确定取消已确认发票 ${row.invoiceNumber} 吗？将冲销关联会计凭证并释放来源单据，未付款发票才可取消。`
+    : `确定要${actionText}发票 ${row.invoiceNumber} 吗？`;
   try {
-    await ElMessageBox.confirm(
-      `确定要${actionText}发票 ${row.invoiceNumber} 吗？`,
-      `${actionText}发票`,
-      { type: status === '已确认' ? 'success' : 'warning' }
-    );
+    await ElMessageBox.confirm(confirmMsg, `${actionText}发票`, {
+      type: status === '已确认' ? 'success' : 'warning',
+    });
     await financeApi.updateAPInvoiceStatus(row.id, { status });
-    ElMessage.success(`发票已${status === '已确认' ? '确认' : '取消'}`);
+    ElMessage.success(
+      isCancelConfirmed
+        ? '发票已取消，关联凭证已冲销'
+        : `发票已${status === '已确认' ? '确认' : '取消'}`
+    );
     loadInvoices();
   } catch (error) {
     if (error === 'cancel' || error === 'close') return;
@@ -959,17 +989,15 @@ const handleEdit = async (row) => {
     // 填充明细项
     invoiceForm.items = invoice.items || [];
 
-    if (invoice.taxRate !== undefined) {
+    if (invoice.taxRate != null) {
       invoiceForm.taxRate = invoice.taxRate;
-    } else if (invoice.amount !== undefined && invoiceForm.items.length > 0) {
-      // 尝试推导原单据的税率（后端未存储/返回税率，但返回了总金额和明细）
+    } else if (invoice.totalAmount != null && invoiceForm.items.length > 0) {
       const subtotal = invoiceForm.items.reduce(
         (sum, item) => sum + (parseFloat(item.amount) || 0),
         0
       );
-      if (subtotal > 0 && invoice.amount >= subtotal) {
-        // 推导出的税率保留两位小数，如 0.13
-        const impliedTaxRate = (parseFloat(invoice.amount) - subtotal) / subtotal;
+      if (subtotal > 0 && invoice.totalAmount >= subtotal) {
+        const impliedTaxRate = (parseFloat(invoice.totalAmount) - subtotal) / subtotal;
         invoiceForm.taxRate = Math.round(impliedTaxRate * 100) / 100;
       } else {
         invoiceForm.taxRate = defaultVATRate.value;
@@ -1019,7 +1047,7 @@ const printInvoiceDetail = async () => {
       specification: item.specification || item.specs || '',
       quantity: item.quantity?.toString() || '0',
       unit_price: formatCurrency(item.unitPrice ?? item.unit_price),
-      tax_amount: formatCurrency(item.taxAmount ?? item.tax_amount),
+      tax_amount: formatCurrency(item.taxAmount),
       amount: formatCurrency(item.amount),
     }));
     const visibleAmounts = (invoiceDetail.value.items || []).every(
@@ -1028,7 +1056,7 @@ const printInvoiceDetail = async () => {
     const subtotal = visibleAmounts
       ? (invoiceDetail.value.items || []).reduce((sum, item) => sum + Number(item.amount || 0), 0)
       : null;
-    const taxAmount = invoiceDetail.value.taxAmount ?? invoiceDetail.value.tax_amount;
+    const taxAmount = invoiceDetail.value.taxAmount;
 
     const html = await printService.generateByDefaultTemplate('finance', 'ap_invoice', {
       invoice_number: invoiceDetail.value.invoiceNumber || '-',
@@ -1039,9 +1067,9 @@ const printInvoiceDetail = async () => {
       status: getStatusText(invoiceDetail.value),
       subtotal: formatCurrency(invoiceDetail.value.subtotal ?? subtotal),
       tax_amount: formatCurrency(taxAmount),
-      total_amount: formatCurrency(invoiceDetail.value.amount),
+      total_amount: formatCurrency(invoiceDetail.value.totalAmount),
       paid_amount: formatCurrency(invoiceDetail.value.paidAmount),
-      balance_amount: formatCurrency(invoiceDetail.value.balance),
+      balance_amount: formatCurrency(invoiceDetail.value.balanceAmount),
       notes: invoiceDetail.value.notes || '无',
       print_time: new Date().toLocaleString(),
       items,
@@ -1056,13 +1084,13 @@ const printInvoiceDetail = async () => {
 // 记录付款
 const handleRecordPayment = (row) => {
   // 直接使用服务端已计算的余额字段，避免前端浮点减法与DB值不一致
-  const balance = parseFloat(row.balance) || parseFloat(row.balance_amount) || 0;
+  const balance = parseFloat(row.balanceAmount) || 0;
 
   // 填充付款表单
   paymentForm.invoiceId = row.id;
   paymentForm.invoiceNumber = row.invoiceNumber;
   paymentForm.supplierName = row.supplierName;
-  paymentForm.invoiceAmount = formatCurrency(row.amount);
+  paymentForm.invoiceAmount = formatCurrency(row.totalAmount);
   paymentForm.paidAmount = formatCurrency(row.paidAmount);
   paymentForm.balance = formatCurrency(balance);
   paymentForm.balanceValue = balance;

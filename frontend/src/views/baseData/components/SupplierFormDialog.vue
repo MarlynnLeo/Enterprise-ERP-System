@@ -25,6 +25,17 @@
       <el-form-item label="地址">
         <el-input v-model="form.address" type="textarea" :rows="2" placeholder="请输入地址"></el-input>
       </el-form-item>
+      <el-form-item label="付款账期(天)" prop="payment_term_days">
+        <el-input-number
+          v-model="form.payment_term_days"
+          :min="0"
+          :max="3650"
+          :step="1"
+          controls-position="right"
+          class="w-full"
+          placeholder="默认 30 天"
+        />
+      </el-form-item>
       <el-form-item label="状态">
         <el-radio-group v-model="form.status">
           <el-radio :value="1">启用</el-radio>
@@ -75,6 +86,7 @@ const form = reactive({
   contact_phone: '',
   email: '',
   address: '',
+  payment_term_days: 30,
   status: 1,
   remark: ''
 })
@@ -101,6 +113,10 @@ watch(() => props.editData, (newVal) => {
         contact_phone: newVal.contact_phone || newVal.phone || '',
         email: newVal.email || '',
         address: newVal.address || '',
+        payment_term_days:
+          newVal.payment_term_days != null && newVal.payment_term_days !== ''
+            ? Number(newVal.payment_term_days)
+            : 30,
         status: newVal.status !== undefined ? Number(newVal.status) : 1,
         remark: newVal.remark || newVal.remarks || ''
       })
@@ -124,6 +140,7 @@ const resetForm = () => {
   form.contact_phone = ''
   form.email = ''
   form.address = ''
+  form.payment_term_days = 30
   form.status = 1
   form.remark = ''
   isEdit.value = false
@@ -143,6 +160,10 @@ const submitForm = () => {
           contact_phone: form.contact_phone,
           email: form.email,
           address: form.address,
+          payment_term_days:
+            form.payment_term_days != null && form.payment_term_days !== ''
+              ? Number(form.payment_term_days)
+              : 30,
           status: form.status !== undefined ? Number(form.status) : 1,
           remark: form.remark
         }

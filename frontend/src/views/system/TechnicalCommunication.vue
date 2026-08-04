@@ -237,7 +237,7 @@
         <!-- 可见性选择 -->
         <el-form-item label="可见性" prop="visibility">
           <el-radio-group v-model="form.visibility">
-            <el-radio value="public">
+            <el-radio v-permission="NOTIFICATION_PERMISSIONS.TECH_COMM_BROADCAST" value="public">
               <el-icon><View /></el-icon> 公开（所有人可见）
             </el-radio>
             <el-radio value="private">
@@ -371,6 +371,7 @@
 </template>
 
 <script setup>
+import { NOTIFICATION_PERMISSIONS } from '@/constants/notification'
 import { useDictionaryStore } from '@/stores/dictionary'
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { formatDateTime } from '@/utils/helpers/dateUtils'
@@ -427,7 +428,7 @@ const form = reactive({
   attachments: [],
   status: 'published',  // 默认为已发布
   isPinned: false,
-  visibility: 'public',  // 默认公开
+  visibility: 'private',
   recipients: [],
   departmentRecipients: []
 })
@@ -744,7 +745,7 @@ const resetForm = () => {
   form.attachments = []
   form.status = 'published'  // 默认为已发布
   form.isPinned = false
-  form.visibility = 'public'  // 重置为公开
+  form.visibility = 'private'
   form.recipients = []
   form.departmentRecipients = []
 

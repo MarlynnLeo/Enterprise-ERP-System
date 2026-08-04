@@ -1,29 +1,32 @@
 ﻿<template>
   <div class="module-page salary-container">
-    <el-card class="box-card">
+    <PageHeader title="薪酬核算中心" subtitle="按月核算、确认与导出薪资">
+      <template #actions>
+        <el-date-picker
+          v-model="queryPeriod"
+          type="month"
+          placeholder="选择计薪月份"
+          value-format="YYYY-MM"
+          @change="fetchData"
+          class="form-control-140-mr"
+          :clearable="false"
+        />
+        <el-button type="warning" v-permission="'hr:salary:update'" @click="handleCalculate" :loading="calcLoading">
+          <el-icon><Refresh /></el-icon>一键自动核算
+        </el-button>
+        <el-button type="primary" v-permission="'hr:salary:update'" @click="handleBatchConfirm" :loading="confirmLoading">
+          <el-icon><Check /></el-icon>全部确认
+        </el-button>
+        <el-button type="success" v-permission="'hr:salary:view'" @click="handleExport" :loading="exportLoading">
+          <el-icon><Download /></el-icon>导出Excel
+        </el-button>
+      </template>
+    </PageHeader>
+
+    <el-card class="data-card" shadow="never">
       <template #header>
         <div class="card-header">
-          <span>薪酬核算中心</span>
-          <div>
-            <el-date-picker
-              v-model="queryPeriod"
-              type="month"
-              placeholder="选择计薪月份"
-              value-format="YYYY-MM"
-              @change="fetchData"
-              class="form-control-140-mr"
-              :clearable="false"
-            />
-            <el-button type="warning" v-permission="'hr:salary:update'" @click="handleCalculate" :loading="calcLoading">
-              <el-icon><Refresh /></el-icon>一键自动核算
-            </el-button>
-            <el-button type="primary" v-permission="'hr:salary:update'" @click="handleBatchConfirm" :loading="confirmLoading">
-              <el-icon><Check /></el-icon>全部确认
-            </el-button>
-            <el-button type="success" v-permission="'hr:salary:view'" @click="handleExport" :loading="exportLoading">
-              <el-icon><Download /></el-icon>导出Excel
-            </el-button>
-          </div>
+          <span>工资明细</span>
         </div>
       </template>
 

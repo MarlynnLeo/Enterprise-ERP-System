@@ -189,6 +189,15 @@ const getTitleByPath = (path, prevPath = '') => {
     }
   }
 
+  // 待结算明细（应收 / 应付）
+  if (path === 'settlement') {
+    if (prevPath === 'ar') return t('menu.arSettlement')
+    if (prevPath === 'ap') return t('menu.apSettlement')
+  }
+  if (path === 'three-way-match' && prevPath === 'ap') {
+    return t('menu.apThreeWayMatch')
+  }
+
   // 处理accounts在不同上下文下的显示
   if (path === 'accounts') {
     if (prevPath === 'cash') {

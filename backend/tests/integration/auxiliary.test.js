@@ -88,6 +88,30 @@ describe('通知规则 /api/system/notification-rules', () => {
 
     expect(res.status).toBe(200);
   });
+
+  test('应提供完整事件、有效收件选项和实际收件人预览', async () => {
+    const eventsRes = await api.get('/api/system/notification-rules/events');
+    expect(eventsRes.status).toBe(200);
+    expect(eventsRes.body.data).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ event_type: 'ASSEMBLY_ALL_STEPS_COMPLETED' }),
+        expect.objectContaining({ event_type: 'FINANCE_AR_INVOICE_OVERDUE' }),
+      ])
+    );
+
+    const optionsRes = await api.get('/api/system/notification-rules/recipient-options');
+    expect(optionsRes.status).toBe(200);
+    const users = optionsRes.body.data?.users || [];
+    expect(users.length).toBeGreaterThan(0);
+
+    const previewRes = await api
+      .post('/api/system/notification-rules/preview')
+      .send({ recipient_type: 'user', recipient_config: [users[0].id] });
+    expect(previewRes.status).toBe(200);
+    expect(previewRes.body.data).toEqual(
+      expect.objectContaining({ count: expect.any(Number), recipients: expect.any(Array) })
+    );
+  });
 });
 
 // ==================== 技术沟通 ====================

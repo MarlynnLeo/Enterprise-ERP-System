@@ -416,8 +416,15 @@ export const PurchaseHelper = {
       received_quantity: parseFloat(data.received_quantity) || 0,
       warehoused_quantity: parseFloat(data.warehoused_quantity) || 0,
 
-      // 价格相关字段
-      price: parseFloat(data.price) || parseFloat(data.unit_price) || 0,
+      // 价格相关字段：price / unit_price 双写，避免采购/销售字段名不一致
+      price: (() => {
+        const p = parseFloat(data.price ?? data.unit_price ?? data.unitPrice) || 0
+        return p
+      })(),
+      unit_price: (() => {
+        const p = parseFloat(data.unit_price ?? data.unitPrice ?? data.price) || 0
+        return p
+      })(),
       total: parseFloat(data.total) || parseFloat(data.total_price) || parseFloat(data.amount) || 0,
 
       // 其他字段保持原样
@@ -524,8 +531,11 @@ export const PurchaseHelper = {
         if (!item.quantity || item.quantity <= 0) {
           errors.push(`第${index + 1}个物料：数量必须大于0`);
         }
-        if (!item.price || item.price < 0) {
-          errors.push(`第${index + 1}个物料：单价不能为负数`);
+        {
+          const unitPrice = parseFloat(item.price ?? item.unit_price ?? item.unitPrice)
+          if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+            errors.push(`第${index + 1}个物料：单价不能为负数`)
+          }
         }
       });
     }
@@ -545,10 +555,10 @@ export const PurchaseHelper = {
     if (!Array.isArray(items)) return 0;
 
     return items.reduce((total, item) => {
-      const quantity = parseFloat(item.quantity) || 0;
-      const price = parseFloat(item.price) || parseFloat(item.unit_price) || 0;
-      return total + (quantity * price);
-    }, 0);
+      const quantity = parseFloat(item.quantity) || 0
+      const price = parseFloat(item.price ?? item.unit_price ?? item.unitPrice) || 0
+      return total + quantity * price
+    }, 0)
   }
 };
 

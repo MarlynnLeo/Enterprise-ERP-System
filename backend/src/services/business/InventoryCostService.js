@@ -8,7 +8,7 @@
 const { logger } = require('../../utils/logger');
 const db = require('../../config/db');
 const financeModel = require('../../models/finance');
-const { getUserIdByIdentifier } = require('../../utils/userUtils');
+const { resolveActorUserId } = require('../../utils/userUtils');
 const {
   DOCUMENT_TYPE_MAPPING,
   ENTRY_NUMBER_PREFIX,
@@ -151,7 +151,8 @@ class InventoryCostService {
       const sourceAccountId = await this.getSourceAccountId(connection, referenceType);
 
       // 6. 获取用户ID（如果传入的是用户名或姓名）
-      const userId = await getUserIdByIdentifier(connection, context.userId || 'system');
+      const { resolveActorUserId } = require('../../utils/userUtils');
+      const userId = await resolveActorUserId(connection, context.userId, context.created_by);
 
       // 7. 准备分录数据
       const entryData = {
@@ -289,7 +290,8 @@ class InventoryCostService {
       );
 
       // 6. 获取用户ID（如果传入的是用户名或姓名）
-      const userId = await getUserIdByIdentifier(connection, context.userId || 'system');
+      const { resolveActorUserId } = require('../../utils/userUtils');
+      const userId = await resolveActorUserId(connection, context.userId, context.created_by);
 
       // 7. 准备分录数据
       const entryData = {

@@ -1,5 +1,7 @@
 <template>
   <div class="module-page tax-returns-container">
+    <PageHeader title="纳税申报" subtitle="增值税与所得税等纳税申报管理" />
+
     <FinanceQueryCard
       :model="searchForm"
       :expanded="showAdvancedSearch"
@@ -39,7 +41,7 @@
       </template>
     </FinanceQueryCard>
 
-    <el-card class="table-card">
+    <el-card class="data-card table-card" shadow="never">
       <template #header>
         <div class="card-header">
           <span>纳税申报列表</span>

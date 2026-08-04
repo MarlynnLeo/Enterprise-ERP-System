@@ -35,6 +35,7 @@ const BusinessError = require('../../utils/BusinessError');
 const globalConfigManager = require('../../config/globalConfig');
 const businessConfig = require('../../config/businessConfig');
 const { currentDateString, toLocalDateString } = require('../../utils/dateUtils');
+const { resolveActorUserId } = require('../../utils/userUtils');
 
 /**
  * 成本核算服务
@@ -517,7 +518,7 @@ class CostAccountingService {
             description: `自动冲销无效WIP凭证 ${entry.entry_number || entry.id}`,
             transaction_type: '期末WIP结转冲销',
             transaction_id: entry.id,
-            created_by: 'system',
+            created_by: await resolveActorUserId(connection),
             status: 'posted',
             is_posted: 1,
           },
@@ -544,14 +545,15 @@ class CostAccountingService {
           [reversalEntryId, entry.id]
         );
 
+        const logActor = await resolveActorUserId(connection);
         await connection.execute(
           `INSERT INTO operation_logs (module, operation, username, request_data, created_at)
            VALUES (?, ?, ?, ?, NOW())`,
           [
             'finance',
             'repair_invalid_wip_voucher',
-            'system',
-            JSON.stringify({ periodId, entryId: entry.id, reversalEntryId }),
+            String(logActor),
+            JSON.stringify({ periodId, entryId: entry.id, reversalEntryId, actorId: logActor }),
           ]
         );
       } else {
@@ -1103,7 +1105,7 @@ class CostAccountingService {
           laborCost.totalCost,
           overheadCost.totalCost,
           totalActualCost,
-          'system',
+          await resolveActorUserId(connection),
         ]
       );
 
@@ -1305,7 +1307,7 @@ class CostAccountingService {
             document_type: DOCUMENT_TYPES.PRODUCTION_COST_TRANSFER,
             document_number: order.code,
             transaction_id: productionOrderId,
-            created_by: 'system',
+            created_by: await resolveActorUserId(connection),
             voucher_word: '转',
             status: 'posted',
             is_posted: 1,
@@ -3117,7 +3119,7 @@ class CostAccountingService {
         description: voucherDescription, // 使用动态描述（区分领料/补料）
         transaction_type: '生产领料', // 业务类型：生产领料
         transaction_id: taskId, // 关联的生产任务ID
-        created_by: 'system',
+        created_by: await resolveActorUserId(conn),
         status: 'posted',
         is_posted: 1,
       };
@@ -3550,7 +3552,7 @@ class CostAccountingService {
         description: '期末在制品成本结转',
         transaction_type: '期末WIP结转', // 业务类型：在制品结转
         transaction_id: periodId, // 关联的会计期间ID
-        created_by: 'system', // 系统自动计算
+        created_by: await resolveActorUserId(connection),
         status: 'posted',
         is_posted: 1,
       };
@@ -3816,7 +3818,7 @@ class CostAccountingService {
         description: `销售成本结转 - ${productName}`,
         transaction_type: 'SALES_COST', // 业务类型：销售成本
         transaction_id: salesId, // 关联的销售ID
-        created_by: 'system',
+        created_by: await resolveActorUserId(conn),
         status: 'posted',
         is_posted: 1,
       };

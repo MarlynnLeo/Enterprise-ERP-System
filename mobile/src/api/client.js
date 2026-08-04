@@ -255,8 +255,13 @@ api.interceptors.response.use(
       // 请求已发送但未收到响应
       errorMessage = '网络连接错误，请检查网络'
 
-      // 开启自动重试机制 (仅限网络超时或50x错误，非业务错)
-      const shouldRetry = error.code === 'ECONNABORTED' || error.message.includes('Network Error')
+      // 自动重试：仅幂等安全方法，避免 POST/PUT/DELETE 重复出库/收款
+      const method = String(originalRequest.method || 'get').toLowerCase()
+      const safeMethod = method === 'get' || method === 'head' || method === 'options'
+      const allowRetry = safeMethod || originalRequest.idempotent === true
+      const shouldRetry =
+        allowRetry &&
+        (error.code === 'ECONNABORTED' || error.message.includes('Network Error'))
       if (shouldRetry) {
         if (!originalRequest._retryCount) {
           originalRequest._retryCount = 0

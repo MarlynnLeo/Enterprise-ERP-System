@@ -369,7 +369,7 @@ onMounted(async () => {
 
 .statistics-row {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
   gap: 16px;
   margin-bottom: 16px;
 }

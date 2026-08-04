@@ -91,19 +91,19 @@
         </template>
         <el-table-column prop="inspectionNo" label="检验单号" min-width="120" show-overflow-tooltip />
         <el-table-column prop="purchaseOrderNo" label="采购单号" min-width="110" show-overflow-tooltip />
-        <el-table-column prop="item_code" label="物料编码" min-width="120" show-overflow-tooltip>
+        <el-table-column prop="itemCode" label="物料编码" min-width="120" show-overflow-tooltip>
           <template #default="{ row }">
-            {{ row.item_code || row.material_code || row.material?.code || '-' }}
+            {{ row.itemCode || row.productCode || '-' }}
           </template>
         </el-table-column>
-        <el-table-column prop="product_name" label="物料名称" min-width="130" show-overflow-tooltip>
+        <el-table-column prop="itemName" label="物料名称" min-width="130" show-overflow-tooltip>
           <template #default="{ row }">
-            {{ row.product_name || extractMaterialName(row) }}
+            {{ row.itemName || row.productName || extractMaterialName(row) }}
           </template>
         </el-table-column>
-        <el-table-column prop="product_code" label="产品型号" min-width="150" show-overflow-tooltip>
+        <el-table-column prop="itemSpecs" label="产品型号" min-width="150" show-overflow-tooltip>
           <template #default="{ row }">
-            {{ row.product_code || row.specs || row.item_specs || row.material?.specs || '-' }}
+            {{ row.itemSpecs || row.productCode || '-' }}
           </template>
         </el-table-column>
         <el-table-column prop="supplierName" label="供应商" min-width="150" show-overflow-tooltip />
@@ -112,29 +112,29 @@
             {{ Math.floor(scope.row.quantity || 0) }}
           </template>
         </el-table-column>
-        <el-table-column prop="qualified_quantity" label="合格数" min-width="90" show-overflow-tooltip>
+        <el-table-column prop="qualifiedQuantity" label="合格数" min-width="90" show-overflow-tooltip>
           <template #default="scope">
-            <span v-if="scope.row.qualified_quantity !== null && scope.row.qualified_quantity !== undefined" class="text-success font-weight-700">
-              {{ Math.floor(scope.row.qualified_quantity) }}
+            <span v-if="scope.row.qualifiedQuantity !== null && scope.row.qualifiedQuantity !== undefined" class="text-success font-weight-700">
+              {{ Math.floor(scope.row.qualifiedQuantity) }}
             </span>
             <span v-else class="text-muted">-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="unqualified_quantity" label="不合格" min-width="70" show-overflow-tooltip>
+        <el-table-column prop="unqualifiedQuantity" label="不合格" min-width="70" show-overflow-tooltip>
           <template #default="scope">
-            <span v-if="scope.row.unqualified_quantity !== null && scope.row.unqualified_quantity !== undefined && scope.row.unqualified_quantity > 0" class="text-danger font-weight-700">
-              {{ Math.floor(scope.row.unqualified_quantity) }}
+            <span v-if="scope.row.unqualifiedQuantity !== null && scope.row.unqualifiedQuantity !== undefined && scope.row.unqualifiedQuantity > 0" class="text-danger font-weight-700">
+              {{ Math.floor(scope.row.unqualifiedQuantity) }}
             </span>
-            <span v-else-if="scope.row.unqualified_quantity === 0" class="text-muted">0</span>
+            <span v-else-if="scope.row.unqualifiedQuantity === 0" class="text-muted">0</span>
             <span v-else class="text-muted">-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="inspectionDate" label="检验日期" min-width="100" show-overflow-tooltip>
+        <el-table-column prop="plannedDate" label="检验日期" min-width="100" show-overflow-tooltip>
           <template #default="scope">
-            {{ formatDate(scope.row.inspectionDate) }}
+            {{ formatDate(scope.row.actualDate || scope.row.plannedDate) }}
           </template>
         </el-table-column>
-        <el-table-column prop="inspector" label="检验员" min-width="70" show-overflow-tooltip />
+        <el-table-column prop="inspectorName" label="检验员" min-width="70" show-overflow-tooltip />
         <el-table-column prop="status" label="检验状态" min-width="92" show-overflow-tooltip>
           <template #default="scope">
             <el-tag :type="getQualityStatusColor(scope.row.status)">
@@ -319,16 +319,15 @@ const fetchData = async () => {
     const { list, total: totalCount } = parsePaginatedData(response)
 
     if (list.length > 0 || totalCount >= 0) {
-      inspectionList.value = list.map(item => ({
+      // 后端已输出 camel；仅补展示别名
+      inspectionList.value = list.map((item) => ({
         ...item,
-        inspectionNo: item.inspection_no,
-        purchaseOrderNo: item.reference_no,
-        materialName: extractMaterialName(item),
-        specs: item.specs || item.item_specs || item.material?.specs || extractMaterialSpecsSimple(item),
-        supplierName: extractSupplierNameSimple(item),
-        batchNo: item.batch_no,
-        inspectionDate: item.actual_date || item.planned_date,
-        inspector: item.inspector_name || '-'
+        purchaseOrderNo: item.referenceNo || item.purchaseOrderNo,
+        materialName: item.itemName || item.productName || extractMaterialName(item),
+        specs: item.itemSpecs || extractMaterialSpecsSimple(item),
+        supplierName: item.supplierName || extractSupplierNameSimple(item),
+        inspectionDate: item.actualDate || item.plannedDate,
+        inspector: item.inspectorName || '-'
       }))
       total.value = totalCount
 

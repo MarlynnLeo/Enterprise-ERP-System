@@ -9,6 +9,7 @@ const { CodeGenerators } = require('../../../../utils/codeGenerator');
 const db = require('../../../../config/db');
 const InventoryService = require('../../../../services/InventoryService');
 const { _syncProductionStatus } = require('../inventoryConsistencyController');
+const { getRequestActorLabel } = require('../../../../utils/userUtils');
 const {
   calculateMaterialRequirementsWithStock,
 } = require('../../../../services/business/MaterialCalculationService');
@@ -305,7 +306,7 @@ const supplementOutbound = async (req, res) => {
           transactionType: 'outbound',
           referenceType: 'outbound_supplement',
           referenceNo: refNo,
-          operator: 'system',
+          operator: getRequestActorLabel(req),
           remark: `补发: ${remark || ''}`,
           idempotencyKey: `outbound_supplement:${refNo}:${item.material_id}:${locationId}:${supplementQty}:${item.outbound_item_id}`,
         },
@@ -549,7 +550,7 @@ const batchOutbound = async (req, res) => {
         'draft',
         'batch_issue',
         remark || '批量发料',
-        operator || 'system',
+        operator || getRequestActorLabel(req),
         'batch_production_tasks',
         JSON.stringify(task_ids),
         1,

@@ -125,8 +125,8 @@
           <el-empty description="暂无采购订单" />
         </template>
         <el-table-column type="selection" width="55" fixed="left"></el-table-column>
-        <el-table-column prop="order_no" label="订单编号" width="140" show-overflow-tooltip></el-table-column>
-        <el-table-column prop="order_date" label="订单日期" width="110"></el-table-column>
+        <el-table-column prop="orderNo" label="订单编号" width="140" show-overflow-tooltip></el-table-column>
+        <el-table-column prop="orderDate" label="订单日期" width="110"></el-table-column>
         <el-table-column label="到货倒计时" width="110">
           <template #default="scope">
             <el-tooltip
@@ -142,8 +142,8 @@
             </el-tooltip>
           </template>
         </el-table-column>
-        <el-table-column prop="supplier_name" label="供应商" min-width="240" show-overflow-tooltip></el-table-column>
-        <el-table-column prop="total_amount" label="订单金额" width="120">
+        <el-table-column prop="supplierName" label="供应商" min-width="240" show-overflow-tooltip></el-table-column>
+        <el-table-column prop="totalAmount" label="订单金额" width="120">
           <template #default="scope">
             {{ formatCurrency(scope.row.total_amount) }}
           </template>

@@ -10,6 +10,11 @@ export const notificationRuleApi = {
   deleteRule: (id) => api.delete(`${BASE_URL}/${id}`),
   toggleActive: (id, is_active) => api.patch(`${BASE_URL}/${id}/toggle`, { is_active }),
   getSupportedEvents: () => api.get(`${BASE_URL}/events`),
+  getRecipientOptions: () => api.get(`${BASE_URL}/recipient-options`),
+  previewRecipients: (data) => api.post(`${BASE_URL}/preview`, data),
+  getResponsibilities: () => api.get(`${BASE_URL}/responsibilities`),
+  updateResponsibility: (code, data) => api.put(`${BASE_URL}/responsibilities/${code}`, data),
+  sendTest: (id) => api.post(`${BASE_URL}/${id}/test`),
 };
 
 export default notificationRuleApi;

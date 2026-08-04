@@ -1,8 +1,10 @@
 const NonconformingProduct = require('../../models/nonconformingProduct');
 const { logger } = require('../../utils/logger');
 const businessConfig = require('../../config/businessConfig');
+const { firstValidUserId } = require('../../utils/userUtils');
 const QualityIntegrationService = require('./QualityIntegrationService');
 const NotificationService = require('../NotificationService');
+const { resolveActorLabel, resolveActorUserId } = require('../../utils/userUtils');
 
 // Centralized NCP statuses from business config.
 const STATUS = {
@@ -242,6 +244,11 @@ class NonconformingProductService {
         defectDescription += `\n具体不良项: ${defectDetails.join(', ')}`;
       }
 
+      const createdBy = firstValidUserId(inspection.inspector_id);
+      if (!createdBy) {
+        throw new Error(`检验单 ${inspection.inspection_no || inspection.id} 缺少检验员用户ID，不能自动创建不合格品单`);
+      }
+
       const data = {
         inspection_id: inspection.id,
         inspection_no: inspection.inspection_no,
@@ -257,7 +264,7 @@ class NonconformingProductService {
         current_location: '检验区',
         isolation_area: isolationArea,
         responsible_party: responsibleParty,
-        created_by: 'system',
+        created_by: createdBy,
       };
 
       const result = await NonconformingProduct.create(data, externalConnection);
@@ -405,7 +412,7 @@ class NonconformingProductService {
       await NonconformingProduct.updateDisposition(ncpId, {
         ...dispositionData,
         disposition_reason: String(dispositionData.disposition_reason).trim(),
-        disposition_by: dispositionData.disposition_by || dispositionData.updated_by || 'system',
+        disposition_by: await resolveActorLabel(null, dispositionData.disposition_by, dispositionData.updated_by),
       });
 
       logger.info(`Processed disposition for NCP ${ncp.ncp_no}: ${dispositionData.disposition}`);
@@ -451,17 +458,34 @@ class NonconformingProductService {
       }
 
       const ncpQuantity = normalizeNumber(ncp.quantity, 0);
-      const handledQuantity = normalizeNumber(completionData.handled_quantity, ncpQuantity);
-      if (handledQuantity <= 0 || handledQuantity > ncpQuantity) {
-        throw new Error('Handled quantity must be greater than 0 and not exceed NCP quantity');
+      const alreadyHandled = normalizeNumber(ncp.handled_quantity, 0);
+      const handledQuantity = normalizeNumber(completionData.handled_quantity, ncpQuantity - alreadyHandled);
+      if (handledQuantity <= 0) {
+        throw new Error('Handled quantity must be greater than 0');
       }
+      // 处置量闭环：累计处置不得超过 NCP 数量；一次完成要求全量处置
+      const totalAfter = alreadyHandled + handledQuantity;
+      if (totalAfter > ncpQuantity + 0.0001) {
+        throw new Error(
+          `Handled quantity exceeds NCP quantity: already=${alreadyHandled}, this=${handledQuantity}, ncp=${ncpQuantity}`
+        );
+      }
+      if (Math.abs(totalAfter - ncpQuantity) > 0.0001 && completionData.force_partial !== true) {
+        // 默认要求一次处置清零；允许显式 force_partial 保留部分（未来多段处置）
+        if (handledQuantity < ncpQuantity - alreadyHandled - 0.0001) {
+          throw new Error(
+            `NCP 处置数量未闭环：需处置 ${ncpQuantity - alreadyHandled}，本次 ${handledQuantity}。请全量处置或分次时传 force_partial`
+          );
+        }
+      }
+      const finalHandledQuantity = Math.min(totalAfter, ncpQuantity);
 
       const updateData = {
-        handled_quantity: handledQuantity,
+        handled_quantity: finalHandledQuantity,
         handling_cost: normalizeNumber(completionData.handling_cost, 0),
         status: STATUS.NCP.PROCESSING,
         note: completionData.note || ncp.note,
-        updated_by: completionData.updated_by || 'system',
+        updated_by: await resolveActorLabel(null, completionData.updated_by),
       };
 
       await NonconformingProduct.update(ncpId, updateData, connection);
@@ -477,27 +501,32 @@ class NonconformingProductService {
         switch (ncp.disposition) {
           case 'use_as_is':
             // 让步接收 - 自动创建入库单(入库到物料默认仓库)
-            await this.handleUseAsIs(ncp, updateData.handled_quantity, connection);
+            await this.handleUseAsIs(
+              ncp,
+              handledQuantity,
+              connection,
+              completionData.user_id || ncp.concession_approver_id || ncp.created_by
+            );
             break;
 
           case 'return':
             // 退货 - 自动创建供应商退货单
-            await this.handleReturn(ncp, updateData.handled_quantity, connection);
+            await this.handleReturn(ncp, handledQuantity, connection);
             break;
 
           case 'replacement':
             // 换货 - 自动创建退货单和待收货记录
-            await this.handleReplacement(ncp, updateData.handled_quantity, connection);
+            await this.handleReplacement(ncp, handledQuantity, connection);
             break;
 
           case 'scrap':
             // 报废 - 自动创建报废记录
-            await this.handleScrap(ncp, updateData.handled_quantity, connection);
+            await this.handleScrap(ncp, handledQuantity, connection);
             break;
 
           case 'rework':
             // 返工 - 自动创建返工任务
-            await this.handleRework(ncp, updateData.handled_quantity, connection);
+            await this.handleRework(ncp, handledQuantity, connection);
             break;
 
           default:
@@ -508,12 +537,14 @@ class NonconformingProductService {
         throw autoError;
       }
 
+      // 仅当累计处置量达到 NCP 数量时关单
+      const canComplete = finalHandledQuantity + 0.0001 >= ncpQuantity;
       await NonconformingProduct.update(
         ncpId,
         {
-          handled_quantity: handledQuantity,
+          handled_quantity: finalHandledQuantity,
           handling_cost: updateData.handling_cost,
-          status: STATUS.NCP.COMPLETED,
+          status: canComplete ? STATUS.NCP.COMPLETED : STATUS.NCP.PROCESSING,
           note: updateData.note,
           updated_by: updateData.updated_by,
         },
@@ -534,11 +565,91 @@ class NonconformingProductService {
   /**
    * 处理让步接收 - 自动创建入库单(入库到物料默认仓库)
    */
-  static async handleUseAsIs(ncp, quantity, connection) {
+  static async handleUseAsIs(ncp, quantity, connection, actorId = null) {
     try {
       logger.info(`Processing NCP use-as-is disposition: ncpNo=${ncp.ncp_no}, quantity=${quantity}`);
 
-      // 生成入库单号 - 使用配置化的前缀
+      // 查询检验类型：来料 → 采购收货；过程/终检 → 其它入库（禁止错误建 PO 收货）
+      let inspectionType = 'incoming';
+      let inspection = {
+        reference_id: null,
+        reference_no: null,
+        supplier_id: ncp.supplier_id || null,
+        supplier_name: ncp.supplier_name || null,
+        inspection_type: 'incoming',
+      };
+
+      if (ncp.inspection_id) {
+        const [inspectionRows] = await connection.query(
+          `SELECT qi.*, po.supplier_id, s.name as supplier_name
+           FROM quality_inspections qi
+           LEFT JOIN purchase_orders po ON qi.reference_id = po.id AND qi.inspection_type = 'incoming'
+           LEFT JOIN suppliers s ON po.supplier_id = s.id
+           WHERE qi.id = ?`,
+          [ncp.inspection_id]
+        );
+        if (inspectionRows.length > 0) {
+          inspection = inspectionRows[0];
+          inspectionType = String(inspection.inspection_type || 'incoming');
+          inspection.supplier_id = inspection.supplier_id || ncp.supplier_id;
+          inspection.supplier_name = inspection.supplier_name || ncp.supplier_name || null;
+        } else {
+          throw new Error(`不合格品 ${ncp.ncp_no} 关联的检验单 ${ncp.inspection_id} 不存在，不能继续生成让步接收入库单`);
+        }
+      } else {
+        logger.info(`该不合格品 ${ncp.ncp_no} 无检验单关联, 执行无源让步接收建单`);
+      }
+
+      // 过程/终检让步：走库存其它入库，不创建采购收货
+      if (inspectionType === 'process' || inspectionType === 'final' || inspectionType === 'first_article') {
+        const InventoryService = require('../InventoryService');
+        const { CodeGenerators } = require('../../utils/codeGenerator');
+        const warehouseId = await InventoryService.getMaterialLocation(ncp.material_id, connection);
+        if (!warehouseId) {
+          throw new Error(`不合格品 ${ncp.ncp_no} 物料未配置默认仓库，不能让步入库`);
+        }
+        const inboundNo = await CodeGenerators.generateInboundCode(connection);
+        const createdBy = firstValidUserId(actorId, ncp.created_by);
+        const [matRows] = await connection.query(
+          `SELECT unit_id FROM materials WHERE id = ? LIMIT 1`,
+          [ncp.material_id]
+        );
+        const unitId = matRows[0]?.unit_id || null;
+        const [inboundResult] = await connection.execute(
+          `INSERT INTO inventory_inbound (
+             inbound_no, inbound_type, reference_type, reference_id,
+             location_id, inbound_date, status, operator, remark, created_by
+           ) VALUES (?, 'other', 'ncp', ?, ?, NOW(), 'draft', ?, ?, ?)`,
+          [
+            inboundNo,
+            ncp.id,
+            warehouseId,
+            await resolveActorLabel(null, ncp.disposition_by),
+            `NCP ${ncp.ncp_no} 让步接收（${inspectionType}）`,
+            createdBy,
+          ]
+        );
+        await connection.execute(
+          `INSERT INTO inventory_inbound_items (
+             inbound_id, material_id, quantity, unit_id, location_id, batch_number, remark
+           ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [
+            inboundResult.insertId,
+            ncp.material_id,
+            quantity,
+            unitId,
+            warehouseId,
+            ncp.batch_no || null,
+            `NCP ${ncp.ncp_no} use_as_is`,
+          ]
+        );
+        logger.info(
+          `NCP use-as-is (internal) created inventory inbound draft: ${inboundNo}`
+        );
+        return { inbound_no: inboundNo, path: 'inventory_inbound' };
+      }
+
+      // 生成入库单号 - 使用配置化的前缀（来料让步）
       const date = new Date();
       const dateStr = date.toISOString().slice(2, 10).replace(/-/g, ''); // YYMMDD
       const prefix = `${businessConfig.documentPrefix.RECEIPT}${dateStr}`;
@@ -552,29 +663,6 @@ class NonconformingProductService {
       const sequence = (maxNoResult[0]?.max_seq || 0) + 1;
 
       const receiptNo = `${prefix}${String(sequence).padStart(3, '0')}`;
-
-      // 查询检验单信息以获取采购订单和供应商信息
-      let inspection = { reference_id: null, reference_no: null, supplier_id: ncp.supplier_id || null, supplier_name: ncp.supplier_name || null };
-
-      if (ncp.inspection_id) {
-        const [inspectionRows] = await connection.query(
-          `SELECT qi.*, po.supplier_id, s.name as supplier_name
-           FROM quality_inspections qi
-           LEFT JOIN purchase_orders po ON qi.reference_id = po.id
-           LEFT JOIN suppliers s ON po.supplier_id = s.id
-           WHERE qi.id = ?`,
-          [ncp.inspection_id]
-        );
-        if (inspectionRows.length > 0) {
-          inspection = inspectionRows[0];
-          inspection.supplier_id = inspection.supplier_id || ncp.supplier_id;
-          inspection.supplier_name = inspection.supplier_name || ncp.supplier_name || null;
-        } else {
-          throw new Error(`不合格品 ${ncp.ncp_no} 关联的检验单 ${ncp.inspection_id} 不存在，不能继续生成让步接收入库单`);
-        }
-      } else {
-        logger.info(`该不合格品 ${ncp.ncp_no} 无检验单关联, 执行无源让步接收建单`);
-      }
 
       // 溯源原采购订单明细以获取价格、单位和规格
       let orderItemInfo = { price: 0, unit_id: null, specification: '' };
@@ -601,6 +689,10 @@ class NonconformingProductService {
       if (!inspection.supplier_id || !inspection.supplier_name) {
         throw new Error(`不合格品 ${ncp.ncp_no} 缺少供应商信息，不能生成让步接收入库单`);
       }
+      const createdBy = firstValidUserId(actorId, inspection.inspector_id, ncp.created_by);
+      if (!createdBy) {
+        throw new Error(`不合格品 ${ncp.ncp_no} 缺少可追溯责任人，不能生成让步接收入库单`);
+      }
 
       // 🔄 通过统一服务获取物料的默认仓库
       const InventoryService = require('../InventoryService');
@@ -619,8 +711,8 @@ class NonconformingProductService {
         `INSERT INTO purchase_receipts (
           receipt_no, order_id, order_no, supplier_id, supplier_name,
           warehouse_id, warehouse_name, receipt_date, operator, remarks, status,
-          from_inspection, inspection_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          from_inspection, inspection_id, created_by
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           receiptNo,
           inspection.reference_id,
@@ -630,11 +722,12 @@ class NonconformingProductService {
           warehouseId,
           warehouseName,
           new Date().toISOString().slice(0, 10),
-          'system',
+          await resolveActorLabel(connection, ncp.disposition_by, ncp.created_by),
           `让步接收 - 来自不合格品 ${ncp.ncp_no}`,
           'draft', // 创建为草稿,需要人工审核
           1,
           ncp.inspection_id,
+          createdBy,
         ]
       );
 
@@ -672,8 +765,12 @@ class NonconformingProductService {
       // 记录操作日志
       await connection.query(
         `INSERT INTO nonconforming_product_actions (ncp_id, action_type, action_description, action_by)
-         VALUES (?, 'auto_receipt', ?, 'system')`,
-        [ncp.id, `自动创建让步接受入库单 ${receiptNo} (仓库: ${warehouseName})`]
+         VALUES (?, 'auto_receipt', ?, ?)`,
+        [
+          ncp.id,
+          `自动创建让步接受入库单 ${receiptNo} (仓库: ${warehouseName})`,
+          await resolveActorLabel(connection, ncp.disposition_by, ncp.created_by),
+        ]
       );
 
       await QualityIntegrationService.linkNcpToDocument(
@@ -887,30 +984,22 @@ class NonconformingProductService {
 
       const warehouse = warehouseRows[0];
 
-      // ✅ 获取操作人信息(优先使用不合格品的创建人)
-      let operator = 'system';
-      if (ncp.created_by) {
-        // 查询创建人的真实姓名
-        const [userRows] = await connection.query(
-          'SELECT real_name, username FROM users WHERE username = ? OR real_name = ? LIMIT 1',
-          [ncp.created_by, ncp.created_by]
-        );
-        if (userRows.length > 0) {
-          operator = userRows[0].real_name || userRows[0].username || ncp.created_by;
-        } else {
-          operator = ncp.created_by;
-        }
+      const createdBy = firstValidUserId(ncp.created_by, inspection.inspector_id);
+      if (!createdBy) {
+        throw new Error(`不合格品 ${ncp.ncp_no} 缺少可追溯责任人，不能生成采购退货单`);
       }
 
-      logger.info(`Creating purchase return from NCP: ncpNo=${ncp.ncp_no}, operator=${operator}, sourceUser=${ncp.created_by || 'system'}`);
+      const operator = await resolveActorLabel(connection, createdBy, ncp.disposition_by, ncp.created_by);
+
+      logger.info(`Creating purchase return from NCP: ncpNo=${ncp.ncp_no}, operator=${operator}, sourceUser=${ncp.created_by || 'n/a'}`);
 
       // 创建采购退货单(写入purchase_returns表)
       const [returnResult] = await connection.query(
         `INSERT INTO purchase_returns (
           return_no, receipt_id, receipt_no, source_type, supplier_id, supplier_name,
           warehouse_id, warehouse_name, return_date, reason, total_amount,
-          operator, remarks, status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          operator, remarks, status, created_by
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           returnNo,
           inspection.receipt_id || null, // receipt_id - 通过检验单或批次追溯得到的入库单ID
@@ -926,6 +1015,7 @@ class NonconformingProductService {
           operator, // ✅ 使用实际操作人而不是硬编码'system'
           `不合格品退货 - ${ncp.ncp_no} ${ncp.inspection_no ? '- 检验单: ' + ncp.inspection_no : ''}`,
           'draft', // ✅ 改为draft状态,与手动创建保持一致
+          createdBy,
         ]
       );
 
@@ -959,8 +1049,12 @@ class NonconformingProductService {
       // 记录操作日志
       await connection.query(
         `INSERT INTO nonconforming_product_actions (ncp_id, action_type, action_description, action_by)
-         VALUES (?, 'auto_return', ?, 'system')`,
-        [ncp.id, `自动创建采购退货单 ${returnNo}`]
+         VALUES (?, 'auto_return', ?, ?)`,
+        [
+          ncp.id,
+          `自动创建采购退货单 ${returnNo}`,
+          await resolveActorLabel(connection, ncp.disposition_by, ncp.created_by),
+        ]
       );
 
       await QualityIntegrationService.linkNcpToDocument(
@@ -1061,7 +1155,7 @@ class NonconformingProductService {
           new Date().toISOString().slice(0, 10),
           ncp.handling_cost || 0,
           'pending',
-          'system',
+          await resolveActorLabel(connection, ncp.disposition_by, ncp.created_by),
         ]
       );
       const scrapId = scrapResult.insertId;
@@ -1071,8 +1165,12 @@ class NonconformingProductService {
       // 记录操作日志
       await connection.query(
         `INSERT INTO nonconforming_product_actions (ncp_id, action_type, action_description, action_by)
-         VALUES (?, 'auto_scrap', ?, 'system')`,
-        [ncp.id, `自动创建报废记录 ${scrapNo}`]
+         VALUES (?, 'auto_scrap', ?, ?)`,
+        [
+          ncp.id,
+          `自动创建报废记录 ${scrapNo}`,
+          await resolveActorLabel(connection, ncp.disposition_by, ncp.created_by),
+        ]
       );
 
       await QualityIntegrationService.linkNcpToDocument(
@@ -1121,7 +1219,7 @@ class NonconformingProductService {
           ncp.defect_description || '请根据缺陷描述进行返工',
           new Date().toISOString().slice(0, 10),
           'pending',
-          'system',
+          await resolveActorLabel(connection, ncp.disposition_by, ncp.created_by),
         ]
       );
       const reworkId = reworkResult.insertId;
@@ -1131,8 +1229,12 @@ class NonconformingProductService {
       // 记录操作日志
       await connection.query(
         `INSERT INTO nonconforming_product_actions (ncp_id, action_type, action_description, action_by)
-         VALUES (?, 'auto_rework', ?, 'system')`,
-        [ncp.id, `自动创建返工任务 ${reworkNo}`]
+         VALUES (?, 'auto_rework', ?, ?)`,
+        [
+          ncp.id,
+          `自动创建返工任务 ${reworkNo}`,
+          await resolveActorLabel(connection, ncp.disposition_by, ncp.created_by),
+        ]
       );
 
       await QualityIntegrationService.linkNcpToDocument(
@@ -1235,7 +1337,7 @@ class NonconformingProductService {
           ncp.disposition_reason || '质量不合格,要求换货',
           expectedDate.toISOString().slice(0, 10),
           'pending',
-          'system',
+          await resolveActorLabel(connection, ncp.disposition_by, ncp.created_by),
         ]
       );
       const replacementId = replacementResult.insertId;
@@ -1247,8 +1349,12 @@ class NonconformingProductService {
       // 6. 记录操作日志
       await connection.query(
         `INSERT INTO nonconforming_product_actions (ncp_id, action_type, action_description, action_by)
-         VALUES (?, 'auto_replacement', ?, 'system')`,
-        [ncp.id, `自动创建换货单 ${replacementNo},退货单 ${returnResult.returnNo}`]
+         VALUES (?, 'auto_replacement', ?, ?)`,
+        [
+          ncp.id,
+          `自动创建换货单 ${replacementNo},退货单 ${returnResult.returnNo}`,
+          await resolveActorLabel(connection, ncp.disposition_by, ncp.created_by),
+        ]
       );
 
       await QualityIntegrationService.linkNcpToDocument(
@@ -1451,7 +1557,7 @@ class NonconformingProductService {
 
         // 关键业务逻辑：特采批准后，自动触发“让步接收(use_as_is)”的入库流转逻辑
         ncp.disposition = 'use_as_is';
-        await this.handleUseAsIs(ncp, ncp.quantity, connection);
+        await this.handleUseAsIs(ncp, ncp.quantity, connection, approverId);
 
         // 并将该不合格品标记为已完成
         await connection.query(

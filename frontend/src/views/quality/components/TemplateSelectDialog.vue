@@ -12,7 +12,7 @@
       <p class="tip">该物料存在多个检验模板，请选择一个应用：</p>
       <el-radio-group v-model="selectedId" class="template-radio-group">
         <div v-for="tmpl in templates" :key="tmpl.id" class="template-option">
-          <el-radio :label="tmpl.id" :value="tmpl.id">
+          <el-radio :value="tmpl.id">
             <div class="template-info">
               <span class="template-name">{{ tmpl.template_name }}</span>
               <span class="template-desc">{{ tmpl.description || '无描述' }}</span>

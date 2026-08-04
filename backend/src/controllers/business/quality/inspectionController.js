@@ -48,13 +48,11 @@ async function _getInspectionsByType(type, req, res, extraFilters = {}) {
             maxPageSize: 100,
         });
         const result = await QualityInspection.getInspections(type, filters, pagination.page, pagination.pageSize);
+        const { qualityInspectionMap } = require('../../../utils/quality/qualityFieldMap');
+        const rows = (result?.rows || []).map((r) => qualityInspectionMap.toApi(r));
+        const total = result?.total || 0;
 
-        const safeResult = {
-            rows: result?.rows || [],
-            total: result?.total || 0,
-        };
-
-        ResponseHandler.paginated(res, safeResult.rows, safeResult.total, pagination.page, pagination.pageSize);
+        ResponseHandler.paginated(res, rows, total, pagination.page, pagination.pageSize);
     } catch (error) {
         logger.error(`获取${type}检验列表失败:`, error);
         ResponseHandler.error(res, `获取检验列表失败`, 'SERVER_ERROR', 500, error);
@@ -154,7 +152,8 @@ const inspectionController = {
                 return ResponseHandler.error(res, '检验单不存在', 'NOT_FOUND', 404);
             }
 
-            ResponseHandler.success(res, inspection, '操作成功');
+            const { qualityInspectionMap } = require('../../../utils/quality/qualityFieldMap');
+            ResponseHandler.success(res, qualityInspectionMap.toApi(inspection), '操作成功');
         } catch (error) {
             logger.error('获取检验单详情失败:', error);
             ResponseHandler.error(res, '获取检验单详情失败', 'SERVER_ERROR', 500, error);
@@ -167,7 +166,9 @@ const inspectionController = {
     async createInspection(req, res) {
         let connection;
         try {
-            const inspection = req.body;
+            // HTTP camel → snake（qualityInspectionMap）；模型仍吃 snake
+            const { qualityInspectionMap } = require('../../../utils/quality/qualityFieldMap');
+            const inspection = qualityInspectionMap.fromApi(req.body || {});
 
             if (!inspection.inspection_type) {
                 return ResponseHandler.error(res, '检验类型不能为空', 'VALIDATION_ERROR', 400);
@@ -215,7 +216,11 @@ const inspectionController = {
             }
 
             await connection.commit();
-            ResponseHandler.success(res, result, result.is_exempt ? '系统检测到免检验属性，成功自动放行！' : '检验单创建成功');
+            ResponseHandler.success(
+                res,
+                qualityInspectionMap.toApi(result),
+                result.is_exempt ? '系统检测到免检验属性，成功自动放行！' : '检验单创建成功'
+            );
         } catch (error) {
             if (connection) {
                 await connection.rollback();

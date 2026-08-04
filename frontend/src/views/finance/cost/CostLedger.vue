@@ -484,5 +484,4 @@ onMounted(() => {
 .subtitle { margin: 5px 0 0 0; color: var(--color-text-secondary); font-size: 14px; }
 .filter-card { margin-bottom: 20px; }
 .filter-form { display: flex; flex-wrap: wrap; gap: 10px; }
-.data-card { margin-bottom: 20px; }
 </style>

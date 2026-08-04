@@ -184,10 +184,10 @@ describe('DataScopeService', () => {
   });
 
   describe('getUserDataScope', () => {
-    test('admin 角色强制 ALL', async () => {
+    test('超级管理员标记强制 ALL', async () => {
       pool.execute
         .mockResolvedValueOnce([[{ id: 1, username: 'admin', department_id: 1 }]])
-        .mockResolvedValueOnce([[{ id: 1, code: 'admin', data_scope: 4 }]]);
+        .mockResolvedValueOnce([[{ id: 1, is_super_admin: 1, data_scope: 4 }]]);
 
       const scope = await DataScopeService.getUserDataScope(1);
       expect(scope.type).toBe(DataScopeService.DATA_SCOPE.ALL);

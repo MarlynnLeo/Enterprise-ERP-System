@@ -16,6 +16,7 @@ const crypto = require('crypto');
 const businessConfig = require('../../config/businessConfig');
 const { lineAmount, normalizeTaxRate, roundMoney, taxAmount: calculateTaxAmount } = require('../../utils/money');
 const { financeConfig } = require('../../config/financeConfig');
+const { firstValidUserId } = require('../../utils/userUtils');
 
 class PurchaseReceiptService {
   static payloadHash(value) {
@@ -94,6 +95,14 @@ class PurchaseReceiptService {
 
       // 1. 一次 JOIN 查询获取完整订单上下文（订单、供应商、物料、采购价格）
       const context = await this._getOrderContext(connection, orderId, materialId);
+      const createdBy = firstValidUserId(
+        inspectionResult.inspector_id,
+        originalInspection.inspector_id,
+        context.orderCreatedBy
+      );
+      if (!createdBy) {
+        throw new Error('检验单和采购订单均缺少责任人，不能自动创建采购入库单');
+      }
       const taxRate = normalizeTaxRate(context.taxRate, financeConfig.get('tax.defaultVATRate', 0.13));
       const amountExcludingTax = lineAmount(qty, context.price);
       const taxAmount = calculateTaxAmount(amountExcludingTax, taxRate);
@@ -115,8 +124,8 @@ class PurchaseReceiptService {
           receipt_no, order_id, order_no, supplier_id, supplier_name,
           warehouse_id, warehouse_name, receipt_date, operator, remarks, status,
           total_amount, total_tax_amount, from_inspection, inspection_id,
-          idempotency_key, idempotency_hash, active_inspection_key
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          idempotency_key, idempotency_hash, active_inspection_key, created_by
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           receiptNo,
           orderId,
@@ -136,6 +145,7 @@ class PurchaseReceiptService {
           idempotencyKey,
           this.payloadHash({ orderId, materialId, qty, inspectionId, batchNo }),
           inspectionId ? `INSPECTION:${inspectionId}` : null,
+          createdBy,
         ]
       );
 
@@ -207,6 +217,7 @@ class PurchaseReceiptService {
       `SELECT
         po.id        AS order_id,
         po.order_no  AS order_no,
+        po.created_by AS order_created_by,
         po.supplier_id,
         s.name       AS supplier_name,
         m.code       AS material_code,
@@ -242,6 +253,7 @@ class PurchaseReceiptService {
     return {
       orderItemId: row.order_item_id,
       orderNo: row.order_no || '',
+      orderCreatedBy: row.order_created_by,
       supplierId: row.supplier_id,
       supplierName: row.supplier_name || '',
       materialCode: row.material_code || '',

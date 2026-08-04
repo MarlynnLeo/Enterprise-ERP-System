@@ -10,6 +10,7 @@ const businessConfig = require('../../config/businessConfig');
 const db = require('../../config/db');
 const { apiStatusToDbStatus } = require('../../utils/statusMapper');
 const NotificationService = require('../NotificationService');
+const { resolveActorLabel, resolveActorUserId } = require('../../utils/userUtils');
 
 class AsyncTaskService {
   /**
@@ -67,7 +68,7 @@ class AsyncTaskService {
               for (const item of outboundItemsResult.rows) {
                 try {
                   const context = {
-                    userId: transactionData.operator || 'system',
+                    userId: await resolveActorUserId(null, transactionData.operator),
                     periodId: null, // 自动获取当前期间
                   };
                   await InventoryCostService.generateOutboundCostEntry(
@@ -100,7 +101,7 @@ class AsyncTaskService {
 
         // 准备上下文信息
         const context = {
-          userId: transactionData.operator || 'system',
+          userId: await resolveActorUserId(null, transactionData.operator),
           periodId: null, // 自动获取当前期间
         };
 

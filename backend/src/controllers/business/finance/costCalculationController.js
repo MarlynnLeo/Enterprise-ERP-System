@@ -10,6 +10,7 @@ const { logger } = require('../../../utils/logger');
 const CostAccountingService = require('../../../services/business/CostAccountingService');
 const { parsePagination } = require('../../../utils/safePagination');
 const { currentDateString, toLocalDateString } = require('../../../utils/dateUtils');
+const { resolveActorLabel, getRequestActorLabel } = require('../../../utils/userUtils');
 
 // ==================== 辅助函数 ====================
 
@@ -37,8 +38,8 @@ const saveStandardCostSnapshot = async (productId, standardCost = {}) => {
       await connection.execute(
         `INSERT INTO standard_costs
          (product_id, cost_element, standard_price, effective_date, is_active, status, source_type, operator, created_at)
-         VALUES (?, ?, ?, CURDATE(), 1, 'active', 'manual', 'system', NOW())`,
-        [normalizedProductId, element, value]
+         VALUES (?, ?, ?, CURDATE(), 1, 'active', 'manual', ?, NOW())`,
+        [normalizedProductId, element, value, await resolveActorLabel(connection)]
       );
     }
 
@@ -251,7 +252,7 @@ module.exports = {
     try {
       const { productId } = req.params;
       const { period } = req.body;
-      const frozenBy = req.user?.name || req.user?.username || 'system';
+      const frozenBy = getRequestActorLabel(req);
 
       await db.pool.execute(
         `
@@ -300,7 +301,7 @@ module.exports = {
   freezePeriodCosts: async (req, res) => {
     try {
       const { period } = req.body;
-      const frozenBy = req.user?.name || req.user?.username || 'system';
+      const frozenBy = getRequestActorLabel(req);
 
       if (!period) {
         return ResponseHandler.error(res, '请指定冻结期间', 'VALIDATION_ERROR', 400);
@@ -694,6 +695,7 @@ module.exports = {
 
       let frozenCount = 0;
       let skippedCount = 0;
+      const frozenBy = getRequestActorLabel(req);
 
       if (source === 'cost_price') {
         // 从materials.cost_price自动读取所有物料的当前采购成本
@@ -725,9 +727,9 @@ module.exports = {
             `
                         INSERT INTO standard_costs
                         (material_id, cost_element, standard_price, effective_date, expiry_date, is_active, status, source_type, operator)
-                        VALUES (?, 'material', ?, ?, ?, 1, 'active', 'manual', 'system')
+                        VALUES (?, 'material', ?, ?, ?, 1, 'active', 'manual', ?)
                     `,
-            [mat.id, standardPrice, effective_date, expiry_date]
+            [mat.id, standardPrice, effective_date, expiry_date, frozenBy]
           );
 
           frozenCount++;
@@ -755,9 +757,9 @@ module.exports = {
             `
                         INSERT INTO standard_costs
                         (material_id, cost_element, standard_price, effective_date, expiry_date, is_active, status, source_type, operator)
-                        VALUES (?, 'material', ?, ?, ?, 1, 'active', 'manual', 'system')
+                        VALUES (?, 'material', ?, ?, ?, 1, 'active', 'manual', ?)
                     `,
-            [item.material_id, item.standard_price, effective_date, expiry_date]
+            [item.material_id, item.standard_price, effective_date, expiry_date, frozenBy]
           );
 
           frozenCount++;

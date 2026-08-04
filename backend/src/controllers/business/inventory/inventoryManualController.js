@@ -14,6 +14,7 @@ const InventoryService = require('../../../services/InventoryService');
 const businessConfig = require('../../../config/businessConfig');
 const { getCurrentUserName } = require('../../../utils/userHelper');
 const { _insertInventoryLedgerLocal } = require('./inventoryLedgerController');
+const { getRequestActorLabel } = require('../../../utils/userUtils');
 
 let businessTypeCache = null;
 let businessTypeCacheTime = 0;
@@ -738,7 +739,7 @@ const approveManualTransaction = async (req, res) => {
   try {
     await connection.beginTransaction();
 
-    const approver = req.user?.name || req.user?.username || 'system';
+    const approver = getRequestActorLabel(req);
     const approverId = Number.parseInt(req.user?.id, 10) || null;
 
     logger.info('=== 审批手工出入库 ===', { id, action, approver });

@@ -193,11 +193,14 @@ const pathToI18nKey = {
   // 财务管理 - 应收
   '/finance/ar/invoices': 'menu.arInvoices',
   '/finance/ar/receipts': 'menu.receiptsManagement',
+  '/finance/ar/settlement': 'menu.arSettlement',
   '/finance/ar/aging': 'menu.arAging',
 
   // 财务管理 - 应付
   '/finance/ap/invoices': 'menu.apInvoices',
   '/finance/ap/payments': 'menu.payments',
+  '/finance/ap/settlement': 'menu.apSettlement',
+  '/finance/ap/three-way-match': 'menu.apThreeWayMatch',
   '/finance/ap/aging': 'menu.apAging',
 
   // 财务管理 - 固定资产
@@ -222,7 +225,9 @@ const pathToI18nKey = {
   '/finance/reports/standard-cash-flow': 'menu.standardCashFlow',
 
   // 财务管理 - 自动化/税务/预算/成本/费用/定价/设置
+  // 自动化已并入设置页；保留旧 path 映射以免菜单缓存未刷新时 i18n 缺失
   '/finance/automation': 'menu.financeAutomation',
+  '/finance/settings?tab=automation': 'menu.financeAutomation',
   '/finance/tax/invoices': 'menu.taxInvoices',
   '/finance/tax/returns': 'menu.taxReturns',
   '/finance/tax/account-config': 'menu.taxAccountConfig',

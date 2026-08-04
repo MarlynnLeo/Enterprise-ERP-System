@@ -36,6 +36,17 @@
       <el-form-item label="信用额度" prop="credit_limit">
         <el-input-number v-model="form.credit_limit" :min="0" :precision="2" :step="100" placeholder="请输入信用额度"></el-input-number>
       </el-form-item>
+      <el-form-item label="收款账期(天)" prop="payment_term_days">
+        <el-input-number
+          v-model="form.payment_term_days"
+          :min="0"
+          :max="3650"
+          :step="1"
+          controls-position="right"
+          class="w-full"
+          placeholder="默认 30 天"
+        />
+      </el-form-item>
       <el-form-item label="地址">
         <el-input v-model="form.address" type="textarea" :rows="2" placeholder="请输入地址"></el-input>
       </el-form-item>
@@ -94,6 +105,7 @@ const form = reactive({
   email: '',
   address: '',
   credit_limit: 0,
+  payment_term_days: 30,
   status: 'active',
   remark: ''
 })
@@ -110,7 +122,12 @@ watch(() => props.editData, (newVal) => {
     nextTick(() => {
       Object.assign(form, {
         ...newVal,
-        credit_limit: parseFloat(newVal.credit_limit) || 0
+        credit_limit: parseFloat(newVal.credit_limit) || 0,
+        payment_term_days:
+          newVal.payment_term_days != null && newVal.payment_term_days !== ''
+            ? Number(newVal.payment_term_days)
+            : 30,
+        contact_phone: newVal.contact_phone || newVal.phone || ''
       })
     })
   } else {
@@ -134,6 +151,7 @@ const resetForm = () => {
   form.email = ''
   form.address = ''
   form.credit_limit = 0
+  form.payment_term_days = 30
   form.status = 'active'
   form.remark = ''
   isEdit.value = false
@@ -174,6 +192,10 @@ const submitForm = () => {
           address: form.address ? form.address.trim() : '',
           customer_type: form.customer_type || 'direct',
           credit_limit: parseFloat(form.credit_limit) || 0,
+          payment_term_days:
+            form.payment_term_days != null && form.payment_term_days !== ''
+              ? Number(form.payment_term_days)
+              : 30,
           remark: form.remark ? form.remark.trim() : ''
         }
 

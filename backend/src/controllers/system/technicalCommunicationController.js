@@ -8,6 +8,7 @@ const { ResponseHandler } = require('../../utils/responseHandler');
 const { logger } = require('../../utils/logger');
 const { appendPaginationSQL } = require('../../utils/safePagination');
 const NotificationService = require('../../services/NotificationService');
+const { NOTIFICATION_PERMISSIONS } = require('../../constants/notification');
 
 const DEFAULT_PAGE_SIZE = 10;
 const MAX_PAGE_SIZE = 100;
@@ -40,8 +41,14 @@ class TechnicalCommunicationController {
   canManagePrivate(req) {
     const permissions = req.userPermissions || [];
     return permissions.includes('*') ||
-      permissions.includes('system:tech-comm:*') ||
-      permissions.includes('system:tech-comm:manage');
+      permissions.includes(NOTIFICATION_PERMISSIONS.TECH_COMM_WILDCARD) ||
+      permissions.includes(NOTIFICATION_PERMISSIONS.TECH_COMM_MANAGE);
+  }
+
+  canBroadcast(req) {
+    const permissions = req.userPermissions || [];
+    return permissions.includes('*') ||
+      permissions.includes(NOTIFICATION_PERMISSIONS.TECH_COMM_BROADCAST);
   }
 
   buildVisibilityCondition(req) {
@@ -51,32 +58,41 @@ class TechnicalCommunicationController {
 
     return {
       condition: `(
-        visibility <> 'private'
-        OR author_id = ?
-        OR EXISTS (
-          SELECT 1 FROM technical_communication_recipients r
-          WHERE r.communication_id = technical_communications.id
-            AND r.user_id = ?
-        )
-        OR EXISTS (
-          SELECT 1
-          FROM technical_communication_department_recipients dr
-          JOIN users u ON u.department_id = dr.department_id
-          WHERE dr.communication_id = technical_communications.id
-            AND u.id = ?
+        (status = 'published' OR author_id = ?)
+        AND (
+          visibility <> 'private'
+          OR author_id = ?
+          OR EXISTS (
+            SELECT 1 FROM technical_communication_recipients r
+            WHERE r.communication_id = technical_communications.id
+              AND r.user_id = ?
+          )
+          OR EXISTS (
+            SELECT 1
+            FROM technical_communication_department_recipients dr
+            JOIN users u ON u.department_id = dr.department_id
+            WHERE dr.communication_id = technical_communications.id
+              AND u.id = ?
+          )
         )
       )`,
-      params: [req.user.id, req.user.id, req.user.id],
+      params: [req.user.id, req.user.id, req.user.id, req.user.id],
     };
   }
 
   async canAccessCommunication(communication, req) {
-    if (communication.visibility !== 'private' || this.canManagePrivate(req)) {
+    if (this.canManagePrivate(req)) {
       return true;
     }
 
     const userId = req.user.id;
     if (communication.author_id === userId) {
+      return true;
+    }
+    if (communication.status !== 'published') {
+      return false;
+    }
+    if (communication.visibility !== 'private') {
       return true;
     }
 
@@ -296,7 +312,7 @@ class TechnicalCommunicationController {
         status = 'draft',
         isPinned = 0,
         attachments,
-        visibility = 'public',
+        visibility = 'private',
       } = req.body;
       const recipients = normalizeIdList(req.body.recipients);
       const departmentRecipients = normalizeIdList(req.body.departmentRecipients);
@@ -311,6 +327,9 @@ class TechnicalCommunicationController {
 
       if (!ALLOWED_VISIBILITIES.has(visibility)) {
         return ResponseHandler.error(res, '无效的可见范围', 'VALIDATION_ERROR', 400);
+      }
+      if (visibility === 'public' && !this.canBroadcast(req)) {
+        return ResponseHandler.error(res, '缺少发布全员通讯权限', 'FORBIDDEN', 403);
       }
 
       const userId = req.user.id;
@@ -451,7 +470,18 @@ class TechnicalCommunicationController {
       }
 
       // 更新抄送人数
-      const finalVisibility = visibility || oldData[0].visibility || 'public';
+      const finalVisibility = visibility || oldData[0].visibility || 'private';
+      const finalStatus = status || oldData[0].status;
+      if (finalVisibility === 'public' && visibility === 'public' && !this.canBroadcast(req)) {
+        return ResponseHandler.error(res, '缺少发布全员通讯权限', 'FORBIDDEN', 403);
+      }
+      const shouldPublish =
+        finalStatus === 'published' &&
+        (oldData[0].status !== 'published' ||
+          (oldData[0].visibility === 'private' && finalVisibility === 'public'));
+      if (shouldPublish && finalVisibility === 'public' && !this.canBroadcast(req)) {
+        return ResponseHandler.error(res, '缺少发布全员通讯权限', 'FORBIDDEN', 403);
+      }
       const shouldUpdateRecipients =
         finalVisibility === 'private' && (recipientsProvided || departmentRecipientsProvided);
       if (shouldUpdateRecipients) {
@@ -498,7 +528,7 @@ class TechnicalCommunicationController {
       }
 
       // 如果从非发布状态改为发布状态，发送通知
-      if (oldData.length > 0 && oldData[0].status !== 'published' && status === 'published') {
+      if (shouldPublish) {
         await this.sendPublishNotifications(
           id,
           title || oldData[0].title,

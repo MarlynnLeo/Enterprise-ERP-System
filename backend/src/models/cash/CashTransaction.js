@@ -893,6 +893,72 @@ class CashTransactionModel {
       connection.release();
     }
   }
+
+  /**
+   * 作废已审核现金交易：冲销关联总账凭证
+   */
+  static async voidApprovedTransaction(id, userId, reason) {
+    const connection = await db.pool.getConnection();
+    const VoucherReversalService = require('../../services/finance/VoucherReversalService');
+    try {
+      await connection.beginTransaction();
+      const [rows] = await connection.execute(
+        `SELECT id, transaction_number, transaction_type, transaction_date, amount,
+                status, gl_entry_id, created_by
+         FROM cash_transactions WHERE id = ? FOR UPDATE`,
+        [id]
+      );
+      if (!rows.length) throw new Error('现金交易不存在');
+      const tx = rows[0];
+      if (String(tx.status) !== 'approved') {
+        throw new Error('仅已审核的现金交易可以作废冲销');
+      }
+
+      let reversalInfo = null;
+      const documentType = getCashDocumentType(tx.transaction_type);
+      try {
+        const results = await VoucherReversalService.reverseBusinessVouchers(connection, {
+          sourceType: 'cash_transaction',
+          sourceId: tx.id,
+          documentNumber: tx.transaction_number,
+          documentType,
+          voidedBy: userId,
+          reason: reason || `作废现金交易 ${tx.transaction_number}`,
+          entryDate: formatDateOnly(tx.transaction_date),
+        });
+        reversalInfo = results[0] || null;
+      } catch (e) {
+        if (!/未找到单据|对应的未冲销会计凭证/.test(e.message || '')) throw e;
+      }
+
+      await connection.execute(
+        `UPDATE cash_transactions
+         SET status = 'void',
+             reject_reason = ?,
+             approved_by = ?,
+             approved_at = NOW(),
+             gl_entry_id = NULL,
+             updated_by = ?,
+             updated_at = NOW()
+         WHERE id = ? AND status = 'approved'`,
+        [reason || '作废冲销', userId || null, userId || null, id]
+      );
+
+      await connection.commit();
+      logger.info(`现金交易 ${id} 已作废冲销`);
+      return {
+        success: true,
+        reversalEntryId: reversalInfo?.entryId || null,
+        reversalEntryNumber: reversalInfo?.entryNumber || null,
+      };
+    } catch (error) {
+      await connection.rollback();
+      logger.error('作废现金交易失败:', error);
+      throw error;
+    } finally {
+      connection.release();
+    }
+  }
 }
 
 module.exports = CashTransactionModel;

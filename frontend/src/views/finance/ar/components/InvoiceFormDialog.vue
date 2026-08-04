@@ -17,8 +17,8 @@
       <!-- 第一行：发票编号 + 客户（这里客户用下拉，但因为很重要所以放第一行） -->
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="发票编号" prop="invoice_number">
-            <el-input v-model="editableForm.invoice_number" placeholder="系统自动生成" disabled></el-input>
+          <el-form-item label="发票编号" prop="invoiceNumber">
+            <el-input v-model="editableForm.invoiceNumber" placeholder="系统自动生成" disabled></el-input>
           </el-form-item>
         </el-col>
         <el-col :span="12">
@@ -214,16 +214,16 @@ const editableForm = computed(() => props.form)
 
 // 表单验证规则
 const invoiceRules = {
-  invoice_number: [
+  invoiceNumber: [
     { required: true, message: '请输入发票编号', trigger: 'blur' }
   ],
   customerId: [
     { required: true, message: '请选择客户', trigger: 'change' }
   ],
-  invoice_date: [
+  invoiceDate: [
     { required: true, message: '请选择开票日期', trigger: 'change' }
   ],
-  due_date: [
+  dueDate: [
     { required: true, message: '请选择到期日期', trigger: 'change' }
   ]
 }

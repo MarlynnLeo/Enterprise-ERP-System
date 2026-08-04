@@ -9,6 +9,7 @@ const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 const CostAccountingService = require('../../../services/business/CostAccountingService');
 const { parsePagination } = require('../../../utils/safePagination');
+const { getRequestActorLabel } = require('../../../utils/userUtils');
 
 module.exports = {
   // ==================== 成本差异 ====================
@@ -351,7 +352,7 @@ module.exports = {
             material_threshold,
             labor_threshold,
             overhead_threshold,
-            req.user?.username || 'system',
+            getRequestActorLabel(req),
             existing[0].id,
           ]
         );
@@ -367,7 +368,7 @@ module.exports = {
             material_threshold,
             labor_threshold,
             overhead_threshold,
-            req.user?.username || 'system',
+            getRequestActorLabel(req),
           ]
         );
       }

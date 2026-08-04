@@ -39,19 +39,6 @@ const appendRoutePermissionEntries = (menus) => {
       visible: 0
     },
     {
-      id: 9301,
-      parentId: 72,
-      name: 'Create Voucher',
-      path: '/finance/gl/entries/create',
-      component: 'finance/gl/entries/EntryForm',
-      icon: 'icon-edit',
-      type: 1,
-      permission: 'finance:entries:create',
-      sort: 99,
-      visible: 0,
-      status: 1
-    },
-    {
       id: 9302,
       parentId: 740,
       name: 'Edit Budget',

@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * ReceiptDialog.vue
  * @description 前端界面组件文件
@@ -15,7 +15,7 @@
   >
     <el-form ref="receiptFormRef" :model="receiptForm" :rules="rules" label-width="100px" class="form-container">
       <!-- 基本信息 -->
-      <el-card class="box-card">
+      <el-card class="data-card">
         <template #header>
           <div class="card-header">
             <span>基本信息</span>
@@ -95,7 +95,7 @@
       </el-card>
 
       <!-- 成品明细 -->
-      <el-card class="box-card">
+      <el-card class="data-card">
         <template #header>
           <div class="card-header">
             <span>入库明细</span>
@@ -440,9 +440,7 @@ watch(() => props.visible, (newVal) => {
   margin-top: var(--spacing-lg);
 }
 
-.box-card {
-  margin-bottom: var(--spacing-lg);
-}
+
 
 .card-header {
   display: flex;

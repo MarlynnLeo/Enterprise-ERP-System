@@ -96,6 +96,11 @@
             {{ scope.row.contact_phone || scope.row.phone || scope.row.contactPhone || '无' }}
           </template>
         </el-table-column>
+        <el-table-column prop="payment_term_days" label="账期(天)" width="90">
+          <template #default="scope">
+            {{ scope.row.payment_term_days != null ? scope.row.payment_term_days : '—' }}
+          </template>
+        </el-table-column>
         <el-table-column prop="email" label="电子邮箱" min-width="180">
           <template #default="scope">
             <el-tooltip :content="scope.row.email || '无'" placement="top" :show-after="500">
@@ -150,7 +155,14 @@
                   </el-button>
                 </template>
               </el-popconfirm>
-              <el-button
+                            <el-button
+                v-if="canUpdate"
+                size="small"
+                type="success"
+                @click="openMetalPriceDialog(scope.row)">
+                区间报价
+              </el-button>
+<el-button
                 v-if="canUpdate && (scope.row.status || scope.row.is_active) !== 1"
                 size="small"
                 type="primary"
@@ -195,6 +207,11 @@
       :editData="currentEditData"
       :title="dialogTitle"
       @success="fetchData"
+    />
+
+    <SupplierMetalPriceDialog
+      v-model="metalPriceDialogVisible"
+      :supplier="metalPriceSupplier"
     />
 
     <!-- 导入对话框 -->
@@ -244,6 +261,7 @@
 <script setup>
 import { parsePaginatedData } from '@/utils/responseParser'
 import SupplierFormDialog from './components/SupplierFormDialog.vue';
+import SupplierMetalPriceDialog from './components/SupplierMetalPriceDialog.vue';
 
 import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage } from 'element-plus'
@@ -257,6 +275,9 @@ const canUpdate = computed(() => authStore.hasPermission('basedata:suppliers:upd
 const canDelete = computed(() => authStore.hasPermission('basedata:suppliers:delete'));
 const canImport = computed(() => authStore.hasPermission('basedata:suppliers:import'));
 const canExport = computed(() => authStore.hasPermission('basedata:suppliers:export'));
+const metalPriceDialogVisible = ref(false);
+const metalPriceSupplier = ref(null);
+const openMetalPriceDialog = (row) => { metalPriceSupplier.value = row; metalPriceDialogVisible.value = true; };
 
 // 权限计算属性
 

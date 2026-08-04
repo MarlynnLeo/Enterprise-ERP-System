@@ -10,8 +10,16 @@
   <div class="module-page reconciliation-container">
     <PageHeader title="银行对账" subtitle="银行账户对账与核销">
       <template #actions>
-<el-button v-permission="'finance:cash:reconcile'" type="primary" @click="startReconciliation">开始对账</el-button>
-          <el-button v-permission="'finance:cash:reconcile'" type="success" @click="importStatement" :disabled="!selectedAccount || !dateRange">导入对账单</el-button>
+        <el-button
+          v-permission="'finance:cash:reconcile'"
+          :disabled="!selectedAccount"
+          :loading="balanceSheetLoading"
+          @click="loadBalanceSheet"
+        >
+          余额调节表
+        </el-button>
+        <el-button v-permission="'finance:cash:reconcile'" type="primary" @click="startReconciliation">开始对账</el-button>
+        <el-button v-permission="'finance:cash:reconcile'" type="success" @click="importStatement" :disabled="!selectedAccount || !dateRange">导入对账单</el-button>
       </template>
     </PageHeader>
 
@@ -50,6 +58,56 @@
           </el-form-item>
       </template>
     </FinanceQueryCard>
+
+    <!-- 余额调节表（选择账户后即可查看，不必进入对账会话） -->
+    <el-card v-if="balanceSheet" class="data-card" shadow="never">
+      <template #header>
+        <div class="flex-between">
+          <span>银行余额调节表 · {{ balanceSheet.account?.name }} · 截至 {{ balanceSheet.asOfDate }}</span>
+          <el-button size="small" @click="balanceSheet = null">关闭</el-button>
+        </div>
+      </template>
+      <el-descriptions :column="3" border class="mb-md">
+        <el-descriptions-item label="账面余额">
+          {{ formatCurrency(balanceSheet.bookBalance) }}
+        </el-descriptions-item>
+        <el-descriptions-item label="对账单余额">
+          {{
+            balanceSheet.statementBalance == null
+              ? '无对账单'
+              : formatCurrency(balanceSheet.statementBalance)
+          }}
+        </el-descriptions-item>
+        <el-descriptions-item label="未达合计">
+          {{ formatCurrency(balanceSheet.outstandingSum) }}
+        </el-descriptions-item>
+        <el-descriptions-item label="调节后差异" :span="3">
+          <span
+            :class="{
+              'text-danger':
+                balanceSheet.difference != null && Math.abs(balanceSheet.difference) > 0.01,
+            }"
+          >
+            {{
+              balanceSheet.difference == null ? '—' : formatCurrency(balanceSheet.difference)
+            }}
+          </span>
+        </el-descriptions-item>
+      </el-descriptions>
+      <el-table :data="balanceSheet.outstandingItems || []" border size="small" max-height="280">
+        <template #empty>
+          <el-empty description="无未对账流水" :image-size="48" />
+        </template>
+        <el-table-column prop="date" label="日期" width="110" />
+        <el-table-column prop="type" label="类型" width="90" />
+        <el-table-column prop="amount" label="金额" width="120" align="right">
+          <template #default="{ row }">{{ formatCurrency(row.amount) }}</template>
+        </el-table-column>
+        <el-table-column prop="description" label="摘要" min-width="160" show-overflow-tooltip />
+        <el-table-column prop="reference" label="参考号" width="120" show-overflow-tooltip />
+      </el-table>
+      <p class="text-muted-sm mt-sm">{{ balanceSheet.note }}</p>
+    </el-card>
 
     <div v-if="isReconciling" class="reconciliation-content">
       <!-- 银行对账统计 -->
@@ -344,6 +402,10 @@ const accountOptions = ref([]);
 const dateRange = ref(null);
 const showAdvancedSearch = ref(false);
 
+// 余额调节表
+const balanceSheet = ref(null);
+const balanceSheetLoading = ref(false);
+
 // 对账状态
 const isReconciling = ref(false);
 const loading = ref(false);
@@ -381,6 +443,32 @@ const matchDialogVisible = ref(false);
 const selectedStatementItem = ref({});
 const matchingTransactions = ref([]);
 const selectedTransactions = ref([]);
+
+// 余额调节表
+const loadBalanceSheet = async () => {
+  if (!selectedAccount.value) {
+    ElMessage.warning('请先选择银行账户');
+    return;
+  }
+  balanceSheetLoading.value = true;
+  try {
+    const asOf =
+      (Array.isArray(dateRange.value) && dateRange.value[1]) ||
+      formatLocalDate(new Date());
+    const res = await financeApi.getBankReconciliationBalanceSheet({
+      accountId: selectedAccount.value,
+      asOfDate: asOf,
+    });
+    balanceSheet.value = res?.data || res || null;
+    if (!balanceSheet.value) {
+      ElMessage.info('暂无调节表数据');
+    }
+  } catch (e) {
+    ElMessage.error(e?.response?.data?.message || e.message || '加载余额调节表失败');
+  } finally {
+    balanceSheetLoading.value = false;
+  }
+};
 
 // 获取交易类型文本
 const getTransactionTypeText = (type) => {
@@ -746,6 +834,31 @@ onMounted(async () => {
   padding: 0;
 }
 
+.flex-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.mb-md {
+  margin-bottom: 12px;
+}
+
+.mt-sm {
+  margin-top: 8px;
+}
+
+.text-danger {
+  color: var(--el-color-danger);
+  font-weight: 600;
+}
+
+.text-muted-sm {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
 .header-card {
   margin-bottom: 16px;
 }
@@ -788,7 +901,7 @@ onMounted(async () => {
 /* 统计行 */
 .statistics-row {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
   gap: 16px;
   margin-bottom: 16px;
 }

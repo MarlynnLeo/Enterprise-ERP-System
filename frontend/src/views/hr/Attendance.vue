@@ -1,26 +1,29 @@
 <template>
   <div class="module-page attendance-container">
-    <el-card>
+    <PageHeader title="考勤月表" subtitle="考勤导入、钉钉同步与月度汇总">
+      <template #actions>
+        <el-date-picker
+          v-model="period" type="month" value-format="YYYY-MM"
+          @change="fetchAttendance" class="form-control-140-mr"
+          :clearable="false" />
+        <el-button v-permission="'hr:attendance:update'" @click="rulesDialogVisible = true">
+          <el-icon><Setting /></el-icon> 规则设置
+        </el-button>
+        <el-upload
+          :auto-upload="false" :show-file-list="false" accept=".xlsx,.xls"
+          :on-change="handleFileSelected">
+          <el-button type="warning" v-permission="'hr:attendance:update'"><el-icon><Upload /></el-icon> 导入Excel</el-button>
+        </el-upload>
+        <el-button type="success" :loading="syncing" v-permission="'hr:attendance:update'" @click="handleSyncDingtalk" class="ml-sm">
+          <el-icon><Refresh /></el-icon> 钉钉拉取
+        </el-button>
+      </template>
+    </PageHeader>
+
+    <el-card class="data-card" shadow="never">
       <template #header>
         <div class="card-header">
-          <span>考勤月表</span>
-          <div class="header-actions">
-            <el-date-picker
-              v-model="period" type="month" value-format="YYYY-MM"
-              @change="fetchAttendance" class="form-control-140-mr"
-              :clearable="false" />
-            <el-button v-permission="'hr:attendance:update'" @click="rulesDialogVisible = true">
-              <el-icon><Setting /></el-icon> 规则设置
-            </el-button>
-            <el-upload
-              :auto-upload="false" :show-file-list="false" accept=".xlsx,.xls"
-              :on-change="handleFileSelected">
-              <el-button type="warning" v-permission="'hr:attendance:update'"><el-icon><Upload /></el-icon> 导入Excel</el-button>
-            </el-upload>
-            <el-button type="success" :loading="syncing" v-permission="'hr:attendance:update'" @click="handleSyncDingtalk" class="ml-sm">
-              <el-icon><Refresh /></el-icon> 钉钉拉取
-            </el-button>
-          </div>
+          <span>考勤明细</span>
         </div>
       </template>
 

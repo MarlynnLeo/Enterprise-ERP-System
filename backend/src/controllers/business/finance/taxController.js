@@ -14,7 +14,7 @@ const { logger } = require('../../../utils/logger');
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const db = require('../../../config/db');
-const { currentDateString } = require('../../../utils/dateUtils');
+const { currentDateString, toLocalDateString } = require('../../../utils/dateUtils');
 const Precision = require('../../../utils/precision');
 const { roundMoney } = require('../../../utils/money');
 const BusinessError = require('../../../utils/BusinessError');
@@ -1096,9 +1096,42 @@ const taxController = {
         return ResponseHandler.error(res, '发票已经作废', 'VALIDATION_ERROR', 400);
       }
 
+      // 已认证/已抵扣且已入账：冲销关联总账后再作废
+      if (invoice.gl_entry_id || ['已认证', '已抵扣'].includes(String(invoice.status))) {
+        const VoucherReversalService = require('../../../services/finance/VoucherReversalService');
+        const { DOCUMENT_TYPES } = require('../../../constants/financeConstants');
+        try {
+          await VoucherReversalService.reverseBusinessVouchers(connection, {
+            sourceType: 'tax_invoice',
+            sourceId: invoice.id,
+            documentNumber: invoice.invoice_number,
+            documentType: DOCUMENT_TYPES.INVOICE,
+            voidedBy: req.user?.id || invoice.created_by || null,
+            reason: `作废税务发票 ${invoice.invoice_number}`,
+            entryDate: toLocalDateString(invoice.invoice_date || undefined),
+          });
+        } catch (revErr) {
+          // 若无关联凭证（仅状态已认证但未入账），允许继续作废
+          if (!/未找到单据|对应的未冲销会计凭证/.test(revErr.message || '')) {
+            throw revErr;
+          }
+        }
+        await connection.execute(
+          'UPDATE tax_invoices SET status = ?, gl_entry_id = NULL WHERE id = ?',
+          ['已作废', id]
+        );
+        await connection.commit();
+        return ResponseHandler.success(res, null, '税务发票已作废并冲销会计凭证');
+      }
+
       if (invoice.status !== '未认证') {
         await connection.rollback();
-        return ResponseHandler.error(res, '只有未认证且未入账的发票可以作废', 'VALIDATION_ERROR', 400);
+        return ResponseHandler.error(
+          res,
+          `当前状态「${invoice.status}」不允许作废`,
+          'VALIDATION_ERROR',
+          400
+        );
       }
 
       await connection.execute('UPDATE tax_invoices SET status = ? WHERE id = ?', ['已作废', id]);
@@ -1108,7 +1141,13 @@ const taxController = {
     } catch (error) {
       await connection.rollback();
       logger.error('作废税务发票失败:', error);
-      return ResponseHandler.error(res, '作废税务发票失败', 'SERVER_ERROR', 500, error);
+      return ResponseHandler.error(
+        res,
+        error.message || '作废税务发票失败',
+        'SERVER_ERROR',
+        500,
+        error
+      );
     } finally {
       connection.release();
     }

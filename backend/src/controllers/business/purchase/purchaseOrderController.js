@@ -21,13 +21,23 @@ const PurchaseOrderService = require('../../../services/PurchaseOrderService');
 const PurchaseOrderStatusService = require('../../../services/business/PurchaseOrderStatusService');
 const PurchaseReceiveInspectionService = require('../../../services/business/PurchaseReceiveInspectionService');
 const PurchasePriceService = require('../../../services/business/PurchasePriceService');
+const SupplierMetalRangePriceService = require('../../../services/business/SupplierMetalRangePriceService');
 const DBManager = require('../../../utils/dbManager');
 const { desensitizeDataForUser } = require('../../../utils/desensitizer');
 const { calculateLines, normalizeTaxRate } = require('../../../utils/money');
+const {
+  resolveUnitPrice,
+  normalizeItemsUnitPrice,
+} = require('../../../utils/unitPriceFields');
 const { parsePagination } = require('../../../utils/safePagination');
 const { financeConfig } = require('../../../config/financeConfig');
 const ScopeGuard = require('../../../authorization/ScopeGuard');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
+const {
+  purchaseOrderMap,
+  purchaseOrderItemMap,
+  toNumber,
+} = require('../../../utils/purchase/purchaseFieldMap');
 
 async function canAccessPurchaseOrder(connection, req, id) {
   return ScopeGuard.assertAccess(connection, req, 'purchase_order', id);
@@ -40,13 +50,18 @@ function forbiddenError(message) {
   return error;
 }
 
+function hasProvidedUnitPrice(item) {
+  const keys = ['price', 'unit_price', 'unitPrice'];
+  return keys.some((key) => item[key] !== null && item[key] !== undefined && item[key] !== '');
+}
+
 function assertPurchaseItemPrices(items = []) {
   const invalidRows = items
     .map((item, index) => ({ item, index }))
     .filter(({ item }) => {
-      const rawPrice = item.price ?? item.unit_price ?? item.unitPrice;
-      if (rawPrice === null || rawPrice === undefined || rawPrice === '') return true;
-      const price = Number(rawPrice);
+      // 统一从 price / unit_price / unitPrice 解析
+      if (!hasProvidedUnitPrice(item)) return true;
+      const price = resolveUnitPrice(item, { fallback: Number.NaN });
       return !Number.isFinite(price) || price <= 0;
     })
     .map(({ index }) => index + 1);
@@ -167,21 +182,21 @@ const getOrders = async (req, res) => {
       }
     }
 
-    // 整合订单及其物料
+    // 整合订单及其物料 → 统一 camel API
     const orders = rows.map((row) => {
-      const orderItems = items.filter((item) => item.order_id === row.id);
-
-      const orderWithMappedFields = {
+      const orderItems = normalizeItemsUnitPrice(
+        items.filter((item) => item.order_id === row.id)
+      );
+      const api = purchaseOrderMap.toApi({
         ...row,
         items: orderItems,
-        order_number: row.order_no,
-        notes: row.remarks,
-      };
-
-      return orderWithMappedFields;
+      });
+      // 明细再走 item map，保证 unitPrice
+      api.items = (orderItems || []).map((it) => purchaseOrderItemMap.toApi(it));
+      return api;
     });
 
-    const totalCount = rows.length > 0 ? parseInt(rows[0].total_count) : 0;
+    const totalCount = rows.length > 0 ? parseInt(rows[0].total_count, 10) : 0;
     await desensitizeDataForUser(orders, req.user, 'view', req.userPermissions);
 
     return ResponseHandler.paginated(res, orders, totalCount, pagination.page, pagination.pageSize, undefined, {
@@ -266,14 +281,16 @@ const createOrder = async (req, res) => {
       const subtotal = orderAmounts.subtotal;
       const taxAmount = orderAmounts.taxAmount;
       const calculatedTotalAmount = orderAmounts.totalAmount;
+      const metalSnapshot = await resolveOrderMetalSnapshot(connection, { ...req.body, order_date: orderDate }, orderAmounts.items || items || []);
 
       const insertQuery = `
         INSERT INTO purchase_orders (
           order_no, order_date, supplier_id, supplier_name, contract_code,
+          metal_symbol, metal_price, metal_price_source, metal_price_date, metal_price_scheme_id,
           expected_delivery_date, contact_person, contact_phone,
           total_amount, tax_rate, tax_amount, subtotal, remarks, status, requisition_id, requisition_number, created_by
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
       const [result] = await connection.query(insertQuery, [
         orderNo,
@@ -281,6 +298,11 @@ const createOrder = async (req, res) => {
         supplierId,
         supplierName,
         contractCode || null,
+        metalSnapshot.metal_symbol,
+        metalSnapshot.metal_price,
+        metalSnapshot.metal_price_source,
+        metalSnapshot.metal_price_date,
+        metalSnapshot.metal_price_scheme_id,
         expectedDeliveryDate,
         contactPerson,
         contactPhone,
@@ -348,12 +370,14 @@ const updateOrder = async (req, res) => {
         defaultTaxRate: req.body.tax_rate !== undefined ? req.body.tax_rate : financeConfig.get('tax.defaultVATRate', 0.13),
       });
       const taxRate = normalizeTaxRate(req.body.tax_rate !== undefined ? req.body.tax_rate : orderAmounts.taxRate, financeConfig.get('tax.defaultVATRate', 0.13));
+      const metalSnapshot = await resolveOrderMetalSnapshot(connection, { ...req.body, order_date: orderDate }, orderAmounts.items || items || []);
 
 
       // 更新采购订单基本信息
       const updateQuery = `
         UPDATE purchase_orders
         SET order_date = ?, supplier_id = ?, supplier_name = ?, contract_code = ?,
+            metal_symbol = ?, metal_price = ?, metal_price_source = ?, metal_price_date = ?, metal_price_scheme_id = ?,
             expected_delivery_date = ?, contact_person = ?, contact_phone = ?,
             total_amount = ?, tax_rate = ?, tax_amount = ?, subtotal = ?, remarks = ?, updated_at = CURRENT_TIMESTAMP,
             requisition_id = ?, requisition_number = ?
@@ -364,6 +388,11 @@ const updateOrder = async (req, res) => {
         supplierId,
         supplierName,
         contractCode || null,
+        metalSnapshot.metal_symbol,
+        metalSnapshot.metal_price,
+        metalSnapshot.metal_price_source,
+        metalSnapshot.metal_price_date,
+        metalSnapshot.metal_price_scheme_id,
         expectedDeliveryDate,
         contactPerson,
         contactPhone,
@@ -519,6 +548,32 @@ const updateOrderStatus = async (req, res) => {
         throw new Error(
           `无效的状态变更：${getStatusLabel(currentStatus)} -> ${getStatusLabel(newStatus)}`
         );
+      }
+
+      // 已有收货/入库数量时禁止取消（须先退货清零）
+      if (newStatus === PURCHASE_STATUS.CANCELLED || newStatus === 'cancelled') {
+        const [qtyStats] = await connection.execute(
+          `SELECT COALESCE(SUM(received_quantity), 0) AS recv,
+                  COALESCE(SUM(warehoused_quantity), 0) AS wh
+           FROM purchase_order_items WHERE order_id = ?`,
+          [id]
+        );
+        const recv = parseFloat(qtyStats[0]?.recv) || 0;
+        const wh = parseFloat(qtyStats[0]?.wh) || 0;
+        if (recv > 0.0001 || wh > 0.0001) {
+          throw new Error(
+            `采购订单已有收货/入库数量(收货=${recv}, 入库=${wh})，请先完成退货清零后再取消`
+          );
+        }
+        const [openReceipts] = await connection.execute(
+          `SELECT COUNT(*) AS cnt FROM purchase_receipts
+           WHERE order_id = ? AND deleted_at IS NULL
+             AND status IN ('confirmed', 'completed', 'draft')`,
+          [id]
+        );
+        if (Number(openReceipts[0]?.cnt || 0) > 0) {
+          throw new Error('采购订单仍有关联收货单，请先处理收货单后再取消');
+        }
       }
 
       // 提交审批前必须已设置供应商，否则审批通过后无法到货
@@ -859,20 +914,34 @@ const getOrderById = async (id) => {
       totalWarehoused += parseFloat(item.warehoused_quantity) || 0;
     });
 
-    order.items = itemRows;
-    order.total_quantity = totalQuantity;
-    order.total_received = totalReceived;
-    order.total_warehoused = totalWarehoused;
-    order.received_percentage =
+    // 明细规范化后走 purchaseOrderMap → 仅 camel 出参
+    const normalizedItems = normalizeItemsUnitPrice(itemRows);
+    const api = purchaseOrderMap.toApi({
+      ...order,
+      items: normalizedItems,
+    });
+    api.items = (normalizedItems || []).map((it) => {
+      const line = purchaseOrderItemMap.toApi(it);
+      line.unitName = it.unit_name ?? null;
+      line.receivedQuantity = toNumber(it.received_quantity, 0);
+      line.warehousedQuantity = toNumber(it.warehoused_quantity, 0);
+      line.unqualifiedQuantity = toNumber(it.unqualified_quantity, 0);
+      line.receivedPercentage = toNumber(it.received_percentage, 0);
+      line.warehousedPercentage = toNumber(it.warehoused_percentage, 0);
+      line.pendingQuantity = toNumber(it.pending_quantity, 0);
+      return line;
+    });
+    api.totalQuantity = totalQuantity;
+    api.totalReceived = totalReceived;
+    api.totalWarehoused = totalWarehoused;
+    api.receivedPercentage =
       totalQuantity > 0 ? Math.round((totalReceived / totalQuantity) * 100 * 100) / 100 : 0;
-    order.warehoused_percentage =
+    api.warehousedPercentage =
       totalQuantity > 0 ? Math.round((totalWarehoused / totalQuantity) * 100 * 100) / 100 : 0;
-    order.pending_quantity = totalQuantity - totalReceived;
+    api.pendingQuantity = totalQuantity - totalReceived;
+    api.supplierCode = order.supplier_code ?? null;
 
-    order.order_number = order.order_no;
-    order.notes = order.remarks;
-
-    return order;
+    return api;
   } catch (error) {
     logger.error('获取采购订单详情失败:', error);
     throw error;
@@ -1126,6 +1195,32 @@ const receiveWithIncomingInspection = async (req, res) => {
  * 获取物料的最新采购指导价 (Purchase Info Record)
  * 三级降级策略：供应商历史价 -> 全局历史价 -> 物料主数据预估价
  */
+const resolveOrderMetalSnapshot = async (connection, payload = {}, items = []) => {
+  const explicitMetalPrice = payload.metal_price ?? payload.metalPrice;
+  const metalSymbol = payload.metal_symbol || payload.metalSymbol || items.find((item) => item.metal_symbol)?.metal_symbol || 'ALUMINUM';
+  const metal =
+    explicitMetalPrice !== undefined && explicitMetalPrice !== null && explicitMetalPrice !== ''
+      ? {
+          symbol: metalSymbol,
+          price: Number(explicitMetalPrice),
+          source: payload.metal_price_source || payload.metalPriceSource || 'MANUAL',
+          last_update_at: payload.order_date || payload.orderDate || new Date(),
+        }
+      : await SupplierMetalRangePriceService.getCurrentMetalPrice(connection, metalSymbol);
+
+  const itemMetal = items.find(
+    (item) =>
+      (item.metal_price !== null && item.metal_price !== undefined) || item.metal_price_scheme_id
+  );
+  return {
+    metal_symbol: metal?.symbol || itemMetal?.metal_symbol || metalSymbol || null,
+    metal_price: metal?.price ?? itemMetal?.metal_price ?? null,
+    metal_price_source: metal?.source || itemMetal?.metal_price_source || payload.metal_price_source || null,
+    metal_price_date: (metal?.last_update_at ? new Date(metal.last_update_at).toISOString().slice(0, 10) : null) || payload.order_date || null,
+    metal_price_scheme_id: payload.metal_price_scheme_id || itemMetal?.metal_price_scheme_id || null,
+  };
+};
+
 const getLatestPrice = async (req, res) => {
   try {
     const { material_id, material_code, supplier_id } = req.query;

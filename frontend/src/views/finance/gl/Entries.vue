@@ -10,12 +10,12 @@
   <div class="module-page entries-container">
     <PageHeader :title="pageTitle" subtitle="管理会计凭证与分录">
       <template #actions>
-<el-button
+        <el-button
           type="primary"
           :icon="Plus"
-          @click="createEntry"
+          @click="openEntryDialog"
           v-permission="'finance:entries:create'">
-          新增凭证
+          录入凭证
         </el-button>
       </template>
     </PageHeader>
@@ -396,6 +396,13 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <!-- 录入凭证对话框：业务多选生成 + 手工录入 -->
+    <EntryFormDialog
+      v-model="entryDialogVisible"
+      :default-voucher-word="defaultVoucherWord"
+      @success="handleEntryDialogSuccess"
+    />
   </div>
 </template>
 
@@ -417,6 +424,7 @@ import { storeToRefs } from 'pinia';
 // 项目工具和API
 import { financeApi } from '@/api';
 import printService from '@/services/printService'
+import EntryFormDialog from './entries/EntryFormDialog.vue'
 
 
 // Props定义
@@ -478,6 +486,30 @@ const reversalForm = reactive({
   period_id: null,
   description: ''
 });
+
+// 录入凭证对话框（业务多选生成 + 手工录入）
+const entryDialogVisible = ref(false);
+
+const defaultVoucherWord = computed(() => {
+  const type = props.fixedType || route.query.type || '';
+  const typeMap = {
+    收款凭证: '收',
+    收款单: '收',
+    付款凭证: '付',
+    付款单: '付',
+    转账凭证: '转',
+    记账凭证: '记',
+  };
+  return typeMap[type] || '记';
+});
+
+const openEntryDialog = () => {
+  entryDialogVisible.value = true;
+};
+
+const handleEntryDialogSuccess = async () => {
+  await loadEntries();
+};
 
 // 打印凭证
 const handlePrint = async () => {
@@ -818,14 +850,6 @@ const openRouteEntryDetail = async () => {
   } catch (error) {
     console.error('打开路由指定凭证失败:', error);
   }
-};
-
-// 新增凭证
-const createEntry = () => {
-  router.push({
-    path: '/finance/gl/entries/create',
-    query: { type: props.fixedType || route.query.type }
-  });
 };
 
 // 过账凭证

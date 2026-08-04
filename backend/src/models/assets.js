@@ -1873,16 +1873,18 @@ const assetsModel = {
   addChangeLog: async (assetId, changeType, changedBy, details = [], remarks = '', conn = null) => {
     const dbConn = conn || db.pool;
     try {
+      const { resolveActorUserId } = require('../utils/userUtils');
+      const actor = await resolveActorUserId(dbConn, changedBy);
       if (details.length === 0) {
         await dbConn.execute(
           'INSERT INTO asset_change_logs (asset_id, change_type, changed_by, remarks) VALUES (?, ?, ?, ?)',
-          [assetId, changeType, changedBy || 'system', remarks]
+          [assetId, changeType, String(actor), remarks]
         );
       } else {
         for (const d of details) {
           await dbConn.execute(
             'INSERT INTO asset_change_logs (asset_id, change_type, changed_by, field_name, old_value, new_value, remarks) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [assetId, changeType, changedBy || 'system', d.field, String(d.oldVal ?? ''), String(d.newVal ?? ''), remarks]
+            [assetId, changeType, String(actor), d.field, String(d.oldVal ?? ''), String(d.newVal ?? ''), remarks]
           );
         }
       }
@@ -2007,19 +2009,13 @@ const assetsModel = {
 
       // 3. 记录变更日志
       const changeNotes = `计提减值准备：金额 ${amount}。原因：${impairmentData.reason || '无'}`;
-      await connection.query(
-        `INSERT INTO asset_change_logs
-         (asset_id, change_type, changed_by, field_name, old_value, new_value, remarks)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [
-          assetId,
-          '计提减值',
-          impairmentData.handled_by || 'system',
-          'current_value',
-          netValue,
-          newNetValue,
-          changeNotes
-        ]
+      await this.addChangeLog(
+        assetId,
+        '计提减值',
+        impairmentData.handled_by || impairmentData.created_by,
+        [{ field: 'current_value', oldVal: netValue, newVal: newNetValue }],
+        changeNotes,
+        connection
       );
 
       await accountingConfig.loadFromDatabase(db);
@@ -2331,35 +2327,23 @@ const assetsModel = {
       const changeNotes = `执行资产拆分：拆分出价值 ${splitCost}，新资产为 ${newAssetCode}。原因：${splitData.reason || '无'}`;
 
       // 原资产变更日志
-      await connection.query(
-        `INSERT INTO asset_change_logs
-         (asset_id, change_type, changed_by, field_name, old_value, new_value, remarks)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [
-          assetId,
-          '资产拆分',
-          userId || 'system',
-          'acquisition_cost',
-          originalAsset.acquisition_cost,
-          remainingCost,
-          changeNotes
-        ]
+      await this.addChangeLog(
+        assetId,
+        '资产拆分',
+        userId,
+        [{ field: 'acquisition_cost', oldVal: originalAsset.acquisition_cost, newVal: remainingCost }],
+        changeNotes,
+        connection
       );
 
       // 新资产创建日志
-      await connection.query(
-        `INSERT INTO asset_change_logs
-         (asset_id, change_type, changed_by, field_name, old_value, new_value, remarks)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [
-          newAssetId,
-          '资产拆入',
-          userId || 'system',
-          'status',
-          '',
-          originalAsset.status,
-          `由资产 ${originalAsset.asset_code} 拆分形成，新原值：${splitCost}`
-        ]
+      await this.addChangeLog(
+        newAssetId,
+        '资产拆入',
+        userId,
+        [{ field: 'status', oldVal: '', newVal: originalAsset.status }],
+        `由资产 ${originalAsset.asset_code} 拆分形成，新原值：${splitCost}`,
+        connection
       );
 
       await DocumentLinkService.tryAutoLink(

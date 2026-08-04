@@ -201,7 +201,7 @@ module.exports = {
       const PeriodEndService = require('../../services/business/PeriodEndService');
       const result = await PeriodEndService.closePeriod({
         period_id: Number.parseInt(id, 10),
-        closed_by: 'system',
+        closed_by: null, // resolveActorUserId 在 PeriodEndService 内解析
         closing_date: currentDateString(),
       });
       return Boolean(result?.periodId);
@@ -219,7 +219,7 @@ module.exports = {
       const PeriodEndService = require('../../services/business/PeriodEndService');
       const result = await PeriodEndService.reopenPeriod({
         period_id: Number.parseInt(id, 10),
-        reopened_by: 'system',
+        reopened_by: null, // resolveActorUserId 在 PeriodEndService 内解析
       });
       return Boolean(result?.periodId);
     } catch (error) {

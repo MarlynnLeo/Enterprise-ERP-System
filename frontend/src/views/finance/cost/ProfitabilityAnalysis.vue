@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="module-page profitability-container">
     <!-- 页面标题 -->
     <PageHeader title="盈利分析" subtitle="产品盈利排名 / 客户盈利贡献 / 盈利趋势">
@@ -417,10 +417,6 @@ onBeforeUnmount(() => {
 
 .positive { color: var(--color-success); }
 .negative { color: var(--color-danger); }
-
-.data-card {
-  margin-bottom: 20px;
-}
 
 .trend-chart {
   width: 100%;

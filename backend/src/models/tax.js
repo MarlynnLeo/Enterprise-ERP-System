@@ -14,6 +14,22 @@ const db = require('../config/db');
 const { logger } = require('../utils/logger');
 const { roundMoney } = require('../utils/money');
 const Precision = require('../utils/precision');
+const {
+  TAX_RELATED_DOCUMENT_TYPES,
+  taxRelatedDocumentTypeMatchList,
+} = require('../constants/financeConstants');
+
+/** SQL IN 列表：英文 SSOT + 历史中文别名 */
+function sqlInList(types) {
+  return types.map((t) => `'${String(t).replace(/'/g, "''")}'`).join(', ');
+}
+
+const PURCHASE_RECEIPT_TYPES_SQL = sqlInList(
+  taxRelatedDocumentTypeMatchList(TAX_RELATED_DOCUMENT_TYPES.PURCHASE_RECEIPT)
+);
+const SALES_OUTBOUND_TYPES_SQL = sqlInList(
+  taxRelatedDocumentTypeMatchList(TAX_RELATED_DOCUMENT_TYPES.SALES_OUTBOUND)
+);
 
 function validationError(message) {
   const error = new Error(message);
@@ -144,21 +160,21 @@ const taxModel = {
           CASE
             WHEN ti.related_document_type = 'ap_invoice' THEN ap.invoice_number
             WHEN ti.related_document_type = 'ar_invoice' THEN ar.invoice_number
-            WHEN ti.related_document_type = '采购入库单' THEN pr.receipt_no
-            WHEN ti.related_document_type = '销售出库单' THEN so.outbound_no
+            WHEN ti.related_document_type IN (${PURCHASE_RECEIPT_TYPES_SQL}) THEN pr.receipt_no
+            WHEN ti.related_document_type IN (${SALES_OUTBOUND_TYPES_SQL}) THEN so.outbound_no
             ELSE NULL
           END AS linked_document_number,
           CASE
             WHEN ti.related_document_type = 'ap_invoice' THEN ap.total_amount
             WHEN ti.related_document_type = 'ar_invoice' THEN ar.total_amount
-            WHEN ti.related_document_type = '采购入库单' THEN pr.total_amount
+            WHEN ti.related_document_type IN (${PURCHASE_RECEIPT_TYPES_SQL}) THEN pr.total_amount
             ELSE NULL
           END AS linked_document_amount,
           CASE
             WHEN ti.related_document_type = 'ap_invoice' THEN ap.status
             WHEN ti.related_document_type = 'ar_invoice' THEN ar.status
-            WHEN ti.related_document_type = '采购入库单' THEN pr.status
-            WHEN ti.related_document_type = '销售出库单' THEN so.status
+            WHEN ti.related_document_type IN (${PURCHASE_RECEIPT_TYPES_SQL}) THEN pr.status
+            WHEN ti.related_document_type IN (${SALES_OUTBOUND_TYPES_SQL}) THEN so.status
             ELSE NULL
           END AS linked_document_status
         FROM tax_invoices ti
@@ -167,8 +183,8 @@ const taxModel = {
         LEFT JOIN users u ON ti.created_by = u.id
         LEFT JOIN ap_invoices ap ON ti.related_document_type = 'ap_invoice' AND ti.related_document_id = ap.id
         LEFT JOIN ar_invoices ar ON ti.related_document_type = 'ar_invoice' AND ti.related_document_id = ar.id
-        LEFT JOIN purchase_receipts pr ON ti.related_document_type = '采购入库单' AND ti.related_document_id = pr.id
-        LEFT JOIN sales_outbound so ON ti.related_document_type = '销售出库单' AND ti.related_document_id = so.id
+        LEFT JOIN purchase_receipts pr ON ti.related_document_type IN (${PURCHASE_RECEIPT_TYPES_SQL}) AND ti.related_document_id = pr.id
+        LEFT JOIN sales_outbound so ON ti.related_document_type IN (${SALES_OUTBOUND_TYPES_SQL}) AND ti.related_document_id = so.id
         WHERE 1=1
       `;
 
@@ -239,28 +255,28 @@ const taxModel = {
           CASE
             WHEN ti.related_document_type = 'ap_invoice' THEN ap.invoice_number
             WHEN ti.related_document_type = 'ar_invoice' THEN ar.invoice_number
-            WHEN ti.related_document_type = '采购入库单' THEN pr.receipt_no
-            WHEN ti.related_document_type = '销售出库单' THEN so.outbound_no
+            WHEN ti.related_document_type IN (${PURCHASE_RECEIPT_TYPES_SQL}) THEN pr.receipt_no
+            WHEN ti.related_document_type IN (${SALES_OUTBOUND_TYPES_SQL}) THEN so.outbound_no
             ELSE NULL
           END AS linked_document_number,
           CASE
             WHEN ti.related_document_type = 'ap_invoice' THEN ap.total_amount
             WHEN ti.related_document_type = 'ar_invoice' THEN ar.total_amount
-            WHEN ti.related_document_type = '采购入库单' THEN pr.total_amount
+            WHEN ti.related_document_type IN (${PURCHASE_RECEIPT_TYPES_SQL}) THEN pr.total_amount
             ELSE NULL
           END AS linked_document_amount,
           CASE
             WHEN ti.related_document_type = 'ap_invoice' THEN ap.status
             WHEN ti.related_document_type = 'ar_invoice' THEN ar.status
-            WHEN ti.related_document_type = '采购入库单' THEN pr.status
-            WHEN ti.related_document_type = '销售出库单' THEN so.status
+            WHEN ti.related_document_type IN (${PURCHASE_RECEIPT_TYPES_SQL}) THEN pr.status
+            WHEN ti.related_document_type IN (${SALES_OUTBOUND_TYPES_SQL}) THEN so.status
             ELSE NULL
           END AS linked_document_status,
           CASE
             WHEN ti.related_document_type = 'ap_invoice' THEN ap_s.name
             WHEN ti.related_document_type = 'ar_invoice' THEN ar_c.name
-            WHEN ti.related_document_type = '采购入库单' THEN pr_s.name
-            WHEN ti.related_document_type = '销售出库单' THEN so_ord_c.name
+            WHEN ti.related_document_type IN (${PURCHASE_RECEIPT_TYPES_SQL}) THEN pr_s.name
+            WHEN ti.related_document_type IN (${SALES_OUTBOUND_TYPES_SQL}) THEN so_ord_c.name
             ELSE NULL
           END AS linked_party_name
         FROM tax_invoices ti
@@ -271,9 +287,9 @@ const taxModel = {
         LEFT JOIN suppliers ap_s ON ap.supplier_id = ap_s.id
         LEFT JOIN ar_invoices ar ON ti.related_document_type = 'ar_invoice' AND ti.related_document_id = ar.id
         LEFT JOIN customers ar_c ON ar.customer_id = ar_c.id
-        LEFT JOIN purchase_receipts pr ON ti.related_document_type = '采购入库单' AND ti.related_document_id = pr.id
+        LEFT JOIN purchase_receipts pr ON ti.related_document_type IN (${PURCHASE_RECEIPT_TYPES_SQL}) AND ti.related_document_id = pr.id
         LEFT JOIN suppliers pr_s ON pr.supplier_id = pr_s.id
-        LEFT JOIN sales_outbound so ON ti.related_document_type = '销售出库单' AND ti.related_document_id = so.id
+        LEFT JOIN sales_outbound so ON ti.related_document_type IN (${SALES_OUTBOUND_TYPES_SQL}) AND ti.related_document_id = so.id
         LEFT JOIN sales_orders so_ord ON so.order_id = so_ord.id
         LEFT JOIN customers so_ord_c ON so_ord.customer_id = so_ord_c.id
         WHERE ti.id = ?

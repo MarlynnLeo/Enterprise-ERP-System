@@ -796,7 +796,7 @@ async function main() {
     let taxRows = await q(
       `SELECT id, invoice_number, total_amount, status
        FROM tax_invoices
-       WHERE related_document_type = '销售出库单' AND related_document_id = ?
+       WHERE related_document_type IN ('sales_outbound', '销售出库单') AND related_document_id = ?
        ORDER BY id DESC LIMIT 1`,
       [outId]
     );
@@ -807,7 +807,7 @@ async function main() {
       taxRows = await q(
         `SELECT id, invoice_number, total_amount, status
          FROM tax_invoices
-         WHERE related_document_type = '销售出库单' AND related_document_id = ?
+         WHERE related_document_type IN ('sales_outbound', '销售出库单') AND related_document_id = ?
          ORDER BY id DESC LIMIT 1`,
         [outId]
       );

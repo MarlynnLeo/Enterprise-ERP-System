@@ -1,14 +1,10 @@
 const { pool } = require('../config/db');
 const { logger } = require('../utils/logger');
+const NotificationRecipientService = require('./NotificationRecipientService');
 
 function normalizeIdList(values) {
   const list = Array.isArray(values) ? values : values ? [values] : [];
   return [...new Set(list.map(Number).filter(Number.isInteger))];
-}
-
-function normalizePermissionList(permissionCodes) {
-  const list = Array.isArray(permissionCodes) ? permissionCodes : permissionCodes ? [permissionCodes] : [];
-  return [...new Set(list.map((permission) => String(permission || '').trim()).filter(Boolean))];
 }
 
 function toJson(value) {
@@ -34,36 +30,8 @@ function buildNotificationValue(userId, notification, sourceType, sourceId) {
 }
 
 class NotificationService {
-  static async getUserIdsByPermissions(permissionCodes, { includeAdmins = true } = {}) {
-    const permissions = normalizePermissionList(permissionCodes);
-    if (!permissions.length && !includeAdmins) return [];
-
-    const conditions = [];
-    const params = [];
-
-    if (includeAdmins) {
-      conditions.push("r.code = 'admin'");
-    }
-
-    for (const permission of permissions) {
-      conditions.push('(m.permission = ? OR m.permission LIKE ? OR ? LIKE CONCAT(m.permission, ":%"))');
-      params.push(permission, `${permission}:%`, permission);
-    }
-
-    if (!conditions.length) return [];
-
-    const [users] = await pool.query(
-      `SELECT DISTINCT u.id
-       FROM users u
-       JOIN user_roles ur ON ur.user_id = u.id
-       JOIN roles r ON r.id = ur.role_id AND r.status = 1
-       LEFT JOIN role_menus rm ON rm.role_id = r.id
-       LEFT JOIN menus m ON m.id = rm.menu_id AND m.status = 1
-       WHERE u.status = 1 AND (${conditions.join(' OR ')})`,
-      params
-    );
-
-    return users.map((user) => user.id);
+  static async getUserIdsByPermissions(permissionCodes, { includeAdmins = false } = {}) {
+    return NotificationRecipientService.getUserIdsByPermissions(permissionCodes, { includeAdmins });
   }
 
   static async getAdminUserIds() {
@@ -71,19 +39,20 @@ class NotificationService {
   }
 
   static async notifyByPermissions(permissionCodes, notification, options = {}) {
-    let userIds = await this.getUserIdsByPermissions(permissionCodes, {
-      includeAdmins: options.includeAdmins !== false,
+    const userIds = await this.getUserIdsByPermissions(permissionCodes, {
+      includeAdmins: options.includeAdmins === true,
     });
-
-    if (!userIds.length && options.fallbackToAdmins !== false) {
-      userIds = await this.getAdminUserIds();
-    }
-
     return this.notifyUsers(userIds, notification, options);
   }
 
   static async notifyUsers(userIds, notification, options = {}) {
-    const targetUserIds = normalizeIdList(userIds);
+    if (!notification?.title || !String(notification.title).trim()) {
+      throw new Error('通知标题不能为空');
+    }
+
+    const requestedUserIds = normalizeIdList(userIds);
+    const targetUserIds = await NotificationRecipientService.filterActiveUserIds(requestedUserIds);
+    const inactiveSkipped = requestedUserIds.length - targetUserIds.length;
     if (!targetUserIds.length) {
       logger.warn('Notification skipped because no target users were resolved.', {
         title: notification?.title,
@@ -91,7 +60,7 @@ class NotificationService {
         sourceType: notification?.sourceType,
         sourceId: notification?.sourceId,
       });
-      return { inserted: 0, skipped: 0, updated: 0 };
+      return { inserted: 0, skipped: requestedUserIds.length, updated: 0 };
     }
 
     const sourceType = notification.sourceType || options.sourceType || null;
@@ -108,6 +77,7 @@ class NotificationService {
          WHERE source_type = ?
            AND source_id = ?
            AND user_id IN (?)
+           AND is_suppressed = 0
            ${dedupeBySource ? '' : 'AND created_at >= CURDATE()'}`,
         [sourceType, sourceId, targetUserIds]
       );
@@ -138,8 +108,9 @@ class NotificationService {
       );
     }
 
-    const values = targetUserIds
-      .filter((userId) => !existingByUserId.has(Number(userId)))
+    const insertedUserIds = targetUserIds
+      .filter((userId) => !existingByUserId.has(Number(userId)));
+    const values = insertedUserIds
       .map((userId) => buildNotificationValue(userId, notification, sourceType, sourceId));
 
     if (values.length) {
@@ -153,16 +124,26 @@ class NotificationService {
 
     return {
       inserted: values.length,
-      skipped: targetUserIds.length - values.length,
+      skipped: targetUserIds.length - values.length + inactiveSkipped,
       updated: existingIds.length,
+      insertedUserIds,
     };
   }
 
   static async notifyMany(jobs, options = {}) {
-    const normalizedJobs = (Array.isArray(jobs) ? jobs : [])
+    const inputJobs = Array.isArray(jobs) ? jobs : [];
+    const allRequestedUserIds = inputJobs.flatMap((job) => normalizeIdList(job.userIds));
+    const activeUserIds = new Set(
+      await NotificationRecipientService.filterActiveUserIds(allRequestedUserIds)
+    );
+    let inactiveSkipped = 0;
+
+    const normalizedJobs = inputJobs
       .map((job) => {
         const notification = job.notification || job;
-        const userIds = normalizeIdList(job.userIds);
+        const requestedUserIds = normalizeIdList(job.userIds);
+        const userIds = requestedUserIds.filter((userId) => activeUserIds.has(userId));
+        inactiveSkipped += requestedUserIds.length - userIds.length;
         const sourceType = notification.sourceType || job.sourceType || options.sourceType || null;
         const sourceId = notification.sourceId ?? job.sourceId ?? options.sourceId ?? null;
         const hasSource = sourceType && sourceId !== null && sourceId !== undefined;
@@ -181,7 +162,7 @@ class NotificationService {
       .filter((job) => job.userIds.length && job.notification?.title);
 
     if (!normalizedJobs.length) {
-      return { inserted: 0, skipped: 0, updated: 0 };
+      return { inserted: 0, skipped: inactiveSkipped, updated: 0 };
     }
 
     const existingKeys = new Set();
@@ -211,6 +192,7 @@ class NotificationService {
          WHERE source_type = ?
            AND source_id IN (?)
            AND user_id IN (?)
+           AND is_suppressed = 0
            ${group.dedupeBySource ? '' : 'AND created_at >= CURDATE()'}`,
         [sourceType, sourceIds, userIds]
       );
@@ -246,7 +228,7 @@ class NotificationService {
       );
     }
 
-    return { inserted: values.length, skipped, updated: 0 };
+    return { inserted: values.length, skipped: skipped + inactiveSkipped, updated: 0 };
   }
 }
 

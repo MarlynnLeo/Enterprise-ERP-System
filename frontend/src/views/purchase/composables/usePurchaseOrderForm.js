@@ -94,12 +94,13 @@ const normalizeTaxRate = (rate, fallback = DEFAULT_PURCHASE_VAT_RATE) => {
 }
 
 const AUTO_FILL_PRICE_SOURCES = new Set([
+  'supplier_metal_range',
   'supplier_history',
   'supplier_receipt_history',
   'other_supplier_history',
   'material_cost'
 ])
-const SAME_SUPPLIER_PRICE_SOURCES = new Set(['supplier_history', 'supplier_receipt_history'])
+const SAME_SUPPLIER_PRICE_SOURCES = new Set(['supplier_metal_range', 'supplier_history', 'supplier_receipt_history'])
 
 function canAutoFillPurchasePrice(priceInfo) {
   return priceInfo && Number(priceInfo.price) > 0 && priceInfo.auto_fill !== false && AUTO_FILL_PRICE_SOURCES.has(priceInfo.source)
@@ -111,6 +112,11 @@ function canRefreshForSupplier(priceInfo) {
 
 function getPurchasePriceMessage(priceInfo) {
   const priceText = `￥${Number(priceInfo.price).toFixed(2)}`
+  if (priceInfo.source === 'supplier_metal_range') {
+    const metalText = priceInfo.metal_price != null ? `，金属价 ${Number(priceInfo.metal_price).toFixed(0)}` : ''
+    const bandText = priceInfo.metal_price_band_label ? `，区间 ${priceInfo.metal_price_band_label}` : ''
+    return `已按当日金属价自动匹配区间价: ${priceText}${metalText}${bandText}`
+  }
   if (priceInfo.source === 'supplier_history') return `已自动带入该供应商最近成交价: ${priceText}`
   if (priceInfo.source === 'supplier_receipt_history') return `已自动带入该供应商最近收货价: ${priceText}`
   if (priceInfo.source === 'other_supplier_history') return `已参考其他供应商历史价: ${priceText}`
@@ -247,6 +253,14 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
           const priceInfo = priceMap[String(item.material_id)]
           if (canRefreshForSupplier(priceInfo)) {
             item.price = priceInfo.price
+            item.price_source = priceInfo.source
+            item.metal_symbol = priceInfo.metal_symbol || null
+            item.metal_price = priceInfo.metal_price ?? null
+            item.metal_price_min = priceInfo.metal_price_min ?? null
+            item.metal_price_max = priceInfo.metal_price_max ?? null
+            item.metal_price_band_label = priceInfo.metal_price_band_label || null
+            item.metal_price_scheme_id = priceInfo.metal_price_scheme_id || null
+            item.metal_price_item_id = priceInfo.metal_price_item_id || null
             recalculatePrice(item)
             updatedCount++
           }
@@ -326,6 +340,14 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
       const priceInfo = parseResponseData(res, {})
       if (canAutoFillPurchasePrice(priceInfo)) {
         orderForm.items[index].price = priceInfo.price
+        orderForm.items[index].price_source = priceInfo.source
+        orderForm.items[index].metal_symbol = priceInfo.metal_symbol || null
+        orderForm.items[index].metal_price = priceInfo.metal_price ?? null
+        orderForm.items[index].metal_price_min = priceInfo.metal_price_min ?? null
+        orderForm.items[index].metal_price_max = priceInfo.metal_price_max ?? null
+        orderForm.items[index].metal_price_band_label = priceInfo.metal_price_band_label || null
+        orderForm.items[index].metal_price_scheme_id = priceInfo.metal_price_scheme_id || null
+        orderForm.items[index].metal_price_item_id = priceInfo.metal_price_item_id || null
         ElMessage({ message: getPurchasePriceMessage(priceInfo), type: 'success', duration: 2000 })
       } else { orderForm.items[index].price = '' }
     } catch (e) {
@@ -465,7 +487,11 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
         return sum + (toNumberOrNull(item.tax_amount) ?? (totalPrice * normalizeTaxRate(item.tax_rate, defaultVATRate.value)))
       }, 0)
       const formDataToSubmit = {
-        order_date: orderForm.order_date, supplier_id: orderForm.supplier_id,
+        order_date: orderForm.order_date,
+        metal_symbol: orderForm.items.find((item) => item.metal_symbol)?.metal_symbol || null,
+        metal_price: orderForm.items.find((item) => item.metal_price != null)?.metal_price ?? null,
+        metal_price_source: orderForm.items.find((item) => item.metal_price_source || item.price_source === 'supplier_metal_range')?.metal_price_source || (orderForm.items.some((item) => item.price_source === 'supplier_metal_range') ? 'metal_prices' : null),
+        metal_price_scheme_id: orderForm.items.find((item) => item.metal_price_scheme_id)?.metal_price_scheme_id || null, supplier_id: orderForm.supplier_id,
         expected_delivery_date: orderForm.expected_delivery_date,
         contact_person: orderForm.contact_person, contact_phone: orderForm.contact_phone,
         notes: orderForm.notes, total_amount: Number((subtotal + taxAmount).toFixed(2)),
@@ -483,7 +509,15 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
             material_name: item.material_name, specification: item.specification,
             unit: item.unit, unit_id: item.unit_id, quantity,
             price, total_price: totalPrice,
-            tax_rate: taxRate, tax_amount: Number((totalPrice * taxRate).toFixed(2))
+            tax_rate: taxRate, tax_amount: Number((totalPrice * taxRate).toFixed(2)),
+            price_source: item.price_source || null,
+            metal_symbol: item.metal_symbol || null,
+            metal_price: item.metal_price ?? null,
+            metal_price_min: item.metal_price_min ?? null,
+            metal_price_max: item.metal_price_max ?? null,
+            metal_price_band_label: item.metal_price_band_label || null,
+            metal_price_scheme_id: item.metal_price_scheme_id || null,
+            metal_price_item_id: item.metal_price_item_id || null
           }
         })
       }

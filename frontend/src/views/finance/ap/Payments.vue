@@ -676,7 +676,20 @@ const savePayment = async () => {
         loadPayments();
       } catch (error) {
         console.error('保存付款记录失败:', error);
-        ElMessage.error('保存付款记录失败');
+        const msg =
+          error?.response?.data?.message ||
+          error?.response?.data?.error ||
+          error?.message ||
+          '保存付款记录失败';
+        // 大额审批阈值拦截时给出明确提示
+        if (
+          error?.response?.data?.code === 'PAYMENT_APPROVAL_REQUIRED' ||
+          /审批阈值|skipApproval|PAYMENT_APPROVAL/i.test(String(msg))
+        ) {
+          ElMessage.error(msg);
+        } else {
+          ElMessage.error(msg);
+        }
       } finally {
         saveLoading.value = false;
       }

@@ -1,18 +1,34 @@
 <template>
-  <div class="module-page app-container">
+  <div class="module-page period-closing-page">
     <PageHeader title="期末结转" subtitle="执行损益结转、关账前校验和结转历史追踪" />
 
-    <el-card class="box-card mb-4">
+    <!-- 结转向导 -->
+    <el-card class="data-card wizard-card" shadow="never">
+      <template #header>
+        <div class="card-header">
+          <span>结转向导</span>
+          <el-tag v-if="selectedPeriodLabel" size="small" type="info" effect="plain">
+            {{ selectedPeriodLabel }}
+          </el-tag>
+        </div>
+      </template>
+
       <el-steps :active="activeStep" finish-status="success" simple class="closing-steps">
         <el-step title="选择期间" />
         <el-step title="结转预览" />
         <el-step title="执行结转" />
       </el-steps>
 
+      <!-- Step 0: 选择期间 -->
       <div v-if="activeStep === 0" class="step-content">
-        <el-form :inline="true" class="search-form">
+        <el-form :inline="true" class="search-form step-form">
           <el-form-item label="待结转期间">
-            <el-select v-model="selectedPeriodId" placeholder="选择会计期间" filterable class="form-control-240">
+            <el-select
+              v-model="selectedPeriodId"
+              placeholder="选择会计期间"
+              filterable
+              class="form-control-240"
+            >
               <el-option
                 v-for="period in openPeriods"
                 :key="period.id"
@@ -22,7 +38,12 @@
             </el-select>
           </el-form-item>
           <el-form-item>
-            <el-button type="primary" :disabled="!selectedPeriodId" :loading="previewLoading" @click="fetchPreview">
+            <el-button
+              type="primary"
+              :disabled="!selectedPeriodId"
+              :loading="previewLoading"
+              @click="fetchPreview"
+            >
               下一步
             </el-button>
           </el-form-item>
@@ -32,11 +53,12 @@
           title="结转说明"
           type="info"
           :closable="false"
-          class="mt-4"
+          show-icon
           description="系统会先校验未过账凭证、前序期间、试算平衡与本年利润科目配置；校验通过后才允许生成损益结转凭证并关闭当前会计期间。"
         />
       </div>
 
+      <!-- Step 1: 预览 -->
       <div v-if="activeStep === 1" class="step-content">
         <template v-if="previewData">
           <el-alert
@@ -45,7 +67,7 @@
             type="error"
             :closable="false"
             show-icon
-            class="mb-4"
+            class="step-block"
           >
             请先处理未通过的检查项，再重新预览。
           </el-alert>
@@ -56,96 +78,119 @@
             type="warning"
             :closable="false"
             show-icon
-            class="mb-4"
+            class="step-block"
             description="为避免重复结转，系统会阻止重复生成结转凭证。请先核对历史凭证或重新打开期间后处理。"
           />
 
-          <el-table v-if="previewData.checks?.length" :data="previewData.checks" border class="mb-4">
-            <el-table-column label="检查项" prop="name" width="220" />
-            <el-table-column label="状态" width="100">
-              <template #default="{ row }">
-                <el-tag :type="row.passed ? 'success' : 'danger'">
-                  {{ row.passed ? '通过' : '未通过' }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="说明">
-              <template #default="{ row }">
-                {{ row.message || '正常' }}
-              </template>
-            </el-table-column>
-            <el-table-column label="处理" min-width="140" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
-              <template #default="{ row }">
-                <div class="table-actions">
-                  <el-button
-                    v-if="row.key === 'unposted_entries' && !row.passed"
-                    v-permission="'finance:entries:view'"
+          <div v-if="previewData.checks?.length" class="step-block">
+            <div class="section-title">关账前检查</div>
+            <el-table :data="previewData.checks" border class="w-full">
+              <el-table-column label="检查项" prop="name" width="220" />
+              <el-table-column label="状态" width="100">
+                <template #default="{ row }">
+                  <el-tag :type="row.passed ? 'success' : 'danger'" size="small">
+                    {{ row.passed ? '通过' : '未通过' }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="说明" min-width="200">
+                <template #default="{ row }">
+                  {{ row.message || '正常' }}
+                </template>
+              </el-table-column>
+              <el-table-column
+                label="处理"
+                min-width="140"
+                align="left"
+                header-align="left"
+                class-name="operation-column"
+                header-class-name="operation-column-header"
+              >
+                <template #default="{ row }">
+                  <div class="table-actions">
+                    <el-button
+                      v-if="row.key === 'unposted_entries' && !row.passed"
+                      v-permission="'finance:entries:view'"
+                      size="small"
+                      type="primary"
+                      @click="openUnpostedDialog"
+                    >
+                      查看并过账
+                    </el-button>
+                    <el-button
+                      v-if="row.key === 'bank_reconciliation_closed' && !row.passed"
+                      v-permission="'finance:cash:reconcile'"
+                      size="small"
+                      type="primary"
+                      @click="openReconciliationDialog"
+                    >
+                      查看并对账
+                    </el-button>
+                  </div>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+
+          <div class="step-block">
+            <div class="section-title">结转摘要</div>
+            <el-descriptions :column="3" border>
+              <el-descriptions-item label="会计期间">
+                {{ previewData.period?.period_name || '-' }}
+              </el-descriptions-item>
+              <el-descriptions-item label="总收入">
+                {{ formatMoney(previewData.summary?.totalIncome) }}
+              </el-descriptions-item>
+              <el-descriptions-item label="总费用">
+                {{ formatMoney(previewData.summary?.totalExpense) }}
+              </el-descriptions-item>
+              <el-descriptions-item label="本期净利润">
+                <span
+                  :class="
+                    toNumber(previewData.summary?.netProfit) >= 0 ? 'text-success' : 'text-danger'
+                  "
+                >
+                  {{ formatMoney(previewData.summary?.netProfit) }}
+                </span>
+              </el-descriptions-item>
+            </el-descriptions>
+          </div>
+
+          <div class="step-block">
+            <div class="section-title">结转明细</div>
+            <el-table :data="previewData.closingItems || []" border class="w-full" max-height="400">
+              <el-table-column prop="account_code" label="科目编码" width="120" />
+              <el-table-column prop="account_name" label="科目名称" min-width="200" />
+              <el-table-column prop="account_type" label="类型" width="100" />
+              <el-table-column prop="total_debit" label="借方发生" width="130" align="right">
+                <template #default="{ row }">
+                  {{ formatMoney(row.total_debit) }}
+                </template>
+              </el-table-column>
+              <el-table-column prop="total_credit" label="贷方发生" width="130" align="right">
+                <template #default="{ row }">
+                  {{ formatMoney(row.total_credit) }}
+                </template>
+              </el-table-column>
+              <el-table-column prop="closing_amount" label="结转金额" width="130" align="right">
+                <template #default="{ row }">
+                  {{ formatMoney(row.closing_amount) }}
+                </template>
+              </el-table-column>
+              <el-table-column prop="closing_direction" label="结转方向" width="100">
+                <template #default="{ row }">
+                  <el-tag
+                    :type="row.closing_direction === '借方' ? 'success' : 'warning'"
                     size="small"
-                    type="primary"
-                    @click="openUnpostedDialog"
                   >
-                    查看并过账
-                  </el-button>
-                  <el-button
-                    v-if="row.key === 'bank_reconciliation_closed' && !row.passed"
-                    v-permission="'finance:cash:reconcile'"
-                    size="small"
-                    type="primary"
-                    @click="openReconciliationDialog"
-                  >
-                    查看并对账
-                  </el-button>
-                </div>
-              </template>
-            </el-table-column>
-          </el-table>
+                    {{ row.closing_direction || '-' }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
 
-          <el-descriptions title="结转摘要" :column="3" border class="mb-4">
-            <el-descriptions-item label="会计期间">
-              {{ previewData.period?.period_name || '-' }}
-            </el-descriptions-item>
-            <el-descriptions-item label="总收入">
-              {{ formatMoney(previewData.summary?.totalIncome) }}
-            </el-descriptions-item>
-            <el-descriptions-item label="总费用">
-              {{ formatMoney(previewData.summary?.totalExpense) }}
-            </el-descriptions-item>
-            <el-descriptions-item label="本期净利润">
-              <span :class="toNumber(previewData.summary?.netProfit) >= 0 ? 'text-success' : 'text-danger'">
-                {{ formatMoney(previewData.summary?.netProfit) }}
-              </span>
-            </el-descriptions-item>
-          </el-descriptions>
-
-          <el-table :data="previewData.closingItems || []" border class="w-full" height="400">
-            <el-table-column prop="account_code" label="科目编码" width="120" />
-            <el-table-column prop="account_name" label="科目名称" min-width="200" />
-            <el-table-column prop="account_type" label="类型" width="100" />
-            <el-table-column prop="total_debit" label="借方发生">
-              <template #default="{ row }">
-                {{ formatMoney(row.total_debit) }}
-              </template>
-            </el-table-column>
-            <el-table-column prop="total_credit" label="贷方发生">
-              <template #default="{ row }">
-                {{ formatMoney(row.total_credit) }}
-              </template>
-            </el-table-column>
-            <el-table-column prop="closing_amount" label="结转金额">
-              <template #default="{ row }">
-                {{ formatMoney(row.closing_amount) }}
-              </template>
-            </el-table-column>
-            <el-table-column prop="closing_direction" label="结转方向" width="100">
-              <template #default="{ row }">
-                <el-tag :type="row.closing_direction === '借方' ? 'success' : 'warning'">
-                  {{ row.closing_direction || '-' }}
-                </el-tag>
-              </template>
-            </el-table-column>
-          </el-table>
-
-          <div class="mt-4 actions-row">
+          <div class="actions-row">
             <el-button @click="activeStep = 0">上一步</el-button>
             <el-button
               v-permission="'finance:closing:execute'"
@@ -160,7 +205,8 @@
         </template>
       </div>
 
-      <div v-if="activeStep >= 2" class="step-content text-center py-8">
+      <!-- Step 2+: 完成 -->
+      <div v-if="activeStep >= 2" class="step-content step-result">
         <el-result
           icon="success"
           title="期末结转完成"
@@ -174,29 +220,28 @@
       </div>
     </el-card>
 
-    <el-card ref="historyCardRef" class="box-card">
+    <!-- 结转历史 -->
+    <el-card ref="historyCardRef" class="data-card" shadow="never">
       <template #header>
         <div class="card-header">
           <span>结转历史记录</span>
+          <el-select
+            v-model="historyPeriodId"
+            placeholder="选择会计期间"
+            clearable
+            filterable
+            class="form-control-240"
+            @change="fetchHistory"
+          >
+            <el-option
+              v-for="item in periods"
+              :key="item.id"
+              :label="item.period_name"
+              :value="item.id"
+            />
+          </el-select>
         </div>
       </template>
-      <div class="filter-container mb-4">
-        <el-select
-          v-model="historyPeriodId"
-          placeholder="选择会计期间"
-          clearable
-          filterable
-          class="form-control-240"
-          @change="fetchHistory"
-        >
-          <el-option
-            v-for="item in periods"
-            :key="item.id"
-            :label="item.period_name"
-            :value="item.id"
-          />
-        </el-select>
-      </div>
       <el-table :data="historyList" border class="w-full">
         <template #empty>
           <el-empty description="暂无结转历史" />
@@ -207,7 +252,7 @@
             {{ formatDate(row.entry_date) }}
           </template>
         </el-table-column>
-        <el-table-column prop="description" label="摘要" />
+        <el-table-column prop="description" label="摘要" min-width="200" />
         <el-table-column prop="operator_name" label="操作人" width="120" />
         <el-table-column prop="created_at" label="操作时间" width="180">
           <template #default="{ row }">
@@ -495,14 +540,20 @@ const manualReconciledTransactions = ref([])
 const route = useRoute()
 const router = useRouter()
 
-const openPeriods = computed(() => periods.value.filter(period => !period.is_closed))
+const openPeriods = computed(() => periods.value.filter((period) => !period.is_closed))
+const selectedPeriodLabel = computed(() => {
+  const period =
+    openPeriods.value.find((p) => p.id === selectedPeriodId.value) ||
+    periods.value.find((p) => p.id === selectedPeriodId.value)
+  return period?.period_name || ''
+})
 const dateFixPrimaryText = computed(() => {
   if (dateFixAfterSaveAction.value === 'post') return '修正并过账'
   if (dateFixAfterSaveAction.value === 'batch') return '修正并继续一键过账'
   return '保存修正'
 })
-const toNumber = value => Number.parseFloat(value) || 0
-const formatMoney = value => formatCurrency(value, '¥')
+const toNumber = (value) => Number.parseFloat(value) || 0
+const formatMoney = (value) => formatCurrency(value, '¥')
 
 const selectDefaultOpenPeriod = () => {
   const now = new Date()
@@ -849,44 +900,67 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.app-container {
-  padding: 20px;
+/* 根节点交给 .module-page（padding:0 + data-card 间距 20px），勿再套 app-container 内边距 */
+
+.period-closing-page :deep(.wizard-card > .el-card__header),
+.period-closing-page :deep(.data-card > .el-card__header) {
+  padding: 14px 16px;
 }
 
-.header-card,
-.title-section h2 {
-  margin: 0 0 5px;
-  font-size: 20px;
-  color: var(--color-text-primary);
+.period-closing-page :deep(.wizard-card > .el-card__body),
+.period-closing-page :deep(.data-card > .el-card__body) {
+  padding: 16px;
 }
 
-.subtitle {
-  margin: 0;
-  font-size: 14px;
-  color: var(--color-text-secondary);
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-weight: 600;
+  color: var(--color-text-primary, var(--el-text-color-primary));
 }
 
 .closing-steps {
   margin-bottom: 20px;
 }
 
-.mt-4 {
-  margin-top: 16px;
+.step-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
-.py-8 {
-  padding-top: 2rem;
-  padding-bottom: 2rem;
+.step-form {
+  margin: 0;
 }
 
-.text-center {
-  text-align: center;
+.step-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-primary, var(--el-text-color-primary));
+  line-height: 1.4;
+}
+
+.step-result {
+  padding: 24px 0 8px;
 }
 
 .actions-row {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
   gap: 12px;
+  padding-top: 4px;
+  border-top: 1px solid var(--color-border-lighter, var(--el-border-color-lighter));
+  margin-top: 4px;
 }
 
 .dialog-toolbar {
@@ -895,13 +969,26 @@ onMounted(() => {
   align-items: center;
   gap: 12px;
   margin-bottom: 12px;
+  flex-wrap: wrap;
 }
 
 .text-secondary {
-  color: var(--color-text-secondary);
+  color: var(--color-text-secondary, var(--el-text-color-secondary));
 }
 
 .text-danger {
-  color: var(--color-danger);
+  color: var(--color-danger, var(--el-color-danger));
+  font-weight: 600;
+}
+
+.text-success {
+  color: var(--color-success, var(--el-color-success));
+  font-weight: 600;
+}
+
+.table-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 </style>

@@ -33,7 +33,7 @@ const SESSION_CONFIG = {
   maxAge: 24 * 60 * 60 * 1000, // 24小时
   secure: process.env.NODE_ENV === 'production', // 生产环境使用 HTTPS
   httpOnly: true,
-  sameSite: 'strict',
+  sameSite: 'lax',
 };
 
 // 速率限制配置
@@ -158,7 +158,8 @@ const SECURITY_HEADERS = {
   'X-XSS-Protection': '1; mode=block',
   'Referrer-Policy': 'strict-origin-when-cross-origin',
   'Permissions-Policy': 'geolocation=(), microphone=(), camera=()',
-  'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload',
+  // Applied per-request in app.js for HTTPS only
+  // 'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
 };
 
 // 输入验证配置

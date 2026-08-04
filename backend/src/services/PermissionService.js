@@ -3,7 +3,7 @@
  * 解决权限系统中的缓存不一致和逻辑重复问题
  *
  * 设计原则:
- *   1. 管理员(admin角色)拥有超级权限(*通配符)，无需在 permissions 表注册每个权限
+ *   1. 标记为 is_super_admin 的角色拥有超级权限(*通配符)，无需注册每个权限
  *   2. 普通用户权限从 roles → role_permissions → permissions 获取（鉴权 SSOT）
  *   3. menus / role_menus 负责导航可见性；赋权时同步写入 role_permissions
  *   4. 权限结果带缓存(默认5分钟)，服务启动时自动清除旧缓存
@@ -115,6 +115,13 @@ function expandPermissionsWithAliases(permissions) {
  */
 class PermissionService {
   /**
+   * 展开权限别名，供鉴权与通知收件人解析共享同一套权限语义。
+   */
+  static expandPermissionsWithAliases(permissions) {
+    return expandPermissionsWithAliases(permissions);
+  }
+
+  /**
    * 缓存配置
    */
   static CACHE_CONFIG = {
@@ -176,7 +183,7 @@ class PermissionService {
 
   /**
    * 检查用户是否为管理员
-   * 通过 user_roles + roles 表判断用户是否拥有 admin 角色
+   * 通过 user_roles + roles.is_super_admin 判断用户是否拥有超级管理员角色
    * @param {number} userId - 用户ID
    * @returns {Promise<boolean>}
    */
@@ -185,7 +192,7 @@ class PermissionService {
       const [result] = await pool.execute(
         `SELECT COUNT(*) as count FROM user_roles ur
          JOIN roles r ON ur.role_id = r.id
-         WHERE ur.user_id = ? AND r.code = 'admin' AND r.status = 1`,
+         WHERE ur.user_id = ? AND r.is_super_admin = 1 AND r.status = 1`,
         [userId]
       );
       return result[0].count > 0;

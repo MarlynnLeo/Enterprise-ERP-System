@@ -16,36 +16,40 @@ ROOT = Path(__file__).resolve().parents[1]
 MANUALS = {
     "general": {
         "source": ROOT / "docs" / "ERP_操作手册与业务流程.md",
-        "output": ROOT / "docs" / "KACON_ERP_MES_操作手册与业务流程_V1.0.docx",
+        "output": ROOT / "docs" / "KACON_ERP_MES_操作手册与业务流程_V1.3.docx",
+        "version": "V1.3",
+        "date": "2026-08-03",
         "header": "KACON ERP/MES | 操作手册",
         "title": "KACON ERP/MES\n操作手册与业务流程",
         "subtitle": "从主数据、业务单据到库存、生产、质量、财务和结账的统一操作指南",
         "meta": [
-            ("版本", "V1.0"),
-            ("整理日期", "2026-07-20"),
+            ("版本", "V1.3"),
+            ("整理日期", "2026-08-03"),
             ("适用范围", "桌面端、移动端、系统管理员、各业务岗位及运维人员"),
             ("编制依据", "当前代码、路由、权限、数据库迁移与自动化测试"),
         ],
         "callout": "本手册按系统当前实现整理。正式上线前，请由业务负责人用真实组织、仓库、会计科目和审批矩阵完成一次用户验收。",
-        "contents_callout": "快速定位：业务人员从第 5 节开始；主管重点阅读第 6、9 节；管理员和运维人员重点阅读第 4、7、11、12 节。",
+        "contents_callout": "快速定位：业务人员从第 5 节开始；主管重点阅读第 6、9、13 节；管理员和运维人员重点阅读第 4、7、11、12 节；移动端看第 8 节。目录条目可点击跳转。",
         "subject": "ERP/MES 系统操作、端到端业务流程、上线初始化和运维",
         "comments": "面向系统管理员、业务岗位和运维人员的综合操作说明",
-        "page_break_sections": {"附录 B：上线验收核心场景"},
+        "page_break_sections": {"13. 新用户可执行操作标准", "附录 A：岗位快速上手路径", "附录 B：上线验收核心场景"},
     },
     "department": {
         "source": ROOT / "docs" / "ERP_部门业务操作手册.md",
-        "output": ROOT / "docs" / "KACON_ERP_MES_部门业务操作手册_V1.0.docx",
+        "output": ROOT / "docs" / "KACON_ERP_MES_部门业务操作手册_V1.3.docx",
+        "version": "V1.3",
+        "date": "2026-08-03",
         "header": "KACON ERP/MES | 部门业务手册",
         "title": "KACON ERP/MES\n部门业务操作手册",
         "subtitle": "给各部门同事的日常录入、审批、执行、交接与异常处理指南",
         "meta": [
-            ("版本", "V1.0"),
-            ("整理日期", "2026-07-20"),
+            ("版本", "V1.3"),
+            ("整理日期", "2026-08-03"),
             ("适用人员", "销售、采购、仓库、计划、生产、质量、财务、设备、人事及主管"),
             ("使用目的", "统一部门操作、单据填写、审批交接和业务闭环"),
         ],
         "callout": "本手册只说明业务操作。各部门应结合公司授权、合同、质量和财务制度执行，系统中没有的特殊业务请先向主管确认。",
-        "contents_callout": "快速定位：所有人先看第 3、4 节；销售看第 6 节；采购看第 7 节；仓库看第 8 节；计划/生产看第 9 节；质量看第 10 节；财务看第 11 节。",
+        "contents_callout": "快速定位：所有人先看第 3、4 节；销售看第 6、17 节；采购看第 7、17 节；仓库看第 8、19 节；计划/生产看第 9、18 节；质量看第 10、18 节；财务看第 11、17、18 节。目录条目可点击跳转。",
         "subject": "ERP/MES 部门业务操作、审批、交接和异常处理",
         "comments": "面向部门同事的业务操作说明",
         "bottom_margin": 0.6,
@@ -53,23 +57,27 @@ MANUALS = {
             "附录 B：业务单据交接模板",
             "附录 C：业务培训演练场景",
         },
+        "page_break_sections": {"17. 核心场景字段示例与预期结果"},
     },
     "technical": {
         "source": ROOT / "docs" / "ERP_技术开发与交接文档.md",
-        "output": ROOT / "docs" / "KACON_ERP_MES_技术开发与交接文档_V1.0.docx",
+        "output": ROOT / "docs" / "KACON_ERP_MES_技术开发与交接文档_V1.1.docx",
+        "version": "V1.1",
+        "date": "2026-07-21",
         "header": "KACON ERP/MES | 技术交接文档",
         "title": "KACON ERP/MES\n技术开发与交接文档",
         "subtitle": "面向后端、桌面端、移动端、数据库、部署和运维接手人员",
         "meta": [
-            ("版本", "V1.0"),
-            ("整理日期", "2026-07-20"),
+            ("版本", "V1.1"),
+            ("整理日期", "2026-07-21"),
             ("适用对象", "后端、桌面端、移动端、数据库、部署和运维接手人员"),
             ("文档定位", "以当前代码和部署文件为准的开发、发布、排障与回滚指南"),
         ],
         "callout": "这份文档描述当前仓库真实实现。接手开发前先阅读已知边界与高风险规则，不要根据页面名称推断后端一定存在对应工作流或接口。",
-        "contents_callout": "快速定位：先看第 2、3、4 节；本地开发看第 5、6 节；测试看第 7 节；运维发布看第 8、9、10 节。",
+        "contents_callout": "快速定位：先看第 2、3、4 节；本地开发看第 5、13、14、15 节；测试看第 7、17 节；运维发布看第 8、9、10、16、17 节。目录条目可点击跳转。",
         "subject": "ERP/MES 技术架构、开发约定、部署运维和接手验收",
         "comments": "面向后端、前端、数据库、部署和运维接手人员的技术交接说明",
+        "page_break_sections": {"13. API、权限和错误约定", "14. 数据库、迁移和表族地图", "15. 环境变量矩阵", "16. 后台任务、事件和外部集成", "17. 测试基线、发布资产和接管运行手册", "附录 A：接手验收清单"},
     },
 }
 
@@ -206,6 +214,56 @@ def add_page_field(paragraph):
     set_run_font(run, size=9, color=MUTED)
 
 
+def next_bookmark_id(doc):
+    current = getattr(doc, "_erp_bookmark_id", 0)
+    setattr(doc, "_erp_bookmark_id", current + 1)
+    return current
+
+
+def add_bookmark(doc, paragraph, name):
+    bookmark_id = next_bookmark_id(doc)
+    start = OxmlElement("w:bookmarkStart")
+    start.set(qn("w:id"), str(bookmark_id))
+    start.set(qn("w:name"), name)
+    end = OxmlElement("w:bookmarkEnd")
+    end.set(qn("w:id"), str(bookmark_id))
+    p_pr = paragraph._p.pPr
+    insert_at = 1 if p_pr is not None else 0
+    paragraph._p.insert(insert_at, start)
+    paragraph._p.append(end)
+
+
+def add_internal_hyperlink(paragraph, text, anchor, color=BLUE, bold=False, size=11):
+    hyperlink = OxmlElement("w:hyperlink")
+    hyperlink.set(qn("w:anchor"), anchor)
+    hyperlink.set(qn("w:history"), "1")
+    run = OxmlElement("w:r")
+    r_pr = OxmlElement("w:rPr")
+    r_style = OxmlElement("w:rStyle")
+    r_style.set(qn("w:val"), "Hyperlink")
+    r_pr.append(r_style)
+    color_node = OxmlElement("w:color")
+    color_node.set(qn("w:val"), color)
+    r_pr.append(color_node)
+    size_node = OxmlElement("w:sz")
+    size_node.set(qn("w:val"), str(int(size * 2)))
+    r_pr.append(size_node)
+    east_asia = OxmlElement("w:rFonts")
+    east_asia.set(qn("w:eastAsia"), "Microsoft YaHei")
+    east_asia.set(qn("w:ascii"), "Calibri")
+    east_asia.set(qn("w:hAnsi"), "Calibri")
+    r_pr.append(east_asia)
+    if bold:
+        r_pr.append(OxmlElement("w:b"))
+    run.append(r_pr)
+    text_node = OxmlElement("w:t")
+    text_node.text = text
+    run.append(text_node)
+    hyperlink.append(run)
+    paragraph._p.append(hyperlink)
+    return hyperlink
+
+
 def add_inline_markdown(paragraph, text):
     # Keep the parser intentionally small and deterministic for this maintained manual.
     pattern = re.compile(r"(\*\*.*?\*\*|`.*?`|\[.*?\]\(.*?\))")
@@ -285,8 +343,12 @@ def create_numbering(doc):
     return num_id
 
 
-def add_numbered_paragraph(doc, text, num_id):
-    p = add_body_paragraph(doc, text, style="List Number")
+def add_numbered_paragraph(doc, text, num_id, anchor=None):
+    p = doc.add_paragraph(style="List Number")
+    if anchor:
+        add_internal_hyperlink(p, text, anchor, color=DEEP_BLUE, bold=True)
+    else:
+        add_inline_markdown(p, text)
     p_pr = p._p.get_or_add_pPr()
     existing = p_pr.find(qn("w:numPr"))
     if existing is not None:
@@ -404,7 +466,7 @@ def add_cover(doc, config):
     set_run_font(run, size=9, color=MUTED, bold=True)
     footer = section.footer.paragraphs[0]
     footer.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = footer.add_run("内部使用 | V1.0 | 第 ")
+    run = footer.add_run(f"内部使用 | {config['version']} | 第 ")
     set_run_font(run, size=9, color=MUTED)
     add_page_field(footer)
     run = footer.add_run(" 页")
@@ -446,14 +508,17 @@ def add_cover(doc, config):
     doc.add_page_break()
 
 
-def add_contents(doc, source_lines, config):
+def add_contents(doc, source_lines, config, section_bookmarks):
     p = doc.add_paragraph(style="Heading 1")
     p.add_run("目录")
+    add_bookmark(doc, p, "TOC")
     num_id = create_numbering(doc)
+    section_index = 0
     for line in source_lines:
         if line.startswith("## "):
             text = re.sub(r"^\d+\.\s*", "", line[3:].strip())
-            add_numbered_paragraph(doc, text, num_id)
+            add_numbered_paragraph(doc, text, num_id, anchor=section_bookmarks[section_index])
+            section_index += 1
     doc.add_paragraph().paragraph_format.space_after = Pt(6)
     add_callout(doc, config["contents_callout"])
     doc.add_page_break()
@@ -461,6 +526,10 @@ def add_contents(doc, source_lines, config):
 
 def build(config):
     lines = config["source"].read_text(encoding="utf-8").splitlines()
+    section_bookmarks = [
+        f"section_{idx:03d}"
+        for idx, line in enumerate((line for line in lines if line.startswith("## ")), start=1)
+    ]
     doc = Document()
     section = doc.sections[0]
     section.page_width = Inches(8.5)
@@ -471,11 +540,12 @@ def build(config):
     section.right_margin = Inches(1)
     configure_styles(doc)
     add_cover(doc, config)
-    add_contents(doc, lines, config)
+    add_contents(doc, lines, config, section_bookmarks)
 
     # The cover already contains the Markdown title and metadata block.
     i = next((idx for idx, line in enumerate(lines) if line.startswith("## ")), 0)
     current_section = ""
+    top_section_index = 0
     while i < len(lines):
         line = lines[i].rstrip()
         if not line:
@@ -490,6 +560,10 @@ def build(config):
                 doc.add_page_break()
             p = doc.add_paragraph(style="Heading 1")
             p.add_run(current_section)
+            add_bookmark(doc, p, section_bookmarks[top_section_index])
+            top_section_index += 1
+            p.add_run("   ")
+            add_internal_hyperlink(p, "返回目录", "TOC", color=MUTED, size=8)
             i += 1
             continue
         if line.startswith("### "):
@@ -553,7 +627,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "manual",
         nargs="?",
-        choices=["general", "department", "all"],
+        choices=["general", "department", "technical", "all"],
         default="all",
     )
     args = parser.parse_args()

@@ -6,6 +6,7 @@
 
 const { lineAmount, normalizeTaxRate, taxAmount, roundMoney, toNumber, sumMoney } =
   require('../money');
+const { resolveUnitPrice } = require('../unitPriceFields');
 
 /**
  * 规范化发票明细并重算金额
@@ -49,11 +50,13 @@ function normalizeInvoiceAmounts(items = [], options = {}) {
 
   const normalizedItems = items.map((item) => {
     const quantity = toNumber(item.quantity, 0);
-    const unitPrice = toNumber(item.unit_price ?? item.unitPrice, 0);
+    // 兼容采购传来的 price 与销售/发票的 unit_price
+    const unitPrice = resolveUnitPrice(item);
     const amount = lineAmount(quantity, unitPrice);
     return {
       ...item,
       quantity,
+      price: unitPrice,
       unit_price: unitPrice,
       amount,
     };

@@ -103,29 +103,42 @@ class PurchaseOrderStatusService {
         `[PurchaseOrderStatusService] Syncing received quantity from receipts: orderId=${orderId}, materialId=${materialId}`
       );
 
-      // 从所有非草稿、非取消的收货单汇总该物料的实际收货量
+      // 收货汇总 − 非取消退货 = 净收货（SSOT，避免退货后 sync 把数量写回）
       const [result] = await client.execute(
-        `SELECT GREATEST(
-           COALESCE((
-             SELECT SUM(COALESCE(NULLIF(ri.received_quantity, 0), ri.quantity, ri.qualified_quantity, 0))
-             FROM purchase_receipt_items ri
-             JOIN purchase_receipts r ON ri.receipt_id = r.id
-             WHERE r.order_id = ?
-               AND ri.material_id = ?
-               AND r.status IN ('confirmed', 'completed')
-               AND r.deleted_at IS NULL
-           ), 0),
-           COALESCE((
-             SELECT SUM(COALESCE(NULLIF(qi.quantity, 0), qi.qualified_quantity, 0))
-             FROM quality_inspections qi
-             WHERE qi.reference_id = ?
-               AND qi.material_id = ?
-               AND qi.inspection_type = 'incoming'
-               AND qi.deleted_at IS NULL
-               AND qi.status NOT IN ('cancelled', 'rejected')
-           ), 0)
+        `SELECT GREATEST(0,
+           GREATEST(
+             COALESCE((
+               SELECT SUM(COALESCE(NULLIF(ri.received_quantity, 0), ri.quantity, ri.qualified_quantity, 0))
+               FROM purchase_receipt_items ri
+               JOIN purchase_receipts r ON ri.receipt_id = r.id
+               WHERE r.order_id = ?
+                 AND ri.material_id = ?
+                 AND r.status IN ('confirmed', 'completed')
+                 AND r.deleted_at IS NULL
+             ), 0),
+             COALESCE((
+               SELECT SUM(COALESCE(NULLIF(qi.quantity, 0), qi.qualified_quantity, 0))
+               FROM quality_inspections qi
+               WHERE qi.reference_id = ?
+                 AND qi.material_id = ?
+                 AND qi.inspection_type = 'incoming'
+                 AND qi.deleted_at IS NULL
+                 AND qi.status NOT IN ('cancelled', 'rejected')
+             ), 0)
+           )
+           - COALESCE((
+               SELECT SUM(COALESCE(pri.return_quantity, pri.quantity, 0))
+               FROM purchase_return_items pri
+               JOIN purchase_returns pr ON pri.return_id = pr.id
+               JOIN purchase_receipts rc ON pr.receipt_id = rc.id
+               WHERE rc.order_id = ?
+                 AND pri.material_id = ?
+                 AND pr.deleted_at IS NULL
+                 AND rc.deleted_at IS NULL
+                 AND pr.status NOT IN ('cancelled', 'draft', 'rejected')
+             ), 0)
          ) AS total_received`,
-        [orderId, materialId, orderId, materialId]
+        [orderId, materialId, orderId, materialId, orderId, materialId]
       );
 
       const totalReceived = parseFloat(result[0]?.total_received) || 0;

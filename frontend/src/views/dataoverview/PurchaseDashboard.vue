@@ -1,4 +1,4 @@
-<!--
+﻿<!--
 /**
  * PurchaseDashboard.vue
  * @description 前端界面组件文件
@@ -8,7 +8,7 @@
 -->
 <template>
   <div class="module-page overview-page purchase-dashboard">
-    <PageHeader title="采购数据概览">
+    <PageHeader title="采购数据概览" subtitle="采购订单、入库与应付关键指标">
       <template #actions>
         <span v-if="lastUpdated" class="last-updated">
             最后更新: {{ new Date(lastUpdated).toLocaleTimeString() }}
@@ -16,83 +16,55 @@
       </template>
     </PageHeader>
     <!-- 统计卡片 -->
-    <el-row :gutter="20" class="mt-lg">
-      <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-lg">
+    <el-row :gutter="16" class="stats-row">
+      <el-col :xs="24" :sm="12" :md="6" :lg="6">
         <el-card class="stat-card primary-card" shadow="hover">
-          <div class="stat-content">
-            <div class="stat-title">采购申请</div>
-            <div class="stat-info">
-              <div class="stat-main">
-                <div class="stat-value">{{ statistics.requisitions?.completed || 0 }}</div>
-                <div class="stat-label">本月已完成</div>
-              </div>
-              <div class="stat-secondary">
-                <div class="stat-secondary-value">{{ statistics.requisitions?.pending || 0 }}</div>
-                <div class="stat-secondary-label">待审批</div>
-              </div>
-            </div>
+          <div class="stat-value">{{ statistics.requisitions?.completed || 0 }}</div>
+          <div class="stat-label">采购申请</div>
+          <div class="stat-secondary">
+            <span class="stat-secondary-value">{{ statistics.requisitions?.pending || 0 }}</span>
+            <span class="stat-secondary-label">待审批</span>
           </div>
         </el-card>
       </el-col>
 
-      <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-lg">
+      <el-col :xs="24" :sm="12" :md="6" :lg="6">
         <el-card class="stat-card success-card" shadow="hover">
-          <div class="stat-content">
-            <div class="stat-title">采购订单</div>
-            <div class="stat-info">
-              <div class="stat-main">
-                <div class="stat-value">{{ statistics.orders?.total || 0 }}</div>
-                <div class="stat-label">总数</div>
-              </div>
-              <div class="stat-secondary">
-                <div class="stat-secondary-value">{{ statistics.orders?.pending || 0 }}</div>
-                <div class="stat-secondary-label">待处理</div>
-              </div>
-            </div>
+          <div class="stat-value">{{ statistics.orders?.total || 0 }}</div>
+          <div class="stat-label">采购订单</div>
+          <div class="stat-secondary">
+            <span class="stat-secondary-value">{{ statistics.orders?.pending || 0 }}</span>
+            <span class="stat-secondary-label">待处理</span>
           </div>
         </el-card>
       </el-col>
 
-      <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-lg">
+      <el-col :xs="24" :sm="12" :md="6" :lg="6">
         <el-card class="stat-card info-card" shadow="hover">
-          <div class="stat-content">
-            <div class="stat-title">采购收货</div>
-            <div class="stat-info">
-              <div class="stat-main">
-                <div class="stat-value">{{ statistics.receipts?.total || 0 }}</div>
-                <div class="stat-label">总数</div>
-              </div>
-              <div class="stat-secondary">
-                <div class="stat-secondary-value">{{ statistics.receipts?.pending || 0 }}</div>
-                <div class="stat-secondary-label">待处理</div>
-              </div>
-            </div>
+          <div class="stat-value">{{ statistics.receipts?.total || 0 }}</div>
+          <div class="stat-label">采购收货</div>
+          <div class="stat-secondary">
+            <span class="stat-secondary-value">{{ statistics.receipts?.pending || 0 }}</span>
+            <span class="stat-secondary-label">待处理</span>
           </div>
         </el-card>
       </el-col>
 
-      <el-col :xs="24" :sm="12" :md="6" :lg="6" class="mb-lg">
+      <el-col :xs="24" :sm="12" :md="6" :lg="6">
         <el-card class="stat-card warning-card" shadow="hover">
-          <div class="stat-content">
-            <div class="stat-title">采购退货</div>
-            <div class="stat-info">
-              <div class="stat-main">
-                <div class="stat-value">{{ statistics.returns?.total || 0 }}</div>
-                <div class="stat-label">总数</div>
-              </div>
-              <div class="stat-secondary">
-                <div class="stat-secondary-value">{{ statistics.returns?.pending || 0 }}</div>
-                <div class="stat-secondary-label">待处理</div>
-              </div>
-            </div>
+          <div class="stat-value">{{ statistics.returns?.total || 0 }}</div>
+          <div class="stat-label">采购退货</div>
+          <div class="stat-secondary">
+            <span class="stat-secondary-value">{{ statistics.returns?.pending || 0 }}</span>
+            <span class="stat-secondary-label">待处理</span>
           </div>
         </el-card>
       </el-col>
     </el-row>
     <!-- 图表区域 -->
-    <el-row :gutter="20" class="mt-lg">
-      <el-col :xs="24" :md="12" class="mb-lg">
-        <el-card shadow="hover">
+    <el-row :gutter="16" class="mt-md">
+      <el-col :xs="24" :md="12">
+        <el-card class="dashboard-card" shadow="hover">
           <template #header>
             <div class="card-header">
               <span>月度采购趋势</span>
@@ -107,8 +79,8 @@
           </div>
         </el-card>
       </el-col>
-      <el-col :xs="24" :md="12" class="mb-lg">
-        <el-card shadow="hover">
+      <el-col :xs="24" :md="12">
+        <el-card class="dashboard-card" shadow="hover">
           <template #header>
             <div class="card-header">
               <span>采购类别分布</span>
@@ -123,7 +95,7 @@
     <!-- 待处理采购事项 -->
     <el-row class="mt-lg">
       <el-col :span="24">
-        <el-card shadow="hover">
+        <el-card class="dashboard-card" shadow="hover">
           <template #header>
             <div class="card-header-with-search">
               <span>待处理采购事项</span>
@@ -522,111 +494,8 @@ watch(timeRange, () => {
 });
 </script>
 <style scoped>
-.purchase-dashboard {
-  padding: 10px;
-}
-.header-card {
-  margin-bottom: var(--spacing-lg);
-}
-.header-card h2 {
-  margin: 0;
-  font-size: 22px;
-  color: var(--color-text-primary);
-}
-.last-updated {
-  margin-left: 10px;
-  font-size: 12px;
-  color: var(--color-text-secondary);
-}
-.primary-card {
-  border-top: 4px solid var(--color-primary);
-}
-.success-card {
-  border-top: 4px solid var(--color-success);
-}
-.info-card {
-  border-top: 4px solid var(--color-info);
-}
-.warning-card {
-  border-top: 4px solid var(--color-warning);
-}
-.danger-card {
-  border-top: 4px solid var(--color-danger);
-}
-.stat-content {
-  flex-grow: 1;
-  padding: 10px 0;
-}
-.stat-title {
-  font-size: 16px;
-  font-weight: bold;
-  margin-bottom: 15px;
-  color: var(--color-text-primary);
-}
-.stat-info {
-  display: flex;
-  justify-content: space-between;
-}
-.stat-main {
-  text-align: left;
-}
-.stat-secondary {
-  text-align: right;
-}
-.stat-secondary-value {
-  font-size: 20px;
-  font-weight: 500;
-  line-height: 1.2;
-  color: var(--color-text-primary);
-}
-.stat-secondary-label {
-  font-size: 14px;
-  color: var(--color-text-secondary);
-}
-.card-footer {
-  padding-top: 10px;
-  border-top: 1px solid var(--color-border-lighter);
-}
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.card-header span {
-  font-size: 16px;
-  font-weight: bold;
-}
-.card-header-with-search {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.card-header-with-search span {
-  font-size: 16px;
-  font-weight: bold;
-}
-.search-input {
-  max-width: 200px;
-}
-.chart-container {
-  width: 100%;
-  height: 300px;
-  position: relative;
-}
 /* 响应式调整 */
-@media (max-width: 768px) {
-  .search-input {
-    max-width: 120px;
-  }
 
-  .stat-value {
-    font-size: 22px;
-  }
-
-  .stat-secondary-value {
-    font-size: 18px;
-  }
-}
 /* 详情对话框长文本处理 - 自动添加 */
 :deep(.el-descriptions__content) {
   max-width: 300px;

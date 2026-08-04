@@ -1,13 +1,21 @@
 ﻿<template>
   <div class="module-page budget-edit-container">
-    <el-card>
+    <PageHeader :title="isEdit ? '编辑预算' : '新增预算'" subtitle="预算方案基本信息与科目明细">
+      <template #actions>
+        <el-button @click="handleCancel">取消</el-button>
+        <el-button
+          v-permission="isEdit ? 'finance:budgets:update' : 'finance:budgets:create'"
+          type="primary"
+          @click="handleSave"
+          :loading="saving"
+        >保存</el-button>
+      </template>
+    </PageHeader>
+
+    <el-card class="data-card" shadow="never">
       <template #header>
         <div class="card-header">
-          <span>{{ isEdit ? '编辑预算' : '新增预算' }}</span>
-          <div>
-            <el-button @click="handleCancel">取消</el-button>
-            <el-button v-permission="isEdit ? 'finance:budgets:update' : 'finance:budgets:create'" type="primary" @click="handleSave" :loading="saving">保存</el-button>
-          </div>
+          <span>预算表单</span>
         </div>
       </template>
 

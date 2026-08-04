@@ -272,6 +272,12 @@ router.post(
 // 添加导出供应商的路由
 router.post('/suppliers/export', authenticateToken, requirePermission('basedata:suppliers:export'), baseDataController.exportSuppliers);
 router.get('/suppliers/:id', authenticateToken, requirePermission('basedata:suppliers:view'), baseDataController.getSupplierById);
+router.get('/suppliers/:id/metal-price-schemes', authenticateToken, requirePermission('basedata:suppliers:view'), baseDataController.listSupplierMetalPriceSchemes);
+router.get('/suppliers/:id/metal-price-schemes/:schemeId', authenticateToken, requirePermission('basedata:suppliers:view'), baseDataController.getSupplierMetalPriceScheme);
+router.post('/suppliers/:id/metal-price-schemes', authenticateToken, requirePermission('basedata:suppliers:update'), requirePriceMutationPermission('update'), baseDataController.saveSupplierMetalPriceScheme);
+router.put('/suppliers/:id/metal-price-schemes/:schemeId', authenticateToken, requirePermission('basedata:suppliers:update'), requirePriceMutationPermission('update'), baseDataController.saveSupplierMetalPriceScheme);
+router.delete('/suppliers/:id/metal-price-schemes/:schemeId', authenticateToken, requirePermission('basedata:suppliers:update'), baseDataController.deleteSupplierMetalPriceScheme);
+
 router.post('/suppliers', authenticateToken, requirePermission('basedata:suppliers:create'), baseDataController.createSupplier);
 router.put('/suppliers/:id', authenticateToken, requirePermission('basedata:suppliers:update'), baseDataController.updateSupplier);
 router.delete('/suppliers/:id', authenticateToken, requirePermission('basedata:suppliers:delete'), baseDataController.deleteSupplier);

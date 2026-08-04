@@ -29,13 +29,22 @@ router.post('/file', authenticateToken, requirePermission('system:files:upload')
     return ResponseHandler.error(res, '没有文件上传', 'BAD_REQUEST', 400);
   }
 
+  // is_public 仅允许具备文件管理权限的用户设置；普通上传强制私有
+  const canMarkPublic =
+    Array.isArray(req.userPermissions) &&
+    (req.userPermissions.includes('*') ||
+      req.userPermissions.includes('system:files:manage') ||
+      req.userPermissions.includes('system:admin'));
+  const requestedPublic = req.body.is_public || req.body.isPublic;
+  const isPublic = canMarkPublic && (requestedPublic === true || requestedPublic === 1 || requestedPublic === '1' || requestedPublic === 'true');
+
   await FileAccessService.safeRecordUpload({
     fileUrl: req.fileInfo.url,
     businessType: req.body.business_type || req.body.businessType,
     businessId: req.body.business_id || req.body.businessId,
     source: 'upload',
     uploadedBy: req.user?.id || req.user?.userId || null,
-    isPublic: req.body.is_public || req.body.isPublic,
+    isPublic: isPublic ? 1 : 0,
     metadata: {
       originalName: req.fileInfo.originalName,
       mimetype: req.fileInfo.mimetype,
@@ -61,6 +70,13 @@ router.post('/files', authenticateToken, requirePermission('system:files:upload'
 
   const businessType = req.body.business_type || req.body.businessType;
   const businessId = req.body.business_id || req.body.businessId;
+  const canMarkPublic =
+    Array.isArray(req.userPermissions) &&
+    (req.userPermissions.includes('*') ||
+      req.userPermissions.includes('system:files:manage') ||
+      req.userPermissions.includes('system:admin'));
+  const requestedPublic = req.body.is_public || req.body.isPublic;
+  const isPublic = canMarkPublic && (requestedPublic === true || requestedPublic === 1 || requestedPublic === '1' || requestedPublic === 'true');
   const files = [];
   for (const file of req.filesInfo) {
     await FileAccessService.safeRecordUpload({
@@ -69,7 +85,7 @@ router.post('/files', authenticateToken, requirePermission('system:files:upload'
       businessId,
       source: 'upload',
       uploadedBy: req.user?.id || req.user?.userId || null,
-      isPublic: req.body.is_public || req.body.isPublic,
+      isPublic: isPublic ? 1 : 0,
       metadata: {
         originalName: file.originalName,
         mimetype: file.mimetype,

@@ -104,6 +104,43 @@ export const getThemePreset = (presetId) => {
   return THEME_PRESETS[presetId] || THEME_PRESETS[DEFAULT_THEME_PRESET_ID]
 }
 
+export const normalizePrimaryColor = (value, fallback = THEME_PRESETS[DEFAULT_THEME_PRESET_ID].primaryColor) => {
+  return typeof value === 'string' && /^#[0-9a-fA-F]{6}$/.test(value)
+    ? value.toUpperCase()
+    : fallback
+}
+
+const parseHexColor = (value) => {
+  if (typeof value !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(value)) {
+    return null
+  }
+
+  return [1, 3, 5].map((index) => Number.parseInt(value.slice(index, index + 2), 16))
+}
+
+const relativeLuminance = (rgb) => {
+  const channels = rgb.map((channel) => {
+    const value = channel / 255
+    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
+  })
+
+  return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2]
+}
+
+export const getAccessibleTextColor = (backgroundColor) => {
+  const background = parseHexColor(backgroundColor)
+  if (!background) return '#FFFFFF'
+
+  const backgroundLuminance = relativeLuminance(background)
+  const blackLuminance = 0
+  const whiteContrast = 1.05 / (backgroundLuminance + 0.05)
+  const blackContrast =
+    (Math.max(backgroundLuminance, blackLuminance) + 0.05) /
+    (Math.min(backgroundLuminance, blackLuminance) + 0.05)
+
+  return blackContrast >= whiteContrast ? '#000000' : '#FFFFFF'
+}
+
 const normalizeFontSize = (value) => {
   const fontSize = Number(value)
   if (!Number.isFinite(fontSize)) {
@@ -116,13 +153,12 @@ const normalizeFontSize = (value) => {
 export const normalizeThemeAppearance = (appearance = {}) => {
   const source = appearance && typeof appearance === 'object' ? appearance : {}
   const preset = getThemePreset(source.preset)
-  const themeMode = ['light', 'dark', 'system'].includes(source.theme) ? source.theme : preset.mode
 
   return {
     ...DEFAULT_THEME_SETTINGS,
-    theme: themeMode,
+    theme: preset.mode,
     preset: preset.id,
-    primaryColor: source.primaryColor || preset.primaryColor,
+    primaryColor: normalizePrimaryColor(source.primaryColor, preset.primaryColor),
     fontSize: normalizeFontSize(source.fontSize)
   }
 }

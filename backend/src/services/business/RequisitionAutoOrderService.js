@@ -21,6 +21,7 @@ const {
   toNumber,
 } = require('../../utils/money');
 const { currentDateString } = require('../../utils/dateUtils');
+const { firstValidUserId } = require('../../utils/userUtils');
 
 /**
  * 采购申请批准后自动生成采购订单
@@ -42,7 +43,7 @@ async function generateOrdersFromRequisition(requisitionId, conn) {
     const [requisitionRows] = await conn.execute(
       `SELECT id, requisition_number, request_date, requester, contract_code,
               real_name, remarks, status, source_type, source_id, source_material_id,
-              created_at, updated_at, deleted_at
+              created_by, created_at, updated_at, deleted_at
        FROM purchase_requisitions WHERE id = ? AND deleted_at IS NULL FOR UPDATE`,
       [requisitionId]
     );
@@ -172,20 +173,11 @@ async function generateOrdersFromRequisition(requisitionId, conn) {
       const taxAmountTotal = sumMoney(calculatedItems.map((item) => item.tax_amount));
       const totalAmount = roundMoney(subtotal + taxAmountTotal);
 
-      // owner 闭环：优先申请人用户 id，其次 requester 用户名映射，避免自动单无 created_by
-      let createdBy = null;
-      try {
-        if (requisition.requester_id) {
-          createdBy = Number(requisition.requester_id) || null;
-        } else if (requisition.requester) {
-          const [urows] = await conn.execute(
-            'SELECT id FROM users WHERE username = ? OR real_name = ? LIMIT 1',
-            [requisition.requester, requisition.requester]
-          );
-          createdBy = urows[0]?.id || null;
-        }
-      } catch {
-        createdBy = null;
+      const createdBy = firstValidUserId(requisition.created_by);
+      if (!createdBy) {
+        throw new Error(
+          `采购申请 ${requisition.requisition_number || requisitionId} 缺少可追溯责任人，不能自动生成采购订单`
+        );
       }
 
       const [orderResult] = await conn.execute(

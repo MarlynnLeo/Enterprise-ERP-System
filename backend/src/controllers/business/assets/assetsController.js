@@ -16,6 +16,7 @@ const db = require('../../../config/db');
 const { getCurrentUserName } = require('../../../utils/userHelper');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const { currentDateString, toLocalDateString } = require('../../../utils/dateUtils');
+const { getRequestActorLabel } = require('../../../utils/userUtils');
 
 const DISPOSED_ASSET_STATUSES = new Set(['报废', '已处置', '已出售', '已转让', '已捐赠', 'disposed', 'sold', 'transferred', 'donated']);
 
@@ -831,7 +832,7 @@ const assetsController = {
         disposal_reason: disposalReason,
         disposal_method: disposalMethod || '报废',
         bank_account_id: bankAccountId ? parseInt(bankAccountId, 10) : null,
-        handler: handler || 'system',
+        handler: handler || getRequestActorLabel(req),
         notes: notes || '',
         asset_code: asset.asset_code,
         created_by: getAuthenticatedUserId(req),

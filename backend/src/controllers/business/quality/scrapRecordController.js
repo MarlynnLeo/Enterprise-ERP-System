@@ -10,6 +10,7 @@ const pool = db.pool;
 const QualityIntegrationService = require('../../../services/business/QualityIntegrationService');
 const businessConfig = require('../../../config/businessConfig');
 const { parsePagination, appendPaginationSQL } = require('../../../utils/safePagination');
+const { getRequestActorLabel } = require('../../../utils/userUtils');
 
 // 从统一配置获取状态常量
 const STATUS = {
@@ -220,7 +221,7 @@ const approveScrap = async (req, res) => {
       `UPDATE scrap_records
        SET status = ?, approver = ?, approval_date = ?, updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
-      [newStatus, approver || 'system', approvalDate, id]
+      [newStatus, approver || getRequestActorLabel(req), approvalDate, id]
     );
 
     if (!approved && checkResult[0].ncp_id) {
@@ -231,7 +232,7 @@ const approveScrap = async (req, res) => {
              updated_by = ?,
              updated_at = CURRENT_TIMESTAMP
          WHERE id = ? AND status = 'completed' AND deleted_at IS NULL`,
-        [approver || 'system', checkResult[0].ncp_id]
+        [approver || getRequestActorLabel(req), checkResult[0].ncp_id]
       );
       await connection.query(
         `INSERT INTO nonconforming_product_actions (ncp_id, action_type, action_description, action_by)
@@ -239,7 +240,7 @@ const approveScrap = async (req, res) => {
         [
           checkResult[0].ncp_id,
           `报废记录 ${checkResult[0].scrap_no || id} 审批驳回，NCP退回处理中`,
-          approver || 'system',
+          approver || getRequestActorLabel(req),
         ]
       );
     }
@@ -397,12 +398,16 @@ const updateStatus = async (req, res) => {
                updated_by = ?,
                updated_at = CURRENT_TIMESTAMP
            WHERE id = ? AND status = 'completed' AND deleted_at IS NULL`,
-          ['system', record.ncp_id]
+          [getRequestActorLabel(req), record.ncp_id]
         );
         await connection.query(
           `INSERT INTO nonconforming_product_actions (ncp_id, action_type, action_description, action_by)
-           VALUES (?, 'dispose', ?, 'system')`,
-          [record.ncp_id, `报废记录 ${record.scrap_no} 状态变更为 ${status}，NCP退回处理中`]
+           VALUES (?, 'dispose', ?, ?)`,
+          [
+            record.ncp_id,
+            `报废记录 ${record.scrap_no} 状态变更为 ${status}，NCP退回处理中`,
+            getRequestActorLabel(req),
+          ]
         );
       }
     }

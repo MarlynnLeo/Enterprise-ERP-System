@@ -90,8 +90,9 @@ module.exports = {
   updateBankTransaction: Transaction.updateBankTransaction,
   deleteBankTransaction: Transaction.deleteBankTransaction,
   transferFunds: Transfer.transferFunds,
-  // 显式导出CashTransaction的审核方法
+  // 显式导出CashTransaction的审核/作废方法
   submitForAudit: CashTransaction.submitForAudit,
   approveTransaction: CashTransaction.approveTransaction,
   rejectTransaction: CashTransaction.rejectTransaction,
+  voidApprovedTransaction: CashTransaction.voidApprovedTransaction,
 };

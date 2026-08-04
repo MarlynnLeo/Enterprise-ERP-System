@@ -1,5 +1,8 @@
 jest.mock('../../src/utils/userUtils', () => ({
   getUserIdByIdentifier: jest.fn().mockResolvedValue(99),
+  resolveActorUserId: jest.fn().mockResolvedValue(99),
+  resolveActorLabel: jest.fn().mockResolvedValue('tester'),
+  getRequestActorLabel: jest.fn().mockReturnValue('tester'),
 }));
 
 const GLService = require('../../src/services/finance/GLService');

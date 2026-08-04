@@ -1,15 +1,18 @@
 ﻿<template>
   <div class="module-page employees-container">
-    <el-card>
+    <PageHeader title="员工档案" subtitle="员工档案与薪酬基数设定">
+      <template #actions>
+        <el-button type="success" :loading="syncing" v-permission="'hr:employees:create'" @click="handleSyncDingtalk">
+          <el-icon><Refresh /></el-icon> 钉钉通讯录全量拉取
+        </el-button>
+        <el-button type="primary" v-permission="'hr:employees:create'" @click="handleAdd"><el-icon><Plus /></el-icon>手动新增</el-button>
+      </template>
+    </PageHeader>
+
+    <el-card class="data-card" shadow="never">
       <template #header>
         <div class="card-header flex-between">
-          <span>员工档案与薪酬基数设定</span>
-          <div>
-            <el-button type="success" :loading="syncing" v-permission="'hr:employees:create'" @click="handleSyncDingtalk">
-              <el-icon><Refresh /></el-icon> 钉钉通讯录全量拉取
-            </el-button>
-            <el-button type="primary" v-permission="'hr:employees:create'" @click="handleAdd"><el-icon><Plus /></el-icon>手动新增</el-button>
-          </div>
+          <span>员工列表</span>
         </div>
       </template>
 

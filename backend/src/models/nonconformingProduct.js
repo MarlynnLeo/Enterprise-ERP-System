@@ -4,6 +4,7 @@ const CodeGeneratorService = require('../services/business/CodeGeneratorService'
 const DocumentLinkService = require('../services/business/DocumentLinkService');
 const { parsePagination, appendPaginationSQL } = require('../utils/safePagination');
 const { softDelete } = require('../utils/softDelete');
+const { resolveActorLabel, resolveActorUserId } = require('../utils/userUtils');
 
 class NonconformingProduct {
   /**
@@ -161,7 +162,7 @@ class NonconformingProduct {
       await connection.query(
         `INSERT INTO nonconforming_product_actions (ncp_id, action_type, action_description, action_by)
          VALUES (?, 'create', ?, ?)`,
-        [result.insertId, `Created NCP ${ncpNo}`, ncpData.created_by || 'system']
+        [result.insertId, `Created NCP ${ncpNo}`, await resolveActorLabel(null, ncpData.created_by)]
       );
 
       if (ncpData.inspection_id) {
@@ -415,7 +416,7 @@ class NonconformingProduct {
         [
           id,
           `Disposition: ${dispositionData.disposition}`,
-          dispositionData.disposition_by || 'system',
+          await resolveActorLabel(null, dispositionData.disposition_by),
         ]
       );
 
@@ -485,10 +486,12 @@ class NonconformingProduct {
         throw new Error('NCP has downstream documents and cannot be deleted');
       }
 
+      const { resolveActorLabel } = require('../utils/userUtils');
+      const actor = await resolveActorLabel(connection);
       await connection.query(
         `INSERT INTO nonconforming_product_actions (ncp_id, action_type, action_description, action_by)
-         VALUES (?, 'delete', ?, 'system')`,
-        [id, `Deleted NCP ${ncp.ncp_no}`]
+         VALUES (?, 'delete', ?, ?)`,
+        [id, `Deleted NCP ${ncp.ncp_no}`, actor]
       );
       await softDelete(connection, 'nonconforming_products', 'id', id);
 

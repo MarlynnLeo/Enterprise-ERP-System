@@ -6,6 +6,7 @@
 const { logger } = require('../../utils/logger');
 const db = require('../../config/db');
 const InventoryService = require('../InventoryService');
+const { resolveActorLabel, resolveActorUserId } = require('../../utils/userUtils');
 
 class BatchManagementService {
   /**
@@ -79,7 +80,7 @@ class BatchManagementService {
             transactionType: txType,
             referenceNo: refNo,
             referenceType: refType,
-            operator: created_by || 'system',
+            operator: await resolveActorLabel(null, created_by),
             remark: `批次入库: ${batch_number}`,
             unitId: unit ? await this._getUnitId(connection, unit) : null,
             batchNumber: batch_number,
@@ -206,8 +207,14 @@ class BatchManagementService {
    * @param {number} requiredQuantity - 需要数量
    * @returns {Promise<Array>} - FIFO出库批次列表
    */
-  static async getFIFOOutboundBatches(materialId, requiredQuantity, excludeReservationOrderId = null) {
+  static async getFIFOOutboundBatches(
+    materialId,
+    requiredQuantity,
+    excludeReservationOrderId = null,
+    connection = null
+  ) {
     // ✅ 单表架构：直接从批次库存视图查询 (v_batch_stock)
+    // 若传入 connection（事务内），与 FOR UPDATE 同连接，避免并发重复分配
     const query = `
       SELECT
         material_id,
@@ -225,8 +232,9 @@ class BatchManagementService {
       ORDER BY receipt_date ASC
     `;
 
-    const result = await db.query(query, [materialId]);
-    const batches = result.rows || [];
+    const batches = connection
+      ? (await connection.query(query, [materialId]))[0] || []
+      : (await db.query(query, [materialId])).rows || [];
 
     // H9 修复：扣减其他订单的 active 预留，避免 FIFO 出库把已为别的订单预留的库存发走。
     // 销售出库排除本订单自身的预留（本单出库本应消费自己的预留）。
@@ -241,8 +249,9 @@ class BatchManagementService {
       reservedSql += ' AND order_id != ?';
       reservedParams.push(excludeReservationOrderId);
     }
-    const reservedResult = await db.query(reservedSql, reservedParams);
-    const reservedByOthers = parseFloat((reservedResult.rows || [])[0]?.reserved || 0);
+    const reservedByOthers = connection
+      ? parseFloat((await connection.query(reservedSql, reservedParams))[0]?.[0]?.reserved || 0)
+      : parseFloat((await db.query(reservedSql, reservedParams)).rows?.[0]?.reserved || 0);
 
     const totalOnHand = batches.reduce((sum, b) => sum + parseFloat(b.available_quantity || 0), 0);
     // 本次可分配总量上限 = 批次现有量合计 - 其他订单已预留量
@@ -302,13 +311,14 @@ class BatchManagementService {
         [material_id]
       );
 
-      // 1. 获取FIFO出库批次（销售出库排除本订单自身的预留，避免被自己的预留挡住）
+      // 1. 获取FIFO出库批次（必须用同一 connection，锁才有效）
       const excludeReservationOrderId =
         outboundData.reference_type === 'sales_outbound' ? outboundData.reference_id : null;
       const fifoResult = await this.getFIFOOutboundBatches(
         material_id,
         required_quantity,
-        excludeReservationOrderId
+        excludeReservationOrderId,
+        connection
       );
 
       if (fifoResult.shortage > 0) {
@@ -328,7 +338,7 @@ class BatchManagementService {
             transactionType: outboundData.reference_type || 'fifo_outbound',
             referenceNo: outboundData.reference_no || '',
             referenceType: outboundData.reference_type || 'fifo_outbound',
-            operator: outboundData.operator || 'system',
+            operator: await resolveActorLabel(null, outboundData.operator),
             remark: `FIFO出库: 批次 ${batch.batch_number}, 数量 ${batch.allocated_quantity}${outboundData.remarks ? ' - ' + outboundData.remarks : ''}`,
             batchNumber: batch.batch_number,
             unitCost: batch.unit_cost || 0,

@@ -21,6 +21,7 @@ const { getCurrentUserName } = require('../../../utils/userHelper');
 const STOCK_SUBQUERY = `(SELECT material_id, location_id, COALESCE(SUM(quantity), 0) as quantity, MAX(created_at) as updated_at FROM inventory_ledger GROUP BY material_id, location_id)`;
 
 const { getTransferStatusText } = require('../../../constants/systemConstants');
+const { getRequestActorLabel } = require('../../../utils/userUtils');
 
 const STATUS = {
   OUTBOUND: businessConfig.status.outbound,
@@ -442,7 +443,7 @@ const createTransfer = async (req, res) => {
         to_location_id,
         status,
         remark || '',
-        req.user?.username || 'system',
+        getRequestActorLabel(req),
         (() => { const ScopeGuard = require('../../../authorization/ScopeGuard'); return ScopeGuard.tryStampOwner(req, 'inventory_transfer').created_by; })(),
       ]
     );

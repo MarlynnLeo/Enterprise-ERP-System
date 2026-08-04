@@ -22,7 +22,17 @@
 /* Standard module page frame: header, query panel, stats, table. */
 .module-page {
   width: 100%;
+  min-width: 0;
   padding: 0 !important;
+}
+
+/* Allow nested flex/grid content to shrink inside the shell on laptop widths. */
+.module-page > *,
+.module-page .el-card,
+.module-page .el-card__body,
+.module-page .el-row,
+.module-page [class*='el-col-'] {
+  min-width: 0;
 }
 
 /* 看板/特殊页兼容：根节点带 module-page 时统一内边距可选 */
@@ -31,7 +41,17 @@
   padding: 0 !important;
 }
 
-.module-page > :where(.header-card, .search-card, .action-card, .data-card, .empty-card) {
+.module-page > :where(.header-card, .search-card, .action-card, .data-card, .empty-card, .dashboard-card, .chart-card, .info-card, .box-card) {
+  margin-bottom: 20px !important;
+}
+
+/* 看板/图表卡：嵌套在 grid/row 内也保持统一底边距（子卡） */
+.module-page :where(.dashboard-card, .chart-card, .info-card) {
+  margin-bottom: 16px;
+}
+
+/* 兼容历史 box-card 命名：等同 data-card 间距 */
+.module-page .box-card {
   margin-bottom: 20px !important;
 }
 
@@ -199,6 +219,31 @@
   margin-top: 15px;
   display: flex;
   justify-content: flex-end;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+/* Inline dialog widths remain preferred sizes, but never exceed the viewport. */
+.el-dialog {
+  max-width: calc(100vw - 32px);
+}
+
+@media (max-width: 1200px) {
+  .module-page .header-content {
+    align-items: flex-start !important;
+    flex-wrap: wrap;
+  }
+
+  .module-page .header-content > *,
+  .module-page .card-header > * {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 768px) {
+  .pagination-container {
+    justify-content: flex-start;
+  }
 }
 
 /* Keep all Element Plus fixed table columns opaque while horizontal scrolling. */

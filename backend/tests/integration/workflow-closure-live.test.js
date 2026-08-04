@@ -54,9 +54,9 @@ describeLive('Workflow permission and approval closure UAT', () => {
        FROM roles r
        LEFT JOIN role_permissions rp ON rp.role_id = r.id
        LEFT JOIN permissions p ON p.id = rp.permission_id
-       WHERE r.status = 1 AND (r.code = 'admin' OR p.code = 'system:workflow:use')
+       WHERE r.status = 1 AND (r.is_super_admin = 1 OR p.code = 'system:workflow:use')
        GROUP BY r.id, r.code
-       ORDER BY CASE WHEN r.code = 'admin' THEN 1 ELSE 0 END, r.id
+       ORDER BY CASE WHEN r.is_super_admin = 1 THEN 1 ELSE 0 END, r.id
        LIMIT 1`
     );
     expect(workflowRole).toBeTruthy();

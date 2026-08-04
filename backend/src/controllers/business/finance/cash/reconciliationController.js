@@ -20,6 +20,7 @@ const BankTransactionModel = require('../../../../models/cash/Transaction');
 const ReconciliationModel = require('../../../../models/cash/Reconciliation');
 const { getAuthenticatedUserId } = require('../../../../utils/authContext');
 const { safeParseId } = require('../../../../utils/safeParseId');
+const { getRequestActorLabel } = require('../../../../utils/userUtils');
 
 /**
  * 安全的 parseFloat，返回 NaN 时抛出明确错误
@@ -319,7 +320,7 @@ const reconciliationController = {
       }
 
       // 使用BankTransactionModel而不是CashTransactionModel，因为这是银行交易
-      const success = await BankTransactionModel.submitForAudit(id, req.user?.id || req.body.userId || 'system');
+      const success = await BankTransactionModel.submitForAudit(id, (req.user?.id || req.body.userId || null));
 
       if (success) {
         return ResponseHandler.success(res, { id, status: 'pending' }, '交易已提交审核');
@@ -344,23 +345,29 @@ const reconciliationController = {
         return ResponseHandler.error(res, '无效的交易ID', 'VALIDATION_ERROR', 400);
       }
 
-      if (!['approved', 'rejected'].includes(status)) {
+      if (!['approved', 'rejected', 'void'].includes(status)) {
         return ResponseHandler.error(
           res,
-          '无效的审核状态，仅支持 approved 或 rejected',
+          '无效的审核状态，仅支持 approved / rejected / void',
           'VALIDATION_ERROR',
           400
         );
       }
 
       let success = false;
-      const userId = req.user?.id || auditorId || 'system';
+      const userId = (req.user?.id || auditorId || null);
 
-      // 使用BankTransactionModel进行审核操作
+      // 使用BankTransactionModel进行审核/作废操作
       if (status === 'approved') {
         success = await BankTransactionModel.approveTransaction(id, userId);
       } else if (status === 'rejected') {
         success = await BankTransactionModel.rejectTransaction(id, userId, remark || '');
+      } else if (status === 'void') {
+        success = await BankTransactionModel.voidApprovedTransaction(
+          id,
+          userId,
+          remark || '作废冲销'
+        );
       }
 
       if (success) {
@@ -369,11 +376,14 @@ const reconciliationController = {
           {
             id,
             status,
-            newBalance: status === 'approved' ? success.newBalance : undefined,
+            newBalance:
+              status === 'approved' || status === 'void' ? success.newBalance : undefined,
             entryId: status === 'approved' ? success.entryId : undefined,
             entryNumber: status === 'approved' ? success.entryNumber : undefined,
+            reversalEntryId: status === 'void' ? success.reversalEntryId : undefined,
+            reversalEntryNumber: status === 'void' ? success.reversalEntryNumber : undefined,
           },
-          '审核操作成功'
+          status === 'void' ? '银行交易已作废并冲销凭证' : '审核操作成功'
         );
       } else {
         return ResponseHandler.error(res, '审核操作失败', 'SERVER_ERROR', 500);

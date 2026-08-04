@@ -13,6 +13,7 @@ const DocumentLinkService = require('../../../services/business/DocumentLinkServ
 const { SALES_PACKING_TRANSITIONS } = require('../../../constants/statusRegistry');
 
 const { CodeGenerators } = require('../../../utils/codeGenerator');
+const { resolveActorLabel, getRequestActorLabel } = require('../../../utils/userUtils');
 
 async function generatePackingListNo(connection) {
   return await CodeGenerators.generatePackingListCode(connection);
@@ -266,7 +267,7 @@ exports.createPackingList = async (req, res) => {
         total_boxes,
         total_quantity,
         remark || '',
-        req.user?.username || 'system',
+        getRequestActorLabel(req),
       ]
     );
 
@@ -417,7 +418,7 @@ exports.updatePackingList = async (req, res) => {
         status || packingRows[0].status,
         total_boxes,
         remark || '',
-        req.user?.username || 'system',
+        getRequestActorLabel(req),
         id,
       ]
     );
@@ -557,7 +558,7 @@ exports.updatePackingListStatus = async (req, res) => {
         updated_by = ?
           WHERE id = ? AND deleted_at IS NULL
             `,
-      [status, remark, req.user?.username || 'system', id]
+      [status, remark, getRequestActorLabel(req), id]
     );
 
     return ResponseHandler.success(res, {
@@ -924,7 +925,7 @@ async function generateProductionAndPurchasePlans(
           const requisitionRemark = `由销售订单${salesOrderNo} 自动生成`;
 
           // 使用当前用户信息，并从数据库查询真实姓名
-          const requester = userInfo.username || 'system';
+          const requester = userInfo.username || userInfo.real_name || await resolveActorLabel(connection, userInfo.id, userInfo.username);
           let realName = userInfo.real_name || '系统';
 
           // 如果userInfo中没有real_name，尝试从数据库查询

@@ -217,88 +217,35 @@ exports.getSalesOrders = async (req, res) => {
         orderItems = items;
       }
 
-      // 校正订单状态 — 库存变化后状态可能漂移，在此统一回写 DB
+      // 校正订单状态展示（GET 不写库）；出参仅 camel（salesOrderMap）
+      const { salesOrderMap } = require('../../../utils/sales/salesFieldMap');
       const statusUpdates = [];
 
       const formattedOrders = orders.map((order) => {
         const items = orderItems.filter((item) => item.order_id === order.id);
 
-        // 检查库存是否充足
         let hasShortage = false;
-        if (items.length > 0) {
-          for (const item of items) {
-            if ((parseFloat(item.stock_quantity) || 0) < (parseFloat(item.quantity) || 0)) {
-              hasShortage = true;
-              break;
-            }
+        for (const item of items) {
+          if ((parseFloat(item.stock_quantity) || 0) < (parseFloat(item.quantity) || 0)) {
+            hasShortage = true;
+            break;
           }
         }
 
-        // 根据库存实际情况校正状态
         let status = order.status;
         if (hasShortage) {
           if (['ready_to_ship', 'can_ship', 'pending', 'confirmed'].includes(status)) {
             status = 'shortage';
           }
-        } else {
-          if (['confirmed', 'shortage'].includes(status)) {
-            status = 'ready_to_ship';
-          }
+        } else if (['confirmed', 'shortage'].includes(status)) {
+          status = 'ready_to_ship';
         }
 
-        // 状态发生变化，记录回写
-        // GET list responses must not mutate persisted order status.
-
-        return {
-          id: order.id,
-          order_no: order.order_no,
-          customer: order.customer_name,
-          customer_name: order.customer_name,
-          contract_code: order.contract_code,
-          totalAmount: parseFloat(order.total_amount) || 0,
-          total_amount: parseFloat(order.total_amount) || 0,
-          orderDate: order.order_date,
-          order_date: order.order_date,
-          deliveryDate: order.delivery_date,
-          delivery_date: order.delivery_date,
-          status: status,
-          remark: order.remarks,
-          remarks: order.remarks,
-          address: order.delivery_address,
-          delivery_address: order.delivery_address,
-          contact: order.contact_person,
-          contact_person: order.contact_person,
-          phone: order.contact_phone,
-          contact_phone: order.contact_phone,
-          created_at: order.created_at,
-          updated_at: order.updated_at,
-          created_by: order.created_by,
-          created_by_name: order.created_by_name,
-          created_by_real_name: order.created_by_real_name,
-          is_locked: Boolean(order.is_locked),
-          locked_at: order.locked_at,
-          locked_by: order.locked_by,
-          lock_reason: order.lock_reason,
-          locked_by_name: order.locked_by_name,
-          has_draft_outbound: Boolean(order.has_draft_outbound),
-          items:
-            items.map((item) => ({
-              code: item.material_code,
-              material_code: item.material_code,
-              material_name: item.material_name,
-              specification: item.specification,
-              product_code: item.product_code || '',
-              product_specs: item.product_specs || '',
-              quantity: parseFloat(item.quantity) || 0,
-              stock_quantity: parseFloat(item.stock_quantity) || 0,
-              unit_name: item.unit_name,
-              unit_price: parseFloat(item.unit_price) || 0,
-              amount: parseFloat(item.amount) || 0,
-              total_price: parseFloat(item.total_price) || 0,
-              remark: item.remark || '',
-              remarks: item.remark || '',
-            })) || [],
-        };
+        return salesOrderMap.toApi({
+          ...order,
+          status,
+          items,
+        });
       });
 
       // Keep order-list reads side-effect free; status drift is reported only in the response.
@@ -425,36 +372,15 @@ exports.getSalesOrder = async (req, res) => {
         [order.id]
       );
 
-      // 组合结果（修复字段名匹配问题）
-      order.items = itemResults.map((item) => ({
-        id: item.id,
-        material_id: item.material_id, // 添加物料ID字段
-        code: item.material_code || item.material_id, // 展开行期望的字段名
-        material_code: item.material_code || item.material_id, // 前端期望的字段名
-        materialCode: item.material_code || item.material_id, // 保持向后兼容
-        name: item.material_name, // 展开行期望的字段名
-        material_name: item.material_name, // 前端期望的字段名
-        materialName: item.material_name, // 保持向后兼容
-        specification: item.specification,
-        product_code: item.product_code || '', // 产品编码（当没有物料时）
-        product_specs: item.product_specs || '', // 产品规格（当没有物料时）
-        quantity: item.quantity,
-        stock_quantity: item.stock_quantity || 0, // 库存数量
-        unit_price: item.unit_price, // 前端期望的字段名
-        unitPrice: item.unit_price, // 保持向后兼容
-        amount: item.amount, // 前端期望的字段名
-        totalPrice: item.amount, // 保持向后兼容
-        unit_name: item.unit_name, // 前端期望的字段名
-        unitName: item.unit_name, // 保持向后兼容
-        remark: item.remark || '', // 备注字段
-        remarks: item.remark || '', // 兼容字段
-      }));
+      // 详情出参：仅 camel（salesOrderMap）
+      const { salesOrderMap } = require('../../../utils/sales/salesFieldMap');
+      const payload = salesOrderMap.toApi({
+        ...order,
+        items: itemResults,
+      });
+      await desensitizeDataForUser(payload, req.user, 'view', req.userPermissions);
 
-      // 添加前端期望的字段以保持兼容性
-      order.totalAmount = order.total_amount;
-      await desensitizeDataForUser(order, req.user, 'view', req.userPermissions);
-
-      return ResponseHandler.success(res, order);
+      return ResponseHandler.success(res, payload);
     } finally {
       connection.release();
     }
@@ -752,7 +678,56 @@ exports.updateOrderStatus = async (req, res) => {
     }
 
     // P0：取消订单必须释放 active 预留并解锁，避免库存假占用
+    // P1：已有完成/处理中出库或未结 AR 时禁止取消
     if (newStatus === STATUS.SALES_ORDER.CANCELLED) {
+      const [shipCheck] = await connection.execute(
+        `SELECT COUNT(*) AS cnt
+         FROM sales_outbound sob
+         WHERE sob.deleted_at IS NULL
+           AND sob.status IN ('processing', 'completed')
+           AND (
+             sob.order_id = ?
+             OR EXISTS (
+               SELECT 1 FROM sales_outbound_items sobi
+               WHERE sobi.outbound_id = sob.id AND sobi.source_order_id = ?
+             )
+           )`,
+        [id, id]
+      );
+      if (Number(shipCheck[0]?.cnt || 0) > 0) {
+        await connection.rollback();
+        return ResponseHandler.error(
+          res,
+          '订单已有出库记录，请先冲销出库单后再取消订单',
+          'VALIDATION_ERROR',
+          400
+        );
+      }
+      const [arCheck] = await connection.execute(
+        `SELECT COUNT(*) AS cnt FROM ar_invoices
+         WHERE (
+           (source_type = 'sales_order' AND source_id = ?)
+           OR (
+             source_type = 'sales_outbound'
+             AND source_id IN (
+               SELECT id FROM sales_outbound WHERE order_id = ? AND deleted_at IS NULL
+             )
+           )
+         )
+         AND status NOT IN ('cancelled', '已取消', 'void', '作废')
+         AND COALESCE(balance_amount, total_amount, 0) > 0.01`,
+        [id, id]
+      );
+      if (Number(arCheck[0]?.cnt || 0) > 0) {
+        await connection.rollback();
+        return ResponseHandler.error(
+          res,
+          '订单存在未结清应收发票，禁止取消',
+          'VALIDATION_ERROR',
+          400
+        );
+      }
+
       const userId = getAuthenticatedUserId(req) || checkResult[0].created_by;
       await InventoryReservationService.releaseInventoryReservation(id, userId, connection);
       await connection.execute(
@@ -771,7 +746,8 @@ exports.updateOrderStatus = async (req, res) => {
 
     await connection.commit();
     await desensitizeDataForUser(updatedOrder[0], req.user, 'view', req.userPermissions);
-    return ResponseHandler.success(res, updatedOrder[0]);
+    const { salesOrderMap } = require('../../../utils/sales/salesFieldMap');
+    return ResponseHandler.success(res, salesOrderMap.toApi(updatedOrder[0]));
   } catch (error) {
     await connection.rollback();
     logger.error('更新订单状态时出错:', error);
@@ -784,14 +760,17 @@ exports.updateOrderStatus = async (req, res) => {
 
 exports.createSalesOrder = async (req, res) => {
   try {
-    const orderData = req.body;
+    // HTTP camel → 内部结构（salesOrderMap）；DAO 仍用 camel order 对象
+    const mapped = require('../../../utils/sales/salesFieldMap').salesOrderMap.fromApi(req.body || {});
+    const orderData = req.body || {};
+    const itemsIn = mapped.items || orderData.items;
 
-    if (!orderData || !orderData.items || !Array.isArray(orderData.items)) {
+    if (!itemsIn || !Array.isArray(itemsIn)) {
       return ResponseHandler.error(res, '订单数据格式不正确', 'VALIDATION_ERROR', 400);
     }
 
-    // 验证必要字段
-    if (!orderData.customer_id) {
+    const customerId = mapped.customer_id ?? orderData.customerId ?? orderData.customer_id;
+    if (!customerId) {
       return ResponseHandler.error(res, '客户ID不能为空', 'VALIDATION_ERROR', 400);
     }
 
@@ -800,32 +779,44 @@ exports.createSalesOrder = async (req, res) => {
       return ResponseHandler.error(res, '缺少当前用户信息，无法创建销售订单', 'UNAUTHORIZED', 401);
     }
 
-    // 准备订单数据
+    const { financeConfig } = require('../../../config/financeConfig');
+    // 准备订单数据（DAO 约定 camel）
     const order = {
-      orderNo: await generateSalesOrderNo(db.pool), // 使用统一的订单号生成规则
-      customerId: orderData.customer_id,
-      quotationId: orderData.quotation_id || null,
-      contractCode: orderData.contract_code || '',
-      totalAmount: orderData.total_amount || 0,
-      taxRate: orderData.taxRate || orderData.tax_rate || financeConfig.get('tax.defaultVATRate', 0.13), // 税率
-      taxAmount: orderData.tax_amount || 0, // 税额
-      subtotal: orderData.subtotal || 0, // 不含税金额
-      paymentTerms: orderData.payment_terms || '',
-      // 确保日期格式正确 (YYYY-MM-DD)
-      deliveryDate: orderData.delivery_date
-        ? new Date(orderData.delivery_date).toISOString().split('T')[0]
-        : new Date().toISOString().split('T')[0],
-      status: orderData.status || 'draft',
-      remarks: orderData.remark || '',
+      orderNo: await generateSalesOrderNo(db.pool),
+      customerId,
+      quotationId: mapped.quotation_id ?? orderData.quotationId ?? null,
+      contractCode: mapped.contract_code ?? orderData.contractCode ?? '',
+      totalAmount: mapped.total_amount ?? orderData.totalAmount ?? 0,
+      taxRate:
+        mapped.tax_rate ??
+        orderData.taxRate ??
+        financeConfig.get('tax.defaultVATRate', 0),
+      taxAmount: mapped.tax_amount ?? orderData.taxAmount ?? 0,
+      subtotal: mapped.subtotal ?? orderData.subtotal ?? 0,
+      paymentTerms: mapped.payment_terms ?? orderData.paymentTerms ?? '',
+      deliveryDate: mapped.delivery_date
+        ? mapped.delivery_date
+        : orderData.deliveryDate
+          ? new Date(orderData.deliveryDate).toISOString().split('T')[0]
+          : new Date().toISOString().split('T')[0],
+      status: mapped.status || orderData.status || 'draft',
+      remarks: mapped.remarks ?? orderData.remarks ?? '',
       createdBy,
     };
 
+    // 明细统一为 snake 行后再取价（FieldMap 已规范化 unit_price / material_id）
+    const normalizedItems = itemsIn.map((it) =>
+      it.material_id != null || it.unit_price != null
+        ? it
+        : require('../../../utils/sales/salesFieldMap').salesOrderItemMap.fromApi(it)
+    );
+
     // 处理订单项 - 支持自动从物料获取销售价格
     // 批量预查所有缺少单价的物料价格（消除 N+1）
-    const allMaterialIds = orderData.items
-      .filter(i => i.material_id && (!parseFloat(i.unit_price) || parseFloat(i.unit_price) <= 0))
-      .map(i => parseInt(i.material_id))
-      .filter(id => !isNaN(id) && id > 0);
+    const allMaterialIds = normalizedItems
+      .filter((i) => i.material_id && (!parseFloat(i.unit_price) || parseFloat(i.unit_price) <= 0))
+      .map((i) => parseInt(i.material_id, 10))
+      .filter((id) => !isNaN(id) && id > 0);
     let priceMap = new Map();
     if (allMaterialIds.length > 0) {
       const pricePh = allMaterialIds.map(() => '?').join(',');
@@ -837,19 +828,17 @@ exports.createSalesOrder = async (req, res) => {
     }
 
     const items = [];
-    for (let index = 0; index < orderData.items.length; index++) {
-      const item = orderData.items[index];
+    for (let index = 0; index < normalizedItems.length; index++) {
+      const item = normalizedItems[index];
       const quantity = parseFloat(item.quantity) || 0;
       let unit_price = parseFloat(item.unit_price) || 0;
 
-      // 验证必要字段
       if (!item.material_id || item.material_id === null || item.material_id === '') {
         logger.error(`订单项 ${index + 1} 缺少物料ID:`, item);
         throw new Error(`订单项 ${index + 1} 缺少物料ID，请确保已选择物料`);
       }
 
-      // 验证 material_id 是有效数字
-      const materialId = parseInt(item.material_id);
+      const materialId = parseInt(item.material_id, 10);
       if (isNaN(materialId) || materialId <= 0) {
         logger.error(`订单项 ${index + 1} 物料ID无效:`, item.material_id);
         throw new Error(`订单项 ${index + 1} 物料ID无效: ${item.material_id}`);
@@ -859,7 +848,6 @@ exports.createSalesOrder = async (req, res) => {
         throw new Error(`订单项 ${index + 1} 的数量必须大于0`);
       }
 
-      // 如果没有提供单价，从批量预查结果中获取价格
       if (unit_price <= 0) {
         const cachedPrice = priceMap.get(materialId);
         if (cachedPrice && cachedPrice > 0) {
@@ -878,23 +866,23 @@ exports.createSalesOrder = async (req, res) => {
 
       items.push({
         material_id: materialId,
-        quantity: quantity,
-        unit_price: unit_price,
-        amount: amount,
+        quantity,
+        unit_price,
+        amount,
         tax_percent:
           item.tax_percent !== undefined
             ? item.tax_percent
-            : item.tax_rate !== undefined
-              ? item.tax_rate
-              : financeConfig.get('tax.defaultVATRate', 0.13),
-        remark: item.remark || '',
+            : financeConfig.get('tax.defaultVATRate', 0),
+        remark: item.remarks || item.remark || '',
       });
     }
 
     // 计算金额：不含税金额、税额、价税合计（使用整数化精度控制）
-    const orderAmounts = calculateLines(items, { defaultTaxRate: order.taxRate || financeConfig.get('tax.defaultVATRate', 0.13) });
+    const orderAmounts = calculateLines(items, {
+      defaultTaxRate: order.taxRate || financeConfig.get('tax.defaultVATRate', 0),
+    });
     items.splice(0, items.length, ...orderAmounts.items);
-    order.taxRate = normalizeTaxRate(order.taxRate, financeConfig.get('tax.defaultVATRate', 0.13));
+    order.taxRate = normalizeTaxRate(order.taxRate, financeConfig.get('tax.defaultVATRate', 0));
     order.subtotal = orderAmounts.subtotal;
     order.taxAmount = orderAmounts.taxAmount;
     order.totalAmount = orderAmounts.totalAmount;

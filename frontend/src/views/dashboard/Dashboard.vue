@@ -46,7 +46,7 @@
       <!-- 待办事项、我发起和统计图表在同一行 -->
       <el-row :gutter="20">
         <el-col :xs="24" :sm="24" :md="8">
-          <div class="list-container">
+          <div ref="todoContainerRef" class="list-container todo-container">
             <div class="list-header">
               <div class="tab-group">
                 <div
@@ -58,30 +58,38 @@
                   @click="switchTodoTab('completed')"
                 >{{ $t('common.completed') }}</div>
               </div>
+              <el-button link class="todo-more-button" @click="goToTodoPage">
+                查看全部 {{ activeTodoCount }}
+              </el-button>
             </div>
             <div class="list-content">
               <el-table
-                :data="activeTodoTab === 'pending' ? pendingTasks : completedTasks"
+                :data="visibleTodoTasks"
                 :show-header="true"
-                height="300"
+                height="100%"
                 :empty-text="activeTodoTab === 'pending' ? '暂无待办事项' : '暂无已完成事项'"
                 class="dashboard-table"
               >
-                <el-table-column :label="$t('common.type')" width="80">
+                <el-table-column :label="$t('common.type')" width="72">
                   <template #default="{ row }">
                     <span class="event-type" :class="getEventTypeClass(row.type)">{{ row.type }}</span>
                   </template>
                 </el-table-column>
                 <el-table-column prop="title" :label="$t('common.title')" min-width="100" show-overflow-tooltip />
-                <el-table-column prop="date" :label="activeTodoTab === 'pending' ? $t('common.deadline') : $t('common.updateTime')" width="112" />
-                <el-table-column :label="$t('common.status')" width="80">
+                <el-table-column
+                  v-if="showTodoDate"
+                  prop="date"
+                  :label="activeTodoTab === 'pending' ? $t('common.deadline') : $t('common.updateTime')"
+                  width="108"
+                />
+                <el-table-column v-if="showTodoStatus" :label="$t('common.status')" width="76">
                   <template #default="{ row }">
                     <span :class="activeTodoTab === 'completed' ? 'status-completed' : getStatusClass(row.status)">
                       {{ row.status }}
                     </span>
                   </template>
                 </el-table-column>
-                <el-table-column :label="$t('common.action')" min-width="68" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+                <el-table-column :label="$t('common.action')" width="62" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
                   <template #default="{ row }">
                     <el-button
                       :type="activeTodoTab === 'pending' ? 'primary' : 'info'"
@@ -276,6 +284,15 @@ const statistics = ref({
   documentCount: 18
 })
 const isLoadingStats = ref(true)
+const todoContainerRef = ref(null)
+const todoContainerWidth = ref(0)
+const activeTodoTasks = computed(() => (
+  activeTodoTab.value === 'pending' ? pendingTasks.value : completedTasks.value
+))
+const activeTodoCount = computed(() => activeTodoTasks.value.length)
+const visibleTodoTasks = computed(() => activeTodoTasks.value.slice(0, 6))
+const showTodoDate = computed(() => todoContainerWidth.value >= 470)
+const showTodoStatus = computed(() => todoContainerWidth.value >= 380)
 // 统计卡片配置（使用计算属性动态获取数据）
 const statCards = computed(() => [
   {
@@ -316,6 +333,11 @@ const onPricePanelTabChange = async (tab) => {
 let userDataTimer = null
 let exchangeRateTimer = null
 let dashboardRefreshPromise = null
+let todoResizeObserver = null
+
+const updateTodoContainerWidth = () => {
+  todoContainerWidth.value = todoContainerRef.value?.getBoundingClientRect().width || 0
+}
 // === 全局状态常量映射字典（仅模板直接引用的保留在此） ===
 const EVENT_TYPE_MAP = {
   '英语变更': 'event-english',
@@ -422,6 +444,12 @@ const handleUserProfileUpdated = async () => {
 // 组件挂载时加载数据
 onMounted(async () => {
   window.addEventListener('erp:user-profile-updated', handleUserProfileUpdated)
+  await nextTick()
+  updateTodoContainerWidth()
+  if (typeof ResizeObserver !== 'undefined' && todoContainerRef.value) {
+    todoResizeObserver = new ResizeObserver(updateTodoContainerWidth)
+    todoResizeObserver.observe(todoContainerRef.value)
+  }
   // 初始化加载状态
   isLoadingStats.value = true
   // === 第一阶段：核心业务数据并行加载 ===
@@ -452,6 +480,8 @@ onMounted(async () => {
 // 组件卸载时清除定时器和图表
 onUnmounted(() => {
   window.removeEventListener('erp:user-profile-updated', handleUserProfileUpdated)
+  todoResizeObserver?.disconnect()
+  todoResizeObserver = null
   if (userDataTimer) {
     clearInterval(userDataTimer)
     userDataTimer = null
@@ -981,6 +1011,10 @@ watch(() => currentDate.value, (newValue) => {
   padding: 0;
   border-bottom: 1px solid var(--color-border-lighter);
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   box-sizing: border-box; /* ✨ 统一box-sizing */
 }
 .tab-group {
@@ -1031,7 +1065,18 @@ watch(() => currentDate.value, (newValue) => {
 .list-content {
   padding: 0;
   flex: 1;
-  overflow: auto;
+  min-height: 0;
+  overflow: hidden;
+}
+.todo-more-button {
+  flex: 0 0 auto;
+  margin-right: 10px;
+  padding: 4px 6px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+.todo-more-button:hover {
+  color: var(--color-primary);
 }
 /* 表格空状态样式 */
 .empty-state {

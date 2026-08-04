@@ -12,6 +12,7 @@ const { parsePagination, appendPaginationSQL } = require('../utils/safePaginatio
 const businessConfig = require('../config/businessConfig');
 const CodeGeneratorService = require('../services/business/CodeGeneratorService');
 const InspectionTemplateResolver = require('../services/business/InspectionTemplateResolverService');
+const { firstValidUserId } = require('../utils/userUtils');
 
 // 从统一配置获取状态常量
 const STATUS = {
@@ -599,23 +600,28 @@ class QualityInspection {
         }
       }
 
-      // DataScope owner：无 inspector_id 时用姓名反查，再不行用 admin
-      let inspectorId = inspection.inspector_id || null;
-      if (!inspectorId && inspection.inspector_name) {
-        const [iu] = await connection.query(
-          'SELECT id FROM users WHERE username = ? OR real_name = ? LIMIT 1',
-          [inspection.inspector_name, inspection.inspector_name]
-        );
-        inspectorId = iu[0]?.id || null;
+      // DataScope owner: explicit inspector first, then the source document owner.
+      let inspectorId = firstValidUserId(inspection.inspector_id);
+      if (!inspectorId) {
+        const sourceTable = inspection.inspection_type === 'incoming'
+          ? 'purchase_orders'
+          : inspection.task_id || inspection.reference_id
+            ? 'production_tasks'
+            : null;
+        const sourceId = inspection.inspection_type === 'incoming'
+          ? inspection.reference_id
+          : inspection.task_id || inspection.reference_id;
+
+        if (sourceTable && sourceId) {
+          const [sourceRows] = await connection.query(
+            `SELECT created_by FROM ${sourceTable} WHERE id = ? AND deleted_at IS NULL LIMIT 1`,
+            [sourceId]
+          );
+          inspectorId = firstValidUserId(sourceRows[0]?.created_by);
+        }
       }
       if (!inspectorId) {
-        const [admins] = await connection.query(
-          `SELECT u.id FROM users u
-           JOIN user_roles ur ON ur.user_id = u.id
-           JOIN roles r ON r.id = ur.role_id
-           WHERE r.code = 'admin' LIMIT 1`
-        );
-        inspectorId = admins[0]?.id || 1;
+        throw new Error('检验单缺少可追溯责任人，请指定检验员或补全来源单据创建人');
       }
 
       // 创建检验单
@@ -990,7 +996,13 @@ class QualityInspection {
 
               if (newInspectionStatus === 'in_progress') {
                 targetTaskStatus = STATUS.PRODUCTION_TASK.INSPECTION;
-              } else if (newInspectionStatus === 'passed') {
+              } else if (
+                newInspectionStatus === 'passed' ||
+                newInspectionStatus === 'partial' ||
+                (newInspectionStatus === 'completed' &&
+                  Number(data.qualified_quantity ?? inspection.qualified_quantity) > 0)
+              ) {
+                // 全合格或部分合格：均可进入入库阶段
                 targetTaskStatus = STATUS.PRODUCTION_TASK.WAREHOUSING;
               }
 
@@ -1019,17 +1031,23 @@ class QualityInspection {
                   await syncPlanStatus(planId, connection);
                 }
 
-                if (newInspectionStatus === 'passed') {
-                  let inboundCreatedBy =
-                    data.inspector_id || inspection.inspector_id || null;
+                // passed / partial / completed 且有合格量 → 自动建生产入库草稿
+                const qualifiedQty = Number(
+                  data.qualified_quantity ?? inspection.qualified_quantity ?? 0
+                );
+                const shouldCreateInbound =
+                  qualifiedQty > 0 &&
+                  ['passed', 'partial', 'completed'].includes(String(newInspectionStatus));
+
+                if (shouldCreateInbound) {
+                  const inboundCreatedBy = firstValidUserId(
+                    data.inspector_id,
+                    inspection.inspector_id
+                  );
                   const operator =
                     data.inspector_name || inspection.inspector_name || '系统';
-                  if (!inboundCreatedBy && operator && operator !== '系统') {
-                    const [opUsers] = await connection.execute(
-                      'SELECT id FROM users WHERE username = ? OR real_name = ? LIMIT 1',
-                      [operator, operator]
-                    );
-                    inboundCreatedBy = opUsers[0]?.id || null;
+                  if (!inboundCreatedBy) {
+                    throw new Error('终检单缺少检验员用户ID，不能自动创建生产入库单');
                   }
 
                   await ProductionInboundService.createDraftFromFinalInspection(connection, {
@@ -1041,13 +1059,11 @@ class QualityInspection {
                       reference_id: inspection.reference_id,
                       task_id: inspection.task_id || inspection.reference_id,
                       batch_no: inspection.batch_no,
-                      qualified_quantity:
-                        data.qualified_quantity ?? inspection.qualified_quantity,
+                      qualified_quantity: qualifiedQty,
                       inspector_id: inboundCreatedBy,
                       inspector_name: operator,
                     },
-                    qualifiedQuantity:
-                      data.qualified_quantity ?? inspection.qualified_quantity,
+                    qualifiedQuantity: qualifiedQty,
                     operator,
                     createdBy: inboundCreatedBy,
                   });

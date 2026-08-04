@@ -7,6 +7,7 @@
 
 const { logger } = require('../../utils/logger');
 const db = require('../../config/db');
+const { resolveActorLabel, resolveActorUserId } = require('../../utils/userUtils');
 
 /**
  * 仓库年度结存服务
@@ -216,7 +217,7 @@ class InventoryYearEndService {
       await connection.beginTransaction();
 
       const year = this.normalizeYear(params.year);
-      const operator = params.operator || 'system';
+      const operator = await resolveActorLabel(null, params.operator);
 
       if (!year) {
         throw new Error('会计年度不能为空');
@@ -383,7 +384,7 @@ class InventoryYearEndService {
         [
           'inventory',
           'year_end_execute',
-          operator || 'system',
+          await resolveActorLabel(null, operator),
           JSON.stringify({ year, recordCount: insertCount }),
         ]
       );
@@ -419,7 +420,7 @@ class InventoryYearEndService {
       await connection.beginTransaction();
 
       const year = this.normalizeYear(params.year);
-      const operator = params.operator || 'system';
+      const operator = await resolveActorLabel(null, params.operator);
 
       // 检查是否有结存记录及当前冻结状态
       const [records] = await connection.execute(
@@ -476,7 +477,7 @@ class InventoryYearEndService {
       await connection.beginTransaction();
 
       const year = this.normalizeYear(params.year);
-      const operator = params.operator || 'system';
+      const operator = await resolveActorLabel(null, params.operator);
 
       const [records] = await connection.execute(
         'SELECT COUNT(*) as count, SUM(CASE WHEN is_frozen = 1 THEN 1 ELSE 0 END) as frozen_count FROM inventory_year_end_balances WHERE year = ?',

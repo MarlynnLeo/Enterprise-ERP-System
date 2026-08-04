@@ -139,6 +139,7 @@ router.post('/ap/payments/batch', requirePermission('finance:ap:pay'), apBatchCo
 router.post('/ap/payments/:id/reverse', requirePermission('finance:ap:pay'), overdueController.reversePayment);
 
 // 3. 应付账款分析
+router.get('/ap/settlement-dashboard', requirePermission('finance:ap:view'), apController.getSettlementDashboard);
 router.get('/ap/supplier-payables', requirePermission('finance:reports:view'), apController.getSupplierPayables);
 router.get('/ap/supplier-payables/:id', requirePermission('finance:reports:view'), apController.getSupplierPayablesById);
 router.get('/ap/aging', requirePermission('finance:reports:view'), apController.getPayablesAging);
@@ -169,6 +170,7 @@ router.post('/ar/receipts/batch', requirePermission('finance:ar:receive'), arBat
 router.post('/ar/receipts/:id/reverse', requirePermission('finance:ar:receive'), overdueController.reverseReceipt);
 
 // 3. 应收账款分析
+router.get('/ar/settlement-dashboard', requirePermission('finance:ar:view'), arController.getSettlementDashboard);
 router.get('/ar/customer-receivables', requirePermission('finance:reports:view'), arController.getCustomerReceivables);
 router.get('/ar/customer-receivables/:id', requirePermission('finance:reports:view'), arController.getCustomerReceivablesById);
 router.get('/ar/aging', requirePermission('finance:reports:view'), arController.getReceivablesAging);
@@ -329,6 +331,7 @@ router.delete(
 router.put('/cash-transactions/:id/submit', requirePermission('finance:cash:update'), cashController.submitCashTransactionForAudit);
 router.put('/cash-transactions/:id/approve', requirePermission('finance:cash:approve'), cashController.approveCashTransaction);
 router.put('/cash-transactions/:id/reject', requirePermission('finance:cash:approve'), cashController.rejectCashTransaction);
+router.post('/cash-transactions/:id/void', requirePermission('finance:cash:approve'), cashController.voidCashTransaction);
 
 // 银行对账模块路由
 router.get('/cash/reconciliation/unreconciled', requirePermission('finance:cash:reconcile'), cashController.getUnreconciledTransactions);

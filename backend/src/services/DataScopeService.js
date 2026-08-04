@@ -40,14 +40,14 @@ class DataScopeService {
     const user = users[0] || { id: userId, department_id: null };
 
     const [roles] = await pool.execute(
-      `SELECT r.id, r.code, COALESCE(r.data_scope, ?) AS data_scope
+      `SELECT r.id, r.is_super_admin, COALESCE(r.data_scope, ?) AS data_scope
          FROM roles r
          JOIN user_roles ur ON ur.role_id = r.id
         WHERE ur.user_id = ? AND r.status = 1`,
       [DATA_SCOPE.SELF, userId]
     );
 
-    if (roles.some((role) => role.code === 'admin')) {
+    if (roles.some((role) => Number(role.is_super_admin || 0) === 1)) {
       return {
         type: DATA_SCOPE.ALL,
         userId,

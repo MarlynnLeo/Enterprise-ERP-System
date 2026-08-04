@@ -12,6 +12,7 @@ const db = require('../../../config/db');
 const PeriodEndService = require('../../../services/business/PeriodEndService');
 const DepreciationService = require('../../../services/business/DepreciationService');
 const ScheduledTaskService = require('../../../services/business/ScheduledTaskService');
+const { getRequestActorLabel } = require('../../../utils/userUtils');
 
 /**
  * 财务自动化控制器
@@ -88,7 +89,7 @@ class FinanceAutomationController {
       }
 
       const result = await PeriodEndService.executeAutoClosing(parseInt(periodId), {
-        closed_by: req.user?.id || 'system',
+        closed_by: (req.user?.id ?? null),
       });
 
       ResponseHandler.success(res, result, '期末自动结转完成');

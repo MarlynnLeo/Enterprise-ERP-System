@@ -37,9 +37,9 @@
   /* 主要文字 */
   --color-text-regular: #606266;
   /* 常规文字 */
-  --color-text-secondary: #909399;
+  --color-text-secondary: #6B7280;
   /* 次要文字 */
-  --color-text-placeholder: #C0C4CC;
+  --color-text-placeholder: #6B7280;
   /* 占位文字 */
   --color-text-disabled: #C0C4CC;
   /* 禁用文字 */
@@ -73,7 +73,7 @@
   /* 区块/卡片背景 */
 
   /* 辅助语义色 — 用于替代组件内硬编码 */
-  --color-text-muted: #8492a6;
+  --color-text-muted: #6B7280;
   /* 辅助说明文字 */
   --color-primary-active: #337ecc;
   /* 按钮/链接点击态（同 primary-dark-2） */
@@ -87,7 +87,7 @@
   /* 危险色悬浮态 */
   --color-info-gradient-end: #c8c9cc;
   /* 信息色渐变终点 */
-  --color-on-primary: #ffffff;
+  --color-on-primary: #000000;
   /* 主色上的文字（白色） */
 
   /* ========== 间距系统 ========== */

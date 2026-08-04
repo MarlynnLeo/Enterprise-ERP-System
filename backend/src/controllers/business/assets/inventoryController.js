@@ -3,6 +3,7 @@ const { safeParseId } = require('../../../utils/safeParseId');
 const { logger } = require('../../../utils/logger');
 const { parsePagination } = require('../../../utils/safePagination');
 const assetInventoryModel = require('../../../models/assetInventory');
+const { getCurrentUserName } = require('../../../utils/userHelper');
 
 const INVENTORY_ITEM_STATUS = new Set(['盘点相符', '盘亏', '盘盈', '未盘点']);
 
@@ -66,7 +67,7 @@ const inventoryController = {
                 return ResponseHandler.error(res, '盘点单标题为必填项', 'VALIDATION_ERROR', 400);
             }
 
-            const userId = req.user ? req.user.username : 'system';
+            const userId = await getCurrentUserName(req);
             const id = await assetInventoryModel.createInventory({ title, notes }, userId);
 
             return ResponseHandler.success(res, { id }, '盘点单创建成功', 201);
@@ -123,7 +124,7 @@ const inventoryController = {
                 return ResponseHandler.error(res, '无效的盘点单ID', 'VALIDATION_ERROR', 400);
             }
 
-            const userId = req.user ? req.user.username : 'system';
+            const userId = await getCurrentUserName(req);
             const result = await assetInventoryModel.completeInventory(id, userId);
 
             return ResponseHandler.success(res, result, '盘点完成');

@@ -921,6 +921,109 @@ class BankTransactionModel {
       connection.release();
     }
   }
+
+  /**
+   * 作废已审核银行交易：回滚账户余额 + 冲销关联总账凭证
+   * @param {number} id
+   * @param {number} userId
+   * @param {string} reason
+   */
+  static async voidApprovedTransaction(id, userId, reason) {
+    const connection = await db.pool.getConnection();
+    const VoucherReversalService = require('../../services/finance/VoucherReversalService');
+    try {
+      await connection.beginTransaction();
+
+      const [rows] = await connection.execute(
+        `SELECT bt.id, bt.transaction_number, bt.bank_account_id, bt.transaction_date,
+                bt.transaction_type, bt.amount, bt.status, bt.is_reconciled, bt.gl_entry_id,
+                bt.created_by
+         FROM bank_transactions bt
+         WHERE bt.id = ?
+         FOR UPDATE`,
+        [id]
+      );
+      if (!rows.length) {
+        throw new Error('银行交易不存在');
+      }
+      const tx = rows[0];
+      if (String(tx.status) !== 'approved') {
+        throw new Error('仅已审核的银行交易可以作废冲销');
+      }
+      if (tx.is_reconciled === true || tx.is_reconciled === 1 || tx.is_reconciled === '1') {
+        throw new Error('已对账的银行交易请先取消对账后再作废');
+      }
+
+      // 反向回滚余额：对原 delta 取反
+      const amount = normalizePositiveAmount(tx.amount, 'amount');
+      const originalDelta = getBankBalanceDelta(tx.transaction_type, amount);
+      const reverseDelta = -originalDelta;
+      const transactionDate = formatDateOnly(tx.transaction_date);
+
+      const [accounts] = await connection.execute(
+        'SELECT id, current_balance FROM bank_accounts WHERE id = ? AND is_active = 1 FOR UPDATE',
+        [tx.bank_account_id]
+      );
+      if (!accounts.length) {
+        throw new Error('银行账户不存在或已停用');
+      }
+      const currentBalance = Number.parseFloat(accounts[0].current_balance || 0);
+      if (reverseDelta < 0 && currentBalance < Math.abs(reverseDelta)) {
+        throw new Error(
+          `作废后账户余额不足，当前余额: ${currentBalance.toFixed(2)}，回滚金额: ${Math.abs(reverseDelta).toFixed(2)}`
+        );
+      }
+      await connection.execute(
+        'UPDATE bank_accounts SET current_balance = current_balance + ?, last_transaction_date = ? WHERE id = ?',
+        [reverseDelta, transactionDate, tx.bank_account_id]
+      );
+
+      let reversalInfo = null;
+      if (tx.gl_entry_id) {
+        const results = await VoucherReversalService.reverseBusinessVouchers(connection, {
+          sourceType: 'bank_transaction',
+          sourceId: tx.id,
+          documentNumber: tx.transaction_number,
+          documentType: getManualBankDocumentType(tx.transaction_type),
+          voidedBy: userId,
+          reason: reason || `作废银行交易 ${tx.transaction_number}`,
+          entryDate: transactionDate,
+        });
+        reversalInfo = results[0] || null;
+      }
+
+      await connection.execute(
+        `UPDATE bank_transactions
+         SET status = 'void',
+             reject_reason = ?,
+             approved_by = ?,
+             approved_at = NOW(),
+             gl_entry_id = NULL
+         WHERE id = ? AND status = 'approved'`,
+        [reason || '作废冲销', userId, id]
+      );
+
+      const [updated] = await connection.execute(
+        'SELECT current_balance FROM bank_accounts WHERE id = ?',
+        [tx.bank_account_id]
+      );
+
+      await connection.commit();
+      logger.info(`银行交易 ${id} 已作废冲销`);
+      return {
+        success: true,
+        newBalance: Number.parseFloat(updated[0]?.current_balance || 0),
+        reversalEntryId: reversalInfo?.entryId || null,
+        reversalEntryNumber: reversalInfo?.entryNumber || null,
+      };
+    } catch (error) {
+      await connection.rollback();
+      logger.error('作废银行交易失败:', error);
+      throw error;
+    } finally {
+      connection.release();
+    }
+  }
 }
 
 module.exports = BankTransactionModel;

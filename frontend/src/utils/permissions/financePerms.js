@@ -177,6 +177,18 @@ export const financePerms = [
     status: 1
   },
   {
+    id: 751,
+    parentId: 7,
+    name: '应收待结算',
+    path: '/finance/ar/settlement',
+    component: 'finance/ar/Settlement',
+    icon: 'icon-data-line',
+    type: 1,
+    permission: 'finance:ar:view',
+    sort: 55,
+    status: 1
+  },
+  {
     id: 76,
     parentId: 7,
     name: '应收账龄',
@@ -211,6 +223,30 @@ export const financePerms = [
     type: 1,
     permission: 'finance:ap:view',
     sort: 8,
+    status: 1
+  },
+  {
+    id: 781,
+    parentId: 7,
+    name: '应付待结算',
+    path: '/finance/ap/settlement',
+    component: 'finance/ap/Settlement',
+    icon: 'icon-data-line',
+    type: 1,
+    permission: 'finance:ap:view',
+    sort: 85,
+    status: 1
+  },
+  {
+    id: 782,
+    parentId: 7,
+    name: '三单匹配',
+    path: '/finance/ap/three-way-match',
+    component: 'finance/ap/ThreeWayMatch',
+    icon: 'icon-connection',
+    type: 1,
+    permission: 'finance:ap:view',
+    sort: 86,
     status: 1
   },
   {
@@ -420,13 +456,13 @@ export const financePerms = [
     sort: 16,
     status: 1
   },
-  // 财务自动化
+  // 财务自动化（页面已并入财务设置 · 自动化任务 Tab）
   {
     id: 719,
     parentId: 7,
     name: '财务自动化',
-    path: '/finance/automation',
-    component: 'finance/automation/FinanceAutomation',
+    path: '/finance/settings?tab=automation',
+    component: 'finance/settings/FinanceSettings',
     icon: 'icon-robot',
     type: 1,
     permission: 'finance:automation:view',

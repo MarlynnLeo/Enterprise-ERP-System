@@ -67,7 +67,7 @@ async function assertAssignableRoleIds(connection, roleIds, options = {}) {
 
   const placeholders = roleIds.map(() => '?').join(',');
   const [roles] = await connection.execute(
-    `SELECT id, code, name, status FROM roles WHERE id IN (${placeholders})`,
+    `SELECT id, code, name, status, is_super_admin FROM roles WHERE id IN (${placeholders})`,
     roleIds
   );
 
@@ -85,7 +85,7 @@ async function assertAssignableRoleIds(connection, roleIds, options = {}) {
   }
 
   const adminIds = roles
-    .filter((role) => String(role.code || '').trim().toLowerCase() === 'admin')
+    .filter((role) => Number(role.is_super_admin || 0) === 1)
     .map((role) => Number(role.id));
   if (adminIds.length > 0 && !options.allowAdminRole) {
     throw new Error('FORBIDDEN: assigning admin role requires super administrator');
@@ -902,7 +902,7 @@ const systemModel = {
         }
       }
 
-      // 插入角色基本信息（含 data_scope，默认 SELF=4 更安全；admin 创建路径另设）
+      // 插入角色基本信息（含 data_scope，默认 SELF=4 更安全）
       const dataScope = data.data_scope !== undefined ? data.data_scope : 4;
       const [result] = await connection.execute(
         `INSERT INTO roles (name, code, description, status, data_scope, created_at, updated_at)
@@ -1168,7 +1168,7 @@ const systemModel = {
         );
       } else {
         const [adminRoles] = await connection.execute(
-          "SELECT id FROM roles WHERE name LIKE '%管理员%' OR code = 'admin'"
+          'SELECT id FROM roles WHERE is_super_admin = 1 AND status = 1'
         );
 
         for (const role of adminRoles) {

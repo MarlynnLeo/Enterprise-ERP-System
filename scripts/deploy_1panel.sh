@@ -53,7 +53,7 @@ if [[ ! -f .env ]]; then
     printf 'DEFAULT_ADMIN_PASSWORD_HASH=\n'
     printf 'DEFAULT_ADMIN_PASSWORD=\n'
     printf 'ALLOWED_ORIGINS=http://%s:18080,http://%s:18081,http://%s:18082,%s\n' "$SERVER_IP" "$SERVER_IP" "$SERVER_IP" "$PUBLIC_URL"
-    printf 'COOKIE_SECURE=true\n'
+    printf 'COOKIE_SECURE=auto\n'
     printf 'COOKIE_SAME_SITE=lax\n'
     printf 'REDIS_HOST=redis\n'
     printf 'REDIS_PASSWORD=%s\n' "$redis_password"
@@ -68,6 +68,32 @@ fi
 
 chmod -R u=rwX,go=rX "$PROJECT_DIR"
 chmod 600 .env
+normalize_env_cookie_policy() {
+  if grep -q '^COOKIE_SECURE=' .env; then
+    sed -i 's/^COOKIE_SECURE=.*/COOKIE_SECURE=auto/' .env
+  else
+    printf 'COOKIE_SECURE=auto
+' >> .env
+  fi
+  if grep -q '^COOKIE_SAME_SITE=' .env; then
+    sed -i 's/^COOKIE_SAME_SITE=.*/COOKIE_SAME_SITE=lax/' .env
+  else
+    printf 'COOKIE_SAME_SITE=lax
+' >> .env
+  fi
+}
+
+verify_auth_artifacts() {
+  test -f backend/src/utils/cookieSecurity.js
+  grep -q shouldUseSecureCookies backend/src/config/jwtEnhanced.js
+  grep -q client_forwarded_proto frontend/nginx.conf
+  grep -q client_forwarded_proto mobile/nginx.conf
+  docker compose exec -T backend sh -lc 'test -f /app/src/utils/cookieSecurity.js'
+  docker compose exec -T backend sh -lc 'grep -q shouldUseSecureCookies /app/src/config/jwtEnhanced.js'
+  docker compose exec -T frontend sh -lc 'grep -q client_forwarded_proto /etc/nginx/conf.d/default.conf'
+}
+
+normalize_env_cookie_policy
 
 docker compose config --quiet
 docker compose build --pull

@@ -30,7 +30,7 @@
     <!-- 图表行 1 -->
     <el-row :gutter="20" class="chart-row">
       <el-col :span="12">
-        <el-card shadow="hover">
+        <el-card class="dashboard-card" shadow="hover">
           <template #header>
             <div class="card-header">
               <span>资产状态分布</span>
@@ -40,7 +40,7 @@
         </el-card>
       </el-col>
       <el-col :span="12">
-        <el-card shadow="hover" >
+        <el-card class="dashboard-card" shadow="hover" >
           <template #header>
             <div class="card-header">
               <span>资产类别分布</span>
@@ -54,7 +54,7 @@
     <!-- 图表行 2 -->
     <el-row :gutter="20" class="chart-row">
       <el-col :span="24">
-        <el-card shadow="hover" >
+        <el-card class="dashboard-card" shadow="hover" >
           <template #header>
             <div class="card-header">
               <span>近12个月资产新增趋势 (按原值)</span>
@@ -68,7 +68,7 @@
     <!-- 图表行 3：折旧预测 -->
     <el-row :gutter="20" class="chart-row">
       <el-col :span="24">
-        <el-card shadow="hover" >
+        <el-card class="dashboard-card" shadow="hover" >
           <template #header>
             <div class="card-header">
               <span>未来6个月折旧费用预测</span>

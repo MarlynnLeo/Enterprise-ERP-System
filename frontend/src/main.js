@@ -30,8 +30,8 @@ import './assets/theme-utilities.css'
 import './assets/scrollbar.css'
 import 'element-plus/theme-chalk/dark/css-vars.css'
 /* 主题：兼容层 + 默认 KACON 首屏；其余预设由 themeLoader 按需加载 */
-import './assets/themes/pc/theme-compat.css'
 import './assets/themes/pc/kacon.css'
+import './assets/themes/pc/theme-compat.css'
 import './assets/stat-cards.css'
 
 import permissionDirective from './directives/permission'
@@ -65,7 +65,7 @@ const languageStore = useLanguageStore(pinia)
 languageStore.initLanguage()
 
 const themeStore = useThemeStore(pinia)
-themeStore.initTheme()
+const themeReady = themeStore.initTheme()
 
 const authStore = useAuthStore(pinia)
 authStore.setAuthHeader()
@@ -90,5 +90,11 @@ app.component('AppDialog', AppDialog)
 registerElementIcons(app)
 registerStatCardIcons(app)
 
-app.mount('#app')
-initOperationColumnAutoWidth(document.body)
+themeReady
+  .catch((error) => {
+    console.error('Theme initialization failed:', error)
+  })
+  .finally(() => {
+    app.mount('#app')
+    initOperationColumnAutoWidth(document.body)
+  })

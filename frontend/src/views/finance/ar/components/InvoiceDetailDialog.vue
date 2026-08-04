@@ -16,13 +16,15 @@
     <div class="invoice-details">
       <!-- 基本信息 -->
       <el-descriptions :column="2" border>
-        <el-descriptions-item label="系统编号">{{ invoice.invoice_number }}</el-descriptions-item>
-        <el-descriptions-item label="客户名称">{{ invoice.customer_name }}</el-descriptions-item>
-        <el-descriptions-item label="开票日期">{{ invoice.invoice_date }}</el-descriptions-item>
-        <el-descriptions-item label="到期日期">{{ invoice.due_date }}</el-descriptions-item>
-        <el-descriptions-item label="总金额">{{ formatCurrency(invoice.total_amount) }}</el-descriptions-item>
-        <el-descriptions-item label="已收金额">{{ formatCurrency(invoice.paid_amount) }}</el-descriptions-item>
-        <el-descriptions-item label="剩余金额">{{ formatCurrency(invoice.balance_amount) }}</el-descriptions-item>
+        <el-descriptions-item label="系统编号">{{ invoice.invoiceNumber }}</el-descriptions-item>
+        <el-descriptions-item label="客户名称">{{ invoice.customerName }}</el-descriptions-item>
+        <el-descriptions-item label="开票日期">{{ invoice.invoiceDate }}</el-descriptions-item>
+        <el-descriptions-item label="到期日期">{{ invoice.dueDate }}</el-descriptions-item>
+        <el-descriptions-item label="未税金额">{{ formatCurrency(invoice.amountExcludingTax) }}</el-descriptions-item>
+        <el-descriptions-item label="税额">{{ formatCurrency(invoice.taxAmount) }}</el-descriptions-item>
+        <el-descriptions-item label="价税合计">{{ formatCurrency(invoice.totalAmount) }}</el-descriptions-item>
+        <el-descriptions-item label="已收金额">{{ formatCurrency(invoice.paidAmount) }}</el-descriptions-item>
+        <el-descriptions-item label="剩余金额">{{ formatCurrency(invoice.balanceAmount) }}</el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag :type="getStatusType(invoice)">{{ getStatusText(invoice) }}</el-tag>
         </el-descriptions-item>

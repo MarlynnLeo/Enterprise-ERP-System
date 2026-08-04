@@ -5,16 +5,30 @@ const apModel = require('../../models/ap');
 const financeModel = require('../../models/finance');
 const taxModel = require('../../models/tax');
 const { financeConfig } = require('../../config/financeConfig');
-const { getUserIdByIdentifier } = require('../../utils/userUtils');
+const { resolveActorUserId } = require('../../utils/userUtils');
 const DocumentLinkService = require('../business/DocumentLinkService');
 const { logger } = require('../../utils/logger');
-const { DOCUMENT_TYPES } = require('../../constants/financeConstants');
+const {
+  DOCUMENT_TYPES,
+  TAX_RELATED_DOCUMENT_TYPES,
+  taxRelatedDocumentTypeMatchList,
+} = require('../../constants/financeConstants');
 const { normalizeTaxRate, roundMoney, taxAmount: calculateTaxAmount } = require('../../utils/money');
+const {
+  resolveUnitPrice,
+  resolveTaxRate,
+  sqlUnitPriceExpr,
+  sqlTaxRateExpr,
+  sqlNonZeroUnitPrice,
+} = require('../../utils/unitPriceFields');
 const {
   addDaysToDateString,
   currentDateString,
   toLocalDateString,
 } = require('../../utils/dateUtils');
+
+// 表级单价列（SQL 只允许用这些表达式，禁止在 purchase_* 上写 unit_price）
+// 采购订单/入库: price；销售订单: unit_price；销售出库: price
 
 class FinanceIntegrationService {
   static formatMaterialLabel(item, idField = 'material_id') {
@@ -31,6 +45,79 @@ class FinanceIntegrationService {
       return roundMoney(explicitTaxAmount);
     }
     return calculateTaxAmount(baseAmount, normalizeTaxRate(taxRate, 0));
+  }
+
+  /**
+   * 解析付款/收款账期（天）
+   * 优先级：显式覆盖 > 往来单位 payment_term_days > 订单 payment_terms 文本 > 系统默认
+   */
+  static parsePaymentTermDays(raw, fallback = 30) {
+    if (raw === null || raw === undefined || raw === '') return fallback;
+    if (typeof raw === 'number' && Number.isFinite(raw) && raw >= 0) {
+      return Math.min(3650, Math.floor(raw));
+    }
+    const text = String(raw).trim();
+    if (/^\d+$/.test(text)) {
+      return Math.min(3650, parseInt(text, 10));
+    }
+    // 常见写法：30天 / 月结30天 / Net 30 / 货到30天付款
+    const m = text.match(/(\d+)\s*天/) || text.match(/net\s*(\d+)/i) || text.match(/(\d+)/);
+    if (m) {
+      const n = parseInt(m[1], 10);
+      if (Number.isFinite(n) && n >= 0) return Math.min(3650, n);
+    }
+    // fallback 显式为 null 时表示「无法解析」
+    return fallback;
+  }
+
+  static async resolvePartyPaymentTermDays(connection, { supplierId = null, customerId = null, orderTerms = null } = {}) {
+    const fallback = financeConfig.get('invoice.defaultPaymentTermDays', 30);
+    // 订单级账期优先（数字天或文本条款）
+    if (orderTerms !== null && orderTerms !== undefined && orderTerms !== '') {
+      const fromOrder = this.parsePaymentTermDays(orderTerms, null);
+      // parse 失败时 fallback 会返回默认；仅当能解析出有效值时采用订单
+      if (fromOrder != null && Number.isFinite(fromOrder)) {
+        // 若 orderTerms 是纯文本且无法解析，parse 会返回 fallback；用显式检测区分
+        if (typeof orderTerms === 'number' || /^\d+$/.test(String(orderTerms).trim()) || /(\d+)\s*天|net\s*\d+/i.test(String(orderTerms))) {
+          return fromOrder;
+        }
+      }
+    }
+    try {
+      if (supplierId) {
+        const [rows] = await connection.execute(
+          'SELECT payment_term_days FROM suppliers WHERE id = ? LIMIT 1',
+          [supplierId]
+        );
+        if (rows[0]?.payment_term_days != null && rows[0].payment_term_days !== '') {
+          return this.parsePaymentTermDays(rows[0].payment_term_days, fallback);
+        }
+      }
+      if (customerId) {
+        const [rows] = await connection.execute(
+          'SELECT payment_term_days FROM customers WHERE id = ? LIMIT 1',
+          [customerId]
+        );
+        if (rows[0]?.payment_term_days != null && rows[0].payment_term_days !== '') {
+          return this.parsePaymentTermDays(rows[0].payment_term_days, fallback);
+        }
+      }
+    } catch (e) {
+      // 列未迁移时降级，不阻断开票
+      if (e.code !== 'ER_BAD_FIELD_ERROR') {
+        logger.warn('[FinanceIntegration] 读取往来账期失败', { message: e.message });
+      }
+    }
+    if (orderTerms) {
+      return this.parsePaymentTermDays(orderTerms, fallback);
+    }
+    return this.parsePaymentTermDays(fallback, 30);
+  }
+
+  static formatPaymentTermsText(days) {
+    const n = this.parsePaymentTermDays(days, 30);
+    if (n === 0) return '货到付款';
+    return `${n}天付款`;
   }
 
   static assertMoneyMatches(actual, expected, label) {
@@ -142,9 +229,28 @@ class FinanceIntegrationService {
   }
 
   /**
-   * 来源单据幂等查询：任意已存在来源记录均视为已生成（含取消），配合唯一索引防并发双开
+   * 税务发票编号（编码规则 tax_invoice，禁止业务侧硬编码「待补录-」）
+   * 真票号可在认证后通过 updateTaxInvoiceNumber 回写
    */
-  static async findExistingInvoiceBySource(connection, tableName, sourceType, sourceId) {
+  static async generateTaxInvoiceNumber(connection) {
+    const CodeGeneratorService = require('../business/CodeGeneratorService');
+    return await CodeGeneratorService.nextCode('tax_invoice', connection);
+  }
+
+  /**
+   * 来源单据幂等查询：
+   * - 仅「有效」发票阻止重生（已取消/作废不算）
+   * - 配合 UNIQUE(source_type,source_id)：取消时应释放 source（见 releaseSourceOnCancel）
+   * @param {object} [options]
+   * @param {boolean} [options.includeInactive=false] 为 true 时含作废（仅诊断用）
+   */
+  static async findExistingInvoiceBySource(
+    connection,
+    tableName,
+    sourceType,
+    sourceId,
+    options = {}
+  ) {
     if (!sourceId) return null;
     const allowedTables = {
       ar_invoices: 'invoice_number',
@@ -155,28 +261,123 @@ class FinanceIntegrationService {
       throw new Error(`不支持的发票幂等表: ${tableName}`);
     }
 
-    const [rows] = await connection.execute(
-      `SELECT id, ${invoiceNumberColumn} AS invoice_number, total_amount, status
-       FROM ${tableName}
-       WHERE source_type = ?
-         AND source_id = ?
-       LIMIT 1
-       FOR UPDATE`,
-      [sourceType, sourceId]
-    );
+    const { INACTIVE_INVOICE_STATUSES } = require('../../constants/financeConstants');
+    const includeInactive = options.includeInactive === true;
+    const inactiveList = [...INACTIVE_INVOICE_STATUSES];
+    const inactivePh = inactiveList.map(() => '?').join(', ');
+
+    const sql = includeInactive
+      ? `SELECT id, ${invoiceNumberColumn} AS invoice_number, total_amount, status
+         FROM ${tableName}
+         WHERE source_type = ? AND source_id = ?
+         ORDER BY id DESC LIMIT 1 FOR UPDATE`
+      : `SELECT id, ${invoiceNumberColumn} AS invoice_number, total_amount, status
+         FROM ${tableName}
+         WHERE source_type = ? AND source_id = ?
+           AND status NOT IN (${inactivePh})
+         ORDER BY id DESC LIMIT 1 FOR UPDATE`;
+
+    const params = includeInactive
+      ? [sourceType, sourceId]
+      : [sourceType, sourceId, ...inactiveList];
+
+    const [rows] = await connection.execute(sql, params);
     return rows[0] || null;
+  }
+
+  /**
+   * 发票取消/作废后释放来源唯一键，允许同业务单据重新生成
+   */
+  static async releaseInvoiceSourceOnCancel(connection, tableName, invoiceId) {
+    const allowed = new Set(['ar_invoices', 'ap_invoices']);
+    if (!allowed.has(tableName) || !invoiceId) return;
+    await connection.execute(
+      `UPDATE ${tableName}
+       SET source_id = NULL,
+           notes = CONCAT(COALESCE(notes, ''), CASE WHEN COALESCE(notes,'') = '' THEN '' ELSE ' | ' END,
+             '[source released on cancel ', DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i'), ']'),
+           updated_at = NOW()
+       WHERE id = ?
+         AND source_id IS NOT NULL`,
+      [invoiceId]
+    );
+  }
+
+  /**
+   * 生成前清理：已取消/作废票仍占用 source_id 时释放 uq_source，避免
+   * Duplicate entry 'purchase_receipt-xxx' for key 'uq_source'
+   * （手工改 status 或旧数据未走 release 时会出现）
+   */
+  static async releaseStaleInactiveSource(
+    connection,
+    tableName,
+    sourceType,
+    sourceId
+  ) {
+    if (!sourceId || !tableName) return 0;
+    const stale = await this.findExistingInvoiceBySource(
+      connection,
+      tableName,
+      sourceType,
+      sourceId,
+      { includeInactive: true }
+    );
+    if (!stale) return 0;
+
+    const { INACTIVE_INVOICE_STATUSES } = require('../../constants/financeConstants');
+    const status = String(stale.status || '');
+    const inactive = INACTIVE_INVOICE_STATUSES.some(
+      (s) => String(s).toLowerCase() === status.toLowerCase()
+    );
+    // 仅释放无效票；有效票由调用方走 skipped 分支
+    if (!inactive) return 0;
+
+    await this.releaseInvoiceSourceOnCancel(connection, tableName, stale.id);
+
+    // 同步来源单据开票状态，避免列表被 invoice_status=invoiced 挡住
+    if (sourceType === 'purchase_receipt') {
+      await connection.execute(
+        `UPDATE purchase_receipts
+         SET invoice_status = 'uninvoiced', updated_at = NOW()
+         WHERE id = ? AND deleted_at IS NULL`,
+        [sourceId]
+      );
+    } else if (sourceType === 'sales_outbound') {
+      // 出库表未必有 invoice_status；忽略失败
+      try {
+        await connection.execute(
+          `UPDATE sales_outbound SET updated_at = NOW() WHERE id = ? AND deleted_at IS NULL`,
+          [sourceId]
+        );
+      } catch {
+        /* optional column */
+      }
+    }
+
+    logger.info('[FinanceIntegration] 已释放作废票占用的来源唯一键', {
+      tableName,
+      sourceType,
+      sourceId,
+      invoiceId: stale.id,
+      invoiceNumber: stale.invoice_number,
+      status: stale.status,
+    });
+    return 1;
   }
 
   static async findExistingTaxInvoice(connection, relatedDocumentType, relatedDocumentId) {
     if (!relatedDocumentId) return null;
+    const types = taxRelatedDocumentTypeMatchList(relatedDocumentType);
+    if (types.length === 0) return null;
+    const placeholders = types.map(() => '?').join(', ');
     const [rows] = await connection.execute(
       `SELECT id, invoice_number, total_amount, status
        FROM tax_invoices
-       WHERE related_document_type = ?
+       WHERE related_document_type IN (${placeholders})
          AND related_document_id = ?
        LIMIT 1
        FOR UPDATE`,
-      [relatedDocumentType, relatedDocumentId]
+      [...types, relatedDocumentId]
     );
     return rows[0] || null;
   }
@@ -187,6 +388,7 @@ class FinanceIntegrationService {
   static async lockSourceDocument(connection, tableName, sourceId) {
     const allowed = new Set([
       'sales_orders',
+      'purchase_orders',
       'purchase_receipts',
       'sales_outbound', // 表名单数，与 baseline 一致
       'sales_returns',
@@ -238,16 +440,441 @@ class FinanceIntegrationService {
   // ==================== 销售模块集成 ====================
 
   /**
-   * 从销售订单自动生成应收发票
+   * 刷新销售订单开票状态（按已确认 AR 金额 vs 订单金额）
    */
-  static async generateARInvoiceFromSalesOrder(salesOrder, userId = null) {
-    const autoGenerate = await SystemConfigService.get('auto_generate_ar_invoice', true);
-    if (!autoGenerate) return { skipped: true, message: '功能已关闭' };
+  static async refreshSalesOrderInvoiceStatus(connection, orderId) {
+    if (!orderId) return;
+    // 明细：unit_price + tax_percent；表头：tax_rate / tax_amount / total_amount
+    const itemPriceCol = sqlUnitPriceExpr(null, 'sales_order_items'); // unit_price
+    const itemTaxCol = sqlTaxRateExpr(null, 'sales_order_items'); // tax_percent
+    const [orderRows] = await connection.execute(
+      `SELECT ROUND(COALESCE(SUM(quantity * ${itemPriceCol}), 0), 2) AS subtotal,
+              MAX(${itemTaxCol}) AS tax_percent
+       FROM sales_order_items
+       WHERE order_id = ?`,
+      [orderId]
+    );
+    const [taxRows] = await connection.execute(
+      `SELECT tax_rate, tax_amount, total_amount, subtotal
+       FROM sales_orders WHERE id = ? LIMIT 1`,
+      [orderId]
+    );
+    const subtotal = roundMoney(
+      orderRows[0]?.subtotal || taxRows[0]?.subtotal || 0
+    );
+    const taxAmount = this.resolveTaxAmount(
+      subtotal,
+      taxRows[0]?.tax_amount,
+      resolveTaxRate(taxRows[0], resolveTaxRate(orderRows[0], 0))
+    );
+    // 优先用表头 total_amount（已含税），否则 subtotal+税
+    const headerTotal = roundMoney(taxRows[0]?.total_amount || 0);
+    const orderTotal =
+      headerTotal > 0 ? headerTotal : roundMoney(subtotal + taxAmount);
+
+    const [arRows] = await connection.execute(
+      `SELECT ROUND(COALESCE(SUM(total_amount), 0), 2) AS invoiced
+       FROM ar_invoices
+       WHERE (
+         (source_type = 'sales_order' AND source_id = ?)
+         OR (
+           source_type = 'sales_outbound'
+           AND source_id IN (
+             SELECT id FROM sales_outbound
+             WHERE deleted_at IS NULL
+               AND (order_id = ? OR id IN (
+                 SELECT outbound_id FROM sales_outbound_items WHERE source_order_id = ?
+               ))
+           )
+         )
+       )
+       AND status NOT IN ('cancelled', '已取消', 'void', '作废')`,
+      [orderId, orderId, orderId]
+    );
+    const invoiced = roundMoney(arRows[0]?.invoiced || 0);
+    let invoiceStatus = 'not_invoiced';
+    if (invoiced > 0.01 && orderTotal > 0 && invoiced + 0.01 < orderTotal) {
+      invoiceStatus = 'partial';
+    } else if (invoiced + 0.01 >= orderTotal && orderTotal > 0) {
+      invoiceStatus = 'invoiced';
+    } else if (invoiced > 0.01) {
+      invoiceStatus = 'invoiced';
+    }
+    await connection.execute(
+      `UPDATE sales_orders SET invoice_status = ?, updated_at = NOW() WHERE id = ?`,
+      [invoiceStatus, orderId]
+    );
+  }
+
+  /**
+   * 从销售出库单按交货量生成应收发票（专业 ERP：invoice what you ship）
+   * 幂等键：source_type=sales_outbound + source_id=outboundId
+   */
+  static async generateARInvoiceFromSalesOutbound(outboundData, salesOrders = [], userId = null, options = {}) {
+    // 默认关闭自动生成；手工接口传 force:true 可绕过开关
+    const autoGenerate = options.force === true
+      || await SystemConfigService.get('auto_generate_ar_invoice', false);
+    if (!autoGenerate) {
+      return {
+        skipped: true,
+        message: '自动生成应收发票已关闭，请在会计凭证中选择「销售出库单」手工生成',
+      };
+    }
+
+    const outboundId = outboundData?.id;
+    if (!outboundId) {
+      throw new Error('出库单 ID 缺失，不能生成应收发票');
+    }
+
+    // options.connection：合并生成等外层事务；由外层 commit/rollback
+    const isExternalConn = !!options.connection;
+    const connection = options.connection || (await db.pool.getConnection());
+    try {
+      if (!isExternalConn) await connection.beginTransaction();
+      await this.lockSourceDocument(connection, 'sales_outbound', outboundId);
+
+      const existingInvoice = await this.findExistingInvoiceBySource(
+        connection,
+        'ar_invoices',
+        'sales_outbound',
+        outboundId
+      );
+      if (existingInvoice) {
+        if (!isExternalConn) await connection.commit();
+        return {
+          skipped: true,
+          invoiceId: existingInvoice.id,
+          invoiceNumber: existingInvoice.invoice_number,
+          amount: existingInvoice.total_amount,
+          message: '出库应收发票已存在',
+        };
+      }
+
+      // 已取消应收仍占 uq_source 时先释放
+      await this.releaseStaleInactiveSource(
+        connection,
+        'ar_invoices',
+        'sales_outbound',
+        outboundId
+      );
+
+      // 若仍存在按整单 SO 开的旧票（历史路径），跳过自动按出库开票，避免双重应收
+      const orderList = Array.isArray(salesOrders) ? salesOrders.filter((o) => o?.id) : [];
+      for (const order of orderList) {
+        const legacy = await this.findExistingInvoiceBySource(
+          connection,
+          'ar_invoices',
+          'sales_order',
+          order.id
+        );
+        if (legacy && !['cancelled', '已取消', 'void', '作废'].includes(String(legacy.status || ''))) {
+          if (!isExternalConn) await connection.commit();
+          return {
+            skipped: true,
+            invoiceId: legacy.id,
+            invoiceNumber: legacy.invoice_number,
+            amount: legacy.total_amount,
+            message:
+              `订单 ${order.order_no || order.id} 已有历史订单级应收（${legacy.invoice_number}），` +
+              `为避免双重应收已跳过出库开票。专业路径应按出库量开票：请将旧票作废/红冲后，` +
+              `再在「会计凭证→销售出库单」生成出库级应收。`,
+            legacySource: 'sales_order',
+            legacyInvoiceId: legacy.id,
+          };
+        }
+      }
+
+      const [itemRows] = await connection.execute(
+        `SELECT sobi.product_id AS material_id,
+                sobi.quantity,
+                sobi.source_order_id,
+                sob.order_id AS header_order_id,
+                m.name AS material_name,
+                m.code AS material_code,
+                m.specs AS specs
+         FROM sales_outbound_items sobi
+         JOIN sales_outbound sob ON sob.id = sobi.outbound_id
+         LEFT JOIN materials m ON m.id = sobi.product_id
+         WHERE sobi.outbound_id = ?`,
+        [outboundId]
+      );
+
+      if (!itemRows.length) {
+        await connection.rollback();
+        throw new Error(`出库单 ${outboundData.outbound_no || outboundId} 无明细，不能生成应收`);
+      }
+
+      // 单价取自对应销售订单明细
+      const orderIds = [
+        ...new Set(
+          itemRows
+            .map((r) => Number(r.source_order_id || r.header_order_id))
+            .filter((id) => Number.isInteger(id) && id > 0)
+        ),
+      ];
+      if (orderIds.length === 0 && orderList.length) {
+        orderList.forEach((o) => orderIds.push(Number(o.id)));
+      }
+
+      const priceMap = new Map(); // `${orderId}:${materialId}` -> unit_price
+      let taxRate = 0;
+      if (orderIds.length) {
+        const ph = orderIds.map(() => '?').join(',');
+        const [priceRows] = await connection.execute(
+          `SELECT order_id, material_id, unit_price
+           FROM sales_order_items
+           WHERE order_id IN (${ph})`,
+          orderIds
+        );
+        priceRows.forEach((row) => {
+          priceMap.set(`${row.order_id}:${row.material_id}`, parseFloat(row.unit_price) || 0);
+        });
+        const [taxInfo] = await connection.execute(
+          `SELECT tax_rate FROM sales_orders WHERE id IN (${ph}) LIMIT 1`,
+          orderIds
+        );
+        taxRate = normalizeTaxRate(taxInfo[0]?.tax_rate, 0);
+      }
+
+      const invoiceItems = [];
+      let subtotalCents = 0;
+      for (const row of itemRows) {
+        const orderId = Number(row.source_order_id || row.header_order_id) || orderIds[0] || null;
+        const qty = parseFloat(row.quantity) || 0;
+        if (qty <= 0) continue;
+        let unitPrice = priceMap.get(`${orderId}:${row.material_id}`);
+        if (unitPrice === undefined || unitPrice === null) {
+          // 回退：任意订单同物料价
+          for (const oid of orderIds) {
+            const p = priceMap.get(`${oid}:${row.material_id}`);
+            if (p !== undefined) {
+              unitPrice = p;
+              break;
+            }
+          }
+        }
+        unitPrice = parseFloat(unitPrice) || 0;
+        if (unitPrice <= 0) {
+          await connection.rollback();
+          throw new Error(
+            `出库单 ${outboundData.outbound_no || outboundId} 物料 ${row.material_code || row.material_id} 缺少有效单价`
+          );
+        }
+        const lineCents = Math.round(qty * unitPrice * 100);
+        subtotalCents += lineCents;
+        invoiceItems.push({
+          product_id: row.material_id,
+          product_name: row.material_name || row.material_code || `material#${row.material_id}`,
+          description: `销售出库 ${outboundData.outbound_no || outboundId} ${row.material_name || row.material_code || ''}`,
+          quantity: qty,
+          unit_price: unitPrice,
+          amount: lineCents / 100,
+        });
+      }
+
+      if (!invoiceItems.length) {
+        await connection.rollback();
+        throw new Error(`出库单 ${outboundData.outbound_no || outboundId} 无可开票数量`);
+      }
+
+      // 预览确认覆盖（仅认 camelCase：items / taxRate / taxAmount / invoiceDate / notes / accounts）
+      const overrides =
+        options.overrides && typeof options.overrides === 'object' ? options.overrides : null;
+      if (Array.isArray(overrides?.items) && overrides.items.length) {
+        invoiceItems.length = 0;
+        subtotalCents = 0;
+        for (const raw of overrides.items) {
+          const qty = parseFloat(raw.quantity) || 0;
+          const unitPrice = parseFloat(raw.unit_price ?? raw.price) || 0;
+          if (qty <= 0 || unitPrice < 0) continue;
+          const lineCents = Math.round(qty * unitPrice * 100);
+          subtotalCents += lineCents;
+          const materialId = raw.product_id || raw.material_id || null;
+          invoiceItems.push({
+            product_id: materialId,
+            product_name:
+              raw.product_name ||
+              raw.material_name ||
+              raw.material_code ||
+              (materialId ? `material#${materialId}` : '手工调整行'),
+            description:
+              raw.description || `销售出库 ${outboundData.outbound_no || outboundId}`,
+            quantity: qty,
+            unit_price: unitPrice,
+            amount: lineCents / 100,
+          });
+        }
+        if (!invoiceItems.length) {
+          await connection.rollback();
+          throw new Error(
+            `出库单 ${outboundData.outbound_no || outboundId} 覆盖明细无效，不能生成应收`
+          );
+        }
+      }
+      if (overrides?.taxRate != null && overrides.taxRate !== '') {
+        taxRate = normalizeTaxRate(overrides.taxRate, taxRate);
+      }
+
+      const subtotalAmount = subtotalCents / 100;
+      const taxAmount = this.resolveTaxAmount(subtotalAmount, overrides?.taxAmount ?? null, taxRate);
+      const totalAmount = roundMoney(subtotalAmount + taxAmount);
+
+      const accountIds = await this.resolveAccountIds(['ACCOUNTS_RECEIVABLE', 'SALES_REVENUE']);
+      await this.loadConfigurations();
+      const invoiceNumber = await this.generateInvoiceNumber('AR', connection);
+
+      const invoiceDateStr = overrides?.invoiceDate
+        ? toLocalDateString(overrides.invoiceDate)
+        : currentDateString();
+      const currentPeriod = await this.getCurrentPeriod(connection, invoiceDateStr);
+      const primaryOrder = orderList[0] || null;
+      const createdBy = await resolveActorUserId(
+        connection,
+        userId,
+        outboundData.created_by,
+        primaryOrder?.created_by,
+        financeConfig.get('system.defaultCreator', null)
+      );
+
+      const customerId =
+        outboundData.customer_id || primaryOrder?.customer_id || null;
+      const customerName =
+        outboundData.customer_name || primaryOrder?.customer_name || null;
+      const paymentTermDays = await this.resolvePartyPaymentTermDays(connection, {
+        customerId,
+        orderTerms: primaryOrder?.payment_terms || null,
+      });
+      const dueDateStr = addDaysToDateString(invoiceDateStr, paymentTermDays);
+
+      // 销项税科目：覆盖 > 配置明细（222102），禁止静默落到总类
+      let outputTaxAccountId = overrides?.accounts?.taxAccountId || null;
+      if (!outputTaxAccountId) {
+        try {
+          const taxIds = await this.resolveAccountIds(['VAT_OUTPUT_TAX']);
+          outputTaxAccountId = taxIds.VAT_OUTPUT_TAX;
+        } catch {
+          outputTaxAccountId = null;
+        }
+      }
+
+      const orderNos = orderList.map((o) => o.order_no).filter(Boolean).join(',');
+      const defaultNotes = `由销售出库 ${outboundData.outbound_no || outboundId}${orderNos ? ` (订单 ${orderNos})` : ''} 按交货量自动生成`;
+      const invoiceData = {
+        invoice_number: invoiceNumber,
+        customer_id: customerId,
+        invoice_date: invoiceDateStr,
+        due_date: dueDateStr,
+        total_amount: totalAmount,
+        amount_excluding_tax: subtotalAmount,
+        subtotal: subtotalAmount,
+        tax_amount: taxAmount,
+        tax_rate: taxRate,
+        currency_code:
+          primaryOrder?.currency || financeConfig.get('invoice.defaultCurrency', 'CNY'),
+        exchange_rate:
+          primaryOrder?.exchange_rate || financeConfig.get('invoice.defaultExchangeRate', 1.0),
+        status: '已确认',
+        terms: this.formatPaymentTermsText(paymentTermDays),
+        notes: overrides?.notes || overrides?.description || defaultNotes,
+        source_type: 'sales_outbound',
+        source_id: outboundId,
+        customer_name: customerName,
+        created_by: createdBy,
+        // 合并凭证：发票仍创建，跳过单票总账，由上层写一张合并分录
+        skip_gl_entry: options.skipGlEntry === true,
+        gl_entry: {
+          period_id: currentPeriod?.id ?? null,
+          receivable_account_id:
+            overrides?.accounts?.receivableAccountId || accountIds.ACCOUNTS_RECEIVABLE,
+          income_account_id:
+            overrides?.accounts?.incomeAccountId || accountIds.SALES_REVENUE,
+          output_tax_account_id: outputTaxAccountId,
+          created_by: createdBy,
+        },
+        items: invoiceItems,
+      };
+
+      const invoiceId = await arModel.createInvoice(invoiceData, connection);
+      await DocumentLinkService.tryAutoLink(
+        'sales_outbound',
+        outboundId,
+        outboundData.outbound_no,
+        'ar_invoice',
+        invoiceId,
+        invoiceNumber,
+        createdBy,
+        connection
+      );
+
+      for (const oid of orderIds) {
+        await this.refreshSalesOrderInvoiceStatus(connection, oid);
+      }
+
+      if (!isExternalConn) await connection.commit();
+      return { invoiceId, invoiceNumber, amount: totalAmount, source: 'sales_outbound' };
+    } catch (error) {
+      if (!isExternalConn) await connection.rollback();
+      throw error;
+    } finally {
+      if (!isExternalConn) connection.release();
+    }
+  }
+
+  /**
+   * 从销售订单自动生成应收发票（例外路径）
+   * 专业主路径应为出库开票；若该订单已有出库级有效 AR，禁止再开订单级票，防双重应收。
+   */
+  static async generateARInvoiceFromSalesOrder(salesOrder, userId = null, options = {}) {
+    // 默认关闭自动生成；手工接口传 force:true 可绕过开关
+    const autoGenerate = options.force === true
+      || await SystemConfigService.get('auto_generate_ar_invoice', false);
+    if (!autoGenerate) {
+      return {
+        skipped: true,
+        message: '自动生成应收发票已关闭，请在会计凭证中选择「销售出库单」手工生成',
+      };
+    }
+
+    // 例外路径需显式 allowOrderLevel=true（或配置 enable_order_level_ar_invoice）
+    const allowOrderLevel =
+      options.allowOrderLevel === true
+      || (await SystemConfigService.get('enable_order_level_ar_invoice', false));
+    if (!allowOrderLevel) {
+      return {
+        skipped: true,
+        message:
+          '订单级应收已禁用（专业路径：请按销售出库单开票）。如需例外请设置 enable_order_level_ar_invoice 或传 allowOrderLevel',
+      };
+    }
 
     const connection = await db.pool.getConnection();
     try {
       await connection.beginTransaction();
       await this.lockSourceDocument(connection, 'sales_orders', salesOrder.id);
+
+      // 若订单关联出库已有有效 AR，禁止订单级开票
+      const { INACTIVE_INVOICE_STATUSES } = require('../../constants/financeConstants');
+      const inactivePh = INACTIVE_INVOICE_STATUSES.map(() => '?').join(', ');
+      const [outboundAr] = await connection.execute(
+        `SELECT ar.id, ar.invoice_number, so.outbound_no
+         FROM sales_outbound so
+         JOIN ar_invoices ar
+           ON ar.source_type = 'sales_outbound' AND ar.source_id = so.id
+          AND ar.status NOT IN (${inactivePh})
+         WHERE so.deleted_at IS NULL
+           AND (so.order_id = ? OR so.id IN (
+             SELECT outbound_id FROM sales_outbound_items WHERE source_order_id = ?
+           ))
+         LIMIT 1`,
+        [...INACTIVE_INVOICE_STATUSES, salesOrder.id, salesOrder.id]
+      );
+      if (outboundAr.length) {
+        await connection.rollback();
+        throw new Error(
+          `订单 ${salesOrder.order_no || salesOrder.id} 关联出库 ${outboundAr[0].outbound_no} ` +
+            `已有出库级应收 ${outboundAr[0].invoice_number}，禁止再开订单级应收（防双重确认收入）`
+        );
+      }
 
       const [orderAmountRows] = await connection.execute(
         `SELECT ROUND(COALESCE(SUM(quantity * unit_price), 0), 2) AS subtotal
@@ -281,9 +908,12 @@ class FinanceIntegrationService {
           null,
           connection
         );
-        await connection.execute(
-          "UPDATE sales_orders SET invoice_status = 'invoiced', updated_at = NOW() WHERE id = ?",
-          [salesOrder.id]
+        await this.refreshSalesOrderInvoiceStatus(connection, salesOrder.id);
+        const [existingGl] = await connection.execute(
+          `SELECT id, entry_number FROM gl_entries
+           WHERE document_number = ? AND COALESCE(is_reversed, 0) = 0
+           ORDER BY id DESC LIMIT 1`,
+          [existingInvoice.invoice_number]
         );
         await connection.commit();
         return {
@@ -291,6 +921,8 @@ class FinanceIntegrationService {
           invoiceId: existingInvoice.id,
           invoiceNumber: existingInvoice.invoice_number,
           amount: existingInvoice.total_amount,
+          entryId: existingGl?.[0]?.id || null,
+          entryNumber: existingGl?.[0]?.entry_number || null,
           message: '应收发票已存在',
         };
       }
@@ -320,7 +952,7 @@ class FinanceIntegrationService {
 
       // ✅ 精度修复：使用整数运算避免浮点累加误差（与 GLService 对齐）
       const subtotalAmount = orderItems.reduce((sum, item) => {
-        return sum + Math.round(parseFloat(item.quantity || 0) * parseFloat(item.unit_price || 0) * 100);
+        return sum + Math.round(parseFloat(item.quantity || 0) * resolveUnitPrice(item) * 100);
       }, 0) / 100;
       const taxAmount = this.resolveTaxAmount(
         subtotalAmount,
@@ -329,12 +961,19 @@ class FinanceIntegrationService {
       );
       const totalAmount = roundMoney(subtotalAmount + taxAmount);
 
-      const paymentTermDays = financeConfig.get('invoice.defaultPaymentTermDays', 30);
       const invoiceDateStr = currentDateString();
+      const paymentTermDays = await this.resolvePartyPaymentTermDays(connection, {
+        customerId: salesOrder.customer_id || null,
+        orderTerms: salesOrder.payment_terms || null,
+      });
       const dueDateStr = addDaysToDateString(invoiceDateStr, paymentTermDays);
       const currentPeriod = await this.getCurrentPeriod(connection, invoiceDateStr);
-      const createdByIdentifier = userId || salesOrder.created_by || financeConfig.get('system.defaultCreator', 'system');
-      const createdBy = await getUserIdByIdentifier(connection, createdByIdentifier);
+      const createdBy = await resolveActorUserId(
+        connection,
+        userId,
+        salesOrder.created_by,
+        financeConfig.get('system.defaultCreator', null)
+      );
 
       const invoiceData = {
         invoice_number: invoiceNumber,
@@ -345,11 +984,14 @@ class FinanceIntegrationService {
         amount_excluding_tax: subtotalAmount,
         subtotal: subtotalAmount,
         tax_amount: taxAmount,
+        tax_rate: salesOrder.tax_rate ?? null,
         currency_code: salesOrder.currency || financeConfig.get('invoice.defaultCurrency', 'CNY'),
         exchange_rate: salesOrder.exchange_rate || financeConfig.get('invoice.defaultExchangeRate', 1.0),
         status: '已确认',
-        terms: financeConfig.get('invoice.defaultPaymentTermsText', '30天付款'),
-        notes: `由销售订单 ${salesOrder.order_no} 自动生成`,
+        terms: this.formatPaymentTermsText(paymentTermDays),
+        notes: options.force
+          ? `由销售订单 ${salesOrder.order_no} 手工生成`
+          : `由销售订单 ${salesOrder.order_no} 自动生成`,
         source_type: 'sales_order',
         source_id: salesOrder.id || null,
         customer_name: salesOrder.customer_name || null,
@@ -362,14 +1004,19 @@ class FinanceIntegrationService {
         },
       };
 
-      const invoiceItems = orderItems.map(item => ({
-        product_id: item.material_id,
-        product_name: item.material_name || item.material_code || `material#${item.material_id}`,
-        description: `销售商品 ${item.material_name || item.material_code}`,
-        quantity: parseFloat(item.quantity || 0),
-        unit_price: parseFloat(item.unit_price || 0),
-        amount: Math.round(parseFloat(item.quantity || 0) * parseFloat(item.unit_price || 0) * 100) / 100,
-      }));
+      const invoiceItems = orderItems.map((item) => {
+        const unitPrice = resolveUnitPrice(item);
+        const qty = parseFloat(item.quantity || 0);
+        return {
+          product_id: item.material_id,
+          product_name: item.material_name || item.material_code || `material#${item.material_id}`,
+          description: `销售商品 ${item.material_name || item.material_code}`,
+          quantity: qty,
+          price: unitPrice,
+          unit_price: unitPrice,
+          amount: Math.round(qty * unitPrice * 100) / 100,
+        };
+      });
 
       invoiceData.items = invoiceItems;
       const invoiceId = await arModel.createInvoice(invoiceData, connection);
@@ -383,12 +1030,25 @@ class FinanceIntegrationService {
         createdBy,
         connection
       );
-      await connection.execute(
-        "UPDATE sales_orders SET invoice_status = 'invoiced', updated_at = NOW() WHERE id = ?",
-        [salesOrder.id]
+      await this.refreshSalesOrderInvoiceStatus(connection, salesOrder.id);
+
+      // 查询同步生成的会计凭证，便于前端展示（提交前查，连接仍可用）
+      const [glRows] = await connection.execute(
+        `SELECT id, entry_number FROM gl_entries
+         WHERE document_number = ? AND COALESCE(is_reversed, 0) = 0
+         ORDER BY id DESC LIMIT 1`,
+        [invoiceNumber]
       );
+
       await connection.commit();
-      return { invoiceId, invoiceNumber, amount: totalAmount };
+
+      return {
+        invoiceId,
+        invoiceNumber,
+        amount: totalAmount,
+        entryId: glRows?.[0]?.id || null,
+        entryNumber: glRows?.[0]?.entry_number || null,
+      };
     } catch (error) {
       await connection.rollback();
       throw error;
@@ -401,8 +1061,8 @@ class FinanceIntegrationService {
    * 生成销售红字发票
    */
   static async generateARCreditNoteFromSalesReturn(salesReturn) {
-    const autoGenerate = await SystemConfigService.get('auto_generate_ar_credit_note', true);
-    if (!autoGenerate) return { skipped: true, message: '功能已关闭' };
+    const autoGenerate = await SystemConfigService.get('auto_generate_ar_credit_note', false);
+    if (!autoGenerate) return { skipped: true, message: '自动生成红字应收已关闭' };
 
     const connection = await db.pool.getConnection();
     try {
@@ -493,9 +1153,10 @@ class FinanceIntegrationService {
 
       const invoiceDateStr = toLocalDateString(salesReturn.return_date || currentDateString());
       const currentPeriod = await this.getCurrentPeriod(connection, invoiceDateStr);
-      const createdBy = await getUserIdByIdentifier(
+      const createdBy = await resolveActorUserId(
         connection,
-        salesReturn.created_by || financeConfig.get('system.defaultCreator', 'system')
+        salesReturn.created_by,
+        financeConfig.get('system.defaultCreator', null)
       );
 
       const invoiceData = {
@@ -554,17 +1215,30 @@ class FinanceIntegrationService {
   /**
    * 生成应付发票
    */
-  static async generateAPInvoiceFromPurchaseReceipt(purchaseReceipt, userId = null) {
-    const autoGenerate = await SystemConfigService.get('auto_generate_ap_invoice', true);
-    if (!autoGenerate) return { skipped: true, message: '功能已关闭' };
+  static async generateAPInvoiceFromPurchaseReceipt(purchaseReceipt, userId = null, options = {}) {
+    // 默认关闭自动生成；手工接口传 force:true 可绕过开关
+    const autoGenerate = options.force === true
+      || await SystemConfigService.get('auto_generate_ap_invoice', false);
+    if (!autoGenerate) {
+      return {
+        skipped: true,
+        message: '自动生成应付发票已关闭，请在会计凭证中选择「采购入库单」手工生成',
+      };
+    }
 
-    const connection = await db.pool.getConnection();
+    const isExternalConn = !!options.connection;
+    const connection = options.connection || (await db.pool.getConnection());
     try {
-      await connection.beginTransaction();
+      if (!isExternalConn) await connection.beginTransaction();
       await this.lockSourceDocument(connection, 'purchase_receipts', purchaseReceipt.id);
 
       const [receiptAmountRows] = await connection.execute(
-        `SELECT ROUND(COALESCE(SUM(pri.qualified_quantity * COALESCE(NULLIF(pri.price, 0), NULLIF(poi.price, 0), NULLIF(m.cost_price, 0), 0)), 0), 2) AS subtotal
+        `SELECT ROUND(COALESCE(SUM(pri.qualified_quantity * COALESCE(
+            NULLIF(${sqlUnitPriceExpr('pri', 'purchase_receipt_items')}, 0),
+            NULLIF(${sqlUnitPriceExpr('poi', 'purchase_order_items')}, 0),
+            NULLIF(m.cost_price, 0),
+            0
+          )), 0), 2) AS subtotal
          FROM purchase_receipt_items pri
          LEFT JOIN purchase_receipts pr ON pri.receipt_id = pr.id
          LEFT JOIN purchase_orders po ON pr.order_id = po.id
@@ -603,7 +1277,7 @@ class FinanceIntegrationService {
           "UPDATE purchase_receipts SET invoice_status = 'invoiced', updated_at = NOW() WHERE id = ? AND deleted_at IS NULL",
           [purchaseReceipt.id]
         );
-        await connection.commit();
+        if (!isExternalConn) await connection.commit();
         return {
           skipped: true,
           invoiceId: existingInvoice.id,
@@ -613,6 +1287,14 @@ class FinanceIntegrationService {
         };
       }
 
+      // 已取消票仍占 uq_source 时先释放，否则 INSERT 会 Duplicate entry
+      await this.releaseStaleInactiveSource(
+        connection,
+        'ap_invoices',
+        'purchase_receipt',
+        purchaseReceipt.id
+      );
+
       // 批量解析科目ID（1次查询替代4次）
       const accountIds = await this.resolveAccountIds(['ACCOUNTS_PAYABLE', 'GR_IR']);
       const payableAccountId = accountIds.ACCOUNTS_PAYABLE;
@@ -621,9 +1303,20 @@ class FinanceIntegrationService {
 
       const invoiceNumber = await this.generateInvoiceNumber('AP', connection);
 
-      const [receiptItems] = await connection.execute(
+      let [receiptItems] = await connection.execute(
         `SELECT pri.material_id, pri.qualified_quantity as quantity,
-                COALESCE(NULLIF(pri.price, 0), NULLIF(poi.price, 0), NULLIF(m.cost_price, 0), 0) as price,
+                COALESCE(
+                  NULLIF(${sqlUnitPriceExpr('pri', 'purchase_receipt_items')}, 0),
+                  NULLIF(${sqlUnitPriceExpr('poi', 'purchase_order_items')}, 0),
+                  NULLIF(m.cost_price, 0),
+                  0
+                ) AS price,
+                COALESCE(
+                  NULLIF(${sqlUnitPriceExpr('pri', 'purchase_receipt_items')}, 0),
+                  NULLIF(${sqlUnitPriceExpr('poi', 'purchase_order_items')}, 0),
+                  NULLIF(m.cost_price, 0),
+                  0
+                ) AS unit_price,
                 m.name as material_name, m.code as material_code, m.specs as specs
          FROM purchase_receipt_items pri
          LEFT JOIN purchase_receipts pr ON pri.receipt_id = pr.id
@@ -639,48 +1332,123 @@ class FinanceIntegrationService {
         throw new Error(`采购入库单 ${purchaseReceipt.receipt_no || purchaseReceipt.id} 没有明细，不能生成应付发票`);
       }
 
-      // ✅ 精度修复：整数运算
-      const subtotalAmount = receiptItems.reduce((sum, item) => sum + Math.round(parseFloat(item.quantity || 0) * parseFloat(item.price || 0) * 100), 0) / 100;
+      // 预览确认覆盖（仅认 camelCase）
+      const overrides =
+        options.overrides && typeof options.overrides === 'object' ? options.overrides : null;
+      if (Array.isArray(overrides?.items) && overrides.items.length) {
+        receiptItems = overrides.items.map((raw) => {
+          const unitPrice = parseFloat(raw.unit_price ?? raw.price) || 0;
+          const qty = parseFloat(raw.quantity) || 0;
+          return {
+            material_id: raw.material_id || raw.product_id || null,
+            quantity: qty,
+            price: unitPrice,
+            unit_price: unitPrice,
+            material_name: raw.material_name || raw.product_name || raw.material_code || null,
+            material_code: raw.material_code || null,
+            specs: raw.specs || null,
+            description: raw.description || null,
+          };
+        });
+      }
+
+      // 精度：整数分运算
+      const subtotalAmount =
+        receiptItems.reduce(
+          (sum, item) =>
+            sum +
+            Math.round(
+              (parseFloat(item.quantity) || 0) *
+                (parseFloat(item.price || item.unit_price) || 0) *
+                100
+            ),
+          0
+        ) / 100;
+      let taxRate = purchaseReceipt.tax_rate;
+      if (overrides?.taxRate != null && overrides.taxRate !== '') {
+        taxRate = normalizeTaxRate(overrides.taxRate, taxRate);
+      }
       const taxAmount = this.resolveTaxAmount(
         subtotalAmount,
-        purchaseReceipt.total_tax_amount,
-        purchaseReceipt.tax_rate
+        overrides?.taxAmount ?? purchaseReceipt.total_tax_amount,
+        taxRate
       );
       const totalAmount = roundMoney(subtotalAmount + taxAmount);
       if (subtotalAmount <= 0) {
         await connection.rollback();
         throw new Error(`采购入库单 ${purchaseReceipt.receipt_no || purchaseReceipt.id} 物料金额为0，不能生成应付发票`);
       }
-      const invoiceDateStr = toLocalDateString(purchaseReceipt.receipt_date || currentDateString());
+      const invoiceDateStr = toLocalDateString(
+        overrides?.invoiceDate || purchaseReceipt.receipt_date || currentDateString()
+      );
       const currentPeriod = await this.getCurrentPeriod(connection, invoiceDateStr);
-      const createdBy = await getUserIdByIdentifier(connection, userId || purchaseReceipt.operator || 'system');
+      const createdBy = await resolveActorUserId(
+        connection,
+        userId,
+        purchaseReceipt.created_by,
+        financeConfig.get('system.defaultCreator', null)
+      );
+
+      const paymentTermDays = await this.resolvePartyPaymentTermDays(connection, {
+        supplierId: purchaseReceipt.supplier_id || null,
+      });
+      const dueDateStr = addDaysToDateString(invoiceDateStr, paymentTermDays);
+
+      // 进项税科目：覆盖 > 配置明细（222101），禁止静默落到总类
+      let inputTaxAccountId = overrides?.accounts?.taxAccountId || null;
+      if (!inputTaxAccountId) {
+        try {
+          const taxIds = await this.resolveAccountIds(['VAT_INPUT_TAX']);
+          inputTaxAccountId = taxIds.VAT_INPUT_TAX;
+        } catch {
+          inputTaxAccountId = null;
+        }
+      }
 
       const invoiceData = {
         invoice_number: invoiceNumber,
         supplier_id: purchaseReceipt.supplier_id || null,
         invoice_date: invoiceDateStr,
-        due_date: invoiceDateStr,
+        due_date: dueDateStr,
         total_amount: totalAmount,
         amount_excluding_tax: subtotalAmount,
         subtotal: subtotalAmount,
         tax_amount: taxAmount,
+        tax_rate: taxRate,
         currency_code: financeConfig.get('invoice.defaultCurrency', 'CNY'),
         exchange_rate: 1.0,
         status: '已确认',
-        notes: `由采购入库单 ${purchaseReceipt.receipt_no} 自动生成`,
+        terms: this.formatPaymentTermsText(paymentTermDays),
+        notes:
+          overrides?.notes ||
+          overrides?.description ||
+          `由采购入库单 ${purchaseReceipt.receipt_no} 自动生成`,
         source_type: 'purchase_receipt',
         source_id: purchaseReceipt.id || null,
         supplier_name: purchaseReceipt.supplier_name || null,
         created_by: createdBy,
-        gl_entry: { period_id: currentPeriod?.id ?? null, payable_account_id: payableAccountId, purchase_cost_account_id: purchaseCostAccountId, created_by: createdBy },
-        items: receiptItems.map(item => ({
-          material_id: item.material_id,
-          material_name: item.material_name || item.material_code || `material#${item.material_id}`,
-          description: `采购物资 ${item.material_name || item.material_code}`,
-          quantity: parseFloat(item.quantity || 0),
-          unit_price: parseFloat(item.price || 0),
-          amount: Math.round(parseFloat(item.quantity || 0) * parseFloat(item.price || 0) * 100) / 100,
-        }))
+        skip_gl_entry: options.skipGlEntry === true,
+        gl_entry: {
+          period_id: currentPeriod?.id ?? null,
+          payable_account_id: overrides?.accounts?.payableAccountId || payableAccountId,
+          purchase_cost_account_id: overrides?.accounts?.costAccountId || purchaseCostAccountId,
+          input_tax_account_id: inputTaxAccountId,
+          created_by: createdBy,
+        },
+        items: receiptItems.map((item) => {
+          const unitPrice = resolveUnitPrice(item);
+          const qty = parseFloat(item.quantity || 0);
+          return {
+            material_id: item.material_id,
+            material_name: item.material_name || item.material_code || `material#${item.material_id}`,
+            description:
+              item.description || `采购物资 ${item.material_name || item.material_code}`,
+            quantity: qty,
+            price: unitPrice,
+            unit_price: unitPrice,
+            amount: Math.round(qty * unitPrice * 100) / 100,
+          };
+        }),
       };
 
       const invoiceId = await apModel.createInvoice(invoiceData, connection);
@@ -698,8 +1466,273 @@ class FinanceIntegrationService {
         "UPDATE purchase_receipts SET invoice_status = 'invoiced', updated_at = NOW() WHERE id = ? AND deleted_at IS NULL",
         [purchaseReceipt.id]
       );
-      await connection.commit();
+      if (!isExternalConn) await connection.commit();
       return { invoiceId, invoiceNumber, amount: totalAmount };
+    } catch (error) {
+      if (!isExternalConn) await connection.rollback();
+      throw error;
+    } finally {
+      if (!isExternalConn) connection.release();
+    }
+  }
+
+  /**
+   * 从采购订单手工生成应付发票 + 会计凭证
+   * 幂等键：source_type=purchase_order + source_id=orderId
+   * @param {Object} purchaseOrder - 采购订单主表行
+   * @param {number|null} userId
+   * @param {Object} options - { force: true } 绕过 auto_generate 开关（手工入口必传）
+   */
+  static async generateAPInvoiceFromPurchaseOrder(purchaseOrder, userId = null, options = {}) {
+    const autoGenerate = options.force === true
+      || await SystemConfigService.get('auto_generate_ap_invoice', false);
+    if (!autoGenerate) {
+      return { skipped: true, message: '自动生成应付发票已关闭，请在会计凭证中手工选择入库单生成' };
+    }
+
+    // 例外路径：默认关闭订单级应付（专业路径=入库）
+    const allowOrderLevel =
+      options.allowOrderLevel === true
+      || (await SystemConfigService.get('enable_order_level_ap_invoice', false));
+    if (!allowOrderLevel) {
+      return {
+        skipped: true,
+        message:
+          '订单级应付已禁用（专业路径：请按采购入库单开票）。例外请设置 enable_order_level_ap_invoice 或 allowOrderLevel',
+      };
+    }
+
+    if (!purchaseOrder?.id) {
+      throw new Error('采购订单 ID 缺失，不能生成应付发票');
+    }
+
+    const connection = await db.pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      await this.lockSourceDocument(connection, 'purchase_orders', purchaseOrder.id);
+
+      const { INACTIVE_INVOICE_STATUSES } = require('../../constants/financeConstants');
+      const inactivePh = INACTIVE_INVOICE_STATUSES.map(() => '?').join(', ');
+      const [receiptAp] = await connection.execute(
+        `SELECT ap.id, ap.invoice_number, pr.receipt_no
+         FROM purchase_receipts pr
+         JOIN ap_invoices ap
+           ON ap.source_type = 'purchase_receipt' AND ap.source_id = pr.id
+          AND ap.status NOT IN (${inactivePh})
+         WHERE pr.deleted_at IS NULL AND pr.order_id = ?
+         LIMIT 1`,
+        [...INACTIVE_INVOICE_STATUSES, purchaseOrder.id]
+      );
+      if (receiptAp.length) {
+        await connection.rollback();
+        throw new Error(
+          `订单 ${purchaseOrder.order_no || purchaseOrder.id} 关联入库 ${receiptAp[0].receipt_no} ` +
+            `已有入库级应付 ${receiptAp[0].invoice_number}，禁止再开订单级应付`
+        );
+      }
+
+      // purchase_order_items 权威列 = price（见 unitPriceFields）
+      const [orderAmountRows] = await connection.execute(
+        `SELECT ROUND(COALESCE(SUM(quantity * COALESCE(NULLIF(price, 0), 0)), 0), 2) AS subtotal
+         FROM purchase_order_items
+         WHERE order_id = ?`,
+        [purchaseOrder.id]
+      );
+      const expectedSubtotalAmount = roundMoney(orderAmountRows[0]?.subtotal || 0);
+      const expectedTaxAmount = this.resolveTaxAmount(
+        expectedSubtotalAmount,
+        purchaseOrder.tax_amount,
+        purchaseOrder.tax_rate
+      );
+      const expectedTotalAmount = roundMoney(expectedSubtotalAmount + expectedTaxAmount);
+
+      const existingInvoice = await this.findExistingInvoiceBySource(
+        connection,
+        'ap_invoices',
+        'purchase_order',
+        purchaseOrder.id
+      );
+      if (existingInvoice) {
+        this.assertMoneyMatches(existingInvoice.total_amount, expectedTotalAmount, '应付发票');
+        await DocumentLinkService.tryAutoLink(
+          'purchase_order',
+          purchaseOrder.id,
+          purchaseOrder.order_no,
+          'ap_invoice',
+          existingInvoice.id,
+          existingInvoice.invoice_number,
+          userId || null,
+          connection
+        );
+
+        const [existingGl] = await connection.execute(
+          `SELECT id, entry_number FROM gl_entries
+           WHERE document_number = ? AND COALESCE(is_reversed, 0) = 0
+           ORDER BY id DESC LIMIT 1`,
+          [existingInvoice.invoice_number]
+        );
+        await connection.commit();
+        return {
+          skipped: true,
+          invoiceId: existingInvoice.id,
+          invoiceNumber: existingInvoice.invoice_number,
+          amount: existingInvoice.total_amount,
+          entryId: existingGl?.[0]?.id || null,
+          entryNumber: existingGl?.[0]?.entry_number || null,
+          message: '应付发票已存在',
+        };
+      }
+
+      // 采购订单级手工开票：借采购成本 / 贷应付账款（与确认应付发票凭证一致）
+      const accountIds = await this.resolveAccountIds(['ACCOUNTS_PAYABLE', 'PURCHASE_COST']);
+      const payableAccountId = accountIds.ACCOUNTS_PAYABLE;
+      const purchaseCostAccountId = accountIds.PURCHASE_COST;
+      await this.loadConfigurations();
+
+      const invoiceNumber = await this.generateInvoiceNumber('AP', connection);
+
+      const [orderItems] = await connection.execute(
+        `SELECT poi.material_id,
+                poi.quantity,
+                ${sqlNonZeroUnitPrice('poi', 'purchase_order_items', 0)} AS price,
+                ${sqlNonZeroUnitPrice('poi', 'purchase_order_items', 0)} AS unit_price,
+                poi.tax_rate,
+                m.name AS material_name,
+                m.code AS material_code,
+                m.specs AS specs
+         FROM purchase_order_items poi
+         LEFT JOIN materials m ON poi.material_id = m.id
+         WHERE poi.order_id = ?`,
+        [purchaseOrder.id]
+      );
+
+      if (orderItems.length === 0) {
+        await connection.rollback();
+        throw new Error(`采购订单 ${purchaseOrder.order_no || purchaseOrder.id} 没有明细，不能生成应付发票`);
+      }
+
+      const subtotalAmount = orderItems.reduce(
+        (sum, item) =>
+          sum + Math.round(parseFloat(item.quantity || 0) * resolveUnitPrice(item) * 100),
+        0
+      ) / 100;
+      const taxRate = purchaseOrder.tax_rate ?? orderItems[0]?.tax_rate ?? 0;
+      const taxAmount = this.resolveTaxAmount(subtotalAmount, purchaseOrder.tax_amount, taxRate);
+      const totalAmount = roundMoney(subtotalAmount + taxAmount);
+
+      if (subtotalAmount <= 0) {
+        await connection.rollback();
+        throw new Error(`采购订单 ${purchaseOrder.order_no || purchaseOrder.id} 物料金额为0，不能生成应付发票`);
+      }
+
+      const invoiceDateStr = toLocalDateString(
+        purchaseOrder.order_date || purchaseOrder.delivery_date || currentDateString()
+      );
+      const paymentTermDays = await this.resolvePartyPaymentTermDays(connection, {
+        supplierId: purchaseOrder.supplier_id || null,
+        // PO 优先用自身 payment_term_days；无则回落供应商主数据/系统默认
+        orderTerms:
+          purchaseOrder.payment_term_days != null && purchaseOrder.payment_term_days !== ''
+            ? purchaseOrder.payment_term_days
+            : purchaseOrder.payment_terms || null,
+      });
+      const dueDateStr = addDaysToDateString(invoiceDateStr, paymentTermDays);
+      const currentPeriod = await this.getCurrentPeriod(connection, invoiceDateStr);
+      const createdBy = await resolveActorUserId(
+        connection,
+        userId,
+        purchaseOrder.created_by,
+        purchaseOrder.creator,
+        financeConfig.get('system.defaultCreator', null)
+      );
+
+      let supplierName = purchaseOrder.supplier_name || null;
+      if (!supplierName && purchaseOrder.supplier_id) {
+        const [supplierRows] = await connection.execute(
+          'SELECT name FROM suppliers WHERE id = ? LIMIT 1',
+          [purchaseOrder.supplier_id]
+        );
+        supplierName = supplierRows[0]?.name || null;
+      }
+
+      let inputTaxAccountId = null;
+      try {
+        const taxIds = await this.resolveAccountIds(['VAT_INPUT_TAX']);
+        inputTaxAccountId = taxIds.VAT_INPUT_TAX;
+      } catch {
+        inputTaxAccountId = null;
+      }
+
+      const invoiceData = {
+        invoice_number: invoiceNumber,
+        supplier_id: purchaseOrder.supplier_id || null,
+        invoice_date: invoiceDateStr,
+        due_date: dueDateStr,
+        total_amount: totalAmount,
+        amount_excluding_tax: subtotalAmount,
+        subtotal: subtotalAmount,
+        tax_amount: taxAmount,
+        tax_rate: taxRate,
+        currency_code: financeConfig.get('invoice.defaultCurrency', 'CNY'),
+        exchange_rate: 1.0,
+        status: '已确认',
+        terms: this.formatPaymentTermsText(paymentTermDays),
+        notes: options.force
+          ? `由采购订单 ${purchaseOrder.order_no} 手工生成`
+          : `由采购订单 ${purchaseOrder.order_no} 自动生成`,
+        source_type: 'purchase_order',
+        source_id: purchaseOrder.id || null,
+        supplier_name: supplierName,
+        created_by: createdBy,
+        gl_entry: {
+          period_id: currentPeriod?.id ?? null,
+          payable_account_id: payableAccountId,
+          purchase_cost_account_id: purchaseCostAccountId,
+          input_tax_account_id: inputTaxAccountId,
+          created_by: createdBy,
+        },
+        items: orderItems.map((item) => {
+          const unitPrice = resolveUnitPrice(item);
+          const qty = parseFloat(item.quantity || 0);
+          return {
+            material_id: item.material_id,
+            material_name: item.material_name || item.material_code || `material#${item.material_id}`,
+            description: `采购物资 ${item.material_name || item.material_code}`,
+            quantity: qty,
+            price: unitPrice,
+            unit_price: unitPrice,
+            amount: Math.round(qty * unitPrice * 100) / 100,
+          };
+        }),
+      };
+
+      const invoiceId = await apModel.createInvoice(invoiceData, connection);
+      await DocumentLinkService.tryAutoLink(
+        'purchase_order',
+        purchaseOrder.id,
+        purchaseOrder.order_no,
+        'ap_invoice',
+        invoiceId,
+        invoiceNumber,
+        createdBy,
+        connection
+      );
+
+      const [glRows] = await connection.execute(
+        `SELECT id, entry_number FROM gl_entries
+         WHERE document_number = ? AND COALESCE(is_reversed, 0) = 0
+         ORDER BY id DESC LIMIT 1`,
+        [invoiceNumber]
+      );
+
+      await connection.commit();
+      return {
+        invoiceId,
+        invoiceNumber,
+        amount: totalAmount,
+        entryId: glRows?.[0]?.id || null,
+        entryNumber: glRows?.[0]?.entry_number || null,
+      };
     } catch (error) {
       await connection.rollback();
       throw error;
@@ -712,8 +1745,8 @@ class FinanceIntegrationService {
    * 生成采购红字发票
    */
   static async generateAPCreditNoteFromPurchaseReturn(purchaseReturn, externalConn = null) {
-    const autoGenerate = await SystemConfigService.get('auto_generate_ap_credit_note', true);
-    if (!autoGenerate) return { skipped: true, message: '功能已关闭' };
+    const autoGenerate = await SystemConfigService.get('auto_generate_ap_credit_note', false);
+    if (!autoGenerate) return { skipped: true, message: '自动生成红字应付已关闭' };
 
     const isExternalConn = !!externalConn;
     const connection = externalConn || await db.pool.getConnection();
@@ -761,8 +1794,19 @@ class FinanceIntegrationService {
                 COALESCE(pri.material_name, m.name) AS material_name,
                 COALESCE(pri.material_code, m.code) AS material_code,
                 m.specs as specs,
-                pri.return_quantity, pri.price,
-                COALESCE(NULLIF(pri.price, 0), NULLIF(poi.price, 0), NULLIF(m.cost_price, 0), 0) AS unit_price
+                pri.return_quantity,
+                COALESCE(
+                  NULLIF(${sqlUnitPriceExpr('pri', 'purchase_return_items')}, 0),
+                  NULLIF(${sqlUnitPriceExpr('poi', 'purchase_order_items')}, 0),
+                  NULLIF(m.cost_price, 0),
+                  0
+                ) AS price,
+                COALESCE(
+                  NULLIF(${sqlUnitPriceExpr('pri', 'purchase_return_items')}, 0),
+                  NULLIF(${sqlUnitPriceExpr('poi', 'purchase_order_items')}, 0),
+                  NULLIF(m.cost_price, 0),
+                  0
+                ) AS unit_price
          FROM purchase_return_items pri
          LEFT JOIN purchase_returns pr ON pri.return_id = pr.id
          LEFT JOIN purchase_receipts prec ON pr.receipt_id = prec.id
@@ -779,7 +1823,11 @@ class FinanceIntegrationService {
       }
 
       // ✅ 精度修复：整数运算
-      const totalAmount = returnItems.reduce((sum, item) => sum + Math.round(parseFloat(item.return_quantity || 0) * parseFloat(item.unit_price || 0) * 100), 0) / 100;
+      const totalAmount = returnItems.reduce(
+        (sum, item) =>
+          sum + Math.round(parseFloat(item.return_quantity || 0) * resolveUnitPrice(item) * 100),
+        0
+      ) / 100;
       const creditNoteAmount = -Math.abs(totalAmount);
       if (totalAmount === 0) {
         if (!isExternalConn) await connection.rollback();
@@ -788,9 +1836,10 @@ class FinanceIntegrationService {
 
       const invoiceDateStr = toLocalDateString(purchaseReturn.return_date || currentDateString());
       const currentPeriod = await this.getCurrentPeriod(connection, invoiceDateStr);
-      const createdBy = await getUserIdByIdentifier(
+      const createdBy = await resolveActorUserId(
         connection,
-        purchaseReturn.created_by || financeConfig.get('system.defaultCreator', 'system')
+        purchaseReturn.created_by,
+        financeConfig.get('system.defaultCreator', null)
       );
 
       const invoiceData = {
@@ -813,14 +1862,19 @@ class FinanceIntegrationService {
           purchase_cost_account_id: purchaseCostAccountId,
           created_by: createdBy,
         },
-        items: returnItems.map(item => ({
-          material_id: item.material_id,
-          material_name: item.material_name || item.material_code || `material#${item.material_id}`,
-          description: `退货冲减 ${item.material_name || item.material_code}`,
-          quantity: -parseFloat(item.return_quantity || 0),
-          unit_price: parseFloat(item.unit_price || 0),
-          amount: -Math.round(parseFloat(item.return_quantity || 0) * parseFloat(item.unit_price || 0) * 100) / 100,
-        }))
+        items: returnItems.map((item) => {
+          const unitPrice = resolveUnitPrice(item);
+          const qty = parseFloat(item.return_quantity || 0);
+          return {
+            material_id: item.material_id,
+            material_name: item.material_name || item.material_code || `material#${item.material_id}`,
+            description: `退货冲减 ${item.material_name || item.material_code}`,
+            quantity: -qty,
+            price: unitPrice,
+            unit_price: unitPrice,
+            amount: -Math.round(qty * unitPrice * 100) / 100,
+          };
+        }),
       };
 
       const invoiceId = await apModel.createInvoice(invoiceData, connection);
@@ -849,31 +1903,52 @@ class FinanceIntegrationService {
   /**
    * 生成销售成本结转分录
    */
-  static async generateCostEntryFromSalesOutbound(salesOutbound) {
-    const autoGenerate = await SystemConfigService.get('auto_generate_sales_cost_entry', true);
-    if (!autoGenerate) return { skipped: true, message: '功能已关闭' };
+  static async generateCostEntryFromSalesOutbound(salesOutbound, _userId = null, options = {}) {
+    // 合并应收凭证时可选跳过成本分录（成本与应收确认独立）
+    if (options.skipCostEntry === true) {
+      return { skipped: true, message: '已跳过销售成本凭证（合并应收路径）' };
+    }
+    // 默认关闭自动生成销售成本凭证
+    const autoGenerate = options.force === true
+      || await SystemConfigService.get('auto_generate_sales_cost_entry', false);
+    if (!autoGenerate) return { skipped: true, message: '自动生成销售成本凭证已关闭' };
 
-    const connection = await db.pool.getConnection();
+    const isExternalConn = !!options.connection;
+    const connection = options.connection || (await db.pool.getConnection());
     try {
-      await connection.beginTransaction();
+      if (!isExternalConn) await connection.beginTransaction();
       await this.lockSourceDocument(connection, 'sales_outbound', salesOutbound.id);
 
+      // 优先库存流水成本；无流水时回退出库明细 × 物料成本价（保证手工闭环可测）
       const [expectedCostRows] = await connection.execute(
         `SELECT ROUND(COALESCE(SUM(ABS(il.quantity) * il.unit_cost), 0), 2) AS total_cost,
-                SUM(CASE WHEN COALESCE(il.unit_cost, 0) <= 0 THEN 1 ELSE 0 END) AS invalid_cost_lines
+                SUM(CASE WHEN COALESCE(il.unit_cost, 0) <= 0 THEN 1 ELSE 0 END) AS invalid_cost_lines,
+                COUNT(*) AS ledger_lines
            FROM inventory_ledger il
           WHERE il.reference_no = ?
             AND il.transaction_type = 'sales_outbound'
-            AND il.quantity < 0
-            AND COALESCE(il.unit_cost, 0) > 0`,
+            AND il.quantity < 0`,
         [salesOutbound.outbound_no]
       );
-      if (Number(expectedCostRows[0]?.invalid_cost_lines || 0) > 0) {
+      let expectedTotalCost = roundMoney(expectedCostRows[0]?.total_cost || 0);
+      const ledgerLines = Number(expectedCostRows[0]?.ledger_lines || 0);
+      if (ledgerLines > 0 && Number(expectedCostRows[0]?.invalid_cost_lines || 0) > 0 && expectedTotalCost <= 0) {
         throw new Error(
           `销售出库单 ${salesOutbound.outbound_no || salesOutbound.id} 存在零成本库存流水，不能生成销售成本凭证`
         );
       }
-      const expectedTotalCost = roundMoney(expectedCostRows[0]?.total_cost || 0);
+      if (expectedTotalCost <= 0) {
+        const [fallbackRows] = await connection.execute(
+          `SELECT ROUND(COALESCE(SUM(
+              COALESCE(soi.quantity, 0) * COALESCE(NULLIF(m.cost_price, 0), NULLIF(m.price, 0), 0)
+            ), 0), 2) AS total_cost
+           FROM sales_outbound_items soi
+           LEFT JOIN materials m ON m.id = soi.product_id
+           WHERE soi.outbound_id = ?`,
+          [salesOutbound.id]
+        );
+        expectedTotalCost = roundMoney(fallbackRows[0]?.total_cost || 0);
+      }
 
       const existingEntry = await this.findExistingActiveGlEntry(
         connection,
@@ -893,7 +1968,7 @@ class FinanceIntegrationService {
           salesOutbound.created_by || null,
           connection
         );
-        await connection.commit();
+        if (!isExternalConn) await connection.commit();
         return {
           skipped: true,
           entryId: existingEntry.id,
@@ -933,7 +2008,7 @@ class FinanceIntegrationService {
         || currentDateString();
       const outboundDateStr = toLocalDateString(outboundDate);
       const currentPeriod = await this.getCurrentPeriod(connection, outboundDateStr);
-      const createdBy = await getUserIdByIdentifier(connection, salesOutbound.created_by || 'system');
+      const createdBy = await resolveActorUserId(connection, salesOutbound.created_by);
 
       const entryData = {
         period_id: currentPeriod.id || null,
@@ -967,14 +2042,14 @@ class FinanceIntegrationService {
         connection
       );
 
-      await connection.commit();
+      if (!isExternalConn) await connection.commit();
 
       return { entryId, entryNumber, amount: totalCost };
     } catch (error) {
-      await connection.rollback();
+      if (!isExternalConn) await connection.rollback();
       throw error;
     } finally {
-      connection.release();
+      if (!isExternalConn) connection.release();
     }
   }
 
@@ -983,15 +2058,20 @@ class FinanceIntegrationService {
   /**
    * 生成销项发票
    */
-  static async generateOutputTaxInvoiceFromSalesOutbound(salesOutbound, userId = null) {
-    const connection = await db.pool.getConnection();
+  static async generateOutputTaxInvoiceFromSalesOutbound(salesOutbound, userId = null, options = {}) {
+    const autoGenerate = options.force === true
+      || await SystemConfigService.get('auto_generate_output_tax_invoice', false);
+    if (!autoGenerate) return { skipped: true, message: '自动生成销项发票已关闭' };
+
+    const isExternalConn = !!options.connection;
+    const connection = options.connection || (await db.pool.getConnection());
     try {
-      await connection.beginTransaction();
+      if (!isExternalConn) await connection.beginTransaction();
       await this.lockSourceDocument(connection, 'sales_outbound', salesOutbound.id);
 
       const existingInvoice = await this.findExistingTaxInvoice(
         connection,
-        '销售出库单',
+        TAX_RELATED_DOCUMENT_TYPES.SALES_OUTBOUND,
         salesOutbound.id
       );
       if (existingInvoice) {
@@ -1005,7 +2085,7 @@ class FinanceIntegrationService {
           userId || salesOutbound.created_by || null,
           connection
         );
-        await connection.commit();
+        if (!isExternalConn) await connection.commit();
         return {
           skipped: true,
           invoiceId: existingInvoice.id,
@@ -1015,12 +2095,23 @@ class FinanceIntegrationService {
         };
       }
 
-      const invoiceNumber = `待补录-${salesOutbound.outbound_no}`;
+      const invoiceNumber = await this.generateTaxInvoiceNumber(connection);
 
-      // 查询出库明细，并回溯订单明细获取售价（出库单 price 可能为0）
+      // 出库明细库列=price；售价回退销售订单 unit_price、物料 price
       const [outboundItems] = await connection.execute(
         `SELECT soi.quantity,
-                COALESCE(NULLIF(soi.price, 0), soitm.unit_price, m.price, 0) AS price
+                COALESCE(
+                  NULLIF(${sqlUnitPriceExpr('soi', 'sales_outbound_items')}, 0),
+                  NULLIF(${sqlUnitPriceExpr('soitm', 'sales_order_items')}, 0),
+                  NULLIF(m.price, 0),
+                  0
+                ) AS price,
+                COALESCE(
+                  NULLIF(${sqlUnitPriceExpr('soi', 'sales_outbound_items')}, 0),
+                  NULLIF(${sqlUnitPriceExpr('soitm', 'sales_order_items')}, 0),
+                  NULLIF(m.price, 0),
+                  0
+                ) AS unit_price
          FROM sales_outbound_items soi
          LEFT JOIN sales_outbound so ON soi.outbound_id = so.id
          LEFT JOIN sales_order_items soitm
@@ -1032,7 +2123,11 @@ class FinanceIntegrationService {
       );
 
       // ✅ 精度修复：整数运算
-      const amountExcludingTax = outboundItems.reduce((sum, item) => sum + Math.round(parseFloat(item.quantity || 0) * parseFloat(item.price || 0) * 100), 0) / 100;
+      const amountExcludingTax = outboundItems.reduce(
+        (sum, item) =>
+          sum + Math.round(parseFloat(item.quantity || 0) * resolveUnitPrice(item) * 100),
+        0
+      ) / 100;
       // 从财务设置获取税率（前端设置的小数格式，如 0.13 = 13%）
       await this.loadConfigurations();
       const taxRate = normalizeTaxRate(financeConfig.get('tax.defaultVATRate', 0.13), 0.13);
@@ -1058,10 +2153,14 @@ class FinanceIntegrationService {
         tax_amount: taxAmount.toFixed(2),
         total_amount: totalAmount.toFixed(2),
         status: '未认证',
-        related_document_type: '销售出库单',
+        related_document_type: TAX_RELATED_DOCUMENT_TYPES.SALES_OUTBOUND,
         related_document_id: salesOutbound.id,
         remark: `自动生成 - 销售出库单: ${salesOutbound.outbound_no}`,
-        created_by: userId || salesOutbound.created_by || 0,
+        created_by: await resolveActorUserId(
+          connection,
+          userId,
+          salesOutbound.created_by
+        ),
       };
 
       const invoiceId = await taxModel.createTaxInvoice(invoiceData, connection);
@@ -1072,31 +2171,36 @@ class FinanceIntegrationService {
         'tax_invoice',
         invoiceId,
         invoiceNumber,
-        userId || salesOutbound.created_by || 0,
+        invoiceData.created_by,
         connection
       );
-      await connection.commit();
+      if (!isExternalConn) await connection.commit();
       return { invoiceId, invoiceNumber, totalAmount: totalAmount.toFixed(2) };
     } catch (error) {
-      await connection.rollback();
+      if (!isExternalConn) await connection.rollback();
       throw error;
     } finally {
-      connection.release();
+      if (!isExternalConn) connection.release();
     }
   }
 
   /**
    * 生成进项发票
    */
-  static async generateInputTaxInvoiceFromPurchaseReceipt(purchaseReceipt, userId = null) {
-    const connection = await db.pool.getConnection();
+  static async generateInputTaxInvoiceFromPurchaseReceipt(purchaseReceipt, userId = null, options = {}) {
+    const autoGenerate = options.force === true
+      || await SystemConfigService.get('auto_generate_input_tax_invoice', false);
+    if (!autoGenerate) return { skipped: true, message: '自动生成进项发票已关闭' };
+
+    const isExternalConn = !!options.connection;
+    const connection = options.connection || (await db.pool.getConnection());
     try {
-      await connection.beginTransaction();
+      if (!isExternalConn) await connection.beginTransaction();
       await this.lockSourceDocument(connection, 'purchase_receipts', purchaseReceipt.id);
 
       const existingInvoice = await this.findExistingTaxInvoice(
         connection,
-        '采购入库单',
+        TAX_RELATED_DOCUMENT_TYPES.PURCHASE_RECEIPT,
         purchaseReceipt.id
       );
       if (existingInvoice) {
@@ -1110,7 +2214,7 @@ class FinanceIntegrationService {
           userId || purchaseReceipt.created_by || null,
           connection
         );
-        await connection.commit();
+        if (!isExternalConn) await connection.commit();
         return {
           skipped: true,
           invoiceId: existingInvoice.id,
@@ -1120,11 +2224,22 @@ class FinanceIntegrationService {
         };
       }
 
-      const invoiceNumber = `待补录-${purchaseReceipt.receipt_no}`;
+      const invoiceNumber = await this.generateTaxInvoiceNumber(connection);
 
       const [receiptItems] = await connection.execute(
         `SELECT pri.qualified_quantity,
-                COALESCE(NULLIF(pri.price, 0), NULLIF(poi.price, 0), NULLIF(m.cost_price, 0), 0) as price
+                COALESCE(
+                  NULLIF(${sqlUnitPriceExpr('pri', 'purchase_receipt_items')}, 0),
+                  NULLIF(${sqlUnitPriceExpr('poi', 'purchase_order_items')}, 0),
+                  NULLIF(m.cost_price, 0),
+                  0
+                ) AS price,
+                COALESCE(
+                  NULLIF(${sqlUnitPriceExpr('pri', 'purchase_receipt_items')}, 0),
+                  NULLIF(${sqlUnitPriceExpr('poi', 'purchase_order_items')}, 0),
+                  NULLIF(m.cost_price, 0),
+                  0
+                ) AS unit_price
          FROM purchase_receipt_items pri
          JOIN purchase_receipts pr ON pri.receipt_id = pr.id
          LEFT JOIN purchase_orders po ON pr.order_id = po.id
@@ -1135,7 +2250,11 @@ class FinanceIntegrationService {
       );
 
       // ✅ 精度修复：整数运算
-      const amountExcludingTax = receiptItems.reduce((sum, item) => sum + Math.round(parseFloat(item.qualified_quantity || 0) * parseFloat(item.price || 0) * 100), 0) / 100;
+      const amountExcludingTax = receiptItems.reduce(
+        (sum, item) =>
+          sum + Math.round(parseFloat(item.qualified_quantity || 0) * resolveUnitPrice(item) * 100),
+        0
+      ) / 100;
       // 从财务设置获取税率（前端设置的小数格式，如 0.13 = 13%）
       await this.loadConfigurations();
       const taxRate = normalizeTaxRate(financeConfig.get('tax.defaultVATRate', 0.13), 0.13);
@@ -1161,10 +2280,14 @@ class FinanceIntegrationService {
         tax_amount: taxAmount.toFixed(2),
         total_amount: totalAmount.toFixed(2),
         status: '未认证',
-        related_document_type: '采购入库单',
+        related_document_type: TAX_RELATED_DOCUMENT_TYPES.PURCHASE_RECEIPT,
         related_document_id: purchaseReceipt.id,
         remark: `自动生成 - 采购入库单: ${purchaseReceipt.receipt_no}`,
-        created_by: userId || purchaseReceipt.created_by || 0,
+        created_by: await resolveActorUserId(
+          connection,
+          userId,
+          purchaseReceipt.created_by
+        ),
       };
 
       const invoiceId = await taxModel.createTaxInvoice(invoiceData, connection);
@@ -1175,16 +2298,16 @@ class FinanceIntegrationService {
         'tax_invoice',
         invoiceId,
         invoiceNumber,
-        userId || purchaseReceipt.created_by || 0,
+        invoiceData.created_by,
         connection
       );
-      await connection.commit();
+      if (!isExternalConn) await connection.commit();
       return { invoiceId, invoiceNumber, totalAmount: totalAmount.toFixed(2) };
     } catch (error) {
-      await connection.rollback();
+      if (!isExternalConn) await connection.rollback();
       throw error;
     } finally {
-      connection.release();
+      if (!isExternalConn) connection.release();
     }
   }
 
@@ -1371,7 +2494,7 @@ class FinanceIntegrationService {
 
       // 计算发料总金额（精度修复：整数运算）
       const totalAmount = (materials || []).reduce((sum, item) => {
-        const unitCost = parseFloat(item.unit_price || item.price || 0)
+        const unitCost = resolveUnitPrice(item)
           || materialCostById.get(Number(item.material_id))
           || 0;
         return sum + Math.round(
@@ -1481,9 +2604,11 @@ class FinanceIntegrationService {
 
       const receiptNo = receipt.receipt_no || `OPR-${receipt.processing_id}`;
       const receiptId = receipt.id || receipt.receipt_id || null;
-      const createdBy = await getUserIdByIdentifier(
+      const createdBy = await resolveActorUserId(
         connection,
-        receipt.operator || receipt.created_by || 'system'
+        receipt.created_by,
+        receipt.operator,
+        financeConfig.get('system.defaultCreator', null)
       );
 
       const existingEntry = await this.findExistingActiveGlEntry(

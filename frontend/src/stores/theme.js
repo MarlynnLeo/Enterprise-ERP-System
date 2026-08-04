@@ -5,13 +5,15 @@
  */
 
 import { defineStore } from 'pinia'
-import { ref, computed, watch } from 'vue'
+import { ref, computed } from 'vue'
 import { userApi } from '@/api/user'
 import logger from '../utils/logger'
 import {
   DEFAULT_THEME_SETTINGS,
+  DEFAULT_THEME_PRESET_ID,
   THEME_PRESET_LIST,
   THEME_PRESETS,
+  getAccessibleTextColor,
   getThemePreset,
   normalizeThemeAppearance
 } from '@/config/themePresets'
@@ -35,7 +37,6 @@ export const useThemeStore = defineStore('theme', () => {
   const appearance = ref(getLocalTheme())
   const isLoaded = ref(false)
   const loadedForUser = ref(null)
-  let _cleanupSystemThemeListener = null
 
   const saveThemeToServer = async (themeData) => {
     try {
@@ -47,13 +48,7 @@ export const useThemeStore = defineStore('theme', () => {
   }
 
   const currentTheme = computed(() => {
-    if (appearance.value.theme === 'system') {
-      if (typeof window === 'undefined') {
-        return getThemePreset(appearance.value.preset).mode
-      }
-      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-    }
-    return appearance.value.theme
+    return getThemePreset(appearance.value.preset).mode
   })
 
   const isDark = computed(() => currentTheme.value === 'dark')
@@ -107,6 +102,7 @@ export const useThemeStore = defineStore('theme', () => {
     const primaryColor = appearance.value.primaryColor
     html.style.setProperty('--color-primary', primaryColor)
     html.style.setProperty('--el-color-primary', primaryColor)
+    html.style.setProperty('--color-on-primary', getAccessibleTextColor(primaryColor))
     html.style.setProperty('--font-size-base', `${appearance.value.fontSize}px`)
     html.style.setProperty('--el-font-size-base', `${appearance.value.fontSize}px`)
 
@@ -116,6 +112,19 @@ export const useThemeStore = defineStore('theme', () => {
         html.style.setProperty(key, value)
       })
     }
+
+    const computedStyle = window.getComputedStyle(html)
+    const semanticColors = {
+      '--color-on-success': '--color-success',
+      '--color-on-warning': '--color-warning',
+      '--color-on-danger': '--color-danger',
+      '--color-on-info': '--color-info'
+    }
+
+    Object.entries(semanticColors).forEach(([textToken, backgroundToken]) => {
+      const background = computedStyle.getPropertyValue(backgroundToken).trim()
+      html.style.setProperty(textToken, getAccessibleTextColor(background))
+    })
   }
 
   /** 先加载主题 CSS 再应用，避免切换 FOUC */
@@ -192,48 +201,24 @@ export const useThemeStore = defineStore('theme', () => {
   }
 
   const toggleTheme = () => {
-    const newTheme = currentTheme.value === 'light' ? 'dark' : 'light'
-    updateAppearance({ theme: newTheme })
+    const presetId = currentTheme.value === 'light' ? 'dark' : DEFAULT_THEME_PRESET_ID
+    return applyPreset(presetId)
   }
 
   const resetTheme = () => {
     updateAppearance({ ...defaultAppearance })
   }
 
-  const setupSystemThemeListener = () => {
-    if (typeof window === 'undefined') return
-
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
-    const handleSystemThemeChange = () => {
-      if (appearance.value.theme === 'system') {
-        applyTheme()
-      }
-    }
-
-    mediaQuery.addEventListener('change', handleSystemThemeChange)
-    return () => mediaQuery.removeEventListener('change', handleSystemThemeChange)
-  }
-
-  const initTheme = () => {
-    applyTheme()
+  const initTheme = async () => {
     const preset = appearance.value.preset
     if (preset && preset !== 'kacon') {
-      ensureThemeCss(preset)
-        .then(() => applyTheme())
+      await ensureThemeCss(preset)
         .catch((error) => logger.error('初始主题 CSS 加载失败:', error))
     }
-    _cleanupSystemThemeListener = setupSystemThemeListener()
-
-    // 空闲预取全部其余主题（低端/省流自动跳过）
+    applyTheme()
     prefetchAllThemes(preset)
-  }
 
-  watch(
-    () => appearance.value.theme,
-    () => {
-      applyTheme()
-    }
-  )
+  }
 
   return {
     appearance,

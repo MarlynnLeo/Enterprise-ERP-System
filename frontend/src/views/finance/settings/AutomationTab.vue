@@ -596,8 +596,10 @@ const depreciationForm = reactive({ month: '' });
 const productionForm = reactive({ taskId: null });
 const repairForm = reactive({ type: 'apFromReceipt', sourceId: null });
 const repairOptions = [
-  { label: '采购入库单 -> 应付发票', value: 'apFromReceipt' },
-  { label: '销售订单 -> 应收发票', value: 'arFromSalesOrder' },
+  { label: '采购入库单 -> 应付发票/凭证（主路径）', value: 'apFromReceipt' },
+  { label: '销售出库单 -> 应收发票/凭证（主路径）', value: 'arFromSalesOutbound' },
+  { label: '采购订单 -> 应付发票/凭证（例外）', value: 'apFromPurchaseOrder' },
+  { label: '销售订单 -> 应收发票/凭证（例外）', value: 'arFromSalesOrder' },
 ];
 const yearEndForm = reactive({ year: null });
 const inventoryYearEndForm = reactive({ year: null });
@@ -752,6 +754,10 @@ const executeRepairGeneration = async () => {
     const selected = repairOptions.find((option) => option.value === repairForm.type);
     if (repairForm.type === 'apFromReceipt') {
       await financeApi.integration.generateAPInvoiceFromPurchaseReceipt(sourceId);
+    } else if (repairForm.type === 'arFromSalesOutbound') {
+      await financeApi.integration.generateARInvoiceFromSalesOutbound(sourceId);
+    } else if (repairForm.type === 'apFromPurchaseOrder') {
+      await financeApi.integration.generateAPInvoiceFromPurchaseOrder(sourceId);
     } else {
       await financeApi.integration.generateARInvoiceFromSalesOrder(sourceId);
     }
@@ -1157,6 +1163,7 @@ onMounted(() => {
 
 .repair-panel,
 .failed-jobs-panel {
+  min-width: 0;
   border: 1px solid var(--color-border-lighter);
   border-radius: 6px;
   background: var(--color-bg-base);
@@ -1178,9 +1185,12 @@ onMounted(() => {
 .repair-form :deep(.el-form-item) { margin-right: 0; margin-bottom: 0; }
 
 /* 响应式布局 */
+@media (max-width: 1100px) {
+  .exception-workbench { grid-template-columns: 1fr; }
+}
+
 @media (max-width: 768px) {
   .status-grid { grid-template-columns: 1fr; }
-  .exception-workbench { grid-template-columns: 1fr; }
   .task-card { margin-bottom: 12px; }
   .year-end-card { min-height: auto; }
 }

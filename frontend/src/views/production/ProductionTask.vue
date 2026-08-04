@@ -1531,10 +1531,16 @@ const handleMaterialIssue = async () => {
       return
     }
 
-    // 3. 准备出库单数据
+    // 3. 准备出库单数据（操作人取当前登录用户，禁止写 system）
+    const currentUser =
+      authStore.user?.username || authStore.user?.real_name || authStore.user?.name || ''
+    if (!currentUser) {
+      ElMessage.error('无法识别当前登录用户，请重新登录后再发料')
+      return
+    }
     const outboundData = {
       outboundDate: materialIssueForm.value.issueDate,
-      operator: 'system',
+      operator: currentUser,
       remark: `生产任务 ${task.code} 发料`,
       status: 'draft',
       productionTaskId: task.id,

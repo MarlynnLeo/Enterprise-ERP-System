@@ -1,10 +1,15 @@
 <template>
   <div class="module-page budget-analysis-container">
-    <el-card v-loading="loading">
+    <PageHeader title="预算执行分析" subtitle="预算使用进度与科目执行明细">
+      <template #actions>
+        <el-button @click="handleBack">返回</el-button>
+      </template>
+    </PageHeader>
+
+    <el-card class="data-card" shadow="never" v-loading="loading">
       <template #header>
         <div class="card-header">
-          <span>预算执行分析</span>
-          <el-button @click="handleBack">返回</el-button>
+          <span>分析报告</span>
         </div>
       </template>
 

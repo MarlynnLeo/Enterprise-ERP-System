@@ -7,6 +7,11 @@
 
 const jwt = require('jsonwebtoken');
 const { logger } = require('../utils/logger');
+const {
+  buildAuthCookieOptions,
+  clearAuthCookies,
+  clearCsrfCookies,
+} = require('../utils/cookieSecurity');
 
 // 验证JWT密钥环境变量
 if (!process.env.JWT_SECRET) {
@@ -133,46 +138,47 @@ const getTokensFromCookies = (req) => {
 
 /**
  * 设置令牌到Cookie
+ * @param {Object} req - Express请求对象
  * @param {Object} res - Express响应对象
  * @param {string} accessToken - 访问令牌
  * @param {string} refreshToken - 刷新令牌
  */
-const setTokensToCookies = (res, accessToken, refreshToken) => {
-  const isProd = process.env.NODE_ENV === 'production' && process.env.COOKIE_SECURE !== 'false';
+const setTokensToCookies = (req, res, accessToken, refreshToken) => {
+  // Clear secure/insecure variants first so mixed HTTP/HTTPS entry points do
+  // not leave behind a stale cookie the browser cannot overwrite.
+  clearAuthCookies(res);
 
-  // 设置访问令牌Cookie（2小时）
-  res.cookie('accessToken', accessToken, {
-    httpOnly: true,
-    secure: isProd, // 生产环境使用HTTPS
-    sameSite: isProd ? 'strict' : 'lax', // 开发环境使用lax，生产环境使用strict
-    maxAge: 2 * 60 * 60 * 1000, // 2小时
-    path: '/',
-  });
+  const cookieMeta = buildAuthCookieOptions(req);
 
-  // 设置刷新令牌Cookie（7天）
-  res.cookie('refreshToken', refreshToken, {
-    httpOnly: true,
-    secure: isProd,
-    sameSite: isProd ? 'strict' : 'lax', // 开发环境使用lax，生产环境使用strict
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7天
-    path: '/', // 统一使用根路径，避免因代理或路径不匹配导致 cookie 丢失
-  });
+  res.cookie(
+    'accessToken',
+    accessToken,
+    buildAuthCookieOptions(req, { maxAge: 2 * 60 * 60 * 1000 })
+  );
 
-  logger.debug('令牌已设置到Cookie', {
+  res.cookie(
+    'refreshToken',
+    refreshToken,
+    buildAuthCookieOptions(req, { maxAge: 7 * 24 * 60 * 60 * 1000 })
+  );
+
+  logger.debug('Token cookies have been set', {
     accessTokenSet: !!accessToken,
     refreshTokenSet: !!refreshToken,
-    isProd,
+    secure: cookieMeta.secure,
+    sameSite: cookieMeta.sameSite,
   });
 };
 
 /**
- * 清除令牌Cookie
- * @param {Object} res - Express响应对象
+ * Clear token cookies (and related CSRF cookies)
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
  */
-const clearTokenCookies = (res) => {
-  res.clearCookie('accessToken', { path: '/' });
-  res.clearCookie('refreshToken', { path: '/' });
-  logger.info('令牌Cookie已清除');
+const clearTokenCookies = (req, res) => {
+  clearAuthCookies(res);
+  clearCsrfCookies(res);
+  logger.info('Token cookies have been cleared');
 };
 
 module.exports = {

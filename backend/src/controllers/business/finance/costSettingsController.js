@@ -9,6 +9,7 @@ const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 const { parsePagination } = require('../../../utils/safePagination');
 const { currentDateString, toLocalDateString } = require('../../../utils/dateUtils');
+const { getRequestActorLabel } = require('../../../utils/userUtils');
 
 module.exports = {
   /**
@@ -122,7 +123,7 @@ module.exports = {
                 cs.piece_rate || 0,
                 cs.overhead_allocation_rules || null,
                 cs.updated_at ? toLocalDateString(cs.updated_at) : '2020-01-01',
-                req.user?.name || 'system',
+                getRequestActorLabel(req),
                 '费率变更',
               ]
             );

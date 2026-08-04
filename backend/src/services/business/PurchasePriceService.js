@@ -1,4 +1,5 @@
 const { normalizeTaxRate, toNumber } = require('../../utils/money');
+const SupplierMetalRangePriceService = require('./SupplierMetalRangePriceService');
 
 function toPositiveNumber(value) {
   const number = toNumber(value, 0);
@@ -184,6 +185,10 @@ class PurchasePriceService {
     const supplierIds = [...new Set(normalized.map((request) => request.supplierId).filter(Boolean))];
 
     if (supplierIds.length > 0) {
+      await this.resolveMetalRangePrices(connection, normalized, state);
+    }
+
+    if (supplierIds.length > 0) {
       await this.resolveSupplierOrderHistory(connection, materialIds, materialCodes, supplierIds, state);
     }
 
@@ -207,6 +212,29 @@ class PurchasePriceService {
       const normalizedRequest = normalized.find((item) => item.index === index);
       if (!normalizedRequest) return defaults[index];
       return results.get(normalizedRequest.key) || makeEmptyResult(request);
+    });
+  }
+
+  static async resolveMetalRangePrices(connection, normalized, state) {
+    const pending = normalized.filter((request) => state.unresolved.has(request.key) && request.supplierId);
+    if (pending.length === 0) return;
+
+    const rangeResults = await SupplierMetalRangePriceService.resolveRangePrices(
+      connection,
+      pending.map((request) => ({
+        ...(request.raw || {}),
+        materialId: request.materialId,
+        materialCode: request.materialCode,
+        supplierId: request.supplierId,
+      }))
+    );
+
+    pending.forEach((request, index) => {
+      const result = rangeResults[index];
+      if (result && result.auto_fill && Number(result.price) > 0) {
+        state.results.set(request.key, result);
+        state.unresolved.delete(request.key);
+      }
     });
   }
 

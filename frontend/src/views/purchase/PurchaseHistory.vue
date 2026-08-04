@@ -1,5 +1,7 @@
 <template>
   <div class="module-page purchase-history">
+    <PageHeader title="采购历史" subtitle="按物料查询历史入库与采购记录" />
+
     <div class="history-panel">
       <!-- 顶部搜索栏 -->
       <div class="search-bar">

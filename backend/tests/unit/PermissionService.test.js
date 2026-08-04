@@ -44,7 +44,7 @@ describe('PermissionService', () => {
       const result = await PermissionService.isAdmin(1);
       expect(result).toBe(true);
       expect(pool.execute).toHaveBeenCalledWith(
-        expect.stringContaining("r.code = 'admin'"),
+        expect.stringContaining('r.is_super_admin = 1'),
         [1]
       );
     });

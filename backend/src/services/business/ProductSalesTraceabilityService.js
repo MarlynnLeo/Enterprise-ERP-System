@@ -5,6 +5,7 @@
 
 const { logger } = require('../../utils/logger');
 const db = require('../../config/db');
+const { resolveActorLabel, resolveActorUserId } = require('../../utils/userUtils');
 
 class ProductSalesTraceabilityService {
   static _toDbValue(value) {
@@ -197,7 +198,7 @@ class ProductSalesTraceabilityService {
             transactionType: 'sales_outbound',
             referenceNo: outbound_no,
             referenceType: 'sales_outbound',
-            operator: operator || 'system',
+            operator: await resolveActorLabel(null, operator),
             remark: `销售出库给客户: ${customer.name}`,
             batchNumber: batch.batch_number,
             transactionDate: delivery_date,

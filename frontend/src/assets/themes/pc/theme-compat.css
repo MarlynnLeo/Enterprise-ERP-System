@@ -11,6 +11,9 @@
   --font-sans: var(--font-family-base);
   --spacing-base: var(--spacing-md);
 
+  /* 主题间缺省兜底：部分主题未声明 dialog 圆角时回退 radius-lg */
+  --theme-dialog-radius: var(--radius-lg, 12px);
+
   --el-bg-color: var(--color-bg-base);
   --el-bg-color-page: var(--color-bg-page);
   --el-bg-color-overlay: var(--color-bg-base);
@@ -134,7 +137,7 @@
 :root[data-theme="premium"],
 :root[data-theme="tech"],
 :root[data-theme="vibrant"] {
-  --color-on-primary: #0f172a;
+  --color-on-primary: #000000;
 }
 
 :root[data-theme="kacon"] {
@@ -1196,4 +1199,15 @@
 
 [data-theme] .el-alert__description {
   color: var(--color-text-regular);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-theme] *,
+  [data-theme] *::before,
+  [data-theme] *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
