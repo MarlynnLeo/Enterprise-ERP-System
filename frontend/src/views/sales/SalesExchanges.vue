@@ -188,10 +188,11 @@
       </div>
     </el-card>
     <!-- 创建/编辑换货单对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="dialogVisible"
       :title="dialogTitle"
-      width="60%"
+      mode="form"
+      wide
       :before-close="handleDialogClose"
     >
       <div v-loading="dialogLoading">
@@ -392,7 +393,7 @@
           <el-button v-permission="isEdit ? 'sales:exchanges:update' : 'sales:exchanges:create'" type="primary" @click="handleSubmit" :loading="submitLoading">保存</el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
     <!-- 查看换货单详情对话框 -->
     <AppDialog
       v-model="detailDialogVisible"
@@ -402,15 +403,15 @@
     >
       <div v-loading="detailDialogLoading">
       <el-descriptions :column="3" border v-if="currentExchange">
-        <el-descriptions-item label="换货单号">{{ currentExchange.exchangeNo || currentExchange.exchange_no || currentExchange.id }}</el-descriptions-item>
-        <el-descriptions-item label="原订单号">{{ currentExchange.orderNo || currentExchange.order_no }}</el-descriptions-item>
-        <el-descriptions-item label="客户名称">{{ currentExchange.customerName || currentExchange.customer_name }}</el-descriptions-item>
-        <el-descriptions-item label="换货日期">{{ formatDate(currentExchange.exchangeDate || currentExchange.exchange_date) }}</el-descriptions-item>
-        <el-descriptions-item label="联系电话">{{ currentExchange.contactPhone || currentExchange.contact_phone || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="换货单号">{{ currentExchange.exchangeNo || currentExchange.id }}</el-descriptions-item>
+        <el-descriptions-item label="原订单号">{{ currentExchange.orderNo }}</el-descriptions-item>
+        <el-descriptions-item label="客户名称">{{ currentExchange.customerName }}</el-descriptions-item>
+        <el-descriptions-item label="换货日期">{{ formatDate(currentExchange.exchangeDate) }}</el-descriptions-item>
+        <el-descriptions-item label="联系电话">{{ currentExchange.contactPhone || '-' }}</el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag :type="getStatusType(currentExchange.status)">{{ currentExchange.status }}</el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="换货原因" :span="3">{{ currentExchange.reason || currentExchange.exchange_reason || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="换货原因" :span="3">{{ currentExchange.exchangeReason || '-' }}</el-descriptions-item>
         <el-descriptions-item label="退回金额">
           <span class="text-success font-weight-700">{{ formatCurrency(currentExchange.returnAmount ?? currentExchange.return_amount) }}</span>
         </el-descriptions-item>
@@ -420,7 +421,7 @@
         <el-descriptions-item label="差价">
           <span
             class="font-weight-700"
-            :class="(parseFloat(currentExchange.differenceAmount || currentExchange.difference_amount || 0)) > 0 ? 'amount-positive' : (parseFloat(currentExchange.differenceAmount || currentExchange.difference_amount || 0)) < 0 ? 'amount-negative' : 'amount-zero'"
+            :class="(parseFloat(currentExchange.differenceAmount || 0)) > 0 ? 'amount-positive' : (parseFloat(currentExchange.differenceAmount || 0)) < 0 ? 'amount-negative' : 'amount-zero'"
           >
             {{ formatSignedCurrency(currentExchange.differenceAmount ?? currentExchange.difference_amount) }}
           </span>
@@ -439,22 +440,22 @@
           class="w-full"
           :empty-text="'暂无退回商品'"
         >
-          <el-table-column prop="product_code" label="产品编码" width="120" />
-          <el-table-column prop="product_name" label="产品名称" min-width="150" />
+          <el-table-column prop="productCode" label="产品编码" width="120" />
+          <el-table-column prop="productName" label="产品名称" min-width="150" />
           <el-table-column prop="specification" label="规格" min-width="120" />
-          <el-table-column prop="original_quantity" label="原订单数量" width="110">
+          <el-table-column prop="originalQuantity" label="原订单数量" width="110">
             <template #default="scope">
-              {{ formatQuantity(scope.row.original_quantity) }}
+              {{ formatQuantity(scope.row.originalQuantity) }}
             </template>
           </el-table-column>
-          <el-table-column prop="exchange_quantity" label="退回数量" width="100">
+          <el-table-column prop="exchangeQuantity" label="退回数量" width="100">
             <template #default="scope">
-              <span class="return-quantity">{{ formatQuantity(scope.row.exchange_quantity) }}</span>
+              <span class="return-quantity">{{ formatQuantity(scope.row.exchangeQuantity) }}</span>
             </template>
           </el-table-column>
           <el-table-column label="单价" width="100">
             <template #default="scope">
-              {{ formatCurrency(scope.row.unit_price) }}
+              {{ formatCurrency(scope.row.unitPrice) }}
             </template>
           </el-table-column>
           <el-table-column label="金额" width="110">
@@ -462,8 +463,8 @@
               <span class="text-success">{{ formatCurrency(scope.row.amount) }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="exchange_reason" label="退回原因" min-width="150" />
-          <el-table-column prop="unit_name" label="单位" width="80" />
+          <el-table-column prop="exchangeReason" label="退回原因" min-width="150" />
+          <el-table-column prop="unitName" label="单位" width="80" />
         </el-table>
       </div>
       <!-- 换出商品表格 -->
@@ -478,17 +479,17 @@
           class="w-full"
           :empty-text="'暂无换出商品'"
         >
-          <el-table-column prop="product_code" label="产品编码" width="120" />
-          <el-table-column prop="product_name" label="产品名称" min-width="150" />
+          <el-table-column prop="productCode" label="产品编码" width="120" />
+          <el-table-column prop="productName" label="产品名称" min-width="150" />
           <el-table-column prop="specification" label="规格" min-width="120" />
-          <el-table-column prop="exchange_quantity" label="换出数量" width="100">
+          <el-table-column prop="exchangeQuantity" label="换出数量" width="100">
             <template #default="scope">
-              <span class="exchange-quantity">{{ formatQuantity(scope.row.exchange_quantity) }}</span>
+              <span class="exchange-quantity">{{ formatQuantity(scope.row.exchangeQuantity) }}</span>
             </template>
           </el-table-column>
           <el-table-column label="单价" width="100">
             <template #default="scope">
-              {{ formatCurrency(scope.row.unit_price) }}
+              {{ formatCurrency(scope.row.unitPrice) }}
             </template>
           </el-table-column>
           <el-table-column label="金额" width="110">
@@ -496,8 +497,8 @@
               <span class="text-primary">{{ formatCurrency(scope.row.amount) }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="exchange_reason" label="换出原因" min-width="150" />
-          <el-table-column prop="unit_name" label="单位" width="80" />
+          <el-table-column prop="exchangeReason" label="换出原因" min-width="150" />
+          <el-table-column prop="unitName" label="单位" width="80" />
         </el-table>
       </div>
       </div>
@@ -508,10 +509,11 @@
       </template>
     </AppDialog>
     <!-- 商品选择对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="productDialogVisible"
       title="选择商品"
-      width="55%"
+      mode="form"
+      wide
     >
       <div class="mb-md">
         <el-input
@@ -532,15 +534,15 @@
         <el-table-column prop="code" label="物料编码" width="120" />
         <el-table-column prop="name" label="物料名称" min-width="140" />
         <el-table-column prop="specification" label="规格" min-width="140" />
-        <el-table-column prop="unit_name" label="单位" width="80" />
-        <el-table-column prop="stock_quantity" label="库存数量" width="100">
+        <el-table-column prop="unitName" label="单位" width="80" />
+        <el-table-column prop="stockQuantity" label="库存数量" width="100">
           <template #default>
-            <span :class="row.stock_quantity > 0 ? 'text-stock-ok' : 'text-stock-low'">
-              {{ row.stock_quantity }}
+            <span :class="row.stockQuantity > 0 ? 'text-stock-ok' : 'text-stock-low'">
+              {{ row.stockQuantity }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column prop="location_name" label="库位" width="100" />
+        <el-table-column prop="locationName" label="库位" width="100" />
       </el-table>
       <div class="mt-md text-center">
         <el-pagination
@@ -559,9 +561,14 @@
           <el-button type="primary" @click="confirmProductSelection">确定</el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
     <!-- 选择订单对话框 -->
-    <el-dialog v-model="orderDialog.visible" title="选择已完成出库的订单" width="900px">
+    <AppDialog
+      v-model="orderDialog.visible"
+      title="选择已完成出库的订单"
+      mode="form"
+      wide
+    >
       <div class="flex-gap-8-mb">
         <el-input
           v-model="orderDialog.keyword"
@@ -571,11 +578,11 @@
         <el-button type="primary" @click="loadCompletedOrders">查询</el-button>
       </div>
       <el-table :data="orderDialog.list" border height="380">
-        <el-table-column prop="order_no" label="订单号" width="160" />
-        <el-table-column prop="customer_name" label="客户名称" min-width="140" />
-        <el-table-column prop="delivery_date" label="出库日期" width="120">
+        <el-table-column prop="orderNo" label="订单号" width="160" />
+        <el-table-column prop="customerName" label="客户名称" min-width="140" />
+        <el-table-column prop="deliveryDate" label="出库日期" width="120">
           <template #default="{ row }">
-            {{ formatDate(row.delivery_date) }}
+            {{ formatDate(row.deliveryDate) }}
           </template>
         </el-table-column>
         <el-table-column prop="status" label="出库状态" width="100">
@@ -605,7 +612,7 @@
           <el-button @click="orderDialog.visible = false">关闭</el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
   </div>
 </template>
 <script setup>
@@ -792,17 +799,17 @@ const fetchData = async () => {
       const items = parseListData(response, { enableLog: false })
       exchangeRecords.value = items.map(item => ({
         id: item.id,
-        exchangeNo: item.exchange_no || item.exchangeNo,
-        orderNo: item.order_no || item.orderNo,
-        customerName: item.customer_name || item.customerName,
-        contactPhone: item.contact_phone || item.contactPhone,
-        exchangeDate: item.exchange_date || item.exchangeDate,
-        reason: item.exchange_reason || item.reason,
+        exchangeNo: item.exchangeNo,
+        orderNo: item.orderNo,
+        customerName: item.customerName,
+        contactPhone: item.contactPhone,
+        exchangeDate: item.exchangeDate,
+        reason: item.exchangeReason || item.reason,
         status: item.status,
         remark: item.remarks || item.remark,
-        returnAmount: isBlankAmount(item.return_amount ?? item.returnAmount) ? null : (item.return_amount ?? item.returnAmount),
-        newAmount: isBlankAmount(item.new_amount ?? item.newAmount) ? null : (item.new_amount ?? item.newAmount),
-        differenceAmount: isBlankAmount(item.difference_amount ?? item.differenceAmount) ? null : (item.difference_amount ?? item.differenceAmount),
+        returnAmount: isBlankAmount(item.returnAmount ?? item.returnAmount) ? null : (item.returnAmount ?? item.returnAmount),
+        newAmount: isBlankAmount(item.newAmount ?? item.newAmount) ? null : (item.newAmount ?? item.newAmount),
+        differenceAmount: isBlankAmount(item.differenceAmount ?? item.differenceAmount) ? null : (item.differenceAmount ?? item.differenceAmount),
         items: item.items || []
       }))
       total.value = response.data.total || exchangeRecords.value.length
@@ -845,35 +852,35 @@ const handleEdit = async (row) => {
     // 填充表单数据
     exchangeForm.value = {
       id: exchangeData.id,
-      orderNo: exchangeData.order_no || exchangeData.orderNo,
-      customerName: exchangeData.customer_name || exchangeData.customerName,
-      contactPhone: exchangeData.contact_phone || exchangeData.contactPhone || '',
-      exchangeDate: exchangeData.exchange_date || exchangeData.exchangeDate,
-      reason: exchangeData.exchange_reason || exchangeData.reason,
+      orderNo: exchangeData.orderNo,
+      customerName: exchangeData.customerName,
+      contactPhone: exchangeData.contactPhone || '',
+      exchangeDate: exchangeData.exchangeDate,
+      reason: exchangeData.exchangeReason,
       remark: exchangeData.remarks || exchangeData.remark || '',
       items: exchangeData.items || []
     }
     // 分离退回商品和换出商品
     exchangeForm.value.returnItems = (exchangeData.items || [])
-      .filter(item => item.item_type === 'return')
+      .filter(item => item.itemType === 'return')
       .map(item => ({
-        productCode: item.product_code || item.productCode,
-        productName: item.product_name || item.productName,
+        productCode: item.productCode,
+        productName: item.productName,
         specification: item.specification || '',
-        originalQuantity: item.original_quantity || item.originalQuantity || 0,
-        returnQuantity: item.return_quantity || item.returnQuantity || item.quantity || 0,
-        returnReason: item.return_reason || item.returnReason || '',
-        unitPrice: isBlankAmount(item.unit_price ?? item.unitPrice ?? item.price) ? null : (item.unit_price ?? item.unitPrice ?? item.price)
+        originalQuantity: item.originalQuantity || 0,
+        returnQuantity: item.returnQuantity || item.quantity || 0,
+        returnReason: item.returnReason || '',
+        unitPrice: isBlankAmount(item.unitPrice ?? item.unitPrice ?? item.price) ? null : (item.unitPrice ?? item.unitPrice ?? item.price)
       }))
     exchangeForm.value.newItems = (exchangeData.items || [])
-      .filter(item => item.item_type === 'new')
+      .filter(item => item.itemType === 'new')
       .map(item => ({
-        productCode: item.product_code || item.productCode,
-        productName: item.product_name || item.productName,
+        productCode: item.productCode,
+        productName: item.productName,
         specification: item.specification || '',
-        newQuantity: item.new_quantity || item.newQuantity || item.quantity || 0,
-        newReason: item.new_reason || item.newReason || '',
-        unitPrice: isBlankAmount(item.unit_price ?? item.unitPrice ?? item.price) ? null : (item.unit_price ?? item.unitPrice ?? item.price)
+        newQuantity: item.newQuantity || item.quantity || 0,
+        newReason: item.newReason || '',
+        unitPrice: isBlankAmount(item.unitPrice ?? item.unitPrice ?? item.price) ? null : (item.unitPrice ?? item.unitPrice ?? item.price)
       }))
   } catch (error) {
     console.error('获取换货单详情失败:', error)
@@ -896,12 +903,12 @@ const handleView = async (row) => {
     currentExchange.value = {
       ...exchangeData,
       // 保留原始字段名
-      exchangeNo: exchangeData.exchange_no || exchangeData.exchangeNo,
-      orderNo: exchangeData.order_no || exchangeData.orderNo,
-      customerName: exchangeData.customer_name || exchangeData.customerName,
-      contactPhone: exchangeData.contact_phone || exchangeData.contactPhone,
-      exchangeDate: exchangeData.exchange_date || exchangeData.exchangeDate,
-      reason: exchangeData.exchange_reason || exchangeData.reason,
+      exchangeNo: exchangeData.exchangeNo,
+      orderNo: exchangeData.orderNo,
+      customerName: exchangeData.customerName,
+      contactPhone: exchangeData.contactPhone,
+      exchangeDate: exchangeData.exchangeDate,
+      reason: exchangeData.exchangeReason,
       remark: exchangeData.remarks || exchangeData.remark,
       items: exchangeData.items || []
     }
@@ -926,21 +933,21 @@ const handleProcess = (row) => {
       const fullExchangeData = response.data || response
       // 更新换货单状态为处理中，保留所有原有数据
       const updatedData = {
-        orderNo: fullExchangeData.order_no,
-        customerName: fullExchangeData.customer_name,
+        orderNo: fullExchangeData.orderNo,
+        customerName: fullExchangeData.customerName,
         contactPhone: fullExchangeData.contact_phone,
         exchangeDate: fullExchangeData.exchange_date,
         reason: fullExchangeData.exchange_reason,
         remark: fullExchangeData.remarks,
         status: '处理中',
         items: (fullExchangeData.items || []).map(item => ({
-          productCode: item.product_code,
-          productName: item.product_name,
+          productCode: item.productCode,
+          productName: item.productName,
           specification: item.specification,
-          originalQuantity: item.original_quantity,
-          exchangeQuantity: item.exchange_quantity,
-          exchangeReason: item.exchange_reason,
-          unitName: item.unit_name
+          originalQuantity: item.originalQuantity,
+          exchangeQuantity: item.exchangeQuantity,
+          exchangeReason: item.exchangeReason,
+          unitName: item.unitName
         }))
       }
       await salesApi.updateExchange(row.id, updatedData)
@@ -967,21 +974,21 @@ const handleComplete = (row) => {
       const fullExchangeData = response.data || response
       // 更新换货单状态为已完成，保留所有原有数据
       const updatedData = {
-        orderNo: fullExchangeData.order_no,
-        customerName: fullExchangeData.customer_name,
+        orderNo: fullExchangeData.orderNo,
+        customerName: fullExchangeData.customerName,
         contactPhone: fullExchangeData.contact_phone,
         exchangeDate: fullExchangeData.exchange_date,
         reason: fullExchangeData.exchange_reason,
         remark: fullExchangeData.remarks,
         status: '已完成',
         items: (fullExchangeData.items || []).map(item => ({
-          productCode: item.product_code,
-          productName: item.product_name,
+          productCode: item.productCode,
+          productName: item.productName,
           specification: item.specification,
-          originalQuantity: item.original_quantity,
-          exchangeQuantity: item.exchange_quantity,
-          exchangeReason: item.exchange_reason,
-          unitName: item.unit_name
+          originalQuantity: item.originalQuantity,
+          exchangeQuantity: item.exchangeQuantity,
+          exchangeReason: item.exchangeReason,
+          unitName: item.unitName
         }))
       }
       await salesApi.updateExchange(row.id, updatedData)
@@ -1007,21 +1014,21 @@ const handleReject = (row) => {
       const fullExchangeData = response.data || response
       // 更新换货单状态为已拒绝，保留所有原有数据
       const updatedData = {
-        orderNo: fullExchangeData.order_no,
-        customerName: fullExchangeData.customer_name,
+        orderNo: fullExchangeData.orderNo,
+        customerName: fullExchangeData.customerName,
         contactPhone: fullExchangeData.contact_phone,
         exchangeDate: fullExchangeData.exchange_date,
         reason: fullExchangeData.exchange_reason,
         remark: (fullExchangeData.remarks || '') + `\n拒绝原因：${rejectReason}`,
         status: '已拒绝',
         items: (fullExchangeData.items || []).map(item => ({
-          productCode: item.product_code,
-          productName: item.product_name,
+          productCode: item.productCode,
+          productName: item.productName,
           specification: item.specification,
-          originalQuantity: item.original_quantity,
-          exchangeQuantity: item.exchange_quantity,
-          exchangeReason: item.exchange_reason,
-          unitName: item.unit_name
+          originalQuantity: item.originalQuantity,
+          exchangeQuantity: item.exchangeQuantity,
+          exchangeReason: item.exchangeReason,
+          unitName: item.unitName
         }))
       }
       await salesApi.updateExchange(row.id, updatedData)
@@ -1080,14 +1087,14 @@ const loadCompletedOrders = async () => {
     // 从出库单中提取唯一的订单信息
     const uniqueOrders = new Map()
     items.forEach(outbound => {
-      const orderKey = outbound.order_no || outbound.orderNo || outbound.id
+      const orderKey = outbound.orderNo || outbound.id
       if (orderKey && !uniqueOrders.has(orderKey)) {
         uniqueOrders.set(orderKey, {
           id: outbound.id,
-          order_no: outbound.order_no || outbound.orderNo,
-          customer_name: outbound.customer_name || outbound.customerName,
-          delivery_date: outbound.delivery_date || outbound.deliveryDate,
-          contact_phone: outbound.contact_phone || outbound.contactPhone,
+          order_no: outbound.orderNo,
+          customer_name: outbound.customerName,
+          delivery_date: outbound.deliveryDate,
+          contact_phone: outbound.contactPhone,
           outbound_id: outbound.id,
           items: outbound.items || []
         })
@@ -1113,28 +1120,28 @@ const onOrderPageSizeChange = async (size) => {
 const selectOrder = async (row) => {
   try {
     // 设置表单数据
-    exchangeForm.value.orderNo = row.order_no
-    exchangeForm.value.customerName = row.customer_name
-    exchangeForm.value.contactPhone = row.contact_phone
+    exchangeForm.value.orderNo = row.orderNo
+    exchangeForm.value.customerName = row.customerName
+    exchangeForm.value.contactPhone = row.contactPhone
     // 设置选中的订单信息
     selectedOrderInfo.value = {
-      deliveryDate: row.delivery_date,
-      outboundId: row.outbound_id
+      deliveryDate: row.deliveryDate,
+      outboundId: row.outboundId
     }
     // 获取出库单详情以获取商品信息
-    if (row.outbound_id) {
-      const response = await salesApi.getOutbound(row.outbound_id)
+    if (row.outboundId) {
+      const response = await salesApi.getOutbound(row.outboundId)
       // 拦截器已解包，response.data 就是业务数据
       if (response.data?.items) {
         exchangeForm.value.returnItems = response.data.items.map(item => ({
-          productCode: item.product_code || item.material_code || item.productCode,
-          productName: item.product_name || item.material_name || item.productName,
+          productCode: item.productCode || item.materialCode || item.productCode,
+          productName: item.productName || item.materialName || item.productName,
           specification: item.specification || item.specs || '无规格信息',
-          originalQuantity: item.quantity || item.delivered_quantity,
+          originalQuantity: item.quantity || item.deliveredQuantity,
           returnQuantity: 1,
           returnReason: '',
-          unitName: item.unit || item.unit_name || item.unitName,
-          unitPrice: isBlankAmount(item.unit_price ?? item.price) ? null : (item.unit_price ?? item.price)
+          unitName: item.unit || item.unitName || item.unitName,
+          unitPrice: isBlankAmount(item.unitPrice ?? item.price) ? null : (item.unitPrice ?? item.price)
         }))
       }
     }
@@ -1145,7 +1152,7 @@ const selectOrder = async (row) => {
     }
     // 关闭对话框
     orderDialog.value.visible = false
-    ElMessage.success(`已选择订单：${row.order_no}`)
+    ElMessage.success(`已选择订单：${row.orderNo}`)
   } catch (error) {
     console.error('选择订单失败:', error)
     ElMessage.error('获取订单详情失败')
@@ -1179,14 +1186,14 @@ const loadProducts = async () => {
     const data = response.data || {}
     const items = data.items || data.data || []
     productDialog.value.list = items.map(item => ({
-      id: item.material_id || item.id,
-      code: item.material_code || item.code,
-      name: item.material_name || item.name,
+      id: item.materialId || item.id,
+      code: item.materialCode || item.code,
+      name: item.materialName || item.name,
       specification: item.specification || item.specs || '',
-      unit_name: item.unit_name || '个',
-      stock_quantity: item.quantity || item.stock_quantity || 0,
-      location_name: item.location_name || '',
-      price: isBlankAmount(item.price ?? item.unit_price) ? null : (item.price ?? item.unit_price)
+      unit_name: item.unitName || '个',
+      stock_quantity: item.quantity || item.stockQuantity || 0,
+      location_name: item.locationName || '',
+      price: isBlankAmount(item.price ?? item.unitPrice) ? null : (item.price ?? item.unitPrice)
     }))
     productDialog.value.total = parseInt(data.total) || items.length
   } catch (error) {
@@ -1202,7 +1209,7 @@ const loadProducts = async () => {
         code: item.code,
         name: item.name,
         specification: item.specs || '',
-        unit_name: item.unit_name || '个',
+        unit_name: item.unitName || '个',
         stock_quantity: 0, // 基础API没有库存信息
         location_name: ''
       }))
@@ -1238,7 +1245,7 @@ const confirmProductSelection = () => {
         productCode: product.code,
         productName: product.name,
         specification: product.specification,
-        unitName: product.unit_name,
+        unitName: product.unitName,
         newQuantity: 1,
         newReason: '',
         unitPrice: isBlankAmount(product.price) ? null : product.price
@@ -1330,11 +1337,11 @@ const formatQuantity = (quantity) => {
 }
 // 获取退回商品列表
 const getReturnItems = (items) => {
-  return items.filter(item => item.item_type === 'return')
+  return items.filter(item => item.itemType === 'return')
 }
 // 获取换出商品列表
 const getExchangeItems = (items) => {
-  return items.filter(item => item.item_type === 'new')
+  return items.filter(item => item.itemType === 'new')
 }
 </script>
 <style scoped>
@@ -1387,21 +1394,14 @@ const getExchangeItems = (items) => {
   color: var(--ds-red-strong);
   font-weight: 600;
 }
-/* 确保对话框内容不会超出宽度 - 页面特定需求 */
-/* 基础overflow样式已在全局主题定义，这里保持兼容性 */
-:deep(.el-dialog .el-form) {
+/* 对话框内容防撑宽：依赖 AppDialog / dialog-system SSOT */
+.app-dialog-form-body :deep(.el-form),
+.app-dialog-view-body :deep(.el-form) {
   overflow-x: hidden;
 }
-/* 确保表格不会超出容器宽度 */
-:deep(.el-dialog .el-table) {
+.app-dialog-form-body :deep(.el-table),
+.app-dialog-view-body :deep(.el-table) {
   table-layout: fixed;
-}
-/* 确保所有容器都不会产生水平滚动 */
-:deep(.el-dialog .el-row) {
-  margin: 0 -10px;
-}
-:deep(.el-dialog .el-col) {
-  padding: 0 10px;
 }
 /* 响应式设计 */
 @media (max-width: 768px) {

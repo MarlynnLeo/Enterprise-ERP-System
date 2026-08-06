@@ -54,7 +54,7 @@
   const handleItemClick = (item) => {
     // 使用 supplierId（camelCase，与后端一致）
     if (item.supplierId) {
-      router.push(`/finance/ap/invoices?supplier_id=${item.supplierId}`)
+      router.push(`/finance/ap/invoices?supplierId=${item.supplierId}`)
     }
   }
 </script>

@@ -106,26 +106,26 @@
         @selection-change="handleSelectionChange"
       >
         <template #empty>
-          <el-empty description="暂无调拨单数据" />
+          <EmptyState description="暂无调拨单数据" />
         </template>
         <el-table-column type="selection" width="55"></el-table-column>
-        <el-table-column prop="transfer_no" label="调拨单号" min-width="100" show-overflow-tooltip></el-table-column>
+        <el-table-column prop="transferNo" label="调拨单号" min-width="100" show-overflow-tooltip></el-table-column>
         <el-table-column label="调拨日期" min-width="100">
           <template #default="scope">
-            {{ formatDate(scope.row.transfer_date) }}
+            {{ formatDate(scope.row.transferDate) }}
           </template>
         </el-table-column>
-        <el-table-column prop="from_location" label="源库位" min-width="120" show-overflow-tooltip></el-table-column>
-        <el-table-column prop="to_location" label="目标库位" min-width="120" show-overflow-tooltip></el-table-column>
-        <el-table-column prop="item_count" label="物料种类" min-width="100"></el-table-column>
+        <el-table-column prop="fromLocation" label="源库位" min-width="120" show-overflow-tooltip></el-table-column>
+        <el-table-column prop="toLocation" label="目标库位" min-width="120" show-overflow-tooltip></el-table-column>
+        <el-table-column prop="itemCount" label="物料种类" min-width="100"></el-table-column>
         <el-table-column prop="status" label="状态" min-width="100">
           <template #default="scope">
             <el-tag :type="getStatusType(scope.row.status)">{{ getStatusText(scope.row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="creator_name" label="创建人" min-width="100">
+        <el-table-column prop="creatorName" label="创建人" min-width="100">
           <template #default="scope">
-            {{ scope.row.creator_name || scope.row.creator || '未知' }}
+            {{ scope.row.creatorName || scope.row.creator || '未知' }}
           </template>
         </el-table-column>
         <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
@@ -202,17 +202,17 @@
     </el-card>
 
     <!-- 新建/编辑调拨单对话框 -->
-    <el-dialog
-      :title="dialogType === 'create' ? '新建调拨单' : '编辑调拨单'"
+    <AppDialog
       v-model="transferDialogVisible"
-      width="50%"
-      destroy-on-close
+      :title="dialogType === 'create' ? '新建调拨单' : '编辑调拨单'"
+      mode="form"
+      wide
     >
       <div v-loading="editLoading">
       <el-form :model="transferForm" :rules="transferRules" ref="transferFormRef" label-width="100px">
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="调拨日期" prop="transfer_date">
+            <el-form-item label="调拨日期" prop="transferDate">
               <el-date-picker
                 v-model="transferForm.transfer_date"
                 type="date"
@@ -223,7 +223,7 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="源库位" prop="from_location_id">
+            <el-form-item label="源库位" prop="fromLocationId">
               <el-select
                 v-model="transferForm.from_location_id"
                 placeholder="选择源库位"
@@ -244,7 +244,7 @@
 
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="目标库位" prop="to_location_id">
+            <el-form-item label="目标库位" prop="toLocationId">
               <el-select
                 v-model="transferForm.to_location_id"
                 placeholder="选择目标库位"
@@ -288,7 +288,7 @@
           <el-table-column label="物料" min-width="200">
             <template #default="{ row, $index }">
               <el-select
-                v-model="row.material_id"
+                v-model="row.materialId"
                 placeholder="请选择或输入关键字搜索"
                 class="w-full"
                 filterable
@@ -321,7 +321,7 @@
                 placeholder="请输入数量"
                 type="number"
                 :min="0.01"
-                :max="row.available_stock || 999999"
+                :max="row.availableStock || 999999"
                 step="0.01"
                 class="w-full"
               />
@@ -329,12 +329,12 @@
           </el-table-column>
           <el-table-column label="单位" width="120">
             <template #default="{ row }">
-              <span>{{ row.unit_name || '-' }}</span>
+              <span>{{ row.unitName || '-' }}</span>
             </template>
           </el-table-column>
           <el-table-column label="库存数量" width="120">
             <template #default="{ row }">
-              <span>{{ row.available_stock || '-' }}</span>
+              <span>{{ row.availableStock || '-' }}</span>
             </template>
           </el-table-column>
           <el-table-column label="备注" min-width="150">
@@ -359,7 +359,7 @@
           <el-button type="primary" @click="submitTransferForm" :loading="submitting">确定</el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
 
     <!-- 查看调拨单详情对话框 -->
     <AppDialog
@@ -384,11 +384,11 @@
         <h3 class="mt-20">物料明细</h3>
         <el-table :data="transferDetail.items || []" border style="width: 100%; margin-top: 10px;">
           <el-table-column type="index" label="序号" width="50"></el-table-column>
-          <el-table-column prop="material_code" label="物料编码" min-width="150" show-overflow-tooltip></el-table-column>
-          <el-table-column prop="material_name" label="物料名称" min-width="160" show-overflow-tooltip></el-table-column>
+          <el-table-column prop="materialCode" label="物料编码" min-width="150" show-overflow-tooltip></el-table-column>
+          <el-table-column prop="materialName" label="物料名称" min-width="160" show-overflow-tooltip></el-table-column>
           <el-table-column prop="specification" label="规格型号" min-width="140" show-overflow-tooltip></el-table-column>
           <el-table-column prop="quantity" label="调拨数量" min-width="100"></el-table-column>
-          <el-table-column prop="unit_name" label="单位" min-width="80"></el-table-column>
+          <el-table-column prop="unitName" label="单位" min-width="80"></el-table-column>
           <el-table-column prop="remarks" label="备注" min-width="150"></el-table-column>
         </el-table>
       </div>
@@ -552,13 +552,13 @@ const editTransfer = async (id) => {
     if (transferData.items && transferData.items.length > 0) {
       transferForm.items = transferData.items.map(item => ({
         id: item.id,
-        material_id: item.material_id,
-        material_name: item.material_name,
-        material_code: item.material_code,
+        material_id: item.materialId,
+        material_name: item.materialName,
+        material_code: item.materialCode,
         specs: item.specs,
         quantity: item.quantity,
-        unit_name: item.unit_name,
-        available_stock: item.available_stock || 0,
+        unit_name: item.unitName,
+        available_stock: item.availableStock || 0,
         remarks: item.remarks || ''
       }));
     }
@@ -705,10 +705,10 @@ const handleMaterialChange = async (materialId, index) => {
 
   const material = materialOptions.value.find(m => m.id === materialId);
   if (material) {
-    transferForm.items[index].material_name = material.name;
-    transferForm.items[index].material_code = material.code;
+    transferForm.items[index].materialName = material.name;
+    transferForm.items[index].materialCode = material.code;
     transferForm.items[index].specification = material.specs || material.specification || '';
-    transferForm.items[index].unit_name = material.unit_name || '';
+    transferForm.items[index].unitName = material.unitName || '';
 
     // 获取该物料在源库位的库存
     if (transferForm.from_location_id) {
@@ -740,9 +740,9 @@ const handleFromLocationChange = async () => {
   if (transferForm.items.length > 0 && transferForm.from_location_id) {
     try {
       const queries = transferForm.items
-        .filter(item => item.material_id)
+        .filter(item => item.materialId)
         .map(item => ({
-          materialId: item.material_id,
+          materialId: item.materialId,
           locationId: transferForm.from_location_id
         }));
       const stockResults = [];
@@ -751,16 +751,16 @@ const handleFromLocationChange = async () => {
         stockResults.push(...(response.data || []));
       }
       const stockMap = new Map(stockResults.map(stock => [
-        Number(stock.material_id),
-        Number(stock.quantity || stock.stock_quantity || 0)
+        Number(stock.materialId),
+        Number(stock.quantity || stock.stockQuantity || 0)
       ]));
       for (const item of transferForm.items) {
-        item.available_stock = stockMap.get(Number(item.material_id)) || 0;
+        item.availableStock = stockMap.get(Number(item.materialId)) || 0;
       }
     } catch (error) {
       console.error('获取物料库存失败:', error);
       for (const item of transferForm.items) {
-        item.available_stock = 0;
+        item.availableStock = 0;
       }
     }
   }
@@ -782,14 +782,14 @@ const submitTransferForm = async () => {
     // 检查每个物料是否已选择
     for (let i = 0; i < transferForm.items.length; i++) {
       const item = transferForm.items[i];
-      if (!item.material_id) {
+      if (!item.materialId) {
         ElMessage.warning(`第${i+1}行物料未选择`);
         return;
       }
 
       // 检查调拨数量是否超过库存
-      if (item.quantity > item.available_stock) {
-        ElMessage.warning(`${item.material_name}的调拨数量超过可用库存`);
+      if (item.quantity > item.availableStock) {
+        ElMessage.warning(`${item.materialName}的调拨数量超过可用库存`);
         return;
       }
     }
@@ -950,8 +950,8 @@ const loadTransferList = async () => {
 
     // 添加日期范围参数
     if (searchForm.date_range && searchForm.date_range.length === 2) {
-      params.start_date = searchForm.date_range[0];
-      params.end_date = searchForm.date_range[1];
+      params.startDate = searchForm.date_range[0];
+      params.endDate = searchForm.date_range[1];
     }
 
     // 调用API获取数据
@@ -993,13 +993,13 @@ const duplicateTransfer = async (id) => {
     // 填充物料明细
     if (transferData.items && transferData.items.length > 0) {
       transferForm.items = transferData.items.map(item => ({
-        material_id: item.material_id,
-        material_name: item.material_name,
-        material_code: item.material_code,
+        material_id: item.materialId,
+        material_name: item.materialName,
+        material_code: item.materialCode,
         specs: item.specs,
         quantity: item.quantity,
-        unit_name: item.unit_name,
-        available_stock: item.available_stock || 0,
+        unit_name: item.unitName,
+        available_stock: item.availableStock || 0,
         remarks: item.remarks || ''
       }));
     }
@@ -1023,20 +1023,20 @@ const printTransfer = async (id) => {
 
     const html = await printService.generateByDefaultTemplate('inventory', 'transfer', {
       ...detail,
-      transfer_date: formatDate(detail.transfer_date) || '-',
-      from_location_name: detail.from_location_name || detail.from_location || '-',
-      to_location_name: detail.to_location_name || detail.to_location || '-',
+      transfer_date: formatDate(detail.transferDate) || '-',
+      from_location_name: detail.fromLocationName || detail.fromLocation || '-',
+      to_location_name: detail.toLocationName || detail.toLocation || '-',
       status: getStatusText(detail.status) || '-',
       operator: detail.operator || detail.creator || '',
       remark: detail.remark || detail.remarks || '',
       print_time: new Date().toLocaleString(),
       items: (detail.items || []).map((item, index) => ({
         index: index + 1,
-        material_code: item.material_code || '-',
-        material_name: item.material_name || '-',
+        material_code: item.materialCode || '-',
+        material_name: item.materialName || '-',
         specification: item.specification || item.specs || '-',
         quantity: item.quantity ?? '-',
-        unit_name: item.unit_name || item.unit || '-',
+        unit_name: item.unitName || item.unit || '-',
         remark: item.remark || item.remarks || ''
       }))
     });
@@ -1098,7 +1098,7 @@ const handleBatchCommand = async (command) => {
 const exportSelectedTransfers = async () => {
   try {
     const ids = selectedTransfers.value.map(item => item.id);
-    const transferNos = selectedTransfers.value.map(item => item.transfer_no).join(', ');
+    const transferNos = selectedTransfers.value.map(item => item.transferNo).join(', ');
 
     ElMessage.info(`正在导出 ${selectedTransfers.value.length} 个调拨单: ${transferNos}`);
 
@@ -1143,20 +1143,20 @@ const batchPrintTransfers = async () => {
     for (const detail of transferDetails) {
       const page = await printService.generateByDefaultTemplate('inventory', 'transfer', {
         ...detail,
-        transfer_date: formatDate(detail.transfer_date) || '-',
-        from_location_name: detail.from_location_name || detail.from_location || '-',
-        to_location_name: detail.to_location_name || detail.to_location || '-',
+        transfer_date: formatDate(detail.transferDate) || '-',
+        from_location_name: detail.fromLocationName || detail.fromLocation || '-',
+        to_location_name: detail.toLocationName || detail.toLocation || '-',
         status: getStatusText(detail.status) || '-',
         operator: detail.operator || detail.creator || '',
         remark: detail.remark || detail.remarks || '',
         print_time: new Date().toLocaleString(),
         items: (detail.items || []).map((item, index) => ({
           index: index + 1,
-          material_code: item.material_code || '-',
-          material_name: item.material_name || '-',
+          material_code: item.materialCode || '-',
+          material_name: item.materialName || '-',
           specification: item.specification || item.specs || '-',
           quantity: item.quantity ?? '-',
-          unit_name: item.unit_name || item.unit || '-',
+          unit_name: item.unitName || item.unit || '-',
           remark: item.remark || item.remarks || ''
         }))
       });

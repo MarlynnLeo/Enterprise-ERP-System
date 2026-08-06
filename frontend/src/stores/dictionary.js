@@ -61,7 +61,7 @@ export const useDictionaryStore = defineStore('dictionary', {
       const groups = this.groups;
       const group = groups[groupCode] || [];
       const item = group.find(i => i.code === code);
-      return item && item.tag_type ? item.tag_type : 'info';
+      return item && item.tagType ? item.tagType : 'info';
     },
 
     /**
@@ -92,7 +92,7 @@ export const useDictionaryStore = defineStore('dictionary', {
           // 根据 group_code 对所有字典进行分组，便于前端快速查找
           const newGroups = {};
           allTypes.forEach(item => {
-            const groupCode = item.group_code;
+            const groupCode = item.groupCode;
             if (!groupCode) return;
 
             if (!newGroups[groupCode]) {

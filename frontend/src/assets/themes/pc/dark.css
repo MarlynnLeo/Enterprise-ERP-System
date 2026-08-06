@@ -20,16 +20,17 @@
 
   /* 功能色（深色模式优化） */
   --color-success: #4ADE80;
-  --color-success-light: #DCFCE7;
+  /* light 用半透明，避免深色底上大块浅色块 */
+  --color-success-light: rgba(74, 222, 128, 0.14);
   --color-success-dark: #16A34A;
   --color-warning: #FBBF24;
-  --color-warning-light: #FEF3C7;
+  --color-warning-light: rgba(251, 191, 36, 0.14);
   --color-warning-dark: #D97706;
   --color-danger: #F87171;
-  --color-danger-light: #FEE2E2;
+  --color-danger-light: rgba(248, 113, 113, 0.14);
   --color-danger-dark: #DC2626;
   --color-info: #94A3B8;
-  --color-info-light: #E2E8F0;
+  --color-info-light: rgba(148, 163, 184, 0.14);
   --color-info-dark: #64748B;
 
   /* 文本颜色 - 5个层级（深色模式优化对比度） */
@@ -65,6 +66,19 @@
   --color-info-gradient-end: #64748B;
   --color-on-primary: #000000;
 
+  /* 侧栏 shell（菜单交互走 theme-components） */
+  --shell-sidebar-bg: var(--color-bg-page);
+  --shell-border: var(--color-border-extra-light);
+  --shell-sidebar-text: var(--color-text-primary);
+  --shell-sidebar-text-muted: var(--color-text-regular);
+  --shell-sidebar-title: var(--color-text-primary);
+  --shell-sidebar-hover-bg: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  --shell-sidebar-active-bg: color-mix(in srgb, var(--color-primary) 15%, transparent);
+  --shell-sidebar-active-text: var(--color-primary);
+  --shell-sidebar-accent: var(--color-primary);
+  --shell-sidebar-indicator-width: 3px;
+  --shell-header-bg: var(--color-bg-page);
+
   /* ========== 间距系统 ========== */
   --spacing-xs: 4px;
   --spacing-sm: 8px;
@@ -80,8 +94,8 @@
 
   --font-size-xs: 12px;
   --font-size-sm: 14px;
-  --font-size-base: 16px;
-  --font-size-md: 16px;
+  --font-size-base: 14px;
+  --font-size-md: 14px;
   --font-size-lg: 18px;
   --font-size-xl: 20px;
   --font-size-xxl: 24px;
@@ -142,71 +156,24 @@
   background: var(--color-bg-page) !important;
 }
 
-/* 侧边栏深色化 */
+/* 侧栏：shell token + 左边指示条（菜单色/hover/active → theme-components） */
 [data-theme="dark"] .sidebar,
 [data-theme="dark"] .app-sidebar {
-  background: var(--color-bg-page) !important;
-  border-right: 1px solid var(--color-border-extra-light) !important;
-  box-shadow: 2px 0 10px color-mix(in srgb, var(--ds-black) 50%, transparent) !important;
+  background: var(--shell-sidebar-bg) !important;
+  border-right: 1px solid var(--shell-border) !important;
+  box-shadow: 2px 0 10px color-mix(in srgb, var(--ds-black, #000) 50%, transparent) !important;
 }
 
 [data-theme="dark"] .logo-container {
   background: var(--color-bg-base) !important;
-  border-bottom: 1px solid var(--color-border-extra-light) !important;
+  border-bottom: 1px solid var(--shell-border) !important;
 }
 
-[data-theme="dark"] .logo-container .title {
-  color: var(--color-text-primary) !important;
-}
-
-/* 菜单深色化 */
-[data-theme="dark"] .el-menu {
-  background: transparent !important;
-}
-
-/* 侧边栏菜单项默认颜色 - 使用浅灰色确保可见 */
 [data-theme="dark"] .sidebar .el-menu-item,
 [data-theme="dark"] .sidebar .el-sub-menu__title,
 [data-theme="dark"] .app-sidebar .el-menu-item,
 [data-theme="dark"] .app-sidebar .el-sub-menu__title {
-  color: var(--color-text-regular) !important;
-  border-left: 3px solid transparent !important;
-}
-
-/* 侧边栏菜单项文字 */
-[data-theme="dark"] .sidebar .el-menu-item span,
-[data-theme="dark"] .sidebar .el-sub-menu__title span,
-[data-theme="dark"] .app-sidebar .el-menu-item span,
-[data-theme="dark"] .app-sidebar .el-sub-menu__title span {
-  color: var(--color-text-regular) !important;
-}
-
-[data-theme="dark"] .sidebar .el-menu-item:hover,
-[data-theme="dark"] .sidebar .el-sub-menu__title:hover,
-[data-theme="dark"] .app-sidebar .el-menu-item:hover,
-[data-theme="dark"] .app-sidebar .el-sub-menu__title:hover {
-  background: color-mix(in srgb, var(--color-primary) 10%, transparent) !important;
-  border-left-color: var(--color-primary) !important;
-  color: var(--color-primary) !important;
-}
-
-[data-theme="dark"] .sidebar .el-menu-item:hover span,
-[data-theme="dark"] .sidebar .el-sub-menu__title:hover span,
-[data-theme="dark"] .app-sidebar .el-menu-item:hover span,
-[data-theme="dark"] .app-sidebar .el-sub-menu__title:hover span {
-  color: var(--color-primary) !important;
-}
-
-[data-theme="dark"] .sidebar .el-menu-item.is-active,
-[data-theme="dark"] .app-sidebar .el-menu-item.is-active {
-  background: color-mix(in srgb, var(--color-primary) 15%, transparent) !important;
-  border-left-color: var(--color-primary) !important;
-  color: var(--color-primary) !important;
-}
-
-[data-theme="dark"] .sidebar .el-menu-item.is-active span,
-[data-theme="dark"] .app-sidebar .el-menu-item.is-active span {
-  color: var(--color-primary) !important;
+  border-radius: 0 !important;
 }
 
 /* 顶部导航栏深色化 */
@@ -217,7 +184,7 @@
   box-shadow: 0 2px 8px color-mix(in srgb, var(--ds-black) 30%, transparent) !important;
 }
 
-/* 表格深色化 */
+/* 表格密度 → theme-components；深色仅补表面 */
 [data-theme="dark"] .el-table {
   background: var(--color-bg-page) !important;
   border: 1px solid var(--color-border-extra-light) !important;
@@ -244,33 +211,45 @@
   border-color: var(--color-primary) !important;
 }
 
-/* 深色模式加载态：避免 Element Plus 默认白色遮罩在表格/卡片加载时闪白 */
-html.dark[data-theme="dark"] {
-  --el-mask-color: color-mix(in srgb, var(--el-bg-color-page, #141414) 86%, transparent);
-  --el-mask-color-extra-light: color-mix(in srgb, var(--el-bg-color-page, #141414) 72%, transparent);
+/*
+ * 深色模式加载/表格：覆盖 dark / tech / premium（html.dark + data-theme）
+ * 避免仅 data-theme=dark 时 tech/premium 仍闪白遮罩
+ */
+html.dark[data-theme] {
+  --el-mask-color: color-mix(in srgb, var(--color-bg-page) 86%, transparent);
+  --el-mask-color-extra-light: color-mix(in srgb, var(--color-bg-page) 72%, transparent);
 }
 
-html.dark[data-theme="dark"] .el-loading-mask,
-[data-theme="dark"] .el-loading-mask {
-  background-color: color-mix(in srgb, var(--el-bg-color-page, var(--color-bg-page)) 88%, transparent) !important;
+html.dark[data-theme] .el-loading-mask,
+[data-theme="dark"] .el-loading-mask,
+[data-theme="tech"] .el-loading-mask,
+[data-theme="premium"] .el-loading-mask {
+  background-color: color-mix(in srgb, var(--color-bg-page) 88%, transparent) !important;
   backdrop-filter: blur(4px);
 }
 
-html.dark[data-theme="dark"] .el-loading-spinner .circular,
-[data-theme="dark"] .el-loading-spinner .circular {
+html.dark[data-theme] .el-loading-spinner .circular,
+[data-theme="dark"] .el-loading-spinner .circular,
+[data-theme="tech"] .el-loading-spinner .circular,
+[data-theme="premium"] .el-loading-spinner .circular {
   color: var(--color-primary) !important;
 }
 
-html.dark[data-theme="dark"] .el-loading-spinner .path,
-[data-theme="dark"] .el-loading-spinner .path {
+html.dark[data-theme] .el-loading-spinner .path,
+[data-theme="dark"] .el-loading-spinner .path,
+[data-theme="tech"] .el-loading-spinner .path,
+[data-theme="premium"] .el-loading-spinner .path {
   stroke: var(--color-primary) !important;
 }
 
-html.dark[data-theme="dark"] .el-loading-spinner .el-loading-text,
-[data-theme="dark"] .el-loading-spinner .el-loading-text {
+html.dark[data-theme] .el-loading-spinner .el-loading-text,
+[data-theme="dark"] .el-loading-spinner .el-loading-text,
+[data-theme="tech"] .el-loading-spinner .el-loading-text,
+[data-theme="premium"] .el-loading-spinner .el-loading-text {
   color: var(--color-text-secondary) !important;
 }
 
+/* dark 预设表格底（tech/premium 有自己的 token，共享壳用 color-mix 即可） */
 html.dark[data-theme="dark"] .el-table,
 html.dark[data-theme="dark"] .el-table__inner-wrapper,
 html.dark[data-theme="dark"] .el-table__header-wrapper,
@@ -280,38 +259,42 @@ html.dark[data-theme="dark"] .el-table .el-scrollbar__view,
 html.dark[data-theme="dark"] .el-table__empty-block,
 html.dark[data-theme="dark"] .el-table tr,
 html.dark[data-theme="dark"] .el-table td.el-table__cell {
-  background-color: var(--el-bg-color-page, var(--color-bg-page)) !important;
+  background-color: var(--color-bg-page) !important;
 }
 
 html.dark[data-theme="dark"] .el-table th.el-table__cell {
-  background-color: var(--el-bg-color, var(--color-bg-base)) !important;
-  color: var(--el-text-color-primary, var(--color-text-primary)) !important;
+  background-color: var(--color-bg-base) !important;
+  color: var(--color-text-primary) !important;
 }
 
 html.dark[data-theme="dark"] .el-table td.el-table__cell {
-  color: var(--el-text-color-regular, var(--color-text-regular)) !important;
-  border-bottom-color: var(--el-border-color-lighter, var(--color-border-extra-light)) !important;
+  color: var(--color-text-regular) !important;
+  border-bottom-color: var(--color-border-extra-light) !important;
 }
 
-html.dark[data-theme="dark"] .el-table__body tr:hover>td.el-table__cell {
-  background-color: var(--el-fill-color-light, var(--color-bg-hover)) !important;
+html.dark[data-theme="dark"] .el-table__body tr:hover > td.el-table__cell {
+  background-color: var(--color-bg-hover) !important;
 }
 
-html.dark[data-theme="dark"] .el-table__body tr.current-row>td.el-table__cell,
+html.dark[data-theme="dark"] .el-table__body tr.current-row > td.el-table__cell,
 html.dark[data-theme="dark"] .el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
-  background-color: var(--el-fill-color, var(--color-bg-section)) !important;
+  background-color: var(--color-bg-section) !important;
 }
 
 html.dark[data-theme="dark"] .el-table__empty-text,
 html.dark[data-theme="dark"] .el-empty__description {
-  color: var(--el-text-color-secondary, var(--color-text-secondary)) !important;
+  color: var(--color-text-secondary) !important;
 }
 
-html.dark[data-theme="dark"] .el-skeleton__item,
-[data-theme="dark"] .el-skeleton__item {
-  background: linear-gradient(90deg,
-      var(--el-fill-color-dark, var(--color-bg-light)) 25%,
-      var(--el-fill-color, var(--color-bg-hover)) 37%,
-      var(--el-fill-color-dark, var(--color-bg-light)) 63%) !important;
+html.dark[data-theme] .el-skeleton__item,
+[data-theme="dark"] .el-skeleton__item,
+[data-theme="tech"] .el-skeleton__item,
+[data-theme="premium"] .el-skeleton__item {
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-light) 25%,
+    var(--color-bg-hover) 37%,
+    var(--color-bg-light) 63%
+  ) !important;
   background-size: 400% 100% !important;
 }

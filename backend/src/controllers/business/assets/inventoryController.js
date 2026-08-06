@@ -4,6 +4,7 @@ const { logger } = require('../../../utils/logger');
 const { parsePagination } = require('../../../utils/safePagination');
 const assetInventoryModel = require('../../../models/assetInventory');
 const { getCurrentUserName } = require('../../../utils/userHelper');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 
 const INVENTORY_ITEM_STATUS = new Set(['盘点相符', '盘亏', '盘盈', '未盘点']);
 
@@ -92,7 +93,7 @@ const inventoryController = {
                 return ResponseHandler.error(res, '无效的参数', 'VALIDATION_ERROR', 400);
             }
 
-            const { actual_quantity, status, notes } = req.body;
+            const { actual_quantity, status, notes } = mapKeysToSnake(req.body || {});
             if (actual_quantity === undefined || !status) {
                 return ResponseHandler.error(res, '实盘数量和盘点状态为必填项', 'VALIDATION_ERROR', 400);
             }

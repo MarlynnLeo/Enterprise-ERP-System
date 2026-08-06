@@ -28,7 +28,7 @@
         <Search v-model="eqKeyword" placeholder="搜索设备" @search="fetchEquipments" />
         <div v-for="eq in equipments" :key="eq.id" class="eq-item" @click="pickEquipment(eq)">
           <span>{{ eq.name }}</span>
-          <span class="eq-code">{{ eq.code || eq.equipment_code }}</span>
+          <span class="eq-code">{{ eq.equipmentCode }}</span>
         </div>
         <Empty v-if="equipments.length === 0" description="无设备" :image-size="60" />
       </div>

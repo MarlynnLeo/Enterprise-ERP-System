@@ -74,26 +74,26 @@
         class="w-full"
         v-loading="loading"
       >
-        <el-table-column prop="inspection_no" label="检验单号" min-width="140" />
-        <el-table-column prop="reference_no" label="工单号" min-width="150" />
-        <el-table-column prop="process_name" label="工序名称" min-width="150" />
-        <el-table-column prop="product_name" label="产品名称" min-width="180">
+        <el-table-column prop="inspectionNo" label="检验单号" min-width="140" />
+        <el-table-column prop="referenceNo" label="工单号" min-width="150" />
+        <el-table-column prop="processName" label="工序名称" min-width="150" />
+        <el-table-column prop="itemName" label="产品名称" min-width="180">
           <template #default="scope">
-            {{ scope.row.product_name || scope.row.item_name }}
+            {{ scope.row.productName || scope.row.itemName || '-' }}
           </template>
         </el-table-column>
-        <el-table-column prop="batch_no" label="批次号" min-width="190" />
+        <el-table-column prop="batchNo" label="批次号" min-width="190" />
         <el-table-column prop="quantity" label="检验数量" min-width="100">
           <template #default="scope">
             {{ scope.row.quantity }} {{ scope.row.unit }}
           </template>
         </el-table-column>
-        <el-table-column prop="planned_date" label="检验日期" min-width="120">
+        <el-table-column prop="plannedDate" label="检验日期" min-width="120">
           <template #default="scope">
-            {{ formatDate(scope.row.planned_date) }}
+            {{ formatDate(scope.row.plannedDate) }}
           </template>
         </el-table-column>
-        <el-table-column prop="inspector_name" label="检验员" min-width="100" />
+        <el-table-column prop="inspectorName" label="检验员" min-width="100" />
         <el-table-column prop="status" label="检验状态" min-width="100">
           <template #default="scope">
             <el-tag :type="getStatusType(scope.row.status)">
@@ -110,7 +110,7 @@
               查看
             </el-button>
             <el-button
-              v-if="!['passed', 'failed', 'partial', 'conditional'].includes(scope.row.status) && !['completed', 'warehousing'].includes(scope.row.task_status) && canInspect"
+              v-if="!['passed', 'failed', 'partial', 'conditional'].includes(scope.row.status) && !['completed', 'warehousing'].includes(scope.row.taskStatus) && canInspect"
               size="small"
               type="warning"
               @click="handlePunchIn(scope.row)"
@@ -118,7 +118,7 @@
               巡检
             </el-button>
             <el-button
-              v-if="scope.row.status === 'pending' && (scope.row.punch_count || 0) >= 1 && canInspect"
+              v-if="scope.row.status === 'pending' && (scope.row.punchCount || 0) >= 1 && canInspect"
               size="small"
               type="success"
               @click="handleJudge(scope.row)"
@@ -163,17 +163,17 @@
     </el-card>
 
     <!-- 新建检验单弹窗 -->
-    <el-dialog
+    <AppDialog
       v-model="createDialogVisible"
       title="新建过程检验单"
+      mode="form"
       width="650px"
-      destroy-on-close
     >
       <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
-        <el-form-item label="采购单号" prop="purchaseOrderNo">
+        <el-form-item label="生产工单" prop="productionOrderNo">
           <el-select
-            v-model="form.purchaseOrderNo"
-            placeholder="选择采购单号"
+            v-model="form.productionOrderNo"
+            placeholder="选择生产工单"
             filterable
             :loading="orderLoading"
             :remote-method="fetchPurchaseOrders"
@@ -186,7 +186,7 @@
               :value="order.orderNo"
             />
             <template #empty>
-              <el-empty description="暂无采购单数据" />
+              <EmptyState description="暂无生产工单数据" />
             </template>
           </el-select>
         </el-form-item>
@@ -243,7 +243,7 @@
           <el-button v-permission="'quality:inspections:create'" type="primary" @click="submitForm">确认</el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
 
     <!-- 查看检验单详情弹窗 -->
     <AppDialog
@@ -255,18 +255,18 @@
       <div v-loading="viewLoading" class="detail-container">
         <!-- 基本信息 -->
         <el-descriptions title="基本信息" :column="2" border>
-          <el-descriptions-item label="检验单号">{{ viewData.inspection_no }}</el-descriptions-item>
-          <el-descriptions-item label="工单号">{{ viewData.reference_no }}</el-descriptions-item>
-          <el-descriptions-item label="产品名称">{{ viewData.product_name || viewData.item_name }}</el-descriptions-item>
-          <el-descriptions-item label="工序名称">{{ viewData.process_name }}</el-descriptions-item>
+          <el-descriptions-item label="检验单号">{{ viewData.inspectionNo }}</el-descriptions-item>
+          <el-descriptions-item label="工单号">{{ viewData.referenceNo }}</el-descriptions-item>
+          <el-descriptions-item label="产品名称">{{ viewData.productName || viewData.itemName || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="工序名称">{{ viewData.processName || '-' }}</el-descriptions-item>
           <el-descriptions-item label="检验数量">{{ viewData.quantity }} {{ viewData.unit }}</el-descriptions-item>
           <el-descriptions-item label="计划日期">
-            {{ viewData.planned_date ? dayjs(viewData.planned_date).format('YYYY-MM-DD') : '-' }}
+            {{ viewData.plannedDate ? dayjs(viewData.plannedDate).format('YYYY-MM-DD') : '-' }}
           </el-descriptions-item>
           <el-descriptions-item label="巡检次数">
-            <el-tag type="success">{{ viewData.punch_count || 0 }}次</el-tag>
+            <el-tag type="success">{{ viewData.punchCount || 0 }}次</el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="检验员">{{ viewData.inspector_name || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="检验员">{{ viewData.inspectorName || '-' }}</el-descriptions-item>
         </el-descriptions>
 
         <!-- 打卡记录 -->
@@ -276,17 +276,17 @@
             <el-timeline-item
               v-for="(record, index) in punchRecords"
               :key="index"
-              :timestamp="dayjs(record.punch_time).format('YYYY-MM-DD HH:mm:ss')"
+              :timestamp="dayjs(record.punchTime).format('YYYY-MM-DD HH:mm:ss')"
               placement="top"
-              :type="record.punch_type === 'patrol' ? 'warning' : 'primary'"
+              :type="record.punchType === 'patrol' ? 'warning' : 'primary'"
             >
               <el-card>
-                <h4>{{ record.inspector_name }} - {{ record.punch_type === 'patrol' ? '巡检打卡' : '开始检验' }}</h4>
+                <h4>{{ record.inspectorName }} - {{ record.punchType === 'patrol' ? '巡检打卡' : '开始检验' }}</h4>
                 <p v-if="record.remark">{{ record.remark }}</p>
               </el-card>
             </el-timeline-item>
           </el-timeline>
-          <el-empty v-else description="暂无打卡记录" />
+          <EmptyState v-else description="暂无打卡记录" />
         </div>
       </div>
     </AppDialog>
@@ -457,15 +457,15 @@ const fetchPurchaseOrders = async (query = '') => {
     const tasksData = parseResponseData(tasksResponse, {})
     const tasksList = tasksData.list || tasksData.rows || tasksData.items || []
 
-    // 转换为工单选项格式
+    // 转换为工单选项格式（camel SSOT）
     purchaseOrderOptions.value = tasksList.map(task => ({
       id: task.id,
-      order_no: task.code || task.task_no || task.order_no,
-      product_id: task.product_id,
-      product_name: task.product_name || task.productName,
-      product_code: task.product_code || task.productCode,
-      unit: task.unit || task.unit_name || task.unitName,
-      unit_id: task.unit_id || task.unitId
+      orderNo: task.code || task.taskCode || task.orderNo,
+      productId: task.productId,
+      productName: task.productName,
+      productCode: task.productCode,
+      unit: task.unit || task.unitName,
+      unitId: task.unitId
     }))
 
     // 获取工序数据
@@ -491,28 +491,29 @@ const allProcesses = ref([])
 
 // 根据生产工单获取工序选项
 const handleOrderChange = (orderNo) => {
-  const order = purchaseOrderOptions.value.find(item => item.order_no === orderNo)
+  const order = purchaseOrderOptions.value.find(item => item.orderNo === orderNo)
   if (order) {
-    form.productName = order.product_name
+    form.productName = order.productName
     form.unit = order.unit
 
     // 根据产品ID筛选工序
-    if (order.product_id && allProcesses.value.length > 0) {
+    if (order.productId && allProcesses.value.length > 0) {
       processOptions.value = allProcesses.value.filter(
-        process => (process.product_id === order.product_id) || (process.task_id && process.task_id === order.id)
+        process => (process.productId === order.productId || process.productId === order.productId)
+          || ((process.taskId) && (process.taskId) === order.id)
       ).map(process => ({
-        id: process.id || process.process_id,
-        name: process.process_name || process.name,
-        task_id: process.task_id,
-        product_id: process.product_id
+        id: process.id || process.processId,
+        name: process.processName || process.name,
+        taskId: process.taskId,
+        productId: process.productId
       }))
     } else {
       // 如果没有工序数据，显示所有工序
       processOptions.value = allProcesses.value.map(process => ({
-        id: process.id || process.process_id,
-        name: process.process_name || process.name,
-        task_id: process.task_id,
-        product_id: process.product_id
+        id: process.id || process.processId,
+        name: process.processName || process.name,
+        taskId: process.taskId,
+        productId: process.productId
       }))
     }
   }
@@ -591,26 +592,26 @@ const submitForm = async () => {
   try {
     await formRef.value.validate()
 
-    const selectedOrder = purchaseOrderOptions.value.find(item => item.order_no === form.productionOrderNo)
+    const selectedOrder = purchaseOrderOptions.value.find(item => item.orderNo === form.productionOrderNo)
     const selectedProcess = processOptions.value.find(p => p.id === form.processId)
 
-    // 构建提交数据
+    // 构建提交数据（纯 camel，后端 qualityInspectionMap.fromApi）
     const submitData = {
-      inspection_type: 'process',
-      reference_id: selectedOrder?.id || null,
-      reference_no: form.productionOrderNo,
-      task_id: selectedOrder?.id || null,
-      product_id: selectedOrder?.product_id || null,
-      product_code: selectedOrder?.product_code || '',
-      batch_no: form.batchNo,
-      product_name: form.productName,
+      inspectionType: 'process',
+      referenceId: selectedOrder?.id || null,
+      referenceNo: form.productionOrderNo,
+      taskId: selectedOrder?.id || null,
+      productId: selectedOrder?.productId || null,
+      productCode: selectedOrder?.productCode || '',
+      batchNo: form.batchNo,
+      productName: form.productName,
       quantity: form.quantity,
       unit: form.unit,
-      unit_id: selectedOrder?.unit_id || null,
-      planned_date: form.plannedDate,
-      process_id: selectedProcess?.id || null,
-      process_name: selectedProcess?.name || '',
-      remark: form.remark
+      unitId: selectedOrder?.unitId || null,
+      plannedDate: form.plannedDate,
+      processId: selectedProcess?.id || null,
+      processName: selectedProcess?.name || '',
+      note: form.remark || form.note
     }
 
     await qualityApi.createProcessInspection(submitData)
@@ -653,8 +654,8 @@ const handleView = async (row) => {
 const handlePunchIn = async (row) => {
   try {
     await qualityApi.punchProcessInspection(row.id, {
-      inspector_id: authStore.userId,
-      inspector_name: authStore.realName || authStore.username
+      inspectorId: authStore.userId,
+      inspectorName: authStore.realName || authStore.username
       // punch_time removed: backend uses NOW()
     })
     ElMessage.success('打卡成功')
@@ -676,7 +677,7 @@ const handleJudge = async (row) => {
   try {
     const { ElMessageBox } = await import('element-plus')
     const { value: result } = await ElMessageBox.confirm(
-      `检验单 ${row.inspection_no} 已巡检 ${row.punch_count || 0} 次，请判定结果：\n（将同步把所有检验项目判定为相同结果）`,
+      `检验单 ${row.inspectionNo} 已巡检 ${row.punchCount || 0} 次，请判定结果：\n（将同步把所有检验项目判定为相同结果）`,
       '过程检验判定',
       {
         distinguishCancelAndClose: true,
@@ -693,12 +694,12 @@ const handleJudge = async (row) => {
      })
 
     // 后端关闭检验单要求每个检验项目都有 result；快捷判定时一并提交项目结果
-    let items = Array.isArray(row.items) ? row.items : (Array.isArray(row.inspection_items) ? row.inspection_items : [])
+    let items = Array.isArray(row.items) ? row.items : []
     if (!items.length) {
       try {
         const detailRes = await qualityApi.getProcessInspection(row.id)
         const detail = detailRes?.data || detailRes || {}
-        items = detail.items || detail.inspection_items || detail.inspectionItems || []
+        items = detail.items || []
       } catch (detailErr) {
         console.warn('获取检验项目失败，将仅提交状态:', detailErr)
       }
@@ -712,29 +713,29 @@ const handleJudge = async (row) => {
     const itemResult = result === 'passed' ? 'passed' : 'failed'
     const payloadItems = items.map((item) => ({
       id: item.id,
-      item_name: item.item_name || item.name || '检验项',
+      itemName: item.itemName || item.name || '检验项',
       standard: item.standard || item.specification || '',
       type: item.type || 'other',
-      is_critical: item.is_critical === true || item.is_critical === 1 ? 1 : 0,
+      isCritical: item.isCritical === true || item.isCritical === 1 ? true : false,
       result: itemResult,
-      actual_value: item.actual_value ?? item.measured_value ?? item.measuredValue ?? null,
-      dimension_value: item.dimension_value ?? null,
-      tolerance_upper: item.tolerance_upper ?? null,
-      tolerance_lower: item.tolerance_lower ?? null,
-      measure_1: item.measure_1 ?? null,
-      measure_2: item.measure_2 ?? null,
-      measure_3: item.measure_3 ?? null,
-      measure_4: item.measure_4 ?? null,
-      measure_5: item.measure_5 ?? null,
-      measure_6: item.measure_6 ?? null,
-      remark: item.remark || item.remarks || (result === 'passed' ? '快捷判定合格' : '快捷判定不合格'),
+      actualValue: item.actualValue ?? item.measuredValue ?? null,
+      dimensionValue: item.dimensionValue ?? null,
+      toleranceUpper: item.toleranceUpper ?? null,
+      toleranceLower: item.toleranceLower ?? null,
+      measure1: item.measure1 ?? null,
+      measure2: item.measure2 ?? null,
+      measure3: item.measure3 ?? null,
+      measure4: item.measure4 ?? null,
+      measure5: item.measure5 ?? null,
+      measure6: item.measure6 ?? null,
+      remarks: item.remarks || item.remark || (result === 'passed' ? '快捷判定合格' : '快捷判定不合格'),
     }))
 
     await qualityApi.updateProcessInspection(row.id, {
       status: result,
-      inspector_id: authStore.userId,
-      inspector_name: authStore.realName || authStore.username,
-      actual_date: dayjs().format('YYYY-MM-DD'),
+      inspectorId: authStore.userId,
+      inspectorName: authStore.realName || authStore.username,
+      actualDate: dayjs().format('YYYY-MM-DD'),
       items: payloadItems,
     })
 
@@ -768,38 +769,43 @@ const handleRework = (row) => {
 // 打印报告
 const handlePrint = async (row) => {
   try {
-    // 准备打印数据
+    // 业务 camel；printService 自动展开 snake 模板占位
+    const inspectionNo = row.inspectionNo || '-'
+    const plannedDate = row.plannedDate ? dayjs(row.plannedDate).format('YYYY-MM-DD') : '-'
+    const inspectionDate = row.actualDate ? dayjs(row.actualDate).format('YYYY-MM-DD') : '-'
     const printData = {
-      inspection_no: row.inspection_no || row.inspectionNo || '-',
-      reference_no: row.reference_no || row.productionOrderNo || '-',
-      process_name: row.process_name || row.processName || '-',
-      product_name: row.product_name || row.productName || row.item_name || '-',
-      batch_no: row.batch_no || row.batchNo || '-',
+      inspectionNo,
+      referenceNo: row.referenceNo || row.productionOrderNo || '-',
+      processName: row.processName || '-',
+      productName: row.productName || row.itemName || '-',
+      batchNo: row.batchNo || '-',
       quantity: row.quantity || 0,
       unit: row.unit || '',
-      planned_date: row.planned_date ? dayjs(row.planned_date).format('YYYY-MM-DD') : '-',
-      inspection_date: row.inspection_date ? dayjs(row.inspection_date).format('YYYY-MM-DD') : '-',
-      inspector_name: row.inspector_name || '-',
+      plannedDate,
+      inspectionDate,
+      inspectorName: row.inspectorName || '-',
       status: getStatusText(row.status),
-      punch_count: row.punch_count || 0,
-      remark: row.remark || '',
-      print_date: new Date().toLocaleDateString(),
-      print_time: new Date().toLocaleTimeString()
+      punchCount: row.punchCount || 0,
+      remarks: row.note || row.remarks || '',
+      remark: row.note || row.remarks || '',
+      printDate: new Date().toLocaleDateString(),
+      printTime: new Date().toLocaleTimeString()
     }
 
     const html = await printService.generateByDefaultTemplate('quality', 'process_inspection', {
       ...printData,
-      document_no: printData.inspection_no,
-      date: printData.inspection_date !== '-' ? printData.inspection_date : printData.planned_date,
-      items: (row.items || row.inspection_items || []).map((item, index) => ({
+      documentNo: inspectionNo,
+      date: inspectionDate !== '-' ? inspectionDate : plannedDate,
+      items: (row.items || []).map((item, index) => ({
         index: index + 1,
-        item_code: item.item_code || item.code || '',
-        item_name: item.item_name || item.name || '-',
+        itemCode: item.itemCode || item.code || '',
+        itemName: item.itemName || item.name || '-',
         specification: item.standard || item.specification || '',
-        quantity: item.actual_value || item.quantity || '',
-        unit_name: item.unit || '',
+        quantity: item.actualValue || item.quantity || '',
+        unitName: item.unit || '',
         result: item.result || item.status || '',
-        remark: item.remark || item.remarks || ''
+        remarks: item.remarks || item.remark || '',
+        remark: item.remarks || item.remark || ''
       }))
     })
 

@@ -5,6 +5,7 @@
 
 const { logger } = require('../../../utils/logger');
 const { ResponseHandler } = require('../../../utils/responseHandler');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 const db = require('../../../config/db');
 const pool = db.pool;
 const QualityIntegrationService = require('../../../services/business/QualityIntegrationService');
@@ -246,7 +247,7 @@ const updateReworkTask = async (req, res) => {
     await connection.beginTransaction();
 
     const { id } = req.params;
-    const { rework_instructions, planned_date, rework_cost } = req.body;
+    const { rework_instructions, planned_date, rework_cost } = mapKeysToSnake(req.body || {});
 
     // 检查返工任务是否存在
     const [checkResult] = await connection.query('SELECT status FROM rework_tasks WHERE id = ? FOR UPDATE', [
@@ -294,7 +295,7 @@ const assignTask = async (req, res) => {
     await connection.beginTransaction();
 
     const { id } = req.params;
-    const { assigned_to } = req.body;
+    const { assigned_to } = mapKeysToSnake(req.body || {});
 
     // 检查返工任务是否存在
     const [checkResult] = await connection.query('SELECT status FROM rework_tasks WHERE id = ? FOR UPDATE', [
@@ -342,7 +343,7 @@ const completeTask = async (req, res) => {
     await connection.beginTransaction();
 
     const { id } = req.params;
-    const { actual_date, rework_cost } = req.body;
+    const { actual_date, rework_cost } = mapKeysToSnake(req.body || {});
 
     // 获取返工任务信息 (带上ncp单等信息以便复检使用)
     const [tasks] = await connection.query(`
@@ -691,8 +692,11 @@ const getReworkStatusByInspectionId = async (req, res) => {
 
 const getReworkStatusByInspectionIds = async (req, res) => {
   try {
-    const inspectionIds = Array.isArray(req.body?.inspection_ids)
-      ? req.body.inspection_ids.map((id) => parseInt(id, 10)).filter(Boolean)
+    const bodyIn = mapKeysToSnake(req.body || {});
+    const inspectionIds = Array.isArray(bodyIn.inspection_ids)
+      ? bodyIn.inspection_ids.map((id) => parseInt(id, 10)).filter(Boolean)
+      : Array.isArray(req.body?.inspectionIds)
+      ? req.body.inspectionIds.map((id) => parseInt(id, 10)).filter(Boolean)
       : [];
     const uniqueIds = [...new Set(inspectionIds)];
 

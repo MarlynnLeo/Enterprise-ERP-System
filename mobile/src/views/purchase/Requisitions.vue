@@ -60,26 +60,26 @@
           >
             <div>
               <div class="list-header">
-                <span class="list-id">{{ requisition.requisition_number }}</span>
+                <span class="list-id">{{ requisition.requisitionNumber || requisition.requisitionCode }}</span>
                 <Tag :type="getRequisitionStatusType(requisition.status)" size="medium">
                   {{ getRequisitionStatusText(requisition.status) }}
                 </Tag>
               </div>
 
-              <div class="list-title">申请人: {{ requisition.real_name }}</div>
+              <div class="list-title">申请人: {{ requisition.requesterName || requisition.realName || requisition.requester }}</div>
 
               <div class="list-details">
                 <div class="list-row">
                   <span class="label">申请日期:</span>
-                  <span class="value">{{ formatDate(requisition.request_date) }}</span>
+                  <span class="value">{{ formatDate(requisition.requestDate) }}</span>
                 </div>
-                <div class="list-row" v-if="requisition.materials_count">
+                <div class="list-row" v-if="requisition.materialsCount">
                   <span class="label">物料数量:</span>
-                  <span class="value">{{ requisition.materials_count }} 项</span>
+                  <span class="value">{{ requisition.materialsCount }} 项</span>
                 </div>
-                <div class="list-row" v-if="requisition.total_amount">
+                <div class="list-row" v-if="requisition.totalAmount">
                   <span class="label">预估金额:</span>
-                  <span class="value amount">¥{{ formatAmount(requisition.total_amount) }}</span>
+                  <span class="value amount">¥{{ formatAmount(requisition.totalAmount) }}</span>
                 </div>
                 <div class="list-row" v-if="requisition.remarks">
                   <span class="label">备注:</span>

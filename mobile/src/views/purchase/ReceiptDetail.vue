@@ -20,10 +20,10 @@
                     </div>
                     <div class="status-info">
                         <h2 class="status-text">{{ getStatusText(receiptOrder.status) }}</h2>
-                        <p class="order-code">{{ receiptOrder.receipt_no }}</p>
+                        <p class="order-code">{{ receiptOrder.receiptNo }}</p>
                     </div>
                     <div class="status-date">
-                        {{ formatDate(receiptOrder.created_at) }}
+                        {{ formatDate(receiptOrder.createdAt) }}
                     </div>
                 </div>
             </div>
@@ -33,27 +33,27 @@
             <div class="detail-card info-card">
                 <div class="info-row">
                     <span class="info-label">关联订单</span>
-                    <span class="info-value">{{ receiptOrder.order_no || '-' }}</span>
+                    <span class="info-value">{{ receiptOrder.orderNo || '-' }}</span>
                 </div>
                 <div class="info-row">
                     <span class="info-label">供应商</span>
-                    <span class="info-value">{{ receiptOrder.supplier_name }}</span>
+                    <span class="info-value">{{ receiptOrder.supplierName }}</span>
                 </div>
                 <div class="info-row">
                     <span class="info-label">入库日期</span>
-                    <span class="info-value">{{ formatDate(receiptOrder.receipt_date, 'YYYY-MM-DD') || '-' }}</span>
+                    <span class="info-value">{{ formatDate(receiptOrder.receiptDate, 'YYYY-MM-DD') || '-' }}</span>
                 </div>
                 <div class="info-row">
                     <span class="info-label">收货人</span>
                     <span class="info-value">{{ receiptOrder.receiver || receiptOrder.operator || '-' }}</span>
                 </div>
-                <div class="info-row" v-if="receiptOrder.warehouse_name">
+                <div class="info-row" v-if="receiptOrder.warehouseName">
                     <span class="info-label">入库仓库</span>
-                    <span class="info-value">{{ receiptOrder.warehouse_name }}</span>
+                    <span class="info-value">{{ receiptOrder.warehouseName }}</span>
                 </div>
-                <div class="info-row" v-if="receiptOrder.remarks || receiptOrder.remark">
+                <div class="info-row" v-if="receiptOrder.remarks">
                     <span class="info-label">备注</span>
-                    <span class="info-value">{{ receiptOrder.remarks || receiptOrder.remark }}</span>
+                    <span class="info-value">{{ receiptOrder.remarks }}</span>
                 </div>
             </div>
 
@@ -62,37 +62,37 @@
             <div class="items-list">
                 <div class="basic-list-item" v-for="item in receiptOrder.items" :key="item.id">
                     <div class="item-title-row">
-                        <div class="item-title">{{ item.material_name }}</div>
-                        <div class="item-subtitle">{{ `SKU: ${item.material_code}` || '' }}</div>
+                        <div class="item-title">{{ item.materialName }}</div>
+                        <div class="item-subtitle">{{ item.materialCode ? `SKU: ${item.materialCode}` : '' }}</div>
                     </div>
                     <div class="item-details">
                         <div class="detail-row">
                             <span class="detail-label">订单数量:</span>
-                            <span class="detail-value">{{ item.ordered_quantity || 0 }} {{ item.unit_name }}</span>
+                            <span class="detail-value">{{ item.orderedQuantity || item.quantity || 0 }} {{ item.unitName || '' }}</span>
                         </div>
                         <div class="detail-row">
                             <span class="detail-label">实收数量:</span>
-                            <span class="detail-value highlight">{{ item.received_quantity || '-' }} {{ item.unit_name }}</span>
+                            <span class="detail-value highlight">{{ item.quantity || item.receivedQuantity || '-' }} {{ item.unitName || '' }}</span>
                         </div>
-                        <div class="detail-row" v-if="item.batch_no || item.batch_number">
+                        <div class="detail-row" v-if="item.batchNo">
                             <span class="detail-label">批次号:</span>
-                            <span class="detail-value">{{ item.batch_no || item.batch_number }}</span>
+                            <span class="detail-value">{{ item.batchNo }}</span>
                         </div>
-                        <div class="detail-row" v-if="item.qualified_quantity != null">
+                        <div class="detail-row" v-if="item.qualifiedQuantity != null">
                             <span class="detail-label">合格数量:</span>
-                            <span class="detail-value">{{ item.qualified_quantity }} {{ item.unit_name }}</span>
+                            <span class="detail-value">{{ item.qualifiedQuantity }} {{ item.unitName || '' }}</span>
                         </div>
-                        <div class="detail-row" v-if="item.specification || item.specs">
+                        <div class="detail-row" v-if="item.specification">
                             <span class="detail-label">规格:</span>
-                            <span class="detail-value">{{ item.specification || item.specs }}</span>
+                            <span class="detail-value">{{ item.specification }}</span>
                         </div>
-                        <div class="detail-row" v-if="item.price > 0">
+                        <div class="detail-row" v-if="item.unitPrice > 0 || item.price > 0">
                             <span class="detail-label">单价:</span>
-                            <span class="detail-value">¥{{ parseFloat(item.price).toFixed(2) }}</span>
+                            <span class="detail-value">¥{{ parseFloat(item.unitPrice || item.price).toFixed(2) }}</span>
                         </div>
-                        <div class="detail-row" v-if="item.warehouse_name">
+                        <div class="detail-row" v-if="item.warehouseName">
                             <span class="detail-label">入库仓库:</span>
-                            <span class="detail-value">{{ item.warehouse_name }}</span>
+                            <span class="detail-value">{{ item.warehouseName }}</span>
                         </div>
                     </div>
                 </div>

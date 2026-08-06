@@ -30,10 +30,10 @@
                     </div>
                     <div class="status-info">
                         <h2 class="status-text">{{ getStatusText(inboundOrder.status) }}</h2>
-                        <p class="order-code">{{ inboundOrder.inbound_no }}</p>
+                        <p class="order-code">{{ inboundOrder.inboundNo }}</p>
                     </div>
                     <div class="status-date">
-                        {{ formatDate(inboundOrder.created_at) }}
+                        {{ formatDate(inboundOrder.createdAt) }}
                     </div>
                 </div>
             </div>
@@ -43,35 +43,35 @@
             <div class="detail-card info-card">
                 <div class="info-row">
                     <span class="info-label">入库类型</span>
-                    <span class="info-value">{{ getInboundType(inboundOrder.inbound_type) }}</span>
+                    <span class="info-value">{{ getInboundType(inboundOrder.inboundType) }}</span>
                 </div>
                 <div class="info-row">
                     <span class="info-label">入库日期</span>
-                    <span class="info-value">{{ formatDate(inboundOrder.inbound_date, 'YYYY-MM-DD') }}</span>
+                    <span class="info-value">{{ formatDate(inboundOrder.inboundDate, 'YYYY-MM-DD') }}</span>
                 </div>
-                <div class="info-row" v-if="inboundOrder.reference_no">
+                <div class="info-row" v-if="inboundOrder.referenceNo">
                     <span class="info-label">关联单号</span>
-                    <span class="info-value accent">{{ inboundOrder.reference_no }}</span>
+                    <span class="info-value accent">{{ inboundOrder.referenceNo }}</span>
                 </div>
-                <div class="info-row" v-if="inboundOrder.location_name">
+                <div class="info-row" v-if="inboundOrder.locationName">
                     <span class="info-label">入库仓位</span>
-                    <span class="info-value">{{ inboundOrder.location_name }}</span>
+                    <span class="info-value">{{ inboundOrder.locationName }}</span>
                 </div>
-                <div class="info-row" v-if="inboundOrder.supplier_name">
+                <div class="info-row" v-if="inboundOrder.supplierName">
                     <span class="info-label">供应商</span>
-                    <span class="info-value">{{ inboundOrder.supplier_name }}</span>
+                    <span class="info-value">{{ inboundOrder.supplierName }}</span>
                 </div>
                 <div class="info-row">
                     <span class="info-label">经办人</span>
-                    <span class="info-value">{{ inboundOrder.operator || '-' }}</span>
+                    <span class="info-value">{{ inboundOrder.operatorName || inboundOrder.operator || '-' }}</span>
                 </div>
-                <div class="info-row" v-if="inboundOrder.inspection_no">
+                <div class="info-row" v-if="inboundOrder.inspectionNo">
                     <span class="info-label">质检单号</span>
-                    <span class="info-value accent">{{ inboundOrder.inspection_no }}</span>
+                    <span class="info-value accent">{{ inboundOrder.inspectionNo }}</span>
                 </div>
-                <div class="info-row" v-if="inboundOrder.remark">
+                <div class="info-row" v-if="inboundOrder.remarks">
                     <span class="info-label">备注</span>
-                    <span class="info-value">{{ inboundOrder.remark }}</span>
+                    <span class="info-value">{{ inboundOrder.remarks }}</span>
                 </div>
             </div>
 
@@ -80,8 +80,8 @@
             <div class="items-list">
                 <div class="basic-list-item" v-for="item in inboundOrder.items" :key="item.id">
                     <div class="item-title-row">
-                        <div class="item-title">{{ item.material_name }}</div>
-                        <div class="item-subtitle">SKU: {{ item.material_code }}</div>
+                        <div class="item-title">{{ item.materialName }}</div>
+                        <div class="item-subtitle">SKU: {{ item.materialCode }}</div>
                     </div>
                     <div class="item-details">
                         <div class="detail-row" v-if="item.specification">
@@ -90,19 +90,19 @@
                         </div>
                         <div class="detail-row">
                             <span class="detail-label">计划数量:</span>
-                            <span class="detail-value">{{ item.planned_quantity || item.plan_quantity }} {{ item.unit_name }}</span>
+                            <span class="detail-value">{{ item.plannedQuantity || item.quantity }} {{ item.unitName }}</span>
                         </div>
                         <div class="detail-row">
                             <span class="detail-label">实际数量:</span>
-                            <span class="detail-value highlight">{{ item.actual_quantity || item.quantity || '-' }} {{ item.unit_name }}</span>
+                            <span class="detail-value highlight">{{ item.actualQuantity || item.quantity || '-' }} {{ item.unitName }}</span>
                         </div>
-                        <div class="detail-row" v-if="item.batch_no || item.batch_number">
+                        <div class="detail-row" v-if="item.batchNo">
                             <span class="detail-label">批次号:</span>
-                            <span class="detail-value">{{ item.batch_no || item.batch_number }}</span>
+                            <span class="detail-value">{{ item.batchNo }}</span>
                         </div>
-                        <div class="detail-row" v-if="item.location_name">
+                        <div class="detail-row" v-if="item.locationName">
                             <span class="detail-label">库位:</span>
-                            <span class="detail-value">{{ item.location_name }}</span>
+                            <span class="detail-value">{{ item.locationName }}</span>
                         </div>
                     </div>
                 </div>
@@ -240,7 +240,7 @@ const handleConfirm = async () => {
     try {
         await showConfirmDialog({
             title: '确认入库',
-            message: `确定要确认入库单 ${inboundOrder.value.inbound_no} 吗？`
+            message: `确定要确认入库单 ${inboundOrder.value.inboundNo} 吗？`
         })
 
         submitting.value = true
@@ -266,7 +266,7 @@ const handleComplete = async () => {
     try {
         await showConfirmDialog({
             title: '完成入库',
-            message: `确定要完成入库单 ${inboundOrder.value.inbound_no} 吗？\n库存数量将相应增加。`
+            message: `确定要完成入库单 ${inboundOrder.value.inboundNo} 吗？\n库存数量将相应增加。`
         })
 
         submitting.value = true
@@ -292,7 +292,7 @@ const handleCancel = async () => {
     try {
         await showConfirmDialog({
             title: '取消确认',
-            message: `确定要取消入库单 ${inboundOrder.value.inbound_no} 吗？`
+            message: `确定要取消入库单 ${inboundOrder.value.inboundNo} 吗？`
         })
 
         submitting.value = true

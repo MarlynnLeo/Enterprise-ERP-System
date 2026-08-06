@@ -35,14 +35,14 @@
       <!-- 表格 -->
       <el-table v-loading="loading" :data="tableData" border class="w-full"
         :row-class-name="tableRowClassName" @row-click="handleRowClick">
-        <el-table-column prop="supplier_name" label="供应商" width="300" show-overflow-tooltip />
+        <el-table-column prop="supplierName" label="供应商" width="300" show-overflow-tooltip />
         <el-table-column prop="period" label="月份" width="100" />
         <el-table-column label="来料质量">
-          <el-table-column prop="total_lots" label="批次数" width="100" />
-          <el-table-column prop="lot_accept_rate" label="合格率(%)" width="100">
+          <el-table-column prop="totalLots" label="批次数" width="100" />
+          <el-table-column prop="lotAcceptRate" label="合格率(%)" width="100">
             <template #default="scope">
-              <span :class="acceptRateClass(scope.row.lot_accept_rate)">
-                {{ scope.row.lot_accept_rate }}%
+              <span :class="acceptRateClass(scope.row.lotAcceptRate)">
+                {{ scope.row.lotAcceptRate }}%
               </span>
             </template>
           </el-table-column>
@@ -55,30 +55,30 @@
           </el-table-column>
         </el-table-column>
         <el-table-column label="交付">
-          <el-table-column prop="delivery_rate" label="准时率(%)" width="135">
+          <el-table-column prop="deliveryRate" label="准时率(%)" width="135">
             <template #default="scope">
-              <span class="font-weight-700">{{ scope.row.delivery_rate }}%</span>
+              <span class="font-weight-700">{{ scope.row.deliveryRate }}%</span>
             </template>
           </el-table-column>
         </el-table-column>
         <el-table-column label="8D 响应">
-          <el-table-column prop="total_8d_reports" label="报告数" width="100" />
-          <el-table-column prop="avg_8d_days" label="平均天数" width="100" />
+          <el-table-column prop="total8dReports" label="报告数" width="100" />
+          <el-table-column prop="avg8dDays" label="平均天数" width="100" />
         </el-table-column>
         <el-table-column label="综合得分">
-          <el-table-column prop="quality_score" label="质量(60%)" width="100">
-            <template #default="scope">{{ scope.row.quality_score }}</template>
+          <el-table-column prop="qualityScore" label="质量(60%)" width="100">
+            <template #default="scope">{{ scope.row.qualityScore }}</template>
           </el-table-column>
-          <el-table-column prop="delivery_score" label="交付(25%)" width="100">
-            <template #default="scope">{{ scope.row.delivery_score }}</template>
+          <el-table-column prop="deliveryScore" label="交付(25%)" width="100">
+            <template #default="scope">{{ scope.row.deliveryScore }}</template>
           </el-table-column>
-          <el-table-column prop="response_score" label="响应(15%)" width="100">
-            <template #default="scope">{{ scope.row.response_score }}</template>
+          <el-table-column prop="responseScore" label="响应(15%)" width="100">
+            <template #default="scope">{{ scope.row.responseScore }}</template>
           </el-table-column>
-          <el-table-column prop="total_score" label="总分" width="100">
+          <el-table-column prop="totalScore" label="总分" width="100">
             <template #default="scope">
               <span class="score-grade" :class="gradeClass(scope.row.grade)">
-                {{ scope.row.total_score }}
+                {{ scope.row.totalScore }}
               </span>
             </template>
           </el-table-column>
@@ -101,7 +101,12 @@
     </el-card>
 
     <!-- 排名弹窗 -->
-    <el-dialog v-model="rankingVisible" :title="`${selectedPeriod || '当月'} 供应商质量排名`" width="700px">
+    <AppDialog
+      v-model="rankingVisible"
+      :title="`${selectedPeriod || '当月'} 供应商质量排名`"
+      mode="form"
+      width="700px"
+    >
       <el-table :data="rankingData" border>
         <el-table-column prop="ranking" label="排名" width="70">
           <template #default="scope">
@@ -110,10 +115,10 @@
             </span>
           </template>
         </el-table-column>
-        <el-table-column prop="supplier_name" label="供应商" />
-        <el-table-column prop="total_score" label="综合得分" width="100" sortable>
+        <el-table-column prop="supplierName" label="供应商" />
+        <el-table-column prop="totalScore" label="综合得分" width="100" sortable>
           <template #default="scope">
-            <span class="font-weight-700" :class="gradeClass(scope.row.grade)">{{ scope.row.total_score }}</span>
+            <span class="font-weight-700" :class="gradeClass(scope.row.grade)">{{ scope.row.totalScore }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="grade" label="等级" width="80">
@@ -121,25 +126,30 @@
             <el-tag :type="gradeType(scope.row.grade)" effect="dark">{{ scope.row.grade }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="lot_accept_rate" label="来料合格率" width="110">
-          <template #default="scope">{{ scope.row.lot_accept_rate }}%</template>
+        <el-table-column prop="lotAcceptRate" label="来料合格率" width="110">
+          <template #default="scope">{{ scope.row.lotAcceptRate }}%</template>
         </el-table-column>
-        <el-table-column prop="delivery_rate" label="准时交货" width="100">
-          <template #default="scope">{{ scope.row.delivery_rate }}%</template>
+        <el-table-column prop="deliveryRate" label="准时交货" width="100">
+          <template #default="scope">{{ scope.row.deliveryRate }}%</template>
         </el-table-column>
       </el-table>
-    </el-dialog>
+        </AppDialog>
 
     <!-- 趋势弹窗 -->
-    <el-dialog v-model="trendVisible" :title="`${trendSupplierName} - 质量趋势`" width="800px">
+    <AppDialog
+      v-model="trendVisible"
+      :title="`${trendSupplierName} - 质量趋势`"
+      mode="form"
+      width="800px"
+    >
       <el-table :data="trendData" border size="small">
         <el-table-column prop="period" label="月份" width="100" />
-        <el-table-column prop="quality_score" label="质量得分" width="100" />
-        <el-table-column prop="delivery_score" label="交付得分" width="100" />
-        <el-table-column prop="response_score" label="响应得分" width="100" />
-        <el-table-column prop="total_score" label="总分" width="80">
+        <el-table-column prop="qualityScore" label="质量得分" width="100" />
+        <el-table-column prop="deliveryScore" label="交付得分" width="100" />
+        <el-table-column prop="responseScore" label="响应得分" width="100" />
+        <el-table-column prop="totalScore" label="总分" width="80">
           <template #default="scope">
-            <span class="font-weight-700" :class="gradeClass(scope.row.grade)">{{ scope.row.total_score }}</span>
+            <span class="font-weight-700" :class="gradeClass(scope.row.grade)">{{ scope.row.totalScore }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="grade" label="等级" width="70">
@@ -148,9 +158,9 @@
           </template>
         </el-table-column>
         <el-table-column prop="ppm" label="PPM" width="80" />
-        <el-table-column prop="lot_accept_rate" label="合格率(%)" width="100" />
+        <el-table-column prop="lotAcceptRate" label="合格率(%)" width="100" />
       </el-table>
-    </el-dialog>
+        </AppDialog>
   </div>
 </template>
 
@@ -235,9 +245,9 @@ const fetchRanking = async () => {
 
 const handleRowClick = async (row) => {
   try {
-    const res = await qualityApi.getSupplierTrend(row.supplier_id);
+    const res = await qualityApi.getSupplierTrend(row.supplierId);
     trendData.value = (res.data || res) || [];
-    trendSupplierName.value = row.supplier_name;
+    trendSupplierName.value = row.supplierName;
     trendVisible.value = true;
   } catch { ElMessage.error('获取趋势失败'); }
 };

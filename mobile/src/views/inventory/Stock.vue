@@ -85,17 +85,17 @@
               <div class="card-body">
                 <div class="card-top">
                   <div class="title-area">
-                    <span class="item-name">{{ item.material_name }}</span>
-                    <span class="item-code">{{ item.material_code }}</span>
+                    <span class="item-name">{{ item.materialName }}</span>
+                    <span class="item-code">{{ item.materialCode }}</span>
                   </div>
                   <span class="qty-badge" :class="item.quantity > 0 ? 'badge-green' : 'badge-red'">
-                    {{ item.quantity }} {{ item.unit_name || '' }}
+                    {{ item.quantity }} {{ item.unitName || '' }}
                   </span>
                 </div>
                 <div class="card-meta">
                   <span class="meta-item" v-if="item.spec">规格: {{ item.spec }}</span>
-                  <span class="meta-item" v-if="item.location_name">{{ item.location_name }}</span>
-                  <span class="meta-item" v-if="item.category_name">{{ item.category_name }}</span>
+                  <span class="meta-item" v-if="item.locationName">{{ item.locationName }}</span>
+                  <span class="meta-item" v-if="item.categoryName">{{ item.categoryName }}</span>
                 </div>
               </div>
             </div>
@@ -124,11 +124,11 @@
         <div class="popup-content">
           <div class="popup-row">
             <span class="popup-label">物料编码</span>
-            <span class="popup-value mono">{{ currentStock.material_code }}</span>
+            <span class="popup-value mono">{{ currentStock.materialCode }}</span>
           </div>
           <div class="popup-row">
             <span class="popup-label">物料名称</span>
-            <span class="popup-value">{{ currentStock.material_name }}</span>
+            <span class="popup-value">{{ currentStock.materialName }}</span>
           </div>
           <div class="popup-row">
             <span class="popup-label">规格型号</span>
@@ -140,21 +140,21 @@
               class="popup-value"
               :class="currentStock.quantity > 0 ? 'text-success' : 'text-danger'"
             >
-              {{ currentStock.quantity }} {{ currentStock.unit_name }}
+              {{ currentStock.quantity }} {{ currentStock.unitName }}
             </span>
           </div>
           <div class="popup-row">
             <span class="popup-label">仓库/库位</span>
-            <span class="popup-value">{{ currentStock.location_name || '—' }}</span>
+            <span class="popup-value">{{ currentStock.locationName || '—' }}</span>
           </div>
           <div class="popup-row">
             <span class="popup-label">类别</span>
-            <span class="popup-value">{{ currentStock.category_name || '—' }}</span>
+            <span class="popup-value">{{ currentStock.categoryName || '—' }}</span>
           </div>
           <div class="popup-row">
             <span class="popup-label">单价</span>
             <span class="popup-value">{{
-              currentStock.unit_price ? `¥${currentStock.unit_price}` : '—'
+              currentStock.unitPrice ? `¥${currentStock.unitPrice}` : '—'
             }}</span>
           </div>
           <div class="popup-row">
@@ -222,7 +222,7 @@
     showDetail.value = true
   }
   const calculateAmount = (s) =>
-    s.quantity && s.unit_price ? `¥${(s.quantity * s.unit_price).toFixed(2)}` : '—'
+    s.quantity && s.unitPrice ? `¥${(s.quantity * s.unitPrice).toFixed(2)}` : '—'
 
   const onWarehouseChange = ({ selectedValues }) => {
     showWarehousePicker.value = false
@@ -247,7 +247,7 @@
         page: pagination.page,
         limit: pagination.pageSize,
         search: searchValue.value || undefined,
-        location_id: selectedWarehouseId.value || undefined
+        locationId: selectedWarehouseId.value || undefined
       }
       if (stockStatus.value === 'inStock') params.in_stock = true
       else if (stockStatus.value === 'outOfStock') params.in_stock = false

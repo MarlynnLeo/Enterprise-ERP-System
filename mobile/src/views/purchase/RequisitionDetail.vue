@@ -17,15 +17,15 @@
           {{ statusMap[detail.status] || detail.status }}
         </div>
         <div class="detail-code">
-          {{ detail.requisition_number || detail.requisition_code || detail.code || `申请#${detail.id}` }}
+          {{ detail.requisitionNumber || detail.requisitionCode || detail.code || `申请#${detail.id}` }}
         </div>
       </div>
 
       <!-- 基本信息 -->
       <CellGroup inset title="申请信息">
-        <Cell title="申请日期" :value="formatDate(detail.request_date || detail.created_at)" />
+        <Cell title="申请日期" :value="formatDate(detail.requestDate || detail.createdAt)" />
         <Cell title="申请部门" :value="detail.department || '--'" />
-        <Cell title="申请人" :value="detail.requester_name || detail.real_name || detail.created_by || '--'" />
+        <Cell title="申请人" :value="detail.requesterName || detail.realName || detail.createdBy || '--'" />
         <Cell title="备注" :value="detail.remarks || '--'" />
       </CellGroup>
 
@@ -33,13 +33,13 @@
       <CellGroup inset title="需求明细" v-if="detail.items && detail.items.length > 0">
         <div v-for="(item, index) in detail.items" :key="index" class="item-card">
           <Cell
-            :title="item.material_name || `物料#${item.material_id}`"
+            :title="item.materialName || `物料#${item.materialId}`"
             :value="`${item.quantity} ${item.unit || '件'}`"
           />
           <Cell
-            v-if="item.required_date"
+            v-if="item.requiredDate"
             title="需求日期"
-            :value="formatDate(item.required_date)"
+            :value="formatDate(item.requiredDate)"
           />
         </div>
       </CellGroup>

@@ -385,7 +385,7 @@ exports.getOnlineTimeRanking = async (req, res) => {
       rank: index + 1,
       userId: row.user_id,
       username: row.username,
-      realName: row.real_name || row.username,
+      realName: row.realName || row.username,
       avatar: row.avatar || null,
       avatarFrame: row.avatar_frame || null,
       bio: row.bio || '这个家伙很懒，什么也没留下',

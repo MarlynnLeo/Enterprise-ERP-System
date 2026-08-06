@@ -50,29 +50,29 @@
     <!-- Table -->
     <el-card class="data-card">
       <el-table :data="pricing.tableData.value" border class="w-full" v-loading="pricing.loading.value" stripe>
-        <el-table-column prop="product_code" label="产品编码" width="120" />
-        <el-table-column prop="product_name" label="产品名称" min-width="150" />
-        <el-table-column prop="product_specs" label="规格型号" width="150" show-overflow-tooltip />
-        <el-table-column prop="cost_price" label="成本价" width="120">
+        <el-table-column prop="productCode" label="产品编码" width="120" />
+        <el-table-column prop="productName" label="产品名称" min-width="150" />
+        <el-table-column prop="productSpecs" label="规格型号" width="150" show-overflow-tooltip />
+        <el-table-column prop="costPrice" label="成本价" width="120">
           <template #default="{ row }">
-            <span>{{ formatPrice(row.cost_price) }}</span>
+            <span>{{ formatPrice(row.costPrice) }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="suggested_price" label="建议售价" width="120">
+        <el-table-column prop="suggestedPrice" label="建议售价" width="120">
           <template #default="{ row }">
-            <span class="suggested-price">{{ formatPrice(row.suggested_price) }}</span>
+            <span class="suggested-price">{{ formatPrice(row.suggestedPrice) }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="profit_margin" label="利润率" width="120">
+        <el-table-column prop="profitMargin" label="利润率" width="120">
           <template #default="{ row }">
-            <el-tag :type="getMarginColor(row.profit_margin)">
-              {{ formatPercent(row.profit_margin) }}
+            <el-tag :type="getMarginColor(row.profitMargin)">
+              {{ formatPercent(row.profitMargin) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="effective_date" label="生效日期" width="120">
+        <el-table-column prop="effectiveDate" label="生效日期" width="120">
           <template #default="{ row }">
-            {{ formatDate(row.effective_date) }}
+            {{ formatDate(row.effectiveDate) }}
           </template>
         </el-table-column>
         <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
@@ -111,7 +111,7 @@
 
         <div
           class="cost-section"
-          @click="pricing.costType.value === 'bom' && pricing.pricingForm.product_id ? openBomPriceDialog() : null"
+          @click="pricing.costType.value === 'bom' && pricing.pricingForm.productId ? openBomPriceDialog() : null"
         >
           <div class="cost-icon">
             <el-icon><Money /></el-icon>
@@ -121,7 +121,7 @@
               <span class="label-text">{{ costTypeText }}</span>
             </div>
             <div class="cost-value-row">
-              <span class="amount">{{ formatPrice(pricing.pricingForm.cost_price) }}</span>
+              <span class="amount">{{ formatPrice(pricing.pricingForm.costPrice) }}</span>
             </div>
           </div>
           <div class="cost-actions">
@@ -140,7 +140,7 @@
         <el-form :model="pricing.pricingForm" label-position="top" :rules="pricing.rules" ref="formRef">
           <el-row :gutter="20">
             <el-col :span="12">
-              <el-form-item label="目标利润率 (%)" prop="profit_margin">
+              <el-form-item label="目标利润率 (%)" prop="profitMargin">
                 <el-input-number
                   v-model="pricing.pricingForm.profit_margin"
                   :precision="2"
@@ -151,7 +151,7 @@
               </el-form-item>
             </el-col>
             <el-col :span="12">
-              <el-form-item label="建议售价 (¥)" prop="suggested_price">
+              <el-form-item label="建议售价 (¥)" prop="suggestedPrice">
                 <el-input-number
                   v-model="pricing.pricingForm.suggested_price"
                   :precision="2"
@@ -207,7 +207,7 @@
             </el-row>
           </el-form-item>
 
-          <el-form-item label="生效日期" prop="effective_date">
+          <el-form-item label="生效日期" prop="effectiveDate">
             <el-date-picker
               v-model="pricing.pricingForm.effective_date"
               type="date"
@@ -241,8 +241,8 @@
       :data="bom.bomData.value"
       :product="pricing.currentProduct.value"
       :mode="bom.bomDialogMode.value"
-      @adjust="(row) => bom.openPriceAdjustDialog(row, pricing.pricingForm.product_id)"
-      @history="(row) => bom.viewPriceHistory(row, pricing.pricingForm.product_id)"
+      @adjust="(row) => bom.openPriceAdjustDialog(row, pricing.pricingForm.productId)"
+      @history="(row) => bom.viewPriceHistory(row, pricing.pricingForm.productId)"
     />
 
     <!-- BOM Price Dialog -->
@@ -250,8 +250,8 @@
       v-model="bom.bomPriceDialogVisible.value"
       :loading="bom.bomPriceLoading.value"
       :data="bom.bomPriceData.value"
-      @adjust="(row) => bom.openPriceAdjustDialog(row, pricing.pricingForm.product_id)"
-      @history="(row) => bom.viewPriceHistory(row, pricing.pricingForm.product_id)"
+      @adjust="(row) => bom.openPriceAdjustDialog(row, pricing.pricingForm.productId)"
+      @history="(row) => bom.viewPriceHistory(row, pricing.pricingForm.productId)"
     />
 
     <!-- Price Adjust Dialog -->
@@ -260,7 +260,7 @@
       :form="bom.priceAdjustForm"
       :submitting="bom.priceAdjustSubmitting.value"
       @update:form="updatePriceAdjustForm"
-      @save="() => bom.savePriceAdjustment(pricing.pricingForm.product_id)"
+      @save="() => bom.savePriceAdjustment(pricing.pricingForm.productId)"
     />
 
     <!-- Price History Dialog -->
@@ -293,21 +293,22 @@
     />
 
     <!-- Strategy Field Dialog -->
-    <el-dialog
+    <AppDialog
       v-model="strategy.dialogVisible.value"
       :title="strategy.form.id ? '编辑策略字段' : '新增策略字段'"
+      mode="form"
       width="500px"
     >
       <el-form :model="strategy.form" label-width="100px" ref="strategyFormRef" :rules="strategy.rules">
-        <el-form-item label="显示标签" prop="field_label">
-          <el-input v-model="strategy.form.field_label" placeholder="如:模具摊销费" />
+        <el-form-item label="显示标签" prop="fieldLabel">
+          <el-input v-model="strategy.form.fieldLabel" placeholder="如:模具摊销费" />
         </el-form-item>
-        <el-form-item label="字段名" prop="field_name">
-          <el-input v-model="strategy.form.field_name" placeholder="如:mold_amortization" :disabled="!!strategy.form.id" />
+        <el-form-item label="字段名" prop="fieldName">
+          <el-input v-model="strategy.form.fieldName" placeholder="如:mold_amortization" :disabled="!!strategy.form.id" />
           <div class="form-tip">只能包含英文字母、数字和下划线</div>
         </el-form-item>
-        <el-form-item label="字段类型" prop="field_type">
-          <el-select v-model="strategy.form.field_type" class="w-full">
+        <el-form-item label="字段类型" prop="fieldType">
+          <el-select v-model="strategy.form.fieldType" class="w-full">
             <el-option label="金额" value="amount" />
             <el-option label="百分比" value="percentage" />
           </el-select>
@@ -316,11 +317,11 @@
           <el-input v-model="strategy.form.unit" placeholder="如:元/件、%等" />
         </el-form-item>
         <el-form-item label="参与成本">
-          <el-switch v-model="strategy.form.is_additive" :active-value="1" :inactive-value="0" />
+          <el-switch v-model="strategy.form.isAdditive" :active-value="1" :inactive-value="0" />
           <div class="form-tip">开启后，该字段的数值将计入成本计算</div>
         </el-form-item>
-        <el-form-item label="排序" prop="sort_order">
-          <el-input-number v-model="strategy.form.sort_order" :min="0" :max="999" class="w-full" />
+        <el-form-item label="排序" prop="sortOrder">
+          <el-input-number v-model="strategy.form.sortOrder" :min="0" :max="999" class="w-full" />
         </el-form-item>
         <el-form-item label="描述">
           <el-input v-model="strategy.form.description" type="textarea" :rows="3" />
@@ -330,7 +331,7 @@
         <el-button @click="strategy.dialogVisible.value = false">取消</el-button>
         <el-button v-permission="strategy.form.id ? 'finance:pricing:update' : 'finance:pricing:create'" type="primary" @click="handleSaveStrategyField" :loading="strategy.submitting.value">保存</el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
   </div>
 </template>
 
@@ -396,7 +397,7 @@ const formatPercent = (value) => {
 
 // ========== 策略字段计算 ==========
 const calculateAdjustedCost = () => {
-  return strategy.calculateAdjustedCost(pricing.pricingForm.cost_price);
+  return strategy.calculateAdjustedCost(pricing.pricingForm.costPrice);
 };
 
 // 策略字段选择变更时触发
@@ -424,7 +425,7 @@ const openPricingDrawer = (row) => {
 };
 
 const openBomPriceDialog = () => {
-  bom.handleViewBomPrice(pricing.pricingForm.product_id);
+  bom.handleViewBomPrice(pricing.pricingForm.productId);
 };
 
 const updatePriceAdjustForm = (nextForm) => {

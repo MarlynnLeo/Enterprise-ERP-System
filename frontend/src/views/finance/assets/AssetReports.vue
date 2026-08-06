@@ -231,7 +231,7 @@ const renderCategoryChart = (data = []) => {
 
   const chartData = data.map(item => ({
     name: item.category || '未分类',
-    value: parseFloat(item.total_value) || 0
+    value: parseFloat(item.totalValue) || 0
   }))
 
   const option = {
@@ -260,7 +260,7 @@ const renderTrendChart = (data = []) => {
 
   const months = data.map(item => item.month)
   const counts = data.map(item => item.count)
-  const values = data.map(item => item.total_value)
+  const values = data.map(item => item.totalValue)
 
   const option = {
     tooltip: {

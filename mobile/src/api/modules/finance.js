@@ -53,7 +53,7 @@ export const financeApi = {
   /**
    * 会计冲销 — 创建一笔方向相反的凭证来抵消原凭证
    * @param {number} id - 原凭证 ID
-   * @param {Object} data - 冲销参数（entry_date, posting_date, description 等）
+   * @param {Object} data - 冲销参数（entryDate, postingDate, description 等，HTTP camelCase）
    */
   reverseEntry(id, data) {
     return api.post(`/finance/entries/${id}/reverse`, data)
@@ -71,8 +71,8 @@ export const financeApi = {
       typeof reason === 'object' && reason !== null
         ? reason
         : {
-            entry_date: today,
-            posting_date: today,
+            entryDate: today,
+            postingDate: today,
             description: reason || '移动端冲销凭证',
           }
     return this.reverseEntry(id, payload)
@@ -259,9 +259,9 @@ export const financeApi = {
     return api.put(`/finance/ap/invoices/${id}/status`, { status })
   },
 
-  // 应付付款作废
+  // 应付付款作废（HTTP camelCase；后端 mapKeysToSnake → void_reason）
   voidAPPayment(id, voidReason) {
-    return api.post(`/finance/ap/payments/${id}/void`, { void_reason: voidReason })
+    return api.post(`/finance/ap/payments/${id}/void`, { voidReason })
   },
 
   // 应收发票状态操作
@@ -269,9 +269,9 @@ export const financeApi = {
     return api.put(`/finance/ar/invoices/${id}/status`, { status })
   },
 
-  // 应收收款作废
+  // 应收收款作废（HTTP camelCase）
   voidARReceipt(id, voidReason) {
-    return api.post(`/finance/ar/receipts/${id}/void`, { void_reason: voidReason })
+    return api.post(`/finance/ar/receipts/${id}/void`, { voidReason })
   }
 }
 

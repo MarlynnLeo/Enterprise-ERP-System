@@ -12,7 +12,12 @@
  */
 -->
 <template>
-  <el-dialog v-model="dialogVisible" :title="`复检操作 - ${inspectionNo}`" width="1200px" destroy-on-close>
+  <AppDialog
+    v-model="dialogVisible"
+    :title="`复检操作 - ${inspectionNo}`"
+    mode="view"
+    content-width="wide"
+  >
     <el-alert type="warning" :closable="false" show-icon>
       <p>您正在对不合格检验单进行复检操作，复检后的结果将覆盖原检验结果。</p>
     </el-alert>
@@ -21,23 +26,23 @@
       <el-form-item label="检验项目" prop="items">
         <div class="inspection-items">
           <el-table :data="reviewForm.items" border>
-            <el-table-column prop="item_name" label="检验项目" width="130" show-overflow-tooltip />
+            <el-table-column prop="itemName" label="检验项目" width="130" show-overflow-tooltip />
             <el-table-column prop="standard" label="检验标准" width="150" show-overflow-tooltip />
-            <el-table-column prop="dimension_info" label="标准尺寸±公差" width="150" show-overflow-tooltip>
+            <el-table-column prop="dimensionInfo" label="标准尺寸±公差" width="150" show-overflow-tooltip>
               <template #default="scope">{{ formatDimensionTolerance(scope.row) }}</template>
             </el-table-column>
             <el-table-column prop="result" label="原结果" width="100" show-overflow-tooltip>
               <template #default="scope">
-                <el-tag size="small" :type="scope.row.original_result === 'passed' ? 'success' : 'danger'">
-                  {{ scope.row.original_result === 'passed' ? '合格' : '不合格' }}
+                <el-tag size="small" :type="scope.row.originalResult === 'passed' ? 'success' : 'danger'">
+                  {{ scope.row.originalResult === 'passed' ? '合格' : '不合格' }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="actual_value" label="实际值" width="120">
+            <el-table-column prop="actualValue" label="实际值" width="120">
               <template #default="scope">
                 <el-input
                   :ref="el => setReviewActualValueRef(el, scope.$index)"
-                  v-model="scope.row.actual_value"
+                  v-model="scope.row.actualValue"
                   placeholder="请输入实际值"
                   @input="checkDimensionTolerance(scope.row, false)"
                   @blur="checkDimensionTolerance(scope.row, true)"
@@ -77,18 +82,18 @@
           </el-form-item>
         </el-col>
         <el-col :span="6">
-          <el-form-item label="合格数量" prop="qualified_quantity">
-            <el-input v-model="reviewForm.qualified_quantity" placeholder="请输入合格数量" type="number" @input="handleReviewQualifiedQuantityChange" />
+          <el-form-item label="合格数量" prop="qualifiedQuantity">
+            <el-input v-model="reviewForm.qualifiedQuantity" placeholder="请输入合格数量" type="number" @input="handleReviewQualifiedQuantityChange" />
           </el-form-item>
         </el-col>
         <el-col :span="6">
-          <el-form-item label="不合格数量" prop="unqualified_quantity">
-            <el-input v-model="reviewForm.unqualified_quantity" placeholder="自动计算" disabled />
+          <el-form-item label="不合格数量" prop="unqualifiedQuantity">
+            <el-input v-model="reviewForm.unqualifiedQuantity" placeholder="自动计算" disabled />
           </el-form-item>
         </el-col>
         <el-col :span="6">
-          <el-form-item label="复检人员" prop="inspector_name">
-            <el-input v-model="reviewForm.inspector_name" placeholder="请输入复检人员姓名" />
+          <el-form-item label="复检人员" prop="inspectorName">
+            <el-input v-model="reviewForm.inspectorName" placeholder="请输入复检人员姓名" />
           </el-form-item>
         </el-col>
       </el-row>
@@ -118,7 +123,7 @@
         <el-button v-permission="'quality:inspections:update'" type="primary" @click="handleSubmit" :loading="submitting">提交复检</el-button>
       </span>
     </template>
-  </el-dialog>
+    </AppDialog>
 </template>
 
 <script setup>
@@ -144,7 +149,7 @@ const dialogVisible = computed({
   set: (val) => emit('update:visible', val)
 })
 
-const inspectionNo = computed(() => props.row?.inspectionNo || props.row?.inspection_no || '')
+const inspectionNo = computed(() => props.row?.inspectionNo || props.row?.inspectionNo || '')
 
 const reviewFormRef = ref(null)
 const submitting = ref(false)
@@ -197,9 +202,9 @@ watch(() => props.visible, async (val) => {
 
       if (inspectionData) {
         reviewForm.quantity = inspectionData.quantity || ''
-        reviewForm.qualified_quantity = inspectionData.qualified_quantity || ''
-        reviewForm.unqualified_quantity = inspectionData.unqualified_quantity || ''
-        reviewForm.inspector_name = authStore.user?.real_name || ''
+        reviewForm.qualifiedQuantity = inspectionData.qualifiedQuantity || ''
+        reviewForm.unqualifiedQuantity = inspectionData.unqualifiedQuantity || ''
+        reviewForm.inspectorName = authStore.user?.realName || ''
         reviewForm.inspectionDate = new Date()
         reviewForm.reviewReason = ''
         reviewForm.note = inspectionData.note || ''
@@ -233,24 +238,24 @@ watch(() => props.visible, async (val) => {
 
 // 辅助函数
 const formatDimensionTolerance = (item) => {
-  if (!item.dimension_value) return '-'
-  const dimensionValue = parseFloat(item.dimension_value)
-  const upper = parseFloat(item.tolerance_upper) || 0
-  const lower = Math.abs(parseFloat(item.tolerance_lower)) || 0
+  if (!item.dimensionValue) return '-'
+  const dimensionValue = parseFloat(item.dimensionValue)
+  const upper = parseFloat(item.toleranceUpper) || 0
+  const lower = Math.abs(parseFloat(item.toleranceLower)) || 0
   if (upper === 0 && lower === 0) return dimensionValue.toFixed(2)
   return `${dimensionValue.toFixed(2)} (+${upper.toFixed(2)}/-${lower.toFixed(2)})`
 }
 
 const checkDimensionTolerance = (item) => {
-  if (!item.dimension_value) return
-  const dimensionValue = parseFloat(item.dimension_value)
-  const toleranceUpper = parseFloat(item.tolerance_upper) || 0
-  const toleranceLower = parseFloat(item.tolerance_lower) || 0
+  if (!item.dimensionValue) return
+  const dimensionValue = parseFloat(item.dimensionValue)
+  const toleranceUpper = parseFloat(item.toleranceUpper) || 0
+  const toleranceLower = parseFloat(item.toleranceLower) || 0
   if (isNaN(dimensionValue)) return
 
   const maxAllowed = dimensionValue + toleranceUpper
   const minAllowed = dimensionValue - Math.abs(toleranceLower)
-  const actualValue = parseFloat(item.actual_value)
+  const actualValue = parseFloat(item.actualValue)
   if (isNaN(actualValue)) return
 
   if (actualValue < minAllowed || actualValue > maxAllowed) {
@@ -275,14 +280,14 @@ const focusNextReviewActualValue = (currentIndex) => {
 
 const handleReviewQualifiedQuantityChange = () => {
   const totalQuantity = parseFloat(reviewForm.quantity) || 0
-  const qualifiedQuantity = parseFloat(reviewForm.qualified_quantity) || 0
+  const qualifiedQuantity = parseFloat(reviewForm.qualifiedQuantity) || 0
   if (qualifiedQuantity > totalQuantity) {
     ElMessage.warning('合格数量不能超过复检数量')
-    reviewForm.qualified_quantity = totalQuantity
-    reviewForm.unqualified_quantity = 0
+    reviewForm.qualifiedQuantity = totalQuantity
+    reviewForm.unqualifiedQuantity = 0
     return
   }
-  reviewForm.unqualified_quantity = (totalQuantity - qualifiedQuantity).toFixed(2)
+  reviewForm.unqualifiedQuantity = (totalQuantity - qualifiedQuantity).toFixed(2)
 }
 
 // 提交复检
@@ -311,9 +316,9 @@ const handleSubmit = async () => {
       inspection_no: inspectionNo.value,
       items: reviewForm.items,
       quantity: reviewForm.quantity,
-      qualified_quantity: parseFloat(reviewForm.qualified_quantity) || 0,
-      unqualified_quantity: parseFloat(reviewForm.unqualified_quantity) || 0,
-      inspector_name: reviewForm.inspector_name,
+      qualified_quantity: parseFloat(reviewForm.qualifiedQuantity) || 0,
+      unqualified_quantity: parseFloat(reviewForm.unqualifiedQuantity) || 0,
+      inspector_name: reviewForm.inspectorName,
       actual_date: dayjs(reviewForm.inspectionDate).format('YYYY-MM-DD'),
       note: reviewForm.note,
       status: status,
@@ -338,9 +343,9 @@ const handleSubmit = async () => {
       } else if (status === 'partial') {
         if (receiptAutoCreated) ElMessage.success('系统已自动创建采购入库单（仅合格部分）')
         else ElMessage.warning('复检已提交，但后端未返回入库单创建结果，请刷新后确认')
-        await handlePartialReviewResult(submitData.id, submitData.qualified_quantity, submitData.unqualified_quantity)
+        await handlePartialReviewResult(submitData.id, submitData.qualifiedQuantity, submitData.unqualifiedQuantity)
       } else if (status === 'failed') {
-        await handleFailedReviewResult(submitData.id, submitData.unqualified_quantity)
+        await handleFailedReviewResult(submitData.id, submitData.unqualifiedQuantity)
       }
 
       dialogVisible.value = false

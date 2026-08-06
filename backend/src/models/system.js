@@ -112,6 +112,8 @@ async function assertExistingMenuIds(connection, menuIds) {
 }
 
 function normalizeMenuData(menuData = {}) {
+  const { normalizePermissionCode } = require('../services/PermissionRegistry');
+  const rawPermission = menuData.permission ? String(menuData.permission).trim() : null;
   return {
     parent_id: normalizeNullableId(menuData.parent_id ?? menuData.parentId),
     name: String(menuData.name || '').trim(),
@@ -119,7 +121,7 @@ function normalizeMenuData(menuData = {}) {
     component: menuData.component || null,
     redirect: menuData.redirect || null,
     icon: menuData.icon || null,
-    permission: menuData.permission ? String(menuData.permission).trim() : null,
+    permission: rawPermission ? normalizePermissionCode(rawPermission) : null,
     type: menuData.type !== undefined ? Number(menuData.type) : 1,
     visible: menuData.visible !== undefined ? normalizeBinaryStatus(menuData.visible, 'visible') : 1,
     status: menuData.status !== undefined ? normalizeBinaryStatus(menuData.status) : 1,

@@ -195,17 +195,17 @@ const realtimeTasks = ref([])
 const getResponseData = (response) => response?.data || response || {}
 
 const toTaskCard = (task) => {
-  const totalQuantity = Number(task.planned_quantity || task.quantity || task.totalQuantity || 0)
-  const completedQuantity = Number(task.completed_quantity || task.completedQuantity || 0)
+  const totalQuantity = Number(task.plannedQuantity || task.totalQuantity || 0)
+  const completedQuantity = Number(task.completedQuantity || 0)
   const progress = totalQuantity > 0 ? Math.min(Math.round((completedQuantity / totalQuantity) * 100), 100) : 0
 
   return {
     id: task.id,
-    code: task.task_code || task.code || task.task_no || '-',
-    productName: task.product_name || task.productName || task.material_name || '-',
+    code: task.taskNo || task.taskCode || '-',
+    productName: task.productName || task.materialName || '-',
     totalQuantity,
     completedQuantity,
-    unit: task.unit_name || task.unit || '件',
+    unit: task.unitName || task.unit || '件',
     progress,
     status: task.status || 'pending'
   }
@@ -219,26 +219,26 @@ const loadDashboardData = async () => {
 
   if (statsRes.status === 'fulfilled') {
     const stats = getResponseData(statsRes.value)
-    const totalTasks = Number(stats.totalTasks || stats.total_tasks || 0)
-    const completedTasks = Number(stats.completedTasks || stats.completed_tasks || 0)
-    const inProgressTasks = Number(stats.inProgressTasks || stats.in_progress_tasks || 0)
+    const totalTasks = Number(stats.totalTasks || 0)
+    const completedTasks = Number(stats.completedTasks || 0)
+    const inProgressTasks = Number(stats.inProgressTasks || 0)
 
     todayStats.value = {
       totalTasks,
-      newTasks: Number(stats.newTasks || stats.new_tasks || stats.pendingTasks || 0),
+      newTasks: Number(stats.newTasks || stats.pendingTasks || 0),
       completedTasks,
       completionRate: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0,
       inProgressTasks,
       inProgressRate: totalTasks > 0 ? Math.round((inProgressTasks / totalTasks) * 100) : 0,
-      totalOutput: Number(stats.totalOutput || stats.total_output || stats.completedQuantity || 0),
-      outputUnit: stats.outputUnit || stats.output_unit || '件'
+      totalOutput: Number(stats.totalOutput || stats.completedQuantity || 0),
+      outputUnit: stats.outputUnit || '件'
     }
 
     efficiency.value = {
-      equipmentUtilization: Number(stats.equipmentUtilization || stats.equipment_utilization || 0),
-      personnelUtilization: Number(stats.personnelUtilization || stats.personnel_utilization || 0),
-      qualificationRate: Number(stats.qualificationRate || stats.qualification_rate || 0),
-      onTimeDeliveryRate: Number(stats.onTimeDeliveryRate || stats.on_time_delivery_rate || 0)
+      equipmentUtilization: Number(stats.equipmentUtilization || 0),
+      personnelUtilization: Number(stats.personnelUtilization || 0),
+      qualificationRate: Number(stats.qualificationRate || 0),
+      onTimeDeliveryRate: Number(stats.onTimeDeliveryRate || 0)
     }
   }
 

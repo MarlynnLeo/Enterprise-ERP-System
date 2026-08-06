@@ -80,7 +80,7 @@
         class="w-full"
       >
         <template #empty>
-          <el-empty description="暂无客户数据" />
+          <EmptyState description="暂无客户数据" />
         </template>
         <el-table-column prop="code" :label="$t('page.baseData.customers.customerCode')" width="100">
           <template #default="scope">
@@ -94,22 +94,22 @@
             </el-tooltip>
           </template>
         </el-table-column>
-        <el-table-column prop="customer_type" label="类型" width="110">
+        <el-table-column prop="customerType" label="类型" width="110">
           <template #default="scope">
-            <el-tag :type="scope.row.customer_type === 'distributor' ? 'warning' : (scope.row.customer_type === 'retail' ? 'success' : 'info')">
-              {{ scope.row.customer_type === 'distributor' ? '经销商' : (scope.row.customer_type === 'retail' ? '零售客户' : '直销客户') }}
+            <el-tag :type="scope.row.customerType === 'distributor' ? 'warning' : (scope.row.customerType === 'retail' ? 'success' : 'info')">
+              {{ scope.row.customerType === 'distributor' ? '经销商' : (scope.row.customerType === 'retail' ? '零售客户' : '直销客户') }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="contact_person" :label="$t('page.baseData.customers.contact')" width="90"></el-table-column>
-        <el-table-column prop="contact_phone" :label="$t('page.baseData.customers.phone')" width="120">
+        <el-table-column prop="contactPerson" :label="$t('page.baseData.customers.contact')" width="90"></el-table-column>
+        <el-table-column prop="contactPhone" :label="$t('page.baseData.customers.phone')" width="120">
           <template #default="scope">
-            {{ scope.row.contact_phone || scope.row.phone || '—' }}
+            {{ scope.row.contactPhone || scope.row.phone || '—' }}
           </template>
         </el-table-column>
-        <el-table-column prop="payment_term_days" label="账期(天)" width="90">
+        <el-table-column prop="paymentTermDays" label="账期(天)" width="90">
           <template #default="scope">
-            {{ scope.row.payment_term_days != null ? scope.row.payment_term_days : '—' }}
+            {{ scope.row.paymentTermDays != null ? scope.row.paymentTermDays : '—' }}
           </template>
         </el-table-column>
         <el-table-column prop="email" :label="$t('user.email')" min-width="160">
@@ -126,7 +126,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="credit_limit" :label="$t('page.baseData.customers.creditLimit')" width="90"></el-table-column>
+        <el-table-column prop="creditLimit" :label="$t('page.baseData.customers.creditLimit')" width="90"></el-table-column>
         <el-table-column prop="address" :label="$t('page.baseData.customers.address')" min-width="200">
           <template #default="scope">
             <el-tooltip :content="scope.row.address" placement="top" :show-after="500">

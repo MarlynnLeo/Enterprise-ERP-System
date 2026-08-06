@@ -118,19 +118,19 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
   // ========== 金额计算 ==========
 
   const calculateTotalAmount = () => {
-    const materialItems = form.items.filter(item => item.material_id)
-    const hasUnknownAmount = materialItems.some(item => toNumberOrNull(item.unit_price) === null || toNumberOrNull(item.amount) === null)
+    const materialItems = form.items.filter(item => item.materialId)
+    const hasUnknownAmount = materialItems.some(item => toNumberOrNull(item.unitPrice) === null || toNumberOrNull(item.amount) === null)
     if (hasUnknownAmount) {
       form.subtotal = null
-      form.tax_amount = null
-      form.total_amount = null
+      form.taxAmount = null
+      form.totalAmount = null
       return
     }
     const subtotal = materialItems.reduce((total, item) => total + (toNumberOrNull(item.amount) ?? 0), 0)
-    const taxAmount = materialItems.reduce((total, item) => total + (toNumberOrNull(item.tax_amount) ?? 0), 0)
+    const taxAmount = materialItems.reduce((total, item) => total + (toNumberOrNull(item.taxAmount) ?? 0), 0)
     form.subtotal = subtotal
-    form.tax_amount = taxAmount
-    form.total_amount = subtotal + taxAmount
+    form.taxAmount = taxAmount
+    form.totalAmount = subtotal + taxAmount
   }
 
   watch(() => form.items, () => {
@@ -143,20 +143,20 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
     if (!item) return
 
     let quantity = toNumberOrNull(item.quantity)
-    const unitPrice = toNumberOrNull(item.unit_price)
+    const unitPrice = toNumberOrNull(item.unitPrice)
 
     if (quantity === null) quantity = 0
     item.quantity = quantity
     if (unitPrice === null) {
       item.amount = null
-      item.tax_amount = null
+      item.taxAmount = null
       calculateTotalAmount()
       return
     }
-    item.unit_price = unitPrice
+    item.unitPrice = unitPrice
     item.amount = quantity * unitPrice
-    const taxRate = normalizeTaxRate(item.tax_rate, 0)
-    item.tax_amount = item.amount * taxRate
+    const taxRate = normalizeTaxRate(item.taxRate, 0)
+    item.taxAmount = item.amount * taxRate
     calculateTotalAmount()
   }
 
@@ -164,10 +164,10 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
 
   const mapCustomerOption = (customer) => ({
     id: customer.id,
-    code: customer.code || customer.customer_code || `C${customer.id}`,
+    code: customer.customerCode || `C${customer.id}`,
     name: customer.name,
     contact_person: customer.contact_person,
-    contact_phone: customer.contact_phone || customer.phone,
+    contact_phone: customer.contactPhone,
     address: customer.address
   })
 
@@ -211,9 +211,9 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
     }
     const selectedCustomer = customers.value.find(c => c.id === customerId)
     if (selectedCustomer) {
-      form.customer_name = selectedCustomer.name
-      form.contact = selectedCustomer.contact_person || selectedCustomer.contact || ''
-      form.phone = selectedCustomer.contact_phone || selectedCustomer.phone || ''
+      form.customerName = selectedCustomer.name
+      form.contact = selectedCustomer.contactPerson || ''
+      form.phone = selectedCustomer.contactPhone || ''
       form.address = selectedCustomer.address || ''
     }
   }
@@ -221,7 +221,7 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
   const handleCustomerEnterKey = () => {
     if (filteredCustomers.value && filteredCustomers.value.length > 0) {
       const firstCustomer = filteredCustomers.value[0]
-      form.customer_id = firstCustomer.id
+      form.customerId = firstCustomer.id
       handleCustomerChange(firstCustomer.id)
       ElMessage.success(`已自动选择客户: ${firstCustomer.code} - ${firstCustomer.name}`)
       nextTick(() => {
@@ -229,7 +229,7 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
       })
     } else if (customers.value && customers.value.length > 0) {
       const firstCustomer = customers.value[0]
-      form.customer_id = firstCustomer.id
+      form.customerId = firstCustomer.id
       handleCustomerChange(firstCustomer.id)
       ElMessage.success(`已自动选择客户: ${firstCustomer.code} - ${firstCustomer.name}`)
       nextTick(() => {
@@ -269,8 +269,8 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
         value: item.code || '无编码', code: item.code || '无编码',
         name: item.name || '未命名',
         specs: item.specification || item.specs || '',
-        stock_quantity: item.stock_quantity || 0, id: item.id,
-        unit_name: item.unit_name || '个', unit_id: item.unit_id,
+        stock_quantity: item.stockQuantity || 0, id: item.id,
+        unit_name: item.unitName || '个', unit_id: item.unitId,
         price: item.price ?? null
       }))
       filteredProducts.value = suggestions
@@ -288,17 +288,17 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
       ElMessage.error('物料ID无效，请重新选择')
       return
     }
-    form.items[index].material_id = materialId
+    form.items[index].materialId = materialId
     form.items[index].code = item.code
-    form.items[index].material_code = item.code
+    form.items[index].materialCode = item.code
     form.items[index].name = item.name
-    form.items[index].material_name = item.name
+    form.items[index].materialName = item.name
     form.items[index].specification = item.specs
-    form.items[index].unit_name = item.unit_name
-    form.items[index].unit_id = item.unit_id
+    form.items[index].unitName = item.unitName
+    form.items[index].unitId = item.unitId
     const defaultPrice = toNumberOrNull(item.price)
     if (defaultPrice !== null && defaultPrice > 0) {
-      form.items[index].unit_price = defaultPrice
+      form.items[index].unitPrice = defaultPrice
       const quantity = parseFloat(form.items[index].quantity) || 0
       form.items[index].amount = quantity * defaultPrice
       calculateTotalAmount()
@@ -335,11 +335,11 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
       })
       if (exactMatch) {
         const materialItem = {
-          id: exactMatch.id, code: exactMatch.code || exactMatch.material_code || '',
-          name: exactMatch.name || exactMatch.material_name || '',
+          id: exactMatch.id, code: exactMatch.code || exactMatch.materialCode || '',
+          name: exactMatch.name || exactMatch.materialName || '',
           specs: exactMatch.specs || exactMatch.specification || '',
-          stock_quantity: exactMatch.stock_quantity || exactMatch.inventory || 0,
-          unit_name: exactMatch.unit_name || exactMatch.unit || '', unit_id: exactMatch.unit_id
+          stock_quantity: exactMatch.stockQuantity || 0,
+          unit_name: exactMatch.unitName || exactMatch.unit || '', unit_id: exactMatch.unitId
         }
         handleMaterialSelect(materialItem, index); return
       }
@@ -376,11 +376,11 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
   // ========== 表单提交 ==========
 
   const handleSubmit = async () => {
-    if (!form.customer_id) { ElMessage.error('请选择客户'); return }
+    if (!form.customerId) { ElMessage.error('请选择客户'); return }
     if (form.items.length === 0) { ElMessage.error('请添加至少一项产品'); return }
 
     const invalidItems = []
-    form.items.forEach((item, index) => { if (!item.material_id) invalidItems.push(index + 1) })
+    form.items.forEach((item, index) => { if (!item.materialId) invalidItems.push(index + 1) })
     if (invalidItems.length > 0) {
       ElMessage.error(`第 ${invalidItems.join(', ')} 行物料未选择，请选择物料后再提交`); return
     }
@@ -396,7 +396,7 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
 
     const missingPriceItems = []
     form.items.forEach((item, index) => {
-      if (item.material_id && toNumberOrNull(item.unit_price) === null) missingPriceItems.push(index + 1)
+      if (item.materialId && toNumberOrNull(item.unitPrice) === null) missingPriceItems.push(index + 1)
     })
     if (missingPriceItems.length > 0) {
       ElMessage.error(`第 ${missingPriceItems.join(', ')} 行销售单价缺失，请确认价格权限或维护售价后再提交`)
@@ -412,7 +412,7 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
         orderStatus = form.status || 'pending'
         if (insufficientItems.length > 0) {
           const itemMessages = insufficientItems.map(item =>
-            `${item.materialName || item.material_name || '未知物料'}: 需要 ${item.quantity}, 库存 ${item.currentStock}`)
+            `${item.materialName || '未知物料'}: 需要 ${item.quantity}, 库存 ${item.currentStock}`)
           const alertMessage = `以下物料库存不足:\n${itemMessages.join('\n')}\n\n是否继续保存并生成生产/采购计划?`
           try {
             await ElMessageBox.confirm(alertMessage, '库存不足警告', {
@@ -424,7 +424,7 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
       } else {
         if (insufficientItems.length > 0) {
           const itemMessages = insufficientItems.map(item =>
-            `${item.materialName || item.material_name || '未知物料'}: 需要 ${item.quantity}, 库存 ${item.currentStock}`)
+            `${item.materialName || '未知物料'}: 需要 ${item.quantity}, 库存 ${item.currentStock}`)
           const alertMessage = `以下物料库存不足:\n${itemMessages.join('\n')}\n\n是否仍要创建订单?`
           try {
             await ElMessageBox.confirm(alertMessage, '库存不足警告', {
@@ -440,24 +440,24 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
 
       dialogLoading.value = true
       const postData = {
-        customer_id: form.customer_id,
-        contract_code: form.contract_code || '',
+        customer_id: form.customerId,
+        contract_code: form.contractCode || '',
         delivery_date: form.deliveryDate,
         order_date: formatLocalDate(new Date()),
         updated_at: new Date().toISOString(),
         status: orderStatus,
         should_generate_plans: shouldGeneratePlans,
         subtotal: form.subtotal ?? 0,
-        total_amount: form.total_amount ?? 0,
+        total_amount: form.totalAmount ?? 0,
         notes: form.remark || '',
         items: form.items.map(item => {
           const quantity = toNumberOrNull(item.quantity) ?? 0
-          const unitPrice = toNumberOrNull(item.unit_price)
-          const taxRate = normalizeTaxRate(item.tax_rate, defaultVATRate.value)
+          const unitPrice = toNumberOrNull(item.unitPrice)
+          const taxRate = normalizeTaxRate(item.taxRate, defaultVATRate.value)
           const amount = quantity * unitPrice
           const taxAmount = amount * taxRate
           return {
-            material_id: item.material_id, quantity, unit_price: unitPrice,
+            material_id: item.materialId, quantity, unit_price: unitPrice,
             amount, tax_percent: taxRate, tax_amount: taxAmount,
             specification: item.specification, remark: item.remark || ''
           }
@@ -530,11 +530,11 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
           id: material.id, code: material.code || '', value: material.code || '',
           name: material.name || '', material_name: material.name || '',
           specs: material.specs || material.specification || '',
-          drawing_no: material.drawing_no || '',
-          stock_quantity: material.stock_quantity || material.quantity || 0,
-          label: `${material.code || ''} - ${material.name || ''} ${material.specs ? `(${material.specs})` : ''} [库存:${material.stock_quantity || material.quantity || 0}]`,
+          drawing_no: material.drawingNo || '',
+          stock_quantity: material.stockQuantity || 0,
+          label: `${material.code || ''} - ${material.name || ''} ${material.specs ? `(${material.specs})` : ''} [库存:${material.stockQuantity || 0}]`,
           specification: material.specification || material.specs || '',
-          unit_id: material.unit_id, unit_name: material.unit_name || '个',
+          unit_id: material.unitId, unit_name: material.unitName || '个',
           price: material.price ?? null
         })).filter(item => item.id)
         filteredProducts.value = [...products.value]
@@ -560,13 +560,13 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
       const orderDetail = response.data
       Object.assign(form, {
         id: orderDetail.id,
-        customer_id: orderDetail.customer_id || row.customer_id || '',
-        customer_name: orderDetail.customer_name || row.customer_name || row.customer || '',
-        deliveryDate: orderDetail.deliveryDate || orderDetail.delivery_date || row.deliveryDate || row.delivery_date || '',
-        address: orderDetail.address || orderDetail.delivery_address || row.address || '',
-        contact: orderDetail.contact || orderDetail.contact_person || row.contact || '',
-        phone: orderDetail.phone || orderDetail.contact_phone || row.phone || '',
-        contract_code: orderDetail.contract_code || row.contract_code || '',
+        customer_id: orderDetail.customerId || row.customerId || '',
+        customer_name: orderDetail.customerName || row.customerName || row.customer || '',
+        deliveryDate: orderDetail.deliveryDate || row.deliveryDate || '',
+        address: orderDetail.deliveryAddress || row.address || '',
+        contact: orderDetail.contactPerson || row.contact || '',
+        phone: orderDetail.contactPhone || row.phone || '',
+        contract_code: orderDetail.contract_code || row.contractCode || '',
         status: orderDetail.status || row.status || 'pending',
         remark: orderDetail.remark || orderDetail.remarks || orderDetail.notes || row.remark || '',
         items: []
@@ -575,26 +575,26 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
       if (Array.isArray(orderItems) && orderItems.length > 0) {
         form.items = orderItems.map(item => {
           const quantity = toNumberOrNull(item.quantity) ?? 0
-          const unitPrice = toNumberOrNull(item.unit_price)
+          const unitPrice = toNumberOrNull(item.unitPrice)
           let amount = toNumberOrNull(item.amount)
           if (amount === null && unitPrice !== null) amount = quantity * unitPrice
           return {
             ...item,
-            code: item.material_code || item.code || '',
-            material_code: item.material_code || item.code || '',
-            material_name: item.material_name || item.name || '',
-            material_id: item.material_id || '',
+            code: item.materialCode || item.code || '',
+            material_code: item.materialCode || item.code || '',
+            material_name: item.materialName || item.name || '',
+            material_id: item.materialId || '',
             specification: item.specification || item.specs || '',
             quantity, unit_price: unitPrice,
-            unit_name: item.unit_name || '个', unit_id: item.unit_id || '',
+            unit_name: item.unitName || '个', unit_id: item.unitId || '',
             amount,
-            tax_rate: normalizeTaxRate(item.tax_rate !== undefined ? item.tax_rate : item.tax_percent, defaultVATRate.value),
-            tax_amount: toNumberOrNull(item.tax_amount) ?? (amount === null ? null : parseFloat((amount * normalizeTaxRate(item.tax_rate !== undefined ? item.tax_rate : item.tax_percent, defaultVATRate.value)).toFixed(2))),
+            tax_rate: normalizeTaxRate(item.taxRate !== undefined ? item.taxRate : item.taxPercent, defaultVATRate.value),
+            tax_amount: toNumberOrNull(item.taxAmount) ?? (amount === null ? null : parseFloat((amount * normalizeTaxRate(item.taxRate !== undefined ? item.taxRate : item.taxPercent, defaultVATRate.value)).toFixed(2))),
             remark: item.remark || item.remarks || ''
           }
         })
         // 异步补充缺失的 material_id
-        const missingMaterialCodes = [...new Set(form.items.filter(item => !item.material_id && item.code).map(item => item.code))]
+        const missingMaterialCodes = [...new Set(form.items.filter(item => !item.materialId && item.code).map(item => item.code))]
         if (missingMaterialCodes.length > 0) {
           try {
             const materials = await getMaterialsByCodesInChunks(missingMaterialCodes)
@@ -605,13 +605,13 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
             )
             form.items.forEach((item) => {
               const exactMatch = materialsByCode.get(String(item.code || '').toLowerCase())
-              if (!item.material_id && exactMatch) {
-                item.material_id = exactMatch.id
-                item.material_code = exactMatch.code || item.code
-                item.material_name = exactMatch.name || item.material_name
+              if (!item.materialId && exactMatch) {
+                item.materialId = exactMatch.id
+                item.materialCode = exactMatch.code || item.code
+                item.materialName = exactMatch.name || item.materialName
                 item.specification = exactMatch.specs || exactMatch.specification || item.specification
-                item.unit_id = exactMatch.unit_id || item.unit_id
-                item.unit_name = exactMatch.unit_name || item.unit_name
+                item.unitId = exactMatch.unitId || item.unitId
+                item.unitName = exactMatch.unitName || item.unitName
               }
             })
           } catch (error) { console.error('批量补充物料ID失败:', error) }
@@ -627,9 +627,9 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
     }
     calculateTotalAmount()
     filteredProducts.value = [...products.value]
-    if (!form.customer_id && form.customer_name && Array.isArray(customers.value)) {
-      const matchedCustomer = customers.value.find(c => c.name === form.customer_name || c.name === form.customer)
-      if (matchedCustomer) form.customer_id = matchedCustomer.id
+    if (!form.customerId && form.customerName && Array.isArray(customers.value)) {
+      const matchedCustomer = customers.value.find(c => c.name === form.customerName || c.name === form.customer)
+      if (matchedCustomer) form.customerId = matchedCustomer.id
     }
   }
 

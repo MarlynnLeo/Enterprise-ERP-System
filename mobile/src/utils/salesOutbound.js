@@ -10,9 +10,9 @@ export const canChangeSalesOutboundStatus = (currentStatus, targetStatus) =>
 
 export const buildSalesOutboundStatusPayload = (outbound = {}, status) => ({
   status,
-  delivery_date:
-    outbound.delivery_date ||
-    outbound.outbound_date ||
+  deliveryDate:
+    outbound.deliveryDate ||
+    outbound.outboundDate ||
     new Date().toISOString().slice(0, 10),
   remarks: outbound.remarks ?? outbound.remark
 })
@@ -20,17 +20,19 @@ export const buildSalesOutboundStatusPayload = (outbound = {}, status) => ({
 export const getSalesOutboundErrorMessage = (error, fallback = '操作失败') => {
   const data = error?.response?.data || {}
   const message = data.message || data.error || error?.message || fallback
+  const materialCode = data.materialCode || data.materialCode
+  const materialName = data.materialName || data.materialName
 
   if (
     (message.includes('库存不足') || message.includes('没有库存记录')) &&
-    data.material_code &&
-    data.material_name
+    materialCode &&
+    materialName
   ) {
     if (data.required !== undefined && data.available !== undefined) {
-      return `物料 ${data.material_code}(${data.material_name}) 库存不足，需要数量：${data.required}，可用库存：${data.available}`
+      return `物料 ${materialCode}(${materialName}) 库存不足，需要数量：${data.required}，可用库存：${data.available}`
     }
 
-    return `物料 ${data.material_code}(${data.material_name}) 没有库存记录，无法完成出库`
+    return `物料 ${materialCode}(${materialName}) 没有库存记录，无法完成出库`
   }
 
   return message

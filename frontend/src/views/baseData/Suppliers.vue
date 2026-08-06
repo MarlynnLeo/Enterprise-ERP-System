@@ -72,33 +72,33 @@
         class="w-full"
       >
         <template #empty>
-          <el-empty description="暂无供应商数据" />
+          <EmptyState description="暂无供应商数据" />
         </template>
         <el-table-column prop="code" label="供应商编码" width="100">
           <template #default="scope">
-            {{ scope.row.code || scope.row.supplier_code }}
+            {{ scope.row.code || scope.row.supplierCode }}
           </template>
         </el-table-column>
         <el-table-column prop="name" label="供应商名称" min-width="250">
           <template #default="scope">
-            <el-tooltip :content="scope.row.name || scope.row.supplier_name" placement="top" :show-after="500">
-              <span class="ellipsis-cell">{{ scope.row.name || scope.row.supplier_name }}</span>
+            <el-tooltip :content="scope.row.name || scope.row.supplierName" placement="top" :show-after="500">
+              <span class="ellipsis-cell">{{ scope.row.name || scope.row.supplierName }}</span>
             </el-tooltip>
           </template>
         </el-table-column>
-        <el-table-column prop="contact_person" label="联系人" width="120">
+        <el-table-column prop="contactPerson" label="联系人" width="120">
           <template #default="scope">
-            {{ scope.row.contact_person || scope.row.contact || scope.row.contactPerson || '无' }}
+            {{ scope.row.contactPerson || scope.row.contact || scope.row.contactPerson || '无' }}
           </template>
         </el-table-column>
-        <el-table-column prop="contact_phone" label="联系电话" width="120">
+        <el-table-column prop="contactPhone" label="联系电话" width="120">
           <template #default="scope">
-            {{ scope.row.contact_phone || scope.row.phone || scope.row.contactPhone || '无' }}
+            {{ scope.row.contactPhone || scope.row.phone || scope.row.contactPhone || '无' }}
           </template>
         </el-table-column>
-        <el-table-column prop="payment_term_days" label="账期(天)" width="90">
+        <el-table-column prop="paymentTermDays" label="账期(天)" width="90">
           <template #default="scope">
-            {{ scope.row.payment_term_days != null ? scope.row.payment_term_days : '—' }}
+            {{ scope.row.paymentTermDays != null ? scope.row.paymentTermDays : '—' }}
           </template>
         </el-table-column>
         <el-table-column prop="email" label="电子邮箱" min-width="180">
@@ -110,8 +110,8 @@
         </el-table-column>
         <el-table-column prop="status" label="状态" width="80">
           <template #default="scope">
-            <el-tag :type="(scope.row.status || scope.row.is_active) === 1 ? 'success' : 'danger'">
-              {{ (scope.row.status || scope.row.is_active) === 1 ? '启用' : '禁用' }}
+            <el-tag :type="(scope.row.status || scope.row.isActive) === 1 ? 'success' : 'danger'">
+              {{ (scope.row.status || scope.row.isActive) === 1 ? '启用' : '禁用' }}
             </el-tag>
           </template>
         </el-table-column>
@@ -133,7 +133,7 @@
           <template #default="scope">
             <div class="operation-buttons">
               <el-popconfirm
-                v-if="canUpdate && (scope.row.status || scope.row.is_active) !== 1"
+                v-if="canUpdate && (scope.row.status || scope.row.isActive) !== 1"
                 title="确定要启用该供应商吗？"
                 @confirm="handleToggleStatus(scope.row, 1)"
               >
@@ -144,7 +144,7 @@
                 </template>
               </el-popconfirm>
               <el-popconfirm
-                v-if="canUpdate && (scope.row.status || scope.row.is_active) === 1"
+                v-if="canUpdate && (scope.row.status || scope.row.isActive) === 1"
                 title="确定要禁用该供应商吗？"
                 @confirm="handleToggleStatus(scope.row, 0)"
                 confirm-button-type="warning"
@@ -163,14 +163,14 @@
                 区间报价
               </el-button>
 <el-button
-                v-if="canUpdate && (scope.row.status || scope.row.is_active) !== 1"
+                v-if="canUpdate && (scope.row.status || scope.row.isActive) !== 1"
                 size="small"
                 type="primary"
                 @click="handleEdit(scope.row)">
                 <el-icon><Edit /></el-icon> 编辑
               </el-button>
               <el-popconfirm
-                v-if="canDelete && (scope.row.status || scope.row.is_active) !== 1"
+                v-if="canDelete && (scope.row.status || scope.row.isActive) !== 1"
                 title="确定要删除该供应商吗？此操作无法恢复。"
                 @confirm="handleDelete(scope.row)"
                 confirm-button-type="danger"
@@ -215,9 +215,10 @@
     />
 
     <!-- 导入对话框 -->
-    <el-dialog
-      title="导入供应商"
+    <AppDialog
       v-model="importDialogVisible"
+      title="导入供应商"
+      mode="form"
       width="500px"
     >
       <div class="mb-20">
@@ -254,7 +255,7 @@
           </el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
   </div>
 </template>
 
@@ -366,13 +367,13 @@ const fetchData = async () => {
     // 标准化数据字段
     tableData.value = sourceList.map(item => ({
       id: item.id,
-      code: item.code || item.supplier_code || '',
-      name: item.name || item.supplier_name || '',
-      contact_person: item.contact_person || item.contact || '',
-      contact_phone: item.contact_phone || item.phone || '',
+      code: item.code || item.supplierCode || '',
+      name: item.name || item.supplierName || '',
+      contact_person: item.contactPerson || item.contact || '',
+      contact_phone: item.contactPhone || item.phone || '',
       email: item.email || '',
       address: item.address || '',
-      status: item.status !== undefined ? Number(item.status) : (item.is_active !== undefined ? Number(item.is_active) : 1),
+      status: item.status !== undefined ? Number(item.status) : (item.isActive !== undefined ? Number(item.isActive) : 1),
       remark: item.remark || item.remarks || ''
     }));
 

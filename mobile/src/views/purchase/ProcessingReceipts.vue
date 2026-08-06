@@ -34,15 +34,15 @@
     ],
     fields: {
       id: 'id',
-      title: 'supplier_name',
-      subtitle: 'receipt_code',
+      title: 'supplierName',
+      subtitle: 'receiptCode',
       icon: 'logistics',
       details: [
-        { label: '入库单号', field: 'receipt_code' },
-        { label: '加工单号', field: 'processing_code' },
-        { label: '物料名称', field: 'material_name' },
+        { label: '入库单号', field: 'receiptCode' },
+        { label: '加工单号', field: 'processingCode' },
+        { label: '物料名称', field: 'materialName' },
         { label: '入库数量', field: 'quantity' },
-        { label: '入库日期', field: 'receipt_date', type: 'date' }
+        { label: '入库日期', field: 'receiptDate', type: 'date' }
       ],
       tags: [
         {

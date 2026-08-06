@@ -9,22 +9,22 @@
       @selection-change="handleSelectionChange"
     >
       <template #empty>
-        <el-empty description="暂无BOM数据" />
+        <EmptyState description="暂无BOM数据" />
       </template>
       <el-table-column v-if="selectionMode" type="selection" width="55" :selectable="(row) => true"></el-table-column>
-      <el-table-column label="产品编码" width="120" sortable prop="product_code" show-overflow-tooltip>
+      <el-table-column label="产品编码" width="120" sortable prop="productCode" show-overflow-tooltip>
         <template #default="scope">
-          {{ scope.row.product_code || '未知' }}
+          {{ scope.row.productCode || '未知' }}
         </template>
       </el-table-column>
-      <el-table-column label="产品名称" min-width="150" sortable prop="product_name" show-overflow-tooltip>
+      <el-table-column label="产品名称" min-width="150" sortable prop="productName" show-overflow-tooltip>
         <template #default="scope">
-          {{ scope.row.product_name || '未知' }}
+          {{ scope.row.productName || '未知' }}
         </template>
       </el-table-column>
       <el-table-column label="规格型号" min-width="180" show-overflow-tooltip>
         <template #default="scope">
-          <span v-if="scope.row.product_specs">{{ scope.row.product_specs }}</span>
+          <span v-if="scope.row.productSpecs">{{ scope.row.productSpecs }}</span>
           <span v-else>-</span>
         </template>
       </el-table-column>
@@ -37,16 +37,16 @@
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="created_by" label="创建人" width="90" show-overflow-tooltip></el-table-column>
-      <el-table-column prop="updated_by" label="修改人" width="90" show-overflow-tooltip></el-table-column>
-      <el-table-column label="修改时间" width="120" sortable prop="updated_at">
+      <el-table-column prop="createdBy" label="创建人" width="90" show-overflow-tooltip></el-table-column>
+      <el-table-column prop="updatedBy" label="修改人" width="90" show-overflow-tooltip></el-table-column>
+      <el-table-column label="修改时间" width="120" sortable prop="updatedAt">
         <template #default="scope">
-          {{ DateFormatter.toDate(scope.row.updated_at) }}
+          {{ DateFormatter.toDate(scope.row.updatedAt) }}
         </template>
       </el-table-column>
-      <el-table-column label="创建时间" width="120" sortable prop="created_at">
+      <el-table-column label="创建时间" width="120" sortable prop="createdAt">
         <template #default="scope">
-          {{ DateFormatter.toDate(scope.row.created_at) }}
+          {{ DateFormatter.toDate(scope.row.createdAt) }}
         </template>
       </el-table-column>
       <el-table-column prop="remark" label="备注" min-width="150" show-overflow-tooltip></el-table-column>
@@ -219,7 +219,7 @@ const isApproved = (row) => {
     return Number(row.approved) === 1
   }
   // 兜底：如果approved_by不为null则视为已审核
-  return row.approved_by !== null && row.approved_by !== undefined
+  return row.approvedBy !== null && row.approvedBy !== undefined
 }
 const getStatusType = (approved) => {
   return approved ? 'success' : 'warning'

@@ -7,6 +7,7 @@
 
 const { ResponseHandler } = require('../../utils/responseHandler');
 const { logger } = require('../../utils/logger');
+const { mapKeysToSnake } = require('../../utils/fieldMap');
 
 const {
   generateTokens,
@@ -127,7 +128,10 @@ const updateUserProfile = async (req, res) => {
   try {
 
     const userId = req.user.id;
-    const { real_name, name, email, phone, department_id, position, avatar, bio } = req.body;
+    const body = mapKeysToSnake(req.body || {});
+    const { real_name, email, phone, department_id, position, avatar, bio } = body;
+    // name 为前端展示字段别名，mapKeysToSnake 后仍可能保留 name
+    const name = req.body?.name;
 
     // 构建更新字段映射
     const fields = {};
@@ -333,7 +337,8 @@ const getUserPermissions = async (req, res) => {
 const updateAvatarFrame = async (req, res) => {
   try {
     const userId = req.user.id;
-    const frameId = req.body.frameId || req.body.avatar_frame;
+    const body = mapKeysToSnake(req.body || {});
+    const frameId = req.body.frameId || body.avatarFrame;
 
     const decorativeFrameIds = new Set([
       'golden-halo',

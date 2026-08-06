@@ -99,17 +99,17 @@
                 <div class="card-body">
                   <div class="card-top">
                     <div class="code-area">
-                      <span class="order-code">{{ item.check_no }}</span>
+                      <span class="order-code">{{ item.checkNo }}</span>
                       <span class="status-tag" :class="getStatusAccent(item.status)">{{ getStatusText(item.status) }}</span>
                     </div>
-                    <div class="order-qty" v-if="item.item_count">
-                      {{ item.item_count }}<span class="qty-unit">种</span>
+                    <div class="order-qty" v-if="item.itemCount">
+                      {{ item.itemCount }}<span class="qty-unit">种</span>
                     </div>
                   </div>
-                  <div class="order-title">{{ getCheckTypeText(item.check_type) }}</div>
+                  <div class="order-title">{{ getCheckTypeText(item.checkType) }}</div>
                   <div class="card-meta">
-                    <span class="meta-item" v-if="item.warehouse"><Icon name="location-o" size="12" /> {{ item.warehouse }}</span>
-                    <span class="meta-item" v-if="item.check_date">{{ item.check_date }}</span>
+                    <span class="meta-item" v-if="item.locationName || item.warehouse"><Icon name="location-o" size="12" /> {{ item.locationName || item.warehouse }}</span>
+                    <span class="meta-item" v-if="item.checkDate">{{ item.checkDate }}</span>
                   </div>
                 </div>
               </div>

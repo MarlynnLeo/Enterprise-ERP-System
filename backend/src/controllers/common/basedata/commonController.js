@@ -6,6 +6,7 @@
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 const { createCrudController } = require('../../../utils/controllerFactory');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 const FileAccessService = require('../../../services/FileAccessService');
 
 const path = require('path');
@@ -54,13 +55,14 @@ const commonController = {
         return ResponseHandler.error(res, '没有上传文件', 'VALIDATION_ERROR', 400);
       }
       const fileUrl = `/uploads/${req.file.filename}`;
+      const body = mapKeysToSnake(req.body || {});
       await FileAccessService.safeRecordUpload({
         fileUrl,
-        businessType: req.body.business_type || req.body.businessType,
-        businessId: req.body.business_id || req.body.businessId,
+        businessType: body.business_type,
+        businessId: body.business_id,
         source: 'baseData',
         uploadedBy: req.user?.id || req.user?.userId || null,
-        isPublic: req.body.is_public || req.body.isPublic,
+        isPublic: body.is_public,
         metadata: {
           originalName: req.file.originalname,
           mimetype: req.file.mimetype,

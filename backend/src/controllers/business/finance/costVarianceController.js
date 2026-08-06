@@ -10,6 +10,7 @@ const { logger } = require('../../../utils/logger');
 const CostAccountingService = require('../../../services/business/CostAccountingService');
 const { parsePagination } = require('../../../utils/safePagination');
 const { getRequestActorLabel } = require('../../../utils/userUtils');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 
 module.exports = {
   // ==================== 成本差异 ====================
@@ -283,9 +284,15 @@ module.exports = {
             `);
       const totalCount = countResult[0].total;
 
-      ResponseHandler.paginated(res, alertsList, totalCount, pagination.page, pagination.pageSize, undefined, {
-        threshold,
-      });
+      ResponseHandler.paginated(
+        res,
+        alertsList,
+        totalCount,
+        pagination.page,
+        pagination.pageSize,
+        undefined,
+        { threshold }
+      );
     } catch (error) {
       logger.error('获取成本预警失败:', error);
       ResponseHandler.error(res, '获取成本预警失败', 'SERVER_ERROR', 500);
@@ -326,8 +333,7 @@ module.exports = {
    */
   saveCostAlertSettings: async (req, res) => {
     try {
-      const { variance_threshold, material_threshold, labor_threshold, overhead_threshold } =
-        req.body;
+      const { variance_threshold, material_threshold, labor_threshold, overhead_threshold } = mapKeysToSnake(req.body || {});
 
       // 表结构由 migrations/20260312000009_baseline_misc_tables.js 管理
 

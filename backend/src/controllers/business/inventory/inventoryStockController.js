@@ -10,6 +10,7 @@ const { logger } = require('../../../utils/logger');
 const { parsePagination, appendPaginationSQL } = require('../../../utils/safePagination');
 const { CodeGenerators } = require('../../../utils/codeGenerator');
 const { validateRequiredFields } = require('../../../utils/validationHelper');
+const { mapKeysToCamel, mapKeysToSnake } = require('../../../utils/fieldMap');
 const dayjs = require('dayjs');
 
 const db = require('../../../config/db');
@@ -51,6 +52,7 @@ const {
 
 const getStockList = async (req, res) => {
   try {
+    const q = mapKeysToSnake(req.query || {});
     const {
       page = 1,
       limit = 20,
@@ -64,7 +66,7 @@ const getStockList = async (req, res) => {
       end_date = '', // 更新时间结束
       sort_field = 'updated_at', // 排序字段
       sort_order = 'DESC', // 排序方向: ASC, DESC
-    } = req.query;
+    } = { ...req.query, ...q };
     const pagination = parsePagination(page, limit, { defaultPageSize: 20, maxPageSize: 100 });
 
     // 构建WHERE条件
@@ -234,7 +236,7 @@ const getStockList = async (req, res) => {
 
     // 移除之前的内存过滤逻辑
 
-    // 统一使用下划线命名,符合数据库规范
+    // HTTP 边界出参 camelCase
     ResponseHandler.paginated(
       res,
       stocks,
@@ -579,17 +581,16 @@ const adjustStock = async (req, res) => {
   try {
     await connection.beginTransaction();
 
+    const body = mapKeysToSnake(req.body || {});
     const {
-      materialId,
-      locationId,
+      material_id: materialId,
+      location_id: locationId,
       quantity,
       type,
       remark,
-      batchNumber,
-      batch_number: batchNumberSnake,
-      unitCost,
-      unit_cost: unitCostSnake,
-    } = req.body;
+      batch_number: batchNumber,
+      unit_cost: unitCost,
+    } = body;
 
     // 验证必填字段
     if (!materialId || !locationId || !quantity) {
@@ -607,7 +608,7 @@ const adjustStock = async (req, res) => {
       actualQuantity = Math.abs(actualQuantity);
     }
 
-    const resolvedUnitCost = Number(unitCost ?? unitCostSnake);
+    const resolvedUnitCost = Number(unitCost);
     if (type !== 'out' && !(resolvedUnitCost > 0)) {
       throw new Error('调整入库必须填写大于0的单位成本');
     }
@@ -655,7 +656,7 @@ const adjustStock = async (req, res) => {
     const adjustmentNo = await CodeGenerators.generateAdjustmentCode(connection);
 
     // 入库必须有可追溯批次：优先用前端录入，否则用调整单号作为业务批次（可追溯到调整单）
-    const explicitBatch = String(batchNumber || batchNumberSnake || '').trim();
+    const explicitBatch = String(batchNumber || '').trim();
     const inboundBatchNumber =
       changeQuantity > 0 ? explicitBatch || adjustmentNo : explicitBatch || null;
 
@@ -799,7 +800,7 @@ const getMaterialRecords = async (req, res) => {
         // 如果有items数据
         if (innerData.items && Array.isArray(innerData.items)) {
           // 转换数据格式以匹配原有的getMaterialRecords格式
-          const records = innerData.items.map((item) => ({
+          const records = mapKeysToCamel(innerData.items.map((item) => ({
             id: item.id,
             date: item.date,
             transaction_type: item.transactionType,
@@ -814,7 +815,7 @@ const getMaterialRecords = async (req, res) => {
             operator_name: item.operatorName || item.operator || '系统',
             remark: item.remark || '',
             source_table: 'ledger',
-          }));
+          })));
 
           // 直接返回数组格式，让前端可以直接使用
           return originalJson(records);
@@ -1383,9 +1384,8 @@ const importStock = async (req, res) => {
 
         // 生成调整单号
         const adjustmentNo = await CodeGenerators.generateAdjustmentCode(connection);
-        // 正数入库必须有可追溯批次；导入使用稳定批次号
+        // 正数入库必须有可追溯批次；导入行只认 camel batchNumber
         const importBatch =
-          stock.batch_number ||
           stock.batchNumber ||
           (adjustmentQuantity > 0 ? `IMP-${adjustmentNo}-${materialId}` : null);
 

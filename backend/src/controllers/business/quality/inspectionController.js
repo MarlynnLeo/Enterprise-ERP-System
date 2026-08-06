@@ -8,6 +8,7 @@
  */
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 const { logger } = require('../../../utils/logger');
 const QualityInspection = require('../../../models/qualityInspection');
 const db = require('../../../config/db');
@@ -244,7 +245,9 @@ const inspectionController = {
         let connection;
         try {
             const { id } = req.params;
-            const data = req.body;
+            // HTTP camel → snake（qualityInspectionMap）
+            const { qualityInspectionMap } = require('../../../utils/quality/qualityFieldMap');
+            const data = qualityInspectionMap.fromApi(req.body || {});
 
             connection = await db.pool.getConnection();
             await connection.beginTransaction();
@@ -298,7 +301,7 @@ const inspectionController = {
             }
 
             await connection.commit();
-            ResponseHandler.success(res, result, '检验单更新成功');
+            ResponseHandler.success(res, qualityInspectionMap.toApi(result), '检验单更新成功');
         } catch (error) {
             if (connection) {
                 await connection.rollback();
@@ -421,7 +424,7 @@ const inspectionController = {
     async updateInspectionStatusAndTrace(req, res) {
         try {
             const { id } = req.params;
-            const { status, result, remarks, batch_number, qualified_quantity, unqualified_quantity } = req.body;
+            const { status, result, remarks, batch_number, qualified_quantity, unqualified_quantity } = mapKeysToSnake(req.body || {});
 
             if (!id || !status) {
                 return ResponseHandler.error(res, '检验单ID和状态不能为空', 'VALIDATION_ERROR', 400);

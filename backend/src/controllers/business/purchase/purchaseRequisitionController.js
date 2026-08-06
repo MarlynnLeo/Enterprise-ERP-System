@@ -6,6 +6,7 @@
  */
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 const { logger } = require('../../../utils/logger');
 const { parsePagination } = require('../../../utils/safePagination');
 
@@ -13,6 +14,10 @@ const db = require('../../../config/db');
 const { softDelete } = require('../../../utils/softDelete');
 const purchaseModel = require('../../../models/purchase');
 const { getRequestActorLabel } = require('../../../utils/userUtils');
+const {
+  purchaseRequisitionMap,
+  purchaseRequisitionItemMap,
+} = require('../../../utils/purchase/purchaseFieldMap');
 
 const toNullableInteger = (value) => {
   if (value === undefined || value === null || value === '') return null;
@@ -21,11 +26,10 @@ const toNullableInteger = (value) => {
 };
 
 const normalizeSourceInfo = (body = {}) => {
-  const sourceType = body.source_type || body.sourceType || null;
-  const sourceId = toNullableInteger(body.source_id ?? body.sourceId);
-  const sourceMaterialId = toNullableInteger(
-    body.source_material_id ?? body.sourceMaterialId ?? body.material_id ?? body.materialId
-  );
+  // HTTP 入参只认 camel
+  const sourceType = body.sourceType || null;
+  const sourceId = toNullableInteger(body.sourceId);
+  const sourceMaterialId = toNullableInteger(body.sourceMaterialId ?? body.materialId);
 
   if (!sourceType || !sourceId || !sourceMaterialId) {
     return null;
@@ -235,7 +239,7 @@ const getRequisitions = async (req, res) => {
     const totalCount = rows.length > 0 ? parseInt(rows[0].total_count) : 0;
 
     const responseData = {
-      items: requisitions,
+      items: requisitions.map((r) => purchaseRequisitionMap.toApi(r)),
       total: totalCount,
       page: pagination.page,
       pageSize: pagination.pageSize,
@@ -294,16 +298,16 @@ const getRequisition = async (req, res) => {
     `;
     const [itemsRows] = await db.pool.execute(itemsQuery, [id]);
 
-    // 处理物料数据，优先使用物料表中的specs字段，并添加供应商信息
+    // 处理物料数据，优先使用物料表中的specs字段，并添加供应商信息；出参走 FieldMap camel
     requisition.materials = itemsRows.map((item) => ({
       ...item,
-      specification: item.material_specs || item.specification || '',
+      specification: item.materialSpecs || item.specification || '',
       supplier_id: item.supplier_id || null,
       supplier_name: item.supplier_name || '暂无设置供应商',
-      unit: item.unit || item.unit_name || '',
+      unit: item.unit || item.unitName || '',
     }));
 
-    return ResponseHandler.success(res, requisition);
+    return ResponseHandler.success(res, purchaseRequisitionMap.toApi(requisition));
   } catch (error) {
     logger.error('获取采购申请详情失败:', error);
     return ResponseHandler.error(res, '操作失败', 'OPERATION_ERROR', 500, error);
@@ -389,14 +393,12 @@ const createRequisition = async (req, res) => {
 
     const {
       request_date,
-      requestDate,
-      contractCode,
       contract_code,
       remarks,
       materials,
       requester,
       real_name,
-    } = req.body;
+    } = mapKeysToSnake(req.body || {});
 
     // 使用请求中提供的requester或者从认证信息中获取
     const finalRequester = requester || getRequestActorLabel(req);
@@ -415,11 +417,10 @@ const createRequisition = async (req, res) => {
       }
     }
 
-    // 使用request_date或requestDate
-    const finalRequestDate = request_date || requestDate || new Date().toISOString().split('T')[0];
+    // mapKeysToSnake 后 requestDate → request_date
+    const finalRequestDate = request_date || new Date().toISOString().split('T')[0];
 
-    // 合同编码（支持两种命名格式）
-    const finalContractCode = contractCode || contract_code || null;
+    const finalContractCode = contract_code || null;
     sourceInfo = normalizeSourceInfo(req.body);
 
     // 采购相关表由 migrations/20260312000007 管理，无需运行时建表
@@ -514,24 +515,14 @@ const createRequisition = async (req, res) => {
       for (const material of materials) {
         // 打印每个物料对象的类型和内容
 
-        // 检查可能的字段名变体
-        const materialId =
-          material.materialId !== undefined
-            ? material.materialId
-            : material.material_id !== undefined
-              ? material.material_id
-              : null;
+        // HTTP 明细只认 camel
+        const materialId = material.materialId !== undefined ? material.materialId : null;
 
-        let materialCode = material.materialCode || material.material_code || '';
-        let materialName = material.materialName || material.material_name || '';
+        let materialCode = material.materialCode || '';
+        let materialName = material.materialName || '';
         let specification = material.specification || material.specs || '';
         let unit = material.unit || '';
-        let unitId =
-          material.unitId !== undefined
-            ? material.unitId
-            : material.unit_id !== undefined
-              ? material.unit_id
-              : null;
+        let unitId = material.unitId !== undefined ? material.unitId : null;
         const quantity = material.quantity !== undefined ? material.quantity : 0;
 
         // 如果提供了materialId，但没有其他信息，从数据库获取
@@ -645,8 +636,14 @@ const updateRequisition = async (req, res) => {
     await connection.beginTransaction();
 
     const { id } = req.params;
-    const { requestDate, contractCode, contract_code, remarks, materials, requester, real_name } =
-      req.body;
+    const {
+      request_date: requestDate,
+      contract_code,
+      remarks,
+      materials,
+      requester,
+      real_name,
+    } = mapKeysToSnake(req.body || {});
 
     // 使用请求中提供的requester和real_name，或者从认证信息中获取
     const finalRequester = requester || req.user?.username;
@@ -665,8 +662,8 @@ const updateRequisition = async (req, res) => {
       }
     }
 
-    // 合同编码（支持两种命名格式）
-    const finalContractCode = contractCode || contract_code || null;
+    // mapKeysToSnake 后 contractCode → contract_code
+    const finalContractCode = contract_code || null;
 
     // 检查申请单是否存在及其状态
     const checkQuery = 'SELECT status FROM purchase_requisitions WHERE id = ? AND deleted_at IS NULL FOR UPDATE';
@@ -708,24 +705,13 @@ const updateRequisition = async (req, res) => {
 
       // 验证和处理物料数据
       const validatedMaterials = materials.map((material) => {
-        // 检查可能的字段名变体
-        const materialId =
-          material.materialId !== undefined
-            ? material.materialId
-            : material.material_id !== undefined
-              ? material.material_id
-              : null;
-
-        const materialCode = material.materialCode || material.material_code || '';
-        const materialName = material.materialName || material.material_name || '';
+        // HTTP 明细只认 camel
+        const materialId = material.materialId !== undefined ? material.materialId : null;
+        const materialCode = material.materialCode || '';
+        const materialName = material.materialName || '';
         const specification = material.specification || material.specs || '';
         const unit = material.unit || '';
-        const unitId =
-          material.unitId !== undefined
-            ? material.unitId
-            : material.unit_id !== undefined
-              ? material.unit_id
-              : null;
+        const unitId = material.unitId !== undefined ? material.unitId : null;
         const quantity = material.quantity !== undefined ? material.quantity : 0;
 
         return {
@@ -1001,7 +987,7 @@ const getRequisitionById = async (id) => {
     // 处理物料数据，优先使用物料表中的specs字段，并添加供应商信息
     requisition.materials = itemsRows.map((item) => ({
       ...item,
-      specification: item.material_specs || item.specification || '',
+      specification: item.materialSpecs || item.specification || '',
       supplier_id: item.supplier_id || null,
       supplier_name: item.supplier_name || '暂无设置供应商',
     }));
@@ -1030,7 +1016,7 @@ const getRequisitionItems = async (req, res) => {
 
     const items = rows.map((item) => ({
       ...item,
-      specification: item.material_specs || item.specification || '',
+      specification: item.materialSpecs || item.specification || '',
     }));
 
     return ResponseHandler.success(res, items);
@@ -1044,8 +1030,7 @@ const getRequisitionItems = async (req, res) => {
 const createRequisitionItem = async (req, res) => {
   try {
     const { id } = req.params;
-    const { material_id, material_code, material_name, specification, unit, unit_id, quantity } =
-      req.body;
+    const { material_id, material_code, material_name, specification, unit, unit_id, quantity } = mapKeysToSnake(req.body || {});
 
     const query = `
       INSERT INTO purchase_requisition_items
@@ -1080,8 +1065,7 @@ const createRequisitionItem = async (req, res) => {
 const updateRequisitionItem = async (req, res) => {
   try {
     const { itemId } = req.params;
-    const { material_id, material_code, material_name, specification, unit, unit_id, quantity } =
-      req.body;
+    const { material_id, material_code, material_name, specification, unit, unit_id, quantity } = mapKeysToSnake(req.body || {});
 
     const query = `
       UPDATE purchase_requisition_items

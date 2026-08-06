@@ -30,11 +30,11 @@
     <!-- 数据表格 -->
     <el-card class="data-card">
       <el-table :data="filteredData" v-loading="loading" border stripe
-        :row-class-name="({row}) => row.is_active ? '' : 'row-disabled'"
+        :row-class-name="({row}) => row.isActive ? '' : 'row-disabled'"
         class="w-full">
-        <el-table-column prop="business_type" label="业务类型" width="180" sortable>
+        <el-table-column prop="businessType" label="业务类型" width="180" sortable>
           <template #default="{ row }">
-            <span class="code-text">{{ row.business_type }}</span>
+            <span class="code-text">{{ row.businessType }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="name" label="规则名称" min-width="130" />
@@ -42,16 +42,16 @@
           <template #default="{ row }">
             <div class="rule-pattern">
               <el-tag v-if="row.prefix" size="small" type="primary" class="rule-tag">{{ row.prefix }}</el-tag>
-              <span v-if="row.prefix && (row.date_format || true)" class="rule-sep">{{ row.separator || '' }}</span>
-              <el-tag v-if="row.date_format" size="small" type="warning" class="rule-tag">{{ row.date_format }}</el-tag>
-              <span v-if="row.date_format" class="rule-sep">{{ row.separator || '' }}</span>
-              <el-tag size="small" type="info" class="rule-tag">{{ '0'.repeat(row.sequence_length || 4) }}</el-tag>
+              <span v-if="row.prefix && (row.dateFormat || true)" class="rule-sep">{{ row.separator || '' }}</span>
+              <el-tag v-if="row.dateFormat" size="small" type="warning" class="rule-tag">{{ row.dateFormat }}</el-tag>
+              <span v-if="row.dateFormat" class="rule-sep">{{ row.separator || '' }}</span>
+              <el-tag size="small" type="info" class="rule-tag">{{ '0'.repeat(row.sequenceLength || 4) }}</el-tag>
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="reset_cycle" label="重置周期" width="100">
+        <el-table-column prop="resetCycle" label="重置周期" width="100">
           <template #default="{ row }">
-            <el-tag :type="cycleType[row.reset_cycle]" size="small" effect="plain">{{ cycleLabel[row.reset_cycle] }}</el-tag>
+            <el-tag :type="cycleType[row.resetCycle]" size="small" effect="plain">{{ cycleLabel[row.resetCycle] }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column label="下一个编号" width="200">
@@ -59,9 +59,9 @@
             <span class="preview-code">{{ row._preview || '--' }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="is_active" label="状态" width="75">
+        <el-table-column prop="isActive" label="状态" width="75">
           <template #default="{ row }">
-            <el-tag :type="row.is_active ? 'success' : 'danger'" size="small" effect="dark">{{ row.is_active ? '启用' : '停用' }}</el-tag>
+            <el-tag :type="row.isActive ? 'success' : 'danger'" size="small" effect="dark">{{ row.isActive ? '启用' : '停用' }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="description" label="说明" min-width="140" show-overflow-tooltip />
@@ -75,10 +75,15 @@
       </el-table>
     </el-card>
     <!-- 新增/编辑弹窗 -->
-    <el-dialog v-model="formVis" :title="form.id ? '编辑编码规则' : '新增编码规则'" width="600px" destroy-on-close>
+    <AppDialog
+      v-model="formVis"
+      :title="form.id ? '编辑编码规则' : '新增编码规则'"
+      mode="form"
+      width="600px"
+    >
       <el-form :model="form" :rules="formRules" ref="formRef" label-width="100px">
-        <el-form-item label="业务类型" prop="business_type">
-          <el-input v-model="form.business_type" :disabled="!!form.id" placeholder="如 purchase_order" />
+        <el-form-item label="业务类型" prop="businessType">
+          <el-input v-model="form.businessType" :disabled="!!form.id" placeholder="如 purchase_order" />
         </el-form-item>
         <el-form-item label="规则名称" prop="name">
           <el-input v-model="form.name" placeholder="如 采购订单" />
@@ -91,7 +96,7 @@
           </el-col>
           <el-col :span="8">
             <el-form-item label="日期格式">
-              <el-select v-model="form.date_format" class="w-full" clearable placeholder="选择格式">
+              <el-select v-model="form.dateFormat" class="w-full" clearable placeholder="选择格式">
                 <el-option label="无" value="" />
                 <el-option label="YYMMDD" value="YYMMDD" />
                 <el-option label="YYMM" value="YYMM" />
@@ -115,19 +120,19 @@
         <el-row :gutter="16">
           <el-col :span="6">
             <el-form-item label="流水号位数">
-              <el-input-number v-model="form.sequence_length" :min="1" :max="10" class="w-full" />
+              <el-input-number v-model="form.sequenceLength" :min="1" :max="10" class="w-full" />
             </el-form-item>
           </el-col>
           <el-col :span="6">
             <el-form-item label="重置周期">
-              <el-select v-model="form.reset_cycle" class="w-full">
+              <el-select v-model="form.resetCycle" class="w-full">
                 <el-option v-for="(l,k) in cycleLabel" :key="k" :label="l" :value="k" />
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="6">
             <el-form-item label="起始值">
-              <el-input-number v-model="form.initial_value" :min="0" class="w-full" />
+              <el-input-number v-model="form.initialValue" :min="0" class="w-full" />
             </el-form-item>
           </el-col>
           <el-col :span="6">
@@ -140,7 +145,7 @@
           <el-input v-model="form.description" type="textarea" :rows="2" placeholder="规则用途说明（选填）" />
         </el-form-item>
         <el-form-item label="启用">
-          <el-switch v-model="form.is_active" :active-value="1" :inactive-value="0" />
+          <el-switch v-model="form.isActive" :active-value="1" :inactive-value="0" />
         </el-form-item>
         <!-- 实时预览 -->
         <el-form-item label="编号预览">
@@ -153,20 +158,20 @@
         <el-button @click="formVis = false">取消</el-button>
         <el-button type="primary" v-permission="'system:settings:edit'" @click="handleSave" :loading="saving">保存</el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
     <!-- 序列详情抽屉 -->
     <el-drawer v-model="seqVis" :title="`序列详情 — ${seqType}`" size="450px">
       <div v-if="seqLoading" v-loading="true" style="height:100px" />
       <template v-else>
-        <el-empty v-if="!sequences.length" description="暂无序列记录" />
+        <EmptyState v-if="!sequences.length" description="暂无序列记录" />
         <el-descriptions v-for="s in sequences" :key="s.id" :column="1" border size="small" class="seq-item">
           <el-descriptions-item label="周期键">
-            <span class="code-text">{{ s.period_key }}</span>
+            <span class="code-text">{{ s.periodKey }}</span>
           </el-descriptions-item>
           <el-descriptions-item label="当前值">
-            <span style="font-size:18px;font-weight:bold;color:var(--color-primary)">{{ s.current_value }}</span>
+            <span style="font-size:18px;font-weight:bold;color:var(--color-primary)">{{ s.currentValue }}</span>
           </el-descriptions-item>
-          <el-descriptions-item label="更新时间">{{ s.updated_at }}</el-descriptions-item>
+          <el-descriptions-item label="更新时间">{{ s.updatedAt }}</el-descriptions-item>
         </el-descriptions>
         <div style="margin-top:16px;text-align:center">
           <el-popconfirm title="确定重置该业务类型的所有序列？此操作不可撤销！" confirm-button-text="确认重置"
@@ -197,7 +202,7 @@ const filterCycle = ref('')
 const cycleLabel = { none: '不重置', daily: '每日', monthly: '每月', yearly: '每年' }
 const cycleType = { none: 'info', daily: 'primary', monthly: 'warning', yearly: 'success' }
 const formRules = {
-  business_type: [{ required: true, message: '请输入业务类型', trigger: 'blur' }],
+  businessType: [{ required: true, message: '请输入业务类型', trigger: 'blur' }],
   name: [{ required: true, message: '请输入规则名称', trigger: 'blur' }],
   prefix: [{ required: true, message: '请输入前缀', trigger: 'blur' }],
 }
@@ -207,13 +212,13 @@ const filteredData = computed(() => {
   if (keyword.value) {
     const kw = keyword.value.toLowerCase()
     list = list.filter(r =>
-      (r.business_type || '').toLowerCase().includes(kw) ||
+      (r.businessType || '').toLowerCase().includes(kw) ||
       (r.name || '').toLowerCase().includes(kw) ||
       (r.prefix || '').toLowerCase().includes(kw)
     )
   }
   if (filterCycle.value) {
-    list = list.filter(r => r.reset_cycle === filterCycle.value)
+    list = list.filter(r => r.resetCycle === filterCycle.value)
   }
   return list
 })
@@ -227,7 +232,7 @@ const livePreview = computed(() => {
   const parts = []
   const sep = f.separator || ''
   if (f.prefix) parts.push(f.prefix)
-  if (f.date_format) {
+  if (f.dateFormat) {
     // 手动生成日期字符串以匹配后端逻辑
     const now = new Date()
     const y4 = String(now.getFullYear())
@@ -235,9 +240,9 @@ const livePreview = computed(() => {
     const m = String(now.getMonth() + 1).padStart(2, '0')
     const d = String(now.getDate()).padStart(2, '0')
     const fmtMap = { YYYYMMDD: y4+m+d, YYYYMM: y4+m, YYYY: y4, YYMMDD: y2+m+d, YYMM: y2+m }
-    parts.push(fmtMap[f.date_format] || f.date_format)
+    parts.push(fmtMap[f.dateFormat] || f.dateFormat)
   }
-  parts.push('0'.repeat(f.sequence_length || 4).slice(0, -1) + '1')
+  parts.push('0'.repeat(f.sequenceLength || 4).slice(0, -1) + '1')
   return parts.join(sep)
 })
 const filterList = () => { /* computed 自动处理 */ }
@@ -260,9 +265,9 @@ const openForm = (row) => {
   form.value = row
     ? { ...row }
     : {
-        business_type: '', name: '', prefix: '', date_format: 'YYYYMMDD',
-        separator: '-', sequence_length: 4, reset_cycle: 'daily',
-        initial_value: 1, step: 1, is_active: 1, description: ''
+        businessType: '', name: '', prefix: '', dateFormat: 'YYYYMMDD',
+        separator: '-', sequenceLength: 4, resetCycle: 'daily',
+        initialValue: 1, step: 1, isActive: 1, description: ''
       }
   formVis.value = true
 }
@@ -282,7 +287,7 @@ const handleSave = async () => {
 }
 const handleDelete = async (row) => {
   try {
-    await ElMessageBox.confirm(`确定删除编码规则「${row.name}」(${row.business_type})？\n关联的序列数据也会一并清除！`, '删除确认', {
+    await ElMessageBox.confirm(`确定删除编码规则「${row.name}」(${row.businessType})？\n关联的序列数据也会一并清除！`, '删除确认', {
       type: 'warning', confirmButtonText: '确定删除', cancelButtonText: '取消'
     })
     await codingRuleApi.delete(row.id)
@@ -301,18 +306,18 @@ const seqLoading = ref(false)
 const seqType = ref('')
 const sequences = ref([])
 const openSequences = async (row) => {
-  seqType.value = row.business_type
+  seqType.value = row.businessType
   seqVis.value = true
   seqLoading.value = true
   try {
-    const res = await codingRuleApi.getSequences(row.business_type)
+    const res = await codingRuleApi.getSequences(row.businessType)
     sequences.value = res.data || res || []
   } catch { sequences.value = [] }
   finally { seqLoading.value = false }
 }
 const handleResetSeq = async () => {
   try {
-    await codingRuleApi.resetSequence({ business_type: seqType.value })
+    await codingRuleApi.resetSequence({ businessType: seqType.value })
     ElMessage.success('序列已重置')
     sequences.value = []
     fetchList()

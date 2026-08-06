@@ -9,28 +9,28 @@
     <div v-else-if="exchange" class="content">
       <div class="hero">
         <div>
-          <div class="code">{{ exchange.exchange_no || '-' }}</div>
-          <div class="name">{{ exchange.customer_name || '未关联客户' }}</div>
+          <div class="code">{{ exchange.exchangeNo || '-' }}</div>
+          <div class="name">{{ exchange.customerName || '未关联客户' }}</div>
         </div>
         <Tag :type="statusType(exchange.status)">{{ statusText(exchange.status) }}</Tag>
       </div>
 
       <CellGroup inset title="基本信息">
-        <Cell title="销售订单" :value="exchange.order_no || '-'" />
-        <Cell title="换货日期" :value="dateText(exchange.exchange_date)" />
+        <Cell title="销售订单" :value="exchange.orderNo || '-'" />
+        <Cell title="换货日期" :value="dateText(exchange.exchangeDate)" />
         <Cell title="联系电话" :value="exchange.contact_phone || '-'" />
-        <Cell title="换货原因" :label="exchange.exchange_reason || exchange.reason || '-'" />
-        <Cell title="差价" :value="money(exchange.difference_amount)" />
+        <Cell title="换货原因" :label="exchange.exchangeReason || '-'" />
+        <Cell title="差价" :value="money(exchange.differenceAmount ?? exchange.difference_amount)" />
       </CellGroup>
 
       <CellGroup inset title="退回商品">
         <div v-if="returnItems.length" class="items">
           <div v-for="(item, index) in returnItems" :key="`return-${index}`" class="item-row">
             <div>
-              <div class="item-title">{{ item.productName || item.product_name || item.productCode }}</div>
+              <div class="item-title">{{ item.productName || item.productCode }}</div>
               <div class="item-subtitle">{{ item.specification || item.returnReason || '-' }}</div>
             </div>
-            <strong>{{ item.returnQuantity || item.quantity || 0 }} {{ item.unitName || item.unit_name || '' }}</strong>
+            <strong>{{ item.returnQuantity || item.quantity || 0 }} {{ item.unitName || '' }}</strong>
           </div>
         </div>
         <Empty v-else description="暂无退回商品" />
@@ -40,10 +40,10 @@
         <div v-if="newItems.length" class="items">
           <div v-for="(item, index) in newItems" :key="`new-${index}`" class="item-row">
             <div>
-              <div class="item-title">{{ item.productName || item.product_name || item.productCode }}</div>
+              <div class="item-title">{{ item.productName || item.productCode }}</div>
               <div class="item-subtitle">{{ item.specification || item.newReason || '-' }}</div>
             </div>
-            <strong>{{ item.newQuantity || item.quantity || 0 }} {{ item.unitName || item.unit_name || '' }}</strong>
+            <strong>{{ item.newQuantity || item.quantity || 0 }} {{ item.unitName || '' }}</strong>
           </div>
         </div>
         <Empty v-else description="暂无换出商品" />

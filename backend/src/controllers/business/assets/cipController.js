@@ -12,6 +12,7 @@ const cipModel = require('../../../models/cip');
 const db = require('../../../config/db');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const { getCurrentUserName } = require('../../../utils/userHelper');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 
 const cipController = {
     /**
@@ -32,7 +33,7 @@ const cipController = {
 
             const result = await cipModel.getCipProjects(filters, pagination.page, pagination.pageSize);
 
-            // 返回成功响应
+            // 返回成功响应（camel）
             return ResponseHandler.paginated(
                 res,
                 result.projects || [],
@@ -75,7 +76,7 @@ const cipController = {
      */
     createCipProject: async (req, res) => {
         try {
-            const { project_code, project_name } = req.body;
+            const { project_code, project_name } = mapKeysToSnake(req.body || {});
             if (!project_code || !project_name) {
                 return ResponseHandler.error(res, '项目编码和项目名称均为必填项', 'VALIDATION_ERROR', 400);
             }

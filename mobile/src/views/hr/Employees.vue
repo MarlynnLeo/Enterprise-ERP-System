@@ -30,12 +30,12 @@
     fields: {
       id: 'id',
       title: 'name',
-      subtitle: 'employee_no',
+      subtitle: 'employeeNo',
       icon: 'contact',
       status: 'employment_status',
 
       details: [
-        { label: '部门', field: 'department_name' },
+        { label: '部门', field: 'departmentName' },
         { label: '职位', field: 'position' },
         { label: '入职时间', field: 'join_date', type: 'date' }
       ],

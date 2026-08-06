@@ -9,13 +9,13 @@
       </CellGroup>
 
       <CellGroup inset title="考勤修正">
-        <Field v-model="form.days_in_month" label="计薪天数" type="number" placeholder="21.75" />
-        <Field v-model="form.leave_days" label="请假天数" type="number" placeholder="0" />
-        <Field v-model="form.vacation_days" label="休假天数" type="number" placeholder="0" />
-        <Field v-model="form.overtime_hours" label="加班小时" type="number" placeholder="0" />
+        <Field v-model="form.daysInMonth" label="计薪天数" type="number" placeholder="21.75" />
+        <Field v-model="form.leaveDays" label="请假天数" type="number" placeholder="0" />
+        <Field v-model="form.vacationDays" label="休假天数" type="number" placeholder="0" />
+        <Field v-model="form.overtimeHours" label="加班小时" type="number" placeholder="0" />
         <Cell title="全勤">
           <template #value>
-            <Switch v-model="form.full_attendance" size="20" />
+            <Switch v-model="form.fullAttendance" size="20" />
           </template>
         </Cell>
         <Field v-model="form.remark" label="说明" type="textarea" rows="3" autosize placeholder="请输入补卡原因" />
@@ -34,7 +34,7 @@
             v-for="item in employees"
             :key="item.id"
             :title="item.name"
-            :label="`${item.employee_no || ''} ${item.department_name || ''}`"
+            :label="`${item.employeeNo || ''} ${item.departmentName || ''}`"
             clickable
             @click="pickEmployee(item)"
           />

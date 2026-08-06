@@ -5,29 +5,29 @@
     <div class="content-container" v-if="record">
       <div class="status-card">
         <div class="status-badge" :class="statusClass">{{ statusLabel }}</div>
-        <div class="record-no">{{ record.ncp_no || '--' }}</div>
+        <div class="record-no">{{ record.ncpNo || '--' }}</div>
       </div>
 
       <CellGroup inset title="基本信息">
-        <Cell title="物料名称" :value="record.material_name || '--'" />
-        <Cell title="物料编码" :value="record.material_code || '--'" />
-        <Cell title="批次号" :value="record.batch_no || '--'" />
+        <Cell title="物料名称" :value="record.materialName || '--'" />
+        <Cell title="物料编码" :value="record.materialCode || '--'" />
+        <Cell title="批次号" :value="record.batchNo || '--'" />
         <Cell title="不合格数量" :value="`${record.quantity ?? 0} ${record.unit || '个'}`" />
         <Cell title="严重程度" :value="severityLabel" />
-        <Cell title="发现日期" :value="formatDate(record.created_at)" />
-        <Cell title="供应商" :value="record.supplier_name || '--'" />
+        <Cell title="发现日期" :value="formatDate(record.createdAt)" />
+        <Cell title="供应商" :value="record.supplierName || '--'" />
         <Cell title="责任方" :value="responsiblePartyLabel" />
       </CellGroup>
 
       <CellGroup inset title="处置信息">
         <Cell title="处置方式" :value="dispositionLabel" />
-        <Cell v-if="record.disposition_reason" title="处置原因" :label="record.disposition_reason" />
-        <Cell v-if="record.disposition_by" title="处置人" :value="record.disposition_by" />
-        <Cell v-if="record.disposition_date" title="处置日期" :value="formatDate(record.disposition_date)" />
+        <Cell v-if="record.dispositionReason" title="处置原因" :label="record.dispositionReason" />
+        <Cell v-if="record.dispositionBy" title="处置人" :value="record.dispositionBy" />
+        <Cell v-if="record.dispositionDate" title="处置日期" :value="formatDate(record.dispositionDate)" />
       </CellGroup>
 
-      <CellGroup v-if="record.defect_description" inset title="缺陷描述">
-        <Cell :title="record.defect_description" />
+      <CellGroup v-if="record.defectDescription" inset title="缺陷描述">
+        <Cell :title="record.defectDescription" />
       </CellGroup>
 
       <CellGroup v-if="record.note" inset title="备注">

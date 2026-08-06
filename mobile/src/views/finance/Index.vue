@@ -171,10 +171,10 @@
       const income = incomeRes.status === 'fulfilled' ? (incomeRes.value.data || incomeRes.value) : {}
 
       statistics.value = {
-        totalAssets: balance.totalAssets || balance.total_assets || balance.assets_total || 0,
-        totalRevenue: income.totalRevenue || income.total_revenue || income.revenue || 0,
-        totalExpense: income.totalExpense || income.total_expense || income.expense || 0,
-        netProfit: income.netProfit || income.net_profit || income.profit || 0
+        totalAssets: balance.assetsTotal || 0,
+        totalRevenue: income.totalRevenue || income.revenue || 0,
+        totalExpense: income.totalExpense || income.expense || 0,
+        netProfit: income.netProfit || income.profit || 0
       }
     } catch (error) {
       console.error('获取财务统计数据失败:', error)

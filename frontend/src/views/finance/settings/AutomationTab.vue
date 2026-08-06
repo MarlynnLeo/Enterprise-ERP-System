@@ -178,7 +178,7 @@
             v-loading="failedJobsLoading"
             empty-text="暂无失败任务"
           >
-            <el-table-column prop="task_name" label="任务" min-width="220" show-overflow-tooltip />
+            <el-table-column prop="taskName" label="任务" min-width="220" show-overflow-tooltip />
             <el-table-column label="来源" min-width="180" show-overflow-tooltip>
               <template #default="{ row }">
                 {{ formatFailedJobPayload(row.payload) }}
@@ -472,7 +472,7 @@
               <el-option
                 v-for="task in productionTasks"
                 :key="task.id"
-                :label="`${task.code} - ${task.product_name || '未知产品'} (${task.quantity})`"
+                :label="`${task.code} - ${task.productName || '未知产品'} (${task.quantity})`"
                 :value="task.id"
               />
             </el-select>
@@ -725,7 +725,7 @@ const retryFailedJobs = async () => {
 
 const resolveFailedJob = async (row) => {
   try {
-    await ElMessageBox.confirm(`确认将任务 ${row.task_name} 标记为已处理吗？`, '标记处理', {
+    await ElMessageBox.confirm(`确认将任务 ${row.taskName} 标记为已处理吗？`, '标记处理', {
       confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning',
     });
     resolveJobLoadingId.value = row.id;
@@ -825,9 +825,9 @@ const loadProductionTasks = async () => {
     if (Array.isArray(taskList) && taskList.length > 0) {
       productionTasks.value = taskList.map((task) => ({
         id: task.id,
-        code: task.code || task.task_code,
-        product_name: task.product_name || task.productName,
-        quantity: task.quantity || task.planned_quantity,
+        code: task.taskCode,
+        product_name: task.productName,
+        quantity: task.plannedQuantity,
         status: task.status,
       }));
     } else {

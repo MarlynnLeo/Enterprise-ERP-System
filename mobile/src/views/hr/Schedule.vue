@@ -5,11 +5,11 @@
       <Loading v-if="loading" size="24px" vertical style="padding:40px 0">加载中...</Loading>
       <template v-else>
         <CellGroup inset title="考勤规则">
-          <Cell v-for="rule in rules" :key="rule.id" :title="rule.rule_name || rule.name || '--'" :value="rule.work_start ? `${rule.work_start} - ${rule.work_end}` : '--'" :label="`迟到容忍: ${rule.late_tolerance ?? 0}分钟`" />
+          <Cell v-for="rule in rules" :key="rule.id" :title="rule.ruleName || '--'" :value="rule.work_start ? `${rule.work_start} - ${rule.work_end}` : '--'" :label="`迟到容忍: ${rule.late_tolerance ?? 0}分钟`" />
           <Cell v-if="rules.length === 0" title="暂无考勤规则" />
         </CellGroup>
         <CellGroup inset title="员工花名册">
-          <Cell v-for="emp in employees" :key="emp.id" :title="emp.real_name || emp.username" :value="emp.department || '--'" :label="`${emp.position || '--'} | ${emp.employee_no || ''}`" />
+          <Cell v-for="emp in employees" :key="emp.id" :title="emp.realName || emp.username" :value="emp.department || '--'" :label="`${emp.position || '--'} | ${emp.employeeNo || ''}`" />
           <Cell v-if="employees.length === 0" title="暂无员工数据" />
         </CellGroup>
       </template>

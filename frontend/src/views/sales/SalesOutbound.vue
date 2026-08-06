@@ -100,8 +100,8 @@
                 <div>
                   <div class="font-weight-700 mb-sm">关联订单列表</div>
                   <!-- 优先显示 related_order_details 数组（包含完整订单信息） -->
-                  <div v-if="Array.isArray(scope.row.related_order_details) && scope.row.related_order_details.length > 0">
-                    <div v-for="(order, index) in scope.row.related_order_details" :key="index" class="cell-ellipsis-mb">
+                  <div v-if="Array.isArray(scope.row.relatedOrderDetails) && scope.row.relatedOrderDetails.length > 0">
+                    <div v-for="(order, index) in scope.row.relatedOrderDetails" :key="index" class="cell-ellipsis-mb">
                       <strong>{{ order.orderNo }}</strong>
                       <span v-if="order.customerName" class="text-regular ml-sm">{{ order.customerName }}</span>
                     </div>
@@ -140,14 +140,14 @@
           </template>
         </el-table-column>
         <el-table-column prop="customerName" label="客户名称" min-width="200" />
-        <el-table-column prop="contract_code" label="合同编码" width="450" show-overflow-tooltip>
+        <el-table-column prop="contractCode" label="合同编码" width="450" show-overflow-tooltip>
           <template #default="{ row }">
-            {{ row.contract_code || '-' }}
+            {{ row.contractCode || '-' }}
           </template>
         </el-table-column>
-        <el-table-column prop="delivery_date" label="出库日期" width="120">
+        <el-table-column prop="deliveryDate" label="出库日期" width="120">
           <template #default="scope">
-            {{ formatDate(scope.row.delivery_date) }}
+            {{ formatDate(scope.row.deliveryDate) }}
           </template>
         </el-table-column>
         <el-table-column prop="status" label="状态" width="100">
@@ -252,7 +252,7 @@
           <el-descriptions-item label="状态">
             <el-tag :type="getStatusType(currentOutbound.status)">{{ getStatusText(currentOutbound.status) }}</el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="创建时间" :span="2">{{ formatDate(currentOutbound.created_at) }}</el-descriptions-item>
+          <el-descriptions-item label="创建时间" :span="2">{{ formatDate(currentOutbound.createdAt) }}</el-descriptions-item>
         </el-descriptions>
 
         <FinanceStreamStatus
@@ -264,8 +264,8 @@
         <el-divider>出库明细</el-divider>
 
         <el-table :data="currentOutbound.items || []" class="w-full" border>
-          <el-table-column prop="product_code" label="物料编码" width="120" />
-          <el-table-column prop="product_name" label="物料名称" min-width="150" show-overflow-tooltip />
+          <el-table-column prop="productCode" label="物料编码" width="120" />
+          <el-table-column prop="productName" label="物料名称" min-width="150" show-overflow-tooltip />
           <el-table-column prop="specification" label="规格" min-width="150" show-overflow-tooltip />
           <el-table-column prop="quantity" label="数量" width="100" />
           <el-table-column prop="unit" label="单位" width="80" />
@@ -274,11 +274,11 @@
       </div>
     </AppDialog>
     <!-- 创建/编辑出库单对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="dialogVisible"
       :title="dialogType === 'create' ? '创建出库单' : '编辑出库单'"
-      width="50%"
-      destroy-on-close
+      mode="form"
+      wide
     >
       <div v-loading="dialogLoading" class="min-h-form">
       <el-form :model="outboundForm" ref="outboundFormRef" :rules="rules" label-width="100px">
@@ -295,7 +295,7 @@
               <el-option
                 v-for="order in availableOrders"
                 :key="order.id"
-                :label="`${order.orderNo} - ${order.customer || ''} ${order.contract_code ? '- ' + order.contract_code : ''} (${getOrderStatusText(order.status)})`"
+                :label="`${order.orderNo} - ${order.customer || ''} ${order.contractCode ? '- ' + order.contractCode : ''} (${getOrderStatusText(order.status)})`"
                 :value="order.id"
               />
             </el-select>
@@ -314,10 +314,10 @@
             </el-tag>
           </div>
         </el-form-item>
-        <el-form-item label="客户信息" prop="customer_id">
+        <el-form-item label="客户信息" prop="customerId">
           <div class="flex-gap">
             <el-select
-              v-model="outboundForm.customer_id"
+              v-model="outboundForm.customerId"
               placeholder="请输入客户名称或编码进行搜索"
               filterable
               remote
@@ -337,7 +337,7 @@
                 <span v-if="customer.code" class="option-name">{{ customer.code }}</span>
               </el-option>
             </el-select>
-            <el-button type="primary" @click="openCustomerProductsDialog" :disabled="!outboundForm.customer_id">
+            <el-button type="primary" @click="openCustomerProductsDialog" :disabled="!outboundForm.customerId">
               查询产品
             </el-button>
           </div>
@@ -357,7 +357,7 @@
         <el-form-item label="收货地址">
           <el-input v-model="outboundForm.address" placeholder="收货地址" type="textarea" :rows="2" />
         </el-form-item>
-        <el-form-item label="出库日期" prop="delivery_date">
+        <el-form-item label="出库日期" prop="deliveryDate">
           <el-date-picker
             v-model="outboundForm.delivery_date"
             type="date"
@@ -402,13 +402,13 @@
                   </div>
                 </template>
               </el-table-column>
-              <el-table-column label="物料编码" prop="material_code" width="120" />
-              <el-table-column label="物料名称" prop="product_name" width="160" show-overflow-tooltip />
+              <el-table-column label="物料编码" prop="materialCode" width="120" />
+              <el-table-column label="物料名称" prop="productName" width="160" show-overflow-tooltip />
               <el-table-column label="规格" prop="specification" width="140" show-overflow-tooltip />
               <el-table-column label="订单总量" width="90">
                 <template #default="{ row }">
                   <div>
-                    <span class="text-primary font-weight-700">{{ row.order_quantity || row.quantity }}</span>
+                    <span class="text-primary font-weight-700">{{ row.orderQuantity || row.quantity }}</span>
                     <div v-if="row.sourceOrders && row.sourceOrders.length > 1" class="meta-xs">
                       合并{{ row.sourceOrders.length }}单
                     </div>
@@ -417,12 +417,12 @@
               </el-table-column>
               <el-table-column label="已发货" width="80">
                 <template #default="{ row }">
-                  <span class="text-warning font-weight-700">{{ row.shipped_quantity || 0 }}</span>
+                  <span class="text-warning font-weight-700">{{ row.shippedQuantity || 0 }}</span>
                 </template>
               </el-table-column>
               <el-table-column label="剩余" width="80">
                 <template #default="{ row }">
-                  <span class="text-danger font-weight-700">{{ row.remaining_quantity || row.quantity }}</span>
+                  <span class="text-danger font-weight-700">{{ row.remainingQuantity || row.quantity }}</span>
                 </template>
               </el-table-column>
               <el-table-column label="发货数量" width="120">
@@ -436,11 +436,11 @@
                   />
                 </template>
               </el-table-column>
-              <el-table-column label="单位" prop="unit_name" width="60" />
+              <el-table-column label="单位" prop="unitName" width="60" />
               <el-table-column label="库存" width="80">
                 <template #default="{ row }">
-                  <span :class="(row.stock_quantity || 0) > 0 ? 'text-stock-ok' : 'text-stock-low'">
-                    {{ row.stock_quantity || 0 }}
+                  <span :class="(row.stockQuantity || 0) > 0 ? 'text-stock-ok' : 'text-stock-low'">
+                    {{ row.stockQuantity || 0 }}
                   </span>
                 </template>
               </el-table-column>
@@ -472,13 +472,13 @@
           <el-button type="primary" v-permission="dialogType === 'create' ? 'sales:outbound:create' : 'sales:outbound:update'" :loading="submittingOutbound" @click="submitOutbound">确认</el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
     <!-- 客户产品查询对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="customerProductsDialogVisible"
       title="客户产品查询"
-      width="60%"
-      destroy-on-close
+      mode="form"
+      wide
     >
       <div v-if="currentCustomer">
         <el-alert
@@ -535,34 +535,34 @@
           </el-table-column>
           <el-table-column label="合同编码" width="120">
             <template #default="{ row }">
-              <span :title="row.contract_codes || ''">
-                {{ (row.contract_codes || '').length > 10 ?
-                    (row.contract_codes || '').substring(0, 10) + '...' :
-                    (row.contract_codes || '') }}
+              <span :title="row.contractCodes || ''">
+                {{ (row.contractCodes || '').length > 10 ?
+                    (row.contractCodes || '').substring(0, 10) + '...' :
+                    (row.contractCodes || '') }}
               </span>
             </template>
           </el-table-column>
-          <el-table-column prop="material_code" label="物料编码" width="110" />
-          <el-table-column prop="material_name" label="物料名称" min-width="140" />
+          <el-table-column prop="materialCode" label="物料编码" width="110" />
+          <el-table-column prop="materialName" label="物料名称" min-width="140" />
           <el-table-column prop="specification" label="规格" width="110" />
-          <el-table-column prop="remaining_quantity" label="剩余数量" width="100">
+          <el-table-column prop="remainingQuantity" label="剩余数量" width="100">
             <template #default="{ row }">
-              <el-tag type="warning" v-if="row.remaining_quantity > 0">{{ row.remaining_quantity }}</el-tag>
+              <el-tag type="warning" v-if="row.remainingQuantity > 0">{{ row.remainingQuantity }}</el-tag>
               <el-tag type="success" v-else>已完成</el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="stock_quantity" label="库存数量" width="100">
+          <el-table-column prop="stockQuantity" label="库存数量" width="100">
             <template #default="{ row }">
-              <el-tag :type="row.stock_quantity >= row.remaining_quantity ? 'success' : 'danger'">
-                {{ Number(row.stock_quantity || 0).toFixed(1) }}
+              <el-tag :type="row.stockQuantity >= row.remainingQuantity ? 'success' : 'danger'">
+                {{ Number(row.stockQuantity || 0).toFixed(1) }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="unit_name" label="单位" width="80" />
+          <el-table-column prop="unitName" label="单位" width="80" />
           <el-table-column label="发货数量" width="90">
             <template #default="{ row }">
               <el-input
-                v-model="row.selected_quantity"
+                v-model="row.selectedQuantity"
                 size="small"
                 @blur="validateSelectedQuantity(row)"
                 @input="validateSelectedQuantity(row)"
@@ -581,7 +581,7 @@
           </el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
   </div>
 </template>
 <script setup>
@@ -908,12 +908,12 @@ const showEditDialog = async (row) => {
     }
 
     // 如果还是空，尝试从单订单字段构造（兼容旧数据）
-    if (formRelatedOrders.length === 0 && (fullOutboundData.order_id || row.order_id)) {
+    if (formRelatedOrders.length === 0 && (fullOutboundData.orderId || row.orderId)) {
        formRelatedOrders.push({
-         id: fullOutboundData.order_id || row.order_id,
+         id: fullOutboundData.orderId || row.orderId,
          orderNo: fullOutboundData.orderNo || row.orderNo,
-         customer: fullOutboundData.customerName || row.customer_name,
-         customer_id: fullOutboundData.customer_id || row.customer_id
+         customer: fullOutboundData.customerName || row.customerName,
+         customer_id: fullOutboundData.customerId || row.customerId
        })
     }
     // 2. 处理出库明细项映射
@@ -933,43 +933,43 @@ const showEditDialog = async (row) => {
        return {
          ...item,
          // 字段映射：后端 material_name -> 前端 product_name
-         product_name: item.material_name || item.product_name,
+         product_name: item.materialName || item.productName,
          // 确保物料编码存在
-         material_code: item.material_code || item.product_code || item.code,
+         material_code: item.materialCode || item.productCode || item.code,
          // 来源订单信息
          sourceOrders: sourceOrders,
          // 确保 order_no 存在：优先使用item里的，如果没有则使用主单的
          orderNo: item.orderNo || item.sourceOrderNo || fullOutboundData.orderNo || row.orderNo,
          // 如果 order_quantity 缺失，尝试用 total_order_quantity 或 quantity
-         order_quantity: item.order_quantity || item.total_order_quantity || item.quantity,
+         order_quantity: item.orderQuantity || item.totalOrderQuantity || item.quantity,
          // 确保数量是数字
          quantity: Number(item.quantity) || 0
        }
     })
     // 3. 预填充客户选项，确保回显
-    const currentCustomerId = fullOutboundData.customer_id || row.customer_id;
+    const currentCustomerId = fullOutboundData.customerId || row.customerId;
     if (currentCustomerId) {
        customerOptions.value = [{
          id: Number(currentCustomerId), // 确保ID类型一致
-         name: fullOutboundData.customerName || row.customer_name,
+         name: fullOutboundData.customerName || row.customerName,
          code: ''
        }]
 
        // 设置当前客户状态，以便可以进行产品查询
        currentCustomer.value = {
          id: Number(currentCustomerId),
-         name: fullOutboundData.customerName || row.customer_name
+         name: fullOutboundData.customerName || row.customerName
        }
     }
     outboundForm.value = {
       id: row.id,
-      order_id: fullOutboundData.order_id || row.order_id,
+      order_id: fullOutboundData.orderId || row.orderId,
       customer_id: currentCustomerId ? Number(currentCustomerId) : '',
-      customerName: fullOutboundData.customerName || row.customer_name,
-      contact: fullOutboundData.contact_person || row.contact_name || fullOutboundData.contact || '',
-      phone: fullOutboundData.contact_phone || row.contact_phone || fullOutboundData.phone || '',
+      customerName: fullOutboundData.customerName || row.customerName,
+      contact: fullOutboundData.contact_person || row.contactName || fullOutboundData.contact || '',
+      phone: fullOutboundData.contact_phone || row.contactPhone || fullOutboundData.phone || '',
       address: fullOutboundData.delivery_address || row.address || fullOutboundData.address || '',
-      delivery_date: fullOutboundData.delivery_date || row.delivery_date,
+      delivery_date: fullOutboundData.delivery_date || row.deliveryDate,
       status: fullOutboundData.status || row.status,
       items: formItems,
       remarks: fullOutboundData.remarks || row.remarks || '',
@@ -1017,7 +1017,7 @@ const submitOutbound = async () => {
   if (!valid) return;
   // 过滤掉无效的物料项（数量为0或没有ID的项）
   const validItems = outboundForm.value.items.filter(item =>
-    (item.material_id || item.product_id) &&
+    (item.materialId || item.productId) &&
     item.quantity > 0 &&
     !isNaN(item.quantity)
   );
@@ -1034,11 +1034,11 @@ const submitOutbound = async () => {
 
   // 验证发货数量不能超过订单数量
   const invalidQuantityItems = validItems.filter(
-    (item) => item.quantity > (item.orderQuantity ?? item.order_quantity)
+    (item) => item.quantity > (item.orderQuantity ?? item.orderQuantity)
   );
   if (invalidQuantityItems.length > 0) {
     ElMessage.warning(
-      `以下物料发货数量超过订单数量：${invalidQuantityItems.map((item) => item.materialCode || item.material_code).join(', ')}`
+      `以下物料发货数量超过订单数量：${invalidQuantityItems.map((item) => item.materialCode).join(', ')}`
     );
     return;
   }
@@ -1054,11 +1054,11 @@ const submitOutbound = async () => {
     status: outboundForm.value.status || 'draft',
     remarks: outboundForm.value.remarks || '',
     items: validItems.map((item) => ({
-      productId: item.productId || item.materialId || item.material_id || item.product_id,
-      materialId: item.materialId || item.productId || item.material_id || item.product_id,
-      unitId: item.unitId || item.unit_id,
+      productId: item.productId || item.materialId || item.productId,
+      materialId: item.materialId || item.productId || item.materialId || item.productId,
+      unitId: item.unitId,
       quantity: item.quantity,
-      unitPrice: item.unitPrice ?? item.unit_price ?? 0,
+      unitPrice: item.unitPrice ?? item.unitPrice ?? 0,
       remarks: item.remarks || '',
       sourceOrderId: item.orderId === 'multiple' ? null : item.orderId,
       sourceOrderNo: item.orderNo
@@ -1093,14 +1093,14 @@ const validateQuantity = (row, _index) => {
   }
 
   // 检查是否超过订单数量
-  if (row.quantity > row.order_quantity) {
-    ElMessage.warning(`发货数量不能超过订单数量 ${row.order_quantity}`)
-    row.quantity = row.order_quantity
+  if (row.quantity > row.orderQuantity) {
+    ElMessage.warning(`发货数量不能超过订单数量 ${row.orderQuantity}`)
+    row.quantity = row.orderQuantity
   }
 
   // 检查库存（只在有库存信息时提醒）
-  if (row.stock_quantity !== undefined && row.stock_quantity >= 0 && row.quantity > row.stock_quantity) {
-    ElMessage.warning(`${row.material_code} 库存不足，当前库存：${row.stock_quantity}，建议检查库存后再发货`)
+  if (row.stockQuantity !== undefined && row.stockQuantity >= 0 && row.quantity > row.stockQuantity) {
+    ElMessage.warning(`${row.materialCode} 库存不足，当前库存：${row.stockQuantity}，建议检查库存后再发货`)
   }
 }
 // 获取订单状态文本
@@ -1147,11 +1147,11 @@ const addOrderToOutbound = async () => {
       id: orderDetails.id,
       orderNo: orderDetails.orderNo,
       customer: orderDetails.customerName || orderDetails.customer,
-      customer_id: orderDetails.customer_id,
+      customer_id: orderDetails.customerId,
       contract_code: orderDetails.contract_code || '', // 添加合同编码
-      contact: orderDetails.contact || orderDetails.contact_person,
-      phone: orderDetails.phone || orderDetails.contact_phone,
-      address: orderDetails.address || orderDetails.delivery_address
+      contact: orderDetails.contactPerson,
+      phone: orderDetails.contactPhone,
+      address: orderDetails.deliveryAddress
     })
 
     // 添加订单的物料项
@@ -1161,8 +1161,8 @@ const addOrderToOutbound = async () => {
       try {
         // 使用带库存的物料API，传入物料编码进行搜索
         const materialCodes = orderDetails.items
-          .filter(item => item.material_id || item.product_id)
-          .map(item => item.code || item.material_code)
+          .filter(item => item.materialId || item.productId)
+          .map(item => item.code || item.materialCode)
           .filter(code => code) // 过滤掉空的编码
         if (materialCodes.length > 0) {
           const stockResponse = await inventoryApi.getMaterialsWithStock({
@@ -1171,12 +1171,12 @@ const addOrderToOutbound = async () => {
           })
           const stockData = stockResponse.data || []
           stockData.forEach(item => {
-            const materialId = item.id || item.material_id
-            const stock = item.stock_quantity || item.quantity || 0
+            const materialId = item.id || item.materialId
+            const stock = item.stockQuantity || item.quantity || 0
             if (materialId) {
               stockInfo[materialId] = stock
             }
-            stockInfo[item.code || item.material_code] = stock
+            stockInfo[item.code || item.materialCode] = stock
           })
         }
       } catch {
@@ -1184,26 +1184,26 @@ const addOrderToOutbound = async () => {
       }
 
       const newItems = orderDetails.items
-        .filter(item => item.material_id)
+        .filter(item => item.materialId)
         .map(item => {
-          const materialId = item.material_id
-          const materialCode = item.material_code
+          const materialId = item.materialId
+          const materialCode = item.materialCode
           // 优先使用物料ID查找库存，其次使用编码
-          const realStockQuantity = stockInfo[materialId] || stockInfo[materialCode] || item.stock_quantity || 0
+          const realStockQuantity = stockInfo[materialId] || stockInfo[materialCode] || item.stockQuantity || 0
           return {
             material_id: materialId,
-            product_name: item.material_name,
+            product_name: item.materialName,
             material_code: materialCode,
             specification: item.specification,
-            order_quantity: item.ordered_quantity, // 原订单数量
-            shipped_quantity: item.shipped_quantity, // 已发货数量
-            remaining_quantity: item.remaining_quantity, // 剩余未发货数量
-            quantity: item.remaining_quantity, // 默认出库数量为剩余数量
-            unit_name: item.unit_name,
-            unit_id: item.unit_id,
-            unit_price: item.unit_price,
+            order_quantity: item.orderedQuantity, // 原订单数量
+            shipped_quantity: item.shippedQuantity, // 已发货数量
+            remaining_quantity: item.remainingQuantity, // 剩余未发货数量
+            quantity: item.remainingQuantity, // 默认出库数量为剩余数量
+            unit_name: item.unitName,
+            unit_id: item.unitId,
+            unit_price: item.unitPrice,
             stock_quantity: realStockQuantity, // 使用实时库存数据
-            shipping_status: item.shipping_status, // 发货状态
+            shipping_status: item.shippingStatus, // 发货状态
             orderNo: orderDetails.orderNo, // 标记来源订单
             order_id: orderDetails.id
           }
@@ -1212,7 +1212,7 @@ const addOrderToOutbound = async () => {
       // 智能合并相同物料
       newItems.forEach(newItem => {
         const existingItemIndex = outboundForm.value.items.findIndex(
-          existingItem => existingItem.material_id === newItem.material_id
+          existingItem => existingItem.materialId === newItem.materialId
         )
 
                   if (existingItemIndex === -1) {
@@ -1232,23 +1232,23 @@ const addOrderToOutbound = async () => {
           existingItem.total_order_quantity = existingItem.order_quantity
 
           // 记录多个来源订单
-          if (!existingitem.sourceOrders) {
-            existingitem.sourceOrders = [{
-              id: existingitem.orderId,
-              orderNo: existingitem.orderNo,
+          if (!existingItem.sourceOrders) {
+            existingItem.sourceOrders = [{
+              id: existingItem.orderId,
+              orderNo: existingItem.orderNo,
               quantity: existingItem.order_quantity - newItem.quantity
             }]
           }
-          existingitem.sourceOrders.push({
+          existingItem.sourceOrders.push({
             id: orderDetails.id,
             orderNo: orderDetails.orderNo,
             quantity: newItem.quantity
           })
 
           // 更新订单号显示（显示多个订单）
-          const orderNos = existingitem.sourceOrders.map(order => order.orderNo)
-          existingitem.orderNo = orderNos.join(', ')
-          existingitem.orderId = 'multiple' // 标记为多订单物料
+          const orderNos = existingItem.sourceOrders.map(order => order.orderNo)
+          existingItem.orderNo = orderNos.join(', ')
+          existingItem.orderId = 'multiple' // 标记为多订单物料
         }
       })
     }
@@ -1301,13 +1301,13 @@ const availableOrders = computed(() => {
   }
 
   // 如果已经选择了订单，只显示同一客户的订单
-  const selectedCustomerIds = [...new Set(outboundForm.value.relatedOrders.map(order => order.customer_id))]
+  const selectedCustomerIds = [...new Set(outboundForm.value.relatedOrders.map(order => order.customerId))]
 
   // 如果只有一个客户，过滤显示同一客户的订单
   if (selectedCustomerIds.length === 1) {
     const currentCustomerId = selectedCustomerIds[0]
     return orders.value.filter(order =>
-      order.customer_id === currentCustomerId &&
+      order.customerId === currentCustomerId &&
       !outboundForm.value.relatedOrders.find(relatedOrder => relatedOrder.id === order.id)
     )
   }
@@ -1338,7 +1338,7 @@ const _getCurrentCustomerId = () => {
     return null
   }
   // 检查是否只有一个客户
-  const uniqueCustomerIds = [...new Set(outboundForm.value.relatedOrders.map(order => order.customer_id))]
+  const uniqueCustomerIds = [...new Set(outboundForm.value.relatedOrders.map(order => order.customerId))]
   return uniqueCustomerIds.length === 1 ? uniqueCustomerIds[0] : null
 }
 // 客户搜索相关函数
@@ -1375,7 +1375,7 @@ const searchCustomers = async (query) => {
 }
 const handleCustomerChange = async (customerId) => {
   if (!customerId) {
-    outboundForm.value.customer_name = ''
+    outboundForm.value.customerName = ''
     outboundForm.value.contact = ''
     outboundForm.value.phone = ''
     outboundForm.value.address = ''
@@ -1391,11 +1391,11 @@ const handleCustomerChange = async (customerId) => {
       selectedCustomer = parseResponseData(response)
     }
     if (selectedCustomer) {
-      outboundForm.value.customer_name = selectedCustomer.name || ''
+      outboundForm.value.customerName = selectedCustomer.name || ''
       // 自动读取联系人和联系电话
-      outboundForm.value.contact = selectedCustomer.contact_person || selectedCustomer.contact || ''
-      outboundForm.value.phone = selectedCustomer.contact_phone || selectedCustomer.phone || ''
-      outboundForm.value.address = selectedCustomer.delivery_address || selectedCustomer.address || ''
+      outboundForm.value.contact = selectedCustomer.contactPerson || ''
+      outboundForm.value.phone = selectedCustomer.contactPhone || ''
+      outboundForm.value.address = selectedCustomer.deliveryAddress || ''
       // 设置当前客户信息用于产品查询
       currentCustomer.value = {
         id: selectedCustomer.id,
@@ -1460,25 +1460,25 @@ const resetProductSearch = async () => {
 }
 const validateSelectedQuantity = (row) => {
   // 确保输入的是整数
-  const selectedQty = parseInt(row.selected_quantity) || 0
-  const remainingQty = Number(row.remaining_quantity) || 0
-  const stockQty = Number(row.stock_quantity) || 0
+  const selectedQty = parseInt(row.selectedQuantity) || 0
+  const remainingQty = Number(row.remainingQuantity) || 0
+  const stockQty = Number(row.stockQuantity) || 0
 
   // 如果输入的不是整数，自动转换为整数
-  if (row.selected_quantity !== selectedQty.toString()) {
-    row.selected_quantity = selectedQty
+  if (row.selectedQuantity !== selectedQty.toString()) {
+    row.selectedQuantity = selectedQty
   }
 
   // 检查是否为负数
   if (selectedQty < 0) {
-    row.selected_quantity = 0
+    row.selectedQuantity = 0
     ElMessage.warning('发货数量不能为负数')
     return
   }
 
   // 检查是否超过剩余数量
   if (selectedQty > remainingQty) {
-    row.selected_quantity = Math.floor(remainingQty)
+    row.selectedQuantity = Math.floor(remainingQty)
     ElMessage.warning(`发货数量不能超过剩余数量 ${Math.floor(remainingQty)}`)
     return
   }
@@ -1501,7 +1501,7 @@ const addSelectedProductsToOutbound = async () => {
 
   validProducts.forEach(product => {
     const existingItemIndex = outboundForm.value.items.findIndex(
-      item => item.material_id === product.material_id
+      item => item.materialId === product.materialId
     )
 
     if (existingItemIndex === -1) {
@@ -1515,7 +1515,7 @@ const addSelectedProductsToOutbound = async () => {
   })
   // 处理重复产品 - 改为智能合并模式
   if (duplicateProducts.length > 0) {
-    const duplicateNames = duplicateProducts.map(item => item.product.material_name).join('、')
+    const duplicateNames = duplicateProducts.map(item => item.product.materialName).join('、')
 
     try {
       await ElMessageBox.confirm(
@@ -1535,8 +1535,8 @@ const addSelectedProductsToOutbound = async () => {
         existingItem.quantity = (existingItem.quantity || 0) + product.selected_quantity
 
         // 更新来源订单信息
-        if (!existingitem.sourceOrders) {
-          existingitem.sourceOrders = []
+        if (!existingItem.sourceOrders) {
+          existingItem.sourceOrders = []
         }
 
         // 添加新的来源订单信息
@@ -1549,9 +1549,9 @@ const addSelectedProductsToOutbound = async () => {
             const orderNo = orderNos[index] ? orderNos[index].trim() : ''
 
             // 检查是否已存在该订单信息
-            const existingSource = existingitem.sourceOrders.find(source => source.id === orderIdNum)
+            const existingSource = existingItem.sourceOrders.find(source => source.id === orderIdNum)
             if (!existingSource) {
-              existingitem.sourceOrders.push({
+              existingItem.sourceOrders.push({
                 id: orderIdNum,
                 orderNo: orderNo,
                 quantity: product.selected_quantity
@@ -1573,7 +1573,7 @@ const addSelectedProductsToOutbound = async () => {
           existingItem.quantity = product.selected_quantity
 
           // 重置来源订单信息
-          existingitem.sourceOrders = []
+          existingItem.sourceOrders = []
           if (product.order_ids && product.orderNos) {
             const orderIds = product.order_ids.split(',')
             const orderNos = product.orderNos.split(', ')
@@ -1582,7 +1582,7 @@ const addSelectedProductsToOutbound = async () => {
               const orderIdNum = parseInt(orderId.trim())
               const orderNo = orderNos[index] ? orderNos[index].trim() : ''
 
-              existingitem.sourceOrders.push({
+              existingItem.sourceOrders.push({
                 id: orderIdNum,
                 orderNo: orderNo,
                 quantity: product.selected_quantity
@@ -1628,7 +1628,7 @@ const addSelectedProductsToOutbound = async () => {
       if (orderIds.length > 1 && product.order_details) {
 
         // 按订单拆分成多个明细项，确保每个订单的状态都能正确更新
-        const totalRemaining = product.order_details.reduce((sum, order) => sum + parseFloat(order.remaining_quantity), 0)
+        const totalRemaining = product.order_details.reduce((sum, order) => sum + parseFloat(order.remainingQuantity), 0)
 
         product.order_details.forEach(orderDetail => {
           if (parseFloat(orderDetail.remaining_quantity) > 0) {
@@ -1637,20 +1637,20 @@ const addSelectedProductsToOutbound = async () => {
             const allocatedQuantity = Math.round(product.selected_quantity * proportion * 100) / 100
 
             outboundForm.value.items.push({
-              material_id: product.material_id,
-              product_name: product.material_name,
-              material_code: product.material_code,
+              material_id: product.materialId,
+              product_name: product.materialName,
+              material_code: product.materialCode,
               specification: product.specification,
               order_quantity: allocatedQuantity,
               quantity: allocatedQuantity,
-              unit_name: product.unit_name,
-              unit_id: product.unit_id,
-              unit_price: product.unit_price || 0,
+              unit_name: product.unitName,
+              unit_id: product.unitId,
+              unit_price: product.unitPrice || 0,
               stock_quantity: product.stock_quantity,
               orderNo: orderDetail.orderNo,
-              order_id: orderDetail.order_id,
+              order_id: orderDetail.orderId,
               sourceOrders: [{
-                id: orderDetail.order_id,
+                id: orderDetail.orderId,
                 orderNo: orderDetail.orderNo,
                 quantity: allocatedQuantity
               }]
@@ -1660,35 +1660,35 @@ const addSelectedProductsToOutbound = async () => {
       } else {
         // 单订单产品，直接添加
         outboundForm.value.items.push({
-          material_id: product.material_id,
-          product_name: product.material_name,
-          material_code: product.material_code,
+          material_id: product.materialId,
+          product_name: product.materialName,
+          material_code: product.materialCode,
           specification: product.specification,
           order_quantity: product.selected_quantity,
           quantity: product.selected_quantity,
-          unit_name: product.unit_name,
-          unit_id: product.unit_id,
-          unit_price: product.unit_price || 0,
+          unit_name: product.unitName,
+          unit_id: product.unitId,
+          unit_price: product.unitPrice || 0,
           stock_quantity: product.stock_quantity,
           orderNo: product.orderNos || product.orderNo || '',
-          order_id: parseInt(product.order_ids) || product.order_id || ''
+          order_id: parseInt(product.order_ids) || product.orderId || ''
         })
       }
     } else {
       // 没有多订单信息，按原来的逻辑处理
       outboundForm.value.items.push({
-        material_id: product.material_id,
-        product_name: product.material_name,
-        material_code: product.material_code,
+        material_id: product.materialId,
+        product_name: product.materialName,
+        material_code: product.materialCode,
         specification: product.specification,
         order_quantity: product.selected_quantity,
         quantity: product.selected_quantity,
-        unit_name: product.unit_name,
-        unit_id: product.unit_id,
-        unit_price: product.unit_price || 0,
+        unit_name: product.unitName,
+        unit_id: product.unitId,
+        unit_price: product.unitPrice || 0,
         stock_quantity: product.stock_quantity,
         orderNo: product.orderNo || '',
-        order_id: product.order_id || ''
+        order_id: product.orderId || ''
       })
     }
   }
@@ -1739,8 +1739,8 @@ const handleStatusChange = async (row, status) => {
     // 构建更新数据 - 修复字段名匹配问题
     const updateData = {
       status: status,
-      delivery_date: row.delivery_date,
-      order_id: row.order_id,
+      delivery_date: row.deliveryDate,
+      order_id: row.orderId,
       remarks: row.remarks || ''
     }
 
@@ -1769,8 +1769,8 @@ const handleStatusChange = async (row, status) => {
       const errorMsg = errorData?.error || '状态更新失败'
       // 检查是否是库存不足的错误
       if (errorMsg.includes('库存不足') || errorMsg.includes('没有库存记录')) {
-        const materialCode = errorData?.material_code
-        const materialName = errorData?.material_name
+        const materialCode = errorData?.materialCode
+        const materialName = errorData?.materialName
         const required = errorData?.required
         const available = errorData?.available
         let detailMsg = errorMsg
@@ -1813,21 +1813,21 @@ const printOutbound = async (row) => {
     const outbound = currentOutbound.value || {}
     const items = (outbound.items || []).map((item, index) => ({
       index: index + 1,
-      product_code: item.product_code || item.material_code || '',
-      product_name: item.product_name || item.material_name || '',
+      product_code: item.productCode || item.materialCode || '',
+      product_name: item.productName || item.materialName || '',
       specification: item.specification || item.specs || '-',
-      quantity: item.quantity ?? item.actual_quantity ?? 0,
-      unit_name: item.unit_name || item.unit || '',
-      batch_no: item.batch_no || '',
+      quantity: item.quantity ?? item.actualQuantity ?? 0,
+      unit_name: item.unitName || item.unit || '',
+      batch_no: item.batchNo || '',
       remark: item.remark || item.remarks || ''
     }))
 
     const html = await printService.generateByDefaultTemplate('sales', 'sales_outbound', {
       ...outbound,
       delivery_date: formatDate(outbound.delivery_date) || '',
-      contact: outbound.contact || outbound.contact_person || '',
-      phone: outbound.phone || outbound.contact_phone || '',
-      address: outbound.address || outbound.delivery_address || '',
+      contact: outbound.contactPerson || '',
+      phone: outbound.contactPhone || '',
+      address: outbound.deliveryAddress || '',
       remarks: outbound.remarks || outbound.remark || '',
       print_time: new Date().toLocaleString(),
       items

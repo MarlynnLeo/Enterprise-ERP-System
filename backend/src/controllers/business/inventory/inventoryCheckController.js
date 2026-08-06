@@ -6,6 +6,7 @@
  */
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 const { logger } = require('../../../utils/logger');
 const { INVENTORY_CHECK_TRANSITIONS } = require('../../../constants/statusRegistry');
 const { parsePagination } = require('../../../utils/safePagination');
@@ -16,6 +17,10 @@ const { CodeGenerators } = require('../../../utils/codeGenerator');
 const { getCurrentUserName } = require('../../../utils/userHelper');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const { _insertInventoryLedgerLocal } = require('./inventoryLedgerController');
+const {
+  inventoryCheckMap,
+  inventoryCheckItemMap,
+} = require('../../../utils/inventory/inventoryFieldMap');
 
 // 统一库存查询子查询（基于 inventory_ledger 单表架构聚合计算当前库存）
 const STOCK_SUBQUERY = `(SELECT material_id, location_id, COALESCE(SUM(quantity), 0) as quantity, MAX(created_at) as updated_at FROM inventory_ledger GROUP BY material_id, location_id)`;
@@ -65,17 +70,16 @@ const getCheckStatistics = async (req, res) => {
 
 const getCheckList = async (req, res) => {
   try {
-    const {
-      page = 1,
-      limit = 20,
-      search = '',
-      check_no = '',
-      status = '',
-      check_type = '',
-      start_date = '',
-      end_date = '',
-      materialName = '',
-    } = req.query;
+    // 列表查询 camel → snake    const q = inventoryCheckMap.fromListQuery(req.query || {});
+    const page = req.query.page || 1;
+    const limit = req.query.limit || 20;
+    const search = q.search || '';
+    const check_no = q.check_no || '';
+    const status = q.status || '';
+    const check_type = q.check_type || '';
+    const start_date = q.start_date || '';
+    const end_date = q.end_date || '';
+    const materialName = q.materialName || '';
     const pagination = parsePagination(page, limit, { defaultPageSize: 20, maxPageSize: 100 });
 
     const ScopeGuard = require('../../../authorization/ScopeGuard');
@@ -168,13 +172,14 @@ const getCheckList = async (req, res) => {
 
     const [checks] = await db.pool.execute(listQuery, params);
 
-    // 处理返回数据，确保字段映射正确
-    const processedChecks = checks.map((check) => ({
-      ...check,
-      warehouse: check.location_name || '未知仓库',
-      creator: check.creator_real_name || check.creator_name || '未知',
-      check_type: check.check_type || 'warehouse',
-    }));
+    // 出参仅 camel（inventoryCheckMap）    const processedChecks = checks.map((check) =>
+      inventoryCheckMap.toApi({
+        ...check,
+        warehouse: check.location_name || '未知仓库',
+        creator: check.creator_real_name || check.creator_name || '未知',
+        check_type: check.check_type || 'warehouse',
+      })
+    );
 
     ResponseHandler.paginated(
       res,
@@ -240,24 +245,22 @@ const getCheckDetail = async (req, res) => {
       [id]
     );
 
-    // 确保数值类型正确
-    const processedItems = items.map((item) => ({
+    // 出参仅 camel（inventoryCheckMap）    const processedItems = items.map((item) => ({
       ...item,
       system_quantity: parseFloat(item.system_quantity || 0),
       actual_quantity: parseFloat(item.actual_quantity || 0),
       difference: parseFloat(item.difference || 0),
-      // 添加前端需要的字段别名
-      book_qty: parseFloat(item.system_quantity || 0),
-      actual_qty: parseFloat(item.actual_quantity || 0),
-      specs: item.material_specs,
+      specification: item.material_specs,
     }));
 
     ResponseHandler.success(
       res,
-      {
+      inventoryCheckMap.toApi({
         ...check,
+        warehouse: check.location_name,
+        creator: check.creator_name,
         items: processedItems,
-      },
+      }),
       '获取库存盘点详情成功'
     );
   } catch (error) {
@@ -273,7 +276,11 @@ const createCheck = async (req, res) => {
   try {
     await connection.beginTransaction();
 
-    const { location_id, check_date, check_type, remark } = req.body;
+    // HTTP camel → snake（inventoryCheckMap）    const mapped = inventoryCheckMap.fromApi(req.body || {});
+    const location_id = mapped.location_id;
+    const check_date = mapped.check_date;
+    const check_type = mapped.check_type;
+    const remark = mapped.remark;
 
     // 验证必要参数
     if (!location_id || !check_date) {
@@ -368,11 +375,15 @@ const createCheck = async (req, res) => {
 
     ResponseHandler.success(
       res,
-      {
-        message: '盘点单创建成功',
+      inventoryCheckMap.toApi({
         id: checkId,
         check_no: checkNo,
-      },
+        location_id,
+        check_type: check_type || 'warehouse',
+        check_date,
+        status: 'draft',
+        remark: remark || null,
+      }),
       '创建成功',
       201
     );
@@ -393,7 +404,7 @@ const addCheckItem = async (req, res) => {
     await connection.beginTransaction();
 
     const { id } = req.params;
-    const { material_id, remark } = req.body;
+    const { material_id, remark } = mapKeysToSnake(req.body || {});
     const materialId = Number(material_id);
 
     if (!materialId) {
@@ -523,7 +534,14 @@ const updateCheck = async (req, res) => {
     await connection.beginTransaction();
 
     const { id } = req.params;
-    const { check_date, remark, items } = req.body;
+    // HTTP camel → snake    const mapped = inventoryCheckMap.fromApi(req.body || {});
+    const check_date = mapped.check_date;
+    const remark = mapped.remark;
+    const items = Array.isArray(mapped.items)
+      ? mapped.items
+      : Array.isArray(req.body?.items)
+        ? req.body.items.map((it) => inventoryCheckItemMap.fromApi(it))
+        : undefined;
 
     // 检查盘点单是否存在
     const [checkResult] = await connection.execute(
@@ -547,18 +565,19 @@ const updateCheck = async (req, res) => {
     // 更新盘点单基本信息
     await connection.execute(
       `UPDATE inventory_checks SET
-        check_date = ?,
+        check_date = COALESCE(?, check_date),
         remark = ?,
         updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND deleted_at IS NULL`,
-      [check_date, remark || null, id]
+      [check_date || null, remark || null, id]
     );
 
     // 如果提供了物料明细，更新明细
     if (items && Array.isArray(items) && items.length > 0) {
       for (const item of items) {
+        // items already snake via inventoryCheckItemMap.fromApi
+        if (!item.id) continue;
         if (
-          !item.id ||
           item.actual_quantity === undefined ||
           item.actual_quantity === null ||
           item.actual_quantity === ''
@@ -696,7 +715,9 @@ const submitCheckResult = async (req, res) => {
     // 如果提供了物料明细，更新明细
     if (items && Array.isArray(items) && items.length > 0) {
       for (const item of items) {
-        if (!item.id || item.actual_quantity === undefined) {
+        // items already snake via FieldMap
+        if (!item.id) continue;
+        if (item.actual_quantity === undefined) {
           continue;
         }
 

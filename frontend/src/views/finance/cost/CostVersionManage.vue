@@ -29,14 +29,14 @@
       />
 
       <el-table :data="versionList" v-loading="loading" border class="w-full">
-        <el-table-column prop="version_no" label="版本编码" width="160" />
-        <el-table-column prop="version_name" label="版本说明" min-width="200" />
-        <el-table-column prop="effective_date" label="计划生效日期" width="140">
+        <el-table-column prop="versionNo" label="版本编码" width="160" />
+        <el-table-column prop="versionName" label="版本说明" min-width="200" />
+        <el-table-column prop="effectiveDate" label="计划生效日期" width="140">
           <template #default="scope">
-            {{ formatDate(scope.row.effective_date) }}
+            {{ formatDate(scope.row.effectiveDate) }}
           </template>
         </el-table-column>
-        <el-table-column prop="created_by" label="发起人" width="110" />
+        <el-table-column prop="createdBy" label="发起人" width="110" />
         <el-table-column prop="status" label="状态" width="120">
           <template #default="scope">
             <el-tag :type="getStatusType(scope.row.status)" effect="dark">
@@ -71,7 +71,12 @@
       </div>
     </el-card>
 
-    <el-dialog v-model="dialogVisible" title="新建标准成本版本" width="500px">
+    <AppDialog
+      v-model="dialogVisible"
+      title="新建标准成本版本"
+      mode="form"
+      width="500px"
+    >
       <el-alert
         title="新版本会以草稿状态创建，不影响当前线上业务核算。完成测算和核对后，再提交审核并发布生效。"
         type="info"
@@ -80,14 +85,14 @@
         :closable="false"
       />
       <el-form :model="form" :rules="rules" ref="formRef" label-width="120px">
-        <el-form-item label="版本编码" prop="version_no">
-          <el-input v-model="form.version_no" placeholder="留空时由后端按编码规则生成" />
+        <el-form-item label="版本编码" prop="versionNo">
+          <el-input v-model="form.versionNo" placeholder="留空时由后端按编码规则生成" />
         </el-form-item>
-        <el-form-item label="版本说明" prop="version_name">
-          <el-input v-model="form.version_name" placeholder="如：2026年第二季度标准成本核算表" />
+        <el-form-item label="版本说明" prop="versionName">
+          <el-input v-model="form.versionName" placeholder="如：2026年第二季度标准成本核算表" />
         </el-form-item>
-        <el-form-item label="计划生效日期" prop="effective_date">
-          <el-date-picker v-model="form.effective_date" type="date" placeholder="选择日期" value-format="YYYY-MM-DD" class="w-full" />
+        <el-form-item label="计划生效日期" prop="effectiveDate">
+          <el-date-picker v-model="form.effectiveDate" type="date" placeholder="选择日期" value-format="YYYY-MM-DD" class="w-full" />
         </el-form-item>
         <el-form-item label="备注说明">
           <el-input v-model="form.remark" type="textarea" :rows="2" />
@@ -97,7 +102,7 @@
         <el-button @click="dialogVisible = false">取消</el-button>
         <el-button v-permission="'finance:cost:execute'" type="primary" @click="saveVersion" :loading="saving">确认创建</el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
   </div>
 </template>
 
@@ -177,9 +182,9 @@ const fetchVersions = async () => {
 
 const openCreateDialog = () => {
   if (formRef.value) formRef.value.resetFields();
-  form.version_no = '';
-  form.version_name = '';
-  form.effective_date = formatLocalDate(new Date());
+  form.versionNo = '';
+  form.versionName = '';
+  form.effectiveDate = formatLocalDate(new Date());
   form.remark = '';
   dialogVisible.value = true;
 };
@@ -237,7 +242,7 @@ const handleSubmit = async (row) => {
 const handleApprove = async (row) => {
   try {
     await ElMessageBox.confirm(
-      `审核通过“${row.version_name}”后，当前生效版本会被归档，新版本将主导后续出库核算、标准成本和差异分析。是否继续？`,
+      `审核通过“${row.versionName}”后，当前生效版本会被归档，新版本将主导后续出库核算、标准成本和差异分析。是否继续？`,
       '发布确认',
       { type: 'error', confirmButtonText: '确认生效', cancelButtonText: '取消' }
     );

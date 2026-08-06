@@ -19,18 +19,18 @@
         <!-- 基本信息 -->
         <div class="form-section">
           <div class="section-title">基本信息</div>
-          <Field v-model="form.order_no" name="order_no" label="订单编号" placeholder="系统自动生成" readonly />
+          <Field v-model="form.orderNo" name="orderNo" label="订单编号" placeholder="系统自动生成" readonly />
           <Field v-model="selectedCustomerName" name="customer" label="选择客户" placeholder="请选择客户" readonly is-link @click="showCustomerPicker = true" :rules="[{ required: true, message: '请选择客户' }]" />
-          <Field v-model="form.order_date" name="order_date" label="订单日期" placeholder="请选择订单日期" type="date" :rules="[{ required: true, message: '请选择订单日期' }]" />
-          <Field v-model="form.delivery_date" name="delivery_date" label="交货日期" placeholder="请选择交货日期" type="date" :rules="[{ required: true, message: '请选择交货日期' }]" />
+          <Field v-model="form.orderDate" name="orderDate" label="订单日期" placeholder="请选择订单日期" type="date" :rules="[{ required: true, message: '请选择订单日期' }]" />
+          <Field v-model="form.deliveryDate" name="deliveryDate" label="交货日期" placeholder="请选择交货日期" type="date" :rules="[{ required: true, message: '请选择交货日期' }]" />
         </div>
 
         <!-- 联系信息 -->
         <div class="form-section" v-if="selectedCustomer">
           <div class="section-title">联系信息</div>
-          <Field v-model="form.contact_person" name="contact_person" label="联系人" placeholder="请输入联系人" />
-          <Field v-model="form.contact_phone" name="contact_phone" label="联系电话" placeholder="请输入联系电话" type="tel" />
-          <Field v-model="form.shipping_address" name="shipping_address" label="收货地址" placeholder="请输入收货地址" type="textarea" rows="2" />
+          <Field v-model="form.contactPerson" name="contactPerson" label="联系人" placeholder="请输入联系人" />
+          <Field v-model="form.contactPhone" name="contactPhone" label="联系电话" placeholder="请输入联系电话" type="tel" />
+          <Field v-model="form.address" name="address" label="收货地址" placeholder="请输入收货地址" type="textarea" rows="2" />
         </div>
 
         <!-- 订单明细 -->
@@ -43,14 +43,14 @@
           <div class="items-container" v-if="orderItems.length > 0">
             <div v-for="(item, index) in orderItems" :key="index" class="item-card">
               <div class="item-header">
-                <span class="item-name">{{ item.material_name || '未选择产品' }}</span>
+                <span class="item-name">{{ item.materialName || '未选择产品' }}</span>
                 <VanIcon name="cross" size="16" @click="removeItem(index)" />
               </div>
               <div class="item-details">
-                <div class="item-row"><span class="label">编码:</span><span class="value">{{ item.material_code || '-' }}</span></div>
+                <div class="item-row"><span class="label">编码:</span><span class="value">{{ item.materialCode || '-' }}</span></div>
                 <div class="item-row"><span class="label">数量:</span><span class="value">{{ item.quantity }} {{ item.unit || '件' }}</span></div>
-                <div class="item-row"><span class="label">单价:</span><span class="value">¥{{ formatAmount(item.unit_price) }}</span></div>
-                <div class="item-row"><span class="label">小计:</span><span class="value total">¥{{ formatAmount(item.total_price) }}</span></div>
+                <div class="item-row"><span class="label">单价:</span><span class="value">¥{{ formatAmount(item.unitPrice) }}</span></div>
+                <div class="item-row"><span class="label">小计:</span><span class="value total">¥{{ formatAmount(item.totalPrice) }}</span></div>
               </div>
               <div class="item-actions"><Button size="small" @click="editItem(index)">编辑</Button></div>
             </div>
@@ -74,7 +74,7 @@
         <!-- 备注 -->
         <div class="form-section">
           <div class="section-title">备注信息</div>
-          <Field v-model="form.remark" name="remark" label="备注" placeholder="请输入备注信息（可选）" type="textarea" rows="3" />
+          <Field v-model="form.remarks" name="remarks" label="备注" placeholder="请输入备注信息（可选）" type="textarea" rows="3" />
         </div>
       </Form>
     </div>
@@ -112,8 +112,8 @@
           <Form ref="itemFormRef">
             <Field v-model="selectedMaterialName" name="material" label="选择产品" placeholder="请选择产品" readonly is-link @click="showMaterialPicker = true" :rules="[{ required: true, message: '请选择产品' }]" />
             <Field v-model="currentItem.quantity" name="quantity" label="销售数量" placeholder="请输入数量" type="number" :rules="[{ required: true, message: '请输入数量' }]" />
-            <Field v-model="currentItem.unit_price" name="unit_price" label="销售单价" placeholder="请输入单价" type="number" :rules="[{ required: true, message: '请输入单价' }]" />
-            <Field v-model="currentItem.remark" name="remark" label="备注" placeholder="请输入备注（可选）" />
+            <Field v-model="currentItem.unitPrice" name="unitPrice" label="销售单价" placeholder="请输入单价" type="number" :rules="[{ required: true, message: '请输入单价' }]" />
+            <Field v-model="currentItem.remarks" name="remarks" label="备注" placeholder="请输入备注（可选）" />
           </Form>
         </div>
       </div>
@@ -153,9 +153,10 @@
   const itemFormRef = ref()
   const submitting = ref(false)
 
+  // 纯 camel，后端 salesOrderMap.fromApi
   const form = reactive({
-    order_no: '', customer_id: '', order_date: '', delivery_date: '',
-    contact_person: '', contact_phone: '', shipping_address: '', remark: ''
+    orderNo: '', customerId: '', orderDate: '', deliveryDate: '',
+    contactPerson: '', contactPhone: '', address: '', remarks: ''
   })
 
   // 弹窗状态
@@ -179,9 +180,9 @@
 
   // 订单明细
   const orderItems = ref([])
-  const currentItem = reactive({ material_id: '', material_name: '', material_code: '', quantity: '', unit_price: '', unit: '', remark: '' })
+  const currentItem = reactive({ materialId: '', materialName: '', materialCode: '', quantity: '', unitPrice: '', unit: '', remarks: '' })
   const editingIndex = ref(-1)
-  const totalAmount = computed(() => orderItems.value.reduce((s, i) => s + (parseFloat(i.total_price) || 0), 0))
+  const totalAmount = computed(() => orderItems.value.reduce((s, i) => s + (parseFloat(i.totalPrice) || 0), 0))
 
   const formatAmount = (v) => v ? parseFloat(v).toFixed(2) : '0.00'
 
@@ -195,10 +196,10 @@
   const confirmCustomer = () => {
     if (tempCustomer.value) {
       selectedCustomer.value = tempCustomer.value
-      form.customer_id = tempCustomer.value.id
-      if (tempCustomer.value.contact) form.contact_person = tempCustomer.value.contact
-      if (tempCustomer.value.phone) form.contact_phone = tempCustomer.value.phone
-      if (tempCustomer.value.address) form.shipping_address = tempCustomer.value.address
+      form.customerId = tempCustomer.value.id
+      if (tempCustomer.value.contact) form.contactPerson = tempCustomer.value.contact
+      if (tempCustomer.value.phone) form.contactPhone = tempCustomer.value.phone
+      if (tempCustomer.value.address) form.address = tempCustomer.value.address
     }
     showCustomerPicker.value = false
   }
@@ -214,9 +215,9 @@
   const confirmMaterial = () => {
     if (tempMaterial.value) {
       selectedMaterial.value = tempMaterial.value
-      currentItem.material_id = tempMaterial.value.id
-      currentItem.material_name = tempMaterial.value.name
-      currentItem.material_code = tempMaterial.value.code
+      currentItem.materialId = tempMaterial.value.id
+      currentItem.materialName = tempMaterial.value.name
+      currentItem.materialCode = tempMaterial.value.code
       currentItem.unit = tempMaterial.value.unit || '件'
     }
     showMaterialPicker.value = false
@@ -227,15 +228,15 @@
   const editItem = (i) => {
     const item = orderItems.value[i]
     Object.assign(currentItem, item)
-    selectedMaterial.value = { id: item.material_id, name: item.material_name, code: item.material_code }
+    selectedMaterial.value = { id: item.materialId, name: item.materialName, code: item.materialCode }
     editingIndex.value = i
     showItemEditor.value = true
   }
   const confirmItem = async () => {
     try {
       await itemFormRef.value?.validate()
-      if (!currentItem.material_id) { showToast('请选择产品'); return }
-      currentItem.total_price = (parseFloat(currentItem.quantity) || 0) * (parseFloat(currentItem.unit_price) || 0)
+      if (!currentItem.materialId) { showToast('请选择产品'); return }
+      currentItem.totalPrice = (parseFloat(currentItem.quantity) || 0) * (parseFloat(currentItem.unitPrice) || 0)
       if (editingIndex.value >= 0) orderItems.value[editingIndex.value] = { ...currentItem }
       else orderItems.value.push({ ...currentItem })
       showItemEditor.value = false
@@ -244,23 +245,31 @@
   }
   const removeItem = (i) => orderItems.value.splice(i, 1)
   const resetItem = () => {
-    Object.assign(currentItem, { material_id: '', material_name: '', material_code: '', quantity: '', unit_price: '', unit: '', remark: '' })
+    Object.assign(currentItem, { materialId: '', materialName: '', materialCode: '', quantity: '', unitPrice: '', unit: '', remarks: '' })
     selectedMaterial.value = null
   }
 
   const submitForm = async () => {
     try {
       await formRef.value?.validate()
-      if (!form.customer_id) { showToast('请选择客户'); return }
+      if (!form.customerId) { showToast('请选择客户'); return }
       if (orderItems.value.length === 0) { showToast('请添加订单明细'); return }
       submitting.value = true
       showLoadingToast({ message: '保存中...', forbidClick: true })
       await salesApi.createSalesOrder({
-        ...form,
-        total_amount: totalAmount.value,
+        customerId: form.customerId,
+        orderDate: form.orderDate,
+        deliveryDate: form.deliveryDate,
+        contactPerson: form.contactPerson,
+        contactPhone: form.contactPhone,
+        address: form.address,
+        remarks: form.remarks,
+        totalAmount: totalAmount.value,
         items: orderItems.value.map(i => ({
-          material_id: i.material_id, quantity: parseFloat(i.quantity),
-          unit_price: parseFloat(i.unit_price), total_price: parseFloat(i.total_price), remark: i.remark
+          materialId: i.materialId,
+          quantity: parseFloat(i.quantity),
+          unitPrice: parseFloat(i.unitPrice),
+          remarks: i.remarks
         }))
       })
       closeToast()
@@ -274,7 +283,7 @@
   }
 
   onMounted(async () => {
-    form.order_date = new Date().toISOString().split('T')[0]
+    form.orderDate = new Date().toISOString().split('T')[0]
     await Promise.all([searchCustomers(), searchMaterials()])
   })
 </script>

@@ -13,7 +13,7 @@
     <Form @submit="onSubmit">
       <CellGroup inset title="调拨信息">
         <Field
-          v-model="form.out_warehouse_name"
+          v-model="form.fromLocationName"
           is-link
           readonly
           label="调出仓库"
@@ -23,7 +23,7 @@
         />
 
         <Field
-          v-model="form.in_warehouse_name"
+          v-model="form.toLocationName"
           is-link
           readonly
           label="调入仓库"
@@ -33,7 +33,7 @@
         />
 
         <Field
-          v-model="form.remark"
+          v-model="form.remarks"
           type="textarea"
           rows="2"
           autosize
@@ -55,7 +55,7 @@
             />
           </div>
           <Field
-            v-model="item.material_name"
+            v-model="item.materialName"
             is-link
             readonly
             label="选择物料"
@@ -112,8 +112,8 @@
           <Cell
             v-for="mat in materialList"
             :key="mat.id"
-            :title="mat.name || mat.material_name"
-            :label="`编码: ${mat.code || mat.material_code || '--'} | 规格: ${mat.spec || mat.specification || '--'}`"
+            :title="mat.name || mat.materialName"
+            :label="`编码: ${mat.code || mat.materialCode || '--'} | 规格: ${mat.specs || mat.specification || '--'}`"
             is-link
             @click="onMaterialSelect(mat)"
           />
@@ -162,7 +162,7 @@
       const items = data.items || data.list || data.rows || data || []
       const list = Array.isArray(items) ? items : []
       warehouseOptions.value = list.map((w) => ({
-        text: w.name || w.warehouse_name || `仓库#${w.id}`,
+        text: w.warehouseName || `仓库#${w.id}`,
         value: String(w.id)
       }))
     } catch (error) {
@@ -187,11 +187,11 @@
       return
     }
     if (warehousePickerTarget.value === 'out') {
-      form.out_warehouse_name = name
-      form.out_location_id = id
+      form.fromLocationName = name
+      form.fromLocationId = id
     } else {
-      form.in_warehouse_name = name
-      form.in_location_id = id
+      form.toLocationName = name
+      form.toLocationId = id
     }
     showWarehousePicker.value = false
   }
@@ -240,25 +240,25 @@
 
   const onMaterialSelect = (mat) => {
     if (activeMaterialIndex.value >= 0) {
-      form.items[activeMaterialIndex.value].material_id = mat.id
-      form.items[activeMaterialIndex.value].material_name =
-        mat.name || mat.material_name || `物料#${mat.id}`
+      form.items[activeMaterialIndex.value].materialId = mat.id
+      form.items[activeMaterialIndex.value].materialName =
+        mat.name || mat.materialName || `物料#${mat.id}`
     }
     showMaterialPicker.value = false
   }
 
-  // ==================== 表单 ====================
+  // ==================== 表单（纯 camel） ====================
   const form = reactive({
-    out_location_id: null,
-    out_warehouse_name: '',
-    in_location_id: null,
-    in_warehouse_name: '',
-    remark: '',
-    items: [{ material_id: '', material_name: '', quantity: '' }]
+    fromLocationId: null,
+    fromLocationName: '',
+    toLocationId: null,
+    toLocationName: '',
+    remarks: '',
+    items: [{ materialId: '', materialName: '', quantity: '' }]
   })
 
   const addItem = () => {
-    form.items.push({ material_id: '', material_name: '', quantity: '' })
+    form.items.push({ materialId: '', materialName: '', quantity: '' })
   }
 
   const removeItem = (index) => {
@@ -266,17 +266,17 @@
   }
 
   const onSubmit = async () => {
-    if (form.items.some((item) => !item.material_id || !item.quantity)) {
+    if (form.items.some((item) => !item.materialId || !item.quantity)) {
       showToast('物料明细填写不完整')
       return
     }
 
-    if (!form.out_location_id || !form.in_location_id) {
+    if (!form.fromLocationId || !form.toLocationId) {
       showToast('请选择调出和调入仓库')
       return
     }
 
-    if (form.out_location_id === form.in_location_id) {
+    if (form.fromLocationId === form.toLocationId) {
       showToast('调出与调入仓库不能相同')
       return
     }
@@ -284,11 +284,11 @@
     submitting.value = true
     try {
       const payload = {
-        out_location_id: form.out_location_id,
-        in_location_id: form.in_location_id,
-        remark: form.remark,
+        fromLocationId: form.fromLocationId,
+        toLocationId: form.toLocationId,
+        remarks: form.remarks,
         items: form.items.map((i) => ({
-          material_id: parseInt(i.material_id),
+          materialId: parseInt(i.materialId, 10),
           quantity: parseFloat(i.quantity)
         }))
       }

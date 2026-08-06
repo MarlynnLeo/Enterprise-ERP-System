@@ -94,11 +94,11 @@
 
   const normalizePlan = (plan = {}) => ({
     ...plan,
-    productName: plan.productName || plan.product_name || plan.material_name,
-    productCode: plan.productCode || plan.product_code || plan.material_code,
-    startDate: plan.startDate || plan.start_date,
-    endDate: plan.endDate || plan.end_date,
-    deliveryDate: plan.deliveryDate || plan.delivery_date,
+    productName: plan.productName || plan.materialName,
+    productCode: plan.productCode || plan.materialCode,
+    startDate: plan.startDate,
+    endDate: plan.endDate,
+    deliveryDate: plan.deliveryDate,
     completedQuantity: Number(plan.completedQuantity ?? plan.completed_quantity) || 0,
     taskQuantity: Number(plan.taskQuantity ?? plan.task_quantity) || 0,
     progress: Number(plan.progress) || 0

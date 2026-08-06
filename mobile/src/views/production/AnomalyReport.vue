@@ -90,7 +90,7 @@
                     <span class="meta-item">{{ categoryLabel[item.category] || item.category }}</span>
                     <span class="meta-item" v-if="item.location">{{ item.location }}</span>
                   </div>
-                  <span class="meta-time">{{ formatTime(item.created_at) }}</span>
+                  <span class="meta-time">{{ formatTime(item.createdAt) }}</span>
                 </div>
               </div>
             </div>

@@ -75,8 +75,8 @@ export function useProductionPlans() {
       if (plans.length > 0) {
         // 获取所有产品ID，用于批量获取物料信息
         const productIds = [...new Set(plans
-          .filter(plan => plan.product_id)
-          .map(plan => plan.product_id))];
+          .filter(plan => plan.productId)
+          .map(plan => plan.productId))];
 
         // 创建物料映射表
         const materialsMap = {};
@@ -105,8 +105,8 @@ export function useProductionPlans() {
           let specification = plan.specification || plan.specs || '';
 
           // 从批量获取的映射表中获取规格
-          if (!specification && plan.product_id && materialsMap[plan.product_id]) {
-            specification = materialsMap[plan.product_id].specs || '';
+          if (!specification && plan.productId && materialsMap[plan.productId]) {
+            specification = materialsMap[plan.productId].specs || '';
           }
 
           return {
@@ -117,18 +117,18 @@ export function useProductionPlans() {
 
         // 转换为仪表盘显示格式
         warningList.value = processedPlans.map(plan => {
-          const specValue = plan.specification || plan.specs || plan.material_specs || plan.spec || plan.standard || '';
+          const specValue = plan.specification || plan.materialSpecs || plan.spec || plan.standard || '';
 
           return {
             studentId: plan.code || '无编号', // 使用计划编号
-            name: plan.productName || plan.product_name || plan.name || '未命名', // 使用产品名称
+            name: plan.productName || plan.name || '未命名', // 使用产品名称
             studentType: specValue || '无规格', // 使用产品规格，增加更多可能的字段
             protectionId: `${plan.quantity || 0}${plan.unit || '个'}`, // 显示计划数量
             warningType: getStatusText(plan.status || 'draft'), // 显示计划状态
             status: plan.status || 'draft', // 原始状态值
             id: plan.id, // 保存ID用于后续操作
-            startDate: plan.start_date || plan.startDate,
-            endDate: plan.end_date || plan.endDate
+            startDate: plan.startDate,
+            endDate: plan.endDate
           };
         });
 

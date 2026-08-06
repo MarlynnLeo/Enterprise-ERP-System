@@ -6,6 +6,7 @@
  */
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 const { logger } = require('../../../utils/logger');
 const { parsePagination } = require('../../../utils/safePagination');
 
@@ -115,7 +116,7 @@ class InspectionTemplateController {
 
   async resolveTemplateItemId(item, transaction) {
     const payload = this.buildInspectionItemPayload(item);
-    const sourceItemId = item.reuse_item_id || item.id || null;
+    const sourceItemId = item.reuseItemId || item.id || null;
 
     if (sourceItemId) {
       const sourceItem = await db.InspectionItem.findByPk(sourceItemId, { transaction });
@@ -256,16 +257,16 @@ class InspectionTemplateController {
   // 获取模板列表
   async getTemplates(req, res) {
     try {
-      const {
-        page = 1,
-        pageSize = 20,
-        keyword,
-        inspection_type,
-        status,
-        material_type,
-        is_general,
-        include_general,
-      } = req.query;
+      // HTTP 查询只认 camel；兼容历史 snake query
+      const q = req.query || {};
+      const page = q.page ?? 1;
+      const pageSize = q.pageSize ?? 20;
+      const keyword = q.keyword;
+      const inspection_type = q.inspectionType ?? q.inspection_type;
+      const status = q.status;
+      const material_type = q.materialType ?? q.material_type;
+      const is_general = q.isGeneral ?? q.is_general;
+      const include_general = q.includeGeneral ?? q.include_general;
 
       const pagination = parsePagination(page, pageSize, { defaultPageSize: 20, maxPageSize: 100 });
 
@@ -514,7 +515,7 @@ class InspectionTemplateController {
         version,
         description,
         items,
-      } = req.body;
+      } = mapKeysToSnake(req.body || {});
 
       // 检查用户认证
       if (!req.user) {
@@ -600,7 +601,7 @@ class InspectionTemplateController {
         version,
         description,
         items,
-      } = req.body;
+      } = mapKeysToSnake(req.body || {});
 
       const existingTemplate = await db.InspectionTemplate.findByPk(id, { transaction: t });
       if (!existingTemplate) {
@@ -933,7 +934,8 @@ class InspectionTemplateController {
   // 创建可复用的检验标准项目
   async createReusableItem(req, res) {
     try {
-      const { item_name, standard, type, is_critical } = req.body;
+      const body = mapKeysToSnake(req.body || {});
+      const { item_name, standard, type, is_critical, dimension_value, tolerance_upper, tolerance_lower } = body;
 
       // 验证必填字段
       if (!item_name || !standard || !type) {
@@ -964,9 +966,9 @@ class InspectionTemplateController {
         standard,
         type,
         is_critical: is_critical || false,
-        dimension_value: req.body.dimension_value,
-        tolerance_upper: req.body.tolerance_upper,
-        tolerance_lower: req.body.tolerance_lower,
+        dimension_value,
+        tolerance_upper,
+        tolerance_lower,
       });
 
       ResponseHandler.success(res, newItem, '检验标准创建成功');

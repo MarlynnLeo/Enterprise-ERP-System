@@ -64,37 +64,37 @@
 
       <!-- 明细表格 -->
       <el-table :data="analysis.details" border stripe>
-        <el-table-column prop="account_code" label="科目代码" width="120" />
-        <el-table-column prop="account_name" label="科目名称" width="180" />
-        <el-table-column prop="department_name" label="部门" width="120" />
-        <el-table-column prop="budget_amount" label="预算金额" width="120">
+        <el-table-column prop="accountCode" label="科目代码" width="120" />
+        <el-table-column prop="accountName" label="科目名称" width="180" />
+        <el-table-column prop="departmentName" label="部门" width="120" />
+        <el-table-column prop="budgetAmount" label="预算金额" width="120">
           <template #default="{ row }">
-            {{ formatAmount(row.budget_amount) }}
+            {{ formatAmount(row.budgetAmount) }}
           </template>
         </el-table-column>
-        <el-table-column prop="used_amount" label="已使用" width="120">
+        <el-table-column prop="usedAmount" label="已使用" width="120">
           <template #default="{ row }">
-            {{ formatAmount(row.used_amount) }}
+            {{ formatAmount(row.usedAmount) }}
           </template>
         </el-table-column>
-        <el-table-column prop="remaining_amount" label="剩余金额" width="120">
+        <el-table-column prop="remainingAmount" label="剩余金额" width="120">
           <template #default="{ row }">
-            {{ formatAmount(row.remaining_amount) }}
+            {{ formatAmount(row.remainingAmount) }}
           </template>
         </el-table-column>
-        <el-table-column prop="execution_rate" label="执行率" width="120">
+        <el-table-column prop="executionRate" label="执行率" width="120">
           <template #default="{ row }">
             <el-progress
-              :percentage="parseFloat(row.execution_rate)"
-              :color="getProgressColor(parseFloat(row.execution_rate))"
+              :percentage="parseFloat(row.executionRate)"
+              :color="getProgressColor(parseFloat(row.executionRate))"
               :stroke-width="12"
             />
           </template>
         </el-table-column>
         <el-table-column label="状态" width="100">
           <template #default="{ row }">
-            <el-tag :type="getStatusType(row.execution_rate)">
-              {{ getStatusText(row.execution_rate) }}
+            <el-tag :type="getStatusType(row.executionRate)">
+              {{ getStatusText(row.executionRate) }}
             </el-tag>
           </template>
         </el-table-column>

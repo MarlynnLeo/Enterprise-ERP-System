@@ -38,38 +38,38 @@
     <!-- 数据表格 -->
     <el-card class="data-card">
       <el-table :data="costList" border v-loading="loading" class="w-full">
-        <el-table-column prop="order_number" label="生产订单号" width="150"></el-table-column>
-        <el-table-column prop="product_code" label="产品编码" width="150"></el-table-column>
-        <el-table-column prop="product_name" label="产品名称" width="260"></el-table-column>
+        <el-table-column prop="orderNumber" label="生产订单号" width="150"></el-table-column>
+        <el-table-column prop="productCode" label="产品编码" width="150"></el-table-column>
+        <el-table-column prop="productName" label="产品名称" width="260"></el-table-column>
         <el-table-column prop="quantity" label="生产数量" width="110"></el-table-column>
         <el-table-column label="材料成本" width="130">
           <template #default="scope">
-            {{ formatCurrency(scope.row.material_cost) }}
+            {{ formatCurrency(scope.row.materialCost) }}
           </template>
         </el-table-column>
         <el-table-column label="人工成本" width="120">
           <template #default="scope">
-            {{ formatCurrency(scope.row.labor_cost) }}
+            {{ formatCurrency(scope.row.laborCost) }}
           </template>
         </el-table-column>
         <el-table-column label="制造费用" width="130">
           <template #default="scope">
-            {{ formatCurrency(scope.row.overhead_cost) }}
+            {{ formatCurrency(scope.row.overheadCost) }}
           </template>
         </el-table-column>
         <el-table-column label="总成本" width="140">
           <template #default="scope">
             <span class="text-primary font-weight-700">
-              {{ formatCurrency(scope.row.total_cost) }}
+              {{ formatCurrency(scope.row.totalCost) }}
             </span>
           </template>
         </el-table-column>
         <el-table-column label="单位成本" width="140">
           <template #default="scope">
-            {{ formatCurrency(scope.row.unit_cost) }}
+            {{ formatCurrency(scope.row.unitCost) }}
           </template>
         </el-table-column>
-        <el-table-column prop="completion_date" label="完工日期" width="110"></el-table-column>
+        <el-table-column prop="completionDate" label="完工日期" width="110"></el-table-column>
         <el-table-column label="操作" min-width="100" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button class="btn-op-view" type="primary" size="small" @click="viewDetail(scope.row)">详情</el-button>
@@ -100,9 +100,9 @@
     >
       <div v-if="currentDetail">
         <el-descriptions :column="3" border>
-          <el-descriptions-item label="生产订单号">{{ currentDetail.order_number }}</el-descriptions-item>
-          <el-descriptions-item label="产品编码">{{ currentDetail.product_code }}</el-descriptions-item>
-          <el-descriptions-item label="产品名称">{{ currentDetail.product_name }}</el-descriptions-item>
+          <el-descriptions-item label="生产订单号">{{ currentDetail.orderNumber }}</el-descriptions-item>
+          <el-descriptions-item label="产品编码">{{ currentDetail.productCode }}</el-descriptions-item>
+          <el-descriptions-item label="产品名称">{{ currentDetail.productName }}</el-descriptions-item>
           <el-descriptions-item label="生产数量">{{ currentDetail.quantity }}</el-descriptions-item>
           <el-descriptions-item label="完工日期">{{ currentDetail.completion_date }}</el-descriptions-item>
           <el-descriptions-item label="成本核算方法">{{ getCostingMethodText(currentDetail.costing_method) }}</el-descriptions-item>
@@ -122,40 +122,40 @@
         <el-tabs v-model="activeTab">
           <el-tab-pane label="材料消耗明细" name="material">
             <el-table :data="currentDetail.material_details" border size="small" max-height="300">
-              <el-table-column prop="material_code" label="物料编码" width="100"></el-table-column>
-              <el-table-column prop="material_name" label="物料名称" width="170"></el-table-column>
+              <el-table-column prop="materialCode" label="物料编码" width="100"></el-table-column>
+              <el-table-column prop="materialName" label="物料名称" width="170"></el-table-column>
               <el-table-column prop="quantity" label="消耗数量" width="100"></el-table-column>
-              <el-table-column prop="unit_cost" label="单位成本" width="100"></el-table-column>
-              <el-table-column prop="total_cost" label="总成本" width="100"></el-table-column>
-              <el-table-column prop="issue_type" label="类型" width="96"></el-table-column>
-              <el-table-column prop="batch_number" label="批次号" width="138"></el-table-column>
-              <el-table-column prop="issue_date" label="领用日期" width="110"></el-table-column>
-              <el-table-column prop="document_numbers" label="来源单据" min-width="180"></el-table-column>
+              <el-table-column prop="unitCost" label="单位成本" width="100"></el-table-column>
+              <el-table-column prop="totalCost" label="总成本" width="100"></el-table-column>
+              <el-table-column prop="issueType" label="类型" width="96"></el-table-column>
+              <el-table-column prop="batchNumber" label="批次号" width="138"></el-table-column>
+              <el-table-column prop="issueDate" label="领用日期" width="110"></el-table-column>
+              <el-table-column prop="documentNumbers" label="来源单据" min-width="180"></el-table-column>
             </el-table>
           </el-tab-pane>
           <el-tab-pane label="人工工时明细" name="labor">
             <el-table :data="currentDetail.labor_details" border size="small" max-height="300">
               <el-table-column prop="workstation" label="工作中心" width="200"></el-table-column>
               <el-table-column prop="operator" label="操作员" width="120"></el-table-column>
-              <el-table-column prop="work_hours" label="工时(小时)" width="125"></el-table-column>
-              <el-table-column prop="hourly_rate" label="小时费率" width="120"></el-table-column>
-              <el-table-column prop="total_cost" label="总成本" width="120"></el-table-column>
-              <el-table-column prop="work_date" label="工作日期" width="130"></el-table-column>
+              <el-table-column prop="workHours" label="工时(小时)" width="125"></el-table-column>
+              <el-table-column prop="hourlyRate" label="小时费率" width="120"></el-table-column>
+              <el-table-column prop="totalCost" label="总成本" width="120"></el-table-column>
+              <el-table-column prop="workDate" label="工作日期" width="130"></el-table-column>
             </el-table>
           </el-tab-pane>
           <el-tab-pane label="制造费用明细" name="overhead">
             <el-table :data="currentDetail.overhead_details || []" border size="small" max-height="300" empty-text="暂无制造费用分摊明细">
-              <el-table-column prop="rule_name" label="分摊规则" min-width="180"></el-table-column>
-              <el-table-column prop="allocation_base" label="分摊基础" width="120"></el-table-column>
+              <el-table-column prop="ruleName" label="分摊规则" min-width="180"></el-table-column>
+              <el-table-column prop="allocationBase" label="分摊基础" width="120"></el-table-column>
               <el-table-column prop="rate" label="分摊率" width="100"></el-table-column>
               <el-table-column label="基础成本" width="130">
                 <template #default="scope">
-                  {{ formatCurrency(scope.row.base_cost) }}
+                  {{ formatCurrency(scope.row.baseCost) }}
                 </template>
               </el-table-column>
               <el-table-column label="计算费用" width="130">
                 <template #default="scope">
-                  {{ formatCurrency(scope.row.calculated_cost) }}
+                  {{ formatCurrency(scope.row.calculatedCost) }}
                 </template>
               </el-table-column>
             </el-table>
@@ -163,23 +163,23 @@
 
           <el-tab-pane label="财务凭证" name="vouchers">
             <el-table :data="currentDetail.related_vouchers" border size="small" max-height="300" empty-text="暂无关联凭证">
-              <el-table-column prop="document_number" label="凭证号" width="120"></el-table-column>
-              <el-table-column prop="entry_date" label="会计日期" width="108">
+              <el-table-column prop="documentNumber" label="凭证号" width="120"></el-table-column>
+              <el-table-column prop="entryDate" label="会计日期" width="108">
                  <template #default="scope">
-                    {{ scope.row.entry_date ? scope.row.entry_date.substring(0, 10) : '' }}
+                    {{ scope.row.entryDate ? scope.row.entryDate.substring(0, 10) : '' }}
                  </template>
               </el-table-column>
               <el-table-column prop="description" label="摘要" min-width="200"></el-table-column>
-              <el-table-column prop="transaction_type" label="业务类型" width="120">
+              <el-table-column prop="transactionType" label="业务类型" width="120">
                   <template #default="scope">
-                    <el-tag size="small" :type="getTransactionTypeColor(scope.row.transaction_type)">
-                      {{ getTransactionTypeText(scope.row.transaction_type) }}
+                    <el-tag size="small" :type="getTransactionTypeColor(scope.row.transactionType)">
+                      {{ getTransactionTypeText(scope.row.transactionType) }}
                     </el-tag>
                   </template>
               </el-table-column>
-              <el-table-column prop="total_amount" label="金额" width="100">
+              <el-table-column prop="totalAmount" label="金额" width="100">
                  <template #default="scope">
-                    {{ formatCurrency(scope.row.total_amount) }}
+                    {{ formatCurrency(scope.row.totalAmount) }}
                  </template>
               </el-table-column>
               <el-table-column prop="status" label="状态" width="90">
@@ -189,9 +189,9 @@
                   </el-tag>
                 </template>
               </el-table-column>
-               <el-table-column prop="is_posted" label="过账" width="80">
+               <el-table-column prop="isPosted" label="过账" width="80">
                 <template #default="scope">
-                  <el-icon v-if="scope.row.is_posted" color="var(--color-success)"><Check /></el-icon>
+                  <el-icon v-if="scope.row.isPosted" color="var(--color-success)"><Check /></el-icon>
                   <el-icon v-else color="var(--color-text-secondary)"><Minus /></el-icon>
                 </template>
               </el-table-column>

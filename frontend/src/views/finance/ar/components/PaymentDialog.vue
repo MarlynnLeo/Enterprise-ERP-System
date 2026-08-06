@@ -7,10 +7,11 @@
  */
 -->
 <template>
-  <el-dialog
-    title="记录收款"
+  <AppDialog
     :model-value="modelValue"
     @update:model-value="$emit('update:modelValue', $event)"
+    title="记录收款"
+    mode="form"
     width="500px"
   >
     <el-form :model="editableForm" :rules="paymentRules" ref="paymentFormRef" label-width="100px">
@@ -56,7 +57,7 @@
           <el-option
             v-for="account in bankAccounts"
             :key="account.id"
-            :label="`${account.account_name || account.accountName} (${account.account_number || account.accountNumber})`"
+            :label="`${account.accountName} (${account.accountNumber})`"
             :value="account.id"
           ></el-option>
         </el-select>
@@ -77,7 +78,7 @@
         <el-button v-permission="'finance:ar:receive'" type="primary" @click="$emit('save')" :loading="saveLoading">确认</el-button>
       </span>
     </template>
-  </el-dialog>
+    </AppDialog>
 </template>
 
 <script setup>

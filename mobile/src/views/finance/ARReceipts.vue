@@ -34,13 +34,13 @@
     ],
     fields: {
       id: 'id',
-      title: 'customer_name',
-      subtitle: (item) => `${item.receipt_number || ''} · ${item.invoice_number || ''}`,
+      title: 'customerName',
+      subtitle: (item) => `${item.receiptNumber || ''} · ${item.invoiceNumber || ''}`,
       icon: 'coin',
       details: [
-        { label: '收款金额', field: 'total_amount', prefix: '¥', format: 'money' },
-        { label: '收款日期', field: 'receipt_date', format: 'date' },
-        { label: '支付方式', field: 'payment_method' }
+        { label: '收款金额', field: 'totalAmount', prefix: '¥', format: 'money' },
+        { label: '收款日期', field: 'receiptDate', format: 'date' },
+        { label: '支付方式', field: 'paymentMethod' }
       ],
       status: {
         field: 'status',

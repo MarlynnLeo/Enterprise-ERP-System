@@ -187,15 +187,15 @@
 
   const normalizePlan = (data = {}) => ({
     ...data,
-    productName: data.productName || data.product_name || data.material_name,
-    productCode: data.productCode || data.product_code || data.material_code,
+    productName: data.productName || data.materialName,
+    productCode: data.productCode || data.materialCode,
     completedQuantity: Number(data.completedQuantity ?? data.completed_quantity) || 0,
     taskQuantity: Number(data.taskQuantity ?? data.task_quantity) || 0,
     progress: Number(data.progress) || 0,
-    startDate: data.startDate || data.start_date,
-    endDate: data.endDate || data.end_date,
-    deliveryDate: data.deliveryDate || data.delivery_date,
-    contractCode: data.contractCode || data.contract_code
+    startDate: data.startDate,
+    endDate: data.endDate,
+    deliveryDate: data.deliveryDate,
+    contractCode: data.contractCode
   })
 
   const loadPlanDetail = async () => {

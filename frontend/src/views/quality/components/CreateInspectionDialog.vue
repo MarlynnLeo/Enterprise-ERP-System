@@ -12,7 +12,13 @@
  */
 -->
 <template>
-  <el-dialog v-model="dialogVisible" title="新建来料检验单" width="650px" destroy-on-close @close="handleClose">
+  <AppDialog
+    v-model="dialogVisible"
+    title="新建来料检验单"
+    mode="form"
+    width="650px"
+    @close="handleClose"
+  >
     <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
       <el-form-item label="采购单号" prop="purchaseOrderNo">
         <el-select
@@ -94,7 +100,7 @@
         <el-button v-permission="'quality:inspections:create'" type="primary" @click="submitForm" :loading="submitting">确认</el-button>
       </span>
     </template>
-  </el-dialog>
+    </AppDialog>
 </template>
 
 <script setup>
@@ -169,10 +175,10 @@ const fetchPurchaseOrders = async () => {
         .filter(item => validStatuses.includes(item.status))
         .map(item => ({
           id: item.id,
-          orderNo: item.order_no || '',
-          supplierName: item.supplier?.name || item.supplier_name || '-',
-          supplierId: item.supplier_id || item.supplier?.id,
-          supplierCode: item.supplier?.code || item.supplier_code || '',
+          orderNo: item.orderNo || '',
+          supplierName: item.supplier?.name || item.supplierName || '-',
+          supplierId: item.supplierId || item.supplier?.id,
+          supplierCode: item.supplier?.code || item.supplierCode || '',
           status: item.status
         }))
     } else {
@@ -200,7 +206,7 @@ const handlePurchaseOrderChange = async (value) => {
         const supplierResponse = await baseDataApi.getSupplier(form.supplierId)
         if (supplierResponse.data) {
           const supplier = supplierResponse.data
-          form.supplierCode = supplier.code || supplier.supplier_code || ''
+          form.supplierCode = supplier.supplierCode || ''
         }
       } catch (error) {
         console.warn('获取供应商编码失败:', error)
@@ -242,13 +248,13 @@ const fetchOrderMaterials = async (orderNo) => {
 
     if (response.data?.items) {
       materialOptions.value = response.data.items.map(item => ({
-        id: item.material_id,
-        name: item.material_name || `${item.material_code} (无名称)`,
-        code: item.material_code,
-        specs: item.specs || item.specification || item.material_specs || '',
-        unit: item.unit_name || item.unit,
+        id: item.materialId,
+        name: item.materialName || `${item.materialCode} (无名称)`,
+        code: item.materialCode,
+        specs: item.specs || item.specification || item.materialSpecs || '',
+        unit: item.unitName || item.unit,
         quantity: item.quantity,
-        purchaseQuantity: item.purchase_quantity || item.quantity
+        purchaseQuantity: item.purchaseQuantity || item.quantity
       }))
     } else {
       materialOptions.value = []

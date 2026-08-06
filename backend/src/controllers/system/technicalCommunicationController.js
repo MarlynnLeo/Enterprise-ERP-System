@@ -7,6 +7,7 @@ const db = require('../../config/db');
 const { ResponseHandler } = require('../../utils/responseHandler');
 const { logger } = require('../../utils/logger');
 const { appendPaginationSQL } = require('../../utils/safePagination');
+const { mapKeysToSnake } = require('../../utils/fieldMap');
 const NotificationService = require('../../services/NotificationService');
 const { NOTIFICATION_PERMISSIONS } = require('../../constants/notification');
 
@@ -303,17 +304,16 @@ class TechnicalCommunicationController {
    */
   async createCommunication(req, res) {
     try {
-      const {
-        title,
-        category,
-        tags,
-        summary,
-        content,
-        status = 'draft',
-        isPinned = 0,
-        attachments,
-        visibility = 'private',
-      } = req.body;
+      const body = mapKeysToSnake(req.body || {});
+      const title = body.title;
+      const category = body.category;
+      const tags = body.tags ?? req.body?.tags;
+      const summary = body.summary;
+      const content = body.content;
+      const status = body.status || 'draft';
+      const isPinned = body.is_pinned ?? 0;
+      const attachments = body.attachments ?? req.body?.attachments;
+      const visibility = body.visibility || 'private';
       const recipients = normalizeIdList(req.body.recipients);
       const departmentRecipients = normalizeIdList(req.body.departmentRecipients);
 
@@ -333,7 +333,7 @@ class TechnicalCommunicationController {
       }
 
       const userId = req.user.id;
-      const userName = req.user.real_name || req.user.username;
+      const userName = req.user.realName || req.user.real_name || req.user.username;
 
       const [result] = await db.pool.query(
         `INSERT INTO technical_communications
@@ -389,24 +389,23 @@ class TechnicalCommunicationController {
   async updateCommunication(req, res) {
     try {
       const { id } = req.params;
-      const {
-        title,
-        category,
-        tags,
-        summary,
-        content,
-        status,
-        isPinned,
-        attachments,
-        visibility,
-      } = req.body;
-      const recipientsProvided = Object.prototype.hasOwnProperty.call(req.body, 'recipients');
+      const body = mapKeysToSnake(req.body || {});
+      const title = body.title;
+      const category = body.category;
+      const tags = body.tags !== undefined ? (req.body?.tags ?? body.tags) : undefined;
+      const summary = body.summary;
+      const content = body.content;
+      const status = body.status;
+      const isPinned = body.is_pinned;
+      const attachments = body.attachments !== undefined ? (req.body?.attachments ?? body.attachments) : undefined;
+      const visibility = body.visibility;
+      const recipientsProvided = Object.prototype.hasOwnProperty.call(req.body || {}, 'recipients');
       const departmentRecipientsProvided = Object.prototype.hasOwnProperty.call(
-        req.body,
+        req.body || {},
         'departmentRecipients'
       );
-      const recipients = normalizeIdList(req.body.recipients);
-      const departmentRecipients = normalizeIdList(req.body.departmentRecipients);
+      const recipients = normalizeIdList(req.body?.recipients);
+      const departmentRecipients = normalizeIdList(req.body?.departmentRecipients);
 
       // 先获取原有状态
       const [oldData] = await db.pool.query(
@@ -610,9 +609,11 @@ class TechnicalCommunicationController {
   async addComment(req, res) {
     try {
       const { id } = req.params;
-      const { content, parentId } = req.body;
+      const body = mapKeysToSnake(req.body || {});
+      const content = body.content ?? req.body?.content;
+      const parentId = body.parent_id ?? req.body?.parentId;
       const userId = req.user.id;
-      const userName = req.user.real_name || req.user.username;
+      const userName = req.user.realName || req.user.real_name || req.user.username;
 
       if (!content || !String(content).trim()) {
         return ResponseHandler.error(res, '评论内容不能为空', 'VALIDATION_ERROR', 400);

@@ -11,13 +11,13 @@
       <el-table :data="tableData" v-loading="loading" border stripe>
         <el-table-column prop="code" label="编码" width="210" />
         <el-table-column prop="name" label="名称" min-width="180" />
-        <el-table-column prop="business_type" label="业务类型" width="140">
-          <template #default="{ row }">{{ btLabel[row.business_type] || row.business_type }}</template>
+        <el-table-column prop="businessType" label="业务类型" width="140">
+          <template #default="{ row }">{{ btLabel[row.businessType] || row.businessType }}</template>
         </el-table-column>
-        <el-table-column prop="node_count" label="节点数" width="80" />
-        <el-table-column prop="is_active" label="状态" width="80">
+        <el-table-column prop="nodeCount" label="节点数" width="80" />
+        <el-table-column prop="isActive" label="状态" width="80">
           <template #default="{ row }">
-            <el-tag :type="row.is_active ? 'success' : 'info'" size="small">{{ row.is_active ? '启用' : '停用' }}</el-tag>
+            <el-tag :type="row.isActive ? 'success' : 'info'" size="small">{{ row.isActive ? '启用' : '停用' }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
@@ -44,7 +44,12 @@
       </div>
     </el-card>
 
-    <el-dialog v-model="formVis" :title="form.id ? '编辑模板' : '新建模板'" width="760px" destroy-on-close>
+    <AppDialog
+      v-model="formVis"
+      :title="form.id ? '编辑模板' : '新建模板'"
+      mode="form"
+      width="760px"
+    >
       <el-form :model="form" label-width="100px">
         <el-row :gutter="16">
           <el-col :span="12">
@@ -61,14 +66,14 @@
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="业务类型" required>
-              <el-select v-model="form.business_type" class="w-full">
+              <el-select v-model="form.businessType" class="w-full">
                 <el-option v-for="(label, key) in btLabel" :key="key" :label="label" :value="key" />
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="启用">
-              <el-switch v-model="form.is_active" :active-value="1" :inactive-value="0" />
+              <el-switch v-model="form.isActive" :active-value="1" :inactive-value="0" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -83,10 +88,10 @@
               <span class="node-index">{{ index + 1 }}</span>
             </el-col>
             <el-col :span="7">
-              <el-input v-model="node.node_name" placeholder="节点名称" size="small" />
+              <el-input v-model="node.nodeName" placeholder="节点名称" size="small" />
             </el-col>
             <el-col :span="5">
-              <el-select v-model="node.approver_type" size="small" class="w-full">
+              <el-select v-model="node.approverType" size="small" class="w-full">
                 <el-option label="部门主管" value="manager" />
                 <el-option label="发起人" value="self" />
                 <el-option label="指定用户" value="user" />
@@ -96,15 +101,15 @@
             </el-col>
             <el-col :span="6">
               <el-input
-                v-if="requiresApproverIds(node.approver_type)"
-                v-model="node.approver_ids_text"
+                v-if="requiresApproverIds(node.approverType)"
+                v-model="node.approverIdsText"
                 size="small"
                 placeholder="ID，多个用逗号分隔"
               />
               <span v-else class="node-hint">系统自动分配</span>
             </el-col>
             <el-col :span="3">
-              <el-select v-model="node.multi_approve_type" size="small" class="w-full">
+              <el-select v-model="node.multiApproveType" size="small" class="w-full">
                 <el-option label="任一通过" value="any" />
                 <el-option label="全部通过" value="all" />
                 <el-option label="依次审批" value="sequential" />
@@ -115,8 +120,8 @@
             </el-col>
           </el-row>
           <el-checkbox
-            v-if="node.approver_type !== 'self'"
-            v-model="node.allow_self_approval"
+            v-if="node.approverType !== 'self'"
+            v-model="node.allowSelfApproval"
             class="self-approval-option"
           >允许发起人参与审批（默认关闭）</el-checkbox>
         </div>
@@ -133,7 +138,7 @@
           保存
         </el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
 
     <AppDialog
       v-model="detailVis"
@@ -145,17 +150,17 @@
         <el-descriptions :column="2" border size="small">
           <el-descriptions-item label="名称">{{ detail.name || detail.title }}</el-descriptions-item>
           <el-descriptions-item label="状态">
-            <el-tag :type="detail.is_active ? 'success' : 'info'">{{ detail.is_active ? '启用' : '停用' }}</el-tag>
+            <el-tag :type="detail.isActive ? 'success' : 'info'">{{ detail.isActive ? '启用' : '停用' }}</el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="业务类型">{{ btLabel[detail.business_type] || detail.business_type }}</el-descriptions-item>
+          <el-descriptions-item label="业务类型">{{ btLabel[detail.businessType] || detail.businessType }}</el-descriptions-item>
           <el-descriptions-item label="编码">{{ detail.code }}</el-descriptions-item>
         </el-descriptions>
         <h4 class="details-title">审批节点</h4>
         <el-timeline>
           <el-timeline-item v-for="node in (detail.nodes || [])" :key="node.id" type="primary">
-            <strong>{{ node.node_name || '未命名节点' }}</strong>
-            <div class="node-meta">审批人: {{ approverTypeLabel[node.approver_type] || node.approver_type }}</div>
-            <div v-if="node.approver_ids" class="node-meta">指定 ID: {{ formatApproverIds(node.approver_ids) }}</div>
+            <strong>{{ node.nodeName || '未命名节点' }}</strong>
+            <div class="node-meta">审批人: {{ approverTypeLabel[node.approverType] || node.approverType }}</div>
+            <div v-if="node.approverIds" class="node-meta">指定 ID: {{ formatApproverIds(node.approverIds) }}</div>
           </el-timeline-item>
         </el-timeline>
       </template>
@@ -225,28 +230,25 @@ const formatApproverIds = (value) => normalizeApproverIdsText(value) || '-'
 
 const toEditableNode = (node = {}) => ({
   ...node,
-  node_name: node.node_name || '',
-  node_type: node.node_type || 'approval',
-  approver_type: node.approver_type || 'manager',
-  multi_approve_type: node.multi_approve_type || 'any',
-  allow_self_approval: node.approver_type === 'self' || Boolean(node.allow_self_approval),
-  approver_ids_text: normalizeApproverIdsText(node.approver_ids)
+  nodeName: node.nodeName || '',
+  nodeType: node.nodeType || 'approval',
+  approverType: node.approverType || 'manager',
+  multiApproveType: node.multiApproveType || 'any',
+  allowSelfApproval: node.approverType === 'self' || Boolean(node.allowSelfApproval),
+  approverIdsText: normalizeApproverIdsText(node.approverIds)
 })
 
 const toPayloadNode = (node, index) => {
   const payload = {
-    ...node,
-    node_name: String(node.node_name || '').trim(),
-    node_type: node.node_type || 'approval',
+    nodeName: String(node.nodeName || '').trim(),
+    nodeType: node.nodeType || 'approval',
     sequence: index,
-    approver_type: node.approver_type || 'manager',
-    multi_approve_type: node.multi_approve_type || 'any'
+    approverType: node.approverType || 'manager',
+    multiApproveType: node.multiApproveType || 'any',
+    allowSelfApproval: node.approverType === 'self' || Boolean(node.allowSelfApproval),
   }
-  payload.allow_self_approval = payload.approver_type === 'self' || Boolean(node.allow_self_approval)
-
-  delete payload.approver_ids_text
-  payload.approver_ids = requiresApproverIds(payload.approver_type)
-    ? parseApproverIdsText(node.approver_ids_text)
+  payload.approverIds = requiresApproverIds(payload.approverType)
+    ? parseApproverIdsText(node.approverIdsText)
     : null
 
   return payload
@@ -255,14 +257,14 @@ const toPayloadNode = (node, index) => {
 const validateForm = (payload) => {
   if (!String(payload.code || '').trim()) return '请填写模板编码'
   if (!String(payload.name || '').trim()) return '请填写模板名称'
-  if (!payload.business_type) return '请选择业务类型'
+  if (!payload.businessType) return '请选择业务类型'
   if (!Array.isArray(payload.nodes) || payload.nodes.length === 0) return '请至少添加一个审批节点'
 
-  const invalidNodeIndex = payload.nodes.findIndex((node) => !node.node_name)
+  const invalidNodeIndex = payload.nodes.findIndex((node) => !node.nodeName)
   if (invalidNodeIndex >= 0) return `第 ${invalidNodeIndex + 1} 个审批节点缺少名称`
 
   const missingApproverIndex = payload.nodes.findIndex((node) =>
-    requiresApproverIds(node.approver_type) && (!Array.isArray(node.approver_ids) || node.approver_ids.length === 0)
+    requiresApproverIds(node.approverType) && (!Array.isArray(node.approverIds) || node.approverIds.length === 0)
   )
   if (missingApproverIndex >= 0) return `第 ${missingApproverIndex + 1} 个审批节点需要填写审批人/角色 ID`
 
@@ -289,13 +291,13 @@ const goApprovalCenter = () => {
 
 const addNode = () => {
   form.value.nodes.push({
-    node_name: '',
-    node_type: 'approval',
-    approver_type: 'manager',
-    multi_approve_type: 'any',
-    allow_self_approval: false,
+    nodeName: '',
+    nodeType: 'approval',
+    approverType: 'manager',
+    multiApproveType: 'any',
+    allowSelfApproval: false,
     sequence: form.value.nodes.length,
-    approver_ids_text: ''
+    approverIdsText: ''
   })
 }
 
@@ -309,7 +311,7 @@ const openTemplateForm = async (row) => {
       form.value = { ...row, nodes: (row.nodes || []).map(toEditableNode) }
     }
   } else {
-    form.value = { code: '', name: '', business_type: '', is_active: 1, description: '', nodes: [] }
+    form.value = { code: '', name: '', businessType: '', isActive: 1, description: '', nodes: [] }
     addNode()
   }
   formVis.value = true

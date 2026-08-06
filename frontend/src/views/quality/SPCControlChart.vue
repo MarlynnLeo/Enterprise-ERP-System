@@ -22,16 +22,16 @@
             <div v-for="plan in plans" :key="plan.id"
               class="plan-item" :class="{ active: selectedPlan?.id === plan.id }"
               @click="selectPlan(plan)">
-              <div class="plan-name">{{ plan.plan_name }}</div>
+              <div class="plan-name">{{ plan.planName }}</div>
               <div class="plan-meta">
                 <span>{{ plan.characteristic }}</span>
-                <el-tag size="small" :type="plan.is_active ? 'success' : 'info'">{{ plan.is_active ? '启用' : '停用' }}</el-tag>
+                <el-tag size="small" :type="plan.isActive ? 'success' : 'info'">{{ plan.isActive ? '启用' : '停用' }}</el-tag>
               </div>
               <div class="plan-detail">
-                {{ plan.product_name || '-' }} | 数据点: {{ plan.data_count || 0 }}
+                {{ plan.productName || '-' }} | 数据点: {{ plan.dataCount || 0 }}
               </div>
             </div>
-            <el-empty v-if="!planLoading && plans.length === 0" description="暂无控制计划" :image-size="80" />
+            <EmptyState v-if="!planLoading && plans.length === 0" description="暂无控制计划" ::image-size="80" />
           </div>
         </el-card>
       </el-col>
@@ -42,7 +42,7 @@
           <template #header>
             <div class="card-header">
               <div>
-                <span class="text-lg font-weight-600">{{ selectedPlan.plan_name }}</span>
+                <span class="text-lg font-weight-600">{{ selectedPlan.planName }}</span>
                 <span class="ml-sm text-muted text-md">{{ selectedPlan.characteristic }}</span>
               </div>
               <div>
@@ -141,21 +141,26 @@
               </el-table>
             </div>
 
-            <el-empty v-if="!chartData && !chartLoading" description="暂无数据，请先录入测量数据" />
+            <EmptyState v-if="!chartData && !chartLoading" description="暂无数据，请先录入测量数据" />
           </div>
         </el-card>
 
         <el-card v-else class="data-card">
-          <el-empty description="请从左侧选择一个控制计划" />
+          <EmptyState description="请从左侧选择一个控制计划" />
         </el-card>
       </el-col>
     </el-row>
 
     <!-- 新增控制计划对话框 -->
-    <el-dialog v-model="planDialogVisible" title="新增控制计划" width="550px">
+    <AppDialog
+      v-model="planDialogVisible"
+      title="新增控制计划"
+      mode="form"
+      width="550px"
+    >
       <el-form ref="planFormRef" :model="planForm" :rules="planRules" label-width="100px">
-        <el-form-item label="计划名称" prop="plan_name">
-          <el-input v-model="planForm.plan_name" placeholder="如: 外径尺寸控制" />
+        <el-form-item label="计划名称" prop="planName">
+          <el-input v-model="planForm.planName" placeholder="如: 外径尺寸控制" />
         </el-form-item>
         <el-form-item label="监控特性" prop="characteristic">
           <el-input v-model="planForm.characteristic" placeholder="如: 外径Φ" />
@@ -175,33 +180,38 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="目标值">
-              <el-input-number v-model="planForm.target_value" :precision="4" class="w-full" />
+              <el-input-number v-model="planForm.targetValue" :precision="4" class="w-full" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="子组大小">
-              <el-input-number v-model="planForm.subgroup_size" :min="2" :max="10" class="w-full" />
+              <el-input-number v-model="planForm.subgroupSize" :min="2" :max="10" class="w-full" />
             </el-form-item>
           </el-col>
         </el-row>
         <el-form-item label="产品名称">
-          <el-input v-model="planForm.product_name" />
+          <el-input v-model="planForm.productName" />
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="planDialogVisible = false">取消</el-button>
         <el-button v-permission="'quality:spc:update'" type="primary" @click="handlePlanSubmit" :loading="submitting">确认</el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
 
     <!-- 数据录入对话框 -->
-    <el-dialog v-model="showDataInput" title="录入SPC测量数据" width="500px">
+    <AppDialog
+      v-model="showDataInput"
+      title="录入SPC测量数据"
+      mode="form"
+      width="500px"
+    >
       <el-form label-width="100px">
         <el-form-item label="子组号">
-          <el-input-number v-model="dataForm.subgroup_no" :min="1" class="w-full" />
+          <el-input-number v-model="dataForm.subgroupNo" :min="1" class="w-full" />
         </el-form-item>
         <el-form-item :label="`样本${i+1}`" v-for="(_, i) in dataForm.samples" :key="i">
-          <el-input-number v-model="dataForm.samples[i].measured_value" :precision="4" class="w-full" placeholder="实测值" />
+          <el-input-number v-model="dataForm.samples[i].measuredValue" :precision="4" class="w-full" placeholder="实测值" />
         </el-form-item>
         <el-form-item>
           <el-button v-permission="'quality:spc:update'" type="primary" link @click="addSample">+ 添加样本</el-button>
@@ -211,7 +221,7 @@
         <el-button @click="showDataInput = false">取消</el-button>
         <el-button v-permission="'quality:spc:update'" type="primary" @click="handleDataSubmit" :loading="submitting">提交</el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
   </div>
 </template>
 
@@ -282,8 +292,8 @@ const fetchPlans = async () => {
 
 const selectPlan = (plan) => {
   selectedPlan.value = plan;
-  dataForm.subgroup_no = (plan.data_count || 0) + 1;
-  dataForm.samples = Array.from({ length: plan.subgroup_size || 5 }, () => ({ measured_value: null }));
+  dataForm.subgroupNo = (plan.dataCount || 0) + 1;
+  dataForm.samples = Array.from({ length: plan.subgroupSize || 5 }, () => ({ measured_value: null }));
   fetchChartData();
 };
 
@@ -321,13 +331,13 @@ const handlePlanSubmit = () => {
 const addSample = () => { dataForm.samples.push({ measured_value: null }); };
 
 const handleDataSubmit = async () => {
-  const validSamples = dataForm.samples.filter(s => s.measured_value != null);
+  const validSamples = dataForm.samples.filter(s => s.measuredValue != null);
   if (validSamples.length === 0) { ElMessage.warning('请至少输入一个测量值'); return; }
   submitting.value = true;
   try {
     await qualityApi.addSpcDataPoints({
       plan_id: selectedPlan.value.id,
-      subgroup_no: dataForm.subgroup_no,
+      subgroup_no: dataForm.subgroupNo,
       samples: validSamples
     });
     ElMessage.success('数据录入成功');

@@ -17,8 +17,8 @@ export const codingRuleApi = {
 
 // 单据关联
 export const docLinkApi = {
-  getLinks: (businessType, businessId) => api.get('/enhanced/document-links', { params: { business_type: businessType, business_id: businessId } }),
-  getFullChain: (businessType, businessId) => api.get('/enhanced/document-links/chain', { params: { business_type: businessType, business_id: businessId } }),
+  getLinks: (businessType, businessId) => api.get('/enhanced/document-links', { params: { businessType, businessId } }),
+  getFullChain: (businessType, businessId) => api.get('/enhanced/document-links/chain', { params: { businessType, businessId } }),
   getTypeLabels: () => api.get('/enhanced/document-links/types'),
   create: (data) => api.post('/enhanced/document-links', data),
   delete: (id) => api.delete(`/enhanced/document-links/${id}`),

@@ -94,18 +94,18 @@
             </template>
             <el-table :data="recommendation.recommendations" border stripe max-height="400" class="w-full" @selection-change="(rows) => selectedRecs = rows" ref="recTableRef">
               <el-table-column type="selection" width="50" />
-              <el-table-column prop="account_code" label="科目代码" width="100" />
-              <el-table-column prop="account_name" label="科目名称" min-width="130" />
+              <el-table-column prop="accountCode" label="科目代码" width="100" />
+              <el-table-column prop="accountName" label="科目名称" min-width="130" />
               <el-table-column label="建议预算" width="130">
-                <template #default="{ row }"><strong class="text-blue">{{ formatMoney(row.recommended_budget) }}</strong></template>
+                <template #default="{ row }"><strong class="text-blue">{{ formatMoney(row.recommendedBudget) }}</strong></template>
               </el-table-column>
               <el-table-column label="历史均值" width="120">
-                <template #default="{ row }">{{ formatMoney(row.historical_avg) }}</template>
+                <template #default="{ row }">{{ formatMoney(row.historicalAvg) }}</template>
               </el-table-column>
               <el-table-column label="增长率" width="100">
                 <template #default="{ row }">
-                  <span :class="row.growth_rate > 0 ? 'text-red' : 'text-green'">
-                    {{ row.growth_rate > 0 ? '↑' : '↓' }}{{ Math.abs(row.growth_rate) }}%
+                  <span :class="row.growthRate > 0 ? 'text-red' : 'text-green'">
+                    {{ row.growthRate > 0 ? '↑' : '↓' }}{{ Math.abs(row.growthRate) }}%
                   </span>
                 </template>
               </el-table-column>
@@ -132,7 +132,7 @@
             </el-col>
           </el-row>
         </div>
-        <el-empty v-else-if="!loading.recommendation" description="请选择年度并点击生成建议" />
+        <EmptyState v-else-if="!loading.recommendation" description="请选择年度并点击生成建议" />
       </el-tab-pane>
 
       <!-- ==================== 异常检测 ==================== -->
@@ -199,21 +199,21 @@
                   <el-tag :type="row.severity === '严重' ? 'danger' : row.severity === '警告' ? 'warning' : 'info'" effect="dark" size="small">{{ row.severity }}</el-tag>
                 </template>
               </el-table-column>
-              <el-table-column prop="account_code" label="科目" width="90" />
-              <el-table-column prop="account_name" label="名称" width="130" />
+              <el-table-column prop="accountCode" label="科目" width="90" />
+              <el-table-column prop="accountName" label="名称" width="130" />
               <el-table-column prop="department" label="部门" width="80" />
               <el-table-column label="预算/已用" width="160">
                 <template #default="{ row }">
-                  <div>预算: {{ formatMoney(row.budget_amount) }}</div>
-                  <div>已用: {{ formatMoney(row.used_amount) }}</div>
+                  <div>预算: {{ formatMoney(row.budgetAmount) }}</div>
+                  <div>已用: {{ formatMoney(row.usedAmount) }}</div>
                 </template>
               </el-table-column>
               <el-table-column label="执行率" width="85">
                 <template #default="{ row }">
                   <span
                     class="font-weight-700"
-                    :class="row.execution_rate > 100 ? 'text-danger' : row.execution_rate < 20 ? 'text-warning' : 'text-success'"
-                  >{{ row.execution_rate }}%</span>
+                    :class="row.executionRate > 100 ? 'text-danger' : row.executionRate < 20 ? 'text-warning' : 'text-success'"
+                  >{{ row.executionRate }}%</span>
                 </template>
               </el-table-column>
               <el-table-column prop="type" label="类型" width="80">
@@ -229,7 +229,7 @@
             <ul class="tip-list"><li v-for="(a, i) in anomalies.management_advice" :key="i">{{ a }}</li></ul>
           </el-card>
         </div>
-        <el-empty v-else-if="!loading.anomalies" description="请选择预算并点击 AI 异常检测" />
+        <EmptyState v-else-if="!loading.anomalies" description="请选择预算并点击 AI 异常检测" />
       </el-tab-pane>
 
       <!-- ==================== 优化建议 ==================== -->
@@ -299,19 +299,19 @@
               <el-table-column label="方向" width="70">
                 <template #default="{ row }"><el-tag :type="row.direction === '调入' ? 'success' : 'warning'" effect="dark" size="small">{{ row.direction }}</el-tag></template>
               </el-table-column>
-              <el-table-column prop="account_code" label="科目" width="90" />
-              <el-table-column prop="account_name" label="名称" width="130" />
+              <el-table-column prop="accountCode" label="科目" width="90" />
+              <el-table-column prop="accountName" label="名称" width="130" />
               <el-table-column prop="department" label="部门" width="80" />
               <el-table-column label="当前预算" width="110">
-                <template #default="{ row }">{{ formatMoney(row.current_budget) }}</template>
+                <template #default="{ row }">{{ formatMoney(row.currentBudget) }}</template>
               </el-table-column>
               <el-table-column label="执行率" width="80">
-                <template #default="{ row }">{{ row.execution_rate?.toFixed?.(1) || row.execution_rate }}%</template>
+                <template #default="{ row }">{{ row.executionRate?.toFixed?.(1) || row.executionRate }}%</template>
               </el-table-column>
               <el-table-column label="建议调配" width="120">
                 <template #default="{ row }">
-                  <strong :class="row.suggested_amount > 0 ? 'text-green' : 'text-red'">
-                    {{ formatSignedMoney(row.suggested_amount) }}
+                  <strong :class="row.suggestedAmount > 0 ? 'text-green' : 'text-red'">
+                    {{ formatSignedMoney(row.suggestedAmount) }}
                   </strong>
                 </template>
               </el-table-column>
@@ -332,7 +332,7 @@
             </el-col>
           </el-row>
         </div>
-        <el-empty v-else-if="!loading.optimization" description="请选择预算并点击 AI 优化分析" />
+        <EmptyState v-else-if="!loading.optimization" description="请选择预算并点击 AI 优化分析" />
       </el-tab-pane>
 
       <!-- ==================== 年度对比 ==================== -->
@@ -387,7 +387,7 @@
               <el-card shadow="hover" class="tip-card info dashboard-card"><template #header><span><el-icon class="icon-mid"><Refresh /></el-icon> 关键变化</span></template>
                 <div v-for="(c, i) in comparison.key_changes" :key="i" class="change-item">
                   <el-tag size="small" :type="c.change_type === '大幅增长' ? 'danger' : c.change_type === '大幅下降' ? 'success' : 'info'">{{ c.change_type }}</el-tag>
-                  <strong>{{ c.account_name }}</strong>: {{ c.description }}
+                  <strong>{{ c.accountName }}</strong>: {{ c.description }}
                 </div>
               </el-card>
             </el-col>
@@ -403,7 +403,7 @@
             </el-col>
           </el-row>
         </div>
-        <el-empty v-else-if="!loading.comparison" description="请选择两个年度并点击对比分析" />
+        <EmptyState v-else-if="!loading.comparison" description="请选择两个年度并点击对比分析" />
       </el-tab-pane>
 
       <!-- ==================== 综合报告 ==================== -->
@@ -470,7 +470,7 @@
                 <template #default="{ row }"><el-tag :type="row.priority === '紧急' ? 'danger' : row.priority === '重要' ? 'warning' : 'info'" size="small" effect="dark">{{ row.priority }}</el-tag></template>
               </el-table-column>
               <el-table-column prop="action" label="行动" min-width="200" />
-              <el-table-column prop="expected_effect" label="预期效果" min-width="180" />
+              <el-table-column prop="expectedEffect" label="预期效果" min-width="180" />
               <el-table-column prop="timeline" label="时间节点" width="120" />
             </el-table>
           </el-card>
@@ -481,7 +481,7 @@
             <p class="report-text">{{ report.report.outlook }}</p>
           </el-card>
         </div>
-        <el-empty v-else-if="!loading.report" description="请选择预算并点击一键生成综合报告" />
+        <EmptyState v-else-if="!loading.report" description="请选择预算并点击一键生成综合报告" />
       </el-tab-pane>
     </el-tabs>
   </div>
@@ -631,11 +631,11 @@ const renderRecCharts = () => {
         tooltip: { trigger: 'axis' },
         legend: { data: ['建议预算', '历史均值'] },
         grid: { left: 80, right: 20, bottom: 80 },
-        xAxis: { type: 'category', data: recs.map(r => r.account_name), axisLabel: { rotate: 30, fontSize: 11 } },
+        xAxis: { type: 'category', data: recs.map(r => r.accountName), axisLabel: { rotate: 30, fontSize: 11 } },
         yAxis: { type: 'value', axisLabel: { formatter: v => '¥' + (v >= 10000 ? (v/10000).toFixed(0) + '万' : v) } },
         series: [
-          { name: '建议预算', type: 'bar', data: recs.map(r => r.recommended_budget), itemStyle: { color: getCssTokenValue('primary'), borderRadius: [4,4,0,0] } },
-          { name: '历史均值', type: 'bar', data: recs.map(r => r.historical_avg || 0), itemStyle: { color: getCssTokenValue('warning'), borderRadius: [4,4,0,0] } },
+          { name: '建议预算', type: 'bar', data: recs.map(r => r.recommendedBudget), itemStyle: { color: getCssTokenValue('primary'), borderRadius: [4,4,0,0] } },
+          { name: '历史均值', type: 'bar', data: recs.map(r => r.historicalAvg || 0), itemStyle: { color: getCssTokenValue('warning'), borderRadius: [4,4,0,0] } },
         ],
       })
     }
@@ -647,7 +647,7 @@ const renderRecCharts = () => {
         series: [{
           type: 'pie', radius: ['35%', '65%'], center: ['50%', '50%'],
           label: { formatter: '{b}\n{d}%', fontSize: 11 },
-          data: recs.map(r => ({ name: r.account_name, value: r.recommended_budget })),
+          data: recs.map(r => ({ name: r.accountName, value: r.recommendedBudget })),
           emphasis: { itemStyle: { shadowBlur: 10, shadowColor: alphaColor('textPrimary', 0.3) } },
         }],
       })
@@ -758,7 +758,7 @@ const createBudgetFromAI = async () => {
   }
   try {
     await ElMessageBox.confirm(
-      `将为 ${recYear.value} 年创建预算，包含 ${selectedRecs.value.length} 个科目，总金额 ${formatMoney(selectedRecs.value.reduce((s, r) => s + (parseFloat(r.recommended_budget) || 0), 0))}`,
+      `将为 ${recYear.value} 年创建预算，包含 ${selectedRecs.value.length} 个科目，总金额 ${formatMoney(selectedRecs.value.reduce((s, r) => s + (parseFloat(r.recommendedBudget) || 0), 0))}`,
       '确认生成预算',
       { type: 'info', confirmButtonText: '生成预算', cancelButtonText: '取消' }
     )
@@ -767,16 +767,16 @@ const createBudgetFromAI = async () => {
   loading.value.createBudget = true
   try {
     const res = await financeApi.budgets.createFromAi({
-      budget_year: parseInt(recYear.value),
-      budget_name: `${recYear.value}年AI智能预算`,
+      budgetYear: parseInt(recYear.value),
+      budgetName: `${recYear.value}年AI智能预算`,
       recommendations: selectedRecs.value.map(r => ({
-        account_code: r.account_code,
-        account_name: r.account_name,
-        recommended_budget: r.recommended_budget,
+        accountCode: r.accountCode,
+        accountName: r.accountName,
+        recommendedBudget: r.recommendedBudget,
         confidence: r.confidence,
       })),
     }, AI_TIMEOUT)
-    ElMessage.success(`预算创建成功！编号: ${res.data.budget_no}`)
+    ElMessage.success(`预算创建成功！编号: ${res.data.budgetNo}`)
     try {
       await ElMessageBox.confirm('预算已创建为草稿状态，是否立即跳转到预算管理页面？', '创建成功', {
         type: 'success', confirmButtonText: '去查看', cancelButtonText: '留在当前页'

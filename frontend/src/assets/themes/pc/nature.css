@@ -65,6 +65,18 @@
   --color-info-gradient-end: #297bc0;
   --color-on-primary: #000000;
 
+  /* 反转深绿侧栏 shell */
+  --shell-sidebar-bg: linear-gradient(180deg, #2b6e3f 0%, #1e5631 100%);
+  --shell-border: var(--color-primary);
+  --shell-sidebar-text: #ffffff;
+  --shell-sidebar-text-muted: rgba(255, 255, 255, 0.85);
+  --shell-sidebar-title: var(--color-on-primary, #ffffff);
+  --shell-sidebar-hover-bg: color-mix(in srgb, var(--color-primary-light-3) 20%, transparent);
+  --shell-sidebar-active-bg: color-mix(in srgb, var(--color-primary-light-3) 30%, transparent);
+  --shell-sidebar-active-text: var(--color-primary-light-3);
+  --shell-sidebar-accent: var(--color-primary);
+  --shell-sidebar-indicator-width: 4px;
+
   /* 自然主题特有颜色（大自然元素） */
   --color-leaf: #40C057;              /* 叶绿 */
   --color-grass: #51CF66;             /* 草绿 */
@@ -88,8 +100,8 @@
 
   --font-size-xs: 12px;
   --font-size-sm: 14px;
-  --font-size-base: 16px;
-  --font-size-md: 16px;
+  --font-size-base: 14px;
+  --font-size-md: 14px;
   --font-size-lg: 18px;
   --font-size-xl: 20px;
   --font-size-xxl: 24px;
@@ -144,83 +156,29 @@
   background: linear-gradient(135deg, var(--color-bg-page) 0%, var(--color-bg-hover) 100%) !important;
 }
 
-/* 侧边栏自然化 */
+/* 侧栏：shell 底色；菜单 → theme-components */
 [data-theme="nature"] .sidebar,
 [data-theme="nature"] .app-sidebar {
-  background: linear-gradient(180deg, #2B6E3F 0%, #1E5631 100%) !important;
-  border-right: 3px solid var(--color-primary) !important;
+  background: var(--shell-sidebar-bg) !important;
+  border-right: 3px solid var(--shell-border) !important;
   box-shadow: 4px 0 20px color-mix(in srgb, var(--color-bg-overlay) 20%, transparent) !important;
 }
 
 [data-theme="nature"] .logo-container {
-  background: color-mix(in srgb, var(--ds-white) 15%, transparent) !important;
-  border-bottom: 3px solid color-mix(in srgb, var(--ds-white) 30%, transparent) !important;
+  background: color-mix(in srgb, var(--ds-white, #fff) 15%, transparent) !important;
+  border-bottom: 3px solid color-mix(in srgb, var(--ds-white, #fff) 30%, transparent) !important;
   backdrop-filter: blur(5px);
 }
 
 [data-theme="nature"] .logo-container .title {
-  color: var(--color-on-primary) !important;
-  font-weight: 600 !important;
-  text-shadow: 0 2px 8px color-mix(in srgb, var(--ds-black) 20%, transparent) !important;
+  text-shadow: 0 2px 8px color-mix(in srgb, var(--ds-black, #000) 20%, transparent) !important;
 }
 
-/* 菜单容器 */
-[data-theme="nature"] .el-menu {
-  background: transparent !important;
-}
-
-/* 菜单主色调 */
 [data-theme="nature"] .sidebar .el-menu-item,
 [data-theme="nature"] .sidebar .el-sub-menu__title,
 [data-theme="nature"] .app-sidebar .el-menu-item,
 [data-theme="nature"] .app-sidebar .el-sub-menu__title {
-  color: rgba(255, 255, 255, 0.85) !important;
-  font-weight: 500 !important;
-  border-left: 4px solid transparent !important;
-  transition:
-    color 0.3s ease,
-    background-color 0.3s ease,
-    border-color 0.3s ease,
-    box-shadow 0.3s ease !important;
-}
-
-/* 菜单文字 */
-[data-theme="nature"] .sidebar .el-menu-item span,
-[data-theme="nature"] .sidebar .el-sub-menu__title span,
-[data-theme="nature"] .app-sidebar .el-menu-item span,
-[data-theme="nature"] .app-sidebar .el-sub-menu__title span {
-  color: rgba(255, 255, 255, 0.85) !important;
-}
-
-/* 悬停状态 */
-[data-theme="nature"] .sidebar .el-menu-item:hover,
-[data-theme="nature"] .sidebar .el-sub-menu__title:hover,
-[data-theme="nature"] .app-sidebar .el-menu-item:hover,
-[data-theme="nature"] .app-sidebar .el-sub-menu__title:hover {
-  background: color-mix(in srgb, var(--color-primary-light-3) 20%, transparent) !important;
-  border-left-color: var(--color-primary) !important;
-  color: var(--color-on-primary) !important;
-}
-
-[data-theme="nature"] .sidebar .el-menu-item:hover span,
-[data-theme="nature"] .sidebar .el-sub-menu__title:hover span,
-[data-theme="nature"] .app-sidebar .el-menu-item:hover span,
-[data-theme="nature"] .app-sidebar .el-sub-menu__title:hover span {
-  color: var(--color-on-primary) !important;
-}
-
-/* 当前活动页状态 */
-[data-theme="nature"] .sidebar .el-menu-item.is-active,
-[data-theme="nature"] .app-sidebar .el-menu-item.is-active {
-  background: color-mix(in srgb, var(--color-primary-light-3) 30%, transparent) !important;
-  border-left-color: var(--color-primary) !important;
-  color: var(--color-primary-light-3) !important;
-  font-weight: 600 !important;
-}
-
-[data-theme="nature"] .sidebar .el-menu-item.is-active span,
-[data-theme="nature"] .app-sidebar .el-menu-item.is-active span {
-  color: var(--color-primary-light-3) !important;
+  border-radius: 0 !important;
 }
 
 /* 顶部导航栏自然化 */
@@ -242,29 +200,18 @@
   color: var(--color-text-primary) !important;
 }
 
-/* 顶部菜单样式 */
-/* 表格组件 */
+/* 表格/输入密度 → theme-components；自然主题仅圆角略大 */
 [data-theme="nature"] .el-table {
-  background: var(--color-bg-base) !important;
-  border: 2px solid var(--color-border-dark) !important;
   border-radius: 10px !important;
+  border: 2px solid var(--color-border-dark) !important;
 }
 
-[data-theme="nature"] .el-table th {
+[data-theme="nature"] .el-table th.el-table__cell {
   background: linear-gradient(180deg, var(--color-bg-hover) 0%, var(--color-primary-light-8) 100%) !important;
-  color: var(--color-text-primary) !important;
-  font-weight: 600 !important;
   border-bottom: 2px solid var(--color-primary-light-3) !important;
 }
 
-[data-theme="nature"] .el-table tbody tr:hover {
-  background: var(--color-bg-hover) !important;
-}
-
-/* 输入框自然化 */
 [data-theme="nature"] .el-input__wrapper {
-  background: var(--color-bg-base) !important;
-  border: 2px solid var(--color-border-dark) !important;
   border-radius: 10px !important;
 }
 

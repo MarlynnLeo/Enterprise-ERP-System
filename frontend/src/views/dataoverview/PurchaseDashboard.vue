@@ -421,9 +421,9 @@ function initCategoryChart() {
   const categoryData = statistics.categoryDistribution || [];
   let labels, purchaseData;
   if (categoryData.length > 0) {
-    labels = categoryData.map(item => item.categoryName || item.category_name || '未分类');
+    labels = categoryData.map(item => item.categoryName || '未分类');
     purchaseData = categoryData.map(item => {
-      const val = item.totalAmount ?? item.total_amount;
+      const val = item.totalAmount ?? item.totalAmount;
       return val !== undefined ? parseFloat(val) : 0;
     });
   } else {

@@ -105,8 +105,8 @@
 
   --font-size-xs: 12px;
   --font-size-sm: 14px;
-  --font-size-base: 16px;
-  --font-size-md: 16px;
+  --font-size-base: 14px;
+  --font-size-md: 14px;
   --font-size-lg: 18px;
   --font-size-xl: 20px;
   --font-size-xxl: 24px;
@@ -124,6 +124,18 @@
   --radius-md: 12px;
   --radius-lg: 16px;
   --radius-round: 999px;
+
+  /* 浅色侧栏 shell（与 theme-components 默认一致，激活略偏 EP 蓝） */
+  --shell-sidebar-bg: var(--color-bg-base);
+  --shell-border: var(--color-border-base);
+  --shell-sidebar-text: var(--color-primary);
+  --shell-sidebar-text-muted: var(--color-text-secondary);
+  --shell-sidebar-title: var(--color-text-primary);
+  --shell-sidebar-hover-bg: var(--color-bg-hover);
+  --shell-sidebar-active-bg: linear-gradient(90deg, var(--color-primary-light-9), transparent);
+  --shell-sidebar-active-text: var(--color-primary);
+  --shell-sidebar-accent: var(--color-primary);
+  --shell-sidebar-indicator-width: 3px;
 
   /* ========== 阴影系统（优化层次感） ========== */
   --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.08);
@@ -154,125 +166,28 @@
 }
 
 /* ==================== Element Plus 组件样式优化 ==================== */
-
-/* 基础样式重置 */
-/* 表格样式优化 */
-:root[data-theme="default"] .el-table {
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-}
-
-:root[data-theme="default"] .el-table th.el-table__cell {
-  background-color: var(--color-bg-light) !important;
-  color: var(--color-text-primary);
-  font-weight: var(--font-weight-semibold);
-  font-size: var(--font-size-sm);
-}
-
-:root[data-theme="default"] .el-table__body tr {
-  transition: background-color var(--transition-fast), transform var(--transition-fast);
-}
-
-:root[data-theme="default"] .el-table__body tr:hover>td.el-table__cell {
-  background-color: var(--color-primary-light-9) !important;
-}
-
-/* 表格行选中状态增强 */
-:root[data-theme="default"] .el-table__body tr.current-row>td.el-table__cell {
-  background-color: var(--color-primary-light-8) !important;
+/* 表格密度/hover/选中 → theme-components；default 仅 current-row 左边强调 */
+:root[data-theme="default"] .el-table__body tr.current-row > td.el-table__cell {
   border-left: 3px solid var(--color-primary);
 }
 
-/* 表格斑马纹增强 */
-:root[data-theme="default"] .el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
-  background-color: var(--color-bg-hover);
-}
-
-/* 表格单元格悬停效果 */
-:root[data-theme="default"] .el-table__body td.el-table__cell {
-  transition:
-    background-color var(--transition-fast),
-    border-color var(--transition-fast),
-    color var(--transition-fast);
-}
-
-/* 表单样式优化 */
+/* 表单标签；输入 focus/圆角 → theme-components + theme-compat */
 :root[data-theme="default"] .el-form-item__label {
   font-weight: var(--font-weight-medium);
   color: var(--color-text-primary);
 }
 
-:root[data-theme="default"] .el-input__wrapper {
-  border-radius: var(--radius-sm);
-  box-shadow: 0 0 0 1px var(--color-border-base) inset;
-  transition:
-    background-color var(--transition-fast),
-    border-color var(--transition-fast),
-    box-shadow var(--transition-fast);
-}
-
-:root[data-theme="default"] .el-input__wrapper:hover:not(.is-disabled) {
-  box-shadow: 0 0 0 1px var(--color-border-dark) inset;
-  background-color: var(--color-bg-hover);
-}
-
-:root[data-theme="default"] .el-input__wrapper.is-focus {
-  box-shadow: 0 0 0 1px var(--color-primary) inset,
-    0 0 0 3px var(--color-primary-light-9);
-}
-
+:root[data-theme="default"] .el-input__wrapper,
 :root[data-theme="default"] .el-textarea__inner {
   border-radius: var(--radius-sm);
-  border: 1px solid var(--color-border-base);
-  transition:
-    background-color var(--transition-fast),
-    border-color var(--transition-fast),
-    box-shadow var(--transition-fast);
 }
 
-:root[data-theme="default"] .el-textarea__inner:hover:not(:disabled) {
-  border-color: var(--color-border-dark);
-  background-color: var(--color-bg-hover);
-}
-
-:root[data-theme="default"] .el-textarea__inner:focus {
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px var(--color-primary-light-9);
-}
-
-/* 对话框：仅视觉（布局见 dialog-system.css / AppDialog） */
+/* 对话框圆角 token；header/footer 视觉 → theme-compat */
 :root[data-theme="default"] {
   --theme-dialog-radius: var(--radius-lg);
 }
 
-:root[data-theme="default"] .el-dialog:not(.is-fullscreen) {
-  border-radius: var(--theme-dialog-radius);
-  box-shadow: var(--shadow-xl);
-}
-
-:root[data-theme="default"] .el-dialog__header {
-  padding: var(--spacing-md) var(--spacing-lg);
-  border-bottom: 1px solid var(--color-border-extra-light);
-  background-color: var(--color-bg-light);
-}
-
-:root[data-theme="default"] .el-dialog__title {
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text-primary);
-}
-
-:root[data-theme="default"] .el-dialog__body {
-  padding: var(--spacing-lg);
-}
-
-:root[data-theme="default"] .el-dialog__footer {
-  padding: var(--spacing-sm) var(--spacing-lg) var(--spacing-md);
-  border-top: 1px solid var(--color-border-extra-light);
-  background-color: var(--color-bg-light);
-}
-
-/* 标签样式优化 */
+/* 标签语义色 */
 :root[data-theme="default"] .el-tag {
   border-radius: var(--radius-sm);
   border-width: 0;
@@ -306,7 +221,7 @@
   color: var(--color-info);
 }
 
-/* 消息提示样式优化 */
+/* 消息/通知 */
 :root[data-theme="default"] .el-message {
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
@@ -320,42 +235,13 @@
   border: 1px solid var(--color-border-lighter);
 }
 
-/* 菜单样式优化 */
-:root[data-theme="default"] .el-menu {
-  border-right: none !important;
-}
-
-/* 菜单容器水平内缩（代替菜单项 margin，避免 collapse 跳动） */
+/* 菜单 → theme-components；仅 sidebar-menu 内缩 */
 :root[data-theme="default"] .sidebar-menu {
   padding-left: 8px;
   padding-right: 8px;
 }
 
-:root[data-theme="default"] .el-menu-item,
-:root[data-theme="default"] .el-sub-menu__title {
-  border-radius: var(--radius-sm);
-  margin: 0;
-  padding-left: 20px !important;
-  transition:
-    color var(--transition-fast),
-    background-color var(--transition-fast),
-    border-color var(--transition-fast),
-    box-shadow var(--transition-fast);
-}
-
-:root[data-theme="default"] .el-menu-item:hover,
-:root[data-theme="default"] .el-sub-menu__title:hover {
-  background-color: var(--color-bg-hover) !important;
-}
-
-:root[data-theme="default"] .el-menu-item.is-active {
-  background: linear-gradient(90deg, var(--color-primary-light-9), transparent) !important;
-  color: var(--color-primary) !important;
-  font-weight: var(--font-weight-semibold);
-  border-left: 3px solid var(--color-primary);
-}
-
-/* 分页样式优化 */
+/* 分页间距；激活态 → theme-components */
 :root[data-theme="default"] .el-pagination {
   padding: var(--spacing-md) 0;
 }
@@ -363,30 +249,11 @@
 :root[data-theme="default"] .el-pagination button,
 :root[data-theme="default"] .el-pager li {
   border-radius: var(--radius-sm);
-  min-width: 32px;
-  height: 32px;
-  margin: 0 4px;
-  transition:
-    color var(--transition-fast),
-    background-color var(--transition-fast),
-    border-color var(--transition-fast),
-    box-shadow var(--transition-fast);
 }
 
-:root[data-theme="default"] .el-pager li:hover {
-  color: var(--color-primary);
-  background-color: var(--color-primary-light-9);
-}
-
-:root[data-theme="default"] .el-pager li.is-active {
-  background: var(--color-primary) !important;
-  color: var(--color-on-primary) !important;
-  font-weight: var(--font-weight-semibold);
-}
-
-/* 加载动画优化 */
+/* 加载遮罩 */
 :root[data-theme="default"] .el-loading-mask {
-  background-color: color-mix(in srgb, var(--ds-white) 90%, transparent);
+  background-color: color-mix(in srgb, var(--ds-white, #fff) 90%, transparent);
   backdrop-filter: blur(8px);
 }
 
@@ -395,12 +262,14 @@
   height: 50px;
 }
 
-/* 骨架屏样式 */
+/* 骨架屏 */
 :root[data-theme="default"] .el-skeleton__item {
-  background: linear-gradient(90deg,
-      var(--color-border-extra-light) 25%,
-      var(--color-border-lighter) 37%,
-      var(--color-border-extra-light) 63%);
+  background: linear-gradient(
+    90deg,
+    var(--color-border-extra-light) 25%,
+    var(--color-border-lighter) 37%,
+    var(--color-border-extra-light) 63%
+  );
   background-size: 400% 100%;
   animation: skeleton-loading 1.4s ease infinite;
 }
@@ -421,7 +290,7 @@
   :root[data-theme="default"] {
     --font-size-xs: 11px;
     --font-size-sm: 12px;
-    --font-size-base: 13px;
+    --font-size-base: 14px;
     --spacing-md: 12px;
     --spacing-lg: 16px;
     --spacing-xl: 20px;

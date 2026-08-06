@@ -65,7 +65,8 @@ export const THEME_PRESET_LIST = Object.freeze([
     id: 'premium',
     name: 'Premium Editorial',
     description: '黑白高级杂志风，适合总控大屏和经营驾驶舱',
-    primaryColor: '#FFFFFF',
+    // 不可用纯白作 EP 主色（按钮/链接会失效）；用高亮锌灰作可交互主色
+    primaryColor: '#E4E4E7',
     mode: 'dark',
     icon: SuitcaseLine
   },
@@ -153,12 +154,21 @@ const normalizeFontSize = (value) => {
 export const normalizeThemeAppearance = (appearance = {}) => {
   const source = appearance && typeof appearance === 'object' ? appearance : {}
   const preset = getThemePreset(source.preset)
+  let primaryColor = normalizePrimaryColor(source.primaryColor, preset.primaryColor)
+
+  // 历史数据：premium 曾用纯白主色，会导致 EP 主按钮/链接不可见 → 强制回落到预设
+  if (preset.id === 'premium' && primaryColor === '#FFFFFF') {
+    primaryColor = preset.primaryColor
+  }
+
+  // 全站默认密集表字号 14（与主题 CSS SSOT 一致）
+  const fontSize = normalizeFontSize(source.fontSize ?? DEFAULT_FONT_SIZE)
 
   return {
     ...DEFAULT_THEME_SETTINGS,
     theme: preset.mode,
     preset: preset.id,
-    primaryColor: normalizePrimaryColor(source.primaryColor, preset.primaryColor),
-    fontSize: normalizeFontSize(source.fontSize)
+    primaryColor,
+    fontSize
   }
 }

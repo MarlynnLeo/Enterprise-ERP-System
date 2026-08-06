@@ -12,18 +12,18 @@
     <el-card class="data-card">
       <el-table :data="tableData" v-loading="loading" border stripe>
         <el-table-column prop="title" label="审批标题" min-width="220" show-overflow-tooltip />
-        <el-table-column prop="business_type" label="业务类型" width="120">
-          <template #default="{ row }">{{ btLabel[row.business_type] || row.business_type }}</template>
+        <el-table-column prop="businessType" label="业务类型" width="120">
+          <template #default="{ row }">{{ btLabel[row.businessType] || row.businessType }}</template>
         </el-table-column>
-        <el-table-column prop="business_code" label="单据编号" width="170" show-overflow-tooltip />
-        <el-table-column v-if="activeTab === 'pending'" prop="initiator_name" label="发起人" width="110" />
+        <el-table-column prop="businessCode" label="单据编号" width="170" show-overflow-tooltip />
+        <el-table-column v-if="activeTab === 'pending'" prop="initiatorName" label="发起人" width="110" />
         <el-table-column v-if="activeTab === 'pending'" label="当前节点" width="130">
-          <template #default="{ row }">{{ row.node_name || '未命名节点' }}</template>
+          <template #default="{ row }">{{ row.nodeName || '未命名节点' }}</template>
         </el-table-column>
         <el-table-column v-if="activeTab === 'initiated'" prop="status" label="状态" width="110">
           <template #default="{ row }">
-            <el-tag :type="sTag[row.status || row.instance_status] || 'info'" size="small">
-              {{ sLabel[row.status || row.instance_status] || row.status }}
+            <el-tag :type="sTag[row.status || row.instanceStatus] || 'info'" size="small">
+              {{ sLabel[row.status || row.instanceStatus] || row.status }}
             </el-tag>
           </template>
         </el-table-column>
@@ -61,8 +61,8 @@
           <el-descriptions-item label="状态">
             <el-tag :type="sTag[detail.status] || 'info'">{{ sLabel[detail.status] || detail.status }}</el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="发起人">{{ detail.initiator_name }}</el-descriptions-item>
-          <el-descriptions-item label="单据编号">{{ detail.business_code }}</el-descriptions-item>
+          <el-descriptions-item label="发起人">{{ detail.initiatorName }}</el-descriptions-item>
+          <el-descriptions-item label="单据编号">{{ detail.businessCode }}</el-descriptions-item>
         </el-descriptions>
         <h4 class="details-title">审批节点</h4>
         <el-timeline>
@@ -72,14 +72,14 @@
             :type="node.status === 'approved' ? 'success' : node.status === 'rejected' ? 'danger' : node.status === 'in_progress' ? 'primary' : 'info'"
             :hollow="node.status === 'pending'"
           >
-            <strong>{{ node.node_name || '未命名节点' }}</strong>
+            <strong>{{ node.nodeName || '未命名节点' }}</strong>
             <el-tag :type="sTag[node.status] || 'info'" size="small" class="node-status">
               {{ nLabel[node.status] || node.status || '待配置' }}
             </el-tag>
-            <div v-if="node.approver_name" class="node-meta">{{ node.approver_name }} {{ node.acted_at || '' }}</div>
+            <div v-if="node.approverName" class="node-meta">{{ node.approverName }} {{ node.actedAt || '' }}</div>
             <div v-for="item in (node.approvers || [])" :key="item.id" class="node-meta">
-              {{ item.approver_name || item.approver_id }} · {{ nLabel[item.status] || item.status }}
-              <span v-if="item.acted_at"> · {{ item.acted_at }}</span>
+              {{ item.approverName || item.approverId }} · {{ nLabel[item.status] || item.status }}
+              <span v-if="item.actedAt"> · {{ item.actedAt }}</span>
               <span v-if="item.comment"> · {{ item.comment }}</span>
             </div>
             <div v-if="node.comment" class="node-comment">{{ node.comment }}</div>
@@ -88,13 +88,18 @@
       </template>
     </AppDialog>
 
-    <el-dialog v-model="approvalVis" :title="approvalAct === 'approve' ? '审批通过' : '审批拒绝'" width="420px">
+    <AppDialog
+      v-model="approvalVis"
+      :title="approvalAct === 'approve' ? '审批通过' : '审批拒绝'"
+      mode="form"
+      width="420px"
+    >
       <el-input v-model="approvalComment" type="textarea" :rows="3" placeholder="审批意见" />
       <template #footer>
         <el-button @click="approvalVis = false">取消</el-button>
         <el-button :type="approvalAct === 'approve' ? 'success' : 'danger'" @click="submitApproval" :loading="saving">确定</el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
   </div>
 </template>
 
@@ -158,7 +163,7 @@ const onTabChange = () => {
 
 const viewInstance = async (row) => {
   try {
-    const res = await workflowApi.getInstanceById(row.instance_id || row.id)
+    const res = await workflowApi.getInstanceById(row.instanceId || row.id)
     detail.value = res.data || res
     detailVis.value = true
   } catch {
@@ -177,7 +182,7 @@ const submitApproval = async () => {
   if (!approvalRow.value) return
   saving.value = true
   try {
-    await workflowApi.approveNode(approvalRow.value.instance_id, {
+    await workflowApi.approveNode(approvalRow.value.instanceId, {
       node_id: approvalRow.value.id,
       action: approvalAct.value,
       comment: approvalComment.value

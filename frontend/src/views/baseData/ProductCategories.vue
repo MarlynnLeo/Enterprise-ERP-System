@@ -106,9 +106,9 @@
         >
         <el-table-column prop="name" label="类型名称" :width="hasSearchFilters ? 200 : 220"></el-table-column>
         <el-table-column prop="code" label="类型编码" width="150"></el-table-column>
-        <el-table-column v-if="hasSearchFilters" prop="parent_name" label="父类型" width="180">
+        <el-table-column v-if="hasSearchFilters" prop="parentName" label="父类型" width="180">
           <template #default="scope">
-            {{ scope.row.parent_name || '顶级类型' }}
+            {{ scope.row.parentName || '顶级类型' }}
           </template>
         </el-table-column>
         <el-table-column prop="level" label="层级" width="80"></el-table-column>
@@ -322,9 +322,10 @@
     </el-card>
 
     <!-- 新增/编辑对话框 -->
-    <el-dialog
-      :title="dialogTitle"
+    <AppDialog
       v-model="dialogVisible"
+      :title="dialogTitle"
+      mode="form"
       width="600px"
       :before-close="handleDialogClose"
     >
@@ -334,9 +335,9 @@
         :rules="formRules"
         label-width="100px"
       >
-        <el-form-item label="父类型" prop="parent_id">
+        <el-form-item label="父类型" prop="parentId">
           <el-tree-select
-            v-model="formData.parent_id"
+            v-model="formData.parentId"
             :data="categoryOptions"
             :props="{ value: 'id', label: 'name', children: 'children' }"
             placeholder="请选择父类型（不选则为顶级类型）"
@@ -379,12 +380,13 @@
           </el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
 
     <!-- 物料来源新增/编辑对话框 -->
-    <el-dialog
-      :title="sourceDialogTitle"
+    <AppDialog
       v-model="sourceDialogVisible"
+      :title="sourceDialogTitle"
+      mode="form"
       width="600px"
       :before-close="handleSourceDialogClose"
     >
@@ -433,13 +435,14 @@
           </el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
   </div>
 
     <!-- 检验方式新增/编辑对话框 -->
-    <el-dialog
-      :title="inspectionDialogTitle"
+    <AppDialog
       v-model="inspectionDialogVisible"
+      :title="inspectionDialogTitle"
+      mode="form"
       width="600px"
       :before-close="handleInspectionDialogClose"
     >
@@ -481,7 +484,7 @@
           </el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
 </template>
 
 <script setup>
@@ -766,7 +769,7 @@ const loadCategoryOptions = async (force = false) => {
 const buildTreeOptions = (data, parentId = 0) => {
   const tree = [];
   for (const item of data) {
-    if (item.parent_id === parentId) {
+    if (item.parentId === parentId) {
       const node = {
         id: item.id,
         name: item.name,
@@ -890,7 +893,7 @@ const handleEdit = (row) => {
   dialogTitle.value = '编辑物料类型';
 
   Object.assign(formData, {
-    parent_id: row.parent_id || 0,
+    parent_id: row.parentId || 0,
     name: row.name,
     code: row.code,
     sort: row.sort,

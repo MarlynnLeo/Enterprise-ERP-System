@@ -58,7 +58,7 @@
             <el-option
               v-for="item in operators"
               :key="item.username"
-              :label="item.real_name || item.username"
+              :label="item.realName || item.username"
               :value="item.username"
             ></el-option>
           </el-select>
@@ -110,34 +110,34 @@
         @selection-change="handleSelectionChange"
       >
         <el-table-column type="selection" width="55" fixed="left"></el-table-column>
-        <el-table-column prop="requisition_number" label="申请单号" min-width="120" show-overflow-tooltip></el-table-column>
-        <el-table-column prop="contract_code" label="合同编码" min-width="130" show-overflow-tooltip>
+        <el-table-column prop="requisitionNumber" label="申请单号" min-width="120" show-overflow-tooltip></el-table-column>
+        <el-table-column prop="contractCode" label="合同编码" min-width="130" show-overflow-tooltip>
           <template #default="{ row }">
-            {{ row.contract_code || '-' }}
+            {{ row.contractCode || '-' }}
           </template>
         </el-table-column>
-        <el-table-column prop="request_date" label="申请日期" min-width="110" show-overflow-tooltip>
+        <el-table-column prop="requestDate" label="申请日期" min-width="110" show-overflow-tooltip>
           <template #default="{ row }">
-            {{ formatDate(row.request_date) }}
+            {{ formatDate(row.requestDate) }}
           </template>
         </el-table-column>
         <el-table-column prop="requester" label="申请人" min-width="100" show-overflow-tooltip>
           <template #default="{ row }">
-            {{ row.real_name || row.requester || '未知' }}
+            {{ row.realName || row.requester || '未知' }}
           </template>
         </el-table-column>
         <el-table-column label="状态" min-width="100" show-overflow-tooltip>
           <template #default="{ row }">
-            <el-tag v-if="row.is_fully_ordered" type="success">已采购</el-tag>
-            <el-tag v-else-if="row.is_partially_ordered" type="warning">部分采购</el-tag>
+            <el-tag v-if="row.isFullyOrdered" type="success">已采购</el-tag>
+            <el-tag v-else-if="row.isPartiallyOrdered" type="warning">部分采购</el-tag>
             <el-tag v-else-if="row.status === 'approved'" type="danger">未采购</el-tag>
             <el-tag v-else :type="getStatusType(row.status)">{{ getStatusText(row.status) }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="remarks" label="备注" min-width="350" show-overflow-tooltip></el-table-column>
-        <el-table-column label="创建时间" min-width="140" prop="created_at" show-overflow-tooltip>
+        <el-table-column label="创建时间" min-width="140" prop="createdAt" show-overflow-tooltip>
           <template #default="{ row }">
-            {{ formatDate(row.created_at) }}
+            {{ formatDate(row.createdAt) }}
           </template>
         </el-table-column>
         <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
@@ -214,11 +214,11 @@
       </div>
     </el-card>
     <!-- 创建/编辑申请对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="requisitionDialog.visible"
       :title="requisitionDialog.isEdit ? '编辑采购申请' : '新建采购申请'"
+      mode="form"
       width="850px"
-      destroy-on-close
     >
       <div v-loading="requisitionDialog.loading">
         <el-form
@@ -329,7 +329,7 @@
         <el-button @click="requisitionDialog.visible = false" :disabled="requisitionDialog.loading">取消</el-button>
         <el-button v-permission="requisitionDialog.isEdit ? 'purchase:requisitions:update' : 'purchase:requisitions:create'" type="primary" @click="submitForm" :loading="requisitionDialog.loading">保存</el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
     <!-- 采购申请详情对话框 -->
     <AppDialog
       v-model="viewDialog.visible"
@@ -339,35 +339,35 @@
     >
       <div v-loading="viewDialog.loading">
         <el-descriptions border :column="2">
-        <el-descriptions-item label="申请单号">{{ viewData.requisition_number || viewData.requisitionNumber || '未知' }}</el-descriptions-item>
-        <el-descriptions-item label="申请日期">{{ formatDate(viewData.request_date || viewData.requestDate) }}</el-descriptions-item>
+        <el-descriptions-item label="申请单号">{{ viewData.requisitionNumber || '未知' }}</el-descriptions-item>
+        <el-descriptions-item label="申请日期">{{ formatDate(viewData.requestDate) }}</el-descriptions-item>
         <el-descriptions-item label="申请人">
-          {{ viewData.real_name || viewData.requester || '未知' }}
+          {{ viewData.realName || viewData.requester || '未知' }}
         </el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag :type="getStatusType(viewData.status || 'draft')">{{ getStatusText(viewData.status || 'draft') }}</el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="创建时间">{{ formatDate(viewData.created_at || viewData.createdAt) }}</el-descriptions-item>
-        <el-descriptions-item label="更新时间">{{ formatDate(viewData.updated_at || viewData.updatedAt) }}</el-descriptions-item>
+        <el-descriptions-item label="创建时间">{{ formatDate(viewData.createdAt) }}</el-descriptions-item>
+        <el-descriptions-item label="更新时间">{{ formatDate(viewData.updatedAt) }}</el-descriptions-item>
         <el-descriptions-item label="备注" :span="2">{{ viewData.remarks || '无' }}</el-descriptions-item>
       </el-descriptions>
       <el-divider content-position="center">申请物料</el-divider>
       <el-table :data="viewData.materials || []" border class="w-full">
-        <el-table-column label="物料编码" prop="material_code" min-width="110" show-overflow-tooltip>
+        <el-table-column label="物料编码" prop="materialCode" min-width="110" show-overflow-tooltip>
           <template #default="{ row }">
-            {{ row.material_code || row.materialCode || '未知' }}
+            {{ row.materialCode || '未知' }}
           </template>
         </el-table-column>
-        <el-table-column label="物料名称" prop="material_name" min-width="130" show-overflow-tooltip>
+        <el-table-column label="物料名称" prop="materialName" min-width="130" show-overflow-tooltip>
           <template #default="{ row }">
-            {{ row.material_name || row.materialName || '未知' }}
+            {{ row.materialName || '未知' }}
           </template>
         </el-table-column>
         <el-table-column label="规格" prop="specification" min-width="150" show-overflow-tooltip></el-table-column>
         <el-table-column label="单位" prop="unit" min-width="60" show-overflow-tooltip></el-table-column>
-        <el-table-column label="供应商" prop="supplier_name" min-width="220" show-overflow-tooltip>
+        <el-table-column label="供应商" prop="supplierName" min-width="220" show-overflow-tooltip>
           <template #default="{ row }">
-            {{ row.supplier_name && row.supplier_name !== '暂无设置供应商' ? row.supplier_name : (row.supplier_name || '暂无设置供应商') }}
+            {{ row.supplierName && row.supplierName !== '暂无设置供应商' ? row.supplierName : (row.supplierName || '暂无设置供应商') }}
           </template>
         </el-table-column>
         <el-table-column label="数量" min-width="100" show-overflow-tooltip>
@@ -386,11 +386,11 @@
       </template>
     </AppDialog>
     <!-- 状态更新确认对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="statusDialog.visible"
       :title="statusDialog.title"
+      mode="form"
       width="500px"
-      destroy-on-close
     >
       <div v-loading="statusDialog.loading">
         <div>您确定要{{ statusDialog.description }}吗？</div>
@@ -405,18 +405,18 @@
           确认
         </el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
     <!-- 审批对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="approvalDialog.visible"
       title="审批采购申请"
+      mode="form"
       width="500px"
-      destroy-on-close
     >
       <div v-loading="approvalDialog.loading">
         <el-descriptions border :column="1">
           <el-descriptions-item label="申请单号">{{ approvalDialog.row?.requisition_number || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="申请人">{{ approvalDialog.row?.real_name || approvalDialog.row?.requester || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="申请人">{{ approvalDialog.row?.realName || approvalDialog.row?.requester || '-' }}</el-descriptions-item>
           <el-descriptions-item label="备注">{{ approvalDialog.row?.remarks || '无' }}</el-descriptions-item>
         </el-descriptions>
         <el-form label-width="80px" class="mt-md">
@@ -444,7 +444,7 @@
           通过
         </el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
     <!-- 浮动批量操作栏 -->
     <Transition name="slide-up">
       <div v-if="selectedRequisitions.length > 0" class="floating-batch-bar">
@@ -719,13 +719,13 @@ const firstQueryValue = (value) => Array.isArray(value) ? value[0] : value;
 const openQuickPurchaseDialogFromQuery = () => {
   if (firstQueryValue(route.query.source) !== 'quick_purchase') return;
 
-  const materialId = firstQueryValue(route.query.material_id);
-  const materialCode = firstQueryValue(route.query.material_code);
-  const materialName = firstQueryValue(route.query.material_name);
+  const materialId = firstQueryValue(route.query.materialId);
+  const materialCode = firstQueryValue(route.query.materialCode);
+  const materialName = firstQueryValue(route.query.materialName);
   if (!materialId && !materialCode && !materialName) return;
 
   const currentStock = Number(firstQueryValue(route.query.current_stock));
-  const minStock = Number(firstQueryValue(route.query.min_stock));
+  const minStock = Number(firstQueryValue(route.query.minStock));
   const shortageQty = Number.isFinite(currentStock) && Number.isFinite(minStock)
     ? Math.max(minStock - currentStock, 1)
     : 1;
@@ -751,18 +751,18 @@ const editRequisition = async (row) => {
     const detail = parseDataObject(response, { enableLog: false }) || {};
 
     requisitionForm.id = detail.id;
-    requisitionForm.requestDate = detail.request_date;
-    requisitionForm.contractCode = detail.contract_code || detail.contractCode || '';
+    requisitionForm.requestDate = detail.requestDate;
+    requisitionForm.contractCode = detail.contractCode || '';
     requisitionForm.remarks = detail.remarks;
 
     // 转换材料格式
     requisitionForm.materials = (detail.materials || []).map(item => ({
-      materialId: item.material_id,
-      materialCode: item.material_code,
-      materialName: item.material_name,
+      materialId: item.materialId,
+      materialCode: item.materialCode,
+      materialName: item.materialName,
       specification: item.specification,
       unit: item.unit,
-      unitId: item.unit_id,
+      unitId: item.unitId,
       quantity: Number(item.quantity)
     }));
 
@@ -810,7 +810,7 @@ const submitForm = async () => {
         remarks: requisitionForm.remarks,
         materials: processedMaterials,
         requester: authStore.user?.username || '',
-        real_name: authStore.user?.real_name || ''
+        real_name: authStore.user?.realName || ''
       };
 
       if (requisitionDialog.isEdit) {
@@ -894,10 +894,10 @@ const fetchMaterialSuggestions = async (query, callback) => {
       code: item.code || '无编码',
       name: item.name || '未命名',
       specs: item.specification || item.specs || '',
-      stock_quantity: item.stock_quantity || 0,
+      stockQuantity: item.stockQuantity || 0,
       id: item.id,
-      unit_name: item.unit_name || '个',
-      unit_id: item.unit_id
+      unitName: item.unitName || '个',
+      unitId: item.unitId
     }));
     // 保存到全局变量供Enter键使用
     filteredProducts.value = suggestions;
@@ -914,8 +914,8 @@ const handleMaterialSelect = (item, index) => {
   requisitionForm.materials[index].materialCode = item.code;
   requisitionForm.materials[index].materialName = item.name;
   requisitionForm.materials[index].specification = item.specs;
-  requisitionForm.materials[index].unit = item.unit_name;
-  requisitionForm.materials[index].unitId = item.unit_id;
+  requisitionForm.materials[index].unit = item.unitName;
+  requisitionForm.materials[index].unitId = item.unitId;
 
   // 选择物料后，自动聚焦到数量输入框
   nextTick(() => {
@@ -1108,10 +1108,10 @@ const updateStatus = async () => {
       const orders = response.generated_orders;
       let message = `审批成功！已自动生成 ${orders.length} 个采购订单：\n`;
       orders.forEach((order, index) => {
-        message += `\n${index + 1}. 订单号: ${order.order_no}`;
-        message += `\n   供应商: ${order.supplier_name}`;
-        message += `\n   物料数: ${order.items_count} 件`;
-        message += `\n   总金额: ¥${Number(order.total_amount || 0).toFixed(2)}`;
+        message += `\n${index + 1}. 订单号: ${order.orderNo}`;
+        message += `\n   供应商: ${order.supplierName}`;
+        message += `\n   物料数: ${order.itemsCount} 件`;
+        message += `\n   总金额: ¥${Number(order.totalAmount || 0).toFixed(2)}`;
       });
       message += '\n\n请前往"采购订单"页面查看详情。';
 
@@ -1153,7 +1153,7 @@ const openApprovalDialog = async (row) => {
     approvalDialog.instanceId = instance.id;
     // 找到当前 in_progress 的审批节点
 
-    const currentNode = (instance.nodes || []).find(n => n.status === 'in_progress' && n.node_type === 'approval');
+    const currentNode = (instance.nodes || []).find(n => n.status === 'in_progress' && n.nodeType === 'approval');
     if (!currentNode) {
       ElMessage.warning('当前没有待审批的节点');
       approvalDialog.visible = false;
@@ -1290,18 +1290,18 @@ const handlePrintRequisition = async () => {
   printLoading.value = true
   try {
     const printData = {
-      requisition_number: viewData.requisition_number || viewData.requisitionNumber || '',
-      request_date: formatDate(viewData.request_date || viewData.requestDate) || '',
-      requester: viewData.real_name || viewData.requester || '',
+      requisition_number: viewData.requisitionNumber || '',
+      request_date: formatDate(viewData.requestDate) || '',
+      requester: viewData.realName || viewData.requester || '',
       status: getStatusText(viewData.status || 'draft'),
       remarks: viewData.remarks || '',
       items: (viewData.materials || []).map((item, idx) => ({
         index: idx + 1,
-        material_code: item.material_code || item.materialCode || '',
-        material_name: item.material_name || item.materialName || '',
+        material_code: item.materialCode || '',
+        material_name: item.materialName || '',
         specification: item.specification || '',
         quantity: parseFloat(item.quantity || 0).toFixed(2),
-        unit_name: item.unit || item.unit_name || '',
+        unit_name: item.unit || item.unitName || '',
         remark: item.remark || ''
       }))
     }

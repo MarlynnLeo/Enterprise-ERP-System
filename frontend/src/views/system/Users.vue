@@ -31,7 +31,7 @@
           <el-input  v-model="searchForm.username" placeholder="输入用户名" clearable ></el-input>
         </el-form-item>
         <el-form-item label="部门">
-          <el-select v-model="searchForm.department_id" placeholder="选择部门" clearable>
+          <el-select v-model="searchForm.departmentId" placeholder="选择部门" clearable>
             <el-option
               v-for="dept in departmentOptions"
               :key="dept.id"
@@ -58,10 +58,10 @@
         v-loading="loading"
       >
         <template #empty>
-          <el-empty description="暂无用户数据" />
+          <EmptyState description="暂无用户数据" />
         </template>
         <el-table-column prop="username" label="用户名" width="130" fixed="left"></el-table-column>
-        <el-table-column prop="real_name" label="姓名" width="120"></el-table-column>
+        <el-table-column prop="realName" label="姓名" width="120"></el-table-column>
         <el-table-column prop="email" label="邮箱" min-width="200"></el-table-column>
         <el-table-column prop="phone" label="手机号" width="130"></el-table-column>
         <el-table-column prop="departmentName" label="所属部门" width="120"></el-table-column>
@@ -155,7 +155,7 @@
           <el-descriptions-item label="邮箱">{{ userForm.email || '-' }}</el-descriptions-item>
           <el-descriptions-item label="手机号">{{ userForm.phone || '-' }}</el-descriptions-item>
           <el-descriptions-item label="所属部门">
-             {{ departmentOptions.find(d => d.id === userForm.department_id)?.name || '-' }}
+             {{ departmentOptions.find(d => d.id === userForm.departmentId)?.name || '-' }}
           </el-descriptions-item>
           <el-descriptions-item label="状态">
             <el-tag :type="getStatusType(userForm.status)">
@@ -189,8 +189,8 @@
         <el-form-item v-if="!userForm.id" label="密码" prop="password">
           <el-input v-model="userForm.password" placeholder="请输入密码" type="password"></el-input>
         </el-form-item>
-        <el-form-item label="部门" prop="department_id">
-          <el-select v-model="userForm.department_id" placeholder="请选择部门" class="w-full">
+        <el-form-item label="部门" prop="departmentId">
+          <el-select v-model="userForm.departmentId" placeholder="请选择部门" class="w-full">
             <el-option
               v-for="dept in departmentOptions"
               :key="dept.id"
@@ -271,7 +271,7 @@ const roleOptions = ref([]);
 const searchForm = reactive({
   username: '',
   name: '',
-  department_id: '',
+  departmentId: '',
   status: ''
 });
 
@@ -283,7 +283,7 @@ const userForm = reactive({
   password: '',
   email: '',
   phone: '',
-  department_id: null,
+  departmentId: null,
   roleIds: [],
   status: 1
 });
@@ -329,7 +329,7 @@ const userRules = {
   phone: [
     { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号格式', trigger: 'blur' }
   ],
-  department_id: [
+  departmentId: [
     { required: true, message: '请选择部门', trigger: 'change' }
   ],
   roleIds: [
@@ -346,7 +346,7 @@ const loadUsers = async () => {
       limit: pageSize.value,
       username: searchForm.username,
       name: searchForm.name,
-      department_id: searchForm.department_id,
+      departmentId: searchForm.departmentId,
       status: searchForm.status
     };
 
@@ -359,8 +359,8 @@ const loadUsers = async () => {
     userList.value = usersData.map(user => {
       // 查找对应的部门名称
       let departmentName = user.departmentName || '';
-      if (!departmentName && user.department_id) {
-        const dept = departmentOptions.value.find(d => d.id === Number(user.department_id));
+      if (!departmentName && user.departmentId) {
+        const dept = departmentOptions.value.find(d => d.id === Number(user.departmentId));
         if (dept) {
           departmentName = dept.name;
         }
@@ -475,7 +475,7 @@ const searchUsers = () => {
 const resetSearch = () => {
   searchForm.username = '';
   searchForm.name = '';
-  searchForm.department_id = '';
+  searchForm.departmentId = '';
   searchForm.status = '';
   searchUsers();
 };
@@ -516,11 +516,11 @@ const loadUserDataForDialog = async (row, displayTitle) => {
     // 填充表单数据
     userForm.id = user.id;
     userForm.username = user.username;
-    userForm.name = user.real_name || '';
+    userForm.name = user.realName || '';
     userForm.email = user.email || '';
     userForm.phone = user.phone || '';
     // 确保部门ID是数字类型
-    userForm.department_id = user.department_id ? Number(user.department_id) : null;
+    userForm.departmentId = user.departmentId ? Number(user.departmentId) : null;
     // 处理角色数据
     if (user.roles && Array.isArray(user.roles)) {
       userForm.roleIds = user.roles.map(role => Number(role.id || role));
@@ -617,7 +617,7 @@ const resetUserForm = () => {
   userForm.password = '';
   userForm.email = '';
   userForm.phone = '';
-  userForm.department_id = null;
+  userForm.departmentId = null;
   userForm.roleIds = [];
   userForm.status = 1;
 };
@@ -648,7 +648,7 @@ const saveUser = async () => {
       // 确保状态为数字
       status: Number(userForm.status),
       // 确保部门ID为数字
-      department_id: userForm.department_id ? Number(userForm.department_id) : null
+      departmentId: userForm.departmentId ? Number(userForm.departmentId) : null
     }
 
     if (userData.id) {

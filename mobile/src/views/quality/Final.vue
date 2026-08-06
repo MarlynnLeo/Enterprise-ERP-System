@@ -33,17 +33,17 @@
 
     fields: {
       id: 'id',
-      title: 'inspection_no',
-      subtitle: 'batch_no',
+      title: 'inspectionNo',
+      subtitle: 'batchNo',
       icon: 'badge-check',
       status: 'status',
 
-      // 详情字段 — 精简为4列
+      // 详情字段 — 精简为4列（后端 camel）
       details: [
-        { label: '产品名称', field: (item) => `${item.item_name || '—'}` },
-        { label: '批次号', field: (item) => `${item.batch_no || '—'}` },
+        { label: '产品名称', field: (item) => `${item.itemName || item.productName || '—'}` },
+        { label: '批次号', field: (item) => `${item.batchNo || '—'}` },
         { label: '检验数量', field: (item) => `${item.quantity ?? 0} ${item.unit || '个'}` },
-        { label: '合格/不合格', field: (item) => `${item.qualified_quantity ?? 0} / ${item.unqualified_quantity ?? 0}` }
+        { label: '合格/不合格', field: (item) => `${item.qualifiedQuantity ?? 0} / ${item.unqualifiedQuantity ?? 0}` }
       ],
 
       // 标签
@@ -100,14 +100,7 @@
     }
     const response = await qualityApi.getFinalInspections(apiParams)
 
-    if (response && response.data && Array.isArray(response.data.list)) {
-      response.data.list = response.data.list.map(item => ({
-        ...item,
-        inspection_no: item.inspection_number || item.inspection_no || '-',
-        batch_no: item.batch_no || item.batch_number || '-'
-      }))
-    }
-
+    // 后端已输出 camel，无需 snake 补丁
     return response
   }
 

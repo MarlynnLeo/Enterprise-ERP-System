@@ -28,13 +28,13 @@
     searchPlaceholder: '搜索账户名称或账号',
     fields: {
       id: 'id',
-      title: (item) => item.accountName || item.account_name || '',
-      subtitle: (item) => item.accountNumber || item.account_number || '',
+      title: (item) => item.accountName || '',
+      subtitle: (item) => item.accountNumber || '',
       icon: 'bank',
       details: [
-        { label: '开户行', field: (item) => item.bankName || item.bank_name || '—' },
-        { label: '账号', field: (item) => item.accountNumber || item.account_number || '—' },
-        { label: '币种', field: (item) => item.currency || item.currency_code || 'CNY' },
+        { label: '开户行', field: (item) => item.bankName || '—' },
+        { label: '账号', field: (item) => item.accountNumber || '—' },
+        { label: '币种', field: (item) => item.currency || item.currencyCode || 'CNY' },
         {
           label: '余额',
           field: (item) => item.balance ?? item.current_balance ?? 0,

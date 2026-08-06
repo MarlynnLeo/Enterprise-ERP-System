@@ -8,6 +8,7 @@ const { logger } = require('../../../utils/logger');
 const { desensitizeData, hasFinancePermission } = require('../../../utils/desensitizer');
 const { pool: dbPool } = require('../../../config/db');
 const FileAccessService = require('../../../services/FileAccessService');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 
 const materialService = require('../../../services/materialService');
 
@@ -16,10 +17,11 @@ const materialController = {
   async getAllMaterials(req, res) {
     try {
       const { page = 1, pageSize = 10, ...filters } = req.query;
+      // HTTP camel query → service snake filters
       const result = await materialService.getAllMaterials(
         parseInt(page) || 1,
         parseInt(pageSize) || 10,
-        filters
+        mapKeysToSnake(filters)
       );
 
       // 🔒 权限过滤敏感价格字段 (AOP脱敏)
@@ -128,7 +130,8 @@ const materialController = {
 
   async createMaterial(req, res) {
     try {
-      const newMaterial = await materialService.createMaterial(req.body);
+      // HTTP camel → service snake
+      const newMaterial = await materialService.createMaterial(mapKeysToSnake(req.body || {}));
       ResponseHandler.success(res, newMaterial, '创建成功', 201);
     } catch (error) {
       logger.error('创建物料失败:', error);
@@ -138,7 +141,10 @@ const materialController = {
 
   async updateMaterial(req, res) {
     try {
-      const updatedMaterial = await materialService.updateMaterial(req.params.id, req.body);
+      const updatedMaterial = await materialService.updateMaterial(
+        req.params.id,
+        mapKeysToSnake(req.body || {})
+      );
       ResponseHandler.success(res, updatedMaterial, '更新物料成功');
     } catch (error) {
       logger.error('更新物料失败:', error);

@@ -50,6 +50,19 @@ const safeSaveJSON = (key, value, storage = sessionStorage) => {
 const normalizeUserData = (userData) => {
   if (!userData || typeof userData !== 'object') return userData
   const normalized = { ...userData }
+  // HTTP 统一 camel；兼容历史本地缓存中的 snake 键
+  if (normalized.realName == null && normalized.realName != null) {
+    normalized.realName = normalized.realName
+  }
+  if (normalized.departmentName == null && normalized.departmentName != null) {
+    normalized.departmentName = normalized.departmentName
+  }
+  if (normalized.createdAt == null && normalized.createdAt != null) {
+    normalized.createdAt = normalized.createdAt
+  }
+  if (normalized.avatarFrame == null && normalized.avatarFrame != null) {
+    normalized.avatarFrame = normalized.avatarFrame
+  }
   if (normalized.avatar) {
     normalized.avatar = buildResourceUrl(normalized.avatar)
   }
@@ -97,7 +110,7 @@ export const useAuthStore = defineStore('auth', () => {
   })
   const userId = computed(() => user.value?.id)
   const username = computed(() => user.value?.username)
-  const realName = computed(() => user.value?.real_name || user.value?.username)
+  const realName = computed(() => user.value?.realName || user.value?.username)
 
   // ==================== 私有方法 ====================
 

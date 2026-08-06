@@ -12,8 +12,8 @@
       <div class="hero-card">
         <div class="hero-icon"><Icon name="coin" size="1.5rem" /></div>
         <div class="hero-info">
-          <div class="hero-title">{{ receipt.customer_name || '未知客户' }}</div>
-          <div class="hero-sub">{{ receipt.receipt_number }}</div>
+          <div class="hero-title">{{ receipt.customerName || '未知客户' }}</div>
+          <div class="hero-sub">{{ receipt.receiptNumber }}</div>
         </div>
         <div class="hero-status" :class="receipt.status === 'void' ? 'danger' : 'success'">
           {{ receipt.status === 'void' ? '已作废' : '正常' }}
@@ -24,21 +24,21 @@
         <div class="amount-row">
           <div class="amount-item">
             <span class="amount-label">收款金额</span>
-            <span class="amount-value primary">¥{{ fm(receipt.total_amount) }}</span>
+            <span class="amount-value primary">¥{{ fm(receipt.totalAmount) }}</span>
           </div>
           <div class="amount-item">
             <span class="amount-label">收款日期</span>
-            <span class="amount-value">{{ fd(receipt.receipt_date) }}</span>
+            <span class="amount-value">{{ fd(receipt.receiptDate) }}</span>
           </div>
         </div>
         <div class="amount-row">
           <div class="amount-item">
             <span class="amount-label">支付方式</span>
-            <span class="amount-value">{{ receipt.payment_method || '—' }}</span>
+            <span class="amount-value">{{ receipt.paymentMethod || '—' }}</span>
           </div>
           <div class="amount-item">
             <span class="amount-label">银行账户</span>
-            <span class="amount-value">{{ receipt.bank_account_name || '—' }}</span>
+            <span class="amount-value">{{ receipt.bankAccountName || '—' }}</span>
           </div>
         </div>
       </div>
@@ -47,7 +47,7 @@
         <div class="section-title">收款明细</div>
         <div class="payment-item" v-for="item in receipt.items" :key="item.id">
           <div class="payment-left">
-            <div class="payment-invoice">{{ item.invoice_number || '—' }}</div>
+            <div class="payment-invoice">{{ item.invoiceNumber || '—' }}</div>
           </div>
           <div class="payment-amount">¥{{ fm(item.amount) }}</div>
         </div>

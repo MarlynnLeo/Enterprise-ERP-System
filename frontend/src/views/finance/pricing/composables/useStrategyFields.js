@@ -109,15 +109,15 @@ export function useStrategyFields() {
     };
 
     // 切换启用状态
-    const handleToggle = async (row, nextStatus = row.is_active === 1 ? 0 : 1) => {
-        const previousStatus = row.is_active;
-        row.is_active = nextStatus;
+    const handleToggle = async (row, nextStatus = row.isActive === 1 ? 0 : 1) => {
+        const previousStatus = row.isActive;
+        row.isActive = nextStatus;
         try {
             await financeApi.toggleStrategyField(row.id);
             await nextTick();
             loadAvailableFields();
         } catch {
-            row.is_active = previousStatus;
+            row.isActive = previousStatus;
             ElMessage.error('操作失败');
             loadFields();
         }

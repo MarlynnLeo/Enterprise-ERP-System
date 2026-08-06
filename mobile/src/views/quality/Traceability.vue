@@ -50,7 +50,7 @@
           <!-- 批次卡片 -->
           <div
             v-for="(batch, index) in filteredBatches"
-            :key="batch.batch_number + '-' + index"
+            :key="batch.batchNumber + '-' + index"
             class="batch-card"
             @click="viewBatchDetail(batch)"
           >
@@ -62,18 +62,18 @@
               >
                 {{ batch.type === 'product' ? '成品' : '原料' }}
               </div>
-              <div class="batch-time">{{ formatDate(batch.created_at) }}</div>
+              <div class="batch-time">{{ formatDate(batch.createdAt) }}</div>
             </div>
 
             <!-- 卡片主体 -->
             <div class="card-body">
               <div class="material-code-row">
                 <span class="material-icon"><SvgIcon :name="batch.type === 'product' ? 'archive' : 'cube'" size="16px" /></span>
-                <span class="material-code">{{ batch.material_code }}</span>
+                <span class="material-code">{{ batch.materialCode }}</span>
               </div>
               <div class="batch-number-row">
                 <span class="label">批次号</span>
-                <span class="value">{{ batch.batch_number }}</span>
+                <span class="value">{{ batch.batchNumber }}</span>
               </div>
             </div>
 
@@ -135,8 +135,8 @@
       const kw = searchKeyword.value.toLowerCase()
       result = result.filter(
         (b) =>
-          (b.material_code || '').toLowerCase().includes(kw) ||
-          (b.batch_number || '').toLowerCase().includes(kw)
+          (b.materialCode || '').toLowerCase().includes(kw) ||
+          (b.batchNumber || '').toLowerCase().includes(kw)
       )
     }
 
@@ -209,8 +209,8 @@
     router.push({
       path: '/quality/traceability/detail',
       query: {
-        materialCode: batch.material_code,
-        batchNumber: batch.batch_number,
+        materialCode: batch.materialCode,
+        batchNumber: batch.batchNumber,
         type: batch.type
       }
     })

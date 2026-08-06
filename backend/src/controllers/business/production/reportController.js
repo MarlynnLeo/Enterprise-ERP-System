@@ -6,6 +6,7 @@
  */
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 const { logger } = require('../../../utils/logger');
 const { pool } = require('../../../config/db');
 const { handleError } = require('./shared/errorHandler');
@@ -287,7 +288,7 @@ exports.createReport = async (req, res) => {
       unqualified_quantity,
       work_hours,
       remarks,
-    } = req.body;
+    } = mapKeysToSnake(req.body || {});
 
     // 获取任务信息
     const [taskCheck] = await connection.query(
@@ -427,7 +428,7 @@ exports.updateReport = async (req, res) => {
       unqualified_quantity,
       work_hours,
       remarks,
-    } = req.body;
+    } = mapKeysToSnake(req.body || {});
 
     const [reportCheck] = await connection.query('SELECT id, task_id, process_id as old_process_id FROM production_reports WHERE id = ? FOR UPDATE', [
       id,

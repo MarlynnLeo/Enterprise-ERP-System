@@ -41,7 +41,7 @@
           />
 
           <Field
-            v-model="planForm.start_date"
+            v-model="planForm.startDate"
             name="start_date"
             label="开始日期"
             placeholder="请选择开始日期"
@@ -50,7 +50,7 @@
           />
 
           <Field
-            v-model="planForm.end_date"
+            v-model="planForm.endDate"
             name="end_date"
             label="结束日期"
             placeholder="请选择结束日期"
@@ -385,8 +385,8 @@
       }
 
       // 验证日期
-      if (planForm.start_date && planForm.end_date) {
-        if (new Date(planForm.end_date) < new Date(planForm.start_date)) {
+      if (planForm.startDate && planForm.endDate) {
+        if (new Date(planForm.endDate) < new Date(planForm.startDate)) {
           showToast('结束日期不能早于开始日期')
           return
         }
@@ -398,8 +398,8 @@
       const formData = {
         code: planForm.code,
         name: planForm.name,
-        start_date: planForm.start_date,
-        end_date: planForm.end_date,
+        start_date: planForm.startDate,
+        end_date: planForm.endDate,
         productId: planForm.productId,
         quantity: parseInt(planForm.quantity),
         remark: planForm.remark

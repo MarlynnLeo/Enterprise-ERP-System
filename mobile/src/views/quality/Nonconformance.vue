@@ -30,7 +30,7 @@
         { label: '严重程度', field: (item) => ({ critical: '致命', major: '严重', minor: '轻微' })[item.severity] || item.severity || '--' },
         { label: '数量', field: (item) => `${item.quantity ?? 0} ${item.unit || '个'}` },
         { label: '处置方式', field: (item) => ({ return: '退货', rework: '返工', scrap: '报废', concession: '让步接收', pending: '待决定' })[item.disposition] || item.disposition || '--' },
-        { label: '创建时间', field: (item) => item.created_at ? item.created_at.substring(0, 10) : '--' }
+        { label: '创建时间', field: (item) => item.createdAt ? item.createdAt.substring(0, 10) : '--' }
       ],
       tags: [
         {

@@ -21,9 +21,9 @@
             <span class="status-tag" :class="getStatusAccent(detail.status)">{{
               getStatusText(detail.status)
             }}</span>
-            <span class="order-date" v-if="detail.check_date">{{ detail.check_date }}</span>
+            <span class="order-date" v-if="detail.checkDate">{{ detail.checkDate }}</span>
           </div>
-          <span class="order-no">{{ detail.check_no }}</span>
+          <span class="order-no">{{ detail.checkNo }}</span>
         </div>
       </div>
 
@@ -32,15 +32,15 @@
       <div class="info-card">
         <div class="info-row">
           <span class="info-label">盘点类型</span>
-          <span class="info-value">{{ getCheckTypeText(detail.check_type) }}</span>
+          <span class="info-value">{{ getCheckTypeText(detail.checkType) }}</span>
         </div>
-        <div class="info-row" v-if="detail.warehouse">
+        <div class="info-row" v-if="detail.locationName || detail.warehouse">
           <span class="info-label">仓库/库区</span>
-          <span class="info-value">{{ detail.warehouse }}</span>
+          <span class="info-value">{{ detail.locationName || detail.warehouse }}</span>
         </div>
         <div class="info-row">
           <span class="info-label">创建人</span>
-          <span class="info-value">{{ detail.creator || '—' }}</span>
+          <span class="info-value">{{ detail.creatorName || detail.creator || '—' }}</span>
         </div>
         <div class="info-row" v-if="['pending', 'completed'].includes(detail.status)">
           <span class="info-label">盘点结果</span>
@@ -74,26 +74,26 @@
         class="material-card"
         :style="{ animationDelay: `${index * 0.05}s` }"
       >
-        <div class="card-accent" :class="getDiffAccent(item.book_qty, item.actual_qty)"></div>
+        <div class="card-accent" :class="getDiffAccent(item.bookQuantity ?? item.book_qty, item.actualQuantity ?? item.actual_qty)"></div>
         <div class="card-body">
           <div class="mat-header">
             <div class="mat-title-area">
-              <span class="mat-name">{{ item.material_name || '未知物料' }}</span>
-              <span class="mat-code">{{ item.material_code || '' }}</span>
+              <span class="mat-name">{{ item.materialName || '未知物料' }}</span>
+              <span class="mat-code">{{ item.materialCode || '' }}</span>
             </div>
-            <span class="diff-badge" :class="getDiffAccent(item.book_qty, item.actual_qty)">
-              {{ getDiffText(item.book_qty, item.actual_qty) }}
+            <span class="diff-badge" :class="getDiffAccent(item.bookQuantity ?? item.book_qty, item.actualQuantity ?? item.actual_qty)">
+              {{ getDiffText(item.bookQuantity ?? item.book_qty, item.actualQuantity ?? item.actual_qty) }}
             </span>
           </div>
           <div class="mat-details">
             <div class="detail-cell">
               <span class="detail-label">账面数量</span>
-              <span class="detail-value">{{ item.book_qty }} {{ item.unit_name || '' }}</span>
+              <span class="detail-value">{{ item.bookQuantity ?? item.book_qty }} {{ item.unitName || '' }}</span>
             </div>
             <div class="detail-cell">
               <span class="detail-label">实盘数量</span>
               <span class="detail-value highlight"
-                >{{ item.actual_qty }} {{ item.unit_name || '' }}</span
+                >{{ item.actualQuantity ?? item.actual_qty }} {{ item.unitName || '' }}</span
               >
             </div>
           </div>
@@ -209,7 +209,7 @@
   const buildCheckResultItems = () =>
     (detail.value.items || []).map((item) => ({
       id: item.id,
-      material_id: item.material_id,
+      materialId: item.materialId,
       system_quantity: Number(item.system_quantity ?? item.book_qty ?? 0),
       actual_quantity: Number(item.actual_quantity ?? item.actual_qty ?? 0),
       remark: item.remark || item.remarks || ''

@@ -8,6 +8,7 @@
 const { pool } = require('../../config/db');
 const { ResponseHandler } = require('../../utils/responseHandler');
 const { logger } = require('../../utils/logger');
+const { mapKeysToSnake } = require('../../utils/fieldMap');
 const BusinessTypeService = require('../../services/BusinessTypeService');
 
 const normalizeStatus = (status) => {
@@ -21,7 +22,8 @@ const normalizeStatus = (status) => {
  */
 const getAllBusinessTypes = async (req, res) => {
   try {
-    const { category, group_code, status, keyword } = req.query;
+    const q = mapKeysToSnake(req.query || {});
+    const { category, group_code, status, keyword } = q;
 
     let sql = 'SELECT id, code, name, category, group_code, description, icon, color, tag_type, sort_order, is_system, status, created_at, updated_at, created_by, updated_by FROM business_types WHERE 1=1';
     const params = [];
@@ -134,7 +136,7 @@ const getBusinessTypeById = async (req, res) => {
  */
 const createBusinessType = async (req, res) => {
   try {
-    const { code, name, category, group_code, tag_type, description, icon, color, sort_order } = req.body;
+    const { code, name, category, group_code, tag_type, description, icon, color, sort_order } = mapKeysToSnake(req.body || {});
     const userId = req.user?.id;
     const actualGroupCode = group_code || 'inventory_transaction';
 
@@ -182,7 +184,7 @@ const createBusinessType = async (req, res) => {
 const updateBusinessType = async (req, res) => {
   try {
     const { id } = req.params;
-    const { code, name, category, group_code, tag_type, description, icon, color, sort_order, status } = req.body;
+    const { code, name, category, group_code, tag_type, description, icon, color, sort_order, status } = mapKeysToSnake(req.body || {});
     const userId = req.user?.id;
 
     // 检查业务类型是否存在

@@ -96,7 +96,7 @@
       </el-descriptions>
       <el-table :data="balanceSheet.outstandingItems || []" border size="small" max-height="280">
         <template #empty>
-          <el-empty description="无未对账流水" :image-size="48" />
+          <EmptyState description="无未对账流水" ::image-size="48" />
         </template>
         <el-table-column prop="date" label="日期" width="110" />
         <el-table-column prop="type" label="类型" width="90" />
@@ -215,7 +215,7 @@
 
         <el-tab-pane label="银行对账单" name="bank_statement">
           <div v-if="importedStatement.length === 0" class="empty-statement">
-            <el-empty description="尚未导入银行对账单"></el-empty>
+            <EmptyState description="尚未导入银行对账单" />
             <el-upload
               class="upload-area"
               action="#"
@@ -326,14 +326,15 @@
     </div>
 
     <div v-if="!isReconciling && !loading" class="start-guide">
-      <el-empty description="请选择账户和日期范围，然后点击查询开始对账"></el-empty>
+      <EmptyState description="请选择账户和日期范围，然后点击查询开始对账" />
     </div>
 
     <!-- 匹配交易对话框 -->
-    <el-dialog
-      title="匹配交易记录"
+    <AppDialog
       v-model="matchDialogVisible"
-      width="800px"
+      title="匹配交易记录"
+      mode="view"
+      content-width="wide"
     >
       <div class="match-dialog-content">
         <div class="bank-transaction-info">
@@ -378,7 +379,7 @@
           <el-button v-permission="'finance:cash:reconcile'" type="primary" @click="confirmMatch" :disabled="selectedTransactions.length === 0">确认匹配</el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
   </div>
 </template>
 
@@ -561,12 +562,12 @@ const searchReconciliation = async () => {
     unreconciledTotal.value = unreconciledResponse.data?.pagination?.total || unreconciledResponse.data?.total || unreconciledData.length || 0;
     unreconciledItems.value = unreconciledData.map(item => ({
       id: item.id,
-      transactionDate: item.transaction_date?.split('T')[0] || item.transaction_date,
-      type: item.transaction_type,
+      transactionDate: item.transactionDate?.split('T')[0] || item.transactionDate,
+      type: item.transactionType,
       amount: parseFloat(item.amount),
-      counterparty: item.related_party || '',
+      counterparty: item.relatedParty || '',
       description: item.description || '',
-      referenceNumber: item.reference_number || ''
+      referenceNumber: item.referenceNumber || ''
     }));
 
     // 加载已对账项目
@@ -580,13 +581,13 @@ const searchReconciliation = async () => {
     reconciledTotal.value = reconciledResponse.data?.pagination?.total || reconciledResponse.data?.total || reconciledData.length || 0;
     reconciledItems.value = reconciledData.map(item => ({
       id: item.id,
-      transactionDate: item.transaction_date?.split('T')[0] || item.transaction_date,
-      type: item.transaction_type,
+      transactionDate: item.transactionDate?.split('T')[0] || item.transactionDate,
+      type: item.transactionType,
       amount: parseFloat(item.amount),
-      counterparty: item.related_party || '',
+      counterparty: item.relatedParty || '',
       description: item.description || '',
-      referenceNumber: item.reference_number || '',
-      reconciliationDate: item.reconciliation_date?.split('T')[0] || ''
+      referenceNumber: item.referenceNumber || '',
+      reconciliationDate: item.reconciliationDate?.split('T')[0] || ''
     }));
 
     // 计算对账统计 —— 基于真实交易数据动态计算
@@ -702,7 +703,7 @@ const markAsReconciled = async (transaction) => {
 const cancelReconciliation = async (transaction) => {
   try {
     await ElMessageBox.confirm(
-      `确定取消交易「${transaction.transaction_number || transaction.id}」的对账标记吗？`,
+      `确定取消交易「${transaction.transactionNumber}」的对账标记吗？`,
       '取消对账确认',
       {
         confirmButtonText: '确定取消对账',
@@ -814,8 +815,8 @@ onMounted(async () => {
       const periods = res.data?.periods || res.data?.list || [];
       const period = periods.find(p => String(p.id) === String(periodId));
       if (period) {
-        const startDate = period.start_date?.slice(0, 10);
-        const endDate = period.end_date?.slice(0, 10);
+        const startDate = period.startDate?.slice(0, 10);
+        const endDate = period.endDate?.slice(0, 10);
         if (startDate && endDate) {
           dateRange.value = [startDate, endDate];
           showAdvancedSearch.value = true;

@@ -13,7 +13,7 @@
     <Form @submit="onSubmit">
       <CellGroup inset title="基本信息">
         <Field
-          v-model="form.inbound_type"
+          v-model="form.inboundTypeLabel"
           is-link
           readonly
           label="入库类型"
@@ -30,7 +30,7 @@
         </Popup>
 
         <Field
-          v-model="form.warehouse_name"
+          v-model="form.locationName"
           is-link
           readonly
           label="目标仓库"
@@ -47,7 +47,7 @@
           />
         </Popup>
 
-        <Field v-model="form.source_no" label="来源单号" placeholder="选填" />
+        <Field v-model="form.referenceNo" label="来源单号" placeholder="选填" />
 
         <Field
           v-model="form.remarks"
@@ -72,7 +72,7 @@
             />
           </div>
           <Field
-            v-model="item.material_name"
+            v-model="item.materialName"
             is-link
             readonly
             label="选择物料"
@@ -119,8 +119,8 @@
           <Cell
             v-for="mat in materialList"
             :key="mat.id"
-            :title="mat.name || mat.material_name"
-            :label="`编码: ${mat.code || mat.material_code || '--'} | 规格: ${mat.spec || mat.specification || '--'}`"
+            :title="mat.name || mat.materialName"
+            :label="`编码: ${mat.code || mat.materialCode || '--'} | 规格: ${mat.specs || mat.specification || '--'}`"
             is-link
             @click="onMaterialSelect(mat)"
           />
@@ -177,7 +177,7 @@
       const items = data.items || data.list || data.rows || data || []
       const list = Array.isArray(items) ? items : []
       warehouseOptions.value = list.map((w) => ({
-        text: w.name || w.warehouse_name || `仓库#${w.id}`,
+        text: w.warehouseName || `仓库#${w.id}`,
         value: String(w.id)
       }))
     } catch (error) {
@@ -233,27 +233,28 @@
 
   const onMaterialSelect = (mat) => {
     if (activeMaterialIndex.value >= 0) {
-      form.items[activeMaterialIndex.value].material_id = mat.id
-      form.items[activeMaterialIndex.value].material_name =
-        mat.name || mat.material_name || `物料#${mat.id}`
+      form.items[activeMaterialIndex.value].materialId = mat.id
+      form.items[activeMaterialIndex.value].materialName =
+        mat.name || mat.materialName || `物料#${mat.id}`
+      form.items[activeMaterialIndex.value].unitId = mat.unitId || null
     }
     showMaterialPicker.value = false
   }
 
-  // ==================== 表单 ====================
+  // ==================== 表单（纯 camel，后端 inventoryInboundMap.fromApi） ====================
   const form = reactive({
-    inbound_type: '采购入库',
-    inbound_type_value: 'purchase',
-    warehouse_id: null,
-    warehouse_name: '',
-    source_no: '',
+    inboundTypeLabel: '采购入库',
+    inboundType: 'purchase',
+    locationId: null,
+    locationName: '',
+    referenceNo: '',
     remarks: '',
-    items: [{ material_id: '', material_name: '', quantity: '' }]
+    items: [{ materialId: '', materialName: '', quantity: '', unitId: null }]
   })
 
   const onTypeConfirm = ({ selectedOptions }) => {
-    form.inbound_type = selectedOptions[0].text
-    form.inbound_type_value = selectedOptions[0].value
+    form.inboundTypeLabel = selectedOptions[0].text
+    form.inboundType = selectedOptions[0].value
     showTypePicker.value = false
   }
 
@@ -263,13 +264,13 @@
       showToast('请选择有效仓库')
       return
     }
-    form.warehouse_name = selectedOptions[0].text
-    form.warehouse_id = warehouseId
+    form.locationName = selectedOptions[0].text
+    form.locationId = warehouseId
     showWarehousePicker.value = false
   }
 
   const addItem = () => {
-    form.items.push({ material_id: '', material_name: '', quantity: '' })
+    form.items.push({ materialId: '', materialName: '', quantity: '', unitId: null })
   }
 
   const removeItem = (index) => {
@@ -277,12 +278,12 @@
   }
 
   const onSubmit = async () => {
-    if (form.items.some((item) => !item.material_id || !item.quantity)) {
+    if (form.items.some((item) => !item.materialId || !item.quantity)) {
       showToast('物料明细填写不完整')
       return
     }
 
-    if (!form.warehouse_id) {
+    if (!form.locationId) {
       showToast('请选择仓库')
       return
     }
@@ -290,13 +291,18 @@
     submitting.value = true
     try {
       const payload = {
-        inbound_type: form.inbound_type_value,
-        warehouse_id: form.warehouse_id,
-        source_no: form.source_no,
+        inboundType: form.inboundType,
+        locationId: form.locationId,
+        referenceNo: form.referenceNo || null,
         remarks: form.remarks,
+        status: 'draft',
+        operator: '',
+        inboundDate: new Date().toISOString().slice(0, 10),
         items: form.items.map((i) => ({
-          material_id: parseInt(i.material_id),
-          quantity: parseFloat(i.quantity)
+          materialId: parseInt(i.materialId, 10),
+          quantity: parseFloat(i.quantity),
+          unitId: i.unitId || null,
+          locationId: form.locationId
         }))
       }
 

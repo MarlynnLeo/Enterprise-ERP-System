@@ -81,10 +81,10 @@
 
     <!-- 无记录提示 -->
     <el-card v-if="statusLoaded && !statusInfo.hasRecords" class="empty-card">
-      <el-empty description="该年度尚未执行库存结存">
+      <EmptyState description="该年度尚未执行库存结存">
         <el-button type="primary" @click="handleExecute"
           v-permission="'inventory:stock:adjust'">立即执行结存</el-button>
-      </el-empty>
+      </EmptyState>
     </el-card>
 
     <!-- 结存明细表格 -->
@@ -98,63 +98,63 @@
         show-summary
         :summary-method="getYearEndSummary"
       >
-        <el-table-column prop="material_code" label="物料编码" width="140" />
-        <el-table-column prop="material_name" label="物料名称" width="200" />
+        <el-table-column prop="materialCode" label="物料编码" width="140" />
+        <el-table-column prop="materialName" label="物料名称" width="200" />
         <el-table-column prop="specification" label="规格" width="200" />
-        <el-table-column prop="unit_name" label="单位" width="60" />
-        <el-table-column prop="location_name" label="仓库" width="100" />
+        <el-table-column prop="unitName" label="单位" width="60" />
+        <el-table-column prop="locationName" label="仓库" width="100" />
         <el-table-column label="期初">
-          <el-table-column prop="opening_quantity" label="数量" width="100">
+          <el-table-column prop="openingQuantity" label="数量" width="100">
             <template #default="scope">
-              {{ formatNumber(scope.row.opening_quantity) }}
+              {{ formatNumber(scope.row.openingQuantity) }}
             </template>
           </el-table-column>
-          <el-table-column prop="opening_value" label="金额" width="120">
+          <el-table-column prop="openingValue" label="金额" width="120">
             <template #default="scope">
-              {{ formatCurrency(scope.row.opening_value) }}
+              {{ formatCurrency(scope.row.openingValue) }}
             </template>
           </el-table-column>
         </el-table-column>
         <el-table-column label="入库">
-          <el-table-column prop="inbound_quantity" label="数量" width="100">
+          <el-table-column prop="inboundQuantity" label="数量" width="100">
             <template #default="scope">
-              {{ formatNumber(scope.row.inbound_quantity) }}
+              {{ formatNumber(scope.row.inboundQuantity) }}
             </template>
           </el-table-column>
-          <el-table-column prop="inbound_value" label="金额" width="120">
+          <el-table-column prop="inboundValue" label="金额" width="120">
             <template #default="scope">
-              {{ formatCurrency(scope.row.inbound_value) }}
+              {{ formatCurrency(scope.row.inboundValue) }}
             </template>
           </el-table-column>
         </el-table-column>
         <el-table-column label="出库">
-          <el-table-column prop="outbound_quantity" label="数量" width="100">
+          <el-table-column prop="outboundQuantity" label="数量" width="100">
             <template #default="scope">
-              {{ formatNumber(scope.row.outbound_quantity) }}
+              {{ formatNumber(scope.row.outboundQuantity) }}
             </template>
           </el-table-column>
-          <el-table-column prop="outbound_value" label="金额" width="120">
+          <el-table-column prop="outboundValue" label="金额" width="120">
             <template #default="scope">
-              {{ formatCurrency(scope.row.outbound_value) }}
+              {{ formatCurrency(scope.row.outboundValue) }}
             </template>
           </el-table-column>
         </el-table-column>
         <el-table-column label="期末">
-          <el-table-column prop="closing_quantity" label="数量" width="100">
+          <el-table-column prop="closingQuantity" label="数量" width="100">
             <template #default="scope">
-              {{ formatNumber(scope.row.closing_quantity) }}
+              {{ formatNumber(scope.row.closingQuantity) }}
             </template>
           </el-table-column>
-          <el-table-column prop="closing_value" label="金额" width="120">
+          <el-table-column prop="closingValue" label="金额" width="120">
             <template #default="scope">
-              {{ formatCurrency(scope.row.closing_value) }}
+              {{ formatCurrency(scope.row.closingValue) }}
             </template>
           </el-table-column>
         </el-table-column>
         <el-table-column label="状态" width="80">
           <template #default="scope">
-            <el-tag :type="scope.row.is_frozen ? 'danger' : 'success'" size="small">
-              {{ scope.row.is_frozen ? '冻结' : '正常' }}
+            <el-tag :type="scope.row.isFrozen ? 'danger' : 'success'" size="small">
+              {{ scope.row.isFrozen ? '冻结' : '正常' }}
             </el-tag>
           </template>
         </el-table-column>
@@ -206,9 +206,9 @@
         </el-descriptions>
 
         <el-table :data="previewData.rows || []" border height="320" size="small">
-          <el-table-column prop="material_code" label="物料编码" width="120" />
-          <el-table-column prop="material_name" label="物料名称" min-width="160" />
-          <el-table-column prop="location_name" label="仓库" width="120" />
+          <el-table-column prop="materialCode" label="物料编码" width="120" />
+          <el-table-column prop="materialName" label="物料名称" min-width="160" />
+          <el-table-column prop="locationName" label="仓库" width="120" />
           <el-table-column prop="openingQuantity" label="期初" width="100">
             <template #default="{ row }">{{ formatNumber(row.openingQuantity) }}</template>
           </el-table-column>

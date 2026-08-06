@@ -3,7 +3,12 @@
  * @description 提供统一的API响应格式和数据转换功能
  * @author ERP开发团队
  * @date 2025-01-27
+ *
+ * SSOT：HTTP 出参一律 camelCase。DB/SQL 保持 snake；转换只在此边界发生。
+ * 控制器内可继续 mapKeysToCamel（幂等），未包一层的历史接口也会被统一。
  */
+
+const { mapKeysToCamel } = require('./fieldMap');
 
 /**
  * 响应处理器
@@ -20,7 +25,7 @@ class ResponseHandler {
     return res.status(code).json({
       success: true,
       message,
-      data,
+      data: mapKeysToCamel(data),
       timestamp: new Date().toISOString(),
     });
   }
@@ -46,14 +51,14 @@ class ResponseHandler {
     return res.status(200).json({
       success: true,
       message,
-      data: {
+      data: mapKeysToCamel({
         list,
         total,
         page: parseInt(page),
         pageSize: parseInt(pageSize),
         totalPages: Math.ceil(total / pageSize),
         ...(extra && typeof extra === 'object' ? extra : {}),
-      },
+      }),
       timestamp: new Date().toISOString(),
     });
   }

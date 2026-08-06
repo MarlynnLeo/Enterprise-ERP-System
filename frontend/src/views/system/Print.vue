@@ -71,12 +71,12 @@
         <el-table-column prop="id" label="ID" width="80"></el-table-column>
         <el-table-column prop="name" label="模板名称" width="240"></el-table-column>
         <el-table-column prop="module" label="所属模块" width="120"></el-table-column>
-        <el-table-column prop="template_type" label="模板类型" width="240"></el-table-column>
-        <el-table-column prop="paper_size" label="纸张大小" width="120"></el-table-column>
+        <el-table-column prop="templateType" label="模板类型" width="240"></el-table-column>
+        <el-table-column prop="paperSize" label="纸张大小" width="120"></el-table-column>
         <el-table-column label="是否默认" width="100">
           <template #default="scope">
-            <el-tag :type="scope.row.is_default ? 'success' : 'info'">
-              {{ scope.row.is_default ? '是' : '否' }}
+            <el-tag :type="scope.row.isDefault ? 'success' : 'info'">
+              {{ scope.row.isDefault ? '是' : '否' }}
             </el-tag>
           </template>
         </el-table-column>
@@ -87,7 +87,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" width="180"></el-table-column>
+        <el-table-column prop="createdAt" label="创建时间" width="180"></el-table-column>
         <el-table-column label="操作" min-width="375" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <div class="operation-buttons">
@@ -163,11 +163,11 @@
     </template>
 
     <!-- 打印模板对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="templateDialogVisible"
       :title="currentTemplate.id ? '编辑打印模板' : '添加打印模板'"
-      width="60%"
-      destroy-on-close
+      mode="form"
+      wide
     >
       <el-form
         ref="templateFormRef"
@@ -190,7 +190,7 @@
           </el-select>
         </el-form-item>
 
-        <el-form-item label="模板类型" prop="template_type">
+        <el-form-item label="模板类型" prop="templateType">
           <el-select v-model="currentTemplate.template_type" placeholder="选择模板类型" class="w-full">
             <el-option
               v-for="item in templateTypeOptions"
@@ -203,7 +203,7 @@
 
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="纸张大小" prop="paper_size">
+            <el-form-item label="纸张大小" prop="paperSize">
               <PaperSizeSelect v-model="currentTemplate.paper_size" placeholder="选择纸张大小" />
             </el-form-item>
           </el-col>
@@ -297,7 +297,7 @@
 
         <el-form-item label="是否默认">
           <el-switch
-            v-model="currentTemplate.is_default"
+            v-model="currentTemplate.isDefault"
             :active-value="1"
             :inactive-value="0"
             active-text="是"
@@ -322,7 +322,7 @@
           <el-button v-permission="currentTemplate.id ? 'system:print:update' : 'system:print:create'" type="primary" @click="savePrintTemplate">保存</el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
 
     <!-- 模板预览对话框 -->
     <AppDialog
@@ -538,7 +538,7 @@ const fetchPrintTemplates = async () => {
     printTemplates.value = templateData.map(template => ({
       ...template,
       status: Number(template.status),
-      is_default: Number(template.is_default)
+      is_default: Number(template.isDefault)
     }))
 
     templatesTotal.value = total

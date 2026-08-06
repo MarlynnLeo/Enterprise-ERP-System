@@ -8,8 +8,10 @@ jest.mock('../../src/utils/logger', () => ({
 
 const {
   moduleOf,
+  normalizePermissionCode,
   ensurePermission,
   syncRolePermissionsFromMenus,
+  bindMenuPermission,
 } = require('../../src/services/PermissionRegistry');
 
 function mockConn(handlers) {
@@ -27,6 +29,33 @@ describe('PermissionRegistry', () => {
   test('moduleOf 取首段', () => {
     expect(moduleOf('finance:ar:view')).toBe('finance');
     expect(moduleOf('dashboard')).toBe('dashboard');
+  });
+
+  test('normalizePermissionCode 折叠双动作后缀', () => {
+    expect(normalizePermissionCode('contract:view:view')).toBe('contract:view');
+    expect(normalizePermissionCode('finance:cost:view:view')).toBe('finance:cost:view');
+    expect(normalizePermissionCode('finance:budget:edit:create')).toBe('finance:budget:create');
+    expect(normalizePermissionCode('finance:ap:view')).toBe('finance:ap:view');
+    expect(normalizePermissionCode('production:data-view:view')).toBe('production:data-view:view');
+  });
+
+  test('bindMenuPermission 同步 permission 与 permission_id', async () => {
+    const conn = mockConn([
+      {
+        match: (sql) => sql.includes('SELECT id FROM permissions'),
+        result: [[{ id: 83 }]],
+      },
+      {
+        match: (sql) => sql.includes('UPDATE menus SET permission'),
+        result: [{ affectedRows: 1 }],
+      },
+    ]);
+    const id = await bindMenuPermission(conn, 2265, 'contract:view:view', '查看');
+    expect(id).toBe(83);
+    expect(conn.execute).toHaveBeenCalledWith(
+      'UPDATE menus SET permission = ?, permission_id = ? WHERE id = ?',
+      ['contract:view', 83, 2265]
+    );
   });
 
   test('ensurePermission 已存在则返回 id', async () => {

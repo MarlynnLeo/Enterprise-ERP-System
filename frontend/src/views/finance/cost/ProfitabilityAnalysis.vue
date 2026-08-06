@@ -70,30 +70,30 @@
         <el-tab-pane label="产品盈利分析" name="products">
           <el-table :data="productList" border v-loading="productsLoading" stripe>
             <el-table-column type="index" label="#" width="50" />
-            <el-table-column prop="product_code" label="产品编码" width="120" />
-            <el-table-column prop="product_name" label="产品名称" min-width="180" />
-            <el-table-column prop="total_quantity" label="销售数量" width="100" />
+            <el-table-column prop="productCode" label="产品编码" width="120" />
+            <el-table-column prop="productName" label="产品名称" min-width="180" />
+            <el-table-column prop="totalQuantity" label="销售数量" width="100" />
             <el-table-column label="销售收入" width="130">
               <template #default="{ row }">
-                {{ formatCurrency(row.total_revenue) }}
+                {{ formatCurrency(row.totalRevenue) }}
               </template>
             </el-table-column>
             <el-table-column label="销售成本" width="130">
               <template #default="{ row }">
-                {{ formatCurrency(row.total_cost) }}
+                {{ formatCurrency(row.totalCost) }}
               </template>
             </el-table-column>
             <el-table-column label="毛利润" width="130">
               <template #default="{ row }">
-                <span :class="{ positive: row.gross_profit >= 0, negative: row.gross_profit < 0 }">
-                  {{ formatCurrency(row.gross_profit) }}
+                <span :class="{ positive: row.grossProfit >= 0, negative: row.grossProfit < 0 }">
+                  {{ formatCurrency(row.grossProfit) }}
                 </span>
               </template>
             </el-table-column>
             <el-table-column label="毛利率" width="100">
               <template #default="{ row }">
-                <el-tag :type="getMarginType(row.gross_margin)" size="small">
-                  {{ row.gross_margin }}%
+                <el-tag :type="getMarginType(row.grossMargin)" size="small">
+                  {{ row.grossMargin }}%
                 </el-tag>
               </template>
             </el-table-column>
@@ -104,30 +104,30 @@
         <el-tab-pane label="客户盈利贡献" name="customers">
           <el-table :data="customerList" border v-loading="customersLoading" stripe>
             <el-table-column type="index" label="#" width="50" />
-            <el-table-column prop="customer_code" label="客户编码" width="120" />
-            <el-table-column prop="customer_name" label="客户名称" min-width="200" />
-            <el-table-column prop="order_count" label="订单数" width="80" />
+            <el-table-column prop="customerCode" label="客户编码" width="120" />
+            <el-table-column prop="customerName" label="客户名称" min-width="200" />
+            <el-table-column prop="orderCount" label="订单数" width="80" />
             <el-table-column label="销售总额" width="130">
               <template #default="{ row }">
-                {{ formatCurrency(row.total_revenue) }}
+                {{ formatCurrency(row.totalRevenue) }}
               </template>
             </el-table-column>
             <el-table-column label="成本总额" width="130">
               <template #default="{ row }">
-                {{ formatCurrency(row.total_cost) }}
+                {{ formatCurrency(row.totalCost) }}
               </template>
             </el-table-column>
             <el-table-column label="贡献毛利" width="130">
               <template #default="{ row }">
-                <span :class="{ positive: row.gross_profit >= 0, negative: row.gross_profit < 0 }">
-                  {{ formatCurrency(row.gross_profit) }}
+                <span :class="{ positive: row.grossProfit >= 0, negative: row.grossProfit < 0 }">
+                  {{ formatCurrency(row.grossProfit) }}
                 </span>
               </template>
             </el-table-column>
             <el-table-column label="毛利率" width="100">
               <template #default="{ row }">
-                <el-tag :type="getMarginType(row.gross_margin)" size="small">
-                  {{ row.gross_margin }}%
+                <el-tag :type="getMarginType(row.grossMargin)" size="small">
+                  {{ row.grossMargin }}%
                 </el-tag>
               </template>
             </el-table-column>

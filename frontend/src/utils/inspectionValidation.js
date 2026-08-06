@@ -167,8 +167,8 @@ export const isGeneralTemplate = (template) => {
   }
 
   // 没有关联物料也视为通用
-  if (!template.material_type &&
-      (!template.material_types || template.material_types.length === 0)) {
+  if (!template.materialType &&
+      (!template.materialTypes || template.materialTypes.length === 0)) {
     return true
   }
 

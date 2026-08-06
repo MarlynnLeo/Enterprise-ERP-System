@@ -130,9 +130,10 @@
     </el-card>
 
     <!-- 添加/编辑账户对话框 -->
-    <el-dialog
-      :title="dialogTitle"
+    <AppDialog
       v-model="dialogVisible"
+      :title="dialogTitle"
+      mode="form"
       width="600px"
     >
       <el-form :model="accountForm" :rules="accountRules" ref="accountFormRef" label-width="100px">
@@ -221,13 +222,14 @@
           <el-button v-permission="isNewAccount ? 'finance:cash:create' : 'finance:cash:update'" type="primary" @click="saveAccount" :loading="saveLoading">确认</el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
 
     <!-- 交易明细对话框 -->
-    <el-dialog
-      :title="`${selectedAccount.accountName} - 交易明细`"
+    <AppDialog
       v-model="transactionsDialogVisible"
-      width="900px"
+      :title="`${selectedAccount.accountName} - 交易明细`"
+      mode="view"
+      content-width="wide"
     >
       <div class="transaction-filters">
         <el-form :inline="true" class="search-form" :model="transactionSearchForm">
@@ -269,29 +271,29 @@
         :max-height="450"
         show-overflow-tooltip
       >
-        <el-table-column prop="transaction_date" label="交易日期" width="100"></el-table-column>
+        <el-table-column prop="transactionDate" label="交易日期" width="100"></el-table-column>
         <el-table-column label="交易类型" width="90">
           <template #default="scope">
             <el-tag
-              :type="getTransactionTagType(scope.row.transaction_type)"
+              :type="getTransactionTagType(scope.row.transactionType)"
             >
-              {{ scope.row.transaction_type }}
+              {{ scope.row.transactionType }}
             </el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="amount" label="交易金额" width="130">
           <template #default="scope">
-            <span :class="[getAmountClass(scope.row.transaction_type, scope.row.amount)]">
+            <span :class="[getAmountClass(scope.row.transactionType, scope.row.amount)]">
               {{ formatCurrency(scope.row.amount) }}
             </span>
           </template>
         </el-table-column>
         <el-table-column prop="description" label="交易描述" min-width="200" show-overflow-tooltip></el-table-column>
-        <el-table-column prop="reference_number" label="参考号" width="120" show-overflow-tooltip></el-table-column>
-        <el-table-column prop="is_reconciled" label="对账状态" width="90">
+        <el-table-column prop="referenceNumber" label="参考号" width="120" show-overflow-tooltip></el-table-column>
+        <el-table-column prop="isReconciled" label="对账状态" width="90">
           <template #default="scope">
-            <el-tag :type="scope.row.is_reconciled ? 'success' : 'info'">
-              {{ scope.row.is_reconciled ? '已对账' : '未对账' }}
+            <el-tag :type="scope.row.isReconciled ? 'success' : 'info'">
+              {{ scope.row.isReconciled ? '已对账' : '未对账' }}
             </el-tag>
           </template>
         </el-table-column>
@@ -309,7 +311,7 @@
         >
         </el-pagination>
       </div>
-    </el-dialog>
+        </AppDialog>
   </div>
 </template>
 

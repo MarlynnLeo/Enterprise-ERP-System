@@ -55,12 +55,12 @@
           <el-tag :type="statusTagMap[row.status]" size="small">{{ statusLabel[row.status] }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="party_b" label="对方单位" min-width="160" show-overflow-tooltip />
-      <el-table-column prop="total_amount" label="金额" width="130">
-        <template #default="{ row }">{{ formatAmount(row.total_amount) }}</template>
+      <el-table-column prop="partyB" label="对方单位" min-width="160" show-overflow-tooltip />
+      <el-table-column prop="totalAmount" label="金额" width="130">
+        <template #default="{ row }">{{ formatAmount(row.totalAmount) }}</template>
       </el-table-column>
-      <el-table-column prop="effective_date" label="生效日期" width="110" />
-      <el-table-column prop="expiry_date" label="到期日期" width="110" />
+      <el-table-column prop="effectiveDate" label="生效日期" width="110" />
+      <el-table-column prop="expiryDate" label="到期日期" width="110" />
       <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
         <template #default="{ row }">
           <el-button class="btn-op-view" type="primary" size="small" @click="viewDetail(row)">查看</el-button>
@@ -79,7 +79,12 @@
     </el-card>
 
     <!-- 合同表单对话框 -->
-    <el-dialog v-model="formVisible" :title="formData.id ? '编辑合同' : '新建合同'" width="800px" destroy-on-close>
+    <AppDialog
+      v-model="formVisible"
+      :title="formData.id ? '编辑合同' : '新建合同'"
+      mode="form"
+      width="800px"
+    >
       <el-form :model="formData" label-width="100px">
         <el-row :gutter="16">
           <el-col :span="12">
@@ -101,34 +106,34 @@
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="甲方" required>
-              <el-input v-model="formData.party_a" />
+              <el-input v-model="formData.partyA" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="乙方" required>
-              <el-input v-model="formData.party_b" />
+              <el-input v-model="formData.partyB" />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="16">
           <el-col :span="8">
             <el-form-item label="合同金额">
-              <el-input-number v-model="formData.total_amount" :min="0" :precision="2" class="w-full" />
+              <el-input-number v-model="formData.totalAmount" :min="0" :precision="2" class="w-full" />
             </el-form-item>
           </el-col>
           <el-col :span="8">
             <el-form-item label="生效日期">
-              <el-date-picker v-model="formData.effective_date" type="date" value-format="YYYY-MM-DD" class="w-full" />
+              <el-date-picker v-model="formData.effectiveDate" type="date" value-format="YYYY-MM-DD" class="w-full" />
             </el-form-item>
           </el-col>
           <el-col :span="8">
             <el-form-item label="到期日期">
-              <el-date-picker v-model="formData.expiry_date" type="date" value-format="YYYY-MM-DD" class="w-full" />
+              <el-date-picker v-model="formData.expiryDate" type="date" value-format="YYYY-MM-DD" class="w-full" />
             </el-form-item>
           </el-col>
         </el-row>
         <el-form-item label="付款条件">
-          <el-input v-model="formData.payment_terms" type="textarea" :rows="2" />
+          <el-input v-model="formData.paymentTerms" type="textarea" :rows="2" />
         </el-form-item>
         <el-form-item label="合同摘要">
           <el-input v-model="formData.content" type="textarea" :rows="3" />
@@ -138,7 +143,7 @@
         <el-button @click="formVisible = false">取消</el-button>
         <el-button type="primary" v-permission="formData.id ? 'contract:edit' : 'contract:create'" @click="handleSave" :loading="saving">保存</el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
 
     <!-- 合同详情对话框 -->
     <AppDialog
@@ -155,35 +160,35 @@
           <el-descriptions-item label="状态">
             <el-tag :type="statusTagMap[detailData.status]">{{ statusLabel[detailData.status] }}</el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="甲方">{{ detailData.party_a }}</el-descriptions-item>
-          <el-descriptions-item label="乙方">{{ detailData.party_b }}</el-descriptions-item>
-          <el-descriptions-item label="合同金额">{{ formatAmount(detailData.total_amount) }}</el-descriptions-item>
-          <el-descriptions-item label="执行进度">{{ detailData.execution_rate }}%</el-descriptions-item>
-          <el-descriptions-item label="生效日期">{{ detailData.effective_date || '--' }}</el-descriptions-item>
-          <el-descriptions-item label="到期日期">{{ detailData.expiry_date || '--' }}</el-descriptions-item>
+          <el-descriptions-item label="甲方">{{ detailData.partyA }}</el-descriptions-item>
+          <el-descriptions-item label="乙方">{{ detailData.partyB }}</el-descriptions-item>
+          <el-descriptions-item label="合同金额">{{ formatAmount(detailData.totalAmount) }}</el-descriptions-item>
+          <el-descriptions-item label="执行进度">{{ detailData.executionRate }}%</el-descriptions-item>
+          <el-descriptions-item label="生效日期">{{ detailData.effectiveDate || '--' }}</el-descriptions-item>
+          <el-descriptions-item label="到期日期">{{ detailData.expiryDate || '--' }}</el-descriptions-item>
         </el-descriptions>
 
         <h4 style="margin:16px 0 8px">合同明细</h4>
         <el-table :data="detailData.items || []" border size="small" max-height="200">
-          <el-table-column prop="material_name" label="物料名称" />
+          <el-table-column prop="materialName" label="物料名称" />
           <el-table-column prop="specification" label="规格" />
           <el-table-column prop="quantity" label="数量" width="80" />
-          <el-table-column prop="unit_price" label="单价" width="100" />
+          <el-table-column prop="unitPrice" label="单价" width="100" />
           <el-table-column prop="amount" label="金额" width="120" />
         </el-table>
 
         <h4 style="margin:16px 0 8px">执行记录</h4>
         <el-table :data="detailData.executions || []" border size="small" max-height="200">
-          <el-table-column prop="execution_type" label="类型" width="100" />
-          <el-table-column prop="business_code" label="单据编号" />
+          <el-table-column prop="executionType" label="类型" width="100" />
+          <el-table-column prop="businessCode" label="单据编号" />
           <el-table-column prop="amount" label="金额" width="120" />
-          <el-table-column prop="executed_at" label="时间" width="160" />
+          <el-table-column prop="executedAt" label="时间" width="160" />
         </el-table>
 
         <h4 style="margin:16px 0 8px">关联单据</h4>
-        <el-table :data="detailData.document_links || []" border size="small" max-height="200">
-          <el-table-column prop="related_type_label" label="关联类型" width="120" />
-          <el-table-column prop="related_code" label="单据编号" />
+        <el-table :data="detailData.documentLinks || []" border size="small" max-height="200">
+          <el-table-column prop="relatedTypeLabel" label="关联类型" width="120" />
+          <el-table-column prop="relatedCode" label="单据编号" />
           <el-table-column prop="direction" label="方向" width="80">
             <template #default="{ row }">{{ row.direction === 'forward' ? '→ 下游' : '← 上游' }}</template>
           </el-table-column>

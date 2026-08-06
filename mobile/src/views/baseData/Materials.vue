@@ -50,8 +50,8 @@
       icon: 'cube',
       details: [
         { label: '规格', field: 'specs' },
-        { label: '单位', field: 'unit_name' },
-        { label: '分类', field: 'category_name' }
+        { label: '单位', field: 'unitName' },
+        { label: '分类', field: 'categoryName' }
       ]
     },
     detailRoute: '/basedata/materials/:id'

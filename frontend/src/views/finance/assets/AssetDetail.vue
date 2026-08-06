@@ -78,26 +78,26 @@
                     <div class="log-remarks" v-if="log.remarks">{{ log.remarks }}</div>
                   </div>
                 </el-timeline-item>
-                <el-empty v-if="changeLogs.length === 0" description="暂无变动记录"></el-empty>
+                <EmptyState v-if="changeLogs.length === 0" description="暂无变动记录" />
               </el-timeline>
             </el-tab-pane>
 
             <el-tab-pane label="折旧历史" name="depreciation">
               <el-table :data="depreciationHistory" v-loading="depHistoryLoading" class="w-full" size="small" border max-height="400">
-                <el-table-column prop="depreciation_date" label="折旧日期" width="100">
-                  <template #default="scope">{{ formatDate(scope.row.depreciation_date) }}</template>
+                <el-table-column prop="depreciationDate" label="折旧日期" width="100">
+                  <template #default="scope">{{ formatDate(scope.row.depreciationDate) }}</template>
                 </el-table-column>
-                <el-table-column prop="depreciation_amount" label="折旧金额">
+                <el-table-column prop="depreciationAmount" label="折旧金额">
                   <template #default="scope">
-                    <span class="amount-text">{{ formatCurrency(scope.row.depreciation_amount) }}</span>
+                    <span class="amount-text">{{ formatCurrency(scope.row.depreciationAmount) }}</span>
                   </template>
                 </el-table-column>
-                <el-table-column prop="book_value_after" label="折旧后净值">
-                  <template #default="scope">{{ formatCurrency(scope.row.book_value_after) }}</template>
+                <el-table-column prop="bookValueAfter" label="折旧后净值">
+                  <template #default="scope">{{ formatCurrency(scope.row.bookValueAfter) }}</template>
                 </el-table-column>
-                <el-table-column prop="voucher_no" label="总账凭证号" width="180">
+                <el-table-column prop="voucherNo" label="总账凭证号" width="180">
                   <template #default="scope">
-                    <el-tag v-if="scope.row.voucher_no" type="success" size="small">{{ scope.row.voucher_no }}</el-tag>
+                    <el-tag v-if="scope.row.voucherNo" type="success" size="small">{{ scope.row.voucherNo }}</el-tag>
                     <span v-else class="text-muted">-</span>
                   </template>
                 </el-table-column>
@@ -105,16 +105,16 @@
             </el-tab-pane>
             <el-tab-pane label="减值记录" name="impairment">
               <el-table :data="impairmentHistory" v-loading="impLoading" class="w-full" size="small" border max-height="400">
-                <el-table-column prop="impairment_date" label="减值日期" width="100">
-                  <template #default="scope">{{ formatDate(scope.row.impairment_date) }}</template>
+                <el-table-column prop="impairmentDate" label="减值日期" width="100">
+                  <template #default="scope">{{ formatDate(scope.row.impairmentDate) }}</template>
                 </el-table-column>
-                <el-table-column prop="impairment_amount" label="减值金额">
+                <el-table-column prop="impairmentAmount" label="减值金额">
                   <template #default="scope">
-                    <span class="amount-text danger-text">{{ formatCurrency(scope.row.impairment_amount) }}</span>
+                    <span class="amount-text danger-text">{{ formatCurrency(scope.row.impairmentAmount) }}</span>
                   </template>
                 </el-table-column>
                 <el-table-column prop="reason" label="减值原因" show-overflow-tooltip></el-table-column>
-                <el-table-column prop="handled_by" label="经办人" width="100"></el-table-column>
+                <el-table-column prop="handledBy" label="经办人" width="100"></el-table-column>
               </el-table>
             </el-tab-pane>
           </el-tabs>
@@ -123,7 +123,12 @@
     </div>
 
     <!-- 计提减值对话框 -->
-    <el-dialog v-model="impairmentDialogVisible" title="计提资产减值" width="500px">
+    <AppDialog
+      v-model="impairmentDialogVisible"
+      title="计提资产减值"
+      mode="form"
+      width="500px"
+    >
       <el-form :model="impairmentForm" :rules="impairmentRules" ref="impairmentFormRef" label-width="100px">
         <el-alert
           title="当前资产净值"
@@ -132,10 +137,10 @@
           :closable="false"
           class="mb-20"
         />
-        <el-form-item label="减值金额" prop="impairment_amount">
+        <el-form-item label="减值金额" prop="impairmentAmount">
           <el-input-number v-model="impairmentForm.impairment_amount" :min="0.01" :max="assetInfo.netValue" :precision="2" :step="100" class="w-full" />
         </el-form-item>
-        <el-form-item label="减值日期" prop="impairment_date">
+        <el-form-item label="减值日期" prop="impairmentDate">
           <el-date-picker v-model="impairmentForm.impairment_date" type="date" value-format="YYYY-MM-DD" class="w-full" />
         </el-form-item>
         <el-form-item label="减值原因" prop="reason">
@@ -148,7 +153,7 @@
           <el-button v-permission="'finance:assets:update'" type="danger" @click="submitImpairment" :loading="submitLoading">确认计提</el-button>
         </div>
       </template>
-    </el-dialog>
+        </AppDialog>
   </div>
 </template>
 

@@ -17,38 +17,38 @@
           {{ getStatusLabel(inspection.status) }}
         </div>
         <div class="inspection-no">
-          {{ inspection.inspection_number || inspection.inspection_no }}
+          {{ inspection.inspectionNo }}
         </div>
       </div>
 
       <!-- 基本信息 -->
       <CellGroup inset title="基本信息">
-        <Cell title="工单号" :value="inspection.reference_no || '--'" />
-        <Cell title="生产工序" :value="inspection.process_name || '--'" />
-        <Cell title="产品名称" :value="inspection.item_name || '--'" />
+        <Cell title="工单号" :value="inspection.referenceNo || '--'" />
+        <Cell title="生产工序" :value="inspection.processName || '--'" />
+        <Cell title="产品名称" :value="inspection.itemName || inspection.productName || '--'" />
         <Cell
           title="检验日期"
-          :value="formatDate(inspection.actual_date || inspection.created_at)"
+          :value="formatDate(inspection.actualDate || inspection.createdAt)"
         />
       </CellGroup>
 
       <!-- 数量信息 -->
       <CellGroup inset title="数量信息">
         <Cell title="待检数量" :value="`${inspection.quantity || 0} ${inspection.unit || '件'}`" />
-        <Cell title="抽检数量" :value="`${inspection.sample_size || 0}`" />
+        <Cell title="抽检数量" :value="`${inspection.sampleSize || 0}`" />
       </CellGroup>
 
       <!-- 检验结果 -->
       <CellGroup v-if="inspection.status !== 'pending'" inset title="检验结果录入">
         <Field
-          v-model="inspectForm.qualified_quantity"
+          v-model="inspectForm.qualifiedQuantity"
           type="digit"
           label="合格数量"
           placeholder="请输入有效合格数"
           :readonly="inspection.status !== 'in_progress'"
         />
         <Field
-          v-model="inspectForm.unqualified_quantity"
+          v-model="inspectForm.unqualifiedQuantity"
           type="digit"
           label="不合格数量"
           placeholder="请输入不合格数"
@@ -60,7 +60,7 @@
       <!-- 备注 -->
       <CellGroup inset title="备注">
         <Field
-          v-model="inspectForm.remark"
+          v-model="inspectForm.note"
           type="textarea"
           rows="2"
           autosize
@@ -107,9 +107,9 @@
   const inspection = ref(null)
 
   const inspectForm = reactive({
-    qualified_quantity: 0,
-    unqualified_quantity: 0,
-    remark: ''
+    qualifiedQuantity: 0,
+    unqualifiedQuantity: 0,
+    note: ''
   })
 
   const getStatusLabel = (status) => {
@@ -140,8 +140,8 @@
   }
 
   const calculatePassRate = () => {
-    const q = Number(inspectForm.qualified_quantity) || 0
-    const uq = Number(inspectForm.unqualified_quantity) || 0
+    const q = Number(inspectForm.qualifiedQuantity) || 0
+    const uq = Number(inspectForm.unqualifiedQuantity) || 0
     const total = q + uq
     if (total === 0) return 0
     return Math.round((q / total) * 100)
@@ -151,10 +151,10 @@
     if (route.query.data) {
       try {
         inspection.value = JSON.parse(route.query.data)
-        inspectForm.qualified_quantity =
-          inspection.value.qualified_quantity || inspection.value.quantity || 0
-        inspectForm.unqualified_quantity = inspection.value.unqualified_quantity || 0
-        inspectForm.remark = inspection.value.remark || ''
+        inspectForm.qualifiedQuantity =
+          inspection.value.qualifiedQuantity ?? inspection.value.quantity ?? 0
+        inspectForm.unqualifiedQuantity = inspection.value.unqualifiedQuantity || 0
+        inspectForm.note = inspection.value.note || ''
       } catch (e) {
         console.error('解析检验数据失败:', e)
         showToast('数据加载失败')
@@ -170,10 +170,10 @@
       const data = extractApiData(response, null)
       if (data?.id) {
         inspection.value = data
-        inspectForm.qualified_quantity =
-          inspection.value.qualified_quantity || inspection.value.quantity || 0
-        inspectForm.unqualified_quantity = inspection.value.unqualified_quantity || 0
-        inspectForm.remark = inspection.value.remark || ''
+        inspectForm.qualifiedQuantity =
+          inspection.value.qualifiedQuantity ?? inspection.value.quantity ?? 0
+        inspectForm.unqualifiedQuantity = inspection.value.unqualifiedQuantity || 0
+        inspectForm.note = inspection.value.note || ''
       } else {
         showToast('未找到检验记录')
       }
@@ -195,8 +195,8 @@
   }
 
   const handleComplete = async () => {
-    const q = Number(inspectForm.qualified_quantity) || 0
-    const uq = Number(inspectForm.unqualified_quantity) || 0
+    const q = Number(inspectForm.qualifiedQuantity) || 0
+    const uq = Number(inspectForm.unqualifiedQuantity) || 0
     if (q + uq <= 0) {
       showToast('请输入有效的数量')
       return
@@ -205,12 +205,12 @@
     try {
       await showConfirmDialog({ title: '确认完成', message: '确定完成此次检验记录提交吗？' })
       const status = uq > 0 ? 'failed' : 'passed'
+      // 纯 camel，后端 qualityInspectionMap.fromApi
       await qualityApi.completeInspection(inspection.value.id, {
-        qualified_quantity: q,
-        unqualified_quantity: uq,
+        qualifiedQuantity: q,
+        unqualifiedQuantity: uq,
         status,
-        result: status,
-        remark: inspectForm.remark
+        note: inspectForm.note
       })
       showToast('检验已完成')
       inspection.value.status = status

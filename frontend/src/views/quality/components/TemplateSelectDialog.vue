@@ -7,14 +7,19 @@
  */
 -->
 <template>
-  <el-dialog v-model="dialogVisible" title="选择检验模板" width="550px" destroy-on-close>
+  <AppDialog
+    v-model="dialogVisible"
+    title="选择检验模板"
+    mode="form"
+    width="550px"
+  >
     <div class="template-selection">
       <p class="tip">该物料存在多个检验模板，请选择一个应用：</p>
       <el-radio-group v-model="selectedId" class="template-radio-group">
         <div v-for="tmpl in templates" :key="tmpl.id" class="template-option">
           <el-radio :value="tmpl.id">
             <div class="template-info">
-              <span class="template-name">{{ tmpl.template_name }}</span>
+              <span class="template-name">{{ tmpl.templateName }}</span>
               <span class="template-desc">{{ tmpl.description || '无描述' }}</span>
               <span class="template-items">
                 检验项: {{ (tmpl.items || tmpl.InspectionItems || []).length }} 项
@@ -29,7 +34,7 @@
       <el-button @click="handleCancel">取消</el-button>
       <el-button type="primary" @click="handleConfirm" :disabled="!selectedId">确认</el-button>
     </template>
-  </el-dialog>
+    </AppDialog>
 </template>
 
 <script setup>

@@ -14,6 +14,7 @@
 const { ResponseHandler } = require('../../../../utils/responseHandler');
 const { logger } = require('../../../../utils/logger');
 const { validationResult } = require('express-validator');
+const { mapKeysToSnake } = require('../../../../utils/fieldMap');
 const cashTransactionService = require('../../../../services/cashTransactionService');
 const CashTransactionModel = require('../../../../models/cash/CashTransaction');
 const { getAuthenticatedUserId } = require('../../../../utils/authContext');
@@ -105,14 +106,15 @@ const cashTransactionController = {
         return ResponseHandler.validationError(res, errors.array());
       }
 
+      const body = mapKeysToSnake(req.body || {});
       const transactionData = {
-        transaction_type: req.body.type || req.body.transaction_type,
-        transaction_date: req.body.transactionDate || req.body.transaction_date,
-        amount: parseFloat(req.body.amount),
-        category: req.body.category,
-        counterparty: req.body.counterparty,
-        description: req.body.description,
-        reference_number: req.body.referenceNumber || req.body.reference_number,
+        transaction_type: body.type || body.transactionType,
+        transaction_date: body.transaction_date,
+        amount: parseFloat(body.amount),
+        category: body.category,
+        counterparty: body.counterparty,
+        description: body.description,
+        reference_number: body.reference_number,
         ...ScopeGuard.stampOwner(req, 'cash_transaction'),
       };
 
@@ -152,14 +154,15 @@ const cashTransactionController = {
         return;
       }
 
+      const body = mapKeysToSnake(req.body || {});
       const transactionData = {
-        transaction_type: req.body.type || req.body.transaction_type,
-        transaction_date: req.body.transactionDate || req.body.transaction_date,
-        amount: parseFloat(req.body.amount),
-        category: req.body.category,
-        counterparty: req.body.counterparty,
-        description: req.body.description,
-        reference_number: req.body.referenceNumber || req.body.reference_number,
+        transaction_type: body.type || body.transactionType,
+        transaction_date: body.transaction_date,
+        amount: parseFloat(body.amount),
+        category: body.category,
+        counterparty: body.counterparty,
+        description: body.description,
+        reference_number: body.reference_number,
         updated_by: getAuthenticatedUserId(req),
       };
 

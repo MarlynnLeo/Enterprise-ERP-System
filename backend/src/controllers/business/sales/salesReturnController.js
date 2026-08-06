@@ -5,6 +5,7 @@
  */
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 const { logger } = require('../../../utils/logger');
 const { softDelete } = require('../../../utils/softDelete');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
@@ -14,6 +15,10 @@ const { parsePagination, appendPaginationSQL } = require('../../../utils/safePag
 
 const { STATUS, getConnection } = require('./salesShared');
 const { getRequestActorLabel } = require('../../../utils/userUtils');
+const {
+  salesReturnMap,
+  salesReturnItemMap,
+} = require('../../../utils/sales/salesFieldMap');
 
 const SALES_RETURN_STATUS_LABELS = {
   [STATUS.SALES_RETURN.DRAFT]: '草稿',
@@ -47,7 +52,8 @@ const assertSalesReturnQuantities = async (connection, orderId, items = [], excl
   if (!orderId || !Array.isArray(items) || items.length === 0) return;
 
   for (const item of items) {
-    const productId = item.product_id || item.material_id;
+    // HTTP 入参只认 camel（productId / materialId）
+    const productId = item.productId || item.materialId;
     const returnQty = parseFloat(item.quantity) || 0;
     if (!productId || returnQty <= 0) continue;
 
@@ -260,7 +266,7 @@ exports.getSalesReturns = async (req, res) => {
     });
 
     return ResponseHandler.success(res, {
-      items: results,
+      items: results.map((r) => salesReturnMap.toApi(r)),
       total,
       page: pagination.page,
       pageSize: pagination.pageSize,
@@ -328,7 +334,13 @@ exports.getSalesReturnById = async (req, res) => {
     returnData.items = detailsResults;
     returnData.total_amount = detailsResults.reduce((sum, d) => sum + (parseFloat(d.amount) || 0), 0);
 
-    return ResponseHandler.success(res, returnData);
+    const api = salesReturnMap.toApi(returnData);
+    api.statusLabel = returnData.status_label;
+    api.totalAmount = returnData.total_amount;
+    if (Array.isArray(detailsResults)) {
+      api.items = detailsResults.map((it) => salesReturnItemMap.toApi(it));
+    }
+    return ResponseHandler.success(res, api);
   } catch (error) {
     logger.error('获取销售退货单详情失败:', error);
     ResponseHandler.error(res, '获取销售退货单详情失败', 'SERVER_ERROR', 500);
@@ -349,7 +361,7 @@ exports.createSalesReturn = async (req, res) => {
       status,
       remarks,
       items,
-    } = req.body;
+    } = mapKeysToSnake(req.body || {});
 
     // 验证必要参数（支持基于出库单或订单的退货）
     if (!return_date || !return_reason) {
@@ -393,7 +405,8 @@ exports.createSalesReturn = async (req, res) => {
     // 【新增】超额退货防范机制，严格校验累退货数量不得超过原订单购买数量
     if (finalOrderId && items && items.length > 0) {
       for (const item of items) {
-        const productId = item.product_id;
+        // HTTP 明细只认 camel
+        const productId = item.productId || item.materialId;
         const returnQty = parseFloat(item.quantity) || 0;
 
         const [orderItemResult] = await connection.query(
@@ -466,7 +479,7 @@ exports.createSalesReturn = async (req, res) => {
 
       const detailValues = items.map((item) => [
         returnId,
-        item.product_id,
+        item.productId || item.materialId,
         item.quantity,
         item.reason || '',
       ]);
@@ -509,7 +522,7 @@ exports.updateSalesReturn = async (req, res) => {
   let connection;
   try {
     const { id } = req.params;
-    const { return_date, order_id, outbound_id, return_reason, status, remarks, items } = req.body;
+    const { return_date, order_id, outbound_id, return_reason, status, remarks, items } = mapKeysToSnake(req.body || {});
 
     const bodyKeys = Object.keys(req.body || {});
     if (bodyKeys.length === 1 && bodyKeys[0] === 'status') {
@@ -581,7 +594,8 @@ exports.updateSalesReturn = async (req, res) => {
     // 【新增】超额退货防范机制
      if (finalOrderId && items && items.length > 0) {
       for (const item of items) {
-        const productId = item.product_id;
+        // HTTP 明细只认 camel
+        const productId = item.productId || item.materialId;
         const returnQty = parseFloat(item.quantity) || 0;
 
         const [orderItemResult] = await connection.query(
@@ -659,7 +673,7 @@ exports.updateSalesReturn = async (req, res) => {
 
       const detailValues = items.map((item) => [
         id,
-        item.product_id,
+        item.productId || item.materialId,
         item.quantity,
         item.reason || '',
       ]);
@@ -672,8 +686,9 @@ exports.updateSalesReturn = async (req, res) => {
 
      if (status === STATUS.SALES_RETURN.COMPLETED && items && items.length > 0) {
       for (const item of items) {
-        const productId = item.product_id || item.productId || item.material_id;
-        const quantity = item.quantity || item.return_quantity;
+        // HTTP 明细只认 camel
+        const productId = item.productId || item.materialId;
+        const quantity = item.quantity || item.returnQuantity;
 
         if (!productId || !quantity) {
           continue;

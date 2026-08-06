@@ -21,9 +21,9 @@ import { parseResponseData } from '@/utils/responseParser'
 /** 采购订单是否已设置有效供应商（用于提交审批前校验） */
 export function hasPurchaseOrderSupplier(order) {
   if (!order) return false
-  const id = order.supplier_id ?? order.supplierId
+  const id = order.supplierId ?? order.supplierId
   if (id === null || id === undefined || id === '' || id === 0 || id === '0') return false
-  const name = order.supplier_name ?? order.supplierName
+  const name = order.supplierName ?? order.supplierName
   if (name === '暂无设置供应商') return false
   return true
 }
@@ -55,7 +55,7 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
   const receiveDialogLoading = ref(false)
   const receiveForm = reactive({ order_id: null, order_no: '', items: [] })
   const receiveTableRef = ref(null)
-  const totalReceiveQuantity = computed(() => receiveForm.items.reduce((sum, item) => sum + parseFloat(item.receive_quantity || 0), 0))
+  const totalReceiveQuantity = computed(() => receiveForm.items.reduce((sum, item) => sum + parseFloat(item.receiveQuantity || 0), 0))
 
   const unwrapBusinessData = (response) => parseResponseData(response, {})
 
@@ -117,23 +117,23 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
     if (!Array.isArray(items) || items.length === 0) return []
     return items.map(item => {
       const quantity = toNumberOrNull(item.quantity) ?? 0
-      const price = toNumberOrNull(item.price ?? item.unit_price)
-      const explicitTotal = toNumberOrNull(item.total_price ?? item.totalPrice ?? item.amount)
+      const price = toNumberOrNull(item.price ?? item.unitPrice)
+      const explicitTotal = toNumberOrNull(item.totalPrice ?? item.totalPrice ?? item.amount)
       const totalPrice = explicitTotal ?? (price === null ? null : quantity * price)
       return {
-        material_id: item.material_id || item.materialId || item.id || '',
-        material_code: item.material_code || item.materialCode || item.code || '',
-        material_name: item.material_name || item.materialName || item.name || '',
-        specification: item.specification || '', unit: item.unit || item.unitName || item.unit_name || '',
+        material_id: item.materialId || item.id || '',
+        material_code: item.materialCode || item.code || '',
+        material_name: item.materialName || item.name || '',
+        specification: item.specification || '', unit: item.unit || item.unitName || '',
         quantity, price,
         total_price: totalPrice,
-        tax_rate: toNumberOrNull(item.tax_rate) ?? 0,
-        tax_amount: toNumberOrNull(item.tax_amount),
-        received_quantity: toNumberOrNull(item.received_quantity) ?? 0,
-        warehoused_quantity: toNumberOrNull(item.warehoused_quantity) ?? 0,
-        received_percentage: toNumberOrNull(item.received_percentage) ?? 0,
-        warehoused_percentage: toNumberOrNull(item.warehoused_percentage) ?? 0,
-        pending_quantity: toNumberOrNull(item.pending_quantity) ?? 0
+        tax_rate: toNumberOrNull(item.taxRate) ?? 0,
+        tax_amount: toNumberOrNull(item.taxAmount),
+        received_quantity: toNumberOrNull(item.receivedQuantity) ?? 0,
+        warehoused_quantity: toNumberOrNull(item.warehousedQuantity) ?? 0,
+        received_percentage: toNumberOrNull(item.receivedPercentage) ?? 0,
+        warehoused_percentage: toNumberOrNull(item.warehousedPercentage) ?? 0,
+        pending_quantity: toNumberOrNull(item.pendingQuantity) ?? 0
       }
     })
   }
@@ -148,15 +148,15 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
         let items = data.items || data.orderItems || data.materialItems || []
         items = fixItemsStructure(items)
         Object.assign(viewData, {
-          id: data.id, order_number: data.order_no || data.orderNo || '',
-          order_date: formatDate(data.order_date || data.orderDate || ''),
-          expected_delivery_date: formatDate(data.expected_delivery_date || data.expectedDeliveryDate || ''),
-          supplier_id: data.supplier_id || data.supplierId || '', supplier_name: data.supplier_name || data.supplierName || '',
-          contact_person: data.contact_person || data.contactPerson || '', contact_phone: data.contact_phone || data.contactPhone || '',
+          id: data.id, order_number: data.orderNo || '',
+          order_date: formatDate(data.orderDate || ''),
+          expected_delivery_date: formatDate(data.expectedDeliveryDate || ''),
+          supplier_id: data.supplierId || '', supplier_name: data.supplierName || '',
+          contact_person: data.contactPerson || '', contact_phone: data.contactPhone || '',
           notes: data.notes || data.remarks || '', status: data.status || '',
-          total_amount: data.total_amount ?? data.totalAmount ?? null,
-          requisition_id: data.requisition_id || data.requisitionId || null,
-          requisition_number: data.requisition_number || data.requisitionNumber || '', items
+          total_amount: data.totalAmount ?? data.totalAmount ?? null,
+          requisition_id: data.requisitionId || null,
+          requisition_number: data.requisitionNumber || '', items
         })
       } else { ElMessage.warning('获取不到订单详情') }
     } catch (error) { console.error('获取采购订单详情失败:', error); ElMessage.error('获取采购订单详情失败: ' + (error.message || '未知错误')) }
@@ -216,34 +216,34 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
       const orderRes = await purchaseApi.getOrder(order.id)
       if (!orderRes || !orderRes.data) { ElMessage.error('获取订单信息失败'); receiveDialogVisible.value = false; return }
       const orderData = parseResponseData(orderRes)
-      receiveForm.order_id = orderData.id; receiveForm.order_no = orderData.order_number || orderData.order_no
-      receiveForm.supplier_id = orderData.supplier_id; receiveForm.supplier_code = orderData.supplier_code
-      receiveForm.supplier_name = orderData.supplier_name
+      receiveForm.orderId = orderData.id; receiveForm.orderNo = orderData.orderNumber || orderData.orderNo
+      receiveForm.supplierId = orderData.supplierId; receiveForm.supplier_code = orderData.supplier_code
+      receiveForm.supplierName = orderData.supplierName
       const items = orderData.items || []
       receiveForm.items = items.map(item => {
-        const pendingQty = parseFloat(item.quantity || 0) - parseFloat(item.received_quantity || 0)
+        const pendingQty = parseFloat(item.quantity || 0) - parseFloat(item.receivedQuantity || 0)
         return { ...item, receive_quantity: pendingQty > 0 ? pendingQty : 0, pending_quantity: pendingQty }
       })
-      const hasPendingItems = receiveForm.items.some(item => parseFloat(item.pending_quantity || 0) > 0)
+      const hasPendingItems = receiveForm.items.some(item => parseFloat(item.pendingQuantity || 0) > 0)
       if (!hasPendingItems) { ElMessage.info('该订单所有物料已全部收货完成'); receiveDialogVisible.value = false }
     } catch (error) { console.error('打开到货对话框失败:', error); ElMessage.error('打开到货对话框失败: ' + (error.message || '未知错误')); receiveDialogVisible.value = false }
     finally { receiveDialogLoading.value = false }
   }
 
   const handleReceiveQuantityChange = (row) => {
-    let qty = parseFloat(row.receive_quantity); if (isNaN(qty) || qty < 0) qty = 0
-    const maxQty = parseFloat(row.quantity || 0) - parseFloat(row.received_quantity || 0)
+    let qty = parseFloat(row.receiveQuantity); if (isNaN(qty) || qty < 0) qty = 0
+    const maxQty = parseFloat(row.quantity || 0) - parseFloat(row.receivedQuantity || 0)
     if (qty > maxQty) { qty = maxQty; ElMessage.warning(`到货数量不能超过待收货数量 ${maxQty.toFixed(2)}`) }
-    row.receive_quantity = qty.toFixed(2)
+    row.receiveQuantity = qty.toFixed(2)
   }
 
   const confirmReceive = async () => {
     try {
-      const receivingItems = receiveForm.items.filter(item => parseFloat(item.receive_quantity || 0) > 0)
+      const receivingItems = receiveForm.items.filter(item => parseFloat(item.receiveQuantity || 0) > 0)
       if (receivingItems.length === 0) { ElMessage.warning('请至少选择一个物料并填写到货数量'); return }
       receiveDialogLoading.value = true
-      const result = unwrapBusinessData(await purchaseApi.receiveOrderWithInspection(receiveForm.order_id, receivingItems))
-      const allReceived = receiveForm.items.every(item => { const totalReceived = parseFloat(item.received_quantity || 0) + parseFloat(item.receive_quantity || 0); return totalReceived >= parseFloat(item.quantity || 0) })
+      const result = unwrapBusinessData(await purchaseApi.receiveOrderWithInspection(receiveForm.orderId, receivingItems))
+      const allReceived = receiveForm.items.every(item => { const totalReceived = parseFloat(item.receivedQuantity || 0) + parseFloat(item.receiveQuantity || 0); return totalReceived >= parseFloat(item.quantity || 0) })
       const statusText = allReceived ? '已收货' : '部分收货'
       ElMessage.success(`到货成功！已为 ${result.successCount || 0} 个物料生成检验单，订单状态已更新为${statusText}`)
       receiveDialogVisible.value = false
@@ -257,11 +257,11 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
       const orderRes = await purchaseApi.getOrder(order.id)
       if (!orderRes || !orderRes.data) { ElMessage.error('获取订单信息失败'); return }
       const orderData = parseResponseData(orderRes); const items = orderData.items || []
-      const pendingItems = items.filter(item => { const pendingQty = parseFloat(item.quantity) - parseFloat(item.received_quantity || 0); return pendingQty > 0 })
+      const pendingItems = items.filter(item => { const pendingQty = parseFloat(item.quantity) - parseFloat(item.receivedQuantity || 0); return pendingQty > 0 })
       if (pendingItems.length === 0) { ElMessage.info('该订单所有物料已全部收货完成'); return }
-      const totalPendingQty = pendingItems.reduce((sum, item) => sum + (parseFloat(item.quantity) - parseFloat(item.received_quantity || 0)), 0)
+      const totalPendingQty = pendingItems.reduce((sum, item) => sum + (parseFloat(item.quantity) - parseFloat(item.receivedQuantity || 0)), 0)
       await ElMessageBox.confirm(`确定要收货剩余的 ${totalPendingQty.toFixed(2)} 个物料吗？收货后将自动生成检验单并更新收货状态。`, '确认收货', { confirmButtonText: '确定收货', cancelButtonText: '取消', type: 'info' })
-      const receivingItems = pendingItems.map(item => { const pendingQty = parseFloat(item.quantity) - parseFloat(item.received_quantity || 0); return { ...item, receive_quantity: pendingQty, quantity: pendingQty, received_quantity: pendingQty, warehoused_quantity: pendingQty } })
+      const receivingItems = pendingItems.map(item => { const pendingQty = parseFloat(item.quantity) - parseFloat(item.receivedQuantity || 0); return { ...item, receive_quantity: pendingQty, quantity: pendingQty, received_quantity: pendingQty, warehoused_quantity: pendingQty } })
       const result = unwrapBusinessData(await purchaseApi.receiveOrderWithInspection(order.id, receivingItems))
       ElMessage.success(`收货成功！已为 ${result.successCount || 0} 个物料生成检验单，订单状态已更新为已收货`)
       if (loadOrdersCallback) await loadOrdersCallback()
@@ -279,37 +279,37 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
         ElMessage.warning('系统设置读取失败，已使用默认公司信息')
       }
       const printData = {
-        ...companyInfo, order_number: viewData.order_number || viewData.order_no || '', order_no: viewData.order_number || viewData.order_no || '',
+        ...companyInfo, order_number: viewData.orderNumber || viewData.orderNo || '', order_no: viewData.orderNumber || viewData.orderNo || '',
         order_date: formatDate(viewData.order_date), expected_delivery_date: formatDate(viewData.expected_delivery_date), delivery_date: formatDate(viewData.expected_delivery_date),
-        supplier_name: viewData.supplier_name || '', contact_person: viewData.contact_person || '-', contact_phone: viewData.contact_phone || '-',
+        supplier_name: viewData.supplierName || '', contact_person: viewData.contact_person || '-', contact_phone: viewData.contact_phone || '-',
         status: getStatusText(viewData.status), notes: viewData.notes || '', remark: viewData.notes || '', contract_code: viewData.contract_code || '-',
-        subtotal: formatPlainAmount(viewData.total_amount), tax_amount: formatPlainAmount(viewData.tax_amount), total_amount: formatPlainAmount(viewData.total_amount),
+        subtotal: formatPlainAmount(viewData.totalAmount), tax_amount: formatPlainAmount(viewData.tax_amount), total_amount: formatPlainAmount(viewData.totalAmount),
         total_quantity: (viewData.items || []).reduce((sum, item) => sum + parseFloat(item.quantity || 0), 0).toFixed(2),
         print_time: new Date().toLocaleString('zh-CN'),
         items: (viewData.items || []).map((item, index) => {
           const quantity = parseFloat(item.quantity || 0)
-          const priceSource = item.price ?? item.unit_price
+          const priceSource = item.price ?? item.unitPrice
           const price = isBlankAmount(priceSource) ? null : Number(priceSource)
-          const totalPriceSource = item.total_price ?? item.amount
+          const totalPriceSource = item.totalPrice ?? item.amount
           const totalPrice = isBlankAmount(totalPriceSource)
             ? (price === null ? null : quantity * price)
             : Number(totalPriceSource)
           return {
             ...item,
             index: index + 1,
-            material_code: item.material_code || item.code || item.product_code || '-',
-            product_code: item.material_code || item.code || item.product_code || '-',
-            material_name: item.material_name || item.name || item.product_name || '-',
-            product_name: item.material_name || item.name || item.product_name || '-',
+            material_code: item.materialCode || item.code || item.productCode || '-',
+            product_code: item.materialCode || item.code || item.productCode || '-',
+            material_name: item.materialName || item.name || item.productName || '-',
+            product_name: item.materialName || item.name || item.productName || '-',
             specification: item.specification || item.specs || item.model || '-',
-            unit: item.unit || item.unit_name || item.Unit || '-',
-            unit_name: item.unit || item.unit_name || item.Unit || '-',
+            unit: item.unit || item.unitName || item.Unit || '-',
+            unit_name: item.unit || item.unitName || item.Unit || '-',
             quantity: quantity.toFixed(2),
             price: formatPlainAmount(price),
             unit_price: formatPlainAmount(price),
             total_price: formatPlainAmount(totalPrice),
             amount: formatPlainAmount(totalPrice),
-            delivery_date: formatDate(item.delivery_date || viewData.expected_delivery_date || '')
+            delivery_date: formatDate(item.deliveryDate || viewData.expected_delivery_date || '')
           }
         })
       }
@@ -324,9 +324,9 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
       const pendingCount = orderList.value.filter(item => item.status === 'pending').length
       const approvedCount = orderList.value.filter(item => item.status === 'approved').length
       const completedCount = orderList.value.filter(item => item.status === 'completed').length
-      const totalAmount = orderList.value.some(item => isBlankAmount(item.total_amount))
+      const totalAmount = orderList.value.some(item => isBlankAmount(item.totalAmount))
         ? null
-        : orderList.value.reduce((sum, item) => { const amount = parseFloat(item.total_amount); return sum + (isNaN(amount) ? 0 : amount) }, 0)
+        : orderList.value.reduce((sum, item) => { const amount = parseFloat(item.totalAmount); return sum + (isNaN(amount) ? 0 : amount) }, 0)
       orderStats.value = { total, totalAmount, pendingCount, approvedCount, completedCount }
     } catch (error) { console.error('计算订单统计数据失败:', error) }
   }

@@ -15,21 +15,21 @@
         <!-- 基本信息 -->
         <CellGroup inset title="基本信息">
           <Field
-            v-model="form.batch_no"
+            v-model="form.batchNo"
             name="batch_no"
             label="批次号"
             placeholder="请输入批次号"
             :rules="[{ required: true, message: '请输入批次号' }]"
           />
           <Field
-            v-model="form.material_name"
+            v-model="form.materialName"
             name="material_name"
             label="物料名称"
             placeholder="请输入物料名称"
             :rules="[{ required: true, message: '请输入物料名称' }]"
           />
           <Field
-            v-model="form.supplier_name"
+            v-model="form.supplierName"
             name="supplier_name"
             label="供应商"
             placeholder="请输入供应商名称"
@@ -48,7 +48,7 @@
           />
           <Field v-model="form.unit" name="unit" label="单位" placeholder="件/kg/m" />
           <Field
-            v-model="form.sample_size"
+            v-model="form.sampleSize"
             name="sample_size"
             label="抽检数量"
             type="number"
@@ -59,7 +59,7 @@
         <!-- 检验信息 -->
         <CellGroup inset title="检验信息">
           <Field
-            v-model="form.planned_date"
+            v-model="form.plannedDate"
             name="planned_date"
             label="检验日期"
             placeholder="请选择检验日期"
@@ -69,7 +69,7 @@
             :rules="[{ required: true, message: '请选择检验日期' }]"
           />
           <Field
-            v-model="form.inspection_method"
+            v-model="form.inspectionMethod"
             name="inspection_method"
             label="检验类型"
             placeholder="请选择检验类型"
@@ -171,7 +171,7 @@
 
   // 日期确认
   const onDateConfirm = ({ selectedValues }) => {
-    form.value.planned_date = selectedValues.join('-')
+    form.value.plannedDate = selectedValues.join('-')
     showDatePicker.value = false
   }
 
@@ -189,11 +189,11 @@
     try {
       const data = {
         inspection_type: 'incoming',
-        batch_no: form.value.batch_no,
-        product_name: form.value.material_name,
+        batch_no: form.value.batchNo,
+        product_name: form.value.materialName,
         quantity: Number(form.value.quantity),
         unit: form.value.unit,
-        planned_date: form.value.planned_date,
+        planned_date: form.value.plannedDate,
         note: form.value.note || undefined,
         status: 'pending'
       }

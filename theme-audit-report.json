@@ -1,0 +1,784 @@
+﻿{
+  "themes": [
+    "default",
+    "tech",
+    "business",
+    "vibrant",
+    "nature",
+    "dark",
+    "premium",
+    "professional",
+    "kacon"
+  ],
+  "tokenCounts": {
+    "default": 90,
+    "tech": 100,
+    "business": 92,
+    "vibrant": 97,
+    "nature": 95,
+    "dark": 95,
+    "premium": 111,
+    "professional": 102,
+    "kacon": 125
+  },
+  "dataThemeAttrs": {
+    "default": [
+      "default"
+    ],
+    "tech": [
+      "tech"
+    ],
+    "business": [
+      "business"
+    ],
+    "vibrant": [
+      "vibrant"
+    ],
+    "nature": [
+      "nature"
+    ],
+    "dark": [
+      "dark"
+    ],
+    "premium": [
+      "premium"
+    ],
+    "professional": [
+      "professional"
+    ],
+    "kacon": [
+      "kacon"
+    ]
+  },
+  "coreCoverage": {
+    "--color-primary": {
+      "have": 9,
+      "miss": []
+    },
+    "--color-success": {
+      "have": 9,
+      "miss": []
+    },
+    "--color-warning": {
+      "have": 9,
+      "miss": []
+    },
+    "--color-danger": {
+      "have": 9,
+      "miss": []
+    },
+    "--color-info": {
+      "have": 9,
+      "miss": []
+    },
+    "--color-text-primary": {
+      "have": 9,
+      "miss": []
+    },
+    "--color-text-regular": {
+      "have": 9,
+      "miss": []
+    },
+    "--color-text-secondary": {
+      "have": 9,
+      "miss": []
+    },
+    "--color-text-placeholder": {
+      "have": 9,
+      "miss": []
+    },
+    "--color-text-disabled": {
+      "have": 9,
+      "miss": []
+    },
+    "--color-bg-base": {
+      "have": 9,
+      "miss": []
+    },
+    "--color-bg-page": {
+      "have": 9,
+      "miss": []
+    },
+    "--color-bg-section": {
+      "have": 9,
+      "miss": []
+    },
+    "--color-bg-hover": {
+      "have": 9,
+      "miss": []
+    },
+    "--color-bg-overlay": {
+      "have": 9,
+      "miss": []
+    },
+    "--color-bg-light": {
+      "have": 9,
+      "miss": []
+    },
+    "--color-border-base": {
+      "have": 9,
+      "miss": []
+    },
+    "--color-border-light": {
+      "have": 9,
+      "miss": []
+    },
+    "--color-border-lighter": {
+      "have": 9,
+      "miss": []
+    },
+    "--color-border-extra-light": {
+      "have": 9,
+      "miss": []
+    },
+    "--color-primary-light-3": {
+      "have": 9,
+      "miss": []
+    },
+    "--color-primary-light-5": {
+      "have": 9,
+      "miss": []
+    },
+    "--color-primary-light-7": {
+      "have": 9,
+      "miss": []
+    },
+    "--color-primary-light-8": {
+      "have": 9,
+      "miss": []
+    },
+    "--color-primary-light-9": {
+      "have": 9,
+      "miss": []
+    },
+    "--color-primary-dark-2": {
+      "have": 9,
+      "miss": []
+    },
+    "--color-success-light": {
+      "have": 9,
+      "miss": []
+    },
+    "--color-warning-light": {
+      "have": 9,
+      "miss": []
+    },
+    "--color-danger-light": {
+      "have": 9,
+      "miss": []
+    },
+    "--color-info-light": {
+      "have": 9,
+      "miss": []
+    },
+    "--el-color-primary": {
+      "have": 0,
+      "miss": [
+        "default",
+        "tech",
+        "business",
+        "vibrant",
+        "nature",
+        "dark",
+        "premium",
+        "professional",
+        "kacon"
+      ]
+    },
+    "--el-bg-color": {
+      "have": 0,
+      "miss": [
+        "default",
+        "tech",
+        "business",
+        "vibrant",
+        "nature",
+        "dark",
+        "premium",
+        "professional",
+        "kacon"
+      ]
+    },
+    "--el-text-color-primary": {
+      "have": 0,
+      "miss": [
+        "default",
+        "tech",
+        "business",
+        "vibrant",
+        "nature",
+        "dark",
+        "premium",
+        "professional",
+        "kacon"
+      ]
+    },
+    "--el-border-color": {
+      "have": 0,
+      "miss": [
+        "default",
+        "tech",
+        "business",
+        "vibrant",
+        "nature",
+        "dark",
+        "premium",
+        "professional",
+        "kacon"
+      ]
+    },
+    "--shell-sidebar-bg": {
+      "have": 0,
+      "miss": [
+        "default",
+        "tech",
+        "business",
+        "vibrant",
+        "nature",
+        "dark",
+        "premium",
+        "professional",
+        "kacon"
+      ]
+    },
+    "--shell-header-bg": {
+      "have": 0,
+      "miss": [
+        "default",
+        "tech",
+        "business",
+        "vibrant",
+        "nature",
+        "dark",
+        "premium",
+        "professional",
+        "kacon"
+      ]
+    },
+    "--shell-accent": {
+      "have": 2,
+      "miss": [
+        "default",
+        "tech",
+        "business",
+        "vibrant",
+        "nature",
+        "dark",
+        "professional"
+      ]
+    },
+    "--shell-control-hover-bg": {
+      "have": 2,
+      "miss": [
+        "default",
+        "tech",
+        "business",
+        "vibrant",
+        "nature",
+        "dark",
+        "professional"
+      ]
+    },
+    "--theme-dialog-radius": {
+      "have": 4,
+      "miss": [
+        "tech",
+        "business",
+        "vibrant",
+        "nature",
+        "dark"
+      ]
+    },
+    "--theme-dialog-footer-bg": {
+      "have": 0,
+      "miss": [
+        "default",
+        "tech",
+        "business",
+        "vibrant",
+        "nature",
+        "dark",
+        "premium",
+        "professional",
+        "kacon"
+      ]
+    },
+    "--radius-sm": {
+      "have": 9,
+      "miss": []
+    },
+    "--radius-md": {
+      "have": 9,
+      "miss": []
+    },
+    "--radius-lg": {
+      "have": 9,
+      "miss": []
+    },
+    "--shadow-sm": {
+      "have": 9,
+      "miss": []
+    },
+    "--shadow-md": {
+      "have": 9,
+      "miss": []
+    },
+    "--shadow-lg": {
+      "have": 9,
+      "miss": []
+    },
+    "--spacing-xs": {
+      "have": 9,
+      "miss": []
+    },
+    "--spacing-sm": {
+      "have": 9,
+      "miss": []
+    },
+    "--spacing-md": {
+      "have": 9,
+      "miss": []
+    },
+    "--spacing-lg": {
+      "have": 9,
+      "miss": []
+    },
+    "--spacing-xl": {
+      "have": 9,
+      "miss": []
+    },
+    "--font-size-base": {
+      "have": 9,
+      "miss": []
+    },
+    "--font-family-base": {
+      "have": 9,
+      "miss": []
+    },
+    "--theme-feature-card-bg": {
+      "have": 0,
+      "miss": [
+        "default",
+        "tech",
+        "business",
+        "vibrant",
+        "nature",
+        "dark",
+        "premium",
+        "professional",
+        "kacon"
+      ]
+    },
+    "--theme-feature-card-color": {
+      "have": 0,
+      "miss": [
+        "default",
+        "tech",
+        "business",
+        "vibrant",
+        "nature",
+        "dark",
+        "premium",
+        "professional",
+        "kacon"
+      ]
+    },
+    "--theme-feature-card-border": {
+      "have": 0,
+      "miss": [
+        "default",
+        "tech",
+        "business",
+        "vibrant",
+        "nature",
+        "dark",
+        "premium",
+        "professional",
+        "kacon"
+      ]
+    },
+    "--theme-feature-card-shadow": {
+      "have": 0,
+      "miss": [
+        "default",
+        "tech",
+        "business",
+        "vibrant",
+        "nature",
+        "dark",
+        "premium",
+        "professional",
+        "kacon"
+      ]
+    },
+    "--theme-feature-card-hover-shadow": {
+      "have": 0,
+      "miss": [
+        "default",
+        "tech",
+        "business",
+        "vibrant",
+        "nature",
+        "dark",
+        "premium",
+        "professional",
+        "kacon"
+      ]
+    },
+    "--theme-feature-card-decor": {
+      "have": 0,
+      "miss": [
+        "default",
+        "tech",
+        "business",
+        "vibrant",
+        "nature",
+        "dark",
+        "premium",
+        "professional",
+        "kacon"
+      ]
+    },
+    "--color-on-primary": {
+      "have": 9,
+      "miss": []
+    },
+    "--color-border": {
+      "have": 0,
+      "miss": [
+        "default",
+        "tech",
+        "business",
+        "vibrant",
+        "nature",
+        "dark",
+        "premium",
+        "professional",
+        "kacon"
+      ]
+    }
+  },
+  "coreMissingByTheme": {
+    "default": [
+      "--el-color-primary",
+      "--el-bg-color",
+      "--el-text-color-primary",
+      "--el-border-color",
+      "--shell-sidebar-bg",
+      "--shell-header-bg",
+      "--shell-accent",
+      "--shell-control-hover-bg",
+      "--theme-dialog-footer-bg",
+      "--theme-feature-card-bg",
+      "--theme-feature-card-color",
+      "--theme-feature-card-border",
+      "--theme-feature-card-shadow",
+      "--theme-feature-card-hover-shadow",
+      "--theme-feature-card-decor",
+      "--color-border"
+    ],
+    "tech": [
+      "--el-color-primary",
+      "--el-bg-color",
+      "--el-text-color-primary",
+      "--el-border-color",
+      "--shell-sidebar-bg",
+      "--shell-header-bg",
+      "--shell-accent",
+      "--shell-control-hover-bg",
+      "--theme-dialog-radius",
+      "--theme-dialog-footer-bg",
+      "--theme-feature-card-bg",
+      "--theme-feature-card-color",
+      "--theme-feature-card-border",
+      "--theme-feature-card-shadow",
+      "--theme-feature-card-hover-shadow",
+      "--theme-feature-card-decor",
+      "--color-border"
+    ],
+    "business": [
+      "--el-color-primary",
+      "--el-bg-color",
+      "--el-text-color-primary",
+      "--el-border-color",
+      "--shell-sidebar-bg",
+      "--shell-header-bg",
+      "--shell-accent",
+      "--shell-control-hover-bg",
+      "--theme-dialog-radius",
+      "--theme-dialog-footer-bg",
+      "--theme-feature-card-bg",
+      "--theme-feature-card-color",
+      "--theme-feature-card-border",
+      "--theme-feature-card-shadow",
+      "--theme-feature-card-hover-shadow",
+      "--theme-feature-card-decor",
+      "--color-border"
+    ],
+    "vibrant": [
+      "--el-color-primary",
+      "--el-bg-color",
+      "--el-text-color-primary",
+      "--el-border-color",
+      "--shell-sidebar-bg",
+      "--shell-header-bg",
+      "--shell-accent",
+      "--shell-control-hover-bg",
+      "--theme-dialog-radius",
+      "--theme-dialog-footer-bg",
+      "--theme-feature-card-bg",
+      "--theme-feature-card-color",
+      "--theme-feature-card-border",
+      "--theme-feature-card-shadow",
+      "--theme-feature-card-hover-shadow",
+      "--theme-feature-card-decor",
+      "--color-border"
+    ],
+    "nature": [
+      "--el-color-primary",
+      "--el-bg-color",
+      "--el-text-color-primary",
+      "--el-border-color",
+      "--shell-sidebar-bg",
+      "--shell-header-bg",
+      "--shell-accent",
+      "--shell-control-hover-bg",
+      "--theme-dialog-radius",
+      "--theme-dialog-footer-bg",
+      "--theme-feature-card-bg",
+      "--theme-feature-card-color",
+      "--theme-feature-card-border",
+      "--theme-feature-card-shadow",
+      "--theme-feature-card-hover-shadow",
+      "--theme-feature-card-decor",
+      "--color-border"
+    ],
+    "dark": [
+      "--el-color-primary",
+      "--el-bg-color",
+      "--el-text-color-primary",
+      "--el-border-color",
+      "--shell-sidebar-bg",
+      "--shell-header-bg",
+      "--shell-accent",
+      "--shell-control-hover-bg",
+      "--theme-dialog-radius",
+      "--theme-dialog-footer-bg",
+      "--theme-feature-card-bg",
+      "--theme-feature-card-color",
+      "--theme-feature-card-border",
+      "--theme-feature-card-shadow",
+      "--theme-feature-card-hover-shadow",
+      "--theme-feature-card-decor",
+      "--color-border"
+    ],
+    "premium": [
+      "--el-color-primary",
+      "--el-bg-color",
+      "--el-text-color-primary",
+      "--el-border-color",
+      "--shell-sidebar-bg",
+      "--shell-header-bg",
+      "--theme-dialog-footer-bg",
+      "--theme-feature-card-bg",
+      "--theme-feature-card-color",
+      "--theme-feature-card-border",
+      "--theme-feature-card-shadow",
+      "--theme-feature-card-hover-shadow",
+      "--theme-feature-card-decor",
+      "--color-border"
+    ],
+    "professional": [
+      "--el-color-primary",
+      "--el-bg-color",
+      "--el-text-color-primary",
+      "--el-border-color",
+      "--shell-sidebar-bg",
+      "--shell-header-bg",
+      "--shell-accent",
+      "--shell-control-hover-bg",
+      "--theme-dialog-footer-bg",
+      "--theme-feature-card-bg",
+      "--theme-feature-card-color",
+      "--theme-feature-card-border",
+      "--theme-feature-card-shadow",
+      "--theme-feature-card-hover-shadow",
+      "--theme-feature-card-decor",
+      "--color-border"
+    ],
+    "kacon": [
+      "--el-color-primary",
+      "--el-bg-color",
+      "--el-text-color-primary",
+      "--el-border-color",
+      "--shell-sidebar-bg",
+      "--shell-header-bg",
+      "--theme-dialog-footer-bg",
+      "--theme-feature-card-bg",
+      "--theme-feature-card-color",
+      "--theme-feature-card-border",
+      "--theme-feature-card-shadow",
+      "--theme-feature-card-hover-shadow",
+      "--theme-feature-card-decor",
+      "--color-border"
+    ]
+  },
+  "uniqueTokenCounts": {
+    "default": 0,
+    "tech": 6,
+    "business": 2,
+    "vibrant": 8,
+    "nature": 6,
+    "dark": 2,
+    "premium": 1,
+    "professional": 10,
+    "kacon": 15
+  },
+  "hexCounts": {
+    "default": {
+      "hex": 43,
+      "rgba": 9
+    },
+    "tech": {
+      "hex": 46,
+      "rgba": 17
+    },
+    "business": {
+      "hex": 51,
+      "rgba": 9
+    },
+    "vibrant": {
+      "hex": 48,
+      "rgba": 12
+    },
+    "nature": {
+      "hex": 51,
+      "rgba": 11
+    },
+    "dark": {
+      "hex": 45,
+      "rgba": 13
+    },
+    "premium": {
+      "hex": 118,
+      "rgba": 62
+    },
+    "professional": {
+      "hex": 54,
+      "rgba": 11
+    },
+    "kacon": {
+      "hex": 65,
+      "rgba": 114
+    }
+  },
+  "componentRuleCounts": {
+    "default": 49,
+    "tech": 36,
+    "business": 28,
+    "vibrant": 32,
+    "nature": 32,
+    "dark": 65,
+    "premium": 127,
+    "professional": 90,
+    "kacon": 322
+  },
+  "issues": [
+    {
+      "severity": "high",
+      "theme": "*",
+      "msg": "Shell token --shell-sidebar-bg missing in compat and themes: default,tech,business,vibrant,nature,dark,premium,professional,kacon"
+    },
+    {
+      "severity": "high",
+      "theme": "*",
+      "msg": "Shell token --shell-header-bg missing in compat and themes: default,tech,business,vibrant,nature,dark,premium,professional,kacon"
+    }
+  ],
+  "fontSizeBase_default": "13px",
+  "fontSizeBase_tech": "16px",
+  "fontSizeBase_business": "16px",
+  "fontSizeBase_vibrant": "16px",
+  "fontSizeBase_nature": "16px",
+  "fontSizeBase_dark": "16px",
+  "fontSizeBase_premium": "14px",
+  "fontSizeBase_professional": "16px",
+  "fontSizeBase_kacon": "14px",
+  "shellCoverage": {
+    "--shell-sidebar-bg": {
+      "inCompat": false,
+      "themes": []
+    },
+    "--shell-header-bg": {
+      "inCompat": false,
+      "themes": []
+    },
+    "--shell-accent": {
+      "inCompat": true,
+      "themes": [
+        "premium",
+        "kacon"
+      ]
+    },
+    "--shell-control-hover-bg": {
+      "inCompat": true,
+      "themes": [
+        "premium",
+        "kacon"
+      ]
+    },
+    "--shell-control-border": {
+      "inCompat": true,
+      "themes": [
+        "premium",
+        "kacon"
+      ]
+    },
+    "--shell-radius-md": {
+      "inCompat": true,
+      "themes": [
+        "premium",
+        "kacon"
+      ]
+    }
+  },
+  "viewHardcodedHex": {
+    "files": 4,
+    "count": 15,
+    "samples": [
+      {
+        "file": "src/views/auth/components/DecorativeAvatarFrame.vue",
+        "n": 7
+      },
+      {
+        "file": "src/views/finance/components/FinanceStreamStatus.vue",
+        "n": 1
+      },
+      {
+        "file": "src/views/finance/gl/entries/EntryFormDialog.vue",
+        "n": 6
+      },
+      {
+        "file": "src/views/system/NotificationRules.vue",
+        "n": 1
+      }
+    ]
+  },
+  "kaconExtra": "kacon is the design SSOT with full component rules; others are token-heavy with fewer component overrides",
+  "issueSummary": {
+    "high": 2,
+    "medium": 0,
+    "low": 0
+  },
+  "missingCoreSummary": {
+    "default": 16,
+    "tech": 17,
+    "business": 17,
+    "vibrant": 17,
+    "nature": 17,
+    "dark": 17,
+    "premium": 14,
+    "professional": 16,
+    "kacon": 14
+  }
+}

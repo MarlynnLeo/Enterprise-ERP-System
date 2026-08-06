@@ -149,7 +149,7 @@ function onFrameImageError() {
   user-select: none;
   transform-origin: center center;
   /* 轻微投影，减轻「贴图假」 */
-  filter: drop-shadow(0 2px 6px color-mix(in srgb, var(--color-text-primary, #000) 12%, transparent));
+  filter: drop-shadow(0 2px 6px color-mix(in srgb, var(--color-text-primary) 12%, transparent));
 }
 
 .decorative-avatar {
@@ -164,8 +164,8 @@ function onFrameImageError() {
   font-size: calc(var(--avatar-size) * 0.32);
   font-weight: 600;
   box-shadow:
-    0 1px 2px color-mix(in srgb, var(--color-text-primary, #000) 8%, transparent),
-    0 4px 12px color-mix(in srgb, var(--color-text-primary, #000) 6%, transparent);
+    0 1px 2px color-mix(in srgb, var(--color-text-primary) 8%, transparent),
+    0 4px 12px color-mix(in srgb, var(--color-text-primary) 6%, transparent);
 }
 
 :deep(.decorative-avatar img) {
@@ -177,7 +177,7 @@ function onFrameImageError() {
 
 .is-none .decorative-avatar {
   border-color: var(--color-border-lighter, var(--el-border-color-lighter));
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--color-text-primary, #000) 6%, transparent);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--color-text-primary) 6%, transparent);
 }
 
 /* —— 动画优化：更柔、更慢，不再猛缩放 —— */
@@ -193,12 +193,12 @@ function onFrameImageError() {
   0%, 100% {
     transform: scale(1);
     opacity: 0.94;
-    filter: drop-shadow(0 2px 6px color-mix(in srgb, var(--color-text-primary, #000) 12%, transparent));
+    filter: drop-shadow(0 2px 6px color-mix(in srgb, var(--color-text-primary) 12%, transparent));
   }
   50% {
     transform: scale(1.018);
     opacity: 1;
-    filter: drop-shadow(0 3px 10px color-mix(in srgb, var(--color-text-primary, #000) 16%, transparent));
+    filter: drop-shadow(0 3px 10px color-mix(in srgb, var(--color-text-primary) 16%, transparent));
   }
 }
 
@@ -216,6 +216,6 @@ function onFrameImageError() {
 /* 顶栏等超小尺寸：减弱阴影即可 */
 .decorative-avatar-frame[style*='--frame-size: 44px'] .avatar-frame-image,
 .decorative-avatar-frame[style*='--frame-size: 48px'] .avatar-frame-image {
-  filter: drop-shadow(0 1px 3px color-mix(in srgb, var(--color-text-primary, #000) 10%, transparent));
+  filter: drop-shadow(0 1px 3px color-mix(in srgb, var(--color-text-primary) 10%, transparent));
 }
 </style>

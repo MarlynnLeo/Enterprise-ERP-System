@@ -86,7 +86,7 @@
         :max-height="standalone ? undefined : 360"
       >
         <template #empty>
-          <el-empty description="当前筛选下暂无明细" :image-size="64" />
+          <EmptyState description="当前筛选下暂无明细" ::image-size="64" />
         </template>
         <el-table-column prop="invoiceNumber" label="发票编号" min-width="150" fixed="left" />
         <el-table-column

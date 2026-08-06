@@ -23,21 +23,21 @@
       <!-- 用户列表 -->
       <el-tab-pane label="用户" name="users">
         <el-table :data="recipients" class="full-width-table" max-height="400">
-          <el-table-column prop="real_name" label="姓名" width="120" />
+          <el-table-column prop="realName" label="姓名" width="120" />
           <el-table-column prop="username" label="用户名" width="120" />
           <el-table-column prop="department" label="部门" width="150" />
           <el-table-column prop="position" label="职位" width="120" />
           <el-table-column label="类型" width="80">
             <template #default="{ row }">
-              <el-tag :type="row.recipient_type === 'to' ? 'primary' : 'info'" size="small">
-                {{ row.recipient_type === 'to' ? '主送' : '抄送' }}
+              <el-tag :type="row.recipientType === 'to' ? 'primary' : 'info'" size="small">
+                {{ row.recipientType === 'to' ? '主送' : '抄送' }}
               </el-tag>
             </template>
           </el-table-column>
           <el-table-column label="状态" width="100">
             <template #default="{ row }">
-              <el-tag :type="row.is_read ? 'success' : 'warning'" size="small">
-                {{ row.is_read ? '已读' : '未读' }}
+              <el-tag :type="row.isRead ? 'success' : 'warning'" size="small">
+                {{ row.isRead ? '已读' : '未读' }}
               </el-tag>
             </template>
           </el-table-column>
@@ -52,10 +52,10 @@
       <!-- 部门列表 -->
       <el-tab-pane label="部门" name="departments">
         <el-table :data="departments" class="full-width-table">
-          <el-table-column prop="department_name" label="部门名称" />
+          <el-table-column prop="departmentName" label="部门名称" />
           <el-table-column label="人数" width="100">
             <template #default="{ row }">
-              {{ getDepartmentUserCount(row.department_id) }}
+              {{ getDepartmentUserCount(row.departmentId) }}
             </template>
           </el-table-column>
         </el-table>
@@ -106,7 +106,7 @@ const progressColor = computed(() => {
 
 // 获取部门人数
 const getDepartmentUserCount = (deptId) => {
-  return recipients.value.filter(r => r.department_id === deptId).length;
+  return recipients.value.filter(r => r.departmentId === deptId).length;
 };
 
 // 加载抄送人员

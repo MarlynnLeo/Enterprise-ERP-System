@@ -20,28 +20,28 @@ import { formatDate } from '@/utils/helpers/dateUtils'
  * @param {Object} source - 数据源（搜索结果/选中物料）
  */
 function assignMaterialFields(target, source) {
-  target.material_id = source.id || source.material_id || null
-  target.material_code = source.code || source.material_code || ''
-  target.material_name = source.name || source.material_name || ''
+  target.materialId = source.id || source.materialId || null
+  target.materialCode = source.code || source.materialCode || ''
+  target.materialName = source.name || source.materialName || ''
   target.specification = source.specs || source.specification || ''
   target.specs = source.specs || source.specification || ''
-  target.unit = source.unit_name || source.unit || ''
-  target.unit_name = source.unit_name || source.unit || ''
-  target.unit_id = source.unit_id || null
+  target.unit = source.unitName || source.unit || ''
+  target.unitName = source.unitName || source.unit || ''
+  target.unitId = source.unitId || null
 }
 
 /**
  * 辅助函数：清空行的物料字段
  */
 function clearMaterialFields(target) {
-  target.material_id = null
-  target.material_code = ''
-  target.material_name = ''
+  target.materialId = null
+  target.materialCode = ''
+  target.materialName = ''
   target.specification = ''
   target.specs = ''
   target.unit = ''
-  target.unit_name = ''
-  target.unit_id = null
+  target.unitName = ''
+  target.unitId = null
 }
 
 function getResponsePayload(response) {
@@ -74,7 +74,7 @@ async function getMaterialsByIdsInChunks(ids) {
 async function getLatestPricesInChunks(materialIds, supplierId) {
   const priceMap = {}
   for (const chunk of chunkArray(materialIds, BATCH_MATERIAL_QUERY_LIMIT)) {
-    const response = await purchaseApi.getLatestPrices({ material_ids: chunk, supplier_id: supplierId || '' })
+    const response = await purchaseApi.getLatestPrices({ materialIds: chunk, supplierId: supplierId || '' })
     Object.assign(priceMap, normalizePriceMap(response))
   }
   return priceMap
@@ -103,7 +103,7 @@ const AUTO_FILL_PRICE_SOURCES = new Set([
 const SAME_SUPPLIER_PRICE_SOURCES = new Set(['supplier_metal_range', 'supplier_history', 'supplier_receipt_history'])
 
 function canAutoFillPurchasePrice(priceInfo) {
-  return priceInfo && Number(priceInfo.price) > 0 && priceInfo.auto_fill !== false && AUTO_FILL_PRICE_SOURCES.has(priceInfo.source)
+  return priceInfo && Number(priceInfo.price) > 0 && priceInfo.autoFill !== false && AUTO_FILL_PRICE_SOURCES.has(priceInfo.source)
 }
 
 function canRefreshForSupplier(priceInfo) {
@@ -113,8 +113,8 @@ function canRefreshForSupplier(priceInfo) {
 function getPurchasePriceMessage(priceInfo) {
   const priceText = `￥${Number(priceInfo.price).toFixed(2)}`
   if (priceInfo.source === 'supplier_metal_range') {
-    const metalText = priceInfo.metal_price != null ? `，金属价 ${Number(priceInfo.metal_price).toFixed(0)}` : ''
-    const bandText = priceInfo.metal_price_band_label ? `，区间 ${priceInfo.metal_price_band_label}` : ''
+    const metalText = priceInfo.metalPrice != null ? `，金属价 ${Number(priceInfo.metalPrice).toFixed(0)}` : ''
+    const bandText = priceInfo.metalPriceBandLabel ? `，区间 ${priceInfo.metalPriceBandLabel}` : ''
     return `已按当日金属价自动匹配区间价: ${priceText}${metalText}${bandText}`
   }
   if (priceInfo.source === 'supplier_history') return `已自动带入该供应商最近成交价: ${priceText}`
@@ -151,17 +151,17 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
 
   // 表单数据
   const orderForm = reactive({
-    order_number: '', order_date: formatLocalDate(new Date()),
-    expected_delivery_date: '', supplier_id: '', supplier_name: '',
-    contact_person: '', contact_phone: '', notes: '',
-    requisition_id: null, requisition_number: '', status: 'draft',
-    tax_rate: DEFAULT_PURCHASE_VAT_RATE, subtotal: 0, tax_amount: 0, items: []
+    orderNumber: '', orderDate: formatLocalDate(new Date()),
+    expectedDeliveryDate: '', supplierId: '', supplierName: '',
+    contactPerson: '', contactPhone: '', notes: '',
+    requisitionId: null, requisitionNumber: '', status: 'draft',
+    taxRate: DEFAULT_PURCHASE_VAT_RATE, subtotal: 0, taxAmount: 0, items: []
   })
 
   const orderRules = {
-    order_date: [{ required: true, message: '请选择订单日期', trigger: 'blur' }],
-    expected_delivery_date: [{ required: true, message: '请选择预计到货日期', trigger: 'blur' }],
-    supplier_id: [{ required: true, message: '请选择供应商', trigger: 'change' }]
+    orderDate: [{ required: true, message: '请选择订单日期', trigger: 'blur' }],
+    expectedDeliveryDate: [{ required: true, message: '请选择预计到货日期', trigger: 'blur' }],
+    supplierId: [{ required: true, message: '请选择供应商', trigger: 'change' }]
   }
 
   // 组件引用
@@ -239,28 +239,28 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
     let supplier = suppliers.value.find(s => String(s.id) === String(supplierId))
     if (!supplier) supplier = filteredSuppliers.value.find(s => String(s.id) === String(supplierId))
     if (supplier) {
-      orderForm.supplier_name = supplier.name
-      orderForm.contact_person = supplier.contact_person || ''
-      orderForm.contact_phone = supplier.contact_phone || ''
+      orderForm.supplierName = supplier.name
+      orderForm.contactPerson = supplier.contactPerson || ''
+      orderForm.contactPhone = supplier.contactPhone || ''
       if (!suppliers.value.find(s => s.id === supplier.id)) suppliers.value.push(supplier)
     }
-    const materialIds = [...new Set(orderForm.items.map(item => item.material_id).filter(Boolean))]
+    const materialIds = [...new Set(orderForm.items.map(item => item.materialId).filter(Boolean))]
     if (materialIds.length > 0) {
       let updatedCount = 0
       try {
         const priceMap = await getLatestPricesInChunks(materialIds, supplierId)
         orderForm.items.forEach(item => {
-          const priceInfo = priceMap[String(item.material_id)]
+          const priceInfo = priceMap[String(item.materialId)]
           if (canRefreshForSupplier(priceInfo)) {
             item.price = priceInfo.price
-            item.price_source = priceInfo.source
-            item.metal_symbol = priceInfo.metal_symbol || null
-            item.metal_price = priceInfo.metal_price ?? null
-            item.metal_price_min = priceInfo.metal_price_min ?? null
-            item.metal_price_max = priceInfo.metal_price_max ?? null
-            item.metal_price_band_label = priceInfo.metal_price_band_label || null
-            item.metal_price_scheme_id = priceInfo.metal_price_scheme_id || null
-            item.metal_price_item_id = priceInfo.metal_price_item_id || null
+            item.priceSource = priceInfo.source
+            item.metalSymbol = priceInfo.metalSymbol || null
+            item.metalPrice = priceInfo.metalPrice ?? null
+            item.metalPriceMin = priceInfo.metalPriceMin ?? null
+            item.metalPriceMax = priceInfo.metalPriceMax ?? null
+            item.metalPriceBandLabel = priceInfo.metalPriceBandLabel || null
+            item.metalPriceSchemeId = priceInfo.metalPriceSchemeId || null
+            item.metalPriceItemId = priceInfo.metalPriceItemId || null
             recalculatePrice(item)
             updatedCount++
           }
@@ -274,9 +274,9 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
 
   const addMaterialRow = () => {
     orderForm.items.push({
-      material_id: null, material_code: '', material_name: '', specification: '', specs: '',
-      unit: '', unit_name: '', unit_id: null, quantity: '', price: '', total_price: null,
-      tax_rate: defaultVATRate.value, tax_amount: 0, material_display: ''
+      materialId: null, materialCode: '', materialName: '', specification: '', specs: '',
+      unit: '', unitName: '', unitId: null, quantity: '', price: '', totalPrice: null,
+      taxRate: defaultVATRate.value, taxAmount: 0, materialDisplay: ''
     })
   }
 
@@ -288,14 +288,14 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
     const normalizedQuantity = toNumberOrNull(item.quantity) ?? 0.01
     const price = toNumberOrNull(item.price)
     if (price === null) {
-      item.total_price = null
-      item.tax_amount = null
+      item.totalPrice = null
+      item.taxAmount = null
       calculateTotalAmount()
       return
     }
     item.price = price
-    item.total_price = normalizedQuantity * price
-    item.tax_amount = item.total_price * normalizeTaxRate(item.tax_rate, defaultVATRate.value)
+    item.totalPrice = normalizedQuantity * price
+    item.taxAmount = item.totalPrice * normalizeTaxRate(item.taxRate, defaultVATRate.value)
     calculateTotalAmount()
   }
 
@@ -304,16 +304,16 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
   }
 
   const calculateTotalAmount = () => {
-    const materialItems = orderForm.items.filter(item => item.material_id)
-    const hasUnknownAmount = materialItems.some(item => toNumberOrNull(item.price) === null || toNumberOrNull(item.total_price) === null)
+    const materialItems = orderForm.items.filter(item => item.materialId)
+    const hasUnknownAmount = materialItems.some(item => toNumberOrNull(item.price) === null || toNumberOrNull(item.totalPrice) === null)
     if (hasUnknownAmount) {
       orderForm.subtotal = null
-      orderForm.tax_amount = null
+      orderForm.taxAmount = null
       return '-'
     }
-    const subtotal = materialItems.reduce((total, item) => total + (toNumberOrNull(item.total_price) ?? 0), 0)
-    const taxAmount = materialItems.reduce((total, item) => total + (toNumberOrNull(item.tax_amount) ?? 0), 0)
-    orderForm.subtotal = subtotal; orderForm.tax_amount = taxAmount
+    const subtotal = materialItems.reduce((total, item) => total + (toNumberOrNull(item.totalPrice) ?? 0), 0)
+    const taxAmount = materialItems.reduce((total, item) => total + (toNumberOrNull(item.taxAmount) ?? 0), 0)
+    orderForm.subtotal = subtotal; orderForm.taxAmount = taxAmount
     return (subtotal + taxAmount).toFixed(2)
   }
 
@@ -323,10 +323,10 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
       const searchResults = await searchMaterials(baseDataApi, query.trim(), { includeAll: true })
       const suggestions = searchResults.map(item => ({
         value: item.code || '无编码', code: item.code || '无编码', name: item.name || '未命名',
-        specs: item.specification || item.specs || '', stock_quantity: item.stock_quantity || 0,
-        id: item.id, unit_name: item.unit_name || '个', unit_id: item.unit_id,
-        cost_price: item.cost_price ?? null,
-        tax_rate: item.tax_rate ?? null, supplier_id: item.supplier_id
+        specs: item.specification || item.specs || '', stockQuantity: item.stockQuantity || 0,
+        id: item.id, unitName: item.unitName || '个', unitId: item.unitId,
+        costPrice: item.costPrice ?? null,
+        taxRate: item.taxRate ?? null, supplierId: item.supplierId
       }))
       filteredProducts.value = suggestions; callback(suggestions)
     } catch (error) { console.error('搜索物料失败:', error); ElMessage.error('搜索物料失败'); callback([]) }
@@ -334,29 +334,32 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
 
   const handleMaterialSelect = async (item, index) => {
     assignMaterialFields(orderForm.items[index], item)
-    if (item.tax_rate !== undefined && item.tax_rate !== null) orderForm.items[index].tax_rate = parseFloat(item.tax_rate)
+    if (item.taxRate !== undefined && item.taxRate !== null) orderForm.items[index].taxRate = parseFloat(item.taxRate)
     try {
-      const res = await purchaseApi.getLatestPrice({ material_id: item.id, supplier_id: orderForm.supplier_id || item.supplier_id || '' })
+      const res = await purchaseApi.getLatestPrice({
+        materialId: item.id,
+        supplierId: orderForm.supplierId || item.supplierId || '',
+      })
       const priceInfo = parseResponseData(res, {})
       if (canAutoFillPurchasePrice(priceInfo)) {
         orderForm.items[index].price = priceInfo.price
-        orderForm.items[index].price_source = priceInfo.source
-        orderForm.items[index].metal_symbol = priceInfo.metal_symbol || null
-        orderForm.items[index].metal_price = priceInfo.metal_price ?? null
-        orderForm.items[index].metal_price_min = priceInfo.metal_price_min ?? null
-        orderForm.items[index].metal_price_max = priceInfo.metal_price_max ?? null
-        orderForm.items[index].metal_price_band_label = priceInfo.metal_price_band_label || null
-        orderForm.items[index].metal_price_scheme_id = priceInfo.metal_price_scheme_id || null
-        orderForm.items[index].metal_price_item_id = priceInfo.metal_price_item_id || null
+        orderForm.items[index].priceSource = priceInfo.source
+        orderForm.items[index].metalSymbol = priceInfo.metalSymbol || null
+        orderForm.items[index].metalPrice = priceInfo.metalPrice ?? null
+        orderForm.items[index].metalPriceMin = priceInfo.metalPriceMin ?? null
+        orderForm.items[index].metalPriceMax = priceInfo.metalPriceMax ?? null
+        orderForm.items[index].metalPriceBandLabel = priceInfo.metalPriceBandLabel || null
+        orderForm.items[index].metalPriceSchemeId = priceInfo.metalPriceSchemeId || null
+        orderForm.items[index].metalPriceItemId = priceInfo.metalPriceItemId || null
         ElMessage({ message: getPurchasePriceMessage(priceInfo), type: 'success', duration: 2000 })
       } else { orderForm.items[index].price = '' }
     } catch (e) {
       console.error('获取实时指导价抛出异常，执行降级策略:', e)
-      const defaultPrice = toNumberOrNull(item.cost_price)
+      const defaultPrice = toNumberOrNull(item.costPrice)
       orderForm.items[index].price = defaultPrice && defaultPrice > 0 ? defaultPrice : ''
     }
     recalculatePrice(orderForm.items[index])
-    if (!orderForm.supplier_id && item.supplier_id) orderForm.supplier_id = item.supplier_id
+    if (!orderForm.supplierId && item.supplierId) orderForm.supplierId = item.supplierId
     nextTick(() => { const quantityInput = quantityInputRefs.value[index]; if (quantityInput) quantityInput.focus() })
   }
 
@@ -376,14 +379,14 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
   const handleMaterialDisplayChange = (displayValue, index) => {
     if (!displayValue) {
       clearMaterialFields(orderForm.items[index])
-      orderForm.items[index].material_display = ''
+      orderForm.items[index].materialDisplay = ''
       return
     }
     const materialCode = displayValue.split(' - ')[0]
-    const selectedMaterial = filteredProducts.value.find(m => (m.code || m.material_code || m.id) === materialCode)
+    const selectedMaterial = filteredProducts.value.find(m => (m.code || m.materialCode || m.id) === materialCode)
     if (selectedMaterial) {
       assignMaterialFields(orderForm.items[index], selectedMaterial)
-      orderForm.items[index].material_display = displayValue
+      orderForm.items[index].materialDisplay = displayValue
       recalculatePrice(orderForm.items[index])
     }
   }
@@ -393,7 +396,7 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
       clearMaterialFields(orderForm.items[index])
       return
     }
-    const selectedMaterial = filteredProducts.value.find(m => (m.code || m.material_code || m.id) === materialCode)
+    const selectedMaterial = filteredProducts.value.find(m => (m.code || m.materialCode || m.id) === materialCode)
     if (selectedMaterial) {
       assignMaterialFields(orderForm.items[index], selectedMaterial)
       recalculatePrice(orderForm.items[index])
@@ -401,8 +404,8 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
   }
 
   const formatMaterialLabel = (item) => {
-    const code = item.code || item.material_code || item.id || ''
-    const name = item.name || item.material_name || item.title || item.product_name || ''
+    const code = item.code || item.materialCode || item.id || ''
+    const name = item.name || item.materialName || item.title || item.productName || ''
     const specs = item.specs || item.specification || item.model || ''
     let label = code; if (name) label += ` - ${name}`; if (specs) label += ` - ${specs}`; return label
   }
@@ -412,11 +415,11 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
     const deliveryDate = new Date()
     deliveryDate.setDate(deliveryDate.getDate() + DEFAULT_PURCHASE_DELIVERY_DAYS)
     Object.assign(orderForm, {
-      order_number: '', order_date: formatLocalDate(new Date()),
-      expected_delivery_date: formatLocalDate(deliveryDate),
-      supplier_id: '', supplier_name: '', contact_person: '', contact_phone: '',
-      notes: '', requisition_id: null, requisition_number: '', status: 'draft',
-      tax_rate: defaultVATRate.value, subtotal: 0, tax_amount: 0, items: []
+      orderNumber: '', orderDate: formatLocalDate(new Date()),
+      expectedDeliveryDate: formatLocalDate(deliveryDate),
+      supplierId: '', supplierName: '', contactPerson: '', contactPhone: '',
+      notes: '', requisitionId: null, requisitionNumber: '', status: 'draft',
+      taxRate: defaultVATRate.value, subtotal: 0, taxAmount: 0, items: []
     })
   }
 
@@ -429,28 +432,28 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
       if (res.data) {
         const data = parseResponseData(res)
         const processedItems = (data.items || []).map(item => {
-          const taxRate = normalizeTaxRate(item.tax_rate, defaultVATRate.value)
+          const taxRate = normalizeTaxRate(item.taxRate, defaultVATRate.value)
           const quantity = toNumberOrNull(item.quantity) ?? 0
-          const price = toNumberOrNull(item.price ?? item.unit_price)
-          const explicitTotalPrice = toNumberOrNull(item.total_price ?? item.amount)
+          const price = toNumberOrNull(item.price ?? item.unitPrice)
+          const explicitTotalPrice = toNumberOrNull(item.totalPrice ?? item.amount)
           const totalPrice = explicitTotalPrice ?? (price === null ? null : quantity * price)
-          const explicitTaxAmount = toNumberOrNull(item.tax_amount)
+          const explicitTaxAmount = toNumberOrNull(item.taxAmount)
           const taxAmount = explicitTaxAmount ?? (totalPrice === null ? null : totalPrice * taxRate)
-          return { ...item, tax_rate: taxRate, tax_amount: taxAmount, price, quantity, total_price: totalPrice }
+          return { ...item, taxRate: taxRate, taxAmount: taxAmount, price, quantity, totalPrice: totalPrice }
         })
         Object.assign(orderForm, {
-          order_number: data.order_no || data.orderNo, order_date: formatDate(data.order_date || data.orderDate),
-          expected_delivery_date: formatDate(data.expected_delivery_date || data.expectedDeliveryDate),
-          supplier_id: String(data.supplier_id || data.supplierId || ''),
-          supplier_name: data.supplier_name || data.supplierName,
-          contact_person: data.contact_person || data.contactPerson,
-          contact_phone: data.contact_phone || data.contactPhone,
+          orderNumber: data.orderNo, orderDate: formatDate(data.orderDate),
+          expectedDeliveryDate: formatDate(data.expectedDeliveryDate),
+          supplierId: String(data.supplierId || ''),
+          supplierName: data.supplierName,
+          contactPerson: data.contactPerson,
+          contactPhone: data.contactPhone,
           notes: data.notes || data.remarks, status: data.status || 'draft',
-          requisition_id: data.requisition_id || data.requisitionId,
-          requisition_number: data.requisition_number || data.requisitionNumber,
+          requisitionId: data.requisitionId,
+          requisitionNumber: data.requisitionNumber,
           items: processedItems
         })
-        await ensureSupplierExists(data.supplier_id || data.supplierId)
+        await ensureSupplierExists(data.supplierId)
       }
     } catch (error) { console.error('获取采购订单详情失败:', error); ElMessage.error('获取采购订单详情失败') }
     finally { orderDialog.loading = false }
@@ -472,54 +475,70 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
       await orderFormRef.value.validate()
       const invalidPriceRows = orderForm.items
         .map((item, index) => ({ item, index }))
-        .filter(({ item }) => item.material_id && toNumberOrNull(item.price) === null)
+        .filter(({ item }) => item.materialId && toNumberOrNull(item.price) === null)
         .map(({ index }) => index + 1)
       if (invalidPriceRows.length > 0) {
         ElMessage.error(`第 ${invalidPriceRows.join(', ')} 行采购单价缺失，请确认价格权限或维护采购价后再提交`)
         return
       }
-      const validItems = orderForm.items.filter(item => item.material_id)
+      const validItems = orderForm.items.filter(item => item.materialId)
       const subtotal = validItems.reduce((sum, item) => sum + ((toNumberOrNull(item.quantity) ?? 0) * (toNumberOrNull(item.price) ?? 0)), 0)
       const taxAmount = validItems.reduce((sum, item) => {
         const quantity = toNumberOrNull(item.quantity) ?? 0
         const price = toNumberOrNull(item.price) ?? 0
         const totalPrice = quantity * price
-        return sum + (toNumberOrNull(item.tax_amount) ?? (totalPrice * normalizeTaxRate(item.tax_rate, defaultVATRate.value)))
+        return sum + (toNumberOrNull(item.taxAmount) ?? (totalPrice * normalizeTaxRate(item.taxRate, defaultVATRate.value)))
       }, 0)
+      // 表单内部字段 → HTTP camelCase body（边界转换，不做 camel||snake 双读）
       const formDataToSubmit = {
-        order_date: orderForm.order_date,
-        metal_symbol: orderForm.items.find((item) => item.metal_symbol)?.metal_symbol || null,
-        metal_price: orderForm.items.find((item) => item.metal_price != null)?.metal_price ?? null,
-        metal_price_source: orderForm.items.find((item) => item.metal_price_source || item.price_source === 'supplier_metal_range')?.metal_price_source || (orderForm.items.some((item) => item.price_source === 'supplier_metal_range') ? 'metal_prices' : null),
-        metal_price_scheme_id: orderForm.items.find((item) => item.metal_price_scheme_id)?.metal_price_scheme_id || null, supplier_id: orderForm.supplier_id,
-        expected_delivery_date: orderForm.expected_delivery_date,
-        contact_person: orderForm.contact_person, contact_phone: orderForm.contact_phone,
-        notes: orderForm.notes, total_amount: Number((subtotal + taxAmount).toFixed(2)),
-        tax_rate: normalizeTaxRate(orderForm.tax_rate, defaultVATRate.value), tax_amount: Number(taxAmount.toFixed(2)),
-        subtotal: Number(subtotal.toFixed(2)), status: 'draft',
-        requisition_id: orderForm.requisition_id || null,
-        requisition_number: orderForm.requisition_number || '',
-        items: validItems.map(item => {
+        orderDate: orderForm.orderDate,
+        metalSymbol: orderForm.items.find((item) => item.metalSymbol)?.metalSymbol || null,
+        metalPrice: orderForm.items.find((item) => item.metalPrice != null)?.metalPrice ?? null,
+        metalPriceSource:
+          orderForm.items.find((item) => item.metalPriceSource || item.priceSource === 'supplier_metal_range')
+            ?.metalPriceSource ||
+          (orderForm.items.some((item) => item.priceSource === 'supplier_metal_range') ? 'metal_prices' : null),
+        metalPriceSchemeId:
+          orderForm.items.find((item) => item.metalPriceSchemeId)?.metalPriceSchemeId || null,
+        supplierId: orderForm.supplierId,
+        expectedDeliveryDate: orderForm.expectedDeliveryDate,
+        contactPerson: orderForm.contactPerson,
+        contactPhone: orderForm.contactPhone,
+        notes: orderForm.notes,
+        totalAmount: Number((subtotal + taxAmount).toFixed(2)),
+        taxRate: normalizeTaxRate(orderForm.taxRate, defaultVATRate.value),
+        taxAmount: Number(taxAmount.toFixed(2)),
+        subtotal: Number(subtotal.toFixed(2)),
+        status: 'draft',
+        requisitionId: orderForm.requisitionId || null,
+        requisitionNumber: orderForm.requisitionNumber || '',
+        items: validItems.map((item) => {
           const quantity = toNumberOrNull(item.quantity) ?? 0
           const price = toNumberOrNull(item.price) ?? 0
-          const taxRate = normalizeTaxRate(item.tax_rate, defaultVATRate.value)
+          const taxRate = normalizeTaxRate(item.taxRate, defaultVATRate.value)
           const totalPrice = Number((quantity * price).toFixed(2))
           return {
-            material_id: item.material_id, material_code: item.material_code,
-            material_name: item.material_name, specification: item.specification,
-            unit: item.unit, unit_id: item.unit_id, quantity,
-            price, total_price: totalPrice,
-            tax_rate: taxRate, tax_amount: Number((totalPrice * taxRate).toFixed(2)),
-            price_source: item.price_source || null,
-            metal_symbol: item.metal_symbol || null,
-            metal_price: item.metal_price ?? null,
-            metal_price_min: item.metal_price_min ?? null,
-            metal_price_max: item.metal_price_max ?? null,
-            metal_price_band_label: item.metal_price_band_label || null,
-            metal_price_scheme_id: item.metal_price_scheme_id || null,
-            metal_price_item_id: item.metal_price_item_id || null
+            materialId: item.materialId,
+            materialCode: item.materialCode,
+            materialName: item.materialName,
+            specification: item.specification,
+            unit: item.unit,
+            unitId: item.unitId,
+            quantity,
+            price,
+            totalPrice,
+            taxRate,
+            taxAmount: Number((totalPrice * taxRate).toFixed(2)),
+            priceSource: item.priceSource || null,
+            metalSymbol: item.metalSymbol || null,
+            metalPrice: item.metalPrice ?? null,
+            metalPriceMin: item.metalPriceMin ?? null,
+            metalPriceMax: item.metalPriceMax ?? null,
+            metalPriceBandLabel: item.metalPriceBandLabel || null,
+            metalPriceSchemeId: item.metalPriceSchemeId || null,
+            metalPriceItemId: item.metalPriceItemId || null,
           }
-        })
+        }),
       }
       if (orderDialog.isEdit) { await purchaseApi.updateOrder(orderDialog.editId, formDataToSubmit); ElMessage.success('采购订单更新成功') }
       else { await purchaseApi.createOrder(formDataToSubmit); ElMessage.success('采购订单创建成功') }
@@ -533,7 +552,7 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
   const openRequisitionDialog = () => { requisitionDialogVisible.value = true; searchRequisitions() }
   const removeRequisition = () => {
     ElMessageBox.confirm('确定要移除关联的采购申请吗？', '提示', { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' })
-    .then(() => { orderForm.requisition_id = null; orderForm.requisition_number = ''; ElMessage.success('已移除关联的采购申请') }).catch(() => {})
+    .then(() => { orderForm.requisitionId = null; orderForm.requisitionNumber = ''; ElMessage.success('已移除关联的采购申请') }).catch(() => {})
   }
 
   const handleMaterialSelectionChange = (selection) => { selectedMaterials.value = selection }
@@ -543,15 +562,15 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
       requisitionDialogLoading.value = true
       const response = await purchaseApi.getOrderRequisitions({ page: requisitionPagination.current, pageSize: requisitionPagination.size, requisitionNo: requisitionSearchKeyword.value, status: 'approved' })
       const requisitionItems = parseListData(response, { enableLog: false })
-      const approvedRequisitions = requisitionItems.filter(item => item.status === 'approved' && !item.is_fully_ordered)
+      const approvedRequisitions = requisitionItems.filter(item => item.status === 'approved' && !item.isFullyOrdered)
       requisitionList.value = approvedRequisitions
       requisitionPagination.total = approvedRequisitions.length
       const allUnorderedMaterials = []
       approvedRequisitions.forEach(req => {
         if (req.materials && req.materials.length > 0) {
           req.materials.forEach((material, idx) => {
-            if (!material.ordered_quantity || parseFloat(material.ordered_quantity) === 0) {
-              allUnorderedMaterials.push({ ...material, requisition_id: req.id, requisition_number: req.requisition_number, uniqueKey: `${req.id}_${material.material_code}_${idx}` })
+            if (!material.orderedQuantity || parseFloat(material.orderedQuantity) === 0) {
+              allUnorderedMaterials.push({ ...material, requisitionId: req.id, requisitionNumber: req.requisitionNumber, uniqueKey: `${req.id}_${material.materialCode}_${idx}` })
             }
           })
         }
@@ -571,19 +590,19 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
       }
       if (selectedMaterials.value.length > 0) {
         const firstMaterial = selectedMaterials.value[0]
-        orderForm.requisition_id = firstMaterial.requisition_id
-        orderForm.requisition_number = firstMaterial.requisition_number
+        orderForm.requisitionId = firstMaterial.requisitionId
+        orderForm.requisitionNumber = firstMaterial.requisitionNumber
       }
       const loadingInstance = ElLoading.service({ lock: true, text: '正在同步最新物料价格和税率...', background: 'color-mix(in srgb, var(--ds-black) 70%, transparent)' })
       try {
         let addedCount = 0
-        const selectedMaterialIds = [...new Set(selectedMaterials.value.map(item => item.material_id).filter(Boolean))]
+        const selectedMaterialIds = [...new Set(selectedMaterials.value.map(item => item.materialId).filter(Boolean))]
         const detailMap = {}
         let priceMap = {}
         try {
           const [materials, prices] = await Promise.all([
             getMaterialsByIdsInChunks(selectedMaterialIds),
-            getLatestPricesInChunks(selectedMaterialIds, orderForm.supplier_id)
+            getLatestPricesInChunks(selectedMaterialIds, orderForm.supplierId)
           ])
           materials.forEach(material => {
             detailMap[String(material.id)] = material
@@ -593,28 +612,28 @@ export function usePurchaseOrderForm(loadOrdersCallback) {
           console.warn('批量同步物料详情或价格失败，将使用请购单数据降级处理:', error)
         }
         const materialsWithDetails = selectedMaterials.value.map(item => {
-          const detail = detailMap[String(item.material_id)] || null
-          const priceInfo = priceMap[String(item.material_id)] || {}
+          const detail = detailMap[String(item.materialId)] || null
+          const priceInfo = priceMap[String(item.materialId)] || {}
           const latestPrice = canAutoFillPurchasePrice(priceInfo)
             ? toNumberOrNull(priceInfo.price)
-            : toNumberOrNull(detail?.cost_price)
+            : toNumberOrNull(detail?.costPrice)
           return { ...item, latestDetail: detail, latestPrice }
         })
         for (const item of materialsWithDetails) {
-          const existingIndex = orderForm.items.findIndex(i => i.material_id === item.material_id)
+          const existingIndex = orderForm.items.findIndex(i => i.materialId === item.materialId)
           let latestTaxRate = defaultVATRate.value
           if (item.latestDetail) {
-            latestTaxRate = normalizeTaxRate(item.latestDetail.tax_rate, defaultVATRate.value)
-            if (!orderForm.supplier_id && item.latestDetail.supplier_id) orderForm.supplier_id = item.latestDetail.supplier_id
+            latestTaxRate = normalizeTaxRate(item.latestDetail.taxRate, defaultVATRate.value)
+            if (!orderForm.supplierId && item.latestDetail.supplierId) orderForm.supplierId = item.latestDetail.supplierId
           }
           if (existingIndex >= 0) {
             orderForm.items[existingIndex].quantity += parseFloat(item.quantity)
             if (toNumberOrNull(orderForm.items[existingIndex].price) === null && item.latestPrice > 0) orderForm.items[existingIndex].price = item.latestPrice
-            if (!orderForm.items[existingIndex].tax_rate && latestTaxRate > 0) orderForm.items[existingIndex].tax_rate = latestTaxRate
+            if (!orderForm.items[existingIndex].taxRate && latestTaxRate > 0) orderForm.items[existingIndex].taxRate = latestTaxRate
             recalculatePrice(orderForm.items[existingIndex])
           } else {
-            const specs = item.material_specs || item.specification || item.specs || ''
-            orderForm.items.push({ material_id: item.material_id, material_code: item.material_code || '', material_name: item.material_name || '', specification: specs, specs, unit: item.unit, unit_name: item.unit, unit_id: item.unit_id, quantity: parseFloat(item.quantity), price: item.latestPrice ?? '', tax_rate: latestTaxRate, total_price: null })
+            const specs = item.materialSpecs || item.specification || item.specs || ''
+            orderForm.items.push({ materialId: item.materialId, materialCode: item.materialCode || '', materialName: item.materialName || '', specification: specs, specs, unit: item.unit, unitName: item.unit, unitId: item.unitId, quantity: parseFloat(item.quantity), price: item.latestPrice ?? '', taxRate: latestTaxRate, totalPrice: null })
             recalculatePrice(orderForm.items[orderForm.items.length - 1])
           }
           addedCount++

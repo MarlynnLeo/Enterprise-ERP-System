@@ -15,28 +15,28 @@
         <!-- 基本信息 -->
         <CellGroup inset title="基本信息">
           <Field
-            v-model="form.batch_no"
-            name="batch_no"
+            v-model="form.batchNo"
+            name="batchNo"
             label="批次号"
             placeholder="请输入批次号"
             :rules="[{ required: true, message: '请输入批次号' }]"
           />
           <Field
-            v-model="form.product_name"
-            name="product_name"
+            v-model="form.productName"
+            name="productName"
             label="产品名称"
             placeholder="请输入产品名称"
             :rules="[{ required: true, message: '请输入产品名称' }]"
           />
           <Field
-            v-model="form.product_code"
-            name="product_code"
+            v-model="form.productCode"
+            name="productCode"
             label="产品编码"
             placeholder="请输入产品编码"
           />
           <Field
-            v-model="form.reference_no"
-            name="reference_no"
+            v-model="form.referenceNo"
+            name="referenceNo"
             label="关联工单号"
             placeholder="请输入生产工单号"
           />
@@ -45,8 +45,8 @@
         <!-- 工序信息 -->
         <CellGroup inset title="工序信息">
           <Field
-            v-model="form.process_name"
-            name="process_name"
+            v-model="form.processName"
+            name="processName"
             label="工序名称"
             placeholder="请输入工序名称"
           />
@@ -64,8 +64,8 @@
         <!-- 检验信息 -->
         <CellGroup inset title="检验信息">
           <Field
-            v-model="form.planned_date"
-            name="planned_date"
+            v-model="form.plannedDate"
+            name="plannedDate"
             label="计划检验日期"
             placeholder="请选择检验日期"
             readonly
@@ -123,16 +123,16 @@
 
   const router = useRouter()
 
-  // 表单数据（对齐数据库 quality_inspections 表字段）
+  // 表单数据（纯 camel，后端 qualityInspectionMap.fromApi）
   const form = ref({
-    batch_no: '',
-    product_name: '',
-    product_code: '',
-    reference_no: '',
-    process_name: '',
+    batchNo: '',
+    productName: '',
+    productCode: '',
+    referenceNo: '',
+    processName: '',
     quantity: '',
     unit: '件',
-    planned_date: '',
+    plannedDate: '',
     note: ''
   })
 
@@ -149,7 +149,7 @@
 
   // 日期确认
   const onDateConfirm = ({ selectedValues }) => {
-    form.value.planned_date = selectedValues.join('-')
+    form.value.plannedDate = selectedValues.join('-')
     showDatePicker.value = false
   }
 
@@ -160,15 +160,15 @@
 
     try {
       const data = {
-        inspection_type: 'process',
-        batch_no: form.value.batch_no,
-        product_name: form.value.product_name,
-        product_code: form.value.product_code,
-        reference_no: form.value.reference_no || undefined,
-        process_name: form.value.process_name || undefined,
+        inspectionType: 'process',
+        batchNo: form.value.batchNo,
+        productName: form.value.productName,
+        productCode: form.value.productCode,
+        referenceNo: form.value.referenceNo || undefined,
+        processName: form.value.processName || undefined,
         quantity: Number(form.value.quantity),
         unit: form.value.unit,
-        planned_date: form.value.planned_date,
+        plannedDate: form.value.plannedDate,
         note: form.value.note || undefined,
         status: 'pending'
       }

@@ -14,6 +14,7 @@ const DLQService = require('../services/business/DLQService');
 const { ResponseHandler } = require('../utils/responseHandler');
 const { PRICE_EXPORT_PERMISSIONS, PRICE_UPDATE_PERMISSIONS } = require('../utils/desensitizer');
 const { getRequestActorLabel } = require('../utils/userUtils');
+
 const {
   desensitizeSensitiveResponse,
   requirePriceMutationPermission,
@@ -128,14 +129,14 @@ router.post(
         [req.params.receiptId]
       );
       if (!rows[0]) {
-        return res.status(404).json({ success: false, message: '入库单不存在' });
+        return ResponseHandler.error(res, '入库单不存在', 'NOT_FOUND', 404);
       }
       const result = await FinanceIntegrationService.generateInputTaxInvoiceFromPurchaseReceipt(
         rows[0],
         req.user?.id,
         { force: true }
       );
-      return res.json({ success: true, data: result });
+      return ResponseHandler.success(res, result);
     } catch (e) {
       return next(e);
     }
@@ -154,14 +155,14 @@ router.post(
         [req.params.outboundId]
       );
       if (!rows[0]) {
-        return res.status(404).json({ success: false, message: '出库单不存在' });
+        return ResponseHandler.error(res, '出库单不存在', 'NOT_FOUND', 404);
       }
       const result = await FinanceIntegrationService.generateOutputTaxInvoiceFromSalesOutbound(
         rows[0],
         req.user?.id,
         { force: true }
       );
-      return res.json({ success: true, data: result });
+      return ResponseHandler.success(res, result);
     } catch (e) {
       return next(e);
     }
@@ -180,14 +181,14 @@ router.post(
         [req.params.outboundId]
       );
       if (!rows[0]) {
-        return res.status(404).json({ success: false, message: '出库单不存在' });
+        return ResponseHandler.error(res, '出库单不存在', 'NOT_FOUND', 404);
       }
       const result = await FinanceIntegrationService.generateCostEntryFromSalesOutbound(
         rows[0],
         req.user?.id,
         { force: true }
       );
-      return res.json({ success: true, data: result });
+      return ResponseHandler.success(res, result);
     } catch (e) {
       return next(e);
     }

@@ -23,10 +23,10 @@
       <template v-else>
         <!-- 基本信息 -->
         <CellGroup inset title="基本信息">
-          <Cell title="盘点单号" :value="checkForm.check_no" />
-          <Cell title="盘点日期" :value="checkForm.check_date" />
-          <Cell title="盘点类型" :value="getCheckTypeText(checkForm.check_type)" />
-          <Cell title="仓库/库区" :value="checkForm.warehouse" />
+          <Cell title="盘点单号" :value="checkForm.checkNo" />
+          <Cell title="盘点日期" :value="checkForm.checkDate" />
+          <Cell title="盘点类型" :value="getCheckTypeText(checkForm.checkType)" />
+          <Cell title="仓库/库区" :value="checkForm.locationName" />
         </CellGroup>
 
         <!-- 描述 -->
@@ -70,27 +70,27 @@
             >
               <div class="material-card">
                 <div class="material-header">
-                  <span class="material-code">{{ item.material_code }}</span>
+                  <span class="material-code">{{ item.materialCode }}</span>
                   <span
                     class="diff-quantity"
-                    :class="getDiffClass(item.book_qty, item.actual_qty)"
+                    :class="getDiffClass(item.bookQuantity, item.actualQuantity)"
                   >
-                    {{ getDiffText(item.book_qty, item.actual_qty) }}
+                    {{ getDiffText(item.bookQuantity, item.actualQuantity) }}
                   </span>
                 </div>
 
-                <div class="material-name">{{ item.material_name }}</div>
+                <div class="material-name">{{ item.materialName }}</div>
 
                 <div class="material-quantities">
                   <div class="qty-item">
                     <span class="qty-label">账面数量</span>
-                    <span class="qty-value">{{ item.book_qty }} {{ item.unit_name }}</span>
+                    <span class="qty-value">{{ item.bookQuantity }} {{ item.unitName }}</span>
                   </div>
                   <div class="qty-item">
                     <span class="qty-label">实盘数量</span>
                     <span class="qty-input">
                       <Stepper
-                        v-model="item.actual_qty"
+                        v-model="item.actualQuantity"
                         theme="round"
                         button-size="22"
                         :min="0"
@@ -206,14 +206,14 @@ const materialSearch = ref('');
 const materialList = ref([]);
 const editableMaterials = ref(true); // 是否可编辑物料（只有草稿状态下可以编辑）
 
-// 盘点单表单
+// 盘点单表单（纯 camel）
 const checkForm = ref({
   id: '',
-  check_no: '',
-  check_date: '',
-  check_type: '',
-  warehouse_id: '',
-  warehouse: '',
+  checkNo: '',
+  checkDate: '',
+  checkType: '',
+  locationId: '',
+  locationName: '',
   description: '',
   remarks: '',
   items: []
@@ -313,31 +313,28 @@ const loadMaterials = async () => {
 const selectMaterial = async (material) => {
   try {
     // 检查是否已存在该物料
-    const exists = checkForm.value.items.some(item => item.material_id === material.id);
+    const exists = checkForm.value.items.some(item => item.materialId === material.id);
     if (exists) {
       showToast('该物料已添加');
       return;
     }
 
     // 获取该物料在仓库的库存
-    const stockResponse = await inventoryApi.getMaterialStock(material.id, checkForm.value.warehouse_id);
+    const stockResponse = await inventoryApi.getMaterialStock(material.id, checkForm.value.locationId);
 
     const quantity = stockResponse.data && stockResponse.data.quantity !== undefined
       ? parseFloat(stockResponse.data.quantity)
-      : 0;
+      : (stockResponse.data?.stockQuantity != null ? parseFloat(stockResponse.data.stockQuantity) : 0);
 
-    // 添加物料
+    // 添加物料（纯 camel）
     checkForm.value.items.push({
-      material_id: material.id,
-      material_code: material.code,
-      material_name: material.name,
-      specs: material.specs || '',
-      system_quantity: quantity,
-      actual_quantity: quantity,
-      book_qty: quantity,
-      actual_qty: quantity,
-      unit_name: material.unit_name || '',
-      remark: '',
+      materialId: material.id,
+      materialCode: material.code,
+      materialName: material.name,
+      specification: material.specs || material.specification || '',
+      bookQuantity: quantity,
+      actualQuantity: quantity,
+      unitName: material.unitName || '',
       remarks: ''
     });
 
@@ -354,20 +351,20 @@ const submitCheckForm = async () => {
   try {
     submitting.value = true;
 
-    // 提交表单
+    // 纯 camel，后端 inventoryCheckMap.fromApi
     const submitData = {
       id: checkForm.value.id,
-      check_date: checkForm.value.check_date,
-      check_type: checkForm.value.check_type,
-      location_id: checkForm.value.warehouse_id,
+      checkDate: checkForm.value.checkDate,
+      checkType: checkForm.value.checkType,
+      locationId: checkForm.value.locationId,
       description: checkForm.value.description,
-      remark: checkForm.value.remarks,
+      remarks: checkForm.value.remarks,
       items: checkForm.value.items.map((item) => ({
         id: item.id,
-        material_id: item.material_id,
-        system_quantity: Number(item.system_quantity ?? item.book_qty ?? 0),
-        actual_quantity: Number(item.actual_qty ?? item.actual_quantity ?? 0),
-        remark: item.remarks || item.remark || ''
+        materialId: item.materialId,
+        bookQuantity: Number(item.bookQuantity ?? 0),
+        actualQuantity: Number(item.actualQuantity ?? 0),
+        remarks: item.remarks || ''
       }))
     };
 
@@ -394,31 +391,33 @@ const loadCheckDetail = async () => {
     if (response && response.data) {
       const checkData = response.data;
 
-      // 填充表单数据
+      // 填充表单数据（兼容后端尚未 toApi 的过渡期）
       checkForm.value.id = checkData.id;
-      checkForm.value.check_no = checkData.check_no;
-      checkForm.value.check_date = checkData.check_date;
-      checkForm.value.check_type = checkData.check_type;
-      checkForm.value.warehouse_id = checkData.warehouse_id;
-      checkForm.value.warehouse = checkData.warehouse;
+      checkForm.value.checkNo = checkData.checkNo;
+      checkForm.value.checkDate = checkData.checkDate;
+      checkForm.value.checkType = checkData.checkType;
+      checkForm.value.locationId = checkData.locationId || checkData.warehouseId;
+      checkForm.value.locationName = checkData.locationName || checkData.warehouse || checkData.locationName || '';
       checkForm.value.description = checkData.description || '';
-      checkForm.value.remarks = checkData.remarks || '';
+      checkForm.value.remarks = checkData.remarks || checkData.remark || '';
 
       // 填充物料明细
       if (checkData.items && checkData.items.length > 0) {
-      checkForm.value.items = checkData.items.map(item => ({
-          id: item.id,
-          material_id: item.material_id,
-          material_code: item.material_code,
-          material_name: item.material_name,
-          specs: item.specs || '',
-          system_quantity: parseFloat(item.system_quantity ?? item.book_qty) || 0,
-          actual_quantity: parseFloat(item.actual_quantity ?? item.actual_qty) || 0,
-          book_qty: parseFloat(item.system_quantity ?? item.book_qty) || 0,
-          actual_qty: parseFloat(item.actual_quantity ?? item.actual_qty) || 0,
-          unit_name: item.unit_name || '',
-          remarks: item.remark || item.remarks || ''
-        }));
+      checkForm.value.items = checkData.items.map(item => {
+          const book = parseFloat(item.bookQuantity ?? item.system_quantity ?? item.book_qty) || 0;
+          const actual = parseFloat(item.actualQuantity ?? item.actual_quantity ?? item.actual_qty) || 0;
+          return {
+            id: item.id,
+            materialId: item.materialId,
+            materialCode: item.materialCode,
+            materialName: item.materialName,
+            specification: item.specification || item.specs || '',
+            bookQuantity: book,
+            actualQuantity: actual,
+            unitName: item.unitName || '',
+            remarks: item.remarks || item.remark || ''
+          };
+        });
       }
 
       // 只有草稿状态下可以编辑物料

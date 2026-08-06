@@ -5,7 +5,12 @@
  */
 -->
 <template>
-  <el-dialog v-model="dialogVisible" title="过程检验规则配置" width="900px" destroy-on-close>
+  <AppDialog
+    v-model="dialogVisible"
+    title="过程检验规则配置"
+    mode="form"
+    wide
+  >
     <div class="mb-md">
       <el-button v-permission="'quality:settings:create'" type="primary" @click="showAddRule = true"><el-icon><Plus /></el-icon>添加规则</el-button>
       <el-alert type="info" :closable="false" class="mt-10">
@@ -16,23 +21,23 @@
     </div>
 
     <el-table :data="rulesList" border v-loading="loading">
-      <el-table-column prop="process_name" label="工序名称" min-width="120">
-        <template #default="{ row }">{{ row.process_name || '全部工序' }}</template>
+      <el-table-column prop="processName" label="工序名称" min-width="120">
+        <template #default="{ row }">{{ row.processName || '全部工序' }}</template>
       </el-table-column>
-      <el-table-column prop="product_name" label="产品名称" min-width="150">
-        <template #default="{ row }">{{ row.product_name || '全部产品' }}</template>
+      <el-table-column prop="productName" label="产品名称" min-width="150">
+        <template #default="{ row }">{{ row.productName || '全部产品' }}</template>
       </el-table-column>
-      <el-table-column prop="inspection_interval" label="检验间隔(分钟)" width="130" />
-      <el-table-column prop="punch_interval" label="打卡间隔(分钟)" width="130">
-        <template #default="{ row }">{{ row.punch_interval || DEFAULT_PUNCH_INTERVAL }}</template>
+      <el-table-column prop="inspectionInterval" label="检验间隔(分钟)" width="130" />
+      <el-table-column prop="punchInterval" label="打卡间隔(分钟)" width="130">
+        <template #default="{ row }">{{ row.punchInterval || DEFAULT_PUNCH_INTERVAL }}</template>
       </el-table-column>
-      <el-table-column prop="sample_rate" label="抽检比例(%)" width="110" />
-      <el-table-column prop="template_name" label="检验模板" min-width="120">
-        <template #default="{ row }">{{ row.template_name || '-' }}</template>
+      <el-table-column prop="sampleRate" label="抽检比例(%)" width="110" />
+      <el-table-column prop="templateName" label="检验模板" min-width="120">
+        <template #default="{ row }">{{ row.templateName || '-' }}</template>
       </el-table-column>
-      <el-table-column prop="is_enabled" label="启用状态" width="90">
+      <el-table-column prop="isEnabled" label="启用状态" width="90">
         <template #default="{ row }">
-          <el-tag :type="row.is_enabled ? 'success' : 'info'" size="small">{{ row.is_enabled ? '启用' : '禁用' }}</el-tag>
+          <el-tag :type="row.isEnabled ? 'success' : 'info'" size="small">{{ row.isEnabled ? '启用' : '禁用' }}</el-tag>
         </template>
       </el-table-column>
       <el-table-column label="操作" min-width="150" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
@@ -45,62 +50,67 @@
       </el-table-column>
     </el-table>
 
-    <!-- 添加/编辑规则弹窗 -->
-    <el-dialog v-model="showAddRule" :title="editingRule ? '编辑规则' : '添加规则'" width="500px" append-to-body>
-      <el-form ref="ruleFormRef" :model="ruleForm" :rules="ruleFormRules" label-width="100px">
-        <el-form-item label="工序">
-          <el-select v-model="ruleForm.process_id" placeholder="全部工序" filterable clearable class="w-full">
-            <el-option v-for="p in processOptions" :key="p.id" :label="p.name" :value="p.id" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="产品">
-          <el-select
-            v-model="ruleForm.product_id"
-            placeholder="搜索/选择产品"
-            filterable
-            remote
-            :remote-method="debouncedSearchProducts"
-            :loading="loadingProducts"
-            clearable
-            class="w-full"
-          >
-            <el-option v-for="p in productOptions" :key="p.id" :label="`${p.code || '无编码'} - ${p.name || '未命名'}`" :value="p.id" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="检验间隔" prop="inspection_interval">
-          <el-input-number v-model="ruleForm.inspection_interval" :min="5" :max="480" />
-          <span class="ml-sm text-muted">分钟</span>
-        </el-form-item>
-        <el-form-item label="抽检比例" prop="sample_rate">
-          <el-input-number v-model="ruleForm.sample_rate" :min="1" :max="100" />
-          <span class="ml-sm text-muted">%</span>
-        </el-form-item>
-        <el-form-item label="打卡间隔" prop="punch_interval">
-          <el-input-number v-model="ruleForm.punch_interval" :min="1" :max="60" />
-          <span class="ml-sm text-muted">分钟 (防止重复打卡)</span>
-        </el-form-item>
-        <el-form-item label="检验模板">
-          <el-select v-model="ruleForm.template_id" placeholder="选择检验模板" clearable class="w-full">
-            <el-option v-for="t in templateOptions" :key="t.id" :label="t.template_name || t.name" :value="t.id" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="启用状态">
-          <el-switch v-model="ruleForm.is_enabled" />
-        </el-form-item>
-        <el-form-item label="备注">
-          <el-input v-model="ruleForm.note" type="textarea" placeholder="请输入备注" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="showAddRule = false">取消</el-button>
-        <el-button v-permission="editingRule ? 'quality:settings:update' : 'quality:settings:create'" type="primary" :loading="submitting" @click="handleSaveRule">保存</el-button>
-      </template>
-    </el-dialog>
-
     <template #footer>
       <el-button @click="dialogVisible = false">关闭</el-button>
     </template>
-  </el-dialog>
+  </AppDialog>
+
+  <!-- 添加/编辑规则（并列 AppDialog） -->
+  <AppDialog
+    v-model="showAddRule"
+    :title="editingRule ? '编辑规则' : '添加规则'"
+    mode="form"
+    width="500px"
+  >
+    <el-form ref="ruleFormRef" :model="ruleForm" :rules="ruleFormRules" label-width="100px">
+      <el-form-item label="工序">
+        <el-select v-model="ruleForm.processId" placeholder="全部工序" filterable clearable class="w-full">
+          <el-option v-for="p in processOptions" :key="p.id" :label="p.name" :value="p.id" />
+        </el-select>
+      </el-form-item>
+      <el-form-item label="产品">
+        <el-select
+          v-model="ruleForm.productId"
+          placeholder="搜索/选择产品"
+          filterable
+          remote
+          :remote-method="debouncedSearchProducts"
+          :loading="loadingProducts"
+          clearable
+          class="w-full"
+        >
+          <el-option v-for="p in productOptions" :key="p.id" :label="`${p.code || '无编码'} - ${p.name || '未命名'}`" :value="p.id" />
+        </el-select>
+      </el-form-item>
+      <el-form-item label="检验间隔" prop="inspectionInterval">
+        <el-input-number v-model="ruleForm.inspectionInterval" :min="5" :max="480" />
+        <span class="ml-sm text-muted">分钟</span>
+      </el-form-item>
+      <el-form-item label="抽检比例" prop="sampleRate">
+        <el-input-number v-model="ruleForm.sampleRate" :min="1" :max="100" />
+        <span class="ml-sm text-muted">%</span>
+      </el-form-item>
+      <el-form-item label="打卡间隔" prop="punchInterval">
+        <el-input-number v-model="ruleForm.punchInterval" :min="1" :max="60" />
+        <span class="ml-sm text-muted">分钟 (防止重复打卡)</span>
+      </el-form-item>
+      <el-form-item label="检验模板">
+        <el-select v-model="ruleForm.templateId" placeholder="选择检验模板" clearable class="w-full">
+          <el-option v-for="t in templateOptions" :key="t.id" :label="t.templateName || t.name" :value="t.id" />
+        </el-select>
+      </el-form-item>
+      <el-form-item label="启用状态">
+        <el-switch v-model="ruleForm.is_enabled" />
+      </el-form-item>
+      <el-form-item label="备注">
+        <el-input v-model="ruleForm.note" type="textarea" placeholder="请输入备注" />
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button @click="showAddRule = false">取消</el-button>
+      <el-button v-permission="editingRule ? 'quality:settings:update' : 'quality:settings:create'" type="primary" :loading="submitting" @click="handleSaveRule">保存</el-button>
+    </template>
+  </AppDialog>
 </template>
 
 <script setup>
@@ -173,7 +183,7 @@ const fetchProcesses = async () => {
     const processes = await loadProductionProcessOptions({ pageSize: 50 })
     processOptions.value = processes.map(process => ({
       ...process,
-      name: process.name || process.process_name || process.task_code || ''
+      name: process.name || process.taskCode || ''
     }))
   } catch (error) {
     console.error('获取工序列表失败:', error)

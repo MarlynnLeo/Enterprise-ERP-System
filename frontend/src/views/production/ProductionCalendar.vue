@@ -25,19 +25,19 @@
       <el-table :data="calendars" v-loading="loading" border stripe size="small">
         <el-table-column prop="name" label="班次名称" width="120" />
         <el-table-column label="上班" width="90">
-          <template #default="{ row }">{{ fmtTime(row.work_start) || '-' }}</template>
+          <template #default="{ row }">{{ fmtTime(row.workStart) || '-' }}</template>
         </el-table-column>
         <el-table-column label="下班" width="90">
-          <template #default="{ row }">{{ fmtTime(row.work_end) || '-' }}</template>
+          <template #default="{ row }">{{ fmtTime(row.workEnd) || '-' }}</template>
         </el-table-column>
         <el-table-column label="午休" width="140">
           <template #default="{ row }">
-            {{ row.break_start ? `${fmtTime(row.break_start)} ~ ${fmtTime(row.break_end)}` : '-' }}
+            {{ row.breakStart ? `${fmtTime(row.breakStart)} ~ ${fmtTime(row.breakEnd)}` : '-' }}
           </template>
         </el-table-column>
         <el-table-column label="晚餐" width="140">
           <template #default="{ row }">
-            {{ row.dinner_start ? `${fmtTime(row.dinner_start)} ~ ${fmtTime(row.dinner_end)}` : '-' }}
+            {{ row.dinnerStart ? `${fmtTime(row.dinnerStart)} ~ ${fmtTime(row.dinnerEnd)}` : '-' }}
           </template>
         </el-table-column>
         <el-table-column label="工时" width="90">
@@ -47,14 +47,14 @@
         </el-table-column>
         <el-table-column label="周末" width="90">
           <template #default="{ row }">
-            <el-tag :type="row.exclude_weekends ? 'warning' : 'success'" size="small">
-              {{ row.exclude_weekends ? '排除' : '不排除' }}
+            <el-tag :type="row.excludeWeekends ? 'warning' : 'success'" size="small">
+              {{ row.excludeWeekends ? '排除' : '不排除' }}
             </el-tag>
           </template>
         </el-table-column>
         <el-table-column label="默认" width="70">
           <template #default="{ row }">
-            <el-tag v-if="row.is_default" type="success" size="small" effect="dark">是</el-tag>
+            <el-tag v-if="row.isDefault" type="success" size="small" effect="dark">是</el-tag>
           </template>
         </el-table-column>
         <el-table-column v-if="canUpdateCalendar" label="操作" width="160" fixed="right">
@@ -64,7 +64,7 @@
               size="small"
               type="success"
               link
-              :disabled="!!row.is_default"
+              :disabled="!!row.isDefault"
               @click="handleSetDefault(row)"
             >
               设为默认
@@ -134,7 +134,12 @@
       </div>
     </el-card>
 
-    <el-dialog v-model="editVisible" :title="`编辑班次 - ${editForm.name || ''}`" width="520px" destroy-on-close>
+    <AppDialog
+      v-model="editVisible"
+      :title="`编辑班次 - ${editForm.name || ''}`"
+      mode="form"
+      width="520px"
+    >
       <el-form ref="editFormRef" :model="editForm" :rules="formRules" label-width="100px">
         <el-form-item label="班次名称" prop="name">
           <el-input v-model="editForm.name" placeholder="如：白班、夜班" />
@@ -142,12 +147,12 @@
         <el-divider content-position="left">工作时间</el-divider>
         <el-row :gutter="16">
           <el-col :span="12">
-            <el-form-item label="上班时间" prop="work_start">
+            <el-form-item label="上班时间" prop="workStart">
               <el-time-picker v-model="editForm.work_start" format="HH:mm" value-format="HH:mm" class="w-full" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="下班时间" prop="work_end">
+            <el-form-item label="下班时间" prop="workEnd">
               <el-time-picker v-model="editForm.work_end" format="HH:mm" value-format="HH:mm" class="w-full" />
             </el-form-item>
           </el-col>
@@ -187,9 +192,14 @@
         <el-button @click="editVisible = false">取消</el-button>
         <el-button type="primary" :loading="saving" @click="handleSave">保存</el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
 
-    <el-dialog v-model="dayEditVisible" :title="dayEditTitle" width="480px" destroy-on-close>
+    <AppDialog
+      v-model="dayEditVisible"
+      :title="dayEditTitle"
+      mode="form"
+      width="480px"
+    >
       <el-form :model="dayEditForm" label-width="100px">
         <el-form-item label="日期">
           <el-tag>{{ dayEditForm.calendar_date }}</el-tag>
@@ -253,7 +263,7 @@
         <el-button @click="dayEditVisible = false">取消</el-button>
         <el-button type="primary" :loading="saving" @click="handleSaveDay">保存</el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
   </div>
 </template>
 
@@ -311,7 +321,7 @@ const dayEditForm = ref({
   hasOverride: false,
 })
 
-const defaultCalendar = computed(() => calendars.value.find(c => c.is_default) || calendars.value[0] || {})
+const defaultCalendar = computed(() => calendars.value.find(c => c.isDefault) || calendars.value[0] || {})
 const canUpdateCalendar = computed(() =>
   authStore.hasPermission('production:calendar:update') ||
   authStore.hasPermission('production:tasks:update')
@@ -398,14 +408,14 @@ function fmtTime(t) {
 }
 
 function calcWorkHours(row) {
-  if (!row.work_start || !row.work_end) return '0.0'
+  if (!row.workStart || !row.workEnd) return '0.0'
   const toMin = (s) => {
     const p = String(s).split(':')
     return Number.parseInt(p[0], 10) * 60 + Number.parseInt(p[1] || 0, 10)
   }
-  const total = toMin(row.work_end) - toMin(row.work_start)
-  const brk = row.break_start && row.break_end ? toMin(row.break_end) - toMin(row.break_start) : 0
-  const dnr = row.dinner_start && row.dinner_end ? toMin(row.dinner_end) - toMin(row.dinner_start) : 0
+  const total = toMin(row.workEnd) - toMin(row.workStart)
+  const brk = row.breakStart && row.breakEnd ? toMin(row.breakEnd) - toMin(row.breakStart) : 0
+  const dnr = row.dinnerStart && row.dinnerEnd ? toMin(row.dinnerEnd) - toMin(row.dinnerStart) : 0
   return ((total - brk - dnr) / 60).toFixed(1)
 }
 
@@ -489,12 +499,12 @@ async function fetchOverrides() {
     const list = parseListData(res, { enableLog: false })
     const map = new Map()
     for (const item of list) {
-      const dateMatch = typeof item.calendar_date === 'string'
-        ? DATE_ONLY_PREFIX.exec(item.calendar_date)
+      const dateMatch = typeof item.calendarDate === 'string'
+        ? DATE_ONLY_PREFIX.exec(item.calendarDate)
         : null
       const dateKey = dateMatch
         ? dateMatch[1]
-        : dayjs(item.calendar_date).format('YYYY-MM-DD')
+        : dayjs(item.calendarDate).format('YYYY-MM-DD')
       if (dateKey) map.set(dateKey, item)
     }
     overrides.value = map
@@ -547,13 +557,13 @@ function openEdit(row) {
   editForm.value = {
     id: row.id,
     name: row.name,
-    work_start: fmtTime(row.work_start),
-    work_end: fmtTime(row.work_end),
-    break_start: row.break_start ? fmtTime(row.break_start) : '',
-    break_end: row.break_end ? fmtTime(row.break_end) : '',
-    dinner_start: row.dinner_start ? fmtTime(row.dinner_start) : '',
-    dinner_end: row.dinner_end ? fmtTime(row.dinner_end) : '',
-    exclude_weekends: !!row.exclude_weekends,
+    work_start: fmtTime(row.workStart),
+    work_end: fmtTime(row.workEnd),
+    break_start: row.breakStart ? fmtTime(row.breakStart) : '',
+    break_end: row.breakEnd ? fmtTime(row.breakEnd) : '',
+    dinner_start: row.dinnerStart ? fmtTime(row.dinnerStart) : '',
+    dinner_end: row.dinnerEnd ? fmtTime(row.dinnerEnd) : '',
+    exclude_weekends: !!row.excludeWeekends,
   }
   editVisible.value = true
 }
@@ -857,8 +867,4 @@ fetchOverrides()
   border-color: var(--color-danger);
 }
 
-:deep(.el-dialog__footer) {
-  display: flex;
-  align-items: center;
-}
 </style>

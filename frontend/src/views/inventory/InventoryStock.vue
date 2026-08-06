@@ -156,14 +156,14 @@
         @sort-change="handleSortChange"
       >
         <template #empty>
-          <el-empty description="暂无库存数据" />
+          <EmptyState description="暂无库存数据" />
         </template>
         <el-table-column type="selection" width="55" />
-        <el-table-column prop="material_code" label="物料编码" width="140" sortable="custom" />
-        <el-table-column prop="material_name" label="物料名称" min-width="250" sortable="custom" />
+        <el-table-column prop="materialCode" label="物料编码" width="140" sortable="custom" />
+        <el-table-column prop="materialName" label="物料名称" min-width="250" sortable="custom" />
         <el-table-column prop="specification" label="规格" width="340" />
-        <el-table-column prop="location_name" label="仓库" width="130" sortable="custom" />
-        <el-table-column prop="category_name" label="类别" width="110" sortable="custom" />
+        <el-table-column prop="locationName" label="仓库" width="130" sortable="custom" />
+        <el-table-column prop="categoryName" label="类别" width="110" sortable="custom" />
         <el-table-column label="库存数量" width="110" sortable="custom" prop="quantity">
           <template #default="scope">
             <span :class="{ 'low-stock': isLowStock(scope.row), 'out-of-stock': isOutOfStock(scope.row) }">
@@ -171,10 +171,10 @@
             </span>
           </template>
         </el-table-column>
-        <el-table-column prop="unit_name" label="单位" width="70" />
-        <el-table-column prop="updated_at" label="更新时间" width="150" sortable="custom">
+        <el-table-column prop="unitName" label="单位" width="70" />
+        <el-table-column prop="updatedAt" label="更新时间" width="150" sortable="custom">
           <template #default="scope">
-            {{ formatDateTime(scope.row.updated_at, 'YYYY-MM-DD HH:mm') }}
+            {{ formatDateTime(scope.row.updatedAt, 'YYYY-MM-DD HH:mm') }}
           </template>
         </el-table-column>
         <el-table-column label="操作" min-width="180" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
@@ -220,42 +220,42 @@
     >
       <div>
       <el-descriptions :column="3" border>
-        <el-descriptions-item label="物料编码">{{ currentDetail.material_code }}</el-descriptions-item>
-        <el-descriptions-item label="物料名称">{{ currentDetail.material_name }}</el-descriptions-item>
+        <el-descriptions-item label="物料编码">{{ currentDetail.materialCode }}</el-descriptions-item>
+        <el-descriptions-item label="物料名称">{{ currentDetail.materialName }}</el-descriptions-item>
         <el-descriptions-item label="规格">{{ currentDetail.specification }}</el-descriptions-item>
-        <el-descriptions-item label="当前库存">{{ currentDetail.quantity }} {{ currentDetail.unit_name }}</el-descriptions-item>
-        <el-descriptions-item label="仓库">{{ currentDetail.location_name }}</el-descriptions-item>
-        <el-descriptions-item label="类别">{{ currentDetail.category_name }}</el-descriptions-item>
+        <el-descriptions-item label="当前库存">{{ currentDetail.quantity }} {{ currentDetail.unitName }}</el-descriptions-item>
+        <el-descriptions-item label="仓库">{{ currentDetail.locationName }}</el-descriptions-item>
+        <el-descriptions-item label="类别">{{ currentDetail.categoryName }}</el-descriptions-item>
       </el-descriptions>
 
       <el-tabs v-model="activeTab" class="mt-20">
         <!-- 批次库存标签页 -->
         <el-tab-pane label="批次库存" name="batch">
           <el-table :data="batchInventory" border v-loading="batchLoading">
-            <el-table-column prop="batch_number" label="批次号" width="210">
+            <el-table-column prop="batchNumber" label="批次号" width="210">
               <template #default="{ row }">
-                <el-tag type="primary" class="cursor-pointer" @click="goToTraceability(row.batch_number, currentDetail.material_code)" title="点击跳转至追溯页面">{{ row.batch_number }}</el-tag>
+                <el-tag type="primary" class="cursor-pointer" @click="goToTraceability(row.batchNumber, currentDetail.materialCode)" title="点击跳转至追溯页面">{{ row.batchNumber }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="current_quantity" label="当前数量" width="120">
+            <el-table-column prop="currentQuantity" label="当前数量" width="120">
               <template #default="{ row }">
-                <span class="text-primary font-weight-700">{{ formatQuantity(row.current_quantity) }}</span>
+                <span class="text-primary font-weight-700">{{ formatQuantity(row.currentQuantity) }}</span>
               </template>
             </el-table-column>
-            <el-table-column prop="unit_name" label="单位" width="80" />
-            <el-table-column prop="first_in_date" label="首次入库时间" width="180">
+            <el-table-column prop="unitName" label="单位" width="80" />
+            <el-table-column prop="firstInDate" label="首次入库时间" width="180">
               <template #default="{ row }">
-                {{ formatDateTime(row.first_in_date, 'YYYY-MM-DD HH:mm:ss') }}
+                {{ formatDateTime(row.firstInDate, 'YYYY-MM-DD HH:mm:ss') }}
               </template>
             </el-table-column>
-            <el-table-column prop="last_transaction_date" label="最后交易时间" width="180">
+            <el-table-column prop="lastTransactionDate" label="最后交易时间" width="180">
               <template #default="{ row }">
-                {{ formatDateTime(row.last_transaction_date, 'YYYY-MM-DD HH:mm:ss') }}
+                {{ formatDateTime(row.lastTransactionDate, 'YYYY-MM-DD HH:mm:ss') }}
               </template>
             </el-table-column>
             <el-table-column label="操作" min-width="120" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="{ row }">
-                <el-button size="small" type="primary" link @click="showBatchTransactions(row.batch_number)">
+                <el-button size="small" type="primary" link @click="showBatchTransactions(row.batchNumber)">
                   查看流水
                 </el-button>
               </template>
@@ -303,9 +303,9 @@
               <!-- 折叠面板内容 - 批次明细 -->
               <div class="collapse-panel-body">
                 <el-table :data="group.items" border size="small" class="mt-10">
-                  <el-table-column prop="batch_number" label="批次号" width="200">
+                  <el-table-column prop="batchNumber" label="批次号" width="200">
                     <template #default="{ row }">
-                      <el-tag v-if="row.batch_number" type="primary" size="small" class="cursor-pointer" @click="goToTraceability(row.batch_number, currentDetail.material_code)" title="点击跳转至追溯页面">{{ row.batch_number }}</el-tag>
+                      <el-tag v-if="row.batchNumber" type="primary" size="small" class="cursor-pointer" @click="goToTraceability(row.batchNumber, currentDetail.materialCode)" title="点击跳转至追溯页面">{{ row.batchNumber }}</el-tag>
                       <span v-else class="text-muted">-</span>
                     </template>
                   </el-table-column>
@@ -316,14 +316,14 @@
                       </span>
                     </template>
                   </el-table-column>
-                  <el-table-column prop="before_quantity" label="变动前" width="80">
+                  <el-table-column prop="beforeQuantity" label="变动前" width="80">
                     <template #default="{ row }">
-                      {{ formatQuantity(row.before_quantity) }}
+                      {{ formatQuantity(row.beforeQuantity) }}
                     </template>
                   </el-table-column>
-                  <el-table-column prop="after_quantity" label="变动后" width="80">
+                  <el-table-column prop="afterQuantity" label="变动后" width="80">
                     <template #default="{ row }">
-                      {{ formatQuantity(row.after_quantity) }}
+                      {{ formatQuantity(row.afterQuantity) }}
                     </template>
                   </el-table-column>
                   <el-table-column prop="remark" label="备注" min-width="200">
@@ -335,7 +335,7 @@
               </div>
             </el-collapse-item>
           </el-collapse>
-          <el-empty v-if="filteredGroupedRecords && filteredGroupedRecords.length === 0" :description="currentBatchFilter ? '该批次暂无流水记录' : '暂无流水记录'" />
+          <EmptyState v-if="filteredGroupedRecords && filteredGroupedRecords.length === 0" :description="currentBatchFilter ? '该批次暂无流水记录' : '暂无流水记录'" />
           <!-- F6: 批次过滤提示 -->
           <div v-if="currentBatchFilter" class="mt-10 text-center">
             <el-tag type="info" closable @close="currentBatchFilter = ''">当前筛选批次: {{ currentBatchFilter }}</el-tag>
@@ -349,26 +349,26 @@
         <!-- 采购历史标签页 -->
         <el-tab-pane label="采购历史" name="purchase">
           <el-table :data="purchaseHistory" border v-loading="purchaseLoading">
-            <el-table-column prop="receipt_no" label="入库单号" width="120" />
-            <el-table-column prop="supplier_name" label="供应商" width="230" />
+            <el-table-column prop="receiptNo" label="入库单号" width="120" />
+            <el-table-column prop="supplierName" label="供应商" width="230" />
             <el-table-column prop="quantity" label="数量" width="100">
               <template #default="{ row }">
                 {{ formatQuantity(row.quantity) }}
               </template>
             </el-table-column>
-            <el-table-column prop="unit_price" label="单价" width="100">
+            <el-table-column prop="unitPrice" label="单价" width="100">
               <template #default="{ row }">
-                {{ formatCurrency(row.unit_price) }}
+                {{ formatCurrency(row.unitPrice) }}
               </template>
             </el-table-column>
-            <el-table-column prop="total_amount" label="总金额" width="120">
+            <el-table-column prop="totalAmount" label="总金额" width="120">
               <template #default="{ row }">
-                {{ formatCurrency(row.total_amount) }}
+                {{ formatCurrency(row.totalAmount) }}
               </template>
             </el-table-column>
-            <el-table-column prop="receipt_date" label="入库日期" width="110">
+            <el-table-column prop="receiptDate" label="入库日期" width="110">
               <template #default="{ row }">
-                {{ formatDateTime(row.receipt_date, 'YYYY-MM-DD') }}
+                {{ formatDateTime(row.receiptDate, 'YYYY-MM-DD') }}
               </template>
             </el-table-column>
             <el-table-column prop="status" label="状态" width="100">
@@ -389,8 +389,8 @@
               :background="true"
               layout="total, sizes, prev, pager, next"
               :total="purchasePagination.total"
-              @size-change="() => { purchasePagination.currentPage = 1; loadPurchaseHistory(currentDetail.material_id) }"
-              @current-change="() => loadPurchaseHistory(currentDetail.material_id)"
+              @size-change="() => { purchasePagination.currentPage = 1; loadPurchaseHistory(currentDetail.materialId) }"
+              @current-change="() => loadPurchaseHistory(currentDetail.materialId)"
             />
           </div>
         </el-tab-pane>
@@ -398,26 +398,26 @@
         <!-- 销售历史标签页 -->
         <el-tab-pane label="销售历史" name="sales">
           <el-table :data="salesHistory" border v-loading="salesLoading">
-            <el-table-column prop="outbound_no" label="出库单号" width="130" />
-            <el-table-column prop="customer_name" label="客户" width="240" />
+            <el-table-column prop="outboundNo" label="出库单号" width="130" />
+            <el-table-column prop="customerName" label="客户" width="240" />
             <el-table-column prop="quantity" label="数量" width="77">
               <template #default="{ row }">
                 {{ formatQuantity(row.quantity) }}
               </template>
             </el-table-column>
-            <el-table-column prop="unit_price" label="单价" width="90">
+            <el-table-column prop="unitPrice" label="单价" width="90">
               <template #default="{ row }">
-                {{ formatCurrency(row.unit_price) }}
+                {{ formatCurrency(row.unitPrice) }}
               </template>
             </el-table-column>
-            <el-table-column prop="total_amount" label="总金额" width="110">
+            <el-table-column prop="totalAmount" label="总金额" width="110">
               <template #default="{ row }">
-                {{ formatCurrency(row.total_amount) }}
+                {{ formatCurrency(row.totalAmount) }}
               </template>
             </el-table-column>
-            <el-table-column prop="outbound_date" label="出库日期" width="120">
+            <el-table-column prop="outboundDate" label="出库日期" width="120">
               <template #default="{ row }">
-                {{ formatDateTime(row.outbound_date, 'YYYY-MM-DD') }}
+                {{ formatDateTime(row.outboundDate, 'YYYY-MM-DD') }}
               </template>
             </el-table-column>
             <el-table-column prop="status" label="状态" width="100">
@@ -438,8 +438,8 @@
               :background="true"
               layout="total, sizes, prev, pager, next"
               :total="salesPagination.total"
-              @size-change="() => { salesPagination.currentPage = 1; loadSalesHistory(currentDetail.material_id) }"
-              @current-change="() => loadSalesHistory(currentDetail.material_id)"
+              @size-change="() => { salesPagination.currentPage = 1; loadSalesHistory(currentDetail.materialId) }"
+              @current-change="() => loadSalesHistory(currentDetail.materialId)"
             />
           </div>
         </el-tab-pane>
@@ -569,13 +569,13 @@ const groupedRecords = computed(() => {
   // 按单据号分组
   const groups = {}
   detailRecords.value.forEach(record => {
-    const docNo = record.reference_no || '未知单据'
+    const docNo = record.referenceNo || '未知单据'
     if (!groups[docNo]) {
       groups[docNo] = {
         documentNo: docNo,
-        documentType: getDocumentType(record.transaction_type, docNo),
-        transactionType: record.transaction_type,
-        type: record.type || getTypeText(record.transaction_type),
+        documentType: getDocumentType(record.transactionType, docNo),
+        transactionType: record.transactionType,
+        type: record.type || getTypeText(record.transactionType),
         date: record.date,
         operator: record.operator || '—',
         totalQuantity: 0,
@@ -596,7 +596,7 @@ const groupedRecords = computed(() => {
 const filteredGroupedRecords = computed(() => {
   if (!currentBatchFilter.value) return groupedRecords.value
   return groupedRecords.value.filter(group =>
-    group.items.some(item => item.batch_number === currentBatchFilter.value)
+    group.items.some(item => item.batchNumber === currentBatchFilter.value)
   )
 })
 
@@ -622,16 +622,16 @@ const fetchData = async () => {
       page: pagination.currentPage,
       limit: pagination.pageSize,
       search: searchQuery.value,
-      location_id: locationFilter.value,
-      category_id: categoryFilter.value,
-      stock_status: stockStatusFilter.value,
-      min_quantity: normalizeQuantityFilter(minQuantity.value),
-      max_quantity: normalizeQuantityFilter(maxQuantity.value),
-      start_date: dateRange.value && dateRange.value[0] ? dateRange.value[0] : '',
-      end_date: dateRange.value && dateRange.value[1] ? dateRange.value[1] : '',
-      sort_field: sortField.value,
-      sort_order: sortOrder.value,
-      show_all: true
+      locationId: locationFilter.value,
+      categoryId: categoryFilter.value,
+      stockStatus: stockStatusFilter.value,
+      minQuantity: normalizeQuantityFilter(minQuantity.value),
+      maxQuantity: normalizeQuantityFilter(maxQuantity.value),
+      startDate: dateRange.value && dateRange.value[0] ? dateRange.value[0] : '',
+      endDate: dateRange.value && dateRange.value[1] ? dateRange.value[1] : '',
+      sortField: sortField.value,
+      sortOrder: sortOrder.value,
+      showAll: true
     }
 
     const response = await inventoryApi.getStocks(params)
@@ -698,7 +698,7 @@ const fetchBaseData = async () => {
             name: item.name,
             code: item.code,
             level: item.level,
-            parent_id: item.parent_id
+            parent_id: item.parentId
           })
           if (item.children && item.children.length > 0) {
             flatten(item.children)
@@ -780,7 +780,7 @@ const handleBatchExport = async () => {
 
   try {
     batchLoading.value = true
-    const materialIds = selectedRows.value.map(row => row.material_id)
+    const materialIds = selectedRows.value.map(row => row.materialId)
 
     ElMessage.info(`正在导出${materialIds.length}条记录，请稍候...`)
 
@@ -828,13 +828,13 @@ const handleBatchPrint = async () => {
       total_count: selectedRows.value.length.toString(),
       items: selectedRows.value.map((row, index) => ({
         index: index + 1,
-        material_code: row.material_code || '',
-        material_name: row.material_name || '',
+        material_code: row.materialCode || '',
+        material_name: row.materialName || '',
         specification: row.specification || row.specs || row.model || '',
         quantity: formatQuantity(row.quantity),
-        available_quantity: formatQuantity(row.available_quantity ?? row.quantity),
-        unit_name: row.unit_name || row.unit || '',
-        location_name: row.location_name || ''
+        available_quantity: formatQuantity(row.availableQuantity ?? row.quantity),
+        unit_name: row.unitName || row.unit || '',
+        location_name: row.locationName || ''
       }))
     }
 
@@ -856,11 +856,11 @@ const handleQuickPurchase = (row) => {
     path: '/purchase/requisitions',
     query: {
       source: 'quick_purchase',
-      material_id: row.material_id,
-      material_code: row.material_code,
-      material_name: row.material_name,
+      material_id: row.materialId,
+      material_code: row.materialCode,
+      material_name: row.materialName,
       current_stock: row.quantity,
-      min_stock: row.min_stock,
+      min_stock: row.minStock,
       unit: row.unit
     }
   })
@@ -868,7 +868,18 @@ const handleQuickPurchase = (row) => {
 
 // 查看明细
 const handleViewDetail = async (row) => {
-  currentDetail.value = row
+  const materialId = row.materialId
+  const locationId = row.locationId
+  currentDetail.value = {
+    ...row,
+    materialId,
+    locationId,
+    materialCode: row.materialCode,
+    materialName: row.materialName,
+    unitName: row.unitName,
+    locationName: row.locationName,
+    categoryName: row.categoryName,
+  }
   detailRecords.value = [] // 先清空旧数据
   batchInventory.value = [] // 清空批次库存数据
   purchaseHistory.value = [] // 清空采购历史
@@ -879,12 +890,14 @@ const handleViewDetail = async (row) => {
   detailLoading.value = true
 
   try {
-    const materialId = row.material_id
+    if (!materialId) {
+      throw new Error('库存行缺少物料ID，请刷新列表后重试')
+    }
 
     // 并行获取流水记录、批次库存、采购历史、销售历史
     const [recordsResponse] = await Promise.all([
-      inventoryApi.getMaterialRecords(materialId, { locationId: row.location_id }),
-      loadBatchInventory(row.location_id),
+      inventoryApi.getMaterialRecords(materialId, { locationId }),
+      loadBatchInventory(locationId),
       loadPurchaseHistory(materialId),
       loadSalesHistory(materialId)
     ])
@@ -912,7 +925,7 @@ const loadPurchaseHistory = async (materialId) => {
     const response = await inventoryApi.getPurchaseHistory(materialId, {
       page: purchasePagination.currentPage,
       pageSize: purchasePagination.pageSize,
-      sortField: 'receipt_date',
+      sortField: 'receiptDate',
       sortOrder: 'DESC'
     })
 
@@ -939,7 +952,7 @@ const loadSalesHistory = async (materialId) => {
     const response = await inventoryApi.getSalesHistory(materialId, {
       page: salesPagination.currentPage,
       pageSize: salesPagination.pageSize,
-      sortField: 'outbound_date',
+      sortField: 'outboundDate',
       sortOrder: 'DESC'
     })
 
@@ -960,10 +973,9 @@ const loadSalesHistory = async (materialId) => {
 // 加载批次库存
 const loadBatchInventory = async (locationId) => {
   try {
-    // 后端API使用 material_id 而不是 materialCode
     const response = await inventoryApi.getBatchInventory({
-      material_id: currentDetail.value.material_id,
-      location_id: locationId
+      materialId: currentDetail.value.materialId,
+      locationId: locationId
     })
     batchInventory.value = parseListData(response, { enableLog: false })
   } catch (error) {
@@ -1108,13 +1120,13 @@ const formatQuantity = (quantity) => {
 // 判断是否低库存
 const isLowStock = (row) => {
   // 隔离区、不良品等专属区域不需要“安全库存预警”与“快速申购”
-  const locName = String(row.location_name || '');
+  const locName = String(row.locationName || '');
   if (locName.includes('隔离') || locName.includes('不良') || locName.includes('报废') || row.type === 'isolation' || row.type === 'defective') {
     return false;
   }
 
   const quantity = parseFloat(row.quantity || 0)
-  const minStock = parseFloat(row.min_stock || 0)
+  const minStock = parseFloat(row.minStock || 0)
   return minStock > 0 && quantity > 0 && quantity <= minStock
 }
 

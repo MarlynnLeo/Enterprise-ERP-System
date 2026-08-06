@@ -1,4 +1,4 @@
-﻿/**
+/**
  * PC端 - 活力主题
  * @description 活泼年轻的活力主题样式
  * @date
@@ -65,6 +65,19 @@
   --color-info-gradient-end: #3e89c6;
   --color-on-primary: #000000;
 
+  /* 反转粉红侧栏 shell */
+  --shell-sidebar-bg: linear-gradient(180deg, var(--color-primary) 0%, var(--color-primary-light-3) 100%);
+  --shell-border: var(--color-pink, #ff6b9d);
+  --shell-sidebar-text: var(--color-text-primary);
+  --shell-sidebar-text-muted: var(--color-text-primary);
+  --shell-sidebar-title: var(--color-on-primary, #000000);
+  --shell-sidebar-hover-bg: color-mix(in srgb, var(--color-bg-overlay) 20%, transparent);
+  --shell-sidebar-active-bg: color-mix(in srgb, var(--color-bg-overlay) 30%, transparent);
+  --shell-sidebar-active-text: var(--color-on-primary);
+  --shell-sidebar-accent: var(--color-pink, #ff6b9d);
+  --shell-sidebar-indicator-width: 4px;
+  --shell-sidebar-active-shadow: inset 0 0 20px color-mix(in srgb, var(--color-bg-overlay) 30%, transparent);
+
   /* 活力主题特有颜色（彩虹配色） */
   --color-pink: #FF6B9D;              /* 粉红 */
   --color-purple: #CC5DE8;            /* 紫色 */
@@ -87,8 +100,8 @@
 
   --font-size-xs: 12px;
   --font-size-sm: 14px;
-  --font-size-base: 16px;
-  --font-size-md: 16px;
+  --font-size-base: 14px;
+  --font-size-md: 14px;
   --font-size-lg: 18px;
   --font-size-xl: 20px;
   --font-size-xxl: 24px;
@@ -148,86 +161,35 @@
   background: linear-gradient(135deg, var(--color-bg-page) 0%, var(--color-bg-hover) 100%) !important;
 }
 
-/* 侧边栏活力化 */
+/* 侧栏：shell 底色；菜单 → theme-components */
 [data-theme="vibrant"] .sidebar,
 [data-theme="vibrant"] .app-sidebar {
-  background: linear-gradient(180deg, var(--color-primary) 0%, var(--color-primary-light-3) 100%) !important;
-  border-right: 3px solid var(--color-pink) !important;
+  background: var(--shell-sidebar-bg) !important;
+  border-right: 3px solid var(--shell-border) !important;
   box-shadow: 4px 0 30px color-mix(in srgb, var(--color-bg-overlay) 30%, transparent) !important;
 }
 
 [data-theme="vibrant"] .logo-container {
-  background: color-mix(in srgb, var(--ds-white) 20%, transparent) !important;
-  border-bottom: 3px solid color-mix(in srgb, var(--ds-white) 50%, transparent) !important;
+  background: color-mix(in srgb, var(--ds-white, #fff) 20%, transparent) !important;
+  border-bottom: 3px solid color-mix(in srgb, var(--ds-white, #fff) 50%, transparent) !important;
   backdrop-filter: blur(10px);
 }
 
 [data-theme="vibrant"] .logo-container .title {
-  color: var(--color-on-primary) !important;
-  background: none !important;
-  -webkit-text-fill-color: var(--color-on-primary) !important;
   font-weight: 800 !important;
-  text-shadow: 0 2px 10px color-mix(in srgb, var(--ds-black) 20%, transparent) !important;
+  text-shadow: 0 2px 10px color-mix(in srgb, var(--ds-black, #000) 20%, transparent) !important;
 }
 
-/* 菜单样式 */
-[data-theme="vibrant"] .el-menu {
-  background: transparent !important;
-}
-
-/* Keep navigation text readable on the saturated sidebar background. */
 [data-theme="vibrant"] .sidebar .el-menu-item,
 [data-theme="vibrant"] .sidebar .el-sub-menu__title,
 [data-theme="vibrant"] .app-sidebar .el-menu-item,
 [data-theme="vibrant"] .app-sidebar .el-sub-menu__title {
-  color: var(--color-text-primary) !important;
-  font-weight: 500 !important;
-  border-left: 4px solid transparent !important;
-  transition:
-    color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-    background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-    border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-    box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  border-radius: 0 !important;
 }
 
-[data-theme="vibrant"] .sidebar .el-menu-item span,
-[data-theme="vibrant"] .sidebar .el-sub-menu__title span,
-[data-theme="vibrant"] .app-sidebar .el-menu-item span,
-[data-theme="vibrant"] .app-sidebar .el-sub-menu__title span {
-  color: var(--color-text-primary) !important;
-}
-
-/* 悬停状态 */
-[data-theme="vibrant"] .sidebar .el-menu-item:hover,
-[data-theme="vibrant"] .sidebar .el-sub-menu__title:hover,
-[data-theme="vibrant"] .app-sidebar .el-menu-item:hover,
-[data-theme="vibrant"] .app-sidebar .el-sub-menu__title:hover {
-  background: color-mix(in srgb, var(--color-bg-overlay) 20%, transparent) !important;
-  border-left-color: var(--color-pink) !important;
-  color: var(--color-text-primary) !important;
-  transform: none;
-}
-
-[data-theme="vibrant"] .sidebar .el-menu-item:hover span,
-[data-theme="vibrant"] .sidebar .el-sub-menu__title:hover span,
-[data-theme="vibrant"] .app-sidebar .el-menu-item:hover span,
-[data-theme="vibrant"] .app-sidebar .el-sub-menu__title:hover span {
-  color: var(--color-text-primary) !important;
-}
-
-/* 当前活动页状态 */
 [data-theme="vibrant"] .sidebar .el-menu-item.is-active,
 [data-theme="vibrant"] .app-sidebar .el-menu-item.is-active {
-  background: color-mix(in srgb, var(--color-bg-overlay) 30%, transparent) !important;
-  border-left-color: var(--color-pink) !important;
-  color: var(--color-on-primary) !important;
   font-weight: 700 !important;
-  box-shadow: inset 0 0 20px color-mix(in srgb, var(--color-bg-overlay) 30%, transparent);
-}
-
-[data-theme="vibrant"] .sidebar .el-menu-item.is-active span,
-[data-theme="vibrant"] .app-sidebar .el-menu-item.is-active span {
-  color: var(--color-on-primary) !important;
 }
 
 /* 顶部导航栏活力化 */
@@ -248,39 +210,23 @@
   color: var(--color-text-primary) !important;
 }
 
-/* 菜单样式 */
-/* 表格组件 */
+/* 表格/输入：共享壳 + 活力表头渐变 */
 [data-theme="vibrant"] .el-table {
-  background: var(--color-bg-base) !important;
-  border: 2px solid var(--color-border-light) !important;
   border-radius: 12px !important;
-  overflow: hidden;
+  border: 2px solid var(--color-border-light) !important;
 }
 
-[data-theme="vibrant"] .el-table th {
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-pink) 100%) !important;
+[data-theme="vibrant"] .el-table th.el-table__cell {
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-pink, var(--color-danger)) 100%) !important;
   color: var(--color-on-primary) !important;
   font-weight: 700 !important;
   border: none !important;
 }
 
-[data-theme="vibrant"] .el-table tbody tr:hover {
-  background: linear-gradient(90deg, var(--color-bg-page) 0%, var(--color-bg-hover) 100%) !important;
-}
-
-/* 输入框活力化 */
 [data-theme="vibrant"] .el-input__wrapper {
-  background: var(--color-bg-base) !important;
-  border: 2px solid var(--color-border-light) !important;
   border-radius: 12px !important;
-  transition:
-    background-color 0.3s ease,
-    border-color 0.3s ease,
-    box-shadow 0.3s ease !important;
 }
 
-[data-theme="vibrant"] .el-input__wrapper:hover,
 [data-theme="vibrant"] .el-input__wrapper.is-focus {
-  border-color: var(--color-primary) !important;
   box-shadow: 0 0 15px color-mix(in srgb, var(--color-bg-overlay) 30%, transparent) !important;
 }

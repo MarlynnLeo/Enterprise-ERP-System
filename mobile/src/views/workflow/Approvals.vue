@@ -28,13 +28,13 @@
         >
           <div class="card-title">{{ row.title || '未命名审批' }}</div>
           <div class="card-meta">
-            <span>{{ btLabel[row.business_type] || row.business_type || '-' }}</span>
-            <span>{{ row.business_code || '' }}</span>
+            <span>{{ btLabel[row.businessType] || row.businessType || '-' }}</span>
+            <span>{{ row.businessCode || '' }}</span>
           </div>
           <div class="card-meta">
-            <span v-if="activeTab === 'pending'">发起人：{{ row.initiator_name || '-' }}</span>
+            <span v-if="activeTab === 'pending'">发起人：{{ row.initiatorName || '-' }}</span>
             <span v-else>
-              状态：{{ sLabel[row.status || row.instance_status] || row.status || '-' }}
+              状态：{{ sLabel[row.instanceStatus] || row.status || '-' }}
             </span>
           </div>
           <div v-if="activeTab === 'pending'" class="card-actions" @click.stop>
@@ -58,16 +58,16 @@
       <div class="detail-panel" v-if="detail">
         <h3>{{ detail.title || '审批详情' }}</h3>
         <van-cell title="状态" :value="sLabel[detail.status] || detail.status" />
-        <van-cell title="发起人" :value="detail.initiator_name || '-'" />
-        <van-cell title="单据编号" :value="detail.business_code || '-'" />
-        <van-cell title="业务类型" :value="btLabel[detail.business_type] || detail.business_type" />
+        <van-cell title="发起人" :value="detail.initiatorName || '-'" />
+        <van-cell title="单据编号" :value="detail.businessCode || '-'" />
+        <van-cell title="业务类型" :value="btLabel[detail.businessType] || detail.businessType" />
         <div class="nodes-title">审批节点</div>
         <van-steps direction="vertical" :active="activeNodeIndex">
           <van-step v-for="node in detail.nodes || []" :key="node.id">
-            <h4>{{ node.node_name || '节点' }}</h4>
-            <p>{{ nLabel[node.status] || node.status }} · {{ node.approver_name || '' }}</p>
+            <h4>{{ node.nodeName || '节点' }}</h4>
+            <p>{{ nLabel[node.status] || node.status }} · {{ node.approverName || '' }}</p>
             <p v-for="item in node.approvers || []" :key="item.id" class="comment">
-              {{ item.approver_name || item.approver_id }} · {{ nLabel[item.status] || item.status }}
+              {{ item.approverName || item.approverId }} · {{ nLabel[item.status] || item.status }}
               <span v-if="item.comment"> · {{ item.comment }}</span>
             </p>
             <p v-if="node.comment" class="comment">{{ node.comment }}</p>
@@ -158,30 +158,30 @@ const activeNodeIndex = computed(() => {
 })
 
 /**
- * pending 列表来自 workflow_instance_nodes：row.id = node_id，row.instance_id = 实例
+ * pending 列表来自 workflow_instance_nodes：row.id = nodeId，row.instanceId = 实例
  * initiated 列表来自 workflow_instances：row.id = 实例 id
  */
 function instanceIdOf(row) {
   if (!row) return null
-  if (activeTab.value === 'pending') return row.instance_id || null
-  return row.id || row.instance_id || null
+  if (activeTab.value === 'pending') return row.instanceId || null
+  return row.id || row.instanceId || null
 }
 
 function nodeIdOf(row) {
   if (!row) return null
   // 与 PC WorkflowApprovalCenter 一致：待审行 id 即节点 id
-  return row.node_id || row.id || row.current_node_id || null
+  return row.nodeId || row.id || row.currentNodeId || null
 }
 
 function rowKey(row) {
   if (activeTab.value === 'pending') {
-    return `n-${row.id || row.node_id}-${row.instance_id || ''}`
+    return `n-${row.id || row.nodeId}-${row.instanceId || ''}`
   }
-  return `i-${row.id || row.instance_id}`
+  return `i-${row.id || row.instanceId}`
 }
 
 function canWithdraw(row) {
-  const st = row.status || row.instance_status
+  const st = row.status || row.instanceStatus
   return st === 'running' || st === 'pending' || st === 'in_progress'
 }
 
@@ -271,7 +271,7 @@ async function onSubmitAction(action) {
     await workflowApi.approveNode(instanceId, {
       action: actionType.value === 'approve' ? 'approve' : 'reject',
       comment: comment.value || undefined,
-      node_id: nodeId,
+      nodeId,
     })
     showSuccessToast(actionType.value === 'approve' ? '已通过' : '已拒绝')
     actionVis.value = false

@@ -182,6 +182,9 @@ function toInvoiceApi(row, kind = 'ap') {
     notes: row.notes ?? null,
     sourceType: row.source_type ?? row.sourceType ?? null,
     sourceId: row.source_id ?? row.sourceId ?? null,
+    // 关联业务订单（销售订单 / 采购订单），列表跳转用
+    relatedOrderId: row.related_order_id ?? row.relatedOrderId ?? null,
+    relatedOrderNo: row.related_order_no ?? row.relatedOrderNo ?? null,
     createdBy: row.created_by ?? row.createdBy ?? null,
     updatedBy: row.updated_by ?? row.updatedBy ?? null,
     createdAt: formatDate(row.created_at ?? row.createdAt),
@@ -274,6 +277,122 @@ function fromInvoiceListQuery(query = {}, kind = 'ap') {
   return filters;
 }
 
+/**
+ * 应付付款 / 应收收款 结算单字段契约
+ * - 列表/详情 HTTP 一律 camel
+ * - 模型内部与 SQL 仍 snake
+ */
+
+function toPaymentItemApi(item = {}) {
+  if (item == null) return null;
+  return {
+    id: item.id ?? null,
+    invoiceId: item.invoice_id ?? item.invoiceId ?? null,
+    invoiceNumber: item.invoice_number ?? item.invoiceNumber ?? null,
+    amount: toNumber(item.amount, 0),
+    discountAmount: toNumber(item.discount_amount ?? item.discountAmount, 0),
+  };
+}
+
+function toPaymentApi(row) {
+  if (row == null) return null;
+  if (Array.isArray(row)) return row.map((r) => toPaymentApi(r));
+  const api = {
+    id: row.id,
+    paymentNumber: row.payment_number ?? row.paymentNumber ?? null,
+    supplierId: row.supplier_id ?? row.supplierId ?? null,
+    supplierName: row.supplier_name ?? row.name ?? row.supplierName ?? null,
+    paymentDate: formatDate(row.payment_date ?? row.paymentDate),
+    // 列表/详情统一 amount；兼容 totalAmount
+    amount: toNumber(row.total_amount ?? row.amount ?? row.totalAmount, 0),
+    totalAmount: toNumber(row.total_amount ?? row.amount ?? row.totalAmount, 0),
+    paymentMethod: row.payment_method ?? row.paymentMethod ?? null,
+    referenceNumber: row.reference_number ?? row.referenceNumber ?? null,
+    bankAccountId: row.bank_account_id ?? row.bankAccountId ?? null,
+    bankAccountName: row.bank_account_name ?? row.bankAccountName ?? null,
+    status: row.status ?? 'normal',
+    notes: row.notes ?? null,
+    invoiceNumber: row.invoice_number ?? row.invoiceNumber ?? null,
+    invoiceId: row.invoice_id ?? row.invoiceId ?? null,
+    createdAt: formatDate(row.created_at ?? row.createdAt),
+    voidedAt: row.voided_at ?? row.voidedAt ?? null,
+    voidedBy: row.voided_by ?? row.voidedBy ?? null,
+    voidedByName: row.voided_by_name ?? row.voidedByName ?? null,
+    voidReason: row.void_reason ?? row.voidReason ?? null,
+  };
+  if (Array.isArray(row.items)) {
+    api.items = row.items.map((it) => toPaymentItemApi(it));
+  }
+  return api;
+}
+
+function fromPaymentListQuery(query = {}) {
+  const filters = {};
+  if (query.paymentNumber) filters.payment_number = query.paymentNumber;
+  if (query.supplierName) filters.supplier_name = query.supplierName;
+  if (query.supplierId) filters.supplier_id = query.supplierId;
+  if (query.startDate) filters.start_date = query.startDate;
+  if (query.endDate) filters.end_date = query.endDate;
+  if (query.paymentMethod) filters.payment_method = query.paymentMethod;
+  if (query.status) filters.status = query.status;
+  return filters;
+}
+
+function toReceiptItemApi(item = {}) {
+  if (item == null) return null;
+  return {
+    id: item.id ?? null,
+    invoiceId: item.invoice_id ?? item.invoiceId ?? null,
+    invoiceNumber: item.invoice_number ?? item.invoiceNumber ?? null,
+    amount: toNumber(item.amount, 0),
+    discountAmount: toNumber(item.discount_amount ?? item.discountAmount, 0),
+  };
+}
+
+function toReceiptApi(row) {
+  if (row == null) return null;
+  if (Array.isArray(row)) return row.map((r) => toReceiptApi(r));
+  const api = {
+    id: row.id,
+    receiptNumber: row.receipt_number ?? row.receiptNumber ?? null,
+    customerId: row.customer_id ?? row.customerId ?? null,
+    customerName: row.customer_name ?? row.customerName ?? null,
+    receiptDate: formatDate(row.receipt_date ?? row.receiptDate),
+    amount: toNumber(row.total_amount ?? row.amount ?? row.totalAmount, 0),
+    totalAmount: toNumber(row.total_amount ?? row.amount ?? row.totalAmount, 0),
+    paymentMethod: row.payment_method ?? row.paymentMethod ?? null,
+    referenceNumber: row.reference_number ?? row.referenceNumber ?? null,
+    bankAccountId: row.bank_account_id ?? row.bankAccountId ?? null,
+    bankAccountName: row.bank_account_name ?? row.bankAccountName ?? null,
+    status: row.status ?? 'normal',
+    notes: row.notes ?? null,
+    invoiceNumber: row.invoice_number ?? row.invoiceNumber ?? null,
+    invoiceId: row.invoice_id ?? row.invoiceId ?? null,
+    createdAt: formatDate(row.created_at ?? row.createdAt),
+    voidedAt: row.voided_at ?? row.voidedAt ?? null,
+    voidedBy: row.voided_by ?? row.voidedBy ?? null,
+    voidedByName: row.voided_by_name ?? row.voidedByName ?? null,
+    voidReason: row.void_reason ?? row.voidReason ?? null,
+  };
+  if (Array.isArray(row.items)) {
+    api.items = row.items.map((it) => toReceiptItemApi(it));
+  }
+  return api;
+}
+
+function fromReceiptListQuery(query = {}) {
+  const filters = {};
+  if (query.receiptNumber) filters.receipt_number = query.receiptNumber;
+  if (query.customerName) filters.customer_name = query.customerName;
+  if (query.customerId) filters.customer_id = query.customerId;
+  if (query.startDate) filters.start_date = query.startDate;
+  if (query.endDate) filters.end_date = query.endDate;
+  if (query.paymentMethod) filters.payment_method = query.paymentMethod;
+  if (query.status) filters.status = query.status;
+  if (query.invoiceNumber) filters.invoice_number = query.invoiceNumber;
+  return filters;
+}
+
 module.exports = {
   INVOICE_HEADER_API_TO_DB,
   INVOICE_HEADER_DB_TO_API,
@@ -282,5 +401,11 @@ module.exports = {
   fromInvoiceItemApi,
   toInvoiceItemApi,
   fromInvoiceListQuery,
+  toPaymentApi,
+  toPaymentItemApi,
+  fromPaymentListQuery,
+  toReceiptApi,
+  toReceiptItemApi,
+  fromReceiptListQuery,
   formatDate,
 };

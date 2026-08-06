@@ -28,32 +28,32 @@
         </el-descriptions>
 
         <el-table :data="result.details" border stripe>
-          <el-table-column prop="material_code" label="物料编码" width="140" />
-          <el-table-column prop="material_name" label="物料名称" min-width="180" />
+          <el-table-column prop="materialCode" label="物料编码" width="140" />
+          <el-table-column prop="materialName" label="物料名称" min-width="180" />
           <el-table-column prop="unit" label="单位" width="60" align="center" />
-          <el-table-column prop="unit_quantity" label="BOM 单位用量" width="120" align="right" />
-          <el-table-column prop="required_qty" label="需求量" width="100" align="right">
-            <template #default="{ row }">{{ row.required_qty.toFixed(2) }}</template>
+          <el-table-column prop="unitQuantity" label="BOM 单位用量" width="120" align="right" />
+          <el-table-column prop="requiredQty" label="需求量" width="100" align="right">
+            <template #default="{ row }">{{ row.requiredQty.toFixed(2) }}</template>
           </el-table-column>
-          <el-table-column prop="available_qty" label="库存量" width="100" align="right">
-            <template #default="{ row }">{{ row.available_qty.toFixed(2) }}</template>
+          <el-table-column prop="availableQty" label="库存量" width="100" align="right">
+            <template #default="{ row }">{{ row.availableQty.toFixed(2) }}</template>
           </el-table-column>
-          <el-table-column prop="shortage_qty" label="缺料量" width="100" align="right">
+          <el-table-column prop="shortageQty" label="缺料量" width="100" align="right">
             <template #default="{ row }">
-              <span class="font-weight-600" :class="row.shortage_qty > 0 ? 'text-danger' : 'text-success'">
-                {{ row.shortage_qty.toFixed(2) }}
+              <span class="font-weight-600" :class="row.shortageQty > 0 ? 'text-danger' : 'text-success'">
+                {{ row.shortageQty.toFixed(2) }}
               </span>
             </template>
           </el-table-column>
-          <el-table-column prop="is_ready" label="状态" width="80" align="center">
+          <el-table-column prop="isReady" label="状态" width="80" align="center">
             <template #default="{ row }">
-              <el-tag :type="row.is_ready ? 'success' : 'danger'" size="small">{{ row.is_ready ? '充足' : '缺料' }}</el-tag>
+              <el-tag :type="row.isReady ? 'success' : 'danger'" size="small">{{ row.isReady ? '充足' : '缺料' }}</el-tag>
             </template>
           </el-table-column>
         </el-table>
       </template>
 
-      <el-empty v-if="!result && !loading" description="输入生产任务ID开始检查" />
+      <EmptyState v-if="!result && !loading" description="输入生产任务ID开始检查" />
     </el-card>
   </div>
 </template>

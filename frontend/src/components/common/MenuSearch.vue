@@ -6,12 +6,12 @@
       </button>
     </el-tooltip>
 
-    <el-dialog
+    <AppDialog
       v-model="visible"
-      :show-close="false"
-      class="search-dialog"
+      mode="form"
       width="600px"
-      append-to-body
+      :show-close="false"
+      custom-class="search-dialog"
       @opened="onOpened"
       @closed="onClosed"
     >
@@ -35,7 +35,7 @@
 
       <div v-if="keyword" class="search-results">
         <div v-if="filteredOptions.length === 0" class="no-results">
-          <el-empty description="未找到相关菜单" :image-size="60" />
+          <EmptyState description="未找到相关菜单" :image-size="60" />
         </div>
         <div v-else class="results-list">
           <div
@@ -81,7 +81,7 @@
           <span>关闭</span>
         </div>
       </div>
-    </el-dialog>
+    </AppDialog>
   </div>
 </template>
 

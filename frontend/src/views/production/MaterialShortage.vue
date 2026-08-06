@@ -135,20 +135,20 @@ const handleExport = async () => {
     // 添加数据
     shortageList.value.forEach(item => {
       worksheet.addRow({
-        plan_code: item.plan_code || '',
-        plan_name: item.plan_name || '',
-        plan_status: getStatusText(item.plan_status),
-        material_code: item.material_code || '',
-        material_name: item.material_name || '',
-        material_specs: item.material_specs || '',
+        plan_code: item.planCode || '',
+        plan_name: item.planName || '',
+        plan_status: getStatusText(item.planStatus),
+        material_code: item.materialCode || '',
+        material_name: item.materialName || '',
+        material_specs: item.materialSpecs || '',
         unit: item.unit || '',
-        required_quantity: formatQuantity(item.required_quantity),
-        current_stock_quantity: formatQuantity(item.current_stock_quantity),
-        stock_quantity: formatQuantity(item.stock_quantity),
-        shortage_quantity: formatQuantity(item.shortage_quantity),
-        purchase_status: item.purchase_status === 'requested' ? '已申请' : '待申请',
-        start_date: formatDate(item.start_date),
-        end_date: formatDate(item.end_date)
+        required_quantity: formatQuantity(item.requiredQuantity),
+        current_stock_quantity: formatQuantity(item.currentStockQuantity),
+        stock_quantity: formatQuantity(item.stockQuantity),
+        shortage_quantity: formatQuantity(item.shortageQuantity),
+        purchase_status: item.purchaseStatus === 'requested' ? '已申请' : '待申请',
+        start_date: formatDate(item.startDate),
+        end_date: formatDate(item.endDate)
       })
     })
     // 生成文件名
@@ -199,33 +199,33 @@ const handleBatchCreateRequisition = () => {
     const materialMap = new Map()
 
     selectedShortages.value.forEach(item => {
-      const key = item.material_id
+      const key = item.materialId
       if (materialMap.has(key)) {
         // 如果已存在该物料，累加数量
         const existing = materialMap.get(key)
-        existing.shortage_quantity = parseFloat(existing.shortage_quantity) + parseFloat(item.shortage_quantity)
+        existing.shortage_quantity = parseFloat(existing.shortage_quantity) + parseFloat(item.shortageQuantity)
         existing.plans.push({
-          plan_code: item.plan_code,
-          plan_name: item.plan_name
+          plan_code: item.planCode,
+          plan_name: item.planName
         })
       } else {
         // 新物料
         materialMap.set(key, {
-          material_id: item.material_id,
-          material_code: item.material_code,
-          material_name: item.material_name,
-          material_specs: item.material_specs,
+          material_id: item.materialId,
+          material_code: item.materialCode,
+          material_name: item.materialName,
+          material_specs: item.materialSpecs,
           unit: item.unit,
-          shortage_quantity: parseFloat(item.shortage_quantity),
+          shortage_quantity: parseFloat(item.shortageQuantity),
           plans: [{
-            plan_code: item.plan_code,
-            plan_name: item.plan_name
+            plan_code: item.planCode,
+            plan_name: item.planName
           }]
         })
       }
     })
     // 检查是否有已申请的记录
-    const requestedItems = selectedShortages.value.filter(item => item.purchase_status === 'requested')
+    const requestedItems = selectedShortages.value.filter(item => item.purchaseStatus === 'requested')
 
     // 如果全部都已申请，给出警告并阻止
     if (requestedItems.length === selectedShortages.value.length) {
@@ -236,7 +236,7 @@ const handleBatchCreateRequisition = () => {
     confirmMaterialList.value = Array.from(materialMap.values()).map(item => ({
       ...item,
       // 添加一个编辑用的数量字段
-      edit_quantity: item.shortage_quantity
+      edit_quantity: item.shortageQuantity
     }))
 
     // 显示确认对话框
@@ -250,7 +250,7 @@ const handleBatchCreateRequisition = () => {
 const confirmSubmitRequisition = async () => {
   try {
     // 验证数量
-    const invalidItems = confirmMaterialList.value.filter(item => !item.edit_quantity || item.edit_quantity <= 0)
+    const invalidItems = confirmMaterialList.value.filter(item => !item.editQuantity || item.editQuantity <= 0)
     if (invalidItems.length > 0) {
       ElMessage.warning('请输入有效的采购数量（必须大于0）')
       return
@@ -260,33 +260,33 @@ const confirmSubmitRequisition = async () => {
     // 仅允许带生产计划来源的申请（source_type/source_id/source_material_id）
     const planMaterialMap = new Map()
     for (const row of selectedShortages.value) {
-      if (row.purchase_status === 'requested') continue
-      const planId = row.plan_id
+      if (row.purchaseStatus === 'requested') continue
+      const planId = row.planId
       if (!planId) {
-        throw new Error(`物料 ${row.material_code || row.material_id} 缺少生产计划来源，无法创建采购申请`)
+        throw new Error(`物料 ${row.materialCode || row.materialId} 缺少生产计划来源，无法创建采购申请`)
       }
       if (!planMaterialMap.has(planId)) {
         planMaterialMap.set(planId, {
           plan_id: planId,
-          plan_code: row.plan_code,
+          plan_code: row.planCode,
           materials: new Map()
         })
       }
       const bucket = planMaterialMap.get(planId)
-      const confirmItem = confirmMaterialList.value.find(m => m.material_id === row.material_id)
-      const qty = parseFloat(confirmItem?.edit_quantity ?? row.shortage_quantity) || 0
+      const confirmItem = confirmMaterialList.value.find(m => m.materialId === row.materialId)
+      const qty = parseFloat(confirmItem?.edit_quantity ?? row.shortageQuantity) || 0
       if (qty <= 0) continue
-      if (bucket.materials.has(row.material_id)) {
-        bucket.materials.get(row.material_id).quantity += qty
+      if (bucket.materials.has(row.materialId)) {
+        bucket.materials.get(row.materialId).quantity += qty
       } else {
-        bucket.materials.set(row.material_id, {
-          material_id: row.material_id,
-          material_code: row.material_code,
-          material_name: row.material_name,
-          specs: row.material_specs,
+        bucket.materials.set(row.materialId, {
+          material_id: row.materialId,
+          material_code: row.materialCode,
+          material_name: row.materialName,
+          specs: row.materialSpecs,
           unit: row.unit,
           quantity: qty,
-          remarks: `生产计划缺料 - ${row.plan_code}`
+          remarks: `生产计划缺料 - ${row.planCode}`
         })
       }
     }
@@ -304,16 +304,16 @@ const confirmSubmitRequisition = async () => {
           materials: [mat],
           remarks: `根据生产计划缺料统计自动生成 - 计划: ${bucket.plan_code}`,
           source_type: 'production_plan',
-          source_id: bucket.plan_id,
-          source_material_id: mat.material_id
+          source_id: bucket.planId,
+          source_material_id: mat.materialId
         })
         const result = parseApiResponse(response)
         if (!(result.success && result.data)) {
-          throw new Error(result.error || `计划 ${bucket.plan_code} 物料 ${mat.material_code} 创建失败`)
+          throw new Error(result.error || `计划 ${bucket.plan_code} 物料 ${mat.materialCode} 创建失败`)
         }
-        const no = result.data.requisition_number || result.data.requisitionNo || ''
+        const no = result.data.requisitionNumber || result.data.requisitionNo || ''
         if (no) {
-          createdNos.push(result.data.already_exists ? `${no}(已存在)` : no)
+          createdNos.push(result.data.alreadyExists ? `${no}(已存在)` : no)
         }
         materialCount += 1
       }
@@ -402,60 +402,60 @@ onMounted(() => {
         @selection-change="handleSelectionChange"
       >
         <el-table-column type="selection" width="55" fixed="left"></el-table-column>
-        <el-table-column prop="plan_code" label="计划编号" width="140" fixed="left">
+        <el-table-column prop="planCode" label="计划编号" width="140" fixed="left">
           <template #default="scope">
-            <el-link type="primary" @click="viewPlanDetail(scope.row.plan_id)">
-              {{ scope.row.plan_code }}
+            <el-link type="primary" @click="viewPlanDetail(scope.row.planId)">
+              {{ scope.row.planCode }}
             </el-link>
           </template>
         </el-table-column>
 
-        <el-table-column prop="contract_code" label="合同编码" width="150" show-overflow-tooltip>
+        <el-table-column prop="contractCode" label="合同编码" width="150" show-overflow-tooltip>
           <template #default="scope">
-            {{ scope.row.contract_code || '-' }}
+            {{ scope.row.contractCode || '-' }}
           </template>
         </el-table-column>
 
         <el-table-column label="计划开始日期" width="120" sortable>
           <template #default="scope">
-            {{ formatDate(scope.row.start_date) }}
+            {{ formatDate(scope.row.startDate) }}
           </template>
         </el-table-column>
 
-        <el-table-column prop="product_name" label="产品名称" width="180" show-overflow-tooltip />
+        <el-table-column prop="productName" label="产品名称" width="180" show-overflow-tooltip />
 
-        <el-table-column prop="product_code" label="产品编码" width="130" />
+        <el-table-column prop="productCode" label="产品编码" width="130" />
 
-        <el-table-column prop="product_specs" label="产品规格" width="150" show-overflow-tooltip>
+        <el-table-column prop="productSpecs" label="产品规格" width="150" show-overflow-tooltip>
           <template #default="scope">
             <el-tooltip
-              v-if="scope.row.product_specs"
-              :content="scope.row.product_specs"
+              v-if="scope.row.productSpecs"
+              :content="scope.row.productSpecs"
               placement="top"
             >
-              <span class="specs-text">{{ scope.row.product_specs }}</span>
+              <span class="specs-text">{{ scope.row.productSpecs }}</span>
             </el-tooltip>
             <span v-else>-</span>
           </template>
         </el-table-column>
         <el-table-column label="计划数量" width="100">
           <template #default="scope">
-            {{ formatQuantity(scope.row.plan_quantity) }}
+            {{ formatQuantity(scope.row.planQuantity) }}
           </template>
         </el-table-column>
 
-        <el-table-column prop="material_code" label="缺料编码" width="130" />
+        <el-table-column prop="materialCode" label="缺料编码" width="130" />
 
-        <el-table-column prop="material_name" label="缺料名称" width="180" show-overflow-tooltip />
+        <el-table-column prop="materialName" label="缺料名称" width="180" show-overflow-tooltip />
 
-        <el-table-column prop="material_specs" label="缺料规格" width="150" show-overflow-tooltip>
+        <el-table-column prop="materialSpecs" label="缺料规格" width="150" show-overflow-tooltip>
           <template #default="scope">
             <el-tooltip
-              v-if="scope.row.material_specs"
-              :content="scope.row.material_specs"
+              v-if="scope.row.materialSpecs"
+              :content="scope.row.materialSpecs"
               placement="top"
             >
-              <span class="specs-text">{{ scope.row.material_specs }}</span>
+              <span class="specs-text">{{ scope.row.materialSpecs }}</span>
             </el-tooltip>
             <span v-else>-</span>
           </template>
@@ -463,34 +463,34 @@ onMounted(() => {
 
         <el-table-column label="需求数量" width="110">
           <template #default="scope">
-            {{ formatQuantity(scope.row.required_quantity) }}
+            {{ formatQuantity(scope.row.requiredQuantity) }}
           </template>
         </el-table-column>
 
         <el-table-column label="当前库存" width="110">
           <template #default="scope">
-            <span class="text-info">{{ formatQuantity(scope.row.current_stock_quantity) }}</span>
+            <span class="text-info">{{ formatQuantity(scope.row.currentStockQuantity) }}</span>
           </template>
         </el-table-column>
 
         <el-table-column label="本次可用" width="110">
           <template #default="scope">
-            <span class="text-info">{{ formatQuantity(scope.row.stock_quantity) }}</span>
+            <span class="text-info">{{ formatQuantity(scope.row.stockQuantity) }}</span>
           </template>
         </el-table-column>
 
         <el-table-column label="缺料数量" width="110">
           <template #default="scope">
             <span class="text-danger shortage-quantity">
-              {{ formatQuantity(scope.row.shortage_quantity) }}
+              {{ formatQuantity(scope.row.shortageQuantity) }}
             </span>
           </template>
         </el-table-column>
 
         <el-table-column label="采购状态" width="100" fixed="right">
           <template #default="scope">
-            <el-tag :type="scope.row.purchase_status === 'requested' ? 'success' : 'warning'">
-              {{ scope.row.purchase_status === 'requested' ? '已申请' : '待申请' }}
+            <el-tag :type="scope.row.purchaseStatus === 'requested' ? 'success' : 'warning'">
+              {{ scope.row.purchaseStatus === 'requested' ? '已申请' : '待申请' }}
             </el-tag>
           </template>
         </el-table-column>
@@ -515,10 +515,11 @@ onMounted(() => {
       </div>
     </el-card>
     <!-- 确认采购申请对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="confirmDialogVisible"
       title="确认采购申请"
-      width="900px"
+      mode="form"
+      wide
     >
       <div class="confirm-dialog-content">
         <el-table
@@ -529,13 +530,13 @@ onMounted(() => {
         >
           <el-table-column type="index" label="序号" width="60" />
 
-          <el-table-column prop="material_code" label="物料编码" width="110" />
+          <el-table-column prop="materialCode" label="物料编码" width="110" />
 
-          <el-table-column prop="material_name" label="物料名称" min-width="140" show-overflow-tooltip />
+          <el-table-column prop="materialName" label="物料名称" min-width="140" show-overflow-tooltip />
 
-          <el-table-column prop="material_specs" label="规格" width="150" show-overflow-tooltip>
+          <el-table-column prop="materialSpecs" label="规格" width="150" show-overflow-tooltip>
             <template #default="scope">
-              {{ scope.row.material_specs || '-' }}
+              {{ scope.row.materialSpecs || '-' }}
             </template>
           </el-table-column>
 
@@ -547,14 +548,14 @@ onMounted(() => {
 
           <el-table-column label="缺料数量" width="100">
             <template #default="scope">
-              <span class="text-danger">{{ formatQuantity(scope.row.shortage_quantity) }}</span>
+              <span class="text-danger">{{ formatQuantity(scope.row.shortageQuantity) }}</span>
             </template>
           </el-table-column>
 
           <el-table-column label="采购数量" width="110">
             <template #default="scope">
               <el-input
-                v-model.number="scope.row.edit_quantity"
+                v-model.number="scope.row.editQuantity"
                 type="number"
                 size="small"
                 placeholder="请输入数量"
@@ -566,7 +567,7 @@ onMounted(() => {
         </el-table>
         <div class="dialog-summary">
           <el-icon><InfoFilled /></el-icon>
-          <span>共 <strong>{{ confirmMaterialList.length }}</strong> 种物料，总采购数量：<strong>{{ formatQuantity(confirmMaterialList.reduce((sum, item) => sum + parseFloat(item.edit_quantity || 0), 0)) }}</strong></span>
+          <span>共 <strong>{{ confirmMaterialList.length }}</strong> 种物料，总采购数量：<strong>{{ formatQuantity(confirmMaterialList.reduce((sum, item) => sum + parseFloat(item.editQuantity || 0), 0)) }}</strong></span>
         </div>
       </div>
       <template #footer>
@@ -577,7 +578,7 @@ onMounted(() => {
           </el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
     <!-- 浮动批量操作栏 -->
     <Transition name="slide-up">
       <div v-if="selectedShortages.length > 0" class="floating-batch-bar">

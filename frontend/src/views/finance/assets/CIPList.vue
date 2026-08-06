@@ -43,17 +43,17 @@
       </template>
 
       <el-table :data="tableData" v-loading="loading" border stripe class="w-full">
-        <el-table-column prop="project_code" label="工程编号" width="140" />
-        <el-table-column prop="project_name" label="工程名称" min-width="180" show-overflow-tooltip />
+        <el-table-column prop="projectCode" label="工程编号" width="140" />
+        <el-table-column prop="projectName" label="工程名称" min-width="180" show-overflow-tooltip />
         <el-table-column prop="budget" label="预算金额" width="130">
           <template #default="{ row }">
             {{ formatMoney(row.budget) }}
           </template>
         </el-table-column>
-        <el-table-column prop="accumulated_amount" label="已归集成本" width="130">
+        <el-table-column prop="accumulatedAmount" label="已归集成本" width="130">
           <template #default="{ row }">
-            <span :class="{ 'over-budget': parseFloat(row.accumulated_amount) > parseFloat(row.budget) }">
-              {{ formatMoney(row.accumulated_amount) }}
+            <span :class="{ 'over-budget': parseFloat(row.accumulatedAmount) > parseFloat(row.budget) }">
+              {{ formatMoney(row.accumulatedAmount) }}
             </span>
           </template>
         </el-table-column>
@@ -67,14 +67,14 @@
             />
           </template>
         </el-table-column>
-        <el-table-column prop="start_date" label="开工日期" width="110">
+        <el-table-column prop="startDate" label="开工日期" width="110">
           <template #default="{ row }">
-            {{ formatDate(row.start_date) }}
+            {{ formatDate(row.startDate) }}
           </template>
         </el-table-column>
-        <el-table-column prop="estimated_end_date" label="预计完工" width="110">
+        <el-table-column prop="estimatedEndDate" label="预计完工" width="110">
           <template #default="{ row }">
-            {{ formatDate(row.estimated_end_date) }}
+            {{ formatDate(row.estimatedEndDate) }}
           </template>
         </el-table-column>
         <el-table-column prop="responsible" label="负责人" width="100" />
@@ -94,7 +94,7 @@
               <el-button type="warning" link size="small" @click="handleEdit(row)"
               v-permission="'finance:assets:update'">编辑</el-button>
               <el-button v-permission="'finance:assets:delete'" type="danger" link size="small" @click="handleDelete(row)"
-                :disabled="parseFloat(row.accumulated_amount) > 0">删除</el-button>
+                :disabled="parseFloat(row.accumulatedAmount) > 0">删除</el-button>
             </template>
             <template v-else>
               <el-button type="info" link size="small" disabled>已完成</el-button>
@@ -118,18 +118,18 @@
     </el-card>
 
     <!-- 新建/编辑对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="formDialogVisible"
       :title="isEdit ? '编辑在建工程' : '新建在建工程'"
+      mode="form"
       width="600px"
-      destroy-on-close
     >
       <el-form :model="form" :rules="formRules" ref="formRef" label-width="100px">
-        <el-form-item label="工程编号" prop="project_code">
-          <el-input v-model="form.project_code" :disabled="isEdit" placeholder="请输入工程编号" />
+        <el-form-item label="工程编号" prop="projectCode">
+          <el-input v-model="form.projectCode" :disabled="isEdit" placeholder="请输入工程编号" />
         </el-form-item>
-        <el-form-item label="工程名称" prop="project_name">
-          <el-input v-model="form.project_name" placeholder="请输入工程名称" />
+        <el-form-item label="工程名称" prop="projectName">
+          <el-input v-model="form.projectName" placeholder="请输入工程名称" />
         </el-form-item>
         <el-form-item label="预算金额" prop="budget">
           <el-input-number v-model="form.budget" :min="0" :precision="2" :controls="false" class="w-full" />
@@ -137,13 +137,13 @@
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="开工日期">
-              <el-date-picker v-model="form.start_date" type="date" value-format="YYYY-MM-DD"
+              <el-date-picker v-model="form.startDate" type="date" value-format="YYYY-MM-DD"
                 placeholder="请选择" class="w-full" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="预计完工">
-              <el-date-picker v-model="form.estimated_end_date" type="date" value-format="YYYY-MM-DD"
+              <el-date-picker v-model="form.estimatedEndDate" type="date" value-format="YYYY-MM-DD"
                 placeholder="请选择" class="w-full" />
             </el-form-item>
           </el-col>
@@ -168,10 +168,15 @@
         <el-button @click="formDialogVisible = false">取消</el-button>
         <el-button v-permission="isEdit ? 'finance:assets:update' : 'finance:assets:create'" type="primary" @click="submitForm" :loading="submitting">确定</el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
 
     <!-- 归集成本对话框 -->
-    <el-dialog v-model="costDialogVisible" title="归集成本" width="450px" destroy-on-close>
+    <AppDialog
+      v-model="costDialogVisible"
+      title="归集成本"
+      mode="form"
+      width="450px"
+    >
       <el-descriptions :column="1" border>
         <el-descriptions-item label="工程名称">{{ currentProject?.project_name }}</el-descriptions-item>
         <el-descriptions-item label="当前归集">{{ formatMoney(currentProject?.accumulated_amount) }}</el-descriptions-item>
@@ -187,10 +192,15 @@
         <el-button @click="costDialogVisible = false">取消</el-button>
         <el-button v-permission="'finance:assets:update'" type="primary" @click="submitCost" :loading="submitting">确认归集</el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
 
     <!-- 转固对话框 -->
-    <el-dialog v-model="transferDialogVisible" title="在建工程转固" width="600px" destroy-on-close>
+    <AppDialog
+      v-model="transferDialogVisible"
+      title="在建工程转固"
+      mode="form"
+      width="600px"
+    >
       <el-alert type="warning" :closable="false" class="mb-md">
         转固后，在建工程将标记为"已转固"，并在固定资产中生成一条新记录。此操作不可撤销。
       </el-alert>
@@ -200,10 +210,10 @@
         <el-descriptions-item label="归集成本">{{ formatMoney(currentProject?.accumulated_amount) }}</el-descriptions-item>
       </el-descriptions>
       <el-form :model="transferForm" :rules="transferRules" ref="transferFormRef" label-width="100px">
-        <el-form-item label="资产编号" prop="asset_code">
+        <el-form-item label="资产编号" prop="assetCode">
           <el-input v-model="transferForm.asset_code" placeholder="请输入固定资产编号" />
         </el-form-item>
-        <el-form-item label="资产名称" prop="asset_name">
+        <el-form-item label="资产名称" prop="assetName">
           <el-input v-model="transferForm.asset_name" placeholder="请输入固定资产名称" />
         </el-form-item>
         <el-row :gutter="16">
@@ -235,7 +245,7 @@
         <el-button @click="transferDialogVisible = false">取消</el-button>
         <el-button v-permission="'finance:assets:update'" type="primary" @click="submitTransfer" :loading="submitting">确认转固</el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
   </div>
 </template>
 
@@ -315,7 +325,7 @@ const formatMoney = (val) => {
 const getProgressPercent = (row) => {
   const budget = parseFloat(row.budget || 0)
   if (budget <= 0) return 0
-  return Math.min(Math.round((parseFloat(row.accumulated_amount || 0) / budget) * 100), 100)
+  return Math.min(Math.round((parseFloat(row.accumulatedAmount || 0) / budget) * 100), 100)
 }
 
 const getProgressStatus = (row) => {
@@ -376,11 +386,11 @@ const handleEdit = (row) => {
   isEdit.value = true
   Object.assign(form, {
     id: row.id,
-    project_code: row.project_code,
-    project_name: row.project_name,
+    project_code: row.projectCode,
+    project_name: row.projectName,
     budget: parseFloat(row.budget || 0),
-    start_date: formatDate(row.start_date) === '-' ? '' : formatDate(row.start_date),
-    estimated_end_date: formatDate(row.estimated_end_date) === '-' ? '' : formatDate(row.estimated_end_date),
+    start_date: formatDate(row.startDate) === '-' ? '' : formatDate(row.startDate),
+    estimated_end_date: formatDate(row.estimatedEndDate) === '-' ? '' : formatDate(row.estimatedEndDate),
     responsible: row.responsible || '',
     department: row.department || '',
     notes: row.notes || '',
@@ -413,7 +423,7 @@ const submitForm = async () => {
 
 // 删除
 const handleDelete = (row) => {
-  ElMessageBox.confirm(`确定要删除工程 "${row.project_name}" 吗？`, '确认删除', {
+  ElMessageBox.confirm(`确定要删除工程 "${row.projectName}" 吗？`, '确认删除', {
     type: 'warning',
     confirmButtonText: '确定',
     cancelButtonText: '取消',
@@ -460,7 +470,7 @@ const handleTransfer = (row) => {
   currentProject.value = row
   Object.assign(transferForm, {
     asset_code: '',
-    asset_name: row.project_name,
+    asset_name: row.projectName,
     acquisition_date: formatLocalDate(new Date()),
     useful_life: 5,
     depreciation_method: 'straight_line',

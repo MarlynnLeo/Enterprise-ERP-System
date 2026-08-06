@@ -6,36 +6,29 @@ const normalizeMaterialNumber = (value) => {
 }
 
 const normalizeMaterialRequirement = (material) => {
-  const materialId = material.materialId ?? material.material_id ?? material.id
-  const requiredQuantity = normalizeMaterialNumber(
-    material.requiredQuantity ?? material.required_quantity
-  )
-  const stockQuantity = normalizeMaterialNumber(
-    material.stockQuantity ?? material.stock_quantity
-  )
+  // HTTP SSOT: camel only
+  const materialId = material.materialId ?? material.id
+  const requiredQuantity = normalizeMaterialNumber(material.requiredQuantity)
+  const stockQuantity = normalizeMaterialNumber(material.stockQuantity)
   const availableQuantity = normalizeMaterialNumber(
-    material.availableQuantity ?? material.available_quantity ?? stockQuantity
+    material.availableQuantity ?? stockQuantity
   )
-  const rawIssueQuantity =
-    material.issueQuantity ?? material.issue_quantity ?? material.actualQuantity ?? material.actual_quantity
+  const rawIssueQuantity = material.issueQuantity ?? material.actualQuantity
   const issueQuantity =
     rawIssueQuantity === undefined || rawIssueQuantity === null
       ? Math.min(requiredQuantity, availableQuantity)
       : normalizeMaterialNumber(rawIssueQuantity)
   const shortageQuantity = normalizeMaterialNumber(
-    material.shortageQuantity ??
-      material.shortage_quantity ??
-      Math.max(0, requiredQuantity - issueQuantity)
+    material.shortageQuantity ?? Math.max(0, requiredQuantity - issueQuantity)
   )
   const grossRequiredQuantity = normalizeMaterialNumber(
-    material.grossRequiredQuantity ?? material.gross_required_quantity ?? requiredQuantity
+    material.grossRequiredQuantity ?? requiredQuantity
   )
 
   return {
     ...material,
     id: material.id ?? materialId,
     materialId,
-    material_id: material.material_id ?? materialId,
     quantity: requiredQuantity,
     requiredQuantity,
     plannedQuantity: requiredQuantity,
@@ -46,8 +39,8 @@ const normalizeMaterialRequirement = (material) => {
     availableQuantity,
     shortageQuantity,
     status: shortageQuantity > 0 ? 'shortage' : 'sufficient',
-    materialCode: material.code || material.materialCode || material.material_code || '',
-    materialName: material.name || material.materialName || material.material_name || ''
+    materialCode: material.code || material.materialCode || '',
+    materialName: material.name || material.materialName || ''
   }
 }
 

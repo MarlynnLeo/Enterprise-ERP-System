@@ -6,6 +6,7 @@
  */
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 const { safeParseId } = require('../../../utils/safeParseId');
 const { isValidDateOnly, getMonthRange } = require('../../../utils/dateOnly');
 const { pool } = require('../../../config/db');
@@ -167,7 +168,7 @@ module.exports = {
   updateCalendar: async (req, res) => {
     try {
       const { id } = req.params;
-      const { name, work_start, work_end, break_start, break_end, dinner_start, dinner_end, exclude_weekends } = req.body;
+      const { name, work_start, work_end, break_start, break_end, dinner_start, dinner_end, exclude_weekends } = mapKeysToSnake(req.body || {});
 
       // 校验必填字段
       if (!name || !work_start || !work_end) {

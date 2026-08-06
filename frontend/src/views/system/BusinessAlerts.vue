@@ -16,9 +16,9 @@
           <el-tag :type="{ critical:'danger', warning:'warning', info:'info' }[row.severity] || 'info'" size="small">{{ { critical:'严重', warning:'警告', info:'提示' }[row.severity] || row.severity }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="check_interval_minutes" label="检查间隔(分)" width="110" />
-      <el-table-column prop="is_active" label="状态" width="70">
-        <template #default="{ row }"><el-switch v-model="row.is_active" v-permission="'system:business-alerts:edit'" :active-value="1" :inactive-value="0" @change="toggleActive(row)" /></template>
+      <el-table-column prop="checkIntervalMinutes" label="检查间隔(分)" width="110" />
+      <el-table-column prop="isActive" label="状态" width="70">
+        <template #default="{ row }"><el-switch v-model="row.isActive" v-permission="'system:business-alerts:edit'" :active-value="1" :inactive-value="0" @change="toggleActive(row)" /></template>
       </el-table-column>
       <el-table-column label="操作" min-width="80" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
         <template #default="{ row }"><el-button link type="primary" v-permission="'system:business-alerts:edit'" @click="openEdit(row)">配置</el-button></template>
@@ -26,7 +26,12 @@
       </el-table>
     </el-card>
 
-    <el-dialog v-model="editVis" title="配置告警" width="450px">
+    <AppDialog
+      v-model="editVis"
+      title="配置告警"
+      mode="form"
+      width="450px"
+    >
       <el-form :model="editForm" label-width="100px">
         <el-form-item label="告警名称"><el-input v-model="editForm.name" /></el-form-item>
         <el-form-item label="级别">
@@ -34,14 +39,14 @@
             <el-option label="提示" value="info" /><el-option label="警告" value="warning" /><el-option label="严重" value="critical" />
           </el-select>
         </el-form-item>
-        <el-form-item label="检查间隔(分)"><el-input-number v-model="editForm.check_interval_minutes" :min="1" class="w-full" /></el-form-item>
-        <el-form-item label="启用"><el-switch v-model="editForm.is_active" :active-value="1" :inactive-value="0" /></el-form-item>
+        <el-form-item label="检查间隔(分)"><el-input-number v-model="editForm.checkIntervalMinutes" :min="1" class="w-full" /></el-form-item>
+        <el-form-item label="启用"><el-switch v-model="editForm.isActive" :active-value="1" :inactive-value="0" /></el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="editVis = false">取消</el-button>
         <el-button type="primary" v-permission="'system:business-alerts:edit'" @click="saveEdit" :loading="saving">保存</el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
   </div>
 </template>
 

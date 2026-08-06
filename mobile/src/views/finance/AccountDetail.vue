@@ -17,13 +17,13 @@
         <div class="hero-content">
           <div class="hero-top">
             <span class="hero-code">{{ account.account_code }}</span>
-            <span class="hero-type" :class="getTypeClass(account.account_type)">
-              {{ account.account_type }}
+            <span class="hero-type" :class="getTypeClass(account.accountType)">
+              {{ account.accountType }}
             </span>
           </div>
-          <div class="hero-name">{{ account.account_name }}</div>
-          <div class="hero-status" :class="{ active: account.is_active }">
-            {{ account.is_active ? '● 已启用' : '○ 已停用' }}
+          <div class="hero-name">{{ account.accountName }}</div>
+          <div class="hero-status" :class="{ active: account.isActive }">
+            {{ account.isActive ? '● 已启用' : '○ 已停用' }}
           </div>
         </div>
       </div>
@@ -39,11 +39,11 @@
         <div class="balance-row">
           <div class="balance-item">
             <span class="bal-label">借方累计</span>
-            <span class="bal-value debit">¥{{ formatMoney(account.debit_total || 0) }}</span>
+            <span class="bal-value debit">¥{{ formatMoney(account.debitTotal || account.openingDebit || 0) }}</span>
           </div>
           <div class="balance-item">
             <span class="bal-label">贷方累计</span>
-            <span class="bal-value credit">¥{{ formatMoney(account.credit_total || 0) }}</span>
+            <span class="bal-value credit">¥{{ formatMoney(account.creditTotal || account.openingCredit || 0) }}</span>
           </div>
         </div>
       </div>
@@ -54,27 +54,27 @@
         <div class="info-grid">
           <div class="info-item">
             <span class="info-label">科目编码</span>
-            <span class="info-value mono">{{ account.account_code }}</span>
+            <span class="info-value mono">{{ account.accountCode }}</span>
           </div>
           <div class="info-item">
             <span class="info-label">科目名称</span>
-            <span class="info-value">{{ account.account_name }}</span>
+            <span class="info-value">{{ account.accountName }}</span>
           </div>
           <div class="info-item">
             <span class="info-label">科目类型</span>
-            <span class="info-value">{{ account.account_type }}</span>
+            <span class="info-value">{{ account.accountType }}</span>
           </div>
           <div class="info-item">
             <span class="info-label">借贷方向</span>
-            <span class="info-value">{{ account.is_debit ? '借方' : '贷方' }}</span>
+            <span class="info-value">{{ account.isDebit ? '借方' : '贷方' }}</span>
           </div>
           <div class="info-item">
             <span class="info-label">币种</span>
-            <span class="info-value">{{ account.currency_code || 'CNY' }}</span>
+            <span class="info-value">{{ account.currencyCode || 'CNY' }}</span>
           </div>
-          <div class="info-item" v-if="account.parent_id">
+          <div class="info-item" v-if="account.parentId">
             <span class="info-label">上级科目</span>
-            <span class="info-value">{{ account.parent_name || account.parent_id }}</span>
+            <span class="info-value">{{ account.parentName || account.parentId }}</span>
           </div>
           <div class="info-item full" v-if="account.description">
             <span class="info-label">科目说明</span>

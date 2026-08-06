@@ -198,11 +198,12 @@
   "20260731000001_disable_auto_generate_finance_vouchers.js": "a1158bd4ec0ea086b2c3adbfef1b750c32eccce6099b91f84f216e8c0d24cbbe",
   "20260731000002_hide_legacy_create_voucher_menu.js": "6754b77acd48ead523fad1b4367a5ddd9630d082e69f37e4b1f348d6965cbdc4",
   "20260801000001_align_tax_doc_type_and_automation_menu.js": "2daf799205135270b6fe86ff716220def43503494474ee3ed74fafb950bc514d",
-  "20260801000002_add_ar_ap_settlement_menus.js": "07d953c14f146b560d49ad1467c449f41b663d3afd9393886d3e96196eef6fd3",
+  "20260801000002_add_ar_ap_settlement_menus.js": "2080123ce5c7a4a03b06d7b72fe190835337b7f0b4695fe1cf32d0e4389a4445",
   "20260801000003_finance_professional_hardening.js": "1dca484d5e5624ba6d0d2ac9189f4879fbf8ccd61159850856bbe11f31f262ca",
-  "20260801000004_finance_professional_closure.js": "d8da83a90e0a8773c94474b04c53a2a91971645487369d8dfd879fabd6f06c50",
+  "20260801000004_finance_professional_closure.js": "e4b7174ea01cb1c5c1f6410363fcb02ddecdc0faf110df1126b89162c89dba44",
   "20260801000005_finance_professional_100.js": "18ccf2a0ae33bb2a4f57350fde7e63f5aaf3131b0b8885f511230b13201d51bb",
   "20260801000006_seed_tax_invoice_coding_rule.js": "4dca5ed82abf8f31ed99b99a212ddb8513cf359399d5750ec6559e1c789d41b6",
   "20260803000001_professional_ap_gl_aux_and_tax.js": "8bd4c5db6504e47672a89828e1f081c2bf3c828740904bf65ee329266f93ca89",
-  "20260803000002_unify_invoice_tax_payment_terms.js": "85277d899ffbab5e761af0fc169a88e7b37bfe15011c4ed0142a7c4e6f3f946f"
+  "20260803000002_unify_invoice_tax_payment_terms.js": "85277d899ffbab5e761af0fc169a88e7b37bfe15011c4ed0142a7c4e6f3f946f",
+  "20260804000001_repair_menu_permission_id_binding.js": "9eb3f5781becb352a4f2fdcc378be0203dc789b7ea128493f4839b1497effbea"
 }

@@ -20,5 +20,5 @@ export const workflowApi = {
   getInstanceById: (id) => api.get(`/workflow/instances/${id}`),
   getMyInitiated: (params) => api.get('/workflow/my/initiated', { params }),
   getMyPending: (params) => api.get('/workflow/my/pending', { params }),
-  getByBusiness: (businessType, businessId) => api.get('/workflow/business', { params: { business_type: businessType, business_id: businessId } }),
+  getByBusiness: (businessType, businessId) => api.get('/workflow/business', { params: { businessType, businessId } }),
 }

@@ -123,9 +123,10 @@
     </el-card>
 
     <!-- 批量生成年度期间对话框 -->
-    <el-dialog
-      title="批量生成年度期间"
+    <AppDialog
       v-model="batchDialogVisible"
+      title="批量生成年度期间"
+      mode="form"
       width="420px"
     >
       <el-form :model="batchForm" ref="batchFormRef" label-width="100px" class="period-form">
@@ -149,12 +150,13 @@
           <el-button v-permission="'finance:periods:create'" type="primary" @click="batchCreatePeriods" :loading="saveLoading">生成</el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
 
     <!-- 新增/编辑单个期间对话框 -->
-    <el-dialog
-      :title="dialogTitle"
+    <AppDialog
       v-model="dialogVisible"
+      :title="dialogTitle"
+      mode="form"
       width="500px"
     >
       <el-form :model="periodForm" :rules="periodRules" ref="periodFormRef" label-width="100px" class="period-form">
@@ -197,7 +199,7 @@
           <el-button v-permission="periodForm.id ? 'finance:periods:update' : 'finance:periods:create'" type="primary" @click="savePeriod" :loading="saveLoading">确认</el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
   </div>
 </template>
 
@@ -325,8 +327,8 @@ const loadPeriods = async () => {
         id: period.id,
         periodName: period.period_name,
         fiscalYear: period.fiscal_year,
-        startDate: period.start_date,
-        endDate: period.end_date,
+        startDate: period.startDate,
+        endDate: period.endDate,
         isClosed: period.is_closed,
         isAdjusting: period.is_adjusting
       }));
@@ -337,8 +339,8 @@ const loadPeriods = async () => {
         id: period.id,
         periodName: period.period_name,
         fiscalYear: period.fiscal_year,
-        startDate: period.start_date,
-        endDate: period.end_date,
+        startDate: period.startDate,
+        endDate: period.endDate,
         isClosed: period.is_closed,
         isAdjusting: period.is_adjusting
       }));

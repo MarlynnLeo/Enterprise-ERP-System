@@ -688,6 +688,7 @@ const apModel = {
     const offset = pagination.offset;
 
     // 列表 SQL 只选 snake 列；出参统一 toInvoiceApi（禁止 SQL 里 AS camel 双轨）
+    // 附带关联采购订单，供发票号跳转
     const dataQuery = `
         SELECT a.id, a.invoice_number, a.supplier_invoice_number, a.supplier_id,
               s.name AS supplier_name,
@@ -695,9 +696,17 @@ const apModel = {
               DATE_FORMAT(a.due_date, '%Y-%m-%d') AS due_date,
               a.total_amount, a.amount_excluding_tax, a.tax_amount, a.tax_rate,
               a.paid_amount, a.balance_amount, a.terms, a.source_type, a.source_id,
-              a.status, DATE_FORMAT(a.created_at, '%Y-%m-%d') AS created_at
+              a.status, DATE_FORMAT(a.created_at, '%Y-%m-%d') AS created_at,
+              COALESCE(po_direct.id, pr.order_id, po_from_receipt.id) AS related_order_id,
+              COALESCE(po_direct.order_no, pr.order_no, po_from_receipt.order_no) AS related_order_no
         FROM ap_invoices a
         LEFT JOIN suppliers s ON a.supplier_id = s.id
+        LEFT JOIN purchase_orders po_direct
+          ON a.source_type = 'purchase_order' AND a.source_id = po_direct.id AND po_direct.deleted_at IS NULL
+        LEFT JOIN purchase_receipts pr
+          ON a.source_type = 'purchase_receipt' AND a.source_id = pr.id AND pr.deleted_at IS NULL
+        LEFT JOIN purchase_orders po_from_receipt
+          ON pr.order_id = po_from_receipt.id AND po_from_receipt.deleted_at IS NULL
         ${scopeClause.join || ''}
         ${whereClause}
         ORDER BY a.invoice_date DESC, a.id DESC

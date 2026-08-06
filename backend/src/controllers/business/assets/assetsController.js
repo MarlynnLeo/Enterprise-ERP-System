@@ -10,6 +10,7 @@ const { logger } = require('../../../utils/logger');
 const { safeParseId } = require('../../../utils/safeParseId');
 const { parsePagination } = require('../../../utils/safePagination');
 const { validateRequiredFields } = require('../../../utils/validationHelper');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 
 const assetsModel = require('../../../models/assets');
 const db = require('../../../config/db');
@@ -21,7 +22,7 @@ const { getRequestActorLabel } = require('../../../utils/userUtils');
 const DISPOSED_ASSET_STATUSES = new Set(['报废', '已处置', '已出售', '已转让', '已捐赠', 'disposed', 'sold', 'transferred', 'donated']);
 
 function calculateAssetNetBookValue(asset) {
-  const acquisitionCost = Number(asset.acquisition_cost || asset.originalValue) || 0;
+  const acquisitionCost = Number(asset.acquisitionCost || asset.originalValue) || 0;
   const accumulatedDepreciation = Number(asset.accumulated_depreciation) || 0;
   const impairmentAmount = Number(asset.impairment_amount) || 0;
   return Math.round(Math.max(0, acquisitionCost - accumulatedDepreciation - impairmentAmount) * 100) / 100;
@@ -53,7 +54,7 @@ const assetsController = {
       // 调用model方法获取固定资产列表
       const result = await assetsModel.getAssets(filters, page, limit);
 
-      // 返回成功响应
+      // 列表出参 camel（ResponseHandler 也会再转一次，幂等）
       return ResponseHandler.paginated(
         res,
         result.assets || [],
@@ -1076,13 +1077,14 @@ const assetsController = {
    */
   createAssetCategory: async (req, res) => {
     try {
+      const body = mapKeysToSnake(req.body || {});
       const categoryData = {
-        name: req.body.name,
-        code: req.body.code,
-        default_useful_life: req.body.default_useful_life,
-        default_depreciation_method: req.body.default_depreciation_method,
-        default_salvage_rate: req.body.default_salvage_rate,
-        description: req.body.description,
+        name: body.name,
+        code: body.code,
+        default_useful_life: body.default_useful_life,
+        default_depreciation_method: body.default_depreciation_method,
+        default_salvage_rate: body.default_salvage_rate,
+        description: body.description,
       };
 
       if (!categoryData.name || !categoryData.code) {
@@ -1123,13 +1125,14 @@ const assetsController = {
         return ResponseHandler.error(res, '无效的类别ID', 'VALIDATION_ERROR', 400);
       }
 
+      const body = mapKeysToSnake(req.body || {});
       const categoryData = {
-        name: req.body.name,
-        code: req.body.code,
-        default_useful_life: req.body.default_useful_life,
-        default_depreciation_method: req.body.default_depreciation_method,
-        default_salvage_rate: req.body.default_salvage_rate,
-        description: req.body.description,
+        name: body.name,
+        code: body.code,
+        default_useful_life: body.default_useful_life,
+        default_depreciation_method: body.default_depreciation_method,
+        default_salvage_rate: body.default_salvage_rate,
+        description: body.description,
       };
 
       if (!categoryData.name || !categoryData.code) {
@@ -1248,7 +1251,7 @@ const assetsController = {
         return ResponseHandler.error(res, '无效的资产ID', 'VALIDATION_ERROR', 400);
       }
 
-      const { impairment_amount, impairment_date, reason } = req.body;
+      const { impairment_amount, impairment_date, reason } = mapKeysToSnake(req.body || {});
       if (!impairment_amount || !impairment_date) {
         return ResponseHandler.error(res, '缺少必填字段(impairment_amount, impairment_date)', 'VALIDATION_ERROR', 400);
       }

@@ -72,33 +72,33 @@
           border
           height="100%"
         >
-          <el-table-column prop="receipt_date" label="入库日期" width="120" sortable>
+          <el-table-column prop="receiptDate" label="入库日期" width="120" sortable>
             <template #default="{ row }">
-              <span class="muted-text">{{ row.receipt_date }}</span>
+              <span class="muted-text">{{ row.receiptDate }}</span>
             </template>
           </el-table-column>
 
-          <el-table-column prop="receipt_no" label="收货凭证" width="160" show-overflow-tooltip>
+          <el-table-column prop="receiptNo" label="收货凭证" width="160" show-overflow-tooltip>
             <template #default="{ row }">
-              <el-tag size="small" type="info" effect="plain">{{ row.receipt_no }}</el-tag>
+              <el-tag size="small" type="info" effect="plain">{{ row.receiptNo }}</el-tag>
             </template>
           </el-table-column>
 
-          <el-table-column prop="supplier_name" label="供应商" width="180" show-overflow-tooltip>
+          <el-table-column prop="supplierName" label="供应商" width="180" show-overflow-tooltip>
             <template #default="{ row }">
-              <span class="supplier-text">{{ row.supplier_name || '--' }}</span>
+              <span class="supplier-text">{{ row.supplierName || '--' }}</span>
             </template>
           </el-table-column>
 
-          <el-table-column prop="material_code" label="物料编码" width="150" show-overflow-tooltip>
+          <el-table-column prop="materialCode" label="物料编码" width="150" show-overflow-tooltip>
              <template #default="{ row }">
-              <span class="material-code">{{ row.material_code }}</span>
+              <span class="material-code">{{ row.materialCode }}</span>
             </template>
           </el-table-column>
 
-          <el-table-column prop="material_name" label="零部件名称" min-width="200" show-overflow-tooltip>
+          <el-table-column prop="materialName" label="零部件名称" min-width="200" show-overflow-tooltip>
              <template #default="{ row }">
-              <strong>{{ row.material_name }}</strong>
+              <strong>{{ row.materialName }}</strong>
             </template>
           </el-table-column>
 
@@ -108,15 +108,15 @@
             </template>
           </el-table-column>
 
-          <el-table-column prop="unit_price" label="实采单价(元)" width="140">
+          <el-table-column prop="unitPrice" label="实采单价(元)" width="140">
             <template #default="{ row }">
-              <span class="price-highlight">{{ formatCurrency(row.unit_price) }}</span>
+              <span class="price-highlight">{{ formatCurrency(row.unitPrice) }}</span>
             </template>
           </el-table-column>
 
-          <el-table-column prop="total_amount" label="总金额(元)" width="140">
+          <el-table-column prop="totalAmount" label="总金额(元)" width="140">
             <template #default="{ row }">
-              <span class="amount-highlight">{{ formatCurrency(row.total_amount) }}</span>
+              <span class="amount-highlight">{{ formatCurrency(row.totalAmount) }}</span>
             </template>
           </el-table-column>
         </el-table>
@@ -166,8 +166,8 @@ const pagination = reactive({
 
 // 计算当前页面的合计
 const currentTotalAmount = computed(() => {
-  if (historyList.value.some(item => item.total_amount === null || item.total_amount === undefined || item.total_amount === '')) return null;
-  return historyList.value.reduce((sum, item) => sum + parseFloat(item.total_amount), 0);
+  if (historyList.value.some(item => item.totalAmount === null || item.totalAmount === undefined || item.totalAmount === '')) return null;
+  return historyList.value.reduce((sum, item) => sum + parseFloat(item.totalAmount), 0);
 });
 
 const currentTotalQty = computed(() => {

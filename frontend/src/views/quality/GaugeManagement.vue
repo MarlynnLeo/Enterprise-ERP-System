@@ -76,11 +76,11 @@
 
       <!-- 表格 -->
       <el-table v-loading="loading" :data="tableData" border class="w-full mt-md">
-        <el-table-column prop="gauge_no" label="量具编号" width="130" />
-        <el-table-column prop="gauge_name" label="量具名称" width="150" show-overflow-tooltip />
-        <el-table-column prop="gauge_type" label="类型" width="100" />
+        <el-table-column prop="gaugeNo" label="量具编号" width="130" />
+        <el-table-column prop="gaugeName" label="量具名称" width="150" show-overflow-tooltip />
+        <el-table-column prop="gaugeType" label="类型" width="100" />
         <el-table-column prop="model" label="型号" width="120" show-overflow-tooltip />
-        <el-table-column prop="measurement_range" label="测量范围" width="120" />
+        <el-table-column prop="measurementRange" label="测量范围" width="120" />
         <el-table-column prop="accuracy" label="精度" width="80" />
         <el-table-column prop="custodian" label="保管人" width="80" />
         <el-table-column prop="status" label="状态" width="90">
@@ -90,16 +90,16 @@
         </el-table-column>
         <el-table-column label="下次校准" width="120">
           <template #default="scope">
-            <span :class="scope.row.days_until_due < 0 ? 'text-danger' : scope.row.days_until_due <= 30 ? 'text-warning' : ''">
-              {{ scope.row.next_calibration_date ? formatDate(scope.row.next_calibration_date) : '-' }}
+            <span :class="scope.row.daysUntilDue < 0 ? 'text-danger' : scope.row.daysUntilDue <= 30 ? 'text-warning' : ''">
+              {{ scope.row.nextCalibrationDate ? formatDate(scope.row.nextCalibrationDate) : '-' }}
             </span>
           </template>
         </el-table-column>
         <el-table-column label="剩余天数" width="100">
           <template #default="scope">
-            <el-tag v-if="scope.row.days_until_due != null"
-              :type="scope.row.days_until_due < 0 ? 'danger' : scope.row.days_until_due <= 30 ? 'warning' : 'success'" size="small">
-              {{ scope.row.days_until_due < 0 ? `逾期${Math.abs(scope.row.days_until_due)}天` : `${scope.row.days_until_due}天` }}
+            <el-tag v-if="scope.row.daysUntilDue != null"
+              :type="scope.row.daysUntilDue < 0 ? 'danger' : scope.row.daysUntilDue <= 30 ? 'warning' : 'success'" size="small">
+              {{ scope.row.daysUntilDue < 0 ? `逾期${Math.abs(scope.row.daysUntilDue)}天` : `${scope.row.daysUntilDue}天` }}
             </el-tag>
           </template>
         </el-table-column>
@@ -122,24 +122,30 @@
     </el-card>
 
     <!-- 量具新增/编辑对话框 -->
-    <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑量具' : '新增量具'" width="650px" @close="resetForm">
+    <AppDialog
+      v-model="dialogVisible"
+      :title="isEdit ? '编辑量具' : '新增量具'"
+      mode="form"
+      width="650px"
+      @close="resetForm"
+    >
       <el-form ref="formRef" :model="form" :rules="rules" label-width="120px">
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="量具编号" prop="gauge_no">
-              <el-input v-model="form.gauge_no" :disabled="isEdit" placeholder="如 GG-001" />
+            <el-form-item label="量具编号" prop="gaugeNo">
+              <el-input v-model="form.gaugeNo" :disabled="isEdit" placeholder="如 GG-001" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="量具名称" prop="gauge_name">
-              <el-input v-model="form.gauge_name" placeholder="如 游标卡尺" />
+            <el-form-item label="量具名称" prop="gaugeName">
+              <el-input v-model="form.gaugeName" placeholder="如 游标卡尺" />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="类型">
-              <el-select  v-model="form.gauge_type" placeholder="选择类型" clearable>
+              <el-select  v-model="form.gaugeType" placeholder="选择类型" clearable>
                 <el-option label="游标卡尺" value="游标卡尺" />
                 <el-option label="千分尺" value="千分尺" />
                 <el-option label="量块" value="量块" />
@@ -158,7 +164,7 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="测量范围">
-              <el-input v-model="form.measurement_range" placeholder="如 0-150mm" />
+              <el-input v-model="form.measurementRange" placeholder="如 0-150mm" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -182,12 +188,12 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="校准周期(天)">
-              <el-input-number v-model="form.calibration_cycle_days" :min="1" :max="3650" class="w-full" />
+              <el-input-number v-model="form.calibrationCycleDays" :min="1" :max="3650" class="w-full" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="上次校准日期">
-              <el-date-picker v-model="form.last_calibration_date" type="date" value-format="YYYY-MM-DD" class="w-full" />
+              <el-date-picker v-model="form.lastCalibrationDate" type="date" value-format="YYYY-MM-DD" class="w-full" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -207,19 +213,24 @@
         <el-button @click="dialogVisible = false">取消</el-button>
         <el-button v-permission="isEdit ? 'quality:gauges:update' : 'quality:gauges:create'" type="primary" @click="handleSubmit" :loading="submitting">确认</el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
 
     <!-- 校准对话框 -->
-    <el-dialog v-model="calDialogVisible" title="录入校准记录" width="550px">
+    <AppDialog
+      v-model="calDialogVisible"
+      title="录入校准记录"
+      mode="form"
+      width="550px"
+    >
       <el-form ref="calFormRef" :model="calForm" :rules="calRules" label-width="120px">
         <el-form-item label="量具">
-          <el-input :value="calForm._gauge_name" disabled />
+          <el-input :value="calForm._gaugeName" disabled />
         </el-form-item>
-        <el-form-item label="校准日期" prop="calibration_date">
-          <el-date-picker v-model="calForm.calibration_date" type="date" value-format="YYYY-MM-DD" class="w-full" />
+        <el-form-item label="校准日期" prop="calibrationDate">
+          <el-date-picker v-model="calForm.calibrationDate" type="date" value-format="YYYY-MM-DD" class="w-full" />
         </el-form-item>
         <el-form-item label="校准类型">
-          <el-radio-group v-model="calForm.calibration_type">
+          <el-radio-group v-model="calForm.calibrationType">
             <el-radio value="internal">内部校准</el-radio>
             <el-radio value="external">外部校准</el-radio>
           </el-radio-group>
@@ -232,10 +243,10 @@
           </el-select>
         </el-form-item>
         <el-form-item label="校准人/机构">
-          <el-input v-model="calForm.calibrated_by" placeholder="校准人或机构" />
+          <el-input v-model="calForm.calibratedBy" placeholder="校准人或机构" />
         </el-form-item>
         <el-form-item label="证书编号">
-          <el-input v-model="calForm.certificate_no" />
+          <el-input v-model="calForm.certificateNo" />
         </el-form-item>
         <el-form-item label="偏差值">
           <el-input-number v-model="calForm.deviation" :precision="6" class="w-full" />
@@ -248,7 +259,7 @@
         <el-button @click="calDialogVisible = false">取消</el-button>
         <el-button v-permission="'quality:gauges:create'" type="primary" @click="handleCalSubmit" :loading="submitting">提交校准记录</el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
   </div>
 </template>
 
@@ -285,24 +296,24 @@ const calFormRef = ref(null);
 const stats = reactive({ total: 0, inUse: 0, dueSoon: 0, overdue: 0 });
 
 const form = ref({
-  gauge_no: '', gauge_name: '', gauge_type: '', model: '',
-  measurement_range: '', accuracy: '', custodian: '', location: '',
-  calibration_cycle_days: 365, last_calibration_date: null, status: 'idle', note: ''
+  gaugeNo: '', gaugeName: '', gaugeType: '', model: '',
+  measurementRange: '', accuracy: '', custodian: '', location: '',
+  calibrationCycleDays: 365, lastCalibrationDate: null, status: 'idle', note: ''
 });
 
 const calForm = ref({
-  gauge_id: null, _gauge_name: '', calibration_date: dayjs().format('YYYY-MM-DD'),
-  calibration_type: 'internal', result: 'qualified', calibrated_by: '',
-  certificate_no: '', deviation: null, note: ''
+  gaugeId: null, _gaugeName: '', calibrationDate: dayjs().format('YYYY-MM-DD'),
+  calibrationType: 'internal', result: 'qualified', calibratedBy: '',
+  certificateNo: '', deviation: null, note: ''
 });
 
 const rules = {
-  gauge_no: [{ required: true, message: '请输入量具编号', trigger: 'blur' }],
-  gauge_name: [{ required: true, message: '请输入量具名称', trigger: 'blur' }]
+  gaugeNo: [{ required: true, message: '请输入量具编号', trigger: 'blur' }],
+  gaugeName: [{ required: true, message: '请输入量具名称', trigger: 'blur' }]
 };
 
 const calRules = {
-  calibration_date: [{ required: true, message: '请选择校准日期', trigger: 'change' }],
+  calibrationDate: [{ required: true, message: '请选择校准日期', trigger: 'change' }],
   result: [{ required: true, message: '请选择校准结果', trigger: 'change' }]
 };
 
@@ -319,8 +330,8 @@ const fetchData = async () => {
     // 计算统计
     stats.total = data.total || tableData.value.length;
     stats.inUse = tableData.value.filter(r => r.status === 'in_use').length;
-    stats.overdue = tableData.value.filter(r => r.days_until_due != null && r.days_until_due < 0).length;
-    stats.dueSoon = tableData.value.filter(r => r.days_until_due != null && r.days_until_due >= 0 && r.days_until_due <= 30).length;
+    stats.overdue = tableData.value.filter(r => r.daysUntilDue != null && r.daysUntilDue < 0).length;
+    stats.dueSoon = tableData.value.filter(r => r.daysUntilDue != null && r.daysUntilDue >= 0 && r.daysUntilDue <= 30).length;
   } catch {
     ElMessage.error('获取量具列表失败');
   } finally {
@@ -332,7 +343,7 @@ const handleAdd = () => { isEdit.value = false; resetForm(); dialogVisible.value
 const handleEdit = (row) => { isEdit.value = true; form.value = { ...row }; dialogVisible.value = true; };
 
 const handleDelete = (row) => {
-  ElMessageBox.confirm(`确定要删除量具 ${row.gauge_no} 吗？`, '警告', { type: 'warning' })
+  ElMessageBox.confirm(`确定要删除量具 ${row.gaugeNo} 吗？`, '警告', { type: 'warning' })
     .then(async () => {
       await qualityApi.deleteGauge(row.id);
       ElMessage.success('删除成功');
@@ -362,9 +373,9 @@ const handleSubmit = () => {
 
 const handleCalibrate = (row) => {
   calForm.value = {
-    gauge_id: row.id, _gauge_name: `${row.gauge_no} - ${row.gauge_name}`,
-    calibration_date: dayjs().format('YYYY-MM-DD'), calibration_type: 'internal',
-    result: 'qualified', calibrated_by: '', certificate_no: '', deviation: null, note: ''
+    gaugeId: row.id, _gaugeName: `${row.gaugeNo} - ${row.gaugeName}`,
+    calibrationDate: dayjs().format('YYYY-MM-DD'), calibrationType: 'internal',
+    result: 'qualified', calibratedBy: '', certificateNo: '', deviation: null, note: ''
   };
   calDialogVisible.value = true;
 };
@@ -374,7 +385,7 @@ const handleCalSubmit = () => {
     if (!valid) return;
     submitting.value = true;
     try {
-      const { _gauge_name, ...submitData } = calForm.value;
+      const { _gaugeName, ...submitData } = calForm.value;
       await qualityApi.createCalibrationRecord(submitData);
       ElMessage.success('校准记录已提交');
       calDialogVisible.value = false;
@@ -386,7 +397,11 @@ const handleCalSubmit = () => {
 };
 
 const resetForm = () => {
-  form.value = { gauge_no: '', gauge_name: '', gauge_type: '', model: '', measurement_range: '', accuracy: '', custodian: '', location: '', calibration_cycle_days: 365, last_calibration_date: null, status: 'idle', note: '' };
+  form.value = {
+    gaugeNo: '', gaugeName: '', gaugeType: '', model: '',
+    measurementRange: '', accuracy: '', custodian: '', location: '',
+    calibrationCycleDays: 365, lastCalibrationDate: null, status: 'idle', note: ''
+  };
   formRef.value?.clearValidate();
 };
 

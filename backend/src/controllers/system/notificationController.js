@@ -7,6 +7,7 @@ const db = require('../../config/db');
 const { ResponseHandler } = require('../../utils/responseHandler');
 const { logger } = require('../../utils/logger');
 const { parsePagination, appendPaginationSQL } = require('../../utils/safePagination');
+const { mapKeysToSnake } = require('../../utils/fieldMap');
 const NotificationService = require('../../services/NotificationService');
 const NotificationRecipientService = require('../../services/NotificationRecipientService');
 const { AuditService, AuditAction, AuditModule } = require('../../services/AuditService');

@@ -1,45 +1,46 @@
 <template>
   <!-- 定价历史记录对话框 -->
-  <el-dialog
+  <AppDialog
     v-model="visible"
     title="定价历史记录"
+    mode="form"
     width="800px"
   >
     <el-table :data="history" border stripe max-height="400">
-      <el-table-column prop="suggested_price" label="建议售价" width="120">
+      <el-table-column prop="suggestedPrice" label="建议售价" width="120">
         <template #default="{ row }">
-          {{ formatPrice(row.suggested_price) }}
+          {{ formatPrice(row.suggestedPrice) }}
         </template>
       </el-table-column>
-      <el-table-column prop="cost_price" label="成本价" width="120">
+      <el-table-column prop="costPrice" label="成本价" width="120">
         <template #default="{ row }">
-          {{ formatPrice(row.cost_price) }}
+          {{ formatPrice(row.costPrice) }}
         </template>
       </el-table-column>
-      <el-table-column prop="profit_margin" label="利润率" width="100">
+      <el-table-column prop="profitMargin" label="利润率" width="100">
         <template #default="{ row }">
-          <el-tag :type="getMarginColor(row.profit_margin)" size="small">
-            {{ formatPercent(row.profit_margin) }}
+          <el-tag :type="getMarginColor(row.profitMargin)" size="small">
+            {{ formatPercent(row.profitMargin) }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="effective_date" label="生效日期" width="120">
+      <el-table-column prop="effectiveDate" label="生效日期" width="120">
         <template #default="{ row }">
-          {{ formatDate(row.effective_date) }}
+          {{ formatDate(row.effectiveDate) }}
         </template>
       </el-table-column>
       <el-table-column prop="remarks" label="备注" min-width="150" show-overflow-tooltip />
-      <el-table-column prop="created_by_name" label="创建人" width="100" />
-      <el-table-column prop="created_at" label="创建时间" width="160">
+      <el-table-column prop="createdByName" label="创建人" width="100" />
+      <el-table-column prop="createdAt" label="创建时间" width="160">
         <template #default="{ row }">
-          {{ formatDateTime(row.created_at) }}
+          {{ formatDateTime(row.createdAt) }}
         </template>
       </el-table-column>
     </el-table>
     <template #footer>
       <el-button @click="visible = false">关闭</el-button>
     </template>
-  </el-dialog>
+    </AppDialog>
 </template>
 
 <script setup>

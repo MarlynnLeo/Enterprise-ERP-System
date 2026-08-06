@@ -53,11 +53,11 @@ const batchReceipts = async (req, res) => {
 
         const line = parseSettlementLine({
           amount: item.amount,
-          discount_amount: item.discountAmount || item.discount_amount || 0,
+          discount_amount: item.discountAmount || 0,
         });
         assertWithinBalance(
           line.settlementCents,
-          toCents(invoice.balance_amount || invoice.balance || 0),
+          toCents(invoice.balanceAmount || invoice.balance || 0),
           `发票 ${invoice.invoice_number || item.invoiceId} 收款核销金额`
         );
 
@@ -82,7 +82,7 @@ const batchReceipts = async (req, res) => {
           {
             invoice_id: item.invoiceId,
             amount: item.amount,
-            discount_amount: item.discountAmount || item.discount_amount || 0,
+            discount_amount: item.discountAmount || 0,
           },
         ];
 

@@ -60,34 +60,34 @@
           >
             <div>
               <div class="list-header">
-                <span class="list-id">{{ receipt.receipt_no }}</span>
+                <span class="list-id">{{ receipt.receiptNo }}</span>
                 <Tag :type="getReceiptStatusType(receipt.status)" size="medium">
                   {{ getReceiptStatusText(receipt.status) }}
                 </Tag>
               </div>
 
-              <div class="list-subtitle" v-if="receipt.order_no">
-                关联订单: {{ receipt.order_no }}
+              <div class="list-subtitle" v-if="receipt.orderNo">
+                关联订单: {{ receipt.orderNo }}
               </div>
 
-              <div class="list-title">{{ receipt.supplier_name }}</div>
+              <div class="list-title">{{ receipt.supplierName }}</div>
 
               <div class="list-details">
                 <div class="list-row">
                   <span class="label">入库日期:</span>
-                  <span class="value">{{ formatDate(receipt.receipt_date) }}</span>
+                  <span class="value">{{ formatDate(receipt.receiptDate) }}</span>
                 </div>
-                <div class="list-row" v-if="receipt.total_amount">
+                <div class="list-row" v-if="receipt.totalAmount">
                   <span class="label">入库金额:</span>
-                  <span class="value amount">¥{{ formatAmount(receipt.total_amount) }}</span>
+                  <span class="value amount">¥{{ formatAmount(receipt.totalAmount) }}</span>
                 </div>
-                <div class="list-row" v-if="receipt.receiver">
+                <div class="list-row" v-if="receipt.receiver || receipt.operatorName">
                   <span class="label">收货人:</span>
-                  <span class="value">{{ receipt.receiver }}</span>
+                  <span class="value">{{ receipt.receiver || receipt.operatorName }}</span>
                 </div>
-                <div class="list-row" v-if="receipt.warehouse_name">
+                <div class="list-row" v-if="receipt.locationName || receipt.warehouseName">
                   <span class="label">入库仓库:</span>
-                  <span class="value">{{ receipt.warehouse_name }}</span>
+                  <span class="value">{{ receipt.locationName || receipt.warehouseName }}</span>
                 </div>
               </div>
 
@@ -98,8 +98,8 @@
                   :key="index"
                   class="list-row"
                 >
-                  <span class="label" style="color:var(--text-primary)">{{ item.material_name }}</span>
-                  <span class="value">{{ item.quantity }} {{ item.unit_name }}</span>
+                  <span class="label" style="color:var(--text-primary)">{{ item.materialName }}</span>
+                  <span class="value">{{ item.quantity }} {{ item.unitName || item.unit || '' }}</span>
                 </div>
                 <div v-if="receipt.items.length > 2" class="list-row" style="justify-content:center;margin-top:8px;">
                   <span class="label">还有 {{ receipt.items.length - 2 }} 项...</span>
@@ -304,7 +304,7 @@
     try {
       await showConfirmDialog({
         title: '确认入库',
-        message: `确定要确认入库单 ${receipt.receipt_no} 吗？`
+        message: `确定要确认入库单 ${receipt.receiptNo} 吗？`
       })
 
       // 这里需要调用确认入库的API
@@ -325,7 +325,7 @@
     try {
       await showConfirmDialog({
         title: '完成入库',
-        message: `确定要完成入库单 ${receipt.receipt_no} 吗？`
+        message: `确定要完成入库单 ${receipt.receiptNo} 吗？`
       })
 
       // 这里需要调用完成入库的API

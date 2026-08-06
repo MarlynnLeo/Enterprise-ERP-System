@@ -36,12 +36,12 @@
     ],
     fields: {
       id: 'id',
-      title: 'supplier_name',
-      subtitle: 'return_no',
+      title: 'supplierName',
+      subtitle: 'returnNo',
       icon: 'exchange',
       details: [
-        { label: '退货金额', field: 'total_amount', prefix: '¥' },
-        { label: '退货日期', field: 'return_date', type: 'date' },
+        { label: '退货金额', field: 'totalAmount', prefix: '¥' },
+        { label: '退货日期', field: 'returnDate', type: 'date' },
         { label: '退货原因', field: 'reason' }
       ],
       tags: [

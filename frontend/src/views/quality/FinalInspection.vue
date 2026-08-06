@@ -86,36 +86,36 @@
         class="w-full mt-md"
         v-loading="loading"
       >
-        <el-table-column prop="inspection_no" label="检验单号" min-width="130" />
-        <el-table-column prop="item_name" label="产品名称" min-width="180" />
-        <el-table-column prop="item_code" label="产品型号" min-width="150" />
-        <el-table-column prop="reference_no" label="工单号" min-width="150" />
-        <el-table-column prop="batch_no" label="批次号" min-width="170" />
+        <el-table-column prop="inspectionNo" label="检验单号" min-width="130" />
+        <el-table-column prop="itemName" label="产品名称" min-width="180" />
+        <el-table-column prop="itemCode" label="产品型号" min-width="150" />
+        <el-table-column prop="referenceNo" label="工单号" min-width="150" />
+        <el-table-column prop="batchNo" label="批次号" min-width="170" />
         <el-table-column prop="quantity" label="检验数量" min-width="80">
           <template #default="scope">
             {{ scope.row.quantity }} {{ scope.row.unit }}
           </template>
         </el-table-column>
-        <el-table-column prop="qualified_quantity" label="合格数" min-width="80">
+        <el-table-column prop="qualifiedQuantity" label="合格数" min-width="80">
           <template #default="scope">
-            <span v-if="scope.row.qualified_quantity !== null && scope.row.qualified_quantity !== undefined" class="text-success font-weight-700">{{ scope.row.qualified_quantity }}</span>
+            <span v-if="scope.row.qualifiedQuantity !== null && scope.row.qualifiedQuantity !== undefined" class="text-success font-weight-700">{{ scope.row.qualifiedQuantity }}</span>
             <span v-else class="text-muted">-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="unqualified_quantity" label="不合格" min-width="80">
+        <el-table-column prop="unqualifiedQuantity" label="不合格" min-width="80">
           <template #default="scope">
-            <span v-if="scope.row.unqualified_quantity > 0" class="text-danger font-weight-700">{{ scope.row.unqualified_quantity }}</span>
-            <span v-else class="text-muted">{{ scope.row.unqualified_quantity === 0 ? '0' : '-' }}</span>
+            <span v-if="scope.row.unqualifiedQuantity > 0" class="text-danger font-weight-700">{{ scope.row.unqualifiedQuantity }}</span>
+            <span v-else class="text-muted">{{ scope.row.unqualifiedQuantity === 0 ? '0' : '-' }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="inspection_date" label="检验日期" min-width="110">
+        <el-table-column prop="plannedDate" label="检验日期" min-width="110">
           <template #default="scope">
-            {{ formatDate(scope.row.inspection_date || scope.row.planned_date) }}
+            {{ formatDate(scope.row.actualDate || scope.row.plannedDate) }}
           </template>
         </el-table-column>
-        <el-table-column prop="inspector" label="检验员" min-width="90">
+        <el-table-column prop="inspectorName" label="检验员" min-width="90">
           <template #default="scope">
-            {{ scope.row.inspector_name || scope.row.inspector || '-' }}
+            {{ scope.row.inspectorName || '-' }}
           </template>
         </el-table-column>
         <el-table-column prop="status" label="检验状态" min-width="90">
@@ -145,7 +145,7 @@
               检验
             </el-button>
             <el-button
-              v-if="scope.row.status === 'failed' && reworkStatusMap[scope.row.id]?.allow_reinspection"
+              v-if="scope.row.status === 'failed' && reworkStatusMap[scope.row.id]?.allowReinspection"
               v-permission="'quality:inspections:update'"
               size="small"
               type="primary"
@@ -154,7 +154,7 @@
               复检
             </el-button>
             <el-tag
-              v-else-if="scope.row.status === 'failed' && !reworkStatusMap[scope.row.id]?.allow_reinspection"
+              v-else-if="scope.row.status === 'failed' && !reworkStatusMap[scope.row.id]?.allowReinspection"
               type="info"
               size="small"
               effect="plain"
@@ -199,11 +199,11 @@
     </el-card>
 
     <!-- 新建检验单弹窗 -->
-    <el-dialog
+    <AppDialog
       v-model="createDialogVisible"
       title="新建成品检验单"
+      mode="form"
       width="650px"
-      destroy-on-close
     >
       <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
         <el-form-item label="工单号" prop="productionOrderNo">
@@ -295,21 +295,21 @@
           </el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
 
     <!-- 检验弹窗 -->
-    <el-dialog
+    <AppDialog
       v-model="inspectDialogVisible"
-      :title="`成品检验 - ${inspectForm.inspection_no || ''}`"
-      width="960px"
-      destroy-on-close
+      :title="`成品检验 - ${inspectForm.inspectionNo || ''}`"
+      mode="form"
+      wide
     >
       <el-form ref="inspectFormRef" :model="inspectForm" :rules="inspectRules" label-width="100px">
         <!-- 产品信息头部面板 -->
         <el-descriptions :column="4" border size="small" class="mb-md">
-          <el-descriptions-item label="产品名称">{{ inspectForm.product_name || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="工单号">{{ inspectForm.reference_no || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="批次号">{{ inspectForm.batch_no || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="产品名称">{{ inspectForm.productName || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="工单号">{{ inspectForm.referenceNo || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="批次号">{{ inspectForm.batchNo || '-' }}</el-descriptions-item>
           <el-descriptions-item label="检验数量">{{ inspectForm.quantity }} {{ inspectForm.unit || '' }}</el-descriptions-item>
         </el-descriptions>
         <el-alert
@@ -327,10 +327,10 @@
               <el-button type="success" size="small" @click="handleAllPassed"><el-icon class="mr-sm"><Select /></el-icon>全部合格</el-button>
             </div>
             <el-table :data="inspectForm.items" border class="w-full">
-              <el-table-column prop="item_name" label="检验项目" width="120" show-overflow-tooltip>
+              <el-table-column prop="itemName" label="检验项目" width="120" show-overflow-tooltip>
                 <template #default="scope">
-                  <span>{{ scope.row.item_name }}</span>
-                  <el-icon v-if="scope.row.is_critical" class="icon-warning-ml" :size="14"><StarFilled /></el-icon>
+                  <span>{{ scope.row.itemName }}</span>
+                  <el-icon v-if="scope.row.isCritical" class="icon-warning-ml" :size="14"><StarFilled /></el-icon>
                 </template>
               </el-table-column>
               <el-table-column label="标准±公差" width="150" show-overflow-tooltip>
@@ -338,10 +338,10 @@
                   {{ formatFqcStandard(scope.row) }}
                 </template>
               </el-table-column>
-              <el-table-column prop="actual_value" label="实测值" width="120">
+              <el-table-column prop="actualValue" label="实测值" width="120">
                 <template #default="scope">
                   <el-input
-                    v-model="scope.row.actual_value"
+                    v-model="scope.row.actualValue"
                     size="small"
                     :placeholder="scope.row.type === 'dimension' ? '输入数值' : '输入结果'"
                     @blur="checkFqcTolerance(scope.row)"
@@ -375,9 +375,9 @@
 
         <el-row :gutter="20">
           <el-col :span="8">
-            <el-form-item label="合格数量" prop="qualified_quantity">
+            <el-form-item label="合格数量" prop="qualifiedQuantity">
               <el-input-number
-                v-model="inspectForm.qualified_quantity"
+                v-model="inspectForm.qualifiedQuantity"
                 :min="0"
                 :max="inspectForm.quantity"
                 :controls="false"
@@ -389,7 +389,7 @@
           <el-col :span="8">
             <el-form-item label="不合格数量">
               <el-input-number
-                v-model="inspectForm.unqualified_quantity"
+                v-model="inspectForm.unqualifiedQuantity"
                 :min="0"
                 :controls="false"
                 class="w-full"
@@ -410,8 +410,8 @@
         </el-row>
         <el-row :gutter="20">
           <el-col :span="8">
-            <el-form-item label="检验员" prop="inspector_name">
-              <el-input v-model="inspectForm.inspector_name" />
+            <el-form-item label="检验员" prop="inspectorName">
+              <el-input v-model="inspectForm.inspectorName" />
             </el-form-item>
           </el-col>
           <el-col :span="16">
@@ -431,54 +431,54 @@
           <el-button v-permission="'quality:inspections:update'" type="primary" @click="submitInspection" :loading="submitLoading">提交检验</el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
 
     <!-- 查看检验单弹窗 -->
     <AppDialog
       v-model="viewDialogVisible"
-      :title="currentInspection && currentInspection.inspection_no ? `检验单详情 - ${currentInspection.inspection_no}` : '检验单详情'"
+      :title="currentInspection && currentInspection.inspectionNo ? `检验单详情 - ${currentInspection.inspectionNo}` : '检验单详情'"
       mode="view"
       content-width="wide"
     >
-      <template v-if="currentInspection && currentInspection.inspection_no">
+      <template v-if="currentInspection && currentInspection.inspectionNo">
         <el-descriptions :column="3" border>
-          <el-descriptions-item label="检验单号">{{ currentInspection.inspection_no }}</el-descriptions-item>
-          <el-descriptions-item label="产品名称">{{ currentInspection.item_name }}</el-descriptions-item>
+          <el-descriptions-item label="检验单号">{{ currentInspection.inspectionNo }}</el-descriptions-item>
+          <el-descriptions-item label="产品名称">{{ currentInspection.itemName || currentInspection.productName }}</el-descriptions-item>
           <el-descriptions-item label="检验状态">
             <el-tag :type="getStatusType(currentInspection.status)">
               {{ getStatusText(currentInspection.status) }}
             </el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="工单号">{{ currentInspection.reference_no }}</el-descriptions-item>
-          <el-descriptions-item label="批次号">{{ currentInspection.batch_no }}</el-descriptions-item>
-          <el-descriptions-item label="检验日期">{{ formatDate(currentInspection.inspection_date) }}</el-descriptions-item>
+          <el-descriptions-item label="工单号">{{ currentInspection.referenceNo }}</el-descriptions-item>
+          <el-descriptions-item label="批次号">{{ currentInspection.batchNo }}</el-descriptions-item>
+          <el-descriptions-item label="检验日期">{{ formatDate(currentInspection.actualDate || currentInspection.plannedDate) }}</el-descriptions-item>
           <el-descriptions-item label="检验数量">{{ currentInspection.quantity }} {{ currentInspection.unit }}</el-descriptions-item>
           <el-descriptions-item label="合格数">
-            <span v-if="currentInspection.qualified_quantity !== null && currentInspection.qualified_quantity !== undefined" class="text-success font-weight-700">{{ currentInspection.qualified_quantity }}</span>
+            <span v-if="currentInspection.qualifiedQuantity !== null && currentInspection.qualifiedQuantity !== undefined" class="text-success font-weight-700">{{ currentInspection.qualifiedQuantity }}</span>
             <span v-else class="text-muted">-</span>
           </el-descriptions-item>
           <el-descriptions-item label="不合格数">
-            <span v-if="currentInspection.unqualified_quantity > 0" class="text-danger font-weight-700">{{ currentInspection.unqualified_quantity }}</span>
-            <span v-else class="text-muted">{{ currentInspection.unqualified_quantity === 0 ? '0' : '-' }}</span>
+            <span v-if="currentInspection.unqualifiedQuantity > 0" class="text-danger font-weight-700">{{ currentInspection.unqualifiedQuantity }}</span>
+            <span v-else class="text-muted">{{ currentInspection.unqualifiedQuantity === 0 ? '0' : '-' }}</span>
           </el-descriptions-item>
-          <el-descriptions-item label="检验员">{{ currentInspection.inspector_name || currentInspection.inspector || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="引用模板">{{ currentInspection.template_name || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="检验员">{{ currentInspection.inspectorName || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="引用模板">{{ currentInspection.templateName || '-' }}</el-descriptions-item>
           <el-descriptions-item label="合格率">
-            <span v-if="currentInspection.qualified_quantity !== null && currentInspection.quantity"
-                  :class="(currentInspection.qualified_quantity / currentInspection.quantity) >= 1 ? 'text-stock-ok font-weight-700' : 'text-stock-low font-weight-700'">
-              {{ ((currentInspection.qualified_quantity / currentInspection.quantity) * 100).toFixed(1) }}%
+            <span v-if="currentInspection.qualifiedQuantity !== null && currentInspection.quantity"
+                  :class="(currentInspection.qualifiedQuantity / currentInspection.quantity) >= 1 ? 'text-stock-ok font-weight-700' : 'text-stock-low font-weight-700'">
+              {{ ((currentInspection.qualifiedQuantity / currentInspection.quantity) * 100).toFixed(1) }}%
             </span>
             <span v-else class="text-muted">-</span>
           </el-descriptions-item>
-          <el-descriptions-item label="标准编号">{{ currentInspection.standard_no || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="标准编号">{{ currentInspection.standardNo || '-' }}</el-descriptions-item>
           <el-descriptions-item label="备注" :span="3">{{ currentInspection.note || '-' }}</el-descriptions-item>
         </el-descriptions>
         <div class="inspection-items row-mt-20">
           <h4>检验项目</h4>
           <el-table :data="currentInspection.items" border class="w-full">
-            <el-table-column prop="item_name" label="项目名称" min-width="140" />
+            <el-table-column prop="itemName" label="项目名称" min-width="140" />
             <el-table-column prop="standard" label="标准" min-width="160" />
-            <el-table-column prop="actual_value" label="实测值" min-width="100" />
+            <el-table-column prop="actualValue" label="实测值" min-width="100" />
             <el-table-column label="结果" min-width="90">
               <template #default="scope">
                 <el-tag v-if="scope.row.result === 'passed' || scope.row.result === 'pass'" type="success" size="small">合格</el-tag>
@@ -491,14 +491,15 @@
         </div>
       </template>
       <template v-else>
-        <el-empty description="暂无检验单数据" />
+        <EmptyState description="暂无检验单数据" />
       </template>
     </AppDialog>
 
     <!-- 检验报告弹窗 -->
-    <el-dialog
+    <AppDialog
       v-model="reportDialogVisible"
       title="检验报告"
+      mode="form"
       width="800px"
     >
       <div class="report-container">
@@ -512,23 +513,23 @@
         <div class="report-info">
           <div class="info-row">
             <span class="info-label">检验单号：</span>
-            <span class="info-value">{{ currentInspection.inspection_no }}</span>
+            <span class="info-value">{{ currentInspection.inspectionNo }}</span>
           </div>
           <div class="info-row">
             <span class="info-label">产品名称：</span>
-            <span class="info-value">{{ currentInspection.item_name }}</span>
+            <span class="info-value">{{ currentInspection.itemName || currentInspection.productName }}</span>
           </div>
           <div class="info-row">
             <span class="info-label">产品型号：</span>
-            <span class="info-value">{{ currentInspection.item_code }}</span>
+            <span class="info-value">{{ currentInspection.itemCode || currentInspection.productCode }}</span>
           </div>
           <div class="info-row">
             <span class="info-label">工单号：</span>
-            <span class="info-value">{{ currentInspection.reference_no }}</span>
+            <span class="info-value">{{ currentInspection.referenceNo }}</span>
           </div>
           <div class="info-row">
             <span class="info-label">批次号：</span>
-            <span class="info-value">{{ currentInspection.batch_no }}</span>
+            <span class="info-value">{{ currentInspection.batchNo }}</span>
           </div>
           <div class="info-row">
             <span class="info-label">检验数量：</span>
@@ -536,11 +537,11 @@
           </div>
           <div class="info-row">
             <span class="info-label">检验日期：</span>
-            <span class="info-value">{{ formatDate(currentInspection.actual_date) }}</span>
+            <span class="info-value">{{ formatDate(currentInspection.actualDate) }}</span>
           </div>
           <div class="info-row">
             <span class="info-label">检验员：</span>
-            <span class="info-value">{{ currentInspection.inspector_name || currentInspection.inspector || '-' }}</span>
+            <span class="info-value">{{ currentInspection.inspectorName || '-' }}</span>
           </div>
           <div class="info-row">
             <span class="info-label">检验结果：</span>
@@ -556,14 +557,14 @@
           <h3>检验项目：</h3>
           <el-table :data="currentInspection.items" border class="w-full">
             <el-table-column type="index" width="50" label="序号" />
-            <el-table-column prop="item_name" label="检验项目" width="150" />
+            <el-table-column prop="itemName" label="检验项目" width="150" />
             <el-table-column prop="standard" label="检验标准" min-width="180" />
             <el-table-column prop="type" label="检验类型" width="100">
               <template #default="scope">
                 {{ getTypeText(scope.row.type) }}
               </template>
             </el-table-column>
-            <el-table-column prop="actual_value" label="实际值" width="120" />
+            <el-table-column prop="actualValue" label="实际值" width="120" />
             <el-table-column prop="result" label="检验结果" width="100">
               <template #default="scope">
                 <el-tag :type="scope.row.result === 'passed' ? 'success' : 'danger'">
@@ -606,12 +607,13 @@
           </el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
 
     <!-- 合格证书弹窗 -->
-    <el-dialog
+    <AppDialog
       v-model="certificateDialogVisible"
       title="合格证书"
+      mode="form"
       width="800px"
     >
       <div class="certificate-container">
@@ -627,34 +629,34 @@
 
           <div class="info-row">
             <span class="info-label">产品名称：</span>
-            <span class="info-value">{{ currentInspection.item_name }}</span>
+            <span class="info-value">{{ currentInspection.itemName || currentInspection.productName }}</span>
           </div>
           <div class="info-row">
             <span class="info-label">产品型号：</span>
-            <span class="info-value">{{ currentInspection.item_code }}</span>
+            <span class="info-value">{{ currentInspection.itemCode || currentInspection.productCode }}</span>
           </div>
           <div class="info-row">
             <span class="info-label">批次号：</span>
-            <span class="info-value">{{ currentInspection.batch_no }}</span>
+            <span class="info-value">{{ currentInspection.batchNo }}</span>
           </div>
           <div class="info-row">
             <span class="info-label">生产日期：</span>
-            <span class="info-value">{{ formatDate(currentInspection.planned_date) }}</span>
+            <span class="info-value">{{ formatDate(currentInspection.plannedDate) }}</span>
           </div>
           <div class="info-row">
             <span class="info-label">检验日期：</span>
-            <span class="info-value">{{ formatDate(currentInspection.actual_date) }}</span>
+            <span class="info-value">{{ formatDate(currentInspection.actualDate) }}</span>
           </div>
           <div class="info-row">
             <span class="info-label">检验标准：</span>
-            <span class="info-value">{{ currentInspection.standard_type === 'factory' ? '工厂标准' :
-                                   currentInspection.standard_type === 'customer' ? '客户标准' :
-                                   currentInspection.standard_type === 'industry' ? '行业标准' :
-                                   currentInspection.standard_type === 'national' ? '国家标准' : '未知' }}</span>
+            <span class="info-value">{{ currentInspection.standardType === 'factory' ? '工厂标准' :
+                                   currentInspection.standardType === 'customer' ? '客户标准' :
+                                   currentInspection.standardType === 'industry' ? '行业标准' :
+                                   currentInspection.standardType === 'national' ? '国家标准' : '未知' }}</span>
           </div>
           <div class="info-row">
             <span class="info-label">标准编号：</span>
-            <span class="info-value">{{ currentInspection.standard_no }}</span>
+            <span class="info-value">{{ currentInspection.standardNo }}</span>
           </div>
 
           <div class="certificate-declaration">
@@ -664,8 +666,8 @@
 
         <div class="certificate-seal">
           <div class="seal-item">
-            <p>检验员：{{ currentInspection.inspector_name || currentInspection.inspector || '-' }}</p>
-            <p>日期：{{ formatDate(currentInspection.actual_date) }}</p>
+            <p>检验员：{{ currentInspection.inspectorName || '-' }}</p>
+            <p>日期：{{ formatDate(currentInspection.actualDate) }}</p>
           </div>
           <div class="seal-item text-center">
             <div class="company-seal">
@@ -694,7 +696,7 @@
           </el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
   </div>
 </template>
 <script setup>
@@ -719,7 +721,7 @@ import {
 const authStore = useAuthStore()
 const getCurrentUserDisplayName = () => {
   const currentUser = authStore.user || tokenManager.getUser()
-  return currentUser?.real_name || currentUser?.realName || currentUser?.name || currentUser?.username || ''
+  return currentUser?.realName || currentUser?.realName || currentUser?.name || currentUser?.username || ''
 }
 // 搜索相关 - 使用统一的filters对象
 const filters = reactive({
@@ -824,11 +826,11 @@ const fetchProductionOrders = async () => {
         .filter(task => task.status === 'completed')
         .map(task => ({
           id: task.id,
-          orderNo: task.code || task.task_no,
-          productId: task.product_id || task.material_id || null, // 关键：保存物料/产品ID
-          productName: task.productName || task.product_name || '未知产品',
-          productCode: task.specs || task.productCode || task.product_code || '未知型号',
-          batchNo: task.batchNo || task.batch_no || '',
+          orderNo: task.code || task.taskNo,
+          productId: task.productId || task.materialId || null, // 关键：保存物料/产品ID
+          productName: task.productName || '未知产品',
+          productCode: task.specs || task.productCode || '未知型号',
+          batchNo: task.batchNo || '',
           unit: task.unit || '个'
         }));
     }
@@ -861,11 +863,11 @@ const fetchInspectionTemplate = async (materialId) => {
       const templateItems = getTemplateItems(template);
       if (templateItems.length > 0) {
         currentInspectionTemplateId.value = template.id;
-        currentInspectionTemplateName.value = template.template_name || '';
+        currentInspectionTemplateName.value = template.templateName || '';
         currentInspectionTemplateSource.value = getTemplateSourceText(template);
         currentTemplateItems.value = mapTemplateItemsToInspectionItems(templateItems);
         if (template.is_general) {
-          ElMessage.info(`已自动使用成品通用模板: ${template.template_name}`);
+          ElMessage.info(`已自动使用成品通用模板: ${template.templateName}`);
         }
         return;
       }
@@ -1007,12 +1009,12 @@ const fetchReworkStatusForFailedInspections = async () => {
 const getReworkHintText = (inspectionId) => {
   const status = reworkStatusMap.value[inspectionId];
   if (!status) return '查询中...';
-  if (!status.has_ncp) return '待处置';
-  if (!status.has_rework && status.disposition === 'rework') return '待返工';
-  if (!status.has_rework) return status.disposition === 'scrap' ? '已报废' : '待处理';
-  if (status.rework_status === 'pending') return '返工待分配';
-  if (status.rework_status === 'in_progress') return '返工中';
-  if (status.rework_completed) return '复检'; // 不应该走到这里，因为 allow_reinspection 已经为 true
+  if (!status.hasNcp) return '待处置';
+  if (!status.hasRework && status.disposition === 'rework') return '待返工';
+  if (!status.hasRework) return status.disposition === 'scrap' ? '已报废' : '待处理';
+  if (status.reworkStatus === 'pending') return '返工待分配';
+  if (status.reworkStatus === 'in_progress') return '返工中';
+  if (status.reworkCompleted) return '复检'; // 不应该走到这里，因为 allow_reinspection 已经为 true
   return '返工中';
 }
 import { getQualityStatusText, getQualityStatusColor, getQualityInspectionTypeText } from '@/constants/systemConstants'
@@ -1085,21 +1087,21 @@ const submitForm = async () => {
     const _selectedOrder = productionOrderOptions.value.find(
       order => order.orderNo === form.productionOrderNo
     );
-    // 准备数据
+    // 准备数据（纯 camel，后端 qualityInspectionMap.fromApi）
     const formData = {
-      inspection_type: 'final',
-      reference_id: form.productId,  // 使用productId作为reference_id
-      reference_no: form.productionOrderNo,
-      product_id: form.productId,
-      product_name: form.productName,
-      product_code: form.productCode,
-      batch_no: form.batchNo,
+      inspectionType: 'final',
+      referenceId: form.productId,
+      referenceNo: form.productionOrderNo,
+      productId: form.productId,
+      productName: form.productName,
+      productCode: form.productCode,
+      batchNo: form.batchNo,
       quantity: form.quantity,
       unit: form.unit,
-      standard_type: form.standardType,
-      standard_no: form.standardNo,
-      template_id: currentInspectionTemplateId.value || null,
-      planned_date: formatDate(form.plannedDate),
+      standardType: form.standardType,
+      standardNo: form.standardNo,
+      templateId: currentInspectionTemplateId.value || null,
+      plannedDate: formatDate(form.plannedDate),
       note: form.note,
       status: 'pending'
     }
@@ -1129,17 +1131,11 @@ const handleView = async (row) => {
     // axios 拦截器已自动解包，response.data 是详情数据对象
     const data = response.data;
     if (data) {
-      // 确保currentInspection中包含items属性，并处理字段映射
+      // 后端已输出 camel
       currentInspection.value = {
         ...data,
         items: data.items || [],
-        // 字段映射处理
-        inspection_date: data.actual_date || data.planned_date || data.inspection_date,
-        inspector_name: data.inspector_name || data.inspector,
-        item_name: data.item_name || data.product_name || data.material_name,
-        reference_no: data.reference_no || data.task_no || data.order_no,
-        // 使用模板编号作为标准编号
-        standard_no: data.template_code || data.standard_no
+        standardNo: data.standardNo || data.templateCode || null
       };
     } else {
       throw new Error('获取检验单详情失败');
@@ -1161,59 +1157,60 @@ const inspectDialogVisible = ref(false)
 const inspectFormRef = ref(null)
 const inspectForm = reactive({
   id: '',
-  inspection_no: '',
+  inspectionNo: '',
   items: [],
-  inspector_name: '',
+  inspectorName: '',
   inspectionDate: new Date(),
   note: '',
   // 产品相关字段
-  product_id: '',
-  product_name: '',
+  productId: '',
+  productName: '',
   quantity: 0,
-  qualified_quantity: 0,
-  unqualified_quantity: 0,
-  unit_id: null,
+  qualifiedQuantity: 0,
+  unqualifiedQuantity: 0,
+  unitId: null,
   unit: '',
-  batch_no: '',
-  reference_no: ''
+  batchNo: '',
+  referenceNo: ''
 })
 // 合格数量变更时自动计算不合格数量
 const onQualifiedQuantityChange = (val) => {
-  inspectForm.unqualified_quantity = Math.max(0, (inspectForm.quantity || 0) - (val || 0));
+  inspectForm.unqualifiedQuantity = Math.max(0, (inspectForm.quantity || 0) - (val || 0));
 }
 // “全部合格”快捷按钮——一键将所有检验项标记为合格
 const handleAllPassed = () => {
   if (!inspectForm.items || inspectForm.items.length === 0) return
   inspectForm.items.forEach(item => {
     item.result = 'passed'
-    if (!item.actual_value) {
+    if (!item.actualValue) {
       // 非尺寸类项填 OK，尺寸类填标准值
-      item.actual_value = item.type === 'dimension' && item.standard_value ? String(item.standard_value) : 'OK'
+      item.actualValue = item.type === 'dimension' && item.dimensionValue ? String(item.dimensionValue) : 'OK'
     }
   })
   // 同时将合格数量设为总数
-  inspectForm.qualified_quantity = inspectForm.quantity
-  inspectForm.unqualified_quantity = 0
+  inspectForm.qualifiedQuantity = inspectForm.quantity
+  inspectForm.unqualifiedQuantity = 0
   ElMessage.success('已将所有检验项标记为合格')
 }
 // 格式化FQC检验项的标准±公差展示
 const formatFqcStandard = (item) => {
-  if (item.type === 'dimension' && item.standard_value) {
-    const tolerance = item.tolerance_upper && item.tolerance_lower
-      ? ` (+${item.tolerance_upper}/-${Math.abs(item.tolerance_lower)})`
+  if (item.type === 'dimension' && (item.dimensionValue || item.standard)) {
+    const base = item.dimensionValue || item.standard
+    const tolerance = item.toleranceUpper != null && item.toleranceLower != null
+      ? ` (+${item.toleranceUpper}/-${Math.abs(item.toleranceLower)})`
       : ''
-    return `${item.standard_value}${tolerance}`
+    return `${base}${tolerance}`
   }
   return item.standard || '-'
 }
 // 尺寸类检验项输入后自动检查公差
 const checkFqcTolerance = (item) => {
-  if (item.type !== 'dimension' || !item.standard_value || !item.actual_value) return
-  const actual = parseFloat(item.actual_value)
+  if (item.type !== 'dimension' || !item.dimensionValue || !item.actualValue) return
+  const actual = parseFloat(item.actualValue)
   if (isNaN(actual)) return
-  const std = parseFloat(item.standard_value)
-  const upper = parseFloat(item.tolerance_upper) || 0
-  const lower = parseFloat(item.tolerance_lower) || 0
+  const std = parseFloat(item.dimensionValue)
+  const upper = parseFloat(item.toleranceUpper) || 0
+  const lower = parseFloat(item.toleranceLower) || 0
   // 判定是否在公差范围内
   if (actual >= (std + lower) && actual <= (std + upper)) {
     item.result = 'passed'
@@ -1223,7 +1220,7 @@ const checkFqcTolerance = (item) => {
 }
 // 检验表单验证规则
 const inspectRules = {
-  inspector_name: [
+  inspectorName: [
     { required: true, message: '请输入检验员姓名', trigger: 'blur' }
   ],
   inspectionDate: [
@@ -1242,42 +1239,42 @@ const handleInspect = async (row) => {
     }
     // 初始化表单数据 - 优先使用传入的row.id，确保ID正确
     inspectForm.id = row.id || inspection.id;
-    inspectForm.inspection_no = inspection.inspection_no;
+    inspectForm.inspectionNo = inspection.inspectionNo;
     // 设置产品相关信息
-    inspectForm.product_id = inspection.product_id;
-    inspectForm.product_name = inspection.product_name || inspection.item_name || '';
+    inspectForm.productId = inspection.productId;
+    inspectForm.productName = inspection.productName || inspection.itemName || '';
     inspectForm.quantity = inspection.quantity || 1;
-    inspectForm.qualified_quantity = inspection.qualified_quantity || inspection.quantity || 0;
-    inspectForm.unqualified_quantity = inspection.unqualified_quantity || 0;
-    inspectForm.unit_id = inspection.unit_id || null;
+    inspectForm.qualifiedQuantity = inspection.qualifiedQuantity ?? inspection.quantity ?? 0;
+    inspectForm.unqualifiedQuantity = inspection.unqualifiedQuantity || 0;
+    inspectForm.unitId = inspection.unitId || null;
     inspectForm.unit = inspection.unit || '';
-    inspectForm.batch_no = inspection.batch_no || '';
-    inspectForm.reference_no = inspection.reference_no || '';
-    currentInspectionTemplateId.value = inspection.template_id || null;
-    currentInspectionTemplateName.value = inspection.template_name || '';
-    currentInspectionTemplateSource.value = inspection.template_name ? `已引用模板：${inspection.template_name}` : '';
+    inspectForm.batchNo = inspection.batchNo || '';
+    inspectForm.referenceNo = inspection.referenceNo || '';
+    currentInspectionTemplateId.value = inspection.templateId || null;
+    currentInspectionTemplateName.value = inspection.templateName || '';
+    currentInspectionTemplateSource.value = inspection.templateName ? `已引用模板：${inspection.templateName}` : '';
 
     // 确保检验项目数据
-    // 这部分逻辑与handleView保持一致，确保两种方式获取的检验项目一致
     const inspectionItems = inspection.items || [];
-
-    // 如果没有检验项，将在后面使用检验模板
 
     // 如果从API获取到了检验项目，使用这些项目
     if (inspectionItems.length > 0) {
       inspectForm.items = inspectionItems.map(item => ({
         ...item,
-        // 优先使用type_name，如果没有则使用原始type，或者通过getTypeText转换
-        type: item.type_name || (typeof item.type === 'string' ? item.type : getTypeText(item.type)),
-        actual_value: item.actual_value || '',
+        itemName: item.itemName || item.name || '',
+        type: item.type || '',
+        actualValue: item.actualValue || '',
         result: item.result || '',
-        remarks: item.remarks || ''
+        remarks: item.remarks || '',
+        isCritical: item.isCritical,
+        dimensionValue: item.dimensionValue,
+        toleranceUpper: item.toleranceUpper,
+        toleranceLower: item.toleranceLower
       }));
     } else {
       // 尝试获取检验模板
       try {
-        // 使用物料/产品ID获取检验模板
-        const materialId = inspection.material_id || inspection.product_id;
+        const materialId = inspection.materialId || inspection.productId;
         if (!materialId) {
           throw new Error('缺少物料/产品ID');
         }
@@ -1285,14 +1282,17 @@ const handleInspect = async (row) => {
         await fetchInspectionTemplate(materialId);
         if (currentTemplateItems.value && currentTemplateItems.value.length > 0) {
           inspectForm.items = currentTemplateItems.value.map(item => ({
-            ...item,
             id: item.id,
-            item_name: item.item_name,
+            itemName: item.itemName,
             standard: item.standard,
             type: item.type,
-            actual_value: '',
+            actualValue: '',
             result: '',
-            remarks: ''
+            remarks: '',
+            isCritical: item.isCritical ?? item.isCritical,
+            dimensionValue: item.dimensionValue ?? item.dimensionValue,
+            toleranceUpper: item.toleranceUpper ?? item.toleranceUpper,
+            toleranceLower: item.toleranceLower ?? item.toleranceLower
           }));
         } else {
           throw new Error('检验模板中没有检验项目');
@@ -1304,9 +1304,8 @@ const handleInspect = async (row) => {
       }
     }
 
-    // 打印最终要使用的检验项目
     // 自动填入当前登录用户的真实姓名作为检验员
-    inspectForm.inspector_name = getCurrentUserDisplayName();
+    inspectForm.inspectorName = getCurrentUserDisplayName();
 
     inspectForm.inspectionDate = new Date();
     inspectForm.note = inspection.note || '';
@@ -1330,7 +1329,7 @@ const submitInspection = async () => {
     await inspectFormRef.value.validate()
 
     // 手动验证 items (避免 vue/element-plus 数组深度监控引发警告)
-    if (inspectForm.items.some(item => !item.actual_value)) {
+    if (inspectForm.items.some(item => !item.actualValue)) {
       ElMessage.warning('请填写所有检验项的实际值');
       submitLoading.value = false;
       return;
@@ -1345,19 +1344,31 @@ const submitInspection = async () => {
     const allPassed = inspectForm.items.every(item => item.result === 'passed')
     const status = allPassed ? 'passed' : 'failed'
 
-    // 准备提交的数据
+    // 准备提交的数据（纯 camel）
     const submitData = {
       id: inspectForm.id,
-      inspection_no: inspectForm.inspection_no,
-      items: inspectForm.items,
-      inspector_name: inspectForm.inspector_name,
-      template_id: currentInspectionTemplateId.value || null,
-      actual_date: formatDate(inspectForm.inspectionDate),
+      inspectionNo: inspectForm.inspectionNo,
+      items: inspectForm.items.map((item) => ({
+        id: item.id,
+        itemName: item.itemName,
+        standard: item.standard,
+        type: item.type,
+        isCritical: item.isCritical,
+        dimensionValue: item.dimensionValue,
+        toleranceUpper: item.toleranceUpper,
+        toleranceLower: item.toleranceLower,
+        actualValue: item.actualValue,
+        result: item.result,
+        remarks: item.remarks
+      })),
+      inspectorName: inspectForm.inspectorName,
+      templateId: currentInspectionTemplateId.value || null,
+      actualDate: formatDate(inspectForm.inspectionDate),
       note: inspectForm.note,
       status: status,
       quantity: inspectForm.quantity,
-      qualified_quantity: inspectForm.qualified_quantity || 0,
-      unqualified_quantity: inspectForm.unqualified_quantity || 0
+      qualifiedQuantity: inspectForm.qualifiedQuantity || 0,
+      unqualifiedQuantity: inspectForm.unqualifiedQuantity || 0
     }
     // 提交检验结果 - 需要分离ID和数据
     const inspectionId = submitData.id
@@ -1419,19 +1430,19 @@ const handleReview = (row) => {
     handleGetInspectionDetail(row.id).then(() => {
       // 复制当前检验单信息作为新的检验，状态改为review
       inspectForm.id = currentInspection.value.id;
-      inspectForm.inspection_no = currentInspection.value.inspection_no;
+      inspectForm.inspectionNo = currentInspection.value.inspectionNo;
       inspectForm.items = currentInspection.value.items.map(item => ({
         ...item,
-        actual_value: item.actual_value || '',
+        actualValue: item.actualValue || '',
         result: '',
         remarks: ''
       }));
 
       // 自动填入当前登录用户的真实姓名作为检验员
-      inspectForm.inspector_name = getCurrentUserDisplayName();
+      inspectForm.inspectorName = getCurrentUserDisplayName();
 
       inspectForm.inspectionDate = new Date();
-      inspectForm.note = currentInspection.value.note + ' (复检)';
+      inspectForm.note = (currentInspection.value.note || '') + ' (复检)';
 
       inspectDialogVisible.value = true;
     }).catch(error => {
@@ -1451,17 +1462,11 @@ const handleGetInspectionDetail = async (id) => {
     if (!data) {
       throw new Error('获取检验单详情失败');
     }
-    // 确保currentInspection中包含items属性
+    // 后端已输出 camel
     currentInspection.value = {
       ...data,
       items: data.items || [],
-      // 字段映射处理
-      inspection_date: data.actual_date || data.planned_date || data.inspection_date,
-      inspector_name: data.inspector_name || data.inspector,
-      item_name: data.item_name || data.product_name || data.material_name,
-      reference_no: data.reference_no || data.task_no || data.order_no,
-      // 使用模板编号作为标准编号
-      standard_no: data.template_code || data.standard_no
+      standardNo: data.standardNo || data.templateCode || null
     };
     if (!currentInspection.value.items || currentInspection.value.items.length === 0) {
       currentInspection.value.items = [];
@@ -1502,51 +1507,57 @@ const handlePrint = (row) => {
     ElMessage.error('获取打印数据失败: ' + error.message);
   });
 }
+// 业务 camel；printService 自动展开 snake 模板占位
 const getFinalInspectionPrintData = () => {
   const inspection = currentInspection.value || {}
-  const inspectionDate = inspection.actual_date || inspection.inspection_date || inspection.planned_date
+  const inspectionDate = inspection.actualDate || inspection.plannedDate
+  const inspectionNo = inspection.inspectionNo || ''
+  const productName = inspection.itemName || inspection.productName || ''
+  const productCode = inspection.itemCode || inspection.productCode || ''
 
   return {
-    fqc_no: inspection.inspection_no || '',
-    document_no: inspection.inspection_no || '',
-    inspection_no: inspection.inspection_no || '',
+    fqcNo: inspectionNo,
+    documentNo: inspectionNo,
+    inspectionNo,
     date: formatDate(inspectionDate),
-    inspection_date: formatDate(inspectionDate),
-    planned_date: formatDate(inspection.planned_date),
-    actual_date: formatDate(inspection.actual_date),
+    inspectionDate: formatDate(inspectionDate),
+    plannedDate: formatDate(inspection.plannedDate),
+    actualDate: formatDate(inspection.actualDate),
     status: getStatusText(inspection.status),
-    product_code: inspection.item_code || inspection.product_code || inspection.material_code || '',
-    product_name: inspection.item_name || inspection.product_name || inspection.material_name || '',
-    item_code: inspection.item_code || inspection.product_code || inspection.material_code || '',
-    item_name: inspection.item_name || inspection.product_name || inspection.material_name || '',
-    reference_no: inspection.reference_no || inspection.task_no || inspection.order_no || '',
-    batch_no: inspection.batch_no || '',
+    productCode,
+    productName,
+    itemCode: productCode,
+    itemName: productName,
+    referenceNo: inspection.referenceNo || '',
+    batchNo: inspection.batchNo || '',
     quantity: inspection.quantity || '',
-    qualified_quantity: inspection.qualified_quantity ?? '',
-    unqualified_quantity: inspection.unqualified_quantity ?? '',
-    unit_name: inspection.unit || inspection.unit_name || '',
-    unit: inspection.unit || inspection.unit_name || '',
-    inspector: inspection.inspector_name || inspection.inspector || '',
-    inspector_name: inspection.inspector_name || inspection.inspector || '',
-    standard_no: inspection.standard_no || inspection.template_code || '',
-    standard_type_text: inspection.standard_type === 'factory' ? '工厂标准'
-      : inspection.standard_type === 'customer' ? '客户标准'
-        : inspection.standard_type === 'industry' ? '行业标准'
-          : inspection.standard_type === 'national' ? '国家标准'
-            : (inspection.standard_type || ''),
-    remark: inspection.note || inspection.remark || '',
-    note: inspection.note || inspection.remark || '',
-    print_time: new Date().toLocaleString(),
+    qualifiedQuantity: inspection.qualifiedQuantity ?? '',
+    unqualifiedQuantity: inspection.unqualifiedQuantity ?? '',
+    unitName: inspection.unit || '',
+    unit: inspection.unit || '',
+    inspector: inspection.inspectorName || '',
+    inspectorName: inspection.inspectorName || '',
+    standardNo: inspection.standardNo || inspection.templateCode || '',
+    standardTypeText: inspection.standardType === 'factory' ? '工厂标准'
+      : inspection.standardType === 'customer' ? '客户标准'
+        : inspection.standardType === 'industry' ? '行业标准'
+          : inspection.standardType === 'national' ? '国家标准'
+            : (inspection.standardType || ''),
+    remarks: inspection.note || '',
+    remark: inspection.note || '',
+    note: inspection.note || '',
+    printTime: new Date().toLocaleString(),
     items: (inspection.items || []).map((item, index) => ({
       index: index + 1,
-      item_code: item.item_code || item.code || '',
-      item_name: item.item_name || item.name || '',
-      specification: item.standard || item.specification || item.standard_value || '',
-      quantity: item.actual_value || item.measured_value || item.quantity || '',
-      unit_name: item.unit || item.unit_name || '',
+      itemCode: item.itemCode || item.code || '',
+      itemName: item.itemName || item.name || '',
+      specification: item.standard || item.specification || item.dimensionValue || '',
+      quantity: item.actualValue || item.quantity || '',
+      unitName: item.unit || '',
       result: item.result === 'passed' || item.result === 'pass' ? '合格'
         : item.result === 'failed' || item.result === 'fail' ? '不合格'
           : (item.result || ''),
+      remarks: item.remarks || item.remark || '',
       remark: item.remarks || item.remark || ''
     }))
   }
@@ -1569,10 +1580,11 @@ const handlePrintCertificate = async () => {
     const printData = getFinalInspectionPrintData()
     const html = await printService.generateByDefaultTemplate('quality', 'final_inspection_certificate', {
       ...printData,
-      certificate_no: `COC-${printData.inspection_no || new Date().getTime()}`,
-      production_date: printData.planned_date,
-      issue_date: new Date().toLocaleDateString(),
-      remark: printData.remark || '产品经成品检验合格，准予出货。'
+      certificateNo: `COC-${printData.inspectionNo || new Date().getTime()}`,
+      productionDate: printData.plannedDate,
+      issueDate: new Date().toLocaleDateString(),
+      remarks: printData.remarks || '产品经成品检验合格，准予出货。',
+      remark: printData.remarks || '产品经成品检验合格，准予出货。'
     })
     printService.previewDocument(html)
     ElMessage.success('打印预览已打开')

@@ -23,25 +23,25 @@
           {{ getStatusLabel(inspection.status) }}
         </div>
         <div class="inspection-no">
-          {{ inspection.inspection_number || inspection.inspection_no }}
+          {{ inspection.inspectionNumber || inspection.inspectionNo }}
         </div>
       </div>
 
       <!-- 基本信息 -->
       <CellGroup inset title="基本信息">
-        <Cell title="批次号" :value="inspection.batch_no || '--'" />
-        <Cell title="物料名称" :value="inspection.item_name || '--'" />
-        <Cell title="供应商" :value="inspection.supplier_name || '--'" />
+        <Cell title="批次号" :value="inspection.batchNo || '--'" />
+        <Cell title="物料名称" :value="inspection.itemName || '--'" />
+        <Cell title="供应商" :value="inspection.supplierName || '--'" />
         <Cell
           title="检验日期"
-          :value="formatDate(inspection.actual_date || inspection.created_at)"
+          :value="formatDate(inspection.actualDate || inspection.createdAt)"
         />
       </CellGroup>
 
       <!-- 数量信息（检验中状态可编辑） -->
       <CellGroup inset title="数量信息">
         <Cell title="到货数量" :value="`${inspection.quantity || 0} ${inspection.unit || '件'}`" />
-        <Cell title="抽检数量" :value="`${inspection.sample_size || 0}`" />
+        <Cell title="抽检数量" :value="`${inspection.sampleSize || 0}`" />
       </CellGroup>
 
       <!-- 检验项目（检验中才显示，可操作） -->
@@ -58,14 +58,14 @@
             :class="{ 'item-passed': item.result === 'passed', 'item-failed': item.result === 'failed' }"
           >
             <div class="item-header">
-              <span class="item-name">{{ item.item_name }}</span>
-              <span class="item-critical" v-if="item.is_critical">关键</span>
+              <span class="item-name">{{ item.itemName }}</span>
+              <span class="item-critical" v-if="item.isCritical">关键</span>
             </div>
             <div class="item-standard" v-if="item.standard">
               标准：{{ item.standard }}
             </div>
             <!-- 尺寸公差显示 -->
-            <div class="item-dimension" v-if="item.dimension_value">
+            <div class="item-dimension" v-if="item.dimensionValue">
               尺寸：{{ formatDimension(item) }}
             </div>
             <!-- 结果判定（检验中可操作） -->
@@ -106,21 +106,21 @@
       <!-- 检验结果录入（检验中可编辑） -->
       <CellGroup v-if="isInspecting" inset title="检验结果录入">
         <Field
-          v-model="inspectForm.qualified_quantity"
+          v-model="inspectForm.qualifiedQuantity"
           type="digit"
           label="合格数量"
           placeholder="请输入合格数量"
           @input="onQualifiedChange"
         />
         <Field
-          v-model="inspectForm.unqualified_quantity"
+          v-model="inspectForm.unqualifiedQuantity"
           type="digit"
           label="不合格数量"
           placeholder="自动计算"
           readonly
         />
         <Field
-          v-model="inspectForm.inspector_name"
+          v-model="inspectForm.inspectorName"
           label="检验员"
           placeholder="请输入检验员姓名"
         />
@@ -129,17 +129,17 @@
 
       <!-- 已完成的结果展示 -->
       <CellGroup v-else-if="hasInspected" inset title="检验结果">
-        <Cell title="合格数" :value="`${inspection.qualified_quantity || 0}`" value-class="pass-text" />
+        <Cell title="合格数" :value="`${inspection.qualifiedQuantity || 0}`" value-class="pass-text" />
         <Cell
           title="不合格数"
-          :value="`${inspection.unqualified_quantity || 0}`"
+          :value="`${inspection.unqualifiedQuantity || 0}`"
           value-class="fail-text"
         />
         <Cell title="合格率" :value="`${calculatePassRate(inspection)}%`" />
         <Cell
-          v-if="inspection.inspector_name"
+          v-if="inspection.inspectorName"
           title="检验员"
-          :value="inspection.inspector_name"
+          :value="inspection.inspectorName"
         />
       </CellGroup>
 
@@ -215,8 +215,8 @@
 
   // 计算合格率
   const computedPassRate = computed(() => {
-    const q = Number(inspectForm.qualified_quantity) || 0
-    const uq = Number(inspectForm.unqualified_quantity) || 0
+    const q = Number(inspectForm.qualifiedQuantity) || 0
+    const uq = Number(inspectForm.unqualifiedQuantity) || 0
     const total = q + uq
     if (total === 0) return 0
     return Math.round((q / total) * 100)
@@ -225,12 +225,12 @@
   // 合格数量变化自动计算不合格数量
   const onQualifiedChange = () => {
     const totalQty = Number(inspection.value?.quantity) || 0
-    const qualifiedQty = Number(inspectForm.qualified_quantity) || 0
+    const qualifiedQty = Number(inspectForm.qualifiedQuantity) || 0
     if (qualifiedQty > totalQty) {
-      inspectForm.qualified_quantity = String(totalQty)
-      inspectForm.unqualified_quantity = '0'
+      inspectForm.qualifiedQuantity = String(totalQty)
+      inspectForm.unqualifiedQuantity = '0'
     } else {
-      inspectForm.unqualified_quantity = String(totalQty - qualifiedQty)
+      inspectForm.unqualifiedQuantity = String(totalQty - qualifiedQty)
     }
   }
 
@@ -266,16 +266,16 @@
   }
 
   const calculatePassRate = (item) => {
-    const total = (item.qualified_quantity || 0) + (item.unqualified_quantity || 0)
+    const total = (item.qualifiedQuantity || 0) + (item.unqualifiedQuantity || 0)
     if (total === 0) return 0
-    return Math.round(((item.qualified_quantity || 0) / total) * 100)
+    return Math.round(((item.qualifiedQuantity || 0) / total) * 100)
   }
 
   // 格式化尺寸±公差
   const formatDimension = (item) => {
-    const dv = parseFloat(item.dimension_value)
-    const upper = parseFloat(item.tolerance_upper) || 0
-    const lower = Math.abs(parseFloat(item.tolerance_lower)) || 0
+    const dv = parseFloat(item.dimensionValue)
+    const upper = parseFloat(item.toleranceUpper) || 0
+    const lower = Math.abs(parseFloat(item.toleranceLower)) || 0
     if (upper === 0 && lower === 0) return dv.toFixed(2)
     return `${dv.toFixed(2)} (+${upper.toFixed(2)}/-${lower.toFixed(2)})`
   }
@@ -312,9 +312,9 @@
         }
 
         // 初始化表单
-        inspectForm.qualified_quantity = String(data.qualified_quantity || data.quantity || '')
-        inspectForm.unqualified_quantity = String(data.unqualified_quantity || '0')
-        inspectForm.inspector_name = data.inspector_name || ''
+        inspectForm.qualifiedQuantity = String(data.qualifiedQuantity || data.quantity || '')
+        inspectForm.unqualifiedQuantity = String(data.unqualifiedQuantity || '0')
+        inspectForm.inspectorName = data.inspectorName || ''
         inspectForm.note = data.note || data.remark || ''
         return
       }
@@ -327,8 +327,8 @@
       try {
         inspection.value = JSON.parse(route.query.data)
         inspectItems.value = []
-        inspectForm.qualified_quantity = String(inspection.value.quantity || '')
-        inspectForm.unqualified_quantity = '0'
+        inspectForm.qualifiedQuantity = String(inspection.value.quantity || '')
+        inspectForm.unqualifiedQuantity = '0'
       } catch {
         showToast('数据加载失败')
       }
@@ -341,8 +341,8 @@
         if (items.length > 0) {
           inspection.value = items[0]
           inspectItems.value = Array.isArray(items[0].items) ? items[0].items : []
-          inspectForm.qualified_quantity = String(items[0].quantity || '')
-          inspectForm.unqualified_quantity = '0'
+          inspectForm.qualifiedQuantity = String(items[0].quantity || '')
+          inspectForm.unqualifiedQuantity = '0'
         } else {
           showToast('未找到检验记录')
         }
@@ -363,8 +363,8 @@
         showToast('当前检验单未配置检验项目，请先维护检验模板')
       }
       // 初始化合格数量为到货数量
-      inspectForm.qualified_quantity = String(inspection.value.quantity || '')
-      inspectForm.unqualified_quantity = '0'
+      inspectForm.qualifiedQuantity = String(inspection.value.quantity || '')
+      inspectForm.unqualifiedQuantity = '0'
     } catch (error) {
       console.error('开始检验失败:', error)
       const msg = error.response?.data?.message || '操作失败'
@@ -389,8 +389,8 @@
     }
 
     // 验证：合格数量
-    const qualifiedQty = Number(inspectForm.qualified_quantity) || 0
-    const unqualifiedQty = Number(inspectForm.unqualified_quantity) || 0
+    const qualifiedQty = Number(inspectForm.qualifiedQuantity) || 0
+    const unqualifiedQty = Number(inspectForm.unqualifiedQuantity) || 0
     if (qualifiedQty + unqualifiedQty <= 0) {
       showToast('请输入有效的合格数量')
       return
@@ -422,20 +422,20 @@
         qualified_quantity: qualifiedQty,
         unqualified_quantity: unqualifiedQty,
         status,
-        inspector_name: inspectForm.inspector_name,
+        inspector_name: inspectForm.inspectorName,
         actual_date: new Date().toISOString().split('T')[0],
         note: inspectForm.note,
         items: inspectItems.value.map(item => ({
-          item_name: item.item_name,
+          item_name: item.itemName,
           standard: item.standard,
           type: item.type,
-          is_critical: item.is_critical,
+          is_critical: item.isCritical,
           result: item.result,
           remarks: item.remarks,
-          actual_value: item.actual_value || '',
-          dimension_value: item.dimension_value || null,
-          tolerance_upper: item.tolerance_upper || null,
-          tolerance_lower: item.tolerance_lower || null
+          actual_value: item.actualValue || '',
+          dimension_value: item.dimensionValue || null,
+          tolerance_upper: item.toleranceUpper || null,
+          tolerance_lower: item.toleranceLower || null
         }))
       }
 

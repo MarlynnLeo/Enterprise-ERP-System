@@ -5,6 +5,7 @@
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 
 const processTemplateService = require('../../../services/processTemplateService');
 
@@ -14,7 +15,14 @@ const processController = {
     try {
       const { page = 1, pageSize = 10, name, status } = req.query;
       const result = await processTemplateService.getAll(page, pageSize, { name, status });
-      ResponseHandler.paginated(res, result.list, result.total, result.page, result.pageSize, '获取工序模板列表成功');
+      ResponseHandler.paginated(
+        res,
+        result.list,
+        result.total,
+        result.page,
+        result.pageSize,
+        '获取工序模板列表成功'
+      );
     } catch (error) {
       logger.error('获取工序模板列表失败:', error);
       ResponseHandler.error(res, error.message, 'SERVER_ERROR', 500, error);
@@ -36,11 +44,12 @@ const processController = {
 
   async createProcessTemplate(req, res) {
     try {
-      const { name } = req.body;
+      const body = mapKeysToSnake(req.body || {});
+      const { name } = body;
       if (!name) {
         return ResponseHandler.error(res, '模板名称不能为空', 'VALIDATION_ERROR', 400);
       }
-      const result = await processTemplateService.create(req.body);
+      const result = await processTemplateService.create(body);
       ResponseHandler.success(res, result, '创建工序模板成功', 201);
     } catch (error) {
       logger.error('创建工序模板失败:', error);
@@ -50,7 +59,7 @@ const processController = {
 
   async updateProcessTemplate(req, res) {
     try {
-      await processTemplateService.update(req.params.id, req.body);
+      await processTemplateService.update(req.params.id, mapKeysToSnake(req.body || {}));
       ResponseHandler.success(res, null, '更新工序模板成功');
     } catch (error) {
       logger.error('更新工序模板失败:', error);

@@ -26,22 +26,22 @@
       </el-form>
 
       <el-table :data="list" v-loading="loading" border stripe>
-        <el-table-column prop="product_code" label="产品编码" width="130" />
-        <el-table-column prop="product_name" label="产品名称" min-width="150" />
+        <el-table-column prop="productCode" label="产品编码" width="130" />
+        <el-table-column prop="productName" label="产品名称" min-width="150" />
         <el-table-column prop="name" label="路线名称" width="160" />
         <el-table-column prop="version" label="版本" width="80" align="center" />
-        <el-table-column prop="step_count" label="工序数" width="80" align="center">
+        <el-table-column prop="stepCount" label="工序数" width="80" align="center">
           <template #default="{ row }">
-            <el-tag type="info" size="small">{{ row.step_count }} 道</el-tag>
+            <el-tag type="info" size="small">{{ row.stepCount }} 道</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="total_standard_minutes" label="总标准工时" width="120" align="center">
-          <template #default="{ row }">{{ row.total_standard_minutes || 0 }} 分钟</template>
+        <el-table-column prop="totalStandardMinutes" label="总标准工时" width="120" align="center">
+          <template #default="{ row }">{{ row.totalStandardMinutes || 0 }} 分钟</template>
         </el-table-column>
-        <el-table-column prop="is_active" label="状态" width="80" align="center">
+        <el-table-column prop="isActive" label="状态" width="80" align="center">
           <template #default="{ row }">
-            <el-tag :type="row.is_active ? 'success' : 'info'" size="small">
-              {{ row.is_active ? '启用' : '停用' }}
+            <el-tag :type="row.isActive ? 'success' : 'info'" size="small">
+              {{ row.isActive ? '启用' : '停用' }}
             </el-tag>
           </template>
         </el-table-column>
@@ -77,7 +77,7 @@
     >
       <template v-if="routeDetail">
         <el-descriptions :column="3" border class="mb-20">
-          <el-descriptions-item label="产品">{{ routeDetail.product_name }} ({{ routeDetail.product_code }})</el-descriptions-item>
+          <el-descriptions-item label="产品">{{ routeDetail.productName }} ({{ routeDetail.productCode }})</el-descriptions-item>
           <el-descriptions-item label="路线名称">{{ routeDetail.name }}</el-descriptions-item>
           <el-descriptions-item label="版本">{{ routeDetail.version }}</el-descriptions-item>
           <el-descriptions-item label="总标准工时">{{ routeDetail.total_standard_minutes }} 分钟</el-descriptions-item>
@@ -87,17 +87,17 @@
         <h4 class="mb-md">工序步骤</h4>
         <el-table :data="routeDetail.steps" border size="small">
           <el-table-column prop="sequence" label="序号" width="60" align="center" />
-          <el-table-column prop="step_name" label="工序名称" width="150" />
-          <el-table-column prop="step_code" label="工序编号" width="100" />
+          <el-table-column prop="stepName" label="工序名称" width="150" />
+          <el-table-column prop="stepCode" label="工序编号" width="100" />
           <el-table-column label="默认工位" width="120">
-            <template #default="{ row }">{{ row.station_name || '-' }}</template>
+            <template #default="{ row }">{{ row.stationName || '-' }}</template>
           </el-table-column>
-          <el-table-column prop="standard_minutes" label="标准工时(分钟)" width="130" align="center" />
+          <el-table-column prop="standardMinutes" label="标准工时(分钟)" width="130" align="center" />
           <el-table-column label="所需物料" min-width="200">
             <template #default="{ row }">
               <div v-if="row.materials?.length">
-                <el-tag v-for="m in row.materials" :key="m.material_id" size="small" class="chip-gap" :type="m.is_scan_required ? 'danger' : ''">
-                  {{ m.material_name }} × {{ m.quantity }}
+                <el-tag v-for="m in row.materials" :key="m.materialId" size="small" class="chip-gap" :type="m.is_scan_required ? 'danger' : ''">
+                  {{ m.materialName }} × {{ m.quantity }}
                   <span v-if="m.is_scan_required"> 📷</span>
                 </el-tag>
               </div>
@@ -106,7 +106,7 @@
           </el-table-column>
           <el-table-column label="SOP" width="60" align="center">
             <template #default="{ row }">
-              <el-icon v-if="row.sop_content" class="text-success"><Check /></el-icon>
+              <el-icon v-if="row.sopContent" class="text-success"><Check /></el-icon>
               <span v-else>-</span>
             </template>
           </el-table-column>
@@ -118,12 +118,17 @@
     </AppDialog>
 
     <!-- 创建弹窗 -->
-    <el-dialog v-model="createVisible" title="新增工序路线" width="800px" destroy-on-close>
+    <AppDialog
+      v-model="createVisible"
+      title="新增工序路线"
+      mode="form"
+      width="800px"
+    >
       <el-form :model="createForm" label-width="90px">
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="产品" required>
-              <el-select v-model="createForm.product_id" filterable remote :remote-method="searchProducts"
+              <el-select v-model="createForm.productId" filterable remote :remote-method="searchProducts"
                 :loading="searchLoading" placeholder="搜索产品" class="w-full">
                 <el-option v-for="p in productOptions" :key="p.id" :label="`${p.code} - ${p.name}`" :value="p.id" />
               </el-select>
@@ -152,22 +157,22 @@
           </el-table-column>
           <el-table-column label="工序名称" width="160">
             <template #default="{ row }">
-              <el-input v-model="row.step_name" size="small" placeholder="如 底盘装配" />
+              <el-input v-model="row.stepName" size="small" placeholder="如 底盘装配" />
             </template>
           </el-table-column>
           <el-table-column label="工序编号" width="100">
             <template #default="{ row }">
-              <el-input v-model="row.step_code" size="small" placeholder="OP10" />
+              <el-input v-model="row.stepCode" size="small" placeholder="OP10" />
             </template>
           </el-table-column>
           <el-table-column label="标准工时(分)" width="120">
             <template #default="{ row }">
-              <el-input-number v-model="row.standard_minutes" size="small" :min="0" :step="5" class="w-full" />
+              <el-input-number v-model="row.standardMinutes" size="small" :min="0" :step="5" class="w-full" />
             </template>
           </el-table-column>
           <el-table-column label="工位" width="140">
             <template #default="{ row }">
-              <el-select v-model="row.station_id" size="small" placeholder="选择" clearable class="w-full">
+              <el-select v-model="row.stationId" size="small" placeholder="选择" clearable class="w-full">
                 <el-option v-for="s in stationOptions" :key="s.id" :label="s.name" :value="s.id" />
               </el-select>
             </template>
@@ -183,7 +188,7 @@
         <el-button @click="createVisible = false">取消</el-button>
         <el-button type="primary" v-permission="'production:routes:create'" @click="handleCreate" :loading="saving">保存</el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
   </div>
 </template>
 
@@ -287,7 +292,7 @@ const addStep = () => {
 }
 
 const handleCreate = async () => {
-  if (!createForm.product_id || !createForm.name) return ElMessage.warning('请填写产品和路线名称')
+  if (!createForm.productId || !createForm.name) return ElMessage.warning('请填写产品和路线名称')
   if (!createForm.steps.length) return ElMessage.warning('请至少添加一道工序')
   saving.value = true
   try {

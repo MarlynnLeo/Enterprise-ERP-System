@@ -27,41 +27,41 @@
         <div class="info-grid">
           <div class="info-item">
             <span class="label">订单编号</span>
-            <span class="value">{{ order.order_no }}</span>
+            <span class="value">{{ order.orderNo }}</span>
           </div>
           <div class="info-item">
             <span class="label">供应商</span>
-            <span class="value">{{ order.supplier_name }}</span>
+            <span class="value">{{ order.supplierName }}</span>
           </div>
-          <div class="info-item" v-if="order.contact_person">
+          <div class="info-item" v-if="order.contactPerson">
             <span class="label">联系人</span>
-            <span class="value">{{ order.contact_person }}</span>
+            <span class="value">{{ order.contactPerson }}</span>
           </div>
-          <div class="info-item" v-if="order.contact_phone">
+          <div class="info-item" v-if="order.contactPhone">
             <span class="label">联系电话</span>
-            <span class="value">{{ order.contact_phone }}</span>
+            <span class="value">{{ order.contactPhone }}</span>
           </div>
           <div class="info-item">
             <span class="label">订单日期</span>
-            <span class="value">{{ formatDateTime(order.order_date) }}</span>
+            <span class="value">{{ formatDateTime(order.orderDate) }}</span>
           </div>
           <div class="info-item">
             <span class="label">预计交货日期</span>
-            <span class="value">{{ formatDateTime(order.expected_delivery_date) }}</span>
+            <span class="value">{{ formatDateTime(order.expectedDeliveryDate) }}</span>
           </div>
           <div class="info-item">
             <span class="label">订单金额</span>
-            <span class="value amount">¥{{ formatAmount(order.total_amount) }}</span>
+            <span class="value amount">¥{{ formatAmount(order.totalAmount) }}</span>
           </div>
-          <div class="info-item" v-if="order.remark">
+          <div class="info-item" v-if="order.remarks">
             <span class="label">备注</span>
-            <span class="value">{{ order.remark }}</span>
+            <span class="value">{{ order.remarks }}</span>
           </div>
         </div>
       </div>
 
       <!-- 收货进度 -->
-      <div class="info-section" v-if="order.received_amount > 0">
+      <div class="info-section" v-if="order.receivedAmount > 0 || order.completionPercentage > 0">
         <div class="section-header">
           <h3>收货进度</h3>
         </div>
@@ -70,11 +70,11 @@
           <div class="progress-stats">
             <div class="stat-item">
               <span class="stat-label">订单金额</span>
-              <span class="stat-value">¥{{ formatAmount(order.total_amount) }}</span>
+              <span class="stat-value">¥{{ formatAmount(order.totalAmount) }}</span>
             </div>
             <div class="stat-item">
               <span class="stat-label">已收货金额</span>
-              <span class="stat-value">¥{{ formatAmount(order.received_amount) }}</span>
+              <span class="stat-value">¥{{ formatAmount(order.receivedAmount) }}</span>
             </div>
             <div class="stat-item">
               <span class="stat-label">收货进度</span>
@@ -97,14 +97,14 @@
         <div class="items-list">
           <div v-for="item in orderItems" :key="item.id" class="item-row">
             <div class="item-info">
-              <div class="item-name">{{ item.material_name }}</div>
-              <div class="item-code">{{ item.material_code }}</div>
+              <div class="item-name">{{ item.materialName }}</div>
+              <div class="item-code">{{ item.materialCode }}</div>
               <div class="item-spec" v-if="item.specification">{{ item.specification }}</div>
             </div>
             <div class="item-details">
-              <div class="item-quantity">数量: {{ item.quantity }} {{ item.unit }}</div>
-              <div class="item-price">单价: ¥{{ formatAmount(item.unit_price) }}</div>
-              <div class="item-total">小计: ¥{{ formatAmount(item.total_price) }}</div>
+              <div class="item-quantity">数量: {{ item.quantity }} {{ item.unitName || item.unit }}</div>
+              <div class="item-price">单价: ¥{{ formatAmount(item.unitPrice || item.price) }}</div>
+              <div class="item-total">小计: ¥{{ formatAmount(item.totalPrice || item.amount) }}</div>
             </div>
           </div>
         </div>
@@ -119,15 +119,15 @@
         <div class="info-grid">
           <div class="info-item">
             <span class="label">创建时间</span>
-            <span class="value">{{ formatDateTime(order.created_at) }}</span>
+            <span class="value">{{ formatDateTime(order.createdAt) }}</span>
           </div>
           <div class="info-item">
             <span class="label">更新时间</span>
-            <span class="value">{{ formatDateTime(order.updated_at) }}</span>
+            <span class="value">{{ formatDateTime(order.updatedAt) }}</span>
           </div>
-          <div class="info-item" v-if="order.created_by">
+          <div class="info-item" v-if="order.createdByName || order.createdBy">
             <span class="label">创建人</span>
-            <span class="value">{{ order.created_by }}</span>
+            <span class="value">{{ order.createdByName || order.createdBy }}</span>
           </div>
         </div>
       </div>
@@ -207,7 +207,7 @@
         </template>
 
         <!-- 所有状态可查看供应商 -->
-        <Button type="default" size="large" round block @click="viewSupplier" v-if="order.supplier_id" style="margin-top: 10px">
+        <Button type="default" size="large" round block @click="viewSupplier" v-if="order.supplierId" style="margin-top: 10px">
           查看供应商
         </Button>
       </div>
@@ -271,7 +271,7 @@
   // === 状态操作 === //
 
   const hasSupplier = computed(() => {
-    const id = order.value?.supplier_id ?? order.value?.supplierId
+    const id = order.value?.supplierId
     return !(id === null || id === undefined || id === '' || id === 0 || id === '0')
   })
 
@@ -348,7 +348,7 @@
 
   // 查看供应商
   const viewSupplier = () => {
-    router.push(`/basedata/suppliers/${order.value.supplier_id}`)
+    router.push(`/basedata/suppliers/${order.value.supplierId}`)
   }
 
   import { getPurchaseStatusText } from '@/constants/systemConstants'
@@ -369,8 +369,9 @@
 
   // 计算收货进度百分比
   const getReceivePercent = (order) => {
-    if (!order.total_amount || order.total_amount === 0) return 0
-    const percent = Math.round(((order.received_amount || 0) / order.total_amount) * 100)
+    if (order.completionPercentage != null) return Math.round(Number(order.completionPercentage) || 0)
+    if (!order.totalAmount || order.totalAmount === 0) return 0
+    const percent = Math.round(((order.receivedAmount || 0) / order.totalAmount) * 100)
     return Math.min(percent, 100)
   }
 

@@ -5,6 +5,7 @@
  */
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 const { logger } = require('../../../utils/logger');
 
 const db = require('../../../config/db');
@@ -202,7 +203,7 @@ exports.createPackingList = async (req, res) => {
   try {
     await connection.beginTransaction();
 
-    const { customer_id, sales_order_id, packing_date, remark, details = [] } = req.body;
+    const { customer_id, sales_order_id, packing_date, remark, details = [] } = mapKeysToSnake(req.body || {});
 
     // 验证必填字段
     if (!customer_id) {
@@ -361,7 +362,7 @@ exports.updatePackingList = async (req, res) => {
     await connection.beginTransaction();
 
     const { id } = req.params;
-    const { customer_id, sales_order_id, packing_date, status, remark, details = [] } = req.body;
+    const { customer_id, sales_order_id, packing_date, status, remark, details = [] } = mapKeysToSnake(req.body || {});
 
     const [packingRows] = await connection.execute(
       'SELECT id, status FROM packing_lists WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
@@ -925,7 +926,7 @@ async function generateProductionAndPurchasePlans(
           const requisitionRemark = `由销售订单${salesOrderNo} 自动生成`;
 
           // 使用当前用户信息，并从数据库查询真实姓名
-          const requester = userInfo.username || userInfo.real_name || await resolveActorLabel(connection, userInfo.id, userInfo.username);
+          const requester = userInfo.username || userInfo.realName || await resolveActorLabel(connection, userInfo.id, userInfo.username);
           let realName = userInfo.real_name || '系统';
 
           // 如果userInfo中没有real_name，尝试从数据库查询

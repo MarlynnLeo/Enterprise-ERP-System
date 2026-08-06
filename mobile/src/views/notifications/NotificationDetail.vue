@@ -26,7 +26,7 @@
           <div class="detail-meta">
             <span>{{ notification.sender || '系统通知' }}</span>
             <span class="separator">·</span>
-            <span>{{ formatTime(notification.created_at) }}</span>
+            <span>{{ formatTime(notification.createdAt) }}</span>
           </div>
         </div>
       </div>
@@ -37,10 +37,10 @@
       </div>
 
       <!-- 关联信息 -->
-      <div v-if="notification.related_type" class="related-info">
+      <div v-if="notification.sourceType || notification.relatedType" class="related-info">
         <Cell
-          :title="getRelatedLabel(notification.related_type)"
-          :value="notification.related_id"
+          :title="getRelatedLabel(notification.sourceType || notification.relatedType)"
+          :value="notification.sourceId || notification.relatedId"
           is-link
           @click="navigateToRelated"
         />
@@ -48,7 +48,7 @@
 
       <!-- 操作按钮 -->
       <div class="detail-actions">
-        <Button v-if="!notification.is_read" type="primary" block round @click="markAsRead">
+        <Button v-if="!notification.isRead" type="primary" block round @click="markAsRead">
           标记为已读
         </Button>
         <Button
@@ -126,7 +126,7 @@
   const markAsRead = async () => {
     try {
       await systemApi.markNotificationRead(route.params.id)
-      if (notification.value) notification.value.is_read = true
+      if (notification.value) notification.value.isRead = true
       showToast('已标记为已读')
     } catch {
       showToast('操作失败')
@@ -144,14 +144,14 @@
   }
 
   const navigateToRelated = () => {
-    const id = notification.value?.related_id
+    const id = notification.value?.sourceId || notification.value?.relatedId
     const routeMap = {
       order: id ? `/sales/orders/${id}` : '/sales/orders',
       task: id ? `/production/tasks/${id}` : '/production/tasks',
       inspection: id ? `/quality/incoming/${id}` : '/quality/incoming',
       approval: '/system/notifications'
     }
-    const target = routeMap[notification.value?.related_type]
+    const target = routeMap[notification.value?.sourceType || notification.value?.relatedType]
     if (target) {
       router.push(target)
     } else {

@@ -175,13 +175,12 @@
       </template>
     </el-table>
 
-    <el-dialog
+    <AppDialog
       v-model="dialogVisible"
       :title="editingTodo ? '编辑待办' : '新建待办'"
+      mode="form"
       width="560px"
-      class="todo-dialog"
-      append-to-body
-      destroy-on-close
+      custom-class="todo-dialog"
     >
       <el-form
         ref="todoFormRef"
@@ -247,7 +246,7 @@
           {{ editingTodo ? '保存修改' : '创建待办' }}
         </el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
   </el-card>
 </template>
 
@@ -391,8 +390,8 @@ function normalizeTodo(todo) {
     participants: Array.isArray(todo.participants) ? todo.participants : [],
     creator: todo.creator || null,
     deadline: todo.deadline || null,
-    createdAt: todo.createdAt || todo.created_at || null,
-    updatedAt: todo.updatedAt || todo.updated_at || null
+    createdAt: todo.createdAt || null,
+    updatedAt: todo.updatedAt || null
   }
 }
 
@@ -531,7 +530,7 @@ function getParticipantRecords(todo) {
 
 function getParticipantIds(todo) {
   return getParticipantRecords(todo)
-    .map(participant => Number(participant.userId ?? participant.user_id ?? participant.user?.id))
+    .map(participant => Number(participant.userId ?? participant.userId ?? participant.user?.id))
     .filter(id => Number.isInteger(id) && id > 0)
 }
 
@@ -539,7 +538,7 @@ function getParticipantNames(todo) {
   return getParticipantRecords(todo)
     .map((participant) => {
       const name = getUserDisplayName(participant.user)
-      const userId = participant.userId ?? participant.user_id
+      const userId = participant.userId ?? participant.userId
       return name || (userId ? `用户 ${userId}` : '')
     })
     .filter(Boolean)
@@ -547,7 +546,7 @@ function getParticipantNames(todo) {
 
 function getUserDisplayName(user) {
   if (!user) return ''
-  return user.real_name || user.realName || user.username || user.email || (user.id ? `用户 ${user.id}` : '')
+  return user.realName || user.username || user.email || (user.id ? `用户 ${user.id}` : '')
 }
 
 function getPriorityText(priority) {

@@ -22,14 +22,14 @@
       <el-form :model="formData" :rules="rules" ref="formRef" label-width="120px">
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="预算名称" prop="budget_name">
-              <el-input v-model="formData.budget_name" placeholder="请输入预算名称" />
+            <el-form-item label="预算名称" prop="budgetName">
+              <el-input v-model="formData.budgetName" placeholder="请输入预算名称" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="预算年度" prop="budget_year">
+            <el-form-item label="预算年度" prop="budgetYear">
               <el-date-picker
-                v-model="formData.budget_year"
+                v-model="formData.budgetYear"
                 type="year"
                 placeholder="选择年度"
                 value-format="YYYY"
@@ -41,15 +41,15 @@
 
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="预算类型" prop="budget_type">
-              <el-select v-model="formData.budget_type" placeholder="请选择" class="w-full">
+            <el-form-item label="预算类型" prop="budgetType">
+              <el-select v-model="formData.budgetType" placeholder="请选择" class="w-full">
                 <el-option v-for="item in dictStore.getOptions('budget_type')" :key="item.value" :label="item.label" :value="item.value" />
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="部门" prop="department_id">
-              <el-select v-model="formData.department_id" placeholder="请选择部门" clearable class="w-full">
+            <el-form-item label="部门" prop="departmentId">
+              <el-select v-model="formData.departmentId" placeholder="请选择部门" clearable class="w-full">
                 <el-option
                   v-for="dept in departments"
                   :key="dept.id"
@@ -63,9 +63,9 @@
 
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="开始日期" prop="start_date">
+            <el-form-item label="开始日期" prop="startDate">
               <el-date-picker
-                v-model="formData.start_date"
+                v-model="formData.startDate"
                 type="date"
                 placeholder="选择日期"
                 value-format="YYYY-MM-DD"
@@ -74,9 +74,9 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="结束日期" prop="end_date">
+            <el-form-item label="结束日期" prop="endDate">
               <el-date-picker
-                v-model="formData.end_date"
+                v-model="formData.endDate"
                 type="date"
                 placeholder="选择日期"
                 value-format="YYYY-MM-DD"
@@ -102,11 +102,11 @@
         <el-table :data="formData.details" border>
           <el-table-column label="会计科目" width="200">
             <template #default="{ row }">
-              <el-select v-model="row.account_id" placeholder="请选择" filterable>
+              <el-select v-model="row.accountId" placeholder="请选择" filterable>
                 <el-option
                   v-for="account in accounts"
                   :key="account.id"
-                  :label="`${account.account_code} - ${account.account_name}`"
+                  :label="`${account.accountCode} - ${account.accountName}`"
                   :value="account.id"
                 />
               </el-select>
@@ -114,7 +114,7 @@
           </el-table-column>
           <el-table-column label="部门" width="150">
             <template #default="{ row }">
-              <el-select  v-model="row.department_id" placeholder="请选择" clearable>
+              <el-select  v-model="row.departmentId" placeholder="请选择" clearable>
                 <el-option
                   v-for="dept in departments"
                   :key="dept.id"
@@ -127,7 +127,7 @@
           <el-table-column label="预算金额" width="150">
             <template #default="{ row }">
               <el-input-number
-                v-model="row.budget_amount"
+                v-model="row.budgetAmount"
                 :precision="2"
                 :min="0"
                 controls-position="right"
@@ -138,7 +138,7 @@
           <el-table-column label="预警阈值(%)" width="120">
             <template #default="{ row }">
               <el-input-number
-                v-model="row.warning_threshold"
+                v-model="row.warningThreshold"
                 :precision="2"
                 :min="0"
                 :max="100"
@@ -189,13 +189,13 @@ const saving = ref(false);
 
 // 表单数据
 const formData = reactive({
-  budget_name: '',
-  budget_year: new Date().getFullYear().toString(),
-  budget_type: '年度预算',
-  department_id: null,
-  start_date: '',
-  end_date: '',
-  total_amount: 0,
+  budgetName: '',
+  budgetYear: new Date().getFullYear().toString(),
+  budgetType: '年度预算',
+  departmentId: null,
+  startDate: '',
+  endDate: '',
+  totalAmount: 0,
   status: '草稿',
   description: '',
   details: []
@@ -203,11 +203,11 @@ const formData = reactive({
 
 // 验证规则
 const rules = {
-  budget_name: [{ required: true, message: '请输入预算名称', trigger: 'blur' }],
-  budget_year: [{ required: true, message: '请选择预算年度', trigger: 'change' }],
-  budget_type: [{ required: true, message: '请选择预算类型', trigger: 'change' }],
-  start_date: [{ required: true, message: '请选择开始日期', trigger: 'change' }],
-  end_date: [{ required: true, message: '请选择结束日期', trigger: 'change' }]
+  budgetName: [{ required: true, message: '请输入预算名称', trigger: 'blur' }],
+  budgetYear: [{ required: true, message: '请选择预算年度', trigger: 'change' }],
+  budgetType: [{ required: true, message: '请选择预算类型', trigger: 'change' }],
+  startDate: [{ required: true, message: '请选择开始日期', trigger: 'change' }],
+  endDate: [{ required: true, message: '请选择结束日期', trigger: 'change' }]
 };
 
 // 部门列表
@@ -218,7 +218,7 @@ const accounts = ref([]);
 
 // 计算总金额
 const totalAmount = computed(() => {
-  return formData.details.reduce((sum, item) => sum + (parseFloat(item.budget_amount) || 0), 0);
+  return formData.details.reduce((sum, item) => sum + (parseFloat(item.budgetAmount) || 0), 0);
 });
 
 // 获取部门列表
@@ -246,13 +246,13 @@ const fetchBudgetDetail = async () => {
     const response = await financeApi.budgets.getDetail(route.params.id);
     const budget = response.data;
     Object.assign(formData, {
-      budget_name: budget.budget_name,
-      budget_year: budget.budget_year?.toString(),
-      budget_type: budget.budget_type,
-      department_id: budget.department_id,
-      start_date: budget.start_date,
-      end_date: budget.end_date,
-      total_amount: budget.total_amount,
+      budgetName: budget.budgetName,
+      budgetYear: budget.budgetYear?.toString(),
+      budgetType: budget.budgetType,
+      departmentId: budget.departmentId,
+      startDate: budget.startDate,
+      endDate: budget.endDate,
+      totalAmount: budget.totalAmount,
       status: budget.status,
       description: budget.description,
       details: budget.details || []
@@ -266,10 +266,10 @@ const fetchBudgetDetail = async () => {
 // 添加明细
 const handleAddDetail = () => {
   formData.details.push({
-    account_id: null,
-    department_id: null,
-    budget_amount: 0,
-    warning_threshold: 80.00,
+    accountId: null,
+    departmentId: null,
+    budgetAmount: 0,
+    warningThreshold: 80.00,
     description: ''
   });
 };
@@ -294,11 +294,11 @@ const handleSave = async () => {
     // 验证明细
     for (let i = 0; i < formData.details.length; i++) {
       const detail = formData.details[i];
-      if (!detail.account_id) {
+      if (!detail.accountId) {
         ElMessage.warning(`第 ${i + 1} 行明细未选择会计科目`);
         return;
       }
-      if (!detail.budget_amount || detail.budget_amount <= 0) {
+      if (!detail.budgetAmount || detail.budgetAmount <= 0) {
         ElMessage.warning(`第 ${i + 1} 行明细预算金额必须大于0`);
         return;
       }
@@ -307,17 +307,17 @@ const handleSave = async () => {
     saving.value = true;
 
     // 更新总金额
-    formData.total_amount = totalAmount.value;
+    formData.totalAmount = totalAmount.value;
 
     const requestData = {
       budget: {
-        budget_name: formData.budget_name,
-        budget_year: parseInt(formData.budget_year),
-        budget_type: formData.budget_type,
-        department_id: formData.department_id,
-        start_date: formData.start_date,
-        end_date: formData.end_date,
-        total_amount: formData.total_amount,
+        budgetName: formData.budgetName,
+        budgetYear: parseInt(formData.budgetYear),
+        budgetType: formData.budgetType,
+        departmentId: formData.departmentId,
+        startDate: formData.startDate,
+        endDate: formData.endDate,
+        totalAmount: formData.totalAmount,
         description: formData.description
       },
       details: formData.details

@@ -6,6 +6,7 @@
  */
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 const { logger } = require('../../../utils/logger');
 
 
@@ -23,7 +24,10 @@ const {
 const ScopeGuard = require('../../../authorization/ScopeGuard');
 const {
   fromInvoiceApi,
+  toInvoiceApi,
   fromInvoiceListQuery,
+  toPaymentApi,
+  fromPaymentListQuery,
 } = require('../../../utils/finance/invoiceFieldMap');
 
 const isPaymentBusinessError = (error) =>
@@ -333,57 +337,17 @@ const apController = {
    */
   getPayments: async (req, res) => {
     try {
-      const {
-        page = 1,
-        limit = 20,
-        paymentNumber,
-        supplierName,
-        startDate,
-        endDate,
-        paymentMethod,
-        status,
-      } = req.query;
+      const { page = 1, limit = 20 } = req.query;
 
-      // 构建过滤条件
-      const filters = {};
-      if (paymentNumber) filters.payment_number = paymentNumber;
-      if (supplierName) filters.supplier_name = supplierName;
-      if (startDate) filters.start_date = startDate;
-      if (endDate) filters.end_date = endDate;
-      if (paymentMethod) filters.payment_method = paymentMethod;
-      if (status) filters.status = status; // 添加状态筛选
+      // HTTP query(camel) → 模型 filters(snake)
+      const filters = fromPaymentListQuery(req.query);
       filters.scopeClause = await ScopeGuard.applyListScope(req, 'ap_payment', {
         tableAlias: 'p',
         ownerAlias: 'ap_payment_owner_scope',
       });
 
-      // 调用模型方法获取付款记录列表
       const result = await apModel.getPayments(filters, parseInt(page), parseInt(limit));
-
-      // 映射结果，处理可能的字段不存在情况
-      const mappedData = result.payments.map((payment) => {
-        // 确保所有必要字段存在
-        const formatted = {
-          id: payment.id,
-          paymentNumber: payment.payment_number,
-          supplierId: payment.supplier_id,
-          // 供应商名可能从不同字段获取
-          supplierName: payment.supplier_name || payment.name || 'Unknown Supplier',
-          // 日期格式化，只保留年月日
-          paymentDate: payment.payment_date ? payment.payment_date.substring(0, 10) : '',
-          // 确保数值型数据正确格式化
-          amount: parseFloat(payment.total_amount || 0),
-          paymentMethod: payment.payment_method || 'Unknown',
-          status: payment.status || 'normal', // 添加状态字段
-          notes: payment.notes || '',
-          createdAt: payment.created_at ? payment.created_at.substring(0, 10) : '',
-          // 添加发票编号
-          invoiceNumber: payment.invoice_number || '',
-          // 为了兼容性，添加对应的发票ID
-          invoiceId: null,
-        };
-        return formatted;
-      });
+      const mappedData = (result.payments || []).map((payment) => toPaymentApi(payment));
 
       return ResponseHandler.paginated(
         res,
@@ -418,35 +382,8 @@ const apController = {
         return ResponseHandler.error(res, '未找到指定的付款记录', 'NOT_FOUND', 404);
       }
 
-      // 格式化数据以符合前端期望
-      const formattedPayment = {
-        id: payment.id,
-        paymentNumber: payment.payment_number,
-        supplierId: payment.supplier_id,
-        supplierName: payment.name || payment.supplier_name || '',
-        paymentDate: payment.payment_date || '',
-        amount: parseFloat(payment.total_amount),
-        paymentMethod: payment.payment_method,
-        status: payment.status || 'normal', // 添加状态字段
-        referenceNumber: payment.reference_number,
-        bankAccountId: payment.bank_account_id,
-        bankAccountName: payment.bank_account_name,
-        notes: payment.notes || '',
-        createdAt: payment.created_at || '',
-        // 添加作废相关字段
-        voided_at: payment.voided_at || null,
-        voided_by: payment.voided_by || null,
-        voided_by_name: payment.voided_by_name || null,
-        void_reason: payment.void_reason || null,
-        // 添加付款明细项
-        items: payment.items.map((item) => ({
-          id: item.id,
-          invoiceId: item.invoice_id,
-          invoiceNumber: item.invoice_number,
-          amount: parseFloat(item.amount),
-          discountAmount: parseFloat(item.discount_amount || 0),
-        })),
-      };
+      // 出参统一 camel（toPaymentApi）
+      const formattedPayment = toPaymentApi(payment);
 
       return ResponseHandler.success(res, formattedPayment, '获取付款记录成功');
     } catch (error) {
@@ -530,11 +467,13 @@ const apController = {
       }
 
       const settlementCents = payAmountCents + discountCents;
-      const invoiceBalanceCents = Math.round(parseFloat(invoice.balance || invoice.balance_amount || 0) * 100);
+      // 发票已由 toInvoiceApi 出 camel
+      const invoiceBalance = parseFloat(invoice.balanceAmount ?? 0);
+      const invoiceBalanceCents = Math.round(invoiceBalance * 100);
       if (settlementCents > invoiceBalanceCents) {
         return ResponseHandler.error(
           res,
-          `付款核销金额 ${settlementCents / 100}（含折扣）超过发票未付余额 ${invoice.balance || invoice.balance_amount}`,
+          `付款核销金额 ${settlementCents / 100}（含折扣）超过发票未付余额 ${invoiceBalance}`,
           'VALIDATION_ERROR',
           400
         );
@@ -640,7 +579,7 @@ const apController = {
   voidPayment: async (req, res) => {
     try {
       const paymentId = safeParseId(req.params.id);
-      const { void_reason } = req.body;
+      const { void_reason } = mapKeysToSnake(req.body || {});
 
       if (!paymentId) {
         return ResponseHandler.error(res, '无效的付款记录ID', 'VALIDATION_ERROR', 400);
@@ -1051,10 +990,31 @@ const apController = {
    */
   getUnpaidInvoices: async (req, res) => {
     try {
-      // 调用模型方法获取未付清的发票
       const invoices = await apModel.getUnpaidInvoices();
+      // 统一 camel；兼容前端 balance / amount 别名
+      const mapped = (invoices || []).map((inv) => {
+        const api = toInvoiceApi(
+          {
+            id: inv.id,
+            invoice_number: inv.invoiceNumber ?? inv.invoice_number,
+            supplier_id: inv.supplierId ?? inv.supplier_id,
+            supplier_name: inv.supplierName ?? inv.supplier_name,
+            invoice_date: inv.invoiceDate ?? inv.invoice_date,
+            due_date: inv.dueDate ?? inv.due_date,
+            total_amount: inv.amount ?? inv.totalAmount ?? inv.total_amount,
+            paid_amount: inv.paidAmount ?? inv.paid_amount,
+            balance_amount: inv.balance ?? inv.balanceAmount ?? inv.balance_amount,
+            status: inv.status,
+          },
+          'ap'
+        );
+        // 创建付款表单历史字段
+        api.amount = api.totalAmount;
+        api.balance = api.balanceAmount;
+        return api;
+      });
 
-      return ResponseHandler.success(res, invoices, '获取未付清发票列表成功');
+      return ResponseHandler.success(res, mapped, '获取未付清发票列表成功');
     } catch (error) {
       return ResponseHandler.error(res, '获取未付清发票列表失败', 'SERVER_ERROR', 500, error);
     }

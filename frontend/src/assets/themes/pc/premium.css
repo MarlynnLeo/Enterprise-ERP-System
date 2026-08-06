@@ -4,12 +4,13 @@
  */
 
 :root[data-theme="premium"] {
-  --color-primary: #ffffff;
+  /* 可交互主色：锌灰高亮（避免 #fff 作为 EP primary 导致控件不可见） */
+  --color-primary: #e4e4e7;
   --color-primary-light-3: #f4f4f5;
-  --color-primary-light-5: #e4e4e7;
+  --color-primary-light-5: #fafafa;
   --color-primary-light-7: #a1a1aa;
   --color-primary-light-8: #71717a;
-  --color-primary-light-9: #18181b;
+  --color-primary-light-9: #27272a;
   --color-primary-dark-2: #d4d4d8;
 
   --color-success: #22c55e;
@@ -46,13 +47,13 @@
   --color-bg-light: #101012;
   --color-bg-overlay: rgba(0, 0, 0, 0.78);
 
-  --color-primary-active: #ffffff;
+  --color-primary-active: #f4f4f5;
   --color-success-gradient-end: #86efac;
   --color-warning-gradient-end: #fbbf24;
   --color-danger-gradient-end: #fca5a5;
   --color-danger-hover: #f87171;
   --color-info-gradient-end: #67e8f9;
-  --color-on-primary: #000000;
+  --color-on-primary: #09090b;
 
   --spacing-xs: 4px;
   --spacing-sm: 8px;
@@ -112,6 +113,19 @@
   --z-index-modal: 1050;
   --z-index-popover: 1060;
   --z-index-tooltip: 1070;
+
+  /* 侧栏 shell（杂志风：浅字 + 高亮激活） */
+  --shell-sidebar-bg: #09090b;
+  --shell-border: rgba(255, 255, 255, 0.08);
+  --shell-sidebar-text: #fafafa;
+  --shell-sidebar-text-muted: #8e8e93;
+  --shell-sidebar-title: #ffffff;
+  --shell-sidebar-hover-bg: rgba(255, 255, 255, 0.07);
+  --shell-sidebar-active-bg: var(--color-primary);
+  --shell-sidebar-active-text: var(--color-on-primary);
+  --shell-sidebar-accent: var(--color-primary);
+  --shell-sidebar-indicator-width: 0px;
+  --shell-header-bg: rgba(5, 5, 5, 0.96);
 }
 
 [data-theme="premium"] body,
@@ -124,10 +138,10 @@
 /* Removed body::before fixed gradient overlay to avoid full-viewport repaint cost. */
 
 [data-theme="premium"] .app-shell {
-  --shell-accent: #ffffff;
-  --shell-accent-strong: #ffffff;
-  --shell-accent-soft: rgba(255, 255, 255, 0.08);
-  --shell-glow: rgba(255, 255, 255, 0.08);
+  --shell-accent: var(--color-primary);
+  --shell-accent-strong: var(--color-primary-light-3);
+  --shell-accent-soft: rgba(228, 228, 231, 0.12);
+  --shell-glow: rgba(228, 228, 231, 0.1);
   --shell-surface: rgba(9, 9, 11, 0.88);
   --shell-border: rgba(255, 255, 255, 0.08);
   --shell-shadow: var(--shadow-card);
@@ -140,25 +154,26 @@
   --shell-control-hover-bg: rgba(255, 255, 255, 0.08);
   --shell-control-hover-shadow: 0 0 0 1px rgba(255, 255, 255, 0.16);
   --shell-menu-item-height: 42px;
+  --shell-sidebar-bg: #09090b;
+  --shell-sidebar-text: #fafafa;
+  --shell-sidebar-text-muted: #8e8e93;
+  --shell-sidebar-title: #ffffff;
+  --shell-sidebar-hover-bg: rgba(255, 255, 255, 0.07);
+  --shell-sidebar-active-bg: var(--color-primary);
+  --shell-sidebar-active-text: var(--color-on-primary);
 }
 
+/* 侧栏：shell 底色；菜单交互 → theme-components */
 [data-theme="premium"] .sidebar,
 [data-theme="premium"] .app-sidebar {
-  background: #09090b !important;
-  border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+  background: var(--shell-sidebar-bg) !important;
+  border-right: 1px solid var(--shell-border) !important;
   box-shadow: 8px 0 24px rgba(0, 0, 0, 0.3) !important;
-  transition:
-    flex-basis 180ms ease,
-    width 180ms ease,
-    background-color 0.15s ease,
-    border-color 0.15s ease,
-    box-shadow 0.15s ease !important;
-  /* Opaque background avoids repaint-heavy backdrop blur during sidebar motion. */
 }
 
 [data-theme="premium"] .logo-container {
   background: transparent !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-bottom: 1px solid var(--shell-border) !important;
 }
 
 [data-theme="premium"] .logo {
@@ -167,19 +182,13 @@
 
 [data-theme="premium"] .logo-container .title,
 [data-theme="premium"] .app-title {
-  color: #ffffff !important;
+  color: var(--shell-sidebar-title) !important;
   font-size: 20px !important;
   font-weight: 900 !important;
   letter-spacing: 0 !important;
   text-transform: uppercase;
-  -webkit-text-fill-color: #ffffff !important;
+  -webkit-text-fill-color: var(--shell-sidebar-title) !important;
   background: none !important;
-}
-
-[data-theme="premium"] .app-menu,
-[data-theme="premium"] .el-menu {
-  background: transparent !important;
-  border-right: 0 !important;
 }
 
 [data-theme="premium"] .sidebar .el-menu-item,
@@ -187,30 +196,8 @@
 [data-theme="premium"] .app-sidebar .el-menu-item,
 [data-theme="premium"] .app-sidebar .el-sub-menu__title {
   padding-left: 14px !important;
-  color: #8e8e93 !important;
-  border-radius: 8px !important;
   font-size: 13px !important;
   font-weight: 650 !important;
-  transition: color 0.15s ease, background-color 0.15s ease;
-}
-
-[data-theme="premium"] .sidebar .el-menu-item span,
-[data-theme="premium"] .sidebar .el-sub-menu__title span,
-[data-theme="premium"] .sidebar .el-menu-item .el-icon,
-[data-theme="premium"] .sidebar .el-sub-menu__title .el-icon {
-  color: inherit !important;
-}
-
-[data-theme="premium"] .sidebar .el-menu-item:hover,
-[data-theme="premium"] .sidebar .el-sub-menu__title:hover {
-  color: #ffffff !important;
-  background: rgba(255, 255, 255, 0.07) !important;
-}
-
-[data-theme="premium"] .sidebar .el-menu-item.is-active,
-[data-theme="premium"] .app-sidebar .el-menu-item.is-active {
-  color: #000000 !important;
-  background: #ffffff !important;
 }
 
 [data-theme="premium"] .header,
@@ -412,136 +399,133 @@
 }
 
 [data-theme="premium"] ::selection {
-  color: #000000;
-  background: #ffffff;
+  color: var(--color-on-primary);
+  background: var(--color-primary);
 }
 
 /* =============================================================
-   White-primary contrast fixes.
-   Premium's --color-primary is #ffffff, so every component that
-   places text ON a primary-colored background needs black text.
+   Primary contrast：主色为锌灰高亮 (#e4e4e7)，控件用 token 而非硬编码白
    ============================================================= */
 
 /* Pagination — active page number */
 [data-theme="premium"] .el-pager li.is-active {
-  background-color: #ffffff !important;
-  color: #000000 !important;
+  background-color: var(--color-primary) !important;
+  color: var(--color-on-primary) !important;
 }
 
 [data-theme="premium"] .el-pager li:hover:not(.is-active) {
-  color: #d4d4d8 !important;
+  color: var(--color-text-regular) !important;
 }
 
-/* Checkbox — checked state (white bg needs black tick) */
+/* Checkbox — checked */
 [data-theme="premium"] .el-checkbox__input.is-checked .el-checkbox__inner {
-  background-color: #ffffff !important;
-  border-color: #ffffff !important;
+  background-color: var(--color-primary) !important;
+  border-color: var(--color-primary) !important;
 }
 
 [data-theme="premium"] .el-checkbox__input.is-checked .el-checkbox__inner::after {
-  border-color: #000000 !important;
+  border-color: var(--color-on-primary) !important;
 }
 
 [data-theme="premium"] .el-checkbox__input.is-checked + .el-checkbox__label {
-  color: #ffffff !important;
+  color: var(--color-text-primary) !important;
 }
 
 [data-theme="premium"] .el-checkbox__input.is-indeterminate .el-checkbox__inner {
-  background-color: #ffffff !important;
-  border-color: #ffffff !important;
+  background-color: var(--color-primary) !important;
+  border-color: var(--color-primary) !important;
 }
 
 [data-theme="premium"] .el-checkbox__input.is-indeterminate .el-checkbox__inner::before {
-  background-color: #000000 !important;
+  background-color: var(--color-on-primary) !important;
 }
 
-/* Radio — checked state */
+/* Radio — checked */
 [data-theme="premium"] .el-radio__input.is-checked .el-radio__inner {
-  background-color: #ffffff !important;
-  border-color: #ffffff !important;
+  background-color: var(--color-primary) !important;
+  border-color: var(--color-primary) !important;
 }
 
 [data-theme="premium"] .el-radio__input.is-checked .el-radio__inner::after {
-  background-color: #000000 !important;
+  background-color: var(--color-on-primary) !important;
 }
 
 [data-theme="premium"] .el-radio__input.is-checked + .el-radio__label {
-  color: #ffffff !important;
+  color: var(--color-text-primary) !important;
 }
 
-/* Switch — active state */
+/* Switch — active */
 [data-theme="premium"] .el-switch.is-checked .el-switch__core {
-  background-color: #ffffff !important;
-  border-color: #ffffff !important;
+  background-color: var(--color-primary) !important;
+  border-color: var(--color-primary) !important;
 }
 
 [data-theme="premium"] .el-switch.is-checked .el-switch__action {
-  background-color: #000000 !important;
+  background-color: var(--color-on-primary) !important;
 }
 
 /* Loading spinner */
 [data-theme="premium"] .el-loading-spinner .circular .path {
-  stroke: #d4d4d8 !important;
+  stroke: var(--color-text-regular) !important;
 }
 
 /* Progress bar */
 [data-theme="premium"] .el-progress-bar__inner {
-  background-color: #ffffff !important;
+  background-color: var(--color-primary) !important;
 }
 
 [data-theme="premium"] .el-progress__text {
-  color: #d4d4d8 !important;
+  color: var(--color-text-regular) !important;
 }
 
 /* Step indicator — active/finish */
 [data-theme="premium"] .el-step__head.is-finish .el-step__icon,
 [data-theme="premium"] .el-step__head.is-process .el-step__icon {
-  background-color: #ffffff !important;
-  border-color: #ffffff !important;
-  color: #000000 !important;
+  background-color: var(--color-primary) !important;
+  border-color: var(--color-primary) !important;
+  color: var(--color-on-primary) !important;
 }
 
 [data-theme="premium"] .el-step__head.is-finish .el-step__line,
 [data-theme="premium"] .el-step__head.is-process .el-step__line {
-  background-color: #ffffff !important;
+  background-color: var(--color-primary) !important;
 }
 
 /* Badge */
 [data-theme="premium"] .el-badge__content--primary {
-  background-color: #ffffff !important;
-  color: #000000 !important;
+  background-color: var(--color-primary) !important;
+  color: var(--color-on-primary) !important;
 }
-
 
 /* Message box / Popconfirm confirm button */
 [data-theme="premium"] .el-message-box__btns .el-button--primary,
 [data-theme="premium"] .el-popconfirm__action .el-button--primary {
-  color: #000000 !important;
+  color: var(--color-on-primary) !important;
 }
 
-/* Radio-button — active/checked state (white bg in premium = needs black text) */
+/* Radio-button */
 [data-theme="premium"] .el-radio-button__inner {
   background: rgba(255, 255, 255, 0.04) !important;
   border-color: rgba(255, 255, 255, 0.12) !important;
-  color: #d4d4d8 !important;
+  color: var(--color-text-regular) !important;
 }
 
 [data-theme="premium"] .el-radio-button__original-radio:checked + .el-radio-button__inner {
-  background-color: #ffffff !important;
-  border-color: #ffffff !important;
-  color: #000000 !important;
-  box-shadow: -1px 0 0 0 #ffffff !important;
+  background-color: var(--color-primary) !important;
+  border-color: var(--color-primary) !important;
+  color: var(--color-on-primary) !important;
+  box-shadow: -1px 0 0 0 var(--color-primary) !important;
 }
 
 [data-theme="premium"] .el-radio-button__inner:hover {
-  color: #ffffff !important;
+  color: var(--color-text-primary) !important;
 }
 
-/* Segmented / button-group active state */
+/* Segmented / button-group active */
 [data-theme="premium"] .el-radio-group .el-radio-button.is-active .el-radio-button__inner {
-  background-color: #ffffff !important;
-  border-color: #ffffff !important;
-  color: #000000 !important;
+  background-color: var(--color-primary) !important;
+  border-color: var(--color-primary) !important;
+  color: var(--color-on-primary) !important;
 }
 
 /* Stat card numbers — ensure large value text is visible */

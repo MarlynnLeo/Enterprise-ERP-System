@@ -105,13 +105,16 @@ describe('基础数据 - 物料管理 /api/base-data/materials', () => {
     const { items } = extractList(listRes.body);
 
     if (items.length > 0) {
-      const productId = items[0].product_id;
+      // BOM 列表 API 出参 camel（productId）
+      const productId = items[0].productId ?? items[0].product_id;
+      expect(productId).toBeTruthy();
       const res = await api.get(`/api/base-data/materials/${productId}/bom`);
       expect(res.status).toBe(200);
       const data = res.body.data || res.body;
       expect(Array.isArray(data)).toBe(true);
       expect(data.length).toBeGreaterThan(0);
-      expect(data[0]).toHaveProperty('product_code');
+      // 明细出参 camel
+      expect(data[0].productCode || data[0].product_code).toBeTruthy();
     }
   });
 });

@@ -26,14 +26,14 @@
     <div v-else class="combined-content">
       <!-- 左侧：个人信息 -->
       <div class="left-info">
-        <div class="name">{{ userProfile?.real_name || $t('page.profile.realName') }}</div>
+        <div class="name">{{ userProfile?.realName || $t('page.profile.realName') }}</div>
         <div class="role-item">
           <el-icon><Avatar /></el-icon>
-          <span>{{ userProfile?.role_name || userProfile?.role || $t('page.profile.role') }}</span>
+          <span>{{ userProfile?.roleName || userProfile?.role || $t('page.profile.role') }}</span>
         </div>
         <div class="role-item">
           <el-icon><Location /></el-icon>
-          <span>{{ userProfile?.department_name || '未设置' }}</span>
+          <span>{{ userProfile?.departmentName || '未设置' }}</span>
         </div>
       </div>
       <!-- 中间：头像特效（与个人中心同源） -->
@@ -41,7 +41,7 @@
         <DecorativeAvatarFrame
           :frame="avatarFrameConfig"
           :avatar="userProfile?.avatar || ''"
-          :name="userProfile?.real_name || userProfile?.username || ''"
+          :name="userProfile?.realName || userProfile?.username || ''"
           :size="64"
           class="dash-avatar-frame"
         />
@@ -114,7 +114,7 @@ const props = defineProps({
 })
 
 const avatarFrameConfig = computed(() =>
-  getAvatarFrameConfig(props.userProfile?.avatar_frame || props.userProfile?.avatarFrame)
+  getAvatarFrameConfig(props.userProfile?.avatarFrame)
 )
 </script>
 

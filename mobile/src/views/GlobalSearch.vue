@@ -404,16 +404,16 @@ const performSearch = async (keyword) => {
 
     searchResults.orders = extract(orderRes).map(o => ({
       type: 'order', id: o.id,
-      title: `${o.order_no}`,
-      subtitle: o.customer_name || '',
+      title: `${o.orderNo}`,
+      subtitle: o.customerName || '',
       description: o.remarks || '',
       status: o.status || 'pending'
     }));
 
     searchResults.tasks = extract(taskRes).map(t => ({
       type: 'task', id: t.id,
-      title: t.task_no || t.name,
-      subtitle: t.product_name || '',
+      title: t.taskNo,
+      subtitle: t.productName || '',
       description: t.remarks || '',
       status: t.status || 'pending'
     }));

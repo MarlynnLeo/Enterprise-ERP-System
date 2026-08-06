@@ -84,11 +84,11 @@
         row-key="id"
         :tree-props="{ children: 'children', hasChildren: 'hasChildren' }"
       >
-        <el-table-column prop="account_code" label="科目编码" width="150" />
-        <el-table-column prop="account_name" label="科目名称" width="200" />
-        <el-table-column prop="account_type" label="科目类型" width="100">
+        <el-table-column prop="accountCode" label="科目编码" width="150" />
+        <el-table-column prop="accountName" label="科目名称" width="200" />
+        <el-table-column prop="accountType" label="科目类型" width="100">
           <template #default="{ row }">
-            <el-tag :type="getAccountTypeTag(row.account_type)">{{ row.account_type }}</el-tag>
+            <el-tag :type="getAccountTypeTag(row.accountType)">{{ row.accountType }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column label="数据来源" min-width="180">
@@ -98,33 +98,33 @@
               :content="sourceDetailText(row)"
               placement="top"
             >
-              <el-tag :type="getSourceTag(row.source_type)">
-                {{ row.source_label }}
+              <el-tag :type="getSourceTag(row.sourceType)">
+                {{ row.sourceLabel }}
               </el-tag>
             </el-tooltip>
-            <el-tag v-else :type="getSourceTag(row.source_type)">
-              {{ row.source_label }}
+            <el-tag v-else :type="getSourceTag(row.sourceType)">
+              {{ row.sourceLabel }}
             </el-tag>
           </template>
         </el-table-column>
         <el-table-column label="期初余额" width="220">
           <template #default="{ row }">
             <el-input-number
-              v-if="row.manual_allowed"
-              v-model="row.opening_amount"
+              v-if="row.manualAllowed"
+              v-model="row.openingAmount"
               :precision="2"
               :min="0"
               :controls="false"
               placeholder="期初余额"
               class="w-full"
             />
-            <span v-else class="generated-amount">{{ formatCurrency(row.opening_amount) }}</span>
+            <span v-else class="generated-amount">{{ formatCurrency(row.openingAmount) }}</span>
           </template>
         </el-table-column>
         <el-table-column label="系统方向" width="100">
           <template #default="{ row }">
-            <el-tag :type="row.opening_direction === 'debit' ? 'success' : 'warning'">
-              {{ row.opening_direction === 'debit' ? '借方' : '贷方' }}
+            <el-tag :type="row.openingDirection === 'debit' ? 'success' : 'warning'">
+              {{ row.openingDirection === 'debit' ? '借方' : '贷方' }}
             </el-tag>
           </template>
         </el-table-column>
@@ -146,8 +146,8 @@
         </el-table-column>
         <el-table-column label="状态" width="100">
           <template #default="{ row }">
-            <el-tag v-if="row.source_type === 'system'" type="success">系统生成</el-tag>
-            <el-tag v-else-if="row.opening_balance_set" type="warning">已补录</el-tag>
+            <el-tag v-if="row.sourceType === 'system'" type="success">系统生成</el-tag>
+            <el-tag v-else-if="row.openingBalanceSet" type="warning">已补录</el-tag>
             <el-tag v-else type="info">待补录</el-tag>
           </template>
         </el-table-column>
@@ -236,8 +236,8 @@ const loadPreview = async () => {
     warnings.value = preview.warnings || []
     accountList.value = (preview.rows || []).map(item => ({
       ...item,
-      opening_amount: parseFloat(item.opening_amount) || 0,
-      opening_direction: item.opening_direction || getDefaultDirection(item)
+      opening_amount: parseFloat(item.openingAmount) || 0,
+      opening_direction: item.openingDirection || getDefaultDirection(item)
     }))
   } catch (error) {
     ElMessage.error('加载期初余额预览失败: ' + (error.message || '未知错误'))

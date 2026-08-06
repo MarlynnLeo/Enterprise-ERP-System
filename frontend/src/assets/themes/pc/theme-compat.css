@@ -11,9 +11,19 @@
   --font-sans: var(--font-family-base);
   --spacing-base: var(--spacing-md);
 
+  /* 全站 ERP 默认字号（主题文件可覆盖，但应保持 14px 密集表） */
+  --font-size-base: 14px;
+  --el-font-size-base: var(--font-size-base);
+
   /* 主题间缺省兜底：部分主题未声明 dialog 圆角时回退 radius-lg */
   --theme-dialog-radius: var(--radius-lg, 12px);
+  --theme-dialog-footer-bg: var(--color-bg-section, var(--color-bg-base));
 
+  /* 无后缀边框别名（业务/工具类常用 var(--color-border)） */
+  --color-border: var(--color-border-base);
+
+  /* Element Plus 主色与表面映射（主题文件只写 --color-*） */
+  --el-color-primary: var(--color-primary);
   --el-bg-color: var(--color-bg-base);
   --el-bg-color-page: var(--color-bg-page);
   --el-bg-color-overlay: var(--color-bg-base);
@@ -109,6 +119,28 @@
   --shell-glow: transparent;
   --shell-surface: var(--color-bg-base);
   --shell-border: var(--color-border-base);
+  --shell-sidebar-bg: var(--color-bg-base);
+  --shell-header-bg: var(--color-bg-base);
+  /* 浅色侧栏默认文案；business/professional 等反转侧栏在主题内覆盖 */
+  --shell-sidebar-text: var(--color-text-primary);
+  --shell-sidebar-text-muted: var(--color-text-secondary);
+  --shell-sidebar-title: var(--color-text-primary);
+  --shell-sidebar-hover-bg: color-mix(in srgb, var(--color-primary) 8%, transparent);
+  --shell-sidebar-active-bg: linear-gradient(
+    135deg,
+    var(--color-primary),
+    var(--color-primary-dark-2, var(--color-primary))
+  );
+  --shell-sidebar-active-text: var(--color-on-primary, #ffffff);
+  --shell-sidebar-accent: var(--color-primary);
+  /* 左边指示条宽度：0=无（kacon 用 ::before）；3–4px 用于反转侧栏主题 */
+  --shell-sidebar-indicator-width: 0px;
+  /* 可选光晕（tech/kacon/vibrant）；默认 none */
+  --shell-sidebar-hover-shadow: none;
+  --shell-sidebar-active-shadow: none;
+  /* kacon 轨道指示条：宽度 0=隐藏；3px=显示 */
+  --shell-sidebar-rail-width: 0px;
+  --shell-sidebar-rail-color: var(--color-on-primary, #fff);
   --shell-shadow: var(--shadow-card, var(--shadow-sm));
   --shell-shadow-hover: var(--shadow-card-hover, var(--shadow-md));
   --shell-radius-sm: var(--radius-sm);
@@ -118,6 +150,23 @@
   --shell-control-border: var(--color-border-base);
   --shell-control-hover-bg: var(--color-bg-hover);
   --shell-control-hover-shadow: var(--shadow-sm);
+  --shell-menu-item-height: 44px;
+
+  /* Dashboard feature cards 默认（各 data-theme 分支可覆盖） */
+  --theme-feature-card-bg: linear-gradient(
+    135deg,
+    var(--color-primary) 0%,
+    var(--color-primary-dark-2, var(--color-primary)) 100%
+  );
+  --theme-feature-card-color: var(--color-on-primary, #ffffff);
+  --theme-feature-card-border: color-mix(in srgb, var(--color-primary) 30%, transparent);
+  --theme-feature-card-shadow: var(--shadow-card, var(--shadow-sm));
+  --theme-feature-card-hover-shadow: var(--shadow-card-hover, var(--shadow-md));
+  --theme-feature-card-decor: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--ds-white, #fff) 10%, transparent) 0%,
+    transparent 70%
+  );
 
   --el-transition-duration: var(--transition-base);
   --el-transition-duration-fast: var(--transition-fast);
@@ -130,6 +179,7 @@
   --shadow-glow-danger: none;
 }
 
+/* 浅主色：主按钮用深字；深主色：主按钮用白字 */
 :root,
 :root[data-theme="default"],
 :root[data-theme="dark"],
@@ -150,6 +200,9 @@
 }
 
 :root[data-theme] {
+  /* 再次保证无后缀别名在 data-theme 切换后仍有效 */
+  --color-border: var(--color-border-base);
+  --el-color-primary: var(--color-primary);
   --color-border-hover: var(--color-primary-light-5, var(--color-primary));
   --color-on-success: var(--color-on-primary);
   --color-on-warning: var(--color-on-primary);

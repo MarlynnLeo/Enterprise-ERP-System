@@ -21,9 +21,9 @@
             <span class="status-tag" :class="getStatusAccent(detail.status)">{{
               getStatusText(detail.status)
             }}</span>
-            <span class="order-date">{{ formatDate(detail.created_at) }}</span>
+            <span class="order-date">{{ formatDate(detail.createdAt) }}</span>
           </div>
-          <span class="order-no">{{ detail.transfer_no }}</span>
+          <span class="order-no">{{ detail.transferNo }}</span>
         </div>
       </div>
 
@@ -31,14 +31,14 @@
       <div class="route-card">
         <div class="route-side">
           <span class="route-label">调出仓库</span>
-          <span class="route-name from">{{ detail.from_location || '—' }}</span>
+          <span class="route-name from">{{ detail.fromLocation || '—' }}</span>
         </div>
         <div class="route-arrow">
           <Icon name="arrow" size="20" color="var(--text-tertiary)" />
         </div>
         <div class="route-side">
           <span class="route-label">调入仓库</span>
-          <span class="route-name to">{{ detail.to_location || '—' }}</span>
+          <span class="route-name to">{{ detail.toLocation || '—' }}</span>
         </div>
       </div>
 
@@ -47,15 +47,15 @@
       <div class="info-card">
         <div class="info-row">
           <span class="info-label">调拨日期</span>
-          <span class="info-value">{{ detail.transfer_date || '—' }}</span>
+          <span class="info-value">{{ detail.transferDate || '—' }}</span>
         </div>
         <div class="info-row">
           <span class="info-label">创建人</span>
-          <span class="info-value">{{ detail.creator || '—' }}</span>
+          <span class="info-value">{{ detail.creatorName || detail.creator || '—' }}</span>
         </div>
-        <div class="info-row" v-if="detail.remark">
+        <div class="info-row" v-if="detail.remarks || detail.remark">
           <span class="info-label">备注</span>
-          <span class="info-value remark">{{ detail.remark }}</span>
+          <span class="info-value remark">{{ detail.remarks || detail.remark }}</span>
         </div>
       </div>
 
@@ -75,11 +75,11 @@
         <div class="card-body">
           <div class="material-header">
             <div class="material-title-area">
-              <span class="material-name">{{ item.material_name || '未知物料' }}</span>
-              <span class="material-code">{{ item.material_code || '' }}</span>
+              <span class="material-name">{{ item.materialName || '未知物料' }}</span>
+              <span class="material-code">{{ item.materialCode || '' }}</span>
             </div>
             <span class="material-qty"
-              >{{ item.quantity }} <span class="qty-unit">{{ item.unit_name || '' }}</span></span
+              >{{ item.quantity }} <span class="qty-unit">{{ item.unitName || '' }}</span></span
             >
           </div>
           <div class="material-spec" v-if="item.specification">{{ item.specification }}</div>

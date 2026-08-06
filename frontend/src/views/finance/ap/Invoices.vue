@@ -78,9 +78,22 @@
     <el-card class="data-card">
       <el-table :data="invoiceList" class="w-full" border v-loading="loading">
         <template #empty>
-          <el-empty description="暂无发票数据" />
+          <EmptyState description="暂无发票数据" />
         </template>
-        <el-table-column prop="invoiceNumber" label="系统编号" width="140" fixed="left"></el-table-column>
+        <el-table-column prop="invoiceNumber" label="系统编号" width="140" fixed="left">
+          <template #default="{ row }">
+            <el-link
+              v-if="row.relatedOrderId || row.relatedOrderNo"
+              type="primary"
+              :underline="false"
+              @click="openRelatedPurchaseOrderDialog(row)"
+              :title="row.relatedOrderNo ? `查看采购订单 ${row.relatedOrderNo}` : '查看关联采购订单'"
+            >
+              {{ row.invoiceNumber }}
+            </el-link>
+            <span v-else>{{ row.invoiceNumber }}</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="supplierInvoiceNumber" label="供应商发票号" width="200"></el-table-column>
         <el-table-column prop="supplierName" label="供应商" min-width="180"></el-table-column>
         <el-table-column prop="invoiceDate" label="开票日期" width="110"></el-table-column>
@@ -188,7 +201,12 @@
     </el-card>
 
     <!-- 添加/编辑对话框 -->
-    <el-dialog :title="dialogTitle" v-model="dialogVisible" width="700px">
+    <AppDialog
+      v-model="dialogVisible"
+      :title="dialogTitle"
+      mode="form"
+      width="700px"
+    >
       <el-form :model="invoiceForm" :rules="invoiceRules" ref="invoiceFormRef" label-width="110px">
         <!-- 第一行：系统编号 + 供应商发票号 -->
         <el-row :gutter="20">
@@ -425,10 +443,15 @@
           >
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
 
     <!-- 记录付款对话框 -->
-    <el-dialog title="记录付款" v-model="paymentDialogVisible" width="600px">
+    <AppDialog
+      v-model="paymentDialogVisible"
+      title="记录付款"
+      mode="form"
+      width="600px"
+    >
       <el-form :model="paymentForm" :rules="paymentRules" ref="paymentFormRef" label-width="100px">
         <el-form-item label="发票编号">
           <el-input v-model="paymentForm.invoiceNumber" disabled></el-input>
@@ -525,7 +548,7 @@
           >
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
 
     <!-- 发票明细查看对话框 -->
     <AppDialog
@@ -579,14 +602,17 @@
           }}</el-descriptions-item>
         </el-descriptions>
 
-        <!-- 明细项 -->
-        <div class="detail-title">
-          <h3>发票明细项</h3>
-        </div>
-        <el-table :data="invoiceDetail.items || []" border class="w-full">
-          <el-table-column prop="materialName" label="物料/服务" min-width="150"></el-table-column>
-          <el-table-column prop="description" label="描述" min-width="200"></el-table-column>
-          <el-table-column prop="quantity" label="数量" width="100"></el-table-column>
+        <el-divider content-position="center">发票明细项</el-divider>
+
+        <el-table
+          v-if="(invoiceDetail.items || []).length"
+          :data="invoiceDetail.items || []"
+          border
+          class="w-full"
+        >
+          <el-table-column prop="materialName" label="物料/服务" min-width="150" show-overflow-tooltip />
+          <el-table-column prop="description" label="描述" min-width="160" show-overflow-tooltip />
+          <el-table-column prop="quantity" label="数量" width="100" />
           <el-table-column prop="unitPrice" label="单价" width="120">
             <template #default="scope">
               {{ formatCurrency(scope.row.unitPrice) }}
@@ -598,6 +624,7 @@
             </template>
           </el-table-column>
         </el-table>
+        <EmptyState v-else description="暂无明细项" ::image-size="72" />
       </div>
       <template #footer>
         <span class="dialog-footer">
@@ -618,21 +645,115 @@
         </span>
       </template>
     </AppDialog>
+
+    <!-- 关联采购订单预览（与发票详情同一 AppDialog 风格） -->
+    <RelatedOrderDialog
+      v-model="relatedOrderDialogVisible"
+      kind="purchase"
+      :loading="relatedOrderLoading"
+      :invoice-number="relatedOrderContext.invoiceNumber"
+      :partner-name="relatedOrderContext.supplierName"
+      :related-order-id="relatedOrderContext.relatedOrderId"
+      :related-order-no="relatedOrderContext.relatedOrderNo"
+      :order="relatedOrderDetail"
+      @jump="jumpToRelatedPurchaseOrder"
+    />
   </div>
 </template>
 <script setup>
-import { parsePaginatedData, parseListData } from '@/utils/responseParser';
+import { parsePaginatedData, parseListData, parseResponseData } from '@/utils/responseParser';
 import { searchMaterials, mapMaterialData, SEARCH_CONFIG } from '@/utils/searchConfig';
 import { formatCurrency, formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
-import { baseDataApi } from '@/api';
+import { baseDataApi, purchaseApi } from '@/api';
 import { financeApi } from '@/api/finance';
 import { useFinanceStore } from '@/stores/finance';
 import { storeToRefs } from 'pinia';
 import printService from '@/services/printService';
+import RelatedOrderDialog from '../components/RelatedOrderDialog.vue';
+const router = useRouter();
 const financeStore = useFinanceStore();
+
+const relatedOrderDialogVisible = ref(false);
+const relatedOrderLoading = ref(false);
+const relatedOrderDetail = ref(null);
+const relatedOrderContext = reactive({
+  invoiceNumber: '',
+  supplierName: '',
+  relatedOrderId: null,
+  relatedOrderNo: '',
+});
+
+/** 点击发票编号 → 弹窗展示关联采购订单 */
+const openRelatedPurchaseOrderDialog = async (row) => {
+  if (!row?.relatedOrderId && !row?.relatedOrderNo) {
+    ElMessage.warning('该发票未关联采购订单');
+    return;
+  }
+  relatedOrderContext.invoiceNumber = row.invoiceNumber || '';
+  relatedOrderContext.supplierName = row.supplierName || '';
+  relatedOrderContext.relatedOrderId = row.relatedOrderId || null;
+  relatedOrderContext.relatedOrderNo = row.relatedOrderNo || '';
+  relatedOrderDetail.value = null;
+  relatedOrderDialogVisible.value = true;
+  relatedOrderLoading.value = true;
+  try {
+    let orderId = row.relatedOrderId;
+    if (!orderId && row.relatedOrderNo) {
+      const listRes = await purchaseApi.getOrders({
+        keyword: row.relatedOrderNo,
+        page: 1,
+        pageSize: 5,
+      });
+      const list = parseListData(listRes, { enableLog: false }) || [];
+      const hit =
+        list.find((o) => String(o.orderNo || '') === String(row.relatedOrderNo)) || list[0];
+      orderId = hit?.id;
+      if (hit?.orderNo) relatedOrderContext.relatedOrderNo = hit.orderNo;
+      if (hit?.id) relatedOrderContext.relatedOrderId = hit.id;
+    }
+    if (!orderId) {
+      ElMessage.warning('未找到对应采购订单详情');
+      return;
+    }
+    const res = await purchaseApi.getOrder(orderId);
+    relatedOrderDetail.value = parseResponseData(res, null) || res?.data || null;
+    if (relatedOrderDetail.value?.id) {
+      relatedOrderContext.relatedOrderId = relatedOrderDetail.value.id;
+    }
+    if (relatedOrderDetail.value?.orderNo) {
+      relatedOrderContext.relatedOrderNo = relatedOrderDetail.value.orderNo;
+    }
+  } catch (error) {
+    console.error('加载关联采购订单失败:', error);
+    ElMessage.error(error?.response?.data?.message || error.message || '加载采购订单失败');
+  } finally {
+    relatedOrderLoading.value = false;
+  }
+};
+
+/** 对话框底部：跳转采购订单列表并筛选 */
+const jumpToRelatedPurchaseOrder = () => {
+  if (!relatedOrderContext.relatedOrderId && !relatedOrderContext.relatedOrderNo) {
+    ElMessage.warning('无关联采购订单可跳转');
+    return;
+  }
+  relatedOrderDialogVisible.value = false;
+  router.push({
+    path: '/purchase/orders',
+    query: {
+      ...(relatedOrderContext.relatedOrderId
+        ? { orderId: String(relatedOrderContext.relatedOrderId) }
+        : {}),
+      ...(relatedOrderContext.relatedOrderNo
+        ? { orderNo: String(relatedOrderContext.relatedOrderNo) }
+        : {}),
+    },
+  });
+};
 const { vatRateOptions, defaultVATRate, paymentTermOptions, defaultPaymentTermDays, pagination } =
   storeToRefs(financeStore);
 // 高级搜索展开状态
@@ -849,7 +970,7 @@ const loadSupplierOptions = async () => {
     if (suppliers.length > 0) {
       supplierOptions.value = suppliers.map((supplier) => ({
         id: parseInt(supplier.id),
-        name: supplier.name || supplier.supplierName || supplier.supplier_name || '未命名供应商',
+        name: supplier.name || supplier.supplierName || '未命名供应商',
       }));
     } else {
       supplierOptions.value = [];
@@ -904,10 +1025,10 @@ const loadBankAccounts = async () => {
       const data = parseListData(response, { enableLog: false });
       bankAccounts.value = data.map((account) => ({
         id: account.id,
-        accountName: account.accountName || account.account_name,
-        accountNumber: account.accountNumber || account.account_number,
-        bankName: account.bankName || account.bank_name,
-        balance: parseFloat(account.balance || account.current_balance || 0),
+        accountName: account.accountName,
+        accountNumber: account.accountNumber,
+        bankName: account.bankName,
+        balance: parseFloat(account.currentBalance || 0),
       }));
     } else {
       bankAccounts.value = [];
@@ -1042,11 +1163,11 @@ const printInvoiceDetail = async () => {
   try {
     const items = (invoiceDetail.value.items || []).map((item, index) => ({
       index: index + 1,
-      material_code: item.materialCode || item.material_code || '',
-      material_name: item.materialName || item.material_name || item.description || '',
+      material_code: item.materialCode || '',
+      material_name: item.materialName || item.description || '',
       specification: item.specification || item.specs || '',
       quantity: item.quantity?.toString() || '0',
-      unit_price: formatCurrency(item.unitPrice ?? item.unit_price),
+      unit_price: formatCurrency(item.unitPrice ?? item.unitPrice),
       tax_amount: formatCurrency(item.taxAmount),
       amount: formatCurrency(item.amount),
     }));
@@ -1060,7 +1181,7 @@ const printInvoiceDetail = async () => {
 
     const html = await printService.generateByDefaultTemplate('finance', 'ap_invoice', {
       invoice_number: invoiceDetail.value.invoiceNumber || '-',
-      order_no: invoiceDetail.value.orderNumber || invoiceDetail.value.order_no || '',
+      order_no: invoiceDetail.value.orderNumber || invoiceDetail.value.orderNo || '',
       supplier_name: invoiceDetail.value.supplierName || '-',
       invoice_date: invoiceDetail.value.invoiceDate || '-',
       due_date: invoiceDetail.value.dueDate || '-',
@@ -1287,64 +1408,16 @@ onMounted(() => {
   border-top: 1px solid var(--color-border-lighter);
   padding-top: 10px;
 }
-.detail-title {
-  margin-top: var(--spacing-lg);
-  margin-bottom: 10px;
-}
-.detail-title h3 {
-  font-size: 16px;
-  font-weight: bold;
-  color: var(--color-primary);
-  position: relative;
-  padding-left: 12px;
-}
-.detail-title h3:before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 4px;
-  height: 16px;
-  background-color: var(--color-primary);
-  border-radius: 2px;
-}
-:deep(.el-descriptions) {
-  margin-bottom: var(--spacing-lg);
-}
-:deep(.el-descriptions__label) {
-  font-weight: bold;
-}
-.empty-data {
-  text-align: center;
-  padding: 30px 0;
-  color: var(--color-text-secondary);
-}
-/* 发票明细表格样式 */
+/* 表单内明细表格 */
 .invoice-items .details-table-container {
   width: 100%;
   overflow-x: auto;
 }
-.invoice-items .el-table {
-  min-width: 550px;
-}
-/* 对话框自适应高度 */
 /* 移除操作列右侧空白 */
 .invoice-items :deep(.el-table__body-wrapper .el-table__cell:last-child) {
   padding-right: 8px;
 }
 .invoice-items :deep(.el-table__header-wrapper .el-table__cell:last-child) {
   padding-right: 8px;
-}
-/* 详情对话框长文本处理 - 自动添加 */
-:deep(.el-descriptions__content) {
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-:deep(.el-table__cell) {
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 </style>

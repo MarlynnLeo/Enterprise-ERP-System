@@ -1,0 +1,852 @@
+[
+  {
+    "file": "frontend\\src\\composables\\usePurchaseInspection.js",
+    "line": 263,
+    "match": "item.material_name || item.name"
+  },
+  {
+    "file": "frontend\\src\\utils\\inspectionHelpers.js",
+    "line": 280,
+    "match": "item.item_name || item.name"
+  },
+  {
+    "file": "frontend\\src\\utils\\inspectionHelpers.js",
+    "line": 282,
+    "match": "item.actual_value || item.value"
+  },
+  {
+    "file": "frontend\\src\\utils\\inspectionTemplateResolver.js",
+    "line": 59,
+    "match": "item.type_name || item.type"
+  },
+  {
+    "file": "frontend\\src\\views\\baseData\\components\\CustomerFormDialog.vue",
+    "line": 130,
+    "match": "newVal.contact_phone || newVal.phone"
+  },
+  {
+    "file": "frontend\\src\\views\\baseData\\components\\MaterialFormDialog.vue",
+    "line": 458,
+    "match": "a.fileName || a.original_name"
+  },
+  {
+    "file": "frontend\\src\\views\\baseData\\components\\MaterialFormDialog.vue",
+    "line": 459,
+    "match": "a.file_path || a.url"
+  },
+  {
+    "file": "frontend\\src\\views\\baseData\\components\\MaterialViewDialog.vue",
+    "line": 94,
+    "match": "file.url || file.file_path"
+  },
+  {
+    "file": "frontend\\src\\views\\baseData\\components\\MaterialViewDialog.vue",
+    "line": 95,
+    "match": "file.original_name || file.name"
+  },
+  {
+    "file": "frontend\\src\\views\\baseData\\components\\SupplierFormDialog.vue",
+    "line": 110,
+    "match": "newVal.code || newVal.supplier_code"
+  },
+  {
+    "file": "frontend\\src\\views\\baseData\\components\\SupplierFormDialog.vue",
+    "line": 112,
+    "match": "newVal.contact_person || newVal.contact"
+  },
+  {
+    "file": "frontend\\src\\views\\baseData\\components\\SupplierFormDialog.vue",
+    "line": 113,
+    "match": "newVal.contact_phone || newVal.phone"
+  },
+  {
+    "file": "frontend\\src\\views\\baseData\\components\\SupplierMetalPriceDialog.vue",
+    "line": 37,
+    "match": "band.label || band.metal_price_min"
+  },
+  {
+    "file": "frontend\\src\\views\\dashboard\\composables\\useProductionPlans.js",
+    "line": 120,
+    "match": "plan.specs || plan.material_specs"
+  },
+  {
+    "file": "frontend\\src\\views\\dataoverview\\FinanceDashboard.vue",
+    "line": 721,
+    "match": "account.balance || account.current_balance"
+  },
+  {
+    "file": "frontend\\src\\views\\dataoverview\\SalesDashboard.vue",
+    "line": 408,
+    "match": "order.createdAt || order.order_date"
+  },
+  {
+    "file": "frontend\\src\\views\\finance\\ap\\Invoices.vue",
+    "line": 910,
+    "match": "account.balance || account.current_balance"
+  },
+  {
+    "file": "frontend\\src\\views\\finance\\cash\\Reconciliation.vue",
+    "line": 705,
+    "match": "transaction.transaction_number || transaction.id"
+  },
+  {
+    "file": "frontend\\src\\views\\finance\\settings\\AutomationTab.vue",
+    "line": 828,
+    "match": "task.code || task.task_code"
+  },
+  {
+    "file": "frontend\\src\\views\\finance\\settings\\AutomationTab.vue",
+    "line": 830,
+    "match": "task.quantity || task.planned_quantity"
+  },
+  {
+    "file": "frontend\\src\\views\\inventory\\ManualTransaction.vue",
+    "line": 393,
+    "match": "currentRecord.business_type_code || currentRecord.transactionType"
+  },
+  {
+    "file": "frontend\\src\\views\\inventory\\ManualTransaction.vue",
+    "line": 394,
+    "match": "currentRecord.business_type_code || currentRecord.transactionType"
+  },
+  {
+    "file": "frontend\\src\\views\\production\\ProductionDataView.vue",
+    "line": 300,
+    "match": "t.code || t.task_code"
+  },
+  {
+    "file": "frontend\\src\\views\\production\\ProductionPlan.vue",
+    "line": 226,
+    "match": "bom.approved || bom.approved_by"
+  },
+  {
+    "file": "frontend\\src\\views\\production\\ProductionPlan.vue",
+    "line": 695,
+    "match": "bom.approved || bom.approved_by"
+  },
+  {
+    "file": "frontend\\src\\views\\production\\ProductionPlan.vue",
+    "line": 719,
+    "match": "productDetail.specification || productDetail.material_specs"
+  },
+  {
+    "file": "frontend\\src\\views\\purchase\\PurchaseReceipts.vue",
+    "line": 713,
+    "match": "supplier.code || supplier.supplier_code"
+  },
+  {
+    "file": "frontend\\src\\views\\purchase\\PurchaseReceipts.vue",
+    "line": 714,
+    "match": "supplier.supplierName || supplier.company_name"
+  },
+  {
+    "file": "frontend\\src\\views\\purchase\\PurchaseReceipts.vue",
+    "line": 1465,
+    "match": "supplierData.supplierName || supplierData.company_name"
+  },
+  {
+    "file": "frontend\\src\\views\\quality\\components\\CreateInspectionDialog.vue",
+    "line": 203,
+    "match": "supplier.code || supplier.supplier_code"
+  },
+  {
+    "file": "frontend\\src\\views\\quality\\components\\ProcessInspectionRulesDialog.vue",
+    "line": 176,
+    "match": "process.processName || process.task_code"
+  },
+  {
+    "file": "frontend\\src\\views\\quality\\components\\ReportDialog.vue",
+    "line": 146,
+    "match": "insp.specs || insp.material_specs"
+  },
+  {
+    "file": "frontend\\src\\views\\quality\\components\\ReportDialog.vue",
+    "line": 151,
+    "match": "insp.quantity || insp.total_quantity"
+  },
+  {
+    "file": "frontend\\src\\views\\quality\\components\\UnifiedTraceability.vue",
+    "line": 161,
+    "match": "step.start_time || step.createdAt"
+  },
+  {
+    "file": "frontend\\src\\views\\quality\\components\\UnifiedTraceability.vue",
+    "line": 372,
+    "match": "m.usage_time || m.createdAt"
+  },
+  {
+    "file": "frontend\\src\\views\\quality\\components\\UnifiedTraceability.vue",
+    "line": 383,
+    "match": "comp.raw_material_code || comp.materialCode"
+  },
+  {
+    "file": "frontend\\src\\views\\quality\\components\\UnifiedTraceability.vue",
+    "line": 384,
+    "match": "comp.raw_material_name || comp.materialName"
+  },
+  {
+    "file": "frontend\\src\\views\\quality\\components\\UnifiedTraceability.vue",
+    "line": 409,
+    "match": "productBatchInfo.receipt_date || productBatchInfo.createdAt"
+  },
+  {
+    "file": "frontend\\src\\views\\quality\\components\\UnifiedTraceability.vue",
+    "line": 418,
+    "match": "s.allocated_quantity || s.quantity"
+  },
+  {
+    "file": "frontend\\src\\views\\quality\\components\\UnifiedTraceability.vue",
+    "line": 419,
+    "match": "s.start_time || s.createdAt"
+  },
+  {
+    "file": "frontend\\src\\views\\quality\\components\\UnifiedTraceability.vue",
+    "line": 517,
+    "match": "batchInfo.receipt_date || batchInfo.createdAt"
+  },
+  {
+    "file": "frontend\\src\\views\\quality\\EightDReport.vue",
+    "line": 517,
+    "match": "detailData.phase1_approved_by || detailData.reviewedBy"
+  },
+  {
+    "file": "frontend\\src\\views\\sales\\composables\\useOrderForm.js",
+    "line": 167,
+    "match": "customer.code || customer.customer_code"
+  },
+  {
+    "file": "frontend\\src\\views\\sales\\composables\\useOrderForm.js",
+    "line": 170,
+    "match": "customer.contact_phone || customer.phone"
+  },
+  {
+    "file": "frontend\\src\\views\\sales\\composables\\useOrderForm.js",
+    "line": 215,
+    "match": "selectedCustomer.contact_person || selectedCustomer.contact"
+  },
+  {
+    "file": "frontend\\src\\views\\sales\\composables\\useOrderForm.js",
+    "line": 216,
+    "match": "selectedCustomer.contact_phone || selectedCustomer.phone"
+  },
+  {
+    "file": "frontend\\src\\views\\sales\\composables\\useOrderForm.js",
+    "line": 341,
+    "match": "exactMatch.stock_quantity || exactMatch.inventory"
+  },
+  {
+    "file": "frontend\\src\\views\\sales\\composables\\useOrderForm.js",
+    "line": 534,
+    "match": "material.stock_quantity || material.quantity"
+  },
+  {
+    "file": "frontend\\src\\views\\sales\\composables\\useOrderForm.js",
+    "line": 535,
+    "match": "material.stock_quantity || material.quantity"
+  },
+  {
+    "file": "frontend\\src\\views\\sales\\composables\\useOrderForm.js",
+    "line": 566,
+    "match": "orderDetail.address || orderDetail.delivery_address"
+  },
+  {
+    "file": "frontend\\src\\views\\sales\\composables\\useOrderForm.js",
+    "line": 567,
+    "match": "orderDetail.contact || orderDetail.contact_person"
+  },
+  {
+    "file": "frontend\\src\\views\\sales\\composables\\useOrderForm.js",
+    "line": 568,
+    "match": "orderDetail.phone || orderDetail.contact_phone"
+  },
+  {
+    "file": "frontend\\src\\views\\sales\\SalesExchanges.vue",
+    "line": 413,
+    "match": "currentExchange.reason || currentExchange.exchange_reason"
+  },
+  {
+    "file": "frontend\\src\\views\\sales\\SalesExchanges.vue",
+    "line": 852,
+    "match": "exchangeData.exchange_reason || exchangeData.reason"
+  },
+  {
+    "file": "frontend\\src\\views\\sales\\SalesExchanges.vue",
+    "line": 904,
+    "match": "exchangeData.exchange_reason || exchangeData.reason"
+  },
+  {
+    "file": "frontend\\src\\views\\sales\\SalesOutbound.vue",
+    "line": 1152,
+    "match": "orderDetails.contact || orderDetails.contact_person"
+  },
+  {
+    "file": "frontend\\src\\views\\sales\\SalesOutbound.vue",
+    "line": 1153,
+    "match": "orderDetails.phone || orderDetails.contact_phone"
+  },
+  {
+    "file": "frontend\\src\\views\\sales\\SalesOutbound.vue",
+    "line": 1154,
+    "match": "orderDetails.address || orderDetails.delivery_address"
+  },
+  {
+    "file": "frontend\\src\\views\\sales\\SalesOutbound.vue",
+    "line": 1396,
+    "match": "selectedCustomer.contact_person || selectedCustomer.contact"
+  },
+  {
+    "file": "frontend\\src\\views\\sales\\SalesOutbound.vue",
+    "line": 1397,
+    "match": "selectedCustomer.contact_phone || selectedCustomer.phone"
+  },
+  {
+    "file": "frontend\\src\\views\\sales\\SalesOutbound.vue",
+    "line": 1398,
+    "match": "selectedCustomer.delivery_address || selectedCustomer.address"
+  },
+  {
+    "file": "frontend\\src\\views\\sales\\SalesOutbound.vue",
+    "line": 1828,
+    "match": "outbound.contact || outbound.contact_person"
+  },
+  {
+    "file": "frontend\\src\\views\\sales\\SalesOutbound.vue",
+    "line": 1829,
+    "match": "outbound.phone || outbound.contact_phone"
+  },
+  {
+    "file": "frontend\\src\\views\\sales\\SalesOutbound.vue",
+    "line": 1830,
+    "match": "outbound.address || outbound.delivery_address"
+  },
+  {
+    "file": "frontend\\src\\views\\sales\\SalesQuotations.vue",
+    "line": 639,
+    "match": "customer.code || customer.customer_code"
+  },
+  {
+    "file": "frontend\\src\\views\\sales\\SalesQuotations.vue",
+    "line": 908,
+    "match": "quotation.createdAt || quotation.created_time"
+  },
+  {
+    "file": "frontend\\src\\views\\sales\\SalesQuotations.vue",
+    "line": 1069,
+    "match": "product.sale_price || product.price"
+  },
+  {
+    "file": "frontend\\src\\views\\sales\\SalesReturns.vue",
+    "line": 209,
+    "match": "currentReturn.return_reason || currentReturn.reason"
+  },
+  {
+    "file": "frontend\\src\\views\\sales\\SalesReturns.vue",
+    "line": 610,
+    "match": "it.return_reason || it.reason"
+  },
+  {
+    "file": "frontend\\src\\views\\sales\\SalesReturns.vue",
+    "line": 753,
+    "match": "ret.return_reason || ret.reason"
+  },
+  {
+    "file": "mobile\\src\\views\\baseData\\SupplierDetail.vue",
+    "line": 21,
+    "match": "supplier.contact || supplier.contact_person"
+  },
+  {
+    "file": "mobile\\src\\views\\baseData\\SupplierDetail.vue",
+    "line": 22,
+    "match": "supplier.phone || supplier.contact_phone"
+  },
+  {
+    "file": "mobile\\src\\views\\baseData\\SupplierDetail.vue",
+    "line": 44,
+    "match": "supplier.phone || supplier.contact_phone"
+  },
+  {
+    "file": "mobile\\src\\views\\common\\RecordDetail.vue",
+    "line": 253,
+    "match": "item.name || item.item_name"
+  },
+  {
+    "file": "mobile\\src\\views\\equipment\\CreateCheck.vue",
+    "line": 31,
+    "match": "eq.code || eq.equipment_code"
+  },
+  {
+    "file": "mobile\\src\\views\\equipment\\CreateRepair.vue",
+    "line": 36,
+    "match": "eq.code || eq.equipment_code"
+  },
+  {
+    "file": "mobile\\src\\views\\equipment\\EquipmentDetail.vue",
+    "line": 12,
+    "match": "equipment.code || equipment.equipment_code"
+  },
+  {
+    "file": "mobile\\src\\views\\equipment\\EquipmentDetail.vue",
+    "line": 16,
+    "match": "equipment.responsible_person || equipment.managerName"
+  },
+  {
+    "file": "mobile\\src\\views\\equipment\\EquipmentDetail.vue",
+    "line": 21,
+    "match": "equipment.startDate || equipment.use_date"
+  },
+  {
+    "file": "mobile\\src\\views\\finance\\AssetDetail.vue",
+    "line": 20,
+    "match": "asset.asset_name || asset.name"
+  },
+  {
+    "file": "mobile\\src\\views\\finance\\Assets.vue",
+    "line": 38,
+    "match": "item.asset_name || item.name"
+  },
+  {
+    "file": "mobile\\src\\views\\finance\\BalanceSheet.vue",
+    "line": 44,
+    "match": "item.account_name || item.name"
+  },
+  {
+    "file": "mobile\\src\\views\\finance\\BankTransactionDetail.vue",
+    "line": 13,
+    "match": "transaction.description || transaction.related_party"
+  },
+  {
+    "file": "mobile\\src\\views\\finance\\BankTransactions.vue",
+    "line": 34,
+    "match": "item.related_party || item.description"
+  },
+  {
+    "file": "mobile\\src\\views\\finance\\CashAccountDetail.vue",
+    "line": 77,
+    "match": "account.purpose || account.account_type"
+  },
+  {
+    "file": "mobile\\src\\views\\finance\\IncomeStatement.vue",
+    "line": 44,
+    "match": "item.account_code || item.name"
+  },
+  {
+    "file": "mobile\\src\\views\\finance\\IncomeStatement.vue",
+    "line": 47,
+    "match": "item.account_name || item.name"
+  },
+  {
+    "file": "mobile\\src\\views\\finance\\Index.vue",
+    "line": 174,
+    "match": "balance.totalAssets || balance.assets_total"
+  },
+  {
+    "file": "mobile\\src\\views\\GlobalSearch.vue",
+    "line": 415,
+    "match": "t.task_no || t.name"
+  },
+  {
+    "file": "mobile\\src\\views\\hr\\Schedule.vue",
+    "line": 8,
+    "match": "rule.rule_name || rule.name"
+  },
+  {
+    "file": "mobile\\src\\views\\inventory\\CreateInbound.vue",
+    "line": 180,
+    "match": "w.name || w.warehouse_name"
+  },
+  {
+    "file": "mobile\\src\\views\\inventory\\CreateOutbound.vue",
+    "line": 179,
+    "match": "w.name || w.warehouse_name"
+  },
+  {
+    "file": "mobile\\src\\views\\inventory\\CreateTransfer.vue",
+    "line": 165,
+    "match": "w.name || w.warehouse_name"
+  },
+  {
+    "file": "mobile\\src\\views\\inventory\\Transfer.vue",
+    "line": 105,
+    "match": "item.fromLocationName || item.from_location"
+  },
+  {
+    "file": "mobile\\src\\views\\inventory\\Transfer.vue",
+    "line": 107,
+    "match": "item.toLocationName || item.to_location"
+  },
+  {
+    "file": "mobile\\src\\views\\inventory\\TransferDetail.vue",
+    "line": 34,
+    "match": "detail.fromLocationName || detail.from_location"
+  },
+  {
+    "file": "mobile\\src\\views\\inventory\\TransferDetail.vue",
+    "line": 41,
+    "match": "detail.toLocationName || detail.to_location"
+  },
+  {
+    "file": "mobile\\src\\views\\production\\Dashboard.vue",
+    "line": 198,
+    "match": "task.planned_quantity || task.quantity"
+  },
+  {
+    "file": "mobile\\src\\views\\production\\Dashboard.vue",
+    "line": 204,
+    "match": "task.task_code || task.code"
+  },
+  {
+    "file": "mobile\\src\\views\\production\\Report.vue",
+    "line": 32,
+    "match": "selectedTask.task_code || selectedTask.code"
+  },
+  {
+    "file": "mobile\\src\\views\\production\\Report.vue",
+    "line": 43,
+    "match": "selectedTask.planned_quantity || selectedTask.quantity"
+  },
+  {
+    "file": "mobile\\src\\views\\production\\Report.vue",
+    "line": 105,
+    "match": "task.task_code || task.code"
+  },
+  {
+    "file": "mobile\\src\\views\\production\\Report.vue",
+    "line": 105,
+    "match": "task.planned_quantity || task.quantity"
+  },
+  {
+    "file": "mobile\\src\\views\\production\\Report.vue",
+    "line": 131,
+    "match": "task.task_code || task.code"
+  },
+  {
+    "file": "mobile\\src\\views\\production\\Tasks.vue",
+    "line": 314,
+    "match": "task.planned_quantity || task.quantity"
+  },
+  {
+    "file": "mobile\\src\\views\\purchase\\CreateOrder.vue",
+    "line": 640,
+    "match": "order.items || order.order_items"
+  },
+  {
+    "file": "mobile\\src\\views\\purchase\\ProcessingDetail.vue",
+    "line": 12,
+    "match": "processing.processingCode || processing.processing_no"
+  },
+  {
+    "file": "mobile\\src\\views\\purchase\\ProcessingDetail.vue",
+    "line": 20,
+    "match": "processing.expectedDate || processing.expected_delivery_date"
+  },
+  {
+    "file": "mobile\\src\\views\\purchase\\ProcessingReceiptDetail.vue",
+    "line": 12,
+    "match": "receipt.receiptNo || receipt.receipt_code"
+  },
+  {
+    "file": "mobile\\src\\views\\purchase\\RequisitionDetail.vue",
+    "line": 28,
+    "match": "detail.requester || detail.created_by"
+  },
+  {
+    "file": "mobile\\src\\views\\sales\\ExchangeDetail.vue",
+    "line": 22,
+    "match": "exchange.exchange_reason || exchange.reason"
+  },
+  {
+    "file": "mobile\\src\\views\\sales\\QuotationDetail.vue",
+    "line": 12,
+    "match": "quotation.quotationCode || quotation.quotation_no"
+  },
+  {
+    "file": "mobile\\src\\views\\sales\\QuotationDetail.vue",
+    "line": 20,
+    "match": "quotation.validityDate || quotation.valid_until"
+  },
+  {
+    "file": "mobile\\src\\views\\sales\\ReturnDetail.vue",
+    "line": 25,
+    "match": "detail.orderNo || detail.order_code"
+  },
+  {
+    "file": "mobile\\src\\views\\sales\\SalesCustomers.vue",
+    "line": 13,
+    "match": "cust.code || cust.customer_code"
+  },
+  {
+    "file": "mobile\\src\\views\\system\\Hierarchy.vue",
+    "line": 12,
+    "match": "dept.managerName || dept.member_count"
+  },
+  {
+    "file": "mobile\\src\\views\\workflow\\Approvals.vue",
+    "line": 37,
+    "match": "row.status || row.instance_status"
+  },
+  {
+    "file": "backend\\src\\controllers\\auth\\authController.js",
+    "line": 341,
+    "match": "body.frameId || body.avatar_frame"
+  },
+  {
+    "file": "backend\\src\\controllers\\business\\assets\\assetsController.js",
+    "line": 25,
+    "match": "asset.acquisition_cost || asset.originalValue"
+  },
+  {
+    "file": "backend\\src\\controllers\\business\\finance\\apBatchController.js",
+    "line": 60,
+    "match": "invoice.balance_amount || invoice.balance"
+  },
+  {
+    "file": "backend\\src\\controllers\\business\\finance\\arBatchController.js",
+    "line": 60,
+    "match": "invoice.balance_amount || invoice.balance"
+  },
+  {
+    "file": "backend\\src\\controllers\\business\\finance\\cash\\cashTransactionController.js",
+    "line": 111,
+    "match": "body.type || body.transaction_type"
+  },
+  {
+    "file": "backend\\src\\controllers\\business\\finance\\cash\\cashTransactionController.js",
+    "line": 159,
+    "match": "body.type || body.transaction_type"
+  },
+  {
+    "file": "backend\\src\\controllers\\business\\finance\\costCalculationController.js",
+    "line": 723,
+    "match": "mat.cost_price || mat.price"
+  },
+  {
+    "file": "backend\\src\\controllers\\business\\hr\\hrController.js",
+    "line": 247,
+    "match": "body.type || body.leave_type"
+  },
+  {
+    "file": "backend\\src\\controllers\\business\\hr\\hrController.js",
+    "line": 326,
+    "match": "body.date || body.overtime_date"
+  },
+  {
+    "file": "backend\\src\\controllers\\business\\hr\\hrController.js",
+    "line": 330,
+    "match": "body.type || body.overtime_type"
+  },
+  {
+    "file": "backend\\src\\controllers\\business\\inventory\\inventoryCheckController.js",
+    "line": 579,
+    "match": "item.id ||\r\n          item.actual_quantity"
+  },
+  {
+    "file": "backend\\src\\controllers\\business\\inventory\\inventoryCheckController.js",
+    "line": 717,
+    "match": "item.id || item.actual_quantity"
+  },
+  {
+    "file": "backend\\src\\controllers\\business\\inventory\\inventoryInboundController.js",
+    "line": 676,
+    "match": "item.specification || item.material_specs"
+  },
+  {
+    "file": "backend\\src\\controllers\\business\\purchase\\purchaseReceiptController.js",
+    "line": 164,
+    "match": "row.real_name || row.operator"
+  },
+  {
+    "file": "backend\\src\\controllers\\business\\purchase\\purchaseReceiptController.js",
+    "line": 288,
+    "match": "receipt.real_name || receipt.operator"
+  },
+  {
+    "file": "backend\\src\\controllers\\business\\purchase\\purchaseRequisitionController.js",
+    "line": 304,
+    "match": "item.material_specs || item.specification"
+  },
+  {
+    "file": "backend\\src\\controllers\\business\\purchase\\purchaseRequisitionController.js",
+    "line": 307,
+    "match": "item.unit || item.unit_name"
+  },
+  {
+    "file": "backend\\src\\controllers\\business\\purchase\\purchaseRequisitionController.js",
+    "line": 990,
+    "match": "item.material_specs || item.specification"
+  },
+  {
+    "file": "backend\\src\\controllers\\business\\purchase\\purchaseRequisitionController.js",
+    "line": 1019,
+    "match": "item.material_specs || item.specification"
+  },
+  {
+    "file": "backend\\src\\controllers\\business\\purchase\\purchaseReturnController.js",
+    "line": 256,
+    "match": "row.real_name || row.operator"
+  },
+  {
+    "file": "backend\\src\\controllers\\business\\purchase\\purchaseReturnController.js",
+    "line": 310,
+    "match": "returnData.real_name || returnData.operator"
+  },
+  {
+    "file": "backend\\src\\controllers\\business\\purchase\\purchaseReturnController.js",
+    "line": 944,
+    "match": "returnData.real_name || returnData.operator"
+  },
+  {
+    "file": "backend\\src\\controllers\\business\\quality\\eightDReportController.js",
+    "line": 287,
+    "match": "data.owner || data.d1_team_leader"
+  },
+  {
+    "file": "backend\\src\\controllers\\business\\quality\\firstArticleController.js",
+    "line": 427,
+    "match": "item.standard_value || item.standard"
+  },
+  {
+    "file": "backend\\src\\controllers\\business\\quality\\InspectionTemplateController.js",
+    "line": 119,
+    "match": "item.reuse_item_id || item.id"
+  },
+  {
+    "file": "backend\\src\\controllers\\business\\sales\\salesOutboundController.js",
+    "line": 730,
+    "match": "item.unit_price || item.price"
+  },
+  {
+    "file": "backend\\src\\controllers\\business\\sales\\salesOutboundController.js",
+    "line": 1066,
+    "match": "item.unit_price || item.price"
+  },
+  {
+    "file": "backend\\src\\controllers\\business\\sales\\salesPackingController.js",
+    "line": 929,
+    "match": "userInfo.username || userInfo.real_name"
+  },
+  {
+    "file": "backend\\src\\controllers\\common\\todoController.js",
+    "line": 584,
+    "match": "u.real_name || u.username"
+  },
+  {
+    "file": "backend\\src\\controllers\\common\\userActivityController.js",
+    "line": 388,
+    "match": "row.real_name || row.username"
+  },
+  {
+    "file": "backend\\src\\utils\\finance\\glFieldMap.js",
+    "line": 70,
+    "match": "query.accountCode || query.account_code"
+  },
+  {
+    "file": "backend\\src\\utils\\finance\\glFieldMap.js",
+    "line": 71,
+    "match": "query.accountCode || query.account_code"
+  },
+  {
+    "file": "backend\\src\\utils\\finance\\glFieldMap.js",
+    "line": 73,
+    "match": "query.accountName || query.account_name"
+  },
+  {
+    "file": "backend\\src\\utils\\finance\\glFieldMap.js",
+    "line": 74,
+    "match": "query.accountName || query.account_name"
+  },
+  {
+    "file": "backend\\src\\utils\\finance\\glFieldMap.js",
+    "line": 76,
+    "match": "query.accountType || query.account_type"
+  },
+  {
+    "file": "backend\\src\\utils\\finance\\glFieldMap.js",
+    "line": 77,
+    "match": "query.accountType || query.account_type"
+  },
+  {
+    "file": "backend\\src\\utils\\finance\\glFieldMap.js",
+    "line": 156,
+    "match": "query.entryNumber || query.entry_number"
+  },
+  {
+    "file": "backend\\src\\utils\\finance\\glFieldMap.js",
+    "line": 157,
+    "match": "query.entryNumber || query.entry_number"
+  },
+  {
+    "file": "backend\\src\\utils\\finance\\glFieldMap.js",
+    "line": 159,
+    "match": "query.startDate || query.start_date"
+  },
+  {
+    "file": "backend\\src\\utils\\finance\\glFieldMap.js",
+    "line": 160,
+    "match": "query.startDate || query.start_date"
+  },
+  {
+    "file": "backend\\src\\utils\\finance\\glFieldMap.js",
+    "line": 162,
+    "match": "query.endDate || query.end_date"
+  },
+  {
+    "file": "backend\\src\\utils\\finance\\glFieldMap.js",
+    "line": 163,
+    "match": "query.endDate || query.end_date"
+  },
+  {
+    "file": "backend\\src\\utils\\finance\\glFieldMap.js",
+    "line": 165,
+    "match": "query.documentType || query.document_type"
+  },
+  {
+    "file": "backend\\src\\utils\\finance\\glFieldMap.js",
+    "line": 166,
+    "match": "query.documentType || query.document_type"
+  },
+  {
+    "file": "backend\\src\\utils\\finance\\glFieldMap.js",
+    "line": 168,
+    "match": "query.voucherWord || query.voucher_word"
+  },
+  {
+    "file": "backend\\src\\utils\\finance\\glFieldMap.js",
+    "line": 169,
+    "match": "query.voucherWord || query.voucher_word"
+  },
+  {
+    "file": "backend\\src\\utils\\finance\\glFieldMap.js",
+    "line": 171,
+    "match": "query.periodId || query.period_id"
+  },
+  {
+    "file": "backend\\src\\utils\\finance\\glFieldMap.js",
+    "line": 172,
+    "match": "query.periodId || query.period_id"
+  },
+  {
+    "file": "backend\\src\\utils\\inventory\\inventoryFieldMap.js",
+    "line": 243,
+    "match": "query.productionPlanId || query.production_plan_id"
+  },
+  {
+    "file": "backend\\src\\utils\\inventory\\inventoryFieldMap.js",
+    "line": 244,
+    "match": "query.productionPlanId || query.production_plan_id"
+  },
+  {
+    "file": "backend\\src\\utils\\inventory\\inventoryFieldMap.js",
+    "line": 246,
+    "match": "query.productionGroupId || query.production_group_id"
+  },
+  {
+    "file": "backend\\src\\utils\\inventory\\inventoryFieldMap.js",
+    "line": 247,
+    "match": "query.productionGroupId || query.production_group_id"
+  },
+  {
+    "file": "backend\\src\\utils\\purchase\\purchaseFieldMap.js",
+    "line": 244,
+    "match": "row.real_name || row.operator"
+  }
+]

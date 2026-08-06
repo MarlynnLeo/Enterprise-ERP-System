@@ -9,11 +9,11 @@
           <Search v-model="keyword" placeholder="搜索控制计划" @search="fetchPlans" />
           <div v-for="plan in plans" :key="plan.id" class="plan-item" @click="selectPlan(plan)">
             <div class="plan-header">
-              <span class="plan-name">{{ plan.plan_name }}</span>
-              <Tag :type="plan.is_active ? 'success' : 'default'" size="medium">{{ plan.is_active ? '启用' : '停用' }}</Tag>
+              <span class="plan-name">{{ plan.planName }}</span>
+              <Tag :type="plan.isActive ? 'success' : 'default'" size="medium">{{ plan.isActive ? '启用' : '停用' }}</Tag>
             </div>
-            <div class="plan-meta">{{ plan.characteristic }} | {{ plan.product_name || '--' }}</div>
-            <div class="plan-meta">数据点: {{ plan.data_count || 0 }}</div>
+            <div class="plan-meta">{{ plan.characteristic }} | {{ plan.productName || '--' }}</div>
+            <div class="plan-meta">数据点: {{ plan.dataCount || 0 }}</div>
           </div>
           <Empty v-if="plans.length === 0" description="暂无控制计划" />
         </div>
@@ -21,7 +21,7 @@
         <!-- 计划详情 + CPK -->
         <div v-else>
           <div class="detail-header" @click="selectedPlan = null">
-            <Icon name="arrow-left" /> <span>{{ selectedPlan.plan_name }}</span>
+            <Icon name="arrow-left" /> <span>{{ selectedPlan.planName }}</span>
           </div>
 
           <Loading v-if="detailLoading" size="24px" vertical style="padding:40px 0">加载中...</Loading>

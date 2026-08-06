@@ -129,7 +129,7 @@ const getStatusClass = (status) => {
 // 添加计划统计数据
 const canPushDownPlan = (row) => (
   PRODUCTION_PLAN_PUSHABLE_STATUSES.includes(row.status) &&
-  (row.quantity || 0) - (row.pushed_quantity || 0) > 0
+  (row.quantity || 0) - (row.pushedQuantity || 0) > 0
 )
 const canEditPlan = (row) => row.status === PRODUCTION_STATUS_KEYS.DRAFT
 const canDeletePlan = canEditPlan
@@ -200,7 +200,7 @@ const getLevelTagClass = (level) => {
 // 通用工具函数：获取规格信息
 const getSpecification = (item) => {
   if (!item) return '';
-  return item.specs || item.specification || item.material_specs || item.spec || item.standard || '';
+  return item.specs || item.specification || item.materialSpecs || item.spec || item.standard || '';
 };
 // 通用工具函数：设置规格信息到对象的所有可能字段
 const setSpecification = (obj, specValue) => {
@@ -223,7 +223,7 @@ const fetchActiveBom = async (productId) => {
     const bomList = parseListData(response, { enableLog: false });
     if (bomList.length > 0) {
       // 优先选择已审核的BOM，如果没有则选择第一个
-      const activeBom = bomList.find(bom => bom.approved || bom.approved_by) || bomList[0];
+      const activeBom = bomList.find(bom => bom.approvedBy) || bomList[0];
       return activeBom;
     }
     return null;
@@ -247,17 +247,17 @@ const standardizeMaterialData = (material, materialInfo = null) => {
   const specValue = specs || getSpecification(material);
 
   // 提取库存数量和需求数量，确保为数字类型
-  const stockQty = parseQuantity(material.stock_quantity || material.stockQuantity || 0);
-  const requiredQty = parseQuantity(material.required_quantity || material.requiredQuantity || 0);
+  const stockQty = parseQuantity(material.stockQuantity || 0);
+  const requiredQty = parseQuantity(material.requiredQuantity || 0);
 
 
   // 基础字段标准化
   const result = {
     ...material,
     // ID字段标准化 - 确保所有可能的ID字段都有值
-    id: material.materialId || material.material_id || material.id,
-    materialId: material.materialId || material.material_id || material.id,
-    material_id: material.materialId || material.material_id || material.id,
+    id: material.materialId || material.id,
+    materialId: material.materialId || material.id,
+    material_id: material.materialId || material.id,
     // 规格字段标准化 - 确保所有可能的规格字段都有相同的值
     specs: specValue,
     specification: specValue,
@@ -269,11 +269,11 @@ const standardizeMaterialData = (material, materialInfo = null) => {
     requiredQuantity: requiredQty,
     stock_quantity: stockQty,
     stockQuantity: stockQty,
-    bomPath: material.bomPath || material.bom_path || '',
-    bom_path: material.bomPath || material.bom_path || '',
-    bomPaths: material.bomPaths || material.bom_paths || [],
-    parentMaterialId: material.parentMaterialId || material.parent_material_id || null,
-    parent_material_id: material.parentMaterialId || material.parent_material_id || null,
+    bomPath: material.bomPath || '',
+    bom_path: material.bomPath || '',
+    bomPaths: material.bomPaths || [],
+    parentMaterialId: material.parentMaterialId || null,
+    parent_material_id: material.parentMaterialId || null,
     isLeaf: material.isLeaf ?? material.is_leaf ?? true,
     is_leaf: material.isLeaf ?? material.is_leaf ?? true
   };
@@ -304,7 +304,7 @@ const fetchPlanList = async (force = false) => {
     planList.value = plans.map(plan => ({
       ...plan,
       productName: plan.productName || '未知产品',
-      productCode: plan.product_code || '',
+      productCode: plan.productCode || '',
       specification: plan.specification || '',
       unit: plan.unit || ''
     }));
@@ -430,8 +430,8 @@ const calculateMaterials = async () => {
       const bomMaterialSpecMap = {};
       if (bomDetails.length > 0) {
         bomDetails.forEach(detail => {
-          if (detail.material_code && detail.specification) {
-            bomMaterialSpecMap[detail.material_code] = detail.specification;
+          if (detail.materialCode && detail.specification) {
+            bomMaterialSpecMap[detail.materialCode] = detail.specification;
             }
         });
       }
@@ -461,7 +461,7 @@ const calculateMaterials = async () => {
           // 更新物料的规格信息 - 优化版本
           for (const mat of materials) {
             const materialId = mat.materialId || mat.id;
-            const materialCode = mat.code || mat.material_code;
+            const materialCode = mat.code || mat.materialCode;
 
             // 1. 首先尝试从BOM详情中获取规格信息
             if (materialCode && bomMaterialSpecMap[materialCode]) {
@@ -521,11 +521,11 @@ const collectPurchaseStatusMaterialIds = () => {
   const materials = currentPlan.value?.materials || [];
   const ids = new Set();
   materials.forEach((material) => {
-    const materialId = material.materialId || material.material_id || material.id;
+    const materialId = material.materialId || material.id;
     if (materialId) ids.add(String(materialId));
     const missingMaterials = material.substitutionInfo?.missingMaterials || [];
     missingMaterials.forEach((missing) => {
-      const missingId = missing.materialId || missing.material_id || missing.id;
+      const missingId = missing.materialId || missing.id;
       if (missingId) ids.add(String(missingId));
     });
   });
@@ -560,14 +560,14 @@ const viewPlanDetail = async (row) => {
     currentPlan.value = JSON.parse(JSON.stringify(response.data));
 
     // 简化产品名称设置
-    currentPlan.value.productName = row.productName || currentPlan.value.product_name || '未知产品';
+    currentPlan.value.productName = row.productName || currentPlan.value.productName || '未知产品';
     // 简化规格设置
     currentPlan.value.specification = currentPlan.value.specification || currentPlan.value.specs || '';
 
     // 如果物料需求为空，尝试从BOM计算物料需求
     if (!currentPlan.value.materials || currentPlan.value.materials.length === 0) {
       try {
-        const bom = await fetchActiveBom(currentPlan.value.product_id || row.product_id);
+        const bom = await fetchActiveBom(currentPlan.value.productId || row.productId);
         if (bom) {
           const calcResponse = await productionApi.calculateMaterialsByBom(bom.id, {
             quantity: currentPlan.value.quantity || 1
@@ -588,8 +588,8 @@ const viewPlanDetail = async (row) => {
       // 如果计划已完成，使用简单格式化
       if (currentPlan.value.status === PRODUCTION_STATUS_KEYS.COMPLETED) {
         currentPlan.value.materials = currentPlan.value.materials.map(material => {
-          const reqQty = material.requiredQuantity || material.required_quantity || 0;
-          const stockQty = material.stockQuantity || material.stock_quantity || 0;
+          const reqQty = material.requiredQuantity || 0;
+          const stockQty = material.stockQuantity || 0;
           return {
             ...formatMaterialForDisplay(material),
             stockStatus: stockQty >= reqQty ? 'sufficient' : 'shortage'
@@ -601,8 +601,8 @@ const viewPlanDetail = async (row) => {
           const materialsResponse = await productionApi.getPlanMaterials(row.id);
           if (materialsResponse.data && materialsResponse.data.length > 0) {
             currentPlan.value.materials = materialsResponse.data.map(material => {
-              const reqQty = material.requiredQuantity || material.required_quantity || 0;
-              const stockQty = material.stockQuantity || material.stock_quantity || 0;
+              const reqQty = material.requiredQuantity || 0;
+              const stockQty = material.stockQuantity || 0;
               return {
                 ...formatMaterialForDisplay(material),
                 substitutionInfo: material.substitutionInfo,
@@ -615,8 +615,8 @@ const viewPlanDetail = async (row) => {
           console.error('获取智能物料分析失败:', materialError);
           // 降级到简单格式化
           currentPlan.value.materials = currentPlan.value.materials.map(material => {
-            const reqQty = material.requiredQuantity || material.required_quantity || 0;
-            const stockQty = material.stockQuantity || material.stock_quantity || 0;
+            const reqQty = material.requiredQuantity || 0;
+            const stockQty = material.stockQuantity || 0;
             return {
               ...formatMaterialForDisplay(material),
               stockStatus: stockQty >= reqQty ? 'sufficient' : 'shortage'
@@ -692,7 +692,7 @@ const handleProductChange = async () => {
     const bomList = parseListData(bomResponse, { enableLog: false });
     if (bomList.length > 0) {
       // 优先选择已审核的BOM，如果没有则选择第一个
-      const activeBom = bomList.find(bom => bom.approved || bom.approved_by) || bomList[0]
+      const activeBom = bomList.find(bom => bom.approvedBy) || bomList[0]
       formData.value.bomId = activeBom.id
 
       // 获取产品规格信息
@@ -716,7 +716,7 @@ const handleProductChange = async () => {
           const productDetailResponse = await baseDataApi.getMaterial(selectedProduct.id);
           const productDetail = parseDataObject(productDetailResponse, { enableLog: false });
           if (productDetail) {
-            specification = productDetail.specs || productDetail.specification || productDetail.material_specs || productDetail.spec || productDetail.standard || '';
+            specification = productDetail.specs || productDetail.materialSpecs || productDetail.spec || productDetail.standard || '';
             if (specification) {
               selectedProduct.specification = specification;
             }
@@ -837,23 +837,23 @@ const handleEdit = async (row) => {
   formData.value = {
     ...row,
     code: row.code,
-    startDate: row.start_date ? row.start_date : null,
-    endDate: row.end_date ? row.end_date : null,
-    deliveryDate: row.delivery_date ? row.delivery_date : null,
-    productId: row.product_id,
+    startDate: row.startDate ? row.startDate : null,
+    endDate: row.endDate ? row.endDate : null,
+    deliveryDate: row.deliveryDate ? row.deliveryDate : null,
+    productId: row.productId,
     bomId: null,
-    contract_code: row.contract_code || ''
+    contract_code: row.contractCode || ''
   }
   // 编辑模式下锁定编号，不允许修改
   isManualCode.value = true
   // 立即清空物料列表，避免显示上次的数据
   materialList.value = []
   // 将当前产品添加到选项列表中，以便el-select能够显示产品编码和名称
-  if (row.product_id) {
+  if (row.productId) {
     productOptions.value = [{
-      id: row.product_id,
-      code: row.productCode || row.product_code || '',
-      name: row.productName || row.product_name || '',
+      id: row.productId,
+      code: row.productCode || '',
+      name: row.productName || '',
       specification: row.specification || row.specs || '',
       hasBom: true
     }]
@@ -865,7 +865,7 @@ const handleEdit = async (row) => {
   nextTick(async () => {
     try {
       modalLoading.value = true
-      const bom = await fetchActiveBom(row.product_id)
+      const bom = await fetchActiveBom(row.productId)
       if (bom) {
         formData.value.bomId = bom.id
         // 计算物料需求
@@ -924,7 +924,7 @@ const handlePushDown = async (row) => {
 const confirmPushDown = async () => {
   try {
     const row = pushDownPlan.value;
-    const remainingQuantity = (row.quantity || 0) - (row.pushed_quantity || 0);
+    const remainingQuantity = (row.quantity || 0) - (row.pushedQuantity || 0);
 
     // 检查剩余数量
     if (remainingQuantity <= 0) {
@@ -952,15 +952,15 @@ const confirmPushDown = async () => {
     let productionGroupName = '未分配';
     try {
       // 获取产品详情（产品数据存储在materials表中）
-      const productResponse = await baseDataApi.getMaterial(row.product_id);
+      const productResponse = await baseDataApi.getMaterial(row.productId);
       const product = parseDataObject(productResponse, { enableLog: false });
       // 产品本身就是物料，直接使用其production_group_id
-      if (product && product.production_group_id) {
+      if (product && product.productionGroupId) {
         // 获取生产组（部门）信息
         const deptResponse = await systemApi.getDepartments();
         const departments = parseListData(deptResponse, { enableLog: false });
         // 找到对应的生产组
-        const productionGroup = departments.find(dept => dept.id === product.production_group_id);
+        const productionGroup = departments.find(dept => dept.id === product.productionGroupId);
         if (productionGroup) {
           productionGroupName = productionGroup.name;
         }
@@ -971,7 +971,7 @@ const confirmPushDown = async () => {
     // 1. 生成生产任务（不设时间，由一键排程统一安排）
     const taskData = {
       plan_id: row.id,
-      product_id: row.product_id,
+      product_id: row.productId,
       quantity: taskQuantity,
       manager: productionGroupName,
       remarks: pushDownType.value === 'full'
@@ -1074,8 +1074,8 @@ onMounted(() => {
 const handleCreatePurchaseRequest = async (material) => {
   // 修复：正确获取物料ID，包括materialId字段
 
-  const materialName = material.name || material.material_name || '未知物料';
-  const materialCode = material.code || material.material_code || '';
+  const materialName = material.name || material.materialName || '未知物料';
+  const materialCode = material.code || material.materialCode || '';
   // 检查是否有缺料的子物料需要采购
   if (material.substitutionInfo && material.substitutionInfo.missingMaterials && material.substitutionInfo.missingMaterials.length > 0) {
     // 有缺料的子物料，应该采购子物料而不是父物料
@@ -1101,14 +1101,14 @@ const handleCreatePurchaseRequest = async (material) => {
 };
 // 为具体物料创建采购申请的函数
 const createPurchaseRequestForMaterial = async (material) => {
-  const materialId = material.materialId || material.material_id || material.id;
-  const materialName = material.name || material.material_name || '未知物料';
-  const materialCode = material.code || material.material_code || '';
+  const materialId = material.materialId || material.id;
+  const materialName = material.name || material.materialName || '未知物料';
+  const materialCode = material.code || material.materialCode || '';
   const specification = getSpecification(material);
-  const unit = material.unit_name || material.unit || '';
-  const unitId = material.unit_id || null;
-  const stockQty = parseQuantity(material.stock_quantity || material.stockQuantity || 0);
-  const requiredQty = parseQuantity(material.required_quantity || material.requiredQuantity || material.shortage || 0);
+  const unit = material.unitName || material.unit || '';
+  const unitId = material.unitId || null;
+  const stockQty = parseQuantity(material.stockQuantity || 0);
+  const requiredQty = parseQuantity(material.requiredQuantity || material.shortage || 0);
   if (getMaterialRequestStatus(material)) {
     ElMessage.warning(`物料 [${materialCode}] ${materialName} 已申请采购，请勿重复操作`);
     return;
@@ -1121,8 +1121,8 @@ const createPurchaseRequestForMaterial = async (material) => {
       const materialDetailResponse = await baseDataApi.getMaterial(materialId);
       // 使用统一解析方式获取物料数据
       const materialData = parseDataObject(materialDetailResponse, { enableLog: false });
-      if (materialData && typeof materialData.min_stock !== 'undefined') {
-        minStock = parseQuantity(materialData.min_stock);
+      if (materialData && typeof materialData.minStock !== 'undefined') {
+        minStock = parseQuantity(materialData.minStock);
       } else {
       }
     } catch (detailError) {
@@ -1218,7 +1218,7 @@ const createPurchaseRequestForMaterial = async (material) => {
 const getMaterialRequestStatus = (material) => {
   if (!material) return false;
   // 修复：正确获取物料ID，包括materialId字段
-  const materialId = material.materialId || material.material_id || material.id;
+  const materialId = material.materialId || material.id;
   // 如果ID不存在，返回false
   if (!materialId) return false;
   // 返回该ID的申请状态，确保返回布尔值
@@ -1227,8 +1227,8 @@ const getMaterialRequestStatus = (material) => {
 // 判断是否应该显示采购按钮
 const shouldShowPurchaseButton = (material) => {
   // 如果物料库存不足，显示采购按钮
-  const stockQty = parseQuantity(material.stock_quantity || material.stockQuantity || 0);
-  const requiredQty = parseQuantity(material.required_quantity || material.requiredQuantity || 0);
+  const stockQty = parseQuantity(material.stockQuantity || 0);
+  const requiredQty = parseQuantity(material.requiredQuantity || 0);
   if (stockQty < requiredQty) {
     return true;
   }
@@ -1250,11 +1250,11 @@ const getPurchaseButtonText = (material) => {
 const formatMaterialForDisplay = (material) => {
   return {
     ...material,
-    name: material.name || material.material_name || '未知物料',
-    code: material.code || material.material_code || '',
+    name: material.name || material.materialName || '未知物料',
+    code: material.code || material.materialCode || '',
     specs: getSpecification(material),
     specification: getSpecification(material),
-    unit: material.unit || material.unit_name || ''
+    unit: material.unit || material.unitName || ''
   };
 };
 </script>
@@ -1369,25 +1369,25 @@ const formatMaterialForDisplay = (material) => {
                 <el-descriptions-item label="产品名称">{{ props.row.productName }}</el-descriptions-item>
                 <el-descriptions-item label="物料编码">{{ props.row.productCode || '-' }}</el-descriptions-item>
                 <el-descriptions-item label="型号规格">{{ getSpecification(props.row) || '-' }}</el-descriptions-item>
-                <el-descriptions-item label="合同编码">{{ props.row.contract_code || '-' }}</el-descriptions-item>
+                <el-descriptions-item label="合同编码">{{ props.row.contractCode || '-' }}</el-descriptions-item>
                 <el-descriptions-item label="BOM版本">
-                  <el-tag v-if="props.row.bom_version" size="small" type="info">{{ props.row.bom_version }}</el-tag>
+                  <el-tag v-if="props.row.bomVersion" size="small" type="info">{{ props.row.bomVersion }}</el-tag>
                   <span v-else>-</span>
                 </el-descriptions-item>
-                <el-descriptions-item label="开始日期">{{ formatDate(props.row.start_date) }}</el-descriptions-item>
-                <el-descriptions-item label="结束日期">{{ formatDate(props.row.end_date) }}</el-descriptions-item>
+                <el-descriptions-item label="开始日期">{{ formatDate(props.row.startDate) }}</el-descriptions-item>
+                <el-descriptions-item label="结束日期">{{ formatDate(props.row.endDate) }}</el-descriptions-item>
                 <el-descriptions-item label="计划数量">{{ formatQuantity(props.row.quantity) }}</el-descriptions-item>
                 <el-descriptions-item label="已下推数量">
-                  <span class="text-success">{{ props.row.pushed_quantity || 0 }}</span>
+                  <span class="text-success">{{ props.row.pushedQuantity || 0 }}</span>
                 </el-descriptions-item>
                 <el-descriptions-item label="剩余数量">
                   <span class="text-primary font-weight-600">
-                    {{ (props.row.quantity || 0) - (props.row.pushed_quantity || 0) }}
+                    {{ (props.row.quantity || 0) - (props.row.pushedQuantity || 0) }}
                   </span>
                 </el-descriptions-item>
                 <el-descriptions-item label="库存状态">
-                  <el-tag v-if="props.row.material_stock_status === 'shortage'" type="danger">缺料</el-tag>
-                  <el-tag v-else-if="props.row.material_stock_status === 'sufficient'" type="success">充足</el-tag>
+                  <el-tag v-if="props.row.materialStockStatus === 'shortage'" type="danger">缺料</el-tag>
+                  <el-tag v-else-if="props.row.materialStockStatus === 'sufficient'" type="success">充足</el-tag>
                   <el-tag v-else type="info">未知</el-tag>
                 </el-descriptions-item>
                 <el-descriptions-item label="备注" :span="2">{{ props.row.remarks || '无' }}</el-descriptions-item>
@@ -1396,9 +1396,9 @@ const formatMaterialForDisplay = (material) => {
           </template>
         </el-table-column>
         <el-table-column prop="code" label="计划编号" width="120"></el-table-column>
-        <el-table-column prop="contract_code" label="合同编码" width="110">
+        <el-table-column prop="contractCode" label="合同编码" width="110">
           <template #default="scope">
-            {{ scope.row.contract_code || '-' }}
+            {{ scope.row.contractCode || '-' }}
           </template>
         </el-table-column>
         <el-table-column prop="productCode" label="物料编码" width="130"></el-table-column>
@@ -1420,34 +1420,34 @@ const formatMaterialForDisplay = (material) => {
         </el-table-column>
         <el-table-column label="开始日期" width="100">
           <template #default="scope">
-            <template v-if="scope.row.start_date">
-              {{ formatDate(scope.row.start_date) }}
+            <template v-if="scope.row.startDate">
+              {{ formatDate(scope.row.startDate) }}
             </template>
             <el-tag v-else size="small" type="warning">待排程</el-tag>
           </template>
         </el-table-column>
         <el-table-column label="结束日期" width="100">
           <template #default="scope">
-            <template v-if="scope.row.end_date">
-              {{ formatDate(scope.row.end_date) }}
+            <template v-if="scope.row.endDate">
+              {{ formatDate(scope.row.endDate) }}
             </template>
             <span v-else>—</span>
           </template>
         </el-table-column>
         <el-table-column label="客户交期" width="110">
           <template #default="scope">
-            <template v-if="scope.row.delivery_date">
-              <span>{{ formatDate(scope.row.delivery_date) }}</span>
+            <template v-if="scope.row.deliveryDate">
+              <span>{{ formatDate(scope.row.deliveryDate) }}</span>
               <el-tag
-                v-if="scope.row.end_date && new Date(scope.row.end_date) > new Date(scope.row.delivery_date)"
+                v-if="scope.row.endDate && new Date(scope.row.endDate) > new Date(scope.row.deliveryDate)"
                 size="small"
                 type="danger"
                 class="ml-4"
               >
-                超{{ Math.ceil((new Date(scope.row.end_date) - new Date(scope.row.delivery_date)) / 86400000) }}天
+                超{{ Math.ceil((new Date(scope.row.endDate) - new Date(scope.row.deliveryDate)) / 86400000) }}天
               </el-tag>
               <el-tag
-                v-else-if="scope.row.end_date"
+                v-else-if="scope.row.endDate"
                 size="small"
                 type="success"
                 class="ml-4"
@@ -1464,14 +1464,14 @@ const formatMaterialForDisplay = (material) => {
         <el-table-column label="已下推" width="70">
           <template #default="scope">
             <span class="text-success">
-              {{ scope.row.pushed_quantity || 0 }}
+              {{ scope.row.pushedQuantity || 0 }}
             </span>
           </template>
         </el-table-column>
         <el-table-column label="剩余" width="65">
           <template #default="scope">
             <span class="text-primary font-weight-600">
-              {{ (scope.row.quantity || 0) - (scope.row.pushed_quantity || 0) }}
+              {{ (scope.row.quantity || 0) - (scope.row.pushedQuantity || 0) }}
             </span>
           </template>
         </el-table-column>
@@ -1488,10 +1488,10 @@ const formatMaterialForDisplay = (material) => {
         <el-table-column label="库存" width="82">
           <template #default="scope">
             <div v-if="scope.row.status !== 'completed'">
-              <el-tag v-if="scope.row.material_stock_status === 'shortage'" type="danger">
+              <el-tag v-if="scope.row.materialStockStatus === 'shortage'" type="danger">
                 缺料
               </el-tag>
-              <el-tag v-else-if="scope.row.material_stock_status === 'sufficient'" type="success">
+              <el-tag v-else-if="scope.row.materialStockStatus === 'sufficient'" type="success">
                 充足
               </el-tag>
               <el-tag v-else type="info">
@@ -1564,10 +1564,11 @@ const formatMaterialForDisplay = (material) => {
     </el-card>
 
     <!-- 对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="modalVisible"
       :title="modalTitle"
-      width="55%"
+      mode="form"
+      wide
       @close="handleModalCancel"
     >
       <div v-loading="modalLoading" class="min-h-form">
@@ -1648,7 +1649,7 @@ const formatMaterialForDisplay = (material) => {
           </el-col>
           <el-col :span="6">
             <el-form-item label="合同编码">
-              <el-input v-model="formData.contract_code" placeholder="关联合同编码" />
+              <el-input v-model="formData.contractCode" placeholder="关联合同编码" />
             </el-form-item>
           </el-col>
           <el-col :span="6">
@@ -1729,14 +1730,14 @@ const formatMaterialForDisplay = (material) => {
           </el-table-column>
           <el-table-column label="需求" width="80">
             <template #default="scope">
-              {{ formatQuantity(scope.row.requiredQuantity || scope.row.required_quantity || 0) }}
+              {{ formatQuantity(scope.row.requiredQuantity || scope.row.requiredQuantity || 0) }}
             </template>
           </el-table-column>
           <el-table-column prop="unit" label="单位" width="55" />
           <el-table-column label="当前库存" width="110">
             <template #default="scope">
-              <span :class="{ 'text-danger': (scope.row.stock_quantity || scope.row.stockQuantity || 0) < (scope.row.required_quantity || scope.row.requiredQuantity || 0) }">
-                {{ formatQuantity(scope.row.stock_quantity || scope.row.stockQuantity || 0) }}
+              <span :class="{ 'text-danger': (scope.row.stockQuantity || scope.row.stockQuantity || 0) < (scope.row.requiredQuantity || scope.row.requiredQuantity || 0) }">
+                {{ formatQuantity(scope.row.stockQuantity || scope.row.stockQuantity || 0) }}
               </span>
             </template>
           </el-table-column>
@@ -1762,7 +1763,7 @@ const formatMaterialForDisplay = (material) => {
           <el-button v-permission="'production:plans:update'" type="primary" @click="handleModalOk" :loading="modalLoading">保存</el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
     <!-- 计划详情对话框 -->
     <AppDialog
       v-model="planDetailVisible"
@@ -1780,12 +1781,12 @@ const formatMaterialForDisplay = (material) => {
                 {{ getStatusText(currentPlan.status) }}
               </el-tag>
             </el-descriptions-item>
-            <el-descriptions-item label="产品名称">{{ currentPlan.productName || currentPlan.product_name }}</el-descriptions-item>
+            <el-descriptions-item label="产品名称">{{ currentPlan.productName }}</el-descriptions-item>
             <el-descriptions-item label="型号规格">{{ currentPlan.specification || '-' }}</el-descriptions-item>
             <el-descriptions-item label="计划数量">{{ currentPlan.quantity }}</el-descriptions-item>
             <el-descriptions-item label="合同编码">{{ currentPlan.contract_code || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="开始日期">{{ currentPlan.startDate || currentPlan.start_date || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="结束日期">{{ currentPlan.endDate || currentPlan.end_date || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="开始日期">{{ currentPlan.startDate || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="结束日期">{{ currentPlan.endDate || '-' }}</el-descriptions-item>
             <el-descriptions-item label="已下推数量">{{ currentPlan.pushed_quantity || 0 }}</el-descriptions-item>
             <el-descriptions-item label="备注" :span="2">{{ currentPlan.remark || '-' }}</el-descriptions-item>
           </el-descriptions>
@@ -1799,16 +1800,16 @@ const formatMaterialForDisplay = (material) => {
             </el-table-column>
 
             <el-table-column prop="code" label="物料编码" width="130" show-overflow-tooltip>
-              <template #default="{ row }">{{ row.code || row.material_code || '-' }}</template>
+              <template #default="{ row }">{{ row.code || row.materialCode || '-' }}</template>
             </el-table-column>
             <el-table-column prop="name" label="物料名称" min-width="120" show-overflow-tooltip>
-              <template #default="{ row }">{{ row.name || row.material_name || '-' }}</template>
+              <template #default="{ row }">{{ row.name || row.materialName || '-' }}</template>
             </el-table-column>
             <el-table-column prop="specification" label="规格" width="200" show-overflow-tooltip />
             <el-table-column label="需求数量" width="100">
               <template #default="{ row }">{{ formatQuantity(row.requiredQuantity || row.quantity || 0) }}</template>
             </el-table-column>
-            <el-table-column prop="unit_name" label="单位" width="70" />
+            <el-table-column prop="unitName" label="单位" width="70" />
             <el-table-column label="库存状态" width="100">
               <template #default="{ row }">
                 <el-tag v-if="row.stockStatus === 'sufficient'" type="success" size="small">充足</el-tag>
@@ -1819,16 +1820,17 @@ const formatMaterialForDisplay = (material) => {
             <el-table-column prop="remark" label="备注" min-width="100" show-overflow-tooltip />
           </el-table>
         </template>
-        <el-empty v-else-if="!planDetailLoading" description="暂无数据" />
+        <EmptyState v-else-if="!planDetailLoading" description="暂无数据" />
       </div>
       <template #footer>
         <el-button @click="planDetailVisible = false">关闭</el-button>
       </template>
     </AppDialog>
     <!-- 下推数量选择对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="pushDownDialogVisible"
       title="下推生产任务"
+      mode="view"
       width="500px"
     >
       <div v-if="pushDownPlan">
@@ -1888,7 +1890,7 @@ const formatMaterialForDisplay = (material) => {
           </el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
   </div>
 </template>
 <style scoped>

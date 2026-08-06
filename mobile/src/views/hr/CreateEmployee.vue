@@ -9,17 +9,17 @@
     <div class="content">
       <Form ref="formRef">
         <CellGroup inset title="员工信息">
-          <Field v-model="form.employee_no" name="employee_no" label="工号" placeholder="请输入员工工号" :rules="[{ required: true, message: '请输入员工工号' }]" />
+          <Field v-model="form.employeeNo" name="employeeNo" label="工号" placeholder="请输入员工工号" :rules="[{ required: true, message: '请输入员工工号' }]" />
           <Field v-model="form.name" name="name" label="姓名" placeholder="请输入员工姓名" :rules="[{ required: true, message: '请输入员工姓名' }]" />
           <Cell title="部门" is-link :value="departmentName" @click="showDepartmentPicker = true" />
-          <Field v-model="form.id_card" name="id_card" label="身份证号" placeholder="请输入身份证号" />
-          <Field v-model="form.join_date" name="join_date" label="入职日期" type="date" />
+          <Field v-model="form.idCard" name="idCard" label="身份证号" placeholder="请输入身份证号" />
+          <Field v-model="form.joinDate" name="joinDate" label="入职日期" type="date" />
         </CellGroup>
 
         <CellGroup inset title="薪资信息">
-          <Field v-model="form.base_salary" name="base_salary" label="基本工资" type="number" placeholder="0.00" />
-          <Field v-model="form.split_base_salary" name="split_base_salary" label="拆分基数" type="number" placeholder="0.00" />
-          <Cell title="社保公积金" is-link :value="form.insurance_type" @click="showInsurancePicker = true" />
+          <Field v-model="form.baseSalary" name="baseSalary" label="基本工资" type="number" placeholder="0.00" />
+          <Field v-model="form.splitBaseSalary" name="splitBaseSalary" label="拆分基数" type="number" placeholder="0.00" />
+          <Cell title="社保公积金" is-link :value="form.insuranceType" @click="showInsurancePicker = true" />
         </CellGroup>
       </Form>
 
@@ -60,14 +60,14 @@
   const departments = ref([])
 
   const form = reactive({
-    employee_no: '',
+    employeeNo: '',
     name: '',
-    department_id: '',
-    id_card: '',
-    join_date: new Date().toISOString().slice(0, 10),
-    base_salary: '',
-    split_base_salary: '',
-    insurance_type: '有社保有公积金'
+    departmentId: '',
+    idCard: '',
+    joinDate: new Date().toISOString().slice(0, 10),
+    baseSalary: '',
+    splitBaseSalary: '',
+    insuranceType: '有社保有公积金'
   })
 
   const insuranceOptions = [
@@ -77,7 +77,7 @@
   ]
 
   const departmentName = computed(() => {
-    const current = departments.value.find((item) => String(item.id) === String(form.department_id))
+    const current = departments.value.find((item) => String(item.id) === String(form.departmentId))
     return current?.name || '请选择'
   })
 
@@ -95,12 +95,12 @@
   }
 
   const pickDepartment = (item) => {
-    form.department_id = item?.id || ''
+    form.departmentId = item?.id || ''
     showDepartmentPicker.value = false
   }
 
   const onInsuranceConfirm = ({ selectedOptions }) => {
-    form.insurance_type = selectedOptions[0]?.value || insuranceOptions[0].value
+    form.insuranceType = selectedOptions[0]?.value || insuranceOptions[0].value
     showInsurancePicker.value = false
   }
 
@@ -109,12 +109,14 @@
       await formRef.value?.validate()
       submitting.value = true
       await hrApi.createEmployee({
-        ...form,
-        employee_no: form.employee_no.trim(),
+        employeeNo: form.employeeNo.trim(),
         name: form.name.trim(),
-        department_id: form.department_id || null,
-        base_salary: Number(form.base_salary) || 0,
-        split_base_salary: Number(form.split_base_salary) || 0
+        departmentId: form.departmentId || null,
+        idCard: form.idCard || null,
+        joinDate: form.joinDate || null,
+        baseSalary: Number(form.baseSalary) || 0,
+        splitBaseSalary: Number(form.splitBaseSalary) || 0,
+        insuranceType: form.insuranceType
       })
       showToast({ type: 'success', message: '员工已创建' })
       router.back()

@@ -8,16 +8,16 @@
           {{ statusMap[detail.status] || detail.status }}
         </div>
         <div class="detail-code">
-          {{ detail.return_no || `退货单#${detail.id}` }}
+          {{ detail.returnNo || `退货单#${detail.id}` }}
         </div>
       </div>
 
       <CellGroup inset title="退货信息">
-        <Cell title="供应商" :value="detail.supplier_name || '--'" />
-        <Cell title="关联入库单" :value="detail.receipt_no || '--'" />
-        <Cell title="退货仓库" :value="detail.warehouse_name || '--'" />
-        <Cell title="退货日期" :value="formatDate(detail.return_date || detail.created_at)" />
-        <Cell title="经办人" :value="detail.operator_name || detail.operator || '--'" />
+        <Cell title="供应商" :value="detail.supplierName || '--'" />
+        <Cell title="关联入库单" :value="detail.receiptNo || '--'" />
+        <Cell title="退货仓库" :value="detail.warehouseName || '--'" />
+        <Cell title="退货日期" :value="formatDate(detail.returnDate || detail.createdAt)" />
+        <Cell title="经办人" :value="detail.operatorName || detail.operator || '--'" />
         <Cell title="退货原因" :value="detail.reason || '--'" />
         <Cell title="备注" :value="detail.remarks || '--'" />
       </CellGroup>
@@ -26,9 +26,9 @@
         <Cell
           v-for="item in detail.items"
           :key="item.id"
-          :title="item.material_name || `物料#${item.material_id}`"
-          :value="`${item.quantity || item.return_quantity || 0} ${item.unit || '件'}`"
-          :label="item.material_code || item.specification || ''"
+          :title="item.materialName || `物料#${item.materialId}`"
+          :value="`${item.quantity || item.returnQuantity || 0} ${item.unitName || item.unit || '件'}`"
+          :label="item.materialCode || item.specification || ''"
         />
       </CellGroup>
 

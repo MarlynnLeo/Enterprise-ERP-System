@@ -1,6 +1,7 @@
 const AqlService = require('../../../services/quality/aqlService');
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 
 class AqlController {
     /**
@@ -8,11 +9,12 @@ class AqlController {
      */
     async createStandard(req, res) {
         try {
-            const data = req.body;
+            // HTTP camel → snake
+            const data = mapKeysToSnake(req.body || {});
             const creatorId = req.user?.id || null;
 
             if (!data.code || !data.name || !data.sample_size || !data.aql_level) {
-                return ResponseHandler.error(res, 'Missing required AQL fields', 'VALIDATION_ERROR', 400);
+                return ResponseHandler.error(res, '缺少必填字段：code/name/sampleSize/aqlLevel', 'VALIDATION_ERROR', 400);
             }
 
             const standard = await AqlService.createStandard(data, creatorId);
@@ -32,7 +34,7 @@ class AqlController {
     async updateStandard(req, res) {
         try {
             const { id } = req.params;
-            const data = req.body;
+            const data = mapKeysToSnake(req.body || {});
 
             // 防止误更新关键字段
             delete data.id;
@@ -68,7 +70,7 @@ class AqlController {
      */
     async getStandards(req, res) {
         try {
-            const result = await AqlService.getStandardsList(req.query);
+            const result = await AqlService.getStandardsList(mapKeysToSnake(req.query || {}));
             return ResponseHandler.success(res, result);
         } catch (error) {
             logger.error('Error fetching AQL standards list:', error);
@@ -94,13 +96,15 @@ class AqlController {
      */
     async calculateSampling(req, res) {
         try {
-            const { batch_size, aql_level } = req.body;
+            // HTTP 入参只认 camel
+            const batchSize = req.body?.batchSize;
+            const aqlLevel = req.body?.aqlLevel;
 
-            if (!batch_size || !aql_level) {
-                return ResponseHandler.error(res, '必须提供批量 (batch_size) 和 AQL级别 (aql_level)', 'VALIDATION_ERROR', 400);
+            if (!batchSize || !aqlLevel) {
+                return ResponseHandler.error(res, '必须提供批量 (batchSize) 和 AQL级别 (aqlLevel)', 'VALIDATION_ERROR', 400);
             }
 
-            const result = await AqlService.calculate(Number(batch_size), String(aql_level));
+            const result = await AqlService.calculate(Number(batchSize), String(aqlLevel));
 
             if (!result.matched) {
                 return ResponseHandler.error(

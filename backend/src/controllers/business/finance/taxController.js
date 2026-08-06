@@ -19,6 +19,7 @@ const Precision = require('../../../utils/precision');
 const { roundMoney } = require('../../../utils/money');
 const BusinessError = require('../../../utils/BusinessError');
 const { isTruthyFlag } = require('../../../utils/finance/settlementMath');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 
 function validateBusinessDate(value, fieldName) {
   const dateString = value ? String(value).slice(0, 10) : currentDateString();
@@ -212,16 +213,18 @@ const taxController = {
    */
   getTaxInvoices: async (req, res) => {
     try {
+      // HTTP camel query → snake filters（兼容旧 snake query）
+      const q = mapKeysToSnake(req.query || {});
       const filters = {
-        invoice_type: req.query.invoice_type,
-        status: req.query.status,
-        invoice_number: req.query.invoice_number,
-        start_date: req.query.start_date,
-        end_date: req.query.end_date,
-        supplier_id: req.query.supplier_id,
-        customer_id: req.query.customer_id,
-        limit: req.query.limit || 50,
-        offset: req.query.offset || 0,
+        invoice_type: q.invoice_type || req.query.invoice_type,
+        status: q.status || req.query.status,
+        invoice_number: q.invoice_number || req.query.invoice_number,
+        start_date: q.start_date || req.query.start_date || req.query.startDate,
+        end_date: q.end_date || req.query.end_date || req.query.endDate,
+        supplier_id: q.supplier_id || req.query.supplier_id || req.query.supplierId,
+        customer_id: q.customer_id || req.query.customer_id || req.query.customerId,
+        limit: q.limit || req.query.limit || 50,
+        offset: q.offset || req.query.offset || 0,
       };
 
       const invoices = await taxModel.getTaxInvoices(filters);
@@ -261,7 +264,7 @@ const taxController = {
     const connection = await db.pool.getConnection();
     try {
       const id = safeParseId(req.params.id, '发票ID');
-      const { certification_date } = req.body;
+      const { certification_date } = mapKeysToSnake(req.body || {});
 
       await connection.beginTransaction();
 
@@ -337,7 +340,7 @@ const taxController = {
     const connection = await db.pool.getConnection();
     try {
       const id = safeParseId(req.params.id, '发票ID');
-      const { deduction_date } = req.body;
+      const { deduction_date } = mapKeysToSnake(req.body || {});
 
       await connection.beginTransaction();
       const [invoices] = await connection.execute(
@@ -437,12 +440,13 @@ const taxController = {
    */
   getTaxReturns: async (req, res) => {
     try {
+      const q = mapKeysToSnake(req.query || {});
       const filters = {
-        return_type: req.query.return_type,
-        status: req.query.status,
-        year: req.query.year,
-        limit: req.query.limit || 50,
-        offset: req.query.offset || 0,
+        return_type: q.return_type || req.query.return_type || req.query.returnType,
+        status: q.status || req.query.status,
+        year: q.year || req.query.year,
+        limit: q.limit || req.query.limit || 50,
+        offset: q.offset || req.query.offset || 0,
       };
 
       const returns = await taxModel.getTaxReturns(filters);
@@ -481,7 +485,7 @@ const taxController = {
   submitTaxReturn: async (req, res) => {
     try {
       const id = safeParseId(req.params.id);
-      const { declaration_date } = req.body;
+      const { declaration_date } = mapKeysToSnake(req.body || {});
 
       // 获取申报信息
       const taxReturn = await taxModel.getTaxReturnById(id);
@@ -512,7 +516,7 @@ const taxController = {
     const connection = await db.pool.getConnection();
     try {
       const id = safeParseId(req.params.id, '申报ID');
-      const { payment_date, bank_account_id } = req.body;
+      const { payment_date, bank_account_id } = mapKeysToSnake(req.body || {});
 
       await connection.beginTransaction();
 
@@ -847,7 +851,7 @@ const taxController = {
    */
   createTaxAccountConfig: async (req, res) => {
     try {
-      const { config_key, config_name, account_id, description } = req.body;
+      const { config_key, config_name, account_id, description } = mapKeysToSnake(req.body || {});
 
       // 验证必填字段
       if (!config_key || !config_name || !account_id) {
@@ -881,7 +885,7 @@ const taxController = {
   updateTaxAccountConfig: async (req, res) => {
     try {
       const id = safeParseId(req.params.id);
-      const { config_name, account_id, description } = req.body;
+      const { config_name, account_id, description } = mapKeysToSnake(req.body || {});
 
       // 验证必填字段
       if (!config_name || !account_id) {
@@ -927,7 +931,7 @@ const taxController = {
   linkTaxInvoice: async (req, res) => {
     try {
       const id = safeParseId(req.params.id);
-      const { document_type, document_id } = req.body;
+      const { document_type, document_id } = mapKeysToSnake(req.body || {});
 
       if (!document_type || !document_id) {
         return ResponseHandler.error(res, '缺少必填字段: document_type, document_id', 'VALIDATION_ERROR', 400);
@@ -1031,7 +1035,7 @@ const taxController = {
   updateTaxInvoiceNumber: async (req, res) => {
     try {
       const id = safeParseId(req.params.id);
-      const { invoice_number } = req.body;
+      const { invoice_number } = mapKeysToSnake(req.body || {});
 
       if (!invoice_number || !invoice_number.trim()) {
         return ResponseHandler.error(res, '发票号码不能为空', 'VALIDATION_ERROR', 400);

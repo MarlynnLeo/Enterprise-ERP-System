@@ -12,6 +12,7 @@ const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const ScopeGuard = require('../../../authorization/ScopeGuard');
 const db = require('../../../config/db');
 const { safeParseId } = require('../../../utils/safeParseId');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 
 const expenseController = {
   // ==================== 初始化 ====================
@@ -60,7 +61,9 @@ const expenseController = {
    */
   async createExpenseCategory(req, res) {
     try {
-      const { code, name, parent_id, description, status, sort_order } = req.body;
+      // HTTP camel → snake
+      const body = mapKeysToSnake(req.body || {});
+      const { code, name, parent_id, description, status, sort_order } = body;
 
       if (!code || !name) {
         return ResponseHandler.error(res, '编码和名称为必填项', 'VALIDATION_ERROR', 400);
@@ -91,7 +94,7 @@ const expenseController = {
   async updateExpenseCategory(req, res) {
     try {
       const { id } = req.params;
-      const result = await expenseModel.updateExpenseCategory(id, req.body);
+      const result = await expenseModel.updateExpenseCategory(id, mapKeysToSnake(req.body || {}));
       ResponseHandler.success(res, result, '费用类型更新成功');
     } catch (error) {
       logger.error('更新费用类型失败:', error);
@@ -133,22 +136,19 @@ const expenseController = {
    */
   async getExpenses(req, res) {
     try {
-      const {
-        page = 1,
-        pageSize = 20,
-        category_id,
-        status,
-        startDate,
-        endDate,
-        keyword,
-      } = req.query;
+      // HTTP query camel → snake filters
+      const q = mapKeysToSnake(req.query || {});
+      const page = req.query.page || 1;
+      const pageSize = req.query.pageSize || 20;
 
       const filters = {};
-      if (category_id) filters.category_id = parseInt(category_id);
-      if (status) filters.status = status;
-      if (startDate) filters.startDate = startDate;
-      if (endDate) filters.endDate = endDate;
-      if (keyword) filters.keyword = keyword;
+      if (q.category_id || req.query.categoryId) {
+        filters.category_id = parseInt(q.category_id || req.query.categoryId, 10);
+      }
+      if (q.status || req.query.status) filters.status = q.status || req.query.status;
+      if (req.query.startDate) filters.startDate = req.query.startDate;
+      if (req.query.endDate) filters.endDate = req.query.endDate;
+      if (req.query.keyword) filters.keyword = req.query.keyword;
       // 行级 DataScope（忽略查询串 created_by，避免 IDOR 越权窥探）
       filters.scopeClause = await ScopeGuard.applyListScope(req, 'expense', {
         tableAlias: 'e',
@@ -156,6 +156,7 @@ const expenseController = {
       });
 
       const result = await expenseModel.getExpenses(filters, parseInt(page), parseInt(pageSize));
+      // 列表结构可能含 data/items/pagination — 整体转 camel
       ResponseHandler.success(res, result, '获取费用列表成功');
     } catch (error) {
       logger.error('获取费用列表失败:', error);
@@ -198,7 +199,9 @@ const expenseController = {
    */
   async createExpense(req, res) {
     try {
-      const { category_id, title, amount, expense_date } = req.body;
+      // HTTP camel → snake
+      const body = mapKeysToSnake(req.body || {});
+      const { category_id, title, amount, expense_date } = body;
       const parsedAmount = Number.parseFloat(amount);
 
       if (!category_id || !title || amount === undefined || amount === null || !expense_date) {
@@ -209,7 +212,7 @@ const expenseController = {
       }
 
       const data = {
-        ...req.body,
+        ...body,
         ...ScopeGuard.stampOwner(req, 'expense'),
       };
 
@@ -233,7 +236,7 @@ const expenseController = {
       if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'expense', id, '无权修改该费用记录'))) {
         return;
       }
-      const result = await expenseModel.updateExpense(id, req.body);
+      const result = await expenseModel.updateExpense(id, mapKeysToSnake(req.body || {}));
       ResponseHandler.success(res, result, '费用更新成功');
     } catch (error) {
       logger.error('更新费用记录失败:', error);
@@ -255,7 +258,10 @@ const expenseController = {
         return;
       }
       const userId = getAuthenticatedUserId(req);
-      const { useDingtalk = true, dingtalkUserId, deptId } = req.body;
+      const submitBody = { ...mapKeysToSnake(req.body || {}), ...(req.body || {}) };
+      const useDingtalk = submitBody.useDingtalk ?? submitBody.use_dingtalk ?? true;
+      const dingtalkUserId = submitBody.dingtalkUserId ?? submitBody.dingtalk_user_id;
+      const deptId = submitBody.deptId ?? submitBody.dept_id;
 
       // 1. 获取费用详情
       const expense = await expenseModel.getExpenseById(id);
@@ -315,7 +321,11 @@ const expenseController = {
         }
       }
 
-      ResponseHandler.success(res, { ...result, dingtalk: dingtalkResult }, '已提交审批');
+      ResponseHandler.success(
+        res,
+        { ...result, dingtalk: dingtalkResult },
+        '已提交审批'
+      );
     } catch (error) {
       logger.error('提交审批失败:', error);
       ResponseHandler.error(res, error.message, 'VALIDATION_ERROR', 400);
@@ -362,7 +372,12 @@ const expenseController = {
       if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'expense', id, '无权付款该费用记录'))) {
         return;
       }
-      const { bank_account_id, transaction_id, payment_date, cost_center_id } = req.body;
+      // HTTP camel → snake
+      const body = mapKeysToSnake(req.body || {});
+      const bank_account_id = body.bank_account_id;
+      const transaction_id = body.transaction_id;
+      const payment_date = body.payment_date;
+      const cost_center_id = body.cost_center_id;
 
       if (!bank_account_id) {
         return ResponseHandler.error(res, '请选择付款账户', 'VALIDATION_ERROR', 400);
@@ -413,10 +428,10 @@ const expenseController = {
   async voidExpensePayment(req, res) {
     try {
       const { id } = req.params;
-      const { void_reason } = req.body;
+      const body = mapKeysToSnake(req.body || {});
       const result = await expenseModel.voidExpensePayment(id, {
         voided_by: getAuthenticatedUserId(req),
-        void_reason,
+        void_reason: body.void_reason,
       });
       ResponseHandler.success(res, result, '费用付款已作废，银行与凭证已冲销');
     } catch (error) {

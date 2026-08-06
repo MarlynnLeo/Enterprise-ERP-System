@@ -53,7 +53,7 @@
           @click="handleView(item)"
         >
           <!-- 置顶标签 -->
-          <el-tag v-if="item.is_pinned" type="danger" size="small" class="pinned-tag">
+          <el-tag v-if="item.isPinned" type="danger" size="small" class="pinned-tag">
             置顶
           </el-tag>
 
@@ -85,32 +85,32 @@
             <div class="item-info">
               <span class="author">
                 <el-icon><User /></el-icon>
-                {{ item.author_name }}
+                {{ item.authorName }}
               </span>
               <span class="time">
                 <el-icon><Clock /></el-icon>
-                {{ formatDate(item.published_at || item.created_at) }}
+                {{ formatDate(item.publishedAt || item.createdAt) }}
               </span>
               <span class="views">
                 <el-icon><View /></el-icon>
-                {{ item.view_count || 0 }} 次浏览
+                {{ item.viewCount || 0 }} 次浏览
               </span>
               <span class="comments">
                 <el-icon><ChatDotRound /></el-icon>
-                {{ item.comment_count || 0 }} 评论
+                {{ item.commentCount || 0 }} 评论
               </span>
               <span class="likes">
                 <el-icon><Star /></el-icon>
-                {{ item.like_count || 0 }} 点赞
+                {{ item.likeCount || 0 }} 点赞
               </span>
               <span class="favorites">
                 <el-icon><Collection /></el-icon>
-                {{ item.favorite_count || 0 }} 收藏
+                {{ item.favoriteCount || 0 }} 收藏
               </span>
               <!-- 抄送人数（仅私有通讯显示） -->
               <span v-if="item.visibility === 'private'" class="recipients">
                 <el-icon><User /></el-icon>
-                {{ item.recipient_count || 0 }} 人抄送
+                {{ item.recipientCount || 0 }} 人抄送
               </span>
             </div>
             <div class="item-actions">
@@ -147,10 +147,9 @@
         </div>
 
         <!-- 空状态 -->
-        <el-empty
+        <EmptyState
           v-if="!loading && communicationList.length === 0"
-          description="暂无即时通讯"
-        />
+          description="暂无即时通讯" />
       </div>
 
       <!-- 分页 -->
@@ -270,13 +269,13 @@
             <el-tag :type="getCategoryType(viewData.category)">
               {{ getCategoryText(viewData.category) }}
             </el-tag>
-            <span class="author">作者：{{ viewData.author_name }}</span>
-            <span class="time">发布时间：{{ formatDate(viewData.published_at) }}</span>
-            <span class="views">浏览：{{ viewData.view_count || 0 }} 次</span>
+            <span class="author">作者：{{ viewData.authorName }}</span>
+            <span class="time">发布时间：{{ formatDate(viewData.publishedAt) }}</span>
+            <span class="views">浏览：{{ viewData.viewCount || 0 }} 次</span>
           </div>
           <div class="view-stats">
-            <span><el-icon><Star /></el-icon> {{ viewData.like_count || 0 }} 点赞</span>
-            <span><el-icon><Collection /></el-icon> {{ viewData.favorite_count || 0 }} 收藏</span>
+            <span><el-icon><Star /></el-icon> {{ viewData.likeCount || 0 }} 点赞</span>
+            <span><el-icon><Collection /></el-icon> {{ viewData.favoriteCount || 0 }} 收藏</span>
             <span><el-icon><ChatDotRound /></el-icon> {{ comments.length }} 评论</span>
           </div>
           <div class="view-actions">
@@ -352,7 +351,7 @@
             <div v-for="comment in comments" :key="comment.id" class="comment-item">
               <div class="comment-header">
                 <span class="comment-author">{{ comment.user_name }}</span>
-                <span class="comment-time">{{ formatDate(comment.created_at) }}</span>
+                <span class="comment-time">{{ formatDate(comment.createdAt) }}</span>
               </div>
               <div class="comment-content">{{ comment.content }}</div>
             </div>
@@ -529,7 +528,7 @@ const handleEdit = async (item) => {
   form.content = item.content
   form.attachments = item.attachments || []
   form.status = item.status
-  form.isPinned = item.is_pinned === 1
+  form.isPinned = item.isPinned === 1
   form.visibility = item.visibility || 'public'
 
   // 如果是私有通讯，加载抄送人员信息
@@ -539,8 +538,8 @@ const handleEdit = async (item) => {
       const data = parseResponseData(res)
 
       // 提取用户ID和部门ID
-      const userIds = data.recipients?.filter(r => r.recipient_type === 'cc').map(r => r.user_id) || []
-      const deptIds = data.departments?.map(d => d.department_id) || []
+      const userIds = data.recipients?.filter(r => r.recipientType === 'cc').map(r => r.userId) || []
+      const deptIds = data.departments?.map(d => d.departmentId) || []
 
       selectedRecipients.value = {
         users: userIds,
@@ -602,9 +601,9 @@ const handleToggleLike = async () => {
 
     // 更新统计数据
     if (userLiked.value) {
-      viewData.value.like_count = (viewData.value.like_count || 0) + 1
+      viewData.value.likeCount = (viewData.value.likeCount || 0) + 1
     } else {
-      viewData.value.like_count = Math.max((viewData.value.like_count || 0) - 1, 0)
+      viewData.value.likeCount = Math.max((viewData.value.likeCount || 0) - 1, 0)
     }
 
     ElMessage.success(userLiked.value ? '点赞成功' : '取消点赞')
@@ -629,9 +628,9 @@ const handleToggleFavorite = async () => {
 
     // 更新统计数据
     if (userFavorited.value) {
-      viewData.value.favorite_count = (viewData.value.favorite_count || 0) + 1
+      viewData.value.favoriteCount = (viewData.value.favoriteCount || 0) + 1
     } else {
-      viewData.value.favorite_count = Math.max((viewData.value.favorite_count || 0) - 1, 0)
+      viewData.value.favoriteCount = Math.max((viewData.value.favoriteCount || 0) - 1, 0)
     }
 
     ElMessage.success(userFavorited.value ? '收藏成功' : '取消收藏')

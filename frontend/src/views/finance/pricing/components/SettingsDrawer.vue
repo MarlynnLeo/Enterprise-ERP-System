@@ -63,31 +63,31 @@
             </el-button>
           </div>
           <el-table :data="strategyFields" border stripe v-loading="fieldsLoading" max-height="400">
-            <el-table-column prop="field_label" label="显示标签" min-width="120" />
-            <el-table-column prop="field_name" label="字段名" width="150">
+            <el-table-column prop="fieldLabel" label="显示标签" min-width="120" />
+            <el-table-column prop="fieldName" label="字段名" width="150">
               <template #default="{ row }">
-                <code>{{ row.field_name }}</code>
+                <code>{{ row.fieldName }}</code>
               </template>
             </el-table-column>
-            <el-table-column prop="field_type" label="类型" width="80">
+            <el-table-column prop="fieldType" label="类型" width="80">
               <template #default="{ row }">
-                <el-tag size="small" :type="row.field_type === 'amount' ? 'primary' : 'warning'">
-                  {{ row.field_type === 'amount' ? '金额' : '百分比' }}
+                <el-tag size="small" :type="row.fieldType === 'amount' ? 'primary' : 'warning'">
+                  {{ row.fieldType === 'amount' ? '金额' : '百分比' }}
                 </el-tag>
               </template>
             </el-table-column>
             <el-table-column prop="unit" label="单位" width="60" />
             <el-table-column label="计入成本" width="80">
               <template #default="{ row }">
-                <el-icon v-if="row.is_additive" color="var(--color-success)"><Check /></el-icon>
+                <el-icon v-if="row.isAdditive" color="var(--color-success)"><Check /></el-icon>
                 <el-icon v-else color="var(--color-text-secondary)"><Close /></el-icon>
               </template>
             </el-table-column>
             <el-table-column prop="description" label="描述" show-overflow-tooltip />
-            <el-table-column prop="is_active" label="状态" width="80">
+            <el-table-column prop="isActive" label="状态" width="80">
               <template #default="{ row }">
                 <el-switch
-                  :model-value="row.is_active"
+                  :model-value="row.isActive"
                   :active-value="1"
                   :inactive-value="0"
                   @change="$emit('toggle-field', row, $event)"

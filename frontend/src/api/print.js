@@ -10,7 +10,7 @@ export const printApi = {
   getTemplates: (params) => api.get('/print/templates', { params }),
   getTemplate: (id) => api.get(`/print/templates/${id}`),
   getDefaultTemplate: (module, type) =>
-    api.get('/print/templates/default', { params: { module, template_type: type } }),
+    api.get('/print/templates/default', { params: { module, templateType: type } }),
   createTemplate: (data) => api.post('/print/templates', data),
   updateTemplate: (id, data) => api.put(`/print/templates/${id}`, data),
   deleteTemplate: (id) => api.delete(`/print/templates/${id}`)

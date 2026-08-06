@@ -93,7 +93,7 @@
         show-overflow-tooltip
       >
         <template #empty>
-          <el-empty description="暂无交易数据" />
+          <EmptyState description="暂无交易数据" />
         </template>
         <el-table-column prop="transactionDate" label="交易日期" width="110">
           <template #default="scope">
@@ -118,16 +118,16 @@
             </span>
           </template>
         </el-table-column>
-        <el-table-column prop="related_party" label="交易对方" min-width="150"></el-table-column>
+        <el-table-column prop="relatedParty" label="交易对方" min-width="150"></el-table-column>
         <el-table-column label="关联发票" min-width="120">
           <template #default="scope">
             <el-link
-              v-if="scope.row.related_invoice_id"
+              v-if="scope.row.relatedInvoiceId"
               type="primary"
               @click="jumpToInvoice(scope.row)"
               underline="never"
             >
-              {{ scope.row.related_invoice_number || scope.row.reference_number || '查看发票' }}
+              {{ scope.row.relatedInvoiceNumber || scope.row.referenceNumber || '查看发票' }}
             </el-link>
             <span v-else class="text-gray">-</span>
           </template>
@@ -225,9 +225,10 @@
     </el-card>
 
     <!-- 添加/编辑交易对话框 -->
-    <el-dialog
-      :title="dialogTitle"
+    <AppDialog
       v-model="dialogVisible"
+      :title="dialogTitle"
+      mode="form"
       width="600px"
     >
       <el-form :model="transactionForm" :rules="transactionRules" ref="transactionFormRef" label-width="100px">
@@ -351,11 +352,12 @@
           <el-button v-permission="transactionForm.id ? 'finance:cash:update' : 'finance:cash:create'" type="primary" @click="saveTransaction" :loading="saveLoading">确认</el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
     <!-- 导入数据对话框 -->
-    <el-dialog
-      title="导入交易数据"
+    <AppDialog
       v-model="importDialogVisible"
+      title="导入交易数据"
+      mode="form"
       width="600px"
     >
       <div class="import-content">
@@ -432,7 +434,7 @@
           </el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
 
     <!-- 查看交易详情对话框 -->
     <AppDialog
@@ -470,11 +472,11 @@
             {{ formatCurrency(currentTransaction.amount) }}
           </span>
         </el-descriptions-item>
-        <el-descriptions-item label="交易对方">{{ currentTransaction.related_party || currentTransaction.counterparty || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="交易对方">{{ currentTransaction.relatedParty || currentTransaction.counterparty || '-' }}</el-descriptions-item>
         <el-descriptions-item label="交易分类">{{ getCategoryDisplayText(currentTransaction.category) }}</el-descriptions-item>
         <el-descriptions-item label="支付方式">{{ getPaymentMethodDisplayText(currentTransaction.paymentMethod) }}</el-descriptions-item>
         <el-descriptions-item label="参考号">{{ currentTransaction.referenceNumber || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="关联发票">{{ currentTransaction.related_invoice_number || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="关联发票">{{ currentTransaction.relatedInvoiceNumber || '-' }}</el-descriptions-item>
         <el-descriptions-item label="对账状态">
           <el-tag :type="currentTransaction.isReconciled ? 'success' : 'info'" size="small">
             {{ currentTransaction.isReconciled ? '已对账' : '未对账' }}
@@ -673,35 +675,30 @@ const loadTransactions = async () => {
     const response = await financeApi.bankTransactions.getList(params);
     // 使用统一的响应解析工具
     const { list, total: totalCount } = parsePaginatedData(response, { enableLog: false });
+    // API 已 camel（toBankTransactionApi）
     transactionList.value = list.map(item => {
-      // 格式化交易日期，去除时间部分
-      let formattedDate = item.transaction_date;
+      let formattedDate = item.transactionDate;
       if (formattedDate && typeof formattedDate === 'string' && formattedDate.includes('T')) {
         formattedDate = formattedDate.split('T')[0];
       }
-      // 将后端数据映射到前端格式
       const result = {
         id: item.id,
         transactionDate: formattedDate,
-        accountName: item.account_name,
-        accountId: item.bank_account_id,
-        type: mapTransactionTypeToFrontend(item.transaction_type),
+        accountName: item.accountName,
+        accountId: item.bankAccountId,
+        type: mapTransactionTypeToFrontend(item.transactionType),
         amount: parseFloat(item.amount),
-        counterparty: item.related_party || '',
-        related_party: item.related_party || '', // 添加这个字段确保表格显示
+        counterparty: item.relatedParty || '',
+        relatedParty: item.relatedParty || '',
         description: item.description || '',
-        category: item.transaction_category || 'sales_income', // 直接使用后端返回的分类
+        category: item.transactionCategory || 'sales_income',
         paymentMethod: getPaymentMethodFromDescription(item.description || '') || 'bank_transfer',
-        referenceNumber: item.reference_number || '',
-        isReconciled: item.is_reconciled || false, // 对账状态
-        // 新增：关联发票信息
-        relatedInvoiceId: item.related_invoice_id,
-        related_invoice_id: item.related_invoice_id, // 确保字段存在
-        relatedInvoiceType: item.related_invoice_type,
-        related_invoice_type: item.related_invoice_type, // 确保字段存在
-        relatedInvoiceNumber: item.related_invoice_number || null,
-        related_invoice_number: item.related_invoice_number || null, // 确保字段存在
-        status: item.status || item.audit_status || 'draft' // 添加审核状态映射,默认为draft
+        referenceNumber: item.referenceNumber || '',
+        isReconciled: item.isReconciled || false,
+        relatedInvoiceId: item.relatedInvoiceId,
+        relatedInvoiceType: item.relatedInvoiceType,
+        relatedInvoiceNumber: item.relatedInvoiceNumber || null,
+        status: item.status || 'draft'
       };
       return result;
     });
@@ -829,7 +826,7 @@ const handleEdit = (row) => {
         transactionForm.description = row.description;
         transactionForm.referenceNumber = row.referenceNumber;
         // 保存交易编号，用于更新操作
-        transactionForm.transactionNumber = transaction.transaction_number;
+        transactionForm.transactionNumber = transaction.transactionNumber;
         dialogVisible.value = true;
       } else {
         ElMessage.warning('获取交易详情失败');
@@ -851,7 +848,7 @@ const handleEdit = (row) => {
         transactionForm.counterparty = row.counterparty;
         transactionForm.description = row.description;
         transactionForm.referenceNumber = row.referenceNumber;
-        transactionForm.transactionNumber = row.transactionNumber || row.transaction_number || '';
+        transactionForm.transactionNumber = row.transactionNumber || '';
 
         dialogVisible.value = true;
       } else {
@@ -937,20 +934,19 @@ const saveTransaction = async () => {
           formattedDate = formattedDate.split('T')[0];
         }
 
-        // 准备提交的数据
+        // 准备提交的数据（HTTP camel）
         const data = {
-          bank_account_id: transactionForm.accountId,
-          transaction_date: formattedDate,
-          transaction_type: mapTransactionType(transactionForm.type),
+          bankAccountId: transactionForm.accountId,
+          transactionDate: formattedDate,
+          transactionType: mapTransactionType(transactionForm.type),
           amount: parseFloat(transactionForm.amount),
           description: enhancedDescription.trim(),
-          reference_number: transactionForm.referenceNumber || '',
-          related_party: transactionForm.counterparty || '',
-          is_reconciled: false,  // 新增交易默认未对账
-          reconciliation_date: null,
-          // 添加额外的分类和支付方式，虽然后端API可能不直接使用，但可能对以后的扩展有用
+          referenceNumber: transactionForm.referenceNumber || '',
+          relatedParty: transactionForm.counterparty || '',
+          isReconciled: false,
+          reconciliationDate: null,
           category: transactionForm.category,
-          payment_method: transactionForm.paymentMethod
+          paymentMethod: transactionForm.paymentMethod
         };
 
         // 对于编辑操作，保留原交易编号
@@ -975,24 +971,24 @@ const saveTransaction = async () => {
             // 确保日期格式正确 (YYYY-MM-DD)
             const formattedDate = transactionForm.transactionDate;
             if (typeof formattedDate === 'object' && formattedDate instanceof Date) {
-              data.transaction_date = formatLocalDate(formattedDate);
+              data.transactionDate = formatLocalDate(formattedDate);
             } else if (typeof formattedDate === 'string' && formattedDate.includes('T')) {
-              data.transaction_date = formattedDate.split('T')[0];
+              data.transactionDate = formattedDate.split('T')[0];
             }
 
             const response = transactionForm.type === 'transfer'
               ? await financeApi.bankTransactions.createTransfer({
-                transaction_number: transactionNumber,
-                from_account_id: transactionForm.accountId,
-                to_account_id: transactionForm.targetAccountId,
-                transaction_date: data.transaction_date,
+                transactionNumber,
+                fromAccountId: transactionForm.accountId,
+                toAccountId: transactionForm.targetAccountId,
+                transactionDate: data.transactionDate,
                 amount: data.amount,
                 description: enhancedDescription.trim(),
-                reference_number: transactionForm.referenceNumber || ''
+                referenceNumber: transactionForm.referenceNumber || ''
               })
               : await financeApi.bankTransactions.create({
                 ...data,
-                transaction_number: transactionNumber
+                transactionNumber
               });
             // 显示成功信息，包括新的余额
             const responseData = parseDataObject(response, { enableLog: false });
@@ -1309,33 +1305,34 @@ const printBankStatement = async () => {
     const selectedAccount = accountOptions.value.find(acc => acc.id === searchForm.accountId);
     const accountName = selectedAccount ? selectedAccount.accountName : '全部账户';
     const accountNumber = selectedAccount ? selectedAccount.accountNumber : '';
-    const sortedData = [...printData].sort((a, b) => new Date(a.transaction_date) - new Date(b.transaction_date));
+    // 打印数据 API 已 camel
+    const sortedData = [...printData].sort((a, b) => new Date(a.transactionDate) - new Date(b.transactionDate));
     const incomeTypes = new Set(['存款', '转入', 'deposit', 'income']);
     const expenseTypes = new Set(['取款', '转出', 'withdrawal', 'expense']);
     let runningBalance = 0;
 
     const items = sortedData.map((item, index) => {
       const amount = Number(item.amount) || 0;
-      const isIncome = incomeTypes.has(item.transaction_type);
+      const isIncome = incomeTypes.has(item.transactionType);
       runningBalance += isIncome ? amount : -amount;
 
       return {
         index: index + 1,
-        transaction_date: item.transaction_date,
-        counterparty: item.related_party || '',
-        reference_number: item.reference_number || '',
+        transactionDate: item.transactionDate,
+        counterparty: item.relatedParty || '',
+        referenceNumber: item.referenceNumber || '',
         description: item.description || '',
-        income_amount: isIncome ? amount.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) : '-',
-        expense_amount: !isIncome ? amount.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) : '-',
+        incomeAmount: isIncome ? amount.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) : '-',
+        expenseAmount: !isIncome ? amount.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) : '-',
         balance: runningBalance.toLocaleString('zh-CN', { minimumFractionDigits: 2 })
       };
     });
 
     const totalIncome = sortedData
-      .filter(item => incomeTypes.has(item.transaction_type))
+      .filter(item => incomeTypes.has(item.transactionType))
       .reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
     const totalExpense = sortedData
-      .filter(item => expenseTypes.has(item.transaction_type))
+      .filter(item => expenseTypes.has(item.transactionType))
       .reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
 
     const html = await printService.generateByDefaultTemplate('finance', 'bank_statement', {

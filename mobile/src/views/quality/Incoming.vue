@@ -40,10 +40,10 @@
 
       // 详情字段 — 精简为4列
       details: [
-        { label: '物料名称', field: (item) => `${item.item_name || '—'}` },
-        { label: '供应商', field: (item) => `${item.supplier_name || '—'}` },
+        { label: '物料名称', field: (item) => `${item.itemName || '—'}` },
+        { label: '供应商', field: (item) => `${item.supplierName || '—'}` },
         { label: '抽检数', field: (item) => `${item.quantity ?? 0} ${item.unit || '个'}` },
-        { label: '合格/不合格', field: (item) => `${item.qualified_quantity ?? 0} / ${item.unqualified_quantity ?? 0}` }
+        { label: '合格/不合格', field: (item) => `${item.qualifiedQuantity ?? 0} / ${item.unqualifiedQuantity ?? 0}` }
       ],
 
       // 标签
@@ -113,8 +113,8 @@
       response.data.list = response.data.list.map(item => ({
         ...item,
         // 万一后端批次号或单号为空，做个保护
-        inspection_number: item.inspection_number || item.inspection_no || '-',
-        batch_number: item.batch_number || item.batch_no || '-'
+        inspection_number: item.inspectionNumber || item.inspectionNo || '-',
+        batch_number: item.batchNumber || item.batchNo || '-'
       }))
     }
 

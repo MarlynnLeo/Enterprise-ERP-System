@@ -82,6 +82,43 @@ function getSettingValue(settings, key) {
   return item?.value ?? item?.setting_value ?? '';
 }
 
+/**
+ * camelCase → snake_case（打印模板历史占位多为 snake）
+ * 例：outboundNo → outbound_no，materialCode → material_code
+ */
+function camelToSnakeKey(key) {
+  if (typeof key !== 'string' || !key) return key;
+  return key
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1_$2')
+    .toLowerCase();
+}
+
+/**
+ * 打印数据归一：业务侧只传 camel，模板仍可读 snake 占位。
+ * - 已有 snake 键不覆盖
+ * - 递归 items / 嵌套对象
+ */
+export function normalizePrintData(data) {
+  if (data == null || typeof data !== 'object') return data;
+  if (Array.isArray(data)) {
+    return data.map((item) => normalizePrintData(item));
+  }
+
+  const out = {};
+  for (const [key, value] of Object.entries(data)) {
+    const normalizedValue =
+      value != null && typeof value === 'object' ? normalizePrintData(value) : value;
+    out[key] = normalizedValue;
+
+    const snake = camelToSnakeKey(key);
+    if (snake !== key && out[snake] === undefined) {
+      out[snake] = normalizedValue;
+    }
+  }
+  return out;
+}
+
 function registerPrintHelpers() {
   if (Handlebars.helpers.eq) return;
 
@@ -249,8 +286,8 @@ const printService = {
       // 使用Handlebars编译模板
       const compiledTemplate = Handlebars.compile(templateContent);
 
-      // 使用数据渲染模板
-      const content = compiledTemplate(data);
+      // 使用数据渲染模板（保证 camel 可展开为 snake 占位）
+      const content = compiledTemplate(normalizePrintData(data || {}));
 
       // 构建打印样式
       const printTokens = getPrintTokens()
@@ -390,7 +427,9 @@ const printService = {
       companyInfo = {}
     }
 
-    return this.generatePrintContent(template, { ...companyInfo, ...(data || {}) })
+    // 业务 camel + 模板 snake 别名（SSOT：调用方只传 camel）
+    const printData = normalizePrintData({ ...companyInfo, ...(data || {}) })
+    return this.generatePrintContent(template, printData)
   },
 
   async previewByDefaultTemplate(module, type, data) {

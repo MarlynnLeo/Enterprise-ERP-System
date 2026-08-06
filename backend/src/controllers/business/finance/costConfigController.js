@@ -6,6 +6,7 @@
 
 const db = require('../../../config/db');
 const { ResponseHandler } = require('../../../utils/responseHandler');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 const { logger } = require('../../../utils/logger');
 
 module.exports = {
@@ -33,12 +34,13 @@ module.exports = {
    */
   saveSupplementReason: async (req, res) => {
     try {
-      const { reason_code, reason_name } = req.body;
-      const isIncludedInCost = req.body.is_included_in_cost !== undefined
-        ? req.body.is_included_in_cost
+      const body = mapKeysToSnake(req.body || {});
+      const { reason_code, reason_name } = body;
+      const isIncludedInCost = body.is_included_in_cost !== undefined
+        ? body.is_included_in_cost
         : 1;
-      const isActive = req.body.is_active !== undefined ? req.body.is_active : 1;
-      const id = req.params.id || req.body.id;
+      const isActive = body.is_active !== undefined ? body.is_active : 1;
+      const id = req.params.id || body.id;
       logger.debug('Supplement reason payload normalized', {
         id,
         reasonCode: reason_code,

@@ -44,7 +44,7 @@
         </el-form-item>
             <el-form-item :label="$t('page.purchase.orders.supplier')">
               <el-select
-                v-model="searchForm.supplier_id"
+                v-model="searchForm.supplierId"
                 :placeholder="$t('page.purchase.orders.supplierPlaceholder')"
                 clearable
                 filterable
@@ -68,7 +68,7 @@
                 <el-option
                   v-for="item in operators"
                   :key="item.username"
-                  :label="item.real_name || item.username"
+                  :label="item.realName || item.username"
                   :value="item.username"
                 ></el-option>
               </el-select>
@@ -122,7 +122,7 @@
         @selection-change="handleSelectionChange"
       >
         <template #empty>
-          <el-empty description="暂无采购订单" />
+          <EmptyState description="暂无采购订单" />
         </template>
         <el-table-column type="selection" width="55" fixed="left"></el-table-column>
         <el-table-column prop="orderNo" label="订单编号" width="140" show-overflow-tooltip></el-table-column>
@@ -130,14 +130,14 @@
         <el-table-column label="到货倒计时" width="110">
           <template #default="scope">
             <el-tooltip
-              :content="'预计到货：' + (scope.row.expected_delivery_date || '未设置')"
+              :content="'预计到货：' + (scope.row.expectedDeliveryDate || '未设置')"
               placement="top"
             >
               <el-tag
-                :type="getCountdownType(scope.row.expected_delivery_date, scope.row.status)"
+                :type="getCountdownType(scope.row.expectedDeliveryDate, scope.row.status)"
                 size="small"
               >
-                {{ getCountdownText(scope.row.expected_delivery_date, scope.row.status) }}
+                {{ getCountdownText(scope.row.expectedDeliveryDate, scope.row.status) }}
               </el-tag>
             </el-tooltip>
           </template>
@@ -145,7 +145,7 @@
         <el-table-column prop="supplierName" label="供应商" min-width="240" show-overflow-tooltip></el-table-column>
         <el-table-column prop="totalAmount" label="订单金额" width="120">
           <template #default="scope">
-            {{ formatCurrency(scope.row.total_amount) }}
+            {{ formatCurrency(scope.row.totalAmount) }}
           </template>
         </el-table-column>
         <el-table-column prop="status" label="状态" width="110">
@@ -153,22 +153,22 @@
             <el-tag :type="getStatusType(scope.row.status)">{{ getStatusText(scope.row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="requisition_number" label="关联申请单" width="150" show-overflow-tooltip>
+        <el-table-column prop="requisitionNumber" label="关联申请单" width="150" show-overflow-tooltip>
           <template #default="scope">
             <!-- 简化条件判断逻辑，直接检查requisition_id和requisition_number -->
             <el-link
-              v-if="scope.row.requisition_id"
+              v-if="scope.row.requisitionId"
               type="primary"
-              @click="viewRequisition(scope.row.requisition_id)"
+              @click="viewRequisition(scope.row.requisitionId)"
             >
-              {{ scope.row.requisition_number || `申请单-${scope.row.requisition_id}` }}
+              {{ scope.row.requisitionNumber || `申请单-${scope.row.requisitionId}` }}
             </el-link>
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="contract_code" label="合同编码" width="200" show-overflow-tooltip>
+        <el-table-column prop="contractCode" label="合同编码" width="200" show-overflow-tooltip>
           <template #default="{ row }">
-            {{ row.contract_code || '-' }}
+            {{ row.contractCode || '-' }}
           </template>
         </el-table-column>
         <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
@@ -259,18 +259,24 @@
       </div>
     </el-card>
     <!-- 订单编辑对话框 -->
-    <el-dialog v-model="orderDialog.visible" :title="orderDialog.isEdit ? '编辑采购订单' : '新建采购订单'" width="50%" destroy-on-close :close-on-click-modal="false" align-center>
+    <AppDialog
+      v-model="orderDialog.visible"
+      :title="orderDialog.isEdit ? '编辑采购订单' : '新建采购订单'"
+      mode="form"
+      wide
+      :close-on-click-modal="false"
+    >
       <el-form ref="orderFormRef" :model="orderForm" :rules="orderRules" label-width="110px" v-loading="orderDialog.loading">
         <el-row :gutter="20">
           <el-col :span="8">
             <el-form-item label="订单编号">
-              <el-input v-model="orderForm.order_number" placeholder="系统自动生成" disabled></el-input>
+              <el-input v-model="orderForm.orderNumber" placeholder="系统自动生成" disabled></el-input>
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="订单日期" prop="order_date">
+            <el-form-item label="订单日期" prop="orderDate">
               <el-date-picker
-                v-model="orderForm.order_date"
+                v-model="orderForm.orderDate"
                 type="date"
                 placeholder="选择订单日期"
                 class="w-full"
@@ -279,9 +285,9 @@
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="预计到货日期" prop="expected_delivery_date">
+            <el-form-item label="预计到货日期" prop="expectedDeliveryDate">
               <el-date-picker
-                v-model="orderForm.expected_delivery_date"
+                v-model="orderForm.expectedDeliveryDate"
                 type="date"
                 placeholder="选择预计到货日期"
                 class="w-full"
@@ -292,9 +298,9 @@
         </el-row>
         <el-row :gutter="20">
           <el-col :span="8">
-            <el-form-item label="供应商" prop="supplier_id">
+            <el-form-item label="供应商" prop="supplierId">
               <el-select
-                v-model="orderForm.supplier_id"
+                v-model="orderForm.supplierId"
                 filterable
                 remote
                 :remote-method="searchSuppliers"
@@ -318,12 +324,12 @@
           </el-col>
           <el-col :span="8">
             <el-form-item label="联系人">
-              <el-input v-model="orderForm.contact_person" placeholder="供应商联系人"></el-input>
+              <el-input v-model="orderForm.contactPerson" placeholder="供应商联系人"></el-input>
             </el-form-item>
           </el-col>
           <el-col :span="8">
             <el-form-item label="联系电话">
-              <el-input v-model="orderForm.contact_phone" placeholder="联系电话"></el-input>
+              <el-input v-model="orderForm.contactPhone" placeholder="联系电话"></el-input>
             </el-form-item>
           </el-col>
         </el-row>
@@ -335,7 +341,7 @@
           </el-col>
           <el-col :span="8">
             <el-form-item label="默认税率">
-              <el-select v-model="orderForm.tax_rate" placeholder="选择税率" class="w-full">
+              <el-select v-model="orderForm.taxRate" placeholder="选择税率" class="w-full">
                 <el-option v-for="rate in vatRateOptions" :key="rate" :label="formatTaxRate(rate)" :value="rate"></el-option>
               </el-select>
             </el-form-item>
@@ -354,9 +360,9 @@
           <el-table-column label="物料" min-width="250">
             <template #default="scope">
               <el-autocomplete
-                v-if="!scope.row.material_id"
+                v-if="!scope.row.materialId"
                 :ref="(el) => setMaterialSelectRef(el, scope.$index)"
-                v-model="scope.row.material_display"
+                v-model="scope.row.materialDisplay"
                 :fetch-suggestions="fetchMaterialSuggestions"
                 placeholder="搜索物料编码/名称"
                 class="w-full"
@@ -373,13 +379,13 @@
                 </template>
               </el-autocomplete>
               <div v-else class="line-height-tight">
-                <div>{{ scope.row.material_code }} - {{ scope.row.material_name }}</div>
+                <div>{{ scope.row.materialCode }} - {{ scope.row.materialName }}</div>
                 <div v-if="scope.row.specification" class="text-muted text-sm">{{ scope.row.specification }}</div>
               </div>
             </template>
           </el-table-column>
           <el-table-column prop="unit" label="单位" width="70">
-            <template #default="scope">{{ scope.row.unit || scope.row.unit_name || '-' }}</template>
+            <template #default="scope">{{ scope.row.unit || scope.row.unitName || '-' }}</template>
           </el-table-column>
           <el-table-column label="数量" width="110">
             <template #default="scope">
@@ -409,7 +415,7 @@
           </el-table-column>
           <el-table-column label="税率" width="100">
             <template #default="scope">
-              <el-select v-model="scope.row.tax_rate" size="small" class="w-full">
+              <el-select v-model="scope.row.taxRate" size="small" class="w-full">
                 <el-option v-for="rate in vatRateOptions" :key="rate" :label="formatTaxRate(rate)" :value="rate"></el-option>
               </el-select>
             </template>
@@ -433,7 +439,7 @@
               <span class="text-regular">小计: {{ formatCurrency(orderForm.subtotal) }}</span>
             </el-col>
             <el-col :span="8" class="text-right">
-              <span class="text-warning">税额: {{ formatCurrency(orderForm.tax_amount) }}</span>
+              <span class="text-warning">税额: {{ formatCurrency(orderForm.taxAmount) }}</span>
             </el-col>
             <el-col :span="8" class="text-right">
               <span class="text-primary font-weight-700">订单总金额: {{ formatCurrency(calculateTotalAmount()) }}</span>
@@ -448,12 +454,12 @@
           <el-button v-permission="orderDialog.isEdit ? 'purchase:orders:update' : 'purchase:orders:create'" type="primary" @click="submitOrderForm">保存</el-button>
         </span>
       </template>
-    </el-dialog>
-    <el-dialog
-      title="选择未采购物料"
+        </AppDialog>
+    <AppDialog
       v-model="requisitionDialogVisible"
-      width="55%"
-      align-center
+      title="选择未采购物料"
+      mode="form"
+      wide
     >
       <div class="requisition-search">
         <el-input
@@ -486,26 +492,26 @@
         max-height="400"
       >
         <el-table-column type="selection" width="55"></el-table-column>
-        <el-table-column prop="requisition_number" label="申请编号" width="120" show-overflow-tooltip></el-table-column>
-        <el-table-column prop="material_code" label="物料编码" width="120">
+        <el-table-column prop="requisitionNumber" label="申请编号" width="120" show-overflow-tooltip></el-table-column>
+        <el-table-column prop="materialCode" label="物料编码" width="120">
           <template #default="{ row }">
-            {{ row.material_code || row.materialCode || '-' }}
+            {{ row.materialCode || '-' }}
           </template>
         </el-table-column>
-        <el-table-column prop="material_name" label="物料名称" min-width="120" show-overflow-tooltip>
+        <el-table-column prop="materialName" label="物料名称" min-width="120" show-overflow-tooltip>
           <template #default="{ row }">
-            {{ row.material_name || row.materialName || '-' }}
+            {{ row.materialName || '-' }}
           </template>
         </el-table-column>
         <el-table-column label="规格型号" width="150" show-overflow-tooltip>
           <template #default="{ row }">
-            {{ row.material_specs || row.specification || row.specs || '-' }}
+            {{ row.materialSpecs || row.specification || row.specs || '-' }}
           </template>
         </el-table-column>
         <el-table-column label="供应商" width="140" show-overflow-tooltip>
           <template #default="{ row }">
-            <el-text v-if="row.supplier_name && row.supplier_name !== '暂无设置供应商'" type="primary">
-              {{ row.supplier_name }}
+            <el-text v-if="row.supplierName && row.supplierName !== '暂无设置供应商'" type="primary">
+              {{ row.supplierName }}
             </el-text>
             <el-text v-else type="info">
               暂无设置供应商
@@ -519,7 +525,7 @@
         </el-table-column>
         <el-table-column prop="unit" label="单位" width="60">
           <template #default="{ row }">
-            {{ row.unit || row.unitName || row.unit_name || '-' }}
+            {{ row.unit || row.unitName || '-' }}
           </template>
         </el-table-column>
       </el-table>
@@ -534,7 +540,7 @@
           <el-button type="primary" @click="confirmMaterialSelection">确定 ({{ selectedMaterials.length }})</el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
     <!-- 订单详情查看对话框 -->
     <AppDialog
       v-model="viewDialogVisible"
@@ -544,24 +550,24 @@
     >
       <div v-loading="detailLoading">
         <el-descriptions :column="2" border>
-          <el-descriptions-item label="订单编号">{{ viewData.order_number }}</el-descriptions-item>
+          <el-descriptions-item label="订单编号">{{ viewData.orderNumber }}</el-descriptions-item>
           <el-descriptions-item label="订单日期">{{ viewData.order_date }}</el-descriptions-item>
-          <el-descriptions-item label="供应商">{{ viewData.supplier_name }}</el-descriptions-item>
+          <el-descriptions-item label="供应商">{{ viewData.supplierName }}</el-descriptions-item>
           <el-descriptions-item label="预计交货日期">{{ viewData.expected_delivery_date }}</el-descriptions-item>
           <el-descriptions-item label="联系人">{{ viewData.contact_person || '-' }}</el-descriptions-item>
           <el-descriptions-item label="联系电话">{{ viewData.contact_phone || '-' }}</el-descriptions-item>
           <el-descriptions-item label="状态">
             <el-tag :type="getStatusType(viewData.status)">{{ getStatusText(viewData.status) }}</el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="订单金额">{{ formatCurrency(viewData.total_amount) }}</el-descriptions-item>
+          <el-descriptions-item label="订单金额">{{ formatCurrency(viewData.totalAmount) }}</el-descriptions-item>
           <el-descriptions-item label="关联申请单" v-if="viewData.requisition_number">{{ viewData.requisition_number }}</el-descriptions-item>
           <el-descriptions-item label="备注" :span="viewData.requisition_number ? 1 : 2">{{ viewData.notes || '无' }}</el-descriptions-item>
         </el-descriptions>
         <el-divider content-position="center">订单明细</el-divider>
         <el-table :data="viewData.items || []" border class="w-full">
           <el-table-column type="index" label="序号" width="60"></el-table-column>
-          <el-table-column prop="material_code" label="物料编码" width="130" show-overflow-tooltip></el-table-column>
-          <el-table-column prop="material_name" label="物料名称" min-width="150" show-overflow-tooltip></el-table-column>
+          <el-table-column prop="materialCode" label="物料编码" width="130" show-overflow-tooltip></el-table-column>
+          <el-table-column prop="materialName" label="物料名称" min-width="150" show-overflow-tooltip></el-table-column>
           <el-table-column prop="specification" label="规格" min-width="150" show-overflow-tooltip></el-table-column>
           <el-table-column prop="unit" label="单位" width="70"></el-table-column>
           <el-table-column label="数量" width="90">
@@ -576,17 +582,17 @@
           </el-table-column>
           <el-table-column label="金额" width="120">
             <template #default="scope">
-              {{ formatCurrency(scope.row.total_price) }}
+              {{ formatCurrency(scope.row.totalPrice) }}
             </template>
           </el-table-column>
           <el-table-column label="已收货" width="80">
             <template #default="scope">
-              <el-text type="primary">{{ parseFloat(scope.row.received_quantity || 0).toFixed(1) }}</el-text>
+              <el-text type="primary">{{ parseFloat(scope.row.receivedQuantity || 0).toFixed(1) }}</el-text>
             </template>
           </el-table-column>
           <el-table-column label="已入库" width="80">
             <template #default="scope">
-              <el-text type="success">{{ parseFloat(scope.row.warehoused_quantity || 0).toFixed(1) }}</el-text>
+              <el-text type="success">{{ parseFloat(scope.row.warehousedQuantity || 0).toFixed(1) }}</el-text>
             </template>
           </el-table-column>
         </el-table>
@@ -607,29 +613,29 @@
     >
       <div v-loading="requisitionViewDialog.loading">
         <el-descriptions border :column="2">
-          <el-descriptions-item label="申请单号">{{ requisitionViewData.requisition_number || requisitionViewData.requisitionNumber || '未知' }}</el-descriptions-item>
-          <el-descriptions-item label="申请日期">{{ formatDate(requisitionViewData.request_date || requisitionViewData.requestDate) }}</el-descriptions-item>
+          <el-descriptions-item label="申请单号">{{ requisitionViewData.requisitionNumber || '未知' }}</el-descriptions-item>
+          <el-descriptions-item label="申请日期">{{ formatDate(requisitionViewData.requestDate) }}</el-descriptions-item>
           <el-descriptions-item label="申请人">
-            {{ requisitionViewData.real_name || requisitionViewData.requester || '未知' }}
+            {{ requisitionViewData.realName || requisitionViewData.requester || '未知' }}
           </el-descriptions-item>
           <el-descriptions-item label="状态">
             <el-tag :type="getStatusType(requisitionViewData.status || 'draft')">{{ getStatusText(requisitionViewData.status || 'draft') }}</el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="创建时间">{{ formatDate(requisitionViewData.created_at || requisitionViewData.createdAt) }}</el-descriptions-item>
-          <el-descriptions-item label="更新时间">{{ formatDate(requisitionViewData.updated_at || requisitionViewData.updatedAt) }}</el-descriptions-item>
+          <el-descriptions-item label="创建时间">{{ formatDate(requisitionViewData.createdAt) }}</el-descriptions-item>
+          <el-descriptions-item label="更新时间">{{ formatDate(requisitionViewData.updatedAt) }}</el-descriptions-item>
           <el-descriptions-item label="备注" :span="2">{{ requisitionViewData.remarks || '无' }}</el-descriptions-item>
         </el-descriptions>
         <el-divider content-position="center">申请物料</el-divider>
         <el-table :data="requisitionViewData.materials || []" border class="w-full">
           <el-table-column type="index" label="序号" width="60"></el-table-column>
-          <el-table-column prop="material_code" label="物料编码" min-width="120">
+          <el-table-column prop="materialCode" label="物料编码" min-width="120">
             <template #default="scope">
-              {{ scope.row.material_code || scope.row.materialCode || '-' }}
+              {{ scope.row.materialCode || scope.row.materialCode || '-' }}
             </template>
           </el-table-column>
-          <el-table-column prop="material_name" label="物料名称" min-width="150">
+          <el-table-column prop="materialName" label="物料名称" min-width="150">
             <template #default="scope">
-              {{ scope.row.material_name || scope.row.materialName || '-' }}
+              {{ scope.row.materialName || scope.row.materialName || '-' }}
             </template>
           </el-table-column>
           <el-table-column label="规格" min-width="150">
@@ -656,13 +662,12 @@
       </template>
     </AppDialog>
     <!-- 到货对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="receiveDialogVisible"
       title="确认到货"
-      width="1000px"
-      destroy-on-close
+      mode="form"
+      wide
       :close-on-click-modal="false"
-      align-center
     >
       <div v-loading="receiveDialogLoading">
         <el-alert
@@ -681,8 +686,8 @@
           max-height="400px"
         >
           <el-table-column type="index" label="序号" width="60"></el-table-column>
-          <el-table-column prop="material_code" label="物料编码" width="120"></el-table-column>
-          <el-table-column prop="material_name" label="物料名称" min-width="120"></el-table-column>
+          <el-table-column prop="materialCode" label="物料编码" width="120"></el-table-column>
+          <el-table-column prop="materialName" label="物料名称" min-width="120"></el-table-column>
           <el-table-column prop="specification" label="规格" width="200"></el-table-column>
           <el-table-column prop="unit" label="单位" width="55"></el-table-column>
           <el-table-column label="订单" width="70">
@@ -693,31 +698,31 @@
           <el-table-column label="已收货" width="70">
             <template #default="scope">
               <el-text type="primary">
-                {{ parseFloat(scope.row.received_quantity || 0).toFixed(1) }}
+                {{ parseFloat(scope.row.receivedQuantity || 0).toFixed(1) }}
               </el-text>
             </template>
           </el-table-column>
           <el-table-column label="已检验" width="70">
             <template #default="scope">
               <el-text type="warning">
-                {{ parseFloat(scope.row.inspected_quantity || 0).toFixed(1) }}
+                {{ parseFloat(scope.row.inspectedQuantity || 0).toFixed(1) }}
               </el-text>
             </template>
           </el-table-column>
           <el-table-column label="合格" width="70">
             <template #default="scope">
               <el-text type="success">
-                {{ parseFloat(scope.row.qualified_quantity || 0).toFixed(1) }}
+                {{ parseFloat(scope.row.qualifiedQuantity || 0).toFixed(1) }}
               </el-text>
             </template>
           </el-table-column>
           <el-table-column label="不合格" width="70">
             <template #default="scope">
               <el-text
-                v-if="parseFloat(scope.row.unqualified_quantity || 0) > 0"
+                v-if="parseFloat(scope.row.unqualifiedQuantity || 0) > 0"
                 type="danger"
               >
-                {{ parseFloat(scope.row.unqualified_quantity || 0).toFixed(1) }}
+                {{ parseFloat(scope.row.unqualifiedQuantity || 0).toFixed(1) }}
               </el-text>
               <el-text v-else type="info">0.0</el-text>
             </template>
@@ -725,23 +730,23 @@
           <el-table-column label="已入库" width="70">
             <template #default="scope">
               <el-text type="success">
-                {{ parseFloat(scope.row.warehoused_quantity || 0).toFixed(1) }}
+                {{ parseFloat(scope.row.warehousedQuantity || 0).toFixed(1) }}
               </el-text>
             </template>
           </el-table-column>
           <el-table-column label="待收货" width="70">
             <template #default="scope">
               <el-text type="warning">
-                {{ (parseFloat(scope.row.quantity || 0) - parseFloat(scope.row.received_quantity || 0)).toFixed(1) }}
+                {{ (parseFloat(scope.row.quantity || 0) - parseFloat(scope.row.receivedQuantity || 0)).toFixed(1) }}
               </el-text>
             </template>
           </el-table-column>
           <el-table-column label="到货" width="90">
             <template #default="scope">
               <el-input
-                v-model="scope.row.receive_quantity"
+                v-model="scope.row.receiveQuantity"
                 size="small"
-                :disabled="parseFloat(scope.row.pending_quantity || 0) <= 0"
+                :disabled="parseFloat(scope.row.pendingQuantity || 0) <= 0"
                 @blur="handleReceiveQuantityChange(scope.row)"
                 @keyup.enter="handleReceiveQuantityChange(scope.row)"
               />
@@ -767,7 +772,7 @@
           </el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
     <!-- 浮动批量操作栏 -->
     <Transition name="slide-up">
       <div v-if="selectedOrders.length > 0" class="floating-batch-bar">
@@ -797,7 +802,7 @@
 </template>
 <script setup>
 import { ref, reactive, onMounted, onActivated } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { purchaseApi } from '@/api'
 import { Plus, Select, Promotion, Close } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
@@ -805,12 +810,20 @@ import { PURCHASE_STATUS_OPTIONS } from '@/constants/systemConstants'
 import { parseListData } from '@/utils/responseParser'
 import { loadUserListOptions } from '@/utils/optionLoaders'
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 // ========== 组合式函数导入 ==========
 import { usePurchaseOrderForm } from './composables/usePurchaseOrderForm'
 import { usePurchaseOrderActions } from './composables/usePurchaseOrderActions'
 // ========== 搜索表单和分页 ==========
-const searchForm = reactive({ keyword: '', status: '', supplier_id: '', operator: '', date_range: [] })
+// 支持从应付发票页跳转：?orderNo= / ?orderId=
+const searchForm = reactive({
+  keyword: String(route.query.orderNo || route.query.keyword || '').trim(),
+  status: '',
+  supplier_id: '',
+  operator: '',
+  date_range: [],
+})
 const pagination = reactive({ current: 1, size: 10, total: 0 })
 const loading = ref(false)
 const orderList = ref([])
@@ -849,7 +862,7 @@ const canDeleteOrder = (row) => DELETABLE_ORDER_STATUSES.includes(row?.status)
 const deleteOrder = _deleteOrder
 const isBlankAmount = (value) => value === null || value === undefined || value === ''
 const formatOrderLineAmount = (row) => {
-  if (!isBlankAmount(row?.total_price)) return formatCurrency(row.total_price)
+  if (!isBlankAmount(row?.total_price)) return formatCurrency(row.totalPrice)
   if (isBlankAmount(row?.quantity) || isBlankAmount(row?.price)) return '-'
   return formatCurrency(Number(row.quantity) * Number(row.price))
 }
@@ -861,7 +874,7 @@ async function loadOrders() {
     const params = {
       page: pagination.current, pageSize: pagination.size,
       keyword: searchForm.keyword, status: searchForm.status,
-      supplierId: searchForm.supplier_id
+      supplierId: searchForm.supplierId
     }
     if (searchForm.date_range && searchForm.date_range.length === 2) {
       params.startDate = searchForm.date_range[0]
@@ -871,14 +884,14 @@ async function loadOrders() {
     if (res.data) {
       const orderItems = parseListData(res, { enableLog: false })
       const formattedOrders = orderItems.map(order => {
-        const requisitionId = order.requisition_id || order.requisitionId
-        let requisitionNumber = order.requisition_number || order.requisitionNumber
+        const requisitionId = order.requisitionId
+        let requisitionNumber = order.requisitionNumber
         if (requisitionId && (!requisitionNumber || requisitionNumber === '' || requisitionNumber === '关联申请'))
           requisitionNumber = `申请单-${requisitionId}`
         return {
           ...order,
-          order_date: formatDate(order.order_date),
-          expected_delivery_date: formatDate(order.expected_delivery_date),
+          order_date: formatDate(order.orderDate),
+          expected_delivery_date: formatDate(order.expectedDeliveryDate),
           requisition_id: requisitionId, requisition_number: requisitionNumber
         }
       })
@@ -901,14 +914,14 @@ const loadOperators = async () => {
 // 搜索
 const handleSearch = async () => { pagination.current = 1; await loadOrders(); await getOrderStats() }
 const resetSearch = () => {
-  searchForm.keyword = ''; searchForm.status = ''; searchForm.supplier_id = ''; searchForm.operator = ''; searchForm.date_range = []
+  searchForm.keyword = ''; searchForm.status = ''; searchForm.supplierId = ''; searchForm.operator = ''; searchForm.date_range = []
   pagination.current = 1; loadOrders()
 }
 const goApprovalCenter = () => router.push('/workflow/approvals')
 const handleSizeChange = (val) => { pagination.size = val; loadOrders() }
 const handleCurrentChange = (val) => { pagination.current = val; loadOrders() }
 // 到货数量相关
-const _checkItemSelectable = (row) => parseFloat(row.pending_quantity || 0) > 0
+const _checkItemSelectable = (row) => parseFloat(row.pendingQuantity || 0) > 0
 // ========== 生命周期 ==========
 onMounted(async () => {
   loading.value = true

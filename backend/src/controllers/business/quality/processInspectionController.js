@@ -7,6 +7,7 @@
  */
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 const { logger } = require('../../../utils/logger');
 const db = require('../../../config/db');
 const { getCurrentUserName } = require('../../../utils/userHelper');
@@ -71,7 +72,7 @@ const processInspectionController = {
             const {
                 process_id, product_id, inspection_interval, sample_rate,
                 punch_interval, template_id, is_enabled, note,
-            } = req.body;
+            } = mapKeysToSnake(req.body || {});
 
             if (!process_id) {
                 return ResponseHandler.error(res, '工序ID不能为空', 'VALIDATION_ERROR', 400);
@@ -120,7 +121,7 @@ const processInspectionController = {
             const {
                 process_id, product_id, inspection_interval, sample_rate,
                 punch_interval, template_id, is_enabled, note,
-            } = req.body;
+            } = mapKeysToSnake(req.body || {});
 
             if (template_id && !(await findActiveTemplateForType(template_id, 'process'))) {
                 return ResponseHandler.error(
@@ -182,7 +183,7 @@ const processInspectionController = {
     async punchProcessInspection(req, res) {
         try {
             const { id } = req.params;
-            const { inspector_id, inspector_name, remark } = req.body;
+            const { inspector_id, inspector_name, remark } = mapKeysToSnake(req.body || {});
             const userId = getAuthenticatedUserId(req);
             const userName = await getCurrentUserName(req);
             const actualInspectorId = inspector_id || userId;
@@ -314,7 +315,9 @@ const processInspectionController = {
      */
     async getProcessInspectionPunchList(req, res) {
         try {
-            const { page = 1, pageSize = 20, startDate, endDate, inspector_id } = req.query;
+            const q = mapKeysToSnake(req.query || {});
+            const { page = 1, pageSize = 20, startDate, endDate } = req.query;
+            const inspector_id = q.inspector_id ?? req.query.inspectorId;
             const pagination = parsePagination(page, pageSize, {
                 defaultPageSize: 20,
                 maxPageSize: 100,
@@ -335,9 +338,10 @@ const processInspectionController = {
                 whereClause += ' AND pipr.inspector_id = ?';
                 params.push(inspector_id);
             }
-            if (req.query.inspection_id) {
+            const inspectionId = q.inspection_id ?? req.query.inspectionId;
+            if (inspectionId) {
                 whereClause += ' AND pipr.inspection_id = ?';
-                params.push(req.query.inspection_id);
+                params.push(inspectionId);
             }
 
             const countResult = await db.query(
@@ -380,7 +384,7 @@ const processInspectionController = {
      */
     async createProcessInspectionPunch(req, res) {
         try {
-            const { production_line_id, production_line_name, process_id, process_name, remark } = req.body;
+            const { production_line_id, production_line_name, process_id, process_name, remark } = mapKeysToSnake(req.body || {});
             const userId = getAuthenticatedUserId(req);
             const userName = await getCurrentUserName(req);
 

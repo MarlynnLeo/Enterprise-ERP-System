@@ -12,8 +12,9 @@ const SupplierMetalRangePriceService = require('../../../services/business/Suppl
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const customerService = require('../../../services/customerService');
 
-const baseSupplierController = createCrudController(supplierService, '供应商');
-const baseCustomerController = createCrudController(customerService, '客户');
+// camelOut：列表/详情/写操作统一 HTTP camel ↔ DB snake
+const baseSupplierController = createCrudController(supplierService, '供应商', { camelOut: true });
+const baseCustomerController = createCrudController(customerService, '客户', { camelOut: true });
 
 const supplierCustomerController = {
   getAllSuppliers: baseSupplierController.getAll,

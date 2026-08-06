@@ -169,9 +169,10 @@
     </el-card>
 
     <!-- 添加/编辑对话框 -->
-    <el-dialog
-      :title="dialogTitle"
+    <AppDialog
       v-model="dialogVisible"
+      :title="dialogTitle"
+      mode="form"
       width="650px"
     >
       <el-form :model="assetForm" :rules="assetRules" ref="assetFormRef" label-width="100px">
@@ -297,12 +298,13 @@
           <el-button v-permission="assetForm.id ? 'finance:assets:update' : 'finance:assets:create'" type="primary" @click="saveAsset" :loading="saveLoading">确认</el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
 
     <!-- 资产调拨对话框 -->
-    <el-dialog
-      :title="transferDialogTitle"
+    <AppDialog
       v-model="transferDialogVisible"
+      :title="transferDialogTitle"
+      mode="form"
       width="650px"
     >
       <el-form :model="transferForm" :rules="transferRules" ref="transferFormRef" label-width="100px">
@@ -365,12 +367,13 @@
           <el-button v-permission="'finance:assets:update'" type="primary" @click="submitTransfer" :loading="transferLoading">确认</el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
 
     <!-- 资产处置对话框 -->
-    <el-dialog
-      title="资产处置"
+    <AppDialog
       v-model="disposeDialogVisible"
+      title="资产处置"
+      mode="form"
       width="500px"
     >
       <el-form :model="disposeForm" :rules="disposeRules" ref="disposeFormRef" label-width="100px">
@@ -399,7 +402,7 @@
             <el-option
               v-for="account in bankAccountOptions"
               :key="account.id"
-              :label="`${account.accountName || account.account_name}（余额 ${formatCurrency(account.balance ?? account.current_balance)}）`"
+              :label="`${account.accountName}（余额 ${formatCurrency(account.balance ?? account.currentBalance)}）`"
               :value="account.id"
             />
           </el-select>
@@ -432,11 +435,12 @@
           <el-button v-permission="'finance:assets:update'" type="danger" @click="submitDispose" :loading="disposeLoading">确认处置</el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
     <!-- 资产拆分对话框 -->
-    <el-dialog
-      title="资产拆分"
+    <AppDialog
       v-model="splitDialogVisible"
+      title="资产拆分"
+      mode="form"
       width="500px"
     >
       <el-form :model="splitForm" :rules="splitRules" ref="splitFormRef" label-width="110px">
@@ -449,15 +453,15 @@
         <el-form-item label="资产总原值">
           <span class="value-text">{{ formatCurrency(splitForm.originalValue) }}</span>
         </el-form-item>
-        <el-form-item label="拆分金额" prop="split_cost">
+        <el-form-item label="拆分金额" prop="splitCost">
           <el-input-number v-model="splitForm.split_cost" :precision="2" :min="0.01" :max="splitForm.originalValue - 0.01" class="w-full"></el-input-number>
           <div style="font-size: 12px; color: var(--color-text-secondary); margin-top: 4px;">拆出部分的价值，剩余原值将被扣除</div>
         </el-form-item>
-        <el-form-item label="新资产名称" prop="new_asset_name">
+        <el-form-item label="新资产名称" prop="newAssetName">
           <el-input v-model="splitForm.new_asset_name" placeholder="默认为：原名称-拆分X"></el-input>
         </el-form-item>
         <el-form-item label="新使用部门">
-          <el-select v-model="splitForm.department_id" placeholder="选填，默认同原资产" class="w-full" clearable>
+          <el-select v-model="splitForm.departmentId" placeholder="选填，默认同原资产" class="w-full" clearable>
             <el-option
               v-for="item in departmentOptions"
               :key="item.id"
@@ -467,7 +471,7 @@
           </el-select>
         </el-form-item>
         <el-form-item label="新存放地点">
-          <el-input v-model="splitForm.location_id" placeholder="选填，默认同原资产"></el-input>
+          <el-input v-model="splitForm.locationId" placeholder="选填，默认同原资产"></el-input>
         </el-form-item>
         <el-form-item label="新责任人">
           <el-input v-model="splitForm.custodian" placeholder="选填，默认同原资产"></el-input>
@@ -487,9 +491,14 @@
           <el-button v-permission="'finance:assets:update'" type="primary" @click="submitSplit" :loading="splitLoading">确认拆分</el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
     <!-- 计提减值对话框 -->
-    <el-dialog v-model="impairmentDialogVisible" title="计提资产减值" width="500px">
+    <AppDialog
+      v-model="impairmentDialogVisible"
+      title="计提资产减值"
+      mode="form"
+      width="500px"
+    >
       <el-form :model="impairmentForm" :rules="impairmentRules" ref="impairmentFormRef" label-width="100px">
         <el-alert
           title="当前资产净值"
@@ -498,10 +507,10 @@
           :closable="false"
           class="mb-20"
         />
-        <el-form-item label="减值金额" prop="impairment_amount">
+        <el-form-item label="减值金额" prop="impairmentAmount">
           <el-input-number v-model="impairmentForm.impairment_amount" :min="0.01" :max="impairmentForm.netValue" :precision="2" :step="100" class="w-full" />
         </el-form-item>
-        <el-form-item label="减值日期" prop="impairment_date">
+        <el-form-item label="减值日期" prop="impairmentDate">
           <el-date-picker v-model="impairmentForm.impairment_date" type="date" value-format="YYYY-MM-DD" class="w-full" />
         </el-form-item>
         <el-form-item label="减值原因" prop="reason">
@@ -514,7 +523,7 @@
           <el-button v-permission="'finance:assets:update'" type="danger" @click="submitImpairment" :loading="submitImpairmentLoading">确认计提</el-button>
         </div>
       </template>
-    </el-dialog>
+        </AppDialog>
   </div>
 </template>
 
@@ -791,15 +800,15 @@ const loadAssets = async () => {
       }
 
       // 字段映射适配
-      asset.assetCode = asset.assetCode || asset.asset_code || '';
-      asset.assetName = asset.assetName || asset.asset_name || '';
-      asset.categoryName = asset.categoryName || asset.category_name || '';
-      asset.originalValue = asset.originalValue !== undefined ? asset.originalValue : (asset.acquisitionCost !== undefined ? asset.acquisitionCost : (asset.acquisition_cost || 0));
-      asset.netValue = asset.netValue !== undefined ? asset.netValue : (asset.currentValue !== undefined ? asset.currentValue : (asset.current_value || 0));
-      asset.location = asset.location || asset.location_id || asset.location_name || '';
-      asset.department = asset.department || asset.department_id || asset.department_name || '';
+      asset.assetCode = asset.assetCode || '';
+      asset.assetName = asset.assetName || '';
+      asset.categoryName = asset.categoryName || '';
+      asset.originalValue = asset.originalValue !== undefined ? asset.originalValue : (asset.acquisitionCost !== undefined ? asset.acquisitionCost : (asset.acquisitionCost || 0));
+      asset.netValue = asset.netValue !== undefined ? asset.netValue : (asset.currentValue !== undefined ? asset.currentValue : (asset.currentValue || 0));
+      asset.location = asset.location || asset.locationId || asset.locationName || '';
+      asset.department = asset.department || asset.departmentId || asset.departmentName || '';
       asset.responsible = asset.responsible || asset.custodian || '';
-      asset.auditStatus = asset.auditStatus || asset.audit_status || 'draft';
+      asset.auditStatus = asset.auditStatus || 'draft';
     });
 
     assetList.value = list;
@@ -895,13 +904,13 @@ const onCategoryChange = () => {
     // 同步类别默认设置
     const category = categoryOptions.value.find(c => c.id === assetForm.categoryId);
     if (category) {
-      const usefulLife = category.defaultUsefulLife || category.default_useful_life;
+      const usefulLife = category.defaultUsefulLife;
       if (usefulLife) assetForm.usefulLife = usefulLife;
 
-      const salvageRate = category.defaultSalvageRate || category.default_salvage_rate;
+      const salvageRate = category.defaultSalvageRate;
       if (salvageRate !== undefined) assetForm.salvageRate = Number(salvageRate);
 
-      const depMethod = category.defaultDepreciationMethod || category.default_depreciation_method;
+      const depMethod = category.defaultDepreciationMethod;
       if (depMethod) {
         // 数据库返回的是中文，前端表单需要英文 key
         const methodMap = {
@@ -1074,8 +1083,8 @@ const handleSplit = (row) => {
   splitForm.originalValue = row.originalValue || 0;
   splitForm.split_cost = 0;
   splitForm.new_asset_name = '';
-  splitForm.department_id = '';
-  splitForm.location_id = '';
+  splitForm.departmentId = '';
+  splitForm.locationId = '';
   splitForm.custodian = '';
   splitForm.reason = '';
 

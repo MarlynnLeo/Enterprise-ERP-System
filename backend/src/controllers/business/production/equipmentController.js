@@ -10,6 +10,7 @@ const { logger } = require('../../../utils/logger');
 const { validateRequiredFields, validateEnum } = require('../../../utils/validationHelper');
 const { handleError } = require('./shared/errorHandler');
 const { softDelete } = require('../../../utils/softDelete');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 
 const { pool } = require('../../../config/db');
 
@@ -391,7 +392,7 @@ exports.createEquipment = async (req, res) => {
       responsible_person,
       specs,
       description,
-    } = req.body;
+    } = mapKeysToSnake(req.body || {});
 
     // 检查必填字段
     if (!code || !name) {
@@ -485,7 +486,7 @@ exports.updateEquipment = async (req, res) => {
       responsible_person,
       specs,
       description,
-    } = req.body;
+    } = mapKeysToSnake(req.body || {});
 
     // 检查设备是否存在
     const [existingEquipment] = await pool.query('SELECT id FROM equipment WHERE id = ? AND deleted_at IS NULL', [id]);
@@ -661,7 +662,7 @@ exports.addMaintenanceRecord = async (req, res) => {
       next_maintenance_date,
       status,
       remarks,
-    } = req.body;
+    } = mapKeysToSnake(req.body || {});
 
     // 检查设备是否存在
     const [existingEquipment] = await pool.query('SELECT id FROM equipment WHERE id = ? AND deleted_at IS NULL', [
@@ -727,7 +728,7 @@ exports.addFailureRecord = async (req, res) => {
       downtime_hours,
       repair_cost,
       remarks,
-    } = req.body;
+    } = mapKeysToSnake(req.body || {});
 
     // 检查设备是否存在
     const [existingEquipment] = await pool.query('SELECT id FROM equipment WHERE id = ? AND deleted_at IS NULL', [
@@ -793,7 +794,7 @@ exports.addInspectionRecord = async (req, res) => {
       action_taken,
       next_inspection_date,
       remarks,
-    } = req.body;
+    } = mapKeysToSnake(req.body || {});
 
     // 检查设备是否存在
     const [existingEquipment] = await pool.query('SELECT id FROM equipment WHERE id = ? AND deleted_at IS NULL', [

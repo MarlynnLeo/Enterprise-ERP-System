@@ -11,6 +11,7 @@ const { logger } = require('../../../utils/logger');
 const db = require('../../../config/db');
 const CodeGeneratorService = require('../../../services/business/CodeGeneratorService');
 const { parsePagination, appendPaginationSQL } = require('../../../utils/safePagination');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 
 const GAUGE_FIELDS = [
     'gauge_no', 'gauge_name', 'gauge_type', 'model', 'manufacturer', 'serial_number',
@@ -25,8 +26,11 @@ const CALIBRATION_FIELDS = [
 ];
 
 function pickFields(data, allowedFields) {
+    // 入参可能是 camel，先转 snake 再按白名单取
+    const snake = mapKeysToSnake(data || {});
     return allowedFields.reduce((record, field) => {
-        if (data[field] !== undefined) record[field] = data[field];
+        if (snake[field] !== undefined) record[field] = snake[field];
+        else if (data[field] !== undefined) record[field] = data[field];
         return record;
     }, {});
 }
@@ -162,7 +166,8 @@ const gaugeController = {
      */
     async createGauge(req, res) {
         try {
-            const data = req.body;
+            // HTTP camel → snake
+            const data = mapKeysToSnake(req.body || {});
 
             if (!data.gauge_no || !data.gauge_name) {
                 return ResponseHandler.error(res, '量具编号和名称不能为空', 'VALIDATION_ERROR', 400);
@@ -196,7 +201,7 @@ const gaugeController = {
     async updateGauge(req, res) {
         try {
             const { id } = req.params;
-            const data = req.body;
+            const data = mapKeysToSnake(req.body || {});
 
             const existing = await db.query('SELECT id FROM gauges WHERE id = ?', [id]);
             if (!existing.rows || existing.rows.length === 0) {
@@ -326,7 +331,8 @@ const gaugeController = {
      */
     async createCalibrationRecord(req, res) {
         try {
-            const data = req.body;
+            // HTTP camel → snake
+            const data = mapKeysToSnake(req.body || {});
 
             if (!data.gauge_id || !data.calibration_date) {
                 return ResponseHandler.error(res, '量具ID和校准日期不能为空', 'VALIDATION_ERROR', 400);

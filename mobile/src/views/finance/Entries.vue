@@ -35,15 +35,15 @@
     // 字段映射
     fields: {
       id: 'id',
-      title: 'entry_number',
+      title: 'entryNumber',
       subtitle: 'summary',
       icon: 'credit-card',
       status: 'status',
 
-      // 详情字段 — 精简为2列
+      // 详情字段 — 精简为2列（API camel）
       details: [
-        { label: '金额', field: (item) => '¥' + Number(item.total_amount || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) },
-        { label: '日期', field: 'entry_date', type: 'date' }
+        { label: '金额', field: (item) => '¥' + Number(item.totalAmount || item.totalDebit || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) },
+        { label: '日期', field: 'entryDate', type: 'date' }
       ],
 
       // 标签

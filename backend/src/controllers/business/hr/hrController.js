@@ -6,6 +6,7 @@ const ExcelJS = require('exceljs');
 const SalaryService = require('../../../services/business/hr/salaryService');
 const DingtalkSyncService = require('../../../services/business/hr/dingtalkSyncService');
 const HrService = require('../../../services/business/HrService');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 
 const REQUEST_STATUS = {
   PENDING: 'pending',
@@ -111,7 +112,13 @@ const getEmployees = async (req, res) => {
       page: req.query.page,
       pageSize: req.query.pageSize,
     });
-    return ResponseHandler.paginated(res, result.rows, result.total, result.page, result.pageSize);
+    return ResponseHandler.paginated(
+      res,
+      result.rows,
+      result.total,
+      result.page,
+      result.pageSize
+    );
   } catch (error) {
     logger.error('[HR] 获取员工列表失败:', error);
     return ResponseHandler.error(res, '获取员工列表失败', 'OPERATION_ERROR', 500, error);
@@ -120,7 +127,8 @@ const getEmployees = async (req, res) => {
 
 const createEmployee = async (req, res) => {
   try {
-    const data = req.body;
+    // HTTP camel → DB snake
+    const data = mapKeysToSnake(req.body || {});
     const insertData = {
       employee_no: data.employee_no,
       name: data.name,
@@ -130,7 +138,7 @@ const createEmployee = async (req, res) => {
       join_date: data.join_date || null,
       base_salary: data.base_salary || 0,
       split_base_salary: data.split_base_salary || 0,
-      insurance_type: data.insurance_type || '有社有公'
+      insurance_type: data.insurance_type || '有社有公',
     };
 
     const [result] = await pool.query('INSERT INTO hr_employees SET ?', insertData);
@@ -147,12 +155,12 @@ const createEmployee = async (req, res) => {
 const updateEmployee = async (req, res) => {
   try {
     const { id } = req.params;
-    const data = req.body;
+    const data = mapKeysToSnake(req.body || {});
 
     const allowedFields = [
       'name', 'department_id', 'id_card', 'user_id', 'join_date', 'leave_date',
       'employment_status', 'base_salary', 'split_base_salary', 'insurance_type',
-      'position_allowance', 'housing_allowance', 'meal_allowance', 'overtime_rate'
+      'position_allowance', 'housing_allowance', 'meal_allowance', 'overtime_rate',
     ];
     const updateData = {};
     for (const field of allowedFields) {
@@ -217,7 +225,13 @@ const getLeaveRequests = async (req, res) => {
     );
     const [[{ total }]] = await pool.query(query.countSql, query.params);
     const [rows] = await pool.query(query.listSql, query.listParams);
-    return ResponseHandler.paginated(res, rows, total, query.page, query.pageSize);
+    return ResponseHandler.paginated(
+      res,
+      rows,
+      total,
+      query.page,
+      query.pageSize
+    );
   } catch (error) {
     logger.error('[HR] 获取请假申请失败:', error);
     return ResponseHandler.error(res, '获取请假申请失败', 'OPERATION_ERROR', 500, error);
@@ -228,11 +242,13 @@ const createLeaveRequest = async (req, res) => {
   try {
     const userId = getUserId(req);
     const employee = await getEmployeeByUser(userId);
-    const leaveType = sanitizeText(req.body.type || req.body.leave_type);
-    const startDate = sanitizeText(req.body.start_date);
-    const endDate = sanitizeText(req.body.end_date);
-    const duration = parsePositiveNumber(req.body.duration);
-    const reason = sanitizeText(req.body.reason);
+    // HTTP camel（兼容旧 leave_type/start_date 字段名）
+    const body = mapKeysToSnake(req.body || {});
+    const leaveType = sanitizeText(req.body.type || body.leaveType);
+    const startDate = sanitizeText(body.start_date);
+    const endDate = sanitizeText(body.end_date);
+    const duration = parsePositiveNumber(body.duration);
+    const reason = sanitizeText(body.reason);
 
     if (!leaveType) return ResponseHandler.error(res, '请选择请假类型', 'VALIDATION_ERROR', 400);
     if (!startDate) return ResponseHandler.error(res, '请选择开始日期', 'VALIDATION_ERROR', 400);
@@ -288,7 +304,13 @@ const getOvertimeRequests = async (req, res) => {
     );
     const [[{ total }]] = await pool.query(query.countSql, query.params);
     const [rows] = await pool.query(query.listSql, query.listParams);
-    return ResponseHandler.paginated(res, rows, total, query.page, query.pageSize);
+    return ResponseHandler.paginated(
+      res,
+      rows,
+      total,
+      query.page,
+      query.pageSize
+    );
   } catch (error) {
     logger.error('[HR] 获取加班申请失败:', error);
     return ResponseHandler.error(res, '获取加班申请失败', 'OPERATION_ERROR', 500, error);
@@ -299,12 +321,14 @@ const createOvertimeRequest = async (req, res) => {
   try {
     const userId = getUserId(req);
     const employee = await getEmployeeByUser(userId);
-    const overtimeDate = sanitizeText(req.body.date || req.body.overtime_date);
-    const startTime = sanitizeText(req.body.start_time);
-    const endTime = sanitizeText(req.body.end_time);
-    const hours = parsePositiveNumber(req.body.hours);
-    const overtimeType = sanitizeText(req.body.type || req.body.overtime_type);
-    const reason = sanitizeText(req.body.reason);
+    // HTTP camel → snake
+    const body = mapKeysToSnake(req.body || {});
+    const overtimeDate = sanitizeText(req.body.date || body.overtimeDate);
+    const startTime = sanitizeText(body.start_time);
+    const endTime = sanitizeText(body.end_time);
+    const hours = parsePositiveNumber(body.hours);
+    const overtimeType = sanitizeText(req.body.type || body.overtimeType);
+    const reason = sanitizeText(body.reason);
 
     if (!overtimeDate) return ResponseHandler.error(res, '请选择加班日期', 'VALIDATION_ERROR', 400);
     if (!hours) return ResponseHandler.error(res, '请填写有效的加班时长', 'VALIDATION_ERROR', 400);
@@ -356,7 +380,13 @@ const getAttendance = async (req, res) => {
       page: req.query.page,
       pageSize: req.query.pageSize,
     });
-    return ResponseHandler.paginated(res, result.rows, result.total, result.page, result.pageSize);
+    return ResponseHandler.paginated(
+      res,
+      result.rows,
+      result.total,
+      result.page,
+      result.pageSize
+    );
   } catch (error) {
     logger.error('[HR] 获取考勤失败:', error);
     return ResponseHandler.error(res, '获取考勤失败', 'OPERATION_ERROR', 500, error);
@@ -365,7 +395,11 @@ const getAttendance = async (req, res) => {
 
 const batchSaveAttendance = async (req, res) => {
   try {
-    const { period, records } = req.body;
+    const body = mapKeysToSnake(req.body || {});
+    const period = body.period;
+    const records = Array.isArray(req.body?.records)
+      ? req.body.records.map((r) => mapKeysToSnake(r || {}))
+      : body.records;
     if (!period || !records || records.length === 0) {
       return ResponseHandler.error(res, '参数错误', 'VALIDATION_ERROR', 400);
     }
@@ -684,7 +718,9 @@ const getAttendanceRules = async (req, res) => {
 const updateAttendanceRule = async (req, res) => {
   try {
     const { id } = req.params;
-    const { rule_value, description } = req.body;
+    const body = mapKeysToSnake(req.body || {});
+    const rule_value = body.rule_value;
+    const description = body.description;
     if (!rule_value) return ResponseHandler.error(res, '规则值不能为空', 'VALIDATION_ERROR', 400);
 
     await pool.query(

@@ -60,10 +60,10 @@
   }))
 
   const loadInvoices = async (params) => {
-    // 如果 URL 携带了有效的 supplier_id 参数，注入到请求中
-    const supplierId = route.query.supplier_id
+    // 如果 URL 携带了有效的 supplierId 参数，注入到请求中
+    const supplierId = route.query.supplierId || route.query.supplierId
     if (supplierId && supplierId !== 'undefined') {
-      params.supplier_id = supplierId
+      params.supplierId = supplierId
     }
     const response = await financeApi.getAPInvoices(params)
     return response

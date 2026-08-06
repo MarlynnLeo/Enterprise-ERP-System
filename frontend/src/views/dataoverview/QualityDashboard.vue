@@ -502,7 +502,7 @@ async function initDefectTypeChart() {
         if (Array.isArray(trendsData.defectTypes)) {
           const realDefectTypes = trendsData.defectTypes;
           if (realDefectTypes.length > 0) {
-            defectTypes = realDefectTypes.map(item => item.defect_type || '未知');
+            defectTypes = realDefectTypes.map(item => item.defectType || '未知');
             defectCounts = realDefectTypes.map(item => item.count || 0);
           }
         }

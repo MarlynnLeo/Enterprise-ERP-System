@@ -4,8 +4,8 @@
     <div class="page-body">
       <CellGroup inset title="加班信息">
         <Cell title="加班日期" is-link :value="form.date || '请选择'" @click="showDatePicker = true" />
-        <Field v-model="form.start_time" label="开始时间" placeholder="如 18:00" />
-        <Field v-model="form.end_time" label="结束时间" placeholder="如 21:00" />
+        <Field v-model="form.startTime" label="开始时间" placeholder="如 18:00" />
+        <Field v-model="form.endTime" label="结束时间" placeholder="如 21:00" />
         <Field v-model="form.hours" label="加班时长(h)" type="number" placeholder="请输入小时数" />
         <Cell title="加班类型" is-link :value="form.type || '请选择'" @click="showTypePicker = true" />
         <Field v-model="form.reason" type="textarea" rows="3" label="加班原因" placeholder="请输入加班原因" autosize />

@@ -6,6 +6,7 @@
  */
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 const { logger } = require('../../../utils/logger');
 const { CodeGenerators } = require('../../../utils/codeGenerator');
 const { pool } = require('../../../config/db');
@@ -444,17 +445,18 @@ exports.createProductionPlan = async (req, res) => {
   try {
     await connection.beginTransaction();
 
+    const body = mapKeysToSnake(req.body || {});
     const {
       code: inputCode,
       name,
       start_date,
       end_date,
       delivery_date,
-      productId,
+      product_id: productId,
       quantity,
       contract_code,
-      bomId,
-    } = req.body;
+      bom_id: bomId,
+    } = body;
     let code = inputCode;
 
     // === 必填字段与业务规则校验 ===
@@ -579,7 +581,17 @@ exports.updateProductionPlan = async (req, res) => {
     await connection.beginTransaction();
 
     const { id } = req.params;
-    const { name, start_date, end_date, delivery_date, productId, quantity, pushed_quantity, contract_code, bomId } = req.body;
+    const {
+      name,
+      start_date,
+      end_date,
+      delivery_date,
+      product_id: productId,
+      quantity,
+      pushed_quantity,
+      contract_code,
+      bom_id: bomId,
+    } = mapKeysToSnake(req.body || {});
 
     // 处理日期格式
     const formattedStartDate = formatDateParam(start_date);

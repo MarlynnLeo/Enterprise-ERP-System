@@ -17,7 +17,7 @@
           <SvgIcon name="briefcase" size="1.5rem" />
         </div>
         <div class="hero-info">
-          <div class="hero-title">{{ asset.asset_name || asset.name }}</div>
+          <div class="hero-title">{{ asset.assetName }}</div>
           <div class="hero-sub">{{ asset.asset_code }}</div>
         </div>
         <div class="hero-status" :class="statusClass">{{ statusText }}</div>
@@ -59,11 +59,11 @@
           </div>
           <div class="info-item">
             <span class="info-label">资产类别</span>
-            <span class="info-value">{{ asset.category_name || asset.category || '—' }}</span>
+            <span class="info-value">{{ asset.categoryName || asset.category || '—' }}</span>
           </div>
           <div class="info-item">
             <span class="info-label">使用部门</span>
-            <span class="info-value">{{ asset.department_name || asset.department || '—' }}</span>
+            <span class="info-value">{{ asset.departmentName || asset.department || '—' }}</span>
           </div>
           <div class="info-item">
             <span class="info-label">存放位置</span>

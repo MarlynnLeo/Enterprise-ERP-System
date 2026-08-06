@@ -39,10 +39,10 @@
           </div>
 
           <!-- 基础信息网格 -->
-          <div v-if="traceData.material_name || traceData.specification" class="info-grid">
-            <div class="info-item" v-if="traceData.material_name">
+          <div v-if="traceData.materialName || traceData.specification" class="info-grid">
+            <div class="info-item" v-if="traceData.materialName">
               <span class="info-label">物料名称</span>
-              <span class="info-value">{{ traceData.material_name }}</span>
+              <span class="info-value">{{ traceData.materialName }}</span>
             </div>
             <div class="info-item" v-if="traceData.specification">
               <span class="info-label">规格</span>
@@ -54,9 +54,9 @@
                 >{{ traceData.current_stock }} {{ traceData.unit || '' }}</span
               >
             </div>
-            <div class="info-item" v-if="traceData.supplier_name">
+            <div class="info-item" v-if="traceData.supplierName">
               <span class="info-label">供应商</span>
-              <span class="info-value">{{ traceData.supplier_name }}</span>
+              <span class="info-value">{{ traceData.supplierName }}</span>
             </div>
           </div>
         </div>
@@ -74,14 +74,14 @@
           <div class="bom-list">
             <div v-for="(comp, idx) in traceData.bom_components" :key="idx" class="bom-item">
               <div class="bom-main">
-                <span class="bom-name">{{ comp.raw_material_name || comp.raw_material_code }}</span>
+                <span class="bom-name">{{ comp.rawMaterialName || comp.rawMaterialCode }}</span>
                 <span class="bom-qty">{{ comp.consumed_quantity }} {{ comp.unit || '' }}</span>
               </div>
               <div class="bom-meta">
                 <span v-if="comp.raw_material_batch" class="bom-batch"
                   >批次: {{ comp.raw_material_batch }}</span
                 >
-                <span v-if="comp.supplier_name" class="bom-supplier">{{ comp.supplier_name }}</span>
+                <span v-if="comp.supplierName" class="bom-supplier">{{ comp.supplierName }}</span>
               </div>
             </div>
           </div>
@@ -102,16 +102,16 @@
                   <span class="step-type-badge" :class="getStepTypeClass(step.step_type)">
                     {{ getStepTypeLabel(step.step_type) }}
                   </span>
-                  <span class="step-time">{{ formatDateTime(step.created_at) }}</span>
+                  <span class="step-time">{{ formatDateTime(step.createdAt) }}</span>
                 </div>
                 <div class="step-body">
-                  <div class="step-ref" v-if="step.reference_no">{{ step.reference_no }}</div>
+                  <div class="step-ref" v-if="step.referenceNo">{{ step.referenceNo }}</div>
                   <div class="step-remark" v-if="step.remarks">{{ step.remarks }}</div>
                   <div class="step-qty" v-if="step.quantity">
                     数量: <strong>{{ step.quantity }}</strong>
                   </div>
-                  <div class="step-product" v-if="step.product_name">
-                    产品: {{ step.product_name }} ({{ step.product_code }})
+                  <div class="step-product" v-if="step.productName">
+                    产品: {{ step.productName }} ({{ step.productCode }})
                   </div>
                 </div>
               </div>
@@ -140,9 +140,9 @@
                 </span>
               </div>
               <div class="tx-meta">
-                <span v-if="tx.reference_no">{{ tx.reference_no }}</span>
-                <span v-if="tx.location_name">{{ tx.location_name }}</span>
-                <span>{{ formatDateTime(tx.created_at) }}</span>
+                <span v-if="tx.referenceNo">{{ tx.referenceNo }}</span>
+                <span v-if="tx.locationName">{{ tx.locationName }}</span>
+                <span>{{ formatDateTime(tx.createdAt) }}</span>
               </div>
             </div>
           </div>

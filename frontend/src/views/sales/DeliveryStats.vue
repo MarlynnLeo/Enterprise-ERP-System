@@ -80,73 +80,73 @@
         @selection-change="handleSelectionChange"
       >
         <el-table-column type="selection" width="55" fixed :selectable="checkSelectable" />
-        <el-table-column prop="order_no" label="订单编号" width="120" fixed resizable>
+        <el-table-column prop="orderNo" label="订单编号" width="120" fixed resizable>
           <template #default="{ row }">
-            <el-link type="primary" @click="viewOrderDetails(row.order_id)">
-              {{ row.order_no }}
+            <el-link type="primary" @click="viewOrderDetails(row.orderId)">
+              {{ row.orderNo }}
             </el-link>
           </template>
         </el-table-column>
-        <el-table-column prop="customer_name" label="客户名称" min-width="200" resizable />
-        <el-table-column prop="contract_code" label="合同编码" width="120" resizable>
+        <el-table-column prop="customerName" label="客户名称" min-width="200" resizable />
+        <el-table-column prop="contractCode" label="合同编码" width="120" resizable>
           <template #default="{ row }">
-            {{ row.contract_code || '-' }}
+            {{ row.contractCode || '-' }}
           </template>
         </el-table-column>
-        <el-table-column prop="material_code" label="产品编码" width="120" resizable />
-        <el-table-column prop="material_name" label="产品名称" min-width="150" resizable show-overflow-tooltip />
+        <el-table-column prop="materialCode" label="产品编码" width="120" resizable />
+        <el-table-column prop="materialName" label="产品名称" min-width="150" resizable show-overflow-tooltip />
         <el-table-column prop="specification" label="规格" width="120" resizable show-overflow-tooltip />
-        <el-table-column prop="ordered_quantity" label="订单数量" width="90" resizable>
+        <el-table-column prop="orderedQuantity" label="订单数量" width="90" resizable>
           <template #default="{ row }">
-            {{ row.ordered_quantity }} {{ row.unit_name }}
+            {{ row.orderedQuantity }} {{ row.unitName }}
           </template>
         </el-table-column>
-        <el-table-column prop="shipped_quantity" label="已发数量" width="100" resizable>
+        <el-table-column prop="shippedQuantity" label="已发数量" width="100" resizable>
           <template #default="{ row }">
-            {{ row.shipped_quantity }} {{ row.unit_name }}
+            {{ row.shippedQuantity }} {{ row.unitName }}
           </template>
         </el-table-column>
-        <el-table-column prop="unshipped_quantity" label="未发数量" width="100" resizable>
+        <el-table-column prop="unshippedQuantity" label="未发数量" width="100" resizable>
           <template #default="{ row }">
-            <span :class="{ 'text-red': row.unshipped_quantity > 0 }">
-              {{ row.unshipped_quantity }} {{ row.unit_name }}
+            <span :class="{ 'text-red': row.unshippedQuantity > 0 }">
+              {{ row.unshippedQuantity }} {{ row.unitName }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column prop="delivery_progress" label="发货进度" width="120" resizable>
+        <el-table-column prop="deliveryProgress" label="发货进度" width="120" resizable>
           <template #default="{ row }">
             <el-progress
-              :percentage="Math.min(100, Math.max(0, Number(row.delivery_progress) || 0))"
-              :color="getProgressColor(Number(row.delivery_progress) || 0)"
+              :percentage="Math.min(100, Math.max(0, Number(row.deliveryProgress) || 0))"
+              :color="getProgressColor(Number(row.deliveryProgress) || 0)"
               :stroke-width="8"
             />
           </template>
         </el-table-column>
-        <el-table-column prop="stock_quantity" label="库存" width="100" resizable>
+        <el-table-column prop="stockQuantity" label="库存" width="100" resizable>
           <template #default="{ row }">
             <span :class="{
-              'text-green': (row.stock_quantity || 0) >= (row.unshipped_quantity || 0),
-              'text-red': (row.stock_quantity || 0) < (row.unshipped_quantity || 0)
+              'text-green': (row.stockQuantity || 0) >= (row.unshippedQuantity || 0),
+              'text-red': (row.stockQuantity || 0) < (row.unshippedQuantity || 0)
             }">
-              {{ row.stock_quantity || 0 }} {{ row.unit_name }}
+              {{ row.stockQuantity || 0 }} {{ row.unitName }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column prop="delivery_status" label="发货状态" width="100" resizable>
+        <el-table-column prop="deliveryStatus" label="发货状态" width="100" resizable>
           <template #default="{ row }">
-            <el-tag :type="getStatusType(row.delivery_status)">
-              {{ getStatusText(row.delivery_status) }}
+            <el-tag :type="getStatusType(row.deliveryStatus)">
+              {{ getStatusText(row.deliveryStatus) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="order_date" label="订单日期" width="120" resizable>
+        <el-table-column prop="orderDate" label="订单日期" width="120" resizable>
           <template #default="{ row }">
-            {{ formatDate(row.order_date) }}
+            {{ formatDate(row.orderDate) }}
           </template>
         </el-table-column>
-        <el-table-column prop="delivery_date" label="要求交期" width="120" resizable>
+        <el-table-column prop="deliveryDate" label="要求交期" width="120" resizable>
           <template #default="{ row }">
-            {{ formatDate(row.delivery_date) }}
+            {{ formatDate(row.deliveryDate) }}
           </template>
         </el-table-column>
         <el-table-column label="操作" min-width="200" fixed="right" resizable align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
@@ -162,7 +162,7 @@
             <el-button
               type="primary"
               size="small"
-              @click="viewDeliveryDetails(row.order_id)"
+              @click="viewDeliveryDetails(row.orderId)"
             >
               查看明细
             </el-button>
@@ -196,8 +196,8 @@
         <div class="order-info">
           <h4>订单信息</h4>
           <el-descriptions :column="3" border>
-            <el-descriptions-item label="订单号">{{ orderDetails.orderInfo.order_no }}</el-descriptions-item>
-            <el-descriptions-item label="客户名称">{{ orderDetails.orderInfo.customer_name }}</el-descriptions-item>
+            <el-descriptions-item label="订单号">{{ orderDetails.orderInfo.orderNo }}</el-descriptions-item>
+            <el-descriptions-item label="客户名称">{{ orderDetails.orderInfo.customerName }}</el-descriptions-item>
             <el-descriptions-item label="订单日期">{{ formatDate(orderDetails.orderInfo.order_date) }}</el-descriptions-item>
             <el-descriptions-item label="要求交期">{{ formatDate(orderDetails.orderInfo.delivery_date) }}</el-descriptions-item>
             <el-descriptions-item label="订单状态">
@@ -211,33 +211,33 @@
         <div class="delivery-details mt-20">
           <h4>发货明细</h4>
           <el-table :data="orderDetails.details" border stripe>
-            <el-table-column prop="material_code" label="产品编码" width="120" />
-            <el-table-column prop="material_name" label="产品名称" width="160" show-overflow-tooltip />
+            <el-table-column prop="materialCode" label="产品编码" width="120" />
+            <el-table-column prop="materialName" label="产品名称" width="160" show-overflow-tooltip />
             <el-table-column prop="specification" label="规格" width="150" show-overflow-tooltip />
-            <el-table-column prop="ordered_quantity" label="订单数量" width="100">
+            <el-table-column prop="orderedQuantity" label="订单数量" width="100">
               <template #default="{ row }">
-                {{ row.ordered_quantity }} {{ row.unit_name }}
+                {{ row.orderedQuantity }} {{ row.unitName }}
               </template>
             </el-table-column>
-            <el-table-column prop="outbound_no" label="出库单号" width="150">
+            <el-table-column prop="outboundNo" label="出库单号" width="150">
               <template #default="{ row }">
-                {{ row.outbound_no || '-' }}
+                {{ row.outboundNo || '-' }}
               </template>
             </el-table-column>
-            <el-table-column prop="shipped_quantity" label="发货数量" width="90">
+            <el-table-column prop="shippedQuantity" label="发货数量" width="90">
               <template #default="{ row }">
-                {{ row.shipped_quantity || 0 }} {{ row.unit_name }}
+                {{ row.shippedQuantity || 0 }} {{ row.unitName }}
               </template>
             </el-table-column>
-            <el-table-column prop="shipped_date" label="发货日期" width="100">
+            <el-table-column prop="shippedDate" label="发货日期" width="100">
               <template #default="{ row }">
-                {{ row.shipped_date ? formatDate(row.shipped_date) : '-' }}
+                {{ row.shippedDate ? formatDate(row.shippedDate) : '-' }}
               </template>
             </el-table-column>
-            <el-table-column prop="outbound_status" label="出库状态" width="100">
+            <el-table-column prop="outboundStatus" label="出库状态" width="100">
               <template #default="{ row }">
-                <el-tag :type="getOutboundStatusType(row.outbound_status, row.shipped_quantity)">
-                  {{ getOutboundStatusText(row.outbound_status, row.shipped_quantity) }}
+                <el-tag :type="getOutboundStatusType(row.outboundStatus, row.shippedQuantity)">
+                  {{ getOutboundStatusText(row.outboundStatus, row.shippedQuantity) }}
                 </el-tag>
               </template>
             </el-table-column>
@@ -246,11 +246,11 @@
       </div>
     </AppDialog>
     <!-- 发货对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="shippingDialogVisible"
       :title="isBatchShipping ? '批量发货' : '创建出库单'"
-      width="50%"
-      destroy-on-close
+      mode="form"
+      wide
     >
       <div v-if="shippingItems.length > 0">
         <el-alert
@@ -268,32 +268,32 @@
           </template>
         </el-alert>
         <el-table :data="shippingItems" border max-height="400">
-          <el-table-column prop="order_no" label="订单编号" width="120" show-overflow-tooltip />
-          <el-table-column prop="material_code" label="产品编码" width="120" show-overflow-tooltip />
-          <el-table-column prop="material_name" label="产品名称" min-width="100" show-overflow-tooltip />
+          <el-table-column prop="orderNo" label="订单编号" width="120" show-overflow-tooltip />
+          <el-table-column prop="materialCode" label="产品编码" width="120" show-overflow-tooltip />
+          <el-table-column prop="materialName" label="产品名称" min-width="100" show-overflow-tooltip />
           <el-table-column prop="specification" label="规格" width="150" show-overflow-tooltip />
           <el-table-column label="未发数量" width="100">
             <template #default="{ row }">
-              {{ row.unshipped_quantity }} {{ row.unit_name }}
+              {{ row.unshippedQuantity }} {{ row.unitName }}
             </template>
           </el-table-column>
           <el-table-column label="库存" width="100">
             <template #default="{ row }">
               <span :class="{
-                'text-green': (row.stock_quantity || 0) >= (row.unshipped_quantity || 0),
-                'text-red': (row.stock_quantity || 0) < (row.unshipped_quantity || 0)
+                'text-green': (row.stockQuantity || 0) >= (row.unshippedQuantity || 0),
+                'text-red': (row.stockQuantity || 0) < (row.unshippedQuantity || 0)
               }">
-                {{ row.stock_quantity || 0 }} {{ row.unit_name }}
+                {{ row.stockQuantity || 0 }} {{ row.unitName }}
               </span>
             </template>
           </el-table-column>
           <el-table-column label="发货数量" width="100">
             <template #default="{ row }">
               <el-input
-                v-model.number="row.shipping_quantity"
+                v-model.number="row.shippingQuantity"
                 type="number"
                 :min="0"
-                :max="Math.min(row.unshipped_quantity, row.stock_quantity || 0)"
+                :max="Math.min(row.unshippedQuantity, row.stockQuantity || 0)"
                 size="small"
                 class="w-full"
                 @input="handleShippingQuantityInput(row)"
@@ -336,7 +336,7 @@
           </el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
     <!-- 浮动批量操作栏 -->
     <Transition name="slide-up">
       <div v-if="selectedRows.length > 0" class="floating-batch-bar">
@@ -599,14 +599,14 @@ const handleExport = () => {
     const csvContent = [
       headers.join(','),
       ...exportData.map(row => [
-        row.order_no || '',
-        row.customer_name || '',
-        row.product_name || '',
-        row.order_quantity || 0,
-        row.shipped_quantity || 0,
-        row.unshipped_quantity || 0,
+        row.orderNo || '',
+        row.customerName || '',
+        row.productName || '',
+        row.orderQuantity || 0,
+        row.shippedQuantity || 0,
+        row.unshippedQuantity || 0,
         getStatusText(row.status),
-        row.delivery_date || '',
+        row.deliveryDate || '',
         (row.notes || '').replace(/,/g, '，') // 替换逗号避免CSV格式问题
       ].join(','))
     ].join('\n')
@@ -648,18 +648,18 @@ const checkSelectable = (row) => {
 const canShip = (row) => {
   // 如果有待处理的出库单（草稿状态），禁用按钮
   // 注意：has_pending_outbound 可能是数字 0/1 或布尔值 false/true
-  const hasPending = Number(row.has_pending_outbound) === 1 || row.has_pending_outbound === true
+  const hasPending = Number(row.hasPendingOutbound) === 1 || row.hasPendingOutbound === true
   if (hasPending) {
     return false
   }
   // 如果正在处理中，禁用按钮
-  const itemKey = `${row.order_id}_${row.material_id}`
+  const itemKey = `${row.orderId}_${row.materialId}`
   if (processingItems.value.has(itemKey)) {
     return false
   }
   // 未发数量大于0，且库存大于0（转换为数字比较）
-  const unshippedQty = Number(row.unshipped_quantity) || 0
-  const stockQty = Number(row.stock_quantity) || 0
+  const unshippedQty = Number(row.unshippedQuantity) || 0
+  const stockQty = Number(row.stockQuantity) || 0
   const canShipResult = unshippedQty > 0 && stockQty > 0
   return canShipResult
 }
@@ -674,7 +674,7 @@ const handleSingleShipping = (row) => {
   isBatchShipping.value = false
   shippingItems.value = [{
     ...row,
-    shipping_quantity: Math.min(row.unshipped_quantity, row.stock_quantity || 0)
+    shipping_quantity: Math.min(row.unshippedQuantity, row.stockQuantity || 0)
   }]
   shippingForm.outbound_date = new Date()
   shippingForm.remark = ''
@@ -696,7 +696,7 @@ const handleBatchShipping = () => {
   isBatchShipping.value = true
   shippingItems.value = selectedRows.value.map(row => ({
     ...row,
-    shipping_quantity: Math.min(row.unshipped_quantity, row.stock_quantity || 0)
+    shipping_quantity: Math.min(row.unshippedQuantity, row.stockQuantity || 0)
   }))
   shippingForm.outbound_date = new Date()
   shippingForm.remark = ''
@@ -705,23 +705,23 @@ const handleBatchShipping = () => {
 // 处理发货数量输入
 const handleShippingQuantityInput = (row) => {
   // 确保输入的是数字
-  if (isNaN(row.shipping_quantity) || row.shipping_quantity === null || row.shipping_quantity === '') {
-    row.shipping_quantity = 0
+  if (isNaN(row.shippingQuantity) || row.shippingQuantity === null || row.shippingQuantity === '') {
+    row.shippingQuantity = 0
     return
   }
 
   // 转换为整数
-  row.shipping_quantity = Math.floor(Number(row.shipping_quantity))
+  row.shippingQuantity = Math.floor(Number(row.shippingQuantity))
 
   // 限制最小值
-  if (row.shipping_quantity < 0) {
-    row.shipping_quantity = 0
+  if (row.shippingQuantity < 0) {
+    row.shippingQuantity = 0
   }
 
   // 限制最大值（不能超过未发数量和库存中的较小值）
-  const maxQuantity = Math.min(row.unshipped_quantity, row.stock_quantity || 0)
-  if (row.shipping_quantity > maxQuantity) {
-    row.shipping_quantity = maxQuantity
+  const maxQuantity = Math.min(row.unshippedQuantity, row.stockQuantity || 0)
+  if (row.shippingQuantity > maxQuantity) {
+    row.shippingQuantity = maxQuantity
   }
 }
 // 格式化日期为 YYYY-MM-DD（供数据库使用）
@@ -741,7 +741,7 @@ const confirmShipping = async () => {
     return
   }
   // 验证发货数量
-  const validItems = shippingItems.value.filter(item => item.shipping_quantity > 0)
+  const validItems = shippingItems.value.filter(item => item.shippingQuantity > 0)
   if (validItems.length === 0) {
     ElMessage.warning('请至少输入一个发货数量')
     return
@@ -761,7 +761,7 @@ const confirmShipping = async () => {
       }
     )
     // 构建出库单数据（批量和单个使用统一结构）
-    const orderIds = [...new Set(validItems.map(item => item.order_id))]
+    const orderIds = [...new Set(validItems.map(item => item.orderId))]
     const outboundData = {
       order_id: orderIds[0],
       related_orders: orderIds.length > 1 ? orderIds.slice(1) : undefined,
@@ -770,8 +770,8 @@ const confirmShipping = async () => {
       status: 'draft',
       remarks: shippingForm.remark,
       items: validItems.map(item => ({
-        product_id: item.material_id,
-        quantity: item.shipping_quantity
+        product_id: item.materialId,
+        quantity: item.shippingQuantity
       }))
     }
     // 🔒 第三层防护：后端会进行幂等性检查（基于订单ID和时间窗口）
@@ -780,7 +780,7 @@ const confirmShipping = async () => {
     ElMessage.success(isBatchShipping.value ? '批量出库单创建成功' : '出库单创建成功')
     // 将订单项标记为正在处理（禁用发货按钮）
     validItems.forEach(item => {
-      const itemKey = `${item.order_id}_${item.material_id}`
+      const itemKey = `${item.orderId}_${item.materialId}`
       processingItems.value.add(itemKey)
     })
     shippingDialogVisible.value = false

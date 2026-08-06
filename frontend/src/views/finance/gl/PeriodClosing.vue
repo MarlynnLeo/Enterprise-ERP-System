@@ -159,31 +159,31 @@
           <div class="step-block">
             <div class="section-title">结转明细</div>
             <el-table :data="previewData.closingItems || []" border class="w-full" max-height="400">
-              <el-table-column prop="account_code" label="科目编码" width="120" />
-              <el-table-column prop="account_name" label="科目名称" min-width="200" />
-              <el-table-column prop="account_type" label="类型" width="100" />
-              <el-table-column prop="total_debit" label="借方发生" width="130" align="right">
+              <el-table-column prop="accountCode" label="科目编码" width="120" />
+              <el-table-column prop="accountName" label="科目名称" min-width="200" />
+              <el-table-column prop="accountType" label="类型" width="100" />
+              <el-table-column prop="totalDebit" label="借方发生" width="130" align="right">
                 <template #default="{ row }">
-                  {{ formatMoney(row.total_debit) }}
+                  {{ formatMoney(row.totalDebit) }}
                 </template>
               </el-table-column>
-              <el-table-column prop="total_credit" label="贷方发生" width="130" align="right">
+              <el-table-column prop="totalCredit" label="贷方发生" width="130" align="right">
                 <template #default="{ row }">
-                  {{ formatMoney(row.total_credit) }}
+                  {{ formatMoney(row.totalCredit) }}
                 </template>
               </el-table-column>
-              <el-table-column prop="closing_amount" label="结转金额" width="130" align="right">
+              <el-table-column prop="closingAmount" label="结转金额" width="130" align="right">
                 <template #default="{ row }">
-                  {{ formatMoney(row.closing_amount) }}
+                  {{ formatMoney(row.closingAmount) }}
                 </template>
               </el-table-column>
-              <el-table-column prop="closing_direction" label="结转方向" width="100">
+              <el-table-column prop="closingDirection" label="结转方向" width="100">
                 <template #default="{ row }">
                   <el-tag
-                    :type="row.closing_direction === '借方' ? 'success' : 'warning'"
+                    :type="row.closingDirection === '借方' ? 'success' : 'warning'"
                     size="small"
                   >
-                    {{ row.closing_direction || '-' }}
+                    {{ row.closingDirection || '-' }}
                   </el-tag>
                 </template>
               </el-table-column>
@@ -236,7 +236,7 @@
             <el-option
               v-for="item in periods"
               :key="item.id"
-              :label="item.period_name"
+              :label="item.periodName"
               :value="item.id"
             />
           </el-select>
@@ -244,30 +244,30 @@
       </template>
       <el-table :data="historyList" border class="w-full">
         <template #empty>
-          <el-empty description="暂无结转历史" />
+          <EmptyState description="暂无结转历史" />
         </template>
-        <el-table-column prop="entry_number" label="凭证编号" width="180" />
-        <el-table-column prop="entry_date" label="结转日期" width="120">
+        <el-table-column prop="entryNumber" label="凭证编号" width="180" />
+        <el-table-column prop="entryDate" label="结转日期" width="120">
           <template #default="{ row }">
-            {{ formatDate(row.entry_date) }}
+            {{ formatDate(row.entryDate) }}
           </template>
         </el-table-column>
         <el-table-column prop="description" label="摘要" min-width="200" />
-        <el-table-column prop="operator_name" label="操作人" width="120" />
-        <el-table-column prop="created_at" label="操作时间" width="180">
+        <el-table-column prop="operatorName" label="操作人" width="120" />
+        <el-table-column prop="createdAt" label="操作时间" width="180">
           <template #default="{ row }">
-            {{ formatDateTime(row.created_at) }}
+            {{ formatDateTime(row.createdAt) }}
           </template>
         </el-table-column>
       </el-table>
     </el-card>
 
-    <el-dialog
+    <AppDialog
       v-model="reconciliationDialogVisible"
       title="本期未对账银行流水"
-      width="980px"
-      class="dialog-max-vw"
-      destroy-on-close
+      mode="form"
+      wide
+      custom-class="dialog-max-vw"
     >
       <div class="dialog-toolbar">
         <span class="text-secondary">
@@ -290,23 +290,23 @@
         class="w-full"
       >
         <template #empty>
-          <el-empty description="暂无未对账银行流水" />
+          <EmptyState description="暂无未对账银行流水" />
         </template>
-        <el-table-column prop="transaction_date" label="交易日期" width="110">
+        <el-table-column prop="transactionDate" label="交易日期" width="110">
           <template #default="{ row }">
-            {{ formatDate(row.transaction_date) }}
+            {{ formatDate(row.transactionDate) }}
           </template>
         </el-table-column>
-        <el-table-column prop="account_name" label="银行账户" width="140" show-overflow-tooltip />
-        <el-table-column prop="transaction_type" label="类型" width="80" />
+        <el-table-column prop="accountName" label="银行账户" width="140" show-overflow-tooltip />
+        <el-table-column prop="transactionType" label="类型" width="80" />
         <el-table-column prop="amount" label="金额" width="120" align="right">
           <template #default="{ row }">
             {{ formatMoney(row.amount) }}
           </template>
         </el-table-column>
-        <el-table-column prop="related_party" label="交易对方" min-width="120" show-overflow-tooltip />
+        <el-table-column prop="relatedParty" label="交易对方" min-width="120" show-overflow-tooltip />
         <el-table-column prop="description" label="描述" min-width="160" show-overflow-tooltip />
-        <el-table-column prop="reference_number" label="参考号" width="120" show-overflow-tooltip />
+        <el-table-column prop="referenceNumber" label="参考号" width="120" show-overflow-tooltip />
         <el-table-column label="状态" width="120">
           <template #default="{ row }">
             <el-tag v-if="row._type === 'unreconciled'" type="warning">未对账</el-tag>
@@ -314,14 +314,14 @@
           </template>
         </el-table-column>
       </el-table>
-    </el-dialog>
+        </AppDialog>
 
-    <el-dialog
+    <AppDialog
       v-model="unpostedDialogVisible"
       title="本期未过账凭证"
-      width="980px"
-      class="dialog-max-vw"
-      destroy-on-close
+      mode="form"
+      wide
+      custom-class="dialog-max-vw"
     >
       <div class="dialog-toolbar">
         <span class="text-secondary">
@@ -346,40 +346,40 @@
         class="w-full"
       >
         <template #empty>
-          <el-empty description="暂无未过账凭证" />
+          <EmptyState description="暂无未过账凭证" />
         </template>
-        <el-table-column prop="entry_number" label="凭证编号" width="170" show-overflow-tooltip />
-        <el-table-column prop="entry_date" label="凭证日期" width="110">
+        <el-table-column prop="entryNumber" label="凭证编号" width="170" show-overflow-tooltip />
+        <el-table-column prop="entryDate" label="凭证日期" width="110">
           <template #default="{ row }">
-            {{ formatDate(row.entry_date) }}
+            {{ formatDate(row.entryDate) }}
           </template>
         </el-table-column>
-        <el-table-column prop="document_type" label="单据类型" width="120" show-overflow-tooltip>
+        <el-table-column prop="documentType" label="单据类型" width="120" show-overflow-tooltip>
           <template #default="{ row }">
-            {{ formatDocumentType(row.document_type) }}
+            {{ formatDocumentType(row.documentType) }}
           </template>
         </el-table-column>
-        <el-table-column prop="document_number" label="单据编号" min-width="150" show-overflow-tooltip />
+        <el-table-column prop="documentNumber" label="单据编号" min-width="150" show-overflow-tooltip />
         <el-table-column prop="description" label="摘要" min-width="180" show-overflow-tooltip />
-        <el-table-column prop="total_debit" label="借方金额" width="120" align="right">
+        <el-table-column prop="totalDebit" label="借方金额" width="120" align="right">
           <template #default="{ row }">
-            {{ formatMoney(row.total_debit) }}
+            {{ formatMoney(row.totalDebit) }}
           </template>
         </el-table-column>
-        <el-table-column prop="total_credit" label="贷方金额" width="120" align="right">
+        <el-table-column prop="totalCredit" label="贷方金额" width="120" align="right">
           <template #default="{ row }">
-            {{ formatMoney(row.total_credit) }}
+            {{ formatMoney(row.totalCredit) }}
           </template>
         </el-table-column>
         <el-table-column label="过账状态" width="180">
           <template #default="{ row }">
             <el-tooltip
-              v-if="!row.posting_ready"
-              :content="row.posting_issue || '凭证暂不满足过账条件'"
+              v-if="!row.postingReady"
+              :content="row.postingIssue || '凭证暂不满足过账条件'"
               placement="top"
             >
-              <el-tag :type="row.date_valid ? 'danger' : 'warning'">
-                {{ row.date_valid ? '需处理凭证' : '需修正日期' }}
+              <el-tag :type="row.dateValid ? 'danger' : 'warning'">
+                {{ row.dateValid ? '需处理凭证' : '需修正日期' }}
               </el-tag>
             </el-tooltip>
             <el-tag v-else type="success">正常</el-tag>
@@ -390,7 +390,7 @@
             <div class="table-actions">
               <el-button size="small" @click="openEntryDetail(row)">明细</el-button>
               <el-button
-                v-if="!row.date_valid"
+                v-if="!row.dateValid"
                 v-permission="'finance:entries:update'"
                 size="small"
                 type="warning"
@@ -411,14 +411,14 @@
           </template>
         </el-table-column>
       </el-table>
-    </el-dialog>
+        </AppDialog>
 
-    <el-dialog
+    <AppDialog
       v-model="dateFixDialogVisible"
       :title="dateFixEntry ? `修正日期：${dateFixEntry.entry_number}` : '修正日期'"
+      mode="form"
       width="520px"
-      class="dialog-max-vw"
-      destroy-on-close
+      custom-class="dialog-max-vw"
     >
       <el-alert
         v-if="dateFixEntry"
@@ -458,7 +458,7 @@
           {{ dateFixPrimaryText }}
         </el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
 
     <AppDialog
       v-model="entryDetailVisible"
@@ -606,12 +606,12 @@ const fetchPreview = async () => {
 
 const normalizeEntryItem = item => ({
   id: item.id,
-  accountCode: item.accountCode || item.account_code,
-  accountName: item.accountName || item.account_name || '-',
-  accountIssue: item.accountIssue || item.account_issue || null,
+  accountCode: item.accountCode,
+  accountName: item.accountName || '-',
+  accountIssue: item.accountIssue || null,
   description: item.description || '-',
-  debitAmount: item.debitAmount ?? item.debit_amount ?? 0,
-  creditAmount: item.creditAmount ?? item.credit_amount ?? 0
+  debitAmount: item.debitAmount ?? item.debitAmount ?? 0,
+  creditAmount: item.creditAmount ?? item.creditAmount ?? 0
 })
 
 const fetchUnpostedEntries = async () => {
@@ -676,21 +676,21 @@ const refreshAfterPosting = async () => {
 }
 
 const postSingleEntry = async (row) => {
-  if (!row.date_valid) {
+  if (!row.dateValid) {
     ElMessage.warning('该凭证日期不在所属期间内，请先修正日期')
     openDateFixDialog(row, 'post')
     return
   }
 
-  if (!row.posting_ready) {
-    ElMessage.warning(row.posting_issue || '该凭证暂不满足过账条件，请先处理凭证明细')
+  if (!row.postingReady) {
+    ElMessage.warning(row.postingIssue || '该凭证暂不满足过账条件，请先处理凭证明细')
     await openEntryDetail(row)
     return
   }
 
   try {
     await ElMessageBox.confirm(
-      `确认过账凭证 ${row.entry_number}？过账后将不能直接修改或删除。`,
+      `确认过账凭证 ${row.entryNumber}？过账后将不能直接修改或删除。`,
       '确认过账',
       {
         confirmButtonText: '确认过账',
@@ -780,8 +780,8 @@ const openDateFixDialog = (row, afterSaveAction = null) => {
   dateFixEntry.value = row
   dateFixAfterSaveAction.value = afterSaveAction
   dateFixForm.value = {
-    entry_date: row.entry_date || row.period_start_date || '',
-    posting_date: row.posting_date || row.entry_date || row.period_start_date || ''
+    entry_date: row.entryDate || row.periodStartDate || '',
+    posting_date: row.postingDate || row.entryDate || row.periodStartDate || ''
   }
   dateFixDialogVisible.value = true
 }

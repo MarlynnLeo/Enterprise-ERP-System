@@ -10,7 +10,7 @@
             <span class="cust-name">{{ cust.name }}</span>
             <Tag v-if="cust.level" type="primary" size="medium">{{ cust.level }}</Tag>
           </div>
-          <div class="cust-meta">{{ cust.code || cust.customer_code || '--' }}</div>
+          <div class="cust-meta">{{ cust.customerCode || '--' }}</div>
           <div class="cust-meta">
             <span v-if="cust.contact_person">联系人: {{ cust.contact_person }}</span>
             <span v-if="cust.phone"> | {{ cust.phone }}</span>

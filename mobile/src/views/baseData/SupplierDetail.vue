@@ -18,8 +18,8 @@
       </div>
 
       <CellGroup inset title="基本信息">
-        <Cell title="联系人" :value="supplier.contact || supplier.contact_person || '--'" />
-        <Cell title="联系电话" :value="supplier.phone || supplier.contact_phone || '--'" />
+        <Cell title="联系人" :value="supplier.contactPerson || '--'" />
+        <Cell title="联系电话" :value="supplier.contactPhone || '--'" />
         <Cell title="邮箱" :value="supplier.email || '--'" />
         <Cell title="地址" :value="supplier.address || '--'" />
       </CellGroup>
@@ -41,7 +41,7 @@
       <!-- 操作按钮 -->
       <div class="action-section">
         <VanButton
-          v-if="supplier.phone || supplier.contact_phone"
+          v-if="supplier.contactPhone"
           round block type="primary" icon="phone-o"
           @click="handleCall"
           style="margin-bottom: 10px"

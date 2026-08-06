@@ -27,6 +27,39 @@ function isPlainObject(v) {
   return v !== null && typeof v === 'object' && !Array.isArray(v) && !(v instanceof Date);
 }
 
+/**
+ * 将 DB/模型 snake 行递归转为 API camel（边界出参通用）
+ * Date / Buffer 原样保留
+ */
+function mapKeysToCamel(value) {
+  if (value == null) return value;
+  if (value instanceof Date) return value;
+  if (Buffer.isBuffer(value)) return value;
+  if (Array.isArray(value)) return value.map((v) => mapKeysToCamel(v));
+  if (!isPlainObject(value)) return value;
+  const out = {};
+  for (const [k, v] of Object.entries(value)) {
+    out[snakeToCamel(k)] = mapKeysToCamel(v);
+  }
+  return out;
+}
+
+/**
+ * 将 HTTP camel 体递归转为 DB snake（边界入参通用）
+ */
+function mapKeysToSnake(value) {
+  if (value == null) return value;
+  if (value instanceof Date) return value;
+  if (Buffer.isBuffer(value)) return value;
+  if (Array.isArray(value)) return value.map((v) => mapKeysToSnake(v));
+  if (!isPlainObject(value)) return value;
+  const out = {};
+  for (const [k, v] of Object.entries(value)) {
+    out[camelToSnake(k)] = mapKeysToSnake(v);
+  }
+  return out;
+}
+
 function formatDate(value) {
   if (value == null || value === '') return null;
   if (value instanceof Date) {
@@ -98,8 +131,8 @@ function createFieldMap(schema = {}) {
     if (Array.isArray(row)) return row.map((r) => toApi(r));
     if (!isPlainObject(row)) return row;
 
-    const api = {};
-    // 先按 schema 映射已知列
+    // 先全量 snake→camel，再用 schema 覆盖类型/日期规范化
+    const api = mapKeysToCamel(row);
     for (const [dbKey, apiKey] of Object.entries(dbToApi)) {
       if (!Object.prototype.hasOwnProperty.call(row, dbKey) && !Object.prototype.hasOwnProperty.call(row, apiKey)) {
         continue;
@@ -115,6 +148,8 @@ function createFieldMap(schema = {}) {
       api[itemKey] = row[itemKey].map((it) => itemMap.toApi(it));
     } else if (itemMap && Array.isArray(row.items)) {
       api.items = row.items.map((it) => itemMap.toApi(it));
+    } else if (itemMap && Array.isArray(row.details)) {
+      api.details = row.details.map((it) => itemMap.toApi(it));
     }
 
     if (typeof schema.afterToApi === 'function') {
@@ -175,6 +210,8 @@ module.exports = {
   createFieldMap,
   snakeToCamel,
   camelToSnake,
+  mapKeysToCamel,
+  mapKeysToSnake,
   formatDate,
   mapLineUnitPrice,
   isPlainObject,

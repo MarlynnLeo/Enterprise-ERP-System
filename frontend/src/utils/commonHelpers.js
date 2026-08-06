@@ -406,26 +406,31 @@ export const PurchaseHelper = {
 
     return {
       // 基本字段映射
-      material_code: data.material_code || data.materialCode || data.code || '-',
-      material_name: data.material_name || data.materialName || data.name || '-',
+      // 打印/导出内部仍可用 snake 键供模板；取值只认 API camel
+      material_code: data.materialCode || data.code || '-',
+      material_name: data.materialName || data.name || '-',
       specification: data.specification || data.specs || '-',
-      unit_name: data.unit_name || data.unit || data.unitName || '-',
+      unit_name: data.unitName || data.unit || '-',
 
-      // 数量相关字段
+      // 数量相关字段（取值只认 camel）
       quantity: parseFloat(data.quantity) || 0,
-      received_quantity: parseFloat(data.received_quantity) || 0,
-      warehoused_quantity: parseFloat(data.warehoused_quantity) || 0,
+      received_quantity: parseFloat(data.receivedQuantity) || 0,
+      warehoused_quantity: parseFloat(data.warehousedQuantity) || 0,
 
-      // 价格相关字段：price / unit_price 双写，避免采购/销售字段名不一致
+      // 价格：API unitPrice / price
       price: (() => {
-        const p = parseFloat(data.price ?? data.unit_price ?? data.unitPrice) || 0
+        const p = parseFloat(data.unitPrice ?? data.price) || 0
         return p
       })(),
       unit_price: (() => {
-        const p = parseFloat(data.unit_price ?? data.unitPrice ?? data.price) || 0
+        const p = parseFloat(data.unitPrice ?? data.price) || 0
         return p
       })(),
-      total: parseFloat(data.total) || parseFloat(data.total_price) || parseFloat(data.amount) || 0,
+      total:
+        parseFloat(data.total) ||
+        parseFloat(data.totalPrice) ||
+        parseFloat(data.amount) ||
+        0,
 
       // 其他字段保持原样
       ...data
@@ -516,7 +521,7 @@ export const PurchaseHelper = {
       errors.push('请选择预计到货日期');
     }
 
-    if (!form.supplier_id) {
+    if (!form.supplierId) {
       errors.push('请选择供应商');
     }
 
@@ -525,14 +530,14 @@ export const PurchaseHelper = {
       errors.push('至少添加一个物料');
     } else {
       form.items.forEach((item, index) => {
-        if (!item.material_id) {
+        if (!item.materialId) {
           errors.push(`第${index + 1}个物料：请选择物料`);
         }
         if (!item.quantity || item.quantity <= 0) {
           errors.push(`第${index + 1}个物料：数量必须大于0`);
         }
         {
-          const unitPrice = parseFloat(item.price ?? item.unit_price ?? item.unitPrice)
+          const unitPrice = parseFloat(item.price ?? item.unitPrice ?? item.unitPrice)
           if (!Number.isFinite(unitPrice) || unitPrice < 0) {
             errors.push(`第${index + 1}个物料：单价不能为负数`)
           }
@@ -556,7 +561,7 @@ export const PurchaseHelper = {
 
     return items.reduce((total, item) => {
       const quantity = parseFloat(item.quantity) || 0
-      const price = parseFloat(item.price ?? item.unit_price ?? item.unitPrice) || 0
+      const price = parseFloat(item.price ?? item.unitPrice ?? item.unitPrice) || 0
       return total + quantity * price
     }, 0)
   }

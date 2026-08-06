@@ -82,8 +82,8 @@ export async function searchMaterials(baseDataApi, searchTerm, options = {}) {
   allResults.sort((a, b) => {
     const aCode = String(a.code || '').toLowerCase()
     const bCode = String(b.code || '').toLowerCase()
-    const aName = String(a.name || a.material_name || '').toLowerCase()
-    const bName = String(b.name || b.material_name || '').toLowerCase()
+    const aName = String(a.name || a.materialName || '').toLowerCase()
+    const bName = String(b.name || b.materialName || '').toLowerCase()
 
     if (aCode === keywordLower && bCode !== keywordLower) return -1
     if (bCode === keywordLower && aCode !== keywordLower) return 1
@@ -125,19 +125,14 @@ export function mapMaterialData(materials = []) {
     ...material,
     id: material.id,
     code: material.code || '无编码',
-    name: material.name || material.material_name || '未命名',
+    name: material.name || material.materialName || '未命名',
     specification: material.specs || material.specification || '',
-    hasBom: Boolean(
-      material.hasBom ||
-      material.has_bom ||
-      material.withBom ||
-      material.bom_id ||
-      material.bomId
-    ),
-    bomId: material.bomId || material.bom_id || null,
-    unit_id: material.unit_id,
-    unit_name: material.unit_name || '个',
+    // API 只认 camel
+    hasBom: Boolean(material.hasBom || material.withBom || material.bomId),
+    bomId: material.bomId || null,
+    unitId: material.unitId,
+    unitName: material.unitName || '个',
     price: material.price || 0,
-    stock_quantity: material.stock_quantity || material.quantity || 0,
+    stockQuantity: material.stockQuantity ?? material.quantity ?? 0,
   }))
 }

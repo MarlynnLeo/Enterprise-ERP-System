@@ -90,33 +90,33 @@
               <div class="card-body">
                 <div class="card-top">
                   <div class="code-area">
-                    <span class="order-code">{{ item.transfer_no }}</span>
+                    <span class="order-code">{{ item.transferNo }}</span>
                     <span class="status-tag" :class="getStatusAccent(item.status)">{{
                       getStatusText(item.status)
                     }}</span>
                   </div>
-                  <div class="order-qty" v-if="item.item_count">
-                    {{ item.item_count }}<span class="qty-unit">项</span>
+                  <div class="order-qty" v-if="item.itemCount">
+                    {{ item.itemCount }}<span class="qty-unit">项</span>
                   </div>
                 </div>
 
                 <!-- 调拨路线 -->
                 <div class="transfer-route">
-                  <span class="route-from">{{ item.from_location || '—' }}</span>
+                  <span class="route-from">{{ item.fromLocation || '—' }}</span>
                   <Icon name="arrow" size="14" color="var(--text-tertiary)" />
-                  <span class="route-to">{{ item.to_location || '—' }}</span>
+                  <span class="route-to">{{ item.toLocation || '—' }}</span>
                 </div>
 
                 <div class="card-meta">
-                  <span class="meta-item" v-if="item.transfer_date">{{ item.transfer_date }}</span>
-                  <span class="meta-item" v-if="item.creator_name">{{ item.creator_name }}</span>
+                  <span class="meta-item" v-if="item.transferDate">{{ item.transferDate }}</span>
+                  <span class="meta-item" v-if="item.creatorName">{{ item.creatorName }}</span>
                 </div>
 
                 <div
                   class="card-bottom"
-                  v-if="item.remark || item.status === 'draft' || item.status === 'approved'"
+                  v-if="item.remarks || item.remark || item.status === 'draft' || item.status === 'approved'"
                 >
-                  <div class="remark-text" v-if="item.remark">{{ item.remark }}</div>
+                  <div class="remark-text" v-if="item.remarks || item.remark">{{ item.remarks || item.remark }}</div>
                   <div class="card-actions" @click.stop>
                     <div
                       v-if="item.status === 'draft'"
@@ -210,7 +210,7 @@
     if (activeStatus.value) r = r.filter((i) => i.status === activeStatus.value)
     if (searchValue.value) {
       const kw = searchValue.value.toLowerCase()
-      r = r.filter((i) => (i.transfer_no || '').toLowerCase().includes(kw))
+      r = r.filter((i) => ((i.transferNo || '')).toLowerCase().includes(kw))
     }
     return r
   })
@@ -234,7 +234,7 @@
       const params = {
         page: pagination.page,
         limit: pagination.pageSize,
-        transfer_no: searchValue.value || undefined,
+        transferNo: searchValue.value || undefined,
         status: activeStatus.value || undefined
       }
       const res = await inventoryApi.getTransferList(params)
@@ -258,7 +258,7 @@
     try {
       await showConfirmDialog({
         title: labels[newStatus],
-        message: `确定要${labels[newStatus]}调拨单 ${item.transfer_no} 吗？`
+        message: `确定要${labels[newStatus]}调拨单 ${item.transferNo} 吗？`
       })
       await inventoryApi.updateTransferStatus(item.id, newStatus)
       showToast('操作成功')

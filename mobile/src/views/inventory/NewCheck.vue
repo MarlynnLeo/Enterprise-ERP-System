@@ -14,7 +14,7 @@
       <Form @submit="onSubmit">
         <CellGroup inset title="基本信息">
           <Field
-            v-model="checkForm.check_date"
+            v-model="checkForm.checkDate"
             name="check_date"
             label="盘点日期"
             placeholder="选择盘点日期"
@@ -35,7 +35,7 @@
 
           <Field
             v-model="warehouseText"
-            name="warehouse_id"
+            name="locationId"
             label="仓库/库区"
             placeholder="选择仓库/库区"
             readonly
@@ -79,7 +79,7 @@
     <!-- 日期选择器 -->
     <Popup v-model:show="showDatePicker" position="bottom">
       <DatePicker
-        v-model="checkForm.check_date"
+        v-model="checkForm.checkDate"
         title="选择盘点日期"
         :min-date="minDate"
         :max-date="maxDate"
@@ -136,11 +136,11 @@
   const loadingWarehouses = ref(false)
   const warehouseOptions = ref([])
 
-  // 盘点单表单
+  // 盘点单表单（纯 camel）
   const checkForm = ref({
-    check_date: getCurrentDate(),
-    check_type: 'cycle',
-    warehouse_id: '',
+    checkDate: getCurrentDate(),
+    checkType: 'cycle',
+    locationId: '',
     description: '',
     remarks: '',
     items: []
@@ -162,14 +162,14 @@
 
   // 计算属性：获取盘点类型文本
   const checkTypeText = computed(() => {
-    const type = checkTypeOptions.find((item) => item.value === checkForm.value.check_type)
+    const type = checkTypeOptions.find((item) => item.value === checkForm.value.checkType)
     return type ? type.label : ''
   })
 
   // 计算属性：获取仓库文本
   const warehouseText = computed(() => {
     const warehouse = warehouseOptions.value.find(
-      (item) => item.id === checkForm.value.warehouse_id
+      (item) => String(item.id) === String(checkForm.value.locationId)
     )
     return warehouse ? warehouse.name : ''
   })
@@ -182,7 +182,7 @@
   // 盘点类型确认 (Vant 4 格式)
   const onCheckTypeConfirm = ({ selectedValues }) => {
     if (selectedValues && selectedValues.length > 0) {
-      checkForm.value.check_type = selectedValues[0]
+      checkForm.value.checkType = selectedValues[0]
     }
     showCheckTypePicker.value = false
   }
@@ -190,19 +190,19 @@
   // 仓库确认 (Vant 4 格式)
   const onWarehouseConfirm = ({ selectedValues }) => {
     if (selectedValues && selectedValues.length > 0) {
-      checkForm.value.warehouse_id = selectedValues[0]
+      checkForm.value.locationId = selectedValues[0]
     }
     showWarehousePicker.value = false
   }
 
   // 表单提交
   const onSubmit = async () => {
-    if (!checkForm.value.check_date) {
+    if (!checkForm.value.checkDate) {
       showToast('请选择盘点日期')
       return
     }
 
-    if (!checkForm.value.warehouse_id) {
+    if (!checkForm.value.locationId) {
       showToast('请选择仓库/库区')
       return
     }
@@ -210,11 +210,12 @@
     try {
       submitting.value = true
 
+      // 纯 camel；若后端尚未 FieldMap，控制器侧应 fromApi
       const formData = {
-        check_date: checkForm.value.check_date,
-        check_type: checkForm.value.check_type,
-        location_id: checkForm.value.warehouse_id, // 后端期望字段名为 location_id
-        remark: checkForm.value.remarks, // 后端期望字段名为 remark
+        checkDate: checkForm.value.checkDate,
+        checkType: checkForm.value.checkType,
+        locationId: checkForm.value.locationId,
+        remarks: checkForm.value.remarks,
         description: checkForm.value.description,
         status: 'draft'
       }

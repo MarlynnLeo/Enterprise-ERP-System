@@ -71,7 +71,7 @@
       <template #basic>
         <el-form-item label="费用类型">
           <el-cascader
-            v-model="searchForm.category_id"
+            v-model="searchForm.categoryId"
             :options="categoryTree"
             :props="{ value: 'id', label: 'name', checkStrictly: true, emitPath: false }"
             placeholder="全部类型"
@@ -112,12 +112,12 @@
     <el-card class="data-card">
       <el-table :data="expenseList" class="w-full" border v-loading="loading">
         <template #empty>
-          <el-empty description="暂无费用数据" />
+          <EmptyState description="暂无费用数据" />
         </template>
-        <el-table-column prop="expense_number" label="审批编码" width="200" />
-        <el-table-column prop="category_name" label="费用类型" width="160">
+        <el-table-column prop="expenseNumber" label="审批编码" width="200" />
+        <el-table-column prop="categoryName" label="费用类型" width="160">
           <template #default="{ row }">
-            <span>{{ row.parent_category_name ? row.parent_category_name + ' / ' : '' }}{{ row.category_name }}</span>
+            <span>{{ row.parentCategoryName ? row.parentCategoryName + ' / ' : '' }}{{ row.categoryName }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="title" label="费用标题" min-width="200" show-overflow-tooltip />
@@ -126,9 +126,9 @@
             <span class="amount-text">{{ formatMoney(row.amount) }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="expense_date" label="费用日期" width="110">
+        <el-table-column prop="expenseDate" label="费用日期" width="110">
           <template #default="{ row }">
-            {{ formatDate(row.expense_date) }}
+            {{ formatDate(row.expenseDate) }}
           </template>
         </el-table-column>
         <el-table-column prop="payee" label="收款方" width="150" show-overflow-tooltip />
@@ -137,7 +137,7 @@
             <el-tag :type="getStatusType(row.status)">{{ getStatusText(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="created_by_name" label="创建人" width="100" />
+        <el-table-column prop="createdByName" label="创建人" width="100" />
         <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <el-button class="btn-op-view" type="primary" size="small" @click="handleView(row)">查看</el-button>
@@ -219,13 +219,13 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="费用编号">
-              <el-input v-model="expenseForm.expense_number" disabled placeholder="自动生成" />
+              <el-input v-model="expenseForm.expenseNumber" disabled placeholder="自动生成" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="费用类型" prop="category_id">
+            <el-form-item label="费用类型" prop="categoryId">
               <el-cascader
-                v-model="expenseForm.category_id"
+                v-model="expenseForm.categoryId"
                 :options="categoryTree"
                 :props="{ value: 'id', label: 'name', emitPath: false }"
                 placeholder="选择费用类型"
@@ -251,7 +251,7 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="费用日期" prop="expense_date">
+            <el-form-item label="费用日期" prop="expenseDate">
               <el-date-picker
                 v-model="expenseForm.expense_date"
                 type="date"
@@ -316,10 +316,15 @@
     </AppDialog>
 
     <!-- 审批对话框 -->
-    <el-dialog title="费用审批" v-model="approveDialogVisible" width="500px">
+    <AppDialog
+      v-model="approveDialogVisible"
+      title="费用审批"
+      mode="form"
+      width="500px"
+    >
       <el-form :model="approveForm" label-width="80px">
         <el-form-item label="费用编号">
-          <el-input :value="currentExpense?.expense_number" disabled />
+          <el-input :value="currentExpense?.expenseNumber" disabled />
         </el-form-item>
         <el-form-item label="费用标题">
           <el-input :value="currentExpense?.title" disabled />
@@ -336,28 +341,33 @@
         <el-button v-permission="'finance:expenses:approve'" type="danger" @click="handleApproveAction('reject')" :loading="approving">驳回</el-button>
         <el-button v-permission="'finance:expenses:approve'" type="success" @click="handleApproveAction('approve')" :loading="approving">通过</el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
 
     <!-- 付款对话框 -->
-    <el-dialog title="费用付款" v-model="payDialogVisible" width="500px">
+    <AppDialog
+      v-model="payDialogVisible"
+      title="费用付款"
+      mode="form"
+      width="500px"
+    >
       <el-form :model="payForm" :rules="payRules" ref="payFormRef" label-width="100px">
         <el-form-item label="费用编号">
-          <el-input :value="currentExpense?.expense_number" disabled />
+          <el-input :value="currentExpense?.expenseNumber" disabled />
         </el-form-item>
         <el-form-item label="付款金额">
           <el-input :value="formatMoney(currentExpense?.amount)" disabled />
         </el-form-item>
-        <el-form-item label="付款账户" prop="bank_account_id">
-          <el-select v-model="payForm.bank_account_id" placeholder="选择付款账户" class="w-full">
+        <el-form-item label="付款账户" prop="bankAccountId">
+          <el-select v-model="payForm.bankAccountId" placeholder="选择付款账户" class="w-full">
             <el-option
               v-for="account in bankAccounts"
               :key="account.id"
-              :label="account.accountName || account.account_name || `账户${account.id}`"
+              :label="account.accountName || `账户${account.id}`"
               :value="account.id"
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="付款日期" prop="payment_date">
+        <el-form-item label="付款日期" prop="paymentDate">
           <el-date-picker
             v-model="payForm.payment_date"
             type="date"
@@ -371,7 +381,7 @@
         <el-button @click="payDialogVisible = false">取消</el-button>
         <el-button v-permission="'finance:expenses:pay'" type="primary" @click="handlePayAction" :loading="paying">确认付款</el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
   </div>
 </template>
 
@@ -510,7 +520,7 @@ const fetchExpenses = async () => {
       page: currentPage.value,
       pageSize: pageSize.value
     }
-    if (searchForm.category_id) params.category_id = searchForm.category_id
+    if (searchForm.categoryId) params.categoryId = searchForm.categoryId
     if (searchForm.status) params.status = searchForm.status
     if (searchForm.dateRange?.length === 2) {
       params.startDate = searchForm.dateRange[0]
@@ -564,7 +574,7 @@ const handleSearch = () => {
 }
 
 const handleReset = () => {
-  searchForm.category_id = null
+  searchForm.categoryId = null
   searchForm.status = ''
   searchForm.dateRange = null
   searchForm.keyword = ''
@@ -590,7 +600,7 @@ const handleAdd = async () => {
   try {
     const res = await financeApi.generateExpenseNumber()
     const data = parseDataObject(res, { enableLog: false }) || {}
-    expenseForm.expense_number = data.expense_number || ''
+    expenseForm.expenseNumber = data.expenseNumber || ''
   } catch (error) {
     console.error('获取费用编号失败:', error)
   }
@@ -634,7 +644,7 @@ const handleSave = async () => {
     saving.value = true
 
     const data = {
-      category_id: expenseForm.category_id,
+      category_id: expenseForm.categoryId,
       title: expenseForm.title,
       amount: expenseForm.amount,
       expense_date: expenseForm.expense_date,
@@ -669,7 +679,7 @@ const handleSaveAndSubmit = async () => {
     saving.value = true
 
     const data = {
-      category_id: expenseForm.category_id,
+      category_id: expenseForm.categoryId,
       title: expenseForm.title,
       amount: expenseForm.amount,
       expense_date: expenseForm.expense_date,
@@ -754,7 +764,7 @@ const handleApproveAction = async (action) => {
 // 付款
 const handlePay = (row) => {
   currentExpense.value = row
-  payForm.bank_account_id = null
+  payForm.bankAccountId = null
   payForm.payment_date = formatLocalDate(new Date())
   payDialogVisible.value = true
 }
@@ -763,14 +773,14 @@ const handlePayAction = async () => {
   try {
     await payFormRef.value.validate()
     await ElMessageBox.confirm(
-      `确认支付费用「${currentExpense.value.title || currentExpense.value.expense_number}」吗？`,
+      `确认支付费用「${currentExpense.value.title || currentExpense.value.expenseNumber}」吗？`,
       '确认付款',
       { type: 'warning', confirmButtonText: '确认付款', cancelButtonText: '取消' }
     )
     paying.value = true
 
     await financeApi.payExpense(currentExpense.value.id, {
-      bank_account_id: payForm.bank_account_id,
+      bank_account_id: payForm.bankAccountId,
       payment_date: payForm.payment_date
     })
     ElMessage.success('付款成功')

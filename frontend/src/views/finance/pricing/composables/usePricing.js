@@ -98,15 +98,15 @@ export function usePricing() {
         drawerVisible.value = true;
         drawerLoading.value = true;
         currentProduct.value = {
-            id: row.product_id,
-            code: row.product_code,
-            name: row.product_name,
+            id: row.productId,
+            code: row.productCode,
+            name: row.productName,
             specs: row.product_specs
         };
 
         // 重置表单
-        pricingForm.product_id = row.product_id;
-        pricingForm.cost_price = 0;
+        pricingForm.productId = row.productId;
+        pricingForm.costPrice = 0;
         pricingForm.suggested_price = 0;
         pricingForm.profit_margin = 0;
         pricingForm.effective_date = dayjs().format('YYYY-MM-DD');
@@ -124,11 +124,11 @@ export function usePricing() {
         }
 
         try {
-            const res = await financeApi.getPricingDetail(row.product_id);
+            const res = await financeApi.getPricingDetail(row.productId);
             const { currentPricing, latestBomCost, costType: type, strategies } = res.data;
 
             costType.value = type || 'none';
-            pricingForm.cost_price = latestBomCost || 0;
+            pricingForm.costPrice = latestBomCost || 0;
 
             if (currentPricing) {
                 pricingForm.suggested_price = Number(currentPricing.suggested_price);
@@ -162,7 +162,7 @@ export function usePricing() {
     const recalculateCost = async () => {
         try {
             const res = await financeApi.calculateBomCost(currentProduct.value.id);
-            pricingForm.cost_price = res.data.cost;
+            pricingForm.costPrice = res.data.cost;
             costType.value = res.data.costType || 'none';
             ElMessage.success('成本已更新');
         } catch {
@@ -172,7 +172,7 @@ export function usePricing() {
 
     // 价格变化时更新利润率
     const handlePriceChange = (calculateAdjustedCost) => {
-        const cost = calculateAdjustedCost ? calculateAdjustedCost() : Number(pricingForm.cost_price) || 0;
+        const cost = calculateAdjustedCost ? calculateAdjustedCost() : Number(pricingForm.costPrice) || 0;
         const price = Number(pricingForm.suggested_price) || 0;
         if (cost > 0) {
             const margin = ((price - cost) / cost) * 100;
@@ -182,7 +182,7 @@ export function usePricing() {
 
     // 利润率变化时更新价格
     const handleMarginChange = (calculateAdjustedCost) => {
-        const cost = calculateAdjustedCost ? calculateAdjustedCost() : Number(pricingForm.cost_price) || 0;
+        const cost = calculateAdjustedCost ? calculateAdjustedCost() : Number(pricingForm.costPrice) || 0;
         const margin = Number(pricingForm.profit_margin) || 0;
         if (cost > 0) {
             const price = cost * (1 + margin / 100);
@@ -194,7 +194,7 @@ export function usePricing() {
     const submitPricing = async (selectedStrategies = []) => {
         if (!formRef.value) return false;
 
-        const cost = Number(pricingForm.cost_price) || 0;
+        const cost = Number(pricingForm.costPrice) || 0;
         const price = Number(pricingForm.suggested_price) || 0;
         const margin = Number(pricingForm.profit_margin) || 0;
 

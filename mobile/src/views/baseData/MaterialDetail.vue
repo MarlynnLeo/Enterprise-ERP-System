@@ -61,23 +61,23 @@
           </div>
           <div class="info-item">
             <span class="label">计量单位</span>
-            <span class="value">{{ material.unit_name || '-' }}</span>
+            <span class="value">{{ material.unitName || '-' }}</span>
           </div>
           <div class="info-item">
             <span class="label">物料分类</span>
-            <span class="value">{{ material.category_name || '-' }}</span>
+            <span class="value">{{ material.categoryName || '-' }}</span>
           </div>
           <div class="info-item">
             <span class="label">物料类型</span>
-            <span class="value">{{ getMaterialTypeText(material.material_type) }}</span>
+            <span class="value">{{ getMaterialTypeText(material.materialType) }}</span>
           </div>
           <div class="info-item">
             <span class="label">物料来源</span>
-            <span class="value">{{ material.material_source_name || '-' }}</span>
+            <span class="value">{{ material.materialSourceName || '-' }}</span>
           </div>
           <div class="info-item">
             <span class="label">供应商</span>
-            <span class="value">{{ material.supplier_name || '-' }}</span>
+            <span class="value">{{ material.supplierName || '-' }}</span>
           </div>
         </div>
       </div>
@@ -88,15 +88,15 @@
         <div class="info-grid">
           <div class="info-item">
             <span class="label">安全库存</span>
-            <span class="value">{{ material.min_stock || 0 }} {{ material.unit_name }}</span>
+            <span class="value">{{ material.minStock || 0 }} {{ material.unitName }}</span>
           </div>
           <div class="info-item">
             <span class="label">最大库存</span>
-            <span class="value">{{ material.max_stock || 0 }} {{ material.unit_name }}</span>
+            <span class="value">{{ material.maxStock || 0 }} {{ material.unitName }}</span>
           </div>
           <div class="info-item">
             <span class="label">当前库存</span>
-            <span class="value highlight">{{ material.current_stock || 0 }} {{ material.unit_name }}</span>
+            <span class="value highlight">{{ material.currentStock || 0 }} {{ material.unitName }}</span>
           </div>
           <div class="info-item">
             <span class="label">库存状态</span>
@@ -113,15 +113,15 @@
         <div class="info-grid">
           <div class="info-item">
             <span class="label">标准成本</span>
-            <span class="value">¥{{ material.standard_cost || 0 }}</span>
+            <span class="value">¥{{ material.standardCost || 0 }}</span>
           </div>
           <div class="info-item">
             <span class="label">最新采购价</span>
-            <span class="value">¥{{ material.latest_price || 0 }}</span>
+            <span class="value">¥{{ material.latestPrice || 0 }}</span>
           </div>
           <div class="info-item">
             <span class="label">平均成本</span>
-            <span class="value">¥{{ material.average_cost || 0 }}</span>
+            <span class="value">¥{{ material.averageCost || 0 }}</span>
           </div>
         </div>
       </div>
@@ -136,11 +136,11 @@
           </div>
           <div class="info-item">
             <span class="label">创建时间</span>
-            <span class="value">{{ formatDate(material.created_at) }}</span>
+            <span class="value">{{ formatDate(material.createdAt) }}</span>
           </div>
           <div class="info-item">
             <span class="label">更新时间</span>
-            <span class="value">{{ formatDate(material.updated_at) }}</span>
+            <span class="value">{{ formatDate(material.updatedAt) }}</span>
           </div>
         </div>
       </div>
@@ -244,8 +244,8 @@ const getMaterialTypeText = (type) => {
 
 // 获取库存等级类名
 const getStockLevelClass = (material) => {
-  const qty = material.current_stock || 0
-  const min = material.min_stock || 0
+  const qty = material.currentStock || 0
+  const min = material.minStock || 0
 
   if (qty === 0) return 'stock-empty'
   if (min && qty <= min) return 'stock-low'
@@ -255,8 +255,8 @@ const getStockLevelClass = (material) => {
 
 // 获取库存等级文本
 const getStockLevelText = (material) => {
-  const qty = material.current_stock || 0
-  const min = material.min_stock || 0
+  const qty = material.currentStock || 0
+  const min = material.minStock || 0
 
   if (qty === 0) return '无库存'
   if (min && qty <= min) return '急需补货'

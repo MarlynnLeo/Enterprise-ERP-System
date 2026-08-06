@@ -4,6 +4,7 @@
  */
 
 const { ResponseHandler } = require('../../../../utils/responseHandler');
+const { mapKeysToSnake } = require('../../../../utils/fieldMap');
 const { logger } = require('../../../../utils/logger');
 const { CodeGenerators } = require('../../../../utils/codeGenerator');
 const db = require('../../../../config/db');
@@ -80,7 +81,7 @@ const fetchBomItemsForOutbound = async (connection, outboundId, referenceType, r
             material_id: item.materialId,
             required_quantity: item.requiredQuantity,
             level: item.level || 1,
-            unit_id: item.unitId || item.unit_id || null,
+            unit_id: item.unitId || null,
           }))
         );
       }
@@ -414,7 +415,7 @@ const batchOutbound = async (req, res) => {
   try {
     await connection.beginTransaction();
 
-    const { task_ids, outbound_date, remark, operator, preview } = req.body;
+    const { task_ids, outbound_date, remark, operator, preview } = mapKeysToSnake(req.body || {});
 
     // 验证参数
     if (!task_ids || !Array.isArray(task_ids) || task_ids.length === 0) {

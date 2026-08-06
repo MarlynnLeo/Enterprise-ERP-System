@@ -46,7 +46,7 @@
       </el-table-column>
       <el-table-column prop="filename" label="文件名" min-width="220" />
       <el-table-column label="大小" width="120">
-        <template #default="{ row }">{{ formatSize(row.file_size) }}</template>
+        <template #default="{ row }">{{ formatSize(row.fileSize) }}</template>
       </el-table-column>
       <el-table-column prop="status" label="状态" width="100">
         <template #default="{ row }">
@@ -55,8 +55,8 @@
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="created_at" label="创建时间" width="180">
-        <template #default="{ row }">{{ formatDate(row.created_at) }}</template>
+      <el-table-column prop="createdAt" label="创建时间" width="180">
+        <template #default="{ row }">{{ formatDate(row.createdAt) }}</template>
       </el-table-column>
       <el-table-column label="操作" width="220" fixed="right">
         <template #default="{ row }">

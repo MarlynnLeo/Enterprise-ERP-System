@@ -256,7 +256,7 @@ async function loadFinanceData() {
       let incomeCount = 0;
       let expenseCount = 0;
       byType.forEach(item => {
-        const type = item.transaction_type;
+        const type = item.transactionType;
         const count = parseInt(item.transaction_count || 0);
         if (['存款', '转入', '利息', 'income', '收入'].includes(type)) {
           incomeCount += count;
@@ -301,7 +301,7 @@ function normalizeAgingList(data) {
 function summarizeReceivablesAging(result) {
   const list = normalizeAgingList(unwrapSettledData(result));
   return {
-    total: list.reduce((sum, item) => sum + parseFloat(item.totalAmount || item.total_amount || 0), 0),
+    total: list.reduce((sum, item) => sum + parseFloat(item.totalAmount || 0), 0),
     overdue: list.filter(item =>
       parseFloat(item.within30Days || 0) > 0 ||
       parseFloat(item.within60Days || 0) > 0 ||
@@ -314,7 +314,7 @@ function summarizeReceivablesAging(result) {
 function summarizePayablesAging(result) {
   const list = normalizeAgingList(unwrapSettledData(result));
   return {
-    total: list.reduce((sum, item) => sum + parseFloat(item.totalAmount || item.total_amount || 0), 0),
+    total: list.reduce((sum, item) => sum + parseFloat(item.totalAmount || 0), 0),
     due: list.filter(item =>
       parseFloat(item.within30Days || 0) > 0 ||
       parseFloat(item.days31to60 || 0) > 0 ||
@@ -359,8 +359,8 @@ async function getMonthlyTrendData(months = 12) {
 
       const index = monthKeyToIndex[key];
       if (index !== undefined) {
-        const amount = parseFloat(item.total_amount || 0);
-        const type = item.transaction_type;
+        const amount = parseFloat(item.totalAmount || 0);
+        const type = item.transactionType;
 
         // 判断收入还是支出
         if (['存款', '转入', '利息', 'income', '收入', 'deposit', 'transfer_in', 'interest'].includes(type)) {
@@ -455,8 +455,8 @@ async function initIncomeCategoryChart() {
     // 处理交易类型数据
     if (byType.length > 0) {
       byType.forEach(item => {
-        const typeName = item.transaction_type || '未分类';
-        const amount = parseFloat(item.total_amount || 0);
+        const typeName = item.transactionType || '未分类';
+        const amount = parseFloat(item.totalAmount || 0);
         labels.push(typeName);
         categoryData.push(Math.abs(Math.round(amount)));
       });
@@ -715,10 +715,10 @@ async function loadBankAccounts() {
     if (accounts && accounts.length > 0) {
       bankAccounts.value = accounts.map(account => ({
         id: account.id || 0,
-        name: account.accountName || account.account_name || '未命名账户',
-        accountNumber: account.accountNumber || account.account_number || '无账号',
-        bank: account.bankName || account.bank_name || '未知银行',
-        balance: parseFloat(account.balance || account.current_balance || 0)
+        name: account.accountName || '未命名账户',
+        accountNumber: account.accountNumber || '无账号',
+        bank: account.bankName || '未知银行',
+        balance: parseFloat(account.currentBalance || 0)
       }));
     } else {
       bankAccounts.value = [

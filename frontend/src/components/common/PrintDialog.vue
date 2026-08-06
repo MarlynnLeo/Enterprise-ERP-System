@@ -1,13 +1,14 @@
 <template>
-  <el-dialog
+  <AppDialog
     v-model="visible"
     :title="title || '打印预览'"
+    mode="preview"
     width="920px"
     :close-on-click-modal="false"
-    destroy-on-close
+    :loading="loading"
     @opened="onOpened"
   >
-    <div class="print-preview-container" v-loading="loading">
+    <div class="print-preview-container">
       <div v-if="error" class="error-message">
         <el-alert :title="error" type="error" show-icon :closable="false" />
       </div>
@@ -29,7 +30,7 @@
         </el-button>
       </div>
     </template>
-  </el-dialog>
+  </AppDialog>
 </template>
 
 <script setup>

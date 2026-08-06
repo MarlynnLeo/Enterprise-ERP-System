@@ -1,0 +1,257 @@
+{
+  "frontFieldCount": 4,
+  "frontSampleTotal": 6,
+  "backendSuspects": 151,
+  "backendNoMapFiles": [
+    "backend/src/controllers/business/anomalyReportController.js",
+    "backend/src/controllers/business/contractController.js",
+    "backend/src/controllers/business/employeeSkillController.js",
+    "backend/src/controllers/business/finance/apController.js",
+    "backend/src/controllers/business/finance/arController.js",
+    "backend/src/controllers/business/finance/cash/bankAccountController.js",
+    "backend/src/controllers/business/finance/cash/bankTransactionController.js",
+    "backend/src/controllers/business/finance/costSettingsController.js",
+    "backend/src/controllers/business/finance/financeEnhancementController.js",
+    "backend/src/controllers/business/finance/overdueController.js",
+    "backend/src/controllers/business/finance/profitabilityController.js",
+    "backend/src/controllers/business/finance/standardCostVersionController.js",
+    "backend/src/controllers/business/inventory/inventoryConsistencyController.js",
+    "backend/src/controllers/business/inventory/inventoryLedgerController.js",
+    "backend/src/controllers/business/inventory/inventoryManualController.js",
+    "backend/src/controllers/business/inventory/outbound/outboundHelpers.js",
+    "backend/src/controllers/business/production/assemblyExecutionController.js",
+    "backend/src/controllers/business/production/equipmentMonitoringController.js",
+    "backend/src/controllers/business/production/materialController.js",
+    "backend/src/controllers/business/production/processController.js",
+    "backend/src/controllers/business/production/processRouteController.js",
+    "backend/src/controllers/business/production/productionScheduleController.js",
+    "backend/src/controllers/business/production/reportController.js",
+    "backend/src/controllers/business/production/workStationController.js",
+    "backend/src/controllers/business/productionAssistController.js",
+    "backend/src/controllers/business/quality/InspectionTemplateController.js",
+    "backend/src/controllers/business/sales/deliveryStatsController.js",
+    "backend/src/controllers/business/sales/salesCustomerController.js",
+    "backend/src/controllers/business/sales/salesPackingController.js",
+    "backend/src/controllers/business/sales/salesQuotationController.js",
+    "backend/src/controllers/business/traceability/batchTraceabilityController.js",
+    "backend/src/controllers/common/commonController.js",
+    "backend/src/controllers/common/printController.js",
+    "backend/src/controllers/common/productCategoryController.js",
+    "backend/src/controllers/common/todoController.js",
+    "backend/src/controllers/outsourced/processingController.js"
+  ],
+  "topBackendFiles": [
+    {
+      "f": "backend/src/controllers/business/finance/financeEnhancementController.js",
+      "n": 16
+    },
+    {
+      "f": "backend/src/controllers/business/assets/assetsController.js",
+      "n": 7
+    },
+    {
+      "f": "backend/src/controllers/business/production/assemblyExecutionController.js",
+      "n": 7
+    },
+    {
+      "f": "backend/src/controllers/business/anomalyReportController.js",
+      "n": 6
+    },
+    {
+      "f": "backend/src/controllers/business/contractController.js",
+      "n": 6
+    },
+    {
+      "f": "backend/src/controllers/business/employeeSkillController.js",
+      "n": 6
+    },
+    {
+      "f": "backend/src/controllers/business/enhancedModulesController.js",
+      "n": 6
+    },
+    {
+      "f": "backend/src/controllers/business/production/processRouteController.js",
+      "n": 6
+    },
+    {
+      "f": "backend/src/controllers/business/production/workStationController.js",
+      "n": 6
+    },
+    {
+      "f": "backend/src/controllers/business/finance/apController.js",
+      "n": 5
+    },
+    {
+      "f": "backend/src/controllers/business/finance/cash/bankTransactionController.js",
+      "n": 4
+    },
+    {
+      "f": "backend/src/controllers/business/finance/profitabilityController.js",
+      "n": 4
+    },
+    {
+      "f": "backend/src/controllers/business/inventory/inventoryInboundController.js",
+      "n": 4
+    },
+    {
+      "f": "backend/src/controllers/business/production/equipmentController.js",
+      "n": 4
+    },
+    {
+      "f": "backend/src/controllers/common/printController.js",
+      "n": 4
+    },
+    {
+      "f": "backend/src/controllers/business/inventory/inventoryBatchController.js",
+      "n": 3
+    },
+    {
+      "f": "backend/src/controllers/business/production/productionScheduleController.js",
+      "n": 3
+    },
+    {
+      "f": "backend/src/controllers/business/purchase/purchaseOrderController.js",
+      "n": 3
+    },
+    {
+      "f": "backend/src/controllers/business/quality/inspectionController.js",
+      "n": 3
+    },
+    {
+      "f": "backend/src/controllers/outsourced/processingController.js",
+      "n": 3
+    },
+    {
+      "f": "backend/src/controllers/system/systemController.js",
+      "n": 3
+    },
+    {
+      "f": "backend/src/controllers/business/finance/arController.js",
+      "n": 2
+    },
+    {
+      "f": "backend/src/controllers/business/finance/overdueController.js",
+      "n": 2
+    },
+    {
+      "f": "backend/src/controllers/business/finance/standardCostVersionController.js",
+      "n": 2
+    },
+    {
+      "f": "backend/src/controllers/business/inventory/inventoryLedgerController.js",
+      "n": 2
+    },
+    {
+      "f": "backend/src/controllers/business/inventory/outbound/outboundCrudController.js",
+      "n": 2
+    },
+    {
+      "f": "backend/src/controllers/business/sales/salesCustomerController.js",
+      "n": 2
+    },
+    {
+      "f": "backend/src/controllers/common/productCategoryController.js",
+      "n": 2
+    },
+    {
+      "f": "backend/src/controllers/auth/authController.js",
+      "n": 1
+    },
+    {
+      "f": "backend/src/controllers/business/finance/cash/bankAccountController.js",
+      "n": 1
+    },
+    {
+      "f": "backend/src/controllers/business/finance/costSettingsController.js",
+      "n": 1
+    },
+    {
+      "f": "backend/src/controllers/business/inventory/inventoryConsistencyController.js",
+      "n": 1
+    },
+    {
+      "f": "backend/src/controllers/business/inventory/inventoryManualController.js",
+      "n": 1
+    },
+    {
+      "f": "backend/src/controllers/business/inventory/inventoryStockController.js",
+      "n": 1
+    },
+    {
+      "f": "backend/src/controllers/business/inventory/outbound/outboundHelpers.js",
+      "n": 1
+    },
+    {
+      "f": "backend/src/controllers/business/production/equipmentMonitoringController.js",
+      "n": 1
+    },
+    {
+      "f": "backend/src/controllers/business/production/materialController.js",
+      "n": 1
+    },
+    {
+      "f": "backend/src/controllers/business/production/processController.js",
+      "n": 1
+    },
+    {
+      "f": "backend/src/controllers/business/production/reportController.js",
+      "n": 1
+    },
+    {
+      "f": "backend/src/controllers/business/productionAssistController.js",
+      "n": 1
+    }
+  ],
+  "topFrontFields": [
+    {
+      "field": "product_id",
+      "samples": [
+        {
+          "file": "frontend/src/api/baseData.js",
+          "line": 103,
+          "snippet": "if (requestParams.productId && !requestParams.product_id) {"
+        },
+        {
+          "file": "frontend/src/api/baseData.js",
+          "line": 104,
+          "snippet": "requestParams.product_id = requestParams.productId;"
+        }
+      ]
+    },
+    {
+      "field": "material_id",
+      "samples": [
+        {
+          "file": "frontend/src/api/production.js",
+          "line": 9,
+          "snippet": "const materialId = material.materialId ?? material.material_id ?? material.id"
+        },
+        {
+          "file": "frontend/src/api/production.js",
+          "line": 38,
+          "snippet": "material_id: material.material_id ?? materialId,"
+        }
+      ]
+    },
+    {
+      "field": "supplier_name",
+      "samples": [
+        {
+          "file": "frontend/src/views/finance/tax/TaxInvoices.vue",
+          "line": 423,
+          "snippet": "<el-table-column :prop=\"linkForm.document_type === 'ap_invoice' ? 'supplier_name' : 'customer_name'\" :label=\"linkForm.do"
+        }
+      ]
+    },
+    {
+      "field": "available_quantity",
+      "samples": [
+        {
+          "file": "frontend/src/api/production.js",
+          "line": 17,
+          "snippet": "material.availableQuantity ?? material.available_quantity ?? stockQuantity"
+        }
+      ]
+    }
+  ]
+}

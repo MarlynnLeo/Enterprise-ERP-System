@@ -98,11 +98,11 @@
         class="w-full mt-md"
         v-loading="loading"
       >
-        <el-table-column prop="ncp_no" label="不合格品编号" width="130" show-overflow-tooltip />
-        <el-table-column prop="inspection_no" label="检验单号" width="130" show-overflow-tooltip />
-        <el-table-column prop="material_name" label="物料名称" width="150" show-overflow-tooltip />
-        <el-table-column prop="material_code" label="物料编码" width="120" show-overflow-tooltip />
-        <el-table-column prop="batch_no" label="批次号" width="200" show-overflow-tooltip />
+        <el-table-column prop="ncpNo" label="不合格品编号" width="130" show-overflow-tooltip />
+        <el-table-column prop="inspectionNo" label="检验单号" width="130" show-overflow-tooltip />
+        <el-table-column prop="materialName" label="物料名称" width="150" show-overflow-tooltip />
+        <el-table-column prop="materialCode" label="物料编码" width="120" show-overflow-tooltip />
+        <el-table-column prop="batchNo" label="批次号" width="200" show-overflow-tooltip />
         <el-table-column prop="quantity" label="数量" width="80">
           <template #default="scope">
             <span class="text-danger font-weight-700">
@@ -110,9 +110,9 @@
             </span>
           </template>
         </el-table-column>
-        <el-table-column prop="unqualified_rate" label="占比" width="100">
+        <el-table-column prop="unqualifiedRate" label="占比" width="100">
           <template #default="{ row }">
-            <span v-if="row.unqualified_rate != null">{{ row.unqualified_rate }}%</span>
+            <span v-if="row.unqualifiedRate != null">{{ row.unqualifiedRate }}%</span>
             <span v-else>-</span>
           </template>
         </el-table-column>
@@ -128,9 +128,9 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" width="110">
+        <el-table-column prop="createdAt" label="创建时间" width="110">
           <template #default="scope">
-            {{ formatDate(scope.row.created_at) }}
+            {{ formatDate(scope.row.createdAt) }}
           </template>
         </el-table-column>
         <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
@@ -144,7 +144,7 @@
               size="small"
               type="warning"
               @click="handleApplyConcession(row)"
-              v-if="(row.status === 'pending' || row.status === 'processing') && row.concession_status !== 'pending' && row.concession_status !== 'approved'"
+              v-if="(row.status === 'pending' || row.status === 'processing') && row.concessionStatus !== 'pending' && row.concessionStatus !== 'approved'"
               v-permission="'quality:nonconforming:update'">
               申请特采
             </el-button>
@@ -153,11 +153,11 @@
               size="small"
               type="primary"
               @click="handleApproveConcession(row)"
-              v-if="row.concession_status === 'pending'"
+              v-if="row.concessionStatus === 'pending'"
               v-permission="'quality:nonconforming:update'">
               特采审批
             </el-button>
-            <el-button v-permission="'quality:nonconforming:update'" size="small" type="success" @click="handleComplete(row)" v-if="row.status === 'processing' && row.concession_status !== 'pending'">
+            <el-button v-permission="'quality:nonconforming:update'" size="small" type="success" @click="handleComplete(row)" v-if="row.status === 'processing' && row.concessionStatus !== 'pending'">
               完成处理
             </el-button>
             <el-button v-permission="'quality:nonconforming:delete'" size="small" type="danger" @click="handleDelete(row)" v-if="row.status === 'pending'">删除</el-button>
@@ -184,11 +184,11 @@
       content-width="wide"
     >
       <el-descriptions :column="2" border v-if="currentNcp">
-        <el-descriptions-item label="不合格品编号">{{ currentNcp.ncp_no }}</el-descriptions-item>
-        <el-descriptions-item label="检验单号">{{ currentNcp.inspection_no }}</el-descriptions-item>
-        <el-descriptions-item label="物料编码">{{ currentNcp.material_code }}</el-descriptions-item>
-        <el-descriptions-item label="物料名称">{{ currentNcp.material_name }}</el-descriptions-item>
-        <el-descriptions-item label="批次号">{{ currentNcp.batch_no }}</el-descriptions-item>
+        <el-descriptions-item label="不合格品编号">{{ currentNcp.ncpNo }}</el-descriptions-item>
+        <el-descriptions-item label="检验单号">{{ currentNcp.inspectionNo }}</el-descriptions-item>
+        <el-descriptions-item label="物料编码">{{ currentNcp.materialCode }}</el-descriptions-item>
+        <el-descriptions-item label="物料名称">{{ currentNcp.materialName }}</el-descriptions-item>
+        <el-descriptions-item label="批次号">{{ currentNcp.batchNo }}</el-descriptions-item>
         <el-descriptions-item label="数量">{{ Math.floor(currentNcp.quantity || 0) }} {{ currentNcp.unit }}</el-descriptions-item>
         <el-descriptions-item label="占比">
              {{ currentNcp.unqualified_rate != null ? currentNcp.unqualified_rate + '%' : '-' }}
@@ -198,10 +198,10 @@
             {{ getStatusLabel(currentNcp.status) }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="缺陷类型" :span="2">{{ currentNcp.defect_type }}</el-descriptions-item>
-        <el-descriptions-item label="缺陷描述" :span="2">{{ currentNcp.defect_description }}</el-descriptions-item>
+        <el-descriptions-item label="缺陷类型" :span="2">{{ currentNcp.defectType }}</el-descriptions-item>
+        <el-descriptions-item label="缺陷描述" :span="2">{{ currentNcp.defectDescription }}</el-descriptions-item>
         <el-descriptions-item label="供应商">
-          <el-tag v-if="currentNcp.supplier_name" type="warning">{{ currentNcp.supplier_name }}</el-tag>
+          <el-tag v-if="currentNcp.supplierName" type="warning">{{ currentNcp.supplierName }}</el-tag>
           <span v-else class="text-muted">未关联</span>
         </el-descriptions-item>
         <el-descriptions-item label="责任方">
@@ -215,7 +215,12 @@
       </el-descriptions>
     </AppDialog>
     <!-- 特采申请 Dialog -->
-    <el-dialog v-model="applyConcessionDialogVisible" title="申请特采 (让步接收)" width="500px">
+    <AppDialog
+      v-model="applyConcessionDialogVisible"
+      title="申请特采 (让步接收)"
+      mode="form"
+      width="500px"
+    >
       <el-form :model="applyConcessionForm" label-width="100px">
         <el-form-item label="申请理由" required>
           <el-input v-model="applyConcessionForm.reason" type="textarea" :rows="4" placeholder="请详细说明特采申请理由..."></el-input>
@@ -225,9 +230,14 @@
         <el-button @click="applyConcessionDialogVisible = false">取消</el-button>
         <el-button v-permission="'quality:nonconforming:update'" type="primary" :loading="submitLoading" @click="submitApplyConcession">提交申请</el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
     <!-- 特采审批 Dialog -->
-    <el-dialog v-model="approveConcessionDialogVisible" title="特采审批" width="500px">
+    <AppDialog
+      v-model="approveConcessionDialogVisible"
+      title="特采审批"
+      mode="form"
+      width="500px"
+    >
         <el-descriptions border :column="1" class="mb-20">
           <el-descriptions-item label="申请理由">{{ currentNcp?.concession_reason || '-' }}</el-descriptions-item>
         </el-descriptions>
@@ -243,9 +253,14 @@
           <el-button @click="approveConcessionDialogVisible = false">取消</el-button>
           <el-button v-permission="'quality:nonconforming:update'" type="primary" :loading="submitLoading" @click="submitApproveConcession">确认提交</el-button>
         </template>
-    </el-dialog>
+        </AppDialog>
     <!-- Disposition Dialog -->
-    <el-dialog v-model="disposeDialogVisible" title="处理决策 - 不合格品处理" width="600px">
+    <AppDialog
+      v-model="disposeDialogVisible"
+      title="处理决策 - 不合格品处理"
+      mode="form"
+      width="600px"
+    >
       <el-alert
         title="请选择不合格品的处理方式"
         type="info"
@@ -254,8 +269,8 @@
       >
         <template #default>
           <div v-if="currentNcp">
-            <p><strong>不合格品编号:</strong> {{ currentNcp.ncp_no }}</p>
-            <p><strong>物料名称:</strong> {{ currentNcp.material_name }}</p>
+            <p><strong>不合格品编号:</strong> {{ currentNcp.ncpNo }}</p>
+            <p><strong>物料名称:</strong> {{ currentNcp.materialName }}</p>
             <p><strong>不合格数量:</strong> <span class="text-danger font-weight-700">{{ Math.floor(currentNcp.quantity || 0) }} {{ currentNcp.unit }}</span></p>
           </div>
         </template>
@@ -287,7 +302,7 @@
         </el-form-item>
         <el-form-item label="归属供应商" required v-if="disposeForm.responsible_party === 'supplier' || disposeForm.disposition === 'return' || disposeForm.disposition === 'replacement'">
           <el-select
-            v-model="disposeForm.supplier_id"
+            v-model="disposeForm.supplierId"
             placeholder="请搜索并选择产生不良的供应商"
             class="w-full"
             filterable
@@ -308,9 +323,14 @@
         <el-button @click="disposeDialogVisible = false">取消</el-button>
         <el-button v-permission="'quality:nonconforming:update'" type="primary" @click="submitDisposition">提交处理决策</el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
     <!-- Complete Dialog -->
-    <el-dialog v-model="completeDialogVisible" title="完成处理" width="600px">
+    <AppDialog
+      v-model="completeDialogVisible"
+      title="完成处理"
+      mode="form"
+      width="600px"
+    >
       <el-form :model="completeForm" label-width="120px">
         <el-form-item label="已处理数量">
           <el-input-number v-model="completeForm.handled_quantity" :min="0" />
@@ -326,7 +346,7 @@
         <el-button @click="completeDialogVisible = false">取消</el-button>
         <el-button v-permission="'quality:nonconforming:update'" type="primary" @click="submitComplete">确定</el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
   </div>
 </template>
 <script setup>
@@ -386,8 +406,8 @@ const fetchData = async () => {
     }
     // 添加日期范围
     if (dateRange.value && dateRange.value.length === 2) {
-      params.start_date = dayjs(dateRange.value[0]).format('YYYY-MM-DD')
-      params.end_date = dayjs(dateRange.value[1]).format('YYYY-MM-DD')
+      params.startDate = dayjs(dateRange.value[0]).format('YYYY-MM-DD')
+      params.endDate = dayjs(dateRange.value[1]).format('YYYY-MM-DD')
     }
     const response = await ncpApi.getList(params)
     // 拦截器已解包，response.data 就是业务数据
@@ -464,12 +484,12 @@ const handleDispose = (row) => {
   disposeForm.disposition = ''
   disposeForm.disposition_reason = ''
   disposeForm.disposition_by = ''
-  disposeForm.responsible_party = row.supplier_id ? 'supplier' : 'unknown'
-  disposeForm.supplier_id = row.supplier_id || null
-  if (row.supplier_id && !supplierList.value.some(s => Number(s.id) === Number(row.supplier_id))) {
+  disposeForm.responsible_party = row.supplierId ? 'supplier' : 'unknown'
+  disposeForm.supplierId = row.supplierId || null
+  if (row.supplierId && !supplierList.value.some(s => Number(s.id) === Number(row.supplierId))) {
     supplierList.value.unshift({
-      id: row.supplier_id,
-      name: row.supplier_name || row.supplier || `供应商-${row.supplier_id}`
+      id: row.supplierId,
+      name: row.supplierName || row.supplier || `供应商-${row.supplierId}`
     })
   }
   disposeDialogVisible.value = true
@@ -484,15 +504,15 @@ const submitDisposition = async () => {
     ElMessage.warning('请选择责任方')
     return
   }
-  if ((disposeForm.responsible_party === 'supplier' || disposeForm.disposition === 'return' || disposeForm.disposition === 'replacement') && !disposeForm.supplier_id) {
+  if ((disposeForm.responsible_party === 'supplier' || disposeForm.disposition === 'return' || disposeForm.disposition === 'replacement') && !disposeForm.supplierId) {
     ElMessage.warning('为了后续采购对账及实物退换货的闭环，必须指定该不良品的归属供应商！')
     return
   }
   const payload = { ...disposeForm }
-  if (disposeForm.supplier_id) {
-    const matchedSupplier = supplierList.value.find(s => s.id === disposeForm.supplier_id)
+  if (disposeForm.supplierId) {
+    const matchedSupplier = supplierList.value.find(s => s.id === disposeForm.supplierId)
     if (matchedSupplier) {
-      payload.supplier_name = matchedSupplier.name
+      payload.supplierName = matchedSupplier.name
     }
   }
   try {
@@ -724,17 +744,6 @@ const fetchNcpByInspection = async (inspectionId) => {
   margin-top: 20px;
   display: flex;
   justify-content: flex-end;
-}
-/* 对话框样式 */
-:deep(.el-dialog__header) {
-  background-color: var(--color-bg-hover);
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--color-border-light);
-}
-:deep(.el-dialog__title) {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--color-text-primary);
 }
 :deep(.el-descriptions) {
   margin-top: 10px;

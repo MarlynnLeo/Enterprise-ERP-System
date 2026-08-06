@@ -100,9 +100,11 @@ export const baseDataApi = {
 
     getBoms: (params = {}) => {
         const requestParams = normalizeParams(params);
-        if (requestParams.productId && !requestParams.product_id) {
-            requestParams.product_id = requestParams.productId;
+        // HTTP 只认 camel；后端 bom 列表已兼容 productId
+        if (requestParams.product_id != null && requestParams.productId == null) {
+            requestParams.productId = requestParams.product_id;
         }
+        delete requestParams.product_id;
         return api.get('/base-data/boms', { params: requestParams });
     },
     getBom: (id) => api.get(`/base-data/boms/${id}`),

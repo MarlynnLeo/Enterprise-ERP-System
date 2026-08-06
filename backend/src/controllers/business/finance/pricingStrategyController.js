@@ -1,5 +1,6 @@
 const { getConnection } = require('../../../config/db');
 const { ResponseHandler } = require('../../../utils/responseHandler');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 const { logger } = require('../../../utils/logger');
 const { AuditService, AuditAction, AuditModule } = require('../../../services/AuditService');
 const { safeParseId } = require('../../../utils/safeParseId');
@@ -67,7 +68,7 @@ exports.createStrategyField = async (req, res) => {
       description,
       sort_order,
       is_additive = 1,
-    } = req.body;
+    } = mapKeysToSnake(req.body || {});
 
     // 参数验证
     if (!field_name || !field_label) {
@@ -151,7 +152,7 @@ exports.updateStrategyField = async (req, res) => {
   let connection;
   try {
     const id = safeParseId(req.params.id);
-    const { field_label, field_type, unit, description, sort_order, is_additive } = req.body;
+    const { field_label, field_type, unit, description, sort_order, is_additive } = mapKeysToSnake(req.body || {});
 
     // 与创建接口保持一致：field_type 仅允许 amount / percentage，
     // 否则会把已有 field_value 的语义（金额 vs 百分比）静默改变，污染定价计算

@@ -85,16 +85,20 @@ export const productionApi = {
   },
 
   reportProductionProgress(data) {
+    // HTTP camelCase；兼容历史 snake 入参
     const {
-      task_id: taskId,
-      completed_quantity: completedQuantity,
+      taskId,
+      task_id: taskIdSnake,
+      completedQuantity,
+      completed_quantity: completedQuantitySnake,
       quantity,
       remarks,
-      remark
+      remark,
     } = data || {}
-    return api.post(`/production/tasks/${taskId}/complete`, {
-      quantity: Number(completedQuantity ?? quantity),
-      remark: remarks ?? remark ?? ''
+    const id = taskId ?? taskIdSnake
+    return api.post(`/production/tasks/${id}/complete`, {
+      quantity: Number(completedQuantity ?? completedQuantitySnake ?? quantity),
+      remark: remarks ?? remark ?? '',
     })
   },
 

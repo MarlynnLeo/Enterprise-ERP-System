@@ -16,17 +16,17 @@ import logger from '@/utils/logger'
  */
 export async function ensureSupplierInfo(inspection) {
   // 如果已有供应商ID,直接返回
-  if (inspection.supplier_id) {
+  if (inspection.supplierId) {
     return inspection
   }
 
   // 尝试通过采购订单ID获取供应商信息
-  if (inspection.reference_id) {
+  if (inspection.referenceId) {
     try {
-      const orderResponse = await purchaseApi.getOrder(inspection.reference_id)
-      if (orderResponse.data?.supplier_id) {
-        inspection.supplier_id = Number(orderResponse.data.supplier_id)
-        inspection.supplier_name = orderResponse.data.supplier_name || inspection.supplier_name
+      const orderResponse = await purchaseApi.getOrder(inspection.referenceId)
+      if (orderResponse.data?.supplierId) {
+        inspection.supplierId = Number(orderResponse.data.supplierId)
+        inspection.supplierName = orderResponse.data.supplierName || inspection.supplierName
         return inspection
       }
     } catch (err) {
@@ -35,10 +35,10 @@ export async function ensureSupplierInfo(inspection) {
   }
 
   // 尝试通过采购订单号查询供应商信息
-  if (!inspection.supplier_id && inspection.reference_no) {
+  if (!inspection.supplierId && inspection.referenceNo) {
     try {
       const ordersResponse = await purchaseApi.getOrders({
-        orderNo: inspection.reference_no,
+        orderNo: inspection.referenceNo,
         pageSize: 1
       })
 
@@ -46,9 +46,9 @@ export async function ensureSupplierInfo(inspection) {
       const orders = parseListData(ordersResponse, { enableLog: false })
       if (orders.length > 0) {
         const order = orders[0]
-        if (order.supplier_id) {
-          inspection.supplier_id = Number(order.supplier_id)
-          inspection.supplier_name = order.supplier_name || inspection.supplier_name
+        if (order.supplierId) {
+          inspection.supplierId = Number(order.supplierId)
+          inspection.supplierName = order.supplierName || inspection.supplierName
           return inspection
         }
       }
@@ -71,7 +71,7 @@ export async function createReceiptFromInspection(inspection, authStore, isRevie
   // 确保有供应商信息
   await ensureSupplierInfo(inspection)
 
-  if (!inspection.supplier_id) {
+  if (!inspection.supplierId) {
     throw new Error('检验单缺少供应商信息，无法创建入库单')
   }
 
@@ -79,12 +79,12 @@ export async function createReceiptFromInspection(inspection, authStore, isRevie
   let warehouseId = null
   let warehouseName = ''
 
-  if (inspection.material_id) {
+  if (inspection.materialId) {
     try {
-      const materialResponse = await baseDataApi.getMaterial(inspection.material_id)
-      if (materialResponse.data?.location_id) {
-        warehouseId = Number(materialResponse.data.location_id)
-        warehouseName = materialResponse.data.location_name || ''
+      const materialResponse = await baseDataApi.getMaterial(inspection.materialId)
+      if (materialResponse.data?.locationId) {
+        warehouseId = Number(materialResponse.data.locationId)
+        warehouseName = materialResponse.data.locationName || ''
       }
     } catch (error) {
       logger.error('获取物料库位信息失败:', error)
@@ -92,12 +92,12 @@ export async function createReceiptFromInspection(inspection, authStore, isRevie
   }
 
   // 获取采购订单ID
-  let orderId = Number(inspection.reference_id || 0)
+  let orderId = Number(inspection.referenceId || 0)
 
   // 如果reference_id为空，尝试通过reference_no查询采购订单ID
-  if (!orderId && inspection.reference_no) {
+  if (!orderId && inspection.referenceNo) {
     try {
-      const orderResponse = await purchaseApi.getOrder(inspection.reference_no)
+      const orderResponse = await purchaseApi.getOrder(inspection.referenceNo)
       if (orderResponse.data) {
         orderId = Number(orderResponse.data.id || 0)
       }
@@ -114,12 +114,12 @@ export async function createReceiptFromInspection(inspection, authStore, isRevie
     throw new Error('检验单物料未维护默认库位，无法创建入库单')
   }
 
-  const unitId = Number(inspection.unit_id)
+  const unitId = Number(inspection.unitId)
   if (!Number.isInteger(unitId) || unitId <= 0) {
     throw new Error('检验单缺少有效单位信息，无法创建入库单')
   }
 
-  const operatorName = authStore.user?.real_name || authStore.user?.username
+  const operatorName = authStore.user?.realName || authStore.user?.username
   if (!operatorName) {
     throw new Error('缺少当前用户信息，无法创建入库单')
   }
@@ -129,16 +129,16 @@ export async function createReceiptFromInspection(inspection, authStore, isRevie
     // 订单信息
     orderId: orderId,
     // 供应商信息
-    supplierId: Number(inspection.supplier_id),
-    supplierName: inspection.supplier_name,
+    supplierId: Number(inspection.supplierId),
+    supplierName: inspection.supplierName,
     // 仓库信息
     warehouseId: warehouseId,
     warehouseName: warehouseName,
     // 日期和备注
     receiptDate: dayjs().format('YYYY-MM-DD'),
     note: isReview
-      ? `来自检验单 ${inspection.inspection_no} 的复检自动入库`
-      : `来自检验单 ${inspection.inspection_no} 的自动入库`,
+      ? `来自检验单 ${inspection.inspectionNo} 的复检自动入库`
+      : `来自检验单 ${inspection.inspectionNo} 的自动入库`,
     // 状态信息
     status: 'draft',
     // 来源信息
@@ -147,25 +147,25 @@ export async function createReceiptFromInspection(inspection, authStore, isRevie
     // 操作人
     operator: operatorName,
     receiver: operatorName,
-    // 物料明细
+    // 物料明细（检验单 API camel）
     items: [{
-      materialId: Number(inspection.material_id || 0),
-      materialCode: inspection.product_code || inspection.material_code || '',
-      materialName: inspection.product_name || inspection.material_name || '',
+      materialId: Number(inspection.materialId || 0),
+      materialCode: inspection.productCode || inspection.materialCode || '',
+      materialName: inspection.productName || inspection.materialName || '',
       specification: inspection.specification || inspection.specs || '',
       unitId,
       unit: inspection.unit || '',
       orderedQuantity: parseFloat(inspection.quantity || 0),
-      // ✅ 使用合格数量而不是检验数量
-      quantity: parseFloat(inspection.qualified_quantity || inspection.quantity || 0),
-      receivedQuantity: parseFloat(inspection.qualified_quantity || inspection.quantity || 0),
-      qualifiedQuantity: parseFloat(inspection.qualified_quantity || inspection.quantity || 0),
+      // 使用合格数量而不是检验数量
+      quantity: parseFloat(inspection.qualifiedQuantity || inspection.quantity || 0),
+      receivedQuantity: parseFloat(inspection.qualifiedQuantity || inspection.quantity || 0),
+      qualifiedQuantity: parseFloat(inspection.qualifiedQuantity || inspection.quantity || 0),
       price: parseFloat(inspection.price || 0),
       remarks: isReview
         ? `复检后自动入库：${inspection.note || ''}`
         : `自动入库：${inspection.note || ''}`,
       locationId: warehouseId,
-      batchNo: inspection.batch_no || '',
+      batchNo: inspection.batchNo || '',
       fromInspection: true
     }]
   }
@@ -207,8 +207,8 @@ export async function fetchInspectionDetailWithItems(
   if (respData?.data && typeof respData.data === 'object' && !Array.isArray(respData.data)) {
     inspectionData = respData.data
   }
-  // 直接对象格式: { id: ..., inspection_no: ... }
-  else if (respData?.id || respData?.inspection_no) {
+  // 直接对象格式: { id: ..., inspectionNo: ... }
+  else if (respData?.id || respData?.inspectionNo) {
     inspectionData = respData
   }
 
@@ -216,28 +216,38 @@ export async function fetchInspectionDetailWithItems(
     throw new Error('获取检验单详情失败')
   }
 
-  // 统一字段映射
+  // 统一字段映射（API 只认 camel）
   inspectionData = {
     ...inspectionData,
-    inspectionNo: inspectionData.inspection_no || inspectionData.inspectionNo || row.inspectionNo || '',
-    purchaseOrderNo: inspectionData.reference_no || inspectionData.purchaseOrderNo || row.purchaseOrderNo || '',
-    batchNo: inspectionData.batch_no || inspectionData.batchNo || row.batchNo || '',
-    materialName: inspectionData.material_name || inspectionData.materialName || extractMaterialName(inspectionData),
-    product_name: inspectionData.product_name || inspectionData.materialName || extractMaterialName(inspectionData),
-    product_code: inspectionData.product_code || inspectionData.specs || extractMaterialSpecs(inspectionData),
-    quantity: inspectionData.quantity || inspectionData.total_quantity || 0,
+    inspectionNo: inspectionData.inspectionNo || row.inspectionNo || '',
+    purchaseOrderNo:
+      inspectionData.referenceNo ||
+      inspectionData.purchaseOrderNo ||
+      row.purchaseOrderNo ||
+      '',
+    batchNo: inspectionData.batchNo || row.batchNo || '',
+    materialName: inspectionData.materialName || extractMaterialName(inspectionData),
+    productName:
+      inspectionData.productName ||
+      inspectionData.materialName ||
+      extractMaterialName(inspectionData),
+    productCode: inspectionData.productCode || inspectionData.specs || extractMaterialSpecs(inspectionData),
+    quantity: inspectionData.quantity || inspectionData.totalQuantity || 0,
     unit: inspectionData.unit || '个',
-    inspectionDate: inspectionData.actual_date || inspectionData.planned_date || inspectionData.inspectionDate,
-    inspector: inspectionData.inspector_name || inspectionData.inspector
+    inspectionDate:
+      inspectionData.actualDate ||
+      inspectionData.plannedDate ||
+      inspectionData.inspectionDate,
+    inspector: inspectionData.inspectorName || inspectionData.inspector
   }
 
   // 获取供应商信息
-  let supplierName = inspectionData.supplier_name || inspectionData.supplierName || ''
-  if ((!supplierName || supplierName === '-') && inspectionData.reference_id) {
+  let supplierName = inspectionData.supplierName || ''
+  if ((!supplierName || supplierName === '-') && inspectionData.referenceId) {
     try {
-      const poResponse = await purchaseApi.getOrder(inspectionData.reference_id)
+      const poResponse = await purchaseApi.getOrder(inspectionData.referenceId)
       if (poResponse.data) {
-        supplierName = poResponse.data.supplier_name || (poResponse.data.supplier?.name) || ''
+        supplierName = poResponse.data.supplierName || (poResponse.data.supplier?.name) || ''
       }
     } catch (error) {
       console.error('获取采购单信息失败:', error)
@@ -267,9 +277,9 @@ export async function fetchInspectionDetailWithItems(
   if (inspectionData.items && inspectionData.items.length > 0) {
     inspectionData.items = inspectionData.items.map(item => ({
       ...item,
-      item_name: item.item_name || item.name || '未命名检验项',
+      item_name: item.itemName || '未命名检验项',
       standard: item.standard || item.criteria || '无标准',
-      actual_value: item.actual_value || item.value || '-',
+      actual_value: item.actualValue || '-',
       result: item.result || '',
       remarks: item.remarks || item.comment || ''
     }))
@@ -342,14 +352,14 @@ export function extractMaterialNameSimple(item) {
 
   // 定义检查优先级
   const nameFields = [
-    item.product_name,
+    item.productName,
     item.material?.name,
     item.materialName,
-    item.material_name,
+    item.materialName,
     item.item_name,
-    item.reference_data?.items?.[0]?.material_name,
-    item.reference_data?.material_name,
-    item.material_code
+    item.reference_data?.items?.[0]?.materialName,
+    item.reference_data?.materialName,
+    item.materialCode
   ]
 
   // 查找第一个有效值
@@ -374,7 +384,7 @@ export function extractMaterialSpecsSimple(item) {
   if (!item) return '-'
 
   const specsFields = [
-    item.product_code,
+    item.productCode,
     item.specs,
     item.item_specs,
     item.material?.specs,
@@ -400,12 +410,12 @@ export function extractSupplierNameSimple(item) {
   if (!item) return '-'
 
   const supplierFields = [
-    item.supplier_name,
+    item.supplierName,
     item.supplierName,
     item.supplier?.name,
-    item.reference_data?.supplier_name,
+    item.reference_data?.supplierName,
     item.reference_data?.supplier?.name,
-    item.po_data?.supplier_name,
+    item.po_data?.supplierName,
     item.po_data?.supplier?.name
   ]
 
@@ -439,14 +449,14 @@ export async function loadMaterialInfoAsync(materialId, materialCache, inspectio
 
     // 更新列表中使用该物料的所有记录
     inspectionList.forEach(item => {
-      if ((item.materialId === materialId || item.material_id === materialId)) {
+      if ((item.materialId === materialId || item.materialId === materialId)) {
         if (materialInfo.name && (!item.materialName || item.materialName === '-')) {
           item.materialName = materialInfo.name
-          item.product_name = materialInfo.name
+          item.productName = materialInfo.name
         }
         if (materialInfo.specs && (!item.specs || item.specs === '-')) {
           item.specs = materialInfo.specs
-          item.product_code = materialInfo.specs
+          item.productCode = materialInfo.specs
         }
       }
     })

@@ -51,13 +51,13 @@
         empty-text="暂无数据"
       >
         <template #empty>
-          <el-empty description="暂无部门数据" />
+          <EmptyState description="暂无部门数据" />
         </template>
         <el-table-column prop="name" label="部门名称" width="200"></el-table-column>
         <el-table-column prop="code" label="部门编码" width="200"></el-table-column>
-        <el-table-column prop="manager_name" label="部门负责人" width="150">
+        <el-table-column prop="managerName" label="部门负责人" width="150">
           <template #default="scope">
-            {{ scope.row.manager_name || '无' }}
+            {{ scope.row.managerName || '无' }}
           </template>
         </el-table-column>
         <el-table-column prop="phone" label="联系电话" width="220"></el-table-column>
@@ -68,9 +68,9 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" min-width="200">
+        <el-table-column prop="createdAt" label="创建时间" min-width="200">
           <template #default="scope">
-            {{ scope.row && scope.row.created_at ? new Date(scope.row.created_at).toLocaleString() : '' }}
+            {{ scope.row && scope.row.createdAt ? new Date(scope.row.createdAt).toLocaleString() : '' }}
           </template>
         </el-table-column>
         <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
@@ -165,11 +165,11 @@
     >
       <template v-if="isViewMode">
         <el-descriptions :column="2" border class="mb-20">
-          <el-descriptions-item label="上级部门" v-if="departmentForm.parent_id">{{ parentDepartmentName || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="上级部门" v-if="departmentForm.parentId">{{ parentDepartmentName || '-' }}</el-descriptions-item>
           <el-descriptions-item label="部门名称">{{ departmentForm.name || '-' }}</el-descriptions-item>
           <el-descriptions-item label="部门编码">{{ departmentForm.code || '-' }}</el-descriptions-item>
           <el-descriptions-item label="部门负责人">
-             {{ userOptions.find(u => u.id === departmentForm.manager_id)?.real_name || userOptions.find(u => u.id === departmentForm.manager_id)?.username || '-' }}
+             {{ userOptions.find(u => u.id === departmentForm.managerId)?.realName || userOptions.find(u => u.id === departmentForm.managerId)?.username || '-' }}
           </el-descriptions-item>
           <el-descriptions-item label="联系电话">{{ departmentForm.phone || '-' }}</el-descriptions-item>
           <el-descriptions-item label="部门状态">
@@ -182,7 +182,7 @@
       </template>
 
       <el-form v-else :model="departmentForm" :rules="departmentRules" ref="departmentFormRef" label-width="100px">
-        <el-form-item v-if="departmentForm.parent_id && dialogTitle === '添加子部门'" label="上级部门">
+        <el-form-item v-if="departmentForm.parentId && dialogTitle === '添加子部门'" label="上级部门">
           <el-input v-model="parentDepartmentName" disabled></el-input>
         </el-form-item>
         <el-form-item label="部门名称" prop="name">
@@ -193,7 +193,7 @@
         </el-form-item>
         <el-form-item label="部门负责人">
           <el-select
-            v-model="departmentForm.manager_id"
+            v-model="departmentForm.managerId"
             placeholder="请选择部门负责人"
             filterable
             clearable
@@ -202,12 +202,12 @@
             <el-option
               v-for="user in userOptions"
               :key="user.id"
-              :label="user.real_name || user.username"
+              :label="user.realName || user.username"
               :value="user.id"
             >
               <span class="option-row--split">
-                <span class="option-code">{{ user.real_name || user.username }}</span>
-                <span class="option-name">{{ user.department_name || '无部门' }}</span>
+                <span class="option-code">{{ user.realName || user.username }}</span>
+                <span class="option-name">{{ user.departmentName || '无部门' }}</span>
               </span>
             </el-option>
           </el-select>
@@ -295,10 +295,10 @@ const searchForm = reactive({
 // 部门表单
 const departmentForm = reactive({
   id: null,
-  parent_id: null,
+  parentId: null,
   name: '',
   code: '',
-  manager_id: null,
+  managerId: null,
   phone: '',
   status: 1,
   remark: ''
@@ -328,12 +328,13 @@ const buildDepartmentTree = (departments) => {
   // 构建树形结构
   departments.forEach(dept => {
     const node = map[dept.id];
-    if (dept.parent_id === null || dept.parent_id === 0 || !map[dept.parent_id]) {
+    const parentId = dept.parentId ?? null;
+    if (parentId === null || parentId === 0 || !map[parentId]) {
       // 一级部门（没有父部门或父部门不存在）
       tree.push(node);
     } else {
       // 子部门，添加到父部门的children中
-      const parent = map[dept.parent_id];
+      const parent = map[parentId];
       if (parent) {
         parent.children.push(node);
       }
@@ -444,10 +445,10 @@ const handleView = (row) => {
 
   // 填充表单数据
   departmentForm.id = row.id;
-  departmentForm.parent_id = row.parent_id;
+  departmentForm.parentId = row.parentId;
   departmentForm.name = row.name;
   departmentForm.code = row.code;
-  departmentForm.manager_id = row.manager_id;
+  departmentForm.managerId = row.managerId;
   departmentForm.phone = row.phone;
   departmentForm.status = row.status;
   departmentForm.remark = row.remark;
@@ -463,10 +464,10 @@ const handleEdit = (row) => {
 
   // 填充表单数据
   departmentForm.id = row.id;
-  departmentForm.parent_id = row.parent_id;
+  departmentForm.parentId = row.parentId;
   departmentForm.name = row.name;
   departmentForm.code = row.code;
-  departmentForm.manager_id = row.manager_id;
+  departmentForm.managerId = row.managerId;
   departmentForm.phone = row.phone;
   departmentForm.status = row.status;
   departmentForm.remark = row.remark;
@@ -556,8 +557,8 @@ const saveDepartment = async () => {
     const formData = {
       name: departmentForm.name,
       code: departmentForm.code,
-      parent_id: departmentForm.parent_id,
-      manager_id: departmentForm.manager_id,
+      parentId: departmentForm.parentId,
+      managerId: departmentForm.managerId,
       phone: departmentForm.phone,
       status: departmentForm.status,
       remark: departmentForm.remark
@@ -603,10 +604,10 @@ const saveDepartment = async () => {
 // 重置部门表单
 const resetDepartmentForm = () => {
   departmentForm.id = null;
-  departmentForm.parent_id = null;
+  departmentForm.parentId = null;
   departmentForm.name = '';
   departmentForm.code = '';
-  departmentForm.manager_id = null;
+  departmentForm.managerId = null;
   departmentForm.phone = '';
   departmentForm.status = 1;
   departmentForm.remark = '';
@@ -625,7 +626,7 @@ const handleAddChild = (row) => {
   dialogTitle.value = '添加子部门';
   isViewMode.value = false;
   resetDepartmentForm();
-  departmentForm.parent_id = row.id;
+  departmentForm.parentId = row.id;
   parentDepartmentName.value = row.name;
   dialogVisible.value = true;
 };

@@ -60,7 +60,7 @@
         v-loading="loading"
       >
         <template #empty>
-          <el-empty description="暂无工序模板数据" />
+          <EmptyState description="暂无工序模板数据" />
         </template>
         <!-- 展开详情列 -->
         <el-table-column type="expand" width="50">
@@ -68,10 +68,10 @@
             <div class="process-detail p-detail">
               <h4>工序列表</h4>
               <el-table :data="props.row.processes" border>
-                <el-table-column prop="order_num" label="工序顺序" width="100" />
+                <el-table-column prop="orderNum" label="工序顺序" width="100" />
                 <el-table-column prop="name" label="工序名称" width="180" />
                 <el-table-column prop="description" label="工序描述" min-width="200" />
-                <el-table-column prop="standard_hours" label="标准工时(小时)" width="140" />
+                <el-table-column prop="standardHours" label="标准工时(小时)" width="140" />
                 <el-table-column prop="department" label="执行部门" width="120" />
                 <el-table-column prop="remark" label="备注" min-width="150" />
               </el-table>
@@ -81,24 +81,24 @@
 
         <el-table-column prop="code" label="模板编号" width="170" />
         <el-table-column prop="name" label="模板名称" width="200" />
-        <el-table-column prop="product_name" label="关联产品" min-width="180">
+        <el-table-column prop="productName" label="关联产品" min-width="180">
           <template #default="scope">
-            {{ scope.row.product_code ? `${scope.row.product_code} - ${scope.row.product_name}` : '-' }}
+            {{ scope.row.productCode ? `${scope.row.productCode} - ${scope.row.productName}` : '-' }}
           </template>
         </el-table-column>
-        <el-table-column prop="process_count" label="工序数量" width="100">
+        <el-table-column prop="processCount" label="工序数量" width="100">
           <template #default="scope">
             {{ scope.row.processes ? scope.row.processes.length : (scope.row.details ? scope.row.details.length : 0) }}
           </template>
         </el-table-column>
-        <el-table-column prop="total_hours" label="总工时(小时)" width="120">
+        <el-table-column prop="totalHours" label="总工时(小时)" width="120">
           <template #default="scope">
             {{ calculateTotalHours(scope.row.processes || scope.row.details) }}
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" width="180">
+        <el-table-column prop="createdAt" label="创建时间" width="180">
           <template #default="scope">
-            {{ formatDateTime(scope.row.created_at) }}
+            {{ formatDateTime(scope.row.createdAt) }}
           </template>
         </el-table-column>
         <el-table-column prop="status" label="状态" width="100">
@@ -190,7 +190,7 @@
           <el-descriptions-item label="模板编号">{{ form.code || '-' }}</el-descriptions-item>
           <el-descriptions-item label="模板名称">{{ form.name }}</el-descriptions-item>
           <el-descriptions-item label="关联产品">
-            {{ productOptions.find(p => p.id === form.product_id) ? `${productOptions.find(p => p.id === form.product_id).code || ''} - ${productOptions.find(p => p.id === form.product_id).name || '未命名'}` : '-' }}
+            {{ productOptions.find(p => p.id === form.productId) ? `${productOptions.find(p => p.id === form.productId).code || ''} - ${productOptions.find(p => p.id === form.productId).name || '未命名'}` : '-' }}
           </el-descriptions-item>
           <el-descriptions-item label="描述" :span="2">{{ form.description || '-' }}</el-descriptions-item>
         </el-descriptions>
@@ -209,9 +209,9 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="关联产品" prop="product_id">
+            <el-form-item label="关联产品" prop="productId">
               <el-select
-                v-model="form.product_id"
+                v-model="form.productId"
                 placeholder="选择关联产品"
                 filterable
                 remote
@@ -256,10 +256,10 @@
           <el-table :data="form.processes" border>
             <el-table-column label="顺序" width="90">
               <template #default="{ row }">
-                <span v-if="dialogType === 'view'">{{ row.order_num }}</span>
+                <span v-if="dialogType === 'view'">{{ row.orderNum }}</span>
                 <el-input
                   v-else
-                  v-model="row.order_num"
+                  v-model="row.orderNum"
                   placeholder="顺序"
                   size="small"
                 />
@@ -282,10 +282,10 @@
 
             <el-table-column label="标准工时(小时)" width="120">
               <template #default="{ row }">
-                <span v-if="dialogType === 'view'">{{ row.standard_hours || '-' }}</span>
+                <span v-if="dialogType === 'view'">{{ row.standardHours || '-' }}</span>
                 <el-input
                   v-else
-                  v-model="row.standard_hours"
+                  v-model="row.standardHours"
                   placeholder="工时"
                   size="small"
                 />
@@ -294,7 +294,7 @@
 
             <el-table-column label="执行部门" width="150">
               <template #default="{ row }">
-                <span v-if="dialogType === 'view'">{{ departmentList.find(d => d.id === row.department_id)?.name || row.department || '-' }}</span>
+                <span v-if="dialogType === 'view'">{{ departmentList.find(d => d.id === row.departmentId)?.name || row.department || '-' }}</span>
                 <el-select v-else v-model="row.department" placeholder="选择部门" filterable>
                   <el-option
                     v-for="dept in departmentList"
@@ -554,7 +554,7 @@ const showCreateDialog = () => {
   form.id = null
   form.code = ''
   form.name = ''
-  form.product_id = ''
+  form.productId = ''
   form.description = ''
   form.status = 1
   form.processes = [{
@@ -572,7 +572,7 @@ const showCreateDialog = () => {
 // 添加工序
 const addProcess = () => {
   const order_num = form.processes.length > 0
-    ? Math.max(...form.processes.map(p => p.order_num)) + 1
+    ? Math.max(...form.processes.map(p => p.orderNum)) + 1
     : 1
   form.processes.push({
     order_num,
@@ -595,18 +595,18 @@ const handleEdit = async (row) => {
   form.id = row.id
   form.code = row.code
   form.name = row.name
-  form.product_id = row.product_id
+  form.productId = row.productId
   form.description = row.description || ''
   form.status = row.status
 
   // 如果有关联产品但不在选项列表中，添加到选项列表
-  if (row.product_id && row.product_code) {
-    const existingProduct = productOptions.value.find(p => p.id === row.product_id)
+  if (row.productId && row.productCode) {
+    const existingProduct = productOptions.value.find(p => p.id === row.productId)
     if (!existingProduct) {
       productOptions.value.unshift({
-        id: row.product_id,
-        code: row.product_code,
-        name: row.product_name || ''
+        id: row.productId,
+        code: row.productCode,
+        name: row.productName || ''
       })
     }
   }
@@ -643,18 +643,18 @@ const handleView = (row) => {
   form.id = row.id
   form.code = row.code
   form.name = row.name
-  form.product_id = row.product_id
+  form.productId = row.productId
   form.description = row.description || ''
   form.status = row.status
 
   // 如果有关联产品但不在选项列表中，添加到选项列表
-  if (row.product_id && row.product_code) {
-    const existingProduct = productOptions.value.find(p => p.id === row.product_id)
+  if (row.productId && row.productCode) {
+    const existingProduct = productOptions.value.find(p => p.id === row.productId)
     if (!existingProduct) {
       productOptions.value.unshift({
-        id: row.product_id,
-        code: row.product_code,
-        name: row.product_name || ''
+        id: row.productId,
+        code: row.productCode,
+        name: row.productName || ''
       })
     }
   }
@@ -720,14 +720,14 @@ const submitForm = async () => {
     const submitData = {
       name: form.name,
       code: form.code,
-      product_id: form.product_id,
+      product_id: form.productId,
       description: form.description,
       status: form.status,
       details: form.processes.map((p, index) => ({
         name: p.name,
-        order_num: p.order_num || (index + 1),
+        order_num: p.orderNum || (index + 1),
         description: p.description || '',
-        standard_hours: p.standard_hours,
+        standard_hours: p.standardHours,
         department: p.department || '',
         remark: p.remark || '',
         materials: p.materials || [],

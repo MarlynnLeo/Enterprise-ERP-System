@@ -74,15 +74,15 @@
         class="w-full"
         v-loading="loading"
       >
-        <el-table-column prop="receipt_no" label="入库单号" min-width="150" />
-        <el-table-column prop="processing_no" label="加工单号" min-width="150" />
-        <el-table-column prop="receipt_date" label="入库日期" min-width="120">
+        <el-table-column prop="receiptNo" label="入库单号" min-width="150" />
+        <el-table-column prop="processingNo" label="加工单号" min-width="150" />
+        <el-table-column prop="receiptDate" label="入库日期" min-width="120">
           <template #default="{ row }">
-            {{ formatDate(row.receipt_date) }}
+            {{ formatDate(row.receiptDate) }}
           </template>
         </el-table-column>
-        <el-table-column prop="supplier_name" label="加工厂" min-width="180" />
-        <el-table-column prop="warehouse_name" label="入库仓库" min-width="120" />
+        <el-table-column prop="supplierName" label="加工厂" min-width="180" />
+        <el-table-column prop="warehouseName" label="入库仓库" min-width="120" />
         <el-table-column prop="operator" label="操作员" min-width="100" />
         <el-table-column prop="status" label="状态" min-width="80">
           <template #default="scope">
@@ -232,8 +232,8 @@ const fetchReceiptList = async () => {
     };
 
     if (searchForm.dateRange && searchForm.dateRange.length === 2) {
-      params.start_date = searchForm.dateRange[0];
-      params.end_date = searchForm.dateRange[1];
+      params.startDate = searchForm.dateRange[0];
+      params.endDate = searchForm.dateRange[1];
     }
 
     const response = await purchaseApi.outsourcedReceipts.getList(params);

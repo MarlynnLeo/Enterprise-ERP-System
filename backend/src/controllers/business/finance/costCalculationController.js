@@ -11,6 +11,7 @@ const CostAccountingService = require('../../../services/business/CostAccounting
 const { parsePagination } = require('../../../utils/safePagination');
 const { currentDateString, toLocalDateString } = require('../../../utils/dateUtils');
 const { resolveActorLabel, getRequestActorLabel } = require('../../../utils/userUtils');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 
 // ==================== 辅助函数 ====================
 
@@ -155,9 +156,15 @@ module.exports = {
           params
         );
 
-      ResponseHandler.paginated(res, rows, countResult[0].total, page, pageSize, undefined, {
-        items: rows,
-      });
+      ResponseHandler.paginated(
+        res,
+        rows,
+        countResult[0].total,
+        page,
+        pageSize,
+        undefined,
+        { items: rows }
+      );
     } catch (error) {
       logger.error('获取标准成本列表失败:', error);
       ResponseHandler.error(res, '获取标准成本列表失败', 'SERVER_ERROR', 500);
@@ -399,7 +406,13 @@ module.exports = {
         params
       );
 
-      ResponseHandler.paginated(res, list, countResult[0].total, pagination.page, pagination.pageSize);
+      ResponseHandler.paginated(
+        res,
+        list,
+        countResult[0].total,
+        pagination.page,
+        pagination.pageSize
+      );
     } catch (error) {
       logger.error('获取实际成本列表失败:', error);
       ResponseHandler.error(res, '获取实际成本列表失败', 'SERVER_ERROR', 500);
@@ -686,7 +699,7 @@ module.exports = {
         expiry_date = null,
         source = 'cost_price', // 'cost_price' 或 'manual'
         materials = [], // 仅当source='manual'时使用
-      } = req.body;
+      } = mapKeysToSnake(req.body || {});
 
       if (!effective_date) {
         await connection.rollback();
@@ -706,7 +719,7 @@ module.exports = {
                 `);
 
         for (const mat of materialList) {
-          const standardPrice = mat.cost_price || mat.price || 0;
+          const standardPrice = mat.costPrice || mat.price || 0;
           if (standardPrice <= 0) {
             skippedCount++;
             continue;
@@ -793,7 +806,7 @@ module.exports = {
   updateMaterialStandardCost: async (req, res) => {
     try {
       const { id } = req.params;
-      const { standard_price, effective_date, expiry_date, is_active } = req.body;
+      const { standard_price, effective_date, expiry_date, is_active } = mapKeysToSnake(req.body || {});
 
       if (!id) {
         return ResponseHandler.error(res, '标准成本ID不能为空', 'VALIDATION_ERROR', 400);

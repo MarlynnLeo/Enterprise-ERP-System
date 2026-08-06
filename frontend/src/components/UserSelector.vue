@@ -27,7 +27,7 @@
             :value="user.id"
           >
             <div class="user-option">
-              <span class="user-name">{{ user.real_name }}</span>
+              <span class="user-name">{{ user.realName }}</span>
               <span class="user-info">{{ user.department || '无部门' }} - {{ user.position || '未设置岗位' }}</span>
             </div>
           </el-option>
@@ -95,9 +95,10 @@ import { loadDepartmentOptions, searchUserOptions } from '@/utils/optionLoaders'
 
 const normalizeUsers = (users = []) => users.map(user => ({
   ...user,
-  department: user.department || user.departmentName || user.department_name || '',
-  position: user.position || user.positionName || user.position_name || '',
-  real_name: user.real_name || user.name || user.username || ''
+  // HTTP 只认 camel（department/position 为展示短名）
+  department: user.department || user.departmentName || '',
+  position: user.position || user.positionName || '',
+  realName: user.realName || user.name || user.username || ''
 }));
 
 const props = defineProps({
@@ -119,7 +120,7 @@ const selectedDepartments = ref([]);
 const formatUserOption = (user) => {
   const username = user.username ? ` (${user.username})` : '';
   const department = user.department || '无部门';
-  return `${user.real_name}${username} - ${department}`;
+  return `${user.realName}${username} - ${department}`;
 };
 
 const searchUsers = async (query) => {
@@ -171,7 +172,7 @@ const loadDepartments = async () => {
 
 const getUserName = (userId) => {
   const user = userList.value.find(item => item.id === userId);
-  return user ? `${user.real_name} (${user.department || '无部门'})` : userId;
+  return user ? `${user.realName} (${user.department || '无部门'})` : userId;
 };
 
 const getDepartmentName = (deptId) => {

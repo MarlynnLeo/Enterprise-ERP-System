@@ -73,11 +73,11 @@
         <div class="info-grid">
           <div class="info-item">
             <span class="label">创建时间</span>
-            <span class="value">{{ formatDateTime(customer.created_at) }}</span>
+            <span class="value">{{ formatDateTime(customer.createdAt) }}</span>
           </div>
           <div class="info-item">
             <span class="label">更新时间</span>
-            <span class="value">{{ formatDateTime(customer.updated_at) }}</span>
+            <span class="value">{{ formatDateTime(customer.updatedAt) }}</span>
           </div>
         </div>
       </div>

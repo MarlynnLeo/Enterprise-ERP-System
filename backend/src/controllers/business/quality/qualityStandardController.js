@@ -10,6 +10,7 @@ const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 const QualityStandard = require('../../../models/qualityStandard');
 const { parsePagination } = require('../../../utils/safePagination');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 
 const qualityStandardController = {
     /**
@@ -34,7 +35,13 @@ const qualityStandardController = {
                 filters, pagination.page, pagination.pageSize
             );
 
-            ResponseHandler.paginated(res, result.rows, result.total, pagination.page, pagination.pageSize);
+            ResponseHandler.paginated(
+                res,
+                result.rows,
+                result.total,
+                pagination.page,
+                pagination.pageSize
+            );
         } catch (error) {
             logger.error('获取质量标准列表失败:', error);
             ResponseHandler.error(res, '获取质量标准列表失败', 'SERVER_ERROR', 500, error);
@@ -66,7 +73,8 @@ const qualityStandardController = {
      */
     async createStandard(req, res) {
         try {
-            const standard = req.body;
+            // HTTP camel → snake
+            const standard = mapKeysToSnake(req.body || {});
 
             if (
                 !standard.standard_no ||
@@ -99,7 +107,7 @@ const qualityStandardController = {
     async updateStandard(req, res) {
         try {
             const { id } = req.params;
-            const data = req.body;
+            const data = mapKeysToSnake(req.body || {});
 
             const standard = await QualityStandard.getStandardById(parseInt(id));
             if (!standard) {

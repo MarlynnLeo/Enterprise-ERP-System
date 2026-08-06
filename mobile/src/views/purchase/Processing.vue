@@ -35,14 +35,14 @@
     ],
     fields: {
       id: 'id',
-      title: 'supplier_name',
-      subtitle: 'processing_code',
+      title: 'supplierName',
+      subtitle: 'processingCode',
       icon: 'setting-o',
       details: [
-        { label: '加工单号', field: 'processing_code' },
-        { label: '物料名称', field: 'material_name' },
+        { label: '加工单号', field: 'processingCode' },
+        { label: '物料名称', field: 'materialName' },
         { label: '加工数量', field: 'quantity' },
-        { label: '预计完成', field: 'expected_date', type: 'date' }
+        { label: '预计完成', field: 'expectedDate', type: 'date' }
       ],
       tags: [
         {

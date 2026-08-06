@@ -5,6 +5,7 @@
  */
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 const { logger } = require('../../../utils/logger');
 
 const db = require('../../../config/db');
@@ -1103,7 +1104,7 @@ exports.lockOrder = async (req, res) => {
     await connection.beginTransaction();
 
     const { id } = req.params;
-    const { lock_reason } = req.body;
+    const { lock_reason } = mapKeysToSnake(req.body || {});
     const userId = getAuthenticatedUserId(req);
 
     // 检查订单是否存在

@@ -58,9 +58,9 @@
             <el-tag size="small" :type="statusTag[row.status]">{{ statusLabel[row.status] }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="reporter_name" label="上报人" width="100" />
+        <el-table-column prop="reporterName" label="上报人" width="100" />
         <el-table-column prop="location" label="位置" width="100" show-overflow-tooltip />
-        <el-table-column prop="created_at" label="上报时间" width="160" />
+        <el-table-column prop="createdAt" label="上报时间" width="160" />
         <el-table-column label="操作" width="220" fixed="right">
           <template #default="{ row }">
             <el-button class="btn-op-view" type="primary" size="small" @click="viewDetail(row)">详情</el-button>
@@ -77,7 +77,12 @@
     </el-card>
 
     <!-- 上报对话框 -->
-    <el-dialog v-model="formVis" title="上报异常" width="600px" destroy-on-close>
+    <AppDialog
+      v-model="formVis"
+      title="上报异常"
+      mode="form"
+      width="600px"
+    >
       <el-form :model="form" label-width="100px">
         <el-form-item label="标题" required><el-input v-model="form.title" placeholder="简要描述异常" /></el-form-item>
         <el-row :gutter="16">
@@ -103,7 +108,7 @@
         <el-button @click="formVis = false">取消</el-button>
         <el-button type="primary" v-permission="'production:anomaly:create'" @click="submitReport" :loading="saving">提交</el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
 
     <!-- 详情/解决对话框 -->
     <AppDialog
@@ -120,10 +125,10 @@
           <el-descriptions-item label="标题" :span="2">{{ detail.title }}</el-descriptions-item>
           <el-descriptions-item label="类别">{{ categoryLabel[detail.category] }}</el-descriptions-item>
           <el-descriptions-item label="严重程度"><el-tag :type="severityTag[detail.severity]" size="small">{{ severityLabel[detail.severity] }}</el-tag></el-descriptions-item>
-          <el-descriptions-item label="上报人">{{ detail.reporter_name }}</el-descriptions-item>
+          <el-descriptions-item label="上报人">{{ detail.reporterName }}</el-descriptions-item>
           <el-descriptions-item label="位置">{{ detail.location || '-' }}</el-descriptions-item>
           <el-descriptions-item label="描述" :span="2">{{ detail.description }}</el-descriptions-item>
-          <el-descriptions-item label="处理人">{{ detail.assignee_name || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="处理人">{{ detail.assigneeName || '-' }}</el-descriptions-item>
           <el-descriptions-item label="解决方案" :span="2" v-if="detail.resolution">{{ detail.resolution }}</el-descriptions-item>
         </el-descriptions>
         <div v-if="detailMode === 'resolve'" class="mt-md">

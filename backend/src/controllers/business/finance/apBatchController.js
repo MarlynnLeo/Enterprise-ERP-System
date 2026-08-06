@@ -47,18 +47,18 @@ const batchPayments = async (req, res) => {
         }
         if (!SETTLEMENT_ELIGIBLE_STATUSES.includes(invoice.status)) {
           throw new Error(
-            `发票 ${invoice.invoiceNumber || invoice.invoice_number || item.invoiceId} 当前状态为"${invoice.status}"，不能直接付款`
+            `发票 ${invoice.invoice_number || item.invoiceId} 当前状态为"${invoice.status}"，不能直接付款`
           );
         }
 
         const line = parseSettlementLine({
           amount: item.amount,
-          discount_amount: item.discountAmount || item.discount_amount || 0,
+          discount_amount: item.discountAmount || 0,
         });
         assertWithinBalance(
           line.settlementCents,
-          toCents(invoice.balance || invoice.balance_amount || 0),
-          `发票 ${invoice.invoiceNumber || invoice.invoice_number || item.invoiceId} 付款核销金额`
+          toCents(invoice.balanceAmount || invoice.balance || 0),
+          `发票 ${invoice.invoice_number || item.invoiceId} 付款核销金额`
         );
 
         const paymentNumber = await CodeGeneratorService.nextCode(
@@ -68,8 +68,8 @@ const batchPayments = async (req, res) => {
 
         const paymentData = {
           payment_number: paymentNumber,
-          supplier_id: item.supplierId || invoice.supplierId || invoice.supplier_id,
-          supplier_name: item.supplierName || invoice.supplierName || invoice.supplier_name,
+          supplier_id: item.supplierId || invoice.supplier_id,
+          supplier_name: item.supplierName || invoice.supplier_name,
           payment_date: paymentDate,
           total_amount: item.amount,
           payment_method: paymentMethod,
@@ -82,7 +82,7 @@ const batchPayments = async (req, res) => {
           {
             invoice_id: item.invoiceId,
             amount: item.amount,
-            discount_amount: item.discountAmount || item.discount_amount || 0,
+            discount_amount: item.discountAmount || 0,
           },
         ];
 

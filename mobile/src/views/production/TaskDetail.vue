@@ -15,8 +15,8 @@
       <div class="hero-card">
         <div class="hero-icon"><SvgIcon name="clipboard-check" size="1.5rem" /></div>
         <div class="hero-info">
-          <div class="hero-title">{{ task.product_name }}</div>
-          <div class="hero-sub">{{ task.task_code }}</div>
+          <div class="hero-title">{{ task.productName }}</div>
+          <div class="hero-sub">{{ task.code || task.taskCode }}</div>
         </div>
         <div class="hero-status" :class="getStatusAccent(task.status)">
           {{ getStatusText(task.status) }}
@@ -37,7 +37,7 @@
           ></div>
         </div>
         <div class="progress-meta">
-          已完成 {{ task.completed_quantity || 0 }} / {{ task.quantity }} {{ task.unit || '件' }}
+          已完成 {{ task.completedQuantity || 0 }} / {{ task.quantity }} {{ task.unit || '件' }}
         </div>
       </div>
 
@@ -47,19 +47,19 @@
         <div class="info-grid">
           <div class="info-item">
             <span class="info-label">任务编号</span
-            ><span class="info-value mono">{{ task.task_code }}</span>
+            ><span class="info-value mono">{{ task.code || task.taskCode }}</span>
           </div>
           <div class="info-item">
             <span class="info-label">产品名称</span
-            ><span class="info-value">{{ task.product_name }}</span>
+            ><span class="info-value">{{ task.productName }}</span>
           </div>
           <div class="info-item">
             <span class="info-label">产品编码</span
-            ><span class="info-value mono">{{ task.product_code || '—' }}</span>
+            ><span class="info-value mono">{{ task.productCode || '—' }}</span>
           </div>
           <div class="info-item">
             <span class="info-label">工序名称</span
-            ><span class="info-value">{{ task.process_name || '—' }}</span>
+            ><span class="info-value">{{ task.processName || '—' }}</span>
           </div>
           <div class="info-item">
             <span class="info-label">任务数量</span
@@ -68,16 +68,16 @@
           <div class="info-item">
             <span class="info-label">已完成</span
             ><span class="info-value"
-              >{{ task.completed_quantity || 0 }} {{ task.unit || '件' }}</span
+              >{{ task.completedQuantity || 0 }} {{ task.unit || '件' }}</span
             >
           </div>
           <div class="info-item">
             <span class="info-label">工作中心</span
-            ><span class="info-value">{{ task.work_center_name || '—' }}</span>
+            ><span class="info-value">{{ task.workCenterName || '—' }}</span>
           </div>
           <div class="info-item">
             <span class="info-label">负责人</span
-            ><span class="info-value">{{ task.operator_name || '—' }}</span>
+            ><span class="info-value">{{ task.operatorName || task.manager || '—' }}</span>
           </div>
         </div>
       </div>

@@ -8,10 +8,17 @@ const budgetModel = require('../../../models/budget');
 const BudgetControlService = require('../../../services/business/BudgetControlService');
 const BudgetAnalysisService = require('../../../services/business/BudgetAnalysisService');
 const { ResponseHandler } = require('../../../utils/responseHandler');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 const { logger } = require('../../../utils/logger');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const db = require('../../../config/db');
 const BusinessError = require('../../../utils/BusinessError');
+const {
+  toBudgetApi,
+  toBudgetDetailApi,
+  fromBudgetApi,
+  fromBudgetDetailApi,
+} = require('../../../utils/finance/glFieldMap');
 
 const { BUDGET_STATUS_CODE } = budgetModel;
 
@@ -36,34 +43,38 @@ const budgetController = {
   createBudget: async (req, res) => {
     try {
       const { budget, details } = req.body;
+      // HTTP camel → DB snake
+      const mappedBudget = fromBudgetApi(budget || req.body || {});
+      const mappedDetails = Array.isArray(details)
+        ? details.map((d) => fromBudgetDetailApi(d))
+        : [];
 
       // 验证必填字段
       if (
-        !budget ||
-        !budget.budget_name ||
-        !budget.budget_year ||
-        !budget.start_date ||
-        !budget.end_date
+        !mappedBudget.budget_name ||
+        !mappedBudget.budget_year ||
+        !mappedBudget.start_date ||
+        !mappedBudget.end_date
       ) {
         return ResponseHandler.error(res, '缺少必填字段', 'VALIDATION_ERROR', 400);
       }
 
       // 生成预算编号
-      const budgetNo = await BudgetControlService.generateBudgetNo(budget.budget_year);
+      const budgetNo = await BudgetControlService.generateBudgetNo(mappedBudget.budget_year);
 
       // 创建预算
       const budgetId = await budgetModel.createBudget(
         {
-          ...budget,
+          ...mappedBudget,
           budget_no: budgetNo,
           created_by: getAuthenticatedUserId(req),
         },
-        details || []
+        mappedDetails
       );
 
       return ResponseHandler.success(
         res,
-        { id: budgetId, budget_no: budgetNo },
+        { id: budgetId, budgetNo },
         '创建预算成功',
         201
       );
@@ -90,8 +101,9 @@ const budgetController = {
       });
 
       const total = await budgetModel.getBudgetsCount(filters);
+      const mapped = (budgets || []).map((b) => toBudgetApi(b));
 
-      return ResponseHandler.paginated(res, budgets, total, safePage, safePageSize);
+      return ResponseHandler.paginated(res, mapped, total, safePage, safePageSize);
     } catch (error) {
       logger.error('获取预算列表失败:', error);
       return ResponseHandler.error(res, '获取预算列表失败', 'SERVER_ERROR', 500, error);
@@ -111,7 +123,7 @@ const budgetController = {
         return ResponseHandler.error(res, '预算不存在', 'NOT_FOUND', 404);
       }
 
-      return ResponseHandler.success(res, budget);
+      return ResponseHandler.success(res, toBudgetApi(budget));
     } catch (error) {
       logger.error('获取预算详情失败:', error);
       return ResponseHandler.error(res, '获取预算详情失败', 'SERVER_ERROR', 500, error);
@@ -125,8 +137,8 @@ const budgetController = {
     try {
       const { id } = req.params;
       const { budget: budgetData, details } = req.body;
-      // 兼容直接传主表字段的旧格式
-      const mainData = budgetData || req.body;
+      // HTTP camel → snake；兼容直接传主表字段
+      const mainData = fromBudgetApi(budgetData || req.body || {});
 
       // 检查预算是否存在
       const existingBudget = await budgetModel.getBudgetById(id);
@@ -139,7 +151,10 @@ const budgetController = {
         return ResponseHandler.error(res, '该状态的预算不允许修改', 'VALIDATION_ERROR', 400);
       }
 
-      await budgetModel.updateBudget(id, mainData, Array.isArray(details) ? details : null);
+      const mappedDetails = Array.isArray(details)
+        ? details.map((d) => fromBudgetDetailApi(d))
+        : null;
+      await budgetModel.updateBudget(id, mainData, mappedDetails);
       return ResponseHandler.success(res, null, '更新预算成功');
     } catch (error) {
       logger.error('更新预算失败:', error);
@@ -342,8 +357,11 @@ const budgetController = {
       const { id } = req.params;
 
       const executions = await budgetModel.getBudgetExecutions(id);
+      const mapped = Array.isArray(executions)
+        ? executions.map((e) => toBudgetDetailApi(e))
+        : executions;
 
-      return ResponseHandler.success(res, executions);
+      return ResponseHandler.success(res, mapped);
     } catch (error) {
       logger.error('获取预算执行记录失败:', error);
       return ResponseHandler.error(res, '获取预算执行记录失败', 'SERVER_ERROR', 500, error);
@@ -580,7 +598,7 @@ const budgetController = {
    */
   createBudgetFromAI: async (req, res) => {
     try {
-      const { budget_name, budget_year, recommendations } = req.body;
+      const { budget_name, budget_year, recommendations } = mapKeysToSnake(req.body || {});
 
       if (!budget_year || !recommendations?.length) {
         return ResponseHandler.error(res, '缺少年度或建议数据', 'VALIDATION_ERROR', 400);

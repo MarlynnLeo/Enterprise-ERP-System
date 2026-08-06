@@ -1,10 +1,10 @@
 ﻿<template>
   <!-- BOM预览对话框(只读模式) -->
-  <el-dialog
+  <AppDialog
     v-model="visible"
     title="BOM成本明细"
-    width="1000px"
-    destroy-on-close
+    mode="view"
+    content-width="wide"
   >
     <div v-loading="loading">
       <div v-if="data.hasBom">
@@ -38,18 +38,18 @@
         <!-- BOM明细表格 -->
         <el-table :data="data.details" border stripe max-height="350">
           <el-table-column type="index" label="#" width="50" />
-          <el-table-column prop="material_code" label="物料编码" width="130" />
-          <el-table-column prop="material_name" label="物料名称" min-width="160" show-overflow-tooltip />
-          <el-table-column prop="material_specs" label="规格型号" width="130" show-overflow-tooltip />
+          <el-table-column prop="materialCode" label="物料编码" width="130" />
+          <el-table-column prop="materialName" label="物料名称" min-width="160" show-overflow-tooltip />
+          <el-table-column prop="materialSpecs" label="规格型号" width="130" show-overflow-tooltip />
           <el-table-column prop="quantity" label="用量" width="80" />
           <el-table-column label="单价" width="150">
             <template #default="{ row }">
               <div class="price-display">
-                <span v-if="row.has_adjustment" class="original-price line-through">
-                  {{ formatPrice(row.original_price) }}
+                <span v-if="row.hasAdjustment" class="original-price line-through">
+                  {{ formatPrice(row.originalPrice) }}
                 </span>
-                <span :class="{ 'adjusted-price': row.has_adjustment }">
-                  {{ formatPrice(firstPresent(row.effective_price, row.current_price)) }}
+                <span :class="{ 'adjusted-price': row.hasAdjustment }">
+                  {{ formatPrice(firstPresent(row.effectivePrice, row.currentPrice)) }}
                 </span>
               </div>
             </template>
@@ -63,9 +63,9 @@
           <el-table-column v-if="mode === 'edit'" label="操作" min-width="130" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="{ row }">
               <el-button v-permission="'finance:pricing:update'" type="primary" link size="small" @click="$emit('adjust', row)">
-                {{ row.has_adjustment ? '重新调整' : '调整' }}
+                {{ row.hasAdjustment ? '重新调整' : '调整' }}
               </el-button>
-              <el-button v-if="row.has_adjustment" type="info" link size="small" @click="$emit('history', row)">
+              <el-button v-if="row.hasAdjustment" type="info" link size="small" @click="$emit('history', row)">
                 历史
               </el-button>
             </template>
@@ -111,12 +111,12 @@
           </div>
         </div>
       </div>
-      <el-empty v-else description="该产品暂无BOM数据" :image-size="120" />
+      <EmptyState v-else description="该产品暂无BOM数据" ::image-size="120" />
     </div>
     <template #footer>
       <el-button @click="visible = false">关闭</el-button>
     </template>
-  </el-dialog>
+    </AppDialog>
 </template>
 
 <script setup>

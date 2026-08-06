@@ -94,8 +94,8 @@ describe('通知规则 /api/system/notification-rules', () => {
     expect(eventsRes.status).toBe(200);
     expect(eventsRes.body.data).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ event_type: 'ASSEMBLY_ALL_STEPS_COMPLETED' }),
-        expect.objectContaining({ event_type: 'FINANCE_AR_INVOICE_OVERDUE' }),
+        expect.objectContaining({ eventType: 'ASSEMBLY_ALL_STEPS_COMPLETED' }),
+        expect.objectContaining({ eventType: 'FINANCE_AR_INVOICE_OVERDUE' }),
       ])
     );
 
@@ -106,7 +106,7 @@ describe('通知规则 /api/system/notification-rules', () => {
 
     const previewRes = await api
       .post('/api/system/notification-rules/preview')
-      .send({ recipient_type: 'user', recipient_config: [users[0].id] });
+      .send({ recipientType: 'user', recipientConfig: [users[0].id] });
     expect(previewRes.status).toBe(200);
     expect(previewRes.body.data).toEqual(
       expect.objectContaining({ count: expect.any(Number), recipients: expect.any(Array) })

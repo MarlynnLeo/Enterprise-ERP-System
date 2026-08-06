@@ -81,21 +81,21 @@
     <el-card class="table-card">
       <el-table :data="tableData" border stripe v-loading="loading">
         <el-table-column type="index" label="序号" width="60" />
-        <el-table-column prop="rework_no" label="返工单号" width="140" />
-        <el-table-column prop="ncp_no" label="不合格品编号" width="140" />
-        <el-table-column prop="material_code" label="物料编码" width="120" />
-        <el-table-column prop="material_name" label="物料名称" width="150" show-overflow-tooltip />
+        <el-table-column prop="reworkNo" label="返工单号" width="140" />
+        <el-table-column prop="ncpNo" label="不合格品编号" width="140" />
+        <el-table-column prop="materialCode" label="物料编码" width="120" />
+        <el-table-column prop="materialName" label="物料名称" width="150" show-overflow-tooltip />
         <el-table-column label="返工数量" width="100">
           <template #default="{ row }">
             {{ row.quantity }}
           </template>
         </el-table-column>
-        <el-table-column prop="assigned_to" label="负责人" width="100" />
-        <el-table-column prop="planned_date" label="计划完成日期" width="120" />
-        <el-table-column prop="actual_date" label="实际完成日期" width="120" />
+        <el-table-column prop="assignedTo" label="负责人" width="100" />
+        <el-table-column prop="plannedDate" label="计划完成日期" width="120" />
+        <el-table-column prop="actualDate" label="实际完成日期" width="120" />
         <el-table-column label="返工成本" width="100">
           <template #default="{ row }">
-            {{ formatMoney(row.rework_cost) }}
+            {{ formatMoney(row.reworkCost) }}
           </template>
         </el-table-column>
         <el-table-column label="状态" width="100">
@@ -105,7 +105,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" width="160" />
+        <el-table-column prop="createdAt" label="创建时间" width="160" />
         <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <el-button class="btn-op-view" type="primary" size="small" @click="viewDetail(row)">详情</el-button>
@@ -154,13 +154,18 @@
     </el-card>
 
     <!-- 分配任务对话框 -->
-    <el-dialog v-model="assignDialogVisible" title="分配返工任务" width="500px">
+    <AppDialog
+      v-model="assignDialogVisible"
+      title="分配返工任务"
+      mode="form"
+      width="500px"
+    >
       <el-form :model="assignForm" label-width="120px">
         <el-form-item label="返工单号">
-          <el-input v-model="currentRow.rework_no" disabled />
+          <el-input v-model="currentRow.reworkNo" disabled />
         </el-form-item>
         <el-form-item label="物料名称">
-          <el-input v-model="currentRow.material_name" disabled />
+          <el-input v-model="currentRow.materialName" disabled />
         </el-form-item>
         <el-form-item label="返工数量">
           <el-input v-model="currentRow.quantity" disabled />
@@ -173,20 +178,25 @@
         <el-button @click="assignDialogVisible = false">取消</el-button>
         <el-button v-permission="'quality:rework:update'" type="primary" @click="submitAssign">确认分配</el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
 
     <!-- 完成返工对话框 -->
-    <el-dialog v-model="completeDialogVisible" title="完成返工任务" width="500px">
+    <AppDialog
+      v-model="completeDialogVisible"
+      title="完成返工任务"
+      mode="form"
+      width="500px"
+    >
       <el-form :model="completeForm" label-width="120px">
         <el-form-item label="返工单号">
-          <el-input v-model="currentRow.rework_no" disabled />
+          <el-input v-model="currentRow.reworkNo" disabled />
         </el-form-item>
         <el-form-item label="物料名称">
-          <el-input v-model="currentRow.material_name" disabled />
+          <el-input v-model="currentRow.materialName" disabled />
         </el-form-item>
         <el-form-item label="实际完成日期">
           <el-date-picker
-            v-model="completeForm.actual_date"
+            v-model="completeForm.actualDate"
             type="date"
             placeholder="选择日期"
             value-format="YYYY-MM-DD"
@@ -195,7 +205,7 @@
         </el-form-item>
         <el-form-item label="返工成本">
           <el-input-number
-            v-model="completeForm.rework_cost"
+            v-model="completeForm.reworkCost"
             :min="0"
             :precision="2"
             class="w-full"
@@ -209,20 +219,25 @@
         <el-button @click="completeDialogVisible = false">取消</el-button>
         <el-button v-permission="'quality:rework:update'" type="primary" @click="submitComplete">确认完成</el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
 
     <!-- 编辑对话框 -->
-    <el-dialog v-model="editDialogVisible" title="编辑返工任务" width="500px">
+    <AppDialog
+      v-model="editDialogVisible"
+      title="编辑返工任务"
+      mode="form"
+      width="500px"
+    >
       <el-form :model="editForm" label-width="120px">
         <el-form-item label="返工单号">
-          <el-input v-model="currentRow.rework_no" disabled />
+          <el-input v-model="currentRow.reworkNo" disabled />
         </el-form-item>
         <el-form-item label="返工说明">
-          <el-input v-model="editForm.rework_instructions" type="textarea" :rows="3" />
+          <el-input v-model="editForm.reworkInstructions" type="textarea" :rows="3" />
         </el-form-item>
         <el-form-item label="计划完成日期">
           <el-date-picker
-            v-model="editForm.planned_date"
+            v-model="editForm.plannedDate"
             type="date"
             placeholder="选择日期"
             value-format="YYYY-MM-DD"
@@ -231,7 +246,7 @@
         </el-form-item>
         <el-form-item label="预计成本">
           <el-input-number
-            v-model="editForm.rework_cost"
+            v-model="editForm.reworkCost"
             :min="0"
             :precision="2"
             class="w-full"
@@ -242,7 +257,7 @@
         <el-button @click="editDialogVisible = false">取消</el-button>
         <el-button v-permission="'quality:rework:update'" type="primary" @click="submitEdit">保存</el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
 
     <!-- 详情对话框 -->
     <AppDialog
@@ -252,26 +267,26 @@
       content-width="wide"
     >
       <el-descriptions :column="2" border v-if="detailData">
-        <el-descriptions-item label="返工单号">{{ detailData.rework_no }}</el-descriptions-item>
+        <el-descriptions-item label="返工单号">{{ detailData.reworkNo }}</el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag :type="getStatusType(detailData.status)">
             {{ getStatusLabel(detailData.status) }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="不合格品编号">{{ detailData.ncp_no }}</el-descriptions-item>
-        <el-descriptions-item label="检验单号">{{ detailData.inspection_no }}</el-descriptions-item>
-        <el-descriptions-item label="物料编码">{{ detailData.material_code }}</el-descriptions-item>
-        <el-descriptions-item label="物料名称">{{ detailData.material_name }}</el-descriptions-item>
+        <el-descriptions-item label="不合格品编号">{{ detailData.ncpNo }}</el-descriptions-item>
+        <el-descriptions-item label="检验单号">{{ detailData.inspectionNo }}</el-descriptions-item>
+        <el-descriptions-item label="物料编码">{{ detailData.materialCode }}</el-descriptions-item>
+        <el-descriptions-item label="物料名称">{{ detailData.materialName }}</el-descriptions-item>
         <el-descriptions-item label="返工数量">{{ detailData.quantity }}</el-descriptions-item>
-        <el-descriptions-item label="负责人">{{ detailData.assigned_to || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="计划完成日期">{{ detailData.planned_date }}</el-descriptions-item>
-        <el-descriptions-item label="实际完成日期">{{ detailData.actual_date || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="返工成本">{{ formatMoney(detailData.rework_cost) }}</el-descriptions-item>
-        <el-descriptions-item label="返工原因" :span="2">{{ detailData.rework_reason }}</el-descriptions-item>
-        <el-descriptions-item label="返工说明" :span="2">{{ detailData.rework_instructions || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="缺陷描述" :span="2">{{ detailData.defect_description }}</el-descriptions-item>
-        <el-descriptions-item label="创建时间">{{ detailData.created_at }}</el-descriptions-item>
-        <el-descriptions-item label="更新时间">{{ detailData.updated_at }}</el-descriptions-item>
+        <el-descriptions-item label="负责人">{{ detailData.assignedTo || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="计划完成日期">{{ detailData.plannedDate }}</el-descriptions-item>
+        <el-descriptions-item label="实际完成日期">{{ detailData.actualDate || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="返工成本">{{ formatMoney(detailData.reworkCost) }}</el-descriptions-item>
+        <el-descriptions-item label="返工原因" :span="2">{{ detailData.reworkReason }}</el-descriptions-item>
+        <el-descriptions-item label="返工说明" :span="2">{{ detailData.reworkInstructions || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="缺陷描述" :span="2">{{ detailData.defectDescription }}</el-descriptions-item>
+        <el-descriptions-item label="创建时间">{{ detailData.createdAt }}</el-descriptions-item>
+        <el-descriptions-item label="更新时间">{{ detailData.updatedAt }}</el-descriptions-item>
       </el-descriptions>
       <template #footer>
         <el-button @click="detailDialogVisible = false">关闭</el-button>
@@ -434,8 +449,8 @@ const submitAssign = async () => {
 
 const completeTask = (row) => {
   currentRow.value = row
-  completeForm.actual_date = formatLocalDate(new Date())
-  completeForm.rework_cost = row.rework_cost ?? null
+  completeForm.actualDate = formatLocalDate(new Date())
+  completeForm.reworkCost = row.reworkCost ?? null
   completeForm.note = ''
   completeDialogVisible.value = true
 }
@@ -454,9 +469,9 @@ const submitComplete = async () => {
 
 const editTask = (row) => {
   currentRow.value = row
-  editForm.rework_instructions = row.rework_instructions
-  editForm.planned_date = row.planned_date
-  editForm.rework_cost = row.rework_cost
+  editForm.reworkInstructions = row.reworkInstructions
+  editForm.plannedDate = row.plannedDate
+  editForm.reworkCost = row.reworkCost
   editDialogVisible.value = true
 }
 

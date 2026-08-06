@@ -1,8 +1,9 @@
 <template>
-  <el-dialog
-    :title="title"
+  <AppDialog
     :model-value="modelValue"
     @update:model-value="val => emit('update:modelValue', val)"
+    :title="title"
+    mode="form"
     width="600px"
     @close="handleClose"
   >
@@ -17,28 +18,28 @@
       <el-form-item label="客户名称" prop="name">
         <el-input v-model="form.name" placeholder="请输入客户名称"></el-input>
       </el-form-item>
-      <el-form-item label="客户类型" prop="customer_type">
-        <el-select v-model="form.customer_type" placeholder="请选择客户类型" class="w-full">
+      <el-form-item label="客户类型" prop="customerType">
+        <el-select v-model="form.customerType" placeholder="请选择客户类型" class="w-full">
           <el-option label="直销客户" value="direct"></el-option>
           <el-option label="经销商" value="distributor"></el-option>
           <el-option label="零售客户" value="retail"></el-option>
         </el-select>
       </el-form-item>
-      <el-form-item label="联系人" prop="contact_person">
-        <el-input v-model="form.contact_person" placeholder="请输入联系人"></el-input>
+      <el-form-item label="联系人" prop="contactPerson">
+        <el-input v-model="form.contactPerson" placeholder="请输入联系人"></el-input>
       </el-form-item>
-      <el-form-item label="联系电话" prop="contact_phone">
-        <el-input v-model="form.contact_phone" placeholder="请输入联系电话"></el-input>
+      <el-form-item label="联系电话" prop="contactPhone">
+        <el-input v-model="form.contactPhone" placeholder="请输入联系电话"></el-input>
       </el-form-item>
       <el-form-item label="电子邮箱" prop="email">
         <el-input v-model="form.email" placeholder="请输入电子邮箱"></el-input>
       </el-form-item>
-      <el-form-item label="信用额度" prop="credit_limit">
-        <el-input-number v-model="form.credit_limit" :min="0" :precision="2" :step="100" placeholder="请输入信用额度"></el-input-number>
+      <el-form-item label="信用额度" prop="creditLimit">
+        <el-input-number v-model="form.creditLimit" :min="0" :precision="2" :step="100" placeholder="请输入信用额度"></el-input-number>
       </el-form-item>
-      <el-form-item label="收款账期(天)" prop="payment_term_days">
+      <el-form-item label="收款账期(天)" prop="paymentTermDays">
         <el-input-number
-          v-model="form.payment_term_days"
+          v-model="form.paymentTermDays"
           :min="0"
           :max="3650"
           :step="1"
@@ -66,7 +67,7 @@
         <el-button type="primary" @click="submitForm" :loading="submitting">确定</el-button>
       </span>
     </template>
-  </el-dialog>
+    </AppDialog>
 </template>
 
 <script setup>
@@ -99,13 +100,13 @@ const form = reactive({
   id: '',
   code: '',
   name: '',
-  customer_type: 'direct',
-  contact_person: '',
-  contact_phone: '',
+  customerType: 'direct',
+  contactPerson: '',
+  contactPhone: '',
   email: '',
   address: '',
-  credit_limit: 0,
-  payment_term_days: 30,
+  creditLimit: 0,
+  paymentTermDays: 30,
   status: 'active',
   remark: ''
 })
@@ -121,13 +122,21 @@ watch(() => props.editData, (newVal) => {
     isEdit.value = true
     nextTick(() => {
       Object.assign(form, {
-        ...newVal,
-        credit_limit: parseFloat(newVal.credit_limit) || 0,
-        payment_term_days:
-          newVal.payment_term_days != null && newVal.payment_term_days !== ''
-            ? Number(newVal.payment_term_days)
+        id: newVal.id || '',
+        code: newVal.code || '',
+        name: newVal.name || '',
+        customerType: newVal.customerType || 'direct',
+        contactPerson: newVal.contactPerson || '',
+        contactPhone: newVal.contactPhone || '',
+        email: newVal.email || '',
+        address: newVal.address || '',
+        creditLimit: parseFloat(newVal.creditLimit) || 0,
+        paymentTermDays:
+          newVal.paymentTermDays != null && newVal.paymentTermDays !== ''
+            ? Number(newVal.paymentTermDays)
             : 30,
-        contact_phone: newVal.contact_phone || newVal.phone || ''
+        status: newVal.status || 'active',
+        remark: newVal.remark || ''
       })
     })
   } else {
@@ -145,13 +154,13 @@ const resetForm = () => {
   form.id = ''
   form.code = ''
   form.name = ''
-  form.customer_type = 'direct'
-  form.contact_person = ''
-  form.contact_phone = ''
+  form.customerType = 'direct'
+  form.contactPerson = ''
+  form.contactPhone = ''
   form.email = ''
   form.address = ''
-  form.credit_limit = 0
-  form.payment_term_days = 30
+  form.creditLimit = 0
+  form.paymentTermDays = 30
   form.status = 'active'
   form.remark = ''
   isEdit.value = false
@@ -183,19 +192,21 @@ const submitForm = () => {
     if (valid) {
       submitting.value = true
       try {
+        // HTTP body camelCase（camelOut 边界自动 mapKeysToSnake）
         const formData = {
-          ...form,
+          code: form.code,
           name: form.name.trim(),
-          contact_person: form.contact_person ? form.contact_person.trim() : '',
-          contact_phone: form.contact_phone ? form.contact_phone.trim() : '',
+          contactPerson: form.contactPerson ? form.contactPerson.trim() : '',
+          contactPhone: form.contactPhone ? form.contactPhone.trim() : '',
           email: form.email ? form.email.trim() : '',
           address: form.address ? form.address.trim() : '',
-          customer_type: form.customer_type || 'direct',
-          credit_limit: parseFloat(form.credit_limit) || 0,
-          payment_term_days:
-            form.payment_term_days != null && form.payment_term_days !== ''
-              ? Number(form.payment_term_days)
+          customerType: form.customerType || 'direct',
+          creditLimit: parseFloat(form.creditLimit) || 0,
+          paymentTermDays:
+            form.paymentTermDays != null && form.paymentTermDays !== ''
+              ? Number(form.paymentTermDays)
               : 30,
+          status: form.status || 'active',
           remark: form.remark ? form.remark.trim() : ''
         }
 

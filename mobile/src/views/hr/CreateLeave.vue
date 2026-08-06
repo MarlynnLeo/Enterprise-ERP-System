@@ -4,8 +4,8 @@
     <div class="page-body">
       <CellGroup inset title="请假信息">
         <Cell title="请假类型" is-link :value="form.type || '请选择'" @click="showTypePicker = true" />
-        <Cell title="开始日期" is-link :value="form.start_date || '请选择'" @click="showStartPicker = true" />
-        <Cell title="结束日期" is-link :value="form.end_date || '请选择'" @click="showEndPicker = true" />
+        <Cell title="开始日期" is-link :value="form.startDate || '请选择'" @click="showStartPicker = true" />
+        <Cell title="结束日期" is-link :value="form.endDate || '请选择'" @click="showEndPicker = true" />
         <Field v-model="form.duration" label="请假天数" type="number" placeholder="请输入天数" />
         <Field v-model="form.reason" type="textarea" rows="3" label="请假事由" placeholder="请输入请假原因" autosize />
       </CellGroup>
@@ -49,18 +49,18 @@
     showTypePicker.value = false
   }
   const onStartConfirm = ({ selectedValues }) => {
-    form.value.start_date = selectedValues.join('-')
+    form.value.startDate = selectedValues.join('-')
     showStartPicker.value = false
   }
   const onEndConfirm = ({ selectedValues }) => {
-    form.value.end_date = selectedValues.join('-')
+    form.value.endDate = selectedValues.join('-')
     showEndPicker.value = false
   }
 
   const handleSubmit = async () => {
     if (!form.value.type) return showToast('请选择请假类型')
-    if (!form.value.start_date) return showToast('请选择开始日期')
-    if (!form.value.end_date) return showToast('请选择结束日期')
+    if (!form.value.startDate) return showToast('请选择开始日期')
+    if (!form.value.endDate) return showToast('请选择结束日期')
     if (!Number(form.value.duration)) return showToast('请填写请假天数')
     if (!form.value.reason.trim()) return showToast('请填写请假事由')
 
@@ -68,8 +68,8 @@
     try {
       const response = await hrApi.createLeaveRequest({
         type: form.value.type,
-        start_date: form.value.start_date,
-        end_date: form.value.end_date,
+        start_date: form.value.startDate,
+        end_date: form.value.endDate,
         duration: Number(form.value.duration),
         reason: form.value.reason.trim()
       })

@@ -51,22 +51,22 @@
           </div>
           <div class="item-body">
             <div class="item-account">
-              <span class="account-code">{{ item.accountCode || item.account_code || '' }}</span>
-              <span class="account-name">{{ item.accountName || item.account_name || '' }}</span>
+              <span class="account-code">{{ item.accountCode || '' }}</span>
+              <span class="account-name">{{ item.accountName || '' }}</span>
             </div>
             <div class="item-desc" v-if="item.description">{{ item.description }}</div>
           </div>
           <div class="item-amounts">
-            <div class="item-debit" v-if="(item.debitAmount || item.debit_amount) > 0">
+            <div class="item-debit" v-if="(item.debitAmount) > 0">
               <span class="amt-label">借</span>
               <span class="amt-value"
-                >¥{{ formatMoney(item.debitAmount || item.debit_amount) }}</span
+                >¥{{ formatMoney(item.debitAmount) }}</span
               >
             </div>
-            <div class="item-credit" v-if="(item.creditAmount || item.credit_amount) > 0">
+            <div class="item-credit" v-if="(item.creditAmount) > 0">
               <span class="amt-label">贷</span>
               <span class="amt-value"
-                >¥{{ formatMoney(item.creditAmount || item.credit_amount) }}</span
+                >¥{{ formatMoney(item.creditAmount) }}</span
               >
             </div>
           </div>
@@ -88,11 +88,11 @@
           </div>
           <div class="info-item">
             <span class="info-label">会计期间</span>
-            <span class="info-value">{{ entry.period_name || entry.period_id || '—' }}</span>
+            <span class="info-value">{{ entry.periodName || entry.periodId || '—' }}</span>
           </div>
           <div class="info-item">
             <span class="info-label">创建时间</span>
-            <span class="info-value">{{ formatDate(entry.created_at) }}</span>
+            <span class="info-value">{{ formatDate(entry.createdAt) }}</span>
           </div>
         </div>
       </div>

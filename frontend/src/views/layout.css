@@ -18,10 +18,11 @@
   --shell-control-hover-bg: var(--color-bg-hover);
   --shell-control-hover-shadow: var(--shadow-sm);
 }
-.dark .app-shell {
+/* 与 theme store 的 html.dark 对齐（tech / dark / premium） */
+html.dark .app-shell {
   --shell-surface: color-mix(in srgb, var(--color-bg-base) 78%, transparent);
-  --shell-border: color-mix(in srgb, var(--ds-white) 12%, transparent);
-  --shell-shadow: 0 8px 28px color-mix(in srgb, var(--ds-black) 28%, transparent);
+  --shell-border: color-mix(in srgb, var(--ds-white, #fff) 12%, transparent);
+  --shell-shadow: 0 8px 28px color-mix(in srgb, var(--ds-black, #000) 28%, transparent);
 }
 .layout-container {
   height: 100%;

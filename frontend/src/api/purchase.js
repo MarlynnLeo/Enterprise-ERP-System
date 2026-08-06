@@ -6,13 +6,15 @@ const DEFAULT_REQUISITION_LABEL = '关联申请';
 const normalizePurchaseOrder = (order = {}) => {
     if (!order || typeof order !== 'object') return order;
 
-    const requisitionId = order.requisition_id || order.requisitionId || null;
-    const requisitionNumber = order.requisition_number || order.requisitionNumber || (requisitionId ? DEFAULT_REQUISITION_LABEL : '');
+    // HTTP 只认 camel
+    const requisitionId = order.requisitionId ?? null;
+    const requisitionNumber =
+      order.requisitionNumber || (requisitionId ? DEFAULT_REQUISITION_LABEL : '');
 
     return {
         ...order,
-        requisition_id: requisitionId,
-        requisition_number: requisitionNumber,
+        requisitionId,
+        requisitionNumber,
         hasRequisition: Boolean(requisitionId && order.status === 'pending')
     };
 };
@@ -111,29 +113,27 @@ export const purchaseApi = {
         }
     },
     createOrder: async (order) => {
-        // 保留原始状态，不再强制设置为draft
+        // HTTP 只认 camelCase
         const orderData = {
             ...order,
-            // 确保同时提供下划线和驼峰格式的关联申请字段
-            requisition_id: order.requisition_id,
-            requisitionId: order.requisition_id,
-            requisition_number: order.requisition_number,
-            requisitionNumber: order.requisition_number
+            requisitionId: order.requisitionId ?? order.requisition_id ?? null,
+            requisitionNumber: order.requisitionNumber ?? order.requisition_number ?? null,
         };
+        delete orderData.requisition_id;
+        delete orderData.requisition_number;
 
         const response = await api.post('/purchase/orders', orderData);
         return response;
     },
     updateOrder: async (id, order) => {
-        // 保留原始状态，不再强制设置为draft
+        // HTTP 只认 camelCase
         const orderData = {
             ...order,
-            // 确保同时提供下划线和驼峰格式的关联申请字段
-            requisition_id: order.requisition_id,
-            requisitionId: order.requisition_id,
-            requisition_number: order.requisition_number,
-            requisitionNumber: order.requisition_number
+            requisitionId: order.requisitionId ?? order.requisition_id ?? null,
+            requisitionNumber: order.requisitionNumber ?? order.requisition_number ?? null,
         };
+        delete orderData.requisition_id;
+        delete orderData.requisition_number;
 
         const response = await api.put(`/purchase/orders/${id}`, orderData);
         return response;
@@ -157,7 +157,7 @@ export const purchaseApi = {
         return api.put(`/purchase/orders/${id}/status`, data);
     },
     batchUpdateOrderStatus: (orderIds, status) => api.put('/purchase/orders/batch-status', {
-        order_ids: orderIds,
+        orderIds,
         newStatus: status
     }),
     updateOrderItemsReceived: (id, items) => api.put(`/purchase/orders/${id}/items-received`, { items }),
@@ -292,36 +292,30 @@ export const purchaseApi = {
                 throw new Error(`仓库ID格式无效: ${data.warehouseId}`);
             }
 
-            // 准备最终发送的数据，处理下划线格式和驼峰格式字段
+            // HTTP 只认 camelCase
             const receiptData = {
                 ...data,
                 status: data.status || 'draft',
-                order_id: data.orderId,
                 orderId: data.orderId,
-                receipt_date: data.receiptDate,
                 receiptDate: data.receiptDate,
-                warehouse_id: warehouseId, // 使用转换后的数字类型
-                warehouseId: warehouseId,  // 同时提供驼峰形式
-                // 确保包含收货人字段
+                warehouseId,
                 operator: data.receiver,
                 receiver: data.receiver,
-                inspection_id: data.inspectionId || null,
                 inspectionId: data.inspectionId || null,
                 items: data.items.map(item => ({
-                    material_id: item.materialId,
                     materialId: item.materialId,
-                    unit_id: item.unitId,
                     unitId: item.unitId,
-                    ordered_quantity: Number(item.orderedQuantity),
                     orderedQuantity: Number(item.orderedQuantity),
-                    received_quantity: Number(item.receivedQuantity),
                     receivedQuantity: Number(item.receivedQuantity),
-                    qualified_quantity: Number(item.qualifiedQuantity),
                     qualifiedQuantity: Number(item.qualifiedQuantity),
                     price: Number(item.price || 0),
                     remarks: item.remarks || ''
                 }))
             };
+            delete receiptData.order_id;
+            delete receiptData.receipt_date;
+            delete receiptData.warehouse_id;
+            delete receiptData.inspection_id;
 
             const response = await api.put(`/purchase/receipts/${id}`, receiptData);
             return response;

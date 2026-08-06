@@ -581,7 +581,7 @@ exports.getAvailableUsers = async (req, res) => {
     const safe = users.map((u) => ({
       id: u.id,
       username: u.username,
-      real_name: u.real_name || u.username,
+      real_name: u.realName || u.username,
       department_id: u.department_id || null,
     }));
 

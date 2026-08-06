@@ -19,10 +19,10 @@
                     </div>
                     <div class="status-info">
                         <h2 class="status-text">{{ getStatusText(outboundOrder.status) }}</h2>
-                        <p class="order-code">{{ outboundOrder.outbound_no || outboundOrder.code }}</p>
+                        <p class="order-code">{{ outboundOrder.outboundNo || outboundOrder.code }}</p>
                     </div>
                     <div class="status-date">
-                        {{ formatDate(outboundOrder.created_at) }}
+                        {{ formatDate(outboundOrder.createdAt) }}
                     </div>
                 </div>
             </div>
@@ -32,23 +32,23 @@
             <div class="detail-card info-card">
                 <div class="info-row">
                     <span class="info-label">关联订单</span>
-                    <span class="info-value">{{ outboundOrder.order_no || outboundOrder.order_code || '-' }}</span>
+                    <span class="info-value">{{ outboundOrder.orderNo || '-' }}</span>
                 </div>
                 <div class="info-row">
                     <span class="info-label">客户名称</span>
-                    <span class="info-value">{{ outboundOrder.customer_name }}</span>
+                    <span class="info-value">{{ outboundOrder.customerName }}</span>
                 </div>
                 <div class="info-row">
                     <span class="info-label">出库日期</span>
-                    <span class="info-value">{{ formatDate(outboundOrder.delivery_date || outboundOrder.outbound_date, 'YYYY-MM-DD') || '-' }}</span>
+                    <span class="info-value">{{ formatDate(outboundOrder.deliveryDate, 'YYYY-MM-DD') || '-' }}</span>
                 </div>
                 <div class="info-row">
                     <span class="info-label">经办人</span>
-                    <span class="info-value">{{ outboundOrder.operator || outboundOrder.creator_name || outboundOrder.created_by || '-' }}</span>
+                    <span class="info-value">{{ outboundOrder.operator || outboundOrder.createdByName || outboundOrder.createdBy || '-' }}</span>
                 </div>
-                <div class="info-row" v-if="outboundOrder.remarks || outboundOrder.remark">
+                <div class="info-row" v-if="outboundOrder.remarks">
                     <span class="info-label">备注</span>
-                    <span class="info-value">{{ outboundOrder.remarks || outboundOrder.remark }}</span>
+                    <span class="info-value">{{ outboundOrder.remarks }}</span>
                 </div>
             </div>
 
@@ -57,22 +57,22 @@
             <div class="items-list">
                 <div class="basic-list-item" v-for="item in outboundOrder.items" :key="item.id">
        <div class="item-title-row">
-         <div class="item-title">{{ item.material_name || item.product_name || `物料#${item.product_id || item.material_id}` }}</div>
-         <div class="item-subtitle" v-if="item.material_code || item.product_code">SKU: {{ item.material_code || item.product_code }}</div>
+         <div class="item-title">{{ item.materialName || item.productName || `物料#${item.productId || item.materialId}` }}</div>
+         <div class="item-subtitle" v-if="item.materialCode || item.productCode">SKU: {{ item.materialCode || item.productCode }}</div>
        </div>
                     <div class="item-details">
                         <div class="detail-row">
                             <span class="detail-label">出库数量:</span>
-                            <span class="detail-value highlight">{{ item.quantity || item.actual_quantity || 0 }} {{ item.unit_name || item.unit
+                            <span class="detail-value highlight">{{ item.quantity || 0 }} {{ item.unitName || item.unit || ''
                                 }}</span>
                         </div>
-                        <div class="detail-row" v-if="item.batch_no">
+                        <div class="detail-row" v-if="item.batchNo">
                             <span class="detail-label">批次号:</span>
-                            <span class="detail-value">{{ item.batch_no }}</span>
+                            <span class="detail-value">{{ item.batchNo }}</span>
                         </div>
-                        <div class="detail-row" v-if="item.warehouse_name">
+                        <div class="detail-row" v-if="item.warehouseName || item.locationName">
                             <span class="detail-label">出库仓库:</span>
-                            <span class="detail-value">{{ item.warehouse_name }}</span>
+                            <span class="detail-value">{{ item.warehouseName || item.locationName }}</span>
                         </div>
                     </div>
                 </div>
@@ -199,11 +199,10 @@ const formatDate = (date, format = 'YYYY-MM-DD HH:mm') => {
 
 const buildStatusPayload = (status) => ({
     status,
-    delivery_date:
-        outboundOrder.value?.delivery_date ||
-        outboundOrder.value?.outbound_date ||
+    deliveryDate:
+        outboundOrder.value?.deliveryDate ||
         new Date().toISOString().slice(0, 10),
-    remarks: outboundOrder.value?.remarks || outboundOrder.value?.remark
+    remarks: outboundOrder.value?.remarks
 })
 
 // 草稿 → 出库中

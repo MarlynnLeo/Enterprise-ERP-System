@@ -76,7 +76,7 @@
                   <div class="item-icon" :class="getAccentClass(inbound.status)">
                     <SvgIcon name="import" size="0.875rem" />
                   </div>
-                  <span class="item-title">{{ inbound.inbound_no }}</span>
+                  <span class="item-title">{{ inbound.inboundNo }}</span>
                 </div>
                 <span class="status-tag" :class="'st-' + inbound.status">
                   {{ getInboundStatusText(inbound.status) }}
@@ -85,27 +85,27 @@
 
               <!-- 第二行: 入库类型 -->
               <div class="item-subtitle">
-                {{ getInboundTypeText(inbound.inbound_type) }}
-                <template v-if="inbound.source_no"> · {{ inbound.source_no }}</template>
+                {{ getInboundTypeText(inbound.inboundType) }}
+                <template v-if="inbound.referenceNo || inbound.sourceNo"> · {{ inbound.referenceNo || inbound.sourceNo }}</template>
               </div>
 
               <!-- 详情网格 -->
               <div class="detail-grid">
                 <div class="detail-item">
                   <span class="detail-label">入库日期</span>
-                  <span class="detail-value">{{ formatDate(inbound.inbound_date, 'YYYY-MM-DD') }}</span>
+                  <span class="detail-value">{{ formatDate(inbound.inboundDate, 'YYYY-MM-DD') }}</span>
                 </div>
                 <div class="detail-item">
                   <span class="detail-label">物料数</span>
-                  <span class="detail-value">{{ inbound.items_count || 0 }} 项</span>
+                  <span class="detail-value">{{ inbound.itemsCount || 0 }} 项</span>
                 </div>
-                <div class="detail-item" v-if="inbound.total_quantity">
+                <div class="detail-item" v-if="inbound.totalQuantity">
                   <span class="detail-label">总数量</span>
-                  <span class="detail-value">{{ inbound.total_quantity }}</span>
+                  <span class="detail-value">{{ inbound.totalQuantity }}</span>
                 </div>
-                <div class="detail-item" v-if="inbound.operator_name">
+                <div class="detail-item" v-if="inbound.operatorName || inbound.operator">
                   <span class="detail-label">操作员</span>
-                  <span class="detail-value">{{ inbound.operator_name }}</span>
+                  <span class="detail-value">{{ inbound.operatorName || inbound.operator }}</span>
                 </div>
               </div>
             </div>

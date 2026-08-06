@@ -36,11 +36,16 @@ const PRODUCTION_OUTBOUND_REFERENCE_TYPES = new Set([
 const isProductionOutboundReference = (referenceType) =>
   PRODUCTION_OUTBOUND_REFERENCE_TYPES.has(referenceType);
 
-const normalizeOutboundItem = (item) => ({
+// HTTP 入参只认 camel；归一化后内部统一 materialId/unitId/batchNumber
+const normalizeOutboundItem = (item = {}) => ({
   ...item,
-  materialId: item.materialId || item.material_id,
-  unitId: item.unitId || item.unit_id,
-  batchNumber: item.batchNumber || item.batch_number,
+  // Accept camel (preferred) and snake (FieldMap / UAT)
+  materialId: item.materialId ?? item.material_id,
+  unitId: item.unitId ?? item.unit_id,
+  batchNumber: item.batchNumber ?? item.batch_number ?? item.batchNo ?? item.batch_no,
+  quantity: item.quantity,
+  plannedQuantity: item.plannedQuantity ?? item.planned_quantity,
+  actualQuantity: item.actualQuantity ?? item.actual_quantity,
 });
 
 const toQuantityNumber = (value, fallback = 0) => {
@@ -172,10 +177,11 @@ const mergeRequirementRows = (materialMap, rows, scale = 1, sourceTask = null) =
       scale;
     if (plannedQuantity <= 0) continue;
 
-    const materialId = row.material_id || row.materialId;
+    // rows 来自 SQL（snake）
+    const materialId = row.material_id;
     const existing = materialMap.get(materialId) || {
       material_id: materialId,
-      unit_id: row.unit_id || row.unitId || null,
+      unit_id: row.unit_id || null,
       quantity: 0,
       planned_quantity: 0,
       actual_quantity: 0,
@@ -191,8 +197,8 @@ const mergeRequirementRows = (materialMap, rows, scale = 1, sourceTask = null) =
     existing.shortage_quantity += shortageQuantity;
     existing.gross_required_quantity += grossRequiredQuantity;
     existing.level = Math.min(existing.level || row.level || 1, row.level || 1);
-    if (!existing.unit_id && (row.unit_id || row.unitId)) {
-      existing.unit_id = row.unit_id || row.unitId;
+    if (!existing.unit_id && row.unit_id) {
+      existing.unit_id = row.unit_id;
     }
     if (sourceTask) {
       existing.source_tasks.push({
@@ -235,7 +241,7 @@ const getTaskNetRequirementRows = async (connection, task) => {
     issue_quantity: item.issueQuantity ?? item.requiredQuantity,
     shortage_quantity: item.shortageQuantity || 0,
     level: item.level || 1,
-    unit_id: item.unitId || item.unit_id || null,
+    unit_id: item.unitId || null,
   }));
 };
 
@@ -303,12 +309,13 @@ const issueOutboundItemFromDetail = async ({
   const actualQuantity = parseFloat(item.actual_quantity ?? item.actualQuantity ?? 0);
   if (actualQuantity <= 0) return null;
 
+  // issue 明细来自 DB 行（snake）
   if (!locationId) {
-    throw new Error(`Material ${item.material_id || item.materialId} has no default location`);
+    throw new Error(`Material ${item.material_id} has no default location`);
   }
 
   const currentStock = await InventoryService.getCurrentStock(
-    item.material_id || item.materialId,
+    item.material_id,
     locationId,
     connection,
     true
@@ -316,11 +323,11 @@ const issueOutboundItemFromDetail = async ({
 
   if (currentStock < actualQuantity) {
     throw new Error(
-      `Material ${item.material_id || item.materialId} stock is insufficient. Current ${currentStock}, required ${actualQuantity}`
+      `Material ${item.material_id} stock is insufficient. Current ${currentStock}, required ${actualQuantity}`
     );
   }
 
-  const materialId = item.material_id || item.materialId;
+  const materialId = item.material_id;
   const txType = isProductionOutboundReference(referenceType)
     ? 'production_outbound'
     : 'outbound';

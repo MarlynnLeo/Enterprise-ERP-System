@@ -87,7 +87,7 @@
         v-loading="loading"
       >
         <template #empty>
-          <el-empty description="暂无检验单数据" />
+          <EmptyState description="暂无检验单数据" />
         </template>
         <el-table-column prop="inspectionNo" label="检验单号" min-width="120" show-overflow-tooltip />
         <el-table-column prop="purchaseOrderNo" label="采购单号" min-width="110" show-overflow-tooltip />
@@ -153,13 +153,13 @@
               @click="handleInspect(scope.row)"
             >检验</el-button>
             <el-button
-              v-if="scope.row.status === 'failed' && reworkStatusMap[scope.row.id]?.allow_reinspection && canInspect"
+              v-if="scope.row.status === 'failed' && reworkStatusMap[scope.row.id]?.allowReinspection && canInspect"
               size="small"
               type="primary"
               @click="handleReview(scope.row)"
             >复检</el-button>
             <el-tag
-              v-else-if="scope.row.status === 'failed' && !reworkStatusMap[scope.row.id]?.allow_reinspection"
+              v-else-if="scope.row.status === 'failed' && !reworkStatusMap[scope.row.id]?.allowReinspection"
               type="info"
               size="small"
               effect="plain"
@@ -350,8 +350,8 @@ const applyMaterialInfoToList = (materialId, info) => {
   if (!materialId || !info) return
 
   inspectionList.value.forEach(item => {
-    if (String(item.material_id) === String(materialId)) {
-      const materialName = info.name || info.material_name
+    if (String(item.materialId) === String(materialId)) {
+      const materialName = info.name || info.materialName
       const specs = info.specs || info.specification
       if (materialName) item.materialName = materialName
       if (specs && (!item.specs || item.specs === '-')) item.specs = specs
@@ -362,14 +362,14 @@ const applyMaterialInfoToList = (materialId, info) => {
 const asyncLoadMaterialInfo = () => {
   setTimeout(async () => {
     const itemsNeedInfo = inspectionList.value.filter(item =>
-      item.material_id && (!item.materialName || item.materialName === '-' ||
+      item.materialId && (!item.materialName || item.materialName === '-' ||
         item.materialName.startsWith('物料 ') || item.materialName.includes('采购单') ||
         item.materialName.includes('PO') || !item.specs)
     )
 
     if (itemsNeedInfo.length === 0) return
 
-    const materialIds = [...new Set(itemsNeedInfo.map(i => i.material_id).filter(Boolean))]
+    const materialIds = [...new Set(itemsNeedInfo.map(i => i.materialId).filter(Boolean))]
     const missingMaterialIds = materialIds.filter(materialId => !materialCache.value[materialId])
 
     try {
@@ -383,7 +383,7 @@ const asyncLoadMaterialInfo = () => {
           if (!material?.id) return
           materialCache.value[material.id] = {
             ...material,
-            name: material.name || material.material_name,
+            name: material.name || material.materialName,
             specs: material.specs || material.specification
           }
         })
@@ -404,7 +404,7 @@ const extractMaterialName = (item) => {
   const name = extractMaterialNameSimple(item)
   if (name !== '未知物料') return name
 
-  const materialId = item.materialId || item.material_id
+  const materialId = item.materialId
   if (materialId && materialCache.value[materialId]) {
     return materialCache.value[materialId].name || '未知物料'
   }
@@ -461,11 +461,11 @@ const fetchReworkStatusForFailedInspections = async () => {
 const getReworkHintText = (inspectionId) => {
   const status = reworkStatusMap.value[inspectionId]
   if (!status) return '查询中...'
-  if (!status.has_ncp) return '待处置'
-  if (!status.has_rework && status.disposition === 'rework') return '待返工'
-  if (!status.has_rework) return status.disposition === 'scrap' ? '已报废' : '待处理'
-  if (status.rework_status === 'pending') return '返工待分配'
-  if (status.rework_status === 'in_progress') return '返工中'
+  if (!status.hasNcp) return '待处置'
+  if (!status.hasRework && status.disposition === 'rework') return '待返工'
+  if (!status.hasRework) return status.disposition === 'scrap' ? '已报废' : '待处理'
+  if (status.reworkStatus === 'pending') return '返工待分配'
+  if (status.reworkStatus === 'in_progress') return '返工中'
   return '返工中'
 }
 

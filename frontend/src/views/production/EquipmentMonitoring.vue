@@ -126,12 +126,12 @@
         @row-click="handleRowClick"
         class="cursor-pointer"
       >
-        <el-table-column prop="equipment_code" label="设备编码" width="120" />
-        <el-table-column prop="equipment_name" label="设备名称" min-width="150" />
-        <el-table-column prop="equipment_type" label="设备类型" width="100">
+        <el-table-column prop="equipmentCode" label="设备编码" width="120" />
+        <el-table-column prop="equipmentName" label="设备名称" min-width="150" />
+        <el-table-column prop="equipmentType" label="设备类型" width="100">
           <template #default="{ row }">
-            <el-tag :type="getEquipmentTypeTagType(row.equipment_type)">
-              {{ getEquipmentTypeText(row.equipment_type) }}
+            <el-tag :type="getEquipmentTypeTagType(row.equipmentType)">
+              {{ getEquipmentTypeText(row.equipmentType) }}
             </el-tag>
           </template>
         </el-table-column>
@@ -144,10 +144,10 @@
         </el-table-column>
         <el-table-column prop="model" label="型号" width="120" />
         <el-table-column prop="manufacturer" label="制造商" width="120" />
-        <el-table-column prop="ip_address" label="IP地址" width="120" />
-        <el-table-column prop="updated_at" label="最后更新" width="160">
+        <el-table-column prop="ipAddress" label="IP地址" width="120" />
+        <el-table-column prop="updatedAt" label="最后更新" width="160">
           <template #default="{ row }">
-            {{ formatDateTime(row.updated_at) }}
+            {{ formatDateTime(row.updatedAt) }}
           </template>
         </el-table-column>
         <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
@@ -205,10 +205,11 @@
     </AppDialog>
 
     <!-- 实时数据对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="realTimeDialogVisible"
       title="实时数据监控"
-      width="90%"
+      mode="view"
+      content-width="wide"
       :before-close="handleRealTimeClose"
     >
       <EquipmentRealTimeData
@@ -217,7 +218,7 @@
         :equipment-name="selectedEquipment.equipment_name"
         @close="realTimeDialogVisible = false"
       />
-    </el-dialog>
+        </AppDialog>
   </div>
 </template>
 
@@ -353,7 +354,7 @@ const handleRealTimeClose = () => {
 const handleStatusChange = async (equipment, newStatus) => {
   try {
     const { value: reason } = await ElMessageBox.prompt(
-      `确定要将设备 ${equipment.equipment_name} 状态改为 ${getStatusText(newStatus)} 吗？`,
+      `确定要将设备 ${equipment.equipmentName} 状态改为 ${getStatusText(newStatus)} 吗？`,
       '状态变更',
       {
         inputPlaceholder: '请输入变更原因（可选）',

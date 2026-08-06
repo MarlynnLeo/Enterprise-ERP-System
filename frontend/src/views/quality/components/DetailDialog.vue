@@ -13,43 +13,43 @@
 <template>
   <AppDialog
     v-model="dialogVisible"
-    :title="`检验详情 - ${inspection?.inspectionNo || inspection?.inspection_no || ''}`"
+    :title="`检验详情 - ${inspection?.inspectionNo || inspection?.inspectionNo || ''}`"
     mode="view"
     content-width="wide"
   >
     <div v-loading="loading">
       <template v-if="inspection">
         <el-descriptions :column="3" border>
-          <el-descriptions-item label="检验单号">{{ inspection.inspectionNo || inspection.inspection_no }}</el-descriptions-item>
-          <el-descriptions-item label="采购单号">{{ inspection.purchaseOrderNo || inspection.reference_no || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="检验单号">{{ inspection.inspectionNo }}</el-descriptions-item>
+          <el-descriptions-item label="采购单号">{{ inspection.purchaseOrderNo || inspection.referenceNo || '-' }}</el-descriptions-item>
           <el-descriptions-item label="状态">
             <el-tag :type="getQualityStatusColor(inspection.status)">{{ getQualityStatusText(inspection.status) }}</el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="物料编码">{{ inspection.item_code || inspection.material_code || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="物料名称">{{ inspection.product_name || inspection.materialName || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="产品型号">{{ inspection.product_code || inspection.specs || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="供应商">{{ inspection.supplierName || inspection.supplier_name || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="批次号">{{ inspection.batchNo || inspection.batch_no || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="物料编码">{{ inspection.itemCode || inspection.materialCode || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="物料名称">{{ inspection.productName || inspection.materialName || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="产品型号">{{ inspection.productCode || inspection.specs || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="供应商">{{ inspection.supplierName || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="批次号">{{ inspection.batchNo || '-' }}</el-descriptions-item>
           <el-descriptions-item label="检验数量">{{ Math.floor(inspection.quantity || 0) }}</el-descriptions-item>
           <el-descriptions-item label="合格数">
-            <span v-if="inspection.qualified_quantity !== null && inspection.qualified_quantity !== undefined" class="text-success font-weight-700">{{ Math.floor(inspection.qualified_quantity) }}</span>
+            <span v-if="inspection.qualifiedQuantity !== null && inspection.qualifiedQuantity !== undefined" class="text-success font-weight-700">{{ Math.floor(inspection.qualifiedQuantity) }}</span>
             <span v-else class="text-muted">-</span>
           </el-descriptions-item>
           <el-descriptions-item label="不合格数">
-            <span v-if="inspection.unqualified_quantity > 0" class="text-danger font-weight-700">{{ Math.floor(inspection.unqualified_quantity) }}</span>
-            <span v-else class="text-muted">{{ inspection.unqualified_quantity === 0 ? '0' : '-' }}</span>
+            <span v-if="inspection.unqualifiedQuantity > 0" class="text-danger font-weight-700">{{ Math.floor(inspection.unqualifiedQuantity) }}</span>
+            <span v-else class="text-muted">{{ inspection.unqualifiedQuantity === 0 ? '0' : '-' }}</span>
           </el-descriptions-item>
-          <el-descriptions-item label="检验日期">{{ inspection.inspectionDate || inspection.actual_date || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="检验员">{{ inspection.inspector || inspection.inspector_name || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="检验日期">{{ inspection.inspectionDate || inspection.actualDate || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="检验员">{{ inspection.inspector || inspection.inspectorName || '-' }}</el-descriptions-item>
           <el-descriptions-item label="备注" :span="2">{{ inspection.note || '-' }}</el-descriptions-item>
         </el-descriptions>
         <!-- 检验项目 -->
         <template v-if="inspection.items && inspection.items.length > 0">
           <el-divider content-position="left">检验项目</el-divider>
           <el-table :data="inspection.items" border class="w-full" max-height="300">
-            <el-table-column prop="item_name" label="检验项目" width="100" show-overflow-tooltip />
+            <el-table-column prop="itemName" label="检验项目" width="100" show-overflow-tooltip />
             <el-table-column label="标准" min-width="80" show-overflow-tooltip>
-              <template #default="{ row }">{{ row.standard || row.dimension_info || '-' }}</template>
+              <template #default="{ row }">{{ row.standard || row.dimensionInfo || '-' }}</template>
             </el-table-column>
             <el-table-column label="测量值">
               <el-table-column v-for="n in 6" :key="n" :label="`${n}#`" min-width="55">
@@ -64,7 +64,7 @@
                   class="font-weight-700"
                   :class="row.result === 'passed' || row.result === 'pass' ? 'text-success' : row.result === 'failed' || row.result === 'fail' ? 'text-danger' : ''"
                 >
-                  {{ row.actual_value || '-' }}
+                  {{ row.actualValue || '-' }}
                 </span>
               </template>
             </el-table-column>
@@ -79,7 +79,7 @@
           </el-table>
         </template>
       </template>
-      <el-empty v-else-if="!loading" description="暂无数据" />
+      <EmptyState v-else-if="!loading" description="暂无数据" />
     </div>
     <template #footer>
       <el-button @click="dialogVisible = false">关闭</el-button>

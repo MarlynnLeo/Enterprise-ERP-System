@@ -112,7 +112,12 @@
     />
 
     <!-- 导入对话框 -->
-    <el-dialog title="导入物料" v-model="importDialogVisible" width="520px">
+    <AppDialog
+      v-model="importDialogVisible"
+      title="导入物料"
+      mode="form"
+      width="520px"
+    >
       <div class="mb-md">
         <el-button type="primary" link @click="handleDownloadTemplate">
           <el-icon><Download /></el-icon> 下载导入模板
@@ -138,7 +143,7 @@
         <el-button @click="importDialogVisible = false">取消</el-button>
         <el-button type="primary" :loading="importLoading" :disabled="!importFile" @click="handleImportSubmit">开始导入</el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
 
   </div>
 </template>
@@ -221,7 +226,7 @@ const buildProductCategoryTree = (flatData, parentId = 0) => {
   const tree = [];
   for (const item of flatData) {
     // 支持 parent_id 为 0、null 或 undefined 的情况
-    const itemParentId = item.parent_id || 0;
+    const itemParentId = item.parentId || 0;
     if (itemParentId === parentId) {
       // 显示名称格式：编码 - 名称（如 "1001 - EQ1开关电源"）
       const displayName = item.code ? `${item.code} - ${item.name}` : item.name;
@@ -230,7 +235,7 @@ const buildProductCategoryTree = (flatData, parentId = 0) => {
         id: item.id,
         name: item.name,
         code: item.code,
-        parent_id: item.parent_id,
+        parent_id: item.parentId,
         displayName: displayName, // 用于 TreeSelect 显示和搜索
         children: buildProductCategoryTree(flatData, item.id)
       };
@@ -297,7 +302,7 @@ const loadOptions = async () => {
     managerOptions.value = userRes.map(u => ({
       id: u.id,
       username: u.username,
-      real_name: u.real_name || u.nickname || u.username
+      real_name: u.realName || u.nickname || u.username
     }));
 
     // 写入缓存

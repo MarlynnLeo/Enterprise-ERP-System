@@ -7,6 +7,7 @@
  */
 
 const { ResponseHandler } = require('./responseHandler');
+const { mapKeysToCamel, mapKeysToSnake } = require('./fieldMap');
 
 /**
  * 异步 Controller 方法包装器
@@ -27,6 +28,23 @@ function asyncHandler(fn) {
   };
 }
 
+function mapOut(data, options) {
+  if (!options) return data;
+  if (typeof options.toApi === 'function') {
+    if (Array.isArray(data)) return data.map((r) => options.toApi(r));
+    return options.toApi(data);
+  }
+  if (options.camelOut) return mapKeysToCamel(data);
+  return data;
+}
+
+function mapIn(body, options) {
+  if (!options || body == null) return body;
+  if (typeof options.fromApi === 'function') return options.fromApi(body);
+  if (options.camelOut) return mapKeysToSnake(body);
+  return body;
+}
+
 /**
  * 创建标准的CRUD Controller
  * @param {Object} service - Service实例
@@ -35,6 +53,9 @@ function asyncHandler(fn) {
  * @param {Boolean} options.usePaginated - 是否使用分页响应（默认true）
  * @param {Boolean} options.checkExists - 是否检查资源存在（默认true）
  * @param {String} options.notFoundMessage - 自定义不存在消息
+ * @param {Boolean} options.camelOut - 出参 snake→camel、入参 camel→snake（SSOT）
+ * @param {Function} options.toApi - 自定义出参映射
+ * @param {Function} options.fromApi - 自定义入参映射
  * @returns {Object} - Controller对象，包含标准CRUD方法
  */
 function createCrudController(service, resourceName, options = {}) {
@@ -55,19 +76,22 @@ function createCrudController(service, resourceName, options = {}) {
       const normalizedPageSize = wantAll
         ? null
         : Math.min(Math.max(requestedPageSize, 1), 500);
-      const result = await service.getAll(normalizedPage, normalizedPageSize, filters);
+      // 列表过滤：HTTP camel → service snake
+      const serviceFilters = options.camelOut ? mapKeysToSnake(filters) : filters;
+      const result = await service.getAll(normalizedPage, normalizedPageSize, serviceFilters);
 
       if (usePaginated && result.total !== undefined) {
+        const rows = result.items || result.data || result.list || result;
         ResponseHandler.paginated(
           res,
-          result.items || result.data || result.list || result,
+          mapOut(rows, options),
           result.total,
           result.page || normalizedPage,
           result.pageSize || normalizedPageSize,
           `获取${resourceName}列表成功`
         );
       } else {
-        ResponseHandler.success(res, result, `获取${resourceName}列表成功`);
+        ResponseHandler.success(res, mapOut(result, options), `获取${resourceName}列表成功`);
       }
     }),
 
@@ -82,23 +106,23 @@ function createCrudController(service, resourceName, options = {}) {
         return ResponseHandler.error(res, message, 'NOT_FOUND', 404);
       }
 
-      ResponseHandler.success(res, item, `获取${resourceName}详情成功`);
+      ResponseHandler.success(res, mapOut(item, options), `获取${resourceName}详情成功`);
     }),
 
     /**
      * 创建新资源
      */
     create: asyncHandler(async (req, res) => {
-      const newItem = await service.create(req.body);
-      ResponseHandler.success(res, newItem, `创建${resourceName}成功`, 201);
+      const newItem = await service.create(mapIn(req.body, options));
+      ResponseHandler.success(res, mapOut(newItem, options), `创建${resourceName}成功`, 201);
     }),
 
     /**
      * 更新资源
      */
     update: asyncHandler(async (req, res) => {
-      const updatedItem = await service.update(req.params.id, req.body);
-      ResponseHandler.success(res, updatedItem, `更新${resourceName}成功`);
+      const updatedItem = await service.update(req.params.id, mapIn(req.body, options));
+      ResponseHandler.success(res, mapOut(updatedItem, options), `更新${resourceName}成功`);
     }),
 
     /**

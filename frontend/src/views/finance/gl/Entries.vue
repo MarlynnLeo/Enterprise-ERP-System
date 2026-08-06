@@ -59,7 +59,7 @@
             <el-option
               v-for="period in periods"
               :key="period.id"
-              :label="period.periodName || period.period_name"
+              :label="period.periodName"
               :value="period.id"
             ></el-option>
           </el-select>
@@ -316,9 +316,10 @@
     </AppDialog>
 
     <!-- 冲销凭证对话框 -->
-    <el-dialog
-      title="冲销凭证"
+    <AppDialog
       v-model="reverseDialogVisible"
+      title="冲销凭证"
+      mode="form"
       width="560px"
       :close-on-click-modal="false"
     >
@@ -395,7 +396,7 @@
           确认冲销
         </el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
 
     <!-- 录入凭证对话框：业务多选生成 + 手工录入 -->
     <EntryFormDialog
@@ -411,7 +412,7 @@
 import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { formatCurrency } from '@/utils/format'
-import { useRouter, useRoute } from 'vue-router';
+import { useRoute } from 'vue-router';
 
 // Element Plus
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -445,7 +446,6 @@ const { glConfig } = storeToRefs(financeStore);
 
 // 路由
 const route = useRoute();
-const router = useRouter();
 
 // 页面标题
 const pageTitle = computed(() => props.fixedType || route.query.type || '会计凭证管理');
@@ -536,8 +536,8 @@ const handlePrint = async () => {
       print_time: new Date().toLocaleString(),
       items: currentEntryItems.value.map((item, index) => ({
         index: index + 1,
-        account_code: item.accountCode || item.account_code || '',
-        account_name: item.accountName || item.account_name || '',
+        account_code: item.accountCode || '',
+        account_name: item.accountName || '',
         description: item.description || '',
         debit_amount: item.debitAmount ? formatCurrency(item.debitAmount) : '-',
         credit_amount: item.creditAmount ? formatCurrency(item.creditAmount) : '-'
@@ -570,8 +570,8 @@ const toLocalDateString = (date = new Date()) => {
   return `${year}-${month}-${day}`;
 };
 
-const getPeriodStart = (period) => (period?.startDate || period?.start_date || '').slice(0, 10);
-const getPeriodEnd = (period) => (period?.endDate || period?.end_date || '').slice(0, 10);
+const getPeriodStart = (period) => (period?.startDate || period?.startDate || '').slice(0, 10);
+const getPeriodEnd = (period) => (period?.endDate || period?.endDate || '').slice(0, 10);
 
 const isClosedPeriod = (period) => {
   const closed = period?.isClosed ?? period?.is_closed;
@@ -614,7 +614,7 @@ const findOpenPeriodByDate = (date) => {
 };
 
 const formatPeriodLabel = (period) => {
-  const name = period.periodName || period.period_name || `期间 ${period.id}`;
+  const name = period.periodName || `期间 ${period.id}`;
   return `${name} (${getPeriodStart(period)} 至 ${getPeriodEnd(period)})`;
 };
 
@@ -625,7 +625,7 @@ const getApiErrorMessage = (error, fallback) => {
 const toBooleanFlag = (value) => value === true || value === 1 || value === '1';
 
 const isReversedEntry = (entry) => {
-  return toBooleanFlag(entry.is_reversed)
+  return toBooleanFlag(entry.isReversed)
     || toBooleanFlag(entry.isReversed)
     || entry.status === 'reversed'
     || Boolean(entry.reversal_entry_id);
@@ -668,27 +668,29 @@ const DOCUMENT_TYPE_LABELS = {
   inventory_reclass: '库存重分类',
 };
 
+// API 已 camel（toGlEntryApi）
 const normalizeEntryRow = (entry) => ({
   id: entry.id,
-  entryNumber: (entry.voucher_word && entry.voucher_number)
-    ? `${entry.voucher_word}-${entry.voucher_number}`
-    : entry.entry_number,
-  technicalId: entry.entry_number,
-  entryDate: formatDate(entry.entry_date),
-  postingDate: formatDate(entry.posting_date),
-  documentType: DOCUMENT_TYPE_LABELS[entry.document_type] || entry.document_type,
-  documentNumber: entry.document_number,
-  periodId: entry.period_id,
-  periodName: entry.period_name || `期间 ${entry.period_id}`,
-  fiscalYear: entry.fiscal_year,
-  isPosted: toBooleanFlag(entry.is_posted),
+  entryNumber: entry.entryNumber
+    || (entry.voucherWord && entry.voucherNumber
+      ? `${entry.voucherWord}-${entry.voucherNumber}`
+      : entry.technicalId),
+  technicalId: entry.technicalId || entry.entryNumber,
+  entryDate: formatDate(entry.entryDate),
+  postingDate: formatDate(entry.postingDate),
+  documentType: DOCUMENT_TYPE_LABELS[entry.documentType] || entry.documentType,
+  documentNumber: entry.documentNumber,
+  periodId: entry.periodId,
+  periodName: entry.periodName || `期间 ${entry.periodId}`,
+  fiscalYear: entry.fiscalYear,
+  isPosted: toBooleanFlag(entry.isPosted),
   isReversed: isReversedEntry(entry),
   isReversalEntry: isReversalEntry(entry),
-  reversalOfEntryId: entry.reversal_of_entry_id,
-  createdBy: entry.creator_name || entry.creator_username || entry.created_by,
+  reversalOfEntryId: entry.reversalOfEntryId,
+  createdBy: entry.creatorName || entry.createdBy,
   description: entry.description || '-',
-  totalDebit: entry.total_debit || 0,
-  totalCredit: entry.total_credit || 0
+  totalDebit: entry.totalDebit ?? 0,
+  totalCredit: entry.totalCredit ?? 0
 });
 
 // 加载凭证列表
@@ -700,13 +702,13 @@ const loadEntries = async () => {
       pageSize: pageSize.value
     };
 
-    // 添加筛选条件
+    // 添加筛选条件（HTTP camel）
     if (searchForm.entryNumber) {
-      params.entry_number = searchForm.entryNumber;
+      params.entryNumber = searchForm.entryNumber;
     }
     if (searchForm.dateRange && searchForm.dateRange.length === 2) {
-      params.start_date = searchForm.dateRange[0];
-      params.end_date = searchForm.dateRange[1];
+      params.startDate = searchForm.dateRange[0];
+      params.endDate = searchForm.dateRange[1];
     }
     // 如果有 fixedType（付款凭证/收款凭证/转账凭证页面），转换为voucher_word筛选
     if (props.fixedType) {
@@ -721,19 +723,19 @@ const loadEntries = async () => {
       };
       const voucherWord = voucherWordMap[props.fixedType];
       if (voucherWord) {
-        params.voucher_word = voucherWord;
+        params.voucherWord = voucherWord;
       } else {
-        // 如果没有映射，仍按document_type筛选
-        params.document_type = props.fixedType;
+        // 如果没有映射，仍按 documentType 筛选
+        params.documentType = props.fixedType;
       }
     } else if (searchForm.documentType) {
-      params.document_type = searchForm.documentType;
+      params.documentType = searchForm.documentType;
     }
     if (searchForm.periodId) {
-      params.period_id = searchForm.periodId;
+      params.periodId = searchForm.periodId;
     }
     if (searchForm.isPosted !== '') {
-      params.is_posted = searchForm.isPosted;
+      params.isPosted = searchForm.isPosted;
     }
 
     const response = await financeApi.getEntries(params);
@@ -1037,10 +1039,10 @@ const loadPeriods = async () => {
         periodName: period.period_name,
         period_name: period.period_name,
         fiscalYear: period.fiscal_year,
-        startDate: period.start_date,
-        start_date: period.start_date,
-        endDate: period.end_date,
-        end_date: period.end_date,
+        startDate: period.startDate,
+        start_date: period.startDate,
+        endDate: period.endDate,
+        end_date: period.endDate,
         isClosed: period.is_closed,
         is_closed: period.is_closed
       }));
@@ -1050,10 +1052,10 @@ const loadPeriods = async () => {
         periodName: period.period_name,
         period_name: period.period_name,
         fiscalYear: period.fiscal_year,
-        startDate: period.start_date,
-        start_date: period.start_date,
-        endDate: period.end_date,
-        end_date: period.end_date,
+        startDate: period.startDate,
+        start_date: period.startDate,
+        endDate: period.endDate,
+        end_date: period.endDate,
         isClosed: period.is_closed,
         is_closed: period.is_closed
       }));

@@ -80,11 +80,11 @@
           </div>
           <div class="info-row">
             <span class="info-key">真实姓名</span>
-            <span class="info-val">{{ userInfo.real_name || '—' }}</span>
+            <span class="info-val">{{ userInfo.realName || '—' }}</span>
           </div>
           <div class="info-row">
             <span class="info-key">部门</span>
-            <span class="info-val">{{ userInfo.department_name || '—' }}</span>
+            <span class="info-val">{{ userInfo.departmentName || '—' }}</span>
           </div>
           <div class="info-row">
             <span class="info-key">职位</span>
@@ -92,7 +92,7 @@
           </div>
           <div class="info-row">
             <span class="info-key">注册时间</span>
-            <span class="info-val">{{ formatDate(userInfo.created_at) }}</span>
+            <span class="info-val">{{ formatDate(userInfo.createdAt) }}</span>
           </div>
         </div>
       </div>
@@ -165,7 +165,7 @@ const statistics = ref({ tasks: 0, reports: 0, inspections: 0, operations: 0 })
 
 // 计算用户信息
 const userInfo = computed(() => authStore.user || {})
-const userName = computed(() => userInfo.value.real_name || userInfo.value.username || '用户')
+const userName = computed(() => userInfo.value.realName || userInfo.value.username || '用户')
 const userRole = computed(() => {
   const roleMap = {
     'admin': '系统管理员', 'manager': '部门经理',

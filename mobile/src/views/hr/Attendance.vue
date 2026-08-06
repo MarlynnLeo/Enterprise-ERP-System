@@ -66,12 +66,12 @@
     const response = await hrApi.getAttendance({ period: dayjs().format('YYYY-MM') })
     const records = getResponseList(response).map((row) => ({
       id: row.id,
-      empName: row.name || row.employee_name || '',
+      empName: row.name || row.employeeName || '',
       period: row.period || '',
-      department: row.department_name || '',
-      daysInMonth: row.days_in_month ?? 0,
-      leaveDays: row.leave_days ?? row.total_leave_days ?? 0,
-      overtimeHours: row.overtime_hours ?? 0,
+      department: row.departmentName || '',
+      daysInMonth: row.daysInMonth ?? 0,
+      leaveDays: row.leaveDays ?? row.totalLeaveDays ?? 0,
+      overtimeHours: row.overtimeHours ?? 0,
       status: row.status || 'normal'
     }))
 

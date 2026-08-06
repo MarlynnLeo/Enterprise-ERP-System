@@ -45,14 +45,14 @@
   const form = reactive({
     code: '',
     name: '',
-    parent_id: null,
+    parentId: null,
     phone: '',
     remark: '',
     status: 1
   })
 
   const parentName = computed(() => {
-    const current = departments.value.find((item) => String(item.id) === String(form.parent_id))
+    const current = departments.value.find((item) => String(item.id) === String(form.parentId))
     return current?.name || '无上级部门'
   })
 
@@ -62,7 +62,7 @@
   }
 
   const pickParent = (item) => {
-    form.parent_id = item?.id || null
+    form.parentId = item?.id || null
     showParentPicker.value = false
   }
 

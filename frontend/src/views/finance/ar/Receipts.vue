@@ -84,20 +84,20 @@
         border
         v-loading="loading"
       >
-        <el-table-column prop="receipt_number" label="收款编号" width="200"></el-table-column>
-        <el-table-column prop="customer_name" label="客户名称" width="200"></el-table-column>
-        <el-table-column prop="receipt_date" label="收款日期" width="110"></el-table-column>
-        <el-table-column prop="invoice_number" label="对应发票" width="180">
+        <el-table-column prop="receiptNumber" label="收款编号" width="200"></el-table-column>
+        <el-table-column prop="customerName" label="客户名称" width="200"></el-table-column>
+        <el-table-column prop="receiptDate" label="收款日期" width="110"></el-table-column>
+        <el-table-column prop="invoiceNumber" label="对应发票" width="180">
           <template #default="scope">
-            <el-link v-if="scope.row.invoice_number" type="primary" @click="jumpToInvoice(scope.row)">
-              {{ scope.row.invoice_number }}
+            <el-link v-if="scope.row.invoiceNumber" type="primary" @click="jumpToInvoice(scope.row)">
+              {{ scope.row.invoiceNumber }}
             </el-link>
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="total_amount" label="收款金额" width="130">
+        <el-table-column prop="totalAmount" label="收款金额" width="130">
           <template #default="scope">
-            {{ formatCurrency(scope.row.total_amount) }}
+            {{ formatCurrency(scope.row.totalAmount) }}
           </template>
         </el-table-column>
         <el-table-column label="状态" width="100">
@@ -107,9 +107,9 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="payment_method" label="收款方式" width="100">
+        <el-table-column prop="paymentMethod" label="收款方式" width="100">
           <template #default="scope">
-            {{ scope.row.payment_method }}
+            {{ scope.row.paymentMethod }}
           </template>
         </el-table-column>
         <el-table-column prop="notes" label="备注" min-width="120" show-overflow-tooltip></el-table-column>
@@ -146,9 +146,10 @@
     </el-card>
 
     <!-- 添加/编辑对话框 -->
-    <el-dialog
-      :title="dialogTitle"
+    <AppDialog
       v-model="dialogVisible"
+      :title="dialogTitle"
+      mode="form"
       width="600px"
     >
       <el-form :model="receiptForm" :rules="receiptRules" ref="receiptFormRef" label-width="100px">
@@ -231,7 +232,7 @@
           <el-button v-permission="'finance:ar:receive'" type="primary" @click="saveReceipt" :loading="saveLoading">确认</el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
 
     <!-- 详情对话框 -->
     <AppDialog
@@ -241,36 +242,37 @@
       content-width="wide"
     >
       <el-descriptions :column="2" border>
-        <el-descriptions-item label="收款编号">{{ detailData.receipt_number }}</el-descriptions-item>
+        <el-descriptions-item label="收款编号">{{ detailData.receiptNumber }}</el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag :type="getStatusType(detailData.status)">{{ getStatusText(detailData.status) }}</el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="客户名称">{{ detailData.customer_name }}</el-descriptions-item>
-        <el-descriptions-item label="收款日期">{{ detailData.receipt_date }}</el-descriptions-item>
+        <el-descriptions-item label="客户名称">{{ detailData.customerName }}</el-descriptions-item>
+        <el-descriptions-item label="收款日期">{{ detailData.receiptDate }}</el-descriptions-item>
         <el-descriptions-item label="对应发票">
-          <el-link v-if="detailData.invoice_number" type="primary" @click="jumpToInvoiceFromDetail">
-            {{ detailData.invoice_number }}
+          <el-link v-if="detailData.invoiceNumber" type="primary" @click="jumpToInvoiceFromDetail">
+            {{ detailData.invoiceNumber }}
           </el-link>
           <span v-else>-</span>
         </el-descriptions-item>
-        <el-descriptions-item label="收款金额">{{ formatCurrency(detailData.total_amount) }}</el-descriptions-item>
-        <el-descriptions-item label="收款方式">{{ detailData.payment_method }}</el-descriptions-item>
-        <el-descriptions-item label="银行账户">{{ detailData.bank_account_name || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="收款金额">{{ formatCurrency(detailData.totalAmount) }}</el-descriptions-item>
+        <el-descriptions-item label="收款方式">{{ detailData.paymentMethod }}</el-descriptions-item>
+        <el-descriptions-item label="银行账户">{{ detailData.bankAccountName || '-' }}</el-descriptions-item>
         <el-descriptions-item label="备注" :span="2">{{ detailData.notes || '-' }}</el-descriptions-item>
 
         <!-- 如果已作废，显示作废信息 -->
         <template v-if="detailData.status === 'void'">
-          <el-descriptions-item label="作废时间">{{ detailData.voided_at }}</el-descriptions-item>
-          <el-descriptions-item label="作废人">{{ detailData.voided_by_name || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="作废原因" :span="2">{{ detailData.void_reason }}</el-descriptions-item>
+          <el-descriptions-item label="作废时间">{{ detailData.voidedAt }}</el-descriptions-item>
+          <el-descriptions-item label="作废人">{{ detailData.voidedByName || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="作废原因" :span="2">{{ detailData.voidReason }}</el-descriptions-item>
         </template>
       </el-descriptions>
     </AppDialog>
 
     <!-- 作废对话框 -->
-    <el-dialog
-      title="作废收款记录"
+    <AppDialog
       v-model="voidDialogVisible"
+      title="作废收款记录"
+      mode="form"
       width="500px"
     >
       <el-alert
@@ -314,7 +316,7 @@
           <el-button v-permission="'finance:ar:update'" type="danger" @click="confirmVoid" :loading="voidLoading">确认作废</el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
 
     <PrintDialog
       v-model="printDialogVisible"
@@ -507,9 +509,9 @@ const loadBankAccounts = async () => {
     const accounts = parseListData(response, { enableLog: false });
     bankAccounts.value = accounts.map(acc => ({
       id: acc.id,
-      accountName: acc.accountName || acc.account_name,
-      accountNumber: acc.accountNumber || acc.account_number,
-      currentBalance: acc.currentBalance || acc.current_balance
+      accountName: acc.accountName,
+      accountNumber: acc.accountNumber,
+      currentBalance: acc.currentBalance
     }));
   } catch (error) {
     console.error('加载银行账户失败:', error);
@@ -526,14 +528,14 @@ const loadInvoiceOptions = async () => {
     // 使用统一的列表解析工具
     const invoiceList = parseListData(response, { enableLog: false });
     invoiceOptions.value = invoiceList.map(invoice => {
-      const amount = parseFloat(invoice.amount ?? invoice.total_amount ?? 0);
-      const paidAmount = parseFloat(invoice.paidAmount ?? invoice.paid_amount ?? 0);
-      const balance = parseFloat(invoice.balance ?? invoice.balance_amount ?? (amount - paidAmount));
+      const amount = parseFloat(invoice.amount ?? invoice.totalAmount ?? 0);
+      const paidAmount = parseFloat(invoice.paidAmount ?? 0);
+      const balance = parseFloat(invoice.balanceAmount ?? invoice.balance ?? (amount - paidAmount));
       return {
         id: invoice.id,
-        invoiceNumber: invoice.invoiceNumber || invoice.invoice_number,
-        customerName: invoice.customerName || invoice.customer_name,
-        customerId: invoice.customerId || invoice.customer_id,
+        invoiceNumber: invoice.invoiceNumber,
+        customerName: invoice.customerName,
+        customerId: invoice.customerId,
         amount,
         paidAmount,
         balance,
@@ -562,12 +564,12 @@ const handleInvoiceChange = async () => {
     const response = await financeApi.getARInvoice(receiptForm.invoiceId);
     const invoice = response.data;
 
-    const amount = parseFloat(invoice.amount ?? invoice.total_amount ?? 0);
-    const paidAmount = parseFloat(invoice.paidAmount ?? invoice.paid_amount ?? 0);
-    const balance = parseFloat(invoice.balance ?? invoice.balance_amount ?? (amount - paidAmount));
+    const amount = parseFloat(invoice.amount ?? invoice.totalAmount ?? 0);
+    const paidAmount = parseFloat(invoice.paidAmount ?? 0);
+    const balance = parseFloat(invoice.balanceAmount ?? invoice.balance ?? (amount - paidAmount));
 
-    receiptForm.invoiceNumber = invoice.invoiceNumber || invoice.invoice_number;
-    receiptForm.customerName = invoice.customerName || invoice.customer_name;
+    receiptForm.invoiceNumber = invoice.invoiceNumber;
+    receiptForm.customerName = invoice.customerName;
     receiptForm.invoiceAmount = formatCurrency(amount);
     receiptForm.paidAmount = formatCurrency(paidAmount);
     receiptForm.balance = formatCurrency(balance);
@@ -637,8 +639,8 @@ const handleViewDetail = async (row) => {
 const handleVoid = (row) => {
   // 重置作废表单
   voidForm.id = row.id;
-  voidForm.receiptNumber = row.receipt_number;
-  voidForm.amount = formatCurrency(row.total_amount);
+  voidForm.receiptNumber = row.receiptNumber;
+  voidForm.amount = formatCurrency(row.totalAmount);
   voidForm.voidReason = '';
 
   // 清除校验
@@ -676,21 +678,21 @@ const confirmVoid = async () => {
 
 // 跳转到发票详情
 const jumpToInvoice = (row) => {
-  if (row.invoice_number) {
+  if (row.invoiceNumber) {
     router.push({
       path: '/finance/ar/invoices',
-      query: { invoiceNumber: row.invoice_number }
+      query: { invoiceNumber: row.invoiceNumber }
     });
   }
 };
 
 // 从详情对话框跳转到发票
 const jumpToInvoiceFromDetail = () => {
-  if (detailData.value.invoice_number) {
+  if (detailData.value.invoiceNumber) {
     detailDialogVisible.value = false;
     router.push({
       path: '/finance/ar/invoices',
-      query: { invoiceNumber: detailData.value.invoice_number }
+      query: { invoiceNumber: detailData.value.invoiceNumber }
     });
   }
 };
@@ -727,27 +729,27 @@ const handlePrint = async (row) => {
 
     const operatorName =
       authStore.realName ||
-      authStore.user?.real_name ||
+      authStore.user?.realName ||
       authStore.user?.realName ||
       authStore.user?.name ||
       authStore.user?.username ||
       '-';
 
-    // 准备打印数据
+    // 准备打印数据（camel；printService 会 normalize）
     printData.value = {
-      receipt_number: data.receipt_number,
-      receipt_date: data.receipt_date,
-      customer_name: data.customer_name,
-      payment_method: data.payment_method,
-      bank_account_name: data.bank_account_name || '-',
-      bank_account_number: data.bank_account_number || '',
-      adjust_amount: data.total_amount, // 用于计算大写，保持原始数值
-      amount: NumberFormatter.toThousands(data.total_amount),
-      amount_upper: NumberFormatter.digitUppercase(data.total_amount),
-      invoice_number: data.invoice_number || '-',
+      receiptNumber: data.receiptNumber,
+      receiptDate: data.receiptDate,
+      customerName: data.customerName,
+      paymentMethod: data.paymentMethod,
+      bankAccountName: data.bankAccountName || '-',
+      bankAccountNumber: data.bankAccountNumber || '',
+      adjustAmount: data.totalAmount,
+      amount: NumberFormatter.toThousands(data.totalAmount),
+      amountUpper: NumberFormatter.digitUppercase(data.totalAmount),
+      invoiceNumber: data.invoiceNumber || '-',
       notes: data.notes || '',
       operator: operatorName,
-      print_time: DateFormatter.toDateTime(new Date())
+      printTime: DateFormatter.toDateTime(new Date())
     };
 
     printDialogVisible.value = true;

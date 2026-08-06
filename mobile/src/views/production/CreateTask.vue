@@ -15,9 +15,9 @@
         <div class="section-title">任务信息</div>
         <Form @submit="handleSubmit">
           <CellGroup inset>
-            <Field v-model="formData.task_code" label="任务编号" placeholder="自动生成" readonly />
+            <Field v-model="formData.taskCode" label="任务编号" placeholder="自动生成" readonly />
             <Field
-              v-model="formData.product_name"
+              v-model="formData.productName"
               label="产品名称"
               placeholder="请输入产品名称"
               is-link
@@ -34,7 +34,7 @@
             />
             <Field v-model="formData.unit" label="单位" placeholder="件" />
             <Field
-              v-model="formData.plan_start_time"
+              v-model="formData.startDate"
               label="开始时间"
               placeholder="请选择"
               is-link
@@ -42,7 +42,7 @@
               @click="showStartPicker = true"
             />
             <Field
-              v-model="formData.plan_end_time"
+              v-model="formData.expectedEndDate"
               label="结束时间"
               placeholder="请选择"
               is-link
@@ -50,7 +50,7 @@
               @click="showEndPicker = true"
             />
             <Field
-              v-model="formData.remark"
+              v-model="formData.remarks"
               type="textarea"
               label="备注"
               placeholder="请输入备注"
@@ -110,41 +110,44 @@
   const startDate = ref([])
   const endDate = ref([])
 
+  // 纯 camel，后端 productionTaskMap.fromApi
   const formData = reactive({
-    task_code: '',
-    product_name: '',
-    product_id: null,
+    taskCode: '',
+    productName: '',
+    productId: null,
     quantity: '',
     unit: '件',
-    plan_start_time: '',
-    plan_end_time: '',
-    remark: ''
+    startDate: '',
+    expectedEndDate: '',
+    remarks: ''
   })
 
   const onStartConfirm = ({ selectedValues }) => {
-    formData.plan_start_time = selectedValues.join('-')
+    formData.startDate = selectedValues.join('-')
     showStartPicker.value = false
   }
   const onEndConfirm = ({ selectedValues }) => {
-    formData.plan_end_time = selectedValues.join('-')
+    formData.expectedEndDate = selectedValues.join('-')
     showEndPicker.value = false
   }
 
   const handleSubmit = async () => {
-    if (!formData.product_name || !formData.quantity) {
+    if (!formData.productName || !formData.quantity) {
       showToast('请填写必填项')
+      return
+    }
+    if (!formData.productId) {
+      showToast('请选择有效产品')
       return
     }
     submitting.value = true
     try {
       await productionApi.createProductionTask({
-        task_code: formData.task_code,
-        product_name: formData.product_name,
-        planned_quantity: Number(formData.quantity),
-        unit_name: formData.unit,
-        plan_start_time: formData.plan_start_time,
-        plan_end_time: formData.plan_end_time,
-        remark: formData.remark
+        productId: formData.productId,
+        quantity: Number(formData.quantity),
+        startDate: formData.startDate || null,
+        expectedEndDate: formData.expectedEndDate || null,
+        remarks: formData.remarks
       })
       showToast('创建成功')
       router.go(-1)

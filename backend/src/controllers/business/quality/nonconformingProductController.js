@@ -4,23 +4,25 @@ const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 const { getCurrentUserName } = require('../../../utils/userHelper');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 
 /**
  * Get NCP list
  */
 const getList = async (req, res) => {
   try {
+    // HTTP query camel → service filters
     const params = {
       page: req.query.page || 1,
       pageSize: req.query.pageSize || 10,
       status: req.query.status,
       disposition: req.query.disposition,
       severity: req.query.severity,
-      material_id: req.query.material_id,
-      inspection_id: req.query.inspection_id,
+      material_id: req.query.materialId || req.query.material_id,
+      inspection_id: req.query.inspectionId || req.query.inspection_id,
       keyword: req.query.keyword,
-      startDate: req.query.start_date || req.query.startDate,
-      endDate: req.query.end_date || req.query.endDate,
+      startDate: req.query.startDate || req.query.start_date,
+      endDate: req.query.endDate || req.query.end_date,
     };
 
     const result = await NonconformingProductService.getList(params);
@@ -50,7 +52,7 @@ const getDetails = async (req, res) => {
  */
 const create = async (req, res) => {
   try {
-    const ncpData = req.body;
+    const ncpData = mapKeysToSnake(req.body || {});
 
     let result;
     if (ncpData.inspection_id) {
@@ -75,7 +77,7 @@ const create = async (req, res) => {
 const update = async (req, res) => {
   try {
     const { id } = req.params;
-    const updateData = req.body;
+    const updateData = mapKeysToSnake(req.body || {});
 
     await NonconformingProduct.update(id, updateData);
     return ResponseHandler.success(res, null, 'NCP updated successfully');
@@ -91,7 +93,7 @@ const update = async (req, res) => {
 const updateDisposition = async (req, res) => {
   try {
     const { id } = req.params;
-    const dispositionData = req.body;
+    const dispositionData = mapKeysToSnake(req.body || {});
 
     await NonconformingProductService.processDisposition(id, dispositionData);
     return ResponseHandler.success(res, null, 'Disposition updated successfully');
@@ -113,7 +115,7 @@ const updateDisposition = async (req, res) => {
 const completeHandling = async (req, res) => {
   try {
     const { id } = req.params;
-    const completionData = req.body;
+    const completionData = mapKeysToSnake(req.body || {});
 
     await NonconformingProductService.completeHandling(id, completionData);
     return ResponseHandler.success(res, null, 'NCP handling completed successfully');
@@ -187,7 +189,7 @@ const getAutoDispositionConfig = async (req, res) => {
  */
 const updateAutoDispositionConfig = async (req, res) => {
   try {
-    const config = req.body;
+    const config = mapKeysToSnake(req.body || {});
     const result = NonconformingProductService.updateAutoDispositionConfig(config);
     return ResponseHandler.success(res, result, '更新自动处理配置成功');
   } catch (error) {

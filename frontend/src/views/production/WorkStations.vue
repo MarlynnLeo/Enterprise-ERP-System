@@ -13,7 +13,7 @@
       <el-form :inline="true" class="mb-md">
         <el-form-item label="产线">
           <el-select v-model="filters.lineCode" placeholder="全部产线" clearable class="form-control-md" @change="loadList">
-            <el-option v-for="l in lines" :key="l.line_code" :label="l.line_name || l.line_code" :value="l.line_code" />
+            <el-option v-for="l in lines" :key="l.line_code" :label="l.lineName || l.lineCode" :value="l.line_code" />
           </el-select>
         </el-form-item>
         <el-form-item label="类型">
@@ -52,26 +52,26 @@
       <el-table :data="list" v-loading="loading" border stripe>
         <el-table-column prop="code" label="工位编号" width="120" />
         <el-table-column prop="name" label="工位名称" width="150" />
-        <el-table-column prop="line_name" label="产线" width="120">
-          <template #default="{ row }">{{ row.line_name || row.line_code || '-' }}</template>
+        <el-table-column prop="lineName" label="产线" width="120">
+          <template #default="{ row }">{{ row.lineName || row.lineCode || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="station_type" label="类型" width="90">
+        <el-table-column prop="stationType" label="类型" width="90">
           <template #default="{ row }">
-            <el-tag size="small">{{ typeMap[row.station_type] || row.station_type }}</el-tag>
+            <el-tag size="small">{{ typeMap[row.stationType] || row.stationType }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="capacity" label="容量" width="70" align="center" />
-        <el-table-column prop="equipment_name" label="关联设备" width="150">
-          <template #default="{ row }">{{ row.equipment_name || '-' }}</template>
+        <el-table-column prop="equipmentName" label="关联设备" width="150">
+          <template #default="{ row }">{{ row.equipmentName || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="is_active" label="状态" width="80" align="center">
+        <el-table-column prop="isActive" label="状态" width="80" align="center">
           <template #default="{ row }">
-            <el-tag :type="row.is_active ? 'success' : 'info'" size="small">
-              {{ row.is_active ? '启用' : '停用' }}
+            <el-tag :type="row.isActive ? 'success' : 'info'" size="small">
+              {{ row.isActive ? '启用' : '停用' }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="sort_order" label="排序" width="70" align="center" />
+        <el-table-column prop="sortOrder" label="排序" width="70" align="center" />
         <el-table-column label="操作" width="150" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" size="small" v-permission="'production:stations:update'" @click="openDialog(row)">编辑</el-button>
@@ -94,7 +94,12 @@
     </el-card>
 
     <!-- 新增/编辑弹窗 -->
-    <el-dialog v-model="dialogVisible" :title="editId ? '编辑工位' : '新增工位'" width="520px" destroy-on-close>
+    <AppDialog
+      v-model="dialogVisible"
+      :title="editId ? '编辑工位' : '新增工位'"
+      mode="form"
+      width="520px"
+    >
       <el-form :model="form" label-width="90px">
         <el-form-item label="工位编号" required>
           <el-input v-model="form.code" placeholder="如 WS-A01" />
@@ -103,13 +108,13 @@
           <el-input v-model="form.name" placeholder="如 底盘装配工位" />
         </el-form-item>
         <el-form-item label="产线编号">
-          <el-input v-model="form.line_code" placeholder="如 LINE-01" />
+          <el-input v-model="form.lineCode" placeholder="如 LINE-01" />
         </el-form-item>
         <el-form-item label="产线名称">
-          <el-input v-model="form.line_name" placeholder="如 一号产线" />
+          <el-input v-model="form.lineName" placeholder="如 一号产线" />
         </el-form-item>
         <el-form-item label="工位类型">
-          <el-select v-model="form.station_type" class="w-full">
+          <el-select v-model="form.stationType" class="w-full">
             <el-option label="装配" value="assembly" />
             <el-option label="测试" value="test" />
             <el-option label="包装" value="pack" />
@@ -120,7 +125,7 @@
           <el-input-number v-model="form.capacity" :min="1" :max="10" />
         </el-form-item>
         <el-form-item label="排序">
-          <el-input-number v-model="form.sort_order" :min="0" />
+          <el-input-number v-model="form.sortOrder" :min="0" />
         </el-form-item>
         <el-form-item label="描述">
           <el-input v-model="form.description" type="textarea" :rows="2" />
@@ -135,7 +140,7 @@
           :loading="saving"
         >保存</el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
   </div>
 </template>
 

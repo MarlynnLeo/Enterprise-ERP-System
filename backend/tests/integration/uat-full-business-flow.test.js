@@ -647,8 +647,11 @@ describeLiveUat('UAT full business flow', () => {
       3
     );
 
-    const arRes = await api.post(`/api/finance/integration/ar-invoice/${context.salesOrderId}`);
-    expectHttp(arRes, 200, 'generate AR invoice');
+    // Professional path: AR from sales outbound (order-level AR is disabled by default)
+    const arRes = await api.post(
+      `/api/finance/integration/ar-invoice-from-outbound/${context.salesOutboundId}`
+    );
+    expectHttp(arRes, 200, 'generate AR invoice from outbound');
     const arData = dataOf(arRes);
     context.arInvoiceId = arData.invoiceId || arData.id;
 
@@ -711,8 +714,8 @@ describeLiveUat('UAT full business flow', () => {
     expect(apInvoice.id).toBeTruthy();
 
     const arInvoice = await scalar(
-      "SELECT id, invoice_number, total_amount FROM ar_invoices WHERE source_type = 'sales_order' AND source_id = ?",
-      [context.salesOrderId]
+      "SELECT id, invoice_number, total_amount FROM ar_invoices WHERE source_type = 'sales_outbound' AND source_id = ?",
+      [context.salesOutboundId]
     );
     expect(arInvoice.id).toBeTruthy();
 

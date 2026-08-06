@@ -37,7 +37,7 @@
       details: [
         { label: '模板编码', field: 'code' },
         { label: '工序数', field: 'step_count' },
-        { label: '适用产品', field: 'product_name' }
+        { label: '适用产品', field: 'productName' }
       ],
       tags: [
         {

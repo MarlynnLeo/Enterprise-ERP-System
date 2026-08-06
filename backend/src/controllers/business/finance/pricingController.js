@@ -6,6 +6,7 @@ const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const { parsePagination } = require('../../../utils/safePagination');
 const { safeParseId } = require('../../../utils/safeParseId');
 const Precision = require('../../../utils/precision');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 
 function parseRequiredAmount(value, fieldName) {
   const parsed = Number(value);
@@ -546,7 +547,7 @@ exports.createPricing = async (req, res) => {
       remarks,
       effective_date,
       strategies,
-    } = req.body;
+    } = mapKeysToSnake(req.body || {});
 
     if (!product_id) {
       return ResponseHandler.error(res, '产品ID不能为空', 'VALIDATION_ERROR', 400);

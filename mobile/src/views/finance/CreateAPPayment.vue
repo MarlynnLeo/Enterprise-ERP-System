@@ -67,7 +67,7 @@
   const selectedInvoiceText = computed(() => {
     const invoice = invoices.value.find((item) => String(item.id) === String(form.invoiceId))
     if (!invoice) return form.invoiceId ? `发票ID ${form.invoiceId}` : ''
-    return `${invoice.invoice_number || invoice.invoiceNumber || invoice.code || invoice.id} · ${invoice.supplier_name || invoice.supplierName || '供应商'}`
+    return `${invoice.invoiceNumber || invoice.code || invoice.id} · ${invoice.supplierName || '供应商'}`
   })
 
   const formatMoney = (value) => {
@@ -78,7 +78,7 @@
 
   const invoiceActions = computed(() =>
     invoices.value.map((invoice) => ({
-      name: `${invoice.invoice_number || invoice.invoiceNumber || invoice.id} · ${invoice.supplier_name || invoice.supplierName || '供应商'} · ${formatMoney(invoice.balance_amount ?? invoice.balance ?? invoice.total_amount)}`,
+      name: `${invoice.invoiceNumber || invoice.id} · ${invoice.supplierName || '供应商'} · ${formatMoney(invoice.balanceAmount ?? invoice.totalAmount)}`,
       value: invoice.id,
       invoice
     }))
@@ -94,7 +94,7 @@
 
   const selectInvoice = (action) => {
     form.invoiceId = action.value
-    form.amount = String(action.invoice.balance_amount || action.invoice.balance || action.invoice.total_amount || form.amount || '')
+    form.amount = String(action.invoice.balanceAmount ?? action.invoice.totalAmount ?? form.amount ?? '')
   }
 
   const selectMethod = (action) => {
@@ -157,4 +157,4 @@
     background: var(--bg-primary);
     border-top: 1px solid var(--surface-border);
   }
-</style>
+</style>

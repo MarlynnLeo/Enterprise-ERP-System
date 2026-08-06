@@ -18,24 +18,24 @@
 
       <el-table :data="tableData" border v-loading="loading" height="calc(100vh - 250px)" class="w-full">
         <el-table-column type="index" label="序号" width="55" fixed />
-        <el-table-column prop="employee_no" label="工号" width="240" fixed show-overflow-tooltip />
+        <el-table-column prop="employeeNo" label="工号" width="240" fixed show-overflow-tooltip />
         <el-table-column prop="name" label="姓名" width="100" fixed />
-        <el-table-column prop="department_name" label="部门" width="100" />
-        <el-table-column prop="insurance_type" label="社保类型" width="100" />
+        <el-table-column prop="departmentName" label="部门" width="100" />
+        <el-table-column prop="insuranceType" label="社保类型" width="100" />
         <el-table-column label="薪酬基数">
-          <el-table-column prop="base_salary" label="基本工资" width="100" />
-          <el-table-column prop="split_base_salary" label="拆分报税基数" width="110" />
+          <el-table-column prop="baseSalary" label="基本工资" width="100" />
+          <el-table-column prop="splitBaseSalary" label="拆分报税基数" width="110" />
         </el-table-column>
         <el-table-column label="补贴设定">
-          <el-table-column prop="position_allowance" label="职位/外补" width="100" />
-          <el-table-column prop="housing_allowance" label="房补/交补" width="100" />
-          <el-table-column prop="meal_allowance" label="餐补" width="100" />
-          <el-table-column prop="overtime_rate" label="加班时薪" width="100" />
+          <el-table-column prop="positionAllowance" label="职位/外补" width="100" />
+          <el-table-column prop="housingAllowance" label="房补/交补" width="100" />
+          <el-table-column prop="mealAllowance" label="餐补" width="100" />
+          <el-table-column prop="overtimeRate" label="加班时薪" width="100" />
         </el-table-column>
-        <el-table-column prop="employment_status" label="状态" width="100">
+        <el-table-column prop="employmentStatus" label="状态" width="100">
           <template #default="{ row }">
-            <el-tag :type="row.employment_status === 'active' ? 'success' : 'danger'" size="small">
-              {{ row.employment_status === 'active' ? '在职' : '离职' }}
+            <el-tag :type="row.employmentStatus === 'active' ? 'success' : 'danger'" size="small">
+              {{ row.employmentStatus === 'active' ? '在职' : '离职' }}
             </el-tag>
           </template>
         </el-table-column>
@@ -43,14 +43,20 @@
           <template #default="{ row }">
             <el-button type="primary" size="small" link @click="handleEdit(row)"
               v-permission="'hr:employees:update'">编辑</el-button>
-            <el-button type="danger" size="small" link @click="handleDelete(row)" v-if="row.employment_status==='active'" v-permission="'hr:employees:delete'">离职</el-button>
+            <el-button type="danger" size="small" link @click="handleDelete(row)" v-if="row.employmentStatus==='active'" v-permission="'hr:employees:delete'">离职</el-button>
           </template>
         </el-table-column>
       </el-table>
     </el-card>
 
     <!-- 新增/编辑弹窗 -->
-    <el-dialog :title="isEdit ? '编辑员工薪酬' : '手动新增员工'" v-model="dialogVisible" width="650px" :close-on-click-modal="false">
+    <AppDialog
+      v-model="dialogVisible"
+      :title="isEdit ? '编辑员工薪酬' : '手动新增员工'"
+      mode="form"
+      width="650px"
+      :close-on-click-modal="false"
+    >
       <el-form :model="formData" :rules="formRules" ref="formRef" label-width="110px">
         <el-divider content-position="left">基本信息</el-divider>
         <el-row :gutter="20">
@@ -60,22 +66,22 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="工号" prop="employee_no">
-              <el-input v-model="formData.employee_no" :disabled="isEdit" />
+            <el-form-item label="工号" prop="employeeNo">
+              <el-input v-model="formData.employeeNo" :disabled="isEdit" />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="所属部门">
-              <el-select v-model="formData.department_id" placeholder="请选择部门" class="w-full" filterable clearable>
+              <el-select v-model="formData.departmentId" placeholder="请选择部门" class="w-full" filterable clearable>
                 <el-option v-for="d in departmentList" :key="d.id" :label="d.name" :value="d.id" />
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="社保类型">
-              <el-select v-model="formData.insurance_type" class="w-full">
+              <el-select v-model="formData.insuranceType" class="w-full">
                 <el-option label="有社有公" value="有社有公" />
                 <el-option label="有社无公" value="有社无公" />
                 <el-option label="无社无公" value="无社无公" />
@@ -86,7 +92,7 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="在职状态">
-              <el-select v-model="formData.employment_status" class="w-full">
+              <el-select v-model="formData.employmentStatus" class="w-full">
                 <el-option label="在职" value="active" />
                 <el-option label="离职" value="left" />
               </el-select>
@@ -98,12 +104,12 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="基本工资">
-              <el-input-number v-model="formData.base_salary" :min="0" :precision="2" :controls="false" class="w-full" />
+              <el-input-number v-model="formData.baseSalary" :min="0" :precision="2" :controls="false" class="w-full" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="拆分报税基数">
-              <el-input-number v-model="formData.split_base_salary" :min="0" :precision="2" :controls="false" class="w-full" />
+              <el-input-number v-model="formData.splitBaseSalary" :min="0" :precision="2" :controls="false" class="w-full" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -112,24 +118,24 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="职位/外补">
-              <el-input-number v-model="formData.position_allowance" :min="0" :precision="2" :controls="false" class="w-full" />
+              <el-input-number v-model="formData.positionAllowance" :min="0" :precision="2" :controls="false" class="w-full" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="房补/交补">
-              <el-input-number v-model="formData.housing_allowance" :min="0" :precision="2" :controls="false" class="w-full" />
+              <el-input-number v-model="formData.housingAllowance" :min="0" :precision="2" :controls="false" class="w-full" />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="餐补">
-              <el-input-number v-model="formData.meal_allowance" :min="0" :precision="2" :controls="false" class="w-full" />
+              <el-input-number v-model="formData.mealAllowance" :min="0" :precision="2" :controls="false" class="w-full" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="加班时薪">
-              <el-input-number v-model="formData.overtime_rate" :min="0" :precision="2" :controls="false" class="w-full" />
+              <el-input-number v-model="formData.overtimeRate" :min="0" :precision="2" :controls="false" class="w-full" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -138,7 +144,7 @@
         <el-button @click="dialogVisible = false">取消</el-button>
         <el-button type="primary" v-permission="isEdit ? 'hr:employees:update' : 'hr:employees:create'" @click="handleSave" :loading="saving">保存</el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
   </div>
 </template>
 
@@ -194,16 +200,16 @@ const handleEdit = (row) => {
   formData.value = {
     id: row.id,
     name: row.name,
-    employee_no: row.employee_no,
-    department_id: row.department_id || null,
-    insurance_type: row.insurance_type || '有社有公',
-    employment_status: row.employment_status || 'active',
-    base_salary: Number(row.base_salary) || 0,
-    split_base_salary: Number(row.split_base_salary) || 0,
-    position_allowance: Number(row.position_allowance) || 0,
-    housing_allowance: Number(row.housing_allowance) || 0,
-    meal_allowance: Number(row.meal_allowance) || 0,
-    overtime_rate: Number(row.overtime_rate) || 0
+    employee_no: row.employeeNo,
+    department_id: row.departmentId || null,
+    insurance_type: row.insuranceType || '有社有公',
+    employment_status: row.employmentStatus || 'active',
+    base_salary: Number(row.baseSalary) || 0,
+    split_base_salary: Number(row.splitBaseSalary) || 0,
+    position_allowance: Number(row.positionAllowance) || 0,
+    housing_allowance: Number(row.housingAllowance) || 0,
+    meal_allowance: Number(row.mealAllowance) || 0,
+    overtime_rate: Number(row.overtimeRate) || 0
   }
   dialogVisible.value = true
 }

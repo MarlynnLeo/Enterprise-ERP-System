@@ -82,7 +82,7 @@
         class="w-full"
       >
         <template #empty>
-          <el-empty description="暂无大类数据" />
+          <EmptyState description="暂无大类数据" />
         </template>
         <el-table-column prop="name" label="大类名称" width="220"></el-table-column>
         <el-table-column prop="code" label="大类编码" width="150"></el-table-column>
@@ -160,15 +160,16 @@
     </el-card>
 
     <!-- 新增/编辑对话框 -->
-    <el-dialog
-      :title="dialogTitle"
+    <AppDialog
       v-model="dialogVisible"
+      :title="dialogTitle"
+      mode="form"
       width="500px"
     >
       <el-form :model="form" :rules="rules" ref="formRef" label-width="100px">
         <el-form-item label="上级大类">
           <el-cascader
-            v-model="form.parent_id"
+            v-model="form.parentId"
             :options="categoryOptions"
             :props="{
               checkStrictly: true,
@@ -206,12 +207,13 @@
           <el-button v-permission="'basedata:categories:update'" type="primary" @click="submitForm" :loading="loading">保存</el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
 
     <!-- 导入对话框 -->
-    <el-dialog
-      title="导入大类"
+    <AppDialog
       v-model="importDialogVisible"
+      title="导入大类"
+      mode="form"
       width="500px"
     >
       <el-tabs v-model="importMethod">
@@ -271,7 +273,7 @@
           <el-button v-permission="'basedata:categories:import'" type="primary" @click="submitImport" :loading="importing">导入</el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
   </div>
 </template>
 
@@ -483,7 +485,7 @@ const handleAdd = (row) => {
   resetForm();
 
   if (row) {
-    form.parent_id = row.id;
+    form.parentId = row.id;
   }
 
   dialogVisible.value = true;
@@ -537,7 +539,7 @@ const resetForm = () => {
   }
 
   form.id = '';
-  form.parent_id = null;
+  form.parentId = null;
   form.name = '';
   form.code = '';
   form.sort = 0;
@@ -556,8 +558,8 @@ const submitForm = async () => {
         // 创建提交数据对象，移除不需要的字段
         const submitData = { ...form };
         delete submitData.children;
-        delete submitData.created_at;
-        delete submitData.updated_at;
+        delete submitData.createdAt;
+        delete submitData.updatedAt;
 
         if (isEdit.value) {
           // 更新分类

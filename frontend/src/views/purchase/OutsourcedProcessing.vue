@@ -82,21 +82,21 @@
         class="w-full"
         v-loading="loading"
       >
-        <el-table-column prop="processing_no" label="加工单号" min-width="150" />
-        <el-table-column prop="processing_date" label="创建日期" min-width="120">
+        <el-table-column prop="processingNo" label="加工单号" min-width="150" />
+        <el-table-column prop="processingDate" label="创建日期" min-width="120">
           <template #default="{ row }">
-            {{ formatDate(row.processing_date) }}
+            {{ formatDate(row.processingDate) }}
           </template>
         </el-table-column>
-        <el-table-column prop="supplier_name" label="加工厂" min-width="180" />
-        <el-table-column prop="expected_delivery_date" label="预计交期" min-width="120">
+        <el-table-column prop="supplierName" label="加工厂" min-width="180" />
+        <el-table-column prop="expectedDeliveryDate" label="预计交期" min-width="120">
           <template #default="{ row }">
-            {{ formatDate(row.expected_delivery_date) }}
+            {{ formatDate(row.expectedDeliveryDate) }}
           </template>
         </el-table-column>
-        <el-table-column prop="total_amount" label="加工费" min-width="120">
+        <el-table-column prop="totalAmount" label="加工费" min-width="120">
           <template #default="scope">
-            ¥ {{ scope.row.total_amount ? parseFloat(scope.row.total_amount).toFixed(2) : '0.00' }}
+            ¥ {{ scope.row.totalAmount ? parseFloat(scope.row.totalAmount).toFixed(2) : '0.00' }}
           </template>
         </el-table-column>
         <el-table-column prop="status" label="状态" min-width="100">
@@ -179,10 +179,11 @@
       @success="fetchProcessingList"
     />
     <!-- 外委加工单对话框 -->
-    <el-dialog
-      :title="dialogTitle"
+    <AppDialog
       v-model="processingDialogVisible"
-      width="60%"
+      :title="dialogTitle"
+      mode="form"
+      wide
       :before-close="handleCloseProcessingDialog"
     >
       <div v-loading="processingDialogLoading">
@@ -196,7 +197,7 @@
           </template>
           <el-row :gutter="20">
             <el-col :xs="24" :sm="12" :md="8">
-              <el-form-item label="加工日期" prop="processing_date">
+              <el-form-item label="加工日期" prop="processingDate">
                 <el-date-picker
                   v-model="processingForm.processing_date"
                   type="date"
@@ -208,9 +209,9 @@
               </el-form-item>
             </el-col>
             <el-col :xs="24" :sm="12" :md="8">
-              <el-form-item label="加工厂" prop="supplier_id">
+              <el-form-item label="加工厂" prop="supplierId">
                 <el-select
-                  v-model="processingForm.supplier_id"
+                  v-model="processingForm.supplierId"
                   filterable
                   remote
                   reserve-keyword
@@ -231,7 +232,7 @@
               </el-form-item>
             </el-col>
             <el-col :xs="24" :sm="12" :md="8">
-              <el-form-item label="预计交期" prop="expected_delivery_date">
+              <el-form-item label="预计交期" prop="expectedDeliveryDate">
                 <el-date-picker
                   v-model="processingForm.expected_delivery_date"
                   type="date"
@@ -245,7 +246,7 @@
           </el-row>
           <el-row :gutter="20">
             <el-col :xs="24" :sm="12" :md="8">
-              <el-form-item label="联系人" prop="contact_person">
+              <el-form-item label="联系人" prop="contactPerson">
                 <el-input
                   v-model="processingForm.contact_person"
                   placeholder="请输入联系人"
@@ -254,7 +255,7 @@
               </el-form-item>
             </el-col>
             <el-col :xs="24" :sm="12" :md="8">
-              <el-form-item label="联系电话" prop="contact_phone">
+              <el-form-item label="联系电话" prop="contactPhone">
                 <el-input
                   v-model="processingForm.contact_phone"
                   placeholder="请输入联系电话"
@@ -292,8 +293,8 @@
 
           <el-table :data="processingForm.materials" border class="w-full">
             <el-table-column type="index" width="50" label="序号" />
-            <el-table-column prop="material_code" label="物料编码" min-width="120" />
-            <el-table-column prop="material_name" label="物料名称" min-width="150" />
+            <el-table-column prop="materialCode" label="物料编码" min-width="120" />
+            <el-table-column prop="materialName" label="物料名称" min-width="150" />
             <el-table-column prop="specification" label="规格" min-width="120" />
             <el-table-column prop="unit" label="单位" width="80" />
             <el-table-column prop="quantity" label="数量" width="120">
@@ -353,8 +354,8 @@
 
           <el-table :data="processingForm.products" border class="w-full">
             <el-table-column type="index" width="50" label="序号" />
-            <el-table-column prop="product_code" label="成品编码" min-width="120" />
-            <el-table-column prop="product_name" label="成品名称" min-width="150" />
+            <el-table-column prop="productCode" label="成品编码" min-width="120" />
+            <el-table-column prop="productName" label="成品名称" min-width="150" />
             <el-table-column prop="specification" label="规格" min-width="120" />
             <el-table-column prop="unit" label="单位" width="80" />
             <el-table-column prop="quantity" label="数量" width="120">
@@ -372,11 +373,11 @@
                 <span v-else>{{ scope.row.quantity }}</span>
               </template>
             </el-table-column>
-            <el-table-column prop="unit_price" label="加工单价" width="120">
+            <el-table-column prop="unitPrice" label="加工单价" width="120">
               <template #default="scope">
                 <el-input-number
                   v-if="!viewOnly"
-                  v-model="scope.row.unit_price"
+                  v-model="scope.row.unitPrice"
                   :min="0"
                   :precision="2"
                   controls-position="right"
@@ -384,12 +385,12 @@
                   class="w-full"
                   @change="calculateRowTotal(scope.row)"
                 />
-                <span v-else>{{ formatPrice(scope.row.unit_price) }}</span>
+                <span v-else>{{ formatPrice(scope.row.unitPrice) }}</span>
               </template>
             </el-table-column>
-            <el-table-column prop="total_price" label="小计金额" width="120">
+            <el-table-column prop="totalPrice" label="小计金额" width="120">
               <template #default="scope">
-                <span>{{ formatPrice(scope.row.total_price) }}</span>
+                <span>{{ formatPrice(scope.row.totalPrice) }}</span>
               </template>
             </el-table-column>
             <el-table-column prop="remark" label="备注" min-width="150">
@@ -431,12 +432,13 @@
           </el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
     <!-- 物料选择对话框 -->
-    <el-dialog
-      title="选择物料"
+    <AppDialog
       v-model="materialDialogVisible"
-      width="70%"
+      title="选择物料"
+      mode="form"
+      wide
     >
       <div class="dialog-search">
         <el-input
@@ -460,7 +462,7 @@
         <el-table-column prop="code" label="物料编码" min-width="120" />
         <el-table-column prop="name" label="物料名称" min-width="150" />
         <el-table-column prop="specification" label="规格" min-width="120" />
-        <el-table-column prop="unit_name" label="单位" width="80" />
+        <el-table-column prop="unitName" label="单位" width="80" />
         <el-table-column label="操作" min-width="80" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button
@@ -473,12 +475,13 @@
           </template>
         </el-table-column>
       </el-table>
-    </el-dialog>
+        </AppDialog>
     <!-- 成品选择对话框 -->
-    <el-dialog
-      title="选择成品"
+    <AppDialog
       v-model="productDialogVisible"
-      width="70%"
+      title="选择成品"
+      mode="form"
+      wide
     >
       <div class="dialog-search">
         <el-input
@@ -502,7 +505,7 @@
         <el-table-column prop="code" label="成品编码" min-width="120" />
         <el-table-column prop="name" label="成品名称" min-width="150" />
         <el-table-column prop="specification" label="规格" min-width="120" />
-        <el-table-column prop="unit_name" label="单位" width="80" />
+        <el-table-column prop="unitName" label="单位" width="80" />
         <el-table-column label="操作" min-width="80" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <el-button
@@ -515,7 +518,7 @@
           </template>
         </el-table-column>
       </el-table>
-    </el-dialog>
+        </AppDialog>
   </div>
 </template>
 <script setup>
@@ -745,8 +748,8 @@ const dialogTitle = computed(() => {
 // 重置处理表单
 const resetProcessingForm = () => {
   processingForm.processing_date = formatLocalDate(new Date());
-  processingForm.supplier_id = '';
-  processingForm.supplier_name = '';
+  processingForm.supplierId = '';
+  processingForm.supplierName = '';
   processingForm.expected_delivery_date = '';
   processingForm.contact_person = '';
   processingForm.contact_phone = '';
@@ -767,13 +770,13 @@ const handleCloseProcessingDialog = () => {
 // 处理供应商变更
 const handleSupplierChange = () => {
   // 确保ID类型匹配（转换为数字进行比较）
-  const supplierId = Number(processingForm.supplier_id);
+  const supplierId = Number(processingForm.supplierId);
   const selectedSupplier = supplierOptions.value.find(
     item => Number(item.id) === supplierId
   );
 
   if (selectedSupplier) {
-    processingForm.supplier_name = selectedSupplier.name;
+    processingForm.supplierName = selectedSupplier.name;
     processingForm.contact_person = selectedSupplier.contact_person || '';
     processingForm.contact_phone = selectedSupplier.contact_phone || '';
     } else {
@@ -788,12 +791,12 @@ const loadProcessingDetail = async () => {
     // 拦截器已解包，response.data 就是业务数据
     const data = response.data;
     // 填充表单数据
-    processingForm.processing_date = data.processing_date;
-    processingForm.supplier_id = data.supplier_id;
-    processingForm.supplier_name = data.supplier_name;
-    processingForm.expected_delivery_date = data.expected_delivery_date;
-    processingForm.contact_person = data.contact_person;
-    processingForm.contact_phone = data.contact_phone;
+    processingForm.processing_date = data.processingDate;
+    processingForm.supplierId = data.supplierId;
+    processingForm.supplierName = data.supplierName;
+    processingForm.expected_delivery_date = data.expectedDeliveryDate;
+    processingForm.contact_person = data.contactPerson;
+    processingForm.contact_phone = data.contactPhone;
     processingForm.remarks = data.remarks;
     processingForm.materials = data.materials || [];
     processingForm.products = data.products || [];
@@ -813,7 +816,7 @@ const handleAddMaterial = () => {
 const handleSelectMaterial = (row) => {
   // 检查是否已存在相同物料
   const existingIndex = processingForm.materials.findIndex(
-    item => item.material_id === row.id
+    item => item.materialId === row.id
   );
 
   if (existingIndex >= 0) {
@@ -828,8 +831,8 @@ const handleSelectMaterial = (row) => {
     material_code: row.code,
     material_name: row.name,
     specification: row.specification,
-    unit: row.unit_name,
-    unit_id: row.unit_id,
+    unit: row.unitName,
+    unit_id: row.unitId,
     quantity: 1,
     remark: ''
   });
@@ -848,7 +851,7 @@ const handleAddProduct = () => {
 const handleSelectProduct = (row) => {
   // 检查是否已存在相同成品
   const existingIndex = processingForm.products.findIndex(
-    item => item.product_id === row.id
+    item => item.productId === row.id
   );
 
   if (existingIndex >= 0) {
@@ -863,8 +866,8 @@ const handleSelectProduct = (row) => {
     product_code: row.code,
     product_name: row.name,
     specification: row.specification,
-    unit: row.unit_name,
-    unit_id: row.unit_id,
+    unit: row.unitName,
+    unit_id: row.unitId,
     quantity: 1,
     unit_price: 0,
     total_price: 0,
@@ -877,10 +880,10 @@ const handleRemoveProduct = (index) => {
   processingForm.products.splice(index, 1);
 };
 const calculateRowTotal = (row) => {
-  if (row.quantity && row.unit_price !== null && row.unit_price !== undefined && row.unit_price !== '') {
-    row.total_price = parseFloat(row.quantity) * Number(row.unit_price);
+  if (row.quantity && row.unitPrice !== null && row.unitPrice !== undefined && row.unitPrice !== '') {
+    row.totalPrice = parseFloat(row.quantity) * Number(row.unitPrice);
   } else {
-    row.total_price = null;
+    row.totalPrice = null;
   }
 };
 const calculateTotal = () => {
@@ -937,7 +940,7 @@ const handleProcessingSubmit = async () => {
     processingForm.products.forEach((product) => {
       if (product.remark === undefined) product.remark = '';
       if (product.total_price === undefined) {
-        product.total_price = parseFloat(product.quantity) * parseFloat(product.unit_price);
+        product.total_price = parseFloat(product.quantity) * parseFloat(product.unitPrice);
       }
     });
 
@@ -975,8 +978,8 @@ const fetchProcessingList = async () => {
       status: searchForm.status
     };
     if (searchForm.dateRange && searchForm.dateRange.length === 2) {
-      params.start_date = searchForm.dateRange[0];
-      params.end_date = searchForm.dateRange[1];
+      params.startDate = searchForm.dateRange[0];
+      params.endDate = searchForm.dateRange[1];
     }
     const response = await purchaseApi.outsourcedProcessing.getList(params);
     // 拦截器已解包，response.data 就是业务数据
@@ -1086,7 +1089,7 @@ const handleEditProcessing = (row) => {
 // 删除外委加工单
 const handleDeleteProcessing = (row) => {
   ElMessageBox.confirm(
-    `确定要删除加工单 ${row.processing_no} 吗？此操作不可恢复。`,
+    `确定要删除加工单 ${row.processingNo} 吗？此操作不可恢复。`,
     '警告',
     {
       confirmButtonText: '确定',

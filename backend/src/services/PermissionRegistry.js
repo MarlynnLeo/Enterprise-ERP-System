@@ -12,10 +12,44 @@
  */
 
 
+const ACTION_SEGMENTS = new Set([
+  'view',
+  'create',
+  'update',
+  'delete',
+  'edit',
+  'export',
+  'import',
+  'print',
+  'approve',
+  'pay',
+  'void',
+  'confirm',
+  'read',
+  'write',
+]);
+
 function moduleOf(code) {
   if (!code || typeof code !== 'string') return null;
   const i = code.indexOf(':');
   return i > 0 ? code.slice(0, i) : code;
+}
+
+/**
+ * 折叠错误的双动作后缀：module:resource:view:view → module:resource:view
+ * 以及 resource 本身已是动作时的重复：contract:view:view → contract:view
+ */
+function normalizePermissionCode(code) {
+  const raw = String(code || '').trim();
+  if (!raw) return raw;
+  const parts = raw.split(':').filter(Boolean);
+  if (parts.length < 3) return raw;
+  const last = parts[parts.length - 1];
+  const prev = parts[parts.length - 2];
+  if (ACTION_SEGMENTS.has(last) && ACTION_SEGMENTS.has(prev)) {
+    return [...parts.slice(0, -2), last].join(':');
+  }
+  return raw;
 }
 
 /**
@@ -25,7 +59,7 @@ function moduleOf(code) {
  * @param {{ name?: string, source?: string, description?: string }} meta
  */
 async function ensurePermission(conn, code, meta = {}) {
-  const normalized = String(code || '').trim();
+  const normalized = normalizePermissionCode(String(code || '').trim());
   if (!normalized) return null;
 
   const [existing] = await conn.execute(
@@ -140,12 +174,17 @@ async function bindMenuPermission(conn, menuId, permissionCode, menuName) {
     await conn.execute('UPDATE menus SET permission_id = NULL WHERE id = ?', [menuId]);
     return null;
   }
-  const pid = await ensurePermission(conn, permissionCode, {
-    name: menuName || permissionCode,
+  const normalized = normalizePermissionCode(permissionCode);
+  const pid = await ensurePermission(conn, normalized, {
+    name: menuName || normalized,
     source: 'menu',
   });
   if (pid) {
-    await conn.execute('UPDATE menus SET permission_id = ? WHERE id = ?', [pid, menuId]);
+    // 同步纠正 permission 字符串与 permission_id，避免只绑 id 字符串仍是脏码
+    await conn.execute(
+      'UPDATE menus SET permission = ?, permission_id = ? WHERE id = ?',
+      [normalized, pid, menuId]
+    );
   }
   return pid;
 }
@@ -160,13 +199,18 @@ async function grantMenuPermissionToRoles(conn, menuId, roleIds = []) {
   );
   if (!menu?.permission) return;
 
-  const pid = await ensurePermission(conn, menu.permission, {
-    name: menu.name || menu.permission,
+  const normalized = normalizePermissionCode(menu.permission);
+  const pid = await ensurePermission(conn, normalized, {
+    name: menu.name || normalized,
     source: 'menu',
   });
   if (!pid) return;
 
-  await conn.execute('UPDATE menus SET permission_id = ? WHERE id = ?', [pid, menuId]);
+  await conn.execute('UPDATE menus SET permission = ?, permission_id = ? WHERE id = ?', [
+    normalized,
+    pid,
+    menuId,
+  ]);
 
   for (const roleId of roleIds) {
     await conn.execute(
@@ -177,11 +221,44 @@ async function grantMenuPermissionToRoles(conn, menuId, roleIds = []) {
   }
 }
 
+/**
+ * 全量回填 menus.permission_id（运维/启动修复用）
+ */
+async function backfillMenuPermissionIds(conn) {
+  // ensure missing permission rows
+  const [missing] = await conn.execute(
+    `SELECT DISTINCT m.permission AS code, MIN(m.name) AS name
+       FROM menus m
+       LEFT JOIN permissions p
+         ON p.code COLLATE utf8mb4_unicode_ci = m.permission COLLATE utf8mb4_unicode_ci
+      WHERE m.permission IS NOT NULL AND m.permission <> ''
+        AND p.id IS NULL
+      GROUP BY m.permission`
+  );
+  for (const row of missing) {
+    await ensurePermission(conn, row.code, { name: row.name || row.code, source: 'backfill' });
+  }
+
+  const [result] = await conn.execute(
+    `UPDATE menus m
+     INNER JOIN permissions p
+       ON p.code COLLATE utf8mb4_unicode_ci = m.permission COLLATE utf8mb4_unicode_ci
+      AND p.status = 1
+     SET m.permission_id = p.id
+     WHERE m.permission IS NOT NULL
+       AND m.permission <> ''
+       AND (m.permission_id IS NULL OR m.permission_id <> p.id)`
+  );
+  return { updated: result.affectedRows || 0, ensured: missing.length };
+}
+
 module.exports = {
   moduleOf,
+  normalizePermissionCode,
   ensurePermission,
   ensurePermissions,
   syncRolePermissionsFromMenus,
   bindMenuPermission,
   grantMenuPermissionToRoles,
+  backfillMenuPermissionIds,
 };

@@ -251,13 +251,13 @@ watch(
 
 // 用户信息
 const userName = computed(() => {
-  return authStore.user?.real_name || '用户'
+  return authStore.user?.realName || authStore.realName || '用户'
 })
 const userAvatar = computed(() => {
   return authStore.user?.avatar || ''
 })
 const activeAvatarFrame = computed(() => {
-  return getAvatarFrameConfig(authStore.user?.avatar_frame, DEFAULT_AVATAR_FRAME)
+  return getAvatarFrameConfig(authStore.user?.avatarFrame, DEFAULT_AVATAR_FRAME)
 })
 // 处理头像加载失败
 const handleAvatarError = () => {

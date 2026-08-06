@@ -28,21 +28,21 @@
 
           <!-- 成本分析 -->
           <CellGroup inset title="质量成本分析">
-            <Cell title="返工成本" :value="`¥${formatCost(costData.rework_cost)}`" value-class="cost-blue" />
-            <Cell title="报废成本" :value="`¥${formatCost(costData.scrap_cost)}`" value-class="cost-red" />
+            <Cell title="返工成本" :value="`¥${formatCost(costData.reworkCost)}`" value-class="cost-blue" />
+            <Cell title="报废成本" :value="`¥${formatCost(costData.scrapCost)}`" value-class="cost-red" />
             <Cell title="退货成本" :value="`¥${formatCost(costData.return_cost)}`" value-class="cost-orange" />
             <Cell title="总质量成本" :value="`¥${formatCost(costData.total_cost)}`" value-class="cost-bold" />
           </CellGroup>
 
           <!-- 供应商质量排名 -->
           <CellGroup inset title="供应商质量排名">
-            <Cell v-for="(s, i) in supplierList" :key="i" :title="`${i+1}. ${s.supplier_name || '--'}`" :value="`不合格 ${s.ncp_count || 0} 件`" :label="`合格率 ${s.pass_rate ?? '--'}%`" />
+            <Cell v-for="(s, i) in supplierList" :key="i" :title="`${i+1}. ${s.supplierName || '--'}`" :value="`不合格 ${s.ncp_count || 0} 件`" :label="`合格率 ${s.pass_rate ?? '--'}%`" />
             <Cell v-if="supplierList.length === 0" title="暂无数据" />
           </CellGroup>
 
           <!-- 物料缺陷排名 -->
           <CellGroup inset title="物料缺陷排名 TOP10">
-            <Cell v-for="(m, i) in materialList" :key="i" :title="`${i+1}. ${m.material_name || '--'}`" :value="`${m.ncp_count || 0} 件`" :label="m.material_code || ''" />
+            <Cell v-for="(m, i) in materialList" :key="i" :title="`${i+1}. ${m.materialName || '--'}`" :value="`${m.ncpCount || 0} 件`" :label="m.materialCode || ''" />
             <Cell v-if="materialList.length === 0" title="暂无数据" />
           </CellGroup>
         </template>

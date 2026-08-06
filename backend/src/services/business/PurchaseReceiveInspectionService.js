@@ -33,10 +33,9 @@ class PurchaseReceiveInspectionService {
     const receivingItems = items
       .map((item) => ({
         ...item,
-        material_id: Number(item.material_id || item.materialId || 0),
-        receive_quantity: toNumber(
-          item.receive_quantity ?? item.receiveQuantity ?? item.received_quantity ?? item.quantity
-        ),
+        // 收货明细入参只认 camel（控制器边界已 fromApi）
+        material_id: Number(item.materialId || 0),
+        receive_quantity: toNumber(item.receiveQuantity ?? item.quantity),
       }))
       .filter((item) => item.material_id > 0 && item.receive_quantity > 0);
 
@@ -76,28 +75,28 @@ class PurchaseReceiveInspectionService {
           cleanOrderId,
           item.material_id
         );
+        // 明细入参 camel；库上下文 snake
         const batchNo =
-          item.batch_no ||
           item.batchNo ||
           (await this.generateBatchNo(connection, order.supplier_code, order.supplier_id));
 
         const inspectionPayload = {
           inspection_type: 'incoming',
           material_id: item.material_id,
-          material_code: item.material_code || item.materialCode || itemContext.material_code,
-          material_name: item.material_name || item.materialName || itemContext.material_name,
+          material_code: item.materialCode || itemContext.material_code,
+          material_name: item.materialName || itemContext.material_name,
           supplier_id: order.supplier_id,
           supplier_name: order.supplier_name,
           batch_no: batchNo,
           quantity: item.receive_quantity,
           reference_id: cleanOrderId,
           reference_no: order.order_no,
-          unit: item.unit_name || item.unit || itemContext.unit_name || '个',
-          unit_id: item.unit_id || item.unitId || itemContext.unit_id || null,
+          unit: item.unitName || item.unit || itemContext.unit_name || '个',
+          unit_id: item.unitId || itemContext.unit_id || null,
           planned_date: todayString(),
           actual_date: null,
           status: 'pending',
-          template_id: item.template_id || item.templateId || null,
+          template_id: item.templateId || null,
           note: `采购收货自动生成来料检验单 - 供应商: ${order.supplier_name}`,
         };
 

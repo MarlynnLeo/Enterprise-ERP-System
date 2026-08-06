@@ -770,11 +770,11 @@ html.perf-reduced-motion *::after {
  */
 html.perf-low-end {
   --kacon-glass-filter: none;
-  --shadow-sm: 0 1px 2px color-mix(in srgb, var(--color-text-primary, #000) 6%, transparent);
-  --shadow-md: 0 1px 3px color-mix(in srgb, var(--color-text-primary, #000) 8%, transparent);
-  --shadow-lg: 0 2px 6px color-mix(in srgb, var(--color-text-primary, #000) 10%, transparent);
-  --shadow-xl: 0 2px 8px color-mix(in srgb, var(--color-text-primary, #000) 12%, transparent);
-  --theme-dialog-shadow: 0 4px 16px color-mix(in srgb, var(--color-text-primary, #000) 12%, transparent);
+  --shadow-sm: 0 1px 2px color-mix(in srgb, var(--color-text-primary) 6%, transparent);
+  --shadow-md: 0 1px 3px color-mix(in srgb, var(--color-text-primary) 8%, transparent);
+  --shadow-lg: 0 2px 6px color-mix(in srgb, var(--color-text-primary) 10%, transparent);
+  --shadow-xl: 0 2px 8px color-mix(in srgb, var(--color-text-primary) 12%, transparent);
+  --theme-dialog-shadow: 0 4px 16px color-mix(in srgb, var(--color-text-primary) 12%, transparent);
   --theme-status-shadow: none;
   --transition-fast: 0.1s ease;
   --transition-base: 0.14s ease;

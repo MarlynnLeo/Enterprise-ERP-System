@@ -35,21 +35,21 @@
         </div>
 
         <el-table :data="tableData" v-loading="loading" border stripe>
-          <el-table-column prop="employee_name" label="员工姓名" width="120" />
-          <el-table-column prop="department_name" label="部门" width="120" />
-          <el-table-column prop="skill_name" label="技能名称" min-width="150" />
-          <el-table-column prop="skill_category" label="类别" width="100">
-            <template #default="{ row }"><el-tag size="small" type="info">{{ row.skill_category }}</el-tag></template>
+          <el-table-column prop="employeeName" label="员工姓名" width="120" />
+          <el-table-column prop="departmentName" label="部门" width="120" />
+          <el-table-column prop="skillName" label="技能名称" min-width="150" />
+          <el-table-column prop="skillCategory" label="类别" width="100">
+            <template #default="{ row }"><el-tag size="small" type="info">{{ row.skillCategory }}</el-tag></template>
           </el-table-column>
           <el-table-column prop="level" label="等级" width="80">
             <template #default="{ row }">
               <el-tag size="small" :type="levelTag[row.level]">{{ levelLabel[row.level] }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="certified_date" label="认证日期" width="110" />
-          <el-table-column prop="expiry_date" label="到期日期" width="110">
+          <el-table-column prop="certifiedDate" label="认证日期" width="110" />
+          <el-table-column prop="expiryDate" label="到期日期" width="110">
             <template #default="{ row }">
-              <span :class="isExpired(row.expiry_date) ? 'text-danger' : ''">{{ row.expiry_date || '-' }}</span>
+              <span :class="isExpired(row.expiryDate) ? 'text-danger' : ''">{{ row.expiryDate || '-' }}</span>
             </template>
           </el-table-column>
           <el-table-column label="操作" width="140" fixed="right">
@@ -69,8 +69,8 @@
       <template v-if="viewMode === 'matrix'">
         <div v-loading="matrixLoading" class="matrix-container">
           <el-table :data="matrixData.employees" border stripe v-if="matrixData.employees?.length">
-            <el-table-column prop="employee_name" label="员工" width="120" fixed />
-            <el-table-column prop="department_name" label="部门" width="100" fixed />
+            <el-table-column prop="employeeName" label="员工" width="120" fixed />
+            <el-table-column prop="departmentName" label="部门" width="100" fixed />
             <el-table-column v-for="skill in matrixData.skills" :key="skill" :label="skill" min-width="100" align="center">
               <template #default="{ row }">
                 <template v-if="row.skills[skill]">
@@ -87,24 +87,29 @@
               </template>
             </el-table-column>
           </el-table>
-          <el-empty v-if="!matrixData.employees?.length && !matrixLoading" description="暂无技能数据" />
+          <EmptyState v-if="!matrixData.employees?.length && !matrixLoading" description="暂无技能数据" />
         </div>
       </template>
     </el-card>
 
     <!-- 新增/编辑对话框 -->
-    <el-dialog v-model="formVis" :title="editId ? '编辑技能' : '新增技能'" width="550px" destroy-on-close>
+    <AppDialog
+      v-model="formVis"
+      :title="editId ? '编辑技能' : '新增技能'"
+      mode="form"
+      width="550px"
+    >
       <el-form :model="form" label-width="100px">
         <el-form-item label="员工ID" required v-if="!editId">
-          <el-input v-model="form.user_id" type="number" placeholder="输入员工用户ID" />
+          <el-input v-model="form.userId" type="number" placeholder="输入员工用户ID" />
         </el-form-item>
         <el-form-item label="技能名称" required>
-          <el-input v-model="form.skill_name" placeholder="如：SMT焊接、电装装配" />
+          <el-input v-model="form.skillName" placeholder="如：SMT焊接、电装装配" />
         </el-form-item>
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="技能类别" required>
-              <el-input v-model="form.skill_category" placeholder="如：装配、检验" />
+              <el-input v-model="form.skillCategory" placeholder="如：装配、检验" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -121,16 +126,16 @@
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="认证日期">
-              <el-date-picker v-model="form.certified_date" value-format="YYYY-MM-DD" class="w-full" />
+              <el-date-picker v-model="form.certifiedDate" value-format="YYYY-MM-DD" class="w-full" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="到期日期">
-              <el-date-picker v-model="form.expiry_date" value-format="YYYY-MM-DD" class="w-full" />
+              <el-date-picker v-model="form.expiryDate" value-format="YYYY-MM-DD" class="w-full" />
             </el-form-item>
           </el-col>
         </el-row>
-        <el-form-item label="证书编号"><el-input v-model="form.certificate_no" /></el-form-item>
+        <el-form-item label="证书编号"><el-input v-model="form.certificateNo" /></el-form-item>
         <el-form-item label="备注"><el-input v-model="form.remark" type="textarea" :rows="2" /></el-form-item>
       </el-form>
       <template #footer>
@@ -142,7 +147,7 @@
           :loading="saving"
         >确定</el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
   </div>
 </template>
 
@@ -224,7 +229,7 @@ const submitForm = async () => {
     if (editId.value) {
       await employeeSkillApi.update(editId.value, form.value)
     } else {
-      if (!form.value.user_id) return ElMessage.warning('请输入员工ID')
+      if (!form.value.userId) return ElMessage.warning('请输入员工ID')
       await employeeSkillApi.create(form.value)
     }
     ElMessage.success(editId.value ? '更新成功' : '创建成功')

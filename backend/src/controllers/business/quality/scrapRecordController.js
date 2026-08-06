@@ -5,6 +5,7 @@
 
 const { logger } = require('../../../utils/logger');
 const { ResponseHandler } = require('../../../utils/responseHandler');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 const db = require('../../../config/db');
 const pool = db.pool;
 const QualityIntegrationService = require('../../../services/business/QualityIntegrationService');
@@ -151,7 +152,7 @@ const updateScrapRecord = async (req, res) => {
     await connection.beginTransaction();
 
     const { id } = req.params;
-    const { scrap_cost, scrap_date } = req.body;
+    const { scrap_cost, scrap_date } = mapKeysToSnake(req.body || {});
 
     // 检查报废记录是否存在
     const [checkResult] = await connection.query('SELECT id, scrap_no, ncp_id, status FROM scrap_records WHERE id = ? FOR UPDATE', [
@@ -265,7 +266,7 @@ const completeScrap = async (req, res) => {
     await connection.beginTransaction();
 
     const { id } = req.params;
-    const { scrap_cost } = req.body;
+    const { scrap_cost } = mapKeysToSnake(req.body || {});
 
     // 获取报废记录信息
     const [records] = await connection.query('SELECT id, scrap_no, ncp_id, ncp_no, material_id, material_code, material_name, quantity, scrap_reason, scrap_date, scrap_cost, status, approver, approval_date, created_by, created_at, updated_at FROM scrap_records WHERE id = ? FOR UPDATE', [id]);

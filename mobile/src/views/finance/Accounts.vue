@@ -26,31 +26,31 @@
       <div class="dialog-content">
         <Form @submit="handleSubmit">
           <Field
-            v-model="formData.account_code"
-            name="account_code"
+            v-model="formData.accountCode"
+            name="accountCode"
             label="科目代码"
             placeholder="请输入科目代码"
             :rules="[{ required: true, message: '请输入科目代码' }]"
           />
           <Field
-            v-model="formData.account_name"
-            name="account_name"
+            v-model="formData.accountName"
+            name="accountName"
             label="科目名称"
             placeholder="请输入科目名称"
             :rules="[{ required: true, message: '请输入科目名称' }]"
           />
           <Field
-            name="account_type"
+            name="accountType"
             label="科目类型"
             placeholder="请选择科目类型"
             readonly
-            :value="getTypeLabel(formData.account_type)"
+            :value="getTypeLabel(formData.accountType)"
             @click="showTypePicker = true"
             :rules="[{ required: true, message: '请选择科目类型' }]"
           />
           <Field
-            v-model="formData.parent_code"
-            name="parent_code"
+            v-model="formData.parentCode"
+            name="parentCode"
             label="上级科目"
             placeholder="请输入上级科目代码（可选）"
           />
@@ -64,7 +64,7 @@
           />
           <div class="form-item">
             <div class="form-label">是否启用</div>
-            <Switch v-model="formData.is_active" />
+            <Switch v-model="formData.isActive" />
           </div>
           <div class="form-actions">
             <Button type="default" @click="closeDialog">取消</Button>
@@ -107,12 +107,12 @@
   const submitting = ref(false)
 
   const formData = reactive({
-    account_code: '',
-    account_name: '',
-    account_type: '',
-    parent_code: '',
+    accountCode: '',
+    accountName: '',
+    accountType: '',
+    parentCode: '',
     description: '',
-    is_active: true
+    isActive: true
   })
 
   // 科目类型配置（value 与后端 account_type 字段一致）
@@ -151,21 +151,21 @@
     // 字段映射
     fields: {
       id: 'id',
-      title: 'account_name',
-      subtitle: 'account_code',
+      title: 'accountName',
+      subtitle: 'accountCode',
       icon: 'document-text',
-      status: 'account_type',
+      status: 'accountType',
 
-      // 详情字段 — 只保留最关键信息
+      // 详情字段 — 只保留最关键信息（API camel）
       details: [
         { label: '余额', field: (item) => '¥' + Number(item.balance || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) },
-        { label: '状态', field: (item) => item.is_active ? '启用' : '停用' }
+        { label: '状态', field: (item) => item.isActive ? '启用' : '停用' }
       ],
 
       // 标签
       tags: [
         {
-          field: 'account_type',
+          field: 'accountType',
           type: 'status',
           map: {
             '资产': { text: '资产', color: 'primary' },
@@ -195,9 +195,9 @@
   // 加载科目数据
   const loadAccounts = async (params) => {
     const apiParams = { ...params }
-    // 通过 account_type 替代 status 进行过滤
+    // 通过 accountType 替代 status 进行过滤
     if (params.status && params.status !== 'all') {
-      apiParams.account_type = params.status
+      apiParams.accountType = params.status
     }
     delete apiParams.status
     return await financeApi.getAccounts(apiParams)
@@ -213,17 +213,17 @@
     showCreateDialog.value = false
     editingAccount.value = null
     Object.assign(formData, {
-      account_code: '',
-      account_name: '',
-      account_type: '',
-      parent_code: '',
+      accountCode: '',
+      accountName: '',
+      accountType: '',
+      parentCode: '',
       description: '',
-      is_active: true
+      isActive: true
     })
   }
 
   const onTypeConfirm = ({ selectedOptions }) => {
-    formData.account_type = selectedOptions[0].value
+    formData.accountType = selectedOptions[0].value
     showTypePicker.value = false
   }
 

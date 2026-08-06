@@ -8,16 +8,15 @@ import { inventoryApi } from '@/api'
 
 /**
  * 库存充足性检查
- * @param {Array} items - 物料项数组，每项需包含 material_id, quantity
+ * @param {Array} items - 物料项数组，每项需包含 materialId, quantity（HTTP camel SSOT）
  * @returns {Array} 库存不足的物料列表
  */
 export async function checkInventory(items) {
   if (!Array.isArray(items) || items.length === 0) return []
 
   const materialItems = items.filter(item => {
-    if (!item.material_id) return false
-    const materialId = parseInt(item.material_id)
-    if (isNaN(materialId) || materialId <= 0) return false
+    const materialId = parseInt(item.materialId, 10)
+    if (!Number.isInteger(materialId) || materialId <= 0) return false
     const quantity = parseFloat(item.quantity)
     if (isNaN(quantity) || quantity <= 0) return false
     return true
@@ -27,10 +26,10 @@ export async function checkInventory(items) {
 
   try {
     const requirements = materialItems.map(item => ({
-      materialId: parseInt(item.material_id),
+      materialId: parseInt(item.materialId, 10),
       quantity: parseFloat(item.quantity),
-      materialCode: item.material_code || item.code || '',
-      materialName: item.material_name || item.name || '未知物料'
+      materialCode: item.materialCode || item.code || '',
+      materialName: item.materialName || item.name || '未知物料'
     }))
     const response = await inventoryApi.checkStockSufficiency(requirements)
     return response.data || []

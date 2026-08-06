@@ -6,6 +6,7 @@
  */
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 const { logger } = require('../../../utils/logger');
 const { INVENTORY_INBOUND_TRANSITIONS } = require('../../../constants/statusRegistry');
 
@@ -672,7 +673,7 @@ const updateInbound = async (req, res) => {
           materialId,
           item.material_code || materialInfo.code || null,
           item.material_name || materialInfo.name || null,
-          item.specification || item.material_specs || item.specs || null,
+          item.specification || item.materialSpecs || item.specs || null,
           quantity,
           unitId,
           itemLocationId,
@@ -700,8 +701,7 @@ const createInboundFromQuality = async (req, res) => {
   try {
     await connection.beginTransaction();
 
-    const { inbound_date, location_id, operator, remark, items, inspection_id, inspection_no } =
-      req.body;
+    const { inbound_date, location_id, operator, remark, items, inspection_id, inspection_no } = mapKeysToSnake(req.body || {});
 
     // 验证必填字段
     if (!inbound_date || !location_id || !operator || !items || items.length === 0) {

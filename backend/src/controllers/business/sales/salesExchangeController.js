@@ -17,6 +17,11 @@ const DLQService = require('../../../services/business/DLQService');
 const { parsePagination, appendPaginationSQL } = require('../../../utils/safePagination');
 const { SALES_EXCHANGE_TRANSITIONS } = require('../../../constants/statusRegistry');
 const { getRequestActorLabel } = require('../../../utils/userUtils');
+const {
+  salesExchangeMap,
+  salesExchangeItemMap,
+  toNumber,
+} = require('../../../utils/sales/salesFieldMap');
 
 exports.getSalesExchanges = async (req, res) => {
   try {
@@ -113,7 +118,7 @@ exports.getSalesExchanges = async (req, res) => {
       });
 
       const responseData = {
-        items: results,
+        items: results.map((r) => salesExchangeMap.toApi(r)),
         total,
         page: pagination.page,
         pageSize: pagination.pageSize,
@@ -176,42 +181,34 @@ exports.getSalesExchangeById = async (req, res) => {
 
       const [detailsResults] = await connection.query(detailsQuery, [id]);
 
-      // 分离退回商品和换出商品
+      // 分离退回/换出明细，经 FieldMap 出 camel
       const returnItems = detailsResults
         .filter((item) => item.item_type === 'return')
         .map((item) => ({
-          productCode: item.product_code,
-          productName: item.product_name,
-          specification: item.specification,
-          originalQuantity: item.original_quantity,
-          returnQuantity: item.quantity,
+          ...salesExchangeItemMap.toApi(item),
+          returnQuantity: toNumber(item.quantity, 0),
           returnReason: item.reason,
-          unitName: item.unit_name,
         }));
 
       const newItems = detailsResults
         .filter((item) => item.item_type === 'new')
         .map((item) => ({
-          productCode: item.product_code,
-          productName: item.product_name,
-          specification: item.specification,
-          newQuantity: item.quantity,
+          ...salesExchangeItemMap.toApi(item),
+          newQuantity: toNumber(item.quantity, 0),
           newReason: item.reason,
-          unitName: item.unit_name,
         }));
 
-      // 组合结果 - 支持新旧两种格式
-      exchange.returnItems = returnItems;
-      exchange.newItems = newItems;
+      const api = salesExchangeMap.toApi({
+        ...exchange,
+        return_items: detailsResults.filter((i) => i.item_type === 'return'),
+        new_items: detailsResults.filter((i) => i.item_type === 'new'),
+        items: detailsResults,
+      });
+      // 保留业务别名（仍 camel）
+      api.returnItems = returnItems;
+      api.newItems = newItems;
 
-      // 转换字段名以匹配前端期望的格式
-      exchange.items = detailsResults.map((item) => ({
-        ...item,
-        exchange_quantity: item.quantity, // 换货数量
-        exchange_reason: item.reason, // 换货原因
-      }));
-
-      return ResponseHandler.success(res, exchange);
+      return ResponseHandler.success(res, api);
     } finally {
       connection.release();
     }
@@ -539,7 +536,8 @@ exports.updateSalesExchange = async (req, res) => {
       const materialPriceMap = {};
       const orderPriceMap = {};
       try {
-        const allCodes = items.map(i => i.productCode || i.product_code).filter(Boolean);
+        // HTTP 明细只认 camel
+        const allCodes = items.map((i) => i.productCode).filter(Boolean);
         if (allCodes.length > 0) {
           const [mats] = await connection.query('SELECT code, price FROM materials WHERE code IN (?)', [allCodes]);
           mats.forEach(m => { materialPriceMap[m.code] = parseFloat(m.price) || 0; });
@@ -570,15 +568,13 @@ exports.updateSalesExchange = async (req, res) => {
       );
 
       const detailValues = items.map((item) => {
-        // 支持两种命名方式：驼峰命名和下划线命名
-        const productCode = item.productCode || item.product_code || '';
-        const productName = item.productName || item.product_name || '';
+        // HTTP 明细只认 camel
+        const productCode = item.productCode || '';
+        const productName = item.productName || '';
         const specification = item.specification || '';
-        const originalQuantity = parseFloat(item.originalQuantity || item.original_quantity || 0);
+        const originalQuantity = parseFloat(item.originalQuantity || 0);
         // 对于换货，处理数量逻辑
-        let quantity = parseFloat(
-          item.quantity || item.exchangeQuantity || item.exchange_quantity || 0
-        );
+        let quantity = parseFloat(item.quantity || item.exchangeQuantity || 0);
 
         if (quantity === 0) {
           if (originalQuantity > 0) {
@@ -587,11 +583,10 @@ exports.updateSalesExchange = async (req, res) => {
             quantity = totalReturnQuantity;
           }
         }
-        const reason = item.reason || item.exchangeReason || item.exchange_reason || '';
-        const unitName = item.unitName || item.unit_name || '';
+        const reason = item.reason || item.exchangeReason || '';
+        const unitName = item.unitName || '';
 
-        const itemType =
-          item.item_type || item.itemType || (originalQuantity > 0 ? 'return' : 'new');
+        const itemType = item.itemType || (originalQuantity > 0 ? 'return' : 'new');
 
         // 计算单价和金额
         const unitPrice = (itemType === 'return')

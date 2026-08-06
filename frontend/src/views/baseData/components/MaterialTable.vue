@@ -7,19 +7,19 @@
       class="w-full"
     >
       <template #empty>
-        <el-empty description="暂无物料数据" />
+        <EmptyState description="暂无物料数据" />
       </template>
       <el-table-column prop="code" label="物料编码" width="120" show-overflow-tooltip></el-table-column>
       <el-table-column prop="name" label="物料名称" width="200" show-overflow-tooltip></el-table-column>
       <el-table-column prop="specs" label="规格型号" width="260" show-overflow-tooltip></el-table-column>
-      <el-table-column prop="category_name" label="物料类型" width="100" show-overflow-tooltip></el-table-column>
-      <el-table-column prop="material_source_name" label="物料来源" width="90" show-overflow-tooltip></el-table-column>
-      <el-table-column prop="unit_name" label="单位" width="60" show-overflow-tooltip></el-table-column>
-      <el-table-column prop="location_name" label="仓库" width="100" show-overflow-tooltip></el-table-column>
-      <el-table-column prop="manager_name" label="物料负责人" width="100" show-overflow-tooltip></el-table-column>
+      <el-table-column prop="categoryName" label="物料类型" width="100" show-overflow-tooltip></el-table-column>
+      <el-table-column prop="materialSourceName" label="物料来源" width="90" show-overflow-tooltip></el-table-column>
+      <el-table-column prop="unitName" label="单位" width="60" show-overflow-tooltip></el-table-column>
+      <el-table-column prop="locationName" label="仓库" width="100" show-overflow-tooltip></el-table-column>
+      <el-table-column prop="managerName" label="物料负责人" width="100" show-overflow-tooltip></el-table-column>
 
-      <el-table-column prop="min_stock" label="最小库存" width="85" show-overflow-tooltip></el-table-column>
-      <el-table-column prop="max_stock" label="最大库存" width="85" show-overflow-tooltip></el-table-column>
+      <el-table-column prop="minStock" label="最小库存" width="85" show-overflow-tooltip></el-table-column>
+      <el-table-column prop="maxStock" label="最大库存" width="85" show-overflow-tooltip></el-table-column>
       <el-table-column prop="status" label="状态" width="80">
         <template #default="scope">
           <el-tag :type="String(scope.row.status) === '1' ? 'success' : 'danger'">

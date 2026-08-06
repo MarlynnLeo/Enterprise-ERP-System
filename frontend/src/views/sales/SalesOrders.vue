@@ -47,7 +47,7 @@
             <el-option
               v-for="item in operators"
               :key="item.id"
-              :label="item.real_name || item.username"
+              :label="item.realName || item.username"
               :value="item.id"
             />
           </el-select>
@@ -110,7 +110,7 @@
         v-loading="loading"
       >
         <template #empty>
-          <el-empty description="暂无销售订单数据" />
+          <EmptyState description="暂无销售订单数据" />
         </template>
         <el-table-column type="expand" width="50">
           <template #default="props">
@@ -119,7 +119,7 @@
                 <el-descriptions-item label="收货地址">{{ props.row.address }}</el-descriptions-item>
                 <el-descriptions-item label="联系人">{{ props.row.contact }}</el-descriptions-item>
                 <el-descriptions-item label="联系电话">{{ props.row.phone }}</el-descriptions-item>
-                <el-descriptions-item label="合同编码">{{ props.row.contract_code || '-' }}</el-descriptions-item>
+                <el-descriptions-item label="合同编码">{{ props.row.contractCode || '-' }}</el-descriptions-item>
                 <el-descriptions-item label="订单备注" :span="2">{{ props.row.remark }}</el-descriptions-item>
               </el-descriptions>
 
@@ -223,10 +223,10 @@
         <el-table-column label="锁定状态" width="100" resizable show-overflow-tooltip>
           <template #default="{ row }">
             <el-tag
-              :type="row.is_locked ? 'danger' : 'success'"
+              :type="row.isLocked ? 'danger' : 'success'"
               size="small"
             >
-              {{ row.is_locked ? '已锁定' : '未锁定' }}
+              {{ row.isLocked ? '已锁定' : '未锁定' }}
             </el-tag>
           </template>
         </el-table-column>
@@ -329,9 +329,9 @@
       <el-form :model="form" :rules="rules" ref="formRef" label-width="100px" @keydown="salesFormKeydown">
         <el-row :gutter="20">
           <el-col :span="8">
-            <el-form-item label="客户名称" prop="customer_id">
+            <el-form-item label="客户名称" prop="customerId">
               <el-select
-                v-model="form.customer_id"
+                v-model="form.customerId"
                 placeholder="请选择客户（支持客户编码/名称搜索）"
                 filterable
                 remote
@@ -351,16 +351,16 @@
                   :value="item.id"
                 >
                   <span class="option-code">{{ item.code }} - {{ item.name }}</span>
-                  <span class="option-name">{{ item.contact_person || '无联系人' }}</span>
+                  <span class="option-name">{{ item.contactPerson || '无联系人' }}</span>
                 </el-option>
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="合同编码" prop="contract_code">
+            <el-form-item label="合同编码" prop="contractCode">
               <el-input
                 ref="contractCodeInput"
-                v-model="form.contract_code"
+                v-model="form.contractCode"
                 placeholder="请输入合同编码"
                 class="w-full"
               />
@@ -422,7 +422,7 @@
                     class="w-full"
                     :trigger-on-focus="false"
                     :debounce="300"
-                    :class="{ 'is-required-field': !row.material_id }"
+                    :class="{ 'is-required-field': !row.materialId }"
                   >
                     <template #default="{ item }">
                       <div class="option-row gap-12">
@@ -434,7 +434,7 @@
                   </el-autocomplete>
                 </template>
               </el-table-column>
-              <el-table-column label="物料名称" prop="material_name" width="140" show-overflow-tooltip />
+              <el-table-column label="物料名称" prop="materialName" width="140" show-overflow-tooltip />
 
               <el-table-column label="规格" prop="specification" width="140" show-overflow-tooltip />
               <el-table-column label="数量" width="80">
@@ -453,8 +453,8 @@
               <el-table-column label="单价" width="70">
                 <template #default="{ row, $index }">
                   <el-input
-                    v-model="row.unit_price"
-                    @input="(val) => { row.unit_price = isBlankAmount(val) ? null : Number(val); calculateItemAmount($index); }"
+                    v-model="row.unitPrice"
+                    @input="(val) => { row.unitPrice = isBlankAmount(val) ? null : Number(val); calculateItemAmount($index); }"
                     placeholder="单价"
                     type="number"
                     min="0"
@@ -463,7 +463,7 @@
                   />
                 </template>
               </el-table-column>
-              <el-table-column label="单位" prop="unit_name" width="70" />
+              <el-table-column label="单位" prop="unitName" width="70" />
               <el-table-column label="金额" width="100">
                 <template #default="{ row }">
                     {{ formatCurrency(row.amount) }}
@@ -472,7 +472,7 @@
               <el-table-column label="税率" width="100">
                 <template #default="{ row, $index }">
                   <el-select
-                    v-model="row.tax_rate"
+                    v-model="row.taxRate"
                     placeholder="税率"
                     size="small"
                     @change="calculateItemAmount($index)"
@@ -489,7 +489,7 @@
               </el-table-column>
               <el-table-column label="税额" width="90">
                 <template #default="{ row }">
-                  {{ formatCurrency(row.tax_amount) }}
+                  {{ formatCurrency(row.taxAmount) }}
                 </template>
               </el-table-column>
               <el-table-column label="备注" width="125">
@@ -529,10 +529,10 @@
               <span class="text-regular">小计: {{ formatCurrency(form.subtotal) }}</span>
             </el-col>
             <el-col :span="8" class="text-right">
-              <span class="text-warning">税额: {{ formatCurrency(form.tax_amount) }}</span>
+              <span class="text-warning">税额: {{ formatCurrency(form.taxAmount) }}</span>
             </el-col>
             <el-col :span="8" class="text-right">
-              <span class="text-primary font-weight-700">合计: {{ formatCurrency(form.total_amount) }}</span>
+              <span class="text-primary font-weight-700">合计: {{ formatCurrency(form.totalAmount) }}</span>
             </el-col>
           </el-row>
         </div>
@@ -596,7 +596,7 @@
             </el-table-column>
           </el-table>
         </template>
-        <el-empty v-else-if="!detailsLoading" description="暂无数据" />
+        <EmptyState v-else-if="!detailsLoading" description="暂无数据" />
       </div>
       <template #footer>
         <el-button @click="detailsVisible = false">关闭</el-button>
@@ -604,9 +604,10 @@
       </template>
     </AppDialog>
     <!-- 导入对话框 -->
-    <el-dialog
-      title="导入订单"
+    <AppDialog
       v-model="importDialogVisible"
+      title="导入订单"
+      mode="form"
       width="500px"
     >
       <div class="import-tips">
@@ -652,7 +653,7 @@
           <el-button v-permission="'sales:orders:create'" type="primary" @click="submitImport" :loading="importing">导入</el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
   </div>
 </template>
 <script setup>
@@ -664,8 +665,9 @@ import { salesApi } from '@/api'
 import { usePaginatedFetching } from '@/composables/useDataFetching'
 import { parseListData, parseResponseData } from '@/utils/responseParser'
 import dayjs from 'dayjs'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 const _router = useRouter()
+const route = useRoute()
 import { useFormKeyboardNav } from '@/composables/useFormKeyboardNav'
 import { Plus, Upload, Download } from '@element-plus/icons-vue'
 import { getSalesStatusText, getSalesStatusColor } from '@/constants/systemConstants'
@@ -675,7 +677,8 @@ import { useOrderForm } from './composables/useOrderForm'
 import { useOrderActions } from './composables/useOrderActions'
 import { useOrderImportExport } from './composables/useOrderImportExport'
 // ========== 本地状态 ==========
-const searchQuery = ref('')
+// 支持从应收发票页跳转：?orderNo= / ?orderId=
+const searchQuery = ref(String(route.query.orderNo || route.query.keyword || '').trim())
 const statusFilter = ref('')
 const operatorFilter = ref('')
 const dateRange = ref([])
@@ -888,8 +891,8 @@ const handlePrintOrder = async () => {
         product_name: item.materialName || item.name || '',
         specification: item.specification || '',
         quantity: parseFloat(item.quantity || 0).toFixed(2),
-        unit_name: item.unit_name || '',
-        unit_price: formatPrintAmount(item.unit_price),
+        unit_name: item.unitName || '',
+        unit_price: formatPrintAmount(item.unitPrice),
         amount: formatPrintAmount(item.amount)
       }))
     }
@@ -906,6 +909,10 @@ const handlePrintOrder = async () => {
 onMounted(async () => {
   try {
     await nextTick()
+    // 发票页「跳转到销售订单」带来的筛选
+    if (searchQuery.value) {
+      updateParams({ search: searchQuery.value })
+    }
     fetchStats()
     financeStore.loadSettings()
     setTimeout(() => { fetchCustomers() }, 500)

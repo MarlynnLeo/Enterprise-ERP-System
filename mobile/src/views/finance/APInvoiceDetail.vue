@@ -17,8 +17,8 @@
           <SvgIcon name="receipt" size="1.5rem" />
         </div>
         <div class="hero-info">
-          <div class="hero-title">{{ invoice.supplier_name || '未知供应商' }}</div>
-          <div class="hero-sub">{{ invoice.invoice_number }}</div>
+          <div class="hero-title">{{ invoice.supplierName || '未知供应商' }}</div>
+          <div class="hero-sub">{{ invoice.invoiceNumber }}</div>
         </div>
         <div class="hero-status" :class="statusClass">{{ statusText }}</div>
       </div>
@@ -28,21 +28,21 @@
         <div class="amount-row">
           <div class="amount-item">
             <span class="amount-label">发票金额</span>
-            <span class="amount-value primary">¥{{ formatMoney(invoice.total_amount) }}</span>
+            <span class="amount-value primary">¥{{ formatMoney(invoice.totalAmount) }}</span>
           </div>
           <div class="amount-item">
             <span class="amount-label">已付金额</span>
-            <span class="amount-value success">¥{{ formatMoney(invoice.paid_amount) }}</span>
+            <span class="amount-value success">¥{{ formatMoney(invoice.paidAmount) }}</span>
           </div>
         </div>
         <div class="amount-row">
           <div class="amount-item">
             <span class="amount-label">未付余额</span>
-            <span class="amount-value danger">¥{{ formatMoney(invoice.balance_amount) }}</span>
+            <span class="amount-value danger">¥{{ formatMoney(invoice.balanceAmount) }}</span>
           </div>
           <div class="amount-item">
             <span class="amount-label">币种</span>
-            <span class="amount-value">{{ invoice.currency_code || 'CNY' }}</span>
+            <span class="amount-value">{{ invoice.currencyCode || 'CNY' }}</span>
           </div>
         </div>
       </div>
@@ -53,19 +53,19 @@
         <div class="info-grid">
           <div class="info-item">
             <span class="info-label">发票编号</span>
-            <span class="info-value">{{ invoice.invoice_number }}</span>
+            <span class="info-value">{{ invoice.invoiceNumber }}</span>
           </div>
           <div class="info-item">
             <span class="info-label">供应商</span>
-            <span class="info-value">{{ invoice.supplier_name }}</span>
+            <span class="info-value">{{ invoice.supplierName }}</span>
           </div>
           <div class="info-item">
             <span class="info-label">开票日期</span>
-            <span class="info-value">{{ formatDate(invoice.invoice_date) }}</span>
+            <span class="info-value">{{ formatDate(invoice.invoiceDate) }}</span>
           </div>
           <div class="info-item">
             <span class="info-label">到期日期</span>
-            <span class="info-value">{{ formatDate(invoice.due_date) }}</span>
+            <span class="info-value">{{ formatDate(invoice.dueDate) }}</span>
           </div>
           <div class="info-item" v-if="invoice.notes">
             <span class="info-label">备注</span>
@@ -80,10 +80,10 @@
         <div class="payment-list">
           <div class="payment-item" v-for="p in invoice.payments" :key="p.id">
             <div class="payment-left">
-              <div class="payment-date">{{ formatDate(p.payment_date) }}</div>
-              <div class="payment-method">{{ p.payment_method || '—' }}</div>
+              <div class="payment-date">{{ formatDate(p.paymentDate) }}</div>
+              <div class="payment-method">{{ p.paymentMethod || '—' }}</div>
             </div>
-            <div class="payment-amount">¥{{ formatMoney(p.amount || p.total_amount) }}</div>
+            <div class="payment-amount">¥{{ formatMoney(p.amount || p.totalAmount) }}</div>
           </div>
         </div>
       </div>

@@ -192,9 +192,10 @@
     </el-card>
 
     <!-- 新增/编辑对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="dialogVisible"
       :title="dialogTitle"
+      mode="form"
       width="600px"
     >
       <el-form
@@ -281,12 +282,13 @@
           </el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
 
     <!-- 导入对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="importDialogVisible"
       title="导入现金交易数据"
+      mode="form"
       width="500px"
     >
       <el-upload
@@ -319,7 +321,7 @@
           </el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
 
     <!-- 查看交易详情对话框 -->
     <AppDialog

@@ -99,40 +99,41 @@ export const usePurchaseInspection = () => {
     if (respData.success && respData.data) {
       return respData.data;
     }
-    // 直接数据格式: { id: ..., template_name: ..., InspectionItems: [...] }
-    if (respData.id || respData.template_name || respData.InspectionItems) {
+    // 直接数据格式: { id, templateName, inspectionItems|InspectionItems }
+    if (respData.id || respData.templateName || respData.inspectionItems || respData.InspectionItems) {
       return respData;
     }
     throw new Error('获取模板详情失败');
   };
   /**
-   * 转换模板数据格式
+   * 转换模板数据格式（HTTP camel SSOT）
    * @param {Object} templateDetail - 模板详情
    * @returns {Object} 转换后的模板数据
    */
   const transformTemplateData = (templateDetail) => {
-    if (!templateDetail.InspectionItems || templateDetail.InspectionItems.length === 0) {
+    const inspectionItems = templateDetail.inspectionItems || templateDetail.InspectionItems || [];
+    if (!inspectionItems.length) {
       throw new Error('模板没有检验项目');
     }
 
     return {
       id: templateDetail.id,
-      name: templateDetail.template_name,
-      items: templateDetail.InspectionItems.map(item => ({
-        item_id: item.id || null,
-        item_name: item.item_name,
+      name: templateDetail.templateName,
+      items: inspectionItems.map(item => ({
+        itemId: item.id || null,
+        itemName: item.itemName,
         standard: item.standard || '',
-        lower_limit: item.lower_limit || null,
-        upper_limit: item.upper_limit || null,
+        lowerLimit: item.lowerLimit ?? null,
+        upperLimit: item.upperLimit ?? null,
         type: item.type || 'qualitative',
-        is_critical: item.is_critical === true || item.is_critical === 1 ? 1 : 0,
-        inspection_method: item.inspection_method || '',
+        isCritical: item.isCritical === true || item.isCritical === 1 ? 1 : 0,
+        inspectionMethod: item.inspectionMethod || '',
         remark: item.remark || '',
-        dimension_value: item.dimension_value || null,
-        tolerance_upper: item.tolerance_upper || null,
-        tolerance_lower: item.tolerance_lower || null,
+        dimensionValue: item.dimensionValue ?? null,
+        toleranceUpper: item.toleranceUpper ?? null,
+        toleranceLower: item.toleranceLower ?? null,
         result: '',
-        actual_value: ''
+        actualValue: ''
       }))
     };
   };
@@ -191,22 +192,26 @@ export const usePurchaseInspection = () => {
     // 遍历每个物料项创建检验单
     for (const item of itemsToProcess) {
       try {
-        // 获取检验模板
-        const inspectionTemplate = await getInspectionTemplate(item.material_id);
+        // 获取检验模板（HTTP camel）
+        const materialId = item.materialId;
+        const materialName = item.materialName || item.name;
+        const supplierId = orderData.supplierId;
+        const supplierName = orderData.supplierName;
+        const inspectionTemplate = await getInspectionTemplate(materialId);
         if (!inspectionTemplate) {
           skippedCount++;
-          ElMessage.warning(`物料 ${item.material_name || item.name} 没有检验模板，跳过创建`);
+          ElMessage.warning(`物料 ${materialName} 没有检验模板，跳过创建`);
           continue;
         }
-        if (!orderData.supplier_id) {
+        if (!supplierId) {
           skippedCount++;
-          ElMessage.warning(`物料 ${item.material_name || item.name} 缺少供应商信息，跳过创建`);
+          ElMessage.warning(`物料 ${materialName} 缺少供应商信息，跳过创建`);
           continue;
         }
 
         let supplierCode = '';
         try {
-          const supplierResponse = await supplierApi.getSupplier(orderData.supplier_id);
+          const supplierResponse = await supplierApi.getSupplier(supplierId);
           if (supplierResponse.data && supplierResponse.data.code) {
             supplierCode = supplierResponse.data.code;
           }
@@ -216,30 +221,30 @@ export const usePurchaseInspection = () => {
 
         if (!supplierCode) {
           skippedCount++;
-          ElMessage.warning(`物料 ${item.material_name || item.name} 无法获取供应商编码，跳过创建`);
+          ElMessage.warning(`物料 ${materialName} 无法获取供应商编码，跳过创建`);
           continue;
         }
 
         // 生成批次号 - 传递正确的参数类型
-        const batchNo = await generateBatchNumber(supplierCode, orderData.supplier_id, qualityApi);
-        // 构造提交数据
+        const batchNo = await generateBatchNumber(supplierCode, supplierId, qualityApi);
+        // 构造提交数据（camel；后端边界 mapKeysToSnake）
         const submitData = {
-          inspection_type: 'incoming',
-          material_id: item.material_id,
-          material_code: item.material_code || item.code,
-          material_name: item.material_name || item.name,
-          supplier_id: orderData.supplier_id,
-          supplier_name: orderData.supplier_name,
-          batch_no: batchNo,
-          quantity: item.quantity || item.received_quantity || 0,
-          reference_id: orderData.id,
-          reference_no: orderData.order_no,
-          unit: item.unit_name || item.unit || '个',
-          unit_id: item.unit_id,
-          planned_date: formatLocalDate(new Date()),
-          actual_date: null,
+          inspectionType: 'incoming',
+          materialId,
+          materialCode: item.materialCode || item.code,
+          materialName,
+          supplierId,
+          supplierName,
+          batchNo,
+          quantity: item.quantity || item.receivedQuantity || 0,
+          referenceId: orderData.id,
+          referenceNo: orderData.orderNo,
+          unit: item.unitName || item.unit || '个',
+          unitId: item.unitId,
+          plannedDate: formatLocalDate(new Date()),
+          actualDate: null,
           status: 'pending',
-          note: `自动创建的来料检验单 - 供应商: ${orderData.supplier_name}`,
+          note: `自动创建的来料检验单 - 供应商: ${supplierName}`,
           items: inspectionTemplate.items
         };
         // 创建检验单
@@ -250,12 +255,12 @@ export const usePurchaseInspection = () => {
           successCount++;
         } else {
           failedCount++;
-          ElMessage.error(`来料检验单创建失败: ${item.material_name || item.name}`);
+          ElMessage.error(`来料检验单创建失败: ${materialName}`);
         }
       } catch (createErr) {
         failedCount++;
         logger.error('创建来料检验单失败:', createErr);
-        ElMessage.error(`来料检验单创建失败: ${item.material_name || item.name} - ${createErr.message}`);
+        ElMessage.error(`来料检验单创建失败: ${item.materialName} - ${createErr.message}`);
       }
     }
     // 返回创建结果

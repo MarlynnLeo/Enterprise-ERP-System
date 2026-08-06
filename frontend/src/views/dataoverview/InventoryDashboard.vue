@@ -74,7 +74,7 @@
           </template>
           <div class="chart-container">
             <canvas v-if="categoryDistribution.length > 0" ref="categoryChart" height="300"></canvas>
-            <el-empty v-else description="暂无分类数据" />
+            <EmptyState v-else description="暂无分类数据" />
           </div>
         </el-card>
       </el-col>
@@ -133,7 +133,7 @@
                 </template>
               </el-table-column>
             </el-table>
-            <el-empty v-else description="暂无预警物料" />
+            <EmptyState v-else description="暂无预警物料" />
 
             <div class="pagination-container" v-if="alertItems.length > alertPageSize">
               <el-pagination
@@ -201,7 +201,7 @@ const statistics = computed(() => {
 
 const alertItems = computed(() => {
   const data = dashboardData.value || {}
-  const items = data.alertItems || data.alert_items || data.alertsList || []
+  const items = data.alertItems || data.alertsList || []
   return Array.isArray(items) ? items : []
 })
 
@@ -237,7 +237,7 @@ const categoryDistribution = computed(() => {
   const source = dashboardData.value?.categoryDistribution || dashboardData.value?.category_distribution
   if (Array.isArray(source)) {
     return source.map(item => ({
-      label: item.label || item.name || item.category_name || '未分类',
+      label: item.label || item.name || item.categoryName || '未分类',
       value: toNumber(item.value ?? item.quantity ?? item.count)
     }))
   }

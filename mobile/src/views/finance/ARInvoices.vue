@@ -35,13 +35,13 @@
     ],
     fields: {
       id: 'id',
-      title: 'customer_name',
-      subtitle: (item) => `${item.invoice_number || ''} · ${item.invoice_date || ''}`,
+      title: 'customerName',
+      subtitle: (item) => `${item.invoiceNumber || ''} · ${item.invoiceDate || ''}`,
       icon: 'coin',
       details: [
-        { label: '发票金额', field: 'total_amount', prefix: '¥', format: 'money' },
-        { label: '已收金额', field: 'paid_amount', prefix: '¥', format: 'money' },
-        { label: '到期日', field: 'due_date', format: 'date' }
+        { label: '发票金额', field: 'totalAmount', prefix: '¥', format: 'money' },
+        { label: '已收金额', field: 'paidAmount', prefix: '¥', format: 'money' },
+        { label: '到期日', field: 'dueDate', format: 'date' }
       ],
       status: {
         field: 'status',

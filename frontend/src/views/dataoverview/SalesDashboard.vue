@@ -401,11 +401,11 @@ async function loadSalesData() {
       const ordersItems = parseListData(ordersResponse.value, { enableLog: false });
       recentOrders.value = ordersItems.slice(0, 10).map(order => ({
         id: order.id,
-        orderNo: order.order_no || order.orderNumber || `SO${order.id}`,
-        customerName: order.customer_name || order.customerName || '未知客户',
-        amount: parseFloat(order.total_amount || order.totalAmount || 0),
+        orderNo: order.orderNo || order.orderNumber || `SO${order.id}`,
+        customerName: order.customerName || '未知客户',
+        amount: parseFloat(order.totalAmount || 0),
         status: order.status || 'pending',
-        orderDate: order.created_at || order.createdAt || order.order_date || new Date().toISOString(),
+        orderDate: order.orderDate || new Date().toISOString(),
         paymentStatus: order.payment_status || getPaymentStatusFromOrderStatus(order.status)
       }));
     }

@@ -310,8 +310,8 @@ async function loadProductionData() {
     if (completionStats.status === 'fulfilled' && completionStats.value) {
       const completionDataList = completionStats.value.data || completionStats.value || [];
       stats.processCompletion = Array.isArray(completionDataList) ? completionDataList.map(item => ({
-        name: item.processName || item.process_name || `工序${item.task_id || ''}`,
-        rate: item.completionRate || item.completion_rate || '0%'
+        name: item.processName || `工序${item.taskId || ''}`,
+        rate: item.completionRate || '0%'
       })) : [];
     }
     return stats;
@@ -524,12 +524,12 @@ async function fetchPendingPlans() {
     pendingPlans.value = plansList.map(item => ({
       id: item.id,
       code: item.code,
-      productId: item.product_id,
-      productName: item.productName || item.product_name || '未知产品',
-      productCode: item.productCode || item.product_code || '-',
+      productId: item.productId,
+      productName: item.productName || '未知产品',
+      productCode: item.productCode || '-',
       quantity: item.quantity,
-      startDate: item.start_date || item.startDate || item.created_at,
-      endDate: item.end_date || item.endDate || item.deadline,
+      startDate: item.startDate || item.createdAt,
+      endDate: item.endDate || item.deadline,
       manager: item.operator || item.manager || '-',
       status: item.status
     }));

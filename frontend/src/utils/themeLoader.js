@@ -30,8 +30,11 @@ const loadedThemes = new Set(['kacon'])
 const inflight = new Map()
 let compatibilityFinalPromise
 
+/** 主题 CSS 之后的钩子（空壳，避免重复 import theme-compat） */
 const ensureFinalCompatibilityCss = () => {
-  compatibilityFinalPromise ||= import('@/assets/themes/pc/theme-compat-final.css')
+  compatibilityFinalPromise ||= import('@/assets/themes/pc/theme-compat-final.css').catch(
+    () => undefined
+  )
   return compatibilityFinalPromise
 }
 

@@ -1,8 +1,9 @@
 <template>
   <!-- 价格调整历史对话框 -->
-  <el-dialog
+  <AppDialog
     v-model="visible"
     :title="`价格调整历史 - ${materialName}`"
+    mode="form"
     width="600px"
   >
     <div v-if="history.length > 0" class="history-timeline">
@@ -10,44 +11,44 @@
         <el-timeline-item
           v-for="item in history"
           :key="item.id"
-          :timestamp="formatDateTime(item.created_at)"
+          :timestamp="formatDateTime(item.createdAt)"
           placement="top"
-          :type="item.is_active ? 'primary' : 'info'"
+          :type="item.isActive ? 'primary' : 'info'"
         >
           <el-card shadow="hover" class="history-card">
             <div class="history-header">
-              <el-tag :type="item.is_active ? 'success' : 'info'" size="small">
-                {{ item.is_active ? '当前生效' : '历史版本' }}
+              <el-tag :type="item.isActive ? 'success' : 'info'" size="small">
+                {{ item.isActive ? '当前生效' : '历史版本' }}
               </el-tag>
               <span class="version">V{{ item.version }}</span>
             </div>
             <div class="history-content">
               <div class="price-row">
                 <span class="label">原始价格:</span>
-                <span class="value">{{ formatPrice(item.original_price) }}</span>
+                <span class="value">{{ formatPrice(item.originalPrice) }}</span>
               </div>
               <div class="price-row">
                 <span class="label">调整价格:</span>
-                <span class="value adjusted">{{ formatPrice(item.adjusted_price) }}</span>
+                <span class="value adjusted">{{ formatPrice(item.adjustedPrice) }}</span>
               </div>
               <div class="reason-row">
                 <span class="label">调整原因:</span>
-                <span class="value">{{ item.adjustment_reason }}</span>
+                <span class="value">{{ item.adjustmentReason }}</span>
               </div>
               <div class="operator-row">
                 <span class="label">操作人:</span>
-                <span class="value">{{ item.created_by_name || '-' }}</span>
+                <span class="value">{{ item.createdByName || '-' }}</span>
               </div>
             </div>
           </el-card>
         </el-timeline-item>
       </el-timeline>
     </div>
-    <el-empty v-else description="暂无调整历史" :image-size="100" />
+    <EmptyState v-else description="暂无调整历史" ::image-size="100" />
     <template #footer>
       <el-button @click="visible = false">关闭</el-button>
     </template>
-  </el-dialog>
+    </AppDialog>
 </template>
 
 <script setup>

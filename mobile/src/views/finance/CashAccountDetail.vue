@@ -17,14 +17,14 @@
           <SvgIcon name="bank" size="1.5rem" />
         </div>
         <div class="hero-info">
-          <div class="hero-title">{{ account.accountName || account.account_name || '—' }}</div>
-          <div class="hero-sub">{{ account.bankName || account.bank_name || '—' }}</div>
+          <div class="hero-title">{{ account.accountName || '—' }}</div>
+          <div class="hero-sub">{{ account.bankName || '—' }}</div>
         </div>
         <div
           class="hero-status"
-          :class="account.status === 'active' || account.is_active ? 'success' : 'default'"
+          :class="account.status === 'active' || account.isActive ? 'success' : 'default'"
         >
-          {{ account.status === 'active' || account.is_active ? '正常' : '停用' }}
+          {{ account.status === 'active' || account.isActive ? '正常' : '停用' }}
         </div>
       </div>
 
@@ -44,7 +44,7 @@
           <div class="balance-item">
             <span class="balance-sub-label">币种</span>
             <span class="balance-sub-value">{{
-              account.currency || account.currency_code || 'CNY'
+              account.currency || account.currencyCode || 'CNY'
             }}</span>
           </div>
         </div>
@@ -56,33 +56,33 @@
         <div class="info-grid">
           <div class="info-item full">
             <span class="info-label">账户名称</span>
-            <span class="info-value">{{ account.accountName || account.account_name || '—' }}</span>
+            <span class="info-value">{{ account.accountName || '—' }}</span>
           </div>
           <div class="info-item full">
             <span class="info-label">账号</span>
             <span class="info-value mono">{{
-              account.accountNumber || account.account_number || '—'
+              account.accountNumber || '—'
             }}</span>
           </div>
           <div class="info-item">
             <span class="info-label">开户行</span>
-            <span class="info-value">{{ account.bankName || account.bank_name || '—' }}</span>
+            <span class="info-value">{{ account.bankName || '—' }}</span>
           </div>
           <div class="info-item">
             <span class="info-label">支行名称</span>
-            <span class="info-value">{{ account.branchName || account.branch_name || '—' }}</span>
+            <span class="info-value">{{ account.branchName || '—' }}</span>
           </div>
           <div class="info-item">
             <span class="info-label">账户类型</span>
-            <span class="info-value">{{ account.purpose || account.account_type || '—' }}</span>
+            <span class="info-value">{{ account.accountType || '—' }}</span>
           </div>
           <div class="info-item">
             <span class="info-label">状态</span>
             <span
               class="info-value"
-              :class="account.status === 'active' || account.is_active ? 'text-green' : 'text-red'"
+              :class="account.status === 'active' || account.isActive ? 'text-green' : 'text-red'"
             >
-              {{ account.status === 'active' || account.is_active ? '正常' : '停用' }}
+              {{ account.status === 'active' || account.isActive ? '正常' : '停用' }}
             </span>
           </div>
           <div class="info-item full" v-if="account.notes">

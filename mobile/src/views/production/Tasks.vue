@@ -118,7 +118,7 @@
                 <div class="card-bottom">
                   <div class="meta-area">
                     <span class="meta-item" v-if="task.planName">{{ task.planName }}</span>
-                    <span class="meta-item">{{ formatDate(task.created_at) }}</span>
+                    <span class="meta-item">{{ formatDate(task.createdAt) }}</span>
                   </div>
                   <div class="card-actions" @click.stop>
                     <div
@@ -311,7 +311,7 @@
   }
 
   const calculateProgress = (task) => {
-    const planned = task.planned_quantity || task.quantity || 0
+    const planned = task.plannedQuantity || 0
     const completed = task.completed_quantity || 0
     if (planned === 0) return 0
     return Math.min(Math.round((completed / planned) * 100), 100)
@@ -340,16 +340,17 @@
       else if (response.items) tasks = response.items
       else if (Array.isArray(response)) tasks = response
 
+      // 后端 productionTaskMap 已输出 camel
       const mapped = tasks.map((task) => ({
         id: task.id,
-        code: task.task_code || task.code || `TASK-${task.id}`,
-        productName: task.product_name || task.productName || '未知产品',
-        quantity: task.planned_quantity || task.quantity || 0,
-        unit: task.unit_name || task.unit || '件',
-        planName: task.plan_name || task.planName || '',
+        code: task.code || task.taskCode || `TASK-${task.id}`,
+        productName: task.productName || '未知产品',
+        quantity: task.quantity || 0,
+        unit: task.unit || '件',
+        planName: task.planName || '',
         status: task.status || 'pending',
-        completedQuantity: task.completed_quantity || 0,
-        created_at: task.created_at,
+        completedQuantity: task.completedQuantity || 0,
+        createdAt: task.createdAt,
         progressPercent: calculateProgress(task)
       }))
 
@@ -411,7 +412,7 @@
     submitting.value = true
     try {
       await productionApi.reportProductionProgress({
-        task_id: currentTask.value.id,
+        taskId: currentTask.value.id,
         completed_quantity: Number(reportForm.completed_quantity),
         remarks: reportForm.remarks
       })

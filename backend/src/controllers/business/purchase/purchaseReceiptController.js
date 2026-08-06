@@ -161,7 +161,7 @@ const getReceipts = async (req, res) => {
           order_no: row.joined_order_no || row.order_no || '',
           supplier_name: row.joined_supplier_name || row.supplier_name || '',
           warehouse_name: row.joined_warehouse_name || row.warehouse_name || '',
-          receiver: row.operator === 'system' ? '系统' : row.real_name || row.operator || '',
+          receiver: row.operator === 'system' ? '系统' : row.realName || row.operator || '',
         })
       );
 
@@ -285,7 +285,7 @@ const getReceipt = async (req, res) => {
         order_no: receipt.order_no,
         supplier_name: receipt.supplier_name,
         warehouse_name: receipt.warehouse_name,
-        receiver: receipt.operator === 'system' ? '系统' : receipt.real_name || receipt.operator,
+        receiver: receipt.operator === 'system' ? '系统' : receipt.realName || receipt.operator,
         items: undefined,
       });
       response.items = formattedItems;
@@ -751,8 +751,9 @@ const createReceipt = async (req, res) => {
     if (items && Array.isArray(items) && items.length > 0) {
       // 如果来自检验且只使用检验物料，则过滤物料列表，只保留检验物料
       if (isFromInspection && only_inspection_material && material_id) {
+        // items 已由 purchaseReceiptItemMap 转为 snake
         const filteredItems = items.filter((item) => {
-          const itemMatId = item.materialId || item.material_id;
+          const itemMatId = item.material_id;
           return String(itemMatId) === String(material_id);
         });
 
@@ -772,7 +773,7 @@ const createReceipt = async (req, res) => {
 
       const receiptMaterialIds = [...new Set(
         items
-          .map((item) => Number(item?.materialId || item?.material_id))
+          .map((item) => Number(item?.material_id))
           .filter((id) => Number.isInteger(id) && id > 0)
       )];
       const materialInfoMap = new Map();
@@ -828,10 +829,10 @@ const createReceipt = async (req, res) => {
             throw new Error(`第${i + 1}个物料项无效`);
           }
 
-          // 如果缺少物料编码，从数据库获取
-          let materialCode = item.materialCode || item.material_code || '';
-          let materialName = item.materialName || item.material_name || '';
-          const currentMaterialId = Number(item.materialId || item.material_id) || null;
+          // items 已由 FieldMap 转为 snake（material_id / material_code …）
+          let materialCode = item.material_code || '';
+          let materialName = item.material_name || '';
+          const currentMaterialId = Number(item.material_id) || null;
 
           if ((!materialCode || !materialName) && currentMaterialId) {
             const materialInfo = materialInfoMap.get(currentMaterialId);
@@ -846,7 +847,7 @@ const createReceipt = async (req, res) => {
           }
 
           const orderContexts = orderContextMap.get(currentMaterialId) || [];
-          const requestedOrderItemId = Number(item.orderItemId || item.order_item_id) || null;
+          const requestedOrderItemId = Number(item.order_item_id) || null;
           let orderContext;
           if (requestedOrderItemId) {
             orderContext = orderContexts.find(
@@ -888,9 +889,9 @@ const createReceipt = async (req, res) => {
             batchNumber = inspectionBatchMap.get(currentMaterialId);
             logger.info(`物料 ${materialCode} 使用检验单批次号: ${batchNumber}`);
           }
-          // 2. 其次使用前端传入的批次号（支持多种字段名）
-          else if (item.batchNo || item.batchNumber || item.batch_number) {
-            batchNumber = item.batchNo || item.batchNumber || item.batch_number;
+          // 2. 其次使用明细批次号（FieldMap 后为 snake batch_number）
+          else if (item.batch_number) {
+            batchNumber = item.batch_number;
             logger.info(`物料 ${materialCode} 使用传入批次号: ${batchNumber}`);
           }
           // 3. 如果都没有，记录警告但不自动生成
@@ -924,16 +925,15 @@ const createReceipt = async (req, res) => {
             );
           }
 
-          const receiptQuantity = parseFloat(
-            item.quantity || item.receivedQuantity || item.received_quantity
-          ) || 0;
+          // FieldMap snake：quantity / received_quantity / qualified_quantity
+          // Use || so quantity=0 falls through to received_quantity (common camel-only bodies)
+          const receiptQuantity =
+            parseFloat(item.quantity) || parseFloat(item.received_quantity) || 0;
           if (receiptQuantity <= 0) {
             throw new Error(`物料 ${materialCode} 入库数量必须大于0`);
           }
 
-          const qualifiedQuantity = parseFloat(
-            item.qualifiedQuantity || item.qualified_quantity
-          ) || 0;
+          const qualifiedQuantity = parseFloat(item.qualified_quantity) || 0;
           if (inspectionContext) {
             const inspectionQualifiedQuantity =
               parseFloat(inspectionContext.qualified_quantity) || 0;
@@ -949,7 +949,7 @@ const createReceipt = async (req, res) => {
 
           // 确保所有参数都不是undefined
           const taxRate = normalizeTaxRate(
-            item.tax_rate ?? item.taxRate ?? orderContext.taxRate,
+            item.tax_rate ?? orderContext.taxRate,
             financeConfig.get('tax.defaultVATRate', 0.13)
           );
           const amountExcludingTax = lineAmount(receiptQuantity, itemPrice);
@@ -965,10 +965,10 @@ const createReceipt = async (req, res) => {
             materialCode,
             materialName,
             item.specification || item.specs || '',
-            item.unitId || item.unit_id || null,
-            parseFloat(item.orderedQuantity || item.ordered_quantity) || 0,
-            receiptQuantity, // 使用receivedQuantity作为quantity
-            parseFloat(item.receivedQuantity || item.received_quantity) || 0,
+            item.unit_id || null,
+            parseFloat(item.ordered_quantity) || 0,
+            receiptQuantity,
+            parseFloat(item.received_quantity) || receiptQuantity || 0,
             qualifiedQuantity,
             batchNumber,
             itemPrice,
@@ -1190,9 +1190,10 @@ const updateReceipt = async (req, res) => {
     // 更新物料项目
     if (items && Array.isArray(items) && items.length > 0) {
       for (const item of items) {
-        // 支持多种字段名称：actualQuantity, receivedQuantity, received_quantity
-        const receivedQty = item.actualQuantity || item.receivedQuantity || item.received_quantity;
-        const qualifiedQty = item.qualifiedQuantity || item.qualified_quantity;
+        // update 路径明细：优先 snake（已 map），兼容 HTTP camel actualQuantity/receivedQuantity
+        const receivedQty =
+          item.received_quantity ?? item.actualQuantity ?? item.receivedQuantity;
+        const qualifiedQty = item.qualified_quantity ?? item.qualifiedQuantity;
 
         if (!item.id || receivedQty === undefined || receivedQty === null) {
           throw new Error('采购入库单明细缺少ID或收货数量');

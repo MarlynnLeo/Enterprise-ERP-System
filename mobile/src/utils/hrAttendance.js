@@ -13,7 +13,7 @@ export const getAttendanceList = (response) => {
 export const findEmployeeAttendance = async (hrApi, employeeId, period) => {
   try {
     const response = await hrApi.getAttendance({ period })
-    return getAttendanceList(response).find((item) => String(item.employee_id) === String(employeeId)) || null
+    return getAttendanceList(response).find((item) => String(item.employeeId) === String(employeeId)) || null
   } catch (error) {
     console.warn('读取考勤记录失败，将按新记录保存:', error)
     return null

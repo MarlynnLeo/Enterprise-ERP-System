@@ -31,16 +31,16 @@
 
     fields: {
       id: 'id',
-      title: 'inspection_no',
-      subtitle: 'reference_no', // 工单号
+      title: 'inspectionNo',
+      subtitle: 'referenceNo', // 工单号
       icon: 'cog',
       status: 'status',
 
-      // 详情字段 — 精简为3列
+      // 详情字段 — 精简为3列（后端 camel）
       details: [
-        { label: '产品工序', field: (item) => `${item.item_name || '—'}` },
+        { label: '产品工序', field: (item) => `${item.itemName || item.productName || item.processName || '—'}` },
         { label: '检验数量', field: (item) => `${item.quantity ?? 0} ${item.unit || '个'}` },
-        { label: '合格/不合格', field: (item) => `${item.qualified_quantity ?? 0} / ${item.unqualified_quantity ?? 0}` }
+        { label: '合格/不合格', field: (item) => `${item.qualifiedQuantity ?? 0} / ${item.unqualifiedQuantity ?? 0}` }
       ],
 
       // 标签
@@ -96,14 +96,7 @@
     }
     const response = await qualityApi.getProcessInspections(apiParams)
 
-    if (response && response.data && Array.isArray(response.data.list)) {
-      response.data.list = response.data.list.map(item => ({
-        ...item,
-        inspection_no: item.inspection_number || item.inspection_no || '-',
-        reference_no: item.reference_no || item.work_order_no || '-'
-      }))
-    }
-
+    // 后端已输出 camel，无需 snake 补丁
     return response
   }
 

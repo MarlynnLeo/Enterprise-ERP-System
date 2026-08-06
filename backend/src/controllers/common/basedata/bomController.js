@@ -9,6 +9,7 @@ const { getCurrentUserName } = require('../../../utils/userHelper');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const { safeParseId } = require('../../../utils/safeParseId');
 const DLQService = require('../../../services/business/DLQService');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 
 const bomService = require('../../../services/bomService');
 
@@ -17,17 +18,16 @@ const bomController = {
   async getAllBoms(req, res) {
     try {
       const { page = 1, pageSize = 10, ...filters } = req.query;
-
-      // 兼容前端发送的 product_id 参数，转换为 productId
-      if (filters.product_id && !filters.productId) {
-        filters.productId = filters.product_id;
-        delete filters.product_id;
+      // HTTP camel → service snake
+      const serviceFilters = mapKeysToSnake(filters);
+      if (serviceFilters.product_id == null && filters.productId != null) {
+        serviceFilters.product_id = filters.productId;
       }
 
       const result = await bomService.getAllBoms(
         parseInt(page) || 1,
         parseInt(pageSize) || 10,
-        filters
+        serviceFilters
       );
       ResponseHandler.paginated(
         res,
@@ -59,20 +59,22 @@ const bomController = {
 
   async createBom(req, res) {
     try {
-      // 兼容两种数据格式
+      // 兼容两种数据格式；HTTP camel → snake
       let bomData, details;
       if (req.body.bomData && req.body.details) {
-        // 格式1: { bomData: {...}, details: [...] }
-        bomData = req.body.bomData;
-        details = req.body.details;
+        bomData = mapKeysToSnake(req.body.bomData);
+        details = Array.isArray(req.body.details)
+          ? req.body.details.map((d) => mapKeysToSnake(d))
+          : req.body.details;
       } else {
-        // 格式2: { product_id, version, ..., details: [...] }
         const { details: detailsArray, ...restData } = req.body;
-        bomData = restData;
-        details = detailsArray;
+        bomData = mapKeysToSnake(restData);
+        details = Array.isArray(detailsArray)
+          ? detailsArray.map((d) => mapKeysToSnake(d))
+          : detailsArray;
       }
 
-      // 控制器级输入校验
+      // 控制器级输入校验（只认 snake 内部）
       if (!bomData || !bomData.product_id) {
         return ResponseHandler.error(res, '产品ID为必填项', 'VALIDATION_ERROR', 400);
       }
@@ -113,17 +115,19 @@ const bomController = {
 
   async updateBom(req, res) {
     try {
-      // 兼容两种数据格式
+      // 兼容两种数据格式；HTTP camel → snake
       let bomData, details;
       if (req.body.bomData && req.body.details) {
-        // 格式1: { bomData: {...}, details: [...] }
-        bomData = req.body.bomData;
-        details = req.body.details;
+        bomData = mapKeysToSnake(req.body.bomData);
+        details = Array.isArray(req.body.details)
+          ? req.body.details.map((d) => mapKeysToSnake(d))
+          : req.body.details;
       } else {
-        // 格式2: { product_id, version, ..., details: [...] }
         const { details: detailsArray, ...restData } = req.body;
-        bomData = restData;
-        details = detailsArray;
+        bomData = mapKeysToSnake(restData);
+        details = Array.isArray(detailsArray)
+          ? detailsArray.map((d) => mapKeysToSnake(d))
+          : detailsArray;
       }
 
       // 控制器级输入校验

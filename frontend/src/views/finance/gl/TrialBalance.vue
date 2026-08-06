@@ -27,7 +27,7 @@
             <el-option
               v-for="item in periods"
               :key="item.id"
-              :label="item.period_name"
+              :label="item.periodName"
               :value="item.id"
             />
           </el-select>
@@ -56,57 +56,57 @@
           height="calc(100vh - 400px)"
         >
           <template #empty>
-            <el-empty description="暂无数据" />
+            <EmptyState description="暂无数据" />
           </template>
-          <el-table-column prop="account_code" label="科目编码" width="120" sortable />
-          <el-table-column prop="account_name" label="科目名称" min-width="180" />
-          <el-table-column prop="account_type" label="科目类型" width="100" />
-          <el-table-column prop="is_debit" label="余额方向" width="100">
+          <el-table-column prop="accountCode" label="科目编码" width="120" sortable />
+          <el-table-column prop="accountName" label="科目名称" min-width="180" />
+          <el-table-column prop="accountType" label="科目类型" width="100" />
+          <el-table-column prop="isDebit" label="余额方向" width="100">
             <template #default="{ row }">
-              <el-tag :type="row.is_debit ? 'success' : 'warning'" size="small">
-                {{ row.is_debit ? '借' : '贷' }}
+              <el-tag :type="row.isDebit ? 'success' : 'warning'" size="small">
+                {{ row.isDebit ? '借' : '贷' }}
               </el-tag>
             </template>
           </el-table-column>
 
           <el-table-column label="期初余额">
-            <el-table-column prop="opening_debit_amount" label="借方" width="150">
+            <el-table-column prop="openingDebitAmount" label="借方" width="150">
               <template #default="{ row }">
-                {{ formatAmountOrEmpty(row.opening_debit_amount) }}
+                {{ formatAmountOrEmpty(row.openingDebitAmount) }}
               </template>
             </el-table-column>
-            <el-table-column prop="opening_credit_amount" label="贷方" width="150">
+            <el-table-column prop="openingCreditAmount" label="贷方" width="150">
               <template #default="{ row }">
-                {{ formatAmountOrEmpty(row.opening_credit_amount) }}
+                {{ formatAmountOrEmpty(row.openingCreditAmount) }}
               </template>
             </el-table-column>
           </el-table-column>
 
           <el-table-column label="本期发生额">
-            <el-table-column prop="total_debit" label="借方" width="150">
+            <el-table-column prop="totalDebit" label="借方" width="150">
               <template #default="{ row }">
-                {{ formatMoney(row.total_debit) }}
+                {{ formatMoney(row.totalDebit) }}
               </template>
             </el-table-column>
-            <el-table-column prop="total_credit" label="贷方" width="150">
+            <el-table-column prop="totalCredit" label="贷方" width="150">
               <template #default="{ row }">
-                {{ formatMoney(row.total_credit) }}
+                {{ formatMoney(row.totalCredit) }}
               </template>
             </el-table-column>
           </el-table-column>
 
           <el-table-column label="期末余额">
-            <el-table-column prop="debit_balance" label="借方" width="150">
+            <el-table-column prop="debitBalance" label="借方" width="150">
               <template #default="{ row }">
-                <span :class="{ 'text-muted': Number(row.debit_balance) === 0 }">
-                  {{ formatMoney(row.debit_balance) }}
+                <span :class="{ 'text-muted': Number(row.debitBalance) === 0 }">
+                  {{ formatMoney(row.debitBalance) }}
                 </span>
               </template>
             </el-table-column>
-            <el-table-column prop="credit_balance" label="贷方" width="150">
+            <el-table-column prop="creditBalance" label="贷方" width="150">
               <template #default="{ row }">
-                <span :class="{ 'text-muted': Number(row.credit_balance) === 0 }">
-                  {{ formatMoney(row.credit_balance) }}
+                <span :class="{ 'text-muted': Number(row.creditBalance) === 0 }">
+                  {{ formatMoney(row.creditBalance) }}
                 </span>
               </template>
             </el-table-column>
@@ -138,27 +138,27 @@ const formatAmountOrEmpty = value => (Math.abs(toNumber(value)) > 0.001 ? format
 
 const normalizeTrialBalanceRows = rows => rows
   .map(row => {
-    const openingBalance = toNumber(row.opening_balance)
-    const openingDebit = row.is_debit ? openingBalance : -openingBalance
+    const openingBalance = toNumber(row.openingBalance)
+    const openingDebit = row.isDebit ? openingBalance : -openingBalance
 
     return {
       ...row,
       opening_debit_amount: openingDebit > 0 ? openingDebit : 0,
       opening_credit_amount: openingDebit < 0 ? Math.abs(openingDebit) : 0,
-      total_debit: toNumber(row.total_debit),
-      total_credit: toNumber(row.total_credit),
-      debit_balance: toNumber(row.debit_balance),
-      credit_balance: toNumber(row.credit_balance)
+      total_debit: toNumber(row.totalDebit),
+      total_credit: toNumber(row.totalCredit),
+      debit_balance: toNumber(row.debitBalance),
+      credit_balance: toNumber(row.creditBalance)
     }
   })
   .filter(row => {
     const values = [
-      row.opening_debit_amount,
-      row.opening_credit_amount,
-      row.total_debit,
-      row.total_credit,
-      row.debit_balance,
-      row.credit_balance
+      row.openingDebitAmount,
+      row.openingCreditAmount,
+      row.totalDebit,
+      row.totalCredit,
+      row.debitBalance,
+      row.creditBalance
     ]
     return values.some(value => Math.abs(value) > 0.001)
   })
@@ -276,16 +276,16 @@ const exportData = async () => {
 
     tableData.value.forEach(row => {
       worksheet.addRow([
-        row.account_code,
-        row.account_name,
-        row.account_type,
-        row.is_debit ? '借' : '贷',
-        row.opening_debit_amount || '',
-        row.opening_credit_amount || '',
-        row.total_debit || '',
-        row.total_credit || '',
-        row.debit_balance || '',
-        row.credit_balance || ''
+        row.accountCode,
+        row.accountName,
+        row.accountType,
+        row.isDebit ? '借' : '贷',
+        row.openingDebitAmount || '',
+        row.openingCreditAmount || '',
+        row.totalDebit || '',
+        row.totalCredit || '',
+        row.debitBalance || '',
+        row.creditBalance || ''
       ])
     })
 

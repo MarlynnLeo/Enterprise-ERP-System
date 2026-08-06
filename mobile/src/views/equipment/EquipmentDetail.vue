@@ -9,16 +9,16 @@
     <div v-else-if="equipment" class="content">
       <CellGroup inset title="基本信息">
         <Cell title="设备名称" :value="equipment.name || '-'" />
-        <Cell title="设备编码" :value="equipment.code || equipment.equipment_code || '-'" />
+        <Cell title="设备编码" :value="equipment.equipmentCode || '-'" />
         <Cell title="型号" :value="equipment.model || '-'" />
         <Cell title="状态" :value="getStatusText(equipment.status)" />
-        <Cell title="所在位置" :value="equipment.location || equipment.location_name || '-'" />
-        <Cell title="负责人" :value="equipment.responsible_person || equipment.manager_name || '-'" />
+        <Cell title="所在位置" :value="equipment.location || equipment.locationName || '-'" />
+        <Cell title="负责人" :value="equipment.responsiblePerson || '-'" />
       </CellGroup>
 
       <CellGroup inset title="维护信息">
         <Cell title="购置日期" :value="formatDate(equipment.purchase_date)" />
-        <Cell title="启用日期" :value="formatDate(equipment.start_date || equipment.use_date)" />
+        <Cell title="启用日期" :value="formatDate(equipment.useDate)" />
         <Cell title="上次保养" :value="formatDate(equipment.last_maintenance_date)" />
         <Cell title="下次保养" :value="formatDate(equipment.next_maintenance_date)" />
       </CellGroup>

@@ -154,14 +154,14 @@ const viewReportDetail = (report) => {
 
 const normalizeReport = (row) => ({
   id: row.id,
-  taskCode: row.task_code || row.taskCode || '',
-  productName: row.product_name || row.productName || '',
-  completedQuantity: Number(row.completed_quantity || row.report_quantity || 0),
-  qualifiedQuantity: Number(row.qualified_quantity || 0),
+  taskCode: row.taskCode || '',
+  productName: row.productName || '',
+  completedQuantity: Number(row.completedQuantity || row.reportQuantity || 0),
+  qualifiedQuantity: Number(row.qualifiedQuantity || 0),
   defectiveQuantity: Number(row.defective_quantity || 0),
   workHours: Number(row.work_hours || 0),
   unit: row.unit || '',
-  operator: row.operator_name || row.operator || '',
+  operator: row.operatorName || row.operator || '',
   reportDate: row.report_time ? dayjs(row.report_time).format('YYYY-MM-DD') : '',
   status: row.status || 'completed'
 })

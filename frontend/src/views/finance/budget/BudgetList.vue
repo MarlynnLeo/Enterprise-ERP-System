@@ -50,21 +50,21 @@
       <!-- 数据表格 -->
       <el-table :data="tableData" v-loading="loading" border stripe>
         <template #empty>
-          <el-empty description="暂无预算数据" />
+          <EmptyState description="暂无预算数据" />
         </template>
-        <el-table-column prop="budget_no" label="预算编号" width="140" />
-        <el-table-column prop="budget_name" label="预算名称" min-width="180" />
-        <el-table-column prop="budget_year" label="预算年度" width="100" />
-        <el-table-column prop="budget_type" label="预算类型" width="100" />
-        <el-table-column prop="department_name" label="部门" width="120" />
-        <el-table-column prop="total_amount" label="预算总额" width="120">
+        <el-table-column prop="budgetNo" label="预算编号" width="140" />
+        <el-table-column prop="budgetName" label="预算名称" min-width="180" />
+        <el-table-column prop="budgetYear" label="预算年度" width="100" />
+        <el-table-column prop="budgetType" label="预算类型" width="100" />
+        <el-table-column prop="departmentName" label="部门" width="120" />
+        <el-table-column prop="totalAmount" label="预算总额" width="120">
           <template #default="{ row }">
-            {{ formatAmount(row.total_amount) }}
+            {{ formatAmount(row.totalAmount) }}
           </template>
         </el-table-column>
-        <el-table-column prop="used_amount" label="已使用" width="120">
+        <el-table-column prop="usedAmount" label="已使用" width="120">
           <template #default="{ row }">
-            {{ formatAmount(row.used_amount) }}
+            {{ formatAmount(row.usedAmount) }}
           </template>
         </el-table-column>
         <el-table-column label="执行率" width="100">
@@ -82,8 +82,8 @@
             <el-tag :type="getStatusType(row.status)">{{ getStatusText(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="creator_name" label="创建人" width="100" />
-        <el-table-column prop="created_at" label="创建时间" width="160" />
+        <el-table-column prop="creatorName" label="创建人" width="100" />
+        <el-table-column prop="createdAt" label="创建时间" width="160" />
         <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <el-button class="btn-op-view" type="primary" size="small" @click="handleView(row)">查看</el-button>
@@ -310,9 +310,9 @@ const handleDelete = async (row) => {
 // 格式化金额 - 已统一使用 @/utils/format 导入
 // 计算执行率
 const calculateExecutionRate = (row) => {
-  if (!row.total_amount || Number(row.total_amount) === 0) return 0;
-  const used = Number(row.used_amount) || 0;
-  const total = Number(row.total_amount);
+  if (!row.totalAmount || Number(row.totalAmount) === 0) return 0;
+  const used = Number(row.usedAmount) || 0;
+  const total = Number(row.totalAmount);
   const rate = Math.round((used / total) * 100);
   return isNaN(rate) ? 0 : rate;
 };

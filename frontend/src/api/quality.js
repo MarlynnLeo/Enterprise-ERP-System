@@ -35,9 +35,9 @@ export const qualityApi = {
 
   getMaterialDefaultTemplate: (materialId, inspectionType = 'incoming') => api.get('/quality/templates', {
     params: {
-      material_type: materialId,
-      inspection_type: inspectionType,
-      include_general: true,
+      materialType: materialId,
+      inspectionType,
+      includeGeneral: true,
       status: 'active',
       pageSize: 50,
       page: 1,
@@ -56,7 +56,8 @@ export const qualityApi = {
   getQualityStatistics: (params = {}) => api.get('/quality/statistics', { params }),
   getDefectItems: (params = {}) => api.get('/quality/defect-items', { params }),
   getQualityTrends: (params = {}) => api.get('/quality/trends', { params }),
-  getReworkStatusByInspectionIds: (inspectionIds) => api.post('/quality/rework-tasks/by-inspections', { inspection_ids: inspectionIds }),
+  getReworkStatusByInspectionIds: (inspectionIds) =>
+    api.post('/quality/rework-tasks/by-inspections', { inspectionIds }),
   getInspectionItems: (id) => api.get(`/quality/inspections/${id}/items`),
 
   reworkTasks: {
@@ -99,9 +100,10 @@ export const qualityApi = {
   updateAqlStandard: (id, data) => api.put(`/quality/aql-standards/${id}`, data),
   deleteAqlStandard: (id) => api.delete(`/quality/aql-standards/${id}`),
   getAqlLevels: () => api.get('/quality/aql-levels'),
+  // HTTP 入参只认 camel
   calculateAqlSampling: (data) => api.post('/quality/aql-sampling/calculate', {
-    batch_size: data.batchSize || data.batch_size,
-    aql_level: data.aqlLevel || data.aql_level,
+    batchSize: data.batchSize,
+    aqlLevel: data.aqlLevel,
   }),
 
   getGauges: (params) => api.get('/quality/gauges', { params }),

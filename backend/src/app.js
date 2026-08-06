@@ -463,6 +463,12 @@ app.get('/', (_, res) => {
   res.send('工厂管理系统API服务正在运行');
 });
 
+// 浏览器默认探测资源：静默 204，避免刷 notFound 警告日志
+// 前端实际图标为 /favicon.svg（由 Vite/nginx 提供）；API 服务本身无站点图标
+app.get(['/favicon.ico', '/robots.txt'], (_req, res) => {
+  res.status(204).end();
+});
+
 // 使用统一的错误处理中间件
 app.use(csrfErrorHandler); // CSRF错误处理必须在其他错误处理之前
 app.use(notFoundHandler);

@@ -8,9 +8,9 @@
   >
     <div v-if="bomData">
         <el-descriptions :column="2" border>
-          <el-descriptions-item label="产品名称">{{ bomData.product_name || bomData.productName }}</el-descriptions-item>
-          <el-descriptions-item label="产品编码">{{ bomData.product_code || bomData.productCode }}</el-descriptions-item>
-          <el-descriptions-item label="规格型号">{{ bomData.product_specs || bomData.productSpecs || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="产品名称">{{ bomData.productName }}</el-descriptions-item>
+          <el-descriptions-item label="产品编码">{{ bomData.productCode }}</el-descriptions-item>
+          <el-descriptions-item label="规格型号">{{ bomData.productSpecs || '-' }}</el-descriptions-item>
           <el-descriptions-item label="BOM版本">{{ bomData.version }}</el-descriptions-item>
           <el-descriptions-item label="状态">
             <el-tag :type="isApproved(bomData) ? 'success' : 'warning'">
@@ -18,9 +18,9 @@
             </el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="创建人">{{ bomData.created_by }}</el-descriptions-item>
-          <el-descriptions-item label="创建时间">{{ bomData.created_at }}</el-descriptions-item>
+          <el-descriptions-item label="创建时间">{{ bomData.createdAt }}</el-descriptions-item>
           <el-descriptions-item label="修改人">{{ bomData.updated_by }}</el-descriptions-item>
-          <el-descriptions-item label="最后修改时间">{{ bomData.updated_at }}</el-descriptions-item>
+          <el-descriptions-item label="最后修改时间">{{ bomData.updatedAt }}</el-descriptions-item>
           <el-descriptions-item label="备注" :span="2">{{ bomData.remark || '-' }}</el-descriptions-item>
         </el-descriptions>
 
@@ -42,15 +42,15 @@
           <el-tab-pane label="BOM明细" name="details">
             <el-table :data="displayDetails" border max-height="400" row-key="id" default-expand-all :tree-props="{ children: 'children', hasChildren: 'hasChildren' }">
               <el-table-column label="结构" prop="wbs" width="90"></el-table-column>
-              <el-table-column prop="material_code" label="物料编码" width="130" show-overflow-tooltip></el-table-column>
-              <el-table-column prop="material_name" label="物料名称" width="150" show-overflow-tooltip></el-table-column>
+              <el-table-column prop="materialCode" label="物料编码" width="130" show-overflow-tooltip></el-table-column>
+              <el-table-column prop="materialName" label="物料名称" width="150" show-overflow-tooltip></el-table-column>
               <el-table-column label="规格型号" width="220" show-overflow-tooltip>
                 <template #default="scope">
-                  <span>{{ scope.row.specification || scope.row.material_specs || scope.row.specs || '-' }}</span>
+                  <span>{{ scope.row.specification || scope.row.materialSpecs || scope.row.specs || '-' }}</span>
                 </template>
               </el-table-column>
               <el-table-column prop="quantity" label="用量" width="70"></el-table-column>
-              <el-table-column prop="unit_name" label="单位" width="60"></el-table-column>
+              <el-table-column prop="unitName" label="单位" width="60"></el-table-column>
             </el-table>
           </el-tab-pane>
         </el-tabs>
@@ -113,7 +113,7 @@ const isApproved = (data) => {
   if (data.approved !== undefined) {
     return Number(data.approved) === 1
   }
-  return data.approved_by !== null && data.approved_by !== undefined
+  return data.approvedBy !== null && data.approvedBy !== undefined
 }
 
 // 附件辅助函数

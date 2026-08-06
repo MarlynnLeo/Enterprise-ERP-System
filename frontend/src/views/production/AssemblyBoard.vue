@@ -21,7 +21,7 @@
             </el-tag>
           </div>
           <div class="bs-name">{{ s.name }}</div>
-          <div class="bs-line">{{ s.line_name || s.line_code || '' }}</div>
+          <div class="bs-line">{{ s.lineName || s.lineCode || '' }}</div>
           <template v-if="s.status === 'busy'">
             <el-divider class="divider-tight" />
             <div class="bs-task">
@@ -34,11 +34,11 @@
             </div>
             <div class="bs-task">
               <div class="bs-label">操作人</div>
-              <div class="bs-value">{{ s.operator_name || '-' }}</div>
+              <div class="bs-value">{{ s.operatorName || '-' }}</div>
             </div>
             <div class="bs-task">
               <div class="bs-label">产品</div>
-              <div class="bs-value">{{ s.product_name || '-' }}</div>
+              <div class="bs-value">{{ s.productName || '-' }}</div>
             </div>
             <div class="bs-task" v-if="s.started_at">
               <div class="bs-label">已用时</div>
@@ -47,41 +47,41 @@
           </template>
         </div>
       </div>
-      <el-empty v-else description="暂无工位数据，请先在工位管理中添加工位" />
+      <EmptyState v-else description="暂无工位数据，请先在工位管理中添加工位" />
     </el-card>
 
     <!-- 任务进度 -->
     <el-card class="data-card mt-md">
       <h3 class="mb-md">装配任务进度</h3>
       <el-table :data="boardData.taskProgress" border stripe v-if="boardData.taskProgress?.length">
-        <el-table-column prop="task_code" label="任务编号" width="140" />
-        <el-table-column prop="product_name" label="产品" min-width="150" />
+        <el-table-column prop="taskCode" label="任务编号" width="140" />
+        <el-table-column prop="productName" label="产品" min-width="150" />
         <el-table-column label="进度" min-width="250">
           <template #default="{ row }">
             <div class="flex-row gap-12">
-              <el-progress :percentage="row.progress_percent" :stroke-width="18"
-                :color="row.progress_percent === 100 ? 'var(--color-success)' : 'var(--color-primary)'"
+              <el-progress :percentage="row.progressPercent" :stroke-width="18"
+                :color="row.progressPercent === 100 ? 'var(--color-success)' : 'var(--color-primary)'"
                 class="flex-1" />
               <span class="nowrap text-md text-regular">
-                {{ row.completed_steps }}/{{ row.total_steps }} 道
+                {{ row.completedSteps }}/{{ row.totalSteps }} 道
               </span>
             </div>
           </template>
         </el-table-column>
         <el-table-column label="当前工序" width="120">
           <template #default="{ row }">
-            <el-tag v-if="row.in_progress_steps > 0" type="warning" size="small">作业中</el-tag>
-            <el-tag v-else-if="row.progress_percent === 100" type="success" size="small">已完成</el-tag>
+            <el-tag v-if="row.inProgressSteps > 0" type="warning" size="small">作业中</el-tag>
+            <el-tag v-else-if="row.progressPercent === 100" type="success" size="small">已完成</el-tag>
             <el-tag v-else type="info" size="small">等待中</el-tag>
           </template>
         </el-table-column>
         <el-table-column label="操作" width="100">
           <template #default="{ row }">
-            <el-button class="btn-op-view" type="primary" size="small" @click="viewTaskSteps(row.task_id)">详情</el-button>
+            <el-button class="btn-op-view" type="primary" size="small" @click="viewTaskSteps(row.taskId)">详情</el-button>
           </template>
         </el-table-column>
       </el-table>
-      <el-empty v-else description="暂无进行中的装配任务" />
+      <EmptyState v-else description="暂无进行中的装配任务" />
     </el-card>
 
     <!-- 任务工序详情弹窗 -->
@@ -98,12 +98,12 @@
 
       <el-table :data="taskSteps" border size="small">
         <el-table-column prop="sequence" label="序号" width="60" align="center" />
-        <el-table-column prop="step_name" label="工序" width="140" />
+        <el-table-column prop="stepName" label="工序" width="140" />
         <el-table-column label="工位" width="100">
-          <template #default="{ row }">{{ row.station_name || '-' }}</template>
+          <template #default="{ row }">{{ row.stationName || '-' }}</template>
         </el-table-column>
         <el-table-column label="操作人" width="100">
-          <template #default="{ row }">{{ row.operator_name || '-' }}</template>
+          <template #default="{ row }">{{ row.operatorName || '-' }}</template>
         </el-table-column>
         <el-table-column label="状态" width="90" align="center">
           <template #default="{ row }">
@@ -112,14 +112,14 @@
         </el-table-column>
         <el-table-column label="标准/实际工时" width="130">
           <template #default="{ row }">
-            <span>{{ row.standard_minutes || '-' }} / {{ row.actual_minutes || '-' }} 分</span>
+            <span>{{ row.standardMinutes || '-' }} / {{ row.actualMinutes || '-' }} 分</span>
           </template>
         </el-table-column>
         <el-table-column label="开始时间" width="160">
-          <template #default="{ row }">{{ row.started_at || '-' }}</template>
+          <template #default="{ row }">{{ row.startedAt || '-' }}</template>
         </el-table-column>
         <el-table-column label="完成时间" width="160">
-          <template #default="{ row }">{{ row.completed_at || '-' }}</template>
+          <template #default="{ row }">{{ row.completedAt || '-' }}</template>
         </el-table-column>
       </el-table>
     </AppDialog>

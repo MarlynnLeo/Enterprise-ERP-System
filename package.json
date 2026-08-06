@@ -1,9 +1,12 @@
 {
   "scripts": {
-    "lint": "npm run lint:backend && npm run lint:frontend && npm run lint:mobile",
+    "lint": "npm run lint:backend && npm run lint:frontend && npm run lint:mobile && npm run check:dual-case && npm run check:app-dialog && npm run check:theme-tokens",
     "lint:backend": "eslint backend/src",
     "lint:frontend": "cd frontend && npm run lint",
     "lint:mobile": "cd mobile && npm run lint",
+    "check:dual-case": "node scripts/check-no-dual-case.mjs",
+    "check:app-dialog": "node scripts/check-no-raw-eldialog.mjs",
+    "check:theme-tokens": "node scripts/check-theme-tokens.mjs",
     "lint:fix": "npm run lint:fix:backend && npm run lint:fix:frontend && npm run lint:fix:mobile",
     "lint:fix:backend": "eslint backend/src --fix",
     "lint:fix:frontend": "cd frontend && npm run lint:fix",

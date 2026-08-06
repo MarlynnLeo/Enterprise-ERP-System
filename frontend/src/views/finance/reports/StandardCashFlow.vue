@@ -135,7 +135,7 @@
       </div>
 
       <!-- 空状态 -->
-      <el-empty v-if="!loading && !reportData.items?.length" description="暂无数据，请选择日期范围后生成报表"></el-empty>
+      <EmptyState v-if="!loading && !reportData.items?.length" description="暂无数据，请选择日期范围后生成报表" />
     </el-card>
   </div>
 </template>

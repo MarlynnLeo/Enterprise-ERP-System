@@ -63,38 +63,38 @@
     <el-card class="data-card">
       <!-- 首检单列表 -->
       <el-table :data="inspectionList" border class="w-full" v-loading="loading">
-        <el-table-column prop="inspection_no" label="检验单号" min-width="140" />
-        <el-table-column prop="task_code" label="生产任务号" min-width="130" />
-        <el-table-column prop="product_name" label="产品名称" min-width="160" />
-        <el-table-column prop="product_code" label="产品编码" min-width="120" />
-        <el-table-column prop="batch_no" label="批次号" min-width="160" />
+        <el-table-column prop="inspectionNo" label="检验单号" min-width="140" />
+        <el-table-column prop="taskCode" label="生产任务号" min-width="130" />
+        <el-table-column prop="productName" label="产品名称" min-width="160" />
+        <el-table-column prop="productCode" label="产品编码" min-width="120" />
+        <el-table-column prop="batchNo" label="批次号" min-width="160" />
         <el-table-column label="检验数量" min-width="120">
           <template #default="{ row }">
             {{ row.quantity }} {{ row.unit }}
           </template>
         </el-table-column>
-        <el-table-column prop="planned_date" label="计划日期" min-width="100">
-          <template #default="{ row }">{{ formatDate(row.planned_date) }}</template>
+        <el-table-column prop="plannedDate" label="计划日期" min-width="100">
+          <template #default="{ row }">{{ formatDate(row.plannedDate) }}</template>
         </el-table-column>
-        <el-table-column prop="inspector_name" label="检验员" min-width="80" />
+        <el-table-column prop="inspectorName" label="检验员" min-width="80" />
         <el-table-column label="首检结果" min-width="110">
           <template #default="{ row }">
-            <el-tag :type="getResultType(row.first_article_result)">{{ getResultText(row.first_article_result) }}</el-tag>
+            <el-tag :type="getResultType(row.firstArticleResult)">{{ getResultText(row.firstArticleResult) }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column label="可继续生产" min-width="100">
           <template #default="{ row }">
-            <el-tag :type="row.production_can_continue ? 'success' : 'info'" size="small">
-              {{ row.production_can_continue ? '是' : '否' }}
+            <el-tag :type="row.productionCanContinue ? 'success' : 'info'" size="small">
+              {{ row.productionCanContinue ? '是' : '否' }}
             </el-tag>
           </template>
         </el-table-column>
         <el-table-column label="操作" fixed="right" min-width="320" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <el-button class="btn-op-view" type="primary" size="small" @click="handleView(row)">查看</el-button>
-            <el-button v-permission="'quality:inspections:update'" v-if="row.first_article_result === 'pending'" size="small" type="primary" @click="handleInspect(row)">检验</el-button>
-            <el-button v-permission="'quality:inspections:update'" v-if="row.first_article_result === 'failed'" size="small" type="warning" @click="handleReinspect(row)">重检</el-button>
-            <el-button v-permission="'quality:inspections:view'" v-if="row.first_article_result === 'passed'" size="small" type="success" @click="handlePrint(row)">打印</el-button>
+            <el-button v-permission="'quality:inspections:update'" v-if="row.firstArticleResult === 'pending'" size="small" type="primary" @click="handleInspect(row)">检验</el-button>
+            <el-button v-permission="'quality:inspections:update'" v-if="row.firstArticleResult === 'failed'" size="small" type="warning" @click="handleReinspect(row)">重检</el-button>
+            <el-button v-permission="'quality:inspections:view'" v-if="row.firstArticleResult === 'passed'" size="small" type="success" @click="handlePrint(row)">打印</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -254,28 +254,28 @@ const handlePrint = async (row) => {
 
     const printData = {
       // 基本信息
-      inspection_no: data.inspection_no || data.inspectionNo || '-',
-      reference_no: data.task_code || data.task_no || data.reference_no || '-',
-      task_no: data.task_code || data.task_no || '-',
-      product_name: data.product_name || data.productName || '-',
-      product_code: data.product_code || data.productCode || '-',
-      batch_no: data.batch_no || data.batchNo || '-',
+      inspection_no: data.inspectionNo || '-',
+      reference_no: data.taskCode || data.taskNo || data.referenceNo || '-',
+      task_no: data.taskCode || data.taskNo || '-',
+      product_name: data.productName || '-',
+      product_code: data.productCode || '-',
+      batch_no: data.batchNo || '-',
       quantity: data.quantity || 0,
       unit: data.unit || '',
-      standard_no: data.standard_no || data.standardNo || '-',
+      standard_no: data.standardNo || '-',
 
       // 日期
-      inspection_date: formatDateValue(data.inspection_date || data.inspectionDate),
-      planned_date: formatDateValue(data.planned_date || data.plannedDate),
+      inspection_date: formatDateValue(data.inspectionDate),
+      planned_date: formatDateValue(data.plannedDate),
 
       // 人员
-      inspector_name: data.inspector || data.inspector_name || '-',
-      inspector: data.inspector || data.inspector_name || '-',
+      inspector_name: data.inspector || data.inspectorName || '-',
+      inspector: data.inspector || data.inspectorName || '-',
 
       // 状态和结果
-      status: getStatusText(data.status || data.first_article_result),
-      result: getResultText(data.first_article_result || data.result),
-      first_article_result: getResultText(data.first_article_result),
+      status: getStatusText(data.status || data.firstArticleResult),
+      result: getResultText(data.firstArticleResult || data.result),
+      first_article_result: getResultText(data.firstArticleResult),
 
       // 备注
       remark: data.remark || '',
@@ -286,17 +286,17 @@ const handlePrint = async (row) => {
       print_time: new Date().toLocaleTimeString()
     }
 
-    const items = data.items || data.inspectionItems || data.inspection_items || [];
+    const items = data.items || data.inspectionItems || [];
     const html = await printService.generateByDefaultTemplate('quality', 'first_article_inspection', {
       ...printData,
-      document_no: printData.inspection_no,
-      date: printData.inspection_date !== '-' ? printData.inspection_date : printData.planned_date,
+      document_no: printData.inspectionNo,
+      date: printData.inspection_date !== '-' ? printData.inspection_date : printData.plannedDate,
       items: items.map((item, index) => ({
         index: index + 1,
-        item_code: item.item_code || item.code || '',
-        item_name: item.item_name || item.itemName || item.name || '-',
-        specification: item.standard || item.standard_value || item.standardValue || '-',
-        quantity: item.actual_value || item.actualValue || item.measured_value || '-',
+        item_code: item.itemCode || item.code || '',
+        item_name: item.itemName || item.name || '-',
+        specification: item.standard || item.standardValue || item.standardValue || '-',
+        quantity: item.actualValue || item.measuredValue || '-',
         unit_name: item.unit || '',
         result: getResultText(item.result || item.status),
         remark: item.remarks || item.remark || ''

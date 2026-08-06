@@ -77,8 +77,8 @@ export function useBomAdjustment() {
 
         try {
             const [bomRes, detailRes] = await Promise.all([
-                financeApi.getBomDetails(row.product_id),
-                financeApi.getPricingDetail(row.product_id)
+                financeApi.getBomDetails(row.productId),
+                financeApi.getPricingDetail(row.productId)
             ]);
 
             bomData.value = bomRes.data;
@@ -133,11 +133,11 @@ export function useBomAdjustment() {
         Object.assign(priceAdjustForm, {
             product_id: productId,
             bom_id: actualBomId,
-            material_id: row.material_id,
-            material_name: row.material_name,
-            material_code: row.material_code,
-            original_price: Number(row.original_price || row.current_price) || 0,
-            adjusted_price: Number(row.adjusted_price || row.current_price) || 0,
+            material_id: row.materialId,
+            material_name: row.materialName,
+            material_code: row.materialCode,
+            original_price: Number(row.originalPrice || row.currentPrice) || 0,
+            adjusted_price: Number(row.adjustedPrice || row.currentPrice) || 0,
             adjustment_reason: ''
         });
         priceAdjustDialogVisible.value = true;
@@ -145,7 +145,7 @@ export function useBomAdjustment() {
 
     // 保存价格调整
     const savePriceAdjustment = async (productId) => {
-        if (!priceAdjustForm.adjustment_reason || priceAdjustForm.adjustment_reason.trim() === '') {
+        if (!priceAdjustForm.adjustmentReason || priceAdjustForm.adjustmentReason.trim() === '') {
             ElMessage.warning('请填写调整原因');
             return false;
         }
@@ -182,8 +182,8 @@ export function useBomAdjustment() {
     // 查看价格调整历史
     const viewPriceHistory = async (row, productId) => {
         try {
-            currentHistoryMaterial.value = `${row.material_name} (${row.material_code})`;
-            const res = await financeApi.getBomPriceHistory(productId, row.material_id);
+            currentHistoryMaterial.value = `${row.materialName} (${row.materialCode})`;
+            const res = await financeApi.getBomPriceHistory(productId, row.materialId);
             priceHistory.value = res.data || [];
             priceHistoryDialogVisible.value = true;
         } catch (error) {
@@ -197,7 +197,7 @@ export function useBomAdjustment() {
         historyVisible.value = true;
         historyData.value = [];
         try {
-            const res = await financeApi.getPricingHistory(row.product_id);
+            const res = await financeApi.getPricingHistory(row.productId);
             historyData.value = res.data;
         } catch {
             ElMessage.error('获取历史记录失败');

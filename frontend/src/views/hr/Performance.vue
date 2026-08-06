@@ -33,12 +33,12 @@
             <template #default="{ row }">{{ catLabel[row.category] || row.category }}</template>
           </el-table-column>
           <el-table-column prop="weight" label="权重(%)" width="90" />
-          <el-table-column prop="target_value" label="目标值" width="100" />
-          <el-table-column prop="scoring_method" label="评分方式" width="100">
-            <template #default="{ row }">{{ row.scoring_method === 'manual' ? '手动' : row.scoring_method === 'auto' ? '自动' : '公式' }}</template>
+          <el-table-column prop="targetValue" label="目标值" width="100" />
+          <el-table-column prop="scoringMethod" label="评分方式" width="100">
+            <template #default="{ row }">{{ row.scoringMethod === 'manual' ? '手动' : row.scoringMethod === 'auto' ? '自动' : '公式' }}</template>
           </el-table-column>
-          <el-table-column prop="is_active" label="状态" width="80">
-            <template #default="{ row }"><el-tag :type="row.is_active ? 'success' : 'info'" size="small">{{ row.is_active ? '启用' : '停用' }}</el-tag></template>
+          <el-table-column prop="isActive" label="状态" width="80">
+            <template #default="{ row }"><el-tag :type="row.isActive ? 'success' : 'info'" size="small">{{ row.isActive ? '启用' : '停用' }}</el-tag></template>
           </el-table-column>
           <el-table-column label="操作" min-width="140" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="{ row }">
@@ -58,8 +58,8 @@
           <el-table-column prop="type" label="类型" width="100">
             <template #default="{ row }">{{ periodTypeLabel[row.type] }}</template>
           </el-table-column>
-          <el-table-column prop="start_date" label="开始日期" width="120" />
-          <el-table-column prop="end_date" label="结束日期" width="120" />
+          <el-table-column prop="startDate" label="开始日期" width="120" />
+          <el-table-column prop="endDate" label="结束日期" width="120" />
           <el-table-column prop="status" label="状态" width="100">
             <template #default="{ row }">
               <el-tag :type="periodStatusTag[row.status]" size="small">{{ periodStatusLabel[row.status] }}</el-tag>
@@ -78,10 +78,10 @@
       <!-- 绩效评估 -->
       <template v-if="activeTab === 'evaluations'">
         <el-table :data="tableData" v-loading="loading" border stripe>
-          <el-table-column prop="employee_name" label="员工" width="120" />
-          <el-table-column prop="period_name" label="考核周期" min-width="180" />
-          <el-table-column prop="total_score" label="总分" width="80">
-            <template #default="{ row }"><span class="font-weight-700" :class="row.total_score >= 80 ? 'text-success' : row.total_score >= 60 ? 'text-warning' : 'text-danger'">{{ row.total_score || '--' }}</span></template>
+          <el-table-column prop="employeeName" label="员工" width="120" />
+          <el-table-column prop="periodName" label="考核周期" min-width="180" />
+          <el-table-column prop="totalScore" label="总分" width="80">
+            <template #default="{ row }"><span class="font-weight-700" :class="row.totalScore >= 80 ? 'text-success' : row.totalScore >= 60 ? 'text-warning' : 'text-danger'">{{ row.totalScore || '--' }}</span></template>
           </el-table-column>
           <el-table-column prop="grade" label="等级" width="60">
             <template #default="{ row }"><el-tag v-if="row.grade" :type="gradeTag[row.grade] || 'info'" size="small">{{ row.grade }}</el-tag></template>
@@ -89,7 +89,7 @@
           <el-table-column prop="status" label="状态" width="100">
             <template #default="{ row }"><el-tag :type="evalStatusTag[row.status] || 'info'" size="small">{{ evalStatusLabel[row.status] || row.status }}</el-tag></template>
           </el-table-column>
-          <el-table-column prop="evaluator_name" label="考核人" width="100" />
+          <el-table-column prop="evaluatorName" label="考核人" width="100" />
           <el-table-column label="操作" min-width="120" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="{ row }">
               <el-button link type="primary" v-permission="row.status === 'completed' ? 'hr:performance:view' : 'hr:performance:edit'" @click="viewEval(row)">{{ row.status === 'completed' ? '查看' : '评分' }}</el-button>
@@ -104,7 +104,12 @@
     </el-card>
 
     <!-- 指标表单 -->
-    <el-dialog v-model="indicatorVis" :title="indicatorForm.id ? '编辑指标' : '新建指标'" width="500px">
+    <AppDialog
+      v-model="indicatorVis"
+      :title="indicatorForm.id ? '编辑指标' : '新建指标'"
+      mode="form"
+      width="500px"
+    >
       <el-form :model="indicatorForm" label-width="90px">
         <el-form-item label="编码" required><el-input v-model="indicatorForm.code" :disabled="!!indicatorForm.id" /></el-form-item>
         <el-form-item label="名称" required><el-input v-model="indicatorForm.name" /></el-form-item>
@@ -115,7 +120,7 @@
         </el-form-item>
         <el-row :gutter="16">
           <el-col :span="12"><el-form-item label="权重(%)"><el-input-number v-model="indicatorForm.weight" :min="0" :max="100" class="w-full" /></el-form-item></el-col>
-          <el-col :span="12"><el-form-item label="目标值"><el-input-number v-model="indicatorForm.target_value" class="w-full" /></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="目标值"><el-input-number v-model="indicatorForm.targetValue" class="w-full" /></el-form-item></el-col>
         </el-row>
         <el-form-item label="描述"><el-input v-model="indicatorForm.description" type="textarea" :rows="2" /></el-form-item>
       </el-form>
@@ -123,10 +128,15 @@
         <el-button @click="indicatorVis = false">取消</el-button>
         <el-button type="primary" v-permission="'hr:performance:edit'" @click="saveIndicator" :loading="saving">保存</el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
 
     <!-- 周期表单 -->
-    <el-dialog v-model="periodVis" title="新建考核周期" width="500px">
+    <AppDialog
+      v-model="periodVis"
+      title="新建考核周期"
+      mode="form"
+      width="500px"
+    >
       <el-form :model="periodForm" label-width="90px">
         <el-form-item label="名称" required><el-input v-model="periodForm.name" /></el-form-item>
         <el-form-item label="类型">
@@ -135,15 +145,15 @@
           </el-select>
         </el-form-item>
         <el-row :gutter="16">
-          <el-col :span="12"><el-form-item label="开始日期" required><el-date-picker v-model="periodForm.start_date" type="date" value-format="YYYY-MM-DD" class="w-full" /></el-form-item></el-col>
-          <el-col :span="12"><el-form-item label="结束日期" required><el-date-picker v-model="periodForm.end_date" type="date" value-format="YYYY-MM-DD" class="w-full" /></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="开始日期" required><el-date-picker v-model="periodForm.startDate" type="date" value-format="YYYY-MM-DD" class="w-full" /></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="结束日期" required><el-date-picker v-model="periodForm.endDate" type="date" value-format="YYYY-MM-DD" class="w-full" /></el-form-item></el-col>
         </el-row>
       </el-form>
       <template #footer>
         <el-button @click="periodVis = false">取消</el-button>
         <el-button type="primary" v-permission="'hr:performance:edit'" @click="savePeriod" :loading="saving">保存</el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
   </div>
 </template>
 

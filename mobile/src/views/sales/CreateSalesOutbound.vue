@@ -9,17 +9,17 @@
     <div class="content">
       <CellGroup inset title="出库信息">
         <Cell title="关联订单" is-link :value="selectedOrderTitle" @click="showOrderPicker = true" />
-        <Field v-model="form.delivery_date" label="出库日期" type="date" />
+        <Field v-model="form.deliveryDate" label="出库日期" type="date" />
         <Field v-model="form.remarks" label="备注" type="textarea" rows="2" autosize />
       </CellGroup>
 
       <CellGroup inset title="出库明细">
         <div v-if="items.length" class="items">
-          <div v-for="(item, index) in items" :key="item.product_id || index" class="item-card">
-            <div class="item-title">{{ item.product_name || item.material_name || `物料#${item.product_id}` }}</div>
-            <div class="item-subtitle">{{ item.product_code || item.material_code || '-' }}</div>
+          <div v-for="(item, index) in items" :key="item.productId || index" class="item-card">
+            <div class="item-title">{{ item.productName || item.materialName || `物料#${item.productId}` }}</div>
+            <div class="item-subtitle">{{ item.productCode || item.materialCode || '-' }}</div>
             <Field v-model="item.quantity" label="出库数量" type="number" input-align="right" />
-            <Field v-model="item.price" label="单价" type="number" input-align="right" />
+            <Field v-model="item.unitPrice" label="单价" type="number" input-align="right" />
           </div>
         </div>
         <Empty v-else description="请选择销售订单后带出明细" />
@@ -37,8 +37,8 @@
           <Cell
             v-for="order in orders"
             :key="order.id"
-            :title="order.order_no || order.code"
-            :label="order.customer_name || order.customerName"
+            :title="order.orderNo || order.code"
+            :label="order.customerName"
             clickable
             @click="pickOrder(order)"
           />
@@ -64,33 +64,36 @@
   const selectedOrder = ref(null)
   const items = ref([])
 
+  // 纯 camel，后端 salesOutboundMap.fromApi
   const form = reactive({
-    delivery_date: new Date().toISOString().slice(0, 10),
+    deliveryDate: new Date().toISOString().slice(0, 10),
     remarks: ''
   })
 
   const selectedOrderTitle = computed(() => {
     if (!selectedOrder.value) return '请选择订单'
-    return `${selectedOrder.value.order_no || selectedOrder.value.code || ''} ${selectedOrder.value.customer_name || selectedOrder.value.customerName || ''}`
+    return `${selectedOrder.value.orderNo || selectedOrder.value.code || ''} ${selectedOrder.value.customerName || ''}`
   })
 
   const normalizeOrderItems = (order) => {
-    const sourceItems = order.items || order.order_items || []
+    const sourceItems = order.items || []
     return sourceItems
       .map((item) => {
-        const productId = item.product_id || item.material_id
+        const productId = item.productId || item.materialId
         return {
-          product_id: productId,
-          material_id: productId,
-          product_name: item.product_name || item.material_name || item.name,
-          product_code: item.product_code || item.material_code || item.code,
-          quantity: item.remaining_quantity || item.unshipped_quantity || item.quantity || 0,
-          price: item.unit_price || item.price || 0,
-          source_order_id: order.id,
-          source_order_no: order.order_no || order.code
+          productId,
+          materialId: productId,
+          productName: item.productName || item.materialName || item.name,
+          productCode: item.productCode || item.materialCode || item.code,
+          materialName: item.materialName || item.productName,
+          materialCode: item.materialCode || item.productCode,
+          quantity: item.remainingQuantity || item.unshippedQuantity || item.quantity || 0,
+          unitPrice: item.unitPrice || item.price || 0,
+          sourceOrderId: order.id,
+          sourceOrderNo: order.orderNo || order.code
         }
       })
-      .filter((item) => item.product_id)
+      .filter((item) => item.productId)
   }
 
   const fetchOrders = async () => {
@@ -119,22 +122,25 @@
   const handleSubmit = async () => {
     if (!selectedOrder.value) return showToast('请选择关联订单')
     const validItems = items.value
-      .filter((item) => Number(item.quantity) > 0 && item.product_id)
+      .filter((item) => Number(item.quantity) > 0 && item.productId)
       .map((item) => ({
-        product_id: item.product_id,
-        material_id: item.material_id,
+        productId: item.productId,
+        materialId: item.materialId,
         quantity: Number(item.quantity),
-        price: item.price === null || item.price === undefined || item.price === '' ? null : Number(item.price),
-        source_order_id: item.source_order_id,
-        source_order_no: item.source_order_no
+        unitPrice:
+          item.unitPrice === null || item.unitPrice === undefined || item.unitPrice === ''
+            ? null
+            : Number(item.unitPrice),
+        sourceOrderId: item.sourceOrderId,
+        sourceOrderNo: item.sourceOrderNo
       }))
     if (validItems.length === 0) return showToast('请填写出库明细')
 
     submitting.value = true
     try {
       const response = await salesApi.createSalesOutbound({
-        order_id: selectedOrder.value.id,
-        delivery_date: form.delivery_date,
+        orderId: selectedOrder.value.id,
+        deliveryDate: form.deliveryDate,
         status: 'draft',
         remarks: form.remarks,
         items: validItems

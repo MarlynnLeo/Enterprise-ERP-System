@@ -7,6 +7,7 @@
  */
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 const { logger } = require('../../../utils/logger');
 const db = require('../../../config/db');
 const CodeGeneratorService = require('../../../services/business/CodeGeneratorService');
@@ -210,7 +211,7 @@ const spcController = {
      */
     async createControlPlan(req, res) {
         try {
-            const data = req.body;
+            const data = mapKeysToSnake(req.body || {});
 
             if (!data.plan_name || !data.characteristic) {
                 return ResponseHandler.error(res, '计划名称和监控特性不能为空', 'VALIDATION_ERROR', 400);
@@ -235,7 +236,7 @@ const spcController = {
     async updateControlPlan(req, res) {
         try {
             const { id } = req.params;
-            const data = req.body;
+            const data = mapKeysToSnake(req.body || {});
 
             const existing = await db.query('SELECT id FROM spc_control_plans WHERE id = ?', [id]);
             if (!existing.rows || existing.rows.length === 0) {
@@ -292,7 +293,12 @@ const spcController = {
      */
     async addDataPoints(req, res) {
         try {
-            const { plan_id, subgroup_no, samples } = req.body;
+            const body = mapKeysToSnake(req.body || {});
+            const plan_id = body.plan_id;
+            const subgroup_no = body.subgroup_no;
+            const samples = Array.isArray(req.body?.samples)
+                ? req.body.samples.map((sample) => mapKeysToSnake(sample || {}))
+                : body.samples;
 
             if (!plan_id || !subgroup_no || !samples || !Array.isArray(samples)) {
                 return ResponseHandler.error(res, '控制计划ID、子组号和样本数据不能为空', 'VALIDATION_ERROR', 400);

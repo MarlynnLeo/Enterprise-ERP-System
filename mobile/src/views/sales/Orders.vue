@@ -49,13 +49,13 @@
     ],
     fields: {
       id: 'id',
-      title: 'customer_name',
-      subtitle: 'order_no',
+      title: 'customerName',
+      subtitle: 'orderNo',
       icon: 'clipboard-check',
       details: [
-        { label: '订单金额', field: 'total_amount', prefix: '¥', format: 'money' },
-        { label: '订单日期', field: 'order_date', format: 'date' },
-        { label: '交货日期', field: 'delivery_date', format: 'date' }
+        { label: '订单金额', field: 'totalAmount', prefix: '¥', format: 'money' },
+        { label: '订单日期', field: 'orderDate', format: 'date' },
+        { label: '交货日期', field: 'deliveryDate', format: 'date' }
       ],
       status: {
         field: 'status',

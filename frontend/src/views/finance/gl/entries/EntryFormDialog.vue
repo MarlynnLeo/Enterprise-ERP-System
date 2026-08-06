@@ -68,7 +68,7 @@
           @selection-change="handleSelectionChange"
         >
           <template #empty>
-            <el-empty :description="currentBusinessMeta.emptyText" />
+            <EmptyState :description="currentBusinessMeta.emptyText" />
           </template>
           <el-table-column type="selection" width="48" reserve-selection />
           <el-table-column
@@ -78,36 +78,36 @@
             show-overflow-tooltip
           />
           <el-table-column
-            prop="party_name"
+            prop="partyName"
             :label="currentBusinessMeta.partyLabel"
             min-width="140"
             show-overflow-tooltip
           >
             <template #default="{ row }">
-              {{ row.party_name || row.customer_name || row.supplier_name || '-' }}
+              {{ row.partyName || row.customerName || row.supplierName || '-' }}
             </template>
           </el-table-column>
           <el-table-column
             v-if="currentBusinessMeta.showSourceOrder"
-            prop="source_order_no"
+            prop="sourceOrderNo"
             :label="currentBusinessMeta.sourceOrderLabel || '关联订单'"
             min-width="130"
             show-overflow-tooltip
           />
-          <el-table-column prop="doc_date" label="日期" width="110">
+          <el-table-column prop="docDate" label="日期" width="110">
             <template #default="{ row }">
               {{
-                row.doc_date ||
-                row.order_date ||
-                row.delivery_date ||
-                row.receipt_date ||
+                row.docDate ||
+                row.orderDate ||
+                row.deliveryDate ||
+                row.receiptDate ||
                 '-'
               }}
             </template>
           </el-table-column>
-          <el-table-column prop="total_amount" label="金额" width="120" align="right">
+          <el-table-column prop="totalAmount" label="金额" width="120" align="right">
             <template #default="{ row }">
-              {{ formatCurrency(row.total_amount || row.subtotal || 0) }}
+              {{ formatCurrency(row.totalAmount || row.subtotal || 0) }}
             </template>
           </el-table-column>
           <el-table-column prop="status" label="状态" width="100" />
@@ -130,7 +130,7 @@
         <el-form ref="formRef" :model="entryForm" :rules="rules" label-width="90px">
           <el-row :gutter="16">
             <el-col :span="8">
-              <el-form-item label="记账日期" prop="entry_date">
+              <el-form-item label="记账日期" prop="entryDate">
                 <el-date-picker
                   v-model="entryForm.entry_date"
                   type="date"
@@ -140,7 +140,7 @@
               </el-form-item>
             </el-col>
             <el-col :span="8">
-              <el-form-item label="凭证字" prop="voucher_word">
+              <el-form-item label="凭证字" prop="voucherWord">
                 <el-select v-model="entryForm.voucher_word" class="w-full">
                   <el-option label="记" value="记" />
                   <el-option label="收" value="收" />
@@ -150,7 +150,7 @@
               </el-form-item>
             </el-col>
             <el-col :span="8">
-              <el-form-item label="附单据数" prop="document_number">
+              <el-form-item label="附单据数" prop="documentNumber">
                 <el-input-number v-model="entryForm.document_number" :min="0" class="w-full" />
               </el-form-item>
             </el-col>
@@ -174,7 +174,7 @@
           <el-table-column label="会计科目" min-width="220">
             <template #default="{ row, $index }">
               <el-cascader
-                v-model="row.account_id"
+                v-model="row.accountId"
                 :options="accountOptions"
                 :props="{ checkStrictly: true, value: 'id', label: 'fullName', emitPath: false }"
                 placeholder="请选择科目"
@@ -189,7 +189,7 @@
               >
                 <el-select
                   v-if="row._accountAux.has_customer"
-                  v-model="row.customer_id"
+                  v-model="row.customerId"
                   placeholder="客户"
                   size="small"
                   class="aux-item"
@@ -197,13 +197,13 @@
                   <el-option
                     v-for="c in customerOptions"
                     :key="c.id"
-                    :label="c.customer_name || c.name"
+                    :label="c.customerName || c.name"
                     :value="c.id"
                   />
                 </el-select>
                 <el-select
                   v-if="row._accountAux.has_supplier"
-                  v-model="row.supplier_id"
+                  v-model="row.supplierId"
                   placeholder="供应商"
                   size="small"
                   class="aux-item"
@@ -211,13 +211,13 @@
                   <el-option
                     v-for="s in supplierOptions"
                     :key="s.id"
-                    :label="s.supplier_name || s.name"
+                    :label="s.supplierName || s.name"
                     :value="s.id"
                   />
                 </el-select>
                 <el-select
                   v-if="row._accountAux.has_employee"
-                  v-model="row.employee_id"
+                  v-model="row.employeeId"
                   placeholder="员工"
                   size="small"
                   class="aux-item"
@@ -225,13 +225,13 @@
                   <el-option
                     v-for="u in userOptions"
                     :key="u.id"
-                    :label="u.username || u.real_name"
+                    :label="u.username || u.realName"
                     :value="u.id"
                   />
                 </el-select>
                 <el-select
                   v-if="row._accountAux.has_department"
-                  v-model="row.cost_center_id"
+                  v-model="row.costCenterId"
                   placeholder="部门"
                   size="small"
                   class="aux-item"
@@ -239,7 +239,7 @@
                   <el-option
                     v-for="d in departmentOptions"
                     :key="d.id"
-                    :label="d.department_name || d.name"
+                    :label="d.departmentName || d.name"
                     :value="d.id"
                   />
                 </el-select>
@@ -249,26 +249,26 @@
           <el-table-column label="借方" width="130">
             <template #default="{ row }">
               <el-input-number
-                v-model="row.debit_amount"
+                v-model="row.debitAmount"
                 :precision="2"
                 :min="0"
                 :controls="false"
                 size="small"
                 class="w-full"
-                @change="() => (row.credit_amount = row.debit_amount > 0 ? 0 : row.credit_amount)"
+                @change="() => (row.creditAmount = row.debitAmount > 0 ? 0 : row.creditAmount)"
               />
             </template>
           </el-table-column>
           <el-table-column label="贷方" width="130">
             <template #default="{ row }">
               <el-input-number
-                v-model="row.credit_amount"
+                v-model="row.creditAmount"
                 :precision="2"
                 :min="0"
                 :controls="false"
                 size="small"
                 class="w-full"
-                @change="() => (row.debit_amount = row.credit_amount > 0 ? 0 : row.debit_amount)"
+                @change="() => (row.debitAmount = row.creditAmount > 0 ? 0 : row.debitAmount)"
               />
             </template>
           </el-table-column>
@@ -448,12 +448,12 @@
                   show-overflow-tooltip
                 >
                   <template #default="{ row }">
-                    {{ row.source_doc_no || '-' }}
+                    {{ row.sourceDocNo || '-' }}
                   </template>
                 </el-table-column>
                 <el-table-column label="物料/产品" min-width="160" show-overflow-tooltip>
                   <template #default="{ row }">
-                    {{ row.material_name || row.product_name || row.material_code || '-' }}
+                    {{ row.materialName || row.productName || row.materialCode || '-' }}
                   </template>
                 </el-table-column>
                 <el-table-column label="数量" width="120">
@@ -472,7 +472,7 @@
                 <el-table-column label="单价(未税)" width="130">
                   <template #default="{ row }">
                     <el-input-number
-                      v-model="row.unit_price"
+                      v-model="row.unitPrice"
                       :min="0"
                       :precision="4"
                       :controls="false"
@@ -537,7 +537,7 @@
                 <el-table-column label="会计科目" min-width="220">
                   <template #default="{ row }">
                     <el-cascader
-                      v-model="row.account_id"
+                      v-model="row.accountId"
                       :options="accountOptions"
                       :props="{
                         checkStrictly: true,
@@ -555,7 +555,7 @@
                 <el-table-column label="借方" width="130">
                   <template #default="{ row }">
                     <el-input-number
-                      v-model="row.debit_amount"
+                      v-model="row.debitAmount"
                       :precision="2"
                       :min="0"
                       :controls="false"
@@ -563,7 +563,7 @@
                       class="w-full"
                       @change="
                         () => {
-                          if (row.debit_amount > 0) row.credit_amount = 0
+                          if (row.debitAmount > 0) row.creditAmount = 0
                         }
                       "
                     />
@@ -572,7 +572,7 @@
                 <el-table-column label="贷方" width="130">
                   <template #default="{ row }">
                     <el-input-number
-                      v-model="row.credit_amount"
+                      v-model="row.creditAmount"
                       :precision="2"
                       :min="0"
                       :controls="false"
@@ -580,7 +580,7 @@
                       class="w-full"
                       @change="
                         () => {
-                          if (row.credit_amount > 0) row.debit_amount = 0
+                          if (row.creditAmount > 0) row.debitAmount = 0
                         }
                       "
                     />
@@ -591,7 +591,7 @@
           </el-tab-pane>
         </el-tabs>
       </template>
-      <el-empty v-else-if="!previewLoading" description="暂无预览数据" />
+      <EmptyState v-else-if="!previewLoading" description="暂无预览数据" />
     </div>
 
     <template #footer>
@@ -757,10 +757,10 @@ const rules = {
 }
 
 const totalDebit = computed(() =>
-  entryForm.items.reduce((sum, item) => sum + (Number(item.debit_amount) || 0), 0)
+  entryForm.items.reduce((sum, item) => sum + (Number(item.debitAmount) || 0), 0)
 )
 const totalCredit = computed(() =>
-  entryForm.items.reduce((sum, item) => sum + (Number(item.credit_amount) || 0), 0)
+  entryForm.items.reduce((sum, item) => sum + (Number(item.creditAmount) || 0), 0)
 )
 const isBalanced = computed(
   () => Math.abs(totalDebit.value - totalCredit.value) < 0.01 && totalDebit.value > 0
@@ -866,7 +866,7 @@ function recalcVoucherFromItems(voucher) {
   let subtotal = 0
   for (const row of voucher.items) {
     const qty = Number(row.quantity) || 0
-    const price = Number(row.unit_price) || 0
+    const price = Number(row.unitPrice) || 0
     row.amount = round2(qty * price)
     subtotal += row.amount
   }
@@ -907,11 +907,11 @@ function handlePreviewAccountChange(line, accountId) {
 
 function normalizePreviewItem(item) {
   const quantity = Number(item.quantity) || 0
-  const unitPrice = Number(item.unit_price ?? item.price) || 0
+  const unitPrice = Number(item.unitPrice ?? item.price) || 0
   return {
     ...item,
-    source_id: item.source_id || null,
-    source_doc_no: item.source_doc_no || null,
+    source_id: item.sourceId || null,
+    source_doc_no: item.sourceDocNo || null,
     quantity,
     unit_price: unitPrice,
     amount: Number(item.amount) || round2(quantity * unitPrice),
@@ -1015,17 +1015,17 @@ function buildOverridesFromPreview() {
         totalAmount: v.totalAmount,
         items: (v.items || []).map((it) => {
           const quantity = Number(it.quantity) || 0
-          const unitPrice = Number(it.unit_price) || 0
-          const materialId = it.material_id || it.product_id || null
-          const name = it.material_name || it.product_name || null
+          const unitPrice = Number(it.unitPrice) || 0
+          const materialId = it.materialId || it.productId || null
+          const name = it.materialName || it.productName || null
           return {
-            source_id: it.source_id || v.id,
+            source_id: it.sourceId || v.id,
             source_doc_no: it.source_doc_no || null,
             material_id: materialId,
             product_id: materialId,
             material_name: name,
             product_name: name,
-            material_code: it.material_code || null,
+            material_code: it.materialCode || null,
             description: it.description || null,
             quantity,
             unit_price: unitPrice,
@@ -1039,8 +1039,8 @@ function buildOverridesFromPreview() {
           description: line.description,
           debit_amount: Number(line.debit_amount) || 0,
           credit_amount: Number(line.credit_amount) || 0,
-          supplier_id: line.supplier_id || null,
-          customer_id: line.customer_id || null,
+          supplier_id: line.supplierId || null,
+          customer_id: line.customerId || null,
         })),
         accounts: {
           ...(v.accounts || {}),
@@ -1249,7 +1249,7 @@ async function loadManualOptions() {
       list.map((item) => {
         const processed = {
           ...item,
-          fullName: `${item.account_code} - ${item.account_name}`,
+          fullName: `${item.accountCode} - ${item.accountName}`,
         }
         if (item.children?.length) {
           processed.children = processAccounts(item.children)
@@ -1298,10 +1298,10 @@ function handleAccountChange(accountId, index) {
     has_department: Boolean(account.has_department),
     has_project: Boolean(account.has_project),
   }
-  if (!account.has_customer) entryForm.items[index].customer_id = null
-  if (!account.has_supplier) entryForm.items[index].supplier_id = null
-  if (!account.has_employee) entryForm.items[index].employee_id = null
-  if (!account.has_department) entryForm.items[index].cost_center_id = null
+  if (!account.has_customer) entryForm.items[index].customerId = null
+  if (!account.has_supplier) entryForm.items[index].supplierId = null
+  if (!account.has_employee) entryForm.items[index].employeeId = null
+  if (!account.has_department) entryForm.items[index].costCenterId = null
   if (!account.has_project) entryForm.items[index].project_id = null
 }
 
@@ -1332,10 +1332,10 @@ async function submitManualEntry() {
       description: i.description || entryForm.description,
       debit_amount: i.debit_amount,
       credit_amount: i.credit_amount,
-      customer_id: i.customer_id,
-      supplier_id: i.supplier_id,
-      employee_id: i.employee_id,
-      cost_center_id: i.cost_center_id,
+      customer_id: i.customerId,
+      supplier_id: i.supplierId,
+      employee_id: i.employeeId,
+      cost_center_id: i.costCenterId,
       project_id: i.project_id,
     }))
 
@@ -1447,12 +1447,12 @@ watch(activeTab, async (tab) => {
   gap: 24px;
   margin-top: 12px;
   padding: 10px 12px;
-  background: var(--color-bg-section, #f5f7fa);
+  background: var(--color-bg-section);
   border-radius: 4px;
   font-weight: 600;
 }
 .totals-row .ok {
-  color: var(--color-success, #67c23a);
+  color: var(--color-success);
 }
 .preview-body {
   min-height: 360px;
@@ -1461,7 +1461,7 @@ watch(activeTab, async (tab) => {
   margin-bottom: 12px;
 }
 .tab-warn {
-  color: var(--color-warning, #e6a23c);
+  color: var(--color-warning);
 }
 .preview-skip {
   padding: 12px 0;
@@ -1482,7 +1482,7 @@ watch(activeTab, async (tab) => {
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
-  background: var(--color-bg-section, #f5f7fa);
+  background: var(--color-bg-section);
   border-radius: 4px;
 }
 .amount-box .lbl {
@@ -1491,7 +1491,7 @@ watch(activeTab, async (tab) => {
   white-space: nowrap;
 }
 .amount-box .total {
-  color: var(--el-color-primary);
+  color: var(--color-primary);
   font-size: 15px;
 }
 .amount-input {
@@ -1503,11 +1503,11 @@ watch(activeTab, async (tab) => {
 }
 .balance-tag.ok,
 .totals-row .ok {
-  color: var(--color-success, #67c23a);
+  color: var(--color-success);
 }
 .balance-tag.bad,
 .totals-row .bad {
-  color: var(--color-danger, #f56c6c);
+  color: var(--color-danger);
 }
 .merge-docs {
   display: flex;

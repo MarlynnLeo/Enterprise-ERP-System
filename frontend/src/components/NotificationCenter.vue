@@ -78,7 +78,7 @@
           v-for="notification in notifications"
           :key="notification.id"
           class="notification-item"
-          :class="{ 'unread': !notification.is_read }"
+          :class="{ 'unread': !notification.isRead }"
           @click="handleNotificationClick(notification)"
         >
           <div class="notification-icon">
@@ -106,11 +106,11 @@
               </el-tag>
             </div>
             <div class="notification-text">{{ notification.content }}</div>
-            <div class="notification-time">{{ formatTime(notification.created_at) }}</div>
+            <div class="notification-time">{{ formatTime(notification.createdAt) }}</div>
           </div>
           <div class="notification-actions">
             <el-button
-              v-if="!notification.is_read"
+              v-if="!notification.isRead"
               link
               type="primary"
               size="small"
@@ -130,7 +130,7 @@
         </div>
 
         <!-- 空状态 -->
-        <el-empty
+        <EmptyState
           v-if="!loading && notifications.length === 0"
           description="暂无通知"
           :image-size="80"
@@ -229,7 +229,7 @@ const loadUnreadCount = async () => {
 
 const handleNotificationClick = async (notification) => {
   // 标记为已读
-  if (!notification.is_read) {
+  if (!notification.isRead) {
     await handleMarkRead(notification.id)
   }
 

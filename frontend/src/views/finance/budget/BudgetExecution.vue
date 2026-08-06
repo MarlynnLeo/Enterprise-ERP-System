@@ -13,7 +13,7 @@
             <el-option
               v-for="item in budgetList"
               :key="item.id"
-              :label="item.budget_name"
+              :label="item.budgetName"
               :value="item.id"
             />
           </el-select>
@@ -84,16 +84,16 @@
           </div>
         </template>
         <el-table :data="analysisData.details" border class="w-full" stripe>
-          <el-table-column prop="account_code" label="科目编码" width="120" sortable />
-          <el-table-column prop="account_name" label="预算科目" min-width="150" />
-          <el-table-column prop="budget_amount" label="预算金额" width="150">
+          <el-table-column prop="accountCode" label="科目编码" width="120" sortable />
+          <el-table-column prop="accountName" label="预算科目" min-width="150" />
+          <el-table-column prop="budgetAmount" label="预算金额" width="150">
             <template #default="{ row }">
-              {{ formatCurrency(row.budget_amount) }}
+              {{ formatCurrency(row.budgetAmount) }}
             </template>
           </el-table-column>
-          <el-table-column prop="actual_amount" label="实际金额" width="150">
+          <el-table-column prop="actualAmount" label="实际金额" width="150">
             <template #default="{ row }">
-              {{ formatCurrency(row.actual_amount) }}
+              {{ formatCurrency(row.actualAmount) }}
             </template>
           </el-table-column>
           <el-table-column prop="variance" label="差异 (结余)" width="150">
@@ -106,9 +106,9 @@
           <el-table-column label="执行进度" width="200">
             <template #default="{ row }">
               <el-progress
-                :percentage="Math.min(row.execution_rate, 100)"
-                :status="getProgressStatus(row.execution_rate)"
-                :format="() => row.execution_rate.toFixed(1) + '%'"
+                :percentage="Math.min(row.executionRate, 100)"
+                :status="getProgressStatus(row.executionRate)"
+                :format="() => row.executionRate.toFixed(1) + '%'"
               />
             </template>
           </el-table-column>
@@ -123,7 +123,7 @@
       </el-card>
     </div>
 
-    <el-empty v-else description="请选择一个预算方案以查看分析" />
+    <EmptyState v-else description="请选择一个预算方案以查看分析" />
   </div>
 </template>
 
@@ -220,18 +220,18 @@ const renderChart = (details) => {
   chartInstance = new Chart(ctx, {
     type: 'bar',
     data: {
-      labels: sortedDetails.map(item => item.account_name),
+      labels: sortedDetails.map(item => item.accountName),
       datasets: [
         {
           label: '预算金额',
-          data: sortedDetails.map(item => item.budget_amount),
+          data: sortedDetails.map(item => item.budgetAmount),
           backgroundColor: alphaColor('primary', 0.5),
           borderColor: getCssTokenValue('primary'),
           borderWidth: 1
         },
         {
           label: '实际金额',
-          data: sortedDetails.map(item => item.actual_amount),
+          data: sortedDetails.map(item => item.actualAmount),
           backgroundColor: alphaColor('danger', 0.5),
           borderColor: getCssTokenValue('danger'),
           borderWidth: 1

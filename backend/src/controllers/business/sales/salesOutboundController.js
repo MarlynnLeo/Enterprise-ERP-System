@@ -5,6 +5,7 @@
  */
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 const { logger } = require('../../../utils/logger');
 
 const db = require('../../../config/db');
@@ -726,7 +727,7 @@ exports.createSalesOutbound = async (req, res) => {
                 const materialId = item.material_id || item.product_id;
 
                 const sourceOrderId = item.source_order_id || item.order_id || order_id || null;
-                let unitPrice = parseFloat(item.unit_price || item.price || 0);
+                let unitPrice = parseFloat(item.unitPrice || item.price || 0);
                 if (unitPrice === 0) {
                   unitPrice = orderPriceMap[`${sourceOrderId}:${materialId}`] || orderPriceMap[materialId] || 0;
                 }
@@ -824,7 +825,7 @@ exports.updateSalesOutbound = async (req, res) => {
       status,
       remarks,
       items,
-    } = req.body;
+    } = mapKeysToSnake(req.body || {});
 
     logger.debug('Sales outbound update payload normalized', {
       id,
@@ -1062,7 +1063,7 @@ exports.updateSalesOutbound = async (req, res) => {
               const materialId = item.material_id || item.product_id;
               const sourceOrderId = item.source_order_id || item.order_id || finalOrderId || null;
 
-              let unitPrice = parseFloat(item.unit_price || item.price || 0);
+              let unitPrice = parseFloat(item.unitPrice || item.price || 0);
               if (unitPrice === 0) {
                 unitPrice = orderPriceMap[`${sourceOrderId}:${materialId}`] || orderPriceMap[materialId] || 0;
               }

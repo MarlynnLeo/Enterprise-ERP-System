@@ -18,6 +18,7 @@ const {
   normalizeTaskBatchNo,
 } = require('../../../services/business/TaskLifecycleService');
 const { parsePagination, appendPaginationSQL } = require('../../../utils/safePagination');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 
 // 首检配置常量
 const FIRST_ARTICLE_CONFIG = BUSINESS_RULES.FIRST_ARTICLE;
@@ -182,7 +183,7 @@ const firstArticleController = {
         inspector_id,
         inspector_name,
         note,
-      } = req.body;
+      } = mapKeysToSnake(req.body || {});
 
       if (!task_id || !product_id || !production_quantity) {
         return ResponseHandler.error(
@@ -323,7 +324,7 @@ const firstArticleController = {
         inspector_name,
         note,
         items,
-      } = req.body;
+      } = mapKeysToSnake(req.body || {});
 
       if (!first_article_result) {
         return ResponseHandler.error(res, '首检结果不能为空', 'VALIDATION_ERROR', 400);
@@ -423,7 +424,7 @@ const firstArticleController = {
             [
               id,
               item.item_name,
-              item.standard_value || item.standard || '',
+              item.standardValue || item.standard || '',
               item.type || 'visual',
               item.actual_value,
               item.result,
@@ -578,7 +579,7 @@ const firstArticleController = {
         is_mandatory,
         inspection_items,
         note,
-      } = req.body;
+      } = mapKeysToSnake(req.body || {});
 
       if (!product_id) {
         return ResponseHandler.error(res, '产品ID不能为空', 'VALIDATION_ERROR', 400);
@@ -639,7 +640,7 @@ const firstArticleController = {
         is_mandatory,
         inspection_items,
         note,
-      } = req.body;
+      } = mapKeysToSnake(req.body || {});
 
       const existingResult = await db.query('SELECT id FROM first_article_rules WHERE id = ?', [
         id,

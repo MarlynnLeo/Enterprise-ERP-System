@@ -1,4 +1,4 @@
-﻿/**
+/**
  * PC端 - 科技主题
  * @description 科技感未来风格 - 增强视觉效果
  * @date
@@ -20,16 +20,16 @@
 
   /* 功能色（科技感配色） */
   --color-success: #64FFDA;
-  --color-success-light: #b2ffed;
+  --color-success-light: rgba(100, 255, 218, 0.14);
   --color-success-dark: #4dccae;
   --color-warning: #FFB74D;
-  --color-warning-light: #ffd699;
+  --color-warning-light: rgba(255, 183, 77, 0.16);
   --color-warning-dark: #cc923e;
   --color-danger: #FF5252;
-  --color-danger-light: #ff9999;
+  --color-danger-light: rgba(255, 82, 82, 0.14);
   --color-danger-dark: #cc4141;
   --color-info: #90CAF9;
-  --color-info-light: #c3e2fc;
+  --color-info-light: rgba(144, 202, 249, 0.14);
   --color-info-dark: #73a2c7;
 
   /* 文本颜色 - 5个层级（科技感优化） */
@@ -70,7 +70,25 @@
   --color-accent-secondary: #FF6B9D;  /* 次要强调色（粉红霓虹） */
   --color-glow: rgba(0, 195, 255, 0.6);/* 发光效果 */
   --color-neon: #00FFF0;              /* 霓虹色 */
-  --color-grid: rgba(0, 195, 255, 0.1);/* ========== 间距系统 ========== */
+  --color-grid: rgba(0, 195, 255, 0.1);
+
+  /* 侧栏 shell（霓虹菜单差异用 accent；交互走 theme-components） */
+  --shell-sidebar-bg: linear-gradient(180deg, var(--color-bg-light) 0%, var(--color-bg-hover) 100%);
+  --shell-border: color-mix(in srgb, var(--color-primary) 30%, transparent);
+  --shell-sidebar-text: var(--color-primary);
+  --shell-sidebar-text-muted: var(--color-success);
+  --shell-sidebar-title: var(--color-primary);
+  --shell-sidebar-hover-bg: var(--color-grid);
+  --shell-sidebar-active-bg: var(--color-bg-overlay);
+  --shell-sidebar-active-text: var(--color-primary);
+  --shell-sidebar-accent: var(--color-primary);
+  --shell-sidebar-indicator-width: 3px;
+  --shell-sidebar-hover-shadow: inset 0 0 20px color-mix(in srgb, var(--color-bg-overlay) 20%, transparent);
+  --shell-sidebar-active-shadow:
+    inset 0 0 20px color-mix(in srgb, var(--color-bg-overlay) 30%, transparent),
+    0 0 10px color-mix(in srgb, var(--color-bg-overlay) 50%, transparent);
+
+  /* ========== 间距系统 ========== */
   --spacing-xs: 4px;
   --spacing-sm: 8px;
   --spacing-md: 16px;
@@ -85,8 +103,8 @@
 
   --font-size-xs: 12px;
   --font-size-sm: 14px;
-  --font-size-base: 16px;
-  --font-size-md: 16px;
+  --font-size-base: 14px;
+  --font-size-md: 14px;
   --font-size-lg: 18px;
   --font-size-xl: 20px;
   --font-size-xxl: 24px;
@@ -149,11 +167,11 @@
   background: var(--color-bg-light) !important;
 }
 
-/* 侧边栏科技感 */
+/* 侧栏：shell 底色 + 扫描线装饰；菜单色/交互 → theme-components */
 [data-theme="tech"] .sidebar,
 [data-theme="tech"] .app-sidebar {
-  background: linear-gradient(180deg, var(--color-bg-light) 0%, var(--color-bg-hover) 100%) !important;
-  border-right: 2px solid color-mix(in srgb, var(--color-primary) 30%, transparent) !important;
+  background: var(--shell-sidebar-bg) !important;
+  border-right: 2px solid var(--shell-border) !important;
   box-shadow: 0 0 16px color-mix(in srgb, var(--color-bg-overlay) 16%, transparent) !important;
   position: relative;
 }
@@ -162,125 +180,37 @@
 [data-theme="tech"] .app-sidebar::before {
   content: '';
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background:
-    repeating-linear-gradient(
-      0deg,
-      color-mix(in srgb, var(--color-bg-overlay) 3%, transparent) 0px,
-      transparent 1px,
-      transparent 2px,
-      color-mix(in srgb, var(--color-bg-overlay) 3%, transparent) 3px
-    );
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    color-mix(in srgb, var(--color-bg-overlay) 3%, transparent) 0px,
+    transparent 1px,
+    transparent 2px,
+    color-mix(in srgb, var(--color-bg-overlay) 3%, transparent) 3px
+  );
   pointer-events: none;
   z-index: 0;
 }
 
-/* Logo容器科技感 */
 [data-theme="tech"] .logo-container {
   background: var(--color-grid) !important;
-  border-bottom: 2px solid color-mix(in srgb, var(--color-primary) 30%, transparent) !important;
+  border-bottom: 2px solid var(--shell-border) !important;
   box-shadow: 0 4px 20px color-mix(in srgb, var(--color-bg-overlay) 20%, transparent) !important;
   position: relative;
   overflow: hidden;
   z-index: 1;
 }
 
-[data-theme="tech"] .logo-container::after {
-  content: '';
-  position: absolute;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
-  background: linear-gradient(
-    45deg,
-    transparent 30%,
-    color-mix(in srgb, var(--color-bg-overlay) 10%, transparent) 50%,
-    transparent 70%
-  );
-}
-
 [data-theme="tech"] .logo-container .title {
-  color: var(--color-primary) !important;
   text-shadow: 0 0 10px color-mix(in srgb, var(--color-bg-overlay) 50%, transparent) !important;
-  font-weight: 700 !important;
 }
 
-/* 菜单样式 */
-[data-theme="tech"] .el-menu {
-  background: transparent !important;
-  border-right: none !important;
-}
-
-/* 主色调 - 科技蓝 */
 [data-theme="tech"] .sidebar .el-menu-item,
 [data-theme="tech"] .sidebar .el-sub-menu__title,
 [data-theme="tech"] .app-sidebar .el-menu-item,
 [data-theme="tech"] .app-sidebar .el-sub-menu__title {
-  border-left: 3px solid transparent !important;
-  transition:
-    color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-    background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-    border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-    box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
-  position: relative;
-  color: var(--color-success) !important;
+  border-radius: 0 !important;
   z-index: 1;
-}
-
-/* 侧边栏菜单项文字 */
-[data-theme="tech"] .sidebar .el-menu-item span,
-[data-theme="tech"] .sidebar .el-sub-menu__title span,
-[data-theme="tech"] .app-sidebar .el-menu-item span,
-[data-theme="tech"] .app-sidebar .el-sub-menu__title span {
-  color: var(--color-success) !important;
-}
-
-[data-theme="tech"] .sidebar .el-menu-item:hover,
-[data-theme="tech"] .sidebar .el-sub-menu__title:hover,
-[data-theme="tech"] .app-sidebar .el-menu-item:hover,
-[data-theme="tech"] .app-sidebar .el-sub-menu__title:hover {
-  background: var(--color-grid) !important;
-  border-left-color: var(--color-primary) !important;
-  box-shadow: inset 0 0 20px color-mix(in srgb, var(--color-bg-overlay) 20%, transparent) !important;
-  color: var(--color-primary) !important;
-}
-
-[data-theme="tech"] .sidebar .el-menu-item:hover span,
-[data-theme="tech"] .sidebar .el-sub-menu__title:hover span,
-[data-theme="tech"] .app-sidebar .el-menu-item:hover span,
-[data-theme="tech"] .app-sidebar .el-sub-menu__title:hover span {
-  color: var(--color-primary) !important;
-}
-
-[data-theme="tech"] .sidebar .el-menu-item.is-active,
-[data-theme="tech"] .app-sidebar .el-menu-item.is-active {
-  background: var(--color-bg-overlay) !important;
-  border-left-color: var(--color-primary) !important;
-  box-shadow:
-    inset 0 0 20px color-mix(in srgb, var(--color-bg-overlay) 30%, transparent),
-    0 0 10px color-mix(in srgb, var(--color-bg-overlay) 50%, transparent) !important;
-  color: var(--color-primary) !important;
-}
-
-[data-theme="tech"] .sidebar .el-menu-item.is-active span,
-[data-theme="tech"] .app-sidebar .el-menu-item.is-active span {
-  color: var(--color-primary) !important;
-}
-
-[data-theme="tech"] .sidebar .el-menu-item.is-active::before,
-[data-theme="tech"] .app-sidebar .el-menu-item.is-active::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: var(--color-primary);
-  box-shadow: 0 0 10px var(--color-primary);
 }
 
 /* 顶部导航栏科技感 */

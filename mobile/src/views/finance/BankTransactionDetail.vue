@@ -10,7 +10,7 @@
       <div class="hero">
         <div>
           <div class="amount">{{ money(transaction.amount) }}</div>
-          <div class="desc">{{ transaction.description || transaction.related_party || pageTitle }}</div>
+          <div class="desc">{{ transaction.relatedParty || pageTitle }}</div>
         </div>
         <Tag :type="transaction.is_reconciled ? 'success' : 'warning'">
           {{ transaction.is_reconciled ? '已对账' : '未对账' }}
@@ -18,17 +18,17 @@
       </div>
 
       <CellGroup inset title="交易信息">
-        <Cell title="交易编号" :value="transaction.transaction_number || transaction.transaction_no || '-'" />
-        <Cell title="交易日期" :value="dateText(transaction.transaction_date)" />
-        <Cell title="交易类型" :value="transaction.transaction_type || '-'" />
-        <Cell title="账户" :value="transaction.account_name || transaction.cash_account_name || '-'" />
-        <Cell title="往来方" :value="transaction.related_party || '-'" />
-        <Cell title="凭证" :value="transaction.entry_number || transaction.voucher_no || '-'" />
+        <Cell title="交易编号" :value="transaction.transactionNumber || transaction.transactionNo || '-'" />
+        <Cell title="交易日期" :value="dateText(transaction.transactionDate)" />
+        <Cell title="交易类型" :value="transaction.transactionType || '-'" />
+        <Cell title="账户" :value="transaction.accountName || transaction.cashAccountName || '-'" />
+        <Cell title="往来方" :value="transaction.relatedParty || '-'" />
+        <Cell title="凭证" :value="transaction.entryNumber || transaction.voucherNo || '-'" />
       </CellGroup>
 
       <CellGroup inset title="附加信息">
-        <Cell title="创建时间" :value="dateTimeText(transaction.created_at)" />
-        <Cell title="更新时间" :value="dateTimeText(transaction.updated_at)" />
+        <Cell title="创建时间" :value="dateTimeText(transaction.createdAt)" />
+        <Cell title="更新时间" :value="dateTimeText(transaction.updatedAt)" />
         <Cell title="备注" :label="transaction.notes || transaction.remark || transaction.description || '-'" />
       </CellGroup>
     </div>
@@ -113,4 +113,4 @@
   .state {
     padding-top: 35vh;
   }
-</style>
+</style>

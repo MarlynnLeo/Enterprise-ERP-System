@@ -100,7 +100,7 @@
               <div class="message-content">
                 <div class="message-header">
                   <div class="message-title">{{ message.title }}</div>
-                  <div class="message-time">{{ formatTime(message.created_at) }}</div>
+                  <div class="message-time">{{ formatTime(message.createdAt) }}</div>
                 </div>
 
                 <div class="message-body">
@@ -262,7 +262,7 @@ const filteredMessages = computed(() => {
     }
   }
 
-  return filtered.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  return filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 });
 
 // 获取消息图标
@@ -322,18 +322,21 @@ const loadMessages = async (isRefresh = false) => {
       params.type = activeFilter.value;
     }
     if (activeFilter.value === 'unread') {
-      params.is_read = false;
+      params.isRead = false;
     }
 
     const response = await systemApi.getNotifications(params);
     const data = response.data;
     const list = data?.list || data?.rows || (Array.isArray(data) ? data : []);
 
-    // 规范化字段名（后端 is_read → 前端 read）
+    // 规范化字段名（HTTP camel → 列表 UI 使用 read）
     const normalized = list.map(item => ({
       ...item,
-      read: item.read ?? item.is_read ?? false,
-      priority: item.priority || 'normal'
+      read: item.read ?? item.isRead ?? false,
+      priority: item.priority || 'normal',
+      sourceId: item.sourceId,
+      sourceType: item.sourceType,
+      createdAt: item.createdAt,
     }));
 
     if (isRefresh) {
@@ -421,7 +424,7 @@ const handleAction = async (message, action) => {
         break;
       case 'complete':
         {
-          const taskId = message.related_id || message.meta?.任务ID || message.meta?.taskId;
+          const taskId = message.sourceId || message.meta?.任务ID || message.meta?.taskId;
           if (taskId) {
             await productionApi.updateProductionTaskStatus(taskId, 'completed');
             message.read = true;

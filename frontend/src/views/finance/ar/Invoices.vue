@@ -72,9 +72,22 @@
           v-loading="loading"
         >
           <template #empty>
-            <el-empty description="暂无发票数据" />
+            <EmptyState description="暂无发票数据" />
           </template>
-          <el-table-column prop="invoiceNumber" label="发票编号" width="180" />
+          <el-table-column prop="invoiceNumber" label="发票编号" width="180">
+            <template #default="{ row }">
+              <el-link
+                v-if="row.relatedOrderId || row.relatedOrderNo"
+                type="primary"
+                :underline="false"
+                @click="openRelatedSalesOrderDialog(row)"
+                :title="row.relatedOrderNo ? `查看销售订单 ${row.relatedOrderNo}` : '查看关联销售订单'"
+              >
+                {{ row.invoiceNumber }}
+              </el-link>
+              <span v-else>{{ row.invoiceNumber }}</span>
+            </template>
+          </el-table-column>
           <el-table-column prop="customerName" label="客户名称" min-width="160" />
           <el-table-column prop="invoiceDate" label="开票日期" width="110" />
           <el-table-column prop="dueDate" label="到期日期" width="110" />
@@ -201,6 +214,19 @@
       :get-status-text="getStatusText"
       @print="handlePrint"
     />
+
+    <!-- 关联销售订单预览（与发票详情同一 AppDialog 风格） -->
+    <RelatedOrderDialog
+      v-model="relatedOrderDialogVisible"
+      kind="sales"
+      :loading="relatedOrderLoading"
+      :invoice-number="relatedOrderContext.invoiceNumber"
+      :partner-name="relatedOrderContext.customerName"
+      :related-order-id="relatedOrderContext.relatedOrderId"
+      :related-order-no="relatedOrderContext.relatedOrderNo"
+      :order="relatedOrderDetail"
+      @jump="jumpToRelatedSalesOrder"
+    />
   </div>
 </template>
 <script setup>
@@ -212,7 +238,7 @@ import { Plus } from '@element-plus/icons-vue';
 import { baseDataApi } from '@/api';
 import { financeApi } from '@/api/finance';
 import { salesApi } from '@/api/sales';
-import { parseListData, parsePaginatedData } from '@/utils/responseParser'
+import { parseListData, parsePaginatedData, parseResponseData } from '@/utils/responseParser'
 import logger from '@/utils/logger'
 import { useFinanceStore } from '@/stores/finance'
 import { storeToRefs } from 'pinia'
@@ -220,9 +246,88 @@ import printService from '@/services/printService'
 import InvoiceFormDialog from './components/InvoiceFormDialog.vue'
 import PaymentDialog from './components/PaymentDialog.vue'
 import InvoiceDetailDialog from './components/InvoiceDetailDialog.vue'
+import RelatedOrderDialog from '../components/RelatedOrderDialog.vue'
 const financeStore = useFinanceStore()
 const { defaultVATRate } = storeToRefs(financeStore)
-const _router = useRouter()
+const router = useRouter()
+
+const relatedOrderDialogVisible = ref(false)
+const relatedOrderLoading = ref(false)
+const relatedOrderDetail = ref(null)
+const relatedOrderContext = reactive({
+  invoiceNumber: '',
+  customerName: '',
+  relatedOrderId: null,
+  relatedOrderNo: '',
+})
+
+/** 点击发票编号 → 弹窗展示关联销售订单 */
+const openRelatedSalesOrderDialog = async (row) => {
+  if (!row?.relatedOrderId && !row?.relatedOrderNo) {
+    ElMessage.warning('该发票未关联销售订单')
+    return
+  }
+  relatedOrderContext.invoiceNumber = row.invoiceNumber || ''
+  relatedOrderContext.customerName = row.customerName || ''
+  relatedOrderContext.relatedOrderId = row.relatedOrderId || null
+  relatedOrderContext.relatedOrderNo = row.relatedOrderNo || ''
+  relatedOrderDetail.value = null
+  relatedOrderDialogVisible.value = true
+  relatedOrderLoading.value = true
+  try {
+    let orderId = row.relatedOrderId
+    if (!orderId && row.relatedOrderNo) {
+      const listRes = await salesApi.getOrders({
+        search: row.relatedOrderNo,
+        page: 1,
+        pageSize: 5,
+      })
+      const list = parseListData(listRes, { enableLog: false }) || []
+      const hit =
+        list.find((o) => String(o.orderNo || '') === String(row.relatedOrderNo)) || list[0]
+      orderId = hit?.id
+      if (hit?.orderNo) relatedOrderContext.relatedOrderNo = hit.orderNo
+      if (hit?.id) relatedOrderContext.relatedOrderId = hit.id
+    }
+    if (!orderId) {
+      ElMessage.warning('未找到对应销售订单详情')
+      return
+    }
+    const res = await salesApi.getOrder(orderId)
+    relatedOrderDetail.value = parseResponseData(res, null) || res?.data || null
+    if (relatedOrderDetail.value?.id) {
+      relatedOrderContext.relatedOrderId = relatedOrderDetail.value.id
+    }
+    if (relatedOrderDetail.value?.orderNo) {
+      relatedOrderContext.relatedOrderNo = relatedOrderDetail.value.orderNo
+    }
+  } catch (error) {
+    logger.error('加载关联销售订单失败:', error)
+    ElMessage.error(error?.response?.data?.message || error.message || '加载销售订单失败')
+  } finally {
+    relatedOrderLoading.value = false
+  }
+}
+
+/** 对话框底部：跳转销售订单列表并筛选 */
+const jumpToRelatedSalesOrder = () => {
+  if (!relatedOrderContext.relatedOrderId && !relatedOrderContext.relatedOrderNo) {
+    ElMessage.warning('无关联销售订单可跳转')
+    return
+  }
+  relatedOrderDialogVisible.value = false
+  router.push({
+    path: '/sales/orders',
+    query: {
+      ...(relatedOrderContext.relatedOrderId
+        ? { orderId: String(relatedOrderContext.relatedOrderId) }
+        : {}),
+      ...(relatedOrderContext.relatedOrderNo
+        ? { orderNo: String(relatedOrderContext.relatedOrderNo) }
+        : {}),
+    },
+  })
+}
 // 权限计算属性
 // 数据加载状态
 const loading = ref(false);
@@ -805,7 +910,9 @@ const handlePrint = async () => {
   width: 100%;
   overflow-x: auto;
 }
-.el-table {
+/* 仅主列表需要横向滚动，勿作用到弹窗内表格 */
+.table-container > .el-table,
+.table-container :deep(> .el-table) {
   min-width: 1400px;
 }
 .invoice-items {
@@ -841,94 +948,17 @@ const handlePrint = async () => {
   border-top: 1px solid var(--color-border-lighter);
   padding-top: 10px;
 }
-.invoice-details {
-  padding: 20px;
-}
-.details-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: var(--spacing-lg);
-  border-bottom: 1px solid var(--color-border-lighter);
-  padding-bottom: 15px;
-}
-.details-header h3 {
-  margin: 0;
-  color: var(--color-text-primary);
-  font-size: 18px;
-}
-.detail-item {
-  margin-bottom: 15px;
-  display: flex;
-  align-items: baseline;
-}
-.label {
-  font-weight: bold;
-  color: var(--color-text-regular);
-  width: 100px;
-  text-align: right;
-  margin-right: 10px;
-}
-.value {
-  color: var(--color-text-primary);
-  flex: 1;
-}
-.details-section {
-  margin-top: 25px;
-  margin-bottom: 25px;
-}
-.details-section h3 {
-  margin-bottom: 15px;
-  font-size: 16px;
-  color: var(--color-text-primary);
-  border-left: 3px solid var(--color-primary);
-  padding-left: 10px;
-}
-.notes-content {
-  white-space: pre-wrap;
-  background: var(--color-bg-section);
-  padding: 10px;
-  border-radius: var(--radius-sm);
-  color: var(--color-text-regular);
-}
-.no-data {
-  text-align: center;
-  color: var(--color-text-secondary);
-  padding: 20px;
-  background: var(--color-bg-section);
-  border-radius: var(--radius-sm);
-}
-.invoice-items .details-table-container,
-.details-table-container {
+/* 表单内明细表格 */
+.invoice-items .details-table-container {
   width: 100%;
   overflow-x: auto;
 }
-.invoice-items .el-table {
-  min-width: 550px;
-}
-.details-section .el-table {
-  width: 100%;
-  min-width: 600px;
-}
-/* 对话框自适应高度 */
-
 /* 移除操作列右侧空白 */
 .invoice-items :deep(.el-table__body-wrapper .el-table__cell:last-child) {
   padding-right: 8px;
 }
 .invoice-items :deep(.el-table__header-wrapper .el-table__cell:last-child) {
   padding-right: 8px;
-}
-/* 详情对话框长文本处理 - 自动添加 */
-:deep(.el-descriptions__content) {
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-:deep(.el-table__cell) {
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 /* 内联样式提取 */
 .table-full-width {

@@ -107,7 +107,7 @@ export function useTodos() {
         .map(todo => ({
           type: getPriorityType(todo.priority),
           sender: getTodoSender(todo),
-          date: formatDate(todo.completedAt || todo.completed_at || todo.updatedAt || todo.updated_at || todo.deadline),
+          date: formatDate(todo.completedAt || todo.updatedAt || todo.deadline),
           status: '已完成',
           title: todo.title,
           id: todo.id
@@ -131,7 +131,7 @@ export function useTodos() {
 
   const getTodoSender = (todo) => {
     const creator = todo.creator
-    return creator?.real_name || creator?.username || authStore.user?.real_name || '用户'
+    return creator?.realName || creator?.username || authStore.user?.realName || authStore.realName || '用户'
   }
 
   // 跳转到待办页面

@@ -183,6 +183,52 @@ async function ensureThreeWayMenu(trx) {
       }
     }
   }
+
+  // 绑定 permission_id（结算/三单菜单）并同步 admin role_permissions
+  if (await trx.schema.hasTable('permissions')) {
+    const menusToBind = await trx('menus')
+      .whereIn('id', menuIds)
+      .whereNotNull('permission')
+      .andWhere('permission', '<>', '')
+      .select('id', 'permission', 'name');
+    for (const m of menusToBind) {
+      let perm = await trx('permissions').where({ code: m.permission }).first();
+      if (!perm) {
+        const moduleName = String(m.permission).split(':')[0] || m.permission;
+        const [permId] = await trx('permissions').insert({
+          code: m.permission,
+          name: m.name || m.permission,
+          module: moduleName,
+          status: 1,
+          source: 'menu',
+          created_at: trx.fn.now(),
+          updated_at: trx.fn.now(),
+        });
+        perm = { id: permId };
+      }
+      await trx('menus').where({ id: m.id }).update({
+        permission_id: perm.id,
+        updated_at: trx.fn.now(),
+      });
+      for (const role of roles) {
+        const rp = await trx('role_permissions')
+          .where({ role_id: role.id, permission_id: perm.id })
+          .first();
+        if (!rp) {
+          try {
+            await trx('role_permissions').insert({
+              role_id: role.id,
+              permission_id: perm.id,
+              created_at: trx.fn.now(),
+            });
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+    }
+  }
+
   return menuId;
 }
 

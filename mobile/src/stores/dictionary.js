@@ -17,9 +17,9 @@ export const useDictionaryStore = defineStore('dictionary', {
         const items = Array.isArray(response.data) ? response.data : []
         const groups = {}
         for (const item of items) {
-          if (!item.group_code) continue
-          if (!groups[item.group_code]) groups[item.group_code] = []
-          groups[item.group_code].push(item)
+          if (!item.groupCode) continue
+          if (!groups[item.groupCode]) groups[item.groupCode] = []
+          groups[item.groupCode].push(item)
         }
         this.groups = groups
         this.isLoaded = true

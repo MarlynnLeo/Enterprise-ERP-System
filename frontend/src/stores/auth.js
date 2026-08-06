@@ -23,11 +23,11 @@ import { resetCsrfToken } from '@/services/axiosInstance'
  * @typedef {Object} User
  * @property {number} id - 用户ID
  * @property {string} username - 用户名
- * @property {string} [real_name] - 真实姓名
- * @property {string} [realName] - 真实姓名（驼峰格式）
+ * @property {string} [realName] - 真实姓名（HTTP camel）
  * @property {string} [name] - 姓名
  * @property {string} [email] - 邮箱
  * @property {string} [avatar] - 头像URL
+ * @property {string} [avatarFrame] - 头像框
  * @property {number} [status] - 状态（1=启用, 0=禁用）
  */
 
@@ -303,10 +303,10 @@ export const useAuthStore = defineStore('auth', () => {
     return permissions.value.some(p => p.startsWith(`${permission}:`))
   }
 
-  // 获取用户真实姓名的计算属性
+  // 获取用户真实姓名的计算属性（HTTP 仅 camel）
   const realName = computed(() => {
     if (!user.value) return '';
-    return user.value.real_name || user.value.realName || user.value.name || user.value.username || '';
+    return user.value.realName || user.value.name || user.value.username || '';
   })
 
   return {

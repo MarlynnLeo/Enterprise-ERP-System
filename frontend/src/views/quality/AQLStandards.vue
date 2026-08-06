@@ -35,25 +35,25 @@
       >
         <el-table-column prop="code" label="标准编号" width="150" />
         <el-table-column prop="name" label="标准名称" width="200" show-overflow-tooltip />
-        <el-table-column prop="aql_level" label="AQL 级别" width="100">
+        <el-table-column prop="aqlLevel" label="AQL 级别" width="100">
           <template #default="scope">
-            <el-tag type="info" effect="plain">{{ scope.row.aql_level }}</el-tag>
+            <el-tag type="info" effect="plain">{{ scope.row.aqlLevel }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column label="批量范围" width="180">
           <template #default="scope">
-            {{ scope.row.batch_min }} ~ {{ scope.row.batch_max }}
+            {{ scope.row.batchMin }} ~ {{ scope.row.batchMax }}
           </template>
         </el-table-column>
-        <el-table-column prop="sample_size" label="抽样数 (n)" width="120" />
-        <el-table-column prop="accept_limit" label="允收数 (Ac)" width="120">
+        <el-table-column prop="sampleSize" label="抽样数 (n)" width="120" />
+        <el-table-column prop="acceptLimit" label="允收数 (Ac)" width="120">
           <template #default="scope">
-            <span class="text-success font-weight-700">{{ scope.row.accept_limit }}</span>
+            <span class="text-success font-weight-700">{{ scope.row.acceptLimit }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="reject_limit" label="拒收数 (Re)" width="120">
+        <el-table-column prop="rejectLimit" label="拒收数 (Re)" width="120">
           <template #default="scope">
-            <span class="text-danger font-weight-700">{{ scope.row.reject_limit }}</span>
+            <span class="text-danger font-weight-700">{{ scope.row.rejectLimit }}</span>
           </template>
         </el-table-column>
 
@@ -65,9 +65,9 @@
           </template>
         </el-table-column>
 
-        <el-table-column prop="updated_at" label="最后更新" width="160">
+        <el-table-column prop="updatedAt" label="最后更新" width="160">
           <template #default="scope">
-            {{ formatDate(scope.row.updated_at) }}
+            {{ formatDate(scope.row.updatedAt) }}
           </template>
         </el-table-column>
 
@@ -95,9 +95,10 @@
     </el-card>
 
     <!-- Dialog -->
-    <el-dialog
+    <AppDialog
       v-model="dialogVisible"
       :title="isEdit ? '编辑 AQL 标准' : '新增 AQL 标准'"
+      mode="form"
       width="600px"
       @close="resetForm"
     >
@@ -113,42 +114,42 @@
 
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="AQL 级别" prop="aql_level">
-              <el-input-number v-model="form.aql_level" :precision="2" :step="0.1" :min="0.01" class="w-full" placeholder="如 0.65" />
+            <el-form-item label="AQL 级别" prop="aqlLevel">
+              <el-input-number v-model="form.aqlLevel" :precision="2" :step="0.1" :min="0.01" class="w-full" placeholder="如 0.65" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="抽样数 (n)" prop="sample_size">
-              <el-input-number v-model="form.sample_size" :min="1" class="w-full" />
+            <el-form-item label="抽样数 (n)" prop="sampleSize">
+              <el-input-number v-model="form.sampleSize" :min="1" class="w-full" />
             </el-form-item>
           </el-col>
         </el-row>
 
         <el-form-item label="适用批量范围" required>
           <el-col :span="11">
-            <el-form-item prop="batch_min">
-              <el-input-number v-model="form.batch_min" :min="1" class="w-full" placeholder="最小批量" />
+            <el-form-item prop="batchMin">
+              <el-input-number v-model="form.batchMin" :min="1" class="w-full" placeholder="最小批量" />
             </el-form-item>
           </el-col>
           <el-col class="text-center" :span="2" style="text-align: center; line-height: 32px;">
             <span class="text-gray-500">-</span>
           </el-col>
           <el-col :span="11">
-            <el-form-item prop="batch_max">
-              <el-input-number v-model="form.batch_max" :min="form.batch_min" class="w-full" placeholder="最大批量" />
+            <el-form-item prop="batchMax">
+              <el-input-number v-model="form.batchMax" :min="form.batchMin" class="w-full" placeholder="最大批量" />
             </el-form-item>
           </el-col>
         </el-form-item>
 
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="允收数 (Ac)" prop="accept_limit">
-              <el-input-number v-model="form.accept_limit" :min="0" class="w-full" />
+            <el-form-item label="允收数 (Ac)" prop="acceptLimit">
+              <el-input-number v-model="form.acceptLimit" :min="0" class="w-full" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="拒收数 (Re)" prop="reject_limit">
-              <el-input-number v-model="form.reject_limit" :min="form.accept_limit + 1" class="w-full" />
+            <el-form-item label="拒收数 (Re)" prop="rejectLimit">
+              <el-input-number v-model="form.rejectLimit" :min="form.acceptLimit + 1" class="w-full" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -171,7 +172,7 @@
           </el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
   </div>
 </template>
 
@@ -204,24 +205,24 @@ const form = ref({
   id: null,
   code: '',
   name: '',
-  aql_level: null,
-  batch_min: 1,
-  batch_max: 100,
-  sample_size: 1,
-  accept_limit: 0,
-  reject_limit: 1,
+  aqlLevel: null,
+  batchMin: 1,
+  batchMax: 100,
+  sampleSize: 1,
+  acceptLimit: 0,
+  rejectLimit: 1,
   status: 'active'
 });
 
 const rules = {
   code: [{ required: true, message: '请输入标准编号', trigger: 'blur' }],
   name: [{ required: true, message: '请输入标准名称', trigger: 'blur' }],
-  aql_level: [{ required: true, message: '请输入 AQL 级别', trigger: 'blur' }],
-  batch_min: [{ required: true, message: '请输入最小批量', trigger: 'blur' }],
-  batch_max: [{ required: true, message: '请输入最大批量', trigger: 'blur' }],
-  sample_size: [{ required: true, message: '请输入抽样数', trigger: 'blur' }],
-  accept_limit: [{ required: true, message: '请输入允收数', trigger: 'blur' }],
-  reject_limit: [{ required: true, message: '请输入拒收数', trigger: 'blur' }]
+  aqlLevel: [{ required: true, message: '请输入 AQL 级别', trigger: 'blur' }],
+  batchMin: [{ required: true, message: '请输入最小批量', trigger: 'blur' }],
+  batchMax: [{ required: true, message: '请输入最大批量', trigger: 'blur' }],
+  sampleSize: [{ required: true, message: '请输入抽样数', trigger: 'blur' }],
+  acceptLimit: [{ required: true, message: '请输入允收数', trigger: 'blur' }],
+  rejectLimit: [{ required: true, message: '请输入拒收数', trigger: 'blur' }]
 };
 
 // ---- Methods ----
@@ -255,7 +256,7 @@ const handleEdit = (row) => {
   isEdit.value = true;
   form.value = { ...row };
   // 转换部分数字以防组件报错
-  form.value.aql_level = Number(row.aql_level);
+  form.value.aqlLevel = Number(row.aqlLevel);
   dialogVisible.value = true;
 };
 
@@ -307,12 +308,12 @@ const resetForm = () => {
     id: null,
     code: '',
     name: '',
-    aql_level: null,
-    batch_min: 1,
-    batch_max: 100,
-    sample_size: 1,
-    accept_limit: 0,
-    reject_limit: 1,
+    aqlLevel: null,
+    batchMin: 1,
+    batchMax: 100,
+    sampleSize: 1,
+    acceptLimit: 0,
+    rejectLimit: 1,
     status: 'active'
   };
   if (formRef.value) {

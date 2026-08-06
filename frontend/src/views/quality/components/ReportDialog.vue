@@ -12,32 +12,37 @@
  */
 -->
 <template>
-  <el-dialog v-model="dialogVisible" :title="`检验报告 - ${inspection?.inspectionNo || inspection?.inspection_no || ''}`" width="800px" destroy-on-close>
+  <AppDialog
+    v-model="dialogVisible"
+    :title="`检验报告 - ${inspection?.inspectionNo || inspection?.inspectionNo || ''}`"
+    mode="form"
+    width="800px"
+  >
     <div ref="reportRef" class="inspection-report">
       <div class="report-header">
         <div class="report-title">来料检验报告</div>
-        <div class="report-no">No. {{ inspection?.inspectionNo || inspection?.inspection_no }}</div>
+        <div class="report-no">No. {{ inspection?.inspectionNo || inspection?.inspectionNo }}</div>
       </div>
       <div class="report-info">
         <div class="report-info-item">
           <span class="report-info-label">物料名称:</span>
-          <span>{{ inspection?.materialName || inspection?.material_name || inspection?.product_name || '-' }}</span>
+          <span>{{ inspection?.materialName || inspection?.materialName || inspection?.productName || '-' }}</span>
         </div>
         <div class="report-info-item">
           <span class="report-info-label">产品型号:</span>
-          <span>{{ inspection?.product_code || inspection?.specs || inspection?.material_specs || '-' }}</span>
+          <span>{{ inspection?.productCode || inspection?.specs || inspection?.material_specs || '-' }}</span>
         </div>
         <div class="report-info-item">
           <span class="report-info-label">供应商:</span>
-          <span>{{ inspection?.supplierName || inspection?.supplier_name || '' }}</span>
+          <span>{{ inspection?.supplierName || inspection?.supplierName || '' }}</span>
         </div>
         <div class="report-info-item">
           <span class="report-info-label">采购单号:</span>
-          <span>{{ inspection?.purchaseOrderNo || inspection?.reference_no }}</span>
+          <span>{{ inspection?.purchaseOrderNo || inspection?.referenceNo }}</span>
         </div>
         <div class="report-info-item">
           <span class="report-info-label">批次号:</span>
-          <span>{{ inspection?.batchNo || inspection?.batch_no || '-' }}</span>
+          <span>{{ inspection?.batchNo || inspection?.batchNo || '-' }}</span>
         </div>
         <div class="report-info-item">
           <span class="report-info-label">检验数量:</span>
@@ -45,11 +50,11 @@
         </div>
         <div class="report-info-item">
           <span class="report-info-label">检验日期:</span>
-          <span>{{ formatDate(inspection?.inspectionDate || inspection?.actual_date) }}</span>
+          <span>{{ formatDate(inspection?.inspectionDate || inspection?.actualDate) }}</span>
         </div>
         <div class="report-info-item">
           <span class="report-info-label">检验员:</span>
-          <span>{{ inspection?.inspector || inspection?.inspector_name }}</span>
+          <span>{{ inspection?.inspector || inspection?.inspectorName }}</span>
         </div>
         <div class="report-info-item">
           <span class="report-info-label">检验结果:</span>
@@ -61,17 +66,17 @@
       <div class="report-standards">
         <h3>检验项目</h3>
         <el-table :data="inspection?.items" border>
-          <el-table-column prop="item_name" label="检验项目" min-width="150" show-overflow-tooltip />
+          <el-table-column prop="itemName" label="检验项目" min-width="150" show-overflow-tooltip />
           <el-table-column prop="standard" label="检验标准" min-width="150" show-overflow-tooltip />
           <el-table-column prop="type" label="检验类型" min-width="100" show-overflow-tooltip>
             <template #default="scope">{{ getQualityInspectionTypeText(scope.row.type) }}</template>
           </el-table-column>
-          <el-table-column prop="is_critical" label="关键项" width="80" show-overflow-tooltip>
+          <el-table-column prop="isCritical" label="关键项" width="80" show-overflow-tooltip>
             <template #default="scope">
-              <el-tag size="small" :type="scope.row.is_critical ? 'danger' : 'info'">{{ scope.row.is_critical ? '是' : '否' }}</el-tag>
+              <el-tag size="small" :type="scope.row.isCritical ? 'danger' : 'info'">{{ scope.row.isCritical ? '是' : '否' }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="actual_value" label="实际值" min-width="120" show-overflow-tooltip />
+          <el-table-column prop="actualValue" label="实际值" min-width="120" show-overflow-tooltip />
           <el-table-column prop="result" label="结果" min-width="100" show-overflow-tooltip>
             <template #default="scope">
               <el-tag :type="scope.row.result === 'passed' ? 'success' : 'danger'">{{ scope.row.result === 'passed' ? '合格' : '不合格' }}</el-tag>
@@ -91,8 +96,8 @@
       </div>
       <div class="report-signature">
         <div class="signature-item">
-          <p>检验员: {{ inspection?.inspector || inspection?.inspector_name }}</p>
-          <p>日期: {{ formatDate(inspection?.inspectionDate || inspection?.actual_date) }}</p>
+          <p>检验员: {{ inspection?.inspector || inspection?.inspectorName }}</p>
+          <p>日期: {{ formatDate(inspection?.inspectionDate || inspection?.actualDate) }}</p>
         </div>
         <div class="signature-item">
           <p>审核人: ____________</p>
@@ -106,7 +111,7 @@
         <el-button v-permission="'quality:inspections:view'" type="primary" @click="handlePrint">打印报告</el-button>
       </span>
     </template>
-  </el-dialog>
+    </AppDialog>
 </template>
 <script setup>
 import { ref, computed } from 'vue'
@@ -141,27 +146,27 @@ const handlePrint = async () => {
   }
   const insp = props.inspection
   const printData = {
-    inspection_no: insp.inspectionNo || insp.inspection_no || '',
-    material_name: insp.materialName || insp.material_name || insp.product_name || '',
-    specs: insp.specs || insp.material_specs || '',
-    product_code: insp.product_code || '',
-    supplier_name: insp.supplierName || insp.supplier_name || '',
-    reference_no: insp.purchaseOrderNo || insp.reference_no || '',
-    batch_no: insp.batchNo || insp.batch_no || '',
-    quantity: insp.quantity || insp.total_quantity || 0,
+    inspection_no: insp.inspectionNo || '',
+    material_name: insp.materialName || insp.productName || '',
+    specs: insp.materialSpecs || '',
+    product_code: insp.productCode || '',
+    supplier_name: insp.supplierName || '',
+    reference_no: insp.purchaseOrderNo || insp.referenceNo || '',
+    batch_no: insp.batchNo || '',
+    quantity: insp.totalQuantity || 0,
     unit: insp.unit || '',
-    inspection_date: formatDate(insp.inspectionDate || insp.actual_date),
-    inspector_name: insp.inspector || insp.inspector_name || '',
+    inspection_date: formatDate(insp.inspectionDate || insp.actualDate),
+    inspector_name: insp.inspector || insp.inspectorName || '',
     status: insp.status || 'pending',
     status_text: getStatusText(insp.status),
     note: insp.note || '',
     items: (insp.items || []).map(item => ({
       ...item,
       index: item.index,
-      item_code: item.item_code || item.code || '',
-      item_name: item.item_name || item.name || '-',
+      item_code: item.itemCode || item.code || '',
+      item_name: item.itemName || item.name || '-',
       specification: item.standard || item.specification || '',
-      quantity: item.actual_value || item.quantity || '',
+      quantity: item.actualValue || item.quantity || '',
       unit_name: item.unit || '',
       result: getStatusText(item.result),
       remark: item.remark || item.remarks || '',

@@ -26,14 +26,14 @@
     title: '应收账龄',
     searchPlaceholder: '搜索客户名称',
     fields: {
-      id: 'customer_id',
-      title: 'customer_name',
-      subtitle: (item) => `${item.invoice_count || 0} 张发票`,
+      id: 'customerId',
+      title: 'customerName',
+      subtitle: (item) => `${item.invoiceCount || 0} 张发票`,
       icon: 'chart-trending-o',
       details: [
-        { label: '应收总额', field: 'total_amount', format: 'money', prefix: '¥' },
-        { label: '已收金额', field: 'paid_amount', format: 'money', prefix: '¥' },
-        { label: '未收余额', field: 'balance_amount', format: 'money', prefix: '¥' }
+        { label: '应收总额', field: 'totalAmount', format: 'money', prefix: '¥' },
+        { label: '未收余额', field: 'balanceAmount', format: 'money', prefix: '¥' },
+        { label: '当前', field: 'currentAmount', format: 'money', prefix: '¥' }
       ]
     }
   }))
@@ -43,6 +43,6 @@
   }
 
   const handleItemClick = (item) => {
-    router.push(`/finance/ar/invoices?customer_id=${item.customer_id}`)
+    router.push(`/finance/ar/invoices?customerId=${item.customerId}`)
   }
 </script>

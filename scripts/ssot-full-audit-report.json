@@ -1,0 +1,221 @@
+{
+  "summary": {
+    "dualCase": 0,
+    "frontendSnakeProp": 0,
+    "rawResJson": 20,
+    "redundantMapKeysToCamelFiles": 1,
+    "redundantMapKeysToCamelHits": 2,
+    "bodySnakeWithoutMap": 0,
+    "printSnakeKeys": 18
+  },
+  "dualCase": [],
+  "frontendSnakeProp": [],
+  "rawResJson": [
+    {
+      "file": "backend/src/controllers/business/finance/cash/bankTransactionController.js",
+      "line": 454,
+      "snippet": "res.send(buffer);"
+    },
+    {
+      "file": "backend/src/controllers/business/finance/cash/cashTransactionController.js",
+      "line": 273,
+      "snippet": "res.send(result.buffer);"
+    },
+    {
+      "file": "backend/src/controllers/business/hr/hrController.js",
+      "line": 699,
+      "snippet": "return res.send(buffer);"
+    },
+    {
+      "file": "backend/src/controllers/business/inventory/inventoryLedgerController.js",
+      "line": 1002,
+      "snippet": "res.send(buf);"
+    },
+    {
+      "file": "backend/src/controllers/business/inventory/inventoryLedgerController.js",
+      "line": 1186,
+      "snippet": "res.send(buf);"
+    },
+    {
+      "file": "backend/src/controllers/business/inventory/inventoryStockController.js",
+      "line": 1163,
+      "snippet": "res.send(excelBuffer);"
+    },
+    {
+      "file": "backend/src/controllers/business/inventory/inventoryStockController.js",
+      "line": 1733,
+      "snippet": "res.send(excelBuffer);"
+    },
+    {
+      "file": "backend/src/controllers/business/inventory/outbound/outboundCrudController.js",
+      "line": 360,
+      "snippet": "return res.send(buffer);"
+    },
+    {
+      "file": "backend/src/controllers/business/sales/salesOrderController.js",
+      "line": 1408,
+      "snippet": "res.send(excelBuffer);"
+    },
+    {
+      "file": "backend/src/controllers/business/sales/salesOrderController.js",
+      "line": 1938,
+      "snippet": "res.send(excelBuffer);"
+    },
+    {
+      "file": "backend/src/controllers/common/userActivityController.js",
+      "line": 446,
+      "snippet": "res.send('\\ufeff' + csvContent); // BOM for UTF-8"
+    },
+    {
+      "file": "backend/src/routes/health.js",
+      "line": 75,
+      "snippet": "res.json({"
+    },
+    {
+      "file": "backend/src/routes/health.js",
+      "line": 242,
+      "snippet": "res.json(metrics);"
+    },
+    {
+      "file": "backend/src/routes/health.js",
+      "line": 282,
+      "snippet": "res.json(stats);"
+    },
+    {
+      "file": "backend/src/routes/health.js",
+      "line": 320,
+      "snippet": "res.json(stats);"
+    },
+    {
+      "file": "backend/src/routes/health.js",
+      "line": 337,
+      "snippet": "res.json(result);"
+    },
+    {
+      "file": "backend/src/routes/health.js",
+      "line": 353,
+      "snippet": "res.json(report);"
+    },
+    {
+      "file": "backend/src/routes/integrations/dingtalkRoutes.js",
+      "line": 57,
+      "snippet": "return res.json({"
+    },
+    {
+      "file": "backend/src/routes/integrations/dingtalkRoutes.js",
+      "line": 71,
+      "snippet": "res.json({ errcode: 0, errmsg: 'success' });"
+    },
+    {
+      "file": "backend/src/routes/monitoring.js",
+      "line": 100,
+      "snippet": "res.json(healthStatus);"
+    }
+  ],
+  "controllersNoMapKeysSnakeOnBody": [],
+  "printSnakeKeys": [
+    {
+      "file": "frontend/src/constants/printConstants.js",
+      "line": 145,
+      "snippet": "order_no: 'SO-20260511001',"
+    },
+    {
+      "file": "frontend/src/constants/printConstants.js",
+      "line": 209,
+      "snippet": "{ index: 1, material_code: 'L2-1001', material_name: '半成品组件', specification: 'A 型', planned_quantity"
+    },
+    {
+      "file": "frontend/src/constants/printConstants.js",
+      "line": 210,
+      "snippet": "{ index: 2, material_code: 'M-2001', material_name: '标准螺丝', specification: 'M3', planned_quantity: '"
+    },
+    {
+      "file": "frontend/src/constants/printConstants.js",
+      "line": 269,
+      "snippet": "{ index: 1, material_code: 'M-1001', material_name: '铜端子', specification: 'T2', unit: '件', unit_name"
+    },
+    {
+      "file": "frontend/src/constants/printConstants.js",
+      "line": 270,
+      "snippet": "{ index: 2, material_code: 'M-1002', material_name: '塑胶壳体', specification: '黑色', unit: '件', unit_nam"
+    },
+    {
+      "file": "frontend/src/constants/printConstants.js",
+      "line": 295,
+      "snippet": "{ index: 1, material_code: 'M-1001', material_name: '铜端子', specification: 'T2', received_quantity: '"
+    },
+    {
+      "file": "frontend/src/views/finance/ap/Invoices.vue",
+      "line": 1045,
+      "snippet": "material_code: item.materialCode || '',"
+    },
+    {
+      "file": "frontend/src/views/finance/ap/Invoices.vue",
+      "line": 1063,
+      "snippet": "order_no: invoiceDetail.value.orderNumber || invoiceDetail.value.orderNo || '',"
+    },
+    {
+      "file": "frontend/src/views/finance/ar/Invoices.vue",
+      "line": 769,
+      "snippet": "order_no: '',"
+    },
+    {
+      "file": "frontend/src/views/inventory/InventoryStock.vue",
+      "line": 831,
+      "snippet": "material_code: row.materialCode || '',"
+    },
+    {
+      "file": "frontend/src/views/inventory/InventoryTransfer.vue",
+      "line": 1035,
+      "snippet": "material_code: item.materialCode || '-',"
+    },
+    {
+      "file": "frontend/src/views/inventory/InventoryTransfer.vue",
+      "line": 1155,
+      "snippet": "material_code: item.materialCode || '-',"
+    },
+    {
+      "file": "frontend/src/views/purchase/composables/usePurchaseOrderActions.js",
+      "line": 282,
+      "snippet": "...companyInfo, order_number: viewData.orderNumber || viewData.orderNo || '', order_no: viewData.ord"
+    },
+    {
+      "file": "frontend/src/views/purchase/PurchaseReceipts.vue",
+      "line": 1631,
+      "snippet": "material_code: item.materialCode || '',"
+    },
+    {
+      "file": "frontend/src/views/purchase/PurchaseRequisitions.vue",
+      "line": 1300,
+      "snippet": "material_code: item.materialCode || '',"
+    },
+    {
+      "file": "frontend/src/views/purchase/PurchaseReturns.vue",
+      "line": 1003,
+      "snippet": "material_code: item.materialCode || '',"
+    },
+    {
+      "file": "frontend/src/views/sales/SalesOrders.vue",
+      "line": 876,
+      "snippet": "order_no: order.orderNo || '',"
+    },
+    {
+      "file": "frontend/src/views/sales/SalesReturns.vue",
+      "line": 752,
+      "snippet": "order_no: ret.orderNo || '',"
+    }
+  ],
+  "note": "redundant mapKeysToCamel is idempotent under ResponseHandler auto-camel; safe but optional cleanup",
+  "redundantMapKeysToCamelSample": [
+    {
+      "file": "backend/src/controllers/business/inventory/inventoryStockController.js",
+      "line": 13,
+      "snippet": "const { mapKeysToCamel, mapKeysToSnake } = require('../../../utils/fieldMap');"
+    },
+    {
+      "file": "backend/src/controllers/business/inventory/inventoryStockController.js",
+      "line": 803,
+      "snippet": "const records = mapKeysToCamel(innerData.items.map((item) => ({"
+    }
+  ]
+}

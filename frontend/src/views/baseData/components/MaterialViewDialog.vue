@@ -9,7 +9,7 @@
     <div v-if="viewData" class="material-view-content">
       <el-descriptions :column="2" border class="custom-descriptions">
         <el-descriptions-item label="物料大类">
-          {{ viewData.product_category_name || '未设置' }}
+          {{ viewData.productCategoryName || '未设置' }}
         </el-descriptions-item>
         <el-descriptions-item label="物料编码">
           {{ viewData.code }}
@@ -21,58 +21,58 @@
           {{ viewData.specs || '无' }}
         </el-descriptions-item>
         <el-descriptions-item label="物料类型">
-          {{ viewData.category_name }}
+          {{ viewData.categoryName }}
         </el-descriptions-item>
         <el-descriptions-item label="检验方式">
-          {{ viewData.inspection_method_name || '未设置' }}
+          {{ viewData.inspectionMethodName || '未设置' }}
         </el-descriptions-item>
         <el-descriptions-item label="物料来源">
-          {{ viewData.material_source_name || '未设置' }}
+          {{ viewData.materialSourceName || '未设置' }}
         </el-descriptions-item>
         <el-descriptions-item label="供应商">
-          {{ viewData.supplier_name || '未设置' }}
+          {{ viewData.supplierName || '未设置' }}
         </el-descriptions-item>
         <el-descriptions-item label="生产组">
           {{ viewData.production_group_name || '未设置' }}
         </el-descriptions-item>
         <el-descriptions-item label="图号">
-          {{ viewData.drawing_no || '无' }}
+          {{ viewData.drawingNo || '无' }}
         </el-descriptions-item>
         <el-descriptions-item label="色号">
-          {{ viewData.color_code || '无' }}
+          {{ viewData.colorCode || '无' }}
         </el-descriptions-item>
         <el-descriptions-item label="材质">
-          {{ viewData.material_type || '无' }}
+          {{ viewData.materialType || '无' }}
         </el-descriptions-item>
         <el-descriptions-item label="单位">
-          {{ viewData.unit_name }}
+          {{ viewData.unitName }}
         </el-descriptions-item>
         <el-descriptions-item label="仓库">
-          {{ viewData.location_name || '未设置' }}
+          {{ viewData.locationName || '未设置' }}
         </el-descriptions-item>
         <el-descriptions-item label="物料负责人">
-          {{ viewData.manager_name || '未设置' }}
+          {{ viewData.managerName || '未设置' }}
         </el-descriptions-item>
         <el-descriptions-item label="物料位置">
-          {{ viewData.location_detail || '未设置' }}
+          {{ viewData.locationDetail || '未设置' }}
         </el-descriptions-item>
         <el-descriptions-item v-if="canViewPrice" label="销售价格">
           {{ formatCurrency(viewData.price) }}
         </el-descriptions-item>
         <el-descriptions-item v-if="canViewCost" label="采购成本">
-          {{ formatCurrency(viewData.cost_price) }}
+          {{ formatCurrency(viewData.costPrice) }}
         </el-descriptions-item>
         <el-descriptions-item label="安全库存">
-          {{ viewData.safety_stock || 0 }}
+          {{ viewData.safetyStock || 0 }}
         </el-descriptions-item>
         <el-descriptions-item label="最小库存">
-          {{ viewData.min_stock || 0 }}
+          {{ viewData.minStock || 0 }}
         </el-descriptions-item>
         <el-descriptions-item label="最大库存">
-          {{ viewData.max_stock || 0 }}
+          {{ viewData.maxStock || 0 }}
         </el-descriptions-item>
         <el-descriptions-item label="税率">
-          {{ formatTaxRate(viewData.tax_rate) }}
+          {{ formatTaxRate(viewData.taxRate) }}
         </el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag :type="String(viewData.status) === '1' ? 'success' : 'danger'">
@@ -80,10 +80,10 @@
           </el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="创建时间">
-          {{ formatDate(viewData.created_at) }}
+          {{ formatDate(viewData.createdAt) }}
         </el-descriptions-item>
         <el-descriptions-item label="更新时间">
-          {{ formatDate(viewData.updated_at) }}
+          {{ formatDate(viewData.updatedAt) }}
         </el-descriptions-item>
         <el-descriptions-item label="备注" :span="2">
           {{ viewData.remark || '无' }}
@@ -91,8 +91,8 @@
         <el-descriptions-item label="附件" :span="2">
           <template v-if="viewData.attachments && viewData.attachments.length">
             <div v-for="(file, index) in viewData.attachments" :key="index" class="mb-xs">
-              <el-link type="primary" :href="file.url || file.file_path" target="_blank" :underline="false">
-                <el-icon class="mr-sm"><Document /></el-icon>{{ file.original_name || file.name || file.file_name || '附件' + (index + 1) }}
+              <el-link type="primary" :href="file.url || file.filePath" target="_blank" :underline="false">
+                <el-icon class="mr-sm"><Document /></el-icon>{{ file.fileName || file.name || '附件' + (index + 1) }}
               </el-link>
             </div>
           </template>

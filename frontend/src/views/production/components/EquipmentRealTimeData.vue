@@ -81,10 +81,9 @@
     </div>
 
     <!-- 无数据提示 -->
-    <el-empty
+    <EmptyState
       v-if="!loading && Object.keys(realTimeData).length === 0"
-      description="暂无实时数据"
-    />
+      description="暂无实时数据" />
   </div>
 </template>
 

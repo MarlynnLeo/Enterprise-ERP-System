@@ -1,10 +1,10 @@
 <template>
-  <el-dialog
-    title="BOM版本对比"
+  <AppDialog
     :model-value="modelValue"
     @update:model-value="val => emit('update:modelValue', val)"
-    width="50%"
-    destroy-on-close
+    title="BOM版本对比"
+    mode="view"
+    content-width="wide"
   >
     <!-- 选择两个BOM -->
     <div class="compare-selector" v-if="!compareResult">
@@ -25,7 +25,7 @@
               <el-option
                 v-for="bom in allBomList"
                 :key="'a-' + bom.id"
-                :label="`${bom.product_code || ''} - ${bom.product_name || '未知产品'} - ${bom.version || 'V1.0'}${Number(bom.status) === 2 ? ' (历史)' : ''}`"
+                :label="`${bom.productCode || ''} - ${bom.productName || '未知产品'} - ${bom.version || 'V1.0'}${Number(bom.status) === 2 ? ' (历史)' : ''}`"
                 :value="bom.id"
                 :disabled="bom.id === selectedBomB"
               />
@@ -51,7 +51,7 @@
               <el-option
                 v-for="bom in allBomList"
                 :key="'b-' + bom.id"
-                :label="`${bom.product_code || ''} - ${bom.product_name || '未知产品'} - ${bom.version || 'V1.0'}${Number(bom.status) === 2 ? ' (历史)' : ''}`"
+                :label="`${bom.productCode || ''} - ${bom.productName || '未知产品'} - ${bom.version || 'V1.0'}${Number(bom.status) === 2 ? ' (历史)' : ''}`"
                 :value="bom.id"
                 :disabled="bom.id === selectedBomA"
               />
@@ -95,9 +95,9 @@
         <el-col :span="12">
           <el-card shadow="never" class="bom-header-card">
             <template #header>
-              <strong>BOM A: {{ compareResult.bomA.product_name }} - {{ compareResult.bomA.version }}</strong>
+              <strong>BOM A: {{ compareResult.bomA.productName }} - {{ compareResult.bomA.version }}</strong>
             </template>
-            <p>产品编码: {{ compareResult.bomA.product_code }}</p>
+            <p>产品编码: {{ compareResult.bomA.productCode }}</p>
             <p>物料数量: {{ compareResult.bomA.details.length }}</p>
             <p>状态: <el-tag :type="compareResult.bomA.approved ? 'success' : 'info'" size="small">{{ compareResult.bomA.approved ? '已审核' : '未审核' }}</el-tag></p>
           </el-card>
@@ -105,9 +105,9 @@
         <el-col :span="12">
           <el-card shadow="never" class="bom-header-card">
             <template #header>
-              <strong>BOM B: {{ compareResult.bomB.product_name }} - {{ compareResult.bomB.version }}</strong>
+              <strong>BOM B: {{ compareResult.bomB.productName }} - {{ compareResult.bomB.version }}</strong>
             </template>
-            <p>产品编码: {{ compareResult.bomB.product_code }}</p>
+            <p>产品编码: {{ compareResult.bomB.productCode }}</p>
             <p>物料数量: {{ compareResult.bomB.details.length }}</p>
             <p>状态: <el-tag :type="compareResult.bomB.approved ? 'success' : 'info'" size="small">{{ compareResult.bomB.approved ? '已审核' : '未审核' }}</el-tag></p>
           </el-card>
@@ -124,23 +124,23 @@
             <el-tag v-else type="info" size="small">相同</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="物料编码" prop="material_code" width="120" />
-        <el-table-column label="物料名称" prop="material_name" min-width="150" />
+        <el-table-column label="物料编码" prop="materialCode" width="120" />
+        <el-table-column label="物料名称" prop="materialName" min-width="150" />
         <el-table-column label="BOM A 用量" width="110">
           <template #default="{ row }">
-            <span :class="{ 'diff-value': row.type === 'changed' && row.qty_a !== row.qty_b }">
-              {{ row.qty_a !== null ? row.qty_a : '-' }}
+            <span :class="{ 'diff-value': row.type === 'changed' && row.qtyA !== row.qtyB }">
+              {{ row.qtyA !== null ? row.qtyA : '-' }}
             </span>
           </template>
         </el-table-column>
         <el-table-column label="BOM B 用量" width="110">
           <template #default="{ row }">
-            <span :class="{ 'diff-value': row.type === 'changed' && row.qty_a !== row.qty_b }">
-              {{ row.qty_b !== null ? row.qty_b : '-' }}
+            <span :class="{ 'diff-value': row.type === 'changed' && row.qtyA !== row.qtyB }">
+              {{ row.qtyB !== null ? row.qtyB : '-' }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column label="单位" prop="unit_name" width="80" />
+        <el-table-column label="单位" prop="unitName" width="80" />
         <el-table-column label="变更说明" min-width="180">
           <template #default="{ row }">
             <span v-if="row.type === 'added'" class="text-success">BOM A 新增此物料</span>
@@ -151,7 +151,7 @@
         </el-table-column>
       </el-table>
     </div>
-  </el-dialog>
+    </AppDialog>
 </template>
 
 <script setup>
@@ -267,8 +267,8 @@ const computeDiff = (bomA, bomB) => {
   const mapA = new Map()
   const mapB = new Map()
 
-  detailsA.forEach(d => mapA.set(d.material_id, d))
-  detailsB.forEach(d => mapB.set(d.material_id, d))
+  detailsA.forEach(d => mapA.set(d.materialId, d))
+  detailsB.forEach(d => mapB.set(d.materialId, d))
 
   const diffRows = []
   let added = 0, removed = 0, changed = 0
@@ -290,21 +290,21 @@ const computeDiff = (bomA, bomB) => {
           changed++
           diffRows.push({
             type: 'changed',
-            material_code: detA.material_code,
-            material_name: detA.material_name,
+            material_code: detA.materialCode,
+            material_name: detA.materialName,
             qty_a: detA.quantity,
             qty_b: detB.quantity,
-            unit_name: detA.unit_name || detB.unit_name,
+            unit_name: detA.unitName || detB.unitName,
             changeDesc: changes.join('；')
           })
         } else {
           diffRows.push({
             type: 'same',
-            material_code: detA.material_code,
-            material_name: detA.material_name,
+            material_code: detA.materialCode,
+            material_name: detA.materialName,
             qty_a: detA.quantity,
             qty_b: detB.quantity,
-            unit_name: detA.unit_name,
+            unit_name: detA.unitName,
             changeDesc: ''
           })
         }
@@ -313,11 +313,11 @@ const computeDiff = (bomA, bomB) => {
         added++
         diffRows.push({
           type: 'added',
-          material_code: detA.material_code,
-          material_name: detA.material_name,
+          material_code: detA.materialCode,
+          material_name: detA.materialName,
           qty_a: detA.quantity,
           qty_b: null,
-          unit_name: detA.unit_name,
+          unit_name: detA.unitName,
           changeDesc: ''
         })
       }
@@ -329,11 +329,11 @@ const computeDiff = (bomA, bomB) => {
         removed++
         diffRows.push({
           type: 'removed',
-          material_code: detB.material_code,
-          material_name: detB.material_name,
+          material_code: detB.materialCode,
+          material_name: detB.materialName,
           qty_a: null,
           qty_b: detB.quantity,
-          unit_name: detB.unit_name,
+          unit_name: detB.unitName,
           changeDesc: ''
         })
       }

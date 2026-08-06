@@ -23,7 +23,7 @@
           </div>
           <Field
             v-model="selectedProductCategoryName"
-            name="product_category_id"
+            name="productCategoryId"
             label="物料大类"
             placeholder="请选择物料大类"
             readonly
@@ -50,7 +50,7 @@
           />
           <Field
             v-model="selectedCategoryName"
-            name="category_id"
+            name="categoryId"
             label="物料类型"
             placeholder="请选择物料类型"
             readonly
@@ -66,7 +66,7 @@
           />
           <Field
             v-model="selectedUnitName"
-            name="unit_id"
+            name="unitId"
             label="计量单位"
             placeholder="请选择单位"
             readonly
@@ -83,7 +83,7 @@
           </div>
           <Field
             v-model="selectedInspectionMethodName"
-            name="inspection_method_id"
+            name="inspectionMethodId"
             label="检验方式"
             placeholder="请选择检验方式"
             readonly
@@ -92,7 +92,7 @@
           />
           <Field
             v-model="selectedMaterialSourceName"
-            name="material_source_id"
+            name="materialSourceId"
             label="物料来源"
             placeholder="请选择物料来源"
             readonly
@@ -101,7 +101,7 @@
           />
           <Field
             v-model="selectedSupplierName"
-            name="supplier_id"
+            name="supplierId"
             label="供应商"
             placeholder="请选择供应商"
             readonly
@@ -110,7 +110,7 @@
           />
           <Field
             v-model="selectedProductionGroupName"
-            name="production_group_id"
+            name="productionGroupId"
             label="生产组"
             placeholder="请选择生产组"
             readonly
@@ -125,20 +125,20 @@
             <span class="section-icon">🏷️</span>物料特征
           </div>
           <Field
-            v-model="form.material_type"
-            name="material_type"
+            v-model="form.materialType"
+            name="materialType"
             label="材质"
             placeholder="如：304不锈钢"
           />
           <Field
-            v-model="form.drawing_no"
-            name="drawing_no"
+            v-model="form.drawingNo"
+            name="drawingNo"
             label="图号"
             placeholder="请输入图号"
           />
           <Field
-            v-model="form.color_code"
-            name="color_code"
+            v-model="form.colorCode"
+            name="colorCode"
             label="色号"
             placeholder="请输入色号"
           />
@@ -151,7 +151,7 @@
           </div>
           <Field
             v-model="selectedLocationName"
-            name="location_id"
+            name="locationId"
             label="仓库"
             placeholder="请选择仓库"
             readonly
@@ -160,7 +160,7 @@
           />
           <Field
             v-model="selectedManagerName"
-            name="manager_id"
+            name="managerId"
             label="物料负责人"
             placeholder="请选择负责人"
             readonly
@@ -168,8 +168,8 @@
             @click="showManagerPicker = true"
           />
           <Field
-            v-model="form.location_detail"
-            name="location_detail"
+            v-model="form.locationDetail"
+            name="locationDetail"
             label="物料位置"
             placeholder="如：零部件库-3排-4列"
           />
@@ -188,8 +188,8 @@
             type="number"
           />
           <Field
-            v-model="form.cost_price"
-            name="cost_price"
+            v-model="form.costPrice"
+            name="costPrice"
             label="采购成本"
             placeholder="采购入库时自动更新"
             type="number"
@@ -197,7 +197,7 @@
           />
           <Field
             v-model="selectedTaxRateName"
-            name="tax_rate"
+            name="taxRate"
             label="税率"
             placeholder="请选择税率"
             readonly
@@ -212,22 +212,22 @@
             <span class="section-icon">📦</span>库存参数
           </div>
           <Field
-            v-model="form.safety_stock"
-            name="safety_stock"
+            v-model="form.safetyStock"
+            name="safetyStock"
             label="安全库存"
             placeholder="请输入安全库存"
             type="number"
           />
           <Field
-            v-model="form.min_stock"
-            name="min_stock"
+            v-model="form.minStock"
+            name="minStock"
             label="最小库存"
             placeholder="请输入最小库存"
             type="number"
           />
           <Field
-            v-model="form.max_stock"
-            name="max_stock"
+            v-model="form.maxStock"
+            name="maxStock"
             label="最大库存"
             placeholder="请输入最大库存"
             type="number"
@@ -270,11 +270,11 @@
             v-for="item in filteredProductCategories"
             :key="item.value"
             class="search-picker-item"
-            :class="{ active: form.product_category_id === item.value }"
+            :class="{ active: form.productCategoryId === item.value }"
             @click="onProductCategorySelect(item)"
           >
             <span class="search-picker-item-text">{{ item.text }}</span>
-            <van-icon v-if="form.product_category_id === item.value" name="success" class="search-picker-item-check" />
+            <van-icon v-if="form.productCategoryId === item.value" name="success" class="search-picker-item-check" />
           </div>
           <div v-if="filteredProductCategories.length === 0" class="search-picker-empty">
             无匹配项
@@ -347,30 +347,30 @@
   const formRef = ref()
   const submitting = ref(false)
 
-  // 表单数据 - 与网页端完全对齐
+  // 表单数据 - HTTP camel SSOT
   const form = reactive({
     code: '',
     name: '',
-    product_category_id: null,
-    category_id: null,
-    inspection_method_id: null,
-    material_source_id: null,
-    unit_id: null,
-    location_id: null,
-    location_detail: '',
-    manager_id: null,
-    supplier_id: null,
-    production_group_id: null,
-    material_type: '',
+    productCategoryId: null,
+    categoryId: null,
+    inspectionMethodId: null,
+    materialSourceId: null,
+    unitId: null,
+    locationId: null,
+    locationDetail: '',
+    managerId: null,
+    supplierId: null,
+    productionGroupId: null,
+    materialType: '',
     specs: '',
-    drawing_no: '',
-    color_code: '',
+    drawingNo: '',
+    colorCode: '',
     price: '',
-    cost_price: '',
-    safety_stock: '',
-    min_stock: '',
-    max_stock: '',
-    tax_rate: 0.13,
+    costPrice: '',
+    safetyStock: '',
+    minStock: '',
+    maxStock: '',
+    taxRate: 0.13,
     remark: ''
   })
 
@@ -450,7 +450,7 @@
   const supplierColumns = computed(() => suppliers.value.map(s => ({ text: `${s.name}${s.code ? ' (' + s.code + ')' : ''}`, value: s.id })))
   const productionGroupColumns = computed(() => productionGroups.value.map(g => ({ text: g.name, value: g.id })))
   const locationColumns = computed(() => locations.value.map(l => ({ text: l.name, value: l.id })))
-  const managerColumns = computed(() => managers.value.map(m => ({ text: m.real_name || m.nickname || m.username, value: m.id })))
+  const managerColumns = computed(() => managers.value.map(m => ({ text: m.realName || m.nickname || m.username, value: m.id })))
 
   const taxRateColumns = [
     { text: '0%', value: 0 },
@@ -464,7 +464,7 @@
   // === 确认回调 ===
   // 物料大类 - 搜索列表点击选中
   const onProductCategorySelect = (item) => {
-    form.product_category_id = item.value
+    form.productCategoryId = item.value
     selectedProductCategoryName.value = item.text.replace(/^[　└ ]+/, '')
     productCategoryKeyword.value = ''
     showProductCategoryPicker.value = false
@@ -474,55 +474,55 @@
 
   const onCategoryConfirm = ({ selectedOptions }) => {
     const opt = selectedOptions[0]
-    if (opt) { form.category_id = opt.value; selectedCategoryName.value = opt.text }
+    if (opt) { form.categoryId = opt.value; selectedCategoryName.value = opt.text }
     showCategoryPicker.value = false
   }
 
   const onUnitConfirm = ({ selectedOptions }) => {
     const opt = selectedOptions[0]
-    if (opt) { form.unit_id = opt.value; selectedUnitName.value = opt.text }
+    if (opt) { form.unitId = opt.value; selectedUnitName.value = opt.text }
     showUnitPicker.value = false
   }
 
   const onInspectionMethodConfirm = ({ selectedOptions }) => {
     const opt = selectedOptions[0]
-    if (opt) { form.inspection_method_id = opt.value; selectedInspectionMethodName.value = opt.text }
+    if (opt) { form.inspectionMethodId = opt.value; selectedInspectionMethodName.value = opt.text }
     showInspectionMethodPicker.value = false
   }
 
   const onMaterialSourceConfirm = ({ selectedOptions }) => {
     const opt = selectedOptions[0]
-    if (opt) { form.material_source_id = opt.value; selectedMaterialSourceName.value = opt.text }
+    if (opt) { form.materialSourceId = opt.value; selectedMaterialSourceName.value = opt.text }
     showMaterialSourcePicker.value = false
   }
 
   const onSupplierConfirm = ({ selectedOptions }) => {
     const opt = selectedOptions[0]
-    if (opt) { form.supplier_id = opt.value; selectedSupplierName.value = opt.text }
+    if (opt) { form.supplierId = opt.value; selectedSupplierName.value = opt.text }
     showSupplierPicker.value = false
   }
 
   const onProductionGroupConfirm = ({ selectedOptions }) => {
     const opt = selectedOptions[0]
-    if (opt) { form.production_group_id = opt.value; selectedProductionGroupName.value = opt.text }
+    if (opt) { form.productionGroupId = opt.value; selectedProductionGroupName.value = opt.text }
     showProductionGroupPicker.value = false
   }
 
   const onLocationConfirm = ({ selectedOptions }) => {
     const opt = selectedOptions[0]
-    if (opt) { form.location_id = opt.value; selectedLocationName.value = opt.text }
+    if (opt) { form.locationId = opt.value; selectedLocationName.value = opt.text }
     showLocationPicker.value = false
   }
 
   const onManagerConfirm = ({ selectedOptions }) => {
     const opt = selectedOptions[0]
-    if (opt) { form.manager_id = opt.value; selectedManagerName.value = opt.text }
+    if (opt) { form.managerId = opt.value; selectedManagerName.value = opt.text }
     showManagerPicker.value = false
   }
 
   const onTaxRateConfirm = ({ selectedOptions }) => {
     const opt = selectedOptions[0]
-    if (opt) { form.tax_rate = opt.value; selectedTaxRateName.value = opt.text }
+    if (opt) { form.taxRate = opt.value; selectedTaxRateName.value = opt.text }
     showTaxRatePicker.value = false
   }
 
@@ -562,11 +562,11 @@
   }
 
   const regenerateCode = () => {
-    if (!form.product_category_id) {
+    if (!form.productCategoryId) {
       showToast('请先选择物料大类')
       return
     }
-    autoGenerateCode(form.product_category_id)
+    autoGenerateCode(form.productCategoryId)
   }
 
   // === 供应商远程搜索 ===
@@ -624,15 +624,15 @@
           }
         })
         // 回填选择器显示文本
-        if (data.category_name) selectedCategoryName.value = data.category_name
-        if (data.unit_name) selectedUnitName.value = data.unit_name
-        if (data.product_category_name) selectedProductCategoryName.value = data.product_category_name
-        if (data.material_source_name) selectedMaterialSourceName.value = data.material_source_name
-        if (data.supplier_name) selectedSupplierName.value = data.supplier_name
-        if (data.inspection_method_name) selectedInspectionMethodName.value = data.inspection_method_name
-        if (data.location_name) selectedLocationName.value = data.location_name
-        if (data.manager_name) selectedManagerName.value = data.manager_name
-        if (data.tax_rate !== undefined) selectedTaxRateName.value = `${Math.round(data.tax_rate * 100)}%`
+        if (data.categoryName) selectedCategoryName.value = data.categoryName
+        if (data.unitName) selectedUnitName.value = data.unitName
+        if (data.productCategoryName) selectedProductCategoryName.value = data.productCategoryName
+        if (data.materialSourceName) selectedMaterialSourceName.value = data.materialSourceName
+        if (data.supplierName) selectedSupplierName.value = data.supplierName
+        if (data.inspectionMethodName) selectedInspectionMethodName.value = data.inspectionMethodName
+        if (data.locationName) selectedLocationName.value = data.locationName
+        if (data.managerName) selectedManagerName.value = data.managerName
+        if (data.taxRate !== undefined) selectedTaxRateName.value = `${Math.round(data.taxRate * 100)}%`
       }
     } catch (e) {
       console.error('加载物料数据失败:', e)
@@ -653,7 +653,7 @@
   const buildTree = (flatData, parentId = 0) => {
     const tree = []
     for (const item of flatData) {
-      const pid = item.parent_id || 0
+      const pid = item.parentId || 0
       if (pid === parentId) {
         const node = { ...item, children: buildTree(flatData, item.id) }
         if (node.children.length === 0) delete node.children
@@ -691,7 +691,7 @@
       managers.value = userList.map(u => ({
         id: u.id,
         username: u.username,
-        real_name: u.real_name || u.nickname || u.username
+        realName: u.realName || u.nickname || u.username
       }))
 
       // 生产组暂用空数组，后端如有枚举接口再对接

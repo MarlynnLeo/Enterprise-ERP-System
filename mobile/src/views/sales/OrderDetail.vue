@@ -22,7 +22,7 @@
                         <p class="order-code">{{ order.code }}</p>
                     </div>
                     <div class="status-date">
-                        {{ formatDate(order.created_at) }}
+                        {{ formatDate(order.createdAt) }}
                     </div>
                 </div>
             </div>
@@ -32,19 +32,19 @@
             <div class="detail-card info-card">
                 <div class="info-row">
                     <span class="info-label">客户名称</span>
-                    <span class="info-value">{{ order.customer_name }}</span>
+                    <span class="info-value">{{ order.customerName }}</span>
                 </div>
                 <div class="info-row">
                     <span class="info-label">联系人</span>
-                    <span class="info-value">{{ order.contact_person || '-' }}</span>
+                    <span class="info-value">{{ order.contactPerson || order.contact || '-' }}</span>
                 </div>
                 <div class="info-row">
                     <span class="info-label">联系电话</span>
-                    <span class="info-value">{{ order.contact_phone || '-' }}</span>
+                    <span class="info-value">{{ order.contactPhone || order.phone || '-' }}</span>
                 </div>
                 <div class="info-row">
                     <span class="info-label">销售员</span>
-                    <span class="info-value">{{ order.salesperson_name || '-' }}</span>
+                    <span class="info-value">{{ order.createdByRealName || order.createdByName || '-' }}</span>
                 </div>
             </div>
 
@@ -53,15 +53,15 @@
             <div class="detail-card info-card">
                 <div class="info-row">
                     <span class="info-label">订单总额</span>
-                    <span class="info-value highlight-money">¥ {{ formatMoney(order.total_amount) }}</span>
+                    <span class="info-value highlight-money">¥ {{ formatMoney(order.totalAmount) }}</span>
                 </div>
                 <div class="info-row">
                     <span class="info-label">已付金额</span>
-                    <span class="info-value">¥ {{ formatMoney(order.paid_amount) }}</span>
+                    <span class="info-value">¥ {{ formatMoney(order.paidAmount) }}</span>
                 </div>
                 <div class="info-row">
                     <span class="info-label">交付日期</span>
-                    <span class="info-value">{{ formatDate(order.delivery_date, 'YYYY-MM-DD') }}</span>
+                    <span class="info-value">{{ formatDate(order.deliveryDate, 'YYYY-MM-DD') }}</span>
                 </div>
             </div>
 
@@ -70,21 +70,21 @@
             <div class="items-list">
                 <div class="basic-list-item" v-for="item in order.items" :key="item.id">
        <div class="item-title-row">
-         <div class="item-title">{{ item.material_name }}</div>
-         <div class="item-subtitle">{{ `SKU: ${item.material_code}` || '' }}</div>
+         <div class="item-title">{{ item.materialName || item.productName }}</div>
+         <div class="item-subtitle">{{ item.materialCode ? `SKU: ${item.materialCode}` : '' }}</div>
        </div>
                     <div class="item-details">
                         <div class="detail-row">
                             <span class="detail-label">数量:</span>
-                            <span class="detail-value">{{ item.quantity }} {{ item.unit_name }}</span>
+                            <span class="detail-value">{{ item.quantity }} {{ item.unitName || item.unit }}</span>
                         </div>
                         <div class="detail-row">
                             <span class="detail-label">单价:</span>
-                            <span class="detail-value">¥ {{ formatMoney(item.price) }}</span>
+                            <span class="detail-value">¥ {{ formatMoney(item.unitPrice || item.price) }}</span>
                         </div>
                         <div class="detail-row">
                             <span class="detail-label">小计:</span>
-                            <span class="detail-value highlight-money">¥ {{ formatMoney(item.amount) }}</span>
+                            <span class="detail-value highlight-money">¥ {{ formatMoney(item.amount || item.totalPrice) }}</span>
                         </div>
                     </div>
                 </div>

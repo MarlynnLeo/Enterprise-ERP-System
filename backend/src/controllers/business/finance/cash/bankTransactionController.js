@@ -14,6 +14,7 @@
 const { ResponseHandler } = require('../../../../utils/responseHandler');
 const { logger } = require('../../../../utils/logger');
 const { parsePagination } = require('../../../../utils/safePagination');
+const { mapKeysToSnake } = require('../../../../utils/fieldMap');
 const cash = require('../../../../models/cash');
 const { validationResult } = require('express-validator');
 const BankAccountModel = require('../../../../models/cash/Account');
@@ -41,6 +42,7 @@ const {
   readStatementRows,
   sendCashBusinessError,
 } = require('./helpers');
+const { toBankTransactionApi } = require('../../../../utils/finance/glFieldMap');
 
 const bankTransactionController = {
   /**
@@ -78,11 +80,11 @@ const bankTransactionController = {
       const limit = pagination.pageSize;
 
       const result = await BankTransactionModel.getBankTransactions(filters, page, limit);
-
+      const mapped = (result.transactions || []).map((t) => toBankTransactionApi(t));
 
       ResponseHandler.paginated(
         res,
-        result.transactions,
+        mapped,
         result.pagination.total,
         page,
         limit,
@@ -123,7 +125,8 @@ const bankTransactionController = {
       });
 
       const result = await BankTransactionModel.getBankTransactions(filters);
-      ResponseHandler.success(res, { list: result.transactions || [] }, '获取银行交易打印数据成功');
+      const list = (result.transactions || []).map((t) => toBankTransactionApi(t));
+      ResponseHandler.success(res, { list }, '获取银行交易打印数据成功');
     } catch (error) {
       logger.error('Error fetching bank transaction print data:', error);
       ResponseHandler.error(res, '获取银行交易打印数据失败', 'SERVER_ERROR', 500, error);
@@ -149,7 +152,7 @@ const bankTransactionController = {
         return ResponseHandler.error(res, '交易记录不存在', 'NOT_FOUND', 404);
       }
 
-      ResponseHandler.success(res, transaction, '操作成功');
+      ResponseHandler.success(res, toBankTransactionApi(transaction), '操作成功');
     } catch (error) {
       logger.error('Error fetching bank transaction:', error);
       ResponseHandler.error(res, '获取银行交易失败', 'SERVER_ERROR', 500, error);
@@ -168,19 +171,21 @@ const bankTransactionController = {
         });
       }
 
+      // HTTP 入参 camel → snake
+      const body = mapKeysToSnake(req.body || {});
       const transactionData = {
-        bank_account_id: parseInt(req.body.bank_account_id),
-        transaction_date: req.body.transaction_date,
-        transaction_type: req.body.transaction_type,
-        amount: req.body.amount,
-        description: req.body.description,
-        reference_number: req.body.reference_number,
-        transaction_number: req.body.transaction_number,
-        is_reconciled: req.body.is_reconciled !== undefined ? req.body.is_reconciled : false,
-        reconciliation_date: req.body.reconciliation_date || null,
-        related_party: req.body.related_party || null,
-        category: req.body.category || null,
-        payment_method: req.body.payment_method || null,
+        bank_account_id: parseInt(body.bank_account_id, 10),
+        transaction_date: body.transaction_date,
+        transaction_type: body.transaction_type,
+        amount: body.amount,
+        description: body.description,
+        reference_number: body.reference_number,
+        transaction_number: body.transaction_number,
+        is_reconciled: body.is_reconciled !== undefined ? body.is_reconciled : false,
+        reconciliation_date: body.reconciliation_date || null,
+        related_party: body.related_party || null,
+        category: body.category || null,
+        payment_method: body.payment_method || null,
         ...ScopeGuard.stampOwner(req, 'bank_transaction'),
       };
 
@@ -241,19 +246,20 @@ const bankTransactionController = {
         return ResponseHandler.error(res, '交易记录不存在', 'NOT_FOUND', 404);
       }
 
+      const body = mapKeysToSnake(req.body || {});
       const transactionData = {
-        bank_account_id: parseInt(req.body.bank_account_id),
-        transaction_date: req.body.transaction_date,
-        transaction_type: req.body.transaction_type,
-        amount: parseFloat(req.body.amount),
-        description: req.body.description,
-        reference_number: req.body.reference_number,
-        transaction_number: req.body.transaction_number,
-        is_reconciled: req.body.is_reconciled !== undefined ? req.body.is_reconciled : false,
-        reconciliation_date: req.body.reconciliation_date || null,
-        related_party: req.body.related_party || null,
-        category: req.body.category || null,
-        payment_method: req.body.payment_method || null,
+        bank_account_id: parseInt(body.bank_account_id, 10),
+        transaction_date: body.transaction_date,
+        transaction_type: body.transaction_type,
+        amount: parseFloat(body.amount),
+        description: body.description,
+        reference_number: body.reference_number,
+        transaction_number: body.transaction_number,
+        is_reconciled: body.is_reconciled !== undefined ? body.is_reconciled : false,
+        reconciliation_date: body.reconciliation_date || null,
+        related_party: body.related_party || null,
+        category: body.category || null,
+        payment_method: body.payment_method || null,
         updated_by: getAuthenticatedUserId(req),
       };
 
@@ -317,14 +323,15 @@ const bankTransactionController = {
         });
       }
 
+      const body = mapKeysToSnake(req.body || {});
       const transferData = {
-        transaction_number: req.body.transaction_number,
-        from_account_id: parseInt(req.body.from_account_id),
-        to_account_id: parseInt(req.body.to_account_id),
-        amount: parseFloat(req.body.amount),
-        transaction_date: req.body.transaction_date,
-        description: req.body.description,
-        reference_number: req.body.reference_number,
+        transaction_number: body.transaction_number,
+        from_account_id: parseInt(body.from_account_id, 10),
+        to_account_id: parseInt(body.to_account_id, 10),
+        amount: parseFloat(body.amount),
+        transaction_date: body.transaction_date,
+        description: body.description,
+        reference_number: body.reference_number,
         created_by: getAuthenticatedUserId(req),
       };
 

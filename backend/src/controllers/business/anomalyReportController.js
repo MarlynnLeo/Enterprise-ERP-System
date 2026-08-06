@@ -4,6 +4,7 @@
 const AnomalyReportService = require('../../services/business/AnomalyReportService');
 const { ResponseHandler } = require('../../utils/responseHandler');
 const { logger } = require('../../utils/logger');
+const { mapKeysToSnake } = require('../../utils/fieldMap');
 
 module.exports = {
   async getList(req, res) {
@@ -39,7 +40,8 @@ module.exports = {
 
   async assign(req, res) {
     try {
-      const data = await AnomalyReportService.assign(req.params.id, req.body.assigned_to);
+      const body = mapKeysToSnake(req.body || {});
+      const data = await AnomalyReportService.assign(req.params.id, body.assigned_to);
       ResponseHandler.success(res, data, '指派成功');
     } catch (error) {
       logger.error('指派失败:', error);

@@ -17,14 +17,14 @@
           </template>
           <el-descriptions :column="1" border>
             <el-descriptions-item label="设备编码">
-              {{ equipment.equipment_code }}
+              {{ equipment.equipmentCode }}
             </el-descriptions-item>
             <el-descriptions-item label="设备名称">
-              {{ equipment.equipment_name }}
+              {{ equipment.equipmentName }}
             </el-descriptions-item>
             <el-descriptions-item label="设备类型">
-              <el-tag :type="getEquipmentTypeTagType(equipment.equipment_type)">
-                {{ getEquipmentTypeText(equipment.equipment_type) }}
+              <el-tag :type="getEquipmentTypeTagType(equipment.equipmentType)">
+                {{ getEquipmentTypeText(equipment.equipmentType) }}
               </el-tag>
             </el-descriptions-item>
             <el-descriptions-item label="当前状态">
@@ -39,16 +39,16 @@
               {{ equipment.manufacturer || '-' }}
             </el-descriptions-item>
             <el-descriptions-item label="序列号">
-              {{ equipment.serial_number || '-' }}
+              {{ equipment.serialNumber || '-' }}
             </el-descriptions-item>
             <el-descriptions-item label="IP地址">
-              {{ equipment.ip_address || '-' }}
+              {{ equipment.ipAddress || '-' }}
             </el-descriptions-item>
             <el-descriptions-item label="端口">
               {{ equipment.port || '-' }}
             </el-descriptions-item>
             <el-descriptions-item label="连接方式">
-              {{ equipment.connection_type || '-' }}
+              {{ equipment.connectionType || '-' }}
             </el-descriptions-item>
           </el-descriptions>
         </el-card>
@@ -120,12 +120,12 @@
       </template>
 
       <el-table :data="equipment.currentData" stripe border>
-        <el-table-column prop="parameter_name" label="参数名称" width="150" />
-        <el-table-column prop="parameter_code" label="参数代码" width="120" />
+        <el-table-column prop="parameterName" label="参数名称" width="150" />
+        <el-table-column prop="parameterCode" label="参数代码" width="120" />
         <el-table-column label="当前值" width="120">
           <template #default="{ row }">
             <span v-if="row.value !== null">{{ row.value }}</span>
-            <span v-else-if="row.text_value">{{ row.text_value }}</span>
+            <span v-else-if="row.textValue">{{ row.textValue }}</span>
             <span v-else class="no-data">无数据</span>
           </template>
         </el-table-column>
@@ -151,19 +151,19 @@
       </template>
 
       <el-table :data="equipment.activeAlarms" stripe border>
-        <el-table-column prop="alarm_level" label="级别" width="100">
+        <el-table-column prop="alarmLevel" label="级别" width="100">
           <template #default="{ row }">
-            <el-tag :type="getAlarmLevelTagType(row.alarm_level)">
-              {{ getAlarmLevelText(row.alarm_level) }}
+            <el-tag :type="getAlarmLevelTagType(row.alarmLevel)">
+              {{ getAlarmLevelText(row.alarmLevel) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="alarm_message" label="报警信息" min-width="200" />
-        <el-table-column prop="current_value" label="当前值" width="100" />
-        <el-table-column prop="threshold_value" label="阈值" width="100" />
-        <el-table-column prop="occurred_at" label="发生时间" width="160">
+        <el-table-column prop="alarmMessage" label="报警信息" min-width="200" />
+        <el-table-column prop="currentValue" label="当前值" width="100" />
+        <el-table-column prop="thresholdValue" label="阈值" width="100" />
+        <el-table-column prop="occurredAt" label="发生时间" width="160">
           <template #default="{ row }">
-            {{ formatDateTime(row.occurred_at) }}
+            {{ formatDateTime(row.occurredAt) }}
           </template>
         </el-table-column>
         <el-table-column label="操作" min-width="150" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">

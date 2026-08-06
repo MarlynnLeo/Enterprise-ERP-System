@@ -102,12 +102,12 @@
                 <el-table-column prop="processName" label="工序名称" width="150" />
                 <el-table-column label="实际开始时间" width="200">
                   <template #default="scope">
-                    {{ formatDateTime(scope.row.actualStartTime || scope.row.actual_start_time) }}
+                    {{ formatDateTime(scope.row.actualStartTime || scope.row.actualStartTime) }}
                   </template>
                 </el-table-column>
                 <el-table-column label="实际结束时间" width="200">
                   <template #default="scope">
-                    {{ formatDateTime(scope.row.actualEndTime || scope.row.actual_end_time) }}
+                    {{ formatDateTime(scope.row.actualEndTime || scope.row.actualEndTime) }}
                   </template>
                 </el-table-column>
                 <el-table-column label="进度" width="600">
@@ -172,8 +172,8 @@
         <el-table-column prop="productName" label="产品名称" min-width="180" />
         <el-table-column label="关联单据" min-width="140">
           <template #default="scope">
-            <template v-if="scope.row.plan_code">
-              {{ scope.row.plan_code }}
+            <template v-if="scope.row.planCode">
+              {{ scope.row.planCode }}
             </template>
             <span v-else>无关联计划</span>
           </template>
@@ -185,21 +185,21 @@
         </el-table-column>
         <el-table-column label="开始日期" min-width="120">
           <template #default="scope">
-            {{ formatDate(scope.row.start_date) }}
+            {{ formatDate(scope.row.startDate) }}
           </template>
         </el-table-column>
         <el-table-column label="预计结束日期" min-width="120">
           <template #default="scope">
-            {{ formatDate(scope.row.expected_end_date) }}
+            {{ formatDate(scope.row.expectedEndDate) }}
           </template>
         </el-table-column>
         <el-table-column label="倒计时" min-width="110">
           <template #default="scope">
             <span
               class="countdown-text"
-              :class="getCountdownClass(scope.row.expected_end_date, scope.row.status)"
+              :class="getCountdownClass(scope.row.expectedEndDate, scope.row.status)"
             >
-              {{ getCountdown(scope.row.expected_end_date, scope.row.status) }}
+              {{ getCountdown(scope.row.expectedEndDate, scope.row.status) }}
             </span>
           </template>
         </el-table-column>
@@ -309,7 +309,7 @@
           </el-table-column>
         </el-table>
       </div>
-      <el-empty v-else description="暂无作业指导书" />
+      <EmptyState v-else description="暂无作业指导书" />
       </div>
       <template #footer>
         <el-button @click="instructionDocsVisible = false">关闭</el-button>
@@ -342,7 +342,7 @@
           </el-table-column>
         </el-table>
       </div>
-      <el-empty v-else description="暂无作业指导书" />
+      <EmptyState v-else description="暂无作业指导书" />
       </div>
       <template #footer>
         <el-button @click="allInstructionDocsVisible = false">关闭</el-button>
@@ -383,9 +383,10 @@
     </AppDialog>
 
     <!-- 更新进度弹窗 -->
-    <el-dialog
+    <AppDialog
       v-model="modalVisible"
       title="更新生产进度"
+      mode="form"
       width="600px"
     >
       <el-form
@@ -474,14 +475,14 @@
           <el-button type="primary" @click="handleModalOk">确定</el-button>
         </div>
       </template>
-    </el-dialog>
+        </AppDialog>
 
     <!-- 完工登记对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="completionDialogVisible"
       title="完工登记"
+      mode="form"
       width="500px"
-      destroy-on-close
     >
       <el-form :model="completionForm" label-width="120px">
         <el-form-item label="任务编号">
@@ -525,14 +526,14 @@
           </el-button>
         </div>
       </template>
-    </el-dialog>
+        </AppDialog>
 
     <!-- 补料申请对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="applyPartsVisible"
       title="零部件补料申请"
+      mode="form"
       width="600px"
-      destroy-on-close
     >
       <el-form :model="applyPartsForm" :rules="applyPartsRules" ref="applyPartsFormRef" label-width="100px">
         <el-row :gutter="20">
@@ -561,11 +562,11 @@
               v-loading="bomLoading"
               class="preview-scroll-box"
             >
-              <el-table-column prop="material_code" label="编码" width="120" />
-              <el-table-column prop="material_name" label="名称" min-width="120" />
-              <el-table-column prop="material_specs" label="规格" width="100" show-overflow-tooltip />
-              <el-table-column prop="stock_quantity" label="库存" width="80">
-                <template #default="{ row }">{{ Number(row.stock_quantity) }}</template>
+              <el-table-column prop="materialCode" label="编码" width="120" />
+              <el-table-column prop="materialName" label="名称" min-width="120" />
+              <el-table-column prop="materialSpecs" label="规格" width="100" show-overflow-tooltip />
+              <el-table-column prop="stockQuantity" label="库存" width="80">
+                <template #default="{ row }">{{ Number(row.stockQuantity) }}</template>
               </el-table-column>
             </el-table>
           </div>
@@ -613,8 +614,8 @@
             <el-option
               v-for="item in supplementReasonOptions"
               :key="item.id"
-              :label="item.reason_name"
-              :value="item.reason_name"
+              :label="item.reasonName"
+              :value="item.reasonName"
             />
           </el-select>
         </el-form-item>
@@ -646,14 +647,14 @@
           </el-button>
         </div>
       </template>
-    </el-dialog>
+        </AppDialog>
 
     <!-- 退料对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="returnMaterialVisible"
       title="生产退料"
+      mode="form"
       width="850px"
-      destroy-on-close
     >
       <el-form :model="returnMaterialForm" :rules="returnMaterialRules" ref="returnMaterialFormRef" label-width="100px">
         <el-form-item label="任务编号">
@@ -675,10 +676,10 @@
             class="w-full"
           >
             <el-table-column type="selection" width="40" />
-            <el-table-column prop="material_code" label="编码" width="120" />
-            <el-table-column prop="material_name" label="名称" min-width="120" />
-            <el-table-column prop="material_specs" label="规格" width="100" />
-            <el-table-column prop="unit_usage" label="BOM用量" width="80" />
+            <el-table-column prop="materialCode" label="编码" width="120" />
+            <el-table-column prop="materialName" label="名称" min-width="120" />
+            <el-table-column prop="materialSpecs" label="规格" width="100" />
+            <el-table-column prop="unitUsage" label="BOM用量" width="80" />
             <el-table-column label="退料数量" width="120">
               <template #default="scope">
                 <el-input-number
@@ -692,7 +693,7 @@
               </template>
             </el-table-column>
           </el-table>
-          <el-empty v-else description="该任务无BOM数据" :image-size="40" />
+          <EmptyState v-else description="该任务无BOM数据" ::image-size="40" />
           <div v-if="returnItems.length > 0" class="return-hint">
             已选择 {{ returnItems.length }} 种物料退料
           </div>
@@ -715,7 +716,7 @@
           </el-button>
         </div>
       </template>
-    </el-dialog>
+        </AppDialog>
 
   </div>
 </template>
@@ -962,10 +963,10 @@ const handleBomSelect = (row) => {
 
   // 将选中的BOM项添加到下拉选项中，并选中
   const option = {
-    id: row.material_id,
-    label: `${row.material_code} - ${row.material_name} (${row.material_specs || '-'})`,
-    unitId: row.unit_id,
-    unitName: row.unit_name
+    id: row.materialId,
+    label: `${row.materialCode} - ${row.materialName} (${row.materialSpecs || '-'})`,
+    unitId: row.unitId,
+    unitName: row.unitName
   }
 
   // 检查是否已存在
@@ -974,9 +975,9 @@ const handleBomSelect = (row) => {
     materialOptions.value.push(option)
   }
 
-  applyPartsForm.value.materialId = row.material_id
-  applyPartsForm.value.unitId = row.unit_id
-  applyPartsForm.value.unitName = row.unit_name
+  applyPartsForm.value.materialId = row.materialId
+  applyPartsForm.value.unitId = row.unitId
+  applyPartsForm.value.unitName = row.unitName
 }
 
 // 搜索物料
@@ -1001,8 +1002,8 @@ const searchMaterials = async (query) => {
     materialOptions.value = items.map(item => ({
       id: item.id,
       label: `${item.code} - ${item.name} (${item.specs || '-'})`,
-      unitId: item.unit_id,
-      unitName: item.unit_name
+      unitId: item.unitId,
+      unitName: item.unitName
     }))
   } catch (error) {
     console.error('搜索物料失败', error)
@@ -1055,7 +1056,7 @@ const submitApplyParts = async () => {
         // 步骤2：来料不良 → 自动生成不良退回入库单（直接退入隔离区）
         if (isDefectiveReason.value && applyPartsForm.value.returnLocationId) {
           try {
-            const currentUser = authStore.user?.username || authStore.user?.real_name || authStore.user?.name || ''
+            const currentUser = authStore.user?.username || authStore.user?.realName || authStore.user?.name || ''
             if (!currentUser) {
               ElMessage.error('无法识别当前登录用户，请重新登录后再操作')
               return
@@ -1342,7 +1343,7 @@ const allInstructionDocsLoading = ref(false)
  * @returns {Array|null} 工序列表，失败返回 null
  */
 const fetchProcessTemplateProcesses = async (taskOrProcess) => {
-  const productId = taskOrProcess.product_id || taskOrProcess.productId
+  const productId = taskOrProcess.productId
   if (!productId) {
     ElMessage.warning('无法获取产品信息')
     return null
@@ -1371,7 +1372,7 @@ const extractInstructionDocs = (process) => {
 const viewInstructionDocs = async (process, task) => {
   instructionDocsVisible.value = true
   instructionDocsLoading.value = true
-  currentProcessName.value = process.processName || process.process_name || ''
+  currentProcessName.value = process.processName || ''
   currentInstructionDocs.value = []
 
   try {
@@ -1567,7 +1568,7 @@ const handleDocError = () => {
 
 // 检查任务是否有作业指导书(简化判断,有产品ID就认为可能有)
 const hasInstructionDocs = (task) => {
-  return !!(task.product_id || task.productId)
+  return !!(task.productId)
 }
 
 const processStartableTaskStatuses = new Set(['material_issued', 'material_partial_issued', 'in_progress'])
@@ -1675,8 +1676,8 @@ const handleCompleteTask = (row) => {
     taskCode: row.code,
     productName: row.productName,
     totalQuantity: Number(row.quantity) || 0,
-    completedQuantity: Number(row.completed_quantity) || 0,
-    quantity: (Number(row.quantity) || 0) - (Number(row.completed_quantity) || 0), // 默认填入剩余数量
+    completedQuantity: Number(row.completedQuantity) || 0,
+    quantity: (Number(row.quantity) || 0) - (Number(row.completedQuantity) || 0), // 默认填入剩余数量
     remark: ''
   }
   completionDialogVisible.value = true
@@ -1785,7 +1786,7 @@ const submitReturnMaterial = async () => {
 
   try {
     submittingReturn.value = true
-    const currentUser = authStore.user?.username || authStore.user?.real_name || authStore.user?.name || ''
+    const currentUser = authStore.user?.username || authStore.user?.realName || authStore.user?.name || ''
     if (!currentUser) {
       ElMessage.error('无法识别当前登录用户，请重新登录后再操作')
       return
@@ -1793,22 +1794,22 @@ const submitReturnMaterial = async () => {
 
     const materialLocations = {}
     let firstLocationId = null
-    const materialIds = [...new Set(validItems.map(item => item.material_id).filter(Boolean))]
+    const materialIds = [...new Set(validItems.map(item => item.materialId).filter(Boolean))]
     try {
       const materials = []
       for (const chunk of chunkArray(materialIds, BATCH_MATERIAL_QUERY_LIMIT)) {
         const materialsRes = await baseDataApi.getMaterialsByIds(chunk)
         materials.push(...parseListData(materialsRes, { enableLog: false }))
       }
-      const locationMap = new Map(materials.map(mat => [Number(mat.id), mat.location_id || null]))
+      const locationMap = new Map(materials.map(mat => [Number(mat.id), mat.locationId || null]))
       for (const item of validItems) {
-        const locationId = locationMap.get(Number(item.material_id)) || null
-        materialLocations[item.material_id] = locationId
+        const locationId = locationMap.get(Number(item.materialId)) || null
+        materialLocations[item.materialId] = locationId
         if (!firstLocationId && locationId) firstLocationId = locationId
       }
     } catch {
       for (const item of validItems) {
-        materialLocations[item.material_id] = null
+        materialLocations[item.materialId] = null
       }
     }
 
@@ -1823,10 +1824,10 @@ const submitReturnMaterial = async () => {
       reference_no: returnMaterialForm.value.taskCode,
       remark: `【生产退料】${returnMaterialForm.value.remark || '剩余物料退回仓库'}`,
       items: validItems.map(item => ({
-        material_id: item.material_id,
+        material_id: item.materialId,
         quantity: item.returnQty,
-        unit_id: item.unit_id,
-        location_id: materialLocations[item.material_id] || firstLocationId,
+        unit_id: item.unitId,
+        location_id: materialLocations[item.materialId] || firstLocationId,
         remark: returnMaterialForm.value.remark || '生产退料'
       }))
     }

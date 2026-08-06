@@ -91,27 +91,27 @@
         table-layout="fixed"
       >
         <template #empty>
-          <el-empty description="暂无报价单数据" />
+          <EmptyState description="暂无报价单数据" />
         </template>
-        <el-table-column prop="quotation_no" label="报价单号" width="150" />
+        <el-table-column prop="quotationNo" label="报价单号" width="150" />
         <el-table-column label="客户名称" min-width="150">
           <template #default="scope">
-            {{ getCustomerName(scope.row.customer_id) }}
+            {{ getCustomerName(scope.row.customerId) }}
           </template>
         </el-table-column>
-        <el-table-column prop="total_amount" label="总金额" width="120">
+        <el-table-column prop="totalAmount" label="总金额" width="120">
           <template #default="scope">
-            {{ formatCurrency(scope.row.total_amount) }}
+            {{ formatCurrency(scope.row.totalAmount) }}
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="创建日期" width="120">
+        <el-table-column prop="createdAt" label="创建日期" width="120">
           <template #default="scope">
-            {{ formatDate(scope.row.created_at) }}
+            {{ formatDate(scope.row.createdAt) }}
           </template>
         </el-table-column>
-        <el-table-column prop="validity_date" label="有效期至" width="120">
+        <el-table-column prop="validityDate" label="有效期至" width="120">
           <template #default="scope">
-            {{ formatDate(scope.row.validity_date) }}
+            {{ formatDate(scope.row.validityDate) }}
           </template>
         </el-table-column>
         <el-table-column prop="status" label="状态" width="100">
@@ -153,7 +153,7 @@
               </template>
             </el-popconfirm>
             <el-button
-              v-if="scope.row.status === 'accepted' && !scope.row.order_id"
+              v-if="scope.row.status === 'accepted' && !scope.row.orderId"
               size="small"
               type="success"
               v-permission="'sales:quotations:update'"
@@ -182,17 +182,17 @@
     </el-card>
 
     <!-- 创建/编辑报价单对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="dialogVisible"
       :title="dialogType === 'create' ? '创建报价单' : '编辑报价单'"
-      width="1000px"
-      destroy-on-close
+      mode="form"
+      wide
     >
       <div v-loading="dialogLoading">
       <el-form :model="quotationForm" ref="quotationFormRef" :rules="rules" label-width="100px">
-        <el-form-item label="客户" prop="customer_id">
+        <el-form-item label="客户" prop="customerId">
           <el-select
-            v-model="quotationForm.customer_id"
+            v-model="quotationForm.customerId"
             placeholder="请选择客户"
             filterable
             remote
@@ -210,7 +210,7 @@
           </el-select>
         </el-form-item>
 
-        <el-form-item label="有效期至" prop="validity_date">
+        <el-form-item label="有效期至" prop="validityDate">
           <el-date-picker
             v-model="quotationForm.validity_date"
             type="date"
@@ -271,7 +271,7 @@
                 <el-table-column label="产品" min-width="200">
                   <template #default="{ row, $index }">
                     <el-select
-                      v-model="row.product_id"
+                      v-model="row.productId"
                       placeholder="选择产品"
                       filterable
                       remote
@@ -319,7 +319,7 @@
               <el-table-column label="单价" width="120">
                   <template #default="{ row, $index }">
                   <el-input
-                      v-model="row.unit_price"
+                      v-model="row.unitPrice"
                     placeholder="输入单价"
                       :disabled="dialogType === 'view'"
                     @input="() => calculateItemAmount($index)"
@@ -380,7 +380,7 @@
           <el-button v-permission="dialogType === 'create' ? 'sales:quotations:create' : 'sales:quotations:update'" type="primary" @click="submitQuotation" :loading="dialogLoading">保存</el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
     <!-- 查看报价单对话框 -->
     <AppDialog
       v-model="viewDialogVisible"
@@ -391,27 +391,27 @@
       <div v-loading="viewDialogLoading">
       <el-descriptions :column="2" border>
         <el-descriptions-item label="报价单号">{{ currentQuotation.quotation_no || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="客户名称">{{ currentQuotation.customer_name || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="客户名称">{{ currentQuotation.customerName || '-' }}</el-descriptions-item>
         <el-descriptions-item label="有效期至">{{ formatDate(currentQuotation.validity_date) }}</el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag :type="getStatusType(currentQuotation.status)">
             {{ getStatusText(currentQuotation.status) }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="总金额">{{ formatCurrency(currentQuotation.total_amount) }}</el-descriptions-item>
-        <el-descriptions-item label="创建时间">{{ formatDateTime(currentQuotation.created_at) }}</el-descriptions-item>
+        <el-descriptions-item label="总金额">{{ formatCurrency(currentQuotation.totalAmount) }}</el-descriptions-item>
+        <el-descriptions-item label="创建时间">{{ formatDateTime(currentQuotation.createdAt) }}</el-descriptions-item>
         <el-descriptions-item label="备注" :span="2">{{ currentQuotation.remarks || '无' }}</el-descriptions-item>
       </el-descriptions>
       <el-divider>报价明细</el-divider>
       <el-table :data="currentQuotation.items" border class="w-full">
-        <el-table-column prop="product_name" label="产品名称" min-width="150" />
+        <el-table-column prop="productName" label="产品名称" min-width="150" />
         <el-table-column prop="specification" label="规格" min-width="120" />
         <el-table-column prop="quantity" label="数量" width="100" />
       </el-table>
       <!-- 合计行 -->
       <div class="summary-box-right">
         <span class="text-lg-bold text-regular">
-          合计：{{ formatCurrency(currentQuotation.total_amount) }}
+          合计：{{ formatCurrency(currentQuotation.totalAmount) }}
         </span>
       </div>
       </div>
@@ -484,7 +484,7 @@ const toMoneyNumber = (value) => {
 }
 const formatQuotationLineAmount = (row) => {
   const quantity = toMoneyNumber(row?.quantity)
-  const unitPrice = toMoneyNumber(row?.unit_price)
+  const unitPrice = toMoneyNumber(row?.unitPrice)
   if (quantity === null || unitPrice === null) return '-'
   return formatCurrency(quantity * unitPrice)
 }
@@ -557,7 +557,7 @@ const calculateQuotationStats = () => {
   quotations.value.forEach(quotation => {
     if (quotation.status === 'draft') stats.pending++
     else if (quotation.status === 'accepted') stats.confirmed++
-    else if (quotation.status === 'sent' && quotation.order_id) stats.converted++
+    else if (quotation.status === 'sent' && quotation.orderId) stats.converted++
     else if (quotation.status === 'expired') stats.expired++
   })
 
@@ -623,10 +623,10 @@ const fetchQuotationStats = async () => {
     const response = await salesApi.getQuotationStatistics()
     if (response && response.data) {
       // 更新统计数据
-      monthlyQuotations.value = response.data.monthly_count || 0
-      monthlyAmount.value = response.data.monthly_amount || 0
-      conversionRate.value = response.data.conversion_rate ?
-        (response.data.conversion_rate * 100).toFixed(2) : 0
+      monthlyQuotations.value = response.data.monthlyCount || 0
+      monthlyAmount.value = response.data.monthlyAmount || 0
+      conversionRate.value = response.data.conversionRate ?
+        (response.data.conversionRate * 100).toFixed(2) : 0
     }
   } catch (error) {
     console.error('获取报价单统计数据失败:', error)
@@ -635,17 +635,17 @@ const fetchQuotationStats = async () => {
 const normalizeCustomerOption = (customer) => ({
   ...customer,
   id: customer.id,
-  name: customer.name || customer.customer_name || '',
-  code: customer.code || customer.customer_code || '',
+  name: customer.name || customer.customerName || '',
+  code: customer.customerCode || '',
 })
 
 const normalizeProductOption = (product) => ({
   ...product,
   id: product.id,
-  code: product.code || product.material_code || '',
-  name: product.name || product.material_name || '',
+  code: product.code || product.materialCode || '',
+  name: product.name || product.materialName || '',
   specs: product.specs || product.specification || '',
-  unit_name: product.unit_name || product.unit || '',
+  unit_name: product.unitName || product.unit || '',
   price: product.price ?? product.sale_price ?? null,
   sale_price: product.sale_price ?? product.price ?? null,
 })
@@ -711,11 +711,11 @@ const getProductById = (productId) => {
 // 产品选择变更处理
 const handleProductChange = (index) => {
   const item = quotationForm.value.items[index]
-  if (item.product_id) {
-    const product = getProductById(item.product_id)
+  if (item.productId) {
+    const product = getProductById(item.productId)
     if (product) {
       item.specification = product.specs || ''
-      item.unit_price = isBlankAmount(product.sale_price ?? product.price) ? null : (product.sale_price ?? product.price)
+      item.unitPrice = isBlankAmount(product.sale_price ?? product.price) ? null : (product.sale_price ?? product.price)
       calculateItemAmount(index)
     }
   }
@@ -745,7 +745,7 @@ const calculateItemAmount = (index) => {
   const item = quotationForm.value.items[index]
   if (item) {
     const quantity = toMoneyNumber(item.quantity)
-    const unitPrice = toMoneyNumber(item.unit_price)
+    const unitPrice = toMoneyNumber(item.unitPrice)
     item.amount = quantity === null || unitPrice === null ? null : quantity * unitPrice
   }
 }
@@ -753,7 +753,7 @@ const calculateItemAmount = (index) => {
 const calculateTotalAmount = () => {
   return quotationForm.value.items.reduce((sum, item) => {
     const quantity = toMoneyNumber(item.quantity)
-    const unitPrice = toMoneyNumber(item.unit_price)
+    const unitPrice = toMoneyNumber(item.unitPrice)
     return sum + (quantity === null || unitPrice === null ? 0 : quantity * unitPrice)
   }, 0)
 }
@@ -786,32 +786,32 @@ const submitQuotation = async () => {
       try {
         dialogLoading.value = true
 
-        const invalidPriceItem = quotationForm.value.items.find(item => toMoneyNumber(item.quantity) > 0 && toMoneyNumber(item.unit_price) === null)
+        const invalidPriceItem = quotationForm.value.items.find(item => toMoneyNumber(item.quantity) > 0 && toMoneyNumber(item.unitPrice) === null)
         if (invalidPriceItem) {
-          ElMessage.error(`产品 ${invalidPriceItem.product_name || invalidPriceItem.product_id || ''} 缺少有效单价，无法保存报价`)
+          ElMessage.error(`产品 ${invalidPriceItem.productName || invalidPriceItem.productId || ''} 缺少有效单价，无法保存报价`)
           dialogLoading.value = false
           return
         }
 
         // 计算总金额
         const totalAmount = quotationForm.value.items.reduce((sum, item) => {
-          return sum + ((toMoneyNumber(item.quantity) || 0) * (toMoneyNumber(item.unit_price) || 0))
+          return sum + ((toMoneyNumber(item.quantity) || 0) * (toMoneyNumber(item.unitPrice) || 0))
         }, 0)
 
         // 构建提交数据
         const quotationData = {
           quotation: {
-            customer_id: quotationForm.value.customer_id,
+            customer_id: quotationForm.value.customerId,
             remarks: quotationForm.value.remarks,
             total_amount: totalAmount,
             validity_date: quotationForm.value.validity_date,
             status: 'draft'
           },
           items: quotationForm.value.items.map(item => ({
-            product_id: item.product_id,
+            product_id: item.productId,
             quantity: toMoneyNumber(item.quantity) || 0,
-            unit_price: toMoneyNumber(item.unit_price),
-            total_price: (toMoneyNumber(item.quantity) || 0) * (toMoneyNumber(item.unit_price) || 0)
+            unit_price: toMoneyNumber(item.unitPrice),
+            total_price: (toMoneyNumber(item.quantity) || 0) * (toMoneyNumber(item.unitPrice) || 0)
           }))
         }
 
@@ -864,8 +864,8 @@ const handleConfirm = async (row) => {
       // 构建更新数据，保留所有原始字段，仅更新状态
       const updateData = {
         quotation: {
-          customer_id: currentQuotation.customer_id,
-          total_amount: currentQuotation.total_amount,
+          customer_id: currentQuotation.customerId,
+          total_amount: currentQuotation.totalAmount,
           validity_date: currentQuotation.validity_date,
           remarks: currentQuotation.remarks || '',
           status: 'accepted'
@@ -901,11 +901,11 @@ const handleView = async (row) => {
       // 设置查看数据
       currentQuotation.value = {
         quotation_no: quotation.quotation_no || '-',
-        customer_name: quotation.customer_name || '-',
+        customer_name: quotation.customerName || '-',
         validity_date: quotation.validity_date || '',
         status: quotation.status || 'draft',
-        total_amount: isBlankAmount(quotation.total_amount) ? null : quotation.total_amount,
-        created_at: quotation.created_at || quotation.created_time || new Date().toISOString(),
+        total_amount: isBlankAmount(quotation.totalAmount) ? null : quotation.totalAmount,
+        created_at: quotation.createdTime || new Date().toISOString(),
         remarks: quotation.remarks || '',
         items: quotation.items || []
       }
@@ -930,7 +930,7 @@ const handleEdit = async (row) => {
       const quotationData = response.data
       quotationForm.value = {
         id: quotationData.id,
-        customer_id: quotationData.customer_id,
+        customer_id: quotationData.customerId,
         validity_date: quotationData.validity_date ? new Date(quotationData.validity_date) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         items: quotationData.items && quotationData.items.length > 0 ? [...quotationData.items] : [
           {
@@ -967,27 +967,27 @@ const handleConvert = (row) => {
       }
 
       const quotationData = quotationResponse.data
-      const hasMaskedAmount = isBlankAmount(quotationData.total_amount) ||
-        (quotationData.items || []).some(item => isBlankAmount(item.unit_price))
+      const hasMaskedAmount = isBlankAmount(quotationData.totalAmount) ||
+        (quotationData.items || []).some(item => isBlankAmount(item.unitPrice))
       if (hasMaskedAmount) {
         throw new Error('报价金额或单价不可见，不能转换为销售订单')
       }
 
       // 构建销售订单数据
       const orderData = {
-        customer_id: quotationData.customer_id,
+        customer_id: quotationData.customerId,
         delivery_address: quotationData.address || '',
         contact_person: quotationData.contact || '',
         contact_phone: quotationData.phone || '',
         delivery_date: formatDateToISOString(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)), // 默认7天后交货
         order_date: formatDateToISOString(new Date()),
         status: 'pending',
-        remarks: `由报价单 ${quotationData.quotation_no || row.quotation_no} 转换`,
-        total_amount: quotationData.total_amount,
+        remarks: `由报价单 ${quotationData.quotation_no || row.quotationNo} 转换`,
+        total_amount: quotationData.totalAmount,
         items: (quotationData.items || []).map(item => ({
-          material_id: item.product_id,
+          material_id: item.productId,
           quantity: toMoneyNumber(item.quantity) || 0,
-          unit_price: toMoneyNumber(item.unit_price),
+          unit_price: toMoneyNumber(item.unitPrice),
           specification: item.specification || '',
           notes: ''
         }))
@@ -1008,7 +1008,7 @@ const handleConvert = (row) => {
       // 更新报价单状态为已转订单
       await salesApi.convertQuotationToOrder(row.id)
 
-        ElMessage.success(`报价单 ${row.quotation_no} 已成功转为销售订单`)
+        ElMessage.success(`报价单 ${row.quotationNo} 已成功转为销售订单`)
 
       // 跳转到新创建的订单详情页
       if (orderResponse.data.id) {
@@ -1065,31 +1065,31 @@ const loadBomDetails = async () => {
     // 将BOM零部件添加到报价明细中
     const newItems = bomDetails.map(detail => {
       // 尝试从产品列表中查找对应产品的价格信息
-      const product = products.value.find(p => p.id === detail.material_id);
-      const unitPrice = product ? (product.sale_price || product.price || 0) : 0;
+      const product = products.value.find(p => p.id === detail.materialId);
+      const unitPrice = product ? (product.salePrice || 0) : 0;
 
       return {
-        product_id: detail.material_id,
-        material_id: detail.material_id,
-        specification: detail.material_code ? `${detail.material_code} - ${detail.material_name}` : detail.material_name,
+        product_id: detail.materialId,
+        material_id: detail.materialId,
+        specification: detail.materialCode ? `${detail.materialCode} - ${detail.materialName}` : detail.materialName,
         quantity: parseFloat(detail.quantity) || 1,
         unit_price: unitPrice, // 使用找到的产品价格
         amount: (parseFloat(detail.quantity) || 1) * unitPrice, // 计算金额
         // 添加额外信息
-        material_code: detail.material_code,
-        material_name: detail.material_name,
-        unit_id: detail.unit_id,
-        unit_name: detail.unit_name
+        material_code: detail.materialCode,
+        material_name: detail.materialName,
+        unit_id: detail.unitId,
+        unit_name: detail.unitName
       }
     })
 
     // 如果当前报价单只有一个空项，则替换；否则追加
-    if (quotationForm.value.items.length === 1 && !quotationForm.value.items[0].product_id) {
+    if (quotationForm.value.items.length === 1 && !quotationForm.value.items[0].productId) {
       quotationForm.value.items = newItems
     } else {
       // 过滤掉已存在的产品，避免重复添加
-      const existingProductIds = quotationForm.value.items.map(item => item.product_id)
-      const filteredNewItems = newItems.filter(item => !existingProductIds.includes(item.product_id))
+      const existingProductIds = quotationForm.value.items.map(item => item.productId)
+      const filteredNewItems = newItems.filter(item => !existingProductIds.includes(item.productId))
 
       if (filteredNewItems.length === 0) {
         ElMessage.info('所有BOM零部件已经存在于报价明细中')

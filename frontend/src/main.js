@@ -28,10 +28,21 @@ import './assets/ui-utilities.css'
 import './assets/price-panel.css'
 import './assets/theme-utilities.css'
 import './assets/scrollbar.css'
+/*
+ * EP dark/css-vars：仅在 html.dark 时生效（theme store 对 dark/tech/premium 加 class）。
+ * 与自有 data-theme token 双轨：语义色以 theme-compat + 各主题 CSS 为准，EP 变量作底层回退。
+ */
 import 'element-plus/theme-chalk/dark/css-vars.css'
-/* 主题：兼容层 + 默认 KACON 首屏；其余预设由 themeLoader 按需加载 */
-import './assets/themes/pc/kacon.css'
+/*
+ * 主题加载顺序（后者可覆盖前者）：
+ * 1) theme-compat — token 别名 / EP 映射
+ * 2) theme-components — 全主题共享表格/按钮/卡片壳
+ * 3) kacon — 默认皮肤 + 玻璃等品牌细则
+ * 其余预设由 themeLoader 按需加载（只换色板，壳已共享）
+ */
 import './assets/themes/pc/theme-compat.css'
+import './assets/themes/pc/theme-components.css'
+import './assets/themes/pc/kacon.css'
 import './assets/stat-cards.css'
 
 import permissionDirective from './directives/permission'

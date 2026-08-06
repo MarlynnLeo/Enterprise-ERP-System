@@ -18,6 +18,10 @@ const { lineAmount, sumMoney } = require('../../../utils/money');
 const { softDelete } = require('../../../utils/softDelete');
 const { PURCHASE_RETURN_TRANSITIONS } = require('../../../constants/statusRegistry');
 const { getRequestActorLabel } = require('../../../utils/userUtils');
+const {
+  purchaseReturnMap,
+  purchaseReturnItemMap,
+} = require('../../../utils/purchase/purchaseFieldMap');
 
 
 // 状态常量
@@ -37,10 +41,11 @@ const createValidationError = (message) => {
   return error;
 };
 
+// HTTP 入参只认 camel；归一化为内部 snake 供后续 SQL 使用
 const normalizeReturnItems = (items = []) => (Array.isArray(items) ? items : [])
   .map((item) => ({
-    receipt_item_id: Number(item.receipt_item_id || item.receiptItemId || item.id || 0),
-    return_quantity: parseFloat(item.return_quantity ?? item.returnQuantity ?? 0) || 0,
+    receipt_item_id: Number(item.receiptItemId || item.id || 0),
+    return_quantity: parseFloat(item.returnQuantity ?? 0) || 0,
   }))
   .filter((item) => item.return_quantity > 0);
 
@@ -244,14 +249,13 @@ const getReturns = async (req, res) => {
     const [countResult] = await pool.query(countQuery, countParams);
     const totalCount = countResult[0].total_count;
 
-    // 整合退货单数据，处理操作人真实姓名
-    const returns = result.map((row) => {
-      return {
+    // 整合退货单数据 → camel API
+    const returns = result.map((row) =>
+      purchaseReturnMap.toApi({
         ...row,
-        // 优先使用从用户表获取的真实姓名，如果没有则使用操作员用户名
-        operator_name: row.real_name || row.operator || '',
-      };
-    });
+        operator_name: row.realName || row.operator || '',
+      })
+    );
 
     return ResponseHandler.success(res, {
       data: returns,
@@ -303,7 +307,7 @@ const getReturn = async (req, res) => {
     const returnData = result[0];
 
     // 处理操作人真实姓名
-    returnData.operator_name = returnData.real_name || returnData.operator || '';
+    returnData.operator_name = returnData.realName || returnData.operator || '';
 
     // 获取退货单物料（JOIN 物料表获取规格和单位）
     const itemsQuery = `
@@ -321,7 +325,13 @@ const getReturn = async (req, res) => {
 
     returnData.items = itemsResult;
 
-    return ResponseHandler.success(res, returnData);
+    return ResponseHandler.success(
+      res,
+      purchaseReturnMap.toApi({
+        ...returnData,
+        operator_name: returnData.operator_name,
+      })
+    );
   } catch (error) {
     logger.error('获取采购退货详情失败:', error);
     return ResponseHandler.error(res, '操作失败', 'OPERATION_ERROR', 500, error);
@@ -931,7 +941,7 @@ const getReturnById = async (id) => {
   const returnData = result[0];
 
   // 处理操作人真实姓名
-  returnData.operator_name = returnData.real_name || returnData.operator || '';
+  returnData.operator_name = returnData.realName || returnData.operator || '';
 
   // 获取退货单物料
   const itemsQuery = 'SELECT id, return_id, receipt_item_id, material_id, material_code, material_name, specification, unit, unit_id, quantity, return_quantity, price, return_reason, created_at, updated_at FROM purchase_return_items WHERE return_id = ? ORDER BY id';

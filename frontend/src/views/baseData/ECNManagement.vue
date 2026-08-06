@@ -48,8 +48,8 @@
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="requested_by_name" label="申请人" width="100" />
-      <el-table-column prop="effective_date" label="生效日期" width="110" />
+      <el-table-column prop="requestedByName" label="申请人" width="100" />
+      <el-table-column prop="effectiveDate" label="生效日期" width="110" />
       <el-table-column label="操作" min-width="380" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
         <template #default="{ row }">
           <el-button class="btn-op-view" size="small" type="primary" v-permission="'basedata:ecn:view'" @click="viewDetail(row)">
@@ -110,8 +110,8 @@
         </el-row>
         <el-form-item label="变更原因" required><el-input v-model="formData.reason" type="textarea" :rows="2" :disabled="!isEditable" /></el-form-item>
         <el-form-item label="变更描述"><el-input v-model="formData.description" type="textarea" :rows="2" :disabled="!isEditable" /></el-form-item>
-        <el-form-item label="影响分析"><el-input v-model="formData.impact_analysis" type="textarea" :rows="2" :disabled="!isEditable" /></el-form-item>
-        <el-form-item label="生效日期"><el-date-picker v-model="formData.effective_date" type="date" value-format="YYYY-MM-DD" :disabled="!isEditable" /></el-form-item>
+        <el-form-item label="影响分析"><el-input v-model="formData.impactAnalysis" type="textarea" :rows="2" :disabled="!isEditable" /></el-form-item>
+        <el-form-item label="生效日期"><el-date-picker v-model="formData.effectiveDate" type="date" value-format="YYYY-MM-DD" :disabled="!isEditable" /></el-form-item>
 
         <!-- 变更明细区域 -->
         <el-divider content-position="left">变更明细</el-divider>
@@ -121,20 +121,20 @@
         <el-table v-if="formData.items && formData.items.length" :data="formData.items" border size="small">
           <el-table-column label="变更类型" width="150">
             <template #default="{ row }">
-              <el-select v-if="isEditable" v-model="row.change_type" size="small" class="w-full">
+              <el-select v-if="isEditable" v-model="row.changeType" size="small" class="w-full">
                 <el-option label="BOM新增物料" value="bom_add" />
                 <el-option label="BOM移除物料" value="bom_remove" />
                 <el-option label="BOM修改" value="bom_modify" />
                 <el-option label="物料属性修改" value="material_modify" />
               </el-select>
-              <span v-else>{{ changeTypeMap[row.change_type] || row.change_type }}</span>
+              <span v-else>{{ changeTypeMap[row.changeType] || row.changeType }}</span>
             </template>
           </el-table-column>
           <el-table-column label="BOM" min-width="220">
             <template #default="{ row }">
               <el-select
-                v-if="isEditable && ['bom_add','bom_remove','bom_modify'].includes(row.change_type)"
-                v-model="row.bom_id"
+                v-if="isEditable && ['bom_add','bom_remove','bom_modify'].includes(row.changeType)"
+                v-model="row.bomId"
                 filterable
                 remote
                 reserve-keyword
@@ -147,10 +147,10 @@
                 @focus="() => searchBom('')"
               >
                 <el-option
-                  v-if="row.bom_id && !bomOptions.find(o => o.id === row.bom_id)"
-                  :key="row.bom_id"
-                  :label="row.bom_label || `BOM#${row.bom_id}`"
-                  :value="row.bom_id"
+                  v-if="row.bomId && !bomOptions.find(o => o.id === row.bomId)"
+                  :key="row.bomId"
+                  :label="row.bomLabel || `BOM#${row.bomId}`"
+                  :value="row.bomId"
                 />
                 <el-option
                   v-for="b in bomOptions"
@@ -159,7 +159,7 @@
                   :value="b.id"
                 />
               </el-select>
-              <span v-else>{{ row.bom_label || (row.bom_id ? `BOM#${row.bom_id}` : '-') }}</span>
+              <span v-else>{{ row.bomLabel || (row.bomId ? `BOM#${row.bomId}` : '-') }}</span>
             </template>
           </el-table-column>
           <!-- 物料搜索选择器 -->
@@ -167,7 +167,7 @@
             <template #default="{ row }">
               <el-select
                 v-if="isEditable"
-                v-model="row.material_id"
+                v-model="row.materialId"
                 filterable
                 remote
                 reserve-keyword
@@ -180,10 +180,10 @@
               >
                 <!-- 如果已选但不在搜索结果中，保留已选项 -->
                 <el-option
-                  v-if="row.material_id && !materialOptions.find(o => o.id === row.material_id)"
-                  :key="row.material_id"
-                  :label="`${row.material_code} ${row.material_name}`"
-                  :value="row.material_id"
+                  v-if="row.materialId && !materialOptions.find(o => o.id === row.materialId)"
+                  :key="row.materialId"
+                  :label="`${row.materialCode} ${row.materialName}`"
+                  :value="row.materialId"
                 />
                 <el-option
                   v-for="m in materialOptions"
@@ -192,14 +192,14 @@
                   :value="m.id"
                 />
               </el-select>
-              <span v-else>{{ row.material_code }} {{ row.material_name }}</span>
+              <span v-else>{{ row.materialCode }} {{ row.materialName }}</span>
             </template>
           </el-table-column>
           <!-- 字段名 -->
           <el-table-column label="字段" width="120">
             <template #default="{ row }">
-              <el-select v-if="isEditable && ['bom_modify','material_modify'].includes(row.change_type)" v-model="row.field_name" size="small" class="w-full" placeholder="选择字段">
-                <template v-if="row.change_type === 'bom_modify'">
+              <el-select v-if="isEditable && ['bom_modify','material_modify'].includes(row.changeType)" v-model="row.fieldName" size="small" class="w-full" placeholder="选择字段">
+                <template v-if="row.changeType === 'bom_modify'">
                   <el-option label="数量" value="quantity" />
                   <el-option label="备注" value="remark" />
                 </template>
@@ -210,19 +210,19 @@
                   <el-option label="单价" value="price" />
                 </template>
               </el-select>
-              <span v-else>{{ row.field_name || '-' }}</span>
+              <span v-else>{{ row.fieldName || '-' }}</span>
             </template>
           </el-table-column>
           <el-table-column label="变更前" width="100">
             <template #default="{ row }">
-              <el-input v-if="isEditable" v-model="row.old_value" size="small" />
-              <span v-else>{{ row.old_value }}</span>
+              <el-input v-if="isEditable" v-model="row.oldValue" size="small" />
+              <span v-else>{{ row.oldValue }}</span>
             </template>
           </el-table-column>
           <el-table-column label="变更后" width="100">
             <template #default="{ row }">
-              <el-input v-if="isEditable" v-model="row.new_value" size="small" />
-              <span v-else>{{ row.new_value }}</span>
+              <el-input v-if="isEditable" v-model="row.newValue" size="small" />
+              <span v-else>{{ row.newValue }}</span>
             </template>
           </el-table-column>
           <el-table-column v-if="isEditable" label="操作" min-width="80" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
@@ -233,7 +233,7 @@
             </template>
           </el-table-column>
         </el-table>
-        <el-empty v-else-if="!isEditable" description="暂无变更明细" :image-size="60" />
+        <EmptyState v-else-if="!isEditable" description="暂无变更明细" ::image-size="60" />
       </el-form>
       <template #footer>
         <el-button @click="formVis = false">关闭</el-button>
@@ -292,9 +292,9 @@ const searchBom = (query = '') => {
         id: b.id,
         code: b.code || `BOM#${b.id}`,
         version: b.version,
-        product_code: b.product_code,
-        product_name: b.product_name,
-        label: `${b.product_code || ''} ${b.product_name || ''} ${b.version || ''}`.trim() || `BOM#${b.id}`
+        product_code: b.productCode,
+        product_name: b.productName,
+        label: `${b.productCode || ''} ${b.productName || ''} ${b.version || ''}`.trim() || `BOM#${b.id}`
       }))
     } catch {
       bomOptions.value = []
@@ -307,19 +307,19 @@ const searchBom = (query = '') => {
 const onBomSelect = async (row, bomId) => {
   const bom = bomOptions.value.find(o => o.id === bomId)
   if (bom) {
-    row.bom_label = bom.label
+    row.bomLabel = bom.label
   }
-  row.material_id = null
-  row.material_code = ''
-  row.material_name = ''
+  row.materialId = null
+  row.materialCode = ''
+  row.materialName = ''
   if (!bomId) return
   try {
     const res = await bomApi.getBomDetails(bomId)
     const details = normalizeList(res)
     materialOptions.value = details.map(d => ({
-      id: d.material_id,
-      code: d.material_code,
-      name: d.material_name
+      id: d.materialId,
+      code: d.materialCode,
+      name: d.materialName
     })).filter(m => m.id)
   } catch {
     materialOptions.value = []
@@ -348,8 +348,8 @@ const searchMaterial = (query) => {
 const onMaterialSelect = (row, materialId) => {
   const m = materialOptions.value.find(o => o.id === materialId)
   if (m) {
-    row.material_code = m.code
-    row.material_name = m.name
+    row.materialCode = m.code
+    row.materialName = m.name
   }
 }
 

@@ -6,6 +6,7 @@
  */
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 const { logger } = require('../../../utils/logger');
 const { parsePagination } = require('../../../utils/safePagination');
 
@@ -24,7 +25,10 @@ const ScopeGuard = require('../../../authorization/ScopeGuard');
 const db = require('../../../config/db');
 const {
   fromInvoiceApi,
+  toInvoiceApi,
   fromInvoiceListQuery,
+  toReceiptApi,
+  fromReceiptListQuery,
 } = require('../../../utils/finance/invoiceFieldMap');
 
 const isReceiptBusinessError = (error) =>
@@ -370,39 +374,22 @@ const arController = {
    */
   getReceipts: async (req, res) => {
     try {
-      const {
-        page = 1,
-        limit = 20,
-        receiptNumber,
-        customerName,
-        startDate,
-        endDate,
-        paymentMethod,
-        status,
-        invoiceNumber,
-      } = req.query;
+      const { page = 1, limit = 20 } = req.query;
 
-      // 构建查询条件
-      const filters = {};
-      if (receiptNumber) filters.receipt_number = receiptNumber;
-      if (customerName) filters.customer_name = customerName;
-      if (startDate) filters.start_date = startDate;
-      if (endDate) filters.end_date = endDate;
-      if (paymentMethod) filters.payment_method = paymentMethod;
-      if (status) filters.status = status; // 添加状态筛选
+      // HTTP query(camel) → 模型 filters(snake)
+      const filters = fromReceiptListQuery(req.query);
       filters.scopeClause = await ScopeGuard.applyListScope(req, 'ar_receipt', {
         tableAlias: 'r',
         ownerAlias: 'ar_receipt_owner_scope',
       });
-      if (invoiceNumber) filters.invoice_number = invoiceNumber; // 添加发票编号过滤
 
-      // 调用模型方法获取收款记录列表
       const pagination = parsePagination(page, limit, { defaultPageSize: 20, maxPageSize: 100 });
       const result = await arModel.getReceipts(filters, pagination.page, pagination.pageSize);
+      const mapped = (result.receipts || []).map((r) => toReceiptApi(r));
 
       return ResponseHandler.paginated(
         res,
-        result.receipts || [],
+        mapped,
         result.pagination?.total || 0,
         result.pagination?.page || pagination.page,
         result.pagination?.pageSize || pagination.pageSize,
@@ -428,14 +415,14 @@ const arController = {
         return;
       }
 
-      // 获取收款记录详情
+      // 获取收款记录详情 → camel
       const receipt = await arModel.getReceiptById(receiptId);
 
       if (!receipt) {
         return ResponseHandler.error(res, '收款记录不存在', 'NOT_FOUND', 404);
       }
 
-      return ResponseHandler.success(res, receipt, '获取收款记录成功');
+      return ResponseHandler.success(res, toReceiptApi(receipt), '获取收款记录成功');
     } catch (error) {
       logger.error('获取收款记录失败:', error);
       return ResponseHandler.error(res, '获取收款记录失败', 'SERVER_ERROR', 500, error);
@@ -489,8 +476,8 @@ const arController = {
         );
       }
 
-      // 检查发票是否还有未收余额
-      const balanceAmount = parseFloat(invoice.balance_amount || 0);
+      // 发票已由 toInvoiceApi 出 camel；余额只认 balanceAmount
+      const balanceAmount = parseFloat(invoice.balanceAmount ?? 0);
       if (balanceAmount <= 0) {
         return ResponseHandler.error(
           res,
@@ -566,8 +553,9 @@ const arController = {
 
       const modelData = {
         receipt_number: receiptNumber,
-        customer_id: invoice.customer_id,
-        customer_name: invoice.customer_name || '未知客户', // 添加客户名称
+        // 发票 API 为 camel
+        customer_id: invoice.customerId,
+        customer_name: invoice.customerName || '未知客户',
         receipt_date: receiptData.receiptDate,
         total_amount: parseFloat(receiptData.amount),
         payment_method: paymentMethod,
@@ -623,7 +611,7 @@ const arController = {
   voidReceipt: async (req, res) => {
     try {
       const receiptId = safeParseId(req.params.id);
-      const { void_reason } = req.body;
+      const { void_reason } = mapKeysToSnake(req.body || {});
 
       if (!receiptId) {
         return ResponseHandler.error(res, '无效的收款记录ID', 'VALIDATION_ERROR', 400);
@@ -1060,7 +1048,13 @@ const arController = {
 
       const [invoices] = await db.pool.execute(query, params);
 
-      return ResponseHandler.success(res, invoices, '获取未付清发票成功');
+      const mapped = (invoices || []).map((row) => {
+        const api = toInvoiceApi(row, 'ar');
+        api.amount = api.totalAmount;
+        api.balance = api.balanceAmount;
+        return api;
+      });
+      return ResponseHandler.success(res, mapped, '获取未付清发票成功');
     } catch (error) {
       logger.error('获取未付清发票失败:', error);
       return ResponseHandler.error(res, '获取未付清发票失败', 'SERVER_ERROR', 500, error);

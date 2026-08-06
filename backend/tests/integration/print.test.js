@@ -89,15 +89,16 @@ describe('打印服务 - 打印模板 /api/print/templates', () => {
     }
   });
 
-  test('应按 module/template_type 返回真实默认模板', async () => {
-    const listRes = await api.get('/api/print/templates?is_default=1&status=1&page=1&pageSize=1');
+  test('应按 module/templateType 返回真实默认模板', async () => {
+    const listRes = await api.get('/api/print/templates?isDefault=1&status=1&page=1&pageSize=1');
     expect(listRes.status).toBe(200);
     const { items } = extractList(listRes.body);
 
     if (items.length > 0) {
       const template = items[0];
+      const templateType = template.templateType || template.template_type;
       const res = await api.get(
-        `/api/print/templates/default?module=${template.module}&template_type=${template.template_type}`
+        `/api/print/templates/default?module=${template.module}&templateType=${templateType}`
       );
 
       expect(res.status).toBe(200);

@@ -41,10 +41,10 @@
           <div
             class="section-item"
             v-for="item in section.items || []"
-            :key="item.account_code || item.name"
+            :key="item.accountCode"
           >
             <span class="item-name" :class="{ indent: item.level > 1, bold: item.isTotal }">
-              {{ item.account_name || item.name }}
+              {{ item.accountName }}
             </span>
             <span class="item-amount" :class="{ bold: item.isTotal }"
               >¥{{ fm(item.amount || item.balance) }}</span

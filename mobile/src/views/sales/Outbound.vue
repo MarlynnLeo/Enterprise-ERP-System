@@ -69,42 +69,42 @@
           >
             <div>
               <div class="list-header">
-                <span class="list-id">{{ outbound.outbound_no }}</span>
+                <span class="list-id">{{ outbound.outboundNo }}</span>
                 <Tag :type="getOutboundStatusType(outbound.status)" size="medium">
                   {{ getOutboundStatusText(outbound.status) }}
                 </Tag>
               </div>
 
-              <div class="list-subtitle" v-if="outbound.order_no">
-                关联订单: {{ outbound.order_no }}
+              <div class="list-subtitle" v-if="outbound.orderNo">
+                关联订单: {{ outbound.orderNo }}
               </div>
 
-              <div class="list-title">{{ outbound.customer_name }}</div>
+              <div class="list-title">{{ outbound.customerName }}</div>
 
               <div class="list-details">
                 <div class="list-row">
                   <span class="label">出库日期:</span>
-                  <span class="value">{{ formatDate(outbound.delivery_date) }}</span>
+                  <span class="value">{{ formatDate(outbound.deliveryDate) }}</span>
                 </div>
-                <div class="list-row" v-if="outbound.total_amount">
+                <div class="list-row" v-if="outbound.totalAmount">
                   <span class="label">出库金额:</span>
-                  <span class="value amount">¥{{ formatAmount(outbound.total_amount) }}</span>
+                  <span class="value amount">¥{{ formatAmount(outbound.totalAmount) }}</span>
                 </div>
-                <div class="list-row" v-if="outbound.receiver">
+                <div class="list-row" v-if="outbound.contactPerson || outbound.receiver">
                   <span class="label">收货人:</span>
-                  <span class="value">{{ outbound.receiver }}</span>
+                  <span class="value">{{ outbound.contactPerson || outbound.receiver }}</span>
                 </div>
-                <div class="list-row" v-if="outbound.contact_phone">
+                <div class="list-row" v-if="outbound.contactPhone">
                   <span class="label">联系电话:</span>
-                  <span class="value">{{ outbound.contact_phone }}</span>
+                  <span class="value">{{ outbound.contactPhone }}</span>
                 </div>
               </div>
 
-              <div class="list-details" v-if="outbound.items_count">
+              <div class="list-details" v-if="outbound.itemsCount || (outbound.items && outbound.items.length)">
                 <div class="list-row">
                   <span class="label">物料数:</span>
                   <span class="value"
-                    >{{ outbound.items_count }} 项 / {{ outbound.total_quantity }} 件</span
+                    >{{ outbound.itemsCount || outbound.items?.length || 0 }} 项 / {{ outbound.totalQuantity || 0 }} 件</span
                   >
                 </div>
               </div>
@@ -246,7 +246,7 @@
 
   const buildStatusPayload = (outbound, status) => ({
     status,
-    delivery_date: outbound.delivery_date || outbound.outbound_date || new Date().toISOString().slice(0, 10),
+    deliveryDate: outbound.deliveryDate || new Date().toISOString().slice(0, 10),
     remarks: outbound.remarks
   })
 
@@ -255,7 +255,7 @@
     try {
       await showConfirmDialog({
         title: '开始出库',
-        message: `确定开始处理出库单 ${outbound.outbound_no} 吗？`
+        message: `确定开始处理出库单 ${outbound.outboundNo} 吗？`
       })
       await salesApi.updateSalesOutbound(outbound.id, buildStatusPayload(outbound, 'processing'))
       showToast('已进入出库中')
@@ -273,7 +273,7 @@
     try {
       await showConfirmDialog({
         title: '完成出库',
-        message: `确定完成出库单 ${outbound.outbound_no} 吗？库存数量将相应扣减。`
+        message: `确定完成出库单 ${outbound.outboundNo} 吗？库存数量将相应扣减。`
       })
       await salesApi.updateSalesOutbound(outbound.id, buildStatusPayload(outbound, 'completed'))
       showToast('出库完成')

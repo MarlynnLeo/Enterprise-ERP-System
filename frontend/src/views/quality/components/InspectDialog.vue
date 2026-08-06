@@ -13,7 +13,12 @@
  */
 -->
 <template>
-  <el-dialog v-model="dialogVisible" :title="`检验操作 - ${inspectionNo}`" :width="inspectDialogWidth" destroy-on-close>
+  <AppDialog
+    v-model="dialogVisible"
+    :title="`检验操作 - ${inspectionNo}`"
+    mode="form"
+    :width="inspectDialogWidth"
+  >
     <el-form ref="inspectFormRef" :model="inspectForm" :rules="inspectRules" label-width="100px">
       <el-alert
         v-if="inspectionTemplateSource"
@@ -26,8 +31,8 @@
       <el-form-item label="检验项目" prop="items">
         <div class="inspection-items">
           <el-table :data="inspectForm.items" border>
-            <el-table-column prop="item_name" label="检验项目" width="120" show-overflow-tooltip />
-            <el-table-column prop="dimension_info" label="标准±公差" width="130" show-overflow-tooltip>
+            <el-table-column prop="itemName" label="检验项目" width="120" show-overflow-tooltip />
+            <el-table-column prop="dimensionInfo" label="标准±公差" width="130" show-overflow-tooltip>
               <template #default="scope">{{ formatDimensionTolerance(scope.row) }}</template>
             </el-table-column>
             <!-- 动态测量值列：根据抽样数量自动增减 -->
@@ -53,7 +58,7 @@
               <template #default="scope">
                 <div class="average-value-display">
                   <span :class="{'value-passed': scope.row.result === 'passed', 'value-failed': scope.row.result === 'failed'}">
-                    {{ scope.row.actual_value || '-' }}
+                    {{ scope.row.actualValue || '-' }}
                   </span>
                 </div>
               </template>
@@ -92,7 +97,7 @@
         </el-col>
         <el-col :span="8" v-if="inspectForm.is_aql">
           <el-form-item label="AQL 级别">
-            <el-select v-model="inspectForm.aql_level" placeholder="请选择" @change="handleAqlChange" :loading="samplingLoading" class="form-control-100">
+            <el-select v-model="inspectForm.aqlLevel" placeholder="请选择" @change="handleAqlChange" :loading="samplingLoading" class="form-control-100">
               <el-option v-for="lvl in availableAqlLevels" :key="lvl" :label="lvl" :value="lvl" />
             </el-select>
           </el-form-item>
@@ -106,18 +111,18 @@
           </el-form-item>
         </el-col>
         <el-col :span="6">
-          <el-form-item label="合格数量" prop="qualified_quantity">
-            <el-input v-model="inspectForm.qualified_quantity" @input="handleQualifiedQuantityChange" />
+          <el-form-item label="合格数量" prop="qualifiedQuantity">
+            <el-input v-model="inspectForm.qualifiedQuantity" @input="handleQualifiedQuantityChange" />
           </el-form-item>
         </el-col>
         <el-col :span="6">
-          <el-form-item label="不合格数量" prop="unqualified_quantity">
-            <el-input v-model="inspectForm.unqualified_quantity" placeholder="自动计算" disabled />
+          <el-form-item label="不合格数量" prop="unqualifiedQuantity">
+            <el-input v-model="inspectForm.unqualifiedQuantity" placeholder="自动计算" disabled />
           </el-form-item>
         </el-col>
         <el-col :span="6">
-          <el-form-item label="检验员" prop="inspector_name">
-            <el-input v-model="inspectForm.inspector_name" placeholder="请输入检验员姓名" />
+          <el-form-item label="检验员" prop="inspectorName">
+            <el-input v-model="inspectForm.inspectorName" placeholder="请输入检验员姓名" />
           </el-form-item>
         </el-col>
       </el-row>
@@ -137,7 +142,7 @@
         <el-button v-permission="'quality:inspections:update'" type="primary" @click="submitInspection" :loading="submitting">提交检验</el-button>
       </span>
     </template>
-  </el-dialog>
+    </AppDialog>
 
   <!-- 模板选择子弹窗 -->
   <TemplateSelectDialog
@@ -179,7 +184,7 @@ const dialogVisible = computed({
   set: (val) => emit('update:visible', val)
 })
 
-const inspectionNo = computed(() => props.row?.inspectionNo || props.row?.inspection_no || '')
+const inspectionNo = computed(() => props.row?.inspectionNo || props.row?.inspectionNo || '')
 
 // 表单引用和状态
 const inspectFormRef = ref(null)
@@ -260,7 +265,7 @@ const fetchAqlStandards = async () => {
     const items = res.data?.items || res.items || res.data || []
     aqlStandardsList.value = items
     const levels = new Set()
-    items.forEach(std => levels.add(std.aql_level))
+    items.forEach(std => levels.add(std.aqlLevel))
     availableAqlLevels.value = Array.from(levels).sort((a, b) => a - b)
   } catch (err) {
     console.error('获取AQL标准失败:', err)
@@ -289,14 +294,14 @@ const loadInspectionData = async () => {
     }
 
     currentInspectionData.value = inspectionData
-    inspectionTemplateId.value = inspectionData.template_id || null
-    inspectionTemplateName.value = inspectionData.template_name || ''
-    inspectionTemplateSource.value = inspectionData.template_name ? `已引用模板：${inspectionData.template_name}` : ''
+    inspectionTemplateId.value = inspectionData.templateId || null
+    inspectionTemplateName.value = inspectionData.templateName || ''
+    inspectionTemplateSource.value = inspectionData.templateName ? `已引用模板：${inspectionData.templateName}` : ''
 
     // 获取物料型号
-    if (!inspectionData.specs && inspectionData.material_id) {
+    if (!inspectionData.specs && inspectionData.materialId) {
       try {
-        const materialInfo = await baseDataApi.getMaterial(inspectionData.material_id)
+        const materialInfo = await baseDataApi.getMaterial(inspectionData.materialId)
         if (materialInfo?.data?.specs) inspectionData.specs = materialInfo.data.specs
       } catch (error) {
         console.warn('获取物料型号失败:', error)
@@ -305,25 +310,25 @@ const loadInspectionData = async () => {
 
     // 填充表单
     inspectForm.id = inspectionData.id
-    inspectForm.inspection_no = inspectionData.inspection_no
+    inspectForm.inspectionNo = inspectionData.inspectionNo
     inspectForm.quantity = inspectionData.quantity || ''
-    inspectForm.qualified_quantity = inspectionData.qualified_quantity || ''
-    inspectForm.unqualified_quantity = inspectionData.unqualified_quantity || ''
-    inspectForm.inspector_name = authStore.user?.real_name || ''
+    inspectForm.qualifiedQuantity = inspectionData.qualifiedQuantity || ''
+    inspectForm.unqualifiedQuantity = inspectionData.unqualifiedQuantity || ''
+    inspectForm.inspectorName = authStore.user?.realName || ''
     inspectForm.inspectionDate = new Date()
     inspectForm.note = inspectionData.note || ''
     inspectForm.is_aql = !!inspectionData.is_aql
-    inspectForm.aql_level = inspectionData.aql_level || null
+    inspectForm.aqlLevel = inspectionData.aqlLevel || null
     inspectForm.aql_standard_id = inspectionData.aql_standard_id || null
-    inspectForm.accept_limit = inspectionData.accept_limit || 0
-    inspectForm.reject_limit = inspectionData.reject_limit || 1
+    inspectForm.acceptLimit = inspectionData.acceptLimit || 0
+    inspectForm.rejectLimit = inspectionData.rejectLimit || 1
 
     // 设置检验项
     const hasExistingItems = inspectionData.items && inspectionData.items.length > 0
     if (hasExistingItems) {
       inspectForm.items = mapInspectionItems(inspectionData.items)
     } else {
-      await fetchInspectionTemplates(inspectionData.material_id)
+      await fetchInspectionTemplates(inspectionData.materialId)
       if (!currentTemplateItems.value || currentTemplateItems.value.length === 0) {
         inspectForm.items = []
         ElMessage.warning('当前物料未匹配检验模板，请先维护检验模板')
@@ -333,7 +338,7 @@ const loadInspectionData = async () => {
     }
 
     // 如果 AQL 已启用，自动触发计算
-    if (inspectForm.is_aql && inspectForm.aql_level && inspectForm.quantity > 0) {
+    if (inspectForm.is_aql && inspectForm.aqlLevel && inspectForm.quantity > 0) {
       await handleAqlChange()
     }
 
@@ -364,11 +369,11 @@ const fetchInspectionTemplates = async (materialId) => {
     ) {
       const tmpl = effectiveTemplates[0]
       inspectionTemplateId.value = tmpl.id
-      inspectionTemplateName.value = tmpl.template_name || ''
+      inspectionTemplateName.value = tmpl.templateName || ''
       inspectionTemplateSource.value = getTemplateSourceText(tmpl)
       currentTemplateItems.value = getTemplateItems(tmpl)
       applyTemplateAql(tmpl)
-      if (isGeneralInspectionTemplate(tmpl)) ElMessage.info(`已自动使用来料通用模板: ${tmpl.template_name}`)
+      if (isGeneralInspectionTemplate(tmpl)) ElMessage.info(`已自动使用来料通用模板: ${tmpl.templateName}`)
     } else if (effectiveTemplates.length > 1) {
       selectTemplateDialogVisible.value = true
     } else {
@@ -387,7 +392,7 @@ const selectTemplate = (templateId) => {
   const selectedTemplate = inspectionTemplates.value.find(t => t.id === templateId)
   if (selectedTemplate) {
     const templateItems = getTemplateItems(selectedTemplate)
-    inspectionTemplateName.value = selectedTemplate.template_name || ''
+    inspectionTemplateName.value = selectedTemplate.templateName || ''
     inspectionTemplateSource.value = getTemplateSourceText(selectedTemplate)
     currentTemplateItems.value = templateItems
     inspectForm.items = mapInspectionItems(templateItems)
@@ -408,45 +413,45 @@ const applyTemplateAql = async (tmpl) => {
   if (!tmpl) return
   const isAql = tmpl.is_aql === true || tmpl.is_aql === 1
   inspectForm.is_aql = isAql
-  if (isAql && tmpl.aql_level) {
-    inspectForm.aql_level = String(tmpl.aql_level)
+  if (isAql && tmpl.aqlLevel) {
+    inspectForm.aqlLevel = String(tmpl.aqlLevel)
     await handleAqlChange()
   } else {
-    inspectForm.aql_level = null
+    inspectForm.aqlLevel = null
     inspectForm.aql_standard_id = null
   }
 }
 
 // ===== AQL 相关 =====
 const handleAqlChange = async () => {
-  if (inspectForm.is_aql && inspectForm.quantity > 0 && inspectForm.aql_level) {
+  if (inspectForm.is_aql && inspectForm.quantity > 0 && inspectForm.aqlLevel) {
     samplingLoading.value = true
     try {
-      const res = await qualityApi.calculateAqlSampling({ batchSize: inspectForm.quantity, aqlLevel: inspectForm.aql_level })
+      const res = await qualityApi.calculateAqlSampling({ batchSize: inspectForm.quantity, aqlLevel: inspectForm.aqlLevel })
       const unwrappedData = res.data || res
       const data = unwrappedData.data || unwrappedData
 
-      if (data && data.sample_size) {
-        inspectForm.aql_standard_id = data.aql_standard_id || data.id || data.aqlStandard?.id
-        inspectForm.accept_limit = data.accept_limit
-        inspectForm.reject_limit = data.reject_limit
-        currentSampleSize.value = data.sample_size
-        resizeAllMeasurements(data.sample_size)
-        ElMessage.success(`匹配到 AQL 抽样: n=${data.sample_size}, Ac=${data.accept_limit}, Re=${data.reject_limit}`)
+      if (data && data.sampleSize) {
+        inspectForm.aql_standard_id = data.aqlStandardId || data.id || data.aqlStandard?.id
+        inspectForm.acceptLimit = data.acceptLimit
+        inspectForm.rejectLimit = data.rejectLimit
+        currentSampleSize.value = data.sampleSize
+        resizeAllMeasurements(data.sampleSize)
+        ElMessage.success(`匹配到 AQL 抽样: n=${data.sampleSize}, Ac=${data.acceptLimit}, Re=${data.rejectLimit}`)
       }
     } catch (err) {
       console.error('AQL计算失败:', err)
       ElMessage.warning('未能匹配到适用的 AQL 标准，请检查批量大小和级别。')
       inspectForm.aql_standard_id = null
-      inspectForm.accept_limit = 0
-      inspectForm.reject_limit = 1
+      inspectForm.acceptLimit = 0
+      inspectForm.rejectLimit = 1
     } finally {
       samplingLoading.value = false
     }
   } else {
     inspectForm.aql_standard_id = null
-    inspectForm.accept_limit = 0
-    inspectForm.reject_limit = 1
+    inspectForm.acceptLimit = 0
+    inspectForm.rejectLimit = 1
     currentSampleSize.value = 1
     resizeAllMeasurements(1)
   }
@@ -482,10 +487,10 @@ const mapInspectionItems = (items) => {
     return {
       ...item,
       measurements,
-      dimension_value: item.dimension_value || null,
-      tolerance_upper: item.tolerance_upper || null,
-      tolerance_lower: item.tolerance_lower || null,
-      actual_value: item.actual_value || '',
+      dimension_value: item.dimensionValue || null,
+      tolerance_upper: item.toleranceUpper || null,
+      tolerance_lower: item.toleranceLower || null,
+      actual_value: item.actualValue || '',
       result: item.result || '',
       remarks: item.remarks || ''
     }
@@ -531,33 +536,33 @@ const formatMeasureByIndex = (item, index) => {
 const calculateAverageValue = (item) => {
   if (!item.measurements) return
   const measures = item.measurements.filter(v => v !== null && v !== undefined && v !== '' && !isNaN(parseFloat(v))).map(v => parseFloat(v))
-  if (measures.length === 0) { item.actual_value = ''; return }
+  if (measures.length === 0) { item.actualValue = ''; return }
 
   const sum = measures.reduce((acc, val) => acc + val, 0)
   const avg = sum / measures.length
   if (measures.length >= 2) {
-    item.actual_value = `${Math.min(...measures).toFixed(2)}-${Math.max(...measures).toFixed(2)}`
+    item.actualValue = `${Math.min(...measures).toFixed(2)}-${Math.max(...measures).toFixed(2)}`
   } else {
-    item.actual_value = avg.toFixed(2)
+    item.actualValue = avg.toFixed(2)
   }
   item._averageValue = avg
   checkDimensionTolerance(item, false)
 }
 
 const formatDimensionTolerance = (item) => {
-  if (!item.dimension_value) return '-'
-  const dimensionValue = parseFloat(item.dimension_value)
-  const upper = parseFloat(item.tolerance_upper) || 0
-  const lower = Math.abs(parseFloat(item.tolerance_lower)) || 0
+  if (!item.dimensionValue) return '-'
+  const dimensionValue = parseFloat(item.dimensionValue)
+  const upper = parseFloat(item.toleranceUpper) || 0
+  const lower = Math.abs(parseFloat(item.toleranceLower)) || 0
   if (upper === 0 && lower === 0) return dimensionValue.toFixed(2)
   return `${dimensionValue.toFixed(2)} (+${upper.toFixed(2)}/-${lower.toFixed(2)})`
 }
 
 const checkDimensionTolerance = (item) => {
-  if (!item.dimension_value) return
-  const dimensionValue = parseFloat(item.dimension_value)
-  const toleranceUpper = parseFloat(item.tolerance_upper) || 0
-  const toleranceLower = parseFloat(item.tolerance_lower) || 0
+  if (!item.dimensionValue) return
+  const dimensionValue = parseFloat(item.dimensionValue)
+  const toleranceUpper = parseFloat(item.toleranceUpper) || 0
+  const toleranceLower = parseFloat(item.toleranceLower) || 0
   if (isNaN(dimensionValue)) return
 
   const maxAllowed = dimensionValue + toleranceUpper
@@ -570,8 +575,8 @@ const checkDimensionTolerance = (item) => {
   const defectCount = outOfRangeMeasures.length
 
   if (inspectForm.is_aql && inspectForm.aql_standard_id) {
-    const ac = parseInt(inspectForm.accept_limit) || 0
-    const re = parseInt(inspectForm.reject_limit) || 1
+    const ac = parseInt(inspectForm.acceptLimit) || 0
+    const re = parseInt(inspectForm.rejectLimit) || 1
     if (defectCount >= re) item.result = 'failed'
     else if (defectCount <= ac) item.result = 'passed'
   } else {
@@ -582,14 +587,14 @@ const checkDimensionTolerance = (item) => {
 // ===== 数量计算 =====
 const handleQualifiedQuantityChange = () => {
   const totalQuantity = parseFloat(inspectForm.quantity) || 0
-  const qualifiedQuantity = parseFloat(inspectForm.qualified_quantity) || 0
+  const qualifiedQuantity = parseFloat(inspectForm.qualifiedQuantity) || 0
   if (qualifiedQuantity > totalQuantity) {
     ElMessage.warning('合格数量不能超过检验数量')
-    inspectForm.qualified_quantity = totalQuantity
-    inspectForm.unqualified_quantity = 0
+    inspectForm.qualifiedQuantity = totalQuantity
+    inspectForm.unqualifiedQuantity = 0
     return
   }
-  inspectForm.unqualified_quantity = (totalQuantity - qualifiedQuantity).toFixed(2)
+  inspectForm.unqualifiedQuantity = (totalQuantity - qualifiedQuantity).toFixed(2)
 }
 
 // ===== 提交检验 =====
@@ -608,7 +613,7 @@ const submitInspection = async () => {
 
     const submitData = {
       id: inspectForm.id,
-      inspection_no: inspectForm.inspection_no,
+      inspection_no: inspectForm.inspectionNo,
       items: inspectForm.items.map(item => {
         const mapped = { ...item }
         if (item.measurements && Array.isArray(item.measurements)) {
@@ -619,18 +624,18 @@ const submitInspection = async () => {
         return mapped
       }),
       quantity: inspectForm.quantity,
-      qualified_quantity: parseFloat(inspectForm.qualified_quantity) || 0,
-      unqualified_quantity: parseFloat(inspectForm.unqualified_quantity) || 0,
-      inspector_name: inspectForm.inspector_name,
-      template_id: inspectionTemplateId.value || currentInspectionData.value?.template_id || null,
+      qualified_quantity: parseFloat(inspectForm.qualifiedQuantity) || 0,
+      unqualified_quantity: parseFloat(inspectForm.unqualifiedQuantity) || 0,
+      inspector_name: inspectForm.inspectorName,
+      template_id: inspectionTemplateId.value || currentInspectionData.value?.templateId || null,
       actual_date: dayjs(inspectForm.inspectionDate).format('YYYY-MM-DD'),
       note: inspectForm.note,
       status,
       is_aql: inspectForm.is_aql,
       aql_standard_id: inspectForm.aql_standard_id,
-      aql_level: inspectForm.aql_level,
-      accept_limit: inspectForm.accept_limit,
-      reject_limit: inspectForm.reject_limit
+      aql_level: inspectForm.aqlLevel,
+      accept_limit: inspectForm.acceptLimit,
+      reject_limit: inspectForm.rejectLimit
     }
 
     const response = await qualityApi.updateIncomingInspection(submitData.id, submitData)
@@ -649,9 +654,9 @@ const submitInspection = async () => {
       } else {
         ElMessage.warning('检验已提交，但后端未返回入库单创建结果，请刷新后确认')
       }
-      await handlePartialNonconformingOnly(submitData.id, submitData.unqualified_quantity)
+      await handlePartialNonconformingOnly(submitData.id, submitData.unqualifiedQuantity)
     } else if (status === 'failed') {
-      await handleFailedInspectionResult(submitData.id, submitData.unqualified_quantity)
+      await handleFailedInspectionResult(submitData.id, submitData.unqualifiedQuantity)
     }
 
     dialogVisible.value = false

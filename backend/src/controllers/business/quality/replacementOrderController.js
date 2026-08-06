@@ -5,6 +5,7 @@
 
 const { logger } = require('../../../utils/logger');
 const { ResponseHandler } = require('../../../utils/responseHandler');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 const db = require('../../../config/db');
 const pool = db.pool;
 const businessConfig = require('../../../config/businessConfig');
@@ -157,7 +158,7 @@ const updateReplacementOrder = async (req, res) => {
     await connection.beginTransaction();
 
     const { id } = req.params;
-    const { expected_date, note } = req.body;
+    const { expected_date, note } = mapKeysToSnake(req.body || {});
 
     // 检查换货单是否存在
     const [checkResult] = await connection.query(
@@ -206,7 +207,7 @@ const confirmReceipt = async (req, res) => {
     await connection.beginTransaction();
 
     const { id } = req.params;
-    const { received_quantity, actual_date, note } = req.body;
+    const { received_quantity, actual_date, note } = mapKeysToSnake(req.body || {});
 
     const receiveQty = parseFloat(received_quantity);
     if (!Number.isFinite(receiveQty) || receiveQty <= 0) {
@@ -291,7 +292,7 @@ const updateStatus = async (req, res) => {
     await connection.beginTransaction();
 
     const { id } = req.params;
-    const { status, note } = req.body;
+    const { status, note } = mapKeysToSnake(req.body || {});
 
     const validStatuses = ['pending', 'partial', 'completed', 'cancelled'];
     if (!validStatuses.includes(status)) {

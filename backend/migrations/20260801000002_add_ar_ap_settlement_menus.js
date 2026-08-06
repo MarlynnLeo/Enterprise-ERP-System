@@ -112,6 +112,40 @@ exports.up = async function up(knex) {
           });
         }
       }
+
+      // 绑定 permissions SSOT：permission_id + role_permissions（幂等）
+      if (menuId && menu.permission) {
+        let perm = await trx('permissions').where({ code: menu.permission }).first();
+        if (!perm) {
+          const moduleName = String(menu.permission).split(':')[0] || menu.permission;
+          const [permId] = await trx('permissions').insert({
+            code: menu.permission,
+            name: menu.name || menu.permission,
+            module: moduleName,
+            status: 1,
+            source: 'menu',
+            created_at: trx.fn.now(),
+            updated_at: trx.fn.now(),
+          });
+          perm = { id: permId };
+        }
+        await trx('menus').where({ id: menuId }).update({
+          permission_id: perm.id,
+          updated_at: trx.fn.now(),
+        });
+        if (adminRole) {
+          const rp = await trx('role_permissions')
+            .where({ role_id: adminRole.id, permission_id: perm.id })
+            .first();
+          if (!rp) {
+            await trx('role_permissions').insert({
+              role_id: adminRole.id,
+              permission_id: perm.id,
+              created_at: trx.fn.now(),
+            });
+          }
+        }
+      }
     }
   });
 };

@@ -20,7 +20,7 @@
       </template>
       <template #advanced>
         <el-form-item label="字典分组">
-          <el-select v-model="searchForm.group_code" placeholder="全部分组" clearable>
+          <el-select v-model="searchForm.groupCode" placeholder="全部分组" clearable>
             <el-option
               v-for="group in businessTypeGroups"
               :key="group"
@@ -51,9 +51,9 @@
     <!-- 数据表格 -->
     <el-card class="data-card">
       <el-table :data="tableData" v-loading="loading" border stripe>
-        <el-table-column prop="group_code" label="字典分组" width="180" show-overflow-tooltip>
+        <el-table-column prop="groupCode" label="字典分组" width="180" show-overflow-tooltip>
           <template #default="{ row }">
-            <span style="font-weight: bold; color: var(--color-primary)">{{ row.group_code || 'inventory_transaction' }}</span>
+            <span style="font-weight: bold; color: var(--color-primary)">{{ row.groupCode || 'inventory_transaction' }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="code" label="业务编码" width="180" show-overflow-tooltip />
@@ -68,7 +68,7 @@
         </el-table-column>
         <el-table-column label="标签颜色" width="100">
           <template #default="{ row }">
-            <el-tag :type="row.tag_type || 'info'">{{ row.tag_type || '默认(info)' }}</el-tag>
+            <el-tag :type="row.tagType || 'info'">{{ row.tagType || '默认(info)' }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="description" label="描述" min-width="150" show-overflow-tooltip />
@@ -79,10 +79,10 @@
             </el-icon>
           </template>
         </el-table-column>
-        <el-table-column prop="sort_order" label="排序" width="80" />
+        <el-table-column prop="sortOrder" label="排序" width="80" />
         <el-table-column label="类型" width="120">
           <template #default="{ row }">
-            <el-tag v-if="row.is_system" type="info" size="small">系统内置</el-tag>
+            <el-tag v-if="row.isSystem" type="info" size="small">系统内置</el-tag>
             <el-tag v-else type="success" size="small">自定义</el-tag>
           </template>
         </el-table-column>
@@ -157,13 +157,13 @@
     >
       <template v-if="dialogType === 'view'">
         <el-descriptions :column="1" border class="mb-20">
-          <el-descriptions-item label="字典分组">{{ form.group_code || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="字典分组">{{ form.groupCode || '-' }}</el-descriptions-item>
           <el-descriptions-item label="业务编码">{{ form.code || '-' }}</el-descriptions-item>
           <el-descriptions-item label="业务名称">{{ form.name || '-' }}</el-descriptions-item>
           <el-descriptions-item label="标签类型">
-            <el-tag :type="form.tag_type || 'info'">{{ tagOptions.find(t => t.value === form.tag_type)?.label || '普通' }}</el-tag>
+            <el-tag :type="form.tagType || 'info'">{{ tagOptions.find(t => t.value === form.tagType)?.label || '普通' }}</el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="顺序">{{ form.sort_order ?? '-' }}</el-descriptions-item>
+          <el-descriptions-item label="顺序">{{ form.sortOrder ?? '-' }}</el-descriptions-item>
           <el-descriptions-item label="描述">{{ form.description || '-' }}</el-descriptions-item>
           <el-descriptions-item label="状态">
             <el-tag :type="Number(form.status) === 1 ? 'success' : 'danger'">
@@ -171,7 +171,7 @@
             </el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="系统内置">
-            <el-tag :type="form.is_system ? 'danger' : 'info'">{{ form.is_system ? '是' : '否' }}</el-tag>
+            <el-tag :type="form.isSystem ? 'danger' : 'info'">{{ form.isSystem ? '是' : '否' }}</el-tag>
           </el-descriptions-item>
         </el-descriptions>
       </template>
@@ -183,9 +183,9 @@
         :rules="formRules"
         label-width="100px"
       >
-        <el-form-item label="字典分组" prop="group_code">
+        <el-form-item label="字典分组" prop="groupCode">
           <el-input
-            v-model="form.group_code"
+            v-model="form.groupCode"
             placeholder="如 warehouse_type"
           />
         </el-form-item>
@@ -199,9 +199,9 @@
         <el-form-item label="业务名称" prop="name">
           <el-input v-model="form.name" placeholder="请输入业务名称" />
         </el-form-item>
-        <el-form-item label="标签类型" prop="tag_type">
+        <el-form-item label="标签类型" prop="tagType">
           <el-select
-            v-model="form.tag_type"
+            v-model="form.tagType"
             placeholder="Element Plus 标签颜色类型"
             class="w-full"
           >
@@ -242,7 +242,7 @@
           <el-color-picker v-model="form.color" />
         </el-form-item>
         <el-form-item label="排序">
-          <el-input-number v-model="form.sort_order" :min="0" :max="999" />
+          <el-input-number v-model="form.sortOrder" :min="0" :max="999" />
         </el-form-item>
         <el-form-item label="状态">
           <el-switch v-model="form.status" :active-value="1" :inactive-value="0" />
@@ -272,7 +272,7 @@ const dictionaryStore = useDictionaryStore()
 
 // 搜索表单
 const searchForm = reactive({
-  group_code: '',
+  groupCode: '',
   category: '',
   status: '',
   keyword: ''
@@ -308,17 +308,17 @@ const submitting = ref(false)
 
 // 表单数据初始值
 const getInitialFormData = () => ({
-  group_code: 'inventory_transaction',
+  groupCode: 'inventory_transaction',
   code: '',
   name: '',
   category: '',
-  tag_type: 'info',
+  tagType: 'info',
   description: '',
   icon: '',
   color: 'var(--color-primary)',
-  sort_order: 0,
+  sortOrder: 0,
   status: 1,
-  is_system: 0
+  isSystem: 0
 })
 
 // 表单数据
@@ -326,7 +326,7 @@ const form = reactive(getInitialFormData())
 
 // 表单验证规则
 const formRules = {
-  group_code: [
+  groupCode: [
     { required: true, message: '请输入字典分组', trigger: 'blur' },
     { pattern: /^[a-z_]+$/, message: '分组只能包含小写字母和下划线', trigger: 'blur' }
   ],
@@ -381,6 +381,7 @@ const handleSearch = () => {
 // 重置搜索
 const resetSearch = () => {
   Object.assign(searchForm, {
+    groupCode: '',
     category: '',
     status: '',
     keyword: ''
@@ -461,7 +462,7 @@ const handleStatusChange = async (row, newStatus) => {
 
 // 删除
 const handleDelete = async (row) => {
-  if (row.is_system) {
+  if (row.isSystem) {
     ElMessage.warning('系统内置业务类型不能删除')
     return
   }

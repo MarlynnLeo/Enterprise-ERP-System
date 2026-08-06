@@ -7,10 +7,11 @@
  */
 -->
 <template>
-  <el-dialog
-    :title="title"
+  <AppDialog
     :model-value="modelValue"
     @update:model-value="$emit('update:modelValue', $event)"
+    :title="title"
+    mode="form"
     width="700px"
   >
     <el-form :model="editableForm" :rules="invoiceRules" ref="invoiceFormRef" label-width="110px">
@@ -169,7 +170,7 @@
         <el-button v-permission="editableForm.id ? 'finance:ar:update' : 'finance:ar:create'" type="primary" @click="$emit('save')" :loading="saveLoading">确认</el-button>
       </span>
     </template>
-  </el-dialog>
+    </AppDialog>
 </template>
 
 <script setup>

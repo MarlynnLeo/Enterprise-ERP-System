@@ -32,11 +32,22 @@ html.light {
   --app-border-color: var(--color-border-base);
 }
 
-/* Dark theme compatibility */
+/*
+ * Dark mode dual-track:
+ * - html.dark → Element Plus dark/css-vars 底层
+ * - [data-theme=dark|tech|premium] → 自有色板
+ * 以下将 app-* 别名钉到语义 token，避免 EP 默认浅色泄漏
+ */
 html.dark[data-theme] {
   --app-bg-color: var(--color-bg-base);
   --app-text-color: var(--color-text-primary);
   --app-border-color: var(--color-border-base);
+  --el-bg-color: var(--color-bg-base);
+  --el-bg-color-page: var(--color-bg-page);
+  --el-text-color-primary: var(--color-text-primary);
+  --el-border-color: var(--color-border-base);
+  --el-mask-color: color-mix(in srgb, var(--color-bg-page) 86%, transparent);
+  --el-mask-color-extra-light: color-mix(in srgb, var(--color-bg-page) 72%, transparent);
 }
 
 /* Apply theme variables to body */

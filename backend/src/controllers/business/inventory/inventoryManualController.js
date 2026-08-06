@@ -6,6 +6,7 @@
  */
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 const { logger } = require('../../../utils/logger');
 const { parsePagination } = require('../../../utils/safePagination');
 
@@ -321,7 +322,7 @@ const createManualTransaction = async (req, res) => {
       return ResponseHandler.error(res, message, code, status);
     };
 
-    const { transaction_type: businessTypeCode, transaction_date, remark, items } = req.body;
+    const { transaction_type: businessTypeCode, transaction_date, remark, items } = mapKeysToSnake(req.body || {});
 
     const operator = await getCurrentUserName(req);
     const createdBy = Number.parseInt(req.user?.id, 10) || null;
@@ -645,7 +646,7 @@ const createExchange = async (req, res) => {
       issue_material_id,
       issue_location_id,
       issue_quantity,
-    } = req.body;
+    } = mapKeysToSnake(req.body || {});
 
     const operator = await getCurrentUserName(req);
 
@@ -918,7 +919,7 @@ const updateManualTransaction = async (req, res) => {
       quantity,
       unit_cost,
       remark,
-    } = req.body;
+    } = mapKeysToSnake(req.body || {});
 
     if (!businessTypeCode || !transaction_date) {
       await connection.rollback();

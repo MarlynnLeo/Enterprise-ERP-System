@@ -86,40 +86,40 @@
         border
       >
         <template #empty>
-          <el-empty description="暂无入库单数据" />
+          <EmptyState description="暂无入库单数据" />
         </template>
         <el-table-column prop="inboundNo" label="入库单号" width="135" />
         <el-table-column prop="inboundType" label="入库类型" width="110">
           <template #default="{ row }">
-            <el-tag :type="getInboundTypeTagType(row.inbound_type)" size="small">
-              {{ getInboundTypeText(row.inbound_type) }}
+            <el-tag :type="getInboundTypeTagType(row.inboundType)" size="small">
+              {{ getInboundTypeText(row.inboundType) }}
             </el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="materialCode" label="物料编码" width="120">
           <template #default="{ row }">
-            <span v-if="row.material_code">{{ row.material_code }}</span>
-            <span v-else-if="row.items_count > 1" class="text-muted">多个物料</span>
+            <span v-if="row.materialCode">{{ row.materialCode }}</span>
+            <span v-else-if="row.itemsCount > 1" class="text-muted">多个物料</span>
             <span v-else class="text-disabled">-</span>
           </template>
         </el-table-column>
         <el-table-column prop="materialName" label="物料名称" width="157" show-overflow-tooltip>
           <template #default="{ row }">
-            <span v-if="row.material_name">{{ row.material_name }}</span>
-            <span v-else-if="row.items_count > 1" class="text-muted">多个物料</span>
+            <span v-if="row.materialName">{{ row.materialName }}</span>
+            <span v-else-if="row.itemsCount > 1" class="text-muted">多个物料</span>
             <span v-else class="text-disabled">-</span>
           </template>
         </el-table-column>
         <el-table-column prop="materialSpecs" label="型号规格" width="180" show-overflow-tooltip>
           <template #default="{ row }">
-            <span v-if="row.material_specs">{{ row.material_specs }}</span>
+            <span v-if="row.materialSpecs || row.specification">{{ row.materialSpecs || row.specification }}</span>
             <span v-else class="text-disabled">-</span>
           </template>
         </el-table-column>
         <el-table-column prop="firstItemQuantity" label="数量" width="80">
           <template #default="{ row }">
-            <span v-if="row.first_item_quantity">{{ row.first_item_quantity }}</span>
-            <span v-else-if="row.total_quantity" class="text-primary" :title="`总数量：${row.total_quantity}`">{{ row.total_quantity }}</span>
+            <span v-if="row.firstItemQuantity">{{ row.firstItemQuantity }}</span>
+            <span v-else-if="row.totalQuantity" class="text-primary" :title="`总数量：${row.totalQuantity}`">{{ row.totalQuantity }}</span>
             <span v-else>-</span>
           </template>
         </el-table-column>
@@ -134,7 +134,7 @@
         </el-table-column>
         <el-table-column prop="operatorName" label="操作人" width="80">
           <template #default="scope">
-            {{ scope.row.operator_name || scope.row.operator || '未知' }}
+            {{ scope.row.operatorName || scope.row.operator || '未知' }}
           </template>
         </el-table-column>
         <el-table-column prop="remark" label="备注" width="180" show-overflow-tooltip />
@@ -213,10 +213,11 @@
       </div>
     </el-card>
     <!-- 新建/编辑入库单对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="dialogVisible"
       :title="getDialogTitle"
-      width="60%"
+      mode="form"
+      wide
     >
       <el-form
         ref="formRef"
@@ -226,9 +227,9 @@
       >
         <el-row :gutter="20">
           <el-col :span="8">
-            <el-form-item label="入库类型" prop="inbound_type">
+            <el-form-item label="入库类型" prop="inboundType">
               <el-select
-                v-model="form.inbound_type"
+                v-model="form.inboundType"
                 placeholder="请选择入库类型"
                 class="w-full"
                 @change="handleInboundTypeChange"
@@ -243,9 +244,9 @@
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="入库日期" prop="inbound_date">
+            <el-form-item label="入库日期" prop="inboundDate">
               <el-date-picker
-                v-model="form.inbound_date"
+                v-model="form.inboundDate"
                 type="date"
                 placeholder="选择日期"
                 value-format="YYYY-MM-DD"
@@ -254,9 +255,9 @@
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="仓库" prop="location_id">
+            <el-form-item label="仓库" prop="locationId">
               <el-select
-                v-model="form.location_id"
+                v-model="form.locationId"
                 placeholder="请选择仓库"
                 class="w-full"
                 @change="handleLocationChange"
@@ -272,11 +273,11 @@
           </el-col>
         </el-row>
         <!-- 生产退料时显示关联任务选择 -->
-        <el-row :gutter="20" v-if="form.inbound_type === 'production_return'">
+        <el-row :gutter="20" v-if="form.inboundType === 'production_return'">
           <el-col :span="16">
-            <el-form-item label="关联任务" prop="reference_no">
+            <el-form-item label="关联任务" prop="referenceNo">
               <el-input
-                v-model="form.reference_no"
+                v-model="form.referenceNo"
                 placeholder="点击选择生产任务"
                 readonly
                 @click="openTaskSelectDialog"
@@ -289,7 +290,7 @@
           </el-col>
           <el-col :span="8">
             <el-form-item label="任务产品" v-if="selectedTask">
-              <span>{{ selectedTask.product_name }}</span>
+              <span>{{ selectedTask.productName }}</span>
             </el-form-item>
           </el-col>
         </el-row>
@@ -302,7 +303,7 @@
           <el-col :span="12">
             <el-form-item label="备注">
               <el-input
-                v-model="form.remark"
+                v-model="form.remarks"
                 type="textarea"
                 :rows="1"
                 placeholder="请输入备注"
@@ -310,7 +311,7 @@
             </el-form-item>
           </el-col>
         </el-row>
-        <el-divider>{{ form.inbound_type === 'production_return' ? '退料明细' : '入库明细' }}</el-divider>
+        <el-divider>{{ form.inboundType === 'production_return' ? '退料明细' : '入库明细' }}</el-divider>
         <el-table
           :data="form.items"
           border
@@ -322,7 +323,7 @@
             <template #default="{ row, $index }">
               <el-autocomplete
                 :ref="(el) => setMaterialSelectRef(el, $index)"
-                v-model="row.material_code"
+                v-model="row.materialCode"
                 placeholder="输入编码/名称/规格"
                 clearable
                 :fetch-suggestions="(query, callback) => fetchMaterialSuggestions(query, callback, $index)"
@@ -348,14 +349,14 @@
                       {{ item.specs }}
                     </span>
                     <span class="option-row__stock">
-                      库存: {{ item.stock_quantity || 0 }}
+                      库存: {{ item.stockQuantity || 0 }}
                     </span>
                   </div>
                 </template>
               </el-autocomplete>
             </template>
           </el-table-column>
-          <el-table-column label="物料名称" prop="material_name" width="140" show-overflow-tooltip />
+          <el-table-column label="物料名称" prop="materialName" width="140" show-overflow-tooltip />
           <el-table-column label="规格" prop="specification" width="140" show-overflow-tooltip />
           <el-table-column label="数量" width="120">
             <template #default="{ row, $index }">
@@ -369,11 +370,11 @@
               />
             </template>
           </el-table-column>
-          <el-table-column label="单位" prop="unit_name" width="70" />
+          <el-table-column label="单位" prop="unitName" width="70" />
           <el-table-column label="批次号" width="150">
             <template #default="{ row }">
               <el-input
-                v-model="row.batch_number"
+                v-model="row.batchNo"
                 placeholder="请输入批次号"
                 size="small"
               />
@@ -382,7 +383,7 @@
           <el-table-column label="备注" width="150">
             <template #default="{ row }">
               <el-input
-                v-model="row.remark"
+                v-model="row.remarks"
                 placeholder="请输入备注"
                 size="small"
                 maxlength="200"
@@ -425,7 +426,7 @@
           </el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
     <!-- 查看入库单对话框 -->
     <AppDialog
       v-model="viewDialogVisible"
@@ -435,25 +436,25 @@
     >
       <div v-loading="viewLoading">
       <el-descriptions :column="2" border>
-        <el-descriptions-item label="入库单号">{{ currentInbound.inbound_no }}</el-descriptions-item>
-        <el-descriptions-item label="入库日期">{{ currentInbound.inbound_date }}</el-descriptions-item>
-        <el-descriptions-item label="仓库">{{ currentInbound.location_name }}</el-descriptions-item>
+        <el-descriptions-item label="入库单号">{{ currentInbound.inboundNo }}</el-descriptions-item>
+        <el-descriptions-item label="入库日期">{{ currentInbound.inboundDate }}</el-descriptions-item>
+        <el-descriptions-item label="仓库">{{ currentInbound.locationName }}</el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag :type="getStatusType(currentInbound.status)">
             {{ getStatusText(currentInbound.status) }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="操作人">{{ currentInbound.operator_name || currentInbound.operator || '未知' }}</el-descriptions-item>
-        <el-descriptions-item label="备注">{{ currentInbound.remark }}</el-descriptions-item>
+        <el-descriptions-item label="操作人">{{ currentInbound.operatorName || currentInbound.operator || '未知' }}</el-descriptions-item>
+        <el-descriptions-item label="备注">{{ currentInbound.remarks }}</el-descriptions-item>
       </el-descriptions>
       <el-divider>入库明细</el-divider>
       <el-table :data="currentInbound.items" border class="w-full">
-        <el-table-column prop="material_code" label="物料编码" width="120" />
-        <el-table-column prop="material_name" label="物料名称" min-width="150" />
+        <el-table-column prop="materialCode" label="物料编码" width="120" />
+        <el-table-column prop="materialName" label="物料名称" min-width="150" />
         <el-table-column prop="quantity" label="数量" width="100" />
-        <el-table-column prop="unit_name" label="单位" width="80" />
-        <el-table-column prop="batch_number" label="批次号" width="200" />
-        <el-table-column prop="remark" label="备注" min-width="150" />
+        <el-table-column prop="unitName" label="单位" width="80" />
+        <el-table-column prop="batchNo" label="批次号" width="200" />
+        <el-table-column prop="remarks" label="备注" min-width="150" />
       </el-table>
       </div>
       <template #footer>
@@ -462,10 +463,11 @@
       </template>
     </AppDialog>
     <!-- 物料选择对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="materialDialogVisible"
       title="选择物料"
-      width="40%"
+      mode="form"
+      wide
     >
       <el-form :inline="true" class="search-form material-search-form" :model="materialSearchForm">
         <el-form-item label="物料编码">
@@ -488,7 +490,7 @@
         <el-table-column prop="code" label="物料编码" width="120" />
         <el-table-column prop="name" label="物料名称" width="180" />
         <el-table-column prop="specs" label="规格" width="220" />
-        <el-table-column prop="unit_name" label="单位" width="80" />
+        <el-table-column prop="unitName" label="单位" width="80" />
         <el-table-column label="操作" min-width="100" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="handleAddSingleMaterial(row)">
@@ -514,12 +516,13 @@
           <el-button type="primary" @click="handleMaterialConfirm">确定</el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
     <!-- 生产任务选择对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="productionTaskDialogVisible"
       title="选择生产任务（生产退料）"
-      width="70%"
+      mode="form"
+      wide
     >
       <el-form :inline="true" class="search-form" :model="{ keyword: taskSearchKeyword }">
         <el-form-item label="任务编号/产品">
@@ -542,8 +545,8 @@
         highlight-current-row
       >
         <el-table-column prop="code" label="任务编号" width="150" />
-        <el-table-column prop="product_code" label="产品编码" width="130" />
-        <el-table-column prop="product_name" label="产品名称" min-width="180" show-overflow-tooltip />
+        <el-table-column prop="productCode" label="产品编码" width="130" />
+        <el-table-column prop="productName" label="产品名称" min-width="180" show-overflow-tooltip />
         <el-table-column prop="quantity" label="生产数量" width="100" />
         <el-table-column prop="status" label="状态" width="100">
           <template #default="{ row }">
@@ -574,38 +577,38 @@
           @selection-change="handleReturnMaterialSelection"
         >
           <el-table-column type="selection" width="55" :selectable="checkReturnSelectable" />
-          <el-table-column prop="material_code" label="物料编码" width="130" />
-          <el-table-column prop="material_name" label="物料名称" min-width="150" show-overflow-tooltip />
-          <el-table-column prop="material_specs" label="规格" width="150" show-overflow-tooltip />
-          <el-table-column prop="issued_quantity" label="领料数量" width="100" />
-          <el-table-column prop="returned_quantity" label="已退数量" width="100">
+          <el-table-column prop="materialCode" label="物料编码" width="130" />
+          <el-table-column prop="materialName" label="物料名称" min-width="150" show-overflow-tooltip />
+          <el-table-column prop="materialSpecs" label="规格" width="150" show-overflow-tooltip />
+          <el-table-column prop="issuedQuantity" label="领料数量" width="100" />
+          <el-table-column prop="returnedQuantity" label="已退数量" width="100">
             <template #default="{ row }">
-              <span :class="row.returned_quantity > 0 ? 'text-warning' : ''">
-                {{ row.returned_quantity || 0 }}
+              <span :class="row.returnedQuantity > 0 ? 'text-warning' : ''">
+                {{ row.returnedQuantity || 0 }}
               </span>
             </template>
           </el-table-column>
-          <el-table-column prop="max_returnable_quantity" label="可退数量" width="100">
+          <el-table-column prop="maxReturnableQuantity" label="可退数量" width="100">
             <template #default="{ row }">
-              <span :class="row.max_returnable_quantity > 0 ? 'text-success' : 'text-muted'">
-                {{ row.max_returnable_quantity }}
+              <span :class="row.maxReturnableQuantity > 0 ? 'text-success' : 'text-muted'">
+                {{ row.maxReturnableQuantity }}
               </span>
             </template>
           </el-table-column>
-          <el-table-column prop="default_location_name" label="退料仓库" width="120">
+          <el-table-column prop="defaultLocationName" label="退料仓库" width="120">
             <template #default="{ row }">
-              <span>{{ row.default_location_name || '未设置' }}</span>
+              <span>{{ row.defaultLocationName || '未设置' }}</span>
             </template>
           </el-table-column>
           <el-table-column label="退料数量" width="120">
             <template #default="{ row }">
               <el-input-number
-                v-model="row.return_quantity"
+                v-model="row.returnQuantity"
                 :min="0"
-                :max="row.max_returnable_quantity"
+                :max="row.maxReturnableQuantity"
                 :precision="2"
                 size="small"
-                :disabled="row.max_returnable_quantity <= 0"
+                :disabled="row.maxReturnableQuantity <= 0"
               />
             </template>
           </el-table-column>
@@ -617,7 +620,7 @@
           <el-button type="primary" @click="confirmTaskSelection" :disabled="!selectedTask">确认选择</el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
   </div>
 </template>
 <script setup>
@@ -639,7 +642,7 @@ const route = useRoute()
 const authStore = useAuthStore()
 const getCurrentUserDisplayName = () => {
   const currentUser = authStore.user || tokenManager.getUser()
-  return currentUser?.real_name || currentUser?.realName || currentUser?.name || currentUser?.username || ''
+  return currentUser?.realName || currentUser?.realName || currentUser?.name || currentUser?.username || ''
 }
 // 权限计算属性
 const canCreate = computed(() => authStore.hasPermission && authStore.hasPermission('inventory:inbound:create'));
@@ -667,17 +670,17 @@ const viewLoading = ref(false)
 const submitLoading = ref(false)
 const formRef = ref(null)
 const form = reactive({
-  inbound_date: '',
-  location_id: '',
+  inboundDate: '',
+  locationId: '',
   operator: '',
-  remark: '',
+  remarks: '',
   status: 'draft',
   items: [],
   // 新增字段：入库类型和关联单据
-  inbound_type: 'other',
-  reference_type: null,
-  reference_id: null,
-  reference_no: null
+  inboundType: 'other',
+  referenceType: null,
+  referenceId: null,
+  referenceNo: null
 })
 // 入库类型选项
 const inboundTypeOptions = [
@@ -699,12 +702,13 @@ const taskMaterialRecords = ref([])
 const taskMaterialLoading = ref(false)
 // 当前查看的入库单
 const currentInbound = reactive({
-  inbound_no: '',
-  inbound_date: '',
-  location_name: '',
+  inboundNo: '',
+  inboundDate: '',
+  locationName: '',
   status: '',
   operator: '',
-  remark: '',
+  operatorName: '',
+  remarks: '',
   items: []
 })
 // 基础数据
@@ -725,10 +729,10 @@ const materialTotal = ref(0)
 const selectedMaterials = ref([])
 // 表单验证规则
 const rules = {
-  inbound_date: [
+  inboundDate: [
     { required: true, message: '请选择入库日期', trigger: 'change' }
   ],
-  location_id: [
+  locationId: [
     { required: true, message: '请选择仓库', trigger: 'change' }
   ],
   operator: [
@@ -858,17 +862,17 @@ const handleSearch = () => {
 // 新建入库单
 const handleCreate = () => {
   dialogType.value = 'create'
-  form.inbound_date = formatLocalDate(new Date())
-  form.location_id = ''
-  form.inbound_type = 'other'
-  form.reference_type = null
-  form.reference_id = null
-  form.reference_no = null
+  form.inboundDate = formatLocalDate(new Date())
+  form.locationId = ''
+  form.inboundType = 'other'
+  form.referenceType = null
+  form.referenceId = null
+  form.referenceNo = null
   selectedTask.value = null
   // 设置当前用户为操作人（使用真实姓名）
   form.operator = getCurrentUserDisplayName()
 
-  form.remark = ''
+  form.remarks = ''
   form.status = 'draft'
   form.items = []
   dialogVisible.value = true
@@ -878,22 +882,25 @@ const printLoading = ref(false)
 const handlePrintInbound = async () => {
   printLoading.value = true
   try {
+    // 业务侧只传 camel；printService 展开 snake 模板占位
     const printData = {
-      inbound_no: currentInbound.inbound_no || '',
-      inbound_date: currentInbound.inbound_date || '',
-      inbound_type: getInboundTypeText(currentInbound.inbound_type) || '其他入库',
-      supplier_name: currentInbound.supplier_name || '',
-      location_name: currentInbound.location_name || '',
-      remark: currentInbound.remark || '',
-      operator: currentInbound.operator_name || currentInbound.operator || '',
+      inboundNo: currentInbound.inboundNo || '',
+      inboundDate: currentInbound.inboundDate || '',
+      inboundType: getInboundTypeText(currentInbound.inboundType) || '其他入库',
+      supplierName: currentInbound.supplierName || '',
+      locationName: currentInbound.locationName || '',
+      remarks: currentInbound.remarks || '',
+      remark: currentInbound.remarks || '',
+      operator: currentInbound.operatorName || currentInbound.operator || '',
       items: (currentInbound.items || []).map((item, idx) => ({
         index: idx + 1,
-        material_code: item.material_code || '',
-        material_name: item.material_name || '',
-        specification: item.specification || item.material_specs || '',
+        materialCode: item.materialCode || '',
+        materialName: item.materialName || '',
+        specification: item.specification || '',
         quantity: parseFloat(item.quantity || 0).toFixed(2),
-        unit_name: item.unit_name || '',
-        remark: item.remark || ''
+        unitName: item.unitName || '',
+        remarks: item.remarks || '',
+        remark: item.remarks || ''
       }))
     }
     const html = await printService.generateByDefaultTemplate('inventory', 'inbound', printData)
@@ -953,15 +960,15 @@ const setQuantityInputRef = (el, index) => {
 // 添加物料项
 const handleAddItem = () => {
   form.items.push({
-    material_id: '',
-    material_code: '',
-    material_name: '',
+    materialId: '',
+    materialCode: '',
+    materialName: '',
     specification: '',
     quantity: '',
-    unit_name: '',
-    unit_id: '',
-    batch_number: '',
-    remark: ''
+    unitName: '',
+    unitId: '',
+    batchNo: '',
+    remarks: ''
   })
   // 聚焦到新添加行的物料输入框
   nextTick(() => {
@@ -994,10 +1001,10 @@ const fetchMaterialSuggestions = async (queryString, callback) => {
       id: item.id,
       code: item.code || '无编码',
       name: item.name || '未命名',
-      specs: item.specification || '',
-      unit_name: item.unit_name || '个',
-      unit_id: item.unit_id,
-      stock_quantity: item.stock_quantity || 0
+      specs: item.specification || item.specs || '',
+      unitName: item.unitName || '个',
+      unitId: item.unitId,
+      stockQuantity: item.stockQuantity ?? item.stockQuantity ?? 0
     }))
     callback(suggestions)
   } catch {
@@ -1013,12 +1020,12 @@ const handleMaterialSelect = (item, index) => {
     ElMessage.error('物料ID无效，请重新选择')
     return
   }
-  form.items[index].material_id = materialId
-  form.items[index].material_code = item.code
-  form.items[index].material_name = item.name
+  form.items[index].materialId = materialId
+  form.items[index].materialCode = item.code
+  form.items[index].materialName = item.name
   form.items[index].specification = item.specs
-  form.items[index].unit_name = item.unit_name
-  form.items[index].unit_id = item.unit_id
+  form.items[index].unitName = item.unitName
+  form.items[index].unitId = item.unitId
   // 选择物料后，自动聚焦到数量输入框
   nextTick(() => {
     const quantityInput = quantityInputRefs.value[index]
@@ -1030,7 +1037,7 @@ const handleMaterialSelect = (item, index) => {
 // 处理物料输入框回车
 const handleMaterialEnter = (index) => {
   // 如果已选择物料，跳转到数量输入框
-  if (form.items[index].material_id) {
+  if (form.items[index].materialId) {
     const quantityInput = quantityInputRefs.value[index]
     if (quantityInput) {
       quantityInput.focus()
@@ -1039,12 +1046,12 @@ const handleMaterialEnter = (index) => {
 }
 // 处理物料清除
 const handleMaterialClear = (index) => {
-  form.items[index].material_id = ''
-  form.items[index].material_code = ''
-  form.items[index].material_name = ''
+  form.items[index].materialId = ''
+  form.items[index].materialCode = ''
+  form.items[index].materialName = ''
   form.items[index].specification = ''
-  form.items[index].unit_name = ''
-  form.items[index].unit_id = ''
+  form.items[index].unitName = ''
+  form.items[index].unitId = ''
 }
 // 处理数量输入框回车
 const handleQuantityEnter = (index) => {
@@ -1066,9 +1073,9 @@ const handleLocationChange = () => {
 // 入库类型变化
 const handleInboundTypeChange = () => {
   // 清空关联信息和明细
-  form.reference_type = null
-  form.reference_id = null
-  form.reference_no = null
+  form.referenceType = null
+  form.referenceId = null
+  form.referenceNo = null
   form.items = []
   selectedTask.value = null
   taskMaterialRecords.value = []
@@ -1076,7 +1083,7 @@ const handleInboundTypeChange = () => {
 // 计算对话框标题
 const getDialogTitle = computed(() => {
   if (dialogType.value === 'create') {
-    if (form.inbound_type === 'production_return') {
+    if (form.inboundType === 'production_return') {
       return '新建退料单'
     }
     return '新建入库单'
@@ -1125,7 +1132,21 @@ const loadTaskMaterialRecords = async (taskId) => {
     const data = parseResponseData(response)
     taskMaterialRecords.value = (data?.records || []).map(r => ({
       ...r,
-      return_quantity: r.max_returnable_quantity > 0 ? r.max_returnable_quantity : 0
+      materialId: r.materialId ?? r.materialId,
+      materialCode: r.materialCode ?? r.materialCode,
+      materialName: r.materialName ?? r.materialName,
+      materialSpecs: r.materialSpecs ?? r.materialSpecs,
+      unitName: r.unitName ?? r.unitName,
+      unitId: r.unitId ?? r.unitId,
+      batchNo: r.batchNo ?? r.batchNumber,
+      issuedQuantity: r.issuedQuantity ?? r.issuedQuantity ?? 0,
+      returnedQuantity: r.returnedQuantity ?? r.returnedQuantity ?? 0,
+      maxReturnableQuantity: r.maxReturnableQuantity ?? r.maxReturnableQuantity ?? 0,
+      defaultLocationId: r.defaultLocationId ?? r.defaultLocationId,
+      defaultLocationName: r.defaultLocationName ?? r.defaultLocationName,
+      returnQuantity: (r.maxReturnableQuantity ?? r.maxReturnableQuantity ?? 0) > 0
+        ? (r.maxReturnableQuantity ?? r.maxReturnableQuantity)
+        : 0
     }))
   } catch (error) {
     console.error('获取领料记录失败:', error)
@@ -1136,7 +1157,7 @@ const loadTaskMaterialRecords = async (taskId) => {
 }
 // 检查是否可选择退料
 const checkReturnSelectable = (row) => {
-  return row.max_returnable_quantity > 0
+  return (row.maxReturnableQuantity || 0) > 0
 }
 // 处理退料物料选择
 const selectedReturnMaterials = ref([])
@@ -1150,34 +1171,34 @@ const confirmTaskSelection = () => {
     return
   }
   // 获取选中的退料物料
-  const returnItems = taskMaterialRecords.value.filter(r => r.return_quantity > 0 && r.max_returnable_quantity > 0)
+  const returnItems = taskMaterialRecords.value.filter(r => r.returnQuantity > 0 && r.maxReturnableQuantity > 0)
   if (returnItems.length === 0) {
     ElMessage.warning('请至少选择一个物料并设置退料数量')
     return
   }
   // 设置关联信息
-  form.reference_type = 'production_task'
-  form.reference_id = selectedTask.value.id
-  form.reference_no = selectedTask.value.code
+  form.referenceType = 'production_task'
+  form.referenceId = selectedTask.value.id
+  form.referenceNo = selectedTask.value.code
   // 自动设置表单仓库：优先使用有默认仓库的物料，否则使用仓库列表第一个
-  const locationsWithDefault = returnItems.map(i => i.default_location_id).filter(Boolean)
+  const locationsWithDefault = returnItems.map(i => i.defaultLocationId).filter(Boolean)
   if (locationsWithDefault.length > 0) {
-    form.location_id = locationsWithDefault[0]
+    form.locationId = locationsWithDefault[0]
   } else if (locations.value.length > 0) {
-    form.location_id = locations.value[0].id
+    form.locationId = locations.value[0].id
   }
   // 构建退料明细（使用物料的默认仓库，没有则使用表单仓库）
   form.items = returnItems.map(item => ({
-    material_id: item.material_id,
-    material_code: item.material_code,
-    material_name: item.material_name,
-    specification: item.material_specs,
-    quantity: item.return_quantity,
-    unit_name: item.unit_name,
-    unit_id: item.unit_id || null,
-    batch_number: item.batch_number || '',
-    location_id: item.default_location_id || form.location_id,
-    remark: `生产退料 - 任务${selectedTask.value.code}`
+    materialId: item.materialId,
+    materialCode: item.materialCode,
+    materialName: item.materialName,
+    specification: item.materialSpecs,
+    quantity: item.returnQuantity,
+    unitName: item.unitName,
+    unitId: item.unitId || null,
+    batchNo: item.batchNo || '',
+    locationId: item.defaultLocationId || form.locationId,
+    remarks: `生产退料 - 任务${selectedTask.value.code}`
   }))
   productionTaskDialogVisible.value = false
   ElMessage.success(`已选择${returnItems.length}个物料进行退料`)
@@ -1222,31 +1243,40 @@ const handleSubmit = async () => {
 
     submitLoading.value = true
 
-    // 确保所有物料项有unit_id和unit_name
+    // 确保所有物料项有 unitId / unitName
     for (const item of form.items) {
-      if (!item.unit_id) {
+      if (!item.unitId) {
         ElMessage.warning('存在物料没有指定单位，请检查')
         return
       }
 
-      // 确保有unit_name
-      if (!item.unit_name && item.unit_id) {
-        const unit = units.value.find(u => u.id === item.unit_id)
+      // 确保有 unitName
+      if (!item.unitName && item.unitId) {
+        const unit = units.value.find(u => u.id === item.unitId)
         if (unit) {
-          item.unit_name = unit.name
+          item.unitName = unit.name
         }
       }
     }
 
+    // 纯 camel 提交（后端 inventoryInboundMap.fromApi）
     const submitData = {
-      ...form,
+      inboundDate: form.inboundDate,
+      locationId: form.locationId,
+      operator: form.operator,
+      remarks: form.remarks,
+      status: form.status,
+      inboundType: form.inboundType,
+      referenceType: form.referenceType,
+      referenceId: form.referenceId,
+      referenceNo: form.referenceNo,
       items: form.items.map(item => ({
-        ...item,
-        material_id: item.material_id,
+        materialId: item.materialId,
         quantity: item.quantity,
-        unit_id: item.unit_id,
-        batch_number: item.batch_number,
-        remark: item.remark
+        unitId: item.unitId,
+        batchNo: item.batchNo,
+        locationId: item.locationId || form.locationId,
+        remarks: item.remarks
       }))
     };
 
@@ -1306,8 +1336,8 @@ const handleMaterialConfirm = async () => {
       const materialDetail = await baseDataApi.getMaterial(material.id);
       const detailedMaterial = materialDetail.data;
 
-      // 确保每个物料都有unit_id
-      const unitId = detailedMaterial.unit_id || (units.value.length > 0 ? units.value[0].id : null);
+      // 确保每个物料都有 unitId
+      const unitId = detailedMaterial.unitId || (units.value.length > 0 ? units.value[0].id : null);
       let unitName = '';
 
       // 查找单位名称
@@ -1319,22 +1349,22 @@ const handleMaterialConfirm = async () => {
       }
 
       form.items.push({
-        material_id: detailedMaterial.id,
-        material_code: detailedMaterial.code,
-        material_name: detailedMaterial.name,
+        materialId: detailedMaterial.id,
+        materialCode: detailedMaterial.code,
+        materialName: detailedMaterial.name,
         specification: detailedMaterial.specs,
         quantity: 0,
-        unit_id: unitId,
-        unit_name: unitName,
-        batch_number: '',
-        remark: ''
+        unitId: unitId,
+        unitName: unitName,
+        batchNo: '',
+        remarks: ''
       });
     } catch (error) {
       console.error(`获取物料${material.id}详情失败:`, error);
 
       // 使用列表中的简略信息
-      const unitId = material.unit_id || (units.value.length > 0 ? units.value[0].id : null);
-      let unitName = material.unit_name || '';
+      const unitId = material.unitId || (units.value.length > 0 ? units.value[0].id : null);
+      let unitName = material.unitName || '';
 
       // 查找单位名称
       if (unitId && !unitName) {
@@ -1345,15 +1375,15 @@ const handleMaterialConfirm = async () => {
       }
 
       form.items.push({
-        material_id: material.id,
-        material_code: material.code,
-        material_name: material.name,
+        materialId: material.id,
+        materialCode: material.code,
+        materialName: material.name,
         specification: material.specs,
         quantity: 0,
-        unit_id: unitId,
-        unit_name: unitName,
-        batch_number: '',
-        remark: ''
+        unitId: unitId,
+        unitName: unitName,
+        batchNo: '',
+        remarks: ''
       });
     }
   }
@@ -1384,7 +1414,7 @@ const handleAddSingleMaterial = async (material) => {
     }
 
     // 设置单位
-    const unitId = detailedMaterial.unit_id || (units.value.length > 0 ? units.value[0].id : null);
+    const unitId = detailedMaterial.unitId || (units.value.length > 0 ? units.value[0].id : null);
     let unitName = '';
 
     if (unitId) {
@@ -1396,15 +1426,15 @@ const handleAddSingleMaterial = async (material) => {
 
     // 添加到物料列表
     form.items.push({
-      material_id: detailedMaterial.id,
-      material_code: detailedMaterial.code,
-      material_name: detailedMaterial.name,
+      materialId: detailedMaterial.id,
+      materialCode: detailedMaterial.code,
+      materialName: detailedMaterial.name,
       specification: detailedMaterial.specs,
       quantity: 0,
-      unit_id: unitId,
-      unit_name: unitName,
-      batch_number: '',
-      remark: ''
+      unitId: unitId,
+      unitName: unitName,
+      batchNo: '',
+      remarks: ''
     });
 
     materialDialogVisible.value = false;
@@ -1467,36 +1497,36 @@ const handleReturnFromProduction = async (taskId, taskCode) => {
   // 打开新建对话框
   handleCreate()
   // 设置为生产退料类型
-  form.inbound_type = 'production_return'
-  form.reference_type = 'production_task'
-  form.reference_id = parseInt(taskId)
-  form.reference_no = taskCode
+  form.inboundType = 'production_return'
+  form.referenceType = 'production_task'
+  form.referenceId = parseInt(taskId)
+  form.referenceNo = taskCode
   // 加载任务领料记录
   await loadTaskMaterialRecords(taskId)
   // 如果有领料记录，自动添加到明细
   if (taskMaterialRecords.value.length > 0) {
     // 默认选择所有可退的物料（使用物料的默认仓库）
-    const returnItems = taskMaterialRecords.value.filter(r => r.max_returnable_quantity > 0)
+    const returnItems = taskMaterialRecords.value.filter(r => r.maxReturnableQuantity > 0)
     // 自动设置表单仓库：优先使用有默认仓库的物料，否则使用仓库列表第一个
-    const locationsWithDefault = returnItems.map(i => i.default_location_id).filter(Boolean)
+    const locationsWithDefault = returnItems.map(i => i.defaultLocationId).filter(Boolean)
     if (locationsWithDefault.length > 0) {
       // 使用第一个有默认仓库的物料的仓库
-      form.location_id = locationsWithDefault[0]
+      form.locationId = locationsWithDefault[0]
     } else if (locations.value.length > 0) {
       // 没有任何物料有默认仓库，使用仓库列表第一个
-      form.location_id = locations.value[0].id
+      form.locationId = locations.value[0].id
     }
     form.items = returnItems.map(item => ({
-      material_id: item.material_id,
-      material_code: item.material_code,
-      material_name: item.material_name,
-      specification: item.material_specs,
-      quantity: item.max_returnable_quantity,
-      unit_name: item.unit_name,
-      unit_id: item.unit_id || null,
-      batch_number: item.batch_number || '',
-      location_id: item.default_location_id || form.location_id,
-      remark: `生产退料 - 任务${taskCode}`
+      materialId: item.materialId,
+      materialCode: item.materialCode,
+      materialName: item.materialName,
+      specification: item.materialSpecs,
+      quantity: item.maxReturnableQuantity,
+      unitName: item.unitName,
+      unitId: item.unitId || null,
+      batchNo: item.batchNo || '',
+      locationId: item.defaultLocationId || form.locationId,
+      remarks: `生产退料 - 任务${taskCode}`
     }))
     // 设置选中的任务
     selectedTask.value = {

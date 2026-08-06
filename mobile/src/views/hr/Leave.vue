@@ -33,8 +33,8 @@
 
     fields: {
       id: 'id',
-      title: (item) => item.employee_name || item.applicant_name || '请假申请',
-      subtitle: (item) => `${item.start_date || '-'} 至 ${item.end_date || '-'}`,
+      title: (item) => item.employeeName || item.applicantName || '请假申请',
+      subtitle: (item) => `${item.startDate || '-'} 至 ${item.endDate || '-'}`,
       icon: 'notes-o',
       status: {
         field: 'status',
@@ -44,7 +44,7 @@
       details: [
         { label: '请假类型', field: 'leave_type' },
         { label: '请假天数', field: 'duration', suffix: '天' },
-        { label: '部门', field: 'department_name' }
+        { label: '部门', field: 'departmentName' }
       ],
 
       tags: [

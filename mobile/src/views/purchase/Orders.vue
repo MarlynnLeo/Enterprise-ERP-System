@@ -46,13 +46,13 @@
     ],
     fields: {
       id: 'id',
-      title: 'supplier_name',
-      subtitle: 'order_code',
+      title: 'supplierName',
+      subtitle: 'orderNo',
       icon: 'clipboard-check',
       details: [
-        { label: '订单金额', field: (item) => '¥' + Number(item.total_amount || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) },
-        { label: '订单日期', field: 'order_date', format: 'date' },
-        { label: '预计到货', field: 'expected_date', format: 'date' }
+        { label: '订单金额', field: (item) => '¥' + Number(item.totalAmount || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) },
+        { label: '订单日期', field: 'orderDate', format: 'date' },
+        { label: '预计到货', field: 'expectedDeliveryDate', format: 'date' }
       ],
       status: {
         field: 'status',

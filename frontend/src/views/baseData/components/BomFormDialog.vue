@@ -1,19 +1,19 @@
 ﻿<template>
-  <el-dialog
-    :title="title"
+  <AppDialog
     :model-value="modelValue"
     @update:model-value="val => emit('update:modelValue', val)"
-    width="55%"
-    destroy-on-close
+    :title="title"
+    mode="form"
+    wide
     @close="handleClose"
     @open="handleOpen"
   >
     <el-form :model="form" :rules="rules" ref="formRef" label-width="100px">
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="产品" prop="product_id">
+          <el-form-item label="产品" prop="productId">
             <el-select
-              v-model="form.product_id"
+              v-model="form.productId"
               placeholder="请选择产品或输入关键词搜索"
               class="w-full"
               filterable
@@ -121,7 +121,7 @@
             <template #default="scope">
               <div>
                 <el-select
-                  v-model="scope.row.material_code"
+                  v-model="scope.row.materialCode"
                   placeholder="请选择物料或输入关键词搜索"
                   class="w-full"
                   filterable
@@ -149,12 +149,12 @@
           </el-table-column>
           <el-table-column label="物料名称" min-width="160" show-overflow-tooltip>
             <template #default="scope">
-              <div>{{ scope.row.material_name || '-' }}</div>
+              <div>{{ scope.row.materialName || '-' }}</div>
             </template>
           </el-table-column>
           <el-table-column label="规格型号" min-width="180" show-overflow-tooltip>
             <template #default="scope">
-              <div>{{ scope.row.material_specs || '-' }}</div>
+              <div>{{ scope.row.materialSpecs || '-' }}</div>
             </template>
           </el-table-column>
           <el-table-column label="用量" width="120">
@@ -172,7 +172,7 @@
           </el-table-column>
           <el-table-column label="单位" width="70">
             <template #default="scope">
-              <span>{{ scope.row.unit_name || '-' }}</span>
+              <span>{{ scope.row.unitName || '-' }}</span>
             </template>
           </el-table-column>
           <el-table-column label="备注" min-width="120" show-overflow-tooltip>
@@ -208,7 +208,7 @@
         <el-button type="primary" @click="submitForm" :loading="submitting">确定</el-button>
       </span>
     </template>
-  </el-dialog>
+    </AppDialog>
 </template>
 <script setup>
 import { ref, reactive, computed, watch, nextTick } from 'vue'
@@ -275,7 +275,7 @@ const handleClose = () => {
 const resetForm = () => {
   if (formRef.value) formRef.value.resetFields()
   form.id = ''
-  form.product_id = ''
+  form.productId = ''
   form.version = 'V1.1'
   form.remark = ''
   form.details = []
@@ -284,7 +284,7 @@ const resetForm = () => {
 }
 const initForm = (data) => {
   form.id = data.id || ''
-  form.product_id = data.productId || data.product_id || ''
+  form.productId = data.productId || ''
   form.version = data.version || ''
   form.remark = data.remark || ''
   form.attachment = data.attachment || null
@@ -302,13 +302,13 @@ const initForm = (data) => {
   if (data.details && Array.isArray(data.details)) {
     form.details = data.details.map(d => ({
       ...d,
-      material_code: d.material_code || '',
-      material_name: d.material_name || '',
+      material_code: d.materialCode || '',
+      material_name: d.materialName || '',
       material_specs: d.material_specs || '',
-      unit_name: d.unit_name || '',
+      unit_name: d.unitName || '',
       quantity: d.quantity || 1,
       remark: d.remark || '',
-      parent_id: d.parent_id || 0,
+      parent_id: d.parentId || 0,
       level: d.level || 1,
       children: [],
       materialOptions: []
@@ -316,12 +316,12 @@ const initForm = (data) => {
   } else {
     form.details = []
   }
-  if (data.productId || data.product_id) {
+  if (data.productId) {
     productOptions.value = [{
-      id: data.productId || data.product_id,
-      code: data.productCode || data.product_code,
-      name: data.productName || data.product_name,
-      specs: data.productSpecs || data.product_specs
+      id: data.productId,
+      code: data.productCode,
+      name: data.productName,
+      specs: data.productSpecs
     }]
   }
 }
@@ -473,8 +473,8 @@ const bomDetailsTree = computed(() => {
     itemMap.set(item.id, item)
   })
   form.details.forEach(item => {
-    if (item.parent_id && item.parent_id !== 0 && item.parent_id !== '0') {
-      const parent = itemMap.get(item.parent_id)
+    if (item.parentId && item.parentId !== 0 && item.parentId !== '0') {
+      const parent = itemMap.get(item.parentId)
       if (parent) {
         parent.children.push(item)
       } else {
@@ -533,7 +533,7 @@ const addSubDetailForRow = (row) => {
 const removeDetailByRow = (row) => {
   const idsToRemove = [row.id]
   const findChildrenIds = (parentId) => {
-    const children = form.details.filter(d => d.parent_id === parentId)
+    const children = form.details.filter(d => d.parentId === parentId)
     children.forEach(c => {
       idsToRemove.push(c.id)
       findChildrenIds(c.id)
@@ -566,39 +566,39 @@ const searchMaterialsForRow = async (query, row) => {
   }
 }
 const clearMaterialRow = (row) => {
-  row.material_code = ''
-  row.material_id = null
-  row.material_name = ''
-  row.material_specs = ''
-  row.unit_id = null
-  row.unit_name = ''
+  row.materialCode = ''
+  row.materialId = null
+  row.materialName = ''
+  row.materialSpecs = ''
+  row.unitId = null
+  row.unitName = ''
 }
 
 const handleMaterialCodeChangeByRow = async (val, row) => {
   const material = row.materialOptions?.find(m => m.code === val)
   if (material) {
-    row.material_id = material.id
-    row.material_name = material.name
-    row.material_specs = material.specs || material.specification || ''
+    row.materialId = material.id
+    row.materialName = material.name
+    row.materialSpecs = material.specs || material.specification || ''
     // 列表接口可能缺 unit_id：用 unit_id / unitId，没有则稍后按物料详情补
-    row.unit_id = material.unit_id ?? material.unitId ?? null
-    row.unit_name = material.unit_name || material.unit || ''
+    row.unitId = material.unitId ?? material.unitId ?? null
+    row.unitName = material.unitName || material.unit || ''
 
     // 若单位缺失，拉一次物料详情补齐（避免提交 500）
-    if (!row.unit_id && material.id) {
+    if (!row.unitId && material.id) {
       try {
         const detailRes = await materialApi.getMaterial(material.id)
         const detail = parseResponseData(detailRes, material) || material
-        row.unit_id = detail.unit_id ?? detail.unitId ?? null
-        row.unit_name = detail.unit_name || detail.unit || row.unit_name || ''
+        row.unitId = detail.unitId ?? detail.unitId ?? null
+        row.unitName = detail.unitName || detail.unit || row.unitName || ''
       } catch (e) {
         console.error('补齐物料单位失败:', e)
       }
     }
 
-    if (form.product_id && material.id) {
+    if (form.productId && material.id) {
       try {
-        const res = await bomApi.detectCircularReference(form.product_id, material.id)
+        const res = await bomApi.detectCircularReference(form.productId, material.id)
         const result = parseResponseData(res, {})
         if (result.hasCircle) {
           ElMessage.error(`检测到循环引用！路径: ${result.path}，该物料不能添加到此BOM`)
@@ -621,7 +621,7 @@ const submitForm = async () => {
         return
       }
 
-      const missingMaterial = form.details.some(d => !d.material_id || !d.material_code || !d.quantity)
+      const missingMaterial = form.details.some(d => !d.materialId || !d.materialCode || !d.quantity)
       if (missingMaterial) {
         ElMessage.warning('请补全物料编码和用量信息')
         return
@@ -629,21 +629,21 @@ const submitForm = async () => {
 
       // 提交前补齐 unit_id；物料档案未维护单位时由后端用默认单位「个」兜底
       for (const d of form.details) {
-        if (d.material_id && (!d.unit_id || Number(d.unit_id) <= 0)) {
+        if (d.materialId && (!d.unitId || Number(d.unitId) <= 0)) {
           try {
-            const detailRes = await materialApi.getMaterial(d.material_id)
+            const detailRes = await materialApi.getMaterial(d.materialId)
             const detail = parseResponseData(detailRes, {}) || {}
-            d.unit_id = detail.unit_id ?? detail.unitId ?? null
-            d.unit_name = detail.unit_name || d.unit_name || ''
+            d.unitId = detail.unitId ?? detail.unitId ?? null
+            d.unitName = detail.unitName || d.unitName || ''
           } catch {
             /* 后端会按物料主数据/默认单位补全 */
           }
         }
         // 规范化为数字，避免传字符串/空串
-        if (d.unit_id != null && d.unit_id !== '') {
-          d.unit_id = Number(d.unit_id) || null
+        if (d.unitId != null && d.unitId !== '') {
+          d.unitId = Number(d.unitId) || null
         }
-        d.material_id = Number(d.material_id)
+        d.materialId = Number(d.materialId)
         d.quantity = Number(d.quantity)
       }
 
@@ -663,24 +663,24 @@ const submitForm = async () => {
         }
 
         // 新建：提交前按产品已有版本自动对齐下一版本，避免 uk_product_version 冲突
-        if (!form.id && form.product_id) {
-          await handleProductChange(form.product_id)
+        if (!form.id && form.productId) {
+          await handleProductChange(form.productId)
         }
 
         const buildPayload = () => ({
-          product_id: Number(form.product_id),
+          product_id: Number(form.productId),
           version: String(form.version || 'V1.1').trim(),
           remark: form.remark || null,
           status: form.status !== undefined && form.status !== '' ? Number(form.status) : 1,
           attachment: attachmentPath,
           details: form.details.map((d) => ({
             id: d.id,
-            parent_id: d.parent_id ?? 0,
+            parent_id: d.parentId ?? 0,
             level: d.level || 1,
-            material_id: Number(d.material_id),
-            material_code: d.material_code,
+            material_id: Number(d.materialId),
+            material_code: d.materialCode,
             quantity: Number(d.quantity) || 0,
-            unit_id: d.unit_id != null && Number(d.unit_id) > 0 ? Number(d.unit_id) : null,
+            unit_id: d.unitId != null && Number(d.unitId) > 0 ? Number(d.unitId) : null,
             remark: d.remark || null,
           })),
         })
@@ -698,7 +698,7 @@ const submitForm = async () => {
               createErr?.message ||
               ''
             if (/已存在版本|Duplicate entry|不能重复|uk_product_version/i.test(m)) {
-              await handleProductChange(form.product_id)
+              await handleProductChange(form.productId)
               ElMessage.warning(`版本号冲突，已自动改为 ${form.version} 并重试`)
               await bomApi.createBom(buildPayload())
             } else {

@@ -44,20 +44,20 @@
           @click="openConversation(conv)"
         >
           <div class="conv-avatar">
-            <img v-if="conv.display_avatar" :src="conv.display_avatar" class="avatar-img" />
+            <img v-if="conv.displayAvatar" :src="conv.displayAvatar" class="avatar-img" />
             <div v-else class="avatar-fallback">
               <Icon :name="conv.type === 'group' ? 'friends-o' : 'user-o'" size="20" />
             </div>
-            <span v-if="conv.other_online" class="online-dot"></span>
+            <span v-if="conv.otherOnline" class="online-dot"></span>
           </div>
           <div class="conv-info">
             <div class="conv-top">
-              <span class="conv-name">{{ conv.display_name || conv.name || '未命名会话' }}</span>
-              <span class="conv-time">{{ formatTime(conv.last_message_at) }}</span>
+              <span class="conv-name">{{ conv.displayName || conv.name || '未命名会话' }}</span>
+              <span class="conv-time">{{ formatTime(conv.lastMessageAt) }}</span>
             </div>
             <div class="conv-bottom">
-              <span class="conv-preview">{{ conv.last_message_preview || '暂无消息' }}</span>
-              <Badge v-if="conv.unread_count > 0" :content="conv.unread_count" />
+              <span class="conv-preview">{{ conv.lastMessagePreview || '暂无消息' }}</span>
+              <Badge v-if="conv.unreadCount > 0" :content="conv.unreadCount" />
             </div>
           </div>
         </div>
@@ -66,7 +66,7 @@
 
     <!-- ==================== 聊天窗口视图 ==================== -->
     <div v-else class="chat-room-view">
-      <NavBar :title="activeConversation.display_name || activeConversation.name || '聊天'">
+      <NavBar :title="activeConversation.displayName || activeConversation.name || '聊天'">
         <template #left>
           <Icon name="arrow-left" size="18" @click="closeConversation" />
         </template>
@@ -82,24 +82,24 @@
           v-for="msg in messages"
           :key="msg.id"
           class="message-row"
-          :class="{ 'is-self': msg.sender_id === currentUserId, 'is-system': msg.type === 'system' }"
+          :class="{ 'is-self': msg.senderId === currentUserId, 'is-system': msg.type === 'system' }"
         >
           <!-- 系统消息 -->
           <div v-if="msg.type === 'system'" class="system-msg">{{ msg.content }}</div>
           <!-- 普通消息 -->
           <template v-else>
-            <div class="msg-avatar" v-if="msg.sender_id !== currentUserId">
-              <img v-if="msg.sender_avatar" :src="msg.sender_avatar" class="avatar-img" />
-              <div v-else class="avatar-fallback-sm">{{ (msg.sender_real_name || msg.sender_name || '?')[0] }}</div>
+            <div class="msg-avatar" v-if="msg.senderId !== currentUserId">
+              <img v-if="msg.senderAvatar" :src="msg.senderAvatar" class="avatar-img" />
+              <div v-else class="avatar-fallback-sm">{{ (msg.senderRealName || msg.senderName || '?')[0] }}</div>
             </div>
             <div class="msg-body">
-              <div class="msg-sender" v-if="msg.sender_id !== currentUserId && activeConversation.type === 'group'">
-                {{ msg.sender_real_name || msg.sender_name }}
+              <div class="msg-sender" v-if="msg.senderId !== currentUserId && activeConversation.type === 'group'">
+                {{ msg.senderRealName || msg.senderName }}
               </div>
               <div class="msg-bubble">
                 <span>{{ msg.content }}</span>
               </div>
-              <div class="msg-time">{{ formatMsgTime(msg.created_at) }}</div>
+              <div class="msg-time">{{ formatMsgTime(msg.createdAt) }}</div>
             </div>
           </template>
         </div>
@@ -150,12 +150,12 @@
           >
             <div class="contact-avatar">
               <img v-if="user.avatar" :src="user.avatar" class="avatar-img" />
-              <div v-else class="avatar-fallback-sm">{{ (user.real_name || user.username || '?')[0] }}</div>
+              <div v-else class="avatar-fallback-sm">{{ (user.realName || user.username || '?')[0] }}</div>
               <span v-if="user.online" class="online-dot"></span>
             </div>
             <div class="contact-info">
-              <div class="contact-name">{{ user.real_name || user.username }}</div>
-              <div class="contact-dept">{{ user.department_name || '' }}</div>
+              <div class="contact-name">{{ user.realName || user.username }}</div>
+              <div class="contact-dept">{{ user.departmentName || '' }}</div>
             </div>
           </div>
           <div v-if="contacts.length === 0" class="empty-contacts">
@@ -188,7 +188,7 @@ const filteredConversations = computed(() => {
   if (!searchKeyword.value) return conversations.value
   const kw = searchKeyword.value.toLowerCase()
   return conversations.value.filter(c =>
-    (c.display_name || c.name || '').toLowerCase().includes(kw)
+    (c.displayName || c.name || '').toLowerCase().includes(kw)
   )
 })
 
@@ -219,7 +219,7 @@ const openConversation = async (conv) => {
     const res = await chatApi.getMessages(conv.id, { page: 1, pageSize: 50 })
     messages.value = res.data?.list || []
     // 清零前端未读计数
-    conv.unread_count = 0
+    conv.unreadCount = 0
   } catch {
     showToast('加载消息失败')
   } finally {
@@ -299,10 +299,10 @@ const startChatWith = async (user) => {
         openConversation({
           id: convId,
           type: 'private',
-          display_name: user.real_name || user.username,
-          display_avatar: user.avatar,
-          other_online: user.online,
-          unread_count: 0,
+          displayName: user.realName || user.username,
+          displayAvatar: user.avatar,
+          otherOnline: user.online,
+          unreadCount: 0,
         })
       }
     }
@@ -320,10 +320,18 @@ onMounted(() => {
 
   // 接收新消息
   socket?.on('chat:message', (msg) => {
-    if (activeConversation.value && msg.conversation_id === activeConversation.value.id) {
+    const conversationId = msg.conversationId ?? msg.conversationId
+    if (activeConversation.value && conversationId === activeConversation.value.id) {
       // 去重
       if (!messages.value.some(m => m.id === msg.id)) {
-        messages.value.push(msg)
+        messages.value.push({
+          ...msg,
+          senderId: msg.senderId ?? msg.senderId,
+          senderRealName: msg.senderRealName ?? msg.senderRealName,
+          senderName: msg.senderName ?? msg.senderName,
+          senderAvatar: msg.senderAvatar ?? msg.senderAvatar,
+          createdAt: msg.createdAt ?? msg.createdAt,
+        })
         scrollToBottom()
       }
     }
@@ -333,10 +341,10 @@ onMounted(() => {
   socket?.on('chat:new-message', (data) => {
     const conv = conversations.value.find(c => c.id === data.conversationId)
     if (conv) {
-      conv.last_message_preview = data.preview
-      conv.last_message_at = new Date().toISOString()
+      conv.lastMessagePreview = data.preview
+      conv.lastMessageAt = new Date().toISOString()
       if (!activeConversation.value || activeConversation.value.id !== data.conversationId) {
-        conv.unread_count = (conv.unread_count || 0) + 1
+        conv.unreadCount = (conv.unreadCount || 0) + 1
       }
     } else {
       // 新会话，刷新列表
@@ -358,7 +366,7 @@ onMounted(() => {
     conversations.value.forEach(c => {
       if (c.type === 'private') {
         const other = c.members?.find(m => m.id === data.userId)
-        if (other) c.other_online = data.online
+        if (other) c.otherOnline = data.online
       }
     })
   })

@@ -14,6 +14,7 @@
 const { ResponseHandler } = require('../../../../utils/responseHandler');
 const { logger } = require('../../../../utils/logger');
 const { parsePagination } = require('../../../../utils/safePagination');
+const { mapKeysToSnake } = require('../../../../utils/fieldMap');
 const cash = require('../../../../models/cash');
 const { validationResult } = require('express-validator');
 const BankAccountModel = require('../../../../models/cash/Account');
@@ -143,19 +144,20 @@ const bankAccountController = {
         });
       }
 
+      const body = mapKeysToSnake(req.body || {});
       const accountData = {
-        account_number: req.body.account_number,
-        account_name: req.body.account_name,
-        bank_name: req.body.bank_name,
-        branch_name: req.body.branch_name,
-        currency_code: req.body.currency_code || financeConfig.get('account.defaultCurrency', 'CNY'),
-        current_balance: parseFloat(req.body.initial_balance || req.body.current_balance || 0),
-        opening_balance: parseFloat(req.body.initial_balance || req.body.opening_balance || req.body.current_balance || 0),
-        account_type: normalizeBankAccountType(req.body.account_type),
-        is_active: req.body.is_active !== undefined ? req.body.is_active : true,
-        contact_person: req.body.contact_person,
-        contact_phone: req.body.contact_phone,
-        notes: req.body.notes,
+        account_number: body.account_number,
+        account_name: body.account_name,
+        bank_name: body.bank_name,
+        branch_name: body.branch_name,
+        currency_code: body.currency_code || financeConfig.get('account.defaultCurrency', 'CNY'),
+        current_balance: parseFloat(body.initial_balance || body.current_balance || 0),
+        opening_balance: parseFloat(body.initial_balance || body.opening_balance || body.current_balance || 0),
+        account_type: normalizeBankAccountType(body.account_type),
+        is_active: body.is_active !== undefined ? body.is_active : true,
+        contact_person: body.contact_person,
+        contact_phone: body.contact_phone,
+        notes: body.notes,
         created_by: getAuthenticatedUserId(req),
       };
 
@@ -205,15 +207,16 @@ const bankAccountController = {
         return ResponseHandler.error(res, '银行账户不存在', 'NOT_FOUND', 404);
       }
 
+      const body = mapKeysToSnake(req.body || {});
       const accountData = {
-        bank_name: req.body.bank_name,
-        account_name: req.body.account_name,
-        account_number: req.body.account_number,
-        account_type: normalizeBankAccountType(req.body.account_type),
-        currency_code: req.body.currency_code,
-        branch_name: req.body.branch_name || existingAccount.branch_name,
-        notes: req.body.notes,
-        is_active: req.body.is_active,
+        bank_name: body.bank_name,
+        account_name: body.account_name,
+        account_number: body.account_number,
+        account_type: normalizeBankAccountType(body.account_type),
+        currency_code: body.currency_code,
+        branch_name: body.branch_name || existingAccount.branch_name,
+        notes: body.notes,
+        is_active: body.is_active,
         updated_by: getAuthenticatedUserId(req),
       };
 

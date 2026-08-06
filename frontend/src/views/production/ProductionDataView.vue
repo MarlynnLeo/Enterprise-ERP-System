@@ -88,7 +88,7 @@
               </el-table-column>
               <el-table-column prop="startDate" label="开始日期" width="110" />
             </el-table>
-            <el-empty v-if="pendingTasks.length === 0" description="暂无待办任务" :image-size="60" />
+            <EmptyState v-if="pendingTasks.length === 0" description="暂无待办任务" ::image-size="60" />
           </div>
         </div>
       </el-col>
@@ -120,7 +120,7 @@
                 </template>
               </el-table-column>
             </el-table>
-            <el-empty v-if="processRates.length === 0" description="暂无工序数据" :image-size="60" />
+            <EmptyState v-if="processRates.length === 0" description="暂无工序数据" ::image-size="60" />
           </div>
         </div>
       </el-col>
@@ -151,7 +151,7 @@
           ref="ganttChartRef"
           v-loading="ganttLoading"
         ></div>
-        <el-empty v-if="!ganttLoading && ganttGroups.length === 0" description="暂无排程数据" :image-size="60" />
+        <EmptyState v-if="!ganttLoading && ganttGroups.length === 0" description="暂无排程数据" ::image-size="60" />
       </div>
     </div>
   </div>
@@ -297,9 +297,9 @@ const fetchPendingTasks = async () => {
     const res = await productionApi.getPendingTasks()
     pendingTasks.value = parseListData(res, { enableLog: false }).map(t => ({
       ...t,
-      code: t.code || t.task_code,
-      productName: t.productName || t.product_name,
-      startDate: t.start_date ? dayjs(t.start_date).format('YYYY-MM-DD')
+      code: t.taskCode,
+      productName: t.productName,
+      startDate: t.startDate ? dayjs(t.startDate).format('YYYY-MM-DD')
                : t.startDate ? dayjs(t.startDate).format('YYYY-MM-DD')
                : '-',
     }))
@@ -313,7 +313,7 @@ const fetchProcessRates = async () => {
   try {
     const res = await productionApi.getProcessCompletionRates()
     processRates.value = parseListData(res, { enableLog: false }).map(p => ({
-      name: p.name || p.process_name || '???',
+      name: p.name || p.processName || '???',
       total: parseInt(p.total) || 0,
       completed: parseInt(p.completed) || 0,
       rate: p.total > 0 ? Math.round((p.completed / p.total) * 100) : 0,

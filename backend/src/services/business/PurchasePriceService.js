@@ -24,10 +24,11 @@ async function runQuery(connection, sql, params = []) {
 }
 
 function makeEmptyResult(request = {}) {
+  // 入参契约：HTTP/调用方只认 camel
   return {
-    material_id: request.materialId || request.material_id || null,
-    material_code: request.materialCode || request.material_code || null,
-    supplier_id: request.supplierId || request.supplier_id || null,
+    material_id: request.materialId ?? null,
+    material_code: request.materialCode ?? null,
+    supplier_id: request.supplierId ?? null,
     price: 0,
     unit_price: 0,
     tax_rate: 0,

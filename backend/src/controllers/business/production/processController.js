@@ -6,6 +6,7 @@
  */
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 const { logger } = require('../../../utils/logger');
 const { pool } = require('../../../config/db');
 const { handleError } = require('./shared/errorHandler');
@@ -141,7 +142,7 @@ exports.createProcess = async (req, res) => {
   try {
     await connection.beginTransaction();
 
-    const { task_id, process_name, sequence, quantity, description, remarks } = req.body;
+    const { task_id, process_name, sequence, quantity, description, remarks } = mapKeysToSnake(req.body || {});
 
     const [taskCheck] = await connection.query('SELECT id, status FROM production_tasks WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [
       task_id,
@@ -207,13 +208,13 @@ exports.updateProcess = async (req, res) => {
       actual_end_date,
       actual_start_time,
       actual_end_time,
-      actualStartTime,
-      actualEndTime,
-    } = req.body;
+    } = mapKeysToSnake(req.body || {});
 
-    // 兼容前端历史字段命名，统一写入实际开始/结束时间。
-    const startTimeResult = actualStartTime !== undefined ? actualStartTime : (actual_start_time !== undefined ? actual_start_time : actual_start_date);
-    const endTimeResult = actualEndTime !== undefined ? actualEndTime : (actual_end_time !== undefined ? actual_end_time : actual_end_date);
+    // mapKeysToSnake 后统一为 snake；兼容 start/end date 别名
+    const startTimeResult =
+      actual_start_time !== undefined ? actual_start_time : actual_start_date;
+    const endTimeResult =
+      actual_end_time !== undefined ? actual_end_time : actual_end_date;
 
     const [processCheck] = await connection.query(
       `SELECT pp.id, pp.task_id, pp.status,

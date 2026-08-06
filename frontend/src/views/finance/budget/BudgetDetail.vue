@@ -14,19 +14,19 @@
       </template>
 
       <el-descriptions :column="3" border>
-        <el-descriptions-item label="预算编号">{{ budget.budget_no }}</el-descriptions-item>
-        <el-descriptions-item label="预算名称">{{ budget.budget_name }}</el-descriptions-item>
-        <el-descriptions-item label="预算年度">{{ budget.budget_year }}</el-descriptions-item>
-        <el-descriptions-item label="预算类型">{{ budget.budget_type }}</el-descriptions-item>
-        <el-descriptions-item label="部门">{{ budget.department_name || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="预算编号">{{ budget.budgetNo }}</el-descriptions-item>
+        <el-descriptions-item label="预算名称">{{ budget.budgetName }}</el-descriptions-item>
+        <el-descriptions-item label="预算年度">{{ budget.budgetYear }}</el-descriptions-item>
+        <el-descriptions-item label="预算类型">{{ budget.budgetType }}</el-descriptions-item>
+        <el-descriptions-item label="部门">{{ budget.departmentName || '-' }}</el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag :type="getStatusType(budget.status)">{{ budget.status }}</el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="开始日期">{{ budget.start_date }}</el-descriptions-item>
-        <el-descriptions-item label="结束日期">{{ budget.end_date }}</el-descriptions-item>
-        <el-descriptions-item label="预算总额">{{ formatAmount(budget.total_amount) }}</el-descriptions-item>
-        <el-descriptions-item label="已使用金额">{{ formatAmount(budget.used_amount) }}</el-descriptions-item>
-        <el-descriptions-item label="剩余金额">{{ formatAmount(budget.remaining_amount) }}</el-descriptions-item>
+        <el-descriptions-item label="开始日期">{{ budget.startDate }}</el-descriptions-item>
+        <el-descriptions-item label="结束日期">{{ budget.endDate }}</el-descriptions-item>
+        <el-descriptions-item label="预算总额">{{ formatAmount(budget.totalAmount) }}</el-descriptions-item>
+        <el-descriptions-item label="已使用金额">{{ formatAmount(budget.usedAmount) }}</el-descriptions-item>
+        <el-descriptions-item label="剩余金额">{{ formatAmount(budget.remainingAmount) }}</el-descriptions-item>
         <el-descriptions-item label="执行率">
           <el-progress
             :percentage="calculateExecutionRate()"
@@ -34,31 +34,31 @@
             :stroke-width="12"
           />
         </el-descriptions-item>
-        <el-descriptions-item label="创建人">{{ budget.creator_name }}</el-descriptions-item>
-        <el-descriptions-item label="创建时间">{{ budget.created_at }}</el-descriptions-item>
-        <el-descriptions-item label="审批人">{{ budget.approver_name || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="创建人">{{ budget.creatorName }}</el-descriptions-item>
+        <el-descriptions-item label="创建时间">{{ budget.createdAt }}</el-descriptions-item>
+        <el-descriptions-item label="审批人">{{ budget.approverName || '-' }}</el-descriptions-item>
         <el-descriptions-item label="预算说明" :span="3">{{ budget.description || '-' }}</el-descriptions-item>
       </el-descriptions>
 
       <el-divider content-position="left">预算明细</el-divider>
 
       <el-table :data="budget.details" border stripe>
-        <el-table-column prop="account_code" label="科目代码" width="120" />
-        <el-table-column prop="account_name" label="科目名称" width="180" />
-        <el-table-column prop="department_name" label="部门" width="120" />
-        <el-table-column prop="budget_amount" label="预算金额" width="120">
+        <el-table-column prop="accountCode" label="科目代码" width="120" />
+        <el-table-column prop="accountName" label="科目名称" width="180" />
+        <el-table-column prop="departmentName" label="部门" width="120" />
+        <el-table-column prop="budgetAmount" label="预算金额" width="120">
           <template #default="{ row }">
-            {{ formatAmount(row.budget_amount) }}
+            {{ formatAmount(row.budgetAmount) }}
           </template>
         </el-table-column>
-        <el-table-column prop="used_amount" label="已使用" width="120">
+        <el-table-column prop="usedAmount" label="已使用" width="120">
           <template #default="{ row }">
-            {{ formatAmount(row.used_amount) }}
+            {{ formatAmount(row.usedAmount) }}
           </template>
         </el-table-column>
-        <el-table-column prop="remaining_amount" label="剩余金额" width="120">
+        <el-table-column prop="remainingAmount" label="剩余金额" width="120">
           <template #default="{ row }">
-            {{ formatAmount(row.remaining_amount) }}
+            {{ formatAmount(row.remainingAmount) }}
           </template>
         </el-table-column>
         <el-table-column label="执行率" width="120">
@@ -70,9 +70,9 @@
             />
           </template>
         </el-table-column>
-        <el-table-column prop="warning_threshold" label="预警阈值" width="100">
+        <el-table-column prop="warningThreshold" label="预警阈值" width="100">
           <template #default="{ row }">
-            {{ row.warning_threshold }}%
+            {{ row.warningThreshold }}%
           </template>
         </el-table-column>
         <el-table-column prop="description" label="说明" min-width="150" />
@@ -136,14 +136,14 @@ const handleViewExecutions = () => {
 
 // 计算执行率
 const calculateExecutionRate = () => {
-  if (!budget.total_amount || budget.total_amount === 0) return 0;
-  return Math.round((budget.used_amount / budget.total_amount) * 100);
+  if (!budget.totalAmount || budget.totalAmount === 0) return 0;
+  return Math.round((budget.usedAmount / budget.totalAmount) * 100);
 };
 
 // 计算明细执行率
 const calculateDetailExecutionRate = (row) => {
-  if (!row.budget_amount || row.budget_amount === 0) return 0;
-  return Math.round((row.used_amount / row.budget_amount) * 100);
+  if (!row.budgetAmount || row.budgetAmount === 0) return 0;
+  return Math.round((row.usedAmount / row.budgetAmount) * 100);
 };
 
 // 获取进度条颜色

@@ -56,9 +56,9 @@
       />
 
       <div v-if="!hasData && !loading" class="gantt-empty">
-        <el-empty description="所选时间范围内没有排程任务">
+        <EmptyState description="所选时间范围内没有排程任务">
           <el-button type="primary" @click="goToTask">前往生产任务排程</el-button>
-        </el-empty>
+        </EmptyState>
       </div>
 
       <div v-else class="gantt-chart" :style="{ minWidth: chartMinWidth + 'px' }" ref="ganttChartRef">

@@ -6,6 +6,7 @@
  */
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 const { logger } = require('../../../utils/logger');
 const { CodeGenerators } = require('../../../utils/codeGenerator');
 const { pool } = require('../../../config/db');
@@ -191,13 +192,24 @@ exports.getProductionTasks = async (req, res) => {
       ownerAlias: 'production_task_owner_scope',
     });
 
-    const result = await TaskRepository.findListWithPagination(req.query, {
-      page: req.query.page,
-      pageSize: req.query.pageSize || req.query.limit,
-      scopeClause,
-    });
+    const { productionTaskMap } = require('../../../utils/production/productionFieldMap');
+    const result = await TaskRepository.findListWithPagination(
+      productionTaskMap.fromListQuery(req.query),
+      {
+        page: req.query.page,
+        pageSize: req.query.pageSize || req.query.limit,
+        scopeClause,
+      }
+    );
 
-    return ResponseHandler.success(res, result);
+    // 出参仅 camel
+    const payload = {
+      ...result,
+      items: Array.isArray(result?.items)
+        ? result.items.map((t) => productionTaskMap.toApi(t))
+        : result?.items,
+    };
+    return ResponseHandler.success(res, payload);
   } catch (error) {
     logger.error('获取生产任务列表失败:', error);
     handleError(res, error);
@@ -212,23 +224,24 @@ exports.createProductionTask = async (req, res) => {
   try {
     await connection.beginTransaction();
 
-    const {
-      plan_id,
-      product_id,
-      quantity,
-      start_date,
-      expected_end_date,
-      manager,
-      remarks,
-      process_template_id,
-    } = req.body;
+    // HTTP camel → snake
+    const { productionTaskMap } = require('../../../utils/production/productionFieldMap');
+    const mapped = productionTaskMap.fromApi(req.body || {});
+    const plan_id = mapped.plan_id;
+    const product_id = mapped.product_id;
+    const quantity = mapped.quantity;
+    const start_date = mapped.start_date;
+    const expected_end_date = mapped.expected_end_date;
+    const manager = mapped.manager;
+    const remarks = mapped.remarks;
+    const process_template_id = mapped.process_template_id;
 
     const taskQuantity = Number(quantity);
     if (!product_id || !Number.isFinite(taskQuantity) || taskQuantity <= 0) {
       await connection.rollback();
       return ResponseHandler.error(
         res,
-        '缺少有效参数: product_id, quantity',
+        '缺少有效参数: productId, quantity',
         'VALIDATION_ERROR',
         400
       );
@@ -417,7 +430,7 @@ exports.updateProductionTask = async (req, res) => {
       manager,
       remarks,
       status,
-    } = req.body;
+    } = mapKeysToSnake(req.body || {});
 
     const ScopeGuard = require('../../../authorization/ScopeGuard');
     if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'production_task', id, '无权修改该生产任务'))) {
@@ -718,11 +731,15 @@ exports.getProductionTaskById = async (req, res) => {
     }
 
     const processes = await TaskRepository.findProcessesByTaskId(id);
+    const { productionTaskMap } = require('../../../utils/production/productionFieldMap');
 
-    return ResponseHandler.success(res, {
-      ...task,
-      processes,
-    });
+    return ResponseHandler.success(
+      res,
+      productionTaskMap.toApi({
+        ...task,
+        processes,
+      })
+    );
   } catch (error) {
     logger.error('获取生产任务详情失败:', error);
     handleError(res, error);
@@ -738,7 +755,7 @@ exports.updateProductionTaskProgress = async (req, res) => {
     await connection.beginTransaction();
 
     const { id } = req.params;
-    const { progress, completed_quantity } = req.body;
+    const { progress, completed_quantity } = mapKeysToSnake(req.body || {});
 
     const [taskCheck] = await connection.query(
       'SELECT id, code, status, quantity, completed_quantity FROM production_tasks WHERE id = ? AND deleted_at IS NULL FOR UPDATE',

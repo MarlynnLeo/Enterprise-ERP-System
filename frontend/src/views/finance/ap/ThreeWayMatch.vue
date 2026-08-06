@@ -29,21 +29,21 @@
     <el-card class="data-card" shadow="never">
       <el-table :data="list" border v-loading="loading" class="w-full">
         <template #empty>
-          <el-empty description="暂无匹配单" />
+          <EmptyState description="暂无匹配单" />
         </template>
-        <el-table-column prop="match_no" label="匹配单号" min-width="140" />
-        <el-table-column prop="receipt_no" label="入库单号" min-width="140" />
-        <el-table-column prop="supplier_name" label="供应商" min-width="140" />
-        <el-table-column prop="receipt_amount" label="收货金额" width="120" align="right">
-          <template #default="{ row }">{{ formatCurrency(row.receipt_amount) }}</template>
+        <el-table-column prop="matchNo" label="匹配单号" min-width="140" />
+        <el-table-column prop="receiptNo" label="入库单号" min-width="140" />
+        <el-table-column prop="supplierName" label="供应商" min-width="140" />
+        <el-table-column prop="receiptAmount" label="收货金额" width="120" align="right">
+          <template #default="{ row }">{{ formatCurrency(row.receiptAmount) }}</template>
         </el-table-column>
-        <el-table-column prop="invoice_amount" label="发票金额" width="120" align="right">
-          <template #default="{ row }">{{ formatCurrency(row.invoice_amount) }}</template>
+        <el-table-column prop="invoiceAmount" label="发票金额" width="120" align="right">
+          <template #default="{ row }">{{ formatCurrency(row.invoiceAmount) }}</template>
         </el-table-column>
-        <el-table-column prop="amount_variance" label="金额差异" width="110" align="right">
+        <el-table-column prop="amountVariance" label="金额差异" width="110" align="right">
           <template #default="{ row }">
-            <span :class="{ 'text-danger': Math.abs(row.amount_variance) > 0.01 }">
-              {{ formatCurrency(row.amount_variance) }}
+            <span :class="{ 'text-danger': Math.abs(row.amountVariance) > 0.01 }">
+              {{ formatCurrency(row.amountVariance) }}
             </span>
           </template>
         </el-table-column>
@@ -97,7 +97,12 @@
       </div>
     </el-card>
 
-    <el-dialog v-model="createVisible" title="从入库单创建三单匹配" width="560px">
+    <AppDialog
+      v-model="createVisible"
+      title="从入库单创建三单匹配"
+      mode="form"
+      width="560px"
+    >
       <el-form label-width="110px">
         <el-form-item label="入库单" required>
           <el-select
@@ -113,7 +118,7 @@
             <el-option
               v-for="r in receiptOptions"
               :key="r.id"
-              :label="`${r.receipt_no || r.receiptNo} · ${r.supplier_name || r.supplierName || ''} · ¥${r.total_amount ?? r.totalAmount ?? 0}`"
+              :label="`${r.receiptNo} · ${r.supplierName || ''} · ¥${r.totalAmount ?? r.totalAmount ?? 0}`"
               :value="r.id"
             />
           </el-select>
@@ -133,60 +138,65 @@
         <el-button @click="createVisible = false">取消</el-button>
         <el-button type="primary" :loading="creating" @click="doCreate">创建</el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
 
-    <el-dialog v-model="detailVisible" title="匹配明细" width="960px" destroy-on-close>
+    <AppDialog
+      v-model="detailVisible"
+      title="匹配明细"
+      mode="view"
+      content-width="wide"
+    >
       <el-descriptions v-if="detail" :column="3" border class="mb-md">
-        <el-descriptions-item label="匹配单号">{{ detail.match_no }}</el-descriptions-item>
-        <el-descriptions-item label="入库单">{{ detail.receipt_no }}</el-descriptions-item>
-        <el-descriptions-item label="供应商">{{ detail.supplier_name }}</el-descriptions-item>
+        <el-descriptions-item label="匹配单号">{{ detail.matchNo }}</el-descriptions-item>
+        <el-descriptions-item label="入库单">{{ detail.receiptNo }}</el-descriptions-item>
+        <el-descriptions-item label="供应商">{{ detail.supplierName }}</el-descriptions-item>
         <el-descriptions-item label="状态">{{ statusLabel(detail.status) }}</el-descriptions-item>
-        <el-descriptions-item label="结果">{{ detail.match_result }}</el-descriptions-item>
+        <el-descriptions-item label="结果">{{ detail.matchResult }}</el-descriptions-item>
         <el-descriptions-item label="金额差异">
-          {{ formatCurrency(detail.amount_variance) }}
+          {{ formatCurrency(detail.amountVariance) }}
         </el-descriptions-item>
       </el-descriptions>
       <el-table v-if="detail" :data="editMode ? editLines : detail.items || []" border size="small">
-        <el-table-column prop="material_code" label="物料" width="120" />
-        <el-table-column prop="material_name" label="名称" min-width="120" />
-        <el-table-column prop="po_qty" label="PO数量" width="80" />
-        <el-table-column prop="receipt_qty" label="收货数量" width="80" />
+        <el-table-column prop="materialCode" label="物料" width="120" />
+        <el-table-column prop="materialName" label="名称" min-width="120" />
+        <el-table-column prop="poQty" label="PO数量" width="80" />
+        <el-table-column prop="receiptQty" label="收货数量" width="80" />
         <el-table-column label="发票数量" width="110">
           <template #default="{ row }">
             <el-input-number
               v-if="editMode"
-              v-model="row.invoice_qty"
+              v-model="row.invoiceQty"
               :min="0"
               :precision="4"
               :controls="false"
               class="w-full"
               size="small"
             />
-            <span v-else>{{ row.invoice_qty }}</span>
+            <span v-else>{{ row.invoiceQty }}</span>
           </template>
         </el-table-column>
         <el-table-column label="发票单价" width="110">
           <template #default="{ row }">
             <el-input-number
               v-if="editMode"
-              v-model="row.invoice_price"
+              v-model="row.invoicePrice"
               :min="0"
               :precision="6"
               :controls="false"
               class="w-full"
               size="small"
             />
-            <span v-else>{{ row.invoice_price }}</span>
+            <span v-else>{{ row.invoicePrice }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="qty_variance" label="数量差" width="80" />
-        <el-table-column prop="amount_variance" label="金额差" width="100">
-          <template #default="{ row }">{{ formatCurrency(row.amount_variance) }}</template>
+        <el-table-column prop="qtyVariance" label="数量差" width="80" />
+        <el-table-column prop="amountVariance" label="金额差" width="100">
+          <template #default="{ row }">{{ formatCurrency(row.amountVariance) }}</template>
         </el-table-column>
         <el-table-column label="容差内" width="80">
           <template #default="{ row }">
-            <el-tag :type="row.within_tolerance ? 'success' : 'danger'" size="small">
-              {{ row.within_tolerance ? '是' : '否' }}
+            <el-tag :type="row.withinTolerance ? 'success' : 'danger'" size="small">
+              {{ row.withinTolerance ? '是' : '否' }}
             </el-tag>
           </template>
         </el-table-column>
@@ -197,7 +207,7 @@
           保存发票量价
         </el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
   </div>
 </template>
 
@@ -337,9 +347,9 @@ async function openEdit(row) {
     detail.value = res?.data || res
     editLines.value = (detail.value.items || []).map((it) => ({
       id: it.id,
-      material_id: it.material_id,
-      material_code: it.material_code,
-      material_name: it.material_name,
+      material_id: it.materialId,
+      material_code: it.materialCode,
+      material_name: it.materialName,
       po_qty: it.po_qty,
       receipt_qty: it.receipt_qty,
       invoice_qty: Number(it.invoice_qty),
@@ -362,7 +372,7 @@ async function saveLines() {
     const res = await financeApi.updateThreeWayMatchLines(detail.value.id, {
       lines: editLines.value.map((l) => ({
         id: l.id,
-        material_id: l.material_id,
+        material_id: l.materialId,
         invoice_qty: l.invoice_qty,
         invoice_price: l.invoice_price,
       })),
@@ -383,14 +393,14 @@ async function confirm(row) {
     let forceVariance = false
     if (row.status === 'variance') {
       await ElMessageBox.confirm(
-        `匹配单 ${row.match_no} 存在超容差差异，是否强制确认？强制后可用于应付确认。`,
+        `匹配单 ${row.matchNo} 存在超容差差异，是否强制确认？强制后可用于应付确认。`,
         '强制确认',
         { type: 'warning', confirmButtonText: '强制确认', cancelButtonText: '取消' }
       )
       forceVariance = true
     } else {
       await ElMessageBox.confirm(
-        `确认匹配单 ${row.match_no}？确认后可用于应付发票确认。`,
+        `确认匹配单 ${row.matchNo}？确认后可用于应付发票确认。`,
         '确认',
         { type: 'warning' }
       )
@@ -408,7 +418,7 @@ async function confirm(row) {
 
 async function cancelMatch(row) {
   try {
-    await ElMessageBox.confirm(`取消匹配单 ${row.match_no}？`, '取消', { type: 'warning' })
+    await ElMessageBox.confirm(`取消匹配单 ${row.matchNo}？`, '取消', { type: 'warning' })
     await financeApi.cancelThreeWayMatch(row.id, { reason: '用户取消' })
     ElMessage.success('已取消')
     loadList()

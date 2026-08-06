@@ -127,11 +127,11 @@
     />
 
     <!-- 零部件定位结果弹窗 -->
-    <el-dialog
-      title="零部件定位结果"
+    <AppDialog
       v-model="locateDialogVisible"
+      title="零部件定位结果"
+      mode="view"
       width="750px"
-      destroy-on-close
     >
       <el-alert
         v-if="locateResults.length > 0"
@@ -148,25 +148,25 @@
         class="mb-md"
       />
       <el-table :data="locateResults" border max-height="400" v-if="locateResults.length > 0">
-        <el-table-column prop="product_code" label="产品编码" width="130" />
-        <el-table-column prop="product_name" label="产品名称" min-width="150" />
+        <el-table-column prop="productCode" label="产品编码" width="130" />
+        <el-table-column prop="productName" label="产品名称" min-width="150" />
         <el-table-column prop="version" label="BOM版本" width="100" />
-        <el-table-column prop="material_code" label="物料编码" width="130" />
-        <el-table-column prop="material_name" label="物料名称" min-width="130" />
+        <el-table-column prop="materialCode" label="物料编码" width="130" />
+        <el-table-column prop="materialName" label="物料名称" min-width="130" />
         <el-table-column prop="quantity" label="用量" width="80" />
         <el-table-column prop="unit" label="单位" width="70" />
       </el-table>
       <template #footer>
         <el-button @click="locateDialogVisible = false">关闭</el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
 
     <!-- 复制BOM选择弹窗 -->
-    <el-dialog
-      title="复制BOM"
+    <AppDialog
       v-model="copyDialogVisible"
+      title="复制BOM"
+      mode="view"
       width="500px"
-      destroy-on-close
     >
       <el-form label-width="100px">
         <el-form-item label="选择源BOM">
@@ -179,7 +179,7 @@
             <el-option
               v-for="bom in tableData"
               :key="bom.id"
-              :label="`${bom.product_code || ''} - ${bom.product_name || '未知'} (${bom.version || 'V1.0'})`"
+              :label="`${bom.productCode || ''} - ${bom.productName || '未知'} (${bom.version || 'V1.0'})`"
               :value="bom.id"
             />
           </el-select>
@@ -219,7 +219,7 @@
         <el-button @click="copyDialogVisible = false">取消</el-button>
         <el-button type="primary" :loading="copyLoading" :disabled="!copySelectedBomId || !copyTargetProductId || !copyTargetVersion" @click="executeCopyBom">确认复制</el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
 
   </div>
 </template>
@@ -411,8 +411,8 @@ const handleView = async (row) => {
       });
       const tree = [];
       detail.details.forEach(d => {
-        if (d.parent_id && map.get(d.parent_id)) {
-          map.get(d.parent_id).children.push(d);
+        if (d.parentId && map.get(d.parentId)) {
+          map.get(d.parentId).children.push(d);
         } else {
           tree.push(d);
         }
@@ -623,16 +623,16 @@ const executeCopyBom = async () => {
     const newBom = {
       product_id: copyTargetProductId.value,
       version: copyTargetVersion.value,
-      remark: `复制自 BOM #${bomId} (${bomData.product_code || ''} ${bomData.version || ''})`
+      remark: `复制自 BOM #${bomId} (${bomData.productCode || ''} ${bomData.version || ''})`
     };
 
     const details = Array.isArray(bomData.details) ? bomData.details.map(d => ({
-      material_id: d.material_id,
+      material_id: d.materialId,
       quantity: d.quantity,
-      unit_id: d.unit_id,
+      unit_id: d.unitId,
       remark: d.remark,
       level: d.level || 1,
-      parent_id: d.parent_id || 0
+      parent_id: d.parentId || 0
     })) : [];
 
     await bomApi.createBom({ ...newBom, details });

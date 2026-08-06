@@ -8,13 +8,14 @@ const NotificationRuleService = require('../../services/system/NotificationRuleS
 const NotificationResponsibilityService = require('../../services/system/NotificationResponsibilityService');
 const { ResponseHandler } = require('../../utils/responseHandler');
 const { logger } = require('../../utils/logger');
+const { mapKeysToSnake } = require('../../utils/fieldMap');
 const { AuditService, AuditAction, AuditModule } = require('../../services/AuditService');
 
 class NotificationRuleController {
   /** 获取规则列表 */
   async getRules(req, res) {
     try {
-      const result = await NotificationRuleService.getRules(req.query);
+      const result = await NotificationRuleService.getRules(mapKeysToSnake(req.query || {}));
       ResponseHandler.paginated(res, result.list, result.total, result.page, result.pageSize);
     } catch (error) {
       logger.error('获取通知规则列表失败:', error);
@@ -39,7 +40,7 @@ class NotificationRuleController {
   /** 创建规则 */
   async createRule(req, res) {
     try {
-      const rule = await NotificationRuleService.createRule(req.body, req.user?.id);
+      const rule = await NotificationRuleService.createRule(mapKeysToSnake(req.body || {}), req.user?.id);
       await AuditService.logFromRequest(
         req,
         AuditModule.SYSTEM,
@@ -61,7 +62,7 @@ class NotificationRuleController {
   async updateRule(req, res) {
     try {
       const oldRule = await NotificationRuleService.getRuleById(req.params.id);
-      const rule = await NotificationRuleService.updateRule(req.params.id, req.body);
+      const rule = await NotificationRuleService.updateRule(req.params.id, mapKeysToSnake(req.body || {}));
       if (!rule) {
         return ResponseHandler.notFound(res, '通知规则不存在');
       }
@@ -109,7 +110,8 @@ class NotificationRuleController {
   /** 切换启用/禁用 */
   async toggleActive(req, res) {
     try {
-      const { is_active } = req.body;
+      const body = mapKeysToSnake(req.body || {});
+      const is_active = body.is_active;
       const oldRule = await NotificationRuleService.getRuleById(req.params.id);
       const rule = await NotificationRuleService.toggleActive(req.params.id, is_active);
       if (!rule) {
@@ -156,7 +158,7 @@ class NotificationRuleController {
   /** 预览实际接收人 */
   async previewRecipients(req, res) {
     try {
-      const preview = await NotificationRuleService.previewRecipients(req.body);
+      const preview = await NotificationRuleService.previewRecipients(mapKeysToSnake(req.body || {}));
       ResponseHandler.success(res, preview);
     } catch (error) {
       logger.error('预览通知接收人失败:', error);
@@ -177,7 +179,10 @@ class NotificationRuleController {
   async updateResponsibility(req, res) {
     try {
       const before = await NotificationResponsibilityService.getAll();
-      const responsibility = await NotificationResponsibilityService.update(req.params.code, req.body);
+      const responsibility = await NotificationResponsibilityService.update(
+        req.params.code,
+        mapKeysToSnake(req.body || {})
+      );
       await AuditService.logFromRequest(
         req,
         AuditModule.SYSTEM,

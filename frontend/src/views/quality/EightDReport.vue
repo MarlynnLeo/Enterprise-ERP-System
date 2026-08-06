@@ -65,11 +65,11 @@
       </FinanceQueryCard>
       <!-- 表格 -->
       <el-table :data="tableData" border v-loading="loading" class="w-full mt-md">
-        <el-table-column prop="report_no" label="报告编号" width="140" show-overflow-tooltip />
+        <el-table-column prop="reportNo" label="报告编号" width="140" show-overflow-tooltip />
         <el-table-column prop="title" label="标题" min-width="160" show-overflow-tooltip />
-        <el-table-column prop="ncp_no" label="关联NCP" width="120" show-overflow-tooltip />
-        <el-table-column prop="material_name" label="物料名称" width="120" show-overflow-tooltip />
-        <el-table-column prop="initiated_by" label="发起人" width="90" show-overflow-tooltip />
+        <el-table-column prop="ncpNo" label="关联NCP" width="120" show-overflow-tooltip />
+        <el-table-column prop="materialName" label="物料名称" width="120" show-overflow-tooltip />
+        <el-table-column prop="initiatedBy" label="发起人" width="90" show-overflow-tooltip />
         <el-table-column prop="owner" label="主负责人" width="90" show-overflow-tooltip />
         <el-table-column prop="priority" label="优先级" width="80">
           <template #default="{ row }">
@@ -78,7 +78,7 @@
         </el-table-column>
         <el-table-column label="当前阶段" width="100">
           <template #default="{ row }">
-            <el-tag v-if="!['completed', 'closed'].includes(row.current_phase)" :type="getPhaseType(row.current_phase)" size="small">{{ getPhaseLabel(row.current_phase) }}</el-tag>
+            <el-tag v-if="!['completed', 'closed'].includes(row.currentPhase)" :type="getPhaseType(row.currentPhase)" size="small">{{ getPhaseLabel(row.currentPhase) }}</el-tag>
             <span v-else class="text-muted text-md">-</span>
           </template>
         </el-table-column>
@@ -92,13 +92,13 @@
             <el-tag :type="getStatusType(row.status)">{{ getStatusLabel(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="target_close_date" label="目标关闭" width="100">
+        <el-table-column prop="targetCloseDate" label="目标关闭" width="100">
           <template #default="{ row }">
-            <span :class="{ 'text-danger': isOverdue(row) }">{{ formatDate(row.target_close_date) }}</span>
+            <span :class="{ 'text-danger': isOverdue(row) }">{{ formatDate(row.targetCloseDate) }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" width="100">
-          <template #default="{ row }">{{ formatDate(row.created_at) }}</template>
+        <el-table-column prop="createdAt" label="创建时间" width="100">
+          <template #default="{ row }">{{ formatDate(row.createdAt) }}</template>
         </el-table-column>
         <el-table-column label="操作" min-width="420" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
@@ -108,10 +108,10 @@
             <el-button size="small" type="primary" @click="handleEdit(row)" v-if="canEditReport(row)"
               v-permission="'quality:8d:update'">编辑</el-button>
             <!-- 根据当前阶段显示不同的流程按钮 -->
-            <el-button v-permission="'quality:8d:update'" size="small" type="warning" @click="handleSubmitReview(row)" v-if="['draft', 'in_progress'].includes(row.status) && ['draft', 'd1_d3'].includes(row.current_phase)">提交初审</el-button>
-            <el-button v-permission="'quality:8d:update'" size="small" type="warning" @click="handleSubmitPhase2(row)" v-if="row.status === 'in_progress' && row.current_phase === 'd4_d7'">提交结案</el-button>
+            <el-button v-permission="'quality:8d:update'" size="small" type="warning" @click="handleSubmitReview(row)" v-if="['draft', 'in_progress'].includes(row.status) && ['draft', 'd1_d3'].includes(row.currentPhase)">提交初审</el-button>
+            <el-button v-permission="'quality:8d:update'" size="small" type="warning" @click="handleSubmitPhase2(row)" v-if="row.status === 'in_progress' && row.currentPhase === 'd4_d7'">提交结案</el-button>
             <el-button v-permission="'quality:8d:update'" size="small" type="success" @click="handleReview(row)" v-if="row.status === 'review'">审核</el-button>
-            <el-button v-permission="'quality:8d:update'" size="small" type="success" @click="handleComplete(row)" v-if="row.current_phase === 'd8' && row.status === 'in_progress'">完成</el-button>
+            <el-button v-permission="'quality:8d:update'" size="small" type="success" @click="handleComplete(row)" v-if="row.currentPhase === 'd8' && row.status === 'in_progress'">完成</el-button>
             <el-button v-permission="'quality:8d:update'" size="small" type="info" @click="handleClose(row)" v-if="row.status === 'completed'">归档</el-button>
             <el-button v-permission="'quality:8d:delete'" size="small" type="danger" @click="handleDelete(row)" v-if="row.status === 'draft'">删除</el-button>
           </template>
@@ -125,10 +125,15 @@
         class="pagination-bar" />
     </el-card>
     <!-- 创建/编辑对话框 -->
-    <el-dialog v-model="formDialogVisible" :title="isEdit ? '编辑8D报告' : '创建8D报告'" width="920px" destroy-on-close>
+    <AppDialog
+      v-model="formDialogVisible"
+      :title="isEdit ? '编辑8D报告' : '创建8D报告'"
+      mode="form"
+      wide
+    >
       <!-- 阶段进度指示器 -->
       <div class="phase-indicator" v-if="isEdit">
-        <el-steps :active="getPhaseStep(formData.current_phase)" finish-status="success" align-center size="small">
+        <el-steps :active="getPhaseStep(formData.currentPhase)" finish-status="success" align-center size="small">
           <el-step title="立案" description="D1-D3" />
           <el-step title="初审" />
           <el-step title="整改" description="D4-D7" />
@@ -160,16 +165,16 @@
             </el-row>
             <el-row :gutter="16">
               <el-col :span="12">
-                <el-form-item label="发起人" prop="initiated_by">
-                  <el-select v-model="formData.initiated_by" filterable placeholder="谁发现/上报了此问题" class="w-full" clearable>
-                    <el-option v-for="user in userList" :key="user.id" :label="`${user.real_name || user.username}`" :value="user.real_name || user.username" />
+                <el-form-item label="发起人" prop="initiatedBy">
+                  <el-select v-model="formData.initiatedBy" filterable placeholder="谁发现/上报了此问题" class="w-full" clearable>
+                    <el-option v-for="user in userList" :key="user.id" :label="`${user.realName || user.username}`" :value="user.realName || user.username" />
                   </el-select>
                 </el-form-item>
               </el-col>
               <el-col :span="12">
                 <el-form-item label="主负责人" prop="owner">
                   <el-select v-model="formData.owner" filterable placeholder="整个8D流程推进负责人" class="w-full" clearable>
-                    <el-option v-for="user in userList" :key="user.id" :label="`${user.real_name || user.username}`" :value="user.real_name || user.username" />
+                    <el-option v-for="user in userList" :key="user.id" :label="`${user.realName || user.username}`" :value="user.realName || user.username" />
                   </el-select>
                 </el-form-item>
               </el-col>
@@ -178,7 +183,7 @@
               <el-col :span="12">
                 <el-form-item label="关联NCP单据">
                   <el-select
-                    v-model="formData.ncp_id"
+                    v-model="formData.ncpId"
                     filterable
                     remote
                     reserve-keyword
@@ -192,12 +197,12 @@
                     <el-option
                       v-for="item in ncpList"
                       :key="item.id"
-                      :label="`${item.ncp_no} - ${item.material_name}`"
+                      :label="`${item.ncpNo} - ${item.materialName}`"
                       :value="item.id"
                     >
                       <span class="option-row--split">
-                        <span class="option-code">{{ item.ncp_no }}</span>
-                        <span class="option-name">{{ item.material_name }}</span>
+                        <span class="option-code">{{ item.ncpNo }}</span>
+                        <span class="option-name">{{ item.materialName }}</span>
                       </span>
                     </el-option>
                   </el-select>
@@ -205,31 +210,31 @@
               </el-col>
               <el-col :span="12">
                 <el-form-item label="目标关闭日期">
-                  <el-date-picker v-model="formData.target_close_date" placeholder="选择目标完成日期" class="w-full" />
+                  <el-date-picker v-model="formData.targetCloseDate" placeholder="选择目标完成日期" class="w-full" />
                 </el-form-item>
               </el-col>
             </el-row>
             <el-row :gutter="16">
               <el-col :span="12">
                 <el-form-item label="客户">
-                  <el-input v-model="formData.supplier_name" placeholder="投诉客户名称" />
+                  <el-input v-model="formData.supplierName" placeholder="投诉客户名称" />
                 </el-form-item>
               </el-col>
               <el-col :span="12">
                 <el-form-item label="客户联系人">
-                  <el-input v-model="formData.customer_contact" placeholder="客诉触发时填写客户联系人" />
+                  <el-input v-model="formData.customerContact" placeholder="客诉触发时填写客户联系人" />
                 </el-form-item>
               </el-col>
             </el-row>
             <el-row :gutter="16">
               <el-col :span="12">
                 <el-form-item label="物料编码">
-                  <el-input v-model="formData.material_code" placeholder="物料编码" />
+                  <el-input v-model="formData.materialCode" placeholder="物料编码" />
                 </el-form-item>
               </el-col>
               <el-col :span="12">
                 <el-form-item label="物料名称">
-                  <el-input v-model="formData.material_name" placeholder="物料名称" />
+                  <el-input v-model="formData.materialName" placeholder="物料名称" />
                 </el-form-item>
               </el-col>
             </el-row>
@@ -240,7 +245,7 @@
           <el-form :model="formData" label-width="120px">
             <el-form-item label="团队组长">
               <el-select v-model="formData.d1_team_leader" filterable placeholder="请选择团队组长" class="w-full" clearable>
-                <el-option v-for="user in userList" :key="user.id" :label="`${user.real_name || user.username}`" :value="user.real_name || user.username" />
+                <el-option v-for="user in userList" :key="user.id" :label="`${user.realName || user.username}`" :value="user.realName || user.username" />
               </el-select>
             </el-form-item>
             <el-form-item label="团队成员">
@@ -271,7 +276,7 @@
             </el-form-item>
             <el-form-item label="责任人">
               <el-select v-model="formData.d2_responsible_person" filterable placeholder="请选择责任人" class="w-full" clearable>
-                <el-option v-for="user in userList" :key="user.id" :label="`${user.real_name || user.username}`" :value="user.real_name || user.username" />
+                <el-option v-for="user in userList" :key="user.id" :label="`${user.realName || user.username}`" :value="user.realName || user.username" />
               </el-select>
             </el-form-item>
           </el-form>
@@ -287,14 +292,14 @@
             </el-form-item>
             <el-form-item label="责任人">
               <el-select v-model="formData.d3_responsible_person" filterable placeholder="请选择责任人" class="w-full" clearable>
-                <el-option v-for="user in userList" :key="user.id" :label="`${user.real_name || user.username}`" :value="user.real_name || user.username" />
+                <el-option v-for="user in userList" :key="user.id" :label="`${user.realName || user.username}`" :value="user.realName || user.username" />
               </el-select>
             </el-form-item>
           </el-form>
         </el-tab-pane>
         <!-- D4: 根因分析 -->
         <el-tab-pane label="D4 根因分析" name="d4">
-          <el-alert v-if="formData.current_phase === 'd1_d3'" title="当前处于D1-D3阶段，请先完成初审后再填写D4" type="info" :closable="false" show-icon class="mb-md" />
+          <el-alert v-if="formData.currentPhase === 'd1_d3'" title="当前处于D1-D3阶段，请先完成初审后再填写D4" type="info" :closable="false" show-icon class="mb-md" />
           <el-form :model="formData" label-width="120px">
             <el-form-item label="根本原因">
               <el-input v-model="formData.d4_root_cause" type="textarea" :rows="4" placeholder="经分析得出的根本原因..." />
@@ -313,7 +318,7 @@
             </el-form-item>
             <el-form-item label="责任人">
               <el-select v-model="formData.d4_responsible_person" filterable placeholder="请选择责任人" class="w-full" clearable>
-                <el-option v-for="user in userList" :key="user.id" :label="`${user.real_name || user.username}`" :value="user.real_name || user.username" />
+                <el-option v-for="user in userList" :key="user.id" :label="`${user.realName || user.username}`" :value="user.realName || user.username" />
               </el-select>
             </el-form-item>
           </el-form>
@@ -328,7 +333,7 @@
               <el-col :span="12">
                 <el-form-item label="责任人">
                   <el-select v-model="formData.d5_responsible_person" filterable placeholder="请选择责任人" class="w-full" clearable>
-                    <el-option v-for="user in userList" :key="user.id" :label="`${user.real_name || user.username}`" :value="user.real_name || user.username" />
+                    <el-option v-for="user in userList" :key="user.id" :label="`${user.realName || user.username}`" :value="user.realName || user.username" />
                   </el-select>
                 </el-form-item>
               </el-col>
@@ -358,7 +363,7 @@
             </el-form-item>
             <el-form-item label="责任人">
               <el-select v-model="formData.d6_responsible_person" filterable placeholder="请选择责任人" class="w-full" clearable>
-                <el-option v-for="user in userList" :key="user.id" :label="`${user.real_name || user.username}`" :value="user.real_name || user.username" />
+                <el-option v-for="user in userList" :key="user.id" :label="`${user.realName || user.username}`" :value="user.realName || user.username" />
               </el-select>
             </el-form-item>
           </el-form>
@@ -374,14 +379,14 @@
             </el-form-item>
             <el-form-item label="责任人">
               <el-select v-model="formData.d7_responsible_person" filterable placeholder="请选择责任人" class="w-full" clearable>
-                <el-option v-for="user in userList" :key="user.id" :label="`${user.real_name || user.username}`" :value="user.real_name || user.username" />
+                <el-option v-for="user in userList" :key="user.id" :label="`${user.realName || user.username}`" :value="user.realName || user.username" />
               </el-select>
             </el-form-item>
           </el-form>
         </el-tab-pane>
         <!-- D8: 总结 -->
         <el-tab-pane label="D8 总结关闭" name="d8">
-          <el-alert v-if="formData.current_phase !== 'd8' && formData.current_phase !== 'completed'" title="请先通过D4-D7结案审核后再填写D8总结" type="info" :closable="false" show-icon class="mb-md" />
+          <el-alert v-if="formData.currentPhase !== 'd8' && formData.currentPhase !== 'completed'" title="请先通过D4-D7结案审核后再填写D8总结" type="info" :closable="false" show-icon class="mb-md" />
           <el-form :model="formData" label-width="120px">
             <el-form-item label="总结">
               <el-input v-model="formData.d8_summary" type="textarea" :rows="4" placeholder="8D报告总结..." />
@@ -394,7 +399,7 @@
             </el-form-item>
             <el-form-item label="责任人">
               <el-select v-model="formData.d8_responsible_person" filterable placeholder="请选择责任人" class="w-full" clearable>
-                <el-option v-for="user in userList" :key="user.id" :label="`${user.real_name || user.username}`" :value="user.real_name || user.username" />
+                <el-option v-for="user in userList" :key="user.id" :label="`${user.realName || user.username}`" :value="user.realName || user.username" />
               </el-select>
             </el-form-item>
           </el-form>
@@ -413,7 +418,7 @@
           </div>
         </div>
       </template>
-    </el-dialog>
+        </AppDialog>
     <!-- 详情对话框 -->
     <AppDialog
       v-model="detailDialogVisible"
@@ -429,7 +434,7 @@
               <div class="role-icon role-icon-success"><el-icon><List /></el-icon></div>
               <div class="role-info">
                 <div class="role-title">发起人</div>
-                <div class="role-name">{{ detailData.initiated_by || detailData.created_by || '-' }}</div>
+                <div class="role-name">{{ detailData.initiatedBy || detailData.createdBy || '-' }}</div>
               </div>
             </el-card>
           </el-col>
@@ -453,7 +458,7 @@
           </el-col>
         </el-row>
         <!-- 阶段进度 -->
-        <el-steps :active="getPhaseStep(detailData.current_phase)" finish-status="success" align-center size="small" class="mb-20">
+        <el-steps :active="getPhaseStep(detailData.currentPhase)" finish-status="success" align-center size="small" class="mb-20">
           <el-step title="立案" description="D1-D3" />
           <el-step title="初审" />
           <el-step title="整改" description="D4-D7" />
@@ -462,19 +467,19 @@
           <el-step title="完成" />
         </el-steps>
         <el-descriptions :column="2" border>
-          <el-descriptions-item label="报告编号">{{ detailData.report_no }}</el-descriptions-item>
+          <el-descriptions-item label="报告编号">{{ detailData.reportNo }}</el-descriptions-item>
           <el-descriptions-item label="标题">{{ detailData.title }}</el-descriptions-item>
-          <el-descriptions-item label="关联NCP">{{ detailData.ncp_no || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="关联NCP">{{ detailData.ncpNo || '-' }}</el-descriptions-item>
           <el-descriptions-item label="状态">
             <el-tag :type="getStatusType(detailData.status)">{{ getStatusLabel(detailData.status) }}</el-tag>
-            <el-tag v-if="!['completed', 'closed'].includes(detailData.current_phase)" :type="getPhaseType(detailData.current_phase)" class="ml-sm">{{ getPhaseLabel(detailData.current_phase) }}</el-tag>
+            <el-tag v-if="!['completed', 'closed'].includes(detailData.currentPhase)" :type="getPhaseType(detailData.currentPhase)" class="ml-sm">{{ getPhaseLabel(detailData.currentPhase) }}</el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="物料">{{ detailData.material_name || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="客户">{{ detailData.supplier_name || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="物料">{{ detailData.materialName || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="客户">{{ detailData.supplierName || '-' }}</el-descriptions-item>
           <el-descriptions-item label="目标关闭日期">
-            <span :class="{ 'text-danger': isOverdue(detailData) }">{{ formatDate(detailData.target_close_date) }}</span>
+            <span :class="{ 'text-danger': isOverdue(detailData) }">{{ formatDate(detailData.targetCloseDate) }}</span>
           </el-descriptions-item>
-          <el-descriptions-item label="客户联系人">{{ detailData.customer_contact || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="客户联系人">{{ detailData.customerContact || '-' }}</el-descriptions-item>
         </el-descriptions>
         <el-timeline class="row-mt-20">
           <el-timeline-item :type="detailData.d1_completed_at ? 'success' : 'info'" timestamp="D1 - 组建团队">
@@ -514,12 +519,12 @@
         </el-timeline>
       </div>
       <!-- 审核信息 -->
-      <el-descriptions :column="2" border class="mt-md" v-if="detailData && (detailData.phase1_approved_by || detailData.reviewed_by)">
+      <el-descriptions :column="2" border class="mt-md" v-if="detailData && (detailData.phase1ApprovedBy)">
         <el-descriptions-item label="初审人" v-if="detailData.phase1_approved_by">{{ detailData.phase1_approved_by }}</el-descriptions-item>
         <el-descriptions-item label="初审时间" v-if="detailData.phase1_approved_at">{{ formatDate(detailData.phase1_approved_at) }}</el-descriptions-item>
         <el-descriptions-item label="结案审核人" v-if="detailData.phase2_approved_by">{{ detailData.phase2_approved_by }}</el-descriptions-item>
         <el-descriptions-item label="结案审核时间" v-if="detailData.phase2_approved_at">{{ formatDate(detailData.phase2_approved_at) }}</el-descriptions-item>
-        <el-descriptions-item label="审核意见" :span="2" v-if="detailData.review_comments">{{ detailData.review_comments }}</el-descriptions-item>
+        <el-descriptions-item label="审核意见" :span="2" v-if="detailData.reviewComments">{{ detailData.reviewComments }}</el-descriptions-item>
       </el-descriptions>
 
       <template #footer>
@@ -553,7 +558,12 @@
       </template>
     </AppDialog>
     <!-- AI生成对话框 -->
-    <el-dialog v-model="aiDialogVisible" title="AI智能分析生成" width="600px" append-to-body>
+    <AppDialog
+      v-model="aiDialogVisible"
+      title="AI智能分析生成"
+      mode="form"
+      width="600px"
+    >
       <el-alert title="基于KACON公司部门结构，智能生成符合IATF 16949标准的专业8D报告。团队组建将自动匹配品质部/技术部/生产部等真实部门，D2日期使用当天。" type="success" :closable="false" show-icon class="mb-20" />
       <el-form :model="aiForm" label-width="100px" v-loading="aiLoading" element-loading-text="AI正在深度思考生成中，约需要10-30秒...">
         <el-form-item label="问题描述" required>
@@ -573,13 +583,18 @@
         <el-button @click="aiDialogVisible = false" :disabled="aiLoading">取消</el-button>
         <el-button v-permission="'quality:8d:create'" type="primary" @click="submitAiGenerate" :loading="aiLoading">开始生成</el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
 
     <!-- 流转审计日志弹窗 / 客户报告打印 -->
-    <el-dialog v-model="logsDialogVisible" :title="isPrintMode ? '客户报告打印预览' : '8D生命周期审计流转记录'" width="800px">
+    <AppDialog
+      v-model="logsDialogVisible"
+      :title="isPrintMode ? '客户报告打印预览' : '8D生命周期审计流转记录'"
+      mode="view"
+      content-width="wide"
+    >
       <div v-if="!isPrintMode">
         <el-timeline>
-          <el-timeline-item v-for="(log, idx) in auditLogs" :key="idx" :timestamp="dayjs(log.created_at).format('YYYY-MM-DD HH:mm:ss')" :type="log.action.includes('reject') ? 'danger' : 'success'">
+          <el-timeline-item v-for="(log, idx) in auditLogs" :key="idx" :timestamp="dayjs(log.createdAt).format('YYYY-MM-DD HH:mm:ss')" :type="log.action.includes('reject') ? 'danger' : 'success'">
             <h4>[{{ log.action }}] 由 {{ log.operator }} 触发</h4>
             <p>阶段变化: {{ log.old_phase || '起步' }} -> {{ log.new_phase }}</p>
             <p v-if="log.comments">意见/备注: {{ log.comments }}</p>
@@ -641,7 +656,7 @@
         <el-button @click="logsDialogVisible = false">关闭</el-button>
         <el-button v-permission="'quality:8d:view'" type="primary" v-if="isPrintMode" @click="handlePrintCommand">确认打印 (A4)</el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
   </div>
 </template>
 <script setup>
@@ -688,16 +703,16 @@ const handlePrintCommand = async () => {
 
   try {
     const printData = {
-      report_no: row.report_no || '',
+      report_no: row.reportNo || '',
       title: row.title || '',
-      ncp_no: row.ncp_no || '',
+      ncp_no: row.ncpNo || '',
       occurrence_date: row.d2_occurrence_date ? dayjs(row.d2_occurrence_date).format('YYYY-MM-DD') : '',
       defect_type: row.d2_defect_type || '',
       status: getStatusLabel(row.status),
-      current_phase: getPhaseLabel(row.current_phase),
-      material_name: row.material_name || row.product_name || '',
-      customer_name: row.supplier_name || row.customer_name || '',
-      target_close_date: row.target_close_date ? dayjs(row.target_close_date).format('YYYY-MM-DD') : '',
+      current_phase: getPhaseLabel(row.currentPhase),
+      material_name: row.materialName || row.productName || '',
+      customer_name: row.supplierName || row.customerName || '',
+      target_close_date: row.targetCloseDate ? dayjs(row.targetCloseDate).format('YYYY-MM-DD') : '',
       team_leader: row.d1_team_leader || '',
       team_members: formatList(row.d1_team_members),
       problem_description: row.d2_problem_description || '',
@@ -890,15 +905,15 @@ const fetchNcpList = async (query = '') => {
 }
 const handleNcpSelect = (val) => {
   if (!val) {
-    formData.ncp_id = ''
-    formData.ncp_no = ''
-    formData.inspection_id = ''
-    formData.inspection_no = ''
-    formData.material_id = ''
-    formData.material_code = ''
-    formData.material_name = ''
-    formData.supplier_id = ''
-    formData.supplier_name = ''
+    formData.ncpId = ''
+    formData.ncpNo = ''
+    formData.inspectionId = ''
+    formData.inspectionNo = ''
+    formData.materialId = ''
+    formData.materialCode = ''
+    formData.materialName = ''
+    formData.supplierId = ''
+    formData.supplierName = ''
     formData.d2_problem_description = ''
     formData.d2_quantity_affected = 0
     formData.d2_defect_type = ''
@@ -906,17 +921,17 @@ const handleNcpSelect = (val) => {
   }
   const selectedNcp = ncpList.value.find(item => item.id === val)
   if (selectedNcp) {
-    formData.ncp_no = selectedNcp.ncp_no || ''
-    formData.inspection_id = selectedNcp.inspection_id || ''
-    formData.inspection_no = selectedNcp.inspection_no || ''
-    formData.material_id = selectedNcp.material_id || ''
-    formData.material_code = selectedNcp.material_code || ''
-    formData.material_name = selectedNcp.material_name || ''
-    formData.supplier_id = selectedNcp.supplier_id || ''
-    formData.supplier_name = selectedNcp.supplier_name || ''
-    if (!formData.d2_problem_description) formData.d2_problem_description = selectedNcp.defect_description || ''
-    if (!formData.d2_quantity_affected) formData.d2_quantity_affected = selectedNcp.defect_quantity || selectedNcp.quantity || 0
-    if (!formData.d2_defect_type) formData.d2_defect_type = selectedNcp.defect_type || ''
+    formData.ncpNo = selectedNcp.ncpNo || ''
+    formData.inspectionId = selectedNcp.inspectionId || ''
+    formData.inspectionNo = selectedNcp.inspectionNo || ''
+    formData.materialId = selectedNcp.materialId || ''
+    formData.materialCode = selectedNcp.materialCode || ''
+    formData.materialName = selectedNcp.materialName || ''
+    formData.supplierId = selectedNcp.supplierId || ''
+    formData.supplierName = selectedNcp.supplierName || ''
+    if (!formData.d2_problem_description) formData.d2_problem_description = selectedNcp.defectDescription || ''
+    if (!formData.d2_quantity_affected) formData.d2_quantity_affected = selectedNcp.defectQuantity || selectedNcp.quantity || 0
+    if (!formData.d2_defect_type) formData.d2_defect_type = selectedNcp.defectType || ''
   }
 }
 const fetchData = async () => {
@@ -954,8 +969,8 @@ const fetchStatistics = async () => {
 // ===================== AI 辅助生成 =====================
 const openAiDialog = () => {
   aiForm.problemDescription = ''
-  aiForm.materialName = formData.material_name || ''
-  aiForm.supplierName = formData.supplier_name || ''
+  aiForm.materialName = formData.materialName || ''
+  aiForm.supplierName = formData.supplierName || ''
   aiForm.defectType = ''
   aiForm.quantityAffected = formData.d2_quantity_affected || 0
   aiForm.priority = formData.priority || 'medium'
@@ -967,7 +982,7 @@ const submitAiGenerate = async () => {
     return
   }
   // 防覆盖警告机制
-  if (formData.d2_problem_description || formData.d4_root_cause) {
+  if (formData.d2ProblemDescription || formData.d4RootCause) {
     try {
       await ElMessageBox.confirm('您已经填写了部分报告数据，使用AI生成会直接覆盖当前的D1-D8表单内容，是否确认继续？', '防覆盖警告', {
         confirmButtonText: '坚决覆盖！',
@@ -1005,7 +1020,7 @@ const submitAiGenerate = async () => {
       if (result.d5_corrective_actions && result.d5_corrective_actions.length) formData.d5_corrective_actions_str = result.d5_corrective_actions.join('\n')
       if (result.d5_target_date_days) {
         formData.d5_target_date = dayjs().add(result.d5_target_date_days, 'day').format('YYYY-MM-DD')
-        formData.target_close_date = formData.d5_target_date // 同步目标关闭日期
+        formData.targetCloseDate = formData.d5_target_date // 同步目标关闭日期
       }
       // D6 - 验证方法（仅方法，实施结果留空待后续填写）
       if (result.d6_verification_method) formData.d6_verification_method = result.d6_verification_method
@@ -1281,9 +1296,9 @@ const handleReset = () => {
 }
 // ===================== 辅助方法 =====================
 const isOverdue = (row) => {
-  if (!row.target_close_date) return false
+  if (!row.targetCloseDate) return false
   if (['completed', 'closed'].includes(row.status)) return false
-  return dayjs().isAfter(dayjs(row.target_close_date))
+  return dayjs().isAfter(dayjs(row.targetCloseDate))
 }
 const canEditReport = (row) => ['draft', 'in_progress'].includes(row?.status)
 const getPriorityType = (p) => ({ low: 'info', medium: '', high: 'warning', critical: 'danger' }[p] || 'info')

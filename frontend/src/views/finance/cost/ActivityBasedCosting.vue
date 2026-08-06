@@ -20,17 +20,17 @@
             <el-table-column prop="description" label="描述" min-width="200" show-overflow-tooltip />
             <el-table-column label="成本池" width="130">
               <template #default="{ row }">
-                {{ formatCurrency(row.cost_pool) }}
+                {{ formatCurrency(row.costPool) }}
               </template>
             </el-table-column>
             <el-table-column label="成本动因" width="100">
               <template #default="{ row }">
-                <el-tag size="small">{{ getDriverTypeLabel(row.cost_driver_type) }}</el-tag>
+                <el-tag size="small">{{ getDriverTypeLabel(row.costDriverType) }}</el-tag>
               </template>
             </el-table-column>
             <el-table-column label="分配率" width="100">
               <template #default="{ row }">
-                {{ row.driver_rate }}
+                {{ row.driverRate }}
               </template>
             </el-table-column>
             <el-table-column label="状态" width="80">
@@ -56,34 +56,35 @@
             <el-table-column prop="name" label="作业名称" width="150" />
             <el-table-column label="成本池" width="130">
               <template #default="{ row }">
-                {{ formatCurrency(row.cost_pool) }}
+                {{ formatCurrency(row.costPool) }}
               </template>
             </el-table-column>
             <el-table-column label="成本动因" width="100">
               <template #default="{ row }">
-                {{ getDriverTypeLabel(row.cost_driver_type) }}
+                {{ getDriverTypeLabel(row.costDriverType) }}
               </template>
             </el-table-column>
             <el-table-column label="动因总量" width="100">
               <template #default="{ row }">
-                {{ row.total_driver_quantity }}
+                {{ row.totalDriverQuantity }}
               </template>
             </el-table-column>
             <el-table-column label="已分配成本" width="130">
               <template #default="{ row }">
-                <span class="allocated-cost">{{ formatCurrency(row.total_allocated_cost) }}</span>
+                <span class="allocated-cost">{{ formatCurrency(row.totalAllocatedCost) }}</span>
               </template>
             </el-table-column>
-            <el-table-column prop="product_count" label="关联产品" width="90" />
+            <el-table-column prop="productCount" label="关联产品" width="90" />
           </el-table>
         </el-tab-pane>
       </el-tabs>
     </el-card>
 
     <!-- 新增/编辑对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="dialogVisible"
       :title="isEdit ? '编辑作业' : '新增作业'"
+      mode="form"
       width="500px"
     >
       <el-form :model="form" :rules="rules" ref="formRef" label-width="100px">
@@ -96,11 +97,11 @@
         <el-form-item label="描述" prop="description">
           <el-input v-model="form.description" type="textarea" :rows="2" />
         </el-form-item>
-        <el-form-item label="成本池" prop="cost_pool">
-          <el-input-number v-model="form.cost_pool" :min="0" :precision="2" class="w-full" />
+        <el-form-item label="成本池" prop="costPool">
+          <el-input-number v-model="form.costPool" :min="0" :precision="2" class="w-full" />
         </el-form-item>
-        <el-form-item label="成本动因" prop="cost_driver_type">
-          <el-select v-model="form.cost_driver_type" class="w-full">
+        <el-form-item label="成本动因" prop="costDriverType">
+          <el-select v-model="form.costDriverType" class="w-full">
             <el-option
               v-for="item in driverTypes"
               :key="item.value"
@@ -109,8 +110,8 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="分配率" prop="driver_rate">
-          <el-input-number v-model="form.driver_rate" :min="0" :precision="4" class="w-full" />
+        <el-form-item label="分配率" prop="driverRate">
+          <el-input-number v-model="form.driverRate" :min="0" :precision="4" class="w-full" />
         </el-form-item>
         <el-form-item label="状态" prop="status">
           <el-switch v-model="form.status" :active-value="1" :inactive-value="0" />
@@ -124,7 +125,7 @@
           @click="submitForm"
         >确定</el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
   </div>
 </template>
 
@@ -226,8 +227,8 @@ const editActivity = (row) => {
   // 将后端返回的字符串类型数值转换为 Number（避免 ElInputNumber 类型警告）
   form.value = {
     ...row,
-    cost_pool: parseFloat(row.cost_pool) || 0,
-    driver_rate: parseFloat(row.driver_rate) || 0
+    cost_pool: parseFloat(row.costPool) || 0,
+    driver_rate: parseFloat(row.driverRate) || 0
   }
   dialogVisible.value = true
 }

@@ -27,7 +27,7 @@
       icon: 'cluster-o',
 
       details: [
-        { label: '负责人', field: 'manager_name' },
+        { label: '负责人', field: 'managerName' },
         { label: '部门人数', field: 'user_count', suffix: '人' },
         { label: '联系电话', field: 'phone' }
       ]

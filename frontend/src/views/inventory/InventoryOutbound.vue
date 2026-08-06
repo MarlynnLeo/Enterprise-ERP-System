@@ -86,23 +86,23 @@
       <el-table ref="outboundTableRef" :data="outboundList" border class="w-full" v-loading="loading"
         @selection-change="handleSelectionChange">
         <template #empty>
-          <el-empty description="暂无出库单数据" />
+          <EmptyState description="暂无出库单数据" />
         </template>
         <el-table-column type="selection" width="55" fixed="left"></el-table-column>
         <el-table-column prop="outboundNo" label="出库单号" min-width="150" show-overflow-tooltip></el-table-column>
         <el-table-column prop="productCode" label="物料编码" min-width="120" show-overflow-tooltip>
           <template #default="scope">
-            {{ scope.row.product_code || '-' }}
+            {{ scope.row.productCode || '-' }}
           </template>
         </el-table-column>
         <el-table-column prop="productSpecs" label="型号规格" min-width="130" show-overflow-tooltip>
           <template #default="scope">
-            {{ scope.row.product_specs || '-' }}
+            {{ scope.row.productSpecs || '-' }}
           </template>
         </el-table-column>
         <el-table-column prop="outboundDate" label="出库日期" min-width="110" show-overflow-tooltip>
           <template #default="scope">
-            {{ formatDate(scope.row.outbound_date) }}
+            {{ formatDate(scope.row.outboundDate) }}
           </template>
         </el-table-column>
 
@@ -116,37 +116,37 @@
         <el-table-column label="数量" min-width="90" show-overflow-tooltip>
           <template #default="scope">
             <!--
-              确定性判断（基于数据库 outbound_type 字段，零推断）：
+              确定性判断（基于 outboundType 字段，零推断）：
               bom_issue / batch_issue → 显示生产套数
               其他类型 → 显示物料数量 + 单位
             -->
-            <span v-if="(scope.row.outbound_type === 'bom_issue' || scope.row.outbound_type === 'batch_issue') && scope.row.product_quantity">
-              {{ Math.floor(scope.row.product_quantity) }} 套
+            <span v-if="(scope.row.outboundType === 'bom_issue' || scope.row.outboundType === 'batch_issue') && scope.row.productQuantity">
+              {{ Math.floor(scope.row.productQuantity) }} 套
             </span>
             <span v-else>
-              {{ Math.floor(scope.row.total_quantity || 0) }}{{ scope.row.item_unit_name ? ' ' + scope.row.item_unit_name : '' }}
+              {{ Math.floor(scope.row.totalQuantity || 0) }}{{ scope.row.itemUnitName ? ' ' + scope.row.itemUnitName : '' }}
             </span>
           </template>
         </el-table-column>
         <el-table-column label="生产组" min-width="100" show-overflow-tooltip>
           <template #default="scope">
-            {{ scope.row.production_group_names || '-' }}
+            {{ scope.row.productionGroupName || scope.row.productionGroupNames || '-' }}
           </template>
         </el-table-column>
         <el-table-column label="操作人" min-width="90" show-overflow-tooltip>
           <template #default="scope">
-            {{ scope.row.operator_name || scope.row.operator }}
+            {{ scope.row.operatorName || scope.row.operator }}
           </template>
         </el-table-column>
         <el-table-column prop="createdAtFormatted" label="创建时间" min-width="100" show-overflow-tooltip>
           <template #default="scope">
-            {{ formatDate(scope.row.created_at) }}
+            {{ formatDate(scope.row.createdAt) }}
           </template>
         </el-table-column>
         <el-table-column label="倒计时" min-width="100" show-overflow-tooltip>
           <template #default="scope">
-            <el-tag :type="getCountdownType(scope.row.outbound_date, scope.row.status)" size="small">
-              {{ getCountdownText(scope.row.outbound_date, scope.row.status) }}
+            <el-tag :type="getCountdownType(scope.row.outboundDate, scope.row.status)" size="small">
+              {{ getCountdownText(scope.row.outboundDate, scope.row.status) }}
             </el-tag>
           </template>
         </el-table-column>
@@ -214,18 +214,21 @@
     </el-card>
 
     <!-- 新增/编辑/补发出库单对话框 -->
-    <el-dialog v-model="dialogVisible"
-      :title="dialogType === 'add' ? '新增出库单' : dialogType === 'supplement' ? '补发出库单' : '编辑出库单'" width="55%"
-      destroy-on-close>
+    <AppDialog
+      v-model="dialogVisible"
+      :title="dialogType === 'add' ? '新增出库单' : dialogType === 'supplement' ? '补发出库单' : '编辑出库单'"
+      mode="form"
+      wide
+    >
       <div v-loading="editLoading" class="min-h-form">
       <el-form ref="outboundFormRef" :model="outboundForm" :rules="outboundRules" label-width="120px">
         <el-row :gutter="20">
           <el-col :span="8">
-            <el-form-item label="生产任务" prop="production_task_id">
-              <el-select v-model="outboundForm.production_task_id" placeholder="选择生产任务" class="w-full"
+            <el-form-item label="生产任务" prop="productionTaskId">
+              <el-select v-model="outboundForm.productionTaskId" placeholder="选择生产任务" class="w-full"
                 @change="handleProductionPlanChange" clearable filterable>
                 <el-option v-for="item in productionPlanOptions" :key="item.id"
-                  :label="`${item.code} - ${item.name} (${item.quantity}${item.unit_name || ''})`" :value="item.id">
+                  :label="`${item.code} - ${item.name} (${item.quantity}${item.unitName || ''})`" :value="item.id">
                   <span class="option-code">{{ item.code }}</span>
                   <span class="option-name">{{ item.name }}</span>
                 </el-option>
@@ -234,12 +237,12 @@
           </el-col>
           <el-col :span="8">
             <el-form-item label="出库单号">
-              <el-input v-model="outboundForm.outbound_no" placeholder="系统自动生成" disabled />
+              <el-input v-model="outboundForm.outboundNo" placeholder="系统自动生成" disabled />
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="出库日期" prop="outbound_date">
-              <el-date-picker v-model="outboundForm.outbound_date" type="date" placeholder="选择日期" class="w-full" />
+            <el-form-item label="出库日期" prop="outboundDate">
+              <el-date-picker v-model="outboundForm.outboundDate" type="date" placeholder="选择日期" class="w-full" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -251,8 +254,8 @@
           </el-col>
         </el-row>
 
-        <el-form-item label="备注" prop="remark">
-          <el-input v-model="outboundForm.remark" type="textarea" placeholder="请输入备注" :rows="2" />
+        <el-form-item label="备注" prop="remarks">
+          <el-input v-model="outboundForm.remarks" type="textarea" placeholder="请输入备注" :rows="2" />
         </el-form-item>
 
         <el-divider content-position="center">出库明细</el-divider>
@@ -270,15 +273,15 @@
             <template #default="scope">
               <!-- 真实出库明细 -->
               <span v-if="scope.row.isSubstitute" class="text-success">
-                {{ scope.row.material_code || scope.row.materialCode }}
+                {{ scope.row.materialCode }}
               </span>
               <!-- 来自生产计划的物料(只读) -->
-              <span v-else-if="scope.row.is_from_plan">
-                {{ scope.row.material_code || scope.row.materialCode }}
+              <span v-else-if="scope.row.isFromPlan">
+                {{ scope.row.materialCode }}
               </span>
               <!-- 手动添加的物料(可编辑) -->
               <el-autocomplete v-else-if="dialogType !== 'view'"
-                :ref="(el) => setMaterialSelectRef(el, scope.row.originalIndex)" v-model="scope.row.material_code"
+                :ref="(el) => setMaterialSelectRef(el, scope.row.originalIndex)" v-model="scope.row.materialCode"
                 placeholder="输入编码/名称/规格" clearable
                 :fetch-suggestions="(query, callback) => fetchMaterialSuggestions(query, callback, scope.row.originalIndex)"
                 @select="(item) => handleMaterialSelectAutocomplete(item, scope.row.originalIndex)"
@@ -297,14 +300,14 @@
                       {{ item.specs }}
                     </span>
                     <span class="option-row__stock">
-                      库存: {{ item.stock_quantity || 0 }}
+                      库存: {{ item.stockQuantity || 0 }}
                     </span>
                   </div>
                 </template>
               </el-autocomplete>
               <!-- 查看模式 -->
               <span v-else>
-                {{ scope.row.material_code || scope.row.materialCode }}
+                {{ scope.row.materialCode }}
               </span>
             </template>
           </el-table-column>
@@ -312,7 +315,7 @@
           <el-table-column label="物料名称" min-width="120" show-overflow-tooltip>
             <template #default="scope">
               <span :class="scope.row.isSubstitute ? 'is-substitute' : ''">
-                {{ scope.row.material_name || scope.row.materialName }}
+                {{ scope.row.materialName }}
                 <el-tag v-if="scope.row.isSubstitute" type="success" size="small" class="ml-sm">替代</el-tag>
               </span>
             </template>
@@ -321,7 +324,7 @@
           <el-table-column label="规格" min-width="120" show-overflow-tooltip>
             <template #default="scope">
               <span :class="scope.row.isSubstitute ? 'is-substitute' : ''">
-                {{ scope.row.specification || scope.row.specs || '无规格' }}
+                {{ scope.row.specification || '无规格' }}
               </span>
             </template>
           </el-table-column>
@@ -329,7 +332,7 @@
           <el-table-column label="单位" min-width="80" show-overflow-tooltip>
             <template #default="scope">
               <span :class="scope.row.isSubstitute ? 'is-substitute' : ''">
-                {{ scope.row.unit_name || scope.row.unit }}
+                {{ scope.row.unitName || scope.row.unit || '' }}
               </span>
             </template>
           </el-table-column>
@@ -337,7 +340,7 @@
           <el-table-column label="出库库位" min-width="100" show-overflow-tooltip>
             <template #default="scope">
               <span :class="scope.row.isSubstitute ? 'is-substitute' : ''">
-                {{ scope.row.location_name }}
+                {{ scope.row.locationName || '' }}
               </span>
             </template>
           </el-table-column>
@@ -345,8 +348,8 @@
           <el-table-column label="库存" min-width="80" show-overflow-tooltip>
             <template #default="scope">
               <span
-                :class="scope.row.isSubstitute ? 'is-substitute-sm' : ((dialogType === 'supplement' && (scope.row.stock_quantity || 0) <= 0) ? 'text-stock-low' : '')">
-                {{ scope.row.stock_quantity || scope.row.stockQuantity || 0 }}
+                :class="scope.row.isSubstitute ? 'is-substitute-sm' : ((dialogType === 'supplement' && (scope.row.stockQuantity || 0) <= 0) ? 'text-stock-low' : '')">
+                {{ scope.row.stockQuantity || 0 }}
               </span>
             </template>
           </el-table-column>
@@ -356,12 +359,12 @@
               <div v-if="scope.row.isSubstitute" class="is-substitute-sm">
                 {{ Math.floor(scope.row.quantity || 0) }}
               </div>
-              <el-input v-else-if="dialogType !== 'view' && !scope.row.is_from_plan"
+              <el-input v-else-if="dialogType !== 'view' && !scope.row.isFromPlan"
                 :ref="(el) => setQuantityInputRef(el, scope.row.originalIndex)" v-model="scope.row.quantity" type="text"
                 size="small" @blur="validateOutboundQuantity(scope.row)" @input="validateOutboundQuantity(scope.row)"
                 @keydown.enter="handleQuantityEnter(scope.row.originalIndex)" placeholder="数量" />
-              <el-tooltip v-else-if="scope.row.is_from_plan && !scope.row.isSubstitute"
-                :content="'生产计划数量：' + Math.floor(selectedPlan?.quantity || 0) + ' ' + (selectedPlan?.unit_name || '') + '，BOM用量：' + Math.floor(scope.row.bom_quantity || scope.row.bomQuantity || 0) + ' ' + (scope.row.unit_name || scope.row.unit || '')"
+              <el-tooltip v-else-if="scope.row.isFromPlan && !scope.row.isSubstitute"
+                :content="'生产计划数量：' + Math.floor(selectedPlan?.quantity || 0) + ' ' + (selectedPlan?.unitName || '') + '，BOM用量：' + Math.floor(scope.row.bomQuantity || 0) + ' ' + (scope.row.unitName || scope.row.unit || '')"
                 placement="top">
                 <span>{{ Math.floor(scope.row.quantity || 0) }}</span>
               </el-tooltip>
@@ -371,7 +374,7 @@
 
           <el-table-column label="操作" min-width="80" fixed="right" v-if="dialogType !== 'view'" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="scope">
-              <el-button v-if="!scope.row.isSubstitute && !scope.row.is_from_plan" type="danger" size="small"
+              <el-button v-if="!scope.row.isSubstitute && !scope.row.isFromPlan" type="danger" size="small"
                 @click="handleRemoveItem(scope.row.originalIndex)"
                 v-permission="dialogType === 'add' ? 'inventory:outbound:create' : 'inventory:outbound:update'">
                 删除
@@ -398,26 +401,26 @@
           </el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
 
     <!-- 查看出库单对话框 -->
     <AppDialog v-model="viewDialogVisible" title="出库单详情" mode="view" content-width="wide">
       <div v-loading="viewLoading" class="min-h-form">
       <el-descriptions :column="2" border>
-        <el-descriptions-item label="出库单号">{{ currentOutbound.outbound_no }}</el-descriptions-item>
-        <el-descriptions-item label="出库日期">{{ formatDate(currentOutbound.outbound_date) }}</el-descriptions-item>
+        <el-descriptions-item label="出库单号">{{ currentOutbound.outboundNo }}</el-descriptions-item>
+        <el-descriptions-item label="出库日期">{{ formatDate(currentOutbound.outboundDate) }}</el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag :type="getStatusType(currentOutbound.status)">
             {{ getStatusText(currentOutbound.status) }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="操作人">{{ currentOutbound.operator_name || currentOutbound.operator
+        <el-descriptions-item label="操作人">{{ currentOutbound.operatorName || currentOutbound.operator
           }}</el-descriptions-item>
-        <el-descriptions-item label="生产计划" v-if="currentOutbound.production_plan_code">
-          {{ currentOutbound.production_plan_code }} - {{ currentOutbound.production_plan_name || '' }}
+        <el-descriptions-item label="生产计划" v-if="currentOutbound.productionTaskCode || currentOutbound.productionPlanCode">
+          {{ currentOutbound.productionTaskCode || currentOutbound.productionPlanCode }} - {{ currentOutbound.productionTaskProductName || currentOutbound.productionPlanName || '' }}
         </el-descriptions-item>
-        <el-descriptions-item label="备注" :span="currentOutbound.production_plan_code ? 1 : 2">
-          {{ currentOutbound.remark || '无' }}
+        <el-descriptions-item label="备注" :span="(currentOutbound.productionTaskCode || currentOutbound.productionPlanCode) ? 1 : 2">
+          {{ currentOutbound.remarks || '无' }}
         </el-descriptions-item>
       </el-descriptions>
 
@@ -433,14 +436,14 @@
         <el-table-column label="物料编码" min-width="120" show-overflow-tooltip>
           <template #default="scope">
             <span :class="scope.row.isSubstitute ? 'is-substitute' : ''">
-              {{ scope.row.material_code || scope.row.materialCode }}
+              {{ scope.row.materialCode }}
             </span>
           </template>
         </el-table-column>
         <el-table-column label="物料名称" min-width="120" show-overflow-tooltip>
           <template #default="scope">
             <span :class="scope.row.isSubstitute ? 'is-substitute' : ''">
-              {{ scope.row.material_name || scope.row.materialName }}
+              {{ scope.row.materialName }}
               <el-tag v-if="scope.row.isSubstitute" type="success" size="small" class="ml-sm">替代</el-tag>
             </span>
           </template>
@@ -448,14 +451,14 @@
         <el-table-column label="规格" min-width="120" show-overflow-tooltip>
           <template #default="scope">
             <span :class="scope.row.isSubstitute ? 'is-substitute' : ''">
-              {{ scope.row.specification || scope.row.specs || '无规格' }}
+              {{ scope.row.specification || '无规格' }}
             </span>
           </template>
         </el-table-column>
         <el-table-column label="单位" min-width="80" show-overflow-tooltip>
           <template #default="scope">
             <span :class="scope.row.isSubstitute ? 'is-substitute' : ''">
-              {{ scope.row.unit_name || scope.row.unit }}
+              {{ scope.row.unitName || scope.row.unit || '' }}
             </span>
           </template>
         </el-table-column>
@@ -469,7 +472,7 @@
         <el-table-column label="出库库位" width="100" fixed="right">
           <template #default="scope">
             <span :class="scope.row.isSubstitute ? 'is-substitute' : ''">
-              {{ scope.row.location_name }}
+              {{ scope.row.locationName || '' }}
             </span>
           </template>
         </el-table-column>
@@ -478,7 +481,12 @@
     </AppDialog>
 
     <!-- 选择物料对话框 -->
-    <el-dialog v-model="materialDialogVisible" title="选择物料" width="50%">
+    <AppDialog
+      v-model="materialDialogVisible"
+      title="选择物料"
+      mode="form"
+      wide
+    >
       <div class="material-search">
         <el-input v-model="materialSearchKeyword" placeholder="搜索物料编码/名称" @keyup.enter="searchMaterialsInDialog">
           <template #append>
@@ -496,30 +504,35 @@
         <el-table-column prop="code" label="物料编码" width="120" />
         <el-table-column prop="name" label="物料名称" />
         <el-table-column prop="specification" label="规格" width="240" />
-        <el-table-column prop="unit_name" label="单位" width="80" />
+        <el-table-column prop="unitName" label="单位" width="80" />
         <el-table-column label="默认库位" width="120">
           <template #default="scope">
-            <span>{{ scope.row.location_name }}</span>
+            <span>{{ scope.row.locationName || '' }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="stock_quantity" label="库存数量" width="100" />
+        <el-table-column prop="stockQuantity" label="库存数量" width="100" />
       </el-table>
-    </el-dialog>
+        </AppDialog>
 
     <!-- 打印预览对话框 -->
-    <el-dialog v-model="printDialogVisible" title="打印预览" width="50%" append-to-body>
+    <AppDialog
+      v-model="printDialogVisible"
+      title="打印预览"
+      mode="view"
+      content-width="wide"
+    >
       <div class="print-preview">
         <div ref="printContent" class="print-content">
           <div class="print-header">
             <h2>出库单</h2>
             <div class="print-info">
-              <div>单号: {{ printData.outbound_no }}</div>
-              <div>日期: {{ formatDate(printData.outbound_date) }}</div>
+              <div>单号: {{ printData.outboundNo }}</div>
+              <div>日期: {{ formatDate(printData.outboundDate) }}</div>
             </div>
           </div>
 
           <div class="print-warehouse">
-            <span>出库仓库: {{ printData.location_name }}</span>
+            <span>出库仓库: {{ printData.locationName || '' }}</span>
           </div>
 
           <table class="print-table">
@@ -540,13 +553,13 @@
                   <span v-if="!item.isSubstitute">{{ item.originalIndex + 1 }}</span>
                   <span v-else class="tree-indent">└</span>
                 </td>
-                <td>{{ item.material_code || item.materialCode }}</td>
+                <td>{{ item.materialCode }}</td>
                 <td>
-                  {{ item.material_name || item.materialName }}
+                  {{ item.materialName }}
                   <span v-if="item.isSubstitute" class="is-substitute-sm">[替代]</span>
                 </td>
-                <td>{{ item.specification || item.specs || '-' }}</td>
-                <td>{{ item.unit_name || item.unit }}</td>
+                <td>{{ item.specification || '-' }}</td>
+                <td>{{ item.unitName || item.unit || '' }}</td>
                 <td>{{ Math.floor(item.quantity || 0) }}</td>
               </tr>
             </tbody>
@@ -554,11 +567,11 @@
 
           <div class="print-footer">
             <div>
-              <span>备注: {{ printData.remark || '无' }}</span>
+              <span>备注: {{ printData.remarks || '无' }}</span>
             </div>
             <div class="print-signatures">
               <div>
-                <span>操作人: {{ printData.operator_name || printData.operator }}</span>
+                <span>操作人: {{ printData.operatorName || printData.operator || '' }}</span>
               </div>
               <div>
                 <span>签收人: ________________</span>
@@ -573,7 +586,7 @@
           <el-button v-permission="'inventory:outbound:view'" type="primary" @click="printOutbound">确认打印</el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
 
     <!-- 浮动批量操作栏 -->
     <Transition name="slide-up">
@@ -660,14 +673,16 @@ export default {
     const viewLoading = ref(false)
     const editLoading = ref(false)
     const currentOutbound = reactive({
-      outbound_no: '',
-      outbound_date: '',
+      outboundNo: '',
+      outboundDate: '',
       status: '',
       operator: '',
-      operator_name: '',
-      production_plan_code: '',
-      production_plan_name: '',
-      remark: '',
+      operatorName: '',
+      productionTaskCode: '',
+      productionTaskProductName: '',
+      productionPlanCode: '',
+      productionPlanName: '',
+      remarks: '',
       items: []
     })
 
@@ -698,8 +713,8 @@ export default {
 
     // 计算属性：当前选中的生产任务
     const selectedPlan = computed(() => {
-      if (!outboundForm.production_task_id) return null
-      return productionPlanOptions.value.find(plan => plan.id === outboundForm.production_task_id)
+      if (!outboundForm.productionTaskId) return null
+      return productionPlanOptions.value.find(plan => plan.id === outboundForm.productionTaskId)
     })
 
     // 工具函数
@@ -765,13 +780,13 @@ export default {
           .filter(task => task && task.id !== undefined && task.id !== null)
           .map(task => ({
             id: task.id,
-            name: task.productName || task.product_name, // 使用产品名称
+            name: task.productName, // 使用产品名称
             code: task.code || `任务-${task.id}`, // 使用任务编号，如果没有则使用ID
-            product_id: task.product_id || task.productId,
+            productId: task.productId,
             quantity: task.quantity || 0, // 添加生产任务数量
-            unit_name: task.unit || task.unitName, // 添加单位信息
+            unitName: task.unit || task.unitName, // 添加单位信息
             status: task.status, // 添加状态信息
-            task_id: task.id // 保存任务ID用于后续引用
+            taskId: task.id // 保存任务ID用于后续引用
           }))
       } catch (error) {
         console.error('加载生产任务失败:', error)
@@ -780,21 +795,21 @@ export default {
       }
     }
 
-    // 表单数据
+    // 表单数据（纯 camel，后端 inventoryOutboundMap.fromApi）
     const outboundForm = reactive({
       id: null,
-      outbound_no: '',
-      outbound_date: new Date(),
+      outboundNo: '',
+      outboundDate: new Date(),
       status: 'draft',
       operator: authStore.realName || '系统用户',  // 使用真实姓名
-      remark: '',
-      production_task_id: null,
+      remarks: '',
+      productionTaskId: null,
       items: []
     })
 
     // 表单验证规则
     const outboundRules = {
-      outbound_date: [
+      outboundDate: [
         { required: true, message: '请选择出库日期', trigger: 'change' }
       ],
       operator: [
@@ -814,21 +829,23 @@ export default {
 
         const res = await inventoryApi.getMaterialsWithStock(params)
 
-        // 确保每个物料都有正确的库存数量和ID，以及默认库位信息
+        // 确保每个物料都有正确的库存数量和ID，以及默认库位信息（纯 camel）
         materialList.value = res.data.map(item => {
-          // 使用接收到的ID或material_id
-          const materialId = item.id || item.material_id
-          const stockQuantity = item.stock_quantity !== undefined ?
-            parseFloat(item.stock_quantity) :
-            (item.quantity !== undefined ? parseFloat(item.quantity) : 0)
+          const materialId = item.id || item.materialId
+          const stockQuantity = item.stockQuantity !== undefined
+            ? parseFloat(item.stockQuantity)
+            : (item.quantity !== undefined ? parseFloat(item.quantity) : 0)
 
           return {
             ...item,
-            id: materialId, // 确保id字段存在
-            material_id: materialId, // 同时保存material_id
-            stock_quantity: stockQuantity,
-            location_id: item.location_id, // 物料的默认库位ID
-            location_name: item.location_name // 物料的默认库位名称
+            id: materialId,
+            materialId,
+            stockQuantity,
+            unitName: item.unitName,
+            unitId: item.unitId,
+            locationId: item.locationId,
+            locationName: item.locationName,
+            specification: item.specification || item.specs || ''
           }
         })
       } catch (error) {
@@ -841,26 +858,24 @@ export default {
 
     // 选择物料
     const handleSelectMaterial = async (row) => {
-      const materialId = row.id || row.material_id
+      const materialId = row.id || row.materialId
 
       // 检查是否已添加
-      const existingIndex = outboundForm.items.findIndex(item =>
-        item.material_id === materialId || item.material_id === row.id || item.material_id === row.material_id
-      )
+      const existingIndex = outboundForm.items.findIndex(item => item.materialId === materialId)
       if (existingIndex !== -1) {
         ElMessage.warning('该物料已添加')
         return
       }
 
-      const defaultLocationId = row.location_id
+      const defaultLocationId = row.locationId
       if (!defaultLocationId) {
         ElMessage.warning('该物料没有设置默认库位，无法获取库存信息')
         return
       }
 
       // 先使用行数据中的库存量作为默认值
-      let stockQuantity = row.stock_quantity !== undefined
-        ? parseFloat(row.stock_quantity)
+      let stockQuantity = row.stockQuantity !== undefined
+        ? parseFloat(row.stockQuantity)
         : (row.quantity !== undefined ? parseFloat(row.quantity) : 0)
 
       // 尝试从Lean API获取最新库存
@@ -869,29 +884,30 @@ export default {
         if (stockRes?.data) {
           stockQuantity = (stockRes.data.quantity !== undefined && stockRes.data.quantity !== null)
             ? parseFloat(stockRes.data.quantity)
-            : (stockRes.data.stock_quantity !== undefined && stockRes.data.stock_quantity !== null)
-              ? parseFloat(stockRes.data.stock_quantity)
+            : (stockRes.data.stockQuantity !== undefined && stockRes.data.stockQuantity !== null)
+              ? parseFloat(stockRes.data.stockQuantity)
               : stockQuantity
         }
       } catch (error) {
         console.error('获取物料库存失败，使用列表数据:', error)
       }
 
-      // 统一推送物料
+      // 统一推送物料（纯 camel）
       outboundForm.items.push({
-        material_id: materialId,
-        material_code: row.code,
-        material_name: row.name,
+        materialId,
+        materialCode: row.code,
+        materialName: row.name,
         specification: row.specification || row.specs || '',
-        unit_id: row.unit_id,
-        unit_name: row.unit_name,
-        stock_quantity: stockQuantity,
+        unitId: row.unitId,
+        unitName: row.unitName,
+        stockQuantity,
         quantity: Math.min(1, stockQuantity),
-        location_id: defaultLocationId,
-        location_name: row.location_name
+        locationId: defaultLocationId,
+        locationName: row.locationName,
+        isFromPlan: false
       })
 
-      ElMessage.success(`物料添加成功${row.location_name ? '，将从 ' + row.location_name + ' 出库' : ''}`)
+      ElMessage.success(`物料添加成功${row.locationName ? '，将从 ' + row.locationName + ' 出库' : ''}`)
       materialDialogVisible.value = false
     }
 
@@ -932,7 +948,7 @@ export default {
           limit: pageSize.value,
           search: searchKeyword.value,
           status: statusFilter.value,
-          production_group_id: productionGroupFilter.value
+          productionGroupId: productionGroupFilter.value
         }
 
         // 添加时间范围参数
@@ -1009,19 +1025,20 @@ export default {
 
     // 辅助函数：确保生产任务在下拉选项列表中（DRY原则抽取）
     const _ensureTaskInOptions = (outboundData, fallbackStatus = 'pending') => {
-      if (outboundData.production_task_id && outboundData.production_task_code) {
-        const exists = productionPlanOptions.value.find(
-          task => task.id === outboundData.production_task_id
-        )
+      const taskId = outboundData.productionTaskId
+      const taskCode = outboundData.productionTaskCode
+      if (taskId && taskCode) {
+        const exists = productionPlanOptions.value.find(task => task.id === taskId)
         if (!exists) {
           productionPlanOptions.value.push({
-            id: outboundData.production_task_id,
-            code: outboundData.production_task_code,
-            name: outboundData.production_task_product_name,
-            quantity: outboundData.production_task_quantity || 0,
-            unit_name: '',
+            id: taskId,
+            code: taskCode,
+            name: outboundData.productionTaskProductName,
+            quantity: outboundData.productionTaskQuantity ?? 0,
+            unitName: '',
             status: fallbackStatus,
-            task_id: outboundData.production_task_id
+            taskId,
+            productId: outboundData.productId
           })
         }
       }
@@ -1046,34 +1063,45 @@ export default {
           return
         }
 
-        // 筛选出有缺料的物料（shortage_quantity > 0）
-        const shortageItems = outboundData.items.filter(item =>
-          item.shortage_quantity && parseFloat(item.shortage_quantity) > 0
-        )
+        // 筛选出有缺料的物料
+        const shortageItems = outboundData.items.filter(item => {
+          const shortage = item.shortageQuantity
+          return shortage && parseFloat(shortage) > 0
+        })
 
         if (shortageItems.length === 0) {
           ElMessage.warning('该出库单没有缺料，无需补发')
           return
         }
 
-        // 创建补发对话框数据
+        // 创建补发对话框数据（纯 camel）
         Object.assign(outboundForm, {
           id: outboundData.id,
-          outbound_no: outboundData.outbound_no + '-补发',
-          outbound_date: outboundData.outbound_date,
-          production_task_id: outboundData.production_task_id,
-          production_task_code: outboundData.production_task_code,
-          production_group_id: outboundData.production_group_id,
-          remark: (outboundData.remark || '') + ' [补发]',
-          items: shortageItems.map(item => ({
-            ...item,
-            quantity: parseFloat(item.shortage_quantity),
-            planned_quantity: item.planned_quantity,
-            actual_quantity: item.actual_quantity,
-            shortage_quantity: item.shortage_quantity,
-            stock_quantity: item.stock_quantity,
-            is_supplement: true
-          }))
+          outboundNo: (outboundData.outboundNo || '') + '-补发',
+          outboundDate: outboundData.outboundDate,
+          productionTaskId: outboundData.productionTaskId,
+          remarks: ((outboundData.remarks || '') + ' [补发]').trim(),
+          items: shortageItems.map(item => {
+            const shortage = parseFloat(item.shortageQuantity)
+            return {
+              id: item.id,
+              materialId: item.materialId,
+              materialCode: item.materialCode,
+              materialName: item.materialName,
+              specification: item.specification,
+              quantity: shortage,
+              plannedQuantity: item.plannedQuantity,
+              actualQuantity: item.actualQuantity,
+              shortageQuantity: shortage,
+              stockQuantity: item.stockQuantity,
+              unitId: item.unitId,
+              unitName: item.unitName,
+              locationId: item.locationId,
+              locationName: item.locationName,
+              isFromPlan: true,
+              isSupplement: true
+            }
+          })
         })
 
         _ensureTaskInOptions(outboundData, 'material_partial_issued')
@@ -1097,7 +1125,31 @@ export default {
 
         const outboundData = parseResponseData(res)
 
-        Object.assign(outboundForm, outboundData)
+        Object.assign(outboundForm, {
+          id: outboundData.id,
+          outboundNo: outboundData.outboundNo ?? '',
+          outboundDate: outboundData.outboundDate ?? new Date(),
+          status: outboundData.status || 'draft',
+          operator: outboundData.operatorName || outboundData.operator || authStore.realName || '系统用户',
+          remarks: outboundData.remarks ?? '',
+          productionTaskId: outboundData.productionTaskId ?? null,
+          items: (outboundData.items || []).map((item) => ({
+            id: item.id,
+            materialId: item.materialId,
+            materialCode: item.materialCode,
+            materialName: item.materialName,
+            specification: item.specification,
+            quantity: item.quantity,
+            unitId: item.unitId,
+            unitName: item.unitName,
+            batchNo: item.batchNo,
+            locationId: item.locationId,
+            locationName: item.locationName,
+            stockQuantity: item.stockQuantity,
+            remarks: item.remarks,
+            isFromPlan: item.isFromPlan
+          }))
+        })
 
         _ensureTaskInOptions(outboundData, 'pending')
 
@@ -1138,11 +1190,11 @@ export default {
           const insufficientList = []
 
           for (const item of items) {
-            const stockQty = parseFloat(item.stock_quantity || item.stockQuantity || 0)
+            const stockQty = parseFloat(item.stockQuantity || 0)
             const outQty = parseFloat(item.quantity || 0)
             if (outQty > stockQty) {
               insufficientList.push(
-                `${item.material_code || item.materialCode || '?'} (${item.material_name || item.materialName || '未知'}): 需出库 ${outQty}, 库存 ${stockQty}`
+                `${item.materialCode || '?'} (${item.materialName || '未知'}): 需出库 ${outQty}, 库存 ${stockQty}`
               )
             }
           }
@@ -1183,7 +1235,7 @@ export default {
       try {
         const res = await inventoryApi.cancelOutbound(row.id, { force })
         const data = parseResponseData(res, {})
-        const reissueNo = data.reissueOutbound?.outbound_no
+        const reissueNo = data.reissueOutbound?.outboundNo
         const financeErrors = data.financeReversal?.errors || []
 
         ElMessage.success(reissueNo ? `撤销重发成功，新出库单：${reissueNo}` : '撤销成功，库存已冲回')
@@ -1216,8 +1268,8 @@ export default {
 
     const handleCancelOutbound = async (row, force = false) => {
       const confirmMsg = force
-        ? `强制撤销重发警告：出库单 ${row.outbound_no} 关联的生产任务正在进行中，部分物料可能已被消耗。确定要强制撤销重发吗？`
-        : `确定要撤销重发出库单 ${row.outbound_no} 吗？系统会冲回原库存流水，将原单标记为已冲销，并按最新BOM生成新的草稿出库单。`
+        ? `强制撤销重发警告：出库单 ${row.outboundNo} 关联的生产任务正在进行中，部分物料可能已被消耗。确定要强制撤销重发吗？`
+        : `确定要撤销重发出库单 ${row.outboundNo} 吗？系统会冲回原库存流水，将原单标记为已冲销，并按最新BOM生成新的草稿出库单。`
 
       ElMessageBox.confirm(
         confirmMsg,
@@ -1251,23 +1303,23 @@ export default {
 
     // 处理添加物料 - 直接插入新行
     const handleAddItem = () => {
-      if (outboundForm.production_task_id) {
+      if (outboundForm.productionTaskId) {
         ElMessage.warning('已选择生产任务，无法手动添加物料')
         return
       }
 
       outboundForm.items.push({
-        material_id: '',
-        material_code: '',
-        material_name: '',
+        materialId: '',
+        materialCode: '',
+        materialName: '',
         specification: '',
         quantity: '',
-        unit_name: '',
-        unit_id: '',
-        location_name: '',
-        location_id: '',
-        stock_quantity: 0,
-        is_from_plan: false
+        unitName: '',
+        unitId: '',
+        locationName: '',
+        locationId: '',
+        stockQuantity: 0,
+        isFromPlan: false
       })
 
       // 聚焦到新添加行的物料输入框
@@ -1303,12 +1355,12 @@ export default {
           id: item.id,
           code: item.code || '无编码',
           name: item.name || '未命名',
-          specs: item.specification || '',
-          unit_name: item.unit_name || '个',
-          unit_id: item.unit_id,
-          location_name: item.location_name || '',
-          location_id: item.location_id,
-          stock_quantity: item.stock_quantity || 0
+          specs: item.specification || item.specs || '',
+          unitName: item.unitName || '个',
+          unitId: item.unitId,
+          locationName: item.locationName || '',
+          locationId: item.locationId,
+          stockQuantity: item.stockQuantity ?? item.stockQuantity ?? 0
         }))
 
         callback(suggestions)
@@ -1328,7 +1380,7 @@ export default {
 
       // 检查是否已经添加过该物料
       const existingIndex = outboundForm.items.findIndex((existingItem, idx) =>
-        idx !== index && existingItem.material_id === materialId
+        idx !== index && existingItem.materialId === materialId
       )
 
       if (existingIndex !== -1) {
@@ -1341,27 +1393,27 @@ export default {
       try {
         // 获取库存信息
         const stockRes = await inventoryApi.getStock({
-          material_id: materialId,
-          location_id: item.location_id
+          materialId: materialId,
+          locationId: item.locationId
         })
 
         const stockData = parseResponseData(stockRes, {})
         const stockQuantity = stockData.quantity !== undefined && stockData.quantity !== null
           ? parseFloat(stockData.quantity)
-          : (stockData.stock_quantity !== undefined && stockData.stock_quantity !== null)
-            ? parseFloat(stockData.stock_quantity)
+          : (stockData.stockQuantity !== undefined && stockData.stockQuantity !== null)
+            ? parseFloat(stockData.stockQuantity)
             : 0
 
-        // 更新物料信息
-        outboundForm.items[index].material_id = materialId
-        outboundForm.items[index].material_code = item.code
-        outboundForm.items[index].material_name = item.name
+        // 更新物料信息（纯 camel）
+        outboundForm.items[index].materialId = materialId
+        outboundForm.items[index].materialCode = item.code
+        outboundForm.items[index].materialName = item.name
         outboundForm.items[index].specification = item.specs
-        outboundForm.items[index].unit_name = item.unit_name
-        outboundForm.items[index].unit_id = item.unit_id
-        outboundForm.items[index].location_name = item.location_name
-        outboundForm.items[index].location_id = item.location_id
-        outboundForm.items[index].stock_quantity = stockQuantity
+        outboundForm.items[index].unitName = item.unitName
+        outboundForm.items[index].unitId = item.unitId
+        outboundForm.items[index].locationName = item.locationName
+        outboundForm.items[index].locationId = item.locationId
+        outboundForm.items[index].stockQuantity = stockQuantity
 
         // 选择物料后，自动聚焦到数量输入框
         nextTick(() => {
@@ -1378,7 +1430,7 @@ export default {
 
     // 处理物料输入框回车
     const handleMaterialEnter = (index) => {
-      if (outboundForm.items[index].material_id) {
+      if (outboundForm.items[index].materialId) {
         const quantityInput = quantityInputRefs.value[index]
         if (quantityInput) {
           quantityInput.focus()
@@ -1388,21 +1440,21 @@ export default {
 
     // 处理物料清除
     const handleMaterialClear = (index) => {
-      outboundForm.items[index].material_id = ''
-      outboundForm.items[index].material_code = ''
-      outboundForm.items[index].material_name = ''
+      outboundForm.items[index].materialId = ''
+      outboundForm.items[index].materialCode = ''
+      outboundForm.items[index].materialName = ''
       outboundForm.items[index].specification = ''
-      outboundForm.items[index].unit_name = ''
-      outboundForm.items[index].unit_id = ''
-      outboundForm.items[index].location_name = ''
-      outboundForm.items[index].location_id = ''
-      outboundForm.items[index].stock_quantity = 0
+      outboundForm.items[index].unitName = ''
+      outboundForm.items[index].unitId = ''
+      outboundForm.items[index].locationName = ''
+      outboundForm.items[index].locationId = ''
+      outboundForm.items[index].stockQuantity = 0
     }
 
     // 处理数量输入框回车
     const handleQuantityEnter = (index) => {
       // 如果是最后一行，添加新行
-      if (index === outboundForm.items.filter(item => !item.is_from_plan).length - 1) {
+      if (index === outboundForm.items.filter(item => !item.isFromPlan).length - 1) {
         handleAddItem()
       } else {
         // 否则跳转到下一行的物料输入框
@@ -1428,14 +1480,14 @@ export default {
       // 补发模式下跳过库存检查
       if (dialogType.value === 'supplement') {
         // 补发模式下只检查不能超过缺料数量
-        const maxQuantity = row.shortage_quantity || 9999
+        const maxQuantity = row.shortageQuantity ?? 9999
         if (row.quantity > maxQuantity) {
           row.quantity = maxQuantity
           ElMessage.warning(`补发数量不能超过缺料数量 ${maxQuantity}`)
         }
       } else {
         // 非补发模式下检查是否超过库存
-        const maxQuantity = row.stock_quantity || row.stockQuantity || 9999
+        const maxQuantity = row.stockQuantity ?? 9999
         if (row.quantity > maxQuantity) {
           row.quantity = maxQuantity
           ElMessage.warning(`出库数量不能超过库存数量 ${maxQuantity}`)
@@ -1451,21 +1503,23 @@ export default {
       }
 
       for (const item of outboundForm.items) {
+        const materialName = item.materialName || item.materialCode || '物料'
         if (!item.quantity || item.quantity <= 0) {
-          ElMessage.warning(`${item.material_name} 的出库数量必须大于0`)
+          ElMessage.warning(`${materialName} 的出库数量必须大于0`)
           return false
         }
 
-        if (!item.location_id) {
-          ElMessage.warning(`${item.material_name || item.material_code || '物料'} 未配置默认库位，请先维护物料库位`)
+        if (!item.locationId) {
+          ElMessage.warning(`${materialName} 未配置默认库位，请先维护物料库位`)
           return false
         }
 
         // 补发模式下跳过库存检查,因为后端支持预扣库存冲正
         if (dialogType.value === 'supplement') {
+          const shortage = item.shortageQuantity
           // 补发模式下只检查补发数量不能超过缺料数量
-          if (item.shortage_quantity && item.quantity > parseFloat(item.shortage_quantity)) {
-            ElMessage.warning(`${item.material_name} 的补发数量不能超过缺料数量(${item.shortage_quantity})`)
+          if (shortage && item.quantity > parseFloat(shortage)) {
+            ElMessage.warning(`${materialName} 的补发数量不能超过缺料数量(${shortage})`)
             return false
           }
           continue
@@ -1487,12 +1541,12 @@ export default {
       // 重置表单数据为初始状态
       Object.assign(outboundForm, {
         id: null,
-        outbound_no: '',
-        outbound_date: new Date(),
+        outboundNo: '',
+        outboundDate: new Date(),
         status: 'draft',
         operator: authStore.realName || '系统用户',
-        remark: '',
-        production_task_id: null,
+        remarks: '',
+        productionTaskId: null,
         items: []
       })
 
@@ -1518,28 +1572,42 @@ export default {
 
         submitting.value = true
 
-        // 格式化表单数据
+        // 格式化表单数据（纯 camel）
         const dataToSubmit = retryData || {
-          ...outboundForm,
-          outbound_date: formatDate(outboundForm.outbound_date)
+          id: outboundForm.id,
+          outboundNo: outboundForm.outboundNo,
+          outboundDate: formatDate(outboundForm.outboundDate),
+          status: outboundForm.status,
+          operator: outboundForm.operator,
+          remarks: outboundForm.remarks,
+          productionTaskId: outboundForm.productionTaskId,
+          items: (outboundForm.items || []).map((item) => ({
+            id: item.id,
+            materialId: item.materialId,
+            quantity: item.quantity,
+            unitId: item.unitId,
+            batchNo: item.batchNo,
+            locationId: item.locationId,
+            remarks: item.remarks
+          }))
         }
 
         // 提交数据
         if (dialogType.value === 'add') {
           // 根据是否关联生产任务自动标记出库类型
-          dataToSubmit.outbound_type = dataToSubmit.production_task_id ? 'bom_issue' : 'manual'
+          dataToSubmit.outboundType = dataToSubmit.productionTaskId ? 'bom_issue' : 'manual'
           await inventoryApi.createOutbound(dataToSubmit)
           ElMessage.success('创建出库单成功')
         } else if (dialogType.value === 'supplement') {
           // 补发模式：调用补发API
           const supplementData = {
-            outbound_id: dataToSubmit.id,
-            outbound_date: dataToSubmit.outbound_date,
-            remark: dataToSubmit.remark,
+            outboundId: dataToSubmit.id,
+            outboundDate: dataToSubmit.outboundDate,
+            remarks: dataToSubmit.remarks,
             items: dataToSubmit.items.map(item => ({
-              material_id: item.material_id,
+              materialId: item.materialId,
               quantity: item.quantity,
-              outbound_item_id: item.id // 原出库单明细ID
+              outboundItemId: item.id // 原出库单明细ID
             }))
           }
           await inventoryApi.supplementOutbound(dataToSubmit.id, supplementData)
@@ -1589,8 +1657,25 @@ export default {
               inputErrorMessage: '原因不能为空'
             }).then(({ value }) => {
               handleSubmit({
-                ...(retryData || outboundForm),
-                outbound_date: formatDate(outboundForm.outbound_date),
+                ...(retryData || {
+                  id: outboundForm.id,
+                  outboundNo: outboundForm.outboundNo,
+                  outboundDate: formatDate(outboundForm.outboundDate),
+                  status: outboundForm.status,
+                  operator: outboundForm.operator,
+                  remarks: outboundForm.remarks,
+                  productionTaskId: outboundForm.productionTaskId,
+                  items: (outboundForm.items || []).map((item) => ({
+                    id: item.id,
+                    materialId: item.materialId,
+                    quantity: item.quantity,
+                    unitId: item.unitId,
+                    batchNo: item.batchNo,
+                    locationId: item.locationId,
+                    remarks: item.remarks
+                  }))
+                }),
+                outboundDate: formatDate(outboundForm.outboundDate),
                 allowExcess: true,
                 issueReason: value
               });
@@ -1687,26 +1772,28 @@ export default {
       }
     }
 
+    // 业务侧只传 camel；printService.normalizePrintData 会展开 snake 模板占位
     const buildProductionOutboundPrintData = (outbound) => ({
-      outbound_no: outbound.outbound_no || '',
-      outbound_date: formatDate(outbound.outbound_date),
-      outbound_type_text: '生产出库',
-      operator: outbound.operator || outbound.operator_name || '',
-      production_plan_code: outbound.production_plan_code || '',
+      outboundNo: outbound.outboundNo || '',
+      outboundDate: formatDate(outbound.outboundDate),
+      outboundTypeText: '生产出库',
+      operator: outbound.operatorName || outbound.operator || '',
+      productionPlanCode: outbound.productionTaskCode || outbound.productionPlanCode || '',
       status: outbound.status === 'completed' ? '已完成' : (outbound.status || ''),
-      remark: outbound.remark || '无',
-      print_time: new Date().toLocaleString(),
+      remarks: outbound.remarks || '无',
+      remark: outbound.remarks || '无',
+      printTime: new Date().toLocaleString(),
       items: (outbound.items || []).map((item, index) => ({
         index: index + 1,
-        material_code: item.material_code || '',
-        material_name: item.material_name || '',
-        specification: item.specification || item.specs || '',
-        unit_name: item.unit_name || item.unit || '',
-        planned_quantity: parseFloat(item.planned_quantity ?? item.quantity ?? 0).toFixed(2),
-        actual_quantity: parseFloat(item.actual_quantity ?? item.quantity ?? 0).toFixed(2),
-        shortage_quantity: parseFloat(item.shortage_quantity ?? 0).toFixed(2),
-        quantity: parseFloat(item.actual_quantity ?? item.quantity ?? 0).toFixed(2),
-        location_name: item.location_name || ''
+        materialCode: item.materialCode || '',
+        materialName: item.materialName || '',
+        specification: item.specification || '',
+        unitName: item.unitName || item.unit || '',
+        plannedQuantity: parseFloat(item.plannedQuantity ?? item.quantity ?? 0).toFixed(2),
+        actualQuantity: parseFloat(item.actualQuantity ?? item.quantity ?? 0).toFixed(2),
+        shortageQuantity: parseFloat(item.shortageQuantity ?? 0).toFixed(2),
+        quantity: parseFloat(item.actualQuantity ?? item.quantity ?? 0).toFixed(2),
+        locationName: item.locationName || ''
       }))
     })
 
@@ -1730,7 +1817,7 @@ export default {
       try {
         const bomRes = await baseDataApi.getBoms({
           params: {
-            product_id: productId,
+            productId,
             page: 1,
             pageSize: 10
           }
@@ -1771,12 +1858,12 @@ export default {
     const handleProductionPlanChange = async (taskId) => {
       if (!taskId) {
         outboundForm.items = []
-        outboundForm.production_task_id = null
+        outboundForm.productionTaskId = null
         return
       }
 
       // 设置生产任务ID
-      outboundForm.production_task_id = taskId
+      outboundForm.productionTaskId = taskId
 
       try {
         // 获取选中的生产任务
@@ -1796,8 +1883,8 @@ export default {
         // 获取BOM信息和明细
         let bomData, details
         try {
-          bomData = await fetchBomData(selectedTask.product_id)
-          details = await fetchBomDetails(bomData, selectedTask.product_id, selectedTask.quantity)
+          bomData = await fetchBomData(selectedTask.productId)
+          details = await fetchBomDetails(bomData, selectedTask.productId, selectedTask.quantity)
         } catch (error) {
           ElMessage({
             message: error.message || '获取BOM信息失败',
@@ -1809,8 +1896,7 @@ export default {
         }
 
         // 获取库存信息 - 使用批量查询优化性能
-        // 首先获取所有物料的详细信息（包括默认库位）
-        const materialIds = [...new Set(details.map(detail => detail.materialId || detail.material_id).filter(id => id))]
+        const materialIds = [...new Set(details.map(detail => detail.materialId).filter(id => id))]
 
         if (materialIds.length === 0) {
           ElMessage.warning('BOM中没有有效的物料信息')
@@ -1835,10 +1921,10 @@ export default {
 
           // 构建批量库存查询参数
           const stockQueries = materialsInfo
-            .filter(material => material.location_id) // 只查询有默认库位的物料
+            .filter(material => material.locationId)
             .map(material => ({
               materialId: material.id,
-              locationId: material.location_id
+              locationId: material.locationId
             }))
 
           // 批量获取库存信息
@@ -1850,25 +1936,27 @@ export default {
             }
           }
 
-          // 构建物料ID到信息的映射
+          // 构建物料ID到信息的映射（纯 camel）
           materialsInfo.forEach(material => {
             materialInfoMap.set(material.id, {
-              material_code: material.code,
-              material_name: material.name,
+              materialCode: material.code,
+              materialName: material.name,
               specification: material.specs || material.specification || '',
-              unit_id: material.unit_id,
-              unit_name: material.unit_name,
-              location_id: material.location_id,
-              location_name: material.location_name
+              unitId: material.unitId,
+              unitName: material.unitName,
+              locationId: material.locationId,
+              locationName: material.locationName
             })
           })
 
           // 构建物料ID到库存的映射
           stockResults.forEach(stock => {
-            const key = `${stock.material_id}_${stock.location_id}`
+            const mid = stock.materialId ?? stock.materialId
+            const lid = stock.locationId ?? stock.locationId
+            const key = `${mid}_${lid}`
             stockMap.set(key, {
               quantity: parseFloat(stock.quantity || 0),
-              stock_quantity: parseFloat(stock.stock_quantity || 0)
+              stockQuantity: parseFloat(stock.stockQuantity ?? stock.stock_quantity ?? stock.quantity ?? 0)
             })
           })
 
@@ -1879,67 +1967,49 @@ export default {
           return
         }
 
-        // 更新出库单明细
+        // 更新出库单明细（纯 camel）
         outboundForm.items = details.map(detail => {
-          // 标准化物料ID字段，可能是materialId或material_id
-          const materialId = detail.materialId || detail.material_id
-
-          // 从物料信息映射中获取物料基本信息
+          const materialId = detail.materialId
           const materialInfo = materialInfoMap.get(materialId) || {}
 
-          // 标准化数量字段，尝试从不同的字段获取BOM用量
-          let bomQuantity = 0
-          if (typeof detail.quantity !== 'undefined') {
-            bomQuantity = detail.quantity
-          } else if (typeof detail.bom_quantity !== 'undefined') {
-            bomQuantity = detail.bom_quantity
-          } else if (typeof detail.bomQuantity !== 'undefined') {
-            bomQuantity = detail.bomQuantity
-          } else if (typeof detail.unitQuantity !== 'undefined') {
-            bomQuantity = detail.unitQuantity
-          }
+          // BOM 用量：优先净需求 API 的 unitQuantity / bomQuantity
+          const bomQuantity = detail.unitQuantity ?? detail.bomQuantity ?? detail.quantity ?? 0
 
-          // 生产出库以统一净需求为准；只有旧格式明细才回退到 BOM 用量换算
-          const requiredQuantity = detail.requiredQuantity ?? detail.required_quantity ?? (selectedTask.quantity * bomQuantity)
-          const issueQuantity = detail.issueQuantity ?? detail.issue_quantity ?? detail.actualQuantity ?? detail.actual_quantity ?? requiredQuantity
-          const shortageQuantity = detail.shortageQuantity ?? detail.shortage_quantity ?? Math.max(0, requiredQuantity - issueQuantity)
-          const grossRequiredQuantity = detail.grossRequiredQuantity ?? detail.gross_required_quantity ?? requiredQuantity
+          // 生产出库以统一净需求为准
+          const requiredQuantity = detail.requiredQuantity ?? (selectedTask.quantity * bomQuantity)
+          const issueQuantity = detail.issueQuantity ?? detail.actualQuantity ?? requiredQuantity
+          const shortageQuantity = detail.shortageQuantity ?? Math.max(0, requiredQuantity - issueQuantity)
+          const grossRequiredQuantity = detail.grossRequiredQuantity ?? requiredQuantity
 
-          // 获取该物料的库存信息
-          const stockKey = materialInfo.location_id ? `${materialId}_${materialInfo.location_id}` : null
-          const stockInfo = stockKey ? (stockMap.get(stockKey) || { quantity: 0, stock_quantity: 0 }) : { quantity: 0, stock_quantity: 0 }
+          const stockKey = materialInfo.locationId ? `${materialId}_${materialInfo.locationId}` : null
+          const stockInfo = stockKey
+            ? (stockMap.get(stockKey) || { quantity: 0, stockQuantity: 0 })
+            : { quantity: 0, stockQuantity: 0 }
 
-          // 将原始物料数据合并，确保规格等信息正确保留
-          const materialData = {
-            material_id: materialId,
-            material_code: materialInfo.material_code || detail.materialCode || detail.material_code || detail.code,
-            material_name: materialInfo.material_name || detail.materialName || detail.material_name || detail.name,
-            // 优先使用物料信息中的规格字段
-            specification: materialInfo.specification || detail.specification || detail.specs || '',
-            unit_id: materialInfo.unit_id || detail.unitId || detail.unit_id,
-            unit_name: materialInfo.unit_name || detail.unitName || detail.unit_name || detail.unit,
-            stock_quantity: stockInfo.stock_quantity,
-            // 使用计算后的数量作为出库数量
+          return {
+            materialId,
+            materialCode: materialInfo.materialCode || detail.materialCode || detail.code,
+            materialName: materialInfo.materialName || detail.materialName || detail.name,
+            specification: materialInfo.specification || detail.specification || '',
+            unitId: materialInfo.unitId || detail.unitId,
+            unitName: materialInfo.unitName || detail.unitName || detail.unit,
+            stockQuantity: stockInfo.stockQuantity,
             quantity: requiredQuantity,
-            planned_quantity: requiredQuantity,
-            actual_quantity: issueQuantity,
-            shortage_quantity: shortageQuantity,
-            gross_required_quantity: grossRequiredQuantity,
-            // 确保保存正确的BOM用量
-            bom_quantity: bomQuantity,
-            // 添加库位信息
-            location_id: materialInfo.location_id,
-            location_name: materialInfo.location_name,
-            is_from_plan: true
+            plannedQuantity: requiredQuantity,
+            actualQuantity: issueQuantity,
+            shortageQuantity,
+            grossRequiredQuantity,
+            bomQuantity,
+            locationId: materialInfo.locationId,
+            locationName: materialInfo.locationName,
+            isFromPlan: true
           }
-
-          return materialData
         })
 
-        const shortageItems = outboundForm.items.filter(item => Number(item.shortage_quantity || 0) > 0)
+        const shortageItems = outboundForm.items.filter(item => Number(item.shortageQuantity || 0) > 0)
         if (shortageItems.length > 0) {
           const warningMessages = shortageItems.map(item =>
-            `${item.material_code} - ${item.material_name}: 计划 ${item.planned_quantity}，可发 ${item.actual_quantity}，缺料 ${item.shortage_quantity}`
+            `${item.materialCode} - ${item.materialName}: 计划 ${item.plannedQuantity}，可发 ${item.actualQuantity}，缺料 ${item.shortageQuantity}`
           )
 
           ElMessage({
@@ -2023,23 +2093,23 @@ export default {
         const outboundNos = []
 
         for (const detail of outboundDetails) {
-          outboundNos.push(detail.outbound_no)
+          outboundNos.push(detail.outboundNo)
 
           if (detail.items && detail.items.length > 0) {
             for (const item of detail.items) {
-              const key = `${item.material_code}_${item.material_name}_${item.specification}_${item.unit_name}`
+              const key = `${item.materialCode}_${item.materialName}_${item.specification}_${item.unitName}`
 
               if (materialMap.has(key)) {
                 // 物料已存在，累加数量
                 const existing = materialMap.get(key)
                 existing.quantity = parseFloat(existing.quantity) + parseFloat(item.quantity || 0)
               } else {
-                // 新物料
+                // 新物料（纯 camel，供 buildProductionOutboundPrintData 读取）
                 materialMap.set(key, {
-                  material_code: item.material_code,
-                  material_name: item.material_name,
+                  materialCode: item.materialCode,
+                  materialName: item.materialName,
                   specification: item.specification,
-                  unit_name: item.unit_name,
+                  unitName: item.unitName,
                   quantity: parseFloat(item.quantity || 0)
                 })
               }
@@ -2050,12 +2120,12 @@ export default {
         // 转换为数组
         const mergedItems = Array.from(materialMap.values())
 
-        // 创建合并后的出库单数据
+        // 创建合并后的出库单数据（纯 camel）
         const mergedOutbound = {
-          outbound_no: outboundNos.join(', '),
-          outbound_date: outboundDetails[0].outbound_date,
-          operator: outboundDetails[0].operator || outboundDetails[0].operator_name,
-          remark: `批量打印 (${selectedOutbounds.value.length}个出库单)`,
+          outboundNo: outboundNos.join(', '),
+          outboundDate: outboundDetails[0].outboundDate,
+          operatorName: outboundDetails[0].operatorName || outboundDetails[0].operator,
+          remarks: `批量打印 (${selectedOutbounds.value.length}个出库单)`,
           items: mergedItems
         }
 

@@ -47,19 +47,21 @@ import { API_CONFIG } from '../config/app';
  */
 
 /**
- * 会计分录数据
+ * 会计分录数据（HTTP camelCase）
  * @typedef {Object} EntryData
- * @property {string} document_number - 凭证号
- * @property {string} entry_date - 记账日期
+ * @property {string} documentNumber - 凭证号
+ * @property {string} entryDate - 记账日期
  * @property {string} [description] - 摘要
- * @property {Array<{account_id: number, debit: number, credit: number, description?: string}>} items - 分录行
+ * @property {Array<{accountId: number, debit: number, credit: number, description?: string}>} items - 分录行
  */
 
 /**
- * 冲销数据
+ * 冲销数据（HTTP camelCase）
  * @typedef {Object} ReversalData
  * @property {string} [reason] - 冲销原因
- * @property {string} [reversal_date] - 冲销日期
+ * @property {string} [reversalDate] - 冲销日期
+ * @property {string} [entryDate] - 冲销记账日期
+ * @property {string} [postingDate] - 过账日期
  */
 
 export const financeApi = {

@@ -33,23 +33,23 @@
       <!-- 主要工资明细表 -->
       <el-table :data="tableData" border v-loading="loading" class="w-full" height="calc(100vh - 250px)">
         <el-table-column type="index" label="序号" width="60" fixed />
-        <el-table-column prop="employee_no" label="工号" width="100" fixed show-overflow-tooltip />
-        <el-table-column prop="employee_name" label="姓名" width="100" fixed />
+        <el-table-column prop="employeeNo" label="工号" width="100" fixed show-overflow-tooltip />
+        <el-table-column prop="employeeName" label="姓名" width="100" fixed />
 
         <!-- 左侧: 薪酬明细 -->
         <el-table-column label="薪酬计算明细">
-          <el-table-column prop="base_salary" label="基本工资" width="100" />
-          <el-table-column prop="daily_wage" label="日工资" width="80" :formatter="fmt" />
-          <el-table-column prop="overtime_pay" label="加班费" width="90" />
-          <el-table-column prop="position_allowance" label="职位/外补" width="90" />
-          <el-table-column prop="housing_allowance" label="房补/交补" width="90" />
-          <el-table-column prop="meal_allowance" label="餐补" width="90" />
-          <el-table-column prop="full_attendance_bonus" label="满勤奖" width="80" />
-          <el-table-column prop="leave_deduction" label="缺勤扣款" width="90" />
-          <el-table-column prop="gross_salary" label="应发项" width="100" class-name="gross-col" />
+          <el-table-column prop="baseSalary" label="基本工资" width="100" />
+          <el-table-column prop="dailyWage" label="日工资" width="80" :formatter="fmt" />
+          <el-table-column prop="overtimePay" label="加班费" width="90" />
+          <el-table-column prop="positionAllowance" label="职位/外补" width="90" />
+          <el-table-column prop="housingAllowance" label="房补/交补" width="90" />
+          <el-table-column prop="mealAllowance" label="餐补" width="90" />
+          <el-table-column prop="fullAttendanceBonus" label="满勤奖" width="80" />
+          <el-table-column prop="leaveDeduction" label="缺勤扣款" width="90" />
+          <el-table-column prop="grossSalary" label="应发项" width="100" class-name="gross-col" />
           <el-table-column prop="pension" label="扣社保" width="90" />
-          <el-table-column prop="housing_fund" label="扣公积金" width="90" />
-          <el-table-column prop="net_salary" label="纯实发" width="110" class-name="net-col" fixed="right"/>
+          <el-table-column prop="housingFund" label="扣公积金" width="90" />
+          <el-table-column prop="netSalary" label="纯实发" width="110" class-name="net-col" fixed="right"/>
         </el-table-column>
 
         <!-- 操作 -->

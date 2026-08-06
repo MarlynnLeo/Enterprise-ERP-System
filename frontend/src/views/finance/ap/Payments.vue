@@ -123,9 +123,10 @@
     </el-card>
 
     <!-- 添加/编辑对话框 -->
-    <el-dialog
-      :title="dialogTitle"
+    <AppDialog
       v-model="dialogVisible"
+      :title="dialogTitle"
+      mode="form"
       width="600px"
     >
       <el-form :model="paymentForm" :rules="paymentRules" ref="paymentFormRef" label-width="100px">
@@ -234,7 +235,7 @@
           <el-button v-permission="'finance:ap:pay'" type="primary" @click="savePayment" :loading="saveLoading">确认</el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
     <!-- 详情对话框 -->
     <AppDialog
       v-model="detailDialogVisible"
@@ -255,16 +256,17 @@
 
         <!-- 如果已作废，显示作废信息 -->
         <template v-if="detailData.status === 'void'">
-          <el-descriptions-item label="作废时间">{{ detailData.voided_at }}</el-descriptions-item>
-          <el-descriptions-item label="作废人">{{ detailData.voided_by_name || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="作废原因" :span="2">{{ detailData.void_reason }}</el-descriptions-item>
+          <el-descriptions-item label="作废时间">{{ detailData.voidedAt }}</el-descriptions-item>
+          <el-descriptions-item label="作废人">{{ detailData.voidedByName || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="作废原因" :span="2">{{ detailData.voidReason }}</el-descriptions-item>
         </template>
       </el-descriptions>
     </AppDialog>
     <!-- 作废对话框 -->
-    <el-dialog
-      title="作废付款记录"
+    <AppDialog
       v-model="voidDialogVisible"
+      title="作废付款记录"
+      mode="form"
       width="500px"
     >
       <el-alert
@@ -308,7 +310,7 @@
           <el-button v-permission="'finance:ap:update'" type="danger" @click="confirmVoid" :loading="voidLoading">确认作废</el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
     <!-- 打印预览对话框 -->
     <PrintDialog
       v-model="printDialogVisible"
@@ -621,26 +623,25 @@ const handlePrint = async (row) => {
     const payment = response.data;
     const operatorName =
       authStore.realName ||
-      authStore.user?.real_name ||
+      authStore.user?.realName ||
       authStore.user?.realName ||
       authStore.user?.name ||
       authStore.user?.username ||
       '-';
     // 准备打印数据
     printData.value = {
-      payment_number: payment.paymentNumber,
-      payment_date: payment.paymentDate,
-      supplier_name: payment.supplierName,
-      payment_method: getPaymentMethodText(payment.paymentMethod),
-      // 如果没有具体的银行账户信息，显示"-"
-      bank_account_name: payment.bankAccountName || '-',
-      bank_account_number: payment.bankAccountNumber || '',
+      paymentNumber: payment.paymentNumber,
+      paymentDate: payment.paymentDate,
+      supplierName: payment.supplierName,
+      paymentMethod: getPaymentMethodText(payment.paymentMethod),
+      bankAccountName: payment.bankAccountName || '-',
+      bankAccountNumber: payment.bankAccountNumber || '',
       amount: payment.amount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-      amount_upper: NumberFormatter.digitUppercase(payment.amount), // 使用工具类转换金额大写
-      invoice_number: payment.invoiceNumber || '-',
+      amountUpper: NumberFormatter.digitUppercase(payment.amount),
+      invoiceNumber: payment.invoiceNumber || '-',
       notes: payment.notes || '',
       operator: operatorName,
-      print_time: new Date().toLocaleString()
+      printTime: new Date().toLocaleString()
     };
     printDialogVisible.value = true;
   } catch (error) {

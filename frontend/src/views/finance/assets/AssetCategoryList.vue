@@ -38,23 +38,23 @@
         <el-table-column prop="name" label="类别名称" width="180" show-overflow-tooltip></el-table-column>
         <el-table-column label="折旧年限" width="100">
           <template #default="scope">
-            {{ scope.row.default_useful_life }} 年
+            {{ scope.row.defaultUsefulLife }} 年
           </template>
         </el-table-column>
         <el-table-column label="折旧方法" width="140">
           <template #default="scope">
-            {{ getDepreciationMethodText(scope.row.default_depreciation_method) }}
+            {{ getDepreciationMethodText(scope.row.defaultDepreciationMethod) }}
           </template>
         </el-table-column>
         <el-table-column label="残值率" width="100">
           <template #default="scope">
-            {{ scope.row.default_salvage_rate }}%
+            {{ scope.row.defaultSalvageRate }}%
           </template>
         </el-table-column>
         <el-table-column prop="description" label="描述" min-width="180" show-overflow-tooltip></el-table-column>
-        <el-table-column prop="asset_count" label="资产数量" width="100">
+        <el-table-column prop="assetCount" label="资产数量" width="100">
           <template #default="scope">
-            <el-tag v-if="scope.row.asset_count > 0" type="success" size="small">{{ scope.row.asset_count }}</el-tag>
+            <el-tag v-if="scope.row.assetCount > 0" type="success" size="small">{{ scope.row.assetCount }}</el-tag>
             <span v-else class="text-muted">0</span>
           </template>
         </el-table-column>
@@ -67,7 +67,7 @@
               @confirm="handleDelete(scope.row.id)"
             >
               <template #reference>
-                <el-button v-permission="'finance:assets:delete'" size="small" type="danger" :disabled="scope.row.asset_count > 0" :title="scope.row.asset_count > 0 ? '该类别下有资产，不可删除' : ''">删除</el-button>
+                <el-button v-permission="'finance:assets:delete'" size="small" type="danger" :disabled="scope.row.assetCount > 0" :title="scope.row.assetCount > 0 ? '该类别下有资产，不可删除' : ''">删除</el-button>
               </template>
             </el-popconfirm>
           </template>
@@ -90,9 +90,10 @@
     </el-card>
 
     <!-- 添加/编辑对话框 -->
-    <el-dialog
-      :title="dialogTitle"
+    <AppDialog
       v-model="dialogVisible"
+      :title="dialogTitle"
+      mode="form"
       width="500px"
     >
       <el-form :model="categoryForm" :rules="categoryRules" ref="categoryFormRef" label-width="100px">
@@ -102,10 +103,10 @@
         <el-form-item label="类别编码" prop="code">
           <el-input v-model="categoryForm.code" placeholder="请输入类别编码"></el-input>
         </el-form-item>
-        <el-form-item label="折旧年限" prop="default_useful_life">
+        <el-form-item label="折旧年限" prop="defaultUsefulLife">
           <el-input-number v-model="categoryForm.default_useful_life" :min="1" :max="50" class="w-full"></el-input-number>
         </el-form-item>
-        <el-form-item label="折旧方法" prop="default_depreciation_method">
+        <el-form-item label="折旧方法" prop="defaultDepreciationMethod">
           <el-select v-model="categoryForm.default_depreciation_method" placeholder="请选择折旧方法" class="w-full">
             <el-option label="直线法" value="straight_line"></el-option>
             <el-option label="双倍余额递减法" value="double_declining"></el-option>
@@ -113,7 +114,7 @@
             <el-option label="不计提折旧" value="no_depreciation"></el-option>
           </el-select>
         </el-form-item>
-        <el-form-item label="默认残值率" prop="default_salvage_rate">
+        <el-form-item label="默认残值率" prop="defaultSalvageRate">
           <el-input-number
             v-model="categoryForm.default_salvage_rate"
             :precision="2"
@@ -138,7 +139,7 @@
           <el-button v-permission="categoryForm.id ? 'finance:assets:update' : 'finance:assets:create'" type="primary" @click="saveCategory" :loading="saveLoading">确认</el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
   </div>
 </template>
 

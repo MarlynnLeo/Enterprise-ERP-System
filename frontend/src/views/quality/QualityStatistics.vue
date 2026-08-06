@@ -75,7 +75,7 @@
                   </div>
                   <div class="cost-info">
                     <div class="cost-label">返工成本</div>
-                    <div class="cost-value">{{ formatCost(costData.rework_cost) }}</div>
+                    <div class="cost-value">{{ formatCost(costData.reworkCost) }}</div>
                     <div class="cost-count">{{ costData.rework_count || 0 }} 次返工</div>
                   </div>
                 </div>
@@ -87,7 +87,7 @@
                   </div>
                   <div class="cost-info">
                     <div class="cost-label">报废成本</div>
-                    <div class="cost-value">{{ formatCost(costData.scrap_cost) }}</div>
+                    <div class="cost-value">{{ formatCost(costData.scrapCost) }}</div>
                     <div class="cost-count">{{ costData.scrap_count || 0 }} 次报废</div>
                   </div>
                 </div>
@@ -123,13 +123,13 @@
 
       <el-table :data="supplierData" border class="w-full">
         <el-table-column type="index" label="排名" width="60" />
-        <el-table-column prop="supplier_name" label="供应商名称" min-width="200" />
-        <el-table-column prop="ncp_count" label="不合格次数" width="120" sortable />
-        <el-table-column prop="total_defect_quantity" label="不合格数量" width="120" sortable />
-        <el-table-column prop="affected_materials" label="涉及物料数" width="120" sortable />
-        <el-table-column prop="return_count" label="退货次数" width="100" />
-        <el-table-column prop="replacement_count" label="换货次数" width="100" />
-        <el-table-column prop="scrap_count" label="报废次数" width="100" />
+        <el-table-column prop="supplierName" label="供应商名称" min-width="200" />
+        <el-table-column prop="ncpCount" label="不合格次数" width="120" sortable />
+        <el-table-column prop="totalDefectQuantity" label="不合格数量" width="120" sortable />
+        <el-table-column prop="affectedMaterials" label="涉及物料数" width="120" sortable />
+        <el-table-column prop="returnCount" label="退货次数" width="100" />
+        <el-table-column prop="replacementCount" label="换货次数" width="100" />
+        <el-table-column prop="scrapCount" label="报废次数" width="100" />
       </el-table>
     </el-card>
 
@@ -138,11 +138,11 @@
 
       <el-table :data="materialData" border class="w-full">
         <el-table-column type="index" label="排名" width="60" />
-        <el-table-column prop="material_code" label="物料编码" width="150" />
-        <el-table-column prop="material_name" label="物料名称" min-width="200" />
-        <el-table-column prop="ncp_count" label="不合格次数" width="120" sortable />
-        <el-table-column prop="total_defect_quantity" label="不合格数量" width="120" sortable />
-        <el-table-column prop="defect_types" label="缺陷类型" min-width="200" show-overflow-tooltip />
+        <el-table-column prop="materialCode" label="物料编码" width="150" />
+        <el-table-column prop="materialName" label="物料名称" min-width="200" />
+        <el-table-column prop="ncpCount" label="不合格次数" width="120" sortable />
+        <el-table-column prop="totalDefectQuantity" label="不合格数量" width="120" sortable />
+        <el-table-column prop="defectTypes" label="缺陷类型" min-width="200" show-overflow-tooltip />
       </el-table>
     </el-card>
   </div>
@@ -398,7 +398,7 @@ const renderTrendChart = () => {
       {
         name: '总数',
         type: 'line',
-        data: chartData.map(item => item.total_count),
+        data: chartData.map(item => item.totalCount),
         smooth: true,
         lineStyle: { width: 3 },
         areaStyle: { opacity: 0.05 }
@@ -406,31 +406,31 @@ const renderTrendChart = () => {
       {
         name: '退货',
         type: 'line',
-        data: chartData.map(item => item.return_count),
+        data: chartData.map(item => item.returnCount),
         smooth: true
       },
       {
         name: '换货',
         type: 'line',
-        data: chartData.map(item => item.replacement_count),
+        data: chartData.map(item => item.replacementCount),
         smooth: true
       },
       {
         name: '返工',
         type: 'line',
-        data: chartData.map(item => item.rework_count),
+        data: chartData.map(item => item.reworkCount),
         smooth: true
       },
       {
         name: '报废',
         type: 'line',
-        data: chartData.map(item => item.scrap_count),
+        data: chartData.map(item => item.scrapCount),
         smooth: true
       },
       {
         name: '让步接收',
         type: 'line',
-        data: chartData.map(item => item.use_as_is_count),
+        data: chartData.map(item => item.useAsIsCount),
         smooth: true
       }
     ]

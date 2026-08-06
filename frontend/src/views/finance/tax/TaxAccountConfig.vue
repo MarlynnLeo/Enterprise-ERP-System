@@ -16,10 +16,10 @@
       </template>
 
       <el-table :data="configs" v-loading="loading" border stripe>
-        <el-table-column prop="config_key" label="配置键" width="200" />
-        <el-table-column prop="config_name" label="配置名称" width="200" />
-        <el-table-column prop="account_code" label="科目代码" width="150" />
-        <el-table-column prop="account_name" label="科目名称" width="200" />
+        <el-table-column prop="configKey" label="配置键" width="200" />
+        <el-table-column prop="configName" label="配置名称" width="200" />
+        <el-table-column prop="accountCode" label="科目代码" width="150" />
+        <el-table-column prop="accountName" label="科目名称" width="200" />
         <el-table-column prop="description" label="说明" show-overflow-tooltip />
         <el-table-column
           label="操作"
@@ -42,9 +42,10 @@
       </el-table>
     </el-card>
 
-    <el-dialog
+    <AppDialog
       v-model="dialogVisible"
       :title="dialogTitle"
+      mode="form"
       width="600px"
       @close="handleDialogClose"
     >
@@ -54,15 +55,15 @@
         :rules="formRules"
         label-width="120px"
       >
-        <el-form-item label="配置键" prop="config_key">
-          <el-input v-model="formData.config_key" :disabled="isEdit" placeholder="例如：VAT_INPUT_TAX" />
+        <el-form-item label="配置键" prop="configKey">
+          <el-input v-model="formData.configKey" :disabled="isEdit" placeholder="例如：VAT_INPUT_TAX" />
         </el-form-item>
-        <el-form-item label="配置名称" prop="config_name">
-          <el-input v-model="formData.config_name" placeholder="例如：进项税额" />
+        <el-form-item label="配置名称" prop="configName">
+          <el-input v-model="formData.configName" placeholder="例如：进项税额" />
         </el-form-item>
-        <el-form-item label="会计科目" prop="account_id">
+        <el-form-item label="会计科目" prop="accountId">
           <el-select
-            v-model="formData.account_id"
+            v-model="formData.accountId"
             filterable
             placeholder="请选择会计科目"
             class="w-full"
@@ -96,7 +97,7 @@
           确定
         </el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
   </div>
 </template>
 
@@ -176,9 +177,9 @@ const handleEdit = (row) => {
   dialogTitle.value = '编辑配置'
   Object.assign(formData, {
     id: row.id,
-    config_key: row.config_key || '',
-    config_name: row.config_name || '',
-    account_id: row.account_id || null,
+    config_key: row.configKey || '',
+    config_name: row.configName || '',
+    account_id: row.accountId || null,
     description: row.description || ''
   })
   dialogVisible.value = true
@@ -187,7 +188,7 @@ const handleEdit = (row) => {
 const handleDelete = async (row) => {
   try {
     await ElMessageBox.confirm(
-      `确认删除配置 "${row.config_name}" 吗？`,
+      `确认删除配置 "${row.configName}" 吗？`,
       '确认删除',
       {
         confirmButtonText: '确定',
@@ -215,9 +216,9 @@ const handleSubmit = async () => {
     submitLoading.value = true
 
     const payload = {
-      config_key: formData.config_key,
-      config_name: formData.config_name,
-      account_id: formData.account_id,
+      config_key: formData.configKey,
+      config_name: formData.configName,
+      account_id: formData.accountId,
       description: formData.description
     }
 

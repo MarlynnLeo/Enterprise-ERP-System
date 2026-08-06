@@ -9,8 +9,8 @@
             <Icon name="manager-o" color="var(--color-primary)" />
             <span class="dept-name">{{ dept.name }}</span>
           </div>
-          <div class="dept-meta" v-if="dept.manager_name || dept.member_count">
-            <span v-if="dept.manager_name">负责人: {{ dept.manager_name }}</span>
+          <div class="dept-meta" v-if="dept.memberCount">
+            <span v-if="dept.managerName">负责人: {{ dept.managerName }}</span>
             <span v-if="dept.member_count"> | {{ dept.member_count }}人</span>
           </div>
           <div class="dept-meta" v-if="dept.description">{{ dept.description }}</div>

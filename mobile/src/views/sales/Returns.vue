@@ -56,34 +56,34 @@
           >
             <div>
               <div class="list-header">
-                <span class="list-id">{{ returnItem.return_no }}</span>
+                <span class="list-id">{{ returnItem.returnNo }}</span>
                 <Tag :type="getReturnStatusType(returnItem.status)" size="medium">
                   {{ getReturnStatusText(returnItem.status) }}
                 </Tag>
               </div>
 
-              <div class="list-subtitle" v-if="returnItem.order_no">
-                关联订单: {{ returnItem.order_no }}
+              <div class="list-subtitle" v-if="returnItem.orderNo">
+                关联订单: {{ returnItem.orderNo }}
               </div>
 
-              <div class="list-title">{{ returnItem.customer_name }}</div>
+              <div class="list-title">{{ returnItem.customerName }}</div>
 
               <div class="list-details">
                 <div class="list-row">
                   <span class="label">退货日期:</span>
-                  <span class="value">{{ formatDate(returnItem.return_date) }}</span>
+                  <span class="value">{{ formatDate(returnItem.returnDate) }}</span>
                 </div>
-                <div class="list-row" v-if="returnItem.total_amount">
+                <div class="list-row" v-if="returnItem.totalAmount">
                   <span class="label">退货金额:</span>
-                  <span class="value amount">¥{{ formatAmount(returnItem.total_amount) }}</span>
+                  <span class="value amount">¥{{ formatAmount(returnItem.totalAmount) }}</span>
                 </div>
-                <div class="list-row" v-if="returnItem.return_reason">
+                <div class="list-row" v-if="returnItem.returnReason">
                   <span class="label">退货原因:</span>
-                  <span class="value">{{ returnItem.return_reason }}</span>
+                  <span class="value">{{ returnItem.returnReason }}</span>
                 </div>
-                <div class="list-row" v-if="returnItem.contact_person">
+                <div class="list-row" v-if="returnItem.contactPerson">
                   <span class="label">联系人:</span>
-                  <span class="value">{{ returnItem.contact_person }}</span>
+                  <span class="value">{{ returnItem.contactPerson }}</span>
                 </div>
               </div>
 
@@ -94,8 +94,8 @@
                   :key="index"
                   class="list-row"
                 >
-                  <span class="label" style="color:var(--text-primary)">{{ item.material_name }}</span>
-                  <span class="value">{{ item.quantity }} {{ item.unit_name }}</span>
+                  <span class="label" style="color:var(--text-primary)">{{ item.materialName }}</span>
+                  <span class="value">{{ item.quantity }} {{ item.unitName || '' }}</span>
                 </div>
                 <div v-if="returnItem.items.length > 2" class="list-row" style="justify-content:center;margin-top:8px;">
                   <span class="label">还有 {{ returnItem.items.length - 2 }} 项...</span>
@@ -238,7 +238,7 @@
     try {
       await showConfirmDialog({
         title: '确认退单',
-        message: `确定要提交退单 ${returnItem.return_no || returnItem.return_code} 吗？`
+        message: `确定要提交退单 ${returnItem.returnNo || returnItem.returnCode} 吗？`
       })
 
       await salesApi.updateSalesReturnStatus(returnItem.id, 'pending')
@@ -256,7 +256,7 @@
     try {
       await showConfirmDialog({
         title: '处理退货',
-        message: `确定要处理退单 ${returnItem.return_no || returnItem.return_code} 吗？`
+        message: `确定要处理退单 ${returnItem.returnNo || returnItem.returnCode} 吗？`
       })
 
       await salesApi.updateSalesReturnStatus(returnItem.id, 'approved')

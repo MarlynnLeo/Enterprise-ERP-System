@@ -25,7 +25,7 @@
     <el-card class="data-card">
       <!-- 表格 -->
       <el-table :data="inventoryList" v-loading="loading" border style="width: 100%; margin-top: 15px;">
-        <el-table-column prop="inventory_no" label="盘点单号" width="160"></el-table-column>
+        <el-table-column prop="inventoryNo" label="盘点单号" width="160"></el-table-column>
         <el-table-column prop="title" label="盘点标题" min-width="200"></el-table-column>
         <el-table-column prop="status" label="状态" width="100">
           <template #default="scope">
@@ -34,22 +34,22 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="total_items" label="总资产数" width="100"></el-table-column>
+        <el-table-column prop="totalItems" label="总资产数" width="100"></el-table-column>
         <el-table-column label="盘点进度/结果" width="220">
           <template #default="scope">
             <template v-if="scope.row.status === '已完成'">
-              <span class="text-success" v-if="scope.row.matched_items">一致: {{ scope.row.matched_items }}</span>
-              <span class="text-warning" v-if="scope.row.surplus_items">盈: {{ scope.row.surplus_items }}</span>
-              <span class="text-danger" v-if="scope.row.shortage_items">亏: {{ scope.row.shortage_items }}</span>
+              <span class="text-success" v-if="scope.row.matchedItems">一致: {{ scope.row.matchedItems }}</span>
+              <span class="text-warning" v-if="scope.row.surplusItems">盈: {{ scope.row.surplusItems }}</span>
+              <span class="text-danger" v-if="scope.row.shortageItems">亏: {{ scope.row.shortageItems }}</span>
             </template>
             <template v-else>
-              已盘: {{ Number(scope.row.matched_items || 0) + Number(scope.row.surplus_items || 0) + Number(scope.row.shortage_items || 0) }} / {{ scope.row.total_items }}
+              已盘: {{ Number(scope.row.matchedItems || 0) + Number(scope.row.surplusItems || 0) + Number(scope.row.shortageItems || 0) }} / {{ scope.row.totalItems }}
             </template>
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" width="160">
+        <el-table-column prop="createdAt" label="创建时间" width="160">
           <template #default="scope">
-            {{ formatDate(scope.row.created_at) }}
+            {{ formatDate(scope.row.createdAt) }}
           </template>
         </el-table-column>
         <el-table-column label="操作" min-width="150" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
@@ -76,7 +76,12 @@
     </el-card>
 
     <!-- 新建盘点对话框 -->
-    <el-dialog title="新建盘点单" v-model="dialogVisible" width="500px">
+    <AppDialog
+      v-model="dialogVisible"
+      title="新建盘点单"
+      mode="form"
+      width="500px"
+    >
       <el-form :model="form" :rules="rules" ref="formRef" label-width="100px">
         <el-form-item label="盘点标题" prop="title">
           <el-input v-model="form.title" placeholder="如：2023年终固定资产盘点"></el-input>
@@ -94,7 +99,7 @@
           <el-button v-permission="'finance:assets:create'" type="primary" @click="submitCreate" :loading="submitLoading">确认创建</el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
 
     <!-- 盘点详情对话框 (简化版,也可单独做页面) -->
     <AppDialog
@@ -132,14 +137,14 @@
         </div>
 
         <el-table :data="filteredItems" border height="400" v-loading="detailLoading">
-          <el-table-column prop="asset_code" label="资产编号" width="220"></el-table-column>
-          <el-table-column prop="asset_name" label="资产名称" min-width="200"></el-table-column>
-          <el-table-column prop="category_name" label="类别" width="110"></el-table-column>
+          <el-table-column prop="assetCode" label="资产编号" width="220"></el-table-column>
+          <el-table-column prop="assetName" label="资产名称" min-width="200"></el-table-column>
+          <el-table-column prop="categoryName" label="类别" width="110"></el-table-column>
           <el-table-column prop="department" label="部门" width="100"></el-table-column>
-          <el-table-column prop="book_quantity" label="账面数量" width="100"></el-table-column>
+          <el-table-column prop="bookQuantity" label="账面数量" width="100"></el-table-column>
           <el-table-column label="实盘数量" width="100">
             <template #default="scope">
-              <span v-if="detailData.status === '已完成'">{{ scope.row.actual_quantity !== null ? scope.row.actual_quantity : '-' }}</span>
+              <span v-if="detailData.status === '已完成'">{{ scope.row.actualQuantity !== null ? scope.row.actualQuantity : '-' }}</span>
               <el-input-number
                 v-else
                 v-model="scope.row.editValue"
@@ -334,7 +339,7 @@ const viewDetail = async (row) => {
     // 初始化编辑状态
     if (data.status === '进行中' && data.items) {
       data.items.forEach(item => {
-        item.editValue = item.actual_quantity !== null ? item.actual_quantity : undefined
+        item.editValue = item.actualQuantity !== null ? item.actualQuantity : undefined
         item.editNotes = item.notes || ''
       })
     }
@@ -350,8 +355,8 @@ const viewDetail = async (row) => {
 
 // 快速设为账实相符
 const fastMatch = async (row) => {
-  row.editValue = row.book_quantity
-  await updateItem(row, row.book_quantity, '盘点相符', row.editNotes)
+  row.editValue = row.bookQuantity
+  await updateItem(row, row.bookQuantity, '盘点相符', row.editNotes)
 }
 
 // 手动输入实盘数量
@@ -359,8 +364,8 @@ const handleQuantityChange = async (row, val) => {
   if (val === undefined || val === null) return
 
   let status = '盘点相符'
-  if (val > row.book_quantity) status = '盘盈'
-  else if (val < row.book_quantity) status = '盘亏'
+  if (val > row.bookQuantity) status = '盘盈'
+  else if (val < row.bookQuantity) status = '盘亏'
 
   await updateItem(row, val, status, row.editNotes)
 }
@@ -369,8 +374,8 @@ const handleQuantityChange = async (row, val) => {
 const saveItemNotes = async (row) => {
   if (row.editValue !== undefined && row.editValue !== null) {
     let status = '盘点相符'
-    if (row.editValue > row.book_quantity) status = '盘盈'
-    else if (row.editValue < row.book_quantity) status = '盘亏'
+    if (row.editValue > row.bookQuantity) status = '盘盈'
+    else if (row.editValue < row.bookQuantity) status = '盘亏'
 
     await updateItem(row, row.editValue, status, row.editNotes)
   }
@@ -384,7 +389,7 @@ const updateItem = async (row, actualQty, status, notes) => {
       status: status,
       notes: notes
     })
-    row.actual_quantity = actualQty
+    row.actualQuantity = actualQty
     row.status = status
     row.notes = notes
   } catch {

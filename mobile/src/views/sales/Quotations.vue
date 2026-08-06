@@ -35,13 +35,13 @@
     ],
     fields: {
       id: 'id',
-      title: 'customer_name',
-      subtitle: 'quotation_code',
+      title: 'customerName',
+      subtitle: 'quotationCode',
       icon: 'document-text',
       details: [
-        { label: '报价金额', field: 'total_amount', prefix: '¥' },
-        { label: '有效期至', field: 'valid_until', type: 'date' },
-        { label: '报价日期', field: 'quotation_date', type: 'date' }
+        { label: '报价金额', field: 'totalAmount', prefix: '¥' },
+        { label: '有效期至', field: 'validUntil', type: 'date' },
+        { label: '报价日期', field: 'quotationDate', type: 'date' }
       ],
       tags: [
         {

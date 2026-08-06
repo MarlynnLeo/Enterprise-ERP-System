@@ -21,6 +21,7 @@ const ReconciliationModel = require('../../../../models/cash/Reconciliation');
 const { getAuthenticatedUserId } = require('../../../../utils/authContext');
 const { safeParseId } = require('../../../../utils/safeParseId');
 const { getRequestActorLabel } = require('../../../../utils/userUtils');
+const { mapKeysToSnake } = require('../../../../utils/fieldMap');
 
 /**
  * 安全的 parseFloat，返回 NaN 时抛出明确错误
@@ -61,7 +62,7 @@ const reconciliationController = {
         result.total,
         filters.page,
         filters.limit,
-        '获取银行账户成功'
+        '获取对账记录成功'
       );
     } catch (error) {
       ResponseHandler.error(res, '获取对账记录失败', 'SERVER_ERROR', 500, error);
@@ -104,14 +105,21 @@ const reconciliationController = {
         });
       }
 
+      // HTTP camel → snake
+      const body = mapKeysToSnake(req.body || {});
       const reconciliation = {
-        account_id: safeParseInt(req.body.account_id, 'account_id'),
-        reconciliation_date: req.body.reconciliation_date,
-        bank_statement_balance: safeParseFloat(req.body.bank_statement_balance, 'bank_statement_balance'),
-        book_balance: safeParseFloat(req.body.book_balance, 'book_balance'),
-        status: req.body.status || 'draft',
-        notes: req.body.notes,
-        items: req.body.items || [],
+        account_id: safeParseInt(body.account_id ?? req.body.accountId, 'accountId'),
+        reconciliation_date: body.reconciliation_date ?? req.body.reconciliationDate,
+        bank_statement_balance: safeParseFloat(
+          body.bank_statement_balance ?? req.body.bankStatementBalance,
+          'bankStatementBalance'
+        ),
+        book_balance: safeParseFloat(body.book_balance ?? req.body.bookBalance, 'bookBalance'),
+        status: body.status || 'draft',
+        notes: body.notes,
+        items: Array.isArray(req.body.items)
+          ? req.body.items.map((it) => mapKeysToSnake(it))
+          : [],
         created_by: getAuthenticatedUserId(req),
       };
 
@@ -154,20 +162,30 @@ const reconciliationController = {
         return ResponseHandler.error(res, '对账记录不存在', 'NOT_FOUND', 404);
       }
 
+      const body = mapKeysToSnake(req.body || {});
       const reconciliation = {
-        account_id: safeParseInt(req.body.account_id, 'account_id'),
-        reconciliation_date: req.body.reconciliation_date,
-        bank_statement_balance: safeParseFloat(req.body.bank_statement_balance, 'bank_statement_balance'),
-        book_balance: safeParseFloat(req.body.book_balance, 'book_balance'),
-        status: req.body.status,
-        notes: req.body.notes,
-        items: req.body.items || [],
+        account_id: safeParseInt(body.account_id ?? req.body.accountId, 'accountId'),
+        reconciliation_date: body.reconciliation_date ?? req.body.reconciliationDate,
+        bank_statement_balance: safeParseFloat(
+          body.bank_statement_balance ?? req.body.bankStatementBalance,
+          'bankStatementBalance'
+        ),
+        book_balance: safeParseFloat(body.book_balance ?? req.body.bookBalance, 'bookBalance'),
+        status: body.status ?? req.body.status,
+        notes: body.notes,
+        items: Array.isArray(req.body.items)
+          ? req.body.items.map((it) => mapKeysToSnake(it))
+          : [],
       };
 
       const updated = await ReconciliationModel.updateReconciliation(id, reconciliation);
 
       if (updated) {
-        return ResponseHandler.success(res, { id, ...reconciliation }, '对账记录更新成功');
+        return ResponseHandler.success(
+          res,
+          { id, ...reconciliation },
+          '对账记录更新成功'
+        );
       } else {
         return ResponseHandler.error(res, '对账记录更新失败', 'SERVER_ERROR', 500);
       }

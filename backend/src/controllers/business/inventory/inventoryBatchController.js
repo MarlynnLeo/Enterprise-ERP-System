@@ -9,6 +9,7 @@ const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 const { getMaterialBatchNumber } = require('./helpers');
 const DataScopeService = require('../../../services/DataScopeService');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 
 const db = require('../../../config/db');
 
@@ -325,7 +326,9 @@ const getBatchInventory = async (req, res) => {
 
 const getBatchInventoryDetail = async (req, res) => {
   try {
-    const { material_id, location_id } = req.query;
+    const q = mapKeysToSnake(req.query || {});
+    const material_id = q.material_id;
+    const location_id = q.location_id;
 
     if (!material_id) {
       return ResponseHandler.error(res, '物料ID不能为空', 'BAD_REQUEST', 400);

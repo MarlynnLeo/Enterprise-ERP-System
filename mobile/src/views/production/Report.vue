@@ -29,19 +29,19 @@
         <div class="info-grid">
           <div class="info-item">
             <span class="info-label">任务编号</span
-            ><span class="info-value mono">{{ selectedTask.task_code || selectedTask.code }}</span>
+            ><span class="info-value mono">{{ selectedTask.taskCode }}</span>
           </div>
           <div class="info-item">
             <span class="info-label">产品名称</span
             ><span class="info-value">{{
-              selectedTask.product_name || selectedTask.productName
+              selectedTask.productName
             }}</span>
           </div>
           <div class="info-item">
             <span class="info-label">计划数量</span
             ><span class="info-value highlight"
-              >{{ selectedTask.planned_quantity || selectedTask.quantity }}
-              {{ selectedTask.unit_name || '件' }}</span
+              >{{ selectedTask.plannedQuantity }}
+              {{ selectedTask.unitName || '件' }}</span
             >
           </div>
           <div class="info-item">
@@ -100,10 +100,10 @@
           :class="{ active: selectedTask?.id === task.id }"
           @click="selectTask(task)"
         >
-          <div class="picker-item-title">{{ task.product_name || task.productName }}</div>
+          <div class="picker-item-title">{{ task.productName }}</div>
           <div class="picker-item-sub">
-            {{ task.task_code || task.code }} · {{ task.planned_quantity || task.quantity }}
-            {{ task.unit_name || '件' }}
+            {{ task.taskCode }} · {{ task.plannedQuantity }}
+            {{ task.unitName || '件' }}
           </div>
         </div>
       </div>
@@ -128,7 +128,7 @@
 
   const selectTask = (task) => {
     selectedTask.value = task
-    selectedTaskName.value = `${task.task_code || task.code} - ${task.product_name || task.productName}`
+    selectedTaskName.value = `${task.taskCode} - ${task.productName}`
     showTaskPicker.value = false
   }
 
@@ -174,7 +174,7 @@
     submitting.value = true
     try {
       await productionApi.reportProductionProgress({
-        task_id: selectedTask.value.id,
+        taskId: selectedTask.value.id,
         completed_quantity: Number(reportForm.completed_quantity),
         defective_quantity: Number(reportForm.defective_quantity) || 0,
         remarks: reportForm.remarks

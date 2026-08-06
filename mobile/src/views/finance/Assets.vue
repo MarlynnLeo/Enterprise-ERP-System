@@ -35,14 +35,14 @@
     ],
     fields: {
       id: 'id',
-      title: (item) => item.asset_name || item.name || '',
+      title: (item) => item.assetName || '',
       subtitle: 'asset_code',
       icon: 'briefcase',
       details: [
         { label: '资产编号', field: 'asset_code' },
         { label: '原值', field: 'original_value', prefix: '¥', format: 'money' },
         { label: '净值', field: 'net_value', prefix: '¥', format: 'money' },
-        { label: '使用部门', field: 'department_name' }
+        { label: '使用部门', field: 'departmentName' }
       ],
       status: {
         field: 'status',

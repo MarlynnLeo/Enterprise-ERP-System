@@ -34,12 +34,12 @@
     ],
     fields: {
       id: 'id',
-      title: 'customer_name',
-      subtitle: 'exchange_no',
+      title: 'customerName',
+      subtitle: 'exchangeNo',
       icon: 'exchange',
       details: [
         { label: '换货原因', field: 'reason' },
-        { label: '换货日期', field: 'exchange_date', type: 'date' }
+        { label: '换货日期', field: 'exchangeDate', type: 'date' }
       ],
       tags: [
         {

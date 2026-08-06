@@ -22,6 +22,7 @@ const STOCK_SUBQUERY = `(SELECT material_id, location_id, COALESCE(SUM(quantity)
 
 const { getTransferStatusText } = require('../../../constants/systemConstants');
 const { getRequestActorLabel } = require('../../../utils/userUtils');
+const { inventoryTransferMap } = require('../../../utils/inventory/inventoryFieldMap');
 
 const STATUS = {
   OUTBOUND: businessConfig.status.outbound,
@@ -43,17 +44,17 @@ const STATUS = {
 
 const getTransferList = async (req, res) => {
   try {
-    const {
-      page = 1,
-      limit = 10,
-      transfer_no = '',
-      status = '',
-      from_location_id = '',
-      to_location_id = '',
-      start_date = '',
-      end_date = '',
-      materialName = '',
-    } = req.query;
+    // 列表查询 camel → snake
+    const q = inventoryTransferMap.fromListQuery(req.query || {});
+    const page = req.query.page || 1;
+    const limit = req.query.limit || 10;
+    const transfer_no = q.transfer_no || '';
+    const status = q.status || '';
+    const from_location_id = q.from_location_id || '';
+    const to_location_id = q.to_location_id || '';
+    const start_date = q.start_date || '';
+    const end_date = q.end_date || '';
+    const materialName = req.query.materialName || '';
     const pagination = parsePagination(page, limit, { maxPageSize: 100, defaultPageSize: 10 });
 
     const ScopeGuard = require('../../../authorization/ScopeGuard');
@@ -149,9 +150,12 @@ const getTransferList = async (req, res) => {
 
     const [transfers] = await db.pool.query(query, params);
 
+    // 出参仅 camel
+    const mappedTransfers = transfers.map((t) => inventoryTransferMap.toApi(t));
+
     ResponseHandler.paginated(
       res,
-      transfers,
+      mappedTransfers,
       total,
       pagination.page,
       pagination.pageSize,
@@ -225,13 +229,13 @@ const getTransferDetail = async (req, res) => {
       [id]
     );
 
-    // 返回组合结果
+    // 返回组合结果（仅 camel）
     ResponseHandler.success(
       res,
-      {
+      inventoryTransferMap.toApi({
         ...transfer,
         items,
-      },
+      }),
       '获取调拨单详情成功'
     );
   } catch (error) {
@@ -336,14 +340,15 @@ const createTransfer = async (req, res) => {
   try {
     await connection.beginTransaction();
 
-    const {
-      transfer_date,
-      from_location_id,
-      to_location_id,
-      items,
-      remark,
-      status = 'draft',
-    } = req.body;
+    // HTTP camel → snake（inventoryTransferMap）
+    const mapped = inventoryTransferMap.fromApi(req.body || {});
+    const transfer_date =
+      mapped.transfer_date || new Date().toISOString().slice(0, 10);
+    const from_location_id = mapped.from_location_id;
+    const to_location_id = mapped.to_location_id;
+    const items = mapped.items || [];
+    const remark = mapped.remark;
+    const status = mapped.status || 'draft';
 
     // 基本验证
     if (
@@ -466,11 +471,15 @@ const createTransfer = async (req, res) => {
 
     ResponseHandler.success(
       res,
-      {
-        message: '调拨单创建成功',
+      inventoryTransferMap.toApi({
         id: transferId,
         transfer_no,
-      },
+        transfer_date,
+        from_location_id,
+        to_location_id,
+        status,
+        remark: remark || '',
+      }),
       '创建成功',
       201
     );
@@ -501,7 +510,13 @@ const updateTransfer = async (req, res) => {
     await connection.beginTransaction();
 
     const { id } = req.params;
-    const { transfer_date, from_location_id, to_location_id, items, remark } = req.body;
+    // HTTP camel → snake
+    const mapped = inventoryTransferMap.fromApi(req.body || {});
+    const transfer_date = mapped.transfer_date;
+    const from_location_id = mapped.from_location_id;
+    const to_location_id = mapped.to_location_id;
+    const items = mapped.items || [];
+    const remark = mapped.remark;
 
     // 检查调拨单是否存在
     const [transferResult] = await connection.execute(
@@ -605,7 +620,18 @@ const updateTransfer = async (req, res) => {
 
     await connection.commit();
 
-    ResponseHandler.success(res, { id }, '调拨单更新成功');
+    ResponseHandler.success(
+      res,
+      inventoryTransferMap.toApi({
+        id: Number(id),
+        transfer_date,
+        from_location_id,
+        to_location_id,
+        remark: remark || '',
+        status: currentStatus,
+      }),
+      '调拨单更新成功'
+    );
   } catch (error) {
     await connection.rollback();
     logger.error('更新库存调拨单失败:', error);

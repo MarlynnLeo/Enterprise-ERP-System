@@ -264,11 +264,204 @@ const salesOutboundMap = {
   },
 };
 
+/** 销售退货明细 */
+const salesReturnItemMap = {
+  fromApi(body = {}) {
+    const mid = body.productId ?? body.materialId;
+    const row = {
+      id: body.id,
+      product_id: mid != null ? toNumber(mid, mid) : undefined,
+      quantity: body.quantity != null ? toNumber(body.quantity, 0) : undefined,
+      reason: body.reason ?? null,
+    };
+    return Object.fromEntries(Object.entries(row).filter(([, v]) => v !== undefined));
+  },
+  toApi(row) {
+    if (row == null) return null;
+    return {
+      id: row.id ?? null,
+      productId: row.product_id ?? null,
+      materialId: row.product_id ?? null,
+      materialCode: row.material_code ?? row.product_code ?? null,
+      materialName: row.material_name ?? row.product_name ?? null,
+      quantity: toNumber(row.quantity, 0),
+      reason: row.reason ?? null,
+      unitPrice: row.unit_price != null ? toNumber(row.unit_price, 0) : null,
+    };
+  },
+};
+
+const salesReturnMap = {
+  fromApi(body = {}) {
+    const row = {
+      id: body.id,
+      return_no: body.returnNo,
+      return_date: body.returnDate != null ? formatDate(body.returnDate) : undefined,
+      order_id: body.orderId != null ? toNumber(body.orderId, body.orderId) : undefined,
+      outbound_id:
+        body.outboundId != null ? toNumber(body.outboundId, body.outboundId) : undefined,
+      return_reason: body.returnReason,
+      status: body.status,
+      remarks: body.remarks ?? body.remark,
+      created_by: body.createdBy,
+    };
+    if (Array.isArray(body.items)) {
+      row.items = body.items.map((it) => salesReturnItemMap.fromApi(it));
+    }
+    return Object.fromEntries(Object.entries(row).filter(([, v]) => v !== undefined));
+  },
+  toApi(row) {
+    if (row == null) return null;
+    if (Array.isArray(row)) return row.map((r) => salesReturnMap.toApi(r));
+    const api = {
+      id: row.id,
+      returnNo: row.return_no ?? null,
+      returnDate: formatDate(row.return_date),
+      orderId: row.order_id ?? null,
+      orderNo: row.order_no ?? null,
+      outboundId: row.outbound_id ?? null,
+      outboundNo: row.outbound_no ?? null,
+      customerName: row.customer_name ?? null,
+      returnReason: row.return_reason ?? null,
+      status: row.status ?? null,
+      remarks: row.remarks ?? null,
+      createdBy: row.created_by ?? null,
+      createdAt: formatDate(row.created_at),
+      updatedAt: formatDate(row.updated_at),
+    };
+    if (Array.isArray(row.items)) {
+      api.items = row.items.map((it) => salesReturnItemMap.toApi(it));
+    }
+    return api;
+  },
+  fromListQuery(query = {}) {
+    const filters = {};
+    if (query.returnNo) filters.return_no = query.returnNo;
+    if (query.status) filters.status = query.status;
+    if (query.startDate) filters.start_date = query.startDate;
+    if (query.endDate) filters.end_date = query.endDate;
+    if (query.search) filters.search = query.search;
+    return filters;
+  },
+};
+
+/** 销售换货明细 */
+const salesExchangeItemMap = {
+  fromApi(body = {}) {
+    const row = {
+      id: body.id,
+      item_type: body.itemType,
+      product_code: body.productCode,
+      product_name: body.productName,
+      specification: body.specification,
+      original_quantity:
+        body.originalQuantity != null ? toNumber(body.originalQuantity, 0) : undefined,
+      quantity:
+        body.quantity != null
+          ? toNumber(body.quantity, 0)
+          : body.exchangeQuantity != null
+            ? toNumber(body.exchangeQuantity, 0)
+            : undefined,
+      reason: body.reason ?? body.exchangeReason ?? null,
+      unit_name: body.unitName,
+    };
+    return Object.fromEntries(Object.entries(row).filter(([, v]) => v !== undefined));
+  },
+  toApi(row) {
+    if (row == null) return null;
+    return {
+      id: row.id ?? null,
+      itemType: row.item_type ?? null,
+      productCode: row.product_code ?? null,
+      productName: row.product_name ?? null,
+      specification: row.specification ?? null,
+      originalQuantity:
+        row.original_quantity != null ? toNumber(row.original_quantity, 0) : null,
+      quantity: toNumber(row.quantity, 0),
+      unitPrice: row.unit_price != null ? toNumber(row.unit_price, 0) : null,
+      amount: row.amount != null ? toNumber(row.amount, 0) : null,
+      reason: row.reason ?? null,
+      unitName: row.unit_name ?? null,
+    };
+  },
+};
+
+const salesExchangeMap = {
+  fromApi(body = {}) {
+    const row = {
+      id: body.id,
+      exchange_no: body.exchangeNo,
+      exchange_date: body.exchangeDate != null ? formatDate(body.exchangeDate) : undefined,
+      order_no: body.orderNo,
+      customer_name: body.customerName,
+      status: body.status,
+      remarks: body.remarks ?? body.remark,
+      created_by: body.createdBy,
+    };
+    if (Array.isArray(body.items)) {
+      row.items = body.items.map((it) => salesExchangeItemMap.fromApi(it));
+    }
+    if (Array.isArray(body.returnItems)) {
+      row.return_items = body.returnItems.map((it) =>
+        salesExchangeItemMap.fromApi({ ...it, itemType: it.itemType || 'return' })
+      );
+    }
+    if (Array.isArray(body.newItems)) {
+      row.new_items = body.newItems.map((it) =>
+        salesExchangeItemMap.fromApi({ ...it, itemType: it.itemType || 'new' })
+      );
+    }
+    return Object.fromEntries(Object.entries(row).filter(([, v]) => v !== undefined));
+  },
+  toApi(row) {
+    if (row == null) return null;
+    if (Array.isArray(row)) return row.map((r) => salesExchangeMap.toApi(r));
+    const api = {
+      id: row.id,
+      exchangeNo: row.exchange_no ?? null,
+      exchangeDate: formatDate(row.exchange_date),
+      orderNo: row.order_no ?? null,
+      customerName: row.customer_name ?? null,
+      status: row.status ?? null,
+      remarks: row.remarks ?? null,
+      returnAmount: row.return_amount != null ? toNumber(row.return_amount, 0) : null,
+      newAmount: row.new_amount != null ? toNumber(row.new_amount, 0) : null,
+      differenceAmount:
+        row.difference_amount != null ? toNumber(row.difference_amount, 0) : null,
+      createdBy: row.created_by ?? null,
+      createdAt: formatDate(row.created_at),
+      updatedAt: formatDate(row.updated_at),
+    };
+    if (Array.isArray(row.items)) {
+      api.items = row.items.map((it) => salesExchangeItemMap.toApi(it));
+    }
+    if (Array.isArray(row.return_items)) {
+      api.returnItems = row.return_items.map((it) => salesExchangeItemMap.toApi(it));
+    }
+    if (Array.isArray(row.new_items)) {
+      api.newItems = row.new_items.map((it) => salesExchangeItemMap.toApi(it));
+    }
+    return api;
+  },
+  fromListQuery(query = {}) {
+    const filters = {};
+    if (query.search) filters.search = query.search;
+    if (query.status) filters.status = query.status;
+    if (query.startDate) filters.start_date = query.startDate;
+    if (query.endDate) filters.end_date = query.endDate;
+    return filters;
+  },
+};
+
 module.exports = {
   salesOrderMap,
   salesOrderItemMap,
   salesOutboundMap,
   salesOutboundItemMap,
+  salesReturnMap,
+  salesReturnItemMap,
+  salesExchangeMap,
+  salesExchangeItemMap,
   formatDate,
   toNumber,
   roundMoney,

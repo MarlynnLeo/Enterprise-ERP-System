@@ -6,6 +6,7 @@
  */
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 const { logger } = require('../../../utils/logger');
 
 const financeModel = require('../../../models/finance');
@@ -20,6 +21,14 @@ const { safeParseId } = require('../../../utils/safeParseId');
 const BusinessError = require('../../../utils/BusinessError');
 const ScopeGuard = require('../../../authorization/ScopeGuard');
 const { getRequestActorLabel } = require('../../../utils/userUtils');
+const {
+  toGlAccountApi,
+  fromGlAccountApi,
+  fromGlAccountListQuery,
+  toGlEntryApi,
+  toGlEntryItemApi,
+  fromGlEntryListQuery,
+} = require('../../../utils/finance/glFieldMap');
 
 function normalizeMysqlFlag(value) {
   if (value === true || value === 1 || value === 1n) return true;
@@ -60,34 +69,33 @@ const financeController = {
   getAllAccounts: async (req, res) => {
     try {
       // 检查是否有分页参数 - 支持 limit 和 pageSize 两种参数名
-      const { page, limit, pageSize, account_code, account_name, account_type } = req.query;
+      const { page, limit, pageSize } = req.query;
       const pageSizeValue = limit || pageSize;
+      // HTTP query camel → filters snake
+      const filters = fromGlAccountListQuery(req.query);
 
       if (page || pageSizeValue) {
-        // 使用分页查询
-        const filters = {};
-        if (account_code) filters.account_code = account_code;
-        if (account_name) filters.account_name = account_name;
-        if (account_type) filters.account_type = account_type;
-
         const pageNum = parseInt(page) || 1;
         const limitNum = parseInt(pageSizeValue) || 20;
 
         const result = await financeModel.getAccountsList(filters, pageNum, limitNum);
+        const accounts = (result.accounts || []).map((a) => toGlAccountApi(a));
 
-        // 统一使用ResponseHandler.paginated
         return ResponseHandler.paginated(
           res,
-          result.accounts,
+          accounts,
           result.pagination.total,
           result.pagination.page,
           result.pagination.limit,
           '获取会计科目成功'
         );
       } else {
-        // 获取所有记录（用于选项列表等）
         const accounts = await financeModel.getAllAccounts();
-        return ResponseHandler.success(res, { accounts }, '获取会计科目成功');
+        return ResponseHandler.success(
+          res,
+          { accounts: (accounts || []).map((a) => toGlAccountApi(a)) },
+          '获取会计科目成功'
+        );
       }
     } catch (error) {
       logger.error('获取会计科目失败:', error);
@@ -107,7 +115,11 @@ const financeController = {
         return ResponseHandler.error(res, '会计科目不存在', 'NOT_FOUND', 404);
       }
 
-      return ResponseHandler.success(res, { account }, '获取会计科目成功');
+      return ResponseHandler.success(
+        res,
+        { account: toGlAccountApi(account) },
+        '获取会计科目成功'
+      );
     } catch (error) {
       logger.error('获取会计科目失败:', error);
       return ResponseHandler.error(res, '获取会计科目失败', 'SERVER_ERROR', 500, error);
@@ -119,16 +131,16 @@ const financeController = {
    */
   createAccount: async (req, res) => {
     try {
-      const {
-        account_code,
-        account_name,
-        account_type,
-        parent_id,
-        is_debit: userIsDebit,
-        is_active,
-        currency_code,
-        description,
-      } = req.body;
+      // HTTP camel → DB snake
+      const mapped = fromGlAccountApi(req.body || {});
+      const account_code = mapped.account_code;
+      const account_name = mapped.account_name;
+      const account_type = mapped.account_type;
+      const parent_id = mapped.parent_id;
+      const userIsDebit = mapped.is_debit;
+      const is_active = mapped.is_active;
+      const currency_code = mapped.currency_code;
+      const description = mapped.description;
 
       // 验证必填字段
       if (!account_code || !account_name || !account_type) {
@@ -142,12 +154,9 @@ const financeController = {
       }
 
       // 根据科目类型自动设置is_debit（借贷方向）
-      // 会计准则：资产、成本、费用类科目属于借方科目(is_debit=1)
-      //          负债、所有者权益、收入类科目属于贷方科目(is_debit=0)
       const debitTypes = ['资产', '成本', '费用'];
       const autoIsDebit = debitTypes.includes(account_type) ? 1 : 0;
 
-      // 如果用户明确指定了is_debit且与自动推断不一致，记录警告日志
       const finalIsDebit = userIsDebit !== undefined ? userIsDebit : autoIsDebit;
       if (userIsDebit !== undefined && userIsDebit !== autoIsDebit) {
         logger.warn('科目is_debit设置与科目类型不匹配', {
@@ -174,7 +183,7 @@ const financeController = {
         res,
         {
           message: '会计科目创建成功',
-          account_id: accountId,
+          accountId,
         },
         '创建成功',
         201
@@ -191,15 +200,14 @@ const financeController = {
   updateAccount: async (req, res) => {
     try {
       const id = safeParseId(req.params.id, '科目ID');
-      const {
-        account_name,
-        account_type,
-        parent_id,
-        is_debit: userIsDebit,
-        is_active,
-        currency_code,
-        description,
-      } = req.body;
+      const mapped = fromGlAccountApi(req.body || {});
+      const account_name = mapped.account_name;
+      const account_type = mapped.account_type;
+      const parent_id = mapped.parent_id;
+      const userIsDebit = mapped.is_debit;
+      const is_active = mapped.is_active;
+      const currency_code = mapped.currency_code;
+      const description = mapped.description;
 
       // 验证必填字段
       if (!account_name || !account_type) {
@@ -286,7 +294,7 @@ const financeController = {
   toggleAccountStatus: async (req, res) => {
     try {
       const id = safeParseId(req.params.id, '科目ID');
-      const { is_active } = req.body;
+      const { is_active } = mapKeysToSnake(req.body || {});
 
       // 检查科目是否存在
       const account = await financeModel.getAccountById(id);
@@ -314,7 +322,11 @@ const financeController = {
   getAccountOptions: async (req, res) => {
     try {
       const accounts = await financeModel.getAllAccounts();
-      ResponseHandler.success(res, accounts, '获取会计科目选项成功');
+      ResponseHandler.success(
+        res,
+        (accounts || []).map((a) => toGlAccountApi(a)),
+        '获取会计科目选项成功'
+      );
     } catch (error) {
       logger.error('获取会计科目选项失败:', error);
       ResponseHandler.error(res, '获取会计科目选项失败', 'SERVER_ERROR', 500, error);
@@ -398,7 +410,7 @@ const financeController = {
         description,
         items,
         voucher_word, // Extract voucher_word
-      } = req.body;
+      } = mapKeysToSnake(req.body || {});
 
       // 验证核心必填字段
       if (!entry_date) {
@@ -559,27 +571,9 @@ const financeController = {
    */
   getEntries: async (req, res) => {
     try {
-      const {
-        entry_number,
-        start_date,
-        end_date,
-        document_type,
-        voucher_word,
-        period_id,
-        is_posted,
-        page = 1,
-        pageSize = 20,
-      } = req.query;
-
-      const filters = {};
-
-      if (entry_number) filters.entry_number = entry_number;
-      if (start_date) filters.start_date = start_date;
-      if (end_date) filters.end_date = end_date;
-      if (document_type) filters.document_type = document_type;
-      if (voucher_word) filters.voucher_word = voucher_word;
-      if (period_id) filters.period_id = parseInt(period_id);
-      if (is_posted !== undefined) filters.is_posted = is_posted === 'true';
+      const { page = 1, pageSize = 20 } = req.query;
+      // HTTP camel（兼旧 snake query）→ filters
+      const filters = fromGlEntryListQuery(req.query);
 
       filters.scopeClause = await ScopeGuard.applyListScope(req, 'gl_entry', {
         tableAlias: 'e',
@@ -587,8 +581,12 @@ const financeController = {
       });
 
       const result = await financeModel.getEntries(filters, parseInt(page), parseInt(pageSize));
+      const mapped = {
+        ...result,
+        entries: (result.entries || []).map((e) => toGlEntryApi(e)),
+      };
 
-      ResponseHandler.success(res, result, '获取会计分录列表成功');
+      ResponseHandler.success(res, mapped, '获取会计分录列表成功');
     } catch (error) {
       logger.error('获取会计分录列表失败:', error);
       ResponseHandler.error(res, '获取会计分录列表失败', 'SERVER_ERROR', 500, error);
@@ -610,7 +608,7 @@ const financeController = {
         return ResponseHandler.error(res, '会计分录不存在', 'NOT_FOUND', 404);
       }
 
-      ResponseHandler.success(res, { entry }, '获取会计分录成功');
+      ResponseHandler.success(res, { entry: toGlEntryApi(entry) }, '获取会计分录成功');
     } catch (error) {
       logger.error('获取会计分录失败:', error);
       ResponseHandler.error(res, '获取会计分录失败', 'SERVER_ERROR', 500, error);
@@ -627,38 +625,29 @@ const financeController = {
         return;
       }
 
-      // 先检查分录是否存在
       const entry = await financeModel.getEntryById(id);
       if (!entry) {
         return ResponseHandler.error(res, '会计分录不存在', 'NOT_FOUND', 404);
       }
 
-      // 获取完整的明细信息，包括科目信息
       const items = await financeModel.getEntryItems(id);
 
-      // 将科目信息和金额格式化为前端需要的格式
-      const formattedItems = items.map((item) => {
-        const accountExists = Boolean(item.account_id && item.account_code);
-        const accountIsActive = normalizeMysqlFlag(item.account_is_active);
-
-        return {
-          id: item.id,
-          accountId: item.account_id,
-          accountCode: item.account_code,
-          accountName: item.account_name,
-          accountIsActive,
-          accountIssue: !accountExists
-            ? '会计科目不存在'
-            : !accountIsActive
-              ? '会计科目未启用'
-              : null,
-          debitAmount: parseFloat(item.debit_amount) || 0,
-          creditAmount: parseFloat(item.credit_amount) || 0,
-          currencyCode: item.currency_code || financeConfig.get('invoice.defaultCurrency', 'CNY'),
-          exchangeRate: parseFloat(item.exchange_rate) || 1,
-          costCenterId: item.cost_center_id,
-          description: item.description,
-        };
+      const formattedItems = (items || []).map((item) => {
+        const api = toGlEntryItemApi(item);
+        const accountExists = Boolean(api.accountId && api.accountCode);
+        const accountIsActive = normalizeMysqlFlag(
+          item.account_is_active != null ? item.account_is_active : api.accountIsActive
+        );
+        api.accountIsActive = accountIsActive;
+        api.accountIssue = !accountExists
+          ? '会计科目不存在'
+          : !accountIsActive
+            ? '会计科目未启用'
+            : null;
+        if (!api.currencyCode) {
+          api.currencyCode = financeConfig.get('invoice.defaultCurrency', 'CNY');
+        }
+        return api;
       });
 
       ResponseHandler.success(res, formattedItems, '获取会计分录明细成功');
@@ -697,7 +686,7 @@ const financeController = {
   reverseEntry: async (req, res) => {
     try {
       const id = safeParseId(req.params.id, '凭证ID');
-      const { entry_date, posting_date, period_id, description } = req.body;
+      const { entry_date, posting_date, period_id, description } = mapKeysToSnake(req.body || {});
 
       if (!entry_date) {
         return ResponseHandler.error(
@@ -825,7 +814,7 @@ const financeController = {
    */
   createPeriod: async (req, res) => {
     try {
-      const { period_name, start_date, end_date, is_adjusting, fiscal_year } = req.body;
+      const { period_name, start_date, end_date, is_adjusting, fiscal_year } = mapKeysToSnake(req.body || {});
 
       // 验证必填字段
       if (!start_date || !end_date || !fiscal_year) {
@@ -937,7 +926,7 @@ const financeController = {
   updatePeriod: async (req, res) => {
     try {
       const id = safeParseId(req.params.id, '期间ID');
-      const { period_name, start_date, end_date, is_adjusting, fiscal_year } = req.body;
+      const { period_name, start_date, end_date, is_adjusting, fiscal_year } = mapKeysToSnake(req.body || {});
 
       if (!period_name || !start_date || !end_date || !fiscal_year) {
         return ResponseHandler.error(

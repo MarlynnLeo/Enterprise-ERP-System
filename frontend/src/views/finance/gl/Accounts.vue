@@ -58,30 +58,30 @@
         v-loading="loading"
       >
         <template #empty>
-          <el-empty description="暂无会计科目数据" />
+          <EmptyState description="暂无会计科目数据" />
         </template>
-        <el-table-column prop="account_code" label="科目编码" width="120"></el-table-column>
-        <el-table-column prop="account_name" label="科目名称" width="180"></el-table-column>
-        <el-table-column prop="account_type" label="科目类型" width="140"></el-table-column>
+        <el-table-column prop="accountCode" label="科目编码" width="120"></el-table-column>
+        <el-table-column prop="accountName" label="科目名称" width="180"></el-table-column>
+        <el-table-column prop="accountType" label="科目类型" width="140"></el-table-column>
         <el-table-column label="借/贷方向" width="100">
           <template #default="scope">
-            {{ scope.row.is_debit ? '借' : '贷' }}
+            {{ scope.row.isDebit ? '借' : '贷' }}
           </template>
         </el-table-column>
         <el-table-column prop="description" label="描述" width="300" show-overflow-tooltip></el-table-column>
         <el-table-column label="辅助核算" width="200">
           <template #default="scope">
-            <el-tag v-if="scope.row.has_customer" size="small" type="warning" class="mr-1">客户</el-tag>
-            <el-tag v-if="scope.row.has_supplier" size="small" type="info" class="mr-1">供应商</el-tag>
-            <el-tag v-if="scope.row.has_employee" size="small" type="success" class="mr-1">员工</el-tag>
-            <el-tag v-if="scope.row.has_department" size="small" type="primary" class="mr-1">部门</el-tag>
-            <el-tag v-if="scope.row.has_project" size="small" type="danger" class="mr-1">项目</el-tag>
+            <el-tag v-if="scope.row.hasCustomer" size="small" type="warning" class="mr-1">客户</el-tag>
+            <el-tag v-if="scope.row.hasSupplier" size="small" type="info" class="mr-1">供应商</el-tag>
+            <el-tag v-if="scope.row.hasEmployee" size="small" type="success" class="mr-1">员工</el-tag>
+            <el-tag v-if="scope.row.hasDepartment" size="small" type="primary" class="mr-1">部门</el-tag>
+            <el-tag v-if="scope.row.hasProject" size="small" type="danger" class="mr-1">项目</el-tag>
           </template>
         </el-table-column>
         <el-table-column label="状态" width="110">
           <template #default="scope">
-            <el-tag :type="scope.row.is_active ? 'success' : 'info'">
-              {{ scope.row.is_active ? '启用' : '禁用' }}
+            <el-tag :type="scope.row.isActive ? 'success' : 'info'">
+              {{ scope.row.isActive ? '启用' : '禁用' }}
             </el-tag>
           </template>
         </el-table-column>
@@ -90,7 +90,7 @@
             <div class="operation-buttons">
               <el-button
                 v-permission="'finance:accounts:update'"
-                v-if="!scope.row.is_active && canUpdate"
+                v-if="!scope.row.isActive && canUpdate"
                 type="primary"
                 size="small"
                 @click="handleEdit(scope.row)">
@@ -98,16 +98,16 @@
               </el-button>
               <el-popconfirm
                 v-if="canUpdate"
-                :title="scope.row.is_active ? '确定要禁用该会计科目吗？' : '确定要启用该会计科目吗？'"
+                :title="scope.row.isActive ? '确定要禁用该会计科目吗？' : '确定要启用该会计科目吗？'"
                 @confirm="handleToggleStatus(scope.row)"
-                :confirm-button-type="scope.row.is_active ? 'danger' : 'success'"
+                :confirm-button-type="scope.row.isActive ? 'danger' : 'success'"
               >
                 <template #reference>
                   <el-button
                     v-permission="'finance:accounts:update'"
-                    :type="scope.row.is_active ? 'danger' : 'success'"
+                    :type="scope.row.isActive ? 'danger' : 'success'"
                     size="small">
-                    {{ scope.row.is_active ? '禁用' : '启用' }}
+                    {{ scope.row.isActive ? '禁用' : '启用' }}
                   </el-button>
                 </template>
               </el-popconfirm>
@@ -137,19 +137,20 @@
     </el-card>
 
     <!-- 添加/编辑对话框 -->
-    <el-dialog
-      :title="dialogTitle"
+    <AppDialog
       v-model="dialogVisible"
+      :title="dialogTitle"
+      mode="form"
       width="600px"
     >
       <el-form :model="accountForm" :rules="accountRules" ref="accountFormRef" label-width="100px">
-        <el-form-item label="科目编码" prop="account_code">
+        <el-form-item label="科目编码" prop="accountCode">
           <el-input v-model="accountForm.account_code" placeholder="请输入科目编码"></el-input>
         </el-form-item>
-        <el-form-item label="科目名称" prop="account_name">
+        <el-form-item label="科目名称" prop="accountName">
           <el-input v-model="accountForm.account_name" placeholder="请输入科目名称"></el-input>
         </el-form-item>
-        <el-form-item label="科目类型" prop="account_type">
+        <el-form-item label="科目类型" prop="accountType">
           <el-select v-model="accountForm.account_type" placeholder="请选择科目类型" class="w-full">
             <el-option label="资产" value="资产"></el-option>
             <el-option label="负债" value="负债"></el-option>
@@ -159,15 +160,15 @@
             <el-option label="费用" value="费用"></el-option>
           </el-select>
         </el-form-item>
-        <el-form-item label="借/贷方向" prop="is_debit">
+        <el-form-item label="借/贷方向" prop="isDebit">
           <el-radio-group v-model="accountForm.is_debit">
             <el-radio :value="true">借</el-radio>
             <el-radio :value="false">贷</el-radio>
           </el-radio-group>
         </el-form-item>
-        <el-form-item label="父科目" prop="parent_id" v-if="isAdding">
+        <el-form-item label="父科目" prop="parentId" v-if="isAdding">
           <el-cascader
-            v-model="accountForm.parent_id"
+            v-model="accountForm.parentId"
             :options="accountOptions"
             :props="{
               checkStrictly: true,
@@ -190,8 +191,8 @@
             <el-checkbox v-model="accountForm.has_project" :true-value="1" :false-value="0">项目核算</el-checkbox>
           </div>
         </el-form-item>
-        <el-form-item label="状态" prop="is_active">
-          <el-switch v-model="accountForm.is_active" active-text="启用" inactive-text="禁用"></el-switch>
+        <el-form-item label="状态" prop="isActive">
+          <el-switch v-model="accountForm.isActive" active-text="启用" inactive-text="禁用"></el-switch>
         </el-form-item>
         <el-form-item label="描述" prop="description">
           <el-input
@@ -208,7 +209,7 @@
           <el-button v-permission="accountForm.id ? 'finance:accounts:update' : 'finance:accounts:create'" type="primary" @click="saveAccount" :loading="saveLoading">确认</el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
   </div>
 </template>
 
@@ -334,7 +335,7 @@ const loadAccountOptions = async () => {
     const accounts = parseListData(response, { enableLog: false });
     accountOptions.value = accounts.map(item => ({
       ...item,
-      fullName: `${item.account_code} - ${item.account_name}`
+      fullName: `${item.accountCode} - ${item.accountName}`
     }));
   } catch (error) {
     console.error('加载会计科目选项失败:', error);
@@ -380,14 +381,14 @@ const addChild = (row) => {
   dialogTitle.value = '添加子科目';
   isAdding.value = true;
   resetAccountForm();
-  accountForm.parent_id = row.id;
+  accountForm.parentId = row.id;
   dialogVisible.value = true;
 };
 
 // 切换会计科目状态
 const handleToggleStatus = (row) => {
-  const statusText = row.is_active ? '禁用' : '启用';
-  const newStatus = !row.is_active;
+  const statusText = row.isActive ? '禁用' : '启用';
+  const newStatus = !row.isActive;
 
   ElMessageBox.confirm(`确认要${statusText}该会计科目吗？`, '提示', {
     confirmButtonText: '确认',

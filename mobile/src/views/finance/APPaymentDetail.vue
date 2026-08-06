@@ -13,9 +13,9 @@
         <div class="hero-icon"><Icon name="credit-card" size="1.5rem" /></div>
         <div class="hero-info">
           <div class="hero-title">
-            {{ payment.supplierName || payment.supplier_name || '未知供应商' }}
+            {{ payment.supplierName || '未知供应商' }}
           </div>
-          <div class="hero-sub">{{ payment.paymentNumber || payment.payment_number || '' }}</div>
+          <div class="hero-sub">{{ payment.paymentNumber || '' }}</div>
         </div>
         <div
           class="hero-status"
@@ -30,33 +30,33 @@
           <div class="amount-item">
             <span class="amount-label">付款金额</span>
             <span class="amount-value primary"
-              >¥{{ fm(payment.amount || payment.total_amount) }}</span
+              >¥{{ fm(payment.amount || payment.totalAmount) }}</span
             >
           </div>
           <div class="amount-item">
             <span class="amount-label">付款日期</span>
-            <span class="amount-value">{{ fd(payment.paymentDate || payment.payment_date) }}</span>
+            <span class="amount-value">{{ fd(payment.paymentDate) }}</span>
           </div>
         </div>
         <div class="amount-row">
           <div class="amount-item">
             <span class="amount-label">支付方式</span>
             <span class="amount-value">{{
-              payment.paymentMethod || payment.payment_method || '—'
+              payment.paymentMethod || '—'
             }}</span>
           </div>
           <div class="amount-item">
             <span class="amount-label">银行账户</span>
             <span class="amount-value">{{
-              payment.bankAccountName || payment.bank_account_name || '—'
+              payment.bankAccountName || '—'
             }}</span>
           </div>
         </div>
-        <div class="amount-row" v-if="payment.referenceNumber || payment.reference_number">
+        <div class="amount-row" v-if="payment.referenceNumber">
           <div class="amount-item">
             <span class="amount-label">参考编号</span>
             <span class="amount-value">{{
-              payment.referenceNumber || payment.reference_number
+              payment.referenceNumber
             }}</span>
           </div>
         </div>
@@ -67,7 +67,7 @@
         <div class="payment-item" v-for="item in payment.items" :key="item.id">
           <div class="payment-left">
             <div class="payment-invoice">
-              {{ item.invoiceNumber || item.invoice_number || '—' }}
+              {{ item.invoiceNumber || '—' }}
             </div>
           </div>
           <div class="payment-amount">¥{{ fm(item.amount) }}</div>

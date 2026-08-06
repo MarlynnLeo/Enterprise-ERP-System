@@ -7,6 +7,7 @@
 
 const { ResponseHandler } = require('../../utils/responseHandler');
 const { logger } = require('../../utils/logger');
+const { mapKeysToSnake } = require('../../utils/fieldMap');
 
 const printModel = require('../../models/printModel');
 const { getCurrentUserName } = require('../../utils/userHelper');
@@ -145,13 +146,15 @@ const printController = {
 
   async getDefaultTemplateByType(req, res) {
     try {
-      const { module, template_type } = req.query;
+      const q = mapKeysToSnake(req.query || {});
+      const moduleName = q.module;
+      const template_type = q.template_type;
 
-      if (!module || !template_type) {
-        return ResponseHandler.error(res, '缺少必要参数：module 和 template_type', 'VALIDATION_ERROR', 400);
+      if (!moduleName || !template_type) {
+        return ResponseHandler.error(res, '缺少必要参数：module 和 templateType', 'VALIDATION_ERROR', 400);
       }
 
-      const template = await printModel.getDefaultTemplateByType(module, template_type);
+      const template = await printModel.getDefaultTemplateByType(moduleName, template_type);
 
       if (!template) {
         return ResponseHandler.error(res, '未找到默认打印模板', 'NOT_FOUND', 404);

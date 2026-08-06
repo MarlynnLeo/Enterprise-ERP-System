@@ -28,34 +28,34 @@
       </template>
 
       <el-table :data="tableData" border v-loading="loading" height="calc(100vh - 250px)" class="w-full" size="small">
-        <el-table-column prop="department_name" label="部门" width="80" fixed />
+        <el-table-column prop="departmentName" label="部门" width="80" fixed />
         <el-table-column prop="name" label="姓名" width="70" fixed />
         <el-table-column label="出勤天数">
-          <el-table-column prop="full_work_days" label="全勤天数" width="75" />
-          <el-table-column prop="actual_work_days" label="在勤天数" width="75" />
-          <el-table-column prop="absent_from_position" label="不在职天" width="75" />
+          <el-table-column prop="fullWorkDays" label="全勤天数" width="75" />
+          <el-table-column prop="actualWorkDays" label="在勤天数" width="75" />
+          <el-table-column prop="absentFromPosition" label="不在职天" width="75" />
         </el-table-column>
         <el-table-column label="请假">
-          <el-table-column prop="personal_leave_days" label="事假天数" width="75" />
-          <el-table-column prop="sick_leave_days" label="病假天数" width="75" />
-          <el-table-column prop="total_leave_days" label="天数合计" width="75" class-name="subtotal-col" />
+          <el-table-column prop="personalLeaveDays" label="事假天数" width="75" />
+          <el-table-column prop="sickLeaveDays" label="病假天数" width="75" />
+          <el-table-column prop="totalLeaveDays" label="天数合计" width="75" class-name="subtotal-col" />
         </el-table-column>
-        <el-table-column prop="public_holiday_days" label="公休天数" width="75" />
+        <el-table-column prop="publicHolidayDays" label="公休天数" width="75" />
         <el-table-column label="违规">
-          <el-table-column prop="late_count" label="迟到次数" width="75" />
-          <el-table-column prop="missing_punch_count" label="缺卡次数" width="75" />
-          <el-table-column prop="total_violation_count" label="次数合计" width="75" class-name="subtotal-col" />
+          <el-table-column prop="lateCount" label="迟到次数" width="75" />
+          <el-table-column prop="missingPunchCount" label="缺卡次数" width="75" />
+          <el-table-column prop="totalViolationCount" label="次数合计" width="75" class-name="subtotal-col" />
         </el-table-column>
         <el-table-column label="加班">
-          <el-table-column prop="serious_late_overtime" label="严重迟到/上加班" width="100" />
-          <el-table-column prop="normal_overtime" label="正常晚" width="70" />
-          <el-table-column prop="saturday_overtime" label="周六" width="60" />
-          <el-table-column prop="weekend_overtime" label="周末" width="60" />
+          <el-table-column prop="seriousLateOvertime" label="严重迟到/上加班" width="100" />
+          <el-table-column prop="normalOvertime" label="正常晚" width="70" />
+          <el-table-column prop="saturdayOvertime" label="周六" width="60" />
+          <el-table-column prop="weekendOvertime" label="周末" width="60" />
         </el-table-column>
         <el-table-column label="全勤" width="60">
           <template #default="{ row }">
-            <el-tag :type="row.full_attendance ? 'success' : 'info'" size="small">
-              {{ row.full_attendance ? '是' : '否' }}
+            <el-tag :type="row.fullAttendance ? 'success' : 'info'" size="small">
+              {{ row.fullAttendance ? '是' : '否' }}
             </el-tag>
           </template>
         </el-table-column>
@@ -64,7 +64,13 @@
     </el-card>
 
     <!-- 考勤规则配置弹窗 -->
-    <el-dialog title="考勤规则配置" v-model="rulesDialogVisible" width="750px" :close-on-click-modal="false">
+    <AppDialog
+      v-model="rulesDialogVisible"
+      title="考勤规则配置"
+      mode="form"
+      width="750px"
+      :close-on-click-modal="false"
+    >
       <div v-loading="rulesLoading">
         <div v-for="(group, groupName) in groupedRules" :key="groupName" class="mb-20">
           <el-divider content-position="left">{{ groupName }}</el-divider>
@@ -107,7 +113,7 @@
         <el-button @click="rulesDialogVisible = false">关闭</el-button>
         <el-button type="primary" :loading="rulesSaving" v-permission="'hr:attendance:update'" @click="saveAllRules">保存所有规则</el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
   </div>
 </template>
 
@@ -191,7 +197,7 @@ const fetchRules = async () => {
     const res = await hrApi.getAttendanceRules()
     rulesList.value = (parseResponseData(res)).map(r => ({
       ...r,
-      _editValue: typeof r.rule_value === 'string' ? JSON.parse(r.rule_value) : r.rule_value
+      _editValue: typeof r.ruleValue === 'string' ? JSON.parse(r.ruleValue) : r.ruleValue
     }))
   } catch {
     ElMessage.error('获取规则失败')
@@ -203,7 +209,7 @@ const fetchRules = async () => {
 const groupedRules = computed(() => {
   const groups = {}
   for (const r of rulesList.value) {
-    const g = r.rule_group || '通用'
+    const g = r.ruleGroup || '通用'
     if (!groups[g]) groups[g] = []
     groups[g].push(r)
   }

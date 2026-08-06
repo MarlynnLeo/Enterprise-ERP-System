@@ -34,13 +34,13 @@
 
         <el-table :data="roleList" class="w-full" border v-loading="roleLoading">
           <template #empty>
-            <el-empty description="暂无角色数据" />
+            <EmptyState description="暂无角色数据" />
           </template>
           <el-table-column prop="name" label="角色名称" width="160"></el-table-column>
           <el-table-column prop="code" label="角色编码" width="160"></el-table-column>
           <el-table-column label="数据范围" width="140">
             <template #default="scope">
-              <el-tag type="info" size="small">{{ dataScopeLabel(scope.row.data_scope) }}</el-tag>
+              <el-tag type="info" size="small">{{ dataScopeLabel(scope.row.dataScope) }}</el-tag>
             </template>
           </el-table-column>
           <el-table-column prop="description" label="角色描述" min-width="280"></el-table-column>
@@ -51,7 +51,7 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="createTime" label="创建时间" width="180"></el-table-column>
+          <el-table-column prop="createdAt" label="创建时间" width="180"></el-table-column>
           <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="scope">
               <div class="flex-wrap">
@@ -157,7 +157,7 @@
           :default-sort="{ prop: 'sort', order: 'ascending' }"
         >
           <template #empty>
-            <el-empty description="暂无菜单数据" />
+            <EmptyState description="暂无菜单数据" />
           </template>
           <el-table-column prop="name" label="菜单名称" width="190">
             <template #default="scope">
@@ -284,7 +284,7 @@
           <el-descriptions-item label="角色名称">{{ roleForm.name || '-' }}</el-descriptions-item>
           <el-descriptions-item label="角色编码">{{ roleForm.code || '-' }}</el-descriptions-item>
           <el-descriptions-item label="数据范围">{{
-            dataScopeLabel(roleForm.data_scope)
+            dataScopeLabel(roleForm.dataScope)
           }}</el-descriptions-item>
           <el-descriptions-item label="状态">
             <el-tag :type="Number(roleForm.status) === 1 ? 'success' : 'danger'">
@@ -303,8 +303,8 @@
         <el-form-item label="角色编码" prop="code">
           <el-input v-model="roleForm.code" placeholder="请输入角色编码"></el-input>
         </el-form-item>
-        <el-form-item label="数据范围" prop="data_scope">
-          <el-select v-model="roleForm.data_scope" placeholder="选择数据范围" class="w-full">
+        <el-form-item label="数据范围" prop="dataScope">
+          <el-select v-model="roleForm.dataScope" placeholder="选择数据范围" class="w-full">
             <el-option
               v-for="opt in dataScopeOptions"
               :key="opt.value"
@@ -346,11 +346,11 @@
       </template>
     </AppDialog>
     <!-- 分配权限对话框 -->
-    <el-dialog
-      title="分配权限"
+    <AppDialog
       v-model="permissionDialogVisible"
-      width="960px"
-      destroy-on-close
+      title="分配权限"
+      mode="form"
+      wide
       @opened="onPermissionDialogOpened"
     >
       <!-- 顶栏：角色 + 搜索 + 统计 -->
@@ -452,11 +452,11 @@
         </div>
       </div>
       <div v-else class="empty-tree-message">
-        <el-empty description="菜单数据为空，无法显示权限树">
+        <EmptyState description="菜单数据为空，无法显示权限树">
           <div class="empty-actions">
             <el-button type="primary" @click="refreshMenuTree">刷新菜单数据</el-button>
           </div>
-        </el-empty>
+        </EmptyState>
       </div>
       <template #footer>
         <div class="perm-dialog-footer">
@@ -476,7 +476,7 @@
           </span>
         </div>
       </template>
-    </el-dialog>
+        </AppDialog>
     <!-- 菜单添加/编辑/查看对话框 -->
     <AppDialog
       v-model="menuDialogVisible"
@@ -673,7 +673,7 @@ const roleForm = reactive({
   code: '',
   description: '',
   status: 1,
-  data_scope: 4,
+  dataScope: 4,
 });
 // 菜单表单
 const menuForm = reactive({
@@ -872,9 +872,8 @@ const loadMenus = async () => {
         menuList.value = menuData.map((item) => ({
           ...item,
           id: Number(item.id),
-          parent_id: Number(item.parent_id || 0),
-          parentId: Number(item.parent_id || 0), // 同时设置parentId以兼容前端代码
-          sort: item.sort_order || item.sort || 0, // 处理排序字段
+          parentId: Number(item.parentId || 0),
+          sort: item.sortOrder || item.sort || 0, // 处理排序字段
           type: Number(item.type || 0), // 确保type是数字
         }));
 
@@ -905,13 +904,12 @@ const loadMenus = async () => {
     }
 
     if (Array.isArray(menuData)) {
-      // 修复：确保所有菜单项都有正确的id和parent_id格式
+      // 修复：确保所有菜单项都有正确的 id / parentId 格式
       menuList.value = menuData.map((item) => ({
         ...item,
         id: Number(item.id), // 确保id是数字
-        parent_id: Number(item.parent_id || item.parentId || 0), // 确保parent_id是数字，默认为0
-        parentId: Number(item.parent_id || item.parentId || 0), // 添加parentId字段以兼容不同命名
-        sort: Number(item.sort_order || item.sort || 0), // 处理排序字段
+        parentId: Number(item.parentId || 0),
+        sort: Number(item.sortOrder || item.sort || 0), // 处理排序字段
         type: Number(item.type || 0), // 确保type是数字
       }));
 
@@ -960,31 +958,26 @@ const convertToTree = (flatList) => {
       return;
     }
 
-    // 确保parent_id和parentId都被正确处理
     let parentId = 0;
-    if (item.parentId !== undefined) {
+    if (item.parentId !== undefined && item.parentId !== null) {
       parentId = Number(item.parentId);
-    } else if (item.parent_id !== undefined) {
-      parentId = Number(item.parent_id);
     }
 
     // 确保排序字段正确
-    const sortValue = Number(item.sort_order || item.sort || 0);
+    const sortValue = Number(item.sortOrder || item.sort || 0);
 
     map[id] = {
       ...item,
       id,
-      parent_id: parentId,
-      parentId: parentId,
+      parentId,
       sort: sortValue,
-      sort_order: sortValue,
       children: [],
     };
   });
 
   // 第二次遍历: 构建树结构
   Object.values(map).forEach((node) => {
-    const parentId = Number(node.parentId || node.parent_id || 0);
+    const parentId = Number(node.parentId || 0);
 
     if (parentId === 0) {
       // 根节点直接添加到结果中
@@ -1031,7 +1024,7 @@ const handleViewRole = (row) => {
   Object.assign(roleForm, row);
   // 特殊处理状态展示
   roleForm.status = Number(row.status);
-  roleForm.data_scope = Number(row.data_scope) || 4;
+  roleForm.dataScope = Number(row.dataScope) || 4;
   roleDialogVisible.value = true;
 };
 // 编辑角色
@@ -1047,7 +1040,7 @@ const handleEditRole = (row) => {
     }
   });
   roleForm.status = Number(row.status);
-  roleForm.data_scope = Number(row.data_scope) || 4;
+  roleForm.dataScope = Number(row.dataScope) || 4;
 
   roleDialogVisible.value = true;
 };
@@ -1423,9 +1416,9 @@ const submitRolePermissions = async (menuIds, halfCheckedIds, uncheckedIds = [])
     // 为每个选中的权限添加其父权限链
     numericMenuIds.forEach((id) => {
       let currentMenu = menuList.value.find((menu) => menu.id === id);
-      while (currentMenu && currentMenu.parent_id) {
-        allRequiredIds.add(currentMenu.parent_id);
-        currentMenu = menuList.value.find((menu) => menu.id === currentMenu.parent_id);
+      while (currentMenu && currentMenu.parentId) {
+        allRequiredIds.add(currentMenu.parentId);
+        currentMenu = menuList.value.find((menu) => menu.id === currentMenu.parentId);
       }
     });
     // 3. 重新计算完整选中和半选中状态
@@ -1631,7 +1624,7 @@ const resetRoleForm = () => {
   roleForm.code = '';
   roleForm.description = '';
   roleForm.status = 1;
-  roleForm.data_scope = 4;
+  roleForm.dataScope = 4;
 
   // 清除校验
   if (roleFormRef.value) {
@@ -1869,11 +1862,11 @@ const buildMenuMaps = () => {
 
   menuList.value.forEach((menu) => {
     menuMap[menu.id] = menu;
-    if (menu.parent_id) {
-      if (!childrenMap[menu.parent_id]) {
-        childrenMap[menu.parent_id] = [];
+    if (menu.parentId) {
+      if (!childrenMap[menu.parentId]) {
+        childrenMap[menu.parentId] = [];
       }
-      childrenMap[menu.parent_id].push(menu.id);
+      childrenMap[menu.parentId].push(menu.id);
     }
   });
 

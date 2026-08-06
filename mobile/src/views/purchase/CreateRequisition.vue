@@ -13,7 +13,7 @@
     <Form @submit="onSubmit">
       <CellGroup inset title="申请信息">
         <Field
-          v-model="form.request_date"
+          v-model="form.requestDate"
           is-link
           readonly
           label="申请日期"
@@ -64,7 +64,7 @@
             />
           </div>
           <Field
-            v-model="item.material_id"
+            v-model="item.materialId"
             label="物料ID"
             placeholder="必填(数字)"
             type="digit"
@@ -78,7 +78,7 @@
             :rules="[{ required: true, message: '请输入数量' }]"
           />
           <Field
-            v-model="item.required_date"
+            v-model="item.requiredDate"
             is-link
             readonly
             label="需求日期"
@@ -136,16 +136,17 @@
     return `${dateArr[0]}-${String(dateArr[1]).padStart(2, '0')}-${String(dateArr[2]).padStart(2, '0')}`
   }
 
+  // 纯 camel 提交（后端若尚未 FieldMap，控制器应兼容 camel）
   const form = reactive({
-    request_date: formatDate([today.getFullYear(), today.getMonth() + 1, today.getDate()]),
+    requestDate: formatDate([today.getFullYear(), today.getMonth() + 1, today.getDate()]),
     requester: '',
     department: '',
     remarks: '',
-    items: [{ material_id: '', quantity: '', required_date: '' }]
+    items: [{ materialId: '', quantity: '', requiredDate: '' }]
   })
 
   const onDateConfirm = ({ selectedValues }) => {
-    form.request_date = formatDate(selectedValues)
+    form.requestDate = formatDate(selectedValues)
     showDatePicker.value = false
   }
 
@@ -156,13 +157,13 @@
 
   const onItemDateConfirm = ({ selectedValues }) => {
     if (activeItemIndex.value !== -1) {
-      form.items[activeItemIndex.value].required_date = formatDate(selectedValues)
+      form.items[activeItemIndex.value].requiredDate = formatDate(selectedValues)
     }
     showItemDatePicker.value = false
   }
 
   const addItem = () => {
-    form.items.push({ material_id: '', quantity: '', required_date: '' })
+    form.items.push({ materialId: '', quantity: '', requiredDate: '' })
   }
 
   const removeItem = (index) => {
@@ -170,7 +171,7 @@
   }
 
   const onSubmit = async () => {
-    if (form.items.some((item) => !item.material_id || !item.quantity)) {
+    if (form.items.some((item) => !item.materialId || !item.quantity)) {
       showToast('带有必填项的物料明细填写不完整')
       return
     }
@@ -178,14 +179,14 @@
     submitting.value = true
     try {
       const payload = {
-        request_date: form.request_date,
+        requestDate: form.requestDate,
         requester: form.requester,
         department: form.department,
         remarks: form.remarks,
         items: form.items.map((i) => ({
-          material_id: parseInt(i.material_id),
+          materialId: parseInt(i.materialId, 10),
           quantity: parseFloat(i.quantity),
-          required_date: i.required_date || null
+          requiredDate: i.requiredDate || null
         }))
       }
 

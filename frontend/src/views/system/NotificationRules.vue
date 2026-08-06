@@ -35,12 +35,12 @@
             </el-input>
           </el-col>
           <el-col :span="5">
-            <el-select v-model="filters.event_type" placeholder="事件类型" clearable class="w-full" @change="fetchData">
-              <el-option v-for="event in supportedEvents" :key="event.event_type" :label="event.label" :value="event.event_type" />
+            <el-select v-model="filters.eventType" placeholder="事件类型" clearable class="w-full" @change="fetchData">
+              <el-option v-for="event in supportedEvents" :key="event.eventType" :label="event.label" :value="event.eventType" />
             </el-select>
           </el-col>
           <el-col :span="4">
-            <el-select v-model="filters.is_active" placeholder="状态" clearable class="w-full" @change="fetchData">
+            <el-select v-model="filters.isActive" placeholder="状态" clearable class="w-full" @change="fetchData">
               <el-option label="启用" :value="1" />
               <el-option label="禁用" :value="0" />
             </el-select>
@@ -53,30 +53,30 @@
 
       <el-table :data="tableData" v-loading="loading" border stripe>
         <el-table-column prop="name" label="规则名称" min-width="170" />
-        <el-table-column prop="event_type" label="事件类型" min-width="180">
-          <template #default="{ row }">{{ eventLabel(row.event_type) }}</template>
+        <el-table-column prop="eventType" label="事件类型" min-width="180">
+          <template #default="{ row }">{{ eventLabel(row.eventType) }}</template>
         </el-table-column>
-        <el-table-column prop="recipient_type" label="收件方式" width="110">
+        <el-table-column prop="recipientType" label="收件方式" width="110">
           <template #default="{ row }">
-            <el-tag size="small" :type="recipientTagType(row.recipient_type)">
-              {{ recipientLabel[row.recipient_type] || row.recipient_type }}
+            <el-tag size="small" :type="recipientTagType(row.recipientType)">
+              {{ recipientLabel[row.recipientType] || row.recipientType }}
             </el-tag>
           </template>
         </el-table-column>
         <el-table-column label="收件范围" min-width="220" show-overflow-tooltip>
           <template #default="{ row }">{{ recipientSummary(row) }}</template>
         </el-table-column>
-        <el-table-column prop="title_template" label="标题模板" min-width="180" show-overflow-tooltip />
+        <el-table-column prop="titleTemplate" label="标题模板" min-width="180" show-overflow-tooltip />
         <el-table-column prop="priority" label="优先级" width="90" align="center">
           <template #default="{ row }">
             <el-tag :type="priorityTag(row.priority)" size="small">{{ priorityLabel[row.priority] }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="is_active" label="状态" width="80" align="center">
+        <el-table-column prop="isActive" label="状态" width="80" align="center">
           <template #default="{ row }">
             <el-switch
               v-permission="NOTIFICATION_PERMISSIONS.TOGGLE"
-              :model-value="!!row.is_active"
+              :model-value="!!row.isActive"
               size="small"
               @change="(value) => toggleActive(row.id, value)"
             />
@@ -106,7 +106,12 @@
       </div>
     </el-card>
 
-    <el-dialog v-model="formVisible" :title="form.id ? '编辑通知规则' : '新建通知规则'" width="760px" destroy-on-close>
+    <AppDialog
+      v-model="formVisible"
+      :title="form.id ? '编辑通知规则' : '新建通知规则'"
+      mode="form"
+      width="760px"
+    >
       <el-form :model="form" label-width="100px">
         <el-row :gutter="16">
           <el-col :span="12">
@@ -116,9 +121,9 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="业务事件" required>
-              <el-select v-model="form.event_type" class="w-full" filterable @change="onEventChange">
+              <el-select v-model="form.eventType" class="w-full" filterable @change="onEventChange">
                 <el-option-group v-for="group in groupedEvents" :key="group.label" :label="group.label">
-                  <el-option v-for="event in group.items" :key="event.event_type" :label="event.label" :value="event.event_type" />
+                  <el-option v-for="event in group.items" :key="event.eventType" :label="event.label" :value="event.eventType" />
                 </el-option-group>
               </el-select>
             </el-form-item>
@@ -128,7 +133,7 @@
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="收件方式" required>
-              <el-select v-model="form.recipient_type" class="w-full" @change="onRecipientTypeChange">
+              <el-select v-model="form.recipientType" class="w-full" @change="onRecipientTypeChange">
                 <el-option v-for="item in RECIPIENT_TYPE_OPTIONS" :key="item.value" :label="item.label" :value="item.value" />
               </el-select>
             </el-form-item>
@@ -146,7 +151,7 @@
 
         <el-form-item label="收件范围" required>
           <el-select
-            v-model="form.recipient_config"
+            v-model="form.recipientConfig"
             multiple
             filterable
             collapse-tags
@@ -155,13 +160,13 @@
             :placeholder="recipientPlaceholder"
             @change="previewRecipients"
           >
-            <template v-if="form.recipient_type === RECIPIENT_TYPES.PERMISSION">
+            <template v-if="form.recipientType === RECIPIENT_TYPES.PERMISSION">
               <el-option-group v-for="group in permissionGroups" :key="group.label" :label="group.label">
                 <el-option v-for="item in group.items" :key="item.code" :label="`${item.name || item.code} (${item.code})`" :value="item.code" />
               </el-option-group>
             </template>
-            <el-option v-else-if="form.recipient_type === RECIPIENT_TYPES.ROLE" v-for="item in options.roles" :key="item.id" :label="`${item.name}（${item.active_user_count}名启用用户）`" :value="item.id" />
-            <el-option v-else-if="form.recipient_type === RECIPIENT_TYPES.DEPARTMENT" v-for="item in options.departments" :key="item.id" :label="`${item.name}（${item.active_user_count}名启用用户）`" :value="item.id" />
+            <el-option v-else-if="form.recipientType === RECIPIENT_TYPES.ROLE" v-for="item in options.roles" :key="item.id" :label="`${item.name}（${item.activeUserCount}名启用用户）`" :value="item.id" />
+            <el-option v-else-if="form.recipientType === RECIPIENT_TYPES.DEPARTMENT" v-for="item in options.departments" :key="item.id" :label="`${item.name}（${item.activeUserCount}名启用用户）`" :value="item.id" />
             <el-option v-else v-for="item in options.users" :key="item.id" :label="formatUser(item)" :value="item.id" />
           </el-select>
         </el-form-item>
@@ -182,20 +187,20 @@
 
         <el-divider content-position="left">通知模板</el-divider>
         <el-form-item label="标题模板" required>
-          <el-input v-model="form.title_template" placeholder="例如：应收发票逾期提醒" maxlength="200" show-word-limit />
+          <el-input v-model="form.titleTemplate" placeholder="例如：应收发票逾期提醒" maxlength="200" show-word-limit />
         </el-form-item>
         <el-form-item label="内容模板" required>
-          <el-input v-model="form.content_template" type="textarea" :rows="3" maxlength="2000" show-word-limit placeholder="支持 ${变量} 占位符" />
+          <el-input v-model="form.contentTemplate" type="textarea" :rows="3" maxlength="2000" show-word-limit placeholder="支持 ${变量} 占位符" />
           <div v-if="currentEventVars.length" class="form-hint">
             可用变量：
             <el-tag v-for="variable in currentEventVars" :key="variable" size="small" type="info" class="chip-gap">{{ '${' + variable + '}' }}</el-tag>
           </div>
         </el-form-item>
         <el-form-item label="跳转链接">
-          <el-input v-model="form.link_template" placeholder="只能填写系统内部路径，例如 /finance/ar/invoices" maxlength="200" />
+          <el-input v-model="form.linkTemplate" placeholder="只能填写系统内部路径，例如 /finance/ar/invoices" maxlength="200" />
         </el-form-item>
         <el-form-item label="启用">
-          <el-switch v-model="form.is_active" :active-value="1" :inactive-value="0" />
+          <el-switch v-model="form.isActive" :active-value="1" :inactive-value="0" />
         </el-form-item>
       </el-form>
 
@@ -203,13 +208,13 @@
         <el-button @click="formVisible = false">取消</el-button>
         <el-button type="primary" :loading="saving" @click="saveRule">保存</el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
 
-    <el-dialog
+    <AppDialog
       v-model="responsibilityVisible"
       title="通知责任组"
+      mode="form"
       width="min(680px, calc(100vw - 24px))"
-      destroy-on-close
     >
       <el-form class="responsibility-form" :model="responsibilityForm" label-width="100px">
         <el-form-item label="责任组">
@@ -224,14 +229,14 @@
         </el-form-item>
         <el-form-item label="收件方式" required>
           <el-segmented
-            v-model="responsibilityForm.recipient_type"
+            v-model="responsibilityForm.recipientType"
             :options="RECIPIENT_TYPE_OPTIONS"
             @change="clearResponsibilityRecipients"
           />
         </el-form-item>
         <el-form-item label="责任范围" required>
           <el-select
-            v-model="responsibilityForm.recipient_config"
+            v-model="responsibilityForm.recipientConfig"
             class="w-full"
             multiple
             filterable
@@ -239,13 +244,13 @@
             collapse-tags-tooltip
             @change="previewResponsibility"
           >
-            <template v-if="responsibilityForm.recipient_type === RECIPIENT_TYPES.PERMISSION">
+            <template v-if="responsibilityForm.recipientType === RECIPIENT_TYPES.PERMISSION">
               <el-option-group v-for="group in permissionGroups" :key="group.label" :label="group.label">
                 <el-option v-for="item in group.items" :key="item.code" :label="`${item.name || item.code} (${item.code})`" :value="item.code" />
               </el-option-group>
             </template>
-            <el-option v-else-if="responsibilityForm.recipient_type === RECIPIENT_TYPES.ROLE" v-for="item in options.roles" :key="item.id" :label="`${item.name}（${item.active_user_count}名启用用户）`" :value="item.id" />
-            <el-option v-else-if="responsibilityForm.recipient_type === RECIPIENT_TYPES.DEPARTMENT" v-for="item in options.departments" :key="item.id" :label="`${item.name}（${item.active_user_count}名启用用户）`" :value="item.id" />
+            <el-option v-else-if="responsibilityForm.recipientType === RECIPIENT_TYPES.ROLE" v-for="item in options.roles" :key="item.id" :label="`${item.name}（${item.activeUserCount}名启用用户）`" :value="item.id" />
+            <el-option v-else-if="responsibilityForm.recipientType === RECIPIENT_TYPES.DEPARTMENT" v-for="item in options.departments" :key="item.id" :label="`${item.name}（${item.activeUserCount}名启用用户）`" :value="item.id" />
             <el-option v-else v-for="item in options.users" :key="item.id" :label="formatUser(item)" :value="item.id" />
           </el-select>
         </el-form-item>
@@ -266,7 +271,7 @@
         <el-button @click="responsibilityVisible = false">取消</el-button>
         <el-button type="primary" :loading="responsibilitySaving" @click="saveResponsibility">保存</el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
   </div>
 </template>
 
@@ -294,23 +299,23 @@ const responsibilities = ref([])
 const responsibilityVisible = ref(false)
 const responsibilitySaving = ref(false)
 const responsibilityPreview = ref(null)
-const responsibilityForm = ref({ code: '', name: '', recipient_type: RECIPIENT_TYPES.PERMISSION, recipient_config: [] })
+const responsibilityForm = ref({ code: '', name: '', recipientType: RECIPIENT_TYPES.PERMISSION, recipientConfig: [] })
 const options = ref({ permissions: [], roles: [], departments: [], users: [] })
 
-const filters = ref({ keyword: '', event_type: '', is_active: '' })
+const filters = ref({ keyword: '', eventType: '', isActive: '' })
 const form = ref(createEmptyForm())
 
 function createEmptyForm() {
   return {
     name: '',
-    event_type: '',
-    recipient_type: RECIPIENT_TYPES.PERMISSION,
-    recipient_config: [],
-    title_template: '',
-    content_template: '',
-    link_template: '',
+    eventType: '',
+    recipientType: RECIPIENT_TYPES.PERMISSION,
+    recipientConfig: [],
+    titleTemplate: '',
+    contentTemplate: '',
+    linkTemplate: '',
     priority: 1,
-    is_active: 1,
+    isActive: 1,
   }
 }
 
@@ -319,8 +324,8 @@ const priorityLabel = { 0: '低', 1: '中', 2: '高' }
 
 const recipientTagType = (type) => ({ permission: 'primary', role: 'warning', department: 'success', user: 'info' }[type] || 'info')
 const priorityTag = (priority) => ({ 0: 'info', 1: 'primary', 2: 'danger' }[priority] || 'info')
-const eventLabel = (eventType) => supportedEvents.value.find((event) => event.event_type === eventType)?.label || eventType
-const currentEvent = computed(() => supportedEvents.value.find((event) => event.event_type === form.value.event_type))
+const eventLabel = (eventType) => supportedEvents.value.find((event) => event.eventType === eventType)?.label || eventType
+const currentEvent = computed(() => supportedEvents.value.find((event) => event.eventType === form.value.eventType))
 const currentEventVars = computed(() => currentEvent.value?.variables || [])
 const groupedEvents = computed(() => groupBy(supportedEvents.value, (event) => event.category || '其他'))
 const permissionGroups = computed(() => groupBy(options.value.permissions, (item) => item.module || '其他'))
@@ -333,7 +338,7 @@ const recipientPlaceholder = computed(() => ({
   role: '搜索角色',
   department: '搜索部门',
   user: '搜索启用用户',
-}[form.value.recipient_type]))
+}[form.value.recipientType]))
 
 function groupBy(items, keyGetter) {
   const grouped = new Map()
@@ -346,16 +351,16 @@ function groupBy(items, keyGetter) {
 }
 
 function formatUser(user) {
-  return `${user.real_name || user.username || `用户${user.id}`}（${user.department_name || '未分配部门'}）`
+  return `${user.realName || user.username || `用户${user.id}`}（${user.departmentName || '未分配部门'}）`
 }
 
 function recipientSummary(row) {
-  const config = Array.isArray(row.recipient_config) ? row.recipient_config : []
-  if (row.recipient_type === RECIPIENT_TYPES.PERMISSION) return config.join('、')
-  const source = row.recipient_type === RECIPIENT_TYPES.ROLE ? options.value.roles : row.recipient_type === RECIPIENT_TYPES.DEPARTMENT ? options.value.departments : options.value.users
+  const config = Array.isArray(row.recipientConfig) ? row.recipientConfig : []
+  if (row.recipientType === RECIPIENT_TYPES.PERMISSION) return config.join('、')
+  const source = row.recipientType === RECIPIENT_TYPES.ROLE ? options.value.roles : row.recipientType === RECIPIENT_TYPES.DEPARTMENT ? options.value.departments : options.value.users
   return config.map((id) => {
     const item = source.find((candidate) => Number(candidate.id) === Number(id))
-    return item ? (row.recipient_type === RECIPIENT_TYPES.USER ? formatUser(item) : item.name) : `ID:${id}`
+    return item ? (row.recipientType === RECIPIENT_TYPES.USER ? formatUser(item) : item.name) : `ID:${id}`
   }).join('、')
 }
 
@@ -403,26 +408,26 @@ function selectResponsibility(code) {
   responsibilityForm.value = {
     code: selected.code,
     name: selected.name,
-    recipient_type: selected.recipient_type,
-    recipient_config: [...(selected.recipient_config || [])],
+    recipientType: selected.recipientType,
+    recipientConfig: [...(selected.recipientConfig || [])],
   }
   responsibilityPreview.value = selected.preview || null
 }
 
 function clearResponsibilityRecipients() {
-  responsibilityForm.value.recipient_config = []
+  responsibilityForm.value.recipientConfig = []
   responsibilityPreview.value = null
 }
 
 async function previewResponsibility() {
-  if (!responsibilityForm.value.recipient_config.length) {
+  if (!responsibilityForm.value.recipientConfig.length) {
     responsibilityPreview.value = null
     return
   }
   try {
     responsibilityPreview.value = normalizeResponse(await notificationRuleApi.previewRecipients({
-      recipient_type: responsibilityForm.value.recipient_type,
-      recipient_config: responsibilityForm.value.recipient_config,
+      recipientType: responsibilityForm.value.recipientType,
+      recipientConfig: responsibilityForm.value.recipientConfig,
     }))
   } catch (error) {
     responsibilityPreview.value = null
@@ -432,7 +437,7 @@ async function previewResponsibility() {
 
 async function saveResponsibility() {
   if (!responsibilityForm.value.code) return ElMessage.warning('请选择责任组')
-  if (!responsibilityForm.value.recipient_config.length) return ElMessage.warning('请选择责任范围')
+  if (!responsibilityForm.value.recipientConfig.length) return ElMessage.warning('请选择责任范围')
   responsibilitySaving.value = true
   try {
     await notificationRuleApi.updateResponsibility(responsibilityForm.value.code, responsibilityForm.value)
@@ -449,34 +454,38 @@ async function saveResponsibility() {
 function openForm(row) {
   preview.value = null
   form.value = row
-    ? { ...row, recipient_config: Array.isArray(row.recipient_config) ? [...row.recipient_config] : [] }
+    ? {
+        ...createEmptyForm(),
+        ...row,
+        recipientConfig: Array.isArray(row.recipientConfig) ? [...row.recipientConfig] : [],
+      }
     : createEmptyForm()
   formVisible.value = true
-  if (form.value.recipient_config.length) previewRecipients()
+  if (form.value.recipientConfig.length) previewRecipients()
 }
 
 function onRecipientTypeChange() {
-  form.value.recipient_config = []
+  form.value.recipientConfig = []
   preview.value = null
 }
 
 function onEventChange() {
   const event = currentEvent.value
   if (!event) return
-  if (!form.value.title_template) form.value.title_template = event.default_title || event.label
-  if (!form.value.content_template) form.value.content_template = event.default_content || `${event.label}已触发。`
-  if (!form.value.link_template) form.value.link_template = event.default_link || ''
+  if (!form.value.titleTemplate) form.value.titleTemplate = event.defaultTitle || event.label
+  if (!form.value.contentTemplate) form.value.contentTemplate = event.defaultContent || `${event.label}已触发。`
+  if (!form.value.linkTemplate) form.value.linkTemplate = event.defaultLink || ''
 }
 
 async function previewRecipients() {
-  if (!form.value.recipient_config.length) {
+  if (!form.value.recipientConfig.length) {
     preview.value = null
     return
   }
   try {
     preview.value = normalizeResponse(await notificationRuleApi.previewRecipients({
-      recipient_type: form.value.recipient_type,
-      recipient_config: form.value.recipient_config,
+      recipientType: form.value.recipientType,
+      recipientConfig: form.value.recipientConfig,
     }))
   } catch (error) {
     preview.value = null
@@ -486,10 +495,10 @@ async function previewRecipients() {
 
 async function saveRule() {
   if (!form.value.name.trim()) return ElMessage.warning('请填写规则名称')
-  if (!form.value.event_type) return ElMessage.warning('请选择业务事件')
-  if (!form.value.recipient_config.length) return ElMessage.warning('请选择收件范围')
-  if (!form.value.title_template.trim()) return ElMessage.warning('请填写标题模板')
-  if (!form.value.content_template.trim()) return ElMessage.warning('请填写内容模板')
+  if (!form.value.eventType) return ElMessage.warning('请选择业务事件')
+  if (!form.value.recipientConfig.length) return ElMessage.warning('请选择收件范围')
+  if (!form.value.titleTemplate.trim()) return ElMessage.warning('请填写标题模板')
+  if (!form.value.contentTemplate.trim()) return ElMessage.warning('请填写内容模板')
 
   saving.value = true
   try {
@@ -545,7 +554,7 @@ onMounted(async () => {
 
 <style scoped>
 .form-hint {
-  color: var(--color-text-secondary, #6b7280);
+  color: var(--color-text-secondary);
   font-size: 12px;
   line-height: 1.6;
   margin-top: 4px;

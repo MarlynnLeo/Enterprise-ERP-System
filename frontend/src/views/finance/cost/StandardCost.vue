@@ -26,40 +26,40 @@
     <!-- 数据表格 -->
     <el-card class="data-card">
       <el-table :data="costList" border v-loading="loading" class="w-full">
-        <el-table-column prop="product_code" label="产品编码" width="140"></el-table-column>
-        <el-table-column prop="product_name" label="产品名称" width="350"></el-table-column>
+        <el-table-column prop="productCode" label="产品编码" width="140"></el-table-column>
+        <el-table-column prop="productName" label="产品名称" width="350"></el-table-column>
         <el-table-column label="材料成本" width="130">
           <template #default="scope">
-            {{ formatCurrency(scope.row.material_cost) }}
+            {{ formatCurrency(scope.row.materialCost) }}
           </template>
         </el-table-column>
         <el-table-column label="人工成本" width="130">
           <template #default="scope">
-            {{ formatCurrency(scope.row.labor_cost) }}
+            {{ formatCurrency(scope.row.laborCost) }}
           </template>
         </el-table-column>
         <el-table-column label="制造费用" width="130">
           <template #default="scope">
-            {{ formatCurrency(scope.row.overhead_cost) }}
+            {{ formatCurrency(scope.row.overheadCost) }}
           </template>
         </el-table-column>
         <el-table-column label="总成本" width="130">
           <template #default="scope">
             <span class="text-primary font-weight-700">
-              {{ formatCurrency(scope.row.total_cost) }}
+              {{ formatCurrency(scope.row.totalCost) }}
             </span>
           </template>
         </el-table-column>
         <el-table-column label="单位成本" width="120">
           <template #default="scope">
-            {{ formatCurrency(scope.row.unit_cost) }}
+            {{ formatCurrency(scope.row.unitCost) }}
           </template>
         </el-table-column>
-        <el-table-column prop="effective_date" label="生效日期" width="120"></el-table-column>
+        <el-table-column prop="effectiveDate" label="生效日期" width="120"></el-table-column>
         <el-table-column label="状态" width="80">
           <template #default="scope">
-            <el-tag :type="scope.row.is_active ? 'success' : 'info'">
-              {{ scope.row.is_active ? '有效' : '失效' }}
+            <el-tag :type="scope.row.isActive ? 'success' : 'info'">
+              {{ scope.row.isActive ? '有效' : '失效' }}
             </el-tag>
           </template>
         </el-table-column>
@@ -87,7 +87,12 @@
     </el-card>
 
     <!-- 计算标准成本对话框 -->
-    <el-dialog v-model="calculateDialogVisible" title="计算标准成本" width="600px">
+    <AppDialog
+      v-model="calculateDialogVisible"
+      title="计算标准成本"
+      mode="form"
+      width="600px"
+    >
       <el-form :model="calculateForm" label-width="100px">
         <el-form-item label="选择产品" required>
           <el-select v-model="calculateForm.productId" placeholder="请选择产品" filterable class="w-full">
@@ -107,7 +112,7 @@
         <el-button @click="calculateDialogVisible = false">取消</el-button>
         <el-button v-permission="'finance:cost:execute'" type="primary" @click="calculateStandardCost" :loading="calculating">计算</el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
 
     <!-- 成本详情对话框 -->
     <AppDialog
@@ -118,8 +123,8 @@
     >
       <div v-if="currentDetail">
         <el-descriptions :column="2" border>
-          <el-descriptions-item label="产品编码">{{ currentDetail.product_code }}</el-descriptions-item>
-          <el-descriptions-item label="产品名称">{{ currentDetail.product_name }}</el-descriptions-item>
+          <el-descriptions-item label="产品编码">{{ currentDetail.productCode }}</el-descriptions-item>
+          <el-descriptions-item label="产品名称">{{ currentDetail.productName }}</el-descriptions-item>
           <el-descriptions-item label="材料成本">{{ formatCurrency(currentDetail.material_cost) }}</el-descriptions-item>
           <el-descriptions-item label="人工成本">{{ formatCurrency(currentDetail.labor_cost) }}</el-descriptions-item>
           <el-descriptions-item label="制造费用">{{ formatCurrency(currentDetail.overhead_cost) }}</el-descriptions-item>
@@ -145,7 +150,7 @@
                 <template #default="{row}">{{ formatCurrency(row.totalCost) }}</template>
               </el-table-column>
             </el-table>
-            <el-empty v-else description="暂无BOM材料数据，请先为该产品配置BOM" :image-size="60"></el-empty>
+            <EmptyState v-else description="暂无BOM材料数据，请先为该产品配置BOM" ::image-size="60" />
           </el-tab-pane>
           <el-tab-pane label="人工明细" name="labor">
             <el-table v-if="currentDetail.labor_details?.length > 0" :data="currentDetail.labor_details" border size="small">
@@ -161,14 +166,14 @@
                 <template #default="{row}">{{ formatCurrency(row.totalCost) }}</template>
               </el-table-column>
             </el-table>
-            <el-empty v-else description="暂无工艺模板数据，请先为该产品配置工艺模板" :image-size="60"></el-empty>
+            <EmptyState v-else description="暂无工艺模板数据，请先为该产品配置工艺模板" ::image-size="60" />
           </el-tab-pane>
           <el-tab-pane label="制造费用" name="overhead">
             <template v-if="currentDetail.overhead_details?.rules?.length > 0">
               <el-table :data="currentDetail.overhead_details.rules" border size="small">
                 <el-table-column prop="name" label="制费规则名称"></el-table-column>
                 <el-table-column label="分摊基础" width="140">
-                  <template #default="{row}">{{ getAllocationBaseLabel(row.allocation_base || 'labor_cost') }}</template>
+                  <template #default="{row}">{{ getAllocationBaseLabel(row.allocationBase || 'labor_cost') }}</template>
                 </el-table-column>
                 <el-table-column prop="base" label="基数数值" width="130">
                   <template #default="{row}">{{ Number(row.base).toFixed(2) }}</template>
@@ -187,7 +192,7 @@
                 <span class="detail-total-amount">{{ formatCurrency(currentDetail.overhead_cost) }}</span>
               </div>
             </template>
-            <el-empty v-else description="暂无制造费用明细" :image-size="60"></el-empty>
+            <EmptyState v-else description="暂无制造费用明细" ::image-size="60" />
             <div class="help-text-mt">
               <p>* 制造费用 = 各专属规则与全局通用规则的累加之和。</p>
               <p>* 单项费用 = 基数数值 × 计算费率。</p>
@@ -198,9 +203,14 @@
     </AppDialog>
 
     <!-- 专属制造费用配置对话框 -->
-    <el-dialog v-model="overheadDialogVisible" title="单品专属制费配置" width="750px">
+    <AppDialog
+      v-model="overheadDialogVisible"
+      title="单品专属制费配置"
+      mode="form"
+      width="750px"
+    >
       <div v-if="currentSelectedProduct" class="mb-md">
-        <el-alert :title="`正在为产品 ${currentSelectedProduct.product_code} - ${currentSelectedProduct.product_name} 配置专属制造费用`" type="info" :closable="false" show-icon></el-alert>
+        <el-alert :title="`正在为产品 ${currentSelectedProduct.productCode} - ${currentSelectedProduct.productName} 配置专属制造费用`" type="info" :closable="false" show-icon></el-alert>
       </div>
 
       <div class="flex-between-mb">
@@ -211,16 +221,16 @@
       <el-table :data="productOverheads" border v-loading="loadingOverheads" size="small">
         <el-table-column prop="name" label="规则名称" />
         <el-table-column label="分摊基础">
-          <template #default="scope">{{ getAllocationBaseLabel(scope.row.allocation_base) }}</template>
+          <template #default="scope">{{ getAllocationBaseLabel(scope.row.allocationBase) }}</template>
         </el-table-column>
         <el-table-column prop="rate" label="单品费率">
           <template #default="scope">
             <span class="text-danger font-weight-700">{{ Number(scope.row.rate).toFixed(4) }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="effective_date" label="生效日期" width="100">
+        <el-table-column prop="effectiveDate" label="生效日期" width="100">
           <template #default="scope">
-            {{ scope.row.effective_date ? scope.row.effective_date.substring(0, 10) : '' }}
+            {{ scope.row.effectiveDate ? scope.row.effectiveDate.substring(0, 10) : '' }}
           </template>
         </el-table-column>
         <el-table-column label="操作" min-width="90" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
@@ -229,32 +239,38 @@
           </template>
         </el-table-column>
         <template #empty>
-          <el-empty description="暂无专属费率，将使用全局默认费率" :image-size="60"></el-empty>
+          <EmptyState description="暂无专属费率，将使用全局默认费率" ::image-size="60" />
         </template>
       </el-table>
 
-      <!-- 内部：新增专属制费弹窗 -->
-      <el-dialog v-model="addOverheadFormVisible" title="新增单品费率" width="500px" append-to-body>
-        <el-form :model="overheadForm" label-width="120px">
-          <el-form-item label="引用全局模板" required>
-             <el-select v-model="overheadForm.templateId" @change="handleTemplateChange" placeholder="选择全局规则模板（如：模具费）" class="w-full">
-               <el-option v-for="tpl in globalOverheadTemplates" :key="tpl.id" :label="tpl.name" :value="tpl.id"></el-option>
-             </el-select>
-             <div class="help-text-sm">引用模板会自动继承规则名称和分摊标准，并赋予该价格最高优先级。</div>
-          </el-form-item>
-          <el-form-item label="单品专属价格" required>
-            <el-input-number v-model="overheadForm.rate" :precision="4" :step="1" class="w-full"></el-input-number>
-          </el-form-item>
-          <el-form-item label="生效日期" required>
-            <el-date-picker v-model="overheadForm.effective_date" type="date" value-format="YYYY-MM-DD" class="w-full"></el-date-picker>
-          </el-form-item>
-        </el-form>
-        <template #footer>
-          <el-button @click="addOverheadFormVisible = false">取消</el-button>
-          <el-button v-permission="'finance:cost:create'" type="primary" @click="saveProductOverhead" :loading="savingOverhead">保存</el-button>
-        </template>
-      </el-dialog>
-    </el-dialog>
+    </AppDialog>
+
+    <!-- 新增专属制费（并列 AppDialog，避免嵌套壳） -->
+    <AppDialog
+      v-model="addOverheadFormVisible"
+      title="新增单品费率"
+      mode="form"
+      width="500px"
+    >
+      <el-form :model="overheadForm" label-width="120px">
+        <el-form-item label="引用全局模板" required>
+          <el-select v-model="overheadForm.templateId" @change="handleTemplateChange" placeholder="选择全局规则模板（如：模具费）" class="w-full">
+            <el-option v-for="tpl in globalOverheadTemplates" :key="tpl.id" :label="tpl.name" :value="tpl.id"></el-option>
+          </el-select>
+          <div class="help-text-sm">引用模板会自动继承规则名称和分摊标准，并赋予该价格最高优先级。</div>
+        </el-form-item>
+        <el-form-item label="单品专属价格" required>
+          <el-input-number v-model="overheadForm.rate" :precision="4" :step="1" class="w-full"></el-input-number>
+        </el-form-item>
+        <el-form-item label="生效日期" required>
+          <el-date-picker v-model="overheadForm.effective_date" type="date" value-format="YYYY-MM-DD" class="w-full"></el-date-picker>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="addOverheadFormVisible = false">取消</el-button>
+        <el-button v-permission="'finance:cost:create'" type="primary" @click="saveProductOverhead" :loading="savingOverhead">保存</el-button>
+      </template>
+    </AppDialog>
   </div>
 </template>
 
@@ -400,8 +416,8 @@ const calculateStandardCost = async () => {
 const viewDetail = async (row) => {
   try {
     // 如果有product_id，尝试获取真实的成本明细
-    if (row.product_id) {
-      const response = await financeApi.cost.getStandardCost(row.product_id);
+    if (row.productId) {
+      const response = await financeApi.cost.getStandardCost(row.productId);
       // ResponseHandler包装的数据统一由 parser 解包
       const result = parseResponseData(response);
 
@@ -444,7 +460,7 @@ const recalculate = async (row) => {
       type: 'warning'
     });
 
-    await calculateAndPersistStandardCost(row.product_id);
+    await calculateAndPersistStandardCost(row.productId);
     ElMessage.success('重新计算成功');
     loadStandardCosts();
   } catch (error) {
@@ -492,7 +508,7 @@ const loadProductOverheads = async (productId) => {
 const openOverheadConfig = async (row) => {
   currentSelectedProduct.value = row;
   overheadDialogVisible.value = true;
-  await loadProductOverheads(row.product_id);
+  await loadProductOverheads(row.productId);
 };
 
 // 打开增加规则子弹窗
@@ -529,9 +545,9 @@ const saveProductOverhead = async () => {
       name: template.name,
       allocation_base: template.allocation_base,
       rate: overheadForm.rate,
-      product_id: currentSelectedProduct.value.product_id,
+      product_id: currentSelectedProduct.value.productId,
       product_category: null,
-      cost_center_id: template.cost_center_id || null,
+      cost_center_id: template.costCenterId || null,
       priority: 99, // 最高优先级
       effective_date: overheadForm.effective_date,
       is_active: true
@@ -540,9 +556,9 @@ const saveProductOverhead = async () => {
     await financeApi.cost.saveAllocationRule(payload);
     ElMessage.success('配置单品专属费率成功');
     addOverheadFormVisible.value = false;
-    await loadProductOverheads(currentSelectedProduct.value.product_id);
+    await loadProductOverheads(currentSelectedProduct.value.productId);
 
-    await calculateAndPersistStandardCost(currentSelectedProduct.value.product_id);
+    await calculateAndPersistStandardCost(currentSelectedProduct.value.productId);
     await loadStandardCosts();
   } catch {
     ElMessage.error('保存单品专属费率失败');
@@ -559,8 +575,8 @@ const deleteProductOverhead = async (row) => {
     });
     await financeApi.cost.deleteAllocationRule(row.id);
     ElMessage.success('删除成功');
-    await loadProductOverheads(currentSelectedProduct.value.product_id);
-    await calculateAndPersistStandardCost(currentSelectedProduct.value.product_id);
+    await loadProductOverheads(currentSelectedProduct.value.productId);
+    await calculateAndPersistStandardCost(currentSelectedProduct.value.productId);
     await loadStandardCosts();
   } catch (e) {
     if (e !== 'cancel') {

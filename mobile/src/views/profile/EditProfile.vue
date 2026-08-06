@@ -47,7 +47,7 @@
           :rules="rules.phone"
         />
         <Field
-          v-model="form.department_name"
+          v-model="form.departmentName"
           name="department"
           label="部门"
           placeholder="部门信息"
@@ -89,7 +89,7 @@
     name: '',
     email: '',
     phone: '',
-    department_name: '',
+    departmentName: '',
     avatar: ''
   })
 
@@ -113,10 +113,10 @@
   onMounted(() => {
     const userInfo = authStore.user
     if (userInfo) {
-      form.name = userInfo.real_name || userInfo.name || ''
+      form.name = userInfo.realName || userInfo.name || ''
       form.email = userInfo.email || ''
       form.phone = userInfo.phone || ''
-      form.department_name = userInfo.department_name || ''
+      form.departmentName = userInfo.departmentName || ''
       form.avatar = userInfo.avatar || ''
     }
   })

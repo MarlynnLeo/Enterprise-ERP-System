@@ -8,10 +8,11 @@
 -->
 <template>
   <div class="module-page inventory-stock-add">
-    <el-dialog
+    <AppDialog
       :model-value="modelValue"
       @update:model-value="$emit('update:modelValue', $event)"
       title="库存调整"
+      mode="form"
       width="600px"
       @close="handleClose"
     >
@@ -56,8 +57,8 @@
                 <div class="material-spec" v-if="item.specification">
                   规格: {{ item.specification }}
                 </div>
-                <div class="material-unit" v-if="item.unit_name">
-                  单位: {{ item.unit_name }}
+                <div class="material-unit" v-if="item.unitName">
+                  单位: {{ item.unitName }}
                 </div>
               </div>
             </el-option>
@@ -130,7 +131,7 @@
           <el-button @click="resetForm">重置</el-button>
         </el-form-item>
       </el-form>
-    </el-dialog>
+        </AppDialog>
   </div>
 </template>
 <script setup>
@@ -269,10 +270,10 @@ const submitForm = async () => {
           return
         }
         const locationId = Number.parseInt(
-          selectedMaterial.value.location_id ||
+          selectedMaterial.value.locationId ||
             selectedMaterial.value.locationId ||
             selectedMaterial.value.default_warehouse_id ||
-            selectedMaterial.value.warehouse_id,
+            selectedMaterial.value.warehouseId,
           10
         )
         if (!Number.isInteger(locationId) || locationId <= 0) {
@@ -326,10 +327,6 @@ const resetForm = () => {
 </script>
 <style scoped>
 .inventory-stock-add {
-  :deep(.el-dialog__body) {
-    padding: 30px;
-  }
-
   :deep(.el-form-item) {
     margin-bottom: 22px;
   }

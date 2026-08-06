@@ -112,7 +112,7 @@
       >
         <el-table-column type="selection" width="45" :selectable="isBatchScheduleSelectable" />
         <template #empty>
-          <el-empty description="暂无生产任务数据" />
+          <EmptyState description="暂无生产任务数据" />
         </template>
         <!-- 展开详情列 -->
         <el-table-column type="expand" width="50">
@@ -124,8 +124,8 @@
                 <el-descriptions-item label="物料编码">{{ props.row.productCode || '-' }}</el-descriptions-item>
                 <el-descriptions-item label="规格型号">{{ props.row.specs || '-' }}</el-descriptions-item>
                 <el-descriptions-item label="关联单据">
-                  <template v-if="props.row.plan_id">
-                    {{ planList.find(plan => String(plan.id) === String(props.row.plan_id))?.code || '未找到计划' }}
+                  <template v-if="props.row.planId">
+                    {{ planList.find(plan => String(plan.id) === String(props.row.planId))?.code || '未找到计划' }}
                   </template>
                   <template v-else>无关联计划</template>
                 </el-descriptions-item>
@@ -152,9 +152,9 @@
         <el-table-column prop="productCode" label="物料编码" width="120" show-overflow-tooltip />
         <el-table-column prop="productName" label="产品名称" min-width="130" show-overflow-tooltip />
         <el-table-column prop="specs" label="规格型号" min-width="150" show-overflow-tooltip />
-        <el-table-column prop="contract_code" label="合同编码" width="130" show-overflow-tooltip>
+        <el-table-column prop="contractCode" label="合同编码" width="130" show-overflow-tooltip>
           <template #default="scope">
-            {{ scope.row.contract_code || '-' }}
+            {{ scope.row.contractCode || '-' }}
           </template>
         </el-table-column>
         <el-table-column label="数量" width="80">
@@ -172,8 +172,8 @@
         </el-table-column>
         <el-table-column label="发料时间" width="110" show-overflow-tooltip>
           <template #default="scope">
-            <span v-if="scope.row.actual_start_time || scope.row.actualStartTime">
-              {{ dayjs(scope.row.actual_start_time || scope.row.actualStartTime).format('YYYY-MM-DD') }}
+            <span v-if="scope.row.actualStartTime">
+              {{ dayjs(scope.row.actualStartTime).format('YYYY-MM-DD') }}
             </span>
             <span v-else class="text-secondary">未发料</span>
           </template>
@@ -220,7 +220,7 @@
               </el-button>
               <!-- 发料按钮：必须已排程（有开始日期）且未生成出库单 -->
               <el-button v-permission="'production:tasks:update'"
-                v-if="(scope.row.status === 'pending' || scope.row.status === 'allocated' || scope.row.status === 'preparing') && Number(scope.row.has_outbound_document) !== 1 && scope.row.startDate && canIssueMaterials"
+                v-if="(scope.row.status === 'pending' || scope.row.status === 'allocated' || scope.row.status === 'preparing') && Number(scope.row.hasOutboundDocument) !== 1 && scope.row.startDate && canIssueMaterials"
                 size="small"
                 type="warning"
                 @click="showMaterialIssueDialog(scope.row)"
@@ -229,7 +229,7 @@
               </el-button>
               <!-- 删除按钮 - 只有未执行任务可以删除 -->
               <el-popconfirm
-                v-if="(scope.row.status === 'pending' || scope.row.status === 'allocated') && Number(scope.row.has_outbound_document) !== 1"
+                v-if="(scope.row.status === 'pending' || scope.row.status === 'allocated') && Number(scope.row.hasOutboundDocument) !== 1"
                 title="确定要删除该生产任务吗？此操作无法恢复。"
                 @confirm="handleDelete(scope.row)"
                 confirm-button-type="danger"
@@ -267,11 +267,11 @@
     </el-card>
 
     <!-- 创建/编辑任务对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="modalVisible"
       :title="modalTitle"
+      mode="form"
       width="800px"
-      destroy-on-close
     >
       <el-form
         ref="formRef"
@@ -469,7 +469,7 @@
           <el-button type="primary" v-permission="taskSubmitPermission" @click="handleModalOk">确认</el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
 
     <!-- 任务详情对话框 -->
     <AppDialog
@@ -484,8 +484,8 @@
         <el-descriptions-item label="产品编码">{{ taskDetail.productCode || '-' }}</el-descriptions-item>
         <el-descriptions-item label="规格型号">{{ taskDetail.specs || '-' }}</el-descriptions-item>
         <el-descriptions-item label="关联单据">
-          <template v-if="taskDetail.plan_id">
-            {{ planList.find(plan => String(plan.id) === String(taskDetail.plan_id))?.code || '未找到计划' }}
+          <template v-if="taskDetail.planId">
+            {{ planList.find(plan => String(plan.id) === String(taskDetail.planId))?.code || '未找到计划' }}
           </template>
           <template v-else>无关联计划</template>
         </el-descriptions-item>
@@ -517,11 +517,11 @@
     </AppDialog>
 
     <!-- 一键排程对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="batchScheduleVisible"
       title="一键排程"
+      mode="form"
       width="800px"
-      destroy-on-close
     >
       <el-alert type="info" :closable="false" class="mb-12">
         <template #title>同一生产组的任务按顺序串行排程；不同生产组可并行生产</template>
@@ -627,14 +627,14 @@
           确认排程
         </el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
 
     <!-- 发料对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="materialIssueDialogVisible"
       title="生产任务发料"
+      mode="form"
       width="500px"
-      destroy-on-close
     >
       <el-form :model="materialIssueForm" label-width="100px" @keydown="issueFormKeydown">
         <el-form-item label="任务编号">
@@ -665,7 +665,7 @@
           </el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
   </div>
 </template>
 
@@ -840,8 +840,8 @@ const fetchTaskList = async () => {
 
       if (quantity === null) {
         // 如果任务数量为空，尝试从关联的生产计划中获取数量
-        if (item.plan_id) {
-          quantity = getQuantityFromRelatedItem(planList.value, item.plan_id);
+        if (item.planId) {
+          quantity = getQuantityFromRelatedItem(planList.value, item.planId);
         }
       }
 
@@ -850,18 +850,20 @@ const fetchTaskList = async () => {
         quantity = 0; // 确保是数值0而不是其他假值
       }
 
+      // 后端已输出 camel（productionTaskMap.toApi）
       const mappedItem = {
         ...item,
-        startDate: item.start_date || item.startDate,
-        expectedEndDate: item.expected_end_date || item.expectedEndDate,
-        actualEndDate: item.actual_end_date || item.actualEndDate,
-        actualStartTime: item.actual_start_time || item.actualStartTime,
-        createdAt: item.created_at || item.createdAt,
-        updatedAt: item.updated_at || item.updatedAt,
-        productName: item.product_name || item.productName || '无关联产品',
-        productCode: item.product_code || item.productCode || '',
-        specs: item.specs || item.specification || '',
-        quantity: quantity  // 使用处理后的数量
+        startDate: item.startDate,
+        expectedEndDate: item.expectedEndDate,
+        actualEndDate: item.actualEndDate,
+        actualStartTime: item.actualStartTime,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt,
+        productName: item.productName || '无关联产品',
+        productCode: item.productCode || '',
+        specs: item.specification || item.specs || '',
+        contractCode: item.contractCode || '',
+        quantity: quantity
       }
 
       return mappedItem
@@ -921,11 +923,11 @@ const formatPlanItem = (plan) => {
   return {
     id: plan.id,
     code: plan.code,
-    productId: plan.product_id,
-    productName: plan.product_name || plan.productName || '未知产品',
+    productId: plan.productId,
+    productName: plan.productName || '未知产品',
     quantity: quantity,
-    start_date: plan.startDate || plan.start_date,
-    end_date: plan.endDate || plan.end_date,
+    startDate: plan.startDate,
+    endDate: plan.endDate,
     status: plan.status
   }
 }
@@ -1053,26 +1055,26 @@ const handleEdit = async (record) => {
   // 处理数量字段
   const quantity = parseQuantity(record.quantity);
 
-  // 先设置基本表单数据，显式映射所有字段
+  // 先设置基本表单数据，显式映射所有字段（后端已输出 camel）
   formData.value = {
     ...record,
-    code: record.code || record.task_code || '',  // 确保code正确映射
-    planId: record.plan_id || record.planId,
-    productId: record.product_id || record.productId,
-    productName: record.product_name || record.productName || '',
+    code: record.code || record.taskCode || '',
+    planId: record.planId,
+    productId: record.productId,
+    productName: record.productName || '',
     quantity: quantity,
     manager: record.manager || '',
-    startDate: record.start_date || record.startDate ? new Date(record.start_date || record.startDate) : null,
-    expectedEndDate: record.expected_end_date || record.expectedEndDate ? new Date(record.expected_end_date || record.expectedEndDate) : null,
+    startDate: record.startDate ? new Date(record.startDate) : null,
+    expectedEndDate: record.expectedEndDate ? new Date(record.expectedEndDate) : null,
     remarks: record.remarks || ''
   }
 
   // 如果任务有关联的计划ID，但计划相关信息不完整，尝试从计划列表中获取更多信息
-  if (record.plan_id) {
-    const relatedPlan = planList.value.find(plan => String(plan.id) === String(record.plan_id));
+  if (record.planId) {
+    const relatedPlan = planList.value.find(plan => String(plan.id) === String(record.planId));
     if (relatedPlan) {
       // 确保planId是正确的类型（数字）
-      formData.value.planId = Number(record.plan_id);
+      formData.value.planId = Number(record.planId);
 
       // 如果产品名称为空，从计划中获取
       if (!formData.value.productName && relatedPlan.productName) {
@@ -1086,9 +1088,9 @@ const handleEdit = async (record) => {
       // 如果没有找到关联计划，尝试重新获取计划列表
       await fetchPlanList();
       // 再次尝试找到关联计划
-      const refreshedPlan = planList.value.find(plan => String(plan.id) === String(record.plan_id));
+      const refreshedPlan = planList.value.find(plan => String(plan.id) === String(record.planId));
       if (refreshedPlan) {
-        formData.value.planId = Number(record.plan_id);
+        formData.value.planId = Number(record.planId);
         if (!formData.value.productName && refreshedPlan.productName) {
           formData.value.productName = refreshedPlan.productName;
         }
@@ -1130,17 +1132,18 @@ const handleModalOk = async () => {
   try {
     await formRef.value.validate()
 
+    // 纯 camel 提交（后端 productionTaskMap.fromApi）
     const payload = {
-      plan_id: formData.value.planId,
-      product_id: formData.value.productId,
+      planId: formData.value.planId,
+      productId: formData.value.productId,
       quantity: formData.value.quantity,
-      start_date: formData.value.startDate || null,
-      expected_end_date: scheduleInfo.value.estimatedEndTime
+      startDate: formData.value.startDate || null,
+      expectedEndDate: scheduleInfo.value.estimatedEndTime
         ? scheduleInfo.value.estimatedEndTime.split(' ')[0]
         : (formData.value.expectedEndDate ? dayjs(formData.value.expectedEndDate).format('YYYY-MM-DD') : null),
       manager: formData.value.manager,
       remarks: formData.value.remarks,
-      process_template_id: formData.value.processTemplateId  // 添加工序模板ID
+      processTemplateId: formData.value.processTemplateId
     }
 
     if (formData.value.id) {
@@ -1261,7 +1264,7 @@ const applySuggestedStart = (suggestedTime) => {
 
 const batchSchedulableStatuses = new Set(['pending', 'allocated', 'preparing'])
 const isBatchScheduleSelectable = (row) => {
-  return batchSchedulableStatuses.has(row.status) && Number(row.has_outbound_document) !== 1
+  return batchSchedulableStatuses.has(row.status) && Number(row.hasOutboundDocument) !== 1
 }
 
 /** 表格多选变化 */
@@ -1484,7 +1487,7 @@ const showMaterialIssueDialog = (row) => {
   materialIssueForm.value = {
     taskId: row.id,
     taskCode: row.code,
-    productName: row.productName || row.product_name,
+    productName: row.productName,
     quantity: displayQuantity(row.quantity),
     issueDate: dayjs().format('YYYY-MM-DD HH:mm:ss')
   }
@@ -1506,7 +1509,7 @@ const handleMaterialIssue = async () => {
     materialIssueLoading.value = true
 
     const task = currentTaskForIssue.value
-    const productId = task.productId || task.product_id
+    const productId = task.productId
     const taskQuantity = task.quantity
 
     // 1. 获取产品的BOM信息
@@ -1533,7 +1536,7 @@ const handleMaterialIssue = async () => {
 
     // 3. 准备出库单数据（操作人取当前登录用户，禁止写 system）
     const currentUser =
-      authStore.user?.username || authStore.user?.real_name || authStore.user?.name || ''
+      authStore.user?.username || authStore.user?.realName || authStore.user?.name || ''
     if (!currentUser) {
       ElMessage.error('无法识别当前登录用户，请重新登录后再发料')
       return
@@ -1545,9 +1548,9 @@ const handleMaterialIssue = async () => {
       status: 'draft',
       productionTaskId: task.id,
       items: materialsRes.data.map(material => ({
-        materialId: material.materialId || material.material_id || material.id,
+        materialId: material.materialId || material.id,
         quantity: material.requiredQuantity,
-        unitId: material.unitId || material.unit_id,
+        unitId: material.unitId,
         remark: `任务${task.code}所需`
       }))
     }
@@ -1623,8 +1626,8 @@ const printTaskDetail = async () => {
     const task = taskDetail.value;
 
     // 获取关联计划编号
-    const relatedPlanCode = task.plan_id
-      ? (planList.value.find(plan => String(plan.id) === String(task.plan_id))?.code || '未找到计划')
+    const relatedPlanCode = task.planId
+      ? (planList.value.find(plan => String(plan.id) === String(task.planId))?.code || '未找到计划')
       : '-';
 
     // 准备打印数据
@@ -1643,20 +1646,22 @@ const printTaskDetail = async () => {
       remarks: task.remarks || '无'
     };
 
+    // 业务 camel；printService 自动展开 snake 模板占位
     const htmlContent = await printService.generateByDefaultTemplate('production', 'production_task', {
       ...printData,
-      task_no: printData.code,
-      product_name: printData.productName,
-      product_code: printData.productCode,
+      taskNo: printData.code,
+      productName: printData.productName,
+      productCode: printData.productCode,
       specification: printData.specs,
-      plan_no: relatedPlanCode,
-      planned_quantity: printData.quantity,
-      responsible_person: printData.manager,
-      start_date: printData.startDate,
-      due_date: printData.expectedEndDate,
+      planNo: relatedPlanCode,
+      plannedQuantity: printData.quantity,
+      responsiblePerson: printData.manager,
+      startDate: printData.startDate,
+      dueDate: printData.expectedEndDate,
       status: printData.statusText,
+      remarks: printData.remarks,
       remark: printData.remarks,
-      print_time: new Date().toLocaleString(),
+      printTime: new Date().toLocaleString(),
       items: []
     });
 
@@ -1681,7 +1686,7 @@ const fetchProductionGroupByProduct = async (productId) => {
     const product = parseDataObject(response, { enableLog: false });
 
     // 产品本身就是物料，直接使用其production_group_id
-    if (product && product.production_group_id) {
+    if (product && product.productionGroupId) {
       // 获取生产组（部门）信息
       const deptResponse = await systemApi.getDepartments();
       // 拦截器已解包，response.data 就是业务数据
@@ -1694,7 +1699,7 @@ const fetchProductionGroupByProduct = async (productId) => {
       }
 
       // 找到对应的生产组
-      const productionGroup = departments.find(dept => dept.id === product.production_group_id);
+      const productionGroup = departments.find(dept => dept.id === product.productionGroupId);
 
       if (productionGroup) {
         // 将生产组设置为选项，并自动选中
@@ -1732,7 +1737,7 @@ const fetchProductionUsers = async () => {
     if (productionDept) {
       // 获取生产部下的所有子部门作为生产组
       productionUsers.value = departments.filter(dept =>
-        dept && dept.parent_id === productionDept.id
+        dept && dept.parentId === productionDept.id
       ).map(dept => ({
         id: dept.id,
         name: dept.name,

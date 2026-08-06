@@ -128,7 +128,7 @@
                 @click="addToCheck(ck)"
               >
                 <div class="check-item-info">
-                  <span class="check-no">{{ ck.check_no }}</span>
+                  <span class="check-no">{{ ck.checkNo }}</span>
                   <span class="check-meta">{{ ck.warehouse || '' }} · {{ ck.check_date || '' }}</span>
                 </div>
                 <div class="check-item-action">
@@ -446,11 +446,11 @@
 
       // Use the backend atomic endpoint to avoid client-side overwrite races.
       await inventoryApi.addCheckItem(checkOrder.id, {
-        material_id: resultData.value.id
+        materialId: resultData.value.id
       })
 
       closeToast()
-      showToast({ type: 'success', message: `已添加到 ${checkOrder.check_no}` })
+      showToast({ type: 'success', message: `已添加到 ${checkOrder.checkNo || checkOrder.checkNo}` })
 
       // 继续扫码
       setTimeout(() => resetScan(), 1500)
@@ -476,7 +476,7 @@
           code: material.code,
           name: material.name,
           specification: material.specs,
-          unit: material.unit_name || material.unit,
+          unit: material.unitName || material.unit,
           id: material.id
         }
         showToast({
@@ -539,8 +539,8 @@
           cancelled: '已取消'
         }
         resultData.value = {
-          orderNo: order.order_no,
-          customerName: order.customer_name,
+          orderNo: order.orderNo,
+          customerName: order.customerName,
           statusText: statusMap[order.status] || order.status,
           id: order.id
         }

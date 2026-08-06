@@ -92,7 +92,7 @@
             stripe
           >
             <template #empty>
-              <el-empty description="暂无报工数据，请先进行生产报工" />
+              <EmptyState description="暂无报工数据，请先进行生产报工" />
             </template>
             <!-- 展开详情列 -->
             <el-table-column type="expand" width="50">
@@ -135,7 +135,7 @@
             stripe
           >
             <template #empty>
-              <el-empty description="暂无报工数据，请先进行生产报工" />
+              <EmptyState description="暂无报工数据，请先进行生产报工" />
             </template>
             <!-- 展开详情列 -->
             <el-table-column type="expand" width="50">
@@ -260,11 +260,11 @@
     </AppDialog>
 
     <!-- 新增/编辑报工弹窗 -->
-    <el-dialog
+    <AppDialog
       v-model="reportModalVisible"
       :title="formData.id ? '编辑生产报工' : '新增生产报工'"
+      mode="form"
       width="700px"
-      destroy-on-close
     >
       <el-form
         ref="formRef"
@@ -337,11 +337,11 @@
                 <el-option
                   v-for="process in processList"
                   :key="process.id"
-                  :label="`${process.sequence}. ${process.process_name}`"
+                  :label="`${process.sequence}. ${process.processName}`"
                   :value="process.id"
                 >
                   <div class="flex-between">
-                    <span>{{ process.sequence }}. {{ process.process_name }}</span>
+                    <span>{{ process.sequence }}. {{ process.processName }}</span>
                     <el-tag size="small" :type="process.status === 'completed' ? 'success' : (process.status === 'in_progress' ? 'warning' : 'info')">
                       {{ process.status === 'completed' ? '已完成' : (process.status === 'in_progress' ? '进行中' : '待开始') }}
                     </el-tag>
@@ -445,7 +445,7 @@
           <el-button type="primary" @click="handleReportSubmit">提 交</el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
   </div>
 </template>
 
@@ -598,13 +598,13 @@ const fetchSummaryData = async () => {
 
     // 处理汇总数据，添加计算字段
     summaryData.value = rawData.map(item => {
-      const totalQuantity = item.total_quantity || 0
-      const totalQualified = item.total_qualified || 0
-      const totalDefective = item.total_defective || 0
+      const totalQuantity = item.totalQuantity || 0
+      const totalQualified = item.totalQualified || 0
+      const totalDefective = item.totalDefective || 0
 
       return {
-        taskCode: item.task_code,
-        productName: item.product_name,
+        taskCode: item.taskCode,
+        productName: item.productName,
         plannedQuantity: totalQuantity,
         actualQuantity: totalQuantity,
         completedQuantity: totalQuantity,
@@ -653,24 +653,24 @@ const fetchDetailData = async () => {
     const rawItems = parseListData(response, { enableLog: false })
     detailData.value = rawItems.map(item => ({
       id: item.id,
-      task_id: item.task_id,
-      process_id: item.process_id,
-      taskCode: item.task_code,
-      productName: item.product_name,
-      processName: item.process_name || '-',
-      reportDate: dayjs(item.report_time).format('YYYY-MM-DD'),
-      plannedQuantity: item.report_quantity || 0,
-      completedQuantity: item.completed_quantity || 0,
-      qualifiedQuantity: item.qualified_quantity || 0,
-      unqualifiedQuantity: item.unqualified_quantity || item.defective_quantity || 0,
-      workHours: item.work_hours || 0,
-      reporter: item.operator_name || '-',
+      task_id: item.taskId,
+      process_id: item.processId,
+      taskCode: item.taskCode,
+      productName: item.productName,
+      processName: item.processName || '-',
+      reportDate: dayjs(item.reportTime).format('YYYY-MM-DD'),
+      plannedQuantity: item.reportQuantity || 0,
+      completedQuantity: item.completedQuantity || 0,
+      qualifiedQuantity: item.qualifiedQuantity || 0,
+      unqualifiedQuantity: item.unqualifiedQuantity || item.defectiveQuantity || 0,
+      workHours: item.workHours || 0,
+      reporter: item.operatorName || '-',
       remarks: item.remarks || '',
-      report_time: item.report_time,
-      operator_name: item.operator_name,
-      report_quantity: item.report_quantity,
-      qualified_quantity: item.qualified_quantity,
-      work_hours: item.work_hours
+      report_time: item.reportTime,
+      operator_name: item.operatorName,
+      report_quantity: item.reportQuantity,
+      qualified_quantity: item.qualifiedQuantity,
+      work_hours: item.workHours
     }))
     total.value = Number(responseData.total) || rawItems.length
 
@@ -772,7 +772,7 @@ const viewReportDetail = (record) => {
 
 // 编辑报工
 const handleEditReport = (record) => {
-  const taskId = record.task_id ?? record.taskId
+  const taskId = record.taskId ?? record.taskId
   const taskExists = taskList.value.some(task => String(task.id) === String(taskId))
 
   // 历史报工对应的任务可能已完成，不在“生产中”任务列表内；补入只读回显项，
@@ -780,8 +780,8 @@ const handleEditReport = (record) => {
   if (!taskExists && taskId != null) {
     taskList.value.unshift({
       id: taskId,
-      code: record.taskCode || record.task_code || `任务 ${taskId}`,
-      productName: record.productName || record.product_name || ''
+      code: record.taskCode || `任务 ${taskId}`,
+      productName: record.productName || ''
     })
   }
 
@@ -789,14 +789,14 @@ const handleEditReport = (record) => {
   formData.value = {
     id: record.id,
     taskId,
-    processId: record.process_id ?? record.processId,
-    processName: record.process_name || record.processName || '',
-    reportDate: dayjs(record.report_time || record.reportDate).format('YYYY-MM-DD'),
-    plannedQuantity: record.report_quantity ?? record.plannedQuantity ?? 0,
-    completedQuantity: record.completed_quantity ?? record.completedQuantity ?? 0,
-    qualifiedQuantity: record.qualified_quantity ?? record.qualifiedQuantity ?? 0,
-    workHours: record.work_hours ?? record.workHours ?? 8,
-    reporter: record.operator_name || record.reporter || '',
+    processId: record.processId ?? record.processId,
+    processName: record.processName || '',
+    reportDate: dayjs(record.reportTime || record.reportDate).format('YYYY-MM-DD'),
+    plannedQuantity: record.reportQuantity ?? record.plannedQuantity ?? 0,
+    completedQuantity: record.completedQuantity ?? record.completedQuantity ?? 0,
+    qualifiedQuantity: record.qualifiedQuantity ?? record.qualifiedQuantity ?? 0,
+    workHours: record.workHours ?? record.workHours ?? 8,
+    reporter: record.operatorName || record.reporter || '',
     remarks: record.remarks || ''
   }
 
@@ -836,7 +836,7 @@ const showReportModal = () => {
     completedQuantity: 0,
     qualifiedQuantity: 0,
     workHours: 8,
-    reporter: currentUser?.real_name || currentUser?.username || '',
+    reporter: currentUser?.realName || currentUser?.username || '',
     remarks: ''
   }
 
@@ -894,7 +894,7 @@ const handleTaskFormChange = async (taskId) => {
 const handleProcessChange = (processId) => {
   const selectedProcess = processList.value.find(p => p.id === processId)
   if (selectedProcess) {
-    formData.value.processName = selectedProcess.process_name
+    formData.value.processName = selectedProcess.processName
   }
 }
 

@@ -33,8 +33,8 @@
 
     fields: {
       id: 'id',
-      title: (item) => item.employee_name || item.applicant_name || '加班申请',
-      subtitle: (item) => item.overtime_date || '-',
+      title: (item) => item.employeeName || item.applicantName || '加班申请',
+      subtitle: (item) => item.overtimeDate || '-',
       icon: 'clock-o',
       status: {
         field: 'status',
@@ -44,7 +44,7 @@
       details: [
         { label: '加班类型', field: 'overtime_type' },
         { label: '加班时长', field: 'hours', suffix: '小时' },
-        { label: '部门', field: 'department_name' }
+        { label: '部门', field: 'departmentName' }
       ],
 
       tags: [

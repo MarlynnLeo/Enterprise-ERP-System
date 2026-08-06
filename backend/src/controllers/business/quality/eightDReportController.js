@@ -16,6 +16,7 @@ const { parsePagination, appendPaginationSQL } = require('../../../utils/safePag
 const EightDAIService = require('../../../services/business/EightDAIService');
 const { EightDNcpLinkService } = require('../../../services/business/EightDNcpLinkService');
 const { getCurrentUserName } = require('../../../utils/userHelper');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 
 // ===================== 辅助工具 =====================
 
@@ -241,7 +242,7 @@ const getReportLogs = async (req, res) => {
 const createReport = async (req, res) => {
     let conn;
     try {
-        const data = req.body;
+        const data = mapKeysToSnake(req.body || {});
         if (!data.title) {
             return ResponseHandler.error(res, '报告标题不能为空', 'VALIDATION_ERROR', 400);
         }
@@ -283,7 +284,7 @@ const createReport = async (req, res) => {
             current_phase: 'draft',
             initiated_by: data.initiated_by || createdBy,
             initiated_at: data.initiated_at || now,
-            owner: data.owner || data.d1_team_leader || createdBy,
+            owner: data.owner || data.d1TeamLeader || createdBy,
             owner_department: data.owner_department || null,
             customer_contact: data.customer_contact || null,
             target_close_date: data.target_close_date || null,
@@ -382,7 +383,7 @@ const updateReport = async (req, res) => {
     let conn;
     try {
         const { id } = req.params;
-        const data = req.body;
+        const data = mapKeysToSnake(req.body || {});
 
         if (data.status !== undefined || data.current_phase !== undefined) {
             return ResponseHandler.error(res, '流程状态请通过提交/审核/完成接口变更', 'VALIDATION_ERROR', 400);
@@ -544,7 +545,7 @@ const reviewReport = async (req, res) => {
     let conn;
     try {
         const { id } = req.params;
-        const { approved, comments } = req.body;
+        const { approved, comments } = mapKeysToSnake(req.body || {});
         const reviewer = await getCurrentUserName(req);
 
         conn = await pool.getConnection();

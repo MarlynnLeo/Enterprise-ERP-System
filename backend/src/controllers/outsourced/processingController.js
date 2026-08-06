@@ -6,6 +6,7 @@
  */
 
 const { ResponseHandler } = require('../../utils/responseHandler');
+const { mapKeysToSnake } = require('../../utils/fieldMap');
 const { logger } = require('../../utils/logger');
 
 const db = require('../../config/db');
@@ -179,7 +180,7 @@ const createProcessing = async (req, res) => {
       remarks,
       materials,
       products,
-    } = req.body;
+    } = mapKeysToSnake(req.body || {});
 
     // 处理外委加工单数据
 
@@ -301,7 +302,7 @@ const updateProcessing = async (req, res) => {
       warehouse_name,
       materials,
       products,
-    } = req.body;
+    } = mapKeysToSnake(req.body || {});
 
     // 更新外委加工单数据
 
@@ -783,7 +784,7 @@ const createReceipt = async (req, res) => {
       operator,
       remarks,
       items,
-    } = req.body;
+    } = mapKeysToSnake(req.body || {});
 
     // 处理外委加工入库单数据
 
@@ -922,7 +923,7 @@ const updateReceipt = async (req, res) => {
     await connection.beginTransaction();
 
     const { id } = req.params;
-    const { location_id, warehouse_name, receipt_date, operator, remarks, items } = req.body;
+    const { location_id, warehouse_name, receipt_date, operator, remarks, items } = mapKeysToSnake(req.body || {});
 
     // 检查入库单是否存在且状态为待确认
     const [existingReceipt] = await connection.execute(

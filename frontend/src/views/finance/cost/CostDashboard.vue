@@ -115,42 +115,47 @@
             </div>
           </template>
           <el-table :data="alerts" size="small" max-height="280" v-loading="alertsLoading">
-            <el-table-column prop="task_code" label="任务编号" width="150">
+            <el-table-column prop="taskCode" label="任务编号" width="150">
               <template #default="scope">
-                <el-link type="primary">{{ scope.row.task_code }}</el-link>
+                <el-link type="primary">{{ scope.row.taskCode }}</el-link>
               </template>
             </el-table-column>
-            <el-table-column prop="product_name" label="产品名称" min-width="150" />
+            <el-table-column prop="productName" label="产品名称" min-width="150" />
             <el-table-column label="标准成本" width="120">
-              <template #default="scope">{{ formatMoney(scope.row.standard_total_cost) }}</template>
+              <template #default="scope">{{ formatMoney(scope.row.standardTotalCost) }}</template>
             </el-table-column>
             <el-table-column label="实际成本" width="120">
-              <template #default="scope">{{ formatMoney(scope.row.actual_total_cost) }}</template>
+              <template #default="scope">{{ formatMoney(scope.row.actualTotalCost) }}</template>
             </el-table-column>
             <el-table-column label="差异" width="120">
               <template #default="scope">
-                <span :class="scope.row.is_favorable ? 'text-success' : 'text-danger'">
-                  {{ formatSignedMoney(scope.row.total_variance, scope.row.is_favorable) }}
+                <span :class="scope.row.isFavorable ? 'text-success' : 'text-danger'">
+                  {{ formatSignedMoney(scope.row.totalVariance, scope.row.isFavorable) }}
                 </span>
               </template>
             </el-table-column>
             <el-table-column label="差异率" width="100">
               <template #default="scope">
-                <el-tag :type="scope.row.alert_level === 'critical' ? 'danger' : 'warning'" size="small">
-                  {{ scope.row.variance_rate }}%
+                <el-tag :type="scope.row.alertLevel === 'critical' ? 'danger' : 'warning'" size="small">
+                  {{ scope.row.varianceRate }}%
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="created_at" label="时间" width="140" />
+            <el-table-column prop="createdAt" label="时间" width="140" />
           </el-table>
           <div v-if="alerts.length === 0 && !alertsLoading" class="no-alerts">
-            <el-empty description="暂无成本预警" :image-size="60" />
+            <EmptyState description="暂无成本预警" ::image-size="60" />
           </div>
         </el-card>
       </el-col>
     </el-row>
     <!-- 预警设置对话框 -->
-    <el-dialog v-model="showAlertSettings" title="成本预警设置" width="500px">
+    <AppDialog
+      v-model="showAlertSettings"
+      title="成本预警设置"
+      mode="form"
+      width="500px"
+    >
       <el-form :model="alertSettings" label-width="150px">
         <el-form-item label="总成本差异阈值">
           <el-input-number v-model="alertSettings.variance_threshold" :min="1" :max="100" :precision="1" />
@@ -173,9 +178,14 @@
         <el-button @click="showAlertSettings = false">取消</el-button>
         <el-button v-permission="'finance:cost:update'" type="primary" @click="saveAlertSettings" :loading="savingAlertSettings">保存</el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
     <!-- 月末成本结转对话框 -->
-    <el-dialog v-model="showWIPDialog" title="月末成本结转" width="600px">
+    <AppDialog
+      v-model="showWIPDialog"
+      title="月末成本结转"
+      mode="form"
+      width="600px"
+    >
       <el-form label-width="120px">
         <el-form-item label="选择会计期间">
           <el-select v-model="selectedPeriodId" placeholder="请选择期间" class="w-full" :loading="periodsLoading">
@@ -271,7 +281,7 @@
       <template #footer>
         <el-button @click="showWIPDialog = false">关闭</el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
   </div>
 </template>
 <script setup>
@@ -364,7 +374,7 @@ const loadPeriods = async () => {
     if (res.data?.periods) {
       periods.value = res.data.periods;
       // 默认选择当前未关闭的期间
-      const current = periods.value.find(p => !p.is_closed);
+      const current = periods.value.find(p => !p.isClosed);
       if (current) selectedPeriodId.value = current.id;
     } else {
       periods.value = [];
@@ -602,13 +612,13 @@ const loadVarianceData = async () => {
       // 按产品名称分组汇总
       const productMap = new Map();
       listData.forEach(item => {
-        const name = item.product_name || '未知产品';
+        const name = item.productName || '未知产品';
         if (!productMap.has(name)) {
           productMap.set(name, { standard: 0, actual: 0 });
         }
         const data = productMap.get(name);
-        data.standard += parseFloat(item.standard_total ?? item.standard_cost) || 0;
-        data.actual += parseFloat(item.actual_total ?? item.actual_cost) || 0;
+        data.standard += parseFloat(item.standardTotal ?? item.standardCost) || 0;
+        data.actual += parseFloat(item.actualTotal ?? item.actualCost) || 0;
       });
 
       // 转换为图表数据格式（取前8个产品）
@@ -654,11 +664,11 @@ const loadAlertSettings = async () => {
     if (res.data) {
       alertSettings.value = {
         ...alertSettings.value,
-        variance_threshold: parseFloat(res.data.variance_threshold) || 10,
-        material_threshold: parseFloat(res.data.material_threshold) || 15,
-        labor_threshold: parseFloat(res.data.labor_threshold) || 20,
-        overhead_threshold: parseFloat(res.data.overhead_threshold) || 25,
-        is_active: res.data.is_active
+        variance_threshold: parseFloat(res.data.varianceThreshold) || 10,
+        material_threshold: parseFloat(res.data.materialThreshold) || 15,
+        labor_threshold: parseFloat(res.data.laborThreshold) || 20,
+        overhead_threshold: parseFloat(res.data.overheadThreshold) || 25,
+        is_active: res.data.isActive
       };
     }
   } catch (error) {

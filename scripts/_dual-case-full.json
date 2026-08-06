@@ -1,0 +1,107 @@
+[
+  {
+    "file": "frontend/src/composables/usePurchaseInspection.js",
+    "line": 263,
+    "match": "item.material_name || item.name"
+  },
+  {
+    "file": "frontend/src/utils/inspectionHelpers.js",
+    "line": 280,
+    "match": "item.item_name || item.name"
+  },
+  {
+    "file": "frontend/src/utils/inspectionHelpers.js",
+    "line": 282,
+    "match": "item.actual_value || item.value"
+  },
+  {
+    "file": "frontend/src/utils/inspectionTemplateResolver.js",
+    "line": 59,
+    "match": "item.type_name || item.type"
+  },
+  {
+    "file": "frontend/src/views/baseData/components/CustomerFormDialog.vue",
+    "line": 130,
+    "match": "newVal.contact_phone || newVal.phone"
+  },
+  {
+    "file": "frontend/src/views/baseData/components/MaterialFormDialog.vue",
+    "line": 458,
+    "match": "a.fileName || a.original_name"
+  },
+  {
+    "file": "frontend/src/views/baseData/components/MaterialFormDialog.vue",
+    "line": 459,
+    "match": "a.file_path || a.url"
+  },
+  {
+    "file": "frontend/src/views/baseData/components/MaterialViewDialog.vue",
+    "line": 94,
+    "match": "file.url || file.file_path"
+  },
+  {
+    "file": "frontend/src/views/baseData/components/MaterialViewDialog.vue",
+    "line": 95,
+    "match": "file.original_name || file.name"
+  },
+  {
+    "file": "frontend/src/views/baseData/components/SupplierFormDialog.vue",
+    "line": 110,
+    "match": "newVal.code || newVal.supplier_code"
+  },
+  {
+    "file": "frontend/src/views/baseData/components/SupplierFormDialog.vue",
+    "line": 112,
+    "match": "newVal.contact_person || newVal.contact"
+  },
+  {
+    "file": "frontend/src/views/baseData/components/SupplierFormDialog.vue",
+    "line": 113,
+    "match": "newVal.contact_phone || newVal.phone"
+  },
+  {
+    "file": "frontend/src/views/baseData/components/SupplierMetalPriceDialog.vue",
+    "line": 37,
+    "match": "band.label || band.metal_price_min"
+  },
+  {
+    "file": "frontend/src/views/dashboard/composables/useProductionPlans.js",
+    "line": 120,
+    "match": "plan.specs || plan.material_specs"
+  },
+  {
+    "file": "frontend/src/views/dataoverview/FinanceDashboard.vue",
+    "line": 721,
+    "match": "account.balance || account.current_balance"
+  },
+  {
+    "file": "frontend/src/views/dataoverview/SalesDashboard.vue",
+    "line": 408,
+    "match": "order.createdAt || order.order_date"
+  },
+  {
+    "file": "frontend/src/views/finance/ap/Invoices.vue",
+    "line": 910,
+    "match": "account.balance || account.current_balance"
+  },
+  {
+    "file": "frontend/src/views/finance/cash/Reconciliation.vue",
+    "line": 705,
+    "match": "transaction.transaction_number || transaction.id"
+  },
+  {
+    "file": "frontend/src/views/finance/settings/AutomationTab.vue",
+    "line": 828,
+    "match": "task.code || task.task_code"
+  },
+  {
+    "file": "frontend/src/views/finance/settings/AutomationTab.vue",
+    "line": 830,
+    "match": "task.quantity || task.planned_quantity"
+  },
+  {
+    "file": "...",
+    "line": 0,
+    "snippet": "+150 more"
+  }
+]

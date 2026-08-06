@@ -1,5 +1,6 @@
 const { getConnection } = require('../../../config/db');
 const { ResponseHandler } = require('../../../utils/responseHandler');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 const { logger } = require('../../../utils/logger');
 const { AuditService, AuditAction, AuditModule } = require('../../../services/AuditService');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
@@ -54,8 +55,7 @@ exports.getAdjustments = async (req, res) => {
 exports.saveAdjustment = async (req, res) => {
   let connection;
   try {
-    const { product_id, bom_id, material_id, original_price, adjusted_price, adjustment_reason } =
-      req.body;
+    const { product_id, bom_id, material_id, original_price, adjusted_price, adjustment_reason } = mapKeysToSnake(req.body || {});
 
     // 参数验证
     if (!product_id || !bom_id || !material_id) {

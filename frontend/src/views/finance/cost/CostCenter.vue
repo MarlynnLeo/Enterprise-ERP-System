@@ -16,11 +16,11 @@
           <el-table :data="costCenters" border v-loading="loading" row-key="id">
             <el-table-column prop="code" label="编码" width="150"></el-table-column>
             <el-table-column prop="name" label="名称" width="180"></el-table-column>
-            <el-table-column prop="department_name" label="关联部门" width="180">
+            <el-table-column prop="departmentName" label="关联部门" width="180">
               <template #default="scope">
-                <span v-if="scope.row.department_name">
+                <span v-if="scope.row.departmentName">
                   <el-icon><OfficeBuilding /></el-icon>
-                  {{ scope.row.department_name }}
+                  {{ scope.row.departmentName }}
                 </span>
                 <span v-else class="text-muted">-</span>
               </template>
@@ -31,11 +31,11 @@
               </template>
             </el-table-column>
             <el-table-column prop="manager" label="负责人" width="120"></el-table-column>
-            <el-table-column prop="task_count" label="关联任务" width="100"></el-table-column>
-            <el-table-column prop="is_active" label="状态" width="80">
+            <el-table-column prop="taskCount" label="关联任务" width="100"></el-table-column>
+            <el-table-column prop="isActive" label="状态" width="80">
               <template #default="scope">
-                <el-tag :type="scope.row.is_active ? 'success' : 'info'" size="small">
-                  {{ scope.row.is_active ? '启用' : '停用' }}
+                <el-tag :type="scope.row.isActive ? 'success' : 'info'" size="small">
+                  {{ scope.row.isActive ? '启用' : '停用' }}
                 </el-tag>
               </template>
             </el-table-column>
@@ -43,7 +43,7 @@
               <template #default="scope">
                 <el-button type="primary" size="small" @click="editCenter(scope.row)" v-permission="'finance:cost:update'">编辑</el-button>
                 <el-button type="info" size="small" @click="viewReport(scope.row)">成本报表</el-button>
-                <el-button v-permission="'finance:cost:delete'" type="danger" size="small" @click="deleteCenter(scope.row)" :disabled="scope.row.task_count > 0">删除</el-button>
+                <el-button v-permission="'finance:cost:delete'" type="danger" size="small" @click="deleteCenter(scope.row)" :disabled="scope.row.taskCount > 0">删除</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -64,27 +64,32 @@
                 <el-tag size="small" :type="getTypeColor(scope.row.type)">{{ getTypeName(scope.row.type) }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="material_cost" label="材料成本" width="200">
-              <template #default="scope">{{ formatCurrency(scope.row.material_cost) }}</template>
+            <el-table-column prop="materialCost" label="材料成本" width="200">
+              <template #default="scope">{{ formatCurrency(scope.row.materialCost) }}</template>
             </el-table-column>
-            <el-table-column prop="labor_cost" label="人工成本" width="200">
-              <template #default="scope">{{ formatCurrency(scope.row.labor_cost) }}</template>
+            <el-table-column prop="laborCost" label="人工成本" width="200">
+              <template #default="scope">{{ formatCurrency(scope.row.laborCost) }}</template>
             </el-table-column>
-            <el-table-column prop="overhead_cost" label="制造费用" width="200">
-              <template #default="scope">{{ formatCurrency(scope.row.overhead_cost) }}</template>
+            <el-table-column prop="overheadCost" label="制造费用" width="200">
+              <template #default="scope">{{ formatCurrency(scope.row.overheadCost) }}</template>
             </el-table-column>
-            <el-table-column prop="total_cost" label="总成本" width="200">
+            <el-table-column prop="totalCost" label="总成本" width="200">
               <template #default="scope">
-                <span class="text-primary font-weight-700">{{ formatCurrency(scope.row.total_cost) }}</span>
+                <span class="text-primary font-weight-700">{{ formatCurrency(scope.row.totalCost) }}</span>
               </template>
             </el-table-column>
-            <el-table-column prop="task_count" label="任务数" width="145"></el-table-column>
+            <el-table-column prop="taskCount" label="任务数" width="145"></el-table-column>
           </el-table>
         </el-tab-pane>
       </el-tabs>
     </el-card>
     <!-- 成本中心编辑对话框 -->
-    <el-dialog v-model="centerDialogVisible" :title="isEdit ? '编辑成本中心' : '新增成本中心'" width="500px">
+    <AppDialog
+      v-model="centerDialogVisible"
+      :title="isEdit ? '编辑成本中心' : '新增成本中心'"
+      mode="form"
+      width="500px"
+    >
       <el-form :model="centerForm" :rules="centerRules" ref="centerFormRef" label-width="100px">
         <el-form-item label="编码" prop="code">
           <el-input v-model="centerForm.code" :disabled="isEdit" placeholder="如: CC-PRD-01" maxlength="20" show-word-limit></el-input>
@@ -100,7 +105,7 @@
           </el-select>
         </el-form-item>
         <el-form-item label="上级中心">
-          <el-select v-model="centerForm.parent_id" clearable class="w-full">
+          <el-select v-model="centerForm.parentId" clearable class="w-full">
             <el-option v-for="c in centerOptions" :key="c.id" :label="`${c.code} - ${c.name}`" :value="c.id"></el-option>
           </el-select>
         </el-form-item>
@@ -111,14 +116,14 @@
           <el-input v-model="centerForm.description" type="textarea" :rows="3" placeholder="成本中心描述"></el-input>
         </el-form-item>
         <el-form-item label="状态">
-          <el-switch v-model="centerForm.is_active" active-text="启用" inactive-text="停用"></el-switch>
+          <el-switch v-model="centerForm.isActive" active-text="启用" inactive-text="停用"></el-switch>
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="centerDialogVisible = false">取消</el-button>
         <el-button v-permission="isEdit ? 'finance:cost:update' : 'finance:cost:create'" type="primary" @click="saveCenter" :loading="saving">保存</el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
   </div>
 </template>
 <script setup>
@@ -211,7 +216,7 @@ const showCreateDialog = () => {
 // 编辑成本中心
 const editCenter = (row) => {
   isEdit.value = true;
-  Object.assign(centerForm, { ...row, is_active: !!row.is_active });
+  Object.assign(centerForm, { ...row, is_active: !!row.isActive });
   centerDialogVisible.value = true;
 };
 // 保存成本中心

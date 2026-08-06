@@ -19,20 +19,20 @@
         border
       >
         <template #empty>
-          <el-empty description="暂无费用类型数据">
+          <EmptyState description="暂无费用类型数据">
             <el-button v-permission="'system:settings:update'" type="primary" @click="handleInit">
               初始化预设类型
             </el-button>
-          </el-empty>
+          </EmptyState>
         </template>
         <el-table-column prop="name" label="类型名称" min-width="200">
           <template #default="{ row }">
-            <span :class="{ 'parent-category': !row.parent_id }">{{ row.name }}</span>
+            <span :class="{ 'parent-category': !row.parentId }">{{ row.name }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="code" label="类型编码" width="150" />
         <el-table-column prop="description" label="描述" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="sort_order" label="排序" width="80" />
+        <el-table-column prop="sortOrder" label="排序" width="80" />
         <el-table-column prop="status" label="状态" width="100">
           <template #default="{ row }">
             <el-switch
@@ -55,7 +55,7 @@
               编辑
             </el-button>
             <el-button
-              v-if="!row.parent_id"
+              v-if="!row.parentId"
               v-permission="'finance:expenses:create'"
               type="success"
               size="small"
@@ -78,9 +78,10 @@
       </el-table>
     </el-card>
 
-    <el-dialog
+    <AppDialog
       v-model="dialogVisible"
       :title="dialogMode === 'add' ? '新增费用类型' : '编辑费用类型'"
+      mode="form"
       width="500px"
       :close-on-click-modal="false"
     >
@@ -92,7 +93,7 @@
           <el-input v-model="categoryForm.name" placeholder="请输入类型名称" />
         </el-form-item>
         <el-form-item label="上级类型">
-          <el-select v-model="categoryForm.parent_id" placeholder="无（一级类型）" clearable class="w-full">
+          <el-select v-model="categoryForm.parentId" placeholder="无（一级类型）" clearable class="w-full">
             <el-option
               v-for="cat in parentCategories"
               :key="cat.id"
@@ -105,7 +106,7 @@
           <el-input v-model="categoryForm.description" type="textarea" :rows="2" placeholder="类型描述" />
         </el-form-item>
         <el-form-item label="排序">
-          <el-input-number v-model="categoryForm.sort_order" :min="0" :max="999" />
+          <el-input-number v-model="categoryForm.sortOrder" :min="0" :max="999" />
         </el-form-item>
         <el-form-item label="状态">
           <el-switch v-model="categoryForm.status" :active-value="1" :inactive-value="0" />
@@ -122,7 +123,7 @@
           保存
         </el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
   </div>
 </template>
 
@@ -162,7 +163,7 @@ const categoryRules = {
   name: [{ required: true, message: '请输入类型名称', trigger: 'blur' }]
 }
 
-const parentCategories = computed(() => categoryList.value.filter(cat => !cat.parent_id))
+const parentCategories = computed(() => categoryList.value.filter(cat => !cat.parentId))
 
 const resetForm = (parentId = null) => {
   Object.assign(categoryForm, {
@@ -222,9 +223,9 @@ const handleEdit = (row) => {
     id: row.id,
     code: row.code,
     name: row.name,
-    parent_id: row.parent_id,
+    parent_id: row.parentId,
     description: row.description || '',
-    sort_order: row.sort_order || 0,
+    sort_order: row.sortOrder || 0,
     status: Number(row.status ?? 1)
   })
   dialogVisible.value = true
@@ -233,9 +234,9 @@ const handleEdit = (row) => {
 const buildPayload = () => ({
   code: categoryForm.code,
   name: categoryForm.name,
-  parent_id: categoryForm.parent_id,
+  parent_id: categoryForm.parentId,
   description: categoryForm.description,
-  sort_order: categoryForm.sort_order,
+  sort_order: categoryForm.sortOrder,
   status: categoryForm.status
 })
 

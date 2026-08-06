@@ -171,7 +171,7 @@ const userForm = reactive({
   avatar: '',
   location: [],
   bio: '',
-  created_at: null
+  createdAt: null
 })
 // 数据
 const userActivities = ref([])
@@ -194,8 +194,8 @@ const statsData = computed(() => {
   ]
 })
 const daysFromRegistration = computed(() => {
-  if (!userForm.created_at) return 1
-  const created = new Date(userForm.created_at)
+  if (!userForm.createdAt) return 1
+  const created = new Date(userForm.createdAt)
   const now = new Date()
   return Math.floor((now - created) / (1000 * 60 * 60 * 24)) || 1
 })
@@ -257,7 +257,7 @@ onMounted(async () => {
     await loadUserProfile()
     await loadActivities()
     await loadUserStats()
-    currentAvatarFrame.value = normalizeAvatarFrameId(authStore.user?.avatar_frame)
+    currentAvatarFrame.value = normalizeAvatarFrameId(authStore.user?.avatarFrame)
   } finally {
     isLoading.value = false
   }
@@ -268,14 +268,14 @@ const loadUserProfile = async () => {
     const user = authStore.user
     if (user) {
       Object.assign(userForm, {
-        name: user.real_name || user.username,
+        name: user.realName || user.username,
         email: user.email,
         phone: user.phone || '',
-        role: user.role_name || user.roleNames || user.role || '未分配角色',
+        role: user.roleName || user.roleNames || user.role || '未分配角色',
         avatar: user.avatar,
         location: user.location || [],
         bio: user.bio || '',
-        created_at: user.created_at || user.createdAt || null
+        createdAt: user.createdAt || null
       })
     }
   } catch (error) {
@@ -349,7 +349,7 @@ const saveProfile = async () => {
   try {
     // 调用后端API保存资料
     const response = await userApi.updateProfile({
-      real_name: userForm.name,
+      realName: userForm.name,
       email: userForm.email,
       phone: userForm.phone,
       bio: userForm.bio
@@ -361,7 +361,7 @@ const saveProfile = async () => {
     } else {
       authStore.updateUser({
         ...authStore.user,
-        real_name: userForm.name,
+        realName: userForm.name,
         email: userForm.email,
         phone: userForm.phone,
         bio: userForm.bio
@@ -435,7 +435,7 @@ const handleFrameChange = async (frameId) => {
 
     // 更新本地 store
     if (authStore.user) {
-      authStore.user.avatar_frame = normalizedFrameId
+      authStore.user.avatarFrame = normalizedFrameId
     }
 
     window.dispatchEvent(new CustomEvent('erp:user-profile-updated', {

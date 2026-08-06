@@ -5,11 +5,11 @@ import {  parseListData } from '../utils/responseParser';
 export const inventoryApi = {
     // 库存查询
     getStocks: (params) => api.get('/inventory/stock', { params }),
-    getStock: ({ material_id: materialId, location_id: locationId } = {}) => {
+    getStock: ({ materialId, locationId } = {}) => {
         if (materialId && locationId) {
             return api.get(`/inventory/stock/${materialId}/${locationId}`);
         }
-        return api.get('/inventory/stock', { params: { material_id: materialId, location_id: locationId } });
+        return api.get('/inventory/stock', { params: { materialId, locationId } });
     },
     getStockRecords: (id) => api.get(`/inventory/stock/${id}/records`),
     // 添加通过物料ID获取库存记录的API
@@ -63,9 +63,8 @@ export const inventoryApi = {
 
                 return {
                     ...item,
-                    quantity: quantity,
-                    // 添加stock_quantity字段以保持一致性
-                    stock_quantity: quantity
+                    quantity,
+                    stockQuantity: quantity,
                 };
             });
 
@@ -151,9 +150,9 @@ export const inventoryApi = {
                 return {
                     data: {
                         quantity: 0,
-                        stock_quantity: 0,
-                        material_id: materialId,
-                        location_id: warehouseId
+                        stockQuantity: 0,
+                        materialId,
+                        locationId: warehouseId
                     }
                 };
             }
@@ -170,9 +169,9 @@ export const inventoryApi = {
             return {
                 data: {
                     quantity: 0,
-                    stock_quantity: 0,
-                    material_id: materialId,
-                    location_id: warehouseId
+                    stockQuantity: 0,
+                    materialId,
+                    locationId: warehouseId
                 }
             };
         } catch (error) {
@@ -184,9 +183,9 @@ export const inventoryApi = {
             return {
                 data: {
                     quantity: 0,
-                    stock_quantity: 0,
-                    material_id: materialId,
-                    location_id: warehouseId,
+                    stockQuantity: 0,
+                    materialId,
+                    locationId: warehouseId,
                     error: true,
                     errorMessage: error.message
                 }

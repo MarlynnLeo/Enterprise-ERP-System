@@ -46,8 +46,14 @@ class ProductSalesTraceabilityService {
 
       // 为每个销售的产品建立追溯关系（扣库 + 追溯）
       for (const item of items) {
-        const productId = item.product_id || item.productId || item.material_id || item.materialId;
-        const quantity = item.quantity || item.actual_quantity || item.actualQuantity;
+        // 明细可能来自 FieldMap snake 或 HTTP camel
+        const productId =
+          item.productId ||
+          item.materialId ||
+          item.product_id ||
+          item.material_id;
+        const quantity =
+          item.quantity || item.actual_quantity || item.actualQuantity;
         if (!productId) {
           throw new Error('销售出库明细缺少产品物料ID，无法建立销售追溯');
         }
@@ -97,9 +103,9 @@ class ProductSalesTraceabilityService {
     const byOrder = new Map();
 
     for (const item of items || []) {
-      const materialId =
-        item.product_id || item.productId || item.material_id || item.materialId;
-      const qty = parseFloat(item.quantity || item.actual_quantity || item.actualQuantity || 0);
+      // 出库明细为 DB 行（snake）
+      const materialId = item.product_id || item.material_id;
+      const qty = parseFloat(item.quantity || item.actual_quantity || 0);
       const oid = item.source_order_id || item.order_id || fallbackOrderId;
       if (!oid || !materialId || !(qty > 0)) continue;
 

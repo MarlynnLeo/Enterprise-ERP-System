@@ -6,6 +6,7 @@
  */
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 const { logger } = require('../../../utils/logger');
 
 const db = require('../../../config/db');
@@ -252,6 +253,7 @@ const getOrder = async (req, res) => {
 // 创建采购订单
 const createOrder = async (req, res) => {
   try {
+    const bodyIn = mapKeysToSnake(req.body || {});
     const {
       order_date: orderDate,
       supplier_id: supplierId,
@@ -263,8 +265,9 @@ const createOrder = async (req, res) => {
       requisition_id: requisitionId,
       requisition_number: requisitionNumber,
       contract_code: contractCode,
+      tax_rate: bodyTaxRate,
       items,
-    } = req.body;
+    } = bodyIn;
     const createdBy = getAuthenticatedUserId(req);
 
     const createdOrder = await DBManager.executeTransaction(async (connection) => {
@@ -275,13 +278,16 @@ const createOrder = async (req, res) => {
 
       assertPurchaseItemPrices(items || []);
       const orderAmounts = calculateLines(items || [], {
-        defaultTaxRate: req.body.tax_rate !== undefined ? req.body.tax_rate : financeConfig.get('tax.defaultVATRate', 0.13),
+        defaultTaxRate: bodyTaxRate !== undefined ? bodyTaxRate : financeConfig.get('tax.defaultVATRate', 0.13),
       });
-      const taxRate = normalizeTaxRate(req.body.tax_rate !== undefined ? req.body.tax_rate : orderAmounts.taxRate, financeConfig.get('tax.defaultVATRate', 0.13));
+      const taxRate = normalizeTaxRate(
+        bodyTaxRate !== undefined ? bodyTaxRate : orderAmounts.taxRate,
+        financeConfig.get('tax.defaultVATRate', 0.13)
+      );
       const subtotal = orderAmounts.subtotal;
       const taxAmount = orderAmounts.taxAmount;
       const calculatedTotalAmount = orderAmounts.totalAmount;
-      const metalSnapshot = await resolveOrderMetalSnapshot(connection, { ...req.body, order_date: orderDate }, orderAmounts.items || items || []);
+      const metalSnapshot = await resolveOrderMetalSnapshot(connection, { ...bodyIn, order_date: orderDate }, orderAmounts.items || items || []);
 
       const insertQuery = `
         INSERT INTO purchase_orders (
@@ -344,6 +350,7 @@ const createOrder = async (req, res) => {
 const updateOrder = async (req, res) => {
   try {
     const { id } = req.params;
+    const bodyIn = mapKeysToSnake(req.body || {});
     const {
       order_date: orderDate,
       supplier_id: supplierId,
@@ -355,8 +362,9 @@ const updateOrder = async (req, res) => {
       requisition_id: requisitionId,
       requisition_number: requisitionNumber,
       contract_code: contractCode,
+      tax_rate: bodyTaxRate,
       items,
-    } = req.body;
+    } = bodyIn;
 
     const updatedOrder = await DBManager.executeTransaction(async (connection) => {
       if (!(await canAccessPurchaseOrder(connection, req, id))) {
@@ -367,10 +375,13 @@ const updateOrder = async (req, res) => {
       const supplierName = await PurchaseOrderService.validateSupplier(connection, supplierId);
       assertPurchaseItemPrices(items || []);
       const orderAmounts = calculateLines(items || [], {
-        defaultTaxRate: req.body.tax_rate !== undefined ? req.body.tax_rate : financeConfig.get('tax.defaultVATRate', 0.13),
+        defaultTaxRate: bodyTaxRate !== undefined ? bodyTaxRate : financeConfig.get('tax.defaultVATRate', 0.13),
       });
-      const taxRate = normalizeTaxRate(req.body.tax_rate !== undefined ? req.body.tax_rate : orderAmounts.taxRate, financeConfig.get('tax.defaultVATRate', 0.13));
-      const metalSnapshot = await resolveOrderMetalSnapshot(connection, { ...req.body, order_date: orderDate }, orderAmounts.items || items || []);
+      const taxRate = normalizeTaxRate(
+        bodyTaxRate !== undefined ? bodyTaxRate : orderAmounts.taxRate,
+        financeConfig.get('tax.defaultVATRate', 0.13)
+      );
+      const metalSnapshot = await resolveOrderMetalSnapshot(connection, { ...bodyIn, order_date: orderDate }, orderAmounts.items || items || []);
 
 
       // 更新采购订单基本信息
@@ -650,10 +661,13 @@ const updateOrderStatus = async (req, res) => {
 
 const batchUpdateOrderStatus = async (req, res) => {
   try {
-    const orderIds = Array.isArray(req.body?.order_ids)
-      ? req.body.order_ids.map((id) => parseInt(id, 10)).filter(Boolean)
-      : [];
-    const newStatus = req.body?.newStatus || req.body?.status;
+    const body = mapKeysToSnake(req.body || {});
+    const orderIds = Array.isArray(body.order_ids)
+      ? body.order_ids.map((id) => parseInt(id, 10)).filter(Boolean)
+      : Array.isArray(req.body?.orderIds)
+        ? req.body.orderIds.map((id) => parseInt(id, 10)).filter(Boolean)
+        : [];
+    const newStatus = body.status || req.body?.newStatus || req.body?.status;
     const uniqueIds = [...new Set(orderIds)];
 
     if (uniqueIds.length === 0) {
@@ -1196,15 +1210,19 @@ const receiveWithIncomingInspection = async (req, res) => {
  * 三级降级策略：供应商历史价 -> 全局历史价 -> 物料主数据预估价
  */
 const resolveOrderMetalSnapshot = async (connection, payload = {}, items = []) => {
-  const explicitMetalPrice = payload.metal_price ?? payload.metalPrice;
-  const metalSymbol = payload.metal_symbol || payload.metalSymbol || items.find((item) => item.metal_symbol)?.metal_symbol || 'ALUMINUM';
+  // HTTP 入参只认 camel；明细 items 可能已是 FieldMap snake 行
+  const explicitMetalPrice = payload.metalPrice ?? payload.metal_price;
+  const metalSymbol =
+    payload.metalSymbol ||
+    items.find((item) => item.metal_symbol)?.metal_symbol ||
+    'ALUMINUM';
   const metal =
     explicitMetalPrice !== undefined && explicitMetalPrice !== null && explicitMetalPrice !== ''
       ? {
           symbol: metalSymbol,
           price: Number(explicitMetalPrice),
-          source: payload.metal_price_source || payload.metalPriceSource || 'MANUAL',
-          last_update_at: payload.order_date || payload.orderDate || new Date(),
+          source: payload.metalPriceSource || 'MANUAL',
+          last_update_at: payload.orderDate || new Date(),
         }
       : await SupplierMetalRangePriceService.getCurrentMetalPrice(connection, metalSymbol);
 
@@ -1215,24 +1233,31 @@ const resolveOrderMetalSnapshot = async (connection, payload = {}, items = []) =
   return {
     metal_symbol: metal?.symbol || itemMetal?.metal_symbol || metalSymbol || null,
     metal_price: metal?.price ?? itemMetal?.metal_price ?? null,
-    metal_price_source: metal?.source || itemMetal?.metal_price_source || payload.metal_price_source || null,
-    metal_price_date: (metal?.last_update_at ? new Date(metal.last_update_at).toISOString().slice(0, 10) : null) || payload.order_date || null,
-    metal_price_scheme_id: payload.metal_price_scheme_id || itemMetal?.metal_price_scheme_id || null,
+    metal_price_source: metal?.source || itemMetal?.metal_price_source || null,
+    metal_price_date:
+      (metal?.last_update_at ? new Date(metal.last_update_at).toISOString().slice(0, 10) : null) ||
+      payload.orderDate ||
+      null,
+    metal_price_scheme_id: payload.metalPriceSchemeId || itemMetal?.metal_price_scheme_id || null,
   };
 };
 
 const getLatestPrice = async (req, res) => {
   try {
-    const { material_id, material_code, supplier_id } = req.query;
+    // HTTP query 只认 camel；兼容历史 snake
+    const q = req.query || {};
+    const materialId = q.materialId ?? q.material_id;
+    const materialCode = q.materialCode ?? q.material_code;
+    const supplierId = q.supplierId ?? q.supplier_id;
 
-    if (!material_id && !material_code) {
+    if (!materialId && !materialCode) {
       return ResponseHandler.error(res, '缺少必要参数 (物料编码或物料ID)', 'VALIDATION_ERROR', 400);
     }
 
     const price = await PurchasePriceService.resolvePurchasePrice(pool, {
-      materialId: material_id,
-      materialCode: material_code,
-      supplierId: supplier_id,
+      materialId,
+      materialCode,
+      supplierId,
     });
 
     return ResponseHandler.success(res, price, 'latest purchase price loaded');
@@ -1244,7 +1269,7 @@ const getLatestPrice = async (req, res) => {
 
 const getLatestPrices = async (req, res) => {
   try {
-    const { material_ids = [], supplier_id } = req.body || {};
+    const { material_ids = [], supplier_id } = mapKeysToSnake(req.body || {});
     const materialIds = [...new Set((Array.isArray(material_ids) ? material_ids : [])
       .map((id) => Number(id))
       .filter(Number.isInteger))];

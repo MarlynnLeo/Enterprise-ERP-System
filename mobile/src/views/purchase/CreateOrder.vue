@@ -23,8 +23,8 @@
           <div class="section-title">基本信息</div>
 
           <Field
-            v-model="orderForm.order_no"
-            name="order_no"
+            v-model="orderForm.orderNo"
+            name="orderNo"
             label="订单编号"
             placeholder="系统自动生成"
             readonly
@@ -42,8 +42,8 @@
           />
 
           <Field
-            v-model="orderForm.order_date"
-            name="order_date"
+            v-model="orderForm.orderDate"
+            name="orderDate"
             label="订单日期"
             placeholder="请选择订单日期"
             type="date"
@@ -51,8 +51,8 @@
           />
 
           <Field
-            v-model="orderForm.expected_delivery_date"
-            name="expected_delivery_date"
+            v-model="orderForm.expectedDeliveryDate"
+            name="expectedDeliveryDate"
             label="预计交货日期"
             placeholder="请选择预计交货日期"
             type="date"
@@ -65,15 +65,15 @@
           <div class="section-title">联系信息</div>
 
           <Field
-            v-model="orderForm.contact_person"
-            name="contact_person"
+            v-model="orderForm.contactPerson"
+            name="contactPerson"
             label="联系人"
             placeholder="请输入联系人"
           />
 
           <Field
-            v-model="orderForm.contact_phone"
-            name="contact_phone"
+            v-model="orderForm.contactPhone"
+            name="contactPhone"
             label="联系电话"
             placeholder="请输入联系电话"
             type="tel"
@@ -90,14 +90,14 @@
           <div class="items-container" v-if="orderItems.length > 0">
             <div v-for="(item, index) in orderItems" :key="index" class="item-card">
               <div class="item-header">
-                <span class="item-name">{{ item.material_name || '未选择物料' }}</span>
+                <span class="item-name">{{ item.materialName || '未选择物料' }}</span>
                 <VanIcon name="cross" size="16" @click="removeOrderItem(index)" />
               </div>
 
               <div class="item-details">
                 <div class="item-row">
                   <span class="label">物料编码:</span>
-                  <span class="value">{{ item.material_code || '-' }}</span>
+                  <span class="value">{{ item.materialCode || '-' }}</span>
                 </div>
                 <div class="item-row" v-if="item.specification">
                   <span class="label">规格:</span>
@@ -109,11 +109,11 @@
                 </div>
                 <div class="item-row">
                   <span class="label">单价:</span>
-                  <span class="value">¥{{ formatAmount(item.unit_price) }}</span>
+                  <span class="value">¥{{ formatAmount(item.unitPrice) }}</span>
                 </div>
                 <div class="item-row">
                   <span class="label">小计:</span>
-                  <span class="value total">¥{{ formatAmount(item.total_price) }}</span>
+                  <span class="value total">¥{{ formatAmount(item.totalPrice) }}</span>
                 </div>
               </div>
 
@@ -150,8 +150,8 @@
           <div class="section-title">备注信息</div>
 
           <Field
-            v-model="orderForm.remark"
-            name="remark"
+            v-model="orderForm.remarks"
+            name="remarks"
             label="备注"
             placeholder="请输入备注信息（可选）"
             type="textarea"
@@ -189,8 +189,8 @@
             <div class="supplier-info">
               <div class="supplier-name">{{ supplier.name }}</div>
               <div class="supplier-code">{{ supplier.code }}</div>
-              <div class="supplier-contact" v-if="supplier.contact_person">
-                联系人: {{ supplier.contact_person }}
+              <div class="supplier-contact" v-if="supplier.contactPerson">
+                联系人: {{ supplier.contactPerson }}
               </div>
             </div>
             <div class="supplier-status" v-if="supplier.status === 1">
@@ -240,8 +240,8 @@
             />
 
             <Field
-              v-model="currentItem.unit_price"
-              name="unit_price"
+              v-model="currentItem.unitPrice"
+              name="unitPrice"
               label="单价"
               placeholder="请输入单价"
               type="number"
@@ -260,8 +260,8 @@
             />
 
             <Field
-              v-model="currentItem.remark"
-              name="remark"
+              v-model="currentItem.remarks"
+              name="remarks"
               label="备注"
               placeholder="请输入备注（可选）"
             />
@@ -338,15 +338,15 @@
   const isEdit = computed(() => !!route.params.id)
   const pageTitle = computed(() => isEdit.value ? '编辑采购订单' : '新建采购订单')
 
-  // 表单数据
+  // 表单数据（纯 camel，后端 purchaseOrderMap.fromApi）
   const orderForm = reactive({
-    order_no: '',
-    supplier_id: '',
-    order_date: '',
-    expected_delivery_date: '',
-    contact_person: '',
-    contact_phone: '',
-    remark: ''
+    orderNo: '',
+    supplierId: '',
+    orderDate: '',
+    expectedDeliveryDate: '',
+    contactPerson: '',
+    contactPhone: '',
+    remarks: ''
   })
 
   // 状态管理
@@ -370,14 +370,14 @@
   // 订单明细
   const orderItems = ref([])
   const currentItem = reactive({
-    material_id: '',
-    material_name: '',
-    material_code: '',
+    materialId: '',
+    materialName: '',
+    materialCode: '',
     specification: '',
     quantity: '',
-    unit_price: '',
+    unitPrice: '',
     unit: '',
-    remark: ''
+    remarks: ''
   })
   const editingIndex = ref(-1)
 
@@ -396,7 +396,7 @@
 
   const totalAmount = computed(() => {
     return orderItems.value.reduce((sum, item) => {
-      return sum + (parseFloat(item.total_price) || 0)
+      return sum + (parseFloat(item.totalPrice) || 0)
     }, 0)
   })
 
@@ -446,14 +446,16 @@
   const confirmSupplier = () => {
     if (tempSelectedSupplier.value) {
       selectedSupplier.value = tempSelectedSupplier.value
-      orderForm.supplier_id = tempSelectedSupplier.value.id
+      orderForm.supplierId = tempSelectedSupplier.value.id
 
       // 自动填充联系信息
-      if (tempSelectedSupplier.value.contact_person) {
-        orderForm.contact_person = tempSelectedSupplier.value.contact_person
+      if (tempSelectedSupplier.value.contactPerson || tempSelectedSupplier.value.contact_person) {
+        orderForm.contactPerson =
+          tempSelectedSupplier.value.contactPerson || tempSelectedSupplier.value.contact_person
       }
-      if (tempSelectedSupplier.value.contact_phone) {
-        orderForm.contact_phone = tempSelectedSupplier.value.contact_phone
+      if (tempSelectedSupplier.value.contactPhone || tempSelectedSupplier.value.contact_phone) {
+        orderForm.contactPhone =
+          tempSelectedSupplier.value.contactPhone || tempSelectedSupplier.value.contact_phone
       }
 
       showSupplierPicker.value = false
@@ -516,9 +518,9 @@
   const confirmMaterial = () => {
     if (tempSelectedMaterial.value) {
       selectedMaterial.value = tempSelectedMaterial.value
-      currentItem.material_id = tempSelectedMaterial.value.id
-      currentItem.material_name = tempSelectedMaterial.value.name
-      currentItem.material_code = tempSelectedMaterial.value.code
+      currentItem.materialId = tempSelectedMaterial.value.id
+      currentItem.materialName = tempSelectedMaterial.value.name
+      currentItem.materialCode = tempSelectedMaterial.value.code
       currentItem.specification = tempSelectedMaterial.value.specs || ''
       currentItem.unit = tempSelectedMaterial.value.unit || '件'
       showMaterialPicker.value = false
@@ -537,9 +539,9 @@
     const item = orderItems.value[index]
     Object.assign(currentItem, item)
     selectedMaterial.value = {
-      id: item.material_id,
-      name: item.material_name,
-      code: item.material_code,
+      id: item.materialId,
+      name: item.materialName,
+      code: item.materialCode,
       specs: item.specification,
       unit: item.unit
     }
@@ -552,15 +554,15 @@
     try {
       await itemFormRef.value?.validate()
 
-      if (!currentItem.material_id) {
+      if (!currentItem.materialId) {
         showToast('请选择物料')
         return
       }
 
       // 计算小计
       const quantity = parseFloat(currentItem.quantity) || 0
-      const unitPrice = parseFloat(currentItem.unit_price) || 0
-      currentItem.total_price = quantity * unitPrice
+      const unitPrice = parseFloat(currentItem.unitPrice) || 0
+      currentItem.totalPrice = quantity * unitPrice
 
       if (editingIndex.value >= 0) {
         // 编辑模式
@@ -585,14 +587,14 @@
   // 重置当前明细
   const resetCurrentItem = () => {
     Object.assign(currentItem, {
-      material_id: '',
-      material_name: '',
-      material_code: '',
+      materialId: '',
+      materialName: '',
+      materialCode: '',
       specification: '',
       quantity: '',
-      unit_price: '',
+      unitPrice: '',
       unit: '',
-      remark: ''
+      remarks: ''
     })
     selectedMaterial.value = null
   }
@@ -616,37 +618,37 @@
       if (!order) return
 
       Object.assign(orderForm, {
-        order_no: order.order_no || '',
-        supplier_id: order.supplier_id || '',
-        order_date: normalizeDate(order.order_date),
-        expected_delivery_date: normalizeDate(order.expected_delivery_date),
-        contact_person: order.contact_person || '',
-        contact_phone: order.contact_phone || '',
-        remark: order.remark || ''
+        orderNo: order.orderNo || '',
+        supplierId: order.supplierId || '',
+        orderDate: normalizeDate(order.orderDate),
+        expectedDeliveryDate: normalizeDate(order.expectedDeliveryDate),
+        contactPerson: order.contactPerson || '',
+        contactPhone: order.contactPhone || '',
+        remarks: order.remarks || ''
       })
 
-      if (order.supplier_id) {
+      if (order.supplierId) {
         selectedSupplier.value =
-          supplierList.value.find((supplier) => String(supplier.id) === String(order.supplier_id)) || {
-            id: order.supplier_id,
-            name: order.supplier_name || '',
-            code: order.supplier_code || ''
+          supplierList.value.find((supplier) => String(supplier.id) === String(order.supplierId)) || {
+            id: order.supplierId,
+            name: order.supplierName || '',
+            code: order.supplierCode || ''
           }
         tempSelectedSupplier.value = selectedSupplier.value
       }
 
-      const items = order.items || order.order_items || []
+      const items = order.orderItems || []
       orderItems.value = Array.isArray(items)
         ? items.map((item) => ({
-            material_id: item.material_id,
-            material_name: item.material_name || item.name || '',
-            material_code: item.material_code || item.code || '',
+            materialId: item.materialId,
+            materialName: item.materialName || item.name || '',
+            materialCode: item.materialCode || item.code || '',
             specification: item.specification || item.specs || '',
             quantity: item.quantity,
-            unit_price: item.unit_price,
-            total_price: item.total_price || (Number(item.quantity) || 0) * (Number(item.unit_price) || 0),
-            unit: item.unit || item.unit_name || '件',
-            remark: item.remark || ''
+            unitPrice: item.unitPrice,
+            totalPrice: item.amount || item.totalPrice || (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0),
+            unit: item.unit || item.unitName || '件',
+            remarks: item.remarks || ''
           }))
         : []
     } catch (error) {
@@ -660,7 +662,7 @@
     try {
       await formRef.value?.validate()
 
-      if (!orderForm.supplier_id) {
+      if (!orderForm.supplierId) {
         showToast('请选择供应商')
         return
       }
@@ -671,8 +673,8 @@
       }
 
       // 验证日期
-      if (orderForm.order_date && orderForm.expected_delivery_date) {
-        if (new Date(orderForm.expected_delivery_date) < new Date(orderForm.order_date)) {
+      if (orderForm.orderDate && orderForm.expectedDeliveryDate) {
+        if (new Date(orderForm.expectedDeliveryDate) < new Date(orderForm.orderDate)) {
           showToast('预计交货日期不能早于订单日期')
           return
         }
@@ -681,21 +683,21 @@
       submitting.value = true
       showLoadingToast({ message: '保存中...', forbidClick: true })
 
+      // 纯 camel，后端 purchaseOrderMap.fromApi
       const formData = {
-        order_no: orderForm.order_no,
-        supplier_id: orderForm.supplier_id,
-        order_date: orderForm.order_date,
-        expected_delivery_date: orderForm.expected_delivery_date,
-        contact_person: orderForm.contact_person,
-        contact_phone: orderForm.contact_phone,
-        total_amount: totalAmount.value,
-        remark: orderForm.remark,
+        orderNo: orderForm.orderNo || undefined,
+        supplierId: orderForm.supplierId,
+        orderDate: orderForm.orderDate,
+        expectedDeliveryDate: orderForm.expectedDeliveryDate,
+        contactPerson: orderForm.contactPerson,
+        contactPhone: orderForm.contactPhone,
+        totalAmount: totalAmount.value,
+        remarks: orderForm.remarks,
         items: orderItems.value.map((item) => ({
-          material_id: item.material_id,
+          materialId: item.materialId,
           quantity: parseFloat(item.quantity),
-          unit_price: parseFloat(item.unit_price),
-          total_price: parseFloat(item.total_price),
-          remark: item.remark
+          unitPrice: parseFloat(item.unitPrice),
+          remarks: item.remarks
         }))
       }
 
@@ -729,7 +731,7 @@
 
     // 设置默认订单日期为今天
     if (!isEdit.value) {
-      orderForm.order_date = new Date().toISOString().split('T')[0]
+      orderForm.orderDate = new Date().toISOString().split('T')[0]
     }
     await loadOrder()
   })

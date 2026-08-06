@@ -1,8 +1,9 @@
 <template>
-  <el-dialog
-    :title="title"
+  <AppDialog
     :model-value="modelValue"
     @update:model-value="val => emit('update:modelValue', val)"
+    :title="title"
+    mode="form"
     width="600px"
     @close="handleClose"
   >
@@ -13,11 +14,11 @@
       <el-form-item label="供应商名称" prop="name">
         <el-input v-model="form.name" placeholder="请输入供应商名称"></el-input>
       </el-form-item>
-      <el-form-item label="联系人" prop="contact_person">
-        <el-input v-model="form.contact_person" placeholder="请输入联系人"></el-input>
+      <el-form-item label="联系人" prop="contactPerson">
+        <el-input v-model="form.contactPerson" placeholder="请输入联系人"></el-input>
       </el-form-item>
-      <el-form-item label="联系电话" prop="contact_phone">
-        <el-input v-model="form.contact_phone" placeholder="请输入联系电话"></el-input>
+      <el-form-item label="联系电话" prop="contactPhone">
+        <el-input v-model="form.contactPhone" placeholder="请输入联系电话"></el-input>
       </el-form-item>
       <el-form-item label="电子邮箱" prop="email">
         <el-input v-model="form.email" placeholder="请输入电子邮箱"></el-input>
@@ -25,9 +26,9 @@
       <el-form-item label="地址">
         <el-input v-model="form.address" type="textarea" :rows="2" placeholder="请输入地址"></el-input>
       </el-form-item>
-      <el-form-item label="付款账期(天)" prop="payment_term_days">
+      <el-form-item label="付款账期(天)" prop="paymentTermDays">
         <el-input-number
-          v-model="form.payment_term_days"
+          v-model="form.paymentTermDays"
           :min="0"
           :max="3650"
           :step="1"
@@ -52,7 +53,7 @@
         <el-button type="primary" @click="submitForm" :loading="submitting">确定</el-button>
       </span>
     </template>
-  </el-dialog>
+    </AppDialog>
 </template>
 
 <script setup>
@@ -82,11 +83,11 @@ const form = reactive({
   id: '',
   code: '',
   name: '',
-  contact_person: '',
-  contact_phone: '',
+  contactPerson: '',
+  contactPhone: '',
   email: '',
   address: '',
-  payment_term_days: 30,
+  paymentTermDays: 30,
   status: 1,
   remark: ''
 })
@@ -94,8 +95,8 @@ const form = reactive({
 const rules = {
   code: [{ required: true, message: '请输入供应商编码', trigger: 'blur' }],
   name: [{ required: true, message: '请输入供应商名称', trigger: 'blur' }],
-  contact_person: [{ required: true, message: '请输入联系人', trigger: 'blur' }],
-  contact_phone: [{ required: true, message: '请输入联系电话', trigger: 'blur' }],
+  contactPerson: [{ required: true, message: '请输入联系人', trigger: 'blur' }],
+  contactPhone: [{ required: true, message: '请输入联系电话', trigger: 'blur' }],
   email: [{ type: 'email', message: '请输入正确的邮箱地址', trigger: 'blur' }]
 }
 
@@ -104,18 +105,17 @@ watch(() => props.editData, (newVal) => {
   if (newVal) {
     isEdit.value = true
     nextTick(() => {
-      // 标准化字段名称（兼容不同API返回格式）
       Object.assign(form, {
         id: newVal.id,
-        code: newVal.code || newVal.supplier_code || '',
-        name: newVal.name || newVal.supplier_name || '',
-        contact_person: newVal.contact_person || newVal.contact || '',
-        contact_phone: newVal.contact_phone || newVal.phone || '',
+        code: newVal.code || newVal.supplierCode || '',
+        name: newVal.name || newVal.supplierName || '',
+        contactPerson: newVal.contactPerson || '',
+        contactPhone: newVal.contactPhone || '',
         email: newVal.email || '',
         address: newVal.address || '',
-        payment_term_days:
-          newVal.payment_term_days != null && newVal.payment_term_days !== ''
-            ? Number(newVal.payment_term_days)
+        paymentTermDays:
+          newVal.paymentTermDays != null && newVal.paymentTermDays !== ''
+            ? Number(newVal.paymentTermDays)
             : 30,
         status: newVal.status !== undefined ? Number(newVal.status) : 1,
         remark: newVal.remark || newVal.remarks || ''
@@ -136,11 +136,11 @@ const resetForm = () => {
   form.id = ''
   form.code = ''
   form.name = ''
-  form.contact_person = ''
-  form.contact_phone = ''
+  form.contactPerson = ''
+  form.contactPhone = ''
   form.email = ''
   form.address = ''
-  form.payment_term_days = 30
+  form.paymentTermDays = 30
   form.status = 1
   form.remark = ''
   isEdit.value = false
@@ -152,17 +152,17 @@ const submitForm = () => {
     if (valid) {
       submitting.value = true
       try {
-        // 只保留数据库中存在的字段
+        // HTTP body camelCase（camelOut 边界自动 mapKeysToSnake）
         const cleanData = {
           code: form.code,
           name: form.name,
-          contact_person: form.contact_person,
-          contact_phone: form.contact_phone,
+          contactPerson: form.contactPerson,
+          contactPhone: form.contactPhone,
           email: form.email,
           address: form.address,
-          payment_term_days:
-            form.payment_term_days != null && form.payment_term_days !== ''
-              ? Number(form.payment_term_days)
+          paymentTermDays:
+            form.paymentTermDays != null && form.paymentTermDays !== ''
+              ? Number(form.paymentTermDays)
               : 30,
           status: form.status !== undefined ? Number(form.status) : 1,
           remark: form.remark

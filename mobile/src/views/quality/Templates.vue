@@ -39,7 +39,7 @@
         { label: '模板编码', field: 'code' },
         { label: '检验类型', field: 'inspection_type' },
         { label: '检验项数', field: 'item_count', suffix: '项' },
-        { label: '更新时间', field: 'updated_at', type: 'date' }
+        { label: '更新时间', field: 'updatedAt', type: 'date' }
       ],
       tags: [
         {

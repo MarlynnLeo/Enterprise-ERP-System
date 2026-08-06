@@ -1,29 +1,30 @@
 <template>
   <!-- 价格调整表单对话框 -->
-  <el-dialog
+  <AppDialog
     v-model="visible"
     title="调整物料价格"
+    mode="form"
     width="500px"
     :close-on-click-modal="false"
   >
     <el-form :model="form" label-width="100px" ref="formRef">
       <el-form-item label="物料编码">
-        <el-input :value="form.material_code" disabled />
+        <el-input :value="form.materialCode" disabled />
       </el-form-item>
       <el-form-item label="物料名称">
-        <el-input :value="form.material_name" disabled />
+        <el-input :value="form.materialName" disabled />
       </el-form-item>
       <el-form-item label="原始采购价">
         <el-input-number
-          :model-value="form.original_price"
+          :model-value="form.originalPrice"
           disabled
           class="w-full"
           :controls="false"
         />
       </el-form-item>
-      <el-form-item label="调整后价格" prop="adjusted_price" required>
+      <el-form-item label="调整后价格" prop="adjustedPrice" required>
         <el-input-number
-          :model-value="form.adjusted_price"
+          :model-value="form.adjustedPrice"
           :min="0"
           :precision="2"
           :step="0.01"
@@ -31,9 +32,9 @@
           @update:model-value="updateFormField('adjusted_price', $event)"
         />
       </el-form-item>
-      <el-form-item label="调整原因" prop="adjustment_reason" required>
+      <el-form-item label="调整原因" prop="adjustmentReason" required>
         <el-input
-          :model-value="form.adjustment_reason"
+          :model-value="form.adjustmentReason"
           type="textarea"
           :rows="3"
           placeholder="请输入调整原因"
@@ -45,7 +46,7 @@
       <el-button @click="handleClose">取消</el-button>
       <el-button v-permission="'finance:pricing:update'" type="primary" @click="handleSave" :loading="submitting">保存</el-button>
     </template>
-  </el-dialog>
+    </AppDialog>
 </template>
 
 <script setup>

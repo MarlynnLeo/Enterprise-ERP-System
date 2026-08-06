@@ -4,6 +4,7 @@
  */
 
 const { ResponseHandler } = require('../../../../utils/responseHandler');
+const { mapKeysToSnake } = require('../../../../utils/fieldMap');
 const { logger } = require('../../../../utils/logger');
 const { parsePagination, appendPaginationSQL } = require('../../../../utils/safePagination');
 const { CodeGenerators } = require('../../../../utils/codeGenerator');
@@ -533,7 +534,7 @@ const updateOutbound = async (req, res) => {
   const connection = await db.pool.getConnection();
   try {
     const { id } = req.params;
-    const { outbound_date, status, operator, remark = null, items } = req.body;
+    const { outbound_date, status, operator, remark = null, items } = mapKeysToSnake(req.body || {});
 
     if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'inventory_outbound', id, '无权修改该出库单'))) {
       return;
@@ -727,9 +728,8 @@ const _createOutbound = async (outboundData) => {
     // 确保remark不是undefined，如果是undefined则设为null
     const remark = outboundData.remark !== undefined ? outboundData.remark : null;
 
-    // 获取生产任务ID（如果存在）
-    const productionTaskId =
-      outboundData.productionTaskId || outboundData.production_task_id || null;
+    // 获取生产任务ID（HTTP 入参只认 camel）
+    const productionTaskId = outboundData.productionTaskId || null;
 
     // referenceId 使用生产任务 ID，保持出库单与生产任务关联
     const referenceId = productionTaskId;
@@ -742,11 +742,9 @@ const _createOutbound = async (outboundData) => {
       // 🔥 超额领料检查逻辑
       const ExcessIssueService = require('../../../../services/business/ExcessIssueService');
 
-      // 提取物料明细用于检查
-      // 注意：outboundData.items 是前端传入的原始数据或者已处理的数据
-      // 我们需要确保 items 里的 materialId 和 quantity 是正确的
+      // 提取物料明细用于检查（HTTP 入参只认 camel）
       const itemsToCheck = outboundData.items.map((item) => ({
-        materialId: item.materialId || item.material_id,
+        materialId: item.materialId,
         quantity: parseFloat(item.quantity),
       }));
 
@@ -760,8 +758,8 @@ const _createOutbound = async (outboundData) => {
           // 存在超额项：补全物料名称便于前端展示
           const itemNameMap = new Map(
             (outboundData.items || []).map((item) => [
-              Number(item.materialId || item.material_id),
-              item.materialName || item.material_name || item.materialCode || item.material_code || '',
+              Number(item.materialId),
+              item.materialName || item.materialCode || '',
             ])
           );
           const enrichedExcess = excessResults.map((r) => ({
@@ -774,28 +772,16 @@ const _createOutbound = async (outboundData) => {
 
           logger.warn(`检测到超额领料: ${excessDetails}`);
 
-          if (!outboundData.allowExcess && !outboundData.allow_excess && !outboundData.force_excess) {
+          if (!outboundData.allowExcess && !outboundData.forceExcess) {
             const error = new Error('存在超额领料，请确认');
             error.code = 'EXCESS_ISSUE';
             error.details = enrichedExcess; // 将超额详情返回给前端
             throw error;
           }
 
-          // 如果允许超额，检查是否填写了原因
-          // 这里检查每一项超额的是否都有原因，或者整体有一个原因
-          // 简化逻辑：如果是超额出库，要求出库单备注或单独字段填写原因
-          // 假设我们在 items 级别或 header 级别 check
-          // 实施计划中提到 inventory_ledger.issue_reason
-          // 我们需要确保 items 中每一行超额的都有 issue_reason 或者如果整体补发，用 header 的 issueReason?
-          // 暂定：如果超额，检查 outboundData.items 中对应行的 issueReason，或者 outboundData.issueReason
-
-          // 简单起见，如果超额，要求 outboundData.remark 或 issueReason 必填
-          // 但实施计划要求是 "issue_reason" 字段
-          // 我们检查是否有传入 issue_reason (在 outboundData 中)
-
-          if (!outboundData.issueReason && !outboundData.issue_reason) {
-            // 也可以检查 item 级别的 issue_reason
-            const hasItemReason = outboundData.items.some((i) => i.issueReason || i.issue_reason);
+          // 超额必须填写 issueReason（HTTP 只认 camel）
+          if (!outboundData.issueReason) {
+            const hasItemReason = outboundData.items.some((i) => i.issueReason);
             if (!hasItemReason) {
               const error = new Error('超额领料必须填写补发/超额原因');
               error.code = 'MISSING_ISSUE_REASON';
@@ -849,14 +835,9 @@ const _createOutbound = async (outboundData) => {
       }
     }
 
-    // 插入出库单主表（含出库类型标记）
-    const outboundType = outboundData.outbound_type || 'manual';
-    const createdBy =
-      outboundData.created_by ||
-      outboundData.createdBy ||
-      outboundData.user_id ||
-      outboundData.userId ||
-      null;
+    // 插入出库单主表（含出库类型标记；HTTP 入参只认 camel）
+    const outboundType = outboundData.outboundType || 'manual';
+    const createdBy = outboundData.createdBy || outboundData.userId || null;
     const [result] = await connection.execute(
       `INSERT INTO inventory_outbound
         (outbound_no, outbound_date, status, outbound_type, operator, remark, reference_id, reference_type, production_task_id, issue_reason, is_excess, created_by)
@@ -872,7 +853,7 @@ const _createOutbound = async (outboundData) => {
         referenceId,
         referenceType,
         productionTaskId || null,
-        outboundData.issueReason || outboundData.issue_reason || null,
+        outboundData.issueReason || null,
         outboundData.isExcess ? 1 : 0,
         createdBy,
       ]
@@ -1082,14 +1063,14 @@ const createOutbound = async (req, res) => {
       return `${year}-${month}-${day}`;
     };
 
-    // _createOutbound 内部仍用 camel 适配对象（历史实现）
+    // _createOutbound 内部用 camel 适配对象
     const adaptedData = {
       outboundDate: formatDateForDB(mapped.outbound_date),
       status: mapped.status || 'draft',
       operator: mapped.operator || (await getCurrentUserName(req)),
       created_by: req.user?.id || req.user?.userId || null,
       remark: mapped.remark ?? null,
-      outbound_type: mapped.outbound_type || 'manual',
+      outbound_type: mapped.outbound_type || req.body?.outboundType || 'manual',
       productionTaskId: mapped.production_task_id ?? null,
       issue_reason: mapped.issue_reason ?? null,
       isExcess: Boolean(mapped.is_excess),
@@ -1099,6 +1080,8 @@ const createOutbound = async (req, res) => {
             materialId: item.material_id,
             quantity: item.quantity,
             unitId: item.unit_id,
+            locationId: item.location_id,
+            batchNumber: item.batch_number,
             remark: item.remark,
           }))
         : [],

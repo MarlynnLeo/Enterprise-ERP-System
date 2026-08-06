@@ -9,29 +9,29 @@
     <div v-else-if="receipt" class="content">
       <div class="hero">
         <div>
-          <div class="code">{{ receipt.receipt_no || receipt.receipt_code || '-' }}</div>
-          <div class="name">{{ receipt.supplier_name || '未关联供应商' }}</div>
+          <div class="code">{{ receipt.receiptNo || receipt.receiptCode || receipt.receiptCode || '-' }}</div>
+          <div class="name">{{ receipt.supplierName || '未关联供应商' }}</div>
         </div>
         <Tag :type="statusType(receipt.status)">{{ statusText(receipt.status) }}</Tag>
       </div>
 
       <CellGroup inset title="基本信息">
-        <Cell title="加工单号" :value="receipt.processing_no || '-'" />
-        <Cell title="入库日期" :value="dateText(receipt.receipt_date)" />
+        <Cell title="加工单号" :value="receipt.processingNo || '-'" />
+        <Cell title="入库日期" :value="dateText(receipt.receiptDate)" />
         <Cell title="经办人" :value="receipt.operator || '-'" />
         <Cell title="备注" :label="receipt.remarks || '-'" />
       </CellGroup>
 
       <CellGroup inset title="入库明细">
         <div v-if="items.length" class="items">
-          <div v-for="item in items" :key="item.id || item.product_id" class="item-row">
+          <div v-for="item in items" :key="item.id || item.productId" class="item-row">
             <div>
-              <div class="item-title">{{ item.product_name || item.material_name || `产品#${item.product_id}` }}</div>
-              <div class="item-subtitle">{{ item.product_code || item.specification || '-' }}</div>
+              <div class="item-title">{{ item.productName || item.materialName || item.productName || item.materialName || `产品#${item.productId}` }}</div>
+              <div class="item-subtitle">{{ item.productCode || item.specification || '-' }}</div>
             </div>
             <div class="qty">
-              <strong>{{ item.actual_quantity || item.quantity || 0 }}</strong>
-              <span>{{ item.unit || item.unit_name || '' }}</span>
+              <strong>{{ item.actualQuantity || item.quantity || 0 }}</strong>
+              <span>{{ item.unitName || item.unit || item.unitName || '' }}</span>
             </div>
           </div>
         </div>

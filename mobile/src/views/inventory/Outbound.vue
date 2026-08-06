@@ -76,7 +76,7 @@
                   <div class="item-icon" :class="getAccentClass(outbound.status)">
                     <SvgIcon name="export" size="0.875rem" />
                   </div>
-                  <span class="item-title">{{ outbound.outbound_no }}</span>
+                  <span class="item-title">{{ outbound.outboundNo }}</span>
                 </div>
                 <span class="status-tag" :class="'st-' + outbound.status">
                   {{ getOutboundStatusText(outbound.status) }}
@@ -85,27 +85,27 @@
 
               <!-- 第二行: 出库类型 -->
               <div class="item-subtitle">
-                {{ getOutboundTypeText(outbound.outbound_type) }}
-                <template v-if="outbound.product_specs"> · {{ outbound.product_specs }}</template>
+                {{ getOutboundTypeText(outbound.outboundType) }}
+                <template v-if="outbound.productSpecs"> · {{ outbound.productSpecs }}</template>
               </div>
 
               <!-- 详情网格 -->
               <div class="detail-grid">
                 <div class="detail-item">
                   <span class="detail-label">出库日期</span>
-                  <span class="detail-value">{{ formatDate(outbound.outbound_date, 'YYYY-MM-DD') }}</span>
+                  <span class="detail-value">{{ formatDate(outbound.outboundDate, 'YYYY-MM-DD') }}</span>
                 </div>
                 <div class="detail-item">
                   <span class="detail-label">物料数</span>
-                  <span class="detail-value">{{ outbound.items_count || 0 }} 项</span>
+                  <span class="detail-value">{{ outbound.itemsCount || 0 }} 项</span>
                 </div>
-                <div class="detail-item" v-if="outbound.total_quantity">
+                <div class="detail-item" v-if="outbound.totalQuantity">
                   <span class="detail-label">总数量</span>
-                  <span class="detail-value">{{ outbound.total_quantity }}</span>
+                  <span class="detail-value">{{ outbound.totalQuantity }}</span>
                 </div>
-                <div class="detail-item" v-if="outbound.operator_name">
+                <div class="detail-item" v-if="outbound.operatorName || outbound.operator">
                   <span class="detail-label">操作员</span>
-                  <span class="detail-value">{{ outbound.operator_name }}</span>
+                  <span class="detail-value">{{ outbound.operatorName || outbound.operator }}</span>
                 </div>
               </div>
             </div>

@@ -118,15 +118,15 @@
   --shadow-inset: inset 0 2px 4px rgba(15, 23, 42, 0.04);
 
   /* 品牌发光阴影 */
-  --shadow-glow-primary: 0 2px 12px rgba(22, 163, 74, 0.28);
-  --shadow-glow-success: 0 2px 10px rgba(22, 163, 74, 0.2);
+  --shadow-glow-primary: 0 2px 12px color-mix(in srgb, var(--color-primary) 28%, transparent);
+  --shadow-glow-success: 0 2px 10px color-mix(in srgb, var(--color-primary) 20%, transparent);
   --shadow-glow-warning: 0 2px 10px rgba(217, 119, 6, 0.2);
   --shadow-glow-danger: 0 2px 10px rgba(220, 38, 38, 0.2);
 
   /* KACON 玻璃层：低透明度和低模糊，避免 ERP 页面发灰、掉帧 */
   --kacon-glass-bg: rgba(255, 255, 255, 0.9);
   --kacon-glass-bg-strong: rgba(255, 255, 255, 0.97);
-  --kacon-glass-border: rgba(229, 231, 235, 0.78);
+  --kacon-glass-border: color-mix(in srgb, var(--color-border-base) 78%, transparent);
   --kacon-glass-filter: blur(10px) saturate(1.08);
 
   /* ========== 过渡系统 ========== */
@@ -158,7 +158,7 @@
 [data-theme="kacon"] .layout-container {
   background:
     radial-gradient(ellipse 80% 80% at 50% -20%, rgba(37, 99, 235, 0.06), transparent),
-    radial-gradient(ellipse 50% 50% at 80% 50%, rgba(22, 163, 74, 0.04), transparent),
+    radial-gradient(ellipse 50% 50% at 80% 50%, color-mix(in srgb, var(--color-primary) 4%, transparent), transparent),
     radial-gradient(ellipse 50% 50% at 20% 80%, rgba(59, 130, 246, 0.05), transparent),
     var(--color-bg-page) !important;
 }
@@ -171,27 +171,44 @@
   --shell-accent: var(--color-primary) !important;
   --shell-accent-strong: var(--color-primary-dark-2) !important;
   --shell-accent-soft: var(--color-primary-light-9) !important;
-  --shell-glow: rgba(22, 163, 74, 0.12) !important;
+  --shell-glow: color-mix(in srgb, var(--color-primary) 12%, transparent) !important;
   --shell-surface: var(--kacon-glass-bg) !important;
-  --shell-border: rgba(229, 231, 235, 0.7) !important;
+  --shell-border: color-mix(in srgb, var(--color-border-base) 70%, transparent) !important;
   --shell-shadow: 0 1px 3px rgba(15, 23, 42, 0.06) !important;
   --shell-shadow-hover: 0 4px 14px rgba(15, 23, 42, 0.05) !important;
   --shell-radius-sm: var(--radius-sm) !important;
   --shell-radius-md: var(--radius-md) !important;
   --shell-radius-lg: var(--radius-lg) !important;
   --shell-control-bg: rgba(255, 255, 255, 0.6) !important;
-  --shell-control-border: rgba(229, 231, 235, 0.5) !important;
-  --shell-control-hover-bg: rgba(22, 163, 74, 0.06) !important;
-  --shell-control-hover-shadow: 0 2px 8px rgba(22, 163, 74, 0.12) !important;
+  --shell-control-border: color-mix(in srgb, var(--color-border-base) 50%, transparent) !important;
+  --shell-control-hover-bg: color-mix(in srgb, var(--color-primary) 6%, transparent) !important;
+  --shell-control-hover-shadow: 0 2px 8px color-mix(in srgb, var(--color-primary) 12%, transparent) !important;
   --shell-menu-item-height: 44px !important;
+  /* 侧栏菜单：与 theme-components 对齐，仅补玻璃底与激活光晕 */
+  --shell-sidebar-bg: var(--kacon-glass-bg) !important;
+  --shell-sidebar-text: var(--color-text-primary) !important;
+  --shell-sidebar-text-muted: var(--color-text-secondary) !important;
+  --shell-sidebar-title: var(--color-text-primary) !important;
+  --shell-sidebar-hover-bg: color-mix(in srgb, var(--color-primary) 6%, transparent) !important;
+  --shell-sidebar-active-bg: linear-gradient(
+    135deg,
+    var(--color-primary),
+    var(--color-primary-dark-2)
+  ) !important;
+  --shell-sidebar-active-text: var(--color-on-primary) !important;
+  --shell-sidebar-accent: var(--color-primary) !important;
+  --shell-sidebar-indicator-width: 0px !important;
+  --shell-sidebar-active-shadow: 0 2px 12px color-mix(in srgb, var(--color-primary) 28%, transparent) !important;
+  --shell-sidebar-rail-width: 3px !important;
+  --shell-sidebar-rail-color: var(--color-on-primary) !important;
 }
 
 
-/* ========== 3. 侧边栏（低模糊玻璃层） ========== */
+/* ========== 3. 侧边栏（玻璃底 + 菜单走 theme-components / shell token） ========== */
 
 [data-theme="kacon"] .sidebar,
 [data-theme="kacon"] .app-sidebar {
-  background: var(--kacon-glass-bg) !important;
+  background: var(--shell-sidebar-bg, var(--kacon-glass-bg)) !important;
   backdrop-filter: var(--kacon-glass-filter) !important;
   -webkit-backdrop-filter: var(--kacon-glass-filter) !important;
   border-right: 1px solid var(--kacon-glass-border) !important;
@@ -201,27 +218,18 @@
   height: 100% !important;
 }
 
-
-/* Logo容器 */
 [data-theme="kacon"] .logo-container {
   background: transparent !important;
-  border-bottom: 1px solid rgba(22, 163, 74, 0.08) !important;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-primary) 8%, transparent) !important;
   box-shadow: none !important;
   border-radius: 0 !important;
 }
 
-[data-theme="kacon"] .logo-container .title {
-  color: var(--color-text-primary) !important;
-  font-weight: 700 !important;
-}
-
-/* Logo 图标 */
 [data-theme="kacon"] .logo {
   filter: none !important;
   animation: none !important;
 }
 
-/* 标题 - 品牌色 */
 [data-theme="kacon"] .app-title {
   background: none !important;
   -webkit-background-clip: unset !important;
@@ -230,166 +238,38 @@
   color: var(--color-primary) !important;
 }
 
-/* 菜单 */
-[data-theme="kacon"] .el-menu {
-  background: transparent !important;
-  border-right: none !important;
-}
-
-/* 菜单容器水平内缩 — 代替菜单项的 margin:0 8px，
-   避免 vertical margin 导致 Element Plus collapse 高度测量跳动
-   (参见 layout.css: "vertical margins cause jumps") */
+/* 菜单容器水平内缩（避免 collapse 高度跳动） */
 [data-theme="kacon"] .sidebar-menu {
   padding-left: 8px !important;
   padding-right: 8px !important;
 }
 
-/* 菜单项 - 默认状态 */
-[data-theme="kacon"] .sidebar .el-menu-item,
-[data-theme="kacon"] .sidebar .el-sub-menu__title,
-[data-theme="kacon"] .app-sidebar .el-menu-item,
-[data-theme="kacon"] .app-sidebar .el-sub-menu__title {
-  color: var(--color-text-secondary) !important;
-  border-radius: var(--radius-md) !important;
-  margin: 0 !important;
-  transition:
-    background-color var(--transition-fast) var(--transition-timing),
-    color var(--transition-fast) var(--transition-timing),
-    box-shadow var(--transition-fast) var(--transition-timing) !important;
-  position: relative !important;
-  overflow: hidden !important;
-}
-
-[data-theme="kacon"] .sidebar .el-menu-item span,
-[data-theme="kacon"] .sidebar .el-sub-menu__title span,
-[data-theme="kacon"] .app-sidebar .el-menu-item span,
-[data-theme="kacon"] .app-sidebar .el-sub-menu__title span {
-  color: var(--color-text-secondary) !important;
-  font-size: 13.5px !important;
-  font-weight: 500 !important;
-}
-
-/* 菜单项图标 */
+/* 图标默认略淡（激活/光晕/rail → shell token + theme-components） */
 [data-theme="kacon"] .sidebar .el-menu-item .el-icon,
 [data-theme="kacon"] .sidebar .el-sub-menu__title .el-icon,
 [data-theme="kacon"] .app-sidebar .el-menu-item .el-icon,
 [data-theme="kacon"] .app-sidebar .el-sub-menu__title .el-icon {
-  color: var(--color-text-secondary) !important;
-  font-size: 18px !important;
-  filter: none !important;
   opacity: 0.55;
-  transition: opacity var(--transition-fast) var(--transition-timing) !important;
-}
-
-/* 菜单项 - 悬停 */
-[data-theme="kacon"] .sidebar .el-menu-item:hover,
-[data-theme="kacon"] .sidebar .el-sub-menu__title:hover,
-[data-theme="kacon"] .app-sidebar .el-menu-item:hover,
-[data-theme="kacon"] .app-sidebar .el-sub-menu__title:hover {
-  background: rgba(22, 163, 74, 0.06) !important;
-  color: var(--color-primary-dark-2) !important;
-  transform: none !important;
-  box-shadow: none !important;
-}
-
-[data-theme="kacon"] .sidebar .el-menu-item:hover span,
-[data-theme="kacon"] .sidebar .el-sub-menu__title:hover span,
-[data-theme="kacon"] .app-sidebar .el-menu-item:hover span,
-[data-theme="kacon"] .app-sidebar .el-sub-menu__title:hover span {
-  color: var(--color-primary-dark-2) !important;
+  font-size: 18px !important;
 }
 
 [data-theme="kacon"] .sidebar .el-menu-item:hover .el-icon,
 [data-theme="kacon"] .sidebar .el-sub-menu__title:hover .el-icon,
 [data-theme="kacon"] .app-sidebar .el-menu-item:hover .el-icon,
 [data-theme="kacon"] .app-sidebar .el-sub-menu__title:hover .el-icon {
-  color: var(--color-primary-dark-2) !important;
-  opacity: 0.8;
-}
-
-/* 菜单项 - 激活（渐变背景 + 白色文字 + 左侧指示条） */
-[data-theme="kacon"] .sidebar .el-menu-item.is-active,
-[data-theme="kacon"] .app-sidebar .el-menu-item.is-active {
-  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark-2)) !important;
-  color: #fff !important;
-  font-weight: 600;
-  border-radius: var(--radius-md) !important;
-  box-shadow: 0 2px 12px rgba(22, 163, 74, 0.28) !important;
-}
-
-[data-theme="kacon"] .sidebar .el-menu-item.is-active::before,
-[data-theme="kacon"] .app-sidebar .el-menu-item.is-active::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 10px;
-  bottom: 10px;
-  width: 3px;
-  border-radius: 0 999px 999px 0;
-  background: #fff;
-}
-
-[data-theme="kacon"] .sidebar .el-menu-item.is-active span,
-[data-theme="kacon"] .app-sidebar .el-menu-item.is-active span {
-  color: #fff !important;
-  font-weight: 600 !important;
+  opacity: 0.85;
 }
 
 [data-theme="kacon"] .sidebar .el-menu-item.is-active .el-icon,
 [data-theme="kacon"] .app-sidebar .el-menu-item.is-active .el-icon {
-  color: #fff !important;
   opacity: 1;
 }
 
-/* Shell menu active state */
-[data-theme="kacon"] .app-menu .el-menu-item.is-active {
-  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark-2)) !important;
-  border-left: none !important;
-  border-radius: var(--radius-md) !important;
-  box-shadow: 0 2px 12px rgba(22, 163, 74, 0.28) !important;
-}
-
-/* Shell menu hover state */
-[data-theme="kacon"] .app-menu .el-menu-item,
-[data-theme="kacon"] .app-menu .el-sub-menu__title {
-  border-radius: var(--radius-md) !important;
-  transition:
-    background-color var(--transition-fast) var(--transition-timing),
-    color var(--transition-fast) var(--transition-timing),
-    box-shadow var(--transition-fast) var(--transition-timing);
-}
-
-[data-theme="kacon"] .app-menu .el-menu-item:hover,
-[data-theme="kacon"] .app-menu .el-sub-menu__title:hover {
-  transform: none;
-  box-shadow: none;
-  background-color: rgba(22, 163, 74, 0.06) !important;
-}
-
-/* 子菜单激活标题 */
-[data-theme="kacon"] .sidebar .el-sub-menu.is-active>.el-sub-menu__title,
-[data-theme="kacon"] .app-sidebar .el-sub-menu.is-active>.el-sub-menu__title {
-  color: var(--color-primary) !important;
-}
-
-[data-theme="kacon"] .sidebar .el-sub-menu.is-active>.el-sub-menu__title span,
-[data-theme="kacon"] .app-sidebar .el-sub-menu.is-active>.el-sub-menu__title span {
+/* 子菜单展开标题 */
+[data-theme="kacon"] .sidebar .el-sub-menu.is-active > .el-sub-menu__title,
+[data-theme="kacon"] .app-sidebar .el-sub-menu.is-active > .el-sub-menu__title {
   color: var(--color-primary) !important;
   font-weight: 700 !important;
-}
-
-[data-theme="kacon"] .sidebar .el-sub-menu.is-active>.el-sub-menu__title .el-icon,
-[data-theme="kacon"] .app-sidebar .el-sub-menu.is-active>.el-sub-menu__title .el-icon {
-  color: var(--color-primary) !important;
-}
-
-/* Nested shell submenu */
-[data-theme="kacon"] .app-menu .el-sub-menu .el-sub-menu>.el-sub-menu__title {
-  background: transparent !important;
-}
-
-[data-theme="kacon"] .app-menu .el-sub-menu .el-sub-menu>.el-sub-menu__title::before {
-  background: var(--color-primary) !important;
 }
 
 
@@ -404,7 +284,7 @@
   border-radius: 0 !important;
   margin: 0 !important;
   border: none !important;
-  border-bottom: 1px solid rgba(229, 231, 235, 0.7) !important;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border-base) 70%, transparent) !important;
 }
 
 /* Shell header */
@@ -413,7 +293,7 @@
   backdrop-filter: var(--kacon-glass-filter) !important;
   -webkit-backdrop-filter: var(--kacon-glass-filter) !important;
   border: none !important;
-  border-bottom: 1px solid rgba(229, 231, 235, 0.7) !important;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border-base) 70%, transparent) !important;
   box-shadow: none !important;
 }
 
@@ -438,11 +318,11 @@
 [data-theme="kacon"] .icon-button:hover,
 [data-theme="kacon"] .icon-button-wrapper .notification-bell:hover,
 [data-theme="kacon"] .icon-button-wrapper .theme-selector:hover {
-  background: rgba(22, 163, 74, 0.06) !important;
+  background: color-mix(in srgb, var(--color-primary) 6%, transparent) !important;
   color: var(--color-primary) !important;
   border-color: var(--color-primary) !important;
   transform: translateY(-1px) !important;
-  box-shadow: 0 2px 8px rgba(22, 163, 74, 0.12) !important;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--color-primary) 12%, transparent) !important;
 }
 
 /* 用户信息区域 */
@@ -460,10 +340,10 @@
 }
 
 [data-theme="kacon"] .user-info:hover {
-  background: rgba(22, 163, 74, 0.06) !important;
+  background: color-mix(in srgb, var(--color-primary) 6%, transparent) !important;
   border-color: var(--color-primary) !important;
   transform: translateY(-1px) !important;
-  box-shadow: 0 2px 8px rgba(22, 163, 74, 0.12) !important;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--color-primary) 12%, transparent) !important;
 }
 
 /* 头像 */
@@ -482,126 +362,24 @@
 }
 
 [data-theme="kacon"] .el-descriptions .el-descriptions__header {
-  background-color: rgba(249, 250, 251, 0.3) !important;
+  background-color: color-mix(in srgb, var(--color-bg-section) 30%, transparent) !important;
 }
 
 [data-theme="kacon"] .el-descriptions .el-descriptions__label {
-  background-color: rgba(249, 250, 251, 0.3) !important;
+  background-color: color-mix(in srgb, var(--color-bg-section) 30%, transparent) !important;
 }
 
 
 /* ========== 10. 表格 ========== */
-
-[data-theme="kacon"] .el-table {
-  border-radius: var(--radius-lg) !important;
-  border: none !important;
-  overflow: hidden;
-}
-
-[data-theme="kacon"] .el-table::before {
-  display: none !important;
-}
-
-[data-theme="kacon"] .el-table th.el-table__cell {
-  background: var(--erp-table-fixed-header-bg, var(--color-bg-light)) !important;
-  background-color: var(--erp-table-fixed-header-bg, var(--color-bg-light)) !important;
-  color: var(--color-text-secondary) !important;
-  font-size: 14px !important;
-  font-weight: 600 !important;
-  text-transform: none;
-  letter-spacing: 0;
-  border-bottom: 1px solid var(--color-border-base) !important;
-  padding: 8px 0 !important;
-}
-
-[data-theme="kacon"] .el-table td.el-table__cell {
-  border-bottom: 1px solid var(--color-border-light) !important;
-  color: var(--color-text-primary) !important;
-  font-size: 14px !important;
-  padding: 8px 0 !important;
-}
-
-[data-theme="kacon"] .el-table--border,
-[data-theme="kacon"] .el-table--group {
-  border: 1px solid var(--color-border-base) !important;
-}
-
-[data-theme="kacon"] .el-table--border::before,
-[data-theme="kacon"] .el-table--border::after,
-[data-theme="kacon"] .el-table--border .el-table__inner-wrapper::after {
-  display: block !important;
-  background-color: var(--color-border-base) !important;
-}
-
-[data-theme="kacon"] .el-table--border th.el-table__cell,
-[data-theme="kacon"] .el-table--border td.el-table__cell {
-  border-right: 1px solid var(--color-border-base) !important;
-}
-
-[data-theme="kacon"] .el-table__body tr {
-  transition: background-color var(--transition-fast) var(--transition-timing);
-}
-
-[data-theme="kacon"] .el-table__body tr:hover>td.el-table__cell {
-  background-color: rgba(22, 163, 74, 0.08) !important;
-}
-
-[data-theme="kacon"] .el-table__body tr.current-row>td.el-table__cell {
-  background-color: var(--color-primary-light-9) !important;
-}
-
-[data-theme="kacon"] .el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
-  background-color: rgba(241, 245, 249, 0.48) !important;
-}
-
-/* 表格排序 */
-[data-theme="kacon"] .el-table .ascending .sort-caret.ascending {
-  border-bottom-color: var(--color-primary) !important;
-}
-
-[data-theme="kacon"] .el-table .descending .sort-caret.descending {
-  border-top-color: var(--color-primary) !important;
-}
-
-/* 表格空状态 */
-[data-theme="kacon"] .el-table__empty-text {
-  color: var(--color-text-placeholder) !important;
-}
-
+/* 密度/hover/选中/斑马纹 → theme-components.css */
 
 /* ========== 11. 输入框 ========== */
-
-[data-theme="kacon"] .el-input__wrapper {
-  border: 1px solid var(--color-border-base) !important;
-  border-radius: var(--radius-md) !important;
-  box-shadow: none !important;
-  background: var(--color-bg-base) !important;
-  transition:
-    background-color var(--transition-fast) var(--transition-timing),
-    border-color var(--transition-fast) var(--transition-timing),
-    box-shadow var(--transition-fast) var(--transition-timing) !important;
-}
-
-[data-theme="kacon"] .el-input__wrapper:hover {
-  border-color: var(--color-primary) !important;
-  box-shadow: none !important;
-}
-
-[data-theme="kacon"] .el-textarea__inner {
-  border: 1px solid var(--color-border-base) !important;
-  border-radius: var(--radius-md) !important;
-  box-shadow: none !important;
-  transition:
-    background-color var(--transition-fast) var(--transition-timing),
-    border-color var(--transition-fast) var(--transition-timing),
-    box-shadow var(--transition-fast) var(--transition-timing) !important;
-}
-
+/* 圆角/底色/hover → theme-components + theme-compat */
 
 /* ========== 12. 选择器 ========== */
 
 [data-theme="kacon"] .el-select-dropdown {
-  border: 1px solid rgba(229, 231, 235, 0.8) !important;
+  border: 1px solid color-mix(in srgb, var(--color-border-base) 80%, transparent) !important;
   border-radius: var(--radius-md) !important;
   box-shadow: var(--shadow-lg) !important;
   backdrop-filter: var(--kacon-glass-filter) !important;
@@ -609,62 +387,21 @@
   background: var(--kacon-glass-bg-strong) !important;
 }
 
-[data-theme="kacon"] .el-select-dropdown__item.is-selected {
-  color: var(--color-primary) !important;
-  font-weight: 600 !important;
-  background-color: var(--color-primary-light-9) !important;
-}
-
-[data-theme="kacon"] .el-select-dropdown__item:hover {
-  background: rgba(22, 163, 74, 0.06) !important;
-}
-
+/* select item 选中/hover → theme-components */
 
 /* ========== 13. 标签页 ========== */
-
-[data-theme="kacon"] .el-tabs__item {
-  color: var(--color-text-muted) !important;
-  transition: color var(--transition-fast) var(--transition-timing) !important;
-}
-
-[data-theme="kacon"] .el-tabs__nav-wrap::after {
-  background-color: var(--color-border-light) !important;
-}
-
+/* 基础色 → theme-components；激活条见 §35.2 */
 
 /* ========== 14. 分页器 ========== */
-
-[data-theme="kacon"] .el-pagination .el-pager li {
-  border-radius: var(--radius-round) !important;
-}
-
-[data-theme="kacon"] .el-pagination .el-pager li.is-active {
-  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark-2)) !important;
-  color: #fff !important;
-  box-shadow: 0 2px 8px rgba(22, 163, 74, 0.25) !important;
-}
-
-[data-theme="kacon"] .el-pagination .el-pager li:hover:not(.is-active) {
-  color: var(--color-primary) !important;
-  background: rgba(22, 163, 74, 0.06) !important;
-}
-
-[data-theme="kacon"] .el-pagination button:hover {
-  color: var(--color-primary) !important;
-}
-
+/* → theme-components；is-background 见 §35.1 */
 
 /* ========== 15. 标签 ========== */
-
-[data-theme="kacon"] .el-tag {
-  border-radius: var(--radius-round) !important;
-  border: none !important;
-}
+/* 圆角 → theme-components */
 
 /* ========== 17. 下拉菜单 ========== */
 
 [data-theme="kacon"] .el-dropdown-menu {
-  border: 1px solid rgba(229, 231, 235, 0.8) !important;
+  border: 1px solid color-mix(in srgb, var(--color-border-base) 80%, transparent) !important;
   border-radius: var(--radius-md) !important;
   box-shadow: var(--shadow-lg) !important;
   padding: 6px !important;
@@ -682,7 +419,7 @@
 }
 
 [data-theme="kacon"] .el-dropdown-menu__item:hover {
-  background: rgba(22, 163, 74, 0.06) !important;
+  background: color-mix(in srgb, var(--color-primary) 6%, transparent) !important;
   color: var(--color-primary-dark-2) !important;
   transform: none !important;
   box-shadow: none !important;
@@ -694,14 +431,14 @@
   background: var(--kacon-glass-bg-strong) !important;
   backdrop-filter: var(--kacon-glass-filter) !important;
   -webkit-backdrop-filter: var(--kacon-glass-filter) !important;
-  border: 1px solid rgba(229, 231, 235, 0.8) !important;
+  border: 1px solid color-mix(in srgb, var(--color-border-base) 80%, transparent) !important;
   box-shadow: var(--shadow-lg) !important;
   border-radius: var(--radius-md) !important;
 }
 
 [data-theme="kacon"] .user-dropdown .el-dropdown-menu__item:not(.is-disabled):hover,
 [data-theme="kacon"] .language-dropdown .el-dropdown-menu__item:hover {
-  background: rgba(22, 163, 74, 0.06) !important;
+  background: color-mix(in srgb, var(--color-primary) 6%, transparent) !important;
   color: var(--color-primary-dark-2) !important;
   transform: none !important;
   box-shadow: none !important;
@@ -770,7 +507,7 @@
 
 [data-theme="kacon"] .el-message {
   border-radius: var(--radius-md) !important;
-  border: 1px solid rgba(229, 231, 235, 0.7) !important;
+  border: 1px solid color-mix(in srgb, var(--color-border-base) 70%, transparent) !important;
   box-shadow: var(--shadow-lg) !important;
   backdrop-filter: var(--kacon-glass-filter) !important;
   -webkit-backdrop-filter: var(--kacon-glass-filter) !important;
@@ -779,7 +516,7 @@
 [data-theme="kacon"] .el-notification {
   border-radius: var(--radius-md) !important;
   box-shadow: var(--shadow-xl) !important;
-  border: 1px solid rgba(229, 231, 235, 0.7) !important;
+  border: 1px solid color-mix(in srgb, var(--color-border-base) 70%, transparent) !important;
 }
 
 
@@ -790,12 +527,12 @@
 }
 
 [data-theme="kacon"] .el-drawer__header {
-  border-bottom: 1px solid rgba(229, 231, 235, 0.7) !important;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border-base) 70%, transparent) !important;
   margin-bottom: 0 !important;
   padding: 18px 24px !important;
   color: var(--color-text-primary) !important;
   font-weight: 600 !important;
-  background: rgba(249, 250, 251, 0.3) !important;
+  background: color-mix(in srgb, var(--color-bg-section) 30%, transparent) !important;
 }
 
 
@@ -920,82 +657,7 @@
    35. 深度覆盖：组件色彩统一
    ================================================================== */
 
-/* ===== 35.1 分页器 (Pagination) ===== */
-[data-theme="kacon"] .el-pagination.is-background .el-pager li:not(.is-disabled).is-active {
-  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark-2)) !important;
-  color: #fff !important;
-  box-shadow: 0 2px 8px rgba(22, 163, 74, 0.25) !important;
-}
-
-[data-theme="kacon"] .el-pagination.is-background .el-pager li:not(.is-disabled):hover {
-  color: var(--color-primary) !important;
-  background-color: rgba(22, 163, 74, 0.06) !important;
-}
-
-[data-theme="kacon"] .el-pagination.is-background .btn-prev,
-[data-theme="kacon"] .el-pagination.is-background .btn-next,
-[data-theme="kacon"] .el-pagination.is-background .el-pager li {
-  background-color: #fff !important;
-  border-radius: var(--radius-round) !important;
-  border: 1px solid var(--color-border-base);
-}
-
-
-/* ===== 35.2 选项卡 (Tabs) ===== */
-[data-theme="kacon"] .el-tabs__item.is-active {
-  color: var(--color-primary) !important;
-  font-weight: 600 !important;
-}
-
-[data-theme="kacon"] .el-tabs__item:hover {
-  color: var(--color-primary-dark-2) !important;
-}
-
-[data-theme="kacon"] .el-tabs__active-bar {
-  background: linear-gradient(90deg, var(--color-primary), var(--color-brand)) !important;
-  height: 3px !important;
-  border-radius: 2px !important;
-}
-
-
-/* ===== 35.3 开关 (Switch) ===== */
-[data-theme="kacon"] .el-switch.is-checked .el-switch__core {
-  background-color: var(--color-primary) !important;
-  border-color: var(--color-primary) !important;
-}
-
-
-/* ===== 35.4 表单选项器 (Checkbox / Radio) ===== */
-[data-theme="kacon"] .el-checkbox__input.is-checked .el-checkbox__inner,
-[data-theme="kacon"] .el-radio__input.is-checked .el-radio__inner {
-  background-color: var(--color-primary) !important;
-  border-color: var(--color-primary) !important;
-}
-
-[data-theme="kacon"] .el-checkbox__input.is-checked+.el-checkbox__label,
-[data-theme="kacon"] .el-radio__input.is-checked+.el-radio__label {
-  color: var(--color-primary) !important;
-}
-
-[data-theme="kacon"] .el-checkbox__inner:hover,
-[data-theme="kacon"] .el-radio__inner:hover {
-  border-color: var(--color-primary) !important;
-}
-
-
-/* ===== 35.5 Focus 样式统一 ===== */
-[data-theme="kacon"] .el-select .el-input.is-focus .el-input__wrapper {
-  box-shadow: 0 0 0 1px var(--color-primary) inset, 0 0 0 3px rgba(22, 163, 74, 0.08) !important;
-}
-
-[data-theme="kacon"] .el-input__wrapper.is-focus {
-  box-shadow: 0 0 0 1px var(--color-primary) inset, 0 0 0 3px rgba(22, 163, 74, 0.08) !important;
-}
-
-[data-theme="kacon"] .el-textarea__inner:focus {
-  box-shadow: 0 0 0 1px var(--color-primary) inset, 0 0 0 3px rgba(22, 163, 74, 0.08) !important;
-}
-
+/* ===== 35.1–35.5 分页/Tabs/开关/勾选/Focus → theme-components ===== */
 
 /* ===== 35.6 标签 (Tag) ===== */
 [data-theme="kacon"] .el-tag--primary,
@@ -1051,7 +713,7 @@
   background: var(--kacon-glass-bg-strong);
   backdrop-filter: var(--kacon-glass-filter);
   -webkit-backdrop-filter: var(--kacon-glass-filter);
-  border: 1px solid rgba(229, 231, 235, 0.8);
+  border: 1px solid color-mix(in srgb, var(--color-border-base) 80%, transparent);
   box-shadow: var(--shadow-xl);
 }
 
@@ -1065,187 +727,31 @@
   border-radius: 0;
 }
 
-/* ===== 36.2 标题区域 (Header) ===== */
-[data-theme="kacon"] .el-dialog__header,
-[data-theme="kacon"] .el-drawer__header {
-  margin: 0 !important;
-  padding: 18px 24px !important;
-  background: rgba(249, 250, 251, 0.3) !important;
-  border-bottom: 1px solid rgba(229, 231, 235, 0.7) !important;
-  display: flex !important;
-  align-items: center !important;
-}
-
-[data-theme="kacon"] .el-dialog__title,
-[data-theme="kacon"] .el-drawer__title {
-  font-size: 16px !important;
-  font-weight: 600 !important;
-  color: var(--color-text-primary) !important;
-  display: flex !important;
-  align-items: center !important;
-}
-
-/* 标题左侧品牌色渐变色条 */
+/* ===== 36.2+ header/footer/body 视觉 → theme-compat + theme-components ===== */
+/* 仅保留标题色条品牌渐变（primary → brand） */
 [data-theme="kacon"] .el-dialog__title::before {
-  content: "";
-  display: block;
-  width: 4px;
-  height: 18px;
-  background: linear-gradient(180deg, var(--color-primary), var(--color-brand));
-  border-radius: 2px;
-  margin-right: 8px;
+  background: linear-gradient(
+    180deg,
+    var(--color-primary),
+    var(--color-brand, var(--color-primary-dark-2))
+  ) !important;
 }
 
-/* 右上角关闭按钮 */
-[data-theme="kacon"] .el-dialog__headerbtn,
-[data-theme="kacon"] .el-drawer__close-btn {
-  top: 18px !important;
-  right: 20px !important;
-}
-
-[data-theme="kacon"] .el-dialog__headerbtn:hover .el-dialog__close,
-[data-theme="kacon"] .el-drawer__close-btn:hover {
-  color: var(--color-danger) !important;
-  transform: none !important;
-}
-
-/* ===== 36.3 弹窗主体区 (Body Layout) ===== */
-[data-theme="kacon"] .el-dialog__body {
-  padding: 24px !important;
-}
-
-/* Descriptions 嵌套样式 */
-[data-theme="kacon"] .el-dialog__body .el-descriptions {
-  border-radius: var(--radius-md) !important;
-  overflow: hidden !important;
-  border: 1px solid rgba(229, 231, 235, 0.7) !important;
-}
-
-[data-theme="kacon"] .el-dialog__body .el-descriptions__header {
-  margin-bottom: 16px !important;
-}
-
-[data-theme="kacon"] .el-dialog__body .el-descriptions-item__label.is-bordered-label {
-  background-color: rgba(249, 250, 251, 0.3) !important;
-  color: var(--color-text-secondary) !important;
-  font-weight: 600 !important;
-}
-
-/* ===== 36.4 弹窗底部操作区 (Footer) ===== */
 [data-theme="kacon"] .el-dialog__footer,
 [data-theme="kacon"] .el-drawer__footer {
-  padding: 16px 24px !important;
-  border-top: 1px solid rgba(229, 231, 235, 0.7) !important;
-  background: rgba(249, 250, 251, 0.3) !important;
-  margin: 0 !important;
+  background: color-mix(in srgb, var(--color-bg-section) 30%, transparent) !important;
 }
 
 
 /* ==================================================================
-   37. 按钮 (el-button) — 渐变 + 发光 + 微上浮
+   37. 按钮 — 渐变/上浮/禁用 → theme-components.css
    ================================================================== */
 
-/* ===== 37.1 所有按钮基础 ===== */
-[data-theme="kacon"] .el-button {
-  border-radius: var(--radius-sm) !important;
-  transition:
-    background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1),
-    border-color 0.15s cubic-bezier(0.4, 0, 0.2, 1),
-    box-shadow 0.15s cubic-bezier(0.4, 0, 0.2, 1),
-    color 0.15s cubic-bezier(0.4, 0, 0.2, 1),
-    transform 0.15s cubic-bezier(0.4, 0, 0.2, 1) !important;
-}
-
-[data-theme="kacon"] .el-button:hover {
-  transform: translateY(-1px);
-}
-
-[data-theme="kacon"] .el-button:active {
-  transform: scale(0.98) !important;
-}
-
-/* 表格内按钮不做上浮，避免行内错位 */
-[data-theme="kacon"] .el-table .el-button:hover,
-[data-theme="kacon"] .el-table .el-button:active {
-  transform: none !important;
-}
-
 [data-theme="kacon"] .el-button:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.08), var(--shadow-sm) !important;
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--color-primary) 12%, transparent),
+    var(--shadow-sm) !important;
 }
-
-/* ===== 37.2 Primary 按钮 — 品牌色渐变 + 发光阴影 ===== */
-[data-theme="kacon"] .el-button--primary:not(.is-plain):not(.is-text):not(.is-link) {
-  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark-2)) !important;
-  border-color: var(--color-primary) !important;
-  color: #fff !important;
-  box-shadow: 0 2px 6px rgba(22, 163, 74, 0.25) !important;
-}
-
-[data-theme="kacon"] .el-button--primary:not(.is-plain):not(.is-text):not(.is-link):hover {
-  background: linear-gradient(135deg, var(--color-primary-dark-2), var(--color-primary)) !important;
-  box-shadow: 0 4px 16px rgba(22, 163, 74, 0.35) !important;
-  transform: translateY(-1px);
-  color: #fff !important;
-}
-
-/* ===== 37.3 Success 按钮 — 渐变 ===== */
-[data-theme="kacon"] .el-button--success:not(.is-plain):not(.is-text):not(.is-link) {
-  background: linear-gradient(135deg, var(--color-success), var(--color-success-dark)) !important;
-  border-color: var(--color-success) !important;
-  color: #fff !important;
-  box-shadow: 0 2px 6px rgba(22, 163, 74, 0.2) !important;
-}
-
-[data-theme="kacon"] .el-button--success:not(.is-plain):not(.is-text):not(.is-link):hover {
-  background: linear-gradient(135deg, var(--color-success-dark), var(--color-success)) !important;
-  box-shadow: 0 4px 14px rgba(22, 163, 74, 0.3) !important;
-}
-
-/* ===== 37.4 Warning 按钮 — 渐变 ===== */
-[data-theme="kacon"] .el-button--warning:not(.is-plain):not(.is-text):not(.is-link) {
-  background: linear-gradient(135deg, var(--color-warning), var(--color-warning-dark)) !important;
-  border-color: var(--color-warning) !important;
-  color: #fff !important;
-  box-shadow: 0 2px 6px rgba(217, 119, 6, 0.2) !important;
-}
-
-[data-theme="kacon"] .el-button--warning:not(.is-plain):not(.is-text):not(.is-link):hover {
-  background: linear-gradient(135deg, var(--color-warning-dark), var(--color-warning)) !important;
-  box-shadow: 0 4px 14px rgba(217, 119, 6, 0.3) !important;
-}
-
-/* ===== 37.5 Danger 按钮 — 渐变 ===== */
-[data-theme="kacon"] .el-button--danger:not(.is-plain):not(.is-text):not(.is-link) {
-  background: linear-gradient(135deg, var(--color-danger), var(--color-danger-dark)) !important;
-  border-color: var(--color-danger) !important;
-  color: #fff !important;
-  box-shadow: 0 2px 6px rgba(220, 38, 38, 0.2) !important;
-}
-
-[data-theme="kacon"] .el-button--danger:not(.is-plain):not(.is-text):not(.is-link):hover {
-  background: linear-gradient(135deg, var(--color-danger-dark), var(--color-danger)) !important;
-  box-shadow: 0 4px 14px rgba(220, 38, 38, 0.3) !important;
-}
-
-/* ===== 37.6 默认按钮 — hover 品牌色边框 ===== */
-[data-theme="kacon"] .el-button:not(.el-button--primary):not(.el-button--success):not(.el-button--warning):not(.el-button--danger):not(.el-button--info):not(.is-text):not(.is-link):hover {
-  border-color: var(--color-primary) !important;
-  color: var(--color-primary) !important;
-}
-
-/* ===== 37.7 禁用态 ===== */
-[data-theme="kacon"] .el-button.is-disabled,
-[data-theme="kacon"] .el-button.is-disabled:hover {
-  opacity: 0.45 !important;
-  transform: none !important;
-  box-shadow: none !important;
-}
-
-/* ===== 37.8 表格内操作按钮 — 继承 Element Plus 默认尺寸 ===== */
-/* 不覆盖 padding/min-height/font-size，与其他主题保持一致 */
-
 
 /* ==================================================================
    38. 卡片 (el-card) — 低模糊玻璃层 + 克制圆角 + 柔和阴影
@@ -1256,7 +762,7 @@
   backdrop-filter: var(--kacon-glass-filter) !important;
   -webkit-backdrop-filter: var(--kacon-glass-filter) !important;
   border-radius: var(--radius-lg) !important;
-  border: 1px solid rgba(229, 231, 235, 0.7) !important;
+  border: 1px solid color-mix(in srgb, var(--color-border-base) 70%, transparent) !important;
   box-shadow: var(--shadow-sm) !important;
   transition: box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
   overflow: hidden;
@@ -1267,8 +773,8 @@
 }
 
 [data-theme="kacon"] .el-card__header {
-  background: rgba(249, 250, 251, 0.3) !important;
-  border-bottom: 1px solid rgba(229, 231, 235, 0.7) !important;
+  background: color-mix(in srgb, var(--color-bg-section) 30%, transparent) !important;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border-base) 70%, transparent) !important;
   font-weight: 600;
   padding: 16px 24px !important;
 }
@@ -1286,7 +792,7 @@
   background: var(--kacon-glass-bg) !important;
   backdrop-filter: var(--kacon-glass-filter) !important;
   -webkit-backdrop-filter: var(--kacon-glass-filter) !important;
-  border: 1px solid rgba(229, 231, 235, 0.7) !important;
+  border: 1px solid color-mix(in srgb, var(--color-border-base) 70%, transparent) !important;
   border-radius: var(--radius-lg) !important;
   box-shadow: var(--shadow-sm) !important;
   transition:
@@ -1305,7 +811,7 @@
   background: var(--kacon-glass-bg) !important;
   backdrop-filter: var(--kacon-glass-filter) !important;
   -webkit-backdrop-filter: var(--kacon-glass-filter) !important;
-  border: 1px solid rgba(229, 231, 235, 0.7) !important;
+  border: 1px solid color-mix(in srgb, var(--color-border-base) 70%, transparent) !important;
   transition:
     background-color 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
     border-color 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
@@ -1371,7 +877,7 @@
   background: var(--kacon-glass-bg-strong) !important;
   backdrop-filter: var(--kacon-glass-filter) !important;
   -webkit-backdrop-filter: var(--kacon-glass-filter) !important;
-  border: 1px solid rgba(229, 231, 235, 0.8) !important;
+  border: 1px solid color-mix(in srgb, var(--color-border-base) 80%, transparent) !important;
   border-radius: var(--radius-md) !important;
   box-shadow: var(--shadow-lg) !important;
 }
@@ -1381,15 +887,15 @@
   background: var(--kacon-glass-bg-strong) !important;
   backdrop-filter: var(--kacon-glass-filter) !important;
   -webkit-backdrop-filter: var(--kacon-glass-filter) !important;
-  border: 1px solid rgba(229, 231, 235, 0.8) !important;
+  border: 1px solid color-mix(in srgb, var(--color-border-base) 80%, transparent) !important;
   border-radius: var(--radius-lg) !important;
   box-shadow: var(--shadow-xl) !important;
   overflow: hidden;
 }
 
 [data-theme="kacon"] .el-message-box__header {
-  background: rgba(249, 250, 251, 0.3) !important;
-  border-bottom: 1px solid rgba(229, 231, 235, 0.7) !important;
+  background: color-mix(in srgb, var(--color-bg-section) 30%, transparent) !important;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border-base) 70%, transparent) !important;
   padding: 18px 24px !important;
 }
 
@@ -1405,8 +911,8 @@
 
 [data-theme="kacon"] .el-message-box__btns {
   padding: 16px 24px !important;
-  border-top: 1px solid rgba(229, 231, 235, 0.7) !important;
-  background: rgba(249, 250, 251, 0.3) !important;
+  border-top: 1px solid color-mix(in srgb, var(--color-border-base) 70%, transparent) !important;
+  background: color-mix(in srgb, var(--color-bg-section) 30%, transparent) !important;
 }
 
 /* Tooltip — 品牌色暗底 */
@@ -1438,7 +944,7 @@
   background: var(--kacon-glass-bg-strong) !important;
   backdrop-filter: var(--kacon-glass-filter) !important;
   -webkit-backdrop-filter: var(--kacon-glass-filter) !important;
-  border: 1px solid rgba(229, 231, 235, 0.8) !important;
+  border: 1px solid color-mix(in srgb, var(--color-border-base) 80%, transparent) !important;
   border-radius: var(--radius-md) !important;
   box-shadow: var(--shadow-lg) !important;
 }
@@ -1453,7 +959,7 @@
 }
 
 [data-theme="kacon"] .el-timeline-item__tail {
-  border-left-color: rgba(22, 163, 74, 0.2) !important;
+  border-left-color: color-mix(in srgb, var(--color-primary) 20%, transparent) !important;
 }
 
 
@@ -1468,7 +974,7 @@
 
 [data-theme="kacon"] .el-alert--success {
   background: var(--color-success-light) !important;
-  border-color: rgba(22, 163, 74, 0.3) !important;
+  border-color: color-mix(in srgb, var(--color-primary) 30%, transparent) !important;
   color: var(--color-success-dark) !important;
 }
 
@@ -1501,11 +1007,11 @@
 }
 
 [data-theme="kacon"] .el-tree-node__content:hover {
-  background-color: rgba(22, 163, 74, 0.06) !important;
+  background-color: color-mix(in srgb, var(--color-primary) 6%, transparent) !important;
 }
 
 [data-theme="kacon"] .el-tree-node:focus > .el-tree-node__content {
-  background-color: rgba(22, 163, 74, 0.08) !important;
+  background-color: color-mix(in srgb, var(--color-primary) 8%, transparent) !important;
 }
 
 [data-theme="kacon"] .el-tree-node.is-current > .el-tree-node__content {
@@ -1528,7 +1034,7 @@
    ================================================================== */
 
 [data-theme="kacon"] .el-divider {
-  border-color: rgba(229, 231, 235, 0.7) !important;
+  border-color: color-mix(in srgb, var(--color-border-base) 70%, transparent) !important;
 }
 
 [data-theme="kacon"] .el-divider__text {
@@ -1571,7 +1077,7 @@
 
 [data-theme="kacon"] .el-message--success {
   background: rgba(240, 253, 244, 0.95) !important;
-  border-color: rgba(22, 163, 74, 0.3) !important;
+  border-color: color-mix(in srgb, var(--color-primary) 30%, transparent) !important;
 }
 
 [data-theme="kacon"] .el-message--warning {
@@ -1653,7 +1159,7 @@
 [data-theme="kacon"] .el-radio-button__original-radio:checked + .el-radio-button__inner {
   background-color: var(--color-primary) !important;
   border-color: var(--color-primary) !important;
-  color: #fff !important;
+  color: var(--color-on-primary) !important;
   box-shadow: -1px 0 0 0 var(--color-primary) !important;
 }
 
@@ -1709,7 +1215,7 @@
    ================================================================== */
 
 [data-theme="kacon"] .el-tabs__header {
-  border-bottom-color: rgba(229, 231, 235, 0.7) !important;
+  border-bottom-color: color-mix(in srgb, var(--color-border-base) 70%, transparent) !important;
 }
 
 
@@ -1719,7 +1225,7 @@
 
 [data-theme="kacon"] .el-collapse-item__wrap {
   background: var(--color-bg-base) !important;
-  border-bottom-color: rgba(229, 231, 235, 0.7) !important;
+  border-bottom-color: color-mix(in srgb, var(--color-border-base) 70%, transparent) !important;
 }
 
 [data-theme="kacon"] .el-collapse-item__content {
@@ -1750,7 +1256,7 @@
 }
 
 [data-theme="kacon"] .el-descriptions__body .el-descriptions__cell {
-  border-color: rgba(229, 231, 235, 0.7) !important;
+  border-color: color-mix(in srgb, var(--color-border-base) 70%, transparent) !important;
 }
 
 [data-theme="kacon"] .el-alert__title {

@@ -254,7 +254,7 @@ defineExpose({ load })
   align-items: flex-start;
   padding: 10px 12px;
   border-radius: 8px;
-  background: var(--color-bg-base, #fff);
+  background: var(--color-bg-base);
   border: 1px solid var(--color-border-extra-light, var(--el-border-color-extra-light));
 }
 

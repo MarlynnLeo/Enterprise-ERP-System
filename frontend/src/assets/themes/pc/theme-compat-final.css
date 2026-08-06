@@ -1,1 +1,7 @@
-@import './theme-compat.css';
+/*
+ * 后加载兼容层入口（themeLoader 在非 kacon 主题加载后 import）
+ * 实际 token / EP 映射统一维护在 theme-compat.css，此处仅保证加载顺序。
+ * 请勿在此重复 @import theme-compat（main 已静态引入，重复会膨胀 CSSOM）。
+ */
+
+/* 预留：仅放「必须在各主题 CSS 之后」的极少数覆盖 */

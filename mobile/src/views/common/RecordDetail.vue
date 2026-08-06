@@ -117,7 +117,7 @@
       get: (id) => baseDataApi.getBom(id),
       fields: [
         { label: 'BOM编码', field: 'bom_code' },
-        { label: '产品', field: 'product_name' },
+        { label: '产品', field: 'productName' },
         { label: '版本', field: 'version' },
         { label: '组件数', field: 'component_count' },
         { label: '状态', field: 'status', map: bomStatusMap },
@@ -134,7 +134,7 @@
       fields: [
         { label: '模板编码', field: 'code' },
         { label: '模板名称', field: 'name' },
-        { label: '适用产品', field: 'product_name' },
+        { label: '适用产品', field: 'productName' },
         { label: '工序数', field: 'step_count' },
         { label: '状态', field: 'status', map: statusMap },
         { label: '说明', field: 'description' }
@@ -150,10 +150,10 @@
       fields: [
         { label: '模板编码', field: 'code' },
         { label: '模板名称', field: 'name' },
-        { label: '检验类型', field: 'inspection_type', map: inspectionTypeMap },
-        { label: '项目数', field: 'item_count' },
+        { label: '检验类型', field: 'inspectionType', map: inspectionTypeMap },
+        { label: '项目数', field: 'itemCount' },
         { label: '状态', field: 'status', map: statusMap },
-        { label: '更新时间', field: 'updated_at', type: 'datetime' }
+        { label: '更新时间', field: 'updatedAt', type: 'datetime' }
       ],
       extraFields: [{ label: '检验项目', field: 'items', type: 'list' }]
     },
@@ -166,9 +166,9 @@
       fields: [
         { label: '部门编码', field: 'code' },
         { label: '部门名称', field: 'name' },
-        { label: '上级部门', field: 'parent_name' },
-        { label: '负责人', field: 'manager_name' },
-        { label: '人数', field: 'member_count' },
+        { label: '上级部门', field: 'parentName' },
+        { label: '负责人', field: 'managerName' },
+        { label: '人数', field: 'memberCount' },
         { label: '状态', field: 'status', map: statusMap }
       ]
     },
@@ -181,7 +181,7 @@
       fields: [
         { label: '角色编码', field: 'code' },
         { label: '角色名称', field: 'name' },
-        { label: '用户数', field: 'user_count' },
+        { label: '用户数', field: 'userCount' },
         { label: '状态', field: 'status', map: statusMap },
         { label: '说明', field: 'description' }
       ]
@@ -211,8 +211,8 @@
         { label: '操作动作', field: 'action' },
         { label: '操作类型', field: 'type' },
         { label: '操作模块', field: 'module' },
-        { label: 'IP地址', field: 'ip_address' },
-        { label: '操作时间', field: 'created_at', type: 'datetime' }
+        { label: 'IP地址', field: 'ipAddress' },
+        { label: '操作时间', field: 'createdAt', type: 'datetime' }
       ],
       extraFields: [{ label: '详细内容', field: 'description' }]
     }
@@ -250,7 +250,7 @@
   const formatList = (value) => {
     if (!Array.isArray(value) || value.length === 0) return '-'
     return value
-      .map((item, index) => item.name || item.item_name || item.process_name || item.material_name || `明细${index + 1}`)
+      .map((item, index) => item.itemName || item.processName || item.materialName || `明细${index + 1}`)
       .join('、')
   }
 

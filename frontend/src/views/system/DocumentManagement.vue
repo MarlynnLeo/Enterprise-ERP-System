@@ -35,14 +35,14 @@
       <el-table-column prop="category" label="分类" width="80">
         <template #default="{ row }">{{ catLabel[row.category] || row.category }}</template>
       </el-table-column>
-      <el-table-column prop="file_name" label="文件名" width="180" show-overflow-tooltip />
+      <el-table-column prop="fileName" label="文件名" width="180" show-overflow-tooltip />
       <el-table-column prop="version" label="版本" width="60" />
-      <el-table-column prop="file_size" label="大小" width="80">
-        <template #default="{ row }">{{ (row.file_size / 1024).toFixed(0) }}KB</template>
+      <el-table-column prop="fileSize" label="大小" width="80">
+        <template #default="{ row }">{{ (row.fileSize / 1024).toFixed(0) }}KB</template>
       </el-table-column>
-      <el-table-column prop="download_count" label="下载" width="60" />
-      <el-table-column prop="created_by_name" label="上传人" width="100" />
-      <el-table-column prop="created_at" label="上传时间" width="160" />
+      <el-table-column prop="downloadCount" label="下载" width="60" />
+      <el-table-column prop="createdByName" label="上传人" width="100" />
+      <el-table-column prop="createdAt" label="上传时间" width="160" />
       <el-table-column label="操作" min-width="140" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
         <template #default="{ row }">
           <el-button link type="primary" v-permission="'system:documents:view'" @click="handleDownload(row)">下载</el-button>
@@ -58,7 +58,12 @@
       </div>
     </el-card>
 
-    <el-dialog v-model="formVis" title="上传文档" width="500px">
+    <AppDialog
+      v-model="formVis"
+      title="上传文档"
+      mode="form"
+      width="500px"
+    >
       <el-form :model="form" label-width="90px">
         <el-form-item label="文档名称" required><el-input v-model="form.name" /></el-form-item>
         <el-form-item label="分类">
@@ -78,7 +83,7 @@
         <el-button @click="formVis = false">取消</el-button>
         <el-button type="primary" v-permission="'system:documents:create'" @click="handleSave" :loading="saving">保存</el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
   </div>
 </template>
 
@@ -122,7 +127,7 @@ const resetSearch = () => {
 const openForm = () => { form.value = { name: '', category: 'other', version: '1.0', description: '' }; fileList.value = []; formVis.value = true }
 
 const onFileChange = (file) => {
-  form.value.file_name = file.name
+  form.value.fileName = file.name
   form.value.file_size = file.size
   form.value.file_type = file.raw?.type
   form.value._file = file.raw
@@ -150,7 +155,7 @@ const handleDownload = async (row) => {
   try {
     const res = await documentApi.download(row.id)
     const d = res.data || res
-    if (d?.file_url) window.open(d.file_url, '_blank')
+    if (d?.fileUrl) window.open(d.fileUrl, '_blank')
     else ElMessage.info('无文件链接')
   } catch { ElMessage.error('下载失败') }
 }

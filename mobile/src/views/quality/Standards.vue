@@ -12,13 +12,13 @@
           </div>
           <div class="std-name">{{ item.name }}</div>
           <div class="std-row">
-            <span>AQL级别: <b>{{ item.aql_level }}</b></span>
-            <span>批量: {{ item.batch_min }}~{{ item.batch_max }}</span>
+            <span>AQL级别: <b>{{ item.aqlLevel }}</b></span>
+            <span>批量: {{ item.batchMin }}~{{ item.batchMax }}</span>
           </div>
           <div class="std-row">
-            <span>抽样数(n): <b>{{ item.sample_size }}</b></span>
-            <span class="ac">Ac: {{ item.accept_limit }}</span>
-            <span class="re">Re: {{ item.reject_limit }}</span>
+            <span>抽样数(n): <b>{{ item.sampleSize }}</b></span>
+            <span class="ac">Ac: {{ item.acceptLimit }}</span>
+            <span class="re">Re: {{ item.rejectLimit }}</span>
           </div>
         </div>
         <Empty v-if="list.length === 0" description="暂无标准数据" />

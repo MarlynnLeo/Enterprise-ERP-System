@@ -460,7 +460,13 @@
 }
 .flex-gap {
   display: flex;
+  align-items: center;
   gap: 10px;
+  /* 放在 el-form-item 内时避免子项把布局撑到无限宽 */
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
 }
 .mr-sm {
   margin-right: 8px;

@@ -17,7 +17,13 @@
       </div>
     </div>
     <!-- 设置对话框 -->
-    <el-dialog v-model="showSettings" title="看板设置" width="600px" :close-on-click-modal="false">
+    <AppDialog
+      v-model="showSettings"
+      title="看板设置"
+      mode="form"
+      width="600px"
+      :close-on-click-modal="false"
+    >
       <div class="settings-content">
         <h4>选择要显示的卡片模块</h4>
         <el-checkbox-group v-model="tempCardConfig">
@@ -86,7 +92,7 @@
         <el-button type="warning" @click="resetSettings">恢复默认</el-button>
         <el-button type="primary" @click="saveSettings">保存设置</el-button>
       </template>
-    </el-dialog>
+        </AppDialog>
     <!-- 加载状态 -->
     <div v-if="loading" class="loading-container">
       <el-icon class="is-loading" :size="50"><Loading /></el-icon>
@@ -250,8 +256,8 @@
             >
               <el-table-column prop="code" label="计划编号" width="150" />
               <el-table-column prop="name" label="计划名称" min-width="130" />
-              <el-table-column prop="product_code" label="产品编码" width="200" />
-              <el-table-column prop="product_name" label="产品名称" min-width="200" />
+              <el-table-column prop="productCode" label="产品编码" width="200" />
+              <el-table-column prop="productName" label="产品名称" min-width="200" />
               <el-table-column prop="quantity" label="数量" width="150">
                 <template #default="scope">
                   {{ scope.row.quantity }} {{ scope.row.unit }}
@@ -273,8 +279,8 @@
                   />
                 </template>
               </el-table-column>
-              <el-table-column prop="start_date" label="计划开始" width="120" />
-              <el-table-column prop="end_date" label="计划结束" width="120" />
+              <el-table-column prop="startDate" label="计划开始" width="120" />
+              <el-table-column prop="endDate" label="计划结束" width="120" />
             </el-table>
           </div>
         </div>

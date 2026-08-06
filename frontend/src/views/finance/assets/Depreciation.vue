@@ -99,7 +99,7 @@
       </template>
 
       <div v-if="!hasDepreciation" class="empty-container">
-        <el-empty description='请选择计提年月并点击"计算折旧"按钮'></el-empty>
+        <EmptyState description='请选择计提年月并点击"计算折旧"按钮' />
       </div>
 
       <el-table
@@ -133,7 +133,7 @@
         <el-table-column prop="categoryName" label="资产类别" width="110">
           <template #default="scope">
             <span v-if="scope.row.categoryName">{{ scope.row.categoryName }}</span>
-            <span v-else-if="scope.row.categoryId || scope.row.category_id" class="text-muted">ID: {{ scope.row.categoryId || scope.row.category_id }}</span>
+            <span v-else-if="scope.row.categoryId || scope.row.categoryId" class="text-muted">ID: {{ scope.row.categoryId || scope.row.categoryId }}</span>
             <span v-else class="text-muted">未分类</span>
           </template>
         </el-table-column>
@@ -203,9 +203,10 @@
     </el-card>
 
     <!-- 确认对话框 -->
-    <el-dialog
-      title="确认折旧计提"
+    <AppDialog
       v-model="confirmDialogVisible"
+      title="确认折旧计提"
+      mode="form"
       width="500px"
     >
       <div class="confirm-content">
@@ -220,7 +221,7 @@
           <el-button v-permission="'finance:assets:execute'" type="primary" @click="submitDepreciation" :loading="savingDepreciation">确认计提</el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
   </div>
 </template>
 <script setup>

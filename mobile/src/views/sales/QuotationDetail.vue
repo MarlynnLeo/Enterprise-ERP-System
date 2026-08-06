@@ -9,25 +9,25 @@
     <div v-else-if="quotation" class="content">
       <div class="hero">
         <div>
-          <div class="code">{{ quotation.quotation_no || quotation.quotation_code || '-' }}</div>
-          <div class="name">{{ quotation.customer_name || quotation.customerName || '未关联客户' }}</div>
+          <div class="code">{{ quotation.quotationNo || quotation.quotationCode || quotation.quotationNo || '-' }}</div>
+          <div class="name">{{ quotation.customerName || '未关联客户' }}</div>
         </div>
         <Tag :type="statusType(quotation.status)">{{ statusText(quotation.status) }}</Tag>
       </div>
 
       <CellGroup inset title="基本信息">
-        <Cell title="报价金额" :value="money(quotation.total_amount)" />
-        <Cell title="有效期至" :value="dateText(quotation.validity_date || quotation.valid_until)" />
-        <Cell title="创建人" :value="quotation.creator_name || '-'" />
+        <Cell title="报价金额" :value="money(quotation.totalAmount ?? quotation.totalAmount)" />
+        <Cell title="有效期至" :value="dateText(quotation.validUntil || quotation.validUntil)" />
+        <Cell title="创建人" :value="quotation.creatorName || '-'" />
         <Cell title="备注" :label="quotation.remarks || quotation.remark || '-'" />
       </CellGroup>
 
       <CellGroup inset title="报价明细">
         <div v-if="items.length" class="items">
-          <div v-for="item in items" :key="item.id || item.product_id" class="item-row">
+          <div v-for="item in items" :key="item.id || item.productId" class="item-row">
             <div>
-              <div class="item-title">{{ item.product_name || item.material_name || `产品#${item.product_id}` }}</div>
-              <div class="item-subtitle">{{ item.specification || item.product_code || '-' }}</div>
+              <div class="item-title">{{ item.productName || item.materialName || item.productName || item.materialName || `产品#${item.productId}` }}</div>
+              <div class="item-subtitle">{{ item.specification || item.productCode || '-' }}</div>
             </div>
             <div class="item-amount">
               <span>{{ item.quantity || 0 }}</span>
@@ -71,8 +71,8 @@
   const lineTotal = (item) => {
     if (item.total_price !== null && item.total_price !== undefined && item.total_price !== '') return item.total_price
     if (item.amount !== null && item.amount !== undefined && item.amount !== '') return item.amount
-    if (item.unit_price === null || item.unit_price === undefined || item.unit_price === '') return null
-    const unitPrice = Number(item.unit_price)
+    if (item.unitPrice === null || item.unitPrice === undefined || item.unitPrice === '') return null
+    const unitPrice = Number(item.unitPrice)
     return Number.isNaN(unitPrice) ? null : (Number(item.quantity) || 0) * unitPrice
   }
   const dateText = (value) => (value ? String(value).slice(0, 10) : '-')

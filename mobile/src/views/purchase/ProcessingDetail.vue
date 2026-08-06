@@ -9,15 +9,15 @@
     <div v-else-if="processing" class="content">
       <div class="hero">
         <div>
-          <div class="code">{{ processing.processing_no || processing.processing_code || '-' }}</div>
-          <div class="name">{{ processing.supplier_name || '未关联供应商' }}</div>
+          <div class="code">{{ processing.processingNo || processing.processingCode || processing.processingNo || '-' }}</div>
+          <div class="name">{{ processing.supplierName || '未关联供应商' }}</div>
         </div>
         <Tag :type="statusType(processing.status)">{{ statusText(processing.status) }}</Tag>
       </div>
 
       <CellGroup inset title="基本信息">
-        <Cell title="加工日期" :value="dateText(processing.processing_date)" />
-        <Cell title="预计交付" :value="dateText(processing.expected_delivery_date || processing.expected_date)" />
+        <Cell title="加工日期" :value="dateText(processing.processingDate)" />
+        <Cell title="预计交付" :value="dateText(processing.expectedDeliveryDate || processing.expectedDeliveryDate || processing.expectedDate)" />
         <Cell title="联系人" :value="processing.contact_person || '-'" />
         <Cell title="联系电话" :value="processing.contact_phone || '-'" />
         <Cell title="备注" :label="processing.remarks || '-'" />
@@ -25,12 +25,12 @@
 
       <CellGroup inset title="发料明细">
         <div v-if="materials.length" class="items">
-          <div v-for="item in materials" :key="item.id || item.material_id" class="item-row">
+          <div v-for="item in materials" :key="item.id || item.materialId" class="item-row">
             <div>
-              <div class="item-title">{{ item.material_name || `物料#${item.material_id}` }}</div>
-              <div class="item-subtitle">{{ item.material_code || item.specification || '-' }}</div>
+              <div class="item-title">{{ item.materialName || `物料#${item.materialId}` }}</div>
+              <div class="item-subtitle">{{ item.materialCode || item.specification || '-' }}</div>
             </div>
-            <strong>{{ item.quantity || item.planned_quantity || 0 }} {{ item.unit || item.unit_name || '' }}</strong>
+            <strong>{{ item.quantity || item.plannedQuantity || 0 }} {{ item.unitName || item.unit || item.unitName || '' }}</strong>
           </div>
         </div>
         <Empty v-else description="暂无发料明细" />
@@ -38,12 +38,12 @@
 
       <CellGroup inset title="成品明细">
         <div v-if="products.length" class="items">
-          <div v-for="item in products" :key="item.id || item.product_id" class="item-row">
+          <div v-for="item in products" :key="item.id || item.productId" class="item-row">
             <div>
-              <div class="item-title">{{ item.product_name || `成品#${item.product_id}` }}</div>
-              <div class="item-subtitle">{{ item.product_code || item.specification || '-' }}</div>
+              <div class="item-title">{{ item.productName || `成品#${item.productId}` }}</div>
+              <div class="item-subtitle">{{ item.productCode || item.specification || '-' }}</div>
             </div>
-            <strong>{{ item.quantity || item.planned_quantity || 0 }} {{ item.unit || item.unit_name || '' }}</strong>
+            <strong>{{ item.quantity || item.plannedQuantity || 0 }} {{ item.unitName || item.unit || item.unitName || '' }}</strong>
           </div>
         </div>
         <Empty v-else description="暂无成品明细" />

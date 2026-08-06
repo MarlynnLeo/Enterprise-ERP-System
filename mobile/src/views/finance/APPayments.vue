@@ -27,23 +27,23 @@
     searchPlaceholder: '搜索付款单号或供应商',
     fields: {
       id: 'id',
-      title: (item) => item.supplierName || item.supplier_name || '未知供应商',
+      title: (item) => item.supplierName || '未知供应商',
       subtitle: (item) =>
-        `${item.paymentNumber || item.payment_number || ''} · ${item.invoiceNumber || item.invoice_number || ''}`,
+        `${item.paymentNumber || ''} · ${item.invoiceNumber || ''}`,
       icon: 'credit-card',
       details: [
         {
           label: '付款金额',
-          field: (item) => item.amount || item.total_amount,
+          field: (item) => item.amount || item.totalAmount,
           format: 'money',
           prefix: '¥'
         },
         {
           label: '付款日期',
-          field: (item) => item.paymentDate || item.payment_date,
+          field: (item) => item.paymentDate,
           format: 'date'
         },
-        { label: '支付方式', field: (item) => item.paymentMethod || item.payment_method }
+        { label: '支付方式', field: (item) => item.paymentMethod }
       ],
       status: {
         field: 'status',

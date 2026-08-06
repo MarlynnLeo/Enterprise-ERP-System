@@ -7,10 +7,11 @@
  */
 -->
 <template>
-  <el-dialog
-    :title="dialogTitle"
+  <AppDialog
     v-model="dialogVisible"
-    width="80%"
+    :title="dialogTitle"
+    mode="form"
+    wide
     :before-close="handleClose"
   >
     <el-form ref="receiptFormRef" :model="receiptForm" :rules="rules" label-width="100px" class="form-container">
@@ -23,7 +24,7 @@
         </template>
         <el-row :gutter="20">
           <el-col :xs="24" :sm="12" :md="8">
-            <el-form-item label="加工单号" prop="processing_no">
+            <el-form-item label="加工单号" prop="processingNo">
               <el-input
                 v-model="receiptForm.processing_no"
                 placeholder="加工单号"
@@ -32,16 +33,16 @@
             </el-form-item>
           </el-col>
           <el-col :xs="24" :sm="12" :md="8">
-            <el-form-item label="加工厂" prop="supplier_name">
+            <el-form-item label="加工厂" prop="supplierName">
               <el-input
-                v-model="receiptForm.supplier_name"
+                v-model="receiptForm.supplierName"
                 placeholder="加工厂"
                 :disabled="true"
               />
             </el-form-item>
           </el-col>
           <el-col :xs="24" :sm="12" :md="8">
-            <el-form-item label="入库日期" prop="receipt_date">
+            <el-form-item label="入库日期" prop="receiptDate">
               <el-date-picker
                 v-model="receiptForm.receipt_date"
                 type="date"
@@ -55,9 +56,9 @@
         </el-row>
         <el-row :gutter="20">
           <el-col :xs="24" :sm="12" :md="8">
-            <el-form-item label="仓库" prop="warehouse_id">
+            <el-form-item label="仓库" prop="warehouseId">
               <el-select
-                v-model="receiptForm.warehouse_id"
+                v-model="receiptForm.warehouseId"
                 filterable
                 placeholder="请选择仓库"
                 class="w-full"
@@ -104,20 +105,20 @@
 
         <el-table :data="receiptForm.items" border class="w-full">
           <el-table-column type="index" width="50" label="序号" />
-          <el-table-column prop="product_code" label="成品编码" min-width="120" />
-          <el-table-column prop="product_name" label="成品名称" min-width="150" />
+          <el-table-column prop="productCode" label="成品编码" min-width="120" />
+          <el-table-column prop="productName" label="成品名称" min-width="150" />
           <el-table-column prop="specification" label="规格" min-width="120" />
           <el-table-column prop="unit" label="单位" width="80" />
-          <el-table-column prop="expected_quantity" label="应收数量" width="100">
+          <el-table-column prop="expectedQuantity" label="应收数量" width="100">
             <template #default="scope">
-              <span>{{ scope.row.expected_quantity }}</span>
+              <span>{{ scope.row.expectedQuantity }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="actual_quantity" label="实收数量" width="120">
+          <el-table-column prop="actualQuantity" label="实收数量" width="120">
             <template #default="scope">
               <el-input-number
                 v-if="!viewOnly"
-                v-model="scope.row.actual_quantity"
+                v-model="scope.row.actualQuantity"
                 :min="0"
                 :precision="2"
                 controls-position="right"
@@ -125,17 +126,17 @@
                 class="w-full"
                 @change="calculateRowTotal(scope.row)"
               />
-              <span v-else>{{ scope.row.actual_quantity }}</span>
+              <span v-else>{{ scope.row.actualQuantity }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="unit_price" label="加工单价" width="100">
+          <el-table-column prop="unitPrice" label="加工单价" width="100">
             <template #default="scope">
-              <span>{{ formatPrice(scope.row.unit_price) }}</span>
+              <span>{{ formatPrice(scope.row.unitPrice) }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="total_price" label="小计金额" width="120">
+          <el-table-column prop="totalPrice" label="小计金额" width="120">
             <template #default="scope">
-              <span>{{ formatPrice(scope.row.total_price) }}</span>
+              <span>{{ formatPrice(scope.row.totalPrice) }}</span>
             </template>
           </el-table-column>
         </el-table>
@@ -155,7 +156,7 @@
         </el-button>
       </span>
     </template>
-  </el-dialog>
+    </AppDialog>
 </template>
 
 <script setup>
@@ -274,12 +275,12 @@ const handleWarehouseChange = (warehouseId) => {
 
 // 计算行总价
 const calculateRowTotal = (row) => {
-  row.total_price = (parseFloat(row.actual_quantity) || 0) * (parseFloat(row.unit_price) || 0);
+  row.totalPrice = (parseFloat(row.actualQuantity) || 0) * (parseFloat(row.unitPrice) || 0);
 };
 
 // 计算总金额
 const calculateTotal = () => {
-  return receiptForm.items.reduce((sum, item) => sum + (parseFloat(item.total_price) || 0), 0);
+  return receiptForm.items.reduce((sum, item) => sum + (parseFloat(item.totalPrice) || 0), 0);
 };
 
 // 格式化价格
@@ -298,21 +299,21 @@ const loadProcessingDetail = async () => {
 
     // 填充表单数据
     receiptForm.processing_id = data.id;
-    receiptForm.processing_no = data.processing_no;
-    receiptForm.supplier_id = data.supplier_id;
-    receiptForm.supplier_name = data.supplier_name;
+    receiptForm.processing_no = data.processingNo;
+    receiptForm.supplierId = data.supplierId;
+    receiptForm.supplierName = data.supplierName;
 
     // 转换成品为入库单明细项
     receiptForm.items = (data.products || []).map(product => ({
-      product_id: product.product_id,
-      product_code: product.product_code,
-      product_name: product.product_name,
+      product_id: product.productId,
+      product_code: product.productCode,
+      product_name: product.productName,
       specification: product.specification,
       unit: product.unit,
-      unit_id: product.unit_id,
+      unit_id: product.unitId,
       expected_quantity: product.quantity,
       actual_quantity: product.quantity, // 默认实收等于应收
-      unit_price: product.unit_price,
+      unit_price: product.unitPrice,
       total_price: product.total_price
     }));
   } catch (error) {
@@ -331,13 +332,13 @@ const loadReceiptDetail = async () => {
     const data = response.data;
 
     // 填充表单数据，使用工具函数确保数据格式正确
-    receiptForm.processing_id = ensureValidId(data.processing_id);
-    receiptForm.processing_no = data.processing_no || '';
-    receiptForm.supplier_id = ensureValidId(data.supplier_id);
-    receiptForm.supplier_name = data.supplier_name || '';
-    receiptForm.warehouse_id = ensureValidId(data.warehouse_id);
-    receiptForm.warehouse_name = data.warehouse_name || '';
-    receiptForm.receipt_date = data.receipt_date || formatLocalDate(new Date());
+    receiptForm.processing_id = ensureValidId(data.processingId);
+    receiptForm.processing_no = data.processingNo || '';
+    receiptForm.supplierId = ensureValidId(data.supplierId);
+    receiptForm.supplierName = data.supplierName || '';
+    receiptForm.warehouseId = ensureValidId(data.warehouseId);
+    receiptForm.warehouse_name = data.warehouseName || '';
+    receiptForm.receipt_date = data.receiptDate || formatLocalDate(new Date());
     receiptForm.operator = data.operator || '';
     receiptForm.remarks = data.remarks || '';
     receiptForm.items = data.items || [];
@@ -362,7 +363,7 @@ const handleSubmit = async () => {
     }
 
     // 仓库ID是必须的
-    if (!receiptForm.warehouse_id) {
+    if (!receiptForm.warehouseId) {
       ElMessage.error('请选择入库仓库');
       return;
     }

@@ -527,7 +527,7 @@ const arModel = {
 
       const scopeClause = filters.scopeClause || { join: '', where: '', params: [] };
 
-      // 构建基本查询
+      // 构建基本查询（附带关联销售订单，供发票号跳转）
       let query = `
         SELECT a.id, a.invoice_number, a.customer_id, c.name as customer_name,
                DATE_FORMAT(a.invoice_date, '%Y-%m-%d') as invoice_date,
@@ -535,9 +535,17 @@ const arModel = {
                a.total_amount, a.amount_excluding_tax, a.tax_amount, a.tax_rate,
                a.paid_amount, a.balance_amount,
                a.status, a.currency_code, a.terms, a.customer_invoice_number,
-               a.source_type, a.source_id
+               a.source_type, a.source_id,
+               COALESCE(so_direct.id, so_from_outbound.id) AS related_order_id,
+               COALESCE(so_direct.order_no, so_from_outbound.order_no) AS related_order_no
         FROM ar_invoices a
         LEFT JOIN customers c ON a.customer_id = c.id
+        LEFT JOIN sales_orders so_direct
+          ON a.source_type = 'sales_order' AND a.source_id = so_direct.id AND so_direct.deleted_at IS NULL
+        LEFT JOIN sales_outbound sob
+          ON a.source_type = 'sales_outbound' AND a.source_id = sob.id AND sob.deleted_at IS NULL
+        LEFT JOIN sales_orders so_from_outbound
+          ON sob.order_id = so_from_outbound.id AND so_from_outbound.deleted_at IS NULL
         ${scopeClause.join || ''}
         WHERE 1=1
       `;

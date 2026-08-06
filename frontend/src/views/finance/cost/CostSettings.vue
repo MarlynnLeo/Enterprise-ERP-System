@@ -207,11 +207,11 @@
           />
 
           <el-table :data="glMappings" border class="w-full">
-            <el-table-column prop="mapping_key" label="业务类型代码" width="180" />
-            <el-table-column prop="mapping_name" label="业务名称" width="180" />
-            <el-table-column prop="account_id" label="对应会计科目">
+            <el-table-column prop="mappingKey" label="业务类型代码" width="180" />
+            <el-table-column prop="mappingName" label="业务名称" width="180" />
+            <el-table-column prop="accountId" label="对应会计科目">
                <template #default="scope">
-                 <el-select v-model="scope.row.account_id" placeholder="选择科目" class="w-full" filterable>
+                 <el-select v-model="scope.row.accountId" placeholder="选择科目" class="w-full" filterable>
                     <el-option
                       v-for="acc in glAccounts"
                       :key="acc.id"
@@ -226,8 +226,8 @@
              </el-table-column>
              <el-table-column label="科目类型" width="120">
                 <template #default="scope">
-                   <el-tag v-if="getAccountType(scope.row.account_id)" size="small">
-                      {{ getAccountType(scope.row.account_id) }}
+                   <el-tag v-if="getAccountType(scope.row.accountId)" size="small">
+                      {{ getAccountType(scope.row.accountId) }}
                    </el-tag>
                 </template>
              </el-table-column>
@@ -253,12 +253,12 @@
           />
 
           <el-table :data="supplementReasons" border class="w-full" v-loading="reasonsLoading">
-            <el-table-column prop="reason_name" label="原因名称" min-width="150" />
-            <el-table-column prop="reason_code" label="原因代码" width="150" />
+            <el-table-column prop="reasonName" label="原因名称" min-width="150" />
+            <el-table-column prop="reasonCode" label="原因代码" width="150" />
             <el-table-column label="计入成本" width="120">
               <template #default="scope">
                 <el-switch
-                  v-model="scope.row.is_included_in_cost"
+                  v-model="scope.row.isIncludedInCost"
                   :disabled="!canUpdateCost"
                   @change="handleReasonSwitchChange(scope.row)"
                 />
@@ -266,7 +266,7 @@
             </el-table-column>
             <el-table-column label="状态" width="100">
                <template #default="scope">
-                 <el-tag :type="scope.row.is_active ? 'success' : 'info'">{{ scope.row.is_active ? '启用' : '禁用' }}</el-tag>
+                 <el-tag :type="scope.row.isActive ? 'success' : 'info'">{{ scope.row.isActive ? '启用' : '禁用' }}</el-tag>
                </template>
             </el-table-column>
             <el-table-column label="操作" min-width="180" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
@@ -279,7 +279,12 @@
         </el-card>
 
         <!-- 新增/编辑原因弹窗 -->
-        <el-dialog v-model="reasonDialogVisible" :title="editingReasonId ? '编辑原因' : '新增原因'" width="500px">
+        <AppDialog
+          v-model="reasonDialogVisible"
+          :title="editingReasonId ? '编辑原因' : '新增原因'"
+          mode="form"
+          width="500px"
+        >
           <el-form :model="reasonForm" label-width="100px">
             <el-form-item label="原因名称" required>
               <el-input v-model="reasonForm.reason_name" placeholder="如：生产损耗" />
@@ -291,7 +296,7 @@
               <el-switch v-model="reasonForm.is_included_in_cost" />
             </el-form-item>
             <el-form-item label="状态">
-              <el-switch v-model="reasonForm.is_active" />
+              <el-switch v-model="reasonForm.isActive" />
             </el-form-item>
           </el-form>
           <template #footer>
@@ -303,7 +308,7 @@
               :loading="savingReason"
             >保存</el-button>
           </template>
-        </el-dialog>
+                </AppDialog>
       </el-tab-pane>
 
       <!-- 核算方法说明 -->
@@ -357,13 +362,13 @@
           <!-- 搜索区域 -->
           <el-form :inline="true" class="search-form mb-md">
             <el-form-item label="物料编码">
-              <el-input  v-model="stdCostSearch.material_code" placeholder="请输入" size="small" clearable />
+              <el-input  v-model="stdCostSearch.materialCode" placeholder="请输入" size="small" clearable />
             </el-form-item>
             <el-form-item label="物料名称">
-              <el-input  v-model="stdCostSearch.material_name" placeholder="请输入" size="small" clearable />
+              <el-input  v-model="stdCostSearch.materialName" placeholder="请输入" size="small" clearable />
             </el-form-item>
             <el-form-item label="状态">
-              <el-select v-model="stdCostSearch.is_active" placeholder="全部" size="small" clearable>
+              <el-select v-model="stdCostSearch.isActive" placeholder="全部" size="small" clearable>
                 <el-option label="有效" value="1" />
                 <el-option label="失效" value="0" />
               </el-select>
@@ -375,27 +380,27 @@
 
           <!-- 表格 -->
           <el-table :data="materialStandardCosts" border class="w-full" v-loading="stdCostLoading">
-            <el-table-column prop="material_code" label="物料编码" width="120" />
-            <el-table-column prop="material_name" label="物料名称" min-width="180" />
+            <el-table-column prop="materialCode" label="物料编码" width="120" />
+            <el-table-column prop="materialName" label="物料名称" min-width="180" />
             <el-table-column prop="specs" label="规格" width="220" />
-            <el-table-column prop="current_cost_price" label="当前采购成本" width="120">
+            <el-table-column prop="currentCostPrice" label="当前采购成本" width="120">
               <template #default="scope">
-                {{ scope.row.current_cost_price ? Number(scope.row.current_cost_price).toFixed(2) : '-' }}
+                {{ scope.row.currentCostPrice ? Number(scope.row.currentCostPrice).toFixed(2) : '-' }}
               </template>
             </el-table-column>
-            <el-table-column prop="standard_price" label="标准成本" width="120">
+            <el-table-column prop="standardPrice" label="标准成本" width="120">
               <template #default="scope">
-                <span class="text-primary font-weight-600">{{ scope.row.standard_price ? Number(scope.row.standard_price).toFixed(2) : '-' }}</span>
+                <span class="text-primary font-weight-600">{{ scope.row.standardPrice ? Number(scope.row.standardPrice).toFixed(2) : '-' }}</span>
               </template>
             </el-table-column>
-            <el-table-column prop="effective_date" label="生效日期" width="110" />
-            <el-table-column prop="expiry_date" label="失效日期" width="110">
-              <template #default="scope">{{ scope.row.expiry_date || '长期有效' }}</template>
+            <el-table-column prop="effectiveDate" label="生效日期" width="110" />
+            <el-table-column prop="expiryDate" label="失效日期" width="110">
+              <template #default="scope">{{ scope.row.expiryDate || '长期有效' }}</template>
             </el-table-column>
-            <el-table-column prop="is_active" label="状态" width="80">
+            <el-table-column prop="isActive" label="状态" width="80">
               <template #default="scope">
-                <el-tag :type="scope.row.is_active ? 'success' : 'info'" size="small">
-                  {{ scope.row.is_active ? '有效' : '失效' }}
+                <el-tag :type="scope.row.isActive ? 'success' : 'info'" size="small">
+                  {{ scope.row.isActive ? '有效' : '失效' }}
                 </el-tag>
               </template>
             </el-table-column>
@@ -420,7 +425,12 @@
         </el-card>
 
         <!-- 批量冻结对话框 -->
-        <el-dialog v-model="freezeDialogVisible" title="批量冻结物料标准成本" width="500px">
+        <AppDialog
+          v-model="freezeDialogVisible"
+          title="批量冻结物料标准成本"
+          mode="form"
+          width="500px"
+        >
           <el-alert type="info" :closable="false" class="mb-md">
             批量冻结将读取所有物料的当前采购成本（cost_price），作为标准成本写入系统。原有效的标准成本将自动失效。
           </el-alert>
@@ -436,13 +446,18 @@
             <el-button @click="freezeDialogVisible = false">取消</el-button>
             <el-button v-permission="'finance:cost:execute'" type="primary" @click="handleFreeze" :loading="freezing">确认冻结</el-button>
           </template>
-        </el-dialog>
+                </AppDialog>
 
         <!-- 调整标准成本对话框 -->
-        <el-dialog v-model="editStdCostDialogVisible" title="调整标准成本" width="450px">
+        <AppDialog
+          v-model="editStdCostDialogVisible"
+          title="调整标准成本"
+          mode="form"
+          width="450px"
+        >
           <el-form :model="editStdCostForm" label-width="100px">
             <el-form-item label="物料">
-              <span>{{ editStdCostForm.material_code }} - {{ editStdCostForm.material_name }}</span>
+              <span>{{ editStdCostForm.materialCode }} - {{ editStdCostForm.materialName }}</span>
             </el-form-item>
             <el-form-item label="标准成本" required>
               <el-input-number v-model="editStdCostForm.standard_price" :min="0" :precision="2" class="w-full" />
@@ -454,14 +469,14 @@
               <el-date-picker v-model="editStdCostForm.expiry_date" type="date" placeholder="不填则长期有效" value-format="YYYY-MM-DD" class="w-full" />
             </el-form-item>
             <el-form-item label="状态">
-              <el-switch v-model="editStdCostForm.is_active" active-text="有效" inactive-text="失效" />
+              <el-switch v-model="editStdCostForm.isActive" active-text="有效" inactive-text="失效" />
             </el-form-item>
           </el-form>
           <template #footer>
             <el-button @click="editStdCostDialogVisible = false">取消</el-button>
             <el-button v-permission="'finance:cost:update'" type="primary" @click="handleUpdateStdCost" :loading="updatingStdCost">保存</el-button>
           </template>
-        </el-dialog>
+                </AppDialog>
       </el-tab-pane>
       <!-- 制费分摊规则 -->
       <el-tab-pane label="制费分摊规则" name="overhead_allocation">
@@ -488,23 +503,23 @@
             <el-table-column prop="name" label="规则名称" min-width="150" />
             <el-table-column label="指定产品" min-width="150">
               <template #default="scope">
-                <span v-if="scope.row.product_id" class="text-primary">{{ scope.row.product_name || scope.row.product_code || `ID:${scope.row.product_id}` }}</span>
+                <span v-if="scope.row.productId" class="text-primary">{{ scope.row.productName || scope.row.productCode || `ID:${scope.row.productId}` }}</span>
                 <span v-else class="text-muted">全部产品</span>
               </template>
             </el-table-column>
-            <el-table-column prop="product_category" label="指定类别" width="120">
+            <el-table-column prop="productCategory" label="指定类别" width="120">
               <template #default="scope">
-                {{ scope.row.product_category || '全部' }}
+                {{ scope.row.productCategory || '全部' }}
               </template>
             </el-table-column>
-            <el-table-column prop="cost_center_name" label="成本中心" width="120">
+            <el-table-column prop="costCenterName" label="成本中心" width="120">
               <template #default="scope">
-                {{ scope.row.cost_center_name || '全厂' }}
+                {{ scope.row.costCenterName || '全厂' }}
               </template>
             </el-table-column>
             <el-table-column label="分摊基础" width="120">
               <template #default="scope">
-                {{ getAllocationBaseLabel(scope.row.allocation_base) }}
+                {{ getAllocationBaseLabel(scope.row.allocationBase) }}
               </template>
             </el-table-column>
             <el-table-column prop="rate" label="费率" width="100">
@@ -514,8 +529,8 @@
             </el-table-column>
             <el-table-column label="状态" width="80">
               <template #default="scope">
-                <el-tag :type="scope.row.is_active ? 'success' : 'info'" size="small">
-                  {{ scope.row.is_active ? '启用' : '禁用' }}
+                <el-tag :type="scope.row.isActive ? 'success' : 'info'" size="small">
+                  {{ scope.row.isActive ? '启用' : '禁用' }}
                 </el-tag>
               </template>
             </el-table-column>
@@ -529,14 +544,19 @@
         </el-card>
 
         <!-- 新增/编辑分摊规则弹窗 -->
-        <el-dialog v-model="allocationRuleDialogVisible" :title="editingAllocationRuleId ? '编辑规则' : '新增规则'" width="600px">
+        <AppDialog
+          v-model="allocationRuleDialogVisible"
+          :title="editingAllocationRuleId ? '编辑规则' : '新增规则'"
+          mode="form"
+          width="600px"
+        >
           <el-form :model="allocationRuleForm" label-width="120px">
             <el-form-item label="规则名称" required>
               <el-input v-model="allocationRuleForm.name" placeholder="如：线束类产品模具费" />
             </el-form-item>
             <el-form-item label="指定产品">
               <el-select
-                v-model="allocationRuleForm.product_id"
+                v-model="allocationRuleForm.productId"
                 filterable
                 remote
                 clearable
@@ -558,7 +578,7 @@
               <el-input v-model="allocationRuleForm.product_category" placeholder="指定产品类别（优先级次之）" />
             </el-form-item>
             <el-form-item label="成本中心">
-              <el-select v-model="allocationRuleForm.cost_center_id" clearable placeholder="全厂通用" class="w-full">
+              <el-select v-model="allocationRuleForm.costCenterId" clearable placeholder="全厂通用" class="w-full">
                 <el-option v-for="cc in costCenterOptions" :key="cc.id" :label="cc.name" :value="cc.id" />
               </el-select>
             </el-form-item>
@@ -578,7 +598,7 @@
               <el-date-picker v-model="allocationRuleForm.effective_date" type="date" value-format="YYYY-MM-DD" class="w-full" />
             </el-form-item>
             <el-form-item label="状态">
-              <el-switch v-model="allocationRuleForm.is_active" active-text="启用" inactive-text="禁用" />
+              <el-switch v-model="allocationRuleForm.isActive" active-text="启用" inactive-text="禁用" />
             </el-form-item>
           </el-form>
           <template #footer>
@@ -590,7 +610,7 @@
               :loading="savingAllocationRule"
             >保存</el-button>
           </template>
-        </el-dialog>
+                </AppDialog>
       </el-tab-pane>
     </el-tabs>
   </div>
@@ -644,10 +664,10 @@ const fallbackRatioTotal = computed(() => (
 
 const isRatioValid = computed(() => Math.abs(fallbackRatioTotal.value - 1) <= 0.001);
 
-const activeAllocationRuleCount = computed(() => allocationRules.value.filter(item => item.is_active).length);
-const activeSupplementReasonCount = computed(() => supplementReasons.value.filter(item => item.is_active).length);
-const mappedGLCount = computed(() => glMappings.value.filter(item => item.account_id).length);
-const activeMaterialStandardCount = computed(() => materialStandardCosts.value.filter(item => item.is_active).length);
+const activeAllocationRuleCount = computed(() => allocationRules.value.filter(item => item.isActive).length);
+const activeSupplementReasonCount = computed(() => supplementReasons.value.filter(item => item.isActive).length);
+const mappedGLCount = computed(() => glMappings.value.filter(item => item.accountId).length);
+const activeMaterialStandardCount = computed(() => materialStandardCosts.value.filter(item => item.isActive).length);
 
 const configChecks = computed(() => [
   {
@@ -1017,18 +1037,18 @@ const handleFreeze = async () => {
 // 打开编辑对话框
 const openEditStdCostDialog = (row) => {
   editStdCostForm.id = row.id;
-  editStdCostForm.material_code = row.material_code;
-  editStdCostForm.material_name = row.material_name;
-  editStdCostForm.standard_price = row.standard_price;
-  editStdCostForm.effective_date = row.effective_date;
-  editStdCostForm.expiry_date = row.expiry_date;
-  editStdCostForm.is_active = row.is_active === 1 || row.is_active === true;
+  editStdCostForm.materialCode = row.materialCode;
+  editStdCostForm.materialName = row.materialName;
+  editStdCostForm.standard_price = row.standardPrice;
+  editStdCostForm.effective_date = row.effectiveDate;
+  editStdCostForm.expiry_date = row.expiryDate;
+  editStdCostForm.isActive = row.isActive === 1 || row.isActive === true;
   editStdCostDialogVisible.value = true;
 };
 
 // 更新标准成本
 const handleUpdateStdCost = async () => {
-  if (!editStdCostForm.standard_price || editStdCostForm.standard_price <= 0) {
+  if (!editStdCostForm.standardPrice <= 0) {
     ElMessage.warning('标准成本必须大于0');
     return;
   }
@@ -1038,7 +1058,7 @@ const handleUpdateStdCost = async () => {
       standard_price: editStdCostForm.standard_price,
       effective_date: editStdCostForm.effective_date,
       expiry_date: editStdCostForm.expiry_date,
-      is_active: editStdCostForm.is_active
+      is_active: editStdCostForm.isActive
     });
     ElMessage.success('更新成功');
     editStdCostDialogVisible.value = false;
@@ -1126,17 +1146,17 @@ const openAllocationRuleDialog = (row = null) => {
   if (row) {
     editingAllocationRuleId.value = row.id;
     // 如果编辑时有 productId，先把它塞入 options 中便于正确显示名字
-    if (row.product_id && !materialOptions.value.find(m => m.id === row.product_id)) {
+    if (row.productId && !materialOptions.value.find(m => m.id === row.productId)) {
        materialOptions.value.push({
-         id: row.product_id,
-         code: row.product_code || '',
-         name: row.product_name || `ID:${row.product_id}`
+         id: row.productId,
+         code: row.productCode || '',
+         name: row.productName || `ID:${row.productId}`
        });
     }
     allocationRuleForm.value = {
       ...row,
       rate: Number(row.rate),
-      is_active: row.is_active === 1 || row.is_active === true
+      is_active: row.isActive === 1 || row.isActive === true
     };
   } else {
     editingAllocationRuleId.value = null;
@@ -1165,8 +1185,8 @@ const saveAllocationRule = async () => {
   try {
     const payload = { ...allocationRuleForm.value };
     // 抹平空字符串为空值
-    if (!payload.product_id) payload.product_id = null;
-    if (!payload.cost_center_id) payload.cost_center_id = null;
+    if (!payload.productId) payload.productId = null;
+    if (!payload.costCenterId) payload.costCenterId = null;
     if (!payload.product_category) payload.product_category = null;
 
     if (editingAllocationRuleId.value) {

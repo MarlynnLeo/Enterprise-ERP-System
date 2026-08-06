@@ -18,10 +18,10 @@ const getTemplatePriority = (template) => {
   return Number.isFinite(priority) && priority > 0 ? priority : 100
 }
 const isDefaultInspectionTemplate = (template) => (
-  template?.is_default === true ||
-  template?.is_default === 1 ||
-  template?.is_default === '1' ||
-  template?.is_default === 'true'
+  template?.isDefault === true ||
+  template?.isDefault === 1 ||
+  template?.isDefault === '1' ||
+  template?.isDefault === 'true'
 )
 
 export const compareInspectionTemplates = (left, right) => {
@@ -56,7 +56,7 @@ export const mapTemplateItemsToInspectionItems = (items = []) => items.map((item
   id: item.id,
   item_name: item.item_name,
   standard: item.standard,
-  type: item.type_name || item.type || 'visual',
+  type: item.typeName || 'visual',
   is_critical: item.is_critical === true || item.is_critical === 1,
   dimension_value: item.dimension_value ?? null,
   tolerance_upper: item.tolerance_upper ?? null,
@@ -68,5 +68,5 @@ export const mapTemplateItemsToInspectionItems = (items = []) => items.map((item
 
 export const getTemplateSourceText = (template) => {
   if (!template) return ''
-  return `${isGeneralInspectionTemplate(template) ? '通用模板' : '产品专用模板'}：${template.template_name || ''}`
+  return `${isGeneralInspectionTemplate(template) ? '通用模板' : '产品专用模板'}：${template.templateName || ''}`
 }

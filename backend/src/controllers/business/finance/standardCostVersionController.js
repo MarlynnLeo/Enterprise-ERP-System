@@ -1,6 +1,7 @@
 const db = require('../../../config/db');
 const { safeParseId } = require('../../../utils/safeParseId');
 const { ResponseHandler } = require('../../../utils/responseHandler');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 const { logger } = require('../../../utils/logger');
 const { getCurrentUserName } = require('../../../utils/userHelper');
 const CodeGeneratorService = require('../../../services/business/CodeGeneratorService');
@@ -83,7 +84,7 @@ const standardCostVersionController = {
    */
   createVersion: async (req, res) => {
     try {
-      const { version_name, effective_date, expiry_date, remark } = req.body;
+      const { version_name, effective_date, expiry_date, remark } = mapKeysToSnake(req.body || {});
       let { version_no } = req.body;
       const created_by = await getCurrentUserName(req);
 

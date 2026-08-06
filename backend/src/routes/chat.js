@@ -13,6 +13,7 @@ const { logger } = require('../utils/logger');
 const { ResponseHandler } = require('../utils/responseHandler');
 const { parsePagination, appendPaginationSQL } = require('../utils/safePagination');
 
+
 router.use(authenticateToken);
 
 const CHAT_ACCESS_PERMISSIONS = ['chat:access', 'system:notifications'];

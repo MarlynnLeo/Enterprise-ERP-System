@@ -14,9 +14,12 @@ const { logger } = require('../../utils/logger');
 const { parsePagination, appendPaginationSQL } = require('../../utils/safePagination');
 
 // ==================== 编码规则 ====================
+// mapKeys 在下方 exchangeRates 前已复用声明；codingRules 使用局部 require 避免 TDZ
+const { mapKeysToSnake: _toSnake } = require('../../utils/fieldMap');
+
 const codingRules = {
   async getList(req, res) {
-    try { ResponseHandler.success(res, await CodeGeneratorService.getRules(req.query)); }
+    try { ResponseHandler.success(res, await CodeGeneratorService.getRules(_toSnake(req.query || {}))); }
     catch (e) { logger.error('获取编码规则失败:', e); ResponseHandler.error(res, e.message); }
   },
   async getById(req, res) {
@@ -24,11 +27,11 @@ const codingRules = {
     catch (e) { logger.error('获取编码规则详情失败:', e); ResponseHandler.error(res, e.message); }
   },
   async create(req, res) {
-    try { ResponseHandler.success(res, await CodeGeneratorService.createRule(req.body), '创建成功'); }
+    try { ResponseHandler.success(res, await CodeGeneratorService.createRule(_toSnake(req.body || {})), '创建成功'); }
     catch (e) { logger.error('创建编码规则失败:', e); ResponseHandler.error(res, e.message); }
   },
   async update(req, res) {
-    try { ResponseHandler.success(res, await CodeGeneratorService.updateRule(req.params.id, req.body), '更新成功'); }
+    try { ResponseHandler.success(res, await CodeGeneratorService.updateRule(req.params.id, _toSnake(req.body || {})), '更新成功'); }
     catch (e) { logger.error('更新编码规则失败:', e); ResponseHandler.error(res, e.message); }
   },
   async preview(req, res) {
@@ -36,7 +39,10 @@ const codingRules = {
     catch (e) { logger.error('预览编码失败:', e); ResponseHandler.error(res, e.message); }
   },
   async resetSequence(req, res) {
-    try { ResponseHandler.success(res, await CodeGeneratorService.resetSequence(req.body.business_type, req.body.period_key), '已重置'); }
+    try {
+      const body = _toSnake(req.body || {});
+      ResponseHandler.success(res, await CodeGeneratorService.resetSequence(body.business_type, body.period_key), '已重置');
+    }
     catch (e) { logger.error('重置编码序列失败:', e); ResponseHandler.error(res, e.message); }
   },
   async deleteRule(req, res) {
@@ -52,15 +58,21 @@ const codingRules = {
 // ==================== 单据关联 ====================
 const docLinks = {
   async getLinks(req, res) {
-    try { ResponseHandler.success(res, await DocumentLinkService.getLinks(req.query.business_type, req.query.business_id, { userPermissions: req.documentLinkUserPermissions || req.userPermissions })); }
+    try {
+      const q = _toSnake(req.query || {});
+      ResponseHandler.success(res, await DocumentLinkService.getLinks(q.business_type, q.business_id, { userPermissions: req.documentLinkUserPermissions || req.userPermissions }));
+    }
     catch (e) { logger.error('获取单据关联失败:', e); ResponseHandler.error(res, e.message); }
   },
   async getFullChain(req, res) {
-    try { ResponseHandler.success(res, await DocumentLinkService.getFullChain(req.query.business_type, req.query.business_id, { userPermissions: req.documentLinkUserPermissions || req.userPermissions })); }
+    try {
+      const q = _toSnake(req.query || {});
+      ResponseHandler.success(res, await DocumentLinkService.getFullChain(q.business_type, q.business_id, { userPermissions: req.documentLinkUserPermissions || req.userPermissions }));
+    }
     catch (e) { logger.error('获取单据完整链路失败:', e); ResponseHandler.error(res, e.message); }
   },
   async createLink(req, res) {
-    try { await DocumentLinkService.createLink(req.body); ResponseHandler.success(res, null, '关联已创建'); }
+    try { await DocumentLinkService.createLink(_toSnake(req.body || {})); ResponseHandler.success(res, null, '关联已创建'); }
     catch (e) { logger.error('创建单据关联失败:', e); ResponseHandler.error(res, e.message); }
   },
   async deleteLink(req, res) {
@@ -75,16 +87,21 @@ const docLinks = {
 
 // ==================== 汇率 ====================
 const ExchangeRateService = require('../../services/business/ExchangeRateService');
+const { mapKeysToSnake } = require('../../utils/fieldMap');
+
 const exchangeRates = {
   async getList(req, res) {
     try {
-      const { rows, total, page, pageSize } = await ExchangeRateService.getList(req.query);
+      // HTTP query camel → service snake
+      const q = mapKeysToSnake(req.query || {});
+      const { rows, total, page, pageSize } = await ExchangeRateService.getList(q);
       ResponseHandler.paginated(res, rows, total, page, pageSize);
     } catch (e) { logger.error('获取汇率列表失败:', e); ResponseHandler.error(res, e.message); }
   },
   async create(req, res) {
     try {
-      await ExchangeRateService.upsert(req.body, req.user?.id);
+      // HTTP body camel → service snake
+      await ExchangeRateService.upsert(mapKeysToSnake(req.body || {}), req.user?.id);
       ResponseHandler.success(res, null, '汇率已保存');
     } catch (e) { logger.error('保存汇率失败:', e); ResponseHandler.error(res, e.message); }
   },
@@ -97,7 +114,7 @@ const exchangeRates = {
   async getLatestRate(req, res) {
     try {
       const row = await ExchangeRateService.getLatestRate(req.query.from, req.query.to);
-      ResponseHandler.success(res, row);
+      ResponseHandler.success(res, row, '获取最新汇率成功');
     } catch (e) { logger.error('获取最新汇率失败:', e); ResponseHandler.error(res, e.message); }
   },
   /** 从 public-apis 多源同步最新汇率到库 */
@@ -251,7 +268,7 @@ const performance = {
   },
   async scoreEvaluation(req, res) {
     try {
-      const { items, evaluator_comment, total_score, grade } = req.body;
+      const { items, evaluator_comment, total_score, grade } = mapKeysToSnake(req.body || {});
       const conn = await pool.getConnection();
       try {
         await conn.beginTransaction();
@@ -820,7 +837,7 @@ const alerts = {
   },
   async update(req, res) {
     try {
-      const d = req.body;
+      const d = _toSnake(req.body || {});
       const [result] = await pool.query(
         'UPDATE business_alerts SET name=?, condition_params=?, severity=?, notify_roles=?, notify_users=?, is_active=?, check_interval_minutes=? WHERE id=?',
         [d.name, d.condition_params ? JSON.stringify(d.condition_params) : null, d.severity, d.notify_roles ? JSON.stringify(d.notify_roles) : null,

@@ -5,16 +5,22 @@
  */
 -->
 <template>
-  <el-dialog v-model="dialogVisible" title="首检检验" width="750px" destroy-on-close @close="handleClose">
+  <AppDialog
+    v-model="dialogVisible"
+    title="首检检验"
+    mode="view"
+    width="750px"
+    @close="handleClose"
+  >
     <el-descriptions :column="3" border class="mb-20">
-      <el-descriptions-item label="检验单号">{{ inspection?.inspection_no }}</el-descriptions-item>
+      <el-descriptions-item label="检验单号">{{ inspection?.inspectionNo }}</el-descriptions-item>
       <el-descriptions-item label="生产任务">{{ inspection?.task_code }}</el-descriptions-item>
-      <el-descriptions-item label="产品名称">{{ inspection?.product_name }}</el-descriptions-item>
-      <el-descriptions-item label="批次号">{{ inspection?.batch_no }}</el-descriptions-item>
+      <el-descriptions-item label="产品名称">{{ inspection?.productName }}</el-descriptions-item>
+      <el-descriptions-item label="批次号">{{ inspection?.batchNo }}</el-descriptions-item>
       <el-descriptions-item label="检验数量">{{ inspection?.quantity }} {{ inspection?.unit }}</el-descriptions-item>
       <el-descriptions-item label="检验类型">
-        <el-tag :type="inspection?.is_full_inspection ? 'warning' : 'primary'" size="small">
-          {{ inspection?.is_full_inspection ? '全检' : '抽检' }}
+        <el-tag :type="inspection?.isFullInspection ? 'warning' : 'primary'" size="small">
+          {{ inspection?.isFullInspection ? '全检' : '抽检' }}
         </el-tag>
       </el-descriptions-item>
     </el-descriptions>
@@ -22,18 +28,18 @@
     <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
       <el-row :gutter="16">
         <el-col :span="12">
-          <el-form-item label="合格数量" prop="qualified_quantity">
-            <el-input-number v-model="form.qualified_quantity" :min="0" :max="Number(inspection?.quantity) || 999" class="w-full" @change="calcUnqualified" />
+          <el-form-item label="合格数量" prop="qualifiedQuantity">
+            <el-input-number v-model="form.qualifiedQuantity" :min="0" :max="Number(inspection?.quantity) || 999" class="w-full" @change="calcUnqualified" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
           <el-form-item label="不合格数量">
-            <el-input-number v-model="form.unqualified_quantity" :min="0" disabled class="w-full" />
+            <el-input-number v-model="form.unqualifiedQuantity" :min="0" disabled class="w-full" />
           </el-form-item>
         </el-col>
       </el-row>
-      <el-form-item label="首检结果" prop="first_article_result">
-        <el-radio-group v-model="form.first_article_result">
+      <el-form-item label="首检结果" prop="firstArticleResult">
+        <el-radio-group v-model="form.firstArticleResult">
           <el-radio value="passed"><el-tag type="success">合格</el-tag></el-radio>
           <el-radio value="failed"><el-tag type="danger">不合格</el-tag></el-radio>
           <el-radio value="conditional"><el-tag type="warning">有条件放行</el-tag></el-radio>
@@ -43,30 +49,30 @@
         </div>
       </el-form-item>
 
-      <el-form-item v-if="form.first_article_result === 'conditional'" label="允许继续生产">
-        <el-switch v-model="form.production_can_continue" />
+      <el-form-item v-if="form.firstArticleResult === 'conditional'" label="允许继续生产">
+        <el-switch v-model="form.productionCanContinue" />
         <span class="ml-sm text-muted text-sm">开启后生产任务可继续进行</span>
       </el-form-item>
-      <el-form-item label="检验员" prop="inspector_name">
-        <el-input v-model="form.inspector_name" placeholder="自动获取" disabled />
+      <el-form-item label="检验员" prop="inspectorName">
+        <el-input v-model="form.inspectorName" placeholder="自动获取" disabled />
       </el-form-item>
 
       <!-- 检验项目明细 -->
       <el-divider content-position="left">检验项目</el-divider>
       <el-table :data="form.items" border size="small" class="mb-md">
-        <el-table-column prop="item_name" label="检验项目" min-width="120">
+        <el-table-column prop="itemName" label="检验项目" min-width="120">
           <template #default="{ row }">
-            <el-input v-model="row.item_name" size="small" placeholder="项目名称" />
+            <el-input v-model="row.itemName" size="small" placeholder="项目名称" />
           </template>
         </el-table-column>
-        <el-table-column prop="standard_value" label="标准值" min-width="100">
+        <el-table-column prop="standardValue" label="标准值" min-width="100">
           <template #default="{ row }">
-            <el-input v-model="row.standard_value" size="small" placeholder="标准值" />
+            <el-input v-model="row.standardValue" size="small" placeholder="标准值" />
           </template>
         </el-table-column>
-        <el-table-column prop="actual_value" label="实测值" min-width="100">
+        <el-table-column prop="actualValue" label="实测值" min-width="100">
           <template #default="{ row }">
-            <el-input v-model="row.actual_value" size="small" placeholder="实测值" />
+            <el-input v-model="row.actualValue" size="small" placeholder="实测值" />
           </template>
         </el-table-column>
         <el-table-column prop="result" label="结果" width="100">
@@ -96,7 +102,7 @@
       <el-button @click="dialogVisible = false">取消</el-button>
       <el-button v-permission="'quality:inspections:update'" type="primary" :loading="submitting" @click="handleSubmit">提交检验结果</el-button>
     </template>
-  </el-dialog>
+    </AppDialog>
 </template>
 
 <script setup>
@@ -137,25 +143,25 @@ const rules = {
 
 watch(() => props.inspection, (val) => {
   if (val) {
-    form.value.qualified_quantity = val.qualified_quantity || 0
-    form.value.unqualified_quantity = val.unqualified_quantity || 0
-    form.value.first_article_result = val.first_article_result || ''
+    form.value.qualifiedQuantity = val.qualifiedQuantity || 0
+    form.value.unqualifiedQuantity = val.unqualifiedQuantity || 0
+    form.value.firstArticleResult = val.firstArticleResult || ''
     form.value.items = Array.isArray(val.items) ? val.items.map(item => ({
       ...item,
-      actual_value: item.actual_value || '',
+      actual_value: item.actualValue || '',
       result: item.result || ''
     })) : []
     if (form.value.items.length === 0) {
       ElMessage.warning('当前首检单未配置检验项目，请维护首检模板或手工添加检验项')
     }
     // 自动获取当前登录用户作为检验员
-    form.value.inspector_name = val.inspector_name || authStore.user?.real_name || authStore.user?.username || ''
+    form.value.inspectorName = val.inspectorName || authStore.user?.realName || authStore.user?.username || ''
   }
 }, { immediate: true })
 
 const calcUnqualified = () => {
   const total = props.inspection?.quantity || 0
-  form.value.unqualified_quantity = Math.max(0, total - form.value.qualified_quantity)
+  form.value.unqualifiedQuantity = Math.max(0, total - form.value.qualifiedQuantity)
 }
 
 const addItem = () => form.value.items.push({ item_name: '', standard_value: '', actual_value: '', result: '' })
@@ -171,16 +177,16 @@ const autoCalcResult = () => {
   const hasFailedItem = items.some(item => item.result === 'failed')
 
   if (hasFailedItem) {
-    form.value.first_article_result = 'failed'
+    form.value.firstArticleResult = 'failed'
     // 同时更新不合格数量
-    form.value.unqualified_quantity = props.inspection?.quantity || 0
-    form.value.qualified_quantity = 0
+    form.value.unqualifiedQuantity = props.inspection?.quantity || 0
+    form.value.qualifiedQuantity = 0
     ElMessage.warning('检测到不合格项目，首检结果自动设为不合格')
   } else {
     // 所有项目都合格
-    form.value.first_article_result = 'passed'
-    form.value.qualified_quantity = props.inspection?.quantity || 0
-    form.value.unqualified_quantity = 0
+    form.value.firstArticleResult = 'passed'
+    form.value.qualifiedQuantity = props.inspection?.quantity || 0
+    form.value.unqualifiedQuantity = 0
   }
 }
 
@@ -191,7 +197,7 @@ const handleSubmit = async () => {
     ElMessage.warning('请先添加或维护首检检验项目')
     return
   }
-  if (form.value.items.some(item => !item.item_name || !item.result)) {
+  if (form.value.items.some(item => !item.itemName || !item.result)) {
     ElMessage.warning('请完整填写检验项目和判定结果')
     return
   }

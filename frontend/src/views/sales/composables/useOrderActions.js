@@ -58,7 +58,7 @@ export function useOrderActions(fetchDataCallback, tableData) {
       if (insufficientItems.length > 0) {
         const itemMessages = insufficientItems.map(
           (item) =>
-            `${item.materialName || item.material_name || '未知物料'}: 需要${item.quantity}，库存${item.currentStock || 0}`
+            `${item.materialName || '未知物料'}: 需要${item.quantity}，库存${item.currentStock || 0}`
         )
         await ElMessageBox.confirm(
           `以下物料库存不足:\n${itemMessages.join('\n')}\n\n系统将自动生成生产计划和采购申请，是否继续确认订单?`,
@@ -139,8 +139,8 @@ export function useOrderActions(fetchDataCallback, tableData) {
         order_id: row.id,
         delivery_date: formatLocalDate(new Date()),
         status: 'draft',
-        remarks: `从销售订单 ${row.order_no} 创建`,
-        items: items.map((item) => ({ product_id: item.material_id, quantity: item.quantity })),
+        remarks: `从销售订单 ${row.orderNo} 创建`,
+        items: items.map((item) => ({ product_id: item.materialId, quantity: item.quantity })),
       }
       await salesApi.createOutbound(outboundData)
       // 立即更新本地，让发货按钮即时消失，避免用户重复点击
@@ -265,7 +265,7 @@ export function useOrderActions(fetchDataCallback, tableData) {
       const response = await salesApi.getOrder(row.id)
       const orderData = response.data
       orderData.customer = orderData.customer || row.customer
-      orderData.customer_name = orderData.customer_name || row.customer_name || row.customer
+      orderData.customerName = orderData.customerName || row.customerName || row.customer
       orderData.deliveryDate = orderData.deliveryDate || row.deliveryDate || orderData.delivery_date
       orderData.address = orderData.address || row.address || orderData.delivery_address
       orderData.contact = orderData.contact || row.contact || orderData.contact_person
@@ -274,10 +274,10 @@ export function useOrderActions(fetchDataCallback, tableData) {
         orderData.items = orderData.items.map((item) => ({
           ...item,
           quantity: parseFloat(item.quantity) || 0,
-          unit_price: parseFloat(item.unit_price) || 0,
+          unit_price: parseFloat(item.unitPrice) || 0,
           amount: parseFloat(item.amount) || 0,
-          material_code: item.material_code || item.code || '',
-          material_name: item.material_name || item.name || '',
+          material_code: item.materialCode || item.code || '',
+          material_name: item.materialName || item.name || '',
         }))
       }
       currentOrder.value = orderData
@@ -292,7 +292,7 @@ export function useOrderActions(fetchDataCallback, tableData) {
   // 状态判断函数
   const canConfirm = (row) => ['draft', 'pending'].includes(row.status)
   const canShip = (row) =>
-    ['ready_to_ship', 'partial_shipped'].includes(row.status) && !row.has_draft_outbound
+    ['ready_to_ship', 'partial_shipped'].includes(row.status) && !row.hasDraftOutbound
   const canCancel = (row) =>
     [
       'draft',
@@ -306,9 +306,9 @@ export function useOrderActions(fetchDataCallback, tableData) {
     ].includes(row.status)
   const canLock = (row) => {
     const allowedStatuses = ['in_production', 'in_procurement']
-    return !row.is_locked && allowedStatuses.includes(row.status)
+    return !row.isLocked && allowedStatuses.includes(row.status)
   }
-  const canUnlock = (row) => !!row.is_locked
+  const canUnlock = (row) => !!row.isLocked
 
   return {
     detailsVisible,

@@ -5,39 +5,45 @@
  */
 -->
 <template>
-  <el-dialog v-model="dialogVisible" title="新建首检单" width="600px" destroy-on-close @close="handleClose">
+  <AppDialog
+    v-model="dialogVisible"
+    title="新建首检单"
+    mode="form"
+    width="600px"
+    @close="handleClose"
+  >
     <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
-      <el-form-item label="生产任务" prop="task_id">
-        <el-select v-model="form.task_id" placeholder="选择生产任务" filterable class="w-full" @change="handleTaskChange">
-          <el-option v-for="task in taskOptions" :key="task.id" :label="`${task.code} - ${task.product_name}`" :value="task.id">
+      <el-form-item label="生产任务" prop="taskId">
+        <el-select v-model="form.taskId" placeholder="选择生产任务" filterable class="w-full" @change="handleTaskChange">
+          <el-option v-for="task in taskOptions" :key="task.id" :label="`${task.code} - ${task.productName}`" :value="task.id">
             <div class="flex-between">
               <span>{{ task.code }}</span>
-              <span class="text-muted text-sm">{{ task.product_name }} ({{ task.quantity }}件)</span>
+              <span class="text-muted text-sm">{{ task.productName }} ({{ task.quantity }}件)</span>
             </div>
           </el-option>
         </el-select>
       </el-form-item>
       <el-form-item label="产品信息">
-        <el-input :value="selectedTask ? `${selectedTask.product_code} - ${selectedTask.product_name}` : ''" disabled />
+        <el-input :value="selectedTask ? `${selectedTask.productCode} - ${selectedTask.productName}` : ''" disabled />
       </el-form-item>
       <el-form-item label="生产数量">
         <el-input :value="selectedTask ? `${selectedTask.quantity} 件` : ''" disabled />
       </el-form-item>
       <el-form-item label="首检数量">
-        <el-input-number v-model="form.first_article_qty" :min="1" :max="selectedTask?.quantity || 999" />
+        <el-input-number v-model="form.firstArticleQty" :min="1" :max="selectedTask?.quantity || 999" />
         <span class="ml-sm text-muted">
           <el-tag v-if="isFullInspection" type="warning" size="small">全检</el-tag>
           <el-tag v-else type="primary" size="small">抽检</el-tag>
         </span>
       </el-form-item>
-      <el-form-item label="批次号" prop="batch_no">
-        <el-input v-model="form.batch_no" placeholder="留空时由后端按生产任务生成" />
+      <el-form-item label="批次号" prop="batchNo">
+        <el-input v-model="form.batchNo" placeholder="留空时由后端按生产任务生成" />
       </el-form-item>
-      <el-form-item label="计划日期" prop="planned_date">
-        <el-date-picker v-model="form.planned_date" type="date" placeholder="选择日期" class="w-full" />
+      <el-form-item label="计划日期" prop="plannedDate">
+        <el-date-picker v-model="form.plannedDate" type="date" placeholder="选择日期" class="w-full" />
       </el-form-item>
       <el-form-item label="检验员">
-        <el-input v-model="form.inspector_name" placeholder="自动获取" disabled />
+        <el-input v-model="form.inspectorName" placeholder="自动获取" disabled />
       </el-form-item>
       <el-form-item label="备注">
         <el-input v-model="form.note" type="textarea" :rows="2" placeholder="请输入备注" />
@@ -47,7 +53,7 @@
       <el-button @click="dialogVisible = false">取消</el-button>
       <el-button v-permission="'quality:inspections:create'" type="primary" :loading="submitting" @click="handleSubmit">确定</el-button>
     </template>
-  </el-dialog>
+    </AppDialog>
 </template>
 
 <script setup>
@@ -82,7 +88,7 @@ const form = ref({
   batch_no: '',
   first_article_qty: DEFAULT_QTY,
   planned_date: new Date(),
-  inspector_name: authStore.user?.real_name || authStore.user?.username || '',
+  inspector_name: authStore.user?.realName || authStore.user?.username || '',
   note: ''
 })
 
@@ -118,15 +124,15 @@ const handleTaskChange = async (taskId) => {
   if (task) {
     // 检查首检规则
     try {
-      const res = await qualityApi.getFirstArticleRuleByProduct(task.product_id)
+      const res = await qualityApi.getFirstArticleRuleByProduct(task.productId)
       const rule = res.data || res
-      const threshold = rule.full_inspection_threshold || DEFAULT_FULL_INSPECTION_THRESHOLD
-      const defaultQty = rule.first_article_qty || DEFAULT_QTY
-      form.value.first_article_qty = task.quantity < threshold ? task.quantity : defaultQty
+      const threshold = rule.fullInspectionThreshold || DEFAULT_FULL_INSPECTION_THRESHOLD
+      const defaultQty = rule.firstArticleQty || DEFAULT_QTY
+      form.value.firstArticleQty = task.quantity < threshold ? task.quantity : defaultQty
     } catch {
-      form.value.first_article_qty = task.quantity < DEFAULT_FULL_INSPECTION_THRESHOLD ? task.quantity : DEFAULT_QTY
+      form.value.firstArticleQty = task.quantity < DEFAULT_FULL_INSPECTION_THRESHOLD ? task.quantity : DEFAULT_QTY
     }
-    form.value.batch_no = ''
+    form.value.batchNo = ''
   }
 }
 
@@ -137,15 +143,15 @@ const handleSubmit = async () => {
   submitting.value = true
   try {
     await qualityApi.createFirstArticleInspection({
-      task_id: form.value.task_id,
-      product_id: selectedTask.value.product_id,
-      product_code: selectedTask.value.product_code,
-      product_name: selectedTask.value.product_name,
+      task_id: form.value.taskId,
+      product_id: selectedTask.value.productId,
+      product_code: selectedTask.value.productCode,
+      product_name: selectedTask.value.productName,
       production_quantity: selectedTask.value.quantity,
-      first_article_qty: form.value.first_article_qty,
-      batch_no: form.value.batch_no || undefined,
-      planned_date: form.value.planned_date,
-      inspector_name: form.value.inspector_name,
+      first_article_qty: form.value.firstArticleQty,
+      batch_no: form.value.batchNo || undefined,
+      planned_date: form.value.plannedDate,
+      inspector_name: form.value.inspectorName,
       note: form.value.note
     })
     ElMessage.success('首检单创建成功')

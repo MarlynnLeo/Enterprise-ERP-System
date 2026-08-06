@@ -104,7 +104,7 @@
                 <el-table-column prop="productCode" label="产品编码" width="120" />
                 <el-table-column prop="productName" label="产品名称" />
                 <el-table-column prop="specification" label="规格" />
-                <el-table-column prop="unit_name" label="单位" width="80" />
+                <el-table-column prop="unitName" label="单位" width="80" />
                 <el-table-column prop="quantity" label="数量" width="100" />
                 <el-table-column prop="reason" label="明细原因" min-width="120" />
               </el-table>
@@ -198,25 +198,25 @@
     >
       <div v-if="currentReturn" v-loading="!currentReturn">
         <el-descriptions :column="2" border>
-          <el-descriptions-item label="退货单号">{{ currentReturn.return_no || currentReturn.returnNo || currentReturn.id }}</el-descriptions-item>
-          <el-descriptions-item label="关联订单号">{{ currentReturn.order_no || currentReturn.orderNo || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="客户名称">{{ currentReturn.customer_name || currentReturn.customerName || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="退货日期">{{ formatDate(currentReturn.return_date || currentReturn.returnDate) }}</el-descriptions-item>
+          <el-descriptions-item label="退货单号">{{ currentReturn.returnNo || currentReturn.id }}</el-descriptions-item>
+          <el-descriptions-item label="关联订单号">{{ currentReturn.orderNo || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="客户名称">{{ currentReturn.customerName || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="退货日期">{{ formatDate(currentReturn.returnDate) }}</el-descriptions-item>
           <el-descriptions-item label="状态">
             <el-tag :type="getReturnStatusType(currentReturn.status)">{{ getReturnStatusText(currentReturn.status) }}</el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="创建时间">{{ formatDateTime(currentReturn.created_at) }}</el-descriptions-item>
-          <el-descriptions-item label="退货原因" :span="2">{{ currentReturn.return_reason || currentReturn.reason || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="创建时间">{{ formatDateTime(currentReturn.createdAt) }}</el-descriptions-item>
+          <el-descriptions-item label="退货原因" :span="2">{{ currentReturn.returnReason || '-' }}</el-descriptions-item>
           <el-descriptions-item label="备注" :span="2" v-if="currentReturn.remarks">{{ currentReturn.remarks }}</el-descriptions-item>
         </el-descriptions>
 
         <h3 class="mt-4">退货明细</h3>
         <el-table :data="currentReturn.items || []" class="w-full" border>
           <el-table-column type="index" width="50" label="#" />
-          <el-table-column prop="material_code" label="物料编码" width="120" />
-          <el-table-column prop="material_name" label="物料名称" min-width="160" />
+          <el-table-column prop="materialCode" label="物料编码" width="120" />
+          <el-table-column prop="materialName" label="物料名称" min-width="160" />
           <el-table-column prop="specification" label="规格" min-width="140" />
-          <el-table-column prop="unit_name" label="单位" width="80" />
+          <el-table-column prop="unitName" label="单位" width="80" />
           <el-table-column prop="quantity" label="退货数量" width="100" />
           <el-table-column prop="reason" label="明细原因" min-width="160" />
         </el-table>
@@ -229,13 +229,18 @@
       </template>
     </AppDialog>
     <!-- 新增退货单对话框 -->
-    <el-dialog v-model="createDialog.visible" title="新增退货单" width="900px">
+    <AppDialog
+      v-model="createDialog.visible"
+      title="新增退货单"
+      mode="form"
+      wide
+    >
       <el-form :model="createForm" ref="createFormRef" label-width="100px">
         <el-form-item label="选择出库单" required>
           <div style="display:flex; gap:8px; align-items:center;">
-            <el-input v-model="createForm.outbound.outbound_no" placeholder="请选择已完成的出库单" disabled />
+            <el-input v-model="createForm.outbound.outboundNo" placeholder="请选择已完成的出库单" disabled />
             <el-button type="primary" @click="openOutboundDialog">选择出库单</el-button>
-            <span v-if="createForm.outbound.customer_name">客户：{{ createForm.outbound.customer_name }}</span>
+            <span v-if="createForm.outbound.customerName">客户：{{ createForm.outbound.customerName }}</span>
           </div>
         </el-form-item>
         <el-form-item label="退货日期" required>
@@ -251,17 +256,17 @@
         <el-divider content-position="left">退货明细</el-divider>
         <el-table :data="createForm.items" border class="w-full">
           <el-table-column type="index" width="50" label="#" />
-          <el-table-column prop="material_code" label="产品编码" width="120" />
-          <el-table-column prop="material_name" label="产品名称" min-width="140" />
+          <el-table-column prop="materialCode" label="产品编码" width="120" />
+          <el-table-column prop="materialName" label="产品名称" min-width="140" />
           <el-table-column prop="specification" label="规格" min-width="140" />
-          <el-table-column prop="unit_name" label="单位" width="60" />
+          <el-table-column prop="unitName" label="单位" width="60" />
           <el-table-column label="可退数量" width="100">
             <template #default="{ row }">{{ row.quantity }}</template>
           </el-table-column>
           <el-table-column label="退货数量" width="100">
             <template #default="{ row }">
               <el-input
-                v-model="row.return_quantity"
+                v-model="row.returnQuantity"
                 type="number"
                 :min="0"
                 :max="row.quantity"
@@ -283,19 +288,24 @@
           <el-button v-permission="'sales:returns:create'" type="primary" @click="submitCreate">提交</el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
 
     <!-- 选择出库单对话框 -->
-    <el-dialog v-model="outboundDialog.visible" title="选择已完成的出库单" width="900px">
+    <AppDialog
+      v-model="outboundDialog.visible"
+      title="选择已完成的出库单"
+      mode="form"
+      wide
+    >
       <div style="display:flex; gap:8px; margin-bottom:12px;">
         <el-input  v-model="outboundDialog.keyword" placeholder="按出库单号/客户名搜索" clearable @keyup.enter="loadOutbounds" />
         <el-button type="primary" @click="loadOutbounds">查询</el-button>
       </div>
       <el-table :data="outboundDialog.list" border height="380">
-        <el-table-column prop="outbound_no" label="出库单号" width="140" />
-        <el-table-column prop="order_no" label="关联订单" width="120" />
-        <el-table-column prop="customer_name" label="客户" min-width="140" />
-        <el-table-column prop="delivery_date" label="出库日期" width="120" />
+        <el-table-column prop="outboundNo" label="出库单号" width="140" />
+        <el-table-column prop="orderNo" label="关联订单" width="120" />
+        <el-table-column prop="customerName" label="客户" min-width="140" />
+        <el-table-column prop="deliveryDate" label="出库日期" width="120" />
         <el-table-column prop="status" label="状态" width="100">
           <template #default="{ row }">
             <el-tag :type="getSalesStatusColor(row.status)">
@@ -325,7 +335,7 @@
           <el-button @click="outboundDialog.visible = false">关闭</el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
   </div>
 </template>
 
@@ -447,21 +457,21 @@ const onOutboundPageSize = async (size) => {
 // 验证退货数量
 const validateReturnQuantity = (row) => {
   // 确保输入值是数字
-  const value = parseFloat(row.return_quantity)
+  const value = parseFloat(row.returnQuantity)
   if (isNaN(value) || value < 0) {
-    row.return_quantity = 0
+    row.returnQuantity = 0
     return
   }
 
   // 确保不超过可退数量
   if (value > row.quantity) {
-    row.return_quantity = row.quantity
+    row.returnQuantity = row.quantity
     ElMessage.warning(`退货数量不能超过可退数量 ${row.quantity}`)
     return
   }
 
   // 保留两位小数
-  row.return_quantity = Math.round(value * 100) / 100
+  row.returnQuantity = Math.round(value * 100) / 100
 }
 
 const loadOutbounds = async () => {
@@ -493,19 +503,19 @@ const selectOutbound = async (row) => {
     // 设置出库单信息
     createForm.outbound = {
       id: outboundData.id,
-      outbound_no: outboundData.outbound_no,
-      order_no: outboundData.order_no || '',
-      customer_name: outboundData.customer_name || ''
+      outbound_no: outboundData.outboundNo,
+      order_no: outboundData.orderNo || '',
+      customer_name: outboundData.customerName || ''
     }
 
     // 设置退货明细（基于出库明细）
     createForm.items = (outboundData.items || []).map(item => ({
-      material_id: item.material_id || item.product_id,
-      material_code: item.material_code || item.product_code,
-      material_name: item.material_name || item.product_name,
+      material_id: item.materialId || item.productId,
+      material_code: item.materialCode || item.productCode,
+      material_name: item.materialName || item.productName,
       specification: item.specification || '',
-      unit_name: item.unit_name || '个',
-      quantity: item.returnable_quantity ?? item.quantity, // 可退数量（已扣减历史退货）
+      unit_name: item.unitName || '个',
+      quantity: item.returnableQuantity ?? item.quantity, // 可退数量（已扣减历史退货）
       return_quantity: 0, // 退货数量，用户可编辑
       reason: '' // 明细退货原因
     }))
@@ -531,28 +541,28 @@ const submitCreate = async () => {
 
     // 验证退货数量不能超过原数量
     for (const item of validItems) {
-      const returnQty = Number(item.return_quantity)
+      const returnQty = Number(item.returnQuantity)
       const originalQty = Number(item.quantity)
       if (returnQty > originalQty) {
-        ElMessage.error(`商品 ${item.material_name} 的退货数量不能超过原数量`)
+        ElMessage.error(`商品 ${item.materialName} 的退货数量不能超过原数量`)
         return
       }
       if (returnQty <= 0) {
-        ElMessage.error(`商品 ${item.material_name} 的退货数量必须大于0`)
+        ElMessage.error(`商品 ${item.materialName} 的退货数量必须大于0`)
         return
       }
     }
 
     const payload = {
       outbound_id: createForm.outbound.id,
-      outbound_no: createForm.outbound.outbound_no,
-      order_no: createForm.outbound.order_no,
-      customer_name: createForm.outbound.customer_name,
+      outbound_no: createForm.outbound.outboundNo,
+      order_no: createForm.outbound.orderNo,
+      customer_name: createForm.outbound.customerName,
       return_date: createForm.return_date,
       return_reason: createForm.return_reason,
       remarks: createForm.remarks,
       items: validItems.map(i => ({
-        product_id: i.material_id,
+        product_id: i.materialId,
         quantity: Number(i.return_quantity),
         reason: i.reason || ''
       }))
@@ -601,13 +611,13 @@ const fetchData = async () => {
     // 适配后端数据到表格结构
     returnRecords.value = items.map((it, idx) => ({
       id: it.id || `RET_${idx}`, // 保持数字ID用于API调用
-      returnNo: it.return_no || it.id || `RET_${idx}`, // 显示用的退货单号
-      orderNo: it.order_no || it.orderNo || it.order_id || '-',
-      customerName: it.customer_name || it.customerName || '-',
-      returnDate: it.return_date || it.returnDate,
-      returnAmount: isBlankAmount(it.total_amount ?? it.return_amount) ? null : Number(it.total_amount ?? it.return_amount),
+      returnNo: it.returnNo || it.id || `RET_${idx}`, // 显示用的退货单号
+      orderNo: it.orderNo || it.orderId || '-',
+      customerName: it.customerName || '-',
+      returnDate: it.returnDate,
+      returnAmount: isBlankAmount(it.totalAmount ?? it.return_amount) ? null : Number(it.totalAmount ?? it.return_amount),
       status: it.status || '待审批',
-      reason: it.return_reason || it.reason || '-', // 添加退货原因
+      reason: it.returnReason || '-', // 添加退货原因
       items: it.items || []
     }))
 
@@ -658,7 +668,7 @@ const updateReturnStatus = async (row, status, remarks = null) => {
     // 调用后端API更新状态，保留所有原有数据
     await salesApi.updateReturn(row.id, {
       return_date: fullReturnData.return_date,
-      order_id: fullReturnData.order_id,
+      order_id: fullReturnData.orderId,
       return_reason: fullReturnData.return_reason,
       status: status,
       remarks: remarks !== null ? remarks : fullReturnData.remarks,
@@ -746,19 +756,19 @@ const handlePrintReturn = async () => {
   try {
     const ret = currentReturn.value
     const printData = {
-      return_no: ret.return_no || ret.returnNo || '',
-      return_date: formatDate(ret.return_date || ret.returnDate) || '',
-      customer_name: ret.customer_name || ret.customerName || '',
-      order_no: ret.order_no || ret.orderNo || '',
-      reason: ret.return_reason || ret.reason || '',
+      return_no: ret.returnNo || '',
+      return_date: formatDate(ret.returnDate) || '',
+      customer_name: ret.customerName || '',
+      order_no: ret.orderNo || '',
+      reason: ret.returnReason || '',
       operator: ret.created_by_name || '',
       items: (ret.items || []).map((item, idx) => ({
         index: idx + 1,
-        material_code: item.material_code || item.productCode || '',
-        material_name: item.material_name || item.productName || '',
+        material_code: item.materialCode || item.productCode || '',
+        material_name: item.materialName || item.productName || '',
         specification: item.specification || '',
-        quantity: parseFloat(item.quantity || item.return_quantity || 0).toFixed(2),
-        unit_name: item.unit_name || '',
+        quantity: parseFloat(item.quantity || item.returnQuantity || 0).toFixed(2),
+        unit_name: item.unitName || '',
         remark: item.reason || item.remark || ''
       }))
     }

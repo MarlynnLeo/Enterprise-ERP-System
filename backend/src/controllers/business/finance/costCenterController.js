@@ -7,6 +7,7 @@
 const db = require('../../../config/db');
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 
 module.exports = {
   // ==================== 成本中心管理 ====================
@@ -23,7 +24,10 @@ module.exports = {
                 WHERE cc.is_active = 1
                 ORDER BY cc.code
             `);
-      ResponseHandler.success(res, { items: centers, total: centers.length });
+      ResponseHandler.success(res, {
+        items: centers,
+        total: centers.length,
+      });
     } catch (error) {
       logger.error('获取成本中心列表失败:', error);
       ResponseHandler.error(res, '获取成本中心列表失败', 'SERVER_ERROR', 500);
@@ -35,8 +39,9 @@ module.exports = {
    */
   createCostCenter: async (req, res) => {
     try {
+      const body = mapKeysToSnake(req.body || {});
       const { code, name, type, parent_id, department_id, manager, manager_id, description } =
-        req.body;
+        body;
 
       if (!code || !name) {
         return ResponseHandler.error(res, '成本中心编码和名称不能为空', 'VALIDATION_ERROR', 400);
@@ -79,7 +84,7 @@ module.exports = {
         manager_id,
         description,
         is_active,
-      } = req.body;
+      } = mapKeysToSnake(req.body || {});
 
       await db.pool.execute(
         `UPDATE cost_centers SET name = ?, type = ?, parent_id = ?, department_id = ?,

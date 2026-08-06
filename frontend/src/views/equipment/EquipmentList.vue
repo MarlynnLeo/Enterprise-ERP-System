@@ -77,14 +77,14 @@
         class="w-full mt-md"
       >
         <template #empty>
-          <el-empty description="暂无设备数据" />
+          <EmptyState description="暂无设备数据" />
         </template>
         <el-table-column prop="code" label="设备编号" width="120"></el-table-column>
         <el-table-column prop="name" label="设备名称" width="230"></el-table-column>
         <el-table-column prop="model" label="型号" width="120"></el-table-column>
         <el-table-column prop="manufacturer" label="制造商" width="220"></el-table-column>
         <el-table-column prop="location" label="位置" width="120"></el-table-column>
-        <el-table-column prop="responsible_person" label="责任人" width="100"></el-table-column>
+        <el-table-column prop="responsiblePerson" label="责任人" width="100"></el-table-column>
         <el-table-column prop="status" label="状态" width="90">
           <template #default="scope">
             <el-tag :type="getStatusType(scope.row.status)">
@@ -94,17 +94,17 @@
         </el-table-column>
         <el-table-column label="购买日期" width="110">
           <template #default="scope">
-            {{ formatDate(scope.row.purchase_date) }}
+            {{ formatDate(scope.row.purchaseDate) }}
           </template>
         </el-table-column>
         <el-table-column label="检验日期" width="120">
           <template #default="scope">
-            {{ formatDate(scope.row.inspection_date) }}
+            {{ formatDate(scope.row.inspectionDate) }}
           </template>
         </el-table-column>
         <el-table-column label="下次检验日期" width="120">
           <template #default="scope">
-            {{ formatDate(scope.row.next_inspection_date) }}
+            {{ formatDate(scope.row.nextInspectionDate) }}
           </template>
         </el-table-column>
         <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
@@ -154,11 +154,11 @@
     </el-card>
 
     <!-- 添加/编辑设备对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="dialogVisible"
       :title="dialogTitle"
+      mode="form"
       width="650px"
-      destroy-on-close
     >
       <el-form
         ref="formRef"
@@ -195,9 +195,9 @@
 
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="购买日期" prop="purchase_date">
+            <el-form-item label="购买日期" prop="purchaseDate">
               <el-date-picker
-                v-model="form.purchase_date"
+                v-model="form.purchaseDate"
                 type="date"
                 placeholder="选择购买日期"
                 class="w-full"
@@ -205,9 +205,9 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="检验日期" prop="inspection_date">
+            <el-form-item label="检验日期" prop="inspectionDate">
               <el-date-picker
-                v-model="form.inspection_date"
+                v-model="form.inspectionDate"
                 type="date"
                 placeholder="选择检验日期"
                 class="w-full"
@@ -218,9 +218,9 @@
 
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="下次检验日期" prop="next_inspection_date">
+            <el-form-item label="下次检验日期" prop="nextInspectionDate">
               <el-date-picker
-                v-model="form.next_inspection_date"
+                v-model="form.nextInspectionDate"
                 type="date"
                 placeholder="选择下次检验日期"
                 class="w-full"
@@ -245,8 +245,8 @@
 
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="责任人" prop="responsible_person">
-              <el-input v-model="form.responsible_person" placeholder="请输入责任人"></el-input>
+            <el-form-item label="责任人" prop="responsiblePerson">
+              <el-input v-model="form.responsiblePerson" placeholder="请输入责任人"></el-input>
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -275,7 +275,7 @@
           <el-button type="primary" @click="submitForm">确定</el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
 
     <!-- 查看设备详情对话框 -->
     <AppDialog
@@ -305,42 +305,43 @@
 
       <el-tabs v-model="activeTab" class="detail-tabs">
         <el-tab-pane label="维护记录" name="maintenance">
-          <el-empty v-if="!currentEquipment.maintenanceRecords || currentEquipment.maintenanceRecords.length === 0" description="暂无维护记录" />
+          <EmptyState v-if="!currentEquipment.maintenanceRecords || currentEquipment.maintenanceRecords.length === 0" description="暂无维护记录" />
           <el-table v-else :data="currentEquipment.maintenanceRecords" border class="w-full">
-            <el-table-column prop="maintenance_date" label="维护日期" width="120"></el-table-column>
-            <el-table-column prop="maintenance_type" label="维护类型" width="120"></el-table-column>
-            <el-table-column prop="maintenance_person" label="维护人员" width="100"></el-table-column>
-            <el-table-column prop="maintenance_content" label="维护内容"></el-table-column>
-            <el-table-column prop="next_maintenance_date" label="下次维护日期" width="120"></el-table-column>
+            <el-table-column prop="maintenanceDate" label="维护日期" width="120"></el-table-column>
+            <el-table-column prop="maintenanceType" label="维护类型" width="120"></el-table-column>
+            <el-table-column prop="maintenancePerson" label="维护人员" width="100"></el-table-column>
+            <el-table-column prop="maintenanceContent" label="维护内容"></el-table-column>
+            <el-table-column prop="nextMaintenanceDate" label="下次维护日期" width="120"></el-table-column>
           </el-table>
         </el-tab-pane>
         <el-tab-pane label="故障记录" name="failure">
-          <el-empty v-if="!currentEquipment.failureRecords || currentEquipment.failureRecords.length === 0" description="暂无故障记录" />
+          <EmptyState v-if="!currentEquipment.failureRecords || currentEquipment.failureRecords.length === 0" description="暂无故障记录" />
           <el-table v-else :data="currentEquipment.failureRecords" border class="w-full">
-            <el-table-column prop="failure_date" label="故障日期" width="120"></el-table-column>
-            <el-table-column prop="failure_type" label="故障类型" width="120"></el-table-column>
+            <el-table-column prop="failureDate" label="故障日期" width="120"></el-table-column>
+            <el-table-column prop="failureType" label="故障类型" width="120"></el-table-column>
             <el-table-column prop="reporter" label="报告人" width="100"></el-table-column>
-            <el-table-column prop="failure_description" label="故障描述"></el-table-column>
-            <el-table-column prop="repair_result" label="修复结果" width="120"></el-table-column>
+            <el-table-column prop="failureDescription" label="故障描述"></el-table-column>
+            <el-table-column prop="repairResult" label="修复结果" width="120"></el-table-column>
           </el-table>
         </el-tab-pane>
         <el-tab-pane label="检查记录" name="inspection">
-          <el-empty v-if="!currentEquipment.inspectionRecords || currentEquipment.inspectionRecords.length === 0" description="暂无检查记录" />
+          <EmptyState v-if="!currentEquipment.inspectionRecords || currentEquipment.inspectionRecords.length === 0" description="暂无检查记录" />
           <el-table v-else :data="currentEquipment.inspectionRecords" border class="w-full">
-            <el-table-column prop="inspection_date" label="检查日期" width="120"></el-table-column>
+            <el-table-column prop="inspectionDate" label="检查日期" width="120"></el-table-column>
             <el-table-column prop="inspector" label="检查人员" width="100"></el-table-column>
-            <el-table-column prop="inspection_type" label="检查类型" width="120"></el-table-column>
+            <el-table-column prop="inspectionType" label="检查类型" width="120"></el-table-column>
             <el-table-column prop="result" label="检查结果" width="100"></el-table-column>
-            <el-table-column prop="next_inspection_date" label="下次检查日期" width="120"></el-table-column>
+            <el-table-column prop="nextInspectionDate" label="下次检查日期" width="120"></el-table-column>
           </el-table>
         </el-tab-pane>
       </el-tabs>
     </AppDialog>
 
     <!-- 批量导入对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="importDialogVisible"
       title="批量导入设备"
+      mode="form"
       width="600px"
     >
       <div class="import-content">
@@ -441,7 +442,7 @@
           </el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
   </div>
 </template>
 

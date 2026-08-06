@@ -1,10 +1,10 @@
 <template>
-  <el-dialog
-    :title="title"
+  <AppDialog
     :model-value="modelValue"
     @update:model-value="val => emit('update:modelValue', val)"
-    width="900px"
-    destroy-on-close
+    :title="title"
+    mode="form"
+    wide
     @open="handleOpen"
     @close="handleClose"
   >
@@ -12,7 +12,7 @@
       <!-- 物料大类和物料编码 -->
       <el-row :gutter="16">
         <el-col :span="12">
-          <el-form-item label="物料大类" prop="product_category_id">
+          <el-form-item label="物料大类" prop="productCategoryId">
             <el-cascader
               v-model="productCategoryCascaderValue"
               :options="productCategoryOptions"
@@ -35,15 +35,16 @@
         </el-col>
         <el-col :span="12">
           <el-form-item label="物料编码" prop="code">
-            <div class="flex-gap">
+            <div class="material-code-field">
               <el-input
                 v-model="form.code"
                 placeholder="选择大类自动生成"
-                class="flex-1"
-              ></el-input>
+                class="material-code-input"
+              />
               <el-button
                 type="primary"
-                :disabled="!form.product_category_id"
+                class="material-code-btn"
+                :disabled="!form.productCategoryId"
                 @click="regenerateMaterialCode"
                 title="重新生成编码"
               >
@@ -62,8 +63,8 @@
           </el-form-item>
         </el-col>
         <el-col :span="8">
-          <el-form-item label="物料类型" prop="category_id">
-            <el-select v-model="form.category_id" placeholder="请选择物料类型" class="w-full">
+          <el-form-item label="物料类型" prop="categoryId">
+            <el-select v-model="form.categoryId" placeholder="请选择物料类型" class="w-full">
               <el-option
                 v-for="item in categoryOptions"
                 :key="item.id"
@@ -74,8 +75,8 @@
           </el-form-item>
         </el-col>
         <el-col :span="8">
-          <el-form-item label="单位" prop="unit_id">
-            <el-select v-model="form.unit_id" placeholder="请选择单位" class="w-full">
+          <el-form-item label="单位" prop="unitId">
+            <el-select v-model="form.unitId" placeholder="请选择单位" class="w-full">
               <el-option
                 v-for="item in unitOptions"
                 :key="item.id"
@@ -90,8 +91,8 @@
       <!-- 检验方式、物料来源、物料位置 -->
       <el-row :gutter="16">
         <el-col :span="8">
-          <el-form-item label="检验方式" prop="inspection_method_id">
-            <el-select v-model="form.inspection_method_id" placeholder="请选择检验方式" clearable class="w-full">
+          <el-form-item label="检验方式" prop="inspectionMethodId">
+            <el-select v-model="form.inspectionMethodId" placeholder="请选择检验方式" clearable class="w-full">
               <el-option
                 v-for="item in inspectionMethodOptions"
                 :key="item.id"
@@ -102,8 +103,8 @@
           </el-form-item>
         </el-col>
         <el-col :span="8">
-          <el-form-item label="物料来源" prop="material_source_id">
-            <el-select v-model="form.material_source_id" placeholder="请选择物料来源" class="w-full">
+          <el-form-item label="物料来源" prop="materialSourceId">
+            <el-select v-model="form.materialSourceId" placeholder="请选择物料来源" class="w-full">
               <el-option
                 v-for="item in materialSourceOptions"
                 :key="item.id"
@@ -120,7 +121,7 @@
         <el-col :span="8">
           <el-form-item label="物料位置">
             <el-input
-              v-model="form.location_detail"
+              v-model="form.locationDetail"
               placeholder="如：零部件库-3排-4列"
               clearable />
           </el-form-item>
@@ -135,9 +136,9 @@
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="供应商" prop="supplier_id">
+          <el-form-item label="供应商" prop="supplierId">
             <el-select
-              v-model="form.supplier_id"
+              v-model="form.supplierId"
               placeholder="请输入供应商名称或编码搜索"
               clearable
               filterable
@@ -164,9 +165,9 @@
       <!-- 生产组、图号、色号 -->
       <el-row :gutter="16">
         <el-col :span="8">
-          <el-form-item label="生产组" prop="production_group_id">
+          <el-form-item label="生产组" prop="productionGroupId">
             <el-select
-              v-model="form.production_group_id"
+              v-model="form.productionGroupId"
               placeholder="请选择生产组"
               clearable
               class="w-full">
@@ -185,12 +186,12 @@
         </el-col>
         <el-col :span="8">
           <el-form-item label="图号">
-            <el-input v-model="form.drawing_no" placeholder="请输入图号"></el-input>
+            <el-input v-model="form.drawingNo" placeholder="请输入图号"></el-input>
           </el-form-item>
         </el-col>
         <el-col :span="8">
           <el-form-item label="色号">
-            <el-input v-model="form.color_code" placeholder="请输入色号"></el-input>
+            <el-input v-model="form.colorCode" placeholder="请输入色号"></el-input>
           </el-form-item>
         </el-col>
       </el-row>
@@ -199,13 +200,13 @@
       <el-row :gutter="16">
         <el-col :span="8">
           <el-form-item label="材质">
-            <el-input v-model="form.material_type" placeholder="如：304不锈钢"></el-input>
+            <el-input v-model="form.materialType" placeholder="如：304不锈钢"></el-input>
           </el-form-item>
         </el-col>
         <el-col :span="8">
-          <el-form-item label="仓库" prop="location_id">
+          <el-form-item label="仓库" prop="locationId">
             <el-select
-              v-model="form.location_id"
+              v-model="form.locationId"
               placeholder="请选择仓库"
               class="w-full">
               <el-option
@@ -220,7 +221,7 @@
         <el-col :span="8">
           <el-form-item label="物料负责人">
             <el-select
-              v-model="form.manager_id"
+              v-model="form.managerId"
               placeholder="请选择负责人"
               clearable
               filterable
@@ -229,7 +230,7 @@
               <el-option
                 v-for="item in managerOptions"
                 :key="item.id"
-                :label="item.real_name || item.username"
+                :label="item.realName || item.username"
                 :value="item.id"
               />
             </el-select>
@@ -247,7 +248,7 @@
         </el-col>
         <el-col v-if="canMaintainPrice" :span="8">
           <el-form-item label="采购成本">
-            <el-input v-model="form.cost_price" placeholder="0.00" disabled>
+            <el-input v-model="form.costPrice" placeholder="0.00" disabled>
               <template #suffix>
                 <el-tooltip content="采购入库时自动更新">
                   <el-icon><InfoFilled /></el-icon>
@@ -258,7 +259,7 @@
         </el-col>
         <el-col :span="canMaintainPrice ? 8 : 24">
           <el-form-item label="安全库存">
-            <el-input v-model="form.safety_stock" placeholder="0"></el-input>
+            <el-input v-model="form.safetyStock" placeholder="0"></el-input>
           </el-form-item>
         </el-col>
       </el-row>
@@ -267,17 +268,17 @@
       <el-row :gutter="16">
         <el-col :span="8">
           <el-form-item label="最小库存">
-            <el-input v-model="form.min_stock" placeholder="0"></el-input>
+            <el-input v-model="form.minStock" placeholder="0"></el-input>
           </el-form-item>
         </el-col>
         <el-col :span="8">
           <el-form-item label="最大库存">
-            <el-input v-model="form.max_stock" placeholder="0"></el-input>
+            <el-input v-model="form.maxStock" placeholder="0"></el-input>
           </el-form-item>
         </el-col>
         <el-col v-if="canMaintainPrice" :span="8">
           <el-form-item label="税率">
-            <el-select v-model="form.tax_rate" placeholder="请选择税率" class="w-full">
+            <el-select v-model="form.taxRate" placeholder="请选择税率" class="w-full">
               <el-option
                 v-for="rate in financeStore.vatRateOptions"
                 :key="rate"
@@ -316,7 +317,7 @@
         <el-button type="primary" @click="submitForm">确定</el-button>
       </span>
     </template>
-  </el-dialog>
+    </AppDialog>
 </template>
 
 <script setup>
@@ -424,15 +425,15 @@ const fillFormData = (data) => {
     // 特殊字段处理
     form.id = data.id
     // 如果有供应商，需要设置初始option
-    if (data.supplier_id && data.supplier_name) {
+    if (data.supplierId && data.supplierName) {
       filteredSupplierOptions.value = [{
-        id: data.supplier_id,
-        name: data.supplier_name,
-        code: data.supplier_code
+        id: data.supplierId,
+        name: data.supplierName,
+        code: data.supplierCode
       }]
     }
     // 复制模式：有 product_category_id 但没有 id → 自动生成编码
-    if (!data.id && form.product_category_id) {
+    if (!data.id && form.productCategoryId) {
       nextTick(() => {
         regenerateMaterialCode()
       })
@@ -455,8 +456,8 @@ const loadExistingAttachments = async (materialId) => {
     const list = res?.data || res
     const items = Array.isArray(list) ? list : (list?.data || [])
     attachmentFileList.value = items.map(a => ({
-      name: a.file_name || a.original_name || '附件',
-      url: a.file_path || a.url,
+      name: a.fileName || a.name || '附件',
+      url: a.url || a.filePath,
       // 没有raw属性表示是已存在的附件，submitForm中会跳过
     }))
   } catch {
@@ -508,8 +509,8 @@ const buildSubmitPayload = () => {
   const payload = { ...form }
   if (!props.canMaintainPrice) {
     delete payload.price
-    delete payload.cost_price
-    delete payload.tax_rate
+    delete payload.costPrice
+    delete payload.taxRate
   }
   return payload
 }
@@ -531,15 +532,15 @@ const cascaderFilterMethod = (node, keyword) => {
 
 // cascader 值变更回调
 const handleCascaderChange = (value) => {
-  form.product_category_id = value
+  form.productCategoryId = value
   // 选择大类后自动生成编码（仅新增时）
   if (value && !isEdit.value) {
     regenerateMaterialCode()
   }
 }
 
-// 同步 cascader 值与 form.product_category_id
-watch(() => form.product_category_id, (val) => {
+// 同步 cascader 值与 form.productCategoryId
+watch(() => form.productCategoryId, (val) => {
   if (val !== productCategoryCascaderValue.value) {
     productCategoryCascaderValue.value = val
   }
@@ -612,13 +613,13 @@ const generateMaterialCode = async (selectedCategoryId) => {
 
 // 手动重新生成物料编码
 const regenerateMaterialCode = async () => {
-  if (!form.product_category_id) {
+  if (!form.productCategoryId) {
     ElMessage.warning('请先选择物料大类')
     return
   }
 
   try {
-    const generatedCode = await generateMaterialCode(form.product_category_id)
+    const generatedCode = await generateMaterialCode(form.productCategoryId)
     if (generatedCode) {
       form.code = generatedCode
       ElMessage.success(`已生成物料编码: ${generatedCode}`)
@@ -694,6 +695,41 @@ const submitForm = async () => {
 .attachment-tip {
   font-size: 12px;
   color: var(--color-text-secondary);
+}
+
+/* 物料编码：输入框 + 刷新按钮，限制在表单项内容宽度内 */
+.material-code-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.material-code-field :deep(.material-code-input) {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto;
+}
+.material-code-field :deep(.material-code-input .el-input__wrapper) {
+  width: 100%;
+}
+.material-code-btn {
+  flex: 0 0 auto;
+}
+
+/* 表单项内容区防止 flex 子项把对话框撑宽 */
+:deep(.el-form-item__content) {
+  max-width: 100%;
+  min-width: 0;
+}
+:deep(.app-dialog-form-body) {
+  overflow-x: hidden;
+}
+:deep(.w-full) {
+  width: 100%;
+  max-width: 100%;
 }
 
 /* 附件列表显示在按钮前面（左侧），而不是下方 */

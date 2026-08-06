@@ -87,7 +87,7 @@
       </div>
     </div>
 
-    <el-empty v-if="filteredFrames.length === 0" description="暂无此类头像框" />
+    <EmptyState v-if="filteredFrames.length === 0" description="暂无此类头像框" />
 
     <el-divider content-position="center">
       <el-icon><Brush /></el-icon>

@@ -16,6 +16,7 @@ const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
 const { parsePagination } = require('../../../utils/safePagination');
 const { validationResult } = require('express-validator');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 const BankTransactionModel = require('../../../models/cash/Transaction');
 const CashReportsModel = require('../../../models/cash/Reports');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
@@ -146,13 +147,14 @@ const cashController = {
         });
       }
 
+      const body = mapKeysToSnake(req.body || {});
       const transaction = {
-        transaction_date: req.body.transaction_date,
-        amount: safeParseFloat(req.body.amount, 'amount'),
-        transaction_type: req.body.transaction_type,
-        description: req.body.description,
-        bank_account_id: safeParseInt(req.body.bank_account_id || req.body.account_id, 'bank_account_id'),
-        reference_no: req.body.reference_no,
+        transaction_date: body.transaction_date,
+        amount: safeParseFloat(body.amount, 'amount'),
+        transaction_type: body.transaction_type,
+        description: body.description,
+        bank_account_id: safeParseInt(body.bank_account_id || body.account_id, 'bank_account_id'),
+        reference_no: body.reference_no,
         created_by: getAuthenticatedUserId(req),
       };
 
@@ -195,13 +197,14 @@ const cashController = {
         return ResponseHandler.error(res, '交易记录不存在', 'NOT_FOUND', 404);
       }
 
+      const body = mapKeysToSnake(req.body || {});
       const transaction = {
-        transaction_date: req.body.transaction_date,
-        amount: safeParseFloat(req.body.amount, 'amount'),
-        transaction_type: req.body.transaction_type,
-        description: req.body.description,
-        account_id: safeParseInt(req.body.account_id, 'account_id'),
-        reference_no: req.body.reference_no,
+        transaction_date: body.transaction_date,
+        amount: safeParseFloat(body.amount, 'amount'),
+        transaction_type: body.transaction_type,
+        description: body.description,
+        account_id: safeParseInt(body.account_id, 'account_id'),
+        reference_no: body.reference_no,
       };
 
       const updated = await BankTransactionModel.updateBankTransaction(id, transaction);

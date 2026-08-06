@@ -79,7 +79,7 @@
           v-for="notification in notifications"
           :key="notification.id"
           class="notification-item"
-          :class="{ 'unread': !notification.is_read }"
+          :class="{ 'unread': !notification.isRead }"
         >
           <div class="notification-icon">
             <el-icon :size="32" :color="getNotificationColor(notification.type)">
@@ -106,7 +106,7 @@
                   重要
                 </el-tag>
               </div>
-              <div class="notification-time">{{ formatTime(notification.created_at) }}</div>
+              <div class="notification-time">{{ formatTime(notification.createdAt) }}</div>
             </div>
             <div class="notification-text">{{ notification.content }}</div>
             <div class="notification-footer">
@@ -115,7 +115,7 @@
               </el-tag>
               <div class="notification-actions">
                 <el-button
-                  v-if="!notification.is_read"
+                  v-if="!notification.isRead"
                   link
                   type="primary"
                   size="small"
@@ -146,10 +146,9 @@
         </div>
 
         <!-- 空状态 -->
-        <el-empty
+        <EmptyState
           v-if="!loading && notifications.length === 0"
-          description="暂无通知"
-        />
+          description="暂无通知" />
       </div>
 
       <!-- 分页 -->
@@ -194,7 +193,7 @@
           >
             重要
           </el-tag>
-          <span class="detail-time">{{ formatTime(currentNotification.created_at) }}</span>
+          <span class="detail-time">{{ formatTime(currentNotification.createdAt) }}</span>
         </div>
         <el-divider />
         <div class="detail-content">
@@ -212,7 +211,7 @@
       <template #footer>
         <el-button @click="detailDialogVisible = false">关闭</el-button>
         <el-button
-          v-if="currentNotification && !currentNotification.is_read"
+          v-if="currentNotification && !currentNotification.isRead"
           type="primary"
           @click="handleMarkReadAndClose"
         >

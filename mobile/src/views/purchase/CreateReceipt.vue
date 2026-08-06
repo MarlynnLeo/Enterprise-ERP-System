@@ -23,7 +23,7 @@
           <div class="section-title">基本信息</div>
 
           <Field
-            v-model="receiptForm.receipt_no"
+            v-model="receiptForm.receiptNo"
             name="receipt_no"
             label="入库单号"
             placeholder="系统自动生成"
@@ -42,8 +42,8 @@
           />
 
           <Field
-            v-model="receiptForm.receipt_date"
-            name="receipt_date"
+            v-model="receiptForm.receiptDate"
+            name="receiptDate"
             label="入库日期"
             placeholder="请选择入库日期"
             type="date"
@@ -51,7 +51,7 @@
           />
 
           <Field
-            v-model="receiptForm.warehouse_name"
+            v-model="receiptForm.warehouseName"
             name="warehouse"
             label="入库仓库"
             placeholder="请选择入库仓库"
@@ -69,7 +69,7 @@
           <div class="info-grid">
             <div class="info-item">
               <span class="label">供应商</span>
-              <span class="value">{{ selectedOrder.supplier_name }}</span>
+              <span class="value">{{ selectedOrder.supplierName }}</span>
             </div>
             <div class="info-item" v-if="selectedOrder.contact_person">
               <span class="label">联系人</span>
@@ -89,14 +89,14 @@
           <div class="items-list">
             <div v-for="(item, index) in receiptItems" :key="index" class="item-card">
               <div class="item-header">
-                <span class="item-name">{{ item.material_name }}</span>
+                <span class="item-name">{{ item.materialName }}</span>
                 <Checkbox v-model="item.selected" @change="onItemSelect(index)" />
               </div>
 
               <div class="item-details">
                 <div class="item-row">
                   <span class="label">物料编码:</span>
-                  <span class="value">{{ item.material_code }}</span>
+                  <span class="value">{{ item.materialCode }}</span>
                 </div>
                 <div class="item-row" v-if="item.specification">
                   <span class="label">规格:</span>
@@ -104,22 +104,22 @@
                 </div>
                 <div class="item-row">
                   <span class="label">订单数量:</span>
-                  <span class="value">{{ item.order_quantity }} {{ item.unit }}</span>
+                  <span class="value">{{ item.orderQuantity }} {{ item.unitName || item.unit || '' }}</span>
                 </div>
                 <div class="item-row">
                   <span class="label">已收数量:</span>
-                  <span class="value">{{ item.received_quantity || 0 }} {{ item.unit }}</span>
+                  <span class="value">{{ item.receivedQuantity || 0 }} {{ item.unitName || item.unit || '' }}</span>
                 </div>
                 <div class="item-row">
                   <span class="label">待收数量:</span>
-                  <span class="value">{{ item.pending_quantity }} {{ item.unit }}</span>
+                  <span class="value">{{ item.pendingQuantity }} {{ item.unitName || item.unit || '' }}</span>
                 </div>
               </div>
 
               <div class="item-input" v-if="item.selected">
                 <Field
-                  v-model="item.receipt_quantity"
-                  name="receipt_quantity"
+                  v-model="item.receiptQuantity"
+                  name="receiptQuantity"
                   label="本次入库数量"
                   placeholder="请输入入库数量"
                   type="number"
@@ -130,8 +130,8 @@
                 />
 
                 <Field
-                  v-model="item.remark"
-                  name="remark"
+                  v-model="item.remarks"
+                  name="remarks"
                   label="备注"
                   placeholder="请输入备注（可选）"
                 />
@@ -161,8 +161,8 @@
           <div class="section-title">备注信息</div>
 
           <Field
-            v-model="receiptForm.remark"
-            name="remark"
+            v-model="receiptForm.remarks"
+            name="remarks"
             label="备注"
             placeholder="请输入备注信息（可选）"
             type="textarea"
@@ -198,8 +198,8 @@
             @click="selectOrder(order)"
           >
             <div class="order-info">
-              <div class="order-no">{{ order.order_no }}</div>
-              <div class="order-supplier">{{ order.supplier_name }}</div>
+              <div class="order-no">{{ order.orderNo }}</div>
+              <div class="order-supplier">{{ order.supplierName }}</div>
               <div class="order-date">{{ formatDate(order.order_date) }}</div>
             </div>
             <div class="order-status">
@@ -271,14 +271,14 @@
   const route = useRoute()
   const formRef = ref()
 
-  // 表单数据
+  // 表单数据（纯 camel，后端 purchaseReceiptMap.fromApi）
   const receiptForm = reactive({
-    receipt_no: '',
-    order_id: '',
-    receipt_date: '',
-    warehouse_id: '',
-    warehouse_name: '',
-    remark: ''
+    receiptNo: '',
+    orderId: '',
+    receiptDate: '',
+    warehouseId: '',
+    warehouseName: '',
+    remarks: ''
   })
 
   // 状态管理
@@ -303,7 +303,7 @@
   // 计算属性
   const orderInfo = computed(() => {
     return selectedOrder.value
-      ? `${selectedOrder.value.order_no} - ${selectedOrder.value.supplier_name}`
+      ? `${selectedOrder.value.orderNo} - ${selectedOrder.value.supplierName}`
       : ''
   })
 
@@ -313,8 +313,8 @@
 
   const totalReceiptAmount = computed(() => {
     return selectedItems.value.reduce((sum, item) => {
-      const quantity = parseFloat(item.receipt_quantity) || 0
-      const unitPrice = parseFloat(item.unit_price) || 0
+      const quantity = parseFloat(item.receiptQuantity) || 0
+      const unitPrice = parseFloat(item.unitPrice) || 0
       return sum + quantity * unitPrice
     }, 0)
   })
@@ -364,7 +364,7 @@
   const confirmOrder = async () => {
     if (tempSelectedOrder.value) {
       selectedOrder.value = tempSelectedOrder.value
-      receiptForm.order_id = tempSelectedOrder.value.id
+      receiptForm.orderId = tempSelectedOrder.value.id
       showOrderPicker.value = false
 
       // 加载订单明细
@@ -379,15 +379,24 @@
       const orderData = response.data
 
       if (orderData.items && orderData.items.length > 0) {
-        receiptItems.value = orderData.items.map((item) => ({
-          ...item,
-          order_quantity: item.quantity,
-          received_quantity: item.received_quantity || 0,
-          pending_quantity: item.quantity - (item.received_quantity || 0),
-          receipt_quantity: '',
-          selected: false,
-          remark: ''
-        }))
+        receiptItems.value = orderData.items.map((item) => {
+          const qty = Number(item.quantity) || 0
+          const received = Number(item.receivedQuantity || 0)
+          return {
+            materialId: item.materialId,
+            materialName: item.materialName,
+            materialCode: item.materialCode,
+            specification: item.specification,
+            unitPrice: item.unitPrice,
+            unitName: item.unitName || item.unit,
+            orderQuantity: qty,
+            receivedQuantity: received,
+            pendingQuantity: Math.max(0, qty - received),
+            receiptQuantity: '',
+            selected: false,
+            remarks: ''
+          }
+        })
       }
     } catch (error) {
       console.error('获取订单明细失败:', error)
@@ -419,8 +428,8 @@
   const confirmWarehouse = () => {
     if (tempSelectedWarehouse.value) {
       selectedWarehouse.value = tempSelectedWarehouse.value
-      receiptForm.warehouse_id = tempSelectedWarehouse.value.id
-      receiptForm.warehouse_name = tempSelectedWarehouse.value.name
+      receiptForm.warehouseId = tempSelectedWarehouse.value.id
+      receiptForm.warehouseName = tempSelectedWarehouse.value.name
       showWarehousePicker.value = false
     }
   }
@@ -429,11 +438,11 @@
   const onItemSelect = (index) => {
     const item = receiptItems.value[index]
     if (!item.selected) {
-      item.receipt_quantity = ''
-      item.remark = ''
+      item.receiptQuantity = ''
+      item.remarks = ''
     } else {
       // 默认设置为待收数量
-      item.receipt_quantity = item.pending_quantity.toString()
+      item.receiptQuantity = String(item.pendingQuantity)
     }
   }
 
@@ -443,7 +452,7 @@
     if (isNaN(quantity) || quantity <= 0) {
       return '请输入有效的入库数量'
     }
-    if (quantity > item.pending_quantity) {
+    if (quantity > item.pendingQuantity) {
       return '入库数量不能超过待收数量'
     }
     return true
@@ -486,12 +495,12 @@
     try {
       await formRef.value?.validate()
 
-      if (!receiptForm.order_id) {
+      if (!receiptForm.orderId) {
         showToast('请选择采购订单')
         return
       }
 
-      if (!receiptForm.warehouse_id) {
+      if (!receiptForm.warehouseId) {
         showToast('请选择入库仓库')
         return
       }
@@ -503,8 +512,8 @@
 
       // 验证所有选中物料的入库数量
       for (const item of selectedItems.value) {
-        if (!item.receipt_quantity || parseFloat(item.receipt_quantity) <= 0) {
-          showToast(`请输入${item.material_name}的入库数量`)
+        if (!item.receiptQuantity || parseFloat(item.receiptQuantity) <= 0) {
+          showToast(`请输入${item.materialName}的入库数量`)
           return
         }
       }
@@ -512,19 +521,19 @@
       submitting.value = true
       showLoadingToast({ message: '保存中...', forbidClick: true })
 
+      // 纯 camel，后端 purchaseReceiptMap.fromApi
       const formData = {
-        receipt_no: receiptForm.receipt_no,
-        order_id: receiptForm.order_id,
-        receipt_date: receiptForm.receipt_date,
-        warehouse_id: receiptForm.warehouse_id,
-        total_amount: totalReceiptAmount.value,
-        remark: receiptForm.remark,
+        receiptNo: receiptForm.receiptNo || undefined,
+        orderId: receiptForm.orderId,
+        receiptDate: receiptForm.receiptDate,
+        warehouseId: receiptForm.warehouseId,
+        totalAmount: totalReceiptAmount.value,
+        remarks: receiptForm.remarks,
         items: selectedItems.value.map((item) => ({
-          material_id: item.material_id,
-          quantity: parseFloat(item.receipt_quantity),
-          unit_price: parseFloat(item.unit_price),
-          total_price: parseFloat(item.receipt_quantity) * parseFloat(item.unit_price),
-          remark: item.remark
+          materialId: item.materialId,
+          quantity: parseFloat(item.receiptQuantity),
+          unitPrice: parseFloat(item.unitPrice),
+          remarks: item.remarks
         }))
       }
 
@@ -554,7 +563,7 @@
     fetchWarehouses()
 
     // 设置默认入库日期为今天
-    receiptForm.receipt_date = new Date().toISOString().split('T')[0]
+    receiptForm.receiptDate = new Date().toISOString().split('T')[0]
 
     // 如果URL中有orderId参数，自动选择该订单
     const orderId = route.query.orderId
@@ -562,7 +571,7 @@
       const order = orderList.value.find((o) => o.id == orderId)
       if (order) {
         selectedOrder.value = order
-        receiptForm.order_id = order.id
+        receiptForm.orderId = order.id
         loadOrderItems(order.id)
       }
     }

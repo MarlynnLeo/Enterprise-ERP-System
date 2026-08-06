@@ -117,37 +117,37 @@
           <template #default="props">
             <div class="packing-detail">
               <el-descriptions :column="3" border>
-                <el-descriptions-item label="客户名称">{{ props.row.customer_name }}</el-descriptions-item>
-                <el-descriptions-item label="销售订单号">{{ props.row.sales_order_no || '-' }}</el-descriptions-item>
-                <el-descriptions-item label="装箱日期">{{ formatDate(props.row.packing_date) }}</el-descriptions-item>
-                <el-descriptions-item label="总箱数">{{ props.row.total_boxes || 0 }}</el-descriptions-item>
-                <el-descriptions-item label="总数量">{{ props.row.total_quantity || 0 }}</el-descriptions-item>
-                <el-descriptions-item label="创建人">{{ props.row.created_by || '-' }}</el-descriptions-item>
+                <el-descriptions-item label="客户名称">{{ props.row.customerName }}</el-descriptions-item>
+                <el-descriptions-item label="销售订单号">{{ props.row.salesOrderNo || '-' }}</el-descriptions-item>
+                <el-descriptions-item label="装箱日期">{{ formatDate(props.row.packingDate) }}</el-descriptions-item>
+                <el-descriptions-item label="总箱数">{{ props.row.totalBoxes || 0 }}</el-descriptions-item>
+                <el-descriptions-item label="总数量">{{ props.row.totalQuantity || 0 }}</el-descriptions-item>
+                <el-descriptions-item label="创建人">{{ props.row.createdBy || '-' }}</el-descriptions-item>
                 <el-descriptions-item label="备注" :span="3">{{ props.row.remark || '-' }}</el-descriptions-item>
               </el-descriptions>
 
               <div class="products-title">装箱明细</div>
               <el-table :data="props.row.details" border class="w-full" table-layout="fixed">
-                <el-table-column prop="item_no" label="编号" width="120">
+                <el-table-column prop="itemNo" label="编号" width="120">
                   <template #default="{ row }">
-                    {{ row.item_no || '-' }}
+                    {{ row.itemNo || '-' }}
                   </template>
                 </el-table-column>
-                <el-table-column prop="product_code" label="产品编码" width="120">
+                <el-table-column prop="productCode" label="产品编码" width="120">
                   <template #default="{ row }">
-                    {{ row.product_code || row.code || '-' }}
+                    {{ row.productCode || row.code || '-' }}
                   </template>
                 </el-table-column>
-                <el-table-column prop="product_name" label="产品名称" />
-                <el-table-column prop="product_specs" label="规格型号" />
+                <el-table-column prop="productName" label="产品名称" />
+                <el-table-column prop="productSpecs" label="规格型号" />
                 <el-table-column prop="quantity" label="数量" width="100" />
-                <el-table-column prop="unit_name" label="单位" width="80" />
+                <el-table-column prop="unitName" label="单位" width="80" />
                 <el-table-column prop="remark" label="备注" />
               </el-table>
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="packing_list_no" :width="getColumnWidth('packing_list_no', 150)" fixed sortable="custom" resizable>
+        <el-table-column prop="packingListNo" :width="getColumnWidth('packing_list_no', 150)" fixed sortable="custom" resizable>
           <template #header>
             <el-popover
               placement="bottom"
@@ -163,11 +163,11 @@
           </template>
           <template #default="scope">
             <el-link type="primary" @click="handleView(scope.row)">
-              {{ scope.row.packing_list_no || '未知' }}
+              {{ scope.row.packingListNo || '未知' }}
             </el-link>
           </template>
         </el-table-column>
-        <el-table-column prop="customer_name" :min-width="getColumnWidth('customer_name', 150)" resizable>
+        <el-table-column prop="customerName" :min-width="getColumnWidth('customer_name', 150)" resizable>
           <template #header>
             <el-popover
               placement="bottom"
@@ -182,17 +182,17 @@
             </el-popover>
           </template>
         </el-table-column>
-        <el-table-column prop="sales_order_no" label="销售订单号" :width="getColumnWidth('sales_order_no', 150)" resizable>
+        <el-table-column prop="salesOrderNo" label="销售订单号" :width="getColumnWidth('sales_order_no', 150)" resizable>
           <template #default="scope">
-            <el-link v-if="scope.row.sales_order_no" type="info" @click="handleViewSalesOrder(scope.row)">
-              {{ scope.row.sales_order_no }}
+            <el-link v-if="scope.row.salesOrderNo" type="info" @click="handleViewSalesOrder(scope.row)">
+              {{ scope.row.salesOrderNo }}
             </el-link>
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="packing_date" label="装箱日期" :width="getColumnWidth('packing_date', 120)" sortable="custom" resizable>
+        <el-table-column prop="packingDate" label="装箱日期" :width="getColumnWidth('packing_date', 120)" sortable="custom" resizable>
           <template #default="scope">
-            {{ formatDate(scope.row.packing_date) }}
+            {{ formatDate(scope.row.packingDate) }}
           </template>
         </el-table-column>
         <el-table-column prop="status" label="状态" :width="getColumnWidth('status', 100)" resizable>
@@ -202,15 +202,15 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="total_boxes" label="总箱数" :width="getColumnWidth('total_boxes', 100)" resizable>
+        <el-table-column prop="totalBoxes" label="总箱数" :width="getColumnWidth('total_boxes', 100)" resizable>
         </el-table-column>
-        <el-table-column prop="total_quantity" label="总数量" :width="getColumnWidth('total_quantity', 100)" resizable>
+        <el-table-column prop="totalQuantity" label="总数量" :width="getColumnWidth('total_quantity', 100)" resizable>
         </el-table-column>
-        <el-table-column prop="created_by" label="创建人" :width="getColumnWidth('created_by', 100)" resizable>
+        <el-table-column prop="createdBy" label="创建人" :width="getColumnWidth('created_by', 100)" resizable>
         </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" :width="getColumnWidth('created_at', 150)" sortable="custom" resizable>
+        <el-table-column prop="createdAt" label="创建时间" :width="getColumnWidth('created_at', 150)" sortable="custom" resizable>
           <template #default="scope">
-            {{ formatDate(scope.row.created_at) }}
+            {{ formatDate(scope.row.createdAt) }}
           </template>
         </el-table-column>
         <el-table-column label="操作" :width="getColumnWidth('operations', 320)" min-width="320" fixed="right" resizable align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
@@ -266,22 +266,22 @@
       </div>
     </el-card>
     <!-- 新增/编辑装箱单对话框 -->
-    <el-dialog
+    <AppDialog
       v-model="dialogVisible"
       :title="dialogType === 'add' ? '新增装箱单' : '编辑装箱单'"
-      width="80%"
-      destroy-on-close
+      mode="form"
+      wide
     >
         <el-form :model="form" :rules="rules" ref="formRef" label-width="120px">
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="装箱单号" prop="packing_list_no">
-              <el-input v-model="form.packing_list_no" placeholder="系统自动生成" readonly></el-input>
+            <el-form-item label="装箱单号" prop="packingListNo">
+              <el-input v-model="form.packingListNo" placeholder="系统自动生成" readonly></el-input>
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="客户编号" prop="customer_code">
-              <el-input v-model="form.customer_code" placeholder="请输入客户编号" class="w-full" @blur="handleCustomerCodeBlur">
+            <el-form-item label="客户编号" prop="customerCode">
+              <el-input v-model="form.customerCode" placeholder="请输入客户编号" class="w-full" @blur="handleCustomerCodeBlur">
                 <template #append>
                   <el-button @click="searchCustomerByCode">查询</el-button>
                 </template>
@@ -291,8 +291,8 @@
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="销售订单号" prop="sales_order_no">
-              <el-input v-model="form.sales_order_no" placeholder="请输入销售订单号" class="w-full" @blur="handleSalesOrderNoBlur">
+            <el-form-item label="销售订单号" prop="salesOrderNo">
+              <el-input v-model="form.salesOrderNo" placeholder="请输入销售订单号" class="w-full" @blur="handleSalesOrderNoBlur">
                 <template #append>
                   <el-button @click="searchSalesOrderByNo">查询</el-button>
                 </template>
@@ -300,9 +300,9 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="装箱日期" prop="packing_date">
+            <el-form-item label="装箱日期" prop="packingDate">
               <el-date-picker
-                v-model="form.packing_date"
+                v-model="form.packingDate"
                 type="date"
                 placeholder="选择装箱日期"
                 format="YYYY-MM-DD"
@@ -315,12 +315,12 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="客户名称">
-              <el-input v-model="form.customer_name" placeholder="客户名称" readonly class="w-full"></el-input>
+              <el-input v-model="form.customerName" placeholder="客户名称" readonly class="w-full"></el-input>
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="订单金额">
-              <el-input v-model="form.order_amount" placeholder="订单金额" readonly class="w-full"></el-input>
+              <el-input v-model="form.orderAmount" placeholder="订单金额" readonly class="w-full"></el-input>
             </el-form-item>
           </el-col>
         </el-row>
@@ -351,7 +351,7 @@
               <el-table-column label="编号" width="120">
                 <template #default="scope">
                   <el-input
-                    v-model="scope.row.item_no"
+                    v-model="scope.row.itemNo"
                     placeholder="自动生成"
                     readonly
                     style="width: 100%; text-align: center;"
@@ -362,7 +362,7 @@
               <el-table-column label="产品" width="220">
                 <template #default="scope">
                   <el-select
-                    v-model="scope.row.product_id"
+                    v-model="scope.row.productId"
                     placeholder="请输入或选择物料"
                     class="w-full"
                     filterable
@@ -384,12 +384,12 @@
               </el-table-column>
               <el-table-column label="产品名称" width="200">
                 <template #default="scope">
-                  <el-input v-model="scope.row.product_name" placeholder="产品名称" readonly class="w-full"></el-input>
+                  <el-input v-model="scope.row.productName" placeholder="产品名称" readonly class="w-full"></el-input>
                 </template>
               </el-table-column>
               <el-table-column label="规格型号" width="150">
                 <template #default="scope">
-                  <el-input v-model="scope.row.product_specs" placeholder="规格型号" readonly class="w-full"></el-input>
+                  <el-input v-model="scope.row.productSpecs" placeholder="规格型号" readonly class="w-full"></el-input>
                 </template>
               </el-table-column>
               <el-table-column label="数量" width="100">
@@ -407,7 +407,7 @@
               <el-table-column label="单位编号" width="100">
                 <template #default="scope">
                   <el-input
-                    v-model="scope.row.unit_code"
+                    v-model="scope.row.unitCode"
                     placeholder="请输入单位编号"
                     class="w-full"
                     @blur="handleUnitCodeBlur($event, scope.$index)">
@@ -419,7 +419,7 @@
               </el-table-column>
               <el-table-column label="单位名称" width="100">
                 <template #default="scope">
-                  <el-input v-model="scope.row.unit_name" placeholder="单位名称" readonly class="w-full"></el-input>
+                  <el-input v-model="scope.row.unitName" placeholder="单位名称" readonly class="w-full"></el-input>
                 </template>
               </el-table-column>
               <el-table-column label="备注" width="150">
@@ -449,7 +449,7 @@
           <el-button type="primary" v-permission="dialogType === 'add' ? 'sales:packing:create' : 'sales:packing:update'" @click="handleSubmit">确定</el-button>
         </span>
       </template>
-    </el-dialog>
+        </AppDialog>
     <!-- 查看装箱单详情对话框 -->
     <AppDialog
       v-model="detailsVisible"
@@ -461,7 +461,7 @@
         <!-- 装箱单基本信息 -->
         <el-descriptions :column="3" border>
           <el-descriptions-item label="装箱单号">{{ currentPackingList.packing_list_no }}</el-descriptions-item>
-          <el-descriptions-item label="客户名称">{{ currentPackingList.customer_name }}</el-descriptions-item>
+          <el-descriptions-item label="客户名称">{{ currentPackingList.customerName }}</el-descriptions-item>
           <el-descriptions-item label="销售订单号">{{ currentPackingList.sales_order_no || '-' }}</el-descriptions-item>
           <el-descriptions-item label="装箱日期">{{ formatDate(currentPackingList.packing_date) }}</el-descriptions-item>
           <el-descriptions-item label="状态">
@@ -472,27 +472,27 @@
           <el-descriptions-item label="总箱数">{{ currentPackingList.total_boxes || 0 }}</el-descriptions-item>
           <el-descriptions-item label="总数量">{{ currentPackingList.total_quantity || 0 }}</el-descriptions-item>
           <el-descriptions-item label="创建人">{{ currentPackingList.created_by || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="创建时间">{{ formatDate(currentPackingList.created_at) }}</el-descriptions-item>
+          <el-descriptions-item label="创建时间">{{ formatDate(currentPackingList.createdAt) }}</el-descriptions-item>
           <el-descriptions-item label="备注" :span="3">{{ currentPackingList.remark || '-' }}</el-descriptions-item>
         </el-descriptions>
 
         <!-- 装箱明细列表 -->
         <div class="products-title">装箱明细</div>
         <el-table :data="currentPackingList.details" border class="w-full" table-layout="fixed">
-          <el-table-column prop="item_no" label="编号" width="120">
+          <el-table-column prop="itemNo" label="编号" width="120">
             <template #default="{ row }">
-              {{ row.item_no || '-' }}
+              {{ row.itemNo || '-' }}
             </template>
           </el-table-column>
-          <el-table-column prop="product_code" label="产品编码" width="120">
+          <el-table-column prop="productCode" label="产品编码" width="120">
             <template #default="{ row }">
-              {{ row.product_code || row.code || '-' }}
+              {{ row.productCode || row.code || '-' }}
             </template>
           </el-table-column>
-          <el-table-column prop="product_name" label="产品名称" />
-          <el-table-column prop="product_specs" label="规格型号" />
+          <el-table-column prop="productName" label="产品名称" />
+          <el-table-column prop="productSpecs" label="规格型号" />
           <el-table-column prop="quantity" label="数量" width="100" />
-          <el-table-column prop="unit_name" label="单位" width="80" />
+          <el-table-column prop="unitName" label="单位" width="80" />
           <el-table-column prop="remark" label="备注" />
         </el-table>
       </div>
@@ -728,8 +728,8 @@ const normalizePackingListsData = (packingLists) => {
   if (!Array.isArray(packingLists)) return [];
   return packingLists.map(packingList => ({
     ...packingList,
-    packing_date: packingList.packing_date || packingList.packingDate,
-    updated_at: packingList.updated_at || packingList.created_at || new Date().toISOString(),
+    packing_date: packingList.packingDate,
+    updated_at: packingList.updatedAt || packingList.createdAt || new Date().toISOString(),
     // 确保数值字段为数字类型
     total_boxes: parseInt(packingList.total_boxes) || 0,
     total_quantity: parseInt(packingList.total_quantity) || 0,
@@ -762,7 +762,7 @@ const fetchSalesOrders = async () => {
     const dataArray = parseListData(response, { enableLog: false });
     // 过滤掉无效的数据
     salesOrderOptions.value = dataArray.filter(item =>
-      item && item.id !== undefined && item.id !== null && item.order_no
+      item && item.id !== undefined && item.id !== null && item.orderNo
     );
   } catch (error) {
     console.error('获取销售订单数据失败:', error);
@@ -857,15 +857,15 @@ const updateNumbers = () => {
       const endNumber = startNumber + n - 1;
       // 如果n=1，只显示单个编号；如果n>1，显示范围
       if (n === 1) {
-        detail.item_no = `NO.${startNumber}`;
+        detail.itemNo = `NO.${startNumber}`;
       } else {
-        detail.item_no = `NO.${startNumber}-${endNumber}`;
+        detail.itemNo = `NO.${startNumber}-${endNumber}`;
       }
       // 更新起始编号为下一个编号
       startNumber = endNumber + 1;
     } else {
       // 如果数量小于或等于0，或非数字，留空
-      detail.item_no = '';
+      detail.itemNo = '';
     }
   }
 };
@@ -928,8 +928,8 @@ const handleSortChange = ({ prop, order }) => {
   } else if (prop === 'created_at') {
     const sortOrder = order === 'descending' ? 'desc' : 'asc';
     tableData.value.sort((a, b) => {
-      const createdAtA = a.created_at;
-      const createdAtB = b.created_at;
+      const createdAtA = a.createdAt;
+      const createdAtB = b.createdAt;
 
       const comparison = createdAtA.localeCompare(createdAtB);
       return sortOrder === 'desc' ? -comparison : comparison;
@@ -996,7 +996,7 @@ const handleEdit = async (row) => {
     Object.assign(form, {
       id: packingListData.id,
       packing_list_no: packingListData.packing_list_no,
-      customer_id: packingListData.customer_id,
+      customer_id: packingListData.customerId,
       sales_order_id: packingListData.sales_order_id,
       packing_date: packingListData.packing_date,
       status: packingListData.status,
@@ -1008,8 +1008,8 @@ const handleEdit = async (row) => {
       form.details = packingListData.details.map(detail => ({
         ...detail,
         quantity: Number(detail.quantity) || 0,
-        unit_code: detail.unit_code || '',
-        unit_name: detail.unit_name || '',
+        unit_code: detail.unitCode || '',
+        unit_name: detail.unitName || '',
         remark: detail.remark || ''
       }));
     }
@@ -1055,7 +1055,7 @@ const handleViewSalesOrder = (_row) => {
 const handleDelete = async (row) => {
   try {
     await ElMessageBox.confirm(
-      `确定要删除装箱单 "${row.packing_list_no}" 吗？`,
+      `确定要删除装箱单 "${row.packingListNo}" 吗？`,
       '确认删除',
       {
         confirmButtonText: '确定',
@@ -1123,16 +1123,16 @@ const removeDetail = (index) => {
 const handleProductChange = (productId, index) => {
   const product = productOptions.value.find(item => item.id === productId);
   if (product) {
-    form.details[index].product_code = product.code; // 设置产品编号
-    form.details[index].product_name = product.name;
+    form.details[index].productCode = product.code; // 设置产品编号
+    form.details[index].productName = product.name;
     form.details[index].product_specs = product.specs || product.specification || '';
-    form.details[index].product_id = product.id; // 保存产品ID
+    form.details[index].productId = product.id; // 保存产品ID
     // 设置默认单位
-    if (product.unit_id) {
-      form.details[index].unit_id = product.unit_id;
+    if (product.unitId) {
+      form.details[index].unitId = product.unitId;
     }
-    if (product.unit_name) {
-      form.details[index].unit_name = product.unit_name;
+    if (product.unitName) {
+      form.details[index].unitName = product.unitName;
     }
   }
   // 产品变更后自动更新编号
@@ -1143,11 +1143,11 @@ const handleUnitCodeBlur = (event, index) => {
   const unitCode = event.target.value.trim();
   const unit = unitOptions.value.find(item => item.code === unitCode);
   if (unit) {
-    form.details[index].unit_name = unit.name;
-    form.details[index].unit_id = unit.id; // 保存单位ID
+    form.details[index].unitName = unit.name;
+    form.details[index].unitId = unit.id; // 保存单位ID
   } else {
-    form.details[index].unit_name = '';
-    form.details[index].unit_id = '';
+    form.details[index].unitName = '';
+    form.details[index].unitId = '';
     ElMessage.warning('未找到单位，请检查编号或添加该单位');
   }
   // 单位变更后自动更新编号
@@ -1168,12 +1168,12 @@ const searchUnitByCode = async (index) => {
     const units = parseListData(response, { enableLog: false });
     const unit = units.find(u => u.code === unitCode);
     if (unit) {
-      form.details[index].unit_name = unit.name;
-      form.details[index].unit_id = unit.id; // 保存单位ID
+      form.details[index].unitName = unit.name;
+      form.details[index].unitId = unit.id; // 保存单位ID
       ElMessage.success(`找到单位: ${unit.name}`);
     } else {
-      form.details[index].unit_name = '';
-      form.details[index].unit_id = '';
+      form.details[index].unitName = '';
+      form.details[index].unitId = '';
       ElMessage.warning(`未找到单位 "${unitCode}"，请检查编号或添加该单位`);
     }
     updateNumbers();
@@ -1195,7 +1195,7 @@ const handleSubmit = async () => {
     await formRef.value.validate();
     const submitData = {
       ...form,
-      packing_date: form.packing_date,
+      packing_date: form.packingDate,
       details: form.details.map(detail => ({
         ...detail,
         quantity: Number(detail.quantity) || 0
@@ -1267,13 +1267,13 @@ const handleExport = () => {
     const csvContent = [
       headers.join(','),
       ...exportData.map(row => [
-        row.packing_no || '',
-        row.customer_name || '',
-        row.delivery_date || '',
-        row.total_boxes || 0,
-        row.total_quantity || 0,
-        row.total_weight || 0,
-        row.total_volume || 0,
+        row.packingNo || '',
+        row.customerName || '',
+        row.deliveryDate || '',
+        row.totalBoxes || 0,
+        row.totalQuantity || 0,
+        row.totalWeight || 0,
+        row.totalVolume || 0,
         getStatusLabel(row.status),
         (row.notes || '').replace(/,/g, '，') // 替换逗号避免CSV格式问题
       ].join(','))
@@ -1304,7 +1304,7 @@ const getStatusLabel = (status) => {
 };
 // 客户编号搜索
 const searchCustomerByCode = async () => {
-  const customerCode = form.customer_code.trim();
+  const customerCode = form.customerCode.trim();
   if (!customerCode) {
     ElMessage.warning('请先输入客户编号');
     return;
@@ -1317,12 +1317,12 @@ const searchCustomerByCode = async () => {
     const customers = parseListData(response, { enableLog: false });
     const customer = customers.find(c => c.code === customerCode);
     if (customer) {
-      form.customer_name = customer.name;
-      form.customer_id = customer.id;
+      form.customerName = customer.name;
+      form.customerId = customer.id;
       ElMessage.success(`找到客户: ${customer.name}`);
     } else {
-      form.customer_name = '';
-      form.customer_id = '';
+      form.customerName = '';
+      form.customerId = '';
       ElMessage.warning(`未找到客户 "${customerCode}"，请检查编号或添加该客户`);
     }
   } catch (error) {
@@ -1339,7 +1339,7 @@ const handleCustomerCodeBlur = (event) => {
 };
 // 销售订单号搜索
 const searchSalesOrderByNo = async () => {
-  const salesOrderNo = form.sales_order_no.trim();
+  const salesOrderNo = form.salesOrderNo.trim();
   if (!salesOrderNo) {
     ElMessage.warning('请先输入销售订单号');
     return;
@@ -1350,14 +1350,14 @@ const searchSalesOrderByNo = async () => {
       pageSize: 20
     });
     const salesOrders = parseListData(response, { enableLog: false });
-    const salesOrder = salesOrders.find(s => s.order_no === salesOrderNo);
+    const salesOrder = salesOrders.find(s => s.orderNo === salesOrderNo);
     if (salesOrder) {
-      form.sales_order_id = salesOrder.id;
-      form.order_amount = salesOrder.total_amount || salesOrder.totalAmount || '0.00';
+      form.salesOrderId = salesOrder.id;
+      form.orderAmount = salesOrder.totalAmount || '0.00';
       ElMessage.success(`找到销售订单: ${salesOrderNo}`);
     } else {
-      form.sales_order_id = '';
-      form.order_amount = '';
+      form.salesOrderId = '';
+      form.orderAmount = '';
       ElMessage.warning(`未找到销售订单 "${salesOrderNo}"，请检查订单号`);
     }
   } catch (error) {

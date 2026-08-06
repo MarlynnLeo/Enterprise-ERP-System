@@ -7,6 +7,7 @@
 
 const { ResponseHandler } = require('../../utils/responseHandler');
 const { logger } = require('../../utils/logger');
+const { mapKeysToSnake } = require('../../utils/fieldMap');
 
 const systemModel = require('../../models/system');
 const { AuditService } = require('../../services/AuditService');
@@ -110,7 +111,7 @@ const systemController = {
     try {
       const { page = 1, limit, pageSize, ...filters } = req.query;
       const effectiveLimit = limit || pageSize || 10;
-      const result = await systemModel.getAllUsers(parseInt(page), parseInt(effectiveLimit), filters);
+      const result = await systemModel.getAllUsers(parseInt(page), parseInt(effectiveLimit), mapKeysToSnake(filters));
       ResponseHandler.paginated(
         res,
         result.list,
@@ -150,7 +151,10 @@ const systemController = {
 
   async createUser(req, res) {
     try {
-      const userData = req.body;
+      const userData = mapKeysToSnake(req.body || {});
+      // model 使用 roleIds（非 DB 列）；snake 化后需回填
+      if (req.body?.roleIds !== undefined) userData.roleIds = req.body.roleIds;
+      else if (userData.role_ids !== undefined) userData.roleIds = userData.role_ids;
       const newUser = await systemModel.createUser(userData, {
         allowAdminRole: await isSuperAdminRequest(req),
       });
@@ -186,7 +190,9 @@ const systemController = {
   async updateUser(req, res) {
     try {
       const { id } = req.params;
-      const userData = req.body;
+      const userData = mapKeysToSnake(req.body || {});
+      if (req.body?.roleIds !== undefined) userData.roleIds = req.body.roleIds;
+      else if (userData.role_ids !== undefined) userData.roleIds = userData.role_ids;
 
       await assertCanManageTargetUser(req, id);
 
@@ -278,7 +284,7 @@ const systemController = {
   // 部门管理
   async getAllDepartments(req, res) {
     try {
-      const filters = req.query;
+      const filters = mapKeysToSnake(req.query || {});
       const departments = await systemModel.getAllDepartments(filters);
 
       // 确保返回的始终是数组
@@ -309,7 +315,7 @@ const systemController = {
 
   async createDepartment(req, res) {
     try {
-      const departmentData = req.body;
+      const departmentData = mapKeysToSnake(req.body || {});
       const newDepartment = await systemModel.createDepartment(departmentData);
 
       ResponseHandler.success(
@@ -331,7 +337,7 @@ const systemController = {
   async updateDepartment(req, res) {
     try {
       const { id } = req.params;
-      const departmentData = req.body;
+      const departmentData = mapKeysToSnake(req.body || {});
 
 
       const result = await systemModel.updateDepartment(id, departmentData);
@@ -402,7 +408,7 @@ const systemController = {
       delete filters.limit;
       delete filters.pageSize;
 
-      const result = await systemModel.getAllRoles(pagination.page, pagination.pageSize, filters);
+      const result = await systemModel.getAllRoles(pagination.page, pagination.pageSize, mapKeysToSnake(filters));
       ResponseHandler.paginated(
         res,
         result.list,
@@ -435,7 +441,10 @@ const systemController = {
 
   async createRole(req, res) {
     try {
-      const roleData = req.body;
+      const roleData = mapKeysToSnake(req.body || {});
+      // model 使用 menuIds（非 DB 列）；snake 化后需回填
+      if (req.body?.menuIds !== undefined) roleData.menuIds = req.body.menuIds;
+      else if (roleData.menu_ids !== undefined) roleData.menuIds = roleData.menu_ids;
       // 新建角色默认 SELF；仅允许 1-5
       if (roleData.data_scope === undefined || roleData.data_scope === null || roleData.data_scope === '') {
         roleData.data_scope = 4;
@@ -464,7 +473,9 @@ const systemController = {
   async updateRole(req, res) {
     try {
       const { id } = req.params;
-      const roleData = req.body;
+      const roleData = mapKeysToSnake(req.body || {});
+      if (req.body?.menuIds !== undefined) roleData.menuIds = req.body.menuIds;
+      else if (roleData.menu_ids !== undefined) roleData.menuIds = roleData.menu_ids;
 
       const targetIsSuperAdmin = await roleIsSuperAdmin(id);
       if (targetIsSuperAdmin && !(await isSuperAdminRequest(req))) {
@@ -580,7 +591,7 @@ const systemController = {
   // 菜单管理
   async getAllMenus(req, res) {
     try {
-      const result = await systemModel.getAllMenus(req.query);
+      const result = await systemModel.getAllMenus(mapKeysToSnake(req.query || {}));
       ResponseHandler.success(res, result, '获取菜单列表成功');
     } catch (error) {
       logger.error('获取菜单列表失败:', error);
@@ -606,7 +617,7 @@ const systemController = {
 
   async createMenu(req, res) {
     try {
-      const menuData = req.body;
+      const menuData = mapKeysToSnake(req.body || {});
       const newMenu = await systemModel.createMenu(menuData);
       await PermissionService.clearUserPermissionsCache();
 
@@ -620,7 +631,7 @@ const systemController = {
   async updateMenu(req, res) {
     try {
       const { id } = req.params;
-      const menuData = req.body;
+      const menuData = mapKeysToSnake(req.body || {});
 
 
       const result = await systemModel.updateMenu(id, menuData);
@@ -955,8 +966,15 @@ const systemController = {
         let updatedCount = 0;
         const { bindMenuPermission } = require('../../services/PermissionRegistry');
 
+        const { normalizePermissionCode } = require('../../services/PermissionRegistry');
         // 批量查出所有已存在的菜单 permission（消除 N+1）
-        const allPermissions = menus.map(m => m.permission).filter(Boolean);
+        const allPermissions = [
+          ...new Set(
+            menus
+              .map((m) => (m.permission ? normalizePermissionCode(String(m.permission).trim()) : null))
+              .filter(Boolean)
+          ),
+        ];
         const permPh = allPermissions.map(() => '?').join(',');
         const [existingMenus] = allPermissions.length > 0
           ? await connection.execute(`SELECT id, permission FROM menus WHERE permission IN (${permPh})`, allPermissions)
@@ -968,19 +986,22 @@ const systemController = {
           // 使用 INSERT ... ON DUPLICATE KEY UPDATE 减少逐条查询
           const visible = menu.visible !== undefined ? normalizeBinaryStatus(menu.visible) : 1;
           const status = menu.status !== undefined ? normalizeBinaryStatus(menu.status) : 1;
+          const permission = menu.permission
+            ? normalizePermissionCode(String(menu.permission).trim())
+            : null;
           const params = [
             menu.parentId || 0, menu.name, menu.path || '', menu.component || '',
             menu.icon || '', menu.type || 1, visible, status, menu.sort || 0,
           ];
           let menuId = null;
-          if (menu.permission && existingSet.has(menu.permission)) {
+          if (permission && existingSet.has(permission)) {
             await connection.execute(
               `UPDATE menus SET parent_id = ?, name = ?, path = ?, component = ?, icon = ?,
-               type = ?, visible = ?, status = ?, sort_order = ?, updated_at = NOW()
-               WHERE permission = ?`,
-              [...params, menu.permission]
+               type = ?, visible = ?, status = ?, sort_order = ?, permission = ?, updated_at = NOW()
+               WHERE permission = ? OR id = ?`,
+              [...params, permission, permission, existingIdByPerm.get(permission)]
             );
-            menuId = existingIdByPerm.get(menu.permission);
+            menuId = existingIdByPerm.get(permission);
             updatedCount++;
           } else {
             const [ins] = await connection.execute(
@@ -988,19 +1009,19 @@ const systemController = {
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
               [
                 menu.parentId || 0, menu.name, menu.path || '', menu.component || '',
-                menu.icon || '', menu.permission, menu.type || 1, visible, status, menu.sort || 0,
+                menu.icon || '', permission, menu.type || 1, visible, status, menu.sort || 0,
               ]
             );
             menuId = ins.insertId;
-            if (menu.permission) {
-              existingSet.add(menu.permission);
-              existingIdByPerm.set(menu.permission, menuId);
+            if (permission) {
+              existingSet.add(permission);
+              existingIdByPerm.set(permission, menuId);
             }
             insertedCount++;
           }
-          // 同步 permissions SSOT
-          if (menuId && menu.permission) {
-            await bindMenuPermission(connection, menuId, menu.permission, menu.name);
+          // 同步 permissions SSOT + permission_id
+          if (menuId && permission) {
+            await bindMenuPermission(connection, menuId, permission, menu.name);
           }
         }
 
@@ -1178,6 +1199,7 @@ const systemController = {
     try {
       const { status = 'pending', page = 1, pageSize = 50 } = req.query;
       const result = await DLQService.listFailedJobs({ status, page, pageSize });
+      
       return ResponseHandler.paginated(
         res,
         result.list,

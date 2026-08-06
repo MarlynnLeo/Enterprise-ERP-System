@@ -128,7 +128,7 @@
       </div>
       <!-- 无数据提示 -->
       <div class="empty-tip" v-if="!loading && !hasData">
-        <el-empty description='请选择截止日期并点击"生成报表"按钮'></el-empty>
+        <EmptyState description='请选择截止日期并点击"生成报表"按钮' />
       </div>
     </el-card>
   </div>

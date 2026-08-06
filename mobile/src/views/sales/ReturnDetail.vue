@@ -16,15 +16,15 @@
           {{ getDictText(SALES_RETURN_STATUS, detail.status) }}
         </div>
         <div class="detail-code">
-          {{ detail.return_no || detail.return_code || `退货单#${detail.id}` }}
+          {{ detail.returnNo || detail.returnCode || `退货单#${detail.id}` }}
         </div>
       </div>
 
       <CellGroup inset title="退货信息">
-        <Cell title="客户名称" :value="detail.customer_name || '--'" />
-        <Cell title="关联订单" :value="detail.order_code || '--'" />
-        <Cell title="退货日期" :value="formatDate(detail.return_date || detail.created_at)" />
-        <Cell title="退货金额" :value="detail.total_amount ? `¥${detail.total_amount}` : '--'" />
+        <Cell title="客户名称" :value="detail.customerName || '--'" />
+        <Cell title="关联订单" :value="detail.orderCode || '--'" />
+        <Cell title="退货日期" :value="formatDate(detail.returnDate || detail.createdAt)" />
+        <Cell title="退货金额" :value="(detail.totalAmount) ? `¥${detail.totalAmount}` : '--'" />
         <Cell title="退货原因" :value="detail.reason || '--'" />
       </CellGroup>
 
@@ -32,7 +32,7 @@
         <Cell
           v-for="(item, index) in detail.items"
           :key="index"
-          :title="item.material_name || item.product_name || `物料#${item.material_id}`"
+          :title="item.materialName || item.productName || item.materialName || item.productName || `物料#${item.materialId}`"
           :value="`${item.quantity} ${item.unit || '件'}`"
           :label="`退货原因: ${item.reason || '--'}`"
         />
