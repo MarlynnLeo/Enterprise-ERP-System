@@ -77,6 +77,8 @@
   --shell-sidebar-accent: var(--color-pink, #ff6b9d);
   --shell-sidebar-indicator-width: 4px;
   --shell-sidebar-active-shadow: inset 0 0 20px color-mix(in srgb, var(--color-bg-overlay) 30%, transparent);
+  /* 激活项加粗（公共壳默认 600，活力主题 700） */
+  --shell-sidebar-active-weight: 700;
 
   /* 活力主题特有颜色（彩虹配色） */
   --color-pink: #FF6B9D;              /* 粉红 */
@@ -187,11 +189,6 @@
   border-radius: 0 !important;
 }
 
-[data-theme="vibrant"] .sidebar .el-menu-item.is-active,
-[data-theme="vibrant"] .app-sidebar .el-menu-item.is-active {
-  font-weight: 700 !important;
-}
-
 /* 顶部导航栏活力化 */
 [data-theme="vibrant"] .header, [data-theme="vibrant"] .el-header {
   background: var(--color-bg-base) !important;
@@ -211,20 +208,24 @@
 }
 
 /* 表格/输入：共享壳 + 活力表头渐变 */
+:root[data-theme="vibrant"] {
+  --radius-md: 12px;
+  --radius-lg: 12px;
+}
+
 [data-theme="vibrant"] .el-table {
-  border-radius: 12px !important;
   border: 2px solid var(--color-border-light) !important;
 }
 
 [data-theme="vibrant"] .el-table th.el-table__cell {
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-pink, var(--color-danger)) 100%) !important;
+  background: linear-gradient(
+    135deg,
+    var(--color-primary) 0%,
+    var(--color-pink, var(--color-danger)) 100%
+  ) !important;
   color: var(--color-on-primary) !important;
   font-weight: 700 !important;
   border: none !important;
-}
-
-[data-theme="vibrant"] .el-input__wrapper {
-  border-radius: 12px !important;
 }
 
 [data-theme="vibrant"] .el-input__wrapper.is-focus {

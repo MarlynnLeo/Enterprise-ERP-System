@@ -141,6 +141,7 @@
   /* kacon 轨道指示条：宽度 0=隐藏；3px=显示 */
   --shell-sidebar-rail-width: 0px;
   --shell-sidebar-rail-color: var(--color-on-primary, #fff);
+  --shell-sidebar-active-weight: 600;
   --shell-shadow: var(--shadow-card, var(--shadow-sm));
   --shell-shadow-hover: var(--shadow-card-hover, var(--shadow-md));
   --shell-radius-sm: var(--radius-sm);

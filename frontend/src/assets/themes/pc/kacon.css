@@ -1251,10 +1251,6 @@
    64. 表格空数据 / 描述列表 / Alert 子元素
    ================================================================== */
 
-[data-theme="kacon"] .el-table__empty-block {
-  background: var(--color-bg-base) !important;
-}
-
 [data-theme="kacon"] .el-descriptions__body .el-descriptions__cell {
   border-color: color-mix(in srgb, var(--color-border-base) 70%, transparent) !important;
 }

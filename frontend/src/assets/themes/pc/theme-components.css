@@ -65,6 +65,10 @@
   color: var(--color-text-placeholder, var(--color-text-secondary)) !important;
 }
 
+[data-theme] .el-table__empty-block {
+  background: transparent !important;
+}
+
 /* ========== 输入 / 选择 ========== */
 [data-theme] .el-input__wrapper {
   border-radius: var(--radius-md, 8px) !important;
@@ -459,7 +463,7 @@
     )
   ) !important;
   color: var(--shell-sidebar-active-text, var(--color-on-primary, #fff)) !important;
-  font-weight: 600 !important;
+  font-weight: var(--shell-sidebar-active-weight, 600) !important;
   border-left-color: var(--shell-sidebar-accent, var(--color-primary)) !important;
   box-shadow: var(--shell-sidebar-active-shadow, none) !important;
 }

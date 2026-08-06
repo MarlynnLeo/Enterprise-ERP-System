@@ -146,17 +146,17 @@
     },
     {
       "file": "frontend/src/views/finance/ap/Invoices.vue",
-      "line": 1045,
+      "line": 1166,
       "snippet": "material_code: item.materialCode || '',"
     },
     {
       "file": "frontend/src/views/finance/ap/Invoices.vue",
-      "line": 1063,
+      "line": 1184,
       "snippet": "order_no: invoiceDetail.value.orderNumber || invoiceDetail.value.orderNo || '',"
     },
     {
       "file": "frontend/src/views/finance/ar/Invoices.vue",
-      "line": 769,
+      "line": 874,
       "snippet": "order_no: '',"
     },
     {
@@ -196,12 +196,12 @@
     },
     {
       "file": "frontend/src/views/sales/SalesOrders.vue",
-      "line": 876,
+      "line": 879,
       "snippet": "order_no: order.orderNo || '',"
     },
     {
       "file": "frontend/src/views/sales/SalesReturns.vue",
-      "line": 752,
+      "line": 762,
       "snippet": "order_no: ret.orderNo || '',"
     }
   ],

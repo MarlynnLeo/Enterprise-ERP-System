@@ -166,28 +166,25 @@
 }
 
 /* ==================== Element Plus 组件样式优化 ==================== */
-/* 表格密度/hover/选中 → theme-components；default 仅 current-row 左边强调 */
+/* 表格/输入/分页/菜单 → theme-components；default 仅保留差异化与语义色 */
+
+/* 表格 current-row 左边强调（共享壳无此条） */
 :root[data-theme="default"] .el-table__body tr.current-row > td.el-table__cell {
   border-left: 3px solid var(--color-primary);
 }
 
-/* 表单标签；输入 focus/圆角 → theme-components + theme-compat */
+/* 表单标签字重 */
 :root[data-theme="default"] .el-form-item__label {
   font-weight: var(--font-weight-medium);
   color: var(--color-text-primary);
 }
 
-:root[data-theme="default"] .el-input__wrapper,
-:root[data-theme="default"] .el-textarea__inner {
-  border-radius: var(--radius-sm);
-}
-
-/* 对话框圆角 token；header/footer 视觉 → theme-compat */
+/* 对话框圆角 token（header/footer 视觉 → theme-compat） */
 :root[data-theme="default"] {
   --theme-dialog-radius: var(--radius-lg);
 }
 
-/* 标签语义色 */
+/* 标签语义色（各 type 的 bg/文字） */
 :root[data-theme="default"] .el-tag {
   border-radius: var(--radius-sm);
   border-width: 0;
@@ -221,7 +218,7 @@
   color: var(--color-info);
 }
 
-/* 消息/通知 */
+/* 消息/通知尺寸与阴影 */
 :root[data-theme="default"] .el-message {
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
@@ -235,20 +232,15 @@
   border: 1px solid var(--color-border-lighter);
 }
 
-/* 菜单 → theme-components；仅 sidebar-menu 内缩 */
+/* 菜单内缩（避免 collapse 高度跳动） */
 :root[data-theme="default"] .sidebar-menu {
   padding-left: 8px;
   padding-right: 8px;
 }
 
-/* 分页间距；激活态 → theme-components */
+/* 分页外间距 */
 :root[data-theme="default"] .el-pagination {
   padding: var(--spacing-md) 0;
-}
-
-:root[data-theme="default"] .el-pagination button,
-:root[data-theme="default"] .el-pager li {
-  border-radius: var(--radius-sm);
 }
 
 /* 加载遮罩 */

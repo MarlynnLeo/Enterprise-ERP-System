@@ -221,46 +221,35 @@
   box-shadow: 0 4px 12px color-mix(in srgb, var(--color-bg-overlay) 22%, transparent) !important;
 }
 
-/* 表格组件 */
+/* 表格/输入：密度 → theme-components；科技感仅表头主色 + 输入发光 */
+:root[data-theme="tech"] {
+  --erp-table-fixed-header-bg: transparent;
+}
+
 [data-theme="tech"] .el-table {
-  background: color-mix(in srgb, var(--color-bg-light) 60%, transparent) !important;
   border: 1px solid color-mix(in srgb, var(--color-primary) 20%, transparent) !important;
 }
 
-[data-theme="tech"] .el-table th,
-[data-theme="tech"] .el-table tr {
-  background: transparent !important;
-  border-bottom: 1px solid var(--color-grid) !important;
-}
-
-[data-theme="tech"] .el-table th {
+[data-theme="tech"] .el-table th.el-table__cell {
   color: var(--color-primary) !important;
-  font-weight: 600 !important;
-  text-transform: none !important;
-  letter-spacing: 0 !important;
   border-bottom: 2px solid color-mix(in srgb, var(--color-primary) 30%, transparent) !important;
+  background: transparent !important;
+  background-color: transparent !important;
 }
 
-[data-theme="tech"] .el-table tbody tr:hover {
-  background: color-mix(in srgb, var(--color-bg-overlay) 5%, transparent) !important;
-}
-
-[data-theme="tech"] .el-table tbody tr:hover td {
+[data-theme="tech"] .el-table__body tr:hover > td.el-table__cell {
   color: var(--color-primary) !important;
 }
 
-/* 输入框科技感 */
 [data-theme="tech"] .el-input__wrapper {
   background: color-mix(in srgb, var(--color-bg-light) 60%, transparent) !important;
-  border: 1px solid color-mix(in srgb, var(--color-primary) 30%, transparent) !important;
-  box-shadow: inset 0 1px 3px color-mix(in srgb, var(--ds-black) 30%, transparent) !important;
+  box-shadow: inset 0 1px 3px color-mix(in srgb, var(--ds-black, #000) 30%, transparent) !important;
 }
 
 [data-theme="tech"] .el-input__wrapper:hover,
 [data-theme="tech"] .el-input__wrapper.is-focus {
-  border-color: var(--color-primary) !important;
   box-shadow:
-    inset 0 1px 3px color-mix(in srgb, var(--ds-black) 30%, transparent),
+    inset 0 1px 3px color-mix(in srgb, var(--ds-black, #000) 30%, transparent),
     0 0 10px color-mix(in srgb, var(--color-bg-overlay) 30%, transparent) !important;
 }
 

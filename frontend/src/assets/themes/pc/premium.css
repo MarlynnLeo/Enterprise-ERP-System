@@ -261,56 +261,42 @@
   color: #ffffff !important;
 }
 
-[data-theme="premium"] .el-table,
-[data-theme="premium"] .el-table__inner-wrapper,
-[data-theme="premium"] .el-table__header-wrapper,
-[data-theme="premium"] .el-table__body-wrapper,
-[data-theme="premium"] .el-table tr,
-[data-theme="premium"] .el-table td.el-table__cell,
-[data-theme="premium"] .el-table th.el-table__cell {
-  background: transparent !important;
-  color: var(--color-text-regular) !important;
+/* 表格：密度 → theme-components；杂志风表头/hover 用 token 覆盖 */
+:root[data-theme="premium"] {
+  --erp-table-fixed-header-bg: transparent;
+  --theme-dialog-radius: 8px;
 }
 
 [data-theme="premium"] .el-table th.el-table__cell {
-  color: #8e8e93 !important;
+  color: var(--color-text-secondary) !important;
   font-size: 12px !important;
   font-weight: 900 !important;
-  text-transform: none;
-  letter-spacing: 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+  background: transparent !important;
+  background-color: transparent !important;
 }
 
 [data-theme="premium"] .el-table td.el-table__cell {
   border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+  color: var(--color-text-regular) !important;
 }
 
 [data-theme="premium"] .el-table__body tr:hover > td.el-table__cell {
   background: rgba(255, 255, 255, 0.045) !important;
 }
 
+/* 输入表面：半透明深色（共享壳默认 bg-base，此处覆盖） */
 [data-theme="premium"] .el-input__wrapper,
 [data-theme="premium"] .el-select__wrapper,
-[data-theme="premium"] .el-textarea__inner,
-[data-theme="premium"] .el-date-editor,
-[data-theme="premium"] .el-input-number,
-[data-theme="premium"] .el-input-number__decrease,
-[data-theme="premium"] .el-input-number__increase {
-  color: #ffffff !important;
-  background: rgba(255, 255, 255, 0.045) !important;
-  border: 1px solid rgba(255, 255, 255, 0.09) !important;
-  border-radius: 8px !important;
-  box-shadow: none !important;
-}
-
-[data-theme="premium"] .el-input__inner,
 [data-theme="premium"] .el-textarea__inner {
-  color: #ffffff !important;
+  color: var(--color-text-primary) !important;
+  background: rgba(255, 255, 255, 0.045) !important;
+  box-shadow: none !important;
 }
 
 [data-theme="premium"] .el-input__inner::placeholder,
 [data-theme="premium"] .el-textarea__inner::placeholder {
-  color: #71717a !important;
+  color: var(--color-text-disabled) !important;
 }
 
 [data-theme="premium"] .el-tag {
@@ -336,10 +322,7 @@
   background: rgba(239, 68, 68, 0.13) !important;
 }
 
-[data-theme="premium"] {
-  --theme-dialog-radius: 8px;
-}
-
+/* 弹层表面（杂志风深色，非共享壳默认） */
 [data-theme="premium"] .el-dialog,
 [data-theme="premium"] .el-drawer,
 [data-theme="premium"] .el-popover,

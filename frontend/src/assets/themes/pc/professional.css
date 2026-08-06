@@ -79,6 +79,12 @@
   --shell-sidebar-active-text: #ffffff;
   --shell-sidebar-accent: var(--color-success);
   --shell-sidebar-indicator-width: 3px;
+  /* 扁平圆角：表格/输入/分页走 radius token */
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 4px;
+  --theme-dialog-radius: 4px;
+  --erp-table-fixed-header-bg: var(--color-bg-hover);
 
   --color-success-gradient-end: #115E59;
   --color-warning-gradient-end: #92400E;
@@ -195,52 +201,9 @@
   color: var(--color-text-primary) !important;
 }
 
-/* 表格组件 */
-[data-theme="professional"] .el-table {
-  background: var(--color-bg-base) !important;
-  border: 1px solid var(--color-border-base) !important;
-  border-radius: 4px !important;
-}
-
-[data-theme="professional"] .el-table th {
-  background: var(--color-bg-hover) !important;
-  color: var(--color-text-primary) !important;
-  font-weight: 600 !important;
-  border-bottom: 2px solid var(--color-border-base) !important;
-}
-
-[data-theme="professional"] .el-table tbody tr:hover {
-  background: var(--color-bg-hover) !important;
-}
-
-[data-theme="professional"] .el-table--striped .el-table__body tr.el-table__row--striped td {
-  background: var(--color-bg-light) !important;
-}
-
-/* 输入框扁平化 */
-[data-theme="professional"] .el-input__wrapper {
-  background: var(--color-bg-base) !important;
-  border: 1px solid var(--color-border-base) !important;
-  border-radius: 4px !important;
-  box-shadow: none !important;
-  transition:
-    background-color 0.25s ease,
-    border-color 0.25s ease,
-    box-shadow 0.25s ease !important;
-}
-
-[data-theme="professional"] .el-input__wrapper:hover {
-  border-color: var(--color-border-darker) !important;
-}
-
-[data-theme="professional"] .el-input__wrapper.is-focus {
-  border-color: var(--color-primary) !important;
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-bg-overlay) 10%, transparent) !important;
-}
-
-/* 标签扁平化 */
+/* 表格/输入/分页/对话框布局 → theme-components + token；仅保留标签语义与消息边框 */
 [data-theme="professional"] .el-tag {
-  border-radius: 2px !important;
+  border-radius: var(--radius-sm, 2px) !important;
   border: none !important;
   font-weight: 500 !important;
   font-size: 12px !important;
@@ -271,44 +234,10 @@
   color: var(--color-text-secondary) !important;
 }
 
-/* 对话框专业化（仅视觉） */
-[data-theme="professional"] {
-  --theme-dialog-radius: 4px;
-}
-
-[data-theme="professional"] .el-dialog:not(.is-fullscreen) {
-  border-radius: var(--theme-dialog-radius);
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--color-bg-overlay) 15%, transparent);
-}
-
-[data-theme="professional"] .el-dialog__header {
-  background: var(--color-bg-hover) !important;
-  border-bottom: 1px solid var(--color-border-lighter) !important;
-  padding: 16px 20px !important;
-}
-
-[data-theme="professional"] .el-dialog__title {
-  color: var(--color-text-primary) !important;
-  font-weight: 600 !important;
-}
-
-/* 分页：基础 → theme-components；专业主题略扁圆角 */
-[data-theme="professional"] .el-pagination .el-pager li,
-[data-theme="professional"] .el-pagination.is-background .el-pager li {
-  border-radius: 4px !important;
-}
-
-/* 下拉菜单 */
-[data-theme="professional"] .el-select-dropdown {
-  border: 1px solid var(--color-border-base) !important;
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--color-bg-overlay) 10%, transparent) !important;
-}
-
-/* 消息提示 */
 [data-theme="professional"] .el-message {
   border: 1px solid var(--color-border-base) !important;
   box-shadow: 0 4px 12px color-mix(in srgb, var(--color-bg-overlay) 12%, transparent) !important;
-  border-radius: 4px !important;
+  border-radius: var(--radius-md, 4px) !important;
 }
 
 [data-theme="professional"] .el-message--success {

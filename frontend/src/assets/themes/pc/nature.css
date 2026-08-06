@@ -200,19 +200,24 @@
   color: var(--color-text-primary) !important;
 }
 
-/* 表格/输入密度 → theme-components；自然主题仅圆角略大 */
+/* 表格/输入：共享壳 + 自然表头渐变与略大圆角 */
+:root[data-theme="nature"] {
+  --radius-md: 10px;
+  --radius-lg: 10px;
+}
+
 [data-theme="nature"] .el-table {
-  border-radius: 10px !important;
   border: 2px solid var(--color-border-dark) !important;
 }
 
 [data-theme="nature"] .el-table th.el-table__cell {
-  background: linear-gradient(180deg, var(--color-bg-hover) 0%, var(--color-primary-light-8) 100%) !important;
+  background: linear-gradient(
+    180deg,
+    var(--color-bg-hover) 0%,
+    var(--color-primary-light-8) 100%
+  ) !important;
+  background-color: transparent !important;
   border-bottom: 2px solid var(--color-primary-light-3) !important;
-}
-
-[data-theme="nature"] .el-input__wrapper {
-  border-radius: 10px !important;
 }
 
 [data-theme="nature"] .el-input__wrapper:hover,

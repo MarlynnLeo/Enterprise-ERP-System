@@ -115,6 +115,38 @@ for (const id of THEMES) {
       }
     }
   }
+
+  // 禁止主题再写菜单激活背景/文字色（应走 shell token + theme-components）
+  // 允许：.is-active .el-icon、.el-sub-menu.is-active、仅 font-weight 已迁到 token
+  const menuActiveBlocks = [
+    ...css.matchAll(
+      /\[data-theme[^\]]*\][^{]*\.el-menu-item\.is-active(?![-\w.])[^{]*\{([^}]*)\}/g
+    ),
+  ]
+  for (const m of menuActiveBlocks) {
+    const body = m[1]
+    const sel = m[0].slice(0, m[0].indexOf('{')).replace(/\s+/g, ' ').trim()
+    // 仅图标 opacity 可保留
+    if (/\.el-icon/.test(sel)) continue
+    if (/background(?:-color)?\s*:/.test(body) || /(?<!-)\bcolor\s*:/.test(body)) {
+      errors.push(
+        `${id}: 菜单 is-active 仍写 background/color（请改 shell token）: ${sel.slice(0, 80)}`
+      )
+    }
+  }
+}
+
+// theme-components 侧栏壳必须存在
+const componentsSrc = fs.readFileSync(componentsCss, 'utf8')
+for (const must of [
+  '--shell-sidebar-active-bg',
+  '--shell-sidebar-active-shadow',
+  '--shell-sidebar-rail-width',
+  '.sidebar .el-menu-item.is-active',
+]) {
+  if (!componentsSrc.includes(must)) {
+    errors.push(`theme-components.css 缺少侧栏壳: ${must}`)
+  }
 }
 
 if (errors.length) {

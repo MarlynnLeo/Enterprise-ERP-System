@@ -184,40 +184,16 @@
   box-shadow: 0 2px 8px color-mix(in srgb, var(--ds-black) 30%, transparent) !important;
 }
 
-/* 表格密度 → theme-components；深色仅补表面 */
-[data-theme="dark"] .el-table {
-  background: var(--color-bg-page) !important;
-  border: 1px solid var(--color-border-extra-light) !important;
-}
-
-[data-theme="dark"] .el-table th {
-  background: var(--color-bg-base) !important;
-  color: var(--color-text-primary) !important;
-  border-bottom: 1px solid var(--color-border-base) !important;
-}
-
-[data-theme="dark"] .el-table tbody tr:hover {
-  background: color-mix(in srgb, var(--color-primary) 5%, transparent) !important;
-}
-
-/* 输入框深色化 */
-[data-theme="dark"] .el-input__wrapper {
-  background: var(--color-bg-base) !important;
-  border: 1px solid var(--color-border-extra-light) !important;
-}
-
-[data-theme="dark"] .el-input__wrapper:hover,
-[data-theme="dark"] .el-input__wrapper.is-focus {
-  border-color: var(--color-primary) !important;
-}
-
 /*
- * 深色模式加载/表格：覆盖 dark / tech / premium（html.dark + data-theme）
- * 避免仅 data-theme=dark 时 tech/premium 仍闪白遮罩
+ * 深色模式：loading / skeleton 覆盖 dark|tech|premium
+ * 表格密度/hover → theme-components（语义色已由 data-theme token 提供）
+ * 仅补 EP 默认浅色遮罩泄漏与 skeleton 渐变
  */
 html.dark[data-theme] {
   --el-mask-color: color-mix(in srgb, var(--color-bg-page) 86%, transparent);
   --el-mask-color-extra-light: color-mix(in srgb, var(--color-bg-page) 72%, transparent);
+  /* 表头固定背景与共享壳对齐 */
+  --erp-table-fixed-header-bg: var(--color-bg-base);
 }
 
 html.dark[data-theme] .el-loading-mask,
@@ -246,43 +222,6 @@ html.dark[data-theme] .el-loading-spinner .el-loading-text,
 [data-theme="dark"] .el-loading-spinner .el-loading-text,
 [data-theme="tech"] .el-loading-spinner .el-loading-text,
 [data-theme="premium"] .el-loading-spinner .el-loading-text {
-  color: var(--color-text-secondary) !important;
-}
-
-/* dark 预设表格底（tech/premium 有自己的 token，共享壳用 color-mix 即可） */
-html.dark[data-theme="dark"] .el-table,
-html.dark[data-theme="dark"] .el-table__inner-wrapper,
-html.dark[data-theme="dark"] .el-table__header-wrapper,
-html.dark[data-theme="dark"] .el-table__body-wrapper,
-html.dark[data-theme="dark"] .el-table__body,
-html.dark[data-theme="dark"] .el-table .el-scrollbar__view,
-html.dark[data-theme="dark"] .el-table__empty-block,
-html.dark[data-theme="dark"] .el-table tr,
-html.dark[data-theme="dark"] .el-table td.el-table__cell {
-  background-color: var(--color-bg-page) !important;
-}
-
-html.dark[data-theme="dark"] .el-table th.el-table__cell {
-  background-color: var(--color-bg-base) !important;
-  color: var(--color-text-primary) !important;
-}
-
-html.dark[data-theme="dark"] .el-table td.el-table__cell {
-  color: var(--color-text-regular) !important;
-  border-bottom-color: var(--color-border-extra-light) !important;
-}
-
-html.dark[data-theme="dark"] .el-table__body tr:hover > td.el-table__cell {
-  background-color: var(--color-bg-hover) !important;
-}
-
-html.dark[data-theme="dark"] .el-table__body tr.current-row > td.el-table__cell,
-html.dark[data-theme="dark"] .el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
-  background-color: var(--color-bg-section) !important;
-}
-
-html.dark[data-theme="dark"] .el-table__empty-text,
-html.dark[data-theme="dark"] .el-empty__description {
   color: var(--color-text-secondary) !important;
 }
 
