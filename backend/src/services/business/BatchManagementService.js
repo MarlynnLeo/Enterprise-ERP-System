@@ -450,8 +450,14 @@ class BatchManagementService {
         [material_id]
       );
 
-      // 获取FIFO批次 (从 v_batch_stock 视图)
-      const fifoResult = await this.getFIFOOutboundBatches(material_id, required_quantity);
+      // 获取FIFO批次：必须与 FOR UPDATE 同一 connection，避免并发重复预留
+      // 签名: (materialId, qty, excludeReservationOrderId, connection)
+      const fifoResult = await this.getFIFOOutboundBatches(
+        material_id,
+        required_quantity,
+        null,
+        connection
+      );
 
       if (fifoResult.shortage > 0) {
         throw new Error(`库存不足，无法预留 ${fifoResult.shortage} 单位`);

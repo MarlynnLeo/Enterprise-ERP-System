@@ -189,6 +189,7 @@ const cipModel = {
 
     /**
      * 更新在建工程 — 列白名单，禁止 mass assignment / 标识符注入
+     * 注意：accumulated_amount 不在白名单内，归集请用 addAccumulatedAmount
      */
     updateCipProject: async (id, data) => {
         try {
@@ -203,7 +204,7 @@ const cipModel = {
                 'department',
                 'notes',
             ]);
-            // 禁止客户端改写累计金额（由财务过账维护）
+            // 禁止客户端改写累计金额（由服务端 addAccumulatedAmount / 过账维护）
             const fields = [];
             const values = [];
 
@@ -225,6 +226,74 @@ const cipModel = {
         } catch (error) {
             logger.error('更新在建工程失败:', error);
             throw error;
+        }
+    },
+
+    /**
+     * 原子归集在建工程成本（服务端专用，不经通用 update 白名单）
+     * @param {number} id 工程 ID
+     * @param {number} delta 增加金额（必须 > 0）
+     * @param {object} [connection] 可选外层事务连接
+     * @returns {Promise<{ previousAmount: number, newAmount: number }>}
+     */
+    addAccumulatedAmount: async (id, delta, connection = null) => {
+        const amount = Number(delta);
+        if (!Number.isFinite(amount) || amount <= 0) {
+            throw new Error('归集金额必须大于 0');
+        }
+
+        const runner = connection || db.pool;
+        const ownConnection = !connection;
+        let conn = connection;
+
+        try {
+            if (ownConnection) {
+                conn = await db.pool.getConnection();
+                await conn.beginTransaction();
+            }
+
+            const [projects] = await conn.query(
+                'SELECT id, status, accumulated_amount FROM cip_projects WHERE id = ? FOR UPDATE',
+                [id]
+            );
+            if (!projects.length) {
+                throw new Error('在建工程不存在');
+            }
+            if (projects[0].status !== '建设中') {
+                throw new Error('工程不存在或已不可附加费用');
+            }
+
+            const previousAmount = parseFloat(projects[0].accumulated_amount || 0);
+            const [result] = await conn.query(
+                `UPDATE cip_projects
+                 SET accumulated_amount = COALESCE(accumulated_amount, 0) + ?,
+                     updated_at = CURRENT_TIMESTAMP
+                 WHERE id = ? AND status = '建设中'`,
+                [amount, id]
+            );
+            if (!result.affectedRows) {
+                throw new Error('归集成本失败：工程状态已变更');
+            }
+
+            const newAmount = previousAmount + amount;
+            if (ownConnection) {
+                await conn.commit();
+            }
+            return { previousAmount, newAmount };
+        } catch (error) {
+            if (ownConnection && conn) {
+                try {
+                    await conn.rollback();
+                } catch (_) {
+                    /* ignore */
+                }
+            }
+            logger.error('原子归集在建工程成本失败:', error);
+            throw error;
+        } finally {
+            if (ownConnection && conn) {
+                conn.release();
+            }
         }
     },
 

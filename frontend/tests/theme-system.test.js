@@ -49,7 +49,9 @@ describe('theme system', () => {
     const token = css.match(/--color-on-primary:\s*(#[0-9a-fA-F]{6})/)
 
     expect(css).toContain(`:root[data-theme="${preset.id}"]`)
-    expect(token?.[1].toUpperCase()).toBe(getAccessibleTextColor(preset.primaryColor))
+    expect(token?.[1]).toBeTruthy()
+    // 对比度至少 4.5:1；允许主题用近黑（如 premium #09090B）替代纯黑
+    expect(contrastRatio(token[1], preset.primaryColor)).toBeGreaterThanOrEqual(4.5)
   })
 
   test('normalization keeps preset and color mode consistent', () => {
@@ -105,8 +107,11 @@ describe('theme system', () => {
   test('lazy themes load the final compatibility layer after their own CSS', () => {
     const finalCompatibility = readFileSync(resolve(themesDirectory, 'theme-compat-final.css'), 'utf8')
     const loader = readFileSync(resolve(process.cwd(), 'src/utils/themeLoader.js'), 'utf8')
+    const main = readFileSync(resolve(process.cwd(), 'src/main.js'), 'utf8')
 
-    expect(finalCompatibility).toContain("@import './theme-compat.css';")
+    // theme-compat 由 main 静态引入；final 仅作后加载钩子，禁止重复 @import
+    expect(main).toContain('theme-compat.css')
+    expect(finalCompatibility).not.toContain("@import './theme-compat.css';")
     expect(loader).toContain('.then(() => ensureFinalCompatibilityCss())')
   })
 

@@ -166,6 +166,7 @@ const cipController = {
 
     /**
      * 增加 / 归集在建工程费用金额
+     * 累计金额必须走服务端原子更新，禁止经 updateCipProject 白名单（会静默丢弃）
      */
     addCost: async (req, res) => {
         try {
@@ -175,22 +176,26 @@ const cipController = {
             }
 
             const amount = parseFloat(req.body.amount || 0);
-            if (amount <= 0) {
+            if (!(amount > 0) || Number.isNaN(amount)) {
                 return ResponseHandler.error(res, '附加费用金额必须大于0', 'VALIDATION_ERROR', 400);
             }
 
-            // 获取当前项目
-            const project = await cipModel.getCipProjectById(id);
-            if (!project || project.status !== '建设中') {
-                return ResponseHandler.error(res, '工程不存在或已不可附加费用', 'VALIDATION_ERROR', 400);
-            }
+            const { previousAmount, newAmount } = await cipModel.addAccumulatedAmount(id, amount);
 
-            const newAmount = parseFloat(project.accumulated_amount || 0) + amount;
-            await cipModel.updateCipProject(id, { accumulated_amount: newAmount });
-
-            return ResponseHandler.success(res, { newAmount }, '归集成本成功');
+            return ResponseHandler.success(
+                res,
+                { previousAmount, newAmount, addedAmount: amount },
+                '归集成本成功'
+            );
         } catch (error) {
             logger.error('归集在建工程成本失败:', error);
+            if (
+                error.message?.includes('不存在') ||
+                error.message?.includes('不可附加') ||
+                error.message?.includes('必须大于')
+            ) {
+                return ResponseHandler.error(res, error.message, 'VALIDATION_ERROR', 400);
+            }
             ResponseHandler.error(res, '归集在建工程成本失败', 'SERVER_ERROR', 500, error);
         }
     }
