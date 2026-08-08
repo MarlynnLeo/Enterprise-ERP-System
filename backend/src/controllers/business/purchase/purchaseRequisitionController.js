@@ -947,7 +947,15 @@ const updateRequisitionStatus = async (req, res) => {
   } catch (error) {
     if (connection) await connection.rollback();
     logger.error('更新采购申请状态失败:', error);
-    return ResponseHandler.error(res, '操作失败', 'OPERATION_ERROR', 500, error);
+    // 工作流配置问题（无审批人/职责分离）应返回 400，便于前端提示配置，而非笼统 500
+    const msg = error?.message || '操作失败';
+    const isWorkflowConfig =
+      /审批|工作流|workflow|审批人|职责分离|节点/i.test(msg) ||
+      error?.code === 'VALIDATION_ERROR' ||
+      error?.statusCode === 400;
+    const status = error?.statusCode || (isWorkflowConfig ? 400 : 500);
+    const code = error?.code || (isWorkflowConfig ? 'WORKFLOW_CONFIG_ERROR' : 'OPERATION_ERROR');
+    return ResponseHandler.error(res, msg, code, status, error);
   } finally {
     if (connection) connection.release();
   }

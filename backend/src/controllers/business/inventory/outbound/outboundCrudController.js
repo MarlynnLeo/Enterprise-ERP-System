@@ -1063,7 +1063,12 @@ const createOutbound = async (req, res) => {
       return `${year}-${month}-${day}`;
     };
 
-    // _createOutbound 内部用 camel 适配对象
+    // _createOutbound 内部用 camel 适配对象（字段名与 _createOutbound 读取一致）
+    const issueReason =
+      mapped.issue_reason ??
+      req.body?.issueReason ??
+      req.body?.issue_reason ??
+      null;
     const adaptedData = {
       outboundDate: formatDateForDB(mapped.outbound_date),
       status: mapped.status || 'draft',
@@ -1072,9 +1077,10 @@ const createOutbound = async (req, res) => {
       remark: mapped.remark ?? null,
       outbound_type: mapped.outbound_type || req.body?.outboundType || 'manual',
       productionTaskId: mapped.production_task_id ?? null,
-      issue_reason: mapped.issue_reason ?? null,
+      issueReason,
       isExcess: Boolean(mapped.is_excess),
-      allowExcess: Boolean(mapped.allow_excess || mapped.is_excess),
+      allowExcess: Boolean(mapped.allow_excess || mapped.is_excess || req.body?.allowExcess),
+      forceExcess: Boolean(req.body?.forceExcess || mapped.force_excess),
       items: Array.isArray(mapped.items)
         ? mapped.items.map((item) => ({
             materialId: item.material_id,
@@ -1083,6 +1089,7 @@ const createOutbound = async (req, res) => {
             locationId: item.location_id,
             batchNumber: item.batch_number,
             remark: item.remark,
+            issueReason: item.issue_reason ?? item.issueReason ?? null,
           }))
         : [],
     };

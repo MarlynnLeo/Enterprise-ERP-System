@@ -299,13 +299,22 @@ const confirmSubmitRequisition = async () => {
     let materialCount = 0
     for (const bucket of planMaterialMap.values()) {
       for (const mat of bucket.materials.values()) {
+        // HTTP 契约 camelCase（与 ProductionPlan 请购、后端 normalizeSourceInfo 一致）
         const response = await purchaseApi.createRequisition({
-          request_date: dayjs().format('YYYY-MM-DD'),
-          materials: [mat],
+          requestDate: dayjs().format('YYYY-MM-DD'),
+          materials: [{
+            materialId: mat.material_id ?? mat.materialId,
+            materialCode: mat.material_code ?? mat.materialCode,
+            materialName: mat.material_name ?? mat.materialName,
+            specs: mat.specs,
+            unit: mat.unit,
+            quantity: mat.quantity,
+            remarks: mat.remarks
+          }],
           remarks: `根据生产计划缺料统计自动生成 - 计划: ${bucket.plan_code}`,
-          source_type: 'production_plan',
-          source_id: bucket.planId,
-          source_material_id: mat.materialId
+          sourceType: 'production_plan',
+          sourceId: bucket.plan_id ?? bucket.planId,
+          sourceMaterialId: mat.material_id ?? mat.materialId
         })
         const result = parseApiResponse(response)
         if (!(result.success && result.data)) {
