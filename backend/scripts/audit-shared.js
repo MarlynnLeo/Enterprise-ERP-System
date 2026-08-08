@@ -221,7 +221,9 @@ function auditDataApiUniformity() {
     'frontend/src/services/axiosInstance.js',
     'mobile/src/api/client.js',
   ]);
-  const directHttpPattern = /\bfetch\s*\(|\bXMLHttpRequest\b|\buni\s*\.\s*request\b|import\s+axios\s+from\s+['"]axios['"]|require\(\s*['"]axios['"]\s*\)/g;
+  // 仅统计全局/裸 fetch，避免把 meta.fetch / api.fetch 等业务方法误判为直连 HTTP
+  const directHttpPattern =
+    /(?<![\w.$])fetch\s*\(|\bwindow\.fetch\s*\(|\bXMLHttpRequest\b|\buni\s*\.\s*request\b|import\s+axios\s+from\s+['"]axios['"]|require\(\s*['"]axios['"]\s*\)/g;
   const hardcodedApiPrefixPattern = /\b(?:api|fastApi)\s*\.\s*(?:get|post|put|patch|delete)\s*\(\s*([`'"])\/api\//g;
   const directHttpBypasses = [];
   const hardcodedApiPrefixes = [];

@@ -25,11 +25,29 @@ async function main() {
   const activeUsers = Number(userStats.active_users || 0);
   const superAdminUsers = Number(userStats.super_admin_users || 0);
   const superAdminRatio = activeUsers ? superAdminUsers / activeUsers : 0;
+  const [superAdminRows] = await pool.query(
+    `SELECT u.id, u.username, GROUP_CONCAT(r.code ORDER BY r.code) AS role_codes
+       FROM users u
+       JOIN user_roles ur ON ur.user_id = u.id
+       JOIN roles r ON r.id = ur.role_id AND r.status = 1
+      WHERE u.status = 1
+        AND r.is_super_admin = 1
+      GROUP BY u.id, u.username
+      ORDER BY u.id`
+  );
   if (
     activeUsers >= governance.minimumPopulation &&
     superAdminRatio > governance.adminRatioWarning
   ) {
-    warnings.push(`超级管理员占启用用户 ${Math.round(superAdminRatio * 100)}%，建议执行最小权限治理`);
+    const sample = superAdminRows
+      .slice(0, 12)
+      .map((row) => row.username)
+      .join(', ');
+    const more =
+      superAdminRows.length > 12 ? ` 等共 ${superAdminRows.length} 人` : '';
+    warnings.push(
+      `超级管理员占启用用户 ${Math.round(superAdminRatio * 100)}%（${superAdminUsers}/${activeUsers}），建议仅保留 break-glass 账号。名单: ${sample}${more}。可运行 node scripts/list-super-admins.js`
+    );
   }
 
   for (const event of getEvents()) {
@@ -102,7 +120,20 @@ async function main() {
   }
 
   console.log('Notification governance audit');
-  console.log(JSON.stringify({ activeUsers, superAdminUsers, governance, rules: ruleResults }, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        activeUsers,
+        superAdminUsers,
+        superAdminRatio: Number(superAdminRatio.toFixed(4)),
+        superAdminUsernames: superAdminRows.map((row) => row.username),
+        governance,
+        rules: ruleResults,
+      },
+      null,
+      2
+    )
+  );
   warnings.forEach((warning) => console.warn(`WARN: ${warning}`));
   errors.forEach((error) => console.error(`ERROR: ${error}`));
 
@@ -118,6 +149,14 @@ main()
     console.error(error);
     process.exitCode = 1;
   })
+  .finally(async () => {
+    try {
+      if (typeof pool.end === 'function') await pool.end();
+    } catch {
+      // ignore
+    }
+    process.exit(process.exitCode || 0);
+  });
   .finally(async () => {
     await pool.end();
   });

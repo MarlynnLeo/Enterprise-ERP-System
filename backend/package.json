@@ -51,6 +51,7 @@
     "audit:mobile-auth": "node scripts/audit-mobile-auth-security.js",
     "audit:workflow": "node scripts/audit-workflow-permission-closure.js",
     "audit:notifications": "node scripts/audit-notification-governance.js",
+    "audit:super-admins": "node scripts/list-super-admins.js",
     "audit:legacy": "node scripts/audit-legacy-code.js",
     "audit:production-readiness": "node scripts/audit-production-readiness.js",
     "audit:module-completeness": "node scripts/audit-module-completeness.js",

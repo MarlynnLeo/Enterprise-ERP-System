@@ -181,6 +181,21 @@ const unwrapResponse = (response) => {
     // 非 ResponseHandler 格式，直接返回（兼容直接返回数据的接口）
     return response;
 };
+// api / fastApi 共享刷新态，避免双实例并发双刷 refresh 导致误登出
+let sharedIsRefreshing = false;
+let sharedFailedQueue = [];
+
+const processRefreshQueue = (error) => {
+    sharedFailedQueue.forEach((prom) => {
+        if (error) {
+            prom.reject(error);
+        } else {
+            prom.resolve();
+        }
+    });
+    sharedFailedQueue = [];
+};
+
 // 通用拦截器配置函数
 const setupInterceptors = (apiInstance) => {
     apiInstance.interceptors.request.use(async (config) => {
@@ -211,19 +226,6 @@ const setupInterceptors = (apiInstance) => {
         console.error('API请求拦截器错误:', error);
         return Promise.reject(error);
     });
-    // 用于管理刷新Token的状态
-    let isRefreshing = false;
-    let failedQueue = [];
-    const processQueue = (error) => {
-        failedQueue.forEach(prom => {
-            if (error) {
-                prom.reject(error);
-            } else {
-                prom.resolve();
-            }
-        });
-        failedQueue = [];
-    };
     apiInstance.interceptors.response.use(
         (response) => {
             // ✅ 统一解包 ResponseHandler 格式
@@ -246,9 +248,9 @@ const setupInterceptors = (apiInstance) => {
                 !requestUrl.includes('/auth/login') &&
                 !requestUrl.includes('/auth/refresh') &&
                 !originalRequest._retry) {
-                if (isRefreshing) {
+                if (sharedIsRefreshing) {
                     return new Promise((resolve, reject) => {
-                        failedQueue.push({ resolve, reject });
+                        sharedFailedQueue.push({ resolve, reject });
                     }).then(() => {
                         return apiInstance(originalRequest);
                     });
@@ -256,18 +258,19 @@ const setupInterceptors = (apiInstance) => {
                     // 但无需 .catch() 再弹错误，因为发起刷新的请求已负责跳转登录页
                 }
                 originalRequest._retry = true;
-                isRefreshing = true;
+                sharedIsRefreshing = true;
                 try {
                     // Refresh is cookie-based; the backend rotates HttpOnly cookies.
-                    await apiInstance.post('/auth/refresh');
+                    // 统一走 api 实例刷新，避免 fastApi 超时策略分裂会话
+                    await api.post('/auth/refresh');
                     resetCsrfToken();
                     originalRequest.headers = originalRequest.headers || {};
                     delete originalRequest.headers['Authorization'];
                     delete originalRequest.headers.authorization;
-                    processQueue(null);
+                    processRefreshQueue(null);
                     return apiInstance(originalRequest);
                 } catch (refreshError) {
-                    processQueue(refreshError);
+                    processRefreshQueue(refreshError);
                     clearAllRequestCaches();
                     try {
                         // 动态导入避免循环依赖
@@ -284,7 +287,7 @@ const setupInterceptors = (apiInstance) => {
                     }
                     return Promise.reject(refreshError);
                 } finally {
-                    isRefreshing = false;
+                    sharedIsRefreshing = false;
                 }
             }
 

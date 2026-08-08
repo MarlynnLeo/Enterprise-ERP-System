@@ -197,13 +197,27 @@ router.beforeEach(async (to) => {
       await authStore.fetchUserPermissions()
     } catch (error) {
       console.error('加载权限数据失败:', error)
-      ElMessage.error('权限数据加载失败，已拒绝访问受控页面')
+      ElMessage.error('权限数据加载失败，请重新登录')
+      // fail-closed：权限未知时禁止进入受控页，避免半会话越权
+      try {
+        if (typeof authStore.clearClientSession === 'function') {
+          authStore.clearClientSession()
+        }
+      } catch {
+        // ignore
+      }
+      return '/login'
     }
   }
 
   // 检查用户是否有权限访问该路由
   // 统一复用 authStore.hasPermission，消除重复的权限判断逻辑
   if (to.meta.permission && authStore.isAuthenticated) {
+    // 权限未成功加载时不得放行
+    if (!authStore.permissionsLoaded) {
+      ElMessage.error('权限未就绪，请重新登录')
+      return '/login'
+    }
     const requiredPermission = to.meta.permission
 
     const hasPermission = hasRoutePermission(authStore, requiredPermission)
