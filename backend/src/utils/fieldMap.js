@@ -28,18 +28,47 @@ function isPlainObject(v) {
 }
 
 /**
- * 将 DB/模型 snake 行递归转为 API camel（边界出参通用）
- * Date / Buffer 原样保留
+ * Sequelize / 类实例 → 纯 JSON，避免 Object.entries 走到原型环或循环关联。
  */
-function mapKeysToCamel(value) {
+function toPlainJson(value) {
+  if (value == null) return value;
+  if (typeof value.toJSON === 'function') {
+    try {
+      // Sequelize Model / DataTypes 实例
+      if (value.dataValues || value._modelOptions || value.isNewRecord !== undefined) {
+        return value.toJSON();
+      }
+    } catch {
+      /* fall through */
+    }
+  }
+  return value;
+}
+
+/**
+ * 将 DB/模型 snake 行递归转为 API camel（边界出参通用）
+ * Date / Buffer 原样保留；Sequelize 模型先 toJSON；循环引用安全截断。
+ */
+function mapKeysToCamel(value, seen = new WeakSet()) {
   if (value == null) return value;
   if (value instanceof Date) return value;
   if (Buffer.isBuffer(value)) return value;
-  if (Array.isArray(value)) return value.map((v) => mapKeysToCamel(v));
+
+  value = toPlainJson(value);
+
+  if (Array.isArray(value)) {
+    return value.map((v) => mapKeysToCamel(v, seen));
+  }
   if (!isPlainObject(value)) return value;
+
+  if (seen.has(value)) return null;
+  seen.add(value);
+
   const out = {};
   for (const [k, v] of Object.entries(value)) {
-    out[snakeToCamel(k)] = mapKeysToCamel(v);
+    // 跳过内部/不可枚举噪音键
+    if (k === 'password' || k === 'password_hash' || k.startsWith('_')) continue;
+    out[snakeToCamel(k)] = mapKeysToCamel(v, seen);
   }
   return out;
 }
@@ -47,15 +76,25 @@ function mapKeysToCamel(value) {
 /**
  * 将 HTTP camel 体递归转为 DB snake（边界入参通用）
  */
-function mapKeysToSnake(value) {
+function mapKeysToSnake(value, seen = new WeakSet()) {
   if (value == null) return value;
   if (value instanceof Date) return value;
   if (Buffer.isBuffer(value)) return value;
-  if (Array.isArray(value)) return value.map((v) => mapKeysToSnake(v));
+
+  value = toPlainJson(value);
+
+  if (Array.isArray(value)) {
+    return value.map((v) => mapKeysToSnake(v, seen));
+  }
   if (!isPlainObject(value)) return value;
+
+  if (seen.has(value)) return null;
+  seen.add(value);
+
   const out = {};
   for (const [k, v] of Object.entries(value)) {
-    out[camelToSnake(k)] = mapKeysToSnake(v);
+    if (k.startsWith('_')) continue;
+    out[camelToSnake(k)] = mapKeysToSnake(v, seen);
   }
   return out;
 }
