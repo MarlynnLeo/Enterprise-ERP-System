@@ -43,6 +43,30 @@ describe('inventory ledger architecture', () => {
     expect(offenders).toEqual([]);
   });
 
+  it('does not pass batchNumber: null into InventoryService.updateStock call sites', () => {
+    // 入库路径 batchNumber:null 会硬失败；出库路径应省略字段走 FIFO，而不是显式 null
+    const backendRoot = path.resolve(__dirname, '../..');
+    const srcRoot = path.join(backendRoot, 'src');
+    const allowedRelative = new Set([
+      // 成本归集内存对象字段，不调用 updateStock
+      path.normalize('services/business/CostAccountingService.js'),
+    ]);
+
+    const offenders = [];
+    for (const file of collectFiles(srcRoot)) {
+      const relative = path.normalize(path.relative(path.join(backendRoot, 'src'), file));
+      if (allowedRelative.has(relative)) continue;
+
+      const source = fs.readFileSync(file, 'utf8');
+      if (!/updateStock\s*\(/.test(source)) continue;
+      if (/batchNumber\s*:\s*null/.test(source)) {
+        offenders.push(relative.replace(/\\/g, '/'));
+      }
+    }
+
+    expect(offenders).toEqual([]);
+  });
+
   it('keeps print routes on canonical print permissions', () => {
     const backendRoot = path.resolve(__dirname, '../..');
     const source = fs.readFileSync(path.join(backendRoot, 'src/routes/printRoutes.js'), 'utf8');

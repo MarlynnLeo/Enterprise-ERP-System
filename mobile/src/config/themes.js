@@ -90,7 +90,8 @@ export const themes = Object.freeze([
     dataTheme: 'premium',
     isDark: true,
     preview: {
-      primary: '#FFFFFF',
+      // 与 PC themePresets.premium.primaryColor / premium.css 一致
+      primary: '#E4E4E7',
       accent: '#71717A',
       bg: '#050505'
     }

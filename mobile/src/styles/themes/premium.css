@@ -26,8 +26,9 @@
   --text-on-dark: #ffffff;
   --text-on-dark-secondary: rgba(255, 255, 255, 0.74);
 
-  --color-primary: #ffffff;
-  --color-primary-bg: rgba(255, 255, 255, 0.1);
+  /* 可交互主色：与 PC premium 对齐（#e4e4e7）；禁止 #fff 作 primary（按钮/链接不可见） */
+  --color-primary: #e4e4e7;
+  --color-primary-bg: rgba(228, 228, 231, 0.12);
   --color-success: #22c55e;
   --color-success-bg: rgba(34, 197, 94, 0.14);
   --color-warning: #fbbf24;

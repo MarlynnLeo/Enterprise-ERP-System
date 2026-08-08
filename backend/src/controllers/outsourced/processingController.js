@@ -549,7 +549,7 @@ const updateProcessingStatus = async (req, res) => {
         }
 
         try {
-          // 使用统一的 InventoryService 更新库存（已在循环外引入）
+          // 出库不指定批次：由 InventoryService 按 FIFO 自动拆批写台账
           await InventoryService.updateStock(
             {
               materialId: material.material_id,
@@ -561,7 +561,8 @@ const updateProcessingStatus = async (req, res) => {
               operator: getRequestActorLabel(req),
               remark: `外委加工发料 ${existingProcessing[0].processing_no}`,
               unitId: material.unit_id,
-              batchNumber: null,
+              // 不传 batchNumber → FIFO 拆批；幂等键按物料行防重
+              idempotencyKey: `outsourced_outbound:${existingProcessing[0].processing_no}:${material.material_id}:${usedWarehouseId}:${material.id}`,
             },
             connection
           );
@@ -600,43 +601,72 @@ const updateProcessingStatus = async (req, res) => {
       );
 
       if (materials.length > 0) {
-        // InventoryService 已在文件顶部引入
+        // 按原发料台账逐行回冲，继承 batch_number，禁止 batchNumber=null 入库
+        const processingNo = existingProcessing[0].processing_no;
+        const [issueLedgers] = await connection.execute(
+          `SELECT id, material_id, location_id, unit_id, batch_number, ABS(quantity) AS qty, unit_cost
+           FROM inventory_ledger
+           WHERE reference_no = ?
+             AND transaction_type = 'outsourced_outbound'
+             AND quantity < 0
+           ORDER BY id ASC`,
+          [processingNo]
+        );
 
-        for (const material of materials) {
-          // 使用与发料时相同的仓库逻辑
-          let usedWarehouseId;
-          if (existingProcessing[0].location_id) {
-            usedWarehouseId = existingProcessing[0].location_id;
-          } else {
-            usedWarehouseId = await InventoryService.getMaterialLocation(material.material_id, connection);
+        if (!issueLedgers.length) {
+          throw new Error(
+            `找不到外委发料台账，无法安全回退库存: processing_no=${processingNo}`
+          );
+        }
+
+        for (const ledger of issueLedgers) {
+          const qty = parseFloat(ledger.qty) || 0;
+          if (qty <= 0 || !ledger.location_id) continue;
+
+          const reverseUnitCost = parseFloat(ledger.unit_cost);
+          if (!(reverseUnitCost > 0)) {
+            throw new Error(
+              `发料台账缺少有效成本，无法安全回退: ledger_id=${ledger.id}, processing_no=${processingNo}`
+            );
           }
 
+          const reverseBatch =
+            InventoryService._normalizeBatchNumber(ledger.batch_number) ||
+            `REV-OSP-${processingNo}-${ledger.id}`;
+
           try {
-            // 正数 = 退回库存
             await InventoryService.updateStock(
               {
-                materialId: material.material_id,
-                locationId: usedWarehouseId,
-                quantity: parseFloat(material.quantity),
+                materialId: ledger.material_id,
+                locationId: ledger.location_id,
+                quantity: qty, // 正数 = 退回库存
                 transactionType: 'outsourced_return',
-                referenceNo: existingProcessing[0].processing_no,
+                referenceNo: processingNo,
                 referenceType: 'outsourced_processing_cancel',
                 operator: getRequestActorLabel(req),
-                remark: `外委加工取消退料 ${existingProcessing[0].processing_no}`,
-                unitId: material.unit_id,
-                batchNumber: null,
+                remark: `外委加工取消退料 ${processingNo}，来源台账 ${ledger.id}`,
+                unitId: ledger.unit_id,
+                batchNumber: reverseBatch,
+                unitCost: reverseUnitCost,
+                idempotencyKey: `outsourced_return:${processingNo}:ledger:${ledger.id}`,
               },
               connection
             );
-            logger.info(`Outsourced cancellation stock returned: materialId=${material.material_id}, quantity=${material.quantity}`);
+            logger.info(
+              `Outsourced cancellation stock returned: materialId=${ledger.material_id}, quantity=${qty}, batch=${ledger.batch_number || ''}`
+            );
           } catch (returnError) {
-            logger.error(`外委取消退料失败: 物料ID=${material.material_id}`, returnError.message);
+            logger.error(`外委取消退料失败: 物料ID=${ledger.material_id}`, returnError.message);
             throw returnError;
           }
         }
 
-        logger.info(`外委加工单 ${existingProcessing[0].processing_no} 取消，已回退 ${materials.length} 个物料的库存`);
-        warnings.push(`已回退 ${materials.length} 个发料物料的库存，请检查关联的外委发料会计分录是否需要手动冲销`);
+        logger.info(
+          `外委加工单 ${processingNo} 取消，已按 ${issueLedgers.length} 条发料台账回退库存`
+        );
+        warnings.push(
+          `已回退 ${issueLedgers.length} 条发料台账的库存，请检查关联的外委发料会计分录是否需要手动冲销`
+        );
       }
     }
 
@@ -1069,20 +1099,29 @@ const updateReceiptStatus = async (req, res) => {
             throw new Error(`物料 ${item.product_name || item.product_id} 入库数量必须大于0`);
           }
 
-          // 使用统一的 InventoryService 更新库存
-          // InventoryService 已在文件顶部引入
+          // 入库必须可追溯批次 + 有效成本：按入库单明细生成稳定业务批次键
+          const receiptNo = existingReceipt[0].receipt_no;
+          const inboundBatch = `OSP-${receiptNo}-${item.id}`;
+          const inboundUnitCost = parseFloat(item.unit_price);
+          if (!(inboundUnitCost > 0)) {
+            throw new Error(
+              `外委入库缺少有效成本单价: receipt_no=${receiptNo}, item_id=${item.id}`
+            );
+          }
           await InventoryService.updateStock(
             {
               materialId: material_id,
               locationId: location_id,
               quantity: actualQuantity, // 入库为正数
               transactionType: 'outsourced_inbound',
-              referenceNo: existingReceipt[0].receipt_no,
+              referenceNo: receiptNo,
               referenceType: 'outsourced_processing_receipt',
               operator: existingReceipt[0].operator || getRequestActorLabel(req),
-              remark: `外委加工入库 ${existingReceipt[0].receipt_no}`,
+              remark: `外委加工入库 ${receiptNo}`,
               unitId: item.unit_id,
-              batchNumber: null,
+              batchNumber: inboundBatch,
+              unitCost: inboundUnitCost,
+              idempotencyKey: `outsourced_inbound:${receiptNo}:${item.id}`,
             },
             connection
           );

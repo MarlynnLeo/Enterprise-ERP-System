@@ -936,7 +936,7 @@ async function processExchangeInventory(connection, exchangeId, operator) {
       const _beforeQuantity = parseFloat(stockResult[0]?.current_quantity || 0);
 
 
-      // 🔥 使用统一的 InventoryService 记录退回商品的库存增加
+      // 换货退回入库：强制可追溯批次，禁止空批次键
       const InventoryService = require('../../../services/InventoryService');
       await InventoryService.updateStock(
         {
@@ -950,6 +950,7 @@ async function processExchangeInventory(connection, exchangeId, operator) {
           remark: `换货退回：${item.product_name} (${item.specification})`,
           unitId: item.unit_id || null,
           batchNumber: `EX-${exchangeNo}-${item.material_id}`,
+          idempotencyKey: `sales_exchange_return:${exchangeNo}:${item.material_id}:${locationId}:${item.id}`,
         },
         connection
       );
@@ -999,7 +1000,7 @@ async function processExchangeInventory(connection, exchangeId, operator) {
       }
 
 
-      // 🔥 使用统一的 InventoryService 记录换出商品的库存减少
+      // 换出不指定批次：由 InventoryService 按 FIFO 自动拆批写台账
       const InventoryService = require('../../../services/InventoryService');
       await InventoryService.updateStock(
         {
@@ -1012,7 +1013,8 @@ async function processExchangeInventory(connection, exchangeId, operator) {
           operator: operator,
           remark: `换货发出：${item.product_name} (${item.specification})`,
           unitId: item.unit_id || null,
-          batchNumber: null,
+          // 省略 batchNumber → FIFO；幂等键用明细主键 id（勿混用 product_code）
+          idempotencyKey: `sales_exchange_out:${exchangeNo}:${item.material_id}:${locationId}:${item.id}`,
         },
         connection
       );

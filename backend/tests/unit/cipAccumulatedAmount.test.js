@@ -108,12 +108,3 @@ describe('cipModel accumulated amount', () => {
     });
   });
 });
-
-describe('cipController.addCost', () => {
-  jest.mock('../../../src/utils/responseHandler', () => ({
-    ResponseHandler: {
-      success: jest.fn((res, data, msg) => ({ ok: true, data, msg })),
-      error: jest.fn((res, msg, code) => ({ ok: false, msg, code })),
-    },
-  }), { virtual: false });
-});

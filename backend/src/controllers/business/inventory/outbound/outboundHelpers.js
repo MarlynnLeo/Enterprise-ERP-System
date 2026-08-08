@@ -331,7 +331,9 @@ const issueOutboundItemFromDetail = async ({
   const txType = isProductionOutboundReference(referenceType)
     ? 'production_outbound'
     : 'outbound';
-  const batchKey = batchNumber || 'NOBATCH';
+  // 批次键 SSOT：与 InventoryService 一致；空键表示由服务层 FIFO 拆批
+  const normalizedBatch = InventoryService._normalizeBatchNumber(batchNumber);
+  const batchKey = normalizedBatch || 'EMPTY';
 
   return InventoryService.updateStock(
     {
@@ -346,7 +348,8 @@ const issueOutboundItemFromDetail = async ({
       remark: `Outbound: ${outboundNo}`,
       issue_reason: issueReason,
       is_excess: isExcess,
-      batchNumber,
+      // 空批次不要写 null；省略语义由服务层按 FIFO 处理（传 '' 等价）
+      ...(normalizedBatch ? { batchNumber: normalizedBatch } : {}),
       idempotencyKey: `${txType}:${outboundNo}:${materialId}:${locationId}:${batchKey}:${actualQuantity}`,
     },
     connection

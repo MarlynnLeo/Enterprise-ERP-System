@@ -29,8 +29,15 @@ class InventoryService {
 
   static balanceTableAvailable = null;
 
+  /**
+   * 批次键 SSOT：与余额表 / 一致性规则对齐。
+   * - null / undefined / 纯空白 → ''（空批次键）
+   * - 其余 trim 后的字符串
+   * 入库禁止空键；出库空键表示走 FIFO 自动拆批。
+   */
   static _normalizeBatchNumber(batchNumber) {
-    return batchNumber === null || batchNumber === undefined ? '' : String(batchNumber);
+    if (batchNumber === null || batchNumber === undefined) return '';
+    return String(batchNumber).trim();
   }
 
   static _isMissingBalanceTableError(error) {
@@ -692,9 +699,12 @@ class InventoryService {
       );
     }
 
-    // 入库批次必须来自上游业务单据或显式录入，禁止在库存服务层生成不可追溯的兜底批次。
+    // 批次键入口归一：后续 FIFO / 台账 / 幂等键统一使用
+    const normalizedBatchInput = this._normalizeBatchNumber(batchNumber);
+
+    // 入库批次必须来自上游业务单据或显式录入，禁止空批次键写入台账。
     const isInboundOperation = parseFloat(quantity) > 0;
-    if (isInboundOperation && !batchNumber) {
+    if (isInboundOperation && !normalizedBatchInput) {
       throw new Error(
         `入库必须提供可追溯批次号: materialId=${materialId}, referenceNo=${referenceNo}, transactionType=${transactionType}`
       );
@@ -781,9 +791,9 @@ class InventoryService {
       // 6. 验证物料和库位是否存在
       await this._validateMaterialAndLocation(materialId, locationId, connection);
 
-      // FIFO批次处理：如果是扣减库存且没有提供批次号，则自动按FIFO拆分批次
+      // FIFO：出库且未指定有效批次 → 按台账先进先出拆批
       let finalBatchNumbers = [];
-      if (changeQuantity < 0 && !batchNumber) {
+      if (changeQuantity < 0 && !normalizedBatchInput) {
         const outboundQuantity = Math.abs(changeQuantity);
         const [batchRecords] = await connection.query(
           `SELECT batch_number, SUM(quantity) as batch_quantity
@@ -802,17 +812,18 @@ class InventoryService {
         for (const batch of batchRecords) {
           if (remainingQuantity <= 0) break;
           const deductQty = Math.min(parseFloat(batch.batch_quantity), remainingQuantity);
+          const batchKey = this._normalizeBatchNumber(batch.batch_number);
+          if (!batchKey) continue;
 
-          if (tempBatchMap.has(batch.batch_number)) {
-            tempBatchMap.set(batch.batch_number, tempBatchMap.get(batch.batch_number) + deductQty);
+          if (tempBatchMap.has(batchKey)) {
+            tempBatchMap.set(batchKey, tempBatchMap.get(batchKey) + deductQty);
           } else {
-            tempBatchMap.set(batch.batch_number, deductQty);
+            tempBatchMap.set(batchKey, deductQty);
           }
 
           remainingQuantity -= deductQty;
         }
 
-        // 收集聚合后的批次和扣减量
         for (const [bNum, bQty] of tempBatchMap.entries()) {
           finalBatchNumbers.push({
             batchNumber: bNum,
@@ -826,15 +837,15 @@ class InventoryService {
           );
         }
       } else {
-        // 如果是入库，或者出库但明确指定了批次号
-        // ✅ 根本修复：防止因上游遗漏或特殊情况传入 batchNumber = null 导致出现 [无批次] 负库存
-        const safeBatchNumber = batchNumber;
-        if (!safeBatchNumber && changeQuantity < 0) {
+        // 入库或出库明确指定批次（已归一化）
+        if (!normalizedBatchInput && changeQuantity < 0) {
           throw new Error(
             `出库必须提供批次号或可通过FIFO分配批次: materialId=${materialId}, locationId=${locationId}, referenceNo=${referenceNo}`
           );
         }
-        finalBatchNumbers = [{ batchNumber: safeBatchNumber, quantity: Math.abs(changeQuantity) }];
+        finalBatchNumbers = [
+          { batchNumber: normalizedBatchInput, quantity: Math.abs(changeQuantity) },
+        ];
       }
 
       // 7. 插入库存台账记录（如果按FIFO拆分，会有多条记录，累积计算 before/after）
@@ -845,15 +856,16 @@ class InventoryService {
         // 还原当前批次的实际变动量（正负号）
         const batchChangeQty = changeQuantity < 0 ? -batchInfo.quantity : batchInfo.quantity;
         const currentAfter = Precision.add(currentBefore, batchChangeQty);
+        const ledgerBatchNumber = this._normalizeBatchNumber(batchInfo.batchNumber);
         const ledgerIdempotencyKey =
           idempotencyKey && finalBatchNumbers.length > 1
-            ? `${idempotencyKey}:${batchInfo.batchNumber}`
+            ? `${idempotencyKey}:${ledgerBatchNumber || 'EMPTY'}`
             : idempotencyKey;
         const actualUnitCost = await this._resolveUnitCost(
           {
             materialId,
             locationId,
-            batchNumber: batchInfo.batchNumber,
+            batchNumber: ledgerBatchNumber,
             referenceNo,
             referenceType,
             unitCost,
@@ -864,7 +876,7 @@ class InventoryService {
         if (!(Number(actualUnitCost) > 0)) {
           throw new Error(
             `库存变动缺少有效成本：materialId=${materialId}, referenceNo=${referenceNo}, ` +
-              `transactionType=${transactionType}, batch=${batchInfo.batchNumber || ''}`
+              `transactionType=${transactionType}, batch=${ledgerBatchNumber || ''}`
           );
         }
 
@@ -895,7 +907,7 @@ class InventoryService {
             currentBefore,
             currentAfter,
             unitId,
-            batchInfo.batchNumber,
+            ledgerBatchNumber,
             supplierId,
             supplierName,
             productionDate,
@@ -1065,7 +1077,7 @@ class InventoryService {
             operator,
             remark: `${remark} (转入)`,
             unitId,
-            batchNumber: row.batch_number, // ✅ 继承原批次
+            batchNumber: this._normalizeBatchNumber(row.batch_number) || `TR-${referenceNo}-${materialId}`,
             unitCost: row.unit_cost,
           },
           connection
@@ -1073,7 +1085,9 @@ class InventoryService {
       }
     } else {
       // 兜底：批次信息查不到（如手动调整的旧数据），整体一笔写入
-      // updateStock 会自动生成批次号，不会产生空批次
+      // 入库必须有可追溯批次，禁止 null/'' 落入台账
+      const transferInBatch =
+        this._normalizeBatchNumber(batchNumber) || `TR-${referenceNo}-${materialId}-${toLocationId}`;
       await this.updateStock(
         {
           materialId,
@@ -1085,7 +1099,7 @@ class InventoryService {
           operator,
           remark: `${remark} (转入)`,
           unitId,
-          batchNumber,
+          batchNumber: transferInBatch,
         },
         connection
       );

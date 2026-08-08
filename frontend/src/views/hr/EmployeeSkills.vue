@@ -83,7 +83,7 @@
                     <span v-if="row.skills[skill].expired"> ⚠</span>
                   </el-tag>
                 </template>
-                <span v-else style="color: #ddd">—</span>
+                <span v-else class="skill-empty">—</span>
               </template>
             </el-table-column>
           </el-table>
@@ -254,4 +254,7 @@ onMounted(() => { fetchData(); fetchCategories() })
 
 <style scoped>
 .matrix-container { overflow-x: auto; }
+.skill-empty {
+  color: var(--color-text-placeholder, var(--color-text-secondary, var(--el-text-color-placeholder)));
+}
 </style>

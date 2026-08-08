@@ -20,7 +20,6 @@ const { PURCHASE_RETURN_TRANSITIONS } = require('../../../constants/statusRegist
 const { getRequestActorLabel } = require('../../../utils/userUtils');
 const {
   purchaseReturnMap,
-  purchaseReturnItemMap,
 } = require('../../../utils/purchase/purchaseFieldMap');
 
 
@@ -744,6 +743,7 @@ const updateReturnStatus = async (req, res) => {
           const unitId = unitResult.length > 0 ? unitResult[0].unit_id : null;
 
           // 使用统一的 InventoryService 更新库存
+          // 明细无批次字段：省略 batchNumber，由 updateStock 按 FIFO 自动拆批（勿显式传 null）
           const InventoryService = require('../../../services/InventoryService');
           await InventoryService.updateStock(
             {
@@ -756,7 +756,6 @@ const updateReturnStatus = async (req, res) => {
               operator: getRequestActorLabel(req),
               remark: `采购退货：${returnNo}`,
               unitId,
-              batchNumber: null, // 退货通常不指定批次
               unitCost: item.unit_price, // 透传退货单价以保证存货账面精确相减
               idempotencyKey: `purchase_return:${returnNo}:${item.material_id}:${warehouseId}:${returnQuantity}:${item.id}`,
             },
