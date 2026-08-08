@@ -75,6 +75,8 @@ if (!fs.existsSync(componentsCss)) {
     '[data-theme] .icon-button',
     '[data-theme] .user-info',
     '[data-theme] .el-card.data-card',
+    '[data-theme] .el-dropdown-menu',
+    '[data-theme] .el-tag--primary',
   ]) {
     if (!shell.includes(must)) {
       errors.push(`theme-components.css 缺少共享规则: ${must}`)

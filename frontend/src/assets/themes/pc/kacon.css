@@ -253,62 +253,10 @@
 }
 
 
-/* ========== 10. 表格 ========== */
-/* 密度/hover/选中/斑马纹 → theme-components.css */
+/* ========== 浮层玻璃（结构/hover → theme-components） ========== */
 
-/* ========== 11. 输入框 ========== */
-/* 圆角/底色/hover → theme-components + theme-compat */
-
-/* ========== 12. 选择器 ========== */
-
-[data-theme="kacon"] .el-select-dropdown {
-  border: 1px solid color-mix(in srgb, var(--color-border-base) 80%, transparent) !important;
-  border-radius: var(--radius-md) !important;
-  box-shadow: var(--shadow-lg) !important;
-  backdrop-filter: var(--kacon-glass-filter) !important;
-  -webkit-backdrop-filter: var(--kacon-glass-filter) !important;
-  background: var(--kacon-glass-bg-strong) !important;
-}
-
-/* select item 选中/hover → theme-components */
-
-/* ========== 13. 标签页 ========== */
-/* 基础色 → theme-components；激活条见 §35.2 */
-
-/* ========== 14. 分页器 ========== */
-/* → theme-components；is-background 见 §35.1 */
-
-/* ========== 15. 标签 ========== */
-/* 圆角 → theme-components */
-
-/* ========== 17. 下拉菜单 ========== */
-
-[data-theme="kacon"] .el-dropdown-menu {
-  border: 1px solid color-mix(in srgb, var(--color-border-base) 80%, transparent) !important;
-  border-radius: var(--radius-md) !important;
-  box-shadow: var(--shadow-lg) !important;
-  padding: 6px !important;
-  background: var(--kacon-glass-bg-strong) !important;
-  backdrop-filter: var(--kacon-glass-filter) !important;
-  -webkit-backdrop-filter: var(--kacon-glass-filter) !important;
-}
-
-[data-theme="kacon"] .el-dropdown-menu__item {
-  border-radius: var(--radius-md) !important;
-  font-size: 13px !important;
-  transition:
-    background-color var(--transition-fast) var(--transition-timing),
-    color var(--transition-fast) var(--transition-timing) !important;
-}
-
-[data-theme="kacon"] .el-dropdown-menu__item:hover {
-  background: color-mix(in srgb, var(--color-primary) 6%, transparent) !important;
-  color: var(--color-primary-dark-2) !important;
-  transform: none !important;
-  box-shadow: none !important;
-}
-
-/* Shell dropdown */
+[data-theme="kacon"] .el-select-dropdown,
+[data-theme="kacon"] .el-dropdown-menu,
 [data-theme="kacon"] .user-dropdown,
 [data-theme="kacon"] .language-dropdown {
   background: var(--kacon-glass-bg-strong) !important;
@@ -319,190 +267,23 @@
   border-radius: var(--radius-md) !important;
 }
 
-[data-theme="kacon"] .user-dropdown .el-dropdown-menu__item:not(.is-disabled):hover,
-[data-theme="kacon"] .language-dropdown .el-dropdown-menu__item:hover {
-  background: color-mix(in srgb, var(--color-primary) 6%, transparent) !important;
-  color: var(--color-primary-dark-2) !important;
-  transform: none !important;
-  box-shadow: none !important;
+/* 进度条品牌渐变（共享壳为 primary→dark；kacon 用 brand 亮色） */
+[data-theme="kacon"] .el-progress-bar__inner {
+  background: linear-gradient(90deg, var(--color-primary), var(--color-brand)) !important;
 }
 
-[data-theme="kacon"] .user-dropdown .el-dropdown-menu__item:not(.is-disabled):hover .el-icon {
-  transform: none !important;
-}
-
-[data-theme="kacon"] .language-dropdown .el-dropdown-menu__item.is-active {
-  background: var(--color-primary-light-9) !important;
-  color: var(--color-primary) !important;
-  border-left: 3px solid var(--color-primary) !important;
-}
-
-
-/* ========== 18. 进度条 ========== */
-
-[data-theme="kacon"] .el-progress-bar__outer {
-  background: var(--color-border-light) !important;
-  border-radius: var(--radius-round) !important;
-}
-
-
-/* ========== 19. 面包屑 ========== */
-
-[data-theme="kacon"] .el-breadcrumb__inner.is-link:hover,
-[data-theme="kacon"] .el-breadcrumb__inner a:hover {
-  color: var(--color-primary) !important;
-}
-
-
-/* ========== 20. 链接 ========== */
-
-[data-theme="kacon"] .el-link--primary {
-  color: var(--color-primary) !important;
-}
-
-[data-theme="kacon"] .el-link--primary:hover {
-  color: var(--color-primary-dark-2) !important;
-}
-
-
-/* ========== 21. 步骤条 ========== */
-
-[data-theme="kacon"] .el-step__head.is-finish .el-step__icon {
-  color: var(--color-primary) !important;
-  border-color: var(--color-primary) !important;
-}
-
-[data-theme="kacon"] .el-step__head.is-process .el-step__icon {
-  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark-2)) !important;
-  border-color: var(--color-primary) !important;
-}
-
-[data-theme="kacon"] .el-step__title.is-finish {
-  color: var(--color-primary) !important;
-}
-
-[data-theme="kacon"] .el-step__head.is-finish .el-step__line {
-  background-color: var(--color-primary) !important;
-}
-
-
-/* ========== 22. 消息/通知 ========== */
-
+/* 消息条玻璃 */
 [data-theme="kacon"] .el-message {
-  border-radius: var(--radius-md) !important;
-  border: 1px solid color-mix(in srgb, var(--color-border-base) 70%, transparent) !important;
-  box-shadow: var(--shadow-lg) !important;
   backdrop-filter: var(--kacon-glass-filter) !important;
   -webkit-backdrop-filter: var(--kacon-glass-filter) !important;
 }
 
-[data-theme="kacon"] .el-notification {
-  border-radius: var(--radius-md) !important;
-  box-shadow: var(--shadow-xl) !important;
-  border: 1px solid color-mix(in srgb, var(--color-border-base) 70%, transparent) !important;
-}
-
-
-/* ========== 23. 抽屉 ========== */
-
-[data-theme="kacon"] .el-drawer {
-  box-shadow: var(--shadow-xl) !important;
-}
-
-[data-theme="kacon"] .el-drawer__header {
-  border-bottom: 1px solid color-mix(in srgb, var(--color-border-base) 70%, transparent) !important;
-  margin-bottom: 0 !important;
-  padding: 18px 24px !important;
-  color: var(--color-text-primary) !important;
-  font-weight: 600 !important;
-  background: color-mix(in srgb, var(--color-bg-section) 30%, transparent) !important;
-}
-
-
-/* ========== 24. 加载状态 ========== */
-
-[data-theme="kacon"] .el-loading-spinner .circular .path {
-  stroke: var(--color-primary) !important;
-}
-
-[data-theme="kacon"] .el-loading-spinner .el-loading-text {
-  color: var(--color-primary) !important;
-}
-
-
-/* ========== 25. 表单标签 ========== */
-
-[data-theme="kacon"] .el-form-item__label {
-  color: var(--color-text-secondary) !important;
-  font-weight: 600 !important;
-  font-size: 13px !important;
-}
-
-
-/* ========== 26. 图标 ========== */
-
-[data-theme="kacon"] .el-icon {
-  filter: none !important;
-}
-
-
-/* ========== 27. 日期选择器 ========== */
-
-[data-theme="kacon"] .el-date-picker .el-picker-panel__link-btn {
-  color: var(--color-primary) !important;
-}
-
-[data-theme="kacon"] .el-date-table td.today .el-date-table-cell__text {
-  color: var(--color-primary) !important;
-}
-
-[data-theme="kacon"] .el-date-table td.current:not(.is-disabled) .el-date-table-cell__text {
-  background-color: var(--color-primary) !important;
-}
-
-
-/* ========== 28. 时间线 ========== */
-
-[data-theme="kacon"] .el-timeline-item__node--primary {
-  background-color: var(--color-primary) !important;
-}
-
-
-/* ========== 29. 徽章 ========== */
-
-[data-theme="kacon"] .el-badge__content--primary {
-  background-color: var(--color-primary) !important;
-}
-
-
-/* ========== 30. 滚动条 ========== */
-
-[data-theme="kacon"] ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-[data-theme="kacon"] ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 8px;
-}
-
-[data-theme="kacon"] ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
-}
-
-[data-theme="kacon"] ::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-
-/* ========== 31. 过渡策略 ========== */
+/* 过渡微调（共享壳不强制动画时长） */
 [data-theme="kacon"] {
   --el-transition-duration: 0.25s;
   --el-transition-duration-fast: 0.15s;
 }
 
-/* 对话框/抽屉使用优雅动画 */
 [data-theme="kacon"] .el-overlay {
   transition: opacity 0.2s var(--transition-timing) !important;
 }
@@ -517,69 +298,19 @@
 [data-theme="kacon"] .dialog-fade-leave-active .el-dialog,
 [data-theme="kacon"] .dialog-fade-enter-active .el-overlay-dialog,
 [data-theme="kacon"] .dialog-fade-leave-active .el-overlay-dialog {
-  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.2s var(--transition-timing) !important;
+  transition:
+    transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+    opacity 0.2s var(--transition-timing) !important;
 }
 
-/* 抽屉过渡 */
 [data-theme="kacon"] .el-drawer__open .el-drawer.rtl,
 [data-theme="kacon"] .el-drawer__open .el-drawer.ltr {
   transition: transform 0.3s var(--transition-timing) !important;
 }
 
-/* ========== 32. 侧边栏收起状态兼容 ========== */
-
-[data-theme="kacon"] .sidebar.collapsed {
-  border-radius: 0 !important;
-}
-
+[data-theme="kacon"] .sidebar.collapsed,
 [data-theme="kacon"] .sidebar.collapsed .logo-container {
   border-radius: 0 !important;
-}
-
-/* ==================================================================
-   35. 深度覆盖：组件色彩统一
-   ================================================================== */
-
-/* ===== 35.1–35.5 分页/Tabs/开关/勾选/Focus → theme-components ===== */
-
-/* ===== 35.6 标签 (Tag) ===== */
-[data-theme="kacon"] .el-tag--primary,
-[data-theme="kacon"] .el-tag {
-  background-color: var(--color-primary-light-9) !important;
-  border-color: transparent !important;
-  color: var(--color-primary) !important;
-  border-radius: var(--radius-round) !important;
-  font-weight: 600;
-}
-
-[data-theme="kacon"] .el-tag--success {
-  background-color: var(--color-success-light) !important;
-  border-color: transparent !important;
-  color: #15803d !important;
-}
-
-[data-theme="kacon"] .el-tag--warning {
-  background-color: var(--color-warning-light) !important;
-  border-color: transparent !important;
-  color: #b45309 !important;
-}
-
-[data-theme="kacon"] .el-tag--danger {
-  background-color: var(--color-danger-light) !important;
-  border-color: transparent !important;
-  color: #b91c1c !important;
-}
-
-[data-theme="kacon"] .el-tag--info {
-  background-color: var(--color-info-light) !important;
-  border-color: transparent !important;
-  color: var(--color-text-secondary) !important;
-}
-
-/* 进度条 (Progress) */
-[data-theme="kacon"] .el-progress-bar__inner {
-  background: linear-gradient(90deg, var(--color-primary), var(--color-brand)) !important;
-  border-radius: var(--radius-round) !important;
 }
 
 

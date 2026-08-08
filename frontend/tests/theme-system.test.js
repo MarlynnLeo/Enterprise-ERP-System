@@ -112,6 +112,9 @@ describe('theme system', () => {
     expect(components).toContain('[data-theme] .icon-button')
     expect(components).toContain('[data-theme] .user-info')
     expect(components).toContain('--shell-menu-icon-opacity')
+    expect(components).toContain('[data-theme] .el-dropdown-menu')
+    expect(components).toContain('[data-theme] .el-step__head.is-finish')
+    expect(components).toContain('[data-theme] .el-tag--primary')
   })
 
   test('kacon keeps brand glass and does not solely own menu density', () => {
@@ -120,6 +123,10 @@ describe('theme system', () => {
     expect(kacon).toContain('backdrop-filter')
     // 菜单水平内缩已上收到 theme-components
     expect(kacon).not.toMatch(/\[data-theme="kacon"\]\s+\.sidebar-menu\s*\{/)
+    // 面包屑/表单标签/日期选中已上收
+    expect(kacon).not.toMatch(/\[data-theme="kacon"\]\s+\.el-breadcrumb__inner/)
+    expect(kacon).not.toMatch(/\[data-theme="kacon"\]\s+\.el-form-item__label/)
+    expect(kacon).not.toMatch(/\[data-theme="kacon"\]\s+::-webkit-scrollbar/)
   })
 
   test('lazy themes load the final compatibility layer after their own CSS', () => {

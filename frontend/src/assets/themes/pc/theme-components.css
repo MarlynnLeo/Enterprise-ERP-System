@@ -633,3 +633,235 @@
   box-shadow: none !important;
   border-radius: 0 !important;
 }
+
+/*
+ * 通用组件交互（token 驱动，全主题）
+ * 玻璃/品牌滤镜仍由各主题 CSS 叠加
+ */
+[data-theme] .el-dropdown-menu {
+  border: 1px solid color-mix(in srgb, var(--color-border-base) 80%, transparent) !important;
+  border-radius: var(--radius-md, 8px) !important;
+  box-shadow: var(--shadow-lg, 0 12px 40px rgba(0, 0, 0, 0.08)) !important;
+  padding: 6px !important;
+  background: var(--color-bg-base) !important;
+}
+
+[data-theme] .el-dropdown-menu__item {
+  border-radius: var(--radius-md, 8px) !important;
+  font-size: 13px !important;
+  transition:
+    background-color var(--transition-fast, 0.15s) var(--transition-timing, ease),
+    color var(--transition-fast, 0.15s) var(--transition-timing, ease) !important;
+}
+
+[data-theme] .el-dropdown-menu__item:not(.is-disabled):hover {
+  background: color-mix(in srgb, var(--color-primary) 6%, transparent) !important;
+  color: var(--color-primary-dark-2, var(--color-primary)) !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+[data-theme] .el-dropdown-menu__item:not(.is-disabled):hover .el-icon {
+  transform: none !important;
+}
+
+[data-theme] .language-dropdown .el-dropdown-menu__item.is-active,
+[data-theme] .el-dropdown-menu__item.is-active {
+  background: var(
+    --color-primary-light-9,
+    color-mix(in srgb, var(--color-primary) 12%, transparent)
+  ) !important;
+  color: var(--color-primary) !important;
+  border-left: 3px solid var(--color-primary) !important;
+}
+
+[data-theme] .el-progress-bar__outer {
+  background: var(--color-border-light, var(--color-border-base)) !important;
+  border-radius: var(--radius-round, 999px) !important;
+}
+
+[data-theme] .el-progress-bar__inner {
+  background: linear-gradient(
+    90deg,
+    var(--color-primary),
+    var(--color-primary-dark-2, var(--color-primary))
+  ) !important;
+  border-radius: var(--radius-round, 999px) !important;
+}
+
+[data-theme] .el-breadcrumb__inner.is-link:hover,
+[data-theme] .el-breadcrumb__inner a:hover {
+  color: var(--color-primary) !important;
+}
+
+[data-theme] .el-link--primary {
+  color: var(--color-primary) !important;
+}
+
+[data-theme] .el-link--primary:hover {
+  color: var(--color-primary-dark-2, var(--color-primary)) !important;
+}
+
+[data-theme] .el-step__head.is-finish .el-step__icon {
+  color: var(--color-primary) !important;
+  border-color: var(--color-primary) !important;
+}
+
+[data-theme] .el-step__head.is-process .el-step__icon {
+  background: linear-gradient(
+    135deg,
+    var(--color-primary),
+    var(--color-primary-dark-2, var(--color-primary))
+  ) !important;
+  border-color: var(--color-primary) !important;
+  color: var(--color-on-primary, #fff) !important;
+}
+
+[data-theme] .el-step__title.is-finish {
+  color: var(--color-primary) !important;
+}
+
+[data-theme] .el-step__head.is-finish .el-step__line {
+  background-color: var(--color-primary) !important;
+}
+
+[data-theme] .el-form-item__label {
+  color: var(--color-text-secondary) !important;
+  font-weight: 600 !important;
+  font-size: 13px !important;
+}
+
+[data-theme] .el-date-picker .el-picker-panel__link-btn {
+  color: var(--color-primary) !important;
+}
+
+[data-theme] .el-date-table td.today .el-date-table-cell__text {
+  color: var(--color-primary) !important;
+}
+
+[data-theme] .el-date-table td.current:not(.is-disabled) .el-date-table-cell__text {
+  background-color: var(--color-primary) !important;
+  color: var(--color-on-primary, #fff) !important;
+}
+
+[data-theme] .el-timeline-item__node--primary {
+  background-color: var(--color-primary) !important;
+}
+
+[data-theme] .el-badge__content--primary {
+  background-color: var(--color-primary) !important;
+}
+
+[data-theme] .el-loading-spinner .circular .path {
+  stroke: var(--color-primary) !important;
+}
+
+[data-theme] .el-loading-spinner .el-loading-text {
+  color: var(--color-primary) !important;
+}
+
+[data-theme] .el-drawer__header {
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border-base) 70%, transparent) !important;
+  margin-bottom: 0 !important;
+  padding: 18px 24px !important;
+  color: var(--color-text-primary) !important;
+  font-weight: 600 !important;
+  background: color-mix(in srgb, var(--color-bg-section, var(--color-bg-base)) 30%, transparent) !important;
+}
+
+[data-theme] .el-drawer {
+  box-shadow: var(--shadow-xl, 0 20px 60px rgba(0, 0, 0, 0.12)) !important;
+}
+
+[data-theme] .el-notification {
+  border-radius: var(--radius-md, 8px) !important;
+  box-shadow: var(--shadow-xl, 0 20px 60px rgba(0, 0, 0, 0.12)) !important;
+  border: 1px solid color-mix(in srgb, var(--color-border-base) 70%, transparent) !important;
+}
+
+[data-theme] .el-message {
+  border-radius: var(--radius-md, 8px) !important;
+  border: 1px solid color-mix(in srgb, var(--color-border-base) 70%, transparent) !important;
+  box-shadow: var(--shadow-lg, 0 12px 40px rgba(0, 0, 0, 0.08)) !important;
+}
+
+/* 语义 Tag：浅底 + 主色字（各主题 token 自适应） */
+[data-theme] .el-tag--primary {
+  background-color: var(
+    --color-primary-light-9,
+    color-mix(in srgb, var(--color-primary) 12%, transparent)
+  ) !important;
+  border-color: transparent !important;
+  color: var(--color-primary) !important;
+  border-radius: var(--radius-round, 999px) !important;
+  font-weight: 600;
+}
+
+[data-theme] .el-tag--success {
+  background-color: var(--color-success-light, color-mix(in srgb, var(--color-success) 14%, transparent)) !important;
+  border-color: transparent !important;
+  color: var(--color-success-dark, var(--color-success)) !important;
+  border-radius: var(--radius-round, 999px) !important;
+  font-weight: 600;
+}
+
+[data-theme] .el-tag--warning {
+  background-color: var(--color-warning-light, color-mix(in srgb, var(--color-warning) 14%, transparent)) !important;
+  border-color: transparent !important;
+  color: var(--color-warning-dark, var(--color-warning)) !important;
+  border-radius: var(--radius-round, 999px) !important;
+  font-weight: 600;
+}
+
+[data-theme] .el-tag--danger {
+  background-color: var(--color-danger-light, color-mix(in srgb, var(--color-danger) 14%, transparent)) !important;
+  border-color: transparent !important;
+  color: var(--color-danger-dark, var(--color-danger)) !important;
+  border-radius: var(--radius-round, 999px) !important;
+  font-weight: 600;
+}
+
+[data-theme] .el-tag--info {
+  background-color: var(--color-info-light, color-mix(in srgb, var(--color-info) 14%, transparent)) !important;
+  border-color: transparent !important;
+  color: var(--color-text-secondary) !important;
+  border-radius: var(--radius-round, 999px) !important;
+  font-weight: 600;
+}
+
+/* 统计卡微交互（玻璃底仍由主题叠加） */
+[data-theme] .stat-card .stat-icon,
+[data-theme] .stat-card .stat-card-auto-icon,
+[data-theme] .stat-card .icon-container,
+[data-theme] .stat-card .stat-card__icon {
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+}
+
+[data-theme] .stat-card:hover .stat-icon,
+[data-theme] .stat-card:hover .stat-card-auto-icon,
+[data-theme] .stat-card:hover .icon-container,
+[data-theme] .stat-card:hover .stat-card__icon {
+  transform: scale(1.03) !important;
+}
+
+[data-theme] .el-card.stat-card:hover .stat-icon,
+[data-theme] .el-card.stat-card:hover .stat-card-auto-icon,
+[data-theme] .el-card.stat-card:hover .icon-container,
+[data-theme] .el-card.stat-card:hover .stat-card__icon {
+  transform: translateY(-50%) scale(1.03) !important;
+}
+
+[data-theme] .stat-card .stat-value,
+[data-theme] .stat-card .stat-card__value,
+[data-theme] .stat-card .number,
+[data-theme] .stat-card .animated-number {
+  font-weight: 800 !important;
+  font-variant-numeric: tabular-nums;
+}
+
+[data-theme] .stat-card .stat-label,
+[data-theme] .stat-card .stat-title,
+[data-theme] .stat-card .stat-card__label {
+  font-weight: 600 !important;
+  font-size: 12px !important;
+}
