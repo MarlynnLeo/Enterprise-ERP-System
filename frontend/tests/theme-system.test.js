@@ -104,6 +104,24 @@ describe('theme system', () => {
     expect(compatibility).toContain('@media (prefers-reduced-motion: reduce)')
   })
 
+  test('theme-components owns shared layout shell density for all themes', () => {
+    const components = readFileSync(resolve(themesDirectory, 'theme-components.css'), 'utf8')
+    // 布局/密度必须在 [data-theme] 共享壳，禁止只写在 kacon
+    expect(components).toContain('[data-theme] .sidebar-menu')
+    expect(components).toContain('[data-theme] .app-header')
+    expect(components).toContain('[data-theme] .icon-button')
+    expect(components).toContain('[data-theme] .user-info')
+    expect(components).toContain('--shell-menu-icon-opacity')
+  })
+
+  test('kacon keeps brand glass and does not solely own menu density', () => {
+    const kacon = readTheme('kacon')
+    expect(kacon).toContain('--kacon-glass-bg')
+    expect(kacon).toContain('backdrop-filter')
+    // 菜单水平内缩已上收到 theme-components
+    expect(kacon).not.toMatch(/\[data-theme="kacon"\]\s+\.sidebar-menu\s*\{/)
+  })
+
   test('lazy themes load the final compatibility layer after their own CSS', () => {
     const finalCompatibility = readFileSync(resolve(themesDirectory, 'theme-compat-final.css'), 'utf8')
     const loader = readFileSync(resolve(process.cwd(), 'src/utils/themeLoader.js'), 'utf8')

@@ -204,7 +204,7 @@
 }
 
 
-/* ========== 3. 侧边栏（玻璃底 + 菜单走 theme-components / shell token） ========== */
+/* ========== 3. 侧边栏 / 顶栏：仅品牌玻璃（密度与控件壳 → theme-components） ========== */
 
 [data-theme="kacon"] .sidebar,
 [data-theme="kacon"] .app-sidebar {
@@ -216,13 +216,6 @@
   border-radius: 0 !important;
   margin: 0 !important;
   height: 100% !important;
-}
-
-[data-theme="kacon"] .logo-container {
-  background: transparent !important;
-  border-bottom: 1px solid color-mix(in srgb, var(--color-primary) 8%, transparent) !important;
-  box-shadow: none !important;
-  border-radius: 0 !important;
 }
 
 [data-theme="kacon"] .logo {
@@ -238,128 +231,18 @@
   color: var(--color-primary) !important;
 }
 
-/* 菜单容器水平内缩（避免 collapse 高度跳动） */
-[data-theme="kacon"] .sidebar-menu {
-  padding-left: 8px !important;
-  padding-right: 8px !important;
-}
-
-/* 图标默认略淡（激活/光晕/rail → shell token + theme-components） */
-[data-theme="kacon"] .sidebar .el-menu-item .el-icon,
-[data-theme="kacon"] .sidebar .el-sub-menu__title .el-icon,
-[data-theme="kacon"] .app-sidebar .el-menu-item .el-icon,
-[data-theme="kacon"] .app-sidebar .el-sub-menu__title .el-icon {
-  opacity: 0.55;
-  font-size: 18px !important;
-}
-
-[data-theme="kacon"] .sidebar .el-menu-item:hover .el-icon,
-[data-theme="kacon"] .sidebar .el-sub-menu__title:hover .el-icon,
-[data-theme="kacon"] .app-sidebar .el-menu-item:hover .el-icon,
-[data-theme="kacon"] .app-sidebar .el-sub-menu__title:hover .el-icon {
-  opacity: 0.85;
-}
-
-[data-theme="kacon"] .sidebar .el-menu-item.is-active .el-icon,
-[data-theme="kacon"] .app-sidebar .el-menu-item.is-active .el-icon {
-  opacity: 1;
-}
-
-/* 子菜单展开标题 */
-[data-theme="kacon"] .sidebar .el-sub-menu.is-active > .el-sub-menu__title,
-[data-theme="kacon"] .app-sidebar .el-sub-menu.is-active > .el-sub-menu__title {
-  color: var(--color-primary) !important;
-  font-weight: 700 !important;
-}
-
-
-/* ========== 4. 顶部导航栏（毛玻璃） ========== */
-
+/* 顶栏毛玻璃：在共享 header 壳上叠加滤镜与 kacon 表面色 */
 [data-theme="kacon"] .header,
-[data-theme="kacon"] .el-header {
-  background: var(--kacon-glass-bg) !important;
-  backdrop-filter: var(--kacon-glass-filter) !important;
-  -webkit-backdrop-filter: var(--kacon-glass-filter) !important;
-  box-shadow: none !important;
-  border-radius: 0 !important;
-  margin: 0 !important;
-  border: none !important;
-  border-bottom: 1px solid color-mix(in srgb, var(--color-border-base) 70%, transparent) !important;
-}
-
-/* Shell header */
+[data-theme="kacon"] .el-header,
 [data-theme="kacon"] .app-header {
   background: var(--kacon-glass-bg) !important;
   backdrop-filter: var(--kacon-glass-filter) !important;
   -webkit-backdrop-filter: var(--kacon-glass-filter) !important;
   border: none !important;
   border-bottom: 1px solid color-mix(in srgb, var(--color-border-base) 70%, transparent) !important;
-  box-shadow: none !important;
 }
 
-/* 头部图标按钮 */
-[data-theme="kacon"] .icon-button,
-[data-theme="kacon"] .icon-button-wrapper .notification-bell,
-[data-theme="kacon"] .icon-button-wrapper .theme-selector {
-  background: transparent !important;
-  border: 1px solid var(--color-border-base) !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  border-radius: var(--radius-md) !important;
-  color: var(--color-text-regular) !important;
-  transition:
-    background-color var(--transition-fast) var(--transition-timing),
-    border-color var(--transition-fast) var(--transition-timing),
-    box-shadow var(--transition-fast) var(--transition-timing),
-    color var(--transition-fast) var(--transition-timing),
-    transform var(--transition-fast) var(--transition-timing) !important;
-}
-
-[data-theme="kacon"] .icon-button:hover,
-[data-theme="kacon"] .icon-button-wrapper .notification-bell:hover,
-[data-theme="kacon"] .icon-button-wrapper .theme-selector:hover {
-  background: color-mix(in srgb, var(--color-primary) 6%, transparent) !important;
-  color: var(--color-primary) !important;
-  border-color: var(--color-primary) !important;
-  transform: translateY(-1px) !important;
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--color-primary) 12%, transparent) !important;
-}
-
-/* 用户信息区域 */
-[data-theme="kacon"] .user-info {
-  background: transparent !important;
-  border: 1px solid var(--color-border-base) !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  border-radius: 999px !important;
-  transition:
-    background-color var(--transition-fast) var(--transition-timing),
-    border-color var(--transition-fast) var(--transition-timing),
-    box-shadow var(--transition-fast) var(--transition-timing),
-    transform var(--transition-fast) var(--transition-timing) !important;
-}
-
-[data-theme="kacon"] .user-info:hover {
-  background: color-mix(in srgb, var(--color-primary) 6%, transparent) !important;
-  border-color: var(--color-primary) !important;
-  transform: translateY(-1px) !important;
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--color-primary) 12%, transparent) !important;
-}
-
-/* 头像 */
-[data-theme="kacon"] .user-avatar {
-  border: 2px solid var(--color-primary) !important;
-  background: var(--color-bg-base) !important;
-  box-shadow: none !important;
-}
-
-
-/* ========== 5. 主内容区 ========== */
-
-/* Descriptions 组件 */
-[data-theme="kacon"] .el-descriptions {
-  border-radius: var(--radius-md) !important;
-}
+/* ========== 5. 主内容区（品牌微调） ========== */
 
 [data-theme="kacon"] .el-descriptions .el-descriptions__header {
   background-color: color-mix(in srgb, var(--color-bg-section) 30%, transparent) !important;

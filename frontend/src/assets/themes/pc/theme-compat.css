@@ -152,6 +152,9 @@
   --shell-control-hover-bg: var(--color-bg-hover);
   --shell-control-hover-shadow: var(--shadow-sm);
   --shell-menu-item-height: 44px;
+  --shell-menu-icon-size: 18px;
+  --shell-menu-icon-opacity: 0.55;
+  --shell-menu-icon-opacity-hover: 0.85;
 
   /* Dashboard feature cards 默认（各 data-theme 分支可覆盖） */
   --theme-feature-card-bg: linear-gradient(

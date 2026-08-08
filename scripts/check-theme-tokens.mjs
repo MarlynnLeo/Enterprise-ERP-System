@@ -65,7 +65,17 @@ if (!fs.existsSync(componentsCss)) {
   errors.push('缺少 theme-components.css')
 } else {
   const shell = fs.readFileSync(componentsCss, 'utf8')
-  for (const must of ['[data-theme] .el-table', '[data-theme] .el-button--primary', '[data-theme] .el-card']) {
+  for (const must of [
+    '[data-theme] .el-table',
+    '[data-theme] .el-button--primary',
+    '[data-theme] .el-card',
+    // 布局壳：侧栏密度 / 顶栏 / 控件（从 kacon 上收，全主题可用）
+    '[data-theme] .sidebar-menu',
+    '[data-theme] .app-header',
+    '[data-theme] .icon-button',
+    '[data-theme] .user-info',
+    '[data-theme] .el-card.data-card',
+  ]) {
     if (!shell.includes(must)) {
       errors.push(`theme-components.css 缺少共享规则: ${must}`)
     }

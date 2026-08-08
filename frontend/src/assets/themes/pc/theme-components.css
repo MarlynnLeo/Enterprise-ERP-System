@@ -519,3 +519,117 @@
   color: var(--shell-sidebar-title, var(--color-text-primary));
   font-weight: 700;
 }
+
+/*
+ * 布局壳（全主题共享密度 / 交互；颜色走 shell-* / color-* token）
+ * 品牌玻璃、径向背景等仅留在各主题 CSS（如 kacon）
+ */
+[data-theme] .sidebar-menu {
+  padding-left: 8px !important;
+  padding-right: 8px !important;
+}
+
+[data-theme] .sidebar .el-menu-item .el-icon,
+[data-theme] .sidebar .el-sub-menu__title .el-icon,
+[data-theme] .app-sidebar .el-menu-item .el-icon,
+[data-theme] .app-sidebar .el-sub-menu__title .el-icon {
+  opacity: var(--shell-menu-icon-opacity, 0.55);
+  font-size: var(--shell-menu-icon-size, 18px) !important;
+}
+
+[data-theme] .sidebar .el-menu-item:hover .el-icon,
+[data-theme] .sidebar .el-sub-menu__title:hover .el-icon,
+[data-theme] .app-sidebar .el-menu-item:hover .el-icon,
+[data-theme] .app-sidebar .el-sub-menu__title:hover .el-icon {
+  opacity: var(--shell-menu-icon-opacity-hover, 0.85);
+}
+
+[data-theme] .sidebar .el-menu-item.is-active .el-icon,
+[data-theme] .app-sidebar .el-menu-item.is-active .el-icon {
+  opacity: 1;
+}
+
+[data-theme] .sidebar .el-sub-menu.is-active > .el-sub-menu__title,
+[data-theme] .app-sidebar .el-sub-menu.is-active > .el-sub-menu__title {
+  color: var(--color-primary) !important;
+  font-weight: 700 !important;
+}
+
+[data-theme] .header,
+[data-theme] .el-header,
+[data-theme] .app-header {
+  background: var(--shell-header-bg, var(--color-bg-base)) !important;
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--shell-border, var(--color-border-base)) 70%, transparent) !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  margin: 0 !important;
+}
+
+[data-theme] .icon-button,
+[data-theme] .icon-button-wrapper .notification-bell,
+[data-theme] .icon-button-wrapper .theme-selector {
+  background: var(--shell-control-bg, transparent) !important;
+  border: 1px solid var(--shell-control-border, var(--color-border-base)) !important;
+  border-radius: var(--shell-radius-md, var(--radius-md, 8px)) !important;
+  color: var(--color-text-regular) !important;
+  transition:
+    background-color var(--transition-fast, 0.15s) var(--transition-timing, ease),
+    border-color var(--transition-fast, 0.15s) var(--transition-timing, ease),
+    box-shadow var(--transition-fast, 0.15s) var(--transition-timing, ease),
+    color var(--transition-fast, 0.15s) var(--transition-timing, ease),
+    transform var(--transition-fast, 0.15s) var(--transition-timing, ease) !important;
+}
+
+[data-theme] .icon-button:hover,
+[data-theme] .icon-button-wrapper .notification-bell:hover,
+[data-theme] .icon-button-wrapper .theme-selector:hover {
+  background: var(
+    --shell-control-hover-bg,
+    color-mix(in srgb, var(--color-primary) 6%, transparent)
+  ) !important;
+  color: var(--color-primary) !important;
+  border-color: var(--color-primary) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: var(
+    --shell-control-hover-shadow,
+    0 2px 8px color-mix(in srgb, var(--color-primary) 12%, transparent)
+  ) !important;
+}
+
+[data-theme] .user-info {
+  background: var(--shell-control-bg, transparent) !important;
+  border: 1px solid var(--shell-control-border, var(--color-border-base)) !important;
+  border-radius: var(--radius-round, 999px) !important;
+  transition:
+    background-color var(--transition-fast, 0.15s) var(--transition-timing, ease),
+    border-color var(--transition-fast, 0.15s) var(--transition-timing, ease),
+    box-shadow var(--transition-fast, 0.15s) var(--transition-timing, ease),
+    transform var(--transition-fast, 0.15s) var(--transition-timing, ease) !important;
+}
+
+[data-theme] .user-info:hover {
+  background: var(
+    --shell-control-hover-bg,
+    color-mix(in srgb, var(--color-primary) 6%, transparent)
+  ) !important;
+  border-color: var(--color-primary) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: var(
+    --shell-control-hover-shadow,
+    0 2px 8px color-mix(in srgb, var(--color-primary) 12%, transparent)
+  ) !important;
+}
+
+[data-theme] .user-avatar {
+  border: 2px solid var(--color-primary) !important;
+  background: var(--color-bg-base) !important;
+  box-shadow: none !important;
+}
+
+[data-theme] .logo-container {
+  background: transparent !important;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-primary) 8%, transparent) !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+}
