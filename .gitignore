@@ -43,6 +43,7 @@ backend/scripts/*
 !backend/scripts/verify-finance-coding-rules.js
 !backend/scripts/verify-migration-integrity.js
 !backend/scripts/verify-bootstrap-state.js
+!backend/scripts/list-super-admins.js
 !backend/scripts/lib/
 !backend/scripts/lib/assert-safe-live-database.js
 backend/assets/*.traineddata

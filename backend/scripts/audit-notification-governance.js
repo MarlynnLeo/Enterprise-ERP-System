@@ -157,6 +157,3 @@ main()
     }
     process.exit(process.exitCode || 0);
   });
-  .finally(async () => {
-    await pool.end();
-  });
