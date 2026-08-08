@@ -50,8 +50,13 @@ const RATE_LIMIT_CONFIG = {
     standardHeaders: true,
     legacyHeaders: false,
     skip: (req) => {
-      // 跳过健康检查端点
-      return req.path === '/api/ping' || req.path === '/api/health';
+      // 跳过健康检查端点（含根路径别名）
+      return (
+        req.path === '/api/ping' ||
+        req.path === '/api/health' ||
+        req.path === '/ping' ||
+        req.path === '/health'
+      );
     },
   },
 

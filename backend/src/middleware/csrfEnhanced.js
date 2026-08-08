@@ -124,8 +124,13 @@ const conditionalCsrfProtection = (req, res, next) => {
     return next();
   }
 
-  // 跳过健康检查
-  if (req.path === '/api/ping' || req.path === '/api/health') {
+  // 跳过健康检查（含根路径别名）
+  if (
+    req.path === '/api/ping' ||
+    req.path === '/api/health' ||
+    req.path === '/ping' ||
+    req.path === '/health'
+  ) {
     return next();
   }
 

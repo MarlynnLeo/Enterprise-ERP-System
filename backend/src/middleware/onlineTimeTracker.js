@@ -9,7 +9,7 @@ const { logger } = require('../utils/logger');
 
 class OnlineTimeTracker {
   constructor() {
-    this.excludePaths = ['/api/ping', '/api/health', '/api/auth/refresh'];
+    this.excludePaths = ['/api/ping', '/api/health', '/ping', '/health', '/api/auth/refresh'];
     this.lastRecordTime = new Map();
     this.minInterval = 10000;
   }

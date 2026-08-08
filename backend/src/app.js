@@ -326,26 +326,16 @@ app.get(
   }
 );
 
-// 健康检查端点
-app.get('/api/ping', (_, res) => {
+// 健康检查端点（/api/* 与根路径别名并存，兼容 LB / K8s / 代理剥前缀）
+const publicPingHandler = (_, res) => {
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
     message: 'KACON ERP Backend is running',
   });
-});
+};
 
-// CSRF Token 获取端点（须在 CSRF 校验中间件之前注册，且始终公开可访问）
-app.get('/api/csrf-token', getCsrfTokenEnhanced);
-// 兼容少数代理把 /api 剥掉后的访问
-app.get('/csrf-token', getCsrfTokenEnhanced);
-
-// 启用CSRF保护（条件性）
-if (process.env.ENABLE_CSRF !== 'false') {
-  app.use(conditionalCsrfProtection);
-}
-
-app.get('/api/health', async (_, res) => {
+const publicHealthHandler = async (_, res) => {
   // [A-2 修复] 真实探测数据库状态，而非硬编码
   let dbStatus = 'disconnected';
   try {
@@ -362,7 +352,22 @@ app.get('/api/health', async (_, res) => {
     version: '1.0.0',
     database: dbStatus,
   });
-});
+};
+
+app.get('/api/ping', publicPingHandler);
+app.get('/ping', publicPingHandler);
+app.get('/api/health', publicHealthHandler);
+app.get('/health', publicHealthHandler);
+
+// CSRF Token 获取端点（须在 CSRF 校验中间件之前注册，且始终公开可访问）
+app.get('/api/csrf-token', getCsrfTokenEnhanced);
+// 兼容少数代理把 /api 剥掉后的访问
+app.get('/csrf-token', getCsrfTokenEnhanced);
+
+// 启用CSRF保护（条件性）
+if (process.env.ENABLE_CSRF !== 'false') {
+  app.use(conditionalCsrfProtection);
+}
 
 // 性能统计端点（已移至 /api/monitoring 路由）
 
@@ -461,6 +466,18 @@ registerApiRouteModules(app, '/api');
 // 根路径
 app.get('/', (_, res) => {
   res.send('工厂管理系统API服务正在运行');
+});
+
+// /api 索引（避免裸 GET /api 被记为 notFound 噪音）
+app.get('/api', (_, res) => {
+  res.json({
+    success: true,
+    message: 'KACON ERP API',
+    health: '/api/health',
+    ping: '/api/ping',
+    docs: process.env.NODE_ENV !== 'production' || process.env.ENABLE_API_DOCS === 'true' ? '/api-docs' : undefined,
+    timestamp: new Date().toISOString(),
+  });
 });
 
 // 浏览器默认探测资源：静默 204，避免刷 notFound 警告日志

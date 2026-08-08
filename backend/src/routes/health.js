@@ -23,9 +23,11 @@ router.get('/ping', (req, res) => {
 });
 
 /**
- * 基础健康检查
+ * 完整健康检查（需 system:monitor）
+ * 挂载点为 /api/health，因此路径为 /api/health/status
+ * 兼容旧路径 /api/health/health
  */
-router.get('/health', monitorAccess, async (req, res) => {
+async function fullHealthHandler(req, res) {
   try {
     const healthStatus = await healthCheckService.checkAll();
 
@@ -41,12 +43,15 @@ router.get('/health', monitorAccess, async (req, res) => {
       timestamp: new Date().toISOString(),
     });
   }
-});
+}
+router.get(['/status', '/health'], monitorAccess, fullHealthHandler);
 
 /**
- * 详细健康报告
+ * 详细健康报告（需 system:monitor）
+ * 正式路径: /api/health/detailed
+ * 兼容旧路径: /api/health/health/detailed
  */
-router.get('/health/detailed', monitorAccess, async (req, res) => {
+async function detailedHealthHandler(req, res) {
   try {
     const healthReport = await healthCheckService.generateHealthReport();
 
@@ -62,7 +67,8 @@ router.get('/health/detailed', monitorAccess, async (req, res) => {
       timestamp: new Date().toISOString(),
     });
   }
-});
+}
+router.get(['/detailed', '/health/detailed'], monitorAccess, detailedHealthHandler);
 
 /**
  * 系统信息
@@ -86,9 +92,9 @@ router.get('/info', monitorAccess, cacheMiddleware(60), (req, res) => {
 });
 
 /**
- * 数据库健康检查
+ * 数据库健康检查 — /api/health/database（兼容 /api/health/health/database）
  */
-router.get('/health/database', monitorAccess, async (req, res) => {
+async function databaseHealthHandler(req, res) {
   try {
     const dbHealth = await healthCheckService.checkDatabase();
 
@@ -109,12 +115,13 @@ router.get('/health/database', monitorAccess, async (req, res) => {
       timestamp: new Date().toISOString(),
     });
   }
-});
+}
+router.get(['/database', '/health/database'], monitorAccess, databaseHealthHandler);
 
 /**
- * 缓存健康检查
+ * 缓存健康检查 — /api/health/cache
  */
-router.get('/health/cache', monitorAccess, async (req, res) => {
+async function cacheHealthHandler(req, res) {
   try {
     const cacheHealth = await healthCheckService.checkCache();
 
@@ -134,12 +141,13 @@ router.get('/health/cache', monitorAccess, async (req, res) => {
       timestamp: new Date().toISOString(),
     });
   }
-});
+}
+router.get(['/cache', '/health/cache'], monitorAccess, cacheHealthHandler);
 
 /**
- * 内存使用情况
+ * 内存使用情况 — /api/health/memory
  */
-router.get('/health/memory', monitorAccess, async (req, res) => {
+async function memoryHealthHandler(req, res) {
   try {
     const memoryHealth = await healthCheckService.checkMemory();
 
@@ -160,7 +168,8 @@ router.get('/health/memory', monitorAccess, async (req, res) => {
       timestamp: new Date().toISOString(),
     });
   }
-});
+}
+router.get(['/memory', '/health/memory'], monitorAccess, memoryHealthHandler);
 
 /**
  * 就绪检查 - 用于Kubernetes readiness probe
