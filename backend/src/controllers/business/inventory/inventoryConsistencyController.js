@@ -459,6 +459,7 @@ async function smartOutboundStock(
     if (currentStock > 0) {
       const deductQty = Math.min(currentStock, remainingQuantity);
 
+      const outboundBatch = InventoryService._normalizeBatchNumber(extraData.batchNumber);
       await InventoryService.updateStock(
         {
           materialId,
@@ -472,7 +473,8 @@ async function smartOutboundStock(
           remark,
           issue_reason: extraData.issueReason || null,
           is_excess: extraData.isExcess || 0,
-          batchNumber: extraData.batchNumber || null,
+          // 有批次则指定；空键省略，由服务层 FIFO 拆批（禁止显式 null）
+          ...(outboundBatch ? { batchNumber: outboundBatch } : {}),
           unitCost: materialUnitCost,
         },
         connection

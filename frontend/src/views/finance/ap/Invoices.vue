@@ -1181,7 +1181,7 @@ const printInvoiceDetail = async () => {
 
     const html = await printService.generateByDefaultTemplate('finance', 'ap_invoice', {
       invoice_number: invoiceDetail.value.invoiceNumber || '-',
-      order_no: invoiceDetail.value.orderNumber || invoiceDetail.value.orderNo || '',
+      order_no: invoiceDetail.value.orderNumber || invoiceDetail.value.relatedOrderNo || '',
       supplier_name: invoiceDetail.value.supplierName || '-',
       invoice_date: invoiceDetail.value.invoiceDate || '-',
       due_date: invoiceDetail.value.dueDate || '-',

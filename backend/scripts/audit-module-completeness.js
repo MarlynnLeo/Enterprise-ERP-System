@@ -76,7 +76,8 @@ const matrix = [
   { module: 'sales', name: 'outbound/packing/delivery', backend: ['salesoutboundcontroller', 'salespackingcontroller', 'deliverystatscontroller'], frontend: ['salesoutbound.vue', 'packinglists.vue', 'deliverystats.vue'], mobile: ['outbound.vue'] },
   { module: 'sales', name: 'returns/exchanges/contracts', backend: ['salesreturncontroller', 'salesexchangecontroller', 'contractcontroller'], frontend: ['salesreturns.vue', 'salesexchanges.vue', 'contractmanagement.vue'], mobile: ['returns.vue', 'exchanges.vue'] },
 
-  { module: 'finance', name: 'GL accounts/entries/period close', backend: ['financecontroller', '/accounts', '/entries', 'period-closing'], frontend: ['accounts.vue', 'entries.vue', 'periodclosing.vue'], mobile: ['accounts.vue', 'entries.vue', 'periods.vue'] },
+  // mobileOptional: 现场端不提供管理台能力，缺 mobile 记 note 不 fail
+  { module: 'finance', name: 'GL accounts/entries/period close', backend: ['financecontroller', '/accounts', '/entries', 'period-closing'], frontend: ['accounts.vue', 'entries.vue', 'periodclosing.vue'], mobile: ['accounts.vue', 'entries.vue', 'periods.vue'], mobileOptional: true },
   { module: 'finance', name: 'AR/AP/cash/reconciliation', backend: ['arcontroller', 'apcontroller', 'banktransactioncontroller', 'reconciliationcontroller'], frontend: ['ar/invoices.vue', 'ap/invoices.vue', 'reconciliation.vue'], mobile: ['arinvoices.vue', 'apinvoices.vue', 'reconciliation.vue'] },
   { module: 'finance', name: 'tax/budget/expenses', backend: ['taxcontroller', 'budgetcontroller', 'expensecontroller'], frontend: ['taxinvoices.vue', 'budgetlist.vue', 'expenses.vue'] },
   { module: 'finance', name: 'costing/pricing/profitability', backend: ['costcontroller', 'standardcostversioncontroller', 'pricingcontroller', 'profitabilitycontroller'], frontend: ['costdashboard.vue', 'standardcost.vue', 'productpricing.vue', 'profitabilityanalysis.vue'] },
@@ -89,10 +90,10 @@ const matrix = [
 
   { module: 'equipment', name: 'equipment list/maintenance/inspection/status', backend: ['equipmentroutes', 'maintenance', 'inspection'], frontend: ['equipmentlist.vue', 'maintenance.vue', 'inspection.vue', 'status.vue'], mobile: ['equipmentlist.vue', 'maintenance.vue', 'check.vue'] },
 
-  { module: 'system', name: 'users/roles/menus/permissions', backend: ['/users', '/roles', '/menus', 'rolepermissions'], frontend: ['users.vue', 'permissions.vue'], mobile: ['users.vue', 'roles.vue', 'permissions.vue'] },
-  { module: 'system', name: 'departments/settings/business types', backend: ['/departments', '/settings', 'business-types'], frontend: ['departments.vue', 'businesstypes.vue'], mobile: ['departments.vue', 'config.vue'] },
-  { module: 'system', name: 'backup lifecycle', backend: ['/backup', '/backups', 'verifybackup'], frontend: ['backup.vue', 'verifybackup'], mobile: ['backup.vue', 'verifybackup'], tests: ['backupservice.verifybackup'] },
-  { module: 'system', name: 'audit logs/failed jobs/monitoring', backend: ['/logs', 'failed-jobs', '/monitoring'], frontend: ['getlogs', 'getfailedjobs'], mobile: ['logs.vue'] },
+  { module: 'system', name: 'users/roles/menus/permissions', backend: ['/users', '/roles', '/menus', 'rolepermissions'], frontend: ['users.vue', 'permissions.vue'], mobile: ['users.vue', 'roles.vue', 'permissions.vue'], mobileOptional: true },
+  { module: 'system', name: 'departments/settings/business types', backend: ['/departments', '/settings', 'business-types'], frontend: ['departments.vue', 'businesstypes.vue'], mobile: ['departments.vue', 'config.vue'], mobileOptional: true },
+  { module: 'system', name: 'backup lifecycle', backend: ['/backup', '/backups', 'verifybackup'], frontend: ['backup.vue', 'verifybackup'], mobile: ['backup.vue', 'verifybackup'], mobileOptional: true, tests: ['backupservice.verifybackup'] },
+  { module: 'system', name: 'audit logs/failed jobs/monitoring', backend: ['/logs', 'failed-jobs', '/monitoring'], frontend: ['getlogs', 'getfailedjobs'], mobile: ['logs.vue'], mobileOptional: true },
   { module: 'system', name: 'workflow/notifications/print/documents', backend: ['workflowcontroller', 'notificationcontroller', 'printcontroller', 'document'], frontend: ['workflowmanagement.vue', 'notifications.vue', 'print.vue', 'documentmanagement.vue'] },
   { module: 'system', name: 'technical communication/business alerts', backend: ['technicalcommunicationcontroller', 'alerts'], frontend: ['technicalcommunication.vue', 'businessalerts.vue'] },
 
@@ -102,16 +103,24 @@ const matrix = [
 
 function evaluateCapability(capability) {
   const missing = [];
+  const notes = [];
   if (capability.backend && !hasAll(backend, capability.backend)) missing.push('backend');
   if (capability.frontend && !hasAll(frontend, capability.frontend)) missing.push('frontend');
-  if (capability.mobile && !hasAll(mobile, capability.mobile)) missing.push('mobile');
+  if (capability.mobile && !hasAll(mobile, capability.mobile)) {
+    if (capability.mobileOptional) {
+      notes.push('mobile-optional (PC-only by product design)');
+    } else {
+      missing.push('mobile');
+    }
+  }
   if (capability.tests && !hasAll(tests, capability.tests)) missing.push('tests');
-  return { ...capability, missing };
+  return { ...capability, missing, notes };
 }
 
 function main() {
   const results = matrix.map(evaluateCapability);
   const failed = results.filter((result) => result.missing.length > 0);
+  const optionalNotes = results.filter((result) => (result.notes || []).length > 0);
   const moduleCounts = results.reduce((acc, result) => {
     acc[result.module] = (acc[result.module] || 0) + 1;
     return acc;
@@ -121,8 +130,14 @@ function main() {
   console.log(`capabilities checked: ${results.length}`);
   console.log(`modules checked: ${Object.keys(moduleCounts).length}`);
   console.log(`capabilities with gaps: ${failed.length}`);
+  console.log(`capabilities with intentional mobile-optional notes: ${optionalNotes.length}`);
   for (const [moduleName, count] of Object.entries(moduleCounts)) {
     console.log(`module: ${moduleName} capabilities=${count}`);
+  }
+  for (const result of optionalNotes) {
+    console.log(
+      `note: ${result.module}.${result.name} ${result.notes.join('; ')}`
+    );
   }
   for (const result of failed) {
     console.log(`gap: ${result.module}.${result.name} missing=${result.missing.join(',')}`);

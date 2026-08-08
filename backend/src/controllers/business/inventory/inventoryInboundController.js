@@ -677,7 +677,10 @@ const updateInbound = async (req, res) => {
           quantity,
           unitId,
           itemLocationId,
-          item.batch_number || item.batch_no || null,
+          // 明细批次：仅认 batch_number（FieldMap/API snake 入库列）；空则草稿可空，完成时 InboundTransactionService 强制
+          item.batch_number != null && String(item.batch_number).trim() !== ''
+            ? String(item.batch_number).trim()
+            : null,
           item.remark || null,
         ]
       );
