@@ -6,6 +6,7 @@
 
 const CodeGeneratorService = require('../../services/business/CodeGeneratorService');
 const DocumentLinkService = require('../../services/business/DocumentLinkService');
+const { DOCUMENT_LINK_TYPES: DocType } = require('../../constants/documentLinkTypes');
 const FileAccessService = require('../../services/FileAccessService');
 const { pool } = require('../../config/db');
 const { softDelete } = require('../../utils/softDelete');
@@ -365,10 +366,10 @@ async function syncEcnDocumentLinks(conn, ecnId, ecnCode, items, userId) {
       if (!seen.has(key)) {
         seen.add(key);
         await DocumentLinkService.createLink({
-          source_type: 'ecn',
+          source_type: DocType.ECN,
           source_id: ecnId,
           source_code: ecnCode,
-          target_type: 'bom',
+          target_type: DocType.BOM,
           target_id: item.bom_id,
           target_code: `BOM#${item.bom_id}`,
           link_type: 'related',
@@ -382,10 +383,10 @@ async function syncEcnDocumentLinks(conn, ecnId, ecnCode, items, userId) {
       if (!seen.has(key)) {
         seen.add(key);
         await DocumentLinkService.createLink({
-          source_type: 'ecn',
+          source_type: DocType.ECN,
           source_id: ecnId,
           source_code: ecnCode,
-          target_type: 'material',
+          target_type: DocType.MATERIAL,
           target_id: item.material_id,
           target_code: item.material_code || String(item.material_id),
           link_type: 'related',

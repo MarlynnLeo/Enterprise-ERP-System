@@ -12,6 +12,7 @@ const financeModel = require('../finance');
 const { accountingConfig } = require('../../config/accountingConfig');
 const { DOCUMENT_TYPE_MAPPING } = require('../../constants/financeConstants');
 const DocumentLinkService = require('../../services/business/DocumentLinkService');
+const { DOCUMENT_LINK_TYPES: DocType } = require('../../constants/documentLinkTypes');
 const { parsePagination } = require('../../utils/safePagination');
 const { toLocalDateString } = require('../../utils/dateUtils');
 
@@ -173,11 +174,10 @@ async function createApprovedCashTransactionGlEntry(connection, transaction, ope
       existingEntries[0].id,
       transaction.id,
     ]);
-    await DocumentLinkService.tryAutoLink(
-      'cash_transaction',
+    await DocumentLinkService.tryAutoLink(DocType.CASH_TRANSACTION,
       transaction.id,
       transactionNumber,
-      'finance_voucher',
+      DocType.FINANCE_VOUCHER,
       existingEntries[0].id,
       existingEntries[0].entry_number,
       operatorId || transaction.created_by || null,
@@ -272,11 +272,10 @@ async function createApprovedCashTransactionGlEntry(connection, transaction, ope
     entryId,
     transaction.id,
   ]);
-  await DocumentLinkService.tryAutoLink(
-    'cash_transaction',
+  await DocumentLinkService.tryAutoLink(DocType.CASH_TRANSACTION,
     transaction.id,
     transactionNumber,
-    'finance_voucher',
+    DocType.FINANCE_VOUCHER,
     entryId,
     entryNumber,
     operatorId || transaction.created_by || null,

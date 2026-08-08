@@ -7,6 +7,7 @@ const taxModel = require('../../models/tax');
 const { financeConfig } = require('../../config/financeConfig');
 const { resolveActorUserId } = require('../../utils/userUtils');
 const DocumentLinkService = require('../business/DocumentLinkService');
+const { DOCUMENT_LINK_TYPES: DocType } = require('../../constants/documentLinkTypes');
 const { logger } = require('../../utils/logger');
 const {
   DOCUMENT_TYPES,
@@ -776,7 +777,7 @@ class FinanceIntegrationService {
         status: '已确认',
         terms: this.formatPaymentTermsText(paymentTermDays),
         notes: overrides?.notes || overrides?.description || defaultNotes,
-        source_type: 'sales_outbound',
+        source_type: DocType.SALES_OUTBOUND,
         source_id: outboundId,
         customer_name: customerName,
         created_by: createdBy,
@@ -795,11 +796,10 @@ class FinanceIntegrationService {
       };
 
       const invoiceId = await arModel.createInvoice(invoiceData, connection);
-      await DocumentLinkService.tryAutoLink(
-        'sales_outbound',
+      await DocumentLinkService.tryAutoLink(DocType.SALES_OUTBOUND,
         outboundId,
         outboundData.outbound_no,
-        'ar_invoice',
+        DocType.AR_INVOICE,
         invoiceId,
         invoiceNumber,
         createdBy,
@@ -898,11 +898,10 @@ class FinanceIntegrationService {
       );
       if (existingInvoice) {
         this.assertMoneyMatches(existingInvoice.total_amount, expectedTotalAmount, '应收发票');
-        await DocumentLinkService.tryAutoLink(
-          'sales_order',
+        await DocumentLinkService.tryAutoLink(DocType.SALES_ORDER,
           salesOrder.id,
           salesOrder.order_no,
-          'ar_invoice',
+          DocType.AR_INVOICE,
           existingInvoice.id,
           existingInvoice.invoice_number,
           null,
@@ -992,7 +991,7 @@ class FinanceIntegrationService {
         notes: options.force
           ? `由销售订单 ${salesOrder.order_no} 手工生成`
           : `由销售订单 ${salesOrder.order_no} 自动生成`,
-        source_type: 'sales_order',
+        source_type: DocType.SALES_ORDER,
         source_id: salesOrder.id || null,
         customer_name: salesOrder.customer_name || null,
         created_by: createdBy,
@@ -1020,11 +1019,10 @@ class FinanceIntegrationService {
 
       invoiceData.items = invoiceItems;
       const invoiceId = await arModel.createInvoice(invoiceData, connection);
-      await DocumentLinkService.tryAutoLink(
-        'sales_order',
+      await DocumentLinkService.tryAutoLink(DocType.SALES_ORDER,
         salesOrder.id,
         salesOrder.order_no,
-        'ar_invoice',
+        DocType.AR_INVOICE,
         invoiceId,
         invoiceNumber,
         createdBy,
@@ -1076,11 +1074,10 @@ class FinanceIntegrationService {
         salesReturn.id
       );
       if (existingInvoice) {
-        await DocumentLinkService.tryAutoLink(
-          'sales_return',
+        await DocumentLinkService.tryAutoLink(DocType.SALES_RETURN,
           salesReturn.id,
           salesReturn.return_no,
-          'ar_invoice',
+          DocType.AR_INVOICE,
           existingInvoice.id,
           existingInvoice.invoice_number,
           salesReturn.created_by || null,
@@ -1169,7 +1166,7 @@ class FinanceIntegrationService {
         exchange_rate: 1.0,
         status: '已确认',
         notes: `【红字发票】销售退货单 ${salesReturn.return_no} 冲减`,
-        source_type: 'sales_return',
+        source_type: DocType.SALES_RETURN,
         source_id: salesReturn.id || null,
         customer_name: customerName || null,
         created_by: createdBy,
@@ -1190,11 +1187,10 @@ class FinanceIntegrationService {
       };
 
       const invoiceId = await arModel.createInvoice(invoiceData, connection);
-      await DocumentLinkService.tryAutoLink(
-        'sales_return',
+      await DocumentLinkService.tryAutoLink(DocType.SALES_RETURN,
         salesReturn.id,
         salesReturn.return_no,
-        'ar_invoice',
+        DocType.AR_INVOICE,
         invoiceId,
         invoiceNumber,
         salesReturn.created_by || 0,
@@ -1263,11 +1259,10 @@ class FinanceIntegrationService {
       );
       if (existingInvoice) {
         this.assertMoneyMatches(existingInvoice.total_amount, expectedTotalAmount, '应付发票');
-        await DocumentLinkService.tryAutoLink(
-          'purchase_receipt',
+        await DocumentLinkService.tryAutoLink(DocType.PURCHASE_RECEIPT,
           purchaseReceipt.id,
           purchaseReceipt.receipt_no,
-          'ap_invoice',
+          DocType.AP_INVOICE,
           existingInvoice.id,
           existingInvoice.invoice_number,
           userId || null,
@@ -1423,7 +1418,7 @@ class FinanceIntegrationService {
           overrides?.notes ||
           overrides?.description ||
           `由采购入库单 ${purchaseReceipt.receipt_no} 自动生成`,
-        source_type: 'purchase_receipt',
+        source_type: DocType.PURCHASE_RECEIPT,
         source_id: purchaseReceipt.id || null,
         supplier_name: purchaseReceipt.supplier_name || null,
         created_by: createdBy,
@@ -1452,11 +1447,10 @@ class FinanceIntegrationService {
       };
 
       const invoiceId = await apModel.createInvoice(invoiceData, connection);
-      await DocumentLinkService.tryAutoLink(
-        'purchase_receipt',
+      await DocumentLinkService.tryAutoLink(DocType.PURCHASE_RECEIPT,
         purchaseReceipt.id,
         purchaseReceipt.receipt_no,
-        'ap_invoice',
+        DocType.AP_INVOICE,
         invoiceId,
         invoiceNumber,
         createdBy,
@@ -1554,11 +1548,10 @@ class FinanceIntegrationService {
       );
       if (existingInvoice) {
         this.assertMoneyMatches(existingInvoice.total_amount, expectedTotalAmount, '应付发票');
-        await DocumentLinkService.tryAutoLink(
-          'purchase_order',
+        await DocumentLinkService.tryAutoLink(DocType.PURCHASE_ORDER,
           purchaseOrder.id,
           purchaseOrder.order_no,
-          'ap_invoice',
+          DocType.AP_INVOICE,
           existingInvoice.id,
           existingInvoice.invoice_number,
           userId || null,
@@ -1680,7 +1673,7 @@ class FinanceIntegrationService {
         notes: options.force
           ? `由采购订单 ${purchaseOrder.order_no} 手工生成`
           : `由采购订单 ${purchaseOrder.order_no} 自动生成`,
-        source_type: 'purchase_order',
+        source_type: DocType.PURCHASE_ORDER,
         source_id: purchaseOrder.id || null,
         supplier_name: supplierName,
         created_by: createdBy,
@@ -1707,11 +1700,10 @@ class FinanceIntegrationService {
       };
 
       const invoiceId = await apModel.createInvoice(invoiceData, connection);
-      await DocumentLinkService.tryAutoLink(
-        'purchase_order',
+      await DocumentLinkService.tryAutoLink(DocType.PURCHASE_ORDER,
         purchaseOrder.id,
         purchaseOrder.order_no,
-        'ap_invoice',
+        DocType.AP_INVOICE,
         invoiceId,
         invoiceNumber,
         createdBy,
@@ -1761,11 +1753,10 @@ class FinanceIntegrationService {
         purchaseReturn.id
       );
       if (existingInvoice) {
-        await DocumentLinkService.tryAutoLink(
-          'purchase_return',
+        await DocumentLinkService.tryAutoLink(DocType.PURCHASE_RETURN,
           purchaseReturn.id,
           purchaseReturn.return_no,
-          'ap_invoice',
+          DocType.AP_INVOICE,
           existingInvoice.id,
           existingInvoice.invoice_number,
           purchaseReturn.created_by || null,
@@ -1852,7 +1843,7 @@ class FinanceIntegrationService {
         exchange_rate: 1.0,
         status: '已确认',
         notes: `【红字发票】采购退货单 ${purchaseReturn.return_no} 冲减`,
-        source_type: 'purchase_return',
+        source_type: DocType.PURCHASE_RETURN,
         source_id: purchaseReturn.id || null,
         supplier_name: purchaseReturn.supplier_name || null,
         created_by: createdBy,
@@ -1878,11 +1869,10 @@ class FinanceIntegrationService {
       };
 
       const invoiceId = await apModel.createInvoice(invoiceData, connection);
-      await DocumentLinkService.tryAutoLink(
-        'purchase_return',
+      await DocumentLinkService.tryAutoLink(DocType.PURCHASE_RETURN,
         purchaseReturn.id,
         purchaseReturn.return_no,
-        'ap_invoice',
+        DocType.AP_INVOICE,
         invoiceId,
         invoiceNumber,
         purchaseReturn.created_by || 0,
@@ -1958,11 +1948,10 @@ class FinanceIntegrationService {
       if (existingEntry) {
         this.assertMoneyMatches(existingEntry.total_debit, expectedTotalCost, '销售出库成本凭证借方');
         this.assertMoneyMatches(existingEntry.total_credit, expectedTotalCost, '销售出库成本凭证贷方');
-        await DocumentLinkService.tryAutoLink(
-          'sales_outbound',
+        await DocumentLinkService.tryAutoLink(DocType.SALES_OUTBOUND,
           salesOutbound.id,
           salesOutbound.outbound_no,
-          'finance_voucher',
+          DocType.FINANCE_VOUCHER,
           existingEntry.id,
           existingEntry.entry_number,
           salesOutbound.created_by || null,
@@ -2031,11 +2020,10 @@ class FinanceIntegrationService {
       const entryId = await financeModel.createEntry(entryData, entryItems, connection);
       const [entries] = await connection.execute('SELECT entry_number FROM gl_entries WHERE id = ?', [entryId]);
       const entryNumber = entries.length > 0 ? entries[0].entry_number : null;
-      await DocumentLinkService.tryAutoLink(
-        'sales_outbound',
+      await DocumentLinkService.tryAutoLink(DocType.SALES_OUTBOUND,
         salesOutbound.id,
         salesOutbound.outbound_no,
-        'finance_voucher',
+        DocType.FINANCE_VOUCHER,
         entryId,
         entryNumber,
         createdBy,
@@ -2075,11 +2063,10 @@ class FinanceIntegrationService {
         salesOutbound.id
       );
       if (existingInvoice) {
-        await DocumentLinkService.tryAutoLink(
-          'sales_outbound',
+        await DocumentLinkService.tryAutoLink(DocType.SALES_OUTBOUND,
           salesOutbound.id,
           salesOutbound.outbound_no,
-          'tax_invoice',
+          DocType.TAX_INVOICE,
           existingInvoice.id,
           existingInvoice.invoice_number,
           userId || salesOutbound.created_by || null,
@@ -2164,11 +2151,10 @@ class FinanceIntegrationService {
       };
 
       const invoiceId = await taxModel.createTaxInvoice(invoiceData, connection);
-      await DocumentLinkService.tryAutoLink(
-        'sales_outbound',
+      await DocumentLinkService.tryAutoLink(DocType.SALES_OUTBOUND,
         salesOutbound.id,
         salesOutbound.outbound_no,
-        'tax_invoice',
+        DocType.TAX_INVOICE,
         invoiceId,
         invoiceNumber,
         invoiceData.created_by,
@@ -2204,11 +2190,10 @@ class FinanceIntegrationService {
         purchaseReceipt.id
       );
       if (existingInvoice) {
-        await DocumentLinkService.tryAutoLink(
-          'purchase_receipt',
+        await DocumentLinkService.tryAutoLink(DocType.PURCHASE_RECEIPT,
           purchaseReceipt.id,
           purchaseReceipt.receipt_no,
-          'tax_invoice',
+          DocType.TAX_INVOICE,
           existingInvoice.id,
           existingInvoice.invoice_number,
           userId || purchaseReceipt.created_by || null,
@@ -2291,11 +2276,10 @@ class FinanceIntegrationService {
       };
 
       const invoiceId = await taxModel.createTaxInvoice(invoiceData, connection);
-      await DocumentLinkService.tryAutoLink(
-        'purchase_receipt',
+      await DocumentLinkService.tryAutoLink(DocType.PURCHASE_RECEIPT,
         purchaseReceipt.id,
         purchaseReceipt.receipt_no,
-        'tax_invoice',
+        DocType.TAX_INVOICE,
         invoiceId,
         invoiceNumber,
         invoiceData.created_by,
@@ -2334,11 +2318,10 @@ class FinanceIntegrationService {
         exchangeNo
       );
       if (existingEntry) {
-        await DocumentLinkService.tryAutoLink(
-          'sales_exchange',
+        await DocumentLinkService.tryAutoLink(DocType.SALES_EXCHANGE,
           salesExchange.id,
           exchangeNo,
-          'finance_voucher',
+          DocType.FINANCE_VOUCHER,
           existingEntry.id,
           existingEntry.entry_number,
           salesExchange.created_by || null,
@@ -2409,11 +2392,10 @@ class FinanceIntegrationService {
       const entryId = await financeModel.createEntry(entryData, entryItems, connection);
       const [entries] = await connection.execute('SELECT entry_number FROM gl_entries WHERE id = ?', [entryId]);
       const entryNumber = entries.length > 0 ? entries[0].entry_number : null;
-      await DocumentLinkService.tryAutoLink(
-        'sales_exchange',
+      await DocumentLinkService.tryAutoLink(DocType.SALES_EXCHANGE,
         salesExchange.id,
         exchangeNo,
-        'finance_voucher',
+        DocType.FINANCE_VOUCHER,
         entryId,
         entryNumber,
         createdBy,
@@ -2459,11 +2441,10 @@ class FinanceIntegrationService {
         processing.processing_no
       );
       if (existingEntry) {
-        await DocumentLinkService.tryAutoLink(
-          'outsourced_processing',
+        await DocumentLinkService.tryAutoLink(DocType.OUTSOURCED_PROCESSING,
           processing.id,
           processing.processing_no,
-          'finance_voucher',
+          DocType.FINANCE_VOUCHER,
           existingEntry.id,
           existingEntry.entry_number,
           processing.created_by || null,
@@ -2545,11 +2526,10 @@ class FinanceIntegrationService {
       const entryId = await financeModel.createEntry(entryData, entryItems, connection);
       const [entries] = await connection.execute('SELECT entry_number FROM gl_entries WHERE id = ?', [entryId]);
       const entryNumber = entries[0]?.entry_number || null;
-      await DocumentLinkService.tryAutoLink(
-        'outsourced_processing',
+      await DocumentLinkService.tryAutoLink(DocType.OUTSOURCED_PROCESSING,
         processing.id,
         processing.processing_no,
-        'finance_voucher',
+        DocType.FINANCE_VOUCHER,
         entryId,
         entryNumber,
         createdBy,
@@ -2617,11 +2597,10 @@ class FinanceIntegrationService {
         receiptNo
       );
       if (existingEntry) {
-        await DocumentLinkService.tryAutoLink(
-          'outsourced_receipt',
+        await DocumentLinkService.tryAutoLink(DocType.OUTSOURCED_RECEIPT,
           receiptId,
           receiptNo,
-          'finance_voucher',
+          DocType.FINANCE_VOUCHER,
           existingEntry.id,
           existingEntry.entry_number,
           createdBy,
@@ -2719,11 +2698,10 @@ class FinanceIntegrationService {
       const entryId = await financeModel.createEntry(entryData, entryItems, connection);
       const [entries] = await connection.execute('SELECT entry_number FROM gl_entries WHERE id = ?', [entryId]);
       const entryNumber = entries[0]?.entry_number || null;
-      await DocumentLinkService.tryAutoLink(
-        'outsourced_receipt',
+      await DocumentLinkService.tryAutoLink(DocType.OUTSOURCED_RECEIPT,
         receiptId,
         receiptNo,
-        'finance_voucher',
+        DocType.FINANCE_VOUCHER,
         entryId,
         entryNumber,
         createdBy,

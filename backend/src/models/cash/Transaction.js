@@ -11,6 +11,7 @@ const financeModel = require('../finance');
 const { accountingConfig } = require('../../config/accountingConfig');
 const { DOCUMENT_TYPE_MAPPING } = require('../../constants/financeConstants');
 const DocumentLinkService = require('../../services/business/DocumentLinkService');
+const { DOCUMENT_LINK_TYPES: DocType } = require('../../constants/documentLinkTypes');
 const { toLocalDateString } = require('../../utils/dateUtils');
 
 function requirePositiveInteger(value, fieldName) {
@@ -228,11 +229,10 @@ async function createApprovedBankTransactionGlEntry(connection, transaction, ope
       existingEntries[0].id,
       transaction.id,
     ]);
-    await DocumentLinkService.tryAutoLink(
-      'bank_transaction',
+    await DocumentLinkService.tryAutoLink(DocType.BANK_TRANSACTION,
       transaction.id,
       transactionNumber,
-      'finance_voucher',
+      DocType.FINANCE_VOUCHER,
       existingEntries[0].id,
       existingEntries[0].entry_number,
       operatorId || transaction.created_by || null,
@@ -328,11 +328,10 @@ async function createApprovedBankTransactionGlEntry(connection, transaction, ope
     entryId,
     transaction.id,
   ]);
-  await DocumentLinkService.tryAutoLink(
-    'bank_transaction',
+  await DocumentLinkService.tryAutoLink(DocType.BANK_TRANSACTION,
     transaction.id,
     transactionNumber,
-    'finance_voucher',
+    DocType.FINANCE_VOUCHER,
     entryId,
     entryNumber,
     operatorId || transaction.created_by || null,

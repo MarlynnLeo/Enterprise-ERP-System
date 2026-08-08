@@ -9,6 +9,7 @@ const { logger } = require('../utils/logger');
 const { parsePagination, appendPaginationSQL } = require('../utils/safePagination');
 const financeModel = require('./finance');
 const DocumentLinkService = require('../services/business/DocumentLinkService');
+const { DOCUMENT_LINK_TYPES: DocType } = require('../constants/documentLinkTypes');
 const { accountingConfig } = require('../config/accountingConfig');
 const { currentDateString } = require('../utils/dateUtils');
 const { resolveActorLabel, resolveActorUserId } = require('../utils/userUtils');
@@ -435,31 +436,28 @@ const cipModel = {
             );
             const entryNumber = await getEntryNumberById(connection, entryId);
 
-            await DocumentLinkService.tryAutoLink(
-                'cip_project',
+            await DocumentLinkService.tryAutoLink(DocType.CIP_PROJECT,
                 project.id,
                 project.project_code,
-                'asset',
+                DocType.ASSET,
                 newAssetId,
                 assetData.asset_code,
                 createdBy,
                 connection
             );
-            await DocumentLinkService.tryAutoLink(
-                'cip_project',
+            await DocumentLinkService.tryAutoLink(DocType.CIP_PROJECT,
                 project.id,
                 project.project_code,
-                'finance_voucher',
+                DocType.FINANCE_VOUCHER,
                 entryId,
                 entryNumber,
                 createdBy,
                 connection
             );
-            await DocumentLinkService.tryAutoLink(
-                'asset',
+            await DocumentLinkService.tryAutoLink(DocType.ASSET,
                 newAssetId,
                 assetData.asset_code,
-                'finance_voucher',
+                DocType.FINANCE_VOUCHER,
                 entryId,
                 entryNumber,
                 createdBy,

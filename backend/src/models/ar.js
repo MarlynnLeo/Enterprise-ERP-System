@@ -18,6 +18,7 @@ const {
   BANK_BACKED_PAYMENT_METHODS,
 } = require('../constants/financeConstants');
 const DocumentLinkService = require('../services/business/DocumentLinkService');
+const { DOCUMENT_LINK_TYPES: DocType } = require('../constants/documentLinkTypes');
 const VoucherReversalService = require('../services/finance/VoucherReversalService');
 const { currentDateString, toLocalDateString } = require('../utils/dateUtils');
 const {
@@ -166,7 +167,7 @@ const linkDocumentToVoucher = async (
     sourceType,
     sourceId,
     sourceCode,
-    'finance_voucher',
+    DocType.FINANCE_VOUCHER,
     entryId,
     entryNumber,
     createdBy || null,
@@ -185,7 +186,7 @@ const linkBankTransactionToVoucher = async (
   if (!bankTransactionId || !entryId) return null;
   return await linkDocumentToVoucher(
     connection,
-    'bank_transaction',
+    DocType.BANK_TRANSACTION,
     bankTransactionId,
     bankTransactionNumber,
     entryId,
@@ -334,7 +335,7 @@ const createInvoiceConfirmationEntry = async (connection, invoice, createdBy = n
 
   const entryNumber = await linkDocumentToVoucher(
     connection,
-    'ar_invoice',
+    DocType.AR_INVOICE,
     invoice.id,
     invoice.invoice_number,
     entryId,
@@ -1278,11 +1279,10 @@ const arModel = {
       }
 
       for (const invoice of linkedInvoices) {
-        await DocumentLinkService.tryAutoLink(
-          'ar_invoice',
+        await DocumentLinkService.tryAutoLink(DocType.AR_INVOICE,
           invoice.id,
           invoice.invoice_number,
-          'ar_receipt',
+          DocType.AR_RECEIPT,
           receiptId,
           receiptData.receipt_number,
           receiptData.created_by || null,
@@ -1290,11 +1290,10 @@ const arModel = {
         );
       }
       if (glEntryId) {
-        await DocumentLinkService.tryAutoLink(
-          'ar_receipt',
+        await DocumentLinkService.tryAutoLink(DocType.AR_RECEIPT,
           receiptId,
           receiptData.receipt_number,
-          'finance_voucher',
+          DocType.FINANCE_VOUCHER,
           glEntryId,
           glEntryNumber,
           glEntry.created_by,
@@ -1302,11 +1301,10 @@ const arModel = {
         );
       }
       if (bankTransactionId) {
-        await DocumentLinkService.tryAutoLink(
-          'ar_receipt',
+        await DocumentLinkService.tryAutoLink(DocType.AR_RECEIPT,
           receiptId,
           receiptData.receipt_number,
-          'bank_transaction',
+          DocType.BANK_TRANSACTION,
           bankTransactionId,
           receiptData.receipt_number,
           receiptData.created_by || null,
@@ -1728,11 +1726,10 @@ const arModel = {
       }
 
       for (const reversalEntry of reversalEntries) {
-        await DocumentLinkService.tryAutoLink(
-          'ar_receipt',
+        await DocumentLinkService.tryAutoLink(DocType.AR_RECEIPT,
           receiptId,
           receipt.receipt_number,
-          'finance_voucher',
+          DocType.FINANCE_VOUCHER,
           reversalEntry.entryId,
           reversalEntry.entryNumber,
           voidedBy,
@@ -1741,11 +1738,10 @@ const arModel = {
       }
 
       if (reversalBankTransactionId) {
-        await DocumentLinkService.tryAutoLink(
-          'ar_receipt',
+        await DocumentLinkService.tryAutoLink(DocType.AR_RECEIPT,
           receiptId,
           receipt.receipt_number,
-          'bank_transaction',
+          DocType.BANK_TRANSACTION,
           reversalBankTransactionId,
           reversalBankTransactionNumber,
           voidedBy,
@@ -1755,10 +1751,10 @@ const arModel = {
         if (originalBankTransactionId) {
           await DocumentLinkService.createLink(
             {
-              source_type: 'bank_transaction',
+              source_type: DocType.BANK_TRANSACTION,
               source_id: originalBankTransactionId,
               source_code: originalBankTransactionNumber,
-              target_type: 'bank_transaction',
+              target_type: DocType.BANK_TRANSACTION,
               target_id: reversalBankTransactionId,
               target_code: reversalBankTransactionNumber,
               link_type: 'related',
@@ -1775,11 +1771,10 @@ const arModel = {
             reversalBankTransactionId,
           ]);
           for (const reversalEntry of reversalEntries) {
-            await DocumentLinkService.tryAutoLink(
-              'bank_transaction',
+            await DocumentLinkService.tryAutoLink(DocType.BANK_TRANSACTION,
               reversalBankTransactionId,
               reversalBankTransactionNumber,
-              'finance_voucher',
+              DocType.FINANCE_VOUCHER,
               reversalEntry.entryId,
               reversalEntry.entryNumber,
               voidedBy,

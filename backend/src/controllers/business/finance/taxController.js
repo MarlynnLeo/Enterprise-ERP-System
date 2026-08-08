@@ -10,6 +10,7 @@ const taxModel = require('../../../models/tax');
 const { safeParseId } = require('../../../utils/safeParseId');
 const TaxAccountingService = require('../../../services/business/TaxAccountingService');
 const DocumentLinkService = require('../../../services/business/DocumentLinkService');
+const { DOCUMENT_LINK_TYPES: DocType } = require('../../../constants/documentLinkTypes');
 const { logger } = require('../../../utils/logger');
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
@@ -621,21 +622,19 @@ const taxController = {
           [entryInfo.entryId, bankTransactionId]
         );
 
-        await DocumentLinkService.tryAutoLink(
-          'tax_return',
+        await DocumentLinkService.tryAutoLink(DocType.TAX_RETURN,
           taxReturn.id,
           taxReturn.return_period,
-          'bank_transaction',
+          DocType.BANK_TRANSACTION,
           bankTransactionId,
           txNumber,
           userId,
           connection
         );
-        await DocumentLinkService.tryAutoLink(
-          'bank_transaction',
+        await DocumentLinkService.tryAutoLink(DocType.BANK_TRANSACTION,
           bankTransactionId,
           txNumber,
-          'finance_voucher',
+          DocType.FINANCE_VOUCHER,
           entryInfo.entryId,
           entryInfo.entryNumber,
           userId,
@@ -954,7 +953,7 @@ const taxController = {
         document_type,
         document_id,
         document.document_number,
-        'tax_invoice',
+        DocType.TAX_INVOICE,
         invoice.id,
         invoice.invoice_number,
         getAuthenticatedUserId(req),
@@ -993,7 +992,7 @@ const taxController = {
         await DocumentLinkService.deleteLinksByPair({
           source_type: documentType,
           source_id: documentId,
-          target_type: 'tax_invoice',
+          target_type: DocType.TAX_INVOICE,
           target_id: invoice.id,
         });
       }

@@ -10,6 +10,7 @@ const { softDelete } = require('../utils/softDelete');
 const db = require('../config/db');
 const { parsePagination, appendPaginationSQL } = require('../utils/safePagination');
 const DocumentLinkService = require('../services/business/DocumentLinkService');
+const { DOCUMENT_LINK_TYPES: DocType } = require('../constants/documentLinkTypes');
 const BudgetControlService = require('../services/business/BudgetControlService');
 const VoucherReversalService = require('../services/finance/VoucherReversalService');
 const { DOCUMENT_TYPES } = require('../constants/financeConstants');
@@ -91,11 +92,10 @@ async function linkExpensePaymentDocuments({
   createdBy,
 }) {
   if (bankTransactionId) {
-    await DocumentLinkService.tryAutoLink(
-      'expense',
+    await DocumentLinkService.tryAutoLink(DocType.EXPENSE,
       expenseId,
       expense.expense_number,
-      'bank_transaction',
+      DocType.BANK_TRANSACTION,
       bankTransactionId,
       bankTransactionNumber,
       createdBy || null,
@@ -106,11 +106,10 @@ async function linkExpensePaymentDocuments({
   if (!glEntryId) return;
 
   const glEntryNumber = await getEntryNumberById(connection, glEntryId);
-  await DocumentLinkService.tryAutoLink(
-    'expense',
+  await DocumentLinkService.tryAutoLink(DocType.EXPENSE,
     expenseId,
     expense.expense_number,
-    'finance_voucher',
+    DocType.FINANCE_VOUCHER,
     glEntryId,
     glEntryNumber,
     createdBy || null,
@@ -118,11 +117,10 @@ async function linkExpensePaymentDocuments({
   );
 
   if (bankTransactionId) {
-    await DocumentLinkService.tryAutoLink(
-      'bank_transaction',
+    await DocumentLinkService.tryAutoLink(DocType.BANK_TRANSACTION,
       bankTransactionId,
       bankTransactionNumber,
-      'finance_voucher',
+      DocType.FINANCE_VOUCHER,
       glEntryId,
       glEntryNumber,
       createdBy || null,

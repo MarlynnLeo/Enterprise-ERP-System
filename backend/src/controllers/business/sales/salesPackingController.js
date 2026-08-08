@@ -11,6 +11,7 @@ const { logger } = require('../../../utils/logger');
 const db = require('../../../config/db');
 const { softDelete } = require('../../../utils/softDelete');
 const DocumentLinkService = require('../../../services/business/DocumentLinkService');
+const { DOCUMENT_LINK_TYPES: DocType } = require('../../../constants/documentLinkTypes');
 const { SALES_PACKING_TRANSITIONS } = require('../../../constants/statusRegistry');
 
 const { CodeGenerators } = require('../../../utils/codeGenerator');
@@ -840,11 +841,10 @@ async function generateProductionAndPurchasePlans(
             logger.info(
               `  ✅ 生产计划创建成功: ${planNo} (物料: ${material_name}, 数量: ${shortage}，已计算物料需求)`
             );
-            await DocumentLinkService.tryAutoLink(
-              'sales_order',
+            await DocumentLinkService.tryAutoLink(DocType.SALES_ORDER,
               salesOrderId,
               salesOrderNo,
-              'production_plan',
+              DocType.PRODUCTION_PLAN,
               planId,
               planNo,
               userInfo.id || userInfo.userId || null,
@@ -982,11 +982,10 @@ async function generateProductionAndPurchasePlans(
             logger.info(`Purchase requisition item added: materialName=${material_name}, quantity=${shortage}`);
           }
 
-          await DocumentLinkService.tryAutoLink(
-            'sales_order',
+          await DocumentLinkService.tryAutoLink(DocType.SALES_ORDER,
             salesOrderId,
             salesOrderNo,
-            'purchase_requisition',
+            DocType.PURCHASE_REQUISITION,
             requisitionId,
             reqNo,
             userInfo.id || userInfo.userId || null,

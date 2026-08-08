@@ -13,6 +13,7 @@ const db = require('../../config/db');
 const { logger } = require('../../utils/logger');
 const financeModel = require('../../models/finance');
 const DocumentLinkService = require('./DocumentLinkService');
+const { DOCUMENT_LINK_TYPES: DocType } = require('../../constants/documentLinkTypes');
 const { accountingConfig } = require('../../config/accountingConfig');
 const { DOCUMENT_TYPES } = require('../../constants/financeConstants');
 const { roundMoney } = require('../../utils/money');
@@ -112,11 +113,10 @@ class TaxAccountingService {
   static async linkTaxInvoiceVoucher(invoice, entryInfo, userId, connection) {
     if (!invoice?.id || !entryInfo?.entryId) return;
 
-    await DocumentLinkService.tryAutoLink(
-      'tax_invoice',
+    await DocumentLinkService.tryAutoLink(DocType.TAX_INVOICE,
       invoice.id,
       invoice.invoice_number,
-      'finance_voucher',
+      DocType.FINANCE_VOUCHER,
       entryInfo.entryId,
       entryInfo.entryNumber,
       userId,
@@ -127,11 +127,10 @@ class TaxAccountingService {
   static async linkTaxReturnVoucher(taxReturn, entryInfo, userId, connection) {
     if (!taxReturn?.id || !entryInfo?.entryId) return;
 
-    await DocumentLinkService.tryAutoLink(
-      'tax_return',
+    await DocumentLinkService.tryAutoLink(DocType.TAX_RETURN,
       taxReturn.id,
       taxReturn.return_period,
-      'finance_voucher',
+      DocType.FINANCE_VOUCHER,
       entryInfo.entryId,
       entryInfo.entryNumber,
       userId,

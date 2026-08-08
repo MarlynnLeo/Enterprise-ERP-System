@@ -2,6 +2,7 @@ const db = require('../config/db');
 const { logger } = require('../utils/logger');
 const CodeGeneratorService = require('../services/business/CodeGeneratorService');
 const DocumentLinkService = require('../services/business/DocumentLinkService');
+const { DOCUMENT_LINK_TYPES: DocType } = require('../constants/documentLinkTypes');
 const { parsePagination, appendPaginationSQL } = require('../utils/safePagination');
 const { softDelete } = require('../utils/softDelete');
 const { resolveActorLabel, resolveActorUserId } = require('../utils/userUtils');
@@ -166,11 +167,10 @@ class NonconformingProduct {
       );
 
       if (ncpData.inspection_id) {
-        await DocumentLinkService.tryAutoLink(
-          'quality_inspection',
+        await DocumentLinkService.tryAutoLink(DocType.QUALITY_INSPECTION,
           ncpData.inspection_id,
           ncpData.inspection_no,
-          'nonconforming_product',
+          DocType.NONCONFORMING_PRODUCT,
           result.insertId,
           ncpNo,
           null,

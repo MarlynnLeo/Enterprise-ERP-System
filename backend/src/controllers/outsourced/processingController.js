@@ -13,6 +13,7 @@ const db = require('../../config/db');
 const purchaseModel = require('../../models/purchase');
 const FinanceIntegrationService = require('../../services/external/FinanceIntegrationService');
 const DocumentLinkService = require('../../services/business/DocumentLinkService');
+const { DOCUMENT_LINK_TYPES: DocType } = require('../../constants/documentLinkTypes');
 const InventoryService = require('../../services/InventoryService');
 const { safeString, safeNumber } = require('../../utils/typeHelper');
 const { parsePagination, appendPaginationSQL } = require('../../utils/safePagination');
@@ -890,11 +891,10 @@ const createReceipt = async (req, res) => {
         }
       }
 
-      await DocumentLinkService.tryAutoLink(
-        'outsourced_processing',
+      await DocumentLinkService.tryAutoLink(DocType.OUTSOURCED_PROCESSING,
         processing_id,
         processing_no,
-        'outsourced_receipt',
+        DocType.OUTSOURCED_RECEIPT,
         receipt_id,
         receipt_no,
         req.user?.id || null,

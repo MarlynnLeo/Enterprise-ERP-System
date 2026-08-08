@@ -1,5 +1,6 @@
 const { logger } = require('../../utils/logger');
 const DocumentLinkService = require('./DocumentLinkService');
+const { DOCUMENT_LINK_TYPES: DocType } = require('../../constants/documentLinkTypes');
 
 class EightDNcpLinkError extends Error {
   constructor(message, statusCode = 400, errorCode = 'BAD_REQUEST') {
@@ -222,11 +223,10 @@ class EightDNcpLinkService {
 
     await this.markProcessingIfPending(connection, ncp, operator);
     if (reportId) {
-      await DocumentLinkService.tryAutoLink(
-        'nonconforming_product',
+      await DocumentLinkService.tryAutoLink(DocType.NONCONFORMING_PRODUCT,
         ncp.id,
         ncp.ncp_no,
-        'eight_d_report',
+        DocType.EIGHT_D_REPORT,
         reportId,
         reportNo,
         null,
@@ -247,11 +247,10 @@ class EightDNcpLinkService {
 
     await this.markProcessingIfPending(connection, ncp, operator);
     if (reportId) {
-      await DocumentLinkService.tryAutoLink(
-        'nonconforming_product',
+      await DocumentLinkService.tryAutoLink(DocType.NONCONFORMING_PRODUCT,
         ncp.id,
         ncp.ncp_no,
-        'eight_d_report',
+        DocType.EIGHT_D_REPORT,
         reportId,
         reportNo,
         null,

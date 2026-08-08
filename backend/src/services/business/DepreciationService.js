@@ -10,6 +10,7 @@ const db = require('../../config/db');
 const financeModel = require('../../models/finance');
 const { DOCUMENT_TYPE_MAPPING } = require('../../constants/financeConstants');
 const DocumentLinkService = require('./DocumentLinkService');
+const { DOCUMENT_LINK_TYPES: DocType } = require('../../constants/documentLinkTypes');
 const { currentDateString } = require('../../utils/dateUtils');
 
 function normalizePeriodMonth(value) {
@@ -425,21 +426,19 @@ class DepreciationService {
         ]
       );
 
-      await DocumentLinkService.tryAutoLink(
-        'asset',
+      await DocumentLinkService.tryAutoLink(DocType.ASSET,
         asset.id,
         asset.asset_code,
-        'finance_voucher',
+        DocType.FINANCE_VOUCHER,
         entryInfo.entryId,
         entryInfo.entryNumber,
         null,
         connection
       );
-      await DocumentLinkService.tryAutoLink(
-        'asset_depreciation',
+      await DocumentLinkService.tryAutoLink(DocType.ASSET_DEPRECIATION,
         depResult.insertId,
         `${asset.asset_code}-${periodMonth}`,
-        'finance_voucher',
+        DocType.FINANCE_VOUCHER,
         entryInfo.entryId,
         entryInfo.entryNumber,
         null,

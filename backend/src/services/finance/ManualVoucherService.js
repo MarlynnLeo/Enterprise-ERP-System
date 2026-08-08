@@ -32,6 +32,7 @@ const {
   syncEntryLinesToAmounts,
   sumBy,
 } = require('./manualVoucherHelpers');
+const { DOCUMENT_LINK_TYPES: DocType } = require('../../constants/documentLinkTypes');
 
 /** 默认增值税率：财务配置 > 环境 > 0（禁止魔法 0.13 写死业务） */
 function defaultVatRate() {
@@ -1424,7 +1425,7 @@ class ManualVoucherService {
         invoiceType,
         link.invoiceId,
         link.invoiceNumber || String(link.invoiceId),
-        'finance_voucher',
+        DocType.FINANCE_VOUCHER,
         entryId,
         entryNumber,
         userId,

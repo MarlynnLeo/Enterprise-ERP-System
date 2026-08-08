@@ -22,6 +22,7 @@ const {
 } = require('../../utils/money');
 const { currentDateString } = require('../../utils/dateUtils');
 const { firstValidUserId } = require('../../utils/userUtils');
+const { DOCUMENT_LINK_TYPES: DocType } = require('../../constants/documentLinkTypes');
 
 /**
  * 采购申请批准后自动生成采购订单
@@ -234,8 +235,14 @@ async function generateOrdersFromRequisition(requisitionId, conn) {
       // 自动创建单据关联。关联失败会破坏采购申请到采购订单的闭环，必须回滚重试。
       const DocumentLinkService = require('./DocumentLinkService');
       await DocumentLinkService.tryAutoLink(
-        'purchase_requisition', requisitionId, requisition.requisition_number,
-        'purchase_order', orderId, orderNo, null, conn
+        DocType.PURCHASE_REQUISITION,
+        requisitionId,
+        requisition.requisition_number,
+        DocType.PURCHASE_ORDER,
+        orderId,
+        orderNo,
+        null,
+        conn
       );
 
       logger.info(`Purchase order generated from requisition: orderNo=${orderNo}, supplierName=${supplierData.supplier_name}, itemCount=${supplierData.items.length}`);

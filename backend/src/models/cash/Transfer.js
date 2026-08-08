@@ -11,6 +11,7 @@ const financeModel = require('../finance');
 const { accountingConfig } = require('../../config/accountingConfig');
 const { DOCUMENT_TYPE_MAPPING } = require('../../constants/financeConstants');
 const DocumentLinkService = require('../../services/business/DocumentLinkService');
+const { DOCUMENT_LINK_TYPES: DocType } = require('../../constants/documentLinkTypes');
 const { toLocalDateString } = require('../../utils/dateUtils');
 const { financeConfig } = require('../../config/financeConfig');
 
@@ -234,51 +235,46 @@ class FundTransferModel {
         [amount, transactionDate, toAccountId]
       );
 
-      await DocumentLinkService.tryAutoLink(
-        'bank_transfer',
+      await DocumentLinkService.tryAutoLink(DocType.BANK_TRANSFER,
         fromResult.insertId,
         transactionNumber,
-        'finance_voucher',
+        DocType.FINANCE_VOUCHER,
         entryId,
         entryNumber,
         createdBy,
         connection
       );
-      await DocumentLinkService.tryAutoLink(
-        'bank_transfer',
+      await DocumentLinkService.tryAutoLink(DocType.BANK_TRANSFER,
         fromResult.insertId,
         transactionNumber,
-        'bank_transaction',
+        DocType.BANK_TRANSACTION,
         fromResult.insertId,
         `${transactionNumber}-OUT`,
         createdBy,
         connection
       );
-      await DocumentLinkService.tryAutoLink(
-        'bank_transfer',
+      await DocumentLinkService.tryAutoLink(DocType.BANK_TRANSFER,
         fromResult.insertId,
         transactionNumber,
-        'bank_transaction',
+        DocType.BANK_TRANSACTION,
         toResult.insertId,
         `${transactionNumber}-IN`,
         createdBy,
         connection
       );
-      await DocumentLinkService.tryAutoLink(
-        'bank_transaction',
+      await DocumentLinkService.tryAutoLink(DocType.BANK_TRANSACTION,
         fromResult.insertId,
         `${transactionNumber}-OUT`,
-        'finance_voucher',
+        DocType.FINANCE_VOUCHER,
         entryId,
         entryNumber,
         createdBy,
         connection
       );
-      await DocumentLinkService.tryAutoLink(
-        'bank_transaction',
+      await DocumentLinkService.tryAutoLink(DocType.BANK_TRANSACTION,
         toResult.insertId,
         `${transactionNumber}-IN`,
-        'finance_voucher',
+        DocType.FINANCE_VOUCHER,
         entryId,
         entryNumber,
         createdBy,
@@ -286,10 +282,10 @@ class FundTransferModel {
       );
       await DocumentLinkService.createLink(
         {
-          source_type: 'bank_transaction',
+          source_type: DocType.BANK_TRANSACTION,
           source_id: fromResult.insertId,
           source_code: `${transactionNumber}-OUT`,
-          target_type: 'bank_transaction',
+          target_type: DocType.BANK_TRANSACTION,
           target_id: toResult.insertId,
           target_code: `${transactionNumber}-IN`,
           link_type: 'related',

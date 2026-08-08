@@ -12,6 +12,7 @@ const financeModel = require('./finance');
 const { DOCUMENT_TYPE_MAPPING } = require('../constants/financeConstants');
 const CodeGeneratorService = require('../services/business/CodeGeneratorService');
 const DocumentLinkService = require('../services/business/DocumentLinkService');
+const { DOCUMENT_LINK_TYPES: DocType } = require('../constants/documentLinkTypes');
 const { accountingConfig } = require('../config/accountingConfig');
 const { toLocalDateString } = require('../utils/dateUtils');
 
@@ -246,11 +247,10 @@ const assetsModel = {
 
         // 创建会计分录
         const entryId = await financeModel.createEntry(entryData, entryItems, connection);
-        await DocumentLinkService.tryAutoLink(
-          'asset',
+        await DocumentLinkService.tryAutoLink(DocType.ASSET,
           assetId,
           assetData.asset_code,
-          'finance_voucher',
+          DocType.FINANCE_VOUCHER,
           entryId,
           entryData.entry_number,
           assetData.gl_entry.created_by || null,
@@ -778,21 +778,19 @@ const assetsModel = {
 
           // 创建会计分录
           const entryId = await financeModel.createEntry(entryData, entryItems, connection);
-          await DocumentLinkService.tryAutoLink(
-            'asset',
+          await DocumentLinkService.tryAutoLink(DocType.ASSET,
             params.assetId,
             asset.asset_code,
-            'finance_voucher',
+            DocType.FINANCE_VOUCHER,
             entryId,
             entryData.entry_number,
             params.glEntry.created_by || null,
             connection
           );
-          await DocumentLinkService.tryAutoLink(
-            'asset_depreciation',
+          await DocumentLinkService.tryAutoLink(DocType.ASSET_DEPRECIATION,
             depreciationId,
             `${asset.asset_code}-${depreciationMonth}`,
-            'finance_voucher',
+            DocType.FINANCE_VOUCHER,
             entryId,
             entryData.entry_number,
             params.glEntry.created_by || null,
@@ -1110,21 +1108,19 @@ const assetsModel = {
           );
 
           for (const record of depreciationRecords) {
-            await DocumentLinkService.tryAutoLink(
-              'asset',
+            await DocumentLinkService.tryAutoLink(DocType.ASSET,
               record.assetId,
               record.assetCode,
-              'finance_voucher',
+              DocType.FINANCE_VOUCHER,
               entryId,
               entryNumber,
               createdBy,
               connection
             );
-            await DocumentLinkService.tryAutoLink(
-              'asset_depreciation',
+            await DocumentLinkService.tryAutoLink(DocType.ASSET_DEPRECIATION,
               record.depreciationId,
               `${record.assetCode}-${depreciationMonth}`,
-              'finance_voucher',
+              DocType.FINANCE_VOUCHER,
               entryId,
               entryNumber,
               createdBy,
@@ -1327,21 +1323,19 @@ const assetsModel = {
         ].filter(hasPositiveAmount);
         const entry1Id = await financeModel.createEntry(entry1Data, entry1Items, connection);
         generatedEntries.push({ entryId: entry1Id, entryNumber: entry1Data.entry_number });
-        await DocumentLinkService.tryAutoLink(
-          'asset_disposal',
+        await DocumentLinkService.tryAutoLink(DocType.ASSET_DISPOSAL,
           id,
           docNumber,
-          'finance_voucher',
+          DocType.FINANCE_VOUCHER,
           entry1Id,
           entry1Data.entry_number,
           createdBy,
           connection
         );
-        await DocumentLinkService.tryAutoLink(
-          'asset',
+        await DocumentLinkService.tryAutoLink(DocType.ASSET,
           id,
           asset.asset_code,
-          'finance_voucher',
+          DocType.FINANCE_VOUCHER,
           entry1Id,
           entry1Data.entry_number,
           createdBy,
@@ -1425,41 +1419,37 @@ const assetsModel = {
             [disposalAmount, disposalData.disposal_date, disposalData.bank_account_id]
           );
 
-          await DocumentLinkService.tryAutoLink(
-            'asset_disposal',
+          await DocumentLinkService.tryAutoLink(DocType.ASSET_DISPOSAL,
             id,
             docNumber,
-            'bank_transaction',
+            DocType.BANK_TRANSACTION,
             bankTransactionId,
             bankTransactionNumber,
             createdBy,
             connection
           );
-          await DocumentLinkService.tryAutoLink(
-            'asset_disposal',
+          await DocumentLinkService.tryAutoLink(DocType.ASSET_DISPOSAL,
             id,
             docNumber,
-            'finance_voucher',
+            DocType.FINANCE_VOUCHER,
             entry2Id,
             entry2Data.entry_number,
             createdBy,
             connection
           );
-          await DocumentLinkService.tryAutoLink(
-            'bank_transaction',
+          await DocumentLinkService.tryAutoLink(DocType.BANK_TRANSACTION,
             bankTransactionId,
             bankTransactionNumber,
-            'finance_voucher',
+            DocType.FINANCE_VOUCHER,
             entry2Id,
             entry2Data.entry_number,
             createdBy,
             connection
           );
-          await DocumentLinkService.tryAutoLink(
-            'asset',
+          await DocumentLinkService.tryAutoLink(DocType.ASSET,
             id,
             asset.asset_code,
-            'bank_transaction',
+            DocType.BANK_TRANSACTION,
             bankTransactionId,
             bankTransactionNumber,
             createdBy,
@@ -1521,21 +1511,19 @@ const assetsModel = {
           if (entry3Items) {
             const entry3Id = await financeModel.createEntry(entry3Data, entry3Items, connection);
             generatedEntries.push({ entryId: entry3Id, entryNumber: entry3Data.entry_number });
-            await DocumentLinkService.tryAutoLink(
-              'asset_disposal',
+            await DocumentLinkService.tryAutoLink(DocType.ASSET_DISPOSAL,
               id,
               docNumber,
-              'finance_voucher',
+              DocType.FINANCE_VOUCHER,
               entry3Id,
               entry3Data.entry_number,
               createdBy,
               connection
             );
-            await DocumentLinkService.tryAutoLink(
-              'asset',
+            await DocumentLinkService.tryAutoLink(DocType.ASSET,
               id,
               asset.asset_code,
-              'finance_voucher',
+              DocType.FINANCE_VOUCHER,
               entry3Id,
               entry3Data.entry_number,
               createdBy,
@@ -1806,11 +1794,10 @@ const assetsModel = {
           ]
         );
 
-        await DocumentLinkService.tryAutoLink(
-          'asset',
+        await DocumentLinkService.tryAutoLink(DocType.ASSET,
           asset.id,
           asset.asset_code,
-          'asset_transfer',
+          DocType.ASSET_TRANSFER,
           insertResult.insertId,
           `${asset.asset_code}-${transferData.transferDate}`,
           transferData.created_by || null,
@@ -2077,31 +2064,28 @@ const assetsModel = {
       );
 
       const createdBy = requirePositiveInteger(impairmentData.created_by || 1, 'created_by');
-      await DocumentLinkService.tryAutoLink(
-        'asset_impairment',
+      await DocumentLinkService.tryAutoLink(DocType.ASSET_IMPAIRMENT,
         insertResult.insertId,
         documentNumber,
-        'finance_voucher',
+        DocType.FINANCE_VOUCHER,
         glEntryId,
         documentNumber,
         createdBy,
         connection
       );
-      await DocumentLinkService.tryAutoLink(
-        'asset',
+      await DocumentLinkService.tryAutoLink(DocType.ASSET,
         assetId,
         asset.asset_code,
-        'asset_impairment',
+        DocType.ASSET_IMPAIRMENT,
         insertResult.insertId,
         documentNumber,
         createdBy,
         connection
       );
-      await DocumentLinkService.tryAutoLink(
-        'asset',
+      await DocumentLinkService.tryAutoLink(DocType.ASSET,
         assetId,
         asset.asset_code,
-        'finance_voucher',
+        DocType.FINANCE_VOUCHER,
         glEntryId,
         documentNumber,
         createdBy,
@@ -2346,11 +2330,10 @@ const assetsModel = {
         connection
       );
 
-      await DocumentLinkService.tryAutoLink(
-        'asset',
+      await DocumentLinkService.tryAutoLink(DocType.ASSET,
         assetId,
         originalAsset.asset_code,
-        'asset',
+        DocType.ASSET,
         newAssetId,
         newAssetCode,
         userId || null,

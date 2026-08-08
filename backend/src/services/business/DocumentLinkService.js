@@ -165,7 +165,7 @@ class DocumentLinkService {
 
   /**
    * 便捷方法：在业务逻辑中一行调用，失败时进入死信队列等待补偿。
-   * @example await DocumentLinkService.tryAutoLink('sales_order', orderId, orderNo, 'sales_outbound', outboundId, outboundNo, userId, conn);
+   * @example await DocumentLinkService.tryAutoLink(DocType.SALES_ORDER, orderId, orderNo, DocType.SALES_OUTBOUND, outboundId, outboundNo, userId, conn);
    */
   async tryAutoLink(srcType, srcId, srcCode, tgtType, tgtId, tgtCode, userId, conn) {
     try {
