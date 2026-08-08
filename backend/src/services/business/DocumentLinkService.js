@@ -1,108 +1,18 @@
 /**
  * DocumentLinkService.js
- * @description 单据关联追溯服务 — 正向/反向穿透查询
- * @date 2026-04-21
+ * @description 单据关联追溯服务 — 正向/反向穿透查询与幂等写入
+ * 类型/文案/权限 SSOT：constants/documentLinkTypes.js
  */
 
 const { pool } = require('../../config/db');
 const { PermissionUtils } = require('../../utils/authUtils');
-
-// 业务类型中文映射
-const TYPE_LABELS = {
-  purchase_requisition: '采购请购单',
-  purchase_order: '采购订单',
-  purchase_receipt: '采购收货单',
-  purchase_return: '采购退货单',
-  sales_quotation: '销售报价单',
-  sales_order: '销售订单',
-  sales_outbound: '销售出库单',
-  sales_return: '销售退货单',
-  sales_exchange: '销售换货单',
-  inventory_inbound: '入库单',
-  inventory_outbound: '出库单',
-  inventory_transfer: '调拨单',
-  inventory_check: '盘点单',
-  production_plan: '生产计划',
-  production_task: '生产任务',
-  quality_inspection: '质检单',
-  nonconforming_product: '不合格品',
-  eight_d_report: '8D报告',
-  rework_task: '返工任务',
-  scrap_record: '报废记录',
-  replacement_order: '换货单',
-  finance_voucher: '记账凭证',
-  asset: '固定资产',
-  cip_project: '在建工程',
-  asset_transfer: '资产调拨单',
-  asset_depreciation: '资产折旧明细',
-  asset_disposal: '资产处置单',
-  asset_impairment: '资产减值单',
-  ap_invoice: '应付发票',
-  ar_invoice: '应收发票',
-  tax_invoice: '税务发票',
-  tax_return: '税务申报',
-  ap_payment: '付款单',
-  ar_receipt: '收款单',
-  bank_transfer: '资金调拨单',
-  bank_transaction: '银行流水',
-  cash_transaction: '现金流水',
-  outsourced_processing: '外委加工单',
-  outsourced_receipt: '外委加工入库单',
-  contract: '合同',
-  expense: '费用单',
-  ecn: '工程变更',
-  bom: 'BOM',
-  material: '物料',
-};
+const {
+  DOCUMENT_LINK_TYPE_LABELS: TYPE_LABELS,
+  DOCUMENT_LINK_TYPE_PERMISSIONS,
+  isKnownDocumentLinkType,
+} = require('../../constants/documentLinkTypes');
 
 const ALLOWED_LINK_TYPES = new Set(['generate', 'reference', 'related']);
-
-const DOCUMENT_LINK_TYPE_PERMISSIONS = Object.freeze({
-  purchase_requisition: ['purchase:requisitions:view'],
-  purchase_order: ['purchase:orders:view'],
-  purchase_receipt: ['purchase:receipts:view'],
-  purchase_return: ['purchase:returns:view'],
-  sales_quotation: ['sales:quotations:view'],
-  sales_order: ['sales:orders:view'],
-  sales_outbound: ['sales:outbound:view'],
-  sales_return: ['sales:returns:view'],
-  sales_exchange: ['sales:exchanges:view', 'sales:returns:view'],
-  inventory_inbound: ['inventory:inbound:view'],
-  inventory_outbound: ['inventory:outbound:view'],
-  inventory_transfer: ['inventory:transfer:view'],
-  inventory_check: ['inventory:check:view'],
-  production_plan: ['production:plans:view'],
-  production_task: ['production:tasks:view'],
-  quality_inspection: ['quality:inspections:view'],
-  nonconforming_product: ['quality:nonconforming:view'],
-  eight_d_report: ['quality:8d:view'],
-  rework_task: ['quality:rework:view'],
-  scrap_record: ['quality:scrap:view'],
-  replacement_order: ['quality:replacement:view'],
-  finance_voucher: ['finance:entries:view'],
-  asset: ['finance:assets:view'],
-  cip_project: ['finance:assets:view'],
-  asset_transfer: ['finance:assets:view'],
-  asset_depreciation: ['finance:assets:view'],
-  asset_disposal: ['finance:assets:view'],
-  asset_impairment: ['finance:assets:view'],
-  ap_invoice: ['finance:ap:view'],
-  ar_invoice: ['finance:ar:view'],
-  tax_invoice: ['finance:tax:view'],
-  tax_return: ['finance:tax:view'],
-  ap_payment: ['finance:ap:view'],
-  ar_receipt: ['finance:ar:view'],
-  bank_transfer: ['finance:cash:view'],
-  bank_transaction: ['finance:cash:view'],
-  cash_transaction: ['finance:cash:view'],
-  outsourced_processing: ['purchase:processing:view'],
-  outsourced_receipt: ['purchase:processing-receipts:view'],
-  contract: ['contract:view'],
-  expense: ['finance:expenses:view'],
-  ecn: ['basedata:ecn:view'],
-  bom: ['basedata:boms:view'],
-  material: ['basedata:materials:view'],
-});
 
 class DocumentLinkService {
   getViewPermissionsForType(businessType) {
@@ -127,6 +37,11 @@ class DocumentLinkService {
   async createLink({ source_type, source_id, source_code, target_type, target_id, target_code, link_type = 'generate', remark, created_by }, conn = null) {
     if (!ALLOWED_LINK_TYPES.has(link_type)) {
       throw new Error(`不支持的单据关联类型: ${link_type}`);
+    }
+    if (!isKnownDocumentLinkType(source_type) || !isKnownDocumentLinkType(target_type)) {
+      throw new Error(
+        `未知单据类型: source=${source_type}, target=${target_type}（须使用 documentLinkTypes SSOT）`
+      );
     }
 
     const db = conn || pool;

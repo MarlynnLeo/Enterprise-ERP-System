@@ -768,16 +768,22 @@ exports.createSalesOutbound = async (req, res) => {
       throw new Error('非草稿销售出库单必须包含物料明细');
     }
 
-    // 自动创建单据关联（销售订单 -> 出库单）
+    // 标准业务链：销售订单 → 销售出库（类型 SSOT）
     if (order_id) {
-      const DocumentLinkService = require('../../../services/business/DocumentLinkService');
+      const DocumentChainService = require('../../../services/business/DocumentChainService');
       const [[orderRow]] = await connection.query(
         'SELECT order_no FROM sales_orders WHERE id = ? AND deleted_at IS NULL',
         [order_id]
       );
-      await DocumentLinkService.tryAutoLink(
-        'sales_order', order_id, orderRow?.order_no || null,
-        'sales_outbound', outboundId, outboundNo, created_by, connection
+      await DocumentChainService.linkSalesOrderToOutbound(
+        {
+          orderId: order_id,
+          orderNo: orderRow?.order_no || null,
+          outboundId,
+          outboundNo,
+        },
+        created_by,
+        connection
       );
     }
 

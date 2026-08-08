@@ -3,6 +3,7 @@ const purchaseModel = require('../../models/purchase');
 const InventoryService = require('../InventoryService');
 const InventoryTraceabilityService = require('./InventoryTraceabilityService');
 const DocumentLinkService = require('./DocumentLinkService');
+const { DOCUMENT_LINK_TYPES: DocType } = require('../../constants/documentLinkTypes');
 const { normalizeTaxRate, roundMoney, taxAmount: calculateTaxAmount } = require('../../utils/money');
 const { financeConfig } = require('../../config/financeConfig');
 const { normalizeUserId, firstValidUserId } = require('../../utils/userUtils');
@@ -311,10 +312,10 @@ class QualityIntegrationService {
   }) {
     if (ncp?.inspection_id) {
       await DocumentLinkService.tryAutoLink(
-        'quality_inspection',
+        DocType.QUALITY_INSPECTION,
         ncp.inspection_id,
         ncp.inspection_no,
-        'nonconforming_product',
+        DocType.NONCONFORMING_PRODUCT,
         ncp.id,
         ncp.ncp_no,
         createdBy,
@@ -324,20 +325,20 @@ class QualityIntegrationService {
 
     if (ncp?.id) {
       await DocumentLinkService.tryAutoLink(
-        'nonconforming_product',
+        DocType.NONCONFORMING_PRODUCT,
         ncp.id,
         ncp.ncp_no,
-        'replacement_order',
+        DocType.REPLACEMENT_ORDER,
         replacementOrder.id,
         replacementOrder.replacement_no,
         createdBy,
         connection
       );
       await DocumentLinkService.tryAutoLink(
-        'nonconforming_product',
+        DocType.NONCONFORMING_PRODUCT,
         ncp.id,
         ncp.ncp_no,
-        'purchase_receipt',
+        DocType.PURCHASE_RECEIPT,
         receiptId,
         receiptNo,
         createdBy,
@@ -347,10 +348,10 @@ class QualityIntegrationService {
 
     if (purchaseReturn?.id) {
       await DocumentLinkService.tryAutoLink(
-        'purchase_return',
+        DocType.PURCHASE_RETURN,
         purchaseReturn.id,
         purchaseReturn.return_no,
-        'replacement_order',
+        DocType.REPLACEMENT_ORDER,
         replacementOrder.id,
         replacementOrder.replacement_no,
         createdBy,
@@ -360,10 +361,10 @@ class QualityIntegrationService {
 
     if (orderContext?.order_id) {
       await DocumentLinkService.tryAutoLink(
-        'purchase_order',
+        DocType.PURCHASE_ORDER,
         orderContext.order_id,
         orderContext.order_no,
-        'purchase_receipt',
+        DocType.PURCHASE_RECEIPT,
         receiptId,
         receiptNo,
         createdBy,
@@ -372,10 +373,10 @@ class QualityIntegrationService {
     }
 
     await DocumentLinkService.tryAutoLink(
-      'replacement_order',
+      DocType.REPLACEMENT_ORDER,
       replacementOrder.id,
       replacementOrder.replacement_no,
-      'purchase_receipt',
+      DocType.PURCHASE_RECEIPT,
       receiptId,
       receiptNo,
       createdBy,
@@ -387,10 +388,10 @@ class QualityIntegrationService {
     if (!ncp?.inspection_id || !ncp?.id) return;
 
     await DocumentLinkService.tryAutoLink(
-      'quality_inspection',
+      DocType.QUALITY_INSPECTION,
       ncp.inspection_id,
       ncp.inspection_no,
-      'nonconforming_product',
+      DocType.NONCONFORMING_PRODUCT,
       ncp.id,
       ncp.ncp_no,
       this.createdById(createdBy),
@@ -402,7 +403,7 @@ class QualityIntegrationService {
     if (!ncp?.id || !targetType || !targetId) return;
 
     await DocumentLinkService.tryAutoLink(
-      'nonconforming_product',
+      DocType.NONCONFORMING_PRODUCT,
       ncp.id,
       ncp.ncp_no,
       targetType,

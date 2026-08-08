@@ -301,20 +301,20 @@ exports.createProductionTask = async (req, res) => {
       await TaskRepository.incrementPlanPushedQuantity(connection, plan_id, taskQuantity);
     }
 
-    // 自动创建单据关联（生产计划 → 生产任务）
+    // 标准业务链：生产计划 → 生产任务（类型 SSOT）
     if (plan_id) {
-      const DocumentLinkService = require('../../../services/business/DocumentLinkService');
+      const DocumentChainService = require('../../../services/business/DocumentChainService');
       const [[planRow]] = await connection.query(
         'SELECT code FROM production_plans WHERE id = ? AND deleted_at IS NULL',
         [plan_id]
       );
-      await DocumentLinkService.tryAutoLink(
-        'production_plan',
-        plan_id,
-        planRow?.code || null,
-        'production_task',
-        taskId,
-        code,
+      await DocumentChainService.linkProductionPlanToTask(
+        {
+          planId: plan_id,
+          planCode: planRow?.code || null,
+          taskId,
+          taskCode: code,
+        },
         req.user?.userId || req.user?.id,
         connection
       );

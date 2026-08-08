@@ -613,6 +613,26 @@ const updateOutboundStatus = async (req, res) => {
       } catch (amountError) {
         logger.warn(`计算出库单总金额失败: ${amountError.message}`);
       }
+
+      // 标准业务链：生产任务/业务引用 → 库存出库（类型 SSOT）
+      try {
+        const DocumentChainService = require('../../../../services/business/DocumentChainService');
+        const [linkRows] = await connection.execute(
+          `SELECT id, outbound_no, reference_type, reference_id, reference_no, production_task_id
+           FROM inventory_outbound WHERE id = ? AND deleted_at IS NULL`,
+          [id]
+        );
+        if (linkRows[0]) {
+          await DocumentChainService.afterInventoryOutboundCompleted(
+            linkRows[0],
+            req.user?.userId || req.user?.id || null,
+            connection
+          );
+        }
+      } catch (linkError) {
+        logger.error('出库完成写单据链路失败:', linkError);
+        throw linkError;
+      }
     }
 
 

@@ -326,6 +326,24 @@ class InboundTransactionService {
 
     await this.syncProductionCompletion(connection, inboundInfo[0], inboundItems, inspection_id);
 
+    // 标准业务链：质检/业务引用 → 入库单
+    const DocumentChainService = require('./DocumentChainService');
+    const linkActor =
+      (inboundData && (inboundData.updated_by || inboundData.created_by)) || null;
+    await DocumentChainService.afterInventoryInboundConfirmed(
+      {
+        id: inboundId,
+        inbound_no: inboundData.inbound_no || inboundInfo[0]?.inbound_no,
+        inspection_id,
+        inspection_no: inboundInfo[0]?.inspection_no || null,
+        reference_type: inboundData.reference_type || inboundInfo[0]?.reference_type,
+        reference_id: inboundData.reference_id || inboundInfo[0]?.reference_id,
+        reference_no: inboundData.reference_no || inboundInfo[0]?.reference_no,
+      },
+      linkActor,
+      connection
+    );
+
     // 异步创建成品入库追溯记录及NCP生成（无阻塞副流）
     this._handleSideEffects(inboundId, inboundInfo[0], inboundItems, inspection_id, operator);
   }

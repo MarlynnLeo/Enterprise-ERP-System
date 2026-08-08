@@ -674,6 +674,29 @@ const createReceipt = async (req, res) => {
       if (!receiptId) {
         throw new Error('插入成功但无法获取收货单ID');
       }
+
+      // 标准业务链：PO → 收货；来料检验 → 收货（DocumentChainService / 类型 SSOT）
+      const DocumentChainService = require('../../../services/business/DocumentChainService');
+      let inspectionNo = null;
+      if (isFromInspection && inspectionId) {
+        const [[insp]] = await client.query(
+          'SELECT inspection_no FROM quality_inspections WHERE id = ? AND deleted_at IS NULL LIMIT 1',
+          [inspectionId]
+        );
+        inspectionNo = insp?.inspection_no || null;
+      }
+      await DocumentChainService.afterPurchaseReceiptCreated(
+        {
+          orderId,
+          orderNo,
+          receiptId,
+          receiptNo,
+          inspectionId: isFromInspection ? inspectionId : null,
+          inspectionNo,
+        },
+        req.user?.userId || req.user?.id || null,
+        client
+      );
     } catch (insertError) {
       if (insertError.code === 'ER_DUP_ENTRY' && receiptIdempotencyKey) {
         const [existingRows] = await client.query(
