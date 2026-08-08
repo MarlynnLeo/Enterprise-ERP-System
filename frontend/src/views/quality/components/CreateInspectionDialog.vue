@@ -324,21 +324,22 @@ const submitForm = async () => {
       return
     }
 
+    // HTTP 契约：camelCase（qualityInspectionMap.fromApi）
     const formData = {
-      inspection_type: 'incoming',
-      reference_no: form.purchaseOrderNo,
-      reference_id: form.purchaseOrderId || null,
-      material_id: form.materialId,
-      product_id: form.materialId,
-      product_name: form.materialName,
-      product_code: form.specs,
-      batch_no: form.batchNo,
+      inspectionType: 'incoming',
+      referenceNo: form.purchaseOrderNo,
+      referenceId: form.purchaseOrderId || null,
+      materialId: form.materialId,
+      productId: form.materialId,
+      productName: form.materialName,
+      productCode: form.specs,
+      batchNo: form.batchNo,
       quantity: Number(form.quantity),
       unit: form.unit,
-      planned_date: dayjs(form.arrivalDate).format('YYYY-MM-DD'),
+      plannedDate: dayjs(form.arrivalDate).format('YYYY-MM-DD'),
       note: form.note,
-      supplier_id: form.supplierId,
-      supplier_name: form.supplierName,
+      supplierId: form.supplierId,
+      supplierName: form.supplierName,
       status: 'pending'
     }
 

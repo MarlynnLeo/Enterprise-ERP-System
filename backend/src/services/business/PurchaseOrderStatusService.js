@@ -444,7 +444,16 @@ class PurchaseOrderStatusService {
       );
 
       if (orderItem.length === 0) {
-        throw new Error(`采购订单项目不存在: 订单ID=${orderId}, 物料ID=${materialId}`);
+        // 质检单关联了订单但物料不在订单行上时，不应阻断检验结案本身
+        logger.warn(
+          `采购订单项目不存在，跳过检验数量回写: 订单ID=${orderId}, 物料ID=${materialId}`
+        );
+        return {
+          skipped: true,
+          reason: 'order_item_missing',
+          orderId,
+          materialId,
+        };
       }
 
       const orderQuantity = parseFloat(orderItem[0].quantity) || 0;
