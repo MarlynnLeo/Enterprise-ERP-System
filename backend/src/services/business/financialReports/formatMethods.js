@@ -6,10 +6,7 @@
 const runtime = require('./runtime');
 const {
   db,
-  logger,
   accountingConfig,
-  toLocalDateString,
-  financeConfig,
 } = runtime;
 
 

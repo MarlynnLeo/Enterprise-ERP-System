@@ -404,7 +404,7 @@ function normalizeOverridesMap(rawOverrides) {
  */
 function resolveMergedPayload(rawOverrides, ids = []) {
   const list = asArray(rawOverrides).map(normalizeOverrideRow).filter(Boolean);
-  let merged =
+  const merged =
     list.find((row) => row.isMerged || row.sourceIds.length > 1) ||
     (list.length === 1 && ids.length > 1 ? list[0] : null);
 

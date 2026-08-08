@@ -24,8 +24,8 @@ export default [
       // 最佳实践
       // null: ignore 允许 == null / != null（同时覆盖 null 与 undefined）
       'eqeqeq': ['error', 'always', { null: 'ignore' }],
-      'no-var': 'warn',
-      'prefer-const': 'warn',
+      'no-var': 'error',
+      'prefer-const': 'error',
       
       // 代码风格（与 Prettier 配合）
       'no-multiple-empty-lines': ['warn', { max: 2 }],

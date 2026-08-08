@@ -12,14 +12,10 @@ const {
   QualityIntegrationService,
   NotificationService,
   resolveActorLabel,
-  resolveActorUserId,
   STATUS,
   VALID_DISPOSITIONS,
-  SUPPLIER_REQUIRED_DISPOSITIONS,
   normalizeNumber,
   validateDispositionPayload,
-  AUTO_DISPOSITION_RULES,
-  AUTO_DISPOSITION_CONFIG,
 } = runtime;
 
 

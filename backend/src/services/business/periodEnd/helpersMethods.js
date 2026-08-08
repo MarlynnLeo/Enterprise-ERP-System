@@ -5,15 +5,9 @@
 
 const runtime = require('./runtime');
 const {
-  logger,
   db,
-  financeModel,
   DOCUMENT_TYPE_MAPPING,
-  TAX_RELATED_DOCUMENT_TYPES,
-  taxRelatedDocumentTypeMatchList,
   accountingConfig,
-  CostClosingService,
-  resolveActorUserId,
 } = runtime;
 
 

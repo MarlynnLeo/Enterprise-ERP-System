@@ -8,7 +8,6 @@ const {
   db,
   logger,
   accountingConfig,
-  toLocalDateString,
   financeConfig,
 } = runtime;
 

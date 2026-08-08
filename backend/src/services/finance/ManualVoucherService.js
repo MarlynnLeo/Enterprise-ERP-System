@@ -1536,7 +1536,7 @@ class ManualVoucherService {
     const invoiceLinks = [];
     let successCount = 0;
     let skippedCount = 0;
-    let failedCount = 0;
+    const failedCount = 0;
     let mergedEntry;
 
     try {
