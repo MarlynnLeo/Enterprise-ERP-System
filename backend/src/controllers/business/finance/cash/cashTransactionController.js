@@ -108,7 +108,8 @@ const cashTransactionController = {
 
       const body = mapKeysToSnake(req.body || {});
       const transactionData = {
-        transaction_type: body.type || body.transactionType,
+        // mapKeysToSnake 后：type 保留；transactionType → transaction_type
+        transaction_type: body.type || body.transaction_type,
         transaction_date: body.transaction_date,
         amount: parseFloat(body.amount),
         category: body.category,
@@ -156,7 +157,7 @@ const cashTransactionController = {
 
       const body = mapKeysToSnake(req.body || {});
       const transactionData = {
-        transaction_type: body.type || body.transactionType,
+        transaction_type: body.type || body.transaction_type,
         transaction_date: body.transaction_date,
         amount: parseFloat(body.amount),
         category: body.category,
