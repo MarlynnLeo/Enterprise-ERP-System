@@ -22,7 +22,8 @@ export default [
       'no-useless-catch': 'warn',
       
       // 最佳实践
-      'eqeqeq': ['warn', 'always'],
+      // null: ignore 允许 == null / != null（同时覆盖 null 与 undefined）
+      'eqeqeq': ['error', 'always', { null: 'ignore' }],
       'no-var': 'warn',
       'prefer-const': 'warn',
       
