@@ -322,9 +322,12 @@ const issueOutboundItemFromDetail = async ({
   );
 
   if (currentStock < actualQuantity) {
-    throw new Error(
-      `Material ${item.material_id} stock is insufficient. Current ${currentStock}, required ${actualQuantity}`
+    const err = new Error(
+      `物料 ${item.material_id} 库存不足，当前库存: ${currentStock}，需要: ${actualQuantity}`
     );
+    err.statusCode = 400;
+    err.code = 'INSUFFICIENT_STOCK';
+    throw err;
   }
 
   const materialId = item.material_id;

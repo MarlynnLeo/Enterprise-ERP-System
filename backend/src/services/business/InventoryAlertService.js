@@ -70,29 +70,17 @@ class InventoryAlertService {
 
       logger.info(`Low stock materials detected: count=${lowStockItems.length}`);
 
-      // 2. 检查已有待处理的采购申请中各物料的在途数量（精确数量级扣减，避免与销售订单自动化重复）
+      // 2. 检查已有待处理的采购申请在途量（与出库缺料请购共用覆盖算法，含 submitted）
       const materialIds = lowStockItems.map((item) => item.material_id);
-      const [existingItems] = await connection.execute(
-        `
-        SELECT pri.material_id, SUM(pri.quantity) as pending_quantity
-        FROM purchase_requisition_items pri
-        INNER JOIN purchase_requisitions pr ON pri.requisition_id = pr.id
-        WHERE pr.status IN ('draft', 'pending', 'approved')
-          AND pri.material_id IN (${materialIds.map(() => '?').join(',')})
-        GROUP BY pri.material_id
-      `,
-        materialIds
-      );
-
-      // 构建已有采购数量映射
-      const pendingQuantityMap = new Map(
-        existingItems.map((item) => [item.material_id, parseFloat(item.pending_quantity) || 0])
-      );
+      const {
+        getPendingRequisitionQtyByMaterial,
+      } = require('./PendingPurchaseCoverageService');
+      const pendingQuantityMap = await getPendingRequisitionQtyByMaterial(connection, materialIds);
 
       // 精确过滤：已有采购数量 >= 缺口量则跳过，否则只补差额
       const newLowStockItems = [];
       for (const item of lowStockItems) {
-        const pendingQty = pendingQuantityMap.get(item.material_id) || 0;
+        const pendingQty = pendingQuantityMap.get(Number(item.material_id)) || 0;
         if (pendingQty >= item.shortage_quantity) {
           // 已有采购申请完全覆盖缺口，跳过
           logger.info(

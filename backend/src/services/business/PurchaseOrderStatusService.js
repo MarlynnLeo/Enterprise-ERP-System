@@ -477,9 +477,12 @@ class PurchaseOrderStatusService {
       const unqualifiedQuantity = parseFloat(stats.unqualified_quantity) || 0;
 
       if (inspectedQuantity > orderQuantity + QUANTITY_EPSILON) {
-        throw new Error(
+        const error = new Error(
           `检验数量超过采购订单数量: 订单数量=${orderQuantity}, 已终态检验=${inspectedQuantity}`
         );
+        error.statusCode = 400;
+        error.code = 'INSPECTION_QTY_EXCEEDS_PO';
+        throw error;
       }
 
       const [updateResult] = await client.execute(

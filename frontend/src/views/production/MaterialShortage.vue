@@ -203,23 +203,23 @@ const handleBatchCreateRequisition = () => {
       if (materialMap.has(key)) {
         // 如果已存在该物料，累加数量
         const existing = materialMap.get(key)
-        existing.shortage_quantity = parseFloat(existing.shortage_quantity) + parseFloat(item.shortageQuantity)
+        existing.shortageQuantity = parseFloat(existing.shortageQuantity) + parseFloat(item.shortageQuantity)
         existing.plans.push({
-          plan_code: item.planCode,
-          plan_name: item.planName
+          planCode: item.planCode,
+          planName: item.planName
         })
       } else {
-        // 新物料
+        // 新物料（全程 camelCase，与 HTTP 契约一致）
         materialMap.set(key, {
-          material_id: item.materialId,
-          material_code: item.materialCode,
-          material_name: item.materialName,
-          material_specs: item.materialSpecs,
+          materialId: item.materialId,
+          materialCode: item.materialCode,
+          materialName: item.materialName,
+          materialSpecs: item.materialSpecs,
           unit: item.unit,
-          shortage_quantity: parseFloat(item.shortageQuantity),
+          shortageQuantity: parseFloat(item.shortageQuantity),
           plans: [{
-            plan_code: item.planCode,
-            plan_name: item.planName
+            planCode: item.planCode,
+            planName: item.planName
           }]
         })
       }
@@ -236,7 +236,7 @@ const handleBatchCreateRequisition = () => {
     confirmMaterialList.value = Array.from(materialMap.values()).map(item => ({
       ...item,
       // 添加一个编辑用的数量字段
-      edit_quantity: item.shortageQuantity
+      editQuantity: item.shortageQuantity
     }))
 
     // 显示确认对话框
@@ -267,22 +267,22 @@ const confirmSubmitRequisition = async () => {
       }
       if (!planMaterialMap.has(planId)) {
         planMaterialMap.set(planId, {
-          plan_id: planId,
-          plan_code: row.planCode,
+          planId,
+          planCode: row.planCode,
           materials: new Map()
         })
       }
       const bucket = planMaterialMap.get(planId)
       const confirmItem = confirmMaterialList.value.find(m => m.materialId === row.materialId)
-      const qty = parseFloat(confirmItem?.edit_quantity ?? row.shortageQuantity) || 0
+      const qty = parseFloat(confirmItem?.editQuantity ?? row.shortageQuantity) || 0
       if (qty <= 0) continue
       if (bucket.materials.has(row.materialId)) {
         bucket.materials.get(row.materialId).quantity += qty
       } else {
         bucket.materials.set(row.materialId, {
-          material_id: row.materialId,
-          material_code: row.materialCode,
-          material_name: row.materialName,
+          materialId: row.materialId,
+          materialCode: row.materialCode,
+          materialName: row.materialName,
           specs: row.materialSpecs,
           unit: row.unit,
           quantity: qty,
@@ -303,22 +303,22 @@ const confirmSubmitRequisition = async () => {
         const response = await purchaseApi.createRequisition({
           requestDate: dayjs().format('YYYY-MM-DD'),
           materials: [{
-            materialId: mat.material_id ?? mat.materialId,
-            materialCode: mat.material_code ?? mat.materialCode,
-            materialName: mat.material_name ?? mat.materialName,
+            materialId: mat.materialId,
+            materialCode: mat.materialCode,
+            materialName: mat.materialName,
             specs: mat.specs,
             unit: mat.unit,
             quantity: mat.quantity,
             remarks: mat.remarks
           }],
-          remarks: `根据生产计划缺料统计自动生成 - 计划: ${bucket.plan_code}`,
+          remarks: `根据生产计划缺料统计自动生成 - 计划: ${bucket.planCode}`,
           sourceType: 'production_plan',
-          sourceId: bucket.plan_id ?? bucket.planId,
-          sourceMaterialId: mat.material_id ?? mat.materialId
+          sourceId: bucket.planId,
+          sourceMaterialId: mat.materialId
         })
         const result = parseApiResponse(response)
         if (!(result.success && result.data)) {
-          throw new Error(result.error || `计划 ${bucket.plan_code} 物料 ${mat.materialCode} 创建失败`)
+          throw new Error(result.error || `计划 ${bucket.planCode} 物料 ${mat.materialCode} 创建失败`)
         }
         const no = result.data.requisitionNumber || result.data.requisitionNo || ''
         if (no) {
@@ -551,7 +551,7 @@ onMounted(() => {
 
           <el-table-column label="关联计划" min-width="130" show-overflow-tooltip>
             <template #default="scope">
-              {{ scope.row.plans.map(p => p.plan_code).join(', ') }}
+              {{ scope.row.plans.map(p => p.planCode).join(', ') }}
             </template>
           </el-table-column>
 

@@ -1051,15 +1051,25 @@ const createInboundFromQuality = async (req, res) => {
 
 const updateInboundStatus = async (req, res) => {
   const { id } = req.params;
-  const { newStatus } = req.body;
+  // 兼容 newStatus / status / new_status（与出库状态接口对齐）
+  const newStatus = req.body?.newStatus ?? req.body?.status ?? req.body?.new_status;
 
   if (!id || isNaN(parseInt(id, 10))) {
     return ResponseHandler.error(res, '无效的入库单ID', 'VALIDATION_ERROR', 400);
   }
 
+  if (!newStatus) {
+    return ResponseHandler.error(res, '缺少目标状态 newStatus', 'VALIDATION_ERROR', 400);
+  }
+
   const validStatuses = ['draft', 'confirmed', 'completed', 'reversed', 'cancelled'];
   if (!validStatuses.includes(newStatus)) {
-    return ResponseHandler.error(res, '无效的状态值', 'VALIDATION_ERROR', 400);
+    return ResponseHandler.error(
+      res,
+      `无效的状态值: ${newStatus}`,
+      'VALIDATION_ERROR',
+      400
+    );
   }
 
   const isDeadlockError = (err) =>

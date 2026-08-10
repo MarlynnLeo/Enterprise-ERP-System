@@ -270,7 +270,7 @@ module.exports = {
         // 采购申购单批准后自动生成采购订单
         if (action === 'approved' && businessType === 'purchase_requisition') {
           try {
-            const { generateOrdersFromRequisition } = require('./RequisitionAutoOrderService');
+            const { generateOrdersFromRequisition } = require('../RequisitionAutoOrderService');
             await generateOrdersFromRequisition(businessId, conn);
           } catch (autoErr) {
             logger.error(`采购申请 ${businessId} 自动生成采购订单失败，审批回调已回滚:`, autoErr);

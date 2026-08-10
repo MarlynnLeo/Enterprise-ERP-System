@@ -5,7 +5,7 @@
 
 const { ResponseHandler } = require('../../../utils/responseHandler');
 const { logger } = require('../../../utils/logger');
-const { desensitizeData, hasFinancePermission } = require('../../../utils/desensitizer');
+const { desensitizeDataForUser } = require('../../../utils/desensitizer');
 const { pool: dbPool } = require('../../../config/db');
 const FileAccessService = require('../../../services/FileAccessService');
 const { mapKeysToSnake } = require('../../../utils/fieldMap');
@@ -24,11 +24,13 @@ const materialController = {
         mapKeysToSnake(filters)
       );
 
-      // 🔒 权限过滤敏感价格字段 (AOP脱敏)
-      // ✅ hasFinancePermission 已统一走 PermissionService，无需额外手动检查
-      const hasPerm = await hasFinancePermission(req.user);
-
-      const filteredData = desensitizeData(result.data, hasPerm);
+      // 🔒 字段级脱敏：采购价/销售价按权限拆分（路由层还会再走一次，幂等）
+      const filteredData = await desensitizeDataForUser(
+        result.data,
+        req.user,
+        'view',
+        req.userPermissions
+      );
 
       ResponseHandler.paginated(
         res,
@@ -48,10 +50,12 @@ const materialController = {
     try {
       const material = await materialService.getMaterialById(req.params.id);
       if (material) {
-        // 🔒 权限过滤敏感价格字段 (AOP脱敏)
-        const hasPerm = await hasFinancePermission(req.user);
-
-        const filtered = desensitizeData(material, hasPerm);
+        const filtered = await desensitizeDataForUser(
+          material,
+          req.user,
+          'view',
+          req.userPermissions
+        );
 
         ResponseHandler.success(res, filtered, '获取物料详情成功');
       } else {
@@ -84,8 +88,12 @@ const materialController = {
         ids
       );
 
-      const hasPerm = await hasFinancePermission(req.user);
-      const filteredMaterials = desensitizeData(materials, hasPerm);
+      const filteredMaterials = await desensitizeDataForUser(
+        materials,
+        req.user,
+        'view',
+        req.userPermissions
+      );
 
       ResponseHandler.success(res, filteredMaterials, '批量获取物料成功');
     } catch (error) {
@@ -118,8 +126,12 @@ const materialController = {
         codes
       );
 
-      const hasPerm = await hasFinancePermission(req.user);
-      const filteredMaterials = desensitizeData(materials, hasPerm);
+      const filteredMaterials = await desensitizeDataForUser(
+        materials,
+        req.user,
+        'view',
+        req.userPermissions
+      );
 
       ResponseHandler.success(res, filteredMaterials, '批量按编码获取物料成功');
     } catch (error) {
@@ -375,11 +387,11 @@ const materialController = {
       const groupByCode = new Map(allGroups.filter((g) => g.code).map((g) => [g.code, g.id]));
       const groupByName = new Map(allGroups.map((g) => [g.name, g.id]));
 
-      const [allUsers] = await dbPool.query('SELECT id, username, real_name FROM users WHERE status = 1');
+      // 负责人仅按 username 解析（显示名可重名，禁止作身份键）
+      const [allUsers] = await dbPool.query('SELECT id, username FROM users WHERE status = 1');
       const userByCode = new Map();
       for (const u of allUsers) {
         if (u.username) userByCode.set(u.username, u.id);
-        if (u.real_name) userByCode.set(u.real_name, u.id);
       }
 
       const [allLocations] = await dbPool.query('SELECT id, code FROM locations WHERE deleted_at IS NULL');

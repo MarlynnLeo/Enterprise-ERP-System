@@ -106,10 +106,11 @@ const cashTransactionController = {
         return ResponseHandler.validationError(res, errors.array());
       }
 
-      const body = mapKeysToSnake(req.body || {});
+      const raw = req.body || {};
+      const body = mapKeysToSnake(raw);
       const transactionData = {
-        // mapKeysToSnake 后：type 保留；transactionType → transaction_type
-        transaction_type: body.type || body.transaction_type,
+        // HTTP 优先 camel transactionType；兼容历史 body.type
+        transaction_type: body.transaction_type || raw.transactionType || raw.type || null,
         transaction_date: body.transaction_date,
         amount: parseFloat(body.amount),
         category: body.category,
@@ -155,9 +156,10 @@ const cashTransactionController = {
         return;
       }
 
-      const body = mapKeysToSnake(req.body || {});
+      const raw = req.body || {};
+      const body = mapKeysToSnake(raw);
       const transactionData = {
-        transaction_type: body.type || body.transaction_type,
+        transaction_type: body.transaction_type || raw.transactionType || raw.type || null,
         transaction_date: body.transaction_date,
         amount: parseFloat(body.amount),
         category: body.category,

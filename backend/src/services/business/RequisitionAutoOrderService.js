@@ -82,6 +82,54 @@ async function generateOrdersFromRequisition(requisitionId, conn) {
       throw new Error(`采购申请 ${requisition.requisition_number || requisitionId} 没有物料项，不能自动生成采购订单`);
     }
 
+    // 补全明细物料：历史脏数据可能只有 material_id 或只有编码/空字段
+    for (const item of itemsRows) {
+      if ((!item.material_id || !item.material_code || !item.material_name) && item.m_code) {
+        item.material_code = item.material_code || item.m_code;
+        item.material_name = item.material_name || item.m_name;
+        item.unit_id = item.unit_id || item.m_unit_id;
+      }
+      if (!item.material_id && requisition.source_material_id) {
+        item.material_id = requisition.source_material_id;
+      }
+      if (item.material_id && (!item.material_code || !item.material_name)) {
+        const [[mat]] = await conn.execute(
+          'SELECT id, code, name, specs, unit_id, supplier_id, cost_price FROM materials WHERE id = ? AND deleted_at IS NULL LIMIT 1',
+          [item.material_id]
+        );
+        if (mat) {
+          item.material_code = item.material_code || mat.code;
+          item.material_name = item.material_name || mat.name;
+          item.specification = item.specification || mat.specs || '';
+          item.unit_id = item.unit_id || mat.unit_id;
+          item.supplier_id = item.supplier_id || mat.supplier_id;
+          item.m_code = item.m_code || mat.code;
+          item.m_name = item.m_name || mat.name;
+        }
+      }
+      if (!item.material_id || !item.material_code || !item.material_name) {
+        throw new Error(
+          `采购申请 ${requisition.requisition_number || requisitionId} 明细物料不完整：id=${item.material_id}, code=${item.material_code}, name=${item.material_name}`
+        );
+      }
+      // 回写明细，避免下次再失败
+      await conn.execute(
+        `UPDATE purchase_requisition_items
+         SET material_id = ?, material_code = ?, material_name = ?,
+             specification = COALESCE(NULLIF(specification, ''), ?),
+             unit_id = COALESCE(unit_id, ?)
+         WHERE id = ?`,
+        [
+          item.material_id,
+          item.material_code,
+          item.material_name,
+          item.specification || '',
+          item.unit_id || null,
+          item.id,
+        ]
+      );
+    }
+
     const defaultTaxRate = normalizeTaxRate(financeConfig.get('tax.defaultVATRate', 0), 0);
     const resolvedPrices = await PurchasePriceService.resolvePurchasePrices(
       conn,

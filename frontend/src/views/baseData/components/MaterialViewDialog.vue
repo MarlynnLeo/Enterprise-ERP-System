@@ -71,7 +71,8 @@
         <el-descriptions-item label="最大库存">
           {{ viewData.maxStock || 0 }}
         </el-descriptions-item>
-        <el-descriptions-item label="税率">
+        <!-- 税率属价格敏感字段，无价格权限时不展示 -->
+        <el-descriptions-item v-if="canViewPrice || canViewCost" label="税率">
           {{ formatTaxRate(viewData.taxRate) }}
         </el-descriptions-item>
         <el-descriptions-item label="状态">

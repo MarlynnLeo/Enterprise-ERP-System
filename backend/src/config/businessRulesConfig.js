@@ -53,7 +53,11 @@ const DEFAULT_BUSINESS_RULES = {
     maxOrderAmount: 1000000, // 最大采购金额
     requireMultipleQuotes: true, // 是否需要多家报价
     minQuotesRequired: 3, // 最少报价数量
-    autoCreatePR: false, // 是否自动创建采购申请
+    autoCreatePR: false, // 低库存预警是否自动创建采购申请
+    // 生产发料/出库缺料完成时，自动按缺料记录生成草稿请购（默认开启，可关）
+    autoCreatePROnIssueShortage: true,
+    // 缺料请购生成后是否自动提交工作流审批（默认开启；失败则保留 draft 不阻断出库）
+    autoSubmitPROnIssueShortage: true,
     leadTimeDays: 15, // 默认采购提前期（天）
   },
 

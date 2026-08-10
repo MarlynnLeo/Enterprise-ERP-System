@@ -205,5 +205,10 @@
   "20260801000006_seed_tax_invoice_coding_rule.js": "4dca5ed82abf8f31ed99b99a212ddb8513cf359399d5750ec6559e1c789d41b6",
   "20260803000001_professional_ap_gl_aux_and_tax.js": "8bd4c5db6504e47672a89828e1f081c2bf3c828740904bf65ee329266f93ca89",
   "20260803000002_unify_invoice_tax_payment_terms.js": "85277d899ffbab5e761af0fc169a88e7b37bfe15011c4ed0142a7c4e6f3f946f",
-  "20260804000001_repair_menu_permission_id_binding.js": "9eb3f5781becb352a4f2fdcc378be0203dc789b7ea128493f4839b1497effbea"
+  "20260804000001_repair_menu_permission_id_binding.js": "9eb3f5781becb352a4f2fdcc378be0203dc789b7ea128493f4839b1497effbea",
+  "20260808000001_restrict_ops_roles_material_price_view.js": "ced828a6a6c138c299c9a51f5e450bbb87fdd4b96cfd2044d3a7f19e2cec4bab",
+  "20260808000002_strip_cost_view_from_sales_roles.js": "24930ee04101cc70635a549ec7dd3d982272004e256b5dcbcd00920e42558e68",
+  "20260808000003_ensure_materials_view_for_sales_purchase.js": "6f8289d39058920296ff4cc861ed1f551df37dda5ea4e266211b873e6144752d",
+  "20260808000004_repair_requisition_items_and_sources.js": "4ee71cdb3beb225d659d5e8b5d40eb7a89c6d5908548eff263d5242d082f3f13",
+  "20260808000005_demote_non_breakglass_super_admins.js": "801cc706123d83393d1d866b3191f389e82895435640d8ad6dda45d47599038e"
 }

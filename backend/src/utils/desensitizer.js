@@ -289,12 +289,33 @@ function hasSensitiveFieldDescriptor(data) {
   );
 }
 
+// 任一即可视为「能看金额类敏感字段」的总开关（兼容旧逻辑 / mutation 检查）
 const PRICE_VIEW_PERMISSIONS = [
   'finance:price:view',
   'finance:pricing:view',
   'finance:cost:view',
   'purchase:price:view',
   'sales:price:view',
+  'inventory:value:view',
+  // 物料主文件专用（系统权限设置中的「查看价格/查看成本」按钮）
+  'basedata:materials:view_price',
+  'basedata:materials:view_cost',
+];
+
+/** 销售价字段：仅销售/财务定价相关权限可见 */
+const SALES_PRICE_VIEW_PERMISSIONS = [
+  'sales:price:view',
+  'basedata:materials:view_price',
+  'finance:price:view',
+  'finance:pricing:view',
+];
+
+/** 采购价/成本字段：仅采购/成本/库存金额相关权限可见 */
+const PURCHASE_COST_VIEW_PERMISSIONS = [
+  'purchase:price:view',
+  'basedata:materials:view_cost',
+  'finance:price:view',
+  'finance:cost:view',
   'inventory:value:view',
 ];
 
@@ -322,11 +343,151 @@ const PRICE_PERMISSION_GROUPS = {
   export: PRICE_EXPORT_PERMISSIONS,
 };
 
-function desensitizeData(data, hasPermission) {
-  if (hasPermission || !data) return data;
+/** 明确归类为销售价的字段（物料.price 等） */
+const SALES_PRICE_FIELDS = new Set([
+  'price',
+  'sale_price',
+  'salePrice',
+  'sales_price',
+  'salesPrice',
+  'selling_price',
+  'sellingPrice',
+  'standard_price',
+  'standardPrice',
+  'suggested_price',
+  'suggestedPrice',
+]);
+
+/** 明确归类为采购价/成本的字段（物料.costPrice 等） */
+const PURCHASE_COST_FIELDS = new Set([
+  'cost_price',
+  'costPrice',
+  'purchase_price',
+  'purchasePrice',
+  'latest_cost',
+  'latestCost',
+  'average_cost',
+  'averageCost',
+  'unit_cost',
+  'unitCost',
+  'material_cost',
+  'materialCost',
+  'labor_cost',
+  'laborCost',
+  'overhead_cost',
+  'overheadCost',
+  'actual_cost',
+  'actualCost',
+  'standard_cost',
+  'standardCost',
+  'total_cost',
+  'totalCost',
+  'acquisition_cost',
+  'acquisitionCost',
+]);
+
+/**
+ * 字段敏感类别：sales | purchase | general | null
+ * - sales：销售价
+ * - purchase：采购价/成本
+ * - general：金额/税额/余额等通用敏感字段
+ */
+function classifySensitiveField(fieldName) {
+  const normalized = normalizeFieldName(fieldName);
+  if (!normalized) return null;
+
+  if (SALES_PRICE_FIELDS.has(normalized) || SALES_PRICE_FIELDS.has(toSnakeCase(normalized))) {
+    return 'sales';
+  }
+  if (PURCHASE_COST_FIELDS.has(normalized) || PURCHASE_COST_FIELDS.has(toSnakeCase(normalized))) {
+    return 'purchase';
+  }
+
+  const snake = toSnakeCase(normalized);
+  if (/(^|_)(sale|selling)(_|$)/.test(snake) && /price/.test(snake)) {
+    return 'sales';
+  }
+  if (
+    /(^|_)(purchase_price|cost_price|unit_cost|material_cost|labor_cost|overhead_cost|actual_cost|standard_cost|latest_cost|average_cost|total_cost|acquisition_cost)($|_)/.test(
+      snake
+    ) ||
+    /(^|_)cost($|_)/.test(snake)
+  ) {
+    return 'purchase';
+  }
+
+  if (isSensitiveFieldName(fieldName)) {
+    return 'general';
+  }
+  return null;
+}
+
+/**
+ * 解析用户价格查看能力（字段级）
+ * @returns {{ all: boolean, sales: boolean, purchase: boolean, general: boolean }}
+ */
+function resolvePriceViewCapabilities(permissions) {
+  if (!Array.isArray(permissions)) {
+    return { all: false, sales: false, purchase: false, general: false };
+  }
+  if (permissions.includes('*')) {
+    return { all: true, sales: true, purchase: true, general: true };
+  }
+
+  const sales = PermissionUtils.hasAnyPermission(permissions, SALES_PRICE_VIEW_PERMISSIONS);
+  const purchase = PermissionUtils.hasAnyPermission(permissions, PURCHASE_COST_VIEW_PERMISSIONS);
+  const general = PermissionUtils.hasAnyPermission(permissions, PRICE_VIEW_PERMISSIONS);
+
+  return {
+    all: sales && purchase && general,
+    sales,
+    purchase,
+    general,
+  };
+}
+
+function canViewFieldCategory(caps, category) {
+  if (!caps) return false;
+  if (caps.all) return true;
+  if (category === 'sales') return Boolean(caps.sales);
+  if (category === 'purchase') return Boolean(caps.purchase);
+  if (category === 'general') return Boolean(caps.general);
+  return true;
+}
+
+/**
+ * 脱敏数据
+ * @param {*} data
+ * @param {boolean|{all?:boolean,sales?:boolean,purchase?:boolean,general?:boolean}} hasPermissionOrCaps
+ *   - true：保留全部
+ *   - false：剥离全部敏感字段
+ *   - caps 对象：按销售价/采购价/通用金额字段级剥离
+ */
+function desensitizeData(data, hasPermissionOrCaps) {
+  if (!data) return data;
+
+  let caps;
+  if (hasPermissionOrCaps === true) {
+    return data;
+  }
+  if (hasPermissionOrCaps === false || hasPermissionOrCaps == null) {
+    caps = { all: false, sales: false, purchase: false, general: false };
+  } else if (typeof hasPermissionOrCaps === 'object') {
+    caps = {
+      all: Boolean(hasPermissionOrCaps.all),
+      sales: Boolean(hasPermissionOrCaps.sales ?? hasPermissionOrCaps.all),
+      purchase: Boolean(hasPermissionOrCaps.purchase ?? hasPermissionOrCaps.all),
+      general: Boolean(hasPermissionOrCaps.general ?? hasPermissionOrCaps.all),
+    };
+    if (caps.all || (caps.sales && caps.purchase && caps.general)) {
+      return data;
+    }
+  } else {
+    caps = { all: false, sales: false, purchase: false, general: false };
+  }
 
   if (Array.isArray(data)) {
-    data.forEach((item) => desensitizeData(item, hasPermission));
+    data.forEach((item) => desensitizeData(item, caps));
     return data;
   }
 
@@ -337,17 +498,20 @@ function desensitizeData(data, hasPermission) {
   const hasSensitiveDescriptor = hasSensitiveFieldDescriptor(data);
 
   objectKeys.forEach((key) => {
-    if (
-      isSensitiveFieldName(key) ||
-      (CONTEXTUAL_TOTAL_FIELDS.has(key) && hasMonetaryContext) ||
-      (hasSensitiveDescriptor && CONTEXTUAL_FIELD_VALUE_KEYS.has(key))
-    ) {
-      data[key] = null;
-      return;
+    const category = classifySensitiveField(key);
+    const isContextualTotal = CONTEXTUAL_TOTAL_FIELDS.has(key) && hasMonetaryContext;
+    const isContextualValue = hasSensitiveDescriptor && CONTEXTUAL_FIELD_VALUE_KEYS.has(key);
+
+    if (category || isContextualTotal || isContextualValue) {
+      const effectiveCategory = category || 'general';
+      if (!canViewFieldCategory(caps, effectiveCategory)) {
+        data[key] = null;
+        return;
+      }
     }
 
     if (data[key] && typeof data[key] === 'object') {
-      desensitizeData(data[key], hasPermission);
+      desensitizeData(data[key], caps);
     }
   });
 
@@ -379,9 +543,24 @@ async function hasPricePermission(user, action = 'view', existingPermissions = n
   }
 }
 
+async function resolveUserPriceViewCapabilities(user, existingPermissions = null) {
+  try {
+    const permissions = await getUserPermissions(user, existingPermissions);
+    return resolvePriceViewCapabilities(permissions);
+  } catch (error) {
+    logger.error('[desensitizer] resolve price capabilities failed:', error.message);
+    return { all: false, sales: false, purchase: false, general: false };
+  }
+}
+
 async function desensitizeDataForUser(data, user, action = 'view', existingPermissions = null) {
-  const allowed = await hasPricePermission(user, action, existingPermissions);
-  return desensitizeData(data, allowed);
+  // update/export 仍用「任一权限」总开关（mutation 侧有独立检查）
+  if (action !== 'view') {
+    const allowed = await hasPricePermission(user, action, existingPermissions);
+    return desensitizeData(data, allowed);
+  }
+  const caps = await resolveUserPriceViewCapabilities(user, existingPermissions);
+  return desensitizeData(data, caps);
 }
 
 async function hasFinancePermission(user) {
@@ -390,14 +569,21 @@ async function hasFinancePermission(user) {
 
 module.exports = {
   SENSITIVE_FIELDS,
+  SALES_PRICE_FIELDS,
+  PURCHASE_COST_FIELDS,
   PRICE_VIEW_PERMISSIONS,
+  SALES_PRICE_VIEW_PERMISSIONS,
+  PURCHASE_COST_VIEW_PERMISSIONS,
   PRICE_UPDATE_PERMISSIONS,
   PRICE_EXPORT_PERMISSIONS,
   isSensitiveFieldName,
+  classifySensitiveField,
+  resolvePriceViewCapabilities,
   desensitizeData,
   desensitizeDataForUser,
   getPricePermissions,
   hasPricePermission,
   hasPricePermissionFromPermissions,
   hasFinancePermission,
+  resolveUserPriceViewCapabilities,
 };

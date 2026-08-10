@@ -137,7 +137,67 @@ const batchTraceabilityController = {
 
 
       if (safeBatchRows.length === 0) {
-        return ResponseHandler.error(res, '未找到该批次信息', 'NOT_FOUND', 404);
+        // 友好提示：区分「物料不存在」与「物料存在但无此批次」
+        let materialExists = false;
+        let recentBatches = [];
+        try {
+          const matResult = await db.query(
+            'SELECT id, code, name FROM materials WHERE code = ? AND deleted_at IS NULL LIMIT 1',
+            [materialCode]
+          );
+          const matRows = Array.isArray(matResult.rows)
+            ? matResult.rows
+            : matResult.rows
+              ? [matResult.rows]
+              : [];
+          materialExists = matRows.length > 0;
+          if (materialExists) {
+            const recentResult = await db.query(
+              `SELECT il.batch_number AS batchNumber,
+                      SUM(il.quantity) AS quantity,
+                      MAX(il.created_at) AS lastAt
+               FROM inventory_ledger il
+               JOIN materials m ON m.id = il.material_id
+               WHERE m.code = ?
+                 AND il.batch_number IS NOT NULL
+                 AND il.batch_number <> ''
+               GROUP BY il.batch_number
+               ORDER BY lastAt DESC
+               LIMIT 5`,
+              [materialCode]
+            );
+            const rawRecent = Array.isArray(recentResult.rows)
+              ? recentResult.rows
+              : recentResult.rows
+                ? [recentResult.rows]
+                : [];
+            // 统一 camel，避免下游 dual-case
+            recentBatches = rawRecent.map((b) => ({
+              batchNumber: b.batchNumber ?? b.batch_number ?? null,
+              quantity: b.quantity,
+              lastAt: b.lastAt ?? b.last_at ?? null,
+            }));
+          }
+        } catch (hintErr) {
+          // 提示查询失败不影响主错误
+        }
+
+        const recentLabels = recentBatches.map((b) => b.batchNumber).filter(Boolean);
+        const hint = !materialExists
+          ? `物料编码「${materialCode}」不存在或已删除`
+          : recentLabels.length
+            ? `物料「${materialCode}」存在，但未找到批次「${batchNumber}」。最近批次示例：${recentLabels.join('、')}`
+            : `物料「${materialCode}」存在，但台账中尚无任何批次流水（可能尚未入库）`;
+
+        const err = new Error(hint);
+        err.details = {
+          materialCode,
+          batchNumber,
+          materialExists,
+          recentBatches,
+          tip: '请确认物料编码与批次号是否与入库/检验台账一致',
+        };
+        return ResponseHandler.error(res, hint, 'NOT_FOUND', 404, err);
       }
 
       const batchInfo = safeBatchRows[0];

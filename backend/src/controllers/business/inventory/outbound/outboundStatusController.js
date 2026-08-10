@@ -35,7 +35,12 @@ const updateOutboundStatus = async (req, res) => {
   const connection = await db.pool.getConnection();
   try {
     const { id } = req.params;
-    const { newStatus } = req.body;
+    // 兼容 newStatus / status（前端与历史脚本混用）
+    const newStatus = req.body?.newStatus ?? req.body?.status ?? req.body?.new_status;
+
+    if (!newStatus) {
+      return ResponseHandler.error(res, '缺少目标状态 newStatus', 'VALIDATION_ERROR', 400);
+    }
 
     if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'inventory_outbound', id, '无权变更该出库单状态'))) {
       return;
@@ -78,7 +83,12 @@ const updateOutboundStatus = async (req, res) => {
 
     if (!validTransitions[currentStatus] || !validTransitions[currentStatus].includes(newStatus)) {
       await connection.rollback();
-      return ResponseHandler.error(res, '无效的状态转换', 'VALIDATION_ERROR', 400);
+      return ResponseHandler.error(
+        res,
+        `无效的状态转换: ${currentStatus} → ${newStatus}`,
+        'VALIDATION_ERROR',
+        400
+      );
     }
 
     // 如果从draft转为confirmed，更新operator为当前用户
@@ -321,6 +331,9 @@ const updateOutboundStatus = async (req, res) => {
             // ========== 部分发料支持: 使用actual_quantity扣减库存 ==========
             // 当actual_quantity为0时,不使用quantity作为后备值
             const actualQuantity = parseFloat(item.actual_quantity ?? 0);
+            const plannedQuantity = parseFloat(
+              item.planned_quantity ?? item.quantity ?? actualQuantity ?? 0
+            );
 
             // 只有actual_quantity > 0时才扣减库存
             if (actualQuantity > 0) {
@@ -328,56 +341,89 @@ const updateOutboundStatus = async (req, res) => {
                 throw new Error(`物料 ${item.material_id} 未配置默认仓库，请在物料管理中设置`);
               }
 
-              if (isProductionOutbound) {
-                await issueOutboundItemFromDetail({
-                  connection,
-                  item: { ...item, actual_quantity: actualQuantity },
-                  locationId,
-                  outboundNo: outboundInfo[0].outbound_no,
-                  operator: outboundInfo[0].operator,
-                  referenceType,
-                  unitId: item.unit_id,
-                  issueReason: checkResult[0].issue_reason,
-                  isExcess: checkResult[0].is_excess,
-                });
-              } else {
-                // 非生产类出库 - 从预加载的 stockMap 读取库存
-                const stockKey = `${item.material_id}_${locationId}`;
-                const currentStock = stockMap.get(stockKey) || 0;
-
-                if (currentStock < actualQuantity) {
-                  throw new Error(
-                    `物料 ${item.material_id} 库存不足，当前库存: ${currentStock}，需要: ${actualQuantity}`
-                  );
-                }
-
-                const stockResult = await InventoryService.updateStock(
-                  {
-                    materialId: item.material_id,
+              // 完成时按现有库存折算：能发多少发多少，差额记缺料（生产发料/超额场景）
+              const stockKey = `${item.material_id}_${locationId}`;
+              let currentStock = stockMap.has(stockKey)
+                ? Number(stockMap.get(stockKey)) || 0
+                : await InventoryService.getCurrentStock(
+                    item.material_id,
                     locationId,
-                    transactionType: dynamicTransactionType,
-                    quantity: -actualQuantity,
-                    unitId: item.unit_id,
-                    referenceNo: outboundInfo[0].outbound_no,
-                    referenceType: 'outbound',
-                    operator: outboundInfo[0].operator,
-                    remark: `出库单号: ${outboundInfo[0].outbound_no}`,
-                    idempotencyKey: `${dynamicTransactionType}:${outboundInfo[0].outbound_no}:${item.material_id}:${locationId}:${actualQuantity}`,
-                  },
-                  connection
-                );
+                    connection,
+                    true
+                  );
+              currentStock = Number(currentStock) || 0;
 
-                // 更新内存中的库存 Map（后续物料可能引用同一库位）
-                stockMap.set(stockKey, stockResult.afterQuantity);
+              let issueQty = actualQuantity;
+              let shortageQty = parseFloat(item.shortage_quantity ?? 0) || 0;
+
+              if (currentStock < actualQuantity) {
+                issueQty = Math.max(0, currentStock);
+                shortageQty = Math.max(
+                  shortageQty,
+                  actualQuantity - issueQty,
+                  plannedQuantity - issueQty
+                );
+                await connection.execute(
+                  `UPDATE inventory_outbound_items
+                   SET actual_quantity = ?,
+                       shortage_quantity = ?,
+                       is_shortage = 1,
+                       updated_at = NOW()
+                   WHERE outbound_id = ? AND material_id = ?`,
+                  [issueQty, shortageQty, id, item.material_id]
+                );
+                item.actual_quantity = issueQty;
+                item.shortage_quantity = shortageQty;
+                logger.info(
+                  `出库单 ${id} 物料 ${item.material_id} 库存不足，部分发料: 库存=${currentStock}, 计划/申请=${actualQuantity}, 实发=${issueQty}, 缺料=${shortageQty}`
+                );
+              }
+
+              if (issueQty > 0) {
+                if (isProductionOutbound) {
+                  await issueOutboundItemFromDetail({
+                    connection,
+                    item: { ...item, actual_quantity: issueQty },
+                    locationId,
+                    outboundNo: outboundInfo[0].outbound_no,
+                    operator: outboundInfo[0].operator,
+                    referenceType,
+                    unitId: item.unit_id,
+                    issueReason: checkResult[0].issue_reason,
+                    isExcess: checkResult[0].is_excess,
+                  });
+                } else {
+                  const stockResult = await InventoryService.updateStock(
+                    {
+                      materialId: item.material_id,
+                      locationId,
+                      transactionType: dynamicTransactionType,
+                      quantity: -issueQty,
+                      unitId: item.unit_id,
+                      referenceNo: outboundInfo[0].outbound_no,
+                      referenceType: 'outbound',
+                      operator: outboundInfo[0].operator,
+                      remark: `出库单号: ${outboundInfo[0].outbound_no}`,
+                      idempotencyKey: `${dynamicTransactionType}:${outboundInfo[0].outbound_no}:${item.material_id}:${locationId}:${issueQty}`,
+                    },
+                    connection
+                  );
+                  stockMap.set(stockKey, stockResult.afterQuantity);
+                }
+                stockMap.set(stockKey, Math.max(0, currentStock - issueQty));
+              } else {
+                stockMap.set(stockKey, currentStock);
               }
             }
-
-
           } catch (itemError) {
             logger.error(`处理物料 ${item.material_id} 时出错:`, itemError);
-            throw new Error(`物料 ${item.material_id} 出库处理失败: ${itemError.message}`, {
-              cause: itemError,
-            });
+            const err = new Error(
+              `物料 ${item.material_id} 出库处理失败: ${itemError.message}`,
+              { cause: itemError }
+            );
+            err.statusCode = itemError.statusCode || 500;
+            err.code = itemError.code;
+            throw err;
           }
         }
       }
@@ -470,6 +516,34 @@ const updateOutboundStatus = async (req, res) => {
         }
 
         logger.info(`已为出库单 ${outboundNo} 创建 ${shortageItems.length} 条缺料记录`);
+
+        // 缺料自动请购（草稿）：可配置关闭 purchase.autoCreatePROnIssueShortage
+        try {
+          const {
+            createRequisitionFromOutboundShortage,
+          } = require('../../../../services/business/ShortageRequisitionService');
+          const prResult = await createRequisitionFromOutboundShortage(connection, {
+            outboundId: id,
+            outboundNo,
+            referenceType,
+            referenceId,
+            operator: outboundInfo[0]?.operator || getRequestActorLabel(req) || 'system',
+            operatorUserId: req.user?.userId || req.user?.id || null,
+            shortageItems,
+          });
+          if (prResult?.created) {
+            logger.info(
+              `出库 ${outboundNo} 缺料自动请购: ${prResult.requisitionNo} (${prResult.itemCount} 项) status=${prResult.status} submitted=${prResult.submitted}`
+            );
+          } else {
+            logger.info(
+              `出库 ${outboundNo} 未自动请购: ${prResult?.reason || 'unknown'}`
+            );
+          }
+        } catch (prErr) {
+          // 请购失败不阻断出库结案（缺料记录已落库）
+          logger.error(`出库 ${outboundNo} 缺料自动请购失败（已忽略）:`, prErr);
+        }
 
         // 如果关联了生产任务,更新任务状态为material_partial_issued
         if (referenceId && referenceType === 'production_task') {
@@ -618,13 +692,18 @@ const updateOutboundStatus = async (req, res) => {
       try {
         const DocumentChainService = require('../../../../services/business/DocumentChainService');
         const [linkRows] = await connection.execute(
-          `SELECT id, outbound_no, reference_type, reference_id, reference_no, production_task_id
+          `SELECT id, outbound_no, reference_type, reference_id, production_task_id
            FROM inventory_outbound WHERE id = ? AND deleted_at IS NULL`,
           [id]
         );
         if (linkRows[0]) {
+          // 表结构无 reference_no，兼容 DocumentChain 期望字段
+          const linkRow = {
+            ...linkRows[0],
+            reference_no: linkRows[0].outbound_no || null,
+          };
           await DocumentChainService.afterInventoryOutboundCompleted(
-            linkRows[0],
+            linkRow,
             req.user?.userId || req.user?.id || null,
             connection
           );
@@ -694,7 +773,20 @@ const updateOutboundStatus = async (req, res) => {
   } catch (error) {
     await connection.rollback();
     logger.error('更新出库单状态失败:', error);
-    ResponseHandler.error(res, '更新出库单状态失败', 'SERVER_ERROR', 500, error);
+    const rawMsg = String(error.message || error.cause?.message || '');
+    const isBizError =
+      Number(error.statusCode || error.cause?.statusCode) === 400 ||
+      /库存不足|insufficient|不能完成|无效的状态|未配置默认仓库|VALIDATION/i.test(rawMsg);
+    const statusCode = isBizError ? 400 : Number(error.statusCode) || 500;
+    const errorCode =
+      error.code || error.cause?.code || (isBizError ? 'VALIDATION_ERROR' : 'SERVER_ERROR');
+    ResponseHandler.error(
+      res,
+      isBizError ? rawMsg || '更新出库单状态失败' : '更新出库单状态失败',
+      errorCode,
+      statusCode,
+      error
+    );
   } finally {
     connection.release();
   }

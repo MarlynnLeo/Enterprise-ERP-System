@@ -171,10 +171,26 @@ const canUpdate = computed(() => authStore.hasPermission('basedata:materials:upd
 const canDelete = computed(() => authStore.hasPermission('basedata:materials:delete'));
 const canImport = computed(() => authStore.hasPermission('basedata:materials:import'));
 const canExport = computed(() => authStore.hasPermission('basedata:materials:export'));
-// 🔒 敏感数据查看权限（成本/价格）
+// 🔒 字段级敏感权限 —— 与后端 desensitizer 销售价/采购成本拆分对齐
+// 出库/质检：两者皆无；采购：仅成本；销售：仅销售价；财务：通常两者皆有
 const hasAnyPermission = (permissions) => permissions.some((permission) => authStore.hasPermission(permission));
-const canViewCost = computed(() => hasAnyPermission(['finance:cost:view', 'inventory:value:view', 'finance:price:view']));
-const canViewPrice = computed(() => hasAnyPermission(['sales:price:view', 'purchase:price:view', 'finance:price:view']));
+const canViewCost = computed(() =>
+  hasAnyPermission([
+    'basedata:materials:view_cost',
+    'purchase:price:view',
+    'finance:price:view',
+    'finance:cost:view',
+    'inventory:value:view'
+  ])
+);
+const canViewPrice = computed(() =>
+  hasAnyPermission([
+    'basedata:materials:view_price',
+    'sales:price:view',
+    'finance:price:view',
+    'finance:pricing:view'
+  ])
+);
 const canMaintainPrice = computed(() =>
   hasAnyPermission([
     'finance:price:update',

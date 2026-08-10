@@ -25,11 +25,40 @@ const toNullableInteger = (value) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
+/**
+ * 明细物料字段：兼容 camel（HTTP）与 snake（mapKeysToSnake 后）
+ * 历史 bug：mapKeysToSnake 后仍读 materialId → 全部写成 null
+ */
+const pickMaterialLineFields = (material = {}) => {
+  const materialId = toNullableInteger(
+    material.materialId ?? material.material_id ?? material.id
+  );
+  const materialCode = material.materialCode ?? material.material_code ?? material.code ?? '';
+  const materialName = material.materialName ?? material.material_name ?? material.name ?? '';
+  const specification =
+    material.specification ?? material.specs ?? material.material_specs ?? '';
+  const unit = material.unit ?? material.unit_name ?? '';
+  const unitId = toNullableInteger(material.unitId ?? material.unit_id);
+  const quantityRaw = material.quantity ?? material.qty ?? 0;
+  const quantity = Number(quantityRaw);
+  return {
+    materialId,
+    materialCode: materialCode ? String(materialCode).trim() : '',
+    materialName: materialName ? String(materialName).trim() : '',
+    specification: specification ? String(specification).trim() : '',
+    unit: unit ? String(unit).trim() : '',
+    unitId,
+    quantity: Number.isFinite(quantity) ? quantity : 0,
+  };
+};
+
 const normalizeSourceInfo = (body = {}) => {
-  // HTTP 入参只认 camel
-  const sourceType = body.sourceType || null;
-  const sourceId = toNullableInteger(body.sourceId);
-  const sourceMaterialId = toNullableInteger(body.sourceMaterialId ?? body.materialId);
+  // HTTP 契约只认 camel；mapKeysToSnake 后读 snake 字段
+  const sourceType = body.sourceType ?? body.source_type ?? null;
+  const sourceId = toNullableInteger(body.sourceId ?? body.source_id);
+  const sourceMaterialId = toNullableInteger(
+    body.sourceMaterialId ?? body.source_material_id ?? body.materialId ?? body.material_id
+  );
 
   if (!sourceType || !sourceId || !sourceMaterialId) {
     return null;
@@ -513,20 +542,19 @@ const createRequisition = async (req, res) => {
       const processedMaterials = [];
 
       for (const material of materials) {
-        // 打印每个物料对象的类型和内容
+        const line = pickMaterialLineFields(material);
+        let {
+          materialId,
+          materialCode,
+          materialName,
+          specification,
+          unit,
+          unitId,
+        } = line;
+        const quantity = line.quantity;
 
-        // HTTP 明细只认 camel
-        const materialId = material.materialId !== undefined ? material.materialId : null;
-
-        let materialCode = material.materialCode || '';
-        let materialName = material.materialName || '';
-        let specification = material.specification || material.specs || '';
-        let unit = material.unit || '';
-        let unitId = material.unitId !== undefined ? material.unitId : null;
-        const quantity = material.quantity !== undefined ? material.quantity : 0;
-
-        // 如果提供了materialId，但没有其他信息，从数据库获取
-        if (materialId && (!materialCode || !materialName)) {
+        // 有 materialId 时从主数据补全编码/名称
+        if (materialId && (!materialCode || !materialName || !unitId)) {
           const [rows] = await connection.query(
             'SELECT code, name, specs, unit_id FROM materials WHERE id = ? AND deleted_at IS NULL',
             [materialId]
@@ -534,18 +562,50 @@ const createRequisition = async (req, res) => {
 
           if (rows.length > 0) {
             const materialData = rows[0];
-            materialCode = materialCode || materialData.code;
-            materialName = materialName || materialData.name;
+            materialCode = materialCode || materialData.code || '';
+            materialName = materialName || materialData.name || '';
             specification = specification || materialData.specs || '';
-            unitId = unitId !== undefined ? unitId : materialData.unit_id;
+            unitId = unitId || materialData.unit_id || null;
           }
+        }
+
+        // 无 materialId 但有编码：按编码反查
+        if (!materialId && materialCode) {
+          const [rows] = await connection.query(
+            'SELECT id, code, name, specs, unit_id FROM materials WHERE code = ? AND deleted_at IS NULL LIMIT 1',
+            [materialCode]
+          );
+          if (rows.length > 0) {
+            materialId = rows[0].id;
+            materialCode = materialCode || rows[0].code || '';
+            materialName = materialName || rows[0].name || '';
+            specification = specification || rows[0].specs || '';
+            unitId = unitId || rows[0].unit_id || null;
+          }
+        }
+
+        if (!materialId || !materialCode || !materialName) {
+          throw Object.assign(
+            new Error(
+              `请购物料信息不完整：materialId=${materialId}, code=${materialCode}, name=${materialName}`
+            ),
+            { statusCode: 400, code: 'VALIDATION_ERROR' }
+          );
+        }
+
+        if (!(quantity > 0)) {
+          throw Object.assign(new Error(`物料 ${materialCode} 数量必须大于0`), {
+            statusCode: 400,
+            code: 'VALIDATION_ERROR',
+          });
         }
 
         // 如果unit为空但有unitId，从units表查询单位名称
         if (!unit && unitId) {
-          const [unitRows] = await connection.query('SELECT name FROM units WHERE id = ? AND deleted_at IS NULL', [
-            unitId,
-          ]);
+          const [unitRows] = await connection.query(
+            'SELECT name FROM units WHERE id = ? AND deleted_at IS NULL',
+            [unitId]
+          );
           if (unitRows.length > 0) {
             unit = unitRows[0].name;
           }
@@ -569,19 +629,17 @@ const createRequisition = async (req, res) => {
       `;
 
       for (const material of processedMaterials) {
-        // 确保所有参数都有值，避免undefined
         const params = [
           requisitionId,
-          material.materialId === undefined ? null : material.materialId,
+          material.materialId,
           material.materialCode || '',
           material.materialName || '',
           material.specification || '',
           material.unit || '',
-          material.unitId === undefined ? null : material.unitId,
+          material.unitId,
           material.quantity || 0,
         ];
 
-        // 检查参数，确保没有undefined值
         if (params.some((param) => param === undefined)) {
           logger.error('检测到undefined参数值:', params);
           throw new Error('物料项目参数包含undefined值');
@@ -701,29 +759,40 @@ const updateRequisition = async (req, res) => {
 
     // 添加新的物料项目
     if (materials && materials.length > 0) {
-      // 记录原始物料数据
-
-      // 验证和处理物料数据
-      const validatedMaterials = materials.map((material) => {
-        // HTTP 明细只认 camel
-        const materialId = material.materialId !== undefined ? material.materialId : null;
-        const materialCode = material.materialCode || '';
-        const materialName = material.materialName || '';
-        const specification = material.specification || material.specs || '';
-        const unit = material.unit || '';
-        const unitId = material.unitId !== undefined ? material.unitId : null;
-        const quantity = material.quantity !== undefined ? material.quantity : 0;
-
-        return {
-          materialId,
-          materialCode,
-          materialName,
-          specification,
-          unit,
-          unitId,
-          quantity,
-        };
-      });
+      const validatedMaterials = [];
+      for (const material of materials) {
+        const line = pickMaterialLineFields(material);
+        if (!line.materialId || !line.materialCode || !line.materialName) {
+          // 尝试按 ID 补全
+          if (line.materialId) {
+            const [rows] = await connection.query(
+              'SELECT code, name, specs, unit_id FROM materials WHERE id = ? AND deleted_at IS NULL',
+              [line.materialId]
+            );
+            if (rows[0]) {
+              line.materialCode = line.materialCode || rows[0].code || '';
+              line.materialName = line.materialName || rows[0].name || '';
+              line.specification = line.specification || rows[0].specs || '';
+              line.unitId = line.unitId || rows[0].unit_id || null;
+            }
+          }
+        }
+        if (!line.materialId || !line.materialCode || !line.materialName) {
+          throw Object.assign(
+            new Error(
+              `请购物料信息不完整：materialId=${line.materialId}, code=${line.materialCode}, name=${line.materialName}`
+            ),
+            { statusCode: 400, code: 'VALIDATION_ERROR' }
+          );
+        }
+        if (!(line.quantity > 0)) {
+          throw Object.assign(new Error(`物料 ${line.materialCode} 数量必须大于0`), {
+            statusCode: 400,
+            code: 'VALIDATION_ERROR',
+          });
+        }
+        validatedMaterials.push(line);
+      }
 
       const insertItemsQuery = `
         INSERT INTO purchase_requisition_items
@@ -732,15 +801,14 @@ const updateRequisition = async (req, res) => {
       `;
 
       for (const material of validatedMaterials) {
-        // 确保所有参数都有值，避免undefined
         const params = [
           id,
-          material.materialId === undefined ? null : material.materialId,
+          material.materialId,
           material.materialCode || '',
           material.materialName || '',
           material.specification || '',
           material.unit || '',
-          material.unitId === undefined ? null : material.unitId,
+          material.unitId,
           material.quantity || 0,
         ];
 
