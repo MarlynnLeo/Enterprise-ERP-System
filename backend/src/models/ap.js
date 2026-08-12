@@ -2227,4 +2227,58 @@ const apModel = {
   },
 };
 
+/**
+ * 已确认类发票若缺少有效总账凭证则补建（不改业务状态机）。
+ * 供运维修复 / 审计自愈使用；确认路径本身仍走 updateInvoiceStatus。
+ */
+apModel.ensureConfirmationGlEntry = async (id, options = {}) => {
+  const connection = await db.pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [invoices] = await connection.execute(
+      `SELECT a.*, s.name as supplier_name
+         FROM ap_invoices a
+         LEFT JOIN suppliers s ON a.supplier_id = s.id
+        WHERE a.id = ?
+        FOR UPDATE`,
+      [id]
+    );
+    if (!invoices.length) {
+      await connection.rollback();
+      return { created: false, reason: 'not_found' };
+    }
+    const invoice = invoices[0];
+    const posted = [
+      INVOICE_STATUS.CONFIRMED,
+      INVOICE_STATUS.PARTIAL_PAID,
+      INVOICE_STATUS.PAID,
+      INVOICE_STATUS.OVERDUE,
+      '已确认',
+      '部分付款',
+      '已付款',
+      '已逾期',
+    ];
+    if (!posted.includes(invoice.status)) {
+      await connection.rollback();
+      return { created: false, reason: 'not_posted_status', status: invoice.status };
+    }
+    const result = await createInvoiceConfirmationEntry(
+      connection,
+      invoice,
+      options.created_by || options.updated_by || invoice.created_by
+    );
+    await connection.commit();
+    return {
+      created: Boolean(result?.entryId),
+      entryId: result?.entryId || null,
+      entryNumber: result?.entryNumber || null,
+    };
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+};
+
 module.exports = apModel;

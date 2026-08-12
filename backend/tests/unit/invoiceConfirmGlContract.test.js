@@ -51,4 +51,16 @@ describe('invoice confirm ↔ GL same-transaction contract', () => {
       expect(createSlice).toMatch(/createInvoiceConfirmationEntry/);
     }
   });
+
+  it('exposes ensureConfirmationGlEntry without status-machine bypass', () => {
+    for (const rel of ['src/models/ap.js', 'src/models/ar.js']) {
+      const source = read(rel);
+      expect(source).toMatch(/ensureConfirmationGlEntry\s*=\s*async/);
+      const idx = source.indexOf('ensureConfirmationGlEntry');
+      const slice = source.slice(idx, idx + 1200);
+      expect(slice).toMatch(/createInvoiceConfirmationEntry/);
+      // 禁止再通过「先改草稿再确认」旁路补凭证
+      expect(slice).not.toMatch(/SET status\s*=\s*'草稿'/);
+    }
+  });
 });

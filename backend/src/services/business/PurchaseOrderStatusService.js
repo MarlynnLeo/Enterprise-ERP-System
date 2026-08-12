@@ -97,13 +97,20 @@ class PurchaseOrderStatusService {
    */
   static async syncOrderItemReceivedFromReceipts(orderId, materialId, connection = null) {
     const client = connection || db.pool;
+    const {
+      INCOMING_INSPECTION_COUNTED_STATUSES,
+      PURCHASE_RECEIPT_COUNTED_STATUSES,
+      sqlStringList,
+    } = require('../../constants/qualityReceipt');
+    const receiptStatusSql = sqlStringList(PURCHASE_RECEIPT_COUNTED_STATUSES);
+    const inspectionStatusSql = sqlStringList(INCOMING_INSPECTION_COUNTED_STATUSES);
 
     try {
       logger.info(
         `[PurchaseOrderStatusService] Syncing received quantity from receipts: orderId=${orderId}, materialId=${materialId}`
       );
 
-      // 收货汇总 − 非取消退货 = 净收货（SSOT，避免退货后 sync 把数量写回）
+      // 收货汇总 − 非取消退货 = 净收货（SSOT，与 DataConsistencyRules 口径一致）
       const [result] = await client.execute(
         `SELECT GREATEST(0,
            GREATEST(
@@ -113,17 +120,17 @@ class PurchaseOrderStatusService {
                JOIN purchase_receipts r ON ri.receipt_id = r.id
                WHERE r.order_id = ?
                  AND ri.material_id = ?
-                 AND r.status IN ('confirmed', 'completed')
+                 AND r.status IN (${receiptStatusSql})
                  AND r.deleted_at IS NULL
              ), 0),
              COALESCE((
-               SELECT SUM(COALESCE(NULLIF(qi.quantity, 0), qi.qualified_quantity, 0))
+               SELECT SUM(COALESCE(NULLIF(qi.qualified_quantity, 0), qi.quantity, 0))
                FROM quality_inspections qi
                WHERE qi.reference_id = ?
                  AND qi.material_id = ?
                  AND qi.inspection_type = 'incoming'
                  AND qi.deleted_at IS NULL
-                 AND qi.status NOT IN ('cancelled', 'rejected')
+                 AND qi.status IN (${inspectionStatusSql})
              ), 0)
            )
            - COALESCE((

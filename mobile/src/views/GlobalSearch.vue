@@ -196,7 +196,8 @@ import {
   NavBar, Search, Button, Tag, Icon, PullRefresh, List, Empty,
   showToast, showConfirmDialog
 } from 'vant';
-import { baseDataApi, salesApi, inventoryApi, productionApi } from '@/api';
+import { baseDataApi, salesApi, inventoryApi, productionApi, purchaseApi } from '@/api';
+import { navigateMobileDeepLink } from '@/utils/deepLink';
 
 const router = useRouter();
 
@@ -216,6 +217,7 @@ const searchResults = reactive({
   customers: [],
   suppliers: [],
   orders: [],
+  purchase_orders: [],
   tasks: [],
   locations: [],
   boms: []
@@ -233,7 +235,8 @@ const resultCategories = ref([
   { key: 'materials', label: '物料', count: 0 },
   { key: 'customers', label: '客户', count: 0 },
   { key: 'suppliers', label: '供应商', count: 0 },
-  { key: 'orders', label: '订单', count: 0 },
+  { key: 'orders', label: '销售订单', count: 0 },
+  { key: 'purchase_orders', label: '采购订单', count: 0 },
   { key: 'tasks', label: '任务', count: 0 },
   { key: 'locations', label: '库位', count: 0 },
   { key: 'boms', label: 'BOM', count: 0 }
@@ -258,6 +261,8 @@ const getTypeIcon = (type) => {
     'customer': 'friends-o',
     'supplier': 'shop-o',
     'order': 'notes-o',
+    'sales_order': 'notes-o',
+    'purchase_order': 'orders-o',
     'task': 'todo-list-o',
     'location': 'location-o',
     'bom': 'cluster-o'
@@ -272,6 +277,8 @@ const getTypeColor = (type) => {
     'customer': 'var(--color-success)',
     'supplier': 'var(--color-warning)',
     'order': 'var(--color-error)',
+    'sales_order': 'var(--color-error)',
+    'purchase_order': '#FF8A65',
     'task': '#A48BE0',
     'location': '#FFC759',
     'bom': '#FF8A80'
@@ -285,7 +292,9 @@ const getTypeLabel = (type) => {
     'material': '物料',
     'customer': '客户',
     'supplier': '供应商',
-    'order': '订单',
+    'order': '销售订单',
+    'sales_order': '销售订单',
+    'purchase_order': '采购订单',
     'task': '任务',
     'location': '库位',
     'bom': 'BOM'
@@ -365,13 +374,15 @@ const performSearch = async (keyword) => {
 
   try {
     // 并行发起多个搜索请求，任一失败不影响其他
-    const [matRes, custRes, suppRes, orderRes, taskRes, locRes] = await Promise.allSettled([
+    const [matRes, custRes, suppRes, orderRes, poRes, taskRes, locRes, bomRes] = await Promise.allSettled([
       baseDataApi.getMaterials(searchParam),
       salesApi.getCustomers(searchParam),
       baseDataApi.getSuppliersList(searchParam),
       salesApi.getSalesOrders(searchParam),
+      purchaseApi.getOrders(searchParam),
       productionApi.getTasks(searchParam),
-      inventoryApi.getLocations(searchParam)
+      inventoryApi.getLocations(searchParam),
+      baseDataApi.getBoms(searchParam)
     ]);
 
     // 解析结果并统一转换格式
@@ -391,28 +402,36 @@ const performSearch = async (keyword) => {
     searchResults.customers = extract(custRes).map(c => ({
       type: 'customer', id: c.id,
       title: c.name, subtitle: c.code,
-      description: c.contact_person || '',
+      description: c.contactPerson || '',
       status: c.status || 'active'
     }));
 
     searchResults.suppliers = extract(suppRes).map(s => ({
       type: 'supplier', id: s.id,
       title: s.name, subtitle: s.code,
-      description: s.contact_person || '',
+      description: s.contactPerson || '',
       status: s.status || 'active'
     }));
 
     searchResults.orders = extract(orderRes).map(o => ({
-      type: 'order', id: o.id,
-      title: `${o.orderNo}`,
+      type: 'sales_order', id: o.id,
+      title: `${o.orderNo || o.id}`,
       subtitle: o.customerName || '',
+      description: o.remarks || '',
+      status: o.status || 'pending'
+    }));
+
+    searchResults.purchase_orders = extract(poRes).map(o => ({
+      type: 'purchase_order', id: o.id,
+      title: `${o.orderNo || o.id}`,
+      subtitle: o.supplierName || '',
       description: o.remarks || '',
       status: o.status || 'pending'
     }));
 
     searchResults.tasks = extract(taskRes).map(t => ({
       type: 'task', id: t.id,
-      title: t.taskNo,
+      title: t.taskNo || String(t.id),
       subtitle: t.productName || '',
       description: t.remarks || '',
       status: t.status || 'pending'
@@ -421,10 +440,17 @@ const performSearch = async (keyword) => {
     searchResults.locations = extract(locRes).map(l => ({
       type: 'location', id: l.id,
       title: l.name, subtitle: l.code,
-      description: l.warehouse_name || '',
+      description: l.warehouseName || '',
       status: l.status || 'active'
     }));
 
+    searchResults.boms = extract(bomRes).map(b => ({
+      type: 'bom', id: b.id,
+      title: b.name || b.bomNo || String(b.id),
+      subtitle: b.materialCode || b.productCode || '',
+      description: b.version || b.remarks || '',
+      status: b.status || 'active'
+    }));
     // 更新分类计数
     resultCategories.value.forEach(category => {
       if (category.key === 'all') {
@@ -491,23 +517,13 @@ const selectCategory = (category) => {
 };
 
 const viewDetail = (item) => {
-  // 根据类型跳转到详情页
-  const routeMap = {
-    'material': `/basedata/materials/${item.id || 'detail'}`,
-    'customer': `/basedata/customers/${item.id || 'detail'}`,
-    'supplier': `/basedata/suppliers/${item.id || 'detail'}`,
-    'order': `/sales/orders/${item.id || 'detail'}`,
-    'task': `/production/tasks/${item.id || 'detail'}`,
-    'location': `/basedata/locations/${item.id || 'detail'}`,
-    'bom': `/basedata/boms/${item.id || 'detail'}`
-  };
-
-  const route = routeMap[item.type];
-  if (route) {
-    router.push(route);
-  } else {
-    showToast('暂不支持该类型详情');
+  if (!item?.type) {
+    showToast('无法识别该结果类型');
+    return;
   }
+  navigateMobileDeepLink(router, showToast, item.type, item.id, {
+    link: item.link || item.path,
+  });
 };
 
 const onRefresh = () => {

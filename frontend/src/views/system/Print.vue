@@ -694,6 +694,27 @@ const previewCurrentTemplate = () => {
   previewTemplate(currentTemplate)
 }
 
+/** 从后端加载销售出库默认模板内容到编辑器 */
+const loadDefaultSalesOutboundTemplate = async () => {
+  try {
+    const template = await printService.getDefaultTemplateData('sales', 'sales_outbound')
+    const content = template.content || ''
+    currentTemplate.module = currentTemplate.module || template.module || 'sales'
+    currentTemplate.template_type = 'sales_outbound'
+    if (!currentTemplate.name) {
+      currentTemplate.name = template.name || '销售出库单默认模板'
+    }
+    currentTemplate.content = content
+    visualContent.value = content
+    if (visualEditor.value) visualEditor.value.innerHTML = sanitizeHtml(content)
+    updatePreview()
+    ElMessage.success('已加载默认销售出库模板')
+  } catch (error) {
+    console.error('加载默认销售出库模板失败:', error)
+    ElMessage.error(error?.message || error?.response?.data?.message || '加载默认模板失败')
+  }
+}
+
 // 可视化编辑器方法
 const onVisualEditorInput = () => {
   if (visualEditor.value) {

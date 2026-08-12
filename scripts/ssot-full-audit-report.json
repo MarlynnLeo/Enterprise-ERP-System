@@ -2,9 +2,9 @@
   "summary": {
     "dualCase": 0,
     "frontendSnakeProp": 0,
-    "rawResJson": 20,
-    "redundantMapKeysToCamelFiles": 1,
-    "redundantMapKeysToCamelHits": 2,
+    "rawResJson": 22,
+    "redundantMapKeysToCamelFiles": 0,
+    "redundantMapKeysToCamelHits": 0,
     "bodySnakeWithoutMap": 0,
     "printSnakeKeys": 18
   },
@@ -38,12 +38,22 @@
     },
     {
       "file": "backend/src/controllers/business/inventory/inventoryStockController.js",
-      "line": 1163,
+      "line": 799,
+      "snippet": "return res.json([]);"
+    },
+    {
+      "file": "backend/src/controllers/business/inventory/inventoryStockController.js",
+      "line": 822,
+      "snippet": "return res.json(records);"
+    },
+    {
+      "file": "backend/src/controllers/business/inventory/inventoryStockController.js",
+      "line": 1149,
       "snippet": "res.send(excelBuffer);"
     },
     {
       "file": "backend/src/controllers/business/inventory/inventoryStockController.js",
-      "line": 1733,
+      "line": 1719,
       "snippet": "res.send(excelBuffer);"
     },
     {
@@ -206,16 +216,5 @@
     }
   ],
   "note": "redundant mapKeysToCamel is idempotent under ResponseHandler auto-camel; safe but optional cleanup",
-  "redundantMapKeysToCamelSample": [
-    {
-      "file": "backend/src/controllers/business/inventory/inventoryStockController.js",
-      "line": 13,
-      "snippet": "const { mapKeysToCamel, mapKeysToSnake } = require('../../../utils/fieldMap');"
-    },
-    {
-      "file": "backend/src/controllers/business/inventory/inventoryStockController.js",
-      "line": 803,
-      "snippet": "const records = mapKeysToCamel(innerData.items.map((item) => ({"
-    }
-  ]
+  "redundantMapKeysToCamelSample": []
 }

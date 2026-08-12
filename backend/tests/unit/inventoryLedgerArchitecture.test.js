@@ -26,6 +26,8 @@ describe('inventory ledger architecture', () => {
       path.normalize(path.join(backendRoot, 'scripts' + path.sep + 'e2e-')),
       path.normalize(path.join(backendRoot, 'scripts' + path.sep + 'seed')),
       path.normalize(path.join(backendRoot, 'scripts' + path.sep + 'test-')),
+      // 一次性探测脚本（正式修复须走 InventoryService）
+      path.normalize(path.join(backendRoot, 'scripts' + path.sep + '_tmp')),
     ];
     for (const root of runtimeRoots) {
       for (const file of collectFiles(root)) {

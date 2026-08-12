@@ -215,9 +215,15 @@
     return r
   })
 
-  const onSearch = () => {}
+  const onSearch = () => {
+    transferList.value = []
+    pagination.page = 1
+    finished.value = false
+    loadList()
+  }
   const switchStatus = (v) => {
     activeStatus.value = v
+    onSearch()
   }
   const onRefresh = () => {
     refreshing.value = true

@@ -1,0 +1,338 @@
+{
+  "generatedAt": "2026-08-10T14:40:58.436Z",
+  "scale": {
+    "views": 161,
+    "routes": 179,
+    "apiModules": 13,
+    "routerFiles": 10
+  },
+  "routes": {
+    "total": 179,
+    "missingViews": [],
+    "orphanViews": [],
+    "orphanCount": 0
+  },
+  "incomplete": {
+    "viewsWithPatterns": [],
+    "softGaps": [
+      {
+        "file": "views/quality/IncomingDetail.vue",
+        "messages": [
+          "showToast('当前检验单未配置检验项目')",
+          "showToast('当前检验单未配置检验项目，请先维护检验模板')"
+        ]
+      }
+    ],
+    "indexDeadLinks": []
+  },
+  "api": [
+    {
+      "module": "auth",
+      "methodCount": 5,
+      "used": 4,
+      "unusedSample": [
+        "getUserProfile"
+      ],
+      "unusedCount": 1
+    },
+    {
+      "module": "baseData",
+      "methodCount": 44,
+      "used": 25,
+      "unusedSample": [
+        "getUsersList",
+        "deleteMaterial",
+        "getMaterialOptions",
+        "getMaterialsByIds",
+        "createBom",
+        "updateBom",
+        "deleteBom",
+        "approveBom",
+        "unapproveBom",
+        "deleteCustomer",
+        "deleteSupplier",
+        "createLocation",
+        "updateLocation",
+        "deleteLocation",
+        "createProcessTemplate"
+      ],
+      "unusedCount": 19
+    },
+    {
+      "module": "chat",
+      "methodCount": 5,
+      "used": 4,
+      "unusedSample": [
+        "createGroupConversation"
+      ],
+      "unusedCount": 1
+    },
+    {
+      "module": "equipment",
+      "methodCount": 13,
+      "used": 11,
+      "unusedSample": [
+        "updateEquipment",
+        "getStats"
+      ],
+      "unusedCount": 2
+    },
+    {
+      "module": "finance",
+      "methodCount": 55,
+      "used": 35,
+      "unusedSample": [
+        "deleteAccount",
+        "createEntry",
+        "deleteEntry",
+        "rejectEntry",
+        "getPeriods",
+        "getPeriodById",
+        "reopenPeriod",
+        "getARInvoice",
+        "createARInvoice",
+        "getAPInvoice",
+        "createAPInvoice",
+        "getAsset",
+        "createAsset",
+        "updateAsset",
+        "getAssetCategories"
+      ],
+      "unusedCount": 20
+    },
+    {
+      "module": "hr",
+      "methodCount": 12,
+      "used": 9,
+      "unusedSample": [
+        "updateEmployee",
+        "syncAttendance",
+        "getSalary"
+      ],
+      "unusedCount": 3
+    },
+    {
+      "module": "inventory",
+      "methodCount": 49,
+      "used": 32,
+      "unusedSample": [
+        "getStockList",
+        "getStockRecords",
+        "getMaterialRecords",
+        "getMaterialsWithStock",
+        "getMaterialsList",
+        "updateOutbound",
+        "createInboundFromQuality",
+        "updateTransfer",
+        "deleteTransfer",
+        "getTransferStatistics",
+        "deleteCheck",
+        "adjustStock",
+        "getTransactionStats",
+        "exportTransactionReport",
+        "exportInventoryReport"
+      ],
+      "unusedCount": 17
+    },
+    {
+      "module": "production",
+      "methodCount": 41,
+      "used": 22,
+      "unusedSample": [
+        "getDashboardTrends",
+        "getPendingTasks",
+        "updateProductionPlan",
+        "updateProductionPlanStatus",
+        "deleteProductionPlan",
+        "getPlanMaterials",
+        "updateProductionTask",
+        "updateProductionTaskProgress",
+        "generateTaskCode",
+        "getProcesses",
+        "getAnomalyById",
+        "assignAnomaly",
+        "closeAnomaly",
+        "generateAssemblySteps",
+        "getAssemblySteps"
+      ],
+      "unusedCount": 19
+    },
+    {
+      "module": "purchase",
+      "methodCount": 35,
+      "used": 26,
+      "unusedSample": [
+        "updateRequisition",
+        "updateReceipt",
+        "createReturn",
+        "updateReturn",
+        "createProcessing",
+        "updateProcessing",
+        "deleteProcessing",
+        "createProcessingReceipt",
+        "updateProcessingReceipt"
+      ],
+      "unusedCount": 9
+    },
+    {
+      "module": "quality",
+      "methodCount": 37,
+      "used": 32,
+      "unusedSample": [
+        "updateProcessInspection",
+        "updateFinalInspection",
+        "createNonconformanceRecord",
+        "updateNonconformanceRecord",
+        "getAqlLevels"
+      ],
+      "unusedCount": 5
+    },
+    {
+      "module": "sales",
+      "methodCount": 36,
+      "used": 21,
+      "unusedSample": [
+        "getCustomersList",
+        "createSalesQuotation",
+        "updateSalesQuotation",
+        "deleteSalesQuotation",
+        "getSalesQuotationStatistics",
+        "updateSalesOrder",
+        "deleteSalesOrder",
+        "updateSalesOrderStatus",
+        "deleteSalesOutbound",
+        "createSalesReturn",
+        "updateSalesReturn",
+        "deleteSalesReturn",
+        "createSalesExchange",
+        "updateSalesExchange",
+        "deleteSalesExchange"
+      ],
+      "unusedCount": 15
+    },
+    {
+      "module": "system",
+      "methodCount": 29,
+      "used": 15,
+      "unusedSample": [
+        "updateDepartment",
+        "flattenMenus",
+        "getConfig",
+        "getSystemInfo",
+        "getUserById",
+        "createUser",
+        "updateUser",
+        "updateUserStatus",
+        "resetUserPassword",
+        "markAllNotificationsRead",
+        "batchDeleteNotifications",
+        "createBackup",
+        "getBackups",
+        "verifyBackup"
+      ],
+      "unusedCount": 14
+    },
+    {
+      "module": "workflow",
+      "methodCount": 0,
+      "used": 0,
+      "unusedSample": [],
+      "unusedCount": 0
+    }
+  ],
+  "coverageVsPc": {
+    "mobileModules": [
+      "baseData",
+      "common",
+      "equipment",
+      "finance",
+      "hr",
+      "inventory",
+      "notifications",
+      "production",
+      "profile",
+      "purchase",
+      "quality",
+      "sales",
+      "system",
+      "workflow"
+    ],
+    "pcModules": [
+      "auth",
+      "baseData",
+      "dashboard",
+      "dataoverview",
+      "equipment",
+      "finance",
+      "hr",
+      "inventory",
+      "production",
+      "public",
+      "purchase",
+      "quality",
+      "sales",
+      "system",
+      "workflow"
+    ],
+    "pcOnlyFolders": [
+      "public"
+    ],
+    "mobileOnlyFolders": [
+      "common",
+      "notifications",
+      "profile"
+    ],
+    "featureGaps": [
+      {
+        "module": "finance",
+        "feature": "budget",
+        "status": "likely_missing"
+      },
+      {
+        "module": "finance",
+        "feature": "pricing",
+        "status": "likely_missing"
+      },
+      {
+        "module": "quality",
+        "feature": "first-article",
+        "status": "likely_missing"
+      },
+      {
+        "module": "quality",
+        "feature": "gauge",
+        "status": "likely_missing"
+      },
+      {
+        "module": "production",
+        "feature": "gantt",
+        "status": "likely_missing"
+      },
+      {
+        "module": "production",
+        "feature": "mrp",
+        "status": "likely_missing"
+      },
+      {
+        "module": "production",
+        "feature": "material-readiness",
+        "status": "likely_missing"
+      },
+      {
+        "module": "sales",
+        "feature": "packing",
+        "status": "likely_missing"
+      },
+      {
+        "module": "inventory",
+        "feature": "year-end",
+        "status": "likely_missing"
+      },
+      {
+        "module": "system",
+        "feature": "workflow-mgmt",
+        "status": "likely_missing"
+      }
+    ]
+  }
+}

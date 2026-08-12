@@ -74,6 +74,7 @@
   import { useRoute, useRouter } from 'vue-router'
   import { NavBar, Icon, Cell, Button, Loading, Empty, showToast } from 'vant'
   import { systemApi } from '@/api'
+  import { navigateMobileDeepLink } from '@/utils/deepLink'
 
   const route = useRoute()
   const router = useRouter()
@@ -95,11 +96,28 @@
   const getRelatedLabel = (type) => {
     const labels = {
       order: '关联订单',
+      sales_order: '关联销售订单',
+      purchase_order: '关联采购订单',
       task: '关联任务',
+      production_task: '关联生产任务',
+      production_plan: '关联生产计划',
       inspection: '关联检验',
-      approval: '关联审批'
+      incoming_inspection: '关联来料检验',
+      process_inspection: '关联过程检验',
+      final_inspection: '关联成品检验',
+      nonconformance: '关联不合格',
+      approval: '关联审批',
+      workflow: '关联审批',
+      workflow_instance: '关联审批',
+      material: '关联物料',
+      inventory_inbound: '关联入库单',
+      inventory_outbound: '关联出库单',
+      ar_invoice: '关联应收发票',
+      ap_invoice: '关联应付发票',
+      equipment: '关联设备',
+      leave: '关联请假',
     }
-    return labels[type] || '关联内容'
+    return labels[type] || labels[String(type || '').toLowerCase()] || '关联内容'
   }
 
   const formatTime = (dateStr) => {
@@ -144,19 +162,12 @@
   }
 
   const navigateToRelated = () => {
-    const id = notification.value?.sourceId || notification.value?.relatedId
-    const routeMap = {
-      order: id ? `/sales/orders/${id}` : '/sales/orders',
-      task: id ? `/production/tasks/${id}` : '/production/tasks',
-      inspection: id ? `/quality/incoming/${id}` : '/quality/incoming',
-      approval: '/system/notifications'
-    }
-    const target = routeMap[notification.value?.sourceType || notification.value?.relatedType]
-    if (target) {
-      router.push(target)
-    } else {
-      showToast('未配置关联页面')
-    }
+    const n = notification.value
+    if (!n) return
+    const type = n.sourceType || n.relatedType || n.bizType || n.entityType
+    const id = n.sourceId || n.relatedId || n.bizId || n.entityId
+    const link = n.link || n.actionUrl || n.url || n.meta?.link
+    navigateMobileDeepLink(router, showToast, type, id, { link })
   }
 
   onMounted(() => {

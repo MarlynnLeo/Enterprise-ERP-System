@@ -670,6 +670,8 @@ class InventoryService {
       bom_required_qty = null,
       total_issued_qty = null,
       allowNegativeStock = false,
+      /** 仅 adjustment/reconciliation/correction 允许空批次对账调整 */
+      allowEmptyBatch = false,
       transactionDate = null,
       unitCost = null, // 新增参数：入库时传入的实际成本单价
       purchaseOrderId = null, // 原生批次身份证属性
@@ -702,9 +704,12 @@ class InventoryService {
     // 批次键入口归一：后续 FIFO / 台账 / 幂等键统一使用
     const normalizedBatchInput = this._normalizeBatchNumber(batchNumber);
 
-    // 入库批次必须来自上游业务单据或显式录入，禁止空批次键写入台账。
+    // 入库批次必须来自上游业务单据或显式录入；对账调整类可显式允许空批次键。
     const isInboundOperation = parseFloat(quantity) > 0;
-    if (isInboundOperation && !normalizedBatchInput) {
+    const emptyBatchAllowed =
+      allowEmptyBatch &&
+      ['adjustment', 'reconciliation', 'correction'].includes(String(transactionType));
+    if (isInboundOperation && !normalizedBatchInput && !emptyBatchAllowed) {
       throw new Error(
         `入库必须提供可追溯批次号: materialId=${materialId}, referenceNo=${referenceNo}, transactionType=${transactionType}`
       );
@@ -980,6 +985,81 @@ class InventoryService {
       logger.error(`库存更新失败 [${materialId}-${locationId}]: ${error.message} (${duration}ms)`);
       throw error;
     }
+  }
+
+  /**
+   * 将指定物料/库位/批次的台账数量对齐到目标余额（运维对账）。
+   * 业务入库仍禁止空批次；此处仅允许 adjustment + allowEmptyBatch。
+   */
+  static async reconcileBatchToQuantity(
+    {
+      materialId,
+      locationId,
+      batchNumber = '',
+      targetQuantity,
+      operator = 1,
+      remark = '库存台账对账调整',
+      unitCost = null,
+    },
+    connection
+  ) {
+    if (!connection) {
+      throw new Error('reconcileBatchToQuantity必须在数据库事务中调用');
+    }
+    const batchKey = this._normalizeBatchNumber(batchNumber);
+    const [[row]] = await connection.query(
+      `SELECT COALESCE(SUM(quantity), 0) AS q,
+              COALESCE(SUM(CASE WHEN quantity < 0 THEN -ABS(total_value) ELSE ABS(total_value) END), 0) AS v
+         FROM inventory_ledger
+        WHERE material_id = ? AND location_id = ?
+          AND COALESCE(NULLIF(batch_number, ''), '') = ?`,
+      [materialId, locationId, batchKey]
+    );
+    const ledgerQty = Number(row?.q || 0);
+    const target = Number(targetQuantity);
+    const delta = Precision.sub(target, ledgerQty);
+    if (Math.abs(delta) <= 0.000001) {
+      return { adjusted: false, delta: 0, ledgerQty, targetQuantity: target };
+    }
+
+    let cost = unitCost;
+    if (!(Number(cost) > 0) && Math.abs(ledgerQty) > 0.000001) {
+      cost = Math.abs(Number(row?.v || 0) / ledgerQty);
+    }
+    if (!(Number(cost) > 0)) {
+      const [[m]] = await connection.query(
+        'SELECT cost_price FROM materials WHERE id = ? LIMIT 1',
+        [materialId]
+      );
+      cost = Number(m?.cost_price || 0);
+    }
+    if (!(Number(cost) > 0)) {
+      throw new Error(
+        `对账调整缺少有效成本: materialId=${materialId}, locationId=${locationId}`
+      );
+    }
+
+    const refNo = `ADJ-RECON-${materialId}-${locationId}-${Date.now()}`;
+    await this.updateStock(
+      {
+        materialId,
+        locationId,
+        quantity: delta,
+        transactionType: 'adjustment',
+        referenceNo: refNo,
+        referenceType: 'inventory_adjustment',
+        operator,
+        remark: `${remark} (ledger=${ledgerQty} → ${target})`,
+        batchNumber: batchKey,
+        allowEmptyBatch: true,
+        allowNegativeStock: true,
+        unitCost: cost,
+        idempotencyKey: refNo,
+      },
+      connection
+    );
+    await this.rebuildStockBalancesForMaterial(materialId, connection);
+    return { adjusted: true, delta, ledgerQty, targetQuantity: target, referenceNo: refNo };
   }
 
   /**

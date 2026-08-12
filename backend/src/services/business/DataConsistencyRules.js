@@ -6,6 +6,12 @@
  * real database to find residual data problems.
  */
 
+const {
+  INCOMING_INSPECTION_COUNTED_STATUSES,
+  PURCHASE_RECEIPT_COUNTED_STATUSES,
+  sqlStringList,
+} = require('../../constants/qualityReceipt');
+
 const DEFAULT_RULE_TIMEOUT_MS = Number(process.env.DATA_CONSISTENCY_RULE_TIMEOUT_MS || 30000);
 
 const sqlLiteral = (value) => `'${String(value).replace(/'/g, "''")}'`;
@@ -118,13 +124,20 @@ const consistencyRules = [
     id: 'inventory.completed_outbound_has_ledger',
     severity: 'critical',
     closure: 'inventoryControl',
-    description: 'Completed outbound documents must have inventory ledger entries.',
+    description: 'Completed outbound documents with actual issue qty must have inventory ledger entries.',
     sql: `
       SELECT o.id, o.outbound_no
       FROM inventory_outbound o
+      INNER JOIN (
+        SELECT outbound_id,
+               SUM(COALESCE(NULLIF(actual_quantity, 0), quantity, 0)) AS issued_qty
+          FROM inventory_outbound_items
+         GROUP BY outbound_id
+      ) oi ON oi.outbound_id = o.id
       LEFT JOIN inventory_ledger l
         ON l.reference_no = o.outbound_no AND l.reference_type IN ('outbound', 'sales_outbound', 'production_issue')
       WHERE o.status IN ('completed', 'partial_completed') AND o.deleted_at IS NULL
+        AND COALESCE(oi.issued_qty, 0) > 0.000001
       GROUP BY o.id, o.outbound_no
       HAVING COUNT(l.id) = 0
     `,
@@ -346,18 +359,18 @@ const consistencyRules = [
         FROM purchase_receipt_items pri
         JOIN purchase_receipts pr ON pr.id = pri.receipt_id
         WHERE pr.deleted_at IS NULL
-          AND pr.status IN ('confirmed', 'completed')
+          AND pr.status IN (${sqlStringList(PURCHASE_RECEIPT_COUNTED_STATUSES)})
         GROUP BY pr.order_id, pri.material_id
       ) receipts ON receipts.order_id = poi.order_id
                 AND receipts.material_id = poi.material_id
       LEFT JOIN (
         SELECT qi.reference_id AS order_id, qi.material_id,
-               SUM(COALESCE(NULLIF(qi.quantity, 0), qi.qualified_quantity, 0))
+               SUM(COALESCE(NULLIF(qi.qualified_quantity, 0), qi.quantity, 0))
                  AS inspected_quantity
         FROM quality_inspections qi
         WHERE qi.inspection_type = 'incoming'
           AND qi.deleted_at IS NULL
-          AND qi.status NOT IN ('cancelled', 'rejected')
+          AND qi.status IN (${sqlStringList(INCOMING_INSPECTION_COUNTED_STATUSES)})
         GROUP BY qi.reference_id, qi.material_id
       ) inspections ON inspections.order_id = poi.order_id
                    AND inspections.material_id = poi.material_id

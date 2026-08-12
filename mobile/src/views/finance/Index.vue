@@ -77,16 +77,16 @@
   const quickActions = ref([])
 
   // ---- 功能模块 ----
+  // 会计期间/关账为 PC L4（见 MOBILE_PRODUCT_LAYER.md），移动端不提供入口
   const glModules = ref([
-    { title: '会计科目', desc: '科目设置与管理', path: '/finance/gl/accounts', icon: 'book-open' },
+    { title: '会计科目', desc: '科目设置与查询', path: '/finance/gl/accounts', icon: 'book-open' },
     {
       title: '会计凭证',
-      desc: '凭证录入与查询',
+      desc: '凭证查询（编制请用 PC）',
       path: '/finance/gl/entries',
       icon: 'notes',
       badge: 0
-    },
-    { title: '会计期间', desc: '期间管理与结账', path: '/finance/gl/periods', icon: 'calendar' }
+    }
   ])
   const arModules = ref([
     { title: '应收账款', desc: '客户应收管理', path: '/finance/ar/invoices', icon: 'coin' },

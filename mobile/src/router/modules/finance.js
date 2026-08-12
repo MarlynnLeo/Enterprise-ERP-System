@@ -111,18 +111,7 @@ export const financeRoutes = [
     component: () => import('@/views/finance/Assets.vue'),
     meta: { title: '固定资产', permission: 'finance' }
   },
-  {
-    path: '/finance/assets/categories',
-    name: 'AssetsCategories',
-    component: () => import('@/views/finance/Assets.vue'),
-    meta: { title: '资产类别', permission: 'finance' }
-  },
-  {
-    path: '/finance/assets/depreciation',
-    name: 'AssetsDepreciation',
-    component: () => import('@/views/finance/Assets.vue'),
-    meta: { title: '折旧管理', permission: 'finance' }
-  },
+  // 资产类别/折旧管理为 PC 深度能力；移动端不再挂假路由（同一 Assets 列表会误导用户）
   {
     path: '/finance/assets/:id',
     name: 'AssetDetail',

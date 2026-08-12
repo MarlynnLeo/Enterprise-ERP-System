@@ -209,6 +209,7 @@ import {
   Popup, Cell, Field, Switch, showToast, showConfirmDialog
 } from 'vant';
 import { productionApi, systemApi } from '@/api';
+import { navigateMobileDeepLink } from '@/utils/deepLink';
 
 const router = useRouter();
 
@@ -416,47 +417,85 @@ const viewMessage = (message) => {
   router.push(`/system/notifications/${message.id}`);
 };
 
+const resolveMessageTarget = (message) => {
+  const type =
+    message.sourceType ||
+    message.relatedType ||
+    message.bizType ||
+    (message.type === 'approval' ? 'approval' : message.type === 'task' ? 'task' : null);
+  const id =
+    message.sourceId ||
+    message.relatedId ||
+    message.bizId ||
+    message.meta?.taskId ||
+    message.meta?.instanceId ||
+    message.meta?.任务ID ||
+    message.meta?.订单ID;
+  const link = message.link || message.actionUrl || message.meta?.link;
+  return { type, id, link };
+};
+
 const handleAction = async (message, action) => {
   try {
     switch (action.key) {
-      case 'view':
-        router.push(`/production/tasks/${message.meta?.任务编号}`);
+      case 'view': {
+        const { type, id, link } = resolveMessageTarget(message);
+        if (type || link) {
+          navigateMobileDeepLink(router, showToast, type, id, { link });
+        } else {
+          router.push(`/system/notifications/${message.id}`);
+        }
         break;
-      case 'complete':
-        {
-          const taskId = message.sourceId || message.meta?.任务ID || message.meta?.taskId;
-          if (taskId) {
-            await productionApi.updateProductionTaskStatus(taskId, 'completed');
+      }
+      case 'complete': {
+        const taskId = message.sourceId || message.meta?.任务ID || message.meta?.taskId;
+        if (taskId) {
+          await productionApi.updateProductionTaskStatus(taskId, 'completed');
+          message.read = true;
+          showToast('任务已完成');
+        } else {
+          router.push('/production/tasks');
+        }
+        break;
+      }
+      case 'approve':
+      case 'reject': {
+        // 审批必须走审批中心（含节点/SoD 校验），禁止仅 toast 假成功
+        const instanceId =
+          message.sourceId ||
+          message.relatedId ||
+          message.meta?.instanceId ||
+          message.meta?.workflowInstanceId;
+        if (instanceId) {
+          router.push({
+            path: '/workflow/approvals',
+            query: { instanceId: String(instanceId), action: action.key },
+          });
+        } else {
+          router.push('/workflow/approvals');
+          showToast('请在审批中心处理');
+        }
+        if (!message.read) {
+          try {
+            await systemApi.markNotificationRead(message.id);
             message.read = true;
-            showToast('任务已完成');
-          } else {
-            router.push('/production/tasks');
+          } catch {
+            /* 忽略已读失败 */
           }
         }
         break;
-      case 'approve':
-        const approveResult = await showConfirmDialog({
-          title: '确认审批',
-          message: `确定要同意订单 ${message.meta?.订单编号} 吗？`
-        });
-        if (approveResult === 'confirm') {
-          showToast('审批成功');
-          message.read = true;
-        }
-        break;
-      case 'reject':
-        const rejectResult = await showConfirmDialog({
-          title: '确认拒绝',
-          message: `确定要拒绝订单 ${message.meta?.订单编号} 吗？`
-        });
-        if (rejectResult === 'confirm') {
-          showToast('已拒绝');
-          message.read = true;
-        }
-        break;
+      }
       case 'purchase':
         router.push('/purchase/orders/create');
         break;
+      default: {
+        const { type, id, link } = resolveMessageTarget(message);
+        if (type || link) {
+          navigateMobileDeepLink(router, showToast, type, id, { link });
+        } else {
+          router.push(`/system/notifications/${message.id}`);
+        }
+      }
     }
   } catch {
     // 用户取消

@@ -1,0 +1,191 @@
+{
+  "generatedAt": "2026-08-10T15:23:20.417Z",
+  "stats": {
+    "views": 217,
+    "components": 17,
+    "elButtons": 1393,
+    "clickBindings": 1357,
+    "staticRouterPushes": 36,
+    "dynamicRouterPushes": 0,
+    "routePaths": 317,
+    "actionColumns": 123,
+    "permissionButtons": 667,
+    "byModule": {
+      "auth": {
+        "files": 9,
+        "buttons": 20,
+        "actionCols": 1
+      },
+      "baseData": {
+        "files": 24,
+        "buttons": 136,
+        "actionCols": 12
+      },
+      "dashboard": {
+        "files": 5,
+        "buttons": 6,
+        "actionCols": 1
+      },
+      "dataoverview": {
+        "files": 6,
+        "buttons": 5,
+        "actionCols": 5
+      },
+      "equipment": {
+        "files": 5,
+        "buttons": 13,
+        "actionCols": 1
+      },
+      "finance": {
+        "files": 73,
+        "buttons": 431,
+        "actionCols": 41
+      },
+      "hr": {
+        "files": 5,
+        "buttons": 35,
+        "actionCols": 4
+      },
+      "inventory": {
+        "files": 11,
+        "buttons": 105,
+        "actionCols": 7
+      },
+      "Layout.vue": {
+        "files": 1,
+        "buttons": 0,
+        "actionCols": 0
+      },
+      "NotFound.vue": {
+        "files": 1,
+        "buttons": 2,
+        "actionCols": 0
+      },
+      "production": {
+        "files": 17,
+        "buttons": 122,
+        "actionCols": 11
+      },
+      "public": {
+        "files": 1,
+        "buttons": 6,
+        "actionCols": 0
+      },
+      "purchase": {
+        "files": 8,
+        "buttons": 85,
+        "actionCols": 6
+      },
+      "quality": {
+        "files": 28,
+        "buttons": 179,
+        "actionCols": 14
+      },
+      "sales": {
+        "files": 8,
+        "buttons": 104,
+        "actionCols": 8
+      },
+      "system": {
+        "files": 13,
+        "buttons": 125,
+        "actionCols": 11
+      },
+      "UserProfile.vue": {
+        "files": 1,
+        "buttons": 0,
+        "actionCols": 0
+      },
+      "workflow": {
+        "files": 1,
+        "buttons": 5,
+        "actionCols": 1
+      }
+    }
+  },
+  "issues": {
+    "fakeText": [],
+    "emptyHandlers": [
+      {
+        "file": "views/baseData/components/ProcessTemplatePreviewDialog.vue",
+        "name": "handleDocRendered",
+        "severity": "low",
+        "note": "可能是事件占位"
+      }
+    ],
+    "highEmptyHandlers": [],
+    "missingHandlersHighConfidence": [],
+    "deadRouterPush": [],
+    "actionWithoutApiHint": [
+      {
+        "file": "views/baseData/components/BomTable.vue",
+        "buttons": 6
+      },
+      {
+        "file": "views/baseData/components/MaterialTable.vue",
+        "buttons": 5
+      },
+      {
+        "file": "views/finance/ar/components/InvoiceFormDialog.vue",
+        "buttons": 4
+      },
+      {
+        "file": "views/finance/gl/Accounts.vue",
+        "buttons": 6
+      },
+      {
+        "file": "views/finance/pricing/components/BomPreviewDialog.vue",
+        "buttons": 3
+      },
+      {
+        "file": "views/finance/pricing/components/BomPriceDialog.vue",
+        "buttons": 3
+      },
+      {
+        "file": "views/finance/pricing/components/SettingsDrawer.vue",
+        "buttons": 6
+      },
+      {
+        "file": "views/finance/settings/FinanceSettings.vue",
+        "buttons": 4
+      }
+    ]
+  },
+  "verdict": {
+    "score": 95,
+    "grade": "A",
+    "summary": "静态扫描未见成规模假按钮/死链；操作按钮整体有效"
+  },
+  "sampleRoutes": [
+    "/dataoverview/finance",
+    "/finance",
+    "/dataoverview/purchase",
+    "/purchase",
+    "/finance/gl/accounts",
+    "/finance/gl/entries",
+    "/finance/gl/opening-balances",
+    "/finance/gl/trial-balance",
+    "/finance/gl/period-closing",
+    "/finance/gl/periods",
+    "/finance/gl/entries/receipt",
+    "/finance/gl/entries/payment",
+    "/finance/gl/entries/transfer",
+    "/finance/gl/entries/create",
+    "/finance/gl/entries/general",
+    "/finance/ar/invoices",
+    "/finance/ar/receipts",
+    "/finance/ar/settlement",
+    "/finance/ar/aging",
+    "/finance/ap/invoices",
+    "/finance/ap/payments",
+    "/finance/ap/settlement",
+    "/finance/ap/three-way-match",
+    "/finance/ap/aging",
+    "/finance/assets/list",
+    "/finance/assets/detail/:id",
+    "/finance/assets/categories",
+    "/finance/assets/depreciation",
+    "/finance/assets/cip",
+    "/finance/assets/inventory"
+  ]
+}

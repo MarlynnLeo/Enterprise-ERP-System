@@ -94,9 +94,13 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { showToast, showSuccessToast, showConfirmDialog } from 'vant'
 import { workflowApi } from '@/api/modules/workflow'
+
+const route = useRoute()
+const router = useRouter()
 
 const activeTab = ref('pending')
 const list = ref([])
@@ -300,6 +304,49 @@ async function onWithdraw(row) {
     if (e !== 'cancel') showToast(e?.message || '撤回失败')
   }
 }
+
+/** 从通知 deep link 进入：?instanceId=&action=approve|reject */
+async function handleDeepLinkQuery() {
+  const instanceId = route.query.instanceId || route.query.id
+  if (!instanceId) return
+  const wantAction = route.query.action === 'reject' ? 'reject' : route.query.action === 'approve' ? 'approve' : null
+  activeTab.value = 'pending'
+  await fetchPage(true)
+  let row = list.value.find((r) => String(instanceIdOf(r)) === String(instanceId))
+  if (!row) {
+    // 不在当前页待审列表时，仍打开详情
+    try {
+      const res = await workflowApi.getInstanceById(instanceId)
+      detail.value = res.data?.data || res.data
+      detailVis.value = true
+      // 构造可操作行（若有当前节点）
+      const nodes = detail.value?.nodes || []
+      const current = nodes.find((n) => n.status === 'in_progress' || n.status === 'pending')
+      if (current && wantAction) {
+        row = {
+          id: current.id || current.nodeId,
+          nodeId: current.id || current.nodeId,
+          instanceId: instanceId,
+          title: detail.value?.title,
+        }
+      }
+    } catch (e) {
+      showToast(e?.message || '未找到审批实例')
+      return
+    }
+  } else {
+    await openDetail(row)
+  }
+  if (row && wantAction) {
+    openAction(row, wantAction)
+  }
+  // 清掉 query，避免返回时重复弹窗
+  router.replace({ path: route.path, query: {} })
+}
+
+onMounted(() => {
+  handleDeepLinkQuery()
+})
 </script>
 
 <style scoped>

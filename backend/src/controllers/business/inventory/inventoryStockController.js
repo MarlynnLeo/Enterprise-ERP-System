@@ -10,7 +10,7 @@ const { logger } = require('../../../utils/logger');
 const { parsePagination, appendPaginationSQL } = require('../../../utils/safePagination');
 const { CodeGenerators } = require('../../../utils/codeGenerator');
 const { validateRequiredFields } = require('../../../utils/validationHelper');
-const { mapKeysToCamel, mapKeysToSnake } = require('../../../utils/fieldMap');
+const { mapKeysToSnake } = require('../../../utils/fieldMap');
 const dayjs = require('dayjs');
 
 const db = require('../../../config/db');
@@ -744,96 +744,82 @@ const adjustStock = async (req, res) => {
   }
 };
 
-// 通过物料ID获取库存交易记录 - 统一API方案
-// 注意：此API现在内部调用getInventoryLedger，确保两个API使用相同的计算逻辑
-// 这样避免了重复代码维护，防止数据不一致的问题
-
+// 通过物料ID获取库存交易记录 — 复用 getInventoryLedger 查询，响应适配为历史列表形状
 const getMaterialRecords = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // 先加载业务类型缓存
     await loadBusinessTypeCache();
     const inventoryTypeMap = await BusinessTypeService.getGroupMap('inventory_transaction');
 
-    // 验证物料ID是否存在
-    const checkMaterialQuery = `
-      SELECT id, code, name FROM materials WHERE id = ? AND deleted_at IS NULL
-    `;
-    const [checkMaterialResult] = await db.pool.execute(checkMaterialQuery, [id]);
-
+    const [checkMaterialResult] = await db.pool.execute(
+      `SELECT id, code, name FROM materials WHERE id = ? AND deleted_at IS NULL`,
+      [id]
+    );
     if (checkMaterialResult.length === 0) {
       return ResponseHandler.error(res, '物料不存在', 'NOT_FOUND', 404);
     }
 
-    // 重定向到getInventoryLedger，使用统一的逻辑
-    // 修改req.query来匹配getInventoryLedger的参数格式
     const locationIdParam = req.query.locationId || '';
     req.query = {
       ...req.query,
       materialId: id,
-      locationId: locationIdParam, // 透传仓库过滤条件
+      locationId: locationIdParam,
       page: Math.max(parseInt(req.query.page, 10) || 1, 1),
-      pageSize: Math.min(Math.max(parseInt(req.query.pageSize || req.query.limit, 10) || 100, 1), 100),
-      startDate: '1900-01-01', // 获取所有历史记录
+      pageSize: Math.min(
+        Math.max(parseInt(req.query.pageSize || req.query.limit, 10) || 100, 1),
+        100
+      ),
+      startDate: '1900-01-01',
       endDate: '2099-12-31',
     };
 
-    // 创建一个包装的res对象来转换响应格式
-    const originalJson = res.json.bind(res);
-    const originalStatus = res.status.bind(res);
+    // 捕获 getInventoryLedger 的 ResponseHandler 输出，避免改写真实 res
     let statusCode = 200;
-
-
-    // 拦截 status 方法
-    res.status = function (code) {
-      statusCode = code;
-      return originalStatus(code);
+    let payload = null;
+    const captureRes = {
+      status(code) {
+        statusCode = code;
+        return this;
+      },
+      json(body) {
+        payload = body;
+        return body;
+      },
     };
 
-    // 拦截 json 方法
-    res.json = function (responseData) {
-      // 如果是成功响应
-      if (statusCode === 200 && responseData && responseData.success && responseData.data) {
-        const innerData = responseData.data;
+    await getInventoryLedger(req, captureRes);
 
-        // 如果有items数据
-        if (innerData.items && Array.isArray(innerData.items)) {
-          // 转换数据格式以匹配原有的getMaterialRecords格式
-          const records = mapKeysToCamel(innerData.items.map((item) => ({
-            id: item.id,
-            date: item.date,
-            transaction_type: item.transactionType,
-            type: inventoryTypeMap[item.transactionType] || getInventoryTransactionTypeText(item.transactionType),
-            batch_number: item.batchNumber || '',
-            quantity: item.quantity,
-            before_quantity: item.beforeQuantity,
-            after_quantity: item.afterQuantity,
-            reference_no: item.documentNo,
-            reference_type: 'ledger',
-            operator: item.operatorName || item.operator || '系统',
-            operator_name: item.operatorName || item.operator || '系统',
-            remark: item.remark || '',
-            source_table: 'ledger',
-          })));
+    if (statusCode !== 200 || !payload?.success) {
+      return res.status(statusCode || 500).json(payload || { success: false });
+    }
 
-          // 直接返回数组格式，让前端可以直接使用
-          return originalJson(records);
-        } else {
-          // 如果没有items，返回空数组
-          return originalJson([]);
-        }
-      } else if (statusCode === 200) {
-        // 如果是成功但数据格式不对，返回空数组
-        return originalJson([]);
-      } else {
-        // 如果是错误响应，保持原样
-        return originalJson(responseData);
-      }
-    };
+    const items = payload?.data?.items;
+    if (!Array.isArray(items)) {
+      return res.json([]);
+    }
 
-    // 调用getInventoryLedger，它会使用我们包装的res.json
-    return await getInventoryLedger(req, res);
+    // 直接输出 camelCase（历史接口仍返回数组，非 ResponseHandler 信封）
+    const records = items.map((item) => ({
+      id: item.id,
+      date: item.date,
+      transactionType: item.transactionType,
+      type:
+        inventoryTypeMap[item.transactionType] ||
+        getInventoryTransactionTypeText(item.transactionType),
+      batchNumber: item.batchNumber || '',
+      quantity: item.quantity,
+      beforeQuantity: item.beforeQuantity,
+      afterQuantity: item.afterQuantity,
+      referenceNo: item.documentNo,
+      referenceType: 'ledger',
+      operator: item.operatorName || item.operator || '系统',
+      operatorName: item.operatorName || item.operator || '系统',
+      remark: item.remark || '',
+      sourceTable: 'ledger',
+    }));
+
+    return res.json(records);
   } catch (error) {
     logger.error('获取物料库存记录失败:', error);
     ResponseHandler.error(res, '获取物料库存记录失败', 'SERVER_ERROR', 500, error);

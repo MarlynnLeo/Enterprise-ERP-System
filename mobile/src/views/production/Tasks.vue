@@ -378,9 +378,12 @@
     refreshing.value = true
     loadTasks(true)
   }
-  const handleSearch = () => {}
+  const handleSearch = () => {
+    loadTasks(true)
+  }
   const handleClear = () => {
     searchValue.value = ''
+    loadTasks(true)
   }
 
   const createTask = () => router.push('/production/tasks/create')
