@@ -121,46 +121,51 @@
         </el-table-column>
         <el-table-column label="操作" min-width="350" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
-            <el-button class="btn-op-view" type="primary" size="small" @click="handleView(scope.row)">
-              查看
-            </el-button>
-            <el-button
-              v-if="scope.row.status === 'draft'"
-              size="small"
-              type="primary"
-              @click="handleEdit(scope.row)"
-
-              v-permission="'sales:quotations:update'">
-              编辑
-            </el-button>
-            <el-popconfirm
-              v-if="scope.row.status === 'draft'"
-              title="确定要删除该报价单吗？此操作无法恢复。"
-              @confirm="handleDelete(scope.row)"
-              confirm-button-type="danger"
-            >
-              <template #reference>
-                <el-button v-permission="'sales:quotations:delete'" size="small" type="danger">删除</el-button>
-              </template>
-            </el-popconfirm>
-            <el-popconfirm
-              v-if="scope.row.status === 'draft'"
-              title="确定要确认该报价单吗？确认后将无法再编辑。"
-              @confirm="handleConfirm(scope.row)"
-            >
-              <template #reference>
-                <el-button size="small" type="success" v-permission="'sales:quotations:update'">确认</el-button>
-              </template>
-            </el-popconfirm>
-            <el-button
-              v-if="scope.row.status === 'accepted' && !scope.row.orderId"
-              size="small"
-              type="success"
-              v-permission="'sales:quotations:update'"
-              @click="handleConvert(scope.row)"
-            >
-              转订单
-            </el-button>
+            <div class="table-actions">
+              <el-button class="btn-op-view" type="primary" size="small" @click="handleView(scope.row)">
+                <el-icon><View /></el-icon> 查看
+              </el-button>
+              <el-button
+                v-if="scope.row.status === 'draft'"
+                size="small"
+                @click="handleEdit(scope.row)"
+                v-permission="'sales:quotations:update'"
+              >
+                <el-icon><Edit /></el-icon> 编辑
+              </el-button>
+              <el-popconfirm
+                v-if="scope.row.status === 'draft'"
+                title="确定要删除该报价单吗？此操作无法恢复。"
+                @confirm="handleDelete(scope.row)"
+                confirm-button-type="danger"
+              >
+                <template #reference>
+                  <el-button v-permission="'sales:quotations:delete'" size="small" type="danger">
+                    <el-icon><Delete /></el-icon> 删除
+                  </el-button>
+                </template>
+              </el-popconfirm>
+              <el-popconfirm
+                v-if="scope.row.status === 'draft'"
+                title="确定要确认该报价单吗？确认后将无法再编辑。"
+                @confirm="handleConfirm(scope.row)"
+              >
+                <template #reference>
+                  <el-button size="small" type="success" v-permission="'sales:quotations:update'">
+                    <el-icon><Check /></el-icon> 确认
+                  </el-button>
+                </template>
+              </el-popconfirm>
+              <el-button
+                v-if="scope.row.status === 'accepted' && !scope.row.orderId"
+                size="small"
+                type="success"
+                v-permission="'sales:quotations:update'"
+                @click="handleConvert(scope.row)"
+              >
+                <el-icon><Right /></el-icon> 转订单
+              </el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -427,7 +432,7 @@ import dayjs from 'dayjs'
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { baseDataApi, salesApi } from '@/api'
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, View, Edit, Delete, Check, Right } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 import {
   loadCustomerOptions,

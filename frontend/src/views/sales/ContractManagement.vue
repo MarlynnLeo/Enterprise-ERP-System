@@ -63,10 +63,18 @@
       <el-table-column prop="expiryDate" label="到期日期" width="110" />
       <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
         <template #default="{ row }">
-          <el-button class="btn-op-view" type="primary" size="small" @click="viewDetail(row)">查看</el-button>
-          <el-button link type="primary" v-permission="'contract:edit'" @click="openForm(row)">编辑</el-button>
+          <el-button class="btn-op-view" type="primary" size="small" @click="viewDetail(row)">
+            <el-icon><View /></el-icon> 查看
+          </el-button>
+          <el-button type="primary" size="small" v-permission="'contract:edit'" @click="openForm(row)">
+            <el-icon><Edit /></el-icon> 编辑
+          </el-button>
           <el-popconfirm title="确定删除此合同？" @confirm="handleDelete(row.id)">
-            <template #reference><el-button link type="danger" v-permission="'contract:delete'">删除</el-button></template>
+            <template #reference>
+              <el-button type="danger" size="small" v-permission="'contract:delete'">
+                <el-icon><Delete /></el-icon> 删除
+              </el-button>
+            </template>
           </el-popconfirm>
         </template>
       </el-table-column>
@@ -201,6 +209,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import { View, Edit, Delete } from '@element-plus/icons-vue'
 import { contractApi } from '@/api/contract'
 
 const loading = ref(false)

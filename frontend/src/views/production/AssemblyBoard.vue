@@ -75,9 +75,13 @@
             <el-tag v-else type="info" size="small">等待中</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="100">
+        <el-table-column label="操作" min-width="120" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
-            <el-button class="btn-op-view" type="primary" size="small" @click="viewTaskSteps(row.taskId)">详情</el-button>
+            <div class="table-actions">
+              <el-button class="btn-op-view" type="primary" size="small" @click="viewTaskSteps(row.taskId)">
+                <el-icon><View /></el-icon> 详情
+              </el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -128,7 +132,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { Refresh } from '@element-plus/icons-vue'
+import { Refresh, View } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { assemblyExecutionApi } from '../../api/assembly'
 

@@ -57,18 +57,21 @@
             <el-tag v-if="row.isDefault" type="success" size="small" effect="dark">是</el-tag>
           </template>
         </el-table-column>
-        <el-table-column v-if="canUpdateCalendar" label="操作" width="160" fixed="right">
+        <el-table-column v-if="canUpdateCalendar" label="操作" min-width="220" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
-            <el-button size="small" type="primary" link @click="openEdit(row)">编辑</el-button>
-            <el-button
-              size="small"
-              type="success"
-              link
-              :disabled="!!row.isDefault"
-              @click="handleSetDefault(row)"
-            >
-              设为默认
-            </el-button>
+            <div class="table-actions">
+              <el-button size="small" @click="openEdit(row)">
+                <el-icon><Edit /></el-icon> 编辑
+              </el-button>
+              <el-button
+                size="small"
+                type="success"
+                :disabled="!!row.isDefault"
+                @click="handleSetDefault(row)"
+              >
+                <el-icon><Star /></el-icon> 设为默认
+              </el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -270,7 +273,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Refresh, Setting, Calendar, ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
+import { Refresh, Setting, Calendar, ArrowLeft, ArrowRight, Edit, Star } from '@element-plus/icons-vue'
 import { productionApi } from '@/api/production'
 import { parseListData } from '@/utils/responseParser'
 import { useAuthStore } from '@/stores/auth'

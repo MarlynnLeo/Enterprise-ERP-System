@@ -146,12 +146,11 @@
             </el-table-column>
             <el-table-column label="操作" min-width="120" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="scope">
-                <el-button class="btn-op-view"
-                  type="primary"
-                  text
-                  size="small"
-                  @click="viewPurchaseItem(scope.row)"
-                >查看</el-button>
+                <div class="table-actions">
+                  <el-button class="btn-op-view" type="primary" size="small" @click="viewPurchaseItem(scope.row)">
+                    <el-icon><View /></el-icon> 查看
+                  </el-button>
+                </div>
               </template>
             </el-table-column>
           </el-table>
@@ -176,7 +175,7 @@ import { formatDate } from '@/utils/helpers/dateUtils'
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router';
 import Chart from '@/utils/chartCore';
-import { Search } from '@element-plus/icons-vue';
+import { Search, View } from '@element-plus/icons-vue';
 import { purchaseApi } from '@/api';
 import { useDashboard, useCharts } from '@/composables/useDashboard';
 // 权限计算属性

@@ -26,7 +26,11 @@
         </el-table-column>
         <el-table-column label="操作" min-width="80" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
-            <el-button type="primary" size="small" class="warning-action-btn btn-op-view" @click="$emit('view', row.id)" :disabled="row.id === 0">查看</el-button>
+            <div class="table-actions">
+              <el-button type="primary" size="small" class="warning-action-btn btn-op-view" @click="$emit('view', row.id)" :disabled="row.id === 0">
+                <el-icon><View /></el-icon> 查看
+              </el-button>
+            </div>
           </template>
         </el-table-column>
         <!-- 空状态插槽 -->
@@ -43,7 +47,7 @@
 </template>
 
 <script setup>
-import { Document } from '@element-plus/icons-vue'
+import { Document, View } from '@element-plus/icons-vue'
 
 defineProps({
   warningList: {

@@ -88,17 +88,28 @@
         </el-table-column>
         <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
-            <template v-if="row.status === '建设中'">
-              <el-button v-permission="'finance:assets:update'" type="primary" link size="small" @click="handleAddCost(row)">归集成本</el-button>
-              <el-button v-permission="'finance:assets:update'" type="success" link size="small" @click="handleTransfer(row)">转固</el-button>
-              <el-button type="warning" link size="small" @click="handleEdit(row)"
-              v-permission="'finance:assets:update'">编辑</el-button>
-              <el-button v-permission="'finance:assets:delete'" type="danger" link size="small" @click="handleDelete(row)"
-                :disabled="parseFloat(row.accumulatedAmount) > 0">删除</el-button>
-            </template>
-            <template v-else>
-              <el-button type="info" link size="small" disabled>已完成</el-button>
-            </template>
+            <div class="table-actions">
+              <template v-if="row.status === '建设中'">
+                <el-button v-permission="'finance:assets:update'" type="primary" size="small" @click="handleAddCost(row)">
+                  <el-icon><Coin /></el-icon> 归集成本
+                </el-button>
+                <el-button v-permission="'finance:assets:update'" type="success" size="small" @click="handleTransfer(row)">
+                  <el-icon><Finished /></el-icon> 转固
+                </el-button>
+                <el-button type="warning" size="small" @click="handleEdit(row)" v-permission="'finance:assets:update'">
+                  <el-icon><Edit /></el-icon> 编辑
+                </el-button>
+                <el-button v-permission="'finance:assets:delete'" type="danger" size="small" @click="handleDelete(row)"
+                  :disabled="parseFloat(row.accumulatedAmount) > 0">
+                  <el-icon><Delete /></el-icon> 删除
+                </el-button>
+              </template>
+              <template v-else>
+                <el-button type="info" size="small" disabled>
+                  <el-icon><CircleCheck /></el-icon> 已完成
+                </el-button>
+              </template>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -253,7 +264,7 @@
 import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, Coin, Finished, Edit, Delete, CircleCheck } from '@element-plus/icons-vue'
 import { financeApi } from '@/api/finance'
 import { formatDate } from '@/utils/helpers/dateUtils'
 

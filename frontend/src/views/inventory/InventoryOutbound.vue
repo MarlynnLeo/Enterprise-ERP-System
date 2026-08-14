@@ -153,54 +153,58 @@
         <el-table-column prop="remark" label="备注" min-width="200" show-overflow-tooltip></el-table-column>
         <el-table-column label="操作" min-width="420" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
+            <div class="table-actions">
             <el-button class="btn-op-view" type="primary" size="small" v-permission="'inventory:outbound:view'" @click="handleView(scope.row)">
-              查看
+              <el-icon><View /></el-icon> 查看
             </el-button>
             <!-- 草稿和已确认状态显示编辑按钮 -->
             <el-button v-if="scope.row.status === 'draft' || scope.row.status === 'confirmed'" size="small"
-              type="primary" @click="handleEdit(scope.row)"
+              @click="handleEdit(scope.row)"
               v-permission="'inventory:outbound:update'">
-              编辑
+              <el-icon><Edit /></el-icon> 编辑
             </el-button>
             <!-- 部分完成状态显示补发按钮 -->
             <el-button v-if="scope.row.status === 'partial_completed'" size="small" type="warning"
               v-permission="'inventory:outbound:update'"
               @click="handleSupplementIssue(scope.row)">
-              补发
+              <el-icon><RefreshRight /></el-icon> 补发
             </el-button>
             <el-popconfirm v-if="scope.row.status === 'draft'" title="确定要删除该出库单吗？此操作无法恢复。"
               @confirm="handleDelete(scope.row)" confirm-button-type="danger">
               <template #reference>
-                <el-button v-permission="'inventory:outbound:delete'" size="small" type="danger">删除</el-button>
+                <el-button v-permission="'inventory:outbound:delete'" size="small" type="danger">
+                  <el-icon><Delete /></el-icon> 删除
+                </el-button>
               </template>
             </el-popconfirm>
-            <el-button v-if="scope.row.status === 'draft'" size="small" type="primary"
+            <el-button v-if="scope.row.status === 'draft'" size="small" type="success"
               v-permission="'inventory:outbound:update'"
               @click="handleUpdateStatus(scope.row, 'confirmed')">
-              确认
+              <el-icon><Check /></el-icon> 确认
             </el-button>
             <el-button v-if="scope.row.status === 'confirmed'" size="small" type="primary"
               v-permission="'inventory:outbound:update'"
               @click="handleUpdateStatus(scope.row, 'completed')">
-              完成
+              <el-icon><Finished /></el-icon> 完成
             </el-button>
             <el-button v-if="['draft', 'confirmed'].includes(scope.row.status)" size="small" type="warning"
               v-permission="'inventory:outbound:update'"
               @click="handleUpdateStatus(scope.row, 'cancelled')">
-              取消
+              <el-icon><Close /></el-icon> 取消
             </el-button>
 
             <!-- 已出库状态显示撤销重发按钮 -->
             <el-button v-if="scope.row.status === 'completed' || scope.row.status === 'partial_completed'" size="small" type="danger"
               v-permission="'inventory:outbound:update'"
               @click="handleCancelOutbound(scope.row)">
-              撤销重发
+              <el-icon><RefreshLeft /></el-icon> 撤销重发
             </el-button>
 
             <!-- 非草稿状态显示打印按钮 -->
             <el-button v-if="scope.row.status !== 'draft'" size="small" type="success" v-permission="'inventory:outbound:view'" @click="handlePrint(scope.row)">
-              打印
+              <el-icon><Printer /></el-icon> 打印
             </el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -615,7 +619,7 @@
 <script>
 import { ref, reactive, onMounted, computed, nextTick, h } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search as SearchIcon, Plus, Printer, Select as SelectIcon, Close } from '@element-plus/icons-vue'
+import { Search as SearchIcon, Plus, Printer, Select as SelectIcon, Close, View, Edit, Delete, RefreshRight, Check, Finished, RefreshLeft } from '@element-plus/icons-vue'
 import { productionApi, inventoryApi, baseDataApi, systemApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import printService from '@/services/printService'

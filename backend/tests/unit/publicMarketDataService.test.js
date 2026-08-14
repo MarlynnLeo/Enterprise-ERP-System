@@ -20,27 +20,27 @@ describe('PublicMarketDataService', () => {
   test('fetchExchangeRate 首源成功', async () => {
     httpGet.mockResolvedValueOnce({
       status: 200,
-      data: { amount: 1, base: 'USD', date: '2026-07-09', rates: { CNY: 6.8 } },
+      data: {
+        result: 'success',
+        rates: { CNY: 6.76 },
+        time_last_update_utc: 'Fri, 14 Aug 2026',
+      },
     });
     const r = await PublicMarketDataService.fetchExchangeRate('USD', 'CNY');
-    expect(r.rate).toBe(6.8);
-    expect(r.source).toContain('frankfurter');
+    expect(r.rate).toBe(6.76);
+    expect(r.source).toContain('er-api');
   });
 
   test('fetchExchangeRate 首源失败切换下一源', async () => {
     httpGet
-      .mockRejectedValueOnce(new Error('frankfurter down'))
+      .mockRejectedValueOnce(new Error('er-api down'))
       .mockResolvedValueOnce({
         status: 200,
-        data: {
-          result: 'success',
-          rates: { CNY: 7.1 },
-          time_last_update_utc: 'Thu, 09 Jul 2026',
-        },
+        data: { amount: 1, base: 'USD', date: '2026-08-13', rates: { CNY: 6.74 } },
       });
     const r = await PublicMarketDataService.fetchExchangeRate('USD', 'CNY');
-    expect(r.rate).toBe(7.1);
-    expect(r.source).toContain('er-api');
+    expect(r.rate).toBe(6.74);
+    expect(r.source).toContain('frankfurter');
   });
 
   test('fetchOpenMeteoCurrent 返回 current', async () => {
@@ -55,15 +55,15 @@ describe('PublicMarketDataService', () => {
     expect(r.data.current.temperature_2m).toBe(20);
   });
 
-  test('fetchMetalPricesCny 解析 Yahoo 报价（金/银/铝/铜）', async () => {
+  test('fetchMetalPricesCny 金/银走现货、铝/铜走 Yahoo', async () => {
     httpGet
       .mockResolvedValueOnce({
         status: 200,
-        data: { chart: { result: [{ meta: { regularMarketPrice: 2000, currency: 'USD' } }] } },
+        data: { price: 4345, currency: 'USD', symbol: 'XAU' },
       })
       .mockResolvedValueOnce({
         status: 200,
-        data: { chart: { result: [{ meta: { regularMarketPrice: 30, currency: 'USD' } }] } },
+        data: { price: 64.7, currency: 'USD', symbol: 'XAG' },
       })
       .mockResolvedValueOnce({
         status: 200,
@@ -74,11 +74,39 @@ describe('PublicMarketDataService', () => {
         data: { chart: { result: [{ meta: { regularMarketPrice: 4.5, currency: 'USD' } }] } },
       });
 
-    const metals = await PublicMarketDataService.fetchMetalPricesCny(7);
-    expect(metals.GOLD.price).toBeCloseTo(14000, 0);
-    expect(metals.SILVER.price).toBeCloseTo(210, 0);
+    const metals = await PublicMarketDataService.fetchMetalPricesCny(6.76);
+    expect(metals.GOLD.price).toBeCloseTo(4345 * 6.76, 0);
+    expect(metals.SILVER.price).toBeCloseTo(64.7 * 6.76, 0);
     expect(metals.COPPER.price).toBeGreaterThan(1000);
+    expect(metals.GOLD.source).toContain('gold-api');
+    expect(metals.SILVER.source).toContain('gold-api');
+  });
+
+  test('fetchMetalPricesCny 拒绝过期金价后回退 Yahoo', async () => {
+    httpGet
+      .mockResolvedValueOnce({
+        status: 200,
+        data: { price: 2050, currency: 'USD', symbol: 'XAU' },
+      })
+      .mockResolvedValueOnce({
+        status: 200,
+        data: { chart: { result: [{ meta: { regularMarketPrice: 4400, currency: 'USD' } }] } },
+      })
+      .mockResolvedValueOnce({
+        status: 200,
+        data: { price: 64.7, currency: 'USD', symbol: 'XAG' },
+      })
+      .mockResolvedValueOnce({
+        status: 200,
+        data: { chart: { result: [{ meta: { regularMarketPrice: 2500, currency: 'USD' } }] } },
+      })
+      .mockResolvedValueOnce({
+        status: 200,
+        data: { chart: { result: [{ meta: { regularMarketPrice: 4.5, currency: 'USD' } }] } },
+      });
+
+    const metals = await PublicMarketDataService.fetchMetalPricesCny(6.76);
+    expect(metals.GOLD.usdPrice).toBe(4400);
     expect(metals.GOLD.source).toContain('yahoo');
-    expect(metals.SILVER.source).toContain('SI=F');
   });
 });

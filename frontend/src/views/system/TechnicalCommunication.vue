@@ -113,22 +113,21 @@
                 {{ item.recipientCount || 0 }} 人抄送
               </span>
             </div>
-            <div class="item-actions">
+            <div class="item-actions table-actions">
               <el-button
-                link
-                type="primary"
+                size="small"
                 @click.stop="handleEdit(item)"
                 v-permission="'system:tech-comm:edit'"
               >
-                编辑
+                <el-icon><Edit /></el-icon> 编辑
               </el-button>
               <el-button
-                link
+                size="small"
                 type="danger"
                 @click.stop="handleDelete(item)"
                 v-permission="'system:tech-comm:delete'"
               >
-                删除
+                <el-icon><Delete /></el-icon> 删除
               </el-button>
             </div>
           </div>
@@ -378,7 +377,7 @@ import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Plus, User, Clock, View, Star, Collection, ChatDotRound,
-  Lock, Warning, ArrowDown, ArrowUp
+  Lock, Warning, ArrowDown, ArrowUp, Edit, Delete
 } from '@element-plus/icons-vue'
 import technicalCommunicationApi from '@/api/technicalCommunication'
 import RichTextEditor from '@/components/RichTextEditor.vue'

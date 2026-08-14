@@ -64,9 +64,8 @@
             </div>
             <div class="list-content">
               <el-table
-                :data="visibleTodoTasks"
+                :data="activeTodoTasks"
                 :show-header="true"
-                height="100%"
                 :empty-text="activeTodoTab === 'pending' ? '暂无待办事项' : '暂无已完成事项'"
                 class="dashboard-table"
               >
@@ -89,7 +88,7 @@
                     </span>
                   </template>
                 </el-table-column>
-                <el-table-column :label="$t('common.action')" width="62" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+                <el-table-column :label="$t('common.action')" width="88" align="center">
                   <template #default="{ row }">
                     <el-button
                       :type="activeTodoTab === 'pending' ? 'primary' : 'info'"
@@ -134,6 +133,7 @@
             :metal-last-update="metalPrices.lastUpdate"
             :exchange-last-update="exchangeRates.lastUpdate"
             :data-source="exchangeRates.dataSource || ''"
+            :metal-data-source="metalPrices.dataSource || ''"
             :set-mini-chart-ref="setMiniChartRef"
             :set-metal-mini-chart-ref="setMetalMiniChartRef"
             :set-exchange-rate-chart-ref="setExchangeRateChartRef"
@@ -290,7 +290,6 @@ const activeTodoTasks = computed(() => (
   activeTodoTab.value === 'pending' ? pendingTasks.value : completedTasks.value
 ))
 const activeTodoCount = computed(() => activeTodoTasks.value.length)
-const visibleTodoTasks = computed(() => activeTodoTasks.value.slice(0, 6))
 const showTodoDate = computed(() => todoContainerWidth.value >= 470)
 const showTodoStatus = computed(() => todoContainerWidth.value >= 380)
 // 统计卡片配置（使用计算属性动态获取数据）
@@ -401,7 +400,7 @@ const loadDashboardStats = async () => {
 // 刷新所有价格数据（金属+汇率）
 const refreshAllPrices = async () => {
   try {
-    await Promise.all([fetchMetalPrices(), fetchExchangeRates()])
+    await Promise.all([fetchMetalPrices({ force: true }), fetchExchangeRates()])
     ElMessage.success('数据已更新')
   } catch (error) {
     logger.error('刷新价格数据失败:', error)
@@ -1068,6 +1067,37 @@ watch(() => currentDate.value, (newValue) => {
   min-height: 0;
   overflow: hidden;
 }
+.todo-container {
+  height: auto;
+  min-height: 380px;
+  overflow: hidden;
+}
+.todo-container .list-content {
+  flex: none;
+  overflow: hidden;
+}
+.todo-container :deep(.el-table),
+.todo-container :deep(.el-table__inner-wrapper),
+.todo-container :deep(.el-table__header-wrapper),
+.todo-container :deep(.el-table__body-wrapper),
+.todo-container :deep(.el-scrollbar),
+.todo-container :deep(.el-scrollbar__wrap),
+.todo-container :deep(.el-scrollbar__view) {
+  overflow: hidden !important;
+  height: auto !important;
+  max-height: none !important;
+}
+.todo-container :deep(.el-scrollbar__bar) {
+  display: none !important;
+}
+.todo-container :deep(*) {
+  scrollbar-width: none !important;
+}
+.todo-container :deep(*::-webkit-scrollbar) {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
+}
 .todo-more-button {
   flex: 0 0 auto;
   margin-right: 10px;
@@ -1502,5 +1532,18 @@ watch(() => currentDate.value, (newValue) => {
   height: 1px;
   background: linear-gradient(90deg, color-mix(in srgb, var(--color-primary) 20%, transparent) 0%, transparent 100%);
   margin: 20px 0;
+}
+</style>
+
+<style>
+/* 待办表不滚动：盖过主题里 el-scrollbar 的 overflow:scroll（KACON 更明显） */
+.dashboard-page .todo-container .el-scrollbar__wrap,
+.dashboard-page .todo-container .el-table__body-wrapper,
+.dashboard-page .todo-container .el-table__header-wrapper {
+  overflow: hidden !important;
+  max-height: none !important;
+}
+.dashboard-page .todo-container .el-scrollbar__bar {
+  display: none !important;
 }
 </style>

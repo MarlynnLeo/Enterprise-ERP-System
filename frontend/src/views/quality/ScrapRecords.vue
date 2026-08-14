@@ -103,37 +103,38 @@
         <el-table-column prop="createdAt" label="创建时间" width="160" />
         <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
-            <el-button class="btn-op-view" type="primary" size="small" @click="viewDetail(row)">详情</el-button>
-            <el-button
-              link
-              type="success"
-              size="small"
-              @click="approveScrap(row)"
-              v-if="row.status === 'pending'"
-
-              v-permission="'quality:scrap:update'">
-              审批
-            </el-button>
-            <el-button
-              link
-              type="warning"
-              size="small"
-              @click="completeScrap(row)"
-              v-if="row.status === 'approved'"
-
-              v-permission="'quality:scrap:update'">
-              完成报废
-            </el-button>
-            <el-button
-              link
-              type="info"
-              size="small"
-              @click="editRecord(row)"
-              v-if="row.status === 'pending' || row.status === 'approved'"
-              v-permission="'quality:scrap:update'"
-            >
-              编辑
-            </el-button>
+            <div class="table-actions">
+              <el-button class="btn-op-view" type="primary" size="small" @click="viewDetail(row)">
+                <el-icon><View /></el-icon> 详情
+              </el-button>
+              <el-button
+                type="success"
+                size="small"
+                @click="approveScrap(row)"
+                v-if="row.status === 'pending'"
+                v-permission="'quality:scrap:update'"
+              >
+                <el-icon><Check /></el-icon> 审批
+              </el-button>
+              <el-button
+                type="warning"
+                size="small"
+                @click="completeScrap(row)"
+                v-if="row.status === 'approved'"
+                v-permission="'quality:scrap:update'"
+              >
+                <el-icon><Finished /></el-icon> 完成报废
+              </el-button>
+              <el-button
+                type="info"
+                size="small"
+                @click="editRecord(row)"
+                v-if="row.status === 'pending' || row.status === 'approved'"
+                v-permission="'quality:scrap:update'"
+              >
+                <el-icon><Edit /></el-icon> 编辑
+              </el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -288,6 +289,7 @@
 import { useDictionaryStore } from '@/stores/dictionary'
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import { View, Check, Finished, Edit } from '@element-plus/icons-vue'
 import { qualityApi } from '@/api/quality'
 import { normalizePaginationData } from '@/utils/helpers/typeUtils'
 import { parseResponseData } from '@/utils/responseParser'

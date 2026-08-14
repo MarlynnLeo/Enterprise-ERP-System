@@ -60,14 +60,16 @@
             </template>
           </el-table-column>
           <!-- 编辑模式下显示操作列 -->
-          <el-table-column v-if="mode === 'edit'" label="操作" min-width="130" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+          <el-table-column v-if="mode === 'edit'" label="操作" min-width="220" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="{ row }">
-              <el-button v-permission="'finance:pricing:update'" type="primary" link size="small" @click="$emit('adjust', row)">
-                {{ row.hasAdjustment ? '重新调整' : '调整' }}
-              </el-button>
-              <el-button v-if="row.hasAdjustment" type="info" link size="small" @click="$emit('history', row)">
-                历史
-              </el-button>
+              <div class="table-actions">
+                <el-button v-permission="'finance:pricing:update'" type="primary" size="small" @click="$emit('adjust', row)">
+                  <el-icon><Edit /></el-icon> {{ row.hasAdjustment ? '重新调整' : '调整' }}
+                </el-button>
+                <el-button v-if="row.hasAdjustment" type="info" size="small" @click="$emit('history', row)">
+                  <el-icon><Clock /></el-icon> 历史
+                </el-button>
+              </div>
             </template>
           </el-table-column>
         </el-table>
@@ -121,6 +123,7 @@
 
 <script setup>
 import { computed } from 'vue';
+import { Edit, Clock } from '@element-plus/icons-vue';
 
 
 const props = defineProps({

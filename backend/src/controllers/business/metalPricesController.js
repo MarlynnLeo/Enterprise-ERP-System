@@ -5,7 +5,10 @@ const { ResponseHandler } = require('../../utils/responseHandler');
 const { logger } = require('../../utils/logger');
 const { pool } = require('../../config/db');
 const { MARKET_PRICE_CONFIG } = require('../../config/metalPriceConfig');
+const PublicMarketDataService = require('../../services/external/PublicMarketDataService');
+const ExchangeRateService = require('../../services/business/ExchangeRateService');
 
+const STALE_MS = 15 * 60 * 1000;
 const roundPrice = (value) => parseFloat(Number(value).toFixed(2));
 
 const calculateChange = (oldPrice, newPrice) => {
@@ -211,78 +214,24 @@ const loadPersistedHistory = async (symbol) => {
   }
 };
 
-// 汇率缓存
-let cachedExchangeRate = MARKET_PRICE_CONFIG.exchangeRateFallback;
-
-const PublicMarketDataService = require('../../services/external/PublicMarketDataService');
-
-/**
- * 多源免费汇率（public-apis：Frankfurter / ER-API / VATComply / currency-api）
- */
-const fetchExchangeRate = async () => {
-  try {
-    const { rate, source } = await PublicMarketDataService.fetchExchangeRate('USD', 'CNY');
-    if (Number.isFinite(rate) && rate > 0) {
-      cachedExchangeRate = rate;
-      logger.info(`汇率更新成功: 1 USD = ${cachedExchangeRate} CNY (via ${source})`);
-      return cachedExchangeRate;
-    }
-  } catch (error) {
-    logger.warn(`获取汇率失败，使用缓存/回退值 ${cachedExchangeRate}: ${error.message}`);
+const resolveUsdCnyRate = async () => {
+  const row = await ExchangeRateService.getLatestRate('USD', 'CNY');
+  const rate = Number(row?.rate);
+  if (!Number.isFinite(rate) || rate <= 0) {
+    throw new Error('USD/CNY rate unavailable');
   }
-  return cachedExchangeRate;
+  return rate;
 };
 
-/**
- * 获取金属价格
- * 1. 多源 USD/CNY 汇率
- * 2. Yahoo Finance 公开期货报价（金/铂/铝/铜）折算人民币
- * 3. 失败则回退配置基准价
- */
 const fetchRealMetalPrices = async () => {
   logger.info('开始更新金属价格...');
   try {
-    const rate = await fetchExchangeRate();
-
-    if (MARKET_PRICE_CONFIG.enableYahooMetals) {
-      try {
-        const metals = await PublicMarketDataService.fetchMetalPricesCny(rate);
-        for (const [symbol, info] of Object.entries(metals)) {
-          await applyMetalPrice(symbol, info.price, info.source);
-        }
-        // 未拉到的金属用配置价补齐
-        for (const symbol of Object.keys(METAL_DEFINITIONS)) {
-          if (!metals[symbol] && MARKET_PRICE_CONFIG.referencePrices[symbol]) {
-            await applyMetalPrice(
-              symbol,
-              MARKET_PRICE_CONFIG.referencePrices[symbol],
-              'CONFIGURED_REFERENCE'
-            );
-          }
-        }
-        logger.info(
-          `金属价格更新完成 (Yahoo 公开行情 + FX=${rate.toFixed(4)}, 成功 ${Object.keys(metals).length} 种)`
-        );
-        return;
-      } catch (metalError) {
-        logger.warn(`Yahoo 金属行情失败，回退配置基准: ${metalError.message}`);
-      }
+    const rate = await resolveUsdCnyRate();
+    const metals = await PublicMarketDataService.fetchMetalPricesCny(rate);
+    for (const [symbol, info] of Object.entries(metals)) {
+      await applyMetalPrice(symbol, info.price, info.source);
     }
-
-    await applyMetalPrice(
-      'GOLD',
-      MARKET_PRICE_CONFIG.externalBenchmarks.GOLD_USD_PER_OZ * rate,
-      'EXTERNAL_REFERENCE'
-    );
-    await applyMetalPrice(
-      'SILVER',
-      MARKET_PRICE_CONFIG.externalBenchmarks.SILVER_USD_PER_OZ * rate,
-      'EXTERNAL_REFERENCE'
-    );
-    await applyMetalPrice('ALUMINUM', MARKET_PRICE_CONFIG.referencePrices.ALUMINUM, 'CONFIGURED_REFERENCE');
-    await applyMetalPrice('COPPER', MARKET_PRICE_CONFIG.referencePrices.COPPER, 'CONFIGURED_REFERENCE');
-
-    logger.info('金属价格更新完成 (数据源: 汇率API + 配置基准价)');
+    logger.info(`金属价格更新完成 FX=${rate.toFixed(4)}, 成功 ${Object.keys(metals).length} 种`);
   } catch (error) {
     logger.error(`更新金属价格失败: ${error.message}`);
   }
@@ -327,19 +276,45 @@ const applyMetalPrice = async (symbol, newPrice, source) => {
   }
 };
 
-/**
- * 获取实时金属价格
- * 返回当前金属价格，价格刷新由显式接口或定时任务触发。
- */
-const getRealTimeMetalPrices = async (req, res) => {
+const isMetalSnapshotStale = () => {
+  const stamps = Object.values(metalPricesData)
+    .map((item) => new Date(item.lastUpdate).getTime())
+    .filter((value) => Number.isFinite(value));
+  if (stamps.length === 0) return true;
+  return Date.now() - Math.max(...stamps) > STALE_MS;
+};
+
+let metalRefreshPromise = null;
+const ensureFreshMetalPrices = async ({ force = false } = {}) => {
+  if (metalRefreshPromise) return metalRefreshPromise;
+  if (!force && !isMetalSnapshotStale()) return false;
+  metalRefreshPromise = fetchRealMetalPrices()
+    .then(() => true)
+    .finally(() => {
+      metalRefreshPromise = null;
+    });
+  return metalRefreshPromise;
+};
+
+const buildMetalPricePayload = () => ({ ...metalPricesData, timestamp: new Date() });
+
+const serveMetalPrices = async (req, res, { force = false } = {}) => {
   try {
     await loadPersistedMetalPrices();
-    ResponseHandler.success(res, { ...metalPricesData, timestamp: new Date() }, '获取金属价格成功');
+    await ensureFreshMetalPrices({ force });
+    ResponseHandler.success(
+      res,
+      buildMetalPricePayload(),
+      force ? '金属价格已刷新' : '获取金属价格成功'
+    );
   } catch (error) {
     logger.error('获取金属价格失败:', error);
     ResponseHandler.error(res, '获取金属价格失败', 'SERVER_ERROR', 500, error);
   }
 };
+
+const getRealTimeMetalPrices = (req, res) => serveMetalPrices(req, res, { force: false });
+const refreshMetalPrices = (req, res) => serveMetalPrices(req, res, { force: true });
 
 /**
  * 获取金属价格历史数据
@@ -433,42 +408,12 @@ const updatePrice = async (req, res) => {
       return ResponseHandler.error(res, `无效的金属符号: ${normalizedSymbol}`, 'VALIDATION_ERROR', 400);
     }
 
-    // 验证价格是否为正数
     const numPrice = Number(price);
     if (!Number.isFinite(numPrice) || numPrice <= 0) {
       return ResponseHandler.error(res, '价格必须是正数', 'VALIDATION_ERROR', 400);
     }
 
-    // 计算价格变化
-    const oldPrice = metalPricesData[normalizedSymbol].price;
-    const { change, changePercent } = calculateChange(oldPrice, numPrice);
-
-    // 更新价格数据
-    metalPricesData[normalizedSymbol].price = roundPrice(numPrice);
-    metalPricesData[normalizedSymbol].change = change;
-    metalPricesData[normalizedSymbol].changePercent = changePercent;
-    metalPricesData[normalizedSymbol].source = 'MANUAL';
-    metalPricesData[normalizedSymbol].lastUpdate = new Date();
-
-    // 添加到历史数据
-    const now = new Date();
-    priceHistory[normalizedSymbol].push({
-      time: now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
-      price: roundPrice(numPrice),
-      timestamp: now,
-    });
-
-    // 保持历史数据不超过100条
-    if (priceHistory[normalizedSymbol].length > 100) {
-      priceHistory[normalizedSymbol].shift();
-    }
-
-    await persistMetalPrice(normalizedSymbol, metalPricesData[normalizedSymbol]);
-
-    logger.info(
-      `金属价格已更新: ${normalizedSymbol} = ${numPrice} (变化: ${change.toFixed(2)}, ${changePercent.toFixed(2)}%)`
-    );
-
+    await applyMetalPrice(normalizedSymbol, numPrice, 'MANUAL');
     return ResponseHandler.success(res, metalPricesData[normalizedSymbol], '金属价格更新成功');
   } catch (error) {
     logger.error('更新金属价格失败:', error);
@@ -508,6 +453,7 @@ initScheduledUpdate();
 
 module.exports = {
   getRealTimeMetalPrices,
+  refreshMetalPrices,
   getMetalPriceHistory,
   getMetalPrice,
   updatePrice,

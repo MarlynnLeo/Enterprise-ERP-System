@@ -42,9 +42,15 @@
           </el-table-column>
           <el-table-column label="操作" min-width="140" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="{ row }">
-              <el-button link type="primary" v-permission="'hr:performance:edit'" @click="openIndicatorForm(row)">编辑</el-button>
+              <el-button type="primary" size="small" v-permission="'hr:performance:edit'" @click="openIndicatorForm(row)">
+                <el-icon><Edit /></el-icon> 编辑
+              </el-button>
               <el-popconfirm title="确定删除？" @confirm="delIndicator(row.id)">
-                <template #reference><el-button link type="danger" v-permission="'hr:performance:edit'">删除</el-button></template>
+                <template #reference>
+                  <el-button type="danger" size="small" v-permission="'hr:performance:edit'">
+                    <el-icon><Delete /></el-icon> 删除
+                  </el-button>
+                </template>
               </el-popconfirm>
             </template>
           </el-table-column>
@@ -67,9 +73,15 @@
           </el-table-column>
           <el-table-column label="操作" min-width="200" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="{ row }">
-              <el-button v-if="row.status === 'draft'" link type="primary" v-permission="'hr:performance:edit'" @click="updatePeriodStatus(row.id, 'in_progress')">开始</el-button>
-              <el-button v-if="row.status === 'in_progress'" link type="success" v-permission="'hr:performance:edit'" @click="updatePeriodStatus(row.id, 'scoring')">评分</el-button>
-              <el-button v-if="row.status === 'scoring'" link type="warning" v-permission="'hr:performance:edit'" @click="updatePeriodStatus(row.id, 'completed')">完成</el-button>
+              <el-button v-if="row.status === 'draft'" type="primary" size="small" v-permission="'hr:performance:edit'" @click="updatePeriodStatus(row.id, 'in_progress')">
+                <el-icon><VideoPlay /></el-icon> 开始
+              </el-button>
+              <el-button v-if="row.status === 'in_progress'" type="success" size="small" v-permission="'hr:performance:edit'" @click="updatePeriodStatus(row.id, 'scoring')">
+                <el-icon><Edit /></el-icon> 评分
+              </el-button>
+              <el-button v-if="row.status === 'scoring'" type="warning" size="small" v-permission="'hr:performance:edit'" @click="updatePeriodStatus(row.id, 'completed')">
+                <el-icon><Check /></el-icon> 完成
+              </el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -92,7 +104,16 @@
           <el-table-column prop="evaluatorName" label="考核人" width="100" />
           <el-table-column label="操作" min-width="120" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="{ row }">
-              <el-button link type="primary" v-permission="row.status === 'completed' ? 'hr:performance:view' : 'hr:performance:edit'" @click="viewEval(row)">{{ row.status === 'completed' ? '查看' : '评分' }}</el-button>
+              <el-button
+                class="btn-op-view"
+                type="primary"
+                size="small"
+                v-permission="row.status === 'completed' ? 'hr:performance:view' : 'hr:performance:edit'"
+                @click="viewEval(row)"
+              >
+                <el-icon><View v-if="row.status === 'completed'" /><Edit v-else /></el-icon>
+                {{ row.status === 'completed' ? '查看' : '评分' }}
+              </el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -160,6 +181,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import { Edit, Delete, View, VideoPlay, Check } from '@element-plus/icons-vue'
 import { performanceApi } from '@/api/enhanced'
 
 const activeTab = ref('indicators')

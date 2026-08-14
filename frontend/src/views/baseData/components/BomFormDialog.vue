@@ -4,6 +4,7 @@
     @update:model-value="val => emit('update:modelValue', val)"
     :title="title"
     mode="form"
+    wide
     @close="handleClose"
     @open="handleOpen"
   >
@@ -726,5 +727,10 @@ const submitForm = async () => {
 <style scoped>
 .bom-details {
   margin-top: 15px;
+  min-width: 0;
+}
+
+.bom-details :deep(.el-table) {
+  width: 100%;
 }
 </style>

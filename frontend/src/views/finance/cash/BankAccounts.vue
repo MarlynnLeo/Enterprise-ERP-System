@@ -100,16 +100,25 @@
         <el-table-column prop="lastTransactionDate" label="最后交易日期" width="120"></el-table-column>
         <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
-            <el-button type="primary" size="small" @click="handleEdit(scope.row)"
-              v-permission="'finance:cash:update'">编辑</el-button>
-            <el-button type="success" size="small" @click="showTransactions(scope.row)">交易明细</el-button>
-            <el-button
-              :type="scope.row.status === 'active' ? 'warning' : 'success'"
-              size="small"
-              @click="toggleAccountStatus(scope.row)"
-            >
-              {{ scope.row.status === 'active' ? '冻结' : '激活' }}
-            </el-button>
+            <div class="table-actions">
+              <el-button size="small" @click="handleEdit(scope.row)" v-permission="'finance:cash:update'">
+                <el-icon><Edit /></el-icon> 编辑
+              </el-button>
+              <el-button type="success" size="small" @click="showTransactions(scope.row)">
+                <el-icon><List /></el-icon> 交易明细
+              </el-button>
+              <el-button
+                :type="scope.row.status === 'active' ? 'warning' : 'success'"
+                size="small"
+                @click="toggleAccountStatus(scope.row)"
+              >
+                <el-icon>
+                  <Lock v-if="scope.row.status === 'active'" />
+                  <Unlock v-else />
+                </el-icon>
+                {{ scope.row.status === 'active' ? '冻结' : '激活' }}
+              </el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -322,7 +331,7 @@ import { formatCurrency, formatLocalDate, maskBankAccount } from '@/utils/format
 
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Plus } from '@element-plus/icons-vue';
+import { Plus, Edit, List, Lock, Unlock } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';
 import { financeApi } from '@/api';
 import { buildApiUrl } from '@/config/app';

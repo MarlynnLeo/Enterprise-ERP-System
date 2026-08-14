@@ -159,38 +159,37 @@
         </el-table-column>
         <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
-            <div class="operation-buttons">
-              <!-- 查看按钮：始终显示 -->
-              <el-button class="btn-op-view"
-                type="primary"
-                size="small"
-                @click="handleView(scope.row)"
-              >查看</el-button>
-              <!-- 编辑按钮：仅草稿状态显示 -->
+            <div class="table-actions">
+              <el-button class="btn-op-view" type="primary" size="small" @click="handleView(scope.row)">
+                <el-icon><View /></el-icon> 查看
+              </el-button>
               <el-button
                 v-permission="'finance:cash:update'"
                 v-if="['draft', 'rejected'].includes(scope.row.status || 'draft') && !scope.row.isReconciled"
                 type="warning"
                 size="small"
                 @click="handleEdit(scope.row)"
-              >编辑</el-button>
-              <!-- 提交按钮：仅草稿状态且未对账显示 -->
+              >
+                <el-icon><Edit /></el-icon> 编辑
+              </el-button>
               <el-button
                 v-permission="'finance:cash:update'"
                 v-if="['draft', 'rejected'].includes(scope.row.status || 'draft') && !scope.row.isReconciled"
                 type="success"
                 size="small"
                 @click="submitForAudit(scope.row)"
-              >提交</el-button>
-              <!-- 审核按钮：待审核或已复核状态显示 -->
+              >
+                <el-icon><Promotion /></el-icon> 提交
+              </el-button>
               <el-button
                 v-permission="'finance:cash:approve'"
                 v-if="scope.row.status === 'pending' || scope.row.status === 'reviewed'"
                 type="info"
                 size="small"
                 @click="handleAudit(scope.row)"
-              >审核</el-button>
-              <!-- 删除按钮：仅草稿状态且未对账显示 -->
+              >
+                <el-icon><Check /></el-icon> 审核
+              </el-button>
               <el-popconfirm
                 v-if="['draft', 'rejected'].includes(scope.row.status || 'draft') && !scope.row.isReconciled"
                 title="确定要删除该交易记录吗？此操作不可恢复！"
@@ -198,7 +197,9 @@
                 confirm-button-type="danger"
               >
                 <template #reference>
-                  <el-button v-permission="'finance:cash:delete'" type="danger" size="small">删除</el-button>
+                  <el-button v-permission="'finance:cash:delete'" type="danger" size="small">
+                    <el-icon><Delete /></el-icon> 删除
+                  </el-button>
                 </template>
               </el-popconfirm>
             </div>
@@ -492,7 +493,7 @@ import { formatLocalDate } from '@/utils/format';
 import { parsePaginatedData, parseListData, parseDataObject } from '@/utils/responseParser';
 import { ref, reactive, onMounted, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Plus, UploadFilled } from '@element-plus/icons-vue'
+import { Plus, UploadFilled, View, Edit, Promotion, Check, Delete } from '@element-plus/icons-vue'
 import { financeApi } from '@/api/finance';
 import { useAuthStore } from '@/stores/auth';
 import { useFinanceStore } from '@/stores/finance';

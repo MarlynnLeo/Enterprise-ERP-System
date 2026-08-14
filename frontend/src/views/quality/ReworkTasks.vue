@@ -108,35 +108,38 @@
         <el-table-column prop="createdAt" label="创建时间" width="160" />
         <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
-            <el-button class="btn-op-view" type="primary" size="small" @click="viewDetail(row)">详情</el-button>
-            <el-button
-              link
-              type="success"
-              size="small"
-              @click="assignTask(row)"
-              v-if="row.status === 'pending'"
-
-              v-permission="'quality:rework:update'">
-              分配任务
-            </el-button>
-            <el-button
-              link
-              type="warning"
-              size="small"
-              @click="completeTask(row)"
-              v-if="row.status === 'in_progress'"
-              v-permission="'quality:rework:update'">
-              完成返工
-            </el-button>
-            <el-button
-              link
-              type="info"
-              size="small"
-              @click="editTask(row)"
-              v-if="row.status === 'pending' || row.status === 'in_progress'"
-              v-permission="'quality:rework:update'">
-              编辑
-            </el-button>
+            <div class="table-actions">
+              <el-button class="btn-op-view" type="primary" size="small" @click="viewDetail(row)">
+                <el-icon><View /></el-icon> 详情
+              </el-button>
+              <el-button
+                type="success"
+                size="small"
+                @click="assignTask(row)"
+                v-if="row.status === 'pending'"
+                v-permission="'quality:rework:update'"
+              >
+                <el-icon><User /></el-icon> 分配任务
+              </el-button>
+              <el-button
+                type="warning"
+                size="small"
+                @click="completeTask(row)"
+                v-if="row.status === 'in_progress'"
+                v-permission="'quality:rework:update'"
+              >
+                <el-icon><Finished /></el-icon> 完成返工
+              </el-button>
+              <el-button
+                type="info"
+                size="small"
+                @click="editTask(row)"
+                v-if="row.status === 'pending' || row.status === 'in_progress'"
+                v-permission="'quality:rework:update'"
+              >
+                <el-icon><Edit /></el-icon> 编辑
+              </el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -300,6 +303,7 @@ import { useDictionaryStore } from '@/stores/dictionary'
 import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import { View, User, Finished, Edit } from '@element-plus/icons-vue'
 import { qualityApi } from '@/api/quality'
 import { normalizePaginationData } from '@/utils/helpers/typeUtils'
 import { parseResponseData } from '@/utils/responseParser'

@@ -52,37 +52,38 @@
             <el-tag :type="statusType(row.status)" size="small">{{ statusLabel(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="280" fixed="right">
+        <el-table-column label="操作" min-width="380" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
-            <el-button size="small" type="primary" link @click="openDetail(row)">明细</el-button>
-            <el-button
-              v-if="['matched', 'variance', 'draft'].includes(row.status)"
-              size="small"
-              type="warning"
-              link
-              @click="openEdit(row)"
-            >
-              调发票
-            </el-button>
-            <el-button
-              v-if="row.status === 'matched' || row.status === 'variance'"
-              size="small"
-              type="success"
-              link
-              :loading="confirmingId === row.id"
-              @click="confirm(row)"
-            >
-              确认匹配
-            </el-button>
-            <el-button
-              v-if="['matched', 'variance', 'confirmed', 'draft'].includes(row.status)"
-              size="small"
-              type="danger"
-              link
-              @click="cancelMatch(row)"
-            >
-              取消
-            </el-button>
+            <div class="table-actions">
+              <el-button size="small" type="primary" @click="openDetail(row)">
+                <el-icon><View /></el-icon> 明细
+              </el-button>
+              <el-button
+                v-if="['matched', 'variance', 'draft'].includes(row.status)"
+                size="small"
+                type="warning"
+                @click="openEdit(row)"
+              >
+                <el-icon><Edit /></el-icon> 调发票
+              </el-button>
+              <el-button
+                v-if="row.status === 'matched' || row.status === 'variance'"
+                size="small"
+                type="success"
+                :loading="confirmingId === row.id"
+                @click="confirm(row)"
+              >
+                <el-icon><Check /></el-icon> 确认匹配
+              </el-button>
+              <el-button
+                v-if="['matched', 'variance', 'confirmed', 'draft'].includes(row.status)"
+                size="small"
+                type="danger"
+                @click="cancelMatch(row)"
+              >
+                <el-icon><Close /></el-icon> 取消
+              </el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -214,7 +215,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Refresh } from '@element-plus/icons-vue'
+import { Refresh, View, Edit, Check, Close } from '@element-plus/icons-vue'
 import { financeApi } from '@/api/finance'
 import { purchaseApi } from '@/api/purchase'
 import { formatCurrency } from '@/utils/format'

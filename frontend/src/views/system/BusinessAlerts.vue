@@ -21,7 +21,13 @@
         <template #default="{ row }"><el-switch v-model="row.isActive" v-permission="'system:business-alerts:edit'" :active-value="1" :inactive-value="0" @change="toggleActive(row)" /></template>
       </el-table-column>
       <el-table-column label="操作" min-width="80" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
-        <template #default="{ row }"><el-button link type="primary" v-permission="'system:business-alerts:edit'" @click="openEdit(row)">配置</el-button></template>
+        <template #default="{ row }">
+          <div class="table-actions">
+            <el-button size="small" v-permission="'system:business-alerts:edit'" @click="openEdit(row)">
+              <el-icon><Setting /></el-icon> 配置
+            </el-button>
+          </div>
+        </template>
       </el-table-column>
       </el-table>
     </el-card>
@@ -53,6 +59,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import { Setting } from '@element-plus/icons-vue'
 import { alertApi } from '@/api/enhanced'
 
 const loading = ref(false)

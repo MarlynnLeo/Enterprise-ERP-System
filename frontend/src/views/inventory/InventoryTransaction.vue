@@ -156,7 +156,11 @@
             </el-table-column>
             <el-table-column label="操作" min-width="80" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="scope">
-                <el-button class="btn-op-view" type="primary" size="small" @click.stop="showTransactionDetail(scope.row)">查看</el-button>
+                <div class="table-actions">
+                  <el-button class="btn-op-view" type="primary" size="small" @click.stop="showTransactionDetail(scope.row)">
+                    <el-icon><View /></el-icon> 查看
+                  </el-button>
+                </div>
               </template>
             </el-table-column>
           </el-table>
@@ -251,7 +255,7 @@ import { formatDateTime } from '@/utils/helpers/dateUtils'
 import { ref, onMounted, onUnmounted, nextTick, reactive, computed } from 'vue'
 import { debounce } from 'lodash-es'
 import { ElMessage } from 'element-plus'
-import { Download, TrendCharts, PieChart, Histogram } from '@element-plus/icons-vue'
+import { Download, TrendCharts, PieChart, Histogram, View } from '@element-plus/icons-vue'
 import { echarts } from '@/utils/echartsCore'
 import { getInventoryTransactionTypeText, getInventoryTransactionTypeColor } from '@/constants/systemConstants'
 import { getCssTokenValue } from '@/utils/designTokens'

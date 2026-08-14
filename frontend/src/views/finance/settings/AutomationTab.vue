@@ -202,19 +202,20 @@
                 {{ formatDateTime(row.next_retry_at) }}
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="100" fixed="right">
+            <el-table-column label="操作" min-width="130" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="{ row }">
-                <el-button
-                  v-permission="'finance:automation:execute'"
-                  type="primary"
-                  link
-                  size="small"
-                  @click="resolveFailedJob(row)"
-                  :loading="resolveJobLoadingId === row.id"
-                  :disabled="row.status === 'resolved'"
-                >
-                  标记处理
-                </el-button>
+                <div class="table-actions">
+                  <el-button
+                    v-permission="'finance:automation:execute'"
+                    type="primary"
+                    size="small"
+                    @click="resolveFailedJob(row)"
+                    :loading="resolveJobLoadingId === row.id"
+                    :disabled="row.status === 'resolved'"
+                  >
+                    <el-icon><Check /></el-icon> 标记处理
+                  </el-button>
+                </div>
               </template>
             </el-table-column>
           </el-table>
@@ -543,6 +544,7 @@ import {
   Box,
   Lock,
   SwitchButton,
+  Check,
 } from '@element-plus/icons-vue';
 import { financeApi } from '@/api/finance';
 import { inventoryApi } from '@/api/inventory';

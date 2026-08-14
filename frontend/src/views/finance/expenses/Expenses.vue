@@ -140,48 +140,66 @@
         <el-table-column prop="createdByName" label="创建人" width="100" />
         <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
-            <el-button class="btn-op-view" type="primary" size="small" @click="handleView(row)">查看</el-button>
-            <el-button
-              v-if="['draft', 'rejected'].includes(row.status)"
-              type="warning" size="small" link
-              @click="handleEdit(row)"
-              v-permission="'finance:expenses:update'"
-            >编辑</el-button>
-            <el-button
-              v-if="['draft', 'rejected'].includes(row.status)"
-              type="success" size="small" link
-              @click="handleSubmit(row)"
-              v-permission="'finance:expenses:update'"
-            >提交</el-button>
-            <el-button
-              v-if="row.status === 'pending'"
-              type="success" size="small" link
-              @click="handleApprove(row)"
-              v-permission="'finance:expenses:approve'"
-            >审批</el-button>
-            <el-button
-              v-if="row.status === 'approved'"
-              type="primary" size="small" link
-              @click="handlePay(row)"
-              v-permission="'finance:expenses:pay'"
-            >付款</el-button>
-            <el-button
-              v-if="row.status === 'paid'"
-              type="danger" size="small" link
-              @click="handleVoidPayment(row)"
-              v-permission="'finance:expenses:pay'"
-            >作废付款</el-button>
-            <el-button
-              v-if="['draft', 'pending', 'approved', 'rejected'].includes(row.status)"
-              type="info" size="small" link
-              @click="handleCancelExpense(row)"
-              v-permission="'finance:expenses:update'"
-            >取消</el-button>
-            <el-button v-permission="'finance:expenses:delete'"
-              v-if="['draft', 'rejected', 'cancelled'].includes(row.status)"
-              type="danger" size="small" link
-              @click="handleDelete(row)"
-            >删除</el-button>
+            <div class="table-actions">
+              <el-button class="btn-op-view" type="primary" size="small" @click="handleView(row)">
+                <el-icon><View /></el-icon> 查看
+              </el-button>
+              <el-button
+                v-if="['draft', 'rejected'].includes(row.status)"
+                type="warning" size="small"
+                @click="handleEdit(row)"
+                v-permission="'finance:expenses:update'"
+              >
+                <el-icon><Edit /></el-icon> 编辑
+              </el-button>
+              <el-button
+                v-if="['draft', 'rejected'].includes(row.status)"
+                type="success" size="small"
+                @click="handleSubmit(row)"
+                v-permission="'finance:expenses:update'"
+              >
+                <el-icon><Promotion /></el-icon> 提交
+              </el-button>
+              <el-button
+                v-if="row.status === 'pending'"
+                type="success" size="small"
+                @click="handleApprove(row)"
+                v-permission="'finance:expenses:approve'"
+              >
+                <el-icon><Check /></el-icon> 审批
+              </el-button>
+              <el-button
+                v-if="row.status === 'approved'"
+                type="primary" size="small"
+                @click="handlePay(row)"
+                v-permission="'finance:expenses:pay'"
+              >
+                <el-icon><Wallet /></el-icon> 付款
+              </el-button>
+              <el-button
+                v-if="row.status === 'paid'"
+                type="danger" size="small"
+                @click="handleVoidPayment(row)"
+                v-permission="'finance:expenses:pay'"
+              >
+                <el-icon><CircleClose /></el-icon> 作废付款
+              </el-button>
+              <el-button
+                v-if="['draft', 'pending', 'approved', 'rejected'].includes(row.status)"
+                type="info" size="small"
+                @click="handleCancelExpense(row)"
+                v-permission="'finance:expenses:update'"
+              >
+                <el-icon><Close /></el-icon> 取消
+              </el-button>
+              <el-button v-permission="'finance:expenses:delete'"
+                v-if="['draft', 'rejected', 'cancelled'].includes(row.status)"
+                type="danger" size="small"
+                @click="handleDelete(row)"
+              >
+                <el-icon><Delete /></el-icon> 删除
+              </el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -389,7 +407,7 @@
 import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Tickets, Clock, Select, Money, Refresh } from '@element-plus/icons-vue'
+import { Plus, Tickets, Clock, Select, Money, Refresh, View, Edit, Promotion, Check, Wallet, CircleClose, Close, Delete } from '@element-plus/icons-vue'
 import { financeApi } from '@/api'
 import { parseDataObject, parseListData, parsePaginatedData } from '@/utils/responseParser'
 

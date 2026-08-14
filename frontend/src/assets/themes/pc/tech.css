@@ -217,8 +217,9 @@
 [data-theme="tech"] .header,
 [data-theme="tech"] .el-header {
   background: linear-gradient(90deg, var(--color-bg-light) 0%, var(--color-bg-hover) 50%, var(--color-bg-light) 100%) !important;
-  border-bottom: 2px solid color-mix(in srgb, var(--color-primary) 30%, transparent) !important;
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--color-bg-overlay) 22%, transparent) !important;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 30%, transparent) !important;
+  border-radius: var(--shell-radius-lg, var(--radius-lg, 16px)) !important;
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--color-bg-overlay) 22%, transparent) !important;
 }
 
 /* 表格/输入：密度 → theme-components；科技感仅表头主色 + 输入发光 */

@@ -204,9 +204,9 @@
 [data-theme="premium"] .app-header,
 [data-theme="premium"] .el-header {
   background: rgba(5, 5, 5, 0.96) !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
-  box-shadow: none !important;
-  /* Header is nearly opaque, so backdrop blur is unnecessary. */
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: var(--shell-radius-lg, var(--radius-lg, 16px)) !important;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35) !important;
 }
 
 [data-theme="premium"] .breadcrumb,

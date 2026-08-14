@@ -117,14 +117,17 @@
         <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <div class="operation-btns">
-              <el-button class="btn-op-view" type="primary" size="small" v-permission="'inventory:check:view'" @click="viewCheck(scope.row.id)">查看</el-button>
+              <el-button class="btn-op-view" type="primary" size="small" v-permission="'inventory:check:view'" @click="viewCheck(scope.row.id)">
+                <el-icon><View /></el-icon> 查看
+              </el-button>
               <el-button
                 size="small"
-                type="primary"
                 v-permission="'inventory:check:update'"
                 @click="editCheck(scope.row.id)"
                 v-if="scope.row.status === 'draft'"
-              >编辑</el-button>
+              >
+                <el-icon><Edit /></el-icon> 编辑
+              </el-button>
               <el-dropdown v-if="scope.row.status !== 'cancelled' && scope.row.status !== 'completed'" trigger="click" placement="bottom" class="operation-dropdown">
                 <el-button size="small" type="success">
                   更多<el-icon class="el-icon--right"><ArrowDown /></el-icon>
@@ -426,7 +429,7 @@
 import { parsePaginatedData, parseListData } from '@/utils/responseParser';
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Plus, ArrowDown, Delete, RefreshRight } from '@element-plus/icons-vue';
+import { Plus, ArrowDown, Delete, RefreshRight, View, Edit } from '@element-plus/icons-vue';
 import { inventoryApi } from '@/api';
 import { SEARCH_CONFIG, searchMaterials, mapMaterialData } from '@/utils/searchConfig';
 import { getCurrentDate } from '@/utils/helpers/dateUtils';

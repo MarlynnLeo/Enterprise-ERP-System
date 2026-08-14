@@ -82,27 +82,34 @@
         </el-table-column>
         <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
-            <el-button
-              v-if="!scope.row.isClosed"
-              type="primary"
-              size="small"
-              @click="handleEdit(scope.row)"
-
-              v-permission="'finance:periods:update'">编辑</el-button>
-            <el-button
-              v-if="!scope.row.isClosed"
-              type="warning"
-              size="small"
-              @click="handleClose(scope.row)"
-              v-permission="'finance:closing:execute'"
-            >关闭期间</el-button>
-            <el-button
-              v-if="scope.row.isClosed"
-              type="success"
-              size="small"
-              @click="handleReopen(scope.row)"
-              v-permission="'finance:closing:execute'"
-            >重新开启</el-button>
+            <div class="table-actions">
+              <el-button
+                v-if="!scope.row.isClosed"
+                size="small"
+                @click="handleEdit(scope.row)"
+                v-permission="'finance:periods:update'"
+              >
+                <el-icon><Edit /></el-icon> 编辑
+              </el-button>
+              <el-button
+                v-if="!scope.row.isClosed"
+                type="warning"
+                size="small"
+                @click="handleClose(scope.row)"
+                v-permission="'finance:closing:execute'"
+              >
+                <el-icon><Lock /></el-icon> 关闭期间
+              </el-button>
+              <el-button
+                v-if="scope.row.isClosed"
+                type="success"
+                size="small"
+                @click="handleReopen(scope.row)"
+                v-permission="'finance:closing:execute'"
+              >
+                <el-icon><Unlock /></el-icon> 重新开启
+              </el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -209,7 +216,7 @@ import { formatDate } from '@/utils/helpers/dateUtils'
 import { ref, reactive, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Plus } from '@element-plus/icons-vue';
+import { Plus, Edit, Lock, Unlock } from '@element-plus/icons-vue';
 import { financeApi } from '@/api';
 // 数据加载状态
 const loading = ref(false);

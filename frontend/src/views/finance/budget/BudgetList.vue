@@ -86,26 +86,36 @@
         <el-table-column prop="createdAt" label="创建时间" width="160" />
         <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
-            <el-button class="btn-op-view" type="primary" size="small" @click="handleView(row)">查看</el-button>
-            <el-button link type="primary" size="small" @click="handleEdit(row)" v-if="isBudgetStatus(row.status, 'draft')"
-              v-permission="'finance:budgets:update'">编辑</el-button>
+            <el-button class="btn-op-view" type="primary" size="small" @click="handleView(row)">
+              <el-icon><View /></el-icon> 查看
+            </el-button>
+            <el-button type="primary" size="small" @click="handleEdit(row)" v-if="isBudgetStatus(row.status, 'draft')"
+              v-permission="'finance:budgets:update'">
+              <el-icon><Edit /></el-icon> 编辑
+            </el-button>
             <el-popconfirm
               title="确定要提交审批吗？"
               @confirm="handleSubmit(row)"
               v-if="isBudgetStatus(row.status, 'draft')"
             >
               <template #reference>
-                <el-button v-permission="'finance:budgets:update'" link type="primary" size="small">提交审批</el-button>
+                <el-button v-permission="'finance:budgets:update'" type="success" size="small">
+                  <el-icon><Upload /></el-icon> 提交审批
+                </el-button>
               </template>
             </el-popconfirm>
-            <el-button v-permission="'finance:budgets:approve'" link type="success" size="small" @click="handleApprove(row)" v-if="isBudgetStatus(row.status, 'pending_approval')">审批</el-button>
+            <el-button v-permission="'finance:budgets:approve'" type="success" size="small" @click="handleApprove(row)" v-if="isBudgetStatus(row.status, 'pending_approval')">
+              <el-icon><Check /></el-icon> 审批
+            </el-button>
             <el-popconfirm
               title="确定要启动预算执行吗？"
               @confirm="handleStart(row)"
               v-if="isBudgetStatus(row.status, 'approved')"
             >
               <template #reference>
-                <el-button v-permission="'finance:budgets:update'" link type="warning" size="small">启动执行</el-button>
+                <el-button v-permission="'finance:budgets:update'" type="warning" size="small">
+                  <el-icon><VideoPlay /></el-icon> 启动执行
+                </el-button>
               </template>
             </el-popconfirm>
             <el-popconfirm
@@ -114,7 +124,9 @@
               v-if="isBudgetStatus(row.status, 'executing')"
             >
               <template #reference>
-                <el-button v-permission="'finance:budgets:update'" link type="info" size="small">关闭</el-button>
+                <el-button v-permission="'finance:budgets:update'" type="info" size="small">
+                  <el-icon><CircleClose /></el-icon> 关闭
+                </el-button>
               </template>
             </el-popconfirm>
             <el-popconfirm
@@ -124,7 +136,9 @@
               v-if="isBudgetStatus(row.status, 'draft')"
             >
               <template #reference>
-                <el-button v-permission="'finance:budgets:delete'" link type="danger" size="small">删除</el-button>
+                <el-button v-permission="'finance:budgets:delete'" type="danger" size="small">
+                  <el-icon><Delete /></el-icon> 删除
+                </el-button>
               </template>
             </el-popconfirm>
           </template>
@@ -157,6 +171,7 @@ import {
   normalizeBudgetStatusCode
 } from '@/constants/systemConstants';
 import { formatAmount } from '@/utils/format'
+import { View, Edit, Upload, Check, VideoPlay, CircleClose, Delete } from '@element-plus/icons-vue'
 
 const dictStore = useDictionaryStore()
 const router = useRouter();

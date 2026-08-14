@@ -8,8 +8,9 @@
   --shell-glow: color-mix(in srgb, var(--color-primary) 24%, transparent);
   --shell-surface: color-mix(in srgb, var(--color-bg-base) 92%, transparent);
   --shell-border: color-mix(in srgb, var(--color-border-base) 88%, transparent);
-  --shell-shadow: var(--shadow-card, var(--shadow-sm));
+  --shell-shadow: var(--shadow-card, 0 8px 28px color-mix(in srgb, var(--ds-black, #000) 8%, transparent));
   --shell-shadow-hover: var(--shadow-card-hover, var(--shadow-md));
+  --shell-float-gap: 12px;
   --shell-radius-sm: var(--radius-sm, 8px);
   --shell-radius-md: var(--radius-md, 12px);
   --shell-radius-lg: var(--radius-lg, 16px);
@@ -28,7 +29,10 @@ html.dark .app-shell {
   height: 100%;
   width: 100%;
   overflow: hidden;
-  background-color: var(--el-bg-color);
+  box-sizing: border-box;
+  padding: var(--shell-float-gap);
+  gap: var(--shell-float-gap);
+  background-color: var(--el-bg-color-page, var(--color-bg-page, var(--el-bg-color)));
 }
 .sidebar {
   --shell-sidebar-expanded-width: 220px;
@@ -47,9 +51,10 @@ html.dark .app-shell {
   overflow-y: hidden;
   position: relative;
   z-index: 1;
-  border-radius: 0 var(--shell-radius-lg) var(--shell-radius-lg) 0;
-  margin: 10px 0 10px 0;
-  height: calc(100% - 20px);
+  align-self: stretch;
+  height: auto;
+  margin: 0;
+  border-radius: var(--shell-radius-lg);
   transform: translateZ(0);
   display: flex;
   flex-direction: column;
@@ -59,7 +64,7 @@ html.dark .app-shell {
 }
 .app-sidebar {
   background: var(--shell-surface) !important;
-  border-right: 1px solid var(--shell-border) !important;
+  border: 1px solid var(--shell-border) !important;
   box-shadow: var(--shell-shadow) !important;
 }
 .logo-container {
@@ -235,8 +240,8 @@ html.dark .app-shell {
   padding: 0 16px;
   height: 60px;
   position: relative;
-  z-index: 1;
-  margin: 10px 10px 0 10px;
+  z-index: 2;
+  margin: 0;
   border-radius: var(--shell-radius-lg);
 }
 .app-header {
@@ -398,9 +403,11 @@ html.dark .app-shell {
 }
 .main-container {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  gap: var(--shell-float-gap);
 }
 .main-content {
   padding: 20px;
@@ -410,7 +417,7 @@ html.dark .app-shell {
   scrollbar-gutter: stable;
   position: relative;
   z-index: 1;
-  margin: 0 10px 10px 10px;
+  margin: 0;
 }
 /* ===== 侧边栏折叠 ===== */
 .sidebar.collapsed {
@@ -490,25 +497,30 @@ html.dark .app-shell {
 }
 /* ===== 移动端响应式 ===== */
 @media (max-width: 768px) {
+  .layout-container {
+    padding: 8px;
+    gap: 8px;
+  }
+
   .sidebar {
     position: fixed;
     z-index: 1000;
-    top: 0;
-    left: 0;
-    height: 100vh;
+    top: 8px;
+    left: 8px;
+    height: calc(100vh - 16px);
     margin: 0;
-    border-radius: 0;
+    border-radius: var(--shell-radius-lg);
     transform: translateX(0);
     transition: transform var(--transition-base) ease;
     width: var(--shell-sidebar-expanded-width) !important;
   }
 
   .sidebar.collapsed {
-    transform: translateX(-100%);
+    transform: translateX(calc(-100% - 16px));
     width: var(--shell-sidebar-expanded-width) !important;
   }
 
   .header, .main-content {
-    margin: 5px;
+    margin: 0;
   }
 }

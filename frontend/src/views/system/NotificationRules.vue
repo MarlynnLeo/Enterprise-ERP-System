@@ -82,15 +82,23 @@
             />
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="230" fixed="right" align="left">
+        <el-table-column label="操作" min-width="280" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
-            <el-button v-permission="NOTIFICATION_PERMISSIONS.UPDATE" link type="primary" @click="openForm(row)">编辑</el-button>
-            <el-button v-permission="NOTIFICATION_PERMISSIONS.TEST" link type="success" @click="sendTest(row.id)">测试</el-button>
-            <el-popconfirm title="删除后规则不再执行，确定删除吗？" @confirm="deleteRule(row.id)">
-              <template #reference>
-                <el-button v-permission="NOTIFICATION_PERMISSIONS.DELETE" link type="danger">删除</el-button>
-              </template>
-            </el-popconfirm>
+            <div class="table-actions">
+              <el-button size="small" v-permission="NOTIFICATION_PERMISSIONS.UPDATE" @click="openForm(row)">
+                <el-icon><Edit /></el-icon> 编辑
+              </el-button>
+              <el-button size="small" type="success" v-permission="NOTIFICATION_PERMISSIONS.TEST" @click="sendTest(row.id)">
+                <el-icon><Promotion /></el-icon> 测试
+              </el-button>
+              <el-popconfirm title="删除后规则不再执行，确定删除吗？" @confirm="deleteRule(row.id)">
+                <template #reference>
+                  <el-button size="small" type="danger" v-permission="NOTIFICATION_PERMISSIONS.DELETE">
+                    <el-icon><Delete /></el-icon> 删除
+                  </el-button>
+                </template>
+              </el-popconfirm>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -278,7 +286,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, Setting } from '@element-plus/icons-vue'
+import { Search, Setting, Edit, Delete, Promotion } from '@element-plus/icons-vue'
 import { notificationRuleApi } from '@/api/notificationRule'
 import {
   NOTIFICATION_PERMISSIONS,

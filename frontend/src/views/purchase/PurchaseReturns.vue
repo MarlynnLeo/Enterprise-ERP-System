@@ -103,60 +103,69 @@
         </el-table-column>
         <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
-            <el-button class="btn-op-view" type="primary"
-              size="small"
-              v-permission="'purchase:returns:view'"
-              @click="viewReturn(scope.row)"
-            >
-              查看
-            </el-button>
-            <el-button
-              v-if="scope.row.status === 'draft'"
-              size="small"
-              type="primary"
-              @click="editReturn(scope.row)"
-              v-permission="'purchase:returns:update'"
-            >
-              编辑
-            </el-button>
-            <el-popconfirm
-              v-if="scope.row.status === 'draft'"
-              title="确定要删除该退货单吗？此操作无法恢复。"
-              @confirm="handleCommand('delete', scope.row)"
-              confirm-button-type="danger"
-            >
-              <template #reference>
-                <el-button v-permission="'purchase:returns:delete'" size="small" type="danger">删除</el-button>
-              </template>
-            </el-popconfirm>
-            <el-popconfirm
-              v-if="scope.row.status === 'draft'"
-              title="确定要确认该退货单吗？"
-              @confirm="handleCommand('confirm', scope.row)"
-            >
-              <template #reference>
-                <el-button size="small" type="success" v-permission="'purchase:returns:update'">确认</el-button>
-              </template>
-            </el-popconfirm>
-            <el-popconfirm
-              v-if="['draft', 'confirmed'].includes(scope.row.status)"
-              title="确定要取消该退货单吗？"
-              @confirm="handleCommand('cancel', scope.row)"
-              confirm-button-type="warning"
-            >
-              <template #reference>
-                <el-button size="small" type="warning" v-permission="'purchase:returns:update'">取消</el-button>
-              </template>
-            </el-popconfirm>
-            <el-popconfirm
-              v-if="scope.row.status === 'confirmed'"
-              title="确定要完成该退货单吗？"
-              @confirm="handleCommand('complete', scope.row)"
-            >
-              <template #reference>
-                <el-button size="small" type="primary" v-permission="'purchase:returns:update'">完成退货</el-button>
-              </template>
-            </el-popconfirm>
+            <div class="table-actions">
+              <el-button class="btn-op-view" type="primary"
+                size="small"
+                v-permission="'purchase:returns:view'"
+                @click="viewReturn(scope.row)"
+              >
+                <el-icon><View /></el-icon> 查看
+              </el-button>
+              <el-button
+                v-if="scope.row.status === 'draft'"
+                size="small"
+                @click="editReturn(scope.row)"
+                v-permission="'purchase:returns:update'"
+              >
+                <el-icon><Edit /></el-icon> 编辑
+              </el-button>
+              <el-popconfirm
+                v-if="scope.row.status === 'draft'"
+                title="确定要删除该退货单吗？此操作无法恢复。"
+                @confirm="handleCommand('delete', scope.row)"
+                confirm-button-type="danger"
+              >
+                <template #reference>
+                  <el-button v-permission="'purchase:returns:delete'" size="small" type="danger">
+                    <el-icon><Delete /></el-icon> 删除
+                  </el-button>
+                </template>
+              </el-popconfirm>
+              <el-popconfirm
+                v-if="scope.row.status === 'draft'"
+                title="确定要确认该退货单吗？"
+                @confirm="handleCommand('confirm', scope.row)"
+              >
+                <template #reference>
+                  <el-button size="small" type="success" v-permission="'purchase:returns:update'">
+                    <el-icon><Check /></el-icon> 确认
+                  </el-button>
+                </template>
+              </el-popconfirm>
+              <el-popconfirm
+                v-if="['draft', 'confirmed'].includes(scope.row.status)"
+                title="确定要取消该退货单吗？"
+                @confirm="handleCommand('cancel', scope.row)"
+                confirm-button-type="warning"
+              >
+                <template #reference>
+                  <el-button size="small" type="warning" v-permission="'purchase:returns:update'">
+                    <el-icon><Close /></el-icon> 取消
+                  </el-button>
+                </template>
+              </el-popconfirm>
+              <el-popconfirm
+                v-if="scope.row.status === 'confirmed'"
+                title="确定要完成该退货单吗？"
+                @confirm="handleCommand('complete', scope.row)"
+              >
+                <template #reference>
+                  <el-button size="small" type="primary" v-permission="'purchase:returns:update'">
+                    <el-icon><Finished /></el-icon> 完成退货
+                  </el-button>
+                </template>
+              </el-popconfirm>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -387,7 +396,7 @@ import { formatLocalDate } from '@/utils/format';
 import { parseListData, parsePaginatedData } from '@/utils/responseParser';
 import { ref, reactive, computed, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
-import { Plus } from '@element-plus/icons-vue';
+import { Plus, View, Edit, Delete, Check, Close, Finished } from '@element-plus/icons-vue';
 
 import { useAuthStore } from '@/stores/auth';
 import { purchaseApi } from '@/api';

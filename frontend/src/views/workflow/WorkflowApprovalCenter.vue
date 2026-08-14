@@ -27,13 +27,21 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="220" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="280" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
-            <el-button class="btn-op-view" type="primary" size="small" @click="viewInstance(row)">详情</el-button>
-            <template v-if="activeTab === 'pending'">
-              <el-button type="success" size="small" @click="openApproval(row, 'approve')">通过</el-button>
-              <el-button type="danger" size="small" @click="openApproval(row, 'reject')">拒绝</el-button>
-            </template>
+            <div class="table-actions">
+              <el-button class="btn-op-view" type="primary" size="small" @click="viewInstance(row)">
+                <el-icon><View /></el-icon> 详情
+              </el-button>
+              <template v-if="activeTab === 'pending'">
+                <el-button type="success" size="small" @click="openApproval(row, 'approve')">
+                  <el-icon><Check /></el-icon> 通过
+                </el-button>
+                <el-button type="danger" size="small" @click="openApproval(row, 'reject')">
+                  <el-icon><Close /></el-icon> 拒绝
+                </el-button>
+              </template>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -106,6 +114,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import { View, Check, Close } from '@element-plus/icons-vue'
 import { workflowApi } from '@/api/workflow'
 
 const activeTab = ref('pending')

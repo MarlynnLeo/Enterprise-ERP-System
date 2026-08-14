@@ -171,9 +171,13 @@
                   <el-input v-model="scope.row.value" placeholder="代码值" />
                 </template>
               </el-table-column>
-              <el-table-column label="操作" min-width="80" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+              <el-table-column label="操作" min-width="100" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
                 <template #default="scope">
-                  <el-button v-permission="'finance:settings:update'" type="danger" link @click="removePaymentMethod(scope.$index)">删除</el-button>
+                  <div class="table-actions">
+                    <el-button v-permission="'finance:settings:update'" size="small" type="danger" @click="removePaymentMethod(scope.$index)">
+                      <el-icon><Delete /></el-icon> 删除
+                    </el-button>
+                  </div>
                 </template>
               </el-table-column>
             </el-table>
@@ -272,7 +276,7 @@ import { useDictionaryStore } from '@/stores/dictionary'
 import { ref, reactive, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, Delete } from '@element-plus/icons-vue'
 import { financeApi } from '@/api'
 import AutomationTab from './AutomationTab.vue'
 

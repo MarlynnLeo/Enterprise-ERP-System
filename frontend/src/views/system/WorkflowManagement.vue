@@ -22,13 +22,21 @@
         </el-table-column>
         <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
-            <el-button class="btn-op-view" type="primary" size="small" @click="viewTemplate(row)">详情</el-button>
-            <el-button link type="primary" v-permission="'system:workflow:edit'" @click="openTemplateForm(row)">编辑</el-button>
-            <el-popconfirm title="确定删除？" @confirm="delTemplate(row.id)">
-              <template #reference>
-                <el-button link type="danger" v-permission="'system:workflow:delete'">删除</el-button>
-              </template>
-            </el-popconfirm>
+            <div class="table-actions">
+              <el-button class="btn-op-view" size="small" type="primary" @click="viewTemplate(row)">
+                <el-icon><View /></el-icon> 详情
+              </el-button>
+              <el-button size="small" v-permission="'system:workflow:edit'" @click="openTemplateForm(row)">
+                <el-icon><Edit /></el-icon> 编辑
+              </el-button>
+              <el-popconfirm title="确定删除？" @confirm="delTemplate(row.id)">
+                <template #reference>
+                  <el-button size="small" type="danger" v-permission="'system:workflow:delete'">
+                    <el-icon><Delete /></el-icon> 删除
+                  </el-button>
+                </template>
+              </el-popconfirm>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -172,6 +180,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { View, Edit, Delete } from '@element-plus/icons-vue'
 import { workflowApi } from '@/api/workflow'
 
 const router = useRouter()

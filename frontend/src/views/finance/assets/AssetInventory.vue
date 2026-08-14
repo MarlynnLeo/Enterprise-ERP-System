@@ -175,11 +175,10 @@
                 v-permission="'finance:assets:update'"
                 type="success"
                 size="small"
-                link
                 v-if="scope.row.status === '未盘点' && scope.row.editValue === undefined"
                 @click="fastMatch(scope.row)"
               >
-                账实相符
+                <el-icon><Check /></el-icon> 账实相符
               </el-button>
             </template>
           </el-table-column>
@@ -206,7 +205,7 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
-import { Plus, InfoFilled } from '@element-plus/icons-vue'
+import { Plus, InfoFilled, Check } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { financeApi } from '@/api/finance'
 import { parsePaginatedData, parseDataObject } from '@/utils/responseParser'

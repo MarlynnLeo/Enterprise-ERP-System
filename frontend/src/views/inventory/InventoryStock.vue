@@ -179,15 +179,17 @@
         </el-table-column>
         <el-table-column label="操作" min-width="180" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
-            <div class="operation-btns">
-              <el-button class="btn-op-view" type="primary" size="small" @click="handleViewDetail(scope.row)" v-permission="'inventory:stock:view-detail'">查看</el-button>
+            <div class="table-actions">
+              <el-button class="btn-op-view" type="primary" size="small" @click="handleViewDetail(scope.row)" v-permission="'inventory:stock:view-detail'">
+                <el-icon><View /></el-icon> 查看
+              </el-button>
               <el-button
                 v-if="isLowStock(scope.row)"
                 size="small"
                 type="warning"
                 @click="handleQuickPurchase(scope.row)"
               >
-                申购
+                <el-icon><ShoppingCart /></el-icon> 申购
               </el-button>
             </div>
           </template>
@@ -215,34 +217,39 @@
       v-model="detailDialogVisible"
       title="库存明细"
       mode="view"
-      content-width="wide"
       :loading="detailLoading"
     >
-      <div>
-      <el-descriptions :column="3" border>
+      <div class="stock-detail-dialog">
+      <el-descriptions :column="2" border class="stock-detail-meta">
         <el-descriptions-item label="物料编码">{{ currentDetail.materialCode }}</el-descriptions-item>
-        <el-descriptions-item label="物料名称">{{ currentDetail.materialName }}</el-descriptions-item>
-        <el-descriptions-item label="规格">{{ currentDetail.specification }}</el-descriptions-item>
+        <el-descriptions-item label="物料名称">
+          <span :title="currentDetail.materialName">{{ currentDetail.materialName }}</span>
+        </el-descriptions-item>
+        <el-descriptions-item label="规格">
+          <span :title="currentDetail.specification">{{ currentDetail.specification }}</span>
+        </el-descriptions-item>
         <el-descriptions-item label="当前库存">{{ currentDetail.quantity }} {{ currentDetail.unitName }}</el-descriptions-item>
         <el-descriptions-item label="仓库">{{ currentDetail.locationName }}</el-descriptions-item>
-        <el-descriptions-item label="类别">{{ currentDetail.categoryName }}</el-descriptions-item>
+        <el-descriptions-item label="类别">
+          <span :title="currentDetail.categoryName">{{ currentDetail.categoryName }}</span>
+        </el-descriptions-item>
       </el-descriptions>
 
       <el-tabs v-model="activeTab" class="mt-20">
         <!-- 批次库存标签页 -->
         <el-tab-pane label="批次库存" name="batch">
           <el-table :data="batchInventory" border v-loading="batchLoading">
-            <el-table-column prop="batchNumber" label="批次号" width="210">
+            <el-table-column prop="batchNumber" label="批次号" width="150" show-overflow-tooltip>
               <template #default="{ row }">
                 <el-tag type="primary" class="cursor-pointer" @click="goToTraceability(row.batchNumber, currentDetail.materialCode)" title="点击跳转至追溯页面">{{ row.batchNumber }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="currentQuantity" label="当前数量" width="120">
+            <el-table-column prop="currentQuantity" label="当前数量" width="88">
               <template #default="{ row }">
                 <span class="text-primary font-weight-700">{{ formatQuantity(row.currentQuantity) }}</span>
               </template>
             </el-table-column>
-            <el-table-column prop="unitName" label="单位" width="80" />
+            <el-table-column prop="unitName" label="单位" width="56" />
             <el-table-column prop="firstInDate" label="首次入库时间" width="180">
               <template #default="{ row }">
                 {{ formatDateTime(row.firstInDate, 'YYYY-MM-DD HH:mm:ss') }}
@@ -253,11 +260,13 @@
                 {{ formatDateTime(row.lastTransactionDate, 'YYYY-MM-DD HH:mm:ss') }}
               </template>
             </el-table-column>
-            <el-table-column label="操作" min-width="120" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+            <el-table-column label="操作" min-width="100" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="{ row }">
-                <el-button size="small" type="primary" link @click="showBatchTransactions(row.batchNumber)">
-                  查看流水
-                </el-button>
+                <div class="table-actions">
+                  <el-button size="small" type="primary" @click="showBatchTransactions(row.batchNumber)">
+                    <el-icon><View /></el-icon> 查看
+                  </el-button>
+                </div>
               </template>
             </el-table-column>
           </el-table>
@@ -303,7 +312,7 @@
               <!-- 折叠面板内容 - 批次明细 -->
               <div class="collapse-panel-body">
                 <el-table :data="group.items" border size="small" class="mt-10">
-                  <el-table-column prop="batchNumber" label="批次号" width="200">
+                  <el-table-column prop="batchNumber" label="批次号" width="150" show-overflow-tooltip>
                     <template #default="{ row }">
                       <el-tag v-if="row.batchNumber" type="primary" size="small" class="cursor-pointer" @click="goToTraceability(row.batchNumber, currentDetail.materialCode)" title="点击跳转至追溯页面">{{ row.batchNumber }}</el-tag>
                       <span v-else class="text-muted">-</span>
@@ -486,7 +495,7 @@
 <script setup>
 import { parseListData, parseResponseData } from '@/utils/responseParser';
 import { ref, onMounted, reactive, computed } from 'vue'
-import { Download, Plus, ArrowDown, Document, Close, Printer, Select } from '@element-plus/icons-vue'
+import { Download, Plus, ArrowDown, Document, Close, Printer, Select, View, ShoppingCart } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { inventoryApi, baseDataApi } from '@/api'
 import InventoryStockAdd from './InventoryStockAdd.vue'
@@ -1182,12 +1191,25 @@ const isOutOfStock = (row) => {
   margin-bottom: 10px;
 }
 
-/* 注意：对话框、descriptions等全局样式已在 themes/pc/default.css 中统一定义 */
-/* 仅保留页面特定的样式 */
+.stock-detail-dialog {
+  width: 760px;
+  max-width: 100%;
+}
 
-/* 详情对话框长文本处理 - 自动添加 */
-:deep(.el-descriptions__content) {
-  max-width: 300px;
+.stock-detail-meta :deep(.el-descriptions__body),
+.stock-detail-meta :deep(.el-descriptions__table) {
+  width: 100% !important;
+}
+
+.stock-detail-meta :deep(.el-descriptions__table) {
+  table-layout: fixed;
+}
+
+.stock-detail-meta :deep(.el-descriptions__label) {
+  width: 88px;
+}
+
+.stock-detail-meta :deep(.el-descriptions__content) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

@@ -427,7 +427,9 @@
 [data-theme] .sidebar,
 [data-theme] .app-sidebar {
   background: var(--shell-sidebar-bg, var(--color-bg-base));
-  border-right-color: var(--shell-border, var(--color-border-base));
+  border: 1px solid var(--shell-border, var(--color-border-base));
+  border-radius: var(--shell-radius-lg, var(--radius-lg, 16px));
+  box-shadow: var(--shell-shadow, 0 8px 28px color-mix(in srgb, var(--ds-black, #000) 8%, transparent));
 }
 
 [data-theme] .sidebar .el-menu,
@@ -573,12 +575,11 @@
 [data-theme] .header,
 [data-theme] .el-header,
 [data-theme] .app-header {
-  background: var(--shell-header-bg, var(--color-bg-base)) !important;
-  border-bottom: 1px solid
+  background: var(--shell-header-bg, var(--shell-surface, var(--color-bg-base))) !important;
+  border: 1px solid
     color-mix(in srgb, var(--shell-border, var(--color-border-base)) 70%, transparent) !important;
-  box-shadow: none !important;
-  border-radius: 0 !important;
-  margin: 0 !important;
+  border-radius: var(--shell-radius-lg, var(--radius-lg, 16px)) !important;
+  box-shadow: var(--shell-shadow, 0 8px 28px color-mix(in srgb, var(--ds-black, #000) 8%, transparent)) !important;
 }
 
 [data-theme] .icon-button,
@@ -646,7 +647,7 @@
   background: transparent !important;
   border-bottom: 1px solid color-mix(in srgb, var(--color-primary) 8%, transparent) !important;
   box-shadow: none !important;
-  border-radius: 0 !important;
+  border-radius: var(--shell-radius-md, var(--radius-md, 12px)) var(--shell-radius-md, var(--radius-md, 12px)) 0 0 !important;
 }
 
 /*

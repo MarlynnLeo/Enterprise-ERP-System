@@ -109,29 +109,32 @@
         </el-table-column>
         <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
-            <el-button class="btn-op-view" type="primary" size="small" @click="viewEquipment(scope.row)">查看</el-button>
-            <el-button
-              size="small"
-              type="primary"
-              @click="openDialog(true, scope.row)"
-              v-permission="'production:equipment:update'">
-              编辑
-            </el-button>
-            <el-popconfirm
-              :title="`确定要删除设备 '${scope.row.name}' 吗？`"
-              @confirm="deleteEquipment(scope.row)"
-              confirm-button-type="danger"
-              v-if="canDelete"
-            >
-              <template #reference>
-                <el-button
-                  size="small"
-                  type="danger"
-                  v-permission="'production:equipment:delete'">
-                  删除
-                </el-button>
-              </template>
-            </el-popconfirm>
+            <div class="table-actions">
+              <el-button class="btn-op-view" type="primary" size="small" @click="viewEquipment(scope.row)">
+                <el-icon><View /></el-icon> 查看
+              </el-button>
+              <el-button
+                size="small"
+                @click="openDialog(true, scope.row)"
+                v-permission="'production:equipment:update'">
+                <el-icon><Edit /></el-icon> 编辑
+              </el-button>
+              <el-popconfirm
+                :title="`确定要删除设备 '${scope.row.name}' 吗？`"
+                @confirm="deleteEquipment(scope.row)"
+                confirm-button-type="danger"
+                v-if="canDelete"
+              >
+                <template #reference>
+                  <el-button
+                    size="small"
+                    type="danger"
+                    v-permission="'production:equipment:delete'">
+                    <el-icon><Delete /></el-icon> 删除
+                  </el-button>
+                </template>
+              </el-popconfirm>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -452,7 +455,7 @@ import { formatDate } from '@/utils/helpers/dateUtils'
 import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { equipmentApi } from '@/api'
-import { Plus, Download, Upload } from '@element-plus/icons-vue'
+import { Plus, Download, Upload, View, Edit, Delete } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { loadExcelJS } from '@/utils/lazyVendors'
 // 权限store

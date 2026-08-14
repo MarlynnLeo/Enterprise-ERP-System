@@ -68,6 +68,9 @@
         </div>
         <div v-if="metalLastUpdate" class="last-update">
           最后更新: {{ formatTime(metalLastUpdate) }}
+          <span v-if="metalDataSource" class="data-source">
+            | 数据源: {{ metalDataSource }}
+          </span>
         </div>
       </div>
 
@@ -116,6 +119,7 @@ const props = defineProps({
   metalLastUpdate: { type: [Date, String, null], default: null },
   exchangeLastUpdate: { type: [Date, String, null], default: null },
   dataSource: { type: String, default: '' },
+  metalDataSource: { type: String, default: '' },
   setMiniChartRef: { type: Function, required: true },
   setMetalMiniChartRef: { type: Function, required: true },
   setExchangeRateChartRef: { type: Function, required: true },

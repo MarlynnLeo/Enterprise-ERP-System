@@ -110,14 +110,20 @@ class ExchangeRateService {
          ORDER BY effective_date DESC LIMIT 1`,
           [String(from).toUpperCase(), String(to).toUpperCase()]
         );
-        // 库内无记录时自动从公开 API 拉取并落库
-        if (!row) {
+        const today = currentDateString();
+        const rowDate = row?.effective_date
+          ? String(row.effective_date instanceof Date
+              ? row.effective_date.toISOString().slice(0, 10)
+              : row.effective_date).slice(0, 10)
+          : '';
+        // 无记录，或库内日期已过期：从公开 API 拉当天中间价
+        if (!row || rowDate < today) {
           try {
             const synced = await this.syncFromPublicApi(from, to);
             return synced;
           } catch (error) {
             logger.warn(`[ExchangeRate] auto-sync failed: ${error.message}`);
-            return null;
+            return row || null;
           }
         }
         return row;

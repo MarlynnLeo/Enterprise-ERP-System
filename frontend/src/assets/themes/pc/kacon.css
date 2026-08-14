@@ -211,11 +211,9 @@
   background: var(--shell-sidebar-bg, var(--kacon-glass-bg)) !important;
   backdrop-filter: var(--kacon-glass-filter) !important;
   -webkit-backdrop-filter: var(--kacon-glass-filter) !important;
-  border-right: 1px solid var(--kacon-glass-border) !important;
-  box-shadow: none !important;
-  border-radius: 0 !important;
-  margin: 0 !important;
-  height: 100% !important;
+  border: 1px solid var(--kacon-glass-border) !important;
+  box-shadow: var(--shell-shadow, 0 8px 28px color-mix(in srgb, var(--ds-black, #000) 8%, transparent)) !important;
+  border-radius: var(--shell-radius-lg, var(--radius-lg, 16px)) !important;
 }
 
 [data-theme="kacon"] .logo {
@@ -238,8 +236,9 @@
   background: var(--kacon-glass-bg) !important;
   backdrop-filter: var(--kacon-glass-filter) !important;
   -webkit-backdrop-filter: var(--kacon-glass-filter) !important;
-  border: none !important;
-  border-bottom: 1px solid color-mix(in srgb, var(--color-border-base) 70%, transparent) !important;
+  border: 1px solid color-mix(in srgb, var(--color-border-base) 70%, transparent) !important;
+  border-radius: var(--shell-radius-lg, var(--radius-lg, 16px)) !important;
+  box-shadow: var(--shell-shadow, 0 8px 28px color-mix(in srgb, var(--ds-black, #000) 8%, transparent)) !important;
 }
 
 /* ========== 5. 主内容区（品牌微调） ========== */
@@ -308,10 +307,7 @@
   transition: transform 0.3s var(--transition-timing) !important;
 }
 
-[data-theme="kacon"] .sidebar.collapsed,
-[data-theme="kacon"] .sidebar.collapsed .logo-container {
-  border-radius: 0 !important;
-}
+
 
 
 /* ==================================================================

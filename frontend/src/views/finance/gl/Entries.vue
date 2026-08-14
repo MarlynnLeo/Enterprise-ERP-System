@@ -186,39 +186,36 @@
         <el-table-column prop="description" label="描述" min-width="150" show-overflow-tooltip></el-table-column>
         <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
-            <div class="operation-buttons">
-              <!-- 查看按钮：始终显示 -->
-              <el-button class="btn-op-view"
-                type="primary"
-                size="small"
-                @click="viewEntry(scope.row)"
-              >查看</el-button>
-
-              <!-- 过账按钮：只在未过账且未冲销时显示 -->
+            <div class="table-actions">
+              <el-button class="btn-op-view" type="primary" size="small" @click="viewEntry(scope.row)">
+                <el-icon><View /></el-icon> 查看
+              </el-button>
               <el-button
                 v-if="!scope.row.isPosted && !scope.row.isReversed"
                 type="success"
                 size="small"
                 @click="postEntry(scope.row)"
                 v-permission="'finance:entries:approve'"
-              >过账</el-button>
-
-              <!-- 冲销按钮：只在已过账且未冲销时显示 -->
+              >
+                <el-icon><Check /></el-icon> 过账
+              </el-button>
               <el-button
                 v-if="canReverseEntry(scope.row)"
                 type="warning"
                 size="small"
                 @click="reverseEntry(scope.row)"
                 v-permission="'finance:entries:update'"
-              >冲销</el-button>
-
-              <!-- 删除按钮：只在未过账时显示 -->
+              >
+                <el-icon><RefreshLeft /></el-icon> 冲销
+              </el-button>
               <el-button v-permission="'finance:entries:delete'"
                 v-if="!scope.row.isPosted"
                 type="danger"
                 size="small"
                 @click="deleteEntry(scope.row)"
-              >删除</el-button>
+              >
+                <el-icon><Delete /></el-icon> 删除
+              </el-button>
             </div>
           </template>
         </el-table-column>
@@ -416,7 +413,7 @@ import { useRoute } from 'vue-router';
 
 // Element Plus
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Plus, Printer } from '@element-plus/icons-vue';
+import { Plus, Printer, View, Check, RefreshLeft, Delete } from '@element-plus/icons-vue';
 
 // Pinia Stores
 import { useFinanceStore } from '@/stores/finance';

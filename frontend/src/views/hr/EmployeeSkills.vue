@@ -52,10 +52,14 @@
               <span :class="isExpired(row.expiryDate) ? 'text-danger' : ''">{{ row.expiryDate || '-' }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="140" fixed="right">
+          <el-table-column label="操作" min-width="200" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="{ row }">
-              <el-button link type="primary" v-permission="'hr:skills:update'" @click="openForm(row)">编辑</el-button>
-              <el-button link type="danger" v-permission="'hr:skills:delete'" @click="handleDelete(row.id)">删除</el-button>
+              <el-button type="primary" size="small" v-permission="'hr:skills:update'" @click="openForm(row)">
+                <el-icon><Edit /></el-icon> 编辑
+              </el-button>
+              <el-button type="danger" size="small" v-permission="'hr:skills:delete'" @click="handleDelete(row.id)">
+                <el-icon><Delete /></el-icon> 删除
+              </el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -154,6 +158,7 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Edit, Delete } from '@element-plus/icons-vue'
 import { employeeSkillApi } from '@/api/productionAssist'
 
 const viewMode = ref('list')

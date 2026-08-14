@@ -61,12 +61,20 @@
         <el-table-column prop="reporterName" label="上报人" width="100" />
         <el-table-column prop="location" label="位置" width="100" show-overflow-tooltip />
         <el-table-column prop="createdAt" label="上报时间" width="160" />
-        <el-table-column label="操作" width="220" fixed="right">
+        <el-table-column label="操作" min-width="280" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
-            <el-button class="btn-op-view" type="primary" size="small" @click="viewDetail(row)">详情</el-button>
-            <el-button link type="warning" v-if="row.status === 'open'" v-permission="'production:anomaly:update'" @click="handleAssign(row)">指派</el-button>
-            <el-button link type="success" v-if="row.status === 'processing'" v-permission="'production:anomaly:update'" @click="handleResolve(row)">解决</el-button>
-            <el-button link type="info" v-if="row.status === 'resolved'" v-permission="'production:anomaly:update'" @click="handleClose(row.id)">关闭</el-button>
+            <el-button class="btn-op-view" type="primary" size="small" @click="viewDetail(row)">
+              <el-icon><View /></el-icon> 详情
+            </el-button>
+            <el-button type="warning" size="small" v-if="row.status === 'open'" v-permission="'production:anomaly:update'" @click="handleAssign(row)">
+              <el-icon><User /></el-icon> 指派
+            </el-button>
+            <el-button type="success" size="small" v-if="row.status === 'processing'" v-permission="'production:anomaly:update'" @click="handleResolve(row)">
+              <el-icon><Check /></el-icon> 解决
+            </el-button>
+            <el-button type="info" size="small" v-if="row.status === 'resolved'" v-permission="'production:anomaly:update'" @click="handleClose(row.id)">
+              <el-icon><CircleClose /></el-icon> 关闭
+            </el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -146,6 +154,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { View, User, Check, CircleClose } from '@element-plus/icons-vue'
 import { anomalyReportApi } from '@/api/productionAssist'
 
 const loading = ref(false)

@@ -72,12 +72,12 @@
   max-width: 1280px;
 }
 
-/* 默认查看/表单：按内容宽度撑开，避免统一做成超宽空壳 */
+/* 默认查看/表单：按内容宽度撑开；上限与明细宽弹窗一致 */
 .el-dialog.app-dialog--adaptive:not(.is-fullscreen) {
   --el-dialog-width: max-content;
   width: max-content;
   min-width: min(560px, calc(100vw - 24px));
-  max-width: min(92vw, 880px);
+  max-width: min(92vw, 1280px);
 }
 
 .el-dialog.app-dialog--adaptive:not(.is-fullscreen) .el-dialog__body,

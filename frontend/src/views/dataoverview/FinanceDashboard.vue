@@ -126,11 +126,11 @@
             </el-table-column>
             <el-table-column label="操作" min-width="120" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="scope">
-                <el-button class="btn-op-view"
-                  type="primary"
-                  size="small"
-                  @click="$router.push('/finance/cash/bank-transactions?account=' + scope.row.id)"
-                >查看</el-button>
+                <div class="table-actions">
+                  <el-button class="btn-op-view" type="primary" size="small" @click="$router.push('/finance/cash/bank-transactions?account=' + scope.row.id)">
+                    <el-icon><View /></el-icon> 查看
+                  </el-button>
+                </div>
               </template>
             </el-table-column>
           </el-table>
@@ -174,7 +174,7 @@ import Chart from '@/utils/chartCore';
 import { ElMessage } from 'element-plus';
 import { financeApi } from '@/api';
 // 权限计算属性
-import { ArrowDown, ArrowUp, InfoFilled } from '@element-plus/icons-vue'
+import { ArrowDown, ArrowUp, InfoFilled, View } from '@element-plus/icons-vue'
 import { useDashboard, useCharts } from '@/composables/useDashboard';
 import {
   handleDashboardError,

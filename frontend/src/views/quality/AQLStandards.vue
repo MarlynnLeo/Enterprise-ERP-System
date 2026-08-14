@@ -71,11 +71,16 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" fixed="right" min-width="150" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" fixed="right" min-width="200" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
-            <el-button size="small" type="primary" link @click="handleEdit(scope.row)"
-              v-permission="'quality:aql:update'">编辑</el-button>
-            <el-button v-permission="'quality:aql:delete'" size="small" type="danger" link @click="handleDelete(scope.row)">删除</el-button>
+            <div class="table-actions">
+              <el-button size="small" @click="handleEdit(scope.row)" v-permission="'quality:aql:update'">
+                <el-icon><Edit /></el-icon> 编辑
+              </el-button>
+              <el-button v-permission="'quality:aql:delete'" size="small" type="danger" @click="handleDelete(scope.row)">
+                <el-icon><Delete /></el-icon> 删除
+              </el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -180,7 +185,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Plus } from '@element-plus/icons-vue';
+import { Plus, Edit, Delete } from '@element-plus/icons-vue';
 import { qualityApi } from '@/api/quality';
 import { parsePaginatedData } from '@/utils/responseParser';
 import 'dayjs';

@@ -133,21 +133,29 @@
         <el-table-column prop="remark" label="备注" min-width="120" show-overflow-tooltip />
         <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
-            <el-button class="btn-op-view" type="primary" size="small" v-permission="'inventory:manual:view'" @click="handleView(row)">查看</el-button>
-            <el-button
-              v-if="row.approvalStatus === 'pending'"
-              size="small"
-              type="success"
-              v-permission="'inventory:manual:approve'"
-              @click="handleApprove(row)"
-            >审批</el-button>
-            <el-button
-              v-if="row.approvalStatus === 'pending' && canDelete"
-              size="small"
-              type="danger"
-              v-permission="'inventory:manual:delete'"
-              @click="handleDelete(row)"
-            >删除</el-button>
+            <div class="table-actions">
+              <el-button class="btn-op-view" type="primary" size="small" v-permission="'inventory:manual:view'" @click="handleView(row)">
+                <el-icon><View /></el-icon> 查看
+              </el-button>
+              <el-button
+                v-if="row.approvalStatus === 'pending'"
+                size="small"
+                type="success"
+                v-permission="'inventory:manual:approve'"
+                @click="handleApprove(row)"
+              >
+                <el-icon><Check /></el-icon> 审批
+              </el-button>
+              <el-button
+                v-if="row.approvalStatus === 'pending' && canDelete"
+                size="small"
+                type="danger"
+                v-permission="'inventory:manual:delete'"
+                @click="handleDelete(row)"
+              >
+                <el-icon><Delete /></el-icon> 删除
+              </el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -664,7 +672,7 @@
 import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted, nextTick, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Refresh } from '@element-plus/icons-vue'
+import { Plus, Refresh, View, Check, Delete } from '@element-plus/icons-vue'
 import { inventoryApi, baseDataApi, systemApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import {

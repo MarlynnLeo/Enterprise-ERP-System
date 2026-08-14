@@ -41,9 +41,14 @@
         </el-table-column>
         <el-table-column label="操作" min-width="240" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
-            <el-button type="primary" size="small" link @click="handleEdit(row)"
-              v-permission="'hr:employees:update'">编辑</el-button>
-            <el-button type="danger" size="small" link @click="handleDelete(row)" v-if="row.employmentStatus==='active'" v-permission="'hr:employees:delete'">离职</el-button>
+            <div class="table-actions">
+              <el-button size="small" @click="handleEdit(row)" v-permission="'hr:employees:update'">
+                <el-icon><Edit /></el-icon> 编辑
+              </el-button>
+              <el-button type="danger" size="small" @click="handleDelete(row)" v-if="row.employmentStatus==='active'" v-permission="'hr:employees:delete'">
+                <el-icon><SwitchButton /></el-icon> 离职
+              </el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -152,7 +157,7 @@
 import { ref, onMounted } from 'vue'
 import { hrApi } from '@/api/hr'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Refresh } from '@element-plus/icons-vue'
+import { Plus, Refresh, Edit, SwitchButton } from '@element-plus/icons-vue'
 import { parseResponseData } from '@/utils/responseParser'
 import { loadDepartmentOptions } from '@/utils/optionLoaders'
 

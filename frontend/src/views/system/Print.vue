@@ -90,10 +90,16 @@
         <el-table-column prop="createdAt" label="创建时间" width="180"></el-table-column>
         <el-table-column label="操作" min-width="375" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
-            <div class="operation-buttons">
-              <el-button type="primary" size="small" @click="openTemplateDialog(scope.row)" v-permission="'system:print:update'">编辑</el-button>
-              <el-button type="success" size="small" @click="previewTemplate(scope.row)">预览</el-button>
-              <el-button v-permission="'system:print:delete'" type="danger" size="small" @click="deletePrintTemplate(scope.row.id)">删除</el-button>
+            <div class="table-actions">
+              <el-button size="small" @click="openTemplateDialog(scope.row)" v-permission="'system:print:update'">
+                <el-icon><Edit /></el-icon> 编辑
+              </el-button>
+              <el-button type="success" size="small" @click="previewTemplate(scope.row)">
+                <el-icon><View /></el-icon> 预览
+              </el-button>
+              <el-button v-permission="'system:print:delete'" type="danger" size="small" @click="deletePrintTemplate(scope.row.id)">
+                <el-icon><Delete /></el-icon> 删除
+              </el-button>
             </div>
           </template>
         </el-table-column>
@@ -351,6 +357,7 @@
 <script setup>
 import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Edit, View, Delete } from '@element-plus/icons-vue'
 import { parsePaginatedData } from '@/utils/responseParser'
 // 导入常量和工具函数
 import {

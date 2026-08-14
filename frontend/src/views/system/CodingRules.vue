@@ -67,9 +67,17 @@
         <el-table-column prop="description" label="说明" min-width="140" show-overflow-tooltip />
         <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
-            <el-button link type="primary" v-permission="'system:settings:edit'" @click="openForm(row)">编辑</el-button>
-            <el-button link type="warning" v-permission="'system:settings:view'" @click="openSequences(row)">序列</el-button>
-            <el-button link type="danger" v-permission="'system:settings:edit'" @click="handleDelete(row)">删除</el-button>
+            <div class="table-actions">
+              <el-button size="small" v-permission="'system:settings:edit'" @click="openForm(row)">
+                <el-icon><Edit /></el-icon> 编辑
+              </el-button>
+              <el-button size="small" type="warning" v-permission="'system:settings:view'" @click="openSequences(row)">
+                <el-icon><List /></el-icon> 序列
+              </el-button>
+              <el-button size="small" type="danger" v-permission="'system:settings:edit'" @click="handleDelete(row)">
+                <el-icon><Delete /></el-icon> 删除
+              </el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -188,7 +196,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, Edit, Delete, List } from '@element-plus/icons-vue'
 import { codingRuleApi } from '@/api/enhanced'
 import 'dayjs'
 const loading = ref(false)

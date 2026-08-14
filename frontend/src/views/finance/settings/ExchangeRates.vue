@@ -20,11 +20,17 @@
         <template #default="{ row }"><el-tag size="small">{{ row.source === 'api' ? '自动' : '手动' }}</el-tag></template>
       </el-table-column>
       <el-table-column prop="createdAt" label="创建时间" min-width="160" />
-      <el-table-column label="操作" min-width="80" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+      <el-table-column label="操作" min-width="100" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
         <template #default="{ row }">
-          <el-popconfirm title="确定删除？" @confirm="handleDelete(row.id)">
-            <template #reference><el-button v-permission="'finance:exchange-rates:update'" link type="danger">删除</el-button></template>
-          </el-popconfirm>
+          <div class="table-actions">
+            <el-popconfirm title="确定删除？" @confirm="handleDelete(row.id)">
+              <template #reference>
+                <el-button size="small" type="danger" v-permission="'finance:exchange-rates:update'">
+                  <el-icon><Delete /></el-icon> 删除
+                </el-button>
+              </template>
+            </el-popconfirm>
+          </div>
         </template>
       </el-table-column>
       </el-table>
@@ -61,6 +67,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import { Delete } from '@element-plus/icons-vue'
 import { exchangeRateApi } from '@/api/enhanced'
 
 const loading = ref(false)

@@ -140,59 +140,61 @@
         <el-table-column prop="remark" label="备注" width="180" show-overflow-tooltip />
         <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
-            <el-button class="btn-op-view" type="primary"
-              size="small"
-              v-permission="'inventory:inbound:view'"
-              @click="handleView(row.id)"
-            >
-              查看
-            </el-button>
-            <el-popconfirm
-              v-if="row.status === 'draft'"
-              title="确定要确认该入库单吗？"
-              @confirm="handleUpdateStatus(row.id, 'confirmed')"
-            >
-              <template #reference>
-                <el-button
-                  size="small"
-                  type="primary"
-                  v-permission="'inventory:inbound:update'"
-                >
-                  确认
-                </el-button>
-              </template>
-            </el-popconfirm>
-            <el-popconfirm
-              v-if="row.status === 'confirmed'"
-              title="确定要完成该入库单吗？"
-              @confirm="handleUpdateStatus(row.id, 'completed')"
-            >
-              <template #reference>
-                <el-button
-                  size="small"
-                  type="primary"
-                  v-permission="'inventory:inbound:update'"
-                >
-                  完成
-                </el-button>
-              </template>
-            </el-popconfirm>
-            <el-popconfirm
-              v-if="['draft', 'confirmed'].includes(row.status)"
-              title="确定要取消该入库单吗？"
-              @confirm="handleUpdateStatus(row.id, 'cancelled')"
-              confirm-button-type="danger"
-            >
-              <template #reference>
-                <el-button
-                  size="small"
-                  type="danger"
-                  v-permission="'inventory:inbound:update'"
-                >
-                  取消
-                </el-button>
-              </template>
-            </el-popconfirm>
+            <div class="table-actions">
+              <el-button class="btn-op-view" type="primary"
+                size="small"
+                v-permission="'inventory:inbound:view'"
+                @click="handleView(row.id)"
+              >
+                <el-icon><View /></el-icon> 查看
+              </el-button>
+              <el-popconfirm
+                v-if="row.status === 'draft'"
+                title="确定要确认该入库单吗？"
+                @confirm="handleUpdateStatus(row.id, 'confirmed')"
+              >
+                <template #reference>
+                  <el-button
+                    size="small"
+                    type="success"
+                    v-permission="'inventory:inbound:update'"
+                  >
+                    <el-icon><Check /></el-icon> 确认
+                  </el-button>
+                </template>
+              </el-popconfirm>
+              <el-popconfirm
+                v-if="row.status === 'confirmed'"
+                title="确定要完成该入库单吗？"
+                @confirm="handleUpdateStatus(row.id, 'completed')"
+              >
+                <template #reference>
+                  <el-button
+                    size="small"
+                    type="primary"
+                    v-permission="'inventory:inbound:update'"
+                  >
+                    <el-icon><Finished /></el-icon> 完成
+                  </el-button>
+                </template>
+              </el-popconfirm>
+              <el-popconfirm
+                v-if="['draft', 'confirmed'].includes(row.status)"
+                title="确定要取消该入库单吗？"
+                @confirm="handleUpdateStatus(row.id, 'cancelled')"
+                confirm-button-type="danger"
+              >
+                <template #reference>
+                  <el-button
+                    size="small"
+                    type="danger"
+                    v-permission="'inventory:inbound:update'"
+                  >
+                    <el-icon><Close /></el-icon> 取消
+                  </el-button>
+                </template>
+              </el-popconfirm>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -493,8 +495,8 @@
         <el-table-column prop="unitName" label="单位" width="80" />
         <el-table-column label="操作" min-width="100" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="handleAddSingleMaterial(row)">
-              选择
+            <el-button type="primary" size="small" @click="handleAddSingleMaterial(row)">
+              <el-icon><Check /></el-icon> 选择
             </el-button>
           </template>
         </el-table-column>
@@ -628,7 +630,7 @@ import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted, computed, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, Check, View, Finished, Close } from '@element-plus/icons-vue'
 import { inventoryApi, baseDataApi, productionApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import { tokenManager } from '@/utils/unifiedStorage'

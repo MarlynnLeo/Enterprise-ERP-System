@@ -45,34 +45,32 @@
         </el-table-column>
         <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
-            <el-button
-              v-permission="'finance:expenses:update'"
-              type="primary"
-              size="small"
-              link
-              @click="handleEdit(row)"
-            >
-              编辑
-            </el-button>
-            <el-button
-              v-if="!row.parentId"
-              v-permission="'finance:expenses:create'"
-              type="success"
-              size="small"
-              link
-              @click="handleAdd(row.id)"
-            >
-              添加子类
-            </el-button>
-            <el-button
-              v-permission="'finance:expenses:delete'"
-              type="danger"
-              size="small"
-              link
-              @click="handleDelete(row)"
-            >
-              删除
-            </el-button>
+            <div class="table-actions">
+              <el-button
+                v-permission="'finance:expenses:update'"
+                size="small"
+                @click="handleEdit(row)"
+              >
+                <el-icon><Edit /></el-icon> 编辑
+              </el-button>
+              <el-button
+                v-if="!row.parentId"
+                v-permission="'finance:expenses:create'"
+                type="success"
+                size="small"
+                @click="handleAdd(row.id)"
+              >
+                <el-icon><Plus /></el-icon> 添加子类
+              </el-button>
+              <el-button
+                v-permission="'finance:expenses:delete'"
+                type="danger"
+                size="small"
+                @click="handleDelete(row)"
+              >
+                <el-icon><Delete /></el-icon> 删除
+              </el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -130,7 +128,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, Edit, Delete } from '@element-plus/icons-vue'
 import { financeApi } from '@/api'
 import { parseListData } from '@/utils/responseParser'
 

@@ -171,7 +171,7 @@
         <el-table-column label="操作" min-width="100" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <el-dropdown trigger="click" @command="(cmd) => handleCommand(cmd, row)">
-              <el-button type="primary" size="small" link>
+              <el-button type="primary" size="small">
                 操作 <el-icon class="el-icon--right"><ArrowDown /></el-icon>
               </el-button>
               <template #dropdown>

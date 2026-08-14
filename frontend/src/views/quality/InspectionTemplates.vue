@@ -619,7 +619,11 @@
             </el-table-column>
             <el-table-column label="操作" min-width="100" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="scope">
-                <el-button link type="primary" @click="selectStandard(scope.row)">选择</el-button>
+                <div class="table-actions">
+                  <el-button size="small" type="primary" @click="selectStandard(scope.row)">
+                    <el-icon><Check /></el-icon> 选择
+                  </el-button>
+                </div>
               </template>
             </el-table-column>
           </el-table>
@@ -696,7 +700,7 @@
 <script setup>
 import { ref, reactive, onMounted, nextTick } from 'vue'
 import AQLStandards from './AQLStandards.vue'
-import { Search, Refresh, Plus } from '@element-plus/icons-vue'
+import { Search, Refresh, Plus, Check } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { formatDateTime } from '@/utils/helpers/dateUtils'
 import { baseDataApi, qualityApi } from '@/api'

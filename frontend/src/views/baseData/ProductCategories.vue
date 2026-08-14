@@ -121,41 +121,45 @@
           </template>
         </el-table-column>
         <el-table-column prop="description" label="描述"></el-table-column>
-        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
-            <el-button
-              v-if="canCreate && Number(scope.row.status) !== 1"
-              size="small"
-              type="primary"
-              link
-              @click="handleAdd(scope.row)"
-            >
-              <el-icon><Plus /></el-icon> 添加子类
-            </el-button>
-            <el-button
-              v-if="canUpdate && Number(scope.row.status) !== 1"
-              size="small"
-              type="primary"
-              @click="handleEdit(scope.row)"
-            >
-              <el-icon><Edit /></el-icon> 编辑
-            </el-button>
-            <el-button
-              v-if="canUpdate"
-              size="small"
-              :type="Number(scope.row.status) === 1 ? 'warning' : 'success'"
-              @click="handleToggleStatus(scope.row)"
-            >
-              {{ Number(scope.row.status) === 1 ? '禁用' : '启用' }}
-            </el-button>
-            <el-button
-              v-if="canDelete && Number(scope.row.status) !== 1"
-              size="small"
-              type="danger"
-              @click="handleDelete(scope.row)"
-            >
-              <el-icon><Delete /></el-icon> 删除
-            </el-button>
+            <div class="table-actions">
+              <el-button
+                v-if="canCreate && Number(scope.row.status) !== 1"
+                size="small"
+                type="primary"
+                @click="handleAdd(scope.row)"
+              >
+                <el-icon><Plus /></el-icon> 添加子类
+              </el-button>
+              <el-button
+                v-if="canUpdate && Number(scope.row.status) !== 1"
+                size="small"
+                @click="handleEdit(scope.row)"
+              >
+                <el-icon><Edit /></el-icon> 编辑
+              </el-button>
+              <el-button
+                v-if="canUpdate"
+                size="small"
+                :type="Number(scope.row.status) === 1 ? 'warning' : 'success'"
+                @click="handleToggleStatus(scope.row)"
+              >
+                <el-icon>
+                  <Close v-if="Number(scope.row.status) === 1" />
+                  <Check v-else />
+                </el-icon>
+                {{ Number(scope.row.status) === 1 ? '禁用' : '启用' }}
+              </el-button>
+              <el-button
+                v-if="canDelete && Number(scope.row.status) !== 1"
+                size="small"
+                type="danger"
+                @click="handleDelete(scope.row)"
+              >
+                <el-icon><Delete /></el-icon> 删除
+              </el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -205,34 +209,35 @@
           <el-table-column prop="description" label="描述"></el-table-column>
           <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="scope">
-              <el-button
-                v-if="canUpdate && Number(scope.row.status) !== 1"
-                size="small"
-                type="primary"
-                link
-                @click="handleEditSource(scope.row)"
-              >
-                <el-icon><Edit /></el-icon> 编辑
-              </el-button>
-              <el-button
-                v-if="canUpdate"
-                size="small"
-                :type="Number(scope.row.status) === 1 ? 'warning' : 'success'"
-                link
-                @click="handleToggleSourceStatus(scope.row)"
-              >
-                <el-icon><component :is="Number(scope.row.status) === 1 ? 'CircleClose' : 'CircleCheck'" /></el-icon>
-                {{ Number(scope.row.status) === 1 ? '禁用' : '启用' }}
-              </el-button>
-              <el-button
-                v-if="canDelete && Number(scope.row.status) !== 1"
-                size="small"
-                type="danger"
-                link
-                @click="handleDeleteSource(scope.row)"
-              >
-                <el-icon><Delete /></el-icon> 删除
-              </el-button>
+              <div class="table-actions">
+                <el-button
+                  v-if="canUpdate && Number(scope.row.status) !== 1"
+                  size="small"
+                  @click="handleEditSource(scope.row)"
+                >
+                  <el-icon><Edit /></el-icon> 编辑
+                </el-button>
+                <el-button
+                  v-if="canUpdate"
+                  size="small"
+                  :type="Number(scope.row.status) === 1 ? 'warning' : 'success'"
+                  @click="handleToggleSourceStatus(scope.row)"
+                >
+                  <el-icon>
+                    <Close v-if="Number(scope.row.status) === 1" />
+                    <Check v-else />
+                  </el-icon>
+                  {{ Number(scope.row.status) === 1 ? '禁用' : '启用' }}
+                </el-button>
+                <el-button
+                  v-if="canDelete && Number(scope.row.status) !== 1"
+                  size="small"
+                  type="danger"
+                  @click="handleDeleteSource(scope.row)"
+                >
+                  <el-icon><Delete /></el-icon> 删除
+                </el-button>
+              </div>
             </template>
           </el-table-column>
         </el-table>
@@ -273,34 +278,35 @@
           <el-table-column prop="description" label="描述"></el-table-column>
           <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="scope">
-              <el-button
-                v-if="canUpdate && Number(scope.row.status) !== 1"
-                size="small"
-                type="primary"
-                link
-                @click="handleEditInspection(scope.row)"
-              >
-                <el-icon><Edit /></el-icon> 编辑
-              </el-button>
-              <el-button
-                v-if="canUpdate"
-                size="small"
-                :type="Number(scope.row.status) === 1 ? 'warning' : 'success'"
-                link
-                @click="handleToggleInspectionStatus(scope.row)"
-              >
-                <el-icon><component :is="Number(scope.row.status) === 1 ? 'CircleClose' : 'CircleCheck'" /></el-icon>
-                {{ Number(scope.row.status) === 1 ? '禁用' : '启用' }}
-              </el-button>
-              <el-button
-                v-if="canDelete && Number(scope.row.status) !== 1"
-                size="small"
-                type="danger"
-                link
-                @click="handleDeleteInspection(scope.row)"
-              >
-                <el-icon><Delete /></el-icon> 删除
-              </el-button>
+              <div class="table-actions">
+                <el-button
+                  v-if="canUpdate && Number(scope.row.status) !== 1"
+                  size="small"
+                  @click="handleEditInspection(scope.row)"
+                >
+                  <el-icon><Edit /></el-icon> 编辑
+                </el-button>
+                <el-button
+                  v-if="canUpdate"
+                  size="small"
+                  :type="Number(scope.row.status) === 1 ? 'warning' : 'success'"
+                  @click="handleToggleInspectionStatus(scope.row)"
+                >
+                  <el-icon>
+                    <Close v-if="Number(scope.row.status) === 1" />
+                    <Check v-else />
+                  </el-icon>
+                  {{ Number(scope.row.status) === 1 ? '禁用' : '启用' }}
+                </el-button>
+                <el-button
+                  v-if="canDelete && Number(scope.row.status) !== 1"
+                  size="small"
+                  type="danger"
+                  @click="handleDeleteInspection(scope.row)"
+                >
+                  <el-icon><Delete /></el-icon> 删除
+                </el-button>
+              </div>
             </template>
           </el-table-column>
         </el-table>
@@ -491,7 +497,7 @@
 import { parsePaginatedData } from '@/utils/responseParser';
 import { ref, reactive, onMounted, watch, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Plus, Edit, Delete, ArrowDown } from '@element-plus/icons-vue';
+import { Plus, Edit, Delete, ArrowDown, Check, Close } from '@element-plus/icons-vue';
 import { useAuthStore } from '@/stores/auth';
 import { baseDataApi } from '@/api/baseData';
 // 权限store

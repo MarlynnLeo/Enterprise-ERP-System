@@ -23,7 +23,7 @@
         <el-table-column prop="description" label="说明" show-overflow-tooltip />
         <el-table-column
           label="操作"
-          width="150"
+          min-width="200"
           fixed="right"
           align="left"
           header-align="left"
@@ -31,12 +31,14 @@
           header-class-name="operation-column-header"
         >
           <template #default="{ row }">
-            <el-button v-permission="'finance:tax:update'" link type="primary" @click="handleEdit(row)">
-              编辑
-            </el-button>
-            <el-button v-permission="'finance:tax:delete'" link type="danger" @click="handleDelete(row)">
-              删除
-            </el-button>
+            <div class="table-actions">
+              <el-button size="small" v-permission="'finance:tax:update'" @click="handleEdit(row)">
+                <el-icon><Edit /></el-icon> 编辑
+              </el-button>
+              <el-button size="small" type="danger" v-permission="'finance:tax:delete'" @click="handleDelete(row)">
+                <el-icon><Delete /></el-icon> 删除
+              </el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -104,6 +106,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Edit, Delete } from '@element-plus/icons-vue'
 import { financeApi } from '@/api'
 
 const loading = ref(false)

@@ -45,15 +45,23 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column label="操作" min-width="280" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
-            <el-button class="btn-op-view" type="primary" size="small" @click="viewDetail(row.id)">查看</el-button>
-            <el-button link type="primary" size="small" v-permission="'production:routes:update'" @click="editRoute(row.id)">编辑</el-button>
-            <el-popconfirm title="确定删除?" @confirm="handleDelete(row.id)">
-              <template #reference>
-                <el-button link type="danger" size="small" v-permission="'production:routes:delete'">删除</el-button>
-              </template>
-            </el-popconfirm>
+            <div class="table-actions">
+              <el-button class="btn-op-view" type="primary" size="small" @click="viewDetail(row.id)">
+                <el-icon><View /></el-icon> 查看
+              </el-button>
+              <el-button size="small" v-permission="'production:routes:update'" @click="editRoute(row.id)">
+                <el-icon><Edit /></el-icon> 编辑
+              </el-button>
+              <el-popconfirm title="确定删除?" @confirm="handleDelete(row.id)">
+                <template #reference>
+                  <el-button type="danger" size="small" v-permission="'production:routes:delete'">
+                    <el-icon><Delete /></el-icon> 删除
+                  </el-button>
+                </template>
+              </el-popconfirm>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -194,7 +202,7 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
-import { Plus, Check } from '@element-plus/icons-vue'
+import { Plus, Check, View, Edit, Delete } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { processRouteApi, workStationApi } from '../../api/assembly'
 import { api } from '../../services/axiosInstance'

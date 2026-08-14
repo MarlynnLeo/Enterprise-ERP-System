@@ -105,10 +105,17 @@
         </el-table-column>
         <el-table-column label="操作" fixed="right" min-width="300" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
-            <el-button v-permission="'quality:gauges:create'" size="small" type="primary" link @click.stop="handleCalibrate(scope.row)">校准</el-button>
-            <el-button size="small" type="warning" link @click.stop="handleEdit(scope.row)"
-              v-permission="'quality:gauges:update'">编辑</el-button>
-            <el-button v-permission="'quality:gauges:delete'" size="small" type="danger" link @click.stop="handleDelete(scope.row)">删除</el-button>
+            <div class="table-actions">
+              <el-button v-permission="'quality:gauges:create'" size="small" type="primary" @click.stop="handleCalibrate(scope.row)">
+                <el-icon><Odometer /></el-icon> 校准
+              </el-button>
+              <el-button size="small" type="warning" @click.stop="handleEdit(scope.row)" v-permission="'quality:gauges:update'">
+                <el-icon><Edit /></el-icon> 编辑
+              </el-button>
+              <el-button v-permission="'quality:gauges:delete'" size="small" type="danger" @click.stop="handleDelete(scope.row)">
+                <el-icon><Delete /></el-icon> 删除
+              </el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -267,7 +274,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Plus, Odometer, CircleCheck, Warning, CircleClose } from '@element-plus/icons-vue';
+import { Plus, Odometer, CircleCheck, Warning, CircleClose, Edit, Delete } from '@element-plus/icons-vue';
 import { qualityApi } from '@/api/quality';
 import dayjs from 'dayjs';
 import { formatDate } from '@/utils/helpers/dateUtils'

@@ -6,16 +6,23 @@ import { ref, computed } from 'vue'
 import { metalPricesApi } from '@/api'
 import { ElMessage } from 'element-plus'
 // 单位转换系数
-const GRAMS_PER_TROY_OUNCE = 31.1035  // 1金衡盎司 = 31.1035克
-const _GRAMS_PER_TON = 1000000  // 1吨 = 1,000,000克
+const TROY_OUNCE_GRAMS = 31.1034768
+
+const toDisplayPrice = (symbol, payload) => {
+  const raw = Number(payload?.price)
+  if (!Number.isFinite(raw) || raw <= 0) return null
+  return symbol === 'GOLD' || symbol === 'SILVER' ? raw / TROY_OUNCE_GRAMS : raw
+}
+
 export function useMetalPrices(updateMiniChartsGeneric) {
-  // 金属价格数据（统一按克计算）
+  // 金属价格数据（贵金属按克、有色按吨）
   const metalPrices = ref({
-    GOLD: { name: '黄金', price: '--', changePercent: 0, unit: '¥/克' },
-    SILVER: { name: '白银', price: '--', changePercent: 0, unit: '¥/克' },
-    ALUMINUM: { name: '铝', price: '--', changePercent: 0, unit: '¥/吨' },
-    COPPER: { name: '铜', price: '--', changePercent: 0, unit: '¥/吨' },
-    lastUpdate: null
+    GOLD: { name: '黄金', price: '--', changePercent: 0, unit: '¥/克', source: '' },
+    SILVER: { name: '白银', price: '--', changePercent: 0, unit: '¥/克', source: '' },
+    ALUMINUM: { name: '铝', price: '--', changePercent: 0, unit: '¥/吨', source: '' },
+    COPPER: { name: '铜', price: '--', changePercent: 0, unit: '¥/吨', source: '' },
+    lastUpdate: null,
+    dataSource: ''
   })
   const metalPricesLoading = ref(false)
   // 金属价格历史数据
@@ -29,7 +36,7 @@ export function useMetalPrices(updateMiniChartsGeneric) {
   const metalPriceCards = computed(() => {
     const result = {}
     Object.keys(metalPrices.value).forEach(key => {
-      if (key !== 'lastUpdate') {
+      if (key !== 'lastUpdate' && key !== 'dataSource') {
         result[key] = metalPrices.value[key]
       }
     })
@@ -44,50 +51,43 @@ export function useMetalPrices(updateMiniChartsGeneric) {
     }
   }
   // 获取金属价格数据
-  const fetchMetalPrices = async () => {
+  const applyMetalPayload = (data) => {
+    const currentTime = data.timestamp ? new Date(data.timestamp) : new Date()
+    const sources = []
+    Object.keys(data).forEach((symbol) => {
+      if (!metalPrices.value[symbol] || !data[symbol]) return
+      const displayPrice = toDisplayPrice(symbol, data[symbol])
+      if (displayPrice == null) return
+      const isPrecious = symbol === 'GOLD' || symbol === 'SILVER'
+      metalPrices.value[symbol] = {
+        ...metalPrices.value[symbol],
+        price: displayPrice,
+        changePercent: data[symbol].changePercent,
+        unit: isPrecious ? '¥/克' : '¥/吨',
+        source: data[symbol].source || ''
+      }
+      if (data[symbol].source) sources.push(data[symbol].source)
+      metalPriceHistory.value[symbol].push({
+        time: currentTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+        price: displayPrice,
+        timestamp: currentTime
+      })
+      if (metalPriceHistory.value[symbol].length > 24) {
+        metalPriceHistory.value[symbol].shift()
+      }
+    })
+    metalPrices.value.lastUpdate = currentTime
+    metalPrices.value.dataSource = [...new Set(sources)].join(' / ')
+    updateMetalMiniCharts()
+  }
+
+  const fetchMetalPrices = async ({ force = false } = {}) => {
     metalPricesLoading.value = true
     try {
-      const response = await metalPricesApi.getRealTimePrices()
-      // 拦截器已解包，response.data 就是业务数据
-      if (response.data) {
-        const data = response.data
-        const currentTime = new Date()
-        // 更新金属价格数据（统一转换为克）
-        Object.keys(data).forEach(symbol => {
-          if (metalPrices.value[symbol] && data[symbol]) {
-            let priceInGrams
-            // 贵金属（黄金、白银）从盎司转换为克
-            if (symbol === 'GOLD' || symbol === 'SILVER') {
-              // 后端返回 ¥/盎司,转换为 ¥/克: 价格 ÷ 31.1035
-              priceInGrams = data[symbol].price / GRAMS_PER_TROY_OUNCE
-              metalPrices.value[symbol].unit = '¥/克'
-            }
-            // 有色金属（铝、铜）保持每吨价格
-            else {
-              priceInGrams = data[symbol].price
-              metalPrices.value[symbol].unit = '¥/吨'
-            }
-            metalPrices.value[symbol] = {
-              ...metalPrices.value[symbol],
-              price: priceInGrams,
-              changePercent: data[symbol].changePercent
-            }
-            // 添加到历史数据
-            metalPriceHistory.value[symbol].push({
-              time: currentTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
-              price: priceInGrams,
-              timestamp: currentTime
-            })
-            // 保留最近24个数据点
-            if (metalPriceHistory.value[symbol].length > 24) {
-              metalPriceHistory.value[symbol].shift()
-            }
-          }
-        })
-        metalPrices.value.lastUpdate = currentTime
-        // 更新迷你图表
-        updateMetalMiniCharts()
-      }
+      const response = force
+        ? await metalPricesApi.refreshPrices()
+        : await metalPricesApi.getRealTimePrices()
+      if (response.data) applyMetalPayload(response.data)
     } catch (error) {
       console.error('获取金属价格数据失败:', error)
       ElMessage.error('获取金属价格数据失败，请检查网络连接')
@@ -108,7 +108,7 @@ export function useMetalPrices(updateMiniChartsGeneric) {
   }
   // 刷新金属价格
   const refreshMetalPrices = async () => {
-    await fetchMetalPrices()
+    await fetchMetalPrices({ force: true })
     ElMessage.success('金属价格数据已手动更新')
   }
   // 销毁图表

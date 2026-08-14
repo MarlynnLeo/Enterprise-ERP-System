@@ -34,20 +34,19 @@
               <span class="subtotal-value">{{ formatPrice(row.subtotal) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" min-width="130" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+          <el-table-column label="操作" min-width="220" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="{ row }">
-              <div class="bom-actions">
-                <el-button v-permission="'finance:pricing:update'" type="primary" link size="small" @click="$emit('adjust', row)">
-                  {{ row.hasAdjustment ? '重新调整' : '调整' }}
+              <div class="table-actions">
+                <el-button v-permission="'finance:pricing:update'" type="primary" size="small" @click="$emit('adjust', row)">
+                  <el-icon><Edit /></el-icon> {{ row.hasAdjustment ? '重新调整' : '调整' }}
                 </el-button>
                 <el-button
                   v-if="row.hasAdjustment"
                   type="info"
-                  link
                   size="small"
                   @click="$emit('history', row)"
                 >
-                  历史
+                  <el-icon><Clock /></el-icon> 历史
                 </el-button>
               </div>
             </template>
@@ -71,6 +70,7 @@
 
 <script setup>
 import { computed } from 'vue';
+import { Edit, Clock } from '@element-plus/icons-vue';
 
 const props = defineProps({
   modelValue: Boolean,

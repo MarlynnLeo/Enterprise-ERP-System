@@ -72,12 +72,16 @@
           </template>
         </el-table-column>
         <el-table-column prop="sortOrder" label="排序" width="70" align="center" />
-        <el-table-column label="操作" width="150" fixed="right">
+        <el-table-column label="操作" min-width="200" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
-            <el-button link type="primary" size="small" v-permission="'production:stations:update'" @click="openDialog(row)">编辑</el-button>
+            <el-button type="primary" size="small" v-permission="'production:stations:update'" @click="openDialog(row)">
+              <el-icon><Edit /></el-icon> 编辑
+            </el-button>
             <el-popconfirm title="确定删除?" @confirm="handleDelete(row.id)">
               <template #reference>
-                <el-button link type="danger" size="small" v-permission="'production:stations:delete'">删除</el-button>
+                <el-button type="danger" size="small" v-permission="'production:stations:delete'">
+                  <el-icon><Delete /></el-icon> 删除
+                </el-button>
               </template>
             </el-popconfirm>
           </template>
@@ -146,7 +150,7 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, Edit, Delete } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { workStationApi } from '../../api/assembly'
 

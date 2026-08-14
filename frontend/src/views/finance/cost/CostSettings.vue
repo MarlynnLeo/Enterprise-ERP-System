@@ -404,9 +404,13 @@
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="操作" min-width="100" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+            <el-table-column label="操作" min-width="120" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="scope">
-                <el-button v-permission="'finance:cost:update'" size="small" link type="primary" @click="openEditStdCostDialog(scope.row)">调整</el-button>
+                <div class="table-actions">
+                  <el-button v-permission="'finance:cost:update'" size="small" type="primary" @click="openEditStdCostDialog(scope.row)">
+                    <el-icon><Edit /></el-icon> 调整
+                  </el-button>
+                </div>
               </template>
             </el-table-column>
           </el-table>
@@ -534,10 +538,16 @@
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="操作" min-width="160" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+            <el-table-column label="操作" min-width="200" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="scope">
-                <el-button size="small" link type="primary" @click="openAllocationRuleDialog(scope.row)" v-permission="'finance:cost:update'">编辑</el-button>
-                <el-button v-permission="'finance:cost:delete'" size="small" link type="danger" @click="handleDeleteAllocationRule(scope.row)">删除</el-button>
+                <div class="table-actions">
+                  <el-button size="small" @click="openAllocationRuleDialog(scope.row)" v-permission="'finance:cost:update'">
+                    <el-icon><Edit /></el-icon> 编辑
+                  </el-button>
+                  <el-button v-permission="'finance:cost:delete'" size="small" type="danger" @click="handleDeleteAllocationRule(scope.row)">
+                    <el-icon><Delete /></el-icon> 删除
+                  </el-button>
+                </div>
               </template>
             </el-table-column>
           </el-table>
@@ -621,6 +631,7 @@ import { formatLocalDate } from '@/utils/format';
 import { computed, ref, reactive, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
+import { Edit, Delete } from '@element-plus/icons-vue';
 import { baseDataApi, financeApi } from '@/api';
 import { useAuthStore } from '@/stores/auth';
 import { parseListData, parseResponseData } from '@/utils/responseParser';

@@ -45,10 +45,18 @@
       <el-table-column prop="createdAt" label="上传时间" width="160" />
       <el-table-column label="操作" min-width="140" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
         <template #default="{ row }">
-          <el-button link type="primary" v-permission="'system:documents:view'" @click="handleDownload(row)">下载</el-button>
-          <el-popconfirm title="确定删除？" @confirm="handleDelete(row.id)">
-            <template #reference><el-button link type="danger" v-permission="'system:documents:delete'">删除</el-button></template>
-          </el-popconfirm>
+          <div class="table-actions">
+            <el-button size="small" type="primary" v-permission="'system:documents:view'" @click="handleDownload(row)">
+              <el-icon><Download /></el-icon> 下载
+            </el-button>
+            <el-popconfirm title="确定删除？" @confirm="handleDelete(row.id)">
+              <template #reference>
+                <el-button size="small" type="danger" v-permission="'system:documents:delete'">
+                  <el-icon><Delete /></el-icon> 删除
+                </el-button>
+              </template>
+            </el-popconfirm>
+          </div>
         </template>
       </el-table-column>
     </el-table>
@@ -90,6 +98,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import { Download, Delete } from '@element-plus/icons-vue'
 import { documentApi } from '@/api/enhanced'
 import { commonApi } from '@/api/common'
 

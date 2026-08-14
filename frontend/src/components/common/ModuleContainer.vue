@@ -94,17 +94,29 @@ onUnmounted(() => {
   background-color: transparent;
 }
 
+.module-container.with-padding,
+.finance-container {
+  padding: 0;
+}
+</style>
+
+<style>
+/* 浏览器全屏默认黑底；必须跟当前主题页面底色走，且不能写在 scoped 里 */
 .module-container:fullscreen,
 .module-container:-webkit-full-screen,
 .module-container:-moz-full-screen,
 .module-container:-ms-fullscreen {
-  background-color: var(--color-bg-page);
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  background-color: var(--el-bg-color-page, var(--color-bg-page, var(--el-bg-color, #fff))) !important;
+  color: var(--color-text-primary, var(--el-text-color-primary));
   padding: 20px;
   overflow: auto;
 }
 
-.module-container.with-padding,
-.finance-container {
-  padding: 0;
+.module-container:fullscreen::backdrop,
+.module-container:-webkit-full-screen::backdrop {
+  background-color: var(--el-bg-color-page, var(--color-bg-page, var(--el-bg-color, #fff)));
 }
 </style>

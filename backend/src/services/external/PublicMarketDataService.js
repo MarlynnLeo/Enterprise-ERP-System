@@ -2,8 +2,8 @@
  * PublicMarketDataService
  * 基于 public-apis 生态中的免费公开接口，多源故障转移：
  * - 天气: Open-Meteo（public-apis / Weather）
- * - 汇率: Frankfurter · open.er-api · VATComply · fawazahmed0 currency-api
- * - 金属: Yahoo Finance 期货现货近似（公开 chart API）+ 汇率折算
+ * - 汇率: open.er-api · Frankfurter · VATComply · fawazahmed0 currency-api
+ * - 金属: 金/银现货（gold-api）→ Yahoo 期货；铝/铜 Yahoo 期货；再按 USD/CNY 折算
  *
  * 设计：任一源失败自动试下一源；全部失败抛错由上层回退缓存/配置价。
  */
@@ -34,6 +34,17 @@ async function getJson(url, params, timeout = DEFAULT_TIMEOUT) {
 
 const FX_SOURCES = [
   {
+    name: 'open.er-api.com',
+    // public-apis 相关 Free ExchangeRate-API open endpoint（按日更新，比 ECB T-1 更贴近当天）
+    async fetch(base, quote) {
+      const data = await getJson(`https://open.er-api.com/v6/latest/${base.toUpperCase()}`);
+      if (data?.result !== 'success') throw new Error(data?.['error-type'] || 'er-api fail');
+      const rate = data?.rates?.[quote.toUpperCase()];
+      if (!Number.isFinite(Number(rate))) throw new Error('no rate');
+      return { rate: Number(rate), date: data.time_last_update_utc, source: 'open.er-api.com' };
+    },
+  },
+  {
     name: 'frankfurter.dev',
     // public-apis: Frankfurter
     async fetch(base, quote) {
@@ -44,17 +55,6 @@ const FX_SOURCES = [
       const rate = data?.rates?.[quote.toUpperCase()];
       if (!Number.isFinite(Number(rate))) throw new Error('no rate');
       return { rate: Number(rate), date: data.date, source: 'frankfurter.dev' };
-    },
-  },
-  {
-    name: 'open.er-api.com',
-    // public-apis 相关 Free ExchangeRate-API open endpoint
-    async fetch(base, quote) {
-      const data = await getJson(`https://open.er-api.com/v6/latest/${base.toUpperCase()}`);
-      if (data?.result !== 'success') throw new Error(data?.['error-type'] || 'er-api fail');
-      const rate = data?.rates?.[quote.toUpperCase()];
-      if (!Number.isFinite(Number(rate))) throw new Error('no rate');
-      return { rate: Number(rate), date: data.time_last_update_utc, source: 'open.er-api.com' };
     },
   },
   {
@@ -105,17 +105,54 @@ async function fetchExchangeRate(base = 'USD', quote = 'CNY') {
 
 // ==================== 金属价格 ====================
 
-/** Yahoo Finance 期货代码 → 我方金属符号 */
-const YAHOO_METAL_SYMBOLS = Object.freeze({
-  GOLD: { ticker: 'GC=F', unitUsd: 'oz', name: '黄金' },
-  SILVER: { ticker: 'SI=F', unitUsd: 'oz', name: '白银' },
-  // ALI=F COMEX 铝 ≈ USD/吨
-  ALUMINUM: { ticker: 'ALI=F', unitUsd: 'ton', name: '铝' },
-  // HG=F 铜 USD/磅 → 吨
-  COPPER: { ticker: 'HG=F', unitUsd: 'lb', name: '铜' },
+const TROY_OUNCE_GRAMS = 31.1034768;
+const LB_PER_METRIC_TON = 2204.62262185;
+
+const USD_SANITY = Object.freeze({
+  GOLD: { min: 2500, max: 9000 },
+  SILVER: { min: 20, max: 200 },
+  ALUMINUM: { min: 1500, max: 8000 },
+  COPPER: { min: 4000, max: 25000 },
 });
 
-const LB_PER_METRIC_TON = 2204.62262185;
+const METALS = Object.freeze({
+  GOLD: {
+    name: '黄金',
+    unitUsd: 'oz',
+    sources: [
+      { name: 'gold-api:XAU', fetch: () => fetchGoldApiSpot('XAU') },
+      { name: 'yahoo:GC=F', fetch: () => fetchYahooQuote('GC=F') },
+    ],
+  },
+  SILVER: {
+    name: '白银',
+    unitUsd: 'oz',
+    sources: [
+      { name: 'gold-api:XAG', fetch: () => fetchGoldApiSpot('XAG') },
+      { name: 'yahoo:SI=F', fetch: () => fetchYahooQuote('SI=F') },
+    ],
+  },
+  ALUMINUM: {
+    name: '铝',
+    unitUsd: 'ton',
+    sources: [{ name: 'yahoo:ALI=F', fetch: () => fetchYahooQuote('ALI=F') }],
+  },
+  COPPER: {
+    name: '铜',
+    unitUsd: 'lb',
+    sources: [{ name: 'yahoo:HG=F', fetch: () => fetchYahooQuote('HG=F') }],
+  },
+});
+
+function assertUsdRange(symbol, usdPrice) {
+  const bound = USD_SANITY[symbol];
+  const value = Number(usdPrice);
+  if (!bound) return value;
+  if (!Number.isFinite(value) || value < bound.min || value > bound.max) {
+    throw new Error(`${symbol} usd ${value} outside ${bound.min}-${bound.max}`);
+  }
+  return value;
+}
 
 async function fetchYahooQuote(ticker) {
   const data = await getJson(
@@ -128,17 +165,37 @@ async function fetchYahooQuote(ticker) {
   if (!Number.isFinite(Number(price))) {
     throw new Error(`Yahoo quote missing for ${ticker}`);
   }
-  return {
-    price: Number(price),
-    currency: meta.currency || 'USD',
-    symbol: ticker,
-  };
+  return { price: Number(price), source: `yahoo:${ticker}` };
+}
+
+async function fetchGoldApiSpot(code) {
+  const data = await getJson(`https://api.gold-api.com/price/${code}`, null, 8000);
+  const price = Number(data?.price);
+  if (!Number.isFinite(price) || price <= 0) {
+    throw new Error(`gold-api missing ${code}`);
+  }
+  return { price, source: `gold-api:${code}` };
+}
+
+async function fetchMetalUsd(symbol) {
+  const def = METALS[symbol];
+  const errors = [];
+  for (const src of def.sources) {
+    try {
+      const quote = await src.fetch();
+      let usd = quote.price;
+      if (def.unitUsd === 'lb') usd *= LB_PER_METRIC_TON;
+      return { usdPerUnit: assertUsdRange(symbol, usd), source: quote.source || src.name };
+    } catch (error) {
+      errors.push(`${src.name}: ${error.message}`);
+      logger.warn(`[PublicMarket] ${symbol} ${src.name} failed: ${error.message}`);
+    }
+  }
+  throw new Error(errors.join(' | '));
 }
 
 /**
- * 拉取金属人民币参考价
- * @param {number} usdCnyRate
- * @returns {Promise<Record<string,{price:number,source:string,usdPrice:number}>>}
+ * 拉取金属人民币价。金/银优先现货，失败再期货；铝/铜走期货。
  */
 async function fetchMetalPricesCny(usdCnyRate) {
   if (!Number.isFinite(Number(usdCnyRate)) || usdCnyRate <= 0) {
@@ -147,24 +204,18 @@ async function fetchMetalPricesCny(usdCnyRate) {
   const result = {};
   const errors = [];
 
-  for (const [symbol, def] of Object.entries(YAHOO_METAL_SYMBOLS)) {
+  for (const [symbol, def] of Object.entries(METALS)) {
     try {
-      const quote = await fetchYahooQuote(def.ticker);
-      let usdPerUnit = quote.price;
-      // 铜：USD/磅 → USD/吨
-      if (def.unitUsd === 'lb') {
-        usdPerUnit = quote.price * LB_PER_METRIC_TON;
-      }
-      const cnyPrice = usdPerUnit * usdCnyRate;
+      const quote = await fetchMetalUsd(symbol);
       result[symbol] = {
-        price: cnyPrice,
-        usdPrice: usdPerUnit,
-        source: `yahoo:${def.ticker}`,
+        price: quote.usdPerUnit * usdCnyRate,
+        usdPrice: quote.usdPerUnit,
+        source: quote.source,
         name: def.name,
+        unit: def.unitUsd === 'oz' ? '¥/盎司' : '¥/吨',
       };
     } catch (error) {
       errors.push(`${symbol}: ${error.message}`);
-      logger.warn(`[PublicMarket] metal ${symbol} failed: ${error.message}`);
     }
   }
 
@@ -176,10 +227,7 @@ async function fetchMetalPricesCny(usdCnyRate) {
 
 // ==================== 天气 ====================
 
-const WEATHER_ENDPOINTS = [
-  'https://api.open-meteo.com/v1/forecast',
-  'https://api.open-meteo.com/v1/forecast', // 主源；可扩展镜像
-];
+const WEATHER_ENDPOINTS = ['https://api.open-meteo.com/v1/forecast'];
 
 /**
  * Open-Meteo 当前天气
@@ -241,5 +289,6 @@ module.exports = {
   fetchOpenMeteoCurrent,
   fetchWttrIn,
   FX_SOURCES,
-  YAHOO_METAL_SYMBOLS,
+  METALS,
+  TROY_OUNCE_GRAMS,
 };

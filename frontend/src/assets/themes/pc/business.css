@@ -182,8 +182,9 @@
 [data-theme="business"] .header,
 [data-theme="business"] .el-header {
   background: var(--color-bg-base) !important;
-  border-bottom: 1px solid var(--color-border-light) !important;
-  box-shadow: 0 1px 4px color-mix(in srgb, var(--ds-black) 8%, transparent) !important;
+  border: 1px solid var(--color-border-light) !important;
+  border-radius: var(--shell-radius-lg, var(--radius-lg, 16px)) !important;
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--ds-black) 8%, transparent) !important;
 }
 
 /* 表格：密度 → theme-components；仅金色 hover */

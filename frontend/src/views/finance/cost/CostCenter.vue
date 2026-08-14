@@ -41,9 +41,17 @@
             </el-table-column>
             <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
               <template #default="scope">
-                <el-button type="primary" size="small" @click="editCenter(scope.row)" v-permission="'finance:cost:update'">编辑</el-button>
-                <el-button type="info" size="small" @click="viewReport(scope.row)">成本报表</el-button>
-                <el-button v-permission="'finance:cost:delete'" type="danger" size="small" @click="deleteCenter(scope.row)" :disabled="scope.row.taskCount > 0">删除</el-button>
+                <div class="table-actions">
+                  <el-button size="small" @click="editCenter(scope.row)" v-permission="'finance:cost:update'">
+                    <el-icon><Edit /></el-icon> 编辑
+                  </el-button>
+                  <el-button type="info" size="small" @click="viewReport(scope.row)">
+                    <el-icon><DataAnalysis /></el-icon> 成本报表
+                  </el-button>
+                  <el-button v-permission="'finance:cost:delete'" type="danger" size="small" @click="deleteCenter(scope.row)" :disabled="scope.row.taskCount > 0">
+                    <el-icon><Delete /></el-icon> 删除
+                  </el-button>
+                </div>
               </template>
             </el-table-column>
           </el-table>
@@ -129,7 +137,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Plus, OfficeBuilding } from '@element-plus/icons-vue';
+import { Plus, OfficeBuilding, Edit, DataAnalysis, Delete } from '@element-plus/icons-vue';
 import { financeApi } from '@/api';
 import { formatCurrency } from '@/utils/helpers/formatters';
 import { parseListData, parseResponseData } from '@/utils/responseParser'

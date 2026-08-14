@@ -168,17 +168,16 @@
               </el-dropdown>
 
               <el-button class="btn-op-view" type="primary" size="small" @click="viewTransfer(scope.row.id)">
-                查看
+                <el-icon><View /></el-icon> 查看
               </el-button>
 
               <el-button
                 size="small"
-                type="primary"
                 @click="editTransfer(scope.row.id)"
                 v-if="scope.row.status === 'draft'"
                 v-permission="'inventory:transfer:update'"
               >
-                编辑
+                <el-icon><Edit /></el-icon> 编辑
               </el-button>
             </div>
           </template>
@@ -404,7 +403,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Plus, ArrowDown, Delete, Check, Select, Finished, Close, CopyDocument, Printer, Download } from '@element-plus/icons-vue';
+import { Plus, ArrowDown, Delete, Check, Select, Finished, Close, CopyDocument, Printer, Download, View, Edit } from '@element-plus/icons-vue';
 import { inventoryApi } from '@/api';
 import { getCurrentDate } from '@/utils/helpers/dateUtils';
 import { formatDate } from '@/utils/helpers/formatters';

@@ -16,6 +16,7 @@ router.use(desensitizeSensitiveResponse('view'));
 // 获取实时金属价格 (支持两种路径)
 router.get('/', requirePermission(PRICE_VIEW_PERMISSIONS), metalPricesController.getRealTimeMetalPrices);
 router.get('/realtime', requirePermission(PRICE_VIEW_PERMISSIONS), metalPricesController.getRealTimeMetalPrices);
+router.post('/refresh', requirePermission(PRICE_VIEW_PERMISSIONS), metalPricesController.refreshMetalPrices);
 
 // 获取金属价格历史数据
 router.get('/history', requirePermission(PRICE_VIEW_PERMISSIONS), metalPricesController.getMetalPriceHistory);

@@ -58,26 +58,26 @@
       <el-table-column prop="createdAt" label="创建时间" width="180">
         <template #default="{ row }">{{ formatDate(row.createdAt) }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="220" fixed="right">
+      <el-table-column label="操作" min-width="220" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
         <template #default="{ row }">
-          <el-button
-            link
-            type="primary"
-            :icon="CircleCheck"
-            v-permission="'system:backup:view'"
-            @click="verifyBackup(row)"
-          >
-            校验
-          </el-button>
-          <el-button
-            link
-            type="primary"
-            :icon="Download"
-            v-permission="'system:backup:download'"
-            @click="downloadBackup(row)"
-          >
-            下载
-          </el-button>
+          <div class="table-actions">
+            <el-button
+              size="small"
+              type="primary"
+              v-permission="'system:backup:view'"
+              @click="verifyBackup(row)"
+            >
+              <el-icon><CircleCheck /></el-icon> 校验
+            </el-button>
+            <el-button
+              size="small"
+              type="success"
+              v-permission="'system:backup:download'"
+              @click="downloadBackup(row)"
+            >
+              <el-icon><Download /></el-icon> 下载
+            </el-button>
+          </div>
         </template>
       </el-table-column>
     </el-table>

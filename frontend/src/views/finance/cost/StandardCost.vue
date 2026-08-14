@@ -233,9 +233,13 @@
             {{ scope.row.effectiveDate ? scope.row.effectiveDate.substring(0, 10) : '' }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="90" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="100" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
-            <el-button size="small" link type="danger" @click="deleteProductOverhead(scope.row)" v-permission="'finance:cost:delete'">删除</el-button>
+            <div class="table-actions">
+              <el-button size="small" type="danger" @click="deleteProductOverhead(scope.row)" v-permission="'finance:cost:delete'">
+                <el-icon><Delete /></el-icon> 删除
+              </el-button>
+            </div>
           </template>
         </el-table-column>
         <template #empty>
@@ -278,6 +282,7 @@
 import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { Delete } from '@element-plus/icons-vue';
 import { financeApi, salesApi } from '@/api';
 import { formatCurrency } from '@/utils/helpers/formatters';
 import { parseResponseData } from '@/utils/responseParser'

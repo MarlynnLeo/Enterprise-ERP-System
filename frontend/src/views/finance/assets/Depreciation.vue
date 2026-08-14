@@ -186,17 +186,21 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="90" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="120" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
+            <div class="table-actions">
             <el-button
               v-if="scope.row.depreciationAmount > 0 && !scope.row.submitted"
               size="small"
               type="success"
               @click="submitSingleDepreciation(scope.row)"
               :loading="scope.row.submitting"
-            >计提</el-button>
+            >
+              <el-icon><Coin /></el-icon> 计提
+            </el-button>
             <el-tag v-else-if="scope.row.submitted" type="success" size="small" effect="dark">已计提</el-tag>
             <span v-else class="text-muted">—</span>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -229,6 +233,7 @@ import { parseListData, parseResponseData } from '@/utils/responseParser';
 import { formatCurrency, formatLocalMonth } from '@/utils/format'
 import { ref, reactive, computed, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { Coin } from '@element-plus/icons-vue';
 import { financeApi } from '@/api/finance';
 import { buildApiUrl } from '@/config/app';
 import { loadDepartmentOptions as loadCachedDepartmentOptions } from '@/utils/optionLoaders';
