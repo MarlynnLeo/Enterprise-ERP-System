@@ -704,7 +704,7 @@ const updateRequisition = async (req, res) => {
     } = mapKeysToSnake(req.body || {});
 
     // 使用请求中提供的requester和real_name，或者从认证信息中获取
-    const finalRequester = requester || req.user?.username;
+    const finalRequester = requester || getRequestActorLabel(req);
 
     // 获取真实姓名：优先使用前端提供的，其次使用当前认证用户的，最后尝试从数据库中查询
     let finalRealName = real_name || req.user?.real_name || '';

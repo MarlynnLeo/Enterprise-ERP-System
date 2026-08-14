@@ -3,11 +3,26 @@
     :model-value="modelValue"
     @update:model-value="val => emit('update:modelValue', val)"
     :title="title"
-    mode="form"
+    :mode="readonly ? 'view' : 'form'"
     width="600px"
     @close="handleClose"
   >
-    <el-form :model="form" :rules="rules" ref="formRef" label-width="100px">
+    <el-descriptions v-if="readonly" :column="2" border>
+      <el-descriptions-item label="供应商编码">{{ form.code || '-' }}</el-descriptions-item>
+      <el-descriptions-item label="供应商名称">{{ form.name || '-' }}</el-descriptions-item>
+      <el-descriptions-item label="联系人">{{ form.contactPerson || '-' }}</el-descriptions-item>
+      <el-descriptions-item label="联系电话">{{ form.contactPhone || '-' }}</el-descriptions-item>
+      <el-descriptions-item label="电子邮箱">{{ form.email || '-' }}</el-descriptions-item>
+      <el-descriptions-item label="付款账期">{{ form.paymentTermDays != null ? `${form.paymentTermDays} 天` : '-' }}</el-descriptions-item>
+      <el-descriptions-item label="状态">
+        <el-tag :type="Number(form.status) === 1 ? 'success' : 'danger'">
+          {{ Number(form.status) === 1 ? '启用' : '禁用' }}
+        </el-tag>
+      </el-descriptions-item>
+      <el-descriptions-item label="地址" :span="2">{{ form.address || '-' }}</el-descriptions-item>
+      <el-descriptions-item label="备注" :span="2">{{ form.remark || '-' }}</el-descriptions-item>
+    </el-descriptions>
+    <el-form v-else :model="form" :rules="rules" ref="formRef" label-width="100px">
       <el-form-item label="供应商编码" prop="code">
         <el-input v-model="form.code" placeholder="请输入供应商编码"></el-input>
       </el-form-item>
@@ -49,8 +64,8 @@
     </el-form>
     <template #footer>
       <span class="dialog-footer">
-        <el-button @click="handleClose">取消</el-button>
-        <el-button type="primary" @click="submitForm" :loading="submitting">确定</el-button>
+        <el-button @click="handleClose">{{ readonly ? '关闭' : '取消' }}</el-button>
+        <el-button v-if="!readonly" type="primary" @click="submitForm" :loading="submitting">确定</el-button>
       </span>
     </template>
     </AppDialog>
@@ -70,6 +85,10 @@ const props = defineProps({
   title: {
     type: String,
     default: '新增供应商'
+  },
+  readonly: {
+    type: Boolean,
+    default: false
   }
 })
 

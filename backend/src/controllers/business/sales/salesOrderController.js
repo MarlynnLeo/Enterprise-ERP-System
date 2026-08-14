@@ -55,7 +55,7 @@ const getAuthenticatedUserInfo = (req) => {
     ...req.user,
     id,
     username: req.user?.username || '',
-    real_name: req.user?.real_name || req.user?.name || req.user?.username || '',
+    real_name: req.user?.realName || req.user?.real_name || req.user?.name || '',
   };
 };
 
@@ -164,8 +164,8 @@ exports.getSalesOrders = async (req, res) => {
         c.contact_person,
         c.contact_phone,
         c.address as delivery_address,
-        u.username as locked_by_name,
-        creator.username as created_by_name,
+        COALESCE(NULLIF(TRIM(u.real_name), ''), u.username) as locked_by_name,
+        COALESCE(NULLIF(TRIM(creator.real_name), ''), creator.username) as created_by_name,
         creator.real_name as created_by_real_name,
         (SELECT COUNT(*) FROM sales_outbound WHERE order_id = so.id AND status = 'draft' AND deleted_at IS NULL) > 0 as has_draft_outbound,
         COUNT(*) OVER() as total_count
@@ -1274,7 +1274,7 @@ exports.getOrderLockStatus = async (req, res) => {
     // 获取订单锁定信息
     const [orderResult] = await db.pool.execute(
       `
-      SELECT so.*, u.username as locked_by_name
+      SELECT so.*, COALESCE(NULLIF(TRIM(u.real_name), ''), u.username) as locked_by_name
       FROM sales_orders so
       LEFT JOIN users u ON so.locked_by = u.id
       WHERE so.id = ? AND so.deleted_at IS NULL

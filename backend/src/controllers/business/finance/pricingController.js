@@ -59,7 +59,7 @@ exports.getPricingList = async (req, res) => {
         pp.profit_margin,
         pp.effective_date,
         pp.created_at,
-        u.username as created_by_name
+        COALESCE(NULLIF(TRIM(u.real_name), ''), u.username) as created_by_name
       FROM materials m
       LEFT JOIN product_pricing pp ON m.id = pp.product_id AND pp.is_active = 1
       LEFT JOIN users u ON pp.created_by = u.id
@@ -204,7 +204,7 @@ exports.getPricingDetail = async (req, res) => {
       `
             SELECT
                 pp.*,
-                u.username as created_by_name,
+                COALESCE(NULLIF(TRIM(u.real_name), ''), u.username) as created_by_name,
                 COALESCE(pp.suggested_price, m.price) as suggested_price
             FROM product_pricing pp
             LEFT JOIN users u ON pp.created_by = u.id
@@ -684,7 +684,7 @@ exports.getPricingHistory = async (req, res) => {
       `
       SELECT
         pp.*,
-        u.username as created_by_name
+        COALESCE(NULLIF(TRIM(u.real_name), ''), u.username) as created_by_name
       FROM product_pricing pp
       LEFT JOIN users u ON pp.created_by = u.id
       WHERE pp.product_id = ?

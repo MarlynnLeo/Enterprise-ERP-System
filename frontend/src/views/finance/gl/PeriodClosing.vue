@@ -32,7 +32,7 @@
               <el-option
                 v-for="period in openPeriods"
                 :key="period.id"
-                :label="period.period_name"
+                :label="periodLabel(period)"
                 :value="period.id"
               />
             </el-select>
@@ -496,6 +496,7 @@ import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { financeApi } from '@/api'
 import { formatCurrency, formatDate, formatDateTime } from '@/utils/format'
+import { periodLabel, selectDefaultOpenPeriod } from '@/utils/helpers/periodUtils'
 import { parseDataObject } from '@/utils/responseParser'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -545,7 +546,7 @@ const selectedPeriodLabel = computed(() => {
   const period =
     openPeriods.value.find((p) => p.id === selectedPeriodId.value) ||
     periods.value.find((p) => p.id === selectedPeriodId.value)
-  return period?.period_name || ''
+  return periodLabel(period)
 })
 const dateFixPrimaryText = computed(() => {
   if (dateFixAfterSaveAction.value === 'post') return '修正并过账'
@@ -555,14 +556,6 @@ const dateFixPrimaryText = computed(() => {
 const toNumber = (value) => Number.parseFloat(value) || 0
 const formatMoney = (value) => formatCurrency(value, '¥')
 
-const selectDefaultOpenPeriod = () => {
-  const now = new Date()
-  const currentPeriodKeyword = `${now.getFullYear()}年${now.getMonth() + 1}月`
-
-  return openPeriods.value.find(period => period.period_name?.includes(currentPeriodKeyword))
-    || openPeriods.value[0]
-}
-
 const fetchPeriods = async () => {
   try {
     const res = await financeApi.periods.getList()
@@ -571,7 +564,7 @@ const fetchPeriods = async () => {
 
     const requestedPeriodId = Number.parseInt(route.query.periodId, 10)
     const requestedPeriod = periods.value.find(period => Number(period.id) === requestedPeriodId)
-    const defaultPeriod = requestedPeriod || selectDefaultOpenPeriod()
+    const defaultPeriod = requestedPeriod || selectDefaultOpenPeriod(periods.value)
     selectedPeriodId.value = defaultPeriod?.id || ''
 
     if (periods.value.length > 0) {
@@ -887,7 +880,7 @@ const fetchHistory = async () => {
 const resetWizard = () => {
   activeStep.value = 0
   previewData.value = null
-  selectedPeriodId.value = selectDefaultOpenPeriod()?.id || ''
+  selectedPeriodId.value = selectDefaultOpenPeriod(periods.value)?.id || ''
 }
 
 const scrollToHistory = () => {

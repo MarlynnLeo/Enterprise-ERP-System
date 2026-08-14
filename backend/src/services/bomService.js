@@ -3,6 +3,33 @@ const { logger } = require('../utils/logger');
 const { softDelete } = require('../utils/softDelete');
 const DLQService = require('./business/DLQService');
 
+async function resolveStoredUserLabels(values = []) {
+  const unique = [
+    ...new Set(values.map((value) => String(value || '').trim()).filter(Boolean)),
+  ];
+  const labels = new Map();
+  if (!unique.length) return labels;
+
+  const [users] = await pool.query('SELECT id, username, real_name FROM users');
+  const byId = new Map();
+  const byUsername = new Map();
+  const byRealName = new Map();
+  users.forEach((user) => {
+    const label = String(user.real_name || '').trim() || user.username;
+    byId.set(String(user.id), label);
+    if (user.username) byUsername.set(String(user.username), label);
+    if (user.real_name) byRealName.set(String(user.real_name).trim(), label);
+  });
+
+  unique.forEach((value) => {
+    labels.set(
+      value,
+      byId.get(value) || byUsername.get(value) || byRealName.get(value) || value
+    );
+  });
+  return labels;
+}
+
 const bomService = {
   async getAllBoms(page = 1, pageSize = 10, filters = {}) {
     try {
@@ -76,7 +103,7 @@ const bomService = {
         FROM bom_masters bm
         LEFT JOIN materials m ON bm.product_id = m.id
         WHERE ${whereClause}
-        ORDER BY bm.id DESC
+        ORDER BY CASE WHEN m.code REGEXP '^[0-9]' THEN 0 ELSE 1 END, m.code ASC, bm.id ASC
         ${noPagination ? '' : `LIMIT ${safePageSize} OFFSET ${offset}`}
       `;
       // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入 SQL
@@ -116,9 +143,14 @@ const bomService = {
           detailsMap[detail.bom_id].push(detail);
         });
 
+        const nameLabels = await resolveStoredUserLabels(
+          bomMasters.flatMap((bom) => [bom.created_by, bom.updated_by])
+        );
         dataWithDetails = bomMasters.map((bom) => ({
           ...bom,
           details: detailsMap[bom.id] || [],
+          created_by: nameLabels.get(String(bom.created_by || '').trim()) || bom.created_by || '',
+          updated_by: nameLabels.get(String(bom.updated_by || '').trim()) || bom.updated_by || '',
         }));
       }
 
@@ -206,6 +238,10 @@ const bomService = {
         }
       });
 
+      const actorLabels = await resolveStoredUserLabels([
+        bomMaster.created_by,
+        bomMaster.updated_by,
+      ]);
       // 格式化BOM数据，确保字段类型正确
       const formattedBom = {
         id: bomMaster.id,
@@ -222,8 +258,10 @@ const bomService = {
         product_specs: bomMaster.product_specs || '',
         created_at: bomMaster.created_at,
         updated_at: bomMaster.updated_at,
-        created_by: bomMaster.created_by || '',
-        updated_by: bomMaster.updated_by || '',
+        created_by:
+          actorLabels.get(String(bomMaster.created_by || '').trim()) || bomMaster.created_by || '',
+        updated_by:
+          actorLabels.get(String(bomMaster.updated_by || '').trim()) || bomMaster.updated_by || '',
         details: details.map((detail) => ({
           id: detail.id,
           bom_id: detail.bom_id,

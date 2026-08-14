@@ -176,10 +176,10 @@
         v-loading="loading"
       >
         <el-table-column prop="materialCode" label="物料编码" width="170" />
-        <el-table-column prop="materialName" label="物料名称" width="300" />
-        <el-table-column prop="specification" label="规格" width="280" />
-        <el-table-column prop="categoryName" label="类别" width="150" />
-        <el-table-column prop="quantity" label="库存数量" width="150">
+        <el-table-column prop="materialName" label="物料名称" min-width="220" />
+        <el-table-column prop="specification" label="规格" min-width="200" />
+        <el-table-column prop="categoryName" label="类别" min-width="120" />
+        <el-table-column prop="quantity" label="库存数量" width="120">
           <template #default="scope">
             {{ formatNumber(scope.row.quantity) }}
           </template>
@@ -190,12 +190,12 @@
             {{ formatCurrency(scope.row.unitPrice) }}
           </template>
         </el-table-column>
-        <el-table-column prop="totalValue" label="总价值" width="150">
+        <el-table-column prop="totalValue" label="总价值" width="140">
           <template #default="scope">
             {{ formatCurrency(scope.row.totalValue) }}
           </template>
         </el-table-column>
-        <el-table-column prop="safetyStock" label="安全库存" width="120" />
+        <el-table-column prop="safetyStock" label="安全库存" min-width="120" />
       </el-table>
 
       <!-- 分页 -->

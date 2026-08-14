@@ -58,7 +58,7 @@ class SalesDao {
   // ==========================================
   static async getSalesQuotations() {
     const [rows] = await pool.execute(`
-      SELECT sq.*, c.name as customer_name, u.username as created_by_name
+      SELECT sq.*, c.name as customer_name, COALESCE(NULLIF(TRIM(u.real_name), ''), u.username) as created_by_name
       FROM sales_quotations sq
       JOIN customers c ON sq.customer_id = c.id
       JOIN users u ON sq.created_by = u.id
@@ -68,7 +68,7 @@ class SalesDao {
 
   static async getSalesQuotation(id) {
     const [quotation] = await pool.execute(`
-      SELECT sq.*, c.name as customer_name, u.username as created_by_name
+      SELECT sq.*, c.name as customer_name, COALESCE(NULLIF(TRIM(u.real_name), ''), u.username) as created_by_name
       FROM sales_quotations sq
       JOIN customers c ON sq.customer_id = c.id
       JOIN users u ON sq.created_by = u.id
@@ -170,7 +170,7 @@ class SalesDao {
   static async getSalesOrder(id) {
     const [order] = await pool.execute(`
       SELECT so.*, c.id as customer_id, c.name as customer_name, c.contact_person, c.contact_phone,
-             c.address as delivery_address, u.username as created_by_name
+             c.address as delivery_address, COALESCE(NULLIF(TRIM(u.real_name), ''), u.username) as created_by_name
       FROM sales_orders so
       JOIN customers c ON so.customer_id = c.id
       JOIN users u ON so.created_by = u.id

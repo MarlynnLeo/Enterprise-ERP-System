@@ -157,7 +157,7 @@ const getCheckList = async (req, res) => {
         c.created_at,
         c.updated_at,
         c.remark,
-        u.username as creator_name,
+        COALESCE(NULLIF(TRIM(u.real_name), ''), u.username) as creator_name,
         u.real_name as creator_real_name,
         COALESCE(c.check_type, 'warehouse') as check_type,
         (SELECT COUNT(*) FROM inventory_check_items WHERE check_id = c.id) as item_count
@@ -216,7 +216,7 @@ const getCheckDetail = async (req, res) => {
       `SELECT
         c.*,
         l.name as location_name,
-        u.username as creator_name
+        COALESCE(NULLIF(TRIM(u.real_name), ''), u.username) as creator_name
       FROM inventory_checks c
       LEFT JOIN locations l ON c.location_id = l.id
       LEFT JOIN users u ON c.created_by = u.id

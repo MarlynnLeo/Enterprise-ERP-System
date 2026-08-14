@@ -234,7 +234,7 @@ const periodList = ref([]);
 
 // 搜索表单
 const searchForm = reactive({
-  fiscalYear: '',
+  fiscalYear: new Date().getFullYear(),
   isClosed: ''
 });
 
@@ -321,29 +321,22 @@ const loadPeriods = async () => {
     const response = await financeApi.periods.getList(params);
 
     // 拦截器已解包，response.data 就是业务数据
+    const normalizePeriod = (period) => ({
+      id: period.id,
+      periodName: period.periodName || period.period_name || '',
+      fiscalYear: period.fiscalYear ?? period.fiscal_year,
+      startDate: period.startDate || period.start_date,
+      endDate: period.endDate || period.end_date,
+      isClosed: period.isClosed ?? period.is_closed,
+      isAdjusting: period.isAdjusting ?? period.is_adjusting
+    })
+    const byStart = (a, b) => String(a.startDate || '').localeCompare(String(b.startDate || ''))
+
     if (response.data?.periods) {
-      // 转换后端字段名为前端使用的驼峰命名法
-      periodList.value = response.data.periods.map(period => ({
-        id: period.id,
-        periodName: period.period_name,
-        fiscalYear: period.fiscal_year,
-        startDate: period.startDate,
-        endDate: period.endDate,
-        isClosed: period.is_closed,
-        isAdjusting: period.is_adjusting
-      }));
+      periodList.value = response.data.periods.map(normalizePeriod).sort(byStart)
       total.value = response.data.total ?? response.data.periods.length;
     } else if (Array.isArray(response.data)) {
-      // 如果直接返回数组
-      periodList.value = response.data.map(period => ({
-        id: period.id,
-        periodName: period.period_name,
-        fiscalYear: period.fiscal_year,
-        startDate: period.startDate,
-        endDate: period.endDate,
-        isClosed: period.is_closed,
-        isAdjusting: period.is_adjusting
-      }));
+      periodList.value = response.data.map(normalizePeriod).sort(byStart)
       total.value = response.data.length;
     } else {
       periodList.value = [];
@@ -367,7 +360,7 @@ const searchPeriods = () => {
 
 // 重置搜索条件
 const resetSearch = () => {
-  searchForm.fiscalYear = '';
+  searchForm.fiscalYear = new Date().getFullYear();
   searchForm.isClosed = '';
   searchPeriods();
 };

@@ -203,15 +203,12 @@ html.dark .app-shell {
 .app-menu .el-sub-menu .el-sub-menu .el-menu-item {
   padding-left: 45px !important;
 }
-/* ===== 二级子菜单视觉区分样式 ===== */
-/* 二级子菜单标题样式 - 区分于一级菜单 */
+/* 嵌套分组（财务总账/应收等）只靠缩进区分层级，字号与基础数据二级菜单一致 */
 .app-menu .el-sub-menu .el-sub-menu > .el-sub-menu__title {
-  font-size: 13px !important;
   padding-left: 20px !important;
   position: relative;
   background: linear-gradient(90deg, color-mix(in srgb, var(--shell-accent) 4%, transparent), transparent) !important;
 }
-/* 二级子菜单标题左侧指示条 */
 .app-menu .el-sub-menu .el-sub-menu > .el-sub-menu__title::before {
   content: '';
   position: absolute;
@@ -223,26 +220,9 @@ html.dark .app-shell {
   background: linear-gradient(180deg, var(--shell-accent), color-mix(in srgb, var(--shell-accent) 30%, transparent));
   border-radius: 2px;
 }
-/* 二级子菜单图标更小 */
-.app-menu .el-sub-menu .el-sub-menu > .el-sub-menu__title .el-icon {
-  font-size: 14px !important;
-  margin-right: 6px;
-  opacity: 0.85;
-}
-/* 二级子菜单展开箭头更小 */
-.app-menu .el-sub-menu .el-sub-menu > .el-sub-menu__title .el-sub-menu__icon-arrow {
-  font-size: 10px !important;
-}
-/* 三级菜单项（二级子菜单的子项）样式 */
-.app-menu .el-sub-menu .el-sub-menu .el-menu-item {
-  font-size: 12.5px !important;
-}
-.app-menu .el-sub-menu .el-sub-menu .el-menu-item .el-icon {
-  font-size: 13px !important;
-}
-/* 三级菜单项激活状态 */
+/* 三级菜单项激活状态：走侧栏激活字色，避免反转侧栏上 --shell-accent（主色）与底色撞色 */
 .app-menu .el-sub-menu .el-sub-menu .el-menu-item.is-active {
-  color: var(--shell-accent) !important;
+  color: var(--shell-sidebar-active-text, var(--shell-accent)) !important;
   font-weight: 500;
 }
 .app-menu .el-sub-menu .el-sub-menu .el-menu-item.is-active .el-icon {

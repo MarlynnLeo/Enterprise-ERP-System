@@ -809,7 +809,7 @@ const submitForm = async () => {
         contractCode: requisitionForm.contractCode || null,  // 合同编码（选填）
         remarks: requisitionForm.remarks,
         materials: processedMaterials,
-        requester: authStore.user?.username || '',
+        requester: authStore.user?.realName || authStore.realName || '',
         real_name: authStore.user?.realName || ''
       };
 

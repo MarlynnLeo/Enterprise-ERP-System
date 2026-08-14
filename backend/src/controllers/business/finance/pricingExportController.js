@@ -38,7 +38,7 @@ exports.exportPricingList = async (req, res) => {
                 pp.profit_margin,
                 pp.effective_date,
                 pp.remarks,
-                u.username as created_by_name,
+                COALESCE(NULLIF(TRIM(u.real_name), ''), u.username) as created_by_name,
                 pp.created_at
             FROM materials m
             LEFT JOIN product_pricing pp ON m.id = pp.product_id AND pp.is_active = 1

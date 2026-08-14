@@ -121,7 +121,7 @@ function getOperator(req) {
 
   return {
     id: req.user.id || req.user.userId || 'UNKNOWN',
-    name: req.user.name || req.user.real_name || req.user.username || 'UNKNOWN',
+    name: req.user.realName || req.user.name || req.user.real_name || req.user.username || 'UNKNOWN',
   };
 }
 

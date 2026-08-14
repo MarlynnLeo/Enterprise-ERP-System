@@ -2,6 +2,7 @@ const {
   normalizeUserId,
   firstValidUserId,
   getUserIdByIdentifier,
+  getRequestActorLabel,
 } = require('../../src/utils/userUtils');
 
 describe('user identity resolution', () => {
@@ -37,5 +38,16 @@ describe('user identity resolution', () => {
 
     await expect(getUserIdByIdentifier(connection, '王晓敏')).rejects.toThrow('有效用户名不存在');
     expect(connection.execute).toHaveBeenCalledTimes(1);
+  });
+
+  test('getRequestActorLabel prefers real name over username', () => {
+    expect(
+      getRequestActorLabel({ user: { id: 1, username: 'WBJ', realName: '王彬洁' } })
+    ).toBe('王彬洁');
+    expect(
+      getRequestActorLabel({ user: { id: 1, username: 'WBJ', real_name: '王彬洁' } })
+    ).toBe('王彬洁');
+    expect(getRequestActorLabel({ user: { id: 1, username: 'WBJ' } })).toBe('WBJ');
+    expect(getRequestActorLabel({})).toBeNull();
   });
 });

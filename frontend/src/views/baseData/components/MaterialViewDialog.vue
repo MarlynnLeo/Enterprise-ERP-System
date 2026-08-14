@@ -129,8 +129,9 @@ const formatTaxRate = (value) => {
 
 <style scoped>
 .custom-descriptions :deep(table) {
-  table-layout: fixed;
-  width: 100%;
+  table-layout: auto;
+  width: auto;
+  min-width: 560px;
 }
 
 .custom-descriptions :deep(.el-descriptions__label) {

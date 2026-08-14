@@ -157,6 +157,15 @@
                 </el-button>
               </template>
             </el-popconfirm>
+            <el-button
+              v-if="scope.row.status === 'active'"
+              class="btn-op-view"
+              size="small"
+              type="primary"
+              @click="handleView(scope.row)"
+            >
+              <el-icon><View /></el-icon> 查看
+            </el-button>
             <template v-if="scope.row.status !== 'active'">
               <el-button
                 v-if="canUpdate"
@@ -202,6 +211,7 @@
       v-model="dialogVisible"
       :editData="currentEditData"
       :title="dialogTitle"
+      :readonly="dialogReadonly"
       @success="fetchData"
     />
   </div>
@@ -214,7 +224,7 @@ import CustomerFormDialog from './components/CustomerFormDialog.vue';
 import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage } from 'element-plus'
 import { baseDataApi } from '@/api/baseData';
-import { Plus, Edit, Delete, Download, Switch } from '@element-plus/icons-vue';
+import { Plus, Edit, Delete, Download, Switch, View } from '@element-plus/icons-vue';
 import { useAuthStore } from '@/stores/auth';
 // 权限store
 const authStore = useAuthStore();
@@ -254,6 +264,7 @@ const searchForm = reactive({
 const dialogVisible = ref(false);
 const dialogTitle = ref('新增客户');
 const currentEditData = ref(null);
+const dialogReadonly = ref(false);
 
 // 初始化
 onMounted(() => {
@@ -372,6 +383,14 @@ const handleCurrentChange = (val) => {
 const handleAdd = () => {
   dialogTitle.value = '新增客户';
   currentEditData.value = null;
+  dialogReadonly.value = false;
+  dialogVisible.value = true;
+};
+
+const handleView = (row) => {
+  dialogTitle.value = '查看客户';
+  currentEditData.value = { ...row };
+  dialogReadonly.value = true;
   dialogVisible.value = true;
 };
 
@@ -379,6 +398,7 @@ const handleAdd = () => {
 const handleEdit = (row) => {
   dialogTitle.value = '编辑客户';
   currentEditData.value = { ...row };
+  dialogReadonly.value = false;
   dialogVisible.value = true;
 };
 

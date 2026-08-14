@@ -101,7 +101,11 @@
             <el-tag :type="getStatusType(scope.row.status)">{{ getStatusText(scope.row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="creator" label="创建人" min-width="100"></el-table-column>
+        <el-table-column prop="creatorName" label="创建人" min-width="100">
+          <template #default="{ row }">
+            {{ row.creatorName || row.creatorRealName || row.creator || '-' }}
+          </template>
+        </el-table-column>
         <el-table-column label="盘点结果" min-width="100">
           <template #default="scope">
             <span v-if="scope.row.status === 'completed'">
@@ -356,7 +360,7 @@
             </el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="仓库/库区">{{ checkDetail.warehouse || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="创建人">{{ checkDetail.creator || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="创建人">{{ checkDetail.creatorName || checkDetail.creatorRealName || checkDetail.creator || '-' }}</el-descriptions-item>
           <el-descriptions-item label="盘点描述" :span="3">{{ checkDetail.description || '无' }}</el-descriptions-item>
           <el-descriptions-item label="备注" :span="3">{{ checkDetail.remarks || '无' }}</el-descriptions-item>
           <template v-if="checkDetail.status === 'completed'">

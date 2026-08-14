@@ -1056,7 +1056,7 @@ const submitApplyParts = async () => {
         // 步骤2：来料不良 → 自动生成不良退回入库单（直接退入隔离区）
         if (isDefectiveReason.value && applyPartsForm.value.returnLocationId) {
           try {
-            const currentUser = authStore.user?.username || authStore.user?.realName || authStore.user?.name || ''
+            const currentUser = authStore.user?.realName || authStore.user?.name || authStore.realName || ''
             if (!currentUser) {
               ElMessage.error('无法识别当前登录用户，请重新登录后再操作')
               return
@@ -1786,7 +1786,7 @@ const submitReturnMaterial = async () => {
 
   try {
     submittingReturn.value = true
-    const currentUser = authStore.user?.username || authStore.user?.realName || authStore.user?.name || ''
+    const currentUser = authStore.user?.realName || authStore.user?.name || authStore.realName || ''
     if (!currentUser) {
       ElMessage.error('无法识别当前登录用户，请重新登录后再操作')
       return

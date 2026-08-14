@@ -30,7 +30,7 @@ exports.getAdjustments = async (req, res) => {
                 m.code as material_code,
                 m.name as material_name,
                 m.specs as material_specs,
-                u.username as created_by_name
+                COALESCE(NULLIF(TRIM(u.real_name), ''), u.username) as created_by_name
             FROM bom_material_price_adjustments a
             LEFT JOIN materials m ON a.material_id = m.id
             LEFT JOIN users u ON a.created_by = u.id
@@ -183,7 +183,7 @@ exports.getAdjustmentHistory = async (req, res) => {
       `
             SELECT
                 a.*,
-                u.username as created_by_name
+                COALESCE(NULLIF(TRIM(u.real_name), ''), u.username) as created_by_name
             FROM bom_material_price_adjustments a
             LEFT JOIN users u ON a.created_by = u.id
             WHERE a.product_id = ? AND a.material_id = ?

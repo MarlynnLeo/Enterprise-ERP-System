@@ -163,13 +163,39 @@ const normalizeTrialBalanceRows = rows => rows
     return values.some(value => Math.abs(value) > 0.001)
   })
 
-const selectDefaultPeriod = () => {
-  const now = new Date()
-  const currentPeriodKeyword = `${now.getFullYear()}年${now.getMonth() + 1}月`
+const periodLabel = (period) => period?.periodName || period?.period_name || ''
 
-  return periods.value.find(period => !period.is_closed && period.period_name?.includes(currentPeriodKeyword))
-    || periods.value.find(period => !period.is_closed)
-    || periods.value[0]
+const periodDate = (period, camel, snake) => {
+  const value = period?.[camel] ?? period?.[snake]
+  if (!value) return null
+  const date = value instanceof Date ? value : new Date(value)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+const selectDefaultPeriod = () => {
+  const list = periods.value
+  if (!list.length) return null
+
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = now.getMonth() + 1
+  const nameHints = [`${year}年${String(month).padStart(2, '0')}月`, `${year}年${month}月`]
+
+  const currentMonth = list.find((period) => {
+    const start = periodDate(period, 'startDate', 'start_date')
+    if (start && start.getFullYear() === year && start.getMonth() + 1 === month) {
+      return true
+    }
+    const label = periodLabel(period)
+    return nameHints.some((hint) => label.includes(hint))
+  })
+  if (currentMonth) return currentMonth
+
+  return list.find((period) => {
+    const start = periodDate(period, 'startDate', 'start_date')
+    const end = periodDate(period, 'endDate', 'end_date')
+    return start && end && now >= start && now <= end
+  }) || list[0]
 }
 
 const fetchPeriods = async () => {
@@ -253,7 +279,7 @@ const exportData = async () => {
     const workbook = new ExcelJS.Workbook()
     const worksheet = workbook.addWorksheet('试算平衡')
     const currentPeriod = periods.value.find(period => period.id === filters.value.period_id)
-    const periodName = currentPeriod?.period_name || '未指定期间'
+    const periodName = periodLabel(currentPeriod) || '未指定期间'
 
     worksheet.mergeCells('A1:J1')
     const titleCell = worksheet.getCell('A1')

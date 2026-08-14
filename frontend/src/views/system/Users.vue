@@ -65,7 +65,7 @@
         <el-table-column prop="email" label="邮箱" min-width="200"></el-table-column>
         <el-table-column prop="phone" label="手机号" width="130"></el-table-column>
         <el-table-column prop="departmentName" label="所属部门" width="120"></el-table-column>
-        <el-table-column prop="roleNames" label="角色" min-width="150"></el-table-column>
+        <el-table-column prop="roleNames" label="角色" min-width="180"></el-table-column>
         <el-table-column label="状态" width="100">
           <template #default="scope">
             <el-tag :type="getStatusType(scope.row.status)">
@@ -200,7 +200,7 @@
           </el-select>
         </el-form-item>
         <el-form-item label="角色" prop="roleIds">
-          <el-select v-model="userForm.roleIds" placeholder="请选择角色" multiple class="w-full">
+          <el-select v-model="userForm.roleIds" placeholder="请选择角色（权限管理中已配置的角色）" multiple class="w-full">
             <el-option
               v-for="role in roleOptions"
               :key="role.id"
@@ -306,7 +306,7 @@ const validatePasswordStrength = (value) => {
 const userRules = {
   username: [
     { required: true, message: '请输入用户名', trigger: 'blur' },
-    { min: 3, max: 20, message: '长度在3到20个字符', trigger: 'blur' }
+    { min: 2, max: 20, message: '长度在2到20个字符', trigger: 'blur' }
   ],
   name: [
     { required: true, message: '请输入姓名', trigger: 'blur' }

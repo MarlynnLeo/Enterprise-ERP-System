@@ -2,7 +2,6 @@
   <AppDialog
     title="查看BOM详情"
     mode="view"
-    content-width="wide"
     :model-value="modelValue"
     @update:model-value="val => emit('update:modelValue', val)"
   >
@@ -17,9 +16,9 @@
               {{ isApproved(bomData) ? '已审核' : '未审核' }}
             </el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="创建人">{{ bomData.created_by }}</el-descriptions-item>
+          <el-descriptions-item label="创建人">{{ bomData.createdBy || bomData.created_by || '-' }}</el-descriptions-item>
           <el-descriptions-item label="创建时间">{{ bomData.createdAt }}</el-descriptions-item>
-          <el-descriptions-item label="修改人">{{ bomData.updated_by }}</el-descriptions-item>
+          <el-descriptions-item label="修改人">{{ bomData.updatedBy || bomData.updated_by || '-' }}</el-descriptions-item>
           <el-descriptions-item label="最后修改时间">{{ bomData.updatedAt }}</el-descriptions-item>
           <el-descriptions-item label="备注" :span="2">{{ bomData.remark || '-' }}</el-descriptions-item>
         </el-descriptions>

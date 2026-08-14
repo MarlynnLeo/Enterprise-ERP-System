@@ -50,7 +50,6 @@
             </div>
             <div class="champion-info">
               <h3>{{ champion.realName }}</h3>
-              <p v-if="champion.username">@{{ champion.username }}</p>
             </div>
             <div class="champion-time">{{ champion.displayTime }}</div>
           </div>
@@ -159,7 +158,7 @@ const normalizedRankings = computed(() => {
       rank: Number(item.rank || index + 1),
       userId,
       username: item.username || '',
-      realName: item.realName || item.username || '未命名用户',
+      realName: item.realName || item.real_name || '未命名用户',
       avatar: avatar || DEFAULT_AVATAR,
       avatarFrame: normalizeAvatarFrameId(avatarFrame, 'none'),
       totalSeconds: Number.isFinite(totalSeconds) ? totalSeconds : 0,

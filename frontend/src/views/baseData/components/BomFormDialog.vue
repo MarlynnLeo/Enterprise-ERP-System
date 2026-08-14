@@ -4,7 +4,6 @@
     @update:model-value="val => emit('update:modelValue', val)"
     :title="title"
     mode="form"
-    wide
     @close="handleClose"
     @open="handleOpen"
   >

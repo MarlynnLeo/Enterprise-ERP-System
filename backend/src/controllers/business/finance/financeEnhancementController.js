@@ -483,20 +483,23 @@ class FinanceEnhancementController {
       // 从operation_logs表获取自动化相关的操作记录（使用参数化查询）
       const [rows] = await db.pool.query(`
         SELECT
-          id,
-          module,
-          operation,
-          username as executed_by,
-          request_data,
-          status,
-          created_at as executed_at
-        FROM operation_logs
-        WHERE operation IN (
+          ol.id,
+          ol.module,
+          ol.operation,
+          COALESCE(NULLIF(TRIM(u.real_name), ''), ol.username) as executed_by,
+          ol.request_data,
+          ol.status,
+          ol.created_at as executed_at
+        FROM operation_logs ol
+        LEFT JOIN users u
+          ON CONVERT(u.username USING utf8mb4) COLLATE utf8mb4_unicode_ci
+           = CONVERT(ol.username USING utf8mb4) COLLATE utf8mb4_unicode_ci
+        WHERE ol.operation IN (
           'depreciation', 'period_close', 'period_end',
           'year_end_transfer', 'year_end_freeze', 'year_end_execute',
           'production_cost'
         )
-        ORDER BY created_at DESC
+        ORDER BY ol.created_at DESC
         LIMIT ${pageSizeNum} OFFSET ${offset}
       `);
 

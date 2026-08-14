@@ -146,17 +146,17 @@ async function resolveActorLabel(connection, ...candidates) {
 }
 
 /**
- * 从 Express req 同步取操作人标签（不查库）
- * 优先 username（唯一），再 real_name/name/id；无用户返回 null
+ * 从 Express req 同步取操作人显示名（不查库）
+ * 单据/记录展示用姓名；无姓名时才回退用户名或 id
  * @param {Object} req
  * @returns {string|null}
  */
 function getRequestActorLabel(req) {
   if (!req?.user) return null;
   const u = req.user;
+  const realName = String(u.realName || u.real_name || u.name || '').trim();
+  if (realName) return realName;
   if (u.username) return String(u.username);
-  if (u.real_name) return String(u.real_name);
-  if (u.name) return String(u.name);
   if (u.id != null && u.id !== '') return String(u.id);
   return null;
 }

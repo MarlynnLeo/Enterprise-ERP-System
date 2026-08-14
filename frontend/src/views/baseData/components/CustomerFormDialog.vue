@@ -3,13 +3,30 @@
     :model-value="modelValue"
     @update:model-value="val => emit('update:modelValue', val)"
     :title="title"
-    mode="form"
+    :mode="readonly ? 'view' : 'form'"
     width="600px"
     @close="handleClose"
   >
-    <el-form :model="form" :rules="rules" ref="formRef" label-width="100px">
+    <el-descriptions v-if="readonly" :column="2" border>
+      <el-descriptions-item label="客户编码">{{ form.code || '-' }}</el-descriptions-item>
+      <el-descriptions-item label="客户名称">{{ form.name || '-' }}</el-descriptions-item>
+      <el-descriptions-item label="客户类型">{{ customerTypeText }}</el-descriptions-item>
+      <el-descriptions-item label="联系人">{{ form.contactPerson || '-' }}</el-descriptions-item>
+      <el-descriptions-item label="联系电话">{{ form.contactPhone || '-' }}</el-descriptions-item>
+      <el-descriptions-item label="电子邮箱">{{ form.email || '-' }}</el-descriptions-item>
+      <el-descriptions-item label="信用额度">{{ form.creditLimit ?? '-' }}</el-descriptions-item>
+      <el-descriptions-item label="收款账期">{{ form.paymentTermDays != null ? `${form.paymentTermDays} 天` : '-' }}</el-descriptions-item>
+      <el-descriptions-item label="状态">
+        <el-tag :type="form.status === 'active' ? 'success' : 'danger'">
+          {{ form.status === 'active' ? '启用' : '禁用' }}
+        </el-tag>
+      </el-descriptions-item>
+      <el-descriptions-item label="地址" :span="2">{{ form.address || '-' }}</el-descriptions-item>
+      <el-descriptions-item label="备注" :span="2">{{ form.remark || '-' }}</el-descriptions-item>
+    </el-descriptions>
+    <el-form v-else :model="form" :rules="rules" ref="formRef" label-width="100px">
       <el-form-item label="客户编码" prop="code">
-        <el-input v-model="form.code" placeholder="请输入客户编码（如：C0001）" :disabled="isEdit">
+        <el-input v-model="form.code" placeholder="请输入客户编码（如：C0001）" :disabled="readonly || isEdit">
           <template #append v-if="!isEdit">
             <el-button @click="generateCode">自动生成</el-button>
           </template>
@@ -63,15 +80,15 @@
     </el-form>
     <template #footer>
       <span class="dialog-footer">
-        <el-button @click="handleClose">取消</el-button>
-        <el-button type="primary" @click="submitForm" :loading="submitting">确定</el-button>
+        <el-button @click="handleClose">{{ readonly ? '关闭' : '取消' }}</el-button>
+        <el-button v-if="!readonly" type="primary" @click="submitForm" :loading="submitting">确定</el-button>
       </span>
     </template>
     </AppDialog>
 </template>
 
 <script setup>
-import { ref, reactive, watch, nextTick } from 'vue'
+import { ref, reactive, computed, watch, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { baseDataApi } from '@/api/baseData'
 import { parsePaginatedData } from '@/utils/responseParser'
@@ -85,6 +102,10 @@ const props = defineProps({
   title: {
     type: String,
     default: '新增客户'
+  },
+  readonly: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -109,6 +130,11 @@ const form = reactive({
   paymentTermDays: 30,
   status: 'active',
   remark: ''
+})
+
+const customerTypeText = computed(() => {
+  const map = { direct: '直销客户', distributor: '经销商', retail: '零售客户' }
+  return map[form.customerType] || form.customerType || '-'
 })
 
 const rules = {

@@ -226,7 +226,7 @@ const ValidationRules = {
 
   // 用户验证
   user: {
-    username: { required: true, length: { min: 3, max: 50 } },
+    username: { required: true, length: { min: 2, max: 50 } },
     email: { required: true, email: true },
     phone: { phone: true },
     password: { required: true, length: { min: 6, max: 100 } },

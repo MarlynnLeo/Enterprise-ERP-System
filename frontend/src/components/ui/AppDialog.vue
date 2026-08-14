@@ -6,7 +6,11 @@
     - form    新建/编辑：居中弹窗，限高可滚动
     - preview 文件/文档预览：默认大窗，可切换全屏
 
-  说明：查看 ≠ 浏览器全屏；单据详情应与「新增订单」一样是中间对话框。
+  宽度：
+    - 默认按内容撑开（app-dialog--adaptive）
+    - wide 才拉满为约 92% / 上限 1280
+    - 传入 width 时用指定宽度
+    - content-width 只改内容区内边距，不改弹窗外壳宽度
 -->
 <template>
   <el-dialog
@@ -72,10 +76,9 @@ const props = defineProps({
   },
   title: { type: String, default: '' },
   /**
-   * 弹窗宽度：
-   * - form 默认 640px
-   * - view 默认 800px（与常见业务详情一致）
-   * - wide 时使用 92%（上限见 CSS）
+   * 弹窗宽度（优先于默认自适应）：
+   * - 不传：按内容撑开（min/max 见 dialog-system.css）
+   * - wide：92%，上限 1280px
    */
   width: { type: [String, Number], default: '' },
   destroyOnClose: { type: Boolean, default: true },
@@ -122,15 +125,16 @@ const resolvedFullscreen = computed(() => {
   return false
 })
 
+const hasExplicitWidth = computed(
+  () => props.width !== '' && props.width != null
+)
+
 const resolvedWidth = computed(() => {
   if (resolvedFullscreen.value) return '100%'
-  // 仅 wide 属性控制弹窗变宽；content-width 只影响内容区内边距语义
   if (props.wide) return '92%'
-  if (props.width !== '' && props.width != null) return props.width
-  // 默认宽度：查看略宽于表单（与常见业务详情 800px 一致）
-  if (props.mode === 'view') return props.contentWidth === 'wide' ? '90%' : '800px'
+  if (hasExplicitWidth.value) return props.width
   if (props.mode === 'preview') return '90%'
-  return '640px'
+  return 'fit-content'
 })
 
 const dialogClass = computed(() => {
@@ -139,8 +143,10 @@ const dialogClass = computed(() => {
   if (props.mode === 'view' || props.mode === 'form') {
     parts.push('app-dialog--modal')
   }
-  if (props.wide || (props.mode === 'view' && props.contentWidth === 'wide')) {
+  if (props.wide) {
     parts.push('app-dialog--form-wide')
+  } else if (!hasExplicitWidth.value && props.mode !== 'preview') {
+    parts.push('app-dialog--adaptive')
   }
   if (props.customClass) {
     if (typeof props.customClass === 'string') parts.push(props.customClass)

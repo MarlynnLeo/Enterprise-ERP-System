@@ -335,12 +335,13 @@ const systemModel = {
     // ✅ 优化: 使用 IN 查询一次性获取所有用户的角色（避免 N+1 查询）
     if (rows.length > 0) {
       const userIds = rows.map((u) => u.id);
+      const userIdPlaceholders = userIds.map(() => '?').join(',');
       const [allRoles] = await pool.execute(
         `SELECT ur.user_id, r.*
          FROM roles r
          JOIN user_roles ur ON r.id = ur.role_id
-         WHERE ur.user_id IN (?)`,
-        [userIds]
+         WHERE ur.user_id IN (${userIdPlaceholders})`,
+        userIds
       );
 
       // 按用户ID分组角色
@@ -352,11 +353,9 @@ const systemModel = {
         rolesByUser[role.user_id].push(role);
       });
 
-      // 分配角色到用户
       rows.forEach((user) => {
         user.roles = rolesByUser[user.id] || [];
         user.roleNames = user.roles.map((r) => r.name).join(', ');
-        // status已包含在查询结果中并通过数据库管理，无需覆盖
       });
     }
 
@@ -395,8 +394,6 @@ const systemModel = {
       );
       user.roles = roles;
 
-      // status已包含在查询结果中并通过数据库管理，无需覆盖
-
       return user;
     } catch (error) {
       logger.error('获取用户详情失败:', error);
@@ -417,6 +414,9 @@ const systemModel = {
 
       if (!username) {
         throw new Error('username is required');
+      }
+      if (username.length < 2 || username.length > 50) {
+        throw new Error('用户名长度需在2到50个字符之间');
       }
       if (!password) {
         throw new Error('password is required');

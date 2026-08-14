@@ -545,14 +545,29 @@
 }
 
 [data-theme] .sidebar .el-menu-item.is-active .el-icon,
-[data-theme] .app-sidebar .el-menu-item.is-active .el-icon {
+[data-theme] .app-sidebar .el-menu-item.is-active .el-icon,
+[data-theme] .sidebar .el-sub-menu.is-active > .el-sub-menu__title .el-icon,
+[data-theme] .app-sidebar .el-sub-menu.is-active > .el-sub-menu__title .el-icon {
   opacity: 1;
 }
 
+/*
+ * 子项选中时父级 el-sub-menu 会带 .is-active，标题仍画在侧栏底上（没有 active-bg）。
+ * 必须用 --shell-sidebar-text：商务/专业/活力等反转侧栏的 --color-primary 就是侧栏底色。
+ */
 [data-theme] .sidebar .el-sub-menu.is-active > .el-sub-menu__title,
 [data-theme] .app-sidebar .el-sub-menu.is-active > .el-sub-menu__title {
-  color: var(--color-primary) !important;
-  font-weight: 700 !important;
+  color: var(--shell-sidebar-text, var(--color-text-primary)) !important;
+  font-weight: var(--shell-sidebar-active-weight, 600) !important;
+}
+
+[data-theme] .sidebar .el-sub-menu.is-active > .el-sub-menu__title span,
+[data-theme] .app-sidebar .el-sub-menu.is-active > .el-sub-menu__title span,
+[data-theme] .sidebar .el-sub-menu.is-active > .el-sub-menu__title .el-icon,
+[data-theme] .app-sidebar .el-sub-menu.is-active > .el-sub-menu__title .el-icon,
+[data-theme] .sidebar .el-sub-menu.is-active > .el-sub-menu__title .el-sub-menu__icon-arrow,
+[data-theme] .app-sidebar .el-sub-menu.is-active > .el-sub-menu__title .el-sub-menu__icon-arrow {
+  color: inherit !important;
 }
 
 [data-theme] .header,

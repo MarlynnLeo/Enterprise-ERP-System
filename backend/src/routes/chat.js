@@ -238,7 +238,7 @@ router.get('/conversations/:id/messages', async (req, res) => {
       SELECT
         m.id, m.conversation_id, m.sender_id, m.content, m.type,
         m.file_url, m.file_name, m.created_at,
-        u.username AS sender_name, u.real_name AS sender_real_name, u.avatar AS sender_avatar
+        COALESCE(NULLIF(TRIM(u.real_name), ''), u.username) AS sender_name, u.real_name AS sender_real_name, u.avatar AS sender_avatar
       FROM chat_messages m
       LEFT JOIN users u ON u.id = m.sender_id
       WHERE m.conversation_id = ? AND m.deleted_at IS NULL

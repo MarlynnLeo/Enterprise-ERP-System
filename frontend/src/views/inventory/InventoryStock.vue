@@ -180,14 +180,14 @@
         <el-table-column label="操作" min-width="180" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
             <div class="operation-btns">
-              <el-button class="btn-op-view" type="primary" size="small" @click="handleViewDetail(scope.row)" v-permission="'inventory:stock:view-detail'">查看明细</el-button>
+              <el-button class="btn-op-view" type="primary" size="small" @click="handleViewDetail(scope.row)" v-permission="'inventory:stock:view-detail'">查看</el-button>
               <el-button
                 v-if="isLowStock(scope.row)"
                 size="small"
                 type="warning"
                 @click="handleQuickPurchase(scope.row)"
               >
-                快速申购
+                申购
               </el-button>
             </div>
           </template>

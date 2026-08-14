@@ -22,11 +22,27 @@
           <el-button @click="loadPreview" :loading="loading">
             <el-icon><Refresh /></el-icon> 重新读取业务数据
           </el-button>
-          <el-button v-permission="'finance:accounts:update'" type="primary" @click="handleBatchSave" :loading="saving">
+          <el-button
+            v-permission="'finance:accounts:update'"
+            type="primary"
+            :disabled="hasImportedOpening"
+            :loading="saving"
+            @click="handleBatchSave"
+          >
             <el-icon><Check /></el-icon> 完成初始化
           </el-button>
       </template>
     </PageHeader>
+
+    <el-alert
+      v-if="hasImportedOpening"
+      class="mb-md"
+      type="warning"
+      show-icon
+      :closable="false"
+      title="总账期初已从老系统导入（2026-08-01）"
+      description="不要点「完成初始化」。该操作会按银行/库存年结/应收发票重算，当前这些来源是空的，会把已导入的期初冲掉。"
+    />
 
     <div v-if="warnings.length" class="warning-list">
       <el-alert
@@ -184,6 +200,12 @@ const totalCredit = computed(() => {
 const isBalanced = computed(() => {
   return Math.abs(totalDebit.value - totalCredit.value) < 0.01
 })
+
+const hasImportedOpening = computed(() =>
+  accountList.value.some((row) =>
+    row.openingSourceType === 'import' || row.opening_source_type === 'import'
+  )
+)
 
 // 格式化金额 - 已统一使用 @/utils/format 导入
 

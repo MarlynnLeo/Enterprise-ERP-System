@@ -1536,7 +1536,7 @@ const handleMaterialIssue = async () => {
 
     // 3. 准备出库单数据（操作人取当前登录用户，禁止写 system）
     const currentUser =
-      authStore.user?.username || authStore.user?.realName || authStore.user?.name || ''
+      authStore.user?.realName || authStore.user?.name || authStore.realName || ''
     if (!currentUser) {
       ElMessage.error('无法识别当前登录用户，请重新登录后再发料')
       return

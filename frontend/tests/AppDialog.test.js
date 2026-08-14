@@ -35,11 +35,21 @@ const mountDialog = (props = {}) =>
   })
 
 describe('AppDialog interaction contract', () => {
-  test('uses the ERP detail width and forwards close state', async () => {
+  test('uses an explicit width instead of the default view width', () => {
+    const wrapper = mountDialog({ mode: 'view', width: '960px', title: 'BOM' })
+    expect(wrapper.findComponent(ElDialogStub).props('width')).toBe('960px')
+  })
+
+  test('content-width only affects body padding, not chrome width', () => {
+    const wrapper = mountDialog({ mode: 'view', contentWidth: 'wide', title: 'Detail' })
+    expect(wrapper.findComponent(ElDialogStub).props('width')).toBe('fit-content')
+  })
+
+  test('uses adaptive fit-content by default and forwards close state', async () => {
     const wrapper = mountDialog({ mode: 'view', title: 'Detail' })
     const dialog = wrapper.findComponent(ElDialogStub)
 
-    expect(dialog.props('width')).toBe('800px')
+    expect(dialog.props('width')).toBe('fit-content')
     dialog.vm.$emit('update:modelValue', false)
     await nextTick()
 

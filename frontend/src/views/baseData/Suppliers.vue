@@ -162,6 +162,15 @@
                 @click="openMetalPriceDialog(scope.row)">
                 区间报价
               </el-button>
+              <el-button
+                v-if="Number(scope.row.status ?? scope.row.isActive) === 1"
+                class="btn-op-view"
+                size="small"
+                type="primary"
+                @click="handleView(scope.row)"
+              >
+                <el-icon><View /></el-icon> 查看
+              </el-button>
 <el-button
                 v-if="canUpdate && (scope.row.status || scope.row.isActive) !== 1"
                 size="small"
@@ -206,6 +215,7 @@
       v-model="dialogVisible"
       :editData="currentEditData"
       :title="dialogTitle"
+      :readonly="dialogReadonly"
       @success="fetchData"
     />
 
@@ -267,7 +277,7 @@ import SupplierMetalPriceDialog from './components/SupplierMetalPriceDialog.vue'
 import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage } from 'element-plus'
 import { supplierApi } from '@/api/supplier';
-import { Plus, Edit, Delete, Download, Upload, Switch } from '@element-plus/icons-vue';
+import { Plus, Edit, Delete, Download, Upload, Switch, View } from '@element-plus/icons-vue';
 import { useAuthStore } from '@/stores/auth';
 // 权限store
 const authStore = useAuthStore();
@@ -309,6 +319,7 @@ const searchForm = reactive({
 const dialogVisible = ref(false);
 const dialogTitle = ref('新增供应商');
 const currentEditData = ref(null);
+const dialogReadonly = ref(false);
 
 // 导入相关
 const importDialogVisible = ref(false);
@@ -427,6 +438,14 @@ const handleCurrentChange = (val) => {
 const handleAdd = () => {
   dialogTitle.value = '新增供应商';
   currentEditData.value = null;
+  dialogReadonly.value = false;
+  dialogVisible.value = true;
+};
+
+const handleView = (row) => {
+  dialogTitle.value = '查看供应商';
+  currentEditData.value = { ...row };
+  dialogReadonly.value = true;
   dialogVisible.value = true;
 };
 
@@ -434,6 +453,7 @@ const handleAdd = () => {
 const handleEdit = (row) => {
   dialogTitle.value = '编辑供应商';
   currentEditData.value = { ...row };
+  dialogReadonly.value = false;
   dialogVisible.value = true;
 };
 

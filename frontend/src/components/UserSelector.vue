@@ -118,9 +118,8 @@ const selectedUsers = ref([]);
 const selectedDepartments = ref([]);
 
 const formatUserOption = (user) => {
-  const username = user.username ? ` (${user.username})` : '';
   const department = user.department || '无部门';
-  return `${user.realName}${username} - ${department}`;
+  return `${user.realName || '未命名'} - ${department}`;
 };
 
 const searchUsers = async (query) => {

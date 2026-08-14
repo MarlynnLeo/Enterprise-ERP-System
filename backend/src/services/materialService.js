@@ -139,7 +139,8 @@ const materialService = {
       logger.debug('Material query total count', { total });
 
       // 添加排序和分页      // 注意：LIMIT 和 OFFSET 不能使用参数绑定，必须直接嵌入SQL
-      sql += ' ORDER BY m.id DESC';
+      // 数字编码优先，从 1xxxx 起按编码升序
+      sql += ` ORDER BY CASE WHEN m.code REGEXP '^[0-9]' THEN 0 ELSE 1 END, m.code ASC, m.id ASC`;
       if (!noPagination) {
         sql += ` LIMIT ${Number(validPageSize)} OFFSET ${Number(offset)}`;
       }

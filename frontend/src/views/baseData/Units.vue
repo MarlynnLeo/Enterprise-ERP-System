@@ -103,6 +103,15 @@
                 </el-button>
               </template>
             </el-popconfirm>
+            <el-button
+              v-if="String(scope.row.status) === '1'"
+              class="btn-op-view"
+              size="small"
+              type="primary"
+              @click="handleView(scope.row)"
+            >
+              <el-icon><View /></el-icon> 查看
+            </el-button>
             <template v-if="String(scope.row.status) === '0'">
               <el-button
                 v-if="canUpdate"
@@ -147,10 +156,20 @@
     <AppDialog
       v-model="dialogVisible"
       :title="dialogTitle"
-      mode="form"
+      :mode="dialogReadonly ? 'view' : 'form'"
       width="500px"
     >
-      <el-form :model="form" :rules="rules" ref="formRef" label-width="100px">
+      <el-descriptions v-if="dialogReadonly" :column="2" border>
+        <el-descriptions-item label="单位名称">{{ form.name || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="单位编码">{{ form.code || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="状态">
+          <el-tag :type="Number(form.status) === 1 ? 'success' : 'danger'">
+            {{ Number(form.status) === 1 ? '启用' : '禁用' }}
+          </el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="备注" :span="2">{{ form.remark || '-' }}</el-descriptions-item>
+      </el-descriptions>
+      <el-form v-else :model="form" :rules="rules" ref="formRef" label-width="100px">
         <el-form-item label="单位名称" prop="name">
           <el-input v-model="form.name" placeholder="请输入单位名称"></el-input>
         </el-form-item>
@@ -169,8 +188,8 @@
       </el-form>
       <template #footer>
         <span class="dialog-footer">
-          <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="submitForm">确定</el-button>
+          <el-button @click="dialogVisible = false">{{ dialogReadonly ? '关闭' : '取消' }}</el-button>
+          <el-button v-if="!dialogReadonly" type="primary" @click="submitForm">确定</el-button>
         </span>
       </template>
         </AppDialog>
@@ -182,7 +201,7 @@ import { parsePaginatedData, parseResponseData } from '@/utils/responseParser';
 import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage } from 'element-plus'
 import { baseDataApi } from '@/api/baseData';
-import { Plus, Edit, Delete, Download, Switch } from '@element-plus/icons-vue';
+import { Plus, Edit, Delete, Download, Switch, View } from '@element-plus/icons-vue';
 import { useAuthStore } from '@/stores/auth';
 // 权限store
 const authStore = useAuthStore();
@@ -245,6 +264,7 @@ const rules = {
 // 对话框控制
 const dialogVisible = ref(false);
 const dialogTitle = ref('新增单位');
+const dialogReadonly = ref(false);
 const isEdit = ref(false);
 
 // 初始化
@@ -362,7 +382,17 @@ const handleCurrentChange = (val) => {
 const handleAdd = () => {
   dialogTitle.value = '新增单位';
   isEdit.value = false;
+  dialogReadonly.value = false;
   resetForm();
+  dialogVisible.value = true;
+};
+
+const handleView = (row) => {
+  dialogTitle.value = '查看单位';
+  isEdit.value = false;
+  dialogReadonly.value = true;
+  resetForm();
+  Object.assign(form, row);
   dialogVisible.value = true;
 };
 
@@ -370,6 +400,7 @@ const handleAdd = () => {
 const handleEdit = (row) => {
   dialogTitle.value = '编辑单位';
   isEdit.value = true;
+  dialogReadonly.value = false;
   resetForm();
   Object.assign(form, row);
   dialogVisible.value = true;
