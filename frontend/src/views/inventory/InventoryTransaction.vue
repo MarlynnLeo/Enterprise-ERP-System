@@ -112,46 +112,46 @@
             <el-table-column prop="transactionNo" label="流水编号" width="150" show-overflow-tooltip />
             <el-table-column prop="transactionTime" label="交易时间" width="160" show-overflow-tooltip>
               <template #default="scope">
-                {{ formatDateTime(scope.row.transactionTime) }}
+                {{ formatDateTime(scope.row?.transactionTime) }}
               </template>
             </el-table-column>
             <el-table-column prop="materialCode" label="物料编码" width="150" show-overflow-tooltip />
             <el-table-column prop="materialName" label="物料名称" width="200" show-overflow-tooltip />
             <el-table-column prop="transactionType" label="流水类型" width="110">
               <template #default="scope">
-                <el-tag :type="getTransactionTypeColor(scope.row.transactionType)">
-                  {{ getTransactionTypeText(scope.row.transactionType) }}
+                <el-tag :type="getTransactionTypeColor(scope.row?.transactionType)">
+                  {{ getTransactionTypeText(scope.row?.transactionType) }}
                 </el-tag>
               </template>
             </el-table-column>
             <el-table-column prop="quantity" label="数量" width="100">
               <template #default="scope">
                 <span :class="getQuantityClass(scope.row)">
-                  {{ getQuantityPrefix(scope.row) + formatNumber(scope.row.quantity) }}
+                  {{ getQuantityPrefix(scope.row) + formatNumber(scope.row?.quantity) }}
                 </span>
               </template>
             </el-table-column>
             <el-table-column prop="unitName" label="单位" width="60" />
             <el-table-column prop="beforeQuantity" label="变动前数量" width="110">
               <template #default="scope">
-                {{ formatNumber(scope.row.beforeQuantity) }}
+                {{ formatNumber(scope.row?.beforeQuantity) }}
               </template>
             </el-table-column>
             <el-table-column prop="afterQuantity" label="变动后数量" width="110">
               <template #default="scope">
-                {{ formatNumber(scope.row.afterQuantity) }}
+                {{ formatNumber(scope.row?.afterQuantity) }}
               </template>
             </el-table-column>
             <el-table-column prop="amount" label="金额" width="120">
               <template #default="scope">
-                {{ formatCurrency(scope.row.amount) }}
+                {{ formatCurrency(scope.row?.amount) }}
               </template>
             </el-table-column>
             <el-table-column prop="locationName" label="仓库位置" width="120" show-overflow-tooltip />
             <el-table-column prop="operator" label="操作人" width="100" show-overflow-tooltip />
             <el-table-column prop="remarks" label="备注" min-width="200" show-overflow-tooltip>
               <template #default="scope">
-                {{ scope.row.remarks || '-' }}
+                {{ scope.row?.remarks || '-' }}
               </template>
             </el-table-column>
             <el-table-column label="操作" min-width="80" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
@@ -411,8 +411,9 @@ const fetchTransactionList = async () => {
       uniqueOperators: 0,
       ...(responseData.statistics || {})
     }
-    // 处理交易数据
-    transactionList.value = responseData.items || []
+    // 处理交易数据：优先 list（分页 SSOT），items 为兼容字段
+    const rows = responseData.list || responseData.items || []
+    transactionList.value = Array.isArray(rows) ? rows.filter((row) => row && typeof row === 'object') : []
     // 处理变动前后数量
     calculateBeforeAfterQuantity()
     // 设置分页总数
@@ -452,8 +453,8 @@ const handleReset = () => {
 const calculateBeforeAfterQuantity = () => {
   // 首先检查是否所有记录都已有变动前后数量
   const needCalculation = transactionList.value.some(
-    item => item.beforeQuantity === undefined || item.beforeQuantity === null ||
-           item.afterQuantity === undefined || item.afterQuantity === null
+    item => item && (item.beforeQuantity === undefined || item.beforeQuantity === null ||
+           item.afterQuantity === undefined || item.afterQuantity === null)
   );
 
   // 如果所有记录都已有变动前后数量，直接返回
@@ -473,6 +474,7 @@ const calculateBeforeAfterQuantity = () => {
 
   // 处理每条记录
   sortedList.forEach(item => {
+    if (!item) return;
     // 组合key，确保每个物料在每个位置都有独立的库存跟踪
     const key = `${item.materialId}_${item.locationId}`;
 
@@ -797,6 +799,7 @@ const getTransactionTypeText = (type) => {
 }
 // 数量显示类
 const getQuantityClass = (row) => {
+  if (!row) return '';
   const type = row.transactionType;
   // 入库类型显示绿色（包括撤销出库）
   if (type === 'inbound' || type === 'outsourced_inbound' || type === 'purchase_inbound' ||
@@ -821,6 +824,7 @@ const getQuantityClass = (row) => {
 }
 // 数量显示前缀
 const getQuantityPrefix = (row) => {
+  if (!row) return '';
   const type = row.transactionType;
   const quantity = parseFloat(row.quantity || 0);
   // 入库类型显示"+"（包括撤销出库）

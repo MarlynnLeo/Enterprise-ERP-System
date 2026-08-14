@@ -359,7 +359,7 @@ const getTransactionList = async (req, res) => {
       LEFT JOIN
         units ON inventory_ledger.unit_id = units.id
       LEFT JOIN
-        users ON inventory_ledger.operator = users.username
+        users ON CONVERT(inventory_ledger.operator USING utf8mb4) = CONVERT(users.username USING utf8mb4)
       ${whereClause}
       ORDER BY ${safeSortField} ${safeSortOrder}
       LIMIT ${pagination.limit} OFFSET ${pagination.offset}
@@ -441,9 +441,9 @@ const getTransactionList = async (req, res) => {
     const transferTypes = inventoryTypeRules
       .filter((item) => item.category === 'transfer')
       .map((item) => item.code);
-    const increasePlaceholders = increaseTypes.map(() => '?').join(', ');
-    const decreasePlaceholders = decreaseTypes.map(() => '?').join(', ');
-    const transferPlaceholders = transferTypes.map(() => '?').join(', ');
+    const increasePlaceholders = increaseTypes.length ? increaseTypes.map(() => '?').join(', ') : null;
+    const decreasePlaceholders = decreaseTypes.length ? decreaseTypes.map(() => '?').join(', ') : null;
+    const transferPlaceholders = transferTypes.length ? transferTypes.map(() => '?').join(', ') : null;
     const statsQueryParams = [
       ...increaseTypes,
       ...decreaseTypes,
@@ -456,15 +456,15 @@ const getTransactionList = async (req, res) => {
       `SELECT
          COUNT(*) as totalTransactions,
          SUM(CASE
-           WHEN transaction_type IN (${increasePlaceholders}) THEN 1
+           WHEN ${increasePlaceholders ? `transaction_type IN (${increasePlaceholders})` : '1=0'} THEN 1
            ELSE 0
          END) as inboundCount,
          SUM(CASE
-           WHEN transaction_type IN (${decreasePlaceholders}) THEN 1
+           WHEN ${decreasePlaceholders ? `transaction_type IN (${decreasePlaceholders})` : '1=0'} THEN 1
            ELSE 0
          END) as outboundCount,
          SUM(CASE
-           WHEN transaction_type IN (${transferPlaceholders}) THEN 1
+           WHEN ${transferPlaceholders ? `transaction_type IN (${transferPlaceholders})` : '1=0'} THEN 1
            ELSE 0
          END) as transferCount,
          SUM(CASE
@@ -1983,8 +1983,9 @@ const getInventoryLedger = async (req, res) => {
         CASE
           WHEN t.operator = 'system' THEN '系统'
           ELSE COALESCE(
-            (SELECT usr.real_name FROM users usr WHERE usr.username = t.operator COLLATE utf8mb4_unicode_ci LIMIT 1),
-            (SELECT usr.username FROM users usr WHERE usr.username = t.operator COLLATE utf8mb4_unicode_ci LIMIT 1),
+            (SELECT usr.real_name FROM users usr
+              WHERE CONVERT(usr.username USING utf8mb4) = CONVERT(t.operator USING utf8mb4)
+              LIMIT 1),
             t.operator
           )
         END as operatorName,

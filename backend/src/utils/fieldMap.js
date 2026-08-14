@@ -49,7 +49,7 @@ function toPlainJson(value) {
  * 将 DB/模型 snake 行递归转为 API camel（边界出参通用）
  * Date / Buffer 原样保留；Sequelize 模型先 toJSON；循环引用安全截断。
  */
-function mapKeysToCamel(value, seen = new WeakSet()) {
+function mapKeysToCamel(value, seen = new WeakMap()) {
   if (value == null) return value;
   if (value instanceof Date) return value;
   if (Buffer.isBuffer(value)) return value;
@@ -57,14 +57,20 @@ function mapKeysToCamel(value, seen = new WeakSet()) {
   value = toPlainJson(value);
 
   if (Array.isArray(value)) {
-    return value.map((v) => mapKeysToCamel(v, seen));
+    if (seen.has(value)) return seen.get(value);
+    const mapped = [];
+    seen.set(value, mapped);
+    for (const item of value) {
+      mapped.push(mapKeysToCamel(item, seen));
+    }
+    return mapped;
   }
   if (!isPlainObject(value)) return value;
 
-  if (seen.has(value)) return null;
-  seen.add(value);
+  if (seen.has(value)) return seen.get(value);
 
   const out = {};
+  seen.set(value, out);
   for (const [k, v] of Object.entries(value)) {
     // 跳过内部/不可枚举噪音键
     if (k === 'password' || k === 'password_hash' || k.startsWith('_')) continue;

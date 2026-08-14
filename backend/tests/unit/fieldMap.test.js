@@ -20,7 +20,15 @@ describe('fieldMap mapKeysToCamel / mapKeysToSnake', () => {
     const result = mapKeysToCamel(node);
     expect(result.userId).toBe(9);
     expect(result.title).toBe('t');
-    expect(result.self).toBeNull();
+    expect(result.self).toBe(result);
+  });
+
+  it('keeps shared list/items array members instead of turning them into null', () => {
+    const rows = [{ before_quantity: 1, after_quantity: 2 }];
+    const result = mapKeysToCamel({ list: rows, items: rows });
+    expect(result.list).toHaveLength(1);
+    expect(result.items[0]).toEqual({ beforeQuantity: 1, afterQuantity: 2 });
+    expect(result.items[0]).toBe(result.list[0]);
   });
 
   it('plain-serializes Sequelize-like models via toJSON', () => {

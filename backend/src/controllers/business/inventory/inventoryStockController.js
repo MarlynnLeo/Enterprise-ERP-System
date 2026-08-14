@@ -17,7 +17,6 @@ const db = require('../../../config/db');
 const InventoryService = require('../../../services/InventoryService');
 const BusinessTypeService = require('../../../services/BusinessTypeService');
 const { getCurrentUserName } = require('../../../utils/userHelper');
-const { getInventoryLedger } = require('./inventoryLedgerController');
 const DataScopeService = require('../../../services/DataScopeService');
 
 // 统一库存查询子查询（基于 inventory_ledger 单表架构聚合计算当前库存）
@@ -744,80 +743,80 @@ const adjustStock = async (req, res) => {
   }
 };
 
-// 通过物料ID获取库存交易记录 — 复用 getInventoryLedger 查询，响应适配为历史列表形状
+// 通过物料ID获取库存交易记录
 const getMaterialRecords = async (req, res) => {
   try {
     const { id } = req.params;
-
-    await loadBusinessTypeCache();
-    const inventoryTypeMap = await BusinessTypeService.getGroupMap('inventory_transaction');
+    const materialId = Number.parseInt(id, 10);
+    if (!Number.isInteger(materialId) || materialId <= 0) {
+      return ResponseHandler.error(res, '物料ID无效', 'VALIDATION_ERROR', 400);
+    }
 
     const [checkMaterialResult] = await db.pool.execute(
       `SELECT id, code, name FROM materials WHERE id = ? AND deleted_at IS NULL`,
-      [id]
+      [materialId]
     );
     if (checkMaterialResult.length === 0) {
       return ResponseHandler.error(res, '物料不存在', 'NOT_FOUND', 404);
     }
 
-    const locationIdParam = req.query.locationId || '';
-    req.query = {
-      ...req.query,
-      materialId: id,
-      locationId: locationIdParam,
-      page: Math.max(parseInt(req.query.page, 10) || 1, 1),
-      pageSize: Math.min(
-        Math.max(parseInt(req.query.pageSize || req.query.limit, 10) || 100, 1),
-        100
-      ),
-      startDate: '1900-01-01',
-      endDate: '2099-12-31',
-    };
+    const locationId = Number.parseInt(req.query.locationId, 10);
+    const pageSize = Math.min(Math.max(parseInt(req.query.pageSize || req.query.limit, 10) || 100, 1), 200);
 
-    // 捕获 getInventoryLedger 的 ResponseHandler 输出，避免改写真实 res
-    let statusCode = 200;
-    let payload = null;
-    const captureRes = {
-      status(code) {
-        statusCode = code;
-        return this;
-      },
-      json(body) {
-        payload = body;
-        return body;
-      },
-    };
-
-    await getInventoryLedger(req, captureRes);
-
-    if (statusCode !== 200 || !payload?.success) {
-      return res.status(statusCode || 500).json(payload || { success: false });
+    const params = [materialId];
+    let locationFilter = '';
+    if (Number.isInteger(locationId) && locationId > 0) {
+      locationFilter = ' AND t.location_id = ?';
+      params.push(locationId);
     }
 
-    const items = payload?.data?.items;
-    if (!Array.isArray(items)) {
-      return res.json([]);
+    const [rows] = await db.pool.query(
+      `SELECT
+         t.id,
+         DATE_FORMAT(COALESCE(t.transaction_date, DATE(t.created_at)), '%Y-%m-%d') AS date,
+         t.transaction_type AS transactionType,
+         t.batch_number AS batchNumber,
+         t.quantity,
+         COALESCE(t.before_quantity, 0) AS beforeQuantity,
+         COALESCE(t.after_quantity, 0) AS afterQuantity,
+         t.reference_no AS referenceNo,
+         t.operator,
+         t.remark
+       FROM inventory_ledger t
+       WHERE t.material_id = ?${locationFilter}
+       ORDER BY COALESCE(t.transaction_date, DATE(t.created_at)) DESC, t.id DESC
+       LIMIT ${pageSize}`,
+      params
+    );
+
+    let inventoryTypeMap = {};
+    try {
+      inventoryTypeMap = await BusinessTypeService.getGroupMap('inventory_transaction');
+    } catch (error) {
+      logger.warn('物料流水加载业务类型失败，回退常量文案:', error.message);
     }
 
-    // 直接输出 camelCase（历史接口仍返回数组，非 ResponseHandler 信封）
-    const records = items.map((item) => ({
-      id: item.id,
-      date: item.date,
-      transactionType: item.transactionType,
-      type:
-        inventoryTypeMap[item.transactionType] ||
-        getInventoryTransactionTypeText(item.transactionType),
-      batchNumber: item.batchNumber || '',
-      quantity: item.quantity,
-      beforeQuantity: item.beforeQuantity,
-      afterQuantity: item.afterQuantity,
-      referenceNo: item.documentNo,
-      referenceType: 'ledger',
-      operator: item.operatorName || item.operator || '系统',
-      operatorName: item.operatorName || item.operator || '系统',
-      remark: item.remark || '',
-      sourceTable: 'ledger',
-    }));
+    const records = rows.map((item) => {
+      const operator = item.operator === 'system' ? '系统' : (item.operator || '系统');
+      return {
+        id: item.id,
+        date: item.date,
+        transactionType: item.transactionType,
+        type:
+          inventoryTypeMap[item.transactionType] ||
+          getInventoryTransactionTypeText(item.transactionType),
+        batchNumber: item.batchNumber || '',
+        quantity: Number(item.quantity || 0),
+        beforeQuantity: Number(item.beforeQuantity || 0),
+        afterQuantity: Number(item.afterQuantity || 0),
+        referenceNo: item.referenceNo || '',
+        referenceType: 'ledger',
+        operator,
+        operatorName: operator,
+        remark: item.remark || '',
+        sourceTable: 'ledger',
+      };
+    });
 
     return res.json(records);
   } catch (error) {
