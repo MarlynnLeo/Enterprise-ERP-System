@@ -162,6 +162,8 @@ class AuditService {
         userId,
         startDate,
         endDate,
+        excludeActions,
+        excludePaths,
         page = 1,
         pageSize = 20,
       } = filters;
@@ -197,6 +199,22 @@ class AuditService {
         whereClause += ' AND created_at <= ?';
         params.push(endDate);
       }
+      const excludedActions = Array.isArray(excludeActions)
+        ? excludeActions.map((item) => String(item || '').trim()).filter(Boolean)
+        : [];
+      if (excludedActions.length > 0) {
+        whereClause += ` AND (action IS NULL OR UPPER(action) NOT IN (${excludedActions.map(() => '?').join(', ')}))`;
+        params.push(...excludedActions.map((item) => item.toUpperCase()));
+      }
+
+      const excludedPaths = Array.isArray(excludePaths)
+        ? excludePaths.map((item) => String(item || '').trim()).filter(Boolean)
+        : [];
+      for (const pathPattern of excludedPaths) {
+        whereClause += ' AND (path IS NULL OR path NOT LIKE ?)';
+        params.push(`%${pathPattern}%`);
+      }
+
 
       const pagination = parsePagination(page, pageSize, { defaultPageSize: 20, maxPageSize: 100 });
 
@@ -231,7 +249,7 @@ class AuditService {
   static async queryForExport(filters = {}) {
     let connection;
     try {
-      const { module, action, entityType, entityId, userId, startDate, endDate } = filters;
+      const { module, action, entityType, entityId, userId, startDate, endDate, excludeActions, excludePaths } = filters;
       let whereClause = '1=1';
       const params = [];
 
@@ -263,6 +281,22 @@ class AuditService {
         whereClause += ' AND created_at <= ?';
         params.push(endDate);
       }
+      const excludedActions = Array.isArray(excludeActions)
+        ? excludeActions.map((item) => String(item || '').trim()).filter(Boolean)
+        : [];
+      if (excludedActions.length > 0) {
+        whereClause += ` AND (action IS NULL OR UPPER(action) NOT IN (${excludedActions.map(() => '?').join(', ')}))`;
+        params.push(...excludedActions.map((item) => item.toUpperCase()));
+      }
+
+      const excludedPaths = Array.isArray(excludePaths)
+        ? excludePaths.map((item) => String(item || '').trim()).filter(Boolean)
+        : [];
+      for (const pathPattern of excludedPaths) {
+        whereClause += ' AND (path IS NULL OR path NOT LIKE ?)';
+        params.push(`%${pathPattern}%`);
+      }
+
 
       connection = await getConnection();
       const [rows] = await connection.query(
