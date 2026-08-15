@@ -110,9 +110,8 @@
         >
           <template #default>
             <ul class="security-tips">
-              <li>密码长度至少8位字符</li>
-              <li>建议包含大小写字母、数字和特殊字符</li>
-              <li>定期更换密码可以提高账户安全性</li>
+              <li>请设置新的登录密码</li>
+              <li>修改后需要重新登录</li>
             </ul>
           </template>
         </el-alert>
@@ -133,7 +132,7 @@
               v-model="passwordForm.newPassword"
               type="password"
               show-password
-              placeholder="请输入新密码（至少8位）"
+              placeholder="请输入新密码"
               :prefix-icon="Lock"
               @input="checkStrength"
             />
@@ -241,8 +240,7 @@ const passwordRules = {
     { required: true, message: '请输入当前密码', trigger: 'blur' }
   ],
   newPassword: [
-    { required: true, message: '请输入新密码', trigger: 'blur' },
-    { min: 8, message: '密码长度不能少于8个字符', trigger: 'blur' }
+    { required: true, message: '请输入新密码', trigger: 'blur' }
   ],
   confirmPassword: [
     { required: true, message: '请确认新密码', trigger: 'blur' },

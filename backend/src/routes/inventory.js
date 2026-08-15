@@ -158,7 +158,12 @@ router.get(
 router.post(
   '/outbound',
   authenticateToken,
-  requirePermission('inventory:outbound:create'),
+  requirePermission([
+    'inventory:outbound:create',
+    'production:supplement:create',
+    'production:exchange:create',
+    'production:process:update',
+  ]),
   inventoryOutboundController.createOutbound
 );
 
@@ -243,13 +248,23 @@ router.get(
 router.post(
   '/inbound',
   authenticateToken,
-  requirePermission('inventory:inbound:create'),
+  requirePermission([
+    'inventory:inbound:create',
+    'production:supplement:create',
+    'production:exchange:create',
+    'production:process:update',
+  ]),
   inventoryInboundController.createInbound
 );
 router.post(
   '/inbound/from-quality',
   authenticateToken,
-  requirePermission('inventory:inbound:create'),
+  requirePermission([
+    'inventory:inbound:create',
+    'quality:final:update',
+    'quality:incoming:update',
+    'quality:inspections:update',
+  ]),
   inventoryInboundController.createInboundFromQuality
 );
 router.put(

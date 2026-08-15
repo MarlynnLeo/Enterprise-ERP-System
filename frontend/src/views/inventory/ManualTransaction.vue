@@ -85,10 +85,11 @@
     <el-card class="data-card">
       <el-table
         :data="tableData"
-        class="w-full"
+        class="table-row-click w-full"
         v-loading="loading"
         border
-      >
+      
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleView(row))">
         <el-table-column prop="transactionNo" label="单据编号" width="160" />
         <el-table-column label="业务类型" width="120">
           <template #default="{ row }">
@@ -131,12 +132,11 @@
           </template>
         </el-table-column>
         <el-table-column prop="remark" label="备注" min-width="120" show-overflow-tooltip />
-        <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="{ row }">
             <div class="table-actions">
-              <el-button class="btn-op-view" type="primary" size="small" v-permission="'inventory:manual:view'" @click="handleView(row)">
-                <el-icon><View /></el-icon> 查看
-              </el-button>
+              
               <el-button
                 v-if="row.approvalStatus === 'pending'"
                 size="small"
@@ -397,13 +397,13 @@
     >
       <div v-loading="viewLoading">
       <el-descriptions :column="2" border>
-        <el-descriptions-item label="单据编号">{{ currentRecord.transaction_no }}</el-descriptions-item>
+        <el-descriptions-item label="单据编号">{{ currentRecord.transactionNo }}</el-descriptions-item>
         <el-descriptions-item label="业务类型">
           <el-tag :type="getBusinessTypeTag(currentRecord.businessTypeCode)">
             {{ getBusinessTypeName(currentRecord.businessTypeCode) }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="业务日期">{{ currentRecord.transaction_date }}</el-descriptions-item>
+        <el-descriptions-item label="业务日期">{{ currentRecord.transactionDate }}</el-descriptions-item>
         <el-descriptions-item label="操作人">{{ currentRecord.operatorName || currentRecord.operator || '未知' }}</el-descriptions-item>
         <el-descriptions-item label="创建时间">{{ currentRecord.createdAt }}</el-descriptions-item>
         <el-descriptions-item label="备注" :span="1">{{ currentRecord.remark || '-' }}</el-descriptions-item>
@@ -473,7 +473,7 @@
           <el-col :span="12">
             <el-form-item label="业务日期" prop="transactionDate">
               <el-date-picker
-                v-model="exchangeForm.transaction_date"
+                v-model="exchangeForm.transactionDate"
                 type="date"
                 placeholder="选择日期"
                 value-format="YYYY-MM-DD"
@@ -637,13 +637,13 @@
       width="500px"
     >
       <el-descriptions :column="1" border>
-        <el-descriptions-item label="单据编号">{{ approvalForm.transaction_no }}</el-descriptions-item>
+        <el-descriptions-item label="单据编号">{{ approvalForm.transactionNo }}</el-descriptions-item>
         <el-descriptions-item label="业务类型">
           <el-tag :type="getBusinessTypeTag(approvalForm.business_type_code)">
             {{ getBusinessTypeName(approvalForm.business_type_code) }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="业务日期">{{ approvalForm.transaction_date }}</el-descriptions-item>
+        <el-descriptions-item label="业务日期">{{ approvalForm.transactionDate }}</el-descriptions-item>
         <el-descriptions-item label="操作人">{{ approvalForm.operator }}</el-descriptions-item>
         <el-descriptions-item label="明细数量">{{ approvalForm.item_count || 0 }} 条</el-descriptions-item>
       </el-descriptions>
@@ -669,6 +669,7 @@
 </template>
 
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted, nextTick, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -734,9 +735,9 @@ const approvalDialogVisible = ref(false)
 const approvalSubmitting = ref(false)
 const approvalForm = reactive({
   id: null,
-  transaction_no: '',
+  transactionNo: '',
   business_type_code: '',
-  transaction_date: '',
+  transactionDate: '',
   operator: '',
   item_count: 0,
   remark: ''
@@ -744,9 +745,9 @@ const approvalForm = reactive({
 
 // 表单数据
 const form = reactive({
-  transaction_no: '',
-  transaction_type: 'in',
-  transaction_date: '',
+  transactionNo: '',
+  transactionType: 'in',
+  transactionDate: '',
   operator: '',
   remark: '',
   items: [] // 明细列表
@@ -754,14 +755,14 @@ const form = reactive({
 
 // 当前查看的记录
 const currentRecord = reactive({
-  transaction_no: '',
-  transaction_type: '',
+  transactionNo: '',
+  transactionType: '',
   material_code: '',
   material_name: '',
   quantity: 0,
   unit_name: '',
   location_name: '',
-  transaction_date: '',
+  transactionDate: '',
   operator: '',
   created_at: '',
   remark: ''
@@ -798,10 +799,10 @@ const setQuantityInputRef = (el, index) => {
 
 // 表单验证规则
 const formRules = {
-  transaction_type: [
+  transactionType: [
     { required: true, message: '请选择业务类型', trigger: 'change' }
   ],
-  transaction_date: [
+  transactionDate: [
     { required: true, message: '请选择业务日期', trigger: 'change' }
   ]
 }
@@ -1058,7 +1059,7 @@ const loadTableData = async () => {
 
     // 只添加非空的查询参数
     if (searchForm.transactionNo) {
-      params.transaction_no = searchForm.transactionNo
+      params.transactionNo = searchForm.transactionNo
     }
     if (searchForm.materialName) {
       params.materialName = searchForm.materialName
@@ -1130,9 +1131,9 @@ const handleCurrentChange = (val) => {
 const handleCreate = () => {
   dialogType.value = 'create'
   Object.assign(form, {
-    transaction_no: '',
-    transaction_type: 'in',
-    transaction_date: formatLocalDate(new Date()),
+    transactionNo: '',
+    transactionType: 'in',
+    transactionDate: formatLocalDate(new Date()),
     operator: authStore.realName || authStore.user?.username || '',
     remark: '',
     items: []
@@ -1217,9 +1218,9 @@ const handleDelete = (row) => {
 // 打开审批对话框
 const handleApprove = (row) => {
   approvalForm.id = row.id
-  approvalForm.transaction_no = row.transactionNo
+  approvalForm.transactionNo = row.transactionNo
   approvalForm.business_type_code = row.businessTypeCode || row.transactionType
-  approvalForm.transaction_date = row.transactionDate
+  approvalForm.transactionDate = row.transactionDate
   approvalForm.operator = row.operatorName || row.operator || '未知'
   approvalForm.item_count = row.itemCount
   approvalForm.remark = ''
@@ -1272,7 +1273,7 @@ const exchangeFormRef = ref(null)
 
 // 调货表单
 const exchangeForm = reactive({
-  transaction_date: '',
+  transactionDate: '',
   remark: '',
   return_material_id: null,
   return_location_id: null,
@@ -1287,7 +1288,7 @@ const exchangeForm = reactive({
 
 // 调货表单验证规则
 const exchangeFormRules = {
-  transaction_date: [{ required: true, message: '请选择业务日期', trigger: 'change' }],
+  transactionDate: [{ required: true, message: '请选择业务日期', trigger: 'change' }],
   remark: [{ required: true, message: '请输入调货原因', trigger: 'blur' }],
   return_material_id: [{ required: true, message: '请选择退回物料', trigger: 'change' }],
   return_quantity: [
@@ -1399,7 +1400,7 @@ const handleIssueMaterialChange = (materialId) => {
 // 打开调货对话框
 const handleExchange = () => {
   Object.assign(exchangeForm, {
-    transaction_date: formatLocalDate(new Date()),
+    transactionDate: formatLocalDate(new Date()),
     remark: '',
     return_material_id: null,
     return_location_id: null,
@@ -1436,7 +1437,7 @@ const handleExchangeSubmit = async () => {
     exchangeSubmitting.value = true
     try {
       const data = {
-        transaction_date: exchangeForm.transaction_date,
+        transactionDate: exchangeForm.transactionDate,
         remark: exchangeForm.remark,
         return_material_id: exchangeForm.return_material_id,
         return_location_id: exchangeForm.return_location_id,
@@ -1537,8 +1538,8 @@ const handleSubmit = async () => {
     submitting.value = true
     try {
       const data = {
-        transaction_type: form.transactionType,
-        transaction_date: form.transactionDate,
+        transactionType: form.transactionType,
+        transactionDate: form.transactionDate,
         remark: form.remark || '',
         items: form.items.map(item => ({
           material_id: item.materialId,

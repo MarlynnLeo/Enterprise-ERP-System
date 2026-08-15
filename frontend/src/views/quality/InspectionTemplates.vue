@@ -91,9 +91,10 @@
       <el-table
         :data="templateList"
         border
-        class="w-full mt-md"
+        class="table-row-click w-full mt-md"
         v-loading="loading"
-      >
+      
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleView(row))">
         <el-table-column prop="templateCode" label="模板编号" min-width="100" />
         <el-table-column prop="templateName" label="模板名称" min-width="150" />
         <el-table-column prop="inspectionType" label="检验类型" min-width="100">
@@ -141,14 +142,10 @@
             {{ formatDate(scope.row.createdAt) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" fixed="right" min-width="360" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" fixed="right" min-width="360" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="scope">
-            <el-button class="btn-op-view" type="primary"
-              size="small"
-              @click="handleView(scope.row)"
-            >
-              查看
-            </el-button>
+            
             <el-button
               v-if="scope.row.status !== 'active'"
               size="small"
@@ -474,12 +471,12 @@
       <el-descriptions :column="2" border>
         <el-descriptions-item label="模板编号">{{ currentTemplate?.template_code }}</el-descriptions-item>
         <el-descriptions-item label="模板名称">{{ currentTemplate?.templateName }}</el-descriptions-item>
-        <el-descriptions-item label="检验类型">{{ getInspectionTypeText(currentTemplate?.inspection_type) }}</el-descriptions-item>
+        <el-descriptions-item label="检验类型">{{ getInspectionTypeText(currentTemplate?.inspectionType) }}</el-descriptions-item>
         <el-descriptions-item label="适用物料">
           <el-tag v-if="isGeneralTemplate(currentTemplate)" type="success">
-            {{ getInspectionTypePrefix(currentTemplate?.inspection_type) }}通用模板
+            {{ getInspectionTypePrefix(currentTemplate?.inspectionType) }}通用模板
           </el-tag>
-          <span v-else>{{ getMultipleMaterialCodes(currentTemplate?.material_types || [currentTemplate?.materialType]) }}</span>
+          <span v-else>{{ getMultipleMaterialCodes(currentTemplate?.materialTypes || [currentTemplate?.materialType]) }}</span>
         </el-descriptions-item>
         <el-descriptions-item label="版本">{{ currentTemplate?.version }}</el-descriptions-item>
         <el-descriptions-item label="默认兜底">
@@ -493,7 +490,7 @@
           </el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="AQL抽样">
-          <el-tag v-if="currentTemplate?.is_aql" type="success">已启用 (AQL {{ currentTemplate?.aqlLevel }})</el-tag>
+          <el-tag v-if="currentTemplate?.isAql" type="success">已启用 (AQL {{ currentTemplate?.aqlLevel }})</el-tag>
           <el-tag v-else type="info">未启用</el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="创建人">{{ getUserRealName(currentTemplate?.created_by) }}</el-descriptions-item>
@@ -698,6 +695,7 @@
   </div>
 </template>
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, reactive, onMounted, nextTick } from 'vue'
 import AQLStandards from './AQLStandards.vue'
 import { Search, Refresh, Plus, Check } from '@element-plus/icons-vue'
@@ -746,27 +744,27 @@ const currentTemplate = ref(null)
 const formRef = ref(null)
 // 表单数据
 const form = reactive({
-  template_name: '',
-  inspection_type: '',
-  material_types: [],
+  templateName: '',
+  inspectionType: '',
+  materialTypes: [],
   material_type: null, // 兼容旧版本，存储第一个物料ID
   material_name: '',
   version: '',
   description: '',
   items: [],
-  is_general: false,
-  is_default: false,
+  isGeneral: false,
+  isDefault: false,
   priority: 100,
-  is_aql: false,
-  aql_level: null
+  isAql: false,
+  aqlLevel: null
 })
 // AQL等级选项
 const aqlLevelOptions = ref([])
 // 表单验证规则
 const rules = {
-  template_name: [{ required: true, message: '请输入模板名称', trigger: 'blur' }],
-  inspection_type: [{ required: true, message: '请选择检验类型', trigger: 'change' }],
-  material_types: [{
+  templateName: [{ required: true, message: '请输入模板名称', trigger: 'blur' }],
+  inspectionType: [{ required: true, message: '请选择检验类型', trigger: 'change' }],
+  materialTypes: [{
     validator: (rule, value, callback) => {
       // 检查是否为通用模板
       if (form.isGeneral === true) {
@@ -867,19 +865,19 @@ const normalizeTemplateListResponse = (response) => {
   return { list: [], total: 0 }
 }
 const normalizeTemplateRow = (template) => {
-  const materialTypes = parseMaterialTypes(template.material_types)
+  const materialTypes = parseMaterialTypes(template.materialTypes)
   const inspectionItems = Array.isArray(template.InspectionItems) ? template.InspectionItems : []
   const items = Array.isArray(template.items) ? template.items : []
   const normalizedTemplate = {
     ...template,
-    material_types: materialTypes,
+    materialTypes: materialTypes,
     items_count: template.items_count ?? (inspectionItems.length || items.length || 0)
   }
 
   return {
     ...normalizedTemplate,
-    is_general: isGeneralTemplateUtil(normalizedTemplate),
-    is_default: normalizeBoolean(normalizedTemplate.isDefault),
+    isGeneral: isGeneralTemplateUtil(normalizedTemplate),
+    isDefault: normalizeBoolean(normalizedTemplate.isDefault),
     priority: Number(normalizedTemplate.priority) || 100
   }
 }
@@ -952,7 +950,7 @@ const fetchData = async () => {
       page: currentPage.value,
       pageSize: pageSize.value,
       keyword: searchKeyword.value,
-      inspection_type: typeFilter.value,
+      inspectionType: typeFilter.value,
       status: statusFilter.value
     })
     const normalized = normalizeTemplateListResponse(response)
@@ -1286,13 +1284,13 @@ const handleEdit = async (row) => {
       // 将模板数据填充到表单
       form.id = templateData.id
       form.templateName = templateData.templateName
-      form.inspectionType = templateData.inspection_type
+      form.inspectionType = templateData.inspectionType
       // 使用工具函数判断是否为通用模板
       form.isGeneral = isGeneralTemplate(templateData)
       // 处理material_type和material_types，根据通用状态决定
       if (!form.isGeneral) {
         // 非通用模板，需要设置物料
-        let types = parseMaterialTypes(templateData.material_types);
+        let types = parseMaterialTypes(templateData.materialTypes);
 
         // 如果没有 material_types 但有 material_type，则使用 material_type
         if (types.length === 0 && templateData.materialType) {
@@ -1339,7 +1337,7 @@ const handleEdit = async (row) => {
       form.status = templateData.status
       form.isDefault = normalizeBoolean(templateData.isDefault)
       form.priority = Number(templateData.priority) || 100
-      form.isAql = templateData.is_aql === true || templateData.is_aql === 1
+      form.isAql = templateData.isAql === true || templateData.isAql === 1
       form.aqlLevel = templateData.aqlLevel || null
       // 确保检验项目数据完整
       form.items = templateData.InspectionItems ?
@@ -1411,18 +1409,18 @@ const submitForm = async () => {
         const isGeneralValue = normalizeBoolean(form.isGeneral)
 
         const formData = {
-          template_name: form.templateName,
-          inspection_type: form.inspectionType,
-          is_general: isGeneralValue, // 明确使用布尔值true/false
-          is_default: isGeneralValue ? normalizeBoolean(form.isDefault) : false,
+          templateName: form.templateName,
+          inspectionType: form.inspectionType,
+          isGeneral: isGeneralValue, // 明确使用布尔值true/false
+          isDefault: isGeneralValue ? normalizeBoolean(form.isDefault) : false,
           priority: Number(form.priority) || 100,
-          material_types: isGeneralValue ? [] : form.materialTypes, // 通用模板时清空物料
+          materialTypes: isGeneralValue ? [] : form.materialTypes, // 通用模板时清空物料
           material_type: isGeneralValue ? null : (form.materialTypes[0] || null), // 兼容旧字段
           material_name: form.materialName,
           version: form.version,
           description: form.description,
-          is_aql: form.isAql === true,
-          aql_level: form.isAql ? form.aqlLevel : null,
+          isAql: form.isAql === true,
+          aqlLevel: form.isAql ? form.aqlLevel : null,
           items: form.items.map(item => {
             const itemData = {
               item_name: item.itemName,
@@ -1764,14 +1762,7 @@ const handleGeneralChange = (val) => {
 }
 .template-items h3 {
   margin-bottom: var(--spacing-base);
-}
-/* 详情对话框长文本处理 - 自动添加 */
-:deep(.el-descriptions__content) {
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+}
 :deep(.el-table__cell) {
   overflow: hidden;
   text-overflow: ellipsis;

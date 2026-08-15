@@ -8,11 +8,12 @@ const { pool } = require('../../config/db');
 
 /** 用户查询返回的安全字段（不含 password_hash, deleted_at 等敏感字段） */
 const USER_PROFILE_FIELDS = `u.id, u.username, u.real_name, u.email, u.department_id,
-  u.position, u.role, u.avatar, u.phone, u.avatar_frame, u.bio, u.created_at`;
+  u.position, u.role, u.avatar, u.phone, u.avatar_frame, u.bio, u.created_at,
+  u.force_password_change`;
 
-const USER_LOGIN_FIELDS = 'id, username, real_name, email, password, status, token_version';
+const USER_LOGIN_FIELDS = 'id, username, real_name, email, password, status, token_version, force_password_change';
 
-const USER_REFRESH_FIELDS = 'id, username, role, real_name, email, status, token_version';
+const USER_REFRESH_FIELDS = 'id, username, role, real_name, email, status, token_version, force_password_change';
 
 const MENU_FIELDS = 'id, parent_id, name, path, icon, permission, type, visible, sort_order AS sort';
 
@@ -95,7 +96,13 @@ class AuthService {
    */
   static async updatePassword(userId, hashedPassword) {
     await pool.execute(
-      'UPDATE users SET password = ?, token_version = token_version + 1, updated_at = NOW() WHERE id = ?',
+      `UPDATE users
+          SET password = ?,
+              token_version = token_version + 1,
+              force_password_change = 0,
+              password_changed_at = NOW(),
+              updated_at = NOW()
+        WHERE id = ?`,
       [hashedPassword, userId]
     );
   }

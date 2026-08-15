@@ -158,9 +158,8 @@
   // ==================== 出库类型 ====================
   const showTypePicker = ref(false)
   const typeOptions = [
-    { text: '销售出库', value: 'sales' },
-    { text: '生产领料', value: 'production' },
-    { text: '其他出库', value: 'other' }
+    { text: '生产领料', value: 'bom_issue' },
+    { text: '其他出库', value: 'manual' }
   ]
 
   // ==================== 仓库选择 ====================
@@ -242,8 +241,8 @@
 
   // ==================== 表单（纯 camel，后端 inventoryOutboundMap.fromApi） ====================
   const form = reactive({
-    outboundTypeLabel: '销售出库',
-    outboundType: 'sales',
+    outboundTypeLabel: '生产领料',
+    outboundType: 'bom_issue',
     locationId: null,
     locationName: '',
     referenceNo: '',

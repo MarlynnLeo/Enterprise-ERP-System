@@ -826,7 +826,7 @@ const reasonForm = ref({
   reason_name: '',
   reason_code: '',
   is_included_in_cost: true,
-  is_active: true
+  isActive: true
 });
 
 // 获取补料原因
@@ -853,7 +853,7 @@ const openReasonDialog = (row = null) => {
       reason_name: '',
       reason_code: '',
       is_included_in_cost: true,
-      is_active: true
+      isActive: true
     };
   }
   reasonDialogVisible.value = true;
@@ -964,9 +964,9 @@ const stdCostPage = ref(1);
 const stdCostPageSize = ref(20);
 const stdCostTotal = ref(0);
 const stdCostSearch = reactive({
-  material_code: '',
-  material_name: '',
-  is_active: ''
+  materialCode: '',
+  materialName: '',
+  isActive: ''
 });
 
 // 冻结对话框
@@ -982,12 +982,12 @@ const editStdCostDialogVisible = ref(false);
 const updatingStdCost = ref(false);
 const editStdCostForm = reactive({
   id: null,
-  material_code: '',
-  material_name: '',
+  materialCode: '',
+  materialName: '',
   standard_price: 0,
   effective_date: '',
   expiry_date: null,
-  is_active: true
+  isActive: true
 });
 
 // 获取物料标准成本列表
@@ -1069,7 +1069,7 @@ const handleUpdateStdCost = async () => {
       standard_price: editStdCostForm.standard_price,
       effective_date: editStdCostForm.effective_date,
       expiry_date: editStdCostForm.expiry_date,
-      is_active: editStdCostForm.isActive
+      isActive: editStdCostForm.isActive
     });
     ElMessage.success('更新成功');
     editStdCostDialogVisible.value = false;
@@ -1103,7 +1103,7 @@ const allocationRuleForm = ref({
   priority: 0,
   effective_date: formatLocalDate(new Date()),
   expiry_date: null,
-  is_active: true
+  isActive: true
 });
 
 const getAllocationBaseLabel = (val) => {
@@ -1167,7 +1167,7 @@ const openAllocationRuleDialog = (row = null) => {
     allocationRuleForm.value = {
       ...row,
       rate: Number(row.rate),
-      is_active: row.isActive === 1 || row.isActive === true
+      isActive: row.isActive === 1 || row.isActive === true
     };
   } else {
     editingAllocationRuleId.value = null;
@@ -1181,7 +1181,7 @@ const openAllocationRuleDialog = (row = null) => {
       priority: 0,
       effective_date: formatLocalDate(new Date()),
       expiry_date: null,
-      is_active: true
+      isActive: true
     };
   }
   allocationRuleDialogVisible.value = true;

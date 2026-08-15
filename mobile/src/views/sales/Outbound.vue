@@ -88,7 +88,7 @@
                 </div>
                 <div class="list-row" v-if="outbound.totalAmount">
                   <span class="label">出库金额:</span>
-                  <span class="value amount">¥{{ formatAmount(outbound.totalAmount) }}</span>
+                  <span class="value amount">{{ displayAmount(outbound.totalAmount) }}</span>
                 </div>
                 <div class="list-row" v-if="outbound.contactPerson || outbound.receiver">
                   <span class="label">收货人:</span>
@@ -148,7 +148,7 @@
 </template>
 
 <script setup>
-  import { ref } from 'vue'
+  import { ref, computed } from 'vue'
   import { useRouter } from 'vue-router'
   import {
     NavBar,
@@ -166,8 +166,13 @@
   import { usePagination } from '@/composables/usePagination'
   import { formatAmount, formatDate } from '@/utils/format'
   import { SALES_OUTBOUND_STATUS, getDictText } from '@/constants/dict'
+  import { useAuthStore } from '@/stores/auth'
+  import { canViewMaterialPrices, formatMaskedPrice } from '@/utils/priceVisibility'
 
   const router = useRouter()
+  const authStore = useAuthStore()
+  const canViewPrice = computed(() => canViewMaterialPrices((code) => authStore.hasPermission(code)))
+  const displayAmount = (amount) => formatMaskedPrice(amount, canViewPrice.value, (value) => `¥${formatAmount(value)}`)
   const searchValue = ref('')
   const activeTab = ref(0)
 

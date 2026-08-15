@@ -11,8 +11,9 @@
         :data="warningList"
         row-class-name="warning-row"
         :empty-text="'暂无生产计划'"
-        class="dashboard-table production-table"
-      >
+        class="table-row-click dashboard-table production-table"
+      
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => emit('view', row.id))">
         <el-table-column prop="studentId" label="计划编号" min-width="120" />
         <el-table-column prop="name" label="产品名称" min-width="120" />
         <el-table-column prop="studentType" label="产品规格" min-width="120" show-overflow-tooltip />
@@ -24,16 +25,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="80" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
-          <template #default="{ row }">
-            <div class="table-actions">
-              <el-button type="primary" size="small" class="warning-action-btn btn-op-view" @click="$emit('view', row.id)" :disabled="row.id === 0">
-                <el-icon><View /></el-icon> 查看
-              </el-button>
-            </div>
-          </template>
-        </el-table-column>
-        <!-- 空状态插槽 -->
+                <!-- 空状态插槽 -->
         <template #empty>
           <div class="empty-state">
             <el-icon class="empty-icon"><Document /></el-icon>
@@ -47,6 +39,7 @@
 </template>
 
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { Document, View } from '@element-plus/icons-vue'
 
 defineProps({
@@ -56,7 +49,7 @@ defineProps({
   }
 })
 
-defineEmits(['view'])
+const emit = defineEmits(['view'])
 
 // 内联状态标签类型映射
 const WARNING_TAG_MAP = {

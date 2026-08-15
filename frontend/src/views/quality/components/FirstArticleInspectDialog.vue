@@ -58,7 +58,7 @@
       </el-form-item>
 
       <!-- 检验项目明细 -->
-      <el-divider content-position="left">检验项目</el-divider>
+      <el-divider content-position="center">检验项目</el-divider>
       <el-table :data="form.items" border size="small" class="mb-md">
         <el-table-column prop="itemName" label="检验项目" min-width="120">
           <template #default="{ row }">

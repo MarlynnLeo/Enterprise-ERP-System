@@ -12,6 +12,7 @@
     :stats="statsCards"
     :actions="quickActions"
     :groups="moduleGroups"
+    add-permission="finance:entries:view"
     @back="router.back()"
     @add="navigateTo('/finance/gl/entries')"
     @navigate="navigateTo"
@@ -79,64 +80,119 @@
   // ---- 功能模块 ----
   // 会计期间/关账为 PC L4（见 MOBILE_PRODUCT_LAYER.md），移动端不提供入口
   const glModules = ref([
-    { title: '会计科目', desc: '科目设置与查询', path: '/finance/gl/accounts', icon: 'book-open' },
+    {
+      title: '会计科目',
+      desc: '科目设置与查询',
+      path: '/finance/gl/accounts',
+      icon: 'book-open',
+      permission: 'finance:accounts:view'
+    },
     {
       title: '会计凭证',
       desc: '凭证查询（编制请用 PC）',
       path: '/finance/gl/entries',
       icon: 'notes',
+      permission: 'finance:entries:view',
       badge: 0
     }
   ])
   const arModules = ref([
-    { title: '应收账款', desc: '客户应收管理', path: '/finance/ar/invoices', icon: 'coin' },
-    { title: '收款管理', desc: '收款登记与核销', path: '/finance/ar/receipts', icon: 'cash' },
-    { title: '账龄分析', desc: '应收账龄统计', path: '/finance/ar/aging', icon: 'chart-trending-o' }
+    {
+      title: '应收账款',
+      desc: '客户应收管理',
+      path: '/finance/ar/invoices',
+      icon: 'coin',
+      permission: 'finance:ar:view'
+    },
+    {
+      title: '收款管理',
+      desc: '收款登记与核销',
+      path: '/finance/ar/receipts',
+      icon: 'cash',
+      permission: 'finance:ar:view'
+    },
+    {
+      title: '账龄分析',
+      desc: '应收账龄统计',
+      path: '/finance/ar/aging',
+      icon: 'chart-trending-o',
+      permission: 'finance:reports:view'
+    }
   ])
   const apModules = ref([
-    { title: '应付账款', desc: '供应商应付管理', path: '/finance/ap/invoices', icon: 'receipt' },
+    {
+      title: '应付账款',
+      desc: '供应商应付管理',
+      path: '/finance/ap/invoices',
+      icon: 'receipt',
+      permission: 'finance:ap:view'
+    },
     {
       title: '付款管理',
       desc: '付款登记与核销',
       path: '/finance/ap/payments',
-      icon: 'credit-card'
+      icon: 'credit-card',
+      permission: 'finance:ap:view'
     },
-    { title: '账龄分析', desc: '应付账龄统计', path: '/finance/ap/aging', icon: 'chart-trending-o' }
+    {
+      title: '账龄分析',
+      desc: '应付账龄统计',
+      path: '/finance/ap/aging',
+      icon: 'chart-trending-o',
+      permission: 'finance:reports:view'
+    }
   ])
   const cashModules = ref([
-    { title: '银行账户', desc: '账户信息管理', path: '/finance/cash/accounts', icon: 'bank' },
+    {
+      title: '银行账户',
+      desc: '账户信息管理',
+      path: '/finance/cash/accounts',
+      icon: 'bank',
+      permission: 'finance:cash:view'
+    },
     {
       title: '银行交易',
       desc: '银行流水管理',
       path: '/finance/cash/bank-transactions',
-      icon: 'exchange'
+      icon: 'exchange',
+      permission: 'finance:cash:view'
     },
     {
       title: '现金交易',
       desc: '现金流水管理',
       path: '/finance/cash/cash-transactions',
-      icon: 'cash'
+      icon: 'cash',
+      permission: 'finance:cash:view'
     },
     {
       title: '银行对账',
       desc: '对账单核对',
       path: '/finance/cash/reconciliation',
-      icon: 'clipboard-check'
+      icon: 'clipboard-check',
+      permission: 'finance:cash:reconcile'
     },
-    { title: '出纳报表', desc: '出纳月报表', path: '/finance/reports/cash-flow', icon: 'chart-bar' }
+    {
+      title: '出纳报表',
+      desc: '出纳月报表',
+      path: '/finance/reports/cash-flow',
+      icon: 'chart-bar',
+      permission: ['finance:reports:view', 'finance:reports:cash-flow:view']
+    }
   ])
   const reportModules = ref([
     {
       title: '资产负债表',
       desc: '资产负债状况',
       path: '/finance/reports/balance-sheet',
-      icon: 'chart-trending-o'
+      icon: 'chart-trending-o',
+      permission: 'finance:reports:view'
     },
     {
       title: '利润表',
       desc: '收入支出分析',
       path: '/finance/reports/income-statement',
-      icon: 'chart-bar'
+      icon: 'chart-bar',
+      permission: 'finance:reports:view'
     }
   ])
 

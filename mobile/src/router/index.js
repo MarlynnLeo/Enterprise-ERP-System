@@ -109,9 +109,15 @@ const ROUTE_PERMISSION_RULES = [
   { pattern: /^\/finance\/cash\/(transactions|bank-transactions|cash-transactions)(\/.*)?$/, permission: 'finance:cash:view' },
   { pattern: /^\/finance\/cash\/reconciliation(\/.*)?$/, permission: 'finance:cash:reconcile' },
   { pattern: /^\/finance\/.*reports?/, permission: 'finance:reports:view' },
-  { pattern: /^\/quality\/(incoming|process|final)\/create$/, permission: 'quality:inspections:create' },
-  { pattern: /^\/quality\/(incoming|process|final)\/:id\/inspect$/, permission: 'quality:inspections:update' },
-  { pattern: /^\/quality\/(incoming|process|final)(\/:id)?$/, permission: 'quality:inspections:view' },
+  { pattern: /^\/quality\/incoming\/create$/, permission: 'quality:incoming:create' },
+  { pattern: /^\/quality\/incoming\/:id\/inspect$/, permission: 'quality:incoming:update' },
+  { pattern: /^\/quality\/incoming(\/:id)?$/, permission: 'quality:incoming:view' },
+  { pattern: /^\/quality\/process\/create$/, permission: 'quality:process:create' },
+  { pattern: /^\/quality\/process\/:id\/inspect$/, permission: 'quality:process:update' },
+  { pattern: /^\/quality\/process(\/:id)?$/, permission: 'quality:process:view' },
+  { pattern: /^\/quality\/final\/create$/, permission: 'quality:final:create' },
+  { pattern: /^\/quality\/final\/:id\/inspect$/, permission: 'quality:final:update' },
+  { pattern: /^\/quality\/final(\/:id)?$/, permission: 'quality:final:view' },
   { pattern: /^\/quality\/templates(\/.*)?$/, permission: 'quality:templates:view' },
   { pattern: /^\/quality\/traceability(\/.*)?$/, permission: 'quality:traceability:view' },
   { pattern: /^\/quality\/nonconformance(\/.*)?$/, permission: 'quality:nonconforming:view' },
@@ -215,6 +221,10 @@ router.beforeEach(async (to) => {
 
   if (!isAuthenticated && !to.meta.allowGuest) {
     return { name: 'Login', query: { redirect: to.fullPath } }
+  }
+
+  if (isAuthenticated && authStore.mustChangePassword && to.name !== 'ChangePassword') {
+    return { path: '/profile/password', query: { forced: '1' } }
   }
 
   const themeOwner = authStore.userId || authStore.username || 'authenticated'

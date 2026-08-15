@@ -12,8 +12,9 @@
     :stats="statsCards"
     :actions="quickActions"
     :groups="moduleGroups"
+    :add-permission="addPermission"
     @back="router.back()"
-    @add="router.push('/purchase/orders/create')"
+    @add="handleAdd"
     @navigate="navigateTo"
   />
 </template>
@@ -28,6 +29,15 @@
 
   const router = useRouter()
   const authStore = useAuthStore()
+  const addTargets = [
+    { permission: 'purchase:orders:create', path: '/purchase/orders/create' },
+    { permission: 'purchase:requisitions:create', path: '/purchase/requisitions/new' }
+  ]
+  const addPermission = computed(() => addTargets.map((item) => item.permission))
+  const handleAdd = () => {
+    const target = addTargets.find((item) => authStore.hasPermission(item.permission))
+    if (target) router.push(target.path)
+  }
 
   // ---- 统计数据 ----
   const statistics = ref({
@@ -76,24 +86,28 @@
       label: '新建申请',
       path: '/purchase/requisitions/new',
       icon: 'document-text',
+      permission: 'purchase:requisitions:create',
       gradient: 'linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%)'
     },
     {
       label: '新建订单',
       path: '/purchase/orders/create',
       icon: 'cart',
+      permission: 'purchase:orders:create',
       gradient: 'linear-gradient(135deg, var(--color-success) 0%, var(--color-accent) 100%)'
     },
     {
       label: '采购入库',
       path: '/purchase/receipts/create',
       icon: 'cube',
+      permission: 'purchase:receipts:create',
       gradient: 'linear-gradient(135deg, var(--color-error) 0%, var(--color-danger) 100%)'
     },
     {
       label: '采购概览',
       path: '/purchase/dashboard',
       icon: 'chart-trending-o',
+      permission: 'purchase:reports:view',
       gradient: 'linear-gradient(135deg, var(--color-warning) 0%, var(--ds-orange-strong) 100%)'
     }
   ])
@@ -105,13 +119,15 @@
       desc: '查看和管理采购申请',
       path: '/purchase/requisitions',
       icon: 'document-text',
+      permission: 'purchase:requisitions:view',
       badge: 0
     },
     {
       title: '新建申请',
       desc: '创建新的采购申请',
       path: '/purchase/requisitions/new',
-      icon: 'plus'
+      icon: 'plus',
+      permission: 'purchase:requisitions:create'
     }
   ])
   const orderModules = ref([
@@ -120,19 +136,39 @@
       desc: '查看和管理采购订单',
       path: '/purchase/orders',
       icon: 'cart',
+      permission: 'purchase:orders:view',
       badge: 0
     },
-    { title: '新建订单', desc: '创建新的采购订单', path: '/purchase/orders/create', icon: 'plus' }
+    {
+      title: '新建订单',
+      desc: '创建新的采购订单',
+      path: '/purchase/orders/create',
+      icon: 'plus',
+      permission: 'purchase:orders:create'
+    }
   ])
   const receiptModules = ref([
-    { title: '采购入库', desc: '查看和管理采购入库单', path: '/purchase/receipts', icon: 'cube' },
+    {
+      title: '采购入库',
+      desc: '查看和管理采购入库单',
+      path: '/purchase/receipts',
+      icon: 'cube',
+      permission: 'purchase:receipts:view'
+    },
     {
       title: '新建入库单',
       desc: '创建新的采购入库单',
       path: '/purchase/receipts/create',
-      icon: 'plus'
+      icon: 'plus',
+      permission: 'purchase:receipts:create'
     },
-    { title: '采购退货', desc: '采购退货管理', path: '/purchase/returns', icon: 'revoke' }
+    {
+      title: '采购退货',
+      desc: '采购退货管理',
+      path: '/purchase/returns',
+      icon: 'revoke',
+      permission: 'purchase:returns:view'
+    }
   ])
 
   const moduleGroups = computed(() => [

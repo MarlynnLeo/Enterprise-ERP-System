@@ -167,11 +167,8 @@ const statistics = ref({ tasks: 0, reports: 0, inspections: 0, operations: 0 })
 const userInfo = computed(() => authStore.user || {})
 const userName = computed(() => userInfo.value.realName || userInfo.value.username || '用户')
 const userRole = computed(() => {
-  const roleMap = {
-    'admin': '系统管理员', 'manager': '部门经理',
-    'supervisor': '主管', 'user': '普通用户', 'operator': '操作员'
-  }
-  return roleMap[userInfo.value.role] || userInfo.value.role || '普通用户'
+  const u = userInfo.value || {}
+  return u.roleNames || u.roleName || u.role_names || u.role_name || '—'
 })
 
 // 格式化日期

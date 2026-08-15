@@ -80,6 +80,7 @@
         icon: 'plus',
         label: '新建检验',
         action: 'create',
+        permission: 'quality:final:create',
         handler: () => {
           router.push('/quality/final/create')
         }

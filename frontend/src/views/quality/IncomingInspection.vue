@@ -83,9 +83,10 @@
       <el-table
         :data="inspectionList"
         border
-        class="w-full"
+        class="table-row-click w-full"
         v-loading="loading"
-      >
+      
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleView(row))">
         <template #empty>
           <EmptyState description="暂无检验单数据" />
         </template>
@@ -143,9 +144,10 @@
           </template>
         </el-table-column>
         <el-table-column prop="batchNo" label="批次号" min-width="170" show-overflow-tooltip />
-        <el-table-column label="操作" fixed="right" min-width="320" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" fixed="right" min-width="320" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="scope">
-            <el-button class="btn-op-view" type="primary" size="small" @click="handleView(scope.row)">查看</el-button>
+            
             <el-button
               v-if="scope.row.status === 'pending' && canInspect"
               size="small"
@@ -229,6 +231,7 @@
 </template>
 
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, onMounted } from 'vue'
 import { Plus } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'

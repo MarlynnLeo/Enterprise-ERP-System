@@ -106,9 +106,10 @@
         v-loading="loading"
         :data="requisitions"
         border
-        class="w-full"
+        class="table-row-click w-full"
         @selection-change="handleSelectionChange"
-      >
+      
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => viewRequisition(row))">
         <el-table-column type="selection" width="55" fixed="left"></el-table-column>
         <el-table-column prop="requisitionNumber" label="申请单号" min-width="120" show-overflow-tooltip></el-table-column>
         <el-table-column prop="contractCode" label="合同编码" min-width="130" show-overflow-tooltip>
@@ -140,15 +141,10 @@
             {{ formatDate(row.createdAt) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="{ row }">
-            <el-button class="btn-op-view" type="primary"
-              size="small"
-              v-permission="'purchase:requisitions:view'"
-              @click="viewRequisition(row)"
-            >
-              查看
-            </el-button>
+            
             <el-button
               v-if="row.status === 'draft'"
               size="small"
@@ -189,7 +185,7 @@
               v-if="row.status === 'submitted'"
               size="small"
               type="warning"
-              v-permission="'purchase:requisitions:update'"
+              v-permission="'purchase:requisitions:approve'"
               @click="openApprovalDialog(row)"
             >
               审批
@@ -227,27 +223,36 @@
           :rules="requisitionRules"
           label-width="100px"
         >
-        <el-form-item label="申请日期" prop="requestDate">
-          <el-date-picker
-            v-model="requisitionForm.requestDate"
-            type="date"
-            placeholder="选择日期"
-            class="w-full"
-            value-format="YYYY-MM-DD"
-          ></el-date-picker>
-        </el-form-item>
-        <el-form-item label="合同编码">
-          <el-input
-            v-model="requisitionForm.contractCode"
-            placeholder="请输入关联的销售订单合同编码（选填）"
-            clearable ></el-input>
-        </el-form-item>
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="申请日期" prop="requestDate">
+              <el-date-picker
+                v-model="requisitionForm.requestDate"
+                type="date"
+                placeholder="选择日期"
+                class="w-full"
+                value-format="YYYY-MM-DD"
+              ></el-date-picker>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="合同编码">
+              <el-input
+                v-model="requisitionForm.contractCode"
+                placeholder="请输入关联的销售订单合同编码（选填）"
+                clearable
+                class="w-full"
+              />
+            </el-form-item>
+          </el-col>
+        </el-row>
         <el-form-item label="备注" prop="remarks">
           <el-input
             v-model="requisitionForm.remarks"
             type="textarea"
             :rows="2"
             placeholder="请输入备注"
+            class="w-full"
           ></el-input>
         </el-form-item>
         <el-divider content-position="center">申请物料</el-divider>
@@ -335,10 +340,10 @@
       v-model="viewDialog.visible"
       title="采购申请详情"
       mode="view"
-      content-width="wide"
+      width="850px"
     >
-      <div v-loading="viewDialog.loading">
-        <el-descriptions border :column="2">
+      <div v-loading="viewDialog.loading" class="requisition-view">
+        <el-descriptions border :column="2" class="requisition-view-desc">
         <el-descriptions-item label="申请单号">{{ viewData.requisitionNumber || '未知' }}</el-descriptions-item>
         <el-descriptions-item label="申请日期">{{ formatDate(viewData.requestDate) }}</el-descriptions-item>
         <el-descriptions-item label="申请人">
@@ -349,10 +354,11 @@
         </el-descriptions-item>
         <el-descriptions-item label="创建时间">{{ formatDate(viewData.createdAt) }}</el-descriptions-item>
         <el-descriptions-item label="更新时间">{{ formatDate(viewData.updatedAt) }}</el-descriptions-item>
-        <el-descriptions-item label="备注" :span="2">{{ viewData.remarks || '无' }}</el-descriptions-item>
+        <el-descriptions-item label="合同编码">{{ viewData.contractCode || '无' }}</el-descriptions-item>
+        <el-descriptions-item label="备注">{{ viewData.remarks || '无' }}</el-descriptions-item>
       </el-descriptions>
       <el-divider content-position="center">申请物料</el-divider>
-      <el-table :data="viewData.materials || []" border class="w-full">
+      <el-table :data="viewData.materials || []" border class="w-full requisition-view-table">
         <el-table-column label="物料编码" prop="materialCode" min-width="110" show-overflow-tooltip>
           <template #default="{ row }">
             {{ row.materialCode || '未知' }}
@@ -406,45 +412,15 @@
         </el-button>
       </template>
         </AppDialog>
-    <!-- 审批对话框 -->
-    <AppDialog
+    <BusinessApprovalDialog
       v-model="approvalDialog.visible"
       title="审批采购申请"
-      mode="form"
-      width="500px"
-    >
-      <div v-loading="approvalDialog.loading">
-        <el-descriptions border :column="1">
-          <el-descriptions-item label="申请单号">{{ approvalDialog.row?.requisition_number || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="申请人">{{ approvalDialog.row?.realName || approvalDialog.row?.requester || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="备注">{{ approvalDialog.row?.remarks || '无' }}</el-descriptions-item>
-        </el-descriptions>
-        <el-form label-width="80px" class="mt-md">
-          <el-form-item label="审批意见">
-            <el-input v-model="approvalDialog.comment" type="textarea" :rows="3" placeholder="请输入审批意见（选填）" />
-          </el-form-item>
-        </el-form>
-      </div>
-      <template #footer>
-        <el-button @click="approvalDialog.visible = false">取消</el-button>
-        <el-button
-          v-permission="'purchase:requisitions:update'"
-          type="danger"
-          @click="handleApproval('reject')"
-          :loading="approvalDialog.loading"
-        >
-          拒绝
-        </el-button>
-        <el-button
-          v-permission="'purchase:requisitions:update'"
-          type="success"
-          @click="handleApproval('approve')"
-          :loading="approvalDialog.loading"
-        >
-          通过
-        </el-button>
-      </template>
-        </AppDialog>
+      :loading="approvalDialog.loading"
+      v-model:comment="approvalDialog.comment"
+      :summary-items="requisitionApprovalSummary"
+      @approve="handleApproval('approve')"
+      @reject="handleApproval('reject')"
+    />
     <!-- 浮动批量操作栏 -->
     <Transition name="slide-up">
       <div v-if="selectedRequisitions.length > 0" class="floating-batch-bar">
@@ -473,12 +449,14 @@
   </div>
 </template>
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted, onActivated, nextTick, computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { purchaseApi, baseDataApi } from '@/api';
-import { workflowApi } from '@/api/workflow';
+import BusinessApprovalDialog from '@/components/workflow/BusinessApprovalDialog.vue';
+import { useBusinessApproval } from '@/composables/useBusinessApproval';
 import { Plus, Select, Promotion, Close } from '@element-plus/icons-vue';
 import { useAuthStore } from '@/stores/auth';
 import { searchMaterials } from '@/utils/searchConfig';
@@ -583,16 +561,6 @@ const requisitionStats = ref({
   approvedCount: 0,
   rejectedCount: 0
 });
-// 审批对话框
-
-const approvalDialog = reactive({
-  visible: false,
-  loading: false,
-  row: null,
-  comment: '',
-  instanceId: null,
-  nodeId: null
-});
 // 加载申请单列表
 
 const loadRequisitions = async (page = pagination.page) => {
@@ -630,7 +598,6 @@ const loadRequisitions = async (page = pagination.page) => {
     pagination.page = Number(pageData.page ?? 1);
     pagination.pageSize = Number(pageData.pageSize ?? pagination.pageSize);
 
-
     await loadRequisitionStats();
   } catch (error) {
     console.error('加载采购申请列表失败:', error);
@@ -647,6 +614,18 @@ const loadRequisitions = async (page = pagination.page) => {
     loading.value = false;
   }
 };
+const { approvalDialog, openApprovalDialog, handleApproval } = useBusinessApproval({
+  businessType: 'purchase_requisition',
+  onSuccess: () => loadRequisitions()
+});
+const requisitionApprovalSummary = computed(() => {
+  const row = approvalDialog.row || {};
+  return [
+    { label: '申请单号', value: row.requisitionNumber || row.requisition_number || '-' },
+    { label: '申请人', value: row.realName || row.requester || '-' },
+    { label: '备注', value: row.remarks || '无' }
+  ];
+});
 // 搜索重置
 
 const resetSearch = () => {
@@ -1005,7 +984,6 @@ const viewRequisition = async (row) => {
     const detail = parseDataObject(response, { enableLog: false }) || {};
     Object.assign(viewData, detail);
 
-
   } catch (error) {
     console.error('获取采购申请详情失败:', error);
     ElMessage.error('获取采购申请详情失败');
@@ -1131,74 +1109,6 @@ const updateStatus = async () => {
     ElMessage.error('更新状态失败: ' + (error.response?.data?.error || error.message));
   } finally {
     statusDialog.loading = false;
-  }
-};
-// 打开审批弹窗
-
-const openApprovalDialog = async (row) => {
-  approvalDialog.row = row;
-  approvalDialog.comment = '';
-  approvalDialog.loading = true;
-  approvalDialog.visible = true;
-  try {
-    // 查询该采购申请关联的审批实例
-
-    const res = await workflowApi.getByBusiness('purchase_requisition', row.id);
-    const instance = res.data || res;
-    if (!instance || !instance.id) {
-      ElMessage.warning('未找到该申请的审批流程');
-      approvalDialog.visible = false;
-      return;
-    }
-    approvalDialog.instanceId = instance.id;
-    // 找到当前 in_progress 的审批节点
-
-    const currentNode = (instance.nodes || []).find(n => n.status === 'in_progress' && n.nodeType === 'approval');
-    if (!currentNode) {
-      ElMessage.warning('当前没有待审批的节点');
-      approvalDialog.visible = false;
-      return;
-    }
-    approvalDialog.nodeId = currentNode.id;
-  } catch (error) {
-    console.error('获取审批信息失败:', error);
-    ElMessage.error('获取审批信息失败');
-    approvalDialog.visible = false;
-  } finally {
-    approvalDialog.loading = false;
-  }
-};
-// 执行审批操作
-
-const handleApproval = async (action) => {
-  approvalDialog.loading = true;
-  try {
-    const res = await workflowApi.approveNode(approvalDialog.instanceId, {
-      node_id: approvalDialog.nodeId,
-      action,
-      comment: approvalDialog.comment || undefined
-    });
-    const result = res.data || res;
-
-    if (action === 'approve') {
-      // 检查是否自动生成了采购订单
-      if (result.generated_orders && result.generated_orders.length > 0) {
-        const orders = result.generated_orders;
-        const message = `审批通过！已自动生成 ${orders.length} 个采购订单`;
-        ElMessageBox.alert(message, '审批完成', { type: 'success' });
-      } else {
-        ElMessage.success('审批通过');
-      }
-    } else {
-      ElMessage.success('已拒绝');
-    }
-    approvalDialog.visible = false;
-    loadRequisitions();
-  } catch (error) {
-    console.error('审批操作失败:', error);
-    ElMessage.error('审批操作失败: ' + (error.response?.data?.error || error.message));
-  } finally {
-    approvalDialog.loading = false;
   }
 };
 // 确认删除
@@ -1352,12 +1262,21 @@ const handlePrintRequisition = async () => {
 .el-table .el-button + .el-button {
   margin-left: 8px;
 }
-/* 详情对话框长文本处理 - 自动添加 */
-:deep(.el-descriptions__content) {
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.requisition-view-desc,
+.requisition-view-desc :deep(.el-descriptions__body),
+.requisition-view-desc :deep(.el-descriptions__table),
+.requisition-view-table {
+  width: 100%;
+}
+.requisition-view-desc :deep(.el-descriptions__label) {
+  width: 112px;
+  min-width: 112px;
   white-space: nowrap;
+}
+.requisition-view-desc :deep(.el-descriptions__content) {
+  min-width: 0;
+  white-space: normal;
+  word-break: break-word;
 }
 :deep(.el-table__cell) {
   overflow: hidden;

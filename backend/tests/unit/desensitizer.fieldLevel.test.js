@@ -14,18 +14,14 @@ describe('desensitizer field-level price', () => {
     expect(classifySensitiveField('name')).toBe(null);
   });
 
-  test('purchaser caps: purchase only', () => {
-    const caps = resolvePriceViewCapabilities(['purchase:price:view', 'basedata:materials:view']);
-    expect(caps.purchase).toBe(true);
-    expect(caps.sales).toBe(false);
-    expect(caps.general).toBe(true);
-  });
+  test('采购/销售权限组都能看物料销售价和采购价', () => {
+    const purchaseCaps = resolvePriceViewCapabilities(['purchase:price:view', 'basedata:materials:view']);
+    expect(purchaseCaps.purchase).toBe(true);
+    expect(purchaseCaps.sales).toBe(true);
 
-  test('salesperson caps: sales only', () => {
-    const caps = resolvePriceViewCapabilities(['sales:price:view', 'basedata:materials:view']);
-    expect(caps.sales).toBe(true);
-    expect(caps.purchase).toBe(false);
-    expect(caps.general).toBe(true);
+    const salesCaps = resolvePriceViewCapabilities(['sales:price:view', 'basedata:materials:view']);
+    expect(salesCaps.sales).toBe(true);
+    expect(salesCaps.purchase).toBe(true);
   });
 
   test('warehouse: no price caps', () => {
@@ -40,7 +36,7 @@ describe('desensitizer field-level price', () => {
     const caps = resolvePriceViewCapabilities(['purchase:price:view']);
     desensitizeData(row, caps);
     expect(row.costPrice).toBe(17.5);
-    expect(row.price).toBeNull();
+    expect(row.price).toBe(30);
     expect(row.taxRate).toBe(0.13);
     expect(row.name).toBe('物料');
   });
@@ -50,16 +46,16 @@ describe('desensitizer field-level price', () => {
     const caps = resolvePriceViewCapabilities(['sales:price:view']);
     desensitizeData(row, caps);
     expect(row.price).toBe(30);
-    expect(row.costPrice).toBeNull();
+    expect(row.costPrice).toBe(17.5);
     expect(row.taxRate).toBe(0.13);
   });
 
   test('desensitize material for warehouse', () => {
     const row = { id: 1, code: 'M1', name: '物料', price: 30, costPrice: 17.5, taxRate: 0.13 };
     desensitizeData(row, false);
-    expect(row.price).toBeNull();
-    expect(row.costPrice).toBeNull();
-    expect(row.taxRate).toBeNull();
+    expect(row.price).toBe('***');
+    expect(row.costPrice).toBe('***');
+    expect(row.taxRate).toBe('***');
     expect(row.name).toBe('物料');
   });
 

@@ -86,10 +86,11 @@
       <el-table
         :data="quotations"
         border
-        class="w-full"
+        class="table-row-click w-full"
         v-loading="loading"
         table-layout="fixed"
-      >
+      
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleView(row))">
         <template #empty>
           <EmptyState description="暂无报价单数据" />
         </template>
@@ -119,12 +120,11 @@
             <el-tag :type="getStatusType(scope.row.status)">{{ getStatusLabel(scope.row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="350" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="350" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="scope">
             <div class="table-actions">
-              <el-button class="btn-op-view" type="primary" size="small" @click="handleView(scope.row)">
-                <el-icon><View /></el-icon> 查看
-              </el-button>
+              
               <el-button
                 v-if="scope.row.status === 'draft'"
                 size="small"
@@ -424,6 +424,7 @@
   </div>
 </template>
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { formatLocalDate } from '@/utils/format';
 import { parseListData } from '@/utils/responseParser';
 import { formatDate, formatDateTime } from '@/utils/helpers/dateUtils'
@@ -1158,13 +1159,6 @@ const loadBomDetails = async () => {
   padding-right: 30px;
 }
 /* 对话框限高由 dialog-system / AppDialog 统一管理 */
-/* 详情对话框长文本处理 - 自动添加 */
-:deep(.el-descriptions__content) {
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 :deep(.el-table__cell) {
   overflow: hidden;
   text-overflow: ellipsis;

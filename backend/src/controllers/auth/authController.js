@@ -90,6 +90,7 @@ const login = async (req, res) => {
           username: user.username,
           real_name: user.real_name,
           email: user.email,
+          force_password_change: Boolean(user.force_password_change),
         },
       },
       '登录成功'
@@ -188,11 +189,12 @@ const changePassword = async (req, res) => {
     if (!passwordValidation.isValid) {
       return ResponseHandler.error(
         res,
-        '密码不符合安全要求',
+        `密码不符合安全要求：${passwordValidation.errors.join('；')}`,
         'VALIDATION_ERROR',
         400
       );
     }
+
 
     // 密码历史：禁止重复使用最近 N 次密码
     const db = require('../../config/db');
@@ -341,7 +343,6 @@ const updateAvatarFrame = async (req, res) => {
     const frameId = req.body.frameId || body.avatarFrame;
 
     const decorativeFrameIds = new Set([
-      'golden-halo',
       'silver-moon',
       'flame-phoenix',
       'ocean-crystal',
@@ -435,6 +436,7 @@ const refreshToken = async (req, res) => {
           username: user.username,
           real_name: user.real_name,
           email: user.email,
+          force_password_change: Boolean(user.force_password_change),
         },
       },
       '令牌刷新成功'

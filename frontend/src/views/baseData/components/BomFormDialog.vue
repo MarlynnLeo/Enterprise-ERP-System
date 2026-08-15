@@ -98,7 +98,7 @@
         <el-input v-model="form.remark" type="textarea" :rows="2" placeholder="请输入备注"></el-input>
       </el-form-item>
       <!-- BOM明细 -->
-      <el-divider content-position="left">BOM明细</el-divider>
+      <el-divider content-position="center">BOM明细</el-divider>
       <div class="bom-details">
         <div class="mb-md">
           <el-button type="primary" @click="addDetail">
@@ -238,14 +238,14 @@ const showImageViewer = ref(false)
 const previewList = ref([])
 const form = reactive({
   id: '',
-  product_id: '',
+  productId: '',
   version: '',
   remark: '',
   details: [], // 扁平数组，包含 parent_id
   attachment: null
 })
 const rules = {
-  product_id: [
+  productId: [
     { required: true, message: '请选择产品', trigger: 'change' }
   ],
   version: [
@@ -342,8 +342,9 @@ const searchProducts = async (query) => {
     } finally {
       loadingProducts.value = false
     }
-  } else {
-    productOptions.value = []
+  } else if (form.productId) {
+    const current = productOptions.value.find((item) => Number(item.id) === Number(form.productId))
+    productOptions.value = current ? [current] : productOptions.value
   }
 }
 
@@ -668,7 +669,7 @@ const submitForm = async () => {
         }
 
         const buildPayload = () => ({
-          product_id: Number(form.productId),
+          productId: Number(form.productId),
           version: String(form.version || 'V1.1').trim(),
           remark: form.remark || null,
           status: form.status !== undefined && form.status !== '' ? Number(form.status) : 1,

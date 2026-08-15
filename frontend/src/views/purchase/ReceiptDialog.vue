@@ -11,7 +11,7 @@
     v-model="dialogVisible"
     :title="dialogTitle"
     mode="form"
-    wide
+    width="850px"
     :before-close="handleClose"
   >
     <el-form ref="receiptFormRef" :model="receiptForm" :rules="rules" label-width="100px" class="form-container">
@@ -22,26 +22,30 @@
             <span>基本信息</span>
           </div>
         </template>
-        <el-row :gutter="20">
-          <el-col :xs="24" :sm="12" :md="8">
+        <el-row :gutter="16">
+          <el-col :span="12">
             <el-form-item label="加工单号" prop="processingNo">
               <el-input
                 v-model="receiptForm.processing_no"
                 placeholder="加工单号"
                 :disabled="true"
+                class="w-full"
               />
             </el-form-item>
           </el-col>
-          <el-col :xs="24" :sm="12" :md="8">
+          <el-col :span="12">
             <el-form-item label="加工厂" prop="supplierName">
               <el-input
                 v-model="receiptForm.supplierName"
                 placeholder="加工厂"
                 :disabled="true"
+                class="w-full"
               />
             </el-form-item>
           </el-col>
-          <el-col :xs="24" :sm="12" :md="8">
+        </el-row>
+        <el-row :gutter="16">
+          <el-col :span="12">
             <el-form-item label="入库日期" prop="receiptDate">
               <el-date-picker
                 v-model="receiptForm.receipt_date"
@@ -53,9 +57,7 @@
               />
             </el-form-item>
           </el-col>
-        </el-row>
-        <el-row :gutter="20">
-          <el-col :xs="24" :sm="12" :md="8">
+          <el-col :span="12">
             <el-form-item label="仓库" prop="warehouseId">
               <el-select
                 v-model="receiptForm.warehouseId"
@@ -74,16 +76,15 @@
               </el-select>
             </el-form-item>
           </el-col>
-          <el-col :xs="24" :sm="12" :md="8">
-            <el-form-item label="操作员" prop="operator">
-              <el-input
-                v-model="receiptForm.operator"
-                placeholder="请输入操作员"
-                :disabled="viewOnly"
-              />
-            </el-form-item>
-          </el-col>
         </el-row>
+        <el-form-item label="操作员" prop="operator">
+          <el-input
+            v-model="receiptForm.operator"
+            placeholder="请输入操作员"
+            :disabled="viewOnly"
+            class="w-full"
+          />
+        </el-form-item>
         <el-form-item label="备注" prop="remarks">
           <el-input
             v-model="receiptForm.remarks"
@@ -91,6 +92,7 @@
             :rows="2"
             placeholder="请输入备注信息"
             :disabled="viewOnly"
+            class="w-full"
           />
         </el-form-item>
       </el-card>
@@ -218,9 +220,9 @@ const dialogVisible = computed({
 const receiptForm = reactive({
   processing_id: null,
   processing_no: '',
-  supplier_id: null,
-  supplier_name: '',
-  warehouse_id: null,
+  supplierId: null,
+  supplierName: '',
+  warehouseId: null,
   warehouse_name: '',
   receipt_date: formatLocalDate(new Date()), // 当前日期
   operator: '',
@@ -233,7 +235,7 @@ const rules = {
   receipt_date: [
     { required: true, message: '请选择入库日期', trigger: 'blur' }
   ],
-  warehouse_id: [
+  warehouseId: [
     { required: true, message: '请选择仓库', trigger: 'change' }
   ],
   operator: [
@@ -410,9 +412,9 @@ watch(() => props.visible, (newVal) => {
     Object.assign(receiptForm, {
       processing_id: null,
       processing_no: '',
-      supplier_id: null,
-      supplier_name: '',
-      warehouse_id: null,
+      supplierId: null,
+      supplierName: '',
+      warehouseId: null,
       warehouse_name: '',
       receipt_date: formatLocalDate(new Date()),
       operator: '',
@@ -466,12 +468,20 @@ watch(() => props.visible, (newVal) => {
   font-weight: bold;
 }
 
-/* 详情对话框长文本处理 - 自动添加 */
-:deep(.el-descriptions__content) {
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.purchase-view-desc,
+.purchase-view-desc :deep(.el-descriptions__body),
+.purchase-view-desc :deep(.el-descriptions__table) {
+  width: 100%;
+}
+.purchase-view-desc :deep(.el-descriptions__label) {
+  width: 112px;
+  min-width: 112px;
   white-space: nowrap;
+}
+.purchase-view-desc :deep(.el-descriptions__content) {
+  min-width: 0;
+  white-space: normal;
+  word-break: break-word;
 }
 
 :deep(.el-table__cell) {

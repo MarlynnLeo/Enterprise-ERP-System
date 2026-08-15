@@ -79,8 +79,9 @@
         row-key="id"
         border
         :tree-props="{ children: 'children' }"
-        class="w-full"
-      >
+        class="table-row-click w-full"
+      
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleView(row))">
         <template #empty>
           <EmptyState description="暂无大类数据" />
         </template>
@@ -95,7 +96,8 @@
           </template>
         </el-table-column>
         <el-table-column prop="remark" label="备注"></el-table-column>
-        <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="scope">
             <el-popconfirm
               v-if="canUpdate && String(scope.row.status) !== '1'"
@@ -120,15 +122,7 @@
                 </el-button>
               </template>
             </el-popconfirm>
-            <el-button
-              v-if="String(scope.row.status) === '1'"
-              class="btn-op-view"
-              size="small"
-              type="primary"
-              @click="handleView(scope.row)"
-            >
-              <el-icon><View /></el-icon> 查看
-            </el-button>
+            
             <template v-if="String(scope.row.status) === '0'">
               <el-button v-if="canCreate" size="small" @click="handleAdd(scope.row)">
                 <el-icon><Plus /></el-icon> 添加子大类
@@ -299,6 +293,7 @@
 </template>
 
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { parseListData } from '@/utils/responseParser';
 import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage } from 'element-plus'
@@ -332,7 +327,7 @@ const stats = reactive({
 const formRef = ref(null);
 const form = reactive({
   id: '',
-  parent_id: null,
+  parentId: null,
   name: '',
   code: '',
   sort: 0,
@@ -342,7 +337,7 @@ const form = reactive({
 });
 
 const parentCategoryName = computed(() => {
-  const parentId = form.parentId ?? form.parent_id
+  const parentId = form.parentId
   if (!parentId) return ''
   const walk = (nodes = []) => {
     for (const node of nodes) {
@@ -818,14 +813,7 @@ const submitImport = async () => {
   margin: 0 0 10px 0;
   color: var(--color-danger);
 }
-
-/* 详情对话框长文本处理 - 自动添加 */
-:deep(.el-descriptions__content) {
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+
 
 :deep(.el-table__cell) {
   overflow: hidden;

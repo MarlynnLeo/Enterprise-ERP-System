@@ -79,9 +79,10 @@
       <el-table
         :data="processingList"
         border
-        class="w-full"
+        class="table-row-click w-full"
         v-loading="loading"
-      >
+      
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleViewProcessing(row))">
         <el-table-column prop="processingNo" label="加工单号" min-width="150" />
         <el-table-column prop="processingDate" label="创建日期" min-width="120">
           <template #default="{ row }">
@@ -106,14 +107,10 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="scope">
-            <el-button class="btn-op-view" type="primary"
-              size="small"
-              @click="handleViewProcessing(scope.row)"
-            >
-              查看
-            </el-button>
+            
             <el-button
               v-if="scope.row.status === 'pending'"
               size="small"
@@ -183,7 +180,7 @@
       v-model="processingDialogVisible"
       :title="dialogTitle"
       mode="form"
-      wide
+      width="850px"
       :before-close="handleCloseProcessingDialog"
     >
       <div v-loading="processingDialogLoading">
@@ -195,8 +192,8 @@
               <span>基本信息</span>
             </div>
           </template>
-          <el-row :gutter="20">
-            <el-col :xs="24" :sm="12" :md="8">
+          <el-row :gutter="16">
+            <el-col :span="12">
               <el-form-item label="加工日期" prop="processingDate">
                 <el-date-picker
                   v-model="processingForm.processing_date"
@@ -208,7 +205,21 @@
                 />
               </el-form-item>
             </el-col>
-            <el-col :xs="24" :sm="12" :md="8">
+            <el-col :span="12">
+              <el-form-item label="预计交期" prop="expectedDeliveryDate">
+                <el-date-picker
+                  v-model="processingForm.expected_delivery_date"
+                  type="date"
+                  placeholder="选择日期"
+                  value-format="YYYY-MM-DD"
+                  class="w-full"
+                  :disabled="viewOnly"
+                />
+              </el-form-item>
+            </el-col>
+          </el-row>
+          <el-row :gutter="16">
+            <el-col :span="12">
               <el-form-item label="加工厂" prop="supplierId">
                 <el-select
                   v-model="processingForm.supplierId"
@@ -231,39 +242,25 @@
                 </el-select>
               </el-form-item>
             </el-col>
-            <el-col :xs="24" :sm="12" :md="8">
-              <el-form-item label="预计交期" prop="expectedDeliveryDate">
-                <el-date-picker
-                  v-model="processingForm.expected_delivery_date"
-                  type="date"
-                  placeholder="选择日期"
-                  value-format="YYYY-MM-DD"
-                  class="w-full"
-                  :disabled="viewOnly"
-                />
-              </el-form-item>
-            </el-col>
-          </el-row>
-          <el-row :gutter="20">
-            <el-col :xs="24" :sm="12" :md="8">
+            <el-col :span="12">
               <el-form-item label="联系人" prop="contactPerson">
                 <el-input
                   v-model="processingForm.contact_person"
                   placeholder="请输入联系人"
                   :disabled="viewOnly"
-                />
-              </el-form-item>
-            </el-col>
-            <el-col :xs="24" :sm="12" :md="8">
-              <el-form-item label="联系电话" prop="contactPhone">
-                <el-input
-                  v-model="processingForm.contact_phone"
-                  placeholder="请输入联系电话"
-                  :disabled="viewOnly"
+                  class="w-full"
                 />
               </el-form-item>
             </el-col>
           </el-row>
+          <el-form-item label="联系电话" prop="contactPhone">
+            <el-input
+              v-model="processingForm.contact_phone"
+              placeholder="请输入联系电话"
+              :disabled="viewOnly"
+              class="w-full"
+            />
+          </el-form-item>
           <el-form-item label="备注" prop="remarks">
             <el-input
               v-model="processingForm.remarks"
@@ -271,6 +268,7 @@
               :rows="2"
               placeholder="请输入备注信息"
               :disabled="viewOnly"
+              class="w-full"
             />
           </el-form-item>
         </el-card>
@@ -438,7 +436,7 @@
       v-model="materialDialogVisible"
       title="选择物料"
       mode="form"
-      wide
+      width="850px"
     >
       <div class="dialog-search">
         <el-input
@@ -481,7 +479,7 @@
       v-model="productDialogVisible"
       title="选择成品"
       mode="form"
-      wide
+      width="850px"
     >
       <div class="dialog-search">
         <el-input
@@ -522,6 +520,7 @@
   </div>
 </template>
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { formatLocalDate } from '@/utils/format';
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { ref, reactive, onMounted, computed, nextTick, watch } from 'vue';
@@ -586,7 +585,7 @@ const processingFormRef = ref(null);
 // 对话框表单数据
 const processingForm = reactive({
   processing_date: formatLocalDate(new Date()),
-  supplier_id: '',
+  supplierId: '',
   supplier_name: '',
   expected_delivery_date: '',
   contact_person: '',
@@ -598,7 +597,7 @@ const processingForm = reactive({
 // 对话框表单验证规则
 const processingRules = {
   processing_date: [{ required: true, message: '请选择加工日期', trigger: 'change' }],
-  supplier_id: [{ required: true, message: '请选择加工厂', trigger: 'change' }],
+  supplierId: [{ required: true, message: '请选择加工厂', trigger: 'change' }],
   expected_delivery_date: [{ required: true, message: '请选择预计交期', trigger: 'change' }]
 };
 // 供应商数据
@@ -1199,12 +1198,20 @@ onMounted(() => {
     width: 100%;
   }
 }
-/* 详情对话框长文本处理 - 自动添加 */
-:deep(.el-descriptions__content) {
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.purchase-view-desc,
+.purchase-view-desc :deep(.el-descriptions__body),
+.purchase-view-desc :deep(.el-descriptions__table) {
+  width: 100%;
+}
+.purchase-view-desc :deep(.el-descriptions__label) {
+  width: 112px;
+  min-width: 112px;
   white-space: nowrap;
+}
+.purchase-view-desc :deep(.el-descriptions__content) {
+  min-width: 0;
+  white-space: normal;
+  word-break: break-word;
 }
 :deep(.el-table__cell) {
   overflow: hidden;

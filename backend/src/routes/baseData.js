@@ -118,6 +118,7 @@ router.get('/materials', authenticateToken, requirePermission('basedata:material
 router.get('/materials/options', authenticateToken, requirePermission('basedata:materials:view'), baseDataController.getMaterialOptions);
 router.get('/materials/stats', authenticateToken, requirePermission('basedata:materials:view'), baseDataController.getMaterialStats); // 注册统计路由
 router.get('/materials/next-code', authenticateToken, requirePermission('basedata:materials:create'), baseDataController.getNextMaterialCode);
+router.get('/materials/latest', authenticateToken, requirePermission('basedata:materials:create'), baseDataController.getLatestMaterialByCategory);
 // 添加物料导入模板下载路由（必须在:id路由之前）
 router.get(
   '/materials/template',
@@ -188,7 +189,7 @@ router.get(
 );
 
 // BOM管理路由
-router.get('/boms', authenticateToken, requirePermission('basedata:boms:view'), baseDataController.getAllBoms);
+router.get('/boms', authenticateToken, requirePermission(['basedata:boms:view', 'inventory:outbound:view', 'inventory:inbound:view']), baseDataController.getAllBoms);
 router.get('/boms/stats', authenticateToken, requirePermission('basedata:boms:view'), baseDataController.getBomStats);
 // 添加BOM导出路由（必须在:id路由之前）
 router.get('/boms/export', authenticateToken, requirePermission('basedata:boms:export'), requirePermission(PRICE_EXPORT_PERMISSIONS), baseDataController.exportBoms);

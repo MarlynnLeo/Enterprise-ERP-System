@@ -53,11 +53,11 @@
             <div class="detail-card info-card">
                 <div class="info-row">
                     <span class="info-label">订单总额</span>
-                    <span class="info-value highlight-money">¥ {{ formatMoney(order.totalAmount) }}</span>
+                    <span class="info-value highlight-money">{{ displayAmount(order.totalAmount) }}</span>
                 </div>
                 <div class="info-row">
                     <span class="info-label">已付金额</span>
-                    <span class="info-value">¥ {{ formatMoney(order.paidAmount) }}</span>
+                    <span class="info-value">{{ displayAmount(order.paidAmount) }}</span>
                 </div>
                 <div class="info-row">
                     <span class="info-label">交付日期</span>
@@ -80,11 +80,11 @@
                         </div>
                         <div class="detail-row">
                             <span class="detail-label">单价:</span>
-                            <span class="detail-value">¥ {{ formatMoney(item.unitPrice || item.price) }}</span>
+                            <span class="detail-value">{{ displayAmount(item.unitPrice || item.price) }}</span>
                         </div>
                         <div class="detail-row">
                             <span class="detail-label">小计:</span>
-                            <span class="detail-value highlight-money">¥ {{ formatMoney(item.amount || item.totalPrice) }}</span>
+                            <span class="detail-value highlight-money">{{ displayAmount(item.amount || item.totalPrice) }}</span>
                         </div>
                     </div>
                 </div>
@@ -106,16 +106,20 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {  showToast , Button } from 'vant'
 import { salesApi } from '@/api'
 import { extractApiData } from '@/utils/apiHelper'
+import { useAuthStore } from '@/stores/auth'
+import { canViewMaterialPrices, formatMaskedPrice } from '@/utils/priceVisibility'
 import Icon from '@/components/icons/index.vue'
 import dayjs from 'dayjs'
 
 const route = useRoute()
 const router = useRouter()
+const authStore = useAuthStore()
+const canViewPrice = computed(() => canViewMaterialPrices((code) => authStore.hasPermission(code)))
 const id = route.params.id
 
 const loading = ref(true)
@@ -210,6 +214,7 @@ const formatDate = (date, format = 'YYYY-MM-DD HH:mm') => {
 const formatMoney = (amount) => {
     return Number(amount || 0).toFixed(2)
 }
+const displayAmount = (amount) => formatMaskedPrice(amount, canViewPrice.value, (value) => `¥ ${formatMoney(value)}`)
 
 onMounted(() => {
     fetchDetail()

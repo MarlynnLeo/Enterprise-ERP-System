@@ -111,6 +111,10 @@ export const useAuthStore = defineStore('auth', () => {
   const userId = computed(() => user.value?.id)
   const username = computed(() => user.value?.username)
   const realName = computed(() => user.value?.realName || user.value?.username)
+  const mustChangePassword = computed(() => {
+    const flag = user.value?.forcePasswordChange
+    return flag === true || flag === 1 || flag === '1'
+  })
 
   // ==================== 私有方法 ====================
 
@@ -483,6 +487,7 @@ export const useAuthStore = defineStore('auth', () => {
     userId,
     username,
     realName,
+    mustChangePassword,
 
     // 方法
     login,

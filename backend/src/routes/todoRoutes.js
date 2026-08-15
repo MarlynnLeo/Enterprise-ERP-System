@@ -23,9 +23,11 @@ router.get('/', todoController.getAllTodos);
 router.get('/filter', todoController.filterTodos);
 
 // 获取可选择的用户列表（协同任务）— 需具备查看用户或使用待办权限
+const { USER_OPTION_PERMISSIONS } = require('../authorization/lookupPermissions');
+
 router.get(
   '/available-users',
-  requirePermission(['system:users:view', 'system:users', 'todo:collaborate']),
+  requirePermission(USER_OPTION_PERMISSIONS),
   todoController.getAvailableUsers
 );
 

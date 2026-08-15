@@ -196,7 +196,13 @@
       icon: ClipboardDocumentListIcon,
       permission: 'system:workflow:use'
     },
-    { title: '系统设置', path: '/system', colorClass: 'mod-gray', icon: Cog6ToothIcon, permission: 'system' }
+    {
+      title: '系统设置',
+      path: '/system',
+      colorClass: 'mod-gray',
+      icon: Cog6ToothIcon,
+      permission: ['system:users', 'system:permissions', 'system:settings:read', 'system:departments:view']
+    }
   ])
 
   // 过滤后的可用菜单
@@ -204,6 +210,9 @@
     return allMenus.value.filter((menu) => {
       const p = menu.permission
       if (!p) return true
+      if (Array.isArray(p)) {
+        return p.some((item) => authStore.hasPermission(item) || authStore.hasChildPermission(item))
+      }
       if (authStore.hasPermission(p)) return true
       // 模块父级：有任意子权限则显示入口
       return !String(p).includes(':') && authStore.hasChildPermission(p)
@@ -227,11 +236,15 @@
         'inventory:outbound:view',
         'inventory:inbound:view',
         'production:tasks:view',
+        'quality:inspections:view',
+        'quality:incoming:view',
+        'quality:process:view',
+        'quality:final:view',
         'basedata:materials:view'
       ]
     },
-    { title: '库存查询', desc: '查看物料实时库存与批次', path: '/inventory/stock', tag: 'INV', permission: 'inventory' },
-    { title: '生产任务', desc: '查看和管理生产任务进度', path: '/production/tasks', tag: 'PROD', permission: 'production' },
+    { title: '库存查询', desc: '查看物料实时库存与批次', path: '/inventory/stock', tag: 'INV', permission: 'inventory:stock:view' },
+    { title: '生产任务', desc: '查看和管理生产任务进度', path: '/production/tasks', tag: 'PROD', permission: 'production:tasks:view' },
     {
       title: '我的审批',
       desc: '处理待办审批与已发起流程',
@@ -263,21 +276,27 @@
 
   const loadHomeStats = async () => {
     try {
+      const canStock = authStore.hasPermission('inventory:stock:view')
+      const canProd =
+        authStore.hasPermission('production:tasks:view') ||
+        authStore.hasPermission('production:data-view')
+      const canSales =
+        authStore.hasPermission('sales:orders:view') || authStore.hasPermission('sales:reports:view')
       const results = await Promise.allSettled([
-        inventoryApi.getInventoryStock({ page: 1, pageSize: 1 }),
-        productionApi.getDashboardStatistics(),
-        salesApi.getSalesStatistics()
+        canStock ? inventoryApi.getInventoryStock({ page: 1, pageSize: 1 }) : Promise.resolve(null),
+        canProd ? productionApi.getDashboardStatistics() : Promise.resolve(null),
+        canSales ? salesApi.getSalesStatistics() : Promise.resolve(null)
       ])
-      if (results[0].status === 'fulfilled') {
+      if (canStock && results[0].status === 'fulfilled' && results[0].value) {
         const d = unwrapData(results[0].value)
         dashboardStats.value[0].value = String(firstNumber(d.total, d.totalCount, d.pagination?.total, Array.isArray(d) ? d.length : undefined))
         dashboardStats.value[0].trend = '↑'
       }
-      if (results[1].status === 'fulfilled') {
+      if (canProd && results[1].status === 'fulfilled' && results[1].value) {
         const d = unwrapData(results[1].value)
         dashboardStats.value[1].value = String(firstNumber(d?.tasks?.inProgress, d?.tasks?.in_progress, d?.tasks?.pending, d?.tasks?.total))
       }
-      if (results[2].status === 'fulfilled') {
+      if (canSales && results[2].status === 'fulfilled' && results[2].value) {
         const d = unwrapData(results[2].value)
         dashboardStats.value[2].value = String(firstNumber(d.pending_orders, d.pendingOrders, d.orders?.pending, d.pending))
       }

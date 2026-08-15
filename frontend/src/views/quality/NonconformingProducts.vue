@@ -95,9 +95,10 @@
       <el-table
         :data="tableData"
         border
-        class="w-full mt-md"
+        class="table-row-click w-full mt-md"
         v-loading="loading"
-      >
+      
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleView(row))">
         <el-table-column prop="ncpNo" label="不合格品编号" width="130" show-overflow-tooltip />
         <el-table-column prop="inspectionNo" label="检验单号" width="130" show-overflow-tooltip />
         <el-table-column prop="materialName" label="物料名称" width="150" show-overflow-tooltip />
@@ -133,9 +134,10 @@
             {{ formatDate(scope.row.createdAt) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="{ row }">
-            <el-button class="btn-op-view" type="primary" size="small" @click="handleView(row)">查看</el-button>
+            
             <el-button v-permission="'quality:nonconforming:update'" size="small" type="primary" @click="handleDispose(row)" v-if="row.status === 'pending'">
               处理决策
             </el-button>
@@ -154,7 +156,7 @@
               type="primary"
               @click="handleApproveConcession(row)"
               v-if="row.concessionStatus === 'pending'"
-              v-permission="'quality:nonconforming:update'">
+              v-permission="'quality:nonconforming:approve'">
               特采审批
             </el-button>
             <el-button v-permission="'quality:nonconforming:update'" size="small" type="success" @click="handleComplete(row)" v-if="row.status === 'processing' && row.concessionStatus !== 'pending'">
@@ -251,7 +253,7 @@
         </el-form>
         <template #footer>
           <el-button @click="approveConcessionDialogVisible = false">取消</el-button>
-          <el-button v-permission="'quality:nonconforming:update'" type="primary" :loading="submitLoading" @click="submitApproveConcession">确认提交</el-button>
+          <el-button v-permission="'quality:nonconforming:approve'" type="primary" :loading="submitLoading" @click="submitApproveConcession">确认提交</el-button>
         </template>
         </AppDialog>
     <!-- Disposition Dialog -->
@@ -350,6 +352,7 @@
   </div>
 </template>
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRoute } from 'vue-router'
@@ -753,10 +756,9 @@ const fetchNcpByInspection = async (inspectionId) => {
   background-color: var(--color-bg-light);
 }
 :deep(.el-descriptions__content) {
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  white-space: normal;
+  word-break: break-word;
 }
 /* 表单样式 */
 :deep(.el-form-item__label) {

@@ -28,11 +28,11 @@
       </div>
 
       <!-- 快捷操作 — 4 宫格 -->
-      <div class="quick-section" v-if="actions && actions.length">
+      <div class="quick-section" v-if="visibleActions.length">
         <div class="section-title">快捷操作</div>
         <div class="quick-grid">
           <div
-            v-for="action in actions"
+            v-for="action in visibleActions"
             :key="action.path"
             class="quick-item"
             @click="$emit('navigate', action.path)"
@@ -46,9 +46,9 @@
       </div>
 
       <!-- 功能模块 — 分组卡片列表 -->
-      <div class="groups-section" v-if="groups && groups.length">
+      <div class="groups-section" v-if="visibleGroups.length">
         <div class="section-title">功能模块</div>
-        <div v-for="(group, gIdx) in groups" :key="gIdx" class="module-group">
+        <div v-for="(group, gIdx) in visibleGroups" :key="gIdx" class="module-group">
           <div class="group-header">
             <SvgIcon :name="group.icon" size="0.875rem" :class="group.color" />
             <span class="group-title">{{ group.title }}</span>
@@ -93,19 +93,37 @@
   import { computed, getCurrentInstance } from 'vue'
   import { NavBar } from 'vant'
   import SvgIcon from '@/components/icons/index.vue'
+  import { usePermission } from '@/composables/usePermission'
 
   const props = defineProps({
     title: { type: String, required: true },
     stats: { type: Array, default: () => [] },
     actions: { type: Array, default: () => [] },
     groups: { type: Array, default: () => [] },
-    showAdd: { type: Boolean, default: undefined }
+    showAdd: { type: Boolean, default: undefined },
+    addPermission: { type: [String, Array], default: '' }
   })
 
   defineEmits(['back', 'add', 'navigate'])
 
   const instance = getCurrentInstance()
-  const showAddButton = computed(() => props.showAdd ?? Boolean(instance?.vnode?.props?.onAdd))
+  const { canAccess } = usePermission()
+
+  const visibleActions = computed(() =>
+    (props.actions || []).filter((action) => canAccess(action.permission))
+  )
+  const visibleGroups = computed(() =>
+    (props.groups || [])
+      .map((group) => ({
+        ...group,
+        items: (group.items || []).filter((item) => canAccess(item.permission))
+      }))
+      .filter((group) => group.items.length > 0)
+  )
+  const showAddButton = computed(() => {
+    const hasHandler = props.showAdd ?? Boolean(instance?.vnode?.props?.onAdd)
+    return Boolean(hasHandler && canAccess(props.addPermission))
+  })
 
   // 根据分组索引分配色条颜色
   const accentColors = [

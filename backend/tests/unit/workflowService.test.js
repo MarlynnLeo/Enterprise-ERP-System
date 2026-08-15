@@ -69,8 +69,8 @@ describe('WorkflowService approval gates', () => {
       nodes: [
         {
           node_name: 'Department approval',
-          approver_type: 'user',
-          approver_ids: [1],
+          approver_type: 'role',
+          approver_ids: ['purchase_manager'],
         },
       ],
     }, 1)).rejects.toThrow('未配置审批状态回调');
@@ -88,6 +88,34 @@ describe('WorkflowService approval gates', () => {
       'PO approval',
       1
     )).rejects.toThrow('未配置启用的审批流程');
+  });
+
+  test('assigns role approvers by system role code instead of user id', async () => {
+    const conn = {
+      query: jest.fn()
+        .mockResolvedValueOnce([[{ id: 54 }]])
+        .mockResolvedValueOnce([[{ allowed: 1 }]])
+        .mockResolvedValueOnce([{ affectedRows: 0 }])
+        .mockResolvedValueOnce([{ affectedRows: 1 }])
+        .mockResolvedValueOnce([{ affectedRows: 1 }]),
+    };
+
+    await workflowService._assignApprover(conn, 99, {
+      node_name: '采购管理员审批',
+      approver_type: 'role',
+      approver_ids: JSON.stringify(['purchase_manager']),
+    }, 24);
+
+    expect(conn.query).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining('r.code IN (?)'),
+      [['purchase_manager']]
+    );
+    expect(conn.query).toHaveBeenNthCalledWith(
+      4,
+      expect.stringContaining('INSERT INTO workflow_node_approvers'),
+      [99, 54, 1, 'pending']
+    );
   });
 
   test('assigns department approver from active users and prefers department manager', async () => {
@@ -132,8 +160,8 @@ describe('WorkflowService approval gates', () => {
         node_name: 'Approval',
         node_type: 'approval',
         sequence: 1,
-        approver_type: 'user',
-        approver_ids: [2],
+        approver_type: 'role',
+        approver_ids: ['purchase_manager'],
         timeout_hours: 1,
         timeout_action: 'auto_approve',
       }],

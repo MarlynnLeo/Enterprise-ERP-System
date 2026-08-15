@@ -41,6 +41,7 @@ const materialService = {
           ms.name as material_source_name,
           im.name as inspection_method_name,
           s.name as supplier_name,
+          s.code as supplier_code,
           l.name as location_name,
           pg.name as production_group_name,
           mgr.real_name as manager_name,
@@ -112,6 +113,12 @@ const materialService = {
         }
       }
 
+      const materialTypeParam = filters.material_type || filters.materialType;
+      if (materialTypeParam) {
+        whereConditions.push('m.material_type = ?');
+        params.push(String(materialTypeParam));
+      }
+
       // 状态条件
       if (filters.status !== undefined && filters.status !== '') {
         const status = parseInt(filters.status);
@@ -178,6 +185,7 @@ const materialService = {
           ms.name as material_source_name,
           im.name as inspection_method_name,
           s.name as supplier_name,
+          s.code as supplier_code,
           l.name as location_name,
           pg.name as production_group_name,
           mgr.real_name as manager_name,
@@ -300,6 +308,44 @@ const materialService = {
       logger.error('deleteMaterial error:', error);
       throw error;
     }
+  },
+
+  async getLatestMaterialByCategory(categoryId) {
+    const parsedId = parseInt(categoryId, 10);
+    if (!Number.isInteger(parsedId) || parsedId <= 0) {
+      return null;
+    }
+
+    const sql = `
+      SELECT
+        m.*,
+        c.name as category_name,
+        pc.name as product_category_name,
+        u.name as unit_name,
+        ms.name as material_source_name,
+        im.name as inspection_method_name,
+        s.name as supplier_name,
+        s.code as supplier_code,
+        l.name as location_name,
+        pg.name as production_group_name,
+        mgr.real_name as manager_name,
+        mgr.username as manager_username
+      FROM materials m
+      LEFT JOIN categories c ON m.category_id = c.id
+      LEFT JOIN categories pc ON m.product_category_id = pc.id
+      LEFT JOIN units u ON m.unit_id = u.id
+      LEFT JOIN material_sources ms ON m.material_source_id = ms.id
+      LEFT JOIN inspection_methods im ON m.inspection_method_id = im.id
+      LEFT JOIN suppliers s ON m.supplier_id = s.id
+      LEFT JOIN locations l ON m.location_id = l.id
+      LEFT JOIN departments pg ON m.production_group_id = pg.id
+      LEFT JOIN users mgr ON m.manager_id = mgr.id
+      WHERE m.category_id = ? AND m.deleted_at IS NULL
+      ORDER BY CASE WHEN m.code REGEXP '^[0-9]' THEN 0 ELSE 1 END, m.code DESC, m.id DESC
+      LIMIT 1
+    `;
+    const [rows] = await pool.query(sql, [parsedId]);
+    return rows.length > 0 ? rows[0] : null;
   },
 
   async getNextMaterialSequence(prefix) {

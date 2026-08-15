@@ -76,7 +76,8 @@
 
     <!-- 数据表格 -->
     <el-card class="table-card">
-      <el-table :data="tableData" border stripe v-loading="loading">
+      <el-table class="table-row-click" :data="tableData" border stripe v-loading="loading"
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => viewDetail(row))">
         <el-table-column type="index" label="序号" width="60" />
         <el-table-column prop="scrapNo" label="报废单号" width="140" />
         <el-table-column prop="ncpNo" label="不合格品编号" width="140" />
@@ -101,18 +102,17 @@
           </template>
         </el-table-column>
         <el-table-column prop="createdAt" label="创建时间" width="160" />
-        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="{ row }">
             <div class="table-actions">
-              <el-button class="btn-op-view" type="primary" size="small" @click="viewDetail(row)">
-                <el-icon><View /></el-icon> 详情
-              </el-button>
+              
               <el-button
                 type="success"
                 size="small"
                 @click="approveScrap(row)"
                 v-if="row.status === 'pending'"
-                v-permission="'quality:scrap:update'"
+                v-permission="'quality:scrap:approve'"
               >
                 <el-icon><Check /></el-icon> 审批
               </el-button>
@@ -286,6 +286,7 @@
 </template>
 
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { useDictionaryStore } from '@/stores/dictionary'
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
@@ -339,13 +340,13 @@ const approveForm = reactive({
 })
 
 const completeForm = reactive({
-  scrap_cost: 0,
+  scrapCost: 0,
   note: ''
 })
 
 const editForm = reactive({
-  scrap_date: '',
-  scrap_cost: 0
+  scrapDate: '',
+  scrapCost: 0
 })
 
 const fetchData = async () => {

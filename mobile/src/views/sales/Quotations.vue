@@ -21,8 +21,12 @@
   import { useRouter } from 'vue-router'
   import UniversalListPage from '@/components/common/UniversalListPage.vue'
   import { salesApi } from '@/api'
+  import { useAuthStore } from '@/stores/auth'
+  import { canViewMaterialPrices, formatMaskedPrice } from '@/utils/priceVisibility'
 
   const router = useRouter()
+  const authStore = useAuthStore()
+  const canViewPrice = computed(() => canViewMaterialPrices((code) => authStore.hasPermission(code)))
 
   const pageConfig = computed(() => ({
     title: '报价管理',
@@ -39,7 +43,7 @@
       subtitle: 'quotationCode',
       icon: 'document-text',
       details: [
-        { label: '报价金额', field: 'totalAmount', prefix: '¥' },
+        { label: '报价金额', field: (item) => formatMaskedPrice(item.totalAmount, canViewPrice.value) },
         { label: '有效期至', field: 'validUntil', type: 'date' },
         { label: '报价日期', field: 'quotationDate', type: 'date' }
       ],

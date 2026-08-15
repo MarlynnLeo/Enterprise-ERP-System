@@ -48,7 +48,7 @@ router.post('/aql-sampling/calculate', requirePermission('quality:inspections:vi
  */
 
 // 来料检验
-router.get('/inspections/incoming', authenticateToken, requirePermission('quality:inspections:view'), inspectionCtrl.getIncomingInspections);
+router.get('/inspections/incoming', authenticateToken, requirePermission(['quality:inspections:view', 'purchase:receipts:view', 'purchase:orders:view']), inspectionCtrl.getIncomingInspections);
 router.get('/inspections/incoming/stats', authenticateToken, requirePermission('quality:inspections:view'), inspectionCtrl.getIncomingInspectionStats);
 router.post('/inspections/incoming', authenticateToken, requirePermission('quality:inspections:create'), inspectionCtrl.createInspection);
 
@@ -99,7 +99,7 @@ router.get('/inspections/unlinked', authenticateToken, requirePermission('qualit
 router.get('/inspections/batch/:batchNo', authenticateToken, requirePermission('quality:inspections:view'), inspectionCtrl.getInspectionByBatchNo);
 
 // 获取检验单详情
-router.get('/inspections/:id', authenticateToken, requirePermission('quality:inspections:view'), inspectionCtrl.getInspectionById);
+router.get('/inspections/:id', authenticateToken, requirePermission(['quality:inspections:view', 'purchase:receipts:view', 'purchase:orders:view']), inspectionCtrl.getInspectionById);
 
 // 获取检验单项目
 router.get('/inspections/:id/items', authenticateToken, requirePermission('quality:inspections:view'), inspectionCtrl.getInspectionItems);

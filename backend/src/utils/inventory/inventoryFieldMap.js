@@ -28,13 +28,15 @@ const inventoryInboundItemMap = {
     };
   },
   fromApi(body = {}) {
+    const materialRaw = body.materialId ?? body.material_id;
+    const locationRaw = body.locationId ?? body.location_id;
     const row = {
       id: body.id,
-      material_id: body.materialId != null ? toNumber(body.materialId, body.materialId) : undefined,
+      material_id: materialRaw != null ? toNumber(materialRaw, materialRaw) : undefined,
       quantity: body.quantity != null ? toNumber(body.quantity, 0) : undefined,
-      unit_id: body.unitId,
-      batch_number: body.batchNo ?? body.batchNumber,
-      location_id: body.locationId != null ? toNumber(body.locationId, body.locationId) : undefined,
+      unit_id: body.unitId ?? body.unit_id,
+      batch_number: body.batchNo ?? body.batchNumber ?? body.batch_number,
+      location_id: locationRaw != null ? toNumber(locationRaw, locationRaw) : undefined,
       remark: body.remarks ?? body.remark,
     };
     return Object.fromEntries(Object.entries(row).filter(([, v]) => v !== undefined));
@@ -72,22 +74,24 @@ const inventoryInboundMap = {
     return api;
   },
   fromApi(body = {}) {
+    const inboundDateRaw = body.inboundDate ?? body.inbound_date;
+    const locationRaw = body.locationId ?? body.location_id;
+    const warehouseRaw = body.warehouseId ?? body.warehouse_id;
+    const referenceIdRaw = body.referenceId ?? body.reference_id;
     const row = {
       id: body.id,
-      inbound_no: body.inboundNo,
-      inbound_date: body.inboundDate != null ? formatDate(body.inboundDate) : undefined,
-      inbound_type: body.inboundType,
+      inbound_no: body.inboundNo ?? body.inbound_no,
+      inbound_date: inboundDateRaw != null ? formatDate(inboundDateRaw) : undefined,
+      inbound_type: body.inboundType ?? body.inbound_type,
       status: body.status,
-      location_id: body.locationId != null ? toNumber(body.locationId, body.locationId) : undefined,
-      warehouse_id:
-        body.warehouseId != null ? toNumber(body.warehouseId, body.warehouseId) : undefined,
+      location_id: locationRaw != null ? toNumber(locationRaw, locationRaw) : undefined,
+      warehouse_id: warehouseRaw != null ? toNumber(warehouseRaw, warehouseRaw) : undefined,
       operator: body.operator,
       remark: body.remarks ?? body.remark,
-      reference_type: body.referenceType,
-      reference_id:
-        body.referenceId != null ? toNumber(body.referenceId, body.referenceId) : undefined,
-      reference_no: body.referenceNo,
-      created_by: body.createdBy,
+      reference_type: body.referenceType ?? body.reference_type,
+      reference_id: referenceIdRaw != null ? toNumber(referenceIdRaw, referenceIdRaw) : undefined,
+      reference_no: body.referenceNo ?? body.reference_no,
+      created_by: body.createdBy ?? body.created_by,
     };
     if (Array.isArray(body.items)) {
       row.items = body.items.map((it) => inventoryInboundItemMap.fromApi(it));

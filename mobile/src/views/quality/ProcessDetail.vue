@@ -71,10 +71,10 @@
       </CellGroup>
 
       <!-- 操作按钮 -->
-      <div class="action-section" v-if="inspection.status === 'pending'" v-permission="'quality:inspections:update'">
+      <div class="action-section" v-if="inspection.status === 'pending'" v-permission="'quality:process:update'">
         <Button round block type="primary" @click="handleStart"> 开始检验 </Button>
       </div>
-      <div class="action-section" v-else-if="inspection.status === 'in_progress'" v-permission="'quality:inspections:update'">
+      <div class="action-section" v-else-if="inspection.status === 'in_progress'" v-permission="'quality:process:update'">
         <Button round block type="success" @click="handleComplete"> 提交并完成检验 </Button>
       </div>
     </div>

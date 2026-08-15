@@ -235,14 +235,24 @@
               完工
             </el-button>
             <el-button
-              v-if="scope.row.status === 'in_progress'"
+              v-if="canRequestMaterial(scope.row)"
               size="small"
               type="danger"
               plain
               @click="handleApplyParts(scope.row)"
-              v-permission="'production:process:update'"
+              v-permission="['production:supplement:create', 'production:process:update']"
             >
               补料
+            </el-button>
+            <el-button
+              v-if="canRequestMaterial(scope.row)"
+              size="small"
+              type="warning"
+              plain
+              @click="handleApplyExchange(scope.row)"
+              v-permission="['production:exchange:create', 'production:process:update']"
+            >
+              换料
             </el-button>
             <el-button
               v-if="canReturnMaterial(scope.row)"
@@ -293,18 +303,12 @@
     >
       <div v-loading="instructionDocsLoading">
       <div v-if="currentInstructionDocs.length > 0">
-        <el-table :data="currentInstructionDocs" border class="w-full">
+        <el-table :data="currentInstructionDocs" border class="table-row-click w-full"
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => openInstructionDoc(row))">
           <el-table-column prop="name" label="文件名称" min-width="200" />
           <el-table-column label="上传时间" width="180">
             <template #default="scope">
               {{ scope.row.uploadTime ? dayjs(scope.row.uploadTime).format('YYYY-MM-DD HH:mm') : '-' }}
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" min-width="100" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
-            <template #default="scope">
-              <el-button class="btn-op-view" size="small" type="primary" @click="openInstructionDoc(scope.row)">
-                查看
-              </el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -325,19 +329,17 @@
     >
       <div v-loading="allInstructionDocsLoading">
       <div v-if="allProcessInstructionDocs.length > 0">
-        <el-table :data="allProcessInstructionDocs" border class="w-full">
+        <el-table
+          :data="allProcessInstructionDocs"
+          border
+          class="table-row-click w-full"
+          @row-click="(row, column, event) => handleTableRowView(row, column, event, () => openInstructionDoc(row))"
+        >
           <el-table-column prop="processName" label="工序名称" width="120" />
           <el-table-column prop="name" label="文件名称" min-width="200" />
           <el-table-column label="上传时间" width="180">
             <template #default="scope">
               {{ scope.row.uploadTime ? dayjs(scope.row.uploadTime).format('YYYY-MM-DD HH:mm') : '-' }}
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" min-width="100" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
-            <template #default="scope">
-              <el-button class="btn-op-view" size="small" type="primary" @click="openInstructionDoc(scope.row)">
-                查看
-              </el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -649,6 +651,109 @@
       </template>
         </AppDialog>
 
+    <!-- 换料申请对话框 -->
+    <AppDialog
+      v-model="applyExchangeVisible"
+      title="零部件换料申请"
+      mode="form"
+      width="600px"
+    >
+      <el-form :model="applyExchangeForm" :rules="applyExchangeRules" ref="applyExchangeFormRef" label-width="100px">
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="任务编号">
+              <el-input v-model="applyExchangeForm.taskCode" disabled />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="产品名称">
+              <el-input v-model="applyExchangeForm.productName" disabled />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-form-item label="退下物料" prop="fromMaterialId">
+          <el-select
+            v-model="applyExchangeForm.fromMaterialId"
+            filterable
+            remote
+            reserve-keyword
+            placeholder="选择原物料"
+            :remote-method="searchMaterials"
+            :loading="materialLoading"
+            class="w-full"
+            @change="handleExchangeFromMaterialChange"
+          >
+            <el-option
+              v-for="item in materialOptions"
+              :key="`from-${item.id}`"
+              :label="item.label"
+              :value="item.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="换上物料" prop="toMaterialId">
+          <el-select
+            v-model="applyExchangeForm.toMaterialId"
+            filterable
+            remote
+            reserve-keyword
+            placeholder="选择替换物料"
+            :remote-method="searchMaterials"
+            :loading="materialLoading"
+            class="w-full"
+            @change="handleExchangeToMaterialChange"
+          >
+            <el-option
+              v-for="item in materialOptions"
+              :key="`to-${item.id}`"
+              :label="item.label"
+              :value="item.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="换料数量" prop="quantity">
+              <el-input-number v-model="applyExchangeForm.quantity" :min="0.01" :precision="2" class="w-full" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="退回仓库" prop="returnLocationId">
+              <el-select v-model="applyExchangeForm.returnLocationId" filterable class="w-full" placeholder="选择退回仓库">
+                <el-option
+                  v-for="item in returnLocationOptions"
+                  :key="item.id"
+                  :label="item.name || item.locationName || item.warehouseName"
+                  :value="item.id"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-form-item label="换料原因" prop="reason">
+          <el-select v-model="applyExchangeForm.reason" placeholder="请选择原因" class="w-full" allow-create filterable>
+            <el-option
+              v-for="item in supplementReasonOptions"
+              :key="item.id"
+              :label="item.reasonName"
+              :value="item.reasonName"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="详细说明">
+          <el-input v-model="applyExchangeForm.remark" type="textarea" :rows="2" placeholder="请说明为何换料" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="applyExchangeVisible = false" size="large">取消</el-button>
+          <el-button type="primary" @click="submitApplyExchange" :loading="submittingExchange" size="large">
+            提交申请
+          </el-button>
+        </div>
+      </template>
+    </AppDialog>
+
     <!-- 退料对话框 -->
     <AppDialog
       v-model="returnMaterialVisible"
@@ -722,6 +827,7 @@
 </template>
 
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { defineAsyncComponent, ref, onMounted, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -869,6 +975,7 @@ const isDefectiveReason = computed(() => {
 
 // 仓库列表
 const warehouseList = ref([])
+const returnLocationOptions = computed(() => warehouseList.value || [])
 
 // 加载仓库列表并通过仓库类型变量自动匹配隔离区
 const fetchWarehouseList = async () => {
@@ -1104,6 +1211,122 @@ const submitApplyParts = async () => {
       } finally {
         submittingApply.value = false
       }
+    }
+  })
+}
+
+const applyExchangeVisible = ref(false)
+const submittingExchange = ref(false)
+const applyExchangeFormRef = ref()
+const applyExchangeForm = ref({
+  taskId: null,
+  taskCode: '',
+  productName: '',
+  fromMaterialId: null,
+  fromUnitId: null,
+  toMaterialId: null,
+  toUnitId: null,
+  quantity: 1,
+  returnLocationId: null,
+  reason: '',
+  remark: ''
+})
+const applyExchangeRules = {
+  fromMaterialId: [{ required: true, message: '请选择退下物料', trigger: 'change' }],
+  toMaterialId: [{ required: true, message: '请选择换上物料', trigger: 'change' }],
+  quantity: [{ required: true, message: '请输入数量', trigger: 'blur' }],
+  returnLocationId: [{ required: true, message: '请选择退回仓库', trigger: 'change' }],
+  reason: [{ required: true, message: '请选择或输入原因', trigger: 'change' }]
+}
+
+const handleApplyExchange = async (row) => {
+  applyExchangeForm.value = {
+    taskId: row.id,
+    taskCode: row.code,
+    productName: row.productName,
+    fromMaterialId: null,
+    fromUnitId: null,
+    toMaterialId: null,
+    toUnitId: null,
+    quantity: 1,
+    returnLocationId: applyPartsForm.value.returnLocationId || null,
+    reason: '',
+    remark: ''
+  }
+  materialOptions.value = []
+  applyExchangeVisible.value = true
+  await fetchTaskBom(row.id)
+  await fetchWarehouseList()
+  if (!applyExchangeForm.value.returnLocationId && warehouseList.value[0]) {
+    applyExchangeForm.value.returnLocationId = warehouseList.value[0].id
+  }
+}
+
+const handleExchangeFromMaterialChange = (materialId) => {
+  const selected = materialOptions.value.find((item) => item.id === materialId)
+  applyExchangeForm.value.fromUnitId = selected?.unitId || null
+}
+
+const handleExchangeToMaterialChange = (materialId) => {
+  const selected = materialOptions.value.find((item) => item.id === materialId)
+  applyExchangeForm.value.toUnitId = selected?.unitId || null
+}
+
+const submitApplyExchange = async () => {
+  if (!applyExchangeFormRef.value) return
+  await applyExchangeFormRef.value.validate(async (valid) => {
+    if (!valid) return
+    try {
+      submittingExchange.value = true
+      const currentUser = authStore.user?.realName || authStore.user?.name || authStore.realName || ''
+      if (!currentUser) {
+        ElMessage.error('无法识别当前登录用户，请重新登录后再操作')
+        return
+      }
+      await inventoryApi.createOutbound({
+        outbound_date: dayjs().format('YYYY-MM-DD'),
+        status: 'draft',
+        outbound_type: 'exchange',
+        production_task_id: applyExchangeForm.value.taskId,
+        force_excess: true,
+        issue_reason: applyExchangeForm.value.reason,
+        remark: `【换料申请】退下 ${applyExchangeForm.value.fromMaterialId}，换上 ${applyExchangeForm.value.toMaterialId}。${applyExchangeForm.value.remark || applyExchangeForm.value.reason}`,
+        items: [
+          {
+            materialId: applyExchangeForm.value.toMaterialId,
+            quantity: applyExchangeForm.value.quantity,
+            unitId: applyExchangeForm.value.toUnitId,
+            remark: applyExchangeForm.value.remark
+          }
+        ]
+      })
+      await inventoryApi.createInbound({
+        inbound_date: dayjs().format('YYYY-MM-DD'),
+        location_id: applyExchangeForm.value.returnLocationId,
+        status: 'draft',
+        operator: currentUser,
+        inbound_type: 'production_return',
+        reference_type: 'production_task',
+        reference_id: applyExchangeForm.value.taskId,
+        reference_no: applyExchangeForm.value.taskCode,
+        remark: `【换料退回】原物料退回，等待仓库确认。${applyExchangeForm.value.remark || ''}`,
+        items: [
+          {
+            material_id: applyExchangeForm.value.fromMaterialId,
+            quantity: applyExchangeForm.value.quantity,
+            unit_id: applyExchangeForm.value.fromUnitId,
+            location_id: applyExchangeForm.value.returnLocationId,
+            remark: `换料退回 - ${applyExchangeForm.value.reason || ''}`
+          }
+        ]
+      })
+      ElMessage.success('换料申请已提交：新料出库草稿和原物料退回草稿已生成，请联系仓库确认。')
+      applyExchangeVisible.value = false
+    } catch (error) {
+      const backendMessage = error.response?.data?.message || error.response?.data?.error || error.message || '提交失败'
+      ElMessage.error(backendMessage)
+    } finally {
+      submittingExchange.value = false
     }
   })
 }
@@ -1725,6 +1948,9 @@ const submitCompletion = async () => {
   }
 }
 
+const canRequestMaterial = (row) =>
+  ['material_issued', 'material_partial_issued', 'in_progress'].includes(row.status)
+
 // 判断是否可以退料
 const canReturnMaterial = (row) => {
   // 待检验、入库中、已完成状态的任务均可退料
@@ -1771,7 +1997,6 @@ const handleReturnMaterial = async (row) => {
 const handleReturnSelectionChange = (selection) => {
   returnItems.value = selection
 }
-
 
 
 // 提交退料（多物料）
@@ -1911,13 +2136,6 @@ onMounted(() => {
   gap: 12px;
 }
 
-/* 详情对话框长文本处理 */
-:deep(.el-descriptions__content) {
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 
 :deep(.el-table__cell) {
   overflow: hidden;

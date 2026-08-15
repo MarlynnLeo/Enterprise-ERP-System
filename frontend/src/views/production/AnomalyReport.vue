@@ -42,7 +42,8 @@
         </el-row>
       </div>
 
-      <el-table :data="tableData" v-loading="loading" border stripe>
+      <el-table class="table-row-click" :data="tableData" v-loading="loading" border stripe
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => viewDetail(row))">
         <el-table-column prop="code" label="编号" width="160" />
         <el-table-column prop="title" label="标题" min-width="180" show-overflow-tooltip />
         <el-table-column prop="category" label="类别" width="100">
@@ -61,11 +62,10 @@
         <el-table-column prop="reporterName" label="上报人" width="100" />
         <el-table-column prop="location" label="位置" width="100" show-overflow-tooltip />
         <el-table-column prop="createdAt" label="上报时间" width="160" />
-        <el-table-column label="操作" min-width="280" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="280" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="{ row }">
-            <el-button class="btn-op-view" type="primary" size="small" @click="viewDetail(row)">
-              <el-icon><View /></el-icon> 详情
-            </el-button>
+            
             <el-button type="warning" size="small" v-if="row.status === 'open'" v-permission="'production:anomaly:update'" @click="handleAssign(row)">
               <el-icon><User /></el-icon> 指派
             </el-button>
@@ -152,6 +152,7 @@
 </template>
 
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { View, User, Check, CircleClose } from '@element-plus/icons-vue'

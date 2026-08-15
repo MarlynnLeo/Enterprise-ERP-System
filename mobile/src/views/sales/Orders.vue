@@ -25,10 +25,14 @@
   import { useRouter } from 'vue-router'
   import UniversalListPage from '@/components/common/UniversalListPage.vue'
   import { salesApi } from '@/api'
+  import { useAuthStore } from '@/stores/auth'
+  import { canViewMaterialPrices, formatMaskedPrice } from '@/utils/priceVisibility'
 
   import { SALES_ORDER_STATUS } from '@/constants/dict'
 
   const router = useRouter()
+  const authStore = useAuthStore()
+  const canViewPrice = computed(() => canViewMaterialPrices((code) => authStore.hasPermission(code)))
 
   // 页面配置
   const pageConfig = computed(() => ({
@@ -53,7 +57,7 @@
       subtitle: 'orderNo',
       icon: 'clipboard-check',
       details: [
-        { label: '订单金额', field: 'totalAmount', prefix: '¥', format: 'money' },
+        { label: '订单金额', field: (item) => formatMaskedPrice(item.totalAmount, canViewPrice.value) },
         { label: '订单日期', field: 'orderDate', format: 'date' },
         { label: '交货日期', field: 'deliveryDate', format: 'date' }
       ],

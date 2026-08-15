@@ -12,8 +12,9 @@
     :stats="statsCards"
     :actions="quickActions"
     :groups="moduleGroups"
+    :add-permission="addPermission"
     @back="router.back()"
-    @add="router.push('/production/plans/create')"
+    @add="handleAdd"
     @navigate="navigateTo"
   />
 </template>
@@ -23,8 +24,19 @@
   import { useRouter } from 'vue-router'
   import ModuleIndexPage from '@/components/common/ModuleIndexPage.vue'
   import { productionApi } from '@/api'
+  import { useAuthStore } from '@/stores/auth'
 
   const router = useRouter()
+  const authStore = useAuthStore()
+  const addTargets = [
+    { permission: 'production:plans:create', path: '/production/plans/create' },
+    { permission: 'production:tasks:create', path: '/production/tasks/create' }
+  ]
+  const addPermission = computed(() => addTargets.map((item) => item.permission))
+  const handleAdd = () => {
+    const target = addTargets.find((item) => authStore.hasPermission(item.permission))
+    if (target) router.push(target.path)
+  }
 
   // ---- 统计数据 ----
   const statistics = ref({
@@ -67,30 +79,35 @@
       label: '新建计划',
       path: '/production/plans/create',
       icon: 'calendar',
+      permission: 'production:plans:create',
       gradient: 'linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%)'
     },
     {
       label: '新建任务',
       path: '/production/tasks/create',
       icon: 'clipboard-check',
+      permission: 'production:tasks:create',
       gradient: 'linear-gradient(135deg, var(--ds-purple) 0%, var(--ds-pink) 100%)'
     },
     {
       label: '生产报工',
       path: '/production/report',
       icon: 'document-text',
+      permission: 'production:reports:create',
       gradient: 'linear-gradient(135deg, var(--module-blue) 0%, var(--ds-cyan-strong) 100%)'
     },
     {
       label: '生产看板',
       path: '/production/dashboard',
       icon: 'chart-trending-o',
+      permission: ['production:data-view', 'production:plans:view', 'production:tasks:view', 'production:reports:view'],
       gradient: 'linear-gradient(135deg, var(--color-success) 0%, var(--ds-green-strong) 100%)'
     },
     {
       label: '异常上报',
       path: '/production/anomaly',
       icon: 'shield',
+      permission: ['production:anomaly', 'production:tasks:update'],
       gradient: 'linear-gradient(135deg, var(--color-danger) 0%, #f97316 100%)'
     }
   ])
@@ -102,9 +119,16 @@
       desc: '查看和管理生产计划',
       path: '/production/plans',
       icon: 'calendar',
+      permission: 'production:plans:view',
       badge: 0
     },
-    { title: '新建计划', desc: '创建新的生产计划', path: '/production/plans/create', icon: 'plus' }
+    {
+      title: '新建计划',
+      desc: '创建新的生产计划',
+      path: '/production/plans/create',
+      icon: 'plus',
+      permission: 'production:plans:create'
+    }
   ])
   const taskModules = ref([
     {
@@ -112,22 +136,31 @@
       desc: '查看和管理生产任务',
       path: '/production/tasks',
       icon: 'clipboard-check',
+      permission: 'production:tasks:view',
       badge: 0
     },
-    { title: '新建任务', desc: '创建新的生产任务', path: '/production/tasks/create', icon: 'plus' }
+    {
+      title: '新建任务',
+      desc: '创建新的生产任务',
+      path: '/production/tasks/create',
+      icon: 'plus',
+      permission: 'production:tasks:create'
+    }
   ])
   const reportModules = ref([
     {
       title: '生产报工',
       desc: '生产任务报工记录',
       path: '/production/report',
-      icon: 'document-text'
+      icon: 'document-text',
+      permission: 'production:reports:create'
     },
     {
       title: '报工记录',
       desc: '查看历史报工记录',
       path: '/production/report/history',
-      icon: 'clock'
+      icon: 'clock',
+      permission: 'production:reports:view'
     }
   ])
   const anomalyModules = ref([
@@ -136,6 +169,7 @@
       desc: '装配异常快速上报与跟踪',
       path: '/production/anomaly',
       icon: 'shield',
+      permission: ['production:anomaly', 'production:tasks:update'],
       badge: 0
     }
   ])

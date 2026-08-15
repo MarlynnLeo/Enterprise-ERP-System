@@ -80,6 +80,7 @@
         icon: 'plus',
         label: '新建检验',
         action: 'create',
+        permission: 'quality:incoming:create',
         handler: () => {
           router.push('/quality/incoming/create')
         }
@@ -88,6 +89,7 @@
         icon: 'upgrade',
         label: '批量导入',
         action: 'import',
+        permission: 'quality:incoming:create',
         handler: () => {
           showToast('批量导入功能建设中')
         }

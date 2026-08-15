@@ -251,7 +251,7 @@ const planRules = {
 };
 
 const dataForm = reactive({
-  subgroup_no: 1,
+  subgroupNo: 1,
   samples: Array.from({ length: 5 }, () => ({ measured_value: null }))
 });
 
@@ -337,7 +337,7 @@ const handleDataSubmit = async () => {
   try {
     await qualityApi.addSpcDataPoints({
       plan_id: selectedPlan.value.id,
-      subgroup_no: dataForm.subgroupNo,
+      subgroupNo: dataForm.subgroupNo,
       samples: validSamples
     });
     ElMessage.success('数据录入成功');

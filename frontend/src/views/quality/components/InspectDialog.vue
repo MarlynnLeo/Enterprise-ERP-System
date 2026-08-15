@@ -206,15 +206,15 @@ const inspectForm = reactive({
   id: '',
   inspection_no: '',
   quantity: '',
-  qualified_quantity: '',
-  unqualified_quantity: '',
-  inspector_name: '',
+  qualifiedQuantity: '',
+  unqualifiedQuantity: '',
+  inspectorName: '',
   inspectionDate: new Date(),
   items: [],
   note: '',
   is_aql: false,
   aql_standard_id: null,
-  aql_level: null,
+  aqlLevel: null,
   accept_limit: 0,
   reject_limit: 1
 })
@@ -222,7 +222,7 @@ const inspectForm = reactive({
 // 检验表单验证规则
 const inspectRules = {
   quantity: [{ required: true, message: '请输入检验数量', trigger: 'blur' }],
-  qualified_quantity: [
+  qualifiedQuantity: [
     { required: true, message: '请输入合格数量', trigger: 'change' },
     {
       validator: (rule, value, callback) => {
@@ -239,7 +239,7 @@ const inspectRules = {
       trigger: 'change'
     }
   ],
-  inspector_name: [{ required: true, message: '请输入检验员姓名', trigger: 'blur' }],
+  inspectorName: [{ required: true, message: '请输入检验员姓名', trigger: 'blur' }],
   inspectionDate: [{ required: true, message: '请选择检验日期', trigger: 'change' }]
 }
 
@@ -624,16 +624,16 @@ const submitInspection = async () => {
         return mapped
       }),
       quantity: inspectForm.quantity,
-      qualified_quantity: parseFloat(inspectForm.qualifiedQuantity) || 0,
-      unqualified_quantity: parseFloat(inspectForm.unqualifiedQuantity) || 0,
-      inspector_name: inspectForm.inspectorName,
+      qualifiedQuantity: parseFloat(inspectForm.qualifiedQuantity) || 0,
+      unqualifiedQuantity: parseFloat(inspectForm.unqualifiedQuantity) || 0,
+      inspectorName: inspectForm.inspectorName,
       template_id: inspectionTemplateId.value || currentInspectionData.value?.templateId || null,
       actual_date: dayjs(inspectForm.inspectionDate).format('YYYY-MM-DD'),
       note: inspectForm.note,
       status,
       is_aql: inspectForm.is_aql,
       aql_standard_id: inspectForm.aql_standard_id,
-      aql_level: inspectForm.aqlLevel,
+      aqlLevel: inspectForm.aqlLevel,
       accept_limit: inspectForm.acceptLimit,
       reject_limit: inspectForm.rejectLimit
     }

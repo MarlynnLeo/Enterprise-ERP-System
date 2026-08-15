@@ -20,6 +20,7 @@ export const systemApi = {
     updateRoleStatus: (id, data) => api.put(`/system/roles/${id}/status`, data),
     getRolePermissions: (id) => api.get(`/system/roles/${id}/permissions`),
     updateRolePermissions: (id, data) => api.put(`/system/roles/${id}/permissions`, data),
+    getRoleAccessProfiles: () => api.get('/system/role-access-profiles'),
     /** 权限码注册表 SSOT */
     getPermissionCodes: (params) => api.get('/system/permission-codes', { params }),
 

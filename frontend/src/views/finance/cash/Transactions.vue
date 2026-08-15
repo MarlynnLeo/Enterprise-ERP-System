@@ -87,11 +87,12 @@
     <el-card class="data-card">
       <el-table
         :data="transactionList"
-        class="w-full"
+        class="table-row-click w-full"
         border
         v-loading="loading"
         show-overflow-tooltip
-      >
+      
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleView(row))">
         <template #empty>
           <EmptyState description="暂无交易数据" />
         </template>
@@ -157,12 +158,11 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="scope">
             <div class="table-actions">
-              <el-button class="btn-op-view" type="primary" size="small" @click="handleView(scope.row)">
-                <el-icon><View /></el-icon> 查看
-              </el-button>
+              
               <el-button
                 v-permission="'finance:cash:update'"
                 v-if="['draft', 'rejected'].includes(scope.row.status || 'draft') && !scope.row.isReconciled"
@@ -489,6 +489,7 @@
   </div>
 </template>
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { formatLocalDate } from '@/utils/format';
 import { parsePaginatedData, parseListData, parseDataObject } from '@/utils/responseParser';
 import { ref, reactive, onMounted, watch } from 'vue';
@@ -507,7 +508,6 @@ const authStore = useAuthStore()
 const financeStore = useFinanceStore()
 const { bankConfig } = storeToRefs(financeStore)
 // 权限计算属性
-
 
 
 // 数据加载状态
@@ -1413,13 +1413,6 @@ onMounted(() => {
 }
 .positive-value {
   color: var(--color-success);
-}
-/* 详情对话框长文本处理 */
-:deep(.el-descriptions__content) {
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 /* 交易详情头部 */
 .transaction-detail-header {

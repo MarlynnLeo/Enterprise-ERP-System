@@ -108,12 +108,13 @@
           </template>
           <el-table
             :data="filteredRecentOrders"
-            class="w-full"
+            class="table-row-click w-full"
             v-loading="loading"
             border
             :max-height="400"
             :empty-text="recentOrders.length === 0 ? '暂无销售订单' : '没有匹配的数据'"
-          >
+          
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => router.push(`/sales/orders?id=${row.id}`))">
             <el-table-column label="订单编号" prop="orderNo" min-width="120" />
             <el-table-column label="客户名称" prop="customerName" min-width="180" />
             <el-table-column label="订单日期" min-width="120">
@@ -140,15 +141,7 @@
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="操作" min-width="120" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
-              <template #default="scope">
-                <div class="table-actions">
-                  <el-button class="btn-op-view" type="primary" size="small" @click="$router.push(`/sales/orders?id=${scope.row.id}`)">
-                    <el-icon><View /></el-icon> 查看
-                  </el-button>
-                </div>
-              </template>
-            </el-table-column>
+            
           </el-table>
           <div class="pagination-container" v-if="recentOrders.length > 0">
             <el-pagination
@@ -167,9 +160,11 @@
   </div>
 </template>
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { parseListData } from '@/utils/responseParser';
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { ref, computed, onMounted, onBeforeUnmount, watch, toRaw, nextTick } from 'vue'
+import { useRouter } from 'vue-router'
 import Chart from '@/utils/chartCore';
 // 安全的Chart.js创建函数
 function createSafeChart(ctx, config) {
@@ -205,7 +200,8 @@ import {
   createLineChartConfig,
   chartColors
 } from '@/utils/chartConfig';
-;
+
+const router = useRouter()
 // 图表引用
 const salesTrend = ref(null);
 const customerRank = ref(null);
@@ -743,14 +739,7 @@ onMounted(async () => {
 </script>
 <style scoped>
 /* 响应式调整 */
-
-/* 详情对话框长文本处理 - 自动添加 */
-:deep(.el-descriptions__content) {
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+
 :deep(.el-table__cell) {
   overflow: hidden;
   text-overflow: ellipsis;

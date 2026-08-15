@@ -71,9 +71,10 @@
       <el-table
         :data="receiptList"
         border
-        class="w-full"
+        class="table-row-click w-full"
         v-loading="loading"
-      >
+      
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleViewReceipt(row))">
         <el-table-column prop="receiptNo" label="入库单号" min-width="150" />
         <el-table-column prop="processingNo" label="加工单号" min-width="150" />
         <el-table-column prop="receiptDate" label="入库日期" min-width="120">
@@ -91,14 +92,10 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="scope">
-            <el-button class="btn-op-view" type="primary"
-              size="small"
-              @click="handleViewReceipt(scope.row)"
-            >
-              查看
-            </el-button>
+            
             <el-button
               v-if="scope.row.status === 'pending'"
               size="small"
@@ -159,6 +156,7 @@
 </template>
 
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage } from 'element-plus'
@@ -361,7 +359,6 @@ onMounted(() => {
 .el-table .el-button + .el-button {
   margin-left: 8px;
 }
-
 
 
 @media (max-width: 768px) {

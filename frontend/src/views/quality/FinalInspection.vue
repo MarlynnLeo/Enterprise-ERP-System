@@ -83,9 +83,10 @@
       <el-table
         :data="inspectionList"
         border
-        class="w-full mt-md"
+        class="table-row-click w-full mt-md"
         v-loading="loading"
-      >
+      
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleView(row))">
         <el-table-column prop="inspectionNo" label="检验单号" min-width="130" />
         <el-table-column prop="itemName" label="产品名称" min-width="180" />
         <el-table-column prop="itemCode" label="产品型号" min-width="150" />
@@ -127,14 +128,10 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" fixed="right" min-width="320" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" fixed="right" min-width="320" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="scope">
-            <el-button class="btn-op-view" type="primary"
-              size="small"
-              @click="handleView(scope.row)"
-            >
-              查看
-            </el-button>
+            
             <el-button
               v-if="scope.row.status === 'pending'"
               v-permission="'quality:inspections:update'"
@@ -206,7 +203,14 @@
       width="650px"
     >
       <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
-        <el-form-item label="工单号" prop="productionOrderNo">
+        <el-form-item label="来源" prop="sourceType">
+          <el-radio-group v-model="form.sourceType" @change="handleSourceTypeChange">
+            <el-radio-button value="production">生产工单</el-radio-button>
+            <el-radio-button value="odm">ODM采购</el-radio-button>
+          </el-radio-group>
+        </el-form-item>
+
+        <el-form-item v-if="form.sourceType === 'production'" label="工单号" prop="productionOrderNo">
           <el-select
             v-model="form.productionOrderNo"
             @change="handleOrderChange"
@@ -218,6 +222,33 @@
               :key="order.id"
               :label="order.orderNo"
               :value="order.orderNo"
+            />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item v-else label="采购单" prop="purchaseOrderNo">
+          <el-select
+            v-model="form.purchaseOrderNo"
+            @change="handlePurchaseOrderChange"
+            placeholder="选择ODM采购单"
+            filterable
+          >
+            <el-option
+              v-for="order in purchaseOrderOptions"
+              :key="order.id"
+              :label="`${order.orderNo} ${order.supplierName}`"
+              :value="order.orderNo"
+            />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item v-if="form.sourceType === 'odm' && purchaseMaterialOptions.length > 1" label="产品" prop="productId">
+          <el-select v-model="form.productId" filterable placeholder="选择采购成品" @change="handleOdmMaterialChange">
+            <el-option
+              v-for="item in purchaseMaterialOptions"
+              :key="item.id"
+              :label="`${item.code} ${item.name}`"
+              :value="item.id"
             />
           </el-select>
         </el-form-item>
@@ -700,13 +731,14 @@
   </div>
 </template>
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { parseListData, parseResponseData } from '@/utils/responseParser';
 import { ref, reactive, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Select, StarFilled } from '@element-plus/icons-vue'
 import 'dayjs'
-import { qualityApi, productionApi } from '@/api'
+import { qualityApi, productionApi, purchaseApi } from '@/api'
 import printService from '@/services/printService'
 import { useAuthStore } from '@/stores/auth'
 import { tokenManager } from '@/utils/unifiedStorage'
@@ -767,7 +799,10 @@ const total = ref(0)
 const createDialogVisible = ref(false)
 const formRef = ref(null)
 const form = reactive({
+  sourceType: 'production',
+  referenceId: null,
   productionOrderNo: '',
+  purchaseOrderNo: '',
   productId: null,
   productName: '',
   productCode: '',
@@ -781,7 +816,21 @@ const form = reactive({
 })
 // 表单验证规则
 const rules = {
-  productionOrderNo: [{ required: true, message: '请选择工单号', trigger: 'change' }],
+  sourceType: [{ required: true, message: '请选择来源', trigger: 'change' }],
+  productionOrderNo: [{
+    validator: (_rule, value, callback) => {
+      if (form.sourceType === 'production' && !value) callback(new Error('请选择工单号'))
+      else callback()
+    },
+    trigger: 'change'
+  }],
+  purchaseOrderNo: [{
+    validator: (_rule, value, callback) => {
+      if (form.sourceType === 'odm' && !value) callback(new Error('请选择ODM采购单'))
+      else callback()
+    },
+    trigger: 'change'
+  }],
   batchNo: [{ required: true, message: '请输入批次号', trigger: 'blur' }],
   quantity: [{ required: true, message: '请输入检验数量', trigger: 'blur' }],
   standardType: [{ required: true, message: '请选择标准类型', trigger: 'change' }],
@@ -790,6 +839,8 @@ const rules = {
 }
 // 工单选项
 const productionOrderOptions = ref([])
+const purchaseOrderOptions = ref([])
+const purchaseMaterialOptions = ref([])
 // 添加检验单统计数据
 const inspectionStats = ref({
   total: 0,
@@ -923,21 +974,93 @@ const calculateInspectionStats = async () => {
 const handleOrderChange = (orderNo) => {
   const order = productionOrderOptions.value.find(item => item.orderNo === orderNo)
   if (order) {
-    // 保存产品ID和产品信息
-    form.productId = order.productId || order.id; // 优先使用产品/物料ID
+    form.referenceId = order.id
+    form.productId = order.productId || null
     form.productName = order.productName
     form.productCode = order.productCode
     form.unit = order.unit
-
     form.batchNo = order.batchNo || ''
-
-    // 使用物料/产品ID查询检验模板（而非工单ID）
-    const materialId = order.productId || order.id;
-    fetchInspectionTemplate(materialId)
-
-    // 生成标准编号
-    form.standardNo = orderNo.replace('PD', 'STD') + '-FQC'
+    fetchInspectionTemplate(order.productId)
+    form.standardNo = `${orderNo}-FQC`
   }
+}
+
+const handleSourceTypeChange = () => {
+  form.referenceId = null
+  form.productionOrderNo = ''
+  form.purchaseOrderNo = ''
+  form.productId = null
+  form.productName = ''
+  form.productCode = ''
+  form.batchNo = ''
+  form.unit = ''
+  purchaseMaterialOptions.value = []
+  currentTemplateItems.value = []
+  currentInspectionTemplateId.value = null
+  currentInspectionTemplateName.value = ''
+  currentInspectionTemplateSource.value = ''
+  if (form.sourceType === 'odm') {
+    fetchPurchaseOrders()
+  }
+}
+
+const fetchPurchaseOrders = async () => {
+  try {
+    const response = await purchaseApi.getOrders({ pageSize: 50 })
+    const orders = parseListData(response, { enableLog: false })
+    const validStatuses = ['confirmed', 'approved', 'received', 'partial_received', 'inspecting', 'inspected', 'warehousing']
+    purchaseOrderOptions.value = (orders || [])
+      .filter((item) => validStatuses.includes(item.status))
+      .map((item) => ({
+        id: item.id,
+        orderNo: item.orderNo || '',
+        supplierName: item.supplier?.name || item.supplierName || '',
+      }))
+  } catch (error) {
+    console.error('获取采购单失败:', error)
+    purchaseOrderOptions.value = []
+  }
+}
+
+const handlePurchaseOrderChange = async (orderNo) => {
+  const selected = purchaseOrderOptions.value.find((item) => item.orderNo === orderNo)
+  if (!selected) return
+  form.referenceId = selected.id
+  form.standardNo = `${orderNo}-ODM-FQC`
+  try {
+    const response = await purchaseApi.getOrder(orderNo)
+    const items = response.data?.items || response.items || []
+    purchaseMaterialOptions.value = items.map((item) => ({
+      id: item.materialId,
+      name: item.materialName || item.materialCode,
+      code: item.materialCode,
+      unit: item.unitName || item.unit,
+      quantity: item.quantity,
+    }))
+    const first = purchaseMaterialOptions.value[0]
+    if (first) {
+      form.productId = first.id
+      form.productName = first.name
+      form.productCode = first.code
+      form.unit = first.unit || '个'
+      form.quantity = Number(first.quantity) || 1
+      fetchInspectionTemplate(first.id)
+    }
+  } catch (error) {
+    console.error('获取采购单明细失败:', error)
+    ElMessage.error('获取采购单明细失败')
+  }
+}
+
+const handleOdmMaterialChange = (materialId) => {
+  const item = purchaseMaterialOptions.value.find((row) => row.id === materialId)
+  if (!item) return
+  form.productId = item.id
+  form.productName = item.name
+  form.productCode = item.code
+  form.unit = item.unit || '个'
+  form.quantity = Number(item.quantity) || form.quantity
+  fetchInspectionTemplate(item.id)
 }
 // 初始化
 onMounted(() => {
@@ -1065,10 +1188,15 @@ const handleCreate = () => {
       form[key] = new Date()
     } else if (key === 'standardType') {
       form[key] = 'factory'
+    } else if (key === 'sourceType') {
+      form[key] = 'production'
+    } else if (key === 'referenceId' || key === 'productId') {
+      form[key] = null
     } else {
       form[key] = ''
     }
   })
+  purchaseMaterialOptions.value = []
   currentTemplateItems.value = []
   currentInspectionTemplateId.value = null
   currentInspectionTemplateName.value = ''
@@ -1084,14 +1212,10 @@ const submitForm = async () => {
     await formRef.value.validate()
 
     // 获取选中的工单信息
-    const _selectedOrder = productionOrderOptions.value.find(
-      order => order.orderNo === form.productionOrderNo
-    );
-    // 准备数据（纯 camel，后端 qualityInspectionMap.fromApi）
     const formData = {
       inspectionType: 'final',
-      referenceId: form.productId,
-      referenceNo: form.productionOrderNo,
+      referenceId: form.referenceId,
+      referenceNo: form.sourceType === 'odm' ? form.purchaseOrderNo : form.productionOrderNo,
       productId: form.productId,
       productName: form.productName,
       productCode: form.productCode,
@@ -1657,14 +1781,7 @@ const handlePrintCertificate = async () => {
 /* 确保所有按钮图标垂直对齐 */
 :deep(.el-button .el-icon) {
   vertical-align: middle !important;
-  }
-/* 详情对话框长文本处理 - 自动添加 */
-:deep(.el-descriptions__content) {
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+  }
 :deep(.el-table__cell) {
   overflow: hidden;
   text-overflow: ellipsis;

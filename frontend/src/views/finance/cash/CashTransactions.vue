@@ -82,9 +82,10 @@
         v-loading="loading"
         stripe
         border
-        class="w-full"
+        class="table-row-click w-full"
         :default-sort="{ prop: 'transactionDate', order: 'descending' }"
-      >
+      
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleView(row))">
         <el-table-column prop="transactionDate" label="交易日期" width="120" sortable>
           <template #default="scope">
             {{ formatDate(scope.row.transactionDate) }}
@@ -120,12 +121,11 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="scope">
             <div class="table-actions">
-              <el-button class="btn-op-view" type="primary" size="small" @click="handleView(scope.row)">
-                <el-icon><View /></el-icon> 查看
-              </el-button>
+              
               <el-button
                 v-permission="'finance:cash:update'"
                 v-if="['draft', 'rejected'].includes(scope.row.status || 'draft')"
@@ -366,6 +366,7 @@
 </template>
 
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { useDictionaryStore } from '@/stores/dictionary'
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { getApprovalStatusColor } from '@/constants/systemConstants'
@@ -402,7 +403,6 @@ const uploadRef = ref(null);
 // 导入相关
 const importLoading = ref(false);
 const importFileList = ref([]);
-
 
 // 数据列表
 const transactionList = ref([]);

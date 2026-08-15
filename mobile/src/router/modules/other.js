@@ -158,6 +158,9 @@ export const otherRoutes = [
         'inventory:check:view',
         'production:tasks:view',
         'quality:inspections:view',
+        'quality:incoming:view',
+        'quality:process:view',
+        'quality:final:view',
         'basedata:materials:view'
       ]
     }
@@ -176,7 +179,10 @@ export const otherRoutes = [
         'purchase:orders:view',
         'inventory:stock:view',
         'production:tasks:view',
-        'quality:inspections:view'
+        'quality:inspections:view',
+        'quality:incoming:view',
+        'quality:process:view',
+        'quality:final:view'
       ]
     }
   },

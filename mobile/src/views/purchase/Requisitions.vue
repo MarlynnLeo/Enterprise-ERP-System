@@ -79,7 +79,7 @@
                 </div>
                 <div class="list-row" v-if="requisition.totalAmount">
                   <span class="label">预估金额:</span>
-                  <span class="value amount">¥{{ formatAmount(requisition.totalAmount) }}</span>
+                  <span class="value amount">{{ displayAmount(requisition.totalAmount) }}</span>
                 </div>
                 <div class="list-row" v-if="requisition.remarks">
                   <span class="label">备注:</span>
@@ -126,7 +126,7 @@
 </template>
 
 <script setup>
-  import { ref, reactive, onMounted } from 'vue'
+  import { ref, reactive, computed, onMounted } from 'vue'
   import { useRouter } from 'vue-router'
   import {
     NavBar,
@@ -142,6 +142,12 @@
   } from 'vant'
   import { purchaseApi } from '@/api'
   import dayjs from 'dayjs'
+  import { useAuthStore } from '@/stores/auth'
+  import { canViewMaterialPrices, formatMaskedPrice } from '@/utils/priceVisibility'
+
+  const authStore = useAuthStore()
+  const canViewPrice = computed(() => canViewMaterialPrices((code) => authStore.hasPermission(code)))
+  const displayAmount = (amount) => formatMaskedPrice(amount, canViewPrice.value, (value) => `¥${formatAmount(value)}`)
 
   const formatDate = (d) => (d ? dayjs(d).format('YYYY-MM-DD') : '—')
 

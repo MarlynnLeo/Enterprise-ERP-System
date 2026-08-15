@@ -66,24 +66,28 @@
       label: '物料管理',
       path: '/basedata/materials',
       icon: 'cube',
+      permission: 'basedata:materials:view',
       gradient: 'linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%)'
     },
     {
       label: '客户管理',
       path: '/basedata/customers',
       icon: 'people',
+      permission: 'basedata:customers:view',
       gradient: 'linear-gradient(135deg, var(--color-success) 0%, var(--ds-green-strong) 100%)'
     },
     {
       label: '供应商管理',
       path: '/basedata/suppliers',
       icon: 'briefcase',
+      permission: 'basedata:suppliers:view',
       gradient: 'linear-gradient(135deg, var(--ds-purple) 0%, var(--ds-pink) 100%)'
     },
     {
       label: '仓库管理',
       path: '/basedata/locations',
       icon: 'home',
+      permission: 'basedata:locations:view',
       gradient: 'linear-gradient(135deg, var(--module-blue) 0%, var(--ds-cyan-strong) 100%)'
     }
   ])
@@ -94,13 +98,15 @@
       title: '物料管理',
       desc: '查看和管理物料信息',
       path: '/basedata/materials',
-      icon: 'cube'
+      icon: 'cube',
+      permission: 'basedata:materials:view'
     },
     {
       title: 'BOM管理',
       desc: '物料清单管理',
       path: '/basedata/boms',
-      icon: 'layers'
+      icon: 'layers',
+      permission: 'basedata:boms:view'
     }
   ])
 
@@ -109,13 +115,15 @@
       title: '客户管理',
       desc: '查看和管理客户信息',
       path: '/basedata/customers',
-      icon: 'people'
+      icon: 'people',
+      permission: 'basedata:customers:view'
     },
     {
       title: '供应商管理',
       desc: '查看和管理供应商信息',
       path: '/basedata/suppliers',
-      icon: 'briefcase'
+      icon: 'briefcase',
+      permission: 'basedata:suppliers:view'
     }
   ])
 
@@ -124,25 +132,29 @@
       title: '单位管理',
       desc: '系统计量单位设置',
       path: '/basedata/units',
-      icon: 'completed'
+      icon: 'completed',
+      permission: 'basedata:units:view'
     },
     {
       title: '分类管理',
       desc: '物料与产品分类树',
       path: '/basedata/categories',
-      icon: 'cluster-o'
+      icon: 'cluster-o',
+      permission: 'basedata:categories:view'
     },
     {
       title: '仓库/库位管理',
       desc: '仓库和库位设置',
       path: '/basedata/locations',
-      icon: 'home'
+      icon: 'home',
+      permission: 'basedata:locations:view'
     },
     {
       title: '工序模板',
       desc: '生产工序模板管理',
       path: '/basedata/process-templates',
-      icon: 'settings'
+      icon: 'settings',
+      permission: ['basedata:process-templates:view', 'basedata:processtemplates:view']
     }
   ])
 

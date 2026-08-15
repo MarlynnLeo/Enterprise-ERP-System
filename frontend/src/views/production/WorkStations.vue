@@ -170,7 +170,7 @@ const dialogVisible = ref(false)
 const editId = ref(null)
 const form = reactive({
   code: '', name: '', line_code: '', line_name: '',
-  station_type: 'assembly', capacity: 1, sort_order: 0, description: ''
+  stationType: 'assembly', capacity: 1, sort_order: 0, description: ''
 })
 
 const loadList = async () => {
@@ -207,7 +207,7 @@ const openDialog = (row) => {
   editId.value = row?.id || null
   Object.assign(form, row || {
     code: '', name: '', line_code: '', line_name: '',
-    station_type: 'assembly', capacity: 1, sort_order: 0, description: ''
+    stationType: 'assembly', capacity: 1, sort_order: 0, description: ''
   })
   dialogVisible.value = true
 }

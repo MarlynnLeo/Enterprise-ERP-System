@@ -126,6 +126,21 @@ describe('materialService', () => {
     });
   });
 
+  describe('getLatestMaterialByCategory', () => {
+    test('无分类ID时应返回 null', async () => {
+      const result = await materialService.getLatestMaterialByCategory(null);
+      expect(result).toBeNull();
+      expect(pool.query).not.toHaveBeenCalled();
+    });
+
+    test('分类下有物料时应返回编码最大的一条', async () => {
+      pool.query.mockResolvedValueOnce([[{ id: 12, code: '100104003', name: '开关电源' }]]);
+      const result = await materialService.getLatestMaterialByCategory(120);
+      expect(result).toEqual({ id: 12, code: '100104003', name: '开关电源' });
+      expect(pool.query).toHaveBeenCalled();
+    });
+  });
+
   describe('getNextMaterialSequence', () => {
     test('无已有编码时应返回 1', async () => {
       pool.query.mockResolvedValueOnce([[]]);

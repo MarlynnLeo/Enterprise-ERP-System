@@ -83,9 +83,10 @@
       <el-table
         :data="outbounds"
         border
-        class="w-full"
+        class="table-row-click w-full"
         v-loading="loading"
-      >
+      
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => showDetails(row))">
         <el-table-column prop="outboundNo" label="出库单号" width="150" fixed />
         <el-table-column label="关联订单" width="200">
           <template #default="scope">
@@ -155,11 +156,10 @@
             <el-tag :type="getStatusType(scope.row.status)">{{ getStatusText(scope.row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="scope">
-            <el-button class="btn-op-view" type="primary" size="small" @click="showDetails(scope.row)">
-              查看
-            </el-button>
+            
             <el-button
               v-if="scope.row.status === 'draft'"
               size="small"
@@ -585,6 +585,7 @@
   </div>
 </template>
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { parseListData, parseResponseData } from '@/utils/responseParser';
 import { formatDate } from '@/utils/helpers/dateUtils'
 import dayjs from 'dayjs'
@@ -1912,13 +1913,6 @@ const printOutbound = async (row) => {
 }
 .multi-customer-info {
   width: 100%;
-}
-/* 详情对话框长文本处理 - 自动添加 */
-:deep(.el-descriptions__content) {
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 :deep(.el-table__cell) {
   overflow: hidden;

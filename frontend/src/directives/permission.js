@@ -7,6 +7,7 @@
 
 import { useAuthStore } from '../stores/auth'
 import { watch } from 'vue'
+import { isActionPermission } from '../utils/permissionActions'
 
 // 隐藏元素：不参与点击与读屏；菜单类仍尽量用 visibility 保布局
 function hideElement(el) {
@@ -58,13 +59,15 @@ function checkPermission(authStore, permission) {
     return permission.some((p) => checkPermission(authStore, p))
   }
 
-  // 1. 精确 / 通配符
   if (authStore.hasPermission(permission)) {
     return true
   }
 
-  // 2. 与路由守卫对齐：父级或中间码（如 system:users）拥有任意子权限即可
-  //    hasChildPermission 匹配 `${permission}:*`，不会把 create 放大成 view
+  // 操作按钮必须精确命中 create/update/delete…，不能用父级 production 顶上
+  if (isActionPermission(permission)) {
+    return false
+  }
+
   return authStore.hasChildPermission(permission)
 }
 

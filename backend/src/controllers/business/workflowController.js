@@ -74,7 +74,16 @@ module.exports = {
         approver_id: userId,
       });
       ResponseHandler.success(res, data);
-    } catch (e) { logger.error('审批操作失败:', e); ResponseHandler.error(res, e.message); }
+    } catch (e) {
+      logger.error('审批操作失败:', e);
+      ResponseHandler.error(
+        res,
+        e.message,
+        e.errorCode || 'ERROR',
+        e.statusCode || 500,
+        e
+      );
+    }
   },
 
   async withdrawWorkflow(req, res) {

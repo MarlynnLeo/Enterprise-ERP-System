@@ -102,9 +102,10 @@
         v-loading="loading"
         :data="transferList"
         border
-        class="w-full"
+        class="table-row-click w-full"
         @selection-change="handleSelectionChange"
-      >
+      
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => viewTransfer(row.id))">
         <template #empty>
           <EmptyState description="暂无调拨单数据" />
         </template>
@@ -128,7 +129,8 @@
             {{ scope.row.creatorName || scope.row.creator || '未知' }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="scope">
             <div class="operation-btns">
               <el-dropdown
@@ -167,9 +169,6 @@
                 </template>
               </el-dropdown>
 
-              <el-button class="btn-op-view" type="primary" size="small" @click="viewTransfer(scope.row.id)">
-                <el-icon><View /></el-icon> 查看
-              </el-button>
 
               <el-button
                 size="small"
@@ -401,6 +400,7 @@
 </template>
 
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, ArrowDown, Delete, Check, Select, Finished, Close, CopyDocument, Printer, Download, View, Edit } from '@element-plus/icons-vue';
@@ -412,7 +412,6 @@ import { useAuthStore } from '@/stores/auth';
 import { parseListData, parsePaginatedData } from '@/utils/responseParser';
 import { SEARCH_CONFIG, searchMaterials, mapMaterialData } from '@/utils/searchConfig';
 import printService from '@/services/printService';
-
 
 // 权限store
 const authStore = useAuthStore();
@@ -814,7 +813,6 @@ const submitTransferForm = async () => {
     };
 
 
-
     // 提交表单
     if (dialogType.value === 'create') {
       await inventoryApi.createTransfer(formData);
@@ -1050,7 +1048,6 @@ const printTransfer = async (id) => {
 };
 
 
-
 // 页面初始化
 onMounted(async () => {
   try {
@@ -1191,7 +1188,6 @@ const batchDeleteTransfers = async () => {
       }
     );
 
-
     const ids = deletableTransfers.map(item => item.id);
 
     try {
@@ -1322,13 +1318,6 @@ const batchDeleteTransfers = async () => {
   margin-bottom: 10px;
 }
 
-/* 详情对话框长文本处理 - 自动添加 */
-:deep(.el-descriptions__content) {
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 
 :deep(.el-table__cell) {
   overflow: hidden;

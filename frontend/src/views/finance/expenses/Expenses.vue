@@ -110,7 +110,8 @@
 
     <!-- 数据表格 -->
     <el-card class="data-card">
-      <el-table :data="expenseList" class="w-full" border v-loading="loading">
+      <el-table :data="expenseList" class="table-row-click w-full" border v-loading="loading"
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleView(row))">
         <template #empty>
           <EmptyState description="暂无费用数据" />
         </template>
@@ -138,12 +139,11 @@
           </template>
         </el-table-column>
         <el-table-column prop="createdByName" label="创建人" width="100" />
-        <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="{ row }">
             <div class="table-actions">
-              <el-button class="btn-op-view" type="primary" size="small" @click="handleView(row)">
-                <el-icon><View /></el-icon> 查看
-              </el-button>
+              
               <el-button
                 v-if="['draft', 'rejected'].includes(row.status)"
                 type="warning" size="small"
@@ -404,6 +404,7 @@
 </template>
 
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -428,7 +429,7 @@ const stats = ref({})
 
 // 搜索表单
 const searchForm = reactive({
-  category_id: null,
+  categoryId: null,
   status: '',
   dateRange: null,
   keyword: ''
@@ -440,8 +441,8 @@ const dialogMode = ref('add') // add, edit, view
 const expenseFormRef = ref(null)
 const expenseForm = reactive({
   id: null,
-  expense_number: '',
-  category_id: null,
+  expenseNumber: '',
+  categoryId: null,
   title: '',
   amount: null,
   expense_date: '',
@@ -452,7 +453,7 @@ const expenseForm = reactive({
 })
 
 const expenseRules = {
-  category_id: [{ required: true, message: '请选择费用类型', trigger: 'change' }],
+  categoryId: [{ required: true, message: '请选择费用类型', trigger: 'change' }],
   title: [{ required: true, message: '请输入费用标题', trigger: 'blur' }],
   amount: [
     { required: true, message: '请输入金额', trigger: 'blur' },
@@ -472,11 +473,11 @@ const approveForm = reactive({
 const payDialogVisible = ref(false)
 const payFormRef = ref(null)
 const payForm = reactive({
-  bank_account_id: null,
+  bankAccountId: null,
   payment_date: formatLocalDate(new Date())
 })
 const payRules = {
-  bank_account_id: [{ required: true, message: '请选择付款账户', trigger: 'change' }],
+  bankAccountId: [{ required: true, message: '请选择付款账户', trigger: 'change' }],
   payment_date: [{ required: true, message: '请选择付款日期', trigger: 'change' }]
 }
 
@@ -604,8 +605,8 @@ const handleAdd = async () => {
   dialogMode.value = 'add'
   Object.assign(expenseForm, {
     id: null,
-    expense_number: '',
-    category_id: null,
+    expenseNumber: '',
+    categoryId: null,
     title: '',
     amount: null,
     expense_date: formatLocalDate(new Date()),
@@ -662,7 +663,7 @@ const handleSave = async () => {
     saving.value = true
 
     const data = {
-      category_id: expenseForm.categoryId,
+      categoryId: expenseForm.categoryId,
       title: expenseForm.title,
       amount: expenseForm.amount,
       expense_date: expenseForm.expense_date,
@@ -697,7 +698,7 @@ const handleSaveAndSubmit = async () => {
     saving.value = true
 
     const data = {
-      category_id: expenseForm.categoryId,
+      categoryId: expenseForm.categoryId,
       title: expenseForm.title,
       amount: expenseForm.amount,
       expense_date: expenseForm.expense_date,
@@ -798,7 +799,7 @@ const handlePayAction = async () => {
     paying.value = true
 
     await financeApi.payExpense(currentExpense.value.id, {
-      bank_account_id: payForm.bankAccountId,
+      bankAccountId: payForm.bankAccountId,
       payment_date: payForm.payment_date
     })
     ElMessage.success('付款成功')

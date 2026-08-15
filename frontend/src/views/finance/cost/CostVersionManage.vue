@@ -130,15 +130,15 @@ const pagination = reactive({
 });
 
 const form = reactive({
-  version_no: '',
-  version_name: '',
-  effective_date: '',
+  versionNo: '',
+  versionName: '',
+  effectiveDate: '',
   remark: ''
 });
 
 const rules = {
-  version_name: [{ required: true, message: '请输入版本说明', trigger: 'blur' }],
-  effective_date: [{ required: true, message: '请选择生效日期', trigger: 'change' }]
+  versionName: [{ required: true, message: '请输入版本说明', trigger: 'blur' }],
+  effectiveDate: [{ required: true, message: '请选择生效日期', trigger: 'change' }]
 };
 
 const getStatusType = (status) => {

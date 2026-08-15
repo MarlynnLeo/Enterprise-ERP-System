@@ -12,8 +12,9 @@
     :stats="statsCards"
     :actions="quickActions"
     :groups="moduleGroups"
+    :add-permission="addPermission"
     @back="router.back()"
-    @add="router.push('/inventory/inbound/create')"
+    @add="handleAdd"
     @navigate="navigateTo"
   />
 </template>
@@ -23,8 +24,19 @@
   import { useRouter } from 'vue-router'
   import ModuleIndexPage from '@/components/common/ModuleIndexPage.vue'
   import { inventoryApi } from '@/api'
+  import { useAuthStore } from '@/stores/auth'
 
   const router = useRouter()
+  const authStore = useAuthStore()
+  const addTargets = [
+    { permission: 'inventory:inbound:create', path: '/inventory/inbound/create' },
+    { permission: 'inventory:outbound:create', path: '/inventory/outbound/create' }
+  ]
+  const addPermission = computed(() => addTargets.map((item) => item.permission))
+  const handleAdd = () => {
+    const target = addTargets.find((item) => authStore.hasPermission(item.permission))
+    if (target) router.push(target.path)
+  }
 
   // ---- 统计数据 ----
   const statistics = ref({
@@ -74,24 +86,28 @@
       label: '新建入库',
       path: '/inventory/inbound/create',
       icon: 'plus',
+      permission: 'inventory:inbound:create',
       gradient: 'linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%)'
     },
     {
       label: '新建出库',
       path: '/inventory/outbound/create',
       icon: 'clipboard-check',
+      permission: 'inventory:outbound:create',
       gradient: 'linear-gradient(135deg, var(--ds-purple) 0%, var(--ds-pink) 100%)'
     },
     {
       label: '库存调拨',
       path: '/inventory/transfer/create',
       icon: 'exchange',
+      permission: 'inventory:transfer:create',
       gradient: 'linear-gradient(135deg, var(--module-blue) 0%, var(--ds-cyan-strong) 100%)'
     },
     {
       label: '库存盘点',
       path: '/inventory/check/new',
       icon: 'document-text',
+      permission: 'inventory:check:create',
       gradient: 'linear-gradient(135deg, var(--color-success) 0%, var(--ds-green-strong) 100%)'
     }
   ])
@@ -103,13 +119,15 @@
       desc: '实时库存数量与状态',
       path: '/inventory/stock',
       icon: 'cube',
+      permission: 'inventory:stock:view',
       badge: 0
     },
     {
       title: '库存报表',
       desc: '库存统计与分析',
       path: '/inventory/report',
-      icon: 'chart-trending-o'
+      icon: 'chart-trending-o',
+      permission: 'inventory:report:view'
     }
   ])
   const ioModules = ref([
@@ -118,6 +136,7 @@
       desc: '入库单据与记录',
       path: '/inventory/inbound',
       icon: 'plus',
+      permission: 'inventory:inbound:view',
       badge: 0
     },
     {
@@ -125,18 +144,32 @@
       desc: '出库单据与记录',
       path: '/inventory/outbound',
       icon: 'clipboard-check',
+      permission: 'inventory:outbound:view',
       badge: 0
     },
     {
       title: '收发明细',
       desc: '出入库流水明细',
       path: '/inventory/transaction',
-      icon: 'document-text'
+      icon: 'document-text',
+      permission: 'inventory:transactions:view'
     }
   ])
   const adjModules = ref([
-    { title: '库存调拨', desc: '仓库间库存调拨', path: '/inventory/transfer', icon: 'exchange' },
-    { title: '库存盘点', desc: '盘点作业与差异处理', path: '/inventory/check', icon: 'shield' }
+    {
+      title: '库存调拨',
+      desc: '仓库间库存调拨',
+      path: '/inventory/transfer',
+      icon: 'exchange',
+      permission: 'inventory:transfer:view'
+    },
+    {
+      title: '库存盘点',
+      desc: '盘点作业与差异处理',
+      path: '/inventory/check',
+      icon: 'shield',
+      permission: 'inventory:check:view'
+    }
   ])
 
   const moduleGroups = computed(() => [

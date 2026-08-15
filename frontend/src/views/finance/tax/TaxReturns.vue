@@ -53,9 +53,10 @@
         v-loading="loading"
         border
         stripe
-        class="w-full"
+        class="table-row-click w-full"
         :height="tableHeight"
-      >
+      
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleView(row))">
         <el-table-column type="index" label="序号" width="60" />
         <el-table-column prop="returnPeriod" label="申报期间" width="120" />
         <el-table-column prop="returnType" label="申报类型" width="120">
@@ -116,9 +117,10 @@
         <el-table-column prop="paymentDate" label="缴纳日期" width="120" />
         <el-table-column prop="creatorName" label="创建人" width="100" />
 
-        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="{ row }">
-            <el-button class="btn-op-view" type="primary" size="small" @click="handleView(row)" :icon="View">查看</el-button>
+            
 
             <!-- 提交申报按钮：只在草稿状态显示 -->
             <el-button
@@ -392,6 +394,7 @@
 </template>
 
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { formatAmount, formatLocalDate } from '@/utils/format'

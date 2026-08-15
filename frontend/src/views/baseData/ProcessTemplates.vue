@@ -67,7 +67,8 @@
           <template #default="props">
             <div class="process-detail p-detail">
               <h4>工序列表</h4>
-              <el-table :data="props.row.processes" border>
+              <el-table class="table-row-click" :data="props.row.processes" border
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleView(row))">
                 <el-table-column prop="orderNum" label="工序顺序" width="100" />
                 <el-table-column prop="name" label="工序名称" width="180" />
                 <el-table-column prop="description" label="工序描述" min-width="200" />
@@ -108,14 +109,10 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="330" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="330" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="scope">
-            <el-button class="btn-op-view"
-              size="small"
-              type="primary"
-              @click="handleView(scope.row)">
-              <el-icon><View /></el-icon> 查看
-            </el-button>
+            
             <el-popconfirm
               v-if="canUpdate && Number(scope.row.status) !== 1"
               title="确定要启用该工序模板吗？"
@@ -368,6 +365,7 @@
   </div>
 </template>
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { defineAsyncComponent, ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -414,7 +412,7 @@ const form = reactive({
   id: null,
   code: '',
   name: '',
-  product_id: '',
+  productId: '',
   description: '',
   status: 1,
   processes: []
@@ -422,7 +420,7 @@ const form = reactive({
 // 表单验证规则
 const formRules = {
   name: [{ required: true, message: '请输入模板名称', trigger: 'blur' }],
-  product_id: [{ required: true, message: '请选择关联产品', trigger: 'change' }]
+  productId: [{ required: true, message: '请选择关联产品', trigger: 'change' }]
 }
 // 获取部门列表
 const fetchDepartmentList = async () => {
@@ -462,9 +460,16 @@ const fetchProductList = async () => {
 }
 // 远程搜索产品
 const remoteSearchProduct = async (query) => {
+  const keepCurrent = () => {
+    if (!form.productId) return
+    const exists = productOptions.value.some((item) => Number(item.id) === Number(form.productId))
+    if (exists) return
+    const current = productList.value.find((item) => Number(item.id) === Number(form.productId))
+    if (current) productOptions.value.unshift(current)
+  }
   if (!query) {
-    // 如果没有搜索词，显示初始产品列表
-    productOptions.value = productList.value
+    productOptions.value = [...productList.value]
+    keepCurrent()
     return
   }
   try {
@@ -558,10 +563,10 @@ const showCreateDialog = () => {
   form.description = ''
   form.status = 1
   form.processes = [{
-    order_num: 1,
+    orderNum: 1,
     name: '',
     description: '',
-    standard_hours: 1,
+    standardHours: 1,
     department: '',
     remark: '',
     materials: [],
@@ -571,14 +576,14 @@ const showCreateDialog = () => {
 }
 // 添加工序
 const addProcess = () => {
-  const order_num = form.processes.length > 0
-    ? Math.max(...form.processes.map(p => p.orderNum)) + 1
+  const nextOrder = form.processes.length > 0
+    ? Math.max(...form.processes.map((p) => Number(p.orderNum || p.order_num) || 0)) + 1
     : 1
   form.processes.push({
-    order_num,
+    orderNum: nextOrder,
     name: '',
     description: '',
-    standard_hours: 1,
+    standardHours: 1,
     department: '',
     remark: '',
     materials: [],
@@ -614,12 +619,16 @@ const handleEdit = async (row) => {
   // 支持 processes 或 details 两种字段名
   const sourceProcesses = row.processes || row.details
   form.processes = sourceProcesses && sourceProcesses.length
-    ? JSON.parse(JSON.stringify(sourceProcesses))
+    ? JSON.parse(JSON.stringify(sourceProcesses)).map((process) => ({
+        ...process,
+        orderNum: process.orderNum ?? process.order_num ?? 1,
+        standardHours: process.standardHours ?? process.standard_hours ?? 1
+      }))
     : [{
-        order_num: 1,
+        orderNum: 1,
         name: '',
         description: '',
-        standard_hours: 1,
+        standardHours: 1,
         department: '',
         remark: '',
         materials: [],
@@ -661,7 +670,11 @@ const handleView = (row) => {
 
   const sourceProcesses = row.processes || row.details
   form.processes = sourceProcesses && sourceProcesses.length
-    ? JSON.parse(JSON.stringify(sourceProcesses))
+    ? JSON.parse(JSON.stringify(sourceProcesses)).map((process) => ({
+        ...process,
+        orderNum: process.orderNum ?? process.order_num ?? 1,
+        standardHours: process.standardHours ?? process.standard_hours ?? 1
+      }))
     : []
   dialogVisible.value = true
 }
@@ -707,20 +720,20 @@ const submitForm = async () => {
         ElMessage.warning('工序名称不能为空')
         return
       }
-      if (!process.standard_hours) {
+      if (!(process.standardHours ?? process.standard_hours)) {
         ElMessage.warning('标准工时不能为空')
         return
       }
     }
 
     // 排序工序
-    form.processes.sort((a, b) => a.order_num - b.order_num)
+    form.processes.sort((a, b) => Number(a.orderNum || a.order_num || 0) - Number(b.orderNum || b.order_num || 0))
 
     // 构建发送数据，将processes映射为details（后端期望的字段名）
     const submitData = {
       name: form.name,
       code: form.code,
-      product_id: form.productId,
+      productId: form.productId,
       description: form.description,
       status: form.status,
       details: form.processes.map((p, index) => ({
@@ -866,14 +879,7 @@ const removeInstructionDoc = (row, index) => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-/* 详情对话框长文本处理 - 自动添加 */
-:deep(.el-descriptions__content) {
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+}
 :deep(.el-table__cell) {
   overflow: hidden;
   text-overflow: ellipsis;

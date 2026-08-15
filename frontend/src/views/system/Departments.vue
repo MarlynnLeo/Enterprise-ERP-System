@@ -43,13 +43,14 @@
     <el-card class="data-card">
       <el-table
         :data="pagedDepartmentList"
-        class="w-full"
+        class="table-row-click w-full"
         border
         row-key="id"
         :tree-props="{children: 'children', hasChildren: 'hasChildren'}"
         v-loading="loading"
         empty-text="暂无数据"
-      >
+      
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleView(row))">
         <template #empty>
           <EmptyState description="暂无部门数据" />
         </template>
@@ -73,7 +74,8 @@
             {{ scope.row && scope.row.createdAt ? new Date(scope.row.createdAt).toLocaleString() : '' }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="scope">
             <div class="flex-wrap">
               <el-popconfirm
@@ -101,12 +103,6 @@
                 </template>
               </el-popconfirm>
 
-              <el-button class="btn-op-view"
-                v-if="String(scope.row.status) === '1'"
-                type="primary"
-                size="small"
-                @click="handleView(scope.row)"
-              ><el-icon><View /></el-icon> 查看</el-button>
 
               <el-button
                 v-if="String(scope.row.status) !== '1'"
@@ -241,13 +237,13 @@
 </template>
 
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Check, Close, View, Edit, Delete } from '@element-plus/icons-vue';
 import { systemApi } from '@/api';
 import { parseListData } from '@/utils/responseParser';
 // 权限计算属性
-
 
 
 // 数据加载状态
@@ -630,7 +626,6 @@ const handleAddChild = (row) => {
   parentDepartmentName.value = row.name;
   dialogVisible.value = true;
 };
-
 
 
 // 页面加载时执行

@@ -116,6 +116,7 @@ export const financeApi = {
 
     settings: {
         get: () => api.get('/finance/settings'),
+        getOptions: () => api.get('/finance/settings/options'),
         update: (data) => api.put('/finance/settings', data),
         reset: () => api.post('/finance/settings/reset')
     },

@@ -116,7 +116,7 @@
 import { computed } from 'vue'
 import { Refresh, Timer, Trophy, UserFilled } from '@element-plus/icons-vue'
 import { useAuthStore } from '../../../stores/auth'
-import { getAvatarFrameConfig, normalizeAvatarFrameId } from '@/utils/avatarFrames'
+import { DEFAULT_AVATAR_FRAME, getAvatarFrameConfig, normalizeAvatarFrameId } from '@/utils/avatarFrames'
 import DecorativeAvatarFrame from '../../auth/components/DecorativeAvatarFrame.vue'
 
 const DEFAULT_AVATAR = '/default-avatar.webp'
@@ -160,7 +160,7 @@ const normalizedRankings = computed(() => {
       username: item.username || '',
       realName: item.realName || item.real_name || '未命名用户',
       avatar: avatar || DEFAULT_AVATAR,
-      avatarFrame: normalizeAvatarFrameId(avatarFrame, 'none'),
+      avatarFrame: normalizeAvatarFrameId(avatarFrame, DEFAULT_AVATAR_FRAME),
       totalSeconds: Number.isFinite(totalSeconds) ? totalSeconds : 0,
       displayTime: formatDuration(totalSeconds)
     }

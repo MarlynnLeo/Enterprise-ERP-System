@@ -608,7 +608,7 @@ const hasSearchFilters = computed(() => {
 
 // 表单数据
 const formData = reactive({
-  parent_id: 0,
+  parentId: 0,
   name: '',
   code: '',
   sort: 0,
@@ -882,7 +882,7 @@ const handleAdd = (parentRow = null) => {
   dialogTitle.value = '新增物料类型';
 
   Object.assign(formData, {
-    parent_id: parentRow ? parentRow.id : 0,
+    parentId: parentRow ? parentRow.id : 0,
     name: '',
     code: '',
     sort: 0,
@@ -899,7 +899,7 @@ const handleEdit = (row) => {
   dialogTitle.value = '编辑物料类型';
 
   Object.assign(formData, {
-    parent_id: row.parentId || 0,
+    parentId: row.parentId || 0,
     name: row.name,
     code: row.code,
     sort: row.sort,

@@ -51,7 +51,7 @@
           </div>
           <div class="info-item">
             <span class="label">订单金额</span>
-            <span class="value amount">¥{{ formatAmount(order.totalAmount) }}</span>
+            <span class="value amount">{{ displayAmount(order.totalAmount) }}</span>
           </div>
           <div class="info-item" v-if="order.remarks">
             <span class="label">备注</span>
@@ -70,11 +70,11 @@
           <div class="progress-stats">
             <div class="stat-item">
               <span class="stat-label">订单金额</span>
-              <span class="stat-value">¥{{ formatAmount(order.totalAmount) }}</span>
+              <span class="stat-value">{{ displayAmount(order.totalAmount) }}</span>
             </div>
             <div class="stat-item">
               <span class="stat-label">已收货金额</span>
-              <span class="stat-value">¥{{ formatAmount(order.receivedAmount) }}</span>
+              <span class="stat-value">{{ displayAmount(order.receivedAmount) }}</span>
             </div>
             <div class="stat-item">
               <span class="stat-label">收货进度</span>
@@ -103,8 +103,8 @@
             </div>
             <div class="item-details">
               <div class="item-quantity">数量: {{ item.quantity }} {{ item.unitName || item.unit }}</div>
-              <div class="item-price">单价: ¥{{ formatAmount(item.unitPrice || item.price) }}</div>
-              <div class="item-total">小计: ¥{{ formatAmount(item.totalPrice || item.amount) }}</div>
+              <div class="item-price">单价: {{ displayAmount(item.unitPrice || item.price) }}</div>
+              <div class="item-total">小计: {{ displayAmount(item.totalPrice || item.amount) }}</div>
             </div>
           </div>
         </div>
@@ -233,6 +233,8 @@
   import { NavBar, Icon, Button, Loading, Empty, showToast, showConfirmDialog } from 'vant'
   import { purchaseApi } from '@/api'
   import { extractApiData } from '@/utils/apiHelper'
+  import { useAuthStore } from '@/stores/auth'
+  import { canViewMaterialPrices, formatMaskedPrice } from '@/utils/priceVisibility'
 
   const router = useRouter()
   const route = useRoute()
@@ -375,11 +377,15 @@
     return Math.min(percent, 100)
   }
 
+  const authStore = useAuthStore()
+  const canViewPrice = computed(() => canViewMaterialPrices((code) => authStore.hasPermission(code)))
+
   // 格式化金额
   const formatAmount = (amount) => {
     if (!amount) return '0.00'
     return parseFloat(amount).toFixed(2)
   }
+  const displayAmount = (amount) => formatMaskedPrice(amount, canViewPrice.value, (value) => `¥${formatAmount(value)}`)
 
   // 格式化日期时间
   const formatDateTime = (dateTime) => {

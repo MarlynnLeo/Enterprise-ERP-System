@@ -144,14 +144,14 @@
       </el-row>
       <!-- 日历和预警并排在同一行 -->
       <el-row :gutter="20">
-        <el-col :xs="24" :sm="24" :md="14">
+        <el-col v-if="canViewProductionPlans" :xs="24" :sm="24" :md="14">
           <ProductionPlanTable
             :warningList="warningList"
             @view="viewProductionPlan"
           />
         </el-col>
 
-        <el-col :xs="24" :sm="24" :md="10">
+        <el-col :xs="24" :sm="24" :md="canViewProductionPlans ? 10 : 24">
           <div class="calendar-wrapper">
             <div class="calendar-header">
               <div class="month-selector">
@@ -266,6 +266,7 @@ const {
 } = useOnlineRanking()
 const {
   warningList,
+  canViewProductionPlans,
   loadProductionPlans,
   viewProductionPlan
 } = useProductionPlans()
@@ -385,16 +386,23 @@ const getTotalFromResponse = (response) => {
   return Number(data.total ?? data.totalCount ?? data.pagination?.total ?? data.meta?.total ?? (Array.isArray(data) ? data.length : 0)) || 0
 }
 const loadDashboardStats = async () => {
-  const [usersResult, documentsResult] = await Promise.allSettled([
-    systemApi.getUsers({ page: 1, pageSize: 1 }),
-    documentApi.getList({ page: 1, pageSize: 1 })
-  ])
-
-  if (usersResult.status === 'fulfilled') {
-    statistics.value.managedUsers = getTotalFromResponse(usersResult.value)
+  const tasks = []
+  if (authStore.hasPermission('system:users:view') || authStore.hasPermission('system:users')) {
+    tasks.push(
+      systemApi.getUsers({ page: 1, pageSize: 1 }).then((response) => {
+        statistics.value.managedUsers = getTotalFromResponse(response)
+      })
+    )
   }
-  if (documentsResult.status === 'fulfilled') {
-    statistics.value.documentCount = getTotalFromResponse(documentsResult.value)
+  if (authStore.hasPermission('system:documents:view') || authStore.hasPermission('system:documents')) {
+    tasks.push(
+      documentApi.getList({ page: 1, pageSize: 1 }).then((response) => {
+        statistics.value.documentCount = getTotalFromResponse(response)
+      })
+    )
+  }
+  if (tasks.length) {
+    await Promise.allSettled(tasks)
   }
 }
 // 刷新所有价格数据（金属+汇率）

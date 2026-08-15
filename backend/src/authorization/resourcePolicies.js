@@ -95,6 +95,13 @@ const RESOURCE_POLICIES = Object.freeze({
     ownerColumn: 'created_by',
     deletedAtColumn: 'deleted_at',
   }),
+  production_plan: Object.freeze({
+    key: 'production_plan',
+    table: 'production_plans',
+    ownerColumn: 'created_by',
+    departmentColumn: 'department_id',
+    deletedAtColumn: 'deleted_at',
+  }),
   production_task: Object.freeze({
     key: 'production_task',
     table: 'production_tasks',

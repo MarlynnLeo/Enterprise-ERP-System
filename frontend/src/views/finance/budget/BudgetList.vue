@@ -48,7 +48,8 @@
 
     <el-card class="data-card">
       <!-- 数据表格 -->
-      <el-table :data="tableData" v-loading="loading" border stripe>
+      <el-table class="table-row-click" :data="tableData" v-loading="loading" border stripe
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleView(row))">
         <template #empty>
           <EmptyState description="暂无预算数据" />
         </template>
@@ -84,11 +85,10 @@
         </el-table-column>
         <el-table-column prop="creatorName" label="创建人" width="100" />
         <el-table-column prop="createdAt" label="创建时间" width="160" />
-        <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="{ row }">
-            <el-button class="btn-op-view" type="primary" size="small" @click="handleView(row)">
-              <el-icon><View /></el-icon> 查看
-            </el-button>
+            
             <el-button type="primary" size="small" @click="handleEdit(row)" v-if="isBudgetStatus(row.status, 'draft')"
               v-permission="'finance:budgets:update'">
               <el-icon><Edit /></el-icon> 编辑
@@ -159,6 +159,7 @@
   </div>
 </template>
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { useDictionaryStore } from '@/stores/dictionary'
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';

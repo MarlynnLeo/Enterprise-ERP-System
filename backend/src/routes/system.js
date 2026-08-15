@@ -13,6 +13,10 @@ const { authenticateToken } = require('../middleware/authEnhanced');
 
 const { requirePermission } = require('../middleware/requirePermission');
 const {
+  USER_OPTION_PERMISSIONS,
+  DEPARTMENT_OPTION_PERMISSIONS,
+} = require('../authorization/lookupPermissions');
+const {
   validateRolePermissions,
   validateRoleInfo,
   validateMenuInfo,
@@ -33,7 +37,7 @@ router.get(
 // 获取用户简单列表（无分页）- 用于下拉选择
 router.get(
   '/users/list',
-  requirePermission(['system:users:view', 'system:users']),
+  requirePermission(USER_OPTION_PERMISSIONS),
   systemController.getUsersList
 );
 
@@ -69,12 +73,12 @@ router.put(
 // 获取部门列表（无分页，用于下拉选择）- 仅需登录
 router.get(
   '/departments/list',
-  requirePermission('system:departments'),
+  requirePermission(DEPARTMENT_OPTION_PERMISSIONS),
   systemController.getAllDepartments
 );
 router.get(
   '/departments',
-  requirePermission('system:departments'),
+  requirePermission(DEPARTMENT_OPTION_PERMISSIONS),
   systemController.getAllDepartments
 );
 router.get(
@@ -118,6 +122,23 @@ router.get(
 // ✅ 安全修复：添加权限检查
 // 获取角色列表（无分页，用于下拉选择）
 router.get('/roles/list', requirePermission('system:permissions'), systemController.getRolesList);
+
+router.get(
+  '/role-access-profiles',
+  requirePermission('system:permissions'),
+  systemController.getRoleAccessProfiles
+);
+router.post(
+  '/roles/apply-access-profiles',
+  requirePermission('system:permissions:manage'),
+  systemController.applyAllRoleAccessProfiles
+);
+router.post(
+  '/roles/:id/apply-access-profile',
+  validateIdParam,
+  requirePermission('system:permissions:manage'),
+  systemController.applyRoleAccessProfile
+);
 
 router.get('/roles', requirePermission('system:permissions'), systemController.getAllRoles);
 router.get(

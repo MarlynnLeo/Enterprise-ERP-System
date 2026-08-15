@@ -515,6 +515,44 @@ class TaskRepository {
     return rows.length > 0 ? rows[0].cost_center_id : null;
   }
 
+  /**
+   * 解析产品生产组：优先计划已分配部门，否则取物料 production_group_id。
+   */
+  static async resolveProductionGroup(conn, { productId = null, planId = null } = {}) {
+    if (planId) {
+      const [planRows] = await conn.query(
+        `SELECT pp.department_id, d.name AS department_name
+         FROM production_plans pp
+         LEFT JOIN departments d ON d.id = pp.department_id
+         WHERE pp.id = ? AND pp.deleted_at IS NULL
+         LIMIT 1`,
+        [planId]
+      );
+      if (planRows[0]?.department_id) {
+        return {
+          departmentId: Number(planRows[0].department_id),
+          departmentName: planRows[0].department_name || null,
+        };
+      }
+    }
+
+    if (!productId) return { departmentId: null, departmentName: null };
+
+    const [rows] = await conn.query(
+      `SELECT m.production_group_id AS department_id, d.name AS department_name
+       FROM materials m
+       LEFT JOIN departments d ON d.id = m.production_group_id
+       WHERE m.id = ? AND m.deleted_at IS NULL
+       LIMIT 1`,
+      [productId]
+    );
+    if (!rows[0]?.department_id) return { departmentId: null, departmentName: null };
+    return {
+      departmentId: Number(rows[0].department_id),
+      departmentName: rows[0].department_name || null,
+    };
+  }
+
   // ======================== 工具方法 ========================
 
   /**

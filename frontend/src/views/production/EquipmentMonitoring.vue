@@ -123,9 +123,8 @@
         v-loading="loading"
         stripe
         border
-        @row-click="handleRowClick"
-        class="cursor-pointer"
-      >
+        class="table-row-click cursor-pointer"
+        @row-click="(row, column, event) => handleTableRowView(row, column, event, () => viewDetail(row))">
         <el-table-column prop="equipmentCode" label="设备编码" width="120" />
         <el-table-column prop="equipmentName" label="设备名称" min-width="150" />
         <el-table-column prop="equipmentType" label="设备类型" width="100">
@@ -150,11 +149,10 @@
             {{ formatDateTime(row.updatedAt) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="{ row }">
-            <el-button class="btn-op-view" type="primary" size="small" @click.stop="viewDetail(row)">
-              详情
-            </el-button>
+            
             <el-button size="small" @click.stop="viewRealTimeData(row)">
               实时数据
             </el-button>
@@ -223,6 +221,7 @@
 </template>
 
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { parsePaginatedData, parseResponseData } from '@/utils/responseParser';
 
 import { ref, reactive, onMounted, onUnmounted } from 'vue'
@@ -531,13 +530,6 @@ onUnmounted(() => {
   }
 }
 
-/* 详情对话框长文本处理 - 自动添加 */
-:deep(.el-descriptions__content) {
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 
 :deep(.el-table__cell) {
   overflow: hidden;

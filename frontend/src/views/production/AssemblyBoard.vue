@@ -53,7 +53,8 @@
     <!-- 任务进度 -->
     <el-card class="data-card mt-md">
       <h3 class="mb-md">装配任务进度</h3>
-      <el-table :data="boardData.taskProgress" border stripe v-if="boardData.taskProgress?.length">
+      <el-table class="table-row-click" :data="boardData.taskProgress" border stripe v-if="boardData.taskProgress?.length"
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => viewTaskSteps(row.taskId))">
         <el-table-column prop="taskCode" label="任务编号" width="140" />
         <el-table-column prop="productName" label="产品" min-width="150" />
         <el-table-column label="进度" min-width="250">
@@ -75,16 +76,7 @@
             <el-tag v-else type="info" size="small">等待中</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="120" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
-          <template #default="{ row }">
-            <div class="table-actions">
-              <el-button class="btn-op-view" type="primary" size="small" @click="viewTaskSteps(row.taskId)">
-                <el-icon><View /></el-icon> 详情
-              </el-button>
-            </div>
-          </template>
-        </el-table-column>
-      </el-table>
+              </el-table>
       <EmptyState v-else description="暂无进行中的装配任务" />
     </el-card>
 
@@ -131,6 +123,7 @@
 </template>
 
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { Refresh, View } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'

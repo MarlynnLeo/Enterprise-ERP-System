@@ -2,13 +2,13 @@
   <div class="module-page page-container">
     <PageHeader title="工作流模板" subtitle="配置业务单据的审批流程模板">
       <template #actions>
-<el-button @click="goApprovalCenter">我的审批</el-button>
           <el-button v-permission="'system:workflow:create'" type="primary" @click="openTemplateForm()">新建模板</el-button>
       </template>
     </PageHeader>
 
     <el-card class="data-card">
-      <el-table :data="tableData" v-loading="loading" border stripe>
+      <el-table class="table-row-click" :data="tableData" v-loading="loading" border stripe
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => viewTemplate(row))">
         <el-table-column prop="code" label="编码" width="210" />
         <el-table-column prop="name" label="名称" min-width="180" />
         <el-table-column prop="businessType" label="业务类型" width="140">
@@ -20,12 +20,11 @@
             <el-tag :type="row.isActive ? 'success' : 'info'" size="small">{{ row.isActive ? '启用' : '停用' }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="{ row }">
             <div class="table-actions">
-              <el-button class="btn-op-view" size="small" type="primary" @click="viewTemplate(row)">
-                <el-icon><View /></el-icon> 详情
-              </el-button>
+              
               <el-button size="small" v-permission="'system:workflow:edit'" @click="openTemplateForm(row)">
                 <el-icon><Edit /></el-icon> 编辑
               </el-button>
@@ -99,22 +98,28 @@
               <el-input v-model="node.nodeName" placeholder="节点名称" size="small" />
             </el-col>
             <el-col :span="5">
-              <el-select v-model="node.approverType" size="small" class="w-full">
-                <el-option label="部门主管" value="manager" />
-                <el-option label="发起人" value="self" />
-                <el-option label="指定用户" value="user" />
-                <el-option label="指定角色" value="role" />
-                <el-option label="指定部门" value="department" />
+              <el-select v-model="node.approverType" size="small" class="w-full" disabled>
+                <el-option label="系统角色" value="role" />
               </el-select>
             </el-col>
             <el-col :span="6">
-              <el-input
-                v-if="requiresApproverIds(node.approverType)"
-                v-model="node.approverIdsText"
+              <el-select
+                v-model="node.approverRoleCodes"
+                multiple
+                filterable
+                collapse-tags
+                collapse-tags-tooltip
                 size="small"
-                placeholder="ID，多个用逗号分隔"
-              />
-              <span v-else class="node-hint">系统自动分配</span>
+                class="w-full"
+                placeholder="选择系统角色"
+              >
+                <el-option
+                  v-for="role in roleOptions"
+                  :key="role.code"
+                  :label="`${role.name}（${role.code}）`"
+                  :value="role.code"
+                />
+              </el-select>
             </el-col>
             <el-col :span="3">
               <el-select v-model="node.multiApproveType" size="small" class="w-full">
@@ -127,11 +132,7 @@
               <el-button link type="danger" size="small" @click="form.nodes.splice(index, 1)">删除</el-button>
             </el-col>
           </el-row>
-          <el-checkbox
-            v-if="node.approverType !== 'self'"
-            v-model="node.allowSelfApproval"
-            class="self-approval-option"
-          >允许发起人参与审批（默认关闭）</el-checkbox>
+          <div class="node-hint">换人只需调整该角色组成员，不用改审批模板</div>
         </div>
         <el-button link type="primary" @click="addNode">+ 添加节点</el-button>
       </el-form>
@@ -167,8 +168,7 @@
         <el-timeline>
           <el-timeline-item v-for="node in (detail.nodes || [])" :key="node.id" type="primary">
             <strong>{{ node.nodeName || '未命名节点' }}</strong>
-            <div class="node-meta">审批人: {{ approverTypeLabel[node.approverType] || node.approverType }}</div>
-            <div v-if="node.approverIds" class="node-meta">指定 ID: {{ formatApproverIds(node.approverIds) }}</div>
+            <div class="node-meta">审批人: 系统角色 {{ formatApproverIds(node.approverIds) }}</div>
           </el-timeline-item>
         </el-timeline>
       </template>
@@ -177,13 +177,15 @@
 </template>
 
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+
 import { ElMessage } from 'element-plus'
 import { View, Edit, Delete } from '@element-plus/icons-vue'
 import { workflowApi } from '@/api/workflow'
+import { systemApi } from '@/api/system'
 
-const router = useRouter()
+
 const loading = ref(false)
 const saving = ref(false)
 const page = ref(1)
@@ -209,59 +211,52 @@ const btLabel = {
   production_plan: '生产计划'
 }
 
-const approverTypeLabel = {
-  manager: '部门主管',
-  user: '指定用户',
-  role: '指定角色',
-  self: '发起人',
-  department: '指定部门'
-}
+const roleOptions = ref([])
 
-const requiresApproverIds = (type) => ['user', 'role', 'department'].includes(type)
-
-const normalizeApproverIdsText = (value) => {
-  if (Array.isArray(value)) return value.join(',')
-  if (!value) return ''
+const normalizeApproverCodes = (value) => {
+  if (Array.isArray(value)) return value.map((item) => String(item).trim()).filter(Boolean)
+  if (!value) return []
   try {
     const parsed = typeof value === 'string' ? JSON.parse(value) : value
-    return Array.isArray(parsed) ? parsed.join(',') : String(value)
+    return Array.isArray(parsed) ? parsed.map((item) => String(item).trim()).filter(Boolean) : []
   } catch {
     return String(value)
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean)
   }
 }
 
-const parseApproverIdsText = (text) => String(text || '')
-  .split(',')
-  .map((item) => Number(item.trim()))
-  .filter((item) => Number.isInteger(item) && item > 0)
-
-const formatApproverIds = (value) => normalizeApproverIdsText(value) || '-'
+const formatApproverIds = (value) => {
+  const codes = normalizeApproverCodes(value)
+  if (!codes.length) return '-'
+  return codes
+    .map((code) => {
+      const role = roleOptions.value.find((item) => item.code === code || String(item.id) === String(code))
+      return role ? `${role.name}（${role.code}）` : code
+    })
+    .join('、')
+}
 
 const toEditableNode = (node = {}) => ({
   ...node,
   nodeName: node.nodeName || '',
   nodeType: node.nodeType || 'approval',
-  approverType: node.approverType || 'manager',
+  approverType: 'role',
   multiApproveType: node.multiApproveType || 'any',
-  allowSelfApproval: node.approverType === 'self' || Boolean(node.allowSelfApproval),
-  approverIdsText: normalizeApproverIdsText(node.approverIds)
+  allowSelfApproval: false,
+  approverRoleCodes: normalizeApproverCodes(node.approverIds)
 })
 
-const toPayloadNode = (node, index) => {
-  const payload = {
-    nodeName: String(node.nodeName || '').trim(),
-    nodeType: node.nodeType || 'approval',
-    sequence: index,
-    approverType: node.approverType || 'manager',
-    multiApproveType: node.multiApproveType || 'any',
-    allowSelfApproval: node.approverType === 'self' || Boolean(node.allowSelfApproval),
-  }
-  payload.approverIds = requiresApproverIds(payload.approverType)
-    ? parseApproverIdsText(node.approverIdsText)
-    : null
-
-  return payload
-}
+const toPayloadNode = (node, index) => ({
+  nodeName: String(node.nodeName || '').trim(),
+  nodeType: node.nodeType || 'approval',
+  sequence: index,
+  approverType: 'role',
+  multiApproveType: node.multiApproveType || 'any',
+  allowSelfApproval: false,
+  approverIds: Array.isArray(node.approverRoleCodes) ? node.approverRoleCodes : [],
+})
 
 const validateForm = (payload) => {
   if (!String(payload.code || '').trim()) return '请填写模板编码'
@@ -273,9 +268,9 @@ const validateForm = (payload) => {
   if (invalidNodeIndex >= 0) return `第 ${invalidNodeIndex + 1} 个审批节点缺少名称`
 
   const missingApproverIndex = payload.nodes.findIndex((node) =>
-    requiresApproverIds(node.approverType) && (!Array.isArray(node.approverIds) || node.approverIds.length === 0)
+    !Array.isArray(node.approverIds) || node.approverIds.length === 0
   )
-  if (missingApproverIndex >= 0) return `第 ${missingApproverIndex + 1} 个审批节点需要填写审批人/角色 ID`
+  if (missingApproverIndex >= 0) return `第 ${missingApproverIndex + 1} 个审批节点需要选择系统角色`
 
   return ''
 }
@@ -294,20 +289,29 @@ const fetchData = async () => {
   }
 }
 
-const goApprovalCenter = () => {
-  router.push('/workflow/approvals')
-}
+
 
 const addNode = () => {
   form.value.nodes.push({
     nodeName: '',
     nodeType: 'approval',
-    approverType: 'manager',
+    approverType: 'role',
     multiApproveType: 'any',
     allowSelfApproval: false,
     sequence: form.value.nodes.length,
-    approverIdsText: ''
+    approverRoleCodes: []
   })
+}
+
+const loadRoles = async () => {
+  try {
+    const res = await systemApi.getRolesList()
+    const payload = res.data || res || []
+    const list = Array.isArray(payload) ? payload : payload.list || payload.records || []
+    roleOptions.value = list.filter((role) => role?.code)
+  } catch {
+    roleOptions.value = []
+  }
 }
 
 const openTemplateForm = async (row) => {
@@ -373,7 +377,10 @@ const delTemplate = async (id) => {
   }
 }
 
-onMounted(fetchData)
+onMounted(async () => {
+  await loadRoles()
+  await fetchData()
+})
 </script>
 
 <style scoped>

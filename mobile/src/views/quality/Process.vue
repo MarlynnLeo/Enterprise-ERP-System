@@ -76,6 +76,7 @@
         icon: 'plus',
         label: '新建检验',
         action: 'create',
+        permission: 'quality:process:create',
         handler: () => {
           router.push('/quality/process/create')
         }

@@ -40,7 +40,7 @@
         <el-descriptions-item label="预算说明" :span="3">{{ budget.description || '-' }}</el-descriptions-item>
       </el-descriptions>
 
-      <el-divider content-position="left">预算明细</el-divider>
+      <el-divider content-position="center">预算明细</el-divider>
 
       <el-table :data="budget.details" border stripe>
         <el-table-column prop="accountCode" label="科目代码" width="120" />

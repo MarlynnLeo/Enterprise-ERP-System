@@ -442,7 +442,7 @@ const currentTemplate = reactive({
   margin_right: 10,
   margin_bottom: 10,
   margin_left: 10,
-  is_default: 0,
+  isDefault: 0,
   status: 1
 })
 const templateFormRef = ref(null)
@@ -545,7 +545,7 @@ const fetchPrintTemplates = async () => {
     printTemplates.value = templateData.map(template => ({
       ...template,
       status: Number(template.status),
-      is_default: Number(template.isDefault)
+      isDefault: Number(template.isDefault)
     }))
 
     templatesTotal.value = total

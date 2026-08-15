@@ -12,8 +12,9 @@
     :stats="statsCards"
     :actions="quickActions"
     :groups="moduleGroups"
+    :add-permission="addPermission"
     @back="router.back()"
-    @add="router.push('/quality/incoming/create')"
+    @add="handleAdd"
     @navigate="navigateTo"
   />
 </template>
@@ -63,30 +64,45 @@
     }
   ])
 
+  const addTargets = [
+    { permission: 'quality:incoming:create', path: '/quality/incoming/create' },
+    { permission: 'quality:process:create', path: '/quality/process/create' },
+    { permission: 'quality:final:create', path: '/quality/final/create' }
+  ]
+  const addPermission = computed(() => addTargets.map((item) => item.permission))
+  const handleAdd = () => {
+    const target = addTargets.find((item) => authStore.hasPermission(item.permission))
+    if (target) router.push(target.path)
+  }
+
   // ---- 快捷操作 ----
   const quickActions = ref([
     {
       label: '来料检验',
       path: '/quality/incoming/create',
       icon: 'cube',
+      permission: 'quality:incoming:create',
       gradient: 'linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%)'
     },
     {
       label: '过程检验',
       path: '/quality/process/create',
       icon: 'clipboard-check',
+      permission: 'quality:process:create',
       gradient: 'linear-gradient(135deg, var(--color-success) 0%, var(--color-accent) 100%)'
     },
     {
       label: '成品检验',
       path: '/quality/final/create',
       icon: 'badge-check',
+      permission: 'quality:final:create',
       gradient: 'linear-gradient(135deg, var(--color-error) 0%, var(--color-danger) 100%)'
     },
     {
       label: '质量追溯',
       path: '/quality/traceability',
       icon: 'search',
+      permission: 'quality:traceability:view',
       gradient: 'linear-gradient(135deg, var(--color-warning) 0%, var(--ds-orange-strong) 100%)'
     }
   ])
@@ -98,6 +114,7 @@
       desc: '原材料质量检验',
       path: '/quality/incoming',
       icon: 'cube',
+      permission: 'quality:incoming:view',
       badge: 0
     },
     {
@@ -105,6 +122,7 @@
       desc: '生产过程质量控制',
       path: '/quality/process',
       icon: 'clipboard-check',
+      permission: 'quality:process:view',
       badge: 0
     },
     {
@@ -112,6 +130,7 @@
       desc: '最终产品质量检验',
       path: '/quality/final',
       icon: 'badge-check',
+      permission: 'quality:final:view',
       badge: 0
     }
   ])
@@ -120,32 +139,54 @@
       title: '检验模板',
       desc: '检验标准与模板',
       path: '/quality/templates',
-      icon: 'document-text'
+      icon: 'document-text',
+      permission: 'quality:templates:view'
     },
-    { title: '质量标准', desc: '质量标准管理', path: '/quality/standards', icon: 'badge-check' }
+    {
+      title: '质量标准',
+      desc: '质量标准管理',
+      path: '/quality/standards',
+      icon: 'badge-check',
+      permission: 'quality:aql:view'
+    }
   ])
   const traceabilityModules = ref([
-    { title: '质量追溯', desc: '产品质量追溯查询', path: '/quality/traceability', icon: 'search' },
-    { title: '不合格品处理', desc: '不合格品管理', path: '/quality/nonconformance', icon: 'cube' }
+    {
+      title: '质量追溯',
+      desc: '产品质量追溯查询',
+      path: '/quality/traceability',
+      icon: 'search',
+      permission: 'quality:traceability:view'
+    },
+    {
+      title: '不合格品处理',
+      desc: '不合格品管理',
+      path: '/quality/nonconformance',
+      icon: 'cube',
+      permission: 'quality:nonconforming:view'
+    }
   ])
   const reportModules = ref([
     {
       title: '质量统计',
       desc: '质量数据统计分析',
       path: '/quality/reports/statistics',
-      icon: 'document-text'
+      icon: 'document-text',
+      permission: 'quality:reports:view'
     },
     {
       title: '质量趋势',
       desc: '质量趋势分析',
       path: '/quality/reports/trends',
-      icon: 'document-text'
+      icon: 'document-text',
+      permission: 'quality:reports:view'
     },
     {
       title: 'SPC控制图',
       desc: '统计过程控制',
       path: '/quality/reports/spc',
-      icon: 'document-text'
+      icon: 'document-text',
+      permission: 'quality:reports:view'
     }
   ])
 

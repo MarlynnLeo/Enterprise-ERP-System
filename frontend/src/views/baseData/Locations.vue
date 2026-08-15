@@ -60,8 +60,9 @@
         v-loading="loading"
         :data="tableData"
         border
-        class="w-full"
-      >
+        class="table-row-click w-full"
+      
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleView(row))">
         <template #empty>
           <EmptyState description="暂无库位数据" />
         </template>
@@ -82,7 +83,8 @@
           </template>
         </el-table-column>
         <el-table-column prop="remark" label="备注"></el-table-column>
-        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="scope">
             <el-button
               v-if="canUpdate && Number(scope.row.status) !== 1"
@@ -98,15 +100,7 @@
               @click="handleToggleStatus(scope.row)">
               <el-icon><Switch /></el-icon> 禁用
             </el-button>
-            <el-button
-              v-if="Number(scope.row.status) === 1"
-              class="btn-op-view"
-              size="small"
-              type="primary"
-              @click="handleView(scope.row)"
-            >
-              <el-icon><View /></el-icon> 查看
-            </el-button>
+            
             <template v-if="Number(scope.row.status) === 0">
               <el-button
                 v-if="canUpdate"
@@ -211,6 +205,7 @@
 </template>
 
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { parsePaginatedData } from '@/utils/responseParser';
 import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';

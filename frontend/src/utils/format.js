@@ -50,6 +50,7 @@ const abbreviateNumber = (val, decimals = 2) => {
  * @returns {string} 格式化后的金额字符串
  */
 export const formatCurrency = (amount, currency = '¥', decimals = 2) => {
+    if (amount === '***') return '***';
     if (amount === undefined || amount === null || amount === '') return '-';
     const num = parseFloat(amount);
     if (isNaN(num)) return '-';

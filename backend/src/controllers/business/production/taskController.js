@@ -282,6 +282,13 @@ exports.createProductionTask = async (req, res) => {
     }
 
     const costCenterId = await TaskRepository.resolveCostCenterId(connection, product_id);
+    const hasManager = Boolean(manager && String(manager).trim() && String(manager).trim() !== '未分配');
+    const group = hasManager
+      ? { departmentName: String(manager).trim() }
+      : await TaskRepository.resolveProductionGroup(connection, {
+          productId: product_id,
+          planId: plan_id || null,
+        });
 
     const taskId = await TaskRepository.create(connection, {
       code,
@@ -290,7 +297,7 @@ exports.createProductionTask = async (req, res) => {
       quantity: taskQuantity,
       start_date: start_date || null,
       expected_end_date: expected_end_date || null,
-      manager: manager || '未分配',
+      manager: group.departmentName || '未分配',
       remarks: remarks || '',
       cost_center_id: costCenterId,
       // DataScope owner：强制当前登录用户，禁止信任 body

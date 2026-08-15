@@ -20,6 +20,7 @@ const { parsePagination } = require('../../utils/safePagination');
 
 // 以下模块原散落于各函数体内，统一移至顶部（P1 治理）
 const PermissionService = require('../../services/PermissionService');
+const RoleAccessService = require('../../services/RoleAccessService');
 const { getRequestActorLabel } = require('../../utils/userUtils');
 
 function omitUserSecrets(user) {
@@ -790,6 +791,80 @@ const systemController = {
     } catch (error) {
       logger.error('获取角色列表失败:', error);
       return ResponseHandler.error(res, '获取角色列表失败', 'SERVER_ERROR', 500, error);
+    }
+  },
+
+  async getRoleAccessProfiles(req, res) {
+    try {
+      return ResponseHandler.success(
+        res,
+        RoleAccessService.listProfiles(),
+        '获取岗位权限模板成功'
+      );
+    } catch (error) {
+      logger.error('获取岗位权限模板失败:', error);
+      return ResponseHandler.error(res, '获取岗位权限模板失败', 'SERVER_ERROR', 500, error);
+    }
+  },
+
+  async applyRoleAccessProfile(req, res) {
+    try {
+      const { id } = req.params;
+      if (await roleIsSuperAdmin(id) && !(await isSuperAdminRequest(req))) {
+        return ResponseHandler.error(res, '禁止越权修改超级管理员角色的权限', 'FORBIDDEN', 403);
+      }
+
+      const role = await systemModel.getRoleById(id);
+      if (!role) {
+        return ResponseHandler.error(res, '角色不存在', 'NOT_FOUND', 404);
+      }
+
+      const connection = await pool.getConnection();
+      let result;
+      try {
+        await connection.beginTransaction();
+        result = await RoleAccessService.applyRole(connection, {
+          id: role.id,
+          code: role.code,
+          name: role.name,
+          is_super_admin: role.is_super_admin,
+        });
+        await connection.commit();
+      } catch (error) {
+        await connection.rollback();
+        throw error;
+      } finally {
+        connection.release();
+      }
+
+      await PermissionService.clearUserPermissionsCache();
+      return ResponseHandler.success(res, result, '已按岗位模板重置角色权限');
+    } catch (error) {
+      logger.error('按岗位模板重置角色权限失败:', error);
+      return ResponseHandler.error(res, '按岗位模板重置角色权限失败', 'SERVER_ERROR', 500, error);
+    }
+  },
+
+  async applyAllRoleAccessProfiles(req, res) {
+    try {
+      const connection = await pool.getConnection();
+      let summary;
+      try {
+        await connection.beginTransaction();
+        summary = await RoleAccessService.applyAllProfiles(connection);
+        await connection.commit();
+      } catch (error) {
+        await connection.rollback();
+        throw error;
+      } finally {
+        connection.release();
+      }
+
+      await PermissionService.clearUserPermissionsCache();
+      return ResponseHandler.success(res, { summary }, '已按岗位模板重置全部系统角色');
+    } catch (error) {
+      logger.error('批量重置系统角色权限失败:', error);
+      return ResponseHandler.error(res, '批量重置系统角色权限失败', 'SERVER_ERROR', 500, error);
     }
   },
 

@@ -540,9 +540,9 @@ const createForm = reactive({
   supplier_or_customer_name: '',
   supplier_tax_number: '',
   amount_excluding_tax: 0,
-  tax_rate: defaultTaxRatePercent.value,
+  taxRate: defaultTaxRatePercent.value,
   tax_amount: 0,
-  total_amount: 0,
+  totalAmount: 0,
   remark: ''
 });
 
@@ -561,7 +561,7 @@ const createRules = {
   invoice_number: [{ required: true, message: '请输入发票号码', trigger: 'blur' }],
   supplier_or_customer_name: [{ required: true, message: '请输入供应商/客户名称', trigger: 'blur' }],
   amount_excluding_tax: [{ validator: validatePositiveAmount, trigger: 'blur' }],
-  tax_rate: [{ required: true, message: '请选择税率', trigger: 'change' }]
+  taxRate: [{ required: true, message: '请选择税率', trigger: 'change' }]
 };
 
 // 计算税额
@@ -728,9 +728,9 @@ const handleCreate = () => {
     supplier_or_customer_name: '',
     supplier_tax_number: '',
     amount_excluding_tax: 0,
-    tax_rate: defaultTaxRatePercent.value,
+    taxRate: defaultTaxRatePercent.value,
     tax_amount: 0,
-    total_amount: 0,
+    totalAmount: 0,
     remark: ''
   });
   createDialogVisible.value = true;

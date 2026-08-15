@@ -78,6 +78,10 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isAuthenticated = computed(() => Boolean(user.value))
   const isAdmin = computed(() => permissionsLoaded.value && permissions.value.includes('*'))
+  const mustChangePassword = computed(() => {
+    const flag = user.value?.forcePasswordChange
+    return flag === true || flag === 1 || flag === '1'
+  })
 
   // 认证令牌由后端 HttpOnly Cookie 管理，前端只清理旧的浏览器可读 token。
   const setAuthHeader = () => {
@@ -317,6 +321,7 @@ export const useAuthStore = defineStore('auth', () => {
     permissionsLoading,
     isAuthenticated,
     isAdmin,
+    mustChangePassword,
     login,
     logout,
     clearClientSession,

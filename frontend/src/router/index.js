@@ -35,6 +35,12 @@ const router = createRouter({
       meta: { requiresAuth: false }
     },
     {
+      path: '/force-password',
+      name: 'forcePassword',
+      component: () => import('../views/auth/ForceChangePassword.vue'),
+      meta: { requiresAuth: true, title: '修改初始密码' }
+    },
+    {
       path: '/production-board',
       name: 'production-board',
       component: () => import('../views/public/ProductionBoard.vue'),
@@ -95,14 +101,7 @@ const router = createRouter({
         },
         {
           path: 'workflow/approvals',
-          name: 'workflow-approvals',
-          component: () => import('../views/workflow/WorkflowApprovalCenter.vue'),
-          meta: {
-            requiresAuth: true,
-            title: '我的审批',
-            // 与后端 system:workflow:use 对齐
-            permission: 'system:workflow:use'
-          }
+          redirect: '/system/workflow'
         },
         systemRoute,
         equipmentRoute,
@@ -175,6 +174,13 @@ router.beforeEach(async (to) => {
     }
   }
 
+  if (authStore.isAuthenticated && authStore.mustChangePassword && to.path !== '/force-password') {
+    return '/force-password'
+  }
+  if (authStore.isAuthenticated && !authStore.mustChangePassword && to.path === '/force-password') {
+    return '/'
+  }
+
   // 如果用户已登录，按用户维度异步加载主题设置，避免同页切换账号时沿用旧主题
   if (authStore.isAuthenticated && to.path !== '/login') {
     const themeOwner = authStore.user?.id || authStore.user?.username || authStore.user?.name || 'authenticated'
@@ -192,7 +198,7 @@ router.beforeEach(async (to) => {
 
   // 确保权限数据已加载 — 在所有需要认证的路由中预加载（统一入口）
   // 避免 Layout.vue 和路由守卫两处重复加载，同时消除菜单骨架屏闪烁
-  if (to.meta.requiresAuth && authStore.isAuthenticated && !authStore.permissionsLoaded) {
+  if (to.path !== '/force-password' && to.meta.requiresAuth && authStore.isAuthenticated && !authStore.permissionsLoaded) {
     try {
       await authStore.fetchUserPermissions()
     } catch (error) {

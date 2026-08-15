@@ -12,6 +12,7 @@
     :stats="statsCards"
     :actions="quickActions"
     :groups="moduleGroups"
+    add-permission="sales:orders:create"
     @back="router.back()"
     @add="router.push('/sales/orders/create')"
     @navigate="navigateTo"
@@ -78,24 +79,28 @@
       label: '销售订单',
       path: '/sales/orders',
       icon: 'document-text',
+      permission: 'sales:orders:view',
       gradient: 'linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%)'
     },
     {
       label: '新建订单',
       path: '/sales/orders/create',
       icon: 'plus',
+      permission: 'sales:orders:create',
       gradient: 'linear-gradient(135deg, var(--color-success) 0%, var(--color-accent) 100%)'
     },
     {
       label: '销售出库',
       path: '/sales/outbound',
       icon: 'truck',
+      permission: 'sales:outbound:view',
       gradient: 'linear-gradient(135deg, var(--color-error) 0%, var(--color-danger) 100%)'
     },
     {
       label: '客户管理',
       path: '/sales/customers',
       icon: 'users',
+      permission: 'basedata:customers:view',
       gradient: 'linear-gradient(135deg, var(--color-warning) 0%, var(--ds-orange-strong) 100%)'
     }
   ])
@@ -107,16 +112,41 @@
       desc: '查看和管理销售订单',
       path: '/sales/orders',
       icon: 'document-text',
+      permission: 'sales:orders:view',
       badge: 0
     },
-    { title: '新建订单', desc: '创建新的销售订单', path: '/sales/orders/create', icon: 'plus' }
+    {
+      title: '新建订单',
+      desc: '创建新的销售订单',
+      path: '/sales/orders/create',
+      icon: 'plus',
+      permission: 'sales:orders:create'
+    }
   ])
   const outboundModules = ref([
-    { title: '销售出库', desc: '查看和管理销售出库单', path: '/sales/outbound', icon: 'truck' }
+    {
+      title: '销售出库',
+      desc: '查看和管理销售出库单',
+      path: '/sales/outbound',
+      icon: 'truck',
+      permission: 'sales:outbound:view'
+    }
   ])
   const afterSalesModules = ref([
-    { title: '销售退货', desc: '查看和管理销售退货', path: '/sales/returns', icon: 'undo' },
-    { title: '销售换货', desc: '查看和管理销售换货', path: '/sales/exchanges', icon: 'exchange' }
+    {
+      title: '销售退货',
+      desc: '查看和管理销售退货',
+      path: '/sales/returns',
+      icon: 'undo',
+      permission: 'sales:returns:view'
+    },
+    {
+      title: '销售换货',
+      desc: '查看和管理销售换货',
+      path: '/sales/exchanges',
+      icon: 'exchange',
+      permission: 'sales:exchanges:view'
+    }
   ])
 
   const moduleGroups = computed(() => [

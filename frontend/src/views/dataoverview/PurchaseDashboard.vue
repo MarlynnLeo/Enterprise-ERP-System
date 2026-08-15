@@ -109,12 +109,13 @@
           </template>
           <el-table
             :data="filteredPendingItems"
-            class="w-full"
+            class="table-row-click w-full"
             v-loading="loading"
             border
             :max-height="400"
             :empty-text="pendingItems.length === 0 ? '暂无待处理事项' : '没有匹配的数据'"
-          >
+          
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => viewPurchaseItem(row))">
             <el-table-column label="类型" min-width="100">
               <template #default="scope">
                 <el-tag :type="getTypeColor(scope.row.type)">{{ getTypeText(scope.row.type) }}</el-tag>
@@ -144,15 +145,7 @@
                 {{ formatMoney(scope.row.amount) }}
               </template>
             </el-table-column>
-            <el-table-column label="操作" min-width="120" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
-              <template #default="scope">
-                <div class="table-actions">
-                  <el-button class="btn-op-view" type="primary" size="small" @click="viewPurchaseItem(scope.row)">
-                    <el-icon><View /></el-icon> 查看
-                  </el-button>
-                </div>
-              </template>
-            </el-table-column>
+            
           </el-table>
           <div class="pagination-container" v-if="pendingItems.length > 0">
             <el-pagination
@@ -171,6 +164,7 @@
   </div>
 </template>
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router';
@@ -494,14 +488,7 @@ watch(timeRange, () => {
 </script>
 <style scoped>
 /* 响应式调整 */
-
-/* 详情对话框长文本处理 - 自动添加 */
-:deep(.el-descriptions__content) {
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+
 :deep(.el-table__cell) {
   overflow: hidden;
   text-overflow: ellipsis;

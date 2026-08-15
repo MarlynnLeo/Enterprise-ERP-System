@@ -105,10 +105,9 @@
           <el-table
             :data="transactionList"
             border
-            class="w-full"
+            class="table-row-click w-full"
             v-loading="loading"
-            @row-click="handleRowClick"
-          >
+            @row-click="(row, column, event) => handleTableRowView(row, column, event, () => showTransactionDetail(row))">
             <el-table-column prop="transactionNo" label="流水编号" width="150" show-overflow-tooltip />
             <el-table-column prop="transactionTime" label="交易时间" width="160" show-overflow-tooltip>
               <template #default="scope">
@@ -154,16 +153,7 @@
                 {{ scope.row?.remarks || '-' }}
               </template>
             </el-table-column>
-            <el-table-column label="操作" min-width="80" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
-              <template #default="scope">
-                <div class="table-actions">
-                  <el-button class="btn-op-view" type="primary" size="small" @click.stop="showTransactionDetail(scope.row)">
-                    <el-icon><View /></el-icon> 查看
-                  </el-button>
-                </div>
-              </template>
-            </el-table-column>
-          </el-table>
+                      </el-table>
 
           <!-- 分页 -->
           <div class="pagination-container" v-if="pagination">
@@ -248,6 +238,7 @@
   </div>
 </template>
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { inventoryApi } from '@/api/inventory';
 import { loadLocationOptions } from '@/utils/optionLoaders';
 import { formatCurrency, formatNumber } from '@/utils/format'
@@ -1054,13 +1045,6 @@ const _sanitizeHtml = (html) => {
 }
 .el-descriptions-item__content {
   padding: 12px 15px;
-}
-/* 详情对话框长文本处理 - 自动添加 */
-:deep(.el-descriptions__content) {
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 :deep(.el-table__cell) {
   overflow: hidden;

@@ -67,10 +67,11 @@
       <div class="table-container">
         <el-table
           :data="invoiceList"
-          class="table-full-width"
+          class="table-row-click table-full-width"
           border
           v-loading="loading"
-        >
+        
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleViewDetails(row))">
           <template #empty>
             <EmptyState description="暂无发票数据" />
           </template>
@@ -123,7 +124,8 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="操作" min-width="340" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+          <el-table-column label="操作" min-width="340" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
             <template #default="scope">
               <el-button
                 v-if="scope.row.status === '草稿'"
@@ -161,7 +163,7 @@
                 v-permission="'finance:ar:receive'">
                 收款
               </el-button>
-              <el-button class="btn-op-view" type="primary" size="small" @click="handleViewDetails(scope.row)">查看</el-button>
+              
             </template>
           </el-table-column>
         </el-table>
@@ -230,6 +232,7 @@
   </div>
 </template>
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { formatCurrency, formatLocalDate } from '@/utils/format'
 import { ref, reactive, onMounted } from 'vue';
 import { useRouter } from 'vue-router';

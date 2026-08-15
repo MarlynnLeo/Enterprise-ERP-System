@@ -31,7 +31,12 @@
       />
     </div>
 
-    <el-timeline class="activity-timeline">
+    <el-empty
+      v-if="filteredActivities.length === 0"
+      description="暂无真实业务操作记录"
+      :image-size="96"
+    />
+    <el-timeline v-else class="activity-timeline">
       <el-timeline-item
         v-for="(activity, index) in filteredActivities"
         :key="index"
@@ -53,7 +58,7 @@
       </el-timeline-item>
     </el-timeline>
 
-    <div class="load-more" v-if="hasMore">
+    <div class="load-more" v-if="hasMore && filteredActivities.length > 0">
       <el-button type="primary" text @click="loadMore">
         <el-icon><More /></el-icon> 加载更多活动
       </el-button>

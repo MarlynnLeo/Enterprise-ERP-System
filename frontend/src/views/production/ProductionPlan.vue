@@ -7,12 +7,15 @@
  */
 -->
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { formatLocalDate } from '@/utils/format';
 import dayjs from 'dayjs'
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { ref, onMounted, reactive, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { productionApi, purchaseApi, baseDataApi, systemApi } from '@/api'
+import { loadDepartmentOptions } from '@/utils/optionLoaders'
+import { useAuthStore } from '@/stores/auth'
 import { bomApi } from '@/api/bom'
 import { Plus } from '@element-plus/icons-vue'
 import { parseQuantity, formatQuantity } from '@/utils/helpers/quantity'
@@ -21,6 +24,8 @@ import { parseDataObject, parseListData } from '@/utils/responseParser'
 import { useFormKeyboardNav } from '@/composables/useFormKeyboardNav'
 // ✅ 键盘导航：Enter 跳转下一字段，最后一个字段按 Enter 自动提交
 const { onFormKeydown: planFormKeydown } = useFormKeyboardNav(() => handleModalOk())
+const authStore = useAuthStore()
+const departmentOptions = ref([])
 const BATCH_MATERIAL_QUERY_LIMIT = 100
 const chunkArray = (items, size) => {
   const chunks = []
@@ -59,7 +64,8 @@ const formData = ref({
   productId: undefined,
   quantity: 1,
   bomId: null,
-  contract_code: ''  // 合同编码
+  contract_code: '',
+  departmentId: null
 })
 const isManualCode = ref(false)
 // 生成计划编号 (调用后端API获取完整编号)
@@ -661,7 +667,8 @@ const showCreateModal = async () => {
     productId: undefined,
     quantity: 1,
     bomId: null,
-    contract_code: ''
+    contract_code: '',
+    departmentId: authStore.user?.departmentId || null
   }
   isManualCode.value = false
   materialList.value = []
@@ -677,6 +684,15 @@ const handleProductChange = async () => {
   }
   // 给用户反馈选择的产品
   ElMessage.success(`已选择产品: ${selectedProduct.code} - ${selectedProduct.name}`)
+  try {
+    const materialResponse = await baseDataApi.getMaterial(selectedProduct.id)
+    const material = parseDataObject(materialResponse, { enableLog: false })
+    if (material?.productionGroupId) {
+      formData.value.departmentId = material.productionGroupId
+    }
+  } catch {
+    // 选品后补生产组失败时仍可手动选部门
+  }
   // 自动生成计划名称时保留用户已输入的名称
   if (!formData.value.name) {
     const today = dayjs().format('YYYYMMDD')
@@ -790,7 +806,8 @@ const handleModalOk = async () => {
       productId,
       quantity,
       bomId: formData.value.bomId,
-      contract_code: formData.value.contract_code || null
+      contract_code: formData.value.contract_code || null,
+      departmentId: formData.value.departmentId || null
     }
     // 如果是新建模式，且code不为空且不是预览编号，才添加code字段
     // 预览编号（包含'xxx'或'自动生成'）不提交，让后端自动生成真实编号
@@ -842,7 +859,8 @@ const handleEdit = async (row) => {
     deliveryDate: row.deliveryDate ? row.deliveryDate : null,
     productId: row.productId,
     bomId: null,
-    contract_code: row.contractCode || ''
+    contract_code: row.contractCode || '',
+    departmentId: row.departmentId || null
   }
   // 编辑模式下锁定编号，不允许修改
   isManualCode.value = true
@@ -1058,16 +1076,12 @@ const preloadMaterialSpecs = async () => {
   }
 };
 // 生命周期钩子
-onMounted(() => {
-
-  // 确保分页参数有默认值
+onMounted(async () => {
   pagination.currentPage = 1;
   pagination.pageSize = 10;
   pagination.total = 0;
-
-  // 预加载物料规格信息
   preloadMaterialSpecs();
-
+  departmentOptions.value = await loadDepartmentOptions().catch(() => []);
   fetchPlanList();
 });
 // 智能采购申请处理函数
@@ -1347,10 +1361,11 @@ const formatMaterialForDisplay = (material) => {
       <el-table
         :data="planList"
         border
-        class="w-full"
+        class="table-row-click w-full"
         v-loading="loading"
         row-key="id"
-      >
+      
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => viewPlanDetail(row))">
         <!-- 展开详情列 -->
         <el-table-column type="expand" width="50">
           <template #default="props">
@@ -1396,6 +1411,9 @@ const formatMaterialForDisplay = (material) => {
           </template>
         </el-table-column>
         <el-table-column prop="code" label="计划编号" width="120"></el-table-column>
+        <el-table-column prop="departmentName" label="分配部门" width="110">
+          <template #default="{ row }">{{ row.departmentName || '未分配' }}</template>
+        </el-table-column>
         <el-table-column prop="contractCode" label="合同编码" width="110">
           <template #default="scope">
             {{ scope.row.contractCode || '-' }}
@@ -1500,10 +1518,11 @@ const formatMaterialForDisplay = (material) => {
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="72" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="72" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="scope">
             <div class="table-actions">
-              <el-button class="btn-op-view" type="primary" size="small" @click="viewPlanDetail(scope.row)" v-permission="'production:plans:view'">查看</el-button>
+              
               <el-button
                 v-if="canEditPlan(scope.row)"
                 size="small"
@@ -1579,21 +1598,22 @@ const formatMaterialForDisplay = (material) => {
         label-width="100px"
         @keydown="planFormKeydown"
       >
-        <el-row :gutter="20">
-          <el-col :span="8">
+        <el-row :gutter="16">
+          <el-col :span="12">
             <el-form-item label="计划编号" prop="code">
               <el-input
                 v-model="formData.code"
                 placeholder="请输入计划编号或留空自动生成"
                 :disabled="modalTitle === '编辑生产计划'"
                 :readonly="modalTitle === '编辑生产计划'"
+                class="w-full"
               />
               <small v-if="modalTitle === '编辑生产计划'" class="text-muted">
                 编辑模式下不能修改计划编号
               </small>
             </el-form-item>
           </el-col>
-          <el-col :span="8">
+          <el-col :span="12">
             <el-form-item label="计划日期" prop="startDate">
               <el-date-picker
                 v-model="formData.startDate"
@@ -1604,7 +1624,9 @@ const formatMaterialForDisplay = (material) => {
               />
             </el-form-item>
           </el-col>
-          <el-col :span="8">
+        </el-row>
+        <el-row :gutter="16">
+          <el-col :span="12">
             <el-form-item label="物料编码" prop="productId">
               <el-select
                 v-model="formData.productId"
@@ -1641,18 +1663,32 @@ const formatMaterialForDisplay = (material) => {
             </el-form-item>
           </el-col>
         </el-row>
-        <el-row :gutter="20">
-          <el-col :span="6">
+        <el-row :gutter="16">
+          <el-col :span="12">
             <el-form-item label="计划名称" prop="name">
-              <el-input v-model="formData.name" placeholder="请输入计划名称" />
+              <el-input v-model="formData.name" placeholder="请输入计划名称" class="w-full" />
             </el-form-item>
           </el-col>
-          <el-col :span="6">
+          <el-col :span="12">
+            <el-form-item label="分配部门" prop="departmentId">
+              <el-select v-model="formData.departmentId" placeholder="选择负责部门" filterable clearable class="w-full">
+                <el-option
+                  v-for="dept in departmentOptions"
+                  :key="dept.id"
+                  :label="dept.name"
+                  :value="dept.id"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="16">
+          <el-col :span="12">
             <el-form-item label="合同编码">
-              <el-input v-model="formData.contractCode" placeholder="关联合同编码" />
+              <el-input v-model="formData.contractCode" placeholder="关联合同编码" class="w-full" />
             </el-form-item>
           </el-col>
-          <el-col :span="6">
+          <el-col :span="12">
             <el-form-item label="结束日期" prop="endDate">
               <el-date-picker
                 v-model="formData.endDate"
@@ -1663,7 +1699,9 @@ const formatMaterialForDisplay = (material) => {
               />
             </el-form-item>
           </el-col>
-          <el-col :span="6">
+        </el-row>
+        <el-row :gutter="16">
+          <el-col :span="12">
             <el-form-item label="客户交期" required>
               <el-date-picker
                 v-model="formData.deliveryDate"
@@ -1673,7 +1711,7 @@ const formatMaterialForDisplay = (material) => {
               />
             </el-form-item>
           </el-col>
-          <el-col :span="5">
+          <el-col :span="12">
             <el-form-item label="计划数量" prop="quantity">
               <el-input
                 v-model="formData.quantity"
@@ -1687,7 +1725,7 @@ const formatMaterialForDisplay = (material) => {
             </el-form-item>
           </el-col>
         </el-row>
-        <el-divider>原材料需求</el-divider>
+        <el-divider content-position="center">原材料需求</el-divider>
         <el-table
           :data="materialList"
           border
@@ -1745,6 +1783,7 @@ const formatMaterialForDisplay = (material) => {
             <template #default="scope">
               <el-button
                 v-if="shouldShowPurchaseButton(scope.row) && currentPlan && currentPlan.status !== 'completed'"
+                v-permission="'purchase:requisitions:create'"
                 :type="getMaterialRequestStatus(scope.row) ? 'success' : 'primary'"
                 size="small"
                 :disabled="getMaterialRequestStatus(scope.row)"
@@ -1760,7 +1799,12 @@ const formatMaterialForDisplay = (material) => {
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="handleModalCancel">取消</el-button>
-          <el-button v-permission="'production:plans:update'" type="primary" @click="handleModalOk" :loading="modalLoading">保存</el-button>
+          <el-button
+            v-permission="modalTitle === '新建生产计划' ? 'production:plans:create' : 'production:plans:update'"
+            type="primary"
+            @click="handleModalOk"
+            :loading="modalLoading"
+          >保存</el-button>
         </span>
       </template>
         </AppDialog>
@@ -1773,7 +1817,7 @@ const formatMaterialForDisplay = (material) => {
     >
       <div v-loading="planDetailLoading">
         <template v-if="currentPlan">
-          <el-descriptions :column="3" border>
+          <el-descriptions :column="2" border>
             <el-descriptions-item label="计划编号">{{ currentPlan.code }}</el-descriptions-item>
             <el-descriptions-item label="计划名称">{{ currentPlan.name }}</el-descriptions-item>
             <el-descriptions-item label="状态">
@@ -1791,7 +1835,7 @@ const formatMaterialForDisplay = (material) => {
             <el-descriptions-item label="备注" :span="2">{{ currentPlan.remark || '-' }}</el-descriptions-item>
           </el-descriptions>
           <!-- 物料需求 -->
-          <el-divider content-position="left">物料需求</el-divider>
+          <el-divider content-position="center">物料需求</el-divider>
           <el-table :data="currentPlan.materials || []" border class="w-full" max-height="350">
             <el-table-column label="层级" width="70">
               <template #default="{ row }">
@@ -1885,7 +1929,7 @@ const formatMaterialForDisplay = (material) => {
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="pushDownDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="confirmPushDown" :loading="loading">
+          <el-button v-permission="'production:plans:pushdown'" type="primary" @click="confirmPushDown" :loading="loading">
             确认下推
           </el-button>
         </span>
@@ -1945,13 +1989,6 @@ const formatMaterialForDisplay = (material) => {
 :deep(.el-table th.el-table__cell),
 :deep(.el-table td.el-table__cell) {
   overflow: hidden;
-}
-/* 详情对话框长文本处理 */
-:deep(.el-descriptions__content) {
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 :deep(.el-table__cell) {
   overflow: hidden;

@@ -208,7 +208,7 @@ class ContractService {
       if (!current) throw new Error('合同不存在');
       const allowedTransitions = {
         draft:            ['pending_approval', 'cancelled'],
-        pending_approval: [],                   // 等待工作流处理；需先在审批中心撤回
+        pending_approval: [],                   // 等待工作流处理；需先撤回后再改状态
         active:           ['executing', 'terminated', 'cancelled'],
         executing:        ['completed', 'terminated'],
         completed:        [],

@@ -25,7 +25,8 @@
 
     <!-- 数据表格 -->
     <el-card class="data-card">
-      <el-table :data="costList" border v-loading="loading" class="w-full">
+      <el-table :data="costList" border v-loading="loading" class="table-row-click w-full"
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => viewDetail(row))">
         <el-table-column prop="productCode" label="产品编码" width="140"></el-table-column>
         <el-table-column prop="productName" label="产品名称" width="350"></el-table-column>
         <el-table-column label="材料成本" width="130">
@@ -63,10 +64,11 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="scope">
             <el-button v-permission="'finance:cost:update'" type="info" size="small" @click="openOverheadConfig(scope.row)">配置专费</el-button>
-            <el-button class="btn-op-view" type="primary" size="small" @click="viewDetail(scope.row)">详情</el-button>
+            
             <el-button v-permission="'finance:cost:execute'" type="warning" size="small" @click="recalculate(scope.row)">重算</el-button>
           </template>
         </el-table-column>
@@ -279,6 +281,7 @@
 </template>
 
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';

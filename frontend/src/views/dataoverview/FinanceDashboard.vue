@@ -108,12 +108,13 @@
           </template>
           <el-table
             :data="bankAccounts"
-            class="w-full"
+            class="table-row-click w-full"
             v-loading="loading"
             border
             :max-height="400"
             :empty-text="bankAccounts.length === 0 ? '暂无银行账户数据' : '没有匹配的数据'"
-          >
+          
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => router.push('/finance/cash/bank-transactions?account=' + row.id))">
             <el-table-column label="账户名称" prop="name" min-width="150" />
             <el-table-column label="账号" prop="accountNumber" min-width="180" />
             <el-table-column label="银行" prop="bank" min-width="120" />
@@ -124,15 +125,7 @@
                 </span>
               </template>
             </el-table-column>
-            <el-table-column label="操作" min-width="120" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
-              <template #default="scope">
-                <div class="table-actions">
-                  <el-button class="btn-op-view" type="primary" size="small" @click="$router.push('/finance/cash/bank-transactions?account=' + scope.row.id)">
-                    <el-icon><View /></el-icon> 查看
-                  </el-button>
-                </div>
-              </template>
-            </el-table-column>
+            
           </el-table>
         </el-card>
       </el-col>
@@ -167,6 +160,7 @@
   </div>
 </template>
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { formatLocalDate } from '@/utils/format';
 import { ref, onMounted, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router';
@@ -185,7 +179,7 @@ import {
 import { createBarChartConfig, chartColors } from '@/utils/chartConfig'
 import { alphaColor, getCssTokenValue } from '@/utils/designTokens'
 import { parseListData, parseResponseData } from '@/utils/responseParser'
-const _router = useRouter();
+const router = useRouter();
 // 图表引用
 const incomeExpense = ref(null);
 const incomeCategory = ref(null);
@@ -1020,14 +1014,7 @@ watch([timeRange, chartType], ([newTimeRange, newChartType], [oldTimeRange, oldC
   .financial-metrics {
     grid-template-columns: 1fr;
   }
-}
-/* 详情对话框长文本处理 - 自动添加 */
-:deep(.el-descriptions__content) {
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+}
 :deep(.el-table__cell) {
   overflow: hidden;
   text-overflow: ellipsis;

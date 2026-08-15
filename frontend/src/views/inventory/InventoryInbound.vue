@@ -81,10 +81,11 @@
     <el-card class="data-card">
       <el-table
         :data="tableData"
-        class="w-full"
+        class="table-row-click w-full"
         v-loading="loading"
         border
-      >
+      
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleView(row.id))">
         <template #empty>
           <EmptyState description="暂无入库单数据" />
         </template>
@@ -138,16 +139,11 @@
           </template>
         </el-table-column>
         <el-table-column prop="remark" label="备注" width="180" show-overflow-tooltip />
-        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="{ row }">
             <div class="table-actions">
-              <el-button class="btn-op-view" type="primary"
-                size="small"
-                v-permission="'inventory:inbound:view'"
-                @click="handleView(row.id)"
-              >
-                <el-icon><View /></el-icon> 查看
-              </el-button>
+              
               <el-popconfirm
                 v-if="row.status === 'draft'"
                 title="确定要确认该入库单吗？"
@@ -626,6 +622,7 @@
   </div>
 </template>
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted, computed, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
@@ -1566,13 +1563,6 @@ const handleReturnFromProduction = async (taskId, taskCode) => {
   margin-top: 4px;
   color: var(--color-text-regular);
   font-size: 12px;
-}
-/* 详情对话框长文本处理 - 自动添加 */
-:deep(.el-descriptions__content) {
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 :deep(.el-table__cell) {
   overflow: hidden;

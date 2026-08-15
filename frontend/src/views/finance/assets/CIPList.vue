@@ -189,7 +189,7 @@
       width="450px"
     >
       <el-descriptions :column="1" border>
-        <el-descriptions-item label="工程名称">{{ currentProject?.project_name }}</el-descriptions-item>
+        <el-descriptions-item label="工程名称">{{ currentProject?.projectName }}</el-descriptions-item>
         <el-descriptions-item label="当前归集">{{ formatMoney(currentProject?.accumulated_amount) }}</el-descriptions-item>
         <el-descriptions-item label="预算金额">{{ formatMoney(currentProject?.budget) }}</el-descriptions-item>
       </el-descriptions>
@@ -216,8 +216,8 @@
         转固后，在建工程将标记为"已转固"，并在固定资产中生成一条新记录。此操作不可撤销。
       </el-alert>
       <el-descriptions :column="2" border class="mb-md">
-        <el-descriptions-item label="工程编号">{{ currentProject?.project_code }}</el-descriptions-item>
-        <el-descriptions-item label="工程名称">{{ currentProject?.project_name }}</el-descriptions-item>
+        <el-descriptions-item label="工程编号">{{ currentProject?.projectCode }}</el-descriptions-item>
+        <el-descriptions-item label="工程名称">{{ currentProject?.projectName }}</el-descriptions-item>
         <el-descriptions-item label="归集成本">{{ formatMoney(currentProject?.accumulated_amount) }}</el-descriptions-item>
       </el-descriptions>
       <el-form :model="transferForm" :rules="transferRules" ref="transferFormRef" label-width="100px">
@@ -296,19 +296,19 @@ const pagination = reactive({
 
 const form = reactive({
   id: null,
-  project_code: '',
-  project_name: '',
+  projectCode: '',
+  projectName: '',
   budget: 0,
-  start_date: '',
-  estimated_end_date: '',
+  startDate: '',
+  estimatedEndDate: '',
   responsible: '',
   department: '',
   notes: '',
 })
 
 const formRules = {
-  project_code: [{ required: true, message: '请输入工程编号', trigger: 'blur' }],
-  project_name: [{ required: true, message: '请输入工程名称', trigger: 'blur' }],
+  projectCode: [{ required: true, message: '请输入工程编号', trigger: 'blur' }],
+  projectName: [{ required: true, message: '请输入工程名称', trigger: 'blur' }],
 }
 
 const transferForm = reactive({
@@ -387,7 +387,7 @@ const handleCreate = () => {
   isEdit.value = false
   Object.assign(form, {
     id: null, project_code: '', project_name: '', budget: 0,
-    start_date: '', estimated_end_date: '', responsible: '', department: '', notes: '',
+    startDate: '', estimated_end_date: '', responsible: '', department: '', notes: '',
   })
   formDialogVisible.value = true
 }
@@ -397,11 +397,11 @@ const handleEdit = (row) => {
   isEdit.value = true
   Object.assign(form, {
     id: row.id,
-    project_code: row.projectCode,
-    project_name: row.projectName,
+    projectCode: row.projectCode,
+    projectName: row.projectName,
     budget: parseFloat(row.budget || 0),
-    start_date: formatDate(row.startDate) === '-' ? '' : formatDate(row.startDate),
-    estimated_end_date: formatDate(row.estimatedEndDate) === '-' ? '' : formatDate(row.estimatedEndDate),
+    startDate: formatDate(row.startDate) === '-' ? '' : formatDate(row.startDate),
+    estimatedEndDate: formatDate(row.estimatedEndDate) === '-' ? '' : formatDate(row.estimatedEndDate),
     responsible: row.responsible || '',
     department: row.department || '',
     notes: row.notes || '',

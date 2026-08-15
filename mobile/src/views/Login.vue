@@ -196,6 +196,10 @@
           // 仅允许站内相对路径 redirect，防止开放重定向
           const raw = route.query.redirect
           const redirect = Array.isArray(raw) ? raw[0] : raw
+          if (authStore.mustChangePassword) {
+            router.replace('/profile/password?forced=1')
+            return
+          }
           const safe =
             typeof redirect === 'string' &&
             redirect.startsWith('/') &&

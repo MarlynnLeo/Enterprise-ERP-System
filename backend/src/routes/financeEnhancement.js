@@ -13,6 +13,7 @@ const { requirePermission } = require('../middleware/requirePermission');
 const DLQService = require('../services/business/DLQService');
 const { ResponseHandler } = require('../utils/responseHandler');
 const { PRICE_EXPORT_PERMISSIONS, PRICE_UPDATE_PERMISSIONS } = require('../utils/desensitizer');
+const { SUPPLEMENT_REASON_PERMISSIONS } = require('../authorization/lookupPermissions');
 const { getRequestActorLabel } = require('../utils/userUtils');
 
 const {
@@ -404,7 +405,7 @@ router.post('/cost/settings', requirePermission('finance:cost:update'), requireP
  * @desc 获取补料原因配置
  * @access Private
  */
-router.get('/cost/supplement-reasons', requirePermission('finance:cost:view'), costController.getSupplementReasons);
+router.get('/cost/supplement-reasons', requirePermission(SUPPLEMENT_REASON_PERMISSIONS), costController.getSupplementReasons);
 
 /**
  * @route POST /api/finance/cost/supplement-reasons

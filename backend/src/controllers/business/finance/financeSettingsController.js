@@ -11,6 +11,29 @@ const { logger } = require('../../../utils/logger');
 /**
  * 获取财务配置
  */
+function pickBusinessOptions(config = {}) {
+  return {
+    tax: {
+      vatRateOptions: config.tax?.vatRateOptions || [],
+      defaultVATRate: config.tax?.defaultVATRate ?? 0.13,
+      returnTypes: config.tax?.returnTypes || [],
+      returnStatuses: config.tax?.returnStatuses || [],
+      invoiceTypes: config.tax?.invoiceTypes || [],
+      invoiceStatuses: config.tax?.invoiceStatuses || [],
+      incomeTaxRate: config.tax?.incomeTaxRate ?? 0.25,
+      additionalTaxRate: config.tax?.additionalTaxRate ?? 0.12,
+    },
+    currency: {
+      symbol: config.currency?.symbol || '¥',
+    },
+    invoice: {
+      paymentTermOptions: config.invoice?.paymentTermOptions || [],
+      defaultPaymentTermDays: config.invoice?.defaultPaymentTermDays || 30,
+      pagination: config.invoice?.pagination || {},
+    },
+  };
+}
+
 const getSettings = async (req, res) => {
   try {
     // 从数据库加载最新配置
@@ -21,6 +44,16 @@ const getSettings = async (req, res) => {
   } catch (error) {
     logger.error('获取财务配置失败:', error);
     ResponseHandler.error(res, '获取财务配置失败', 'SERVER_ERROR', 500, error);
+  }
+};
+
+const getBusinessOptions = async (req, res) => {
+  try {
+    await financeConfig.loadFromDatabase(db);
+    ResponseHandler.success(res, pickBusinessOptions(financeConfig.getAll()), '获取业务财务选项成功');
+  } catch (error) {
+    logger.error('获取业务财务选项失败:', error);
+    ResponseHandler.error(res, '获取业务财务选项失败', 'SERVER_ERROR', 500, error);
   }
 };
 
@@ -88,6 +121,7 @@ const resetSettings = async (req, res) => {
 
 module.exports = {
   getSettings,
+  getBusinessOptions,
   updateSettings,
   getDefaultSettings,
   resetSettings,

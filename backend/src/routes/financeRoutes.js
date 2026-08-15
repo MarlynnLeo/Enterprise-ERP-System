@@ -26,6 +26,7 @@ const expenseController = require('../controllers/business/finance/expenseContro
 // 财务报表已统一由增强报表控制器提供真实数据
 const { authenticateToken } = require('../middleware/authEnhanced');
 const { requirePermission } = require('../middleware/requirePermission');
+const { FINANCE_BUSINESS_OPTION_PERMISSIONS } = require('../authorization/lookupPermissions');
 const { FileUploadMiddlewares } = require('../middleware/unifiedFileUpload');
 const { PRICE_EXPORT_PERMISSIONS, PRICE_UPDATE_PERMISSIONS } = require('../utils/desensitizer');
 const {
@@ -64,6 +65,11 @@ router.post('/expenses/:id/cancel', requirePermission('finance:expenses:update')
 router.delete('/expenses/:id', requirePermission('finance:expenses:delete'), expenseController.deleteExpense);
 
 // 财务系统设置路由
+router.get(
+  '/settings/options',
+  requirePermission(FINANCE_BUSINESS_OPTION_PERMISSIONS),
+  financeSettingsController.getBusinessOptions
+);
 router.get('/settings', requirePermission('finance:settings:view'), financeSettingsController.getSettings);
 router.put('/settings', requirePermission('finance:settings:update'), financeSettingsController.updateSettings);
 router.get('/settings/default', requirePermission('finance:settings:view'), financeSettingsController.getDefaultSettings);

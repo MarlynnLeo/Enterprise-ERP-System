@@ -83,8 +83,9 @@
 
     <!-- 数据表格 -->
     <el-card class="data-card">
-      <el-table ref="outboundTableRef" :data="outboundList" border class="w-full" v-loading="loading"
-        @selection-change="handleSelectionChange">
+      <el-table ref="outboundTableRef" :data="outboundList" border class="table-row-click w-full" v-loading="loading"
+        @selection-change="handleSelectionChange"
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleView(row))">
         <template #empty>
           <EmptyState description="暂无出库单数据" />
         </template>
@@ -110,6 +111,13 @@
           <template #default="scope">
             <el-tag :type="getStatusType(scope.row.status)">
               {{ getStatusText(scope.row.status) }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="类型" min-width="90" show-overflow-tooltip>
+          <template #default="scope">
+            <el-tag size="small" :type="getOutboundTypeTag(scope.row.outboundType)">
+              {{ getOutboundTypeText(scope.row.outboundType) }}
             </el-tag>
           </template>
         </el-table-column>
@@ -151,12 +159,11 @@
           </template>
         </el-table-column>
         <el-table-column prop="remark" label="备注" min-width="200" show-overflow-tooltip></el-table-column>
-        <el-table-column label="操作" min-width="420" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="420" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="scope">
             <div class="table-actions">
-            <el-button class="btn-op-view" type="primary" size="small" v-permission="'inventory:outbound:view'" @click="handleView(scope.row)">
-              <el-icon><View /></el-icon> 查看
-            </el-button>
+            
             <!-- 草稿和已确认状态显示编辑按钮 -->
             <el-button v-if="scope.row.status === 'draft' || scope.row.status === 'confirmed'" size="small"
               @click="handleEdit(scope.row)"
@@ -616,10 +623,27 @@
   </div>
 </template>
 
+<script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
+import {
+  Search as SearchIcon,
+  Plus,
+  Printer,
+  Select as SelectIcon,
+  Close,
+  View,
+  Edit,
+  Delete,
+  RefreshRight,
+  Check,
+  Finished,
+  RefreshLeft,
+} from '@element-plus/icons-vue'
+</script>
+
 <script>
 import { ref, reactive, onMounted, computed, nextTick, h } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search as SearchIcon, Plus, Printer, Select as SelectIcon, Close, View, Edit, Delete, RefreshRight, Check, Finished, RefreshLeft } from '@element-plus/icons-vue'
 import { productionApi, inventoryApi, baseDataApi, systemApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import printService from '@/services/printService'
@@ -629,13 +653,6 @@ import { parseListData, parsePaginatedData, parseResponseData } from '@/utils/re
 import { formatDate } from '@/utils/helpers/dateUtils'
 export default {
   name: 'InventoryOutbound',
-  components: {
-    SearchIcon,
-    Plus,
-    Printer,
-    SelectIcon,
-    Close,
-  },
   setup() {
     const authStore = useAuthStore()
     const BATCH_MATERIAL_QUERY_LIMIT = 100
@@ -733,6 +750,25 @@ export default {
       if (status === 'reversed') return '已冲销'
       return getInboundOutboundStatusText(status)
     }
+    const getOutboundTypeText = (type) =>
+      ({
+        supplement: '补料',
+        exchange: '换料',
+        bom_issue: '生产发料',
+        batch_issue: '批量发料',
+        sales: '销售出库',
+        production: '生产领料',
+        manual: '其他出库',
+        other: '其他出库'
+      })[type] || type || '出库'
+    const getOutboundTypeTag = (type) =>
+      ({
+        supplement: 'danger',
+        exchange: 'warning',
+        bom_issue: 'primary',
+        batch_issue: 'primary',
+        sales: 'success'
+      })[type] || 'info'
 
     // 倒计时核心计算（单一职责，消除重复日期计算）
     const _calcCountdown = (outboundDate, status) => {
@@ -793,9 +829,11 @@ export default {
             taskId: task.id // 保存任务ID用于后续引用
           }))
       } catch (error) {
-        console.error('加载生产任务失败:', error)
         productionPlanOptions.value = []
-        ElMessage.error('加载生产任务失败')
+        if (error.response?.status !== 403) {
+          console.error('加载生产任务失败:', error)
+          ElMessage.error('加载生产任务失败')
+        }
       }
     }
 
@@ -2150,6 +2188,7 @@ export default {
     }
 
     return {
+      handleTableRowView,
       // 图标组件
       SearchIcon,
       Plus,
@@ -2207,6 +2246,8 @@ export default {
       formatDate,
       getStatusType,
       getStatusText,
+      getOutboundTypeText,
+      getOutboundTypeTag,
       getCountdownText,
       getCountdownType,
       tableHeight,
@@ -2315,14 +2356,6 @@ export default {
   color: var(--color-text-secondary);
   margin-top: 4px;
   line-height: 1.2;
-}
-
-/* 详情对话框中的长文本处理 */
-:deep(.el-descriptions__content) {
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 /* 详情表格文本溢出处理 */

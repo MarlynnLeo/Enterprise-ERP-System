@@ -24,20 +24,43 @@
       <div v-if="activeTab === 'roles'">
         <div class="role-header">
           <h3>系统角色</h3>
-          <el-button
-            type="primary"
-            v-permission="'system:permissions:manage'"
-            @click="showAddRoleDialog"
-            >新增角色</el-button
-          >
+          <div class="role-header-actions">
+            <el-button
+              type="primary"
+              v-permission="'system:permissions:manage'"
+              @click="showAddRoleDialog"
+              >新增角色</el-button
+            >
+          </div>
         </div>
 
-        <el-table :data="roleList" class="w-full" border v-loading="roleLoading">
+        <el-table
+          :data="roleList"
+          class="table-row-click w-full"
+          border
+          v-loading="roleLoading"
+          @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleViewRole(row))"
+        >
           <template #empty>
             <EmptyState description="暂无角色数据" />
           </template>
           <el-table-column prop="name" label="角色名称" width="160"></el-table-column>
           <el-table-column prop="code" label="角色编码" width="160"></el-table-column>
+          <el-table-column label="岗位范围" min-width="220">
+            <template #default="scope">
+              <div class="role-scope-cell">
+                <el-tag
+                  :type="scope.row.accessProfile?.superAdmin ? 'danger' : scope.row.accessProfile?.managed ? 'success' : 'info'"
+                  size="small"
+                >
+                  {{ scope.row.accessProfile?.label || '自定义' }}
+                </el-tag>
+                <span v-if="scope.row.accessProfile?.modules?.length" class="role-scope-modules">
+                  {{ formatRoleModules(scope.row.accessProfile.modules) }}
+                </span>
+              </div>
+            </template>
+          </el-table-column>
           <el-table-column label="数据范围" width="140">
             <template #default="scope">
               <el-tag type="info" size="small">{{ dataScopeLabel(scope.row.dataScope) }}</el-tag>
@@ -86,13 +109,6 @@
                     </el-button>
                   </template>
                 </el-popconfirm>
-                <el-button
-                  v-if="String(scope.row.status) === '1'"
-                  type="primary"
-                  size="small"
-                  @click="handleViewRole(scope.row)"
-                  ><el-icon><View /></el-icon> 查看</el-button
-                >
                 <el-button
                   v-if="String(scope.row.status) !== '1'"
                   type="primary"
@@ -149,12 +165,13 @@
 
         <el-table
           :data="menuList"
-          class="w-full"
+          class="table-row-click w-full"
           border
           row-key="id"
           :tree-props="{ children: 'children', hasChildren: 'hasChildren' }"
           v-loading="menuLoading"
           :default-sort="{ prop: 'sort', order: 'ascending' }"
+          @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleViewMenu(row))"
         >
           <template #empty>
             <EmptyState description="暂无菜单数据" />
@@ -225,13 +242,6 @@
                     </el-button>
                   </template>
                 </el-popconfirm>
-                <el-button
-                  v-if="String(scope.row.status) === '1'"
-                  type="primary"
-                  size="small"
-                  @click="handleViewMenu(scope.row)"
-                  ><el-icon><View /></el-icon> 查看</el-button
-                >
                 <el-button
                   v-if="String(scope.row.status) !== '1'"
                   type="primary"
@@ -359,6 +369,13 @@
           <span class="perm-role-label"
             >当前角色：<strong>{{ currentRole?.name || '未选择' }}</strong></span
           >
+          <el-tag
+            v-if="currentRoleProfile"
+            :type="currentRoleProfile.superAdmin ? 'danger' : currentRoleProfile.managed ? 'success' : 'info'"
+            size="small"
+          >
+            {{ currentRoleProfile.label }}
+          </el-tag>
           <el-tag type="info" size="small" effect="plain" round>
             已选 <strong>{{ permSelectedCount }}</strong> 项
           </el-tag>
@@ -592,6 +609,7 @@
 </template>
 <script setup>
 import { ref, reactive, onMounted, nextTick, computed, h, watch } from 'vue';
+import { handleTableRowView } from '@/utils/tableRowView';
 import { ElMessage, ElMessageBox, ElLoading } from 'element-plus';
 import {
   Check,
@@ -666,6 +684,12 @@ const dataScopeLabel = (v) => {
   const n = Number(v);
   const hit = dataScopeOptions.find((o) => o.value === n);
   return hit ? hit.label : v == null || v === '' ? '-' : String(v);
+};
+const currentRoleProfile = computed(() => currentRole.value?.accessProfile || null);
+const formatRoleModules = (modules = []) => {
+  if (!Array.isArray(modules) || modules.length === 0) return '';
+  if (modules.includes('*')) return '全部模块';
+  return modules.join('、');
 };
 const roleForm = reactive({
   id: null,
@@ -2114,6 +2138,20 @@ onMounted(async () => {
   align-items: center;
   margin-bottom: var(--spacing-lg);
 }
+.role-header-actions {
+  display: flex;
+  gap: 8px;
+}
+.role-scope-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.role-scope-modules {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  line-height: 1.4;
+}
 .role-header h3,
 .menu-header h3 {
   margin: 0;
@@ -2437,13 +2475,6 @@ onMounted(async () => {
   justify-content: center;
   gap: 10px;
   margin-top: 10px;
-}
-/* 详情对话框长文本处理 - 自动添加 */
-:deep(.el-descriptions__content) {
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 :deep(.el-table__cell) {
   overflow: hidden;

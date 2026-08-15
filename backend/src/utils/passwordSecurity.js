@@ -10,17 +10,17 @@ class PasswordSecurity {
   constructor() {
     // 密码策略配置
     this.config = {
-      minLength: 8,
+      minLength: 1,
       maxLength: 128,
-      requireUppercase: true,
-      requireLowercase: true,
-      requireNumbers: true,
-      requireSpecialChars: true,
+      requireUppercase: false,
+      requireLowercase: false,
+      requireNumbers: false,
+      requireSpecialChars: false,
       specialChars: '!@#$%^&*()_+-=[]{}|;:,.<>?',
-      maxAttempts: 5, // 最大登录尝试次数（超过后锁定账户）
-      lockoutDuration: 15 * 60 * 1000, // 15分钟
-      passwordHistory: 5, // 记住最近5个密码
-      passwordExpiry: 90 * 24 * 60 * 60 * 1000, // 90天过期
+      maxAttempts: 5,
+      lockoutDuration: 15 * 60 * 1000,
+      passwordHistory: 0,
+      passwordExpiry: 90 * 24 * 60 * 60 * 1000,
     };
   }
 
@@ -28,69 +28,15 @@ class PasswordSecurity {
    * 验证密码强度
    */
   validatePasswordStrength(password) {
+    const value = password == null ? '' : String(password);
     const errors = [];
-
-    // 长度检查
-    if (password.length < this.config.minLength) {
-      errors.push(`密码长度不能少于${this.config.minLength}位`);
+    if (!value) {
+      errors.push('密码不能为空');
     }
-
-    if (password.length > this.config.maxLength) {
-      errors.push(`密码长度不能超过${this.config.maxLength}位`);
-    }
-
-    // 大写字母检查
-    if (this.config.requireUppercase && !/[A-Z]/.test(password)) {
-      errors.push('密码必须包含至少一个大写字母');
-    }
-
-    // 小写字母检查
-    if (this.config.requireLowercase && !/[a-z]/.test(password)) {
-      errors.push('密码必须包含至少一个小写字母');
-    }
-
-    // 数字检查
-    if (this.config.requireNumbers && !/\d/.test(password)) {
-      errors.push('密码必须包含至少一个数字');
-    }
-
-    // 特殊字符检查
-    if (this.config.requireSpecialChars) {
-      const specialCharRegex = new RegExp(
-        `[${this.config.specialChars.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}]`
-      );
-      if (!specialCharRegex.test(password)) {
-        errors.push('密码必须包含至少一个特殊字符');
-      }
-    }
-
-    // 常见弱密码检查
-    const weakPasswords = [
-      'password',
-      '123456',
-      '123456789',
-      'qwerty',
-      'abc123',
-      'password123',
-      'admin',
-      'root',
-      '111111',
-      '000000',
-    ];
-
-    if (weakPasswords.includes(password.toLowerCase())) {
-      errors.push('不能使用常见的弱密码');
-    }
-
-    // 重复字符检查
-    if (/(.)\1{2,}/.test(password)) {
-      errors.push('密码不能包含连续重复的字符');
-    }
-
     return {
       isValid: errors.length === 0,
       errors,
-      strength: this.calculatePasswordStrength(password),
+      strength: this.calculatePasswordStrength(value),
     };
   }
 

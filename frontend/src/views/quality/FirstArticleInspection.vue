@@ -62,7 +62,8 @@
 
     <el-card class="data-card">
       <!-- 首检单列表 -->
-      <el-table :data="inspectionList" border class="w-full" v-loading="loading">
+      <el-table :data="inspectionList" border class="table-row-click w-full" v-loading="loading"
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleView(row))">
         <el-table-column prop="inspectionNo" label="检验单号" min-width="140" />
         <el-table-column prop="taskCode" label="生产任务号" min-width="130" />
         <el-table-column prop="productName" label="产品名称" min-width="160" />
@@ -89,9 +90,10 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" fixed="right" min-width="320" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" fixed="right" min-width="320" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="{ row }">
-            <el-button class="btn-op-view" type="primary" size="small" @click="handleView(row)">查看</el-button>
+            
             <el-button v-permission="'quality:inspections:update'" v-if="row.firstArticleResult === 'pending'" size="small" type="primary" @click="handleInspect(row)">检验</el-button>
             <el-button v-permission="'quality:inspections:update'" v-if="row.firstArticleResult === 'failed'" size="small" type="warning" @click="handleReinspect(row)">重检</el-button>
             <el-button v-permission="'quality:inspections:view'" v-if="row.firstArticleResult === 'passed'" size="small" type="success" @click="handlePrint(row)">打印</el-button>
@@ -118,6 +120,7 @@
   </div>
 </template>
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, reactive, computed, onMounted, defineAsyncComponent } from 'vue'
 import { Plus, Setting } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'

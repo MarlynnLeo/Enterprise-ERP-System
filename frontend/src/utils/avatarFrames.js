@@ -1,16 +1,17 @@
 /**
  * 头像特效配置
- * 保留全部原有图片框资源；仅做参数与兼容增强，不删特效。
+ * 已移除金光圣环，默认特效为彩虹星芒。
  */
 
-export const DEFAULT_AVATAR_FRAME = 'none'
+export const DEFAULT_AVATAR_FRAME = 'rainbow-star'
 
 /**
  * 若用户曾短暂保存过 CSS 企业环 id，映射回原图片特效，避免空白。
- * 正常用户的 golden-halo 等 id 不受影响。
+ * 历史 golden-halo / frame1 会映射到 rainbow-star。
  */
 export const LEGACY_AVATAR_FRAME_MAP = Object.freeze({
-  'executive-gold': 'golden-halo',
+  'golden-halo': 'rainbow-star',
+  'executive-gold': 'rainbow-star',
   'slate-steel': 'silver-moon',
   'signal-blue': 'cyber-blue',
   'ocean-depth': 'ocean-crystal',
@@ -23,22 +24,21 @@ export const LEGACY_AVATAR_FRAME_MAP = Object.freeze({
   'midnight-orbit': 'galaxy-orbit',
   'aurora-flow': 'neon-prism',
   obsidian: 'none',
-  frame1: 'golden-halo',
+  frame1: 'rainbow-star',
   frame2: 'silver-moon',
   frame3: 'ocean-crystal'
 })
 
 export const AVATAR_FRAME_OPTIONS = Object.freeze([
   {
-    id: 'golden-halo',
-    name: '金光圣环',
-    description: '透明金色光环图片框，接近参考图效果。',
-    tags: ['图片框', '金色', '华丽'],
+    id: 'rainbow-star',
+    name: '彩虹星芒',
+    description: '彩虹分段圆环和星芒图片框，明亮活泼。',
+    tags: ['图片框', '彩虹', '星光', '梦幻'],
     variant: 'image-frame',
-    image: '/avatar-frames/golden-halo.png',
+    image: '/avatar-frames/rainbow-star.png',
     motion: 'breath',
-    // 外溢装饰多，头像略小以露出光环
-    avatarRatio: 0.62,
+    avatarRatio: 0.64,
     featured: true
   },
   {
@@ -153,17 +153,7 @@ export const AVATAR_FRAME_OPTIONS = Object.freeze([
     avatarRatio: 0.64,
     featured: true
   },
-  {
-    id: 'rainbow-star',
-    name: '彩虹星芒',
-    description: '彩虹分段圆环和星芒图片框，明亮活泼。',
-    tags: ['图片框', '彩虹', '星光', '梦幻'],
-    variant: 'image-frame',
-    image: '/avatar-frames/rainbow-star.png',
-    motion: 'breath',
-    avatarRatio: 0.64,
-    featured: true
-  },
+  
   {
     id: 'lava-dragon',
     name: '熔岩龙焰',

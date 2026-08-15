@@ -143,9 +143,9 @@ const categoryForm = reactive({
   id: null,
   code: '',
   name: '',
-  parent_id: null,
+  parentId: null,
   description: '',
-  sort_order: 0,
+  sortOrder: 0,
   status: 1
 })
 
@@ -168,9 +168,9 @@ const resetForm = (parentId = null) => {
     id: null,
     code: '',
     name: '',
-    parent_id: parentId,
+    parentId: parentId,
     description: '',
-    sort_order: 0,
+    sortOrder: 0,
     status: 1
   })
 }
@@ -221,9 +221,9 @@ const handleEdit = (row) => {
     id: row.id,
     code: row.code,
     name: row.name,
-    parent_id: row.parentId,
+    parentId: row.parentId,
     description: row.description || '',
-    sort_order: row.sortOrder || 0,
+    sortOrder: row.sortOrder || 0,
     status: Number(row.status ?? 1)
   })
   dialogVisible.value = true
@@ -232,9 +232,9 @@ const handleEdit = (row) => {
 const buildPayload = () => ({
   code: categoryForm.code,
   name: categoryForm.name,
-  parent_id: categoryForm.parentId,
+  parentId: categoryForm.parentId,
   description: categoryForm.description,
-  sort_order: categoryForm.sortOrder,
+  sortOrder: categoryForm.sortOrder,
   status: categoryForm.status
 })
 

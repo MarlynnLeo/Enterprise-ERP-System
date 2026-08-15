@@ -8,6 +8,7 @@ const { pool } = require('../config/db');
 const { logger } = require('../utils/logger');
 const DBManager = require('../utils/dbManager');
 const { syncRolePermissionsFromMenus } = require('../services/PermissionRegistry');
+const RoleAccessService = require('../services/RoleAccessService');
 
 /**
  * 获取角色的菜单权限
@@ -16,6 +17,16 @@ const { syncRolePermissionsFromMenus } = require('../services/PermissionRegistry
  */
 const getRoleMenus = async (roleId) => {
   try {
+    const [[role]] = await pool.execute(
+      'SELECT code, is_super_admin FROM roles WHERE id = ? LIMIT 1',
+      [roleId]
+    );
+    if (Number(role?.is_super_admin) === 1 || String(role?.code || '') === 'admin') {
+      const [allMenus] = await pool.execute(
+        'SELECT id AS menu_id FROM menus WHERE status = 1 ORDER BY id'
+      );
+      return allMenus.map((row) => row.menu_id);
+    }
     const [rows] = await pool.execute(
       'SELECT menu_id FROM role_menus WHERE role_id = ? ORDER BY menu_id',
       [roleId]
@@ -73,26 +84,45 @@ const setRoleMenus = async (roleId, menuIds = []) => {
     ].filter((id) => Number.isInteger(id) && id > 0);
 
     const result = await DBManager.executeTransaction(async (connection) => {
+      const [[role]] = await connection.execute(
+        'SELECT id, code, is_super_admin FROM roles WHERE id = ? LIMIT 1',
+        [roleId]
+      );
+      if (Number(role?.is_super_admin) === 1 || String(role?.code || '') === 'admin') {
+        await RoleAccessService.grantAllAccess(connection, roleId);
+        return true;
+      }
+      const scopedMenuIds = await RoleAccessService.clampMenuIds(
+        connection,
+        role || { id: roleId },
+        normalizedMenuIds
+      );
+      if (scopedMenuIds.length !== normalizedMenuIds.length) {
+        logger.warn(
+          `[RoleAccess] 角色 ${roleId}(${role?.code || '?'}) 权限已按岗位模板裁剪: ${normalizedMenuIds.length} → ${scopedMenuIds.length}`
+        );
+      }
+
       const [deleteResult] = await connection.execute('DELETE FROM role_menus WHERE role_id = ?', [
         roleId,
       ]);
       logger.info(`[事务] 删除角色 ${roleId} 的菜单关联: ${deleteResult.affectedRows} 行`);
 
-      if (normalizedMenuIds.length > 0) {
-        const placeholders = normalizedMenuIds.map(() => '?').join(',');
+      if (scopedMenuIds.length > 0) {
+        const placeholders = scopedMenuIds.map(() => '?').join(',');
         const [existingMenus] = await connection.execute(
           `SELECT id FROM menus WHERE id IN (${placeholders})`,
-          normalizedMenuIds
+          scopedMenuIds
         );
         const existingIds = new Set(existingMenus.map((row) => Number(row.id)));
-        const missingIds = normalizedMenuIds.filter((menuId) => !existingIds.has(menuId));
+        const missingIds = scopedMenuIds.filter((menuId) => !existingIds.has(menuId));
         if (missingIds.length > 0) {
           throw new Error(`invalid menuIds: ${missingIds.join(',')}`);
         }
 
-        const values = normalizedMenuIds.map(() => '(?, ?)').join(',');
+        const values = scopedMenuIds.map(() => '(?, ?)').join(',');
         const params = [];
-        for (const menuId of normalizedMenuIds) {
+        for (const menuId of scopedMenuIds) {
           params.push(roleId, menuId);
         }
 
@@ -104,7 +134,7 @@ const setRoleMenus = async (roleId, menuIds = []) => {
       }
 
       // 鉴权 SSOT：同步 role_permissions
-      const sync = await syncRolePermissionsFromMenus(connection, roleId, normalizedMenuIds);
+      const sync = await syncRolePermissionsFromMenus(connection, roleId, scopedMenuIds);
       logger.info(
         `[事务] 角色 ${roleId} role_permissions 同步完成: inserted=${sync.inserted}`
       );

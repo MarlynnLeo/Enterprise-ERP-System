@@ -106,12 +106,13 @@
           </template>
           <el-table
             :data="filteredDefectItems"
-            class="w-full"
+            class="table-row-click w-full"
             v-loading="loading"
             border
             :max-height="400"
             :empty-text="defectItems.length === 0 ? '暂无不合格项目' : '没有匹配的数据'"
-          >
+          
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => viewInspection(row))">
             <el-table-column label="检验单号" prop="inspectionNo" min-width="120" />
             <el-table-column label="检验类型" min-width="100">
               <template #default="scope">
@@ -136,15 +137,7 @@
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="操作" min-width="120" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
-              <template #default="scope">
-                <div class="table-actions">
-                  <el-button class="btn-op-view" type="primary" size="small" @click="viewInspection(scope.row)">
-                    <el-icon><View /></el-icon> 查看
-                  </el-button>
-                </div>
-              </template>
-            </el-table-column>
+            
           </el-table>
           <div class="pagination-container" v-if="defectItems.length > 0">
             <el-pagination
@@ -165,6 +158,7 @@
 
 <script setup>
 
+import { handleTableRowView } from '@/utils/tableRowView'
 import { formatDate } from '@/utils/helpers/dateUtils'
 
 import { ref, computed, onMounted, onBeforeUnmount, reactive, watch } from 'vue';
@@ -565,14 +559,7 @@ watch(timeRange, () => {
 /* 响应式调整 */
 
 
-
-/* 详情对话框长文本处理 - 自动添加 */
-:deep(.el-descriptions__content) {
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+
 
 :deep(.el-table__cell) {
   overflow: hidden;

@@ -44,7 +44,7 @@
               <el-button
                 type="primary"
                 class="material-code-btn"
-                :disabled="!form.productCategoryId"
+                :disabled="!form.categoryId"
                 @click="regenerateMaterialCode"
                 title="重新生成编码"
               >
@@ -63,13 +63,13 @@
           </el-form-item>
         </el-col>
         <el-col :span="8">
-          <el-form-item label="物料类型" prop="categoryId">
-            <el-select v-model="form.categoryId" placeholder="请选择物料类型" class="w-full">
+          <el-form-item label="物料类型" prop="materialType">
+            <el-select v-model="form.materialType" placeholder="请选择物料类型" class="w-full">
               <el-option
-                v-for="item in categoryOptions"
-                :key="item.id"
-                :label="item.name"
-                :value="item.id">
+                v-for="item in materialTypeOptions"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value">
               </el-option>
             </el-select>
           </el-form-item>
@@ -196,14 +196,9 @@
         </el-col>
       </el-row>
 
-      <!-- 材质、仓库、物料负责人 -->
+      <!-- 仓库、物料负责人 -->
       <el-row :gutter="16">
-        <el-col :span="8">
-          <el-form-item label="材质">
-            <el-input v-model="form.materialType" placeholder="如：304不锈钢"></el-input>
-          </el-form-item>
-        </el-col>
-        <el-col :span="8">
+        <el-col :span="12">
           <el-form-item label="仓库" prop="locationId">
             <el-select
               v-model="form.locationId"
@@ -218,7 +213,7 @@
             </el-select>
           </el-form-item>
         </el-col>
-        <el-col :span="8">
+        <el-col :span="12">
           <el-form-item label="物料负责人">
             <el-select
               v-model="form.managerId"
@@ -241,23 +236,34 @@
 
       <!-- 销售价格、采购成本、安全库存 -->
       <el-row :gutter="16">
-        <el-col v-if="canMaintainPrice" :span="8">
+        <el-col :span="8">
           <el-form-item label="销售价格">
-            <el-input v-model="form.price" placeholder="0.00"></el-input>
+            <el-input
+              v-if="canMaintainPrice"
+              v-model="form.price"
+              placeholder="0.00"
+            />
+            <el-input v-else :model-value="canViewPrice ? form.price : '***'" disabled />
           </el-form-item>
         </el-col>
-        <el-col v-if="canMaintainPrice" :span="8">
+        <el-col :span="8">
           <el-form-item label="采购成本">
-            <el-input v-model="form.costPrice" placeholder="0.00" disabled>
+            <el-input
+              v-if="canViewPrice || canMaintainPrice"
+              v-model="form.costPrice"
+              placeholder="0.00"
+              disabled
+            >
               <template #suffix>
                 <el-tooltip content="采购入库时自动更新">
                   <el-icon><InfoFilled /></el-icon>
                 </el-tooltip>
               </template>
             </el-input>
+            <el-input v-else model-value="***" disabled />
           </el-form-item>
         </el-col>
-        <el-col :span="canMaintainPrice ? 8 : 24">
+        <el-col :span="8">
           <el-form-item label="安全库存">
             <el-input v-model="form.safetyStock" placeholder="0"></el-input>
           </el-form-item>
@@ -323,29 +329,28 @@
 <script setup>
 import { ref, reactive, computed, watch, nextTick } from 'vue'
 import { Refresh, InfoFilled, Upload } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { materialApi } from '@/api/material'
 import { useFinanceStore } from '@/stores/finance'
+import { MATERIAL_TYPE_OPTIONS, normalizeMaterialType } from '@/utils/materialTypes'
+import { parseDataObject } from '@/utils/responseParser'
 
 const financeStore = useFinanceStore()
 financeStore.loadSettings()
-// 需要引入其他API: productCategory, location, unit, etc.
-// 为了简化，这些options可以由父组件传入
 
 const props = defineProps({
   modelValue: Boolean,
   title: String,
   editData: Object,
-  // 选项类Props
   productCategoryOptions: { type: Array, default: () => [] },
-  categoryOptions: { type: Array, default: () => [] },
   inspectionMethodOptions: { type: Array, default: () => [] },
   materialSourceOptions: { type: Array, default: () => [] },
   unitOptions: { type: Array, default: () => [] },
   locationOptions: { type: Array, default: () => [] },
   productionGroupOptions: { type: Array, default: () => [] },
   managerOptions: { type: Array, default: () => [] },
-  canMaintainPrice: { type: Boolean, default: false }
+  canMaintainPrice: { type: Boolean, default: false },
+  canViewPrice: { type: Boolean, default: false }
 })
 
 const emit = defineEmits(['update:modelValue', 'success', 'search-suppliers'])
@@ -353,9 +358,60 @@ const emit = defineEmits(['update:modelValue', 'success', 'search-suppliers'])
 const formRef = ref(null)
 const submitting = ref(false)
 const supplierLoading = ref(false)
-const filteredSupplierOptions = ref([]) // 本地或远程搜索结果
+const filteredSupplierOptions = ref([])
+const productCategoryCascaderValue = ref(null)
+const materialTypeOptions = MATERIAL_TYPE_OPTIONS
 
-const isEdit = computed(() => !!props.editData)
+const isEdit = computed(() => !!props.editData?.id)
+const isCopyMode = computed(() => !!props.editData && !props.editData.id)
+
+const COPYABLE_FIELDS = [
+  'name',
+  'materialType',
+  'specs',
+  'drawingNo',
+  'colorCode',
+  'unitId',
+  'inspectionMethodId',
+  'materialSourceId',
+  'locationId',
+  'locationDetail',
+  'managerId',
+  'supplierId',
+  'productionGroupId',
+  'price',
+  'costPrice',
+  'safetyStock',
+  'minStock',
+  'maxStock',
+  'taxRate',
+  'remark'
+]
+
+const ID_FIELDS = [
+  'productCategoryId',
+  'categoryId',
+  'inspectionMethodId',
+  'materialSourceId',
+  'unitId',
+  'locationId',
+  'managerId',
+  'supplierId',
+  'productionGroupId'
+]
+
+const toId = (value) => {
+  if (value === null || value === undefined || value === '') return null
+  const numeric = Number(value)
+  return Number.isFinite(numeric) ? numeric : value
+}
+
+const pickValue = (data, camelKey, snakeKey) => {
+  if (!data) return undefined
+  if (data[camelKey] !== undefined) return data[camelKey]
+  if (snakeKey && data[snakeKey] !== undefined) return data[snakeKey]
+  return undefined
+}
 
 const getSourceTypeLabel = (type) => {
   const labels = {
@@ -366,32 +422,34 @@ const getSourceTypeLabel = (type) => {
   return labels[type] || type || '-'
 }
 
-const form = reactive({
+const createEmptyForm = () => ({
   id: '',
   code: '',
   name: '',
-  product_category_id: null,
-  category_id: null,
-  inspection_method_id: null,
-  material_source_id: null,
-  unit_id: null,
-  location_id: null,
-  location_detail: '',
-  manager_id: null,
-  supplier_id: null,
-  production_group_id: null,
-  material_type: '', // 材质
+  productCategoryId: null,
+  categoryId: null,
+  inspectionMethodId: null,
+  materialSourceId: null,
+  unitId: null,
+  locationId: null,
+  locationDetail: '',
+  managerId: null,
+  supplierId: null,
+  productionGroupId: null,
+  materialType: '',
   specs: '',
-  drawing_no: '',
-  color_code: '',
+  drawingNo: '',
+  colorCode: '',
   price: '',
-  cost_price: '',
-  safety_stock: '',
-  min_stock: '',
-  max_stock: '',
-  tax_rate: financeStore.defaultVATRate,
+  costPrice: '',
+  safetyStock: '',
+  minStock: '',
+  maxStock: '',
+  taxRate: financeStore.defaultVATRate,
   remark: ''
 })
+
+const form = reactive(createEmptyForm())
 
 // 附件相关状态
 const attachmentFileList = ref([])
@@ -408,44 +466,80 @@ const handleAttachmentRemove = (file, fileList) => {
 
 const rules = {
   name: [{ required: true, message: '请输入物料名称', trigger: 'blur' }],
-  product_category_id: [{ required: true, message: '请选择物料大类', trigger: 'change' }],
+  categoryId: [{ required: true, message: '请选择物料大类', trigger: 'change' }],
   code: [{ required: true, message: '请输入或生成物料编码', trigger: 'blur' }],
-  unit_id: [{ required: true, message: '请选择单位', trigger: 'change' }],
-  category_id: [{ required: true, message: '请选择物料类型', trigger: 'change' }]
+  unitId: [{ required: true, message: '请选择单位', trigger: 'change' }],
+  materialType: [{ required: true, message: '请选择物料类型', trigger: 'change' }]
 }
 
-// 填充表单数据的方法
+const seedSupplierOption = (data) => {
+  const supplierId = toId(pickValue(data, 'supplierId', 'supplier_id'))
+  const supplierName = pickValue(data, 'supplierName', 'supplier_name')
+  const supplierCode = pickValue(data, 'supplierCode', 'supplier_code') || ''
+  if (!supplierId) {
+    return
+  }
+  const exists = filteredSupplierOptions.value.some((item) => Number(item.id) === Number(supplierId))
+  if (exists) return
+  filteredSupplierOptions.value = [
+    {
+      id: supplierId,
+      name: supplierName || `供应商#${supplierId}`,
+      code: supplierCode
+    },
+    ...filteredSupplierOptions.value
+  ]
+}
+
+const syncProductCategoryFromLeaf = (leafId) => {
+  const categoryInfo = findCategoryPath(leafId, props.productCategoryOptions)
+  if (!categoryInfo) {
+    if (leafId) form.productCategoryId = leafId
+    return
+  }
+  form.productCategoryId = categoryInfo.level3?.id || categoryInfo.level2?.id || categoryInfo.current?.id || leafId
+}
+
 const fillFormData = (data) => {
-  if (data) {
-    Object.keys(form).forEach(key => {
-      if (data[key] !== undefined) {
-        form[key] = data[key]
-      }
-    })
-    // 特殊字段处理
-    form.id = data.id
-    // 如果有供应商，需要设置初始option
-    if (data.supplierId && data.supplierName) {
-      filteredSupplierOptions.value = [{
-        id: data.supplierId,
-        name: data.supplierName,
-        code: data.supplierCode
-      }]
-    }
-    // 复制模式：有 product_category_id 但没有 id → 自动生成编码
-    if (!data.id && form.productCategoryId) {
-      nextTick(() => {
-        regenerateMaterialCode()
-      })
-    }
-    // 编辑模式：加载已有附件列表
-    if (data.id) {
-      loadExistingAttachments(data.id)
-    } else {
-      attachmentFileList.value = []
-    }
-  } else {
+  if (!data) {
     resetForm()
+    return
+  }
+
+  Object.assign(form, createEmptyForm())
+  Object.keys(form).forEach((key) => {
+    const snakeKey = key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)
+    const value = pickValue(data, key, snakeKey)
+    if (value === undefined) return
+    if (ID_FIELDS.includes(key)) {
+      form[key] = toId(value)
+    } else if (key === 'materialType') {
+      form[key] = normalizeMaterialType(value)
+    } else {
+      form[key] = value
+    }
+  })
+  form.id = data.id || ''
+
+  if (!form.categoryId && form.productCategoryId) {
+    form.categoryId = form.productCategoryId
+  }
+  if (form.categoryId) {
+    syncProductCategoryFromLeaf(form.categoryId)
+  }
+
+  seedSupplierOption(data)
+  productCategoryCascaderValue.value = form.categoryId
+
+  if (!data.id && form.categoryId) {
+    nextTick(() => {
+      regenerateMaterialCode()
+    })
+  }
+  if (data.id) {
+    loadExistingAttachments(data.id)
+  } else {
+    attachmentFileList.value = []
   }
 }
 
@@ -500,13 +594,20 @@ const handleClose = () => {
 
 const resetForm = () => {
   if (formRef.value) formRef.value.resetFields()
-  Object.keys(form).forEach(key => {
-    form[key] = (key === 'tax_rate' ? financeStore.defaultVATRate : (['price','cost_price','min_stock','max_stock','safety_stock'].includes(key) ? '' : (key.endsWith('id') ? null : '')))
-  })
+  Object.assign(form, createEmptyForm())
+  filteredSupplierOptions.value = []
+  productCategoryCascaderValue.value = null
+  attachmentFileList.value = []
 }
 
 const buildSubmitPayload = () => {
   const payload = { ...form }
+  delete payload.id
+  if (form.categoryId) {
+    syncProductCategoryFromLeaf(form.categoryId)
+    payload.categoryId = form.categoryId
+    payload.productCategoryId = form.productCategoryId
+  }
   if (!props.canMaintainPrice) {
     delete payload.price
     delete payload.costPrice
@@ -516,9 +617,6 @@ const buildSubmitPayload = () => {
 }
 
 // === Cascader 级联选择器逻辑 ===
-// cascader 绑定值（emitPath: false 时直接为选中的 id）
-const productCategoryCascaderValue = ref(null)
-
 // 搜索过滤方法：支持按编码和名称搜索
 const cascaderFilterMethod = (node, keyword) => {
   const data = node.data
@@ -530,31 +628,94 @@ const cascaderFilterMethod = (node, keyword) => {
   )
 }
 
-// cascader 值变更回调
-const handleCascaderChange = (value) => {
-  form.productCategoryId = value
-  // 选择大类后自动生成编码（仅新增时）
-  if (value && !isEdit.value) {
-    regenerateMaterialCode()
+const applyPreviousMaterial = (data) => {
+  const keptCode = form.code
+  const keptCategoryId = form.categoryId
+  const keptProductCategoryId = form.productCategoryId
+
+  COPYABLE_FIELDS.forEach((key) => {
+    const snakeKey = key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)
+    const value = pickValue(data, key, snakeKey)
+    if (value === undefined) return
+    if (ID_FIELDS.includes(key)) {
+      form[key] = toId(value)
+    } else if (key === 'materialType') {
+      form[key] = normalizeMaterialType(value)
+    } else {
+      form[key] = value
+    }
+  })
+
+  form.id = ''
+  form.code = keptCode
+  form.categoryId = keptCategoryId
+  form.productCategoryId = keptProductCategoryId
+  seedSupplierOption(data)
+}
+
+const promptCopyPreviousMaterial = async (categoryId) => {
+  try {
+    const res = await materialApi.getLatestMaterialByCategory({ categoryId })
+    const previous = parseDataObject(res)
+    if (!previous || !previous.id) return
+
+    const label = [previous.code, previous.name].filter(Boolean).join(' ')
+    await ElMessageBox.confirm(
+      `该大类下上一个物料是「${label}」。是否复制它的信息？`,
+      '复制上一物料',
+      {
+        confirmButtonText: '是',
+        cancelButtonText: '否',
+        type: 'info',
+        distinguishCancelAndClose: true
+      }
+    )
+    applyPreviousMaterial(previous)
+    ElMessage.success(`已复制物料 ${label} 的信息，请核对后保存`)
+  } catch (error) {
+    if (error === 'cancel' || error === 'close') return
+    console.error('获取上一物料失败:', error)
   }
 }
 
-// 同步 cascader 值与 form.productCategoryId
-watch(() => form.productCategoryId, (val) => {
+const handleCascaderChange = async (value) => {
+  form.categoryId = value || null
+  if (value) {
+    syncProductCategoryFromLeaf(value)
+  } else {
+    form.productCategoryId = null
+  }
+  if (value && !isEdit.value) {
+    const generated = await regenerateMaterialCode({ silent: true })
+    if (generated && !isCopyMode.value) {
+      await promptCopyPreviousMaterial(value)
+    }
+  }
+}
+
+watch(() => form.categoryId, (val) => {
   if (val !== productCategoryCascaderValue.value) {
     productCategoryCascaderValue.value = val
   }
 }, { immediate: true })
 
-// 递归查找产品大类路径（找到目标ID及其层级结构）
+watch(() => props.productCategoryOptions, () => {
+  if (props.modelValue && form.categoryId) {
+    syncProductCategoryFromLeaf(form.categoryId)
+    productCategoryCascaderValue.value = form.categoryId
+  }
+})
+
 const findCategoryPath = (targetId, categories, path = []) => {
+  if (targetId === null || targetId === undefined || targetId === '') return null
   for (const category of categories) {
     const currentPath = [...path, category]
 
-    if (category.id === targetId) {
+    if (Number(category.id) === Number(targetId)) {
       return {
         level1: currentPath[0] || null,
         level2: currentPath[1] || null,
+        level3: currentPath[2] || null,
         current: category
       }
     }
@@ -612,27 +773,40 @@ const generateMaterialCode = async (selectedCategoryId) => {
 }
 
 // 手动重新生成物料编码
-const regenerateMaterialCode = async () => {
-  if (!form.productCategoryId) {
-    ElMessage.warning('请先选择物料大类')
-    return
+const regenerateMaterialCode = async (options = {}) => {
+  if (!form.categoryId) {
+    if (!options.silent) ElMessage.warning('请先选择物料大类')
+    return false
   }
 
   try {
-    const generatedCode = await generateMaterialCode(form.productCategoryId)
+    const generatedCode = await generateMaterialCode(form.categoryId)
     if (generatedCode) {
       form.code = generatedCode
-      ElMessage.success(`已生成物料编码: ${generatedCode}`)
+      if (!options.silent) {
+        ElMessage.success(`已生成物料编码: ${generatedCode}`)
+      }
+      return true
     }
   } catch (error) {
     console.error('生成物料编码失败:', error)
     ElMessage.error(error.message || '生成编码失败')
   }
+  return false
 }
 
 const searchSuppliers = (query) => {
+  supplierLoading.value = true
   emit('search-suppliers', query, (options) => {
-    filteredSupplierOptions.value = options
+    const list = Array.isArray(options) ? options : []
+    const currentId = toId(form.supplierId)
+    if (currentId && !list.some((item) => Number(item.id) === Number(currentId))) {
+      const current = filteredSupplierOptions.value.find((item) => Number(item.id) === Number(currentId))
+      filteredSupplierOptions.value = current ? [current, ...list] : list
+    } else {
+      filteredSupplierOptions.value = list
+    }
+    supplierLoading.value = false
   })
 }
 

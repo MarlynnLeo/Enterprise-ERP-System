@@ -65,24 +65,28 @@
       label: '设备台账',
       path: '/equipment/list',
       icon: 'desktop-o',
+      permission: 'production:equipment:view',
       gradient: 'linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%)'
     },
     {
       label: '新建点检',
       path: '/equipment/check/create',
       icon: 'passed',
+      permission: 'production:equipment:update',
       gradient: 'linear-gradient(135deg, var(--color-success) 0%, var(--ds-green-strong) 100%)'
     },
     {
       label: '故障报修',
       path: '/equipment/repair/create',
       icon: 'warning-o',
+      permission: 'production:equipment:update',
       gradient: 'linear-gradient(135deg, var(--ds-purple) 0%, var(--ds-pink) 100%)'
     },
     {
       label: '保养计划',
       path: '/equipment/maintenance',
       icon: 'clock-o',
+      permission: 'production:equipment:view',
       gradient: 'linear-gradient(135deg, var(--module-blue) 0%, var(--ds-cyan-strong) 100%)'
     }
   ])
@@ -93,13 +97,15 @@
       title: '设备台账',
       desc: '设备档案与台账',
       path: '/equipment/list',
-      icon: 'desktop-o'
+      icon: 'desktop-o',
+      permission: 'production:equipment:view'
     },
     {
       title: '设备类型',
       desc: '设备分类管理',
       path: '/equipment/types',
-      icon: 'cluster-o'
+      icon: 'cluster-o',
+      permission: 'production:equipment:view'
     }
   ])
 
@@ -108,19 +114,22 @@
       title: '点检管理',
       desc: '设备日常点检任务',
       path: '/equipment/check',
-      icon: 'passed'
+      icon: 'passed',
+      permission: 'production:equipment:view'
     },
     {
       title: '保养管理',
       desc: '设备定期保养计划',
       path: '/equipment/maintenance',
-      icon: 'setting-o'
+      icon: 'setting-o',
+      permission: 'production:equipment:view'
     },
     {
       title: '维修管理',
       desc: '设备故障及维修记录',
       path: '/equipment/repair',
-      icon: 'tools'
+      icon: 'tools',
+      permission: 'production:equipment:view'
     }
   ])
 

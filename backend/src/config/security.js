@@ -7,12 +7,12 @@
 
 // 密码策略配置
 const PASSWORD_POLICY = {
-  minLength: 8,
+  minLength: 1,
   maxLength: 128,
-  requireUppercase: true,
-  requireLowercase: true,
-  requireNumbers: true,
-  requireSpecialChars: true,
+  requireUppercase: false,
+  requireLowercase: false,
+  requireNumbers: false,
+  requireSpecialChars: false,
   specialChars: '!@#$%^&*()_+-=[]{}|;:,.<>?',
   maxAttempts: 5, // 最大登录尝试次数（超过后锁定账户）
   lockoutDuration: 15 * 60 * 1000, // 锁定时间（毫秒）

@@ -79,7 +79,8 @@
 
     <!-- 数据表格 -->
     <el-card class="table-card">
-      <el-table :data="tableData" border stripe v-loading="loading">
+      <el-table class="table-row-click" :data="tableData" border stripe v-loading="loading"
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => viewDetail(row))">
         <el-table-column type="index" label="序号" width="60" />
         <el-table-column prop="replacementNo" label="换货单号" width="140" />
         <el-table-column prop="ncpNo" label="不合格品编号" width="140" />
@@ -109,12 +110,11 @@
           </template>
         </el-table-column>
         <el-table-column prop="createdAt" label="创建时间" width="160" />
-        <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="{ row }">
             <div class="table-actions">
-              <el-button class="btn-op-view" type="primary" size="small" @click="viewDetail(row)">
-                <el-icon><View /></el-icon> 详情
-              </el-button>
+              
               <el-button
                 type="success"
                 size="small"
@@ -267,6 +267,7 @@
 </template>
 
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { useDictionaryStore } from '@/stores/dictionary'
 import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted } from 'vue'
@@ -316,14 +317,14 @@ const detailData = ref(null)
 
 // 收货表单
 const receiptForm = reactive({
-  received_quantity: 0,
-  actual_date: '',
+  receivedQuantity: 0,
+  actualDate: '',
   note: ''
 })
 
 // 编辑表单
 const editForm = reactive({
-  expected_date: '',
+  expectedDate: '',
   note: ''
 })
 

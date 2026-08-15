@@ -89,6 +89,7 @@ export function useMetalPrices(updateMiniChartsGeneric) {
         : await metalPricesApi.getRealTimePrices()
       if (response.data) applyMetalPayload(response.data)
     } catch (error) {
+      if (error?.response?.status === 403) return
       console.error('获取金属价格数据失败:', error)
       ElMessage.error('获取金属价格数据失败，请检查网络连接')
     } finally {

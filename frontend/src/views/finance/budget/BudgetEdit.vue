@@ -95,7 +95,7 @@
           />
         </el-form-item>
 
-        <el-divider content-position="left">预算明细</el-divider>
+        <el-divider content-position="center">预算明细</el-divider>
 
         <el-button v-permission="isEdit ? 'finance:budgets:update' : 'finance:budgets:create'" type="primary" @click="handleAddDetail" style="margin-bottom: 10px">添加明细</el-button>
 

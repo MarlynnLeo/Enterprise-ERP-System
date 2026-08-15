@@ -25,7 +25,8 @@
         </el-form-item>
       </el-form>
 
-      <el-table :data="list" v-loading="loading" border stripe>
+      <el-table class="table-row-click" :data="list" v-loading="loading" border stripe
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => viewDetail(row.id))">
         <el-table-column prop="productCode" label="产品编码" width="130" />
         <el-table-column prop="productName" label="产品名称" min-width="150" />
         <el-table-column prop="name" label="路线名称" width="160" />
@@ -45,12 +46,11 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="280" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="280" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="{ row }">
             <div class="table-actions">
-              <el-button class="btn-op-view" type="primary" size="small" @click="viewDetail(row.id)">
-                <el-icon><View /></el-icon> 查看
-              </el-button>
+              
               <el-button size="small" v-permission="'production:routes:update'" @click="editRoute(row.id)">
                 <el-icon><Edit /></el-icon> 编辑
               </el-button>
@@ -201,6 +201,7 @@
 </template>
 
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, reactive, onMounted } from 'vue'
 import { Plus, Check, View, Edit, Delete } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'

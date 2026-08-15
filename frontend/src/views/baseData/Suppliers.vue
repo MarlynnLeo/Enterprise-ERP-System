@@ -69,8 +69,9 @@
         v-loading="loading"
         :data="tableData"
         border
-        class="w-full"
-      >
+        class="table-row-click w-full"
+      
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleView(row))">
         <template #empty>
           <EmptyState description="暂无供应商数据" />
         </template>
@@ -129,7 +130,8 @@
             </el-tooltip>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="scope">
             <div class="operation-buttons">
               <el-popconfirm
@@ -162,15 +164,7 @@
                 @click="openMetalPriceDialog(scope.row)">
                 区间报价
               </el-button>
-              <el-button
-                v-if="Number(scope.row.status ?? scope.row.isActive) === 1"
-                class="btn-op-view"
-                size="small"
-                type="primary"
-                @click="handleView(scope.row)"
-              >
-                <el-icon><View /></el-icon> 查看
-              </el-button>
+              
 <el-button
                 v-if="canUpdate && (scope.row.status || scope.row.isActive) !== 1"
                 size="small"
@@ -270,6 +264,7 @@
 </template>
 
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { parsePaginatedData } from '@/utils/responseParser'
 import SupplierFormDialog from './components/SupplierFormDialog.vue';
 import SupplierMetalPriceDialog from './components/SupplierMetalPriceDialog.vue';

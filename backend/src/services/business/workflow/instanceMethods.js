@@ -170,22 +170,23 @@ module.exports = {
            FOR UPDATE`,
           [node_id, approver_id]
         );
-        const [[{ assignment_count: assignmentCount }]] = await conn.query(
-          'SELECT COUNT(*) AS assignment_count FROM workflow_node_approvers WHERE instance_node_id = ?',
-          [node_id]
-        );
-        if (!assignment) {
-          const legacyAdmin = Number(assignmentCount) === 0 && await PermissionService.isAdmin(approver_id);
-          if (!legacyAdmin || (node.approver_id && Number(node.approver_id) !== Number(approver_id))) {
-            throw new Error('您不是该审批节点当前待处理的审批人，无权操作');
-          }
+        const isSuperAdmin = await PermissionService.isAdmin(approver_id);
+        if (!assignment && !isSuperAdmin) {
+          const err = new Error('您不是该审批节点当前待处理的审批人，无权操作');
+          err.statusCode = 403;
+          err.errorCode = 'FORBIDDEN';
+          throw err;
         }
         if (
+          !isSuperAdmin &&
           Number(instLock.initiator_id) === Number(approver_id) &&
           !node.allow_self_approval &&
           node.approver_type !== 'self'
         ) {
-          throw new Error('发起人不能审批自己的单据');
+          const err = new Error('发起人不能审批自己的单据');
+          err.statusCode = 403;
+          err.errorCode = 'FORBIDDEN';
+          throw err;
         }
 
         const [[user]] = await conn.query('SELECT real_name, username FROM users WHERE id = ?', [approver_id]);

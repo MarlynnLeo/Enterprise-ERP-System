@@ -82,10 +82,11 @@
       <el-table
         :data="exchangeRecords"
         border
-        class="w-full"
+        class="table-row-click w-full"
         v-loading="loading"
         table-layout="fixed"
-      >
+      
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleView(row))">
         <el-table-column prop="exchangeNo" label="换货单号" width="150" fixed />
         <el-table-column prop="orderNo" label="原订单号" width="150" />
         <el-table-column prop="customerName" label="客户名称" min-width="150" />
@@ -120,14 +121,10 @@
             <el-tag :type="getStatusType(scope.row.status)">{{ scope.row.status }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="scope">
-            <el-button class="btn-op-view" type="primary"
-              size="small"
-              @click="handleView(scope.row)"
-            >
-              查看
-            </el-button>
+            
             <!-- 待处理状态：可以开始处理 -->
             <el-button
               v-if="scope.row.status === '待处理'"
@@ -616,6 +613,7 @@
   </div>
 </template>
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { parseListData } from '@/utils/responseParser';
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { formatCurrency } from '@/utils/helpers/formatters'
@@ -1426,13 +1424,6 @@ const getExchangeItems = (items) => {
     width: 95% !important;
     margin: 0 !important; /* 与全站居中一致，勿再用 5vh 偏上 */
   }
-}
-/* 详情对话框长文本处理 - 自动添加 */
-:deep(.el-descriptions__content) {
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 :deep(.el-table__cell) {
   overflow: hidden;

@@ -77,8 +77,9 @@
         v-loading="loading"
         :data="receipts"
         border
-        class="w-full"
-      >
+        class="table-row-click w-full"
+      
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => viewReceipt(row))">
         <template #empty>
           <EmptyState description="暂无收货单数据" />
         </template>
@@ -98,15 +99,10 @@
             <el-tag v-if="scope.row.inspectionId" type="success" size="small" class="ml-sm">已检验</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="scope">
-            <el-button class="btn-op-view" type="primary"
-              size="small"
-              v-permission="'purchase:receipts:view'"
-              @click="viewReceipt(scope.row)"
-            >
-              查看
-            </el-button>
+            
             <el-button
               v-if="scope.row.status === 'draft'"
               size="small"
@@ -155,10 +151,10 @@
       v-model="viewDialog.show"
       title="收货单详情"
       mode="view"
-      content-width="wide"
+      width="850px"
     >
-      <div v-loading="detailLoading">
-        <el-descriptions border :column="2">
+      <div v-loading="detailLoading" class="receipt-view">
+        <el-descriptions border :column="2" class="purchase-view-desc">
           <el-descriptions-item label="收货单号">{{ viewDialog.receipt.receiptNo }}</el-descriptions-item>
           <el-descriptions-item label="收货日期">{{ formatDate(viewDialog.receipt.receiptDate) }}</el-descriptions-item>
           <el-descriptions-item label="状态">
@@ -187,7 +183,7 @@
             <EmptyState description="暂无物料数据" />
           </div>
         </template>
-        <el-table v-else :data="viewDialog.receipt.items || []" border class="w-full">
+        <el-table v-else :data="viewDialog.receipt.items || []" border class="w-full purchase-view-table">
           <el-table-column type="index" label="序号" width="60"></el-table-column>
           <el-table-column label="物料名称" prop="materialName" min-width="150">
             <template #default="scope">
@@ -251,10 +247,10 @@
       v-model="receiptDialog.show"
       :title="receiptDialog.isEdit ? '编辑收货单' : '新建收货单'"
       mode="form"
-      wide
+      width="850px"
     >
       <el-form ref="receiptForm" :model="receiptDialog.form" :rules="receiptRules" label-width="100px">
-        <el-row :gutter="20">
+        <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="关联订单" prop="orderId">
               <el-select
@@ -320,7 +316,7 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="收货人" prop="receiver">
-              <el-input v-model="receiptDialog.form.receiver" placeholder="请输入收货人"></el-input>
+              <el-input v-model="receiptDialog.form.receiver" placeholder="请输入收货人" class="w-full"></el-input>
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -397,6 +393,7 @@
                 type="textarea"
                 :rows="2"
                 placeholder="请输入备注信息"
+                class="w-full"
               ></el-input>
             </el-form-item>
           </el-col>
@@ -453,6 +450,7 @@
   </div>
 </template>
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { formatLocalDate } from '@/utils/format';
 import { parsePaginatedData, parseResponseData } from '@/utils/responseParser';
 import { loadLocationOptions } from '@/utils/optionLoaders';
@@ -1818,12 +1816,21 @@ function handleQualifiedQuantityChange(item) {
     margin-bottom: 0;
   }
 }
-/* 详情对话框长文本处理 - 自动添加 */
-:deep(.el-descriptions__content) {
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.purchase-view-desc,
+.purchase-view-desc :deep(.el-descriptions__body),
+.purchase-view-desc :deep(.el-descriptions__table),
+.purchase-view-table {
+  width: 100%;
+}
+.purchase-view-desc :deep(.el-descriptions__label) {
+  width: 112px;
+  min-width: 112px;
   white-space: nowrap;
+}
+.purchase-view-desc :deep(.el-descriptions__content) {
+  min-width: 0;
+  white-space: normal;
+  word-break: break-word;
 }
 :deep(.el-table__cell) {
   overflow: hidden;

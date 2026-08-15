@@ -209,7 +209,7 @@ module.exports = {
           node.allow_self_approval = false;
           return;
         }
-        const approverType = node.approver_type || 'user';
+        const approverType = node.approver_type || 'role';
         if (!allowedApproverTypes.has(approverType)) {
           throw new Error(`${label}审批人类型无效`);
         }
@@ -220,13 +220,15 @@ module.exports = {
         if ((node.timeout_hours || 0) > 0 && (node.timeout_action || 'notify') !== 'notify') {
           throw new Error(`${label}仅支持超时提醒，不允许未实现的自动通过或自动拒绝`);
         }
-  
-        if (['user', 'role', 'department'].includes(approverType)) {
-          const validIds = this._parseApproverIds(node.approver_ids, label);
-          if (validIds.length === 0) {
-            throw new Error(`${label}需要配置审批人/角色/部门 ID`);
+
+        if (approverType === 'role') {
+          const { ids, codes } = this._parseApproverRefs(node.approver_ids, label);
+          if (!ids.length && !codes.length) {
+            throw new Error(`${label}需要配置系统角色编码`);
           }
-          node.approver_ids = validIds;
+          node.approver_ids = [...codes, ...ids];
+        } else if (['user', 'department'].includes(approverType)) {
+          throw new Error(`${label}请改用系统角色，不要指定用户或部门人员`);
         } else {
           node.approver_ids = null;
         }
@@ -245,7 +247,7 @@ module.exports = {
           multi_approve_type, allow_self_approval, condition_expression, timeout_hours, timeout_action)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [templateId, node.node_name, node.node_type || 'approval', node.sequence || 0,
-         node.approver_type || 'user',
+         node.approver_type || 'role',
          node.approver_ids ? JSON.stringify(node.approver_ids) : null,
          node.multi_approve_type || 'any',
          node.allow_self_approval ? 1 : 0,

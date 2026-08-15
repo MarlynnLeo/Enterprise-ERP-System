@@ -190,6 +190,8 @@ exports.getProductionPlans = async (req, res) => {
         pp.id, pp.code, pp.name, pp.start_date, pp.end_date, pp.delivery_date,
         pp.quantity, pp.pushed_quantity, pp.status, pp.remark, pp.created_at, pp.updated_at,
         pp.product_id, pp.contract_code, pp.bom_id, pp.bom_version,
+        pp.department_id,
+        d.name as department_name,
         COALESCE(ts.completed_quantity, 0) as completed_quantity,
         COALESCE(ts.task_quantity, 0) as task_quantity,
         COALESCE(ts.task_count, 0) as task_count,
@@ -216,6 +218,7 @@ exports.getProductionPlans = async (req, res) => {
       ) ts ON ts.plan_id = pp.id
       LEFT JOIN materials m ON pp.product_id = m.id
       LEFT JOIN units u ON m.unit_id = u.id
+      LEFT JOIN departments d ON d.id = pp.department_id
       LEFT JOIN (
         SELECT
           ppm.plan_id,
@@ -248,6 +251,8 @@ exports.getProductionPlans = async (req, res) => {
       productCode: plan.product_code || '',
       specification: plan.specification || '',
       unit: plan.unit || '',
+      departmentId: plan.department_id || null,
+      departmentName: plan.department_name || '',
     }));
 
     ResponseHandler.paginated(
@@ -372,6 +377,7 @@ exports.getProductionPlanById = async (req, res) => {
       SELECT pp.id, pp.code, pp.name, pp.start_date, pp.end_date, pp.delivery_date,
              pp.quantity, pp.pushed_quantity, pp.status, pp.remark,
              pp.product_id, pp.contract_code, pp.bom_id, pp.bom_version,
+             pp.department_id, d.name as department_name,
              pp.created_at, pp.updated_at,
              COALESCE(ts.completed_quantity, 0) as completed_quantity,
              COALESCE(ts.task_quantity, 0) as task_quantity,
@@ -398,6 +404,7 @@ exports.getProductionPlanById = async (req, res) => {
       ) ts ON ts.plan_id = pp.id
       LEFT JOIN materials m ON pp.product_id = m.id
       LEFT JOIN units u ON m.unit_id = u.id
+      LEFT JOIN departments d ON d.id = pp.department_id
       WHERE pp.id = ? AND pp.deleted_at IS NULL
     `,
       [id]
@@ -456,6 +463,7 @@ exports.createProductionPlan = async (req, res) => {
       quantity,
       contract_code,
       bom_id: bomId,
+      department_id: departmentId,
     } = body;
     let code = inputCode;
 
@@ -513,14 +521,20 @@ exports.createProductionPlan = async (req, res) => {
     // 通过统一 API 解析 BOM 版本信息
     const { bomId: resolvedBomId, bomVersion: resolvedBomVersion } = await resolveBomForProduct(productId, bomId, connection);
 
+    const ScopeGuard = require('../../../authorization/ScopeGuard');
+    const TaskRepository = require('../../../repositories/TaskRepository');
+    const ownerStamp = ScopeGuard.tryStampOwner(req, 'production_plan');
+    const group = await TaskRepository.resolveProductionGroup(connection, { productId });
+    const assignedDepartmentId = Number(departmentId) || group.departmentId || null;
+
     // 插入生产计划（包含 BOM 信息）
     const [result] = await connection.query(
       `
       INSERT INTO production_plans
-      (code, name, start_date, end_date, delivery_date, product_id, quantity, contract_code, bom_id, bom_version, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft')
+      (code, name, start_date, end_date, delivery_date, product_id, quantity, contract_code, bom_id, bom_version, status, department_id, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?)
     `,
-      [code, name, formattedStartDate, formattedEndDate, formattedDeliveryDate, productId, quantity, contract_code || null, resolvedBomId, resolvedBomVersion]
+      [code, name, formattedStartDate, formattedEndDate, formattedDeliveryDate, productId, quantity, contract_code || null, resolvedBomId, resolvedBomVersion, assignedDepartmentId, ownerStamp.created_by]
     );
 
     const planId = result.insertId;
@@ -591,6 +605,7 @@ exports.updateProductionPlan = async (req, res) => {
       pushed_quantity,
       contract_code,
       bom_id: bomId,
+      department_id: departmentId,
     } = mapKeysToSnake(req.body || {});
 
     // 处理日期格式
@@ -649,10 +664,10 @@ exports.updateProductionPlan = async (req, res) => {
     await connection.query(
       `
       UPDATE production_plans
-      SET name = ?, start_date = ?, end_date = ?, delivery_date = ?, product_id = ?, quantity = ?, contract_code = ?, bom_id = ?, bom_version = ?
+      SET name = ?, start_date = ?, end_date = ?, delivery_date = ?, product_id = ?, quantity = ?, contract_code = ?, bom_id = ?, bom_version = ?, department_id = ?
       WHERE id = ? AND deleted_at IS NULL
     `,
-      [name, formattedStartDate, formattedEndDate, formattedDeliveryDate, productId, quantity, contract_code || null, resolvedBomId, resolvedBomVersion, id]
+      [name, formattedStartDate, formattedEndDate, formattedDeliveryDate, productId, quantity, contract_code || null, resolvedBomId, resolvedBomVersion, Number(departmentId) || null, id]
     );
 
     // 删除原有物料需求

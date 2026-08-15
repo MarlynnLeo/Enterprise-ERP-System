@@ -116,11 +116,12 @@
           </div>
           <el-table
             :data="filteredPendingTasks"
-            class="w-full"
+            class="table-row-click w-full"
             v-loading="loading"
             border
             :max-height="400"
-          >
+          
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => router.push(`/production/plan?id=${row.id}`))">
             <el-table-column label="计划编号" prop="code" min-width="120" />
             <el-table-column label="产品名称" prop="productName" min-width="120" />
             <el-table-column label="产品编码" prop="productCode" min-width="120" />
@@ -146,15 +147,7 @@
                 {{ scope.row.manager || '-' }}
               </template>
             </el-table-column>
-            <el-table-column label="操作" min-width="120" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
-              <template #default="scope">
-                <div class="table-actions">
-                  <el-button class="btn-op-view" type="primary" size="small" @click="$router.push(`/production/plan?id=${scope.row.id}`)">
-                    <el-icon><View /></el-icon> 查看
-                  </el-button>
-                </div>
-              </template>
-            </el-table-column>
+            
           </el-table>
           <div class="pagination-container" v-if="pendingPlans.length > 0">
             <el-pagination
@@ -173,7 +166,9 @@
   </div>
 </template>
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import { getProductionStatusColor } from '@/constants/systemConstants'
 import { formatDate as formatDateUtil } from '@/utils/helpers/formatters';
 import Chart from '@/utils/chartCore';
@@ -192,6 +187,7 @@ import {
   createLineChartConfig,
   chartColors
 } from '@/utils/chartConfig';
+const router = useRouter();
 // 图表引用
 const productionTrend = ref(null);
 const processCompletion = ref(null);
@@ -595,14 +591,7 @@ async function loadAndUpdateProductionTrends() {
   font-weight: bold;
 }
 /* 响应式调整 */
-
-/* 详情对话框长文本处理 - 自动添加 */
-:deep(.el-descriptions__content) {
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+
 :deep(.el-table__cell) {
   overflow: hidden;
   text-overflow: ellipsis;

@@ -97,7 +97,7 @@ export const useFinanceStore = defineStore('finance', () => {
     if (isLoaded.value) return
 
     try {
-      const response = await financeApi.settings.get()
+      const response = await financeApi.settings.getOptions()
       const data = response.data || {}
 
       if (data.tax) {

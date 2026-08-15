@@ -8,9 +8,8 @@
 
   宽度：
     - 默认按内容撑开（app-dialog--adaptive）
-    - wide 才拉满为约 92% / 上限 1280
+    - wide / content-width=wide：850px（明细类，表单与表格同宽）
     - 传入 width 时用指定宽度
-    - content-width 只改内容区内边距，不改弹窗外壳宽度
 -->
 <template>
   <el-dialog
@@ -78,7 +77,7 @@ const props = defineProps({
   /**
    * 弹窗宽度（优先于默认自适应）：
    * - 不传：按内容撑开（min/max 见 dialog-system.css）
-   * - wide：92%，上限 1280px
+   * - wide / content-width=wide：850px
    */
   width: { type: [String, Number], default: '' },
   destroyOnClose: { type: Boolean, default: true },
@@ -93,7 +92,7 @@ const props = defineProps({
     default: 'default',
     validator: (v) => ['default', 'wide', 'full'].includes(v)
   },
-  /** 宽弹窗（订单/明细类）：宽度约 92%，max 1280px */
+  /** 明细类弹窗：850px，表单与下方表格同宽 */
   wide: { type: Boolean, default: false },
   customClass: { type: [String, Array, Object], default: '' },
   beforeClose: { type: Function, default: undefined }
@@ -125,14 +124,24 @@ const resolvedFullscreen = computed(() => {
   return false
 })
 
+const DOCUMENT_WIDTH = '850px'
+
 const hasExplicitWidth = computed(
   () => props.width !== '' && props.width != null
 )
 
+const isDocumentWide = computed(
+  () =>
+    props.wide ||
+    props.contentWidth === 'wide' ||
+    props.contentWidth === 'full' ||
+    (props.mode === 'view' && !hasExplicitWidth.value)
+)
+
 const resolvedWidth = computed(() => {
   if (resolvedFullscreen.value) return '100%'
-  if (props.wide) return '92%'
   if (hasExplicitWidth.value) return props.width
+  if (isDocumentWide.value) return DOCUMENT_WIDTH
   if (props.mode === 'preview') return '90%'
   return 'fit-content'
 })
@@ -143,8 +152,8 @@ const dialogClass = computed(() => {
   if (props.mode === 'view' || props.mode === 'form') {
     parts.push('app-dialog--modal')
   }
-  if (props.wide) {
-    parts.push('app-dialog--form-wide')
+  if (isDocumentWide.value) {
+    parts.push('app-dialog--document')
   } else if (!hasExplicitWidth.value && props.mode !== 'preview') {
     parts.push('app-dialog--adaptive')
   }

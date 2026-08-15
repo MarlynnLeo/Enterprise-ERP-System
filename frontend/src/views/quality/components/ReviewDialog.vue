@@ -158,9 +158,9 @@ const reviewActualValueRefs = ref([])
 const reviewForm = reactive({
   items: [],
   quantity: '',
-  qualified_quantity: '',
-  unqualified_quantity: '',
-  inspector_name: '',
+  qualifiedQuantity: '',
+  unqualifiedQuantity: '',
+  inspectorName: '',
   inspectionDate: new Date(),
   reviewReason: '',
   note: ''
@@ -169,7 +169,7 @@ const reviewForm = reactive({
 // 表单验证规则
 const reviewRules = {
   quantity: [{ required: true, message: '请输入复检数量', trigger: 'blur' }],
-  qualified_quantity: [
+  qualifiedQuantity: [
     { required: true, message: '请输入合格数量', trigger: 'change' },
     {
       validator: (rule, value, callback) => {
@@ -187,7 +187,7 @@ const reviewRules = {
       trigger: 'change'
     }
   ],
-  inspector_name: [{ required: true, message: '请输入复检人员姓名', trigger: 'blur' }],
+  inspectorName: [{ required: true, message: '请输入复检人员姓名', trigger: 'blur' }],
   inspectionDate: [{ required: true, message: '请选择复检日期', trigger: 'change' }],
   reviewReason: [{ required: true, message: '请选择复检原因', trigger: 'change' }]
 }
@@ -316,9 +316,9 @@ const handleSubmit = async () => {
       inspection_no: inspectionNo.value,
       items: reviewForm.items,
       quantity: reviewForm.quantity,
-      qualified_quantity: parseFloat(reviewForm.qualifiedQuantity) || 0,
-      unqualified_quantity: parseFloat(reviewForm.unqualifiedQuantity) || 0,
-      inspector_name: reviewForm.inspectorName,
+      qualifiedQuantity: parseFloat(reviewForm.qualifiedQuantity) || 0,
+      unqualifiedQuantity: parseFloat(reviewForm.unqualifiedQuantity) || 0,
+      inspectorName: reviewForm.inspectorName,
       actual_date: dayjs(reviewForm.inspectionDate).format('YYYY-MM-DD'),
       note: reviewForm.note,
       status: status,

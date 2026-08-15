@@ -272,6 +272,10 @@ export const financeApi = {
   // 应收收款作废（HTTP camelCase）
   voidARReceipt(id, voidReason) {
     return api.post(`/finance/ar/receipts/${id}/void`, { voidReason })
+  },
+
+  getSupplementReasons() {
+    return api.get('/finance/cost/supplement-reasons')
   }
 }
 

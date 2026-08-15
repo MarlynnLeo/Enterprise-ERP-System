@@ -2,7 +2,7 @@
  * useProductionPlans.js
  * @description 生产计划数据的组合式函数（从 Dashboard.vue 抽取）
  */
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../../stores/auth'
 import { productionApi, baseDataApi } from '@/api'
@@ -52,12 +52,19 @@ export function useProductionPlans() {
 
   const getWarningTagType = (status) => WARNING_TAG_MAP[status] || 'info'
   const getStatusText = (status) => PLAN_STATUS_TEXT_MAP[status] || status
+  const canViewProductionPlans = computed(() => (
+    authStore.hasPermission('production:plans:view')
+    || authStore.hasPermission('production:data-view')
+    || authStore.hasPermission('production:plans')
+    || authStore.hasChildPermission('production')
+  ))
 
   // 加载生产计划数据
   const loadProductionPlans = async () => {
     try {
       // 检查登录状态
-      if (!authStore.isAuthenticated) {
+      if (!authStore.isAuthenticated || !canViewProductionPlans.value) {
+        warningList.value = []
         return 0
       }
 
@@ -68,7 +75,6 @@ export function useProductionPlans() {
         order: 'desc' // 最新的生产计划优先
       }
 
-      // 获取生产计划列表 - 使用仪表盘专用接口，所有用户都可访问
       const response = await productionApi.getDashboardProductionPlans(params)
       const plans = parseListData(response, { enableLog: false });
 
@@ -138,11 +144,13 @@ export function useProductionPlans() {
         return 0
       }
     } catch (error) {
+      warningList.value = []
+      if (error.response?.status === 403) {
+        return 0
+      }
       console.error('加载生产计划失败:', error)
-      if (error.response && error.response.status === 401) {
+      if (error.response?.status === 401) {
         ElMessage.error('登录已过期，请重新登录')
-      } else {
-        ElMessage.error('获取生产计划数据失败')
       }
       return 0
     }
@@ -156,6 +164,7 @@ export function useProductionPlans() {
 
   return {
     warningList,
+    canViewProductionPlans,
     getWarningTagType,
     getStatusText,
     loadProductionPlans,

@@ -66,6 +66,10 @@ export const baseDataApi = {
     return api.get('/base-data/materials/next-code', { params })
   },
 
+  getLatestMaterialByCategory(params) {
+    return api.get('/base-data/materials/latest', { params })
+  },
+
   getMaterialsByIds(ids) {
     return api.post('/base-data/materials/batch', { ids })
   },

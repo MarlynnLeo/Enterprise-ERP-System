@@ -4,10 +4,11 @@
       v-loading="loading"
       :data="tableData"
       border
-      class="w-full"
+      class="table-row-click w-full"
       ref="tableRef"
       @selection-change="handleSelectionChange"
-    >
+    
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleView(row))">
       <template #empty>
         <EmptyState description="暂无BOM数据" />
       </template>
@@ -50,12 +51,11 @@
         </template>
       </el-table-column>
       <el-table-column prop="remark" label="备注" min-width="150" show-overflow-tooltip></el-table-column>
-      <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+      <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
         <template #default="scope">
           <div class="table-actions">
-          <el-button class="btn-op-view" type="primary" size="small" @click="handleView(scope.row)">
-            <el-icon><View /></el-icon> 查看
-          </el-button>
+          
           <!-- 历史版本只显示查看按钮 -->
           <template v-if="!isHistoryVersion(scope.row)">
             <el-button
@@ -87,7 +87,7 @@
               </template>
             </el-popconfirm>
             <el-popconfirm
-              v-if="!isApproved(scope.row)"
+              v-if="canApprove && !isApproved(scope.row)"
               title="确定要审核该BOM吗？审核后将无法再编辑。"
               @confirm="handleApprove(scope.row)"
             >
@@ -130,6 +130,7 @@
   </div>
 </template>
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { View, Edit, Delete, Check, Close, RefreshRight } from '@element-plus/icons-vue'
 import { DateFormatter } from '@/utils/commonHelpers'
 const _props = defineProps({
@@ -164,6 +165,10 @@ const _props = defineProps({
   canDelete: {
     type: Boolean,
     default: true
+  },
+  canApprove: {
+    type: Boolean,
+    default: false
   }
 })
 const emit = defineEmits([

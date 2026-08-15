@@ -1069,6 +1069,7 @@ const createOutbound = async (req, res) => {
       req.body?.issueReason ??
       req.body?.issue_reason ??
       null;
+    const { assertShopFloorOutbound } = require('../../../../authorization/shopFloorMaterialRequest');
     const adaptedData = {
       outboundDate: formatDateForDB(mapped.outbound_date),
       status: mapped.status || 'draft',
@@ -1093,6 +1094,8 @@ const createOutbound = async (req, res) => {
           }))
         : [],
     };
+
+    assertShopFloorOutbound(req, adaptedData);
 
     // 调用内部方法创建出库单
     const result = await _createOutbound(adaptedData);
@@ -1127,7 +1130,9 @@ const createOutbound = async (req, res) => {
     const errorMessage = error.message;
     let statusCode = 500;
 
-    if (error.code === 'EXCESS_ISSUE') {
+    if (error.statusCode) {
+      statusCode = error.statusCode;
+    } else if (error.code === 'EXCESS_ISSUE') {
       // 超额领料需要用户确认 → 409 Conflict
       statusCode = 409;
     } else if (error.code === 'MISSING_ISSUE_REASON') {

@@ -38,7 +38,7 @@
 
     <!-- 检验项目明细 -->
     <div v-if="inspectionItems.length > 0" class="mt-20">
-      <el-divider content-position="left">检验项目明细</el-divider>
+      <el-divider content-position="center">检验项目明细</el-divider>
       <el-table :data="inspectionItems" border size="small">
         <el-table-column prop="itemName" label="检验项目" />
         <el-table-column prop="standardValue" label="标准值" />

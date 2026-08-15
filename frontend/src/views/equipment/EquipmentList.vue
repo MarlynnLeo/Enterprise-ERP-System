@@ -74,8 +74,9 @@
         v-loading="loading"
         :data="tableData"
         border
-        class="w-full mt-md"
-      >
+        class="table-row-click w-full mt-md"
+      
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => viewEquipment(row))">
         <template #empty>
           <EmptyState description="暂无设备数据" />
         </template>
@@ -107,12 +108,11 @@
             {{ formatDate(scope.row.nextInspectionDate) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="scope">
             <div class="table-actions">
-              <el-button class="btn-op-view" type="primary" size="small" @click="viewEquipment(scope.row)">
-                <el-icon><View /></el-icon> 查看
-              </el-button>
+              
               <el-button
                 size="small"
                 @click="openDialog(true, scope.row)"
@@ -292,11 +292,11 @@
         <el-descriptions-item label="设备名称">{{ currentEquipment.name }}</el-descriptions-item>
         <el-descriptions-item label="型号">{{ currentEquipment.model }}</el-descriptions-item>
         <el-descriptions-item label="制造商">{{ currentEquipment.manufacturer }}</el-descriptions-item>
-        <el-descriptions-item label="购买日期">{{ formatDate(currentEquipment.purchase_date) }}</el-descriptions-item>
-        <el-descriptions-item label="检验日期">{{ formatDate(currentEquipment.inspection_date) }}</el-descriptions-item>
-        <el-descriptions-item label="下次检验日期">{{ formatDate(currentEquipment.next_inspection_date) }}</el-descriptions-item>
+        <el-descriptions-item label="购买日期">{{ formatDate(currentEquipment.purchaseDate) }}</el-descriptions-item>
+        <el-descriptions-item label="检验日期">{{ formatDate(currentEquipment.inspectionDate) }}</el-descriptions-item>
+        <el-descriptions-item label="下次检验日期">{{ formatDate(currentEquipment.nextInspectionDate) }}</el-descriptions-item>
         <el-descriptions-item label="设备位置">{{ currentEquipment.location }}</el-descriptions-item>
-        <el-descriptions-item label="责任人">{{ currentEquipment.responsible_person }}</el-descriptions-item>
+        <el-descriptions-item label="责任人">{{ currentEquipment.responsiblePerson }}</el-descriptions-item>
         <el-descriptions-item label="设备状态">
           <el-tag :type="getStatusType(currentEquipment.status)">
             {{ getStatusText(currentEquipment.status) }}
@@ -450,6 +450,7 @@
 </template>
 
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { formatLocalDate } from '@/utils/format';
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { ref, reactive, onMounted, computed } from 'vue'
@@ -497,12 +498,12 @@ const form = reactive({
   name: '',
   model: '',
   manufacturer: '',
-  purchase_date: '',
-  inspection_date: '',
-  next_inspection_date: '',
+  purchaseDate: '',
+  inspectionDate: '',
+  nextInspectionDate: '',
   location: '',
   status: 'normal',
-  responsible_person: '',
+  responsiblePerson: '',
   specs: '',
   description: ''
 })
@@ -789,13 +790,13 @@ const parseExcelFile = async (file) => {
                 rowData.manufacturer = value || ''
                 break
               case '采购日期':
-                rowData.purchase_date = value ? formatExcelDate(value) : ''
+                rowData.purchaseDate = value ? formatExcelDate(value) : ''
                 break
               case '检验日期':
-                rowData.inspection_date = value ? formatExcelDate(value) : ''
+                rowData.inspectionDate = value ? formatExcelDate(value) : ''
                 break
               case '下次检验日期':
-                rowData.next_inspection_date = value ? formatExcelDate(value) : ''
+                rowData.nextInspectionDate = value ? formatExcelDate(value) : ''
                 break
               case '位置':
                 rowData.location = value || ''
@@ -804,7 +805,7 @@ const parseExcelFile = async (file) => {
                 rowData.status = mapStatusFromText(value) || 'normal'
                 break
               case '责任人':
-                rowData.responsible_person = value || ''
+                rowData.responsiblePerson = value || ''
                 break
               case '规格':
                 rowData.specs = value || ''
@@ -920,12 +921,12 @@ const downloadTemplate = async () => {
       name: '数控机床1号',
       model: 'CNC-2000',
       manufacturer: '某某机械',
-      purchase_date: '2024-01-15',
-      inspection_date: '2024-01-20',
-      next_inspection_date: '2025-01-20',
+      purchaseDate: '2024-01-15',
+      inspectionDate: '2024-01-20',
+      nextInspectionDate: '2025-01-20',
       location: '车间A-01',
       status: '正常',
-      responsible_person: '张三',
+      responsiblePerson: '张三',
       specs: '精度±0.01mm',
       description: '高精度数控机床'
     })
@@ -934,12 +935,12 @@ const downloadTemplate = async () => {
       name: '焊接机器人',
       model: 'WR-500',
       manufacturer: '机器人公司',
-      purchase_date: '2024-02-10',
-      inspection_date: '2024-02-15',
-      next_inspection_date: '2024-08-15',
+      purchaseDate: '2024-02-10',
+      inspectionDate: '2024-02-15',
+      nextInspectionDate: '2024-08-15',
       location: '车间B-02',
       status: '维护中',
-      responsible_person: '李四',
+      responsiblePerson: '李四',
       specs: '负载50kg',
       description: '六轴焊接机器人'
     })
@@ -1041,13 +1042,6 @@ const downloadTemplate = async () => {
   width: 100%;
 }
 
-/* 详情对话框长文本处理 - 自动添加 */
-:deep(.el-descriptions__content) {
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 
 :deep(.el-table__cell) {
   overflow: hidden;

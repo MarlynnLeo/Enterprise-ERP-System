@@ -56,6 +56,9 @@
       'inventory:check:view',
       'production:tasks:view',
       'quality:inspections:view',
+      'quality:incoming:view',
+      'quality:process:view',
+      'quality:final:view',
       'basedata:materials:view'
     ]
     return perms.some((p) => authStore.hasPermission(p))

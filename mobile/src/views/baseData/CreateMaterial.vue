@@ -50,7 +50,7 @@
           />
           <Field
             v-model="selectedCategoryName"
-            name="categoryId"
+            name="materialType"
             label="物料类型"
             placeholder="请选择物料类型"
             readonly
@@ -124,12 +124,6 @@
           <div class="section-title">
             <span class="section-icon">🏷️</span>物料特征
           </div>
-          <Field
-            v-model="form.materialType"
-            name="materialType"
-            label="材质"
-            placeholder="如：304不锈钢"
-          />
           <Field
             v-model="form.drawingNo"
             name="drawingNo"
@@ -336,7 +330,7 @@
 <script setup>
   import { ref, reactive, computed, onMounted } from 'vue'
   import { useRouter, useRoute } from 'vue-router'
-  import { NavBar, Button, Form, Field, Popup, Picker, showToast, showLoadingToast, closeToast } from 'vant'
+  import { NavBar, Button, Form, Field, Popup, Picker, showToast, showLoadingToast, closeToast, showConfirmDialog } from 'vant'
   import { baseDataApi, systemApi } from '@/api'
   import { extractApiData } from '@/utils/apiHelper'
 
@@ -443,7 +437,14 @@
     )
   })
 
-  const categoryColumns = computed(() => categories.value.map(c => ({ text: c.name, value: c.id })))
+  const MATERIAL_TYPE_OPTIONS = [
+    { text: '产成品', value: 'finished_goods' },
+    { text: '半成品', value: 'semi_finished' },
+    { text: '原材料', value: 'raw_material' },
+    { text: '包装物', value: 'packaging' },
+    { text: '零部件', value: 'component' }
+  ]
+  const categoryColumns = computed(() => MATERIAL_TYPE_OPTIONS)
   const unitColumns = computed(() => units.value.map(u => ({ text: u.name, value: u.id })))
   const inspectionMethodColumns = computed(() => inspectionMethods.value.map(m => ({ text: m.name, value: m.id })))
   const materialSourceColumns = computed(() => materialSources.value.map(s => ({ text: s.name, value: s.id })))
@@ -463,18 +464,66 @@
 
   // === 确认回调 ===
   // 物料大类 - 搜索列表点击选中
-  const onProductCategorySelect = (item) => {
+  const applyPreviousMaterial = (data) => {
+    const keptCode = form.code
+    const keptCategoryId = form.categoryId
+    const keptProductCategoryId = form.productCategoryId
+    const copyFields = [
+      'name', 'materialType', 'specs', 'drawingNo', 'colorCode',
+      'unitId', 'inspectionMethodId', 'materialSourceId', 'locationId', 'locationDetail',
+      'managerId', 'supplierId', 'productionGroupId',
+      'price', 'costPrice', 'safetyStock', 'minStock', 'maxStock', 'taxRate', 'remark'
+    ]
+    copyFields.forEach((key) => {
+      if (data[key] !== undefined && data[key] !== null) form[key] = data[key]
+    })
+    form.code = keptCode
+    form.categoryId = keptCategoryId || data.categoryId || keptProductCategoryId
+    form.productCategoryId = keptProductCategoryId
+    selectedCategoryName.value = MATERIAL_TYPE_OPTIONS.find((item) => item.value === form.materialType)?.text || selectedCategoryName.value
+    selectedUnitName.value = data.unitName || selectedUnitName.value
+    selectedInspectionMethodName.value = data.inspectionMethodName || selectedInspectionMethodName.value
+    selectedMaterialSourceName.value = data.materialSourceName || selectedMaterialSourceName.value
+    selectedSupplierName.value = data.supplierName || selectedSupplierName.value
+    selectedProductionGroupName.value = data.productionGroupName || selectedProductionGroupName.value
+    selectedLocationName.value = data.locationName || selectedLocationName.value
+    selectedManagerName.value = data.managerName || selectedManagerName.value
+  }
+
+  const promptCopyPreviousMaterial = async (categoryId) => {
+    try {
+      const res = await baseDataApi.getLatestMaterialByCategory({ categoryId })
+      const previous = extractApiData(res, null)
+      if (!previous?.id) return
+      const label = [previous.code, previous.name].filter(Boolean).join(' ')
+      await showConfirmDialog({
+        title: '复制上一物料',
+        message: `该大类下上一个物料是「${label}」。是否复制它的信息？`,
+        confirmButtonText: '是',
+        cancelButtonText: '否'
+      })
+      applyPreviousMaterial(previous)
+      showToast(`已复制 ${label}`)
+    } catch {
+      // 用户取消或查询失败时保持空白表单
+    }
+  }
+
+  const onProductCategorySelect = async (item) => {
     form.productCategoryId = item.value
+    form.categoryId = item.value
     selectedProductCategoryName.value = item.text.replace(/^[　└ ]+/, '')
     productCategoryKeyword.value = ''
     showProductCategoryPicker.value = false
-    // 选择大类后自动生成编码
-    autoGenerateCode(item.value)
+    await autoGenerateCode(item.value)
+    if (!isEdit.value) {
+      await promptCopyPreviousMaterial(item.value)
+    }
   }
 
   const onCategoryConfirm = ({ selectedOptions }) => {
     const opt = selectedOptions[0]
-    if (opt) { form.categoryId = opt.value; selectedCategoryName.value = opt.text }
+    if (opt) { form.materialType = opt.value; selectedCategoryName.value = opt.text }
     showCategoryPicker.value = false
   }
 
@@ -624,7 +673,14 @@
           }
         })
         // 回填选择器显示文本
-        if (data.categoryName) selectedCategoryName.value = data.categoryName
+        const typeMap = {
+          finished_goods: '产成品',
+          semi_finished: '半成品',
+          raw_material: '原材料',
+          packaging: '包装物',
+          component: '零部件'
+        }
+        selectedCategoryName.value = typeMap[data.materialType] || data.categoryName || ''
         if (data.unitName) selectedUnitName.value = data.unitName
         if (data.productCategoryName) selectedProductCategoryName.value = data.productCategoryName
         if (data.materialSourceName) selectedMaterialSourceName.value = data.materialSourceName

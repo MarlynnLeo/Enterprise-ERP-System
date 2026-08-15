@@ -10,7 +10,8 @@
     </PageHeader>
 
     <el-card class="data-card">
-      <el-table :data="tableData" v-loading="loading" border stripe>
+      <el-table class="table-row-click" :data="tableData" v-loading="loading" border stripe
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => viewInstance(row))">
         <el-table-column prop="title" label="审批标题" min-width="220" show-overflow-tooltip />
         <el-table-column prop="businessType" label="业务类型" width="120">
           <template #default="{ row }">{{ btLabel[row.businessType] || row.businessType }}</template>
@@ -27,12 +28,11 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="280" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="280" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="{ row }">
             <div class="table-actions">
-              <el-button class="btn-op-view" type="primary" size="small" @click="viewInstance(row)">
-                <el-icon><View /></el-icon> 详情
-              </el-button>
+              
               <template v-if="activeTab === 'pending'">
                 <el-button type="success" size="small" @click="openApproval(row, 'approve')">
                   <el-icon><Check /></el-icon> 通过
@@ -112,6 +112,7 @@
 </template>
 
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { View, Check, Close } from '@element-plus/icons-vue'

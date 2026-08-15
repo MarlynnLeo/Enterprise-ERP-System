@@ -8,7 +8,7 @@
 -->
 <template>
   <div class="unified-page">
-    <NavBar title="修改密码" left-arrow @click-left="$router.back()" />
+    <NavBar :title="isForced ? '首次登录修改密码' : '修改密码'" :left-arrow="!isForced" @click-left="isForced ? undefined : $router.back()" />
 
     <div class="content-container">
       <!-- 密码修改表单 -->
@@ -39,45 +39,9 @@
         />
       </Form>
 
-      <!-- 密码强度提示 -->
       <div class="password-tips">
-        <div class="tips-title">密码要求：</div>
+        <div class="tips-title">请设置新的登录密码，修改后需要重新登录。</div>
         <div class="tips-list">
-          <div class="tip-item" :class="{ active: hasMinLength }">
-            <Icon
-              :name="hasMinLength ? 'success' : 'info-o'"
-              :color="hasMinLength ? 'var(--color-success)' : 'var(--text-tertiary)'"
-            />
-            <span>至少8个字符</span>
-          </div>
-          <div class="tip-item" :class="{ active: hasUpperCase }">
-            <Icon
-              :name="hasUpperCase ? 'success' : 'info-o'"
-              :color="hasUpperCase ? 'var(--color-success)' : 'var(--text-tertiary)'"
-            />
-            <span>包含大写字母</span>
-          </div>
-          <div class="tip-item" :class="{ active: hasLowerCase }">
-            <Icon
-              :name="hasLowerCase ? 'success' : 'info-o'"
-              :color="hasLowerCase ? 'var(--color-success)' : 'var(--text-tertiary)'"
-            />
-            <span>包含小写字母</span>
-          </div>
-          <div class="tip-item" :class="{ active: hasNumber }">
-            <Icon
-              :name="hasNumber ? 'success' : 'info-o'"
-              :color="hasNumber ? 'var(--color-success)' : 'var(--text-tertiary)'"
-            />
-            <span>包含数字</span>
-          </div>
-          <div class="tip-item" :class="{ active: hasSpecialChar }">
-            <Icon
-              :name="hasSpecialChar ? 'success' : 'info-o'"
-              :color="hasSpecialChar ? 'var(--color-success)' : 'var(--text-tertiary)'"
-            />
-            <span>包含特殊字符</span>
-          </div>
         </div>
       </div>
 
@@ -91,10 +55,9 @@
 
 <script setup>
   import { ref, reactive, computed } from 'vue'
-  import { useRouter } from 'vue-router'
+  import { useRouter, useRoute } from 'vue-router'
   import {
     NavBar,
-    Icon,
     Field,
     Form,
     Button,
@@ -106,7 +69,9 @@
   import { authApi } from '@/api'
 
   const router = useRouter()
+  const route = useRoute()
   const authStore = useAuthStore()
+  const isForced = computed(() => route.query.forced === '1' || authStore.mustChangePassword)
   const formRef = ref(null)
   const saving = ref(false)
 
@@ -118,28 +83,10 @@
   })
 
   // 密码强度检查
-  const hasMinLength = computed(() => form.newPassword.length >= 8)
-  const hasUpperCase = computed(() => /[A-Z]/.test(form.newPassword))
-  const hasLowerCase = computed(() => /[a-z]/.test(form.newPassword))
-  const hasNumber = computed(() => /\d/.test(form.newPassword))
-  const hasSpecialChar = computed(() => /[@$!%*?&]/.test(form.newPassword))
-
-  // 验证规则
   const rules = {
     currentPassword: [{ required: true, message: '请输入当前密码' }],
     newPassword: [
-      { required: true, message: '请输入新密码' },
-      { min: 8, message: '密码长度不能少于8个字符' },
-      {
-        validator: (value) => {
-          const hasUpper = /[A-Z]/.test(value)
-          const hasLower = /[a-z]/.test(value)
-          const hasNum = /\d/.test(value)
-          const hasSpecial = /[@$!%*?&]/.test(value)
-          return hasUpper && hasLower && hasNum && hasSpecial
-        },
-        message: '密码必须包含大小写字母、数字和特殊字符'
-      }
+      { required: true, message: '请输入新密码' }
     ],
     confirmPassword: [
       { required: true, message: '请确认新密码' },
@@ -156,11 +103,12 @@
       // 表单验证
       await formRef.value.validate()
 
-      // 确认对话框
-      await showConfirmDialog({
-        title: '确认修改',
-        message: '确定要修改密码吗？修改后需要重新登录。'
-      })
+      if (!isForced.value) {
+        await showConfirmDialog({
+          title: '确认修改',
+          message: '确定要修改密码吗？修改后需要重新登录。'
+        })
+      }
 
       saving.value = true
       const loadingToast = showLoadingToast({
@@ -185,7 +133,7 @@
         return
       }
       console.error('修改密码失败:', error)
-      showToast('修改失败，请重试')
+      showToast(error.response?.data?.message || error.message || '修改失败，请重试')
     } finally {
       saving.value = false
     }

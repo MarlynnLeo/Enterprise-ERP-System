@@ -263,7 +263,7 @@ export function useOrderActions(fetchDataCallback, tableData) {
     try {
       clearAllRequestCaches()
       const response = await salesApi.getOrder(row.id)
-      const orderData = response.data
+      const orderData = response?.data || response
       orderData.customer = orderData.customer || row.customer
       orderData.customerName = orderData.customerName || row.customerName || row.customer
       orderData.deliveryDate = orderData.deliveryDate || row.deliveryDate || orderData.delivery_date
@@ -271,14 +271,23 @@ export function useOrderActions(fetchDataCallback, tableData) {
       orderData.contact = orderData.contact || row.contact || orderData.contact_person
       orderData.phone = orderData.phone || row.phone || orderData.contact_phone
       if (orderData.items && Array.isArray(orderData.items)) {
-        orderData.items = orderData.items.map((item) => ({
-          ...item,
-          quantity: parseFloat(item.quantity) || 0,
-          unit_price: parseFloat(item.unitPrice) || 0,
-          amount: parseFloat(item.amount) || 0,
-          material_code: item.materialCode || item.code || '',
-          material_name: item.materialName || item.name || '',
-        }))
+        orderData.items = orderData.items.map((item) => {
+          const materialCode = item.materialCode || item.productCode || item.code || ''
+          const materialName = item.materialName || item.name || ''
+          const unitPrice = parseFloat(item.unitPrice ?? item.price) || 0
+          return {
+            ...item,
+            quantity: parseFloat(item.quantity) || 0,
+            unitPrice,
+            unit_price: unitPrice,
+            amount: parseFloat(item.amount) || 0,
+            materialCode,
+            materialName,
+            material_code: materialCode,
+            material_name: materialName,
+            specification: item.specification || item.productSpecs || item.specs || '',
+          }
+        })
       }
       currentOrder.value = orderData
     } catch (error) {

@@ -15,7 +15,7 @@
             type="success"
             :icon="SetUp"
             :disabled="selectedTasks.length === 0"
-            v-permission="'production:tasks:update'"
+            v-permission="'production:tasks:create'"
             @click="openBatchScheduleDialog"
           >
             一键排程 ({{ selectedTasks.length }})
@@ -106,10 +106,11 @@
       <el-table
         :data="taskList"
         border
-        class="w-full"
+        class="table-row-click w-full"
         v-loading="loading"
         @selection-change="handleSelectionChange"
-      >
+      
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => showTaskDetail(row))">
         <el-table-column type="selection" width="45" :selectable="isBatchScheduleSelectable" />
         <template #empty>
           <EmptyState description="暂无生产任务数据" />
@@ -197,19 +198,14 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="72" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="72" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="scope">
             <div class="table-actions">
               <!-- 查看按钮 -->
-              <el-button class="btn-op-view" v-permission="'production:tasks:view'"
-                size="small"
-                type="primary"
-                @click="showTaskDetail(scope.row)"
-              >
-                查看
-              </el-button>
+              
               <!-- 编辑按钮 - 只在发料前显示 -->
-              <el-button v-permission="'production:tasks:update'"
+              <el-button v-permission="'production:tasks:create'"
                 v-if="scope.row.status === 'pending' || scope.row.status === 'allocated' || scope.row.status === 'preparing'"
                 size="small"
                 type="primary"
@@ -226,6 +222,26 @@
                 @click="showMaterialIssueDialog(scope.row)"
               >
                 发料
+              </el-button>
+              <el-button
+                v-if="canRequestMaterial(scope.row)"
+                v-permission="['production:supplement:create', 'production:process:update']"
+                size="small"
+                type="danger"
+                plain
+                @click="openShopRequest(scope.row, 'supplement')"
+              >
+                补料
+              </el-button>
+              <el-button
+                v-if="canRequestMaterial(scope.row)"
+                v-permission="['production:exchange:create', 'production:process:update']"
+                size="small"
+                type="warning"
+                plain
+                @click="openShopRequest(scope.row, 'exchange')"
+              >
+                换料
               </el-button>
               <!-- 删除按钮 - 只有未执行任务可以删除 -->
               <el-popconfirm
@@ -666,13 +682,77 @@
         </span>
       </template>
         </AppDialog>
+
+    <AppDialog
+      v-model="shopRequestVisible"
+      :title="shopRequestType === 'exchange' ? '零部件换料申请' : '零部件补料申请'"
+      mode="form"
+      width="560px"
+    >
+      <el-form :model="shopRequestForm" :rules="shopRequestRules" ref="shopRequestFormRef" label-width="100px">
+        <el-form-item label="任务编号">
+          <el-input v-model="shopRequestForm.taskCode" disabled />
+        </el-form-item>
+        <el-form-item v-if="shopRequestType === 'exchange'" label="退下物料" prop="fromMaterialId">
+          <el-select
+            v-model="shopRequestForm.fromMaterialId"
+            filterable
+            remote
+            reserve-keyword
+            placeholder="选择原物料"
+            :remote-method="searchShopMaterials"
+            :loading="shopMaterialLoading"
+            class="w-full"
+            @change="(id) => onShopMaterialChange('from', id)"
+          >
+            <el-option v-for="item in shopMaterialOptions" :key="`from-${item.id}`" :label="item.label" :value="item.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item :label="shopRequestType === 'exchange' ? '换上物料' : '补料物料'" prop="toMaterialId">
+          <el-select
+            v-model="shopRequestForm.toMaterialId"
+            filterable
+            remote
+            reserve-keyword
+            placeholder="选择物料"
+            :remote-method="searchShopMaterials"
+            :loading="shopMaterialLoading"
+            class="w-full"
+            @change="(id) => onShopMaterialChange('to', id)"
+          >
+            <el-option v-for="item in shopMaterialOptions" :key="`to-${item.id}`" :label="item.label" :value="item.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="数量" prop="quantity">
+          <el-input-number v-model="shopRequestForm.quantity" :min="0.01" :precision="2" class="w-full" />
+        </el-form-item>
+        <el-form-item v-if="shopRequestType === 'exchange'" label="退回仓库" prop="returnLocationId">
+          <el-select v-model="shopRequestForm.returnLocationId" filterable class="w-full" placeholder="选择退回仓库">
+            <el-option v-for="item in shopLocations" :key="item.id" :label="item.name || item.locationName" :value="item.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="原因" prop="reason">
+          <el-select v-model="shopRequestForm.reason" allow-create filterable class="w-full" placeholder="请选择或输入原因">
+            <el-option v-for="item in shopReasonOptions" :key="item.id || item.reasonName" :label="item.reasonName" :value="item.reasonName" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="说明">
+          <el-input v-model="shopRequestForm.remark" type="textarea" :rows="2" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="shopRequestVisible = false">取消</el-button>
+        <el-button type="primary" :loading="shopRequestSaving" @click="submitShopRequest">提交申请</el-button>
+      </template>
+    </AppDialog>
   </div>
 </template>
 
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { baseDataApi, inventoryApi, productionApi, systemApi } from '@/api'
+import { baseDataApi, financeApi, inventoryApi, productionApi, systemApi } from '@/api'
 import dayjs from 'dayjs'
 import { Plus, Clock, SetUp, WarningFilled } from '@element-plus/icons-vue'
 import { parseQuantity, formatQuantity, getQuantityFromRelatedItem } from '@/utils/helpers/quantity'
@@ -684,9 +764,11 @@ import { useAuthStore } from '@/stores/auth'
 // 获取当前登录用户
 const authStore = useAuthStore()
 const canIssueMaterials = computed(() =>
-  authStore.hasPermission('production:tasks:update') &&
-  authStore.hasPermission('inventory:outbound:create')
+  authStore.hasPermission('inventory:outbound:create') &&
+  (authStore.hasPermission('production:tasks:update') || authStore.hasPermission('production:tasks:view'))
 )
+const canRequestMaterial = (row) =>
+  ['material_issued', 'material_partial_issued', 'in_progress'].includes(row?.status)
 // ✅ 键盘导航：Enter 跳转下一字段
 const { onFormKeydown: taskFormKeydown } = useFormKeyboardNav(() => handleModalOk())
 const { onFormKeydown: issueFormKeydown } = useFormKeyboardNav(() => handleMaterialIssue())
@@ -716,6 +798,159 @@ const materialIssueForm = ref({
   issueDate: dayjs().format('YYYY-MM-DD')
 })
 const currentTaskForIssue = ref(null)
+
+const shopRequestVisible = ref(false)
+const shopRequestSaving = ref(false)
+const shopRequestType = ref('supplement')
+const shopRequestFormRef = ref()
+const shopMaterialLoading = ref(false)
+const shopMaterialOptions = ref([])
+const shopLocations = ref([])
+const shopReasonOptions = ref([])
+const shopRequestForm = ref({
+  taskId: null,
+  taskCode: '',
+  fromMaterialId: null,
+  fromUnitId: null,
+  toMaterialId: null,
+  toUnitId: null,
+  quantity: 1,
+  returnLocationId: null,
+  reason: '',
+  remark: ''
+})
+const shopRequestRules = {
+  fromMaterialId: [{ required: true, message: '请选择退下物料', trigger: 'change' }],
+  toMaterialId: [{ required: true, message: '请选择物料', trigger: 'change' }],
+  quantity: [{ required: true, message: '请输入数量', trigger: 'blur' }],
+  returnLocationId: [{ required: true, message: '请选择退回仓库', trigger: 'change' }],
+  reason: [{ required: true, message: '请填写原因', trigger: 'change' }]
+}
+
+const searchShopMaterials = async (keyword) => {
+  if (!keyword) {
+    shopMaterialOptions.value = []
+    return
+  }
+  shopMaterialLoading.value = true
+  try {
+    const res = await baseDataApi.getMaterials({ keyword, page: 1, pageSize: 30 })
+    const list = parseListData(res, { enableLog: false })
+    shopMaterialOptions.value = list.map((item) => ({
+      id: item.id,
+      unitId: item.unitId,
+      label: `${item.code || ''} ${item.name || item.materialName || ''}`.trim()
+    }))
+  } catch {
+    shopMaterialOptions.value = []
+  } finally {
+    shopMaterialLoading.value = false
+  }
+}
+
+const onShopMaterialChange = (target, materialId) => {
+  const selected = shopMaterialOptions.value.find((item) => item.id === materialId)
+  if (target === 'from') shopRequestForm.value.fromUnitId = selected?.unitId || null
+  else shopRequestForm.value.toUnitId = selected?.unitId || null
+}
+
+const openShopRequest = async (row, type) => {
+  shopRequestType.value = type
+  shopRequestForm.value = {
+    taskId: row.id,
+    taskCode: row.code,
+    fromMaterialId: null,
+    fromUnitId: null,
+    toMaterialId: null,
+    toUnitId: null,
+    quantity: 1,
+    returnLocationId: shopLocations.value[0]?.id || null,
+    reason: type === 'exchange' ? '规格替换' : '补料',
+    remark: ''
+  }
+  shopRequestVisible.value = true
+  try {
+    const [locRes, reasonRes] = await Promise.allSettled([
+      baseDataApi.getLocations({ page: 1, pageSize: 50 }),
+      financeApi.cost.getSupplementReasons()
+    ])
+    if (locRes.status === 'fulfilled') {
+      shopLocations.value = parseListData(locRes.value, { enableLog: false })
+      if (!shopRequestForm.value.returnLocationId && shopLocations.value[0]) {
+        shopRequestForm.value.returnLocationId = shopLocations.value[0].id
+      }
+    }
+    if (reasonRes.status === 'fulfilled') {
+      shopReasonOptions.value = parseListData(reasonRes.value, { enableLog: false })
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+const submitShopRequest = async () => {
+  if (!shopRequestFormRef.value) return
+  await shopRequestFormRef.value.validate(async (valid) => {
+    if (!valid) return
+    if (shopRequestType.value === 'exchange' && !shopRequestForm.value.fromMaterialId) {
+      ElMessage.warning('请选择退下物料')
+      return
+    }
+    shopRequestSaving.value = true
+    try {
+      const currentUser = authStore.user?.realName || authStore.user?.name || authStore.realName || ''
+      await inventoryApi.createOutbound({
+        outboundDate: dayjs().format('YYYY-MM-DD'),
+        status: 'draft',
+        outboundType: shopRequestType.value === 'exchange' ? 'exchange' : 'supplement',
+        productionTaskId: shopRequestForm.value.taskId,
+        forceExcess: true,
+        issueReason: shopRequestForm.value.reason,
+        remark: shopRequestType.value === 'exchange'
+          ? `【换料申请】${shopRequestForm.value.remark || shopRequestForm.value.reason}`
+          : `【补料申请】${shopRequestForm.value.remark || shopRequestForm.value.reason}`,
+        items: [
+          {
+            materialId: shopRequestForm.value.toMaterialId,
+            quantity: shopRequestForm.value.quantity,
+            unitId: shopRequestForm.value.toUnitId,
+            remark: shopRequestForm.value.remark
+          }
+        ]
+      })
+      if (shopRequestType.value === 'exchange') {
+        await inventoryApi.createInbound({
+          inboundDate: dayjs().format('YYYY-MM-DD'),
+          locationId: shopRequestForm.value.returnLocationId,
+          status: 'draft',
+          operator: currentUser,
+          inboundType: 'production_return',
+          referenceType: 'production_task',
+          referenceId: shopRequestForm.value.taskId,
+          referenceNo: shopRequestForm.value.taskCode,
+          remark: `【换料退回】${shopRequestForm.value.remark || shopRequestForm.value.reason}`,
+          items: [
+            {
+              materialId: shopRequestForm.value.fromMaterialId,
+              quantity: shopRequestForm.value.quantity,
+              unitId: shopRequestForm.value.fromUnitId,
+              locationId: shopRequestForm.value.returnLocationId,
+              remark: shopRequestForm.value.reason
+            }
+          ]
+        })
+      }
+      ElMessage.success(shopRequestType.value === 'exchange'
+        ? '换料申请已提交，等待仓库确认出库和新料/退回入库'
+        : '补料申请已提交，等待仓库确认出库')
+      shopRequestVisible.value = false
+    } catch (error) {
+      ElMessage.error(error.response?.data?.message || error.message || '提交失败')
+    } finally {
+      shopRequestSaving.value = false
+    }
+  })
+}
 
 // 工序模板相关
 const processTemplateList = ref([])
@@ -1804,13 +2039,6 @@ onMounted(async () => {
   color: var(--color-danger);
 }
 
-/* 详情对话框长文本处理 - 自动添加 */
-:deep(.el-descriptions__content) {
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 
 /* 表格单元格超出内容省略显示 */
 :deep(.el-table .el-table__cell) {

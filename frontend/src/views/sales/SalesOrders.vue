@@ -106,82 +106,13 @@
       <el-table
         :data="tableData"
         border
-        class="w-full"
+        class="table-row-click w-full"
         v-loading="loading"
+        @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleView(row))"
       >
         <template #empty>
           <EmptyState description="暂无销售订单数据" />
         </template>
-        <el-table-column type="expand" width="50">
-          <template #default="props">
-            <div class="order-detail">
-              <el-descriptions :column="3" border>
-                <el-descriptions-item label="收货地址">{{ props.row.address }}</el-descriptions-item>
-                <el-descriptions-item label="联系人">{{ props.row.contact }}</el-descriptions-item>
-                <el-descriptions-item label="联系电话">{{ props.row.phone }}</el-descriptions-item>
-                <el-descriptions-item label="合同编码">{{ props.row.contractCode || '-' }}</el-descriptions-item>
-                <el-descriptions-item label="订单备注" :span="2">{{ props.row.remark }}</el-descriptions-item>
-              </el-descriptions>
-
-              <el-divider>订单物料</el-divider>
-              <el-table :data="props.row.items" border class="w-full" table-layout="fixed">
-                <el-table-column prop="materialCode" label="物料编码" width="120" show-overflow-tooltip>
-                  <template #default="{ row }">
-                    <span v-if="row.materialCode || row.code">
-                      {{ row.materialCode || row.code }}
-                    </span>
-                    <span v-else-if="row.productCode || row.productSpecs" class="text-warning">
-                      {{ row.productCode || row.productSpecs }}
-                      <el-tooltip content="该产品暂未匹配到物料，请在系统中补充" placement="top">
-                        <el-icon class="ml-sm"><WarningFilled /></el-icon>
-                      </el-tooltip>
-                    </span>
-                    <span v-else class="text-danger">
-                      待补充
-                      <el-tooltip content="该产品暂无编码，请补充物料信息" placement="top">
-                        <el-icon class="ml-sm"><WarningFilled /></el-icon>
-                      </el-tooltip>
-                    </span>
-                  </template>
-                </el-table-column>
-                <el-table-column prop="materialName" label="物料名称" show-overflow-tooltip>
-                  <template #default="{ row }">
-                    <span v-if="row.materialName || row.name">
-                      {{ row.materialName || row.name }}
-                    </span>
-                    <span v-else class="text-disabled">-</span>
-                  </template>
-                </el-table-column>
-                <el-table-column prop="specification" label="规格" show-overflow-tooltip />
-                <el-table-column prop="quantity" label="数量" width="100" show-overflow-tooltip />
-                <el-table-column prop="stockQuantity" label="库存数量" width="100" show-overflow-tooltip>
-                  <template #default="{ row }">
-                    <span :class="(row.stockQuantity || 0) >= (row.quantity || 0) ? 'text-stock-ok' : 'text-stock-low'">
-                      {{ (typeof row.stockQuantity === 'number' ? row.stockQuantity : parseFloat(row.stockQuantity) || 0).toFixed(2) }}
-                    </span>
-                  </template>
-                </el-table-column>
-                <el-table-column prop="unitName" label="单位" width="80" show-overflow-tooltip />
-                <el-table-column prop="unitPrice" label="单价" width="100" show-overflow-tooltip>
-                  <template #default="{ row }">
-                    {{ formatCurrency(row.unitPrice) }}
-                  </template>
-                </el-table-column>
-                <el-table-column prop="amount" label="金额" width="120" show-overflow-tooltip>
-                  <template #default="{ row }">
-                    {{ formatCurrency(row.amount) }}
-                  </template>
-                </el-table-column>
-                <el-table-column prop="remarks" label="备注" width="120" show-overflow-tooltip>
-                  <template #default="{ row }">
-                    {{ row.remarks || '-' }}
-                  </template>
-                </el-table-column>
-              </el-table>
-            </div>
-          </template>
-        </el-table-column>
-
         <el-table-column prop="orderNo" label="订单编号" width="120" fixed resizable show-overflow-tooltip>
         </el-table-column>
         <el-table-column prop="customerName" label="客户名称" width="250" resizable show-overflow-tooltip>
@@ -230,16 +161,10 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="{ row }">
-            <el-button class="btn-op-view" type="primary"
-              size="small"
-              v-permission="'sales:orders:view'"
-              :disabled="actionLoadingId === row.id"
-              @click="handleView(row)"
-            >
-              查看
-            </el-button>
+            <div class="table-actions" @click.stop>
             <el-button
               size="small"
               type="primary"
@@ -296,6 +221,7 @@
                 <el-button size="small" type="danger" v-permission="'sales:orders:update'" :loading="actionLoadingId === row.id">取消</el-button>
               </template>
             </el-popconfirm>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -552,11 +478,11 @@
       v-model="detailsVisible"
       title="订单详情"
       mode="view"
-      content-width="wide"
+      width="850px"
     >
-      <div v-loading="detailsLoading">
+      <div v-loading="detailsLoading" class="order-view">
         <template v-if="currentOrder">
-          <el-descriptions :column="3" border>
+          <el-descriptions :column="2" border class="purchase-view-desc">
             <el-descriptions-item label="订单编号">{{ currentOrder.orderNo }}</el-descriptions-item>
             <el-descriptions-item label="客户名称">{{ currentOrder.customerName || currentOrder.customer }}</el-descriptions-item>
             <el-descriptions-item label="状态">
@@ -569,14 +495,26 @@
             </el-descriptions-item>
             <el-descriptions-item label="联系人">{{ currentOrder.contact || currentOrder.contactPerson || '-' }}</el-descriptions-item>
             <el-descriptions-item label="联系电话">{{ currentOrder.phone || currentOrder.contactPhone || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="收货地址">{{ currentOrder.address || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="备注" :span="3">{{ currentOrder.remarks || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="收货地址" :span="2">{{ currentOrder.address || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="备注" :span="2">{{ currentOrder.remarks || '-' }}</el-descriptions-item>
           </el-descriptions>
-          <el-divider content-position="left">订单物料明细</el-divider>
-          <el-table :data="currentOrder.items || []" border class="w-full" table-layout="fixed">
-            <el-table-column prop="materialCode" label="物料编码" width="140" show-overflow-tooltip />
-            <el-table-column prop="materialName" label="物料名称" min-width="160" show-overflow-tooltip />
-            <el-table-column prop="specification" label="规格" width="120" show-overflow-tooltip />
+          <el-divider content-position="center">订单物料明细</el-divider>
+          <el-table :data="currentOrder.items || []" border class="w-full purchase-view-table" table-layout="fixed">
+            <el-table-column label="物料编码" width="140" show-overflow-tooltip>
+              <template #default="{ row }">
+                {{ row.materialCode || row.productCode || row.code || '-' }}
+              </template>
+            </el-table-column>
+            <el-table-column label="物料名称" min-width="160" show-overflow-tooltip>
+              <template #default="{ row }">
+                {{ row.materialName || row.name || '-' }}
+              </template>
+            </el-table-column>
+            <el-table-column label="规格" width="120" show-overflow-tooltip>
+              <template #default="{ row }">
+                {{ row.specification || row.productSpecs || '-' }}
+              </template>
+            </el-table-column>
             <el-table-column prop="quantity" label="数量" width="90" />
             <el-table-column prop="unitName" label="单位" width="70" />
             <el-table-column label="单价" width="100">
@@ -657,6 +595,7 @@
   </div>
 </template>
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { formatDate } from '@/utils/helpers/dateUtils'
@@ -951,48 +890,6 @@ onUnmounted(() => {
   display: flex;
   justify-content: flex-start;
 }
-.order-detail {
-  padding: 20px;
-  background: linear-gradient(135deg, var(--color-bg-section) 0%, var(--color-bg-hover) 100%);
-  border-radius: 8px;
-  margin: 10px 0;
-}
-.order-detail :deep(.el-descriptions) {
-  background: var(--color-bg-base);
-  border-radius: 8px;
-  padding: 12px;
-  box-shadow: 0 1px 3px color-mix(in srgb, var(--ds-black) 5%, transparent);
-}
-.order-detail :deep(.el-descriptions__label) {
-  font-weight: 500;
-  color: var(--color-text-secondary);
-  background: var(--color-bg-section);
-}
-.order-detail :deep(.el-descriptions__content) {
-  color: var(--color-text-primary);
-}
-.order-detail :deep(.el-divider) {
-  margin: 20px 0 16px 0;
-}
-/* 订单物料表格样式 */
-.order-detail :deep(.el-table) {
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 1px 3px color-mix(in srgb, var(--ds-black) 8%, transparent);
-}
-.order-detail :deep(.el-table th) {
-  background: var(--color-bg-hover) !important;
-  color: var(--color-text-secondary);
-  font-weight: 600;
-  font-size: 13px;
-}
-.order-detail :deep(.el-table td) {
-  font-size: 13px;
-  color: var(--color-text-regular);
-}
-.order-detail :deep(.el-table--striped .el-table__body tr.el-table__row--striped td) {
-  background: var(--color-bg-section);
-}
 /* 查看对话框中的订单详情样式 */
 .order-details {
   padding: 10px 0;
@@ -1130,12 +1027,21 @@ onUnmounted(() => {
 .is-required-field :deep(.el-input__wrapper):hover {
   border-color: var(--color-danger) !important;
 }
-/* 详情对话框长文本处理 - 自动添加 */
-:deep(.el-descriptions__content) {
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.purchase-view-desc,
+.purchase-view-desc :deep(.el-descriptions__body),
+.purchase-view-desc :deep(.el-descriptions__table),
+.purchase-view-table {
+  width: 100%;
+}
+.purchase-view-desc :deep(.el-descriptions__label) {
+  width: 112px;
+  min-width: 112px;
   white-space: nowrap;
+}
+.purchase-view-desc :deep(.el-descriptions__content) {
+  min-width: 0;
+  white-space: normal;
+  word-break: break-word;
 }
 :deep(.el-table__cell) {
   overflow: hidden;

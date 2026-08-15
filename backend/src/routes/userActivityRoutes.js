@@ -10,6 +10,7 @@ const router = express.Router();
 const userActivityController = require('../controllers/common/userActivityController');
 const { authenticateToken } = require('../middleware/authEnhanced');
 const { requirePermission } = require('../middleware/requirePermission');
+const { LOOKUP_READ_PERMISSIONS } = require('../authorization/lookupPermissions');
 
 // 所有路由都需要认证
 router.use(authenticateToken);
@@ -23,10 +24,10 @@ router.get('/', userActivityController.getUserActivities);
 // 获取用户统计数据（本人）
 router.get('/statistics', userActivityController.getUserStatistics);
 
-// 获取用户在线时长排行榜
+// 获取用户在线时长排行榜（首页卡片可用 dashboard）
 router.get(
   '/online-time-ranking',
-  requirePermission(['system:monitor', 'system:users:view', 'system:users']),
+  requirePermission(LOOKUP_READ_PERMISSIONS),
   userActivityController.getOnlineTimeRanking
 );
 

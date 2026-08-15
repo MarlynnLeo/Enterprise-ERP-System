@@ -804,6 +804,27 @@ class QualityInspection {
         }
       }
 
+      if (
+        inspection.inspection_type === 'incoming' &&
+        ['passed', 'partial', 'completed'].includes(String(inspection.status || ''))
+      ) {
+        const ProductionInboundService = require('../services/business/ProductionInboundService');
+        const incomingQty = Number(inspection.qualified_quantity ?? inspection.quantity ?? 0);
+        if (incomingQty > 0) {
+          await ProductionInboundService.createDraftFromIncomingInspection(connection, {
+            inspection: {
+              ...inspection,
+              id: inspectionId,
+              inspection_no: inspectionNo,
+              qualified_quantity: incomingQty,
+            },
+            qualifiedQuantity: incomingQty,
+            operator: inspection.inspector_name || '系统',
+            createdBy: inspectorId,
+          });
+        }
+      }
+
       if (useOwnConnection) {
         await connection.commit();
       }
@@ -971,6 +992,29 @@ class QualityInspection {
                 }
               }
             }
+          }
+        }
+
+        // 来料检验合格：自动生成零部件仓入库草稿，由仓库管理员确认
+        if (inspection.inspection_type === 'incoming' && data.status) {
+          const incomingQty = Number(
+            data.qualified_quantity ?? inspection.qualified_quantity ?? inspection.quantity ?? 0
+          );
+          if (
+            incomingQty > 0 &&
+            ['passed', 'partial', 'completed'].includes(String(data.status))
+          ) {
+            const ProductionInboundService = require('../services/business/ProductionInboundService');
+            const inboundCreatedBy = firstValidUserId(data.inspector_id, inspection.inspector_id);
+            await ProductionInboundService.createDraftFromIncomingInspection(connection, {
+              inspection: {
+                ...inspection,
+                qualified_quantity: incomingQty,
+              },
+              qualifiedQuantity: incomingQty,
+              operator: data.inspector_name || inspection.inspector_name || '系统',
+              createdBy: inboundCreatedBy,
+            });
           }
         }
 

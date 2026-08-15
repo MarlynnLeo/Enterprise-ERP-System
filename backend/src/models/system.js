@@ -452,8 +452,8 @@ const systemModel = {
 
       // 插入用户基本信息
       const [result] = await connection.execute(
-        `INSERT INTO users (username, password, real_name, email, department_id, position, role, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+        `INSERT INTO users (username, password, real_name, email, department_id, position, role, status, force_password_change, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, NOW(), NOW())`,
         [
           username,
           hashedPassword,
@@ -825,14 +825,18 @@ const systemModel = {
 
     // 获取分页数据
     const roleSql = appendPaginationSQL(
-      `SELECT id, name, code, description, status, created_at, updated_at, data_scope FROM roles WHERE ${whereClause} ORDER BY id ASC`,
+      `SELECT id, name, code, description, status, created_at, updated_at, data_scope, is_super_admin FROM roles WHERE ${whereClause} ORDER BY id ASC`,
       pagination.limit,
       pagination.offset
     );
     const [rows] = await pool.execute(roleSql, params);
+    const RoleAccessService = require('../services/RoleAccessService');
 
     return {
-      list: rows,
+      list: rows.map((role) => ({
+        ...role,
+        access_profile: RoleAccessService.describe(role.code, role.is_super_admin),
+      })),
       total,
       page: pagination.page,
       pageSize: pagination.pageSize,
@@ -840,11 +844,13 @@ const systemModel = {
   },
 
   async getRoleById(id) {
-    const [rows] = await pool.execute('SELECT id, name, code, description, status, created_at, updated_at, data_scope FROM roles WHERE id = ?', [id]);
+    const [rows] = await pool.execute('SELECT id, name, code, description, status, created_at, updated_at, data_scope, is_super_admin FROM roles WHERE id = ?', [id]);
 
     if (!rows.length) return null;
 
     const role = rows[0];
+    const RoleAccessService = require('../services/RoleAccessService');
+    role.access_profile = RoleAccessService.describe(role.code, role.is_super_admin);
 
     // 角色菜单（导航）
     const [menus] = await pool.execute(
@@ -926,18 +932,39 @@ const systemModel = {
         }
       }
       const { syncRolePermissionsFromMenus } = require('../services/PermissionRegistry');
-      await syncRolePermissionsFromMenus(connection, roleId, menuIds);
+      const RoleAccessService = require('../services/RoleAccessService');
+      if (menuIds.length === 0 && data.code) {
+        await RoleAccessService.applyRole(connection, {
+          id: roleId,
+          code: data.code,
+          name: data.name,
+          is_super_admin: 0,
+        });
+      } else {
+        const scopedMenuIds = await RoleAccessService.clampMenuIds(
+          connection,
+          { id: roleId, code: data.code, is_super_admin: 0 },
+          menuIds
+        );
+        if (scopedMenuIds.length !== menuIds.length) {
+          await connection.execute('DELETE FROM role_menus WHERE role_id = ?', [roleId]);
+          for (const menuId of scopedMenuIds) {
+            await connection.execute('INSERT INTO role_menus (role_id, menu_id) VALUES (?, ?)', [
+              roleId,
+              menuId,
+            ]);
+          }
+        }
+        await syncRolePermissionsFromMenus(connection, roleId, scopedMenuIds.length ? scopedMenuIds : menuIds);
+      }
 
       await connection.commit();
 
-      // createRole 若带 menuIds，立即清全局缓存，避免新角色赋权后读到旧图
-      if (menuIds.length > 0) {
-        try {
-          const PermissionService = require('../services/PermissionService');
-          await PermissionService.clearUserPermissionsCache();
-        } catch {
-          // ignore
-        }
+      try {
+        const PermissionService = require('../services/PermissionService');
+        await PermissionService.clearUserPermissionsCache();
+      } catch {
+        // ignore
       }
 
       return { id: roleId, ...data, data_scope: dataScope, menuIds };
@@ -985,10 +1012,29 @@ const systemModel = {
 
       // 更新角色菜单 + 同步 role_permissions
       if (data.menuIds !== undefined) {
-        await connection.execute('DELETE FROM role_menus WHERE role_id = ?', [id]);
-
-        const menuIds = normalizeIdList(data.menuIds, 'menuIds');
+        const [[roleRow]] = await connection.execute(
+          'SELECT id, code, is_super_admin FROM roles WHERE id = ? LIMIT 1',
+          [id]
+        );
+        const RoleAccessService = require('../services/RoleAccessService');
+        if (Number(roleRow?.is_super_admin) === 1 || String(roleRow?.code || '') === 'admin') {
+          await RoleAccessService.grantAllAccess(connection, id);
+          await connection.commit();
+          try {
+            const PermissionService = require('../services/PermissionService');
+            await PermissionService.clearUserPermissionsCache();
+          } catch {
+            // ignore
+          }
+          return { id, ...data };
+        }
+        const menuIds = await RoleAccessService.clampMenuIds(
+          connection,
+          roleRow || { id },
+          normalizeIdList(data.menuIds, 'menuIds')
+        );
         await assertExistingMenuIds(connection, menuIds);
+        await connection.execute('DELETE FROM role_menus WHERE role_id = ?', [id]);
         if (menuIds.length > 0) {
           for (const menuId of menuIds) {
             await connection.execute('INSERT INTO role_menus (role_id, menu_id) VALUES (?, ?)', [
@@ -1150,40 +1196,44 @@ const systemModel = {
       } = require('../services/PermissionRegistry');
       await bindMenuPermission(connection, menuId, data.permission, data.name);
 
-      // 2. 自动继承父菜单的角色权限（role_menus + role_permissions）
+      // 2. 按岗位模板决定谁能继承新菜单，禁止“父目录有权限就铺全站”
+      const RoleAccessService = require('../services/RoleAccessService');
       const grantedRoleIds = [];
+      const [activeRoles] = await connection.execute(
+        'SELECT id, code, is_super_admin FROM roles WHERE status = 1'
+      );
+      const parentRoleIds = new Set();
       if (data.parent_id) {
         const [parentRoles] = await connection.execute(
           'SELECT role_id FROM role_menus WHERE menu_id = ?',
           [data.parent_id]
         );
-
-        for (const role of parentRoles) {
-          await connection.execute('INSERT INTO role_menus (role_id, menu_id) VALUES (?, ?)', [
-            role.role_id,
-            menuId,
-          ]);
-          grantedRoleIds.push(role.role_id);
-        }
-        logger.info(
-          `新菜单 "${menuData.name}" (ID: ${menuId}) 已自动继承父菜单的 ${parentRoles.length} 个角色权限`
-        );
-      } else {
-        const [adminRoles] = await connection.execute(
-          'SELECT id FROM roles WHERE is_super_admin = 1 AND status = 1'
-        );
-
-        for (const role of adminRoles) {
-          await connection.execute('INSERT INTO role_menus (role_id, menu_id) VALUES (?, ?)', [
-            role.id,
-            menuId,
-          ]);
-          grantedRoleIds.push(role.id);
-        }
-        logger.info(
-          `新顶级菜单 "${menuData.name}" (ID: ${menuId}) 已自动分配给 ${adminRoles.length} 个管理员角色`
-        );
+        for (const row of parentRoles) parentRoleIds.add(Number(row.role_id));
       }
+
+      const newMenu = {
+        id: menuId,
+        path: data.path,
+        permission: data.permission,
+        type: data.type,
+        parent_id: data.parent_id,
+        status: data.status,
+      };
+
+      for (const role of activeRoles) {
+        const shouldGrant = RoleAccessService.shouldGrantNewMenu(role, newMenu, {
+          parentAssigned: parentRoleIds.has(Number(role.id)),
+        });
+        if (!shouldGrant) continue;
+        await connection.execute('INSERT INTO role_menus (role_id, menu_id) VALUES (?, ?)', [
+          role.id,
+          menuId,
+        ]);
+        grantedRoleIds.push(role.id);
+      }
+      logger.info(
+        `新菜单 "${menuData.name}" (ID: ${menuId}) 已按岗位模板分配给 ${grantedRoleIds.length} 个角色`
+      );
 
       if (grantedRoleIds.length > 0) {
         await grantMenuPermissionToRoles(connection, menuId, grantedRoleIds);

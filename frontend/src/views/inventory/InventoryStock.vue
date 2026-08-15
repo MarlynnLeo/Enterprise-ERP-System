@@ -123,7 +123,6 @@
       </template>
     </FinanceQueryCard>
 
-
     <!-- 统计信息 -->
     <div class="statistics-row">
       <el-card class="stat-card" shadow="hover">
@@ -150,11 +149,12 @@
         ref="tableRef"
         :data="tableData"
         border
-        class="w-full"
+        class="table-row-click w-full"
         v-loading="loading"
         @selection-change="handleSelectionChange"
         @sort-change="handleSortChange"
-      >
+      
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleViewDetail(row))">
         <template #empty>
           <EmptyState description="暂无库存数据" />
         </template>
@@ -177,12 +177,11 @@
             {{ formatDateTime(scope.row.updatedAt, 'YYYY-MM-DD HH:mm') }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="180" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="180" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="scope">
             <div class="table-actions">
-              <el-button class="btn-op-view" type="primary" size="small" @click="handleViewDetail(scope.row)" v-permission="'inventory:stock:view-detail'">
-                <el-icon><View /></el-icon> 查看
-              </el-button>
+              
               <el-button
                 v-if="isLowStock(scope.row)"
                 size="small"
@@ -238,7 +237,13 @@
       <el-tabs v-model="activeTab" class="mt-20">
         <!-- 批次库存标签页 -->
         <el-tab-pane label="批次库存" name="batch">
-          <el-table :data="batchInventory" border v-loading="batchLoading">
+          <el-table
+            :data="batchInventory"
+            class="table-row-click"
+            border
+            v-loading="batchLoading"
+            @row-click="(row, column, event) => handleTableRowView(row, column, event, () => showBatchTransactions(row.batchNumber))"
+          >
             <el-table-column prop="batchNumber" label="批次号" width="150" show-overflow-tooltip>
               <template #default="{ row }">
                 <el-tag type="primary" class="cursor-pointer" @click="goToTraceability(row.batchNumber, currentDetail.materialCode)" title="点击跳转至追溯页面">{{ row.batchNumber }}</el-tag>
@@ -260,15 +265,7 @@
                 {{ formatDateTime(row.lastTransactionDate, 'YYYY-MM-DD HH:mm:ss') }}
               </template>
             </el-table-column>
-            <el-table-column label="操作" min-width="100" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
-              <template #default="{ row }">
-                <div class="table-actions">
-                  <el-button size="small" type="primary" @click="showBatchTransactions(row.batchNumber)">
-                    <el-icon><View /></el-icon> 查看
-                  </el-button>
-                </div>
-              </template>
-            </el-table-column>
+
           </el-table>
         </el-tab-pane>
 
@@ -367,12 +364,12 @@
             </el-table-column>
             <el-table-column prop="unitPrice" label="单价" width="100">
               <template #default="{ row }">
-                {{ formatCurrency(row.unitPrice) }}
+                {{ formatMaskedPrice(row.unitPrice, canViewPrice, formatCurrency) }}
               </template>
             </el-table-column>
             <el-table-column prop="totalAmount" label="总金额" width="120">
               <template #default="{ row }">
-                {{ formatCurrency(row.totalAmount) }}
+                {{ formatMaskedPrice(row.totalAmount, canViewPrice, formatCurrency) }}
               </template>
             </el-table-column>
             <el-table-column prop="receiptDate" label="入库日期" width="110">
@@ -416,12 +413,12 @@
             </el-table-column>
             <el-table-column prop="unitPrice" label="单价" width="90">
               <template #default="{ row }">
-                {{ formatCurrency(row.unitPrice) }}
+                {{ formatMaskedPrice(row.unitPrice, canViewPrice, formatCurrency) }}
               </template>
             </el-table-column>
             <el-table-column prop="totalAmount" label="总金额" width="110">
               <template #default="{ row }">
-                {{ formatCurrency(row.totalAmount) }}
+                {{ formatMaskedPrice(row.totalAmount, canViewPrice, formatCurrency) }}
               </template>
             </el-table-column>
             <el-table-column prop="outboundDate" label="出库日期" width="120">
@@ -493,6 +490,7 @@
 </template>
 
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { parseListData, parseResponseData } from '@/utils/responseParser';
 import { ref, onMounted, reactive, computed } from 'vue'
 import { Download, Plus, ArrowDown, Document, Close, Printer, Select, View, ShoppingCart } from '@element-plus/icons-vue'
@@ -503,6 +501,7 @@ import { useAuthStore } from '@/stores/auth'
 import { getDocumentType as getDocTypeHelper } from '@/constants/documentTypes'
 import { formatDateTime } from '@/utils/helpers/dateUtils'
 import { formatCurrency, formatLocalDate } from '@/utils/format'
+import { canViewMaterialPrices, formatMaskedPrice } from '@/utils/priceVisibility'
 import { useRouter } from 'vue-router'
 import { getInventoryTransactionTypeText, getInventoryTransactionTypeColor } from '@/constants/systemConstants'
 import { debounce } from '@/utils/commonHelpers'
@@ -510,11 +509,11 @@ import printService from '@/services/printService'
 
 // 权限store
 const authStore = useAuthStore()
+const canViewPrice = computed(() => canViewMaterialPrices((code) => authStore.hasPermission(code)))
 const router = useRouter()
 
 // 权限计算属性
 const canEdit = computed(() => authStore.hasPermission && authStore.hasPermission('inventory:stock:edit'));
-
 
 
 // 数据定义
@@ -682,7 +681,6 @@ const updateStatistics = async () => {
     })
   }
 }
-
 
 
 // 获取基础数据

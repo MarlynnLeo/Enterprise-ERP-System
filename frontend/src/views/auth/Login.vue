@@ -223,6 +223,11 @@ async function handleLogin() {
         duration: 2000
       })
       saveCredentials()
+      if (authStore.mustChangePassword) {
+        ElMessage.warning('首次登录请先修改初始密码')
+        router.push('/force-password')
+        return
+      }
       router.push('/')
     } catch (error) {
       console.error('登录失败:', error)

@@ -45,7 +45,7 @@
         </el-descriptions>
         <!-- 检验项目 -->
         <template v-if="inspection.items && inspection.items.length > 0">
-          <el-divider content-position="left">检验项目</el-divider>
+          <el-divider content-position="center">检验项目</el-divider>
           <el-table :data="inspection.items" border class="w-full" max-height="300">
             <el-table-column prop="itemName" label="检验项目" width="100" show-overflow-tooltip />
             <el-table-column label="标准" min-width="80" show-overflow-tooltip>
@@ -129,9 +129,8 @@ const handleGoInspect = () => {
 </script>
 <style scoped>
 :deep(.el-descriptions__content) {
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  white-space: normal;
+  word-break: break-word;
 }
 </style>

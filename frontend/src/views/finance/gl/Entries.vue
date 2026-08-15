@@ -114,7 +114,8 @@
                 <h4>凭证明细</h4>
                 <span class="expanded-row-description">{{ props.row.description }}</span>
               </div>
-              <el-table :data="props.row.items || []" border class="w-full inner-table">
+              <el-table :data="props.row.items || []" border class="table-row-click w-full inner-table"
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => viewEntry(row))">
                 <el-table-column prop="accountCode" label="科目编码" width="120"></el-table-column>
                 <el-table-column prop="accountName" label="科目名称" width="180"></el-table-column>
                 <el-table-column prop="debitAmount" label="借方金额" width="150">
@@ -184,12 +185,11 @@
         </el-table-column>
         <el-table-column prop="createdBy" label="创建人" width="120" show-overflow-tooltip></el-table-column>
         <el-table-column prop="description" label="描述" min-width="150" show-overflow-tooltip></el-table-column>
-        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="scope">
             <div class="table-actions">
-              <el-button class="btn-op-view" type="primary" size="small" @click="viewEntry(scope.row)">
-                <el-icon><View /></el-icon> 查看
-              </el-button>
+              
               <el-button
                 v-if="!scope.row.isPosted && !scope.row.isReversed"
                 type="success"
@@ -405,6 +405,7 @@
 </template>
 
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 // Vue核心和路由
 import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { formatDate } from '@/utils/helpers/dateUtils'
@@ -424,7 +425,6 @@ import { financeApi } from '@/api';
 import printService from '@/services/printService'
 import EntryFormDialog from './entries/EntryFormDialog.vue'
 
-
 // Props定义
 const props = defineProps({
   fixedType: {
@@ -438,7 +438,6 @@ const financeStore = useFinanceStore();
 const { glConfig } = storeToRefs(financeStore);
 
 // 权限计算属性
-
 
 
 // 路由
@@ -747,7 +746,6 @@ const loadEntries = async () => {
       } else {
         total.value = entriesList.value.length;
       }
-
 
 
       // 使用后端返回的统计数据（真实总量）
@@ -1191,13 +1189,6 @@ watch(() => [props.fixedType, route.query.type], () => {
   font-size: 16px;
 }
 
-/* 详情对话框长文本处理 - 自动添加 */
-:deep(.el-descriptions__content) {
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 
 :deep(.el-table__cell) {
   overflow: hidden;

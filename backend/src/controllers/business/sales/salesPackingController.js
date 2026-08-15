@@ -16,6 +16,7 @@ const { SALES_PACKING_TRANSITIONS } = require('../../../constants/statusRegistry
 
 const { CodeGenerators } = require('../../../utils/codeGenerator');
 const { resolveActorLabel, getRequestActorLabel } = require('../../../utils/userUtils');
+const TaskRepository = require('../../../repositories/TaskRepository');
 
 async function generatePackingListNo(connection) {
   return await CodeGenerators.generatePackingListCode(connection);
@@ -812,10 +813,14 @@ async function generateProductionAndPurchasePlans(
             const endDate = new Date();
             endDate.setDate(startDate.getDate() + 7); // 假设生产周期为7天
 
+            const { departmentId } = await TaskRepository.resolveProductionGroup(connection, {
+              productId: material_id,
+            });
+
             const insertQuery = `
               INSERT INTO production_plans
-    (code, name, product_id, quantity, start_date, end_date, status, remark, contract_code)
-  VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (code, name, product_id, quantity, start_date, end_date, status, remark, contract_code, department_id)
+  VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `;
 
             // 构建备注内容
@@ -833,6 +838,7 @@ async function generateProductionAndPurchasePlans(
               'draft',
               remarkText,
               contractCode || null,
+              departmentId,
             ]);
 
             const planId = insertResult.insertId;
@@ -964,11 +970,19 @@ async function generateProductionAndPurchasePlans(
           // 批量创建采购申请明细
           for (const item of filteredMaterials) {
             const { material_id, material_name, material_code, shortage } = item;
+            const [matSnap] = await connection.execute(
+              `SELECT m.specs, m.unit_id, u.name AS unit_name
+               FROM materials m
+               LEFT JOIN units u ON u.id = m.unit_id
+               WHERE m.id = ?
+               LIMIT 1`,
+              [material_id]
+            );
 
             const insertItemQuery = `
               INSERT INTO purchase_requisition_items
-    (requisition_id, material_id, material_code, material_name, quantity, created_at)
-  VALUES(?, ?, ?, ?, ?, NOW())
+    (requisition_id, material_id, material_code, material_name, specification, unit, unit_id, quantity, created_at)
+  VALUES(?, ?, ?, ?, ?, ?, ?, ?, NOW())
             `;
 
             await connection.execute(insertItemQuery, [
@@ -976,6 +990,9 @@ async function generateProductionAndPurchasePlans(
               material_id,
               material_code || '',
               material_name || '',
+              matSnap[0]?.specs || '',
+              matSnap[0]?.unit_name || '',
+              matSnap[0]?.unit_id || null,
               shortage,
             ]);
 

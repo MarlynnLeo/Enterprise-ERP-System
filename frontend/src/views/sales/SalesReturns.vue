@@ -100,7 +100,8 @@
               </el-descriptions>
 
               <div class="products-title">退货物品</div>
-              <el-table :data="props.row.items || []" border class="w-full" table-layout="fixed">
+              <el-table :data="props.row.items || []" border class="table-row-click w-full" table-layout="fixed"
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleView(row))">
                 <el-table-column prop="productCode" label="产品编码" width="120" />
                 <el-table-column prop="productName" label="产品名称" />
                 <el-table-column prop="specification" label="规格" />
@@ -130,14 +131,9 @@
             <el-tag :type="getReturnStatusType(scope.row.status)">{{ getReturnStatusText(scope.row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="scope">
-            <el-button class="btn-op-view" type="primary"
-              size="small"
-              @click="handleView(scope.row)"
-            >
-              查看
-            </el-button>
 
             <!-- 待审批状态：可以审批通过或拒绝 -->
             <template v-if="scope.row.status === 'pending'">
@@ -146,12 +142,13 @@
                 type="success"
                 @click="handleApprove(scope.row)"
 
-              v-permission="'sales:returns:update'">
+              v-permission="'sales:returns:approve'">
                 审批通过
               </el-button>
               <el-button
                 size="small"
                 type="danger"
+                v-permission="'sales:returns:approve'"
                 @click="handleReject(scope.row)"
               >
                 拒绝
@@ -253,7 +250,7 @@
           <el-input v-model="createForm.remarks" type="textarea" :rows="2" placeholder="备注（可选）" />
         </el-form-item>
 
-        <el-divider content-position="left">退货明细</el-divider>
+        <el-divider content-position="center">退货明细</el-divider>
         <el-table :data="createForm.items" border class="w-full">
           <el-table-column type="index" width="50" label="#" />
           <el-table-column prop="materialCode" label="产品编码" width="120" />
@@ -340,6 +337,7 @@
 </template>
 
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { formatDate, formatDateTime } from '@/utils/helpers/dateUtils'
 import { formatCurrency } from '@/utils/helpers/formatters'
 import dayjs from 'dayjs'
@@ -407,7 +405,6 @@ const returnStatuses = [
 ]
 
 // 删除未使用的状态映射函数，保留实际使用的退货单和订单状态映射
-
 
 // 计算统计数据
 const calculateReturnStats = () => {
@@ -815,13 +812,6 @@ const handlePrintReturn = async () => {
   padding: 16px;
 }
 
-/* 详情对话框长文本处理 - 自动添加 */
-:deep(.el-descriptions__content) {
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 
 :deep(.el-table__cell) {
   overflow: hidden;

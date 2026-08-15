@@ -29,6 +29,147 @@ function parseDateOnly(value) {
 
   return parsed;
 }
+const PROFILE_ACTIVITY_EXCLUDED_ACTIONS = ['ACTIVITY'];
+const PROFILE_ACTIVITY_EXCLUDED_PATHS = [
+  '/unread-count',
+  '/online-time-ranking',
+  '/user-activities',
+  '/notifications/unread',
+  '/client-errors',
+  '/ping',
+  '/health',
+  '/auth/refresh',
+];
+function normalizeActivityCategory(moduleName, action, pathValue) {
+  const moduleKey = String(moduleName || '').trim().toLowerCase();
+  const actionKey = String(action || '').trim().toLowerCase();
+  const pathKey = String(pathValue || '').toLowerCase();
+
+  if (['login', 'logout'].includes(actionKey) || pathKey.includes('/auth/login') || pathKey.includes('/auth/logout')) {
+    return 'login';
+  }
+  if (['user', 'profile', 'users'].includes(moduleKey) || pathKey.includes('/profile') || pathKey.includes('/users')) {
+    return 'profile';
+  }
+  if (['task', 'todo', 'todos', 'tasks'].includes(moduleKey) || pathKey.includes('/todo') || pathKey.includes('/task')) {
+    return 'task';
+  }
+  if (moduleKey === 'system' || actionKey === 'activity' || !moduleKey) {
+    return 'system';
+  }
+  return moduleKey || 'system';
+}
+
+function getActivityActionLabel(action) {
+  const actionKey = String(action || '').trim().toUpperCase();
+  const labels = {
+    LOGIN: "登录系统",
+    LOGOUT: "退出系统",
+    ACTIVITY: "访问系统",
+    CREATE: "新建",
+    UPDATE: "更新",
+    DELETE: "删除",
+    VIEW: "查看",
+    READ: "查看",
+    EXPORT: "导出",
+    IMPORT: "导入",
+    APPROVE: "审批通过",
+    REJECT: "审批驳回",
+    SUBMIT: "提交",
+    CANCEL: "取消",
+    PRINT: "打印",
+    ROLE_ASSIGN: "分配角色",
+    PERMISSION_ASSIGN: "分配权限",
+  };
+  return labels[actionKey] || (action ? String(action) : "操作");
+}
+
+function getActivityModuleLabel(moduleName) {
+  const moduleKey = String(moduleName || '').trim().toLowerCase();
+  const labels = {
+    system: "系统",
+    user: "用户",
+    profile: "个人资料",
+    auth: "认证",
+    todo: "待办",
+    todos: "待办",
+    task: "任务",
+    tasks: "任务",
+    finance: "财务",
+    inventory: "库存",
+    production: "生产",
+    sales: "销售",
+    purchase: "采购",
+    material: "物料",
+    bom: 'BOM',
+    customer: "客户",
+    supplier: "供应商",
+    pricing: "定价",
+  };
+  return labels[moduleKey] || (moduleName ? String(moduleName) : "系统");
+}
+
+function summarizePath(pathValue) {
+  const raw = String(pathValue || '').split('?')[0];
+  if (!raw) return '';
+  const rules = [
+    { match: /\/system\/users\/\d+\/status$/i, label: '更新用户状态' },
+    { match: /\/system\/users\/\d+$/i, label: '更新用户信息' },
+    { match: /\/system\/users$/i, label: '用户管理' },
+    { match: /\/system\/roles/i, label: '角色管理' },
+    { match: /\/system\/notifications/i, label: '通知中心' },
+    { match: /\/finance\//i, label: '财务操作' },
+    { match: /\/purchase\//i, label: '采购操作' },
+    { match: /\/sales\//i, label: '销售操作' },
+    { match: /\/inventory\//i, label: '库存操作' },
+    { match: /\/production\//i, label: '生产操作' },
+    { match: /\/profile/i, label: '个人资料' },
+    { match: /\/todos?/i, label: '待办事项' },
+  ];
+  const hit = rules.find((rule) => rule.match.test(raw));
+  return hit ? hit.label : raw.replace(/^\/api/, '');
+}
+
+function formatActivityContent(log) {
+  const actionKey = String(log.action || '').trim().toUpperCase();
+  const moduleLabel = getActivityModuleLabel(log.module);
+  const actionLabel = getActivityActionLabel(log.action);
+  const entityType = log.entity_type ? String(log.entity_type).trim() : '';
+  const entityId = log.entity_id != null && String(log.entity_id) !== '' && String(log.entity_id) !== 'N/A'
+    ? String(log.entity_id)
+    : '';
+  const pathValue = log.path ? String(log.path).trim() : '';
+  const pathSummary = summarizePath(pathValue);
+
+  if (actionKey === 'LOGIN') return '登录系统';
+  if (actionKey === 'LOGOUT') return '退出系统';
+  if (actionKey === 'ACTIVITY') {
+    return pathSummary ? `在线访问 ${pathSummary}` : '在线活动';
+  }
+
+  if (actionKey === 'ROLE_ASSIGN') {
+    return entityId ? `分配用户角色 · #${entityId}` : '分配用户角色';
+  }
+  if (actionKey === 'PERMISSION_ASSIGN') {
+    return entityId ? `分配权限 · #${entityId}` : '分配权限';
+  }
+
+  if (pathSummary && !pathSummary.startsWith('/')) {
+    return entityId ? `${pathSummary} · #${entityId}` : pathSummary;
+  }
+
+  const parts = [];
+  if (moduleLabel) parts.push(moduleLabel);
+  if (actionLabel) parts.push(actionLabel);
+  if (entityType && entityType.toLowerCase() !== String(log.module || '').toLowerCase()) {
+    parts.push(entityType);
+  }
+  if (entityId) parts.push(`#${entityId}`);
+  else if (pathSummary) parts.push(pathSummary);
+
+  return parts.filter(Boolean).join(' · ') || actionLabel || '系统操作';
+}
+
 
 // 记录用户活动
 exports.logActivity = async (req, res) => {
@@ -58,11 +199,13 @@ exports.getUserActivities = async (req, res) => {
     // 调用真实的审计查询引擎
     const result = await AuditService.query({
       userId,
-      module: category,
+      module: category && category !== 'all' ? category : undefined,
       startDate,
       endDate,
       page: pagination.page,
       pageSize: pagination.pageSize,
+      excludeActions: PROFILE_ACTIVITY_EXCLUDED_ACTIONS,
+      excludePaths: PROFILE_ACTIVITY_EXCLUDED_PATHS,
     });
 
     // 适配前端期望的数据结构
@@ -70,9 +213,9 @@ exports.getUserActivities = async (req, res) => {
       id: log.id,
       userId: log.user_id,
       timestamp: log.created_at,
-      content: `${log.module} - ${log.action} ${log.entity_type || ''}`,
-      type: 'info', // 默认状态标
-      category: log.module,
+      content: formatActivityContent(log),
+      type: 'info',
+      category: normalizeActivityCategory(log.module, log.action, log.path),
       createdAt: log.created_at,
     }));
 
@@ -413,15 +556,17 @@ exports.exportActivities = async (req, res) => {
 
     const result = await AuditService.queryForExport({
       userId,
-      module: category,
+      module: category && category !== 'all' ? category : undefined,
       startDate,
       endDate,
+      excludeActions: PROFILE_ACTIVITY_EXCLUDED_ACTIONS,
+      excludePaths: PROFILE_ACTIVITY_EXCLUDED_PATHS,
     });
 
     const activities = result.list.map((log) => ({
       timestamp: new Date(log.created_at).toLocaleString(),
-      content: `${log.module} - ${log.action} ${log.entity_type || ''} (${log.entity_id || ''})`,
-      category: log.module,
+      content: formatActivityContent(log),
+      category: normalizeActivityCategory(log.module, log.action, log.path),
     }));
 
     if (format === 'csv') {
@@ -443,7 +588,7 @@ exports.exportActivities = async (req, res) => {
         'Content-Disposition',
         `attachment; filename="user_activities_${new Date().toISOString().split('T')[0]}.csv"`
       );
-      res.send('\ufeff' + csvContent); // BOM for UTF-8
+      res.send("﻿" + csvContent); // BOM for UTF-8
     } else {
       // JSON格式
       res.setHeader('Content-Type', 'application/json');

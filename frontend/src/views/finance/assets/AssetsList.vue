@@ -131,7 +131,7 @@
           <template #default="scope">
             <el-button type="primary" size="small" @click="handleEdit(scope.row)" v-if="!isDisposed(scope.row.status) && scope.row.auditStatus !== 'approved'"
               v-permission="'finance:assets:update'">编辑</el-button>
-            <el-button v-permission="'finance:assets:update'" type="success" size="small" @click="handleAudit(scope.row, 'approve')" v-if="scope.row.auditStatus !== 'approved' && !isDisposed(scope.row.status)">审核</el-button>
+            <el-button v-permission="'finance:assets:approve'" type="success" size="small" @click="handleAudit(scope.row, 'approve')" v-if="scope.row.auditStatus !== 'approved' && !isDisposed(scope.row.status)">审核</el-button>
             <el-dropdown v-if="showAssetMore(scope.row)" trigger="click" @command="(cmd) => handleMoreCommand(cmd, scope.row)" class="ml-sm">
               <el-button size="small">
                 更多<el-icon class="el-icon--right"><ArrowDown /></el-icon>
@@ -636,8 +636,8 @@ const splitForm = reactive({
   originalValue: 0,
   split_cost: 0,
   new_asset_name: '',
-  department_id: '',
-  location_id: '',
+  departmentId: '',
+  locationId: '',
   custodian: '',
   reason: ''
 });
@@ -1310,13 +1310,6 @@ onMounted(() => {
   margin: 0;
   font-size: 14px;
   color: var(--color-text-secondary);
-}
-
-:deep(.el-descriptions__content) {
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .value-text {

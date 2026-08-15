@@ -80,13 +80,26 @@ module.exports = {
           break;
         }
         case 'role': {
-          const roleIds = this._parseApproverIds(templateNode.approver_ids, label);
-          if (roleIds.length) {
+          const { ids: roleIds, codes: roleCodes } = this._parseApproverRefs(templateNode.approver_ids, label);
+          if (roleIds.length || roleCodes.length) {
+            const conditions = [];
+            const params = [];
+            if (roleIds.length) {
+              conditions.push('r.id IN (?)');
+              params.push(roleIds);
+            }
+            if (roleCodes.length) {
+              conditions.push('r.code IN (?)');
+              params.push(roleCodes);
+            }
             const [users] = await conn.query(
               `SELECT DISTINCT u.id
-               FROM user_roles ur JOIN users u ON u.id = ur.user_id AND u.status = 1
-               WHERE ur.role_id IN (?) ORDER BY u.id`,
-              [roleIds]
+               FROM user_roles ur
+               JOIN users u ON u.id = ur.user_id AND u.status = 1
+               JOIN roles r ON r.id = ur.role_id AND r.status = 1
+               WHERE ${conditions.join(' OR ')}
+               ORDER BY u.id`,
+              params
             );
             candidateIds = users.map((user) => Number(user.id));
           }
@@ -168,23 +181,42 @@ module.exports = {
       }
     },
 
-  _parseApproverIds(rawIds, label) {
-      if (!rawIds) return [];
-  
-      let ids = rawIds;
-      if (typeof rawIds === 'string') {
+  _parseApproverRefs(rawIds, label) {
+      if (!rawIds) return { ids: [], codes: [] };
+
+      let items = rawIds;
+      if (typeof items === 'string') {
         try {
-          ids = JSON.parse(rawIds);
+          items = JSON.parse(items);
         } catch (error) {
           throw new Error(`${label}审批人配置格式无效`, { cause: error });
         }
       }
-  
-      if (!Array.isArray(ids)) {
+
+      if (!Array.isArray(items)) {
         throw new Error(`${label}审批人配置格式无效`);
       }
-  
-      return ids.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0);
+
+      const ids = [];
+      const codes = [];
+      for (const item of items) {
+        if (typeof item === 'number' && Number.isInteger(item) && item > 0) {
+          ids.push(item);
+          continue;
+        }
+        const text = String(item || '').trim();
+        if (!text) continue;
+        if (/^\d+$/.test(text)) {
+          ids.push(Number(text));
+        } else {
+          codes.push(text);
+        }
+      }
+      return { ids, codes };
+    },
+
+  _parseApproverIds(rawIds, label) {
+      return this._parseApproverRefs(rawIds, label).ids;
     },
 
   _assertSupportedBusinessType(businessType) {

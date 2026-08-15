@@ -30,7 +30,8 @@
 
     <!-- 数据表格 -->
     <el-card class="data-card">
-      <el-table :data="tableData" v-loading="loading" border stripe>
+      <el-table class="table-row-click" :data="tableData" v-loading="loading" border stripe
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => viewDetail(row))">
       <el-table-column prop="code" label="ECN编号" width="140" />
       <el-table-column prop="title" label="变更标题" min-width="200" show-overflow-tooltip />
       <el-table-column prop="type" label="类型" width="80">
@@ -50,14 +51,16 @@
       </el-table-column>
       <el-table-column prop="requestedByName" label="申请人" width="100" />
       <el-table-column prop="effectiveDate" label="生效日期" width="110" />
-      <el-table-column label="操作" min-width="380" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+      <el-table-column label="操作" min-width="380" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
         <template #default="{ row }">
-          <el-button class="btn-op-view" size="small" type="primary" v-permission="'basedata:ecn:view'" @click="viewDetail(row)">
-            <el-icon><View /></el-icon> 详情
-          </el-button>
+          
           <!-- 草稿 → 提交审批 -->
           <el-button v-if="row.status === 'draft'" size="small" type="warning" v-permission="'basedata:ecn:update'" @click="submitForApproval(row)">
             <el-icon><Promotion /></el-icon> 提交审批
+          </el-button>
+          <el-button v-if="row.status === 'pending_approval'" size="small" type="warning" v-permission="'basedata:ecn:approve'" @click="openApprovalDialog(row)">
+            审批
           </el-button>
           <!-- 已批准 → 开始实施 -->
           <el-button v-if="row.status === 'approved'" size="small" type="success" v-permission="'basedata:ecn:update'" @click="handleStatusChange(row, 'implementing')">
@@ -114,7 +117,7 @@
         <el-form-item label="生效日期"><el-date-picker v-model="formData.effectiveDate" type="date" value-format="YYYY-MM-DD" :disabled="!isEditable" /></el-form-item>
 
         <!-- 变更明细区域 -->
-        <el-divider content-position="left">变更明细</el-divider>
+        <el-divider content-position="center">变更明细</el-divider>
         <div v-if="isEditable" class="mb-md">
           <el-button type="primary" size="small" v-permission="formData.id ? 'basedata:ecn:update' : 'basedata:ecn:create'" @click="addItem">+ 添加变更项</el-button>
         </div>
@@ -243,11 +246,23 @@
         <el-button v-if="formData.id && formData.status === 'draft'" type="primary" v-permission="'basedata:ecn:update'" @click="handleUpdate" :loading="saving">保存修改</el-button>
       </template>
     </AppDialog>
+    <BusinessApprovalDialog
+      v-model="approvalDialog.visible"
+      title="审批变更单"
+      :loading="approvalDialog.loading"
+      v-model:comment="approvalDialog.comment"
+      :summary-items="ecnApprovalSummary"
+      @approve="handleApproval('approve')"
+      @reject="handleApproval('reject')"
+    />
   </div>
 </template>
 
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import BusinessApprovalDialog from '@/components/workflow/BusinessApprovalDialog.vue'
+import { useBusinessApproval } from '@/composables/useBusinessApproval'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ecnApi } from '@/api/enhanced'
 import { baseDataApi } from '@/api/baseData'
@@ -259,6 +274,18 @@ const statusTypeMap = { draft:'info', pending_approval:'warning', approved:'succ
 const statusTextMap = { draft:'草稿', pending_approval:'待审批', approved:'已批准', implementing:'实施中', completed:'已完成', rejected:'已拒绝', cancelled:'已取消' }
 const changeTypeMap = { bom_add:'BOM新增物料', bom_remove:'BOM移除物料', bom_modify:'BOM修改', material_modify:'物料属性修改', process_modify:'工艺修改', drawing_modify:'图纸修改' }
 
+const { approvalDialog, openApprovalDialog, handleApproval } = useBusinessApproval({
+  businessType: 'ecn',
+  onSuccess: () => fetchList()
+})
+const ecnApprovalSummary = computed(() => {
+  const row = approvalDialog.row || {}
+  return [
+    { label: '变更单号', value: row.code || '-' },
+    { label: '标题', value: row.title || '-' },
+    { label: '申请人', value: row.requestedByName || '-' }
+  ]
+})
 const loading = ref(false)
 const saving = ref(false)
 const keyword = ref('')

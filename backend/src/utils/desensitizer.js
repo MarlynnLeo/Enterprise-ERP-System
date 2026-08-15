@@ -302,22 +302,20 @@ const PRICE_VIEW_PERMISSIONS = [
   'basedata:materials:view_cost',
 ];
 
-/** 销售价字段：仅销售/财务定价相关权限可见 */
-const SALES_PRICE_VIEW_PERMISSIONS = [
-  'sales:price:view',
-  'basedata:materials:view_price',
+/** 物料销售价/采购价：仅财务、采购、销售权限组可见 */
+const BUSINESS_PRICE_VIEW_PERMISSIONS = [
   'finance:price:view',
   'finance:pricing:view',
+  'finance:cost:view',
+  'purchase:price:view',
+  'sales:price:view',
+  'basedata:materials:view_price',
+  'basedata:materials:view_cost',
 ];
 
-/** 采购价/成本字段：仅采购/成本/库存金额相关权限可见 */
-const PURCHASE_COST_VIEW_PERMISSIONS = [
-  'purchase:price:view',
-  'basedata:materials:view_cost',
-  'finance:price:view',
-  'finance:cost:view',
-  'inventory:value:view',
-];
+const SALES_PRICE_VIEW_PERMISSIONS = BUSINESS_PRICE_VIEW_PERMISSIONS;
+const PURCHASE_COST_VIEW_PERMISSIONS = BUSINESS_PRICE_VIEW_PERMISSIONS;
+const MASKED_PRICE_PLACEHOLDER = '***';
 
 const PRICE_UPDATE_PERMISSIONS = [
   'finance:price:update',
@@ -505,7 +503,7 @@ function desensitizeData(data, hasPermissionOrCaps) {
     if (category || isContextualTotal || isContextualValue) {
       const effectiveCategory = category || 'general';
       if (!canViewFieldCategory(caps, effectiveCategory)) {
-        data[key] = null;
+        data[key] = MASKED_PRICE_PLACEHOLDER;
         return;
       }
     }
@@ -572,6 +570,8 @@ module.exports = {
   SALES_PRICE_FIELDS,
   PURCHASE_COST_FIELDS,
   PRICE_VIEW_PERMISSIONS,
+  BUSINESS_PRICE_VIEW_PERMISSIONS,
+  MASKED_PRICE_PLACEHOLDER,
   SALES_PRICE_VIEW_PERMISSIONS,
   PURCHASE_COST_VIEW_PERMISSIONS,
   PRICE_UPDATE_PERMISSIONS,

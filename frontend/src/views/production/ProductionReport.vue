@@ -130,10 +130,11 @@
           <el-table
             :data="detailData"
             border
-            class="w-full"
+            class="table-row-click w-full"
             v-loading="loading"
             stripe
-          >
+          
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => viewReportDetail(row))">
             <template #empty>
               <EmptyState description="暂无报工数据，请先进行生产报工" />
             </template>
@@ -173,16 +174,10 @@
               </template>
             </el-table-column>
             <el-table-column prop="reporter" label="报工人" width="120" />
-            <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+            <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
               <template #default="scope">
-                <el-button class="btn-op-view"
-                  v-if="canView"
-                  size="small"
-                  type="primary"
-                  @click="viewReportDetail(scope.row)"
-                >
-                  查看
-                </el-button>
+                
                 <el-button
                   v-if="canUpdate"
                   size="small"
@@ -450,6 +445,7 @@
 </template>
 
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, onMounted, computed, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Download, Plus } from '@element-plus/icons-vue'
@@ -1115,13 +1111,6 @@ const printReport = async () => {
   color: var(--color-primary);
 }
 
-/* 详情对话框长文本处理 - 自动添加 */
-:deep(.el-descriptions__content) {
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 
 :deep(.el-table__cell) {
   overflow: hidden;

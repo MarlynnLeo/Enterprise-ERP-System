@@ -156,10 +156,10 @@ const centerForm = reactive({
   code: '',
   name: '',
   type: 'production',
-  parent_id: null,
+  parentId: null,
   manager: '',
   description: '',
-  is_active: true
+  isActive: true
 });
 const centerRules = {
   code: [

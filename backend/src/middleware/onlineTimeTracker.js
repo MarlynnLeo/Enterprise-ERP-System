@@ -50,14 +50,15 @@ class OnlineTimeTracker {
 
       const sql = `
         INSERT INTO audit_logs (
-          user_id, username, action, method, path,
+          user_id, username, module, action, method, path,
           ip_address, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, NOW())
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
       `;
 
       const values = [
         userId,
         username,
+        'system',
         'ACTIVITY',
         req.method,
         req.path,

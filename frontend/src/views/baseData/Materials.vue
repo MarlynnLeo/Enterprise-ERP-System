@@ -27,13 +27,13 @@
         </el-form-item>
       </template>
       <template #advanced>
-        <el-form-item :label="$t('page.baseData.materials.category')">
-          <el-select v-model="searchForm.categoryId" :placeholder="$t('page.baseData.materials.categoryPlaceholder')" clearable>
+        <el-form-item label="物料类型">
+          <el-select v-model="searchForm.materialType" placeholder="请选择物料类型" clearable>
             <el-option
-              v-for="item in categoryOptions"
-              :key="item.id"
-              :label="item.name"
-              :value="item.id">
+              v-for="item in materialTypeOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value">
             </el-option>
           </el-select>
         </el-form-item>
@@ -91,7 +91,6 @@
       :title="dialogTitle"
       :editData="currentEditMaterial"
       :productCategoryOptions="productCategoryOptions"
-      :categoryOptions="categoryOptions"
       :inspectionMethodOptions="inspectionMethodOptions"
       :materialSourceOptions="materialSourceOptions"
       :unitOptions="unitOptions"
@@ -99,6 +98,7 @@
       :productionGroupOptions="productionGroupOptions"
       :managerOptions="managerOptions"
       :can-maintain-price="canMaintainPrice"
+      :can-view-price="canViewPrice"
       @search-suppliers="searchSuppliers"
       @success="fetchData"
     />
@@ -159,6 +159,8 @@ import { baseDataApi } from '@/api/baseData';
 import { commonApi } from '@/api/common';
 import { parsePaginatedData, parseListData, parseDataObject } from '@/utils/responseParser';
 import { loadLocationOptions, loadUserListOptions } from '@/utils/optionLoaders';
+import { canViewMaterialPrices, canMaintainMaterialPrices } from '@/utils/priceVisibility';
+import { MATERIAL_TYPE_OPTIONS } from '@/utils/materialTypes';
 // 引入新组件
 import MaterialTable from './components/MaterialTable.vue';
 import MaterialStatCards from './components/MaterialStatCards.vue';
@@ -171,36 +173,9 @@ const canUpdate = computed(() => authStore.hasPermission('basedata:materials:upd
 const canDelete = computed(() => authStore.hasPermission('basedata:materials:delete'));
 const canImport = computed(() => authStore.hasPermission('basedata:materials:import'));
 const canExport = computed(() => authStore.hasPermission('basedata:materials:export'));
-// 🔒 字段级敏感权限 —— 与后端 desensitizer 销售价/采购成本拆分对齐
-// 出库/质检：两者皆无；采购：仅成本；销售：仅销售价；财务：通常两者皆有
-const hasAnyPermission = (permissions) => permissions.some((permission) => authStore.hasPermission(permission));
-const canViewCost = computed(() =>
-  hasAnyPermission([
-    'basedata:materials:view_cost',
-    'purchase:price:view',
-    'finance:price:view',
-    'finance:cost:view',
-    'inventory:value:view'
-  ])
-);
-const canViewPrice = computed(() =>
-  hasAnyPermission([
-    'basedata:materials:view_price',
-    'sales:price:view',
-    'finance:price:view',
-    'finance:pricing:view'
-  ])
-);
-const canMaintainPrice = computed(() =>
-  hasAnyPermission([
-    'finance:price:update',
-    'finance:pricing:update',
-    'finance:cost:update',
-    'purchase:price:update',
-    'sales:price:update',
-    'inventory:value:update'
-  ])
-);
+const canViewPrice = computed(() => canViewMaterialPrices((code) => authStore.hasPermission(code)));
+const canViewCost = canViewPrice;
+const canMaintainPrice = computed(() => canMaintainMaterialPrices((code) => authStore.hasPermission(code)));
 
 // 状态
 const loading = ref(false);
@@ -216,7 +191,7 @@ const currentViewMaterial = ref(null);
 
 const searchForm = reactive({
   keyword: '',
-  categoryId: '',
+  materialType: '',
   status: ''
 });
 
@@ -228,7 +203,7 @@ const stats = reactive({
 });
 
 // 选项数据
-const categoryOptions = ref([]);
+const materialTypeOptions = MATERIAL_TYPE_OPTIONS;
 const inspectionMethodOptions = ref([]);
 const materialSourceOptions = ref([]);
 const unitOptions = ref([]);
@@ -242,17 +217,17 @@ const buildProductCategoryTree = (flatData, parentId = 0) => {
   const tree = [];
   for (const item of flatData) {
     // 支持 parent_id 为 0、null 或 undefined 的情况
-    const itemParentId = item.parentId || 0;
-    if (itemParentId === parentId) {
+    const itemParentId = Number(item.parentId || 0);
+    if (itemParentId === Number(parentId || 0)) {
       // 显示名称格式：编码 - 名称（如 "1001 - EQ1开关电源"）
       const displayName = item.code ? `${item.code} - ${item.name}` : item.name;
 
       const node = {
-        id: item.id,
+        id: Number(item.id),
         name: item.name,
         code: item.code,
-        parent_id: item.parentId,
-        displayName: displayName, // 用于 TreeSelect 显示和搜索
+        parentId: Number(itemParentId) || 0,
+        displayName: displayName,
         children: buildProductCategoryTree(flatData, item.id)
       };
 
@@ -268,7 +243,7 @@ const buildProductCategoryTree = (flatData, parentId = 0) => {
 };
 
 // 基础选项数据缓存（分类/单位/来源等变更频率极低，缓存5分钟避免重复请求）
-const OPTIONS_CACHE_KEY = '__material_options_cache__';
+const OPTIONS_CACHE_KEY = '__material_options_cache_v2__';
 const OPTIONS_CACHE_TTL = 5 * 60 * 1000; // 5分钟
 
 // 加载基础数据（带内存缓存）
@@ -277,7 +252,6 @@ const loadOptions = async () => {
     // 检查缓存是否有效
     const cached = window[OPTIONS_CACHE_KEY];
     if (cached && Date.now() - cached.timestamp < OPTIONS_CACHE_TTL) {
-      categoryOptions.value = cached.categories;
       inspectionMethodOptions.value = cached.inspections;
       materialSourceOptions.value = cached.sources;
       unitOptions.value = cached.units;
@@ -288,43 +262,35 @@ const loadOptions = async () => {
       return;
     }
 
-    // 并行请求所有需要的选项数据
-    const [cats, sources, units, locs, pCatOptions, groups, users, inspections] = await Promise.all([
-      baseDataApi.getCategories(), // 替换 getDictionary('material_category')
-      baseDataApi.getMaterialSources(), // 替换 getDictionary('material_source')
+    const [sources, units, locs, pCatOptions, groups, users, inspections] = await Promise.all([
+      baseDataApi.getMaterialSources(),
       baseDataApi.getUnits(),
       loadLocationOptions(),
-      baseDataApi.getProductCategoryOptions(), // 使用树形选项API
-      commonApi.getEnums('production_group'), // 尝试使用 commonApi 获取生产组枚举
-      loadUserListOptions(), // 使用统一缓存的轻量级下拉列表
-      baseDataApi.getInspectionMethods() // 获取检验方式数据
+      baseDataApi.getProductCategoryOptions(),
+      commonApi.getEnums('production_group'),
+      loadUserListOptions(),
+      baseDataApi.getInspectionMethods()
     ]);
 
-    // 使用 parseListData 正确解析响应数据
-    categoryOptions.value = parseListData(cats, { enableLog: false });
     inspectionMethodOptions.value = parseListData(inspections, { enableLog: false });
     materialSourceOptions.value = parseListData(sources, { enableLog: false });
     unitOptions.value = parseListData(units, { enableLog: false });
     locationOptions.value = parseListData(locs, { enableLog: false });
 
-    // 产品大类需要构建树形结构
     const pCatList = parseListData(pCatOptions, { enableLog: false });
     productCategoryOptions.value = buildProductCategoryTree(pCatList);
 
     productionGroupOptions.value = parseListData(groups, { enableLog: false });
 
-    // 用户列表可能需要特殊处理
     const userRes = parseListData(users, { enableLog: false });
     managerOptions.value = userRes.map(u => ({
       id: u.id,
       username: u.username,
-      real_name: u.realName || u.nickname || u.username
+      realName: u.realName || u.nickname || u.username
     }));
 
-    // 写入缓存
     window[OPTIONS_CACHE_KEY] = {
       timestamp: Date.now(),
-      categories: categoryOptions.value,
       inspections: inspectionMethodOptions.value,
       sources: materialSourceOptions.value,
       units: unitOptions.value,
@@ -386,7 +352,7 @@ const handleSearch = () => {
 
 const resetSearch = () => {
   searchForm.keyword = '';
-  searchForm.categoryId = '';
+  searchForm.materialType = '';
   searchForm.status = '';
   handleSearch();
 };
@@ -596,15 +562,13 @@ const handleImportSubmit = async () => {
 };
 
 const searchSuppliers = async (query, callback) => {
-  if (!query) {
-    callback([]);
-    return;
-  }
   try {
-    const res = await baseDataApi.getSuppliers({ keyword: query, page: 1, pageSize: 20 });
-    // parseListData 返回的是数组，不是 {list}
-    const list = parseListData(res);
-    callback(list);
+    const res = await baseDataApi.getSuppliers({
+      keyword: query || '',
+      page: 1,
+      pageSize: 20
+    });
+    callback(parseListData(res));
   } catch (e) {
     console.error('供应商搜索失败:', e);
     callback([]);

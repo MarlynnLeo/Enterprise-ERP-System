@@ -25,7 +25,8 @@
           </div>
 
           <!-- 数据表格 -->
-          <el-table :data="varianceList" border v-loading="loading" class="w-full mt-15">
+          <el-table :data="varianceList" border v-loading="loading" class="table-row-click w-full mt-15"
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => viewDetail(row))">
             <el-table-column prop="orderNumber" label="生产订单号" width="160"></el-table-column>
             <el-table-column prop="productName" label="产品名称" min-width="200"></el-table-column>
             <el-table-column prop="quantity" label="数量" width="80"></el-table-column>
@@ -63,9 +64,10 @@
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="操作" min-width="90" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+            <el-table-column label="操作" min-width="90" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
               <template #default="scope">
-                <el-button class="btn-op-view" type="primary" size="small" @click="viewDetail(scope.row)">详情</el-button>
+                
               </template>
             </el-table-column>
           </el-table>
@@ -288,6 +290,7 @@
 </template>
 
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import { Download } from '@element-plus/icons-vue';

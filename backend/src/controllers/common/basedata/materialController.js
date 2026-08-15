@@ -208,6 +208,20 @@ const materialController = {
     }
   },
 
+  async getLatestMaterialByCategory(req, res) {
+    try {
+      const categoryId = req.query.categoryId || req.query.category_id;
+      if (!categoryId) {
+        return ResponseHandler.error(res, '请提供物料分类', 'VALIDATION_ERROR', 400);
+      }
+      const material = await materialService.getLatestMaterialByCategory(categoryId);
+      ResponseHandler.success(res, material, material ? '获取上一物料成功' : '该分类下暂无物料');
+    } catch (error) {
+      logger.error('获取上一物料失败:', error);
+      ResponseHandler.error(res, error.message, 'SERVER_ERROR', 500, error);
+    }
+  },
+
   async getNextMaterialCode(req, res) {
     try {
       const { prefix } = req.query;

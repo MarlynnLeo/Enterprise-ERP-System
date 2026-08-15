@@ -612,13 +612,6 @@ onMounted(() => {
   border-radius: var(--radius-sm);
   font-weight: bold;
 }
-/* 详情对话框长文本处理 - 自动添加 */
-:deep(.el-descriptions__content) {
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 :deep(.el-table__cell) {
   overflow: hidden;
   text-overflow: ellipsis;

@@ -37,7 +37,8 @@
 
     <!-- 数据表格 -->
     <el-card class="data-card">
-      <el-table :data="costList" border v-loading="loading" class="w-full">
+      <el-table :data="costList" border v-loading="loading" class="table-row-click w-full"
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => viewDetail(row))">
         <el-table-column prop="orderNumber" label="生产订单号" width="150"></el-table-column>
         <el-table-column prop="productCode" label="产品编码" width="150"></el-table-column>
         <el-table-column prop="productName" label="产品名称" width="260"></el-table-column>
@@ -70,9 +71,10 @@
           </template>
         </el-table-column>
         <el-table-column prop="completionDate" label="完工日期" width="110"></el-table-column>
-        <el-table-column label="操作" min-width="100" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="100" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="scope">
-            <el-button class="btn-op-view" type="primary" size="small" @click="viewDetail(scope.row)">详情</el-button>
+            
           </template>
         </el-table-column>
       </el-table>
@@ -204,6 +206,7 @@
 </template>
 
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import { Check, Minus } from '@element-plus/icons-vue';

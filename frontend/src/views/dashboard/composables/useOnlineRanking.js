@@ -1,17 +1,32 @@
 import { ref } from 'vue'
 import { userApi } from '@/api'
+import { useAuthStore } from '@/stores/auth'
 
 const RANKING_CACHE_DURATION = 10 * 1000
 const MIN_LOADING_DURATION = 250
 
 export function useOnlineRanking() {
+  const authStore = useAuthStore()
   const onlineTimeRanking = ref([])
   const rankingLoading = ref(false)
   const rankingDate = ref('')
   const rankingCache = ref(null)
   const rankingCacheTime = ref(0)
 
+  const canViewOnlineRanking = () => (
+    authStore.hasPermission('dashboard')
+    || authStore.hasPermission('system:monitor')
+    || authStore.hasPermission('system:users:view')
+    || authStore.hasPermission('system:users')
+  )
+
   const fetchOnlineTimeRanking = async (forceRefresh = false) => {
+    if (!canViewOnlineRanking()) {
+      onlineTimeRanking.value = []
+      rankingDate.value = ''
+      return
+    }
+
     const now = Date.now()
 
     if (!forceRefresh && rankingCache.value && now - rankingCacheTime.value < RANKING_CACHE_DURATION) {
@@ -43,9 +58,11 @@ export function useOnlineRanking() {
       rankingCache.value = { rankings, date }
       rankingCacheTime.value = Date.now()
     } catch (error) {
-      console.error('获取在线时长排行榜失败', error)
       onlineTimeRanking.value = []
       rankingDate.value = ''
+      if (error.response?.status !== 403) {
+        console.error('获取在线时长排行榜失败', error)
+      }
     } finally {
       rankingLoading.value = false
     }

@@ -64,10 +64,11 @@
     <el-card class="data-card">
       <el-table
         :data="paymentList"
-        class="w-full"
+        class="table-row-click w-full"
         border
         v-loading="loading"
-      >
+      
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleViewDetail(row))">
         <el-table-column prop="paymentNumber" label="付款编号" width="160"></el-table-column>
         <el-table-column prop="supplierName" label="供应商" width="250"></el-table-column>
         <el-table-column prop="paymentDate" label="付款日期" width="100"></el-table-column>
@@ -90,9 +91,10 @@
           </template>
         </el-table-column>
         <el-table-column prop="notes" label="备注" min-width="120" show-overflow-tooltip></el-table-column>
-        <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="scope">
-            <el-button class="btn-op-view" type="primary" size="small" @click="handleViewDetail(scope.row)">详情</el-button>
+            
             <el-button v-permission="'finance:ap:update'"
               v-if="scope.row.status === 'normal'"
               type="warning"
@@ -322,6 +324,7 @@
   </div>
 </template>
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { NumberFormatter } from '@/utils/commonHelpers'
 import { formatCurrency, formatLocalDate } from '@/utils/format'
 import PrintDialog from '@/components/common/PrintDialog.vue';
@@ -777,13 +780,6 @@ onMounted(() => {
   .search-form-buttons {
     align-self: flex-end;
   }
-}
-/* 详情对话框长文本处理 - 自动添加 */
-:deep(.el-descriptions__content) {
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 :deep(.el-table__cell) {
   overflow: hidden;

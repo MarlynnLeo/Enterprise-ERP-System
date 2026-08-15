@@ -71,9 +71,10 @@
       <el-table
         :data="inspectionList"
         border
-        class="w-full"
+        class="table-row-click w-full"
         v-loading="loading"
-      >
+      
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleView(row))">
         <el-table-column prop="inspectionNo" label="检验单号" min-width="140" />
         <el-table-column prop="referenceNo" label="工单号" min-width="150" />
         <el-table-column prop="processName" label="工序名称" min-width="150" />
@@ -101,14 +102,10 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" fixed="right" min-width="320" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" fixed="right" min-width="320" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="scope">
-            <el-button class="btn-op-view" type="primary"
-              size="small"
-              @click="handleView(scope.row)"
-            >
-              查看
-            </el-button>
+            
             <el-button
               v-if="!['passed', 'failed', 'partial', 'conditional'].includes(scope.row.status) && !['completed', 'warehousing'].includes(scope.row.taskStatus) && canInspect"
               size="small"
@@ -292,15 +289,14 @@
     </AppDialog>
 
 
-
     <!-- 过程检验规则配置弹窗 -->
     <RulesDialog v-model:visible="showRulesDialog" />
-
 
   </div>
 </template>
 
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, reactive, onMounted, defineAsyncComponent, computed } from 'vue'
 import { Plus, Setting } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
@@ -441,7 +437,6 @@ const updateStats = async () => {
     inspectionStats.value.rework = inspectionList.value.filter(item => item.status === 'rework').length
   }
 }
-
 
 // 获取生产工单选项
 const fetchPurchaseOrders = async (query = '') => {
@@ -861,13 +856,6 @@ const handlePrint = async (row) => {
   border-bottom: none;
 }
 
-/* 详情对话框长文本处理 - 自动添加 */
-:deep(.el-descriptions__content) {
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 
 :deep(.el-table__cell) {
   overflow: hidden;

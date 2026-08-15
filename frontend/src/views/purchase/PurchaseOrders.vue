@@ -118,9 +118,10 @@
         v-loading="loading"
         :data="orderList"
         border
-        class="w-full"
+        class="table-row-click w-full"
         @selection-change="handleSelectionChange"
-      >
+      
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => viewOrder(row.id))">
         <template #empty>
           <EmptyState description="暂无采购订单" />
         </template>
@@ -171,15 +172,10 @@
             {{ row.contractCode || '-' }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="scope">
-            <el-button class="btn-op-view" type="primary"
-              size="small"
-              v-permission="'purchase:orders:view'"
-              @click="viewOrder(scope.row.id)"
-            >
-              查看
-            </el-button>
+            
             <el-button
               v-if="scope.row.status === 'draft'"
               size="small"
@@ -228,9 +224,10 @@
               v-if="scope.row.status === 'pending'"
               size="small"
               type="warning"
-              @click="goApprovalCenter"
+              v-permission="'purchase:orders:approve'"
+              @click="openApprovalDialog(scope.row)"
             >
-              去审批中心
+              审批
             </el-button>
             <!-- 到货（confirmed/approved/partial_received 状态） -->
             <el-button
@@ -263,17 +260,17 @@
       v-model="orderDialog.visible"
       :title="orderDialog.isEdit ? '编辑采购订单' : '新建采购订单'"
       mode="form"
-      wide
+      width="850px"
       :close-on-click-modal="false"
     >
       <el-form ref="orderFormRef" :model="orderForm" :rules="orderRules" label-width="110px" v-loading="orderDialog.loading">
-        <el-row :gutter="20">
-          <el-col :span="8">
+        <el-row :gutter="16">
+          <el-col :span="12">
             <el-form-item label="订单编号">
-              <el-input v-model="orderForm.orderNumber" placeholder="系统自动生成" disabled></el-input>
+              <el-input v-model="orderForm.orderNumber" placeholder="系统自动生成" disabled class="w-full"></el-input>
             </el-form-item>
           </el-col>
-          <el-col :span="8">
+          <el-col :span="12">
             <el-form-item label="订单日期" prop="orderDate">
               <el-date-picker
                 v-model="orderForm.orderDate"
@@ -284,7 +281,9 @@
               ></el-date-picker>
             </el-form-item>
           </el-col>
-          <el-col :span="8">
+        </el-row>
+        <el-row :gutter="16">
+          <el-col :span="12">
             <el-form-item label="预计到货日期" prop="expectedDeliveryDate">
               <el-date-picker
                 v-model="orderForm.expectedDeliveryDate"
@@ -295,9 +294,7 @@
               ></el-date-picker>
             </el-form-item>
           </el-col>
-        </el-row>
-        <el-row :gutter="20">
-          <el-col :span="8">
+          <el-col :span="12">
             <el-form-item label="供应商" prop="supplierId">
               <el-select
                 v-model="orderForm.supplierId"
@@ -322,24 +319,21 @@
               </el-select>
             </el-form-item>
           </el-col>
-          <el-col :span="8">
+        </el-row>
+        <el-row :gutter="16">
+          <el-col :span="12">
             <el-form-item label="联系人">
-              <el-input v-model="orderForm.contactPerson" placeholder="供应商联系人"></el-input>
+              <el-input v-model="orderForm.contactPerson" placeholder="供应商联系人" class="w-full"></el-input>
             </el-form-item>
           </el-col>
-          <el-col :span="8">
+          <el-col :span="12">
             <el-form-item label="联系电话">
-              <el-input v-model="orderForm.contactPhone" placeholder="联系电话"></el-input>
+              <el-input v-model="orderForm.contactPhone" placeholder="联系电话" class="w-full"></el-input>
             </el-form-item>
           </el-col>
         </el-row>
-        <el-row :gutter="20">
-          <el-col :span="16">
-            <el-form-item label="备注">
-              <el-input v-model="orderForm.notes" type="textarea" :rows="1" placeholder="备注信息"></el-input>
-            </el-form-item>
-          </el-col>
-          <el-col :span="8">
+        <el-row :gutter="16">
+          <el-col :span="12">
             <el-form-item label="默认税率">
               <el-select v-model="orderForm.taxRate" placeholder="选择税率" class="w-full">
                 <el-option v-for="rate in vatRateOptions" :key="rate" :label="formatTaxRate(rate)" :value="rate"></el-option>
@@ -347,8 +341,11 @@
             </el-form-item>
           </el-col>
         </el-row>
+        <el-form-item label="备注">
+          <el-input v-model="orderForm.notes" type="textarea" :rows="2" placeholder="备注信息" class="w-full"></el-input>
+        </el-form-item>
         <!-- 物料列表 -->
-        <el-divider content-position="left">物料列表</el-divider>
+        <el-divider content-position="center">物料列表</el-divider>
         <div class="material-actions flex-actions-mb">
           <el-button type="primary" @click="addMaterialRow">
             <el-icon><Plus /></el-icon>添加物料
@@ -459,7 +456,7 @@
       v-model="requisitionDialogVisible"
       title="选择未采购物料"
       mode="form"
-      wide
+      width="850px"
     >
       <div class="requisition-search">
         <el-input
@@ -546,10 +543,10 @@
       v-model="viewDialogVisible"
       title="采购订单详情"
       mode="view"
-      content-width="wide"
+      width="850px"
     >
-      <div v-loading="detailLoading">
-        <el-descriptions :column="2" border>
+      <div v-loading="detailLoading" class="order-view">
+        <el-descriptions :column="2" border class="purchase-view-desc">
           <el-descriptions-item label="订单编号">{{ viewData.orderNumber }}</el-descriptions-item>
           <el-descriptions-item label="订单日期">{{ viewData.order_date }}</el-descriptions-item>
           <el-descriptions-item label="供应商">{{ viewData.supplierName }}</el-descriptions-item>
@@ -564,7 +561,7 @@
           <el-descriptions-item label="备注" :span="viewData.requisition_number ? 1 : 2">{{ viewData.notes || '无' }}</el-descriptions-item>
         </el-descriptions>
         <el-divider content-position="center">订单明细</el-divider>
-        <el-table :data="viewData.items || []" border class="w-full">
+        <el-table :data="viewData.items || []" border class="w-full purchase-view-table">
           <el-table-column type="index" label="序号" width="60"></el-table-column>
           <el-table-column prop="materialCode" label="物料编码" width="130" show-overflow-tooltip></el-table-column>
           <el-table-column prop="materialName" label="物料名称" min-width="150" show-overflow-tooltip></el-table-column>
@@ -609,10 +606,10 @@
       v-model="requisitionViewDialog.visible"
       title="采购申请详情"
       mode="view"
-      content-width="wide"
+      width="850px"
     >
-      <div v-loading="requisitionViewDialog.loading">
-        <el-descriptions border :column="2">
+      <div v-loading="requisitionViewDialog.loading" class="order-view">
+        <el-descriptions border :column="2" class="purchase-view-desc">
           <el-descriptions-item label="申请单号">{{ requisitionViewData.requisitionNumber || '未知' }}</el-descriptions-item>
           <el-descriptions-item label="申请日期">{{ formatDate(requisitionViewData.requestDate) }}</el-descriptions-item>
           <el-descriptions-item label="申请人">
@@ -626,7 +623,7 @@
           <el-descriptions-item label="备注" :span="2">{{ requisitionViewData.remarks || '无' }}</el-descriptions-item>
         </el-descriptions>
         <el-divider content-position="center">申请物料</el-divider>
-        <el-table :data="requisitionViewData.materials || []" border class="w-full">
+        <el-table :data="requisitionViewData.materials || []" border class="w-full purchase-view-table">
           <el-table-column type="index" label="序号" width="60"></el-table-column>
           <el-table-column prop="materialCode" label="物料编码" min-width="120">
             <template #default="scope">
@@ -666,7 +663,7 @@
       v-model="receiveDialogVisible"
       title="确认到货"
       mode="form"
-      wide
+      width="850px"
       :close-on-click-modal="false"
     >
       <div v-loading="receiveDialogLoading">
@@ -798,18 +795,29 @@
         </div>
       </div>
     </Transition>
+    <BusinessApprovalDialog
+      v-model="approvalDialog.visible"
+      title="审批采购订单"
+      :loading="approvalDialog.loading"
+      v-model:comment="approvalDialog.comment"
+      :summary-items="orderApprovalSummary"
+      @approve="handleApproval('approve')"
+      @reject="handleApproval('reject')"
+    />
   </div>
 </template>
 <script setup>
-import { ref, reactive, onMounted, onActivated } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { handleTableRowView } from '@/utils/tableRowView'
+import { ref, reactive, computed, onMounted, onActivated } from 'vue'
+import { useRoute } from 'vue-router'
+import BusinessApprovalDialog from '@/components/workflow/BusinessApprovalDialog.vue'
+import { useBusinessApproval } from '@/composables/useBusinessApproval'
 import { purchaseApi } from '@/api'
 import { Plus, Select, Promotion, Close } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { PURCHASE_STATUS_OPTIONS } from '@/constants/systemConstants'
 import { parseListData } from '@/utils/responseParser'
 import { loadUserListOptions } from '@/utils/optionLoaders'
-const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 // ========== 组合式函数导入 ==========
@@ -820,7 +828,7 @@ import { usePurchaseOrderActions } from './composables/usePurchaseOrderActions'
 const searchForm = reactive({
   keyword: String(route.query.orderNo || route.query.keyword || '').trim(),
   status: '',
-  supplier_id: '',
+  supplierId: '',
   operator: '',
   date_range: [],
 })
@@ -912,12 +920,26 @@ const loadOperators = async () => {
   } catch (error) { console.error('加载操作人列表失败:', error); operators.value = [] }
 }
 // 搜索
+const { approvalDialog, openApprovalDialog, handleApproval } = useBusinessApproval({
+  businessType: 'purchase_order',
+  onSuccess: async () => {
+    await loadOrders()
+    await getOrderStats()
+  }
+})
+const orderApprovalSummary = computed(() => {
+  const row = approvalDialog.row || {}
+  return [
+    { label: '订单编号', value: row.orderNo || row.order_no || '-' },
+    { label: '供应商', value: row.supplierName || row.supplier_name || '-' },
+    { label: '备注', value: row.remarks || row.notes || '无' }
+  ]
+})
 const handleSearch = async () => { pagination.current = 1; await loadOrders(); await getOrderStats() }
 const resetSearch = () => {
   searchForm.keyword = ''; searchForm.status = ''; searchForm.supplierId = ''; searchForm.operator = ''; searchForm.date_range = []
   pagination.current = 1; loadOrders()
 }
-const goApprovalCenter = () => router.push('/workflow/approvals')
 const handleSizeChange = (val) => { pagination.size = val; loadOrders() }
 const handleCurrentChange = (val) => { pagination.current = val; loadOrders() }
 // 到货数量相关
@@ -1038,12 +1060,21 @@ onActivated(async () => {
 .delete-text-btn {
   padding: 0 4px;
 }
-/* 详情对话框长文本处理 - 自动添加 */
-:deep(.el-descriptions__content) {
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.purchase-view-desc,
+.purchase-view-desc :deep(.el-descriptions__body),
+.purchase-view-desc :deep(.el-descriptions__table),
+.purchase-view-table {
+  width: 100%;
+}
+.purchase-view-desc :deep(.el-descriptions__label) {
+  width: 112px;
+  min-width: 112px;
   white-space: nowrap;
+}
+.purchase-view-desc :deep(.el-descriptions__content) {
+  min-width: 0;
+  white-space: normal;
+  word-break: break-word;
 }
 :deep(.el-table__cell) {
   overflow: hidden;

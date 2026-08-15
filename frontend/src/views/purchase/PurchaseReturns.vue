@@ -81,8 +81,9 @@
         v-loading="loading"
         :data="returnList"
         border
-        class="w-full"
-      >
+        class="table-row-click w-full"
+      
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => viewReturn(row))">
         <template #empty>
           <EmptyState description="暂无退货单数据" />
         </template>
@@ -101,16 +102,11 @@
             <el-tag :type="getStatusType(scope.row.status)">{{ getStatusText(scope.row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="scope">
             <div class="table-actions">
-              <el-button class="btn-op-view" type="primary"
-                size="small"
-                v-permission="'purchase:returns:view'"
-                @click="viewReturn(scope.row)"
-              >
-                <el-icon><View /></el-icon> 查看
-              </el-button>
+              
               <el-button
                 v-if="scope.row.status === 'draft'"
                 size="small"
@@ -190,10 +186,10 @@
       v-model="viewDialog.show"
       title="退货单详情"
       mode="view"
-      content-width="wide"
+      width="850px"
     >
-      <div v-loading="viewDialog.loading">
-        <el-descriptions border :column="2">
+      <div v-loading="viewDialog.loading" class="return-view">
+        <el-descriptions border :column="2" class="purchase-view-desc">
           <el-descriptions-item label="退货单号">{{ viewDialog.return.returnNumber }}</el-descriptions-item>
           <el-descriptions-item label="退货日期">{{ formatDate(viewDialog.return.returnDate) }}</el-descriptions-item>
           <el-descriptions-item label="状态">
@@ -207,7 +203,7 @@
         </el-descriptions>
 
         <el-divider content-position="center">退货物料</el-divider>
-        <el-table :data="viewDialog.return.items || []" border class="w-full">
+        <el-table :data="viewDialog.return.items || []" border class="w-full purchase-view-table">
           <el-table-column type="index" label="序号" width="60"></el-table-column>
           <el-table-column label="物料名称" prop="materialName" min-width="150" show-overflow-tooltip></el-table-column>
           <el-table-column label="规格" prop="specification" min-width="150" show-overflow-tooltip></el-table-column>
@@ -240,11 +236,11 @@
       v-model="returnDialog.show"
       :title="returnDialog.isEdit ? '编辑退货单' : '新建退货单'"
       mode="form"
-      wide
+      width="850px"
     >
       <div v-loading="returnDialog.loading">
       <el-form ref="returnForm" :model="returnDialog.form" :rules="returnRules" label-width="100px">
-        <el-row :gutter="20">
+        <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="关联收货单" prop="receiptId">
               <el-select
@@ -276,12 +272,12 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="经办人">
-              <el-input v-model="returnDialog.form.operator" disabled placeholder="自动获取当前用户"></el-input>
+              <el-input v-model="returnDialog.form.operator" disabled placeholder="自动获取当前用户" class="w-full"></el-input>
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="出库仓库">
-              <el-input v-model="returnDialog.form.warehouseName" disabled placeholder="从收货单自动获取"></el-input>
+              <el-input v-model="returnDialog.form.warehouseName" disabled placeholder="从收货单自动获取" class="w-full"></el-input>
             </el-form-item>
           </el-col>
           <el-col :span="24">
@@ -291,6 +287,7 @@
                 type="textarea"
                 :rows="2"
                 placeholder="请输入退货原因"
+                class="w-full"
               ></el-input>
             </el-form-item>
           </el-col>
@@ -392,6 +389,7 @@
   </div>
 </template>
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { formatLocalDate } from '@/utils/format';
 import { parseListData, parsePaginatedData } from '@/utils/responseParser';
 import { ref, reactive, computed, onMounted } from 'vue';
@@ -422,7 +420,6 @@ const formatReturnLineAmount = (row) => {
   return formatCurrency(quantity * price);
 };
 // 表格列定义
-
 
 // 状态选项（使用统一常量）
 // 退货原因选项
@@ -1060,12 +1057,21 @@ async function printReturn() {
 .el-table .el-button + .el-button {
   margin-left: 8px;
 }
-/* 详情对话框长文本处理 - 自动添加 */
-:deep(.el-descriptions__content) {
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.purchase-view-desc,
+.purchase-view-desc :deep(.el-descriptions__body),
+.purchase-view-desc :deep(.el-descriptions__table),
+.purchase-view-table {
+  width: 100%;
+}
+.purchase-view-desc :deep(.el-descriptions__label) {
+  width: 112px;
+  min-width: 112px;
   white-space: nowrap;
+}
+.purchase-view-desc :deep(.el-descriptions__content) {
+  min-width: 0;
+  white-space: normal;
+  word-break: break-word;
 }
 :deep(.el-table__cell) {
   overflow: hidden;

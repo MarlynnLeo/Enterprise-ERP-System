@@ -42,7 +42,8 @@
 
     <!-- 数据表格 -->
     <el-card class="data-card">
-      <el-table :data="tableData" v-loading="loading" border stripe class="w-full">
+      <el-table :data="tableData" v-loading="loading" border stripe class="table-row-click w-full"
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => viewDetail(row))">
       <el-table-column prop="code" label="合同编号" width="160" />
       <el-table-column prop="name" label="合同名称" min-width="200" show-overflow-tooltip />
       <el-table-column prop="type" label="类型" width="100">
@@ -61,12 +62,16 @@
       </el-table-column>
       <el-table-column prop="effectiveDate" label="生效日期" width="110" />
       <el-table-column prop="expiryDate" label="到期日期" width="110" />
-      <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+      <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
         <template #default="{ row }">
-          <el-button class="btn-op-view" type="primary" size="small" @click="viewDetail(row)">
-            <el-icon><View /></el-icon> 查看
+          <el-button v-if="row.status === 'draft'" type="success" size="small" v-permission="'contract:edit'" @click="submitContract(row)">
+            提交审批
           </el-button>
-          <el-button type="primary" size="small" v-permission="'contract:edit'" @click="openForm(row)">
+          <el-button v-if="row.status === 'pending_approval'" type="warning" size="small" v-permission="'contract:approve'" @click="openApprovalDialog(row)">
+            审批
+          </el-button>
+          <el-button v-if="row.status === 'draft'" type="primary" size="small" v-permission="'contract:edit'" @click="openForm(row)">
             <el-icon><Edit /></el-icon> 编辑
           </el-button>
           <el-popconfirm title="确定删除此合同？" @confirm="handleDelete(row.id)">
@@ -203,14 +208,26 @@
         </el-table>
       </template>
     </AppDialog>
+    <BusinessApprovalDialog
+      v-model="approvalDialog.visible"
+      title="审批合同"
+      :loading="approvalDialog.loading"
+      v-model:comment="approvalDialog.comment"
+      :summary-items="contractApprovalSummary"
+      @approve="handleApproval('approve')"
+      @reject="handleApproval('reject')"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { handleTableRowView } from '@/utils/tableRowView'
+import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { View, Edit, Delete } from '@element-plus/icons-vue'
 import { contractApi } from '@/api/contract'
+import BusinessApprovalDialog from '@/components/workflow/BusinessApprovalDialog.vue'
+import { useBusinessApproval } from '@/composables/useBusinessApproval'
 
 const loading = ref(false)
 const saving = ref(false)
@@ -233,6 +250,27 @@ const statusTagMap = { draft: 'info', pending_approval: 'warning', active: 'succ
 
 const formatAmount = (v) => v != null ? Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2 }) : '--'
 
+const { approvalDialog, openApprovalDialog, handleApproval } = useBusinessApproval({
+  businessType: 'contract',
+  onSuccess: () => fetchList()
+})
+const contractApprovalSummary = computed(() => {
+  const row = approvalDialog.row || {}
+  return [
+    { label: '合同编号', value: row.code || '-' },
+    { label: '合同名称', value: row.name || '-' },
+    { label: '对方单位', value: row.partyB || '-' }
+  ]
+})
+const submitContract = async (row) => {
+  try {
+    await contractApi.updateStatus(row.id, 'pending_approval')
+    ElMessage.success('已提交审批')
+    fetchList()
+  } catch (error) {
+    ElMessage.error(error.response?.data?.message || error.message || '提交审批失败')
+  }
+}
 const fetchList = async () => {
   loading.value = true
   try {

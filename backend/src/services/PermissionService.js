@@ -70,6 +70,11 @@ const EXACT_PERMISSION_ALIASES = {
   'production:equipment': 'production:equipment:view',
   'production:calendar': 'production:calendar:view',
   'quality:statistics': 'quality:reports:view',
+  'quality:incoming': 'quality:incoming:view',
+  'quality:process': 'quality:process:view',
+  'quality:final': 'quality:final:view',
+  'quality:first-article': 'quality:first-article:view',
+  'quality:inspections': 'quality:inspections:view',
   // 系统用户粗粒度 ↔ :view
   'system:users': 'system:users:view',
   'system:departments': 'system:departments:view',

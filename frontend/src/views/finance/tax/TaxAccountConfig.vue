@@ -121,24 +121,24 @@ const formRef = ref(null)
 
 const formData = reactive({
   id: null,
-  config_key: '',
-  config_name: '',
-  account_id: null,
+  configKey: '',
+  configName: '',
+  accountId: null,
   description: ''
 })
 
 const formRules = {
-  config_key: [{ required: true, message: '请输入配置键', trigger: 'blur' }],
-  config_name: [{ required: true, message: '请输入配置名称', trigger: 'blur' }],
-  account_id: [{ required: true, message: '请选择会计科目', trigger: 'change' }]
+  configKey: [{ required: true, message: '请输入配置键', trigger: 'blur' }],
+  configName: [{ required: true, message: '请输入配置名称', trigger: 'blur' }],
+  accountId: [{ required: true, message: '请选择会计科目', trigger: 'change' }]
 }
 
 const resetFormData = () => {
   Object.assign(formData, {
     id: null,
-    config_key: '',
-    config_name: '',
-    account_id: null,
+    configKey: '',
+    configName: '',
+    accountId: null,
     description: ''
   })
 }
@@ -180,9 +180,9 @@ const handleEdit = (row) => {
   dialogTitle.value = '编辑配置'
   Object.assign(formData, {
     id: row.id,
-    config_key: row.configKey || '',
-    config_name: row.configName || '',
-    account_id: row.accountId || null,
+    configKey: row.configKey || '',
+    configName: row.configName || '',
+    accountId: row.accountId || null,
     description: row.description || ''
   })
   dialogVisible.value = true
@@ -219,9 +219,9 @@ const handleSubmit = async () => {
     submitLoading.value = true
 
     const payload = {
-      config_key: formData.configKey,
-      config_name: formData.configName,
-      account_id: formData.accountId,
+      configKey: formData.configKey,
+      configName: formData.configName,
+      accountId: formData.accountId,
       description: formData.description
     }
 

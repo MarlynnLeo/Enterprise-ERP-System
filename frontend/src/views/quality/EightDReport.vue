@@ -64,7 +64,8 @@
         </template>
       </FinanceQueryCard>
       <!-- 表格 -->
-      <el-table :data="tableData" border v-loading="loading" class="w-full mt-md">
+      <el-table :data="tableData" border v-loading="loading" class="table-row-click w-full mt-md"
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleView(row))">
         <el-table-column prop="reportNo" label="报告编号" width="140" show-overflow-tooltip />
         <el-table-column prop="title" label="标题" min-width="160" show-overflow-tooltip />
         <el-table-column prop="ncpNo" label="关联NCP" width="120" show-overflow-tooltip />
@@ -100,9 +101,10 @@
         <el-table-column prop="createdAt" label="创建时间" width="100">
           <template #default="{ row }">{{ formatDate(row.createdAt) }}</template>
         </el-table-column>
-        <el-table-column label="操作" min-width="420" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="420" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="{ row }">
-            <el-button class="btn-op-view" type="primary" v-permission="'quality:8d:view'" size="small" @click="handleView(row)">查看</el-button>
+            
             <el-button v-permission="'quality:8d:view'" size="small" @click="_viewLogs(row)">日志</el-button>
             <el-button v-permission="'quality:8d:view'" size="small" @click="_printCustomerReport(row)">打印</el-button>
             <el-button size="small" type="primary" @click="handleEdit(row)" v-if="canEditReport(row)"
@@ -110,7 +112,7 @@
             <!-- 根据当前阶段显示不同的流程按钮 -->
             <el-button v-permission="'quality:8d:update'" size="small" type="warning" @click="handleSubmitReview(row)" v-if="['draft', 'in_progress'].includes(row.status) && ['draft', 'd1_d3'].includes(row.currentPhase)">提交初审</el-button>
             <el-button v-permission="'quality:8d:update'" size="small" type="warning" @click="handleSubmitPhase2(row)" v-if="row.status === 'in_progress' && row.currentPhase === 'd4_d7'">提交结案</el-button>
-            <el-button v-permission="'quality:8d:update'" size="small" type="success" @click="handleReview(row)" v-if="row.status === 'review'">审核</el-button>
+            <el-button v-permission="'quality:8d:approve'" size="small" type="success" @click="handleReview(row)" v-if="row.status === 'review'">审核</el-button>
             <el-button v-permission="'quality:8d:update'" size="small" type="success" @click="handleComplete(row)" v-if="row.currentPhase === 'd8' && row.status === 'in_progress'">完成</el-button>
             <el-button v-permission="'quality:8d:update'" size="small" type="info" @click="handleClose(row)" v-if="row.status === 'completed'">归档</el-button>
             <el-button v-permission="'quality:8d:delete'" size="small" type="danger" @click="handleDelete(row)" v-if="row.status === 'draft'">删除</el-button>
@@ -554,7 +556,7 @@
       </el-form>
       <template #footer>
         <el-button @click="reviewDialogVisible = false">取消</el-button>
-        <el-button v-permission="'quality:8d:update'" type="primary" @click="submitReview" :loading="submitLoading">提交</el-button>
+        <el-button v-permission="'quality:8d:approve'" type="primary" @click="submitReview" :loading="submitLoading">提交</el-button>
       </template>
     </AppDialog>
     <!-- AI生成对话框 -->
@@ -660,6 +662,7 @@
   </div>
 </template>
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, MagicStick, Download, List } from '@element-plus/icons-vue'
@@ -710,9 +713,9 @@ const handlePrintCommand = async () => {
       defect_type: row.d2_defect_type || '',
       status: getStatusLabel(row.status),
       current_phase: getPhaseLabel(row.currentPhase),
-      material_name: row.materialName || row.productName || '',
+      materialName: row.materialName || row.productName || '',
       customer_name: row.supplierName || row.customerName || '',
-      target_close_date: row.targetCloseDate ? dayjs(row.targetCloseDate).format('YYYY-MM-DD') : '',
+      targetCloseDate: row.targetCloseDate ? dayjs(row.targetCloseDate).format('YYYY-MM-DD') : '',
       team_leader: row.d1_team_leader || '',
       team_members: formatList(row.d1_team_members),
       problem_description: row.d2_problem_description || '',
@@ -804,7 +807,7 @@ const pagination = reactive({
 // 表单校验规则
 const formRules = {
   title: [{ required: true, message: '请输入报告标题', trigger: 'blur' }],
-  initiated_by: [{ required: true, message: '请选择发起人', trigger: 'change' }],
+  initiatedBy: [{ required: true, message: '请选择发起人', trigger: 'change' }],
   owner: [{ required: true, message: '请选择主负责人', trigger: 'change' }]
 }
 // AI表单
@@ -822,21 +825,21 @@ const formData = reactive({
   priority: 'medium',
   status: 'draft',
   current_phase: 'draft',
-  ncp_id: '',
+  ncpId: '',
   ncp_no: '',
   inspection_id: '',
   inspection_no: '',
   material_id: '',
-  material_code: '',
-  material_name: '',
+  materialCode: '',
+  materialName: '',
   supplier_id: '',
-  supplier_name: '',
+  supplierName: '',
   // 角色字段
-  initiated_by: '',
+  initiatedBy: '',
   owner: '',
   owner_department: '',
-  customer_contact: '',
-  target_close_date: '',
+  customerContact: '',
+  targetCloseDate: '',
   // D1
   d1_team_leader: '',
   d1_team_members_str: '',

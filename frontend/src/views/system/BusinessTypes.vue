@@ -50,7 +50,8 @@
 
     <!-- 数据表格 -->
     <el-card class="data-card">
-      <el-table :data="tableData" v-loading="loading" border stripe>
+      <el-table class="table-row-click" :data="tableData" v-loading="loading" border stripe
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleView(row))">
         <el-table-column prop="groupCode" label="字典分组" width="180" show-overflow-tooltip>
           <template #default="{ row }">
             <span style="font-weight: bold; color: var(--color-primary)">{{ row.groupCode || 'inventory_transaction' }}</span>
@@ -93,7 +94,8 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="{ row }">
             <div class="operation-buttons">
               <el-popconfirm
@@ -117,12 +119,6 @@
                 </template>
               </el-popconfirm>
 
-              <el-button class="btn-op-view"
-                v-if="row.status === 1 || String(row.status) === '1'"
-                size="small"
-                type="primary"
-                @click="handleView(row)"
-              ><el-icon><View /></el-icon> 查看</el-button>
 
               <el-button
                 v-if="row.status !== 1 && String(row.status) !== '1'"
@@ -257,6 +253,7 @@
 </template>
 
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Check, Close, View, Edit, Delete } from '@element-plus/icons-vue'

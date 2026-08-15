@@ -149,6 +149,7 @@ export function useExchangeRate() {
       processExchangeRateData(maintainedRates, '汇率维护', 'direct')
       return true
     } catch (error) {
+      if (error?.response?.status === 403) return false
       console.error('获取汇率数据失败:', error)
       ElMessage.error('获取汇率数据失败，请检查网络连接')
       return false

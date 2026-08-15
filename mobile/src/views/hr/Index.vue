@@ -65,24 +65,28 @@
       label: '员工考勤',
       path: '/hr/attendance',
       icon: 'calendar-o',
+      permission: 'hr:attendance',
       gradient: 'linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%)'
     },
     {
       label: '请假申请',
       path: '/hr/leave/create',
       icon: 'notes-o',
+      permission: 'hr:attendance:create',
       gradient: 'linear-gradient(135deg, var(--color-success) 0%, var(--ds-green-strong) 100%)'
     },
     {
       label: '加班申请',
       path: '/hr/overtime/create',
       icon: 'clock-o',
+      permission: 'hr:attendance:create',
       gradient: 'linear-gradient(135deg, var(--ds-purple) 0%, var(--ds-pink) 100%)'
     },
     {
       label: '排班管理',
       path: '/hr/schedule',
       icon: 'todo-list-o',
+      permission: 'hr:attendance',
       gradient: 'linear-gradient(135deg, var(--module-blue) 0%, var(--ds-cyan-strong) 100%)'
     }
   ])
@@ -93,13 +97,15 @@
       title: '员工档案',
       desc: '员工信息与档案在册',
       path: '/hr/employees',
-      icon: 'friends-o'
+      icon: 'friends-o',
+      permission: 'hr:employees'
     },
     {
       title: '部门管理',
       desc: '公司组织架构',
       path: '/hr/departments',
-      icon: 'cluster-o'
+      icon: 'cluster-o',
+      permission: 'system:departments'
     }
   ])
 
@@ -108,19 +114,22 @@
       title: '考勤记录',
       desc: '员工日常打卡考勤',
       path: '/hr/attendance',
-      icon: 'calendar-o'
+      icon: 'calendar-o',
+      permission: 'hr:attendance'
     },
     {
       title: '请假管理',
       desc: '员工请休假审批',
       path: '/hr/leave',
-      icon: 'notes-o'
+      icon: 'notes-o',
+      permission: 'hr:attendance'
     },
     {
       title: '加班管理',
       desc: '员工加班审批',
       path: '/hr/overtime',
-      icon: 'clock-o'
+      icon: 'clock-o',
+      permission: 'hr:attendance'
     }
   ])
 

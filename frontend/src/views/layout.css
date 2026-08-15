@@ -524,3 +524,7 @@ html.dark .app-shell {
     margin: 0;
   }
 }
+
+.el-table.table-row-click .el-table__body tr {
+  cursor: pointer;
+}

@@ -75,6 +75,7 @@ export const baseDataApi = {
     getMaterial: (id) => api.get(`/base-data/materials/${id}`),
     getMaterialOptions: (params) => api.get('/base-data/materials/options', { params }),
     getNextMaterialCode: (params) => api.get('/base-data/materials/next-code', { params }),
+    getLatestMaterialByCategory: (params) => api.get('/base-data/materials/latest', { params }),
     getMaterialStats: () => api.get('/base-data/materials/stats'),
     createMaterial: (material) => api.post('/base-data/materials', material),
     updateMaterial: (id, material) => api.put(`/base-data/materials/${id}`, material),

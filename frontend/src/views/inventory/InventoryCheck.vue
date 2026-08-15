@@ -83,8 +83,9 @@
         v-loading="loading"
         :data="checkList"
         border
-        class="w-full"
-      >
+        class="table-row-click w-full"
+      
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => viewCheck(row.id))">
         <el-table-column prop="checkNo" label="盘点单号" min-width="120" show-overflow-tooltip></el-table-column>
         <el-table-column prop="checkDate" label="盘点日期" min-width="110"></el-table-column>
         <el-table-column prop="checkType" label="盘点类型" min-width="110">
@@ -114,12 +115,11 @@
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="scope">
             <div class="operation-btns">
-              <el-button class="btn-op-view" type="primary" size="small" v-permission="'inventory:check:view'" @click="viewCheck(scope.row.id)">
-                <el-icon><View /></el-icon> 查看
-              </el-button>
+              
               <el-button
                 size="small"
                 v-permission="'inventory:check:update'"
@@ -426,6 +426,7 @@
   </div>
 </template>
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { parsePaginatedData, parseListData } from '@/utils/responseParser';
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -455,7 +456,7 @@ const checkTypeOptions = [
 // 搜索表单
 const searchForm = reactive({
   materialName: '',
-  check_no: '',
+  checkNo: '',
   status: '',
   check_type: '',
   date_range: []
@@ -487,7 +488,7 @@ const checkForm = reactive({
   id: '',
   check_date: getCurrentDate(),
   check_type: 'cycle',
-  warehouse_id: '',
+  warehouseId: '',
   description: '',
   remarks: '',
   items: []
@@ -500,7 +501,7 @@ const adjustingCheck = ref({});
 const checkRules = {
   check_date: [{ required: true, message: '请选择盘点日期', trigger: 'change' }],
   check_type: [{ required: true, message: '请选择盘点类型', trigger: 'change' }],
-  warehouse_id: [{ required: true, message: '请选择仓库/库区', trigger: 'change' }]
+  warehouseId: [{ required: true, message: '请选择仓库/库区', trigger: 'change' }]
 };
 // 盘点单统计数据
 const checkStats = ref({
@@ -849,7 +850,6 @@ const loadWarehouseItems = async () => {
         // 确保数量是数值类型
         const quantity = parseFloat(item.quantity || 0);
 
-
         return {
           material_id: item.materialId || item.id,
           material_code: item.materialCode || item.code,
@@ -1044,7 +1044,7 @@ const loadCheckList = async () => {
       page: pagination.currentPage,
       limit: pagination.pageSize,
       materialName: searchForm.materialName,
-      check_no: searchForm.checkNo,
+      checkNo: searchForm.checkNo,
       status: searchForm.status,
       check_type: searchForm.check_type
     };
@@ -1189,13 +1189,6 @@ onMounted(async () => {
 }
 .operation-dropdown .el-button {
   margin: 0;
-}
-/* 详情对话框长文本处理 - 自动添加 */
-:deep(.el-descriptions__content) {
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 :deep(.el-table__cell) {
   overflow: hidden;

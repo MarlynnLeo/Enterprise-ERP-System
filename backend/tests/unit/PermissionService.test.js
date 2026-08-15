@@ -174,4 +174,24 @@ describe('PermissionService', () => {
       expect(cacheService.deleteByPrefix).toHaveBeenCalledWith('user_permissions:');
     });
   });
+
+  describe('expandPermissionsWithAliases', () => {
+    test('来料检验查看码展开为检验单查看，且不串到成品创建', () => {
+      const expanded = PermissionService.expandPermissionsWithAliases([
+        'quality:incoming',
+        'quality:incoming:view',
+        'quality:incoming:create',
+      ]);
+      expect(expanded).toEqual(expect.arrayContaining([
+        'quality:incoming',
+        'quality:incoming:view',
+        'quality:incoming:create',
+        'quality:inspections',
+        'quality:inspections:view',
+        'quality:inspections:create',
+      ]));
+      expect(expanded).not.toContain('quality:final:create');
+      expect(expanded).not.toContain('quality:process:create');
+    });
+  });
 });

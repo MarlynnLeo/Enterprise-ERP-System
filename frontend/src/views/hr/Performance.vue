@@ -89,7 +89,8 @@
 
       <!-- 绩效评估 -->
       <template v-if="activeTab === 'evaluations'">
-        <el-table :data="tableData" v-loading="loading" border stripe>
+        <el-table class="table-row-click" :data="tableData" v-loading="loading" border stripe
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => viewEval(row))">
           <el-table-column prop="employeeName" label="员工" width="120" />
           <el-table-column prop="periodName" label="考核周期" min-width="180" />
           <el-table-column prop="totalScore" label="总分" width="80">
@@ -102,17 +103,17 @@
             <template #default="{ row }"><el-tag :type="evalStatusTag[row.status] || 'info'" size="small">{{ evalStatusLabel[row.status] || row.status }}</el-tag></template>
           </el-table-column>
           <el-table-column prop="evaluatorName" label="考核人" width="100" />
-          <el-table-column label="操作" min-width="120" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+          <el-table-column label="操作" min-width="120" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
             <template #default="{ row }">
               <el-button
-                class="btn-op-view"
+                v-if="row.status !== 'completed'"
                 type="primary"
                 size="small"
                 v-permission="row.status === 'completed' ? 'hr:performance:view' : 'hr:performance:edit'"
                 @click="viewEval(row)"
               >
-                <el-icon><View v-if="row.status === 'completed'" /><Edit v-else /></el-icon>
-                {{ row.status === 'completed' ? '查看' : '评分' }}
+                <el-icon><Edit /></el-icon>{{ row.status === 'completed' ? '' : '评分' }}
               </el-button>
             </template>
           </el-table-column>
@@ -179,6 +180,7 @@
 </template>
 
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Edit, Delete, View, VideoPlay, Check } from '@element-plus/icons-vue'

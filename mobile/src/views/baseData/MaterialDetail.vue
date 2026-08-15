@@ -234,10 +234,14 @@ const getStatusText = (status) => {
 // 获取物料类型文本
 const getMaterialTypeText = (type) => {
   const typeMap = {
-    'raw_material': '原材料',
-    'semi_finished': '半成品',
-    'finished_product': '成品',
-    'auxiliary': '辅料'
+    finished_goods: '产成品',
+    finished_product: '产成品',
+    finished: '产成品',
+    semi_finished: '半成品',
+    raw_material: '原材料',
+    packaging: '包装物',
+    component: '零部件',
+    auxiliary: '辅料'
   }
   return typeMap[type] || type || '-'
 }

@@ -21,7 +21,10 @@
           {{ viewData.specs || '无' }}
         </el-descriptions-item>
         <el-descriptions-item label="物料类型">
-          {{ viewData.categoryName }}
+          {{ getMaterialTypeLabel(viewData.materialType || viewData.material_type) }}
+        </el-descriptions-item>
+        <el-descriptions-item label="物料分类">
+          {{ viewData.categoryName || '未设置' }}
         </el-descriptions-item>
         <el-descriptions-item label="检验方式">
           {{ viewData.inspectionMethodName || '未设置' }}
@@ -30,10 +33,10 @@
           {{ viewData.materialSourceName || '未设置' }}
         </el-descriptions-item>
         <el-descriptions-item label="供应商">
-          {{ viewData.supplierName || '未设置' }}
+          {{ viewData.supplierName || (viewData.materialSourceName === '自制' ? '自制' : '未设置') }}
         </el-descriptions-item>
         <el-descriptions-item label="生产组">
-          {{ viewData.production_group_name || '未设置' }}
+          {{ viewData.productionGroupName || viewData.production_group_name || '未设置' }}
         </el-descriptions-item>
         <el-descriptions-item label="图号">
           {{ viewData.drawingNo || '无' }}
@@ -42,7 +45,7 @@
           {{ viewData.colorCode || '无' }}
         </el-descriptions-item>
         <el-descriptions-item label="材质">
-          {{ viewData.materialType || '无' }}
+          {{ isMaterialComposition(viewData.materialType || viewData.material_type) ? (viewData.materialType || viewData.material_type) : '无' }}
         </el-descriptions-item>
         <el-descriptions-item label="单位">
           {{ viewData.unitName }}
@@ -56,11 +59,11 @@
         <el-descriptions-item label="物料位置">
           {{ viewData.locationDetail || '未设置' }}
         </el-descriptions-item>
-        <el-descriptions-item v-if="canViewPrice" label="销售价格">
-          {{ formatCurrency(viewData.price) }}
+        <el-descriptions-item label="销售价格">
+          {{ formatMaskedPrice(viewData.price, canViewPrice, formatCurrency) }}
         </el-descriptions-item>
-        <el-descriptions-item v-if="canViewCost" label="采购成本">
-          {{ formatCurrency(viewData.costPrice) }}
+        <el-descriptions-item label="采购成本">
+          {{ formatMaskedPrice(viewData.costPrice, canViewCost, formatCurrency) }}
         </el-descriptions-item>
         <el-descriptions-item label="安全库存">
           {{ viewData.safetyStock || 0 }}
@@ -72,8 +75,8 @@
           {{ viewData.maxStock || 0 }}
         </el-descriptions-item>
         <!-- 税率属价格敏感字段，无价格权限时不展示 -->
-        <el-descriptions-item v-if="canViewPrice || canViewCost" label="税率">
-          {{ formatTaxRate(viewData.taxRate) }}
+        <el-descriptions-item label="税率">
+          {{ canViewPrice || canViewCost ? formatTaxRate(viewData.taxRate) : '***' }}
         </el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag :type="String(viewData.status) === '1' ? 'success' : 'danger'">
@@ -109,7 +112,14 @@
 
 <script setup>
 import { formatCurrency, formatDate } from '@/utils/format'
+import { formatMaskedPrice } from '@/utils/priceVisibility'
 import { Document } from '@element-plus/icons-vue'
+import { getMaterialTypeLabel, MATERIAL_TYPE_OPTIONS, normalizeMaterialType } from '@/utils/materialTypes'
+
+const isMaterialComposition = (value) => {
+  const normalized = normalizeMaterialType(value)
+  return !!normalized && !MATERIAL_TYPE_OPTIONS.some((item) => item.value === normalized)
+}
 
 defineProps({
   modelValue: Boolean,

@@ -391,7 +391,6 @@ const createInbound = async (req, res) => {
     const mapped = inventoryInboundMap.fromApi(req.body || {});
     const inbound_date = mapped.inbound_date;
     const warehouseId = mapped.location_id ?? mapped.warehouse_id;
-    const status = mapped.status;
     const operator = mapped.operator;
     const remark = mapped.remark ?? null;
     const items = mapped.items || [];
@@ -399,6 +398,9 @@ const createInbound = async (req, res) => {
     const reference_type = mapped.reference_type ?? null;
     const reference_id = mapped.reference_id ?? null;
     const reference_no = mapped.reference_no ?? null;
+    const { assertShopFloorInbound } = require('../../../authorization/shopFloorMaterialRequest');
+    assertShopFloorInbound(req, mapped);
+    const status = mapped.status;
 
     // 验证必填字段
     if (!inbound_date || !warehouseId || !status || !operator || !items || items.length === 0) {
@@ -501,6 +503,9 @@ const createInbound = async (req, res) => {
     await connection.rollback();
     logger.error('创建入库单失败:', error);
     const msg = error?.message || '创建入库单失败';
+    if (error.statusCode === 403) {
+      return ResponseHandler.forbidden(res, msg);
+    }
     const isValidation =
       /缺少必填|仅允许 draft\/confirmed|请使用状态接口|年度结存|必须关联|物料信息/.test(msg);
     ResponseHandler.error(

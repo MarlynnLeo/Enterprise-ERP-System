@@ -53,10 +53,11 @@
     <el-card class="data-card">
       <el-table
         :data="userList"
-        class="w-full"
+        class="table-row-click w-full"
         border
         v-loading="loading"
-      >
+      
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleView(row))">
         <template #empty>
           <EmptyState description="暂无用户数据" />
         </template>
@@ -74,7 +75,8 @@
           </template>
         </el-table-column>
         <el-table-column prop="createTime" label="创建时间" width="180"></el-table-column>
-        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="scope">
             <div class="flex-wrap">
               <el-popconfirm
@@ -102,12 +104,6 @@
                 </template>
               </el-popconfirm>
 
-              <el-button class="btn-op-view"
-                v-if="String(scope.row.status) === '1'"
-                type="primary"
-                size="small"
-                @click="handleView(scope.row)"
-              ><el-icon><View /></el-icon> 查看</el-button>
 
               <el-button
                 v-if="String(scope.row.status) !== '1'"
@@ -227,13 +223,13 @@
 </template>
 
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Check, Close, View, Edit, Key } from '@element-plus/icons-vue';
 import { systemApi } from '@/api';
 import { getUserStatusText, getUserStatusColor } from '@/constants/systemConstants';
 // 权限计算属性
-
 
 
 // 数据加载状态
@@ -288,17 +284,10 @@ const userForm = reactive({
   status: 1
 });
 
-const passwordRuleText = '密码至少8位，需包含大写字母、小写字母、数字和特殊字符，且不能包含连续重复字符';
+const passwordRuleText = '请设置登录密码';
 const validatePasswordStrength = (value) => {
   const password = String(value || '');
   if (!password) return '密码不能为空';
-  if (password.length < 8) return '密码长度不能小于8位';
-  if (password.length > 128) return '密码长度不能超过128位';
-  if (!/[A-Z]/.test(password)) return '密码必须包含至少一个大写字母';
-  if (!/[a-z]/.test(password)) return '密码必须包含至少一个小写字母';
-  if (!/\d/.test(password)) return '密码必须包含至少一个数字';
-  if (!/[!@#$%^&*()_+\-=[\]{}|;:,.<>?]/.test(password)) return '密码必须包含至少一个特殊字符';
-  if (/(.)\1{2,}/.test(password)) return '密码不能包含连续重复字符';
   return true;
 };
 
@@ -728,13 +717,6 @@ onMounted(async () => {
   color: var(--color-text-secondary);
 }
 
-/* 详情对话框长文本处理 - 自动添加 */
-:deep(.el-descriptions__content) {
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 
 :deep(.el-table__cell) {
   overflow: hidden;

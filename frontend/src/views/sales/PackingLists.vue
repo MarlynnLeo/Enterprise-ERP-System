@@ -127,7 +127,8 @@
               </el-descriptions>
 
               <div class="products-title">装箱明细</div>
-              <el-table :data="props.row.details" border class="w-full" table-layout="fixed">
+              <el-table :data="props.row.details" border class="table-row-click w-full" table-layout="fixed"
+      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleView(row))">
                 <el-table-column prop="itemNo" label="编号" width="120">
                   <template #default="{ row }">
                     {{ row.itemNo || '-' }}
@@ -213,14 +214,10 @@
             {{ formatDate(scope.row.createdAt) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" :width="getColumnWidth('operations', 320)" min-width="320" fixed="right" resizable align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" :width="getColumnWidth('operations', 320)" min-width="320" fixed="right" resizable align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+      >
           <template #default="scope">
-            <el-button class="btn-op-view" type="primary"
-              size="small"
-              @click="handleView(scope.row)"
-            >
-                  查看
-                </el-button>
+            
             <el-button
               size="small"
               type="primary"
@@ -460,10 +457,10 @@
       <div v-if="currentPackingList" class="packing-details">
         <!-- 装箱单基本信息 -->
         <el-descriptions :column="3" border>
-          <el-descriptions-item label="装箱单号">{{ currentPackingList.packing_list_no }}</el-descriptions-item>
+          <el-descriptions-item label="装箱单号">{{ currentPackingList.packingListNo }}</el-descriptions-item>
           <el-descriptions-item label="客户名称">{{ currentPackingList.customerName }}</el-descriptions-item>
-          <el-descriptions-item label="销售订单号">{{ currentPackingList.sales_order_no || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="装箱日期">{{ formatDate(currentPackingList.packing_date) }}</el-descriptions-item>
+          <el-descriptions-item label="销售订单号">{{ currentPackingList.salesOrderNo || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="装箱日期">{{ formatDate(currentPackingList.packingDate) }}</el-descriptions-item>
           <el-descriptions-item label="状态">
             <el-tag :type="getPackingStatusColor(currentPackingList.status)">
               {{ getPackingStatusText(currentPackingList.status) }}
@@ -500,6 +497,7 @@
   </div>
 </template>
 <script setup>
+import { handleTableRowView } from '@/utils/tableRowView'
 import { formatLocalDate } from '@/utils/format';
 //
 import { ref, reactive, onMounted, onUnmounted, computed } from 'vue'
@@ -591,27 +589,27 @@ const packingStats = ref({
 // 表单数据
 const form = reactive({
   id: null,
-  packing_list_no: '',
-  customer_code: '',
+  packingListNo: '',
+  customerCode: '',
   customer_id: '',
-  customer_name: '',
-  sales_order_no: '',
+  customerName: '',
+  salesOrderNo: '',
   sales_order_id: '',
-  order_amount: '',
-  packing_date: formatLocalDate(new Date()),
+  orderAmount: '',
+  packingDate: formatLocalDate(new Date()),
   status: 'draft',
   remark: '',
   details: []
 })
 // 表单验证规则
 const rules = {
-  customer_code: [
+  customerCode: [
     { required: true, message: '请输入客户编号', trigger: 'blur' }
   ],
-  sales_order_no: [
+  salesOrderNo: [
     { required: true, message: '请输入销售订单号', trigger: 'blur' }
   ],
-  packing_date: [
+  packingDate: [
     { required: true, message: '请选择装箱日期', trigger: 'change' }
   ]
 }
@@ -728,7 +726,7 @@ const normalizePackingListsData = (packingLists) => {
   if (!Array.isArray(packingLists)) return [];
   return packingLists.map(packingList => ({
     ...packingList,
-    packing_date: packingList.packingDate,
+    packingDate: packingList.packingDate,
     updated_at: packingList.updatedAt || packingList.createdAt || new Date().toISOString(),
     // 确保数值字段为数字类型
     total_boxes: parseInt(packingList.total_boxes) || 0,
@@ -737,8 +735,8 @@ const normalizePackingListsData = (packingLists) => {
     details: Array.isArray(packingList.details) ? packingList.details : []
   })).sort((a, b) => {
     // 按装箱单号降序排列
-    const packingNoA = a.packing_list_no || '';
-    const packingNoB = b.packing_list_no || '';
+    const packingNoA = a.packingListNo || '';
+    const packingNoB = b.packingListNo || '';
     return packingNoB.localeCompare(packingNoA);
   });
 };
@@ -910,8 +908,8 @@ const handleSortChange = ({ prop, order }) => {
   if (prop === 'packing_list_no') {
     const sortOrder = order === 'descending' ? 'desc' : 'asc';
     tableData.value.sort((a, b) => {
-      const packingNoA = a.packing_list_no || '';
-      const packingNoB = b.packing_list_no || '';
+      const packingNoA = a.packingListNo || '';
+      const packingNoB = b.packingListNo || '';
 
       const comparison = packingNoA.localeCompare(packingNoB);
       return sortOrder === 'desc' ? -comparison : comparison;
@@ -919,8 +917,8 @@ const handleSortChange = ({ prop, order }) => {
   } else if (prop === 'packing_date') {
     const sortOrder = order === 'descending' ? 'desc' : 'asc';
     tableData.value.sort((a, b) => {
-      const packingDateA = a.packing_date;
-      const packingDateB = b.packing_date;
+      const packingDateA = a.packingDate;
+      const packingDateB = b.packingDate;
 
       const comparison = packingDateA.localeCompare(packingDateB);
       return sortOrder === 'desc' ? -comparison : comparison;
@@ -953,7 +951,7 @@ const handleAdd = async () => {
         remark: '',
         item_no: ''
       }];
-    } else if (key === 'packing_date') {
+    } else if (key === 'packingDate') {
       form[key] = formatLocalDate(new Date());
     } else {
       form[key] = ''
@@ -995,10 +993,12 @@ const handleEdit = async (row) => {
     // 然后将行数据复制到表单中
     Object.assign(form, {
       id: packingListData.id,
-      packing_list_no: packingListData.packing_list_no,
+      packingListNo: packingListData.packingListNo,
+      customerId: packingListData.customerId,
       customer_id: packingListData.customerId,
-      sales_order_id: packingListData.sales_order_id,
-      packing_date: packingListData.packing_date,
+      salesOrderId: packingListData.salesOrderId,
+      sales_order_id: packingListData.salesOrderId,
+      packingDate: packingListData.packingDate,
       status: packingListData.status,
       remark: packingListData.remark,
       details: []
@@ -1195,7 +1195,7 @@ const handleSubmit = async () => {
     await formRef.value.validate();
     const submitData = {
       ...form,
-      packing_date: form.packingDate,
+      packingDate: form.packingDate,
       details: form.details.map(detail => ({
         ...detail,
         quantity: Number(detail.quantity) || 0
@@ -1469,13 +1469,6 @@ const handleSalesOrderNoBlur = (event) => {
   border-color: var(--color-border-lighter);
   color: var(--color-text-regular);
   cursor: default;
-}
-/* 详情对话框长文本处理 - 自动添加 */
-:deep(.el-descriptions__content) {
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 :deep(.el-table__cell) {
   overflow: hidden;

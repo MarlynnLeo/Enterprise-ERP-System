@@ -291,8 +291,11 @@ const setupInterceptors = (apiInstance) => {
                 }
             }
 
-            // 业务权限拒绝：统一提示（CSRF 已在上方单独处理）
+            // 写操作 403 才全局提示。GET 403 多为页面附属下拉/统计，由页面自行处理，避免一进页连弹多条。
+            const method = String(originalRequest.method || 'get').toLowerCase();
+            const isWrite = method !== 'get' && method !== 'head';
             if (
+                isWrite &&
                 error.response?.status === 403 &&
                 csrfErrorCode !== 'INVALID_CSRF_TOKEN' &&
                 !originalRequest._forbiddenToastShown

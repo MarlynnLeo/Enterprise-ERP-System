@@ -31,7 +31,7 @@ router.get('/dashboard/trends', requirePermission(['production:data-view', 'prod
 router.get('/dashboard/process-completion', requirePermission(['production:data-view', 'production:plans:view', 'production:tasks:view', 'production:reports:view']), productionController.getProcessCompletionRates);
 router.get('/dashboard/pending-tasks', requirePermission(['production:data-view', 'production:tasks:view', 'production:plans:view']), productionController.getPendingTasks);
 // 仪表盘生产计划接口 - 所有用户都可访问
-router.get('/dashboard/plans', requirePermission(['production:data-view', 'production:plans:view']), productionController.getDashboardProductionPlans);
+router.get('/dashboard/plans', requirePermission(['dashboard', 'production:data-view', 'production:plans:view']), productionController.getDashboardProductionPlans);
 
 // ===== 排程与冲突检测接口 =====
 router.get('/scheduling/standard-hours/:productId', requirePermission('production:tasks:view'), scheduleController.getStandardHours);
@@ -92,11 +92,11 @@ router.get(
 );
 
 // 计算物料需求
-router.post('/calculate-materials', requirePermission(['production:plans:view', 'production:mrp', 'production:mrp:view']), productionController.calculateMaterials);
+router.post('/calculate-materials', requirePermission(['production:plans:view', 'production:mrp', 'production:mrp:view', 'inventory:outbound:view', 'inventory:inbound:view']), productionController.calculateMaterials);
 router.get('/calculate-materials/:bomId', requirePermission(['production:plans:view', 'production:mrp', 'production:mrp:view']), productionController.calculateMaterialsByBomId);
 
 // 直接获取产品BOM信息
-router.get('/product-bom/:productId', requirePermission(['production:plans:view', 'production:mrp', 'production:mrp:view']), productionController.getBomByProductId);
+router.get('/product-bom/:productId', requirePermission(['production:plans:view', 'production:mrp', 'production:mrp:view', 'inventory:outbound:view']), productionController.getBomByProductId);
 
 // 获取当天的最大序号
 router.get('/today-sequence', requirePermission('production:plans:view'), productionController.getTodayMaxSequence);
@@ -124,7 +124,7 @@ router.get(
 );
 router.get(
   '/tasks',
-  requirePermission('production:tasks:view'),
+  requirePermission(['production:tasks:view', 'inventory:outbound:view', 'inventory:inbound:view']),
   productionController.getProductionTasks
 );
 router.get(

@@ -68,8 +68,9 @@
   overflow: auto;
 }
 
-.el-dialog.app-dialog--form-wide:not(.is-fullscreen) {
-  max-width: 1280px;
+.el-dialog.app-dialog--form-wide:not(.is-fullscreen),
+.el-dialog.app-dialog--document:not(.is-fullscreen) {
+  max-width: min(850px, calc(100vw - 24px));
 }
 
 /* 默认查看/表单：按内容宽度撑开；上限与明细宽弹窗一致 */
@@ -96,17 +97,41 @@
   max-width: 100%;
 }
 
+.app-dialog-view-body .el-descriptions,
+.app-dialog-view-body .el-descriptions__body,
+.app-dialog-view-body .el-descriptions__table,
+.app-dialog-view-body .el-table,
+.app-dialog-form-body .el-form,
+.app-dialog-form-body .el-table,
+.app-dialog--document .el-descriptions,
+.app-dialog--document .el-descriptions__body,
+.app-dialog--document .el-descriptions__table,
+.app-dialog--document .el-form,
+.app-dialog--document .el-table {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
 .app-dialog-view-body .el-descriptions {
   --el-descriptions-table-border: 1px solid var(--el-border-color-lighter, var(--color-border-lighter));
 }
 
-.app-dialog-view-body .el-descriptions__label {
+.app-dialog-view-body .el-descriptions__label,
+.app-dialog--document .el-descriptions__label {
+  width: 112px;
+  min-width: 112px;
   white-space: nowrap;
   color: var(--color-text-secondary);
 }
 
-.app-dialog-view-body .el-descriptions__content {
+.app-dialog-view-body .el-descriptions__content,
+.app-dialog-form-body .el-descriptions__content,
+.app-dialog--document .el-descriptions__content {
+  max-width: none !important;
+  min-width: 0;
   color: var(--color-text-primary);
+  white-space: normal;
   word-break: break-word;
 }
 

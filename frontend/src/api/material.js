@@ -20,6 +20,7 @@ export const materialApi = {
     exportMaterials: baseDataApi.exportMaterials,
     downloadMaterialTemplate: baseDataApi.downloadMaterialTemplate,
     getNextMaterialCode: baseDataApi.getNextMaterialCode,
+    getLatestMaterialByCategory: baseDataApi.getLatestMaterialByCategory,
 
     getMaterialAttachments: baseDataApi.getMaterialAttachments,
     uploadMaterialAttachment: baseDataApi.uploadMaterialAttachment,
