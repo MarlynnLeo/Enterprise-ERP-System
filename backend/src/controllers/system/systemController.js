@@ -973,7 +973,7 @@ const systemController = {
 
   async refreshPermissions(req, res) {
     try {
-      const { userId } = req.params;
+      const { id: userId } = req.params;
       const PermissionService = require('../../services/PermissionService');
 
       // 清除并重新加载权限

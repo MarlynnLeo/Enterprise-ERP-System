@@ -394,6 +394,7 @@
       title="出入库单详情"
       mode="view"
       content-width="wide"
+      :detail-navigation="manualTransactionViewNavigation"
     >
       <div v-loading="viewLoading">
       <el-descriptions :column="2" border>
@@ -684,6 +685,7 @@ import {
 import { searchMaterials } from '@/utils/searchConfig'
 import { parseListData } from '@/utils/responseParser'
 import { loadLocationOptions } from '@/utils/optionLoaders'
+import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
 const authStore = useAuthStore()
 
 // 权限控制
@@ -705,6 +707,15 @@ const searchForm = reactive({
 
 // 表格数据
 const tableData = ref([])
+const {
+  previousItem: previousViewManualTransaction,
+  nextItem: nextViewManualTransaction,
+  hasPrevious: hasPreviousViewManualTransaction,
+  hasNext: hasNextViewManualTransaction,
+  setCurrentItem: setCurrentViewManualTransaction
+} = useListDetailNavigation(tableData, {
+  getItemKey: (item) => item?.id ?? item?.transactionNo
+})
 const loading = ref(false)
 
 // 分页
@@ -1161,6 +1172,7 @@ const handleView = async (row) => {
     const res = await inventoryApi.getManualTransaction(row.transactionNo)
     // axios拦截器已自动解包ResponseHandler格式
     Object.assign(currentRecord, res.data)
+    setCurrentViewManualTransaction(row)
   } catch (error) {
     console.error('获取详情失败:', error)
     ElMessage.error('获取详情失败')
@@ -1168,6 +1180,22 @@ const handleView = async (row) => {
     viewLoading.value = false
   }
 }
+
+const handleViewPrevious = () => {
+  if (previousViewManualTransaction.value) handleView(previousViewManualTransaction.value)
+}
+
+const handleViewNext = () => {
+  if (nextViewManualTransaction.value) handleView(nextViewManualTransaction.value)
+}
+
+const manualTransactionViewNavigation = computed(() => ({
+  hasPrevious: hasPreviousViewManualTransaction.value,
+  hasNext: hasNextViewManualTransaction.value,
+  loading: viewLoading.value,
+  previous: handleViewPrevious,
+  next: handleViewNext
+}))
 
 // 删除
 const handleDelete = (row) => {

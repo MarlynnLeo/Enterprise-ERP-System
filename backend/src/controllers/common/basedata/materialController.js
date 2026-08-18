@@ -80,7 +80,12 @@ const materialController = {
       const { pool: dbPool } = require('../../../config/db');
       const placeholders = ids.map(() => '?').join(',');
       const [materials] = await dbPool.query(
-        `SELECT m.*, c.name as category_name, u.name as unit_name
+        `SELECT
+           m.id, m.code, m.name, m.specs, m.drawing_no, m.color_code, m.material, m.material_type,
+           m.category_id, m.product_category_id, m.unit_id, m.material_source_id, m.supplier_id,
+           m.location_id, m.production_group_id, m.manager_id, m.price, m.cost_price,
+           m.safety_stock, m.min_stock, m.max_stock, m.status, m.remark,
+           c.name as category_name, u.name as unit_name
          FROM materials m
          LEFT JOIN categories c ON m.category_id = c.id
          LEFT JOIN units u ON m.unit_id = u.id
@@ -118,7 +123,12 @@ const materialController = {
       const { pool: dbPool } = require('../../../config/db');
       const placeholders = codes.map(() => '?').join(',');
       const [materials] = await dbPool.query(
-        `SELECT m.*, c.name as category_name, u.name as unit_name
+        `SELECT
+           m.id, m.code, m.name, m.specs, m.drawing_no, m.color_code, m.material, m.material_type,
+           m.category_id, m.product_category_id, m.unit_id, m.material_source_id, m.supplier_id,
+           m.location_id, m.production_group_id, m.manager_id, m.price, m.cost_price,
+           m.safety_stock, m.min_stock, m.max_stock, m.status, m.remark,
+           c.name as category_name, u.name as unit_name
          FROM materials m
          LEFT JOIN categories c ON m.category_id = c.id
          LEFT JOIN units u ON m.unit_id = u.id
@@ -474,6 +484,7 @@ const materialController = {
             specs: row['规格型号'] || '',
             drawing_no: row['图号'] || '',
             color_code: row['色号'] || '',
+            material: row['材质'] || row['材料'] || row['material'] || '',
             category_id: categoryId,
             unit_id: unitId,
             material_source_id: materialSourceId,

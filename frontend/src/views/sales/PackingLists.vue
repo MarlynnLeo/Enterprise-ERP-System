@@ -453,6 +453,7 @@
       title="装箱单详情"
       mode="view"
       content-width="wide"
+      :detail-navigation="packingListViewNavigation"
     >
       <div v-if="currentPackingList" class="packing-details">
         <!-- 装箱单基本信息 -->
@@ -507,6 +508,7 @@ import dayjs from 'dayjs'
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { baseDataApi, salesApi } from '@/api'
 import { parseListData, parsePaginatedData } from '@/utils/responseParser'
+import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
 import { SEARCH_CONFIG, mapMaterialData, searchMaterials as performSearchMaterials } from '@/utils/searchConfig'
 import { useAuthStore } from '@/stores/auth'
 import {
@@ -528,6 +530,13 @@ const DEFAULT_PAGE_SIZE = 20; // 默认分页大小
 // 数据定义
 const loading = ref(false)
 const tableData = ref([])
+const {
+  previousItem: previousViewPackingList,
+  nextItem: nextViewPackingList,
+  hasPrevious: hasPreviousViewPackingList,
+  hasNext: hasNextViewPackingList,
+  setCurrentItem: setCurrentViewPackingList
+} = useListDetailNavigation(tableData)
 const currentPage = ref(1)
 const pageSize = ref(DEFAULT_PAGE_SIZE)
 const total = ref(0)
@@ -536,6 +545,7 @@ const statusFilter = ref('')
 const dateRange = ref([])
 const detailsVisible = ref(false)
 const currentPackingList = ref(null)
+const detailsLoading = ref(false)
 const dialogVisible = ref(false)
 const dialogType = ref('add')
 const formRef = ref(null)
@@ -1034,18 +1044,40 @@ const handleEdit = async (row) => {
 }
 // 查看装箱单
 const handleView = async (row) => {
+  if (detailsLoading.value) return
+
+  detailsLoading.value = true
   try {
     // 获取最新的装箱单详情
     const response = await salesApi.getPackingList(row.id)
     const packingListData = response.data
 
     currentPackingList.value = packingListData
+    setCurrentViewPackingList(row)
     detailsVisible.value = true
   } catch (error) {
     console.error('获取装箱单详情失败:', error)
     ElMessage.error('获取装箱单详情失败: ' + (error.message || '未知错误'))
+  } finally {
+    detailsLoading.value = false
   }
 }
+
+const handleViewPrevious = () => {
+  if (previousViewPackingList.value) handleView(previousViewPackingList.value)
+}
+
+const handleViewNext = () => {
+  if (nextViewPackingList.value) handleView(nextViewPackingList.value)
+}
+
+const packingListViewNavigation = computed(() => ({
+  hasPrevious: hasPreviousViewPackingList.value,
+  hasNext: hasNextViewPackingList.value,
+  loading: detailsLoading.value,
+  previous: handleViewPrevious,
+  next: handleViewNext
+}))
 // 查看销售订单
 const handleViewSalesOrder = (_row) => {
   // 这里可以跳转到销售订单详情页面

@@ -443,6 +443,7 @@
       title="交易详情"
       mode="view"
       content-width="wide"
+      :detail-navigation="transactionViewNavigation"
     >
       <div class="transaction-detail-header">
         <div class="detail-item">
@@ -492,7 +493,8 @@
 import { handleTableRowView } from '@/utils/tableRowView'
 import { formatLocalDate } from '@/utils/format';
 import { parsePaginatedData, parseListData, parseDataObject } from '@/utils/responseParser';
-import { ref, reactive, onMounted, watch } from 'vue';
+import { ref, reactive, onMounted, watch, computed } from 'vue';
+import { useListDetailNavigation } from '@/composables/useListDetailNavigation';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, UploadFilled, View, Edit, Promotion, Check, Delete } from '@element-plus/icons-vue'
 import { financeApi } from '@/api/finance';
@@ -532,6 +534,13 @@ const importFileList = ref([]);
 const importResult = ref(null);
 // 数据列表
 const transactionList = ref([]);
+const {
+  previousItem: previousViewTransaction,
+  nextItem: nextViewTransaction,
+  hasPrevious: hasPreviousViewTransaction,
+  hasNext: hasNextViewTransaction,
+  setCurrentItem: setCurrentViewTransaction
+} = useListDetailNavigation(transactionList);
 const accountOptions = ref([]);
 // 交易统计
 const transactionStats = reactive({
@@ -803,8 +812,25 @@ const showAddDialog = () => {
 // 查看交易详情
 const handleView = (row) => {
   currentTransaction.value = row;
+  setCurrentViewTransaction(row);
   viewDialogVisible.value = true;
 };
+
+const handleViewPrevious = () => {
+  if (previousViewTransaction.value) handleView(previousViewTransaction.value);
+};
+
+const handleViewNext = () => {
+  if (nextViewTransaction.value) handleView(nextViewTransaction.value);
+};
+
+const transactionViewNavigation = computed(() => ({
+  hasPrevious: hasPreviousViewTransaction.value,
+  hasNext: hasNextViewTransaction.value,
+  loading: false,
+  previous: handleViewPrevious,
+  next: handleViewNext
+}));
 // 编辑交易
 const handleEdit = (row) => {
   dialogTitle.value = '编辑交易';

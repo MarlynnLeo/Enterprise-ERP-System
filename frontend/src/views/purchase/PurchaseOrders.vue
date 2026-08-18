@@ -544,6 +544,7 @@
       title="采购订单详情"
       mode="view"
       width="850px"
+      :detail-navigation="purchaseOrderViewNavigation"
     >
       <div v-loading="detailLoading" class="order-view">
         <el-descriptions :column="2" border class="purchase-view-desc">
@@ -853,6 +854,7 @@ const {
 // ========== 解构操作组合式函数 ==========
 const {
   detailLoading, viewDialogVisible, viewData,
+  purchaseOrderViewNavigation,
   receiveDialogVisible, receiveDialogLoading, receiveForm, receiveTableRef, totalReceiveQuantity,
   requisitionViewDialog, requisitionViewData,
   orderTableRef, selectedOrders, batchLoading, canBatchSubmit,

@@ -187,6 +187,7 @@
       title="退货单详情"
       mode="view"
       width="850px"
+      :detail-navigation="purchaseReturnViewNavigation"
     >
       <div v-loading="viewDialog.loading" class="return-view">
         <el-descriptions border :column="2" class="purchase-view-desc">
@@ -397,6 +398,7 @@ import { ElMessage } from 'element-plus';
 import { Plus, View, Edit, Delete, Check, Close, Finished } from '@element-plus/icons-vue';
 
 import { useAuthStore } from '@/stores/auth';
+import { useListDetailNavigation } from '@/composables/useListDetailNavigation';
 import { purchaseApi } from '@/api';
 import { baseDataApi } from '@/api';
 import { formatCurrency } from '@/utils/helpers/formatters';
@@ -433,6 +435,13 @@ const returnReasons = [
 ];
 // 退货单数据
 const returnList = ref([]);
+const {
+  previousItem: previousViewReturn,
+  nextItem: nextViewReturn,
+  hasPrevious: hasPreviousViewReturn,
+  hasNext: hasNextViewReturn,
+  setCurrentItem: setCurrentViewReturn
+} = useListDetailNavigation(returnList);
 const loading = ref(false);
 const pagination = ref({ current: 1, size: 10, total: 0 });
 // 供应商、收货单和仓库
@@ -726,6 +735,7 @@ async function viewReturn(returnItem) {
         returnReason: item.returnReason || ''
       }))
     };
+    setCurrentViewReturn(returnItem);
   } catch (error) {
     console.error('获取退货单详情失败:', error);
     ElMessage.error('获取退货单详情失败');
@@ -734,6 +744,22 @@ async function viewReturn(returnItem) {
     viewDialog.loading = false;
   }
 }
+
+const handleViewPrevious = () => {
+  if (previousViewReturn.value) viewReturn(previousViewReturn.value);
+};
+
+const handleViewNext = () => {
+  if (nextViewReturn.value) viewReturn(nextViewReturn.value);
+};
+
+const purchaseReturnViewNavigation = computed(() => ({
+  hasPrevious: hasPreviousViewReturn.value,
+  hasNext: hasNextViewReturn.value,
+  loading: viewDialog.loading,
+  previous: handleViewPrevious,
+  next: handleViewNext
+}));
 // 方法：编辑退货单
 async function editReturn(returnItem) {
   returnDialog.isEdit = true;

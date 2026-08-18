@@ -39,9 +39,6 @@ const bomController = {
       const { page = 1, pageSize = 10, ...filters } = req.query;
       // HTTP camel → service snake
       const serviceFilters = mapKeysToSnake(filters);
-      if (serviceFilters.product_id == null && filters.productId != null) {
-        serviceFilters.product_id = filters.productId;
-      }
 
       const result = await bomService.getAllBoms(
         parseInt(page) || 1,

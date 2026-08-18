@@ -326,6 +326,7 @@
       title="交易详情"
       mode="view"
       content-width="wide"
+      :detail-navigation="cashTransactionViewNavigation"
     >
       <div class="transaction-detail-header">
         <div class="detail-item">
@@ -372,7 +373,8 @@ import { formatDate } from '@/utils/helpers/dateUtils'
 import { getApprovalStatusColor } from '@/constants/systemConstants'
 import { formatCurrency, formatLocalDate } from '@/utils/format'
 
-import { ref, reactive, onMounted, watch } from 'vue';
+import { ref, reactive, onMounted, watch, computed } from 'vue';
+import { useListDetailNavigation } from '@/composables/useListDetailNavigation';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { UploadFilled, Plus, View, Edit, Promotion, Check, Delete } from '@element-plus/icons-vue'
 import { financeApi } from '@/api/finance';
@@ -406,6 +408,13 @@ const importFileList = ref([]);
 
 // 数据列表
 const transactionList = ref([]);
+const {
+  previousItem: previousViewTransaction,
+  nextItem: nextViewTransaction,
+  hasPrevious: hasPreviousViewTransaction,
+  hasNext: hasNextViewTransaction,
+  setCurrentItem: setCurrentViewTransaction
+} = useListDetailNavigation(transactionList);
 
 // 交易统计
 const transactionStats = reactive({
@@ -546,8 +555,25 @@ const editTransaction = (row) => {
 // 查看交易详情
 const handleView = (row) => {
   currentTransaction.value = { ...row };
+  setCurrentViewTransaction(row);
   viewDialogVisible.value = true;
 };
+
+const handleViewPrevious = () => {
+  if (previousViewTransaction.value) handleView(previousViewTransaction.value);
+};
+
+const handleViewNext = () => {
+  if (nextViewTransaction.value) handleView(nextViewTransaction.value);
+};
+
+const cashTransactionViewNavigation = computed(() => ({
+  hasPrevious: hasPreviousViewTransaction.value,
+  hasNext: hasNextViewTransaction.value,
+  loading: false,
+  previous: handleViewPrevious,
+  next: handleViewNext
+}));
 
 // 提交审核
 const submitForAudit = async (row) => {

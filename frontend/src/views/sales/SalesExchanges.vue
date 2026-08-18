@@ -397,6 +397,7 @@
       title="换货单详情"
       mode="view"
       content-width="wide"
+      :detail-navigation="exchangeViewNavigation"
     >
       <div v-loading="detailDialogLoading">
       <el-descriptions :column="3" border v-if="currentExchange">
@@ -615,15 +616,23 @@
 <script setup>
 import { handleTableRowView } from '@/utils/tableRowView'
 import { parseListData } from '@/utils/responseParser';
+import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { formatCurrency } from '@/utils/helpers/formatters'
 import 'dayjs'
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { salesApi, inventoryApi, baseDataApi } from '@/api'
 import { Plus, Check, ArrowDown, ArrowUp } from '@element-plus/icons-vue'
 const loading = ref(false)
 const exchangeRecords = ref([])
+const {
+  previousItem: previousViewExchange,
+  nextItem: nextViewExchange,
+  hasPrevious: hasPreviousViewExchange,
+  hasNext: hasNextViewExchange,
+  setCurrentItem: setCurrentViewExchange
+} = useListDetailNavigation(exchangeRecords)
 const currentPage = ref(1)
 const pageSize = ref(10)
 const total = ref(0)
@@ -910,6 +919,7 @@ const handleView = async (row) => {
       remark: exchangeData.remarks || exchangeData.remark,
       items: exchangeData.items || []
     }
+    setCurrentViewExchange(row)
   } catch (error) {
     console.error('获取换货单详情失败:', error)
     ElMessage.error('获取换货单详情失败')
@@ -918,6 +928,22 @@ const handleView = async (row) => {
     detailDialogLoading.value = false
   }
 }
+
+const handleViewPrevious = () => {
+  if (previousViewExchange.value) handleView(previousViewExchange.value)
+}
+
+const handleViewNext = () => {
+  if (nextViewExchange.value) handleView(nextViewExchange.value)
+}
+
+const exchangeViewNavigation = computed(() => ({
+  hasPrevious: hasPreviousViewExchange.value,
+  hasNext: hasNextViewExchange.value,
+  loading: detailDialogLoading.value,
+  previous: handleViewPrevious,
+  next: handleViewNext
+}))
 // 处理换货单
 const handleProcess = (row) => {
   ElMessageBox.confirm('确定要处理此换货单吗？', '提示', {

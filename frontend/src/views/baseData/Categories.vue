@@ -168,6 +168,7 @@
       :title="dialogTitle"
       :mode="dialogReadonly ? 'view' : 'form'"
       width="500px"
+      :detail-navigation="dialogReadonly ? categoryViewNavigation : null"
     >
       <el-descriptions v-if="dialogReadonly" :column="2" border>
         <el-descriptions-item label="上级大类">{{ parentCategoryName || '顶级' }}</el-descriptions-item>
@@ -298,6 +299,7 @@ import { parseListData } from '@/utils/responseParser';
 import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage } from 'element-plus'
 import { baseDataApi } from '@/api/baseData';
+import { useListDetailNavigation } from '@/composables/useListDetailNavigation';
 import { Plus, Edit, Delete, Download, Upload, Switch, View } from '@element-plus/icons-vue';
 import { useAuthStore } from '@/stores/auth';
 // 权限store
@@ -313,6 +315,13 @@ const loading = ref(false);
 
 // 表格数据
 const tableData = ref([]);
+const {
+  previousItem: previousViewCategory,
+  nextItem: nextViewCategory,
+  hasPrevious: hasPreviousViewCategory,
+  hasNext: hasNextViewCategory,
+  setCurrentItem: setCurrentViewCategory
+} = useListDetailNavigation(() => getAllCategories(tableData.value));
 
 // 统计数据
 const stats = reactive({
@@ -529,8 +538,25 @@ const handleView = (row) => {
   dialogReadonly.value = true;
   resetForm();
   Object.assign(form, row);
+  setCurrentViewCategory(row);
   dialogVisible.value = true;
 };
+
+const handleViewPrevious = () => {
+  if (previousViewCategory.value) handleView(previousViewCategory.value);
+};
+
+const handleViewNext = () => {
+  if (nextViewCategory.value) handleView(nextViewCategory.value);
+};
+
+const categoryViewNavigation = computed(() => ({
+  hasPrevious: hasPreviousViewCategory.value,
+  hasNext: hasNextViewCategory.value,
+  loading: false,
+  previous: handleViewPrevious,
+  next: handleViewNext
+}));
 
 // 编辑分类
 const handleEdit = (row) => {

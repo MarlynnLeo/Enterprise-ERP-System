@@ -209,7 +209,7 @@ router.get(
 
 // ✅ 刷新用户权限缓存（仅管理员可用）
 router.post(
-  '/permissions/refresh/:userId',
+  '/permissions/refresh/:id',
   validateIdParam,
   requirePermission('system:permissions'),
   systemController.refreshPermissions

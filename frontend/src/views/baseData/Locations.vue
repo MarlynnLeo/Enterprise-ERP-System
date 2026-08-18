@@ -147,6 +147,7 @@
       :title="dialogTitle"
       :mode="dialogReadonly ? 'view' : 'form'"
       width="500px"
+      :detail-navigation="dialogReadonly ? locationViewNavigation : null"
     >
       <el-descriptions v-if="dialogReadonly" :column="2" border>
         <el-descriptions-item label="库位名称">{{ form.name || '-' }}</el-descriptions-item>
@@ -207,6 +208,7 @@
 <script setup>
 import { handleTableRowView } from '@/utils/tableRowView'
 import { parsePaginatedData } from '@/utils/responseParser';
+import { useListDetailNavigation } from '@/composables/useListDetailNavigation';
 import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { baseDataApi } from '@/api/baseData';
@@ -231,6 +233,13 @@ const pagination = reactive({
   size: 10,
   total: 0
 });
+const {
+  previousItem: previousViewLocation,
+  nextItem: nextViewLocation,
+  hasPrevious: hasPreviousViewLocation,
+  hasNext: hasNextViewLocation,
+  setCurrentItem: setCurrentViewLocation
+} = useListDetailNavigation(tableData);
 
 // 新增/编辑表单
 const formRef = ref(null);
@@ -361,8 +370,25 @@ const handleView = (row) => {
   const rowData = { ...row };
   rowData.status = Number(rowData.status);
   Object.assign(form, rowData);
+  setCurrentViewLocation(row);
   dialogVisible.value = true;
 };
+
+const handleViewPrevious = () => {
+  if (previousViewLocation.value) handleView(previousViewLocation.value);
+};
+
+const handleViewNext = () => {
+  if (nextViewLocation.value) handleView(nextViewLocation.value);
+};
+
+const locationViewNavigation = computed(() => ({
+  hasPrevious: hasPreviousViewLocation.value,
+  hasNext: hasNextViewLocation.value,
+  loading: false,
+  previous: handleViewPrevious,
+  next: handleViewNext
+}));
 
 // 编辑库位
 const handleEdit = (row) => {

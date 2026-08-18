@@ -8,6 +8,7 @@
 const { ResponseHandler } = require('../../utils/responseHandler');
 const { logger } = require('../../utils/logger');
 const { mapKeysToSnake } = require('../../utils/fieldMap');
+const { isTransientDatabaseError } = require('../../utils/databaseAvailability');
 
 const {
   generateTokens,
@@ -98,8 +99,25 @@ const login = async (req, res) => {
 
     logger.info('User login succeeded', { userId: user.id, username: user.username });
   } catch (error) {
-    logger.error('[Auth] 登录失败:', error);
-    ResponseHandler.error(res, '服务器错误', 'SERVER_ERROR', 500, error);
+    const log = req.logger || logger;
+    log.error('[Auth] 登录失败:', {
+      error,
+      code: error.code,
+      path: req.originalUrl,
+      ip: req.ip,
+      userAgent: req.get('User-Agent'),
+    });
+
+    if (isTransientDatabaseError(error)) {
+      return ResponseHandler.error(
+        res,
+        '登录服务暂时不可用，请稍后重试',
+        'AUTH_SERVICE_UNAVAILABLE',
+        503
+      );
+    }
+
+    return ResponseHandler.error(res, '服务器错误', 'SERVER_ERROR', 500, error);
   }
 };
 

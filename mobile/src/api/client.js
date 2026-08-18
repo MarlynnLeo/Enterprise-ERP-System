@@ -181,7 +181,7 @@ api.interceptors.response.use(
 
         try {
           // 尝试刷新Token
-          await api.post('/auth/refresh', null, { skipCsrf: true })
+          await api.post('/auth/refresh', undefined, { skipCsrf: true })
           // 响应拦截器已经解包，直接使用 data
           processQueue(null)
           return api(originalRequest)

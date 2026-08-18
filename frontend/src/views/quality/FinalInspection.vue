@@ -470,6 +470,7 @@
       :title="currentInspection && currentInspection.inspectionNo ? `检验单详情 - ${currentInspection.inspectionNo}` : '检验单详情'"
       mode="view"
       content-width="wide"
+      :detail-navigation="finalInspectionViewNavigation"
     >
       <template v-if="currentInspection && currentInspection.inspectionNo">
         <el-descriptions :column="3" border>
@@ -743,6 +744,7 @@ import printService from '@/services/printService'
 import { useAuthStore } from '@/stores/auth'
 import { tokenManager } from '@/utils/unifiedStorage'
 import { formatDate } from '@/utils/helpers/dateUtils'
+import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
 import {
   getTemplateItems,
   getTemplateSourceText,
@@ -792,6 +794,13 @@ const searchFormModel = computed(() => ({
 const loading = ref(false)
 const submitLoading = ref(false)
 const inspectionList = ref([])
+const {
+  previousItem: previousViewInspection,
+  nextItem: nextViewInspection,
+  hasPrevious: hasPreviousViewInspection,
+  hasNext: hasNextViewInspection,
+  setCurrentItem: setCurrentViewInspection
+} = useListDetailNavigation(inspectionList)
 const currentPage = ref(1)
 const pageSize = ref(10)
 const total = ref(0)
@@ -859,6 +868,7 @@ const currentInspectionTemplateName = ref('')
 const currentInspectionTemplateSource = ref('')
 // 在script setup部分添加
 const viewDialogVisible = ref(false)
+const viewLoading = ref(false)
 const currentInspection = ref({})
 // 添加报告和证书对话框的ref
 const reportDialogVisible = ref(false)
@@ -1249,6 +1259,9 @@ const submitForm = async () => {
 }
 // 查看详情
 const handleView = async (row) => {
+  if (viewLoading.value) return
+
+  viewLoading.value = true
   try {
     // 使用统一的API调用方式
     const response = await qualityApi.getFinalInspection(row.id);
@@ -1271,11 +1284,30 @@ const handleView = async (row) => {
     }
 
     viewDialogVisible.value = true;
+    setCurrentViewInspection(row);
   } catch (error) {
     console.error('获取检验单详情失败:', error);
     ElMessage.error('获取检验单详情失败: ' + error.message);
+  } finally {
+    viewLoading.value = false
   }
 }
+
+const handleViewPrevious = () => {
+  if (previousViewInspection.value) handleView(previousViewInspection.value)
+}
+
+const handleViewNext = () => {
+  if (nextViewInspection.value) handleView(nextViewInspection.value)
+}
+
+const finalInspectionViewNavigation = computed(() => ({
+  hasPrevious: hasPreviousViewInspection.value,
+  hasNext: hasNextViewInspection.value,
+  loading: viewLoading.value,
+  previous: handleViewPrevious,
+  next: handleViewNext
+}))
 // 修改检验弹窗相关功能
 const inspectDialogVisible = ref(false)
 const inspectFormRef = ref(null)

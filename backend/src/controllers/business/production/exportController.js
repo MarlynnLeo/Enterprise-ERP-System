@@ -16,7 +16,8 @@ const ScopeGuard = require('../../../authorization/ScopeGuard');
  */
 exports.exportProductionData = async (req, res) => {
   try {
-    const { type = 'plans', startDate, endDate, status } = req.query;
+    const { type = 'plans', startDate, endDate, status, departmentId, department_id } = req.query;
+    const deptId = departmentId || department_id;
 
     let query = '';
     const params = [];
@@ -54,6 +55,10 @@ exports.exportProductionData = async (req, res) => {
       if (endDate) {
         conditions.push('pp.end_date <= ?');
         params.push(endDate);
+      }
+      if (deptId) {
+        conditions.push('pp.department_id = ?');
+        params.push(deptId);
       }
       if (status) {
         conditions.push('pp.status = ?');

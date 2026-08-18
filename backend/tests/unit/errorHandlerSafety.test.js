@@ -87,6 +87,24 @@ describe('unifiedErrorHandler production safety', () => {
     }
   });
 
+  test('invalid JSON is a 400 validation error instead of a 500', () => {
+    process.env.NODE_ENV = 'production';
+    jest.resetModules();
+    const { unifiedErrorHandler: handler } = require('../../src/middleware/unifiedErrorHandler');
+
+    const res = createMockRes();
+    const error = new SyntaxError('Unexpected token');
+    error.status = 400;
+    error.body = '{invalid';
+
+    handler(error, createMockReq(), res, () => {});
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ message: '请求 JSON 格式无效' })
+    );
+  });
+
   test('production mode filters originalStack from details', () => {
     process.env.NODE_ENV = 'production';
     jest.resetModules();

@@ -133,7 +133,13 @@ const unifiedErrorHandler = (err, req, res, _next) => {
   // 如果不是统一错误，转换为统一错误
   if (!(err instanceof UnifiedAppError)) {
     // 处理不同类型的原生错误
-    if (err.name === 'ValidationError') {
+    if (
+      err instanceof SyntaxError &&
+      err.status === 400 &&
+      Object.prototype.hasOwnProperty.call(err, 'body')
+    ) {
+      error = ErrorFactory.validation('请求 JSON 格式无效');
+    } else if (err.name === 'ValidationError') {
       // Mongoose/Sequelize 验证错误
       const message = Object.values(err.errors)
         .map((val) => val.message)

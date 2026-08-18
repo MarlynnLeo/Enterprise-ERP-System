@@ -467,6 +467,7 @@
       title="检验模板详情"
       mode="view"
       content-width="wide"
+      :detail-navigation="inspectionTemplateViewNavigation"
     >
       <el-descriptions :column="2" border>
         <el-descriptions-item label="模板编号">{{ currentTemplate?.template_code }}</el-descriptions-item>
@@ -696,7 +697,8 @@
 </template>
 <script setup>
 import { handleTableRowView } from '@/utils/tableRowView'
-import { ref, reactive, onMounted, nextTick } from 'vue'
+import { ref, reactive, onMounted, nextTick, computed } from 'vue'
+import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
 import AQLStandards from './AQLStandards.vue'
 import { Search, Refresh, Plus, Check } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -724,6 +726,13 @@ const statusFilter = ref('')
 // 表格数据相关
 const loading = ref(false)
 const templateList = ref([])
+const {
+  previousItem: previousViewTemplate,
+  nextItem: nextViewTemplate,
+  hasPrevious: hasPreviousViewTemplate,
+  hasNext: hasNextViewTemplate,
+  setCurrentItem: setCurrentViewTemplate
+} = useListDetailNavigation(templateList)
 const currentPage = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
@@ -739,6 +748,7 @@ const userDataRequested = ref(false)
 // 对话框相关
 const dialogVisible = ref(false)
 const viewDialogVisible = ref(false)
+const viewLoading = ref(false)
 const isEdit = ref(false)
 const currentTemplate = ref(null)
 const formRef = ref(null)
@@ -1362,6 +1372,9 @@ const handleEdit = async (row) => {
 }
 // 查看模板
 const handleView = async (row) => {
+  if (viewLoading.value) return
+
+  viewLoading.value = true
   try {
     const response = await qualityApi.getTemplate(row.id)
     // axios 拦截器已自动解包，response.data 是模板详情数据
@@ -1372,14 +1385,33 @@ const handleView = async (row) => {
         ...templateData,
         items: templateData.InspectionItems || [] // 使用InspectionItems作为items
       }
+      setCurrentViewTemplate(row)
       viewDialogVisible.value = true
     } else {
       ElMessage.error('获取模板详情失败')
     }
   } catch (error) {
     ElMessage.error(`获取模板详情失败: ${getApiErrorMessage(error)}`)
+  } finally {
+    viewLoading.value = false
   }
 }
+
+const handleViewPrevious = () => {
+  if (previousViewTemplate.value) handleView(previousViewTemplate.value)
+}
+
+const handleViewNext = () => {
+  if (nextViewTemplate.value) handleView(nextViewTemplate.value)
+}
+
+const inspectionTemplateViewNavigation = computed(() => ({
+  hasPrevious: hasPreviousViewTemplate.value,
+  hasNext: hasNextViewTemplate.value,
+  loading: viewLoading.value,
+  previous: handleViewPrevious,
+  next: handleViewNext
+}))
 // 添加检验项
 const addItem = () => {
   form.items.push({

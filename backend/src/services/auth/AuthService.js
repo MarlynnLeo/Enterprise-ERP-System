@@ -5,6 +5,8 @@
  */
 
 const { pool } = require('../../config/db');
+const { logger } = require('../../utils/logger');
+const { retryTransientDatabaseRead } = require('../../utils/databaseAvailability');
 
 /** 用户查询返回的安全字段（不含 password_hash, deleted_at 等敏感字段） */
 const USER_PROFILE_FIELDS = `u.id, u.username, u.real_name, u.email, u.department_id,
@@ -24,9 +26,18 @@ class AuthService {
    * @returns {Promise<Object|null>}
    */
   static async findUserByUsername(username) {
-    const [users] = await pool.execute(
-      `SELECT ${USER_LOGIN_FIELDS} FROM users WHERE username = ?`,
-      [username]
+    const [users] = await retryTransientDatabaseRead(
+      () =>
+        pool.execute(`SELECT ${USER_LOGIN_FIELDS} FROM users WHERE username = ?`, [username]),
+      {
+        onRetry: (error, attempt, delayMs) => {
+          logger.warn('Authentication user lookup will retry after a transient database error', {
+            attempt,
+            delayMs,
+            code: error.code,
+          });
+        },
+      }
     );
     return users[0] || null;
   }
@@ -37,9 +48,17 @@ class AuthService {
    * @returns {Promise<Object|null>}
    */
   static async findUserForRefresh(userId) {
-    const [users] = await pool.execute(
-      `SELECT ${USER_REFRESH_FIELDS} FROM users WHERE id = ?`,
-      [userId]
+    const [users] = await retryTransientDatabaseRead(
+      () => pool.execute(`SELECT ${USER_REFRESH_FIELDS} FROM users WHERE id = ?`, [userId]),
+      {
+        onRetry: (error, attempt, delayMs) => {
+          logger.warn('Authentication refresh lookup will retry after a transient database error', {
+            attempt,
+            delayMs,
+            code: error.code,
+          });
+        },
+      }
     );
     return users[0] || null;
   }

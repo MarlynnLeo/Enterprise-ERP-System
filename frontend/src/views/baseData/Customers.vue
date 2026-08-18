@@ -206,6 +206,7 @@
       :editData="currentEditData"
       :title="dialogTitle"
       :readonly="dialogReadonly"
+      :detail-navigation="dialogReadonly ? customerViewNavigation : null"
       @success="fetchData"
     />
   </div>
@@ -214,6 +215,7 @@
 <script setup>
 import { handleTableRowView } from '@/utils/tableRowView'
 import { parsePaginatedData, parseResponseData } from '@/utils/responseParser'
+import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
 import CustomerFormDialog from './components/CustomerFormDialog.vue';
 
 import { ref, reactive, onMounted, computed } from 'vue';
@@ -238,6 +240,13 @@ const tableData = ref([]);
 const total = ref(0);
 const currentPage = ref(1);
 const pageSize = ref(10);
+const {
+  previousItem: previousViewCustomer,
+  nextItem: nextViewCustomer,
+  hasPrevious: hasPreviousViewCustomer,
+  hasNext: hasNextViewCustomer,
+  setCurrentItem: setCurrentViewCustomer
+} = useListDetailNavigation(tableData);
 
 // 统计数据
 const stats = reactive({
@@ -386,8 +395,25 @@ const handleView = (row) => {
   dialogTitle.value = '查看客户';
   currentEditData.value = { ...row };
   dialogReadonly.value = true;
+  setCurrentViewCustomer(row);
   dialogVisible.value = true;
 };
+
+const handleViewPrevious = () => {
+  if (previousViewCustomer.value) handleView(previousViewCustomer.value);
+};
+
+const handleViewNext = () => {
+  if (nextViewCustomer.value) handleView(nextViewCustomer.value);
+};
+
+const customerViewNavigation = computed(() => ({
+  hasPrevious: hasPreviousViewCustomer.value,
+  hasNext: hasNextViewCustomer.value,
+  loading: false,
+  previous: handleViewPrevious,
+  next: handleViewNext
+}));
 
 // 编辑客户
 const handleEdit = (row) => {

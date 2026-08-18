@@ -184,6 +184,7 @@
       title="不合格品详情"
       mode="view"
       content-width="wide"
+      :detail-navigation="ncpViewNavigation"
     >
       <el-descriptions :column="2" border v-if="currentNcp">
         <el-descriptions-item label="不合格品编号">{{ currentNcp.ncpNo }}</el-descriptions-item>
@@ -353,7 +354,8 @@
 </template>
 <script setup>
 import { handleTableRowView } from '@/utils/tableRowView'
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
+import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRoute } from 'vue-router'
 import { Plus } from '@element-plus/icons-vue'
@@ -364,6 +366,13 @@ import { formatDate } from '@/utils/helpers/dateUtils'
 const route = useRoute()
 const loading = ref(false)
 const tableData = ref([])
+const {
+  previousItem: previousViewNcp,
+  nextItem: nextViewNcp,
+  hasPrevious: hasPreviousViewNcp,
+  hasNext: hasNextViewNcp,
+  setCurrentItem: setCurrentViewNcp
+} = useListDetailNavigation(tableData)
 const total = ref(0)
 const currentPage = ref(1)
 const pageSize = ref(10)
@@ -382,6 +391,7 @@ const completeDialogVisible = ref(false)
 const applyConcessionDialogVisible = ref(false)
 const approveConcessionDialogVisible = ref(false)
 const currentNcp = ref(null)
+const detailsLoading = ref(false)
 const submitLoading = ref(false)
 const applyConcessionForm = reactive({ reason: '' })
 const approveConcessionForm = reactive({ status: 'approved' })
@@ -466,20 +476,43 @@ const handleCreate = () => {
 }
 // Handle view
 const handleView = async (row) => {
+  if (detailsLoading.value) return
+
+  detailsLoading.value = true
   try {
     const response = await ncpApi.getDetails(row.id)
     if (response && response.data) {
       currentNcp.value = response.data
+      setCurrentViewNcp(row)
       detailsDialogVisible.value = true
     } else if (response) {
       currentNcp.value = response
+      setCurrentViewNcp(row)
       detailsDialogVisible.value = true
     }
   } catch (error) {
     console.error('Failed to fetch NCP details:', error)
     ElMessage.error('获取详情失败')
+  } finally {
+    detailsLoading.value = false
   }
 }
+
+const handleViewPrevious = () => {
+  if (previousViewNcp.value) handleView(previousViewNcp.value)
+}
+
+const handleViewNext = () => {
+  if (nextViewNcp.value) handleView(nextViewNcp.value)
+}
+
+const ncpViewNavigation = computed(() => ({
+  hasPrevious: hasPreviousViewNcp.value,
+  hasNext: hasNextViewNcp.value,
+  loading: detailsLoading.value,
+  previous: handleViewPrevious,
+  next: handleViewNext
+}))
 // Handle dispose
 const handleDispose = (row) => {
   currentNcp.value = row

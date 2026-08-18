@@ -109,6 +109,7 @@
       :viewData="currentViewMaterial"
       :canViewCost="canViewCost"
       :canViewPrice="canViewPrice"
+      :detail-navigation="materialViewNavigation"
     />
 
     <!-- 导入对话框 -->
@@ -161,6 +162,7 @@ import { parsePaginatedData, parseListData, parseDataObject } from '@/utils/resp
 import { loadLocationOptions, loadUserListOptions } from '@/utils/optionLoaders';
 import { canViewMaterialPrices, canMaintainMaterialPrices } from '@/utils/priceVisibility';
 import { MATERIAL_TYPE_OPTIONS } from '@/utils/materialTypes';
+import { useListDetailNavigation } from '@/composables/useListDetailNavigation';
 // 引入新组件
 import MaterialTable from './components/MaterialTable.vue';
 import MaterialStatCards from './components/MaterialStatCards.vue';
@@ -188,6 +190,14 @@ const viewDialogVisible = ref(false);
 const dialogTitle = ref('新增物料');
 const currentEditMaterial = ref(null);
 const currentViewMaterial = ref(null);
+const viewLoading = ref(false);
+const {
+  previousItem: previousViewMaterial,
+  nextItem: nextViewMaterial,
+  hasPrevious: hasPreviousViewMaterial,
+  hasNext: hasNextViewMaterial,
+  setCurrentItem: setCurrentViewMaterial
+} = useListDetailNavigation(tableData);
 
 const searchForm = reactive({
   keyword: '',
@@ -375,21 +385,49 @@ const handleEdit = async (row) => {
   }
 };
 
-const handleView = async (row) => {
+const loadViewMaterial = async (row, { openDialog = false } = {}) => {
+  if (row?.id === null || row?.id === undefined || viewLoading.value) return false;
+
+  viewLoading.value = true;
   try {
-     // 详情和附件并行请求
-     const [detail, attachRes] = await Promise.all([
-       materialApi.getMaterial(row.id),
-       materialApi.getMaterialAttachments(row.id).catch(() => null)
-     ]);
-     const data = parseDataObject(detail);
-     data.attachments = attachRes ? parseListData(attachRes) : [];
-     currentViewMaterial.value = data;
-     viewDialogVisible.value = true;
+    // 详情和附件并行请求
+    const [detail, attachRes] = await Promise.all([
+      materialApi.getMaterial(row.id),
+      materialApi.getMaterialAttachments(row.id).catch(() => null)
+    ]);
+    const data = parseDataObject(detail);
+    if (!data) throw new Error('物料详情为空');
+
+    data.attachments = attachRes ? parseListData(attachRes) : [];
+    currentViewMaterial.value = data;
+    setCurrentViewMaterial(row);
+    if (openDialog) viewDialogVisible.value = true;
+    return true;
   } catch {
     ElMessage.error('获取详情失败');
+    return false;
+  } finally {
+    viewLoading.value = false;
   }
 };
+
+const handleView = (row) => loadViewMaterial(row, { openDialog: true });
+
+const handleViewPrevious = () => {
+  if (previousViewMaterial.value) loadViewMaterial(previousViewMaterial.value);
+};
+
+const handleViewNext = () => {
+  if (nextViewMaterial.value) loadViewMaterial(nextViewMaterial.value);
+};
+
+const materialViewNavigation = computed(() => ({
+  hasPrevious: hasPreviousViewMaterial.value,
+  hasNext: hasNextViewMaterial.value,
+  loading: viewLoading.value,
+  previous: handleViewPrevious,
+  next: handleViewNext
+}));
 
 const handleDelete = async (row) => {
   try {

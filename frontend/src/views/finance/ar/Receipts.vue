@@ -242,6 +242,7 @@
       title="收款记录详情"
       mode="view"
       content-width="wide"
+      :detail-navigation="receiptViewNavigation"
     >
       <el-descriptions :column="2" border>
         <el-descriptions-item label="收款编号">{{ detailData.receiptNumber }}</el-descriptions-item>
@@ -342,6 +343,7 @@ import { ElMessage } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
 import { financeApi } from '@/api/finance';
 import { parsePaginatedData, parseListData } from '@/utils/responseParser';
+import { useListDetailNavigation } from '@/composables/useListDetailNavigation';
 import { useAuthStore } from '@/stores/auth'
 
 // 权限store
@@ -382,6 +384,13 @@ const receiptFormRef = ref(null);
 
 // 数据列表
 const receiptList = ref([]);
+const {
+  previousItem: previousViewReceipt,
+  nextItem: nextViewReceipt,
+  hasPrevious: hasPreviousViewReceipt,
+  hasNext: hasNextViewReceipt,
+  setCurrentItem: setCurrentViewReceipt
+} = useListDetailNavigation(receiptList);
 const invoiceOptions = ref([]);
 const bankAccounts = ref([]);
 
@@ -402,6 +411,7 @@ const searchForm = reactive({
 // 详情对话框
 const detailDialogVisible = ref(false);
 const detailData = ref({});
+const detailLoading = ref(false);
 
 // 作废对话框
 const voidDialogVisible = ref(false);
@@ -628,15 +638,37 @@ const getStatusText = (status) => {
 
 // 查看详情
 const handleViewDetail = async (row) => {
+  if (detailLoading.value) return;
+
+  detailLoading.value = true;
   try {
     const response = await financeApi.getReceipt(row.id);
     detailData.value = response.data;
+    setCurrentViewReceipt(row);
     detailDialogVisible.value = true;
   } catch (error) {
     console.error('获取收款记录详情失败:', error);
     ElMessage.error('获取收款记录详情失败');
+  } finally {
+    detailLoading.value = false;
   }
 };
+
+const handleViewPrevious = () => {
+  if (previousViewReceipt.value) handleViewDetail(previousViewReceipt.value);
+};
+
+const handleViewNext = () => {
+  if (nextViewReceipt.value) handleViewDetail(nextViewReceipt.value);
+};
+
+const receiptViewNavigation = computed(() => ({
+  hasPrevious: hasPreviousViewReceipt.value,
+  hasNext: hasNextViewReceipt.value,
+  loading: detailLoading.value,
+  previous: handleViewPrevious,
+  next: handleViewNext
+}));
 
 // 作废收款记录
 const handleVoid = (row) => {

@@ -479,6 +479,7 @@
       title="订单详情"
       mode="view"
       width="850px"
+      :detail-navigation="orderViewNavigation"
     >
       <div v-loading="detailsLoading" class="order-view">
         <template v-if="currentOrder">
@@ -712,7 +713,8 @@ const {
   detailsVisible, detailsLoading, currentOrder, actionLoadingId,
   handleConfirm, handleCancel, handleShip,
   handleLock, handleUnlock, handleView,
-  canConfirm, canShip, canCancel, canLock, canUnlock
+  canConfirm, canShip, canCancel, canLock, canUnlock,
+  orderViewNavigation
 } = useOrderActions(fetchData, ordersData)
 const {
   importDialogVisible, uploadRef,

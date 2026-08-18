@@ -5,6 +5,7 @@
     :title="title"
     :mode="readonly ? 'view' : 'form'"
     width="600px"
+    :detail-navigation="detailNavigation"
     @close="handleClose"
   >
     <el-descriptions v-if="readonly" :column="2" border>
@@ -106,7 +107,8 @@ const props = defineProps({
   readonly: {
     type: Boolean,
     default: false
-  }
+  },
+  detailNavigation: { type: Object, default: null }
 })
 
 const emit = defineEmits(['update:modelValue', 'success'])

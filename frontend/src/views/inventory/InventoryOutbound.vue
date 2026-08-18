@@ -415,7 +415,13 @@
         </AppDialog>
 
     <!-- 查看出库单对话框 -->
-    <AppDialog v-model="viewDialogVisible" title="出库单详情" mode="view" content-width="wide">
+    <AppDialog
+      v-model="viewDialogVisible"
+      title="出库单详情"
+      mode="view"
+      content-width="wide"
+      :detail-navigation="outboundViewNavigation"
+    >
       <div v-loading="viewLoading" class="min-h-form">
       <el-descriptions :column="2" border>
         <el-descriptions-item label="出库单号">{{ currentOutbound.outboundNo }}</el-descriptions-item>
@@ -627,6 +633,7 @@
 import { ref, reactive, onMounted, computed, nextTick, h } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { handleTableRowView } from '@/utils/tableRowView'
+import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
 import {
   Search as SearchIcon,
   Plus,
@@ -664,6 +671,13 @@ export default {
 
     // 列表数据
     const outboundList = ref([])
+    const {
+      previousItem: previousViewOutbound,
+      nextItem: nextViewOutbound,
+      hasPrevious: hasPreviousViewOutbound,
+      hasNext: hasNextViewOutbound,
+      setCurrentItem: setCurrentViewOutbound
+    } = useListDetailNavigation(outboundList)
     const loading = ref(false)
     const currentPage = ref(1)
     const pageSize = ref(10)
@@ -1048,6 +1062,7 @@ export default {
         if (currentOutbound.items?.length > 0) {
           currentOutbound.items = await _normalizePersistedOutboundItems(currentOutbound.items)
         }
+        setCurrentViewOutbound(row)
 
       } catch (error) {
         console.error('获取出库单详情失败:', error)
@@ -1056,6 +1071,22 @@ export default {
         viewLoading.value = false
       }
     }
+
+    const handleViewPrevious = () => {
+      if (previousViewOutbound.value) handleView(previousViewOutbound.value)
+    }
+
+    const handleViewNext = () => {
+      if (nextViewOutbound.value) handleView(nextViewOutbound.value)
+    }
+
+    const outboundViewNavigation = computed(() => ({
+      hasPrevious: hasPreviousViewOutbound.value,
+      hasNext: hasNextViewOutbound.value,
+      loading: viewLoading.value,
+      previous: handleViewPrevious,
+      next: handleViewNext
+    }))
 
     // 处理编辑
     const handleEdit = (row) => {
@@ -2235,6 +2266,7 @@ export default {
       handleCurrentChange,
       handleAdd,
       handleView,
+      outboundViewNavigation,
       handleEdit,
       handleDelete,
       handleUpdateStatus,

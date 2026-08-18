@@ -174,21 +174,45 @@ class ConnectionPoolFactory {
     const originalGetConnection = pool.getConnection.bind(pool);
 
     pool.getConnection = async function getConnectionWithSafetyNet() {
-      let acquireTimer = null;
-      // 添加获取超时：避免连接池耗尽时无限等待导致服务完全阻塞
-      const conn = await Promise.race([
-        originalGetConnection(),
-        new Promise((_, reject) => {
-          acquireTimer = setTimeout(
-            () => reject(new Error(`[连接池] 获取连接超时 (${acquireTimeout}ms)，连接池可能已耗尽`)),
-            acquireTimeout
-          );
-          acquireTimer.unref?.();
-        }),
-      ]).finally(() => {
-        if (acquireTimer) {
-          clearTimeout(acquireTimer);
-        }
+      // Do not use Promise.race here.  A queued mysql2 acquisition can resolve
+      // after our timeout; Promise.race would abandon that connection without
+      // releasing it, gradually exhausting the pool.
+      const conn = await new Promise((resolve, reject) => {
+        let settled = false;
+        const acquireTimer = setTimeout(() => {
+          if (settled) return;
+          settled = true;
+          reject(new Error(`[连接池] 获取连接超时 (${acquireTimeout}ms)，连接池可能已耗尽`));
+        }, acquireTimeout);
+        acquireTimer.unref?.();
+
+        originalGetConnection()
+          .then((lateConnection) => {
+            if (settled) {
+              // The caller already received a timeout.  Return the late
+              // connection immediately so it cannot become an invisible leak.
+              try {
+                lateConnection.release();
+              } catch {
+                try {
+                  lateConnection.destroy?.();
+                } catch {
+                  // Nothing more can be done for a failed late release.
+                }
+              }
+              return;
+            }
+
+            settled = true;
+            clearTimeout(acquireTimer);
+            resolve(lateConnection);
+          })
+          .catch((error) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(acquireTimer);
+            reject(error);
+          });
       });
 
       manager._stats.totalAcquired++;

@@ -3,6 +3,7 @@
     title="查看BOM详情"
     mode="view"
     :model-value="modelValue"
+    :detail-navigation="detailNavigation"
     @update:model-value="val => emit('update:modelValue', val)"
   >
     <div v-if="bomData">
@@ -77,7 +78,8 @@ import { commonApi } from '@/api'
 
 const props = defineProps({
   modelValue: Boolean,
-  bomData: Object
+  bomData: Object,
+  detailNavigation: { type: Object, default: null }
 })
 
 const emit = defineEmits(['update:modelValue'])

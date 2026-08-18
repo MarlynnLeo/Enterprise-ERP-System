@@ -45,7 +45,9 @@ const SKIP_SANITIZE_FIELDS = [
   'standard',
   'standard_value',
   'drawing_no',
-  'color_code', // 物料规格相关字段
+  'color_code',
+  'material', // 物料材料/材质字段
+  'material_type',
   // ✅ 安全修复: 移除 'name' — 过于宽泛，几乎所有实体都有 name 字段，跳过会导致 XSS 风险
   // 如果某个 name 字段确实需要特殊字符，应在具体路由层单独处理
   'location_detail',
@@ -440,7 +442,6 @@ const detectSQLInjection = (req, res, next) => {
         'userAgent',
       ]);
     }
-
     // 打印模板API的HTML内容字段
     if (req.path.startsWith('/api/print/')) {
       if (
@@ -482,6 +483,8 @@ const detectSQLInjection = (req, res, next) => {
       'model',
       'drawing_no',
       'color_code',
+      'material',
+      'material_type',
       'location_detail',
       'location',
       'avatar',
@@ -536,7 +539,6 @@ const detectSQLInjection = (req, res, next) => {
   };
 
   // 检查请求体、查询参数和URL参数
-  // 如果检测到注入，checkInput会返回响应对象，需要立即终止
   if (checkInput(req.body || {})) return;
   if (checkInput(req.query || {})) return;
   if (checkInput(req.params || {})) return;

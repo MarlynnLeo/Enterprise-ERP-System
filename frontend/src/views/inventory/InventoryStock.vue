@@ -217,6 +217,7 @@
       title="库存明细"
       mode="view"
       :loading="detailLoading"
+      :detail-navigation="stockViewNavigation"
     >
       <div class="stock-detail-dialog">
       <el-descriptions :column="2" border class="stock-detail-meta">
@@ -506,6 +507,7 @@ import { useRouter } from 'vue-router'
 import { getInventoryTransactionTypeText, getInventoryTransactionTypeColor } from '@/constants/systemConstants'
 import { debounce } from '@/utils/commonHelpers'
 import printService from '@/services/printService'
+import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
 
 // 权限store
 const authStore = useAuthStore()
@@ -530,6 +532,15 @@ const sortOrder = ref('DESC') // 排序方向
 const locations = ref([])
 const categories = ref([])
 const tableData = ref([])
+const {
+  previousItem: previousViewStock,
+  nextItem: nextViewStock,
+  hasPrevious: hasPreviousViewStock,
+  hasNext: hasNextViewStock,
+  setCurrentItem: setCurrentViewStock
+} = useListDetailNavigation(tableData, {
+  getItemKey: (item) => `${item?.materialId}:${item?.locationId}`
+})
 const loading = ref(false)
 const tableRef = ref(null) // 表格引用
 const selectedRows = ref([]) // 选中的行
@@ -892,6 +903,7 @@ const handleViewDetail = async (row) => {
   purchaseHistory.value = [] // 清空采购历史
   salesHistory.value = [] // 清空销售历史
   activeTab.value = 'batch' // 默认显示批次库存标签页
+  setCurrentViewStock(row)
 
   detailDialogVisible.value = true
   detailLoading.value = true
@@ -922,6 +934,22 @@ const handleViewDetail = async (row) => {
     detailLoading.value = false
   }
 }
+
+const handleViewPrevious = () => {
+  if (previousViewStock.value) handleViewDetail(previousViewStock.value)
+}
+
+const handleViewNext = () => {
+  if (nextViewStock.value) handleViewDetail(nextViewStock.value)
+}
+
+const stockViewNavigation = computed(() => ({
+  hasPrevious: hasPreviousViewStock.value,
+  hasNext: hasNextViewStock.value,
+  loading: detailLoading.value,
+  previous: handleViewPrevious,
+  next: handleViewNext
+}))
 
 // 加载采购历史
 const loadPurchaseHistory = async (materialId) => {

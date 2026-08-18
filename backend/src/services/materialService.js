@@ -33,7 +33,7 @@ const materialService = {
           m.category_id, m.product_category_id, m.unit_id,
           m.material_source_id, m.inspection_method_id,
           m.supplier_id, m.location_id, m.production_group_id, m.manager_id,
-          m.min_stock, m.max_stock, m.material_type, m.deleted_at,
+          m.min_stock, m.max_stock, m.material_type, m.material, m.drawing_no, m.color_code, m.deleted_at,
           m.created_at, m.updated_at,
           c.name as category_name,
           pc.name as product_category_name,
@@ -178,7 +178,11 @@ const materialService = {
     try {
       const sql = `
         SELECT
-          m.*,
+          m.id, m.code, m.name, m.specs, m.drawing_no, m.color_code, m.material, m.material_type,
+          m.category_id, m.product_category_id, m.unit_id, m.material_source_id, m.inspection_method_id,
+          m.supplier_id, m.location_id, m.production_group_id, m.manager_id, m.location_detail,
+          m.price, m.cost_price, m.safety_stock, m.min_stock, m.max_stock, m.tax_rate,
+          m.status, m.remark, m.created_at, m.updated_at,
           c.name as category_name,
           pc.name as product_category_name,
           u.name as unit_name,
@@ -242,7 +246,7 @@ const materialService = {
   async updateMaterial(id, data) {
     try {
       // 检查物料是否存在
-      const [existing] = await pool.query('SELECT id, product_category_id, code, name, category_id, material_source_id, inspection_method_id, supplier_id, production_group_id, manager_id, location_detail, safety_stock, unit_id, location_id, specs, drawing_no, color_code, material_type, price, cost_price, min_stock, max_stock, status, remark, created_at, updated_at, location_name, tax_rate, deleted_at FROM materials WHERE id = ? AND deleted_at IS NULL', [id]);
+      const [existing] = await pool.query('SELECT id, product_category_id, code, name, category_id, material_source_id, inspection_method_id, supplier_id, production_group_id, manager_id, location_detail, safety_stock, unit_id, location_id, specs, drawing_no, color_code, material, material_type, price, cost_price, min_stock, max_stock, status, remark, created_at, updated_at, location_name, tax_rate, deleted_at FROM materials WHERE id = ? AND deleted_at IS NULL', [id]);
       if (!existing || existing.length === 0) {
         throw new Error('物料不存在');
       }
@@ -318,7 +322,11 @@ const materialService = {
 
     const sql = `
       SELECT
-        m.*,
+        m.id, m.code, m.name, m.specs, m.drawing_no, m.color_code, m.material, m.material_type,
+        m.category_id, m.product_category_id, m.unit_id, m.material_source_id, m.inspection_method_id,
+        m.supplier_id, m.location_id, m.production_group_id, m.manager_id, m.location_detail,
+        m.price, m.cost_price, m.safety_stock, m.min_stock, m.max_stock, m.tax_rate,
+        m.status, m.remark, m.created_at, m.updated_at,
         c.name as category_name,
         pc.name as product_category_name,
         u.name as unit_name,

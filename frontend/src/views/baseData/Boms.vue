@@ -119,6 +119,7 @@
     <BomViewDialog
       v-model="viewDialogVisible"
       :bomData="currentViewBom"
+      :detail-navigation="bomViewNavigation"
     />
 
     <!-- BOM版本对比弹窗 -->
@@ -240,6 +241,7 @@ import { useAuthStore } from '@/stores/auth';
 import { materialApi, bomApi } from '@/api';
 import { parsePaginatedData, parseListData, parseDataObject, parseResponseData } from '@/utils/responseParser';
 import { normalizeBomOption, searchBomOptions } from '@/utils/optionLoaders';
+import { useListDetailNavigation } from '@/composables/useListDetailNavigation';
 // 引入新组件
 import BomTable from './components/BomTable.vue';
 import BomStatCards from './components/BomStatCards.vue';
@@ -267,6 +269,14 @@ const viewDialogVisible = ref(false);
 const dialogTitle = ref('新增BOM');
 const currentEditBom = ref(null);
 const currentViewBom = ref(null);
+const viewLoading = ref(false);
+const {
+  previousItem: previousViewBom,
+  nextItem: nextViewBom,
+  hasPrevious: hasPreviousViewBom,
+  hasNext: hasNextViewBom,
+  setCurrentItem: setCurrentViewBom
+} = useListDetailNavigation(tableData);
 const compareDialogVisible = ref(false);
 // 定位弹窗状态
 const locateDialogVisible = ref(false);
@@ -408,7 +418,10 @@ const handleUpgrade = async (row) => {
   }
 };
 
-const handleView = async (row) => {
+const loadViewBom = async (row) => {
+  if (!row || viewLoading.value) return false;
+
+  viewLoading.value = true;
   try {
     let detail = await bomApi.getBom(row.id);
     detail = parseDataObject(detail);
@@ -432,11 +445,35 @@ const handleView = async (row) => {
     }
 
     currentViewBom.value = detail;
-    viewDialogVisible.value = true;
+    setCurrentViewBom(row);
+    return true;
   } catch {
     ElMessage.error('获取详情失败');
+    return false;
+  } finally {
+    viewLoading.value = false;
   }
 };
+
+const handleView = async (row) => {
+  if (await loadViewBom(row)) viewDialogVisible.value = true;
+};
+
+const handleViewPrevious = () => {
+  if (previousViewBom.value) loadViewBom(previousViewBom.value);
+};
+
+const handleViewNext = () => {
+  if (nextViewBom.value) loadViewBom(nextViewBom.value);
+};
+
+const bomViewNavigation = computed(() => ({
+  hasPrevious: hasPreviousViewBom.value,
+  hasNext: hasNextViewBom.value,
+  loading: viewLoading.value,
+  previous: handleViewPrevious,
+  next: handleViewNext
+}));
 
 const handleDelete = async (row) => {
   try {

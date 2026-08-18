@@ -12,7 +12,12 @@
       </template>
       <el-table-column prop="code" label="物料编码" width="120" show-overflow-tooltip></el-table-column>
       <el-table-column prop="name" label="物料名称" width="200" show-overflow-tooltip></el-table-column>
-      <el-table-column prop="specs" label="规格型号" width="260" show-overflow-tooltip></el-table-column>
+      <el-table-column prop="specs" label="规格型号" width="200" show-overflow-tooltip></el-table-column>
+      <el-table-column prop="material" label="材料" width="120" show-overflow-tooltip>
+        <template #default="{ row }">
+          {{ row.material || '—' }}
+        </template>
+      </el-table-column>
       <el-table-column label="物料类型" width="90" show-overflow-tooltip>
         <template #default="{ row }">{{ getMaterialTypeLabel(row.materialType || row.material_type) }}</template>
       </el-table-column>

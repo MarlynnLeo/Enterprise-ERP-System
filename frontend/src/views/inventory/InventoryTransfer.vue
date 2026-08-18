@@ -365,6 +365,7 @@
       title="调拨单详情"
       mode="view"
       content-width="wide"
+      :detail-navigation="transferViewNavigation"
     >
       <div v-loading="detailLoading" id="print-section">
         <el-descriptions :column="3" border>
@@ -401,7 +402,8 @@
 
 <script setup>
 import { handleTableRowView } from '@/utils/tableRowView'
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, onMounted, computed } from 'vue';
+import { useListDetailNavigation } from '@/composables/useListDetailNavigation';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, ArrowDown, Delete, Check, Select, Finished, Close, CopyDocument, Printer, Download, View, Edit } from '@element-plus/icons-vue';
 import { inventoryApi } from '@/api';
@@ -457,6 +459,13 @@ const pagination = reactive({
 // 其他状态变量
 const loading = ref(false);
 const transferList = ref([]);
+const {
+  previousItem: previousViewTransfer,
+  nextItem: nextViewTransfer,
+  hasPrevious: hasPreviousViewTransfer,
+  hasNext: hasNextViewTransfer,
+  setCurrentItem: setCurrentViewTransfer
+} = useListDetailNavigation(transferList);
 const materialOptions = ref([]); // 物料选项
 const locationOptions = ref([]); // 库位选项
 const dialogType = ref('create'); // 对话框类型：create-新建，edit-编辑
@@ -515,6 +524,8 @@ const viewTransfer = async (id) => {
     const response = await inventoryApi.getTransferDetail(id);
     // 拦截器已解包，response.data 就是业务数据
     transferDetail.value = response.data;
+    const row = transferList.value.find((item) => String(item.id) === String(id));
+    if (row) setCurrentViewTransfer(row);
   } catch (error) {
     console.error('获取调拨单详情失败:', error);
     ElMessage.error('获取调拨单详情失败');
@@ -522,6 +533,22 @@ const viewTransfer = async (id) => {
     detailLoading.value = false;
   }
 };
+
+const handleViewPrevious = () => {
+  if (previousViewTransfer.value) viewTransfer(previousViewTransfer.value.id);
+};
+
+const handleViewNext = () => {
+  if (nextViewTransfer.value) viewTransfer(nextViewTransfer.value.id);
+};
+
+const transferViewNavigation = computed(() => ({
+  hasPrevious: hasPreviousViewTransfer.value,
+  hasNext: hasNextViewTransfer.value,
+  loading: detailLoading.value,
+  previous: handleViewPrevious,
+  next: handleViewNext
+}));
 
 // 编辑调拨单
 const editTransfer = async (id) => {

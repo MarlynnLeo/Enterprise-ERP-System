@@ -192,8 +192,9 @@
       title="退货单详情"
       mode="view"
       content-width="wide"
+      :detail-navigation="salesReturnViewNavigation"
     >
-      <div v-if="currentReturn" v-loading="!currentReturn">
+      <div v-if="currentReturn" v-loading="detailsLoading">
         <el-descriptions :column="2" border>
           <el-descriptions-item label="退货单号">{{ currentReturn.returnNo || currentReturn.id }}</el-descriptions-item>
           <el-descriptions-item label="关联订单号">{{ currentReturn.orderNo || '-' }}</el-descriptions-item>
@@ -341,7 +342,7 @@ import { handleTableRowView } from '@/utils/tableRowView'
 import { formatDate, formatDateTime } from '@/utils/helpers/dateUtils'
 import { formatCurrency } from '@/utils/helpers/formatters'
 import dayjs from 'dayjs'
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { salesApi } from '@/api'
 import { Plus } from '@element-plus/icons-vue'
@@ -349,6 +350,7 @@ import printService from '@/services/printService'
 // 退货单详情相关
 const detailsVisible = ref(false)
 const currentReturn = ref(null)
+const detailsLoading = ref(false)
 
 // 获取退货单状态类型（使用统一的销售状态颜色）
 const getReturnStatusType = (status) => getSalesStatusColor(status)
@@ -368,6 +370,7 @@ const createForm = reactive({
 
 import { getSalesStatusText, getSalesStatusColor } from '@/constants/systemConstants'
 import { parseResponseData } from '@/utils/responseParser'
+import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
 const outboundDialog = reactive({
   visible: false,
   keyword: '',
@@ -379,6 +382,13 @@ const outboundDialog = reactive({
 
 const loading = ref(false)
 const returnRecords = ref([])
+const {
+  previousItem: previousViewReturn,
+  nextItem: nextViewReturn,
+  hasPrevious: hasPreviousViewReturn,
+  hasNext: hasNextViewReturn,
+  setCurrentItem: setCurrentViewReturn
+} = useListDetailNavigation(returnRecords)
 const currentPage = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
@@ -637,10 +647,14 @@ onMounted(() => {
 
 // 查看详情
 const handleView = async (row) => {
+  if (detailsLoading.value) return
+
+  detailsLoading.value = true
   try {
     // 如果行数据已包含明细，直接显示
     if (row.items && Array.isArray(row.items)) {
       currentReturn.value = row
+      setCurrentViewReturn(row)
       detailsVisible.value = true
       return
     }
@@ -648,12 +662,31 @@ const handleView = async (row) => {
     // 否则从后端获取详情
     const resp = await salesApi.getReturnDetails(row.id)
     currentReturn.value = resp.data || row
+    setCurrentViewReturn(row)
     detailsVisible.value = true
   } catch (error) {
     console.error('获取退货单详情失败:', error)
     ElMessage.error('获取退货单详情失败')
+  } finally {
+    detailsLoading.value = false
   }
 }
+
+const handleViewPrevious = () => {
+  if (previousViewReturn.value) handleView(previousViewReturn.value)
+}
+
+const handleViewNext = () => {
+  if (nextViewReturn.value) handleView(nextViewReturn.value)
+}
+
+const salesReturnViewNavigation = computed(() => ({
+  hasPrevious: hasPreviousViewReturn.value,
+  hasNext: hasNextViewReturn.value,
+  loading: detailsLoading.value,
+  previous: handleViewPrevious,
+  next: handleViewNext
+}))
 
 // 通用状态更新函数
 const updateReturnStatus = async (row, status, remarks = null) => {

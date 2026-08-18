@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * ProductionPlan.vue
  * @description 前端界面组件文件
@@ -43,6 +43,7 @@ const materialList = ref([])
 const searchForm = ref({
   keyword: '',  // 合并的搜索关键词（计划编号/合同编码/产品）
   status: '',
+  departmentId: '',
   dateRange: []  // 时间范围
 })
 // 添加响应式分页对象
@@ -160,6 +161,7 @@ const searchPlans = () => {
 const resetSearch = () => {
   searchForm.value.keyword = '';
   searchForm.value.status = '';
+  searchForm.value.departmentId = '';
   searchForm.value.dateRange = [];
   searchPlans();
 };
@@ -296,7 +298,8 @@ const fetchPlanList = async (force = false) => {
       page: pagination.currentPage,
       pageSize: pagination.pageSize,
       keyword: searchForm.value.keyword,
-      status: searchForm.value.status
+      status: searchForm.value.status,
+      departmentId: searchForm.value.departmentId || undefined
     }
     // 添加时间范围参数
     if (searchForm.value.dateRange && searchForm.value.dateRange.length === 2) {
@@ -1317,6 +1320,21 @@ const formatMaterialForDisplay = (material) => {
               :key="option.value"
               :label="option.label"
               :value="option.value"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="分配部门">
+          <el-select
+            v-model="searchForm.departmentId"
+            placeholder="分配部门"
+            clearable
+            filterable
+          >
+            <el-option
+              v-for="dept in departmentOptions"
+              :key="dept.id"
+              :label="dept.name"
+              :value="dept.id"
             />
           </el-select>
         </el-form-item>

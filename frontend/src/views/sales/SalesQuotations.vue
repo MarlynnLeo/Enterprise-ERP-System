@@ -392,6 +392,7 @@
       title="报价单详情"
       mode="view"
       content-width="wide"
+      :detail-navigation="quotationViewNavigation"
     >
       <div v-loading="viewDialogLoading">
       <el-descriptions :column="2" border>
@@ -427,10 +428,11 @@
 import { handleTableRowView } from '@/utils/tableRowView'
 import { formatLocalDate } from '@/utils/format';
 import { parseListData } from '@/utils/responseParser';
+import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
 import { formatDate, formatDateTime } from '@/utils/helpers/dateUtils'
 import { formatCurrency } from '@/utils/helpers/formatters'
 import dayjs from 'dayjs'
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { baseDataApi, salesApi } from '@/api'
 import { Plus, View, Edit, Delete, Check, Right } from '@element-plus/icons-vue'
@@ -447,6 +449,13 @@ import {
 const router = useRouter()
 const loading = ref(false)
 const quotations = ref([])
+const {
+  previousItem: previousViewQuotation,
+  nextItem: nextViewQuotation,
+  hasPrevious: hasPreviousViewQuotation,
+  hasNext: hasNextViewQuotation,
+  setCurrentItem: setCurrentViewQuotation
+} = useListDetailNavigation(quotations)
 const currentPage = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
@@ -915,6 +924,7 @@ const handleView = async (row) => {
         remarks: quotation.remarks || '',
         items: quotation.items || []
       }
+      setCurrentViewQuotation(row)
     }
   } catch (error) {
     console.error('获取报价单详情失败:', error)
@@ -923,6 +933,22 @@ const handleView = async (row) => {
     viewDialogLoading.value = false
   }
 }
+
+const handleViewPrevious = () => {
+  if (previousViewQuotation.value) handleView(previousViewQuotation.value)
+}
+
+const handleViewNext = () => {
+  if (nextViewQuotation.value) handleView(nextViewQuotation.value)
+}
+
+const quotationViewNavigation = computed(() => ({
+  hasPrevious: hasPreviousViewQuotation.value,
+  hasNext: hasNextViewQuotation.value,
+  loading: viewDialogLoading.value,
+  previous: handleViewPrevious,
+  next: handleViewNext
+}))
 // 编辑报价单
 const handleEdit = async (row) => {
   dialogType.value = 'edit'

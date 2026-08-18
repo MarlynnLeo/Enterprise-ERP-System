@@ -2,8 +2,9 @@
   <AppDialog
     title="查看物料详情"
     mode="view"
+    width="700px"
     :model-value="modelValue"
-    content-width="default"
+    :detail-navigation="detailNavigation"
     @update:model-value="val => emit('update:modelValue', val)"
   >
     <div v-if="viewData" class="material-view-content">
@@ -44,8 +45,8 @@
         <el-descriptions-item label="色号">
           {{ viewData.colorCode || '无' }}
         </el-descriptions-item>
-        <el-descriptions-item label="材质">
-          {{ isMaterialComposition(viewData.materialType || viewData.material_type) ? (viewData.materialType || viewData.material_type) : '无' }}
+        <el-descriptions-item label="材料">
+          {{ viewData.material || '无' }}
         </el-descriptions-item>
         <el-descriptions-item label="单位">
           {{ viewData.unitName }}
@@ -114,18 +115,14 @@
 import { formatCurrency, formatDate } from '@/utils/format'
 import { formatMaskedPrice } from '@/utils/priceVisibility'
 import { Document } from '@element-plus/icons-vue'
-import { getMaterialTypeLabel, MATERIAL_TYPE_OPTIONS, normalizeMaterialType } from '@/utils/materialTypes'
-
-const isMaterialComposition = (value) => {
-  const normalized = normalizeMaterialType(value)
-  return !!normalized && !MATERIAL_TYPE_OPTIONS.some((item) => item.value === normalized)
-}
+import { getMaterialTypeLabel } from '@/utils/materialTypes'
 
 defineProps({
   modelValue: Boolean,
   viewData: Object,
   canViewCost: { type: Boolean, default: false },
-  canViewPrice: { type: Boolean, default: false }
+  canViewPrice: { type: Boolean, default: false },
+  detailNavigation: { type: Object, default: null }
 })
 const emit = defineEmits(['update:modelValue'])
 
@@ -138,16 +135,23 @@ const formatTaxRate = (value) => {
 </script>
 
 <style scoped>
-.custom-descriptions :deep(table) {
-  table-layout: auto;
-  width: auto;
-  min-width: 560px;
+.material-view-content {
+  width: 100%;
+}
+
+.custom-descriptions {
+  width: 100%;
+}
+
+.custom-descriptions :deep(.el-descriptions__table) {
+  table-layout: fixed;
+  width: 100%;
 }
 
 .custom-descriptions :deep(.el-descriptions__label) {
   white-space: nowrap;
-  width: 112px;
-  min-width: 96px;
+  width: 104px;
+  min-width: 85px;
   color: var(--color-text-secondary);
 }
 
@@ -174,8 +178,8 @@ const formatTaxRate = (value) => {
 
 @media (max-width: 768px) {
   .custom-descriptions :deep(.el-descriptions__label) {
-    width: 92px;
-    min-width: 80px;
+    width: 80px;
+    min-width: 70px;
   }
 }
 </style>

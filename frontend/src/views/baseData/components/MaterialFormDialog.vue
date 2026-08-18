@@ -128,14 +128,19 @@
         </el-col>
       </el-row>
 
-      <!-- 规格型号、供应商 -->
+      <!-- 规格型号、材料、供应商 -->
       <el-row :gutter="16">
-        <el-col :span="12">
+        <el-col :span="8">
           <el-form-item label="规格型号">
             <el-input v-model="form.specs" placeholder="请输入规格型号"></el-input>
           </el-form-item>
         </el-col>
-        <el-col :span="12">
+        <el-col :span="8">
+          <el-form-item label="材料" prop="material">
+            <el-input v-model="form.material" placeholder="请输入材料/材质" clearable></el-input>
+          </el-form-item>
+        </el-col>
+        <el-col :span="8">
           <el-form-item label="供应商" prop="supplierId">
             <el-select
               v-model="form.supplierId"
@@ -368,6 +373,7 @@ const isCopyMode = computed(() => !!props.editData && !props.editData.id)
 const COPYABLE_FIELDS = [
   'name',
   'materialType',
+  'material',
   'specs',
   'drawingNo',
   'colorCode',
@@ -437,6 +443,7 @@ const createEmptyForm = () => ({
   supplierId: null,
   productionGroupId: null,
   materialType: '',
+  material: '',
   specs: '',
   drawingNo: '',
   colorCode: '',

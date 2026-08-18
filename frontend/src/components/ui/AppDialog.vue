@@ -55,8 +55,28 @@
       <slot />
     </div>
 
-    <template v-if="$slots.footer" #footer>
-      <slot name="footer" />
+    <template v-if="$slots.footer || detailNavigation" #footer>
+      <div class="app-dialog__footer">
+        <div v-if="detailNavigation" class="app-dialog__navigation">
+          <el-button
+            :disabled="detailNavigation.loading || !detailNavigation.hasPrevious"
+            @click="detailNavigation.previous"
+          >
+            上一条
+          </el-button>
+          <el-button
+            :disabled="detailNavigation.loading || !detailNavigation.hasNext"
+            @click="detailNavigation.next"
+          >
+            下一条
+          </el-button>
+        </div>
+        <div class="app-dialog__footer-actions">
+          <slot name="footer">
+            <el-button @click="onUpdateVisible(false)">关闭</el-button>
+          </slot>
+        </div>
+      </div>
     </template>
   </el-dialog>
 </template>
@@ -95,7 +115,9 @@ const props = defineProps({
   /** 明细类弹窗：850px，表单与下方表格同宽 */
   wide: { type: Boolean, default: false },
   customClass: { type: [String, Array, Object], default: '' },
-  beforeClose: { type: Function, default: undefined }
+  beforeClose: { type: Function, default: undefined },
+  /** 当前页列表详情导航，传入后在页脚统一展示上一条/下一条 */
+  detailNavigation: { type: Object, default: null }
 })
 
 const emit = defineEmits([
@@ -202,6 +224,21 @@ const onUpdateVisible = (val) => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.app-dialog__footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 24px;
+}
+
+.app-dialog__navigation,
+.app-dialog__footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .app-dialog__header-actions {

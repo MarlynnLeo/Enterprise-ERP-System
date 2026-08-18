@@ -431,6 +431,7 @@
       title="入库单详情"
       mode="view"
       content-width="wide"
+      :detail-navigation="inboundViewNavigation"
     >
       <div v-loading="viewLoading">
       <el-descriptions :column="2" border>
@@ -634,6 +635,7 @@ import { tokenManager } from '@/utils/unifiedStorage'
 import { getInboundOutboundStatusText, getInboundOutboundStatusColor } from '@/constants/systemConstants'
 import { searchMaterials } from '@/utils/searchConfig'
 import { parseListData, parsePaginatedData, parseResponseData } from '@/utils/responseParser'
+import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
 import { loadLocationOptions } from '@/utils/optionLoaders'
 import printService from '@/services/printService'
 const route = useRoute()
@@ -654,6 +656,13 @@ const searchForm = reactive({
 })
 // 表格数据
 const tableData = ref([])
+const {
+  previousItem: previousViewInbound,
+  nextItem: nextViewInbound,
+  hasPrevious: hasPreviousViewInbound,
+  hasNext: hasNextViewInbound,
+  setCurrentItem: setCurrentViewInbound
+} = useListDetailNavigation(tableData)
 const loading = ref(false)
 // 添加响应式分页对象
 const pagination = reactive({
@@ -920,6 +929,8 @@ const handleView = async (id) => {
     // 后端使用 ResponseHandler.success 返回，统一由 parser 解包
     const inboundData = parseResponseData(res)
     Object.assign(currentInbound, inboundData)
+    const row = tableData.value.find((item) => String(item.id) === String(id))
+    if (row) setCurrentViewInbound(row)
   } catch (error) {
     console.error('获取入库单详情失败:', error)
     ElMessage.error('获取入库单详情失败')
@@ -927,6 +938,22 @@ const handleView = async (id) => {
     viewLoading.value = false
   }
 }
+
+const handleViewPrevious = () => {
+  if (previousViewInbound.value) handleView(previousViewInbound.value.id)
+}
+
+const handleViewNext = () => {
+  if (nextViewInbound.value) handleView(nextViewInbound.value.id)
+}
+
+const inboundViewNavigation = computed(() => ({
+  hasPrevious: hasPreviousViewInbound.value,
+  hasNext: hasNextViewInbound.value,
+  loading: viewLoading.value,
+  previous: handleViewPrevious,
+  next: handleViewNext
+}))
 // 更新入库单状态
 const handleUpdateStatus = async (id, newStatus) => {
   try {

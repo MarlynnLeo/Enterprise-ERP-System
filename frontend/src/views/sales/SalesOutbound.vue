@@ -240,6 +240,7 @@
       title="出库单详情"
       mode="view"
       content-width="wide"
+      :detail-navigation="salesOutboundViewNavigation"
     >
       <div v-loading="detailsLoading" class="min-h-form">
       <div v-if="currentOutbound" class="outbound-detail-content">
@@ -593,6 +594,7 @@ import { ref, computed, onMounted, onActivated } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { salesApi, inventoryApi } from '@/api'
 import { usePaginatedFetching, useFormSubmit } from '@/composables/useDataFetching'
+import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
 import printService from '@/services/printService'
 import { Search, Refresh, Plus } from '@element-plus/icons-vue'
 import FinanceStreamStatus from '@/views/finance/components/FinanceStreamStatus.vue'
@@ -742,6 +744,13 @@ const {
     immediate: true
   }
 );
+const {
+  previousItem: previousViewOutbound,
+  nextItem: nextViewOutbound,
+  hasPrevious: hasPreviousViewOutbound,
+  hasNext: hasNextViewOutbound,
+  setCurrentItem: setCurrentViewOutbound
+} = useListDetailNavigation(outbounds)
 // 搜索方法
 const handleSearch = () => {
   outboundPagination.page = 1
@@ -828,6 +837,7 @@ const showDetails = async (row) => {
     if (!currentOutbound.value.items) {
       currentOutbound.value.items = []
     }
+    setCurrentViewOutbound(row)
   } catch {
     ElMessage.error('获取出库单详情失败')
     detailsVisible.value = false
@@ -835,6 +845,22 @@ const showDetails = async (row) => {
     detailsLoading.value = false
   }
 }
+
+const handleViewPrevious = () => {
+  if (previousViewOutbound.value) showDetails(previousViewOutbound.value)
+}
+
+const handleViewNext = () => {
+  if (nextViewOutbound.value) showDetails(nextViewOutbound.value)
+}
+
+const salesOutboundViewNavigation = computed(() => ({
+  hasPrevious: hasPreviousViewOutbound.value,
+  hasNext: hasNextViewOutbound.value,
+  loading: detailsLoading.value,
+  previous: handleViewPrevious,
+  next: handleViewNext
+}))
 // 显示创建对话框
 const showCreateDialog = () => {
   // 检查是否有可发货状态的订单

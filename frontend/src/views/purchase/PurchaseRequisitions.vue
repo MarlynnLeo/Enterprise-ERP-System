@@ -341,6 +341,7 @@
       title="采购申请详情"
       mode="view"
       width="850px"
+      :detail-navigation="requisitionViewNavigation"
     >
       <div v-loading="viewDialog.loading" class="requisition-view">
         <el-descriptions border :column="2" class="requisition-view-desc">
@@ -461,6 +462,7 @@ import { Plus, Select, Promotion, Close } from '@element-plus/icons-vue';
 import { useAuthStore } from '@/stores/auth';
 import { searchMaterials } from '@/utils/searchConfig';
 import { parseDataObject, parsePaginatedData } from '@/utils/responseParser';
+import { useListDetailNavigation } from '@/composables/useListDetailNavigation';
 import { loadUserListOptions } from '@/utils/optionLoaders';
 import { formatDate } from '@/utils/helpers/dateUtils'
 import printService from '@/services/printService'
@@ -486,6 +488,13 @@ const pagination = reactive({
 // 申请单列表
 
 const requisitions = ref([]);
+const {
+  previousItem: previousViewRequisition,
+  nextItem: nextViewRequisition,
+  hasPrevious: hasPreviousViewRequisition,
+  hasNext: hasNextViewRequisition,
+  setCurrentItem: setCurrentViewRequisition
+} = useListDetailNavigation(requisitions);
 const loading = ref(false);
 const operators = ref([]);  // 操作人列表
 // 批量操作相关
@@ -983,6 +992,7 @@ const viewRequisition = async (row) => {
 
     const detail = parseDataObject(response, { enableLog: false }) || {};
     Object.assign(viewData, detail);
+    setCurrentViewRequisition(row);
 
   } catch (error) {
     console.error('获取采购申请详情失败:', error);
@@ -992,6 +1002,22 @@ const viewRequisition = async (row) => {
     viewDialog.loading = false;
   }
 };
+
+const handleViewPrevious = () => {
+  if (previousViewRequisition.value) viewRequisition(previousViewRequisition.value);
+};
+
+const handleViewNext = () => {
+  if (nextViewRequisition.value) viewRequisition(nextViewRequisition.value);
+};
+
+const requisitionViewNavigation = computed(() => ({
+  hasPrevious: hasPreviousViewRequisition.value,
+  hasNext: hasNextViewRequisition.value,
+  loading: viewDialog.loading,
+  previous: handleViewPrevious,
+  next: handleViewNext
+}));
 // 批量操作相关计算属性
 
 const canBatchSubmit = computed(() => {

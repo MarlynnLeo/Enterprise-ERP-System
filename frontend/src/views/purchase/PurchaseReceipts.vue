@@ -152,6 +152,7 @@
       title="收货单详情"
       mode="view"
       width="850px"
+      :detail-navigation="receiptViewNavigation"
     >
       <div v-loading="detailLoading" class="receipt-view">
         <el-descriptions border :column="2" class="purchase-view-desc">
@@ -454,7 +455,8 @@ import { handleTableRowView } from '@/utils/tableRowView'
 import { formatLocalDate } from '@/utils/format';
 import { parsePaginatedData, parseResponseData } from '@/utils/responseParser';
 import { loadLocationOptions } from '@/utils/optionLoaders';
-import { ref, reactive, onMounted, nextTick, watch } from 'vue';
+import { ref, reactive, onMounted, nextTick, watch, computed } from 'vue';
+import { useListDetailNavigation } from '@/composables/useListDetailNavigation';
 
 import { purchaseApi, qualityApi, baseDataApi } from '@/api';
 
@@ -500,6 +502,13 @@ const receiptRules = {
 };
 // 收货单数据
 const receipts = ref([]);
+const {
+  previousItem: previousViewReceipt,
+  nextItem: nextViewReceipt,
+  hasPrevious: hasPreviousViewReceipt,
+  hasNext: hasNextViewReceipt,
+  setCurrentItem: setCurrentViewReceipt
+} = useListDetailNavigation(receipts);
 const loading = ref(false);
 const submitLoading = ref(false);
 const updateStatusLoading = ref(false);
@@ -949,6 +958,7 @@ async function viewReceipt(receipt) {
     }
 
     viewDialog.receipt = data;
+    setCurrentViewReceipt(receipt);
     viewDialog.show = true;
   } catch (error) {
     console.error('获取收货单详情失败:', error);
@@ -957,6 +967,22 @@ async function viewReceipt(receipt) {
     detailLoading.value = false;
   }
 }
+
+const handleViewPrevious = () => {
+  if (previousViewReceipt.value) viewReceipt(previousViewReceipt.value);
+};
+
+const handleViewNext = () => {
+  if (nextViewReceipt.value) viewReceipt(nextViewReceipt.value);
+};
+
+const receiptViewNavigation = computed(() => ({
+  hasPrevious: hasPreviousViewReceipt.value,
+  hasNext: hasNextViewReceipt.value,
+  loading: detailLoading.value,
+  previous: handleViewPrevious,
+  next: handleViewNext
+}));
 // 方法：确保检验单在列表中可见
 const ensureInspectionInList = async (inspectionId, inspectionNo) => {
   if (!inspectionId) return;

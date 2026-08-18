@@ -349,6 +349,7 @@
       v-model="viewDialogVisible"
       mode="view"
       content-width="wide"
+      :detail-navigation="checkViewNavigation"
     >
       <div v-loading="detailLoading">
         <el-descriptions :column="3" border>
@@ -428,7 +429,8 @@
 <script setup>
 import { handleTableRowView } from '@/utils/tableRowView'
 import { parsePaginatedData, parseListData } from '@/utils/responseParser';
-import { ref, reactive, onMounted } from 'vue';
+import { useListDetailNavigation } from '@/composables/useListDetailNavigation';
+import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, ArrowDown, Delete, RefreshRight, View, Edit } from '@element-plus/icons-vue';
 import { inventoryApi } from '@/api';
@@ -470,6 +472,13 @@ const pagination = reactive({
 // 其他状态变量
 const loading = ref(false);
 const checkList = ref([]);
+const {
+  previousItem: previousViewCheck,
+  nextItem: nextViewCheck,
+  hasPrevious: hasPreviousViewCheck,
+  hasNext: hasNextViewCheck,
+  setCurrentItem: setCurrentViewCheck
+} = useListDetailNavigation(checkList);
 const materialOptions = ref([]); // 物料选项
 const warehouseOptions = ref([]); // 仓库/库位选项
 const dialogType = ref('create'); // 对话框类型：create-新建，edit-编辑
@@ -569,6 +578,8 @@ const viewCheck = async (id) => {
       const response = await inventoryApi.getCheckDetail(id);
       if (response && response.data) {
         checkDetail.value = response.data;
+        const row = checkList.value.find((item) => String(item.id) === String(id));
+        if (row) setCurrentViewCheck(row);
         viewDialogVisible.value = true;
         return;
       }
@@ -583,6 +594,22 @@ const viewCheck = async (id) => {
     detailLoading.value = false;
   }
 };
+
+const handleViewPrevious = () => {
+  if (previousViewCheck.value) viewCheck(previousViewCheck.value.id);
+};
+
+const handleViewNext = () => {
+  if (nextViewCheck.value) viewCheck(nextViewCheck.value.id);
+};
+
+const checkViewNavigation = computed(() => ({
+  hasPrevious: hasPreviousViewCheck.value,
+  hasNext: hasNextViewCheck.value,
+  loading: detailLoading.value,
+  previous: handleViewPrevious,
+  next: handleViewNext
+}));
 // 编辑盘点单
 const editCheck = async (id) => {
   dialogType.value = 'edit';

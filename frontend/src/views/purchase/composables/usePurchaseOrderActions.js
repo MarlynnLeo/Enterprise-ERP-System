@@ -17,6 +17,7 @@ import {
 import { formatDate } from '@/utils/helpers/dateUtils'
 import { formatCurrency } from '@/utils/format'
 import { parseResponseData } from '@/utils/responseParser'
+import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
 
 /** 采购订单是否已设置有效供应商（用于提交审批前校验） */
 export function hasPurchaseOrderSupplier(order) {
@@ -44,6 +45,13 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
   // 详情对话框
   const detailLoading = ref(false)
   const viewDialogVisible = ref(false)
+  const {
+    previousItem: previousViewOrder,
+    nextItem: nextViewOrder,
+    hasPrevious: hasPreviousViewOrder,
+    hasNext: hasNextViewOrder,
+    setCurrentItem: setCurrentViewOrder
+  } = useListDetailNavigation(orderList)
   const viewData = reactive({
     id: null, order_number: '', order_date: '', expected_delivery_date: '',
     supplier_id: '', supplier_name: '', contact_person: '', contact_phone: '',
@@ -158,10 +166,28 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
           requisition_id: data.requisitionId || null,
           requisition_number: data.requisitionNumber || '', items
         })
+        const row = orderList.value.find((item) => String(item.id) === String(id))
+        if (row) setCurrentViewOrder(row)
       } else { ElMessage.warning('获取不到订单详情') }
     } catch (error) { console.error('获取采购订单详情失败:', error); ElMessage.error('获取采购订单详情失败: ' + (error.message || '未知错误')) }
     finally { detailLoading.value = false }
   }
+
+  const handleViewPrevious = () => {
+    if (previousViewOrder.value) viewOrder(previousViewOrder.value.id)
+  }
+
+  const handleViewNext = () => {
+    if (nextViewOrder.value) viewOrder(nextViewOrder.value.id)
+  }
+
+  const purchaseOrderViewNavigation = computed(() => ({
+    hasPrevious: hasPreviousViewOrder.value,
+    hasNext: hasNextViewOrder.value,
+    loading: detailLoading.value,
+    previous: handleViewPrevious,
+    next: handleViewNext
+  }))
 
   const viewRequisition = async (requisitionId) => {
     try {
@@ -354,7 +380,7 @@ export function usePurchaseOrderActions(loadOrdersCallback, orderList) {
   }
 
   return {
-    detailLoading, viewDialogVisible, viewData,
+    detailLoading, viewDialogVisible, viewData, purchaseOrderViewNavigation,
     receiveDialogVisible, receiveDialogLoading, receiveForm, receiveTableRef, totalReceiveQuantity,
     requisitionViewDialog, requisitionViewData,
     orderTableRef, selectedOrders, batchLoading, canBatchSubmit,

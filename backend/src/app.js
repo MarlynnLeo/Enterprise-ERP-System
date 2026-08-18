@@ -172,6 +172,25 @@ app.use(cors(corsOptions));
 
 // 4. Body解析器（使用 Express 内置方法，替代已弃用的 body-parser）
 app.use(express.json({ limit: '10mb' }));
+// Older cached clients sent the JSON primitive `null` when refreshing a
+// cookie-backed session. Express rejects primitives in strict JSON mode before
+// the refresh route can read its HttpOnly cookie. Keep this compatibility path
+// narrowly scoped; every other malformed body remains a client error.
+app.use((err, req, _res, next) => {
+  const isLegacyNullRefresh =
+    err?.type === 'entity.parse.failed' &&
+    req.method === 'POST' &&
+    req.path === '/api/auth/refresh' &&
+    String(err.body || '').trim() === 'null';
+
+  if (isLegacyNullRefresh) {
+    req.body = {};
+    logger.info('Accepted legacy empty refresh body', { traceId: req.traceId });
+    return next();
+  }
+
+  return next(err);
+});
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // 5. 速率限制 - 使用统一配置

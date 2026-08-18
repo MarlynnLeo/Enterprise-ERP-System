@@ -152,6 +152,7 @@
       :title="dialogTitle"
       :mode="dialogReadonly ? 'view' : 'form'"
       width="500px"
+      :detail-navigation="dialogReadonly ? unitViewNavigation : null"
     >
       <el-descriptions v-if="dialogReadonly" :column="2" border>
         <el-descriptions-item label="单位名称">{{ form.name || '-' }}</el-descriptions-item>
@@ -193,6 +194,7 @@
 <script setup>
 import { handleTableRowView } from '@/utils/tableRowView'
 import { parsePaginatedData, parseResponseData } from '@/utils/responseParser';
+import { useListDetailNavigation } from '@/composables/useListDetailNavigation';
 import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage } from 'element-plus'
 import { baseDataApi } from '@/api/baseData';
@@ -226,6 +228,13 @@ const tableData = ref([]);
 const total = ref(0);
 const currentPage = ref(1);
 const pageSize = ref(10);
+const {
+  previousItem: previousViewUnit,
+  nextItem: nextViewUnit,
+  hasPrevious: hasPreviousViewUnit,
+  hasNext: hasNextViewUnit,
+  setCurrentItem: setCurrentViewUnit
+} = useListDetailNavigation(tableData);
 
 // 统计数据
 const stats = reactive({
@@ -388,8 +397,25 @@ const handleView = (row) => {
   dialogReadonly.value = true;
   resetForm();
   Object.assign(form, row);
+  setCurrentViewUnit(row);
   dialogVisible.value = true;
 };
+
+const handleViewPrevious = () => {
+  if (previousViewUnit.value) handleView(previousViewUnit.value);
+};
+
+const handleViewNext = () => {
+  if (nextViewUnit.value) handleView(nextViewUnit.value);
+};
+
+const unitViewNavigation = computed(() => ({
+  hasPrevious: hasPreviousViewUnit.value,
+  hasNext: hasNextViewUnit.value,
+  loading: false,
+  previous: handleViewPrevious,
+  next: handleViewNext
+}));
 
 // 编辑单位
 const handleEdit = (row) => {

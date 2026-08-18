@@ -181,6 +181,7 @@
       :title="dialogType === 'create' ? '新增工序模板' : (dialogType === 'view' ? '查看工序模板' : '编辑工序模板')"
       width="800px"
       content-width="wide"
+      :detail-navigation="dialogType === 'view' ? processTemplateViewNavigation : null"
     >
       <template v-if="dialogType === 'view'">
         <el-descriptions :column="2" border class="mb-20">
@@ -377,6 +378,7 @@ import { parseListData } from '@/utils/responseParser'
 import { loadDepartmentOptions } from '@/utils/optionLoaders'
 import { formatDateTime } from '@/utils/helpers/dateUtils'
 import { useAuthStore } from '@/stores/auth'
+import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
 // 权限store
 const authStore = useAuthStore()
 // 权限计算属性
@@ -401,6 +403,13 @@ const productList = ref([])
 const productOptions = ref([])
 // 工序模板列表
 const templateList = ref([])
+const {
+  previousItem: previousViewTemplate,
+  nextItem: nextViewTemplate,
+  hasPrevious: hasPreviousViewTemplate,
+  hasNext: hasNextViewTemplate,
+  setCurrentItem: setCurrentViewTemplate
+} = useListDetailNavigation(templateList)
 // 部门相关
 const departmentList = ref([])
 // 对话框控制
@@ -676,8 +685,25 @@ const handleView = (row) => {
         standardHours: process.standardHours ?? process.standard_hours ?? 1
       }))
     : []
+  setCurrentViewTemplate(row)
   dialogVisible.value = true
 }
+
+const handleViewPrevious = () => {
+  if (previousViewTemplate.value) handleView(previousViewTemplate.value)
+}
+
+const handleViewNext = () => {
+  if (nextViewTemplate.value) handleView(nextViewTemplate.value)
+}
+
+const processTemplateViewNavigation = computed(() => ({
+  hasPrevious: hasPreviousViewTemplate.value,
+  hasNext: hasNextViewTemplate.value,
+  loading: false,
+  previous: handleViewPrevious,
+  next: handleViewNext
+}))
 // 切换状态
 const handleToggleStatus = async (row) => {
   const newStatus = String(row.status) === '1' ? 0 : 1

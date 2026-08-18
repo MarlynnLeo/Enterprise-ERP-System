@@ -14,6 +14,10 @@ const {
 const { logger } = require('../utils/logger');
 const { ResponseHandler } = require('../utils/responseHandler');
 const { pool } = require('../config/db');
+const {
+  isTransientDatabaseError,
+  retryTransientDatabaseRead,
+} = require('../utils/databaseAvailability');
 
 // 生产环境强制关闭遗留 token（无 tokenVersion 一律拒绝）
 const allowLegacyAccessTokens =
@@ -40,12 +44,24 @@ async function loadVerifiedAccessUser(decoded) {
     throw createAuthError('认证令牌用户无效', 'INVALID_TOKEN', 401);
   }
 
-  const [users] = await pool.execute(
-    `SELECT id, username, real_name, status, token_version
-     FROM users
-     WHERE id = ?
-     LIMIT 1`,
-    [userId]
+  const [users] = await retryTransientDatabaseRead(
+    () =>
+      pool.execute(
+        `SELECT id, username, real_name, status, token_version
+         FROM users
+         WHERE id = ?
+         LIMIT 1`,
+        [userId]
+      ),
+    {
+      onRetry: (error, attempt, delayMs) => {
+        logger.warn('Authenticated user lookup will retry after a transient database error', {
+          attempt,
+          delayMs,
+          code: error.code,
+        });
+      },
+    }
   );
   const user = users[0];
 
@@ -108,6 +124,15 @@ const authenticateToken = async (req, res, next) => {
   } catch (error) {
     logger.warn('Token验证失败:', { error: error.message, path: req.path });
 
+    if (isTransientDatabaseError(error)) {
+      return ResponseHandler.error(
+        res,
+        '认证服务暂时不可用，请稍后重试',
+        'AUTH_SERVICE_UNAVAILABLE',
+        503
+      );
+    }
+
     if (['TOKEN_REVOKED', 'ACCOUNT_DISABLED', 'USER_NOT_FOUND'].includes(error.code)) {
       clearTokenCookies(req, res);
     }
@@ -168,9 +193,17 @@ const authenticateRefreshToken = async (req, res, next) => {
       return ResponseHandler.error(res, '刷新令牌用户无效', 'INVALID_REFRESH_TOKEN', 401);
     }
 
-    const [users] = await pool.execute(
-      'SELECT id, status, token_version FROM users WHERE id = ? LIMIT 1',
-      [userId]
+    const [users] = await retryTransientDatabaseRead(
+      () => pool.execute('SELECT id, status, token_version FROM users WHERE id = ? LIMIT 1', [userId]),
+      {
+        onRetry: (error, attempt, delayMs) => {
+          logger.warn('Refresh token verification will retry after a transient database error', {
+            attempt,
+            delayMs,
+            code: error.code,
+          });
+        },
+      }
     );
     const user = users[0];
 
@@ -204,6 +237,15 @@ const authenticateRefreshToken = async (req, res, next) => {
     req.refreshToken = token;
     next();
   } catch (error) {
+    if (isTransientDatabaseError(error)) {
+      return ResponseHandler.error(
+        res,
+        '认证服务暂时不可用，请稍后重试',
+        'AUTH_SERVICE_UNAVAILABLE',
+        503
+      );
+    }
+
     return ResponseHandler.error(
       res,
       error.message || '刷新令牌无效或已过期',

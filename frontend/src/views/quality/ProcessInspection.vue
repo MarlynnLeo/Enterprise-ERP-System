@@ -248,6 +248,7 @@
       title="检验单详情"
       mode="view"
       content-width="wide"
+      :detail-navigation="processInspectionViewNavigation"
     >
       <div v-loading="viewLoading" class="detail-container">
         <!-- 基本信息 -->
@@ -307,6 +308,7 @@ import { qualityApi } from '@/api/quality'
 import { productionApi } from '@/api/production'
 import printService from '@/services/printService'
 import { parseResponseData } from '@/utils/responseParser'
+import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
 import FinanceQueryCard from '@/components/common/FinanceQueryCard.vue'
 
 // 异步加载规则和打卡弹窗组件
@@ -328,6 +330,13 @@ const searchForm = computed(() => ({ keyword: searchKeyword.value, status: statu
 // 表格数据相关
 const loading = ref(false)
 const inspectionList = ref([])
+const {
+  previousItem: previousViewInspection,
+  nextItem: nextViewInspection,
+  hasPrevious: hasPreviousViewInspection,
+  hasNext: hasNextViewInspection,
+  setCurrentItem: setCurrentViewInspection
+} = useListDetailNavigation(inspectionList)
 
 // 分页对象
 const pagination = reactive({
@@ -627,6 +636,7 @@ const viewLoading = ref(false)
 // 查看详情
 const handleView = async (row) => {
   viewData.value = { ...row }
+  setCurrentViewInspection(row)
   viewDialogVisible.value = true
   viewLoading.value = true
 
@@ -644,6 +654,22 @@ const handleView = async (row) => {
     viewLoading.value = false
   }
 }
+
+const handleViewPrevious = () => {
+  if (previousViewInspection.value) handleView(previousViewInspection.value)
+}
+
+const handleViewNext = () => {
+  if (nextViewInspection.value) handleView(nextViewInspection.value)
+}
+
+const processInspectionViewNavigation = computed(() => ({
+  hasPrevious: hasPreviousViewInspection.value,
+  hasNext: hasNextViewInspection.value,
+  loading: viewLoading.value,
+  previous: handleViewPrevious,
+  next: handleViewNext
+}))
 
 // 打卡（10分钟内不允许重复打卡）
 const handlePunchIn = async (row) => {

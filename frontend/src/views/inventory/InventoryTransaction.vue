@@ -209,6 +209,7 @@
       title="流水详情"
       mode="view"
       content-width="wide"
+      :detail-navigation="transactionViewNavigation"
     >
       <el-descriptions :column="2" border v-if="currentTransaction">
         <el-descriptions-item label="流水编号">{{ currentTransaction.transactionNo || '-' }}</el-descriptions-item>
@@ -250,12 +251,22 @@ import { Download, TrendCharts, PieChart, Histogram, View } from '@element-plus/
 import { echarts } from '@/utils/echartsCore'
 import { getInventoryTransactionTypeText, getInventoryTransactionTypeColor } from '@/constants/systemConstants'
 import { getCssTokenValue } from '@/utils/designTokens'
+import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
 import { useDictionaryStore } from '@/stores/dictionary'
 import dayjs from 'dayjs'
 const dictionaryStore = useDictionaryStore()
 // 页面数据
 const loading = ref(false)
 const transactionList = ref([])
+const {
+  previousItem: previousViewTransaction,
+  nextItem: nextViewTransaction,
+  hasPrevious: hasPreviousViewTransaction,
+  hasNext: hasNextViewTransaction,
+  setCurrentItem: setCurrentViewTransaction
+} = useListDetailNavigation(transactionList, {
+  getItemKey: (item) => item?.id ?? item?.transactionId ?? item?.transactionNo
+})
 const activeTab = ref('list')
 const transactionTypeOptions = computed(() =>
   dictionaryStore.getOptions('inventory_transaction')
@@ -846,6 +857,7 @@ const showTransactionDetail = (row) => {
   // 使用服务器提供的变动前后数量数据
   if (row.beforeQuantity !== undefined && row.afterQuantity !== undefined) {
     currentTransaction.value = row
+    setCurrentViewTransaction(row)
     detailDialogVisible.value = true
     return
   }
@@ -868,8 +880,25 @@ const showTransactionDetail = (row) => {
   }
 
   currentTransaction.value = row
+  setCurrentViewTransaction(row)
   detailDialogVisible.value = true
 }
+
+const handleViewPrevious = () => {
+  if (previousViewTransaction.value) showTransactionDetail(previousViewTransaction.value)
+}
+
+const handleViewNext = () => {
+  if (nextViewTransaction.value) showTransactionDetail(nextViewTransaction.value)
+}
+
+const transactionViewNavigation = computed(() => ({
+  hasPrevious: hasPreviousViewTransaction.value,
+  hasNext: hasNextViewTransaction.value,
+  loading: false,
+  previous: handleViewPrevious,
+  next: handleViewNext
+}))
 // 格式化数字
 // formatNumber 已统一引用公共实现
 // 格式化货币

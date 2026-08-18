@@ -210,6 +210,7 @@
       :editData="currentEditData"
       :title="dialogTitle"
       :readonly="dialogReadonly"
+      :detail-navigation="dialogReadonly ? supplierViewNavigation : null"
       @success="fetchData"
     />
 
@@ -266,6 +267,7 @@
 <script setup>
 import { handleTableRowView } from '@/utils/tableRowView'
 import { parsePaginatedData } from '@/utils/responseParser'
+import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
 import SupplierFormDialog from './components/SupplierFormDialog.vue';
 import SupplierMetalPriceDialog from './components/SupplierMetalPriceDialog.vue';
 
@@ -295,6 +297,13 @@ const tableData = ref([]);
 const total = ref(0);
 const currentPage = ref(1);
 const pageSize = ref(10);
+const {
+  previousItem: previousViewSupplier,
+  nextItem: nextViewSupplier,
+  hasPrevious: hasPreviousViewSupplier,
+  hasNext: hasNextViewSupplier,
+  setCurrentItem: setCurrentViewSupplier
+} = useListDetailNavigation(tableData);
 
 // 统计数据
 const stats = reactive({
@@ -441,8 +450,25 @@ const handleView = (row) => {
   dialogTitle.value = '查看供应商';
   currentEditData.value = { ...row };
   dialogReadonly.value = true;
+  setCurrentViewSupplier(row);
   dialogVisible.value = true;
 };
+
+const handleViewPrevious = () => {
+  if (previousViewSupplier.value) handleView(previousViewSupplier.value);
+};
+
+const handleViewNext = () => {
+  if (nextViewSupplier.value) handleView(nextViewSupplier.value);
+};
+
+const supplierViewNavigation = computed(() => ({
+  hasPrevious: hasPreviousViewSupplier.value,
+  hasNext: hasNextViewSupplier.value,
+  loading: false,
+  previous: handleViewPrevious,
+  next: handleViewNext
+}));
 
 // 编辑供应商
 const handleEdit = (row) => {

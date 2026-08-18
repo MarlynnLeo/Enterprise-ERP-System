@@ -97,14 +97,19 @@ const bomService = {
       let whereClause = 'bm.deleted_at IS NULL';
       const params = [];
 
+      const productId = filters.product_id ?? filters.productId;
+      const includeHistory = filters.include_history ?? filters.includeHistory;
+      const shouldIncludeHistory =
+        includeHistory === true || includeHistory === 'true' || includeHistory === 1 || includeHistory === '1';
+
       // 默认不显示历史版本（status=2），除非明确请求
-      if (!filters.includeHistory) {
+      if (!shouldIncludeHistory) {
         whereClause += ' AND bm.status != 2';
       }
 
-      if (filters.productId) {
+      if (productId) {
         whereClause += ' AND bm.product_id = ?';
-        params.push(filters.productId);
+        params.push(productId);
       }
       if (filters.version) {
         whereClause += ' AND bm.version LIKE ?';

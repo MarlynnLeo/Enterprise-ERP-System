@@ -244,6 +244,7 @@
       title="付款记录详情"
       mode="view"
       content-width="wide"
+      :detail-navigation="paymentViewNavigation"
     >
       <el-descriptions :column="2" border>
         <el-descriptions-item label="付款编号">{{ detailData.paymentNumber }}</el-descriptions-item>
@@ -329,7 +330,8 @@ import { NumberFormatter } from '@/utils/commonHelpers'
 import { formatCurrency, formatLocalDate } from '@/utils/format'
 import PrintDialog from '@/components/common/PrintDialog.vue';
 import { parsePaginatedData, parseListData } from '@/utils/responseParser';
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, onMounted, computed } from 'vue';
+import { useListDetailNavigation } from '@/composables/useListDetailNavigation';
 import { ElMessage } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
 import { financeApi } from '@/api/finance';
@@ -352,6 +354,13 @@ const dialogTitle = ref('例外付款录入');
 const paymentFormRef = ref(null);
 // 数据列表
 const paymentList = ref([]);
+const {
+  previousItem: previousViewPayment,
+  nextItem: nextViewPayment,
+  hasPrevious: hasPreviousViewPayment,
+  hasNext: hasNextViewPayment,
+  setCurrentItem: setCurrentViewPayment
+} = useListDetailNavigation(paymentList);
 const invoiceOptions = ref([]);
 const bankAccountOptions = ref([]);
 // 搜索表单
@@ -365,6 +374,7 @@ const searchForm = reactive({
 // 详情对话框
 const detailDialogVisible = ref(false);
 const detailData = ref({});
+const detailLoading = ref(false);
 // 作废对话框
 const voidDialogVisible = ref(false);
 const voidLoading = ref(false);
@@ -555,15 +565,37 @@ const getStatusText = (status) => {
 };
 // 查看详情
 const handleViewDetail = async (row) => {
+  if (detailLoading.value) return;
+
+  detailLoading.value = true;
   try {
     const response = await financeApi.getPayment(row.id);
     detailData.value = response.data;
+    setCurrentViewPayment(row);
     detailDialogVisible.value = true;
   } catch (error) {
     console.error('获取付款记录详情失败:', error);
     ElMessage.error('获取付款记录详情失败');
+  } finally {
+    detailLoading.value = false;
   }
 };
+
+const handleViewPrevious = () => {
+  if (previousViewPayment.value) handleViewDetail(previousViewPayment.value);
+};
+
+const handleViewNext = () => {
+  if (nextViewPayment.value) handleViewDetail(nextViewPayment.value);
+};
+
+const paymentViewNavigation = computed(() => ({
+  hasPrevious: hasPreviousViewPayment.value,
+  hasNext: hasNextViewPayment.value,
+  loading: detailLoading.value,
+  previous: handleViewPrevious,
+  next: handleViewNext
+}));
 // 作废付款记录
 const handleVoid = (row) => {
   // 重置作废表单

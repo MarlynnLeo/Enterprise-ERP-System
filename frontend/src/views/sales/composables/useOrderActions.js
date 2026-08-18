@@ -4,11 +4,12 @@ import { formatLocalDate } from '@/utils/format'
  * @description 销售订单操作逻辑的组合式函数（从 SalesOrders.vue 抽取）
  * 包含：确认、取消、发货、锁定、解锁、查看详情
  */
-import { ref, unref } from 'vue'
+import { computed, ref, unref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { salesApi } from '@/api'
 import { checkInventory } from '@/composables/useInventoryCheck'
 import { clearAllRequestCaches } from '@/utils/requestOptimizer'
+import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
 
 export function useOrderActions(fetchDataCallback, tableData) {
   // 详情对话框控制
@@ -22,6 +23,13 @@ export function useOrderActions(fetchDataCallback, tableData) {
     const data = unref(tableData)
     return Array.isArray(data) ? data : []
   }
+  const {
+    previousItem: previousViewOrder,
+    nextItem: nextViewOrder,
+    hasPrevious: hasPreviousViewOrder,
+    hasNext: hasNextViewOrder,
+    setCurrentItem: setCurrentViewOrder
+  } = useListDetailNavigation(tableData)
 
   const patchRow = (id, patch) => {
     const rows = getRows()
@@ -290,6 +298,7 @@ export function useOrderActions(fetchDataCallback, tableData) {
         })
       }
       currentOrder.value = orderData
+      setCurrentViewOrder(row)
     } catch (error) {
       console.error('获取订单详情失败:', error)
       ElMessage.error('获取订单详情失败: ' + (error.message || '未知错误'))
@@ -297,6 +306,22 @@ export function useOrderActions(fetchDataCallback, tableData) {
       detailsLoading.value = false
     }
   }
+
+  const handleViewPrevious = () => {
+    if (previousViewOrder.value) handleView(previousViewOrder.value)
+  }
+
+  const handleViewNext = () => {
+    if (nextViewOrder.value) handleView(nextViewOrder.value)
+  }
+
+  const orderViewNavigation = computed(() => ({
+    hasPrevious: hasPreviousViewOrder.value,
+    hasNext: hasNextViewOrder.value,
+    loading: detailsLoading.value,
+    previous: handleViewPrevious,
+    next: handleViewNext
+  }))
 
   // 状态判断函数
   const canConfirm = (row) => ['draft', 'pending'].includes(row.status)
@@ -324,6 +349,7 @@ export function useOrderActions(fetchDataCallback, tableData) {
     detailsLoading,
     currentOrder,
     actionLoadingId,
+    orderViewNavigation,
     handleConfirm,
     handleCancel,
     handleShip,

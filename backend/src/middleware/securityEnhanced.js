@@ -89,6 +89,8 @@ const sqlInjectionDetection = (req, res, next) => {
       'model',
       'drawing_no',
       'color_code',
+      'material',
+      'material_type',
     ];
     if (specFieldsSkip.some((field) => fieldPath.endsWith(field))) {
       return 'skip';
@@ -233,32 +235,54 @@ const fileUploadSecurity = (req, res, next) => {
         'image/png',
         'image/gif',
         'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         'application/vnd.ms-excel',
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'text/plain',
+        'text/csv',
       ];
 
       if (!allowedMimeTypes.includes(file.mimetype)) {
-        logger.security('Security event: unauthorized file type upload attempt detected', {
+        logger.security('Security event: disallowed file type uploaded', {
           ip: req.ip,
           filename: file.originalname,
           mimetype: file.mimetype,
-          userAgent: req.get('User-Agent'),
         });
 
-        return ResponseHandler.error(res, '不支持的文件类型', 'UNSUPPORTED_FILE_TYPE', 400);
+        return ResponseHandler.error(res, 'File type not allowed', 'INVALID_FILE_TYPE', 400);
       }
 
-      // 检查文件大小（10MB 限制）
-      if (file.size > 10 * 1024 * 1024) {
-        return ResponseHandler.error(res, '文件大小超过限制', 'FILE_TOO_LARGE', 400);
+      // 检查文件扩展名
+      const ext = file.originalname.split('.').pop().toLowerCase();
+      const dangerousExtensions = [
+        'exe',
+        'dll',
+        'bat',
+        'cmd',
+        'sh',
+        'php',
+        'jsp',
+        'asp',
+        'aspx',
+        'js',
+        'vbs',
+      ];
+
+      if (dangerousExtensions.includes(ext)) {
+        logger.security('Security event: dangerous file extension uploaded', {
+          ip: req.ip,
+          filename: file.originalname,
+          ext,
+        });
+
+        return ResponseHandler.error(res, 'Dangerous file type', 'DANGEROUS_FILE_TYPE', 400);
       }
     }
   }
 
   next();
 };
-
-// Helmet CSP 由 app.js 统一配置，此处不再重复定义
 
 module.exports = {
   sqlInjectionDetection,

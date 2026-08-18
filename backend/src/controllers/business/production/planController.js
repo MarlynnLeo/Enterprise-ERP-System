@@ -73,6 +73,9 @@ exports.getTodayMaxSequence = async (req, res) => {
   }
 };
 
+
+
+
 /**
  * 获取生产计划列表
  */
@@ -88,6 +91,7 @@ exports.getProductionPlans = async (req, res) => {
     const keyword = req.query.keyword || ''; // 合并搜索关键词（计划编号/合同编码/产品）
     const startDate = req.query.startDate || '';
     const endDate = req.query.endDate || '';
+    const departmentId = req.query.departmentId || req.query.department_id || '';
 
     const scopeClause = await ScopeGuard.applyListScope(req, 'production_plan', {
       tableAlias: 'pp',
@@ -144,6 +148,11 @@ exports.getProductionPlans = async (req, res) => {
     if (endDate) {
       conditions.push('pp.end_date <= ?');
       params.push(endDate);
+    }
+
+    if (departmentId) {
+      conditions.push('pp.department_id = ?');
+      params.push(departmentId);
     }
 
     if (status.length > 0) {

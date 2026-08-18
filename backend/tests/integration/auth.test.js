@@ -59,6 +59,18 @@ describe('认证模块 /api/auth', () => {
 
       expect([400, 401]).toContain(res.status);
     });
+
+    test('旧客户端以 JSON null 刷新会话时不会被误报为 500', async () => {
+      const res = await request(app)
+        .post('/api/auth/refresh')
+        .set('Content-Type', 'application/json')
+        .send('null');
+
+      // The legacy body is accepted as empty. With no refresh cookie, the
+      // authentication layer correctly returns 401 instead of a parser 500.
+      expect(res.status).toBe(401);
+      expect(res.body.errorCode).toBe('NO_REFRESH_TOKEN');
+    });
   });
 
   describe('需要认证的接口', () => {

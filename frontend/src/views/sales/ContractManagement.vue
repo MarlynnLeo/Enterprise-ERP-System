@@ -164,6 +164,7 @@
       title="合同详情"
       mode="view"
       content-width="wide"
+      :detail-navigation="contractViewNavigation"
     >
       <template v-if="detailData">
         <el-descriptions :column="2" border>
@@ -228,6 +229,7 @@ import { View, Edit, Delete } from '@element-plus/icons-vue'
 import { contractApi } from '@/api/contract'
 import BusinessApprovalDialog from '@/components/workflow/BusinessApprovalDialog.vue'
 import { useBusinessApproval } from '@/composables/useBusinessApproval'
+import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
 
 const loading = ref(false)
 const saving = ref(false)
@@ -238,10 +240,18 @@ const page = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
 const tableData = ref([])
+const {
+  previousItem: previousViewContract,
+  nextItem: nextViewContract,
+  hasPrevious: hasPreviousViewContract,
+  hasNext: hasNextViewContract,
+  setCurrentItem: setCurrentViewContract
+} = useListDetailNavigation(tableData)
 const formVisible = ref(false)
 const detailVisible = ref(false)
 const formData = ref({})
 const detailData = ref(null)
+const detailLoading = ref(false)
 
 const typeLabel = { purchase: '采购合同', sales: '销售合同', service: '服务合同', other: '其他' }
 const typeTagMap = { purchase: 'warning', sales: 'success', service: 'primary', other: 'info' }
@@ -319,12 +329,36 @@ const handleDelete = async (id) => {
 }
 
 const viewDetail = async (row) => {
+  if (detailLoading.value) return
+
+  detailLoading.value = true
   try {
     const res = await contractApi.getById(row.id)
     detailData.value = res.data || res
+    setCurrentViewContract(row)
     detailVisible.value = true
-  } catch { ElMessage.error('获取合同详情失败') }
+  } catch {
+    ElMessage.error('获取合同详情失败')
+  } finally {
+    detailLoading.value = false
+  }
 }
+
+const handleViewPrevious = () => {
+  if (previousViewContract.value) viewDetail(previousViewContract.value)
+}
+
+const handleViewNext = () => {
+  if (nextViewContract.value) viewDetail(nextViewContract.value)
+}
+
+const contractViewNavigation = computed(() => ({
+  hasPrevious: hasPreviousViewContract.value,
+  hasNext: hasNextViewContract.value,
+  loading: detailLoading.value,
+  previous: handleViewPrevious,
+  next: handleViewNext
+}))
 
 onMounted(fetchList)
 </script>
