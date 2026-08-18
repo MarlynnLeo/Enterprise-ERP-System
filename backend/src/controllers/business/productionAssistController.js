@@ -5,6 +5,22 @@ const MaterialReadinessService = require('../../services/business/MaterialReadin
 const AssemblyVerificationService = require('../../services/business/AssemblyVerificationService');
 const { ResponseHandler } = require('../../utils/responseHandler');
 const { logger } = require('../../utils/logger');
+const { pool } = require('../../config/db');
+const ScopeGuard = require('../../authorization/ScopeGuard');
+
+async function assertTaskWriteAccess(req, taskId) {
+  const normalized = Number(taskId);
+  if (!Number.isInteger(normalized) || normalized <= 0) {
+    const error = new Error('生产任务 ID 无效');
+    error.statusCode = 400;
+    throw error;
+  }
+  if (!(await ScopeGuard.assertAccess(pool, req, 'production_task', normalized))) {
+    const error = new Error('无权操作该生产任务');
+    error.statusCode = 403;
+    throw error;
+  }
+}
 
 module.exports = {
   // ===== 物料齐套 =====
@@ -33,11 +49,12 @@ module.exports = {
   // ===== 扫码防错 =====
   async scanVerify(req, res) {
     try {
+      await assertTaskWriteAccess(req, req.body?.taskId ?? req.body?.task_id);
       const result = await AssemblyVerificationService.verify(req.body, req.user?.id);
       ResponseHandler.success(res, result);
     } catch (error) {
       logger.error('扫码验证失败:', error);
-      ResponseHandler.error(res, error.message || '扫码验证失败');
+      ResponseHandler.error(res, error.message || '扫码验证失败', error.statusCode === 403 ? 'FORBIDDEN' : 'OPERATION_ERROR', error.statusCode || 500);
     }
   },
 

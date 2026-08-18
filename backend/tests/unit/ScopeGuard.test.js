@@ -56,6 +56,32 @@ describe('resourcePolicies', () => {
     expect(ar.deletedAtColumn).toBe(false);
   });
 
+  test('销售订单声明读取共享、创建人仅作审计', () => {
+    const salesOrder = getResourcePolicy('sales_order');
+    expect(salesOrder.sharedRead).toBe(true);
+    expect(salesOrder.ownerColumn).toBe('created_by');
+  });
+
+  test('销售采购单据和生产任务声明读取共享', () => {
+    for (const key of [
+      'sales_outbound',
+      'sales_return',
+      'sales_quotation',
+      'sales_exchange',
+      'purchase_order',
+      'purchase_requisition',
+      'purchase_receipt',
+      'purchase_return',
+      'production_task',
+    ]) {
+      expect(getResourcePolicy(key).sharedRead).toBe(true);
+    }
+  });
+
+  test('生产计划声明按业务部门字段授权', () => {
+    expect(getResourcePolicy('production_plan').departmentColumn).toBe('department_id');
+  });
+
   test('未知策略抛错', () => {
     expect(() => getResourcePolicy('not_exist')).toThrow(/Unknown resource policy/);
   });
@@ -137,5 +163,53 @@ describe('ScopeGuard', () => {
     });
     expect(clause.where).toContain('created_by');
     expect(clause.params).toEqual([9]);
+  });
+
+  test('销售订单读取不按创建人数据范围过滤', async () => {
+    const req = {
+      authzScope: {
+        type: DataScopeService.DATA_SCOPE.SELF,
+        userId: 9,
+        departmentIds: [],
+        locationIds: [],
+      },
+    };
+    const clause = await ScopeGuard.applyListScope(req, 'sales_order', {
+      tableAlias: 'so',
+      accessMode: 'read',
+    });
+    expect(clause).toEqual({ join: '', where: '', params: [] });
+  });
+
+  test('销售订单写操作仍按原数据范围校验', async () => {
+    const req = {
+      authzScope: {
+        type: DataScopeService.DATA_SCOPE.SELF,
+        userId: 9,
+        departmentIds: [],
+        locationIds: [],
+      },
+    };
+    const clause = await ScopeGuard.applyListScope(req, 'sales_order', {
+      tableAlias: 'so',
+    });
+    expect(clause.where).toContain('created_by');
+    expect(clause.params).toEqual([9]);
+  });
+
+  test('销售订单读取详情不触发创建人范围查询', async () => {
+    const req = {
+      authzScope: {
+        type: DataScopeService.DATA_SCOPE.SELF,
+        userId: 9,
+        departmentIds: [],
+        locationIds: [],
+      },
+    };
+    const conn = { execute: jest.fn() };
+    await expect(
+      ScopeGuard.assertAccess(conn, req, 'sales_order', 123, { accessMode: 'read' })
+    ).resolves.toBe(true);
+    expect(conn.execute).not.toHaveBeenCalled();
   });
 });

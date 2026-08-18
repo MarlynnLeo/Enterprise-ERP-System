@@ -913,16 +913,23 @@ const updateTransferStatus = async (req, res) => {
 
 const getTransferStatistics = async (req, res) => {
   try {
+    const ScopeGuard = require('../../../authorization/ScopeGuard');
+    const scopeClause = await ScopeGuard.applyListScope(req, 'inventory_transfer', {
+      tableAlias: 't',
+      ownerAlias: 'inventory_transfer_stats_owner_scope',
+    });
     const [results] = await db.pool.execute(`
       SELECT
         COUNT(*) as total,
-        SUM(CASE WHEN status = 'draft' THEN 1 ELSE 0 END) as draft,
-        SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pendingCount,
-        SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) as approvedCount,
-        SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completedCount,
-        SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) as cancelledCount
-      FROM inventory_transfers
-    `);
+        SUM(CASE WHEN t.status = 'draft' THEN 1 ELSE 0 END) as draft,
+        SUM(CASE WHEN t.status = 'pending' THEN 1 ELSE 0 END) as pendingCount,
+        SUM(CASE WHEN t.status = 'approved' THEN 1 ELSE 0 END) as approvedCount,
+        SUM(CASE WHEN t.status = 'completed' THEN 1 ELSE 0 END) as completedCount,
+        SUM(CASE WHEN t.status = 'cancelled' THEN 1 ELSE 0 END) as cancelledCount
+      FROM inventory_transfers t
+      ${scopeClause.join || ''}
+      WHERE t.deleted_at IS NULL${scopeClause.where || ''}
+    `, scopeClause.params || []);
 
     ResponseHandler.success(res, results[0], '获取调拨单统计信息成功');
   } catch (error) {
@@ -940,6 +947,12 @@ const exportTransfers = async (req, res) => {
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
       return ResponseHandler.error(res, '请选择要导出的调拨单', 'VALIDATION_ERROR', 400);
     }
+
+    const ScopeGuard = require('../../../authorization/ScopeGuard');
+    const scopeClause = await ScopeGuard.applyListScope(req, 'inventory_transfer', {
+      tableAlias: 't',
+      ownerAlias: 'inventory_transfer_export_owner_scope',
+    });
 
     const ExcelJS = require('exceljs');
     const workbook = new ExcelJS.Workbook();
@@ -974,10 +987,11 @@ const exportTransfers = async (req, res) => {
       FROM inventory_transfers t
       LEFT JOIN locations fl ON t.from_location_id = fl.id
       LEFT JOIN locations tl ON t.to_location_id = tl.id
-      WHERE t.id IN (${placeholders})
+      ${scopeClause.join || ''}
+      WHERE t.id IN (${placeholders}) AND t.deleted_at IS NULL${scopeClause.where || ''}
       ORDER BY t.created_at DESC
     `,
-      ids
+      [...ids, ...(scopeClause.params || [])]
     );
 
     // 添加数据到表格

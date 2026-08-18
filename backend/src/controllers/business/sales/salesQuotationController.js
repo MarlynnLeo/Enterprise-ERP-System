@@ -44,6 +44,7 @@ exports.getSalesQuotations = async (req, res) => {
     const scopeClause = await ScopeGuard.applyListScope(req, 'sales_quotation', {
       tableAlias: 'q',
       ownerAlias: 'sales_quotation_owner_scope',
+      accessMode: 'read',
     });
     const params = [];
     let whereClause = '';
@@ -202,7 +203,7 @@ exports.getSalesQuotation = async (req, res) => {
     const { id } = req.params;
     if (id !== null && id !== undefined && id !== '') {
       const ScopeGuard = require('../../../authorization/ScopeGuard');
-      if (!(await ScopeGuard.assertAccess(require('../../../config/db').pool, req, 'sales_quotation', id))) {
+      if (!(await ScopeGuard.assertAccess(require('../../../config/db').pool, req, 'sales_quotation', id, { accessMode: 'read' }))) {
         return ResponseHandler.forbidden(res, '无权访问该销售报价单');
       }
     }

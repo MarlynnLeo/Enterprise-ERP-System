@@ -23,6 +23,7 @@ const { getCurrentUserName } = require('../../../utils/userHelper');
 const { appendPaginationSQL, parsePagination } = require('../../../utils/safePagination');
 const PermissionService = require('../../../services/PermissionService');
 const { PermissionUtils } = require('../../../utils/authUtils');
+const ScopeGuard = require('../../../authorization/ScopeGuard');
 
 // 日期参数格式化工具函数（统一入口，避免 create / update 各写一遍）
 function formatDateParam(dateStr) {
@@ -88,6 +89,11 @@ exports.getProductionPlans = async (req, res) => {
     const startDate = req.query.startDate || '';
     const endDate = req.query.endDate || '';
 
+    const scopeClause = await ScopeGuard.applyListScope(req, 'production_plan', {
+      tableAlias: 'pp',
+      ownerAlias: 'production_plan_owner_scope',
+    });
+
     // 处理状态参数，确保它是一个非空数组或者为空数组
     let status = [];
     if (req.query.status) {
@@ -146,12 +152,15 @@ exports.getProductionPlans = async (req, res) => {
     }
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const scopedWhereClause = `${whereClause}${scopeClause.where || ''}`;
+    const scopedParams = [...params, ...(scopeClause.params || [])];
 
     // 查询总数
     const countQuery = `SELECT COUNT(*) as total FROM production_plans pp
       LEFT JOIN materials m ON pp.product_id = m.id
-      ${whereClause}`;
-    const [countResult] = await pool.query(countQuery, params);
+      ${scopeClause.join || ''}
+      ${scopedWhereClause}`;
+    const [countResult] = await pool.query(countQuery, scopedParams);
     const total = countResult[0].total;
 
     // 查询各状态的统计数据（基于搜索条件）
@@ -168,9 +177,10 @@ exports.getProductionPlans = async (req, res) => {
         SUM(CASE WHEN pp.status = '${PRODUCTION_STATUS_KEYS.CANCELLED}' THEN 1 ELSE 0 END) as cancelled
       FROM production_plans pp
       LEFT JOIN materials m ON pp.product_id = m.id
-      ${whereClause}
+      ${scopeClause.join || ''}
+      ${scopedWhereClause}
     `;
-    const [statsResult] = await pool.query(statsQuery, params);
+    const [statsResult] = await pool.query(statsQuery, scopedParams);
     const statistics = statsResult[0] || {
       total: 0,
       draft: 0,
@@ -237,12 +247,13 @@ exports.getProductionPlans = async (req, res) => {
         ) inv ON inv.material_id = ppm.material_id
         GROUP BY ppm.plan_id
       ) ms ON ms.plan_id = pp.id
-      ${whereClause}
+      ${scopeClause.join || ''}
+      ${scopedWhereClause}
       ORDER BY pp.code DESC
     `, pagination.limit, pagination.offset);
 
     // LIMIT/OFFSET 使用参数化查询
-    const [plans] = await pool.query(query, params);
+    const [plans] = await pool.query(query, scopedParams);
 
     // 处理数据格式
     const formattedPlans = plans.map((plan) => ({
@@ -287,6 +298,10 @@ exports.getPlanMaterials = async (req, res) => {
 
     if (planCheck.length === 0) {
       return ResponseHandler.error(res, '生产计划不存在', 'NOT_FOUND', 404);
+    }
+
+    if (!(await ScopeGuard.assertAccess(pool, req, 'production_plan', id))) {
+      return ResponseHandler.forbidden(res, '无权访问该生产计划');
     }
 
     const plan = planCheck[0];
@@ -623,6 +638,11 @@ exports.updateProductionPlan = async (req, res) => {
       return ResponseHandler.error(res, '生产计划不存在', 'NOT_FOUND', 404);
     }
 
+    if (!(await ScopeGuard.assertAccess(connection, req, 'production_plan', id))) {
+      await connection.rollback();
+      return ResponseHandler.forbidden(res, '无权修改该生产计划');
+    }
+
     // 如果只是更新pushed_quantity（下推数量追踪），允许任何状态
     if (pushed_quantity !== undefined && Object.keys(req.body).length === 1) {
       const currentQuantity = Number(plans[0].quantity) || 0;
@@ -708,6 +728,11 @@ exports.deleteProductionPlan = async (req, res) => {
       return ResponseHandler.error(res, '生产计划不存在', 'NOT_FOUND', 404);
     }
 
+    if (!(await ScopeGuard.assertAccess(connection, req, 'production_plan', id))) {
+      await connection.rollback();
+      return ResponseHandler.forbidden(res, '无权删除该生产计划');
+    }
+
     if (plans[0].status !== 'draft') {
       await connection.rollback();
       return ResponseHandler.error(res, '只能删除草稿状态的生产计划', 'VALIDATION_ERROR', 400);
@@ -763,6 +788,11 @@ exports.updateProductionPlanStatus = async (req, res) => {
     if (plans.length === 0) {
       await connection.rollback();
       return ResponseHandler.error(res, '生产计划不存在', 'NOT_FOUND', 404);
+    }
+
+    if (!(await ScopeGuard.assertAccess(connection, req, 'production_plan', id))) {
+      await connection.rollback();
+      return ResponseHandler.forbidden(res, '无权变更该生产计划状态');
     }
 
     const currentStatus = plans[0].status;
@@ -898,6 +928,11 @@ exports.getDashboardProductionPlans = async (req, res) => {
       PRODUCTION_STATUS_KEYS.PREPARING,
     ];
 
+    const scopeClause = await ScopeGuard.applyListScope(req, 'production_plan', {
+      tableAlias: 'pp',
+      ownerAlias: 'production_plan_dashboard_owner_scope',
+    });
+
     const baseQuery = `
       SELECT
         pp.id,
@@ -915,12 +950,13 @@ exports.getDashboardProductionPlans = async (req, res) => {
       FROM production_plans pp
       LEFT JOIN materials m ON pp.product_id = m.id
       LEFT JOIN units u ON m.unit_id = u.id
-      WHERE pp.deleted_at IS NULL AND pp.status IN (?)
+      ${scopeClause.join || ''}
+      WHERE pp.deleted_at IS NULL AND pp.status IN (?)${scopeClause.where || ''}
       ORDER BY pp.code DESC
     `;
     const query = appendPaginationSQL(baseQuery, safeLimit, 0);
 
-    const [plans] = await pool.query(query, [dashboardStatuses]);
+    const [plans] = await pool.query(query, [dashboardStatuses, ...(scopeClause.params || [])]);
     ResponseHandler.success(res, plans);
   } catch (error) {
     logger.error('获取仪表盘生产计划失败:', error);

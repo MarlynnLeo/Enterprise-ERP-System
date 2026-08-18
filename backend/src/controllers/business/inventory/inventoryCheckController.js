@@ -48,16 +48,23 @@ const SIMPLE_STOCK_SUBQUERY = STOCK_SUBQUERY;
 
 const getCheckStatistics = async (req, res) => {
   try {
+    const ScopeGuard = require('../../../authorization/ScopeGuard');
+    const scopeClause = await ScopeGuard.applyListScope(req, 'inventory_check', {
+      tableAlias: 'c',
+      ownerAlias: 'inventory_check_stats_owner_scope',
+    });
     const [results] = await db.pool.execute(`
       SELECT
         COUNT(*) as total,
-        SUM(CASE WHEN status = 'draft' THEN 1 ELSE 0 END) as draft,
-        SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pendingCount,
-        SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) as inProgressCount,
-        SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completedCount,
-        SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) as cancelledCount
-      FROM inventory_checks
-    `);
+        SUM(CASE WHEN c.status = 'draft' THEN 1 ELSE 0 END) as draft,
+        SUM(CASE WHEN c.status = 'pending' THEN 1 ELSE 0 END) as pendingCount,
+        SUM(CASE WHEN c.status = 'in_progress' THEN 1 ELSE 0 END) as inProgressCount,
+        SUM(CASE WHEN c.status = 'completed' THEN 1 ELSE 0 END) as completedCount,
+        SUM(CASE WHEN c.status = 'cancelled' THEN 1 ELSE 0 END) as cancelledCount
+      FROM inventory_checks c
+      ${scopeClause.join || ''}
+      WHERE c.deleted_at IS NULL${scopeClause.where || ''}
+    `, scopeClause.params || []);
 
     ResponseHandler.success(res, results[0], '获取库存盘点统计信息成功');
   } catch (error) {

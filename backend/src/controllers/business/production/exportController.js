@@ -9,6 +9,7 @@ const { logger } = require('../../../utils/logger');
 const { pool } = require('../../../config/db');
 const { handleError } = require('./shared/errorHandler');
 const ExcelJS = require('exceljs');
+const ScopeGuard = require('../../../authorization/ScopeGuard');
 
 /**
  * 导出生产数据
@@ -21,6 +22,7 @@ exports.exportProductionData = async (req, res) => {
     const params = [];
     let sheetName = '';
     let columns = [];
+    let scopeClause = { join: '', where: '', params: [] };
 
     if (type === 'plans') {
       sheetName = '生产计划';
@@ -40,7 +42,11 @@ exports.exportProductionData = async (req, res) => {
         { header: '创建时间', key: 'created_at', width: 20 },
       ];
 
-      const conditions = [];
+      scopeClause = await ScopeGuard.applyListScope(req, 'production_plan', {
+        tableAlias: 'pp',
+        ownerAlias: 'production_plan_owner_scope',
+      });
+      const conditions = ['pp.deleted_at IS NULL'];
       if (startDate) {
         conditions.push('pp.start_date >= ?');
         params.push(startDate);
@@ -54,7 +60,8 @@ exports.exportProductionData = async (req, res) => {
         params.push(status);
       }
 
-      const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+      const whereClause = `${conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''}${scopeClause.where || ''}`;
+      params.push(...(scopeClause.params || []));
 
       query = `
         SELECT
@@ -76,6 +83,7 @@ exports.exportProductionData = async (req, res) => {
         LEFT JOIN materials m ON pp.product_id = m.id
         LEFT JOIN units u ON m.unit_id = u.id
         LEFT JOIN production_tasks pt ON pp.id = pt.plan_id
+        ${scopeClause.join || ''}
         ${whereClause}
         GROUP BY pp.id, pp.code, pp.name, pp.start_date, pp.end_date,
                  pp.status, pp.created_at, pp.updated_at,
@@ -99,7 +107,12 @@ exports.exportProductionData = async (req, res) => {
         { header: '备注', key: 'remarks', width: 30 },
       ];
 
-      const conditions = [];
+      scopeClause = await ScopeGuard.applyListScope(req, 'production_task', {
+        tableAlias: 'pt',
+        ownerAlias: 'production_task_owner_scope',
+        accessMode: 'read',
+      });
+      const conditions = ['pt.deleted_at IS NULL'];
       if (startDate) {
         conditions.push('pt.start_date >= ?');
         params.push(startDate);
@@ -113,7 +126,8 @@ exports.exportProductionData = async (req, res) => {
         params.push(status);
       }
 
-      const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+      const whereClause = `${conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''}${scopeClause.where || ''}`;
+      params.push(...(scopeClause.params || []));
 
       query = `
         SELECT
@@ -132,6 +146,7 @@ exports.exportProductionData = async (req, res) => {
         FROM production_tasks pt
         LEFT JOIN production_plans pp ON pt.plan_id = pp.id
         LEFT JOIN materials m ON pt.product_id = m.id
+        ${scopeClause.join || ''}
         ${whereClause}
         ORDER BY pt.created_at DESC
       `;

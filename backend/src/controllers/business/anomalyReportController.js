@@ -5,6 +5,34 @@ const AnomalyReportService = require('../../services/business/AnomalyReportServi
 const { ResponseHandler } = require('../../utils/responseHandler');
 const { logger } = require('../../utils/logger');
 const { mapKeysToSnake } = require('../../utils/fieldMap');
+const { pool } = require('../../config/db');
+const ScopeGuard = require('../../authorization/ScopeGuard');
+const DataScopeService = require('../../services/DataScopeService');
+
+async function assertAnomalyWriteAccess(req, anomalyId) {
+  const [[row]] = await pool.query(
+    'SELECT task_id, reported_by FROM anomaly_reports WHERE id = ? AND deleted_at IS NULL',
+    [anomalyId]
+  );
+  if (!row) {
+    const error = new Error('异常报告不存在');
+    error.statusCode = 404;
+    throw error;
+  }
+  const scope = await DataScopeService.getRequestScope(req);
+  if (DataScopeService.isAllScope(scope)) return;
+  if (row.task_id) {
+    if (await ScopeGuard.assertAccess(pool, req, 'production_task', row.task_id)) return;
+  } else if (Number(scope.type) === DataScopeService.DATA_SCOPE.SELF && Number(row.reported_by) === Number(scope.userId)) {
+    return;
+  } else if (Array.isArray(scope.departmentIds) && scope.departmentIds.length) {
+    const [[reporter]] = await pool.query('SELECT department_id FROM users WHERE id = ?', [row.reported_by]);
+    if (reporter && scope.departmentIds.map(Number).includes(Number(reporter.department_id))) return;
+  }
+  const error = new Error('无权操作该异常报告');
+  error.statusCode = 403;
+  throw error;
+}
 
 module.exports = {
   async getList(req, res) {
@@ -30,52 +58,64 @@ module.exports = {
 
   async create(req, res) {
     try {
+      const taskId = req.body?.task_id ?? req.body?.taskId;
+      if (taskId) await (async () => {
+        if (!(await ScopeGuard.assertAccess(pool, req, 'production_task', taskId))) {
+          const error = new Error('无权为该生产任务上报异常');
+          error.statusCode = 403;
+          throw error;
+        }
+      })();
       const data = await AnomalyReportService.create(req.body, req.user?.id);
       ResponseHandler.success(res, data, '异常上报成功');
     } catch (error) {
       logger.error('异常上报失败:', error);
-      ResponseHandler.error(res, error.message || '异常上报失败');
+      ResponseHandler.error(res, error.message || '异常上报失败', error.statusCode === 403 ? 'FORBIDDEN' : 'OPERATION_ERROR', error.statusCode || 500);
     }
   },
 
   async assign(req, res) {
     try {
+      await assertAnomalyWriteAccess(req, req.params.id);
       const body = mapKeysToSnake(req.body || {});
       const data = await AnomalyReportService.assign(req.params.id, body.assigned_to);
       ResponseHandler.success(res, data, '指派成功');
     } catch (error) {
       logger.error('指派失败:', error);
-      ResponseHandler.error(res, '指派失败');
+      ResponseHandler.error(res, error.message || '指派失败', error.statusCode === 403 ? 'FORBIDDEN' : 'OPERATION_ERROR', error.statusCode || 500);
     }
   },
 
   async resolve(req, res) {
     try {
+      await assertAnomalyWriteAccess(req, req.params.id);
       const data = await AnomalyReportService.resolve(req.params.id, req.body, req.user?.id);
       ResponseHandler.success(res, data, '异常已解决');
     } catch (error) {
       logger.error('解决异常失败:', error);
-      ResponseHandler.error(res, '解决异常失败');
+      ResponseHandler.error(res, error.message || '解决异常失败', error.statusCode === 403 ? 'FORBIDDEN' : 'OPERATION_ERROR', error.statusCode || 500);
     }
   },
 
   async close(req, res) {
     try {
+      await assertAnomalyWriteAccess(req, req.params.id);
       const data = await AnomalyReportService.close(req.params.id);
       ResponseHandler.success(res, data, '异常已关闭');
     } catch (error) {
       logger.error('关闭异常失败:', error);
-      ResponseHandler.error(res, '关闭异常失败');
+      ResponseHandler.error(res, error.message || '关闭异常失败', error.statusCode === 403 ? 'FORBIDDEN' : 'OPERATION_ERROR', error.statusCode || 500);
     }
   },
 
   async delete(req, res) {
     try {
+      await assertAnomalyWriteAccess(req, req.params.id);
       await AnomalyReportService.delete(req.params.id);
       ResponseHandler.success(res, null, '删除成功');
     } catch (error) {
       logger.error('删除异常失败:', error);
-      ResponseHandler.error(res, '删除失败');
+      ResponseHandler.error(res, error.message || '删除失败', error.statusCode === 403 ? 'FORBIDDEN' : 'OPERATION_ERROR', error.statusCode || 500);
     }
   },
 

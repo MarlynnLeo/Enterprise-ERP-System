@@ -62,6 +62,11 @@ async function _getInspectionsByType(type, req, res, extraFilters = {}) {
 
 async function _getInspectionStatsByType(type, req, res) {
     try {
+        const ScopeGuard = require('../../../authorization/ScopeGuard');
+        const scopeClause = await ScopeGuard.applyListScope(req, 'quality_inspection', {
+            tableAlias: 'qi',
+            ownerAlias: 'quality_inspection_stats_owner_scope',
+        });
         const [rows] = await db.pool.query(
             `SELECT
                 COUNT(*) as total,
@@ -71,10 +76,11 @@ async function _getInspectionStatsByType(type, req, res) {
                 SUM(CASE WHEN status = 'partial' THEN 1 ELSE 0 END) as partial,
                 SUM(CASE WHEN status = 'review' THEN 1 ELSE 0 END) as review,
                 SUM(CASE WHEN status = 'rework' THEN 1 ELSE 0 END) as rework
-             FROM quality_inspections
-             WHERE inspection_type = ?
-               AND deleted_at IS NULL`,
-            [type]
+             FROM quality_inspections qi
+             ${scopeClause.join || ''}
+             WHERE qi.inspection_type = ?
+               AND qi.deleted_at IS NULL${scopeClause.where || ''}`,
+            [type, ...(scopeClause.params || [])]
         );
 
         const stats = rows[0] || {};
@@ -252,6 +258,12 @@ const inspectionController = {
             connection = await db.pool.getConnection();
             await connection.beginTransaction();
 
+            const ScopeGuard = require('../../../authorization/ScopeGuard');
+            if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'quality_inspection', id, '无权修改该检验单'))) {
+                await connection.rollback();
+                return;
+            }
+
             const [inspectionRows] = await connection.query(
                 'SELECT id, inspection_no, inspection_type, reference_id, reference_no, material_id, supplier_id, product_id, product_name, product_code, process_id, process_name, batch_no, quantity, qualified_quantity, unqualified_quantity, unit, unit_id, status, planned_date, actual_date, inspector_id, inspector_name, punch_time, standard_type, standard_no, template_id, note, created_at, updated_at, traceability_id, traceability_batch, chain_id, chain_step_id, is_first_article, first_article_qty, is_full_inspection, first_article_result, production_can_continue, task_id, is_aql, aql_standard_id, aql_level, accept_limit, reject_limit, deleted_at FROM quality_inspections WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
                 [parseInt(id)]
@@ -325,6 +337,11 @@ const inspectionController = {
         try {
             const { id } = req.params;
 
+            const ScopeGuard = require('../../../authorization/ScopeGuard');
+            if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'quality_inspection', id, '无权删除该检验单'))) {
+                return;
+            }
+
             const inspection = await QualityInspection.getInspectionById(parseInt(id));
             if (!inspection) {
                 return ResponseHandler.error(res, '检验单不存在', 'NOT_FOUND', 404);
@@ -390,6 +407,11 @@ const inspectionController = {
         try {
             const { id } = req.params;
 
+            const ScopeGuard = require('../../../authorization/ScopeGuard');
+            if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'quality_inspection', id, '无权访问该检验单'))) {
+                return;
+            }
+
             const connection = await db.pool.getConnection();
             try {
                 const [inspectionRows] = await connection.query(
@@ -430,6 +452,11 @@ const inspectionController = {
                 return ResponseHandler.error(res, '检验单ID和状态不能为空', 'VALIDATION_ERROR', 400);
             }
 
+            const ScopeGuard = require('../../../authorization/ScopeGuard');
+            if (!(await ScopeGuard.denyUnlessAccess(res, db.pool, req, 'quality_inspection', id, '无权变更该检验单状态'))) {
+                return;
+            }
+
             const InspectionService = require('../../../services/quality/inspectionService');
             const serviceResult = await InspectionService.updateInspectionStatusAndTrace(id, {
                 status, result, remarks, batch_number, qualified_quantity, unqualified_quantity
@@ -459,6 +486,11 @@ const inspectionController = {
     async getUnlinkedInspections(req, res) {
         try {
             const { materialId, productCode, batchNumber, page = 1, pageSize = 20 } = req.query;
+            const ScopeGuard = require('../../../authorization/ScopeGuard');
+            const scopeClause = await ScopeGuard.applyListScope(req, 'quality_inspection', {
+                tableAlias: 'qi',
+                ownerAlias: 'quality_inspection_unlinked_owner_scope',
+            });
 
             let whereClause = 'WHERE qi.deleted_at IS NULL AND qi.traceability_id IS NULL';
             const params = [];
@@ -478,6 +510,9 @@ const inspectionController = {
                 params.push(batchNumber);
             }
 
+            whereClause += scopeClause.where || '';
+            const scopedParams = [...params, ...(scopeClause.params || [])];
+
             const pagination = parsePagination(page, pageSize, {
                 defaultPageSize: 20,
                 maxPageSize: 100,
@@ -487,10 +522,11 @@ const inspectionController = {
         SELECT COUNT(*) as total
         FROM quality_inspections qi
         LEFT JOIN materials m ON qi.material_id = m.id
+        ${scopeClause.join || ''}
         ${whereClause}
       `;
 
-            const countResult = await db.query(countQuery, params);
+            const countResult = await db.query(countQuery, scopedParams);
             const total =
                 countResult.rows && countResult.rows.length > 0 ? parseInt(countResult.rows[0].total) : 0;
 
@@ -502,11 +538,12 @@ const inspectionController = {
           qi.actual_date, qi.status, qi.created_at, qi.updated_at
         FROM quality_inspections qi
         LEFT JOIN materials m ON qi.material_id = m.id
+        ${scopeClause.join || ''}
         ${whereClause}
         ORDER BY qi.actual_date DESC
       `, pagination.limit, pagination.offset);
 
-            const result = await db.query(query, params);
+            const result = await db.query(query, scopedParams);
             const inspections = result.rows || [];
 
             return ResponseHandler.success(res, {
@@ -535,6 +572,12 @@ const inspectionController = {
                 return ResponseHandler.error(res, '批次号不能为空', 'VALIDATION_ERROR', 400);
             }
 
+            const ScopeGuard = require('../../../authorization/ScopeGuard');
+            const scopeClause = await ScopeGuard.applyListScope(req, 'quality_inspection', {
+                tableAlias: 'qi',
+                ownerAlias: 'quality_inspection_batch_owner_scope',
+            });
+
             const pool = db.pool;
 
             const [inspections] = await pool.query(
@@ -550,11 +593,13 @@ const inspectionController = {
         FROM quality_inspections qi
         LEFT JOIN materials m ON qi.material_id = m.id
         LEFT JOIN suppliers s ON qi.supplier_id = s.id
+        ${scopeClause.join || ''}
         WHERE qi.batch_no = ?
           AND qi.deleted_at IS NULL
+          ${scopeClause.where || ''}
         ORDER BY qi.created_at DESC
       `,
-                [batchNo]
+                [batchNo, ...(scopeClause.params || [])]
             );
 
             if (inspections.length === 0) {

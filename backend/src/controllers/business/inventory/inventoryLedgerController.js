@@ -12,11 +12,33 @@ const { parsePagination } = require('../../../utils/safePagination');
 const db = require('../../../config/db');
 const InventoryService = require('../../../services/InventoryService');
 const BusinessTypeService = require('../../../services/BusinessTypeService');
+const DataScopeService = require('../../../services/DataScopeService');
 
 // 统一库存查询子查询（基于 inventory_ledger 单表架构聚合计算当前库存）
 const STOCK_SUBQUERY = `(SELECT material_id, location_id, COALESCE(SUM(quantity), 0) as quantity, MAX(created_at) as updated_at FROM inventory_ledger GROUP BY material_id, location_id)`;
 // DRY: 两处引用相同子查询，统一使用 STOCK_SUBQUERY
 const SIMPLE_STOCK_SUBQUERY = STOCK_SUBQUERY;
+
+/**
+ * 库存流水没有 created_by 维度，CUSTOM 数据范围只能按库位收敛。
+ * 所有流水列表、统计、导出必须复用该条件，避免列表/报表口径不一致。
+ */
+async function appendLedgerLocationScope(req, expression, requestedLocationId, conditions, params) {
+  const scope = await DataScopeService.getRequestScope(req);
+  if (Number(scope?.type) !== DataScopeService.DATA_SCOPE.CUSTOM) return;
+
+  const allowed = (scope.locationIds || []).map(Number).filter(Number.isInteger);
+  if (requestedLocationId) {
+    if (!allowed.includes(Number(requestedLocationId))) conditions.push('1 = 0');
+    return;
+  }
+  if (allowed.length === 0) {
+    conditions.push('1 = 0');
+    return;
+  }
+  conditions.push(`${expression} IN (${allowed.map(() => '?').join(',')})`);
+  params.push(...allowed);
+}
 
 const {
   getInventoryTransactionTypeText,
@@ -104,6 +126,22 @@ const _insertInventoryLedgerLocal = async (
 
 const _getStockStatistics = async (req, res) => {
   try {
+    const scope = await DataScopeService.getRequestScope(req);
+    const scopedLocationIds = Number(scope?.type) === DataScopeService.DATA_SCOPE.CUSTOM
+      ? (scope.locationIds || []).map(Number).filter((id) => Number.isInteger(id) && id > 0)
+      : null;
+    // 库存流水没有 owner，CUSTOM 范围只能按库位收敛；ID 已由 DataScopeService 解析为整数，直接嵌入白名单值是安全的。
+    const ledgerScope = scopedLocationIds
+      ? (scopedLocationIds.length ? ` AND il.location_id IN (${scopedLocationIds.join(',')})` : ' AND 1 = 0')
+      : '';
+    const ledgerScopeNoAlias = scopedLocationIds
+      ? (scopedLocationIds.length ? ` AND location_id IN (${scopedLocationIds.join(',')})` : ' AND 1 = 0')
+      : '';
+    const materialScope = scopedLocationIds
+      ? (scopedLocationIds.length
+        ? ` AND EXISTS (SELECT 1 FROM inventory_ledger il_scope WHERE il_scope.material_id = m.id AND il_scope.location_id IN (${scopedLocationIds.join(',')}))`
+        : ' AND 1 = 0')
+      : '';
     const connection = await db.pool.getConnection();
     try {
       // 并行执行四组查询：基础统计、金额总计、分类金额 Top5、仓库金额
@@ -111,8 +149,8 @@ const _getStockStatistics = async (req, res) => {
         // 1. 原有基础数量统计
         connection.execute(`
           SELECT
-            (SELECT COUNT(id) FROM materials) as total_items,
-            (SELECT COUNT(id) FROM locations) as total_locations,
+            (SELECT COUNT(id) FROM materials m WHERE 1 = 1${materialScope}) as total_items,
+            (SELECT COUNT(DISTINCT location_id) FROM inventory_ledger WHERE 1 = 1${ledgerScopeNoAlias}) as total_locations,
             SUM(CASE WHEN max_qty < safety_stock OR max_qty IS NULL THEN 1 ELSE 0 END) as low_stock,
             SUM(CASE WHEN max_qty IS NULL OR max_qty <= 0 THEN 1 ELSE 0 END) as out_of_stock
           FROM (
@@ -122,9 +160,10 @@ const _getStockStatistics = async (req, res) => {
               SELECT il.material_id, il.location_id, SUM(il.quantity) as quantity
               FROM inventory_ledger il
               JOIN materials mat ON il.material_id = mat.id
-              WHERE mat.location_id IS NULL OR il.location_id = mat.location_id
+              WHERE (mat.location_id IS NULL OR il.location_id = mat.location_id)${ledgerScope}
               GROUP BY il.material_id, il.location_id
             ) s ON m.id = s.material_id
+            WHERE 1 = 1${materialScope}
             GROUP BY m.id, m.safety_stock
           ) AS stock_summary
         `),
@@ -136,7 +175,7 @@ const _getStockStatistics = async (req, res) => {
             SELECT il.material_id, SUM(il.quantity) as quantity
             FROM inventory_ledger il
             JOIN materials mat ON il.material_id = mat.id
-            WHERE mat.location_id IS NULL OR il.location_id = mat.location_id
+            WHERE (mat.location_id IS NULL OR il.location_id = mat.location_id)${ledgerScope}
             GROUP BY il.material_id
             HAVING SUM(il.quantity) > 0
           ) current_stock
@@ -152,7 +191,7 @@ const _getStockStatistics = async (req, res) => {
             SELECT il.material_id, SUM(il.quantity) as quantity
             FROM inventory_ledger il
             JOIN materials mat ON il.material_id = mat.id
-            WHERE mat.location_id IS NULL OR il.location_id = mat.location_id
+            WHERE (mat.location_id IS NULL OR il.location_id = mat.location_id)${ledgerScope}
             GROUP BY il.material_id
             HAVING SUM(il.quantity) > 0
           ) current_stock
@@ -171,6 +210,7 @@ const _getStockStatistics = async (req, res) => {
           FROM (
             SELECT il.material_id, il.location_id, SUM(il.quantity) as quantity
             FROM inventory_ledger il
+            WHERE 1 = 1${ledgerScope}
             GROUP BY il.material_id, il.location_id
             HAVING SUM(il.quantity) > 0
           ) current_stock
@@ -309,6 +349,8 @@ const getTransactionList = async (req, res) => {
       conditions.push('inventory_ledger.location_id = ?');
       params.push(locationId);
     }
+
+    await appendLedgerLocationScope(req, 'inventory_ledger.location_id', locationId, conditions, params);
 
     const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
 
@@ -586,6 +628,8 @@ const getTransactionStats = async (req, res) => {
       conditions.push('t.location_id = ?');
       params.push(locationId);
     }
+
+    await appendLedgerLocationScope(req, 't.location_id', locationId, conditions, params);
 
     const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
 
@@ -1044,6 +1088,8 @@ const exportTransactionReport = async (req, res) => {
       conditions.push('inventory_ledger.location_id = ?');
       params.push(locationId);
     }
+
+    await appendLedgerLocationScope(req, 'inventory_ledger.location_id', locationId, conditions, params);
 
     const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
 
@@ -1929,6 +1975,14 @@ const getInventoryLedger = async (req, res) => {
       params.push(locationId);
     }
 
+    const ledgerScopeConditions = [];
+    const ledgerScopeParams = [];
+    await appendLedgerLocationScope(req, 't.location_id', locationId, ledgerScopeConditions, ledgerScopeParams);
+    if (ledgerScopeConditions.length) {
+      whereClause += ` AND ${ledgerScopeConditions.join(' AND ')}`;
+      params.push(...ledgerScopeParams);
+    }
+
     if (transactionType) {
       whereClause += ' AND t.transaction_type = ?';
       params.push(transactionType);
@@ -2083,6 +2137,14 @@ const getMaterialLedger = async (req, res) => {
       queryParams.push(endDate);
     }
 
+    const ledgerScopeConditions = [];
+    const ledgerScopeParams = [];
+    await appendLedgerLocationScope(req, 'l.location_id', '', ledgerScopeConditions, ledgerScopeParams);
+    if (ledgerScopeConditions.length) {
+      whereClause += ` AND ${ledgerScopeConditions.join(' AND ')}`;
+      queryParams.push(...ledgerScopeParams);
+    }
+
     // 获取物料库存台账记录
     const query = `
       SELECT
@@ -2167,6 +2229,14 @@ const getMovements = async (req, res) => {
     if (locationId) {
       whereClause += ' AND l.location_id = ?';
       queryParams.push(locationId);
+    }
+
+    const ledgerScopeConditions = [];
+    const ledgerScopeParams = [];
+    await appendLedgerLocationScope(req, 'l.location_id', locationId, ledgerScopeConditions, ledgerScopeParams);
+    if (ledgerScopeConditions.length) {
+      whereClause += ` AND ${ledgerScopeConditions.join(' AND ')}`;
+      queryParams.push(...ledgerScopeParams);
     }
 
     if (transactionType) {

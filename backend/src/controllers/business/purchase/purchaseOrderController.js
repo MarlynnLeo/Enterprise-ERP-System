@@ -40,8 +40,8 @@ const {
   toNumber,
 } = require('../../../utils/purchase/purchaseFieldMap');
 
-async function canAccessPurchaseOrder(connection, req, id) {
-  return ScopeGuard.assertAccess(connection, req, 'purchase_order', id);
+async function canAccessPurchaseOrder(connection, req, id, options = {}) {
+  return ScopeGuard.assertAccess(connection, req, 'purchase_order', id, options);
 }
 
 function forbiddenError(message) {
@@ -92,6 +92,7 @@ const getOrders = async (req, res) => {
     const scopeClause = await ScopeGuard.applyListScope(req, 'purchase_order', {
       tableAlias: 'o',
       ownerAlias: 'purchase_order_owner_scope',
+      accessMode: 'read',
     });
 
     let query = `
@@ -232,7 +233,7 @@ const getOrder = async (req, res) => {
       orderId = rows[0].id;
     }
 
-    if (!(await canAccessPurchaseOrder(pool, req, orderId))) {
+    if (!(await canAccessPurchaseOrder(pool, req, orderId, { accessMode: 'read' }))) {
       return ResponseHandler.forbidden(res, 'No permission to access this purchase order');
     }
 
@@ -995,16 +996,23 @@ const getRequisitions = async (req, res) => {
     const pagination = parsePagination(page, pageSize, { defaultPageSize: 10, maxPageSize: 100 });
 
     const defaultStatus = status || 'approved';
+    const scopeClause = await ScopeGuard.applyListScope(req, 'purchase_requisition', {
+      tableAlias: 'r',
+      ownerAlias: 'purchase_requisition_order_picker_scope',
+      accessMode: 'read',
+    });
 
     let query = `
       SELECT r.*, u.real_name as user_real_name, COUNT(*) OVER() as total_count
       FROM purchase_requisitions r
       LEFT JOIN users u ON r.requester = u.username
+      ${scopeClause.join || ''}
       WHERE r.status = ?
         AND r.deleted_at IS NULL
+        ${scopeClause.where || ''}
     `;
 
-    const queryParams = [defaultStatus];
+    const queryParams = [defaultStatus, ...(scopeClause.params || [])];
 
     if (requisitionNo) {
       query += ' AND r.requisition_number LIKE ?';
@@ -1103,6 +1111,10 @@ const getRequisition = async (req, res) => {
 
     if (rows.length === 0) {
       return ResponseHandler.notFound(res, 'purchase requisition not found');
+    }
+
+    if (!(await ScopeGuard.assertAccess(pool, req, 'purchase_requisition', id, { accessMode: 'read' }))) {
+      return ResponseHandler.forbidden(res, '无权访问该采购申请');
     }
 
     const requisition = rows[0];

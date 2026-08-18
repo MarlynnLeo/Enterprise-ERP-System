@@ -246,6 +246,10 @@ const exportOutbound = async (req, res) => {
 
     let whereClause = 'WHERE o.deleted_at IS NULL';
     const params = [];
+    const scopeClause = await ScopeGuard.applyListScope(req, 'inventory_outbound', {
+      tableAlias: 'o',
+      ownerAlias: 'outbound_export_owner_scope',
+    });
 
     if (search) {
       whereClause += ` AND o.id IN (
@@ -286,6 +290,9 @@ const exportOutbound = async (req, res) => {
       params.push(endDate);
     }
 
+    whereClause += scopeClause.where || '';
+    params.push(...(scopeClause.params || []));
+
     const [rows] = await db.pool.query(
       `
       SELECT
@@ -313,6 +320,7 @@ const exportOutbound = async (req, res) => {
       LEFT JOIN production_tasks pt ON pt.id = COALESCE(o.production_task_id, CASE WHEN o.reference_type = 'production_task' THEN o.reference_id ELSE NULL END)
       LEFT JOIN materials p ON pt.product_id = p.id
       LEFT JOIN departments pg ON p.production_group_id = pg.id AND pg.status = 1
+      ${scopeClause.join || ''}
       ${whereClause}
       GROUP BY o.id, o.outbound_no, o.outbound_date, o.status, o.outbound_type, o.reference_type,
                o.reference_id, o.operator, o.remark, o.created_at

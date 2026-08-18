@@ -181,7 +181,7 @@ class DataScopeService {
   /**
    * 构建列表 SQL 作用域
    * options:
-   *  - tableAlias, ownerColumn, ownerAlias
+   *  - tableAlias, ownerColumn, ownerAlias, departmentColumn
    *  - locationColumn + includeLocation：CUSTOM 时叠加库位过滤
    */
   static buildOwnerScopeClause(scope, options = {}) {
@@ -197,6 +197,7 @@ class DataScopeService {
     const tableAlias = options.tableAlias || 't';
     const ownerColumn = options.ownerColumn || 'created_by';
     const ownerAlias = options.ownerAlias || `${tableAlias}_owner_scope`;
+    const departmentColumn = options.departmentColumn || null;
     const locationColumn = options.locationColumn || null;
     const includeLocation = Boolean(options.includeLocation && locationColumn);
     const q = (identifier) => `\`${String(identifier).replace(/`/g, '``')}\``;
@@ -220,7 +221,12 @@ class DataScopeService {
       const params = [];
       let join = '';
 
-      if (scope.departmentIds.length > 0) {
+      if (departmentColumn && scope.departmentIds.length > 0) {
+        parts.push(
+          `${tableAlias}.${q(departmentColumn)} IN (${scope.departmentIds.map(() => '?').join(',')})`
+        );
+        params.push(...scope.departmentIds);
+      } else if (scope.departmentIds.length > 0) {
         join = ` LEFT JOIN users ${ownerAlias} ON ${ownerAlias}.id = ${ownerExpr}`;
         parts.push(
           `${ownerAlias}.department_id IN (${scope.departmentIds.map(() => '?').join(',')})`
@@ -248,6 +254,13 @@ class DataScopeService {
 
     // 部门 / 部门及下级
     if (scope.departmentIds.length > 0) {
+      if (departmentColumn) {
+        return {
+          join: '',
+          where: ` AND ${tableAlias}.${q(departmentColumn)} IN (${scope.departmentIds.map(() => '?').join(',')})`,
+          params: scope.departmentIds,
+        };
+      }
       return {
         join: ` LEFT JOIN users ${ownerAlias} ON ${ownerAlias}.id = ${ownerExpr}`,
         where: ` AND ${ownerAlias}.department_id IN (${scope.departmentIds.map(() => '?').join(',')})`,
@@ -283,6 +296,7 @@ class DataScopeService {
 
     const idColumn = options.idColumn || 'id';
     const ownerColumn = options.ownerColumn || null;
+    const departmentColumn = options.departmentColumn || null;
     const locationColumn = options.locationColumn || null;
     const deletedAtColumn =
       options.deletedAtColumn === false
@@ -302,6 +316,7 @@ class DataScopeService {
     const selectParts = [`t.${q(idColumn)} AS id`];
 
     if (ownerColumn) selectParts.push(`t.${q(ownerColumn)} AS owner_id`);
+    if (departmentColumn) selectParts.push(`t.${q(departmentColumn)} AS resource_department_id`);
     if (locationColumn) selectParts.push(`t.${q(locationColumn)} AS location_id`);
 
     let sql = `SELECT ${selectParts.join(', ')}`;
@@ -337,6 +352,13 @@ class DataScopeService {
     // CUSTOM：部门或库位命中即可
     if (Number(scope.type) === DATA_SCOPE.CUSTOM) {
       if (
+        departmentColumn &&
+        scope.departmentIds.length > 0 &&
+        scope.departmentIds.includes(Number(row.resource_department_id))
+      ) {
+        return true;
+      }
+      if (
         ownerColumn &&
         scope.departmentIds.length > 0 &&
         scope.departmentIds.includes(Number(row.owner_department_id))
@@ -351,6 +373,12 @@ class DataScopeService {
         return true;
       }
       return false;
+    }
+
+    if (departmentColumn && scope.departmentIds.length > 0) {
+      if (scope.departmentIds.includes(Number(row.resource_department_id))) {
+        return true;
+      }
     }
 
     if (ownerColumn && scope.departmentIds.length > 0) {

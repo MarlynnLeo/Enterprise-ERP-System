@@ -13,6 +13,27 @@ const { softDelete } = require('../../utils/softDelete');
 const { ResponseHandler } = require('../../utils/responseHandler');
 const { logger } = require('../../utils/logger');
 const { parsePagination, appendPaginationSQL } = require('../../utils/safePagination');
+const DataScopeService = require('../../services/DataScopeService');
+
+function buildDepartmentScopeClause(req, alias, column = 'department_id') {
+  const scope = req?.authzScope;
+  if (!scope || DataScopeService.isAllScope(scope)) return { sql: '', params: [] };
+  const ids = (scope.departmentIds || []).map(Number).filter(Number.isInteger);
+  if (ids.length === 0 && scope.departmentId) ids.push(Number(scope.departmentId));
+  if (ids.length === 0) return { sql: ' AND 1 = 0', params: [] };
+  return {
+    sql: ` AND ${alias}.${column} IN (${ids.map(() => '?').join(',')})`,
+    params: ids,
+  };
+}
+
+function canAccessDepartment(req, departmentId) {
+  const scope = req?.authzScope;
+  if (!scope || DataScopeService.isAllScope(scope)) return true;
+  const ids = (scope.departmentIds || []).map(Number);
+  if (!ids.length && scope.departmentId) ids.push(Number(scope.departmentId));
+  return ids.includes(Number(departmentId));
+}
 
 // ==================== 编码规则 ====================
 // mapKeys 在下方 exchangeRates 前已复用声明；codingRules 使用局部 require 避免 TDZ
@@ -211,9 +232,12 @@ const performance = {
       const pagination = parsePagination(page, pageSize, { defaultPageSize: 20, maxPageSize: 100 });
       let where = 'WHERE 1=1';
       const vals = [];
+      const scopeClause = buildDepartmentScopeClause(req, 'pe');
       if (period_id) { where += ' AND pe.period_id = ?'; vals.push(period_id); }
       if (department_id) { where += ' AND pe.department_id = ?'; vals.push(department_id); }
       if (status) { where += ' AND pe.status = ?'; vals.push(status); }
+      where += scopeClause.sql;
+      vals.push(...scopeClause.params);
       const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM performance_evaluations pe ${where}`, vals);
       const listSql = appendPaginationSQL(
         `SELECT pe.id, pe.period_id, pe.employee_id, pe.employee_name, pe.department_id,
@@ -235,6 +259,7 @@ const performance = {
     try {
       const [[ev]] = await pool.query('SELECT id, period_id, employee_id, employee_name, department_id, evaluator_id, total_score, grade, self_comment, evaluator_comment, status, completed_at, created_at, updated_at FROM performance_evaluations WHERE id = ?', [req.params.id]);
       if (!ev) return ResponseHandler.error(res, '评估不存在', 'NOT_FOUND', 404);
+      if (!canAccessDepartment(req, ev.department_id)) return ResponseHandler.forbidden(res, '无权访问该绩效评估');
       const [items] = await pool.query('SELECT id, evaluation_id, indicator_id, indicator_name, weight, target_value, actual_value, self_score, manager_score, final_score, remark FROM performance_evaluation_items WHERE evaluation_id = ?', [ev.id]);
       ev.items = items;
       ResponseHandler.success(res, ev);
@@ -243,6 +268,7 @@ const performance = {
   async createEvaluation(req, res) {
     try {
       const d = req.body;
+      if (!canAccessDepartment(req, d.department_id)) return ResponseHandler.forbidden(res, '无权创建该部门绩效评估');
       const conn = await pool.getConnection();
       try {
         await conn.beginTransaction();
@@ -270,6 +296,8 @@ const performance = {
   async scoreEvaluation(req, res) {
     try {
       const { items, evaluator_comment, total_score, grade } = mapKeysToSnake(req.body || {});
+      const [[evaluation]] = await pool.query('SELECT department_id FROM performance_evaluations WHERE id = ?', [req.params.id]);
+      if (!evaluation || !canAccessDepartment(req, evaluation.department_id)) return ResponseHandler.forbidden(res, '无权评分该绩效评估');
       const conn = await pool.getConnection();
       try {
         await conn.beginTransaction();
@@ -405,9 +433,12 @@ const ecn = {
       const pagination = parsePagination(page, pageSize, { defaultPageSize: 20, maxPageSize: 100 });
       let where = 'WHERE e.deleted_at IS NULL';
       const vals = [];
+      const scopeClause = buildDepartmentScopeClause(req, 'e');
       if (keyword) { where += ' AND (e.code LIKE ? OR e.title LIKE ?)'; vals.push(`%${keyword}%`, `%${keyword}%`); }
       if (type) { where += ' AND e.type = ?'; vals.push(type); }
       if (status) { where += ' AND e.status = ?'; vals.push(status); }
+      where += scopeClause.sql;
+      vals.push(...scopeClause.params);
       const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM ecn_orders e ${where}`, vals);
       const listSql = appendPaginationSQL(
         `SELECT e.id, e.code, e.title, e.type, e.priority, e.status, e.reason, e.description,
@@ -428,6 +459,7 @@ const ecn = {
     try {
       const [[order]] = await pool.query('SELECT e.id, e.code, e.title, e.type, e.priority, e.status, e.reason, e.description, e.impact_analysis, e.effective_date, e.disposition, e.requested_by, e.department_id, e.approved_by, e.approved_at, e.completed_at, e.created_at, e.updated_at, u.real_name AS requested_by_name FROM ecn_orders e LEFT JOIN users u ON u.id = e.requested_by WHERE e.id = ? AND e.deleted_at IS NULL', [req.params.id]);
       if (!order) return ResponseHandler.error(res, 'ECN不存在', 'NOT_FOUND', 404);
+      if (!canAccessDepartment(req, order.department_id)) return ResponseHandler.forbidden(res, '无权访问该ECN');
       const [items] = await pool.query('SELECT id, ecn_id, change_type, material_id, material_code, material_name, bom_id, field_name, old_value, new_value, remark FROM ecn_order_items WHERE ecn_id = ?', [order.id]);
       order.items = items;
       ResponseHandler.success(res, order);
@@ -440,6 +472,8 @@ const ecn = {
       if (validationError) return ResponseHandler.error(res, validationError, 'VALIDATION_ERROR', 400);
       const items = Array.isArray(d.items) ? d.items.map(normalizeEcnItem) : [];
       const userId = req.user?.id;
+      const departmentId = d.department_id ?? req.authzScope?.departmentId ?? null;
+      if (!canAccessDepartment(req, departmentId)) return ResponseHandler.forbidden(res, '无权创建该部门ECN');
       const code = d.code || await CodeGeneratorService.nextCode('ecn');
       const conn = await pool.getConnection();
       try {
@@ -447,7 +481,7 @@ const ecn = {
         const [r] = await conn.query(
           `INSERT INTO ecn_orders (code, title, type, priority, status, reason, description, impact_analysis, effective_date, disposition, requested_by, department_id)
            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
-          [code, d.title, d.type || 'ecn', d.priority || 'medium', 'draft', d.reason, d.description, d.impact_analysis, d.effective_date, d.disposition || 'use_existing', userId, d.department_id]
+        [code, d.title, d.type || 'ecn', d.priority || 'medium', 'draft', d.reason, d.description, d.impact_analysis, d.effective_date, d.disposition || 'use_existing', userId, departmentId]
         );
         const ecnId = r.insertId;
         if (items.length) {
@@ -499,6 +533,10 @@ const ecn = {
       if (!current) {
         await conn.rollback();
         return ResponseHandler.error(res, 'ECN not found', 'NOT_FOUND', 404);
+      }
+      if (!canAccessDepartment(req, current.department_id)) {
+        await conn.rollback();
+        return ResponseHandler.forbidden(res, '无权变更该ECN');
       }
 
       const allowed = allowedTransitions[current.status] || [];
@@ -568,10 +606,14 @@ const ecn = {
 
       await conn.beginTransaction();
 
-      const [[current]] = await conn.query('SELECT code, status FROM ecn_orders WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [req.params.id]);
+      const [[current]] = await conn.query('SELECT code, status, department_id FROM ecn_orders WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [req.params.id]);
       if (!current) {
         await conn.rollback();
         return ResponseHandler.error(res, 'ECN not found', 'NOT_FOUND', 404);
+      }
+      if (!canAccessDepartment(req, current.department_id)) {
+        await conn.rollback();
+        return ResponseHandler.forbidden(res, '无权修改该ECN');
       }
       if (current.status !== 'draft') {
         await conn.rollback();
@@ -608,10 +650,14 @@ const ecn = {
     try {
       await conn.beginTransaction();
 
-      const [[current]] = await conn.query('SELECT status FROM ecn_orders WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [req.params.id]);
+      const [[current]] = await conn.query('SELECT status, department_id FROM ecn_orders WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [req.params.id]);
       if (!current) {
         await conn.rollback();
         return ResponseHandler.error(res, 'ECN not found', 'NOT_FOUND', 404);
+      }
+      if (!canAccessDepartment(req, current.department_id)) {
+        await conn.rollback();
+        return ResponseHandler.forbidden(res, '无权删除该ECN');
       }
       if (!['draft', 'rejected', 'cancelled'].includes(current.status)) {
         await conn.rollback();
@@ -745,6 +791,11 @@ const documents = {
       const pagination = parsePagination(page, pageSize, { defaultPageSize: 20, maxPageSize: 100 });
       let where = 'WHERE d.deleted_at IS NULL';
       const vals = [];
+      const documentScope = buildDepartmentScopeClause(req, 'd');
+      if (documentScope.sql) {
+        where += ` AND (d.is_public = 1 OR (${documentScope.sql.replace(/^\s*AND\s*/, '')}))`;
+        vals.push(...documentScope.params);
+      }
       if (keyword) { where += ' AND (d.name LIKE ? OR d.code LIKE ?)'; vals.push(`%${keyword}%`, `%${keyword}%`); }
       if (category) { where += ' AND d.category = ?'; vals.push(category); }
       if (business_type) { where += ' AND d.business_type = ?'; vals.push(business_type); }
@@ -771,12 +822,14 @@ const documents = {
         return ResponseHandler.validationError(res, '文档名称不能为空');
       }
       const userId = req.user?.id;
+      const departmentId = d.department_id ?? req.authzScope?.departmentId ?? null;
+      if (!d.is_public && !canAccessDepartment(req, departmentId)) return ResponseHandler.forbidden(res, '无权创建该部门文档');
       const code = d.code || await CodeGeneratorService.nextCode('document');
       const [r] = await pool.query(
         `INSERT INTO documents (code, name, category, file_url, file_name, file_size, file_type, version, description, business_type, business_id, tags, is_public, created_by, department_id)
          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [code, d.name, d.category || 'other', d.file_url, d.file_name, d.file_size || 0, d.file_type, d.version || '1.0', d.description,
-         d.business_type, d.business_id, d.tags ? JSON.stringify(d.tags) : null, d.is_public || 0, userId, d.department_id]
+         d.business_type, d.business_id, d.tags ? JSON.stringify(d.tags) : null, d.is_public || 0, userId, departmentId]
       );
       await FileAccessService.safeRecordUpload({
         fileUrl: d.file_url,
@@ -798,6 +851,9 @@ const documents = {
   async update(req, res) {
     try {
       const d = req.body;
+      const [[existing]] = await pool.query('SELECT is_public, department_id FROM documents WHERE id = ? AND deleted_at IS NULL', [req.params.id]);
+      if (!existing) return ResponseHandler.notFound(res, '文档不存在');
+      if (!canAccessDepartment(req, existing.department_id)) return ResponseHandler.forbidden(res, '无权修改该文档');
       const [result] = await pool.query(
         'UPDATE documents SET name=?, category=?, version=?, description=?, tags=?, is_public=? WHERE id=? AND deleted_at IS NULL',
         [d.name, d.category, d.version, d.description, d.tags ? JSON.stringify(d.tags) : null, d.is_public || 0, req.params.id]
@@ -808,7 +864,9 @@ const documents = {
   },
   async delete(req, res) {
     try {
-      const [[doc]] = await pool.query('SELECT file_url FROM documents WHERE id = ? AND deleted_at IS NULL', [req.params.id]);
+      const [[doc]] = await pool.query('SELECT file_url, department_id FROM documents WHERE id = ? AND deleted_at IS NULL', [req.params.id]);
+      if (!doc) return ResponseHandler.notFound(res, '文档不存在');
+      if (!canAccessDepartment(req, doc.department_id)) return ResponseHandler.forbidden(res, '无权删除该文档');
       const affected = await softDelete(pool, 'documents', 'id', req.params.id);
       if (!affected) return ResponseHandler.notFound(res, '文档不存在');
       if (doc?.file_url) {
@@ -820,8 +878,9 @@ const documents = {
   },
   async download(req, res) {
     try {
-      const [[doc]] = await pool.query('SELECT file_url, file_name FROM documents WHERE id = ? AND deleted_at IS NULL', [req.params.id]);
+      const [[doc]] = await pool.query('SELECT file_url, file_name, is_public, department_id FROM documents WHERE id = ? AND deleted_at IS NULL', [req.params.id]);
       if (!doc) return ResponseHandler.notFound(res, '文档不存在');
+      if (!doc.is_public && !canAccessDepartment(req, doc.department_id)) return ResponseHandler.forbidden(res, '无权下载该文档');
       await pool.query('UPDATE documents SET download_count = download_count + 1 WHERE id = ?', [req.params.id]);
       ResponseHandler.success(res, doc);
     } catch (e) { logger.error('下载文档失败:', e); ResponseHandler.error(res, e.message); }

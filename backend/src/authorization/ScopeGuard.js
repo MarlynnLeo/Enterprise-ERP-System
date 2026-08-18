@@ -37,6 +37,18 @@ class ScopeGuard {
   }
 
   /**
+   * 业务资源是否在“读取”场景下共享。
+   *
+   * 共享读取与写入范围分开：销售订单列表/详情对销售权限用户共享，
+   * 但修改、删除、锁定等动作仍按原有 DataScope 校验，避免扩大写权限。
+   */
+  static isSharedRead(policy, options = {}) {
+    return Boolean(
+      policy?.sharedRead && String(options.accessMode || '').toLowerCase() === 'read'
+    );
+  }
+
+  /**
    * 创建单据时写入 owner（永远取当前登录用户，忽略 body）
    * @returns {{ [ownerColumn]: number }}
    */
@@ -70,13 +82,14 @@ class ScopeGuard {
    */
   static async applyListScope(req, policyKey, options = {}) {
     const policy = getResourcePolicy(policyKey);
-    if (this.isFinanceSharedAll(policy)) {
+    if (this.isFinanceSharedAll(policy) || this.isSharedRead(policy, options)) {
       return { ...EMPTY_SCOPE_CLAUSE };
     }
     return DataScopeService.buildRequestOwnerScopeClause(req, {
       tableAlias: options.tableAlias || 't',
       ownerColumn: policy.ownerColumn,
       ownerAlias: options.ownerAlias || `${policy.key}_owner_scope`,
+      departmentColumn: policy.departmentColumn || null,
       locationColumn: policy.locationColumn || null,
       includeLocation: options.includeLocation !== false && Boolean(policy.locationColumn),
     });
@@ -85,13 +98,14 @@ class ScopeGuard {
   /**
    * 单记录访问校验
    */
-  static async assertAccess(connection, req, policyKey, recordId) {
+  static async assertAccess(connection, req, policyKey, recordId, options = {}) {
     const policy = getResourcePolicy(policyKey);
-    if (this.isFinanceSharedAll(policy)) {
+    if (this.isFinanceSharedAll(policy) || this.isSharedRead(policy, options)) {
       return true;
     }
     return DataScopeService.assertRecordAccess(connection, req, policy.table, recordId, {
       ownerColumn: policy.ownerColumn,
+      departmentColumn: policy.departmentColumn || null,
       locationColumn: policy.locationColumn || null,
       deletedAtColumn: policy.deletedAtColumn === false ? false : (policy.deletedAtColumn || 'deleted_at'),
       extraSoftDelete: policy.extraSoftDelete || null,
@@ -101,8 +115,8 @@ class ScopeGuard {
   /**
    * Express 友好：无权限返回 403，返回是否放行
    */
-  static async denyUnlessAccess(res, connection, req, policyKey, recordId, message) {
-    const ok = await this.assertAccess(connection, req, policyKey, recordId);
+  static async denyUnlessAccess(res, connection, req, policyKey, recordId, message, options = {}) {
+    const ok = await this.assertAccess(connection, req, policyKey, recordId, options);
     if (!ok) {
       ResponseHandler.forbidden(res, message || '无权访问该业务单据');
       return false;

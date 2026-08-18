@@ -13,6 +13,7 @@ const db = require('../../../config/db');
 const { getCurrentUserName } = require('../../../utils/userHelper');
 const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const { parsePagination, appendPaginationSQL } = require('../../../utils/safePagination');
+const DataScopeService = require('../../../services/DataScopeService');
 
 async function findActiveTemplateForType(templateId, inspectionType) {
     if (!templateId) return null;
@@ -325,6 +326,11 @@ const processInspectionController = {
 
             let whereClause = 'WHERE 1=1';
             const params = [];
+            const scopeClause = await DataScopeService.buildRequestOwnerScopeClause(req, {
+                tableAlias: 'pipr',
+                ownerColumn: 'inspector_id',
+                ownerAlias: 'process_punch_owner_scope',
+            });
 
             if (startDate) {
                 whereClause += ' AND DATE(pipr.punch_time) >= ?';
@@ -343,9 +349,11 @@ const processInspectionController = {
                 whereClause += ' AND pipr.inspection_id = ?';
                 params.push(inspectionId);
             }
+            whereClause += scopeClause.where || '';
+            params.push(...(scopeClause.params || []));
 
             const countResult = await db.query(
-                `SELECT COUNT(*) as total FROM process_inspection_punch_records pipr ${whereClause}`,
+                `SELECT COUNT(*) as total FROM process_inspection_punch_records pipr ${scopeClause.join || ''} ${whereClause}`,
                 params
             );
 
@@ -359,6 +367,7 @@ const processInspectionController = {
           qi.inspection_no, qi.product_name, qi.process_name, qi.status
         FROM process_inspection_punch_records pipr
         LEFT JOIN quality_inspections qi ON pipr.inspection_id = qi.id
+        ${scopeClause.join || ''}
         ${whereClause}
         ORDER BY pipr.punch_time DESC
       `, pagination.limit, pagination.offset),

@@ -11,6 +11,8 @@ const { safeParseId } = require('../../../utils/safeParseId');
 const { isValidDateOnly, getMonthRange } = require('../../../utils/dateOnly');
 const { pool } = require('../../../config/db');
 const SchedulingService = require('../../../services/business/SchedulingService');
+const ScopeGuard = require('../../../authorization/ScopeGuard');
+const DataScopeService = require('../../../services/DataScopeService');
 
 // ==================== 辅助常量与函数 ====================
 
@@ -82,6 +84,29 @@ const getDefaultCalendarImpactCriteria = () => {
     endDate: formatDateOnlyLocal(end),
   };
 };
+
+async function assertProductionTaskWriteAccess(req, taskId, connection = pool) {
+  const normalized = Number(taskId);
+  if (!Number.isInteger(normalized) || normalized <= 0) {
+    const error = new Error('生产任务 ID 无效');
+    error.statusCode = 400;
+    throw error;
+  }
+  const allowed = await ScopeGuard.assertAccess(connection, req, 'production_task', normalized);
+  if (!allowed) {
+    const error = new Error(`无权排程生产任务 ${normalized}`);
+    error.statusCode = 403;
+    throw error;
+  }
+}
+
+async function assertProductionTaskWriteAccessMany(req, taskIds, connection = pool) {
+  const normalized = [...new Set((Array.isArray(taskIds) ? taskIds : []).map(Number))];
+  for (const taskId of normalized) {
+    await assertProductionTaskWriteAccess(req, taskId, connection);
+  }
+  return normalized;
+}
 
 // ==================== 排程接口 ====================
 
@@ -413,7 +438,19 @@ module.exports = {
    */
   recalculateCalendarImpact: async (req, res) => {
     try {
-      const result = await SchedulingService.rescheduleCalendarImpact(req.body || {});
+      const criteria = { ...(req.body || {}) };
+      const requestedIds = Array.isArray(criteria.taskIds)
+        ? criteria.taskIds
+        : [];
+      // 未指定任务时服务会尝试重排整个日期窗口；非 ALL 用户禁止这种跨部门批量写入。
+      if (requestedIds.length === 0) {
+        const scope = await DataScopeService.getRequestScope(req);
+        if (!DataScopeService.isAllScope(scope)) {
+          return ResponseHandler.error(res, '请明确指定有权操作的生产任务', 'FORBIDDEN', 403);
+        }
+      }
+      await assertProductionTaskWriteAccessMany(req, requestedIds);
+      const result = await SchedulingService.rescheduleCalendarImpact(criteria);
       ResponseHandler.success(res, result, '受影响任务已重排');
     } catch (error) {
       ResponseHandler.error(res, error.message, 'ERROR', error.statusCode || 500, error);
@@ -433,6 +470,10 @@ module.exports = {
       if ((!hasTaskIds && !hasGroups) || !startTime) {
         return ResponseHandler.error(res, '缺少参数: taskIds/groups, startTime', 'VALIDATION_ERROR', 400);
       }
+      const submittedTaskIds = hasTaskIds
+        ? taskIds
+        : groups.flatMap((group) => Array.isArray(group?.taskIds) ? group.taskIds : []);
+      await assertProductionTaskWriteAccessMany(req, submittedTaskIds);
       const result = await SchedulingService.batchSchedule({
         taskIds: hasTaskIds ? taskIds.map(id => parseInt(id)) : undefined,
         groups: hasGroups

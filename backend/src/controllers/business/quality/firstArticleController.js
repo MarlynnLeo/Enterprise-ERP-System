@@ -19,6 +19,7 @@ const {
 } = require('../../../services/business/TaskLifecycleService');
 const { parsePagination, appendPaginationSQL } = require('../../../utils/safePagination');
 const { mapKeysToSnake } = require('../../../utils/fieldMap');
+const ScopeGuard = require('../../../authorization/ScopeGuard');
 
 // 首检配置常量
 const FIRST_ARTICLE_CONFIG = BUSINESS_RULES.FIRST_ARTICLE;
@@ -72,6 +73,12 @@ const firstArticleController = {
 
       let whereClause = "WHERE qi.deleted_at IS NULL AND qi.inspection_type = 'first_article'";
       const params = [];
+      const scopeClause = await ScopeGuard.applyListScope(req, 'quality_inspection', {
+        tableAlias: 'qi',
+        ownerAlias: 'first_article_owner_scope',
+      });
+      whereClause += scopeClause.where || '';
+      params.push(...(scopeClause.params || []));
 
       if (keyword) {
         whereClause +=
@@ -95,7 +102,7 @@ const firstArticleController = {
       }
 
       const countResult = await db.query(
-        `SELECT COUNT(*) as total FROM quality_inspections qi ${whereClause}`,
+        `SELECT COUNT(*) as total FROM quality_inspections qi ${scopeClause.join || ''} ${whereClause}`,
         params
       );
 
@@ -108,6 +115,7 @@ const firstArticleController = {
           pt.quantity as production_quantity
         FROM quality_inspections qi
         LEFT JOIN production_tasks pt ON qi.task_id = pt.id
+        ${scopeClause.join || ''}
         ${whereClause}
         ORDER BY qi.created_at DESC
       `,
@@ -136,6 +144,10 @@ const firstArticleController = {
    */
   async getFirstArticleStats(req, res) {
     try {
+      const scopeClause = await ScopeGuard.applyListScope(req, 'quality_inspection', {
+        tableAlias: 'qi',
+        ownerAlias: 'first_article_stats_owner_scope',
+      });
       const statsResult = await db.query(`
         SELECT
           COUNT(*) as total,
@@ -143,10 +155,11 @@ const firstArticleController = {
           SUM(CASE WHEN first_article_result = 'passed' THEN 1 ELSE 0 END) as passed,
           SUM(CASE WHEN first_article_result = 'failed' THEN 1 ELSE 0 END) as failed,
           SUM(CASE WHEN first_article_result = 'conditional' THEN 1 ELSE 0 END) as conditional
-        FROM quality_inspections
-        WHERE inspection_type = 'first_article'
-          AND deleted_at IS NULL
-      `);
+        FROM quality_inspections qi
+        ${scopeClause.join || ''}
+        WHERE qi.inspection_type = 'first_article'
+          AND qi.deleted_at IS NULL${scopeClause.where || ''}
+      `, scopeClause.params || []);
 
       const rawStats = statsResult.rows && statsResult.rows[0];
       const stats = rawStats
@@ -192,6 +205,10 @@ const firstArticleController = {
           'VALIDATION_ERROR',
           400
         );
+      }
+
+      if (!(await ScopeGuard.assertAccess(db.pool, req, 'production_task', task_id))) {
+        return ResponseHandler.forbidden(res, '无权为该生产任务创建首检单');
       }
 
       const existingResult = await db.query(
@@ -356,6 +373,11 @@ const firstArticleController = {
       if (!existingRows || existingRows.length === 0) {
         await connection.rollback();
         return ResponseHandler.error(res, '首检单不存在', 'NOT_FOUND', 404);
+      }
+
+      if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'quality_inspection', id, '无权更新该首检单'))) {
+        await connection.rollback();
+        return;
       }
 
       const inspection = existingRows[0];

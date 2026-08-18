@@ -6,6 +6,34 @@
 
 const { pool } = require('../../config/db');
 const { parsePagination, appendPaginationSQL } = require('../../utils/safePagination');
+const DataScopeService = require('../../services/DataScopeService');
+
+function buildHrScopeClause(req, employeeAlias = 'e') {
+  const scope = req?.authzScope;
+  if (!scope || DataScopeService.isAllScope(scope)) return { sql: '', params: [] };
+
+  if (Number(scope.type) === DataScopeService.DATA_SCOPE.SELF) {
+    return scope.userId
+      ? { sql: ` AND ${employeeAlias}.user_id = ?`, params: [scope.userId] }
+      : { sql: ' AND 1 = 0', params: [] };
+  }
+
+  const departmentIds = (scope.departmentIds || []).map(Number).filter(Number.isInteger);
+  if (departmentIds.length === 0) return { sql: ' AND 1 = 0', params: [] };
+  return {
+    sql: ` AND ${employeeAlias}.department_id IN (${departmentIds.map(() => '?').join(',')})`,
+    params: departmentIds,
+  };
+}
+
+function scopeAllowsEmployee(req, employee) {
+  const scope = req?.authzScope;
+  if (!scope || DataScopeService.isAllScope(scope)) return true;
+  if (Number(scope.type) === DataScopeService.DATA_SCOPE.SELF) {
+    return Number(employee?.user_id) === Number(scope.userId);
+  }
+  return (scope.departmentIds || []).map(Number).includes(Number(employee?.department_id));
+}
 
 // ========== W-03: 工作流表名白名单映射 ==========
 const HR_WORKFLOW_TABLES = new Map([
@@ -49,6 +77,16 @@ const OVERTIME_SPECIFIC_COLUMNS = (alias) => `${alias}.overtime_date, ${alias}.s
   ${alias}.end_time, ${alias}.hours, ${alias}.overtime_type, ${alias}.reason`;
 
 class HrService {
+  static getEmployeeScopeClause(req, employeeAlias = 'e') {
+    return buildHrScopeClause(req, employeeAlias);
+  }
+  static async assertEmployeeAccess(req, employeeId, connection = pool) {
+    const [[employee]] = await connection.query(
+      'SELECT id, user_id, department_id FROM hr_employees WHERE id = ? LIMIT 1',
+      [employeeId]
+    );
+    return Boolean(employee && scopeAllowsEmployee(req, employee));
+  }
   // ========== W-03: 安全获取工作流表名 ==========
   /**
    * 从白名单获取安全的工作流表名
@@ -104,10 +142,13 @@ class HrService {
    * @param {Object} options - 查询参数
    * @returns {Promise<{rows: Array, total: number, page: number, pageSize: number}>}
    */
-  static async getEmployees({ keyword, status, page, pageSize: rawPageSize }) {
+  static async getEmployees({ keyword, status, page, pageSize: rawPageSize, req }) {
     const pagination = parsePagination(page, rawPageSize, { defaultPageSize: 20 });
     const conditions = ['1=1'];
     const params = [];
+    const scopeClause = buildHrScopeClause(req, 'e');
+    if (scopeClause.sql) conditions.push(scopeClause.sql.replace(/^\s*AND\s*/, ''));
+    params.push(...scopeClause.params);
 
     if (keyword) {
       conditions.push('(e.name LIKE ? OR e.employee_no LIKE ?)');
@@ -147,12 +188,13 @@ class HrService {
    * @param {Object} options - 查询参数
    * @returns {Promise<{rows: Array, total: number, page: number, pageSize: number}>}
    */
-  static async getAttendance({ period, page, pageSize: rawPageSize }) {
+  static async getAttendance({ period, page, pageSize: rawPageSize, req }) {
     const pagination = parsePagination(page, rawPageSize, { defaultPageSize: 50 });
-    const params = [period];
+    const scopeClause = buildHrScopeClause(req, 'e');
+    const params = [period, ...scopeClause.params];
 
     const [[{ total }]] = await pool.query(
-      'SELECT COUNT(*) AS total FROM hr_attendance a JOIN hr_employees e ON a.employee_id = e.id WHERE a.period = ?',
+      `SELECT COUNT(*) AS total FROM hr_attendance a JOIN hr_employees e ON a.employee_id = e.id WHERE a.period = ?${scopeClause.sql}`,
       params
     );
 
@@ -161,7 +203,7 @@ class HrService {
        FROM hr_attendance a
        JOIN hr_employees e ON a.employee_id = e.id
        LEFT JOIN departments d ON e.department_id = d.id
-       WHERE a.period = ?
+       WHERE a.period = ?${scopeClause.sql}
        ORDER BY d.name, e.name`,
       pagination.limit,
       pagination.offset
@@ -178,14 +220,17 @@ class HrService {
    * @param {Object} options - 查询参数
    * @returns {Promise<Array>}
    */
-  static async getSalaryRecords({ period }) {
+  static async getSalaryRecords({ period, req }) {
+    const scopeClause = buildHrScopeClause(req, 'e');
     let sql = `SELECT ${SALARY_COLUMNS}, e.name AS employee_name, e.employee_no
        FROM hr_salary_records s
        JOIN hr_employees e ON s.employee_id = e.id`;
-    const params = [];
+    const params = [...scopeClause.params];
     if (period) {
-      sql += ' WHERE s.period = ?';
-      params.push(period);
+      sql += ` WHERE s.period = ?${scopeClause.sql}`;
+      params.unshift(period);
+    } else {
+      sql += ` WHERE 1=1${scopeClause.sql}`;
     }
     const [rows] = await pool.query(sql, params);
     return rows;
@@ -202,12 +247,15 @@ class HrService {
    * @param {number} userId - 当前用户 ID
    * @returns {Object} 包含 SQL 和参数的查询对象
    */
-  static buildRequestListQuery(baseTable, alias, requestType, query, userId) {
+  static buildRequestListQuery(baseTable, alias, requestType, query, userId, req) {
     const safeTable = this.getWorkflowTable(baseTable);
     const pagination = parsePagination(query.page, query.pageSize ?? query.limit);
     const { status, search, mine } = query;
     const conditions = ['1=1'];
     const params = [];
+    const scopeClause = buildHrScopeClause(req, 'e');
+    if (scopeClause.sql) conditions.push(scopeClause.sql.replace(/^\s*AND\s*/, ''));
+    params.push(...scopeClause.params);
 
     // 根据类型选择具体列
     const specificCols = requestType === 'leave'

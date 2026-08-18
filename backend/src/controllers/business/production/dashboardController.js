@@ -10,6 +10,7 @@ const { ResponseHandler } = require('../../../utils/responseHandler');
 const { pool } = require('../../../config/db');
 const { handleError } = require('./shared/errorHandler');
 const { PRODUCTION_STATUS_KEYS } = require('../../../constants/systemConstants');
+const ScopeGuard = require('../../../authorization/ScopeGuard');
 
 /**
  * 获取仪表盘统计数据
@@ -17,6 +18,10 @@ const { PRODUCTION_STATUS_KEYS } = require('../../../constants/systemConstants')
 exports.getDashboardStatistics = async (req, res) => {
   try {
     const today = new Date().toISOString().split('T')[0];
+    const planScope = await ScopeGuard.applyListScope(req, 'production_plan', {
+      tableAlias: 'pp',
+      ownerAlias: 'production_dashboard_plan_owner_scope',
+    });
 
     // 生产计划统计 - 查询所有记录的总计，不限制为今天创建
     const [planRows] = await pool.query(`
@@ -26,9 +31,10 @@ exports.getDashboardStatistics = async (req, res) => {
         SUM(CASE WHEN status = '${PRODUCTION_STATUS_KEYS.IN_PROGRESS}' THEN 1 ELSE 0 END) as in_progress,
         SUM(CASE WHEN status NOT IN ('${PRODUCTION_STATUS_KEYS.COMPLETED}', '${PRODUCTION_STATUS_KEYS.CANCELLED}') THEN 1 ELSE 0 END) as pending,
         SUM(CASE WHEN status = '${PRODUCTION_STATUS_KEYS.DRAFT}' THEN 1 ELSE 0 END) as draft
-      FROM production_plans
-      WHERE deleted_at IS NULL
-    `);
+      FROM production_plans pp
+      ${planScope.join || ''}
+      WHERE pp.deleted_at IS NULL${planScope.where || ''}
+    `, planScope.params || []);
 
     // 生产任务统计 - 查询所有记录的总计
     const [taskRows] = await pool.query(`
@@ -136,6 +142,10 @@ exports.getDashboardTrends = async (req, res) => {
     // C) 当月趋势：granularity=day 返回当月每天的数据
     const { startDate, endDate, granularity } = req.query;
     const { days = 7 } = req.query;
+    const planScope = await ScopeGuard.applyListScope(req, 'production_plan', {
+      tableAlias: 'pp',
+      ownerAlias: 'production_dashboard_trend_plan_owner_scope',
+    });
 
     logger.info('[生产趋势] 请求参数:', { startDate, endDate, granularity, days });
 
@@ -221,13 +231,14 @@ exports.getDashboardTrends = async (req, res) => {
       // 统计当月每天的生产计划数量
       const [planRows] = await pool.query(
         `
-        SELECT DATE(created_at) AS day, COALESCE(SUM(quantity), 0) AS planned
-        FROM production_plans
-        WHERE deleted_at IS NULL AND YEAR(created_at) = ? AND MONTH(created_at) = ?
-        GROUP BY DATE(created_at)
+        SELECT DATE(pp.created_at) AS day, COALESCE(SUM(pp.quantity), 0) AS planned
+        FROM production_plans pp
+        ${planScope.join || ''}
+        WHERE pp.deleted_at IS NULL AND YEAR(pp.created_at) = ? AND MONTH(pp.created_at) = ?${planScope.where || ''}
+        GROUP BY DATE(pp.created_at)
         ORDER BY day ASC
       `,
-        [year, month + 1]
+        [year, month + 1, ...(planScope.params || [])]
       );
 
       logger.info('[生产趋势] 计划数据行数:', planRows.length);
@@ -279,12 +290,13 @@ exports.getDashboardTrends = async (req, res) => {
 
       // 统计生产计划（按创建时间，合计计划数量）
       const [planRows] = await pool.query(`
-        SELECT DATE_FORMAT(created_at, '%Y-%m') AS month, COALESCE(SUM(quantity), 0) AS planned
-        FROM production_plans
-        WHERE deleted_at IS NULL AND created_at >= DATE_SUB(CURDATE(), INTERVAL 11 MONTH)
-        GROUP BY DATE_FORMAT(created_at, '%Y-%m')
+        SELECT DATE_FORMAT(pp.created_at, '%Y-%m') AS month, COALESCE(SUM(pp.quantity), 0) AS planned
+        FROM production_plans pp
+        ${planScope.join || ''}
+        WHERE pp.deleted_at IS NULL AND pp.created_at >= DATE_SUB(CURDATE(), INTERVAL 11 MONTH)${planScope.where || ''}
+        GROUP BY DATE_FORMAT(pp.created_at, '%Y-%m')
         ORDER BY month ASC
-      `);
+      `, planScope.params || []);
 
       // 统计完成数量（报工）
       const [completedRows] = await pool.query(`

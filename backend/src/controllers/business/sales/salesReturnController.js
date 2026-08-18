@@ -133,6 +133,7 @@ exports.getSalesReturns = async (req, res) => {
     const scopeClause = await ScopeGuard.applyListScope(req, 'sales_return', {
       tableAlias: 'sr',
       ownerAlias: 'sales_return_owner_scope',
+      accessMode: 'read',
     });
 
     let whereClause = '';
@@ -289,7 +290,7 @@ exports.getSalesReturnById = async (req, res) => {
     conn = await getConnection();
 
     const ScopeGuard = require('../../../authorization/ScopeGuard');
-    if (!(await ScopeGuard.denyUnlessAccess(res, conn, req, 'sales_return', id, '无权访问该销售退货单'))) {
+    if (!(await ScopeGuard.denyUnlessAccess(res, conn, req, 'sales_return', id, '无权访问该销售退货单', { accessMode: 'read' }))) {
       return;
     }
 

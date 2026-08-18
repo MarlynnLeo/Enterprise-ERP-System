@@ -112,6 +112,7 @@ const getRequisitions = async (req, res) => {
     const scopeClause = await ScopeGuard.applyListScope(req, 'purchase_requisition', {
       tableAlias: 'r',
       ownerAlias: 'purchase_requisition_owner_scope',
+      accessMode: 'read',
     });
 
     let query = `
@@ -288,7 +289,7 @@ const getRequisition = async (req, res) => {
     const { id } = req.params;
     if (id !== null && id !== undefined && id !== '') {
       const ScopeGuard = require('../../../authorization/ScopeGuard');
-      if (!(await ScopeGuard.assertAccess(db.pool, req, 'purchase_requisition', id))) {
+      if (!(await ScopeGuard.assertAccess(db.pool, req, 'purchase_requisition', id, { accessMode: 'read' }))) {
         return ResponseHandler.forbidden(res, '无权访问该采购申请');
       }
     }

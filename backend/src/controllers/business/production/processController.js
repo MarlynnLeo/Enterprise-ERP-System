@@ -20,6 +20,7 @@ const {
   promoteTaskToInProgress,
 } = require('../../../services/business/TaskLifecycleService');
 const NotificationService = require('../../../services/NotificationService');
+const ScopeGuard = require('../../../authorization/ScopeGuard');
 
 // 状态常量统一引用 businessConfig，避免硬编码。
 const TASK_STATUS = businessConfig.status.productionTask;
@@ -65,6 +66,9 @@ exports.getProcesses = async (req, res) => {
     const params = [];
 
     if (taskId) {
+      if (!(await ScopeGuard.assertAccess(pool, req, 'production_task', taskId, { accessMode: 'read' }))) {
+        return ResponseHandler.forbidden(res, '无权访问该生产任务');
+      }
       conditions.push('pp.task_id = ?');
       params.push(taskId);
     }
@@ -127,6 +131,10 @@ exports.getProcessById = async (req, res) => {
       return ResponseHandler.error(res, 'Production process not found', 'NOT_FOUND', 404);
     }
 
+    if (!(await ScopeGuard.assertAccess(pool, req, 'production_task', processes[0].task_id, { accessMode: 'read' }))) {
+      return ResponseHandler.forbidden(res, '无权访问该生产任务');
+    }
+
     return ResponseHandler.success(res, processes[0]);
   } catch (error) {
     logger.error('获取工序详情失败:', error);
@@ -143,6 +151,11 @@ exports.createProcess = async (req, res) => {
     await connection.beginTransaction();
 
     const { task_id, process_name, sequence, quantity, description, remarks } = mapKeysToSnake(req.body || {});
+
+    if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'production_task', task_id, '无权修改该生产任务'))) {
+      await connection.rollback();
+      return;
+    }
 
     const [taskCheck] = await connection.query('SELECT id, status FROM production_tasks WHERE id = ? AND deleted_at IS NULL FOR UPDATE', [
       task_id,
@@ -235,6 +248,10 @@ exports.updateProcess = async (req, res) => {
 
     const processRow = processCheck[0];
     const taskId = processRow.task_id;
+    if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'production_task', taskId, '无权修改该生产任务'))) {
+      await connection.rollback();
+      return;
+    }
     if (status !== undefined) {
       const validProcessStatuses = Object.values(PROC_STATUS);
       if (!validProcessStatuses.includes(status)) {
@@ -511,7 +528,7 @@ exports.deleteProcess = async (req, res) => {
     const { id } = req.params;
 
     const [processCheck] = await connection.query(
-      `SELECT pp.id, pp.status
+      `SELECT pp.id, pp.task_id, pp.status
        FROM production_processes pp
        JOIN production_tasks pt ON pp.task_id = pt.id AND pt.deleted_at IS NULL
        WHERE pp.id = ?
@@ -522,6 +539,11 @@ exports.deleteProcess = async (req, res) => {
     if (processCheck.length === 0) {
       await connection.rollback();
       return ResponseHandler.error(res, 'Production process not found', 'NOT_FOUND', 404);
+    }
+
+    if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'production_task', processCheck[0].task_id, '无权删除该生产工序'))) {
+      await connection.rollback();
+      return;
     }
 
     if (processCheck[0].status !== PROC_STATUS.PENDING) {

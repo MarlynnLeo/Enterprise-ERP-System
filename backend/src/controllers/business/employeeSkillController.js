@@ -8,7 +8,7 @@ const { logger } = require('../../utils/logger');
 module.exports = {
   async getList(req, res) {
     try {
-      const result = await EmployeeSkillService.getList(req.query);
+      const result = await EmployeeSkillService.getList(req.query, req);
       ResponseHandler.paginated(res, result.list, result.total, result.page, result.pageSize);
     } catch (error) {
       logger.error('获取技能列表失败:', error);
@@ -18,7 +18,7 @@ module.exports = {
 
   async getById(req, res) {
     try {
-      const data = await EmployeeSkillService.getById(req.params.id);
+      const data = await EmployeeSkillService.getById(req.params.id, req);
       if (!data) return ResponseHandler.notFound(res, '技能记录不存在');
       ResponseHandler.success(res, data);
     } catch (error) {
@@ -29,39 +29,39 @@ module.exports = {
 
   async create(req, res) {
     try {
-      const data = await EmployeeSkillService.create(req.body);
+      const data = await EmployeeSkillService.create(req.body, req);
       ResponseHandler.success(res, data, '创建成功');
     } catch (error) {
       logger.error('创建技能失败:', error);
       const isDuplicate = error.message?.includes('Duplicate');
-      ResponseHandler.error(res, isDuplicate ? '该员工已有同名技能记录' : '创建失败', isDuplicate ? 'VALIDATION_ERROR' : undefined, isDuplicate ? 400 : 500);
+      ResponseHandler.error(res, isDuplicate ? '该员工已有同名技能记录' : (error.message || '创建失败'), isDuplicate ? 'VALIDATION_ERROR' : (error.statusCode === 403 ? 'FORBIDDEN' : 'OPERATION_ERROR'), isDuplicate ? 400 : (error.statusCode || 500));
     }
   },
 
   async update(req, res) {
     try {
-      const data = await EmployeeSkillService.update(req.params.id, req.body);
+      const data = await EmployeeSkillService.update(req.params.id, req.body, req);
       if (!data) return ResponseHandler.notFound(res, '技能记录不存在');
       ResponseHandler.success(res, data, '更新成功');
     } catch (error) {
       logger.error('更新技能失败:', error);
-      ResponseHandler.error(res, '更新失败');
+      ResponseHandler.error(res, error.message || '更新失败', error.statusCode === 403 ? 'FORBIDDEN' : 'OPERATION_ERROR', error.statusCode || 500);
     }
   },
 
   async delete(req, res) {
     try {
-      await EmployeeSkillService.delete(req.params.id);
+      await EmployeeSkillService.delete(req.params.id, req);
       ResponseHandler.success(res, null, '删除成功');
     } catch (error) {
       logger.error('删除技能失败:', error);
-      ResponseHandler.error(res, '删除失败');
+      ResponseHandler.error(res, error.message || '删除失败', error.statusCode === 403 ? 'FORBIDDEN' : 'OPERATION_ERROR', error.statusCode || 500);
     }
   },
 
   async getMatrix(req, res) {
     try {
-      const data = await EmployeeSkillService.getMatrix(req.query);
+      const data = await EmployeeSkillService.getMatrix(req.query, req);
       ResponseHandler.success(res, data);
     } catch (error) {
       logger.error('获取技能矩阵失败:', error);
@@ -81,7 +81,7 @@ module.exports = {
 
   async getExpiring(req, res) {
     try {
-      const data = await EmployeeSkillService.getExpiringSkills(Number(req.query.days) || 30);
+      const data = await EmployeeSkillService.getExpiringSkills(Number(req.query.days) || 30, req);
       ResponseHandler.success(res, data);
     } catch (error) {
       logger.error('获取到期技能失败:', error);

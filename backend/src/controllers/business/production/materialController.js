@@ -14,6 +14,7 @@ const {
 } = require('../../../services/business/MaterialCalculationService');
 const BomExplosionService = require('../../../services/BomExplosionService');
 const { PRODUCTION_STATUS_KEYS } = require('../../../constants/systemConstants');
+const ScopeGuard = require('../../../authorization/ScopeGuard');
 
 // 采购状态常量
 const PURCHASE_PENDING = 'pending';
@@ -147,6 +148,10 @@ exports.getBomByProductId = async (req, res) => {
  */
 exports.getMaterialShortageSummary = async (req, res) => {
   try {
+    const scopeClause = await ScopeGuard.applyListScope(req, 'production_plan', {
+      tableAlias: 'pp',
+      ownerAlias: 'production_shortage_plan_owner_scope',
+    });
     const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
     const pageSize = Math.min(Math.max(parseInt(req.query.pageSize, 10) || 20, 1), 100);
     const offset = (page - 1) * pageSize;
@@ -221,15 +226,17 @@ exports.getMaterialShortageSummary = async (req, res) => {
         WHERE mat.location_id IS NULL OR il.location_id = mat.location_id
         GROUP BY il.material_id
       ) inv ON inv.material_id = ppm.material_id
+      ${scopeClause.join || ''}
       WHERE pp.status IN (?)
         AND pp.deleted_at IS NULL
         AND ppm.material_id IS NOT NULL
         AND ppm.required_quantity > 0
+        ${scopeClause.where || ''}
         ${searchWhereClause}
       ORDER BY m.id ASC, pp.start_date ASC, pp.created_at ASC, pp.id ASC
     `;
 
-    const [rows] = await pool.query(query, [activeStatuses, ...searchParams]);
+    const [rows] = await pool.query(query, [activeStatuses, ...(scopeClause.params || []), ...searchParams]);
     const stockCursor = new Map();
     const calculatedRows = [];
 

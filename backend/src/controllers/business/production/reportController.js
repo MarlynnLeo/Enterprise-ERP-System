@@ -18,6 +18,7 @@ const {
   promoteTaskToInspection,
   promoteTaskToInProgress,
 } = require('../../../services/business/TaskLifecycleService');
+const ScopeGuard = require('../../../authorization/ScopeGuard');
 
 // 状态常量（统一引用 businessConfig，消除硬编码）
 const TASK_STATUS = businessConfig.status.productionTask;
@@ -59,6 +60,9 @@ exports.getReportSummary = async (req, res) => {
     }
 
     if (taskId) {
+      if (!(await ScopeGuard.assertAccess(pool, req, 'production_task', taskId, { accessMode: 'read' }))) {
+        return ResponseHandler.forbidden(res, '无权访问该生产任务');
+      }
       conditions.push('pr.task_id = ?');
       params.push(taskId);
     }
@@ -104,6 +108,9 @@ exports.getReportDetail = async (req, res) => {
     const params = [];
 
     if (taskId) {
+      if (!(await ScopeGuard.assertAccess(pool, req, 'production_task', taskId, { accessMode: 'read' }))) {
+        return ResponseHandler.forbidden(res, '无权访问该生产任务');
+      }
       conditions.push('pr.task_id = ?');
       params.push(taskId);
     }
@@ -166,6 +173,9 @@ exports.exportReport = async (req, res) => {
     const params = [];
 
     if (taskId) {
+      if (!(await ScopeGuard.assertAccess(pool, req, 'production_task', taskId, { accessMode: 'read' }))) {
+        return ResponseHandler.forbidden(res, '无权访问该生产任务');
+      }
       conditions.push('pr.task_id = ?');
       params.push(taskId);
     }
@@ -259,6 +269,10 @@ exports.getReportById = async (req, res) => {
       return ResponseHandler.error(res, '报工记录不存在', 'NOT_FOUND', 404);
     }
 
+    if (!(await ScopeGuard.assertAccess(pool, req, 'production_task', reports[0].task_id, { accessMode: 'read' }))) {
+      return ResponseHandler.forbidden(res, '无权访问该生产任务');
+    }
+
     return ResponseHandler.success(res, reports[0]);
   } catch (error) {
     logger.error('获取报工详情失败:', error);
@@ -289,6 +303,11 @@ exports.createReport = async (req, res) => {
       work_hours,
       remarks,
     } = mapKeysToSnake(req.body || {});
+
+    if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'production_task', task_id, '无权为该生产任务报工'))) {
+      await connection.rollback();
+      return;
+    }
 
     // 获取任务信息
     const [taskCheck] = await connection.query(
@@ -440,6 +459,10 @@ exports.updateReport = async (req, res) => {
     }
 
     const task_id = reportCheck[0].task_id;
+    if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'production_task', task_id, '无权修改该生产任务报工'))) {
+      await connection.rollback();
+      return;
+    }
     const newCompletedQty = Number(completed_quantity || 0);
     const newQualifiedQty = Number(qualified_quantity || 0);
 
@@ -557,6 +580,10 @@ exports.deleteReport = async (req, res) => {
 
     const task_id = reportCheck[0].task_id;
     const process_id = reportCheck[0].process_id;
+    if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'production_task', task_id, '无权删除该生产任务报工'))) {
+      await connection.rollback();
+      return;
+    }
 
     const [taskRows] = await connection.query(
       'SELECT status FROM production_tasks WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
@@ -593,6 +620,10 @@ exports.deleteReport = async (req, res) => {
 exports.getTaskReportStats = async (req, res) => {
   try {
     const { taskId } = req.params;
+
+    if (!(await ScopeGuard.assertAccess(pool, req, 'production_task', taskId, { accessMode: 'read' }))) {
+      return ResponseHandler.forbidden(res, '无权访问该生产任务');
+    }
 
     // 获取任务基本信息
     const [tasks] = await pool.query(
@@ -667,6 +698,10 @@ exports.getTaskReportStats = async (req, res) => {
 exports.getTaskProcesses = async (req, res) => {
   try {
     const { taskId } = req.params;
+
+    if (!(await ScopeGuard.assertAccess(pool, req, 'production_task', taskId, { accessMode: 'read' }))) {
+      return ResponseHandler.forbidden(res, '无权访问该生产任务');
+    }
 
     const [processes] = await pool.query(
       `

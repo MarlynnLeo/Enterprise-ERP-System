@@ -27,8 +27,8 @@ const { generateProductionAndPurchasePlans } = require('./salesPackingController
 const { financeConfig } = require('../../../config/financeConfig');
 const SYNC_SALES_ORDER_STATUS_DRIFT = false;
 
-async function canAccessSalesOrder(connection, req, id) {
-  return ScopeGuard.assertAccess(connection, req, 'sales_order', id);
+async function canAccessSalesOrder(connection, req, id, options = {}) {
+  return ScopeGuard.assertAccess(connection, req, 'sales_order', id, options);
 }
 
 function assertSalesOrderItemPrices(items = []) {
@@ -112,6 +112,7 @@ exports.getSalesOrders = async (req, res) => {
       const scopeClause = await ScopeGuard.applyListScope(req, 'sales_order', {
         tableAlias: 'so',
         ownerAlias: 'sales_order_owner_scope',
+        accessMode: 'read',
       });
 
       if (search) {
@@ -343,7 +344,7 @@ exports.getSalesOrder = async (req, res) => {
       }
 
       const order = orderResults[0];
-      if (!(await canAccessSalesOrder(connection, req, order.id))) {
+      if (!(await canAccessSalesOrder(connection, req, order.id, { accessMode: 'read' }))) {
         return ResponseHandler.forbidden(res, 'No permission to access this sales order');
       }
 
@@ -1314,6 +1315,12 @@ exports.exportOrders = async (req, res) => {
   try {
     const { search = '', status = '', startDate = '', endDate = '' } = req.body;
 
+    const scopeClause = await ScopeGuard.applyListScope(req, 'sales_order', {
+      tableAlias: 'so',
+      ownerAlias: 'sales_order_owner_scope',
+      accessMode: 'read',
+    });
+
     // 构建查询条件
     let whereClause = 'WHERE so.deleted_at IS NULL';
     const params = [];
@@ -1337,6 +1344,9 @@ exports.exportOrders = async (req, res) => {
       whereClause += ' AND DATE(so.created_at) <= ?';
       params.push(endDate);
     }
+
+    whereClause += scopeClause.where;
+    params.push(...scopeClause.params);
 
     const connection = await db.pool.getConnection();
 
@@ -1362,6 +1372,7 @@ exports.exportOrders = async (req, res) => {
         so.created_at as '创建时间'
         FROM sales_orders so
         LEFT JOIN customers c ON so.customer_id = c.id
+        ${scopeClause.join}
         ${whereClause}
         ORDER BY so.created_at DESC
         LIMIT 1000
@@ -1970,6 +1981,10 @@ exports.getOrderUnshippedItems = async (req, res) => {
     }
 
     const order = orderResults[0];
+
+    if (!(await canAccessSalesOrder(connection, req, order.id, { accessMode: 'read' }))) {
+      return ResponseHandler.forbidden(res, 'No permission to access this sales order');
+    }
 
     // 首先获取订单的所有物料项
     const [orderItems] = await connection.query(

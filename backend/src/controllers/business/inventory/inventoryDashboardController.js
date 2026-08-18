@@ -1,9 +1,27 @@
 const db = require('../../../config/db');
 const { logger } = require('../../../utils/logger');
 const { ResponseHandler } = require('../../../utils/responseHandler');
+const DataScopeService = require('../../../services/DataScopeService');
+
+function buildLocationFilter(scope, alias) {
+  if (Number(scope?.type) !== DataScopeService.DATA_SCOPE.CUSTOM) {
+    return { sql: '', params: [] };
+  }
+  const locationIds = (scope.locationIds || []).map(Number).filter((id) => Number.isInteger(id) && id > 0);
+  if (locationIds.length === 0) return { sql: ' AND 1 = 0', params: [] };
+  return {
+    sql: ` AND ${alias}.location_id IN (${locationIds.map(() => '?').join(',')})`,
+    params: locationIds,
+  };
+}
 
 const getDashboardSummary = async (req, res) => {
   try {
+    const scope = await DataScopeService.getRequestScope(req);
+    const ledgerFilter = buildLocationFilter(scope, 'il');
+    const stockLedgerFilter = buildLocationFilter(scope, 'il');
+    const categoryLedgerFilter = buildLocationFilter(scope, 'il_scope');
+
     // 1. 获取基础统计数据(总库存和价值)
     const stockQuery = `
       SELECT
@@ -13,13 +31,13 @@ const getDashboardSummary = async (req, res) => {
         SELECT il.material_id, SUM(il.quantity) as quantity
         FROM inventory_ledger il
         JOIN materials mat ON il.material_id = mat.id
-        WHERE mat.location_id IS NULL OR il.location_id = mat.location_id
+        WHERE (mat.location_id IS NULL OR il.location_id = mat.location_id)${stockLedgerFilter.sql}
         GROUP BY il.material_id
         HAVING SUM(il.quantity) > 0
       ) current_stock
       LEFT JOIN materials m ON current_stock.material_id = m.id
     `;
-    const [stockRes] = await db.pool.execute(stockQuery);
+    const [stockRes] = await db.pool.execute(stockQuery, stockLedgerFilter.params);
     const totalItems = stockRes[0]?.totalItems || 0;
     const totalValue = stockRes[0]?.totalValue || 0;
 
@@ -32,8 +50,9 @@ const getDashboardSummary = async (req, res) => {
         SUM(CASE WHEN quantity < 0 THEN ABS(quantity) ELSE 0 END) as outbound_items_qty
       FROM inventory_ledger
       WHERE DATE_FORMAT(created_at, '%Y-%m') = DATE_FORMAT(NOW(), '%Y-%m')
+        ${ledgerFilter.sql.replace(/il\./g, '')}
     `;
-    const [monthRes] = await db.pool.execute(thisMonthQuery);
+    const [monthRes] = await db.pool.execute(thisMonthQuery, ledgerFilter.params);
     const monthStats = monthRes[0] || {};
 
     // 3. 物料分类分布
@@ -43,10 +62,16 @@ const getDashboardSummary = async (req, res) => {
         COUNT(m.id) as item_count
       FROM materials m
       LEFT JOIN categories c ON m.category_id = c.id
+      ${Number(scope?.type) === DataScopeService.DATA_SCOPE.CUSTOM
+        ? `WHERE EXISTS (SELECT 1 FROM inventory_ledger il_scope WHERE il_scope.material_id = m.id${categoryLedgerFilter.sql})`
+        : ''}
       GROUP BY category_name
       ORDER BY item_count DESC
     `;
-    const [categoryRes] = await db.pool.execute(categoryQuery);
+    const [categoryRes] = await db.pool.execute(
+      categoryQuery,
+      Number(scope?.type) === DataScopeService.DATA_SCOPE.CUSTOM ? categoryLedgerFilter.params : []
+    );
 
     // 4. 最近12个月的出入库趋势
     const trendQuery = `
@@ -56,10 +81,11 @@ const getDashboardSummary = async (req, res) => {
         SUM(CASE WHEN quantity < 0 THEN ABS(quantity) ELSE 0 END) as outbound_qty
       FROM inventory_ledger
       WHERE created_at >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
+        ${ledgerFilter.sql.replace(/il\./g, '')}
       GROUP BY month
       ORDER BY month ASC
     `;
-    const [trendRes] = await db.pool.execute(trendQuery);
+    const [trendRes] = await db.pool.execute(trendQuery, ledgerFilter.params);
 
     // 5. 预警清单 (分页拉一些足够展示)
     const alertQuery = `
@@ -80,7 +106,7 @@ const getDashboardSummary = async (req, res) => {
         SELECT il.material_id, SUM(il.quantity) as quantity
         FROM inventory_ledger il
         JOIN materials mat ON il.material_id = mat.id
-        WHERE mat.location_id IS NULL OR il.location_id = mat.location_id
+        WHERE (mat.location_id IS NULL OR il.location_id = mat.location_id)${stockLedgerFilter.sql}
         GROUP BY il.material_id
       ) s ON m.id = s.material_id
       WHERE (COALESCE(s.quantity, 0) <= COALESCE(m.min_stock, 0) AND COALESCE(m.min_stock, 0) > 0)
@@ -88,7 +114,7 @@ const getDashboardSummary = async (req, res) => {
          OR (COALESCE(s.quantity, 0) <= 0)
       LIMIT 200
     `;
-    const [alertRes] = await db.pool.execute(alertQuery);
+    const [alertRes] = await db.pool.execute(alertQuery, stockLedgerFilter.params);
 
     // 数据编排结构化
     const alertsList = alertRes.map(item => {

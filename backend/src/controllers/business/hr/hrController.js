@@ -111,6 +111,7 @@ const getEmployees = async (req, res) => {
       status,
       page: req.query.page,
       pageSize: req.query.pageSize,
+      req,
     });
     return ResponseHandler.paginated(
       res,
@@ -155,6 +156,9 @@ const createEmployee = async (req, res) => {
 const updateEmployee = async (req, res) => {
   try {
     const { id } = req.params;
+    if (!(await HrService.assertEmployeeAccess(req, id))) {
+      return ResponseHandler.forbidden(res, '无权修改该员工信息');
+    }
     const data = mapKeysToSnake(req.body || {});
 
     const allowedFields = [
@@ -179,6 +183,9 @@ const updateEmployee = async (req, res) => {
 const archiveEmployee = async (req, res) => {
   try {
     const { id } = req.params;
+    if (!(await HrService.assertEmployeeAccess(req, id))) {
+      return ResponseHandler.forbidden(res, '无权归档该员工信息');
+    }
     await pool.query("UPDATE hr_employees SET employment_status = 'left' WHERE id = ?", [id]);
     return ResponseHandler.success(res, null, '员工已设置为离职状态');
   } catch (error) {
@@ -221,7 +228,8 @@ const getLeaveRequests = async (req, res) => {
       'lr',
       'leave',
       req.query,
-      getUserId(req)
+      getUserId(req),
+      req
     );
     const [[{ total }]] = await pool.query(query.countSql, query.params);
     const [rows] = await pool.query(query.listSql, query.listParams);
@@ -300,7 +308,8 @@ const getOvertimeRequests = async (req, res) => {
       'ot',
       'overtime',
       req.query,
-      getUserId(req)
+      getUserId(req),
+      req
     );
     const [[{ total }]] = await pool.query(query.countSql, query.params);
     const [rows] = await pool.query(query.listSql, query.listParams);
@@ -379,6 +388,7 @@ const getAttendance = async (req, res) => {
       period,
       page: req.query.page,
       pageSize: req.query.pageSize,
+      req,
     });
     return ResponseHandler.paginated(
       res,
@@ -408,6 +418,10 @@ const batchSaveAttendance = async (req, res) => {
     try {
       await connection.beginTransaction();
       for (const record of records) {
+        if (!(await HrService.assertEmployeeAccess(req, record.employee_id, connection))) {
+          await connection.rollback();
+          return ResponseHandler.forbidden(res, '包含超出数据范围的员工考勤记录');
+        }
         await connection.query(`
           INSERT INTO hr_attendance (employee_id, period, days_in_month, leave_days, vacation_days, overtime_hours, full_attendance, status)
           VALUES (?, ?, ?, ?, ?, ?, ?, 'confirmed')
@@ -601,7 +615,7 @@ const importAttendanceExcel = async (req, res) => {
 const getSalaryRecords = async (req, res) => {
   try {
     const { period } = req.query;
-    const rows = await HrService.getSalaryRecords({ period });
+    const rows = await HrService.getSalaryRecords({ period, req });
 
     // Parse JSON details
     const parsedRows = rows.map(r => {
@@ -635,6 +649,10 @@ const calculateSalary = async (req, res) => {
 const confirmSalary = async (req, res) => {
   try {
     const { id } = req.params;
+    const [[salary]] = await pool.query('SELECT employee_id FROM hr_salary_records WHERE id = ? LIMIT 1', [id]);
+    if (!salary || !(await HrService.assertEmployeeAccess(req, salary.employee_id))) {
+      return ResponseHandler.forbidden(res, '无权确认该工资单');
+    }
     const SalaryService = require('../../../services/business/hr/salaryService');
     const result = await SalaryService.confirmAndPostSalary(id, req.user?.id || null);
     return ResponseHandler.success(res, result, result.skipped ? result.message : '工资单确认成功，已生成计提凭证');
@@ -649,6 +667,15 @@ const batchConfirmSalary = async (req, res) => {
   try {
     const { period } = req.body;
     if (!period) return ResponseHandler.error(res, '缺少周期参数', 'VALIDATION_ERROR', 400);
+    const [salaryRows] = await pool.query(
+      'SELECT DISTINCT employee_id FROM hr_salary_records WHERE period = ?',
+      [period]
+    );
+    for (const row of salaryRows) {
+      if (!(await HrService.assertEmployeeAccess(req, row.employee_id))) {
+        return ResponseHandler.forbidden(res, '工资周期包含超出数据范围的员工');
+      }
+    }
     const SalaryService = require('../../../services/business/hr/salaryService');
     const result = await SalaryService.batchConfirmAndPost(period, req.user?.id || null);
     return ResponseHandler.success(
@@ -679,9 +706,9 @@ const exportSalary = async (req, res) => {
       FROM hr_salary_records s
       JOIN hr_employees e ON s.employee_id = e.id
       LEFT JOIN departments d ON e.department_id = d.id
-      WHERE s.period = ?
+      WHERE s.period = ?${HrService.getEmployeeScopeClause(req, 'e').sql}
       ORDER BY d.name, e.name
-    `, [period]);
+    `, [period, ...HrService.getEmployeeScopeClause(req, 'e').params]);
 
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet(`${period}薪酬表`);

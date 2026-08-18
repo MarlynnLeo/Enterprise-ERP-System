@@ -33,6 +33,7 @@ exports.getSalesExchanges = async (req, res) => {
     const scopeClause = await ScopeGuard.applyListScope(req, 'sales_exchange', {
       tableAlias: 'se',
       ownerAlias: 'sales_exchange_owner_scope',
+      accessMode: 'read',
     });
     let whereClause = '';
     const queryParams = [];
@@ -141,7 +142,7 @@ exports.getSalesExchangeById = async (req, res) => {
     const { id } = req.params;
     if (id !== null && id !== undefined && id !== '') {
       const ScopeGuard = require('../../../authorization/ScopeGuard');
-      if (!(await ScopeGuard.assertAccess(db.pool, req, 'sales_exchange', id))) {
+      if (!(await ScopeGuard.assertAccess(db.pool, req, 'sales_exchange', id, { accessMode: 'read' }))) {
         return ResponseHandler.forbidden(res, '无权访问该销售换货单');
       }
     }

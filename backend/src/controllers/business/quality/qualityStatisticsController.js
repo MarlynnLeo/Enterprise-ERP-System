@@ -13,6 +13,7 @@ const { mapKeysToSnake } = require('../../../utils/fieldMap');
 const db = require('../../../config/db');
 const pool = db.pool;
 const { parsePagination, appendPaginationSQL } = require('../../../utils/safePagination');
+const ScopeGuard = require('../../../authorization/ScopeGuard');
 
 const DEFECT_ITEM_RESULT_CONDITION = `(
   LOWER(COALESCE(qii.result, '')) IN ('failed', 'fail', 'ng', 'nok', 'unqualified')
@@ -28,6 +29,12 @@ const DEFECT_INSPECTION_STATUS_CONDITION = "qi.status IN ('failed', 'partial', '
 const getQualityStatistics = async (req, res) => {
   try {
     const {  startDate, endDate } = req.query;
+    const scopeClause = await ScopeGuard.applyListScope(req, 'quality_inspection', {
+      tableAlias: 'qi',
+      ownerAlias: 'quality_statistics_owner_scope',
+    });
+    const scopedTail = scopeClause.where || '';
+    const scopedParams = scopeClause.params || [];
 
     let dateFilter = '';
     let dateParams = [];
@@ -48,9 +55,10 @@ const getQualityStatistics = async (req, res) => {
               COUNT(CASE WHEN qi.status = 'failed' THEN 1 END) as failed,
               COUNT(CASE WHEN qi.status = 'pending' THEN 1 END) as pending
             FROM quality_inspections qi
+            ${scopeClause.join || ''}
             WHERE qi.inspection_type = 'incoming'
-              AND qi.deleted_at IS NULL ${dateFilter}`,
-      dateParams
+              AND qi.deleted_at IS NULL ${dateFilter}${scopedTail}`,
+      [...dateParams, ...scopedParams]
     );
 
     const [processStats] = await pool.query(
@@ -59,9 +67,10 @@ const getQualityStatistics = async (req, res) => {
               COUNT(CASE WHEN qi.status = 'failed' THEN 1 END) as failed,
               COUNT(CASE WHEN qi.status = 'pending' THEN 1 END) as pending
             FROM quality_inspections qi
+            ${scopeClause.join || ''}
             WHERE qi.inspection_type = 'process'
-              AND qi.deleted_at IS NULL ${dateFilter}`,
-      dateParams
+              AND qi.deleted_at IS NULL ${dateFilter}${scopedTail}`,
+      [...dateParams, ...scopedParams]
     );
 
     const [finalStats] = await pool.query(
@@ -70,9 +79,10 @@ const getQualityStatistics = async (req, res) => {
               COUNT(CASE WHEN qi.status = 'failed' THEN 1 END) as failed,
               COUNT(CASE WHEN qi.status = 'pending' THEN 1 END) as pending
             FROM quality_inspections qi
+            ${scopeClause.join || ''}
             WHERE qi.inspection_type = 'final'
-              AND qi.deleted_at IS NULL ${dateFilter}`,
-      dateParams
+              AND qi.deleted_at IS NULL ${dateFilter}${scopedTail}`,
+      [...dateParams, ...scopedParams]
     );
 
     const [defectStats] = await pool.query(
@@ -80,10 +90,11 @@ const getQualityStatistics = async (req, res) => {
               COUNT(DISTINCT CASE WHEN ${DEFECT_ITEM_RESULT_CONDITION} THEN qi.id END) as defect_inspections,
               COUNT(DISTINCT CASE WHEN ${DEFECT_ITEM_RESULT_CONDITION} THEN qii.item_name END) as defect_types
             FROM quality_inspections qi
+            ${scopeClause.join || ''}
             LEFT JOIN quality_inspection_items qii ON qi.id = qii.inspection_id
             WHERE qi.deleted_at IS NULL
-              AND ${DEFECT_INSPECTION_STATUS_CONDITION} ${dateFilter}`,
-      dateParams
+              AND ${DEFECT_INSPECTION_STATUS_CONDITION} ${dateFilter}${scopedTail}`,
+      [...dateParams, ...scopedParams]
     );
 
     const calcRate = (s) => {
@@ -118,6 +129,10 @@ const getDefectItems = async (req, res) => {
 
     const whereConds = ['qi.deleted_at IS NULL', DEFECT_INSPECTION_STATUS_CONDITION];
     const params = [];
+    const scopeClause = await ScopeGuard.applyListScope(req, 'quality_inspection', {
+      tableAlias: 'qi',
+      ownerAlias: 'quality_defect_owner_scope',
+    });
 
     if (keyword) {
       whereConds.push(`(qi.inspection_no LIKE ? OR qi.product_name LIKE ? OR qi.product_code LIKE ? OR qii.remark LIKE ?)`);
@@ -129,12 +144,16 @@ const getDefectItems = async (req, res) => {
       params.push(startDate, endDate);
     }
 
+    if (scopeClause.where) whereConds.push(scopeClause.where.replace(/^\s*AND\s*/, ''));
+    params.push(...(scopeClause.params || []));
+
     const where = 'WHERE ' + whereConds.join(' AND ');
 
     const [countResult] = await pool.query(
       `SELECT COUNT(DISTINCT qi.id) as total
             FROM quality_inspections qi
             LEFT JOIN quality_inspection_items qii ON qi.id = qii.inspection_id
+            ${scopeClause.join || ''}
             ${where}`, params
     );
 
@@ -152,6 +171,7 @@ const getDefectItems = async (req, res) => {
                    WHEN qi.status = 'pending' THEN '待处理' ELSE '处理中' END as processResult
             FROM quality_inspections qi
             LEFT JOIN quality_inspection_items qii ON qi.id = qii.inspection_id
+            ${scopeClause.join || ''}
             ${where}
             GROUP BY qi.id ORDER BY qi.created_at DESC
             `, pagination.limit, pagination.offset), params
@@ -170,26 +190,32 @@ const getDefectItems = async (req, res) => {
 const getQualityTrends = async (req, res) => {
   try {
     const { months = 6 } = req.query;
+    const scopeClause = await ScopeGuard.applyListScope(req, 'quality_inspection', {
+      tableAlias: 'qi',
+      ownerAlias: 'quality_trend_owner_scope',
+    });
 
     const [trendData] = await pool.query(
       `SELECT DATE_FORMAT(qi.created_at, '%Y-%m') as month, qi.inspection_type,
               COUNT(*) as total, COUNT(CASE WHEN qi.status = 'passed' THEN 1 END) as passed
             FROM quality_inspections qi
+            ${scopeClause.join || ''}
             WHERE qi.deleted_at IS NULL
-              AND qi.created_at >= DATE_SUB(CURDATE(), INTERVAL ? MONTH)
+              AND qi.created_at >= DATE_SUB(CURDATE(), INTERVAL ? MONTH)${scopeClause.where || ''}
             GROUP BY month, qi.inspection_type ORDER BY month DESC`,
-      [parseInt(months)]
+      [parseInt(months), ...(scopeClause.params || [])]
     );
 
     const [defectTypes] = await pool.query(
       `SELECT qii.item_name as defect_type, COUNT(*) as count
             FROM quality_inspection_items qii
             JOIN quality_inspections qi ON qii.inspection_id = qi.id
+            ${scopeClause.join || ''}
             WHERE qi.deleted_at IS NULL
               AND qi.created_at >= DATE_SUB(CURDATE(), INTERVAL ? MONTH)
-              AND ${DEFECT_ITEM_RESULT_CONDITION}
+              AND ${DEFECT_ITEM_RESULT_CONDITION}${scopeClause.where || ''}
             GROUP BY qii.item_name ORDER BY count DESC LIMIT 10`,
-      [parseInt(months)]
+      [parseInt(months), ...(scopeClause.params || [])]
     );
 
     return ResponseHandler.success(res, { trends: trendData, defectTypes });

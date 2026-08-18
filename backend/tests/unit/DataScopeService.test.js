@@ -164,6 +164,52 @@ describe('DataScopeService', () => {
       ).resolves.toBe(false);
     });
 
+    test('有业务部门字段时按单据所属部门过滤，而不是创建人部门', () => {
+      const clause = DataScopeService.buildOwnerScopeClause(
+        {
+          type: DataScopeService.DATA_SCOPE.DEPARTMENT,
+          userId: 3,
+          departmentIds: [10, 11],
+        },
+        { tableAlias: 'pp', ownerAlias: 'plan_owner_scope', departmentColumn: 'department_id' }
+      );
+      expect(clause.join).toBe('');
+      expect(clause.where).toContain('pp.`department_id` IN');
+      expect(clause.params).toEqual([10, 11]);
+    });
+
+    test('业务部门字段用于单记录访问校验', async () => {
+      const req = {
+        authzScope: {
+          type: DataScopeService.DATA_SCOPE.DEPARTMENT,
+          userId: 5,
+          departmentIds: [7],
+          locationIds: [],
+        },
+      };
+      mockConn.execute.mockResolvedValueOnce([
+        [{ id: 1, owner_id: 99, resource_department_id: 7 }],
+      ]);
+      await expect(
+        DataScopeService.assertRecordAccess(mockConn, req, 'production_plans', 1, {
+          ownerColumn: 'created_by',
+          departmentColumn: 'department_id',
+          deletedAtColumn: false,
+        })
+      ).resolves.toBe(true);
+
+      mockConn.execute.mockResolvedValueOnce([
+        [{ id: 2, owner_id: 99, resource_department_id: 99 }],
+      ]);
+      await expect(
+        DataScopeService.assertRecordAccess(mockConn, req, 'production_plans', 2, {
+          ownerColumn: 'created_by',
+          departmentColumn: 'department_id',
+          deletedAtColumn: false,
+        })
+      ).resolves.toBe(false);
+    });
+
     test('记录不存在返回 false', async () => {
       const req = {
         authzScope: {

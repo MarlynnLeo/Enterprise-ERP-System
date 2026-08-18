@@ -92,6 +92,7 @@ const getReceipts = async (req, res) => {
     const scopeClause = await ScopeGuard.applyListScope(req, 'purchase_receipt', {
       tableAlias: 'r',
       ownerAlias: 'purchase_receipt_owner_scope',
+      accessMode: 'read',
     });
     let whereClause = ' WHERE r.deleted_at IS NULL';
     const queryParams = [];
@@ -194,7 +195,7 @@ const getReceipt = async (req, res) => {
     const { id } = req.params;
     if (id !== null && id !== undefined && id !== '') {
       const ScopeGuard = require('../../../authorization/ScopeGuard');
-      if (!(await ScopeGuard.assertAccess(db.pool, req, 'purchase_receipt', id))) {
+      if (!(await ScopeGuard.assertAccess(db.pool, req, 'purchase_receipt', id, { accessMode: 'read' }))) {
         return ResponseHandler.forbidden(res, '无权访问该采购入库单');
       }
     }

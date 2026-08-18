@@ -251,27 +251,32 @@ const getInboundStatistics = async (req, res) => {
   const connection = await db.pool.getConnection();
   try {
     const { inboundNo, startDate, endDate, locationId, inboundType, materialName } = req.query;
-    let whereClause = 'WHERE is_deleted = 0 AND deleted_at IS NULL';
+    const ScopeGuard = require('../../../authorization/ScopeGuard');
+    const scopeClause = await ScopeGuard.applyListScope(req, 'inventory_inbound', {
+      tableAlias: 'i',
+      ownerAlias: 'inbound_stats_owner_scope',
+    });
+    let whereClause = 'WHERE i.is_deleted = 0 AND i.deleted_at IS NULL';
     const params = [];
 
     if (inboundNo) {
-      whereClause += ' AND inbound_no LIKE ?';
+      whereClause += ' AND i.inbound_no LIKE ?';
       params.push(`%${inboundNo}%`);
     }
     if (startDate) {
-      whereClause += ' AND inbound_date >= ?';
+      whereClause += ' AND i.inbound_date >= ?';
       params.push(startDate);
     }
     if (endDate) {
-      whereClause += ' AND inbound_date <= ?';
+      whereClause += ' AND i.inbound_date <= ?';
       params.push(endDate);
     }
     if (locationId) {
-      whereClause += ' AND location_id = ?';
+      whereClause += ' AND i.location_id = ?';
       params.push(parseInt(locationId, 10));
     }
     if (inboundType) {
-      whereClause += ' AND inbound_type = ?';
+      whereClause += ' AND i.inbound_type = ?';
       params.push(inboundType);
     }
 
@@ -280,20 +285,24 @@ const getInboundStatistics = async (req, res) => {
         SELECT 1
         FROM inventory_inbound_items ii_search
         LEFT JOIN materials m_search ON ii_search.material_id = m_search.id
-        WHERE ii_search.inbound_id = inventory_inbound.id
+        WHERE ii_search.inbound_id = i.id
           AND (m_search.name LIKE ? OR m_search.code LIKE ? OR m_search.specs LIKE ?)
       )`;
       params.push(`%${materialName}%`, `%${materialName}%`, `%${materialName}%`);
     }
 
+    whereClause += scopeClause.where || '';
+    params.push(...(scopeClause.params || []));
+
     const [rows] = await connection.execute(
       `SELECT
         COUNT(*) as total,
-        SUM(CASE WHEN status = 'draft' THEN 1 ELSE 0 END) as draftCount,
-        SUM(CASE WHEN status = 'confirmed' THEN 1 ELSE 0 END) as confirmedCount,
-        SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completedCount,
-        SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) as cancelledCount
-       FROM inventory_inbound
+        SUM(CASE WHEN i.status = 'draft' THEN 1 ELSE 0 END) as draftCount,
+        SUM(CASE WHEN i.status = 'confirmed' THEN 1 ELSE 0 END) as confirmedCount,
+        SUM(CASE WHEN i.status = 'completed' THEN 1 ELSE 0 END) as completedCount,
+        SUM(CASE WHEN i.status = 'cancelled' THEN 1 ELSE 0 END) as cancelledCount
+       FROM inventory_inbound i
+       ${scopeClause.join || ''}
        ${whereClause}`,
       params
     );

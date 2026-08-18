@@ -99,6 +99,7 @@ exports.getSalesOutbound = async (req, res) => {
       const scopeClause = await ScopeGuard.applyListScope(req, 'sales_outbound', {
         tableAlias: 'so',
         ownerAlias: 'sales_outbound_owner_scope',
+        accessMode: 'read',
       });
 
       // 构建查询条件
@@ -286,7 +287,7 @@ exports.getSalesOutboundById = async (req, res) => {
     connection = await getConnection();
 
     const ScopeGuard = require('../../../authorization/ScopeGuard');
-    if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'sales_outbound', id, '无权访问该销售出库单'))) {
+    if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'sales_outbound', id, '无权访问该销售出库单', { accessMode: 'read' }))) {
       return;
     }
 

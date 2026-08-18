@@ -21,6 +21,7 @@ const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const SchedulingService = require('../../../services/business/SchedulingService');
 const BomExplosionService = require('../../../services/BomExplosionService');
 const TaskRepository = require('../../../repositories/TaskRepository');
+const ScopeGuard = require('../../../authorization/ScopeGuard');
 
 // 任务生命周期相关服务统一在顶部声明，避免运行时动态 require
 const {
@@ -163,13 +164,19 @@ exports.generateTaskCode = async (req, res) => {
  */
 exports.getProductionTaskManagers = async (req, res) => {
   try {
+    const scopeClause = await ScopeGuard.applyListScope(req, 'production_task', {
+      tableAlias: 'pt',
+      ownerAlias: 'production_task_manager_owner_scope',
+      accessMode: 'read',
+    });
     // 获取所有有负责人的生产任务的负责人列表（去重）
     const [managers] = await pool.query(`
       SELECT DISTINCT manager
-      FROM production_tasks
-      WHERE deleted_at IS NULL AND manager IS NOT NULL AND manager != ''
+      FROM production_tasks pt
+      ${scopeClause.join || ''}
+      WHERE pt.deleted_at IS NULL AND pt.manager IS NOT NULL AND pt.manager != ''${scopeClause.where || ''}
       ORDER BY manager ASC
-    `);
+    `, scopeClause.params || []);
 
     return ResponseHandler.success(
       res,
@@ -190,6 +197,7 @@ exports.getProductionTasks = async (req, res) => {
     const scopeClause = await ScopeGuard.applyListScope(req, 'production_task', {
       tableAlias: 'pt',
       ownerAlias: 'production_task_owner_scope',
+      accessMode: 'read',
     });
 
     const { productionTaskMap } = require('../../../utils/production/productionFieldMap');
@@ -251,6 +259,10 @@ exports.createProductionTask = async (req, res) => {
     let linkedPlan = null;
 
     if (plan_id) {
+      if (!(await ScopeGuard.assertAccess(connection, req, 'production_plan', plan_id))) {
+        await connection.rollback();
+        return ResponseHandler.forbidden(res, '无权使用该生产计划创建任务');
+      }
       linkedPlan = await TaskRepository.findPlanById(connection, plan_id);
 
       if (!linkedPlan) {
@@ -503,6 +515,10 @@ exports.updateProductionTask = async (req, res) => {
 
     if (trackedFieldsChanged) {
       if (currentPlanId) {
+        if (!(await ScopeGuard.assertAccess(connection, req, 'production_plan', currentPlanId))) {
+          await connection.rollback();
+          return ResponseHandler.forbidden(res, '无权修改原生产计划');
+        }
         await connection.query(
           `UPDATE production_plans
            SET pushed_quantity = GREATEST(0, COALESCE(pushed_quantity, 0) - ?)
@@ -512,6 +528,10 @@ exports.updateProductionTask = async (req, res) => {
       }
 
       if (nextPlanId) {
+        if (!(await ScopeGuard.assertAccess(connection, req, 'production_plan', nextPlanId))) {
+          await connection.rollback();
+          return ResponseHandler.forbidden(res, '无权使用该生产计划');
+        }
         const [planRows] = await connection.query(
           `SELECT id, product_id, quantity, COALESCE(pushed_quantity, 0) as pushed_quantity
            FROM production_plans
@@ -728,7 +748,7 @@ exports.getProductionTaskById = async (req, res) => {
     const { id } = req.params;
 
     const ScopeGuard = require('../../../authorization/ScopeGuard');
-    if (!(await ScopeGuard.denyUnlessAccess(res, pool, req, 'production_task', id, '无权访问该生产任务'))) {
+    if (!(await ScopeGuard.denyUnlessAccess(res, pool, req, 'production_task', id, '无权访问该生产任务', { accessMode: 'read' }))) {
       return;
     }
 
@@ -759,9 +779,11 @@ exports.getProductionTaskById = async (req, res) => {
 exports.updateProductionTaskProgress = async (req, res) => {
   const connection = await pool.getConnection();
   try {
-    await connection.beginTransaction();
-
     const { id } = req.params;
+    if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'production_task', id, '无权修改该生产任务'))) {
+      return;
+    }
+    await connection.beginTransaction();
     const { progress, completed_quantity } = mapKeysToSnake(req.body || {});
 
     const [taskCheck] = await connection.query(
@@ -829,10 +851,12 @@ exports.updateProductionTaskStatus = async (req, res) => {
   let transactionStarted = false;
 
   try {
+    const { id } = req.params;
+    if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'production_task', id, '无权变更该生产任务状态'))) {
+      return;
+    }
     await connection.beginTransaction();
     transactionStarted = true;
-
-    const { id } = req.params;
     let { status } = req.body;
 
     // 兼容前端的驼峰命名，统一转换为下划线命名
@@ -1168,6 +1192,11 @@ exports.getPendingTasks = async (req, res) => {
       PRODUCTION_STATUS_KEYS.PENDING,
       PRODUCTION_STATUS_KEYS.IN_PROGRESS,
     ];
+    const scopeClause = await ScopeGuard.applyListScope(req, 'production_task', {
+      tableAlias: 'pt',
+      ownerAlias: 'production_pending_task_owner_scope',
+      accessMode: 'read',
+    });
 
     const query = `
       SELECT
@@ -1180,13 +1209,14 @@ exports.getPendingTasks = async (req, res) => {
         m.name as productName
       FROM production_tasks pt
       LEFT JOIN materials m ON pt.product_id = m.id
-      WHERE pt.deleted_at IS NULL AND pt.status IN (?)
+      ${scopeClause.join || ''}
+      WHERE pt.deleted_at IS NULL AND pt.status IN (?)${scopeClause.where || ''}
       ORDER BY pt.expected_end_date ASC
       LIMIT ?
     `;
 
     // LIMIT 使用参数化查询
-    const [tasks] = await pool.query(query, [pendingTaskStatuses, safeLimit]);
+    const [tasks] = await pool.query(query, [pendingTaskStatuses, ...(scopeClause.params || []), safeLimit]);
     return ResponseHandler.success(res, tasks);
   } catch (error) {
     logger.error('获取待办任务失败:', error);
@@ -1204,6 +1234,10 @@ exports.completeTask = async (req, res) => {
   try {
     const { id } = req.params;
     const { quantity, remark } = req.body;
+
+    if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'production_task', id, '无权完工该生产任务'))) {
+      return;
+    }
 
     if (!quantity || quantity <= 0) {
       return ResponseHandler.error(res, '请输入有效的完工数量', 'VALIDATION_ERROR', 400);
@@ -1474,6 +1508,10 @@ exports.completeTask = async (req, res) => {
 exports.getProductionTaskBom = async (req, res) => {
   try {
     const { id } = req.params;
+
+    if (!(await ScopeGuard.denyUnlessAccess(res, pool, req, 'production_task', id, '无权访问该生产任务', { accessMode: 'read' }))) {
+      return;
+    }
 
     // 1. 获取任务信息
     const [tasks] = await pool.query(

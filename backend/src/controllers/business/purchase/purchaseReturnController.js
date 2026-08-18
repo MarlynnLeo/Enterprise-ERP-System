@@ -160,6 +160,7 @@ const getReturns = async (req, res) => {
     const scopeClause = await ScopeGuard.applyListScope(req, 'purchase_return', {
       tableAlias: 'r',
       ownerAlias: 'purchase_return_owner_scope',
+      accessMode: 'read',
     });
 
     // 创建两个查询：一个用于获取分页数据，一个用于计算总数
@@ -276,7 +277,7 @@ const getReturn = async (req, res) => {
     const { id } = req.params;
     if (id !== null && id !== undefined && id !== '') {
       const ScopeGuard = require('../../../authorization/ScopeGuard');
-      if (!(await ScopeGuard.assertAccess(db.pool, req, 'purchase_return', id))) {
+      if (!(await ScopeGuard.assertAccess(db.pool, req, 'purchase_return', id, { accessMode: 'read' }))) {
         return ResponseHandler.forbidden(res, '无权访问该采购退货单');
       }
     }
