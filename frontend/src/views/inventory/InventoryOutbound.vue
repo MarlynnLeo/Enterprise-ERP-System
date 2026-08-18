@@ -623,7 +623,9 @@
   </div>
 </template>
 
-<script setup>
+<script>
+import { ref, reactive, onMounted, computed, nextTick, h } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { handleTableRowView } from '@/utils/tableRowView'
 import {
   Search as SearchIcon,
@@ -639,11 +641,6 @@ import {
   Finished,
   RefreshLeft,
 } from '@element-plus/icons-vue'
-</script>
-
-<script>
-import { ref, reactive, onMounted, computed, nextTick, h } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
 import { productionApi, inventoryApi, baseDataApi, systemApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import printService from '@/services/printService'
@@ -2195,6 +2192,13 @@ export default {
       Printer,
       SelectIcon,
       Close,
+      View,
+      Edit,
+      Delete,
+      RefreshRight,
+      Check,
+      Finished,
+      RefreshLeft,
       // 数据
       outboundList,
       loading,
