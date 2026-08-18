@@ -233,5 +233,6 @@
   "20260814000020_align_approval_templates_to_manager_roles.js": "c94fa7f23703a86944ac62a17b5d120695ee89f66e81798537e923a8324dd4d8",
   "20260814000021_store_approval_approvers_as_role_codes.js": "0d98ca61335d8217c5af510b990e20d6a8f0e78b39a077431088a59bc4797ff5",
   "20260814000022_restrict_shop_floor_to_report_and_material_request.js": "22f27e58313931d41344630cf8310717b184f7e94a073b2feb6dcf20da168977",
-  "20260814000023_align_shop_floor_pc_menus.js": "1980ead81b9b98309ebeaa0da4b3cb41917911aaa38608b6d41da33f3f15228d"
+  "20260814000023_align_shop_floor_pc_menus.js": "1980ead81b9b98309ebeaa0da4b3cb41917911aaa38608b6d41da33f3f15228d",
+  "20260818000001_add_material_column_to_materials.js": "ed78f5345b285d4152c071a56d2dab559bc5dee50830113789d81f7e990953df"
 }
