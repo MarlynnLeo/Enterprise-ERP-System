@@ -15,6 +15,25 @@ const bomService = require('../../../services/bomService');
 
 const bomController = {
 
+  async getBomOptions(req, res) {
+    try {
+      const pageSize = Math.min(
+        Math.max(parseInt(req.query.limit || req.query.pageSize, 10) || 50, 1),
+        100
+      );
+      const options = await bomService.getBomOptions({
+        keyword: req.query.keyword || req.query.search || '',
+        includeHistory: req.query.includeHistory === 'true' || req.query.includeHistory === true,
+        pageSize,
+      });
+
+      ResponseHandler.success(res, options, '获取BOM选项成功');
+    } catch (error) {
+      logger.error('获取BOM选项失败:', error);
+      ResponseHandler.error(res, error.message, 'SERVER_ERROR', 500, error);
+    }
+  },
+
   async getAllBoms(req, res) {
     try {
       const { page = 1, pageSize = 10, ...filters } = req.query;

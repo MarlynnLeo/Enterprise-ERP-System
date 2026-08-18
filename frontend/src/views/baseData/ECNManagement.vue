@@ -264,10 +264,9 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import BusinessApprovalDialog from '@/components/workflow/BusinessApprovalDialog.vue'
 import { useBusinessApproval } from '@/composables/useBusinessApproval'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ecnApi } from '@/api/enhanced'
-import { baseDataApi } from '@/api/baseData'
-import { bomApi } from '@/api/bom'
-import { View, Promotion, VideoPlay, CircleCheck, RefreshLeft, Delete } from '@element-plus/icons-vue'
+import { ecnApi, baseDataApi, bomApi } from '@/api'
+import { searchBomOptions as fetchBomOptions } from '@/utils/optionLoaders'
+import { Promotion, VideoPlay, CircleCheck, RefreshLeft, Delete } from '@element-plus/icons-vue'
 
 // 状态映射表
 const statusTypeMap = { draft:'info', pending_approval:'warning', approved:'success', implementing:'primary', completed:'success', rejected:'danger', cancelled:'info' }
@@ -314,15 +313,7 @@ const searchBom = (query = '') => {
   bomSearchTimer = setTimeout(async () => {
     bomSearching.value = true
     try {
-      const res = await bomApi.getBoms({ keyword: query, page: 1, pageSize: 50 })
-      bomOptions.value = normalizeList(res).map(b => ({
-        id: b.id,
-        code: b.code || `BOM#${b.id}`,
-        version: b.version,
-        product_code: b.productCode,
-        product_name: b.productName,
-        label: `${b.productCode || ''} ${b.productName || ''} ${b.version || ''}`.trim() || `BOM#${b.id}`
-      }))
+      bomOptions.value = await fetchBomOptions(query)
     } catch {
       bomOptions.value = []
     } finally {

@@ -175,12 +175,18 @@
             v-model="copySelectedBomId"
             placeholder="请选择要复制的源BOM"
             filterable
+            remote
+            reserve-keyword
+            :remote-method="loadCopySourceBomOptions"
+            :loading="loadingBomsForCopy"
+            no-data-text="没有找到匹配的BOM"
+            loading-text="搜索中..."
             class="w-full"
           >
             <el-option
-              v-for="bom in tableData"
+              v-for="bom in copyBomOptions"
               :key="bom.id"
-              :label="`${bom.productCode || ''} - ${bom.productName || '未知'} (${bom.version || 'V1.0'})`"
+              :label="bom.label"
               :value="bom.id"
             />
           </el-select>
@@ -231,9 +237,9 @@ import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, MoreFilled, Select, CopyDocument, Files, Position, Download, Upload, Switch } from '@element-plus/icons-vue';
 import { useAuthStore } from '@/stores/auth';
-import { materialApi } from '@/api/material';
-import { bomApi } from '@/api/bom';
+import { materialApi, bomApi } from '@/api';
 import { parsePaginatedData, parseListData, parseDataObject, parseResponseData } from '@/utils/responseParser';
+import { normalizeBomOption, searchBomOptions } from '@/utils/optionLoaders';
 // 引入新组件
 import BomTable from './components/BomTable.vue';
 import BomStatCards from './components/BomStatCards.vue';
@@ -273,6 +279,9 @@ const copyTargetProductId = ref(null);
 const copyTargetVersion = ref('V1.0');
 const copyProductOptions = ref([]);
 const loadingProductsForCopy = ref(false);
+const copyBomOptions = ref([]);
+const loadingBomsForCopy = ref(false);
+let sourceBomSearchRequestId = 0;
 const copyLoading = ref(false);
 
 const searchForm = reactive({
@@ -581,8 +590,31 @@ const searchProductsForCopy = async (query) => {
   }
 };
 
+const loadCopySourceBomOptions = async (query = '') => {
+  const requestId = ++sourceBomSearchRequestId;
+  loadingBomsForCopy.value = true;
+  try {
+    const options = await searchBomOptions(query);
+    if (requestId !== sourceBomSearchRequestId) return;
+
+    const selectedBom = selectedRows.value.find((row) => row.id === copySelectedBomId.value);
+    copyBomOptions.value = selectedBom && !options.some((bom) => bom.id === selectedBom.id)
+      ? [normalizeBomOption(selectedBom), ...options]
+      : options;
+  } catch (error) {
+    if (requestId === sourceBomSearchRequestId) {
+      console.error('搜索源BOM失败:', error);
+      copyBomOptions.value = [];
+    }
+  } finally {
+    if (requestId === sourceBomSearchRequestId) {
+      loadingBomsForCopy.value = false;
+    }
+  }
+};
+
 // 复制BOM - 打开选择弹窗
-const handleCopyBom = () => {
+const handleCopyBom = async () => {
   if (tableData.value.length === 0) {
     ElMessage.warning('暂无BOM数据可复制');
     return;
@@ -596,7 +628,11 @@ const handleCopyBom = () => {
   copyTargetProductId.value = null;
   copyTargetVersion.value = 'V1.0';
   copyProductOptions.value = [];
+  copyBomOptions.value = selectedRows.value.length > 0
+    ? [normalizeBomOption(selectedRows.value[0])]
+    : [];
   copyDialogVisible.value = true;
+  await loadCopySourceBomOptions();
 };
 
 // 执行复制BOM

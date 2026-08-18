@@ -196,6 +196,36 @@ export const searchMaterialOptions = (keyword = '', params = {}) => {
   })
 }
 
+/**
+ * 统一 BOM 下拉数据结构。
+ * 所有 BOM 选择器统一显示：产品编码 - 产品名称 - 型号。
+ */
+export const normalizeBomOption = (bom = {}) => {
+  const productCode = bom.productCode || bom.product_code || ''
+  const productName = bom.productName || bom.product_name || '未知产品'
+  const productSpecs = bom.productSpecs || bom.product_specs || '无型号'
+
+  return {
+    ...bom,
+    productCode,
+    productName,
+    productSpecs,
+    label: `${productCode} - ${productName} - ${productSpecs}`,
+  }
+}
+
+/** BOM 下拉：使用轻量选项接口，避免加载 BOM 明细。 */
+export const loadBomOptions = async (params = {}) => {
+  const options = await loadCachedList('boms-options', baseDataApi.getBomOptions, params)
+  return options.map(normalizeBomOption)
+}
+
+export const searchBomOptions = (keyword = '', params = {}) =>
+  loadBomOptions({
+    ...params,
+    keyword: String(keyword || '').trim() || undefined,
+  })
+
 export const loadProductionProcessOptions = (params = {}) =>
   loadCachedList('production-processes', productionApi.getProductionProcesses, params)
 

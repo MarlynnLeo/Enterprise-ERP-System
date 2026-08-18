@@ -25,7 +25,7 @@
               <el-option
                 v-for="bom in allBomList"
                 :key="'a-' + bom.id"
-                :label="`${bom.productCode || ''} - ${bom.productName || '未知产品'} - ${bom.version || 'V1.0'}${Number(bom.status) === 2 ? ' (历史)' : ''}`"
+                :label="`${bom.label} - ${bom.version || 'V1.0'}${Number(bom.status) === 2 ? ' (历史)' : ''}`"
                 :value="bom.id"
                 :disabled="bom.id === selectedBomB"
               />
@@ -51,7 +51,7 @@
               <el-option
                 v-for="bom in allBomList"
                 :key="'b-' + bom.id"
-                :label="`${bom.productCode || ''} - ${bom.productName || '未知产品'} - ${bom.version || 'V1.0'}${Number(bom.status) === 2 ? ' (历史)' : ''}`"
+                :label="`${bom.label} - ${bom.version || 'V1.0'}${Number(bom.status) === 2 ? ' (历史)' : ''}`"
                 :value="bom.id"
                 :disabled="bom.id === selectedBomA"
               />
@@ -158,8 +158,9 @@
 import { ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Switch, ArrowLeft } from '@element-plus/icons-vue'
-import { bomApi } from '@/api/bom'
-import { parsePaginatedData, parseResponseData } from '@/utils/responseParser'
+import { bomApi } from '@/api'
+import { parseResponseData } from '@/utils/responseParser'
+import { normalizeBomOption, searchBomOptions as fetchBomOptions } from '@/utils/optionLoaders'
 const props = defineProps({
   modelValue: Boolean,
   bomList: {
@@ -195,21 +196,14 @@ const searchBomOptions = async (query = '') => {
   const searchId = ++bomSearchId
   loadingList.value = true
   try {
-    const keyword = String(query || '').trim()
-    const res = await bomApi.getBoms({
-      page: 1,
-      pageSize: 50,
-      includeHistory: true,
-      ...(keyword && { keyword })
-    })
-    const { list } = parsePaginatedData(res)
+    const list = await fetchBomOptions(query, { includeHistory: true })
     if (searchId === bomSearchId) {
-      mergeBomOptions(list || [])
+      mergeBomOptions(list)
     }
   } catch (err) {
     console.error('获取BOM列表失败:', err)
     if (searchId === bomSearchId) {
-      allBomList.value = props.bomList
+      allBomList.value = props.bomList.map(normalizeBomOption)
     }
   } finally {
     if (searchId === bomSearchId) {

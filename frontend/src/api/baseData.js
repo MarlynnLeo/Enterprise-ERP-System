@@ -108,6 +108,7 @@ export const baseDataApi = {
         delete requestParams.product_id;
         return api.get('/base-data/boms', { params: requestParams });
     },
+    getBomOptions: (params = {}) => api.get('/base-data/boms/options', { params }),
     getBom: (id) => api.get(`/base-data/boms/${id}`),
     getBomDetails: (id) => api.get(`/base-data/boms/${id}/details`),
     createBom: (data) => api.post('/base-data/boms', data),

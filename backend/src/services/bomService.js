@@ -31,6 +31,61 @@ async function resolveStoredUserLabels(values = []) {
 }
 
 const bomService = {
+  /**
+   * 轻量 BOM 选项查询，供下拉框使用。
+   *
+   * 不复用 getAllBoms：后者会加载每个 BOM 的完整明细，作为选择器数据源会产生
+   * 不必要的数据库和网络开销。
+   */
+  async getBomOptions({ keyword = '', includeHistory = false, pageSize = 50 } = {}) {
+    try {
+      const limit = Math.min(Math.max(parseInt(pageSize, 10) || 50, 1), 100);
+      const search = String(keyword || '').trim();
+      const conditions = ['bm.deleted_at IS NULL'];
+      const params = [];
+
+      if (!includeHistory) {
+        conditions.push('bm.status != 2');
+      }
+
+      if (search) {
+        conditions.push('(m.code LIKE ? OR m.name LIKE ? OR m.specs LIKE ? OR bm.version LIKE ?)');
+        const searchPattern = `%${search}%`;
+        params.push(searchPattern, searchPattern, searchPattern, searchPattern);
+      }
+
+      const [rows] = await pool.query(
+        `
+          SELECT
+            bm.id,
+            bm.version,
+            bm.status,
+            m.code AS product_code,
+            m.name AS product_name,
+            m.specs AS product_specs
+          FROM bom_masters bm
+          INNER JOIN materials m ON bm.product_id = m.id
+          WHERE ${conditions.join(' AND ')}
+          ORDER BY CASE WHEN m.code REGEXP '^[0-9]' THEN 0 ELSE 1 END, m.code ASC, bm.id ASC
+          LIMIT ${limit}
+        `,
+        params
+      );
+
+      return rows.map((row) => ({
+        id: row.id,
+        version: row.version,
+        status: row.status,
+        productCode: row.product_code || '',
+        productName: row.product_name || '',
+        productSpecs: row.product_specs || '',
+      }));
+    } catch (error) {
+      logger.error('获取BOM选项失败:', error);
+      throw error;
+    }
+  },
+
   async getAllBoms(page = 1, pageSize = 10, filters = {}) {
     try {
       const noPagination = pageSize === null || pageSize === undefined;

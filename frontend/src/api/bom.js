@@ -2,6 +2,7 @@ import { baseDataApi } from './baseData';
 
 export const bomApi = {
     getBoms: baseDataApi.getBoms,
+    getBomOptions: baseDataApi.getBomOptions,
     getBom: baseDataApi.getBom,
     getBomDetails: baseDataApi.getBomDetails,
     createBom: baseDataApi.createBom,
