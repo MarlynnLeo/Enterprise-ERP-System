@@ -8,7 +8,8 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useThemeStore } from '../stores/theme'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import 'element-plus/es/components/message/style/css'
 import { runWhenIdle } from '@/utils/performanceMode'
 import i18n from '../locales'
 
@@ -33,6 +34,16 @@ const router = createRouter({
       name: 'login',
       component: () => import('../views/auth/Login.vue'),
       meta: { requiresAuth: false }
+    },
+    {
+      path: '/diagnose',
+      name: 'NetworkDiagnosis',
+      component: () => import('../views/system/NetworkDiagnosis.vue'),
+      meta: { requiresAuth: false, title: '客户端网络与性能体检' }
+    },
+    {
+      path: '/diagnosis',
+      redirect: '/diagnose'
     },
     {
       path: '/force-password',
@@ -116,6 +127,32 @@ const router = createRouter({
       meta: { requiresAuth: false }
     }
   ]
+})
+
+let authenticatedEnhancementsPromise = null
+
+function initAuthenticatedEnhancements() {
+  if (authenticatedEnhancementsPromise) return authenticatedEnhancementsPromise
+
+  authenticatedEnhancementsPromise = Promise.all([
+    import('@/plugins/operationColumnAutoWidth').then(({ initOperationColumnAutoWidth }) => {
+      initOperationColumnAutoWidth(document.body)
+    }),
+    import('@/plugins/statCardIcons').then(({ initStatCardIcons }) => {
+      initStatCardIcons()
+    })
+  ]).catch((error) => {
+    // 增强功能加载失败不应阻塞用户进入业务页面。
+    console.error('页面增强功能初始化失败:', error)
+  })
+
+  return authenticatedEnhancementsPromise
+}
+
+router.afterEach((to) => {
+  if (to.matched.some((record) => record.meta?.requiresAuth)) {
+    void initAuthenticatedEnhancements()
+  }
 })
 
 function hasRoutePermission(authStore, requiredPermission) {

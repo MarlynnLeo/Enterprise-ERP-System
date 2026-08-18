@@ -2,10 +2,8 @@
  * Application entry.
  */
 
-import { createApp } from 'vue'
+import { createApp, defineAsyncComponent } from 'vue'
 import { createPinia } from 'pinia'
-import ElementPlus from 'element-plus'
-import 'element-plus/dist/index.css'
 import App from './App.vue'
 import router from './router'
 import { useAuthStore } from './stores/auth'
@@ -14,13 +12,7 @@ import { useThemeStore } from './stores/theme'
 import { useDictionaryStore } from './stores/dictionary'
 import i18n from './locales'
 import { registerElementIcons } from '@/plugins/elementIcons'
-import { registerStatCardIcons } from '@/plugins/statCardIcons'
-import { initOperationColumnAutoWidth } from '@/plugins/operationColumnAutoWidth'
 import { initPerformanceMode, runWhenIdle } from '@/utils/performanceMode'
-import FinanceQueryCard from './components/common/FinanceQueryCard.vue'
-import PageHeader from './components/ui/PageHeader.vue'
-import EmptyState from './components/ui/EmptyState.vue'
-import AppDialog from './components/ui/AppDialog.vue'
 import './assets/main.css'
 import './assets/dialog-system.css'
 import './assets/common-styles.css'
@@ -92,14 +84,13 @@ if (authStore.isAuthenticated) {
 }
 
 
-app.use(ElementPlus)
 app.use(permissionDirective)
-app.component('FinanceQueryCard', FinanceQueryCard)
-app.component('PageHeader', PageHeader)
-app.component('EmptyState', EmptyState)
-app.component('AppDialog', AppDialog)
+// 常用业务公共组件保持全局可用，但不再阻塞登录页下载和解析。
+app.component('FinanceQueryCard', defineAsyncComponent(() => import('./components/common/FinanceQueryCard.vue')))
+app.component('PageHeader', defineAsyncComponent(() => import('./components/ui/PageHeader.vue')))
+app.component('EmptyState', defineAsyncComponent(() => import('./components/ui/EmptyState.vue')))
+app.component('AppDialog', defineAsyncComponent(() => import('./components/ui/AppDialog.vue')))
 registerElementIcons(app)
-registerStatCardIcons(app)
 
 themeReady
   .catch((error) => {
@@ -107,5 +98,4 @@ themeReady
   })
   .finally(() => {
     app.mount('#app')
-    initOperationColumnAutoWidth(document.body)
   })

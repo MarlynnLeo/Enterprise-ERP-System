@@ -1,7 +1,55 @@
 import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import legacy from '@vitejs/plugin-legacy'
+import Components from 'unplugin-vue-components/vite'
 import path from 'path'
+
+const toKebabCase = (value) => value.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase()
+
+const ELEMENT_PLUS_COMPONENT_ENTRY_OVERRIDES = {
+  'anchor-link': 'anchor',
+  aside: 'container',
+  'avatar-group': 'avatar',
+  'breadcrumb-item': 'breadcrumb',
+  'button-group': 'button',
+  'carousel-item': 'carousel',
+  'checkbox-button': 'checkbox',
+  'checkbox-group': 'checkbox',
+  'collapse-item': 'collapse',
+  'descriptions-item': 'descriptions',
+  'dropdown-item': 'dropdown',
+  'dropdown-menu': 'dropdown',
+  footer: 'container',
+  'form-item': 'form',
+  header: 'container',
+  main: 'container',
+  'menu-item': 'menu',
+  'menu-item-group': 'menu',
+  option: 'select',
+  'option-group': 'select',
+  'radio-button': 'radio',
+  'radio-group': 'radio',
+  'skeleton-item': 'skeleton',
+  'splitter-panel': 'splitter',
+  step: 'steps',
+  'sub-menu': 'menu',
+  'tab-pane': 'tabs',
+  'table-column': 'table',
+  'timeline-item': 'timeline',
+  'tour-step': 'tour'
+}
+
+// 直接指向单组件入口，避免 Element Plus 汇总入口进入动态页面。
+const resolveElementPlusComponent = (name) => {
+  if (!/^El[A-Z]/.test(name)) return undefined
+
+  const component = toKebabCase(name.slice(2))
+  return {
+    name,
+    from: `element-plus/es/components/${ELEMENT_PLUS_COMPONENT_ENTRY_OVERRIDES[component] || component}/index`,
+    sideEffects: `element-plus/es/components/${component}/style/css`
+  }
+}
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
@@ -13,6 +61,10 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       vue(),
+      // 编译时按需导入 Element Plus 组件及其样式，避免 app.use(ElementPlus) 将全量组件放入首屏。
+      Components({
+        resolvers: [resolveElementPlusComponent]
+      }),
       enableLegacy && legacy({
         targets: ['defaults', 'Chrome >= 49', 'Edge >= 16', 'Firefox >= 52', 'Safari >= 10'],
         modernPolyfills: true,
@@ -88,67 +140,21 @@ export default defineConfig(({ mode }) => {
         transformMixedEsModules: true,
         requireReturnsDefault: 'auto'
       },
-      rolldownOptions: {
+      rollupOptions: {
         output: {
-          // 确保正确的模块格式
-          format: 'es',
-          // 使用 Rolldown 分组拆分大型三方依赖，避免 Element Plus 单包过大。
-          // strictExecutionOrder 用于降低手动分组后的初始化顺序风险。
-          strictExecutionOrder: true,
-          codeSplitting: {
-            includeDependenciesRecursively: false,
-            minSize: 0,
-            groups: [{
-              name(id) {
-                if (!id.includes('node_modules')) {
-                  return null
-                }
-
-                const normalizedId = id.replace(/\\/g, '/')
-
-                if (/\/node_modules\/(vue|vue-router|pinia|vue-i18n)\//.test(normalizedId)) {
-                  return 'vendor-vue'
-                }
-                if (normalizedId.includes('/node_modules/@element-plus/icons-vue/')) {
-                  return 'vendor-element-icons'
-                }
-                if (normalizedId.includes('/node_modules/element-plus/')) {
-                  const componentMatch = normalizedId.match(/\/node_modules\/element-plus\/(?:es|lib)\/components\/([^/]+)/)
-                  const componentName = componentMatch?.[1]
-                  if (['table', 'table-v2', 'pagination', 'tree', 'tree-select', 'transfer'].includes(componentName)) {
-                    return 'vendor-element-data'
-                  }
-                  if (['form', 'input', 'input-number', 'select', 'option', 'date-picker', 'time-picker', 'checkbox', 'radio', 'switch'].includes(componentName)) {
-                    return 'vendor-element-form'
-                  }
-                  if (['dialog', 'drawer', 'message', 'message-box', 'notification', 'popover', 'tooltip', 'loading'].includes(componentName)) {
-                    return 'vendor-element-feedback'
-                  }
-                  return 'vendor-element-core'
-                }
-                if (/\/node_modules\/(echarts|chart\.js|zrender)\//.test(normalizedId)) {
-                  return 'vendor-charts'
-                }
-                if (normalizedId.includes('/node_modules/exceljs/')) {
-                  return 'vendor-exceljs'
-                }
-                if (normalizedId.includes('/node_modules/@vue-office/docx/')) {
-                  return 'vendor-office-docx'
-                }
-                if (normalizedId.includes('/node_modules/@vue-office/excel/')) {
-                  return 'vendor-office-excel'
-                }
-                if (/\/node_modules\/(html2pdf\.js|jspdf|html2canvas)\//.test(normalizedId)) {
-                  return 'vendor-pdf'
-                }
-                return null
-              }
-            }]
-          },
-          // 添加文件名哈希
-          entryFileNames: 'assets/[name]-[hash].js',
-          chunkFileNames: 'assets/[name]-[hash].js',
-          assetFileNames: 'assets/[name]-[hash].[ext]'
+          manualChunks(id) {
+            if (id.includes('node_modules')) {
+              if (id.includes('exceljs') || id.includes('xlsx')) return 'excel-vendor'
+              if (id.includes('html2pdf') || id.includes('jspdf') || id.includes('html2canvas')) return 'pdf-vendor'
+              if (id.includes('echarts') || id.includes('zrender')) return 'echarts-vendor'
+              if (id.includes('@element-plus/icons-vue')) return 'icons-vendor'
+              if (id.includes('element-plus')) return 'element-vendor'
+              if (id.includes('vue-i18n') || id.includes('@intlify')) return 'i18n-vendor'
+              if (id.includes('vue') || id.includes('pinia') || id.includes('vue-router')) return 'vue-core-vendor'
+              if (id.includes('axios') || id.includes('dayjs') || id.includes('lodash') || id.includes('crypto-js')) return 'utils-vendor'
+              return 'deps-vendor'
+            }
+          }
         }
       }
     }

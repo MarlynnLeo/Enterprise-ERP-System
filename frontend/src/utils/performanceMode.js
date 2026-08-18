@@ -17,15 +17,45 @@ export function cancelIdleTask(id) {
 }
 
 function isLowEndDevice() {
-  if (typeof navigator === 'undefined') return false
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') return false
+
+  // 1. 用户手动强制开启极速性能模式
+  try {
+    if (localStorage.getItem('erp_low_end_mode') === 'true') {
+      return true
+    }
+  } catch {}
+
   const memory = Number(navigator.deviceMemory)
   const cores = Number(navigator.hardwareConcurrency)
-  // 更积极：4C/4G 及以下视为低端，关闭昂贵视觉效果
-  // Non-secure LAN origins do not expose deviceMemory. Unknown hardware
-  // information must not be treated as a 4 GB / 4 core device.
-  const hasMemoryInfo = Number.isFinite(memory) && memory > 0
-  const hasCoreInfo = Number.isFinite(cores) && cores > 0
-  return (hasMemoryInfo && memory <= 4) || (hasCoreInfo && cores <= 4)
+
+  // 2. CPU / 内存硬指标判断 (4核及以下直接判定为低端)
+  if (Number.isFinite(cores) && cores <= 4) return true
+  if (Number.isFinite(memory) && memory <= 4) return true
+
+  // 3. 检测 GPU 硬件加速是否存在
+  let gpuOk = false
+  try {
+    const canvas = document.createElement('canvas')
+    const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl')
+    if (gl) {
+      const debugInfo = gl.getExtension('WEBGL_debug_renderer_info')
+      if (debugInfo) {
+        const renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) || ''
+        // 若为软件渲染（如 SwiftShader, llvmpipe, GDI Generic 等），说明无 GPU 加速
+        if (/SwiftShader|llvmpipe|Software|Basic Render|GDI Generic/i.test(renderer)) {
+          return true
+        }
+      }
+      gpuOk = true
+    }
+  } catch {
+    gpuOk = false
+  }
+
+  if (!gpuOk) return true
+
+  return false
 }
 
 function prefersReducedMotion() {

@@ -2,7 +2,7 @@
  * 全部主题 CSS 按需加载（9 套预设全覆盖）
  * - 启动：theme-compat + kacon（main 静态）
  * - 其余：default / tech / business / vibrant / nature / dark / premium / professional
- * - 缓存 + 空闲预取（低端/省流跳过）
+ * - 缓存 + 用户悬停时预取候选主题（低端/省流跳过）
  */
 
 import {
@@ -98,21 +98,6 @@ export function prefetchThemeCss(presetId) {
   } else {
     setTimeout(run, 900)
   }
-}
-
-/**
- * 空闲时预取「全部」未加载主题（高端设备）
- * @param {string} [exceptId] 当前已用主题可跳过
- */
-export function prefetchAllThemes(exceptId) {
-  if (typeof window === 'undefined') return
-  if (window.__ERP_PERF__?.saveData || window.__ERP_PERF__?.lowEnd) return
-
-  ALL_THEME_IDS.forEach((id, index) => {
-    if (id === exceptId || loadedThemes.has(id)) return
-    // Stagger requests so idle prefetching does not compete with the app.
-    setTimeout(() => prefetchThemeCss(id), 400 + index * 350)
-  })
 }
 
 export function isThemeCssLoaded(presetId) {

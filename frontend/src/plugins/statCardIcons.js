@@ -1,5 +1,5 @@
 import { createVNode, nextTick, render } from 'vue'
-import { ElIcon } from 'element-plus'
+import { ElIcon } from 'element-plus/es/components/icon/index'
 import {
   Bell,
   CircleCheck,
@@ -138,16 +138,29 @@ function setupStatCardIconObserver() {
 
   scheduleStatCardIconScan(document)
 
+  let debounceTimer = null
+
   observer = new window.MutationObserver((mutations) => {
-    const hasStatCardChange = mutations.some((mutation) => {
-      return Array.from(mutation.addedNodes).some((node) => {
-        if (node.nodeType !== window.Node.ELEMENT_NODE) return false
-        return node.matches?.('.stat-card') || node.querySelector?.('.stat-card')
-      })
-    })
+    let hasStatCardChange = false
+    for (let i = 0; i < mutations.length; i++) {
+      const mutation = mutations[i]
+      if (mutation.type === 'childList') {
+        for (let j = 0; j < mutation.addedNodes.length; j++) {
+          const node = mutation.addedNodes[j]
+          if (node.nodeType === 1 && (node.matches?.('.stat-card') || node.querySelector?.('.stat-card'))) {
+            hasStatCardChange = true
+            break
+          }
+        }
+      }
+      if (hasStatCardChange) break
+    }
 
     if (hasStatCardChange) {
-      scheduleStatCardIconScan(document)
+      if (debounceTimer) clearTimeout(debounceTimer)
+      debounceTimer = setTimeout(() => {
+        scheduleStatCardIconScan(document)
+      }, 200)
     }
   })
 
@@ -163,4 +176,11 @@ export function registerStatCardIcons(app) {
       setupStatCardIconObserver()
     }
   })
+}
+
+/**
+ * 统计卡仅出现在登录后的业务页，按需初始化可避免其图标和观察器进入登录页关键路径。
+ */
+export function initStatCardIcons() {
+  setupStatCardIconObserver()
 }

@@ -15,6 +15,7 @@ let observer = null
 let resizeObserver = null
 let resizeHandler = null
 let pendingFrame = 0
+let pendingRoots = new Set()
 let observedTables = new WeakSet()
 let appliedWidths = new WeakMap()
 
@@ -166,10 +167,15 @@ function applyColumnWidth(table, columnId, width) {
   lastAppliedWidths.set(columnId, nextWidth)
 }
 
+function getTables(root = document) {
+  if (root?.matches?.('.el-table')) return [root]
+  return [...root.querySelectorAll('.el-table')]
+}
+
 function updateOperationColumns(root = document) {
   observeTables(root)
 
-  root.querySelectorAll('.el-table').forEach((table) => {
+  getTables(root).forEach((table) => {
     const widthsByColumnId = collectOperationColumnWidths(table)
     widthsByColumnId.forEach((width, columnId) => applyColumnWidth(table, columnId, width))
   })
@@ -178,7 +184,7 @@ function updateOperationColumns(root = document) {
 function observeTables(root = document) {
   if (!resizeObserver) return
 
-  root.querySelectorAll('.el-table').forEach((table) => {
+  getTables(root).forEach((table) => {
     if (observedTables.has(table)) return
     observedTables.add(table)
     resizeObserver.observe(table)
@@ -186,40 +192,77 @@ function observeTables(root = document) {
 }
 
 function scheduleUpdate(root = document) {
+  if (root === document) {
+    pendingRoots = new Set([document])
+  } else if (!pendingRoots.has(document)) {
+    pendingRoots.add(root)
+  }
+
   if (pendingFrame) return
 
   pendingFrame = window.requestAnimationFrame(() => {
     pendingFrame = 0
-    updateOperationColumns(root)
+    const roots = [...pendingRoots]
+    pendingRoots.clear()
+    roots.forEach((pendingRoot) => updateOperationColumns(pendingRoot))
   })
+}
+
+function addTablesFromNode(node, tables) {
+  if (node.nodeType !== window.Node.ELEMENT_NODE) return
+
+  if (node.matches('.el-table')) {
+    tables.add(node)
+  }
+  node.querySelectorAll('.el-table').forEach((table) => tables.add(table))
+}
+
+function getContainingTable(node) {
+  if (node.nodeType !== window.Node.ELEMENT_NODE) return null
+  return node.matches('.el-table') ? node : node.closest('.el-table')
 }
 
 export function initOperationColumnAutoWidth(appRoot = document.body) {
   if (typeof window === 'undefined' || observer) return
 
   if (typeof window.ResizeObserver !== 'undefined') {
-    resizeObserver = new window.ResizeObserver(() => scheduleUpdate(document))
+    resizeObserver = new window.ResizeObserver((entries) => {
+      entries.forEach((entry) => scheduleUpdate(entry.target))
+    })
   }
 
   scheduleUpdate(document)
 
-  observer = new window.MutationObserver((mutations) => {
-    const shouldUpdate = mutations.some((mutation) => {
-      if (mutation.type === 'childList') return true
-      if (mutation.type === 'attributes') {
-        return ['style', 'class', 'hidden', 'disabled'].includes(mutation.attributeName)
-      }
-      return false
-    })
+  let debounceTimer = null
 
-    if (shouldUpdate) scheduleUpdate(document)
+  observer = new window.MutationObserver((mutations) => {
+    let hasTableNodes = false
+
+    for (let i = 0; i < mutations.length; i++) {
+      const mutation = mutations[i]
+      if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+        for (let j = 0; j < mutation.addedNodes.length; j++) {
+          const node = mutation.addedNodes[j]
+          if (node.nodeType === 1 && (node.matches?.('.el-table') || node.querySelector?.('.el-table'))) {
+            hasTableNodes = true
+            break
+          }
+        }
+      }
+      if (hasTableNodes) break
+    }
+
+    if (hasTableNodes) {
+      if (debounceTimer) clearTimeout(debounceTimer)
+      debounceTimer = setTimeout(() => {
+        scheduleUpdate(document)
+      }, 150)
+    }
   })
 
   observer.observe(appRoot, {
     subtree: true,
-    childList: true,
-    attributes: true,
-    attributeFilter: ['style', 'class', 'hidden', 'disabled']
+    childList: true
   })
 
   resizeHandler = () => scheduleUpdate(document)
@@ -248,4 +291,5 @@ export function destroyOperationColumnAutoWidth() {
     window.cancelAnimationFrame(pendingFrame)
     pendingFrame = 0
   }
+  pendingRoots.clear()
 }

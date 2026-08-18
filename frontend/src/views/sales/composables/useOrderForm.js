@@ -71,8 +71,11 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
 
   // 表单数据
   const form = reactive({
+    customerId: '',
     customer_id: '',
+    customerName: '',
     customer_name: '',
+    contractCode: '',
     contract_code: '',
     contact: '',
     phone: '',
@@ -439,16 +442,20 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
       }
 
       dialogLoading.value = true
+      const contractCodeVal = form.contractCode || form.contract_code || ''
+      const customerIdVal = form.customerId || form.customer_id
       const postData = {
-        customer_id: form.customerId,
-        contract_code: form.contractCode || '',
+        customer_id: customerIdVal,
+        customerId: customerIdVal,
+        contract_code: contractCodeVal,
+        contractCode: contractCodeVal,
         delivery_date: form.deliveryDate,
         order_date: formatLocalDate(new Date()),
         updated_at: new Date().toISOString(),
         status: orderStatus,
         should_generate_plans: shouldGeneratePlans,
         subtotal: form.subtotal ?? 0,
-        total_amount: form.totalAmount ?? 0,
+        total_amount: form.totalAmount ?? form.total_amount ?? 0,
         notes: form.remark || '',
         items: form.items.map(item => {
           const quantity = toNumberOrNull(item.quantity) ?? 0
@@ -558,15 +565,21 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
     try {
       const response = await salesApi.getOrder(row.id)
       const orderDetail = response.data
+      const contractCodeVal = orderDetail.contractCode || orderDetail.contract_code || row.contractCode || row.contract_code || ''
+      const customerIdVal = orderDetail.customerId || orderDetail.customer_id || row.customerId || row.customer_id || ''
+      const customerNameVal = orderDetail.customerName || orderDetail.customer_name || row.customerName || row.customer || ''
       Object.assign(form, {
         id: orderDetail.id,
-        customer_id: orderDetail.customerId || row.customerId || '',
-        customer_name: orderDetail.customerName || row.customerName || row.customer || '',
-        deliveryDate: orderDetail.deliveryDate || row.deliveryDate || '',
-        address: orderDetail.deliveryAddress || row.address || '',
-        contact: orderDetail.contactPerson || row.contact || '',
-        phone: orderDetail.contactPhone || row.phone || '',
-        contract_code: orderDetail.contract_code || row.contractCode || '',
+        customerId: customerIdVal,
+        customer_id: customerIdVal,
+        customerName: customerNameVal,
+        customer_name: customerNameVal,
+        deliveryDate: orderDetail.deliveryDate || orderDetail.delivery_date || row.deliveryDate || '',
+        address: orderDetail.deliveryAddress || orderDetail.address || row.address || '',
+        contact: orderDetail.contactPerson || orderDetail.contact || row.contact || '',
+        phone: orderDetail.contactPhone || orderDetail.phone || row.phone || '',
+        contractCode: contractCodeVal,
+        contract_code: contractCodeVal,
         status: orderDetail.status || row.status || 'pending',
         remark: orderDetail.remark || orderDetail.remarks || orderDetail.notes || row.remark || '',
         items: []

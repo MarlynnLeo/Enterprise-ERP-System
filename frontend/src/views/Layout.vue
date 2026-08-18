@@ -365,13 +365,10 @@ onMounted(async () => {
   window.addEventListener('resize', syncMobileLayout)
 
   try {
-    // 并行加载用户信息和菜单（权限已由路由守卫统一预加载）
-    await Promise.all([
-      authStore.fetchUserProfile(false),
-      loadDynamicMenus()
-    ])
+    // 权限与用户信息已由路由守卫统一预加载，此处仅按需挂载动态菜单
+    await loadDynamicMenus()
   } catch (error) {
-    console.error('加载用户信息或菜单失败:', error)
+    console.error('加载菜单失败:', error)
   }
 })
 onBeforeUnmount(() => {

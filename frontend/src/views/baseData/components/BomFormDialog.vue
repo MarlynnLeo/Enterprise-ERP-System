@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <AppDialog
     :model-value="modelValue"
     @update:model-value="val => emit('update:modelValue', val)"
@@ -57,9 +57,6 @@
                 v-model="form.version"
                 placeholder="请输入版本号，如：V1.1"
                 clearable />
-              <div class="text-sm text-muted mt-4">
-                选择产品后将自动建议下一版本；同一产品不能重复使用已有版本号
-              </div>
             </template>
           </el-form-item>
         </el-col>
@@ -100,16 +97,14 @@
       <!-- BOM明细 -->
       <el-divider content-position="center">BOM明细</el-divider>
       <div class="bom-details">
-        <div class="mb-md">
-          <el-button type="primary" @click="addDetail">
-            <el-icon><Plus /></el-icon> 添加一级明细
-          </el-button>
-          <el-text type="info" size="small" class="ml-sm">
-            提示：点击表格中的"添加子级"按钮可为该物料添加下级明细
+        <div class="mb-xs flex-between align-center">
+          <el-text type="info" size="small">
+            提示：点击表格行中的"子件"按钮可为该物料添加下级明细
           </el-text>
         </div>
         <!-- BOM明细表格（树形表格显示层级关系） -->
         <el-table
+          ref="bomTableRef"
           :data="bomDetailsTree"
           border
           row-key="id"
@@ -200,6 +195,13 @@
             </template>
           </el-table-column>
         </el-table>
+
+        <!-- 表格下方：添加一级明细操作按钮 -->
+        <div class="bom-details-bottom-action">
+          <el-button type="primary" plain class="bom-add-button" @click="addDetail">
+            <el-icon><Plus /></el-icon> 添加一级明细
+          </el-button>
+        </div>
       </div>
     </el-form>
     <template #footer>
@@ -229,6 +231,7 @@ const props = defineProps({
 })
 const emit = defineEmits(['update:modelValue', 'success'])
 const formRef = ref(null)
+const bomTableRef = ref(null)
 const submitting = ref(false)
 const isEditMode = computed(() => !!props.editData)
 const loadingProducts = ref(false)
@@ -513,6 +516,15 @@ const addDetail = () => {
     children: [], // 用于树形展示
     materialOptions: [] // 用于搜索缓存
   })
+  nextTick(() => {
+    const tableEl = bomTableRef.value?.$el
+    if (tableEl) {
+      const scrollWrap = tableEl.querySelector('.el-scrollbar__wrap') || tableEl.closest('.el-dialog__body') || tableEl.closest('.app-dialog__body')
+      if (scrollWrap) {
+        scrollWrap.scrollTo({ top: scrollWrap.scrollHeight, behavior: 'smooth' })
+      }
+    }
+  })
 }
 const addSubDetailForRow = (row) => {
   const newId = `temp_${globalThis.crypto?.randomUUID?.() || `${Date.now()}_${performance.now()}`}`
@@ -733,5 +745,16 @@ const submitForm = async () => {
 
 .bom-details :deep(.el-table) {
   width: 100%;
+}
+
+.bom-details-bottom-action {
+  margin-top: 12px;
+}
+
+.bom-add-button {
+  width: 100%;
+  border-style: dashed;
+  height: 38px;
+  font-size: 14px;
 }
 </style>

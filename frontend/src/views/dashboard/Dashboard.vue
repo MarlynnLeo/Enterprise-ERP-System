@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * Dashboard.vue
  * @description 前端界面组件文件
@@ -457,32 +457,41 @@ onMounted(async () => {
     todoResizeObserver = new ResizeObserver(updateTodoContainerWidth)
     todoResizeObserver.observe(todoContainerRef.value)
   }
+
   // 初始化加载状态
   isLoadingStats.value = true
-  // === 第一阶段：核心业务数据并行加载 ===
-  await refreshDashboardData(true)
-  isLoadingStats.value = false
-  // 初始化汇率图表（依赖 DOM）
-  await nextTick()
-  initExchangeRateChart()
-  // === 第二阶段：外部数据源并行加载（不阻塞核心渲染） ===
-  Promise.all([
-    fetchWeatherData(),
-    fetchExchangeRates(),
-    fetchMetalPrices()
-  ]).catch((error) => {
-    logger.error('外部价格数据加载失败:', error)
-  })
+
+  // === 第一阶段：首屏快速渲染核心待办与顶部指标 ===
+  try {
+    await refreshDashboardData(false)
+  } finally {
+    isLoadingStats.value = false
+  }
+
+  // 初始化轻量日历数据
+  calendarDays.value = generateCalendarDays(currentDate.value)
+
+  // === 第二阶段：在主线程空闲或微延迟后初始化图表与外部数据源，彻底消除进页面卡顿 ===
+  runWhenIdle(() => {
+    initExchangeRateChart()
+    Promise.all([
+      fetchWeatherData(),
+      fetchExchangeRates(),
+      fetchMetalPrices()
+    ]).catch((error) => {
+      logger.error('外部价格数据加载失败:', error)
+    })
+  }, 400)
+
   // 设置定时刷新
   userDataTimer = setInterval(() => {
     refreshDashboardData()
   }, refreshInterval)
-  // 汇率数据定时刷新（每2分钟）
+
+  // 汇率数据定时刷新（每5分钟，降低老电脑后台压力）
   exchangeRateTimer = setInterval(() => {
     fetchExchangeRates()
-  }, 2 * 60 * 1000)
-  // 初始化日历
-  calendarDays.value = generateCalendarDays(currentDate.value)
+  }, 5 * 60 * 1000)
 })
 // 组件卸载时清除定时器和图表
 onUnmounted(() => {

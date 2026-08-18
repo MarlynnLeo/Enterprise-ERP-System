@@ -787,7 +787,7 @@ exports.createSalesOrder = async (req, res) => {
       orderNo: await generateSalesOrderNo(db.pool),
       customerId,
       quotationId: mapped.quotation_id ?? orderData.quotationId ?? null,
-      contractCode: mapped.contract_code ?? orderData.contractCode ?? '',
+      contractCode: mapped.contract_code ?? orderData.contractCode ?? orderData.contract_code ?? '',
       totalAmount: mapped.total_amount ?? orderData.totalAmount ?? 0,
       taxRate:
         mapped.tax_rate ??
@@ -935,14 +935,14 @@ exports.updateSalesOrder = async (req, res) => {
       // 新格式：从请求体中提取items和其他字段
       items = requestData.items || [];
       order = {
-        customer_id: requestData.customer_id,
-        contract_code: requestData.contract_code,
-        delivery_date: requestData.delivery_date,
-        order_date: requestData.order_date,
+        customer_id: requestData.customer_id ?? requestData.customerId,
+        contract_code: requestData.contract_code ?? requestData.contractCode ?? '',
+        delivery_date: requestData.delivery_date ?? requestData.deliveryDate,
+        order_date: requestData.order_date ?? requestData.orderDate,
         status: requestData.status,
-        notes: requestData.notes,
-        remarks: requestData.remarks,
-        payment_terms: requestData.payment_terms,
+        notes: requestData.notes ?? requestData.remarks ?? requestData.remark,
+        remarks: requestData.remarks ?? requestData.remark ?? requestData.notes,
+        payment_terms: requestData.payment_terms ?? requestData.paymentTerms,
       };
     }
 

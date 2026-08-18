@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ERP 客户端网络与性能一键诊断系统</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <style>
+    :root {
+      --bg-color: #0f172a;
+      --card-bg: rgba(30, 41, 59, 0.7);
+      --card-border: rgba(255, 255, 255, 0.1);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --primary: #38bdf8;
+      --primary-hover: #0ea5e9;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --accent: #6366f1;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: radial-gradient(circle at top right, #1e1b4b, #0f172a 60%);
+      color: var(--text-main);
+      min-height: 100vh;
+      padding: 24px 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 900px;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    .header h1 {
+      font-size: 26px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #38bdf8, #818cf8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 8px;
+    }
+
+    .header p {
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    .card {
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 20px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+    }
+
+    .control-panel {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .server-input-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex: 1;
+      min-width: 280px;
+    }
+
+    .server-input-group label {
+      font-size: 13px;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+
+    .server-input-group input {
+      flex: 1;
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: var(--text-main);
+      font-size: 14px;
+      outline: none;
+      transition: all 0.2s;
+    }
+
+    .server-input-group input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
+    }
+
+    .btn {
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 11px 24px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+      box-shadow: 0 4px 12px rgba(56, 189, 248, 0.3);
+    }
+
+    .btn:hover {
+      opacity: 0.9;
+      transform: translateY(-1px);
+    }
+
+    .btn:active {
+      transform: translateY(0);
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .score-banner {
+      display: flex;
+      align-items: center;
+      padding: 20px;
+      border-radius: 12px;
+      background: rgba(15, 23, 42, 0.4);
+      margin-bottom: 24px;
+    }
+
+    .score-circle {
+      width: 95px;
+      height: 95px;
+      border-radius: 50%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border: 4px solid var(--primary);
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--primary);
+      margin-right: 20px;
+      flex-shrink: 0;
+    }
+
+    .score-circle span.label {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-weight: 400;
+    }
+
+    .score-status {
+      flex: 1;
+    }
+
+    .score-status h2 {
+      font-size: 18px;
+      margin-bottom: 4px;
+    }
+
+    .score-desc {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    .progress-bar-wrap {
+      width: 100%;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 2px;
+      overflow: hidden;
+      margin-top: 10px;
+    }
+
+    .progress-bar-inner {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--primary), var(--accent));
+      transition: width 0.3s ease;
+    }
+
+    .test-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .test-item {
+      background: rgba(15, 23, 42, 0.5);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 16px;
+    }
+
+    .test-item-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .test-item-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .badge {
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 20px;
+      font-weight: 500;
+    }
+
+    .badge-pending { background: rgba(148, 163, 184, 0.2); color: #94a3b8; }
+    .badge-running { background: rgba(56, 189, 248, 0.2); color: #38bdf8; }
+    .badge-success { background: rgba(16, 185, 129, 0.2); color: #10b981; }
+    .badge-warning { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }
+    .badge-danger { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+
+    .test-item-metrics {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 13px;
+    }
+
+    .metric-row {
+      display: flex;
+      justify-content: space-between;
+      color: var(--text-muted);
+    }
+
+    .metric-row .val {
+      color: var(--text-main);
+      font-weight: 600;
+      font-family: monospace;
+    }
+
+    .text-success { color: #10b981 !important; }
+    .text-warning { color: #f59e0b !important; }
+
+    .recommendation-panel {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 12px;
+      padding: 16px 20px;
+      border-left: 4px solid var(--primary);
+    }
+
+    .panel-title {
+      font-size: 15px;
+      margin-bottom: 10px;
+      color: var(--primary);
+    }
+
+    .recommendation-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--text-main);
+      line-height: 1.6;
+    }
+
+    .recommendation-list li {
+      position: relative;
+      padding-left: 18px;
+    }
+
+    .recommendation-list li::before {
+      content: "•";
+      position: absolute;
+      left: 4px;
+      font-size: 16px;
+    }
+
+    .recommendation-list li.ok::before { color: #10b981; }
+    .recommendation-list li.warn::before { color: #f59e0b; }
+    .recommendation-list li.error::before { color: #ef4444; }
+
+    .footer-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .btn-secondary {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--card-border);
+      color: var(--text-muted);
+      border-radius: 8px;
+      padding: 8px 16px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-secondary:hover {
+      color: var(--text-main);
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header">
+    <h1>ERP 客户端网络与运行性能一键体检</h1>
+    <p>可在任意电脑、工控机、手机/平板上直接运行，即时定位开网慢、切页卡顿瓶颈</p>
+  </div>
+
+  <div class="card">
+    <div class="control-panel">
+      <div class="server-input-group">
+        <label for="serverUrl">测试服务地址:</label>
+        <input type="text" id="serverUrl" value="" placeholder="http://192.168.1.251:18081">
+      </div>
+      <button class="btn" id="startBtn">
+        <span id="btnIcon">⚡</span>
+        <span id="btnText">开始全面性能体检</span>
+      </button>
+    </div>
+
+    <!-- 总体得分与结论 -->
+    <div class="score-banner">
+      <div class="score-circle" id="scoreCircle">
+        <span id="scoreNum">--</span>
+        <span class="label">综合评分</span>
+      </div>
+      <div class="score-status">
+        <h2 id="scoreTitle">等待开始体检</h2>
+        <p id="scoreDesc">点击右上角“开始全面性能体检”按钮，系统将自动检测局域网延迟、文件下载带宽、浏览器硬件加速与 DOM 渲染性能。</p>
+        <div class="progress-bar-wrap">
+          <div class="progress-bar-inner" id="globalProgress"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4 个核心维度卡片 -->
+    <div class="test-grid">
+      <!-- 维度 1: 客户端环境与硬件 -->
+      <div class="test-item">
+        <div class="test-item-header">
+          <div class="test-item-title">💻 电脑与浏览器环境</div>
+          <span class="badge badge-pending" id="badgeClient">待检测</span>
+        </div>
+        <div class="test-item-metrics">
+          <div class="metric-row"><span>浏览器内核</span><span class="val" id="clientBrowser">--</span></div>
+          <div class="metric-row"><span>操作系统</span><span class="val" id="clientOS">--</span></div>
+          <div class="metric-row"><span>GPU 硬件加速</span><span class="val" id="clientGpu">--</span></div>
+          <div class="metric-row"><span>CPU/内存估算</span><span class="val" id="clientHardware">--</span></div>
+        </div>
+      </div>
+
+      <!-- 维度 2: API 接口网络延迟 -->
+      <div class="test-item">
+        <div class="test-item-header">
+          <div class="test-item-title">🌐 后端 API 网络延迟</div>
+          <span class="badge badge-pending" id="badgeApi">待检测</span>
+        </div>
+        <div class="test-item-metrics">
+          <div class="metric-row"><span>平均往返耗时 (RTT)</span><span class="val" id="apiAvgLatency">--</span></div>
+          <div class="metric-row"><span>最低 / 最高延迟</span><span class="val" id="apiMinMax">--</span></div>
+          <div class="metric-row"><span>网络抖动 (Jitter)</span><span class="val" id="apiJitter">--</span></div>
+          <div class="metric-row"><span>接口连接质量</span><span class="val" id="apiStatus">--</span></div>
+        </div>
+      </div>
+
+      <!-- 维度 3: 静态资源下载与 Gzip -->
+      <div class="test-item">
+        <div class="test-item-header">
+          <div class="test-item-title">📦 静态资源传输带宽</div>
+          <span class="badge badge-pending" id="badgeAsset">待检测</span>
+        </div>
+        <div class="test-item-metrics">
+          <div class="metric-row"><span>HTML 首屏响应</span><span class="val" id="htmlLatency">--</span></div>
+          <div class="metric-row"><span>JS/CSS 下载吞吐</span><span class="val" id="downloadThroughput">--</span></div>
+          <div class="metric-row"><span>Gzip 压缩支持</span><span class="val" id="gzipStatus">--</span></div>
+          <div class="metric-row"><span>HTTP 强缓存配置</span><span class="val" id="cacheStatus">--</span></div>
+        </div>
+      </div>
+
+      <!-- 维度 4: JavaScript 与 DOM 渲染 -->
+      <div class="test-item">
+        <div class="test-item-header">
+          <div class="test-item-title">⚡ 渲染与 JS 计算跑分</div>
+          <span class="badge badge-pending" id="badgeRender">待检测</span>
+        </div>
+        <div class="test-item-metrics">
+          <div class="metric-row"><span>1000行表格DOM创建</span><span class="val" id="domRenderTime">--</span></div>
+          <div class="metric-row"><span>响应式数据计算</span><span class="val" id="jsCalcTime">--</span></div>
+          <div class="metric-row"><span>单核 CPU 性能等级</span><span class="val" id="cpuGrade">--</span></div>
+          <div class="metric-row"><span>页面重绘掉帧评估</span><span class="val" id="frameDropStatus">--</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 诊断结论与优化措施 -->
+    <div class="recommendation-panel">
+      <h3 class="panel-title">📋 诊断体检报告与针对性建议</h3>
+      <ul class="recommendation-list" id="recommendationList">
+        <li class="ok"><strong>准备就绪：</strong>请点击上方“开始全面性能体检”运行测试。</li>
+      </ul>
+    </div>
+
+    <div class="footer-actions">
+      <button class="btn-secondary" id="copyBtn">📋 复制体检报告</button>
+      <button class="btn-secondary" id="homeBtn">🚪 返回首页</button>
+    </div>
+  </div>
+</div>
+
+<!-- 引入符合 Content-Security-Policy 规范的独立静态脚本 -->
+<script src="/diagnose.js"></script>
+</body>
+</html>

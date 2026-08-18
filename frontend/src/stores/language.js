@@ -8,7 +8,8 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { getBrowserLanguage } from '@/utils/language'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import 'element-plus/es/components/message/style/css'
 
 // Element Plus 语言包
 import zhCn from 'element-plus/dist/locale/zh-cn.mjs'

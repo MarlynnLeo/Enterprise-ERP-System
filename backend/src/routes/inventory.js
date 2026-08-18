@@ -116,7 +116,7 @@ router.get(
   '/locations',
   authenticateToken,
   requirePermission(
-    ['inventory:stock:view', 'purchase:receipts:view', 'purchase:orders:view'],
+    ['inventory:stock:view', 'inventory:report:view', 'purchase:receipts:view', 'purchase:orders:view'],
     'any'
   ),
   inventoryStockController.getLocations

@@ -53,19 +53,19 @@ const salesOrderMap = {
   fromApi(body = {}) {
     const row = {
       id: body.id,
-      order_no: body.orderNo,
-      customer_id: body.customerId != null ? toNumber(body.customerId, body.customerId) : undefined,
-      quotation_id: body.quotationId != null ? toNumber(body.quotationId, body.quotationId) : undefined,
-      contract_code: body.contractCode,
-      total_amount: body.totalAmount != null ? toNumber(body.totalAmount, 0) : undefined,
-      subtotal: body.subtotal != null ? toNumber(body.subtotal, 0) : undefined,
-      tax_amount: body.taxAmount != null ? toNumber(body.taxAmount, 0) : undefined,
-      tax_rate: body.taxRate,
-      payment_terms: body.paymentTerms,
-      delivery_date: body.deliveryDate != null ? formatDate(body.deliveryDate) : undefined,
+      order_no: body.orderNo ?? body.order_no,
+      customer_id: (body.customerId ?? body.customer_id) != null ? toNumber(body.customerId ?? body.customer_id, body.customerId ?? body.customer_id) : undefined,
+      quotation_id: (body.quotationId ?? body.quotation_id) != null ? toNumber(body.quotationId ?? body.quotation_id, body.quotationId ?? body.quotation_id) : undefined,
+      contract_code: body.contractCode ?? body.contract_code,
+      total_amount: (body.totalAmount ?? body.total_amount) != null ? toNumber(body.totalAmount ?? body.total_amount, 0) : undefined,
+      subtotal: (body.subtotal) != null ? toNumber(body.subtotal, 0) : undefined,
+      tax_amount: (body.taxAmount ?? body.tax_amount) != null ? toNumber(body.taxAmount ?? body.tax_amount, 0) : undefined,
+      tax_rate: body.taxRate ?? body.tax_rate,
+      payment_terms: body.paymentTerms ?? body.payment_terms,
+      delivery_date: (body.deliveryDate ?? body.delivery_date) != null ? formatDate(body.deliveryDate ?? body.delivery_date) : undefined,
       status: body.status,
-      remarks: body.remarks ?? body.remark,
-      created_by: body.createdBy,
+      remarks: body.remarks ?? body.remark ?? body.notes,
+      created_by: body.createdBy ?? body.created_by,
     };
     if (Array.isArray(body.items)) {
       row.items = body.items.map((it) => salesOrderItemMap.fromApi(it));

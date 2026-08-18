@@ -295,14 +295,14 @@ router.post(
   baseDataController.importCategories
 );
 router.post('/categories/import-json', authenticateToken, requirePermission('basedata:categories:import'), baseDataController.importCategoriesJson);
-router.get('/categories', authenticateToken, requirePermission(['basedata:categories:view', 'basedata:materials:view']), baseDataController.getAllCategories);
+router.get('/categories', authenticateToken, requirePermission(['basedata:categories:view', 'basedata:materials:view', 'inventory:report:view']), baseDataController.getAllCategories);
 router.get('/categories/:id', authenticateToken, requirePermission('basedata:categories:view'), baseDataController.getCategoryById);
 router.post('/categories', authenticateToken, requirePermission('basedata:categories:create'), baseDataController.createCategory);
 router.put('/categories/:id', authenticateToken, requirePermission('basedata:categories:update'), baseDataController.updateCategory);
 router.delete('/categories/:id', authenticateToken, requirePermission('basedata:categories:delete'), baseDataController.deleteCategory);
 
 // 产品单位管理路由
-router.get('/units', authenticateToken, requirePermission(['basedata:units:view', 'basedata:materials:view']), baseDataController.getAllUnits);
+router.get('/units', authenticateToken, requirePermission(['basedata:units:view', 'basedata:materials:view', 'inventory:report:view']), baseDataController.getAllUnits);
 router.post('/units/export', authenticateToken, requirePermission('basedata:units:export'), baseDataController.exportUnits);
 router.get('/units/stats', authenticateToken, requirePermission('basedata:units:view'), baseDataController.getUnitStats);
 router.get('/units/:id', authenticateToken, requirePermission('basedata:units:view'), baseDataController.getUnitById);
@@ -311,7 +311,7 @@ router.put('/units/:id', authenticateToken, requirePermission('basedata:units:up
 router.delete('/units/:id', authenticateToken, requirePermission('basedata:units:delete'), baseDataController.deleteUnit);
 
 // 库位管理路由
-router.get('/locations', authenticateToken, requirePermission(['basedata:locations:view', 'basedata:materials:view']), baseDataController.getAllLocations);
+router.get('/locations', authenticateToken, requirePermission(['basedata:locations:view', 'basedata:materials:view', 'inventory:report:view']), baseDataController.getAllLocations);
 router.post('/locations/export', authenticateToken, requirePermission('basedata:locations:export'), baseDataController.exportLocations);
 router.get('/locations/:id', authenticateToken, requirePermission('basedata:locations:view'), baseDataController.getLocationById);
 router.post('/locations', authenticateToken, requirePermission('basedata:locations:create'), baseDataController.createLocation);

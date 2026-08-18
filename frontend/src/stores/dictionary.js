@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
-import { systemApi } from '@/api';
+// 不能从 '@/api' 汇总入口导入：该入口会把全部业务 API 模块带入首屏依赖图。
+import { systemApi } from '@/api/system';
 
 export const useDictionaryStore = defineStore('dictionary', {
   state: () => ({

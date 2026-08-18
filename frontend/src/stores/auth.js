@@ -171,28 +171,48 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  // 获取用户信息（同时作为 Cookie 会话探测）
-  const fetchUserProfile = async (includePermissions = false) => {
-    try {
-      const response = await userApi.getProfileFast()
-      // 拦截器已解包，response.data 就是用户信息
-      user.value = response.data
-      tokenManager.setUser(user.value)
-      if (user.value?.id) {
-        setRequestCacheUserId(user.value.id)
-      }
-      sessionProbed.value = true
+  // 获取用户信息（同时作为 Cookie 会话探测，并发请求共享同一 Promise）
+  let _userProfilePromise = null
+  let _lastProfileFetchTime = 0
 
+  const fetchUserProfile = async (includePermissions = false, force = false) => {
+    const now = Date.now()
+    if (!force && user.value && sessionProbed.value && (now - _lastProfileFetchTime < 10000)) {
       if (includePermissions) {
         await fetchUserPermissions()
       }
-
       return true
-    } catch (error) {
-      // Cookie 失效：清理本地“伪登录”状态
-      clearClientSession()
-      throw error
     }
+
+    if (_userProfilePromise && !force) {
+      return _userProfilePromise
+    }
+
+    _userProfilePromise = (async () => {
+      try {
+        const response = await userApi.getProfileFast()
+        user.value = response.data
+        tokenManager.setUser(user.value)
+        if (user.value?.id) {
+          setRequestCacheUserId(user.value.id)
+        }
+        sessionProbed.value = true
+        _lastProfileFetchTime = Date.now()
+
+        if (includePermissions) {
+          await fetchUserPermissions()
+        }
+
+        return true
+      } catch (error) {
+        clearClientSession()
+        throw error
+      } finally {
+        _userProfilePromise = null
+      }
+    })()
+
+    return _userProfilePromise
   }
 
   // 获取用户权限（Promise 缓存，避免轮询）

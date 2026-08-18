@@ -274,6 +274,7 @@ export function useOrderActions(fetchDataCallback, tableData) {
       const orderData = response?.data || response
       orderData.customer = orderData.customer || row.customer
       orderData.customerName = orderData.customerName || row.customerName || row.customer
+      orderData.contractCode = orderData.contractCode || orderData.contract_code || row.contractCode || row.contract_code || ''
       orderData.deliveryDate = orderData.deliveryDate || row.deliveryDate || orderData.delivery_date
       orderData.address = orderData.address || row.address || orderData.delivery_address
       orderData.contact = orderData.contact || row.contact || orderData.contact_person

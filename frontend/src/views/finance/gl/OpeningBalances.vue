@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * OpeningBalances.vue
  * @description 期初余额设置界面
@@ -90,15 +90,52 @@
       </el-card>
     </div>
 
+    <!-- 筛选搜索栏 -->
+    <FinanceQueryCard
+      :model="searchForm"
+      :loading="loading"
+      @search="handleSearch"
+      @reset="handleResetSearch"
+    >
+      <template #basic>
+        <el-form-item label="关键字">
+          <el-input
+            v-model="searchForm.keyword"
+            placeholder="科目编码 / 科目名称"
+            clearable
+            @keyup.enter="handleSearch"
+          />
+        </el-form-item>
+        <el-form-item label="科目类型">
+          <el-select v-model="searchForm.accountType" placeholder="全部类型" clearable @change="handleSearch">
+            <el-option label="全部" value="" />
+            <el-option label="资产" value="资产" />
+            <el-option label="负债" value="负债" />
+            <el-option label="所有者权益" value="所有者权益" />
+            <el-option label="权益" value="权益" />
+            <el-option label="收入" value="收入" />
+            <el-option label="费用" value="费用" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="状态">
+          <el-select v-model="searchForm.status" placeholder="全部状态" clearable @change="handleSearch">
+            <el-option label="全部" value="" />
+            <el-option label="系统生成" value="system" />
+            <el-option label="已补录" value="manual_set" />
+            <el-option label="待补录" value="manual_pending" />
+          </el-select>
+        </el-form-item>
+      </template>
+    </FinanceQueryCard>
+
     <!-- 数据表格 -->
     <el-card class="data-card">
       <el-table
-        :data="accountList"
+        :data="pagedAccountList"
         class="w-full"
         border
         v-loading="loading"
         row-key="id"
-        :tree-props="{ children: 'children', hasChildren: 'hasChildren' }"
       >
         <el-table-column prop="accountCode" label="科目编码" width="150" />
         <el-table-column prop="accountName" label="科目名称" width="200" />
@@ -168,17 +205,30 @@
           </template>
         </el-table-column>
       </el-table>
+
+      <!-- 分页区域 -->
+      <div class="pagination-container mt-md flex-end">
+        <el-pagination
+          v-model:current-page="currentPage"
+          v-model:page-size="pageSize"
+          :page-sizes="[10, 20, 50, 100]"
+          :background="true"
+          layout="total, sizes, prev, pager, next, jumper"
+          :total="filteredAccountList.length"
+        />
+      </div>
     </el-card>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { formatCurrency, formatLocalDate } from '@/utils/format'
 import { Check, TrendCharts, Warning, CircleCheck, Refresh } from '@element-plus/icons-vue'
 import { financeApi } from '@/api'
 import { parseDataObject } from '@/utils/responseParser'
+import FinanceQueryCard from '@/components/common/FinanceQueryCard.vue'
 
 const loading = ref(false)
 const saving = ref(false)
@@ -186,17 +236,70 @@ const accountList = ref([])
 const warnings = ref([])
 const balanceDate = ref(formatLocalDate(new Date()))
 
-// 计算借方合计
+// 搜索与分页状态
+const searchForm = reactive({
+  keyword: '',
+  accountType: '',
+  status: ''
+})
+
+const currentPage = ref(1)
+const pageSize = ref(20)
+
+// 过滤后的科目列表
+const filteredAccountList = computed(() => {
+  let list = accountList.value
+  const kw = searchForm.keyword?.trim().toLowerCase()
+  if (kw) {
+    list = list.filter(item =>
+      (item.accountCode && String(item.accountCode).toLowerCase().includes(kw)) ||
+      (item.accountName && String(item.accountName).toLowerCase().includes(kw))
+    )
+  }
+  if (searchForm.accountType) {
+    list = list.filter(item => item.accountType === searchForm.accountType)
+  }
+  if (searchForm.status) {
+    if (searchForm.status === 'system') {
+      list = list.filter(item => item.sourceType === 'system')
+    } else if (searchForm.status === 'manual_set') {
+      list = list.filter(item => item.sourceType !== 'system' && item.openingBalanceSet)
+    } else if (searchForm.status === 'manual_pending') {
+      list = list.filter(item => item.sourceType !== 'system' && !item.openingBalanceSet)
+    }
+  }
+  return list
+})
+
+// 分页切片数据（大幅降低 DOM 节点数与卡顿）
+const pagedAccountList = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  const end = start + pageSize.value
+  return filteredAccountList.value.slice(start, end)
+})
+
+const handleSearch = () => {
+  currentPage.value = 1
+}
+
+const handleResetSearch = () => {
+  searchForm.keyword = ''
+  searchForm.accountType = ''
+  searchForm.status = ''
+  currentPage.value = 1
+}
+
+// 计算借方合计（基于全量数据）
 const totalDebit = computed(() => {
   return accountList.value.reduce((sum, acc) => sum + getOpeningDebit(acc), 0)
 })
 
-// 计算贷方合计
+// 计算贷方合计（基于全量数据）
 const totalCredit = computed(() => {
   return accountList.value.reduce((sum, acc) => sum + getOpeningCredit(acc), 0)
 })
 
-// 判断是否平衡
+// 判断是否平衡（基于全量数据）
 const isBalanced = computed(() => {
   return Math.abs(totalDebit.value - totalCredit.value) < 0.01
 })
@@ -408,5 +511,11 @@ onMounted(() => {
 .generated-amount {
   color: var(--color-text-primary);
   font-weight: 600;
+}
+
+.pagination-container {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
 }
 </style>

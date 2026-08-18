@@ -1,7 +1,8 @@
 import axios from 'axios';
 import { API_CONFIG, normalizeApiRequestUrl } from '@/config/app';
 import { applyRequestOptimizer, clearAllRequestCaches } from '@/utils/requestOptimizer';
-import { ElMessage } from 'element-plus';
+import { ElMessage } from 'element-plus/es/components/message/index';
+import 'element-plus/es/components/message/style/css';
 // 使用环境变量，如果没有设置则使用相对路径
 const API_URL = API_CONFIG.defaultBaseURL;
 const UNSAFE_METHODS = new Set(['post', 'put', 'patch', 'delete']);

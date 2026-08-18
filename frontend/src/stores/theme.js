@@ -17,7 +17,7 @@ import {
   getThemePreset,
   normalizeThemeAppearance
 } from '@/config/themePresets'
-import { ensureThemeCss, prefetchAllThemes } from '@/utils/themeLoader'
+import { ensureThemeCss } from '@/utils/themeLoader'
 
 export const useThemeStore = defineStore('theme', () => {
   const defaultAppearance = { ...DEFAULT_THEME_SETTINGS }
@@ -216,8 +216,6 @@ export const useThemeStore = defineStore('theme', () => {
         .catch((error) => logger.error('初始主题 CSS 加载失败:', error))
     }
     applyTheme()
-    prefetchAllThemes(preset)
-
   }
 
   return {

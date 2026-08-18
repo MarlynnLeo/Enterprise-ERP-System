@@ -63,7 +63,7 @@
           </el-button-group>
         </el-form-item>
         <el-form-item label="物料类别">
-          <el-select v-model="searchForm.categoryId" placeholder="选择类别" clearable>
+          <el-select v-model="searchForm.categoryId" placeholder="选择类别" clearable @change="handleSearch">
             <el-option
               v-for="category in categoryOptions"
               :key="category.id"
@@ -73,11 +73,11 @@
           </el-select>
         </el-form-item>
         <el-form-item label="仓库位置">
-          <el-select v-model="searchForm.locationId" placeholder="选择位置" clearable>
+          <el-select v-model="searchForm.locationId" placeholder="选择位置" clearable @change="handleSearch">
             <el-option
               v-for="location in locationOptions"
               :key="location.id"
-              :label="location.name"
+              :label="location.name || location.warehouse_name || location.code"
               :value="location.id"
             />
           </el-select>
@@ -903,14 +903,13 @@ const fetchReportData = async () => {
 // 获取基础数据
 const fetchBaseData = async () => {
   try {
-    // 获取物料类别
-    const categoryResponse = await baseDataApi.getCategories()
+    // 获取物料类别（大页码确保获取全部）
+    const categoryResponse = await baseDataApi.getCategories({ page: 1, pageSize: 200, limit: 200 })
     categoryOptions.value = parseListData(categoryResponse, { enableLog: false })
 
     // 获取仓库位置
-    const locationResponse = await inventoryApi.getWarehouseLocations()
-    const locationData = parseResponseData(locationResponse)
-    locationOptions.value = locationData.items || locationData.list || locationData || []
+    const locationResponse = await inventoryApi.getWarehouseLocations({ page: 1, pageSize: 200, limit: 200 })
+    locationOptions.value = parseListData(locationResponse, { enableLog: false })
   } catch (error) {
     console.error('获取基础数据失败:', error)
   }
