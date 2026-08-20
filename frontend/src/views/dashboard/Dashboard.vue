@@ -64,7 +64,7 @@
             </div>
             <div class="list-content">
               <el-table
-                :data="visibleTodoTasks"
+                :data="activeTodoTasks"
                 :show-header="true"
                 height="100%"
                 :empty-text="activeTodoTab === 'pending' ? '暂无待办事项' : '暂无已完成事项'"
@@ -298,7 +298,6 @@ const activeTodoTasks = computed(() => (
 const activeTodoCount = computed(() => (
   activeTodoTab.value === 'pending' ? pendingTotal.value : completedTotal.value
 ))
-const visibleTodoTasks = computed(() => activeTodoTasks.value.slice(0, 6))
 const showTodoDate = computed(() => todoContainerWidth.value >= 470)
 const showTodoStatus = computed(() => todoContainerWidth.value >= 380)
 // 统计卡片配置（使用计算属性动态获取数据）
@@ -643,6 +642,11 @@ watch(() => currentDate.value, (newValue) => {
   .combined-info-card {
     height: auto !important;
     min-height: 90px;
+  }
+  .todo-container {
+    height: 320px !important;
+    min-height: 320px;
+    max-height: 320px;
   }
   .chart-container,
   .calendar-container,
