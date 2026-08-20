@@ -3,7 +3,6 @@
  * @description 汇率与图表数据的组合式函数（从 Dashboard.vue 抽取）
  */
 import { ref, computed } from 'vue'
-import { echarts } from '@/utils/echartsCore'
 import { ElMessage } from 'element-plus'
 import { exchangeRateApi } from '../../../api/enhanced'
 import { alphaColor, getCssTokenValue } from '../../../utils/designTokens'
@@ -11,6 +10,25 @@ import { alphaColor, getCssTokenValue } from '../../../utils/designTokens'
 const DASHBOARD_CURRENCIES = ['USD', 'EUR', 'GBP', 'JPY']
 
 export function useExchangeRate() {
+  let echarts = null
+  let echartsPromise = null
+
+  // ECharts 是仪表盘中体积最大的依赖之一。只有图表真正需要绘制时才加载，
+  // 数据请求与文字卡片可先完成，不再阻塞首页首屏渲染。
+  const ensureEcharts = async () => {
+    if (echarts) return echarts
+    if (!echartsPromise) {
+      echartsPromise = import('@/utils/echartsCore')
+        .then((module) => module.echarts)
+        .catch((error) => {
+          echartsPromise = null
+          throw error
+        })
+    }
+    echarts = await echartsPromise
+    return echarts
+  }
+
   // 外汇数据
   const exchangeRates = ref({
     USDCNY: '--',
@@ -200,7 +218,7 @@ export function useExchangeRate() {
 
   // 初始化迷你图表（统一函数）
   const initMiniChart = (key, container, chartsObj, historyData, changeValue) => {
-    if (!container) return
+    if (!container || !echarts) return
 
     // 检查容器尺寸是否有效，避免 ECharts 警告
     if (!container.clientWidth || !container.clientHeight) return
@@ -215,6 +233,8 @@ export function useExchangeRate() {
 
   // 更新迷你图表（统一函数）
   const updateMiniChartsGeneric = (chartRefs, charts, historyData, getChangeValue) => {
+    if (!echarts) return
+
     Object.keys(chartRefs).forEach(key => {
       const container = chartRefs[key]
       const history = historyData[key] || []
@@ -249,12 +269,20 @@ export function useExchangeRate() {
   }
 
   // 初始化汇率走势图
-  const initExchangeRateChart = () => {
+  const initExchangeRateChart = async () => {
     if (!exchangeRateChartRef.value) return
+
+    await ensureEcharts()
 
     // 检查容器尺寸是否有效，避免 ECharts 警告
     const container = exchangeRateChartRef.value
     if (!container.clientWidth || !container.clientHeight) return
+
+    if (exchangeRateChart) {
+      exchangeRateChart.resize()
+      updateExchangeRateChart()
+      return exchangeRateChart
+    }
 
     exchangeRateChart = echarts.init(container)
 
@@ -359,6 +387,8 @@ export function useExchangeRate() {
     }
 
     exchangeRateChart.setOption(option)
+    updateExchangeRateChart()
+    return exchangeRateChart
   }
 
   // 更新汇率走势图
@@ -432,6 +462,7 @@ export function useExchangeRate() {
     miniChartRefs,
     setMiniChartRef,
     fetchExchangeRates,
+    ensureEcharts,
     initExchangeRateChart,
     updateExchangeRateChart,
     updateMiniCharts,

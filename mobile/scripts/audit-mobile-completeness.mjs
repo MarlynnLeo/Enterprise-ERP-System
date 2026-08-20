@@ -34,9 +34,6 @@ function rel(p) {
 
 // ---- routes ----
 const routerFiles = walk(path.join(SRC, 'router'), (p) => p.endsWith('.js'))
-const routeImportRe = /component:\s*\(\)\s*=>\s*import\(['"]@\/([^'"]+)['"]\)/g
-const routePathRe = /path:\s*['"]([^'"]+)['"]/g
-const routeNameRe = /name:\s*['"]([^'"]+)['"]/g
 
 const routes = []
 for (const f of routerFiles) {
@@ -60,40 +57,17 @@ for (const f of routerFiles) {
 
 // ---- views ----
 const viewFiles = walk(path.join(SRC, 'views'), (p) => p.endsWith('.vue'))
-const viewSet = new Set(viewFiles.map((p) => rel(p)))
 
 const missingViews = []
-const resolvedComponents = new Set()
 for (const r of routes) {
-  const candidate = r.component.endsWith('.vue') ? r.component : `${r.component}.vue`
-  const alt = candidate.startsWith('views/') ? candidate : `views/${candidate}`
-  const keys = [candidate, alt, candidate.replace(/^views\//, '')]
-  let ok = false
-  for (const k of keys) {
-    const full = path.join(SRC, k.startsWith('views/') ? k : `views/${k.replace(/^views\//, '')}`)
-    // import is @/views/...
-    const fromAt = path.join(SRC, r.component.replace(/^views\//, r.component.startsWith('views/') ? '' : '') )
-    // r.component is like views/Login.vue
-    const compPath = path.join(SRC, r.component)
-    if (fs.existsSync(compPath)) {
-      ok = true
-      resolvedComponents.add(rel(compPath))
-      break
-    }
-  }
+  // r.component is an @/relative path such as views/Login.vue.
   const compPath = path.join(SRC, r.component)
   if (!fs.existsSync(compPath)) {
     missingViews.push(r)
-  } else {
-    resolvedComponents.add(rel(compPath))
   }
 }
 
 // orphan views (not in any route)
-const routedViews = new Set(
-  routes.map((r) => rel(path.join(SRC, r.component))).filter((p) => p.endsWith('.vue'))
-)
-// normalize
 const routedNormalized = new Set(
   routes
     .map((r) => {

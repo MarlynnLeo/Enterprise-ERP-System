@@ -300,7 +300,7 @@ import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage } from 'element-plus'
 import { baseDataApi } from '@/api/baseData';
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation';
-import { Plus, Edit, Delete, Download, Upload, Switch, View } from '@element-plus/icons-vue';
+import { Plus, Edit, Delete, Download, Upload, Switch } from '@element-plus/icons-vue';
 import { useAuthStore } from '@/stores/auth';
 // 权限store
 const authStore = useAuthStore();

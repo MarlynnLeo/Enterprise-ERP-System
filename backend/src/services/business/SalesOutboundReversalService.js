@@ -7,7 +7,7 @@
 
 const { logger } = require('../../utils/logger');
 const { currentDateString } = require('../../utils/dateUtils');
-const { resolveActorLabel, resolveActorUserId } = require('../../utils/userUtils');
+const { resolveActorLabel } = require('../../utils/userUtils');
 const {
   INVOICE_STATUS,
   TAX_INVOICE_STATUS,

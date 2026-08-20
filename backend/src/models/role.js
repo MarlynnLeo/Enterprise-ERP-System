@@ -9,6 +9,11 @@ const { logger } = require('../utils/logger');
 const DBManager = require('../utils/dbManager');
 const { syncRolePermissionsFromMenus } = require('../services/PermissionRegistry');
 const RoleAccessService = require('../services/RoleAccessService');
+const { isSuperAdminRole } = require('../authorization/superAdmin');
+const {
+  disconnectUserSessions,
+  revokeRoleSessionsInTransaction,
+} = require('../utils/sessionRevocation');
 
 /**
  * 获取角色的菜单权限
@@ -21,7 +26,7 @@ const getRoleMenus = async (roleId) => {
       'SELECT code, is_super_admin FROM roles WHERE id = ? LIMIT 1',
       [roleId]
     );
-    if (Number(role?.is_super_admin) === 1 || String(role?.code || '') === 'admin') {
+    if (isSuperAdminRole(role)) {
       const [allMenus] = await pool.execute(
         'SELECT id AS menu_id FROM menus WHERE status = 1 ORDER BY id'
       );
@@ -79,6 +84,7 @@ const getRolePermissionCodes = async (roleId) => {
  */
 const setRoleMenus = async (roleId, menuIds = []) => {
   try {
+    let revokedUserIds = [];
     const normalizedMenuIds = [
       ...new Set((Array.isArray(menuIds) ? menuIds : []).map((id) => Number(id))),
     ].filter((id) => Number.isInteger(id) && id > 0);
@@ -88,8 +94,9 @@ const setRoleMenus = async (roleId, menuIds = []) => {
         'SELECT id, code, is_super_admin FROM roles WHERE id = ? LIMIT 1',
         [roleId]
       );
-      if (Number(role?.is_super_admin) === 1 || String(role?.code || '') === 'admin') {
+      if (isSuperAdminRole(role)) {
         await RoleAccessService.grantAllAccess(connection, roleId);
+        revokedUserIds = await revokeRoleSessionsInTransaction(connection, [roleId]);
         return true;
       }
       const scopedMenuIds = await RoleAccessService.clampMenuIds(
@@ -139,6 +146,8 @@ const setRoleMenus = async (roleId, menuIds = []) => {
         `[事务] 角色 ${roleId} role_permissions 同步完成: inserted=${sync.inserted}`
       );
 
+      revokedUserIds = await revokeRoleSessionsInTransaction(connection, [roleId]);
+
       return true;
     });
 
@@ -150,6 +159,8 @@ const setRoleMenus = async (roleId, menuIds = []) => {
     } catch (cacheError) {
       logger.warn(`[权限缓存] setRoleMenus 后清理失败: ${cacheError.message}`);
     }
+
+    disconnectUserSessions(revokedUserIds, 'role_menus_changed');
 
     return result;
   } catch (error) {

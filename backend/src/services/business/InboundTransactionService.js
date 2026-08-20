@@ -13,7 +13,7 @@ const CostAccountingService = require('./CostAccountingService');
 
 const DLQService = require('./DLQService');
 const AsyncTaskService = require('./AsyncTaskService');
-const { resolveActorLabel, resolveActorUserId } = require('../../utils/userUtils');
+const { resolveActorLabel } = require('../../utils/userUtils');
 class InboundTransactionService {
   /**
    * 执行完整的入库确认逻辑

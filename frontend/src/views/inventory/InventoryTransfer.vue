@@ -405,7 +405,7 @@ import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, reactive, onMounted, computed } from 'vue';
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Plus, ArrowDown, Delete, Check, Select, Finished, Close, CopyDocument, Printer, Download, View, Edit } from '@element-plus/icons-vue';
+import { Plus, ArrowDown, Delete, Check, Select, Finished, Close, CopyDocument, Printer, Download, Edit } from '@element-plus/icons-vue';
 import { inventoryApi } from '@/api';
 import { getCurrentDate } from '@/utils/helpers/dateUtils';
 import { formatDate } from '@/utils/helpers/formatters';

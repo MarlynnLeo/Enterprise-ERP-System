@@ -8,7 +8,83 @@
 const { pool } = require('../config/db');
 const { logger } = require('../utils/logger');
 const { softDelete } = require('../utils/softDelete');
+const FileAccessService = require('./FileAccessService');
 const crypto = require('crypto');
+
+async function normalizeInstructionDocs(connection, docs, templateId, userId) {
+    if (docs === undefined || docs === null || docs === '') return null;
+    if (!Array.isArray(docs)) {
+        const error = new Error('作业指导书必须是数组');
+        error.code = 'INVALID_INSTRUCTION_DOCS';
+        throw error;
+    }
+
+    const normalized = [];
+    for (const doc of docs) {
+        const url = FileAccessService.normalizeUploadUrl(doc?.url || doc?.fileUrl || doc?.file_url);
+        if (!url) {
+            const error = new Error('作业指导书文件路径无效');
+            error.code = 'INVALID_FILE_REFERENCE';
+            throw error;
+        }
+        const [rows] = await connection.execute(
+            `SELECT id, business_type, business_id, uploaded_by, deleted_at
+               FROM file_access_records
+              WHERE file_url = ? LIMIT 1 FOR UPDATE`,
+            [url]
+        );
+        const record = rows[0];
+        if (!record || record.deleted_at) {
+            const error = new Error('作业指导书未通过受控上传接口登记');
+            error.code = 'FILE_ACCESS_RECORD_NOT_FOUND';
+            throw error;
+        }
+
+        if (record.business_type || record.business_id) {
+            if (
+                record.business_type !== 'process_template' ||
+                Number(record.business_id) !== Number(templateId)
+            ) {
+                const error = new Error('作业指导书已绑定到其他业务对象');
+                error.code = 'FILE_ACCESS_BINDING_CONFLICT';
+                throw error;
+            }
+        } else if (!userId || Number(record.uploaded_by) !== Number(userId)) {
+            const error = new Error('只能绑定自己上传的作业指导书');
+            error.code = 'FILE_OWNER_MISMATCH';
+            throw error;
+        } else {
+            await connection.execute(
+                `UPDATE file_access_records
+                    SET business_type = 'process_template', business_id = ?, updated_at = NOW()
+                  WHERE id = ?`,
+                [templateId, record.id]
+            );
+        }
+
+        normalized.push({
+            name: String(doc?.name || doc?.originalName || '作业指导书').slice(0, 255),
+            url,
+            uploadTime: doc?.uploadTime || doc?.upload_time || null,
+        });
+    }
+    return JSON.stringify(normalized);
+}
+
+async function retireRemovedInstructionDocs(connection, templateId, activeUrls) {
+    const urls = [...new Set(activeUrls.filter(Boolean))];
+    let sql = `UPDATE file_access_records
+                  SET deleted_at = NOW(), updated_at = NOW()
+                WHERE business_type = 'process_template'
+                  AND business_id = ?
+                  AND deleted_at IS NULL`;
+    const params = [templateId];
+    if (urls.length) {
+        sql += ` AND file_url NOT IN (${urls.map(() => '?').join(',')})`;
+        params.push(...urls);
+    }
+    await connection.execute(sql, params);
+}
 
 const processTemplateService = {
     /**
@@ -127,14 +203,24 @@ const processTemplateService = {
             );
 
             const templateId = result.insertId;
+            const activeInstructionUrls = [];
 
             // 批量插入详情
             for (let i = 0; i < details.length; i++) {
                 const detail = details[i];
+                const instructionDocs = await normalizeInstructionDocs(
+                    connection,
+                    detail.instruction_docs ?? detail.instructionDocs,
+                    templateId,
+                    data.created_by || data.createdBy || null
+                );
+                if (instructionDocs) {
+                    activeInstructionUrls.push(...JSON.parse(instructionDocs).map((doc) => doc.url));
+                }
                 await connection.query(
                     `INSERT INTO process_template_details
-          (template_id, name, order_num, description, standard_hours, department, remark)
-          VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          (template_id, name, order_num, description, standard_hours, department, remark, instruction_docs)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
                     [
                         templateId,
                         detail.name,
@@ -143,9 +229,11 @@ const processTemplateService = {
                         detail.standard_hours || 0,
                         detail.department || '',
                         detail.remark || '',
+                        instructionDocs,
                     ]
                 );
             }
+            await retireRemovedInstructionDocs(connection, templateId, activeInstructionUrls);
 
             await connection.commit();
             return { id: templateId, name, code: templateCode, description, details };
@@ -175,13 +263,23 @@ const processTemplateService = {
 
             // 先删后插详情
             await connection.query('DELETE FROM process_template_details WHERE template_id = ?', [id]);
+            const activeInstructionUrls = [];
 
             for (let i = 0; i < details.length; i++) {
                 const detail = details[i];
+                const instructionDocs = await normalizeInstructionDocs(
+                    connection,
+                    detail.instruction_docs ?? detail.instructionDocs,
+                    id,
+                    data.updated_by || data.updatedBy || null
+                );
+                if (instructionDocs) {
+                    activeInstructionUrls.push(...JSON.parse(instructionDocs).map((doc) => doc.url));
+                }
                 await connection.query(
                     `INSERT INTO process_template_details
-          (template_id, name, order_num, description, standard_hours, department, remark)
-          VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          (template_id, name, order_num, description, standard_hours, department, remark, instruction_docs)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
                     [
                         id,
                         detail.name,
@@ -190,9 +288,11 @@ const processTemplateService = {
                         detail.standard_hours || 0,
                         detail.department || '',
                         detail.remark || '',
+                        instructionDocs,
                     ]
                 );
             }
+            await retireRemovedInstructionDocs(connection, id, activeInstructionUrls);
 
             await connection.commit();
             return true;
@@ -214,6 +314,7 @@ const processTemplateService = {
             await connection.beginTransaction();
 
             await connection.query('DELETE FROM process_template_details WHERE template_id = ?', [id]);
+            await retireRemovedInstructionDocs(connection, id, []);
             // ✅ 软删除工序模板主表
             await softDelete(connection, 'process_templates', 'id', id);
 

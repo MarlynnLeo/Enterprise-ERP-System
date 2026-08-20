@@ -12,7 +12,7 @@ const DocumentLinkService = require('../services/business/DocumentLinkService');
 const { DOCUMENT_LINK_TYPES: DocType } = require('../constants/documentLinkTypes');
 const { accountingConfig } = require('../config/accountingConfig');
 const { currentDateString } = require('../utils/dateUtils');
-const { resolveActorLabel, resolveActorUserId } = require('../utils/userUtils');
+const { resolveActorLabel } = require('../utils/userUtils');
 
 function mapAssetType(value) {
     const typeMap = {
@@ -243,7 +243,6 @@ const cipModel = {
             throw new Error('归集金额必须大于 0');
         }
 
-        const runner = connection || db.pool;
         const ownConnection = !connection;
         let conn = connection;
 
@@ -285,7 +284,7 @@ const cipModel = {
             if (ownConnection && conn) {
                 try {
                     await conn.rollback();
-                } catch (_) {
+                } catch {
                     /* ignore */
                 }
             }

@@ -2,8 +2,7 @@ import { ref } from 'vue'
 import { userApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 
-const RANKING_CACHE_DURATION = 10 * 1000
-const MIN_LOADING_DURATION = 250
+const RANKING_CACHE_DURATION = 60 * 1000
 
 export function useOnlineRanking() {
   const authStore = useAuthStore()
@@ -36,7 +35,6 @@ export function useOnlineRanking() {
     }
 
     rankingLoading.value = true
-    const startTime = Date.now()
 
     try {
       const response = await userApi.getOnlineTimeRanking()
@@ -47,11 +45,6 @@ export function useOnlineRanking() {
           ? payload.data
           : payload?.rankings || payload?.data?.rankings || []
       const date = payload?.date || payload?.data?.date || new Date().toLocaleDateString('zh-CN')
-
-      const elapsedTime = Date.now() - startTime
-      if (elapsedTime < MIN_LOADING_DURATION) {
-        await new Promise((resolve) => setTimeout(resolve, MIN_LOADING_DURATION - elapsedTime))
-      }
 
       onlineTimeRanking.value = rankings
       rankingDate.value = date

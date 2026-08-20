@@ -775,7 +775,7 @@ function isManagedRole(code, isSuperAdmin = false) {
 }
 
 function describeRoleAccess(code, isSuperAdmin = false) {
-  if (Number(isSuperAdmin) === 1 || String(code) === 'admin') {
+  if (Number(isSuperAdmin) === 1) {
     return {
       managed: true,
       superAdmin: true,

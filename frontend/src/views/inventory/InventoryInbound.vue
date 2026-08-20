@@ -628,7 +628,7 @@ import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted, computed, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Plus, Check, View, Finished, Close } from '@element-plus/icons-vue'
+import { Plus, Check, Finished, Close } from '@element-plus/icons-vue'
 import { inventoryApi, baseDataApi, productionApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import { tokenManager } from '@/utils/unifiedStorage'

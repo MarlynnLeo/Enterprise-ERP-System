@@ -201,9 +201,9 @@ export const searchMaterialOptions = (keyword = '', params = {}) => {
  * 所有 BOM 选择器统一显示：产品编码 - 产品名称 - 型号。
  */
 export const normalizeBomOption = (bom = {}) => {
-  const productCode = bom.productCode || bom.product_code || ''
-  const productName = bom.productName || bom.product_name || '未知产品'
-  const productSpecs = bom.productSpecs || bom.product_specs || '无型号'
+  const productCode = bom.productCode || ''
+  const productName = bom.productName || '未知产品'
+  const productSpecs = bom.productSpecs || '无型号'
 
   return {
     ...bom,

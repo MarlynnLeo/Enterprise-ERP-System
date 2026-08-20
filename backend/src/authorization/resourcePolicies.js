@@ -104,6 +104,10 @@ const RESOURCE_POLICIES = Object.freeze({
     key: 'inventory_transfer',
     table: 'inventory_transfers',
     ownerColumn: 'created_by',
+    // A custom warehouse scope must include both ends of a transfer. Allowing
+    // either end would expose or mutate inventory in an unauthorized location.
+    locationColumns: ['from_location_id', 'to_location_id'],
+    requireAllLocations: true,
     deletedAtColumn: 'deleted_at',
   }),
   production_plan: Object.freeze({
@@ -119,6 +123,13 @@ const RESOURCE_POLICIES = Object.freeze({
     ownerColumn: 'created_by',
     deletedAtColumn: 'deleted_at',
     sharedRead: true,
+  }),
+  ecn: Object.freeze({
+    key: 'ecn',
+    table: 'ecn_orders',
+    ownerColumn: 'requested_by',
+    departmentColumn: 'department_id',
+    deletedAtColumn: 'deleted_at',
   }),
   contract: Object.freeze({
     key: 'contract',

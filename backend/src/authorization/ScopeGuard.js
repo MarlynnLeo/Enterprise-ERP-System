@@ -91,7 +91,11 @@ class ScopeGuard {
       ownerAlias: options.ownerAlias || `${policy.key}_owner_scope`,
       departmentColumn: policy.departmentColumn || null,
       locationColumn: policy.locationColumn || null,
-      includeLocation: options.includeLocation !== false && Boolean(policy.locationColumn),
+      locationColumns: policy.locationColumns || null,
+      requireAllLocations: Boolean(policy.requireAllLocations),
+      includeLocation:
+        options.includeLocation !== false &&
+        Boolean(policy.locationColumn || policy.locationColumns?.length),
     });
   }
 
@@ -101,15 +105,61 @@ class ScopeGuard {
   static async assertAccess(connection, req, policyKey, recordId, options = {}) {
     const policy = getResourcePolicy(policyKey);
     if (this.isFinanceSharedAll(policy) || this.isSharedRead(policy, options)) {
-      return true;
+      // Shared visibility relaxes owner/department filtering only. It must not
+      // turn a missing or soft-deleted object into an authorizable resource.
+      return DataScopeService.assertRecordExists(connection, policy.table, recordId, {
+        idColumn: policy.idColumn || 'id',
+        deletedAtColumn:
+          policy.deletedAtColumn === false ? false : (policy.deletedAtColumn || 'deleted_at'),
+        extraSoftDelete: policy.extraSoftDelete || null,
+      });
     }
     return DataScopeService.assertRecordAccess(connection, req, policy.table, recordId, {
       ownerColumn: policy.ownerColumn,
       departmentColumn: policy.departmentColumn || null,
       locationColumn: policy.locationColumn || null,
+      locationColumns: policy.locationColumns || null,
+      requireAllLocations: Boolean(policy.requireAllLocations),
       deletedAtColumn: policy.deletedAtColumn === false ? false : (policy.deletedAtColumn || 'deleted_at'),
       extraSoftDelete: policy.extraSoftDelete || null,
     });
+  }
+
+  /**
+   * Validate every requested object before a batch read or mutation. The
+   * operation is fail-closed: an invalid/empty ID or one out-of-scope record
+   * rejects the entire batch so callers cannot obtain partial side effects.
+   */
+  static async assertAllAccess(connection, req, policyKey, recordIds, options = {}) {
+    if (!Array.isArray(recordIds) || recordIds.length === 0) return false;
+    const ids = [...new Set(recordIds.map((id) => Number(id)))];
+    if (
+      ids.length !== recordIds.length ||
+      ids.some((id) => !Number.isInteger(id) || id <= 0)
+    ) {
+      return false;
+    }
+    for (const id of ids) {
+      if (!(await this.assertAccess(connection, req, policyKey, id, options))) return false;
+    }
+    return true;
+  }
+
+  static async denyUnlessAllAccess(
+    res,
+    connection,
+    req,
+    policyKey,
+    recordIds,
+    message,
+    options = {}
+  ) {
+    const ok = await this.assertAllAccess(connection, req, policyKey, recordIds, options);
+    if (!ok) {
+      ResponseHandler.forbidden(res, message || '批量请求包含无权访问的业务单据');
+      return false;
+    }
+    return true;
   }
 
   /**

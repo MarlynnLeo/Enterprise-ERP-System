@@ -1,7 +1,7 @@
 const db = require('../../../config/db');
 const pool = db.pool;
 const { logger } = require('../../../utils/logger');
-const { resolveActorLabel, resolveActorUserId } = require('../../../utils/userUtils');
+const { resolveActorUserId } = require('../../../utils/userUtils');
 
 class SalaryService {
   /**

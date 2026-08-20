@@ -247,7 +247,7 @@ import { formatDateTime } from '@/utils/helpers/dateUtils'
 import { ref, onMounted, onUnmounted, nextTick, reactive, computed } from 'vue'
 import { debounce } from 'lodash-es'
 import { ElMessage } from 'element-plus'
-import { Download, TrendCharts, PieChart, Histogram, View } from '@element-plus/icons-vue'
+import { Download, TrendCharts, PieChart, Histogram } from '@element-plus/icons-vue'
 import { echarts } from '@/utils/echartsCore'
 import { getInventoryTransactionTypeText, getInventoryTransactionTypeColor } from '@/constants/systemConstants'
 import { getCssTokenValue } from '@/utils/designTokens'
@@ -986,10 +986,6 @@ onUnmounted(() => {
     trendChart = null
   }
 })
-// 添加点击行事件
-const handleRowClick = (row) => {
-  showTransactionDetail(row)
-}
 // 安全性：HTML内容清理函数
 const _sanitizeHtml = (html) => {
   if (!html) return ''

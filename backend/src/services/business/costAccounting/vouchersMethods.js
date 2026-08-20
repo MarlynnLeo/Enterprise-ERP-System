@@ -38,7 +38,7 @@ module.exports = {
      * @param {number} outboundId 可选，指定出库单ID（用于补料等场景，只计算该出库单的成本）
      * @returns {Promise<Object>} 凭证信息
      */
-    async generateMaterialVoucher(taskId, connection = null, outboundId = null) {
+    async generateMaterialVoucher(_taskId, _connection = null, _outboundId = null) {
       // 已废弃：生产领料/成本统一由 calculateActualCost 使用 document_type=PRODUCTION_MATERIAL 生成。
       throw new Error(
         'generateMaterialVoucher 已废弃。请使用 CostAccountingService.calculateActualCost(taskId) 作为唯一成本过账入口。'
@@ -57,7 +57,7 @@ module.exports = {
      * @param {Object} connection 数据库连接
      * @returns {Promise<Object>} 凭证信息
      */
-    async generateSalesCostVoucher(salesId, productId, quantity, unitCost, connection = null) {
+    async generateSalesCostVoucher(_salesId, _productId, _quantity, _unitCost, _connection = null) {
       // 已废弃：销售成本统一由 FinanceIntegrationService.generateCostEntryFromSalesOutbound 生成。
       throw new Error(
         'generateSalesCostVoucher 已废弃。请使用 FinanceIntegrationService.generateCostEntryFromSalesOutbound。'

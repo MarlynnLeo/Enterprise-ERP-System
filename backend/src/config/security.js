@@ -7,8 +7,10 @@
 
 // 密码策略配置
 const PASSWORD_POLICY = {
-  minLength: 1,
+  minLength: 12,
   maxLength: 128,
+  maxBcryptBytes: 72,
+  minUniqueChars: 4,
   requireUppercase: false,
   requireLowercase: false,
   requireNumbers: false,
@@ -17,6 +19,7 @@ const PASSWORD_POLICY = {
   maxAttempts: 5, // 最大登录尝试次数（超过后锁定账户）
   lockoutDuration: 15 * 60 * 1000, // 锁定时间（毫秒）
   passwordHistory: 5, // 记住最近5个密码
+  passwordExpiryDays: 90,
 };
 
 // JWT 配置
@@ -70,6 +73,18 @@ const RATE_LIMIT_CONFIG = {
       code: 'AUTH_RATE_LIMIT_EXCEEDED',
     },
     skipSuccessfulRequests: true,
+  },
+
+  // MFA challenge endpoints are public until the second factor succeeds.
+  mfa: {
+    windowMs: 5 * 60 * 1000,
+    max: 15,
+    message: {
+      success: false,
+      message: '多因素认证尝试过于频繁，请稍后再试',
+      code: 'MFA_RATE_LIMIT_EXCEEDED',
+    },
+    skipSuccessfulRequests: false,
   },
 
   // 可疑活动检测配置（高级安全功能）

@@ -33,15 +33,23 @@ const RETRY_BASE_DELAY_MS = 1000;
  * @returns {Promise<{status: number, data: any, headers: Object}>}
  */
 const request = (method, urlString, options = {}) => {
+  const normalizedMethod = String(method || 'GET').toUpperCase();
   const {
     params,
     data,
     headers = {},
     timeout = DEFAULT_TIMEOUT_MS,
     rejectUnauthorized = true,
-    retries = MAX_RETRIES,
+    retries: configuredRetries,
     maxResponseBytes = DEFAULT_MAX_RESPONSE_BYTES,
   } = options;
+  const safeToRetry = ['GET', 'HEAD', 'OPTIONS'].includes(normalizedMethod);
+  const parsedRetries = Number.parseInt(configuredRetries, 10);
+  const retries = Number.isInteger(parsedRetries)
+    ? Math.min(Math.max(parsedRetries, 0), 5)
+    : safeToRetry
+      ? MAX_RETRIES
+      : 0;
 
   const doRequest = () => {
     return new Promise((resolve, reject) => {
@@ -62,6 +70,7 @@ const request = (method, urlString, options = {}) => {
       const body = data ? JSON.stringify(data) : null;
       const isHttps = url.protocol === 'https:';
       const transport = isHttps ? https : http;
+      const safeRequestTarget = `${url.origin}${url.pathname}`;
       const safeMaxResponseBytes = Math.max(
         1,
         Number.parseInt(maxResponseBytes, 10) || DEFAULT_MAX_RESPONSE_BYTES
@@ -74,7 +83,7 @@ const request = (method, urlString, options = {}) => {
       }
 
       const reqOptions = {
-        method: method.toUpperCase(),
+        method: normalizedMethod,
         hostname: url.hostname,
         path: url.pathname + url.search,
         port: url.port || (isHttps ? 443 : 80),
@@ -101,7 +110,7 @@ const request = (method, urlString, options = {}) => {
           receivedBytes += buffer.length;
           if (receivedBytes > safeMaxResponseBytes) {
             const error = new Error(
-              `HTTP response too large (${receivedBytes} bytes): ${method} ${url.toString()}`
+              `HTTP response too large (${receivedBytes} bytes): ${normalizedMethod} ${safeRequestTarget}`
             );
             error.code = 'HTTP_RESPONSE_TOO_LARGE';
             res.destroy(error);
@@ -132,7 +141,9 @@ const request = (method, urlString, options = {}) => {
 
       req.on('error', (error) => settle(reject, error));
       req.on('timeout', () => {
-        const error = new Error(`HTTP 请求超时 (${timeout}ms): ${method} ${url.toString()}`);
+        const error = new Error(
+          `HTTP 请求超时 (${timeout}ms): ${normalizedMethod} ${safeRequestTarget}`
+        );
         error.code = 'ETIMEDOUT';
         req.destroy();
         settle(reject, error);

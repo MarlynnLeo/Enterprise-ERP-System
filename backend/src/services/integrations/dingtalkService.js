@@ -11,6 +11,38 @@ const { logger } = require('../../utils/logger');
 const dingtalkConfig = require('../../config/dingtalkConfig');
 const db = require('../../config/db');
 
+function requireDingtalkPayload(response, operation) {
+  if (!Number.isInteger(response?.status) || response.status < 200 || response.status >= 300) {
+    const error = new Error(`${operation}失败: DingTalk HTTP ${response?.status || 'unknown'}`);
+    error.code = 'DINGTALK_HTTP_ERROR';
+    error.status = response?.status;
+    throw error;
+  }
+  const payload = response.data;
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    const error = new Error(`${operation}失败: 响应格式无效`);
+    error.code = 'DINGTALK_INVALID_RESPONSE';
+    throw error;
+  }
+  if (Number(payload.errcode) !== 0) {
+    const message = String(payload.errmsg || '未知错误').slice(0, 200);
+    const error = new Error(`${operation}失败: ${message}`);
+    error.code = 'DINGTALK_API_ERROR';
+    error.dingtalkCode = payload.errcode;
+    throw error;
+  }
+  return payload;
+}
+
+function requireNonEmptyString(value, message) {
+  if (typeof value !== 'string' || !value.trim()) {
+    const error = new Error(message);
+    error.code = 'DINGTALK_INVALID_RESPONSE';
+    throw error;
+  }
+  return value.trim();
+}
+
 class DingtalkService {
   constructor() {
     this.accessToken = null;
@@ -40,16 +72,23 @@ class DingtalkService {
           appkey: appKey,
           appsecret: appSecret,
         },
-        timeout: 10000,
+        timeout: this.config.requestTimeoutMs,
+        retries: this.config.maxRetries,
+        maxResponseBytes: this.config.maxResponseBytes,
+        rejectUnauthorized: this.config.rejectUnauthorized,
       });
 
-      if (response.data.errcode !== 0) {
-        throw new Error(`获取AccessToken失败: ${response.data.errmsg}`);
-      }
-
-      this.accessToken = response.data.access_token;
+      const payload = requireDingtalkPayload(response, '获取AccessToken');
+      this.accessToken = requireNonEmptyString(
+        payload.access_token,
+        '获取AccessToken失败: 响应缺少 access_token'
+      );
       // 提前5分钟过期，避免边界情况
-      this.tokenExpireTime = Date.now() + (response.data.expires_in - 300) * 1000;
+      const expiresIn = Number(payload.expires_in);
+      if (!Number.isFinite(expiresIn) || expiresIn <= 300) {
+        throw new Error('获取AccessToken失败: expires_in 无效');
+      }
+      this.tokenExpireTime = Date.now() + (expiresIn - 300) * 1000;
 
       logger.info('[Dingtalk] AccessToken获取成功');
       return this.accessToken;
@@ -109,15 +148,18 @@ class DingtalkService {
         {
           params: { access_token: accessToken },
           headers: { 'Content-Type': 'application/json' },
-          timeout: 15000,
+          timeout: this.config.requestTimeoutMs,
+          retries: 0,
+          maxResponseBytes: this.config.maxResponseBytes,
+          rejectUnauthorized: this.config.rejectUnauthorized,
         }
       );
 
-      if (response.data.errcode !== 0) {
-        throw new Error(`发起审批失败: ${response.data.errmsg}`);
-      }
-
-      const instanceId = response.data.process_instance_id;
+      const payload = requireDingtalkPayload(response, '发起审批');
+      const instanceId = requireNonEmptyString(
+        payload.process_instance_id,
+        '发起审批失败: 响应缺少 process_instance_id'
+      );
       logger.info(`[Dingtalk] 审批实例创建成功: ${instanceId}`);
 
       return {
@@ -192,15 +234,18 @@ class DingtalkService {
         {
           params: { access_token: accessToken },
           headers: { 'Content-Type': 'application/json' },
-          timeout: 10000,
+          timeout: this.config.requestTimeoutMs,
+          retries: this.config.maxRetries,
+          maxResponseBytes: this.config.maxResponseBytes,
+          rejectUnauthorized: this.config.rejectUnauthorized,
         }
       );
 
-      if (response.data.errcode !== 0) {
-        throw new Error(`查询审批详情失败: ${response.data.errmsg}`);
+      const payload = requireDingtalkPayload(response, '查询审批详情');
+      const instance = payload.process_instance;
+      if (!instance || typeof instance !== 'object' || Array.isArray(instance)) {
+        throw new Error('查询审批详情失败: 响应缺少 process_instance');
       }
-
-      const instance = response.data.process_instance;
 
       // 解析表单数据 - 处理钉钉的复杂嵌套结构
       const formData = this.parseFormData(instance.form_component_values);
@@ -371,8 +416,12 @@ class DingtalkService {
       const allInstanceIds = [];
       let cursor = 0;
       let hasMore = true;
+      let pageCount = 0;
+      const seenCursors = new Set([cursor]);
 
       while (hasMore) {
+        pageCount += 1;
+        if (pageCount > 50) throw new Error('获取审批列表失败: 分页超过安全上限');
         const response = await httpPost(
           `${apiBaseUrl}/topapi/processinstance/listids`,
           {
@@ -385,21 +434,34 @@ class DingtalkService {
           {
             params: { access_token: accessToken },
             headers: { 'Content-Type': 'application/json' },
-            timeout: 15000,
+            timeout: this.config.requestTimeoutMs,
+            retries: this.config.maxRetries,
+            maxResponseBytes: this.config.maxResponseBytes,
+            rejectUnauthorized: this.config.rejectUnauthorized,
           }
         );
 
-        if (response.data.errcode !== 0) {
-          throw new Error(`获取审批列表失败: ${response.data.errmsg}`);
+        const payload = requireDingtalkPayload(response, '获取审批列表');
+        const result = payload.result;
+        if (!result || typeof result !== 'object' || Array.isArray(result)) {
+          throw new Error('获取审批列表失败: 响应缺少 result');
         }
-
-        const result = response.data.result;
-        if (result.list && result.list.length > 0) {
+        if (result.list !== undefined && !Array.isArray(result.list)) {
+          throw new Error('获取审批列表失败: result.list 格式无效');
+        }
+        if (result.list?.length > 0) {
           allInstanceIds.push(...result.list);
         }
 
-        cursor = result.next_cursor;
-        hasMore = cursor > 0 && allInstanceIds.length < 1000; // 限制最多1000条
+        const nextCursor = Number(result.next_cursor || 0);
+        hasMore = nextCursor > 0 && allInstanceIds.length < 1000; // 限制最多1000条
+        if (hasMore) {
+          if (!Number.isInteger(nextCursor) || seenCursors.has(nextCursor)) {
+            throw new Error('获取审批列表失败: 分页游标无效或重复');
+          }
+          cursor = nextCursor;
+          seenCursors.add(cursor);
+        }
       }
 
       logger.info(`[Dingtalk] 获取到 ${allInstanceIds.length} 条审批实例`);
@@ -673,15 +735,18 @@ class DingtalkService {
         {
           params: { access_token: accessToken },
           headers: { 'Content-Type': 'application/json' },
-          timeout: 10000,
+          timeout: this.config.requestTimeoutMs,
+          retries: this.config.maxRetries,
+          maxResponseBytes: this.config.maxResponseBytes,
+          rejectUnauthorized: this.config.rejectUnauthorized,
         }
       );
 
-      if (response.data.errcode !== 0) {
-        throw new Error(`获取用户ID失败: ${response.data.errmsg}`);
-      }
-
-      return response.data.result.userid;
+      const payload = requireDingtalkPayload(response, '获取用户ID');
+      return requireNonEmptyString(
+        payload.result?.userid,
+        '获取用户ID失败: 响应缺少 userid'
+      );
     } catch (error) {
       logger.error('[Dingtalk] 根据手机号获取UserId失败:', error.message);
       return null;

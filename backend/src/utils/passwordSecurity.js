@@ -5,22 +5,29 @@
 const { logger } = require('./logger');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
+const { PASSWORD_POLICY } = require('../config/security');
+
+const COMMON_PASSWORDS = new Set([
+  '123456',
+  '12345678',
+  '123456789',
+  '123456789012',
+  'password',
+  'password123',
+  'admin',
+  'admin123',
+  'qwerty',
+  'qwerty123',
+  'letmein',
+  'welcome',
+  'welcome123',
+]);
 
 class PasswordSecurity {
   constructor() {
-    // 密码策略配置
     this.config = {
-      minLength: 1,
-      maxLength: 128,
-      requireUppercase: false,
-      requireLowercase: false,
-      requireNumbers: false,
-      requireSpecialChars: false,
-      specialChars: '!@#$%^&*()_+-=[]{}|;:,.<>?',
-      maxAttempts: 5,
-      lockoutDuration: 15 * 60 * 1000,
-      passwordHistory: 0,
-      passwordExpiry: 90 * 24 * 60 * 60 * 1000,
+      ...PASSWORD_POLICY,
+      passwordExpiry: PASSWORD_POLICY.passwordExpiryDays * 24 * 60 * 60 * 1000,
     };
   }
 
@@ -28,11 +35,39 @@ class PasswordSecurity {
    * 验证密码强度
    */
   validatePasswordStrength(password) {
-    const value = password == null ? '' : String(password);
     const errors = [];
-    if (!value) {
+
+    if (typeof password !== 'string') {
+      return {
+        isValid: false,
+        errors: ['密码格式无效'],
+        strength: this.calculatePasswordStrength(''),
+      };
+    }
+
+    const value = password;
+    const normalized = value.normalize('NFKC').toLowerCase();
+    const compact = normalized.replace(/[\s_-]+/g, '');
+
+    if (!value.trim()) {
       errors.push('密码不能为空');
     }
+    if (value.length < this.config.minLength) {
+      errors.push(`密码长度不能少于${this.config.minLength}个字符`);
+    }
+    if (value.length > this.config.maxLength) {
+      errors.push(`密码长度不能超过${this.config.maxLength}个字符`);
+    }
+    if (Buffer.byteLength(value, 'utf8') > this.config.maxBcryptBytes) {
+      errors.push(`密码 UTF-8 长度不能超过${this.config.maxBcryptBytes}字节`);
+    }
+    if (new Set(Array.from(value)).size < this.config.minUniqueChars) {
+      errors.push(`密码至少需要${this.config.minUniqueChars}个不同字符`);
+    }
+    if (COMMON_PASSWORDS.has(normalized) || COMMON_PASSWORDS.has(compact)) {
+      errors.push('密码过于常见，请使用不易猜测的密码短语');
+    }
+
     return {
       isValid: errors.length === 0,
       errors,
@@ -73,7 +108,8 @@ class PasswordSecurity {
   /**
    * 生成安全密码
    */
-  generateSecurePassword(length = 12) {
+  generateSecurePassword(length = this.config.minLength) {
+    const targetLength = Math.max(Number(length) || 0, this.config.minLength);
     const lowercase = 'abcdefghijklmnopqrstuvwxyz';
     const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     const numbers = '0123456789';
@@ -89,7 +125,7 @@ class PasswordSecurity {
     password += this.getRandomChar(special);
 
     // 填充剩余长度
-    for (let i = password.length; i < length; i++) {
+    for (let i = password.length; i < targetLength; i++) {
       password += this.getRandomChar(charset);
     }
 
@@ -113,6 +149,12 @@ class PasswordSecurity {
    * 加密密码
    */
   async hashPassword(password) {
+    const validation = this.validatePasswordStrength(password);
+    if (!validation.isValid) {
+      const error = new Error(`密码不符合安全要求: ${validation.errors.join(', ')}`);
+      error.code = 'WEAK_PASSWORD';
+      throw error;
+    }
     const saltRounds = 12;
     return await bcrypt.hash(password, saltRounds);
   }
@@ -121,6 +163,7 @@ class PasswordSecurity {
    * 验证密码
    */
   async verifyPassword(password, hashedPassword) {
+    if (typeof password !== 'string' || typeof hashedPassword !== 'string') return false;
     return await bcrypt.compare(password, hashedPassword);
   }
 
@@ -134,27 +177,41 @@ class PasswordSecurity {
   /**
    * 检查密码是否过期
    */
-  isPasswordExpired(lastChangeDate) {
+  isPasswordExpired(lastChangeDate, expiresAt) {
+    // Prefer the persisted deadline.  For legacy rows with no deadline, fail
+    // closed instead of allowing an unbounded password lifetime.
+    if (expiresAt !== undefined && expiresAt !== null) {
+      const deadline = new Date(expiresAt);
+      return Number.isNaN(deadline.getTime()) || Date.now() >= deadline.getTime();
+    }
+
     if (!lastChangeDate) return true;
 
-    const now = new Date();
     const changeDate = new Date(lastChangeDate);
-    const timeDiff = now.getTime() - changeDate.getTime();
+    if (Number.isNaN(changeDate.getTime())) return true;
+    return Date.now() - changeDate.getTime() >= this.config.passwordExpiry;
+  }
 
-    return timeDiff > this.config.passwordExpiry;
+  isPasswordChangeRequired(user) {
+    if (!user || typeof user !== 'object') return true;
+    const forced = [true, 1, '1'].includes(user.force_password_change);
+    return forced || this.isPasswordExpired(user.password_changed_at, user.password_expires_at);
   }
 
   /**
    * 检查密码历史
    */
   async checkPasswordHistory(userId, newPassword, connection) {
+    const historyLimit = Number(this.config.passwordHistory);
+    if (!Number.isInteger(historyLimit) || historyLimit <= 0) return true;
+
     try {
       const [history] = await connection.execute(
         `SELECT password_hash FROM password_history
          WHERE user_id = ?
          ORDER BY created_at DESC
-         LIMIT ?`,
-        [userId, this.config.passwordHistory]
+         LIMIT ${historyLimit}`,
+        [userId]
       );
 
       for (const record of history) {
@@ -166,7 +223,7 @@ class PasswordSecurity {
       return true; // 密码未使用过
     } catch (error) {
       logger.error('检查密码历史失败:', error);
-      return true; // 出错时允许使用
+      throw error;
     }
   }
 
@@ -197,6 +254,7 @@ class PasswordSecurity {
       );
     } catch (error) {
       logger.error('保存密码历史失败:', error);
+      throw error;
     }
   }
 

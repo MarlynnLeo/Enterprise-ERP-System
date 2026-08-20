@@ -21,6 +21,7 @@ const {
   issueOutboundItemFromDetail,
   isProductionOutboundReference,
   STATUS,
+  assertOutboundSourceAccess,
 } = require('./outboundHelpers');
 
 const {
@@ -30,6 +31,8 @@ const {
 } = require('./outboundBomController');
 const ScopeGuard = require('../../../../authorization/ScopeGuard');
 const { getRequestActorLabel, resolveActorLabel } = require('../../../../utils/userUtils');
+
+const MAX_BATCH_OUTBOUND_IDS = 500;
 
 const updateOutboundStatus = async (req, res) => {
   const connection = await db.pool.getConnection();
@@ -63,6 +66,11 @@ const updateOutboundStatus = async (req, res) => {
       return ResponseHandler.error(res, '出库单不存在', 'NOT_FOUND', 404);
     }
 
+    if (!(await ScopeGuard.assertAccess(connection, req, 'inventory_outbound', id))) {
+      await connection.rollback();
+      return ResponseHandler.forbidden(res, '无权变更该出库单状态');
+    }
+
     const currentStatus = checkResult[0].status;
     let referenceId = checkResult[0].reference_id;
     let referenceType = checkResult[0].reference_type;
@@ -72,10 +80,35 @@ const updateOutboundStatus = async (req, res) => {
         ? parseSourceTaskIds(checkResult[0].source_task_ids)
         : [];
 
+    if (
+      referenceType === 'batch_production_tasks' &&
+      !(await ScopeGuard.denyUnlessAllAccess(
+        res,
+        connection,
+        req,
+        'production_task',
+        batchTaskIds,
+        '无权变更该批量出库关联的生产任务'
+      ))
+    ) {
+      await connection.rollback();
+      return;
+    }
+
     // 如果referenceId为空但有productionTaskId，补充设置（兼容旧数据或逻辑缺口）
     if (!referenceId && productionTaskId) {
       referenceId = productionTaskId;
       referenceType = 'production_task';
+    }
+
+    const sourceAuthorized = await assertOutboundSourceAccess(connection, req, {
+      ...checkResult[0],
+      reference_id: referenceId,
+      reference_type: referenceType,
+    });
+    if (!sourceAuthorized) {
+      await connection.rollback();
+      return ResponseHandler.forbidden(res, '无权变更该出库单关联的来源单据');
     }
 
     // 验证状态转换的合法性（引用统一状态注册表）
@@ -797,12 +830,18 @@ const updateOutboundStatus = async (req, res) => {
 const batchUpdateOutboundStatus = async (req, res) => {
   const connection = await db.pool.getConnection();
   try {
-    await connection.beginTransaction();
-
-    const { ids, newStatus } = req.body;
+    const { ids, newStatus } = req.body || {};
 
     // 验证参数
-    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+    const normalizedIds = Array.isArray(ids)
+      ? [...new Set(ids.map((id) => Number(id)))]
+      : [];
+    if (
+      normalizedIds.length === 0 ||
+      (Array.isArray(ids) && ids.length > MAX_BATCH_OUTBOUND_IDS) ||
+      normalizedIds.length !== (Array.isArray(ids) ? ids.length : 0) ||
+      normalizedIds.some((id) => !Number.isInteger(id) || id <= 0)
+    ) {
       return ResponseHandler.error(res, '请选择至少一个出库单', 'VALIDATION_ERROR', 400);
     }
 
@@ -814,33 +853,66 @@ const batchUpdateOutboundStatus = async (req, res) => {
     const validStatuses = [
       STATUS.OUTBOUND.DRAFT,
       STATUS.OUTBOUND.CONFIRMED,
-      STATUS.OUTBOUND.COMPLETED,
       STATUS.OUTBOUND.CANCELLED,
     ];
     if (!validStatuses.includes(newStatus)) {
       return ResponseHandler.error(res, `无效的状态值: ${newStatus}`, 'VALIDATION_ERROR', 400);
     }
 
+    await connection.beginTransaction();
+
     // 检查所有出库单是否存在
-    const placeholders = ids.map(() => '?').join(',');
+    if (
+      !(await ScopeGuard.denyUnlessAllAccess(
+        res,
+        connection,
+        req,
+        'inventory_outbound',
+        normalizedIds,
+        '批量状态变更包含无权访问的出库单'
+      ))
+    ) {
+      await connection.rollback();
+      return;
+    }
+
+    const placeholders = normalizedIds.map(() => '?').join(',');
     const [outbounds] = await connection.execute(
-      `SELECT id, outbound_no, status FROM inventory_outbound WHERE id IN (${placeholders})`,
-      ids
+      `SELECT id, outbound_no, status, reference_id, reference_type, production_task_id, source_task_ids
+         FROM inventory_outbound
+        WHERE id IN (${placeholders}) AND deleted_at IS NULL
+        FOR UPDATE`,
+      normalizedIds
     );
 
-    if (outbounds.length !== ids.length) {
+    if (outbounds.length !== normalizedIds.length) {
       await connection.rollback();
       return ResponseHandler.error(res, '部分出库单不存在', 'NOT_FOUND', 404);
     }
 
-    // 检查是否有已完成的出库单(已完成的不能修改状态)
-    const completedOutbounds = outbounds.filter((o) => o.status === STATUS.OUTBOUND.COMPLETED);
-    if (completedOutbounds.length > 0 && newStatus !== STATUS.OUTBOUND.COMPLETED) {
+    if (!(await ScopeGuard.assertAllAccess(connection, req, 'inventory_outbound', normalizedIds))) {
       await connection.rollback();
-      const completedNos = completedOutbounds.map((o) => o.outbound_no).join(', ');
+      return ResponseHandler.forbidden(res, '批量状态变更包含无权访问的出库单');
+    }
+    for (const outbound of outbounds) {
+      if (!(await assertOutboundSourceAccess(connection, req, outbound))) {
+        await connection.rollback();
+        return ResponseHandler.forbidden(res, '批量状态变更包含无权访问的来源单据');
+      }
+    }
+
+    const invalidTransitions = outbounds.filter(
+      (outbound) =>
+        !INVENTORY_OUTBOUND_TRANSITIONS[outbound.status]?.includes(newStatus)
+    );
+    if (invalidTransitions.length > 0) {
+      await connection.rollback();
+      const invalidNos = invalidTransitions
+        .map((outbound) => `${outbound.outbound_no}(${outbound.status})`)
+        .join(', ');
       return ResponseHandler.error(
         res,
-        `以下出库单已完成,无法修改状态: ${completedNos}`,
+        `以下出库单不允许批量变更为 ${newStatus}: ${invalidNos}`,
         'VALIDATION_ERROR',
         400
       );
@@ -849,12 +921,12 @@ const batchUpdateOutboundStatus = async (req, res) => {
     // 批量更新状态
     const [result] = await connection.execute(
       `UPDATE inventory_outbound SET status = ?, updated_at = NOW() WHERE id IN (${placeholders}) AND deleted_at IS NULL`,
-      [newStatus, ...ids]
+      [newStatus, ...normalizedIds]
     );
 
     await connection.commit();
 
-    logger.info(`批量更新出库单状态成功: ${ids.length}个出库单更新为${newStatus}`);
+    logger.info(`批量更新出库单状态成功: ${normalizedIds.length}个出库单更新为${newStatus}`);
 
     return ResponseHandler.success(
       res,
@@ -877,25 +949,61 @@ const batchUpdateOutboundStatus = async (req, res) => {
 const batchDeleteOutbound = async (req, res) => {
   const connection = await db.pool.getConnection();
   try {
-    await connection.beginTransaction();
-
-    const { ids } = req.body;
+    const { ids } = req.body || {};
 
     // 验证参数
-    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+    const normalizedIds = Array.isArray(ids)
+      ? [...new Set(ids.map((id) => Number(id)))]
+      : [];
+    if (
+      normalizedIds.length === 0 ||
+      (Array.isArray(ids) && ids.length > MAX_BATCH_OUTBOUND_IDS) ||
+      normalizedIds.length !== (Array.isArray(ids) ? ids.length : 0) ||
+      normalizedIds.some((id) => !Number.isInteger(id) || id <= 0)
+    ) {
       return ResponseHandler.error(res, '请选择至少一个出库单', 'VALIDATION_ERROR', 400);
     }
 
+    await connection.beginTransaction();
+
+    if (
+      !(await ScopeGuard.denyUnlessAllAccess(
+        res,
+        connection,
+        req,
+        'inventory_outbound',
+        normalizedIds,
+        '批量删除包含无权访问的出库单'
+      ))
+    ) {
+      await connection.rollback();
+      return;
+    }
+
     // 检查所有出库单是否存在并获取状态
-    const placeholders = ids.map(() => '?').join(',');
+    const placeholders = normalizedIds.map(() => '?').join(',');
     const [outbounds] = await connection.execute(
-      `SELECT id, outbound_no, status FROM inventory_outbound WHERE id IN (${placeholders})`,
-      ids
+      `SELECT id, outbound_no, status, reference_id, reference_type, production_task_id, source_task_ids
+         FROM inventory_outbound
+        WHERE id IN (${placeholders}) AND deleted_at IS NULL
+        FOR UPDATE`,
+      normalizedIds
     );
 
-    if (outbounds.length === 0) {
+    if (outbounds.length !== normalizedIds.length) {
       await connection.rollback();
-      return ResponseHandler.error(res, '未找到要删除的出库单', 'NOT_FOUND', 404);
+      return ResponseHandler.error(res, '部分出库单不存在或已删除', 'NOT_FOUND', 404);
+    }
+
+    if (!(await ScopeGuard.assertAllAccess(connection, req, 'inventory_outbound', normalizedIds))) {
+      await connection.rollback();
+      return ResponseHandler.forbidden(res, '批量删除包含无权访问的出库单');
+    }
+    for (const outbound of outbounds) {
+      if (!(await assertOutboundSourceAccess(connection, req, outbound))) {
+        await connection.rollback();
+        return ResponseHandler.forbidden(res, '批量删除包含无权访问的来源单据');
+      }
     }
 
     // 检查是否有非草稿状态的出库单
@@ -914,11 +1022,11 @@ const batchDeleteOutbound = async (req, res) => {
     // 批量删除出库单物料明细
     await connection.execute(
       `DELETE FROM inventory_outbound_items WHERE outbound_id IN (${placeholders})`,
-      ids
+      normalizedIds
     );
 
     // ✅ 批量软删除出库单
-    const affected = await softDeleteBatch(connection, 'inventory_outbound', 'id', ids);
+    const affected = await softDeleteBatch(connection, 'inventory_outbound', 'id', normalizedIds);
     const result = { affectedRows: affected };
 
     await connection.commit();
@@ -949,15 +1057,19 @@ const batchDeleteOutbound = async (req, res) => {
 const cancelOutboundReissue = async (req, res) => {
   const connection = await db.pool.getConnection();
   try {
-    await connection.beginTransaction();
-
     const { id } = req.params;
     const { force, createReissue = true } = req.body || {};
+
+    if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'inventory_outbound', id, '无权撤销该出库单'))) {
+      return;
+    }
+
+    await connection.beginTransaction();
 
     const [rows] = await connection.execute(
       `SELECT
          id, status, reference_id, reference_type, outbound_no, outbound_type,
-         production_task_id, source_task_ids, is_batch_outbound, remark
+         production_task_id, source_task_ids, is_batch_outbound, created_by, remark
        FROM inventory_outbound
        WHERE id = ? AND deleted_at IS NULL
        FOR UPDATE`,
@@ -969,12 +1081,22 @@ const cancelOutboundReissue = async (req, res) => {
       return ResponseHandler.error(res, '出库单不存在', 'NOT_FOUND', 404);
     }
 
+    if (!(await ScopeGuard.assertAccess(connection, req, 'inventory_outbound', id))) {
+      await connection.rollback();
+      return ResponseHandler.forbidden(res, '无权撤销该出库单');
+    }
+
     const outbound = rows[0];
     const { status, reference_id, reference_type, outbound_no } = outbound;
     const batchTaskIds =
       reference_type === 'batch_production_tasks'
         ? parseSourceTaskIds(outbound.source_task_ids)
         : [];
+
+    if (!(await assertOutboundSourceAccess(connection, req, outbound))) {
+      await connection.rollback();
+      return ResponseHandler.forbidden(res, '无权撤销该出库单关联的来源单据');
+    }
     if (![STATUS.OUTBOUND.COMPLETED, STATUS.OUTBOUND.PARTIAL_COMPLETED].includes(status)) {
       await connection.rollback();
       return ResponseHandler.error(res, '只能撤销已完成或部分完成的出库单', 'VALIDATION_ERROR', 400);
@@ -1051,6 +1173,20 @@ const cancelOutboundReissue = async (req, res) => {
       if (batchTaskIds.length === 0) {
         await connection.rollback();
         return ResponseHandler.error(res, '批量发料单缺少来源生产任务，无法安全撤销重发', 'VALIDATION_ERROR', 400);
+      }
+
+      if (
+        !(await ScopeGuard.denyUnlessAllAccess(
+          res,
+          connection,
+          req,
+          'production_task',
+          batchTaskIds,
+          '无权撤销该批量出库关联的生产任务'
+        ))
+      ) {
+        await connection.rollback();
+        return;
       }
 
       const placeholders = batchTaskIds.map(() => '?').join(',');

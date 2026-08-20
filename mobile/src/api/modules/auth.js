@@ -8,6 +8,12 @@ export const authApi = {
   login(credentials) {
     return api.post('/auth/login', credentials)
   },
+  verifyMfa(data) {
+    return api.post('/auth/mfa/verify', data)
+  },
+  enrollMfa(data) {
+    return api.post('/auth/mfa/enroll', data)
+  },
 
   // 获取用户信息
   getUserProfile() {

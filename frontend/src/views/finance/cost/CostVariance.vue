@@ -37,7 +37,7 @@
               <template #default="scope">{{ formatCurrency(scope.row.actualCost) }}</template>
             </el-table-column>
             <el-table-column label="总差异" width="120">
-              <template #default="scope">
+              <template #default>
                 <span :class="(scope.row.totalVariance ) >= 0 ? 'text-stock-ok font-weight-700' : 'text-stock-low font-weight-700'">
                   {{ formatCurrency(scope.row.totalVariance) }}
                 </span>
@@ -62,12 +62,6 @@
                 <el-tag :type="getVarianceType(scope.row.varianceRate)" size="small">
                   {{ scope.row.varianceRate || 0 }}%
                 </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="操作" min-width="90" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
-      >
-              <template #default="scope">
-                
               </template>
             </el-table-column>
           </el-table>

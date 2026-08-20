@@ -33,7 +33,7 @@ const materialService = {
           m.category_id, m.product_category_id, m.unit_id,
           m.material_source_id, m.inspection_method_id,
           m.supplier_id, m.location_id, m.production_group_id, m.manager_id,
-          m.min_stock, m.max_stock, m.material_type, m.material, m.drawing_no, m.color_code, m.deleted_at,
+          m.min_stock, m.max_stock, m.material_type, m.material, m.drawing_no, m.color_code, m.location_detail, m.deleted_at,
           m.created_at, m.updated_at,
           c.name as category_name,
           pc.name as product_category_name,
@@ -77,9 +77,9 @@ const materialService = {
       if (searchKeyword) {
         const searchTerm = searchKeyword.trim();
         if (searchTerm) {
-          const searchConditions = ['m.name LIKE ?', 'm.code LIKE ?', 'm.specs LIKE ?'];
+          const searchConditions = ['m.name LIKE ?', 'm.code LIKE ?', 'm.specs LIKE ?', 'm.drawing_no LIKE ?'];
           const keywordParam = `%${searchTerm}%`;
-          params.push(keywordParam, keywordParam, keywordParam);
+          params.push(keywordParam, keywordParam, keywordParam, keywordParam);
           whereConditions.push(`(${searchConditions.join(' OR ')})`);
           logger.debug('Material search condition added', { searchTerm, keywordParam });
         }

@@ -54,12 +54,12 @@ describe('cookie security policy', () => {
     expect(shouldUseSecureCookies({ protocol: 'https' })).toBe(false);
   });
 
-  test('production defaults to secure cookies when no mode is configured', () => {
+  test('production fails closed when secure-cookie mode is not explicitly configured', () => {
     process.env.NODE_ENV = 'production';
     delete process.env.COOKIE_SECURE;
 
-    expect(getCookieSecureMode()).toBe('true');
-    expect(shouldUseSecureCookies({ protocol: 'http' })).toBe(true);
+    expect(() => getCookieSecureMode()).toThrow(/COOKIE_SECURE=true/);
+    expect(() => shouldUseSecureCookies({ protocol: 'http' })).toThrow(/COOKIE_SECURE=true/);
   });
 
   test('default SameSite is Lax for mixed HTTP/HTTPS deployments', () => {

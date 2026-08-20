@@ -64,8 +64,9 @@
             </div>
             <div class="list-content">
               <el-table
-                :data="activeTodoTasks"
+                :data="visibleTodoTasks"
                 :show-header="true"
+                height="100%"
                 :empty-text="activeTodoTab === 'pending' ? '暂无待办事项' : '暂无已完成事项'"
                 class="dashboard-table"
               >
@@ -105,7 +106,9 @@
                   <div class="empty-state">
                     <el-icon class="empty-icon"><DocumentRemove /></el-icon>
                     <p class="empty-text">{{ activeTodoTab === 'pending' ? '暂无待办事项' : '暂无已完成事项' }}</p>
-                    <p class="empty-desc">{{ activeTodoTab === 'pending' ? '太棒了!你已经完成了所有任务' : '还没有完成任何任务' }}</p>
+                    <p class="empty-desc todo-empty-desc">
+                      {{ activeTodoTab === 'pending' ? '太棒了！所有任务已完成' : '还没有完成任何任务' }}
+                    </p>
                   </div>
                 </template>
               </el-table>
@@ -224,7 +227,9 @@ const {
   exchangeRateChartRef,
   setMiniChartRef,
   fetchExchangeRates,
+  ensureEcharts,
   initExchangeRateChart,
+  updateMiniCharts,
   updateMiniChartsGeneric,
   disposeCharts
 } = useExchangeRate()
@@ -243,6 +248,8 @@ const {
 const {
   pendingTasks,
   completedTasks,
+  pendingTotal,
+  completedTotal,
   activeTodoTab,
   currentDate,
   currentYear,
@@ -271,18 +278,16 @@ const {
   viewProductionPlan
 } = useProductionPlans()
 // ========== 本地状态（不适合抽取的轻量数据） ==========
-// 上次加载时间
-const lastLoadTime = ref(0)
-const refreshInterval = 30000 // 30秒刷新间隔
+const refreshInterval = 60 * 1000 // 轻量数据每分钟刷新，降低老电脑后台压力
 // 用户信息
-const userProfile = ref(null)
-const isLoadingProfile = ref(true)
+const userProfile = ref(authStore.user || null)
+const isLoadingProfile = ref(!authStore.user)
 // 统计数据
 const statistics = ref({
-  managedUsers: 3,
+  managedUsers: 0,
   todoItems: 0,
   warningItems: 0,
-  documentCount: 18
+  documentCount: 0
 })
 const isLoadingStats = ref(true)
 const todoContainerRef = ref(null)
@@ -290,7 +295,10 @@ const todoContainerWidth = ref(0)
 const activeTodoTasks = computed(() => (
   activeTodoTab.value === 'pending' ? pendingTasks.value : completedTasks.value
 ))
-const activeTodoCount = computed(() => activeTodoTasks.value.length)
+const activeTodoCount = computed(() => (
+  activeTodoTab.value === 'pending' ? pendingTotal.value : completedTotal.value
+))
+const visibleTodoTasks = computed(() => activeTodoTasks.value.slice(0, 6))
 const showTodoDate = computed(() => todoContainerWidth.value >= 470)
 const showTodoStatus = computed(() => todoContainerWidth.value >= 380)
 // 统计卡片配置（使用计算属性动态获取数据）
@@ -324,16 +332,52 @@ const statCards = computed(() => [
 const onPricePanelTabChange = async (tab) => {
   await nextTick()
   if (tab === 'metal') {
+    await ensureEcharts()
     updateMetalMiniCharts()
   } else {
-    initExchangeRateChart()
+    await initExchangeRateChart()
+    updateMiniCharts()
   }
 }
 // 定时器管理
 let userDataTimer = null
 let exchangeRateTimer = null
 let dashboardRefreshPromise = null
+let secondaryDashboardPromise = null
 let todoResizeObserver = null
+let idleInitHandle = null
+let idleInitUsesIdleCallback = false
+
+const runWhenIdle = (callback, timeout = 400) => {
+  if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
+    idleInitUsesIdleCallback = true
+    idleInitHandle = window.requestIdleCallback(() => {
+      idleInitHandle = null
+      callback()
+    }, { timeout })
+    return
+  }
+
+  idleInitUsesIdleCallback = false
+  idleInitHandle = window.setTimeout(() => {
+    idleInitHandle = null
+    callback()
+  }, timeout)
+}
+
+const cancelIdleInitialization = () => {
+  if (idleInitHandle === null) return
+  if (
+    idleInitUsesIdleCallback &&
+    typeof window !== 'undefined' &&
+    typeof window.cancelIdleCallback === 'function'
+  ) {
+    window.cancelIdleCallback(idleInitHandle)
+  } else {
+    window.clearTimeout(idleInitHandle)
+  }
+  idleInitHandle = null
+}
 
 const updateTodoContainerWidth = () => {
   todoContainerWidth.value = todoContainerRef.value?.getBoundingClientRect().width || 0
@@ -359,14 +403,15 @@ const getStatusClass = (status) => TODO_STATUS_MAP[status] || ''
 // 加载用户数据
 const loadUserProfile = async (force = false) => {
   try {
-    const now = Date.now()
-    if (!force && (now - lastLoadTime.value < refreshInterval)) {
+    // 路由守卫已经验证并缓存用户资料。普通仪表盘刷新直接复用缓存，
+    // 只有资料更新事件等明确场景才强制重新请求约 113 KB 的 profile。
+    if (!force && authStore.user) {
+      userProfile.value = authStore.user
       return
     }
     isLoadingProfile.value = true
     await authStore.fetchUserProfile()
     userProfile.value = authStore.user
-    lastLoadTime.value = now
   } catch (error) {
     logger.error('获取用户信息失败:', error)
   } finally {
@@ -422,22 +467,38 @@ const refreshDashboardData = async (forceProfile = false) => {
   }
 
   dashboardRefreshPromise = (async () => {
-    const [, , planCount] = await Promise.all([
+    await Promise.allSettled([
       loadUserProfile(forceProfile),
-      loadUserTodos(),
-      loadProductionPlans(),
-      fetchOnlineTimeRanking(forceProfile),
-      loadDashboardStats()
+      loadUserTodos()
     ])
-
     updateTaskStats()
-    updateWarningStats(planCount || 0)
   })()
 
   try {
     return await dashboardRefreshPromise
   } finally {
     dashboardRefreshPromise = null
+  }
+}
+
+const refreshSecondaryDashboardData = async (force = false) => {
+  if (secondaryDashboardPromise) {
+    return secondaryDashboardPromise
+  }
+
+  secondaryDashboardPromise = (async () => {
+    const [planResult] = await Promise.allSettled([
+      loadProductionPlans(),
+      fetchOnlineTimeRanking(force),
+      loadDashboardStats()
+    ])
+    updateWarningStats(planResult.status === 'fulfilled' ? (planResult.value || 0) : 0)
+  })()
+
+  try {
+    return await secondaryDashboardPromise
+  } finally {
+    secondaryDashboardPromise = null
   }
 }
 
@@ -462,30 +523,37 @@ onMounted(async () => {
   isLoadingStats.value = true
 
   // === 第一阶段：首屏快速渲染核心待办与顶部指标 ===
-  try {
-    await refreshDashboardData(false)
-  } finally {
-    isLoadingStats.value = false
-  }
+  await refreshDashboardData(false)
 
   // 初始化轻量日历数据
   calendarDays.value = generateCalendarDays(currentDate.value)
 
   // === 第二阶段：在主线程空闲或微延迟后初始化图表与外部数据源，彻底消除进页面卡顿 ===
   runWhenIdle(() => {
-    initExchangeRateChart()
-    Promise.all([
+    refreshSecondaryDashboardData(false).finally(() => {
+      isLoadingStats.value = false
+    })
+    Promise.allSettled([
       fetchWeatherData(),
       fetchExchangeRates(),
       fetchMetalPrices()
-    ]).catch((error) => {
-      logger.error('外部价格数据加载失败:', error)
+    ]).then(() => {
+      // 图表依赖在文字和数据卡片稳定后再下载、解析，不参与首页 LCP。
+      runWhenIdle(async () => {
+        try {
+          await ensureEcharts()
+          updateMetalMiniCharts()
+        } catch (error) {
+          logger.error('图表模块延迟加载失败:', error)
+        }
+      }, 2000)
     })
   }, 400)
 
   // 设置定时刷新
   userDataTimer = setInterval(() => {
     refreshDashboardData()
+    refreshSecondaryDashboardData()
   }, refreshInterval)
 
   // 汇率数据定时刷新（每5分钟，降低老电脑后台压力）
@@ -496,6 +564,7 @@ onMounted(async () => {
 // 组件卸载时清除定时器和图表
 onUnmounted(() => {
   window.removeEventListener('erp:user-profile-updated', handleUserProfileUpdated)
+  cancelIdleInitialization()
   todoResizeObserver?.disconnect()
   todoResizeObserver = null
   if (userDataTimer) {
@@ -511,7 +580,7 @@ onUnmounted(() => {
 })
 // 当页面被激活（如从其他页面返回）时重新加载用户数据
 onActivated(() => {
-  refreshDashboardData(true)
+  refreshDashboardData(false)
   // 智能刷新金属价格数据（如果超过30分钟没有更新）
   const now = new Date()
   const lastUpdate = metalPrices.value.lastUpdate
@@ -575,7 +644,6 @@ watch(() => currentDate.value, (newValue) => {
     height: auto !important;
     min-height: 90px;
   }
-  .list-container,
   .chart-container,
   .calendar-container,
   .calendar-wrapper,
@@ -1085,35 +1153,17 @@ watch(() => currentDate.value, (newValue) => {
   overflow: hidden;
 }
 .todo-container {
-  height: auto;
+  height: 380px;
   min-height: 380px;
+  max-height: 380px;
   overflow: hidden;
 }
 .todo-container .list-content {
-  flex: none;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: hidden;
-}
-.todo-container :deep(.el-table),
-.todo-container :deep(.el-table__inner-wrapper),
-.todo-container :deep(.el-table__header-wrapper),
-.todo-container :deep(.el-table__body-wrapper),
-.todo-container :deep(.el-scrollbar),
-.todo-container :deep(.el-scrollbar__wrap),
-.todo-container :deep(.el-scrollbar__view) {
-  overflow: hidden !important;
-  height: auto !important;
-  max-height: none !important;
-}
-.todo-container :deep(.el-scrollbar__bar) {
-  display: none !important;
-}
-.todo-container :deep(*) {
-  scrollbar-width: none !important;
-}
-.todo-container :deep(*::-webkit-scrollbar) {
-  width: 0 !important;
-  height: 0 !important;
-  display: none !important;
+  display: flex;
+  flex-direction: column;
 }
 .todo-more-button {
   flex: 0 0 auto;
@@ -1150,6 +1200,12 @@ watch(() => currentDate.value, (newValue) => {
   font-size: 13px;
   color: var(--color-text-secondary);
   margin: 0;
+}
+.todo-empty-desc {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 /* 表格样式优化 */
 .dashboard-table {
@@ -1549,18 +1605,5 @@ watch(() => currentDate.value, (newValue) => {
   height: 1px;
   background: linear-gradient(90deg, color-mix(in srgb, var(--color-primary) 20%, transparent) 0%, transparent 100%);
   margin: 20px 0;
-}
-</style>
-
-<style>
-/* 待办表不滚动：盖过主题里 el-scrollbar 的 overflow:scroll（KACON 更明显） */
-.dashboard-page .todo-container .el-scrollbar__wrap,
-.dashboard-page .todo-container .el-table__body-wrapper,
-.dashboard-page .todo-container .el-table__header-wrapper {
-  overflow: hidden !important;
-  max-height: none !important;
-}
-.dashboard-page .todo-container .el-scrollbar__bar {
-  display: none !important;
 }
 </style>

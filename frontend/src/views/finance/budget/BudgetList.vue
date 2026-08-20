@@ -172,7 +172,7 @@ import {
   normalizeBudgetStatusCode
 } from '@/constants/systemConstants';
 import { formatAmount } from '@/utils/format'
-import { View, Edit, Upload, Check, VideoPlay, CircleClose, Delete } from '@element-plus/icons-vue'
+import { Edit, Upload, Check, VideoPlay, CircleClose, Delete } from '@element-plus/icons-vue'
 
 const dictStore = useDictionaryStore()
 const router = useRouter();

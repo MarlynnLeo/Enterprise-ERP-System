@@ -1,33 +1,9 @@
 const AuditLogService = require('../services/system/AuditLogService');
+const { sanitizeAuditValue } = require('../utils/auditSanitizer');
 
 const AUDITED_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
-const SENSITIVE_FIELDS = [
-  'password',
-  'currentPassword',
-  'newPassword',
-  'confirmPassword',
-  'token',
-  'accessToken',
-  'refreshToken',
-  'secret',
-  'apiKey',
-  'api_key',
-  'authorization',
-];
-
 function maskSensitiveData(data) {
-  if (!data || typeof data !== 'object') return data;
-
-  const masked = Array.isArray(data) ? [...data] : { ...data };
-  for (const key of Object.keys(masked)) {
-    const normalizedKey = key.toLowerCase();
-    if (SENSITIVE_FIELDS.some((field) => normalizedKey.includes(field.toLowerCase()))) {
-      masked[key] = '***REDACTED***';
-    } else if (masked[key] && typeof masked[key] === 'object') {
-      masked[key] = maskSensitiveData(masked[key]);
-    }
-  }
-  return masked;
+  return sanitizeAuditValue(data);
 }
 
 function getRequestPath(req) {

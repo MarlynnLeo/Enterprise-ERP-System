@@ -713,7 +713,7 @@ import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
 import { baseDataApi } from '@/api'
 import { inventoryApi } from '@/api/inventory'
-import { parseListData, parseResponseData } from '@/utils/responseParser'
+import { parseListData } from '@/utils/responseParser'
 // 页面数据
 const loading = ref(false)
 const reportData = ref([])

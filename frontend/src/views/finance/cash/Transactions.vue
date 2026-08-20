@@ -496,7 +496,7 @@ import { parsePaginatedData, parseListData, parseDataObject } from '@/utils/resp
 import { ref, reactive, onMounted, watch, computed } from 'vue';
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Plus, UploadFilled, View, Edit, Promotion, Check, Delete } from '@element-plus/icons-vue'
+import { Plus, UploadFilled, Edit, Promotion, Check, Delete } from '@element-plus/icons-vue'
 import { financeApi } from '@/api/finance';
 import { useAuthStore } from '@/stores/auth';
 import { useFinanceStore } from '@/stores/finance';

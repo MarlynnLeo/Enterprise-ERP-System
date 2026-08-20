@@ -24,7 +24,6 @@ const ScopeGuard = require('../../../authorization/ScopeGuard');
 const { STATUS, getConnection, generateSalesOrderNo } = require('./salesShared');
 const { autoGenerateFollowUpDocuments } = require('./salesExchangeController');
 const { generateProductionAndPurchasePlans } = require('./salesPackingController');
-const { financeConfig } = require('../../../config/financeConfig');
 const SYNC_SALES_ORDER_STATUS_DRIFT = false;
 
 async function canAccessSalesOrder(connection, req, id, options = {}) {

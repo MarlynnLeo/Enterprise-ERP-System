@@ -932,8 +932,8 @@ const { approvalDialog, openApprovalDialog, handleApproval } = useBusinessApprov
 const orderApprovalSummary = computed(() => {
   const row = approvalDialog.row || {}
   return [
-    { label: '订单编号', value: row.orderNo || row.order_no || '-' },
-    { label: '供应商', value: row.supplierName || row.supplier_name || '-' },
+    { label: '订单编号', value: row.orderNo || '-' },
+    { label: '供应商', value: row.supplierName || '-' },
     { label: '备注', value: row.remarks || row.notes || '无' }
   ]
 })

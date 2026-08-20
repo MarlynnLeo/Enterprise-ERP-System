@@ -24,6 +24,10 @@ async function requireDocumentLinkView(req, res, next) {
     if (!businessType || businessId === undefined || businessId === null || businessId === '') {
       return ResponseHandler.error(res, 'business_type and business_id are required', 'VALIDATION_ERROR', 400);
     }
+    const normalizedBusinessId = Number(businessId);
+    if (!Number.isInteger(normalizedBusinessId) || normalizedBusinessId <= 0) {
+      return ResponseHandler.error(res, 'business_id must be a positive integer', 'VALIDATION_ERROR', 400);
+    }
 
     const requiredPermissions = DocumentLinkService.getViewPermissionsForType(businessType);
     if (!requiredPermissions.length) {
@@ -41,6 +45,7 @@ async function requireDocumentLinkView(req, res, next) {
     }
 
     req.userPermissions = userPermissions;
+    req.documentLinkBusinessId = normalizedBusinessId;
     req.documentLinkUserPermissions = userPermissions;
     return next();
   } catch (error) {

@@ -19,10 +19,20 @@ const { ResponseHandler } = require('./utils/responseHandler');
 const app = express();
 
 // ==================== 信任代理配置 ====================
-// 生产环境: Docker + Nginx 反代架构下必须配置，否则 req.ip 返回 Nginx 容器 IP
-// 影响: 速率限制、审计日志、可疑活动检测均依赖 req.ip 获取真实客户端 IP
+// Never trust an arbitrary number of proxy hops.  The deployment must list
+// the actual reverse-proxy CIDRs; with no list, forwarded headers are ignored.
 if (process.env.NODE_ENV === 'production') {
-  app.set('trust proxy', 1); // 信任第一层代理（Nginx）
+  const trustedProxyCidrs = String(process.env.TRUST_PROXY_CIDRS || '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+  app.set('trust proxy', trustedProxyCidrs.length ? trustedProxyCidrs : false);
+  if (!trustedProxyCidrs.length) {
+    // Secure cookie mode remains forced in production; this warning makes a
+    // missing edge trust-boundary configuration visible during deployment.
+    // Do not silently fall back to trust-proxy=1.
+    process.emitWarning('TRUST_PROXY_CIDRS is not configured; forwarded client headers are not trusted');
+  }
 }
 
 // 导入路由
@@ -195,12 +205,13 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // 5. 速率限制 - 使用统一配置
 if (process.env.ENABLE_RATE_LIMIT !== 'false') {
-  const { apiLimiter, authLimiter } = require('./middleware/rateLimiter');
+  const { apiLimiter, authLimiter, mfaLimiter } = require('./middleware/rateLimiter');
 
   app.use('/api/', apiLimiter);
   // 6. 登录限制已在路由注册处处理，或此处单独处理
   // 注意：如果在路由注册前 app.use('/api/auth/login', authLimiter) 会生效
   app.use('/api/auth/login', authLimiter);
+  app.use('/api/auth/mfa', mfaLimiter);
 }
 
 // 7. 输入验证和清理中间件（在处理请求体之后）
@@ -365,11 +376,11 @@ const publicHealthHandler = async (_, res) => {
   }
 
   const isHealthy = dbStatus === 'connected';
+  // Keep the public probe deliberately opaque.  Component/version details
+  // belong to the authenticated /api/health/* monitoring endpoints.
   res.status(isHealthy ? 200 : 503).json({
     status: isHealthy ? 'healthy' : 'degraded',
     timestamp: new Date().toISOString(),
-    version: '1.0.0',
-    database: dbStatus,
   });
 };
 

@@ -168,7 +168,7 @@ import Chart from '@/utils/chartCore';
 import { ElMessage } from 'element-plus';
 import { financeApi } from '@/api';
 // 权限计算属性
-import { ArrowDown, ArrowUp, InfoFilled, View } from '@element-plus/icons-vue'
+import { ArrowDown, ArrowUp, InfoFilled } from '@element-plus/icons-vue'
 import { useDashboard, useCharts } from '@/composables/useDashboard';
 import {
   handleDashboardError,

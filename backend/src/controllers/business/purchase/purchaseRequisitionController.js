@@ -14,10 +14,7 @@ const db = require('../../../config/db');
 const { softDelete } = require('../../../utils/softDelete');
 const purchaseModel = require('../../../models/purchase');
 const { getRequestActorLabel } = require('../../../utils/userUtils');
-const {
-  purchaseRequisitionMap,
-  purchaseRequisitionItemMap,
-} = require('../../../utils/purchase/purchaseFieldMap');
+const { purchaseRequisitionMap } = require('../../../utils/purchase/purchaseFieldMap');
 
 const toNullableInteger = (value) => {
   if (value === undefined || value === null || value === '') return null;

@@ -330,12 +330,12 @@ const loadPeriods = async () => {
     // 拦截器已解包，response.data 就是业务数据
     const normalizePeriod = (period) => ({
       id: period.id,
-      periodName: period.periodName || period.period_name || '',
-      fiscalYear: period.fiscalYear ?? period.fiscal_year,
-      startDate: period.startDate || period.start_date,
-      endDate: period.endDate || period.end_date,
-      isClosed: period.isClosed ?? period.is_closed,
-      isAdjusting: period.isAdjusting ?? period.is_adjusting
+      periodName: period.periodName || '',
+      fiscalYear: period.fiscalYear,
+      startDate: period.startDate,
+      endDate: period.endDate,
+      isClosed: period.isClosed,
+      isAdjusting: period.isAdjusting
     })
     const byStart = (a, b) => String(a.startDate || '').localeCompare(String(b.startDate || ''))
 

@@ -125,7 +125,7 @@
 <script setup>
 import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { Refresh, View } from '@element-plus/icons-vue'
+import { Refresh } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { assemblyExecutionApi } from '../../api/assembly'
 

@@ -200,7 +200,9 @@ router.beforeEach(async (to) => {
 
     if (needSessionProbe) {
       try {
-        await authStore.fetchUserProfile()
+        // The guard handles an invalid session with an in-app redirect. Mark this
+        // probe so the Axios fallback does not reload the entire application first.
+        await authStore.fetchUserProfile(false, false, true)
       } catch {
         return '/login'
       }

@@ -11,6 +11,9 @@
         <EmptyState description="暂无物料数据" />
       </template>
       <el-table-column prop="code" label="物料编码" width="120" show-overflow-tooltip></el-table-column>
+      <el-table-column prop="drawingNo" label="物料号" width="120" show-overflow-tooltip>
+        <template #default="{ row }">{{ row.drawingNo || '—' }}</template>
+      </el-table-column>
       <el-table-column prop="name" label="物料名称" width="200" show-overflow-tooltip></el-table-column>
       <el-table-column prop="specs" label="规格型号" width="200" show-overflow-tooltip></el-table-column>
       <el-table-column prop="material" label="材料" width="120" show-overflow-tooltip>
@@ -19,7 +22,7 @@
         </template>
       </el-table-column>
       <el-table-column label="物料类型" width="90" show-overflow-tooltip>
-        <template #default="{ row }">{{ getMaterialTypeLabel(row.materialType || row.material_type) }}</template>
+        <template #default="{ row }">{{ getMaterialTypeLabel(row.materialType) }}</template>
       </el-table-column>
       <el-table-column prop="categoryName" label="物料分类" width="140" show-overflow-tooltip></el-table-column>
       <el-table-column prop="materialSourceName" label="物料来源" width="90" show-overflow-tooltip></el-table-column>
@@ -27,7 +30,7 @@
         <template #default="{ row }">{{ formatSupplierName(row) }}</template>
       </el-table-column>
       <el-table-column label="生产组" width="110" show-overflow-tooltip>
-        <template #default="{ row }">{{ row.productionGroupName || row.production_group_name || '—' }}</template>
+        <template #default="{ row }">{{ row.productionGroupName || '—' }}</template>
       </el-table-column>
       <el-table-column prop="unitName" label="单位" width="60" show-overflow-tooltip></el-table-column>
       <el-table-column prop="locationName" label="仓库" width="100" show-overflow-tooltip></el-table-column>
@@ -136,9 +139,9 @@ import { formatMaskedPrice } from '@/utils/priceVisibility'
 import { getMaterialTypeLabel } from '@/utils/materialTypes'
 
 const formatSupplierName = (row) => {
-  const name = row.supplierName || row.supplier_name
+  const name = row.supplierName
   if (name) return name
-  const source = row.materialSourceName || row.material_source_name || ''
+  const source = row.materialSourceName || ''
   if (source === '自制') return '自制'
   return '—'
 }

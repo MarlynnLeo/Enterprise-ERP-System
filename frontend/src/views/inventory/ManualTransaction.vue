@@ -674,7 +674,7 @@ import { handleTableRowView } from '@/utils/tableRowView'
 import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted, nextTick, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Refresh, View, Check, Delete } from '@element-plus/icons-vue'
+import { Plus, Refresh, Check, Delete } from '@element-plus/icons-vue'
 import { inventoryApi, baseDataApi, systemApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import {

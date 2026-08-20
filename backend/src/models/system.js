@@ -8,6 +8,14 @@
 const { pool } = require('../config/db');
 const { logger } = require('../utils/logger');
 const PasswordSecurity = require('../utils/passwordSecurity');
+const { normalizeUsername } = require('../utils/usernameSecurity');
+const { isSuperAdminRole } = require('../authorization/superAdmin');
+const {
+  disconnectUserSessions,
+  revokeRoleSessionsInTransaction,
+  revokeUserSockets,
+} = require('../utils/sessionRevocation');
+const RefreshTokenService = require('../services/auth/RefreshTokenService');
 const { parsePagination, appendPaginationSQL } = require('../utils/safePagination');
 
 // 系统管理模块模型
@@ -405,23 +413,18 @@ const systemModel = {
     const connection = await pool.getConnection();
     try {
       await connection.beginTransaction();
-      const username = String(userData.username || '').trim();
-      const password = String(userData.password || '');
+      const username = normalizeUsername(userData.username);
+      const password = userData.password;
       const roleIds = normalizeIdList(userData.roleIds, 'roleIds');
       const roleRows = await assertAssignableRoleIds(connection, roleIds, {
         allowAdminRole: options.allowAdminRole === true,
       });
 
       if (!username) {
-        throw new Error('username is required');
-      }
-      if (username.length < 2 || username.length > 50) {
         throw new Error('用户名长度需在2到50个字符之间');
       }
-      if (!password) {
-        throw new Error('password is required');
-      }
       const status = userData.status !== undefined ? normalizeBinaryStatus(userData.status) : 1;
+      const departmentId = normalizeNullableId(userData.department_id);
 
       // 检查用户名是否已存在
       const [existingUsers] = await connection.execute('SELECT id, username, password, token_version, email, phone, role, department_id, status, created_at, updated_at, avatar, real_name, department, position, last_login_at, employee_no, hire_date, birthday, gender, id_card, address, emergency_contact, emergency_phone, salary, employee_status, notes, password_changed_at, password_expires_at, failed_login_attempts, locked_until, last_login_ip, force_password_change, two_factor_enabled, two_factor_secret, avatar_frame, bio, theme_settings FROM users WHERE username = ?', [
@@ -452,14 +455,14 @@ const systemModel = {
 
       // 插入用户基本信息
       const [result] = await connection.execute(
-        `INSERT INTO users (username, password, real_name, email, department_id, position, role, status, force_password_change, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, NOW(), NOW())`,
+        `INSERT INTO users (username, password, real_name, email, department_id, position, role, status, force_password_change, password_changed_at, password_expires_at, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, NOW(), DATE_ADD(NOW(), INTERVAL 90 DAY), NOW(), NOW())`,
         [
           username,
           hashedPassword,
           userData.name || userData.real_name, // 支持两种命名方式
           userData.email || null,
-          userData.department_id || null,
+          departmentId,
           userData.position || null,
           roleCode,
           status,
@@ -467,6 +470,8 @@ const systemModel = {
       );
 
       const userId = result.insertId;
+
+      await PasswordSecurity.savePasswordHistory(userId, hashedPassword, connection);
 
       // 插入用户角色关联
       if (roleIds.length > 0) {
@@ -493,7 +498,7 @@ const systemModel = {
         username,
         real_name: userData.name || userData.real_name || null,
         email: userData.email || null,
-        department_id: userData.department_id || null,
+        department_id: departmentId,
         position: userData.position || null,
         role: roleCode,
         status,
@@ -515,12 +520,20 @@ const systemModel = {
       if (!Number.isInteger(userId) || userId <= 0) {
         throw new Error('invalid user id');
       }
-      const [[existingUser]] = await connection.execute('SELECT id, role, status FROM users WHERE id = ?', [userId]);
+      const [[existingUser]] = await connection.execute(
+        'SELECT id, username, real_name, email, phone, role, status, department_id, position, token_version FROM users WHERE id = ? FOR UPDATE',
+        [userId]
+      );
       if (!existingUser) {
         throw new Error('NOT_FOUND: user not found');
       }
       const roleIds =
         userData.roleIds !== undefined ? normalizeIdList(userData.roleIds, 'roleIds') : null;
+      const [existingRoleRows] = await connection.execute(
+        'SELECT role_id FROM user_roles WHERE user_id = ? ORDER BY role_id FOR UPDATE',
+        [userId]
+      );
+      const existingRoleIds = existingRoleRows.map((row) => Number(row.role_id));
       const roleRows = roleIds
         ? await assertAssignableRoleIds(connection, roleIds, {
             allowAdminRole: options.allowAdminRole === true,
@@ -530,6 +543,27 @@ const systemModel = {
         userData.status !== undefined
           ? normalizeBinaryStatus(userData.status)
           : existingUser.status;
+      const nextDepartmentId = userData.department_id !== undefined
+        ? normalizeNullableId(userData.department_id)
+        : existingUser.department_id;
+      const nextPosition = userData.position !== undefined
+        ? (userData.position === null || userData.position === '' ? null : String(userData.position).trim())
+        : existingUser.position;
+      const nextRealName = userData.name !== undefined
+        ? userData.name
+        : (userData.real_name !== undefined ? userData.real_name : existingUser.real_name);
+      const nextEmail = userData.email !== undefined ? userData.email : existingUser.email;
+      const nextPhone = userData.phone !== undefined ? userData.phone : existingUser.phone;
+      const rolesChanged = roleIds !== null && (() => {
+        const before = new Set(existingRoleIds);
+        const after = new Set(roleIds);
+        return before.size !== after.size || [...before].some((roleId) => !after.has(roleId));
+      })();
+      const securityAttributesChanged =
+        rolesChanged ||
+        Number(nextDepartmentId ?? 0) !== Number(existingUser.department_id ?? 0) ||
+        String(nextPosition ?? '') !== String(existingUser.position ?? '') ||
+        Number(status) !== Number(existingUser.status);
 
       // 从roleIds获取第一个角色的code作为role字段的值
       let roleCode = existingUser.role || 'user';
@@ -545,24 +579,26 @@ const systemModel = {
         `UPDATE users SET
           real_name = ?,
           email = ?,
+          phone = ?,
           department_id = ?,
           position = ?,
           role = ?,
           status = ?,
-          token_version = CASE
-            WHEN status <> ? THEN COALESCE(token_version, 0) + 1
-            ELSE COALESCE(token_version, 0)
+           token_version = CASE
+             WHEN ? = 1 THEN COALESCE(token_version, 0) + 1
+             ELSE COALESCE(token_version, 0)
           END,
           updated_at = NOW()
          WHERE id = ?`,
         [
-          userData.name || userData.real_name, // 支持两种命名方式
-          userData.email || null,
-          userData.department_id || null,
-          userData.position || null,
+          nextRealName,
+          nextEmail || null,
+          nextPhone || null,
+          nextDepartmentId,
+          nextPosition,
           roleCode,
           status,
-          status,
+          securityAttributesChanged ? 1 : 0,
           userId,
         ]
       );
@@ -581,6 +617,10 @@ const systemModel = {
         }
       }
 
+      if (securityAttributesChanged) {
+        await RefreshTokenService.revokeUserTokens(userId, connection);
+      }
+
       await connection.commit();
 
       try {
@@ -590,7 +630,47 @@ const systemModel = {
         // 不阻断主流程
       }
 
-      return { id: userId, ...userData, status, roleIds: roleIds || undefined };
+      if (securityAttributesChanged) {
+        revokeUserSockets(userId, 'user_authorization_changed');
+      }
+
+      return {
+        id: userId,
+        username: existingUser.username,
+        real_name: nextRealName,
+        email: nextEmail,
+        phone: nextPhone,
+        department_id: nextDepartmentId,
+        position: nextPosition,
+        role: roleCode,
+        status,
+        roleIds: roleIds || existingRoleIds,
+        audit: {
+          before: {
+            username: existingUser.username,
+            real_name: existingUser.real_name,
+            email: existingUser.email,
+            phone: existingUser.phone,
+            department_id: existingUser.department_id,
+            position: existingUser.position,
+            role: existingUser.role,
+            roleIds: existingRoleIds,
+            status: existingUser.status,
+          },
+          after: {
+            username: existingUser.username,
+            real_name: nextRealName,
+            email: nextEmail,
+            phone: nextPhone,
+            department_id: nextDepartmentId,
+            position: nextPosition,
+            role: roleCode,
+            roleIds: roleIds || existingRoleIds,
+            status,
+          },
+          securityAttributesChanged,
+        },
+      };
     } catch (error) {
       await connection.rollback();
       throw error;
@@ -601,26 +681,103 @@ const systemModel = {
 
   async updateUserStatus(id, status) {
     const normalizedStatus = normalizeBinaryStatus(status);
-    const [result] = await pool.execute(
-      'UPDATE users SET status = ?, token_version = COALESCE(token_version, 0) + 1, updated_at = NOW() WHERE id = ?',
-      [normalizedStatus, id]
-    );
-    return result.affectedRows > 0;
+    const userId = Number(id);
+    if (!Number.isInteger(userId) || userId <= 0) throw new Error('invalid user id');
+    const connection = await pool.getConnection();
+    let result;
+    let changed;
+    let before;
+    try {
+      await connection.beginTransaction();
+      const [[existingUser]] = await connection.execute(
+        'SELECT id, username, status, token_version FROM users WHERE id = ? FOR UPDATE',
+        [userId]
+      );
+      if (!existingUser) {
+        await connection.rollback();
+        return false;
+      }
+      before = { id: userId, username: existingUser.username, status: Number(existingUser.status) };
+      changed = Number(existingUser.status) !== normalizedStatus;
+      [result] = await connection.execute(
+        `UPDATE users SET
+           status = ?,
+           token_version = CASE WHEN ? = 1 THEN COALESCE(token_version, 0) + 1 ELSE token_version END,
+           updated_at = NOW()
+         WHERE id = ?`,
+        [normalizedStatus, changed ? 1 : 0, userId]
+      );
+      if (changed) await RefreshTokenService.revokeUserTokens(userId, connection);
+      await connection.commit();
+    } catch (error) {
+      try { await connection.rollback(); } catch { /* preserve original error */ }
+      throw error;
+    } finally {
+      connection.release();
+    }
+    if (changed) revokeUserSockets(userId, 'account_status_changed');
+    return {
+      changed,
+      affectedRows: result.affectedRows,
+      audit: {
+        before,
+        after: { ...before, status: normalizedStatus },
+      },
+    };
   },
 
   async resetUserPassword(id, password) {
-    const passwordValidation = PasswordSecurity.validatePasswordStrength(String(password || ''));
+    const passwordValidation = PasswordSecurity.validatePasswordStrength(password);
     if (!passwordValidation.isValid) {
       throw new Error(`密码不符合安全要求: ${passwordValidation.errors.join(', ')}`);
     }
-    // ✅ 统一使用 PasswordSecurity 加密，与 createUser 保持一致
     const hashedPassword = await PasswordSecurity.hashPassword(password);
-
-    const [result] = await pool.execute(
-      'UPDATE users SET password = ?, token_version = COALESCE(token_version, 0) + 1, updated_at = NOW() WHERE id = ?',
-      [hashedPassword, id]
-    );
-    return result.affectedRows > 0;
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [[existingUser]] = await connection.execute(
+        'SELECT id, username, password FROM users WHERE id = ? FOR UPDATE',
+        [id]
+      );
+      if (!existingUser) {
+        await connection.rollback();
+        return false;
+      }
+      if (await PasswordSecurity.verifyPassword(password, existingUser.password)) {
+        throw new Error('新密码不能与当前密码相同');
+      }
+      if (!(await PasswordSecurity.checkPasswordHistory(id, password, connection))) {
+        throw new Error('新密码不能与最近使用过的密码相同');
+      }
+      const [result] = await connection.execute(
+        `UPDATE users
+            SET password = ?,
+                token_version = COALESCE(token_version, 0) + 1,
+                force_password_change = 1,
+                password_changed_at = NOW(),
+                password_expires_at = DATE_ADD(NOW(), INTERVAL 90 DAY),
+                updated_at = NOW()
+          WHERE id = ?`,
+        [hashedPassword, id]
+      );
+      await PasswordSecurity.savePasswordHistory(id, hashedPassword, connection);
+      await RefreshTokenService.revokeUserTokens(id, connection);
+      await connection.commit();
+      revokeUserSockets(id, 'password_reset');
+      return {
+        changed: result.affectedRows > 0,
+        audit: { userId: Number(id), username: existingUser.username },
+      };
+    } catch (error) {
+      try {
+        await connection.rollback();
+      } catch {
+        // Preserve the original validation/database error.
+      }
+      throw error;
+    } finally {
+      connection.release();
+    }
   },
 
   // 部门管理
@@ -978,25 +1135,26 @@ const systemModel = {
 
   async updateRole(id, roleData) {
     const connection = await pool.getConnection();
+    let revokedUserIds = [];
     try {
       await connection.beginTransaction();
-      const [[existing]] = await connection.execute('SELECT id FROM roles WHERE id = ?', [id]);
+      const [[existing]] = await connection.execute(
+        'SELECT id, name, code, description, status, data_scope, is_super_admin FROM roles WHERE id = ?',
+        [id]
+      );
       if (!existing) throw new Error('NOT_FOUND: role not found');
-      const data = await assertRoleIsValid(connection, roleData, id);
+      const data = await assertRoleIsValid(
+        connection,
+        { ...existing, ...(roleData || {}) },
+        id
+      );
+      const roleSecurityChanged =
+        data.code !== existing.code ||
+        Number(data.status) !== Number(existing.status) ||
+        Number(data.data_scope ?? existing.data_scope) !== Number(existing.data_scope);
 
       // 基本信息 + data_scope
-      if (data.name !== undefined || data.data_scope !== undefined) {
-        const [[current]] = await connection.execute(
-          'SELECT name, code, description, status, data_scope FROM roles WHERE id = ?',
-          [id]
-        );
-        const nextName = data.name !== undefined ? data.name : current.name;
-        const nextCode = data.code !== undefined ? data.code : current.code;
-        const nextDesc = data.description !== undefined ? data.description : current.description;
-        const nextStatus = data.status !== undefined ? data.status : current.status;
-        const nextScope =
-          data.data_scope !== undefined ? data.data_scope : current.data_scope;
-
+      {
         await connection.execute(
           `UPDATE roles SET
             name = ?,
@@ -1006,7 +1164,7 @@ const systemModel = {
             data_scope = ?,
             updated_at = NOW()
            WHERE id = ?`,
-          [nextName, nextCode, nextDesc, nextStatus, nextScope, id]
+          [data.name, data.code, data.description, data.status, data.data_scope, id]
         );
       }
 
@@ -1017,8 +1175,9 @@ const systemModel = {
           [id]
         );
         const RoleAccessService = require('../services/RoleAccessService');
-        if (Number(roleRow?.is_super_admin) === 1 || String(roleRow?.code || '') === 'admin') {
+        if (isSuperAdminRole(roleRow)) {
           await RoleAccessService.grantAllAccess(connection, id);
+          revokedUserIds = await revokeRoleSessionsInTransaction(connection, [id]);
           await connection.commit();
           try {
             const PermissionService = require('../services/PermissionService');
@@ -1026,6 +1185,7 @@ const systemModel = {
           } catch {
             // ignore
           }
+          disconnectUserSessions(revokedUserIds, 'role_permissions_changed');
           return { id, ...data };
         }
         const menuIds = await RoleAccessService.clampMenuIds(
@@ -1047,6 +1207,10 @@ const systemModel = {
         await syncRolePermissionsFromMenus(connection, id, menuIds);
       }
 
+      if (roleSecurityChanged || data.menuIds !== undefined) {
+        revokedUserIds = await revokeRoleSessionsInTransaction(connection, [id]);
+      }
+
       await connection.commit();
 
       try {
@@ -1055,6 +1219,8 @@ const systemModel = {
       } catch {
         // ignore
       }
+
+      disconnectUserSessions(revokedUserIds, 'role_permissions_changed');
 
       return { id, ...data };
     } catch (error) {
@@ -1067,10 +1233,40 @@ const systemModel = {
 
   async updateRoleStatus(id, status) {
     const normalizedStatus = normalizeBinaryStatus(status);
-    const [result] = await pool.execute(
-      'UPDATE roles SET status = ?, updated_at = NOW() WHERE id = ?',
-      [normalizedStatus, id]
-    );
+    const roleId = Number(id);
+    if (!Number.isInteger(roleId) || roleId <= 0) throw new Error('invalid role id');
+    const connection = await pool.getConnection();
+    let result;
+    let revokedUserIds = [];
+    try {
+      await connection.beginTransaction();
+      [result] = await connection.execute(
+        'UPDATE roles SET status = ?, updated_at = NOW() WHERE id = ?',
+        [normalizedStatus, roleId]
+      );
+      if (result.affectedRows > 0) {
+        revokedUserIds = await revokeRoleSessionsInTransaction(connection, [roleId]);
+      }
+      await connection.commit();
+    } catch (error) {
+      try {
+        await connection.rollback();
+      } catch {
+        // Preserve the original update error.
+      }
+      throw error;
+    } finally {
+      connection.release();
+    }
+    if (result.affectedRows > 0) {
+      try {
+        const PermissionService = require('../services/PermissionService');
+        await PermissionService.clearUserPermissionsCache();
+      } catch {
+        // Cache invalidation is best effort; token version revocation remains authoritative.
+      }
+      disconnectUserSessions(revokedUserIds, 'role_status_changed');
+    }
     return result.affectedRows > 0;
   },
 
@@ -1101,6 +1297,12 @@ const systemModel = {
       const [result] = await connection.execute('DELETE FROM roles WHERE id = ?', [id]);
 
       await connection.commit();
+      try {
+        const PermissionService = require('../services/PermissionService');
+        await PermissionService.clearUserPermissionsCache();
+      } catch {
+        // ignore
+      }
       return result.affectedRows > 0;
     } catch (error) {
       await connection.rollback();
@@ -1164,6 +1366,7 @@ const systemModel = {
 
   async createMenu(menuData) {
     const connection = await pool.getConnection();
+    let revokedUserIds = [];
     try {
       await connection.beginTransaction();
       const data = await assertMenuIsValid(connection, menuData);
@@ -1237,6 +1440,7 @@ const systemModel = {
 
       if (grantedRoleIds.length > 0) {
         await grantMenuPermissionToRoles(connection, menuId, grantedRoleIds);
+        revokedUserIds = await revokeRoleSessionsInTransaction(connection, grantedRoleIds);
       }
 
       await connection.commit();
@@ -1247,6 +1451,8 @@ const systemModel = {
       } catch {
         // ignore
       }
+
+      disconnectUserSessions(revokedUserIds, 'menu_created');
 
       return { id: menuId, ...data };
     } catch (error) {
@@ -1259,6 +1465,7 @@ const systemModel = {
 
   async updateMenu(id, menuData) {
     const connection = await pool.getConnection();
+    let revokedUserIds;
     try {
       await connection.beginTransaction();
       const data = await assertMenuIsValid(connection, menuData, id);
@@ -1325,8 +1532,32 @@ const systemModel = {
       );
 
       // 同步 permissions SSOT + permission_id
-      const { bindMenuPermission } = require('../services/PermissionRegistry');
+      const {
+        bindMenuPermission,
+        syncRolePermissionsFromMenus,
+      } = require('../services/PermissionRegistry');
       await bindMenuPermission(connection, id, data.permission, data.name);
+
+      const [affectedRoles] = await connection.execute(
+        'SELECT DISTINCT role_id FROM role_menus WHERE menu_id = ?',
+        [id]
+      );
+      for (const row of affectedRoles) {
+        const [menuRows] = await connection.execute(
+          'SELECT menu_id FROM role_menus WHERE role_id = ?',
+          [row.role_id]
+        );
+        await syncRolePermissionsFromMenus(
+          connection,
+          row.role_id,
+          menuRows.map((menu) => menu.menu_id)
+        );
+      }
+
+      revokedUserIds = await revokeRoleSessionsInTransaction(
+        connection,
+        affectedRoles.map((row) => row.role_id)
+      );
 
       await connection.commit();
 
@@ -1336,6 +1567,8 @@ const systemModel = {
       } catch {
         // ignore
       }
+
+      disconnectUserSessions(revokedUserIds, 'menu_updated');
 
       return result.affectedRows > 0;
     } catch (error) {
@@ -1348,15 +1581,65 @@ const systemModel = {
 
   async updateMenuStatus(id, status) {
     const normalizedStatus = normalizeBinaryStatus(status);
-    const [result] = await pool.execute(
-      'UPDATE menus SET status = ?, updated_at = NOW() WHERE id = ?',
-      [normalizedStatus, id]
-    );
+    const menuId = Number(id);
+    if (!Number.isInteger(menuId) || menuId <= 0) throw new Error('invalid menu id');
+    const connection = await pool.getConnection();
+    let result;
+    let revokedUserIds = [];
+    try {
+      await connection.beginTransaction();
+      [result] = await connection.execute(
+        'UPDATE menus SET status = ?, updated_at = NOW() WHERE id = ?',
+        [normalizedStatus, menuId]
+      );
+      if (result.affectedRows > 0) {
+        const [affectedRoles] = await connection.execute(
+          'SELECT DISTINCT role_id FROM role_menus WHERE menu_id = ?',
+          [menuId]
+        );
+        const { syncRolePermissionsFromMenus } = require('../services/PermissionRegistry');
+        for (const row of affectedRoles) {
+          const [menuRows] = await connection.execute(
+            'SELECT menu_id FROM role_menus WHERE role_id = ?',
+            [row.role_id]
+          );
+          await syncRolePermissionsFromMenus(
+            connection,
+            row.role_id,
+            menuRows.map((menu) => menu.menu_id)
+          );
+        }
+        revokedUserIds = await revokeRoleSessionsInTransaction(
+          connection,
+          affectedRoles.map((row) => row.role_id)
+        );
+      }
+      await connection.commit();
+    } catch (error) {
+      try {
+        await connection.rollback();
+      } catch {
+        // Preserve the original update error.
+      }
+      throw error;
+    } finally {
+      connection.release();
+    }
+    if (result.affectedRows > 0) {
+      try {
+        const PermissionService = require('../services/PermissionService');
+        await PermissionService.clearUserPermissionsCache();
+      } catch {
+        // ignore
+      }
+      disconnectUserSessions(revokedUserIds, 'menu_status_changed');
+    }
     return result.affectedRows > 0;
   },
 
   async deleteMenu(id) {
     const connection = await pool.getConnection();
+    let revokedUserIds;
     try {
       await connection.beginTransaction();
 
@@ -1408,6 +1691,11 @@ const systemModel = {
         );
       }
 
+      revokedUserIds = await revokeRoleSessionsInTransaction(
+        connection,
+        affectedRoles.map((row) => row.role_id)
+      );
+
       await connection.commit();
 
       try {
@@ -1416,6 +1704,8 @@ const systemModel = {
       } catch {
         // ignore
       }
+
+      disconnectUserSessions(revokedUserIds, 'menu_deleted');
 
       return result.affectedRows > 0;
     } catch (error) {

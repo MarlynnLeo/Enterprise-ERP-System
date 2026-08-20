@@ -25,6 +25,7 @@ const { pool } = require('../../src/config/db');
 describe('DataScopeService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    DataScopeService.clearDataScopeCache();
   });
 
   describe('buildOwnerScopeClause', () => {
@@ -82,16 +83,43 @@ describe('DataScopeService', () => {
   describe('assertRecordAccess', () => {
     const mockConn = { execute: jest.fn() };
 
-    test('ALL 直接放行', async () => {
+    test('ALL 仍要求记录存在', async () => {
       const req = {
         authzScope: { type: DataScopeService.DATA_SCOPE.ALL, userId: 1 },
       };
+      mockConn.execute.mockResolvedValueOnce([[{ id: 1 }]]);
       await expect(
         DataScopeService.assertRecordAccess(mockConn, req, 'sales_orders', 1, {
           ownerColumn: 'created_by',
         })
       ).resolves.toBe(true);
-      expect(mockConn.execute).not.toHaveBeenCalled();
+      expect(mockConn.execute).toHaveBeenCalledWith(
+        expect.stringContaining('FROM `sales_orders`'),
+        [1]
+      );
+
+      mockConn.execute.mockResolvedValueOnce([[]]);
+      await expect(
+        DataScopeService.assertRecordAccess(mockConn, req, 'sales_orders', 404, {
+          ownerColumn: 'created_by',
+        })
+      ).resolves.toBe(false);
+    });
+
+    test('assertRecordExists 校验软删和附加删除标记', async () => {
+      mockConn.execute.mockResolvedValueOnce([[{ id: 7 }]]);
+      await expect(
+        DataScopeService.assertRecordExists(mockConn, 'inventory_inbound', 7, {
+          deletedAtColumn: 'deleted_at',
+          extraSoftDelete: { column: 'is_deleted', value: 0 },
+        })
+      ).resolves.toBe(true);
+
+      expect(mockConn.execute).toHaveBeenCalledWith(
+        expect.stringContaining('`deleted_at` IS NULL'),
+        [7, 0]
+      );
+      expect(mockConn.execute.mock.calls[0][0]).toContain('`is_deleted` = ?');
     });
 
     test('SELF 无 ownerColumn 拒绝', async () => {
@@ -230,6 +258,25 @@ describe('DataScopeService', () => {
   });
 
   describe('getUserDataScope', () => {
+    test('同一首屏并发请求复用一次数据范围查询且返回隔离副本', async () => {
+      pool.execute
+        .mockResolvedValueOnce([[{ id: 8, username: 'viewer', department_id: 2 }]])
+        .mockResolvedValueOnce([[{ id: 18, is_super_admin: 1, data_scope: 4 }]]);
+
+      const [first, second] = await Promise.all([
+        DataScopeService.getUserDataScope(8),
+        DataScopeService.getUserDataScope(8),
+      ]);
+
+      expect(pool.execute).toHaveBeenCalledTimes(2);
+      first.departmentIds.push(999);
+      expect(second.departmentIds).toEqual([]);
+
+      const cached = await DataScopeService.getUserDataScope(8);
+      expect(cached.departmentIds).toEqual([]);
+      expect(pool.execute).toHaveBeenCalledTimes(2);
+    });
+
     test('超级管理员标记强制 ALL', async () => {
       pool.execute
         .mockResolvedValueOnce([[{ id: 1, username: 'admin', department_id: 1 }]])

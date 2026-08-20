@@ -7,7 +7,7 @@
 
 const { logger } = require('../../utils/logger');
 const db = require('../../config/db');
-const { resolveActorLabel, resolveActorUserId } = require('../../utils/userUtils');
+const { resolveActorLabel } = require('../../utils/userUtils');
 
 /**
  * 仓库年度结存服务

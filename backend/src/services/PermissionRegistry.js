@@ -130,6 +130,7 @@ async function syncRolePermissionsFromMenus(conn, roleId, menuIds = []) {
   const [menus] = await conn.execute(
     `SELECT id, permission, name FROM menus
       WHERE id IN (${placeholders})
+        AND status = 1
         AND permission IS NOT NULL AND permission <> ''`,
     ids
   );
@@ -194,10 +195,10 @@ async function bindMenuPermission(conn, menuId, permissionCode, menuName) {
  */
 async function grantMenuPermissionToRoles(conn, menuId, roleIds = []) {
   const [[menu]] = await conn.execute(
-    'SELECT id, permission, name FROM menus WHERE id = ? LIMIT 1',
+    'SELECT id, permission, name, status FROM menus WHERE id = ? LIMIT 1',
     [menuId]
   );
-  if (!menu?.permission) return;
+  if (!menu?.permission || Number(menu.status) !== 1) return;
 
   const normalized = normalizePermissionCode(menu.permission);
   const pid = await ensurePermission(conn, normalized, {

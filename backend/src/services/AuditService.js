@@ -8,6 +8,7 @@
 const { getConnection } = require('../config/db');
 const { logger } = require('../utils/logger');
 const { parsePagination, appendPaginationSQL } = require('../utils/safePagination');
+const { serializeAuditPayload } = require('../utils/auditSanitizer');
 
 /**
  * 审计操作类型枚举
@@ -93,8 +94,8 @@ class AuditService {
           action,
           entityType || null,
           entityId || null,
-          oldValue ? JSON.stringify(oldValue) : null,
-          newValue ? JSON.stringify(newValue) : null,
+          serializeAuditPayload(oldValue),
+          serializeAuditPayload(newValue),
           ipAddress || null,
           userAgent || null,
         ]
@@ -130,7 +131,7 @@ class AuditService {
   ) {
     const userId = req.user?.id;
     const username = req.user?.username || req.user?.real_name;
-    const ipAddress = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress;
+    const ipAddress = req.ip || req.socket?.remoteAddress || req.connection?.remoteAddress;
     const userAgent = req.headers['user-agent'];
 
     await this.log({

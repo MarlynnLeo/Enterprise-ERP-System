@@ -38,6 +38,7 @@ backend/scripts/*
 !backend/scripts/run-data-consistency-audit.js
 !backend/scripts/repair-inventory-ledger-costs.js
 !backend/scripts/restore-backup.js
+!backend/scripts/databaseScriptConfig.js
 !backend/scripts/test-finance-flow.js
 !backend/scripts/test-production-inventory-flow.js
 !backend/scripts/verify-finance-coding-rules.js

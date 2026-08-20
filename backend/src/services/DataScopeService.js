@@ -12,6 +12,7 @@
 
 const { pool } = require('../config/db');
 const { logger } = require('../utils/logger');
+const { isSuperAdminRole } = require('../authorization/superAdmin');
 
 const DATA_SCOPE = {
   ALL: 1,
@@ -21,8 +22,82 @@ const DATA_SCOPE = {
   CUSTOM: 5,
 };
 
+// 首屏会并发触发多条受保护接口。用极短 TTL + in-flight 合并避免同一用户
+// 在一次页面打开过程中反复查询用户、角色和部门树；1 秒后自动重新读取，
+// 将权限变更的陈旧窗口限制在最小范围。
+const DATA_SCOPE_CACHE_TTL_MS = Math.min(
+  5000,
+  Math.max(0, Number.parseInt(process.env.DATA_SCOPE_CACHE_TTL_MS || '1000', 10) || 0)
+);
+const MAX_DATA_SCOPE_CACHE_SIZE = 1000;
+const dataScopeCache = new Map();
+const dataScopeInflight = new Map();
+
+function cloneScope(scope) {
+  if (!scope) return scope;
+  return {
+    ...scope,
+    departmentIds: [...(scope.departmentIds || [])],
+    locationIds: [...(scope.locationIds || [])],
+  };
+}
+
 class DataScopeService {
-  static async getUserDataScope(userId) {
+  static async getUserDataScope(userId, options = {}) {
+    if (!userId) return this.loadUserDataScope(userId);
+
+    const cacheKey = String(userId);
+    const bypassCache = Boolean(options.bypassCache);
+    const now = Date.now();
+
+    if (!bypassCache && DATA_SCOPE_CACHE_TTL_MS > 0) {
+      const cached = dataScopeCache.get(cacheKey);
+      if (cached && cached.expiresAt > now) {
+        return cloneScope(cached.scope);
+      }
+      if (cached) dataScopeCache.delete(cacheKey);
+    }
+
+    if (!bypassCache && dataScopeInflight.has(cacheKey)) {
+      return cloneScope(await dataScopeInflight.get(cacheKey));
+    }
+
+    const loadPromise = this.loadUserDataScope(userId);
+    if (!bypassCache) dataScopeInflight.set(cacheKey, loadPromise);
+
+    try {
+      const scope = await loadPromise;
+      if (!bypassCache && DATA_SCOPE_CACHE_TTL_MS > 0) {
+        dataScopeCache.delete(cacheKey);
+        dataScopeCache.set(cacheKey, {
+          scope: cloneScope(scope),
+          expiresAt: Date.now() + DATA_SCOPE_CACHE_TTL_MS,
+        });
+        while (dataScopeCache.size > MAX_DATA_SCOPE_CACHE_SIZE) {
+          dataScopeCache.delete(dataScopeCache.keys().next().value);
+        }
+      }
+      return cloneScope(scope);
+    } finally {
+      if (dataScopeInflight.get(cacheKey) === loadPromise) {
+        dataScopeInflight.delete(cacheKey);
+      }
+    }
+  }
+
+  static invalidateUserDataScope(userId) {
+    if (!userId) return;
+    const cacheKey = String(userId);
+    dataScopeCache.delete(cacheKey);
+    dataScopeInflight.delete(cacheKey);
+  }
+
+  static clearDataScopeCache() {
+    dataScopeCache.clear();
+    dataScopeInflight.clear();
+  }
+
+  static async loadUserDataScope(userId) {
     if (!userId) {
       return {
         type: DATA_SCOPE.SELF,
@@ -47,7 +122,7 @@ class DataScopeService {
       [DATA_SCOPE.SELF, userId]
     );
 
-    if (roles.some((role) => Number(role.is_super_admin || 0) === 1)) {
+    if (roles.some((role) => isSuperAdminRole(role))) {
       return {
         type: DATA_SCOPE.ALL,
         userId,
@@ -198,8 +273,12 @@ class DataScopeService {
     const ownerColumn = options.ownerColumn || 'created_by';
     const ownerAlias = options.ownerAlias || `${tableAlias}_owner_scope`;
     const departmentColumn = options.departmentColumn || null;
-    const locationColumn = options.locationColumn || null;
-    const includeLocation = Boolean(options.includeLocation && locationColumn);
+    const locationColumns = [
+      ...(Array.isArray(options.locationColumns) ? options.locationColumns : []),
+      ...(options.locationColumn ? [options.locationColumn] : []),
+    ].filter((column, index, values) => column && values.indexOf(column) === index);
+    const includeLocation = Boolean(options.includeLocation && locationColumns.length);
+    const requireAllLocations = Boolean(options.requireAllLocations);
     const q = (identifier) => `\`${String(identifier).replace(/`/g, '``')}\``;
     const ownerExpr = `${tableAlias}.${q(ownerColumn)}`;
 
@@ -234,11 +313,35 @@ class DataScopeService {
         params.push(...scope.departmentIds);
       }
 
+      let locationPart = '';
+      const locationParams = [];
       if (includeLocation && scope.locationIds.length > 0) {
-        parts.push(
-          `${tableAlias}.${q(locationColumn)} IN (${scope.locationIds.map(() => '?').join(',')})`
-        );
-        params.push(...scope.locationIds);
+        locationPart = locationColumns
+          .map(
+            (column) =>
+              `${tableAlias}.${q(column)} IN (${scope.locationIds.map(() => '?').join(',')})`
+          )
+          .join(requireAllLocations ? ' AND ' : ' OR ');
+        for (let index = 0; index < locationColumns.length; index += 1) {
+          locationParams.push(...scope.locationIds);
+        }
+      }
+
+      if (requireAllLocations) {
+        if (!locationPart) {
+          return { join: '', where: ' AND 1 = 0', params: [] };
+        }
+        const basePart = parts.length ? `(${parts.join(' OR ')}) AND ` : '';
+        return {
+          join,
+          where: ` AND (${basePart}(${locationPart}))`,
+          params: [...params, ...locationParams],
+        };
+      }
+
+      if (locationPart) {
+        parts.push(`(${locationPart})`);
+        params.push(...locationParams);
       }
 
       if (parts.length === 0) {
@@ -290,14 +393,53 @@ class DataScopeService {
     return true;
   }
 
+  static async assertRecordExists(connection, tableName, recordId, options = {}) {
+    const normalizedRecordId = Number(recordId);
+    if (!Number.isInteger(normalizedRecordId) || normalizedRecordId <= 0) return false;
+
+    const idColumn = options.idColumn || 'id';
+    const deletedAtColumn =
+      options.deletedAtColumn === false
+        ? null
+        : options.deletedAtColumn || 'deleted_at';
+    const extraSoftDelete = options.extraSoftDelete || null;
+    const q = (identifier) => `\`${String(identifier).replace(/`/g, '``')}\``;
+
+    let sql = `SELECT ${q(idColumn)} AS id FROM ${q(tableName)} WHERE ${q(idColumn)} = ?`;
+    if (deletedAtColumn) {
+      sql += ` AND ${q(deletedAtColumn)} IS NULL`;
+    }
+    if (extraSoftDelete?.column) {
+      sql += ` AND ${q(extraSoftDelete.column)} = ?`;
+    }
+    sql += ' LIMIT 1';
+
+    const params = [normalizedRecordId];
+    if (extraSoftDelete?.column) {
+      params.push(extraSoftDelete.value ?? 0);
+    }
+
+    const [rows] = await connection.execute(sql, params);
+    return rows.length === 1;
+  }
+
   static async assertRecordAccess(connection, req, tableName, recordId, options = {}) {
+    const normalizedRecordId = Number(recordId);
+    if (!Number.isInteger(normalizedRecordId) || normalizedRecordId <= 0) return false;
+
     const scope = await this.getRequestScope(req);
-    if (this.isAllScope(scope)) return true;
+    if (this.isAllScope(scope)) {
+      return this.assertRecordExists(connection, tableName, normalizedRecordId, options);
+    }
 
     const idColumn = options.idColumn || 'id';
     const ownerColumn = options.ownerColumn || null;
     const departmentColumn = options.departmentColumn || null;
-    const locationColumn = options.locationColumn || null;
+    const locationColumns = [
+      ...(Array.isArray(options.locationColumns) ? options.locationColumns : []),
+      ...(options.locationColumn ? [options.locationColumn] : []),
+    ].filter((column, index, values) => column && values.indexOf(column) === index);
+    const requireAllLocations = Boolean(options.requireAllLocations);
     const deletedAtColumn =
       options.deletedAtColumn === false
         ? null
@@ -308,7 +450,7 @@ class DataScopeService {
       return false;
     }
 
-    if (!ownerColumn && !locationColumn) {
+    if (!ownerColumn && locationColumns.length === 0) {
       return false;
     }
 
@@ -317,7 +459,9 @@ class DataScopeService {
 
     if (ownerColumn) selectParts.push(`t.${q(ownerColumn)} AS owner_id`);
     if (departmentColumn) selectParts.push(`t.${q(departmentColumn)} AS resource_department_id`);
-    if (locationColumn) selectParts.push(`t.${q(locationColumn)} AS location_id`);
+    locationColumns.forEach((column, index) => {
+      selectParts.push(`t.${q(column)} AS location_id_${index}`);
+    });
 
     let sql = `SELECT ${selectParts.join(', ')}`;
     if (ownerColumn) {
@@ -336,7 +480,7 @@ class DataScopeService {
     }
     sql += ' LIMIT 1';
 
-    const params = [recordId];
+    const params = [normalizedRecordId];
     if (extraSoftDelete?.column) {
       params.push(extraSoftDelete.value ?? 0);
     }
@@ -349,30 +493,43 @@ class DataScopeService {
       return Number(row.owner_id) === Number(scope.userId);
     }
 
-    // CUSTOM：部门或库位命中即可
+    // CUSTOM：默认部门或库位任一命中；对于调拨等双端资源，可声明
+    // requireAllLocations，要求所有相关库位都在授权集合内。
     if (Number(scope.type) === DATA_SCOPE.CUSTOM) {
+      let organizationMatched = false;
+      let hasOrganizationConstraint = false;
       if (
         departmentColumn &&
         scope.departmentIds.length > 0 &&
         scope.departmentIds.includes(Number(row.resource_department_id))
       ) {
-        return true;
+        organizationMatched = true;
       }
+      if (departmentColumn && scope.departmentIds.length > 0) hasOrganizationConstraint = true;
       if (
         ownerColumn &&
         scope.departmentIds.length > 0 &&
         scope.departmentIds.includes(Number(row.owner_department_id))
       ) {
-        return true;
+        organizationMatched = true;
       }
-      if (
-        locationColumn &&
+      if (ownerColumn && scope.departmentIds.length > 0) hasOrganizationConstraint = true;
+
+      const locationMatched =
+        locationColumns.length > 0 &&
         scope.locationIds.length > 0 &&
-        scope.locationIds.includes(Number(row.location_id))
-      ) {
-        return true;
+        (requireAllLocations
+          ? locationColumns.every((_, index) =>
+              scope.locationIds.includes(Number(row[`location_id_${index}`]))
+            )
+          : locationColumns.some((_, index) =>
+              scope.locationIds.includes(Number(row[`location_id_${index}`]))
+            ));
+
+      if (requireAllLocations) {
+        return locationMatched && (!hasOrganizationConstraint || organizationMatched);
       }
-      return false;
+      return organizationMatched || locationMatched;
     }
 
     if (departmentColumn && scope.departmentIds.length > 0) {
@@ -387,8 +544,15 @@ class DataScopeService {
       }
     }
 
-    if (locationColumn && scope.locationIds.length > 0) {
-      if (scope.locationIds.includes(Number(row.location_id))) {
+    if (locationColumns.length > 0 && scope.locationIds.length > 0) {
+      const matches = requireAllLocations
+        ? locationColumns.every((_, index) =>
+            scope.locationIds.includes(Number(row[`location_id_${index}`]))
+          )
+        : locationColumns.some((_, index) =>
+            scope.locationIds.includes(Number(row[`location_id_${index}`]))
+          );
+      if (matches) {
         return true;
       }
     }

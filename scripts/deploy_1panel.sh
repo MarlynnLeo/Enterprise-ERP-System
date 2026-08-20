@@ -4,18 +4,9 @@ set -euo pipefail
 PROJECT_DIR="${PROJECT_DIR:-/opt/1panel/docker/compose/KACON-ERP}"
 SERVER_IP="${SERVER_IP:-192.168.1.251}"
 PUBLIC_URL="${PUBLIC_URL:-https://erp.kacon.ai}"
-MYSQL_CONTAINER="${MYSQL_CONTAINER:-1Panel-mysql-eFiU}"
 OLD_COMPOSE="${OLD_COMPOSE:-/opt/erp-deploy/docker-compose.yml}"
 
 cd "$PROJECT_DIR"
-
-container_env_value() {
-  local key="$1"
-  docker inspect "$MYSQL_CONTAINER" \
-    --format '{{range .Config.Env}}{{println .}}{{end}}' \
-    | sed -n "s/^${key}=//p" \
-    | head -n 1
-}
 
 old_compose_value() {
   local key="$1"
@@ -26,9 +17,19 @@ old_compose_value() {
 }
 
 if [[ ! -f .env ]]; then
-  db_password="$(container_env_value MYSQL_ROOT_PASSWORD)"
-  if [[ -z "$db_password" ]]; then
-    echo "Unable to read MySQL root password from $MYSQL_CONTAINER" >&2
+  : "${DB_HOST:?DB_HOST must be provided for first deployment}"
+  : "${DB_USER:?DB_USER must be provided for first deployment}"
+  : "${DB_PASSWORD:?DB_PASSWORD must be provided for first deployment}"
+  if [[ -z "${DEFAULT_ADMIN_PASSWORD_HASH:-}" && -z "${DEFAULT_ADMIN_PASSWORD:-}" ]]; then
+    echo "DEFAULT_ADMIN_PASSWORD or DEFAULT_ADMIN_PASSWORD_HASH must be provided for first deployment" >&2
+    exit 1
+  fi
+  if [[ -n "${DEFAULT_ADMIN_PASSWORD:-}" && ${#DEFAULT_ADMIN_PASSWORD} -lt 12 ]]; then
+    echo "DEFAULT_ADMIN_PASSWORD must contain at least 12 characters" >&2
+    exit 1
+  fi
+  if [[ "${DB_USER,,}" == "root" ]]; then
+    echo "DB_USER=root is forbidden for production deployment" >&2
     exit 1
   fi
 
@@ -36,23 +37,27 @@ if [[ ! -f .env ]]; then
   jwt_refresh_secret="$(openssl rand -hex 48)"
   csrf_secret="$(openssl rand -hex 48)"
   redis_password="$(openssl rand -hex 32)"
+  mfa_encryption_key="$(openssl rand -hex 32)"
+  backup_encryption_key="$(openssl rand -hex 32)"
   zhipu_key="$(old_compose_value ZHIPU_API_KEY)"
   siliconflow_key="$(old_compose_value SILICONFLOW_API_KEY)"
 
   umask 077
   {
     printf 'PUBLIC_API_BASE_URL=%s\n' "$PUBLIC_URL"
-    printf 'DB_HOST=172.17.0.1\n'
-    printf 'DB_PORT=3306\n'
-    printf 'DB_USER=root\n'
-    printf 'DB_NAME=mes\n'
-    printf 'DB_PASSWORD=%s\n' "$db_password"
+    printf 'DB_HOST=%s\n' "$DB_HOST"
+    printf 'DB_PORT=%s\n' "${DB_PORT:-3306}"
+    printf 'DB_USER=%s\n' "$DB_USER"
+    printf 'DB_NAME=%s\n' "${DB_NAME:-mes}"
+    printf 'DB_PASSWORD=%s\n' "$DB_PASSWORD"
     printf 'JWT_SECRET=%s\n' "$jwt_secret"
     printf 'JWT_REFRESH_SECRET=%s\n' "$jwt_refresh_secret"
     printf 'CSRF_SECRET=%s\n' "$csrf_secret"
-    printf 'DEFAULT_ADMIN_PASSWORD_HASH=\n'
-    printf 'DEFAULT_ADMIN_PASSWORD=\n'
-    printf 'ALLOWED_ORIGINS=http://%s:18080,http://%s:18081,http://%s:18082,%s\n' "$SERVER_IP" "$SERVER_IP" "$SERVER_IP" "$PUBLIC_URL"
+    printf 'MFA_ENCRYPTION_KEY=%s\n' "$mfa_encryption_key"
+    printf 'MFA_REQUIRED_ROLE_CODES=admin,system_admin,finance_manager,hr_manager\n'
+    printf 'DEFAULT_ADMIN_PASSWORD_HASH=%s\n' "${DEFAULT_ADMIN_PASSWORD_HASH:-}"
+    printf 'DEFAULT_ADMIN_PASSWORD=%s\n' "${DEFAULT_ADMIN_PASSWORD:-}"
+    printf 'ALLOWED_ORIGINS=%s\n' "$PUBLIC_URL"
     printf 'COOKIE_SECURE=auto\n'
     printf 'COOKIE_SAME_SITE=lax\n'
     printf 'REDIS_HOST=redis\n'
@@ -62,6 +67,8 @@ if [[ ! -f .env ]]; then
     printf 'SILICONFLOW_API_KEY=%s\n' "$siliconflow_key"
     printf 'BACKUP_RETENTION_DAYS=30\n'
     printf 'BACKUP_RETENTION_COUNT=30\n'
+    printf 'BACKUP_ENCRYPTION_MODE=required\n'
+    printf 'BACKUP_ENCRYPTION_KEY=%s\n' "$backup_encryption_key"
   } > .env
   chmod 600 .env
 fi
@@ -83,20 +90,31 @@ normalize_env_cookie_policy() {
   fi
 }
 
+verify_minimum_privilege_db_user() {
+  local db_user
+  db_user="$(sed -n 's/^DB_USER=//p' .env | tail -n 1)"
+  if [[ -z "$db_user" || "${db_user,,}" == "root" ]]; then
+    echo "Production .env must use a non-root DB_USER" >&2
+    exit 1
+  fi
+}
+
 verify_auth_artifacts() {
   test -f backend/src/utils/cookieSecurity.js
   grep -q shouldUseSecureCookies backend/src/config/jwtEnhanced.js
-  grep -q client_forwarded_proto frontend/nginx.conf
-  grep -q client_forwarded_proto mobile/nginx.conf
+  grep -q 'client_forwarded_proto' frontend/nginx.conf
+  grep -q 'client_forwarded_proto' mobile/nginx.conf
   docker compose exec -T backend sh -lc 'test -f /app/src/utils/cookieSecurity.js'
   docker compose exec -T backend sh -lc 'grep -q shouldUseSecureCookies /app/src/config/jwtEnhanced.js'
   docker compose exec -T frontend sh -lc 'grep -q client_forwarded_proto /etc/nginx/conf.d/default.conf'
 }
 
 normalize_env_cookie_policy
+verify_minimum_privilege_db_user
 
 docker compose config --quiet
 docker compose build --pull
 docker compose run --rm backend npm run migrate
 docker compose up -d --remove-orphans
 docker compose ps
+verify_auth_artifacts

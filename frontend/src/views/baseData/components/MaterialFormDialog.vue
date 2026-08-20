@@ -88,7 +88,7 @@
         </el-col>
       </el-row>
 
-      <!-- 检验方式、物料来源、物料位置 -->
+      <!-- 检验方式、物料来源、物料号（A3图号） -->
       <el-row :gutter="16">
         <el-col :span="8">
           <el-form-item label="检验方式" prop="inspectionMethodId">
@@ -119,10 +119,10 @@
           </el-form-item>
         </el-col>
         <el-col :span="8">
-          <el-form-item label="物料位置">
+          <el-form-item label="物料号">
             <el-input
-              v-model="form.locationDetail"
-              placeholder="如：零部件库-3排-4列"
+              v-model="form.drawingNo"
+              placeholder="来自A3物料图号"
               clearable />
           </el-form-item>
         </el-col>
@@ -167,9 +167,9 @@
         </el-col>
       </el-row>
 
-      <!-- 生产组、图号、色号 -->
+      <!-- 生产组、色号 -->
       <el-row :gutter="16">
-        <el-col :span="8">
+        <el-col :span="12">
           <el-form-item label="生产组" prop="productionGroupId">
             <el-select
               v-model="form.productionGroupId"
@@ -189,12 +189,7 @@
             </el-select>
           </el-form-item>
         </el-col>
-        <el-col :span="8">
-          <el-form-item label="图号">
-            <el-input v-model="form.drawingNo" placeholder="请输入图号"></el-input>
-          </el-form-item>
-        </el-col>
-        <el-col :span="8">
+        <el-col :span="12">
           <el-form-item label="色号">
             <el-input v-model="form.colorCode" placeholder="请输入色号"></el-input>
           </el-form-item>
@@ -381,7 +376,6 @@ const COPYABLE_FIELDS = [
   'inspectionMethodId',
   'materialSourceId',
   'locationId',
-  'locationDetail',
   'managerId',
   'supplierId',
   'productionGroupId',
@@ -438,7 +432,6 @@ const createEmptyForm = () => ({
   materialSourceId: null,
   unitId: null,
   locationId: null,
-  locationDetail: '',
   managerId: null,
   supplierId: null,
   productionGroupId: null,

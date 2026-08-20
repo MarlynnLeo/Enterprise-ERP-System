@@ -27,7 +27,7 @@
               </el-icon>
             </span>
             <el-icon class="theme-item__icon">
-              <component :is="preset.icon" />
+              <component :is="getPresetIcon(preset)" />
             </el-icon>
             <span class="theme-item__content">
               <span class="theme-item__name">{{ preset.name }}</span>
@@ -47,7 +47,18 @@
 <script setup>
 import { computed } from 'vue'
 import { useThemeStore } from '@/stores/theme'
-import { Check, Moon, Sunny } from '@element-plus/icons-vue'
+import {
+  Briefcase,
+  Brush,
+  Check,
+  Cpu,
+  Moon,
+  OfficeBuilding,
+  Pear,
+  Promotion,
+  Sunny,
+  SuitcaseLine
+} from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { prefetchThemeCss } from '@/utils/themeLoader'
 
@@ -62,6 +73,21 @@ const currentPresetAriaLabel = computed(() => `当前主题：${currentPresetNam
 const themeIcon = computed(() => {
   return themeStore.isDark ? Moon : Sunny
 })
+
+// 主题配置只保存图标名称；主题选择器位于受保护的 Layout 页面，
+// 因此图标组件不会进入登录首屏的静态依赖图。
+const themeIcons = {
+  Briefcase,
+  Brush,
+  Cpu,
+  Moon,
+  OfficeBuilding,
+  Pear,
+  Promotion,
+  SuitcaseLine
+}
+
+const getPresetIcon = (preset) => themeIcons[preset?.icon] || Brush
 
 /** 悬停预取，切换时少等一帧 */
 const prefetchPreset = (presetId) => {

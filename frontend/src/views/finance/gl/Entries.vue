@@ -414,7 +414,7 @@ import { useRoute } from 'vue-router';
 
 // Element Plus
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Plus, Printer, View, Check, RefreshLeft, Delete } from '@element-plus/icons-vue';
+import { Plus, Printer, Check, RefreshLeft, Delete } from '@element-plus/icons-vue';
 
 // Pinia Stores
 import { useFinanceStore } from '@/stores/finance';

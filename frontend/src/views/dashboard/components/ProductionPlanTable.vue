@@ -40,7 +40,7 @@
 
 <script setup>
 import { handleTableRowView } from '@/utils/tableRowView'
-import { Document, View } from '@element-plus/icons-vue'
+import { Document } from '@element-plus/icons-vue'
 
 defineProps({
   warningList: {

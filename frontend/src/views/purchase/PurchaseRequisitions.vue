@@ -630,7 +630,7 @@ const { approvalDialog, openApprovalDialog, handleApproval } = useBusinessApprov
 const requisitionApprovalSummary = computed(() => {
   const row = approvalDialog.row || {};
   return [
-    { label: '申请单号', value: row.requisitionNumber || row.requisition_number || '-' },
+    { label: '申请单号', value: row.requisitionNumber || '-' },
     { label: '申请人', value: row.realName || row.requester || '-' },
     { label: '备注', value: row.remarks || '无' }
   ];

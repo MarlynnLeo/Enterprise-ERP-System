@@ -7,7 +7,7 @@ const { DOCUMENT_LINK_TYPES: DocType } = require('../../constants/documentLinkTy
 const { normalizeTaxRate, roundMoney, taxAmount: calculateTaxAmount } = require('../../utils/money');
 const { financeConfig } = require('../../config/financeConfig');
 const { normalizeUserId, firstValidUserId } = require('../../utils/userUtils');
-const { resolveActorLabel, resolveActorUserId } = require('../../utils/userUtils');
+const { resolveActorLabel } = require('../../utils/userUtils');
 
 class QualityIntegrationService {
   static toNumber(value, fallback = 0) {

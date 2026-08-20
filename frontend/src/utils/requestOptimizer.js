@@ -96,10 +96,10 @@ const cloneData = (value) => {
   }
 }
 
-const cloneResponse = (response, config, meta = {}) => ({
+const cloneResponse = (response, config, meta = {}, { copyData = true } = {}) => ({
   ...response,
   config,
-  data: cloneData(response.data),
+  data: copyData ? cloneData(response.data) : response.data,
   _requestOptimizer: meta,
 })
 
@@ -217,7 +217,10 @@ export const applyRequestOptimizer = (apiInstance, axios, options = {}) => {
 
       inflightRequests.set(key, requestPromise)
       const response = await requestPromise
-      return cloneResponse(response, adapterConfig, { source: 'network' })
+      // The network caller already owns this response. The cache stores its own
+      // defensive snapshot above, so cloning the same large list a second time
+      // only blocks the main thread during page navigation.
+      return cloneResponse(response, adapterConfig, { source: 'network' }, { copyData: false })
     }
 
     return config

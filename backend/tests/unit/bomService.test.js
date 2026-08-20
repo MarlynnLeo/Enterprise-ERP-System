@@ -82,3 +82,101 @@ describe('bomService list filters', () => {
     ]);
   });
 });
+
+describe('bomService referenced BOM display tree', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test('expands ref_bom_id children beneath the referenced material', async () => {
+    pool.query.mockResolvedValueOnce([[
+      {
+        id: 201,
+        bom_id: 20,
+        material_id: 2001,
+        material_code: '3005999023',
+        material_name: '单联底板',
+        specification: 'HRF-HD6',
+        quantity: 1,
+        unit_id: 1,
+        unit_name: '个',
+        level: 1,
+        parent_id: 0,
+        has_sub_bom: 0,
+        ref_bom_id: null,
+      },
+    ]]);
+
+    const tree = await bomService.buildReferencedBomTree([
+      {
+        id: 101,
+        bom_id: 10,
+        material_id: 1001,
+        material_code: '30059990231502',
+        material_name: '单联底板',
+        quantity: 1,
+        unit_id: 1,
+        unit_name: '个',
+        level: 1,
+        parent_id: 0,
+        has_sub_bom: 1,
+        ref_bom_id: 20,
+      },
+    ], 10);
+
+    expect(tree).toHaveLength(1);
+    expect(tree[0].children).toHaveLength(1);
+    expect(tree[0].children[0]).toMatchObject({
+      material_code: '3005999023',
+      material_specs: 'HRF-HD6',
+      bom_id: 20,
+    });
+    expect(tree[0].tree_key).not.toBe(tree[0].children[0].tree_key);
+  });
+
+  test('caches repeated referenced BOM reads and generates unique tree keys per branch', async () => {
+    pool.query.mockResolvedValueOnce([[
+      {
+        id: 201,
+        bom_id: 20,
+        material_id: 2001,
+        material_code: 'CHILD',
+        quantity: 1,
+        level: 1,
+        parent_id: 0,
+        has_sub_bom: 0,
+      },
+    ]]);
+
+    const tree = await bomService.buildReferencedBomTree([
+      { id: 101, bom_id: 10, material_id: 1001, quantity: 1, level: 1, parent_id: 0, has_sub_bom: 1, ref_bom_id: 20 },
+      { id: 102, bom_id: 10, material_id: 1001, quantity: 1, level: 1, parent_id: 0, has_sub_bom: 1, ref_bom_id: 20 },
+    ], 10);
+
+    expect(pool.query).toHaveBeenCalledTimes(1);
+    expect(tree[0].children[0].tree_key).not.toBe(tree[1].children[0].tree_key);
+  });
+
+  test('stops when a referenced BOM points back to an ancestor BOM', async () => {
+    pool.query.mockResolvedValueOnce([[
+      {
+        id: 201,
+        bom_id: 20,
+        material_id: 2001,
+        material_code: 'CYCLE',
+        quantity: 1,
+        level: 1,
+        parent_id: 0,
+        has_sub_bom: 1,
+        ref_bom_id: 10,
+      },
+    ]]);
+
+    const tree = await bomService.buildReferencedBomTree([
+      { id: 101, bom_id: 10, material_id: 1001, quantity: 1, level: 1, parent_id: 0, has_sub_bom: 1, ref_bom_id: 20 },
+    ], 10);
+
+    expect(pool.query).toHaveBeenCalledTimes(1);
+    expect(tree[0].children[0].children).toEqual([]);
+  });
+});

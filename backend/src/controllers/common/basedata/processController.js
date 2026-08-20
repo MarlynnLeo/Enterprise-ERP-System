@@ -49,7 +49,10 @@ const processController = {
       if (!name) {
         return ResponseHandler.error(res, '模板名称不能为空', 'VALIDATION_ERROR', 400);
       }
-      const result = await processTemplateService.create(body);
+      const result = await processTemplateService.create({
+        ...body,
+        created_by: req.user?.id || req.user?.userId || null,
+      });
       ResponseHandler.success(res, result, '创建工序模板成功', 201);
     } catch (error) {
       logger.error('创建工序模板失败:', error);
@@ -59,7 +62,10 @@ const processController = {
 
   async updateProcessTemplate(req, res) {
     try {
-      await processTemplateService.update(req.params.id, mapKeysToSnake(req.body || {}));
+      await processTemplateService.update(req.params.id, {
+        ...mapKeysToSnake(req.body || {}),
+        updated_by: req.user?.id || req.user?.userId || null,
+      });
       ResponseHandler.success(res, null, '更新工序模板成功');
     } catch (error) {
       logger.error('更新工序模板失败:', error);

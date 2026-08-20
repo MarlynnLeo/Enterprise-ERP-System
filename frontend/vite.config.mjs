@@ -51,6 +51,41 @@ const resolveElementPlusComponent = (name) => {
   }
 }
 
+// Vite/Rolldown 会根据共享依赖自动生成入口 modulepreload。Office/Excel/PDF/ECharts
+// 只在用户主动打开预览、导出或图表面板时使用，入口 HTML 不应提前下载这些大包。
+const stripHeavyEntryPreloads = () => ({
+  name: 'strip-heavy-entry-preloads',
+  enforce: 'post',
+  transformIndexHtml(html) {
+    return html.replace(
+      /\s*<link\s+rel="modulepreload"[^>]+href="[^"]*(?:excel|office|pdf|echarts)[^\"]*"[^>]*>\s*/gi,
+      '\n'
+    )
+  }
+})
+
+const isHeavyDeferredChunk = (dependency) =>
+  /(?:excel|office|pdf|echarts)/i.test(dependency)
+
+const heavyDeferredChunkGroups = [
+  {
+    name: 'office-vendor',
+    test: /node_modules[\\/]@vue-office[\\/]/
+  },
+  {
+    name: 'excel-vendor',
+    test: /node_modules[\\/](?:exceljs|xlsx)[\\/]/
+  },
+  {
+    name: 'pdf-vendor',
+    test: /node_modules[\\/](?:html2pdf\.js|jspdf|html2canvas)[\\/]/
+  },
+  {
+    name: 'echarts-vendor',
+    test: /node_modules[\\/](?:echarts|zrender)[\\/]/
+  }
+]
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   // 加载环境变量
@@ -65,6 +100,7 @@ export default defineConfig(({ mode }) => {
       Components({
         resolvers: [resolveElementPlusComponent]
       }),
+      stripHeavyEntryPreloads(),
       enableLegacy && legacy({
         targets: ['defaults', 'Chrome >= 49', 'Edge >= 16', 'Firefox >= 52', 'Safari >= 10'],
         modernPolyfills: true,
@@ -134,6 +170,17 @@ export default defineConfig(({ mode }) => {
       ...(enableLegacy ? {} : { target: 'es2015' }),
       // CSS 代码分割
       cssCodeSplit: true,
+      // Excel/PDF/Office 仅在导入、预览或导出时使用。Rollup 可能因为
+      // 共享 lodash 模块把它们列入入口 modulepreload；过滤入口预加载，
+      // 保留动态 import 的运行时依赖解析，避免登录和首页先下载近 4 MB。
+      modulePreload: {
+        resolveDependencies(filename, dependencies) {
+          // Apply to route chunks too. Vite/Rolldown can otherwise discover a
+          // shared Excel dependency through the login route's API graph and
+          // preload it before the route is evaluated.
+          return dependencies.filter((dependency) => !isHeavyDeferredChunk(dependency))
+        }
+      },
       // 确保 CommonJS 模块正确转换
       commonjsOptions: {
         include: [/node_modules/],
@@ -142,18 +189,16 @@ export default defineConfig(({ mode }) => {
       },
       rollupOptions: {
         output: {
-          manualChunks(id) {
-            if (id.includes('node_modules')) {
-              if (id.includes('exceljs') || id.includes('xlsx')) return 'excel-vendor'
-              if (id.includes('html2pdf') || id.includes('jspdf') || id.includes('html2canvas')) return 'pdf-vendor'
-              if (id.includes('echarts') || id.includes('zrender')) return 'echarts-vendor'
-              if (id.includes('@element-plus/icons-vue')) return 'icons-vendor'
-              if (id.includes('element-plus')) return 'element-vendor'
-              if (id.includes('vue-i18n') || id.includes('@intlify')) return 'i18n-vendor'
-              if (id.includes('vue') || id.includes('pinia') || id.includes('vue-router')) return 'vue-core-vendor'
-              if (id.includes('axios') || id.includes('dayjs') || id.includes('lodash') || id.includes('crypto-js')) return 'utils-vendor'
-              return 'deps-vendor'
-            }
+          // Rolldown otherwise recursively pulls a captured module's dependencies
+          // into the same vendor chunk. That can make the login entry depend on
+          // deferred Excel/Office code through shared helpers.
+          strictExecutionOrder: true,
+          codeSplitting: {
+            includeDependenciesRecursively: false,
+            // Only isolate genuinely deferred heavyweight features. Let
+            // Rolldown's automatic splitter keep the app/runtime graph in a
+            // smaller number of coherent chunks for old HTTP/1.1 clients.
+            groups: heavyDeferredChunkGroups
           }
         }
       }

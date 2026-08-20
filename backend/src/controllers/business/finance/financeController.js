@@ -20,7 +20,6 @@ const { financeConfig } = require('../../../config/financeConfig');
 const { safeParseId } = require('../../../utils/safeParseId');
 const BusinessError = require('../../../utils/BusinessError');
 const ScopeGuard = require('../../../authorization/ScopeGuard');
-const { getRequestActorLabel } = require('../../../utils/userUtils');
 const {
   toGlAccountApi,
   fromGlAccountApi,

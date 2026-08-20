@@ -36,7 +36,7 @@ for (const file of walk(VIEWS)) {
       if (/EmptyState/.test(full)) return full
       replacements++
       // map description= / :description= / image-size=
-      let a = attrs
+      const a = attrs
         .replace(/\bdescription=/g, 'description=')
         .replace(/:image-size=/g, ':image-size=')
         .replace(/\bimage-size=/g, ':image-size=')
@@ -48,7 +48,7 @@ for (const file of walk(VIEWS)) {
     /<el-empty\b([^>]*)>\s*<\/el-empty>/g,
     (full, attrs) => {
       replacements++
-      let a = attrs
+      const a = attrs
         .replace(/:image-size=/g, ':image-size=')
         .replace(/\bimage-size=/g, ':image-size=')
       return `<EmptyState${a} />`

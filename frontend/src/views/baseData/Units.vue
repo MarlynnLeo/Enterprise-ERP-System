@@ -198,7 +198,7 @@ import { useListDetailNavigation } from '@/composables/useListDetailNavigation';
 import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage } from 'element-plus'
 import { baseDataApi } from '@/api/baseData';
-import { Plus, Edit, Delete, Download, Switch, View } from '@element-plus/icons-vue';
+import { Plus, Edit, Delete, Download, Switch } from '@element-plus/icons-vue';
 import { useAuthStore } from '@/stores/auth';
 // 权限store
 const authStore = useAuthStore();

@@ -101,6 +101,21 @@ describe('AuditService', () => {
       expect(args[6]).toBe('{"price":100}');
       expect(args[7]).toBe('{"price":200}');
     });
+
+    test('手工审计入口也会递归脱敏敏感字段', async () => {
+      mockConnection.query.mockResolvedValueOnce([{}]);
+
+      await AuditService.log({
+        module: 'system',
+        action: 'update',
+        oldValue: { nested: { password: 'old-secret' } },
+        newValue: { refreshToken: 'token', safe: true },
+      });
+
+      const args = mockConnection.query.mock.calls[0][1];
+      expect(JSON.parse(args[6])).toEqual({ nested: { password: '***REDACTED***' } });
+      expect(JSON.parse(args[7])).toEqual({ refreshToken: '***REDACTED***', safe: true });
+    });
   });
 
   describe('logFromRequest', () => {

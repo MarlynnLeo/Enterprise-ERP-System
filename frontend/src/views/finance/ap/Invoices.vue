@@ -511,13 +511,12 @@ const jumpToRelatedPurchaseOrder = () => {
     },
   });
 };
-const { vatRateOptions, defaultVATRate, paymentTermOptions, defaultPaymentTermDays, pagination } =
+const { defaultVATRate, defaultPaymentTermDays } =
   storeToRefs(financeStore);
 // 高级搜索展开状态
 const showAdvancedSearch = ref(false);
 // 数据加载状态
 const loading = ref(false);
-const saveLoading = ref(false);
 const savePaymentLoading = ref(false);
 const detailsLoading = ref(false);
 const bankAccountsLoading = ref(false);
@@ -579,14 +578,6 @@ const paymentForm = reactive({
   bankAccountId: null,
   notes: '',
 });
-// 表单验证规则
-const invoiceRules = {
-  invoiceNumber: [{ required: false, message: '系统自动生成', trigger: 'blur' }],
-  supplierInvoiceNumber: [{ required: true, message: '请输入供应商发票号', trigger: 'blur' }],
-  supplierId: [{ required: true, message: '请选择供应商', trigger: 'change' }],
-  invoiceDate: [{ required: true, message: '请选择开票日期', trigger: 'change' }],
-  dueDate: [{ required: true, message: '请选择到期日期', trigger: 'change' }],
-};
 const paymentRules = {
   paymentDate: [{ required: true, message: '请选择付款日期', trigger: 'change' }],
   amount: [{ required: true, message: '请输入付款金额', trigger: 'blur' }],
@@ -626,47 +617,6 @@ const getStatusText = (invoice) => {
   // 直接使用数据库状态字段
   return invoice.status || '草稿';
 };
-// 处理物料选择变化
-const handleMaterialChange = (item) => {
-  // 根据选择的物料自动填充描述和单价
-  const selectedMaterial = materialOptions.value.find((m) => m.id === item.materialId);
-  if (selectedMaterial) {
-    item.description = selectedMaterial.name;
-    item.unitPrice = selectedMaterial.price || 0;
-    calculateItemAmount(item);
-  }
-};
-// 计算单项金额（整数化精度控制，避免浮点误差）
-const calculateItemAmount = (item) => {
-  const quantity = parseFloat(item.quantity) || 0;
-  const unitPrice = parseFloat(item.unitPrice) || 0;
-  item.amount = Math.round(quantity * unitPrice * 100) / 100;
-};
-// 计算小计（整数化累加，避免多行累计误差放大）
-const calculateSubtotal = () => {
-  const totalCents = invoiceForm.items.reduce(
-    (sum, item) => sum + Math.round((item.amount || 0) * 100),
-    0
-  );
-  return totalCents / 100;
-};
-// 计算税额
-const calculateTax = () => {
-  return Math.round(calculateSubtotal() * invoiceForm.taxRate * 100) / 100;
-};
-// 计算总计
-const calculateTotal = () => {
-  return Math.round((calculateSubtotal() + calculateTax()) * 100) / 100;
-};
-// 处理开票日期变化
-const handleInvoiceDateChange = (date) => {
-  if (date && paymentTerms.value) {
-    const invoiceDate = new Date(date);
-    const dueDate = new Date(invoiceDate);
-    dueDate.setDate(dueDate.getDate() + paymentTerms.value);
-    invoiceForm.dueDate = formatLocalDate(dueDate);
-  }
-};
 // 处理付款期限变化
 const handlePaymentTermsChange = (days) => {
   if (invoiceForm.invoiceDate && days !== null) {
@@ -686,10 +636,6 @@ const addInvoiceItem = () => {
     unitPrice: 0,
     amount: 0,
   });
-};
-// 移除发票明细项
-const removeInvoiceItem = (index) => {
-  invoiceForm.items.splice(index, 1);
 };
 // 加载发票列表
 const loadInvoices = async () => {
@@ -982,54 +928,6 @@ const handleRecordPayment = (row) => {
   }
 
   paymentDialogVisible.value = true;
-};
-// 保存发票
-const saveInvoice = async () => {
-  if (!invoiceFormRef.value) return;
-
-  // 至少有一个明细项
-  if (invoiceForm.items.length === 0) {
-    ElMessage.warning('请至少添加一个发票明细项');
-    return;
-  }
-
-  // 每个明细项都需要填写完整
-  for (const item of invoiceForm.items) {
-    if (!item.materialId || item.quantity <= 0 || item.unitPrice <= 0) {
-      ElMessage.warning('请确保所有明细项的物料、数量和单价都已填写完整');
-      return;
-    }
-  }
-
-  await invoiceFormRef.value.validate(async (valid) => {
-    if (valid) {
-      saveLoading.value = true;
-      try {
-        // 准备提交的数据
-        const data = {
-          ...invoiceForm,
-          amount: calculateTotal(), // 设置总金额
-        };
-
-        if (invoiceForm.id) {
-          // 更新
-          await financeApi.updateAPInvoice(invoiceForm.id, data);
-          ElMessage.success('更新成功');
-        } else {
-          // 新增
-          await financeApi.createAPInvoice(data);
-          ElMessage.success('添加成功');
-        }
-
-        dialogVisible.value = false;
-        loadInvoices();
-      } catch (error) {
-        ElMessage.error('保存发票失败: ' + (error.response?.data?.details || error.message));
-      } finally {
-        saveLoading.value = false;
-      }
-    }
-  });
 };
 // 保存付款记录
 const savePayment = async () => {

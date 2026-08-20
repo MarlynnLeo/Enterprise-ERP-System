@@ -7,7 +7,7 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../../stores/auth'
 import { todoApi } from '@/api'
 import { ElMessage } from 'element-plus'
-import { parseListData } from '@/utils/responseParser'
+import { parseResponseData } from '@/utils/responseParser'
 
 export function useTodos() {
   const router = useRouter()
@@ -17,6 +17,8 @@ export function useTodos() {
   const pendingTasks = ref([])
   // 已办事项数据
   const completedTasks = ref([])
+  const pendingTotal = ref(0)
+  const completedTotal = ref(0)
   // 所有待办事项
   const todos = ref([])
   // 当前激活的待办标签（待办/已办）
@@ -77,20 +79,26 @@ export function useTodos() {
         return
       }
 
-      const response = await todoApi.getAllTodos()
+      const response = await todoApi.getDashboardSummary({
+        year: currentYear.value,
+        month: currentMonth.value
+      })
+      const summary = parseResponseData(response, {})
+      const pending = Array.isArray(summary.pending) ? summary.pending : []
+      const completed = Array.isArray(summary.completed) ? summary.completed : []
+      const calendarTodos = Array.isArray(summary.calendar) ? summary.calendar : []
 
-      const todoList = parseListData(response, { enableLog: false })
+      pendingTotal.value = Number(summary.counts?.pending ?? pending.length) || 0
+      completedTotal.value = Number(summary.counts?.completed ?? completed.length) || 0
 
-      // 保存所有待办事项
-      todos.value = todoList.map(todo => ({
+      // 日历只需要当前月份的截止日期，不再携带任务详情与参与者关系。
+      todos.value = calendarTodos.map(todo => ({
         ...todo,
         deadline: todo.deadline ? new Date(todo.deadline) : null
       }))
 
       // 转换为待办事项显示格式
-      pendingTasks.value = todos.value
-        .filter(todo => !todo.completed) // 只显示未完成的
-        .slice(0, 10) // 限制最多显示10个
+      pendingTasks.value = pending
         .map(todo => ({
           type: getPriorityType(todo.priority), // 根据优先级显示不同类型
           sender: getTodoSender(todo),
@@ -101,9 +109,7 @@ export function useTodos() {
         }))
 
       // 转换为已办事项显示格式
-      completedTasks.value = todos.value
-        .filter(todo => todo.completed) // 只显示已完成的
-        .slice(0, 10) // 限制最多显示10个
+      completedTasks.value = completed
         .map(todo => ({
           type: getPriorityType(todo.priority),
           sender: getTodoSender(todo),
@@ -126,7 +132,7 @@ export function useTodos() {
 
   // 获取待办事项总数（可用于更新统计数据）
   const getTodoCount = () => {
-    return todos.value.filter(todo => !todo.completed).length
+    return pendingTotal.value
   }
 
   const getTodoSender = (todo) => {
@@ -156,11 +162,11 @@ export function useTodos() {
   }
 
   // 切换月份
-  const changeMonth = (delta) => {
+  const changeMonth = async (delta) => {
     const newDate = new Date(currentDate.value)
     newDate.setMonth(newDate.getMonth() + delta)
     currentDate.value = newDate
-    // 日历会通过watch自动更新
+    await loadUserTodos()
   }
 
   // 生成日历天数
@@ -239,6 +245,8 @@ export function useTodos() {
   return {
     pendingTasks,
     completedTasks,
+    pendingTotal,
+    completedTotal,
     todos,
     activeTodoTab,
     currentDate,

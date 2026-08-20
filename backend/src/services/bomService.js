@@ -3,6 +3,31 @@ const { logger } = require('../utils/logger');
 const { softDelete } = require('../utils/softDelete');
 const DLQService = require('./business/DLQService');
 
+const BOM_TREE_MAX_DEPTH = 20;
+
+function formatBomDetail(detail = {}) {
+  const parentId = Number(detail.parent_id);
+  const refBomId = Number(detail.ref_bom_id);
+
+  return {
+    id: detail.id,
+    bom_id: detail.bom_id,
+    material_id: detail.material_id,
+    quantity: Number(detail.quantity),
+    unit_id: detail.unit_id,
+    remark: detail.remark || '',
+    material_code: detail.material_code,
+    material_name: detail.material_name,
+    material_specs: detail.material_specs ?? detail.specification ?? '',
+    specs: detail.material_specs ?? detail.specification ?? '',
+    unit_name: detail.unit_name,
+    level: Number(detail.level) || 1,
+    parent_id: Number.isFinite(parentId) && parentId > 0 ? parentId : 0,
+    has_sub_bom: Number(detail.has_sub_bom) ? 1 : 0,
+    ref_bom_id: Number.isFinite(refBomId) && refBomId > 0 ? refBomId : null,
+  };
+}
+
 async function resolveStoredUserLabels(values = []) {
   const unique = [
     ...new Set(values.map((value) => String(value || '').trim()).filter(Boolean)),
@@ -302,6 +327,7 @@ const bomService = {
         bomMaster.created_by,
         bomMaster.updated_by,
       ]);
+      const formattedDetails = details.map(formatBomDetail);
       // 格式化BOM数据，确保字段类型正确
       const formattedBom = {
         id: bomMaster.id,
@@ -322,43 +348,9 @@ const bomService = {
           actorLabels.get(String(bomMaster.created_by || '').trim()) || bomMaster.created_by || '',
         updated_by:
           actorLabels.get(String(bomMaster.updated_by || '').trim()) || bomMaster.updated_by || '',
-        details: details.map((detail) => ({
-          id: detail.id,
-          bom_id: detail.bom_id,
-          material_id: detail.material_id,
-          quantity: Number(detail.quantity),
-          unit_id: detail.unit_id,
-          remark: detail.remark || '',
-          material_code: detail.material_code,
-          material_name: detail.material_name,
-          material_specs: detail.material_specs || '',
-          specs: detail.material_specs || '',
-          unit_name: detail.unit_name,
-          level: detail.level || 1,
-          parent_id: detail.parent_id || 0,
-          has_sub_bom: Number(detail.has_sub_bom) || 0,
-          ref_bom_id: detail.ref_bom_id || null,
-        })),
-        // 添加树形结构
-        detailsTree: this.buildBomTree(
-          details.map((detail) => ({
-            id: detail.id,
-            bom_id: detail.bom_id,
-            material_id: detail.material_id,
-            quantity: Number(detail.quantity),
-            unit_id: detail.unit_id,
-            remark: detail.remark || '',
-            material_code: detail.material_code,
-            material_name: detail.material_name,
-            material_specs: detail.material_specs || '',
-            specs: detail.material_specs || '',
-            unit_name: detail.unit_name,
-            level: detail.level || 1,
-            parent_id: detail.parent_id || 0,
-            has_sub_bom: Number(detail.has_sub_bom) || 0,
-            ref_bom_id: detail.ref_bom_id || null,
-          }))
-        ),
+        details: formattedDetails,
+        // 查看树同时展开 ref_bom_id 指向的已审核子 BOM；编辑仍只使用直属 details。
+        detailsTree: await this.buildReferencedBomTree(formattedDetails, bomMaster.id),
       };
 
       return formattedBom;
@@ -400,11 +392,92 @@ const bomService = {
   async getMultiLevelBomDetails(bomId) {
     try {
       const details = await this.getBomDetails(bomId);
-      return this.buildBomTree(details);
+      return this.buildReferencedBomTree(details, bomId);
     } catch (error) {
       logger.error(`获取多级BOM结构失败 (BOM ID: ${bomId}):`, error);
       throw error;
     }
+  },
+
+  /**
+   * 将 BOM 自身的 parent_id 树与 ref_bom_id 引用的外部子 BOM 合并为展示树。
+   * - 每个唯一 BOM 只查询一次，避免同一子 BOM 被多次引用时重复访问数据库。
+   * - 使用祖先 BOM 路径和深度上限阻断循环引用或异常数据导致的无限递归。
+   * - tree_key 按引用路径生成，保证同一子 BOM 出现在多个分支时前端 row-key 仍唯一。
+   */
+  async buildReferencedBomTree(details, rootBomId, { maxDepth = BOM_TREE_MAX_DEPTH } = {}) {
+    const rootId = Number(rootBomId);
+    const detailPromises = new Map();
+    detailPromises.set(rootId, Promise.resolve((details || []).map(formatBomDetail)));
+
+    const loadDetails = (bomId) => {
+      const normalizedBomId = Number(bomId);
+      if (!detailPromises.has(normalizedBomId)) {
+        detailPromises.set(
+          normalizedBomId,
+          this.getBomDetails(normalizedBomId).then((rows) => rows.map(formatBomDetail))
+        );
+      }
+      return detailPromises.get(normalizedBomId);
+    };
+
+    const expandNodes = async (
+      nodes,
+      { currentBomId, depth, ancestorBomIds, keyPrefix }
+    ) => {
+      await Promise.all(
+        nodes.map(async (node, index) => {
+          const nodeKey = `${keyPrefix}/${currentBomId}:${node.id}:${index}`;
+          node.tree_key = nodeKey;
+
+          const inlineChildren = Array.isArray(node.children) ? node.children : [];
+          if (inlineChildren.length > 0) {
+            await expandNodes(inlineChildren, {
+              currentBomId,
+              depth,
+              ancestorBomIds,
+              keyPrefix: `${nodeKey}/inline`,
+            });
+          }
+          node.children = inlineChildren;
+
+          const referencedBomId = Number(node.ref_bom_id);
+          if (
+            !Number(node.has_sub_bom) ||
+            !Number.isFinite(referencedBomId) ||
+            referencedBomId <= 0 ||
+            depth >= maxDepth ||
+            ancestorBomIds.has(referencedBomId)
+          ) {
+            return;
+          }
+
+          const referencedDetails = await loadDetails(referencedBomId);
+          if (!referencedDetails.length) return;
+
+          const referencedTree = this.buildBomTree(referencedDetails);
+          const nextAncestors = new Set(ancestorBomIds);
+          nextAncestors.add(referencedBomId);
+          await expandNodes(referencedTree, {
+            currentBomId: referencedBomId,
+            depth: depth + 1,
+            ancestorBomIds: nextAncestors,
+            keyPrefix: `${nodeKey}/ref`,
+          });
+          node.children = [...inlineChildren, ...referencedTree];
+        })
+      );
+    };
+
+    const rootDetails = await loadDetails(rootId);
+    const tree = this.buildBomTree(rootDetails);
+    await expandNodes(tree, {
+      currentBomId: rootId,
+      depth: 0,
+      ancestorBomIds: new Set([rootId]),
+      keyPrefix: `bom-${rootId}`,
+    });
+    return tree;
   },
 
   buildBomTree(details) {

@@ -203,7 +203,7 @@
 <script setup>
 import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, reactive, onMounted } from 'vue'
-import { Plus, Check, View, Edit, Delete } from '@element-plus/icons-vue'
+import { Plus, Check, Edit, Delete } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { processRouteApi, workStationApi } from '../../api/assembly'
 import { api } from '../../services/axiosInstance'

@@ -38,6 +38,24 @@ const chunkArray = (items, size) => {
   return chunks
 }
 
+const createEmptyOrderItem = (defaultTaxRate = 0) => ({
+  id: '',
+  materialId: '',
+  materialName: '',
+  materialCode: '',
+  name: '',
+  code: '',
+  specification: '',
+  quantity: '',
+  unitName: '',
+  unitId: '',
+  unitPrice: null,
+  amount: 0,
+  taxRate: defaultTaxRate,
+  taxAmount: 0,
+  remark: ''
+})
+
 async function getMaterialsByCodesInChunks(codes) {
   const materials = []
   for (const chunk of chunkArray(codes, BATCH_MATERIAL_QUERY_LIMIT)) {
@@ -72,11 +90,8 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
   // 表单数据
   const form = reactive({
     customerId: '',
-    customer_id: '',
     customerName: '',
-    customer_name: '',
     contractCode: '',
-    contract_code: '',
     contact: '',
     phone: '',
     address: '',
@@ -85,13 +100,13 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
     items: [],
     remark: '',
     subtotal: 0,
-    tax_amount: 0,
-    total_amount: 0
+    taxAmount: 0,
+    totalAmount: 0
   })
 
   // 表单验证规则
   const rules = {
-    customer_id: [
+    customerId: [
       { required: true, message: '请选择客户', trigger: 'change' }
     ],
     deliveryDate: [
@@ -169,8 +184,8 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
     id: customer.id,
     code: customer.customerCode || `C${customer.id}`,
     name: customer.name,
-    contact_person: customer.contact_person,
-    contact_phone: customer.contactPhone,
+    contactPerson: customer.contactPerson,
+    contactPhone: customer.contactPhone,
     address: customer.address
   })
 
@@ -246,13 +261,7 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
   // ========== 物料操作 ==========
 
   const addMaterial = () => {
-    form.items.push({
-      id: '', material_id: '', material_name: '', material_code: '',
-      name: '', code: '', specification: '',
-      quantity: '', unit_name: '', unit_id: '',
-      unit_price: '', amount: 0,
-      tax_rate: defaultVATRate.value, tax_amount: 0, remark: ''
-    })
+    form.items.push(createEmptyOrderItem(defaultVATRate.value))
   }
 
   const removeMaterial = (index) => {
@@ -272,8 +281,8 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
         value: item.code || '无编码', code: item.code || '无编码',
         name: item.name || '未命名',
         specs: item.specification || item.specs || '',
-        stock_quantity: item.stockQuantity || 0, id: item.id,
-        unit_name: item.unitName || '个', unit_id: item.unitId,
+        stockQuantity: item.stockQuantity || 0, id: item.id,
+        unitName: item.unitName || '个', unitId: item.unitId,
         price: item.price ?? null
       }))
       filteredProducts.value = suggestions
@@ -313,8 +322,19 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
   }
 
   const handleMaterialClear = (index) => {
-    const fields = ['material_id', 'code', 'material_code', 'name', 'material_name', 'specification', 'unit_name', 'unit_id', 'unit_price']
-    fields.forEach(f => { form.items[index][f] = '' })
+    Object.assign(form.items[index], {
+      materialId: '',
+      code: '',
+      materialCode: '',
+      name: '',
+      materialName: '',
+      specification: '',
+      unitName: '',
+      unitId: '',
+      unitPrice: null,
+      amount: 0,
+      taxAmount: 0
+    })
   }
 
   const handleMaterialEnter = async (index) => {
@@ -341,8 +361,8 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
           id: exactMatch.id, code: exactMatch.code || exactMatch.materialCode || '',
           name: exactMatch.name || exactMatch.materialName || '',
           specs: exactMatch.specs || exactMatch.specification || '',
-          stock_quantity: exactMatch.stockQuantity || 0,
-          unit_name: exactMatch.unitName || exactMatch.unit || '', unit_id: exactMatch.unitId
+          stockQuantity: exactMatch.stockQuantity || 0,
+          unitName: exactMatch.unitName || exactMatch.unit || '', unitId: exactMatch.unitId
         }
         handleMaterialSelect(materialItem, index); return
       }
@@ -442,20 +462,18 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
       }
 
       dialogLoading.value = true
-      const contractCodeVal = form.contractCode || form.contract_code || ''
-      const customerIdVal = form.customerId || form.customer_id
+      const contractCodeVal = form.contractCode || ''
+      const customerIdVal = form.customerId
       const postData = {
         customer_id: customerIdVal,
-        customerId: customerIdVal,
         contract_code: contractCodeVal,
-        contractCode: contractCodeVal,
         delivery_date: form.deliveryDate,
         order_date: formatLocalDate(new Date()),
         updated_at: new Date().toISOString(),
         status: orderStatus,
         should_generate_plans: shouldGeneratePlans,
         subtotal: form.subtotal ?? 0,
-        total_amount: form.totalAmount ?? form.total_amount ?? 0,
+        total_amount: form.totalAmount ?? 0,
         notes: form.remark || '',
         items: form.items.map(item => {
           const quantity = toNumberOrNull(item.quantity) ?? 0
@@ -504,18 +522,12 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
     dialogType.value = 'add'
     Object.keys(form).forEach(key => {
       if (key === 'items') {
-        form[key] = [{
-          id: '', name: '', code: '', material_name: '', material_code: '', material_id: '',
-          specification: '', quantity: '', unit_name: '', unit_id: '',
-          unit_price: '', amount: 0, remark: ''
-        }]
+        form[key] = [createEmptyOrderItem(defaultVATRate.value)]
       } else if (key === 'deliveryDate') {
         const today = new Date(); const deliveryDate = new Date(today)
         deliveryDate.setDate(today.getDate() + DEFAULT_DELIVERY_DAYS)
         form[key] = formatLocalDate(deliveryDate)
-      } else if (key === 'taxRate') {
-        form[key] = defaultVATRate.value
-      } else if (key === 'subtotal' || key === 'tax_amount' || key === 'total_amount') {
+      } else if (key === 'subtotal' || key === 'taxAmount' || key === 'totalAmount') {
         form[key] = 0
       } else {
         form[key] = ''
@@ -535,13 +547,13 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
         const materialsData = await loadMaterialOptions()
         products.value = (materialsData || []).map(material => ({
           id: material.id, code: material.code || '', value: material.code || '',
-          name: material.name || '', material_name: material.name || '',
+          name: material.name || '', materialName: material.name || '',
           specs: material.specs || material.specification || '',
-          drawing_no: material.drawingNo || '',
-          stock_quantity: material.stockQuantity || 0,
+          drawingNo: material.drawingNo || '',
+          stockQuantity: material.stockQuantity || 0,
           label: `${material.code || ''} - ${material.name || ''} ${material.specs ? `(${material.specs})` : ''} [库存:${material.stockQuantity || 0}]`,
           specification: material.specification || material.specs || '',
-          unit_id: material.unitId, unit_name: material.unitName || '个',
+          unitId: material.unitId, unitName: material.unitName || '个',
           price: material.price ?? null
         })).filter(item => item.id)
         filteredProducts.value = [...products.value]
@@ -565,21 +577,18 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
     try {
       const response = await salesApi.getOrder(row.id)
       const orderDetail = response.data
-      const contractCodeVal = orderDetail.contractCode || orderDetail.contract_code || row.contractCode || row.contract_code || ''
-      const customerIdVal = orderDetail.customerId || orderDetail.customer_id || row.customerId || row.customer_id || ''
-      const customerNameVal = orderDetail.customerName || orderDetail.customer_name || row.customerName || row.customer || ''
+      const contractCodeVal = orderDetail.contractCode || row.contractCode || ''
+      const customerIdVal = orderDetail.customerId || row.customerId || ''
+      const customerNameVal = orderDetail.customerName || row.customerName || row.customer || ''
       Object.assign(form, {
         id: orderDetail.id,
         customerId: customerIdVal,
-        customer_id: customerIdVal,
         customerName: customerNameVal,
-        customer_name: customerNameVal,
-        deliveryDate: orderDetail.deliveryDate || orderDetail.delivery_date || row.deliveryDate || '',
-        address: orderDetail.deliveryAddress || orderDetail.address || row.address || '',
+        deliveryDate: orderDetail.deliveryDate || row.deliveryDate || '',
+        address: orderDetail.address || row.address || '',
         contact: orderDetail.contactPerson || orderDetail.contact || row.contact || '',
         phone: orderDetail.contactPhone || orderDetail.phone || row.phone || '',
         contractCode: contractCodeVal,
-        contract_code: contractCodeVal,
         status: orderDetail.status || row.status || 'pending',
         remark: orderDetail.remark || orderDetail.remarks || orderDetail.notes || row.remark || '',
         items: []
@@ -591,18 +600,27 @@ export function useOrderForm(fetchDataCallback, updateParamsCallback) {
           const unitPrice = toNumberOrNull(item.unitPrice)
           let amount = toNumberOrNull(item.amount)
           if (amount === null && unitPrice !== null) amount = quantity * unitPrice
+          const taxRate = normalizeTaxRate(
+            item.taxRate !== undefined ? item.taxRate : item.taxPercent,
+            defaultVATRate.value
+          )
+          const taxAmount = toNumberOrNull(item.taxAmount)
+            ?? (amount === null ? null : parseFloat((amount * taxRate).toFixed(2)))
           return {
             ...item,
             code: item.materialCode || item.code || '',
-            material_code: item.materialCode || item.code || '',
-            material_name: item.materialName || item.name || '',
-            material_id: item.materialId || '',
+            materialCode: item.materialCode || item.code || '',
+            name: item.materialName || item.name || '',
+            materialName: item.materialName || item.name || '',
+            materialId: item.materialId || '',
             specification: item.specification || item.specs || '',
-            quantity, unit_price: unitPrice,
-            unit_name: item.unitName || '个', unit_id: item.unitId || '',
+            quantity,
+            unitPrice,
+            unitName: item.unitName || '个',
+            unitId: item.unitId || '',
             amount,
-            tax_rate: normalizeTaxRate(item.taxRate !== undefined ? item.taxRate : item.taxPercent, defaultVATRate.value),
-            tax_amount: toNumberOrNull(item.taxAmount) ?? (amount === null ? null : parseFloat((amount * normalizeTaxRate(item.taxRate !== undefined ? item.taxRate : item.taxPercent, defaultVATRate.value)).toFixed(2))),
+            taxRate,
+            taxAmount,
             remark: item.remark || item.remarks || ''
           }
         })

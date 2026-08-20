@@ -35,6 +35,27 @@ function canAccessDepartment(req, departmentId) {
   return ids.includes(Number(departmentId));
 }
 
+// File authorization is intentionally evaluated per row.  Never allow a
+// request to materialize the entire documents table before those checks; the
+// candidate cap is a hard upper bound against authorization-filter DoS.
+const DOCUMENT_CANDIDATE_SCAN_LIMIT = 500;
+
+function scalarQueryValue(value) {
+  if (Array.isArray(value)) return value.length === 1 ? value[0] : null;
+  return value;
+}
+
+function hasMultipleQueryValues(value) {
+  return Array.isArray(value) && value.length !== 1;
+}
+
+function normalizePositiveQueryId(value) {
+  const scalar = scalarQueryValue(value);
+  if (scalar === undefined || scalar === null || scalar === '') return null;
+  const id = Number(scalar);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
 // ==================== 编码规则 ====================
 // mapKeys 在下方 exchangeRates 前已复用声明；codingRules 使用局部 require 避免 TDZ
 const { mapKeysToSnake: _toSnake } = require('../../utils/fieldMap');
@@ -82,24 +103,36 @@ const docLinks = {
   async getLinks(req, res) {
     try {
       const q = _toSnake(req.query || {});
-      ResponseHandler.success(res, await DocumentLinkService.getLinks(q.business_type, q.business_id, { userPermissions: req.documentLinkUserPermissions || req.userPermissions }));
+      ResponseHandler.success(res, await DocumentLinkService.getLinks(q.business_type, q.business_id, {
+        userPermissions: req.documentLinkUserPermissions || req.userPermissions,
+        req,
+      }));
     }
-    catch (e) { logger.error('获取单据关联失败:', e); ResponseHandler.error(res, e.message); }
+    catch (e) { logger.error('获取单据关联失败:', e); ResponseHandler.error(res, e.statusCode === 403 ? '无权查看该单据关联' : e.statusCode === 400 ? e.message : '获取单据关联失败', e.code || (e.statusCode === 400 ? 'VALIDATION_ERROR' : e.statusCode === 403 ? 'FORBIDDEN' : 'SERVER_ERROR'), e.statusCode || 500, e); }
   },
   async getFullChain(req, res) {
     try {
       const q = _toSnake(req.query || {});
-      ResponseHandler.success(res, await DocumentLinkService.getFullChain(q.business_type, q.business_id, { userPermissions: req.documentLinkUserPermissions || req.userPermissions }));
+      ResponseHandler.success(res, await DocumentLinkService.getFullChain(q.business_type, q.business_id, {
+        userPermissions: req.documentLinkUserPermissions || req.userPermissions,
+        req,
+      }));
     }
-    catch (e) { logger.error('获取单据完整链路失败:', e); ResponseHandler.error(res, e.message); }
+    catch (e) { logger.error('获取单据完整链路失败:', e); ResponseHandler.error(res, e.statusCode === 403 ? '无权查看该单据链路' : e.statusCode === 400 ? e.message : '获取单据完整链路失败', e.code || (e.statusCode === 400 ? 'VALIDATION_ERROR' : e.statusCode === 403 ? 'FORBIDDEN' : 'SERVER_ERROR'), e.statusCode || 500, e); }
   },
   async createLink(req, res) {
-    try { await DocumentLinkService.createLink(_toSnake(req.body || {})); ResponseHandler.success(res, null, '关联已创建'); }
-    catch (e) { logger.error('创建单据关联失败:', e); ResponseHandler.error(res, e.message); }
+    try {
+      await DocumentLinkService.createLink(_toSnake(req.body || {}), null, { req });
+      ResponseHandler.success(res, null, '关联已创建');
+    }
+    catch (e) { logger.error('创建单据关联失败:', e); ResponseHandler.error(res, e.statusCode === 403 ? '无权关联该源或目标单据' : e.statusCode === 400 ? e.message : '创建单据关联失败', e.code || (e.statusCode === 400 ? 'VALIDATION_ERROR' : e.statusCode === 403 ? 'FORBIDDEN' : 'SERVER_ERROR'), e.statusCode || 500, e); }
   },
   async deleteLink(req, res) {
-    try { await DocumentLinkService.deleteLink(req.params.id); ResponseHandler.success(res, null, '关联已删除'); }
-    catch (e) { logger.error('删除单据关联失败:', e); ResponseHandler.error(res, e.message); }
+    try {
+      await DocumentLinkService.deleteLink(req.params.id, { req });
+      ResponseHandler.success(res, null, '关联已删除');
+    }
+    catch (e) { logger.error('删除单据关联失败:', e); ResponseHandler.error(res, e.statusCode === 403 ? '无权删除该单据关联' : e.statusCode === 404 ? '单据关联不存在' : e.statusCode === 400 ? e.message : '删除单据关联失败', e.code || (e.statusCode === 400 ? 'VALIDATION_ERROR' : e.statusCode === 403 ? 'FORBIDDEN' : e.statusCode === 404 ? 'NOT_FOUND' : 'SERVER_ERROR'), e.statusCode || 500, e); }
   },
   async getTypeLabels(req, res) {
     try { ResponseHandler.success(res, DocumentLinkService.getTypeLabels()); }
@@ -787,8 +820,42 @@ async function applyEcnChanges(ecnId, userId, conn) {
 const documents = {
   async getList(req, res) {
     try {
-      const { keyword, category, business_type, business_id, page = 1, pageSize = 20 } = req.query;
-      const pagination = parsePagination(page, pageSize, { defaultPageSize: 20, maxPageSize: 100 });
+      const keywordValue = scalarQueryValue(req.query?.keyword);
+      const categoryValue = scalarQueryValue(req.query?.category);
+      const businessTypeValue = scalarQueryValue(req.query?.business_type);
+      const businessIdValue = scalarQueryValue(req.query?.business_id);
+      const pageValue = scalarQueryValue(req.query?.page) ?? 1;
+      const pageSizeValue = scalarQueryValue(req.query?.pageSize) ?? 20;
+      if ([req.query?.keyword, req.query?.category, req.query?.business_type, req.query?.business_id,
+        req.query?.page, req.query?.pageSize].some(hasMultipleQueryValues)) {
+        return ResponseHandler.validationError(res, '查询参数不得重复提供');
+      }
+      if (keywordValue !== undefined && keywordValue !== null && typeof keywordValue !== 'string') {
+        return ResponseHandler.validationError(res, 'keyword 参数无效');
+      }
+      if (categoryValue !== undefined && categoryValue !== null && typeof categoryValue !== 'string') {
+        return ResponseHandler.validationError(res, 'category 参数无效');
+      }
+      if (businessTypeValue !== undefined && businessTypeValue !== null && typeof businessTypeValue !== 'string') {
+        return ResponseHandler.validationError(res, 'business_type 参数无效');
+      }
+      const keyword = typeof keywordValue === 'string' ? keywordValue.trim().slice(0, 200) : '';
+      const category = typeof categoryValue === 'string' ? categoryValue.trim().slice(0, 50) : '';
+      const business_type = typeof businessTypeValue === 'string'
+        ? businessTypeValue.trim().toLowerCase()
+        : '';
+      const hasBusinessId = businessIdValue !== undefined && businessIdValue !== null && businessIdValue !== '';
+      const business_id = normalizePositiveQueryId(businessIdValue);
+      if (hasBusinessId && !business_id) {
+        return ResponseHandler.validationError(res, 'business_id 必须是正整数');
+      }
+      if (Boolean(business_type) !== Boolean(hasBusinessId)) {
+        return ResponseHandler.validationError(res, 'business_type 和 business_id 必须成对提供');
+      }
+      if (business_type && !DocumentLinkService.getViewPermissionsForType(business_type).length) {
+        return ResponseHandler.validationError(res, 'business_type 不受支持');
+      }
+      const pagination = parsePagination(pageValue, pageSizeValue, { defaultPageSize: 20, maxPageSize: 100 });
       let where = 'WHERE d.deleted_at IS NULL';
       const vals = [];
       const documentScope = buildDepartmentScopeClause(req, 'd');
@@ -800,76 +867,240 @@ const documents = {
       if (category) { where += ' AND d.category = ?'; vals.push(category); }
       if (business_type) { where += ' AND d.business_type = ?'; vals.push(business_type); }
       if (business_id) { where += ' AND d.business_id = ?'; vals.push(business_id); }
-      const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM documents d ${where}`, vals);
-      const listSql = appendPaginationSQL(
-        `SELECT d.id, d.code, d.name, d.category, d.file_url, d.file_name, d.file_size, d.file_type,
-                d.version, d.description, d.business_type, d.business_id, d.tags, d.is_public,
-                d.download_count, d.created_by, d.department_id, d.created_at, d.updated_at,
-                u.real_name AS created_by_name
-         FROM documents d LEFT JOIN users u ON u.id = d.created_by
-         ${where} ORDER BY d.created_at DESC`,
-        pagination.limit,
-        pagination.offset
+      const [[countRow]] = await pool.query(
+        `SELECT COUNT(*) AS total FROM documents d ${where}`,
+        vals
       );
-      const [rows] = await pool.query(listSql, vals);
-      ResponseHandler.paginated(res, rows, total, pagination.page, pagination.pageSize);
+      const rawTotal = Number(countRow?.total || 0);
+      if (pagination.offset >= DOCUMENT_CANDIDATE_SCAN_LIMIT) {
+        return ResponseHandler.error(
+          res,
+          '页码超出文档授权安全扫描范围，请增加关键字、分类或业务对象筛选条件',
+          'DOCUMENT_QUERY_TOO_BROAD',
+          400
+        );
+      }
+
+      const visibleRows = [];
+      const authorizedTarget = pagination.offset + pagination.limit + 1;
+      const candidateBatchSize = Math.min(100, Math.max(50, pagination.limit * 2));
+      let candidateOffset = 0;
+      let scannedCandidates = 0;
+      while (
+        candidateOffset < rawTotal &&
+        scannedCandidates < DOCUMENT_CANDIDATE_SCAN_LIMIT &&
+        visibleRows.length < authorizedTarget
+      ) {
+        const candidateLimit = Math.min(
+          candidateBatchSize,
+          DOCUMENT_CANDIDATE_SCAN_LIMIT - scannedCandidates,
+          rawTotal - candidateOffset
+        );
+        const candidateSql = appendPaginationSQL(
+          `SELECT d.id, d.code, d.name, d.category, d.file_url, d.file_name, d.file_size, d.file_type,
+                  d.version, d.description, d.business_type, d.business_id, d.tags, d.is_public,
+                  d.download_count, d.created_by, d.department_id, d.created_at, d.updated_at,
+                  u.real_name AS created_by_name
+           FROM documents d LEFT JOIN users u ON u.id = d.created_by
+           ${where} ORDER BY d.created_at DESC, d.id DESC`,
+          candidateLimit,
+          candidateOffset
+        );
+        const [rows] = await pool.query(candidateSql, vals);
+        if (!rows.length) break;
+        candidateOffset += rows.length;
+        scannedCandidates += rows.length;
+
+        for (const row of rows) {
+          if (!row.file_url || row.file_url === 'manual') {
+            if (row.business_id) {
+              if (!FileAccessService.canViewBusinessType(row.business_type, req.userPermissions)) {
+                continue;
+              }
+              if (
+                !row.is_public &&
+                !(await FileAccessService.assertBusinessObjectAccess(
+                  req,
+                  row.business_type,
+                  row.business_id,
+                  'read'
+                ))
+              ) {
+                continue;
+              }
+            }
+            visibleRows.push({ ...row, file_url: null });
+            continue;
+          }
+          const decision = await FileAccessService.authorize({
+            userId: req.user?.id,
+            fileUrl: row.file_url,
+            req,
+            userPermissions: req.userPermissions,
+          });
+          if (decision.allowed) visibleRows.push(row);
+        }
+      }
+
+      const hasUnscannedCandidates = candidateOffset < rawTotal;
+      if (hasUnscannedCandidates && visibleRows.length < authorizedTarget) {
+        return ResponseHandler.error(
+          res,
+          '文档候选集过大，无法在安全扫描上限内完成授权分页，请增加关键字、分类或业务对象筛选条件',
+          'DOCUMENT_QUERY_TOO_BROAD',
+          400
+        );
+      }
+
+      const list = visibleRows.slice(pagination.offset, pagination.offset + pagination.limit);
+      const hasMore = visibleRows.length > pagination.offset + pagination.limit;
+      const totalExact = !hasUnscannedCandidates;
+      const authorizedTotal = totalExact ? visibleRows.length : rawTotal;
+      ResponseHandler.paginated(
+        res,
+        list,
+        authorizedTotal,
+        pagination.page,
+        pagination.pageSize,
+        '查询成功',
+        {
+          authorizationFiltered: true,
+          scannedCandidates,
+          candidateTotal: rawTotal,
+          scanLimited: scannedCandidates >= DOCUMENT_CANDIDATE_SCAN_LIMIT,
+          hasMore,
+          // When scanning stopped after finding one authorized row beyond the
+          // requested page, `total` remains a coarse upper bound. Consumers
+          // must use hasMore until the candidate set has been fully scanned.
+          totalExact,
+        }
+      );
     } catch (e) { logger.error('获取文档列表失败:', e); ResponseHandler.error(res, e.message); }
   },
   async create(req, res) {
     try {
-      const d = req.body;
+      const d = req.body && typeof req.body === 'object' ? req.body : {};
       if (!d.name) {
         return ResponseHandler.validationError(res, '文档名称不能为空');
       }
       const userId = req.user?.id;
-      const departmentId = d.department_id ?? req.authzScope?.departmentId ?? null;
-      if (!d.is_public && !canAccessDepartment(req, departmentId)) return ResponseHandler.forbidden(res, '无权创建该部门文档');
+      const departmentId = req.authzScope?.departmentId ?? null;
+      const isPublic = FileAccessService.normalizePublicFlag(d.is_public, req.userPermissions);
+      if (!isPublic && !canAccessDepartment(req, departmentId)) return ResponseHandler.forbidden(res, '无权创建该部门文档');
+      const binding = FileAccessService.validateBusinessBinding(
+        d.business_type,
+        d.business_id
+      );
+      if (!binding.valid) {
+        return ResponseHandler.validationError(
+          res,
+          '业务类型和业务 ID 必须成对提供，且业务类型必须受支持'
+        );
+      }
+      if (binding.bound) {
+        if (!FileAccessService.canViewBusinessType(binding.businessType, req.userPermissions)) {
+          return ResponseHandler.forbidden(res, '无权使用该业务类型的文档绑定功能');
+        }
+        const inScope = await FileAccessService.assertBusinessObjectAccess(
+          req,
+          binding.businessType,
+          binding.businessId,
+          'write'
+        );
+        if (!inScope) return ResponseHandler.forbidden(res, '无权关联该业务对象');
+      }
+      const normalizedFileUrl = d.file_url && d.file_url !== 'manual'
+        ? FileAccessService.normalizeUploadUrl(d.file_url)
+        : null;
+      if (d.file_url && d.file_url !== 'manual' && !normalizedFileUrl) {
+        return ResponseHandler.error(res, '文件地址必须是受控上传文件', 'VALIDATION_ERROR', 400);
+      }
+      const storedFileUrl = normalizedFileUrl || 'manual';
       const code = d.code || await CodeGeneratorService.nextCode('document');
       const [r] = await pool.query(
         `INSERT INTO documents (code, name, category, file_url, file_name, file_size, file_type, version, description, business_type, business_id, tags, is_public, created_by, department_id)
          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-        [code, d.name, d.category || 'other', d.file_url, d.file_name, d.file_size || 0, d.file_type, d.version || '1.0', d.description,
-         d.business_type, d.business_id, d.tags ? JSON.stringify(d.tags) : null, d.is_public || 0, userId, departmentId]
+        [code, d.name, d.category || 'other', storedFileUrl, d.file_name || '', d.file_size || 0, d.file_type, d.version || '1.0', d.description,
+         binding.businessType, binding.businessId, d.tags ? JSON.stringify(d.tags) : null, isPublic, userId, departmentId]
       );
-      await FileAccessService.safeRecordUpload({
-        fileUrl: d.file_url,
-        businessType: d.business_type,
-        businessId: d.business_id,
-        source: 'documents',
-        uploadedBy: userId,
-        isPublic: d.is_public || 0,
-        metadata: {
-          documentId: r.insertId,
-          fileName: d.file_name,
-          fileType: d.file_type,
-          fileSize: d.file_size || 0,
-        },
-      });
+      if (normalizedFileUrl) {
+        try {
+          await FileAccessService.claimExistingUpload({
+            req,
+            userPermissions: req.userPermissions,
+            fileUrl: normalizedFileUrl,
+            businessType: binding.businessType,
+            businessId: binding.businessId,
+            source: 'documents',
+            uploadedBy: userId,
+            isPublic,
+            metadata: {
+              documentId: r.insertId,
+              fileName: d.file_name,
+              fileType: d.file_type,
+              fileSize: d.file_size || 0,
+            },
+          });
+        } catch (error) {
+          await pool.query('DELETE FROM documents WHERE id = ?', [r.insertId]);
+          throw error;
+        }
+      }
       ResponseHandler.success(res, { id: r.insertId }, '上传成功');
     } catch (e) { logger.error('创建文档失败:', e); ResponseHandler.error(res, e.message); }
   },
   async update(req, res) {
     try {
-      const d = req.body;
-      const [[existing]] = await pool.query('SELECT is_public, department_id FROM documents WHERE id = ? AND deleted_at IS NULL', [req.params.id]);
+      const d = req.body && typeof req.body === 'object' ? req.body : {};
+      const [[existing]] = await pool.query('SELECT is_public, department_id, file_url, business_type, business_id FROM documents WHERE id = ? AND deleted_at IS NULL', [req.params.id]);
       if (!existing) return ResponseHandler.notFound(res, '文档不存在');
       if (!canAccessDepartment(req, existing.department_id)) return ResponseHandler.forbidden(res, '无权修改该文档');
+      if (
+        existing.business_id &&
+        (!FileAccessService.canViewBusinessType(existing.business_type, req.userPermissions) ||
+          !(await FileAccessService.assertBusinessObjectAccess(
+            req,
+            existing.business_type,
+            existing.business_id,
+            'write'
+          )))
+      ) {
+        return ResponseHandler.forbidden(res, '无权修改该业务对象的文档');
+      }
+      const isPublic = FileAccessService.canSetPublic(req.userPermissions)
+        ? FileAccessService.normalizePublicFlag(d.is_public, req.userPermissions)
+        : Number(existing.is_public) === 1 ? 1 : 0;
       const [result] = await pool.query(
         'UPDATE documents SET name=?, category=?, version=?, description=?, tags=?, is_public=? WHERE id=? AND deleted_at IS NULL',
-        [d.name, d.category, d.version, d.description, d.tags ? JSON.stringify(d.tags) : null, d.is_public || 0, req.params.id]
+        [d.name, d.category, d.version, d.description, d.tags ? JSON.stringify(d.tags) : null, isPublic, req.params.id]
       );
       if (result.affectedRows === 0) return ResponseHandler.notFound(res, '文档不存在');
+      if (existing.file_url && existing.file_url !== 'manual') {
+        await FileAccessService.setPublicFlag(existing.file_url, isPublic);
+      }
       ResponseHandler.success(res, null, '更新成功');
     } catch (e) { logger.error('更新文档失败:', e); ResponseHandler.error(res, e.message); }
   },
   async delete(req, res) {
     try {
-      const [[doc]] = await pool.query('SELECT file_url, department_id FROM documents WHERE id = ? AND deleted_at IS NULL', [req.params.id]);
+      const [[doc]] = await pool.query('SELECT file_url, department_id, business_type, business_id FROM documents WHERE id = ? AND deleted_at IS NULL', [req.params.id]);
       if (!doc) return ResponseHandler.notFound(res, '文档不存在');
       if (!canAccessDepartment(req, doc.department_id)) return ResponseHandler.forbidden(res, '无权删除该文档');
+      if (
+        doc.business_id &&
+        (!FileAccessService.canViewBusinessType(doc.business_type, req.userPermissions) ||
+          !(await FileAccessService.assertBusinessObjectAccess(
+            req,
+            doc.business_type,
+            doc.business_id,
+            'write'
+          )))
+      ) {
+        return ResponseHandler.forbidden(res, '无权删除该业务对象的文档');
+      }
       const affected = await softDelete(pool, 'documents', 'id', req.params.id);
       if (!affected) return ResponseHandler.notFound(res, '文档不存在');
-      if (doc?.file_url) {
+      if (doc?.file_url && doc.file_url !== 'manual') {
         await FileAccessService.safeMarkDeleted(doc.file_url);
       }
       ResponseHandler.success(res, null, '已删除');
@@ -878,11 +1109,29 @@ const documents = {
   },
   async download(req, res) {
     try {
-      const [[doc]] = await pool.query('SELECT file_url, file_name, is_public, department_id FROM documents WHERE id = ? AND deleted_at IS NULL', [req.params.id]);
+      const [[doc]] = await pool.query('SELECT file_url, file_name, is_public, department_id, business_type, business_id FROM documents WHERE id = ? AND deleted_at IS NULL', [req.params.id]);
       if (!doc) return ResponseHandler.notFound(res, '文档不存在');
+      if (
+        doc.business_id &&
+        !FileAccessService.canViewBusinessType(doc.business_type, req.userPermissions)
+      ) {
+        return ResponseHandler.forbidden(res, '无权下载该业务类型的文档');
+      }
       if (!doc.is_public && !canAccessDepartment(req, doc.department_id)) return ResponseHandler.forbidden(res, '无权下载该文档');
+      if (doc.file_url && doc.file_url !== 'manual') {
+        const decision = await FileAccessService.authorize({
+          userId: req.user?.id,
+          fileUrl: doc.file_url,
+          req,
+          userPermissions: req.userPermissions,
+        });
+        if (!decision.allowed) return ResponseHandler.forbidden(res, '无权下载该文件');
+      }
       await pool.query('UPDATE documents SET download_count = download_count + 1 WHERE id = ?', [req.params.id]);
-      ResponseHandler.success(res, doc);
+      ResponseHandler.success(res, {
+        ...doc,
+        file_url: doc.file_url && doc.file_url !== 'manual' ? doc.file_url : null,
+      });
     } catch (e) { logger.error('下载文档失败:', e); ResponseHandler.error(res, e.message); }
   },
 };

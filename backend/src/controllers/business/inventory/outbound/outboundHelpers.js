@@ -17,6 +17,7 @@ const db = require('../../../../config/db');
 
 const InventoryService = require('../../../../services/InventoryService');
 const businessConfig = require('../../../../config/businessConfig');
+const ScopeGuard = require('../../../../authorization/ScopeGuard');
 
 // 导入生产发料状态同步能力
 const { _syncProductionStatus } = require('../inventoryConsistencyController');
@@ -35,6 +36,119 @@ const PRODUCTION_OUTBOUND_REFERENCE_TYPES = new Set([
 
 const isProductionOutboundReference = (referenceType) =>
   PRODUCTION_OUTBOUND_REFERENCE_TYPES.has(referenceType);
+
+// Source documents are a second authorization boundary.  Access to an
+// outbound row must never implicitly grant access to the production/order row
+// that drives its quantities or lifecycle transitions.
+const OUTBOUND_SOURCE_POLICIES = Object.freeze({
+  production: 'production_task',
+  production_task: 'production_task',
+  production_plan: 'production_plan',
+  sales_order: 'sales_order',
+  sales_outbound: 'sales_outbound',
+  sales_return: 'sales_return',
+  sales_exchange: 'sales_exchange',
+  purchase_order: 'purchase_order',
+  purchase_receipt: 'purchase_receipt',
+  purchase_return: 'purchase_return',
+  quality_inspection: 'quality_inspection',
+  contract: 'contract',
+});
+
+function parseSourceTaskIdsValue(value) {
+  if (Array.isArray(value)) return value.map(Number).filter(Number.isInteger);
+  if (typeof value !== 'string' || !value.trim()) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.map(Number).filter(Number.isInteger) : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Verify every source object referenced by an outbound document.  Mutation
+ * callers use the default write mode; read-only callers can explicitly pass
+ * accessMode: 'read'.  Unknown non-empty references fail closed because a
+ * caller must not be able to invent an unscoped source type.
+ */
+const assertOutboundSourceAccess = async (connection, req, outbound, options = {}) => {
+  // Sensitive inventory details and every mutation use the strict row scope by
+  // default.  Callers must opt in explicitly to shared-read semantics; a
+  // generic `read` label must not accidentally expose quantities/shortages.
+  const guardOptions = options.allowSharedRead === true ? { accessMode: 'read' } : {};
+  const referenceType = String(outbound?.reference_type || '').trim().toLowerCase();
+  const referenceId = outbound?.reference_id;
+
+  if (referenceType === 'batch_production_tasks') {
+    const ids = parseSourceTaskIdsValue(outbound?.source_task_ids);
+    if (!ids.length || ids.some((id) => id <= 0)) return false;
+    if (!(await ScopeGuard.assertAllAccess(connection, req, 'production_task', ids, guardOptions))) {
+      return false;
+    }
+    if (options.checkParents === false) return true;
+    const placeholders = ids.map(() => '?').join(',');
+    const [parents] = await connection.execute(
+      `SELECT DISTINCT plan_id
+         FROM production_tasks
+        WHERE id IN (${placeholders})
+          AND deleted_at IS NULL
+          AND plan_id IS NOT NULL`,
+      ids
+    );
+    const planIds = parents.map((row) => Number(row.plan_id)).filter((value) => Number.isInteger(value) && value > 0);
+    return !planIds.length || ScopeGuard.assertAllAccess(connection, req, 'production_plan', planIds, guardOptions);
+  }
+
+  if (referenceId !== null && referenceId !== undefined && referenceId !== '') {
+    const policyKey = OUTBOUND_SOURCE_POLICIES[referenceType];
+    if (!policyKey) return options.allowUnknownReference === true;
+    if (!(await ScopeGuard.assertAccess(connection, req, policyKey, referenceId, guardOptions))) {
+      return false;
+    }
+
+    // A production outbound also changes the parent plan/task lifecycle.  The
+    // parent and every child task must be in the caller's scope; checking only
+    // the outbound row would allow a crafted reference to cross departments.
+    if (policyKey === 'production_task' && options.checkParents !== false) {
+      const [parents] = await connection.execute(
+        'SELECT plan_id FROM production_tasks WHERE id = ? AND deleted_at IS NULL LIMIT 1',
+        [referenceId]
+      );
+      const planId = parents[0]?.plan_id;
+      if (planId && !(await ScopeGuard.assertAccess(connection, req, 'production_plan', planId, guardOptions))) {
+        return false;
+      }
+    }
+    if (policyKey === 'production_plan' && options.checkChildren !== false) {
+      const [children] = await connection.execute(
+        'SELECT id FROM production_tasks WHERE plan_id = ? AND deleted_at IS NULL',
+        [referenceId]
+      );
+      const childIds = children.map((row) => Number(row.id));
+      if (childIds.length && !(await ScopeGuard.assertAllAccess(connection, req, 'production_task', childIds, guardOptions))) {
+        return false;
+      }
+    }
+  }
+
+  // Legacy rows may have only production_task_id populated.  It is still an
+  // authorization-bearing reference and must be checked independently.
+  const fallbackTaskId = outbound?.production_task_id;
+  const normalizedReferenceId = Number(referenceId);
+  if (
+    fallbackTaskId !== null &&
+    fallbackTaskId !== undefined &&
+    fallbackTaskId !== '' &&
+    (!Number.isInteger(normalizedReferenceId) || normalizedReferenceId !== Number(fallbackTaskId))
+  ) {
+    if (!(await ScopeGuard.assertAccess(connection, req, 'production_task', fallbackTaskId, guardOptions))) {
+      return false;
+    }
+  }
+
+  return true;
+};
 
 // HTTP 入参只认 camel；归一化后内部统一 materialId/unitId/batchNumber
 const normalizeOutboundItem = (item = {}) => ({
@@ -398,8 +512,16 @@ const getTaskMaterialIssueRecords = async (req, res) => {
   try {
     const { taskId } = req.params;
 
-    if (!taskId) {
+    const normalizedTaskId = Number(taskId);
+    if (!Number.isInteger(normalizedTaskId) || normalizedTaskId <= 0) {
       return ResponseHandler.error(res, '任务ID不能为空', 'VALIDATION_ERROR', 400);
+    }
+
+    // The inventory permission is not an object-level check.  Protect the
+    // production task before exposing material usage and return quantities.
+    const ScopeGuard = require('../../../../authorization/ScopeGuard');
+    if (!(await ScopeGuard.assertAccess(db.pool, req, 'production_task', normalizedTaskId, { accessMode: 'read' }))) {
+      return ResponseHandler.forbidden(res, '无权访问该生产任务');
     }
 
     // 查询该任务关联的所有已完成出库单及其明细
@@ -432,7 +554,7 @@ const getTaskMaterialIssueRecords = async (req, res) => {
       ORDER BY o.outbound_date DESC, oi.id ASC
     `;
 
-    const [records] = await db.pool.execute(query, [taskId]);
+    const [records] = await db.pool.execute(query, [normalizedTaskId]);
 
     // 查询任务基本信息
     const [taskInfo] = await db.pool.execute(
@@ -448,7 +570,7 @@ const getTaskMaterialIssueRecords = async (req, res) => {
       LEFT JOIN materials m ON t.product_id = m.id
       WHERE t.id = ?
     `,
-      [taskId]
+      [normalizedTaskId]
     );
 
     // 计算已退料数量（查询已有的退料入库单）
@@ -465,7 +587,7 @@ const getTaskMaterialIssueRecords = async (req, res) => {
         AND i.status IN ('confirmed', 'completed')
       GROUP BY ii.material_id
     `,
-      [taskId]
+      [normalizedTaskId]
     );
 
     // 构建已退料数量映射
@@ -505,6 +627,7 @@ const getTaskMaterialIssueRecords = async (req, res) => {
 
 module.exports = {
   getMaterialInfoMap,
+  assertOutboundSourceAccess,
   getProductionPlanMaterialRows,
   getTaskNetRequirementRows,
   insertOutboundRequirementItems,

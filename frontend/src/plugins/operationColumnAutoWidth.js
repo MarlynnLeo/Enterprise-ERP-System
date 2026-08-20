@@ -208,20 +208,6 @@ function scheduleUpdate(root = document) {
   })
 }
 
-function addTablesFromNode(node, tables) {
-  if (node.nodeType !== window.Node.ELEMENT_NODE) return
-
-  if (node.matches('.el-table')) {
-    tables.add(node)
-  }
-  node.querySelectorAll('.el-table').forEach((table) => tables.add(table))
-}
-
-function getContainingTable(node) {
-  if (node.nodeType !== window.Node.ELEMENT_NODE) return null
-  return node.matches('.el-table') ? node : node.closest('.el-table')
-}
-
 export function initOperationColumnAutoWidth(appRoot = document.body) {
   if (typeof window === 'undefined' || observer) return
 

@@ -494,7 +494,7 @@
 import { handleTableRowView } from '@/utils/tableRowView'
 import { parseListData, parseResponseData } from '@/utils/responseParser';
 import { ref, onMounted, reactive, computed } from 'vue'
-import { Download, Plus, ArrowDown, Document, Close, Printer, Select, View, ShoppingCart } from '@element-plus/icons-vue'
+import { Download, Plus, ArrowDown, Document, Close, Printer, Select, ShoppingCart } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { inventoryApi, baseDataApi } from '@/api'
 import InventoryStockAdd from './InventoryStockAdd.vue'

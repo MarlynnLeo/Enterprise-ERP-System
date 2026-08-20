@@ -115,7 +115,7 @@
 import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { View, Check, Close } from '@element-plus/icons-vue'
+import { Check, Close } from '@element-plus/icons-vue'
 import { workflowApi } from '@/api/workflow'
 
 const activeTab = ref('pending')

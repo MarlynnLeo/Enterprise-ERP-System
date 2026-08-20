@@ -435,7 +435,7 @@ import dayjs from 'dayjs'
 import { ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { baseDataApi, salesApi } from '@/api'
-import { Plus, View, Edit, Delete, Check, Right } from '@element-plus/icons-vue'
+import { Plus, Edit, Delete, Check, Right } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 import {
   loadCustomerOptions,

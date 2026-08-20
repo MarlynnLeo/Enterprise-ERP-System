@@ -75,7 +75,10 @@ describe('采购模块 /api/purchase', () => {
     test('查询不存在的订单应返回 404 或空数据', async () => {
       const res = await api.get('/api/purchase/orders/999999');
 
-      expect(res.status).toBe(404);
+      // Object-scope guards intentionally do not reveal whether an inaccessible
+      // or missing identifier exists.  Either not-found or forbidden is a
+      // valid fail-closed response for an arbitrary external ID.
+      expect([403, 404]).toContain(res.status);
     });
   });
 

@@ -11,7 +11,7 @@ function createUploadFileAccessMiddleware(fallbackPermissionForPath) {
       }
 
       const fileUrl = `/uploads${req.uploadsRequestedPath || req.path || ''}`;
-      const decision = await FileAccessService.authorize({ userId, fileUrl });
+      const decision = await FileAccessService.authorize({ userId, fileUrl, req });
 
       if (decision.known) {
         if (decision.allowed) {
@@ -24,6 +24,11 @@ function createUploadFileAccessMiddleware(fallbackPermissionForPath) {
         );
       }
 
+      // An untracked private file has no object owner or business binding.
+      // Do not fall back to a broad download permission in production.
+      if (process.env.NODE_ENV === 'production' || process.env.ALLOW_LEGACY_UNTRACKED_UPLOADS !== 'true') {
+        return ResponseHandler.forbidden(res, '文件访问元数据不存在');
+      }
       return fallbackPermissionForPath(req.uploadsRequestedPath || req.path)(req, res, next);
     } catch (error) {
       logger.error('[UploadFileAccess] permission check failed:', error);

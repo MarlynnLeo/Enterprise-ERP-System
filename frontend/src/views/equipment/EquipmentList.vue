@@ -456,7 +456,7 @@ import { formatDate } from '@/utils/helpers/dateUtils'
 import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { equipmentApi } from '@/api'
-import { Plus, Download, Upload, View, Edit, Delete } from '@element-plus/icons-vue'
+import { Plus, Download, Upload, Edit, Delete } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { loadExcelJS } from '@/utils/lazyVendors'
 // 权限store

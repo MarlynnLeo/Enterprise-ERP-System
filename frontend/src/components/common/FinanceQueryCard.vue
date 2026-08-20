@@ -1,9 +1,15 @@
 <template>
   <el-card class="search-card finance-query-card">
-    <el-form :inline="true" :model="model" class="search-form finance-query-card__basic">
+    <el-form
+      :inline="true"
+      :model="model"
+      class="search-form finance-query-card__basic"
+      @submit.prevent
+      @keyup.enter.capture="handleEnterSearch"
+    >
       <slot name="basic" />
       <el-form-item class="finance-query-card__actions">
-        <el-button type="primary" @click="$emit('search')">{{ searchLabel }}</el-button>
+        <el-button type="primary" @click="handleSearch">{{ searchLabel }}</el-button>
         <el-button @click="$emit('reset')">{{ resetLabel }}</el-button>
         <el-button
           v-if="hasAdvanced"
@@ -35,6 +41,8 @@
           :inline="true"
           :model="model"
           class="search-form finance-query-card__advanced"
+          @submit.prevent
+          @keyup.enter.capture="handleEnterSearch"
         >
           <slot name="advanced" />
         </el-form>
@@ -81,6 +89,45 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['search', 'reset', 'update:expanded']);
+
+const searchInputTypes = new Set(['text', 'search', 'number', 'email', 'tel', 'url']);
+const enterManagedControlSelector = [
+  '.el-select',
+  '.el-cascader',
+  '.el-date-editor',
+  '.el-time-picker',
+  '.el-time-select',
+  '.el-autocomplete',
+  '.el-tree-select',
+  '.el-mention',
+  '[role="combobox"]',
+  'input[list]'
+].join(', ');
+
+const isSearchInput = (target) => {
+  if (!(target instanceof HTMLInputElement)) return false;
+  if (target.disabled || target.readOnly || !searchInputTypes.has(target.type)) return false;
+  return !target.closest(enterManagedControlSelector);
+};
+
+const handleSearch = () => {
+  emit('search');
+};
+
+const handleEnterSearch = (event) => {
+  if (!isSearchInput(event.target)) return;
+
+  // Enter may be used to confirm Chinese/Japanese IME composition.
+  // Stop legacy input-level Enter listeners without starting a query.
+  if (event.isComposing || event.keyCode === 229) {
+    event.stopPropagation();
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+  handleSearch();
+};
 
 const slots = useSlots();
 const hasAdvanced = computed(() => Boolean(slots.advanced));

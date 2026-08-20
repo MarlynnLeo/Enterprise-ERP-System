@@ -22,7 +22,9 @@ const {
   insertOutboundRequirementItems,
   mergeRequirementRows,
   normalizeIssueQuantities,
+  assertOutboundSourceAccess,
 } = require('./outboundHelpers');
+const ScopeGuard = require('../../../../authorization/ScopeGuard');
 
 
 
@@ -168,17 +170,51 @@ const parseSourceTaskIds = (sourceTaskIds) => {
   }
 };
 
+const MAX_SUPPLEMENT_ITEMS = 500;
+const MAX_BATCH_TASKS = 500;
+
+const normalizeSupplementItems = (items) => {
+  if (!Array.isArray(items) || items.length === 0 || items.length > MAX_SUPPLEMENT_ITEMS) {
+    return null;
+  }
+
+  const normalized = [];
+  const outboundItemIds = new Set();
+  for (const item of items) {
+    const outboundItemId = Number(item?.outbound_item_id);
+    const materialId = Number(item?.material_id);
+    const quantity = Number(item?.quantity);
+    if (
+      !Number.isInteger(outboundItemId) ||
+      outboundItemId <= 0 ||
+      !Number.isInteger(materialId) ||
+      materialId <= 0 ||
+      !Number.isFinite(quantity) ||
+      quantity <= 0 ||
+      outboundItemIds.has(outboundItemId)
+    ) {
+      return null;
+    }
+    outboundItemIds.add(outboundItemId);
+    normalized.push({ outbound_item_id: outboundItemId, material_id: materialId, quantity });
+  }
+  // Deterministic lock/update order prevents two concurrent supplements from
+  // taking material/stock locks in different sequences.
+  return normalized.sort((left, right) => left.outbound_item_id - right.outbound_item_id);
+};
+
 const supplementOutbound = async (req, res) => {
   const connection = await db.pool.getConnection();
   try {
+    const { id } = req.params;
     await connection.beginTransaction();
 
-    const { id } = req.params;
-    const { remark, items } = req.body;
+    const { remark } = req.body || {};
+    const items = normalizeSupplementItems(req.body?.items);
 
     // 1. 检查原出库单状态
     const [outboundCheck] = await connection.execute(
-      'SELECT id, outbound_no, outbound_date, sales_order_id, customer_id, customer_name, total_amount, status, outbound_type, remark, operator, created_at, updated_at, reference_id, reference_type, source_task_ids, is_batch_outbound, production_task_id, issue_reason, is_excess, deleted_at FROM inventory_outbound WHERE id = ? AND deleted_at IS NULL',
+      'SELECT id, outbound_no, outbound_date, sales_order_id, customer_id, customer_name, total_amount, status, outbound_type, remark, operator, created_at, updated_at, reference_id, reference_type, source_task_ids, is_batch_outbound, production_task_id, issue_reason, is_excess, created_by, deleted_at FROM inventory_outbound WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
       [id]
     );
 
@@ -189,15 +225,29 @@ const supplementOutbound = async (req, res) => {
 
     const originalOutbound = outboundCheck[0];
 
+    if (!(await ScopeGuard.denyUnlessAccess(res, connection, req, 'inventory_outbound', id, '无权补发该出库单'))) {
+      await connection.rollback();
+      return;
+    }
+    if (!(await assertOutboundSourceAccess(connection, req, originalOutbound))) {
+      await connection.rollback();
+      return ResponseHandler.forbidden(res, '无权访问该出库单关联的来源单据');
+    }
+
     if (originalOutbound.status !== 'partial_completed') {
       await connection.rollback();
       return ResponseHandler.error(res, '只能对部分完成的出库单进行补发', 'VALIDATION_ERROR', 400);
     }
 
     // 2. 验证补发物料和数量
-    if (!items || items.length === 0) {
+    if (!items) {
       await connection.rollback();
-      return ResponseHandler.error(res, '补发物料不能为空', 'VALIDATION_ERROR', 400);
+      return ResponseHandler.error(
+        res,
+        `请提供1-${MAX_SUPPLEMENT_ITEMS}条合法且不重复的补发明细`,
+        'VALIDATION_ERROR',
+        400
+      );
     }
 
     // 3. 获取原出库单明细(包含物料名称)
@@ -205,7 +255,8 @@ const supplementOutbound = async (req, res) => {
       `SELECT ioi.*, m.code as material_code, m.name as material_name
        FROM inventory_outbound_items ioi
        LEFT JOIN materials m ON ioi.material_id = m.id
-       WHERE ioi.outbound_id = ?`,
+       WHERE ioi.outbound_id = ?
+       FOR UPDATE`,
       [id]
     );
 
@@ -221,13 +272,15 @@ const supplementOutbound = async (req, res) => {
 
     // 4. 验证每个补发物料
     for (const item of items) {
-      const originalItem = originalItems.find((oi) => oi.id === item.outbound_item_id);
+      const originalItem = originalItems.find(
+        (oi) => Number(oi.id) === item.outbound_item_id
+      );
 
-      if (!originalItem) {
+      if (!originalItem || Number(originalItem.material_id) !== item.material_id) {
         await connection.rollback();
         return ResponseHandler.error(
           res,
-          `物料ID ${item.material_id} 不在原出库单中`,
+          `补发明细 ${item.outbound_item_id} 与原出库单物料不匹配`,
           'VALIDATION_ERROR',
           400
         );
@@ -235,7 +288,7 @@ const supplementOutbound = async (req, res) => {
 
       // 检查补发数量不能超过缺料数量
       const shortageQty = parseFloat(originalItem.shortage_quantity || 0);
-      const supplementQty = parseFloat(item.quantity);
+      const supplementQty = item.quantity;
 
       if (supplementQty > shortageQty) {
         await connection.rollback();
@@ -249,6 +302,15 @@ const supplementOutbound = async (req, res) => {
 
       // 获取物料的默认库位
       const matInfo = materialInfoMap.get(item.material_id);
+      if (!matInfo?.locationId) {
+        await connection.rollback();
+        return ResponseHandler.error(
+          res,
+          `物料 ${item.material_id} 未配置可用的默认库位`,
+          'VALIDATION_ERROR',
+          400
+        );
+      }
       const locationId = matInfo.locationId;
       const materialName = `${matInfo.code || ''} - ${matInfo.name || ''}`;
 
@@ -260,7 +322,8 @@ const supplementOutbound = async (req, res) => {
       const currentStock = await InventoryService.getCurrentStock(
         item.material_id,
         locationId,
-        connection
+        connection,
+        true
       );
 
       logger.info(
@@ -280,15 +343,28 @@ const supplementOutbound = async (req, res) => {
 
     // 5. 更新原出库单明细的actual_quantity和shortage_quantity,并扣减库存
     for (const item of items) {
-      const supplementQty = parseFloat(item.quantity);
+      const supplementQty = item.quantity;
 
-      await connection.execute(
+      const [itemUpdate] = await connection.execute(
         `UPDATE inventory_outbound_items
          SET actual_quantity = actual_quantity + ?,
              shortage_quantity = shortage_quantity - ?
-         WHERE id = ?`,
-        [supplementQty, supplementQty, item.outbound_item_id]
+         WHERE id = ? AND outbound_id = ? AND material_id = ? AND shortage_quantity >= ?`,
+        [
+          supplementQty,
+          supplementQty,
+          item.outbound_item_id,
+          id,
+          item.material_id,
+          supplementQty,
+        ]
       );
+      if (itemUpdate.affectedRows !== 1) {
+        const conflict = new Error('补发明细已被并发处理，请刷新后重试');
+        conflict.statusCode = 409;
+        conflict.code = 'OUTBOUND_SUPPLEMENT_CONFLICT';
+        throw conflict;
+      }
 
       // 获取物料的默认库位 (直接通过已缓存的信息获取)
       const matInfo = materialInfoMap.get(item.material_id);
@@ -317,7 +393,7 @@ const supplementOutbound = async (req, res) => {
 
     // 6. 检查是否所有物料都已补齐
     const [updatedItems] = await connection.execute(
-      'SELECT id, outbound_id, material_id, quantity, price, tax_rate, total_amount, planned_quantity, actual_quantity, shortage_quantity, is_shortage, source_tasks, unit_id, remark, created_at, updated_at FROM inventory_outbound_items WHERE outbound_id = ?',
+      'SELECT id, outbound_id, material_id, quantity, price, tax_rate, total_amount, planned_quantity, actual_quantity, shortage_quantity, is_shortage, source_tasks, unit_id, remark, created_at, updated_at FROM inventory_outbound_items WHERE outbound_id = ? FOR UPDATE',
       [id]
     );
 
@@ -402,7 +478,14 @@ const supplementOutbound = async (req, res) => {
   } catch (error) {
     await connection.rollback();
     logger.error('补发出库单失败:', error);
-    ResponseHandler.error(res, '补发出库单失败', 'SERVER_ERROR', 500, error);
+    const statusCode = Number(error.statusCode) === 409 ? 409 : Number(error.statusCode) === 400 ? 400 : 500;
+    ResponseHandler.error(
+      res,
+      statusCode === 500 ? '补发出库单失败' : error.message,
+      error.code || (statusCode === 500 ? 'SERVER_ERROR' : 'VALIDATION_ERROR'),
+      statusCode,
+      error
+    );
   } finally {
     connection.release();
   }
@@ -413,13 +496,38 @@ const supplementOutbound = async (req, res) => {
 const batchOutbound = async (req, res) => {
   const connection = await db.pool.getConnection();
   try {
-    await connection.beginTransaction();
-
     const { task_ids, outbound_date, remark, operator, preview } = mapKeysToSnake(req.body || {});
 
     // 验证参数
     if (!task_ids || !Array.isArray(task_ids) || task_ids.length === 0) {
       return ResponseHandler.error(res, '请选择至少一个生产任务', 'VALIDATION_ERROR', 400);
+    }
+
+    if (task_ids.length > MAX_BATCH_TASKS) {
+      return ResponseHandler.error(res, `批量发料任务数不能超过${MAX_BATCH_TASKS}条`, 'VALIDATION_ERROR', 400);
+    }
+
+    const normalizedTaskIds = [...new Set(task_ids.map((id) => Number(id)))];
+    if (
+      normalizedTaskIds.length > MAX_BATCH_TASKS ||
+      normalizedTaskIds.length !== task_ids.length ||
+      normalizedTaskIds.some((id) => !Number.isInteger(id) || id <= 0)
+    ) {
+      return ResponseHandler.error(
+        res,
+        `生产任务ID无效或超过批量上限(${MAX_BATCH_TASKS})`,
+        'VALIDATION_ERROR',
+        400
+      );
+    }
+
+    await connection.beginTransaction();
+    if (!(await assertOutboundSourceAccess(connection, req, {
+      reference_type: 'batch_production_tasks',
+      source_task_ids: normalizedTaskIds,
+    }))) {
+      await connection.rollback();
+      return ResponseHandler.forbidden(res, '批量发料包含无权访问的生产任务或生产计划');
     }
 
     // ===== 年度结存校验 =====
@@ -433,24 +541,29 @@ const batchOutbound = async (req, res) => {
     // ===== 年度结存校验结束 =====
 
     // 1. 获取所有生产任务的信息
-    const placeholders = task_ids.map(() => '?').join(',');
+    const placeholders = normalizedTaskIds.map(() => '?').join(',');
     const [tasks] = await connection.execute(
       `SELECT
         pt.id, pt.code, pt.plan_id, pt.product_id, pt.quantity,
         pp.quantity AS plan_quantity, pp.bom_id,
-        p.code as product_code, p.name as product_name,
+        p.code as product_code, p.name as product_name
       FROM production_tasks pt
       LEFT JOIN production_plans pp ON pp.id = pt.plan_id
       LEFT JOIN materials p ON pt.product_id = p.id
-      WHERE pt.id IN (${placeholders}) AND pt.status IN ('pending', 'allocated', 'preparing')`,
-      task_ids
+      WHERE pt.id IN (${placeholders})
+        AND pt.deleted_at IS NULL
+        AND pt.status IN ('pending', 'allocated', 'preparing')
+      FOR UPDATE`,
+      normalizedTaskIds
     );
 
     if (tasks.length === 0) {
+      await connection.rollback();
       return ResponseHandler.error(res, '未找到可发料的生产任务', 'NOT_FOUND', 404);
     }
 
-    if (tasks.length !== task_ids.length) {
+    if (tasks.length !== normalizedTaskIds.length) {
+      await connection.rollback();
       return ResponseHandler.error(
         res,
         '部分生产任务不存在或状态不允许发料',
@@ -475,6 +588,7 @@ const batchOutbound = async (req, res) => {
     const mergedMaterials = Array.from(materialMap.values());
 
     if (mergedMaterials.length === 0) {
+      await connection.rollback();
       return ResponseHandler.error(res, '没有找到需要发料的物料', 'VALIDATION_ERROR', 400);
     }
 
@@ -553,7 +667,7 @@ const batchOutbound = async (req, res) => {
         remark || '批量发料',
         operator || getRequestActorLabel(req),
         'batch_production_tasks',
-        JSON.stringify(task_ids),
+        JSON.stringify(normalizedTaskIds),
         1,
         createdBy,
       ]

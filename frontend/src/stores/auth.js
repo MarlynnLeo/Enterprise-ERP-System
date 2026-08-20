@@ -52,7 +52,7 @@ import { resetCsrfToken } from '@/services/axiosInstance'
  * @property {(credentials: LoginCredentials) => Promise<boolean>} login - 登录
  * @property {() => Promise<void>} logout - 登出
  * @property {(userData: Partial<User>) => Promise<boolean>} updateUser - 更新用户信息
- * @property {(includePermissions?: boolean) => Promise<boolean>} fetchUserProfile - 获取用户资料
+ * @property {(includePermissions?: boolean, force?: boolean, skipAuthRedirect?: boolean) => Promise<boolean>} fetchUserProfile - 获取用户资料
  * @property {(force?: boolean) => Promise<boolean>} fetchUserPermissions - 获取用户权限
  * @property {() => Promise<boolean>} refreshPermissions - 刷新权限
  * @property {(permission: string) => boolean} hasPermission - 检查权限
@@ -80,7 +80,8 @@ export const useAuthStore = defineStore('auth', () => {
   const isAdmin = computed(() => permissionsLoaded.value && permissions.value.includes('*'))
   const mustChangePassword = computed(() => {
     const flag = user.value?.forcePasswordChange
-    return flag === true || flag === 1 || flag === '1'
+    const expired = user.value?.passwordExpired
+    return flag === true || flag === 1 || flag === '1' || expired === true || expired === 1 || expired === '1'
   })
 
   // 认证令牌由后端 HttpOnly Cookie 管理，前端只清理旧的浏览器可读 token。
@@ -114,14 +115,24 @@ export const useAuthStore = defineStore('auth', () => {
   // 登录
   const login = async (credentials) => {
     try {
-      // 切换账号前先清缓存，避免串用户
-      clearAllRequestCaches()
+      // 切换账号或进入 MFA 挑战前清除旧主体，避免旧用户状态在
+      // 密码/MFA 尚未完成时继续驱动界面权限判断。
+      clearClientSession()
 
       const response = await userApi.login(credentials)
       resetCsrfToken()
 
       // 拦截器已解包，response.data 就是 { user }
       const data = response.data
+
+      if (data?.mfaRequired) {
+        return {
+          mfaRequired: true,
+          mfaSetupRequired: Boolean(data.mfaSetupRequired),
+          challengeId: data.challengeId,
+          expiresIn: data.expiresIn,
+        }
+      }
 
       // 保存用户信息
       user.value = data.user
@@ -145,6 +156,21 @@ export const useAuthStore = defineStore('auth', () => {
       throw error
     }
   }
+
+  const verifyMfa = async (payload) => {
+    const response = await userApi.verifyMfa(payload)
+    const data = response.data
+    if (!data?.user) throw new Error('MFA 响应缺少用户信息')
+    user.value = data.user
+    tokenManager.setUser(user.value)
+    setRequestCacheUserId(user.value.id)
+    permissions.value = []
+    permissionsLoaded.value = false
+    await fetchUserProfile()
+    return data
+  }
+
+  const enrollMfa = (payload) => userApi.enrollMfa(payload)
 
   // 登出
   const logout = async () => {
@@ -175,7 +201,7 @@ export const useAuthStore = defineStore('auth', () => {
   let _userProfilePromise = null
   let _lastProfileFetchTime = 0
 
-  const fetchUserProfile = async (includePermissions = false, force = false) => {
+  const fetchUserProfile = async (includePermissions = false, force = false, skipAuthRedirect = false) => {
     const now = Date.now()
     if (!force && user.value && sessionProbed.value && (now - _lastProfileFetchTime < 10000)) {
       if (includePermissions) {
@@ -190,7 +216,7 @@ export const useAuthStore = defineStore('auth', () => {
 
     _userProfilePromise = (async () => {
       try {
-        const response = await userApi.getProfileFast()
+        const response = await userApi.getProfileFast({ skipAuthRedirect })
         user.value = response.data
         tokenManager.setUser(user.value)
         if (user.value?.id) {
@@ -343,6 +369,8 @@ export const useAuthStore = defineStore('auth', () => {
     isAdmin,
     mustChangePassword,
     login,
+    verifyMfa,
+    enrollMfa,
     logout,
     clearClientSession,
     updateUser,

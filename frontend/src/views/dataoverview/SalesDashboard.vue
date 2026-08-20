@@ -186,7 +186,7 @@ function createSafeChart(ctx, config) {
     return null;
   }
 }
-import { Search, View } from '@element-plus/icons-vue';
+import { Search } from '@element-plus/icons-vue';
 import { salesApi } from '@/api';
 import { useDashboard, useCharts } from '@/composables/useDashboard';
 import {

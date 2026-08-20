@@ -146,24 +146,18 @@ const resolvedFullscreen = computed(() => {
   return false
 })
 
-const DOCUMENT_WIDTH = '850px'
-
 const hasExplicitWidth = computed(
   () => props.width !== '' && props.width != null
 )
 
 const isDocumentWide = computed(
   () =>
-    props.wide ||
-    props.contentWidth === 'wide' ||
-    props.contentWidth === 'full' ||
-    (props.mode === 'view' && !hasExplicitWidth.value)
+    props.wide || props.contentWidth === 'wide' || props.contentWidth === 'full'
 )
 
 const resolvedWidth = computed(() => {
   if (resolvedFullscreen.value) return '100%'
   if (hasExplicitWidth.value) return props.width
-  if (isDocumentWide.value) return DOCUMENT_WIDTH
   if (props.mode === 'preview') return '90%'
   return 'fit-content'
 })

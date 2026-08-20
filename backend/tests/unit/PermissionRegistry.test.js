@@ -12,6 +12,7 @@ const {
   ensurePermission,
   syncRolePermissionsFromMenus,
   bindMenuPermission,
+  grantMenuPermissionToRoles,
 } = require('../../src/services/PermissionRegistry');
 
 function mockConn(handlers) {
@@ -105,5 +106,25 @@ describe('PermissionRegistry', () => {
     expect(r.inserted).toBeGreaterThan(0);
     expect(calls.some((c) => c.includes('DELETE FROM role_permissions'))).toBe(true);
     expect(calls.some((c) => c.includes('INSERT INTO role_permissions'))).toBe(true);
+    const menuSelect = conn.execute.mock.calls.find(([sql]) =>
+      sql.includes('SELECT id, permission, name FROM menus')
+    );
+    expect(menuSelect[0]).toContain('AND status = 1');
+  });
+
+  test('禁用菜单不会向角色授予权限', async () => {
+    const conn = {
+      execute: jest.fn().mockResolvedValueOnce([
+        [{ id: 9, permission: 'system:users:update', name: '用户编辑', status: 0 }],
+      ]),
+    };
+
+    await grantMenuPermissionToRoles(conn, 9, [1, 2]);
+
+    expect(conn.execute).toHaveBeenCalledTimes(1);
+    expect(conn.execute).not.toHaveBeenCalledWith(
+      expect.stringContaining('INSERT IGNORE INTO role_permissions'),
+      expect.anything()
+    );
   });
 });

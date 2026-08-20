@@ -16,6 +16,7 @@ const {
   getCsrfCookieName,
   shouldUseSecureCookies,
 } = require('../utils/cookieSecurity');
+const { isOriginAllowed } = require('../config/cors');
 
 const isProduction = process.env.NODE_ENV === 'production';
 const isTest = process.env.NODE_ENV === 'test';
@@ -56,7 +57,7 @@ const createCsrfVariant = (secure) =>
     },
     size: 64,
     ignoredMethods: ['GET', 'HEAD', 'OPTIONS'],
-    getTokenFromRequest: (req) => req.headers['x-csrf-token'] || req.body._csrf,
+    getTokenFromRequest: (req) => req.headers['x-csrf-token'] || req.body?._csrf,
   });
 
 const csrfVariants = {
@@ -66,6 +67,28 @@ const csrfVariants = {
 
 const getCsrfVariant = (req) =>
   shouldUseSecureCookies(req) ? csrfVariants.secure : csrfVariants.insecure;
+
+function isTrustedAuthRequest(req) {
+  const origin = req.get('Origin');
+  const referer = req.get('Referer');
+  const fetchSite = String(req.get('Sec-Fetch-Site') || '').toLowerCase();
+
+  if (fetchSite === 'cross-site') return false;
+  if (origin) return isOriginAllowed(origin);
+  if (referer) {
+    try {
+      return isOriginAllowed(new URL(referer).origin);
+    } catch {
+      return false;
+    }
+  }
+
+  // Non-browser JSON clients (including health checks and integration tests)
+  // do not send Origin. A browser form cannot set this content type, so this
+  // fallback does not re-open login CSRF for simple cross-site forms.
+  const contentType = String(req.get('Content-Type') || req.get('content-type') || req.is('application/json') || '').toLowerCase();
+  return contentType.includes('application/json');
+}
 
 const generateCsrfToken = (req, res) => getCsrfVariant(req).generateCsrfToken(req, res);
 
@@ -134,8 +157,24 @@ const conditionalCsrfProtection = (req, res, next) => {
     return next();
   }
 
-  // 跳过认证端点（登录/注册/刷新Token不需要CSRF保护）
-  if (req.path === '/api/auth/login' || req.path === '/api/auth/register' || req.path === '/api/auth/refresh') {
+  // Login has no authenticated cookie yet, so use strict Origin/Fetch Metadata
+  // validation. Refresh is cookie-authenticated and must pass the normal
+  // double-submit token check.
+  if (req.path === '/api/auth/login' || req.path === '/api/auth/register') {
+    return isTrustedAuthRequest(req)
+      ? next()
+      : ResponseHandler.error(res, '请求来源不受信任', 'UNTRUSTED_ORIGIN', 403);
+  }
+
+  // A refresh request without an existing refresh cookie/token cannot mutate
+  // a session. Let it reach the authentication middleware so anonymous
+  // callers receive the normal 401 response instead of an opaque CSRF 403.
+  // Once a refresh credential is present, the request remains CSRF-protected.
+  if (
+    req.path === '/api/auth/refresh' &&
+    !req.cookies?.refreshToken &&
+    !req.body?.refreshToken
+  ) {
     return next();
   }
 
@@ -166,4 +205,5 @@ module.exports = {
   getCsrfToken,
   csrfErrorHandler,
   generateCsrfToken, // 导出 token 生成函数
+  isTrustedAuthRequest,
 };

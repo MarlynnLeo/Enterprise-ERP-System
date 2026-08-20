@@ -14,10 +14,7 @@ const {
 } = require('../authorization/roleAccessProfiles');
 const { syncRolePermissionsFromMenus, ensurePermissions } = require('./PermissionRegistry');
 const { logger } = require('../utils/logger');
-
-function isSuperAdminRole(role) {
-  return Number(role?.is_super_admin) === 1 || String(role?.code || '') === 'admin';
-}
+const { isSuperAdminRole } = require('../authorization/superAdmin');
 
 function chunk(items, size = 200) {
   const result = [];
@@ -218,7 +215,7 @@ class RoleAccessService {
     const summary = [];
 
     for (const role of roles) {
-      if (Number(role.is_super_admin) === 1 || String(role.code) === 'admin') continue;
+      if (isSuperAdminRole(role)) continue;
       const profile = getProfile(role.code);
       if (!profile) continue;
 

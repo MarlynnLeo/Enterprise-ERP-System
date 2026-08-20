@@ -1,8 +1,8 @@
-const https = require('https');
 const db = require('../../../config/db');
 const pool = db.pool;
 const dingtalkConfig = require('../../../config/dingtalkConfig');
 const { logger } = require('../../../utils/logger');
+const { request } = require('../../../utils/httpClient');
 
 const DINGTALK_ROOT_DEPT_ID = dingtalkConfig.rootDeptId;
 const DINGTALK_USER_PAGE_SIZE = dingtalkConfig.defaultUserPageSize;
@@ -18,48 +18,29 @@ const buildDingtalkUrl = (endpoint) => {
 class DingtalkSyncService {
 
   // 通用 HTTPS 请求封装
-  static requestJSON(method, urlString, queryParams = {}, bodyObj = null) {
-    return new Promise((resolve, reject) => {
-      const url = new URL(urlString);
-
-      Object.entries(queryParams).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) {
-          url.searchParams.append(key, String(value));
-        }
-      });
-
-      const body = bodyObj ? JSON.stringify(bodyObj) : null;
-      const options = {
-        method,
-        hostname: url.hostname,
-        path: url.pathname + url.search,
-        port: url.port || 443,
-        rejectUnauthorized: dingtalkConfig.rejectUnauthorized,
-        headers: {},
-      };
-
-      if (body) {
-        options.headers['Content-Type'] = 'application/json';
-        options.headers['Content-Length'] = Buffer.byteLength(body);
-      }
-
-      const req = https.request(options, (res) => {
-        let chunks = '';
-        res.on('data', (d) => chunks += d);
-        res.on('end', () => {
-          try {
-            const json = JSON.parse(chunks || '{}');
-            resolve(json);
-          } catch (err) {
-            reject(new Error(`JSON 解析失败: ${err.message}`));
-          }
-        });
-      });
-
-      req.on('error', (err) => reject(err));
-      if (body) req.write(body);
-      req.end();
+  static async requestJSON(method, urlString, queryParams = {}, bodyObj = null) {
+    const response = await request(method, urlString, {
+      params: queryParams,
+      data: bodyObj,
+      headers: bodyObj ? { 'Content-Type': 'application/json' } : {},
+      timeout: dingtalkConfig.requestTimeoutMs,
+      rejectUnauthorized: dingtalkConfig.rejectUnauthorized,
+      retries: dingtalkConfig.maxRetries,
+      maxResponseBytes: dingtalkConfig.maxResponseBytes,
     });
+
+    if (!Number.isInteger(response.status) || response.status < 200 || response.status >= 300) {
+      const error = new Error(`DingTalk HTTP request failed with status ${response.status || 'unknown'}`);
+      error.code = 'DINGTALK_HTTP_ERROR';
+      error.status = response.status;
+      throw error;
+    }
+    if (!response.data || typeof response.data !== 'object' || Array.isArray(response.data)) {
+      const error = new Error('DingTalk returned an invalid JSON object');
+      error.code = 'DINGTALK_INVALID_RESPONSE';
+      throw error;
+    }
+    return response.data;
   }
 
   // 获取 Access Token
@@ -139,19 +120,38 @@ class DingtalkSyncService {
     const users = [];
     let cursor = 0;
     let hasMore = true;
+    let pageCount = 0;
+    const seenCursors = new Set([cursor]);
 
     while (hasMore) {
+      pageCount += 1;
+      if (pageCount > 1000) throw new Error('DingTalk user pagination exceeded safe page limit');
       const resp = await this.requestJSON('POST', url, { access_token: accessToken }, {
         dept_id: deptId, cursor, size: pageSize, language: 'zh_CN',
       });
       if (resp.errcode !== 0) throw new Error(`获取部门用户失败: errcode=${resp.errcode}, errmsg=${resp.errmsg}`);
 
-      const result = resp.result || {};
+      const result = resp.result;
+      if (!result || typeof result !== 'object' || Array.isArray(result)) {
+        throw new Error('DingTalk user list response is missing result');
+      }
       const list = result.list || [];
+      if (!Array.isArray(list)) throw new Error('DingTalk user list response has invalid list');
       users.push(...list);
 
       hasMore = result.has_more === true || result.hasMore === true;
-      if (hasMore) cursor = result.next_cursor !== null && result.next_cursor !== undefined ? result.next_cursor : result.nextCursor;
+      if (hasMore) {
+        const nextCursor =
+          result.next_cursor !== null && result.next_cursor !== undefined
+            ? result.next_cursor
+            : result.nextCursor;
+        const normalizedCursor = Number(nextCursor);
+        if (!Number.isInteger(normalizedCursor) || normalizedCursor < 0 || seenCursors.has(normalizedCursor)) {
+          throw new Error('DingTalk user pagination returned an invalid or repeated cursor');
+        }
+        cursor = normalizedCursor;
+        seenCursors.add(cursor);
+      }
     }
     return users;
   }

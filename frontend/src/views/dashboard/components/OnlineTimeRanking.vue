@@ -144,7 +144,7 @@ const normalizedRankings = computed(() => {
     const hours = Number(item.hours || 0)
     const minutes = Number(item.minutes || 0)
     const totalSeconds = Number(
-      item.totalSeconds ?? item.total_seconds ?? ((hours * 60 + minutes) * 60)
+      item.totalSeconds ?? ((hours * 60 + minutes) * 60)
     )
 
     const userId = item.userId
@@ -158,7 +158,7 @@ const normalizedRankings = computed(() => {
       rank: Number(item.rank || index + 1),
       userId,
       username: item.username || '',
-      realName: item.realName || item.real_name || '未命名用户',
+      realName: item.realName || '未命名用户',
       avatar: avatar || DEFAULT_AVATAR,
       avatarFrame: normalizeAvatarFrameId(avatarFrame, DEFAULT_AVATAR_FRAME),
       totalSeconds: Number.isFinite(totalSeconds) ? totalSeconds : 0,

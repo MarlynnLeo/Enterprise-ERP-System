@@ -10,8 +10,72 @@ const { getAuthenticatedUserId } = require('../../../utils/authContext');
 const { safeParseId } = require('../../../utils/safeParseId');
 const DLQService = require('../../../services/business/DLQService');
 const { mapKeysToSnake } = require('../../../utils/fieldMap');
+const FileAccessService = require('../../../services/FileAccessService');
+const { pool } = require('../../../config/db');
 
 const bomService = require('../../../services/bomService');
+
+async function prepareBomAttachment(req, attachment, allowedBomId = null) {
+  if (!attachment) return { normalized: null, needsClaim: false };
+  const normalized = FileAccessService.normalizeUploadUrl(attachment);
+  if (!normalized) {
+    const error = new Error('BOM 附件必须是受控上传文件');
+    error.code = 'INVALID_FILE_REFERENCE';
+    throw error;
+  }
+
+  const record = await FileAccessService.findAccessRecord(normalized);
+  if (!record) {
+    const error = new Error('BOM 附件缺少访问元数据，请重新上传');
+    error.code = 'FILE_ACCESS_RECORD_NOT_FOUND';
+    throw error;
+  }
+  const binding = FileAccessService.validateBusinessBinding(
+    record.business_type,
+    record.business_id
+  );
+  if (!binding.valid) {
+    const error = new Error('BOM 附件授权元数据无效，请重新上传');
+    error.code = binding.reason;
+    throw error;
+  }
+  if (binding.bound) {
+    if (binding.businessType !== 'bom' || Number(binding.businessId) !== Number(allowedBomId)) {
+      const error = new Error('该附件已绑定到其他业务对象，禁止复用');
+      error.code = 'FILE_ACCESS_BINDING_CONFLICT';
+      throw error;
+    }
+    return { normalized, needsClaim: false };
+  }
+
+  const mutation = await FileAccessService.authorizeMutation({
+    userId: req.user?.id,
+    fileUrl: normalized,
+    req,
+    userPermissions: req.userPermissions,
+  });
+  if (!mutation.allowed) {
+    const error = new Error('无权使用其他用户上传的附件');
+    error.code = 'FILE_ACCESS_OWNER_MISMATCH';
+    throw error;
+  }
+  return { normalized, needsClaim: true };
+}
+
+async function cleanupUnusedBomAttachment(fileUrl) {
+  const normalized = FileAccessService.normalizeUploadUrl(fileUrl);
+  if (!normalized) return;
+  const [[usage]] = await pool.execute(
+    `SELECT COUNT(*) AS count
+       FROM bom_masters
+      WHERE attachment = ? AND deleted_at IS NULL`,
+    [normalized]
+  );
+  if (Number(usage?.count || 0) === 0) {
+    await FileAccessService.safeMarkDeleted(normalized);
+    FileAccessService.removeLocalFile(normalized);
+  }
+}
 
 const bomController = {
 
@@ -74,6 +138,7 @@ const bomController = {
   },
 
   async createBom(req, res) {
+    let createdBomId = null;
     try {
       // 兼容两种数据格式；HTTP camel → snake
       let bomData, details;
@@ -106,9 +171,33 @@ const bomController = {
       bomData.created_by = currentUser;
       bomData.updated_by = currentUser;
 
+      const preparedAttachment = await prepareBomAttachment(req, bomData.attachment);
+      bomData.attachment = preparedAttachment.normalized;
+
       const newBom = await bomService.createBom(bomData, details);
+      createdBomId = newBom.id;
+      if (preparedAttachment.needsClaim) {
+        await FileAccessService.claimExistingUpload({
+          req,
+          userPermissions: req.userPermissions,
+          fileUrl: preparedAttachment.normalized,
+          businessType: 'bom',
+          businessId: newBom.id,
+          source: 'bom_attachment',
+          uploadedBy: req.user?.id,
+          isPublic: 0,
+          metadata: { bomId: newBom.id },
+        });
+      }
       ResponseHandler.success(res, newBom, '创建BOM成功', 201);
     } catch (error) {
+      if (createdBomId) {
+        try {
+          await bomService.deleteBom(createdBomId);
+        } catch (cleanupError) {
+          logger.error('BOM附件绑定失败后的BOM补偿删除失败:', cleanupError);
+        }
+      }
       logger.error('创建BOM失败:', error);
       // 参数/业务校验类错误返回 400，避免前端只看到笼统 500
       // createBom 会包装为「创建BOM失败: xxx」，以及 MySQL 唯一键冲突
@@ -130,6 +219,7 @@ const bomController = {
   },
 
   async updateBom(req, res) {
+    let updatedBomId = null;
     try {
       // 兼容两种数据格式；HTTP camel → snake
       let bomData, details;
@@ -155,17 +245,75 @@ const bomController = {
       const currentUser = await getCurrentUserName(req);
       bomData.updated_by = currentUser;
 
+      const bomId = Number(req.params.id);
+      if (!Number.isInteger(bomId) || bomId <= 0) {
+        return ResponseHandler.error(res, 'BOM ID 无效', 'VALIDATION_ERROR', 400);
+      }
+      const [[existingBom]] = await pool.execute(
+        'SELECT attachment FROM bom_masters WHERE id = ? AND deleted_at IS NULL',
+        [bomId]
+      );
+      if (!existingBom) return ResponseHandler.notFound(res, 'BOM不存在');
+      const preparedAttachment = await prepareBomAttachment(req, bomData.attachment, bomId);
+      bomData.attachment = preparedAttachment.normalized;
+
       const updatedBom = await bomService.updateBom(req.params.id, bomData, details);
+      updatedBomId = updatedBom.id;
+      if (preparedAttachment.needsClaim) {
+        try {
+          await FileAccessService.claimExistingUpload({
+            req,
+            userPermissions: req.userPermissions,
+            fileUrl: preparedAttachment.normalized,
+            businessType: 'bom',
+            businessId: updatedBom.id,
+            source: 'bom_attachment',
+            uploadedBy: req.user?.id,
+            isPublic: 0,
+            metadata: { bomId: updatedBom.id },
+          });
+        } catch (claimError) {
+          const { pool } = require('../../../config/db');
+          await pool.execute(
+            'UPDATE bom_masters SET attachment = NULL, updated_at = NOW() WHERE id = ?',
+            [updatedBom.id]
+          );
+          throw claimError;
+        }
+      }
+      if (
+        existingBom.attachment &&
+        FileAccessService.normalizeUploadUrl(existingBom.attachment) !== preparedAttachment.normalized
+      ) {
+        await cleanupUnusedBomAttachment(existingBom.attachment);
+      }
       ResponseHandler.success(res, updatedBom, '更新BOM成功');
     } catch (error) {
-      logger.error('更新BOM失败:', error);
-      ResponseHandler.error(res, error.message, 'SERVER_ERROR', 500, error);
+      logger.error('更新BOM失败:', { bomId: updatedBomId || req.params.id, error: error.message });
+      const isValidation = /附件|无权|无效|不存在|绑定/.test(error.message || '');
+      ResponseHandler.error(
+        res,
+        error.message,
+        isValidation ? 'VALIDATION_ERROR' : 'SERVER_ERROR',
+        isValidation ? 400 : 500,
+        error
+      );
     }
   },
 
   async deleteBom(req, res) {
     try {
-      await bomService.deleteBom(req.params.id);
+      const bomId = Number(req.params.id);
+      if (!Number.isInteger(bomId) || bomId <= 0) {
+        return ResponseHandler.error(res, 'BOM ID 无效', 'VALIDATION_ERROR', 400);
+      }
+      const [[existingBom]] = await pool.execute(
+        'SELECT attachment FROM bom_masters WHERE id = ? AND deleted_at IS NULL',
+        [bomId]
+      );
+      if (!existingBom) return ResponseHandler.notFound(res, 'BOM不存在');
+      await bomService.deleteBom(bomId);
+      if (existingBom.attachment) await cleanupUnusedBomAttachment(existingBom.attachment);
       ResponseHandler.success(res, null, '删除BOM成功', 204);
     } catch (error) {
       logger.error('删除BOM失败:', error);

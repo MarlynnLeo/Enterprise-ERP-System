@@ -5,7 +5,7 @@ const DocumentLinkService = require('../services/business/DocumentLinkService');
 const { DOCUMENT_LINK_TYPES: DocType } = require('../constants/documentLinkTypes');
 const { parsePagination, appendPaginationSQL } = require('../utils/safePagination');
 const { softDelete } = require('../utils/softDelete');
-const { resolveActorLabel, resolveActorUserId } = require('../utils/userUtils');
+const { resolveActorLabel } = require('../utils/userUtils');
 
 class NonconformingProduct {
   /**

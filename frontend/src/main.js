@@ -11,7 +11,6 @@ import { useLanguageStore } from './stores/language'
 import { useThemeStore } from './stores/theme'
 import { useDictionaryStore } from './stores/dictionary'
 import i18n from './locales'
-import { registerElementIcons } from '@/plugins/elementIcons'
 import { initPerformanceMode, runWhenIdle } from '@/utils/performanceMode'
 import './assets/main.css'
 import './assets/dialog-system.css'
@@ -60,6 +59,28 @@ router.onError((error) => {
   console.error('路由错误:', error)
 })
 
+// 登录页不使用全局图标。只在进入受保护页面前加载并注册，避免低性能
+// 客户端打开登录页时下载和解析整套 Element Plus 图标。
+let elementIconsPromise = null
+const ensureElementIcons = () => {
+  if (elementIconsPromise) return elementIconsPromise
+
+  elementIconsPromise = import('@/plugins/elementIcons')
+    .then(({ registerElementIcons }) => registerElementIcons(app))
+    .catch((error) => {
+      elementIconsPromise = null
+      console.error('按需加载全局图标失败:', error)
+    })
+
+  return elementIconsPromise
+}
+
+router.beforeResolve(async (to) => {
+  if (to.meta?.requiresAuth) {
+    await ensureElementIcons()
+  }
+})
+
 app.use(pinia)
 app.use(i18n)
 app.use(router)
@@ -90,7 +111,6 @@ app.component('FinanceQueryCard', defineAsyncComponent(() => import('./component
 app.component('PageHeader', defineAsyncComponent(() => import('./components/ui/PageHeader.vue')))
 app.component('EmptyState', defineAsyncComponent(() => import('./components/ui/EmptyState.vue')))
 app.component('AppDialog', defineAsyncComponent(() => import('./components/ui/AppDialog.vue')))
-registerElementIcons(app)
 
 themeReady
   .catch((error) => {

@@ -5,7 +5,7 @@
 
 const { logger } = require('../../utils/logger');
 const db = require('../../config/db');
-const { resolveActorLabel, resolveActorUserId } = require('../../utils/userUtils');
+const { resolveActorLabel } = require('../../utils/userUtils');
 
 class ProductSalesTraceabilityService {
   static _toDbValue(value) {

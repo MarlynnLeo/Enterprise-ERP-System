@@ -11,6 +11,7 @@ const path = require('path');
 const crypto = require('crypto');
 const readline = require('readline');
 const mysql = require('mysql2/promise');
+const { isEncryptedBackup, decryptFile } = require('../src/utils/backupCrypto');
 require('dotenv').config();
 
 function parseArguments(argv) {
@@ -28,11 +29,11 @@ function parseArguments(argv) {
 function usage() {
   return [
     'Usage:',
-    '  npm run restore:offline -- --file=/path/backup.sql --database=erp_restore --confirm=erp_restore',
+    '  npm run restore:offline -- --file=/path/backup.sql[.enc] --database=erp_restore --confirm=erp_restore',
     '',
     'Requirements:',
     '  - The target database must already exist and contain no base tables.',
-    '  - backup.sql.sha256 must exist, or pass --checksum=<64 hex characters>.',
+    '  - backup.sql[.enc].sha256 must exist, or pass --checksum=<64 hex characters>.',
     '  - DB_HOST, DB_PORT, DB_USER and DB_PASSWORD must be configured.',
   ].join('\n');
 }
@@ -116,14 +117,21 @@ async function main() {
     throw new Error(`Missing required arguments or confirmation mismatch.\n${usage()}`);
   }
   if (!/^[A-Za-z0-9_]+$/.test(database)) throw new Error('Invalid target database name');
-  if (path.extname(filePath).toLowerCase() !== '.sql') throw new Error('Backup file must use the .sql extension');
+  if (!/\.sql(?:\.enc)?$/i.test(filePath)) throw new Error('Backup file must use the .sql or .sql.enc extension');
 
   await fs.promises.access(filePath, fs.constants.R_OK);
   const expected = await expectedChecksum(filePath, args.checksum);
   if (!/^[a-f0-9]{64}$/.test(expected)) throw new Error('Invalid SHA-256 checksum');
   const actual = await sha256File(filePath);
   if (actual !== expected) throw new Error('Backup checksum mismatch');
-  const preflight = await inspectBackup(filePath);
+  let restorePath = filePath;
+  let temporaryPlainPath = null;
+  if (await isEncryptedBackup(filePath)) {
+    temporaryPlainPath = path.join(path.dirname(filePath), `.restore_${crypto.randomUUID()}.sql`);
+    await decryptFile(filePath, temporaryPlainPath);
+    restorePath = temporaryPlainPath;
+  }
+  const preflight = await inspectBackup(restorePath);
 
   const connection = await mysql.createConnection({
     host: process.env.DB_HOST,
@@ -146,7 +154,7 @@ async function main() {
       throw new Error(`Refusing to restore into non-empty database ${database}`);
     }
 
-    const statementCount = await restoreStatements(connection, filePath);
+    const statementCount = await restoreStatements(connection, restorePath);
     const [[{ restored_tables: restoredTables }]] = await connection.query(
       `SELECT COUNT(*) AS restored_tables
        FROM information_schema.tables
@@ -169,6 +177,9 @@ async function main() {
       await connection.query('SET FOREIGN_KEY_CHECKS=1');
     } finally {
       await connection.end();
+    }
+    if (temporaryPlainPath) {
+      await fs.promises.rm(temporaryPlainPath, { force: true }).catch(() => {});
     }
   }
 }

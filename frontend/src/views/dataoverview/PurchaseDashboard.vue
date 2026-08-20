@@ -169,7 +169,7 @@ import { formatDate } from '@/utils/helpers/dateUtils'
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router';
 import Chart from '@/utils/chartCore';
-import { Search, View } from '@element-plus/icons-vue';
+import { Search } from '@element-plus/icons-vue';
 import { purchaseApi } from '@/api';
 import { useDashboard, useCharts } from '@/composables/useDashboard';
 // 权限计算属性

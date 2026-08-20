@@ -28,18 +28,6 @@ function walk(dir, pred = () => true, acc = []) {
 const rel = (p) => path.relative(SRC, p).replace(/\\/g, '/')
 const read = (p) => fs.readFileSync(p, 'utf8')
 
-// ---- expand nested routes ----
-function extractRouteObjects(src) {
-  // crude: collect path strings with parent stack via indent-ish path nesting not reliable
-  // Instead: reconstruct from known pattern path: 'x' under parent path: 'finance'
-  const paths = new Set()
-  // absolute
-  for (const m of src.matchAll(/path:\s*['"`](\/[^'"`]+)['"`]/g)) {
-    paths.add(m[1].split('?')[0])
-  }
-  return paths
-}
-
 function buildFullRouteSet() {
   const paths = new Set()
   const routerRoot = path.join(SRC, 'router')

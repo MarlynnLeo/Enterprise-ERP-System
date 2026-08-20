@@ -122,8 +122,7 @@ const shouldAttachCsrfToken = (config, isTrustedApiRequest) => {
         && isTrustedApiRequest
         && !config.skipCsrf
         && !url.includes('/csrf-token')
-        && !url.includes('/auth/login')
-        && !url.includes('/auth/refresh');
+        && !url.includes('/auth/login');
 };
 // 默认API实例（用于一般请求）
 export const api = axios.create({
@@ -283,7 +282,10 @@ const setupInterceptors = (apiInstance) => {
                     } catch {
                         // ignore store cleanup errors
                     }
-                    if (!window.location.pathname.includes('/login')) {
+                    // Route guards handle their own failed session probes with an
+                    // in-app redirect. Other 401 responses retain the hard fallback
+                    // so an expired mounted session cannot remain on a protected page.
+                    if (!originalRequest.skipAuthRedirect && !window.location.pathname.includes('/login')) {
                         window.location.replace('/login');
                     }
                     return Promise.reject(refreshError);

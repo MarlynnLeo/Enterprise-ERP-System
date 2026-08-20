@@ -44,7 +44,7 @@
         <el-table-column prop="productName" label="产品名称" width="260"></el-table-column>
         <el-table-column prop="quantity" label="生产数量" width="110"></el-table-column>
         <el-table-column label="材料成本" width="130">
-          <template #default="scope">
+          <template #default>
             {{ formatCurrency(scope.row.materialCost) }}
           </template>
         </el-table-column>
@@ -71,12 +71,6 @@
           </template>
         </el-table-column>
         <el-table-column prop="completionDate" label="完工日期" width="110"></el-table-column>
-        <el-table-column label="操作" min-width="100" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
-      >
-          <template #default="scope">
-            
-          </template>
-        </el-table-column>
       </el-table>
 
       <!-- 分页 -->

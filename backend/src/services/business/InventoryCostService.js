@@ -8,7 +8,6 @@
 const { logger } = require('../../utils/logger');
 const db = require('../../config/db');
 const financeModel = require('../../models/finance');
-const { resolveActorUserId } = require('../../utils/userUtils');
 const {
   DOCUMENT_TYPE_MAPPING,
   ENTRY_NUMBER_PREFIX,

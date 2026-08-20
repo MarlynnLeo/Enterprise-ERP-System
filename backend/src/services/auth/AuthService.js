@@ -7,17 +7,31 @@
 const { pool } = require('../../config/db');
 const { logger } = require('../../utils/logger');
 const { retryTransientDatabaseRead } = require('../../utils/databaseAvailability');
+const { normalizeUsername } = require('../../utils/usernameSecurity');
+const PasswordSecurity = require('../../utils/passwordSecurity');
 
 /** 用户查询返回的安全字段（不含 password_hash, deleted_at 等敏感字段） */
 const USER_PROFILE_FIELDS = `u.id, u.username, u.real_name, u.email, u.department_id,
   u.position, u.role, u.avatar, u.phone, u.avatar_frame, u.bio, u.created_at,
-  u.force_password_change`;
+  u.force_password_change, u.password_changed_at, u.password_expires_at`;
 
-const USER_LOGIN_FIELDS = 'id, username, real_name, email, password, status, token_version, force_password_change';
+const USER_LOGIN_FIELDS = 'id, username, real_name, email, password, status, token_version, force_password_change, password_changed_at, password_expires_at';
 
-const USER_REFRESH_FIELDS = 'id, username, role, real_name, email, status, token_version, force_password_change';
+const USER_REFRESH_FIELDS = 'id, username, role, real_name, email, status, token_version, force_password_change, password_changed_at, password_expires_at';
 
 const MENU_FIELDS = 'id, parent_id, name, path, icon, permission, type, visible, sort_order AS sort';
+
+// These are the only attributes a user may change through the self-service
+// profile endpoint.  Organization and authorization attributes (department,
+// position, role, status, and admin flags) belong to the privileged user
+// management workflow and must never be silently accepted here.
+const SELF_SERVICE_PROFILE_FIELDS = Object.freeze([
+  'real_name',
+  'email',
+  'phone',
+  'avatar',
+  'bio',
+]);
 
 class AuthService {
   /**
@@ -26,9 +40,11 @@ class AuthService {
    * @returns {Promise<Object|null>}
    */
   static async findUserByUsername(username) {
+    const canonicalUsername = normalizeUsername(username);
+    if (!canonicalUsername) return null;
     const [users] = await retryTransientDatabaseRead(
       () =>
-        pool.execute(`SELECT ${USER_LOGIN_FIELDS} FROM users WHERE username = ?`, [username]),
+        pool.execute(`SELECT ${USER_LOGIN_FIELDS} FROM users WHERE LOWER(username) = ?`, [canonicalUsername]),
       {
         onRetry: (error, attempt, delayMs) => {
           logger.warn('Authentication user lookup will retry after a transient database error', {
@@ -76,7 +92,19 @@ class AuthService {
        WHERE u.id = ?`,
       [userId]
     );
-    return users[0] || null;
+    const user = users[0] || null;
+    if (user) {
+      user.password_expired = PasswordSecurity.isPasswordExpired(
+        user.password_changed_at,
+        user.password_expires_at
+      );
+      user.password_change_required = PasswordSecurity.isPasswordChangeRequired(user);
+      // Password timestamps are internal lifecycle data; expose only booleans
+      // at the API boundary.
+      delete user.password_changed_at;
+      delete user.password_expires_at;
+    }
+    return user;
   }
 
   /**
@@ -113,13 +141,14 @@ class AuthService {
    * @param {number} userId
    * @param {string} hashedPassword
    */
-  static async updatePassword(userId, hashedPassword) {
-    await pool.execute(
+  static async updatePassword(userId, hashedPassword, connection = pool) {
+    await connection.execute(
       `UPDATE users
           SET password = ?,
               token_version = token_version + 1,
               force_password_change = 0,
               password_changed_at = NOW(),
+              password_expires_at = DATE_ADD(NOW(), INTERVAL 90 DAY),
               updated_at = NOW()
         WHERE id = ?`,
       [hashedPassword, userId]
@@ -132,14 +161,36 @@ class AuthService {
    * @param {Object} fields - 允许更新的字段
    */
   static async updateUserProfile(userId, fields) {
-    const allowedFields = ['real_name', 'email', 'phone', 'department_id', 'position', 'avatar', 'bio'];
+    if (!fields || typeof fields !== 'object' || Array.isArray(fields)) {
+      throw new Error('profile fields must be an object');
+    }
+
+    const unknownFields = Object.keys(fields).filter(
+      (field) => !SELF_SERVICE_PROFILE_FIELDS.includes(field)
+    );
+    if (unknownFields.length > 0) {
+      const error = new Error(`profile field is not editable: ${unknownFields.join(', ')}`);
+      error.code = 'PROFILE_FIELD_FORBIDDEN';
+      throw error;
+    }
+
     const updateFields = [];
     const updateValues = [];
 
-    for (const field of allowedFields) {
+    for (const field of SELF_SERVICE_PROFILE_FIELDS) {
       if (fields[field] !== undefined) {
+        if (fields[field] !== null && typeof fields[field] !== 'string') {
+          const error = new Error(`profile field must be a string: ${field}`);
+          error.code = 'PROFILE_FIELD_INVALID';
+          throw error;
+        }
+        if (typeof fields[field] === 'string' && fields[field].length > 1000) {
+          const error = new Error(`profile field is too long: ${field}`);
+          error.code = 'PROFILE_FIELD_INVALID';
+          throw error;
+        }
         updateFields.push(`${field} = ?`);
-        updateValues.push(fields[field]);
+        updateValues.push(fields[field] === '' ? null : fields[field]);
       }
     }
 

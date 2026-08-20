@@ -149,7 +149,7 @@ for (const id of themes) {
   report.uniqueTokenCounts[id] = 0
 }
 
-for (const [tok, set] of all) {
+for (const [, set] of all) {
   if (set.size === 1) {
     const only = [...set][0]
     report.uniqueTokenCounts[only]++

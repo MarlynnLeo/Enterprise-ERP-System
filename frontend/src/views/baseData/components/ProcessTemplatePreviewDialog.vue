@@ -91,6 +91,9 @@ const handleDocError = (error) => {
 
 const handleDownload = async () => {
   try {
+    if (!fileUrl.value.startsWith('/api/base-data/download-file?filePath=')) {
+      throw new Error('拒绝下载非受控附件地址')
+    }
     const response = await commonApi.downloadResource(fileUrl.value)
     const blob = new Blob([response.data])
     const url = window.URL.createObjectURL(blob)

@@ -10,7 +10,7 @@ const { logger } = require('../../utils/logger');
 const { mapKeysToSnake } = require('../../utils/fieldMap');
 
 const systemModel = require('../../models/system');
-const { AuditService } = require('../../services/AuditService');
+const { AuditService, AuditAction, AuditModule } = require('../../services/AuditService');
 const PermissionChangeService = require('../../services/PermissionChangeService');
 const { pool } = require('../../config/db');
 const cacheService = require('../../services/cache/CacheManager');
@@ -22,6 +22,7 @@ const { parsePagination } = require('../../utils/safePagination');
 const PermissionService = require('../../services/PermissionService');
 const RoleAccessService = require('../../services/RoleAccessService');
 const { getRequestActorLabel } = require('../../utils/userUtils');
+const { isSuperAdminRole } = require('../../authorization/superAdmin');
 
 function omitUserSecrets(user) {
   if (!user || typeof user !== 'object') return user;
@@ -31,7 +32,24 @@ function omitUserSecrets(user) {
   delete safeUser.token;
   delete safeUser.refresh_token;
   delete safeUser.reset_token;
+  delete safeUser.audit;
   return safeUser;
+}
+
+async function logUserManagementEvent(req, action, userId, oldValue = null, newValue = null) {
+  try {
+    await AuditService.logFromRequest(
+      req,
+      AuditModule.USER,
+      action,
+      'user',
+      String(userId),
+      oldValue,
+      newValue
+    );
+  } catch (error) {
+    logger.warn('记录用户管理审计失败:', error.message);
+  }
 }
 
 function normalizeBinaryStatus(status) {
@@ -70,10 +88,10 @@ async function assertCanManageTargetUser(req, userId) {
 
 async function roleIsSuperAdmin(roleId) {
   const [[role]] = await pool.execute(
-    'SELECT is_super_admin FROM roles WHERE id = ? LIMIT 1',
+    'SELECT id, is_super_admin FROM roles WHERE id = ? LIMIT 1',
     [roleId]
   );
-  return Number(role?.is_super_admin || 0) === 1;
+  return isSuperAdminRole(role);
 }
 
 function sendBusinessError(res, error, fallbackMessage = '操作失败') {
@@ -168,6 +186,17 @@ const systemController = {
             username: newUser.username,
           });
         }
+        await logUserManagementEvent(req, AuditAction.CREATE, newUser.id, null, {
+          id: newUser.id,
+          username: newUser.username,
+          real_name: newUser.real_name,
+          email: newUser.email,
+          department_id: newUser.department_id,
+          position: newUser.position,
+          role: newUser.role,
+          roleIds: newUser.roleIds,
+          status: newUser.status,
+        });
       }
 
       const result = omitUserSecrets(newUser);
@@ -197,19 +226,34 @@ const systemController = {
 
       await assertCanManageTargetUser(req, id);
 
-      const oldRoleIds =
-        userData.roleIds !== undefined
-          ? await PermissionChangeService.getUserRoleIds(id)
-          : null;
-
       const updatedUser = await systemModel.updateUser(id, userData, {
         allowAdminRole: await isSuperAdminRequest(req),
       });
       await PermissionService.clearUserPermissionsCache(id);
 
-      if (oldRoleIds && userData.roleIds !== undefined) {
-        await PermissionChangeService.auditUserRoles(req, id, oldRoleIds, userData.roleIds, {
-          username: updatedUser?.username || userData.username,
+      if (updatedUser?.audit) {
+        await logUserManagementEvent(
+          req,
+          AuditAction.UPDATE,
+          id,
+          updatedUser.audit.before,
+          updatedUser.audit.after
+        );
+        if (updatedUser.audit.before.roleIds && updatedUser.audit.after.roleIds &&
+            JSON.stringify(updatedUser.audit.before.roleIds) !== JSON.stringify(updatedUser.audit.after.roleIds)) {
+          await PermissionChangeService.auditUserRoles(
+            req,
+            id,
+            updatedUser.audit.before.roleIds,
+            updatedUser.audit.after.roleIds,
+            { username: updatedUser.username }
+          );
+        }
+      }
+
+      if (updatedUser?.audit?.securityAttributesChanged) {
+        logger.info('User authorization attributes changed; sessions revoked', {
+          userId: id,
         });
       }
 
@@ -241,6 +285,14 @@ const systemController = {
       if (!result) {
         return ResponseHandler.error(res, '用户不存在', 'NOT_FOUND', 404);
       }
+
+      await logUserManagementEvent(
+        req,
+        AuditAction.UPDATE,
+        id,
+        result.audit?.before || null,
+        result.audit?.after || { id: Number(id), status: normalizedStatus }
+      );
 
       // 清除该用户的权限缓存（统一由 PermissionService 管理）
       try {
@@ -274,6 +326,12 @@ const systemController = {
       if (!result) {
         return ResponseHandler.error(res, '用户不存在', 'NOT_FOUND', 404);
       }
+
+      await logUserManagementEvent(req, 'password_reset', id, null, {
+        outcome: 'success',
+        username: result.audit?.username,
+        force_password_change: true,
+      });
 
       ResponseHandler.success(res, null, '密码重置成功');
     } catch (error) {

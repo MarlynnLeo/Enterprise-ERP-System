@@ -62,7 +62,12 @@
     </el-table>
 
       <div class="pagination-container">
-        <el-pagination v-model:current-page="page" :total="total" layout="total, prev, pager, next" @change="fetchList" />
+        <el-pagination
+          v-model:current-page="page"
+          :total="paginationTotal"
+          :layout="totalExact ? 'total, prev, pager, next' : 'prev, pager, next'"
+          @change="fetchList"
+        />
       </div>
     </el-card>
 
@@ -96,7 +101,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Download, Delete } from '@element-plus/icons-vue'
 import { documentApi } from '@/api/enhanced'
@@ -108,21 +113,30 @@ const keyword = ref('')
 const filterCategory = ref('')
 const page = ref(1)
 const total = ref(0)
+const totalExact = ref(true)
+const hasMore = ref(false)
 const tableData = ref([])
 const formVis = ref(false)
 const form = ref({})
 const fileList = ref([])
 
 const catLabel = { contract:'合同', drawing:'图纸', specification:'规格书', report:'报告', certificate:'证书', manual:'手册', other:'其他' }
+const pageSize = 20
+const paginationTotal = computed(() => {
+  if (totalExact.value) return total.value
+  return (page.value - 1) * pageSize + tableData.value.length + (hasMore.value ? 1 : 0)
+})
 
 const fetchList = async () => {
   loading.value = true
   try {
-    const res = await documentApi.getList({ keyword: keyword.value, category: filterCategory.value, page: page.value, pageSize: 20 })
+    const res = await documentApi.getList({ keyword: keyword.value, category: filterCategory.value, page: page.value, pageSize })
     const d = res.data || res
     tableData.value = d.list || []
     total.value = d.total || 0
-  } catch { ElMessage.error('加载失败') }
+    totalExact.value = d.totalExact !== false
+    hasMore.value = d.hasMore === true
+  } catch (error) { ElMessage.error(error?.message || '加载失败') }
   finally { loading.value = false }
 }
 

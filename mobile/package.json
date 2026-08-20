@@ -19,6 +19,7 @@
     "dayjs": "^1.11.10",
     "html5-qrcode": "^2.3.8",
     "pinia": "^3.0.4",
+    "qrcode": "^1.5.4",
     "socket.io-client": "^4.8.3",
     "vant": "^4.8.1",
     "vue": "^3.3.8",
@@ -40,6 +41,11 @@
     "vitest": "^3.2.7"
   },
   "overrides": {
+    "socket.io-parser": "4.2.7",
+    "brace-expansion@2.1.2": "2.1.4",
+    "brace-expansion@5.0.7": "5.0.9",
+    "postcss": "8.5.26",
+    "nanoid": "3.3.18",
     "ws": "8.21.0"
   }
 }

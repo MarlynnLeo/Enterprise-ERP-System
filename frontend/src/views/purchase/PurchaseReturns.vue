@@ -395,7 +395,7 @@ import { formatLocalDate } from '@/utils/format';
 import { parseListData, parsePaginatedData } from '@/utils/responseParser';
 import { ref, reactive, computed, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
-import { Plus, View, Edit, Delete, Check, Close, Finished } from '@element-plus/icons-vue';
+import { Plus, Edit, Delete, Check, Close, Finished } from '@element-plus/icons-vue';
 
 import { useAuthStore } from '@/stores/auth';
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation';

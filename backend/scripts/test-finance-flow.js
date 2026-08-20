@@ -69,7 +69,8 @@ async function q(sql, params = []) {
 async function createAuthClient() {
   const agent = request.agent(app);
   const username = process.env.TEST_ADMIN_USERNAME || 'admin';
-  const password = process.env.TEST_ADMIN_PASSWORD || '123456';
+  const password = process.env.TEST_ADMIN_PASSWORD;
+  if (!password) throw new Error('TEST_ADMIN_PASSWORD is required');
 
   const loginRes = await agent.post('/api/auth/login').send({ username, password });
   if (loginRes.status !== 200) {

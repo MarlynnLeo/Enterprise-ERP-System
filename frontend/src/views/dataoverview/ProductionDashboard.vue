@@ -173,7 +173,7 @@ import { getProductionStatusColor } from '@/constants/systemConstants'
 import { formatDate as formatDateUtil } from '@/utils/helpers/formatters';
 import Chart from '@/utils/chartCore';
 import { ElMessage } from 'element-plus';
-import { Search, View } from '@element-plus/icons-vue';
+import { Search } from '@element-plus/icons-vue';
 import { productionApi } from '@/api';
 import { useDashboard, useCharts } from '@/composables/useDashboard';
 // 权限计算属性

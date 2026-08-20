@@ -155,7 +155,7 @@
 import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { View, User, Check, CircleClose } from '@element-plus/icons-vue'
+import { User, Check, CircleClose } from '@element-plus/icons-vue'
 import { anomalyReportApi } from '@/api/productionAssist'
 
 const loading = ref(false)

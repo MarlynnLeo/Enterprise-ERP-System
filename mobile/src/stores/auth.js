@@ -51,17 +51,17 @@ const normalizeUserData = (userData) => {
   if (!userData || typeof userData !== 'object') return userData
   const normalized = { ...userData }
   // HTTP 统一 camel；兼容历史本地缓存中的 snake 键
-  if (normalized.realName == null && normalized.realName != null) {
-    normalized.realName = normalized.realName
+  if (normalized.realName == null && normalized.real_name != null) {
+    normalized.realName = normalized.real_name
   }
-  if (normalized.departmentName == null && normalized.departmentName != null) {
-    normalized.departmentName = normalized.departmentName
+  if (normalized.departmentName == null && normalized.department_name != null) {
+    normalized.departmentName = normalized.department_name
   }
-  if (normalized.createdAt == null && normalized.createdAt != null) {
-    normalized.createdAt = normalized.createdAt
+  if (normalized.createdAt == null && normalized.created_at != null) {
+    normalized.createdAt = normalized.created_at
   }
-  if (normalized.avatarFrame == null && normalized.avatarFrame != null) {
-    normalized.avatarFrame = normalized.avatarFrame
+  if (normalized.avatarFrame == null && normalized.avatar_frame != null) {
+    normalized.avatarFrame = normalized.avatar_frame
   }
   if (normalized.avatar) {
     normalized.avatar = buildResourceUrl(normalized.avatar)
@@ -113,7 +113,8 @@ export const useAuthStore = defineStore('auth', () => {
   const realName = computed(() => user.value?.realName || user.value?.username)
   const mustChangePassword = computed(() => {
     const flag = user.value?.forcePasswordChange
-    return flag === true || flag === 1 || flag === '1'
+    const expired = user.value?.passwordExpired
+    return flag === true || flag === 1 || flag === '1' || expired === true || expired === 1 || expired === '1'
   })
 
   // ==================== 私有方法 ====================
@@ -166,6 +167,7 @@ export const useAuthStore = defineStore('auth', () => {
     permissions.value = []
     permissionsLoaded.value = false
     permissionsLoading.value = false
+    sessionProbed.value = false
 
     // 清除所有存储的认证数据
     sessionStorage.removeItem('token')
@@ -193,11 +195,23 @@ export const useAuthStore = defineStore('auth', () => {
    */
   const login = async (credentials) => {
     try {
+      // Password success may transition to an unauthenticated MFA challenge.
+      // Remove any previous principal before starting that transition.
+      clearAuthData()
       const response = await api.post('/auth/login', credentials)
 
       // 响应拦截器已经解包了 ResponseHandler 格式
       // response.data 就是 { token, accessToken, refreshToken, user }
       const authData = response.data
+
+      if (authData?.mfaRequired) {
+        return {
+          mfaRequired: true,
+          mfaSetupRequired: Boolean(authData.mfaSetupRequired),
+          challengeId: authData.challengeId,
+          expiresIn: authData.expiresIn,
+        }
+      }
 
       if (!authData || !authData.user) {
         throw new Error('登录响应数据格式错误')
@@ -221,6 +235,17 @@ export const useAuthStore = defineStore('auth', () => {
       throw error
     }
   }
+
+  const verifyMfa = async (payload) => {
+    const response = await api.post('/auth/mfa/verify', payload)
+    const authData = response.data
+    if (!authData?.user) throw new Error('MFA 验证响应数据格式错误')
+    saveAuthData(authData)
+    await fetchUserPermissions()
+    return authData
+  }
+
+  const enrollMfa = (payload) => api.post('/auth/mfa/enroll', payload)
 
   /**
    * 登出
@@ -491,6 +516,8 @@ export const useAuthStore = defineStore('auth', () => {
 
     // 方法
     login,
+    verifyMfa,
+    enrollMfa,
     logout,
     fetchUserProfile,
     updateProfile,

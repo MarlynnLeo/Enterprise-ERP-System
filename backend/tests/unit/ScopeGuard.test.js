@@ -197,7 +197,7 @@ describe('ScopeGuard', () => {
     expect(clause.params).toEqual([9]);
   });
 
-  test('销售订单读取详情不触发创建人范围查询', async () => {
+  test('销售订单读取详情只校验对象存在，不限制创建人范围', async () => {
     const req = {
       authzScope: {
         type: DataScopeService.DATA_SCOPE.SELF,
@@ -206,10 +206,30 @@ describe('ScopeGuard', () => {
         locationIds: [],
       },
     };
-    const conn = { execute: jest.fn() };
+    const conn = { execute: jest.fn().mockResolvedValueOnce([[{ id: 123 }]]) };
     await expect(
       ScopeGuard.assertAccess(conn, req, 'sales_order', 123, { accessMode: 'read' })
     ).resolves.toBe(true);
-    expect(conn.execute).not.toHaveBeenCalled();
+    expect(conn.execute).toHaveBeenCalledWith(
+      expect.stringContaining('FROM `sales_orders`'),
+      [123]
+    );
+  });
+
+  test('共享读取和财务共享均拒绝不存在对象', async () => {
+    const req = {
+      authzScope: {
+        type: DataScopeService.DATA_SCOPE.SELF,
+        userId: 9,
+        departmentIds: [],
+        locationIds: [],
+      },
+    };
+    const conn = { execute: jest.fn().mockResolvedValue([[]]) };
+
+    await expect(
+      ScopeGuard.assertAccess(conn, req, 'sales_order', 404, { accessMode: 'read' })
+    ).resolves.toBe(false);
+    await expect(ScopeGuard.assertAccess(conn, req, 'ar_invoice', 404)).resolves.toBe(false);
   });
 });

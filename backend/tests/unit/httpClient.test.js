@@ -29,13 +29,29 @@ describe('httpClient', () => {
       res.end('0123456789abcdef');
     });
 
-    await expect(
-      request('GET', `${baseUrl}/large`, {
-        retries: 0,
-        maxResponseBytes: 8,
-      })
-    ).rejects.toMatchObject({
+    const requestPromise = request('GET', `${baseUrl}/large?access_token=do-not-log`, {
+      retries: 0,
+      maxResponseBytes: 8,
+    });
+    await expect(requestPromise).rejects.toMatchObject({
       code: 'HTTP_RESPONSE_TOO_LARGE',
     });
+    await expect(requestPromise).rejects.not.toThrow(/do-not-log/);
+  });
+
+  test('does not retry unsafe POST requests unless explicitly requested', async () => {
+    let attempts = 0;
+    const baseUrl = await listen((req, _res) => {
+      attempts += 1;
+      req.socket.destroy();
+    });
+
+    await expect(
+      request('POST', `${baseUrl}/mutate`, {
+        data: { value: 1 },
+      })
+    ).rejects.toBeDefined();
+
+    expect(attempts).toBe(1);
   });
 });

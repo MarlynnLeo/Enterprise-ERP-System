@@ -17,9 +17,9 @@
               {{ isApproved(bomData) ? '已审核' : '未审核' }}
             </el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="创建人">{{ bomData.createdBy || bomData.created_by || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="创建人">{{ bomData.createdBy || '-' }}</el-descriptions-item>
           <el-descriptions-item label="创建时间">{{ bomData.createdAt }}</el-descriptions-item>
-          <el-descriptions-item label="修改人">{{ bomData.updatedBy || bomData.updated_by || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="修改人">{{ bomData.updatedBy || '-' }}</el-descriptions-item>
           <el-descriptions-item label="最后修改时间">{{ bomData.updatedAt }}</el-descriptions-item>
           <el-descriptions-item label="备注" :span="2">{{ bomData.remark || '-' }}</el-descriptions-item>
         </el-descriptions>
@@ -40,7 +40,7 @@
         <!-- 使用Tabs展示BOM明细 -->
         <el-tabs v-model="activeTab" class="mt-20">
           <el-tab-pane label="BOM明细" name="details">
-            <el-table :data="displayDetails" border max-height="400" row-key="id" default-expand-all :tree-props="{ children: 'children', hasChildren: 'hasChildren' }">
+            <el-table :data="displayDetails" border max-height="400" :row-key="getTreeRowKey" default-expand-all :tree-props="{ children: 'children', hasChildren: 'hasChildren' }">
               <el-table-column label="结构" prop="wbs" width="90"></el-table-column>
               <el-table-column prop="materialCode" label="物料编码" width="130" show-overflow-tooltip></el-table-column>
               <el-table-column prop="materialName" label="物料名称" width="150" show-overflow-tooltip></el-table-column>
@@ -86,6 +86,8 @@ const emit = defineEmits(['update:modelValue'])
 const activeTab = ref('details')
 const showImageViewer = ref(false)
 const previewList = ref([])
+
+const getTreeRowKey = (row) => row.treeKey || `${row.bomId || 'bom'}:${row.id}`
 
 // 计算并构建WBS层级
 const displayDetails = computed(() => {

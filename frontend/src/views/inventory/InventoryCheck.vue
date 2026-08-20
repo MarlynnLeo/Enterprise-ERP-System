@@ -432,7 +432,7 @@ import { parsePaginatedData, parseListData } from '@/utils/responseParser';
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation';
 import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Plus, ArrowDown, Delete, RefreshRight, View, Edit } from '@element-plus/icons-vue';
+import { Plus, ArrowDown, Delete, RefreshRight, Edit } from '@element-plus/icons-vue';
 import { inventoryApi } from '@/api';
 import { SEARCH_CONFIG, searchMaterials, mapMaterialData } from '@/utils/searchConfig';
 import { getCurrentDate } from '@/utils/helpers/dateUtils';

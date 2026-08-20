@@ -131,7 +131,7 @@
 </template>
 <script setup>
 import { handleTableRowView } from '@/utils/tableRowView'
-import { View, Edit, Delete, Check, Close, RefreshRight } from '@element-plus/icons-vue'
+import { Edit, Delete, Check, Close, RefreshRight } from '@element-plus/icons-vue'
 import { DateFormatter } from '@/utils/commonHelpers'
 const _props = defineProps({
   tableData: {

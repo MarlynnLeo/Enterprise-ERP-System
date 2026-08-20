@@ -1,14 +1,3 @@
-import {
-  Briefcase,
-  Brush,
-  Cpu,
-  Moon,
-  OfficeBuilding,
-  Pear,
-  Promotion,
-  SuitcaseLine
-} from '@element-plus/icons-vue'
-
 export const DEFAULT_THEME_PRESET_ID = 'kacon'
 export const DEFAULT_FONT_SIZE = 14
 
@@ -19,7 +8,7 @@ export const THEME_PRESET_LIST = Object.freeze([
     description: '标准浅色界面，适合通用办公场景',
     primaryColor: '#409EFF',
     mode: 'light',
-    icon: Brush
+    icon: 'Brush'
   },
   {
     id: 'tech',
@@ -27,7 +16,7 @@ export const THEME_PRESET_LIST = Object.freeze([
     description: '深色高对比界面，适合看板和监控场景',
     primaryColor: '#00C3FF',
     mode: 'dark',
-    icon: Cpu
+    icon: 'Cpu'
   },
   {
     id: 'business',
@@ -35,7 +24,7 @@ export const THEME_PRESET_LIST = Object.freeze([
     description: '稳重低饱和配色，适合经营管理场景',
     primaryColor: '#2C3E50',
     mode: 'light',
-    icon: Briefcase
+    icon: 'Briefcase'
   },
   {
     id: 'vibrant',
@@ -43,7 +32,7 @@ export const THEME_PRESET_LIST = Object.freeze([
     description: '明快配色，适合高频协作和轻量工作台',
     primaryColor: '#FF6B6B',
     mode: 'light',
-    icon: Promotion
+    icon: 'Promotion'
   },
   {
     id: 'nature',
@@ -51,7 +40,7 @@ export const THEME_PRESET_LIST = Object.freeze([
     description: '低饱和绿色系，适合长时间浏览',
     primaryColor: '#51CF66',
     mode: 'light',
-    icon: Pear
+    icon: 'Pear'
   },
   {
     id: 'dark',
@@ -59,7 +48,7 @@ export const THEME_PRESET_LIST = Object.freeze([
     description: '低亮度深色界面，适合夜间和弱光环境',
     primaryColor: '#60A5FA',
     mode: 'dark',
-    icon: Moon
+    icon: 'Moon'
   },
   {
     id: 'premium',
@@ -68,7 +57,7 @@ export const THEME_PRESET_LIST = Object.freeze([
     // 不可用纯白作 EP 主色（按钮/链接会失效）；用高亮锌灰作可交互主色
     primaryColor: '#E4E4E7',
     mode: 'dark',
-    icon: SuitcaseLine
+    icon: 'SuitcaseLine'
   },
   {
     id: 'professional',
@@ -76,7 +65,7 @@ export const THEME_PRESET_LIST = Object.freeze([
     description: '企业级扁平化风格，强调清晰和稳定',
     primaryColor: '#1F4E79',
     mode: 'light',
-    icon: SuitcaseLine
+    icon: 'SuitcaseLine'
   },
   {
     id: 'kacon',
@@ -84,7 +73,7 @@ export const THEME_PRESET_LIST = Object.freeze([
     description: 'KACON 品牌深翡翠绿，适合默认业务操作',
     primaryColor: '#15803D',
     mode: 'light',
-    icon: OfficeBuilding
+    icon: 'OfficeBuilding'
   }
 ])
 

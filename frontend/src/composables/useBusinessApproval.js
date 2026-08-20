@@ -69,8 +69,8 @@ export function useBusinessApproval({ businessType, onSuccess } = {}) {
       })
       const result = res.data || res
       if (action === 'approve') {
-        if (result.generatedOrders?.length || result.generated_orders?.length) {
-          const orders = result.generatedOrders || result.generated_orders
+        if (result.generatedOrders?.length) {
+          const orders = result.generatedOrders
           ElMessage.success(`审批通过！已自动生成 ${orders.length} 个采购订单`)
         } else {
           ElMessage.success('审批通过')

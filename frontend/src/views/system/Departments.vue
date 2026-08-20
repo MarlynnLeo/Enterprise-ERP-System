@@ -240,7 +240,7 @@
 import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Plus, Check, Close, View, Edit, Delete } from '@element-plus/icons-vue';
+import { Plus, Check, Close, Edit, Delete } from '@element-plus/icons-vue';
 import { systemApi } from '@/api';
 import { parseListData } from '@/utils/responseParser';
 // 权限计算属性

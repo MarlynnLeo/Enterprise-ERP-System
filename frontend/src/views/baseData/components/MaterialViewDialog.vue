@@ -22,7 +22,7 @@
           {{ viewData.specs || '无' }}
         </el-descriptions-item>
         <el-descriptions-item label="物料类型">
-          {{ getMaterialTypeLabel(viewData.materialType || viewData.material_type) }}
+          {{ getMaterialTypeLabel(viewData.materialType) }}
         </el-descriptions-item>
         <el-descriptions-item label="物料分类">
           {{ viewData.categoryName || '未设置' }}
@@ -37,9 +37,9 @@
           {{ viewData.supplierName || (viewData.materialSourceName === '自制' ? '自制' : '未设置') }}
         </el-descriptions-item>
         <el-descriptions-item label="生产组">
-          {{ viewData.productionGroupName || viewData.production_group_name || '未设置' }}
+          {{ viewData.productionGroupName || '未设置' }}
         </el-descriptions-item>
-        <el-descriptions-item label="图号">
+        <el-descriptions-item label="物料号">
           {{ viewData.drawingNo || '无' }}
         </el-descriptions-item>
         <el-descriptions-item label="色号">
@@ -56,9 +56,6 @@
         </el-descriptions-item>
         <el-descriptions-item label="物料负责人">
           {{ viewData.managerName || '未设置' }}
-        </el-descriptions-item>
-        <el-descriptions-item label="物料位置">
-          {{ viewData.locationDetail || '未设置' }}
         </el-descriptions-item>
         <el-descriptions-item label="销售价格">
           {{ formatMaskedPrice(viewData.price, canViewPrice, formatCurrency) }}

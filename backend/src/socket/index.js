@@ -20,6 +20,18 @@ const CHAT_ACCESS_PERMISSIONS = ['chat:access', 'system:notifications'];
 const CHAT_SEND_PERMISSIONS = ['chat:send', 'chat:access', 'system:notifications'];
 const MAX_CHAT_MESSAGE_LENGTH = 2000;
 const ALLOWED_CLIENT_MESSAGE_TYPES = new Set(['text']);
+const SOCKET_AUTH_REFRESH_INTERVAL_MS = 30 * 1000;
+const SOCKET_MAX_CONNECTIONS_PER_IP = Number.parseInt(process.env.SOCKET_MAX_CONNECTIONS_PER_IP, 10) || 25;
+const socketConnectionsByIp = new Map();
+
+// Do not trust a client supplied X-Forwarded-For value.  The HTTP server's
+// remoteAddress is the only safe default here; a trusted reverse proxy can
+// replace it at the network boundary, but arbitrary request headers must not
+// become a connection-limit key (otherwise an attacker can bypass the limit
+// by sending a different header on every handshake).
+function getSocketConnectionKey(request) {
+  return String(request?.socket?.remoteAddress || request?.connection?.remoteAddress || 'unknown');
+}
 
 function hasAnyPermission(userPermissions, permissions) {
   return permissions.some((permission) =>
@@ -88,6 +100,7 @@ async function verifySocketToken(token) {
     id: user.id,
     username: user.username,
     realName: user.real_name,
+    tokenVersion: Number(user.token_version || 0),
   };
 }
 
@@ -99,6 +112,25 @@ async function isConversationMember(conversationId, userId) {
   return memberRows.length > 0;
 }
 
+async function refreshSocketAuthorization(socket) {
+  const [users] = await pool.execute(
+    'SELECT id, username, real_name, status, token_version FROM users WHERE id = ? LIMIT 1',
+    [socket.userId]
+  );
+  const user = users[0];
+  if (!user || Number(user.status) !== 1 || Number(socket.tokenVersion) !== Number(user.token_version || 0)) {
+    socket.disconnect(true);
+    return false;
+  }
+
+  const permissions = await PermissionService.getUserPermissions(user.id);
+  socket.userPermissions = permissions;
+  socket.chatAccessAllowed = hasAnyPermission(permissions, CHAT_ACCESS_PERMISSIONS);
+  socket.chatSendAllowed = hasAnyPermission(permissions, CHAT_SEND_PERMISSIONS);
+  socket.lastAuthorizationCheckAt = Date.now();
+  return true;
+}
+
 /**
  * 初始化 Socket.IO
  * @param {import('http').Server} httpServer
@@ -108,6 +140,20 @@ function initSocket(httpServer) {
     cors: createCorsOptions({ methods: ['GET', 'POST'] }),
     path: '/socket.io',
     transports: ['websocket', 'polling'],
+    maxHttpBufferSize: 1e6,
+    allowRequest: (request, callback) => {
+      const ip = getSocketConnectionKey(request);
+      const count = socketConnectionsByIp.get(ip) || 0;
+      if (count >= SOCKET_MAX_CONNECTIONS_PER_IP) {
+        return callback('Too many socket connections', false);
+      }
+      socketConnectionsByIp.set(ip, count + 1);
+      request.__erpSocketIp = ip;
+      return callback(null, true);
+    },
+    connectTimeout: 10000,
+    pingTimeout: 20000,
+    pingInterval: 25000,
   });
 
   // JWT 鉴权中间件
@@ -123,6 +169,7 @@ function initSocket(httpServer) {
       const userPermissions = await PermissionService.getUserPermissions(user.id);
       socket.userId = user.id;
       socket.userName = user.realName || user.username;
+      socket.tokenVersion = user.tokenVersion;
       socket.userPermissions = userPermissions;
       socket.chatAccessAllowed = hasAnyPermission(userPermissions, CHAT_ACCESS_PERMISSIONS);
       socket.chatSendAllowed = hasAnyPermission(userPermissions, CHAT_SEND_PERMISSIONS);
@@ -135,6 +182,7 @@ function initSocket(httpServer) {
 
   io.on('connection', (socket) => {
     const userId = socket.userId;
+    const socketIp = socket.request.__erpSocketIp || socket.handshake.address || 'unknown';
     logger.info(`[Socket] 用户 ${userId} 已连接 (${socket.id})`);
 
     // 记录在线状态
@@ -149,11 +197,29 @@ function initSocket(httpServer) {
     // 广播在线状态
     io.emit('user:online', { userId, online: true });
 
+    const ensureFreshAuthorization = async () => {
+      if (
+        socket.lastAuthorizationCheckAt &&
+        Date.now() - socket.lastAuthorizationCheckAt < SOCKET_AUTH_REFRESH_INTERVAL_MS
+      ) {
+        return true;
+      }
+      try {
+        return await refreshSocketAuthorization(socket);
+      } catch (error) {
+        logger.warn('[Socket] authorization refresh failed', { userId, error: error.message });
+        socket.disconnect(true);
+        return false;
+      }
+    };
+    socket.lastAuthorizationCheckAt = Date.now();
+
     // ==================== 聊天事件 ====================
 
     // 加入会话房间
     socket.on('chat:join', async (conversationId, callback) => {
       try {
+        if (!(await ensureFreshAuthorization())) return callback?.({ error: 'UNAUTHORIZED' });
         if (!socket.chatAccessAllowed) {
           return callback?.({ error: 'FORBIDDEN' });
         }
@@ -182,6 +248,7 @@ function initSocket(httpServer) {
     // 发送消息
     socket.on('chat:send', async (data, callback) => {
       try {
+        if (!(await ensureFreshAuthorization())) return callback?.({ error: 'UNAUTHORIZED' });
         if (!socket.chatSendAllowed) {
           return callback?.({ error: 'FORBIDDEN' });
         }
@@ -261,6 +328,7 @@ function initSocket(httpServer) {
     // 正在输入
     socket.on('chat:typing', async (conversationId) => {
       try {
+        if (!(await ensureFreshAuthorization())) return;
         if (!socket.chatAccessAllowed) {
           return;
         }
@@ -278,6 +346,9 @@ function initSocket(httpServer) {
 
     // 断开连接
     socket.on('disconnect', () => {
+      const currentIpCount = socketConnectionsByIp.get(socketIp) || 0;
+      if (currentIpCount <= 1) socketConnectionsByIp.delete(socketIp);
+      else socketConnectionsByIp.set(socketIp, currentIpCount - 1);
       logger.info(`[Socket] 用户 ${userId} 已断开 (${socket.id})`);
       const userSockets = onlineUsers.get(userId);
       if (userSockets) {
@@ -294,6 +365,27 @@ function initSocket(httpServer) {
   return io;
 }
 
+/** Immediately revoke all live sockets for a user after password/status/role
+ * changes.  HTTP token_version checks alone cannot invalidate a long-lived
+ * Socket.IO connection. */
+function disconnectUserSockets(userId, reason = 'authorization_revoked') {
+  const normalizedUserId = Number(userId);
+  if (!io || !Number.isInteger(normalizedUserId) || normalizedUserId <= 0) return 0;
+  const sockets = onlineUsers.get(normalizedUserId);
+  if (!sockets) return 0;
+  let count = 0;
+  for (const socketId of sockets) {
+    const socket = io.sockets.sockets.get(socketId);
+    if (socket) {
+      socket.emit('auth:revoked', { reason });
+      socket.disconnect(true);
+      count += 1;
+    }
+  }
+  onlineUsers.delete(normalizedUserId);
+  return count;
+}
+
 /**
  * 获取 Socket.IO 实例
  */
@@ -308,4 +400,5 @@ function getOnlineUsers() {
   return Array.from(onlineUsers.keys());
 }
 
-module.exports = { initSocket, getIO, getOnlineUsers };
+module.exports = { initSocket, getIO, getOnlineUsers, disconnectUserSockets };
+module.exports.getSocketConnectionKey = getSocketConnectionKey;

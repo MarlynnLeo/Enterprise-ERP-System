@@ -165,7 +165,7 @@ import { ref, computed, onMounted, onBeforeUnmount, reactive, watch } from 'vue'
 import { useRouter } from 'vue-router';
 import Chart from '@/utils/chartCore';
 import { ElMessage } from 'element-plus';
-import { Search, View } from '@element-plus/icons-vue';
+import { Search } from '@element-plus/icons-vue';
 import { qualityApi } from '@/api';
 import { createLineChartConfig, createPieChartConfig, chartColors } from '@/utils/chartConfig';
 import { alphaColor, getCssTokenValue } from '@/utils/designTokens';

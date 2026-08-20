@@ -26,6 +26,7 @@ const STATUS = {
 
 const DEFAULT_TODO_PAGE_SIZE = 100;
 const MAX_TODO_PAGE_SIZE = 100;
+const DASHBOARD_TODO_LIMIT = 10;
 const AVAILABLE_USERS_LIMIT = 200;
 
 function getBoundedLimit(value, defaultValue = DEFAULT_TODO_PAGE_SIZE, maxValue = MAX_TODO_PAGE_SIZE) {
@@ -177,6 +178,16 @@ function getTodoIncludes() {
   ];
 }
 
+function getDashboardTodoIncludes() {
+  return [
+    {
+      model: models.User,
+      as: 'creator',
+      attributes: ['id', 'username', 'real_name'],
+    },
+  ];
+}
+
 async function findTodoWithRelations(id, transaction) {
   return models.Todo.findByPk(id, {
     include: getTodoIncludes(),
@@ -266,6 +277,86 @@ exports.getAllTodos = async (req, res) => {
   } catch (error) {
     logger.error('获取待办事项失败:', error);
     return ResponseHandler.error(res, '获取待办事项失败', 'SERVER_ERROR', 500, error);
+  }
+};
+
+// 首页只需要少量待办、准确计数和当前月份的日历标记。
+// 避免首页每次加载 100 条任务以及所有协同参与者关联数据。
+exports.getDashboardSummary = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const now = new Date();
+    const requestedYear = Number.parseInt(req.query.year, 10);
+    const requestedMonth = Number.parseInt(req.query.month, 10);
+    const hasRequestedMonth = req.query.year !== undefined || req.query.month !== undefined;
+
+    if (
+      hasRequestedMonth &&
+      (!Number.isInteger(requestedYear) || requestedYear < 2000 || requestedYear > 2100 ||
+        !Number.isInteger(requestedMonth) || requestedMonth < 1 || requestedMonth > 12)
+    ) {
+      return ResponseHandler.error(res, '日历月份参数无效', 'VALIDATION_ERROR', 400);
+    }
+
+    const year = hasRequestedMonth ? requestedYear : now.getFullYear();
+    const month = hasRequestedMonth ? requestedMonth : now.getMonth() + 1;
+    const monthStart = new Date(year, month - 1, 1);
+    const nextMonthStart = new Date(year, month, 1);
+    const listAttributes = [
+      'id',
+      'title',
+      'deadline',
+      'priority',
+      'completed',
+      'createdAt',
+      'updatedAt',
+      'creatorId',
+    ];
+
+    const [pending, completed, pendingCount, completedCount, calendar] = await Promise.all([
+      models.Todo.findAll({
+        where: { userId, completed: false },
+        attributes: listAttributes,
+        include: getDashboardTodoIncludes(),
+        order: [['deadline', 'ASC'], ['id', 'DESC']],
+        limit: DASHBOARD_TODO_LIMIT,
+      }),
+      models.Todo.findAll({
+        where: { userId, completed: true },
+        attributes: listAttributes,
+        include: getDashboardTodoIncludes(),
+        order: [['updatedAt', 'DESC'], ['id', 'DESC']],
+        limit: DASHBOARD_TODO_LIMIT,
+      }),
+      models.Todo.count({ where: { userId, completed: false } }),
+      models.Todo.count({ where: { userId, completed: true } }),
+      models.Todo.findAll({
+        where: {
+          userId,
+          deadline: {
+            [Op.gte]: monthStart,
+            [Op.lt]: nextMonthStart,
+          },
+        },
+        attributes: ['id', 'deadline'],
+        order: [['deadline', 'ASC']],
+        raw: true,
+      }),
+    ]);
+
+    return ResponseHandler.success(res, {
+      pending,
+      completed,
+      counts: {
+        pending: Number(pendingCount) || 0,
+        completed: Number(completedCount) || 0,
+      },
+      calendar,
+      calendarMonth: `${year}-${String(month).padStart(2, '0')}`,
+    });
+  } catch (error) {
+    logger.error('获取首页待办摘要失败:', error);
+    return ResponseHandler.error(res, '获取首页待办摘要失败', 'SERVER_ERROR', 500, error);
   }
 };
 

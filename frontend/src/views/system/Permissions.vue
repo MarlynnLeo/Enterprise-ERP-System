@@ -619,7 +619,6 @@ import {
   Refresh,
   Search,
   Setting,
-  View,
 } from '@element-plus/icons-vue';
 import { systemApi } from '@/api';
 import menuPermissions from '../../utils/menuPermissions';

@@ -10,6 +10,7 @@ const { mapKeysToSnake } = require('../../../utils/fieldMap');
 const FileAccessService = require('../../../services/FileAccessService');
 
 const path = require('path');
+const fs = require('fs');
 const categoryService = require('../../../services/categoryService');
 const unitService = require('../../../services/unitService');
 const locationService = require('../../../services/locationService');
@@ -50,19 +51,45 @@ const commonController = {
   deleteInspectionMethod: baseInspectionMethodController.delete,
 
   async uploadFile(req, res) {
+    let fileUrl = null;
     try {
       if (!req.file) {
         return ResponseHandler.error(res, '没有上传文件', 'VALIDATION_ERROR', 400);
       }
-      const fileUrl = `/uploads/${req.file.filename}`;
+      fileUrl = `/uploads/${req.file.filename}`;
       const body = mapKeysToSnake(req.body || {});
+      const binding = FileAccessService.validateBusinessBinding(
+        body.business_type,
+        body.business_id
+      );
+      if (!binding.valid) {
+        FileAccessService.removeLocalFile(fileUrl);
+        return ResponseHandler.error(
+          res,
+          '业务类型和业务 ID 必须成对提供，且业务类型必须受支持',
+          'VALIDATION_ERROR',
+          400
+        );
+      }
+      if (
+        binding.bound &&
+        !(await FileAccessService.assertBusinessObjectAccess(
+          req,
+          binding.businessType,
+          binding.businessId,
+          'write'
+        ))
+      ) {
+        FileAccessService.removeLocalFile(fileUrl);
+        return ResponseHandler.forbidden(res, '无权向该业务对象上传文件');
+      }
       await FileAccessService.safeRecordUpload({
         fileUrl,
-        businessType: body.business_type,
-        businessId: body.business_id,
+        businessType: binding.businessType,
+        businessId: binding.businessId,
         source: 'baseData',
         uploadedBy: req.user?.id || req.user?.userId || null,
-        isPublic: body.is_public,
+        isPublic: FileAccessService.normalizePublicFlag(body.is_public, req.userPermissions),
         metadata: {
           originalName: req.file.originalname,
           mimetype: req.file.mimetype,
@@ -71,6 +98,7 @@ const commonController = {
       });
       ResponseHandler.success(res, { fileUrl, filename: req.file.filename }, '上传成功');
     } catch (error) {
+      if (fileUrl) FileAccessService.removeLocalFile(fileUrl);
       logger.error('文件上传失败:', error);
       ResponseHandler.error(res, error.message, 'SERVER_ERROR', 500, error);
     }
@@ -83,17 +111,40 @@ const commonController = {
         return ResponseHandler.error(res, '文件路径不能为空', 'VALIDATION_ERROR', 400);
       }
 
-      // 安全：只允许从uploads目录下载
-      const uploadsDir = path.resolve(process.cwd(), 'uploads');
-      const absolutePath = path.resolve(uploadsDir, path.basename(filePath));
-
-      // 验证解析后的路径是否仍在uploads目录
-      if (!absolutePath.startsWith(uploadsDir + path.sep)) {
-        logger.warn('检测到路径穿越尝试:', { filePath, resolvedPath: absolutePath });
+      const normalizedPath = FileAccessService.normalizeUploadUrl(filePath);
+      if (!normalizedPath) {
         return ResponseHandler.error(res, '文件路径无效', 'VALIDATION_ERROR', 400);
       }
 
-      res.download(absolutePath);
+      const decision = await FileAccessService.authorize({
+        userId: req.user?.id || req.user?.userId,
+        fileUrl: normalizedPath,
+        req,
+        userPermissions: req.userPermissions,
+      });
+      if (!decision.known || !decision.allowed) {
+        return ResponseHandler.forbidden(res, '无权下载该文件');
+      }
+
+      // Resolve the complete controlled upload path; basename-only lookup is
+      // deliberately avoided because it can select an unrelated file.
+      const uploadsDir = path.resolve(process.cwd(), 'uploads');
+      const relativePath = normalizedPath.slice('/uploads/'.length);
+      const absolutePath = path.resolve(uploadsDir, relativePath);
+
+      if (!absolutePath.startsWith(uploadsDir + path.sep)) {
+        logger.warn('检测到路径穿越尝试', { filePath });
+        return ResponseHandler.error(res, '文件路径无效', 'VALIDATION_ERROR', 400);
+      }
+      if (!fs.existsSync(absolutePath)) {
+        return ResponseHandler.error(res, '文件不存在', 'NOT_FOUND', 404);
+      }
+
+      return res.download(absolutePath, path.basename(absolutePath), (error) => {
+        if (error && !res.headersSent) {
+          ResponseHandler.error(res, '文件下载失败', 'SERVER_ERROR', 500, error);
+        }
+      });
     } catch (error) {
       logger.error('文件下载失败:', error);
       ResponseHandler.error(res, error.message, 'SERVER_ERROR', 500, error);

@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const db = require('../../config/db');
 const { logger } = require('../../utils/logger');
+const { sanitizeAuditValue, serializeAuditPayload } = require('../../utils/auditSanitizer');
 
 const AUDIT_FAILURE_LOG = path.resolve(
   process.env.AUDIT_FAILURE_LOG || path.join(process.cwd(), 'logs', 'audit-failures.ndjson')
@@ -33,8 +34,8 @@ async function writeAuditFailure(params, error) {
 
 class AuditLogService {
   static diffObjects(oldValue = {}, newValue = {}) {
-    const oldObj = oldValue && typeof oldValue === 'object' ? oldValue : {};
-    const newObj = newValue && typeof newValue === 'object' ? newValue : {};
+    const oldObj = sanitizeAuditValue(oldValue && typeof oldValue === 'object' ? oldValue : {});
+    const newObj = sanitizeAuditValue(newValue && typeof newValue === 'object' ? newValue : {});
     const keys = new Set([...Object.keys(oldObj), ...Object.keys(newObj)]);
     const diff = {};
 
@@ -53,8 +54,8 @@ class AuditLogService {
     try {
       const conn = connection || (await db.pool.getConnection());
       try {
-        const oldPayload = params.old_payload || params.oldValue || null;
-        const newPayload = params.new_payload || params.newValue || null;
+        const oldPayload = sanitizeAuditValue(params.old_payload || params.oldValue || null);
+        const newPayload = sanitizeAuditValue(params.new_payload || params.newValue || null);
         const diff = params.field_diff || (oldPayload && newPayload
           ? this.diffObjects(oldPayload, newPayload)
           : null);
@@ -81,9 +82,9 @@ class AuditLogService {
               targetId,
               targetTable,
               targetId,
-              oldPayload ? JSON.stringify(oldPayload) : null,
-              newPayload ? JSON.stringify(newPayload) : null,
-              diff ? JSON.stringify(diff) : null,
+               serializeAuditPayload(oldPayload),
+               serializeAuditPayload(newPayload),
+               serializeAuditPayload(diff),
               params.ip_address || '',
               params.user_agent || '',
             ]
@@ -105,7 +106,7 @@ class AuditLogService {
               params.action || 'UNKNOWN',
               targetTable,
               targetId,
-              newPayload ? JSON.stringify(newPayload) : null,
+               serializeAuditPayload(newPayload),
               params.ip_address || '',
               params.user_agent || '',
             ]

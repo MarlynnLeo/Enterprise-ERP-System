@@ -89,8 +89,7 @@ api.interceptors.request.use(
     const url = config.url || ''
     const isAuthBootstrapRequest =
       url.includes('/csrf-token') ||
-      url.includes('/auth/login') ||
-      url.includes('/auth/refresh')
+      url.includes('/auth/login')
     // 从 sessionStorage 获取 JWT token（与 auth store 保持一致）
     if (unsafeMethods.has(method) && !config.skipCsrf && !isAuthBootstrapRequest) {
       const csrf = await fetchCsrfToken()
@@ -181,7 +180,7 @@ api.interceptors.response.use(
 
         try {
           // 尝试刷新Token
-          await api.post('/auth/refresh', undefined, { skipCsrf: true })
+          await api.post('/auth/refresh')
           // 响应拦截器已经解包，直接使用 data
           processQueue(null)
           return api(originalRequest)

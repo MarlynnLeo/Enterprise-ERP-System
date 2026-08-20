@@ -20,7 +20,10 @@ module.exports = {
       const data = await ContractService.getById(req.params.id, req);
       if (!data) return ResponseHandler.error(res, '合同不存在', 'NOT_FOUND', 404);
       // 附加单据关联
-      data.document_links = await DocumentLinkService.getLinks('contract', req.params.id);
+      data.document_links = await DocumentLinkService.getLinks('contract', req.params.id, {
+        req,
+        userPermissions: req.userPermissions,
+      });
       ResponseHandler.success(res, data);
     } catch (e) { logger.error('获取合同详情失败:', e); ResponseHandler.error(res, e.message, 'SERVER_ERROR', 500, e); }
   },

@@ -17,12 +17,72 @@ const InventoryService = require('../../../services/InventoryService');
 const businessConfig = require('../../../config/businessConfig');
 const { getCurrentUserName } = require('../../../utils/userHelper');
 
-// 统一库存查询子查询（基于 inventory_ledger 单表架构聚合计算当前库存）
-const STOCK_SUBQUERY = `(SELECT material_id, location_id, COALESCE(SUM(quantity), 0) as quantity, MAX(created_at) as updated_at FROM inventory_ledger GROUP BY material_id, location_id)`;
-
 const { getTransferStatusText } = require('../../../constants/systemConstants');
 const { getRequestActorLabel } = require('../../../utils/userUtils');
 const { inventoryTransferMap } = require('../../../utils/inventory/inventoryFieldMap');
+const ScopeGuard = require('../../../authorization/ScopeGuard');
+const DataScopeService = require('../../../services/DataScopeService');
+
+const MAX_TRANSFER_ITEMS = 500;
+
+function parsePositiveId(value) {
+  const id = Number(value);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+function normalizeTransferItems(items) {
+  if (!Array.isArray(items) || items.length === 0 || items.length > MAX_TRANSFER_ITEMS) {
+    return null;
+  }
+
+  const normalized = [];
+  const materialIds = new Set();
+  for (const item of items) {
+    const materialId = parsePositiveId(item?.material_id);
+    const quantity = Number(item?.quantity);
+    if (!materialId || !Number.isFinite(quantity) || quantity <= 0 || materialIds.has(materialId)) {
+      return null;
+    }
+    materialIds.add(materialId);
+    normalized.push({ ...item, material_id: materialId, quantity });
+  }
+  return normalized;
+}
+
+function isValidTransferDate(value) {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
+async function canAccessTransferLocations(req, fromLocationId, toLocationId) {
+  const [fromAllowed, toAllowed] = await Promise.all([
+    DataScopeService.canAccessLocation(req, fromLocationId),
+    DataScopeService.canAccessLocation(req, toLocationId),
+  ]);
+  return fromAllowed && toAllowed;
+}
+
+async function assertTransferReferences(connection, fromLocationId, toLocationId, items) {
+  const [locations] = await connection.execute(
+    'SELECT id FROM locations WHERE id IN (?, ?) AND status = 1 FOR UPDATE',
+    [fromLocationId, toLocationId]
+  );
+  if (new Set(locations.map((row) => Number(row.id))).size !== 2) {
+    throw Object.assign(new Error('源库位或目标库位不存在/已停用'), { statusCode: 400 });
+  }
+
+  const materialIds = items.map((item) => item.material_id);
+  const placeholders = materialIds.map(() => '?').join(',');
+  const [materials] = await connection.execute(
+    `SELECT id FROM materials
+      WHERE id IN (${placeholders}) AND deleted_at IS NULL AND status = 1`,
+    materialIds
+  );
+  if (new Set(materials.map((row) => Number(row.id))).size !== materialIds.length) {
+    throw Object.assign(new Error('调拨明细包含不存在或已停用的物料'), { statusCode: 400 });
+  }
+}
 
 const STATUS = {
   OUTBOUND: businessConfig.status.outbound,
@@ -57,12 +117,11 @@ const getTransferList = async (req, res) => {
     const materialName = req.query.materialName || '';
     const pagination = parsePagination(page, limit, { maxPageSize: 100, defaultPageSize: 10 });
 
-    const ScopeGuard = require('../../../authorization/ScopeGuard');
     const scopeClause = await ScopeGuard.applyListScope(req, 'inventory_transfer', {
       tableAlias: 't',
       ownerAlias: 'inventory_transfer_owner_scope',
     });
-    let whereClause = 'WHERE 1=1';
+    let whereClause = 'WHERE t.deleted_at IS NULL';
     const params = [];
 
     if (transfer_no) {
@@ -170,19 +229,19 @@ const getTransferList = async (req, res) => {
 // 获取库存调拨单详情
 
 const getTransferDetail = async (req, res) => {
-  {
-    const { id } = req.params;
-    if (id !== null && id !== undefined && id !== '') {
-      const ScopeGuard = require('../../../authorization/ScopeGuard');
-      if (!(await ScopeGuard.assertAccess(db.pool, req, 'inventory_transfer', id))) {
-        return ResponseHandler.forbidden(res, '无权访问该调拨单');
-      }
-    }
+  const id = parsePositiveId(req.params.id);
+  if (!id) {
+    return ResponseHandler.error(res, '调拨单ID无效', 'VALIDATION_ERROR', 400);
+  }
+  if (
+    !(await ScopeGuard.assertAccess(db.pool, req, 'inventory_transfer', id, {
+      accessMode: 'read',
+    }))
+  ) {
+    return ResponseHandler.forbidden(res, '无权访问该调拨单');
   }
 
   try {
-    const { id } = req.params;
-
     // 获取调拨单基本信息
     const [transferResults] = await db.pool.execute(
       `SELECT
@@ -201,7 +260,7 @@ const getTransferDetail = async (req, res) => {
       FROM inventory_transfers t
       LEFT JOIN locations fl ON t.from_location_id = fl.id
       LEFT JOIN locations tl ON t.to_location_id = tl.id
-      WHERE t.id = ?`,
+      WHERE t.id = ? AND t.deleted_at IS NULL`,
       [id]
     );
 
@@ -254,13 +313,24 @@ const getTransferDetails = async (req, res) => {
       return ResponseHandler.error(res, '请提供有效的调拨单ID数组', 'VALIDATION_ERROR', 400);
     }
 
-    const transferIds = [...new Set(ids.map(Number).filter((id) => Number.isInteger(id) && id > 0))];
-    if (transferIds.length === 0) {
+    const transferIds = ids.map((id) => Number(id));
+    if (
+      transferIds.some((id) => !Number.isInteger(id) || id <= 0) ||
+      new Set(transferIds).size !== transferIds.length
+    ) {
       return ResponseHandler.error(res, '请提供有效的调拨单ID数组', 'VALIDATION_ERROR', 400);
     }
 
     if (transferIds.length > 100) {
       return ResponseHandler.error(res, '批量查询数量不能超过100条', 'VALIDATION_ERROR', 400);
+    }
+
+    if (
+      !(await ScopeGuard.assertAllAccess(db.pool, req, 'inventory_transfer', transferIds, {
+        accessMode: 'read',
+      }))
+    ) {
+      return ResponseHandler.forbidden(res, '批量调拨单中包含无权访问的记录');
     }
 
     const placeholders = transferIds.map(() => '?').join(',');
@@ -281,12 +351,12 @@ const getTransferDetails = async (req, res) => {
       FROM inventory_transfers t
       LEFT JOIN locations fl ON t.from_location_id = fl.id
       LEFT JOIN locations tl ON t.to_location_id = tl.id
-      WHERE t.id IN (${placeholders})`,
+      WHERE t.id IN (${placeholders}) AND t.deleted_at IS NULL`,
       transferIds
     );
 
-    if (transfers.length === 0) {
-      return ResponseHandler.error(res, '调拨单不存在', 'NOT_FOUND', 404);
+    if (transfers.length !== transferIds.length) {
+      return ResponseHandler.error(res, '部分调拨单不存在或已删除', 'NOT_FOUND', 404);
     }
 
     const [items] = await db.pool.query(
@@ -337,91 +407,83 @@ const getTransferDetails = async (req, res) => {
 
 const createTransfer = async (req, res) => {
   const connection = await db.pool.getConnection();
+  let transactionStarted = false;
   try {
-    await connection.beginTransaction();
-
     // HTTP camel → snake（inventoryTransferMap）
     const mapped = inventoryTransferMap.fromApi(req.body || {});
-    const transfer_date =
-      mapped.transfer_date || new Date().toISOString().slice(0, 10);
-    const from_location_id = mapped.from_location_id;
-    const to_location_id = mapped.to_location_id;
-    const items = mapped.items || [];
+    const transfer_date = mapped.transfer_date || new Date().toISOString().slice(0, 10);
+    const from_location_id = parsePositiveId(mapped.from_location_id);
+    const to_location_id = parsePositiveId(mapped.to_location_id);
+    const items = normalizeTransferItems(mapped.items);
     const remark = mapped.remark;
-    const status = mapped.status || 'draft';
+    const status = STATUS.TRANSFER.DRAFT || 'draft';
 
     // 基本验证
     if (
-      !transfer_date ||
       !from_location_id ||
       !to_location_id ||
-      !Array.isArray(items) ||
-      items.length === 0
+      !items ||
+      !isValidTransferDate(transfer_date)
     ) {
-      await connection.rollback();
       return ResponseHandler.error(
         res,
-        '请提供调拨日期、源库位、目标库位和物料明细',
+        `请提供有效的调拨日期、源库位、目标库位和1-${MAX_TRANSFER_ITEMS}条不重复物料明细`,
         'VALIDATION_ERROR',
         400
       );
     }
 
+    if (mapped.status !== undefined && mapped.status !== status) {
+      return ResponseHandler.error(res, '新建调拨单只能为草稿状态', 'VALIDATION_ERROR', 400);
+    }
+
+    if (from_location_id === to_location_id) {
+      return ResponseHandler.error(res, '源库位和目标库位不能相同', 'VALIDATION_ERROR', 400);
+    }
+
+    if (!(await canAccessTransferLocations(req, from_location_id, to_location_id))) {
+      return ResponseHandler.forbidden(res, '无权使用源库位或目标库位');
+    }
+
     // ===== 年度结存校验 =====
     const PeriodValidationService = require('../../../services/business/PeriodValidationService');
-    const inventoryCheck =
-      await PeriodValidationService.validateInventoryTransaction(transfer_date);
+    const inventoryCheck = await PeriodValidationService.validateInventoryTransaction(transfer_date);
     if (!inventoryCheck.allowed) {
-      await connection.rollback();
       return ResponseHandler.error(res, inventoryCheck.message, 'VALIDATION_ERROR', 400);
     }
     // ===== 年度结存校验结束 =====
 
-    if (from_location_id === to_location_id) {
-      await connection.rollback();
-      return ResponseHandler.error(res, '源库位和目标库位不能相同', 'VALIDATION_ERROR', 400);
+    await connection.beginTransaction();
+    transactionStarted = true;
+    await assertTransferReferences(connection, from_location_id, to_location_id, items);
+    if (!(await canAccessTransferLocations(req, from_location_id, to_location_id))) {
+      throw Object.assign(new Error('无权使用源库位或目标库位'), { statusCode: 403 });
     }
 
     // 验证物料明细
     for (const item of items) {
-      if (!item.material_id || !item.quantity || item.quantity <= 0) {
+      // 使用统一的库存服务检查库存是否足够
+      const validation = await InventoryService.validateStock(
+        item.material_id,
+        from_location_id,
+        item.quantity,
+        connection
+      );
+
+      if (!validation.isEnough) {
+        const [materialResult] = await connection.execute(
+          'SELECT name FROM materials WHERE id = ? AND deleted_at IS NULL',
+          [item.material_id]
+        );
+        const materialName =
+          materialResult.length > 0 ? materialResult[0].name : `物料ID: ${item.material_id}`;
         await connection.rollback();
+        transactionStarted = false;
         return ResponseHandler.error(
           res,
-          '调拨物料必须提供物料ID和大于0的数量',
+          `库存不足: ${materialName} 当前库存 ${validation.currentStock}, 需要 ${item.quantity}`,
           'VALIDATION_ERROR',
           400
-        );
-      }
-
-      // 使用统一的库存服务检查库存是否足够
-      try {
-        const validation = await InventoryService.validateStock(
-          item.material_id,
-          from_location_id,
-          parseFloat(item.quantity),
-          connection
-        );
-
-        if (!validation.isEnough) {
-          await connection.rollback();
-          const [materialResult] = await connection.execute(
-            'SELECT name FROM materials WHERE id = ? AND deleted_at IS NULL',
-            [item.material_id]
-          );
-          const materialName =
-            materialResult.length > 0 ? materialResult[0].name : `物料ID: ${item.material_id}`;
-          return ResponseHandler.error(res, `库存不足: ${materialName} 当前库存 ${validation.currentStock}, 需要 ${item.quantity}`, 'VALIDATION_ERROR', 400);
-        }
-      } catch (error) {
-        await connection.rollback();
-        logger.error('验证库存时发生错误:', error);
-        return ResponseHandler.error(
-          res,
-          '验证库存失败: ' + error.message,
-          'SERVER_ERROR',
-          500,
-          error
         );
       }
     }
@@ -449,7 +511,7 @@ const createTransfer = async (req, res) => {
         status,
         remark || '',
         getRequestActorLabel(req),
-        (() => { const ScopeGuard = require('../../../authorization/ScopeGuard'); return ScopeGuard.tryStampOwner(req, 'inventory_transfer').created_by; })(),
+        ScopeGuard.tryStampOwner(req, 'inventory_transfer').created_by,
       ]
     );
 
@@ -468,6 +530,7 @@ const createTransfer = async (req, res) => {
     }
 
     await connection.commit();
+    transactionStarted = false;
 
     ResponseHandler.success(
       res,
@@ -484,9 +547,22 @@ const createTransfer = async (req, res) => {
       201
     );
   } catch (error) {
-    await connection.rollback();
+    if (transactionStarted) {
+      try {
+        await connection.rollback();
+      } catch {
+        // Preserve the original error.
+      }
+    }
     logger.error('创建库存调拨单失败:', error);
-    ResponseHandler.error(res, '创建库存调拨单失败', 'SERVER_ERROR', 500, error);
+    const statusCode = Number(error.statusCode) === 400 ? 400 : 500;
+    ResponseHandler.error(
+      res,
+      statusCode === 400 ? error.message : '创建库存调拨单失败',
+      statusCode === 400 ? 'VALIDATION_ERROR' : 'SERVER_ERROR',
+      statusCode,
+      error
+    );
   } finally {
     connection.release();
   }
@@ -495,38 +571,77 @@ const createTransfer = async (req, res) => {
 // 更新库存调拨单
 
 const updateTransfer = async (req, res) => {
-  {
-    const { id } = req.params;
-    if (id !== null && id !== undefined && id !== '') {
-      const ScopeGuard = require('../../../authorization/ScopeGuard');
-      if (!(await ScopeGuard.assertAccess(db.pool, req, 'inventory_transfer', id))) {
-        return ResponseHandler.forbidden(res, '无权修改该调拨单');
-      }
-    }
+  const id = parsePositiveId(req.params.id);
+  if (!id) {
+    return ResponseHandler.error(res, '调拨单ID无效', 'VALIDATION_ERROR', 400);
+  }
+  if (!(await ScopeGuard.assertAccess(db.pool, req, 'inventory_transfer', id))) {
+    return ResponseHandler.forbidden(res, '无权修改该调拨单');
   }
 
   const connection = await db.pool.getConnection();
+  let transactionStarted = false;
   try {
-    await connection.beginTransaction();
-
-    const { id } = req.params;
     // HTTP camel → snake
     const mapped = inventoryTransferMap.fromApi(req.body || {});
     const transfer_date = mapped.transfer_date;
-    const from_location_id = mapped.from_location_id;
-    const to_location_id = mapped.to_location_id;
-    const items = mapped.items || [];
+    const from_location_id = parsePositiveId(mapped.from_location_id);
+    const to_location_id = parsePositiveId(mapped.to_location_id);
+    const items = normalizeTransferItems(mapped.items);
     const remark = mapped.remark;
+
+    if (
+      !from_location_id ||
+      !to_location_id ||
+      !items ||
+      !isValidTransferDate(transfer_date)
+    ) {
+      return ResponseHandler.error(
+        res,
+        `请提供有效的调拨日期、源库位、目标库位和1-${MAX_TRANSFER_ITEMS}条不重复物料明细`,
+        'VALIDATION_ERROR',
+        400
+      );
+    }
+
+    if (from_location_id === to_location_id) {
+      return ResponseHandler.error(res, '源库位和目标库位不能相同', 'VALIDATION_ERROR', 400);
+    }
+
+    if (!(await canAccessTransferLocations(req, from_location_id, to_location_id))) {
+      return ResponseHandler.forbidden(res, '无权使用源库位或目标库位');
+    }
+
+    const PeriodValidationService = require('../../../services/business/PeriodValidationService');
+    const inventoryCheck = await PeriodValidationService.validateInventoryTransaction(transfer_date);
+    if (!inventoryCheck.allowed) {
+      return ResponseHandler.error(res, inventoryCheck.message, 'VALIDATION_ERROR', 400);
+    }
+
+    await connection.beginTransaction();
+    transactionStarted = true;
 
     // 检查调拨单是否存在
     const [transferResult] = await connection.execute(
-      'SELECT status FROM inventory_transfers WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+      'SELECT status, from_location_id, to_location_id FROM inventory_transfers WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
       [id]
     );
 
     if (transferResult.length === 0) {
       await connection.rollback();
+      transactionStarted = false;
       return ResponseHandler.error(res, '调拨单不存在', 'NOT_FOUND', 404);
+    }
+
+    if (!(await ScopeGuard.assertAccess(connection, req, 'inventory_transfer', id))) {
+      await connection.rollback();
+      transactionStarted = false;
+      return ResponseHandler.forbidden(res, '无权修改该调拨单');
+    }
+    if (!(await canAccessTransferLocations(req, transferResult[0].from_location_id, transferResult[0].to_location_id))) {
+      await connection.rollback();
+      transactionStarted = false;
+      return ResponseHandler.forbidden(res, '无权使用该调拨单的源库位或目标库位');
     }
 
     const currentStatus = transferResult[0].status;
@@ -534,60 +649,38 @@ const updateTransfer = async (req, res) => {
     // 只有草稿状态的调拨单可以更新
     if (currentStatus !== 'draft') {
       await connection.rollback();
+      transactionStarted = false;
       return ResponseHandler.error(res, '只有草稿状态的调拨单可以更新', 'VALIDATION_ERROR', 400);
     }
 
-    // 基本验证
-    if (
-      !transfer_date ||
-      !from_location_id ||
-      !to_location_id ||
-      !Array.isArray(items) ||
-      items.length === 0
-    ) {
-      await connection.rollback();
-      return ResponseHandler.error(
-        res,
-        '请提供调拨日期、源库位、目标库位和物料明细',
-        'VALIDATION_ERROR',
-        400
-      );
-    }
-
-    if (from_location_id === to_location_id) {
-      await connection.rollback();
-      return ResponseHandler.error(res, '源库位和目标库位不能相同', 'VALIDATION_ERROR', 400);
+    await assertTransferReferences(connection, from_location_id, to_location_id, items);
+    if (!(await canAccessTransferLocations(req, from_location_id, to_location_id))) {
+      throw Object.assign(new Error('无权使用源库位或目标库位'), { statusCode: 403 });
     }
 
     // 验证物料明细
     for (const item of items) {
-      if (!item.material_id || !item.quantity || item.quantity <= 0) {
-        await connection.rollback();
-        return ResponseHandler.error(
-          res,
-          '调拨物料必须提供物料ID和大于0的数量',
-          'VALIDATION_ERROR',
-          400
-        );
-      }
-
-      // 检查源库位库存是否足够
-      const [stockResult] = await connection.execute(
-        `SELECT quantity FROM ${STOCK_SUBQUERY} as current_stock WHERE material_id = ? AND location_id = ?`,
-        [item.material_id, from_location_id]
+      const validation = await InventoryService.validateStock(
+        item.material_id,
+        from_location_id,
+        item.quantity,
+        connection
       );
-
-      const currentStock = stockResult.length > 0 ? parseFloat(stockResult[0].quantity) : 0;
-
-      if (currentStock < parseFloat(item.quantity)) {
-        await connection.rollback();
+      if (!validation.isEnough) {
         const [materialResult] = await connection.execute(
           'SELECT name FROM materials WHERE id = ? AND deleted_at IS NULL',
           [item.material_id]
         );
         const materialName =
           materialResult.length > 0 ? materialResult[0].name : `物料ID: ${item.material_id}`;
-        return ResponseHandler.error(res, `库存不足: ${materialName} 当前库存 ${currentStock}, 需要 ${item.quantity}`, 'VALIDATION_ERROR', 400);
+        await connection.rollback();
+        transactionStarted = false;
+        return ResponseHandler.error(
+          res,
+          `库存不足: ${materialName} 当前库存 ${validation.currentStock}, 需要 ${item.quantity}`,
+          'VALIDATION_ERROR',
+          400
+        );
       }
     }
 
@@ -619,6 +712,7 @@ const updateTransfer = async (req, res) => {
     }
 
     await connection.commit();
+    transactionStarted = false;
 
     ResponseHandler.success(
       res,
@@ -633,9 +727,22 @@ const updateTransfer = async (req, res) => {
       '调拨单更新成功'
     );
   } catch (error) {
-    await connection.rollback();
+    if (transactionStarted) {
+      try {
+        await connection.rollback();
+      } catch {
+        // Preserve the original error.
+      }
+    }
     logger.error('更新库存调拨单失败:', error);
-    ResponseHandler.error(res, '更新库存调拨单失败', 'SERVER_ERROR', 500, error);
+    const statusCode = Number(error.statusCode) === 400 ? 400 : 500;
+    ResponseHandler.error(
+      res,
+      statusCode === 400 ? error.message : '更新库存调拨单失败',
+      statusCode === 400 ? 'VALIDATION_ERROR' : 'SERVER_ERROR',
+      statusCode,
+      error
+    );
   } finally {
     connection.release();
   }
@@ -644,21 +751,17 @@ const updateTransfer = async (req, res) => {
 // 删除库存调拨单
 
 const deleteTransfer = async (req, res) => {
-  {
-    const { id } = req.params;
-    if (id !== null && id !== undefined && id !== '') {
-      const ScopeGuard = require('../../../authorization/ScopeGuard');
-      if (!(await ScopeGuard.assertAccess(db.pool, req, 'inventory_transfer', id))) {
-        return ResponseHandler.forbidden(res, '无权删除该调拨单');
-      }
-    }
+  const id = parsePositiveId(req.params.id);
+  if (!id) {
+    return ResponseHandler.error(res, '调拨单ID无效', 'VALIDATION_ERROR', 400);
+  }
+  if (!(await ScopeGuard.assertAccess(db.pool, req, 'inventory_transfer', id))) {
+    return ResponseHandler.forbidden(res, '无权删除该调拨单');
   }
 
   const connection = await db.pool.getConnection();
   try {
     await connection.beginTransaction();
-
-    const { id } = req.params;
 
     // 检查调拨单是否存在
     const [transferResult] = await connection.execute(
@@ -669,6 +772,11 @@ const deleteTransfer = async (req, res) => {
     if (transferResult.length === 0) {
       await connection.rollback();
       return ResponseHandler.error(res, '调拨单不存在', 'NOT_FOUND', 404);
+    }
+
+    if (!(await ScopeGuard.assertAccess(connection, req, 'inventory_transfer', id))) {
+      await connection.rollback();
+      return ResponseHandler.forbidden(res, '无权删除该调拨单');
     }
 
     const currentStatus = transferResult[0].status;
@@ -700,18 +808,15 @@ const deleteTransfer = async (req, res) => {
 // 更新库存调拨单状态
 
 const updateTransferStatus = async (req, res) => {
-  {
-    const { id } = req.params;
-    if (id !== null && id !== undefined && id !== '') {
-      const ScopeGuard = require('../../../authorization/ScopeGuard');
-      if (!(await ScopeGuard.assertAccess(db.pool, req, 'inventory_transfer', id))) {
-        return ResponseHandler.forbidden(res, '无权变更该调拨单状态');
-      }
-    }
+  const id = parsePositiveId(req.params.id);
+  if (!id) {
+    return ResponseHandler.error(res, '调拨单ID无效', 'VALIDATION_ERROR', 400);
+  }
+  if (!(await ScopeGuard.assertAccess(db.pool, req, 'inventory_transfer', id))) {
+    return ResponseHandler.forbidden(res, '无权变更该调拨单状态');
   }
 
-  const { id } = req.params;
-  const { newStatus } = req.body;
+  const { newStatus } = req.body || {};
 
   const validStatuses = ['draft', 'pending', 'approved', 'completed', 'reversed', 'cancelled'];
   if (!validStatuses.includes(newStatus)) {
@@ -737,7 +842,7 @@ const updateTransferStatus = async (req, res) => {
         FROM inventory_transfers t
         LEFT JOIN locations fl ON t.from_location_id = fl.id
         LEFT JOIN locations tl ON t.to_location_id = tl.id
-        WHERE t.id = ?
+        WHERE t.id = ? AND t.deleted_at IS NULL
         FOR UPDATE`,
         [id]
       );
@@ -748,6 +853,14 @@ const updateTransferStatus = async (req, res) => {
       }
 
       const transfer = transferResults[0];
+      if (!(await ScopeGuard.assertAccess(connection, req, 'inventory_transfer', id))) {
+        await connection.rollback();
+        return ResponseHandler.forbidden(res, '无权变更该调拨单状态');
+      }
+      if (!(await canAccessTransferLocations(req, transfer.from_location_id, transfer.to_location_id))) {
+        await connection.rollback();
+        return ResponseHandler.forbidden(res, '无权使用该调拨单的源库位或目标库位');
+      }
       const currentStatus = transfer.status;
       const validTransitions = INVENTORY_TRANSFER_TRANSITIONS;
 
@@ -778,6 +891,16 @@ const updateTransferStatus = async (req, res) => {
           ORDER BY i.material_id ASC, i.id ASC`,
           [id]
         );
+
+        if (items.length === 0) {
+          await connection.rollback();
+          return ResponseHandler.error(
+            res,
+            '调拨单没有有效物料明细，不能完成',
+            'VALIDATION_ERROR',
+            400
+          );
+        }
 
         const fromLocationName =
           transfer.from_location_name || `库位ID:${transfer.from_location_id}`;
@@ -913,7 +1036,6 @@ const updateTransferStatus = async (req, res) => {
 
 const getTransferStatistics = async (req, res) => {
   try {
-    const ScopeGuard = require('../../../authorization/ScopeGuard');
     const scopeClause = await ScopeGuard.applyListScope(req, 'inventory_transfer', {
       tableAlias: 't',
       ownerAlias: 'inventory_transfer_stats_owner_scope',
@@ -948,11 +1070,24 @@ const exportTransfers = async (req, res) => {
       return ResponseHandler.error(res, '请选择要导出的调拨单', 'VALIDATION_ERROR', 400);
     }
 
-    const ScopeGuard = require('../../../authorization/ScopeGuard');
-    const scopeClause = await ScopeGuard.applyListScope(req, 'inventory_transfer', {
-      tableAlias: 't',
-      ownerAlias: 'inventory_transfer_export_owner_scope',
-    });
+    const transferIds = ids.map((id) => Number(id));
+    if (
+      transferIds.some((id) => !Number.isInteger(id) || id <= 0) ||
+      new Set(transferIds).size !== transferIds.length
+    ) {
+      return ResponseHandler.error(res, '请选择有效的调拨单ID', 'VALIDATION_ERROR', 400);
+    }
+    if (transferIds.length > 100) {
+      return ResponseHandler.error(res, '批量导出数量不能超过100条', 'VALIDATION_ERROR', 400);
+    }
+
+    if (
+      !(await ScopeGuard.assertAllAccess(db.pool, req, 'inventory_transfer', transferIds, {
+        accessMode: 'read',
+      }))
+    ) {
+      return ResponseHandler.forbidden(res, '批量调拨单中包含无权导出的记录');
+    }
 
     const ExcelJS = require('exceljs');
     const workbook = new ExcelJS.Workbook();
@@ -970,7 +1105,7 @@ const exportTransfers = async (req, res) => {
     ];
 
     // 查询调拨单主表数据
-    const placeholders = ids.map(() => '?').join(',');
+    const placeholders = transferIds.map(() => '?').join(',');
     const [transfers] = await db.pool.execute(
       `
       SELECT
@@ -980,19 +1115,24 @@ const exportTransfers = async (req, res) => {
         t.to_location_id,
         t.status,
         t.transfer_date,
-        t.remarks,
+        t.remark AS remarks,
         t.created_at,
         fl.name as from_location,
         tl.name as to_location
       FROM inventory_transfers t
       LEFT JOIN locations fl ON t.from_location_id = fl.id
       LEFT JOIN locations tl ON t.to_location_id = tl.id
-      ${scopeClause.join || ''}
-      WHERE t.id IN (${placeholders}) AND t.deleted_at IS NULL${scopeClause.where || ''}
+      WHERE t.id IN (${placeholders}) AND t.deleted_at IS NULL
       ORDER BY t.created_at DESC
     `,
-      [...ids, ...(scopeClause.params || [])]
+      transferIds
     );
+
+    // Fail closed if a requested record disappeared or was filtered by soft-delete
+    // after the authorization check; never return a silent partial export.
+    if (transfers.length !== transferIds.length) {
+      return ResponseHandler.error(res, '部分调拨单不存在或已删除', 'NOT_FOUND', 404);
+    }
 
     // 添加数据到表格
     transfers.forEach((transfer) => {
@@ -1020,7 +1160,7 @@ const exportTransfers = async (req, res) => {
         ti.*,
         m.code as material_code,
         m.name as material_name,
-        m.specification,
+        m.specs AS specification,
         u.name as unit_name
       FROM inventory_transfer_items ti
       LEFT JOIN materials m ON ti.material_id = m.id
@@ -1109,16 +1249,52 @@ const batchDeleteTransfers = async (req, res) => {
       return ResponseHandler.error(res, '请选择要删除的调拨单', 'VALIDATION_ERROR', 400);
     }
 
+    const transferIds = ids.map((id) => Number(id));
+    if (
+      transferIds.some((id) => !Number.isInteger(id) || id <= 0) ||
+      new Set(transferIds).size !== transferIds.length
+    ) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '请选择有效的调拨单ID', 'VALIDATION_ERROR', 400);
+    }
+    if (transferIds.length > 100) {
+      await connection.rollback();
+      return ResponseHandler.error(res, '批量删除数量不能超过100条', 'VALIDATION_ERROR', 400);
+    }
+
+    if (
+      !(await ScopeGuard.assertAllAccess(connection, req, 'inventory_transfer', transferIds, {
+        accessMode: 'write',
+      }))
+    ) {
+      await connection.rollback();
+      return ResponseHandler.forbidden(res, '批量调拨单中包含无权删除的记录');
+    }
+
     // 检查所有调拨单的状态
-    const placeholders = ids.map(() => '?').join(',');
+    const placeholders = transferIds.map(() => '?').join(',');
     const [transferResults] = await connection.execute(
-      `SELECT id, transfer_no, status FROM inventory_transfers WHERE id IN (${placeholders})`,
-      ids
+      `SELECT id, transfer_no, status, from_location_id, to_location_id
+         FROM inventory_transfers
+        WHERE id IN (${placeholders}) AND deleted_at IS NULL
+        FOR UPDATE`,
+      transferIds
     );
 
-    if (transferResults.length === 0) {
+    if (transferResults.length !== transferIds.length) {
       await connection.rollback();
-      return ResponseHandler.error(res, '未找到要删除的调拨单', 'NOT_FOUND', 404);
+      return ResponseHandler.error(res, '部分调拨单不存在或已删除', 'NOT_FOUND', 404);
+    }
+
+    if (!(await ScopeGuard.assertAllAccess(connection, req, 'inventory_transfer', transferIds, { accessMode: 'write' }))) {
+      await connection.rollback();
+      return ResponseHandler.forbidden(res, '批量调拨单中包含无权删除的记录');
+    }
+    for (const transfer of transferResults) {
+      if (!(await canAccessTransferLocations(req, transfer.from_location_id, transfer.to_location_id))) {
+        await connection.rollback();
+        return ResponseHandler.forbidden(res, '批量调拨单包含无权使用的库位');
+      }
     }
 
     // 检查是否有非草稿状态的调拨单
@@ -1137,11 +1313,11 @@ const batchDeleteTransfers = async (req, res) => {
     // 批量删除调拨单物料明细
     await connection.execute(
       `DELETE FROM inventory_transfer_items WHERE transfer_id IN (${placeholders})`,
-      ids
+      transferIds
     );
 
     // ✅ 批量软删除调拨单
-    const affected = await softDeleteBatch(connection, 'inventory_transfers', 'id', ids);
+    const affected = await softDeleteBatch(connection, 'inventory_transfers', 'id', transferIds);
     const result = { affectedRows: affected };
 
     await connection.commit();

@@ -12,7 +12,6 @@ const db = require('../../../config/db');
 const PeriodEndService = require('../../../services/business/PeriodEndService');
 const DepreciationService = require('../../../services/business/DepreciationService');
 const ScheduledTaskService = require('../../../services/business/ScheduledTaskService');
-const { getRequestActorLabel } = require('../../../utils/userUtils');
 
 /**
  * 财务自动化控制器

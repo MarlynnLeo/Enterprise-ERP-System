@@ -178,7 +178,7 @@ const batchTraceabilityController = {
               lastAt: b.lastAt ?? b.last_at ?? null,
             }));
           }
-        } catch (hintErr) {
+        } catch {
           // 提示查询失败不影响主错误
         }
 

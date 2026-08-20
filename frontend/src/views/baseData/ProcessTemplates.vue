@@ -370,7 +370,7 @@ import { handleTableRowView } from '@/utils/tableRowView'
 import { defineAsyncComponent, ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  Plus, Delete, Upload, View, Edit, Switch
+  Plus, Delete, Upload, Edit, Switch
 } from '@element-plus/icons-vue'
 import { baseDataApi } from '@/api/baseData'
 import { loadMaterials, mapMaterialData, searchMaterials } from '@/utils/searchConfig'
@@ -520,7 +520,7 @@ const fetchTemplateList = async () => {
 // 计算总工时
 const calculateTotalHours = (processes) => {
   if (!processes || !processes.length) return 0
-  return processes.reduce((sum, process) => sum + Number(process.standard_hours || 0), 0).toFixed(1)
+  return processes.reduce((sum, process) => sum + Number(process.standardHours || 0), 0).toFixed(1)
 }
 // 搜索
 const handleSearch = async () => {
@@ -586,7 +586,7 @@ const showCreateDialog = () => {
 // 添加工序
 const addProcess = () => {
   const nextOrder = form.processes.length > 0
-    ? Math.max(...form.processes.map((p) => Number(p.orderNum || p.order_num) || 0)) + 1
+    ? Math.max(...form.processes.map((p) => Number(p.orderNum) || 0)) + 1
     : 1
   form.processes.push({
     orderNum: nextOrder,
@@ -630,8 +630,8 @@ const handleEdit = async (row) => {
   form.processes = sourceProcesses && sourceProcesses.length
     ? JSON.parse(JSON.stringify(sourceProcesses)).map((process) => ({
         ...process,
-        orderNum: process.orderNum ?? process.order_num ?? 1,
-        standardHours: process.standardHours ?? process.standard_hours ?? 1
+        orderNum: process.orderNum ?? 1,
+        standardHours: process.standardHours ?? 1
       }))
     : [{
         orderNum: 1,
@@ -681,8 +681,8 @@ const handleView = (row) => {
   form.processes = sourceProcesses && sourceProcesses.length
     ? JSON.parse(JSON.stringify(sourceProcesses)).map((process) => ({
         ...process,
-        orderNum: process.orderNum ?? process.order_num ?? 1,
-        standardHours: process.standardHours ?? process.standard_hours ?? 1
+        orderNum: process.orderNum ?? 1,
+        standardHours: process.standardHours ?? 1
       }))
     : []
   setCurrentViewTemplate(row)
@@ -746,14 +746,14 @@ const submitForm = async () => {
         ElMessage.warning('工序名称不能为空')
         return
       }
-      if (!(process.standardHours ?? process.standard_hours)) {
+      if (!process.standardHours) {
         ElMessage.warning('标准工时不能为空')
         return
       }
     }
 
     // 排序工序
-    form.processes.sort((a, b) => Number(a.orderNum || a.order_num || 0) - Number(b.orderNum || b.order_num || 0))
+    form.processes.sort((a, b) => Number(a.orderNum || 0) - Number(b.orderNum || 0))
 
     // 构建发送数据，将processes映射为details（后端期望的字段名）
     const submitData = {
@@ -795,11 +795,14 @@ const submitForm = async () => {
 // 文件预览相关
 const currentPreviewDoc = ref(null)
 const viewInstructionDoc = (doc) => {
-  if (doc && doc.url) {
-    currentPreviewDoc.value = doc
+  const controlledUrl = typeof doc?.url === 'string' && doc.url.startsWith('/uploads/')
+    ? `/api/base-data/download-file?filePath=${encodeURIComponent(doc.url)}`
+    : ''
+  if (controlledUrl) {
+    currentPreviewDoc.value = { ...doc, url: controlledUrl }
     previewDialogVisible.value = true
   } else {
-    ElMessage.warning('文件URL无效')
+    ElMessage.warning('文件不是受控的本地附件，无法预览')
   }
 }
 // ==================== 作业指导书上传相关 ====================
@@ -835,6 +838,12 @@ const handleUploadInstruction = async (options, row) => {
     // 创建FormData
     const formData = new FormData()
     formData.append('file', file)
+    // New templates do not have an object id yet. The backend records an
+    // unbound owner-only upload and atomically binds it during template save.
+    if (form.id) {
+      formData.append('businessType', 'process_template')
+      formData.append('businessId', String(form.id))
+    }
     // 上传文件 - uploadApi 已配置响应拦截器自动解包
     const response = await baseDataApi.uploadFile(formData)
     // response.data 已被拦截器解包为 { fileUrl, filename }

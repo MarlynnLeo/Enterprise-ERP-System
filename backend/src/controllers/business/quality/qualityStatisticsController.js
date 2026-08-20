@@ -9,7 +9,6 @@
 
 const { logger } = require('../../../utils/logger');
 const { ResponseHandler } = require('../../../utils/responseHandler');
-const { mapKeysToSnake } = require('../../../utils/fieldMap');
 const db = require('../../../config/db');
 const pool = db.pool;
 const { parsePagination, appendPaginationSQL } = require('../../../utils/safePagination');

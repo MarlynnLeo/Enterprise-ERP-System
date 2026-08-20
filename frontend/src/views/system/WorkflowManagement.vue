@@ -181,7 +181,7 @@ import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, onMounted } from 'vue'
 
 import { ElMessage } from 'element-plus'
-import { View, Edit, Delete } from '@element-plus/icons-vue'
+import { Edit, Delete } from '@element-plus/icons-vue'
 import { workflowApi } from '@/api/workflow'
 import { systemApi } from '@/api/system'
 

@@ -144,15 +144,15 @@ export function useOrderActions(fetchDataCallback, tableData) {
         return
       }
       const outboundData = {
-        order_id: row.id,
-        delivery_date: formatLocalDate(new Date()),
+        orderId: row.id,
+        deliveryDate: formatLocalDate(new Date()),
         status: 'draft',
         remarks: `从销售订单 ${row.orderNo} 创建`,
-        items: items.map((item) => ({ product_id: item.materialId, quantity: item.quantity })),
+        items: items.map((item) => ({ productId: item.materialId, quantity: item.quantity })),
       }
       await salesApi.createOutbound(outboundData)
       // 立即更新本地，让发货按钮即时消失，避免用户重复点击
-      patchRow(row.id, { has_draft_outbound: true })
+      patchRow(row.id, { hasDraftOutbound: true })
       ElMessage.success('出库单创建成功')
       await refreshList()
     } catch (error) {
@@ -190,12 +190,13 @@ export function useOrderActions(fetchDataCallback, tableData) {
         inputValidator: () => true,
       })
       actionLoadingId.value = row.id
-      const response = await salesApi.lockOrder(row.id, { lock_reason: value || '手动锁定' })
-      if (response.data?.partialSuccess) {
-        const reservationDetails = (response.data.reservations || [])
+      const response = await salesApi.lockOrder(row.id, { lockReason: value || '手动锁定' })
+      const lockResult = response.data?.data || response.data || {}
+      if (lockResult.partialSuccess) {
+        const reservationDetails = (lockResult.reservations || [])
           .map((item) => `${item.materialName}: 已预留${item.reservedQuantity}/${item.requiredQuantity}个`)
           .join('\n')
-        const insufficientDetails = (response.data.insufficientItems || [])
+        const insufficientDetails = (lockResult.insufficientItems || [])
           .map((item) => `${item.materialName}: 缺少${item.shortage}个`)
           .join('\n')
         ElMessageBox.alert(
@@ -207,8 +208,8 @@ export function useOrderActions(fetchDataCallback, tableData) {
         ElMessage.success('订单锁定成功')
       }
       patchRow(row.id, {
-        is_locked: true,
-        locked_at: new Date().toISOString(),
+        isLocked: true,
+        lockedAt: new Date().toISOString(),
       })
       await refreshList()
     } catch (error) {
@@ -247,9 +248,9 @@ export function useOrderActions(fetchDataCallback, tableData) {
       await salesApi.unlockOrder(row.id)
       ElMessage.success('订单解锁成功')
       patchRow(row.id, {
-        is_locked: false,
-        locked_at: null,
-        locked_by: null,
+        isLocked: false,
+        lockedAt: null,
+        lockedBy: null,
       })
       await refreshList()
     } catch (error) {
@@ -271,14 +272,14 @@ export function useOrderActions(fetchDataCallback, tableData) {
     try {
       clearAllRequestCaches()
       const response = await salesApi.getOrder(row.id)
-      const orderData = response?.data || response
+      const orderData = { ...(response?.data || response) }
       orderData.customer = orderData.customer || row.customer
       orderData.customerName = orderData.customerName || row.customerName || row.customer
-      orderData.contractCode = orderData.contractCode || orderData.contract_code || row.contractCode || row.contract_code || ''
-      orderData.deliveryDate = orderData.deliveryDate || row.deliveryDate || orderData.delivery_date
-      orderData.address = orderData.address || row.address || orderData.delivery_address
-      orderData.contact = orderData.contact || row.contact || orderData.contact_person
-      orderData.phone = orderData.phone || row.phone || orderData.contact_phone
+      orderData.contractCode = orderData.contractCode || row.contractCode || ''
+      orderData.deliveryDate = orderData.deliveryDate || row.deliveryDate
+      orderData.address = orderData.address || row.address || ''
+      orderData.contact = orderData.contact || orderData.contactPerson || row.contact || ''
+      orderData.phone = orderData.phone || orderData.contactPhone || row.phone || ''
       if (orderData.items && Array.isArray(orderData.items)) {
         orderData.items = orderData.items.map((item) => {
           const materialCode = item.materialCode || item.productCode || item.code || ''
@@ -288,12 +289,9 @@ export function useOrderActions(fetchDataCallback, tableData) {
             ...item,
             quantity: parseFloat(item.quantity) || 0,
             unitPrice,
-            unit_price: unitPrice,
             amount: parseFloat(item.amount) || 0,
             materialCode,
             materialName,
-            material_code: materialCode,
-            material_name: materialName,
             specification: item.specification || item.productSpecs || item.specs || '',
           }
         })

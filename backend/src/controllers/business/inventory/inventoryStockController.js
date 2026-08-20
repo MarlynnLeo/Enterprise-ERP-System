@@ -828,28 +828,6 @@ const getMaterialRecords = async (req, res) => {
 // 注：交易类型文本转换已统一使用 systemConstants.getInventoryTransactionTypeText()
 // 本文件通过顶部 import 引入，不再维护重复的私有函数
 
-// 业务类型缓存
-let businessTypeCache = null;
-let businessTypeCacheTime = 0;
-const BUSINESS_TYPE_CACHE_TTL = 5 * 60 * 1000; // 5分钟缓存
-
-// 加载业务类型缓存
-const loadBusinessTypeCache = async () => {
-  const now = Date.now();
-  if (businessTypeCache && (now - businessTypeCacheTime) < BUSINESS_TYPE_CACHE_TTL) {
-    return businessTypeCache;
-  }
-  try {
-    const [rows] = await db.pool.execute('SELECT DISTINCT transaction_type FROM inventory_ledger');
-    businessTypeCache = rows.map(r => r.transaction_type);
-    businessTypeCacheTime = now;
-  } catch (err) {
-    logger.error('加载业务类型缓存失败:', err);
-    businessTypeCache = [];
-  }
-  return businessTypeCache;
-};
-
 const getMaterialStockDetail = async (req, res) => {
   const connection = await db.pool.getConnection();
   try {

@@ -10,7 +10,7 @@ const businessConfig = require('../../config/businessConfig');
 const db = require('../../config/db');
 const { apiStatusToDbStatus } = require('../../utils/statusMapper');
 const NotificationService = require('../NotificationService');
-const { resolveActorLabel, resolveActorUserId } = require('../../utils/userUtils');
+const { resolveActorUserId } = require('../../utils/userUtils');
 
 class AsyncTaskService {
   /**

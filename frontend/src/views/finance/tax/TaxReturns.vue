@@ -398,7 +398,7 @@ import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { formatAmount, formatLocalDate } from '@/utils/format'
-import { Plus, View, Check, Money, Delete } from '@element-plus/icons-vue';
+import { Plus, Check, Money, Delete } from '@element-plus/icons-vue';
 import { financeApi } from '@/api';
 import { useFinanceStore } from '@/stores/finance';
 

@@ -27,16 +27,19 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     ports:
+      # The 1Panel/tunnel and internal LAN both use the host ports. Access to
+      # the database remains private because it is not published here.
       - "18080:8080"
     environment:
       - NODE_ENV=production
-      - COOKIE_SECURE=${COOKIE_SECURE:-false}
+      - COOKIE_SECURE=${COOKIE_SECURE:-auto}
       - COOKIE_SAME_SITE=${COOKIE_SAME_SITE:-lax}
+      - TRUST_PROXY_CIDRS=${TRUST_PROXY_CIDRS:-172.16.0.0/12,127.0.0.1}
       - PORT=8080
       - PUBLIC_API_BASE_URL=${PUBLIC_API_BASE_URL}
       - DB_HOST=${DB_HOST}
       - DB_PORT=${DB_PORT:-3306}
-      - DB_USER=${DB_USER:-root}
+      - DB_USER=${DB_USER:-erp_app}
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_NAME=${DB_NAME:-mes}
       - DB_CONNECTION_LIMIT=10
@@ -44,6 +47,12 @@ services:
       - DB_CONNECT_TIMEOUT=60000
       - JWT_SECRET=${JWT_SECRET}
       - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - JWT_ISSUER=${JWT_ISSUER:-erp-system}
+      - JWT_AUDIENCE=${JWT_AUDIENCE:-erp-users}
+      - JWT_ALGORITHM=${JWT_ALGORITHM:-HS256}
+      - MFA_ENCRYPTION_KEY=${MFA_ENCRYPTION_KEY}
+      - MFA_REQUIRED_ROLE_CODES=${MFA_REQUIRED_ROLE_CODES:-admin,system_admin,finance_manager,hr_manager}
+      - MFA_TOTP_ISSUER=${MFA_TOTP_ISSUER:-KACON ERP}
       - JWT_ACCESS_TOKEN_EXPIRY=2h
       - JWT_REFRESH_TOKEN_EXPIRY=7d
       - JWT_ACCESS_EXPIRY=2h
@@ -69,6 +78,8 @@ services:
       - BACKUP_DIR=/app/backups
       - BACKUP_RETENTION_DAYS=${BACKUP_RETENTION_DAYS:-30}
       - BACKUP_RETENTION_COUNT=${BACKUP_RETENTION_COUNT:-30}
+      - BACKUP_ENCRYPTION_MODE=${BACKUP_ENCRYPTION_MODE:-required}
+      - BACKUP_ENCRYPTION_KEY=${BACKUP_ENCRYPTION_KEY}
     volumes:
       - erp-uploads:/app/uploads
       - erp-logs:/app/logs

@@ -14,6 +14,7 @@ const {
 const { logger } = require('../utils/logger');
 const { ResponseHandler } = require('../utils/responseHandler');
 const { pool } = require('../config/db');
+const PasswordSecurity = require('../utils/passwordSecurity');
 const {
   isTransientDatabaseError,
   retryTransientDatabaseRead,
@@ -47,7 +48,8 @@ async function loadVerifiedAccessUser(decoded) {
   const [users] = await retryTransientDatabaseRead(
     () =>
       pool.execute(
-        `SELECT id, username, real_name, status, token_version
+         `SELECT id, username, real_name, status, token_version,
+                 force_password_change, password_changed_at, password_expires_at
          FROM users
          WHERE id = ?
          LIMIT 1`,
@@ -82,13 +84,43 @@ async function loadVerifiedAccessUser(decoded) {
     throw createAuthError('令牌已失效，请重新登录', 'TOKEN_REVOKED', 401);
   }
 
+  const passwordExpired = PasswordSecurity.isPasswordExpired(
+    user.password_changed_at,
+    user.password_expires_at
+  );
+  const passwordChangeRequired = PasswordSecurity.isPasswordChangeRequired(user);
+
   return {
     ...decoded,
     id: user.id,
     username: user.username,
     realName: user.real_name,
     tokenVersion: dbTokenVersion,
+    passwordExpired,
+    passwordChangeRequired,
   };
+}
+
+function isPasswordLifecycleEndpoint(req) {
+  const path = req.path;
+  return (
+    path === '/profile' ||
+    path === '/change-password' ||
+    path === '/logout' ||
+    path === '/api/auth/profile' ||
+    path === '/api/auth/change-password' ||
+    path === '/api/auth/logout'
+  );
+}
+
+function enforcePasswordLifecycle(req, user) {
+  if (!user?.passwordChangeRequired || isPasswordLifecycleEndpoint(req)) return null;
+  const error = createAuthError(
+    user.passwordExpired ? '密码已过期，请先修改密码' : '请先修改初始密码',
+    user.passwordExpired ? 'PASSWORD_EXPIRED' : 'PASSWORD_CHANGE_REQUIRED',
+    403
+  );
+  return error;
 }
 
 /**
@@ -120,6 +152,8 @@ const authenticateToken = async (req, res, next) => {
     // 4. 验证token，并实时校验用户状态与token版本
     const decoded = verifyAccessToken(token);
     req.user = await loadVerifiedAccessUser(decoded);
+    const lifecycleError = enforcePasswordLifecycle(req, req.user);
+    if (lifecycleError) throw lifecycleError;
     next();
   } catch (error) {
     logger.warn('Token验证失败:', { error: error.message, path: req.path });
@@ -194,7 +228,12 @@ const authenticateRefreshToken = async (req, res, next) => {
     }
 
     const [users] = await retryTransientDatabaseRead(
-      () => pool.execute('SELECT id, status, token_version FROM users WHERE id = ? LIMIT 1', [userId]),
+      () => pool.execute(
+        `SELECT id, status, token_version, force_password_change,
+                password_changed_at, password_expires_at
+           FROM users WHERE id = ? LIMIT 1`,
+        [userId]
+      ),
       {
         onRetry: (error, attempt, delayMs) => {
           logger.warn('Refresh token verification will retry after a transient database error', {
@@ -233,7 +272,24 @@ const authenticateRefreshToken = async (req, res, next) => {
       return ResponseHandler.error(res, '刷新令牌已失效，请重新登录', 'TOKEN_REVOKED', 401);
     }
 
-    req.user = decoded;
+    if (!decoded.jti || !decoded.familyId) {
+      clearTokenCookies(req, res);
+      return ResponseHandler.error(
+        res,
+        '刷新令牌需要重新登录',
+        'REFRESH_TOKEN_ROTATION_REQUIRED',
+        401
+      );
+    }
+
+    req.user = {
+      ...decoded,
+      passwordExpired: PasswordSecurity.isPasswordExpired(
+        user.password_changed_at,
+        user.password_expires_at
+      ),
+      passwordChangeRequired: PasswordSecurity.isPasswordChangeRequired(user),
+    };
     req.refreshToken = token;
     next();
   } catch (error) {
@@ -246,6 +302,7 @@ const authenticateRefreshToken = async (req, res, next) => {
       );
     }
 
+    clearTokenCookies(req, res);
     return ResponseHandler.error(
       res,
       error.message || '刷新令牌无效或已过期',

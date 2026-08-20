@@ -9,6 +9,23 @@ const parseNumber = (value, fallback = null) => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+const parseNonNegativeInt = (value, fallback) => {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : fallback;
+};
+
+const normalizeApiBaseUrl = (value) => {
+  const raw = String(value || 'https://oapi.dingtalk.com').trim().replace(/\/+$/, '');
+  const parsed = new URL(raw);
+  if (!['http:', 'https:'].includes(parsed.protocol)) {
+    throw new Error('DINGTALK_API_BASE_URL must use http or https');
+  }
+  if (process.env.NODE_ENV === 'production' && parsed.protocol !== 'https:') {
+    throw new Error('DINGTALK_API_BASE_URL must use https in production');
+  }
+  return parsed.toString().replace(/\/+$/, '');
+};
+
 module.exports = {
   corpId: process.env.DINGTALK_CORP_ID || '',
   appKey: process.env.DINGTALK_APP_KEY || '',
@@ -17,10 +34,16 @@ module.exports = {
   processCode: process.env.DINGTALK_PROCESS_CODE || '',
   apiToken: process.env.DINGTALK_API_TOKEN || '',
 
-  apiBaseUrl: (process.env.DINGTALK_API_BASE_URL || 'https://oapi.dingtalk.com').replace(/\/+$/, ''),
+  apiBaseUrl: normalizeApiBaseUrl(process.env.DINGTALK_API_BASE_URL),
   rootDeptId: parsePositiveInt(process.env.DINGTALK_ROOT_DEPT_ID, 1),
-  defaultUserPageSize: parsePositiveInt(process.env.DINGTALK_USER_PAGE_SIZE, 100),
-  rejectUnauthorized: process.env.DINGTALK_REJECT_UNAUTHORIZED !== 'false',
+  defaultUserPageSize: Math.min(parsePositiveInt(process.env.DINGTALK_USER_PAGE_SIZE, 100), 100),
+  requestTimeoutMs: parsePositiveInt(process.env.DINGTALK_REQUEST_TIMEOUT_MS, 10000),
+  maxResponseBytes: parsePositiveInt(process.env.DINGTALK_MAX_RESPONSE_BYTES, 1024 * 1024),
+  maxRetries: Math.min(parseNonNegativeInt(process.env.DINGTALK_MAX_RETRIES, 2), 3),
+  rejectUnauthorized:
+    process.env.NODE_ENV === 'production'
+      ? true
+      : process.env.DINGTALK_REJECT_UNAUTHORIZED !== 'false',
 
   defaultEmployee: {
     baseSalary: Number.parseFloat(process.env.DINGTALK_DEFAULT_BASE_SALARY || '3070'),

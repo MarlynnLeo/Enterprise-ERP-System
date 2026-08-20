@@ -20,7 +20,6 @@ const BankTransactionModel = require('../../../../models/cash/Transaction');
 const ReconciliationModel = require('../../../../models/cash/Reconciliation');
 const { getAuthenticatedUserId } = require('../../../../utils/authContext');
 const { safeParseId } = require('../../../../utils/safeParseId');
-const { getRequestActorLabel } = require('../../../../utils/userUtils');
 const { mapKeysToSnake } = require('../../../../utils/fieldMap');
 
 /**

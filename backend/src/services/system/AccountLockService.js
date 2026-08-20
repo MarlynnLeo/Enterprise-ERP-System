@@ -10,6 +10,7 @@
 const { logger } = require('../../utils/logger');
 const { getRedisClient } = require('../../config/redisClient');
 const { PASSWORD_POLICY } = require('../../config/security');
+const { normalizeUsername } = require('../../utils/usernameSecurity');
 
 // 配置：与 security.PASSWORD_POLICY.maxAttempts 对齐（可用环境变量覆盖）
 const MAX_FAILED_ATTEMPTS =
@@ -29,6 +30,12 @@ const KEY_PREFIX = 'acc_lock:';
 // 内存降级存储
 const memoryStore = new Map();
 let memoryFallbackWarned = false;
+
+function canonicalUsername(username) {
+  const normalized = normalizeUsername(username);
+  if (!normalized) throw new Error('INVALID_USERNAME');
+  return normalized;
+}
 
 function useMemoryFallback(reason) {
   if (!ALLOW_MEMORY_FALLBACK) {
@@ -61,6 +68,7 @@ class AccountLockService {
    * @returns {Promise<{ locked: boolean, remainingMinutes: number }>}
    */
   static async isLocked(username) {
+    username = canonicalUsername(username);
     const client = await getClient();
 
     if (client) {
@@ -106,6 +114,7 @@ class AccountLockService {
    * @returns {Promise<{ locked: boolean, remainingAttempts: number, lockDurationMinutes: number }>}
    */
   static async recordFailedAttempt(username, ip = '') {
+    username = canonicalUsername(username);
     const client = await getClient();
 
     if (client) {
@@ -172,6 +181,7 @@ class AccountLockService {
    * @param {string} username - 用户名
    */
   static async clearFailedAttempts(username) {
+    username = canonicalUsername(username);
     const client = await getClient();
     if (client) {
       try {
@@ -189,6 +199,7 @@ class AccountLockService {
    * @param {string} username - 用户名
    */
   static async unlock(username) {
+    username = canonicalUsername(username);
     const client = await getClient();
     if (client) {
       try {

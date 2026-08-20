@@ -4,6 +4,12 @@ const crypto = require('crypto');
 const readline = require('readline');
 const mysql = require('mysql2');
 const { pool } = require('../../config/db');
+const {
+  getEncryptionMode,
+  isEncryptedBackup,
+  encryptFile,
+  decryptFile,
+} = require('../../utils/backupCrypto');
 
 const BACKUP_DIR = path.resolve(process.env.BACKUP_DIR || path.join(__dirname, '../../../backups'));
 const BACKUP_RETENTION_DAYS = Math.max(1, Number.parseInt(process.env.BACKUP_RETENTION_DAYS, 10) || 30);
@@ -32,6 +38,8 @@ async function ensureBackupTable() {
       file_size BIGINT NOT NULL DEFAULT 0,
       checksum VARCHAR(64),
       status ENUM('success','failed') NOT NULL DEFAULT 'success',
+      encrypted TINYINT(1) NOT NULL DEFAULT 0,
+      encryption_algorithm VARCHAR(32) NULL,
       message TEXT,
       created_by INT NULL,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -39,6 +47,7 @@ async function ensureBackupTable() {
       INDEX idx_status (status)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='系统数据库备份记录'
   `);
+
 }
 
 async function writeLine(stream, line = '') {
@@ -218,10 +227,17 @@ class BackupService {
     await fs.promises.mkdir(BACKUP_DIR, { recursive: true });
 
     const timestamp = new Date().toISOString().replace(/\D/g, '').slice(0, 17);
-    const filename = `backup_${timestamp}.sql`;
+    const encryptionMode = getEncryptionMode();
+    if (process.env.NODE_ENV === 'production' && encryptionMode !== 'required') {
+      throw new Error('Production backups must use BACKUP_ENCRYPTION_MODE=required');
+    }
+    const encrypted = encryptionMode !== 'disabled';
+    const plainFilename = `backup_${timestamp}.sql`;
+    const filename = encrypted ? `${plainFilename}.enc` : plainFilename;
+    const plainPath = path.join(BACKUP_DIR, `${plainFilename}.tmp`);
     const filePath = path.join(BACKUP_DIR, filename);
     const checksumPath = `${filePath}.sha256`;
-    const stream = fs.createWriteStream(filePath, { encoding: 'utf8' });
+    const stream = fs.createWriteStream(plainPath, { encoding: 'utf8', mode: 0o600 });
 
     try {
       await writeLine(stream, '-- ERP database backup');
@@ -240,6 +256,13 @@ class BackupService {
       await writeLine(stream, 'SET FOREIGN_KEY_CHECKS=1;');
       await new Promise((resolve, reject) => stream.end((error) => (error ? reject(error) : resolve())));
 
+      if (encrypted) {
+        await encryptFile(plainPath, filePath);
+        await fs.promises.unlink(plainPath);
+      } else {
+        await fs.promises.rename(plainPath, filePath);
+      }
+
       // 流式计算文件哈希，避免大文件一次性读入内存
       const stats = await fs.promises.stat(filePath);
       const fileSize = stats.size;
@@ -250,9 +273,10 @@ class BackupService {
       });
 
       await pool.query(
-        `INSERT INTO system_backups (filename, file_path, file_size, checksum, status, created_by)
-         VALUES (?, ?, ?, ?, 'success', ?)`,
-        [filename, filePath, fileSize, checksum, createdBy || null]
+        `INSERT INTO system_backups
+           (filename, file_path, file_size, checksum, status, encrypted, encryption_algorithm, created_by)
+         VALUES (?, ?, ?, ?, 'success', ?, ?, ?)`,
+        [filename, filePath, fileSize, checksum, encrypted ? 1 : 0, encrypted ? 'aes-256-gcm' : null, createdBy || null]
       );
 
       let retention;
@@ -262,10 +286,17 @@ class BackupService {
         retention = { warning: error.message };
       }
 
-      return { filename, file_size: fileSize, checksum, retention };
+      return {
+        filename,
+        file_size: fileSize,
+        checksum,
+        encrypted,
+        encryption_algorithm: encrypted ? 'aes-256-gcm' : null,
+        retention,
+      };
     } catch (error) {
       stream.destroy();
-      for (const target of [filePath, checksumPath]) {
+      for (const target of [plainPath, filePath, checksumPath]) {
         try {
           await fs.promises.unlink(target);
         } catch {
@@ -273,9 +304,10 @@ class BackupService {
         }
       }
       await pool.query(
-        `INSERT INTO system_backups (filename, file_path, file_size, status, message, created_by)
-         VALUES (?, ?, 0, 'failed', ?, ?)`,
-        [filename, filePath, error.message, createdBy || null]
+        `INSERT INTO system_backups
+           (filename, file_path, file_size, status, encrypted, encryption_algorithm, message, created_by)
+         VALUES (?, ?, 0, 'failed', ?, ?, ?, ?)`,
+        [filename, filePath, encrypted ? 1 : 0, encrypted ? 'aes-256-gcm' : null, error.message, createdBy || null]
       );
       throw error;
     }
@@ -284,7 +316,7 @@ class BackupService {
   async listBackups() {
     await ensureBackupTable();
     const [rows] = await pool.query(
-      `SELECT id, filename, file_size, checksum, status, message, created_by, created_at
+      `SELECT id, filename, file_size, checksum, status, encrypted, encryption_algorithm, message, created_by, created_at
        FROM system_backups
        ORDER BY created_at DESC
        LIMIT 50`
@@ -300,7 +332,7 @@ class BackupService {
     }
 
     const [[backup]] = await pool.query(
-      'SELECT id, filename, file_path, file_size, checksum, status, message, created_by, created_at FROM system_backups WHERE filename = ? AND status = "success" LIMIT 1',
+      'SELECT id, filename, file_path, file_size, checksum, status, encrypted, encryption_algorithm, message, created_by, created_at FROM system_backups WHERE filename = ? AND status = "success" LIMIT 1',
       [safeFilename]
     );
     if (!backup) {
@@ -321,9 +353,33 @@ class BackupService {
     const backup = await this.getBackupFile(filename);
     const stats = await fs.promises.stat(backup.file_path);
     const checksum = await sha256File(backup.file_path);
-    const sqlScan = await scanBackupSql(backup.file_path);
+    let scanPath = backup.file_path;
+    let temporaryPlainPath = null;
+    const encrypted = Boolean(Number(backup.encrypted)) || await isEncryptedBackup(backup.file_path);
+    if (encrypted) {
+      temporaryPlainPath = path.join(BACKUP_DIR, `.verify_${crypto.randomUUID()}.sql`);
+      try {
+        await decryptFile(backup.file_path, temporaryPlainPath);
+        scanPath = temporaryPlainPath;
+      } catch (error) {
+        await fs.promises.unlink(temporaryPlainPath).catch(() => {});
+        return {
+          filename: backup.filename,
+          file_size: stats.size,
+          checksum,
+          valid: false,
+          checks: [{ name: 'encrypted_backup_authentication', ok: false, error: error.message }],
+        };
+      }
+    }
+    const sqlScan = await scanBackupSql(scanPath);
+    if (temporaryPlainPath) await fs.promises.unlink(temporaryPlainPath).catch(() => {});
 
     const checks = [
+      {
+        name: 'encrypted_backup_required_in_production',
+        ok: process.env.NODE_ENV !== 'production' || encrypted,
+      },
       {
         name: 'file_size_matches_record',
         ok: Number(stats.size) === Number(backup.file_size),

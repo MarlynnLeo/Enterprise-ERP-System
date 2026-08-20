@@ -6,12 +6,15 @@
  */
 
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const { logger } = require('../utils/logger');
 const {
   buildAuthCookieOptions,
   clearAuthCookies,
   clearCsrfCookies,
 } = require('../utils/cookieSecurity');
+
+const ALLOWED_JWT_ALGORITHMS = Object.freeze(['HS256']);
 
 // 验证JWT密钥环境变量
 if (!process.env.JWT_SECRET) {
@@ -30,12 +33,28 @@ if (!process.env.JWT_REFRESH_SECRET) {
   );
 }
 
+if (!ALLOWED_JWT_ALGORITHMS.includes(String(process.env.JWT_ALGORITHM || 'HS256'))) {
+  throw new Error(`Unsupported JWT_ALGORITHM. Allowed values: ${ALLOWED_JWT_ALGORITHMS.join(', ')}`);
+}
+
+for (const [name, value] of Object.entries({
+  JWT_SECRET: process.env.JWT_SECRET,
+  JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET,
+})) {
+  if (process.env.NODE_ENV === 'production' && Buffer.byteLength(String(value), 'utf8') < 32) {
+    throw new Error(`${name} must be at least 32 bytes in production`);
+  }
+}
+
 // JWT配置
 const JWT_CONFIG = {
   accessTokenExpiry: process.env.JWT_ACCESS_EXPIRY || '2h', // 2小时
   refreshTokenExpiry: process.env.JWT_REFRESH_EXPIRY || '7d', // 7天
   accessSecret: process.env.JWT_SECRET,
   refreshSecret: process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET,
+  issuer: process.env.JWT_ISSUER || 'erp-system',
+  audience: process.env.JWT_AUDIENCE || 'erp-users',
+  algorithm: process.env.JWT_ALGORITHM || 'HS256',
 };
 
 /**
@@ -45,18 +64,25 @@ const JWT_CONFIG = {
  * @param {Object} user - 用户对象
  * @returns {Object} { accessToken, refreshToken }
  */
-const generateTokens = (user) => {
+const generateTokens = (user, options = {}) => {
+  const refreshJti = options.refreshJti || crypto.randomUUID();
+  const refreshFamilyId = options.refreshFamilyId || crypto.randomUUID();
   // ✅ 安全优化: 只存储id和username,不存储role
   // 权限信息应该从数据库实时获取,而不是信任JWT中的数据
   const payload = {
     id: user.id,
     username: user.username,
     tokenVersion: Number(user.token_version || 0),
+    type: 'access',
     // ❌ 不再存储: role, permissions等敏感信息
   };
 
   const accessToken = jwt.sign(payload, JWT_CONFIG.accessSecret, {
     expiresIn: JWT_CONFIG.accessTokenExpiry,
+    issuer: JWT_CONFIG.issuer,
+    audience: JWT_CONFIG.audience,
+    algorithm: JWT_CONFIG.algorithm,
+    subject: String(user.id),
   });
 
   const refreshToken = jwt.sign(
@@ -64,12 +90,20 @@ const generateTokens = (user) => {
       id: user.id,
       type: 'refresh',
       tokenVersion: user.token_version || 0, // 用于token撤销
+      familyId: refreshFamilyId,
     },
     JWT_CONFIG.refreshSecret,
-    { expiresIn: JWT_CONFIG.refreshTokenExpiry }
+    {
+      expiresIn: JWT_CONFIG.refreshTokenExpiry,
+      issuer: JWT_CONFIG.issuer,
+      audience: JWT_CONFIG.audience,
+      algorithm: JWT_CONFIG.algorithm,
+      subject: String(user.id),
+      jwtid: refreshJti,
+    }
   );
 
-  return { accessToken, refreshToken };
+  return { accessToken, refreshToken, refreshJti, refreshFamilyId };
 };
 
 /**
@@ -90,7 +124,13 @@ const generateToken = (user) => {
  */
 const verifyAccessToken = (token) => {
   try {
-    return jwt.verify(token, JWT_CONFIG.accessSecret);
+    const decoded = jwt.verify(token, JWT_CONFIG.accessSecret, {
+      algorithms: [JWT_CONFIG.algorithm],
+      issuer: JWT_CONFIG.issuer,
+      audience: JWT_CONFIG.audience,
+    });
+    if (decoded.type !== 'access') throw new Error('访问令牌类型错误');
+    return decoded;
   } catch (error) {
     if (error.name === 'TokenExpiredError') {
       throw new Error('访问令牌已过期', { cause: error });
@@ -109,8 +149,12 @@ const verifyAccessToken = (token) => {
  */
 const verifyRefreshToken = (token) => {
   try {
-    const decoded = jwt.verify(token, JWT_CONFIG.refreshSecret);
-    if (decoded.type !== 'refresh') {
+    const decoded = jwt.verify(token, JWT_CONFIG.refreshSecret, {
+      algorithms: [JWT_CONFIG.algorithm],
+      issuer: JWT_CONFIG.issuer,
+      audience: JWT_CONFIG.audience,
+    });
+    if (decoded.type !== 'refresh' || !decoded.jti || !decoded.familyId) {
       throw new Error('令牌类型错误');
     }
     return decoded;
@@ -190,4 +234,5 @@ module.exports = {
   setTokensToCookies,
   clearTokenCookies,
   JWT_CONFIG,
+  ALLOWED_JWT_ALGORITHMS,
 };

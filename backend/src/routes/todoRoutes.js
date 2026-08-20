@@ -16,6 +16,9 @@ const { requirePermission } = require('../middleware/requirePermission');
 // 先添加身份验证中间件
 router.use(authenticateToken);
 
+// 首页轻量摘要（必须放在 /:id 之前）
+router.get('/dashboard-summary', todoController.getDashboardSummary);
+
 // 获取所有待办事项
 router.get('/', todoController.getAllTodos);
 

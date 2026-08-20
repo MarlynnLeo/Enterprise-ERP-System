@@ -462,8 +462,6 @@ const authStore = useAuthStore()
 // ✅ 键盘导航：Enter 跳转下一字段，最后一个字段 Enter 提交
 const { onFormKeydown: reportFormKeydown } = useFormKeyboardNav(() => handleReportSubmit())
 
-// 权限计算属性（修复：之前未定义导致运行时 TypeError）
-const canView = computed(() => authStore.hasPermission('production:reports:view'));
 const canCreate = computed(() => authStore.hasPermission('production:reports:create'));
 const canUpdate = computed(() => authStore.hasPermission('production:reports:update'));
 const canDelete = computed(() => authStore.hasPermission('production:reports:delete'));

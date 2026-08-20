@@ -280,7 +280,7 @@ const materialController = {
         { header: '物料编码*', key: 'code', width: 20 },
         { header: '物料名称*', key: 'name', width: 25 },
         { header: '规格型号', key: 'specs', width: 20 },
-        { header: '图号', key: 'drawing_no', width: 20 },
+        { header: '物料号', key: 'drawing_no', width: 20 },
         { header: '色号', key: 'color_code', width: 15 },
         { header: '材质', key: 'material_type', width: 20 },
         { header: '物料分类编码*', key: 'category_code', width: 18 },
@@ -296,7 +296,6 @@ const materialController = {
           header: '物料负责人工号', key: 'manager_code', width: 18
         },
         { header: '默认库位编码', key: 'location_code', width: 18 },
-        { header: '库位详细位置', key: 'location_detail', width: 20 },
         {
           header: '参考价格', key: 'price', width: 12
         },
@@ -328,7 +327,6 @@ const materialController = {
           production_group_code: '',
           manager_code: 'EMP001',
           location_code: 'A01-01-01',
-          location_detail: 'A区1排2层3号',
           price: 150.0,
           safety_stock: 100,
           min_stock: 50,
@@ -350,7 +348,6 @@ const materialController = {
           production_group_code: 'PG001',
           manager_code: 'EMP002',
           location_code: 'B01-01-01',
-          location_detail: 'B区2排1层5号',
           price: 500.0,
           safety_stock: 50,
           min_stock: 20,
@@ -482,7 +479,7 @@ const materialController = {
             code: row['物料编码*'],
             name: row['物料名称*'],
             specs: row['规格型号'] || '',
-            drawing_no: row['图号'] || '',
+            drawing_no: row['物料号'] || row['图号'] || '',
             color_code: row['色号'] || '',
             material: row['材质'] || row['材料'] || row['material'] || '',
             category_id: categoryId,
@@ -492,7 +489,7 @@ const materialController = {
             production_group_id: productionGroupId,
             manager_id: managerId,
             location_id: locationId,
-            location_detail: row['库位详细位置'] || '',
+            location_detail: '',
             price: row['参考价格'] ? parseFloat(row['参考价格']) : 0,
             safety_stock: row['安全库存'] ? parseInt(row['安全库存']) : 0,
             min_stock: row['最小库存'] ? parseInt(row['最小库存']) : 0,
@@ -844,14 +841,26 @@ const materialController = {
 
   async deleteMaterialAttachment(req, res) {
     try {
-      const { attachmentId } = req.params;
+      const attachmentId = Number(req.params.attachmentId);
+      if (!Number.isInteger(attachmentId) || attachmentId <= 0) {
+        return ResponseHandler.error(res, '附件 ID 无效', 'VALIDATION_ERROR', 400);
+      }
       const [[attachment]] = await dbPool.execute(
-        'SELECT file_path FROM material_attachments WHERE id = ?',
+        'SELECT material_id, file_path FROM material_attachments WHERE id = ?',
         [attachmentId]
       );
+      if (!attachment) return ResponseHandler.notFound(res, '附件不存在');
+      const materialExists = await FileAccessService.assertBusinessObjectAccess(
+        req,
+        'material',
+        attachment.material_id,
+        'write'
+      );
+      if (!materialExists) return ResponseHandler.forbidden(res, '无权删除该物料附件');
       await materialService.deleteMaterialAttachment(attachmentId);
       if (attachment?.file_path) {
         await FileAccessService.safeMarkDeleted(attachment.file_path);
+        FileAccessService.removeLocalFile(attachment.file_path);
       }
       ResponseHandler.success(res, null, '删除附件成功');
     } catch (error) {
@@ -873,14 +882,32 @@ const materialController = {
   },
 
   async uploadMaterialAttachment(req, res) {
+    let attachmentId = null;
+    const filePathForCleanup = req.file ? `/uploads/${req.file.filename}` : null;
     try {
       const { id } = req.params;
       if (!req.file) {
         return ResponseHandler.error(res, '没有上传文件', 'VALIDATION_ERROR', 400);
       }
 
+      const materialId = Number(id);
+      if (!Number.isInteger(materialId) || materialId <= 0) {
+        FileAccessService.removeLocalFile(filePathForCleanup);
+        return ResponseHandler.error(res, '物料 ID 无效', 'VALIDATION_ERROR', 400);
+      }
+      const materialExists = await FileAccessService.assertBusinessObjectAccess(
+        req,
+        'material',
+        materialId,
+        'write'
+      );
+      if (!materialExists) {
+        FileAccessService.removeLocalFile(filePathForCleanup);
+        return ResponseHandler.notFound(res, '物料不存在');
+      }
+
       const attachmentData = {
-        material_id: id,
+        material_id: materialId,
         file_name: req.file.originalname,
         file_path: `/uploads/${req.file.filename}`,
         file_type: req.file.mimetype,
@@ -891,10 +918,11 @@ const materialController = {
       };
 
       const attachment = await materialService.addMaterialAttachment(attachmentData);
+      attachmentId = attachment.id;
       await FileAccessService.safeRecordUpload({
         fileUrl: attachmentData.file_path,
         businessType: 'material',
-        businessId: id,
+        businessId: materialId,
         source: 'material_attachments',
         uploadedBy: req.user?.id || req.user?.userId || null,
         metadata: {
@@ -905,6 +933,14 @@ const materialController = {
       });
       ResponseHandler.success(res, attachment, '上传附件成功');
     } catch (error) {
+      if (attachmentId) {
+        try {
+          await materialService.deleteMaterialAttachment(attachmentId);
+        } catch (cleanupError) {
+          logger.error('清理无授权物料附件记录失败:', cleanupError);
+        }
+      }
+      if (filePathForCleanup) FileAccessService.removeLocalFile(filePathForCleanup);
       logger.error('上传物料附件失败:', error);
       ResponseHandler.error(res, error.message, 'SERVER_ERROR', 500, error);
     }

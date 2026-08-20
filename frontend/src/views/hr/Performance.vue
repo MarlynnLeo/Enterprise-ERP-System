@@ -183,7 +183,7 @@
 import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Edit, Delete, View, VideoPlay, Check } from '@element-plus/icons-vue'
+import { Edit, Delete, VideoPlay, Check } from '@element-plus/icons-vue'
 import { performanceApi } from '@/api/enhanced'
 
 const activeTab = ref('indicators')

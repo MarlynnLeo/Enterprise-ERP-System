@@ -331,10 +331,6 @@ const handleCurrentChange = (page) => {
   fetchEquipmentList()
 }
 
-const handleRowClick = (row) => {
-  viewDetail(row)
-}
-
 const viewDetail = (equipment) => {
   selectedEquipment.value = equipment
   detailDialogVisible.value = true

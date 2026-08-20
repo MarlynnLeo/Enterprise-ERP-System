@@ -13,6 +13,10 @@ const SELF_SERVICE_ROUTES = new Set([
   'auth.js GET /menus',
   'auth.js PUT /users/avatar',
   'auth.js PUT /change-password',
+  'auth.js POST /mfa/setup',
+  'auth.js POST /mfa/confirm',
+  'auth.js POST /mfa/disable',
+  'auth.js POST /mfa/recovery-codes/regenerate',
   'auth.js POST /profile/avatar-frame',
   'auth.js GET /theme',
   'auth.js POST /theme',
@@ -34,6 +38,7 @@ const SELF_SERVICE_ROUTES = new Set([
   'system.js POST /client-errors',
   'system.js GET /business-types/dictionary',
   'todoRoutes.js GET /',
+  'todoRoutes.js GET /dashboard-summary',
   'todoRoutes.js GET /filter',
   'todoRoutes.js GET /available-users',
   'todoRoutes.js GET /:id',
@@ -51,6 +56,11 @@ const SELF_SERVICE_ROUTES = new Set([
 
 const PUBLIC_ROUTES = new Set([
   'auth.js POST /login',
+  // Password-authenticated MFA challenges intentionally remain unauthenticated
+  // until the second factor succeeds.  They are still protected by the
+  // /api/auth/mfa rate limiter and strict challenge validation in the service.
+  'auth.js POST /mfa/verify',
+  'auth.js POST /mfa/enroll',
   'health.js GET /ping',
   'health.js GET /ready',
   'health.js GET /live',

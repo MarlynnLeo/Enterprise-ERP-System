@@ -22,6 +22,7 @@ const {
   STATUS,
   STOCK_SUBQUERY,
   getStatusText,
+  assertOutboundSourceAccess,
 } = require('./outboundHelpers');
 
 const { fetchBomItemsForOutbound } = require('./outboundBomController');
@@ -412,6 +413,12 @@ const getOutboundDetail = async (req, res) => {
       return ResponseHandler.error(res, '出库单不存在', 'NOT_FOUND', 404);
     }
 
+    const outbound = outboundResult[0];
+    if (!(await assertOutboundSourceAccess(connection, req, outbound))) {
+      await connection.rollback();
+      return ResponseHandler.forbidden(res, '无权访问该出库单关联的来源单据');
+    }
+
     // 获取出库单明细（原始需求）
     const [itemsResult] = await connection.execute(
       `
@@ -437,8 +444,6 @@ const getOutboundDetail = async (req, res) => {
     // 如果是生产出库单且明细为空且状态为draft（撤销后的情况），从统一净需求重新生成并保存
     // 注意：completed状态只显示实际出库明细，不再临时展开BOM
     let finalItemsResult = itemsResult;
-    const outbound = outboundResult[0];
-
     if (
       itemsResult.length === 0 &&
       outbound.status === STATUS.OUTBOUND.DRAFT &&
@@ -559,13 +564,25 @@ const updateOutbound = async (req, res) => {
 
     // 检查出库单是否存在
     const [checkResult] = await connection.execute(
-      'SELECT status FROM inventory_outbound WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+      `SELECT status, reference_id, reference_type, production_task_id, source_task_ids
+         FROM inventory_outbound
+        WHERE id = ? AND deleted_at IS NULL
+        FOR UPDATE`,
       [id]
     );
 
     if (checkResult.length === 0) {
       await connection.rollback();
       return ResponseHandler.error(res, '出库单不存在', 'NOT_FOUND', 404);
+    }
+
+    if (!(await ScopeGuard.assertAccess(connection, req, 'inventory_outbound', id))) {
+      await connection.rollback();
+      return ResponseHandler.forbidden(res, '无权修改该出库单');
+    }
+    if (!(await assertOutboundSourceAccess(connection, req, checkResult[0]))) {
+      await connection.rollback();
+      return ResponseHandler.forbidden(res, '无权修改该出库单关联的来源单据');
     }
 
     const currentStatus = checkResult[0].status;
@@ -739,6 +756,18 @@ const _createOutbound = async (outboundData) => {
     // 获取生产任务ID（HTTP 入参只认 camel）
     const productionTaskId = outboundData.productionTaskId || null;
 
+    if (outboundData.request && productionTaskId) {
+      if (!(await assertOutboundSourceAccess(connection, outboundData.request, {
+        reference_type: 'production_task',
+        reference_id: productionTaskId,
+      }))) {
+        const sourceError = new Error('无权创建该生产任务的出库单');
+        sourceError.statusCode = 403;
+        sourceError.code = 'SOURCE_OBJECT_ACCESS_DENIED';
+        throw sourceError;
+      }
+    }
+
     // referenceId 使用生产任务 ID，保持出库单与生产任务关联
     const referenceId = productionTaskId;
     let referenceType = null;
@@ -845,7 +874,7 @@ const _createOutbound = async (outboundData) => {
 
     // 插入出库单主表（含出库类型标记；HTTP 入参只认 camel）
     const outboundType = outboundData.outboundType || 'manual';
-    const createdBy = outboundData.createdBy || outboundData.userId || null;
+    const createdBy = outboundData.createdBy ?? outboundData.created_by ?? outboundData.userId ?? null;
     const [result] = await connection.execute(
       `INSERT INTO inventory_outbound
         (outbound_no, outbound_date, status, outbound_type, operator, remark, reference_id, reference_type, production_task_id, issue_reason, is_excess, created_by)
@@ -1101,6 +1130,7 @@ const createOutbound = async (req, res) => {
             issueReason: item.issue_reason ?? item.issueReason ?? null,
           }))
         : [],
+      request: req,
     };
 
     assertShopFloorOutbound(req, adaptedData);
@@ -1194,13 +1224,25 @@ const deleteOutbound = async (req, res) => {
 
     // 检查出库单是否存在,并获取关联信息
     const [checkResult] = await connection.execute(
-      'SELECT status, reference_id, reference_type FROM inventory_outbound WHERE id = ? AND deleted_at IS NULL FOR UPDATE',
+      `SELECT status, reference_id, reference_type, production_task_id, source_task_ids
+         FROM inventory_outbound
+        WHERE id = ? AND deleted_at IS NULL
+        FOR UPDATE`,
       [id]
     );
 
     if (checkResult.length === 0) {
       await connection.rollback();
       return ResponseHandler.error(res, '出库单不存在', 'NOT_FOUND', 404);
+    }
+
+    if (!(await ScopeGuard.assertAccess(connection, req, 'inventory_outbound', id))) {
+      await connection.rollback();
+      return ResponseHandler.forbidden(res, '无权删除该出库单');
+    }
+    if (!(await assertOutboundSourceAccess(connection, req, checkResult[0]))) {
+      await connection.rollback();
+      return ResponseHandler.forbidden(res, '无权删除该出库单关联的来源单据');
     }
 
     const { status, reference_id, reference_type } = checkResult[0];

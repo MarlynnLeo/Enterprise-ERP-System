@@ -2,9 +2,15 @@ import { api, fastApi } from '../services/axiosInstance';
 
 export const userApi = {
     login: (credentials) => api.post('/auth/login', credentials),
+    verifyMfa: (data) => api.post('/auth/mfa/verify', data),
+    enrollMfa: (data) => api.post('/auth/mfa/enroll', data),
+    setupMfa: (data) => api.post('/auth/mfa/setup', data),
+    confirmMfa: (data) => api.post('/auth/mfa/confirm', data),
+    disableMfa: (data) => api.post('/auth/mfa/disable', data),
+    regenerateMfaRecoveryCodes: (data) => api.post('/auth/mfa/recovery-codes/regenerate', data),
     logout: () => api.post('/auth/logout'),
     getProfile: () => api.get('/auth/profile'),
-    getProfileFast: () => fastApi.get('/auth/profile'),
+    getProfileFast: (config = {}) => fastApi.get('/auth/profile', config),
     updateProfile: (data) => api.put('/auth/profile', data),
     changePassword: (data) => api.put('/auth/change-password', data),
     updateAvatar: (formData) => api.put('/auth/users/avatar', formData, {
@@ -24,6 +30,7 @@ export const userApi = {
 export const todoApi = {
     getTodos: (params) => api.get('/todos', { params }),
     getAllTodos: (params) => api.get('/todos', { params }),
+    getDashboardSummary: (params) => api.get('/todos/dashboard-summary', { params }),
     getTodo: (id) => api.get(`/todos/${id}`),
     createTodo: (data) => api.post('/todos', data),
     updateTodo: (id, data) => api.put(`/todos/${id}`, data),

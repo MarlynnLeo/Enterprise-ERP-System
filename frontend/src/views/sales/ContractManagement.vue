@@ -225,7 +225,7 @@
 import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { View, Edit, Delete } from '@element-plus/icons-vue'
+import { Edit, Delete } from '@element-plus/icons-vue'
 import { contractApi } from '@/api/contract'
 import BusinessApprovalDialog from '@/components/workflow/BusinessApprovalDialog.vue'
 import { useBusinessApproval } from '@/composables/useBusinessApproval'
