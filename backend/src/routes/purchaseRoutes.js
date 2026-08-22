@@ -120,7 +120,7 @@ router.get('/returns-statistics', authenticateToken, requirePermission('purchase
 // 采购统计数据
 router.get('/statistics', authenticateToken, requirePermission('purchase:reports:view'), purchaseOrderController.getStatistics);
 
-// 外委加工路由
+// 委外加工路由
 router.get(
   '/outsourced-processings',
   authenticateToken,
@@ -160,7 +160,7 @@ router.put(
   outsourcedProcessingController.updateProcessingStatus
 );
 
-// 外委加工入库路由
+// 委外入库路由
 router.get('/outsourced-receipts', authenticateToken, requirePermission('purchase:processing-receipts:view'), outsourcedProcessingController.getReceipts);
 router.get(
   '/outsourced-receipts/:id',

@@ -325,6 +325,7 @@
   </div>
 </template>
 <script setup>
+import { getCommonStatusText, getCommonStatusColor } from '@/constants/systemConstants'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { NumberFormatter } from '@/utils/commonHelpers'
 import { formatCurrency, formatLocalDate } from '@/utils/format'
@@ -548,21 +549,9 @@ const resetSearch = () => {
   searchPayments();
 };
 // 获取状态类型（用于tag颜色）
-const getStatusType = (status) => {
-  const typeMap = {
-    'normal': 'success',
-    'void': 'danger'
-  };
-  return typeMap[status] || 'info';
-};
+const getStatusType = (status) => getCommonStatusColor(status) || 'info';
 // 获取状态文本
-const getStatusText = (status) => {
-  const textMap = {
-    'normal': '正常',
-    'void': '已作废'
-  };
-  return textMap[status] || status;
-};
+const getStatusText = (status) => getCommonStatusText(status) || status;
 // 查看详情
 const handleViewDetail = async (row) => {
   if (detailLoading.value) return;

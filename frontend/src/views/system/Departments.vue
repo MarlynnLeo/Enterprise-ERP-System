@@ -77,7 +77,7 @@
         <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
       >
           <template #default="scope">
-            <div class="flex-wrap">
+            <div class="table-actions">
               <el-popconfirm
                 v-if="String(scope.row.status) !== '1'"
                 title="确定要启用该部门吗？"

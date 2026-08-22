@@ -8,6 +8,7 @@
 const CashTransactionModel = require('../models/cash/CashTransaction');
 const CashReportsModel = require('../models/cash/Reports');
 const ExcelJS = require('exceljs');
+const { getCommonStatusText } = require('../constants/systemConstants');
 
 /**
  * 现金交易服务层
@@ -315,11 +316,7 @@ class CashTransactionService {
    * 获取类型名称
    */
   getTypeName(type) {
-    const typeMap = {
-      income: '收入',
-      expense: '支出',
-    };
-    return typeMap[type] || type;
+    return getCommonStatusText(type) || type;
   }
 
   /**

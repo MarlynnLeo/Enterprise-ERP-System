@@ -67,6 +67,12 @@ router.put(
   requirePermission('system:users:update'),
   systemController.resetUserPassword
 );
+router.put(
+  '/users/:id/login/unlock',
+  validateIdParam,
+  requirePermission('system:users:update'),
+  systemController.unlockUserLogin
+);
 
 // ========== 部门管理路由 ==========
 // ✅ 安全修复：添加权限检查

@@ -598,6 +598,7 @@ import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
 import printService from '@/services/printService'
 import { Search, Refresh, Plus } from '@element-plus/icons-vue'
 import FinanceStreamStatus from '@/views/finance/components/FinanceStreamStatus.vue'
+import { getCommonStatusText } from '@/constants/systemConstants'
 // 状态变量
 const loading = ref(false)
 const orders = ref([])
@@ -1081,11 +1082,11 @@ const submitOutbound = async () => {
     status: outboundForm.value.status || 'draft',
     remarks: outboundForm.value.remarks || '',
     items: validItems.map((item) => ({
-      productId: item.productId || item.materialId || item.productId,
-      materialId: item.materialId || item.productId || item.materialId || item.productId,
+      productId: item.productId || item.materialId,
+      materialId: item.materialId || item.productId,
       unitId: item.unitId,
       quantity: item.quantity,
-      unitPrice: item.unitPrice ?? item.unitPrice ?? 0,
+      unitPrice: item.unitPrice ?? 0,
       remarks: item.remarks || '',
       sourceOrderId: item.orderId === 'multiple' ? null : item.orderId,
       sourceOrderNo: item.orderNo
@@ -1131,18 +1132,7 @@ const validateQuantity = (row, _index) => {
   }
 }
 // 获取订单状态文本
-const getOrderStatusText = (status) => {
-  const statusMap = {
-    'pending': '待处理',
-    'confirmed': '已确认',
-    'in_production': '生产中',
-    'ready_to_ship': '可发货',
-    'partial_shipped': '部分发货',
-    'completed': '已完成',
-    'cancelled': '已取消'
-  }
-  return statusMap[status] || '未知状态'
-}
+const getOrderStatusText = (status) => getCommonStatusText(status) || "未知"
 // 多订单管理方法
 const handleAddOrder = () => {
   // 选择订单后自动添加，提升操作便利性

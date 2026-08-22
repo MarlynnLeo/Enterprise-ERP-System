@@ -101,24 +101,24 @@ export const purchaseRoutes = [
     path: '/purchase/processing',
     name: 'PurchaseProcessing',
     component: () => import('@/views/purchase/Processing.vue'),
-    meta: { title: '外委加工', permission: 'purchase' }
+    meta: { title: '委外加工', permission: 'purchase' }
   },
   {
     path: '/purchase/processing/:id',
     name: 'PurchaseProcessingDetail',
     component: () => import('@/views/purchase/ProcessingDetail.vue'),
-    meta: { title: '外委加工详情', permission: 'purchase' }
+    meta: { title: '委外加工详情', permission: 'purchase' }
   },
   {
     path: '/purchase/processing-receipts',
     name: 'PurchaseProcessingReceipts',
     component: () => import('@/views/purchase/ProcessingReceipts.vue'),
-    meta: { title: '外委入库', permission: 'purchase' }
+    meta: { title: '委外入库', permission: 'purchase' }
   },
   {
     path: '/purchase/processing-receipts/:id',
     name: 'PurchaseProcessingReceiptDetail',
     component: () => import('@/views/purchase/ProcessingReceiptDetail.vue'),
-    meta: { title: '外委入库详情', permission: 'purchase' }
+    meta: { title: '委外入库详情', permission: 'purchase' }
   }
 ]

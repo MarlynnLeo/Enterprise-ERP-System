@@ -102,7 +102,9 @@ const keyword = ref('')
 const activeIndex = ref(0)
 const inputRef = ref(null)
 
-const menuOptions = computed(() => buildMenuSearchOptions(permissionStore.menuTree))
+const menuOptions = computed(() =>
+  buildMenuSearchOptions(permissionStore.preparedMenuTree || permissionStore.menuTree)
+)
 
 const filteredOptions = computed(() => {
   if (!keyword.value) return []

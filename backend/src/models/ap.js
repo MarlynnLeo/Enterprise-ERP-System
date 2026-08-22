@@ -437,7 +437,7 @@ const apModel = {
       invoiceData.total_amount = amountPolicy.totalAmount;
       assertInvoiceItemsMatchTotal(invoiceData.items, invoiceData.total_amount, invoiceData);
 
-      // owner：created_by 必须写入，供 DataScope 行级授权
+      // created_by 必须写入用于审计追溯
       const ownerId =
         invoiceData.created_by !== null &&
         invoiceData.created_by !== undefined &&

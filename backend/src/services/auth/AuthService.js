@@ -15,7 +15,7 @@ const USER_PROFILE_FIELDS = `u.id, u.username, u.real_name, u.email, u.departmen
   u.position, u.role, u.avatar, u.phone, u.avatar_frame, u.bio, u.created_at,
   u.force_password_change, u.password_changed_at, u.password_expires_at`;
 
-const USER_LOGIN_FIELDS = 'id, username, real_name, email, password, status, token_version, force_password_change, password_changed_at, password_expires_at';
+const USER_LOGIN_FIELDS = 'id, username, real_name, email, password, status, token_version, force_password_change, password_changed_at, password_expires_at, failed_login_attempts, locked_until';
 
 const USER_REFRESH_FIELDS = 'id, username, role, real_name, email, status, token_version, force_password_change, password_changed_at, password_expires_at';
 
@@ -282,7 +282,30 @@ class AuthService {
       'SELECT role_id FROM user_roles WHERE user_id = ?',
       [userId]
     );
-    return userRoles.map((r) => r.role_id);
+    if (userRoles.length > 0) {
+      return userRoles.map((r) => r.role_id);
+    }
+
+    // 兜底：如果 user_roles 为空但用户本身是 admin，尝试查找 admin 角色的 ID
+    const [users] = await pool.execute(
+      'SELECT role, username FROM users WHERE id = ?',
+      [userId]
+    );
+    if (users.length > 0) {
+      const u = users[0];
+      const role = String(u.role || '').toLowerCase();
+      const username = String(u.username || '').toLowerCase();
+      if (role === 'admin' || role === 'super_admin' || username === 'admin') {
+        const [adminRoles] = await pool.execute(
+          "SELECT id FROM roles WHERE LOWER(code) IN ('admin', 'super_admin') AND status = 1 LIMIT 1"
+        );
+        if (adminRoles.length > 0) {
+          return [adminRoles[0].id];
+        }
+      }
+    }
+
+    return [];
   }
 
   /**
@@ -362,7 +385,6 @@ class AuthService {
     );
     return menus;
   }
-
 
   /**
    * 构建菜单树结构

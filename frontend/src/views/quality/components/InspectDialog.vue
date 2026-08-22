@@ -536,7 +536,7 @@ const formatMeasureByIndex = (item, index) => {
 const calculateAverageValue = (item) => {
   if (!item.measurements) return
   const measures = item.measurements.filter(v => v !== null && v !== undefined && v !== '' && !isNaN(parseFloat(v))).map(v => parseFloat(v))
-  if (measures.length === 0) { item.actualValue = ''; return }
+  if (measures.length === 0) { item.actualValue = ''; item.actual_value = ''; return }
 
   const sum = measures.reduce((acc, val) => acc + val, 0)
   const avg = sum / measures.length
@@ -545,6 +545,8 @@ const calculateAverageValue = (item) => {
   } else {
     item.actualValue = avg.toFixed(2)
   }
+  // 同步 snake_case 字段，validateInspectionItems 读取 actual_value
+  item.actual_value = item.actualValue
   item._averageValue = avg
   checkDimensionTolerance(item, false)
 }

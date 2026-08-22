@@ -9,12 +9,6 @@ const express = require('express');
 const router = express.Router();
 const {
   login,
-  verifyMfaChallenge,
-  enrollMfaChallenge,
-  setupMfa,
-  confirmMfa,
-  disableMfa,
-  regenerateMfaRecoveryCodes,
   logout,
   refreshToken,
   getUserProfile,
@@ -64,8 +58,6 @@ const { FileUploadMiddlewares } = require('../middleware/unifiedFileUpload');
  */
 // 登录路由
 router.post('/login', login);
-router.post('/mfa/verify', verifyMfaChallenge);
-router.post('/mfa/enroll', enrollMfaChallenge);
 
 /**
  * @swagger
@@ -182,11 +174,6 @@ router.put('/users/avatar', authenticateToken, FileUploadMiddlewares.avatar, upl
  */
 // 修改密码
 router.put('/change-password', authenticateToken, changePassword);
-
-router.post('/mfa/setup', authenticateToken, setupMfa);
-router.post('/mfa/confirm', authenticateToken, confirmMfa);
-router.post('/mfa/disable', authenticateToken, disableMfa);
-router.post('/mfa/recovery-codes/regenerate', authenticateToken, regenerateMfaRecoveryCodes);
 
 // 更新用户头像特效
 router.post('/profile/avatar-frame', authenticateToken, updateAvatarFrame);

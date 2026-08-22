@@ -68,7 +68,7 @@ describe('cookie security policy', () => {
     expect(getCookieSameSite()).toBe('lax');
   });
 
-  test('token cookies use the request-aware policy and clear stale variants first', () => {
+  test('token cookies use the request-aware policy without header collisions', () => {
     process.env.COOKIE_SECURE = 'auto';
     process.env.COOKIE_SAME_SITE = 'lax';
     const res = {
@@ -83,7 +83,6 @@ describe('cookie security policy', () => {
       'refresh-token'
     );
 
-    expect(res.clearCookie).toHaveBeenCalled();
     expect(res.cookie).toHaveBeenCalledTimes(2);
     expect(res.cookie.mock.calls[0][2]).toEqual(
       expect.objectContaining({ httpOnly: true, secure: false, sameSite: 'lax', path: '/' })
@@ -105,13 +104,9 @@ describe('cookie security policy', () => {
       ])
     );
 
-    // accessToken should be cleared with both secure true and false
     const accessOptions = res.clearCookie.mock.calls
       .filter((call) => call[0] === 'accessToken')
       .map((call) => call[1].secure);
     expect(accessOptions).toEqual(expect.arrayContaining([true, false]));
-
-    clearAuthCookies(res);
-    clearCsrfCookies(res);
   });
 });

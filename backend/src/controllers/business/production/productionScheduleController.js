@@ -12,7 +12,6 @@ const { isValidDateOnly, getMonthRange } = require('../../../utils/dateOnly');
 const { pool } = require('../../../config/db');
 const SchedulingService = require('../../../services/business/SchedulingService');
 const ScopeGuard = require('../../../authorization/ScopeGuard');
-const DataScopeService = require('../../../services/DataScopeService');
 
 // ==================== 辅助常量与函数 ====================
 
@@ -442,13 +441,6 @@ module.exports = {
       const requestedIds = Array.isArray(criteria.taskIds)
         ? criteria.taskIds
         : [];
-      // 未指定任务时服务会尝试重排整个日期窗口；非 ALL 用户禁止这种跨部门批量写入。
-      if (requestedIds.length === 0) {
-        const scope = await DataScopeService.getRequestScope(req);
-        if (!DataScopeService.isAllScope(scope)) {
-          return ResponseHandler.error(res, '请明确指定有权操作的生产任务', 'FORBIDDEN', 403);
-        }
-      }
       await assertProductionTaskWriteAccessMany(req, requestedIds);
       const result = await SchedulingService.rescheduleCalendarImpact(criteria);
       ResponseHandler.success(res, result, '受影响任务已重排');

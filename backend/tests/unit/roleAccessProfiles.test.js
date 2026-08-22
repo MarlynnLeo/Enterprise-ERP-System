@@ -4,6 +4,8 @@ const {
   permissionAllowed,
   selectAllowedMenuIds,
   describeRoleAccess,
+  listManagedProfiles,
+  DATA_SCOPE,
 } = require('../../src/authorization/roleAccessProfiles');
 const RoleAccessService = require('../../src/services/RoleAccessService');
 
@@ -29,6 +31,13 @@ describe('roleAccessProfiles', () => {
     expect(menuAllowed({ path: '/basedata', permission: 'basedata' }, spec)).toBe(true);
     expect(menuAllowed({ path: '/basedata/customers', permission: 'basedata:customers' }, spec)).toBe(false);
     expect(menuAllowed({ path: '/basedata/suppliers', permission: 'basedata:suppliers' }, spec)).toBe(false);
+  });
+
+  test('所有岗位模板在已授权功能内统一使用全部数据范围', () => {
+    expect(listManagedProfiles()).not.toHaveLength(0);
+    for (const profile of listManagedProfiles()) {
+      expect(profile.dataScope).toBe(DATA_SCOPE.ALL);
+    }
   });
 
   test('出纳只保留资金与现金流量', () => {
@@ -182,14 +191,17 @@ describe('roleAccessProfiles', () => {
     expect(permissionAllowed('finance:entries:view', final)).toBe(false);
   });
 
-  test('零部件仓只做出库，成品仓做入库和销售出库', () => {
+  test('零部件仓可做库存入库/出库，成品仓做入库和销售出库', () => {
     const component = getProfile('component_warehouse_operator');
     expect(permissionAllowed('inventory:outbound:create', component)).toBe(true);
+    expect(permissionAllowed('inventory:inbound:create', component)).toBe(true);
     expect(permissionAllowed('inventory:stock:view', component)).toBe(true);
     expect(permissionAllowed('production:tasks:view', component)).toBe(true);
     expect(permissionAllowed('production:tasks:create', component)).toBe(false);
-    expect(permissionAllowed('inventory:inbound:create', component)).toBe(false);
     expect(permissionAllowed('sales:outbound:create', component)).toBe(false);
+    expect(permissionAllowed('inventory:inbound:approve', component)).toBe(false);
+    expect(permissionAllowed('inventory:outbound:approve', component)).toBe(false);
+    expect(menuAllowed({ path: '/inventory/inbound', permission: 'inventory:inbound' }, component)).toBe(true);
     expect(menuAllowed({ path: '/inventory/outbound', permission: 'inventory:outbound' }, component)).toBe(true);
     expect(menuAllowed({ path: '/sales/outbound', permission: 'sales:outbound' }, component)).toBe(false);
 

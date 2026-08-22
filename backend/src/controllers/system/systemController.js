@@ -16,6 +16,7 @@ const { pool } = require('../../config/db');
 const cacheService = require('../../services/cache/CacheManager');
 const DLQService = require('../../services/business/DLQService');
 const BackupService = require('../../services/system/BackupService');
+const AccountLockService = require('../../services/system/AccountLockService');
 const { parsePagination } = require('../../utils/safePagination');
 
 // 以下模块原散落于各函数体内，统一移至顶部（P1 治理）
@@ -340,6 +341,37 @@ const systemController = {
     }
   },
 
+  async unlockUserLogin(req, res) {
+    try {
+      const { id } = req.params;
+      await assertCanManageTargetUser(req, id);
+
+      const user = await systemModel.getUserById(id);
+      if (!user) {
+        return ResponseHandler.error(res, '用户不存在', 'NOT_FOUND', 404);
+      }
+
+      const previousState = {
+        username: user.username,
+        login_locked: Boolean(user.login_locked),
+        failed_login_attempts: Number(user.failed_login_attempts || 0),
+        locked_until: user.locked_until || null,
+      };
+      await AccountLockService.unlock(user.username);
+      await logUserManagementEvent(req, 'login_unlock', id, previousState, {
+        username: user.username,
+        login_locked: false,
+        failed_login_attempts: 0,
+        locked_until: null,
+      });
+
+      return ResponseHandler.success(res, null, '登录限制已解除');
+    } catch (error) {
+      logger.error('解除用户登录限制失败:', error);
+      return sendBusinessError(res, error, '解除登录限制失败');
+    }
+  },
+
   // 部门管理
   async getAllDepartments(req, res) {
     try {
@@ -504,10 +536,8 @@ const systemController = {
       // model 使用 menuIds（非 DB 列）；snake 化后需回填
       if (req.body?.menuIds !== undefined) roleData.menuIds = req.body.menuIds;
       else if (roleData.menu_ids !== undefined) roleData.menuIds = roleData.menu_ids;
-      // 新建角色默认 SELF；仅允许 1-5
-      if (roleData.data_scope === undefined || roleData.data_scope === null || roleData.data_scope === '') {
-        roleData.data_scope = 4;
-      }
+      // 行级数据范围已停用；角色只控制功能/动作权限。
+      roleData.data_scope = 1;
       const newRole = await systemModel.createRole(roleData);
 
       try {
@@ -543,9 +573,9 @@ const systemController = {
 
       if (targetIsSuperAdmin) {
         roleData.status = 1;
-        // 超管始终 ALL
-        if (roleData.data_scope !== undefined) roleData.data_scope = 1;
       }
+      // 忽略客户端遗留的 SELF/部门/自定义范围值。
+      roleData.data_scope = 1;
 
       const before = await PermissionChangeService.getRoleSnapshot(id);
       const result = await systemModel.updateRole(id, roleData);

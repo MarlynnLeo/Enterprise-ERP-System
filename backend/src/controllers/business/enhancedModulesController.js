@@ -13,26 +13,13 @@ const { softDelete } = require('../../utils/softDelete');
 const { ResponseHandler } = require('../../utils/responseHandler');
 const { logger } = require('../../utils/logger');
 const { parsePagination, appendPaginationSQL } = require('../../utils/safePagination');
-const DataScopeService = require('../../services/DataScopeService');
 
-function buildDepartmentScopeClause(req, alias, column = 'department_id') {
-  const scope = req?.authzScope;
-  if (!scope || DataScopeService.isAllScope(scope)) return { sql: '', params: [] };
-  const ids = (scope.departmentIds || []).map(Number).filter(Number.isInteger);
-  if (ids.length === 0 && scope.departmentId) ids.push(Number(scope.departmentId));
-  if (ids.length === 0) return { sql: ' AND 1 = 0', params: [] };
-  return {
-    sql: ` AND ${alias}.${column} IN (${ids.map(() => '?').join(',')})`,
-    params: ids,
-  };
+function buildDepartmentScopeClause() {
+  return { sql: '', params: [] };
 }
 
-function canAccessDepartment(req, departmentId) {
-  const scope = req?.authzScope;
-  if (!scope || DataScopeService.isAllScope(scope)) return true;
-  const ids = (scope.departmentIds || []).map(Number);
-  if (!ids.length && scope.departmentId) ids.push(Number(scope.departmentId));
-  return ids.includes(Number(departmentId));
+function canAccessDepartment() {
+  return true;
 }
 
 // File authorization is intentionally evaluated per row.  Never allow a

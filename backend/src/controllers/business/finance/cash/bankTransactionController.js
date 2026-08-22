@@ -1,3 +1,4 @@
+const businessConfig = require('../../../../config/businessConfig');
 /**
  * bankTransactionController.js
  * @description 从 cashController.js 拆分的子控制器 — bankTransaction
@@ -212,7 +213,7 @@ const bankTransactionController = {
           data: {
             id: result.transactionId,
             newBalance: result.newBalance,
-            status: 'draft',
+            status: businessConfig.status.approval.DRAFT,
             ...transactionData,
           },
         },

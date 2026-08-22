@@ -301,7 +301,7 @@ class QualityInspection {
       sqlParams.push(filters.startDate, filters.endDate);
     }
 
-    // DataScope 列表过滤
+    // 兼容 ScopeGuard 片段（当前已认证用户不追加行级过滤）
     if (scopeClause.where) {
       query += scopeClause.where;
       sqlParams.push(...(scopeClause.params || []));

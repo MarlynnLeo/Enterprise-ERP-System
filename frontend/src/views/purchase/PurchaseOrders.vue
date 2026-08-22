@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * PurchaseOrders.vue
  * @description 前端界面组件文件
@@ -628,12 +628,12 @@
           <el-table-column type="index" label="序号" width="60"></el-table-column>
           <el-table-column prop="materialCode" label="物料编码" min-width="120">
             <template #default="scope">
-              {{ scope.row.materialCode || scope.row.materialCode || '-' }}
+              {{ scope.row.materialCode || '-' }}
             </template>
           </el-table-column>
           <el-table-column prop="materialName" label="物料名称" min-width="150">
             <template #default="scope">
-              {{ scope.row.materialName || scope.row.materialName || '-' }}
+              {{ scope.row.materialName || '-' }}
             </template>
           </el-table-column>
           <el-table-column label="规格" min-width="150">

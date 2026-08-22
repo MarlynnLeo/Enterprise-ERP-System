@@ -363,7 +363,10 @@
 /* Compact, theme-aware table operation buttons. */
 .table-actions,
 .operation-buttons,
-.operation-btns {
+.operation-btns,
+.operation-column-actions,
+.operation-column .flex-wrap,
+.operation-column .row-actions {
   display: flex;
   justify-content: flex-start;
   align-items: center;
@@ -386,6 +389,12 @@
 .operation-buttons .el-button + .el-button,
 .operation-btns .el-button,
 .operation-btns .el-button + .el-button,
+.operation-column-actions .el-button,
+.operation-column-actions .el-button + .el-button,
+.operation-column .flex-wrap .el-button,
+.operation-column .flex-wrap .el-button + .el-button,
+.operation-column .row-actions .el-button,
+.operation-column .row-actions .el-button + .el-button,
 .search-buttons .el-button {
   margin-left: 0 !important;
 }
@@ -441,6 +450,16 @@
 .el-table .operation-column .cell > .el-button,
 .el-table .operation-column .cell > .el-button + .el-button {
   margin-left: 0 !important;
+}
+
+/* Keep legacy operation wrappers on the same one-line contract as the
+ * standard operation containers. List pages can opt into wrapping explicitly
+ * with a page-specific class when a row has an unusually large action set. */
+.el-table .operation-column .cell > .flex-wrap,
+.el-table .operation-column .cell > .row-actions {
+  flex-wrap: nowrap !important;
+  gap: 6px;
+  min-width: 0;
 }
 
 .el-table .el-table__cell.el-table-fixed-column--right.operation-column .cell {

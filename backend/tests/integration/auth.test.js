@@ -9,8 +9,13 @@ const { getApp, authRequest, clearCache } = require('../testHelper');
 
 let app;
 
-beforeAll(() => {
+beforeAll(async () => {
   app = getApp();
+  const { pool } = require('../../src/config/db');
+  await pool.execute(
+    'UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE LOWER(username) = ?',
+    [String(process.env.TEST_ADMIN_USERNAME).toLowerCase()]
+  );
 });
 
 afterAll(() => {
@@ -42,6 +47,50 @@ describe('认证模块 /api/auth', () => {
         .send({ username: 'admin', password: 'wrongpassword' });
 
       expect(res.status).toBe(401);
+    });
+
+    test('连续输错 5 次后锁定，管理员解除后可继续登录', async () => {
+      const username = process.env.TEST_ADMIN_USERNAME;
+      // Establish the administrator session before locking this same account;
+      // an existing authenticated session is allowed to perform the recovery.
+      const adminApi = await authRequest();
+
+      // Avoid inheriting a failure counter from another test while still
+      // exercising the public administrator API for the actual unlock step.
+      const { pool } = require('../../src/config/db');
+      await pool.execute(
+        'UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE LOWER(username) = ?',
+        [String(username).toLowerCase()]
+      );
+
+      for (let attempt = 1; attempt <= 4; attempt++) {
+        const res = await request(app)
+          .post('/api/auth/login')
+          .send({ username, password: 'definitely-wrong-password' });
+
+        expect(res.status).toBe(401);
+        // Generic message only — do not leak remaining-attempt counts.
+        expect(res.body.message).toBe('用户名或密码错误');
+        expect(res.body.message).not.toMatch(/还可尝试/);
+      }
+
+      const lockedRes = await request(app)
+        .post('/api/auth/login')
+        .send({ username, password: 'definitely-wrong-password' });
+      expect(lockedRes.status).toBe(423);
+      expect(lockedRes.body.errorCode).toBe('ACCOUNT_LOCKED');
+
+      const [[user]] = await pool.execute(
+        'SELECT id FROM users WHERE LOWER(username) = ? LIMIT 1',
+        [String(username).toLowerCase()]
+      );
+      const unlockRes = await adminApi.put(`/api/system/users/${user.id}/login/unlock`).send({});
+      expect(unlockRes.status).toBe(200);
+
+      const loginRes = await request(app)
+        .post('/api/auth/login')
+        .send({ username, password: process.env.TEST_ADMIN_PASSWORD });
+      expect(loginRes.status).toBe(200);
     });
 
     test('空用户名应返回 400 或 401', async () => {

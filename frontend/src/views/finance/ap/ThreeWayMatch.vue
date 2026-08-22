@@ -55,13 +55,14 @@
         <el-table-column label="操作" min-width="380" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
             <div class="table-actions">
-              <el-button size="small" type="primary" @click="openDetail(row)">
+              <el-button size="small" type="primary" v-permission="'finance:ap:view'" @click="openDetail(row)">
                 <el-icon><View /></el-icon> 明细
               </el-button>
               <el-button
                 v-if="['matched', 'variance', 'draft'].includes(row.status)"
                 size="small"
                 type="warning"
+                v-permission="'finance:ap:update'"
                 @click="openEdit(row)"
               >
                 <el-icon><Edit /></el-icon> 调发票
@@ -71,6 +72,7 @@
                 size="small"
                 type="success"
                 :loading="confirmingId === row.id"
+                v-permission="'finance:ap:update'"
                 @click="confirm(row)"
               >
                 <el-icon><Check /></el-icon> 确认匹配
@@ -79,6 +81,7 @@
                 v-if="['matched', 'variance', 'confirmed', 'draft'].includes(row.status)"
                 size="small"
                 type="danger"
+                v-permission="'finance:ap:update'"
                 @click="cancelMatch(row)"
               >
                 <el-icon><Close /></el-icon> 取消

@@ -2,12 +2,6 @@ import { api, fastApi } from '../services/axiosInstance';
 
 export const userApi = {
     login: (credentials) => api.post('/auth/login', credentials),
-    verifyMfa: (data) => api.post('/auth/mfa/verify', data),
-    enrollMfa: (data) => api.post('/auth/mfa/enroll', data),
-    setupMfa: (data) => api.post('/auth/mfa/setup', data),
-    confirmMfa: (data) => api.post('/auth/mfa/confirm', data),
-    disableMfa: (data) => api.post('/auth/mfa/disable', data),
-    regenerateMfaRecoveryCodes: (data) => api.post('/auth/mfa/recovery-codes/regenerate', data),
     logout: () => api.post('/auth/logout'),
     getProfile: () => api.get('/auth/profile'),
     getProfileFast: (config = {}) => fastApi.get('/auth/profile', config),

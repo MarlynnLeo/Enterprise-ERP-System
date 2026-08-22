@@ -62,6 +62,40 @@ export const getTemplateStatus = (status) => {
   return TEMPLATE_STATUS[status] || { text: status, type: 'info', value: status }
 }
 
+// 检验结果状态
+export const INSPECTION_STATUS = {
+  pending: { text: '待检验', type: 'info', value: 'pending' },
+  in_progress: { text: '检验中', type: 'warning', value: 'in_progress' },
+  passed: { text: '合格', type: 'success', value: 'passed' },
+  failed: { text: '不合格', type: 'danger', value: 'failed' },
+  review: { text: '复检', type: 'warning', value: 'review' }
+}
+
+// 标准类型
+export const STANDARD_TYPES = {
+  factory: { text: '出厂标准', value: 'factory' },
+  customer: { text: '客户标准', value: 'customer' },
+  industry: { text: '行业标准', value: 'industry' },
+  national: { text: '国家标准', value: 'national' }
+}
+
+// 检验来源
+export const SOURCE_TYPES = {
+  production: { text: '生产工单', value: 'production' },
+  odm: { text: 'ODM采购', value: 'odm' },
+  purchase: { text: '采购单', value: 'purchase' }
+}
+
+// 获取检验状态配置
+export const getInspectionStatus = (status) => {
+  return INSPECTION_STATUS[status] || { text: status, type: 'info', value: status }
+}
+
+// 获取标准类型文本
+export const getStandardTypeText = (type) => {
+  return STANDARD_TYPES[type]?.text || type
+}
+
 // ==================== 通用模板查询配置 ====================
 /**
  * 通用模板查询配置

@@ -20,7 +20,6 @@ const PasswordSecurity = require('../../utils/passwordSecurity');
 const AccountLockService = require('../../services/system/AccountLockService');
 const AuthService = require('../../services/auth/AuthService');
 const RefreshTokenService = require('../../services/auth/RefreshTokenService');
-const MfaService = require('../../services/auth/MfaService');
 const { normalizeUsername } = require('../../utils/usernameSecurity');
 const { revokeUserSockets } = require('../../utils/sessionRevocation');
 const AuditLogService = require('../../services/system/AuditLogService');
@@ -78,6 +77,16 @@ function publicAuthUser(user) {
   };
 }
 
+function invalidCredentialsMessage(lockResult = null) {
+  if (lockResult?.locked) {
+    return `密码连续输错 ${Number(process.env.LOGIN_MAX_FAILED_ATTEMPTS) || 5} 次，账号已锁定，请联系管理员解除锁定`;
+  }
+  // Do not leak remaining-attempt counts to unauthenticated clients
+  // (user enumeration / lockout timing aid). Lockout itself is still announced.
+  void lockResult;
+  return '用户名或密码错误';
+}
+
 async function issueAuthenticatedSession(req, res, user) {
   const { accessToken, refreshToken, refreshJti, refreshFamilyId } = generateTokens(user);
   await RefreshTokenService.register({
@@ -89,11 +98,6 @@ async function issueAuthenticatedSession(req, res, user) {
   });
   setTokensToCookies(req, res, accessToken, refreshToken);
   return publicAuthUser(user);
-}
-
-function preventSensitiveResponseCaching(res) {
-  res.set('Cache-Control', 'no-store, max-age=0');
-  res.set('Pragma', 'no-cache');
 }
 
 const login = async (req, res) => {
@@ -121,7 +125,7 @@ const login = async (req, res) => {
       });
       return ResponseHandler.error(
         res,
-        '用户名或密码错误，请稍后再试',
+        `账号已锁定，请联系管理员解除锁定（约 ${lockStatus.remainingMinutes || 1} 分钟后也会自动恢复）`,
         'ACCOUNT_LOCKED',
         423
       );
@@ -140,7 +144,7 @@ const login = async (req, res) => {
       });
       return ResponseHandler.error(
         res,
-        '用户名或密码错误，请稍后再试',
+        invalidCredentialsMessage(result),
         result.locked ? 'ACCOUNT_LOCKED' : 'VALIDATION_ERROR',
         result.locked ? 423 : 401
       );
@@ -170,7 +174,7 @@ const login = async (req, res) => {
       }, user);
       return ResponseHandler.error(
         res,
-        '用户名或密码错误，请稍后再试',
+        invalidCredentialsMessage(result),
         result.locked ? 'ACCOUNT_LOCKED' : 'VALIDATION_ERROR',
         result.locked ? 423 : 401
       );
@@ -179,34 +183,7 @@ const login = async (req, res) => {
     // 5. 登录成功，清除失败记录
     await AccountLockService.clearFailedAttempts(username);
 
-    // 6. High-privilege accounts must complete MFA before a session is
-    // issued.  Password verification alone never creates an authenticated
-    // cookie when a challenge is pending.
-    const mfaRequirement = await MfaService.getLoginRequirement(user.id);
-    if (mfaRequirement.enabled || mfaRequirement.required) {
-      // A browser may still carry a previous user's cookies. Password success
-      // plus an MFA challenge must never leave that stale session active.
-      clearTokenCookies(req, res);
-      preventSensitiveResponseCaching(res);
-      const challenge = await MfaService.createChallenge({
-        userId: user.id,
-        purpose: mfaRequirement.enabled ? 'login' : 'enrollment',
-        req,
-      });
-      await logAuthenticationEvent(req, 'LOGIN_MFA_REQUIRED', {
-        outcome: 'challenge_issued',
-        reason: mfaRequirement.enabled ? 'totp_required' : 'mfa_enrollment_required',
-        username,
-      }, user);
-      return ResponseHandler.success(res, {
-        mfaRequired: true,
-        mfaSetupRequired: !mfaRequirement.enabled,
-        challengeId: challenge.challengeId,
-        expiresIn: challenge.expiresIn,
-      }, '需要完成多因素认证', 202);
-    }
-
-    // 6. 无需 MFA 时才签发访问/刷新令牌。
+    // 6. 签发访问/刷新令牌。
     const authUser = await issueAuthenticatedSession(req, res, user);
 
     // Access/refresh tokens are set only as HttpOnly cookies.
@@ -566,121 +543,6 @@ const updateAvatarFrame = async (req, res) => {
   }
 };
 
-function validateChallengeInput(body = {}) {
-  const challengeId = typeof body.challengeId === 'string' ? body.challengeId.trim() : '';
-  const token = typeof body.token === 'string' ? body.token.trim() : '';
-  const recoveryCode = typeof body.recoveryCode === 'string' ? body.recoveryCode.trim() : '';
-  if (!/^[A-Za-z0-9_-]{32,128}$/.test(challengeId)) return null;
-  if (token && !/^\d{6}$/.test(token.replace(/\s+/g, ''))) return null;
-  if (!token && !recoveryCode) return null;
-  return { challengeId, token, recoveryCode };
-}
-
-// Public MFA challenge verification. No access/refresh cookie is issued until
-// the one-time challenge is atomically consumed.
-const verifyMfaChallenge = async (req, res) => {
-  preventSensitiveResponseCaching(res);
-  const input = validateChallengeInput(req.body);
-  if (!input) return ResponseHandler.error(res, 'MFA 验证参数无效', 'VALIDATION_ERROR', 400);
-  try {
-    const result = await MfaService.verifyChallenge(input);
-    const user = await AuthService.findUserForRefresh(result.userId);
-    if (!user || Number(user.status) !== 1) {
-      return ResponseHandler.error(res, '账号不可用', 'ACCOUNT_DISABLED', 403);
-    }
-    const authUser = await issueAuthenticatedSession(req, res, user);
-    await logAuthenticationEvent(req, 'MFA_VERIFY', { outcome: 'success' }, user);
-    return ResponseHandler.success(res, {
-      user: authUser,
-      recoveryCodes: result.recoveryCodes || undefined,
-    }, '多因素认证成功');
-  } catch (error) {
-    await logAuthenticationEvent(req, 'MFA_VERIFY', { outcome: 'failure', reason: error.code || 'mfa_failed' });
-    const status = ['MFA_INVALID_CODE', 'MFA_CHALLENGE_LOCKED', 'MFA_CHALLENGE_INVALID', 'MFA_ENROLLMENT_NOT_READY'].includes(error.code) ? 401 : 500;
-    return ResponseHandler.error(res, status === 401 ? '多因素认证失败，请重试' : '多因素认证服务暂不可用', error.code || 'MFA_ERROR', status, error);
-  }
-};
-
-// Start first-time enrollment for a password-verified high-privilege login.
-const enrollMfaChallenge = async (req, res) => {
-  preventSensitiveResponseCaching(res);
-  const challengeId = typeof req.body?.challengeId === 'string' ? req.body.challengeId.trim() : '';
-  if (!/^[A-Za-z0-9_-]{32,128}$/.test(challengeId)) {
-    return ResponseHandler.error(res, 'MFA challenge 无效', 'VALIDATION_ERROR', 400);
-  }
-  try {
-    const enrollment = await MfaService.beginEnrollmentForChallenge(challengeId);
-    return ResponseHandler.success(res, enrollment, '请使用验证器扫描二维码并输入验证码');
-  } catch (error) {
-    return ResponseHandler.error(res, 'MFA enrollment 已失效，请重新登录', error.code || 'MFA_CHALLENGE_INVALID', 401, error);
-  }
-};
-
-const setupMfa = async (req, res) => {
-  preventSensitiveResponseCaching(res);
-  try {
-    const { currentPassword } = req.body || {};
-    const passwordHash = await AuthService.getUserPasswordHash(req.user.id);
-    if (!passwordHash || !(await PasswordSecurity.verifyPassword(currentPassword, passwordHash))) {
-      return ResponseHandler.error(res, '当前密码不正确', 'VALIDATION_ERROR', 400);
-    }
-    const setup = await MfaService.setupForUser(req.user.id, req.user.username);
-    await logAuthenticationEvent(req, 'MFA_SETUP', { outcome: 'pending' }, req.user);
-    return ResponseHandler.success(res, setup, 'MFA 配置已生成，请完成确认');
-  } catch (error) {
-    await logAuthenticationEvent(req, 'MFA_SETUP', { outcome: 'failure', reason: error.code || 'mfa_setup_failed' }, req.user);
-    return ResponseHandler.error(res, 'MFA 配置失败', 'MFA_SETUP_FAILED', 500, error);
-  }
-};
-
-const confirmMfa = async (req, res) => {
-  preventSensitiveResponseCaching(res);
-  const token = String(req.body?.token || '').replace(/\s+/g, '');
-  if (!/^\d{6}$/.test(token)) return ResponseHandler.error(res, '验证码格式无效', 'VALIDATION_ERROR', 400);
-  try {
-    const recoveryCodes = await MfaService.confirmForUser(req.user.id, req.user.username, token);
-    clearTokenCookies(req, res);
-    await logAuthenticationEvent(req, 'MFA_CONFIRM', { outcome: 'success' }, req.user);
-    return ResponseHandler.success(res, { recoveryCodes }, 'MFA 已启用，请重新登录');
-  } catch (error) {
-    await logAuthenticationEvent(req, 'MFA_CONFIRM', { outcome: 'failure', reason: error.code || 'mfa_confirm_failed' }, req.user);
-    return ResponseHandler.error(res, '验证码无效', error.code || 'MFA_INVALID_CODE', 400, error);
-  }
-};
-
-const disableMfa = async (req, res) => {
-  preventSensitiveResponseCaching(res);
-  try {
-    const token = String(req.body?.token || '').replace(/\s+/g, '');
-    const recoveryCode = String(req.body?.recoveryCode || '');
-    const passwordHash = await AuthService.getUserPasswordHash(req.user.id);
-    if (!passwordHash || !(await PasswordSecurity.verifyPassword(req.body?.currentPassword, passwordHash))) {
-      return ResponseHandler.error(res, '当前密码不正确', 'VALIDATION_ERROR', 400);
-    }
-    await MfaService.disableForUser(req.user.id, req.user.username, token, recoveryCode);
-    clearTokenCookies(req, res);
-    await logAuthenticationEvent(req, 'MFA_DISABLE', { outcome: 'success' }, req.user);
-    return ResponseHandler.success(res, null, 'MFA 已关闭，请重新登录');
-  } catch (error) {
-    await logAuthenticationEvent(req, 'MFA_DISABLE', { outcome: 'failure', reason: error.code || 'mfa_disable_failed' }, req.user);
-    return ResponseHandler.error(res, 'MFA 验证失败', error.code || 'MFA_INVALID_CODE', 400, error);
-  }
-};
-
-const regenerateMfaRecoveryCodes = async (req, res) => {
-  preventSensitiveResponseCaching(res);
-  try {
-    const token = String(req.body?.token || '').replace(/\s+/g, '');
-    const recoveryCode = String(req.body?.recoveryCode || '');
-    const codes = await MfaService.regenerateRecoveryCodes(req.user.id, req.user.username, token, recoveryCode);
-    await logAuthenticationEvent(req, 'MFA_RECOVERY_REGENERATE', { outcome: 'success' }, req.user);
-    return ResponseHandler.success(res, { recoveryCodes: codes }, '恢复码已重新生成，请立即保存');
-  } catch (error) {
-    await logAuthenticationEvent(req, 'MFA_RECOVERY_REGENERATE', { outcome: 'failure', reason: error.code || 'mfa_recovery_failed' }, req.user);
-    return ResponseHandler.error(res, '恢复码生成失败', error.code || 'MFA_INVALID_CODE', 400, error);
-  }
-};
-
 // 登出
 const logout = async (req, res) => {
   try {
@@ -738,7 +600,7 @@ const refreshToken = async (req, res) => {
       refreshFamilyId: newRefreshFamilyId,
     } = generateTokens(user, { refreshFamilyId: req.user.familyId });
 
-    await RefreshTokenService.rotate({
+    const rotation = await RefreshTokenService.rotate({
       userId,
       oldJti: req.user.jti,
       oldFamilyId: req.user.familyId,
@@ -746,11 +608,20 @@ const refreshToken = async (req, res) => {
       newJti: newRefreshJti,
       newFamilyId: newRefreshFamilyId,
       newToken: newRefreshToken,
+      newAccessToken: accessToken,
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     });
 
+    // Multi-tab race: return the winner's cookie pair instead of revoking the session.
+    const finalAccess =
+      rotation?.status === 'grace' && rotation.accessToken ? rotation.accessToken : accessToken;
+    const finalRefresh =
+      rotation?.status === 'grace' && rotation.refreshToken
+        ? rotation.refreshToken
+        : newRefreshToken;
+
     // 设置新的令牌到Cookie
-    setTokensToCookies(req, res, accessToken, newRefreshToken);
+    setTokensToCookies(req, res, finalAccess, finalRefresh);
 
     ResponseHandler.success(
       res,
@@ -766,13 +637,26 @@ const refreshToken = async (req, res) => {
       '令牌刷新成功'
     );
 
-    logger.info('[Auth] 令牌刷新成功:', { userId: user.id });
+    logger.info('[Auth] 令牌刷新成功:', {
+      userId: user.id,
+      rotation: rotation?.status || 'rotated',
+    });
     await logAuthenticationEvent(req, 'TOKEN_REFRESH', { outcome: 'success' }, user);
   } catch (error) {
     logger.error('[Auth] 令牌刷新失败:', error);
     await logAuthenticationEvent(req, 'TOKEN_REFRESH', {
       outcome: 'failure', reason: error.code || 'refresh_failed',
     }, req.user);
+    // Concurrent tabs lost the race after the winner already Set-Cookie.
+    // Tell the client to retry once instead of wiping the session.
+    if (error.code === 'REFRESH_TOKEN_BUSY') {
+      return ResponseHandler.error(
+        res,
+        '会话刷新繁忙，请重试',
+        'REFRESH_TOKEN_BUSY',
+        409
+      );
+    }
     if (error.code === 'REFRESH_TOKEN_REUSED' || error.code === 'REFRESH_TOKEN_ROTATION_REQUIRED') {
       clearTokenCookies(req, res);
       return ResponseHandler.error(res, '会话已失效，请重新登录', 'INVALID_REFRESH_TOKEN', 401);
@@ -797,14 +681,21 @@ const getUserMenus = async (req, res) => {
     const isAdmin = await PermissionService.isAdmin(userId);
     if (isAdmin) {
       const menus = await AuthService.getAllVisibleMenus();
-      const tree = AuthService.buildMenuTree(menus);
-      return ResponseHandler.success(res, tree, '获取菜单成功');
+      if (menus.length > 0) {
+        const tree = AuthService.buildMenuTree(menus);
+        return ResponseHandler.success(res, tree, '获取菜单成功');
+      }
     }
 
     // 1. 获取用户角色
     const roleIds = await AuthService.getUserRoleIds(userId);
 
     if (roleIds.length === 0) {
+      if (isAdmin) {
+        const allMenus = await AuthService.getAllVisibleMenus();
+        const fallbackTree = AuthService.buildMenuTree(allMenus);
+        return ResponseHandler.success(res, fallbackTree, '获取菜单成功');
+      }
       return ResponseHandler.success(res, [], '获取菜单成功');
     }
 
@@ -812,6 +703,11 @@ const getUserMenus = async (req, res) => {
     const menuIds = await AuthService.getMenuIdsByRoles(roleIds);
 
     if (menuIds.length === 0) {
+      if (isAdmin) {
+        const allMenus = await AuthService.getAllVisibleMenus();
+        const fallbackTree = AuthService.buildMenuTree(allMenus);
+        return ResponseHandler.success(res, fallbackTree, '获取菜单成功');
+      }
       return ResponseHandler.success(res, [], '获取菜单成功');
     }
 
@@ -830,12 +726,6 @@ const getUserMenus = async (req, res) => {
 
 module.exports = {
   login,
-  verifyMfaChallenge,
-  enrollMfaChallenge,
-  setupMfa,
-  confirmMfa,
-  disableMfa,
-  regenerateMfaRecoveryCodes,
   logout,
   refreshToken,
   getUserProfile,

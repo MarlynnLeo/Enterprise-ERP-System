@@ -312,7 +312,7 @@ exports.createProductionTask = async (req, res) => {
       manager: group.departmentName || '未分配',
       remarks: remarks || '',
       cost_center_id: costCenterId,
-      // DataScope owner：强制当前登录用户，禁止信任 body
+      // 审计创建人：强制当前登录用户，禁止信任 body
       created_by: getAuthenticatedUserId(req),
     });
 
@@ -997,7 +997,7 @@ exports.updateProductionTaskStatus = async (req, res) => {
               unit: product.unit_name || '个',
               unit_id: product.unit_id || null,
               planned_date: new Date(),
-              status: 'pending',
+              status: businessConfig.status.productionTask.PENDING,
               is_first_article: true,
               first_article_qty: firstArticleQty,
               is_full_inspection: isFullInspection,
@@ -1086,7 +1086,7 @@ exports.updateProductionTaskStatus = async (req, res) => {
               unit: product.unit_name || 'pcs',
               unit_id: product.unit_id || null,
               planned_date: new Date(),
-              status: 'pending',
+              status: businessConfig.status.productionTask.PENDING,
               template_id: processRule.template_id || null,
               note: `Auto-created when production task started (sample rate ${sampleRate}%)`,
             },

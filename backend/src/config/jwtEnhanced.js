@@ -188,10 +188,6 @@ const getTokensFromCookies = (req) => {
  * @param {string} refreshToken - 刷新令牌
  */
 const setTokensToCookies = (req, res, accessToken, refreshToken) => {
-  // Clear secure/insecure variants first so mixed HTTP/HTTPS entry points do
-  // not leave behind a stale cookie the browser cannot overwrite.
-  clearAuthCookies(res);
-
   const cookieMeta = buildAuthCookieOptions(req);
 
   res.cookie(

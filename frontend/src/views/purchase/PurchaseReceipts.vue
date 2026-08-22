@@ -188,7 +188,7 @@
           <el-table-column type="index" label="序号" width="60"></el-table-column>
           <el-table-column label="物料名称" prop="materialName" min-width="150">
             <template #default="scope">
-              {{ scope.row.materialName || scope.row.materialName || '未知物料' }}
+              {{ scope.row.materialName || '未知物料' }}
             </template>
           </el-table-column>
           <el-table-column label="编码" min-width="120">
@@ -198,7 +198,7 @@
           </el-table-column>
           <el-table-column label="规格型号" prop="specification" min-width="220">
             <template #default="scope">
-              {{ scope.row.specification || scope.row.specs || scope.row.standard || scope.row.model || scope.row.spec || '未提供' }}
+              {{ formatSpecification(scope.row) }}
             </template>
           </el-table-column>
           <el-table-column label="单位" prop="unitName" min-width="80">
@@ -453,6 +453,7 @@
 <script setup>
 import { handleTableRowView } from '@/utils/tableRowView'
 import { formatLocalDate } from '@/utils/format';
+const formatSpecification = (row) => row?.specification || row?.specs || row?.standard || row?.model || row?.spec || '未提供';
 import { parsePaginatedData, parseResponseData } from '@/utils/responseParser';
 import { loadLocationOptions } from '@/utils/optionLoaders';
 import { ref, reactive, onMounted, nextTick, watch, computed } from 'vue';

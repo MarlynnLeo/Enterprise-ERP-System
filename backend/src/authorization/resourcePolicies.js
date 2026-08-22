@@ -2,14 +2,15 @@
  * 业务资源授权策略注册表（SSOT）
  *
  * 每个资源声明：
- * - table / ownerColumn：行级 DataScope 依据（owner 必须是 users.id）
- * - locationColumn：可选库位维度（CUSTOM 范围）
+ * - table：对象存在性 / 行级范围校验目标表
+ * - ownerColumn / departmentColumn / locationColumn：DataScope 行级过滤字段
  * - deletedAtColumn：软删字段；false 表示无软删
- * - softDeleteColumn / softDeleteValue：兼容 is_deleted 风格
+ * - sharedRead：列表/详情读路径共享（写仍按 DataScope）
+ * - financeShared：财务共享中心（FINANCE_DATA_SCOPE_POLICY=all 时跳过行级）
  *
  * 约定：
- * - operator / manager 等字符串仅作展示，不作为授权依据
  * - 创建时必须 stampOwner 写入 ownerColumn，禁止信任 body.created_by
+ * - operator 等展示字段不参与授权
  */
 
 const RESOURCE_POLICIES = Object.freeze({
@@ -147,7 +148,7 @@ const RESOURCE_POLICIES = Object.freeze({
   }),
 
   // —— 财务域 ——
-  // financeShared: 可与 FINANCE_DATA_SCOPE_POLICY 配合（all=共享财务中心；role/owner=按角色 DataScope）
+  // financeShared 仅保留为历史元数据；财务资源与其它业务资源一样按功能权限共享。
   // 多数财务表无 soft-delete，deletedAtColumn=false
   ar_invoice: Object.freeze({
     key: 'ar_invoice',

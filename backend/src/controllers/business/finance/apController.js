@@ -80,7 +80,7 @@ const apController = {
       // HTTP query(camel) → 模型 filters(snake)
       const filters = fromInvoiceListQuery(req.query, 'ap');
 
-      // 行级 DataScope（SSOT：ScopeGuard）
+      // 统一对象访问入口（当前不按创建人/部门裁剪）
       filters.scopeClause = await ScopeGuard.applyListScope(req, 'ap_invoice', {
         tableAlias: 'a',
         ownerAlias: 'ap_invoice_owner_scope',

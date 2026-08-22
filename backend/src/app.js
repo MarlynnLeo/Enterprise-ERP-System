@@ -204,19 +204,26 @@ app.use((err, req, _res, next) => {
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // 5. 速率限制 - 使用统一配置
+// 生产环境禁止通过 ENABLE_RATE_LIMIT=false 关闭（kill-switch 仅限非生产调试）
+const isProductionRuntime = process.env.NODE_ENV === 'production';
+if (isProductionRuntime && process.env.ENABLE_RATE_LIMIT === 'false') {
+  throw new Error('ENABLE_RATE_LIMIT=false is not allowed in production');
+}
 if (process.env.ENABLE_RATE_LIMIT !== 'false') {
-  const { apiLimiter, authLimiter, mfaLimiter } = require('./middleware/rateLimiter');
+  const { apiLimiter, authLimiter } = require('./middleware/rateLimiter');
 
   app.use('/api/', apiLimiter);
   // 6. 登录限制已在路由注册处处理，或此处单独处理
   // 注意：如果在路由注册前 app.use('/api/auth/login', authLimiter) 会生效
   app.use('/api/auth/login', authLimiter);
-  app.use('/api/auth/mfa', mfaLimiter);
 }
 
 // 7. 输入验证和清理中间件（在处理请求体之后）
 const { validateAndSanitizeInput, detectSQLInjection } = require('./middleware/inputValidation');
 const { pathTraversalDetection, xssDetection } = require('./middleware/securityEnhanced');
+if (isProductionRuntime && process.env.ENABLE_INPUT_SANITIZATION === 'false') {
+  throw new Error('ENABLE_INPUT_SANITIZATION=false is not allowed in production');
+}
 if (process.env.ENABLE_INPUT_SANITIZATION !== 'false') {
   // ✅ 执行顺序优化: 先检测拒绝，后清理转义
   // 检测型中间件必须在清理型之前，否则数据被 escape 后检测永远不会触发
@@ -395,6 +402,10 @@ app.get('/api/csrf-token', getCsrfTokenEnhanced);
 app.get('/csrf-token', getCsrfTokenEnhanced);
 
 // 启用CSRF保护（条件性）
+// 生产环境禁止通过 ENABLE_CSRF=false 关闭
+if (isProductionRuntime && process.env.ENABLE_CSRF === 'false') {
+  throw new Error('ENABLE_CSRF=false is not allowed in production');
+}
 if (process.env.ENABLE_CSRF !== 'false') {
   app.use(conditionalCsrfProtection);
 }

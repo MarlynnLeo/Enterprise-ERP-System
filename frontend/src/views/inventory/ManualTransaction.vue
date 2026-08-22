@@ -821,7 +821,7 @@ const formRules = {
 // 加载业务类型列表
 const loadBusinessTypes = async () => {
   try {
-    const res = await systemApi.getBusinessTypes({ status: 1 })
+    const res = await systemApi.getBusinessTypeDictionary()
     // axios拦截器已自动解包ResponseHandler格式
     const types = Array.isArray(res.data) ? res.data : []
     businessTypes.value = types

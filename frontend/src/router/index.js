@@ -149,6 +149,14 @@ function initAuthenticatedEnhancements() {
   return authenticatedEnhancementsPromise
 }
 
+// HMR：插件热更新时重置缓存，让下一次路由跳转重新初始化新版插件
+if (import.meta.hot) {
+  import.meta.hot.accept(['@/plugins/operationColumnAutoWidth'], () => {
+    authenticatedEnhancementsPromise = null
+    void initAuthenticatedEnhancements()
+  })
+}
+
 router.afterEach((to) => {
   if (to.matched.some((record) => record.meta?.requiresAuth)) {
     void initAuthenticatedEnhancements()
@@ -188,6 +196,15 @@ router.beforeEach(async (to) => {
     document.title = `${pageTitle} - ERP`
   } else {
     document.title = 'ERP'
+  }
+
+  // Already on login: do not bounce authenticated users through profile probes
+  // that can race with a dying cookie session and thrash the browser.
+  if (to.path === '/login') {
+    if (authStore.isAuthenticated && authStore.sessionProbed && !authStore.mustChangePassword) {
+      return '/'
+    }
+    return true
   }
 
   // 检查用户是否登录。PC 端认证令牌在 HttpOnly Cookie 中。

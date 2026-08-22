@@ -140,9 +140,16 @@ const bomService = {
         whereClause += ' AND bm.version LIKE ?';
         params.push(`%${filters.version}%`);
       }
-      if (filters.keyword) {
-        whereClause += ' AND (bm.version LIKE ? OR m.code LIKE ? OR m.name LIKE ?)';
-        params.push(`%${filters.keyword}%`, `%${filters.keyword}%`, `%${filters.keyword}%`);
+      // 与物料列表保持一致：关键词对产品编码、名称、规格型号、图号及 BOM 版本做包含匹配。
+      const searchKeyword = filters.search || filters.keyword;
+      if (searchKeyword) {
+        const searchTerm = String(searchKeyword).trim();
+        if (searchTerm) {
+          const searchPattern = `%${searchTerm}%`;
+          whereClause +=
+            ' AND (bm.version LIKE ? OR m.code LIKE ? OR m.name LIKE ? OR m.specs LIKE ? OR m.drawing_no LIKE ?)';
+          params.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern);
+        }
       }
       if (filters.status !== undefined && filters.status !== '') {
         if (filters.status === 'active') {

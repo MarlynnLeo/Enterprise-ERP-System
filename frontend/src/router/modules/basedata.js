@@ -48,12 +48,7 @@ export default {
         },
         {
             path: 'categories',
-            name: 'categories',
-            component: () => import('../../views/baseData/Categories.vue'),
-            meta: {
-                requiresAuth: true,
-                permission: 'basedata:categories'
-            }
+            redirect: '/basedata/product-categories'
         },
         {
             path: 'units',

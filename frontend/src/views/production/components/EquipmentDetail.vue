@@ -168,10 +168,10 @@
         </el-table-column>
         <el-table-column label="操作" min-width="150" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="{ row }">
-            <el-button size="small" @click="acknowledgeAlarm(row.id)">
+            <el-button size="small" v-permission="'production:equipment:update'" @click="acknowledgeAlarm(row.id)">
               确认
             </el-button>
-            <el-button size="small" type="success" @click="resolveAlarm(row)">
+            <el-button size="small" type="success" v-permission="'production:equipment:update'" @click="resolveAlarm(row)">
               解决
             </el-button>
           </template>
@@ -181,6 +181,13 @@
   </div>
 </template>
 <script setup>
+import {
+  getEquipmentStatusText,
+  getEquipmentStatusColor,
+  getAssetTypeText,
+  getCommonStatusText,
+  getCommonStatusColor,
+} from '@/constants/systemConstants'
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
@@ -274,36 +281,9 @@ const resolveAlarm = async (alarm) => {
   }
 }
 // 工具方法
-const getStatusText = (status) => {
-  const statusMap = {
-    online: '在线',
-    offline: '离线',
-    maintenance: '维护中',
-    error: '故障',
-    idle: '空闲'
-  }
-  return statusMap[status] || status
-}
-const getStatusTagType = (status) => {
-  const typeMap = {
-    online: 'success',
-    offline: 'info',
-    maintenance: 'warning',
-    error: 'danger',
-    idle: ''
-  }
-  return typeMap[status] || ''
-}
-const getEquipmentTypeText = (type) => {
-  const typeMap = {
-    production: '生产设备',
-    testing: '检测设备',
-    packaging: '包装设备',
-    transport: '运输设备',
-    auxiliary: '辅助设备'
-  }
-  return typeMap[type] || type
-}
+const getStatusText = (status) => getEquipmentStatusText(status) || getCommonStatusText(status) || status
+const getStatusTagType = (status) => getEquipmentStatusColor(status) || getCommonStatusColor(status) || ''
+const getEquipmentTypeText = (type) => getAssetTypeText(type) || type
 const getEquipmentTypeTagType = (type) => {
   const typeMap = {
     production: 'success',
@@ -319,40 +299,10 @@ const getHealthColor = (score) => {
   if (score >= 60) return 'var(--color-warning)'
   return 'var(--color-danger)'
 }
-const getHealthStatusText = (status) => {
-  const statusMap = {
-    healthy: '健康',
-    warning: '警告',
-    critical: '严重'
-  }
-  return statusMap[status] || status
-}
-const getHealthStatusTagType = (status) => {
-  const typeMap = {
-    healthy: 'success',
-    warning: 'warning',
-    critical: 'danger'
-  }
-  return typeMap[status] || ''
-}
-const getDataStatusText = (status) => {
-  const statusMap = {
-    normal: '正常',
-    warning: '警告',
-    alarm: '报警',
-    error: '错误'
-  }
-  return statusMap[status] || status
-}
-const getDataStatusTagType = (status) => {
-  const typeMap = {
-    normal: 'success',
-    warning: 'warning',
-    alarm: 'danger',
-    error: 'danger'
-  }
-  return typeMap[status] || ''
-}
+const getHealthStatusText = (status) => getCommonStatusText(status) || status
+const getHealthStatusTagType = (status) => getCommonStatusColor(status) || ''
+const getDataStatusText = (status) => getCommonStatusText(status) || status
+const getDataStatusTagType = (status) => getCommonStatusColor(status) || ''
 const getAlarmLevelText = (level) => {
   const levelMap = {
     info: '信息',

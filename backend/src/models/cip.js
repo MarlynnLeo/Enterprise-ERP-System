@@ -4,48 +4,23 @@
  * @date 2025-08-27
  */
 
-const db = require('../config/db');
-const { logger } = require('../utils/logger');
-const { parsePagination, appendPaginationSQL } = require('../utils/safePagination');
-const financeModel = require('./finance');
-const DocumentLinkService = require('../services/business/DocumentLinkService');
-const { DOCUMENT_LINK_TYPES: DocType } = require('../constants/documentLinkTypes');
-const { accountingConfig } = require('../config/accountingConfig');
-const { currentDateString } = require('../utils/dateUtils');
-const { resolveActorLabel } = require('../utils/userUtils');
+const db = require("../config/db");
+const { logger } = require("../utils/logger");
+const { parsePagination, appendPaginationSQL } = require("../utils/safePagination");
+const financeModel = require("./finance");
+const DocumentLinkService = require("../services/business/DocumentLinkService");
+const { DOCUMENT_LINK_TYPES: DocType } = require("../constants/documentLinkTypes");
+const { accountingConfig } = require("../config/accountingConfig");
+const { currentDateString } = require("../utils/dateUtils");
+const { resolveActorLabel } = require("../utils/userUtils");
+const { getAssetTypeText, getDepreciationMethodText } = require("../constants/systemConstants");
 
 function mapAssetType(value) {
-    const typeMap = {
-        machine: '机器设备',
-        electronic: '电子设备',
-        furniture: '办公家具',
-        building: '房屋建筑',
-        vehicle: '车辆',
-        other: '其他',
-        机器设备: '机器设备',
-        电子设备: '电子设备',
-        办公家具: '办公家具',
-        房屋建筑: '房屋建筑',
-        车辆: '车辆',
-        其他: '其他',
-    };
-    return typeMap[value] || '其他';
+    return getAssetTypeText(value) || value || "其他";
 }
 
 function mapDepreciationMethod(value) {
-    const methodMap = {
-        straight_line: '直线法',
-        double_declining: '双倍余额递减法',
-        sum_of_years: '年数总和法',
-        units_of_production: '工作量法',
-        no_depreciation: '不计提',
-        直线法: '直线法',
-        双倍余额递减法: '双倍余额递减法',
-        年数总和法: '年数总和法',
-        工作量法: '工作量法',
-        不计提: '不计提',
-    };
-    return methodMap[value] || '直线法';
+    return getDepreciationMethodText(value) || value || "直线法";
 }
 
 async function getOpenAccountingPeriodId(connection, accountingDate) {
@@ -70,7 +45,6 @@ async function getRequiredAccountId(connection, accountCode, accountName) {
     if (!accountCode) {
         throw new Error(`在建工程转固${accountName}科目编码未配置`);
     }
-
     const [rows] = await connection.execute(
         'SELECT id FROM gl_accounts WHERE account_code = ? AND is_active = 1 LIMIT 1',
         [accountCode]

@@ -51,7 +51,12 @@ export const useDictionaryStore = defineStore('dictionary', {
     getText(groupCode, code) {
       const groups = this.groups;
       const group = groups[groupCode] || [];
-      const item = group.find(i => i.code === code);
+      const normalizedCode = String(code || '').trim().toLowerCase();
+      const item = group.find(i =>
+        i.code === code ||
+        String(i.code || '').toLowerCase() === normalizedCode ||
+        i.name === code
+      );
       return item ? item.name : code;
     },
 
@@ -61,8 +66,13 @@ export const useDictionaryStore = defineStore('dictionary', {
     getColor(groupCode, code) {
       const groups = this.groups;
       const group = groups[groupCode] || [];
-      const item = group.find(i => i.code === code);
-      return item && item.tagType ? item.tagType : 'info';
+      const normalizedCode = String(code || '').trim().toLowerCase();
+      const item = group.find(i =>
+        i.code === code ||
+        String(i.code || '').toLowerCase() === normalizedCode ||
+        i.name === code
+      );
+      return item?.tagType || item?.tag_type || 'info';
     },
 
     /**

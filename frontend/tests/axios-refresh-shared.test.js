@@ -10,7 +10,10 @@ describe('axiosInstance shared refresh state', () => {
     expect(source).toContain('sharedFailedQueue')
     // 禁止 setupInterceptors 闭包内各自维护 isRefreshing
     expect(source).not.toMatch(/const setupInterceptors[\s\S]*?let isRefreshing\s*=\s*false/)
-    // 刷新统一走 api 实例
-    expect(source).toMatch(/await api\.post\('\/auth\/refresh'\)/)
+    // 跨标签单飞 + 统一 refreshSessionOnce
+    expect(source).toContain('refreshSessionOnce')
+    expect(source).toContain('erp_auth_refresh_lock')
+    expect(source).toContain('redirectToLoginOnce')
+    expect(source).toMatch(/await api\.post\('\/auth\/refresh'/)
   })
 })

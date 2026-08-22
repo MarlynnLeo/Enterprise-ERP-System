@@ -158,6 +158,7 @@
 
 <script setup>
 
+import { getQualityInspectionTypeText } from '@/constants/systemConstants'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { formatDate } from '@/utils/helpers/dateUtils'
 
@@ -229,15 +230,7 @@ function handleCurrentChange(page) {
 }
 
 // 获取检验类型文本
-function getInspectionTypeText(type) {
-  const typeMap = {
-    'incoming': '来料检验',
-    'process': '过程检验',
-    'final': '成品检验',
-    'first_article': '首件检验'
-  };
-  return typeMap[type] || type;
-}
+function getInspectionTypeText(type) { return getQualityInspectionTypeText(type) || type; }
 
 // 获取检验类型颜色
 function getInspectionTypeColor(type) {

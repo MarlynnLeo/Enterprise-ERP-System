@@ -420,7 +420,7 @@ const batchSaveAttendance = async (req, res) => {
       for (const record of records) {
         if (!(await HrService.assertEmployeeAccess(req, record.employee_id, connection))) {
           await connection.rollback();
-          return ResponseHandler.forbidden(res, '包含超出数据范围的员工考勤记录');
+          return ResponseHandler.forbidden(res, '包含不存在或已停用的员工考勤记录');
         }
         await connection.query(`
           INSERT INTO hr_attendance (employee_id, period, days_in_month, leave_days, vacation_days, overtime_hours, full_attendance, status)
@@ -673,7 +673,7 @@ const batchConfirmSalary = async (req, res) => {
     );
     for (const row of salaryRows) {
       if (!(await HrService.assertEmployeeAccess(req, row.employee_id))) {
-        return ResponseHandler.forbidden(res, '工资周期包含超出数据范围的员工');
+        return ResponseHandler.forbidden(res, '工资周期包含不存在或已停用的员工');
       }
     }
     const SalaryService = require('../../../services/business/hr/salaryService');

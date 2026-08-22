@@ -6,33 +6,13 @@
 
 const { pool } = require('../../config/db');
 const { parsePagination, appendPaginationSQL } = require('../../utils/safePagination');
-const DataScopeService = require('../../services/DataScopeService');
 
-function buildHrScopeClause(req, employeeAlias = 'e') {
-  const scope = req?.authzScope;
-  if (!scope || DataScopeService.isAllScope(scope)) return { sql: '', params: [] };
-
-  if (Number(scope.type) === DataScopeService.DATA_SCOPE.SELF) {
-    return scope.userId
-      ? { sql: ` AND ${employeeAlias}.user_id = ?`, params: [scope.userId] }
-      : { sql: ' AND 1 = 0', params: [] };
-  }
-
-  const departmentIds = (scope.departmentIds || []).map(Number).filter(Number.isInteger);
-  if (departmentIds.length === 0) return { sql: ' AND 1 = 0', params: [] };
-  return {
-    sql: ` AND ${employeeAlias}.department_id IN (${departmentIds.map(() => '?').join(',')})`,
-    params: departmentIds,
-  };
+function buildHrScopeClause() {
+  return { sql: '', params: [] };
 }
 
-function scopeAllowsEmployee(req, employee) {
-  const scope = req?.authzScope;
-  if (!scope || DataScopeService.isAllScope(scope)) return true;
-  if (Number(scope.type) === DataScopeService.DATA_SCOPE.SELF) {
-    return Number(employee?.user_id) === Number(scope.userId);
-  }
-  return (scope.departmentIds || []).map(Number).includes(Number(employee?.department_id));
+function scopeAllowsEmployee() {
+  return true;
 }
 
 // ========== W-03: 工作流表名白名单映射 ==========

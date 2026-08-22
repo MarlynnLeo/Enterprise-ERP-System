@@ -1,7 +1,7 @@
 <!--
 /**
- * ProcessingReceipts.vue - 外委入库列表
- * @description 外委加工入库管理页面
+ * ProcessingReceipts.vue - 委外入库列表
+ * @description 委外入库管理页面
  * @date 2026-04-18
  * @version 1.0.0
  */
@@ -11,7 +11,7 @@
     :config="pageConfig"
     :api-function="loadReceipts"
     :show-add="false"
-    list-title="外委入库列表"
+    list-title="委外入库列表"
     @item-click="handleItemClick"
   />
 </template>
@@ -25,7 +25,7 @@
   const router = useRouter()
 
   const pageConfig = computed(() => ({
-    title: '外委入库',
+    title: '委外入库',
     searchPlaceholder: '搜索入库单号',
     filterTabs: [
       { label: '全部', value: 'all' },

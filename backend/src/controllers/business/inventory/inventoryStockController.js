@@ -17,7 +17,6 @@ const db = require('../../../config/db');
 const InventoryService = require('../../../services/InventoryService');
 const BusinessTypeService = require('../../../services/BusinessTypeService');
 const { getCurrentUserName } = require('../../../utils/userHelper');
-const DataScopeService = require('../../../services/DataScopeService');
 
 // 统一库存查询子查询（基于 inventory_ledger 单表架构聚合计算当前库存）
 const STOCK_SUBQUERY = `(SELECT material_id, location_id, COALESCE(SUM(quantity), 0) as quantity, MAX(updated_at) as updated_at FROM inventory_stock_balances WHERE batch_number <> '__LOCATION_LOCK__' GROUP BY material_id, location_id)`;
@@ -71,8 +70,6 @@ const getStockList = async (req, res) => {
     // 构建WHERE条件
     const whereConditions = [];
     const queryParams = [];
-    const dataScope = await DataScopeService.getRequestScope(req);
-
     if (search && search.trim()) {
       whereConditions.push('(m.code LIKE ? OR m.name LIKE ? OR m.specs LIKE ?)');
       queryParams.push(`%${search.trim()}%`, `%${search.trim()}%`, `%${search.trim()}%`);
@@ -81,18 +78,6 @@ const getStockList = async (req, res) => {
     if (location_id && location_id !== '') {
       whereConditions.push('current_stock.location_id = ?');
       queryParams.push(location_id);
-    }
-
-    if (Number(dataScope?.type) === DataScopeService.DATA_SCOPE.CUSTOM) {
-      const scopedLocationIds = dataScope.locationIds || [];
-      if (location_id && location_id !== '' && !scopedLocationIds.includes(Number(location_id))) {
-        whereConditions.push('1 = 0');
-      } else if (!location_id && scopedLocationIds.length > 0) {
-        whereConditions.push(`current_stock.location_id IN (${scopedLocationIds.map(() => '?').join(',')})`);
-        queryParams.push(...scopedLocationIds);
-      } else if (!location_id) {
-        whereConditions.push('1 = 0');
-      }
     }
 
     if (category_id && category_id !== '') {
@@ -1429,8 +1414,6 @@ const exportStockData = async (req, res) => {
     // ========== 1. 构建与 getStockList 完全一致的筛选条件 ==========
     const whereConditions = [];
     const queryParams = [];
-    const dataScope = await DataScopeService.getRequestScope(req);
-
     // 批量导出：按指定物料ID筛选
     if (filters.material_ids && Array.isArray(filters.material_ids) && filters.material_ids.length > 0) {
       whereConditions.push(`cs.material_id IN (${filters.material_ids.map(() => '?').join(',')})`);
@@ -1447,18 +1430,6 @@ const exportStockData = async (req, res) => {
     if (filters.location_id && filters.location_id !== '') {
       whereConditions.push('cs.location_id = ?');
       queryParams.push(filters.location_id);
-    }
-
-    if (Number(dataScope?.type) === DataScopeService.DATA_SCOPE.CUSTOM) {
-      const scopedLocationIds = dataScope.locationIds || [];
-      if (filters.location_id && filters.location_id !== '' && !scopedLocationIds.includes(Number(filters.location_id))) {
-        whereConditions.push('1 = 0');
-      } else if (!filters.location_id && scopedLocationIds.length > 0) {
-        whereConditions.push(`cs.location_id IN (${scopedLocationIds.map(() => '?').join(',')})`);
-        queryParams.push(...scopedLocationIds);
-      } else if (!filters.location_id) {
-        whereConditions.push('1 = 0');
-      }
     }
 
     // 类别筛选
@@ -1717,10 +1688,6 @@ const getStockByLocation = async (req, res) => {
         'VALIDATION_ERROR',
         400
       );
-    }
-
-    if (!(await DataScopeService.canAccessLocation(req, location_id))) {
-      return ResponseHandler.forbidden(res, 'No permission to access this inventory location');
     }
 
     // 查询指定物料在指定仓库的库存

@@ -96,53 +96,67 @@
           </template>
         </el-table-column>
         <el-table-column prop="remark" label="备注"></el-table-column>
-        <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
-      >
+                        <el-table-column
+          label="操作"
+          min-width="72"
+          fixed="right"
+          align="left"
+          header-align="left"
+          class-name="operation-column"
+          header-class-name="operation-column-header"
+        >
           <template #default="scope">
-            <el-popconfirm
-              v-if="canUpdate && String(scope.row.status) !== '1'"
-              title="确定要启用该大类吗？"
-              @confirm="handleToggleStatus(scope.row)"
-            >
-              <template #reference>
-                <el-button size="small" type="success">
-                  <el-icon><Switch /></el-icon> 启用
+            <div class="table-actions">
+              <!-- 禁用状态下：显示启用按钮，以及添加子大类、编辑、删除 -->
+              <template v-if="String(scope.row.status) !== '1'">
+                <el-popconfirm
+                  v-if="canUpdate"
+                  title="确定要启用该大类吗？"
+                  @confirm="handleToggleStatus(scope.row)"
+                >
+                  <template #reference>
+                    <el-button size="small" type="success">
+                      <el-icon><Switch /></el-icon> 启用
+                    </el-button>
+                  </template>
+                </el-popconfirm>
+
+                <el-button v-if="canCreate" size="small" @click="handleAdd(scope.row)">
+                  <el-icon><Plus /></el-icon> 添加子大类
                 </el-button>
-              </template>
-            </el-popconfirm>
-            <el-popconfirm
-              v-if="canUpdate && String(scope.row.status) === '1'"
-              title="确定要禁用该大类吗？"
-              @confirm="handleToggleStatus(scope.row)"
-              confirm-button-type="warning"
-            >
-              <template #reference>
-                <el-button size="small" type="warning">
-                  <el-icon><Switch /></el-icon> 禁用
+                <el-button v-if="canUpdate" size="small" type="primary" @click="handleEdit(scope.row)">
+                  <el-icon><Edit /></el-icon> 编辑
                 </el-button>
+                <el-popconfirm
+                  v-if="canDelete"
+                  title="确定要删除该大类吗？此操作无法恢复。"
+                  @confirm="handleDelete(scope.row)"
+                  confirm-button-type="danger"
+                >
+                  <template #reference>
+                    <el-button size="small" type="danger">
+                      <el-icon><Delete /></el-icon> 删除
+                    </el-button>
+                  </template>
+                </el-popconfirm>
               </template>
-            </el-popconfirm>
-            
-            <template v-if="String(scope.row.status) === '0'">
-              <el-button v-if="canCreate" size="small" @click="handleAdd(scope.row)">
-                <el-icon><Plus /></el-icon> 添加子大类
-              </el-button>
-              <el-button v-if="canUpdate" size="small" type="primary" @click="handleEdit(scope.row)">
-                <el-icon><Edit /></el-icon> 编辑
-              </el-button>
-              <el-popconfirm
-                v-if="canDelete"
-                title="确定要删除该大类吗？此操作无法恢复。"
-                @confirm="handleDelete(scope.row)"
-                confirm-button-type="danger"
-              >
-                <template #reference>
-                  <el-button size="small" type="danger">
-                    <el-icon><Delete /></el-icon> 删除
-                  </el-button>
-                </template>
-              </el-popconfirm>
-            </template>
+
+              <!-- 启用状态下：只允许点击禁用，不可编辑/删除/添加子类 -->
+              <template v-else>
+                <el-popconfirm
+                  v-if="canUpdate"
+                  title="确定要禁用该大类吗？"
+                  @confirm="handleToggleStatus(scope.row)"
+                  confirm-button-type="warning"
+                >
+                  <template #reference>
+                    <el-button size="small" type="warning">
+                      <el-icon><Switch /></el-icon> 禁用
+                    </el-button>
+                  </template>
+                </el-popconfirm>
+              </template>
+            </div>
           </template>
         </el-table-column>
       </el-table>

@@ -27,10 +27,11 @@ const { DOCUMENT_LINK_TYPES: DocType } = require('../../constants/documentLinkTy
 /**
  * 采购申请批准后自动生成采购订单
  * @param {number} requisitionId - 采购申请ID
- * @param {object} conn - 数据库连接（可选，不传则自行获取）
+ * @param {object} [conn] - 数据库连接（可选，不传则自行获取）
+ * @param {number} [actorId] - 审批人用户ID（当 created_by 为空时的充底责任人）
  * @returns {Array} 生成的采购订单列表
  */
-async function generateOrdersFromRequisition(requisitionId, conn) {
+async function generateOrdersFromRequisition(requisitionId, conn, actorId) {
   const useOwnConn = !conn;
   if (useOwnConn) conn = await pool.getConnection();
 
@@ -222,10 +223,12 @@ async function generateOrdersFromRequisition(requisitionId, conn) {
       const taxAmountTotal = sumMoney(calculatedItems.map((item) => item.tax_amount));
       const totalAmount = roundMoney(subtotal + taxAmountTotal);
 
-      const createdBy = firstValidUserId(requisition.created_by);
+      // created_by 优先用申请单原始值，fallback 到审批人（actorId），
+      // 兼容历史脏数据（早期录入时 created_by 可能为 NULL）。
+      const createdBy = firstValidUserId(requisition.created_by, actorId);
       if (!createdBy) {
         throw new Error(
-          `采购申请 ${requisition.requisition_number || requisitionId} 缺少可追溯责任人，不能自动生成采购订单`
+          `采购申请 ${requisition.requisition_number || requisitionId} 缺少可追溯责任人，不能自动生成采购订单（请确认申请单创建人或审批人信息）`
         );
       }
 

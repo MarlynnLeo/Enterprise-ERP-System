@@ -370,6 +370,7 @@
 <script setup>
 import { useDictionaryStore } from '@/stores/dictionary'
 import { parseListData } from '@/utils/responseParser'
+import { getCommonStatusText, getCommonStatusColor } from '@/constants/systemConstants'
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Download, Van, Select, Close } from '@element-plus/icons-vue'
@@ -506,85 +507,19 @@ const viewDeliveryDetails = async (orderId) => {
 }
 // 工具函数
 // formatDate: 使用公共实现
-const getStatusType = (status) => {
-  const statusMap = {
-    shipped: 'success',
-    partial: 'warning',
-    unshipped: 'danger'
-  }
-  return statusMap[status] || 'info'
-}
-const getStatusText = (status) => {
-  const statusMap = {
-    shipped: '已发货',
-    partial: '部分发货',
-    unshipped: '未发货'
-  }
-  return statusMap[status] || '未知'
-}
+const getStatusType = (status) => getCommonStatusColor(status) || 'info'
+const getStatusText = (status) => getCommonStatusText(status) || status
 const getProgressColor = (percentage) => {
   if (percentage === 100) return 'var(--color-success)'
   if (percentage >= 50) return 'var(--color-warning)'
   return 'var(--color-danger)'
 }
 // 订单状态转换函数
-const getOrderStatusType = (status) => {
-  const statusMap = {
-    draft: 'info',
-    pending: 'warning',
-    confirmed: 'primary',
-    in_production: 'warning',
-    ready_to_ship: 'success',
-    shipped: 'success',
-    partial_shipped: 'warning',
-    completed: 'success',
-    cancelled: 'danger'
-  }
-  return statusMap[status] || 'info'
-}
-const getOrderStatusText = (status) => {
-  const statusMap = {
-    draft: '草稿',
-    pending: '待确认',
-    confirmed: '已确认',
-    in_production: '生产中',
-    ready_to_ship: '可发货',
-    shipped: '已发货',
-    partial_shipped: '部分发货',
-    completed: '已完成',
-    cancelled: '已取消'
-  }
-  return statusMap[status] || status || '未知'
-}
+const getOrderStatusType = (status) => getCommonStatusColor(status) || "info"
+const getOrderStatusText = (status) => getCommonStatusText(status) || "未知"
 // 出库状态转换函数
-const getOutboundStatusType = (status, shippedQuantity) => {
-  // 如果没有发货数量，显示为未发货状态
-  if (!shippedQuantity || shippedQuantity === 0) {
-    return 'danger'
-  }
-
-  const statusMap = {
-    completed: 'success',
-    pending: 'warning',
-    cancelled: 'danger',
-    draft: 'info'
-  }
-  return statusMap[status] || 'info'
-}
-const getOutboundStatusText = (status, shippedQuantity) => {
-  // 如果没有发货数量，显示为未发货
-  if (!shippedQuantity || shippedQuantity === 0) {
-    return '未发货'
-  }
-
-  const statusMap = {
-    completed: '已完成',
-    pending: '待出库',
-    cancelled: '已取消',
-    draft: '草稿'
-  }
-  return statusMap[status] || '已发货'
-}
+const getOutboundStatusType = (status, shippedQuantity) => getCommonStatusColor(status, shippedQuantity) || "info"
+const getOutboundStatusText = (status, shippedQuantity) => getCommonStatusText(status, shippedQuantity) || "未知"
 // 导出功能
 const handleExport = () => {
   if (tableData.value.length === 0) {

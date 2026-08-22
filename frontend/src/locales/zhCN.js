@@ -143,8 +143,8 @@ export default {
     orders: '采购订单',
     receipts: '采购入库',
     returns: '采购退货',
-    processing: '外委加工',
-    processingReceipts: '外委入库',
+    processing: '委外加工',
+    processingReceipts: '委外入库',
     purchaseHistory: '采购历史',
 
     // 销售管理
@@ -353,6 +353,11 @@ export default {
     resetSuccess: '重置成功',
     resetFailed: '重置失败',
     menuLoadFailed: '菜单加载失败，请刷新后重试'
+  },
+
+  dashboard: {
+    todoItems: '待办事项',
+    completed: '已完成'
   },
 
   // 页面标题和内容

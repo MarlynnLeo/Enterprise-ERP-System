@@ -178,24 +178,27 @@ class PasswordSecurity {
    * 检查密码是否过期
    */
   isPasswordExpired(lastChangeDate, expiresAt) {
-    // Prefer the persisted deadline.  For legacy rows with no deadline, fail
-    // closed instead of allowing an unbounded password lifetime.
+    if (this.config.passwordExpiryDays <= 0) return false;
+
+    // 如果显式设置了到期时间
     if (expiresAt !== undefined && expiresAt !== null) {
       const deadline = new Date(expiresAt);
       return Number.isNaN(deadline.getTime()) || Date.now() >= deadline.getTime();
     }
 
-    if (!lastChangeDate) return true;
+    // 如果没有记录修改时间，默认不视为过期（避免初始化/未迁移数据账号被误拦截）
+    if (!lastChangeDate) return false;
 
     const changeDate = new Date(lastChangeDate);
-    if (Number.isNaN(changeDate.getTime())) return true;
+    if (Number.isNaN(changeDate.getTime())) return false;
     return Date.now() - changeDate.getTime() >= this.config.passwordExpiry;
   }
 
   isPasswordChangeRequired(user) {
-    if (!user || typeof user !== 'object') return true;
+    if (!user || typeof user !== 'object') return false;
     const forced = [true, 1, '1'].includes(user.force_password_change);
-    return forced || this.isPasswordExpired(user.password_changed_at, user.password_expires_at);
+    if (forced) return true;
+    return this.isPasswordExpired(user.password_changed_at, user.password_expires_at);
   }
 
   /**

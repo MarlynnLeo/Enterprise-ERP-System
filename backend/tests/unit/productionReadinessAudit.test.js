@@ -1,5 +1,6 @@
 const {
   auditRoutes,
+  auditRowLevelDataScopeGuards,
   auditStaticGuards,
 } = require('../../scripts/audit-production-readiness');
 
@@ -15,5 +16,9 @@ describe('production readiness audit', () => {
 
   it('keeps production safety guards wired', () => {
     expect(auditStaticGuards()).toEqual([]);
+  });
+
+  it('keeps row-level DataScope and ScopeGuard SSOT wired', () => {
+    expect(auditRowLevelDataScopeGuards()).toEqual([]);
   });
 });

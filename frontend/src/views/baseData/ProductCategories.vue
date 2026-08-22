@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * ProductCategories.vue
  * @description 前端界面组件文件
@@ -121,45 +121,20 @@
           </template>
         </el-table-column>
         <el-table-column prop="description" label="描述"></el-table-column>
-        <el-table-column label="操作" min-width="360" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+        <el-table-column label="操作" min-width="72" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
-            <div class="table-actions">
-              <el-button
-                v-if="canCreate && Number(scope.row.status) !== 1"
-                size="small"
-                type="primary"
-                @click="handleAdd(scope.row)"
-              >
-                <el-icon><Plus /></el-icon> 添加子类
-              </el-button>
-              <el-button
-                v-if="canUpdate && Number(scope.row.status) !== 1"
-                size="small"
-                @click="handleEdit(scope.row)"
-              >
-                <el-icon><Edit /></el-icon> 编辑
-              </el-button>
-              <el-button
-                v-if="canUpdate"
-                size="small"
-                :type="Number(scope.row.status) === 1 ? 'warning' : 'success'"
-                @click="handleToggleStatus(scope.row)"
-              >
-                <el-icon>
-                  <Close v-if="Number(scope.row.status) === 1" />
-                  <Check v-else />
-                </el-icon>
-                {{ Number(scope.row.status) === 1 ? '禁用' : '启用' }}
-              </el-button>
-              <el-button
-                v-if="canDelete && Number(scope.row.status) !== 1"
-                size="small"
-                type="danger"
-                @click="handleDelete(scope.row)"
-              >
-                <el-icon><Delete /></el-icon> 删除
-              </el-button>
-            </div>
+            <TableRowActions
+              :row="scope.row"
+              :can-add="canCreate && Number(scope.row.status) !== 1"
+              :can-update="canUpdate"
+              :can-delete="canDelete"
+              resource-label="该物料类型"
+              @add="handleAdd"
+              @edit="handleEdit"
+              @enable="handleToggleStatus"
+              @disable="handleToggleStatus"
+              @delete="handleDelete"
+            />
           </template>
         </el-table-column>
       </el-table>
@@ -207,37 +182,18 @@
             </template>
           </el-table-column>
           <el-table-column prop="description" label="描述"></el-table-column>
-          <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+          <el-table-column label="操作" min-width="72" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="scope">
-              <div class="table-actions">
-                <el-button
-                  v-if="canUpdate && Number(scope.row.status) !== 1"
-                  size="small"
-                  @click="handleEditSource(scope.row)"
-                >
-                  <el-icon><Edit /></el-icon> 编辑
-                </el-button>
-                <el-button
-                  v-if="canUpdate"
-                  size="small"
-                  :type="Number(scope.row.status) === 1 ? 'warning' : 'success'"
-                  @click="handleToggleSourceStatus(scope.row)"
-                >
-                  <el-icon>
-                    <Close v-if="Number(scope.row.status) === 1" />
-                    <Check v-else />
-                  </el-icon>
-                  {{ Number(scope.row.status) === 1 ? '禁用' : '启用' }}
-                </el-button>
-                <el-button
-                  v-if="canDelete && Number(scope.row.status) !== 1"
-                  size="small"
-                  type="danger"
-                  @click="handleDeleteSource(scope.row)"
-                >
-                  <el-icon><Delete /></el-icon> 删除
-                </el-button>
-              </div>
+              <TableRowActions
+                :row="scope.row"
+                :can-update="canUpdate"
+                :can-delete="canDelete"
+                resource-label="该物料来源"
+                @edit="handleEditSource"
+                @enable="handleToggleSourceStatus"
+                @disable="handleToggleSourceStatus"
+                @delete="handleDeleteSource"
+              />
             </template>
           </el-table-column>
         </el-table>
@@ -276,37 +232,18 @@
             </template>
           </el-table-column>
           <el-table-column prop="description" label="描述"></el-table-column>
-          <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+          <el-table-column label="操作" min-width="72" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="scope">
-              <div class="table-actions">
-                <el-button
-                  v-if="canUpdate && Number(scope.row.status) !== 1"
-                  size="small"
-                  @click="handleEditInspection(scope.row)"
-                >
-                  <el-icon><Edit /></el-icon> 编辑
-                </el-button>
-                <el-button
-                  v-if="canUpdate"
-                  size="small"
-                  :type="Number(scope.row.status) === 1 ? 'warning' : 'success'"
-                  @click="handleToggleInspectionStatus(scope.row)"
-                >
-                  <el-icon>
-                    <Close v-if="Number(scope.row.status) === 1" />
-                    <Check v-else />
-                  </el-icon>
-                  {{ Number(scope.row.status) === 1 ? '禁用' : '启用' }}
-                </el-button>
-                <el-button
-                  v-if="canDelete && Number(scope.row.status) !== 1"
-                  size="small"
-                  type="danger"
-                  @click="handleDeleteInspection(scope.row)"
-                >
-                  <el-icon><Delete /></el-icon> 删除
-                </el-button>
-              </div>
+              <TableRowActions
+                :row="scope.row"
+                :can-update="canUpdate"
+                :can-delete="canDelete"
+                resource-label="该检验方式"
+                @edit="handleEditInspection"
+                @enable="handleToggleInspectionStatus"
+                @disable="handleToggleInspectionStatus"
+                @delete="handleDeleteInspection"
+              />
             </template>
           </el-table-column>
         </el-table>
@@ -496,10 +433,11 @@
 <script setup>
 import { parsePaginatedData } from '@/utils/responseParser';
 import { ref, reactive, onMounted, watch, computed } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus';
-import { Plus, Edit, Delete, ArrowDown, Check, Close } from '@element-plus/icons-vue';
+import { ElMessage } from 'element-plus';
+import { Plus, ArrowDown } from '@element-plus/icons-vue';
 import { useAuthStore } from '@/stores/auth';
 import { baseDataApi } from '@/api/baseData';
+import TableRowActions from '@/components/common/TableRowActions.vue';
 // 权限store
 const authStore = useAuthStore()
 const canCreate = computed(() =>
@@ -912,26 +850,13 @@ const handleEdit = (row) => {
 
 const handleDelete = async (row) => {
   try {
-    await ElMessageBox.confirm(
-      `确定要删除物料类型"${row.name}"吗？`,
-      '确认删除',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    );
-
     await baseDataApi.deleteProductCategory(row.id);
     ElMessage.success('删除成功');
     categoryOptionsLoaded.value = false;
-    // 删除后重新加载所有数据
     loadAllData();
   } catch (error) {
-    if (error !== 'cancel') {
-      console.error('删除失败:', error);
-      ElMessage.error(error.response?.data?.message || '删除失败');
-    }
+    console.error('删除失败:', error);
+    ElMessage.error(error.response?.data?.message || '删除失败');
   }
 };
 
@@ -965,34 +890,18 @@ const handleDialogClose = () => {
   closeDialog(dialogVisible, formRef);
 };
 
-// 切换物料类型状态
+// 物料类型：切换状态（确认已在模板 el-popconfirm 处理）
 const handleToggleStatus = async (row) => {
   const newStatus = Number(row.status) === 1 ? 0 : 1;
   const statusText = newStatus === 1 ? '启用' : '禁用';
-
   try {
-    await ElMessageBox.confirm(
-      `确定要${statusText}物料类型"${row.name}"吗？`,
-      '确认操作',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    );
-
-    await baseDataApi.updateProductCategory(row.id, {
-      ...row,
-      status: newStatus
-    });
+    await baseDataApi.updateProductCategory(row.id, { ...row, status: newStatus });
     ElMessage.success(`${statusText}成功`);
     categoryOptionsLoaded.value = false;
     loadAllData();
   } catch (error) {
-    if (error !== 'cancel') {
-      console.error('状态切换失败:', error);
-      ElMessage.error(error.response?.data?.message || '操作失败');
-    }
+    console.error('状态切换失败:', error);
+    ElMessage.error(error.response?.data?.message || '操作失败');
   }
 };
 
@@ -1028,23 +937,23 @@ const handleToggleInspectionStatus = async (row) => {
   const newStatus = Number(row.status) === 1 ? 0 : 1;
   const statusText = newStatus === 1 ? '启用' : '禁用';
   try {
-    await ElMessageBox.confirm(`确定要${statusText}检验方式"${row.name}"吗？`, '确认操作', { type: 'warning' });
     await baseDataApi.updateInspectionMethod(row.id, { ...row, status: newStatus });
     ElMessage.success(`${statusText}成功`);
     loadInspectionData();
   } catch (error) {
-    if (error !== 'cancel') ElMessage.error('操作失败');
+    console.error('状态切换失败:', error);
+    ElMessage.error(error.response?.data?.message || '操作失败');
   }
 };
 
 const handleDeleteInspection = async (row) => {
   try {
-    await ElMessageBox.confirm(`确定要删除检验方式"${row.name}"吗？`, '确认删除', { type: 'warning' });
     await baseDataApi.deleteInspectionMethod(row.id);
     ElMessage.success('删除成功');
     loadInspectionData();
   } catch (error) {
-    if (error !== 'cancel') ElMessage.error(error.response?.data?.message || '删除失败');
+    console.error('删除失败:', error);
+    ElMessage.error(error.response?.data?.message || '删除失败');
   }
 };
 
@@ -1180,57 +1089,29 @@ const handleEditSource = (row) => {
   sourceDialogVisible.value = true;
 };
 
-// 物料来源删除
+// 物料来源：删除
 const handleDeleteSource = async (row) => {
   try {
-    await ElMessageBox.confirm(
-      `确定要删除物料来源"${row.name}"吗？`,
-      '确认删除',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    );
-
     await baseDataApi.deleteMaterialSource(row.id);
     ElMessage.success('删除成功');
     loadSourceData();
   } catch (error) {
-    if (error !== 'cancel') {
-      console.error('删除失败:', error);
-      ElMessage.error(error.response?.data?.message || '删除失败');
-    }
+    console.error('删除失败:', error);
+    ElMessage.error(error.response?.data?.message || '删除失败');
   }
 };
 
-// 切换物料来源状态
+// 物料来源：切换状态
 const handleToggleSourceStatus = async (row) => {
   const newStatus = Number(row.status) === 1 ? 0 : 1;
   const statusText = newStatus === 1 ? '启用' : '禁用';
-
   try {
-    await ElMessageBox.confirm(
-      `确定要${statusText}物料来源"${row.name}"吗？`,
-      '确认操作',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    );
-
-    await baseDataApi.updateMaterialSource(row.id, {
-      ...row,
-      status: newStatus
-    });
+    await baseDataApi.updateMaterialSource(row.id, { ...row, status: newStatus });
     ElMessage.success(`${statusText}成功`);
     loadSourceData();
   } catch (error) {
-    if (error !== 'cancel') {
-      console.error('状态切换失败:', error);
-      ElMessage.error(error.response?.data?.message || '操作失败');
-    }
+    console.error('状态切换失败:', error);
+    ElMessage.error(error.response?.data?.message || '操作失败');
   }
 };
 

@@ -123,6 +123,9 @@ export function useTodos() {
       calendarDays.value = generateCalendarDays(currentDate.value)
     } catch (error) {
       console.error('加载待办事项失败:', error)
+      pendingTasks.value = []
+      completedTasks.value = []
+      calendarDays.value = generateCalendarDays(currentDate.value)
       // 如果是认证问题，可能需要重新登录
       if (error.response && error.response.status === 401) {
         ElMessage.error('登录已过期，请重新登录')
@@ -130,21 +133,21 @@ export function useTodos() {
     }
   }
 
+  const getTodoSender = (todo) => {
+    const creator = todo?.creator
+    return creator?.realName || creator?.username || authStore.user?.realName || authStore.realName || '用户'
+  }
+
   // 获取待办事项总数（可用于更新统计数据）
   const getTodoCount = () => {
     return pendingTotal.value
-  }
-
-  const getTodoSender = (todo) => {
-    const creator = todo.creator
-    return creator?.realName || creator?.username || authStore.user?.realName || authStore.realName || '用户'
   }
 
   // 跳转到待办页面
   const goToTodoPage = () => {
     router.push({
       path: '/profile',
-      query: { tab: 'todos' }  // 添加查询参数，指定要打开的标签页
+      query: { tab: 'todos' }
     })
   }
 

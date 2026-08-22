@@ -7,11 +7,10 @@ const { logger } = require('../../utils/logger');
 const { mapKeysToSnake } = require('../../utils/fieldMap');
 const { pool } = require('../../config/db');
 const ScopeGuard = require('../../authorization/ScopeGuard');
-const DataScopeService = require('../../services/DataScopeService');
 
-async function assertAnomalyWriteAccess(req, anomalyId) {
+async function assertAnomalyWriteAccess(_req, anomalyId) {
   const [[row]] = await pool.query(
-    'SELECT task_id, reported_by FROM anomaly_reports WHERE id = ? AND deleted_at IS NULL',
+    'SELECT id FROM anomaly_reports WHERE id = ? AND deleted_at IS NULL',
     [anomalyId]
   );
   if (!row) {
@@ -19,19 +18,6 @@ async function assertAnomalyWriteAccess(req, anomalyId) {
     error.statusCode = 404;
     throw error;
   }
-  const scope = await DataScopeService.getRequestScope(req);
-  if (DataScopeService.isAllScope(scope)) return;
-  if (row.task_id) {
-    if (await ScopeGuard.assertAccess(pool, req, 'production_task', row.task_id)) return;
-  } else if (Number(scope.type) === DataScopeService.DATA_SCOPE.SELF && Number(row.reported_by) === Number(scope.userId)) {
-    return;
-  } else if (Array.isArray(scope.departmentIds) && scope.departmentIds.length) {
-    const [[reporter]] = await pool.query('SELECT department_id FROM users WHERE id = ?', [row.reported_by]);
-    if (reporter && scope.departmentIds.map(Number).includes(Number(reporter.department_id))) return;
-  }
-  const error = new Error('无权操作该异常报告');
-  error.statusCode = 403;
-  throw error;
 }
 
 module.exports = {

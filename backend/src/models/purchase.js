@@ -77,7 +77,7 @@ const generateReturnNo = async (connection = null) => {
   }
 };
 
-// 生成外委加工单号
+// 生成委外加工单号
 const generateProcessingNo = async () => {
   const connection = await db.pool.getConnection();
   try {
@@ -87,7 +87,7 @@ const generateProcessingNo = async () => {
   }
 };
 
-// 生成外委加工入库单号
+// 生成委外入库单号
 const generateProcessingReceiptNo = async () => {
   const connection = await db.pool.getConnection();
   try {

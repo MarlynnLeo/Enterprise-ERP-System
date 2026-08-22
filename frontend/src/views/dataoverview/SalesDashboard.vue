@@ -160,6 +160,7 @@
   </div>
 </template>
 <script setup>
+import { getSalesStatusText, getSalesStatusColor, getCommonStatusText, getCommonStatusColor } from '@/constants/systemConstants'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { parseListData } from '@/utils/responseParser';
 import { formatDate } from '@/utils/helpers/dateUtils'
@@ -262,30 +263,7 @@ function handleCurrentChange(page) {
 // 格式化日期
 // formatDate: 使用公共实现
 // 获取订单状态颜色
-function getStatusColor(status) {
-  if (!status) return 'info';
-  const statusMap = {
-    'pending': 'warning',
-    'confirmed': 'primary',
-    'processing': 'primary',
-    'in_production': 'info',
-    'ready_to_ship': 'success',
-    'shipped': 'success',
-    'delivered': 'success',
-    'completed': 'success',
-    'cancelled': 'danger',
-    '待处理': 'warning',
-    '已确认': 'primary',
-    '处理中': 'primary',
-    '生产中': 'info',
-    '可发货': 'success',
-    '已发货': 'success',
-    '已交付': 'success',
-    '已完成': 'success',
-    '已取消': 'danger'
-  };
-  return statusMap[status] || 'info';
-}
+function getStatusColor(status) { if (!status) return 'info'; return getSalesStatusColor(status) || getCommonStatusColor(status) || 'info'; }
 // 获取付款状态颜色
 function getPaymentStatusColor(status) {
   if (!status) return 'info';
@@ -302,23 +280,7 @@ function getPaymentStatusColor(status) {
   return statusMap[status] || 'info';
 }
 // 获取状态文本
-function getStatusText(status) {
-  if (!status) return '-';
-
-  const statusTextMap = {
-    'pending': '待处理',
-    'confirmed': '已确认',
-    'processing': '处理中',
-    'in_production': '生产中',
-    'ready_to_ship': '可发货',
-    'shipped': '已发货',
-    'delivered': '已交付',
-    'completed': '已完成',
-    'cancelled': '已取消'
-  };
-
-  return statusTextMap[status] || status;
-}
+function getStatusText(status) { if (!status) return '-'; return getSalesStatusText(status) || getCommonStatusText(status) || status; }
 // 获取付款状态文本
 function getPaymentStatusText(status) {
   if (!status) return '-';

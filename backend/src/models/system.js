@@ -225,22 +225,13 @@ async function assertRoleIsValid(connection, roleData, id = null) {
     throw new Error('角色编码已存在');
   }
 
-  // data_scope: 1 ALL | 2 DEPT+子 | 3 DEPT | 4 SELF | 5 CUSTOM
-  const dataScope = roleData.data_scope !== undefined && roleData.data_scope !== null
-    ? Number(roleData.data_scope)
-    : undefined;
-  if (dataScope !== undefined) {
-    if (![1, 2, 3, 4, 5].includes(dataScope)) {
-      throw new Error('data_scope 必须是 1-5');
-    }
-  }
-
   return {
     ...roleData,
     name,
     code,
     status: roleData.status !== undefined ? normalizeBinaryStatus(roleData.status) : 1,
-    data_scope: dataScope,
+    // 角色仅控制功能/动作权限，旧行级范围输入一律忽略。
+    data_scope: 1,
   };
 }
 
@@ -327,9 +318,15 @@ const systemModel = {
 
     // 获取分页数据，包括关联的部门信息
     const listSql = appendPaginationSQL(
-      `SELECT u.id, u.username, u.real_name, u.email, u.phone,
+       `SELECT u.id, u.username, u.real_name, u.email, u.phone,
               u.department_id, u.position, u.role, u.avatar, u.bio,
               u.status, u.created_at, u.updated_at,
+              COALESCE(u.failed_login_attempts, 0) AS failed_login_attempts,
+              u.locked_until,
+              CASE WHEN u.locked_until IS NOT NULL AND u.locked_until > NOW() THEN 1 ELSE 0 END AS login_locked,
+              CASE WHEN u.locked_until IS NOT NULL AND u.locked_until > NOW()
+                THEN GREATEST(TIMESTAMPDIFF(SECOND, NOW(), u.locked_until), 0)
+                ELSE 0 END AS remaining_lock_seconds,
               d.name as departmentName
        FROM users u
        LEFT JOIN departments d ON u.department_id = d.id
@@ -385,7 +382,13 @@ const systemModel = {
 
       const [rows] = await pool.execute(
         `SELECT id, username, real_name, email, phone, department_id,
-                position, role, avatar, bio, status, created_at, updated_at
+                position, role, avatar, bio, status, created_at, updated_at,
+                COALESCE(failed_login_attempts, 0) AS failed_login_attempts,
+                locked_until,
+                CASE WHEN locked_until IS NOT NULL AND locked_until > NOW() THEN 1 ELSE 0 END AS login_locked,
+                CASE WHEN locked_until IS NOT NULL AND locked_until > NOW()
+                  THEN GREATEST(TIMESTAMPDIFF(SECOND, NOW(), locked_until), 0)
+                  ELSE 0 END AS remaining_lock_seconds
          FROM users WHERE id = ?`,
         [userId]
       );
@@ -427,7 +430,7 @@ const systemModel = {
       const departmentId = normalizeNullableId(userData.department_id);
 
       // 检查用户名是否已存在
-      const [existingUsers] = await connection.execute('SELECT id, username, password, token_version, email, phone, role, department_id, status, created_at, updated_at, avatar, real_name, department, position, last_login_at, employee_no, hire_date, birthday, gender, id_card, address, emergency_contact, emergency_phone, salary, employee_status, notes, password_changed_at, password_expires_at, failed_login_attempts, locked_until, last_login_ip, force_password_change, two_factor_enabled, two_factor_secret, avatar_frame, bio, theme_settings FROM users WHERE username = ?', [
+      const [existingUsers] = await connection.execute('SELECT id, username, password, token_version, email, phone, role, department_id, status, created_at, updated_at, avatar, real_name, department, position, last_login_at, employee_no, hire_date, birthday, gender, id_card, address, emergency_contact, emergency_phone, salary, employee_status, notes, password_changed_at, password_expires_at, failed_login_attempts, locked_until, last_login_ip, force_password_change, avatar_frame, bio, theme_settings FROM users WHERE username = ?', [
         username,
       ]);
 
@@ -753,8 +756,10 @@ const systemModel = {
         `UPDATE users
             SET password = ?,
                 token_version = COALESCE(token_version, 0) + 1,
-                force_password_change = 1,
-                password_changed_at = NOW(),
+                 force_password_change = 1,
+                 failed_login_attempts = 0,
+                 locked_until = NULL,
+                 password_changed_at = NOW(),
                 password_expires_at = DATE_ADD(NOW(), INTERVAL 90 DAY),
                 updated_at = NOW()
           WHERE id = ?`,
@@ -1067,8 +1072,8 @@ const systemModel = {
         }
       }
 
-      // 插入角色基本信息（含 data_scope，默认 SELF=4 更安全）
-      const dataScope = data.data_scope !== undefined ? data.data_scope : 4;
+      // 行级数据范围已停用，数据库兼容字段固定为 ALL=1。
+      const dataScope = 1;
       const [result] = await connection.execute(
         `INSERT INTO roles (name, code, description, status, data_scope, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, NOW(), NOW())`,

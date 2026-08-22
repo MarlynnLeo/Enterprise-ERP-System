@@ -1,3 +1,4 @@
+const businessConfig = require('../../../config/businessConfig');
 /**
  * inventoryController.js
  * @description 控制器文件
@@ -388,7 +389,7 @@ const createCheck = async (req, res) => {
         location_id,
         check_type: check_type || 'warehouse',
         check_date,
-        status: 'draft',
+        status: businessConfig.status.approval.DRAFT,
         remark: remark || null,
       }),
       '创建成功',

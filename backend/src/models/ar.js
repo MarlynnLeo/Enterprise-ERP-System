@@ -395,7 +395,7 @@ const arModel = {
       const balanceAmount = amountPolicy.totalAmount;
       assertInvoiceItemsMatchTotal(invoiceData.items, invoiceData.total_amount, invoiceData);
 
-      // owner：created_by 必须写入，供 DataScope 行级授权（禁止只写 gl_entry.created_by）
+      // created_by 必须写入用于审计追溯（禁止只写 gl_entry.created_by）
       const ownerId =
         invoiceData.created_by !== null &&
         invoiceData.created_by !== undefined &&
@@ -601,7 +601,7 @@ const arModel = {
       const [invoiceResults] = await connection.execute(query, params);
       const invoices = (invoiceResults || []).map((row) => toInvoiceApi(row, 'ar'));
 
-      // 计算总记录数（与主查询同一过滤 + DataScope）
+      // 计算总记录数（与主查询使用同一筛选条件）
       let countQuery = `
         SELECT COUNT(*) as total
         FROM ar_invoices a

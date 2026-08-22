@@ -509,6 +509,7 @@ import { formatDate } from '@/utils/helpers/dateUtils'
 import { baseDataApi, salesApi } from '@/api'
 import { parseListData, parsePaginatedData } from '@/utils/responseParser'
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
+import { getCommonStatusText } from '@/constants/systemConstants'
 import { SEARCH_CONFIG, mapMaterialData, searchMaterials as performSearchMaterials } from '@/utils/searchConfig'
 import { useAuthStore } from '@/stores/auth'
 import {
@@ -878,16 +879,7 @@ const updateNumbers = () => {
   }
 };
 // 状态相关函数
-const getPackingStatusText = (status) => {
-  const statusMap = {
-    'draft': '草稿',
-    'confirmed': '已确认',
-    'packing': '装箱中',
-    'completed': '已完成',
-    'cancelled': '已取消'
-  };
-  return statusMap[status] || '未知';
-};
+const getPackingStatusText = (status) => getCommonStatusText(status) || "未知";
 const getPackingStatusColor = (status) => {
   const typeMap = {
     'draft': 'info',

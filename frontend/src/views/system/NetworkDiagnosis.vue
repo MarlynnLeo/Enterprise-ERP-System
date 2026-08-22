@@ -449,7 +449,7 @@ async function startDiagnosis() {
       }
     })
     if (businessResults.some(({ result }) => !result.ok)) {
-      suggestions.push('若 profile/权限/菜单返回 401，请重新登录；若返回 403，请检查该部门账号的菜单和数据范围权限。')
+      suggestions.push('若 profile/权限/菜单返回 401，请重新登录；若返回 403，请检查该账号的菜单和动作权限。')
       badgeType.api = 'warning'
       badgeText.api = '业务链路需检查'
     }

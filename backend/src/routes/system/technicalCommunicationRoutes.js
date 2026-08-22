@@ -30,7 +30,11 @@ router.delete('/:id', requirePermission('system:tech-comm:delete'), technicalCom
 router.post('/:id/comments', requirePermission('system:tech-comm'), technicalCommunicationController.addComment);
 
 // 删除评论
-router.delete('/comments/:commentId', requirePermission('system:tech-comm'), technicalCommunicationController.deleteComment);
+router.delete(
+  '/comments/:commentId',
+  requirePermission('system:tech-comm:delete'),
+  technicalCommunicationController.deleteComment
+);
 
 // 点赞
 router.post('/:id/like', requirePermission('system:tech-comm'), technicalCommunicationController.toggleLike);

@@ -13,11 +13,6 @@ const getCookieSecureMode = () => {
     .toLowerCase();
 
   if (process.env.NODE_ENV === 'production') {
-    // The installation has two supported entry points: the public HTTPS
-    // tunnel and the internal HTTP address. `auto` uses the protocol supplied
-    // by the trusted reverse-proxy chain, while `true` remains available for
-    // HTTPS-only deployments. Never allow an explicit insecure production
-    // mode.
     if (configured === 'auto' || configured === 'true') return configured;
     throw new Error('COOKIE_SECURE=auto or COOKIE_SECURE=true is required in production');
   }

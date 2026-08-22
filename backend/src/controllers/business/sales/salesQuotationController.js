@@ -1,3 +1,4 @@
+const businessConfig = require('../../../config/businessConfig');
 /**
  * salesQuotationController.js
  * @description 销售报价控制器
@@ -609,7 +610,7 @@ exports.convertQuotationToOrder = async (req, res) => {
       subtotal: orderAmounts.subtotal,
       tax_amount: orderAmounts.taxAmount,
       tax_rate: orderAmounts.taxRate,
-      status: 'pending',
+      status: businessConfig.status.approval.PENDING,
       remarks: `由报价单 ${quotation.quotation_no} 转换生成`,
       created_by: getAuthenticatedUserId(req),
     };

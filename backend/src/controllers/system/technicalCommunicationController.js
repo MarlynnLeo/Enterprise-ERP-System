@@ -644,23 +644,14 @@ class TechnicalCommunicationController {
   async deleteComment(req, res) {
     try {
       const { commentId } = req.params;
-      const userId = req.user.id;
 
       const [comments] = await db.pool.query(
-        'SELECT id, communication_id, user_id FROM technical_communication_comments WHERE id = ?',
+        'SELECT id FROM technical_communication_comments WHERE id = ?',
         [commentId]
       );
 
       if (comments.length === 0) {
         return ResponseHandler.error(res, '评论不存在', 'NOT_FOUND', 404);
-      }
-
-      if (!(await this.loadAccessibleCommunication(req, res, comments[0].communication_id))) {
-        return null;
-      }
-
-      if (comments[0].user_id !== userId && !this.canManagePrivate(req)) {
-        return ResponseHandler.error(res, '只能删除自己的评论', 'FORBIDDEN', 403);
       }
 
       await db.pool.query(

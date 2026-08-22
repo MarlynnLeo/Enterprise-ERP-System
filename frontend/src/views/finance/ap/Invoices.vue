@@ -188,7 +188,7 @@
         <el-pagination
           v-model:current-page="currentPage"
           v-model:page-size="pageSize"
-          :page-sizes="pagination?.pageSizeOptions || [10, 20, 50, 100]"
+          :page-sizes="[10, 20, 50, 100]"
           :small="false"
           :disabled="false"
           :background="true"
@@ -417,6 +417,7 @@
   </div>
 </template>
 <script setup>
+import { getCommonStatusText, getCommonStatusColor } from '@/constants/systemConstants'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { parsePaginatedData, parseListData, parseResponseData } from '@/utils/responseParser';
 import { searchMaterials, mapMaterialData, SEARCH_CONFIG } from '@/utils/searchConfig';
@@ -601,22 +602,9 @@ const paymentRules = {
   ],
 };
 // 获取状态类型
-const getStatusType = (invoice) => {
-  const statusMap = {
-    草稿: 'info',
-    已确认: 'primary',
-    部分付款: 'warning',
-    已付款: 'success',
-    已逾期: 'danger',
-    已取消: 'info',
-  };
-  return statusMap[invoice.status] || 'info';
-};
+const getStatusType = (invoice) => getCommonStatusColor(typeof invoice === 'object' ? invoice?.status : invoice) || 'info';
 // 获取状态文本
-const getStatusText = (invoice) => {
-  // 直接使用数据库状态字段
-  return invoice.status || '草稿';
-};
+const getStatusText = (invoice) => getCommonStatusText(typeof invoice === 'object' ? invoice?.status : invoice) || (invoice?.status || '草稿');
 // 处理付款期限变化
 const handlePaymentTermsChange = (days) => {
   if (invoiceForm.invoiceDate && days !== null) {

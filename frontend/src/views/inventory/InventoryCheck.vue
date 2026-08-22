@@ -118,7 +118,7 @@
         <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
       >
           <template #default="scope">
-            <div class="operation-btns">
+            <TableRowActions>
               
               <el-button
                 size="small"
@@ -148,7 +148,7 @@
                 @click="adjustInventory(scope.row.id)"
                 v-if="scope.row.status === 'pending'"
               >调整库存</el-button>
-            </div>
+            </TableRowActions>
           </template>
         </el-table-column>
       </el-table>
@@ -438,10 +438,11 @@ import { SEARCH_CONFIG, searchMaterials, mapMaterialData } from '@/utils/searchC
 import { getCurrentDate } from '@/utils/helpers/dateUtils';
 import { useAuthStore } from '@/stores/auth';
 import {
-  INVENTORY_CHECK_STATUS,
-  INVENTORY_CHECK_STATUS_COLORS,
-  INVENTORY_CHECK_STATUS_OPTIONS
+  INVENTORY_CHECK_STATUS_OPTIONS,
+  getInventoryCheckStatusText,
+  getInventoryCheckStatusColor
 } from '@/constants/systemConstants';
+import TableRowActions from '@/components/common/TableRowActions.vue';
 // 权限store
 const authStore = useAuthStore();
 // 权限计算属性
@@ -522,33 +523,26 @@ const checkStats = ref({
 });
 // 获取状态文本
 const getStatusText = (status) => {
-  return INVENTORY_CHECK_STATUS[status] || status;
+  return getInventoryCheckStatusText(status) || status || '未知';
 };
 // 获取状态类型
 const getStatusType = (status) => {
-  return INVENTORY_CHECK_STATUS_COLORS[status] || 'info';
+  return getInventoryCheckStatusColor(status) || 'info';
 };
 // 获取盘点类型文本
 const getCheckTypeText = (type) => {
-  const typeMap = {
-    'warehouse': '仓库盘点',
-    'cycle': '周期盘点',
-    'random': '随机盘点',
-    'full': '全面盘点',
-    'special': '专项盘点'
-  };
-  return typeMap[type] || type;
+  return checkTypeOptions.find(item => item.value === type)?.label || type || '未知';
 };
 // 获取盘点类型颜色
 const getCheckTypeType = (type) => {
-  const typeMap = {
-    'warehouse': 'primary',
-    'cycle': 'info',
-    'random': 'info',
-    'full': 'success',
-    'special': 'warning'
+  const fallback = {
+    warehouse: 'primary',
+    cycle: 'info',
+    random: 'info',
+    full: 'success',
+    special: 'warning'
   };
-  return typeMap[type] || 'info';
+  return fallback[type] || 'info';
 };
 // 格式化百分比
 const formatPercent = (value) => {

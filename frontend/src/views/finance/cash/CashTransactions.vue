@@ -370,7 +370,7 @@
 import { handleTableRowView } from '@/utils/tableRowView'
 import { useDictionaryStore } from '@/stores/dictionary'
 import { formatDate } from '@/utils/helpers/dateUtils'
-import { getApprovalStatusColor } from '@/constants/systemConstants'
+import { getApprovalStatusColor, getApprovalStatusText, getCommonStatusText } from '@/constants/systemConstants'
 import { formatCurrency, formatLocalDate } from '@/utils/format'
 
 import { ref, reactive, onMounted, watch, computed } from 'vue';
@@ -476,13 +476,7 @@ watch(() => transactionForm.type, () => {
 // formatDate 已统一引用公共实现;
 
 // 获取交易类型文本
-const getTransactionTypeText = (type) => {
-  const typeMap = {
-    income: '收入',
-    expense: '支出'
-  };
-  return typeMap[type] || type;
-};
+const getTransactionTypeText = (type) => getCommonStatusText(type) || type;
 
 // 获取分类文本
 const getCategoryText = (category) => {
@@ -503,16 +497,7 @@ const getAuditStatusType = (status) => {
 };
 
 // 获取审核状态文本
-const getAuditStatusText = (status) => {
-  const statusMap = {
-    draft: '草稿',
-    pending: '待审核',
-    reviewed: '已复核',
-    approved: '已审核',
-    rejected: '已驳回'
-  };
-  return statusMap[status] || '草稿';
-};
+const getAuditStatusText = (status) => getApprovalStatusText(status) || '草稿';
 
 // 重置搜索
 const resetSearch = () => {

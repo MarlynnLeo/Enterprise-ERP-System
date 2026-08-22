@@ -105,14 +105,14 @@ const CodeGenerators = {
     return CodeGeneratorService.nextCode('inventory_outbound', connection);
   },
 
-  // ========== 外委加工模块 ==========
+  // ========== 委外加工模块 ==========
 
-  /** 生成外委加工单编号 */
+  /** 生成委外加工单编号 */
   async generateProcessingCode(connection) {
     return CodeGeneratorService.nextCode('outsourced_processing', connection);
   },
 
-  /** 生成外委加工入库单编号 */
+  /** 生成委外入库单编号 */
   async generateProcessingReceiptCode(connection) {
     return CodeGeneratorService.nextCode('outsourced_receipt', connection);
   },

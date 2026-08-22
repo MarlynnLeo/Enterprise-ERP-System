@@ -2,6 +2,7 @@
   <AppDialog
     title="查看BOM详情"
     mode="view"
+    wide
     :model-value="modelValue"
     :detail-navigation="detailNavigation"
     @update:model-value="val => emit('update:modelValue', val)"
@@ -44,7 +45,7 @@
               <el-table-column label="结构" prop="wbs" width="90"></el-table-column>
               <el-table-column prop="materialCode" label="物料编码" width="130" show-overflow-tooltip></el-table-column>
               <el-table-column prop="materialName" label="物料名称" width="150" show-overflow-tooltip></el-table-column>
-              <el-table-column label="规格型号" width="220" show-overflow-tooltip>
+              <el-table-column label="规格型号" min-width="160" show-overflow-tooltip>
                 <template #default="scope">
                   <span>{{ scope.row.specification || scope.row.materialSpecs || scope.row.specs || '-' }}</span>
                 </template>

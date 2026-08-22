@@ -2,13 +2,14 @@
  * AccountLockService.js
  * @description 账号锁定服务 — 防暴力破解
  * 连续登录失败 N 次后自动锁定账号一段时间
- * v2: 使用 Redis 持久化，支持分布式部署；生产环境需显式允许才可降级为内存。
+ * v3: 已存在用户使用 MySQL 持久化；Redis/内存仅辅助记录不存在的用户名。
  * @date 2026-04-18
- * @version 2.0.0
+ * @version 3.0.0
  */
 
 const { logger } = require('../../utils/logger');
 const { getRedisClient } = require('../../config/redisClient');
+const { pool } = require('../../config/db');
 const { PASSWORD_POLICY } = require('../../config/security');
 const { normalizeUsername } = require('../../utils/usernameSecurity');
 
@@ -20,32 +21,16 @@ const MAX_FAILED_ATTEMPTS =
 const LOCK_DURATION_MINUTES = parseInt(process.env.LOGIN_LOCK_DURATION_MINUTES) || 15;
 const LOCK_DURATION_MS = LOCK_DURATION_MINUTES * 60 * 1000;
 const LOCK_DURATION_SECONDS = LOCK_DURATION_MINUTES * 60;
-const ALLOW_MEMORY_FALLBACK =
-  process.env.ACCOUNT_LOCK_ALLOW_MEMORY_FALLBACK === 'true' ||
-  process.env.NODE_ENV !== 'production';
-
 // Redis key 前缀
 const KEY_PREFIX = 'acc_lock:';
 
 // 内存降级存储
 const memoryStore = new Map();
-let memoryFallbackWarned = false;
 
 function canonicalUsername(username) {
   const normalized = normalizeUsername(username);
   if (!normalized) throw new Error('INVALID_USERNAME');
   return normalized;
-}
-
-function useMemoryFallback(reason) {
-  if (!ALLOW_MEMORY_FALLBACK) {
-    throw new Error(`账号锁定服务需要可用的 Redis；${reason}`);
-  }
-  if (!memoryFallbackWarned) {
-    logger.warn(`账号锁定服务使用内存存储：${reason}`);
-    memoryFallbackWarned = true;
-  }
-  return null;
 }
 
 /**
@@ -56,9 +41,93 @@ async function getClient() {
     const client = await getRedisClient();
     if (client && client.isOpen) return client;
   } catch (error) {
-    return useMemoryFallback(`Redis 客户端获取失败: ${error.message}`);
+    logger.warn(`账号锁定 Redis 不可用，将使用降级策略: ${error.message}`);
+    return null;
   }
-  return useMemoryFallback('Redis 未启用或未连接');
+  return null;
+}
+
+function remainingMinutesFromSeconds(seconds) {
+  return Math.max(0, Math.ceil(Number(seconds || 0) / 60));
+}
+
+function isLockedRow(row) {
+  if (!row) return false;
+  if (Number(row.login_locked) === 1) return true;
+  if (!row.locked_until) return false;
+  const timestamp = row.locked_until instanceof Date
+    ? row.locked_until.getTime()
+    : new Date(row.locked_until).getTime();
+  return Number.isFinite(timestamp) && timestamp > Date.now();
+}
+
+async function getAuxiliaryRecord(username) {
+  const client = await getClient();
+  if (client) {
+    try {
+      const data = await client.get(`${KEY_PREFIX}${username}`);
+      if (!data) return null;
+      try {
+        return JSON.parse(data);
+      } catch (error) {
+        logger.warn('清理损坏的账号锁定 Redis 记录', { username, error: error.message });
+        await client.del(`${KEY_PREFIX}${username}`);
+      }
+    } catch (error) {
+      logger.warn('读取账号锁定 Redis 记录失败，转入降级策略', {
+        username,
+        error: error.message,
+      });
+    }
+  }
+  return memoryStore.get(username) || null;
+}
+
+async function clearAuxiliaryRecord(username) {
+  const client = await getClient();
+  if (client) {
+    try {
+      await client.del(`${KEY_PREFIX}${username}`);
+    } catch (error) {
+      logger.warn('清理账号锁定 Redis 记录失败', { username, error: error.message });
+    }
+  }
+  memoryStore.delete(username);
+}
+
+async function setAuxiliaryRecord(username, record) {
+  const client = await getClient();
+  if (client) {
+    try {
+      const ttl = record.lockedUntil
+        ? LOCK_DURATION_SECONDS + 300
+        : 1800;
+      await client.setEx(`${KEY_PREFIX}${username}`, ttl, JSON.stringify(record));
+      return;
+    } catch (error) {
+      logger.warn('写入账号锁定 Redis 记录失败，转入降级策略', {
+        username,
+        error: error.message,
+      });
+    }
+  }
+  memoryStore.set(username, record);
+}
+
+async function findUserLockRow(username, connection = pool) {
+  const [rows] = await connection.execute(
+    `SELECT id, username, COALESCE(failed_login_attempts, 0) AS failed_login_attempts,
+            locked_until,
+            CASE WHEN locked_until IS NOT NULL AND locked_until > NOW() THEN 1 ELSE 0 END AS login_locked,
+            CASE WHEN locked_until IS NOT NULL AND locked_until > NOW()
+              THEN GREATEST(TIMESTAMPDIFF(SECOND, NOW(), locked_until), 0)
+              ELSE 0 END AS remaining_lock_seconds
+       FROM users
+      WHERE LOWER(username) = ?
+      LIMIT 1${connection === pool ? '' : ' FOR UPDATE'}`,
+    [username]
+  );
+  return rows[0] || null;
 }
 
 class AccountLockService {
@@ -69,41 +138,36 @@ class AccountLockService {
    */
   static async isLocked(username) {
     username = canonicalUsername(username);
-    const client = await getClient();
-
-    if (client) {
-      // Redis 模式
-      try {
-        const data = await client.get(`${KEY_PREFIX}${username}`);
-        if (!data) return { locked: false, remainingMinutes: 0 };
-
-        const record = JSON.parse(data);
-        if (!record.lockedUntil) return { locked: false, remainingMinutes: 0 };
-
-        const now = Date.now();
-        if (now < record.lockedUntil) {
-          const remainingMinutes = Math.ceil((record.lockedUntil - now) / 60000);
-          return { locked: true, remainingMinutes };
-        }
-
-        // 锁定已过期，清除
-        await client.del(`${KEY_PREFIX}${username}`);
-        return { locked: false, remainingMinutes: 0 };
-      } catch (err) {
-        logger.error('Redis AccountLock isLocked 错误:', err.message);
-        useMemoryFallback(`Redis 锁定状态读取失败: ${err.message}`);
+    // Persist lock state for real users in MySQL. This avoids a login turning
+    // into HTTP 500 merely because the optional Redis counter is unavailable.
+    const userRow = await findUserLockRow(username);
+    if (userRow) {
+      if (isLockedRow(userRow)) {
+        return {
+          locked: true,
+          remainingMinutes: remainingMinutesFromSeconds(userRow.remaining_lock_seconds),
+        };
       }
+
+      // Clear an expired timestamp lazily. A failed login after expiry should
+      // start a fresh five-attempt window rather than inheriting old attempts.
+      if (userRow.locked_until) {
+        await pool.execute(
+          'UPDATE users SET failed_login_attempts = 0, locked_until = NULL, updated_at = NOW() WHERE id = ?',
+          [userRow.id]
+        );
+      }
+      return { locked: false, remainingMinutes: 0 };
     }
 
-    // 内存降级
-    const record = memoryStore.get(username);
+    // Unknown usernames are tracked only as an auxiliary anti-enumeration
+    // measure. Redis/memory failures are intentionally fail-open to 401.
+    const record = await getAuxiliaryRecord(username);
     if (!record || !record.lockedUntil) return { locked: false, remainingMinutes: 0 };
-
-    const now = Date.now();
-    if (now < record.lockedUntil) {
-      return { locked: true, remainingMinutes: Math.ceil((record.lockedUntil - now) / 60000) };
+    if (Date.now() < Number(record.lockedUntil)) {
+      return { locked: true, remainingMinutes: Math.ceil((Number(record.lockedUntil) - Date.now()) / 60000) };
     }
-    memoryStore.delete(username);
+    await clearAuxiliaryRecord(username);
     return { locked: false, remainingMinutes: 0 };
   }
 
@@ -115,65 +179,83 @@ class AccountLockService {
    */
   static async recordFailedAttempt(username, ip = '') {
     username = canonicalUsername(username);
-    const client = await getClient();
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const userRow = await findUserLockRow(username, connection);
+      if (userRow) {
+        // A concurrent request cannot bypass the threshold because the row is
+        // locked for the duration of this transaction.
+        if (isLockedRow(userRow)) {
+          await connection.rollback();
+          return {
+            locked: true,
+            remainingAttempts: 0,
+            lockDurationMinutes: remainingMinutesFromSeconds(userRow.remaining_lock_seconds),
+          };
+        }
 
-    if (client) {
-      try {
-        const key = `${KEY_PREFIX}${username}`;
-        const existing = await client.get(key);
-        const record = existing ? JSON.parse(existing) : {
-          failedCount: 0,
-          lockedUntil: null,
-          lastFailedAt: null,
-        };
+        const previousCount = userRow.locked_until ? 0 : Number(userRow.failed_login_attempts || 0);
+        const failedCount = previousCount + 1;
+        const locked = failedCount >= MAX_FAILED_ATTEMPTS;
+        const lockedUntil = locked ? new Date(Date.now() + LOCK_DURATION_MS) : null;
+        await connection.execute(
+          `UPDATE users
+              SET failed_login_attempts = ?,
+                  locked_until = ?,
+                  updated_at = NOW()
+            WHERE id = ?`,
+          [failedCount, lockedUntil, userRow.id]
+        );
+        await connection.commit();
 
-        record.failedCount++;
-        record.lastFailedAt = Date.now();
-
-        // 达到锁定阈值
-        if (record.failedCount >= MAX_FAILED_ATTEMPTS) {
-          record.lockedUntil = Date.now() + LOCK_DURATION_MS;
-
-          // 设置 Redis TTL = 锁定时间 + 5分钟缓冲
-          await client.setEx(key, LOCK_DURATION_SECONDS + 300, JSON.stringify(record));
-
-          logger.warn(`Account locked after repeated login failures: username=${username}, failedCount=${record.failedCount}, lockMinutes=${LOCK_DURATION_MINUTES}`, {
-            username, ip, failedCount: record.failedCount,
-            lockedUntil: new Date(record.lockedUntil).toISOString(),
+        if (locked) {
+          logger.warn('Account locked after repeated login failures', {
+            username,
+            ip,
+            failedCount,
+            lockMinutes: LOCK_DURATION_MINUTES,
           });
-
           return { locked: true, remainingAttempts: 0, lockDurationMinutes: LOCK_DURATION_MINUTES };
         }
 
-        // 未锁定，设置 30 分钟自动过期
-        await client.setEx(key, 1800, JSON.stringify(record));
-
-        const remainingAttempts = MAX_FAILED_ATTEMPTS - record.failedCount;
-        logger.info(`Login failure recorded: username=${username}, failedCount=${record.failedCount}, remainingAttempts=${remainingAttempts}`, {
-          username, ip,
-        });
-
+        const remainingAttempts = Math.max(0, MAX_FAILED_ATTEMPTS - failedCount);
+        logger.info('Login failure recorded', { username, ip, failedCount, remainingAttempts });
         return { locked: false, remainingAttempts, lockDurationMinutes: 0 };
-      } catch (err) {
-        logger.error('Redis AccountLock recordFailedAttempt 错误:', err.message);
-        useMemoryFallback(`Redis 登录失败记录写入失败: ${err.message}`);
       }
+
+      await connection.rollback();
+    } catch (error) {
+      try { await connection.rollback(); } catch { /* preserve original error */ }
+      throw error;
+    } finally {
+      connection.release();
     }
 
-    // 内存降级
-    const record = memoryStore.get(username) || { failedCount: 0, lockedUntil: null, lastFailedAt: null };
-    record.failedCount++;
+    // Unknown username: keep the previous Redis/memory anti-enumeration
+    // behavior, but never let its storage failure escape as a 500.
+    const record = (await getAuxiliaryRecord(username)) || {
+      failedCount: 0,
+      lockedUntil: null,
+      lastFailedAt: null,
+    };
+    if (record.lockedUntil && Date.now() >= Number(record.lockedUntil)) {
+      record.failedCount = 0;
+      record.lockedUntil = null;
+    }
+    record.failedCount = Number(record.failedCount || 0) + 1;
     record.lastFailedAt = Date.now();
-
     if (record.failedCount >= MAX_FAILED_ATTEMPTS) {
       record.lockedUntil = Date.now() + LOCK_DURATION_MS;
-      memoryStore.set(username, record);
-      logger.warn(`Account locked after repeated login failures in memory mode: username=${username}, failedCount=${record.failedCount}`);
+      await setAuxiliaryRecord(username, record);
       return { locked: true, remainingAttempts: 0, lockDurationMinutes: LOCK_DURATION_MINUTES };
     }
-
-    memoryStore.set(username, record);
-    return { locked: false, remainingAttempts: MAX_FAILED_ATTEMPTS - record.failedCount, lockDurationMinutes: 0 };
+    await setAuxiliaryRecord(username, record);
+    return {
+      locked: false,
+      remainingAttempts: MAX_FAILED_ATTEMPTS - record.failedCount,
+      lockDurationMinutes: 0,
+    };
   }
 
   /**
@@ -182,16 +264,11 @@ class AccountLockService {
    */
   static async clearFailedAttempts(username) {
     username = canonicalUsername(username);
-    const client = await getClient();
-    if (client) {
-      try {
-        await client.del(`${KEY_PREFIX}${username}`);
-      } catch (error) {
-        logger.error('Redis AccountLock clearFailedAttempts 错误:', error.message);
-        useMemoryFallback(`Redis 登录失败记录清理失败: ${error.message}`);
-      }
-    }
-    memoryStore.delete(username);
+    await pool.execute(
+      'UPDATE users SET failed_login_attempts = 0, locked_until = NULL, updated_at = NOW() WHERE LOWER(username) = ?',
+      [username]
+    );
+    await clearAuxiliaryRecord(username);
   }
 
   /**
@@ -200,16 +277,11 @@ class AccountLockService {
    */
   static async unlock(username) {
     username = canonicalUsername(username);
-    const client = await getClient();
-    if (client) {
-      try {
-        await client.del(`${KEY_PREFIX}${username}`);
-      } catch (error) {
-        logger.error('Redis AccountLock unlock 错误:', error.message);
-        useMemoryFallback(`Redis 手动解锁失败: ${error.message}`);
-      }
-    }
-    memoryStore.delete(username);
+    await pool.execute(
+      'UPDATE users SET failed_login_attempts = 0, locked_until = NULL, updated_at = NOW() WHERE LOWER(username) = ?',
+      [username]
+    );
+    await clearAuxiliaryRecord(username);
     logger.info(`🔓 [手动解锁] 账号 ${username} 已被管理员解锁`);
   }
 
@@ -218,48 +290,43 @@ class AccountLockService {
    * @returns {Promise<Array>}
    */
   static async getLockedAccounts() {
-    const now = Date.now();
-    const locked = [];
+    const [rows] = await pool.execute(
+      `SELECT id, username, failed_login_attempts, locked_until,
+              GREATEST(TIMESTAMPDIFF(SECOND, NOW(), locked_until), 0) AS remaining_lock_seconds
+         FROM users
+        WHERE locked_until IS NOT NULL AND locked_until > NOW()
+        ORDER BY locked_until ASC`
+    );
+    const locked = rows.map((row) => ({
+      id: row.id,
+      username: row.username,
+      failedCount: Number(row.failed_login_attempts || 0),
+      lockedUntil: new Date(row.locked_until).toISOString(),
+      remainingMinutes: remainingMinutesFromSeconds(row.remaining_lock_seconds),
+      source: 'database',
+    }));
 
     const client = await getClient();
     if (client) {
       try {
         const keys = await client.keys(`${KEY_PREFIX}*`);
         for (const key of keys) {
-          const data = await client.get(key);
-          if (!data) continue;
-          const record = JSON.parse(data);
-          const username = key.replace(KEY_PREFIX, '');
-
-          if (record.lockedUntil && now < record.lockedUntil) {
+          const username = key.slice(KEY_PREFIX.length);
+          const record = await getAuxiliaryRecord(username);
+          if (record?.lockedUntil && Date.now() < Number(record.lockedUntil)) {
             locked.push({
               username,
-              failedCount: record.failedCount,
-              lockedUntil: new Date(record.lockedUntil).toISOString(),
-              remainingMinutes: Math.ceil((record.lockedUntil - now) / 60000),
+              failedCount: Number(record.failedCount || 0),
+              lockedUntil: new Date(Number(record.lockedUntil)).toISOString(),
+              remainingMinutes: Math.ceil((Number(record.lockedUntil) - Date.now()) / 60000),
               source: 'redis',
             });
           }
         }
-        return locked;
-      } catch (err) {
-        logger.error('Redis getLockedAccounts 错误:', err.message);
-        useMemoryFallback(`Redis 锁定账号列表读取失败: ${err.message}`);
+      } catch (error) {
+        logger.warn('读取未知用户名锁定列表失败', { error: error.message });
       }
     }
-
-    // 内存降级
-    memoryStore.forEach((record, username) => {
-      if (record.lockedUntil && now < record.lockedUntil) {
-        locked.push({
-          username,
-          failedCount: record.failedCount,
-          lockedUntil: new Date(record.lockedUntil).toISOString(),
-          remainingMinutes: Math.ceil((record.lockedUntil - now) / 60000),
-          source: 'memory',
-        });
-      }
-    });
     return locked;
   }
 

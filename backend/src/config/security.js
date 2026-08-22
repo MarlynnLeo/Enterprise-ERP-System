@@ -75,18 +75,6 @@ const RATE_LIMIT_CONFIG = {
     skipSuccessfulRequests: true,
   },
 
-  // MFA challenge endpoints are public until the second factor succeeds.
-  mfa: {
-    windowMs: 5 * 60 * 1000,
-    max: 15,
-    message: {
-      success: false,
-      message: '多因素认证尝试过于频繁，请稍后再试',
-      code: 'MFA_RATE_LIMIT_EXCEEDED',
-    },
-    skipSuccessfulRequests: false,
-  },
-
   // 可疑活动检测配置（高级安全功能）
   suspiciousActivity: {
     enabled: process.env.ENABLE_SUSPICIOUS_ACTIVITY_DETECTION !== 'false',
@@ -154,11 +142,15 @@ const DATABASE_CONFIG = {
 };
 
 // 内容安全策略
+// 生产与本地 PC nginx 均禁止 'unsafe-eval'（vue-i18n / 打印模板已使用 CSP-safe 实现）。
+// 仅 NODE_ENV=development 且显式 ALLOW_CSP_UNSAFE_EVAL=true 时才放行 eval（例如某些调试工具）。
+const allowUnsafeEval =
+  process.env.NODE_ENV === 'development' && process.env.ALLOW_CSP_UNSAFE_EVAL === 'true';
 const CSP_CONFIG = {
   directives: {
     defaultSrc: ["'self'"],
     styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
-    scriptSrc: ["'self'", "'unsafe-eval'"], // 开发环境可能需要 unsafe-eval
+    scriptSrc: allowUnsafeEval ? ["'self'", "'unsafe-eval'"] : ["'self'"],
     imgSrc: ["'self'", 'data:', 'https:', 'blob:'],
     connectSrc: ["'self'", 'ws:', 'wss:'],
     fontSrc: ["'self'", 'https://fonts.gstatic.com'],

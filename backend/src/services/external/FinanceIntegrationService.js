@@ -2295,7 +2295,7 @@ class FinanceIntegrationService {
     }
   }
 
-  // ==================== 外委加工分录生成 ====================
+  // ==================== 委外加工分录生成 ====================
   // (外委发料分录在这一版本被精简或与当前无需防重复的核心功能保持一致)
 
   // ==================== 销售换货差价分录生成 ====================
@@ -2416,7 +2416,7 @@ class FinanceIntegrationService {
     }
   }
 
-  // ==================== 外委加工模块集成 ====================
+  // ==================== 委外加工模块集成 ====================
 
   /**
    * 外委发料自动生成会计分录
@@ -2487,7 +2487,7 @@ class FinanceIntegrationService {
         if (shouldManageTransaction) {
           await connection.rollback();
         }
-        throw new Error(`外委加工单 ${processing.processing_no || processing.id} 发料金额为0，不能生成外委发料凭证`);
+        throw new Error(`委外加工单 ${processing.processing_no || processing.id} 发料金额为0，不能生成外委发料凭证`);
       }
 
       // 获取会计期间
@@ -2614,7 +2614,7 @@ class FinanceIntegrationService {
           skipped: true,
           entryId: existingEntry.id,
           entryNumber: existingEntry.entry_number,
-          message: '外委入库凭证已存在',
+          message: '委外入库凭证已存在',
         };
       }
 
@@ -2645,7 +2645,7 @@ class FinanceIntegrationService {
         if (shouldManageTransaction) {
           await connection.rollback();
         }
-        throw new Error(`外委入库单 ${receiptNo} 入库价值为0，不能生成外委入库凭证`);
+        throw new Error(`委外入库单 ${receiptNo} 入库价值为0，不能生成委外入库凭证`);
       }
 
       // 获取会计期间
@@ -2671,7 +2671,7 @@ class FinanceIntegrationService {
           account_id: inventoryAccountId,
           debit_amount: totalInventoryValue,
           credit_amount: 0,
-          description: `库存商品增加（外委入库） - ${receiptNo}`,
+          description: `库存商品增加（委外入库） - ${receiptNo}`,
         },
       ];
 
@@ -2719,7 +2719,7 @@ class FinanceIntegrationService {
       if (shouldManageTransaction) {
         await connection.rollback();
       }
-      logger.error(`外委入库分录生成失败 - ${receipt.receipt_no}:`, error.message);
+      logger.error(`委外入库分录生成失败 - ${receipt.receipt_no}:`, error.message);
       throw error;
     } finally {
       if (shouldManageTransaction) {

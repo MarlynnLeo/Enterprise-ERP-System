@@ -27,9 +27,9 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     ports:
-      # The 1Panel/tunnel and internal LAN both use the host ports. Access to
-      # the database remains private because it is not published here.
-      - "18080:8080"
+      # Bind to loopback only. Expose LAN/public access via 1Panel reverse
+      # proxy / tunnel — do not publish the API on 0.0.0.0.
+      - "127.0.0.1:18080:8080"
     environment:
       - NODE_ENV=production
       - COOKIE_SECURE=${COOKIE_SECURE:-auto}
@@ -50,9 +50,6 @@ services:
       - JWT_ISSUER=${JWT_ISSUER:-erp-system}
       - JWT_AUDIENCE=${JWT_AUDIENCE:-erp-users}
       - JWT_ALGORITHM=${JWT_ALGORITHM:-HS256}
-      - MFA_ENCRYPTION_KEY=${MFA_ENCRYPTION_KEY}
-      - MFA_REQUIRED_ROLE_CODES=${MFA_REQUIRED_ROLE_CODES:-admin,system_admin,finance_manager,hr_manager}
-      - MFA_TOTP_ISSUER=${MFA_TOTP_ISSUER:-KACON ERP}
       - JWT_ACCESS_TOKEN_EXPIRY=2h
       - JWT_REFRESH_TOKEN_EXPIRY=7d
       - JWT_ACCESS_EXPIRY=2h
@@ -66,6 +63,8 @@ services:
       - REDIS_PORT=${REDIS_PORT:-6379}
       - REDIS_PASSWORD=${REDIS_PASSWORD}
       - REDIS_DB=0
+      - LOGIN_MAX_FAILED_ATTEMPTS=${LOGIN_MAX_FAILED_ATTEMPTS:-5}
+      - LOGIN_LOCK_DURATION_MINUTES=${LOGIN_LOCK_DURATION_MINUTES:-15}
       - OLLAMA_HOST=${OLLAMA_HOST}
       - OLLAMA_OCR_MODEL=deepseek-ocr:latest
       - OLLAMA_TIMEOUT=60000
@@ -102,6 +101,7 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     ports:
+      # LAN ERP UI (internal). Prefer fronting with 1Panel/nginx TLS in production.
       - "18081:80"
     depends_on:
       backend:
@@ -121,6 +121,7 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     ports:
+      # Internal mobile UI; prefer reverse-proxy TLS in production.
       - "18082:80"
     depends_on:
       backend:

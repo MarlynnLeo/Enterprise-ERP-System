@@ -16,6 +16,8 @@ const { syncRolePermissionsFromMenus, ensurePermissions } = require('./Permissio
 const { logger } = require('../utils/logger');
 const { isSuperAdminRole } = require('../authorization/superAdmin');
 
+const ALL_DATA_SCOPE = 1;
+
 function chunk(items, size = 200) {
   const result = [];
   for (let i = 0; i < items.length; i += size) {
@@ -33,7 +35,15 @@ class RoleAccessService {
     return listManagedProfiles();
   }
 
+  static async forceAllDataScope(conn, roleId) {
+    await conn.execute(
+      'UPDATE roles SET data_scope = ? WHERE id = ? AND COALESCE(data_scope, 0) <> ?',
+      [ALL_DATA_SCOPE, roleId, ALL_DATA_SCOPE]
+    );
+  }
+
   static async grantAllAccess(conn, roleId) {
+    await this.forceAllDataScope(conn, roleId);
     await conn.execute('DELETE FROM role_menus WHERE role_id = ?', [roleId]);
     await conn.execute(
       `INSERT INTO role_menus (role_id, menu_id)
@@ -88,6 +98,7 @@ class RoleAccessService {
   }
 
   static async applyRole(conn, role, menus = null) {
+    await this.forceAllDataScope(conn, role.id);
     if (isSuperAdminRole(role)) {
       return {
         role: role.code,
@@ -215,6 +226,9 @@ class RoleAccessService {
     const summary = [];
 
     for (const role of roles) {
+      await knex('roles')
+        .where({ id: role.id })
+        .update({ data_scope: ALL_DATA_SCOPE });
       if (isSuperAdminRole(role)) continue;
       const profile = getProfile(role.code);
       if (!profile) continue;

@@ -233,7 +233,19 @@ const fetchRealMetalPrices = async () => {
     }
     logger.info(`金属价格更新完成 FX=${rate.toFixed(4)}, 成功 ${Object.keys(metals).length} 种`);
   } catch (error) {
-    logger.error(`更新金属价格失败: ${error.message}`);
+    // External market feeds are best-effort. Keep last good / configured
+    // reference prices so dashboard widgets stay available offline.
+    logger.error(`更新金属价格失败，保留缓存/参考价: ${error.message}`);
+    for (const [symbol, metal] of Object.entries(metalPricesData)) {
+      if (!metal) continue;
+      if (!metal.source || metal.source === 'CONFIGURED_REFERENCE') {
+        metal.source = 'STALE_OR_REFERENCE';
+      }
+      metal.lastUpdate = metal.lastUpdate || new Date();
+      logger.warn(
+        `[MetalPrices] ${symbol} 使用既有价格 ${metal.price} (${metal.source})`
+      );
+    }
   }
 };
 

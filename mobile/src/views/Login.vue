@@ -35,7 +35,7 @@
 
         <form @submit.prevent="onSubmit" class="login-form">
           <!-- 用户名 -->
-          <div v-if="!mfaState.required && !mfaState.recoveryCodes.length" class="input-group" :class="{ focused: focusState.username, error: errors.username }">
+          <div class="input-group" :class="{ focused: focusState.username, error: errors.username }">
             <div class="input-icon">
               <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round"
@@ -53,7 +53,7 @@
           </div>
 
           <!-- 密码 -->
-          <div v-if="!mfaState.required && !mfaState.recoveryCodes.length" class="input-group" :class="{ focused: focusState.password, error: errors.password }">
+          <div class="input-group" :class="{ focused: focusState.password, error: errors.password }">
             <div class="input-icon">
               <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round"
@@ -82,24 +82,6 @@
             </button>
           </div>
 
-          <template v-if="mfaState.required && !mfaState.recoveryCodes.length">
-            <div class="mfa-hint">{{ mfaState.setupRequired ? '请先在验证器中完成账户配置' : '请输入 6 位验证码或恢复码' }}</div>
-            <div v-if="mfaState.setupRequired" class="mfa-setup">
-              <img v-if="mfaState.qrDataUrl" :src="mfaState.qrDataUrl" alt="MFA 验证器二维码" class="mfa-qr" />
-              <a v-if="mfaState.otpauthUri" :href="mfaState.otpauthUri" class="mfa-open-link">在验证器中打开</a>
-              <code v-if="mfaState.secret" class="mfa-secret">{{ mfaState.secret }}</code>
-            </div>
-            <input class="mfa-input" v-model="mfaState.token" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="MFA 验证码" />
-            <input class="mfa-input" v-if="!mfaState.setupRequired" v-model="mfaState.recoveryCode" type="text" maxlength="14" autocomplete="off" placeholder="一次性恢复码（可选）" />
-          </template>
-
-          <section v-if="mfaState.recoveryCodes.length" class="recovery-panel">
-            <h3>请立即保存恢复码</h3>
-            <p>每个恢复码只能使用一次，离开后不会再次显示。</p>
-            <ul><li v-for="code in mfaState.recoveryCodes" :key="code"><code>{{ code }}</code></li></ul>
-            <button type="button" class="copy-codes" @click="copyRecoveryCodes">复制全部</button>
-          </section>
-
           <!-- B-17: 登录失败延迟提示 -->
           <div v-if="lockoutRemaining > 0" class="lockout-tip">
             登录失败次数过多，请等待 {{ lockoutRemaining }} 秒后重试
@@ -107,7 +89,7 @@
 
           <!-- 登录按钮 -->
           <button type="submit" class="submit-btn" :disabled="loading || lockoutRemaining > 0">
-            <span v-if="!loading">{{ submitLabel }}</span>
+            <span v-if="!loading">登 录</span>
             <span v-else class="loading-dots">
               <i></i><i></i><i></i>
             </span>
@@ -127,7 +109,6 @@
   import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
   import { useRouter, useRoute } from 'vue-router'
   import { showToast } from 'vant'
-  import QRCode from 'qrcode'
   import { useAuthStore } from '@/stores/auth'
   import { useDictionaryStore } from '@/stores/dictionary'
   import { APP_INFO } from '@/config/app'
@@ -139,17 +120,6 @@
 
   const username = ref('')
   const password = ref('')
-  const mfaState = reactive({
-    required: false,
-    setupRequired: false,
-    challengeId: '',
-    token: '',
-    recoveryCode: '',
-    otpauthUri: '',
-    secret: '',
-    qrDataUrl: '',
-    recoveryCodes: [],
-  })
   const loading = ref(false)
   const showPassword = ref(false)
 
@@ -158,21 +128,16 @@
 
   // B-07: 版本号从配置读取
   const appVersion = computed(() => APP_INFO.version)
-  const submitLabel = computed(() => {
-    if (mfaState.recoveryCodes.length) return '我已保存，继续'
-    if (mfaState.required) return '验证并登录'
-    return '登 录'
-  })
 
   // B-17: 登录失败计数与递增延迟
   const failCount = ref(0)
   const lockoutRemaining = ref(0)
   let lockoutTimer = null
 
-  /** 根据失败次数计算延迟秒数：3次→5s, 4次→10s, 5次→20s, 6次→40s... */
+  /** 与后端五次锁定阈值对齐：前四次不增加客户端等待。 */
   const getLockoutSeconds = (count) => {
-    if (count < 3) return 0
-    return 5 * Math.pow(2, count - 3) // 5, 10, 20, 40...
+    if (count < 5) return 0
+    return 5 * Math.pow(2, count - 5)
   }
 
   const startLockoutCountdown = (seconds) => {
@@ -203,75 +168,26 @@
     // B-17: 如果处于锁定状态，不允许提交
     if (lockoutRemaining.value > 0) return
 
-    if (!mfaState.required && !mfaState.recoveryCodes.length) {
-      errors.username = !username.value
-      errors.password = !password.value
+    errors.username = !username.value
+    errors.password = !password.value
 
-      if (!username.value) {
-        showToast('请输入用户名')
-        return
-      }
-      if (!password.value) {
-        showToast('请输入密码')
-        return
-      }
+    if (!username.value) {
+      showToast('请输入用户名')
+      return
+    }
+    if (!password.value) {
+      showToast('请输入密码')
+      return
     }
 
     loading.value = true
     try {
-      if (mfaState.recoveryCodes.length) {
-        await completeLogin()
-        return
-      }
-
-      if (mfaState.required) {
-        if (!/^\d{6}$/.test(mfaState.token.trim()) && !mfaState.recoveryCode.trim()) {
-          showToast('请输入 6 位验证码或一次性恢复码')
-          return
-        }
-        const verified = await authStore.verifyMfa({
-          challengeId: mfaState.challengeId,
-          token: mfaState.token,
-          recoveryCode: mfaState.recoveryCode,
-        })
-        if (Array.isArray(verified.recoveryCodes) && verified.recoveryCodes.length) {
-          mfaState.recoveryCodes = verified.recoveryCodes
-          mfaState.token = ''
-          return
-        }
-      } else {
-        const loginResult = await authStore.login({ username: username.value, password: password.value })
-        if (loginResult?.mfaRequired) {
-          mfaState.required = true
-          mfaState.setupRequired = Boolean(loginResult.mfaSetupRequired)
-          mfaState.challengeId = loginResult.challengeId
-          password.value = ''
-          if (mfaState.setupRequired) {
-            const setupResponse = await authStore.enrollMfa({ challengeId: mfaState.challengeId })
-            const setup = setupResponse.data || {}
-            mfaState.otpauthUri = setup.otpauthUri || ''
-            mfaState.secret = setup.secret || ''
-            if (mfaState.otpauthUri) {
-              mfaState.qrDataUrl = await QRCode.toDataURL(mfaState.otpauthUri, {
-                width: 220,
-                margin: 1,
-                errorCorrectionLevel: 'M',
-              })
-            }
-            showToast('请配置验证器后再次提交')
-          }
-          return
-        }
-      }
+      await authStore.login({ username: username.value, password: password.value })
       await completeLogin()
     } catch (error) {
       console.error('登录失败:', error)
-      const code = error.response?.data?.errorCode || error.response?.data?.code
-      if (code === 'MFA_CHALLENGE_INVALID' || code === 'MFA_CHALLENGE_LOCKED') {
-        resetMfaFlow()
-      }
       showToast(error.response?.data?.message || '登录失败，请重试')
-      // B-17: 记录失败次数，连续失败 3 次后启用递增延迟
+      // B-17: 记录失败次数，第 5 次起才启用客户端延迟
       failCount.value++
       const lockoutSeconds = getLockoutSeconds(failCount.value)
       if (lockoutSeconds > 0) {
@@ -314,28 +230,6 @@
     })
   }
 
-  const resetMfaFlow = () => {
-    Object.assign(mfaState, {
-      required: false,
-      setupRequired: false,
-      challengeId: '',
-      token: '',
-      recoveryCode: '',
-      otpauthUri: '',
-      secret: '',
-      qrDataUrl: '',
-      recoveryCodes: [],
-    })
-  }
-
-  const copyRecoveryCodes = async () => {
-    try {
-      await navigator.clipboard.writeText(mfaState.recoveryCodes.join('\n'))
-      showToast('恢复码已复制')
-    } catch {
-      showToast('复制失败，请手动保存')
-    }
-  }
 </script>
 
 <style lang="scss" scoped>
@@ -548,87 +442,6 @@
     font-size: 0.8125rem;
     padding: 8px 0;
     animation: fadeUp 0.3s ease-out;
-  }
-
-  .mfa-hint,
-  .recovery-panel p {
-    color: rgba(255, 255, 255, 0.68);
-    font-size: 0.8125rem;
-    line-height: 1.6;
-  }
-
-  .mfa-setup {
-    display: grid;
-    justify-items: center;
-    gap: 10px;
-  }
-
-  .mfa-qr {
-    width: 180px;
-    height: 180px;
-    padding: 8px;
-    border-radius: 12px;
-    background: #fff;
-  }
-
-  .mfa-open-link {
-    color: #a5b4fc;
-  }
-
-  .mfa-secret {
-    max-width: 100%;
-    overflow-wrap: anywhere;
-    color: rgba(255, 255, 255, 0.82);
-    user-select: all;
-  }
-
-  .mfa-input {
-    box-sizing: border-box;
-    width: 100%;
-    height: 48px;
-    padding: 0 14px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 12px;
-    outline: none;
-    color: #fff;
-    background: rgba(255, 255, 255, 0.06);
-  }
-
-  .recovery-panel {
-    padding: 16px;
-    border: 1px solid rgba(245, 158, 11, 0.4);
-    border-radius: 14px;
-    background: rgba(245, 158, 11, 0.08);
-  }
-
-  .recovery-panel h3 {
-    margin: 0 0 8px;
-    color: #fff;
-    font-size: 1rem;
-  }
-
-  .recovery-panel ul {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
-    margin: 12px 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .recovery-panel code {
-    color: #fff;
-    font-size: 0.75rem;
-    user-select: all;
-  }
-
-  .copy-codes {
-    width: 100%;
-    height: 40px;
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    border-radius: 10px;
-    color: #fff;
-    background: rgba(255, 255, 255, 0.08);
   }
 
   /* ======================== 登录按钮 ======================== */

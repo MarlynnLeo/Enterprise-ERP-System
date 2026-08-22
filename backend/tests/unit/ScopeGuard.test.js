@@ -1,5 +1,5 @@
 /**
- * ScopeGuard + resourcePolicies + DataScope 失败关闭单测
+ * ScopeGuard + resourcePolicies：行级范围 + 财务共享 + sharedRead。
  */
 
 jest.mock('../../src/config/db', () => ({
@@ -7,10 +7,6 @@ jest.mock('../../src/config/db', () => ({
     execute: jest.fn(),
     query: jest.fn(),
   },
-}));
-
-jest.mock('../../src/utils/logger', () => ({
-  logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
 }));
 
 const DataScopeService = require('../../src/services/DataScopeService');
@@ -49,37 +45,14 @@ describe('resourcePolicies', () => {
     );
   });
 
-  test('财务资源声明 financeShared + created_by', () => {
+  test('资源仍声明表、创建归属和软删字段用于创建/审计/存在性校验', () => {
     const ar = getResourcePolicy('ar_invoice');
-    expect(ar.financeShared).toBe(true);
+    expect(ar.table).toBe('ar_invoices');
     expect(ar.ownerColumn).toBe('created_by');
     expect(ar.deletedAtColumn).toBe(false);
-  });
 
-  test('销售订单声明读取共享、创建人仅作审计', () => {
-    const salesOrder = getResourcePolicy('sales_order');
-    expect(salesOrder.sharedRead).toBe(true);
-    expect(salesOrder.ownerColumn).toBe('created_by');
-  });
-
-  test('销售采购单据和生产任务声明读取共享', () => {
-    for (const key of [
-      'sales_outbound',
-      'sales_return',
-      'sales_quotation',
-      'sales_exchange',
-      'purchase_order',
-      'purchase_requisition',
-      'purchase_receipt',
-      'purchase_return',
-      'production_task',
-    ]) {
-      expect(getResourcePolicy(key).sharedRead).toBe(true);
-    }
-  });
-
-  test('生产计划声明按业务部门字段授权', () => {
-    expect(getResourcePolicy('production_plan').departmentColumn).toBe('department_id');
+    const productionPlan = getResourcePolicy('production_plan');
+    expect(productionPlan.departmentColumn).toBe('department_id');
   });
 
   test('未知策略抛错', () => {
@@ -88,49 +61,65 @@ describe('resourcePolicies', () => {
 });
 
 describe('DataScopeService fail-closed', () => {
-  test('null scope 不是 ALL', () => {
+  test('无认证身份不是 ALL 且列表条件拒绝', () => {
     expect(DataScopeService.isAllScope(null)).toBe(false);
     expect(DataScopeService.isAllScope(undefined)).toBe(false);
-  });
-
-  test('null scope 列表条件拒绝', () => {
-    const clause = DataScopeService.buildOwnerScopeClause(null, { tableAlias: 't' });
-    expect(clause.where).toContain('1 = 0');
+    expect(DataScopeService.buildOwnerScopeClause(null, { tableAlias: 't' }).where).toContain(
+      '1 = 0'
+    );
   });
 });
 
 describe('ScopeGuard', () => {
-  test('财务共享 all 模式 list 无过滤', async () => {
-    const req = {
-      authzScope: {
-        type: DataScopeService.DATA_SCOPE.SELF,
-        userId: 9,
-        departmentIds: [],
-        locationIds: [],
-      },
-    };
-    const clause = await ScopeGuard.applyListScope(req, 'ar_invoice', { tableAlias: 'a' });
-    // 默认 FINANCE_DATA_SCOPE_POLICY=all → 共享中心不按 SELF 裁剪
-    expect(clause.where).toBe('');
-    expect(clause.params).toEqual([]);
+  const selfScopeReq = {
+    authzScope: {
+      type: DataScopeService.DATA_SCOPE.SELF,
+      userId: 9,
+      departmentIds: [2],
+      locationIds: [3],
+    },
+  };
+
+  test('财务共享资源列表不追加行级条件', async () => {
+    await expect(
+      ScopeGuard.applyListScope(selfScopeReq, 'ar_invoice', { tableAlias: 't' })
+    ).resolves.toEqual({ join: '', where: '', params: [] });
   });
 
-  test('财务 stampOwner 走 ar_invoice policy', () => {
-    const req = { user: { id: 11 } };
-    expect(ScopeGuard.stampOwner(req, 'ar_invoice')).toEqual({ created_by: 11 });
+  test('sharedRead 仅在 accessMode=read 时放开列表', async () => {
+    await expect(
+      ScopeGuard.applyListScope(selfScopeReq, 'sales_order', {
+        tableAlias: 't',
+        accessMode: 'read',
+      })
+    ).resolves.toEqual({ join: '', where: '', params: [] });
+
+    const writeScope = await ScopeGuard.applyListScope(selfScopeReq, 'sales_order', {
+      tableAlias: 't',
+    });
+    expect(writeScope.where).toContain('created_by');
+    expect(writeScope.params).toEqual([9]);
   });
 
-  test('stampOwner 强制当前用户，忽略 body', () => {
-    const req = { user: { id: 42 } };
-    const stamp = ScopeGuard.stampOwner(req, 'sales_order');
-    expect(stamp).toEqual({ created_by: 42 });
+  test('非共享资源按 SELF 过滤创建人', async () => {
+    const clause = await ScopeGuard.applyListScope(selfScopeReq, 'inventory_check', {
+      tableAlias: 't',
+    });
+    expect(clause.where).toMatch(/created_by/);
+    expect(clause.params).toEqual([9]);
+  });
+
+  test('stampOwner 仍强制记录当前创建人，忽略 body', () => {
+    const req = { user: { id: 42 }, body: { created_by: 99 } };
+    expect(ScopeGuard.stampOwner(req, 'sales_order')).toEqual({ created_by: 42 });
+    expect(ScopeGuard.stampOwner(req, 'ar_invoice')).toEqual({ created_by: 42 });
   });
 
   test('stampOwner 无用户抛错', () => {
     expect(() => ScopeGuard.stampOwner({}, 'sales_order')).toThrow();
   });
 
-  test('assertAccess 使用策略表', async () => {
+  test('SELF 写路径校验创建人', async () => {
     const req = {
       authzScope: {
         type: DataScopeService.DATA_SCOPE.SELF,
@@ -140,96 +129,48 @@ describe('ScopeGuard', () => {
       },
     };
     const conn = {
-      execute: jest.fn().mockResolvedValue([[{ id: 1, owner_id: 7 }]]),
+      execute: jest.fn().mockResolvedValue([[{ id: 1, owner_id: 7, owner_department_id: null }]]),
     };
-    await expect(ScopeGuard.assertAccess(conn, req, 'sales_outbound', 1)).resolves.toBe(true);
-    expect(conn.execute).toHaveBeenCalledWith(
-      expect.stringContaining('sales_outbound'),
-      expect.any(Array)
-    );
+
+    await expect(ScopeGuard.assertAccess(conn, req, 'inventory_check', 1)).resolves.toBe(true);
+    expect(conn.execute.mock.calls[0][0]).toContain('created_by');
   });
 
-  test('applyListScope 生成 SELF 条件', async () => {
+  test('sharedRead 读路径只校验存在', async () => {
     const req = {
       authzScope: {
         type: DataScopeService.DATA_SCOPE.SELF,
-        userId: 9,
+        userId: 7,
         departmentIds: [],
         locationIds: [],
       },
     };
-    const clause = await ScopeGuard.applyListScope(req, 'inventory_inbound', {
-      tableAlias: 'i',
-    });
-    expect(clause.where).toContain('created_by');
-    expect(clause.params).toEqual([9]);
-  });
+    const conn = { execute: jest.fn().mockResolvedValue([[{ id: 1 }]]) };
 
-  test('销售订单读取不按创建人数据范围过滤', async () => {
-    const req = {
-      authzScope: {
-        type: DataScopeService.DATA_SCOPE.SELF,
-        userId: 9,
-        departmentIds: [],
-        locationIds: [],
-      },
-    };
-    const clause = await ScopeGuard.applyListScope(req, 'sales_order', {
-      tableAlias: 'so',
-      accessMode: 'read',
-    });
-    expect(clause).toEqual({ join: '', where: '', params: [] });
-  });
-
-  test('销售订单写操作仍按原数据范围校验', async () => {
-    const req = {
-      authzScope: {
-        type: DataScopeService.DATA_SCOPE.SELF,
-        userId: 9,
-        departmentIds: [],
-        locationIds: [],
-      },
-    };
-    const clause = await ScopeGuard.applyListScope(req, 'sales_order', {
-      tableAlias: 'so',
-    });
-    expect(clause.where).toContain('created_by');
-    expect(clause.params).toEqual([9]);
-  });
-
-  test('销售订单读取详情只校验对象存在，不限制创建人范围', async () => {
-    const req = {
-      authzScope: {
-        type: DataScopeService.DATA_SCOPE.SELF,
-        userId: 9,
-        departmentIds: [],
-        locationIds: [],
-      },
-    };
-    const conn = { execute: jest.fn().mockResolvedValueOnce([[{ id: 123 }]]) };
     await expect(
-      ScopeGuard.assertAccess(conn, req, 'sales_order', 123, { accessMode: 'read' })
+      ScopeGuard.assertAccess(conn, req, 'sales_order', 1, { accessMode: 'read' })
     ).resolves.toBe(true);
-    expect(conn.execute).toHaveBeenCalledWith(
-      expect.stringContaining('FROM `sales_orders`'),
-      [123]
-    );
+    expect(conn.execute.mock.calls[0][0]).not.toContain('created_by');
   });
 
-  test('共享读取和财务共享均拒绝不存在对象', async () => {
-    const req = {
-      authzScope: {
-        type: DataScopeService.DATA_SCOPE.SELF,
-        userId: 9,
-        departmentIds: [],
-        locationIds: [],
-      },
-    };
+  test('不存在或已软删对象仍拒绝', async () => {
+    const req = { authzScope: { type: DataScopeService.DATA_SCOPE.ALL, userId: 9 } };
     const conn = { execute: jest.fn().mockResolvedValue([[]]) };
 
-    await expect(
-      ScopeGuard.assertAccess(conn, req, 'sales_order', 404, { accessMode: 'read' })
-    ).resolves.toBe(false);
+    await expect(ScopeGuard.assertAccess(conn, req, 'sales_order', 404)).resolves.toBe(false);
     await expect(ScopeGuard.assertAccess(conn, req, 'ar_invoice', 404)).resolves.toBe(false);
+  });
+
+  test('assertAllAccess 任一失败则整批拒绝', async () => {
+    const req = { authzScope: { type: DataScopeService.DATA_SCOPE.ALL, userId: 9 } };
+    const conn = {
+      execute: jest
+        .fn()
+        .mockResolvedValueOnce([[{ id: 1 }]])
+        .mockResolvedValueOnce([[]]),
+    };
+    await expect(
+      ScopeGuard.assertAllAccess(conn, req, 'sales_order', [1, 2], { accessMode: 'read' })
+    ).resolves.toBe(false);
   });
 });

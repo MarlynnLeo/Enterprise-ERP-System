@@ -6,7 +6,7 @@ export default [
   ...pluginVue.configs['flat/essential'],
   eslintConfigPrettier,
   {
-    ignores: ['dist/**', 'node_modules/**', '**/*.min.js']
+    ignores: ['dist/**', 'node_modules/**', '**/*.min.js', 'public/client-diag.js']
   },
   {
     languageOptions: {

@@ -15,15 +15,11 @@ const pool = require('../config/db');
  */
 const productCategoryModel = {
   /**
-   * 获取所有产品大类（树形结构，支持分页）
+   * 获取所有产品大类（平铺结构，支持分页）
    */
   async getAllProductCategories(filters = {}, page = 1, limit = 20) {
     try {
-      const result = await this.getFilteredProductCategories(filters, page, limit);
-      // 构建树形结构
-      const treeData = this.buildTree(result.data, 0);
-      result.data = treeData;
-      return result;
+      return await this.getFilteredProductCategories(filters, page, limit);
     } catch (error) {
       logger.error('获取产品大类失败:', error);
       throw error;
@@ -31,7 +27,8 @@ const productCategoryModel = {
   },
 
   /**
-   * 获取过滤后的产品大类（平铺结构，支持分页）   */
+   * 获取过滤后的产品大类（平铺结构，支持分页）
+   */
   async getFilteredProductCategories(filters = {}, page = 1, limit = 20) {
     try {
       const pagination = parsePagination(page, limit, { defaultPageSize: 20, maxPageSize: 100 });
@@ -51,7 +48,6 @@ const productCategoryModel = {
         LEFT JOIN categories parent ON pc.parent_id = parent.id
         WHERE pc.deleted_at IS NULL
       `;
-
 
       let whereConditions = '';
       const queryParams = [];
@@ -105,7 +101,6 @@ const productCategoryModel = {
       } else {
         rows = result; // 其他格式
       }
-
 
       const data = Array.isArray(rows) ? rows : [];
 
@@ -184,20 +179,46 @@ const productCategoryModel = {
   },
 
   /**
-   * 构建树形结构
+   * 构建树形结构（高效 Map 算法，兼容 parent_id 为 NULL/0，孤儿节点自动挂载到根层级）
    */
-  buildTree(data, parentId = 0) {
-    const tree = [];
-    for (const item of data) {
-      if (item.parent_id === parentId) {
-        const children = this.buildTree(data, item.id);
-        if (children.length > 0) {
-          item.children = children;
+  buildTree(data, rootParentId = 0) {
+    if (!Array.isArray(data) || data.length === 0) return [];
+
+    const idMap = new Map();
+    data.forEach(item => {
+      idMap.set(item.id, { ...item, children: [] });
+    });
+
+    const rootNodes = [];
+    idMap.forEach(item => {
+      const parentId = item.parent_id;
+      const isRoot = !parentId || Number(parentId) === 0 || parentId === rootParentId;
+
+      if (isRoot) {
+        rootNodes.push(item);
+      } else {
+        const parent = idMap.get(parentId);
+        if (parent) {
+          parent.children.push(item);
+        } else {
+          // 如果结果集未包含父节点（如过滤特定状态下的子分类），提升至顶层展示，确保数据不丢失
+          rootNodes.push(item);
         }
-        tree.push(item);
       }
-    }
-    return tree;
+    });
+
+    const cleanEmptyChildren = (nodes) => {
+      nodes.forEach(node => {
+        if (node.children && node.children.length > 0) {
+          cleanEmptyChildren(node.children);
+        } else {
+          delete node.children;
+        }
+      });
+    };
+    cleanEmptyChildren(rootNodes);
+
+    return rootNodes;
   },
 
   /**
@@ -233,14 +254,19 @@ const productCategoryModel = {
    */
   async createProductCategory(categoryData) {
     try {
-      const { parent_id = 0, name, code, sort = 0, status = 1 } = categoryData;
+      const rawParentId = categoryData.parentId !== undefined ? categoryData.parentId : categoryData.parent_id;
+      const parent_id = rawParentId && Number(rawParentId) > 0 ? Number(rawParentId) : null;
+      const name = categoryData.name;
+      const code = categoryData.code;
+      const sort = categoryData.sort !== undefined ? Number(categoryData.sort) : 0;
+      const status = categoryData.status !== undefined ? Number(categoryData.status) : 1;
 
       // 计算层级
       let level = 1;
-      if (parent_id > 0) {
+      if (parent_id) {
         const parentCategory = await this.getProductCategoryById(parent_id);
         if (parentCategory) {
-          level = parentCategory.level + 1;
+          level = (Number(parentCategory.level) || 1) + 1;
         }
       }
 
@@ -286,14 +312,22 @@ const productCategoryModel = {
    */
   async updateProductCategory(id, categoryData) {
     try {
-      const { parent_id, name, code, sort, status } = categoryData;
+      const existing = await this.getProductCategoryById(id);
+      if (!existing) throw new Error('产品分类不存在');
+
+      const rawParentId = categoryData.parentId !== undefined ? categoryData.parentId : categoryData.parent_id;
+      const parent_id = rawParentId !== undefined ? (rawParentId && Number(rawParentId) > 0 ? Number(rawParentId) : null) : existing.parent_id;
+      const name = categoryData.name !== undefined ? categoryData.name : existing.name;
+      const code = categoryData.code !== undefined ? categoryData.code : existing.code;
+      const sort = categoryData.sort !== undefined ? Number(categoryData.sort) : existing.sort;
+      const status = categoryData.status !== undefined ? Number(categoryData.status) : existing.status;
 
       // 计算层级
       let level = 1;
-      if (parent_id > 0) {
+      if (parent_id) {
         const parentCategory = await this.getProductCategoryById(parent_id);
         if (parentCategory) {
-          level = parentCategory.level + 1;
+          level = (Number(parentCategory.level) || 1) + 1;
         }
       }
 
@@ -397,8 +431,8 @@ const productCategoryModel = {
       const query = `
         SELECT
           COUNT(*) as total,
-          SUM(CASE WHEN parent_id = 0 THEN 1 ELSE 0 END) as parentCategories,
-          SUM(CASE WHEN parent_id > 0 THEN 1 ELSE 0 END) as childCategories,
+          SUM(CASE WHEN parent_id IS NULL OR parent_id = 0 THEN 1 ELSE 0 END) as parentCategories,
+          SUM(CASE WHEN parent_id IS NOT NULL AND parent_id > 0 THEN 1 ELSE 0 END) as childCategories,
           SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END) as active,
           SUM(CASE WHEN status = 0 THEN 1 ELSE 0 END) as inactive
         FROM categories

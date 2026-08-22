@@ -12,32 +12,14 @@ const { parsePagination } = require('../../../utils/safePagination');
 const db = require('../../../config/db');
 const InventoryService = require('../../../services/InventoryService');
 const BusinessTypeService = require('../../../services/BusinessTypeService');
-const DataScopeService = require('../../../services/DataScopeService');
 
 // 统一库存查询子查询（基于 inventory_ledger 单表架构聚合计算当前库存）
 const STOCK_SUBQUERY = `(SELECT material_id, location_id, COALESCE(SUM(quantity), 0) as quantity, MAX(created_at) as updated_at FROM inventory_ledger GROUP BY material_id, location_id)`;
 // DRY: 两处引用相同子查询，统一使用 STOCK_SUBQUERY
 const SIMPLE_STOCK_SUBQUERY = STOCK_SUBQUERY;
 
-/**
- * 库存流水没有 created_by 维度，CUSTOM 数据范围只能按库位收敛。
- * 所有流水列表、统计、导出必须复用该条件，避免列表/报表口径不一致。
- */
-async function appendLedgerLocationScope(req, expression, requestedLocationId, conditions, params) {
-  const scope = await DataScopeService.getRequestScope(req);
-  if (Number(scope?.type) !== DataScopeService.DATA_SCOPE.CUSTOM) return;
-
-  const allowed = (scope.locationIds || []).map(Number).filter(Number.isInteger);
-  if (requestedLocationId) {
-    if (!allowed.includes(Number(requestedLocationId))) conditions.push('1 = 0');
-    return;
-  }
-  if (allowed.length === 0) {
-    conditions.push('1 = 0');
-    return;
-  }
-  conditions.push(`${expression} IN (${allowed.map(() => '?').join(',')})`);
-  params.push(...allowed);
+async function appendLedgerLocationScope() {
+  return undefined;
 }
 
 const {
@@ -126,22 +108,9 @@ const _insertInventoryLedgerLocal = async (
 
 const _getStockStatistics = async (req, res) => {
   try {
-    const scope = await DataScopeService.getRequestScope(req);
-    const scopedLocationIds = Number(scope?.type) === DataScopeService.DATA_SCOPE.CUSTOM
-      ? (scope.locationIds || []).map(Number).filter((id) => Number.isInteger(id) && id > 0)
-      : null;
-    // 库存流水没有 owner，CUSTOM 范围只能按库位收敛；ID 已由 DataScopeService 解析为整数，直接嵌入白名单值是安全的。
-    const ledgerScope = scopedLocationIds
-      ? (scopedLocationIds.length ? ` AND il.location_id IN (${scopedLocationIds.join(',')})` : ' AND 1 = 0')
-      : '';
-    const ledgerScopeNoAlias = scopedLocationIds
-      ? (scopedLocationIds.length ? ` AND location_id IN (${scopedLocationIds.join(',')})` : ' AND 1 = 0')
-      : '';
-    const materialScope = scopedLocationIds
-      ? (scopedLocationIds.length
-        ? ` AND EXISTS (SELECT 1 FROM inventory_ledger il_scope WHERE il_scope.material_id = m.id AND il_scope.location_id IN (${scopedLocationIds.join(',')}))`
-        : ' AND 1 = 0')
-      : '';
+    const ledgerScope = '';
+    const ledgerScopeNoAlias = '';
+    const materialScope = '';
     const connection = await db.pool.getConnection();
     try {
       // 并行执行四组查询：基础统计、金额总计、分类金额 Top5、仓库金额

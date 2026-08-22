@@ -1,7 +1,7 @@
 <!--
 /**
- * Processing.vue - 外委加工列表
- * @description 外委加工管理页面
+ * Processing.vue - 委外加工列表
+ * @description 委外加工管理页面
  * @date 2026-04-18
  * @version 1.0.0
  */
@@ -11,7 +11,7 @@
     :config="pageConfig"
     :api-function="loadProcessing"
     :show-add="false"
-    list-title="外委加工列表"
+    list-title="委外加工列表"
     @item-click="handleItemClick"
   />
 </template>
@@ -25,7 +25,7 @@
   const router = useRouter()
 
   const pageConfig = computed(() => ({
-    title: '外委加工',
+    title: '委外加工',
     searchPlaceholder: '搜索加工单号或供应商',
     filterTabs: [
       { label: '全部', value: 'all' },

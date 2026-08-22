@@ -50,6 +50,23 @@ describe('bomService list filters', () => {
     expect(pool.query.mock.calls[0][0]).not.toContain('bm.status != 2');
   });
 
+  test('matches product keywords across code, name, specs, drawing number, and version', async () => {
+    pool.query
+      .mockResolvedValueOnce([[{ total: 0 }]])
+      .mockResolvedValueOnce([[]]);
+
+    await bomService.getAllBoms(1, 10, { keyword: 'M5' });
+
+    const expectedParams = ['%M5%', '%M5%', '%M5%', '%M5%', '%M5%'];
+    expect(pool.query.mock.calls[0][0]).toContain('m.code LIKE ?');
+    expect(pool.query.mock.calls[0][0]).toContain('m.name LIKE ?');
+    expect(pool.query.mock.calls[0][0]).toContain('m.specs LIKE ?');
+    expect(pool.query.mock.calls[0][0]).toContain('m.drawing_no LIKE ?');
+    expect(pool.query.mock.calls[0][0]).toContain('bm.version LIKE ?');
+    expect(pool.query.mock.calls[0][1]).toEqual(expectedParams);
+    expect(pool.query.mock.calls[1][1]).toEqual(expectedParams);
+  });
+
   test('returns lightweight BOM options without loading BOM details', async () => {
     pool.query.mockResolvedValueOnce([[
       {

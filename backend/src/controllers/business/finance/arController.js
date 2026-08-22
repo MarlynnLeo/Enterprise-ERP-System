@@ -74,7 +74,7 @@ const arController = {
       // HTTP query(camel) → 模型 filters(snake)
       const filters = fromInvoiceListQuery(req.query, 'ar');
 
-      // 行级 DataScope（SSOT：ScopeGuard；默认 all=共享财务中心）
+      // 统一对象访问入口（当前不按创建人/部门裁剪）
       filters.scopeClause = await ScopeGuard.applyListScope(req, 'ar_invoice', {
         tableAlias: 'a',
         ownerAlias: 'ar_invoice_owner_scope',

@@ -21,7 +21,6 @@ const { getTransferStatusText } = require('../../../constants/systemConstants');
 const { getRequestActorLabel } = require('../../../utils/userUtils');
 const { inventoryTransferMap } = require('../../../utils/inventory/inventoryFieldMap');
 const ScopeGuard = require('../../../authorization/ScopeGuard');
-const DataScopeService = require('../../../services/DataScopeService');
 
 const MAX_TRANSFER_ITEMS = 500;
 
@@ -55,12 +54,8 @@ function isValidTransferDate(value) {
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 }
 
-async function canAccessTransferLocations(req, fromLocationId, toLocationId) {
-  const [fromAllowed, toAllowed] = await Promise.all([
-    DataScopeService.canAccessLocation(req, fromLocationId),
-    DataScopeService.canAccessLocation(req, toLocationId),
-  ]);
-  return fromAllowed && toAllowed;
+async function canAccessTransferLocations() {
+  return true;
 }
 
 async function assertTransferReferences(connection, fromLocationId, toLocationId, items) {

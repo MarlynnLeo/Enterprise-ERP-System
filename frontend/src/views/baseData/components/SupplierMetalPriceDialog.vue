@@ -27,7 +27,7 @@
         <el-table-column label="起始价" min-width="140"><template #default="{ row }"><el-input-number v-model="row.metalPriceMin" :min="0" :step="form.bandStep || 1000" controls-position="right" class="w-full" @change="syncBandLabels" /></template></el-table-column>
         <el-table-column label="结束价" min-width="140"><template #default="{ row }"><el-input-number v-model="row.metalPriceMax" :min="0" :step="form.bandStep || 1000" controls-position="right" class="w-full" @change="syncBandLabels" /></template></el-table-column>
         <el-table-column label="区间标签" min-width="160"><template #default="{ row }"><el-input v-model="row.label" placeholder="自动生成" /></template></el-table-column>
-        <el-table-column label="操作" width="90" fixed="right"><template #default="{ $index }"><el-button link type="danger" @click="removeBand($index)">删除</el-button></template></el-table-column>
+        <el-table-column label="操作" width="90" fixed="right" class-name="operation-column" header-class-name="operation-column-header"><template #default="{ $index }"><el-button link type="danger" @click="removeBand($index)">删除</el-button></template></el-table-column>
       </el-table>
       <div class="section-header"><div class="section-title">物料区间单价</div><el-button size="small" type="primary" @click="addItem">新增物料</el-button></div>
       <el-table :data="form.items" border size="small" max-height="420">
@@ -39,7 +39,7 @@
         </el-table-column>
         <el-table-column label="差价/档" min-width="110"><template #default="{ row }"><el-input-number v-model="row.priceStep" :min="0" :precision="4" :step="0.01" controls-position="right" class="w-full" /></template></el-table-column>
         <el-table-column label="备注" min-width="140"><template #default="{ row }"><el-input v-model="row.remark" /></template></el-table-column>
-        <el-table-column label="操作" width="90" fixed="right"><template #default="{ $index }"><el-button link type="danger" @click="removeItem($index)">删除</el-button></template></el-table-column>
+        <el-table-column label="操作" width="90" fixed="right" class-name="operation-column" header-class-name="operation-column-header"><template #default="{ $index }"><el-button link type="danger" @click="removeItem($index)">删除</el-button></template></el-table-column>
       </el-table>
     </div>
     <template #footer>

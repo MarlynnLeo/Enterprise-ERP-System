@@ -61,7 +61,6 @@ function buildLimiter(config, redisClient, storePrefix, extra = {}) {
 // 限流器引用（延迟初始化）
 let _apiLimiter = null;
 let _authLimiter = null;
-let _mfaLimiter = null;
 
 /**
  * 初始化所有限流器（只执行一次）
@@ -125,23 +124,6 @@ async function initLimiters() {
     }
   );
 
-  _mfaLimiter = buildLimiter(
-    RATE_LIMIT_CONFIG.mfa,
-    redisClient,
-    'rl:mfa:',
-    {
-      skipSuccessfulRequests: RATE_LIMIT_CONFIG.mfa.skipSuccessfulRequests,
-      handler: (req, res, _next, options) => {
-        logger.warn(`MFA Rate Limit Exceeded: ${req.ip}`);
-        ResponseHandler.error(
-          res,
-          options.message?.message || '多因素认证尝试过于频繁，请稍后再试',
-          options.message?.code || 'MFA_RATE_LIMIT_EXCEEDED',
-          options.statusCode
-        );
-      },
-    }
-  );
 }
 
 // 启动时异步初始化
@@ -184,24 +166,8 @@ const authLimiter = (req, res, next) => {
     });
 };
 
-const mfaLimiter = (req, res, next) => {
-  if (_mfaLimiter) return _mfaLimiter(req, res, next);
-  storeReady
-    .then(() => _mfaLimiter(req, res, next))
-    .catch((error) => {
-      logger.error('MFA rate limiter initialization failed', error);
-      ResponseHandler.error(
-        res,
-        '多因素认证保护服务暂不可用，请稍后重试',
-        'MFA_RATE_LIMIT_SERVICE_UNAVAILABLE',
-        503
-      );
-    });
-};
-
 // 导出限流器
 module.exports = {
   apiLimiter,
   authLimiter,
-  mfaLimiter,
 };

@@ -50,7 +50,7 @@ const RECEIPT_STATUS_TRANSITIONS = {
 };
 
 /**
- * 获取外委加工单列表
+ * 获取委外加工单列表
  */
 const getProcessings = async (req, res) => {
   try {
@@ -116,15 +116,15 @@ const getProcessings = async (req, res) => {
     const [rows] = await db.pool.execute(query, params);
 
     // 返回前端期望的格式
-    return ResponseHandler.paginated(res, rows, total, pageInt, actualPageSize, '获取外委加工单列表成功');
+    return ResponseHandler.paginated(res, rows, total, pageInt, actualPageSize, '获取委外加工单列表成功');
   } catch (error) {
-    logger.error('获取外委加工单列表失败:', error);
-    ResponseHandler.error(res, '获取外委加工单列表失败', 'SERVER_ERROR', 500, error);
+    logger.error('获取委外加工单列表失败:', error);
+    ResponseHandler.error(res, '获取委外加工单列表失败', 'SERVER_ERROR', 500, error);
   }
 };
 
 /**
- * 获取单个外委加工单详情
+ * 获取单个委外加工单详情
  */
 const getProcessing = async (req, res) => {
   try {
@@ -137,7 +137,7 @@ const getProcessing = async (req, res) => {
     );
 
     if (processing.length === 0) {
-      return ResponseHandler.error(res, '外委加工单不存在', 'NOT_FOUND', 404);
+      return ResponseHandler.error(res, '委外加工单不存在', 'NOT_FOUND', 404);
     }
 
     // 获取发料信息
@@ -158,13 +158,13 @@ const getProcessing = async (req, res) => {
       products,
     });
   } catch (error) {
-    logger.error('获取外委加工单详情失败:', error);
-    ResponseHandler.error(res, '获取外委加工单详情失败', 'SERVER_ERROR', 500, error);
+    logger.error('获取委外加工单详情失败:', error);
+    ResponseHandler.error(res, '获取委外加工单详情失败', 'SERVER_ERROR', 500, error);
   }
 };
 
 /**
- * 创建外委加工单
+ * 创建委外加工单
  */
 const createProcessing = async (req, res) => {
   const connection = await db.pool.getConnection();
@@ -183,7 +183,7 @@ const createProcessing = async (req, res) => {
       products,
     } = mapKeysToSnake(req.body || {});
 
-    // 处理外委加工单数据
+    // 处理委外加工单数据
 
     // 生成加工单号
     const processing_no = await purchaseModel.generateProcessingNo();
@@ -270,20 +270,20 @@ const createProcessing = async (req, res) => {
     ResponseHandler.success(
       res,
       { id: processing_id, processing_no },
-      '外委加工单创建成功',
+      '委外加工单创建成功',
       201
     );
   } catch (error) {
     await connection.rollback();
-    logger.error('创建外委加工单失败:', error);
-    ResponseHandler.error(res, '创建外委加工单失败', 'SERVER_ERROR', 500, error);
+    logger.error('创建委外加工单失败:', error);
+    ResponseHandler.error(res, '创建委外加工单失败', 'SERVER_ERROR', 500, error);
   } finally {
     connection.release();
   }
 };
 
 /**
- * 更新外委加工单
+ * 更新委外加工单
  */
 const updateProcessing = async (req, res) => {
   const connection = await db.pool.getConnection();
@@ -305,7 +305,7 @@ const updateProcessing = async (req, res) => {
       products,
     } = mapKeysToSnake(req.body || {});
 
-    // 更新外委加工单数据
+    // 更新委外加工单数据
 
     // 检查加工单是否存在且状态为待确认
     const [existingProcessing] = await connection.execute(
@@ -315,7 +315,7 @@ const updateProcessing = async (req, res) => {
 
     if (existingProcessing.length === 0) {
       await connection.rollback();
-      return ResponseHandler.error(res, '外委加工单不存在', 'NOT_FOUND', 404);
+      return ResponseHandler.error(res, '委外加工单不存在', 'NOT_FOUND', 404);
     }
 
     if (existingProcessing[0].status !== 'pending') {
@@ -413,18 +413,18 @@ const updateProcessing = async (req, res) => {
 
     await connection.commit();
 
-    ResponseHandler.success(res, null, '外委加工单更新成功');
+    ResponseHandler.success(res, null, '委外加工单更新成功');
   } catch (error) {
     await connection.rollback();
-    logger.error('更新外委加工单失败:', error);
-    ResponseHandler.error(res, '更新外委加工单失败', 'SERVER_ERROR', 500, error);
+    logger.error('更新委外加工单失败:', error);
+    ResponseHandler.error(res, '更新委外加工单失败', 'SERVER_ERROR', 500, error);
   } finally {
     connection.release();
   }
 };
 
 /**
- * 删除外委加工单
+ * 删除委外加工单
  */
 const deleteProcessing = async (req, res) => {
   const connection = await db.pool.getConnection();
@@ -441,7 +441,7 @@ const deleteProcessing = async (req, res) => {
 
     if (existingProcessing.length === 0) {
       await connection.rollback();
-      return ResponseHandler.error(res, '外委加工单不存在', 'NOT_FOUND', 404);
+      return ResponseHandler.error(res, '委外加工单不存在', 'NOT_FOUND', 404);
     }
 
     if (existingProcessing[0].status !== 'pending') {
@@ -464,18 +464,18 @@ const deleteProcessing = async (req, res) => {
 
     await connection.commit();
 
-    ResponseHandler.success(res, null, '外委加工单删除成功');
+    ResponseHandler.success(res, null, '委外加工单删除成功');
   } catch (error) {
     await connection.rollback();
-    logger.error('删除外委加工单失败:', error);
-    ResponseHandler.error(res, '删除外委加工单失败', 'SERVER_ERROR', 500, error);
+    logger.error('删除委外加工单失败:', error);
+    ResponseHandler.error(res, '删除委外加工单失败', 'SERVER_ERROR', 500, error);
   } finally {
     connection.release();
   }
 };
 
 /**
- * 更新外委加工单状态
+ * 更新委外加工单状态
  */
 const updateProcessingStatus = async (req, res) => {
   const connection = await db.pool.getConnection();
@@ -501,20 +501,20 @@ const updateProcessingStatus = async (req, res) => {
 
     if (existingProcessing.length === 0) {
       await connection.rollback();
-      return ResponseHandler.error(res, '外委加工单不存在', 'NOT_FOUND', 404);
+      return ResponseHandler.error(res, '委外加工单不存在', 'NOT_FOUND', 404);
     }
 
     const currentStatus = existingProcessing[0].status;
     if (currentStatus === status) {
       await connection.rollback();
-      return ResponseHandler.success(res, null, '外委加工单状态未变化');
+      return ResponseHandler.success(res, null, '委外加工单状态未变化');
     }
 
     if (!PROCESSING_STATUS_TRANSITIONS[currentStatus]?.has(status)) {
       await connection.rollback();
       return ResponseHandler.error(
         res,
-        `外委加工单不能从 ${currentStatus} 变更为 ${status}`,
+        `委外加工单不能从 ${currentStatus} 变更为 ${status}`,
         'VALIDATION_ERROR',
         400
       );
@@ -560,7 +560,7 @@ const updateProcessingStatus = async (req, res) => {
               referenceNo: existingProcessing[0].processing_no,
               referenceType: 'outsourced_processing_material',
               operator: getRequestActorLabel(req),
-              remark: `外委加工发料 ${existingProcessing[0].processing_no}`,
+              remark: `委外加工发料 ${existingProcessing[0].processing_no}`,
               unitId: material.unit_id,
               // 不传 batchNumber → FIFO 拆批；幂等键按物料行防重
               idempotencyKey: `outsourced_outbound:${existingProcessing[0].processing_no}:${material.material_id}:${usedWarehouseId}:${material.id}`,
@@ -645,7 +645,7 @@ const updateProcessingStatus = async (req, res) => {
                 referenceNo: processingNo,
                 referenceType: 'outsourced_processing_cancel',
                 operator: getRequestActorLabel(req),
-                remark: `外委加工取消退料 ${processingNo}，来源台账 ${ledger.id}`,
+                remark: `委外加工取消退料 ${processingNo}，来源台账 ${ledger.id}`,
                 unitId: ledger.unit_id,
                 batchNumber: reverseBatch,
                 unitCost: reverseUnitCost,
@@ -663,7 +663,7 @@ const updateProcessingStatus = async (req, res) => {
         }
 
         logger.info(
-          `外委加工单 ${processingNo} 取消，已按 ${issueLedgers.length} 条发料台账回退库存`
+          `委外加工单 ${processingNo} 取消，已按 ${issueLedgers.length} 条发料台账回退库存`
         );
         warnings.push(
           `已回退 ${issueLedgers.length} 条发料台账的库存，请检查关联的外委发料会计分录是否需要手动冲销`
@@ -674,18 +674,18 @@ const updateProcessingStatus = async (req, res) => {
     await connection.commit();
 
     const responseData = warnings && warnings.length > 0 ? { warnings } : null;
-    ResponseHandler.success(res, responseData, '外委加工单状态更新成功');
+    ResponseHandler.success(res, responseData, '委外加工单状态更新成功');
   } catch (error) {
     await connection.rollback();
-    logger.error('更新外委加工单状态失败:', error);
-    ResponseHandler.error(res, '更新外委加工单状态失败', 'SERVER_ERROR', 500, error);
+    logger.error('更新委外加工单状态失败:', error);
+    ResponseHandler.error(res, '更新委外加工单状态失败', 'SERVER_ERROR', 500, error);
   } finally {
     connection.release();
   }
 };
 
 /**
- * 获取外委加工入库单列表
+ * 获取委外入库单列表
  */
 const getReceipts = async (req, res) => {
   try {
@@ -757,15 +757,15 @@ const getReceipts = async (req, res) => {
     const [rows] = await db.pool.execute(query, params);
 
     // 返回前端期望的格式
-    return ResponseHandler.paginated(res, rows, total, pageInt, actualPageSize, '获取外委加工入库单列表成功');
+    return ResponseHandler.paginated(res, rows, total, pageInt, actualPageSize, '获取委外入库单列表成功');
   } catch (error) {
-    logger.error('获取外委加工入库单列表失败:', error);
-    ResponseHandler.error(res, '获取外委加工入库单列表失败', 'SERVER_ERROR', 500, error);
+    logger.error('获取委外入库单列表失败:', error);
+    ResponseHandler.error(res, '获取委外入库单列表失败', 'SERVER_ERROR', 500, error);
   }
 };
 
 /**
- * 获取单个外委加工入库单详情
+ * 获取单个委外入库单详情
  */
 const getReceipt = async (req, res) => {
   try {
@@ -778,7 +778,7 @@ const getReceipt = async (req, res) => {
     );
 
     if (receipt.length === 0) {
-      return ResponseHandler.error(res, '外委加工入库单不存在', 'NOT_FOUND', 404);
+      return ResponseHandler.error(res, '委外入库单不存在', 'NOT_FOUND', 404);
     }
 
     // 获取入库明细
@@ -792,13 +792,13 @@ const getReceipt = async (req, res) => {
       items,
     });
   } catch (error) {
-    logger.error('获取外委加工入库单详情失败:', error);
-    ResponseHandler.error(res, '获取外委加工入库单详情失败', 'SERVER_ERROR', 500, error);
+    logger.error('获取委外入库单详情失败:', error);
+    ResponseHandler.error(res, '获取委外入库单详情失败', 'SERVER_ERROR', 500, error);
   }
 };
 
 /**
- * 创建外委加工入库单
+ * 创建委外入库单
  */
 const createReceipt = async (req, res) => {
   const connection = await db.pool.getConnection();
@@ -817,7 +817,7 @@ const createReceipt = async (req, res) => {
       items,
     } = mapKeysToSnake(req.body || {});
 
-    // 处理外委加工入库单数据
+    // 处理委外入库单数据
 
     // 验证仓库是否存在
     const [existingWarehouse] = await connection.execute(
@@ -906,11 +906,11 @@ const createReceipt = async (req, res) => {
       ResponseHandler.success(
         res,
         { id: receipt_id, receipt_no },
-        '外委加工入库单创建成功',
+        '委外入库单创建成功',
         201
       );
     } catch (error) {
-      logger.error('创建外委加工入库单错误:', error.code, error.message);
+      logger.error('创建委外入库单错误:', error.code, error.message);
 
       // 检查是否是外键约束错误
       if (error.code === 'ER_NO_REFERENCED_ROW_2' || error.code === 'ER_NO_REFERENCED_ROW') {
@@ -923,10 +923,10 @@ const createReceipt = async (req, res) => {
     }
   } catch (error) {
     await connection.rollback();
-    logger.error('创建外委加工入库单失败:', error);
+    logger.error('创建委外入库单失败:', error);
 
     // 提供更友好的错误信息
-    let errorMessage = '创建外委加工入库单失败';
+    let errorMessage = '创建委外入库单失败';
 
     if (error.code === 'ER_NO_REFERENCED_ROW_2') {
       if (error.sqlMessage.includes('location_id')) {
@@ -945,7 +945,7 @@ const createReceipt = async (req, res) => {
 };
 
 /**
- * 更新外委加工入库单
+ * 更新委外入库单
  */
 const updateReceipt = async (req, res) => {
   const connection = await db.pool.getConnection();
@@ -963,7 +963,7 @@ const updateReceipt = async (req, res) => {
 
     if (existingReceipt.length === 0) {
       await connection.rollback();
-      return ResponseHandler.error(res, '外委加工入库单不存在', 'NOT_FOUND', 404);
+      return ResponseHandler.error(res, '委外入库单不存在', 'NOT_FOUND', 404);
     }
 
     if (existingReceipt[0].status !== 'pending') {
@@ -1018,18 +1018,18 @@ const updateReceipt = async (req, res) => {
 
     await connection.commit();
 
-    ResponseHandler.success(res, null, '外委加工入库单更新成功');
+    ResponseHandler.success(res, null, '委外入库单更新成功');
   } catch (error) {
     await connection.rollback();
-    logger.error('更新外委加工入库单失败:', error);
-    ResponseHandler.error(res, '更新外委加工入库单失败', 'SERVER_ERROR', 500, error);
+    logger.error('更新委外入库单失败:', error);
+    ResponseHandler.error(res, '更新委外入库单失败', 'SERVER_ERROR', 500, error);
   } finally {
     connection.release();
   }
 };
 
 /**
- * 更新外委加工入库单状态
+ * 更新委外入库单状态
  */
 const updateReceiptStatus = async (req, res) => {
   const connection = await db.pool.getConnection();
@@ -1052,20 +1052,20 @@ const updateReceiptStatus = async (req, res) => {
 
     if (existingReceipt.length === 0) {
       await connection.rollback();
-      return ResponseHandler.error(res, '外委加工入库单不存在', 'NOT_FOUND', 404);
+      return ResponseHandler.error(res, '委外入库单不存在', 'NOT_FOUND', 404);
     }
 
     const currentStatus = existingReceipt[0].status;
     if (currentStatus === status) {
       await connection.rollback();
-      return ResponseHandler.success(res, null, '外委加工入库单状态未变化');
+      return ResponseHandler.success(res, null, '委外入库单状态未变化');
     }
 
     if (!RECEIPT_STATUS_TRANSITIONS[currentStatus]?.has(status)) {
       await connection.rollback();
       return ResponseHandler.error(
         res,
-        `外委加工入库单不能从 ${currentStatus} 变更为 ${status}`,
+        `委外入库单不能从 ${currentStatus} 变更为 ${status}`,
         'VALIDATION_ERROR',
         400
       );
@@ -1086,7 +1086,7 @@ const updateReceiptStatus = async (req, res) => {
       );
 
       if (items.length === 0) {
-        throw new Error('外委加工入库单没有明细，不能确认入库');
+        throw new Error('委外入库单没有明细，不能确认入库');
       }
 
       // 更新库存
@@ -1105,7 +1105,7 @@ const updateReceiptStatus = async (req, res) => {
           const inboundUnitCost = parseFloat(item.unit_price);
           if (!(inboundUnitCost > 0)) {
             throw new Error(
-              `外委入库缺少有效成本单价: receipt_no=${receiptNo}, item_id=${item.id}`
+              `委外入库缺少有效成本单价: receipt_no=${receiptNo}, item_id=${item.id}`
             );
           }
           await InventoryService.updateStock(
@@ -1117,7 +1117,7 @@ const updateReceiptStatus = async (req, res) => {
               referenceNo: receiptNo,
               referenceType: 'outsourced_processing_receipt',
               operator: existingReceipt[0].operator || getRequestActorLabel(req),
-              remark: `外委加工入库 ${receiptNo}`,
+              remark: `委外入库 ${receiptNo}`,
               unitId: item.unit_id,
               batchNumber: inboundBatch,
               unitCost: inboundUnitCost,
@@ -1139,9 +1139,9 @@ const updateReceiptStatus = async (req, res) => {
         connection
       );
       if (!glResult.success) {
-        throw new Error(glResult.message || glResult.error || '外委入库分录生成失败');
+        throw new Error(glResult.message || glResult.error || '委外入库分录生成失败');
       }
-      logger.info(`外委入库分录生成成功: ${existingReceipt[0].receipt_no}`);
+      logger.info(`委外入库分录生成成功: ${existingReceipt[0].receipt_no}`);
 
       // 检查加工单是否所有入库单都已确认，满足条件时才标记加工单为完成
       if (existingReceipt[0].processing_id) {
@@ -1157,18 +1157,18 @@ const updateReceiptStatus = async (req, res) => {
              WHERE id = ? AND status = ?`,
             [STATUS.PROCESSING.COMPLETED, existingReceipt[0].processing_id, STATUS.PROCESSING.CONFIRMED]
           );
-          logger.info(`外委加工单 ${existingReceipt[0].processing_id} 所有入库单已确认，自动标记为完成`);
+          logger.info(`委外加工单 ${existingReceipt[0].processing_id} 所有入库单已确认，自动标记为完成`);
         }
       }
     }
 
     await connection.commit();
 
-    ResponseHandler.success(res, null, '外委加工入库单状态更新成功');
+    ResponseHandler.success(res, null, '委外入库单状态更新成功');
   } catch (error) {
     await connection.rollback();
-    logger.error('更新外委加工入库单状态失败:', error);
-    ResponseHandler.error(res, '更新外委加工入库单状态失败', 'SERVER_ERROR', 500, error);
+    logger.error('更新委外入库单状态失败:', error);
+    ResponseHandler.error(res, '更新委外入库单状态失败', 'SERVER_ERROR', 500, error);
   } finally {
     connection.release();
   }

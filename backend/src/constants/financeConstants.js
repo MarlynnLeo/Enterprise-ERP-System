@@ -272,15 +272,8 @@ const ERROR_MESSAGES = {
   ENTRY_ALREADY_REVERSED: '分录已冲销',
 };
 
-/**
- * 财务行级 DataScope 产品策略（与 ScopeGuard + resourcePolicies.financeShared 联动）
- * - all（默认）：共享财务中心 — finance 资源 list/assert 按 ALL（仍强制 stampOwner）
- * - role | owner：与业务单据一致，按角色 data_scope（ALL/DEPT/SELF）行级隔离
- * 环境变量：FINANCE_DATA_SCOPE_POLICY=all|role|owner
- */
-const FINANCE_DATA_SCOPE_POLICY = (
-  process.env.FINANCE_DATA_SCOPE_POLICY || 'all'
-).toLowerCase();
+// 兼容旧配置读取；行级数据范围已停用，环境变量不能重新启用 owner/role 隔离。
+const FINANCE_DATA_SCOPE_POLICY = 'all';
 
 // ==================== 导出 ====================
 module.exports = {

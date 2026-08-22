@@ -442,39 +442,18 @@ module.exports = {
 
   async canAccessInstance(instanceId, userId) {
       if (!userId) return false;
-  
-      const permissions = await PermissionService.getUserPermissions(userId);
-      if (
-        permissions.includes('*') ||
-        permissions.includes('system:workflow:*') ||
-        permissions.includes('system:workflow:view')
-      ) {
-        return true;
-      }
-  
+
+      // 路由已校验 workflow 功能权限；实例详情不再按发起人或审批人裁剪。
+      // “我发起的/我待审批的”仍是显式个人视图，审批与撤回动作仍按流程职责校验。
       const [[row]] = await pool.query(
         `SELECT 1 AS allowed
          FROM workflow_instances wi
          WHERE wi.id = ?
            AND wi.deleted_at IS NULL
-           AND (
-             wi.initiator_id = ?
-              OR EXISTS (
-                SELECT 1
-                FROM workflow_instance_nodes win
-                WHERE win.instance_id = wi.id AND win.approver_id = ?
-              )
-              OR EXISTS (
-                SELECT 1
-                FROM workflow_instance_nodes win
-                JOIN workflow_node_approvers wna ON wna.instance_node_id = win.id
-                WHERE win.instance_id = wi.id AND wna.approver_id = ?
-              )
-           )
          LIMIT 1`,
-        [instanceId, userId, userId, userId]
+        [instanceId]
       );
-  
+
       return Boolean(row);
     },
 

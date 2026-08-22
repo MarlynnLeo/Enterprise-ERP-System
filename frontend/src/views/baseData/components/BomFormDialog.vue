@@ -49,7 +49,7 @@
               />
               <div class="text-sm text-warning mt-4">
                 <el-icon class="icon-inline"><InfoFilled /></el-icon>
-                保存时版本号将自动升级（旧版本会被保留）
+                保存时版本号将自动升级
               </div>
             </template>
             <template v-else>
@@ -99,7 +99,7 @@
       <div class="bom-details">
         <div class="mb-xs flex-between align-center">
           <el-text type="info" size="small">
-            提示：点击表格行中的"子件"按钮可为该物料添加下级明细
+            提示：勾选明细后，可使用下方的“删除”或“子件”按钮
           </el-text>
         </div>
         <!-- BOM明细表格（树形表格显示层级关系） -->
@@ -110,8 +110,10 @@
           row-key="id"
           :tree-props="{ children: 'children', hasChildren: 'hasChildren' }"
           default-expand-all
+          @selection-change="handleDetailSelectionChange"
         >
-          <el-table-column label="结构" prop="wbs" width="90"></el-table-column>
+          <el-table-column type="selection" width="48" align="center" />
+          <el-table-column label="结构" prop="wbs" width="64"></el-table-column>
           <el-table-column label="物料编码" min-width="140">
             <template #default="scope">
               <div>
@@ -142,22 +144,22 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="物料名称" min-width="160" show-overflow-tooltip>
+          <el-table-column label="物料名称" min-width="140" show-overflow-tooltip>
             <template #default="scope">
               <div>{{ scope.row.materialName || '-' }}</div>
             </template>
           </el-table-column>
-          <el-table-column label="规格型号" min-width="180" show-overflow-tooltip>
+          <el-table-column label="规格型号" min-width="160" show-overflow-tooltip>
             <template #default="scope">
               <div>{{ scope.row.materialSpecs || '-' }}</div>
             </template>
           </el-table-column>
-          <el-table-column label="用量" width="120">
+          <el-table-column label="用量" width="80">
             <template #default="scope">
               <el-input-number
                 v-model="scope.row.quantity"
-                :min="0.001"
-                :precision="3"
+                :min="0.01"
+                :precision="2"
                 :step="1"
                 :controls="false"
                 placeholder="用量"
@@ -165,7 +167,7 @@
               />
             </template>
           </el-table-column>
-          <el-table-column label="单位" width="70">
+          <el-table-column label="单位" width="55">
             <template #default="scope">
               <span>{{ scope.row.unitName || '-' }}</span>
             </template>
@@ -175,37 +177,29 @@
               <el-input  v-model="scope.row.remark" placeholder="备注" clearable ></el-input>
             </template>
           </el-table-column>
-          <el-table-column label="操作" min-width="180" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
-            <template #default="scope">
-              <el-button
-                size="small"
-                type="success"
-                @click.stop="addSubDetailForRow(scope.row)"
-                title="为此物料添加下级明细"
-              >
-                <el-icon><Plus /></el-icon> 子件
-              </el-button>
-              <el-button
-                size="small"
-                type="danger"
-                @click.stop="removeDetailByRow(scope.row)"
-              >
-                <el-icon><Delete /></el-icon> 删除
-              </el-button>
-            </template>
-          </el-table-column>
         </el-table>
 
-        <!-- 表格下方：添加一级明细操作按钮 -->
-        <div class="bom-details-bottom-action">
-          <el-button type="primary" plain class="bom-add-button" @click="addDetail">
-            <el-icon><Plus /></el-icon> 添加一级明细
-          </el-button>
-        </div>
       </div>
     </el-form>
     <template #footer>
       <span class="dialog-footer">
+        <el-button type="primary" plain @click="addDetail">
+          <el-icon><Plus /></el-icon> 添加
+        </el-button>
+        <el-button
+          type="danger"
+          :disabled="selectedDetailRows.length === 0"
+          @click="removeSelectedDetails"
+        >
+          <el-icon><Delete /></el-icon> 删除
+        </el-button>
+        <el-button
+          type="success"
+          :disabled="selectedDetailRows.length !== 1"
+          @click="addSubDetailForRow(selectedDetailRows[0])"
+        >
+          <el-icon><Plus /></el-icon> 子件
+        </el-button>
         <el-button @click="handleClose">取消</el-button>
         <el-button type="primary" @click="submitForm" :loading="submitting">确定</el-button>
       </span>
@@ -234,6 +228,7 @@ const formRef = ref(null)
 const bomTableRef = ref(null)
 const submitting = ref(false)
 const isEditMode = computed(() => !!props.editData)
+const selectedDetailRows = ref([])
 const loadingProducts = ref(false)
 const productOptions = ref([])
 const fileList = ref([])
@@ -275,6 +270,10 @@ const handleClose = () => {
   emit('update:modelValue', false)
   resetForm()
 }
+const clearDetailSelection = () => {
+  selectedDetailRows.value = []
+  nextTick(() => bomTableRef.value?.clearSelection?.())
+}
 const resetForm = () => {
   if (formRef.value) formRef.value.resetFields()
   form.id = ''
@@ -284,6 +283,7 @@ const resetForm = () => {
   form.details = []
   form.attachment = null
   fileList.value = []
+  clearDetailSelection()
 }
 const initForm = (data) => {
   form.id = data.id || ''
@@ -305,13 +305,15 @@ const initForm = (data) => {
   if (data.details && Array.isArray(data.details)) {
     form.details = data.details.map(d => ({
       ...d,
-      material_code: d.materialCode || '',
-      material_name: d.materialName || '',
-      material_specs: d.material_specs || '',
-      unit_name: d.unitName || '',
+      materialId: d.materialId ?? d.material_id ?? null,
+      materialCode: d.materialCode ?? d.material_code ?? '',
+      materialName: d.materialName ?? d.material_name ?? '',
+      materialSpecs: d.materialSpecs ?? d.material_specs ?? d.specs ?? d.specification ?? '',
+      unitId: d.unitId ?? d.unit_id ?? null,
+      unitName: d.unitName ?? d.unit_name ?? '',
       quantity: d.quantity || 1,
       remark: d.remark || '',
-      parent_id: d.parentId || 0,
+      parentId: d.parentId ?? d.parent_id ?? 0,
       level: d.level || 1,
       children: [],
       materialOptions: []
@@ -319,6 +321,7 @@ const initForm = (data) => {
   } else {
     form.details = []
   }
+  clearDetailSelection()
   if (data.productId) {
     productOptions.value = [{
       id: data.productId,
@@ -468,17 +471,19 @@ const uploadFile = async (fileObj) => {
   }
 }
 // BOM明细相关逻辑
+const getParentId = (item) => item?.parentId ?? item?.parent_id ?? 0
 const bomDetailsTree = computed(() => {
   if (!form.details || form.details.length === 0) return []
   const itemMap = new Map()
   const tree = []
   form.details.forEach(item => {
     item.children = []
-    itemMap.set(item.id, item)
+    itemMap.set(String(item.id), item)
   })
   form.details.forEach(item => {
-    if (item.parentId && item.parentId !== 0 && item.parentId !== '0') {
-      const parent = itemMap.get(item.parentId)
+    const parentId = getParentId(item)
+    if (parentId && parentId !== 0 && parentId !== '0') {
+      const parent = itemMap.get(String(parentId))
       if (parent) {
         parent.children.push(item)
       } else {
@@ -504,13 +509,14 @@ const addDetail = () => {
   const newId = `temp_${globalThis.crypto?.randomUUID?.() || `${Date.now()}_${performance.now()}`}`
   form.details.push({
     id: newId,
+    parentId: 0,
     parent_id: 0,
     level: 1,
-    material_code: '',
-    material_name: '',
-    material_specs: '',
-    unit_id: null,
-    unit_name: '',
+    materialCode: '',
+    materialName: '',
+    materialSpecs: '',
+    unitId: null,
+    unitName: '',
     quantity: 1,
     remark: '',
     children: [], // 用于树形展示
@@ -525,38 +531,49 @@ const addDetail = () => {
       }
     }
   })
+  clearDetailSelection()
 }
 const addSubDetailForRow = (row) => {
+  if (!row) return
   const newId = `temp_${globalThis.crypto?.randomUUID?.() || `${Date.now()}_${performance.now()}`}`
   form.details.push({
     id: newId,
+    parentId: row.id,
     parent_id: row.id,
     level: (row.level || 1) + 1,
-    material_code: '',
-    material_name: '',
-    material_specs: '',
-    unit_id: null,
-    unit_name: '',
+    materialCode: '',
+    materialName: '',
+    materialSpecs: '',
+    unitId: null,
+    unitName: '',
     quantity: 1,
     remark: '',
     children: [],
     materialOptions: []
   })
+  clearDetailSelection()
 }
-const removeDetailByRow = (row) => {
-  const idsToRemove = [row.id]
-  const findChildrenIds = (parentId) => {
-    const children = form.details.filter(d => d.parentId === parentId)
-    children.forEach(c => {
-      idsToRemove.push(c.id)
-      findChildrenIds(c.id)
+const handleDetailSelectionChange = (selection) => {
+  selectedDetailRows.value = selection
+}
+const removeSelectedDetails = () => {
+  if (selectedDetailRows.value.length === 0) return
+
+  const idsToRemove = new Set(selectedDetailRows.value.map(row => String(row.id)))
+  let changed = true
+  while (changed) {
+    changed = false
+    form.details.forEach(detail => {
+      if (idsToRemove.has(String(getParentId(detail))) && !idsToRemove.has(String(detail.id))) {
+        idsToRemove.add(String(detail.id))
+        changed = true
+      }
     })
   }
 
-  findChildrenIds(row.id)
-
-  const newDetails = form.details.filter(d => !idsToRemove.includes(d.id))
+  const newDetails = form.details.filter(d => !idsToRemove.has(String(d.id)))
   form.details.splice(0, form.details.length, ...newDetails)
+  clearDetailSelection()
 }
 const searchMaterialsForRow = async (query, row) => {
   if (query) {
@@ -688,7 +705,7 @@ const submitForm = async () => {
           attachment: attachmentPath,
           details: form.details.map((d) => ({
             id: d.id,
-            parent_id: d.parentId ?? 0,
+            parent_id: d.parentId ?? d.parent_id ?? 0,
             level: d.level || 1,
             material_id: Number(d.materialId),
             material_code: d.materialCode,
@@ -747,14 +764,4 @@ const submitForm = async () => {
   width: 100%;
 }
 
-.bom-details-bottom-action {
-  margin-top: 12px;
-}
-
-.bom-add-button {
-  width: 100%;
-  border-style: dashed;
-  height: 38px;
-  font-size: 14px;
-}
 </style>

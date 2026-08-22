@@ -1,26 +1,11 @@
 const db = require('../../../config/db');
 const { logger } = require('../../../utils/logger');
 const { ResponseHandler } = require('../../../utils/responseHandler');
-const DataScopeService = require('../../../services/DataScopeService');
-
-function buildLocationFilter(scope, alias) {
-  if (Number(scope?.type) !== DataScopeService.DATA_SCOPE.CUSTOM) {
-    return { sql: '', params: [] };
-  }
-  const locationIds = (scope.locationIds || []).map(Number).filter((id) => Number.isInteger(id) && id > 0);
-  if (locationIds.length === 0) return { sql: ' AND 1 = 0', params: [] };
-  return {
-    sql: ` AND ${alias}.location_id IN (${locationIds.map(() => '?').join(',')})`,
-    params: locationIds,
-  };
-}
 
 const getDashboardSummary = async (req, res) => {
   try {
-    const scope = await DataScopeService.getRequestScope(req);
-    const ledgerFilter = buildLocationFilter(scope, 'il');
-    const stockLedgerFilter = buildLocationFilter(scope, 'il');
-    const categoryLedgerFilter = buildLocationFilter(scope, 'il_scope');
+    const ledgerFilter = { sql: '', params: [] };
+    const stockLedgerFilter = { sql: '', params: [] };
 
     // 1. 获取基础统计数据(总库存和价值)
     const stockQuery = `
@@ -62,16 +47,10 @@ const getDashboardSummary = async (req, res) => {
         COUNT(m.id) as item_count
       FROM materials m
       LEFT JOIN categories c ON m.category_id = c.id
-      ${Number(scope?.type) === DataScopeService.DATA_SCOPE.CUSTOM
-        ? `WHERE EXISTS (SELECT 1 FROM inventory_ledger il_scope WHERE il_scope.material_id = m.id${categoryLedgerFilter.sql})`
-        : ''}
       GROUP BY category_name
       ORDER BY item_count DESC
     `;
-    const [categoryRes] = await db.pool.execute(
-      categoryQuery,
-      Number(scope?.type) === DataScopeService.DATA_SCOPE.CUSTOM ? categoryLedgerFilter.params : []
-    );
+    const [categoryRes] = await db.pool.execute(categoryQuery);
 
     // 4. 最近12个月的出入库趋势
     const trendQuery = `

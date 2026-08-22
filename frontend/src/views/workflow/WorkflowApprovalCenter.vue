@@ -34,10 +34,10 @@
             <div class="table-actions">
               
               <template v-if="activeTab === 'pending'">
-                <el-button type="success" size="small" @click="openApproval(row, 'approve')">
+                <el-button type="success" size="small" v-permission="'system:workflow:use'" @click="openApproval(row, 'approve')">
                   <el-icon><Check /></el-icon> 通过
                 </el-button>
-                <el-button type="danger" size="small" @click="openApproval(row, 'reject')">
+                <el-button type="danger" size="small" v-permission="'system:workflow:use'" @click="openApproval(row, 'reject')">
                   <el-icon><Close /></el-icon> 拒绝
                 </el-button>
               </template>

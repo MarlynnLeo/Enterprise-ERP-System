@@ -1,21 +1,12 @@
 /**
  * DataScopeService.test.js
- * @description 数据范围服务单测：SELF 拒绝无 owner、部门范围、assertRecordAccess 失败关闭
+ * @description 行级数据范围：SELF/部门/CUSTOM 过滤 + 缓存 + 失败关闭。
  */
 
 jest.mock('../../src/config/db', () => ({
   pool: {
     execute: jest.fn(),
     query: jest.fn(),
-  },
-}));
-
-jest.mock('../../src/utils/logger', () => ({
-  logger: {
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-    debug: jest.fn(),
   },
 }));
 
@@ -28,85 +19,169 @@ describe('DataScopeService', () => {
     DataScopeService.clearDataScopeCache();
   });
 
-  describe('buildOwnerScopeClause', () => {
-    test('null scope 失败关闭', () => {
+  describe('范围构建', () => {
+    test('无 scope 失败关闭', () => {
+      expect(DataScopeService.isAllScope(null)).toBe(false);
       const clause = DataScopeService.buildOwnerScopeClause(null, { tableAlias: 'so' });
-      expect(clause.where).toContain('1 = 0');
+      expect(clause).toEqual({ join: '', where: ' AND 1 = 0', params: [] });
     });
 
-    test('ALL 范围不追加条件', () => {
+    test('ALL 不追加条件', () => {
       const clause = DataScopeService.buildOwnerScopeClause(
-        { type: DataScopeService.DATA_SCOPE.ALL, userId: 1 },
-        { tableAlias: 'so' }
+        {
+          type: DataScopeService.DATA_SCOPE.ALL,
+          userId: 9,
+          departmentIds: [],
+          locationIds: [],
+        },
+        { tableAlias: 'so', ownerColumn: 'created_by' }
       );
-      expect(clause.where).toBe('');
-      expect(clause.join).toBe('');
-      expect(clause.params).toEqual([]);
+      expect(clause).toEqual({ join: '', where: '', params: [] });
     });
 
-    test('SELF 范围按 created_by 过滤', () => {
+    test('SELF 仅本人', () => {
       const clause = DataScopeService.buildOwnerScopeClause(
-        { type: DataScopeService.DATA_SCOPE.SELF, userId: 9 },
+        {
+          type: DataScopeService.DATA_SCOPE.SELF,
+          userId: 9,
+          departmentIds: [],
+          locationIds: [],
+        },
         { tableAlias: 'so', ownerColumn: 'created_by' }
       );
       expect(clause.where).toContain('created_by');
       expect(clause.params).toEqual([9]);
     });
 
-    test('部门范围 JOIN users 并 IN 部门', () => {
+    test('部门范围 join users', () => {
       const clause = DataScopeService.buildOwnerScopeClause(
         {
           type: DataScopeService.DATA_SCOPE.DEPARTMENT,
-          userId: 3,
+          userId: 9,
           departmentIds: [10, 11],
+          locationIds: [],
         },
-        { tableAlias: 'o', ownerAlias: 'owner_scope' }
+        { tableAlias: 'so', ownerColumn: 'created_by', ownerAlias: 'so_owner' }
       );
       expect(clause.join).toContain('LEFT JOIN users');
       expect(clause.where).toContain('department_id IN');
       expect(clause.params).toEqual([10, 11]);
     });
 
-    test('非 ALL 且无部门 ID 时拒绝全部', () => {
+    test('CUSTOM 调拨单要求调出和调入库位都在授权范围内', () => {
       const clause = DataScopeService.buildOwnerScopeClause(
         {
-          type: DataScopeService.DATA_SCOPE.DEPARTMENT_AND_CHILDREN,
-          userId: 3,
+          type: DataScopeService.DATA_SCOPE.CUSTOM,
+          userId: 9,
           departmentIds: [],
+          locationIds: [3, 4],
         },
-        { tableAlias: 'o' }
+        {
+          tableAlias: 't',
+          ownerColumn: 'created_by',
+          locationColumns: ['from_location_id', 'to_location_id'],
+          requireAllLocations: true,
+          includeLocation: true,
+        }
       );
-      expect(clause.where).toContain('1 = 0');
+
+      expect(clause.where).toContain('t.`from_location_id` IN (?,?)');
+      expect(clause.where).toContain('t.`to_location_id` IN (?,?)');
+      expect(clause.where).toContain(' AND ');
+      expect(clause.params).toEqual([3, 4, 3, 4]);
+    });
+
+    test('请求上已有 authzScope 时直接复用', async () => {
+      const req = {
+        user: { id: 7 },
+        authzScope: {
+          type: DataScopeService.DATA_SCOPE.CUSTOM,
+          userId: 7,
+          departmentIds: [3],
+          locationIds: [8],
+        },
+      };
+      await expect(DataScopeService.getRequestScope(req)).resolves.toEqual(
+        expect.objectContaining({
+          type: DataScopeService.DATA_SCOPE.CUSTOM,
+          userId: 7,
+          departmentIds: [3],
+          locationIds: [8],
+        })
+      );
     });
   });
 
-  describe('assertRecordAccess', () => {
+  describe('记录访问', () => {
     const mockConn = { execute: jest.fn() };
 
-    test('ALL 仍要求记录存在', async () => {
+    beforeEach(() => {
+      mockConn.execute.mockReset();
+    });
+
+    test('SELF 比较创建人', async () => {
       const req = {
-        authzScope: { type: DataScopeService.DATA_SCOPE.ALL, userId: 1 },
+        authzScope: {
+          type: DataScopeService.DATA_SCOPE.SELF,
+          userId: 5,
+          departmentIds: [],
+          locationIds: [],
+        },
       };
-      mockConn.execute.mockResolvedValueOnce([[{ id: 1 }]]);
+      mockConn.execute.mockResolvedValueOnce([[{ id: 1, owner_id: 5, owner_department_id: 2 }]]);
+
       await expect(
         DataScopeService.assertRecordAccess(mockConn, req, 'sales_orders', 1, {
           ownerColumn: 'created_by',
+          deletedAtColumn: false,
         })
       ).resolves.toBe(true);
-      expect(mockConn.execute).toHaveBeenCalledWith(
-        expect.stringContaining('FROM `sales_orders`'),
-        [1]
-      );
+      expect(mockConn.execute.mock.calls[0][0]).toContain('created_by');
+    });
 
-      mockConn.execute.mockResolvedValueOnce([[]]);
+    test('SELF 他人单据拒绝', async () => {
+      const req = {
+        authzScope: {
+          type: DataScopeService.DATA_SCOPE.SELF,
+          userId: 5,
+          departmentIds: [],
+          locationIds: [],
+        },
+      };
+      mockConn.execute.mockResolvedValueOnce([[{ id: 1, owner_id: 99, owner_department_id: 2 }]]);
+
       await expect(
-        DataScopeService.assertRecordAccess(mockConn, req, 'sales_orders', 404, {
+        DataScopeService.assertRecordAccess(mockConn, req, 'sales_orders', 1, {
           ownerColumn: 'created_by',
+          deletedAtColumn: false,
         })
       ).resolves.toBe(false);
     });
 
-    test('assertRecordExists 校验软删和附加删除标记', async () => {
+    test('未认证请求失败关闭', async () => {
+      // No user and no authzScope → loadUserDataScope(null) → SELF without userId
+      pool.execute.mockReset();
+      await expect(
+        DataScopeService.assertRecordAccess(mockConn, {}, 'sales_orders', 1, {
+          ownerColumn: 'created_by',
+          deletedAtColumn: false,
+        })
+      ).resolves.toBe(false);
+      // May query users/roles only when a userId exists; empty req stays fail-closed.
+      expect(mockConn.execute).not.toHaveBeenCalled();
+    });
+
+    test('ALL 只校验记录存在', async () => {
+      const req = { authzScope: { type: DataScopeService.DATA_SCOPE.ALL, userId: 1 } };
+      mockConn.execute.mockResolvedValueOnce([[{ id: 1 }]]);
+      await expect(
+        DataScopeService.assertRecordAccess(mockConn, req, 'sales_orders', 1, {
+          deletedAtColumn: false,
+        })
+      ).resolves.toBe(true);
+    });
+
+    test('assertRecordExists 仍校验软删和附加删除标记', async () => {
       mockConn.execute.mockResolvedValueOnce([[{ id: 7 }]]);
       await expect(
         DataScopeService.assertRecordExists(mockConn, 'inventory_inbound', 7, {
@@ -122,146 +197,58 @@ describe('DataScopeService', () => {
       expect(mockConn.execute.mock.calls[0][0]).toContain('`is_deleted` = ?');
     });
 
-    test('SELF 无 ownerColumn 拒绝', async () => {
+    test('CUSTOM 库位不在授权列表则拒绝', async () => {
       const req = {
         authzScope: {
-          type: DataScopeService.DATA_SCOPE.SELF,
+          type: DataScopeService.DATA_SCOPE.CUSTOM,
           userId: 5,
           departmentIds: [],
-          locationIds: [],
+          locationIds: [1],
         },
       };
-      await expect(
-        DataScopeService.assertRecordAccess(mockConn, req, 'some_table', 1, {})
-      ).resolves.toBe(false);
+      await expect(DataScopeService.canAccessLocation(req, 999)).resolves.toBe(false);
+      await expect(DataScopeService.canAccessLocation(req, 1)).resolves.toBe(true);
     });
 
-    test('SELF 仅本人记录可访问', async () => {
+    test('CUSTOM 调拨单任一端库位越权时拒绝，双端均授权时放行', async () => {
       const req = {
         authzScope: {
-          type: DataScopeService.DATA_SCOPE.SELF,
+          type: DataScopeService.DATA_SCOPE.CUSTOM,
           userId: 5,
           departmentIds: [],
-          locationIds: [],
+          locationIds: [10, 20],
         },
       };
-      mockConn.execute.mockResolvedValueOnce([[{ id: 1, owner_id: 5 }]]);
-      await expect(
-        DataScopeService.assertRecordAccess(mockConn, req, 'sales_orders', 1, {
-          ownerColumn: 'created_by',
-          deletedAtColumn: false,
-        })
-      ).resolves.toBe(true);
-
-      mockConn.execute.mockResolvedValueOnce([[{ id: 2, owner_id: 99 }]]);
-      await expect(
-        DataScopeService.assertRecordAccess(mockConn, req, 'sales_orders', 2, {
-          ownerColumn: 'created_by',
-          deletedAtColumn: false,
-        })
-      ).resolves.toBe(false);
-    });
-
-    test('部门范围：本部门放行，外部门拒绝', async () => {
-      const req = {
-        authzScope: {
-          type: DataScopeService.DATA_SCOPE.DEPARTMENT,
-          userId: 5,
-          departmentIds: [7],
-          locationIds: [],
-        },
+      const options = {
+        ownerColumn: 'created_by',
+        locationColumns: ['from_location_id', 'to_location_id'],
+        requireAllLocations: true,
+        deletedAtColumn: false,
       };
+
       mockConn.execute.mockResolvedValueOnce([
-        [{ id: 1, owner_id: 9, owner_department_id: 7 }],
+        [{ id: 1, owner_id: 5, location_id_0: 10, location_id_1: 20 }],
       ]);
       await expect(
-        DataScopeService.assertRecordAccess(mockConn, req, 'sales_orders', 1, {
-          ownerColumn: 'created_by',
-          deletedAtColumn: false,
-        })
+        DataScopeService.assertRecordAccess(mockConn, req, 'inventory_transfers', 1, options)
       ).resolves.toBe(true);
 
       mockConn.execute.mockResolvedValueOnce([
-        [{ id: 2, owner_id: 9, owner_department_id: 99 }],
+        [{ id: 2, owner_id: 5, location_id_0: 10, location_id_1: 99 }],
       ]);
       await expect(
-        DataScopeService.assertRecordAccess(mockConn, req, 'sales_orders', 2, {
-          ownerColumn: 'created_by',
-          deletedAtColumn: false,
-        })
-      ).resolves.toBe(false);
-    });
-
-    test('有业务部门字段时按单据所属部门过滤，而不是创建人部门', () => {
-      const clause = DataScopeService.buildOwnerScopeClause(
-        {
-          type: DataScopeService.DATA_SCOPE.DEPARTMENT,
-          userId: 3,
-          departmentIds: [10, 11],
-        },
-        { tableAlias: 'pp', ownerAlias: 'plan_owner_scope', departmentColumn: 'department_id' }
-      );
-      expect(clause.join).toBe('');
-      expect(clause.where).toContain('pp.`department_id` IN');
-      expect(clause.params).toEqual([10, 11]);
-    });
-
-    test('业务部门字段用于单记录访问校验', async () => {
-      const req = {
-        authzScope: {
-          type: DataScopeService.DATA_SCOPE.DEPARTMENT,
-          userId: 5,
-          departmentIds: [7],
-          locationIds: [],
-        },
-      };
-      mockConn.execute.mockResolvedValueOnce([
-        [{ id: 1, owner_id: 99, resource_department_id: 7 }],
-      ]);
-      await expect(
-        DataScopeService.assertRecordAccess(mockConn, req, 'production_plans', 1, {
-          ownerColumn: 'created_by',
-          departmentColumn: 'department_id',
-          deletedAtColumn: false,
-        })
-      ).resolves.toBe(true);
-
-      mockConn.execute.mockResolvedValueOnce([
-        [{ id: 2, owner_id: 99, resource_department_id: 99 }],
-      ]);
-      await expect(
-        DataScopeService.assertRecordAccess(mockConn, req, 'production_plans', 2, {
-          ownerColumn: 'created_by',
-          departmentColumn: 'department_id',
-          deletedAtColumn: false,
-        })
-      ).resolves.toBe(false);
-    });
-
-    test('记录不存在返回 false', async () => {
-      const req = {
-        authzScope: {
-          type: DataScopeService.DATA_SCOPE.SELF,
-          userId: 5,
-          departmentIds: [],
-          locationIds: [],
-        },
-      };
-      mockConn.execute.mockResolvedValueOnce([[]]);
-      await expect(
-        DataScopeService.assertRecordAccess(mockConn, req, 'sales_orders', 404, {
-          ownerColumn: 'created_by',
-          deletedAtColumn: false,
-        })
+        DataScopeService.assertRecordAccess(mockConn, req, 'inventory_transfers', 2, options)
       ).resolves.toBe(false);
     });
   });
 
-  describe('getUserDataScope', () => {
-    test('同一首屏并发请求复用一次数据范围查询且返回隔离副本', async () => {
+  describe('用户范围加载', () => {
+    test('同一首屏并发只加载一次并返回隔离副本', async () => {
       pool.execute
         .mockResolvedValueOnce([[{ id: 8, username: 'viewer', department_id: 2 }]])
-        .mockResolvedValueOnce([[{ id: 18, is_super_admin: 1, data_scope: 4 }]]);
+        .mockResolvedValueOnce([
+          [{ id: 1, is_super_admin: 0, data_scope: DataScopeService.DATA_SCOPE.SELF }],
+        ]);
 
       const [first, second] = await Promise.all([
         DataScopeService.getUserDataScope(8),
@@ -269,38 +256,33 @@ describe('DataScopeService', () => {
       ]);
 
       expect(pool.execute).toHaveBeenCalledTimes(2);
+      expect(first.type).toBe(DataScopeService.DATA_SCOPE.SELF);
+      expect(second.type).toBe(DataScopeService.DATA_SCOPE.SELF);
       first.departmentIds.push(999);
       expect(second.departmentIds).toEqual([]);
 
       const cached = await DataScopeService.getUserDataScope(8);
-      expect(cached.departmentIds).toEqual([]);
+      expect(cached.type).toBe(DataScopeService.DATA_SCOPE.SELF);
       expect(pool.execute).toHaveBeenCalledTimes(2);
     });
 
-    test('超级管理员标记强制 ALL', async () => {
+    test('超级管理员返回 ALL', async () => {
       pool.execute
-        .mockResolvedValueOnce([[{ id: 1, username: 'admin', department_id: 1 }]])
-        .mockResolvedValueOnce([[{ id: 1, is_super_admin: 1, data_scope: 4 }]]);
-
-      const scope = await DataScopeService.getUserDataScope(1);
-      expect(scope.type).toBe(DataScopeService.DATA_SCOPE.ALL);
-    });
-
-    test('多角色取最宽范围（min type）', async () => {
-      pool.execute
-        .mockResolvedValueOnce([[{ id: 2, username: 'mgr', department_id: 3 }]])
+        .mockResolvedValueOnce([[{ id: 2, username: 'admin', department_id: 3 }]])
         .mockResolvedValueOnce([
-          [
-            { id: 10, code: 'salesperson', data_scope: 4 },
-            { id: 11, code: 'sales_manager', data_scope: 2 },
-          ],
-        ])
-        // resolveDepartmentIds for DEPT_AND_CHILDREN
-        .mockResolvedValueOnce([[{ id: 3 }, { id: 4 }]]);
+          [{ id: 1, is_super_admin: 1, data_scope: DataScopeService.DATA_SCOPE.SELF }],
+        ]);
 
       const scope = await DataScopeService.getUserDataScope(2);
-      expect(scope.type).toBe(DataScopeService.DATA_SCOPE.DEPARTMENT_AND_CHILDREN);
-      expect(scope.departmentIds).toEqual([3, 4]);
+
+      expect(scope).toEqual({
+        type: DataScopeService.DATA_SCOPE.ALL,
+        userId: 2,
+        departmentId: 3,
+        departmentIds: [],
+        locationIds: [],
+      });
+      expect(pool.execute.mock.calls[1][0]).toContain('roles');
     });
   });
 });

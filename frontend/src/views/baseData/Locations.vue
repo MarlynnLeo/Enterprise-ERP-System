@@ -2,7 +2,7 @@
 /**
  * Locations.vue
  * @description 前端界面组件文件
-  * @date 2025-08-27
+ * @date 2025-08-27
  * @version 1.0.0
  */
 -->
@@ -10,7 +10,7 @@
   <div class="module-page base-data-list-page">
     <PageHeader title="库位管理" subtitle="管理仓库库位配置">
       <template #actions>
-<el-button v-if="canCreate" type="primary" :icon="Plus" @click="handleAdd">新增库位</el-button>
+        <el-button v-if="canCreate" type="primary" :icon="Plus" @click="handleAdd">新增库位</el-button>
       </template>
     </PageHeader>
 
@@ -23,15 +23,15 @@
     >
       <template #basic>
         <el-form-item label="库位名称">
-          <el-input  v-model="searchForm.name" placeholder="请输入库位名称" clearable ></el-input>
+          <el-input v-model="searchForm.name" placeholder="请输入库位名称" clearable></el-input>
         </el-form-item>
       </template>
       <template #advanced>
         <el-form-item label="库位编码">
-          <el-input  v-model="searchForm.code" placeholder="请输入库位编码" clearable ></el-input>
+          <el-input v-model="searchForm.code" placeholder="请输入库位编码" clearable></el-input>
         </el-form-item>
         <el-form-item label="库位类型">
-          <el-select  v-model="searchForm.type" placeholder="请选择库位类型" clearable>
+          <el-select v-model="searchForm.type" placeholder="请选择库位类型" clearable>
             <el-option
               v-for="item in locationTypes"
               :key="item.value"
@@ -41,16 +41,16 @@
           </el-select>
         </el-form-item>
         <el-form-item label="状态">
-          <el-select  v-model="searchForm.status" placeholder="请选择状态" clearable>
+          <el-select v-model="searchForm.status" placeholder="请选择状态" clearable>
             <el-option :value="1" label="启用"></el-option>
             <el-option :value="0" label="禁用"></el-option>
           </el-select>
         </el-form-item>
       </template>
       <template #actions>
-          <el-button type="success" @click="handleExport">
-            <el-icon><Download /></el-icon> 导出
-          </el-button>
+        <el-button type="success" @click="handleExport">
+          <el-icon><Download /></el-icon> 导出
+        </el-button>
       </template>
     </FinanceQueryCard>
 
@@ -61,8 +61,8 @@
         :data="tableData"
         border
         class="table-row-click w-full"
-      
-      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleView(row))">
+        @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleView(row))"
+      >
         <template #empty>
           <EmptyState description="暂无库位数据" />
         </template>
@@ -83,45 +83,53 @@
           </template>
         </el-table-column>
         <el-table-column prop="remark" label="备注"></el-table-column>
-        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
-      >
+        <el-table-column
+          label="操作"
+          min-width="72"
+          fixed="right"
+          align="left"
+          header-align="left"
+          class-name="operation-column"
+          header-class-name="operation-column-header"
+        >
           <template #default="scope">
-            <el-button
-              v-if="canUpdate && Number(scope.row.status) !== 1"
-              size="small"
-              type="success"
-              @click="handleToggleStatus(scope.row)">
-              <el-icon><Switch /></el-icon> 启用
-            </el-button>
-            <el-button
-              v-if="canUpdate && Number(scope.row.status) === 1"
-              size="small"
-              type="warning"
-              @click="handleToggleStatus(scope.row)">
-              <el-icon><Switch /></el-icon> 禁用
-            </el-button>
-            
-            <template v-if="Number(scope.row.status) === 0">
+            <div class="table-actions" @click.stop>
               <el-button
-                v-if="canUpdate"
+                v-if="canUpdate && Number(scope.row.status) !== 1"
                 size="small"
-                type="primary"
-                @click="handleEdit(scope.row)">
-                <el-icon><Edit /></el-icon> 编辑
+                type="success"
+                @click="handleToggleStatus(scope.row)">
+                <el-icon><Check /></el-icon> 启用
               </el-button>
-              <el-popconfirm
-                v-if="canDelete"
-                title="确定要删除该库位吗？此操作无法恢复。"
-                @confirm="handleDelete(scope.row)"
-                confirm-button-type="danger"
-              >
-                <template #reference>
-                  <el-button size="small" type="danger">
-                    <el-icon><Delete /></el-icon> 删除
-                  </el-button>
-                </template>
-              </el-popconfirm>
-            </template>
+              <el-button
+                v-if="canUpdate && Number(scope.row.status) === 1"
+                size="small"
+                type="warning"
+                @click="handleToggleStatus(scope.row)">
+                <el-icon><Close /></el-icon> 禁用
+              </el-button>
+
+              <template v-if="Number(scope.row.status) === 0">
+                <el-button
+                  v-if="canUpdate"
+                  size="small"
+                  @click="handleEdit(scope.row)">
+                  <el-icon><Edit /></el-icon> 编辑
+                </el-button>
+                <el-popconfirm
+                  v-if="canDelete"
+                  title="确定要删除该库位吗？此操作无法恢复。"
+                  @confirm="handleDelete(scope.row)"
+                  confirm-button-type="danger"
+                >
+                  <template #reference>
+                    <el-button size="small" type="danger">
+                      <el-icon><Delete /></el-icon> 删除
+                    </el-button>
+                  </template>
+                </el-popconfirm>
+              </template>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -201,7 +209,7 @@
           <el-button v-if="!dialogReadonly" type="primary" @click="submitForm">确定</el-button>
         </span>
       </template>
-        </AppDialog>
+    </AppDialog>
   </div>
 </template>
 
@@ -212,16 +220,15 @@ import { useListDetailNavigation } from '@/composables/useListDetailNavigation';
 import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { baseDataApi } from '@/api/baseData';
-import { Plus, Edit, Delete, Download, Switch } from '@element-plus/icons-vue';
+import { Plus, Edit, Delete, Download, Check, Close } from '@element-plus/icons-vue';
 import { WAREHOUSE_TYPES, getWarehouseTypeText } from '@/constants/systemConstants'
 import { useAuthStore } from '@/stores/auth';
+
 // 权限store
 const authStore = useAuthStore();
 const canCreate = computed(() => authStore.hasPermission('basedata:locations:create'));
 const canUpdate = computed(() => authStore.hasPermission('basedata:locations:update'));
 const canDelete = computed(() => authStore.hasPermission('basedata:locations:delete'));
-
-// 权限计算属性
 
 // 数据加载状态
 const loading = ref(false);
@@ -295,7 +302,6 @@ const handleExport = async () => {
       type: searchForm.type,
       status: searchForm.status
     });
-    // 处理文件下载
     const url = window.URL.createObjectURL(new Blob([response.data]));
     const link = document.createElement('a');
     link.href = url;
@@ -339,8 +345,6 @@ const fetchData = async () => {
     };
 
     const response = await baseDataApi.getLocations(params);
-
-    // 使用统一响应解析器
     const { list, total } = parsePaginatedData(response, { enableLog: false });
 
     tableData.value = list;
@@ -397,7 +401,6 @@ const handleEdit = (row) => {
   dialogReadonly.value = false;
   resetForm();
 
-  // 复制行数据并确保status是数字类型
   const rowData = { ...row };
   rowData.status = Number(rowData.status);
 
@@ -476,29 +479,22 @@ const submitForm = async () => {
     if (valid) {
       loading.value = true;
       try {
-        // 创建提交数据对象，移除不需要的字段
         const submitData = { ...form };
         delete submitData.createdAt;
         delete submitData.updatedAt;
-
-        // 确保status为数字类型
         submitData.status = Number(submitData.status);
 
         if (isEdit.value) {
-          // 更新库位
           await baseDataApi.updateLocation(form.id, submitData);
           ElMessage.success('库位更新成功');
         } else {
-          // 创建库位
           await baseDataApi.createLocation(submitData);
           ElMessage.success('库位创建成功');
         }
         dialogVisible.value = false;
-        // 确保创建后立即获取最新数据
         await fetchData();
       } catch (error) {
         console.error('保存库位失败:', error);
-        // 显示详细的错误信息
         const errorMsg = error.response?.data?.message ||
                          error.message ||
                          '操作失败，请重试';
@@ -510,7 +506,6 @@ const submitForm = async () => {
   });
 };
 
-// 获取库位类型标签 - 使用统一常量
 const getLocationTypeLabel = (type) => {
   return getWarehouseTypeText(type);
 };

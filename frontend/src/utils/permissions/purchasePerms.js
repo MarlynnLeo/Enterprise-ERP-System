@@ -68,7 +68,7 @@ export const purchasePerms = [
   {
     id: 55,
     parentId: 5,
-    name: '外委加工',
+    name: '委外加工',
     path: '/purchase/processing',
     component: 'purchase/OutsourcedProcessing',
     icon: 'icon-set-up',

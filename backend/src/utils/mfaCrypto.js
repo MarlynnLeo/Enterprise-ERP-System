@@ -24,9 +24,7 @@ function getMfaEncryptionKey() {
   if (process.env.NODE_ENV === 'production') {
     throw new Error('MFA_ENCRYPTION_KEY must encode exactly 32 bytes in production');
   }
-  // Keep development/test secrets decryptable after a process restart without
-  // reusing the JWT key directly. Production must always provide a dedicated
-  // MFA_ENCRYPTION_KEY.
+  // This utility remains available for immutable historical migrations.
   const developmentRoot = String(process.env.JWT_SECRET || 'erp-test-only-mfa-root');
   return crypto
     .createHash('sha256')

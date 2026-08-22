@@ -14,42 +14,34 @@ function isOriginAllowed(origin) {
   const isProd = process.env.NODE_ENV === 'production';
   const allowedOrigins = parseAllowedOrigins();
 
-  if (!isProd) {
+  if (isProd) {
+    // Production: only explicit ALLOWED_ORIGINS. Private-LAN regex is
+    // development convenience and must not widen the production CORS surface.
+    if (allowedOrigins.length === 0) {
+      return false;
+    }
+    // Same-origin / non-browser clients may omit Origin; allow only when
+    // ALLOWED_ORIGINS is configured (CSRF still protects cookie sessions).
     if (!origin) return true;
-    return (
-      allowedOrigins.includes(origin) ||
-      LOCAL_DEV_ORIGIN.test(origin) ||
-      PRIVATE_NETWORK_ORIGIN.test(origin)
-    );
+    return allowedOrigins.includes(origin);
   }
 
-  if (allowedOrigins.length === 0) {
-    return false;
-  }
-
-  // 生产环境: origin=null/undefined 通常来自非浏览器请求或 file:// 协议
-  // 同源请求不带 Origin 头，但这类请求不受 CORS 限制，不会进入此函数
-  // 此处拒绝无 Origin 的跨域请求，防止 CORS 绕过
   if (!origin) return true;
-
-  return allowedOrigins.includes(origin);
+  return (
+    allowedOrigins.includes(origin) ||
+    LOCAL_DEV_ORIGIN.test(origin) ||
+    PRIVATE_NETWORK_ORIGIN.test(origin)
+  );
 }
 
 function createCorsOptions(overrides = {}) {
   return {
     origin(origin, callback) {
-      const isProd = process.env.NODE_ENV === 'production';
-      const allowedOrigins = parseAllowedOrigins();
-
-      if (isProd && allowedOrigins.length === 0) {
-        logger.error('生产环境未配置 ALLOWED_ORIGINS 环境变量');
-        return callback(new Error('CORS配置错误'));
-      }
-
       if (isOriginAllowed(origin)) {
         return callback(null, true);
       }
 
+      const isProd = process.env.NODE_ENV === 'production';
       const envLabel = isProd ? '生产环境' : '开发环境';
       logger.warn(`${envLabel}拒绝未授权的CORS请求: ${origin}`);
       return callback(new Error(`Not allowed by CORS: ${origin}`));

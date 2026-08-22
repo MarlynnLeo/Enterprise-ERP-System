@@ -119,7 +119,8 @@ function defineProfile(spec) {
     denyPermissions: Object.freeze([...(spec.denyPermissions || [])]),
     allowPricePermissions: Object.freeze([...(spec.allowPricePermissions || [])]),
     denyPrice: spec.denyPrice !== false,
-    dataScope: spec.dataScope,
+    // 行级数据范围已停用：岗位模板只决定功能/动作权限。
+    dataScope: DATA_SCOPE.ALL,
   });
 }
 
@@ -187,7 +188,7 @@ const inventoryOperator = defineProfile({
   denyPermissions: OPERATOR_DENY_APPROVE,
   pathPrefixes: ['/inventory'],
   exactPaths: ['/basedata', '/basedata/materials', '/basedata/locations', '/basedata/units'],
-  dataScope: DATA_SCOPE.SELF,
+  dataScope: DATA_SCOPE.ALL,
 });
 
 const inventoryManager = defineProfile({
@@ -205,13 +206,17 @@ const inventoryManager = defineProfile({
     '/dataoverview/inventory',
     ...WORKFLOW_PATHS,
   ],
-  dataScope: DATA_SCOPE.DEPT_AND_CHILDREN,
+  // 出入库单会由采购、生产、质量等多部门产生，仓库管理员需要
+  // 在已授权的库存功能内查看全部单据；功能和动作仍由 permission 控制。
+  dataScope: DATA_SCOPE.ALL,
 });
 
 const componentWarehouseOperator = defineProfile({
   label: '零部件仓作业',
-  modules: ['仪表盘', '库存出库', '物料/库位/单位'],
-  permissionPrefixes: ['inventory:outbound'],
+  modules: ['仪表盘', '库存入库/出库', '物料/库位/单位'],
+  // 仓库操作员需要同时处理零部件入库和生产发料出库；审批仍由
+  // OPERATOR_DENY_APPROVE 统一排除，避免把业务操作权限扩大为审批权限。
+  permissionPrefixes: ['inventory:inbound', 'inventory:outbound'],
   exactPermissions: [
     ...MATERIAL_VIEW,
     ...LOCATION_VIEW,
@@ -221,7 +226,7 @@ const componentWarehouseOperator = defineProfile({
     'production:tasks:view',
   ],
   denyPermissions: OPERATOR_DENY_APPROVE,
-  pathPrefixes: ['/inventory/outbound'],
+  pathPrefixes: ['/inventory/inbound', '/inventory/outbound'],
   exactPaths: [
     '/inventory',
     '/inventory/stock',
@@ -232,7 +237,7 @@ const componentWarehouseOperator = defineProfile({
     '/basedata/locations',
     '/basedata/units',
   ],
-  dataScope: DATA_SCOPE.SELF,
+  dataScope: DATA_SCOPE.ALL,
 });
 
 const finishedGoodsOperator = defineProfile({
@@ -261,7 +266,7 @@ const finishedGoodsOperator = defineProfile({
     '/basedata/units',
     '/basedata/customers',
   ],
-  dataScope: DATA_SCOPE.SELF,
+  dataScope: DATA_SCOPE.ALL,
 });
 
 const purchaseOperator = defineProfile({
@@ -279,7 +284,7 @@ const purchaseOperator = defineProfile({
     '/inventory/stock',
   ],
   allowPricePermissions: PURCHASE_PRICE,
-  dataScope: DATA_SCOPE.SELF,
+  dataScope: DATA_SCOPE.ALL,
 });
 
 const purchaseDept = defineProfile({
@@ -299,7 +304,7 @@ const purchaseDept = defineProfile({
     '/dataoverview/purchase',
   ],
   allowPricePermissions: PURCHASE_PRICE,
-  dataScope: DATA_SCOPE.DEPT_AND_CHILDREN,
+  dataScope: DATA_SCOPE.ALL,
 });
 
 const purchaseManager = defineProfile({
@@ -319,7 +324,7 @@ const purchaseManager = defineProfile({
     ...WORKFLOW_PATHS,
   ],
   allowPricePermissions: PURCHASE_PRICE,
-  dataScope: DATA_SCOPE.DEPT_AND_CHILDREN,
+  dataScope: DATA_SCOPE.ALL,
 });
 
 const productionPlanner = defineProfile({
@@ -348,7 +353,7 @@ const productionPlanner = defineProfile({
     '/dataoverview/production',
   ],
   denyPermissions: ['production:plans:approve'],
-  dataScope: DATA_SCOPE.DEPT_AND_CHILDREN,
+  dataScope: DATA_SCOPE.ALL,
 });
 
 const productionPlanning = defineProfile({
@@ -401,7 +406,7 @@ const productionPlanning = defineProfile({
   ],
   allowPricePermissions: [...PURCHASE_PRICE, ...SALES_PRICE],
   denyPermissions: OPERATOR_DENY_APPROVE,
-  dataScope: DATA_SCOPE.DEPT_AND_CHILDREN,
+  dataScope: DATA_SCOPE.ALL,
 });
 
 const salesOperator = defineProfile({
@@ -419,7 +424,7 @@ const salesOperator = defineProfile({
     '/inventory/stock',
   ],
   allowPricePermissions: SALES_PRICE,
-  dataScope: DATA_SCOPE.SELF,
+  dataScope: DATA_SCOPE.ALL,
 });
 
 const salesDept = defineProfile({
@@ -439,7 +444,7 @@ const salesDept = defineProfile({
     ...WORKFLOW_PATHS,
   ],
   allowPricePermissions: SALES_PRICE,
-  dataScope: DATA_SCOPE.DEPT_AND_CHILDREN,
+  dataScope: DATA_SCOPE.ALL,
 });
 
 const productionOperator = defineProfile({
@@ -479,7 +484,7 @@ const productionOperator = defineProfile({
     'production:tasks:create',
     'production:tasks:delete',
   ],
-  dataScope: DATA_SCOPE.SELF,
+  dataScope: DATA_SCOPE.ALL,
 });
 
 const productionManager = defineProfile({
@@ -511,7 +516,7 @@ const productionManager = defineProfile({
     '/dataoverview/production',
     ...WORKFLOW_PATHS,
   ],
-  dataScope: DATA_SCOPE.DEPT_AND_CHILDREN,
+  dataScope: DATA_SCOPE.ALL,
 });
 
 const qualityProfile = defineProfile({
@@ -531,7 +536,7 @@ const qualityProfile = defineProfile({
     '/dataoverview',
     '/dataoverview/quality',
   ],
-  dataScope: DATA_SCOPE.DEPT,
+  dataScope: DATA_SCOPE.ALL,
 });
 
 const INSPECTOR_SHARED_PERMS = Object.freeze([
@@ -567,7 +572,7 @@ const incomingInspector = defineProfile({
   denyPermissions: OPERATOR_DENY_APPROVE,
   pathPrefixes: ['/quality/incoming'],
   exactPaths: [...INSPECTOR_SHARED_PATHS, '/basedata/suppliers'],
-  dataScope: DATA_SCOPE.SELF,
+  dataScope: DATA_SCOPE.ALL,
 });
 
 const processInspector = defineProfile({
@@ -584,7 +589,7 @@ const processInspector = defineProfile({
   denyPermissions: OPERATOR_DENY_APPROVE,
   pathPrefixes: ['/quality/process', '/quality/first-article'],
   exactPaths: [...INSPECTOR_SHARED_PATHS],
-  dataScope: DATA_SCOPE.SELF,
+  dataScope: DATA_SCOPE.ALL,
 });
 
 const finalInspector = defineProfile({
@@ -602,7 +607,7 @@ const finalInspector = defineProfile({
   denyPermissions: OPERATOR_DENY_APPROVE,
   pathPrefixes: ['/quality/final', '/inventory/inbound'],
   exactPaths: [...INSPECTOR_SHARED_PATHS, '/basedata/customers', '/basedata/suppliers'],
-  dataScope: DATA_SCOPE.SELF,
+  dataScope: DATA_SCOPE.ALL,
 });
 
 const financeDept = defineProfile({
@@ -714,7 +719,7 @@ const employee = defineProfile({
   exactPermissions: [],
   pathPrefixes: [],
   exactPaths: [],
-  dataScope: DATA_SCOPE.SELF,
+  dataScope: DATA_SCOPE.ALL,
 });
 
 const hrManager = defineProfile({
@@ -724,7 +729,7 @@ const hrManager = defineProfile({
   exactPermissions: [...WORKFLOW_USE],
   pathPrefixes: ['/hr'],
   exactPaths: [...WORKFLOW_PATHS],
-  dataScope: DATA_SCOPE.DEPT_AND_CHILDREN,
+  dataScope: DATA_SCOPE.ALL,
 });
 
 const ROLE_ACCESS_PROFILES = Object.freeze({
@@ -752,7 +757,7 @@ const ROLE_ACCESS_PROFILES = Object.freeze({
     exactPermissions: [...qualityProfile.exactPermissions, ...WORKFLOW_USE, ...QUALITY_APPROVE],
     exactPaths: [...qualityProfile.exactPaths, ...WORKFLOW_PATHS],
     denyPermissions: [],
-    dataScope: DATA_SCOPE.DEPT_AND_CHILDREN,
+    dataScope: DATA_SCOPE.ALL,
   }),
   '100001': qualityProfile,
   finance_manager: financeDept,

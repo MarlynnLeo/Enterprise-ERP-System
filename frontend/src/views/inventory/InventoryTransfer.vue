@@ -132,7 +132,7 @@
         <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
       >
           <template #default="scope">
-            <div class="operation-btns">
+            <TableRowActions>
               <el-dropdown
                 v-if="scope.row.status !== 'cancelled' && scope.row.status !== 'completed'"
                 trigger="click"
@@ -178,7 +178,7 @@
               >
                 <el-icon><Edit /></el-icon> 编辑
               </el-button>
-            </div>
+            </TableRowActions>
           </template>
         </el-table-column>
       </el-table>
@@ -410,13 +410,16 @@ import { inventoryApi } from '@/api';
 import { getCurrentDate } from '@/utils/helpers/dateUtils';
 import { formatDate } from '@/utils/helpers/formatters';
 import { getTransferStatusText, getTransferStatusColor } from '@/constants/systemConstants';
+import TableRowActions from '@/components/common/TableRowActions.vue';
 import { useAuthStore } from '@/stores/auth';
+import { useDictionaryStore } from '@/stores/dictionary';
 import { parseListData, parsePaginatedData } from '@/utils/responseParser';
 import { SEARCH_CONFIG, searchMaterials, mapMaterialData } from '@/utils/searchConfig';
 import printService from '@/services/printService';
 
 // 权限store
 const authStore = useAuthStore();
+const dictionaryStore = useDictionaryStore();
 const BATCH_STOCK_QUERY_LIMIT = 50;
 const chunkArray = (items, size) => {
   const chunks = [];
@@ -428,17 +431,17 @@ const chunkArray = (items, size) => {
 
 // 权限计算属性
 // 状态选项（使用统一常量）
-const statusOptions = [
-  { value: 'draft', label: getTransferStatusText('draft') },
-  { value: 'pending', label: getTransferStatusText('pending') },
-  { value: 'approved', label: getTransferStatusText('approved') },
-  { value: 'completed', label: getTransferStatusText('completed') },
-  { value: 'cancelled', label: getTransferStatusText('cancelled') }
-];
+const statusOptions = computed(() => {
+  const configured = dictionaryStore.getOptions('transfer_status');
+  return configured.length > 0
+    ? configured
+    : ['draft', 'pending', 'approved', 'completed', 'reversed', 'cancelled']
+      .map(value => ({ value, label: getTransferStatusText(value) }));
+});
 
 // 状态映射函数（使用统一常量）
 const getStatusText = (status) => {
-  return getTransferStatusText(status)
+  return getTransferStatusText(status) || status || '未知'
 }
 
 // 搜索表单
@@ -1077,6 +1080,7 @@ const printTransfer = async (id) => {
 
 // 页面初始化
 onMounted(async () => {
+  await dictionaryStore.fetchDictionary();
   try {
     // 先加载调拨单列表
     await loadTransferList();

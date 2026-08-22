@@ -232,6 +232,7 @@
   </div>
 </template>
 <script setup>
+import { getCommonStatusText, getCommonStatusColor } from '@/constants/systemConstants'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { formatCurrency, formatLocalDate } from '@/utils/format'
 import { ref, reactive, onMounted } from 'vue';
@@ -408,22 +409,9 @@ const paymentForm = reactive({
 });
 
 // 获取状态类型
-const getStatusType = (invoice) => {
-  const statusMap = {
-    '草稿': 'info',
-    '已确认': 'primary',
-    '部分付款': 'warning',
-    '已付款': 'success',
-    '已逾期': 'danger',
-    '已取消': 'info'
-  };
-  return statusMap[invoice.status] || 'info';
-};
+const getStatusType = (invoice) => getCommonStatusColor(typeof invoice === 'object' ? invoice?.status : invoice) || 'info';
 // 获取状态文本
-const getStatusText = (invoice) => {
-  // 直接使用数据库状态字段
-  return invoice.status || '草稿';
-};
+const getStatusText = (invoice) => getCommonStatusText(typeof invoice === 'object' ? invoice?.status : invoice) || (invoice?.status || '草稿');
 // 添加发票明细项（用于编辑时的默认项）
 const addInvoiceItem = () => {
   invoiceForm.items.push({

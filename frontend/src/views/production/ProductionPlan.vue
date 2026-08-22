@@ -544,6 +544,7 @@ const collectPurchaseStatusMaterialIds = () => {
 const loadPurchaseRequestStatus = async (planId) => {
   purchaseRequestStatus.value = {};
   if (!planId) return;
+  if (!authStore.hasPermission('purchase:requisitions:view')) return;
 
   try {
     const materialIds = collectPurchaseStatusMaterialIds();
@@ -1786,14 +1787,14 @@ const formatMaterialForDisplay = (material) => {
           </el-table-column>
           <el-table-column label="需求" width="80">
             <template #default="scope">
-              {{ formatQuantity(scope.row.requiredQuantity || scope.row.requiredQuantity || 0) }}
+              {{ formatQuantity(scope.row.requiredQuantity || 0) }}
             </template>
           </el-table-column>
           <el-table-column prop="unit" label="单位" width="55" />
           <el-table-column label="当前库存" width="110">
             <template #default="scope">
-              <span :class="{ 'text-danger': (scope.row.stockQuantity || scope.row.stockQuantity || 0) < (scope.row.requiredQuantity || scope.row.requiredQuantity || 0) }">
-                {{ formatQuantity(scope.row.stockQuantity || scope.row.stockQuantity || 0) }}
+              <span :class="{ 'text-danger': (scope.row.stockQuantity || 0) < (scope.row.requiredQuantity || 0) }">
+                {{ formatQuantity(scope.row.stockQuantity || 0) }}
               </span>
             </template>
           </el-table-column>
@@ -1853,7 +1854,11 @@ const formatMaterialForDisplay = (material) => {
             <el-descriptions-item label="备注" :span="2">{{ currentPlan.remark || '-' }}</el-descriptions-item>
           </el-descriptions>
           <!-- 物料需求 -->
-          <el-divider content-position="center">物料需求</el-divider>
+          <div style="display: flex; align-items: center; margin: 20px 0 15px;">
+            <div style="flex: 1; border-top: 1px solid var(--el-border-color-light, #e4e7ed);"></div>
+            <div style="padding: 0 15px; font-weight: 500; color: var(--el-text-color-regular, #606266);">物料需求</div>
+            <div style="flex: 1; border-top: 1px solid var(--el-border-color-light, #e4e7ed);"></div>
+          </div>
           <el-table :data="currentPlan.materials || []" border class="w-full" max-height="350">
             <el-table-column label="层级" width="70">
               <template #default="{ row }">
@@ -1868,10 +1873,12 @@ const formatMaterialForDisplay = (material) => {
               <template #default="{ row }">{{ row.name || row.materialName || '-' }}</template>
             </el-table-column>
             <el-table-column prop="specification" label="规格" width="200" show-overflow-tooltip />
-            <el-table-column label="需求数量" width="100">
+            <el-table-column label="需求" width="60">
               <template #default="{ row }">{{ formatQuantity(row.requiredQuantity || row.quantity || 0) }}</template>
             </el-table-column>
-            <el-table-column prop="unitName" label="单位" width="70" />
+            <el-table-column label="单位" width="60">
+              <template #default="{ row }">{{ row.unitName || row.unit || row.unit_name || '-' }}</template>
+            </el-table-column>
             <el-table-column label="库存状态" width="100">
               <template #default="{ row }">
                 <el-tag v-if="row.stockStatus === 'sufficient'" type="success" size="small">充足</el-tag>
@@ -1880,6 +1887,20 @@ const formatMaterialForDisplay = (material) => {
               </template>
             </el-table-column>
             <el-table-column prop="remark" label="备注" min-width="100" show-overflow-tooltip />
+            <el-table-column label="操作" min-width="90" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+              <template #default="scope">
+                <el-button
+                  v-if="shouldShowPurchaseButton(scope.row) && currentPlan && currentPlan.status !== 'completed'"
+                  v-permission="'purchase:requisitions:create'"
+                  :type="getMaterialRequestStatus(scope.row) ? 'success' : 'primary'"
+                  size="small"
+                  :disabled="getMaterialRequestStatus(scope.row)"
+                  @click="handleCreatePurchaseRequest(scope.row)"
+                >
+                  {{ getMaterialRequestStatus(scope.row) ? '已申请' : getPurchaseButtonText(scope.row) }}
+                </el-button>
+              </template>
+            </el-table-column>
           </el-table>
         </template>
         <EmptyState v-else-if="!planDetailLoading" description="暂无数据" />

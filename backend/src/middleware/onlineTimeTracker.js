@@ -80,9 +80,10 @@ class OnlineTimeTracker {
   }
 
   getClientIP(req) {
+    // Prefer Express-resolved req.ip (honours trust proxy). Never trust raw
+    // X-Forwarded-For / X-Real-IP from untrusted clients when trust proxy is off.
+    if (req?.ip) return req.ip;
     return (
-      req.headers['x-forwarded-for']?.split(',')[0].trim() ||
-      req.headers['x-real-ip'] ||
       req.connection?.remoteAddress ||
       req.socket?.remoteAddress ||
       req.connection?.socket?.remoteAddress ||

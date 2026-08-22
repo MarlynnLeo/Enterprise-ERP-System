@@ -185,7 +185,7 @@
               </el-select>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="60" align="center">
+          <el-table-column label="操作" width="60" align="center" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="{ $index }">
               <el-button link type="danger" size="small" v-permission="'production:routes:create'" @click="createForm.steps.splice($index, 1)">删除</el-button>
             </template>

@@ -313,23 +313,8 @@ function getTypeColor(type) {
   return colorMap[type] || 'info';
 }
 // 获取状态颜色
-function _getStatusColor(status) {
-  const statusMap = {
-    '草稿': 'info',
-    '待审批': 'warning',
-    '待确认': 'warning',
-    '待收货': 'warning',
-    '待入库': 'warning',
-    '待开票': 'warning',
-    '已审批': 'success',
-    '已确认': 'success',
-    '已完成': 'success',
-    '已取消': 'danger',
-    '已拒绝': 'danger'
-  };
-  return statusMap[status] || 'info';
-}
-import { getPurchaseStatusText, getPurchaseStatusColor } from '@/constants/systemConstants'
+function _getStatusColor(status) { return getPurchaseStatusColor(status) || getCommonStatusColor(status) || 'info'; }
+import { getPurchaseStatusText, getPurchaseStatusColor, getCommonStatusColor } from '@/constants/systemConstants'
 // 根据类型和状态获取状态文本
 function getStatusText(status, _type) {
   // 统一使用采购状态映射

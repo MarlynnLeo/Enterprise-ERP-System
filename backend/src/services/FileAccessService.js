@@ -14,7 +14,7 @@ const DEFAULT_FILE_PERMISSIONS = ['system:files:download'];
 const DEFAULT_DOCUMENT_PERMISSIONS = ['system:documents:view'];
 
 // Every business-bound file must resolve through this fixed registry. Scope-backed
-// resources reuse the same DataScope policy as their API; shared master data and
+// resources reuse the same object-existence policy as their API; shared master data and
 // legacy domains still require an existing row plus their normal feature permission.
 const FILE_OBJECT_POLICIES = Object.freeze({
   process_template: Object.freeze({
@@ -386,7 +386,7 @@ class FileAccessService {
     if (!descriptor) return false;
     if (descriptor.scopePolicy) {
       // Private attachments intentionally remain at least as restrictive as
-      // the row owner scope, even for list resources with shared-read enabled.
+      // the bound object's existence check.
       return ScopeGuard.assertAccess(pool, req, descriptor.scopePolicy, binding.businessId, {
         accessMode: accessMode === 'read' ? undefined : 'write',
       });
@@ -709,24 +709,6 @@ class FileAccessService {
           record,
           requiredPermissions: [],
           reason: 'OBJECT_SCOPE_DENIED',
-        };
-      }
-    }
-
-    if (req && record.source === 'documents' && record.department_id) {
-      const scope = req.authzScope || (await DataScopeService.getUserDataScope(userId));
-      const departmentIds = (scope.departmentIds || []).map(Number);
-      const departmentAllowed =
-        DataScopeService.isAllScope(scope) ||
-        departmentIds.includes(Number(record.department_id)) ||
-        Number(scope.departmentId) === Number(record.department_id);
-      if (!departmentAllowed) {
-        return {
-          known: true,
-          allowed: false,
-          record,
-          requiredPermissions: [],
-          reason: 'DEPARTMENT_SCOPE_DENIED',
         };
       }
     }

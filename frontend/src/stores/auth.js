@@ -76,8 +76,27 @@ export const useAuthStore = defineStore('auth', () => {
   // 本会话是否已向后端校验过 Cookie（冷启动防伪登录）
   const sessionProbed = ref(false)
 
+  // O(1) 权限查询：页面上 v-permission / 路由守卫会高频调用，不能每次线性扫大数组
+  let permissionSet = new Set(permissions.value)
+  let wildcardPrefixes = permissions.value
+    .filter((p) => typeof p === 'string' && p.endsWith(':*'))
+    .map((p) => p.slice(0, -1)) // keep trailing ":" → "production:" from "production:*"
+
+  const rebuildPermissionIndex = (list) => {
+    const arr = Array.isArray(list) ? list : []
+    permissionSet = new Set(arr)
+    wildcardPrefixes = []
+    for (let i = 0; i < arr.length; i++) {
+      const p = arr[i]
+      if (typeof p === 'string' && p.endsWith(':*')) {
+        wildcardPrefixes.push(p.slice(0, -1))
+      }
+    }
+  }
+  rebuildPermissionIndex(permissions.value)
+
   const isAuthenticated = computed(() => Boolean(user.value))
-  const isAdmin = computed(() => permissionsLoaded.value && permissions.value.includes('*'))
+  const isAdmin = computed(() => permissionsLoaded.value && permissionSet.has('*'))
   const mustChangePassword = computed(() => {
     const flag = user.value?.forcePasswordChange
     const expired = user.value?.passwordExpired
@@ -101,6 +120,7 @@ export const useAuthStore = defineStore('auth', () => {
     token.value = ''
     user.value = null
     permissions.value = []
+    rebuildPermissionIndex([])
     permissionsLoaded.value = false
     permissionsLoading.value = false
     sessionProbed.value = false
@@ -115,8 +135,7 @@ export const useAuthStore = defineStore('auth', () => {
   // 登录
   const login = async (credentials) => {
     try {
-      // 切换账号或进入 MFA 挑战前清除旧主体，避免旧用户状态在
-      // 密码/MFA 尚未完成时继续驱动界面权限判断。
+      // 切换账号前清除旧主体，避免旧用户状态继续驱动权限判断。
       clearClientSession()
 
       const response = await userApi.login(credentials)
@@ -124,15 +143,6 @@ export const useAuthStore = defineStore('auth', () => {
 
       // 拦截器已解包，response.data 就是 { user }
       const data = response.data
-
-      if (data?.mfaRequired) {
-        return {
-          mfaRequired: true,
-          mfaSetupRequired: Boolean(data.mfaSetupRequired),
-          challengeId: data.challengeId,
-          expiresIn: data.expiresIn,
-        }
-      }
 
       // 保存用户信息
       user.value = data.user
@@ -156,21 +166,6 @@ export const useAuthStore = defineStore('auth', () => {
       throw error
     }
   }
-
-  const verifyMfa = async (payload) => {
-    const response = await userApi.verifyMfa(payload)
-    const data = response.data
-    if (!data?.user) throw new Error('MFA 响应缺少用户信息')
-    user.value = data.user
-    tokenManager.setUser(user.value)
-    setRequestCacheUserId(user.value.id)
-    permissions.value = []
-    permissionsLoaded.value = false
-    await fetchUserProfile()
-    return data
-  }
-
-  const enrollMfa = (payload) => userApi.enrollMfa(payload)
 
   // 登出
   const logout = async () => {
@@ -283,6 +278,7 @@ export const useAuthStore = defineStore('auth', () => {
         throw new Error('权限数据格式不正确')
       }
 
+      rebuildPermissionIndex(permissions.value)
       permissionManager.setUserPermissions(permissions.value)
       permissionsLoaded.value = true
       return true
@@ -290,6 +286,7 @@ export const useAuthStore = defineStore('auth', () => {
       console.error('获取用户权限失败:', error)
 
       permissions.value = []
+      rebuildPermissionIndex([])
       permissionsLoaded.value = false
       permissionManager.clearUserPermissions()
 
@@ -303,6 +300,7 @@ export const useAuthStore = defineStore('auth', () => {
   // 清除权限缓存并重新加载
   const refreshPermissions = async () => {
     permissions.value = []
+    rebuildPermissionIndex([])
     permissionsLoaded.value = false
     permissionsLoading.value = false
 
@@ -312,45 +310,49 @@ export const useAuthStore = defineStore('auth', () => {
     return await fetchUserPermissions(true)
   }
 
-  // 检查是否有特定权限
+  // 检查是否有特定权限（Set + 预计算通配前缀，避免每次 O(n)）
   const hasPermission = (permission) => {
     // 权限未完成后端加载前一律拒绝，避免使用旧缓存短暂放开按钮或路由。
     if (!permissionsLoaded.value) {
       return false
     }
-
-    // ✅ 修复: 不再基于 user.role 判断管理员
-    // 而是基于权限列表中是否包含 '*' 通配符
-    if (permissions.value.includes('*')) {
+    if (!permission) {
       return true
     }
 
-    // 精确匹配（后端已展开别名，无需前端再做候选扩展）
-    if (permissions.value.includes(permission)) {
+    if (permissionSet.has('*') || permissionSet.has(permission)) {
       return true
     }
 
     // 支持通配符匹配 (例如: production:* 匹配 production:tasks:view)
-    return permissions.value.some(p => {
-      if (p.endsWith(':*')) {
-        const prefix = p.slice(0, -2)
-        return permission.startsWith(prefix + ':')
+    for (let i = 0; i < wildcardPrefixes.length; i++) {
+      if (permission.startsWith(wildcardPrefixes[i])) {
+        return true
       }
-      return false
-    })
+    }
+    return false
   }
 
   const hasChildPermission = (permission) => {
     if (!permissionsLoaded.value) {
       return false
     }
+    if (!permission) {
+      return false
+    }
 
-    if (permissions.value.includes('*')) {
+    if (permissionSet.has('*') || permissionSet.has(`${permission}:*`)) {
       return true
     }
 
-    // 后端已展开别名，直接前缀匹配
-    return permissions.value.some(p => p.startsWith(`${permission}:`))
+    const prefix = `${permission}:`
+    // 后端已展开别名；子权限用前缀扫描（调用频率远低于 hasPermission）
+    for (const p of permissionSet) {
+      if (typeof p === 'string' && p.startsWith(prefix)) {
+        return true
+      }
+    }
+    return false
   }
 
   // 获取用户真实姓名的计算属性（HTTP 仅 camel）
@@ -369,8 +371,6 @@ export const useAuthStore = defineStore('auth', () => {
     isAdmin,
     mustChangePassword,
     login,
-    verifyMfa,
-    enrollMfa,
     logout,
     clearClientSession,
     updateUser,

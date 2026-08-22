@@ -371,7 +371,7 @@ const handleStatusChange = async (equipment, newStatus) => {
   }
 }
 
-import { getEquipmentStatusText, getEquipmentStatusColor } from '@/constants/systemConstants'
+import { getEquipmentStatusText, getEquipmentStatusColor, getAssetTypeText } from '@/constants/systemConstants'
 
 // 工具方法
 const getStatusText = (status) => {
@@ -382,16 +382,7 @@ const getStatusTagType = (status) => {
   return getEquipmentStatusColor(status)
 }
 
-const getEquipmentTypeText = (type) => {
-  const typeMap = {
-    production: '生产',
-    testing: '检测',
-    packaging: '包装',
-    transport: '运输',
-    auxiliary: '辅助'
-  }
-  return typeMap[type] || type
-}
+const getEquipmentTypeText = (type) => getAssetTypeText(type) || type
 
 const getEquipmentTypeTagType = (type) => {
   const typeMap = {

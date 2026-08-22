@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * InventoryInbound.vue
  * @description 前端界面组件文件
@@ -142,7 +142,7 @@
         <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
       >
           <template #default="{ row }">
-            <div class="table-actions">
+            <TableRowActions>
               
               <el-popconfirm
                 v-if="row.status === 'draft'"
@@ -190,7 +190,7 @@
                   </el-button>
                 </template>
               </el-popconfirm>
-            </div>
+            </TableRowActions>
           </template>
         </el-table-column>
       </el-table>
@@ -631,16 +631,26 @@ import { ElMessage } from 'element-plus'
 import { Plus, Check, Finished, Close } from '@element-plus/icons-vue'
 import { inventoryApi, baseDataApi, productionApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
+import { useDictionaryStore } from '@/stores/dictionary'
 import { tokenManager } from '@/utils/unifiedStorage'
-import { getInboundOutboundStatusText, getInboundOutboundStatusColor } from '@/constants/systemConstants'
+import {
+  getInboundOutboundStatusText,
+  getInboundOutboundStatusColor,
+  getInventoryInboundTypeText,
+  getInventoryInboundTypeColor,
+  getProductionStatusText,
+  getProductionStatusColor,
+} from '@/constants/systemConstants'
 import { searchMaterials } from '@/utils/searchConfig'
 import { parseListData, parsePaginatedData, parseResponseData } from '@/utils/responseParser'
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
 import { loadLocationOptions } from '@/utils/optionLoaders'
 import printService from '@/services/printService'
+import TableRowActions from '@/components/common/TableRowActions.vue'
 const route = useRoute()
 // 权限store
 const authStore = useAuthStore()
+const dictionaryStore = useDictionaryStore()
 const getCurrentUserDisplayName = () => {
   const currentUser = authStore.user || tokenManager.getUser()
   return currentUser?.realName || currentUser?.realName || currentUser?.name || currentUser?.username || ''
@@ -690,16 +700,36 @@ const form = reactive({
   referenceId: null,
   referenceNo: null
 })
-// 入库类型选项
-const inboundTypeOptions = [
-  { value: 'other', label: '其他入库' },
-  { value: 'purchase', label: '采购入库' },
-  { value: 'production', label: '生产入库' },
-  { value: 'production_return', label: '生产退料' },
-  { value: 'defective_return', label: '不良退回' },
-  { value: 'outsourced', label: '委外入库' },
-  { value: 'sales_return', label: '销售退货入库' }
-]
+const inboundTypeDefinitions = Object.freeze([
+  { value: 'other', dictionaryCode: 'inbound', fallbackLabel: '其他入库' },
+  { value: 'purchase', dictionaryCode: 'purchase_inbound', fallbackLabel: '采购入库' },
+  { value: 'production', dictionaryCode: 'production_inbound', fallbackLabel: '生产入库' },
+  { value: 'production_return', dictionaryCode: 'production_return', fallbackLabel: '生产退料' },
+  { value: 'defective_return', dictionaryCode: 'defective_return', fallbackLabel: '不良退回' },
+  { value: 'outsourced', dictionaryCode: 'outsourced_inbound', fallbackLabel: '委外入库' },
+  { value: 'sales_return', dictionaryCode: 'sales_return', fallbackLabel: '销售退货' },
+])
+// 入库单类型来自“系统管理 → 业务类型”的 inventory_transaction / 入库分类。
+// 已有单据仍使用 purchase/production 等领域编码，因此在展示层映射到字典标准编码。
+const inboundTypeOptions = computed(() => {
+  const configured = dictionaryStore.groups.inventory_transaction || []
+  if (!dictionaryStore.isLoaded || configured.length === 0) {
+    return inboundTypeDefinitions.map((item) => ({
+      value: item.value,
+      label: item.fallbackLabel,
+    }))
+  }
+
+  const configuredByCode = new Map(configured.map((item) => [item.code, item]))
+  return inboundTypeDefinitions.flatMap((definition) => {
+    const item = configuredByCode.get(definition.dictionaryCode)
+    return item ? [{ value: definition.value, label: item.name }] : []
+  })
+})
+const getDefaultInboundType = () =>
+  inboundTypeOptions.value.find((item) => item.value === 'other')?.value ||
+  inboundTypeOptions.value[0]?.value ||
+  'other'
 // 生产退料相关
 const productionTaskDialogVisible = ref(false)
 const productionTasks = ref([])
@@ -756,39 +786,13 @@ const inboundStats = reactive({
   cancelledCount: 0
 });
 // 获取状态类型
-const getStatusType = (status) => {
-  return getInboundOutboundStatusColor(status);
-};
+const getStatusType = (status) => getInboundOutboundStatusColor(status) || 'info';
 // 获取状态文本
-const getStatusText = (status) => {
-  return getInboundOutboundStatusText(status);
-};
+const getStatusText = (status) => getInboundOutboundStatusText(status) || status;
 // 获取入库类型文本
-const getInboundTypeText = (type) => {
-  const map = {
-    'purchase': '采购入库',
-    'production': '生产入库',
-    'production_return': '生产退料',
-    'defective_return': '不良退回',
-    'outsourced': '委外入库',
-    'sales_return': '销售退货',
-    'other': '其他入库'
-  }
-  return map[type] || type || '其他入库'
-}
+const getInboundTypeText = (type) => getInventoryInboundTypeText(type) || type || '未知'
 // 获取入库类型标签样式
-const getInboundTypeTagType = (type) => {
-  const map = {
-    'purchase': 'primary',
-    'production': 'success',
-    'production_return': 'warning',
-    'defective_return': 'danger',
-    'outsourced': 'info',
-    'sales_return': 'danger',
-    'other': 'info'
-  }
-  return map[type] || 'info'
-}
+const getInboundTypeTagType = (type) => getInventoryInboundTypeColor(type) || 'info'
 // 加载仓库列表
 const loadLocations = async () => {
   try {
@@ -872,7 +876,7 @@ const handleCreate = () => {
   dialogType.value = 'create'
   form.inboundDate = formatLocalDate(new Date())
   form.locationId = ''
-  form.inboundType = 'other'
+  form.inboundType = getDefaultInboundType()
   form.referenceType = null
   form.referenceId = null
   form.referenceNo = null
@@ -1230,31 +1234,9 @@ const confirmTaskSelection = () => {
   ElMessage.success(`已选择${returnItems.length}个物料进行退料`)
 }
 // 获取任务状态类型
-const getTaskStatusType = (status) => {
-  const map = {
-    'pending': 'info',
-    'allocated': 'info',
-    'material_issued': 'warning',
-    'in_progress': 'primary',
-    'inspection': 'warning',
-    'completed': 'success',
-    'cancelled': 'danger'
-  }
-  return map[status] || 'info'
-}
+const getTaskStatusType = (status) => getProductionStatusColor(status) || 'info'
 // 获取任务状态文字
-const getTaskStatusText = (status) => {
-  const map = {
-    'pending': '待分配',
-    'allocated': '已分配',
-    'material_issued': '已发料',
-    'in_progress': '生产中',
-    'inspection': '待检验',
-    'completed': '已完成',
-    'cancelled': '已取消'
-  }
-  return map[status] || status
-}
+const getTaskStatusText = (status) => getProductionStatusText(status) || status || '未知'
 // 提交表单
 const handleSubmit = async () => {
   if (!formRef.value) return
@@ -1505,6 +1487,7 @@ const updateStats = async () => {
   }
 };
 onMounted(async () => {
+  await dictionaryStore.fetchDictionary()
   // 确保分页参数有默认值
   pagination.currentPage = 1;
   pagination.pageSize = 10;

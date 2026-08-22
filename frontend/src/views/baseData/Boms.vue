@@ -23,27 +23,11 @@
     >
       <template #basic>
         <el-form-item label="产品">
-          <el-select
-            v-model="searchForm.productId"
-            placeholder="请选择产品或输入关键词搜索"
+          <el-input
+            v-model="searchForm.keyword"
+            placeholder="请输入产品编码、名称或型号"
             clearable
-            filterable
-            remote
-            reserve-keyword
-            :remote-method="searchProducts"
-            :loading="loadingProducts"
-            no-data-text="没有找到匹配的产品"
-            loading-text="搜索中..."
->
-            <el-option
-              v-for="item in productOptions"
-              :key="item.id"
-              :label="`${item.code} - ${item.name}`"
-              :value="item.id">
-              <span class="option-code">{{ item.code }}</span>
-              <span class="option-name">{{ item.name }}</span>
-            </el-option>
-          </el-select>
+          />
         </el-form-item>
       </template>
       <template #advanced>
@@ -295,7 +279,7 @@ let sourceBomSearchRequestId = 0;
 const copyLoading = ref(false);
 
 const searchForm = reactive({
-  productId: '',
+  keyword: '',
   version: '',
   approved: ''
 });
@@ -307,27 +291,6 @@ const stats = reactive({
   detailsCount: 0,
   totalCost: 0
 });
-
-// 产品搜索相关
-const loadingProducts = ref(false);
-const productOptions = ref([]);
-
-const searchProducts = async (query) => {
-  if (query) {
-    loadingProducts.value = true;
-    try {
-      const res = await materialApi.getMaterials({ keyword: query, page: 1, pageSize: 20 });
-      productOptions.value = parseListData(res);
-    } catch (error) {
-      console.error('搜索产品失败:', error);
-      productOptions.value = [];
-    } finally {
-      loadingProducts.value = false;
-    }
-  } else {
-    productOptions.value = [];
-  }
-};
 
 // 数据获取
 const fetchData = async () => {
@@ -376,7 +339,7 @@ const handleSearch = () => {
 };
 
 const resetSearch = () => {
-  searchForm.productId = '';
+  searchForm.keyword = '';
   searchForm.version = '';
   searchForm.approved = '';
   handleSearch();

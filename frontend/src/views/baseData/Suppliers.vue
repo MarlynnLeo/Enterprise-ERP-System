@@ -133,7 +133,7 @@
         <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
       >
           <template #default="scope">
-            <div class="operation-buttons">
+            <div class="table-actions">
               <el-popconfirm
                 v-if="canUpdate && (scope.row.status || scope.row.isActive) !== 1"
                 title="确定要启用该供应商吗？"

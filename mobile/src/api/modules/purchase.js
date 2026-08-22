@@ -97,7 +97,7 @@ export const purchaseApi = {
     return api.put(`/purchase/returns/${id}/status`, { newStatus: status })
   },
 
-  // 外委加工
+  // 委外加工
   getProcessing(params) {
     return api.get('/purchase/outsourced-processings', { params })
   },
@@ -122,7 +122,7 @@ export const purchaseApi = {
     return api.delete(`/purchase/outsourced-processings/${id}`)
   },
 
-  // 外委入库
+  // 委外入库
   getProcessingReceipts(params) {
     return api.get('/purchase/outsourced-receipts', { params })
   },

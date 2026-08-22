@@ -4,6 +4,12 @@
 
 import { createApp, defineAsyncComponent } from 'vue'
 import { createPinia } from 'pinia'
+import { ElLoading } from 'element-plus'
+import 'element-plus/theme-chalk/el-loading.css'
+import 'element-plus/theme-chalk/el-message-box.css'
+import 'element-plus/theme-chalk/el-message.css'
+import 'element-plus/theme-chalk/el-notification.css'
+import 'element-plus/theme-chalk/el-overlay.css'
 import App from './App.vue'
 import router from './router'
 import { useAuthStore } from './stores/auth'
@@ -106,6 +112,7 @@ if (authStore.isAuthenticated) {
 
 
 app.use(permissionDirective)
+app.directive('loading', ElLoading.directive)
 // 常用业务公共组件保持全局可用，但不再阻塞登录页下载和解析。
 app.component('FinanceQueryCard', defineAsyncComponent(() => import('./components/common/FinanceQueryCard.vue')))
 app.component('PageHeader', defineAsyncComponent(() => import('./components/ui/PageHeader.vue')))

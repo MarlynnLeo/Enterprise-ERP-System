@@ -52,11 +52,11 @@
                 <div
                   :class="['tab', {'active': activeTodoTab === 'pending'}]"
                   @click="switchTodoTab('pending')"
-                >{{ $t('page.dashboard.todoItems') }}</div>
+                >{{ $te('page.dashboard.todoItems') ? $t('page.dashboard.todoItems') : ($te('dashboard.todoItems') ? $t('dashboard.todoItems') : '待办事项') }}</div>
                 <div
                   :class="['tab', {'active': activeTodoTab === 'completed'}]"
                   @click="switchTodoTab('completed')"
-                >{{ $t('common.completed') }}</div>
+                >{{ $te('common.completed') ? $t('common.completed') : '已完成' }}</div>
               </div>
               <el-button link class="todo-more-button" @click="goToTodoPage">
                 查看全部 {{ activeTodoCount }}
@@ -66,30 +66,30 @@
               <el-table
                 :data="activeTodoTasks"
                 :show-header="true"
-                height="100%"
+                style="width: 100%; height: 320px;"
                 :empty-text="activeTodoTab === 'pending' ? '暂无待办事项' : '暂无已完成事项'"
                 class="dashboard-table"
               >
-                <el-table-column :label="$t('common.type')" width="72">
+                <el-table-column :label="$t('common.type') || '类型'" width="72">
                   <template #default="{ row }">
                     <span class="event-type" :class="getEventTypeClass(row.type)">{{ row.type }}</span>
                   </template>
                 </el-table-column>
-                <el-table-column prop="title" :label="$t('common.title')" min-width="100" show-overflow-tooltip />
+                <el-table-column prop="title" :label="$t('common.title') || '标题'" min-width="100" show-overflow-tooltip />
                 <el-table-column
                   v-if="showTodoDate"
                   prop="date"
-                  :label="activeTodoTab === 'pending' ? $t('common.deadline') : $t('common.updateTime')"
+                  :label="activeTodoTab === 'pending' ? ($t('common.deadline') || '截止时间') : ($t('common.updateTime') || '更新时间')"
                   width="108"
                 />
-                <el-table-column v-if="showTodoStatus" :label="$t('common.status')" width="76">
+                <el-table-column v-if="showTodoStatus" :label="$t('common.status') || '状态'" width="76">
                   <template #default="{ row }">
                     <span :class="activeTodoTab === 'completed' ? 'status-completed' : getStatusClass(row.status)">
                       {{ row.status }}
                     </span>
                   </template>
                 </el-table-column>
-                <el-table-column :label="$t('common.action')" width="88" align="center">
+                <el-table-column :label="$t('common.action') || '操作'" width="88" align="center">
                   <template #default="{ row }">
                     <el-button
                       :type="activeTodoTab === 'pending' ? 'primary' : 'info'"
@@ -97,7 +97,7 @@
                       class="action-btn"
                       @click="activeTodoTab === 'pending' ? goToTodoPage() : viewTodoDetail(row.id)"
                     >
-                      {{ activeTodoTab === 'pending' ? $t('common.handle') : $t('common.detail') }}
+                      {{ activeTodoTab === 'pending' ? ($t('common.handle') || '处理') : ($t('common.detail') || '详情') }}
                     </el-button>
                   </template>
                 </el-table-column>

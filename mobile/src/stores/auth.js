@@ -195,23 +195,13 @@ export const useAuthStore = defineStore('auth', () => {
    */
   const login = async (credentials) => {
     try {
-      // Password success may transition to an unauthenticated MFA challenge.
-      // Remove any previous principal before starting that transition.
+      // Remove any previous principal before starting a new login.
       clearAuthData()
       const response = await api.post('/auth/login', credentials)
 
       // 响应拦截器已经解包了 ResponseHandler 格式
       // response.data 就是 { token, accessToken, refreshToken, user }
       const authData = response.data
-
-      if (authData?.mfaRequired) {
-        return {
-          mfaRequired: true,
-          mfaSetupRequired: Boolean(authData.mfaSetupRequired),
-          challengeId: authData.challengeId,
-          expiresIn: authData.expiresIn,
-        }
-      }
 
       if (!authData || !authData.user) {
         throw new Error('登录响应数据格式错误')
@@ -235,17 +225,6 @@ export const useAuthStore = defineStore('auth', () => {
       throw error
     }
   }
-
-  const verifyMfa = async (payload) => {
-    const response = await api.post('/auth/mfa/verify', payload)
-    const authData = response.data
-    if (!authData?.user) throw new Error('MFA 验证响应数据格式错误')
-    saveAuthData(authData)
-    await fetchUserPermissions()
-    return authData
-  }
-
-  const enrollMfa = (payload) => api.post('/auth/mfa/enroll', payload)
 
   /**
    * 登出
@@ -516,8 +495,6 @@ export const useAuthStore = defineStore('auth', () => {
 
     // 方法
     login,
-    verifyMfa,
-    enrollMfa,
     logout,
     fetchUserProfile,
     updateProfile,

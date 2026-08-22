@@ -633,33 +633,15 @@ exports.toggleTodoStatus = async (req, res) => {
   }
 };
 
-// 获取可选择的用户列表（用于协同任务）— 脱敏 + DataScope
+// 获取可选择的用户列表（用于协同任务）— 仅返回脱敏字段
 exports.getAvailableUsers = async (req, res) => {
   try {
     const currentUserId = req.user.id;
-    const DataScopeService = require('../../services/DataScopeService');
-    const scope = await DataScopeService.getRequestScope(req);
 
     const where = {
       id: { [Op.ne]: currentUserId },
       status: 1,
     };
-
-    // 非全量数据范围：仅本部门（及下级）或无法解析时仅本人不可见他人
-    if (!DataScopeService.isAllScope(scope)) {
-      if (scope.departmentIds && scope.departmentIds.length > 0) {
-        where.department_id = { [Op.in]: scope.departmentIds };
-      } else if (Number(scope.type) === DataScopeService.DATA_SCOPE.SELF) {
-        // 本人范围：协同场景仅允许选同部门，无部门则返回空列表
-        if (scope.departmentId) {
-          where.department_id = scope.departmentId;
-        } else {
-          return ResponseHandler.success(res, []);
-        }
-      } else {
-        return ResponseHandler.success(res, []);
-      }
-    }
 
     const users = await models.User.findAll({
       where,

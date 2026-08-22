@@ -146,7 +146,7 @@
       </el-table-column>
       <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
         <template #default="{ row }">
-          <div class="row-actions">
+          <div class="table-actions">
             <el-button
               :type="row.completed ? 'info' : 'success'"
               size="small"

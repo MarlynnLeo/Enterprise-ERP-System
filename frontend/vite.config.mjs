@@ -115,11 +115,26 @@ export default defineConfig(({ mode }) => {
     optimizeDeps: {
       include: [
         'dompurify',
+        'dayjs',
+        'dayjs/plugin/advancedFormat.js',
+        'dayjs/plugin/customParseFormat.js',
+        'dayjs/plugin/dayOfYear.js',
+        'dayjs/plugin/isSameOrAfter.js',
+        'dayjs/plugin/isSameOrBefore.js',
+        'dayjs/plugin/localeData.js',
+        'dayjs/plugin/weekOfYear.js',
+        'dayjs/plugin/weekYear.js',
         'echarts/core',
         'echarts/charts',
         'echarts/components',
         'echarts/renderers'
       ],
+      // Element Plus is consumed through both auto-imported component
+      // subpaths and programmatic APIs. Vite 8's incremental optimizer can
+      // otherwise split those entries into a shared runtime that references
+      // init_runtime_dom_esm_bundler without importing it, leaving the app on
+      // a blank page after the "new dependencies optimized" reload.
+      exclude: ['element-plus'],
       // 强制预构建这些 CommonJS 模块
       force: false
     },

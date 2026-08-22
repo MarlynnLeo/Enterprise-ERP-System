@@ -61,7 +61,14 @@
         <template #empty>
           <EmptyState description="暂无用户数据" />
         </template>
-        <el-table-column prop="username" label="用户名" width="130" fixed="left"></el-table-column>
+        <el-table-column label="用户名" width="170" fixed="left">
+          <template #default="scope">
+            <div class="account-cell">
+              <span>{{ scope.row.username }}</span>
+              <el-tag v-if="scope.row.loginLocked" size="small" type="danger">已锁定</el-tag>
+            </div>
+          </template>
+        </el-table-column>
         <el-table-column prop="realName" label="姓名" width="120"></el-table-column>
         <el-table-column prop="email" label="邮箱" min-width="200"></el-table-column>
         <el-table-column prop="phone" label="手机号" width="130"></el-table-column>
@@ -75,10 +82,10 @@
           </template>
         </el-table-column>
         <el-table-column prop="createTime" label="创建时间" width="180"></el-table-column>
-        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
+        <el-table-column label="操作" min-width="410" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
       >
           <template #default="scope">
-            <div class="flex-wrap">
+            <div class="table-actions">
               <el-popconfirm
                 v-if="String(scope.row.status) !== '1'"
                 title="确定要启用该用户吗？"
@@ -115,6 +122,17 @@
 
               <el-button type="info" size="small" v-permission="'system:users:update'" @click="handleResetPassword(scope.row)">
                 <el-icon><Key /></el-icon> 重置密码
+              </el-button>
+
+              <el-button
+                v-if="scope.row.loginLocked"
+                type="danger"
+                plain
+                size="small"
+                v-permission="'system:users:update'"
+                @click="handleUnlockLogin(scope.row)"
+              >
+                <el-icon><Unlock /></el-icon> 解除锁定
               </el-button>
             </div>
           </template>
@@ -226,7 +244,7 @@
 import { handleTableRowView } from '@/utils/tableRowView'
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Plus, Check, Close, Edit, Key } from '@element-plus/icons-vue';
+import { Plus, Check, Close, Edit, Key, Unlock } from '@element-plus/icons-vue';
 import { systemApi } from '@/api';
 import { getUserStatusText, getUserStatusColor } from '@/constants/systemConstants';
 // 权限计算属性
@@ -358,7 +376,8 @@ const loadUsers = async () => {
       return {
         ...user,
         departmentName,
-        status: Number(user.status) === 1 ? 1 : 0
+        status: Number(user.status) === 1 ? 1 : 0,
+        loginLocked: user.loginLocked === true || Number(user.loginLocked) === 1
       };
     });
     total.value = Number(responseData.total || responseData.count || usersData.length);
@@ -598,6 +617,32 @@ const handleResetPassword = (row) => {
   }).catch(() => {})
 }
 
+// 解除连续输错密码造成的登录锁定
+const handleUnlockLogin = (row) => {
+  ElMessageBox.confirm(
+    `确认解除账号“${row.username}”的登录限制吗？解除后失败次数会清零。`,
+    '解除登录锁定',
+    {
+      confirmButtonText: '确认解除',
+      cancelButtonText: '取消',
+      type: 'warning'
+    }
+  ).then(async () => {
+    try {
+      await systemApi.unlockUserLogin(row.id)
+      row.loginLocked = false
+      row.failedLoginAttempts = 0
+      row.lockedUntil = null
+      ElMessage.success('登录限制已解除')
+    } catch (error) {
+      console.error('解除登录限制失败:', error)
+      ElMessage.error(
+        error.response?.data?.message || error.message || '解除登录限制失败'
+      )
+    }
+  }).catch(() => {})
+}
+
 // 重置表单
 const resetUserForm = () => {
   userForm.id = null;
@@ -721,5 +766,12 @@ onMounted(async () => {
 :deep(.el-table__cell) {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.account-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
 }
 </style>

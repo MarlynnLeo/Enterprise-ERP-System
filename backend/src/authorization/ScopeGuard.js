@@ -4,7 +4,7 @@
  * 上下游闭环：
  *   create → stampOwner（强制写入 owner）
  *   list   → applyListScope（SQL join/where）
- *   get/mutate → assertAccess / denyUnlessAccess
+ *   get/mutate → assertAccess / denyUnlessAccess / assertAllAccess
  *
  * 禁止在控制器里各自拼 scope 条件或信任 body.created_by。
  *
@@ -105,16 +105,14 @@ class ScopeGuard {
   static async assertAccess(connection, req, policyKey, recordId, options = {}) {
     const policy = getResourcePolicy(policyKey);
     if (this.isFinanceSharedAll(policy) || this.isSharedRead(policy, options)) {
-      // Shared visibility relaxes owner/department filtering only. It must not
-      // turn a missing or soft-deleted object into an authorizable resource.
       return DataScopeService.assertRecordExists(connection, policy.table, recordId, {
         idColumn: policy.idColumn || 'id',
-        deletedAtColumn:
-          policy.deletedAtColumn === false ? false : (policy.deletedAtColumn || 'deleted_at'),
+        deletedAtColumn: policy.deletedAtColumn === false ? false : (policy.deletedAtColumn || 'deleted_at'),
         extraSoftDelete: policy.extraSoftDelete || null,
       });
     }
     return DataScopeService.assertRecordAccess(connection, req, policy.table, recordId, {
+      idColumn: policy.idColumn || 'id',
       ownerColumn: policy.ownerColumn,
       departmentColumn: policy.departmentColumn || null,
       locationColumn: policy.locationColumn || null,

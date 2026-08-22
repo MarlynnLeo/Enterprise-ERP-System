@@ -288,7 +288,7 @@ const firstArticleController = {
         quantity: firstArticleQty,
         unit: FIRST_ARTICLE_CONFIG.DEFAULT_UNIT,
         planned_date: planned_date || new Date(),
-        status: 'pending',
+        status: businessConfig.status.approval.PENDING,
         is_first_article: true,
         first_article_qty: firstArticleQty,
         is_full_inspection: isFullInspection,

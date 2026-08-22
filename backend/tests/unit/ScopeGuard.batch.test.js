@@ -1,8 +1,11 @@
 /* global describe, expect, jest, test */
 
 jest.mock('../../src/services/DataScopeService', () => ({
-  buildRequestOwnerScopeClause: jest.fn(),
+  getRequestScope: jest.fn().mockResolvedValue({ type: 1, userId: 1 }),
+  isAllScope: jest.fn().mockReturnValue(true),
+  assertRecordExists: jest.fn(),
   assertRecordAccess: jest.fn(),
+  buildRequestOwnerScopeClause: jest.fn().mockResolvedValue({ join: '', where: '', params: [] }),
 }));
 
 const DataScopeService = require('../../src/services/DataScopeService');
@@ -27,5 +30,6 @@ describe('ScopeGuard batch authorization', () => {
     await expect(
       ScopeGuard.assertAllAccess({}, { user: { id: 1 } }, 'inventory_outbound', ['x'])
     ).resolves.toBe(false);
+    expect(DataScopeService.assertRecordAccess).not.toHaveBeenCalled();
   });
 });

@@ -61,11 +61,6 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="数据范围" width="140">
-            <template #default="scope">
-              <el-tag type="info" size="small">{{ dataScopeLabel(scope.row.dataScope) }}</el-tag>
-            </template>
-          </el-table-column>
           <el-table-column prop="description" label="角色描述" min-width="280"></el-table-column>
           <el-table-column label="状态" width="100">
             <template #default="scope">
@@ -77,7 +72,7 @@
           <el-table-column prop="createdAt" label="创建时间" width="180"></el-table-column>
           <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="scope">
-              <div class="flex-wrap">
+              <div class="table-actions">
                 <el-popconfirm
                   v-if="String(scope.row.status) !== '1'"
                   title="确定要启用该角色吗？"
@@ -210,7 +205,7 @@
           </el-table-column>
           <el-table-column label="操作" min-width="400" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
             <template #default="scope">
-              <div class="flex-wrap">
+              <div class="table-actions">
                 <el-popconfirm
                   v-if="String(scope.row.status) !== '1'"
                   title="确定要显示该菜单吗？"
@@ -293,9 +288,6 @@
         <el-descriptions :column="1" border class="mb-20">
           <el-descriptions-item label="角色名称">{{ roleForm.name || '-' }}</el-descriptions-item>
           <el-descriptions-item label="角色编码">{{ roleForm.code || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="数据范围">{{
-            dataScopeLabel(roleForm.dataScope)
-          }}</el-descriptions-item>
           <el-descriptions-item label="状态">
             <el-tag :type="Number(roleForm.status) === 1 ? 'success' : 'danger'">
               {{ Number(roleForm.status) === 1 ? '启用' : '禁用' }}
@@ -312,17 +304,6 @@
         </el-form-item>
         <el-form-item label="角色编码" prop="code">
           <el-input v-model="roleForm.code" placeholder="请输入角色编码"></el-input>
-        </el-form-item>
-        <el-form-item label="数据范围" prop="dataScope">
-          <el-select v-model="roleForm.dataScope" placeholder="选择数据范围" class="w-full">
-            <el-option
-              v-for="opt in dataScopeOptions"
-              :key="opt.value"
-              :label="opt.label"
-              :value="opt.value"
-            />
-          </el-select>
-          <div class="form-tip">控制业务单据行级可见范围（ALL/部门/本人等）</div>
         </el-form-item>
         <el-form-item label="角色描述" prop="description">
           <el-input
@@ -672,18 +653,6 @@ const treeKey = ref(Date.now()); // 用于强制树组件重新渲染
 // 权限搜索关键词
 const permSearchKeyword = ref('');
 // 角色表单
-const dataScopeOptions = [
-  { value: 1, label: '全部数据 (ALL)' },
-  { value: 2, label: '本部门及下级' },
-  { value: 3, label: '仅本部门' },
-  { value: 4, label: '仅本人 (SELF)' },
-  { value: 5, label: '自定义' },
-];
-const dataScopeLabel = (v) => {
-  const n = Number(v);
-  const hit = dataScopeOptions.find((o) => o.value === n);
-  return hit ? hit.label : v == null || v === '' ? '-' : String(v);
-};
 const currentRoleProfile = computed(() => currentRole.value?.accessProfile || null);
 const formatRoleModules = (modules = []) => {
   if (!Array.isArray(modules) || modules.length === 0) return '';
@@ -696,7 +665,6 @@ const roleForm = reactive({
   code: '',
   description: '',
   status: 1,
-  dataScope: 4,
 });
 // 菜单表单
 const menuForm = reactive({
@@ -1047,7 +1015,6 @@ const handleViewRole = (row) => {
   Object.assign(roleForm, row);
   // 特殊处理状态展示
   roleForm.status = Number(row.status);
-  roleForm.dataScope = Number(row.dataScope) || 4;
   roleDialogVisible.value = true;
 };
 // 编辑角色
@@ -1063,7 +1030,6 @@ const handleEditRole = (row) => {
     }
   });
   roleForm.status = Number(row.status);
-  roleForm.dataScope = Number(row.dataScope) || 4;
 
   roleDialogVisible.value = true;
 };
@@ -1647,7 +1613,6 @@ const resetRoleForm = () => {
   roleForm.code = '';
   roleForm.description = '';
   roleForm.status = 1;
-  roleForm.dataScope = 4;
 
   // 清除校验
   if (roleFormRef.value) {

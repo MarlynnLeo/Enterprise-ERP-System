@@ -450,6 +450,7 @@
   </div>
 </template>
 <script setup>
+import { getPurchaseStatusText, getPurchaseStatusColor, getApprovalStatusText, getApprovalStatusColor } from '@/constants/systemConstants'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { formatLocalDate } from '@/utils/format';
 import { ref, reactive, onMounted, onActivated, nextTick, computed } from 'vue';
@@ -667,28 +668,10 @@ const handleCurrentChange = (newPage) => {
 };
 // 获取状态文本
 
-const getStatusText = (status) => {
-  const statusMap = {
-    draft: '草稿',
-    submitted: '已提交',
-    approved: '已批准',
-    rejected: '已拒绝',
-    completed: '已完成'
-  };
-  return statusMap[status] || status;
-};
+const getStatusText = (status) => getPurchaseStatusText(status) || getApprovalStatusText(status) || status;
 // 获取状态类型（用于标签样式）
 
-const getStatusType = (status) => {
-  const statusTypeMap = {
-    draft: 'info',
-    submitted: 'warning',
-    approved: 'success',
-    rejected: 'danger',
-    completed: 'success'
-  };
-  return statusTypeMap[status] || 'info';
-};
+const getStatusType = (status) => getPurchaseStatusColor(status) || getApprovalStatusColor(status) || 'info';
 // 显示创建对话框
 
 const showCreateDialog = () => {

@@ -250,6 +250,15 @@ const advancedLeave = (element, done) => {
   margin-left: 0 !important;
 }
 
+.finance-query-card__actions :deep(.el-dropdown) {
+  max-width: 100%;
+  margin-left: 0 !important;
+}
+
+.finance-query-card__actions :deep(.el-dropdown .el-button) {
+  max-width: 100%;
+}
+
 .finance-query-card__advanced-wrap {
   overflow: hidden;
   will-change: height, opacity, transform;
@@ -288,5 +297,30 @@ const advancedLeave = (element, done) => {
 
 .finance-query-card__toggle-icon.is-expanded {
   transform: rotate(180deg);
+}
+
+@media (max-width: 768px) {
+  .finance-query-card__basic {
+    column-gap: 12px;
+    row-gap: 10px;
+  }
+
+  .finance-query-card__basic :deep(.el-form-item:not(.finance-query-card__actions) .el-form-item__content),
+  .finance-query-card__advanced :deep(.el-form-item .el-form-item__content) {
+    --finance-query-control-width: min(100%, 280px);
+    flex-basis: var(--finance-query-control-width);
+    width: var(--finance-query-control-width);
+  }
+
+  .finance-query-card__actions {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .finance-query-card__actions :deep(.el-form-item__content) {
+    width: 100%;
+    min-width: 0;
+    justify-content: flex-start;
+  }
 }
 </style>

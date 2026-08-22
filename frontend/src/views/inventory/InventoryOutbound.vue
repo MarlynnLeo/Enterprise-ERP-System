@@ -34,12 +34,7 @@
 
         <el-form-item label="状态">
           <el-select v-model="statusFilter" placeholder="状态" clearable>
-            <el-option label="草稿" value="draft" />
-            <el-option label="已确认" value="confirmed" />
-            <el-option label="部分" value="partial_completed" />
-            <el-option label="已完成" value="completed" />
-            <el-option label="已冲销" value="reversed" />
-            <el-option label="已取消" value="cancelled" />
+            <el-option v-for="item in statusOptions" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="时间范围">
@@ -162,7 +157,7 @@
         <el-table-column label="操作" min-width="420" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
       >
           <template #default="scope">
-            <div class="table-actions">
+            <TableRowActions>
             
             <!-- 草稿和已确认状态显示编辑按钮 -->
             <el-button v-if="scope.row.status === 'draft' || scope.row.status === 'confirmed'" size="small"
@@ -211,7 +206,7 @@
             <el-button v-if="scope.row.status !== 'draft'" size="small" type="success" v-permission="'inventory:outbound:view'" @click="handlePrint(scope.row)">
               <el-icon><Printer /></el-icon> 打印
             </el-button>
-            </div>
+            </TableRowActions>
           </template>
         </el-table-column>
       </el-table>
@@ -343,7 +338,7 @@
           <el-table-column label="单位" min-width="80" show-overflow-tooltip>
             <template #default="scope">
               <span :class="scope.row.isSubstitute ? 'is-substitute' : ''">
-                {{ scope.row.unitName || scope.row.unit || '' }}
+                {{ formatUnit(scope.row) }}
               </span>
             </template>
           </el-table-column>
@@ -375,7 +370,7 @@
                 size="small" @blur="validateOutboundQuantity(scope.row)" @input="validateOutboundQuantity(scope.row)"
                 @keydown.enter="handleQuantityEnter(scope.row.originalIndex)" placeholder="数量" />
               <el-tooltip v-else-if="scope.row.isFromPlan && !scope.row.isSubstitute"
-                :content="'生产计划数量：' + Math.floor(selectedPlan?.quantity || 0) + ' ' + (selectedPlan?.unitName || '') + '，BOM用量：' + Math.floor(scope.row.bomQuantity || 0) + ' ' + (scope.row.unitName || scope.row.unit || '')"
+                :content="getTooltipContent(scope.row, selectedPlan)"
                 placement="top">
                 <span>{{ Math.floor(scope.row.quantity || 0) }}</span>
               </el-tooltip>
@@ -475,7 +470,7 @@
         <el-table-column label="单位" min-width="80" show-overflow-tooltip>
           <template #default="scope">
             <span :class="scope.row.isSubstitute ? 'is-substitute' : ''">
-              {{ scope.row.unitName || scope.row.unit || '' }}
+              {{ formatUnit(scope.row) }}
             </span>
           </template>
         </el-table-column>
@@ -631,6 +626,14 @@
 
 <script>
 import { ref, reactive, onMounted, computed, nextTick, h } from 'vue'
+const formatUnit = (row) => row?.unitName || row?.unit || ''
+const getTooltipContent = (row, selectedPlan) => {
+  const planQty = Math.floor(selectedPlan?.quantity || 0)
+  const planUnit = selectedPlan?.unitName || ''
+  const bomQty = Math.floor(row?.bomQuantity || 0)
+  const bomUnit = row?.unitName || row?.unit || ''
+  return `生产计划数量：${planQty} ${planUnit}，BOM用量：${bomQty} ${bomUnit}`
+}
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { useListDetailNavigation } from '@/composables/useListDetailNavigation'
@@ -640,7 +643,6 @@ import {
   Printer,
   Select as SelectIcon,
   Close,
-  View,
   Edit,
   Delete,
   RefreshRight,
@@ -651,14 +653,36 @@ import {
 import { productionApi, inventoryApi, baseDataApi, systemApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import printService from '@/services/printService'
-import { getInboundOutboundStatusText, getInboundOutboundStatusColor } from '@/constants/systemConstants'
 import { searchMaterials } from '@/utils/searchConfig'
 import { parseListData, parsePaginatedData, parseResponseData } from '@/utils/responseParser'
 import { formatDate } from '@/utils/helpers/dateUtils'
+import {
+  getInboundOutboundStatusText,
+  getInboundOutboundStatusColor,
+  getInventoryTransactionTypeText,
+  getInventoryTransactionTypeColor,
+} from '@/constants/systemConstants'
+import TableRowActions from '@/components/common/TableRowActions.vue'
+import { useDictionaryStore } from '@/stores/dictionary'
 export default {
   name: 'InventoryOutbound',
+  components: {
+    SearchIcon,
+    Plus,
+    Printer,
+    SelectIcon,
+    Close,
+    Edit,
+    Delete,
+    RefreshRight,
+    Check,
+    Finished,
+    RefreshLeft,
+    TableRowActions
+  },
   setup() {
     const authStore = useAuthStore()
+    const dictionaryStore = useDictionaryStore()
     const BATCH_MATERIAL_QUERY_LIMIT = 100
     const BATCH_STOCK_QUERY_LIMIT = 50
     const chunkArray = (items, size) => {
@@ -689,6 +713,25 @@ export default {
     const dateRange = ref([])  // 时间范围
     const productionGroupList = ref([])
     const tableHeight = ref('500px')
+
+    const statusOptions = computed(() => {
+      const configured = dictionaryStore.getOptions('inbound_outbound_status')
+      if (configured.length > 0) {
+        const values = new Set(configured.map((item) => item.value))
+        return [
+          ...configured,
+          ...(values.has('reversed') ? [] : [{ value: 'reversed', label: '已冲销' }]),
+        ]
+      }
+      return [
+        { value: 'draft', label: '草稿' },
+        { value: 'confirmed', label: '已确认' },
+        { value: 'partial_completed', label: '部分完成' },
+        { value: 'completed', label: '已完成' },
+        { value: 'reversed', label: '已冲销' },
+        { value: 'cancelled', label: '已取消' },
+      ]
+    })
 
     // 批量选择相关
     const outboundTableRef = ref(null)
@@ -761,25 +804,20 @@ export default {
       if (status === 'reversed') return '已冲销'
       return getInboundOutboundStatusText(status)
     }
+    const outboundTypeAliases = {
+      supplement: 'production_outbound',
+      exchange: 'sales_exchange_out',
+      bom_issue: 'production_outbound',
+      batch_issue: 'production_outbound',
+      sales: 'sales_outbound',
+      production: 'production_outbound',
+      manual: 'outbound',
+      other: 'outbound',
+    }
     const getOutboundTypeText = (type) =>
-      ({
-        supplement: '补料',
-        exchange: '换料',
-        bom_issue: '生产发料',
-        batch_issue: '批量发料',
-        sales: '销售出库',
-        production: '生产领料',
-        manual: '其他出库',
-        other: '其他出库'
-      })[type] || type || '出库'
+      getInventoryTransactionTypeText(outboundTypeAliases[type] || type) || type || '出库'
     const getOutboundTypeTag = (type) =>
-      ({
-        supplement: 'danger',
-        exchange: 'warning',
-        bom_issue: 'primary',
-        batch_issue: 'primary',
-        sales: 'success'
-      })[type] || 'info'
+      getInventoryTransactionTypeColor(outboundTypeAliases[type] || type) || 'info'
 
     // 倒计时核心计算（单一职责，消除重复日期计算）
     const _calcCountdown = (outboundDate, status) => {
@@ -1810,6 +1848,7 @@ export default {
 
     // 在页面加载时初始化数据
     onMounted(async () => {
+      await dictionaryStore.fetchDictionary()
       try {
         await Promise.all([
           fetchOutboundList(),  // 获取出库单列表
@@ -2216,6 +2255,8 @@ export default {
     }
 
     return {
+      formatUnit,
+      getTooltipContent,
       handleTableRowView,
       // 图标组件
       SearchIcon,
@@ -2223,7 +2264,6 @@ export default {
       Printer,
       SelectIcon,
       Close,
-      View,
       Edit,
       Delete,
       RefreshRight,
@@ -2238,6 +2278,7 @@ export default {
       total,
       searchKeyword,
       statusFilter,
+      statusOptions,
       productionGroupFilter,
       dateRange,
       productionGroupList,

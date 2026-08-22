@@ -194,13 +194,15 @@ class PermissionService {
    */
   static async isAdmin(userId) {
     try {
+      if (!userId) return false;
+
       const [result] = await pool.execute(
         `SELECT COUNT(*) as count FROM user_roles ur
          JOIN roles r ON ur.role_id = r.id
-         WHERE ur.user_id = ? AND r.is_super_admin = 1 AND r.status = 1`,
+         WHERE ur.user_id = ? AND r.status = 1 AND (r.is_super_admin = 1 OR LOWER(r.code) IN ('admin', 'super_admin', 'system_admin'))`,
         [userId]
       );
-      return result[0].count > 0;
+      return (result?.[0]?.count || 0) > 0;
     } catch (error) {
       logger.error('检查管理员权限失败:', error);
       throw error;

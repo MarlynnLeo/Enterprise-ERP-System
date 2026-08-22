@@ -11,16 +11,10 @@
         <EmptyState description="暂无物料数据" />
       </template>
       <el-table-column prop="code" label="物料编码" width="120" show-overflow-tooltip></el-table-column>
-      <el-table-column prop="drawingNo" label="物料号" width="120" show-overflow-tooltip>
-        <template #default="{ row }">{{ row.drawingNo || '—' }}</template>
-      </el-table-column>
+
       <el-table-column prop="name" label="物料名称" width="200" show-overflow-tooltip></el-table-column>
       <el-table-column prop="specs" label="规格型号" width="200" show-overflow-tooltip></el-table-column>
-      <el-table-column prop="material" label="材料" width="120" show-overflow-tooltip>
-        <template #default="{ row }">
-          {{ row.material || '—' }}
-        </template>
-      </el-table-column>
+
       <el-table-column label="物料类型" width="90" show-overflow-tooltip>
         <template #default="{ row }">{{ getMaterialTypeLabel(row.materialType) }}</template>
       </el-table-column>
@@ -35,12 +29,7 @@
       <el-table-column prop="unitName" label="单位" width="60" show-overflow-tooltip></el-table-column>
       <el-table-column prop="locationName" label="仓库" width="100" show-overflow-tooltip></el-table-column>
       <el-table-column prop="managerName" label="物料负责人" width="100" show-overflow-tooltip></el-table-column>
-      <el-table-column label="销售价格" width="110" show-overflow-tooltip>
-        <template #default="{ row }">{{ formatMaskedPrice(row.price, canViewPrice, formatCurrency) }}</template>
-      </el-table-column>
-      <el-table-column label="采购成本" width="110" show-overflow-tooltip>
-        <template #default="{ row }">{{ formatMaskedPrice(row.costPrice, canViewCost, formatCurrency) }}</template>
-      </el-table-column>
+
 
       <el-table-column prop="minStock" label="最小库存" width="85" show-overflow-tooltip></el-table-column>
       <el-table-column prop="maxStock" label="最大库存" width="85" show-overflow-tooltip></el-table-column>
@@ -52,64 +41,26 @@
         </template>
       </el-table-column>
       <el-table-column prop="remark" label="备注" show-overflow-tooltip></el-table-column>
-      <el-table-column label="操作" min-width="220" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
+      <el-table-column
+        label="操作"
+        min-width="72"
+        fixed="right"
+        align="left"
+        header-align="left"
+        class-name="operation-column"
+        header-class-name="operation-column-header"
+      >
         <template #default="scope">
-          <div class="table-actions" @click.stop>
-            <el-popconfirm
-              v-if="canUpdate && String(scope.row.status) !== '1'"
-              title="确定要启用该物料吗？"
-              @confirm="emit('enable', scope.row)"
-            >
-              <template #reference>
-                <el-button
-                  size="small"
-                  type="success"
-                >
-                  <el-icon><Check /></el-icon> 启用
-                </el-button>
-              </template>
-            </el-popconfirm>
-
-            <el-popconfirm
-              v-if="canUpdate && String(scope.row.status) === '1'"
-              title="确定要禁用该物料吗？"
-              @confirm="emit('disable', scope.row)"
-              confirm-button-type="danger"
-            >
-              <template #reference>
-                <el-button
-                  size="small"
-                  type="warning"
-                >
-                  <el-icon><Close /></el-icon> 禁用
-                </el-button>
-              </template>
-            </el-popconfirm>
-
-            <el-button
-              v-if="canUpdate && String(scope.row.status) !== '1'"
-              size="small"
-              @click="emit('edit', scope.row)"
-            >
-              <el-icon><Edit /></el-icon> 编辑
-            </el-button>
-
-            <el-popconfirm
-              v-if="canDelete && String(scope.row.status) !== '1'"
-              title="确定要删除该物料吗？此操作无法恢复。"
-              @confirm="emit('delete', scope.row)"
-              confirm-button-type="danger"
-            >
-              <template #reference>
-                <el-button
-                  size="small"
-                  type="danger"
-                >
-                  <el-icon><Delete /></el-icon> 删除
-                </el-button>
-              </template>
-            </el-popconfirm>
-          </div>
+          <TableRowActions
+            :row="scope.row"
+            :can-update="canUpdate"
+            :can-delete="canDelete"
+            resource-label="物料"
+            @edit="emit('edit', $event)"
+            @delete="emit('delete', $event)"
+            @enable="emit('enable', $event)"
+            @disable="emit('disable', $event)"
+          />
         </template>
       </el-table-column>
     </el-table>
@@ -133,10 +84,8 @@
 </template>
 
 <script setup>
-import { Check, Close, Edit, Delete } from '@element-plus/icons-vue'
-import { formatCurrency } from '@/utils/format'
-import { formatMaskedPrice } from '@/utils/priceVisibility'
 import { getMaterialTypeLabel } from '@/utils/materialTypes'
+import TableRowActions from '@/components/common/TableRowActions.vue'
 
 const formatSupplierName = (row) => {
   const name = row.supplierName

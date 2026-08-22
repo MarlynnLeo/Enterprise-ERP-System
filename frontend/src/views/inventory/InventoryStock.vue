@@ -1,4 +1,4 @@
-﻿<!--
+<!--
 /**
  * InventoryStock.vue
  * @description 前端界面组件文件
@@ -245,7 +245,7 @@
             v-loading="batchLoading"
             @row-click="(row, column, event) => handleTableRowView(row, column, event, () => showBatchTransactions(row.batchNumber))"
           >
-            <el-table-column prop="batchNumber" label="批次号" width="150" show-overflow-tooltip>
+            <el-table-column prop="batchNumber" label="批次号" width="200" show-overflow-tooltip>
               <template #default="{ row }">
                 <el-tag type="primary" class="cursor-pointer" @click="goToTraceability(row.batchNumber, currentDetail.materialCode)" title="点击跳转至追溯页面">{{ row.batchNumber }}</el-tag>
               </template>
@@ -261,7 +261,7 @@
                 {{ formatDateTime(row.firstInDate, 'YYYY-MM-DD HH:mm:ss') }}
               </template>
             </el-table-column>
-            <el-table-column prop="lastTransactionDate" label="最后交易时间" width="180">
+            <el-table-column prop="lastTransactionDate" label="最后交易时间" min-width="180">
               <template #default="{ row }">
                 {{ formatDateTime(row.lastTransactionDate, 'YYYY-MM-DD HH:mm:ss') }}
               </template>
@@ -354,7 +354,7 @@
         </el-tab-pane>
 
         <!-- 采购历史标签页 -->
-        <el-tab-pane label="采购历史" name="purchase">
+        <el-tab-pane label="采购历史" name="purchase" v-if="authStore.hasPermission('purchase:receipts:view')">
           <el-table :data="purchaseHistory" border v-loading="purchaseLoading">
             <el-table-column prop="receiptNo" label="入库单号" width="120" />
             <el-table-column prop="supplierName" label="供应商" width="230" />
@@ -403,7 +403,7 @@
         </el-tab-pane>
 
         <!-- 销售历史标签页 -->
-        <el-tab-pane label="销售历史" name="sales">
+        <el-tab-pane label="销售历史" name="sales" v-if="authStore.hasPermission('sales:outbound:view')">
           <el-table :data="salesHistory" border v-loading="salesLoading">
             <el-table-column prop="outboundNo" label="出库单号" width="130" />
             <el-table-column prop="customerName" label="客户" width="240" />
@@ -914,12 +914,17 @@ const handleViewDetail = async (row) => {
     }
 
     // 并行获取流水记录、批次库存、采购历史、销售历史
-    const [recordsResponse] = await Promise.all([
+    const tasks = [
       inventoryApi.getMaterialRecords(materialId, { locationId }),
-      loadBatchInventory(locationId),
-      loadPurchaseHistory(materialId),
-      loadSalesHistory(materialId)
-    ])
+      loadBatchInventory(locationId)
+    ]
+    if (authStore.hasPermission('purchase:receipts:view')) {
+      tasks.push(loadPurchaseHistory(materialId))
+    }
+    if (authStore.hasPermission('sales:outbound:view')) {
+      tasks.push(loadSalesHistory(materialId))
+    }
+    const [recordsResponse] = await Promise.all(tasks)
 
     // 解析流水记录
     detailRecords.value = parseListData(recordsResponse, { enableLog: false })
@@ -953,6 +958,11 @@ const stockViewNavigation = computed(() => ({
 
 // 加载采购历史
 const loadPurchaseHistory = async (materialId) => {
+  if (!authStore.hasPermission('purchase:receipts:view')) {
+    purchaseHistory.value = []
+    purchasePagination.total = 0
+    return
+  }
   try {
     purchaseLoading.value = true
 
@@ -980,6 +990,11 @@ const loadPurchaseHistory = async (materialId) => {
 
 // 加载销售历史
 const loadSalesHistory = async (materialId) => {
+  if (!authStore.hasPermission('sales:outbound:view')) {
+    salesHistory.value = []
+    salesPagination.total = 0
+    return
+  }
   try {
     salesLoading.value = true
 

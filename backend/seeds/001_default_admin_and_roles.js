@@ -69,8 +69,8 @@ const CORE_MENUS = [
   { id: 62, name: '采购订单', path: '/purchase/orders', component: 'purchase/PurchaseOrders', permission: 'purchase:orders', parent_id: 6, sort_order: 2 },
   { id: 63, name: '采购入库', path: '/purchase/receipts', component: 'purchase/PurchaseReceipts', permission: 'purchase:receipts', parent_id: 6, sort_order: 3 },
   { id: 64, name: '采购退货', path: '/purchase/returns', component: 'purchase/PurchaseReturns', permission: 'purchase:returns', parent_id: 6, sort_order: 4 },
-  { id: 65, name: '外委加工', path: '/purchase/processing', component: 'purchase/OutsourcedProcessing', permission: 'purchase:processing', parent_id: 6, sort_order: 5 },
-  { id: 66, name: '外委入库', path: '/purchase/processing-receipts', component: 'purchase/OutsourcedReceipts', permission: 'purchase:processing-receipts', parent_id: 6, sort_order: 6 },
+  { id: 65, name: '委外加工', path: '/purchase/processing', component: 'purchase/OutsourcedProcessing', permission: 'purchase:processing', parent_id: 6, sort_order: 5 },
+  { id: 66, name: '委外入库', path: '/purchase/processing-receipts', component: 'purchase/OutsourcedReceipts', permission: 'purchase:processing-receipts', parent_id: 6, sort_order: 6 },
   { id: 67, name: '采购历史', path: '/purchase/history', component: 'purchase/PurchaseHistory', permission: 'purchase:history', parent_id: 6, sort_order: 7 },
 
   { id: 71, name: '销售订单', path: '/sales/orders', component: 'sales/SalesOrders', permission: 'sales:orders', parent_id: 7, sort_order: 1 },

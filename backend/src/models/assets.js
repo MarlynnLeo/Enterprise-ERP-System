@@ -15,6 +15,7 @@ const DocumentLinkService = require('../services/business/DocumentLinkService');
 const { DOCUMENT_LINK_TYPES: DocType } = require('../constants/documentLinkTypes');
 const { accountingConfig } = require('../config/accountingConfig');
 const { toLocalDateString } = require('../utils/dateUtils');
+const { getAssetStatusText } = require('../constants/systemConstants');
 
 async function getOpenAccountingPeriodId(connection, accountingDate = null) {
   const params = [];
@@ -415,13 +416,7 @@ const assetsModel = {
 
       if (filters.status) {
         // 前端状态值映射到数据库状态值
-        const statusMap = {
-          in_use: '在用',
-          idle: '闲置',
-          under_repair: '维修',
-          disposed: '报废',
-        };
-        const dbStatus = statusMap[filters.status] || filters.status;
+        const dbStatus = getAssetStatusText(filters.status) || filters.status;
 
         whereConditions.push('fa.status = ?');
         params.push(dbStatus);

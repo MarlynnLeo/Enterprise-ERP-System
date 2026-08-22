@@ -5,27 +5,21 @@
 const runtime = require('./runtime');
 const {
   logger,
-  PermissionService,
   BUSINESS_STATUS_MAP,
 } = runtime;
 
 module.exports = {
-  async _assertBusinessReadyForWorkflow(conn, businessType, businessId, initiatorId) {
+  async _assertBusinessReadyForWorkflow(conn, businessType, businessId) {
       const cfg = BUSINESS_STATUS_MAP[businessType];
       const deletedFilter = cfg.hasDeletedAt === false ? '' : ' AND deleted_at IS NULL';
-      const ownerSelect = cfg.ownerColumn ? `, ${cfg.ownerColumn} AS owner_id` : '';
       const [[document]] = await conn.query(
-        `SELECT id, status${ownerSelect} FROM \`${cfg.table}\`
+        `SELECT id, status FROM \`${cfg.table}\`
          WHERE id = ?${deletedFilter} FOR UPDATE`,
         [businessId]
       );
       if (!document) throw new Error(`Business document not found [${businessType}:${businessId}]`);
       if (!cfg.pendingStatuses.includes(document.status)) {
         throw new Error(`Business document must be in approval-pending status, received [${document.status}]`);
-      }
-      if (cfg.ownerColumn && Number(document.owner_id) !== Number(initiatorId)) {
-        const isAdmin = await PermissionService.isAdmin(initiatorId);
-        if (!isAdmin) throw new Error('Only the document owner can initiate its approval workflow');
       }
     },
 
@@ -303,12 +297,14 @@ module.exports = {
         if (action === 'approved' && businessType === 'purchase_requisition') {
           try {
             const { generateOrdersFromRequisition } = require('../RequisitionAutoOrderService');
-            await generateOrdersFromRequisition(businessId, conn);
+            // 传入审批人（approverId）作为关联责任人兑底
+            await generateOrdersFromRequisition(businessId, conn, approverId);
           } catch (autoErr) {
             logger.error(`采购申请 ${businessId} 自动生成采购订单失败，审批回调已回滚:`, autoErr);
             throw autoErr;
           }
         }
+
       } catch (e) {
         logger.error(`工作流${action}回调失败 [${businessType}:${businessId}]:`, e);
         throw e;

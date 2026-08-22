@@ -87,7 +87,7 @@
         </el-table-column>
         <el-table-column label="操作" min-width="300" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header">
           <template #default="scope">
-            <div class="operation-buttons">
+            <div class="table-actions">
               <el-button
                 v-permission="'finance:accounts:update'"
                 v-if="!scope.row.isActive && canUpdate"

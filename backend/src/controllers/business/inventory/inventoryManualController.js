@@ -16,25 +16,10 @@ const businessConfig = require('../../../config/businessConfig');
 const { getCurrentUserName } = require('../../../utils/userHelper');
 const { _insertInventoryLedgerLocal } = require('./inventoryLedgerController');
 const { getRequestActorLabel } = require('../../../utils/userUtils');
-const DataScopeService = require('../../../services/DataScopeService');
 
 let businessTypeCache = null;
 let businessTypeCacheTime = 0;
 const BUSINESS_TYPE_CACHE_TTL = 5 * 60 * 1000;
-
-async function appendManualLocationScope(req, conditions, params, requestedLocationId = '') {
-  const scope = await DataScopeService.getRequestScope(req);
-  if (Number(scope?.type) !== DataScopeService.DATA_SCOPE.CUSTOM) return;
-  const allowed = (scope.locationIds || []).map(Number).filter(Number.isInteger);
-  if (requestedLocationId) {
-    if (!allowed.includes(Number(requestedLocationId))) conditions.push('1 = 0');
-  } else if (allowed.length) {
-    conditions.push(`mt.location_id IN (${allowed.map(() => '?').join(',')})`);
-    params.push(...allowed);
-  } else {
-    conditions.push('1 = 0');
-  }
-}
 
 // 统一库存查询子查询（基于 inventory_ledger 单表架构聚合计算当前库存）
 // DRY: 两处引用相同子查询，统一使用 STOCK_SUBQUERY
@@ -117,7 +102,6 @@ const getManualTransactions = async (req, res) => {
       queryParams.push(approval_status);
     }
 
-    await appendManualLocationScope(req, whereConditions, queryParams, location_id);
 
     const whereClause = whereConditions.length > 0 ? 'WHERE ' + whereConditions.join(' AND ') : '';
 
@@ -927,15 +911,6 @@ const updateManualTransaction = async (req, res) => {
     await connection.beginTransaction();
 
     const { transaction_no } = req.params;
-    const scope = await DataScopeService.getRequestScope(req);
-    if (Number(scope?.type) === DataScopeService.DATA_SCOPE.CUSTOM) {
-      const allowed = (scope.locationIds || []).map(Number);
-      const [visible] = await connection.execute(
-        `SELECT 1 FROM manual_transactions WHERE transaction_no = ? AND location_id IN (${allowed.length ? allowed.map(() => '?').join(',') : 'NULL'}) LIMIT 1`,
-        [transaction_no, ...allowed]
-      );
-      if (!visible.length) return ResponseHandler.forbidden(res, '无权访问该手工出入库单');
-    }
     const {
       item_id,
       transaction_type: businessTypeCode,

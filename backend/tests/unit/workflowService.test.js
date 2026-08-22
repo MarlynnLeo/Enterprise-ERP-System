@@ -90,6 +90,17 @@ describe('WorkflowService approval gates', () => {
     )).rejects.toThrow('未配置启用的审批流程');
   });
 
+  test('workflow instance visibility is not limited to initiator or approver', async () => {
+    pool.query.mockResolvedValueOnce([[{ allowed: 1 }]]);
+
+    await expect(workflowService.canAccessInstance(88, 42)).resolves.toBe(true);
+
+    expect(pool.query).toHaveBeenCalledWith(
+      expect.not.stringContaining('initiator_id = ?'),
+      [88]
+    );
+  });
+
   test('assigns role approvers by system role code instead of user id', async () => {
     const conn = {
       query: jest.fn()

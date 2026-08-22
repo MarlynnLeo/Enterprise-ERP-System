@@ -2,7 +2,7 @@
 /**
  * Units.vue
  * @description 前端界面组件文件
-  * @date 2025-08-27
+ * @date 2025-08-27
  * @version 1.0.0
  */
 -->
@@ -10,7 +10,7 @@
   <div class="module-page base-data-list-page">
     <PageHeader title="产品单位管理" subtitle="管理计量单位配置">
       <template #actions>
-<el-button v-if="canCreate" type="primary" :icon="Plus" @click="handleAdd">新增单位</el-button>
+        <el-button v-if="canCreate" type="primary" :icon="Plus" @click="handleAdd">新增单位</el-button>
       </template>
     </PageHeader>
 
@@ -23,21 +23,21 @@
     >
       <template #basic>
         <el-form-item label="单位名称">
-          <el-input  v-model="searchForm.name" placeholder="请输入单位名称" clearable ></el-input>
+          <el-input v-model="searchForm.name" placeholder="请输入单位名称" clearable></el-input>
         </el-form-item>
       </template>
       <template #advanced>
         <el-form-item label="状态">
-          <el-select  v-model="searchForm.status" placeholder="请选择状态" clearable>
+          <el-select v-model="searchForm.status" placeholder="请选择状态" clearable>
             <el-option :value="1" label="启用"></el-option>
             <el-option :value="0" label="禁用"></el-option>
           </el-select>
         </el-form-item>
       </template>
       <template #actions>
-          <el-button type="success" @click="handleExport">
-            <el-icon><Download /></el-icon> 导出
-          </el-button>
+        <el-button type="success" @click="handleExport">
+          <el-icon><Download /></el-icon> 导出
+        </el-button>
       </template>
     </FinanceQueryCard>
 
@@ -64,8 +64,8 @@
         :data="tableData"
         border
         class="table-row-click w-full"
-      
-      @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleView(row))">
+        @row-click="(row, column, event) => handleTableRowView(row, column, event, () => handleView(row))"
+      >
         <template #empty>
           <EmptyState description="暂无单位数据" />
         </template>
@@ -79,54 +79,62 @@
           </template>
         </el-table-column>
         <el-table-column prop="remark" label="备注"></el-table-column>
-        <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
-      >
+        <el-table-column
+          label="操作"
+          min-width="72"
+          fixed="right"
+          align="left"
+          header-align="left"
+          class-name="operation-column"
+          header-class-name="operation-column-header"
+        >
           <template #default="scope">
-            <el-popconfirm
-              v-if="canUpdate && String(scope.row.status) !== '1'"
-              title="确定要启用该单位吗？"
-              @confirm="handleToggleStatus(scope.row)"
-            >
-              <template #reference>
-                <el-button size="small" type="success">
-                  <el-icon><Switch /></el-icon> 启用
-                </el-button>
-              </template>
-            </el-popconfirm>
-            <el-popconfirm
-              v-if="canUpdate && String(scope.row.status) === '1'"
-              title="确定要禁用该单位吗？"
-              @confirm="handleToggleStatus(scope.row)"
-              confirm-button-type="warning"
-            >
-              <template #reference>
-                <el-button size="small" type="warning">
-                  <el-icon><Switch /></el-icon> 禁用
-                </el-button>
-              </template>
-            </el-popconfirm>
-            
-            <template v-if="String(scope.row.status) === '0'">
-              <el-button
-                v-if="canUpdate"
-                size="small"
-                type="primary"
-                @click="handleEdit(scope.row)">
-                <el-icon><Edit /></el-icon> 编辑
-              </el-button>
+            <div class="table-actions" @click.stop>
               <el-popconfirm
-                v-if="canDelete"
-                title="确定要删除该单位吗？此操作无法恢复。"
-                @confirm="handleDelete(scope.row)"
-                confirm-button-type="danger"
+                v-if="canUpdate && String(scope.row.status) !== '1'"
+                title="确定要启用该单位吗？"
+                @confirm="handleToggleStatus(scope.row)"
               >
                 <template #reference>
-                  <el-button size="small" type="danger">
-                    <el-icon><Delete /></el-icon> 删除
+                  <el-button size="small" type="success">
+                    <el-icon><Check /></el-icon> 启用
                   </el-button>
                 </template>
               </el-popconfirm>
-            </template>
+              <el-popconfirm
+                v-if="canUpdate && String(scope.row.status) === '1'"
+                title="确定要禁用该单位吗？"
+                @confirm="handleToggleStatus(scope.row)"
+                confirm-button-type="warning"
+              >
+                <template #reference>
+                  <el-button size="small" type="warning">
+                    <el-icon><Close /></el-icon> 禁用
+                  </el-button>
+                </template>
+              </el-popconfirm>
+
+              <template v-if="String(scope.row.status) === '0'">
+                <el-button
+                  v-if="canUpdate"
+                  size="small"
+                  @click="handleEdit(scope.row)">
+                  <el-icon><Edit /></el-icon> 编辑
+                </el-button>
+                <el-popconfirm
+                  v-if="canDelete"
+                  title="确定要删除该单位吗？此操作无法恢复。"
+                  @confirm="handleDelete(scope.row)"
+                  confirm-button-type="danger"
+                >
+                  <template #reference>
+                    <el-button size="small" type="danger">
+                      <el-icon><Delete /></el-icon> 删除
+                    </el-button>
+                  </template>
+                </el-popconfirm>
+              </template>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -187,7 +195,7 @@
           <el-button v-if="!dialogReadonly" type="primary" @click="submitForm">确定</el-button>
         </span>
       </template>
-        </AppDialog>
+    </AppDialog>
   </div>
 </template>
 
@@ -198,32 +206,23 @@ import { useListDetailNavigation } from '@/composables/useListDetailNavigation';
 import { ref, reactive, onMounted, computed } from 'vue';
 import { ElMessage } from 'element-plus'
 import { baseDataApi } from '@/api/baseData';
-import { Plus, Edit, Delete, Download, Switch } from '@element-plus/icons-vue';
+import { Plus, Edit, Delete, Download, Check, Close } from '@element-plus/icons-vue';
 import { useAuthStore } from '@/stores/auth';
+
 // 权限store
 const authStore = useAuthStore();
 const canCreate = computed(() => authStore.hasPermission('basedata:units:create'));
 const canUpdate = computed(() => authStore.hasPermission('basedata:units:update'));
 const canDelete = computed(() => authStore.hasPermission('basedata:units:delete'));
 
-// 权限计算属性
-
 // ==================== 通用工具函数 ====================
-
-// 使用统一响应解析器，保持向后兼容的返回格式
-
 const parsePagedResponse = (response) => {
   const { list, total } = parsePaginatedData(response);
   return { data: list, total };
 };
 
 // ==================== 响应式数据 ====================
-
-// 数据加载状态
-
 const loading = ref(false);
-
-// 表格数据
 const tableData = ref([]);
 const total = ref(0);
 const currentPage = ref(1);
@@ -273,7 +272,7 @@ const isEdit = ref(false);
 
 // 初始化
 onMounted(() => {
-  fetchStats(); // 获取全量统计数据
+  fetchStats();
   fetchData();
 });
 
@@ -284,7 +283,6 @@ const handleExport = async () => {
       name: searchForm.name,
       status: searchForm.status
     });
-    // 处理文件下载
     const url = window.URL.createObjectURL(new Blob([response.data]));
     const link = document.createElement('a');
     link.href = url;
@@ -295,16 +293,7 @@ const handleExport = async () => {
     ElMessage.success('导出成功');
   } catch {
     ElMessage.error('导出失败');
-    calculateStatsFallback(tableData.value);
   }
-};
-
-// 计算统计数据
-const calculateStatsFallback = (data) => {
-  const items = Array.isArray(data) ? data : [];
-  stats.total = items.length;
-  stats.active = items.filter(item => String(item.status) === '1').length;
-  stats.inactive = items.filter(item => String(item.status) === '0').length;
 };
 
 // 获取全量统计数据
@@ -331,8 +320,6 @@ const fetchData = async () => {
       status: searchForm.status
     };
 
-    // 移除空值参数
-
     Object.keys(params).forEach(key => {
       if (params[key] === '' || params[key] === null || params[key] === undefined) {
         delete params[key];
@@ -344,8 +331,6 @@ const fetchData = async () => {
 
     tableData.value = data;
     total.value = totalCount || data.length;
-
-    // 注意：统计数据由 fetchStats() 独立获取全量数据计算，不再使用当前页数据
   } catch (error) {
     console.error('获取单位列表失败:', error);
     ElMessage.error('获取单位列表失败');
@@ -433,6 +418,7 @@ const handleDelete = async (row) => {
     await baseDataApi.deleteUnit(row.id);
     ElMessage.success('删除成功');
     fetchData();
+    fetchStats();
   } catch (error) {
     console.error('删除单位失败:', error);
     ElMessage.error(error.response?.data?.message || '删除单位失败');
@@ -448,6 +434,7 @@ const handleToggleStatus = async (row) => {
     await baseDataApi.updateUnit(row.id, { status: newStatus });
     ElMessage.success(`${action}成功`);
     fetchData();
+    fetchStats();
   } catch (error) {
     console.error(`${action}单位失败:`, error);
     ElMessage.error(error.response?.data?.message || `${action}单位失败`);
@@ -472,22 +459,20 @@ const submitForm = () => {
   formRef.value.validate(async (valid) => {
     if (valid) {
       try {
-        // 创建提交数据对象，移除不需要的字段
         const submitData = { ...form };
         delete submitData.createdAt;
         delete submitData.updatedAt;
 
         if (isEdit.value) {
-          // 编辑
           await baseDataApi.updateUnit(form.id, submitData);
           ElMessage.success('编辑成功');
         } else {
-          // 新增
           await baseDataApi.createUnit(submitData);
           ElMessage.success('新增成功');
         }
         dialogVisible.value = false;
         fetchData();
+        fetchStats();
       } catch (error) {
         console.error('保存单位失败:', error);
         ElMessage.error(error.response?.data?.message || '保存单位失败');

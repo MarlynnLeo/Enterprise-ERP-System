@@ -197,13 +197,13 @@ const emit = defineEmits(['update:visible', 'success']);
 const dialogTitle = computed(() => {
   switch (props.mode) {
     case 'create':
-      return '创建外委加工入库单';
+      return '创建委外入库单';
     case 'edit':
-      return '编辑外委加工入库单';
+      return '编辑委外入库单';
     case 'view':
-      return '查看外委加工入库单';
+      return '查看委外入库单';
     default:
-      return '外委加工入库单';
+      return '委外入库单';
   }
 });
 
@@ -375,18 +375,18 @@ const handleSubmit = async () => {
     try {
       if (props.mode === 'create') {
         await purchaseApi.outsourcedReceipts.create(receiptForm);
-        ElMessage.success('创建外委加工入库单成功');
+        ElMessage.success('创建委外入库单成功');
       } else if (props.mode === 'edit') {
         await purchaseApi.outsourcedReceipts.update(props.receiptId, receiptForm);
-        ElMessage.success('更新外委加工入库单成功');
+        ElMessage.success('更新委外入库单成功');
       }
 
       dialogVisible.value = false;
       emit('success');
 
     } catch (error) {
-      console.error('保存外委加工入库单失败:', error);
-      let errorMessage = '保存外委加工入库单失败';
+      console.error('保存委外入库单失败:', error);
+      let errorMessage = '保存委外入库单失败';
 
       // 针对常见错误提供友好的错误信息
       if (error.response?.data?.message) {

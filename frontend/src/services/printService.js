@@ -8,7 +8,6 @@
 import 'axios'
 import { printApi } from '@/api/print'
 import { systemApi } from '@/api/system'
-import Handlebars from 'handlebars'
 import {
   decodeHtmlEntities as decodeEntities,
   escapeHtml,
@@ -16,6 +15,7 @@ import {
 } from '@/utils/htmlSecurity'
 import { getCssTokenValue } from '@/utils/designTokens'
 import { parseResponseData } from '@/utils/responseParser'
+import { renderPrintTemplate } from '@/utils/cspSafePrintRenderer'
 
 const getPrintTokens = () => ({
   border: getCssTokenValue('textPrimary'),
@@ -117,19 +117,6 @@ export function normalizePrintData(data) {
     }
   }
   return out;
-}
-
-function registerPrintHelpers() {
-  if (Handlebars.helpers.eq) return;
-
-  Handlebars.registerHelper('eq', (left, right) => left === right);
-  Handlebars.registerHelper('not', (value) => !value);
-  Handlebars.registerHelper('default', (value, fallback) => value ?? fallback ?? '');
-  Handlebars.registerHelper('formatNumber', (value, decimals = 2) => {
-    const normalizedDecimals = Number.isFinite(Number(decimals)) ? Number(decimals) : 2;
-    const numeric = Number(value);
-    return Number.isFinite(numeric) ? numeric.toFixed(normalizedDecimals) : '';
-  });
 }
 
 // 打印服务
@@ -275,19 +262,17 @@ const printService = {
     }
 
     try {
-      registerPrintHelpers();
-
       // 解码 HTML 实体（如果模板内容被转义了）
       let templateContent = template.content;
       if (templateContent && (templateContent.includes('&lt;') || templateContent.includes('&gt;'))) {
         templateContent = decodeHtmlEntities(templateContent);
       }
 
-      // 使用Handlebars编译模板
-      const compiledTemplate = Handlebars.compile(templateContent);
-
-      // 使用数据渲染模板（保证 camel 可展开为 snake 占位）
-      const content = compiledTemplate(normalizePrintData(data || {}));
+      // CSP-safe renderer（不使用 Handlebars.compile / new Function）
+      const content = renderPrintTemplate(
+        templateContent,
+        normalizePrintData(data || {})
+      );
 
       // 构建打印样式
       const printTokens = getPrintTokens()

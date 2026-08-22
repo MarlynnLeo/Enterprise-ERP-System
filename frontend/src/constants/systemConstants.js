@@ -53,6 +53,125 @@ const FALLBACK_DICTIONARY = {
     PRODUCTION_COMPLETE: { name: '生产完工', color: 'success' },
     PRODUCTION: { name: '生产业务', color: 'primary' },
     MATERIAL_ISSUE: { name: '材料领用', color: 'warning' }
+  },
+  inbound_outbound_status: {
+    draft: { name: '草稿', color: 'info' },
+    confirmed: { name: '确认', color: 'warning' },
+    partial_completed: { name: '部分', color: 'warning' },
+    completed: { name: '完成', color: 'success' },
+    cancelled: { name: '取消', color: 'danger' }
+  },
+  inventory_check_status: {
+    draft: { name: '草稿', color: 'info' },
+    in_progress: { name: '进行中', color: 'primary' },
+    pending: { name: '待审核', color: 'warning' },
+    completed: { name: '已完成', color: 'success' },
+    cancelled: { name: '已取消', color: 'danger' },
+  },
+  transfer_status: {
+    draft: { name: '草稿', color: 'info' },
+    pending: { name: '待审核', color: 'warning' },
+    approved: { name: '已审核', color: 'primary' },
+    completed: { name: '已完成', color: 'success' },
+    reversed: { name: '已冲销', color: 'info' },
+    cancelled: { name: '已取消', color: 'danger' },
+    in_transit: { name: '运输中', color: 'primary' },
+    rejected: { name: '已拒绝', color: 'danger' },
+  },
+  order_status: {
+    draft: { name: '草稿', color: 'info' },
+    pending: { name: '待确认', color: 'warning' },
+    confirmed: { name: '已确认', color: 'primary' },
+    in_production: { name: '生产中', color: 'primary' },
+    ready_to_ship: { name: '待发货', color: 'warning' },
+    shipped: { name: '已发货', color: 'primary' },
+    delivered: { name: '已交付', color: 'success' },
+    completed: { name: '已完成', color: 'success' },
+    cancelled: { name: '已取消', color: 'danger' },
+  },
+  quality_status: {
+    pending: { name: '待检验', color: 'warning' },
+    in_progress: { name: '检验中', color: 'primary' },
+    passed: { name: '合格', color: 'success' },
+    failed: { name: '不合格', color: 'danger' },
+    rework: { name: '返工', color: 'warning' },
+    review: { name: '复检', color: 'primary' },
+    partial: { name: '部分合格', color: 'warning' },
+    cancelled: { name: '已取消', color: 'danger' },
+  },
+  purchase_status: {
+    draft: { name: '草稿', color: 'info' },
+    pending: { name: '待处理', color: 'warning' },
+    submitted: { name: '待审批', color: 'warning' },
+    approved: { name: '已批准', color: 'success' },
+    confirmed: { name: '已确认', color: 'primary' },
+    processing: { name: '处理中', color: 'primary' },
+    partial_received: { name: '部分收货', color: 'warning' },
+    completed: { name: '已完成', color: 'success' },
+    cancelled: { name: '已取消', color: 'danger' },
+    rejected: { name: '已拒绝', color: 'danger' },
+  },
+  sales_status: {
+    draft: { name: '草稿', color: 'info' },
+    pending: { name: '待处理', color: 'warning' },
+    confirmed: { name: '已确认', color: 'primary' },
+    processing: { name: '处理中', color: 'primary' },
+    in_production: { name: '生产中', color: 'primary' },
+    in_procurement: { name: '采购中', color: 'primary' },
+    ready_to_ship: { name: '可发货', color: 'warning' },
+    shortage: { name: '缺料', color: 'danger' },
+    partial_shipped: { name: '部分发货', color: 'warning' },
+    shipped: { name: '已发货', color: 'primary' },
+    delivered: { name: '已交付', color: 'success' },
+    completed: { name: '已完成', color: 'success' },
+    cancelled: { name: '已取消', color: 'danger' },
+  },
+  equipment_status: {
+    running: { name: '运行中', color: 'success' },
+    idle: { name: '空闲', color: 'info' },
+    maintenance: { name: '维护中', color: 'warning' },
+    fault: { name: '故障', color: 'danger' },
+    offline: { name: '离线', color: 'info' },
+  },
+  common_status: {
+    active: { name: '启用', color: 'success' },
+    inactive: { name: '禁用', color: 'danger' },
+    enabled: { name: '启用', color: 'success' },
+    disabled: { name: '禁用', color: 'danger' },
+    normal: { name: '正常', color: 'success' },
+    abnormal: { name: '异常', color: 'danger' },
+    online: { name: '在线', color: 'success' },
+    offline: { name: '离线', color: 'info' },
+    valid: { name: '有效', color: 'success' },
+    invalid: { name: '无效', color: 'danger' },
+    available: { name: '可用', color: 'success' },
+    unavailable: { name: '不可用', color: 'warning' },
+    locked: { name: '锁定', color: 'warning' },
+    unlocked: { name: '解锁', color: 'success' },
+  },
+  approval_status: {
+    draft: { name: '草稿', color: 'info' },
+    pending: { name: '待审批', color: 'warning' },
+    approved: { name: '已审批', color: 'success' },
+    rejected: { name: '已拒绝', color: 'danger' },
+    cancelled: { name: '已取消', color: 'danger' },
+  },
+  user_status: {
+    active: { name: '正常', color: 'success' },
+    inactive: { name: '禁用', color: 'danger' },
+    disabled: { name: '禁用', color: 'danger' },
+    enabled: { name: '启用', color: 'success' },
+    pending: { name: '待激活', color: 'warning' },
+    locked: { name: '锁定', color: 'warning' },
+    online: { name: '在线', color: 'success' },
+    offline: { name: '离线', color: 'info' },
+  },
+  asset_status: {
+    in_use: { name: '在用', color: 'success' },
+    idle: { name: '闲置', color: 'info' },
+    under_repair: { name: '维修', color: 'warning' },
+    disposed: { name: '报废', color: 'danger' },
+    sold: { name: '已处置', color: 'info' },
   }
 };
 
@@ -89,7 +208,9 @@ const createDictionaryColors = (groupCode) => {
       if (store.isLoaded) {
         for (const key in state) delete state[key];
         const types = store.groups[groupCode] || [];
-        types.forEach(t => { state[t.code] = t.tag_type; });
+        types.forEach(t => {
+          state[t.code] = t.tagType || t.tag_type || 'info';
+        });
       }
     } catch {}
   });
@@ -170,14 +291,18 @@ const createOptions = (groupCode, filterKeys = null) => {
   watchEffect(() => {
     try {
       const store = useDictionaryStore();
-      if (store.isLoaded) {
-        state.splice(0, state.length); // clear array
-        let opts = store.getOptions(groupCode);
-        if (filterKeys) {
-          opts = opts.filter(opt => filterKeys.includes(opt.value));
-        }
-        state.push(...opts);
+      state.splice(0, state.length); // clear array
+      let opts = store.isLoaded ? store.getOptions(groupCode) : [];
+      if (opts.length === 0) {
+        opts = Object.entries(FALLBACK_DICTIONARY[groupCode] || {}).map(([value, item]) => ({
+          value,
+          label: item.name,
+        }));
       }
+      if (filterKeys) {
+        opts = opts.filter(opt => filterKeys.includes(opt.value));
+      }
+      state.push(...opts);
     } catch {}
   });
   return state;
@@ -303,6 +428,8 @@ export const getBusinessTypeCategoryColor = (category) => BUSINESS_TYPE_CATEGORY
 // =======================
 const getText = (group, code) => {
   if (!code) return '';
+  const rawCode = String(code).trim();
+  const normalizedCode = rawCode.toLowerCase();
   try {
     const storeObj = useDictionaryStore();
     // 强制触发响应式依赖追踪：直接读取 storeObj.groups 的内容
@@ -312,28 +439,35 @@ const getText = (group, code) => {
     const groupData = groups[group] || [];
 
     // 查找字典项
-    const item = groupData.find(i => i.code === code);
+    const item = groupData.find(i =>
+      i.code === code ||
+      String(i.code || '').toLowerCase() === normalizedCode ||
+      i.name === code
+    );
 
     if (item) {
       return item.name;
     }
 
     // 如果还没加载完或者没找到，尝试 fallback
-    if (FALLBACK_DICTIONARY[group] && FALLBACK_DICTIONARY[group][code]) {
+    const fallbackItem = FALLBACK_DICTIONARY[group]?.[code] || FALLBACK_DICTIONARY[group]?.[normalizedCode];
+    if (fallbackItem) {
       // 容错时打印 warn
       if (isLoaded) {
       }
-      return FALLBACK_DICTIONARY[group][code].name;
+      return fallbackItem.name;
     }
 
-    return startCase(code);
+    return startCase(rawCode);
   } catch {
-    return startCase(code);
+    return startCase(rawCode);
   }
 };
 
 const getColor = (group, code) => {
   if (!code) return 'info';
+  const rawCode = String(code).trim();
+  const normalizedCode = rawCode.toLowerCase();
 
   // 1. 全局标准且强制一致的主题语义色彩映射字典（适用于传中文字符串、未匹配字典或新加状态）
   const semanticColors = {
@@ -369,20 +503,26 @@ const getColor = (group, code) => {
     const groups = storeObj.groups;
     const groupData = groups[group] || [];
 
-    // （优先按 code，且优先获取后端发来的 tag_type）
-    const item = groupData.find(i => i.code === code || i.name === code);
-    if (item && item.tag_type && item.tag_type !== 'info') {
-      return item.tag_type;
+    // 优先读取后端业务类型配置（API 出参通常已转换为 camelCase）。
+    const item = groupData.find(i =>
+      i.code === code ||
+      String(i.code || '').toLowerCase() === normalizedCode ||
+      i.name === code
+    );
+    const configuredColor = item?.tagType || item?.tag_type;
+    if (configuredColor) {
+      return configuredColor;
     }
 
     // 3. Fallback 到硬编码配置
-    if (FALLBACK_DICTIONARY[group] && FALLBACK_DICTIONARY[group][code]) {
-      return FALLBACK_DICTIONARY[group][code].color || 'info';
+    const fallbackItem = FALLBACK_DICTIONARY[group]?.[code] || FALLBACK_DICTIONARY[group]?.[normalizedCode];
+    if (fallbackItem) {
+      return fallbackItem.color || 'info';
     }
   } catch {}
 
   // 4. 终极智能语义匹配，保证全系统所有“已完成”等无论出于哪个界面的哪个模块，必定为统一样式
-  const lowerCode = String(code).toLowerCase().trim();
+   const lowerCode = normalizedCode;
   if (semanticColors[lowerCode]) {
     return semanticColors[lowerCode];
   }
@@ -394,8 +534,22 @@ export const getWarehouseTypeText = (code) => getText('warehouse_type', code);
 export const getWarehouseTypeColor = (code) => getColor('warehouse_type', code);
 export const getInventoryTransactionTypeText = (code) => getText('inventory_transaction', code);
 export const getInventoryTransactionTypeColor = (code) => getColor('inventory_transaction', code);
+const INVENTORY_INBOUND_TYPE_ALIASES = Object.freeze({
+  other: 'inbound',
+  purchase: 'purchase_inbound',
+  production: 'production_inbound',
+  outsourced: 'outsourced_inbound',
+});
+export const normalizeInventoryInboundType = (code) =>
+  INVENTORY_INBOUND_TYPE_ALIASES[String(code || '').trim().toLowerCase()] || code;
+export const getInventoryInboundTypeText = (code) =>
+  getInventoryTransactionTypeText(normalizeInventoryInboundType(code));
+export const getInventoryInboundTypeColor = (code) =>
+  getInventoryTransactionTypeColor(normalizeInventoryInboundType(code));
 export const getInventoryStatusText = (code) => getText('inventory_status', code);
 export const getInventoryStatusColor = (code) => getColor('inventory_status', code);
+export const getInventoryCheckStatusText = (code) => getText('inventory_check_status', code);
+export const getInventoryCheckStatusColor = (code) => getColor('inventory_check_status', code);
 export const getInboundOutboundStatusText = (code) => getText('inbound_outbound_status', code);
 export const getInboundOutboundStatusColor = (code) => getColor('inbound_outbound_status', code);
 export const getTransferStatusText = (code) => getText('transfer_status', code);
@@ -469,6 +623,8 @@ export default {
   INVENTORY_STATUS_COLORS,
   getInventoryStatusText,
   getInventoryStatusColor,
+  getInventoryCheckStatusText,
+  getInventoryCheckStatusColor,
   INVENTORY_CHECK_STATUS,
   INVENTORY_CHECK_STATUS_COLORS,
   INBOUND_OUTBOUND_STATUS,

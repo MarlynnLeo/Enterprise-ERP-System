@@ -8,7 +8,7 @@
 -->
 <template>
   <div class="module-page outsourced-receipts-container">
-    <PageHeader title="外委加工入库管理" subtitle="管理外委加工入库单据" />
+    <PageHeader title="委外入库管理" subtitle="管理委外入库单据" />
 
     <!-- 搜索区域 -->
     <FinanceQueryCard
@@ -66,7 +66,7 @@
       </el-card>
     </div>
 
-    <!-- 外委加工入库单列表 -->
+    <!-- 委外入库单列表 -->
     <el-card class="data-card">
       <el-table
         :data="receiptList"
@@ -253,8 +253,8 @@ const fetchReceiptList = async () => {
     // 更新统计数据
     updateStats();
   } catch (error) {
-    console.error('获取外委加工入库单列表失败:', error);
-    ElMessage.error('获取外委加工入库单列表失败');
+    console.error('获取委外入库单列表失败:', error);
+    ElMessage.error('获取委外入库单列表失败');
   } finally {
     loading.value = false;
   }

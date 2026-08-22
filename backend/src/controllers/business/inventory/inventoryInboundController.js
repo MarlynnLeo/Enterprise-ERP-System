@@ -438,7 +438,7 @@ const createInbound = async (req, res) => {
     // ✅ 使用统一编码规则引擎生成入库单号
     const inbound_no = await CodeGenerators.generateInboundCode(connection);
 
-    // 插入入库单主表（包含入库类型和关联信息 + DataScope owner）
+    // 插入入库单主表（包含入库类型、关联信息和审计创建人）
     const ScopeGuard = require('../../../authorization/ScopeGuard');
     const ownerStamp = ScopeGuard.tryStampOwner(req, 'inventory_inbound');
     const [inboundResult] = await connection.execute(
@@ -810,7 +810,7 @@ const createInboundFromQuality = async (req, res) => {
     // ✅ 使用统一编码规则引擎生成入库单号
     const inbound_no = await CodeGenerators.generateInboundCode(connection);
 
-    // 创建入库单（写入 created_by 闭环 DataScope + 业务类型/来源，保证生产闭环）
+    // 创建入库单（写入审计创建人 + 业务类型/来源，保证生产闭环）
     const ScopeGuard = require('../../../authorization/ScopeGuard');
     const ownerStamp = ScopeGuard.tryStampOwner(req, 'inventory_inbound');
     const [inboundResult] = await connection.execute(
@@ -1089,7 +1089,7 @@ const updateInboundStatus = async (req, res) => {
   const isDeadlockError = (err) =>
     err && (err.code === 'ER_LOCK_DEADLOCK' || /Deadlock/i.test(err.message || ''));
 
-  // 状态变更前先做 DataScope 校验（与列表/详情同一策略）
+  // 状态变更前统一校验对象存在性（与列表/详情同一入口）
   {
     const ScopeGuard = require('../../../authorization/ScopeGuard');
     const preConn = await db.pool.getConnection();

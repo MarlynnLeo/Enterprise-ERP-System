@@ -97,7 +97,7 @@
         <el-table-column label="操作" min-width="320" fixed="right" align="left" header-align="left" class-name="operation-column" header-class-name="operation-column-header"
       >
           <template #default="{ row }">
-            <div class="operation-buttons">
+            <div class="table-actions">
               <el-popconfirm
                 v-if="row.status !== 1 && String(row.status) !== '1'"
                 title="确定要启用该类型吗？"

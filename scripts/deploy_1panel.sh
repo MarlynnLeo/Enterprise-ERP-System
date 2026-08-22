@@ -37,7 +37,6 @@ if [[ ! -f .env ]]; then
   jwt_refresh_secret="$(openssl rand -hex 48)"
   csrf_secret="$(openssl rand -hex 48)"
   redis_password="$(openssl rand -hex 32)"
-  mfa_encryption_key="$(openssl rand -hex 32)"
   backup_encryption_key="$(openssl rand -hex 32)"
   zhipu_key="$(old_compose_value ZHIPU_API_KEY)"
   siliconflow_key="$(old_compose_value SILICONFLOW_API_KEY)"
@@ -53,8 +52,6 @@ if [[ ! -f .env ]]; then
     printf 'JWT_SECRET=%s\n' "$jwt_secret"
     printf 'JWT_REFRESH_SECRET=%s\n' "$jwt_refresh_secret"
     printf 'CSRF_SECRET=%s\n' "$csrf_secret"
-    printf 'MFA_ENCRYPTION_KEY=%s\n' "$mfa_encryption_key"
-    printf 'MFA_REQUIRED_ROLE_CODES=admin,system_admin,finance_manager,hr_manager\n'
     printf 'DEFAULT_ADMIN_PASSWORD_HASH=%s\n' "${DEFAULT_ADMIN_PASSWORD_HASH:-}"
     printf 'DEFAULT_ADMIN_PASSWORD=%s\n' "${DEFAULT_ADMIN_PASSWORD:-}"
     printf 'ALLOWED_ORIGINS=%s\n' "$PUBLIC_URL"

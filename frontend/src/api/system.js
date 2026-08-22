@@ -51,6 +51,7 @@ export const systemApi = {
     updateUser: (id, data) => api.put(`/system/users/${id}`, data),
     updateUserStatus: (id, data) => api.put(`/system/users/${id}/status`, data),
     resetUserPassword: (id, data) => api.put(`/system/users/${id}/password/reset`, data),
+    unlockUserLogin: (id) => api.put(`/system/users/${id}/login/unlock`),
 
     // 系统日志
     getLogs: (params) => api.get('/system/logs', { params }),

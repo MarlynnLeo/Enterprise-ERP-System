@@ -181,6 +181,10 @@ api.interceptors.response.use(
         try {
           // 尝试刷新Token
           await api.post('/auth/refresh')
+          // Refresh may rotate CSRF cookie; drop cached token so the retry
+          // and subsequent unsafe requests pick up a fresh value.
+          csrfToken = ''
+          csrfTokenPromise = null
           // 响应拦截器已经解包，直接使用 data
           processQueue(null)
           return api(originalRequest)

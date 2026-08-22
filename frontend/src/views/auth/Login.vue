@@ -73,7 +73,7 @@
           class="login-form"
           :show-message="false"
         >
-          <el-form-item v-if="!mfaState.required && !mfaState.recoveryCodes.length" prop="username">
+          <el-form-item prop="username">
             <label class="sr-only" for="login-username">账号</label>
             <el-input
               id="login-username"
@@ -88,7 +88,7 @@
             />
           </el-form-item>
 
-          <el-form-item v-if="!mfaState.required && !mfaState.recoveryCodes.length" prop="password">
+          <el-form-item prop="password">
             <label class="sr-only" for="login-password">密码</label>
             <el-input
               id="login-password"
@@ -104,48 +104,6 @@
             />
           </el-form-item>
 
-          <template v-if="mfaState.required && !mfaState.recoveryCodes.length">
-            <div class="mfa-hint">{{ mfaState.setupRequired ? '首次登录需要先配置验证器' : '请输入验证器中的 6 位验证码' }}</div>
-            <div v-if="mfaState.setupRequired" class="mfa-setup">
-              <img v-if="mfaState.qrDataUrl" :src="mfaState.qrDataUrl" alt="MFA 验证器二维码" class="mfa-qr" />
-              <a v-if="mfaState.otpauthUri" :href="mfaState.otpauthUri" class="mfa-open-link">在验证器中打开</a>
-              <div v-if="mfaState.secret" class="mfa-secret">
-                <span>无法扫码时输入密钥</span>
-                <code>{{ mfaState.secret }}</code>
-              </div>
-            </div>
-            <el-form-item>
-              <el-input
-                v-model="mfaState.token"
-                inputmode="numeric"
-                maxlength="6"
-                autocomplete="one-time-code"
-                placeholder="6 位验证码"
-                aria-label="多因素验证码"
-                class="brand-input"
-              />
-            </el-form-item>
-            <el-form-item v-if="!mfaState.setupRequired">
-              <el-input
-                v-model="mfaState.recoveryCode"
-                maxlength="14"
-                autocomplete="off"
-                placeholder="或输入一次性恢复码"
-                aria-label="MFA 恢复码"
-                class="brand-input"
-              />
-            </el-form-item>
-          </template>
-
-          <section v-if="mfaState.recoveryCodes.length" class="recovery-panel" aria-live="polite">
-            <h3>请立即保存恢复码</h3>
-            <p>每个恢复码只能使用一次。关闭此页面后，系统不会再次显示这些恢复码。</p>
-            <ul>
-              <li v-for="code in mfaState.recoveryCodes" :key="code"><code>{{ code }}</code></li>
-            </ul>
-            <el-button class="copy-codes-btn" @click="copyRecoveryCodes">复制全部恢复码</el-button>
-          </section>
-
           <transition name="error-fade">
             <div v-if="loginError" class="login-error-text">{{ loginError }}</div>
           </transition>
@@ -157,7 +115,7 @@
               class="submit-btn"
               @click="handleLogin"
             >
-              {{ submitLabel }}
+              {{ loading ? '处理中...' : '登录' }}
             </el-button>
           </el-form-item>
         </el-form>
@@ -167,10 +125,9 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus/es/components/message/index'
-import QRCode from 'qrcode'
 import { useAuthStore } from '../../stores/auth'
 import { useDictionaryStore } from '../../stores/dictionary'
 import { unifiedStorage } from '@/utils/unifiedStorage'
@@ -180,24 +137,6 @@ const authStore = useAuthStore()
 const loginFormRef = ref(null)
 const loading = ref(false)
 const loginError = ref('')
-const mfaState = reactive({
-  required: false,
-  setupRequired: false,
-  challengeId: '',
-  token: '',
-  recoveryCode: '',
-  otpauthUri: '',
-  secret: '',
-  qrDataUrl: '',
-  recoveryCodes: [],
-})
-
-const submitLabel = computed(() => {
-  if (loading.value) return '处理中...'
-  if (mfaState.recoveryCodes.length) return '我已安全保存，继续'
-  if (mfaState.required) return '验证并登录'
-  return '登录'
-})
 
 const loginForm = reactive({
   username: '',
@@ -240,15 +179,11 @@ function resolveLoginError(error) {
   if (error.response) {
     const status = error.response.status
     const message = error.response.data?.message || error.response.data?.error || ''
-    const code = error.response.data?.errorCode || error.response.data?.code
-    if (code === 'MFA_CHALLENGE_INVALID' || code === 'MFA_CHALLENGE_LOCKED') {
-      return '验证会话已失效，请重新输入账号和密码'
-    }
-    if (code === 'MFA_INVALID_CODE') return '验证码或恢复码无效'
     const statusMessageMap = {
       400: '请求参数错误',
-      401: '用户名或密码错误',
+      401: message || '用户名或密码错误',
       403: '账号已被禁用',
+      423: message || '账号已锁定，请联系管理员解除锁定',
       404: '登录服务未找到',
       429: '尝试次数过多，请稍后重试',
       503: '登录服务暂时不可用，请稍后重试',
@@ -271,66 +206,15 @@ async function handleLogin() {
   loginError.value = ''
 
   try {
-    if (!mfaState.required && !mfaState.recoveryCodes.length) {
-      const valid = await loginFormRef.value.validate()
-      if (!valid) return
-    }
+    const valid = await loginFormRef.value.validate()
+    if (!valid) return
 
     loading.value = true
     try {
-      if (mfaState.recoveryCodes.length) {
-        await completeLogin()
-        return
-      }
-
-      if (mfaState.required) {
-        if (!/^\d{6}$/.test(mfaState.token.trim()) && !mfaState.recoveryCode.trim()) {
-          loginError.value = '请输入 6 位验证码或一次性恢复码'
-          return
-        }
-        const verified = await authStore.verifyMfa({
-          challengeId: mfaState.challengeId,
-          token: mfaState.token,
-          recoveryCode: mfaState.recoveryCode,
-        })
-        if (!verified?.user) throw new Error('MFA 验证失败')
-        if (Array.isArray(verified.recoveryCodes) && verified.recoveryCodes.length) {
-          mfaState.recoveryCodes = verified.recoveryCodes
-          mfaState.token = ''
-          return
-        }
-      } else {
-        const loginResult = await authStore.login(loginForm)
-        if (loginResult?.mfaRequired) {
-          mfaState.required = true
-          mfaState.setupRequired = Boolean(loginResult.mfaSetupRequired)
-          mfaState.challengeId = loginResult.challengeId
-          loginForm.password = ''
-          if (mfaState.setupRequired) {
-            const setupResponse = await authStore.enrollMfa({ challengeId: mfaState.challengeId })
-            const setup = setupResponse.data
-            if (setup?.otpauthUri) {
-              mfaState.otpauthUri = setup.otpauthUri
-              mfaState.secret = setup.secret || ''
-              mfaState.qrDataUrl = await QRCode.toDataURL(setup.otpauthUri, {
-                width: 220,
-                margin: 1,
-                errorCorrectionLevel: 'M',
-              })
-            }
-            loginError.value = '请完成验证器配置，然后输入验证码并再次提交'
-          }
-          return
-        }
-      }
-
+      await authStore.login(loginForm)
       await completeLogin()
     } catch (error) {
       console.error('登录失败:', error)
-      const code = error.response?.data?.errorCode || error.response?.data?.code
-      if (code === 'MFA_CHALLENGE_INVALID' || code === 'MFA_CHALLENGE_LOCKED') {
-        resetMfaFlow()
-      }
       loginError.value = resolveLoginError(error)
       ElMessage.error(loginError.value)
     } finally {
@@ -360,28 +244,6 @@ async function completeLogin() {
   await router.push('/')
 }
 
-function resetMfaFlow() {
-  Object.assign(mfaState, {
-    required: false,
-    setupRequired: false,
-    challengeId: '',
-    token: '',
-    recoveryCode: '',
-    otpauthUri: '',
-    secret: '',
-    qrDataUrl: '',
-    recoveryCodes: [],
-  })
-}
-
-async function copyRecoveryCodes() {
-  try {
-    await navigator.clipboard.writeText(mfaState.recoveryCodes.join('\n'))
-    ElMessage.success('恢复码已复制，请保存到安全位置')
-  } catch {
-    ElMessage.warning('复制失败，请手动保存恢复码')
-  }
-}
 </script>
 
 <style scoped>
@@ -681,78 +543,6 @@ async function copyRecoveryCodes() {
   padding-left: 2px;
   color: var(--color-danger);
   font-size: 13px;
-}
-
-.mfa-hint,
-.mfa-secret span,
-.recovery-panel p {
-  color: var(--color-text-secondary);
-  font-size: 13px;
-  line-height: 1.6;
-}
-
-.mfa-setup {
-  display: grid;
-  justify-items: center;
-  gap: 10px;
-  margin: 0 0 18px;
-}
-
-.mfa-qr {
-  width: 190px;
-  height: 190px;
-  padding: 8px;
-  border: 1px solid var(--color-border-lighter);
-  border-radius: 8px;
-  background: #fff;
-}
-
-.mfa-open-link {
-  color: var(--color-primary);
-  font-size: 13px;
-}
-
-.mfa-secret {
-  display: grid;
-  gap: 4px;
-  width: 100%;
-  text-align: center;
-}
-
-.mfa-secret code,
-.recovery-panel code {
-  user-select: all;
-  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-}
-
-.mfa-secret code {
-  overflow-wrap: anywhere;
-}
-
-.recovery-panel {
-  margin-bottom: 20px;
-  padding: 18px;
-  border: 1px solid var(--color-warning-light-5, var(--color-border-base));
-  border-radius: 8px;
-  background: var(--color-warning-light-9, var(--color-bg-section));
-}
-
-.recovery-panel h3 {
-  margin: 0 0 8px;
-  font-size: 16px;
-}
-
-.recovery-panel ul {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px 14px;
-  margin: 14px 0;
-  padding: 0;
-  list-style: none;
-}
-
-.copy-codes-btn {
-  width: 100%;
 }
 
 .error-fade-enter-active,

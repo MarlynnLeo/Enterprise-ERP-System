@@ -10,7 +10,6 @@ const { parsePagination, appendPaginationSQL } = require('../../utils/safePagina
 const CodeGeneratorService = require('./CodeGeneratorService');
 const { financeConfig } = require('../../config/financeConfig');
 const ScopeGuard = require('../../authorization/ScopeGuard');
-const DataScopeService = require('../DataScopeService');
 
 class ContractService {
 
@@ -90,14 +89,7 @@ class ContractService {
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
-      const scope = req ? await DataScopeService.getRequestScope(req) : null;
-      const departmentId = data.department_id ?? scope?.departmentId ?? null;
-      if (req) {
-        const allowedDepartments = (scope?.departmentIds || []).map(Number);
-        if (scope?.departmentId) allowedDepartments.push(Number(scope.departmentId));
-        const allowed = !scope || Number(scope.type) === 1 || allowedDepartments.includes(Number(departmentId));
-        if (!allowed) throw new Error('无权在该部门创建合同');
-      }
+      const departmentId = data.department_id ?? req?.authzScope?.departmentId ?? null;
 
       // 自动生成合同编号
       const code = data.code || await CodeGeneratorService.nextCode('contract', conn);
@@ -161,16 +153,6 @@ class ContractService {
       const nextDepartmentId = data.department_id === undefined
         ? current.department_id
         : (data.department_id === '' ? null : data.department_id);
-      if (req) {
-        const scope = await DataScopeService.getRequestScope(req);
-        const allowedDepartments = new Set((scope?.departmentIds || []).map(Number));
-        if (scope?.departmentId) allowedDepartments.add(Number(scope.departmentId));
-        const targetDepartmentId = nextDepartmentId === null || nextDepartmentId === undefined || nextDepartmentId === ''
-          ? null : Number(nextDepartmentId);
-        const allowed = DataScopeService.isAllScope(scope)
-          || (targetDepartmentId !== null && allowedDepartments.has(targetDepartmentId));
-        if (!allowed) throw new Error('无权将合同转移到该部门');
-      }
       if (!['draft', 'rejected'].includes(current.status)) {
         throw new Error(`当前状态[${current.status}]不允许直接编辑合同正文，请走变更或终止流程`);
       }

@@ -8,7 +8,7 @@
 -->
 <template>
   <div class="module-page outsourced-processing-container">
-    <PageHeader title="外委加工管理" subtitle="管理外委加工订单">
+    <PageHeader title="委外加工管理" subtitle="管理委外加工订单">
       <template #actions>
 <el-button type="primary" :icon="Plus" v-permission="'purchase:processing:create'" @click="handleAddProcessing">新建加工单</el-button>
       </template>
@@ -74,7 +74,7 @@
         <div class="stat-label">已取消</div>
       </el-card>
     </div>
-    <!-- 外委加工单列表 -->
+    <!-- 委外加工单列表 -->
     <el-card class="data-card">
       <el-table
         :data="processingList"
@@ -175,7 +175,7 @@
       :receipt-id="selectedReceiptId"
       @success="fetchProcessingList"
     />
-    <!-- 外委加工单对话框 -->
+    <!-- 委外加工单对话框 -->
     <AppDialog
       v-model="processingDialogVisible"
       :title="dialogTitle"
@@ -553,7 +553,7 @@ const searchForm = reactive({
   status: '',
   dateRange: []
 });
-// 外委加工列表数据
+// 委外加工列表数据
 const processingList = ref([]);
 const loading = ref(false);
 // 分页数据
@@ -737,11 +737,11 @@ const filteredProducts = computed(() => {
 // 计算对话框标题
 const dialogTitle = computed(() => {
   if (processingDialogMode.value === 'create') {
-    return '新建外委加工单';
+    return '新建委外加工单';
   } else if (processingDialogMode.value === 'edit') {
-    return '编辑外委加工单';
+    return '编辑委外加工单';
   } else {
-    return '查看外委加工单';
+    return '查看委外加工单';
   }
 });
 // 重置处理表单
@@ -948,24 +948,24 @@ const handleProcessingSubmit = async () => {
     try {
       if (processingDialogMode.value === 'create') {
         await purchaseApi.outsourcedProcessing.create(processingForm);
-        ElMessage.success('创建外委加工单成功');
+        ElMessage.success('创建委外加工单成功');
       } else if (processingDialogMode.value === 'edit') {
         await purchaseApi.outsourcedProcessing.update(selectedProcessingId.value, processingForm);
-        ElMessage.success('更新外委加工单成功');
+        ElMessage.success('更新委外加工单成功');
       }
 
       processingDialogVisible.value = false;
       fetchProcessingList();
 
     } catch (error) {
-      console.error('保存外委加工单失败:', error);
-      ElMessage.error('保存外委加工单失败: ' + (error.response?.data?.message || error.message));
+      console.error('保存委外加工单失败:', error);
+      ElMessage.error('保存委外加工单失败: ' + (error.response?.data?.message || error.message));
     } finally {
       processing.value = false;
     }
   });
 };
-// 获取外委加工列表
+// 获取委外加工列表
 const fetchProcessingList = async () => {
   loading.value = true;
   try {
@@ -996,8 +996,8 @@ const fetchProcessingList = async () => {
     // 更新统计数据
     updateStats();
   } catch (error) {
-    console.error('获取外委加工列表失败:', error);
-    ElMessage.error('获取外委加工列表失败');
+    console.error('获取委外加工列表失败:', error);
+    ElMessage.error('获取委外加工列表失败');
   } finally {
     loading.value = false;
   }
@@ -1038,7 +1038,7 @@ const handleCurrentChange = (val) => {
   fetchProcessingList();
 };
 // 处理下拉菜单命令;
-// 更新外委加工单状态
+// 更新委外加工单状态
 const updateProcessingStatus = async (row, status) => {
   try {
     const response = await purchaseApi.outsourcedProcessing.updateStatus(row.id, status);
@@ -1067,7 +1067,7 @@ const handleCreateReceipt = (row) => {
   receiptDialogMode.value = 'create';
   receiptDialogVisible.value = true;
 };
-// 查看外委加工单
+// 查看委外加工单
 const handleViewProcessing = (row) => {
   selectedProcessingId.value = row.id;
   processingDialogMode.value = 'view';
@@ -1076,7 +1076,7 @@ const handleViewProcessing = (row) => {
   // 只加载加工单详情，供应商数据已在页面加载时缓存
   loadProcessingDetail();
 };
-// 编辑外委加工单
+// 编辑委外加工单
 const handleEditProcessing = (row) => {
   selectedProcessingId.value = row.id;
   processingDialogMode.value = 'edit';
@@ -1085,7 +1085,7 @@ const handleEditProcessing = (row) => {
   // 只加载加工单详情，供应商数据已在页面加载时缓存
   loadProcessingDetail();
 };
-// 删除外委加工单
+// 删除委外加工单
 const handleDeleteProcessing = (row) => {
   ElMessageBox.confirm(
     `确定要删除加工单 ${row.processingNo} 吗？此操作不可恢复。`,

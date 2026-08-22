@@ -241,5 +241,10 @@
   "20260819000002_add_refresh_token_rotation.js": "f6acd87d885c9d4b52b61d1d74927d83ef30326e4d1988231d8ee1a3263d0c1f",
   "20260819000003_harden_backup_metadata.js": "455b3ae09ca09514d3458031712925e4007b816b55ac359342dbf62f6c77f0d9",
   "20260819000004_add_mfa_security.js": "08e5c7014b6db38e257eff31987e41659e3687fae6dfb9b19d2608b2158b6282",
-  "20260819000005_prevent_mfa_totp_replay.js": "42b4ccd7e81d06d1a7e93a62b313bb742d5b8f755842f6cf408b9ac4d2bc556f"
+  "20260819000005_prevent_mfa_totp_replay.js": "42b4ccd7e81d06d1a7e93a62b313bb742d5b8f755842f6cf408b9ac4d2bc556f",
+  "20260820000001_remove_multi_factor_authentication.js": "3791a860988db78993a1abe28063c222f77fe908e9853c9118548993e58e3471",
+  "20260820000002_grant_inventory_manager_all_data_scope.js": "ea81aa216af6d789c5fcae9ea132f78e02dd7259a9f87fdfff85abc5f07629c2",
+  "20260820000003_disable_row_level_data_scopes.js": "b39f301a9f59e7cfaef62ca9b0fdf775d14c8b4b827af9b083889a52e5ddf2ce",
+  "20260822000001_align_component_warehouse_inbound_outbound_access.js": "f7be6765bebc9b73e7914114fcdb1e22eba0c84d4772abb2e70a052c933fc7cb",
+  "20260822000002_align_outsourced_processing_labels.js": "446b6de5127f688183a6db405979fbe1f2ad695f681d8de45afc503bd18ade1e"
 }

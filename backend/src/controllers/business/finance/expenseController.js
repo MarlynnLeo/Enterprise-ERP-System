@@ -149,7 +149,7 @@ const expenseController = {
       if (req.query.startDate) filters.startDate = req.query.startDate;
       if (req.query.endDate) filters.endDate = req.query.endDate;
       if (req.query.keyword) filters.keyword = req.query.keyword;
-      // 行级 DataScope（忽略查询串 created_by，避免 IDOR 越权窥探）
+      // 忽略查询串 created_by；创建人是审计字段，不是查询授权条件。
       filters.scopeClause = await ScopeGuard.applyListScope(req, 'expense', {
         tableAlias: 'e',
         ownerAlias: 'expense_owner_scope',

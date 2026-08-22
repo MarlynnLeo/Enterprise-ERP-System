@@ -184,6 +184,14 @@ const unwrapResponse = (response) => {
 // api / fastApi 共享刷新态，避免双实例并发双刷 refresh 导致误登出
 let sharedIsRefreshing = false;
 let sharedFailedQueue = [];
+// 防止多个 401 同时 hard-redirect，把低端机浏览器卡死
+let authRedirectScheduled = false;
+let sharedRefreshPromise = null;
+
+const REFRESH_LOCK_KEY = 'erp_auth_refresh_lock';
+const REFRESH_LOCK_TTL_MS = 12000;
+const REFRESH_WAIT_POLL_MS = 80;
+const REFRESH_WAIT_MAX_MS = 10000;
 
 const processRefreshQueue = (error) => {
     sharedFailedQueue.forEach((prom) => {
@@ -194,6 +202,133 @@ const processRefreshQueue = (error) => {
         }
     });
     sharedFailedQueue = [];
+};
+
+const redirectToLoginOnce = () => {
+    if (typeof window === 'undefined') return;
+    if (window.location.pathname.includes('/login')) return;
+    if (authRedirectScheduled) return;
+    authRedirectScheduled = true;
+    // Soft navigate first; hard replace only as fallback after paint.
+    try {
+        window.location.replace('/login');
+    } catch {
+        window.location.href = '/login';
+    }
+};
+
+const readRefreshLock = () => {
+    if (typeof window === 'undefined') return null;
+    try {
+        const raw = localStorage.getItem(REFRESH_LOCK_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        if (!parsed?.owner || !parsed?.expiresAt) return null;
+        if (Number(parsed.expiresAt) <= Date.now()) {
+            localStorage.removeItem(REFRESH_LOCK_KEY);
+            return null;
+        }
+        return parsed;
+    } catch {
+        return null;
+    }
+};
+
+const tryAcquireRefreshLock = () => {
+    if (typeof window === 'undefined') return true;
+    const owner = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    try {
+        const existing = readRefreshLock();
+        if (existing) return false;
+        const payload = JSON.stringify({
+            owner,
+            expiresAt: Date.now() + REFRESH_LOCK_TTL_MS,
+        });
+        localStorage.setItem(REFRESH_LOCK_KEY, payload);
+        const confirmed = readRefreshLock();
+        return Boolean(confirmed && confirmed.owner === owner);
+    } catch {
+        // private mode / blocked storage — fall back to in-tab single flight only
+        return true;
+    }
+};
+
+const releaseRefreshLock = () => {
+    if (typeof window === 'undefined') return;
+    try {
+        localStorage.removeItem(REFRESH_LOCK_KEY);
+    } catch {
+        // ignore
+    }
+};
+
+const waitForCrossTabRefresh = async () => {
+    const started = Date.now();
+    while (Date.now() - started < REFRESH_WAIT_MAX_MS) {
+        const lock = readRefreshLock();
+        if (!lock) return true;
+        await new Promise((resolve) => setTimeout(resolve, REFRESH_WAIT_POLL_MS));
+    }
+    // Stale lock — clear and let caller try
+    releaseRefreshLock();
+    return false;
+};
+
+/**
+ * Single-flight refresh across tabs. Concurrent tabs either wait for the
+ * lock holder or perform one refresh themselves.
+ */
+const refreshSessionOnce = async () => {
+    if (sharedRefreshPromise) return sharedRefreshPromise;
+
+    sharedRefreshPromise = (async () => {
+        // Another tab may already be refreshing.
+        if (!tryAcquireRefreshLock()) {
+            await waitForCrossTabRefresh();
+            // Winner should have rotated cookies; caller retries original request.
+            return;
+        }
+
+        try {
+            let lastError = null;
+            for (let attempt = 0; attempt < 2; attempt += 1) {
+                try {
+                    await api.post('/auth/refresh', {}, {
+                        skipAuthRedirect: true,
+                        // Avoid the response interceptor re-entering refresh on 401.
+                        _retry: true,
+                    });
+                    resetCsrfToken();
+                    return;
+                } catch (error) {
+                    lastError = error;
+                    const code =
+                        error?.response?.data?.errorCode ||
+                        error?.response?.data?.code ||
+                        error?.code;
+                    const status = error?.response?.status;
+                    // Concurrent rotation race — brief wait then one retry.
+                    if (
+                        attempt === 0 &&
+                        (status === 409 || code === 'REFRESH_TOKEN_BUSY')
+                    ) {
+                        await new Promise((resolve) => setTimeout(resolve, 250));
+                        continue;
+                    }
+                    throw error;
+                }
+            }
+            throw lastError || new Error('refresh failed');
+        } finally {
+            releaseRefreshLock();
+        }
+    })();
+
+    try {
+        await sharedRefreshPromise;
+    } finally {
+        sharedRefreshPromise = null;
+    }
 };
 
 // 通用拦截器配置函数
@@ -260,10 +395,8 @@ const setupInterceptors = (apiInstance) => {
                 originalRequest._retry = true;
                 sharedIsRefreshing = true;
                 try {
-                    // Refresh is cookie-based; the backend rotates HttpOnly cookies.
-                    // 统一走 api 实例刷新，避免 fastApi 超时策略分裂会话
-                    await api.post('/auth/refresh');
-                    resetCsrfToken();
+                    // Cookie-based refresh with cross-tab single-flight.
+                    await refreshSessionOnce();
                     originalRequest.headers = originalRequest.headers || {};
                     delete originalRequest.headers['Authorization'];
                     delete originalRequest.headers.authorization;
@@ -283,10 +416,10 @@ const setupInterceptors = (apiInstance) => {
                         // ignore store cleanup errors
                     }
                     // Route guards handle their own failed session probes with an
-                    // in-app redirect. Other 401 responses retain the hard fallback
-                    // so an expired mounted session cannot remain on a protected page.
-                    if (!originalRequest.skipAuthRedirect && !window.location.pathname.includes('/login')) {
-                        window.location.replace('/login');
+                    // in-app redirect. Other 401 responses retain a single hard
+                    // fallback so we never stack dozens of location.replace calls.
+                    if (!originalRequest.skipAuthRedirect) {
+                        redirectToLoginOnce();
                     }
                     return Promise.reject(refreshError);
                 } finally {

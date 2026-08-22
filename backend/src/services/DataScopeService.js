@@ -4,15 +4,15 @@
  * DATA_SCOPE:
  *   1 ALL | 2 DEPT_AND_CHILDREN | 3 DEPT | 4 SELF | 5 CUSTOM
  *
- * 安全约定（根源修复）：
+ * 安全约定：
  * - 未解析到 scope 时不得按 ALL 放行
  * - 列表与单记录使用同一套 owner/location 规则
  * - operator 等字符串字段不参与授权
+ * - 首屏并发用短 TTL 缓存 + in-flight 合并，避免重复查库
  */
 
 const { pool } = require('../config/db');
 const { logger } = require('../utils/logger');
-const { isSuperAdminRole } = require('../authorization/superAdmin');
 
 const DATA_SCOPE = {
   ALL: 1,
@@ -22,9 +22,6 @@ const DATA_SCOPE = {
   CUSTOM: 5,
 };
 
-// 首屏会并发触发多条受保护接口。用极短 TTL + in-flight 合并避免同一用户
-// 在一次页面打开过程中反复查询用户、角色和部门树；1 秒后自动重新读取，
-// 将权限变更的陈旧窗口限制在最小范围。
 const DATA_SCOPE_CACHE_TTL_MS = Math.min(
   5000,
   Math.max(0, Number.parseInt(process.env.DATA_SCOPE_CACHE_TTL_MS || '1000', 10) || 0)
@@ -122,7 +119,7 @@ class DataScopeService {
       [DATA_SCOPE.SELF, userId]
     );
 
-    if (roles.some((role) => isSuperAdminRole(role))) {
+    if (roles.some((role) => Number(role.is_super_admin || 0) === 1)) {
       return {
         type: DATA_SCOPE.ALL,
         userId,
@@ -257,10 +254,10 @@ class DataScopeService {
    * 构建列表 SQL 作用域
    * options:
    *  - tableAlias, ownerColumn, ownerAlias, departmentColumn
-   *  - locationColumn + includeLocation：CUSTOM 时叠加库位过滤
+   *  - locationColumn/locationColumns + includeLocation：CUSTOM 时叠加库位过滤
+   *  - requireAllLocations：多库位字段必须全部命中授权范围
    */
   static buildOwnerScopeClause(scope, options = {}) {
-    // 无 scope → 拒绝（失败关闭）
     if (!scope) {
       return { join: '', where: ' AND 1 = 0', params: [] };
     }
@@ -276,13 +273,12 @@ class DataScopeService {
     const locationColumns = [
       ...(Array.isArray(options.locationColumns) ? options.locationColumns : []),
       ...(options.locationColumn ? [options.locationColumn] : []),
-    ].filter((column, index, values) => column && values.indexOf(column) === index);
+    ].filter((column, index, list) => column && list.indexOf(column) === index);
     const includeLocation = Boolean(options.includeLocation && locationColumns.length);
     const requireAllLocations = Boolean(options.requireAllLocations);
     const q = (identifier) => `\`${String(identifier).replace(/`/g, '``')}\``;
     const ownerExpr = `${tableAlias}.${q(ownerColumn)}`;
 
-    // SELF：仅本人
     if (Number(scope.type) === DATA_SCOPE.SELF) {
       if (!scope.userId) {
         return { join: '', where: ' AND 1 = 0', params: [] };
@@ -294,7 +290,6 @@ class DataScopeService {
       };
     }
 
-    // CUSTOM：部门 或 库位（任一命中）
     if (Number(scope.type) === DATA_SCOPE.CUSTOM) {
       const parts = [];
       const params = [];
@@ -313,35 +308,15 @@ class DataScopeService {
         params.push(...scope.departmentIds);
       }
 
-      let locationPart = '';
-      const locationParams = [];
       if (includeLocation && scope.locationIds.length > 0) {
-        locationPart = locationColumns
-          .map(
-            (column) =>
-              `${tableAlias}.${q(column)} IN (${scope.locationIds.map(() => '?').join(',')})`
-          )
-          .join(requireAllLocations ? ' AND ' : ' OR ');
-        for (let index = 0; index < locationColumns.length; index += 1) {
-          locationParams.push(...scope.locationIds);
+        const locationParts = locationColumns.map(
+          (column) =>
+            `${tableAlias}.${q(column)} IN (${scope.locationIds.map(() => '?').join(',')})`
+        );
+        parts.push(`(${locationParts.join(requireAllLocations ? ' AND ' : ' OR ')})`);
+        for (let i = 0; i < locationColumns.length; i += 1) {
+          params.push(...scope.locationIds);
         }
-      }
-
-      if (requireAllLocations) {
-        if (!locationPart) {
-          return { join: '', where: ' AND 1 = 0', params: [] };
-        }
-        const basePart = parts.length ? `(${parts.join(' OR ')}) AND ` : '';
-        return {
-          join,
-          where: ` AND (${basePart}(${locationPart}))`,
-          params: [...params, ...locationParams],
-        };
-      }
-
-      if (locationPart) {
-        parts.push(`(${locationPart})`);
-        params.push(...locationParams);
       }
 
       if (parts.length === 0) {
@@ -355,7 +330,6 @@ class DataScopeService {
       };
     }
 
-    // 部门 / 部门及下级
     if (scope.departmentIds.length > 0) {
       if (departmentColumn) {
         return {
@@ -383,7 +357,6 @@ class DataScopeService {
     const scope = await this.getRequestScope(req);
     if (this.isAllScope(scope)) return true;
 
-    // CUSTOM：必须在授权库位内
     if (Number(scope.type) === DATA_SCOPE.CUSTOM) {
       if (!scope.locationIds.length) return false;
       return scope.locationIds.includes(Number(locationId));
@@ -424,13 +397,13 @@ class DataScopeService {
   }
 
   static async assertRecordAccess(connection, req, tableName, recordId, options = {}) {
-    const normalizedRecordId = Number(recordId);
-    if (!Number.isInteger(normalizedRecordId) || normalizedRecordId <= 0) return false;
-
     const scope = await this.getRequestScope(req);
     if (this.isAllScope(scope)) {
-      return this.assertRecordExists(connection, tableName, normalizedRecordId, options);
+      return this.assertRecordExists(connection, tableName, recordId, options);
     }
+
+    const normalizedRecordId = Number(recordId);
+    if (!Number.isInteger(normalizedRecordId) || normalizedRecordId <= 0) return false;
 
     const idColumn = options.idColumn || 'id';
     const ownerColumn = options.ownerColumn || null;
@@ -438,7 +411,7 @@ class DataScopeService {
     const locationColumns = [
       ...(Array.isArray(options.locationColumns) ? options.locationColumns : []),
       ...(options.locationColumn ? [options.locationColumn] : []),
-    ].filter((column, index, values) => column && values.indexOf(column) === index);
+    ].filter((column, index, list) => column && list.indexOf(column) === index);
     const requireAllLocations = Boolean(options.requireAllLocations);
     const deletedAtColumn =
       options.deletedAtColumn === false
@@ -446,8 +419,8 @@ class DataScopeService {
         : options.deletedAtColumn || 'deleted_at';
     const extraSoftDelete = options.extraSoftDelete || null;
 
-    if (Number(scope.type) === DATA_SCOPE.SELF && !ownerColumn) {
-      return false;
+    if (Number(scope.type) === DATA_SCOPE.SELF) {
+      if (!ownerColumn || !scope.userId) return false;
     }
 
     if (!ownerColumn && locationColumns.length === 0) {
@@ -493,43 +466,28 @@ class DataScopeService {
       return Number(row.owner_id) === Number(scope.userId);
     }
 
-    // CUSTOM：默认部门或库位任一命中；对于调拨等双端资源，可声明
-    // requireAllLocations，要求所有相关库位都在授权集合内。
     if (Number(scope.type) === DATA_SCOPE.CUSTOM) {
-      let organizationMatched = false;
-      let hasOrganizationConstraint = false;
       if (
         departmentColumn &&
         scope.departmentIds.length > 0 &&
         scope.departmentIds.includes(Number(row.resource_department_id))
       ) {
-        organizationMatched = true;
+        return true;
       }
-      if (departmentColumn && scope.departmentIds.length > 0) hasOrganizationConstraint = true;
       if (
         ownerColumn &&
         scope.departmentIds.length > 0 &&
         scope.departmentIds.includes(Number(row.owner_department_id))
       ) {
-        organizationMatched = true;
+        return true;
       }
-      if (ownerColumn && scope.departmentIds.length > 0) hasOrganizationConstraint = true;
-
-      const locationMatched =
-        locationColumns.length > 0 &&
-        scope.locationIds.length > 0 &&
-        (requireAllLocations
-          ? locationColumns.every((_, index) =>
-              scope.locationIds.includes(Number(row[`location_id_${index}`]))
-            )
-          : locationColumns.some((_, index) =>
-              scope.locationIds.includes(Number(row[`location_id_${index}`]))
-            ));
-
-      if (requireAllLocations) {
-        return locationMatched && (!hasOrganizationConstraint || organizationMatched);
+      if (locationColumns.length > 0 && scope.locationIds.length > 0) {
+        const matches = locationColumns.map((_, index) =>
+          scope.locationIds.includes(Number(row[`location_id_${index}`]))
+        );
+        if (requireAllLocations ? matches.every(Boolean) : matches.some(Boolean)) return true;
       }
-      return organizationMatched || locationMatched;
+      return false;
     }
 
     if (departmentColumn && scope.departmentIds.length > 0) {
@@ -545,16 +503,10 @@ class DataScopeService {
     }
 
     if (locationColumns.length > 0 && scope.locationIds.length > 0) {
-      const matches = requireAllLocations
-        ? locationColumns.every((_, index) =>
-            scope.locationIds.includes(Number(row[`location_id_${index}`]))
-          )
-        : locationColumns.some((_, index) =>
-            scope.locationIds.includes(Number(row[`location_id_${index}`]))
-          );
-      if (matches) {
-        return true;
-      }
+      const matches = locationColumns.map((_, index) =>
+        scope.locationIds.includes(Number(row[`location_id_${index}`]))
+      );
+      if (requireAllLocations ? matches.every(Boolean) : matches.some(Boolean)) return true;
     }
 
     return false;

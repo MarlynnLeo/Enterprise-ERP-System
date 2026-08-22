@@ -13,10 +13,6 @@ const SELF_SERVICE_ROUTES = new Set([
   'auth.js GET /menus',
   'auth.js PUT /users/avatar',
   'auth.js PUT /change-password',
-  'auth.js POST /mfa/setup',
-  'auth.js POST /mfa/confirm',
-  'auth.js POST /mfa/disable',
-  'auth.js POST /mfa/recovery-codes/regenerate',
   'auth.js POST /profile/avatar-frame',
   'auth.js GET /theme',
   'auth.js POST /theme',
@@ -56,11 +52,6 @@ const SELF_SERVICE_ROUTES = new Set([
 
 const PUBLIC_ROUTES = new Set([
   'auth.js POST /login',
-  // Password-authenticated MFA challenges intentionally remain unauthenticated
-  // until the second factor succeeds.  They are still protected by the
-  // /api/auth/mfa rate limiter and strict challenge validation in the service.
-  'auth.js POST /mfa/verify',
-  'auth.js POST /mfa/enroll',
   'health.js GET /ping',
   'health.js GET /ready',
   'health.js GET /live',
@@ -118,6 +109,50 @@ function findMatchingParen(text, openIndex) {
     }
   }
   return -1;
+}
+
+function findMatchingBrace(text, openIndex) {
+  let depth = 0;
+  let quote = null;
+  let escaped = false;
+  for (let index = openIndex; index < text.length; index += 1) {
+    const char = text[index];
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (char === '\\') escaped = true;
+      else if (char === quote) quote = null;
+      continue;
+    }
+    if (char === '\'' || char === '"' || char === '`') {
+      quote = char;
+    } else if (char === '{') {
+      depth += 1;
+    } else if (char === '}') {
+      depth -= 1;
+      if (depth === 0) return index;
+    }
+  }
+  return -1;
+}
+
+function extractMethodBody(text, methodName) {
+  const escapedName = methodName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const methodPattern = new RegExp(
+    `^\\s*(?:static\\s+)?(?:async\\s+)?${escapedName}\\s*\\(`,
+    'm'
+  );
+  const match = methodPattern.exec(text);
+  if (!match) return null;
+
+  const openParen = text.indexOf('(', match.index);
+  const closeParen = findMatchingParen(text, openParen);
+  if (closeParen < 0) return null;
+
+  const openBrace = text.indexOf('{', closeParen);
+  if (openBrace < 0) return null;
+  const closeBrace = findMatchingBrace(text, openBrace);
+  if (closeBrace < 0) return null;
+  return text.slice(openBrace + 1, closeBrace);
 }
 
 function collectRouteDeclarations(text) {
@@ -232,8 +267,123 @@ function auditRoutes() {
   return { missingAuth, missingPermission, permissions: [...permissions].sort() };
 }
 
-function auditStaticGuards() {
+function auditRowLevelDataScopeGuards(sourceOverrides = {}) {
   const findings = [];
+  const scopeGuard = sourceOverrides.scopeGuard ?? fs.readFileSync(
+    path.join(srcRoot, 'authorization/ScopeGuard.js'),
+    'utf8'
+  );
+  const dataScopeService = sourceOverrides.dataScopeService ?? fs.readFileSync(
+    path.join(srcRoot, 'services/DataScopeService.js'),
+    'utf8'
+  );
+  const workflowInstances = sourceOverrides.workflowInstances ?? fs.readFileSync(
+    path.join(srcRoot, 'services/business/workflow/instanceMethods.js'),
+    'utf8'
+  );
+  const technicalCommunicationRoutes = sourceOverrides.technicalCommunicationRoutes
+    ?? fs.readFileSync(path.join(srcRoot, 'routes/system/technicalCommunicationRoutes.js'), 'utf8');
+  const technicalCommunicationController = sourceOverrides.technicalCommunicationController
+    ?? fs.readFileSync(
+      path.join(srcRoot, 'controllers/system/technicalCommunicationController.js'),
+      'utf8'
+    );
+
+  const applyListScope = extractMethodBody(scopeGuard, 'applyListScope');
+  if (!applyListScope) {
+    findings.push('ScopeGuard.applyListScope is missing from the row-level authorization SSOT');
+  } else if (!/buildRequestOwnerScopeClause|isFinanceSharedAll|isSharedRead/.test(applyListScope)) {
+    findings.push('ScopeGuard.applyListScope must apply DataScope owner clauses (with finance/shared-read exceptions)');
+  }
+
+  const assertAccess = extractMethodBody(scopeGuard, 'assertAccess');
+  if (!assertAccess) {
+    findings.push('ScopeGuard.assertAccess is missing from the row-level authorization SSOT');
+  } else if (!/assertRecordAccess/.test(assertAccess)) {
+    findings.push('ScopeGuard.assertAccess must delegate to DataScopeService.assertRecordAccess');
+  } else if (!/isFinanceSharedAll|isSharedRead/.test(assertAccess)) {
+    findings.push('ScopeGuard.assertAccess must honour finance-shared and shared-read policies');
+  }
+
+  if (!/assertAllAccess/.test(scopeGuard)) {
+    findings.push('ScopeGuard must expose assertAllAccess for batch mutations');
+  }
+
+  const loadUserDataScope = extractMethodBody(dataScopeService, 'loadUserDataScope');
+  if (!loadUserDataScope) {
+    findings.push('DataScopeService.loadUserDataScope is missing');
+  } else if (
+    !/\bdata_scope\b/.test(loadUserDataScope)
+    || !/\buser_roles\b/.test(loadUserDataScope)
+  ) {
+    findings.push('DataScopeService must derive visibility from role data_scope / user_roles');
+  } else if (!/is_super_admin/.test(loadUserDataScope)) {
+    findings.push('DataScopeService must grant ALL to super-admin roles');
+  }
+
+  const isAllScope = extractMethodBody(dataScopeService, 'isAllScope');
+  if (
+    !isAllScope
+    || !/DATA_SCOPE\.ALL/.test(isAllScope)
+    || !/scope\.type/.test(isAllScope)
+  ) {
+    findings.push('DataScopeService.isAllScope must only treat explicit DATA_SCOPE.ALL as unrestricted');
+  }
+
+  // Check the full source (not extractMethodBody): template-literal `${...}` braces
+  // truncate brace-matching mid-method and would false-fail row-level checks.
+  if (!/static buildOwnerScopeClause\s*\(/.test(dataScopeService)) {
+    findings.push('DataScopeService.buildOwnerScopeClause is missing');
+  } else if (
+    !/DATA_SCOPE\.SELF/.test(dataScopeService)
+    || !/departmentIds/.test(dataScopeService)
+    || !/(ownerColumn|created_by)/.test(dataScopeService)
+    || !/locationIds/.test(dataScopeService)
+  ) {
+    findings.push('DataScopeService.buildOwnerScopeClause must emit owner/department/location filters');
+  }
+
+  if (!/assertRecordExists/.test(dataScopeService)) {
+    findings.push('DataScopeService must expose assertRecordExists for existence-only checks');
+  }
+
+  const canAccessInstance = extractMethodBody(workflowInstances, 'canAccessInstance');
+  if (
+    !canAccessInstance
+    || !/WHERE\s+wi\.id\s*=\s*\?/i.test(canAccessInstance)
+    || !/wi\.deleted_at\s+IS\s+NULL/i.test(canAccessInstance)
+  ) {
+    findings.push('workflow instance visibility must be based on authenticated access and record existence');
+  } else if (
+    /initiator_id\s*=\s*\?|approver_id\s*=\s*\?|workflow_node_approvers|\[\s*instanceId\s*,\s*userId/i.test(
+      canAccessInstance
+    )
+  ) {
+    findings.push('workflow instance details must not be limited to the initiator or assigned approver');
+  }
+
+  const deleteCommentRoute = collectRouteDeclarations(technicalCommunicationRoutes).find(
+    (declaration) => declaration.method === 'DELETE' && declaration.path === '/comments/:commentId'
+  );
+  if (
+    !deleteCommentRoute
+    || !/requirePermission\(\s*['"]system:tech-comm:delete['"]\s*\)/.test(deleteCommentRoute.text)
+  ) {
+    findings.push('technical communication comment deletion must require system:tech-comm:delete');
+  }
+
+  const deleteComment = extractMethodBody(technicalCommunicationController, 'deleteComment');
+  if (!deleteComment) {
+    findings.push('technical communication deleteComment controller is missing');
+  } else if (/req\.user|\buser_id\b|\bauthor_id\b/.test(deleteComment)) {
+    findings.push('technical communication comments must not be deletable only by their creator');
+  }
+
+  return findings;
+}
+
+function auditStaticGuards() {
+  const findings = auditRowLevelDataScopeGuards();
   const inventoryBatch = fs.readFileSync(
     path.join(srcRoot, 'controllers/business/inventory/inventoryBatchController.js'),
     'utf8'
@@ -249,11 +399,11 @@ function auditStaticGuards() {
   const restoreScript = fs.readFileSync(path.join(backendRoot, 'scripts/restore-backup.js'), 'utf8');
   const composeFile = fs.readFileSync(path.resolve(backendRoot, '..', 'docker-compose.yml'), 'utf8');
 
-  if (!/DataScopeService/.test(inventoryBatch) || !/scopeLocationFilter/.test(inventoryBatch)) {
-    findings.push('inventory batch queries do not enforce DataScopeService location scope');
+  if (/scopeLocationFilter|scopedLocationIds|DataScopeService|DATA_SCOPE|CUSTOM/.test(inventoryBatch)) {
+    findings.push('inventory batch queries still contain a legacy location-level data scope filter');
   }
-  if (!/DataScopeService/.test(inventoryStock)) {
-    findings.push('inventory stock queries do not use DataScopeService');
+  if (/DataScopeService|scopedLocationIds|DATA_SCOPE/.test(inventoryStock)) {
+    findings.push('inventory stock queries still contain a legacy row-level data scope guard');
   }
   if (!/res\.on\(\s*['"]finish['"]/.test(auditInterceptor)) {
     findings.push('audit interceptor must write after response finish');
@@ -345,6 +495,7 @@ if (require.main === module) {
 
 module.exports = {
   auditRoutes,
+  auditRowLevelDataScopeGuards,
   auditStaticGuards,
   collectRouteDeclarations,
 };

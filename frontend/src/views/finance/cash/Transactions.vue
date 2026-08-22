@@ -490,6 +490,7 @@
   </div>
 </template>
 <script setup>
+import { getCommonStatusText } from '@/constants/systemConstants'
 import { handleTableRowView } from '@/utils/tableRowView'
 import { formatLocalDate } from '@/utils/format';
 import { parsePaginatedData, parseListData, parseDataObject } from '@/utils/responseParser';
@@ -618,14 +619,7 @@ const formatCurrency = (value) => {
   return num.toLocaleString('zh-CN', { style: 'currency', currency: 'CNY' });
 };
 // 获取交易类型文本
-const getTransactionTypeText = (type) => {
-  const typeMap = {
-    income: '收入',
-    expense: '支出',
-    transfer: '转账'
-  };
-  return typeMap[type] || type;
-};
+const getTransactionTypeText = (type) => getCommonStatusText(type) || type;
 // 获取分类显示文本
 const getCategoryDisplayText = (category) => {
   const categoryMap = {

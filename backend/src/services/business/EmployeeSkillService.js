@@ -4,32 +4,14 @@
  */
 
 const { pool } = require('../../config/db');
-const DataScopeService = require('../DataScopeService');
 
-async function buildEmployeeScopeClause(req, alias = 'u') {
-  if (!req) return { sql: '', params: [] };
-  const scope = await DataScopeService.getRequestScope(req);
-  if (DataScopeService.isAllScope(scope)) return { sql: '', params: [] };
-  if (Number(scope.type) === DataScopeService.DATA_SCOPE.SELF) {
-    return scope.userId
-      ? { sql: ` AND ${alias}.id = ?`, params: [scope.userId] }
-      : { sql: ' AND 1 = 0', params: [] };
-  }
-  const departmentIds = (scope.departmentIds || []).map(Number).filter(Number.isInteger);
-  if (!departmentIds.length) return { sql: ' AND 1 = 0', params: [] };
-  return {
-    sql: ` AND ${alias}.department_id IN (${departmentIds.map(() => '?').join(',')})`,
-    params: departmentIds,
-  };
+async function buildEmployeeScopeClause() {
+  return { sql: '', params: [] };
 }
 
-async function assertEmployeeAccess(req, employeeId) {
+async function assertEmployeeAccess(_req, employeeId) {
   const [[employee]] = await pool.query('SELECT id, department_id FROM users WHERE id = ? AND status = 1', [employeeId]);
-  if (!employee) return false;
-  const scope = await DataScopeService.getRequestScope(req);
-  if (DataScopeService.isAllScope(scope)) return true;
-  if (Number(scope.type) === DataScopeService.DATA_SCOPE.SELF) return Number(employee.id) === Number(scope.userId);
-  return (scope.departmentIds || []).map(Number).includes(Number(employee.department_id));
+  return Boolean(employee);
 }
 
 class EmployeeSkillService {
